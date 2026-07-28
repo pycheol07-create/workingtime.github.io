@@ -324,6 +324,114 @@ function renderRawTable(data, mount, dateIdx) {
     mount.innerHTML = html;
 }
 
+// ───────── 질문형 조회 (규칙기반, 오프라인) ─────────
+const PERIOD_KEYWORDS = [
+    [/오늘|금일/, 'day:0'], [/어제|전일/, 'day:-1'], [/내일|익일/, 'day:1'],
+    [/이번\s*주|금주|이주(?!일)/, 'week:0'], [/지난\s*주|저번\s*주|전주/, 'week:-1'], [/다음\s*주|차주|담주/, 'week:1'],
+    [/이번\s*달|이달|금월|당월/, 'month:0'], [/지난\s*달|저번\s*달|전월/, 'month:-1'], [/다음\s*달|익월/, 'month:1'],
+    [/올해|금년|당해/, 'year:0'], [/작년|전년/, 'year:-1'], [/내년|익년/, 'year:1'],
+];
+const detectPeriod = (q) => { for (const [re, p] of PERIOD_KEYWORDS) if (re.test(q)) return p; return 'month:0'; };
+
+// 오더/결제 장부 시트에 대한 답변 (날짜×지표 집계)
+function buildQnaAnswer(cfg, data, q) {
+    const question = String(q || '').trim();
+    const idx = detectOrderCols(data.headers);
+    const period = detectPeriod(question);
+    const range = resolvePeriodRange(period, getTodayStr());
+    const inPeriod = (d) => inDateRange(d, range.from, range.to);
+    const rangeStr = range.from === range.to ? range.from : `${range.from} ~ ${range.to || ''}`;
+    const pLabel = periodLabelOf(period) || '';
+
+    if (idx) {
+        const cols = [];
+        const has = (re) => re.test(question);
+        if (has(/송금|결제|입금|지급/) && idx.pay != null) cols.push({ key: 'pay', ci: idx.pay, label: '송금(결제)' });
+        if (has(/리오더/) && idx.reorder != null) cols.push({ key: 'reorder', ci: idx.reorder, label: '오더(리오더)' });
+        if (has(/신상/) && idx.newp != null) cols.push({ key: 'newp', ci: idx.newp, label: '오더(신상)' });
+        if (has(/오더|발주|주문/) && !cols.some(c => c.key === 'reorder' || c.key === 'newp')) {
+            if (idx.reorder != null) cols.push({ key: 'reorder', ci: idx.reorder, label: '오더(리오더)' });
+            if (idx.newp != null) cols.push({ key: 'newp', ci: idx.newp, label: '오더(신상)' });
+        }
+        if (has(/출고/) && !has(/미출고/) && idx.ship != null) cols.push({ key: 'ship', ci: idx.ship, label: '출고예정' });
+        if (has(/미출고/) && idx.unship != null) cols.push({ key: 'unship', ci: idx.unship, label: '미출고 잔액' });
+        if (has(/패킹/) && idx.pack != null) cols.push({ key: 'pack', ci: idx.pack, label: '패킹 잔액' });
+        if (cols.length === 0) {
+            if (idx.pay != null) cols.push({ key: 'pay', ci: idx.pay, label: '송금(결제)' });
+            else if (idx.reorder != null) cols.push({ key: 'reorder', ci: idx.reorder, label: '오더(리오더)' });
+        }
+
+        const dOf = (r) => String(r[idx.date] == null ? '' : r[idx.date]).slice(0, 10);
+        const byDate = new Map();
+        (data.rows || []).forEach(r => {
+            const d = dOf(r);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !inPeriod(r[idx.date])) return;
+            const o = byDate.get(d) || {};
+            cols.forEach(c => { o[c.key] = (o[c.key] || 0) + (parseNum(r[c.ci]) || 0); });
+            byDate.set(d, o);
+        });
+        const dates = [...byDate.keys()].sort();
+        const totals = {};
+        cols.forEach(c => totals[c.key] = dates.reduce((s, d) => s + (byDate.get(d)[c.key] || 0), 0));
+        const metricLabel = cols.map(c => c.label).join(', ');
+        const headline = `<div class="text-xs font-bold text-slate-500">📌 ${esc(pLabel)}${rangeStr ? ` (${esc(rangeStr)})` : ''} · ${esc(metricLabel)}</div>`;
+
+        if (dates.length === 0) {
+            return `<div class="p-3">${headline}<div class="text-slate-400 text-sm mt-2">해당 기간에 데이터가 없습니다.</div></div>`;
+        }
+        const totalStr = cols.map(c => `<span class="inline-block mr-3"><span class="text-slate-500">${esc(c.label)}</span> <b class="text-emerald-700">${fmtMoney(totals[c.key])}</b>${usdKrw ? ` <span class="text-slate-400 text-xs">${fmtKrw(totals[c.key] * usdKrw)}</span>` : ''}</span>`).join('');
+        const th = `<th class="px-2 py-1.5 text-left">날짜</th>` + cols.map(c => `<th class="px-2 py-1.5 text-right">${esc(c.label)}</th>`).join('');
+        const trs = dates.map(d => {
+            const o = byDate.get(d);
+            return `<tr><td class="font-bold text-slate-700 whitespace-nowrap">${esc(d)}</td>` +
+                cols.map(c => `<td class="num">${o[c.key] ? fmtMoney(o[c.key]) : '<span class="text-slate-300">-</span>'}</td>`).join('') + `</tr>`;
+        }).join('');
+        return `<div class="p-3 space-y-2">
+            ${headline}
+            <div class="text-base font-extrabold">${totalStr}</div>
+            <div class="overflow-auto border border-slate-200 rounded-lg" style="max-height:40vh;">
+                <table class="data-table"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>
+            </div>
+        </div>`;
+    }
+
+    // 일반 시트: 날짜 컬럼 + 질문에 등장한 숫자 컬럼(헤더 일부 일치)로 기간 집계
+    const headers = data.headers || [], rows = data.rows || [];
+    const dateCi = headers.findIndex(h => /일자|날짜|date/i.test(norm(h)));
+    const isNum = numericColumns(headers, rows);
+    const matchedNumCols = headers.map((h, i) => ({ h, i }))
+        .filter(({ h, i }) => isNum[i] && h && question.replace(/\s/g, '').includes(norm(h)));
+    const useCols = matchedNumCols.length ? matchedNumCols : headers.map((h, i) => ({ h, i })).filter(({ i }) => isNum[i]);
+
+    const inP = (r) => dateCi < 0 ? true : inDateRange(String(r[dateCi] == null ? '' : r[dateCi]).slice(0, 10), range.from, range.to);
+    const filtered = rows.filter(inP);
+    const headline = `<div class="text-xs font-bold text-slate-500">📌 ${esc(pLabel)}${rangeStr ? ` (${esc(rangeStr)})` : ''}${dateCi < 0 ? ' · (날짜 컬럼 없음 — 전체 기준)' : ''}</div>`;
+    if (useCols.length === 0) {
+        return `<div class="p-3">${headline}<div class="text-slate-400 text-sm mt-2">합계를 낼 숫자 컬럼을 찾지 못했습니다. 질문에 컬럼명을 포함해 보세요.</div></div>`;
+    }
+    const chips = useCols.map(({ h, i }) => {
+        const sum = filtered.reduce((a, r) => a + (parseNum(r[i]) || 0), 0);
+        return `<span class="text-sm px-2.5 py-1 rounded-full bg-amber-50 text-amber-800">${esc(h)} 합계 <b>${sum.toLocaleString()}</b></span>`;
+    }).join(' ');
+    return `<div class="p-3 space-y-2">${headline}<div class="flex flex-wrap gap-2">${chips}</div><div class="text-[11px] text-slate-400">해당 기간 ${filtered.length.toLocaleString()}행 기준</div></div>`;
+}
+
+function handleQna(localId) {
+    const input = $('qna-input-' + localId);
+    const out = $('qna-answer-' + localId);
+    const cfg = config.sheets.find(s => s.localId === localId);
+    const data = cardData[localId];
+    if (!input || !out || !cfg || !data) return;
+    const q = input.value.trim();
+    if (!q) { out.classList.add('hidden'); out.innerHTML = ''; return; }
+    try {
+        out.innerHTML = buildQnaAnswer(cfg, data, q);
+    } catch (e) {
+        out.innerHTML = `<div class="p-3 text-red-500 text-sm">조회 중 오류: ${esc(e.message)}</div>`;
+    }
+    out.classList.remove('hidden');
+}
+
 // ───────── 렌더 ─────────
 function renderAll() {
     const container = $('sheets-container');
@@ -338,14 +446,22 @@ function renderAll() {
                 <div class="font-bold text-slate-800 flex items-center gap-2">📄 ${esc(cfg.name || '시트')}
                     <span id="cnt-${cfg.localId}" class="text-[11px] font-bold text-slate-400"></span>
                 </div>
-                <div class="flex items-center gap-1.5">
-                    <input id="search-${cfg.localId}" type="text" placeholder="검색…" class="text-xs px-2 py-1.5 border border-slate-200 rounded-md w-32 focus:w-44 transition-all">
+                <div class="flex items-center gap-1.5 flex-wrap justify-end">
+                    <input id="search-${cfg.localId}" type="text" placeholder="검색…" class="text-xs px-2 py-1.5 border border-slate-200 rounded-md w-28 sm:w-32 focus:w-40 sm:focus:w-44 transition-all">
                     <button data-cols="${cfg.localId}" class="text-xs px-2 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600" title="컬럼 선택">🧩 컬럼</button>
                     <button data-edit="${cfg.localId}" class="text-xs px-2 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600" title="편집">✏️</button>
                     <button data-refresh="${cfg.localId}" class="text-xs px-2 py-1.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700" title="새로고침">🔄</button>
                 </div>
             </div>
             <div id="summary-${cfg.localId}" class="px-4 py-2.5 flex flex-wrap gap-2 border-b border-slate-50 bg-slate-50/50"></div>
+            <div class="px-4 py-2.5 border-b border-slate-100 bg-indigo-50/40">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[11px] font-bold text-indigo-600 shrink-0">💬 질문</span>
+                    <input id="qna-input-${cfg.localId}" data-qna-input="${cfg.localId}" type="text" placeholder="예: 이번주 예정 송금 일정과 금액은?" class="flex-1 min-w-[180px] text-xs px-2.5 py-1.5 border border-indigo-200 rounded-md focus:border-indigo-400 outline-none">
+                    <button data-qna="${cfg.localId}" class="text-xs font-bold px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shrink-0">조회</button>
+                </div>
+                <div id="qna-answer-${cfg.localId}" class="hidden mt-2 bg-white border border-indigo-200 rounded-lg overflow-hidden"></div>
+            </div>
             <div id="body-${cfg.localId}" class="overflow-auto" style="max-height:60vh;">
                 <div class="p-6 text-center text-slate-400 text-sm">불러오는 중…</div>
             </div>`;
@@ -416,9 +532,17 @@ function renderTableAndSummary(cfg, data) {
 // ───────── 이벤트 ─────────
 $('sheets-container').addEventListener('click', (e) => {
     const c = e.target.closest('[data-cols]'); const ed = e.target.closest('[data-edit]'); const rf = e.target.closest('[data-refresh]');
-    if (c) openColsModal(c.dataset.cols);
+    const qa = e.target.closest('[data-qna]');
+    if (qa) handleQna(qa.dataset.qna);
+    else if (c) openColsModal(c.dataset.cols);
     else if (ed) openSheetModal(ed.dataset.edit);
     else if (rf) { const id = rf.dataset.refresh; const cfg = config.sheets.find(s => s.localId === id); if (cfg) loadCard(cfg, true); }
+});
+// 질문 입력에서 Enter → 조회
+$('sheets-container').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const qi = e.target.closest('[data-qna-input]');
+    if (qi) { e.preventDefault(); handleQna(qi.dataset.qnaInput); }
 });
 $('sheets-container').addEventListener('input', (e) => {
     const s = e.target.closest('[id^="search-"]');
