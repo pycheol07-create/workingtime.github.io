@@ -1,5 +1,5 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString } from './utils.js';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js';
 import * as State from './state.js';
 import { getLeaveDisplayLabel } from './ui-main-utils.js';
 
@@ -483,6 +483,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         groupGrid.className = 'flex flex-wrap gap-2.5';
         
         [...new Set(group.members)].forEach(member => {
+            if (!isMemberActiveOn(member, null, State.appConfig)) return; // 🚪 퇴사자(오늘 기준 비활성) 제외
             const card = document.createElement('button');
             const leaveInfo = onLeaveStatusMap.get(member);
             const isOnLeave = !!leaveInfo;

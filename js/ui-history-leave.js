@@ -1,6 +1,6 @@
 // === js/ui-history-leave.js ===
 import * as State from './state.js';
-import { showToast } from './utils.js';
+import { showToast, isMemberActiveOn } from './utils.js';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ 엑셀 변환 함수 불러오기
@@ -447,7 +447,8 @@ async function fetchAllMembers() {
     if (State.appConfig.teamGroups) {
         State.appConfig.teamGroups.forEach(group => {
             if (group.members && Array.isArray(group.members)) {
-                group.members.forEach(m => memberSet.add(m));
+                // 🚪 퇴사자(오늘 기준 비활성)는 연차 배정 명단에서 제외 (과거 연차 이력은 별도 보존)
+                group.members.forEach(m => { if (isMemberActiveOn(m, null, State.appConfig)) memberSet.add(m); });
             }
         });
     }

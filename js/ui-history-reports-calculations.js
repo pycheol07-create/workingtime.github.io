@@ -39,7 +39,7 @@ export const calculateReportKPIs = (data, appConfig, wageMap) => {
     const overallAvgCostPerItem = totalQuantity > 0 ? (totalCost / totalQuantity) : 0;
     const coqPercentage = (totalCost > 0) ? (totalQualityCost / totalCost) * 100 : 0;
 
-    const allRegularMembers = getRegularMembersForCount(appConfig);
+    const allRegularMembers = getRegularMembersForCount(appConfig, data.id); // 해당 날짜 재직 인원(퇴사자 과거 보존)
     const systemAccounts = new Set(appConfig.systemAccounts || []);
     
     const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);

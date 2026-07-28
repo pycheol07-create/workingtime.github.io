@@ -2,7 +2,7 @@
 
 import { appState, appConfig, persistentLeaveSchedule } from './state.js';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime } from './utils.js';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -281,6 +281,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         memberList.dataset.groupName = group.name;
 
         [...new Set(group.members)].forEach(member => {
+            if (!isMemberActiveOn(member, null, appConfig)) return; // 🚪 퇴사자(오늘 기준 비활성) 제외
             const isOngoing = ongoingMembers.has(member);
             const isPaused = pausedMembers.has(member);
             const leaveEntry = onLeaveMemberMap.get(member);

@@ -9,8 +9,9 @@ export function collectConfigFromDOM(currentConfig) {
         memberEmails: {},
         memberRoles: {},
         memberMenuAccess: {}, // ✨ 신규 권한 객체
-        memberRanks: {}, 
+        memberRanks: {},
         memberLeaveSettings: {},
+        resignedMembers: {}, // 퇴사 처리(비활성): { 이름: 퇴사일 }
         systemAccounts: [], 
         dashboardItems: [],
         dashboardCustomItems: {},
@@ -70,12 +71,15 @@ export function collectConfigFromDOM(currentConfig) {
             const totalLeave = Number(memberItem.querySelector('.member-total-leave').value) || 0;
             const leaveResetDate = memberItem.querySelector('.member-leave-reset-date').value;
             const expirationDate = memberItem.querySelector('.member-leave-expiration-date').value;
+            const resignDate = memberItem.querySelector('.member-resign-date')?.value || '';
 
             if (!memberName) return;
 
             newGroup.members.push(memberName);
             newConfig.memberWages[memberName] = memberWage;
-            newConfig.memberRanks[memberName] = memberRank; 
+            newConfig.memberRanks[memberName] = memberRank;
+            // 퇴사일이 입력된 팀원만 퇴사 명단에 기록(데이터는 그대로 보존, 화면에서만 비활성)
+            if (resignDate) newConfig.resignedMembers[memberName] = resignDate;
 
             newConfig.memberLeaveSettings[memberName] = {
                 joinDate: joinDate,

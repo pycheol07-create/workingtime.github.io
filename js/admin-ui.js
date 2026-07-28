@@ -41,12 +41,13 @@ export function renderAdminUI(config) {
     if (workHoursInput) workHoursInput.value = config.standardMonthlyWorkHours || 209;
 
     renderTeamGroups(
-        config.teamGroups || [], 
-        config.memberWages || {}, 
-        config.memberEmails || {}, 
-        config.memberRoles || {}, 
+        config.teamGroups || [],
+        config.memberWages || {},
+        config.memberEmails || {},
+        config.memberRoles || {},
         config.memberLeaveSettings || {},
-        config.memberRanks || {} 
+        config.memberRanks || {},
+        config.resignedMembers || {}
     );
     
     renderSystemAccountsConfig(config.systemAccounts || []);
@@ -144,7 +145,7 @@ export function renderPermissionsConfig(config) {
     }
 }
 
-export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}) {
+export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}, resignedMembers = {}) {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
     container.innerHTML = '';
@@ -161,8 +162,9 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
             const settings = memberLeaveSettings[member] || {};
             const joinDate = settings.joinDate || '';
             const totalLeave = settings.totalLeave !== undefined ? settings.totalLeave : 15;
-            const leaveResetDate = settings.leaveResetDate || ''; 
+            const leaveResetDate = settings.leaveResetDate || '';
             const expirationDate = settings.expirationDate || '';
+            const resignDate = resignedMembers[member] || '';
 
             return `
             <div class="flex flex-col gap-3 mb-4 p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30 shadow-sm member-item transition-colors">
@@ -232,7 +234,15 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
                         <label class="text-[9px] text-red-500 dark:text-red-400 mb-1 font-bold">사용 만료일</label>
                         <input type="date" value="${expirationDate}" class="member-leave-expiration-date w-32 p-1.5 border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 rounded text-xs text-red-700 dark:text-red-400 outline-none">
                     </div>
+
+                    <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
+
+                    <div class="flex flex-col">
+                        <label class="text-[9px] text-gray-700 dark:text-gray-300 mb-1 font-bold">🚪 퇴사일 (비활성)</label>
+                        <input type="date" value="${resignDate}" class="member-resign-date w-32 p-1.5 border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-800 dark:text-gray-100 outline-none" title="입력하면 이 날짜 다음날부터 팀 선택·명단·집계에서 제외됩니다. 급여·과거기록은 그대로 보존되며, 비워두면 재직 상태로 복귀합니다.">
+                    </div>
                 </div>
+                ${resignDate ? `<div class="mt-1 text-[11px] font-bold text-white bg-gray-600 dark:bg-gray-500 rounded px-2 py-1 inline-block">🚪 퇴사 처리됨 · ${resignDate} 이후 비활성 (기록은 보존)</div>` : ''}
             </div>
             `;
         }).join('');

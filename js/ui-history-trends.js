@@ -38,7 +38,7 @@ function calculateDailyKPIs(dayData, appConfig) {
     // 4. KPI: 비업무시간
     let nonWorkTime = 0;
     if (isWeekday(dayData.id)) {
-        const allRegularMembers = getRegularMembersForCount(appConfig);
+        const allRegularMembers = getRegularMembersForCount(appConfig, dayData.id); // 해당 날짜 재직 인원(퇴사자 과거 보존)
         const onLeaveMemberNames = onLeaveMemberEntries.map(entry => entry.member);
         
         const activeRegularMembers = allRegularMembers.size - onLeaveMemberNames.filter(name => allRegularMembers.has(name)).length;

@@ -217,10 +217,11 @@ function getDefaultConfig() {
         // 가용인원/총원 산정 시 제외할 ID 명단 (프로그램 전용 계정 등).
         // teamGroups 안에 있어도 인원 카운트에선 빼고, 멤버 선택 UI 등에는 그대로 노출.
         headcountExcludedMembers: ['물류팀공용', '정진현 상무이사'],
+        resignedMembers: {}, // { '이름': '퇴사일 YYYY-MM-DD' } — 퇴사 처리(비활성). 데이터·과거기록은 보존.
         memberWages: {},
         memberEmails: {},
         memberRoles: {},
-        memberMenuAccess: {}, 
+        memberMenuAccess: {},
         keyTasks: ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무', '상.하차', '교환반품'],
         dashboardItems: [
             'total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff',

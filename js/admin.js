@@ -494,6 +494,11 @@ function handleDynamicClicks(e) {
                     <label class="text-[9px] text-red-500 dark:text-red-400 mb-1 font-bold">사용 만료일</label>
                     <input type="date" value="" class="member-leave-expiration-date w-32 p-1.5 border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 rounded text-xs text-red-700 dark:text-red-400">
                 </div>
+                <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
+                <div class="flex flex-col">
+                    <label class="text-[9px] text-gray-700 dark:text-gray-300 mb-1 font-bold">🚪 퇴사일 (비활성)</label>
+                    <input type="date" value="" class="member-resign-date w-32 p-1.5 border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-800 dark:text-gray-100" title="입력하면 이 날짜 다음날부터 팀 선택·명단·집계에서 제외됩니다. 급여·과거기록은 그대로 보존됩니다.">
+                </div>
             </div>
         `;
         container.appendChild(newMemberEl);

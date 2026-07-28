@@ -6,16 +6,45 @@
  * - 제외 명단: appConfig.headcountExcludedMembers (없으면 빈 배열).
  * - teamGroups 내에서 한 사람이 여러 그룹에 들어 있어도 1명으로 셈.
  */
-export const getRegularMembersForCount = (appConfig) => {
+export const getRegularMembersForCount = (appConfig, dateStr = null) => {
     const flat = (appConfig?.teamGroups || []).flatMap(g => g?.members || []);
     const excluded = new Set(appConfig?.headcountExcludedMembers || []);
+    const asOf = dateStr || getTodayDateString();
     const uniq = new Set();
     flat.forEach(name => {
         if (!name) return;
         if (excluded.has(name)) return;
+        if (!isMemberActiveOn(name, asOf, appConfig)) return; // 퇴사자 제외(해당 날짜 기준)
         uniq.add(name);
     });
     return uniq;
+};
+
+// ===== 퇴사 처리(재직/비활성) 헬퍼 =====
+// resignedMembers: { '이름': 'YYYY-MM-DD' }  ← 퇴사일. 팀원 데이터(급여·과거기록)는 그대로 두고 상태만 표시.
+
+// 퇴사일 조회 (미퇴사면 null)
+export const getResignationDate = (name, appConfig) => {
+    const r = appConfig?.resignedMembers || {};
+    return r[name] || null;
+};
+
+// 특정 날짜에 재직 중인지. 퇴사일 당일까지는 재직(포함), 그 다음날부터 비활성.
+export const isMemberActiveOn = (name, dateStr, appConfig) => {
+    const resign = getResignationDate(name, appConfig);
+    if (!resign) return true;
+    const asOf = dateStr || getTodayDateString();
+    return asOf <= resign;
+};
+
+// 화면 명단(팀 선택·출근·연차 배정 등)에 노출할 '재직 중' 팀원 목록. 기본 오늘 기준.
+export const getActiveTeamMembers = (appConfig, dateStr = null) => {
+    const asOf = dateStr || getTodayDateString();
+    const out = [];
+    (appConfig?.teamGroups || []).forEach(g => (g?.members || []).forEach(name => {
+        if (name && isMemberActiveOn(name, asOf, appConfig)) out.push(name);
+    }));
+    return out;
 };
 
 // 월급제 시급 환산 기준 시간(주휴 포함, 월 209시간). calc.js의 computeMonthlySalary와 동일 기준.
