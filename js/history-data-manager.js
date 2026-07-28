@@ -26,6 +26,103 @@ export const clearLocalCache = () => {
     localStorage.removeItem('unverifiedDataCacheTime');
 };
 
+// ============================================================
+// 📅 예정 물량(plannedData) — 미래 날짜별 계획 처리량 (실적 history와 분리)
+// ============================================================
+const PLANNED_CACHE_KEY = 'plannedDataCache';
+const PLANNED_CACHE_TIME_KEY = 'plannedDataCacheTime';
+const PLANNED_CACHE_TTL_MS = 10 * 60 * 1000; // 10분
+
+const plannedColRef = () => collection(State.db, 'artifacts', 'team-work-logger-v2', 'plannedData');
+
+// 미래 N일(오늘 제외) 날짜 문자열 배열 (로컬 시간대 기준)
+export function getUpcomingPlannedDateStrings(n = 7) {
+    const base = new Date(getTodayDateString() + 'T00:00:00');
+    const out = [];
+    for (let i = 1; i <= n; i++) {
+        const d = new Date(base); d.setDate(d.getDate() + i);
+        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+        out.push(local.toISOString().slice(0, 10));
+    }
+    return out;
+}
+
+// 예정 물량 로드 (오늘 이후). 10분 캐시로 읽기요금 방어.
+export async function fetchPlannedData(forceRefresh = false) {
+    if (!State.auth || !State.auth.currentUser) return State.plannedData;
+    const today = getTodayDateString();
+
+    if (!forceRefresh) {
+        try {
+            const cached = localStorage.getItem(PLANNED_CACHE_KEY);
+            const t = localStorage.getItem(PLANNED_CACHE_TIME_KEY);
+            if (cached && t && (Date.now() - parseInt(t) < PLANNED_CACHE_TTL_MS)) {
+                State.setPlannedData(JSON.parse(cached).filter(d => d.id >= today));
+                return State.plannedData;
+            }
+        } catch (_) {}
+    }
+
+    try {
+        const q = query(plannedColRef(), where(documentId(), '>=', today));
+        const snap = await getDocs(q);
+        const arr = [];
+        snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
+        arr.sort((a, b) => a.id.localeCompare(b.id));
+        State.setPlannedData(arr);
+        try {
+            localStorage.setItem(PLANNED_CACHE_KEY, JSON.stringify(arr));
+            localStorage.setItem(PLANNED_CACHE_TIME_KEY, Date.now().toString());
+        } catch (_) {}
+        return State.plannedData;
+    } catch (e) {
+        console.error('fetchPlannedData failed:', e);
+        return State.plannedData;
+    }
+}
+
+// 특정 날짜의 예정 물량 맵 (없으면 {})
+export function getPlannedQuantitiesForDate(dateStr) {
+    const rec = (State.plannedData || []).find(d => d.id === dateStr);
+    return (rec && rec.plannedQuantities) ? rec.plannedQuantities : {};
+}
+
+// 예정 물량 저장 (문서 전체 교체 — 0으로 지운 항목이 남지 않도록 merge 안 함)
+export async function savePlannedQuantities(dateStr, plannedQuantities) {
+    if (!State.auth || !State.auth.currentUser) { showToast('로그인이 필요합니다.', true); return false; }
+    if (!dateStr) return false;
+
+    const clean = {};
+    Object.entries(plannedQuantities || {}).forEach(([k, v]) => {
+        const n = Number(v) || 0;
+        if (n > 0) clean[k] = n;
+    });
+
+    try {
+        await setDoc(doc(plannedColRef(), dateStr), {
+            plannedQuantities: clean,
+            updatedAt: getCurrentTime(),
+            updatedBy: State.appState?.currentUser || 'unknown'
+        });
+
+        const idx = (State.plannedData || []).findIndex(d => d.id === dateStr);
+        if (idx > -1) State.plannedData[idx] = { id: dateStr, plannedQuantities: clean };
+        else { State.plannedData.push({ id: dateStr, plannedQuantities: clean }); State.plannedData.sort((a, b) => a.id.localeCompare(b.id)); }
+
+        try {
+            localStorage.setItem(PLANNED_CACHE_KEY, JSON.stringify(State.plannedData));
+            localStorage.setItem(PLANNED_CACHE_TIME_KEY, Date.now().toString());
+        } catch (_) {}
+
+        showToast(`${dateStr} 예정 물량이 저장되었습니다.`);
+        return true;
+    } catch (e) {
+        console.error('savePlannedQuantities failed:', e);
+        showToast('예정 물량 저장 실패: ' + (e.message || e), true);
+        return false;
+    }
+}
+
 export const getWorkRecordsCollectionRef = () => {
     const today = getTodayDateString();
     return collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');

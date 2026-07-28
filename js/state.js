@@ -153,3 +153,8 @@ export const appState = {
 };
 
 export const allHistoryData = [];
+
+// 📅 예정 물량(미래 날짜별 계획 처리량). plannedData/{YYYY-MM-DD}.plannedQuantities에서 로드.
+//  실적(history)과 분리 저장 — 과거 리포트/평균 오염 방지. 예측(업무예상)에서 자동값보다 우선 사용.
+export let plannedData = [];
+export const setPlannedData = (val) => { plannedData = Array.isArray(val) ? val : []; };

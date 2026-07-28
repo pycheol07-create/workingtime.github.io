@@ -20,6 +20,19 @@ export const getRegularMembersForCount = (appConfig, dateStr = null) => {
     return uniq;
 };
 
+// 전체 업무 키 목록(중복 제거, 순서: taskGroups → keyTasks → quantityTaskTypes → qualityCostTasks 보충)
+export const getAllTaskKeys = (appConfig) => {
+    const cfg = appConfig || {};
+    const seen = new Set();
+    const out = [];
+    const add = (t) => { if (t && !seen.has(t)) { seen.add(t); out.push(t); } };
+    (cfg.taskGroups || []).forEach(g => (g.tasks || []).forEach(add));
+    (cfg.keyTasks || []).forEach(add);
+    (cfg.quantityTaskTypes || []).forEach(add);
+    (cfg.qualityCostTasks || []).forEach(add);
+    return out;
+};
+
 // ===== 퇴사 처리(재직/비활성) 헬퍼 =====
 // resignedMembers: { '이름': 'YYYY-MM-DD' }  ← 퇴사일. 팀원 데이터(급여·과거기록)는 그대로 두고 상태만 표시.
 

@@ -7,6 +7,14 @@ import { predictFutureTrends } from './analysis-logic.js';
 import * as State from './state.js';
 import { getTodayDateString, getRegularMembersForCount } from './utils.js';
 import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js';
+import { getPlannedQuantitiesForDate, fetchPlannedData } from './history-data-manager.js';
+
+/** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백. */
+const getPlanned = (dateStr, taskKey) => {
+    const p = getPlannedQuantitiesForDate(dateStr) || {};
+    const v = Number(p[taskKey]);
+    return v > 0 ? Math.round(v) : null;
+};
 
 /** 대상일(YYYY-MM-DD)에 도착 예정인 입고 수량 = 중국제작 자동값. 캐시에 없으면 0. */
 const getIncomingChinaForDate = (dateStr) => {
@@ -218,23 +226,28 @@ const autoFillSimInputs = (dateStr) => {
     const data = State.allHistoryData;
     const config = State.appConfig;
 
-    // 국내배송: AI
-    setQty('domestic', getAIPredictedDomestic(data, dateStr));
+    // 우선순위: 예정 물량(수동 입력) > 자동 추정값
+    // 국내배송: 예정 > AI
+    setQty('domestic', getPlanned(dateStr, '국내배송') ?? getAIPredictedDomestic(data, dateStr));
 
-    // 직진배송·에이블리배송·채우기·교환반품: 7일 평균 (기본 표시 항상)
-    setQty('direct', compute7DayAvg(data, '직진배송'));
-    setQty('ably',   compute7DayAvg(data, '에이블리배송'));
-    setQty('fill',   compute7DayAvg(data, '채우기'));
-    setQty('return', compute7DayAvg(data, '교환반품'));
+    // 직진배송·에이블리배송·채우기·교환반품: 예정 > 7일 평균 (기본 표시 항상)
+    setQty('direct', getPlanned(dateStr, '직진배송') ?? compute7DayAvg(data, '직진배송'));
+    setQty('ably',   getPlanned(dateStr, '에이블리배송') ?? compute7DayAvg(data, '에이블리배송'));
+    setQty('fill',   getPlanned(dateStr, '채우기') ?? compute7DayAvg(data, '채우기'));
+    setQty('return', getPlanned(dateStr, '교환반품') ?? compute7DayAvg(data, '교환반품'));
 
-    // 전량검수: row가 활성화된 경우에만 자동값 갱신
-    if (isRowVisible('full'))   setQty('full',   compute7DayAvg(data, '전량검수'));
+    // 전량검수: 예정값이 있으면 표시·반영, 없으면 row 활성 시에만 7일평균
+    const plannedFull = getPlanned(dateStr, '전량검수');
+    if (plannedFull != null) { showOptionalRow('full'); setQty('full', plannedFull); }
+    else if (isRowVisible('full')) setQty('full', compute7DayAvg(data, '전량검수'));
 
-    // 중국제작: 대시보드 입고일정(도착일 기준) 수량 자동 반영
-    setQty('china', getIncomingChinaForDate(dateStr));
+    // 중국제작: 예정 > 입고일정(도착일 기준)
+    setQty('china', getPlanned(dateStr, '중국제작') ?? getIncomingChinaForDate(dateStr));
 
-    // 샘플검수: 중국제작 입력값에 따라 자동 표시·계산
-    syncSampleFromChina(data);
+    // 샘플검수: 예정값 우선, 없으면 중국제작 입력값에 따라 자동 표시·계산
+    const plannedSample = getPlanned(dateStr, '샘플검수');
+    if (plannedSample != null) { showOptionalRow('sample'); setQty('sample', plannedSample); }
+    else syncSampleFromChina(data);
 
     // 가용 인원
     const staffInfo = computeAvailableStaff(dateStr, config, State.persistentLeaveSchedule, data);
@@ -467,17 +480,18 @@ const computeAutoInputsForDate = (dateStr) => {
     const cfg = State.appConfig;
     const china = getIncomingChinaForDate(dateStr);
     const ratio = computeSampleRatio(data);
+    // 우선순위: 예정 물량(수동 입력) > 자동 추정값
     const tasks = {
-        '국내배송': getAIPredictedDomestic(data, dateStr),
-        '중국제작': china,
-        '샘플검수': china > 0 ? Math.round(ratio * china) : 0,
-        '직진배송': compute7DayAvg(data, '직진배송'),
-        '에이블리배송': compute7DayAvg(data, '에이블리배송'),
-        '채우기':   compute7DayAvg(data, '채우기'),
-        '교환반품': compute7DayAvg(data, '교환반품'),
-        '전량검수': 0,
-        '국내기타': 0,
-        '국내제작': 0
+        '국내배송': getPlanned(dateStr, '국내배송') ?? getAIPredictedDomestic(data, dateStr),
+        '중국제작': getPlanned(dateStr, '중국제작') ?? china,
+        '샘플검수': getPlanned(dateStr, '샘플검수') ?? (china > 0 ? Math.round(ratio * china) : 0),
+        '직진배송': getPlanned(dateStr, '직진배송') ?? compute7DayAvg(data, '직진배송'),
+        '에이블리배송': getPlanned(dateStr, '에이블리배송') ?? compute7DayAvg(data, '에이블리배송'),
+        '채우기':   getPlanned(dateStr, '채우기') ?? compute7DayAvg(data, '채우기'),
+        '교환반품': getPlanned(dateStr, '교환반품') ?? compute7DayAvg(data, '교환반품'),
+        '전량검수': getPlanned(dateStr, '전량검수') ?? 0,
+        '국내기타': getPlanned(dateStr, '국내기타') ?? 0,
+        '국내제작': getPlanned(dateStr, '국내제작') ?? 0
     };
     const staffInfo = computeAvailableStaff(dateStr, cfg, State.persistentLeaveSchedule, data);
     return { tasks, staffFulltime: staffInfo.available, staffPart: 0, staffInfo };
@@ -545,6 +559,12 @@ export const renderForecastTab = () => {
     if (dateEl && !dateEl.value) dateEl.value = getTodayDateString();
     autoFillSimInputs(dateEl?.value);
     renderForecastSummary();
+
+    // 예정 물량이 아직 안 실렸으면 로드 후 다시 채움(캐시라 대부분 즉시)
+    fetchPlannedData().then(() => {
+        autoFillSimInputs(document.getElementById('sim-target-date')?.value);
+        renderForecastSummary();
+    }).catch(() => {});
 
     const rBtn = document.getElementById('forecast-refresh-btn');
     if (rBtn && !rBtn.dataset.bound) {

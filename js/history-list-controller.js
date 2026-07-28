@@ -3,11 +3,13 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { showToast, getTodayDateString, getWeekOfYear } from './utils.js';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js';
 import { augmentHistoryWithPersistentLeave } from './history-enricher.js';
-import { fetchAllHistoryData, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory } from './history-data-manager.js';
+import { fetchAllHistoryData, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js';
 import { checkMissingQuantities } from './analysis-logic.js';
 import { renderQuantityModalInputs } from './ui.js';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -19,6 +21,9 @@ export const loadAndRenderHistoryList = async () => {
 
     await fetchAllHistoryData();
     await syncTodayToHistory();
+
+    // 📅 예정 물량(미래 7일) 로드 — 목록 상단 '예정' 그룹 + 예측 연동에 사용
+    try { await fetchPlannedData(); } catch (e) { console.warn('예정 물량 로드 건너뜀:', e); }
 
     // 🩺 마감 누락 자동 복구: history가 빈 최근 날을 daily_data에서 자동으로 되살림(실패해도 목록 렌더는 계속)
     try { await selfHealRecentHistory(); } catch (e) { console.warn('selfHeal 건너뜀:', e); }
@@ -86,6 +91,80 @@ export const loadAndRenderHistoryList = async () => {
     await renderHistoryDateListByMode('day');
 };
 
+// 📅 미래 7일 '예정 물량' 그룹 HTML (day 모드에서 목록 최상단에 표시)
+const buildPlannedGroupHtml = () => {
+    const dates = getUpcomingPlannedDateStrings(7);
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    const incoming = getIncomingQtyByDateFromCache();
+    const items = dates.map(dateStr => {
+        const planned = getPlannedQuantitiesForDate(dateStr);
+        const count = Object.keys(planned).length;
+        const hasData = count > 0;
+        const chinaIncoming = Math.round(Number(incoming[dateStr]) || 0);
+        const d = new Date(dateStr + 'T00:00:00');
+        const wd = isNaN(d.getDay()) ? '' : ` (${days[d.getDay()]})`;
+        const rightLabel = hasData
+            ? `<span class="ml-auto text-[10px] text-indigo-500 shrink-0">${count}개 입력</span>`
+            : (chinaIncoming > 0
+                ? `<span class="ml-auto text-[10px] text-blue-500 shrink-0">입고 ${chinaIncoming.toLocaleString()}</span>`
+                : `<span class="ml-auto text-[10px] text-gray-400 shrink-0">미입력</span>`);
+        return `
+            <li>
+                <button data-key="${dateStr}" class="planned-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none flex items-center gap-2 shrink-0 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full ${hasData ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'} shrink-0"></span>
+                    <span class="whitespace-nowrap tracking-tight shrink-0">${dateStr}${wd}</span>
+                    ${rightLabel}
+                </button>
+            </li>`;
+    }).join('');
+    return `
+        <li class="mb-2">
+            <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors shadow-sm focus:outline-none shrink-0">
+                <div class="flex items-center gap-2 shrink-0">
+                    <span class="folder-icon text-[15px]">📅</span>
+                    <span class="font-bold text-[14px] text-indigo-700 dark:text-indigo-300 whitespace-nowrap tracking-tight shrink-0">예정 물량 (미래 7일)</span>
+                </div>
+                <svg class="w-4 h-4 text-indigo-400 transform transition-transform duration-200 shrink-0 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <ul class="accordion-content mt-1 space-y-0.5 overflow-hidden transition-all duration-300 block border-l-2 border-indigo-100 dark:border-indigo-800 ml-2 pl-1.5">
+                ${items}
+            </ul>
+        </li>`;
+};
+
+// 📅 예정 물량 입력 모달 (기존 처리량 모달 재사용, 저장은 plannedData로)
+export const openPlannedQuantityModal = (dateStr) => {
+    if (!dateStr) return;
+    const allTasks = getAllTaskKeys(State.appConfig);
+
+    // 기존 예정값 + 중국제작은 입고일정 값 반영(미입력 시 기본으로 채움)
+    const planned = { ...getPlannedQuantitiesForDate(dateStr) };
+    const chinaIncoming = Math.round(Number(getIncomingQtyByDateFromCache()[dateStr]) || 0);
+    if (chinaIncoming > 0 && !(Number(planned['중국제작']) > 0)) planned['중국제작'] = chinaIncoming;
+
+    renderQuantityModalInputs(planned, allTasks, [], []);
+
+    const title = document.getElementById('quantity-modal-title');
+    if (title) title.textContent = `📅 ${dateStr} 예정 물량 입력`;
+
+    // 확정 체크박스는 예정 입력엔 불필요 — 꺼둠
+    const confirmCheckbox = document.getElementById('quantity-confirm-checkbox');
+    if (confirmCheckbox) confirmCheckbox.checked = false;
+
+    State.context.quantityModalContext.mode = 'planned';
+    State.context.quantityModalContext.dateKey = dateStr;
+    State.context.quantityModalContext.isVerifyingMode = false;
+    State.context.quantityModalContext.onConfirm = async (newQuantities) => {
+        await savePlannedQuantities(dateStr, newQuantities);
+        // 좌측 목록의 예정 그룹 갱신
+        try { await renderHistoryDateListByMode(State.context.globalGranularity || 'day', State.context.selectedHistoryDate || null); } catch (_) {}
+    };
+    State.context.quantityModalContext.onCancel = () => {};
+
+    const modalEl = document.getElementById('quantity-modal');
+    if (modalEl) modalEl.classList.remove('hidden');
+};
+
 export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = null) => {
     if (!DOM.historyDateList) return;
 
@@ -144,7 +223,8 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                 groupedKeys[groupName].push(key);
             });
 
-            let htmlContent = '';
+            // 📅 미래 7일 예정 물량 그룹을 목록 최상단에 (day 모드에서만)
+            let htmlContent = (mode === 'day') ? buildPlannedGroupHtml() : '';
             let isFirstGroup = true;
 
             let targetGroupName = null;
@@ -236,6 +316,11 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                         if(folderIcon) folderIcon.textContent = '📁';
                     }
                 });
+            });
+
+            // 📅 예정 물량 날짜 클릭 → 예정 입력 모달
+            DOM.historyDateList.querySelectorAll('.planned-date-btn').forEach(btn => {
+                btn.addEventListener('click', () => openPlannedQuantityModal(btn.dataset.key));
             });
         }
 
