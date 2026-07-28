@@ -129,7 +129,8 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
  *  - 프로그램 전용 ID 등 인원 산정 제외 명단(headcountExcludedMembers) 빼고 계산
  */
 const computeAvailableStaff = (dateStr, appConfig, persistentLeave, historyData) => {
-    const allStaff = getRegularMembersForCount(appConfig); // Set
+    // 대상일 기준 재직 인원만 (그 날짜 이전에 퇴사 예정인 사람은 총원에서 제외)
+    const allStaff = getRegularMembersForCount(appConfig, dateStr); // Set
     const onLeave = new Map();
 
     (persistentLeave?.onLeaveMembers || []).forEach(e => {
@@ -278,11 +279,13 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
         totalHours += hours;
     });
 
-    const requiredFTE = (dailyHours > 0 && UTILIZATION > 0) ? totalHours / dailyHours / UTILIZATION : 0;
-    const availableTotal = inputs.staffFulltime + inputs.staffPart;
+    // 필요·가용 인원은 정수로 반올림해 표시·비교 (소수점 없이)
+    const rawRequiredFTE = (dailyHours > 0 && UTILIZATION > 0) ? totalHours / dailyHours / UTILIZATION : 0;
+    const requiredFTE = Math.round(rawRequiredFTE);
+    const availableTotal = Math.round(inputs.staffFulltime + inputs.staffPart);
     const gap = availableTotal - requiredFTE;
 
-    return { date: dateStr, weekend, dailyHours, taskTimes, totalHours, requiredFTE, availableTotal, gap };
+    return { date: dateStr, weekend, dailyHours, taskTimes, totalHours, rawRequiredFTE, requiredFTE, availableTotal, gap };
 };
 
 const runSimulation = () => {
@@ -337,7 +340,7 @@ const runSimulation = () => {
 // ───────────────────────────────────────────────────────────
 const gapColor = g => g > 1 ? 'text-green-600 dark:text-green-400' : (g < -1 ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400');
 const gapIcon  = g => g > 1 ? '✅' : (g < -1 ? '⚠️' : '⚖️');
-const gapText  = g => g > 1 ? `${g.toFixed(1)}명 여유` : (g < -1 ? `${Math.abs(g).toFixed(1)}명 부족` : '적정');
+const gapText  = g => g > 1 ? `${Math.round(g)}명 여유` : (g < -1 ? `${Math.abs(Math.round(g))}명 부족` : '적정');
 const fmtH     = h => `${(h || 0).toFixed(1)}h`;
 
 const renderSimResult = (results, taskUPH, mode) => {
@@ -385,12 +388,12 @@ const renderSimResult = (results, taskUPH, mode) => {
             <div class="grid grid-cols-3 gap-3">
                 <div class="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg">
                     <div class="text-[10px] text-blue-700 dark:text-blue-400 font-bold uppercase">필요 인원</div>
-                    <div class="text-xl md:text-2xl font-black text-blue-700 dark:text-blue-400 mt-1">${r.requiredFTE.toFixed(1)}<span class="text-sm font-bold ml-0.5">명</span></div>
+                    <div class="text-xl md:text-2xl font-black text-blue-700 dark:text-blue-400 mt-1">${r.requiredFTE}<span class="text-sm font-bold ml-0.5">명</span></div>
                     <div class="text-[10px] text-blue-600/70 dark:text-blue-300/70 mt-1">${fmtH(r.totalHours)} ÷ ${r.dailyHours}h ÷ ${UTILIZATION}</div>
                 </div>
                 <div class="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg">
                     <div class="text-[10px] text-indigo-700 dark:text-indigo-400 font-bold uppercase">가용 인원</div>
-                    <div class="text-xl md:text-2xl font-black text-indigo-700 dark:text-indigo-400 mt-1">${r.availableTotal.toFixed(1)}<span class="text-sm font-bold ml-0.5">명</span></div>
+                    <div class="text-xl md:text-2xl font-black text-indigo-700 dark:text-indigo-400 mt-1">${r.availableTotal}<span class="text-sm font-bold ml-0.5">명</span></div>
                     <div class="text-[10px] text-indigo-600/70 dark:text-indigo-300/70 mt-1">정직원 + 알바</div>
                 </div>
                 <div class="p-3 rounded-lg border-2 ${r.gap > 1 ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30' : (r.gap < -1 ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30' : 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30')}">
@@ -404,8 +407,8 @@ const renderSimResult = (results, taskUPH, mode) => {
             <tr class="border-b border-gray-100 dark:border-gray-700 ${r.weekend ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}">
                 <td class="py-2 px-2 font-medium">${dayLabel(r.date)}${r.weekend ? ' <span class="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">주말</span>' : ''}</td>
                 <td class="py-2 px-2 text-right">${fmtH(r.totalHours)}</td>
-                <td class="py-2 px-2 text-right">${r.requiredFTE.toFixed(1)}명</td>
-                <td class="py-2 px-2 text-right">${r.availableTotal.toFixed(1)}명</td>
+                <td class="py-2 px-2 text-right">${r.requiredFTE}명</td>
+                <td class="py-2 px-2 text-right">${r.availableTotal}명</td>
                 <td class="py-2 px-2 text-right font-bold ${gapColor(r.gap)}">${gapIcon(r.gap)} ${gapText(r.gap)}</td>
             </tr>`).join('');
         const sumRequired = results.reduce((s, r) => s + r.requiredFTE, 0);
@@ -436,11 +439,11 @@ const renderSimResult = (results, taskUPH, mode) => {
             <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                 <div class="bg-blue-50 dark:bg-blue-900/30 p-2 rounded text-center">
                     <div class="text-[10px] text-blue-700 dark:text-blue-400 font-bold">합계 필요</div>
-                    <div class="text-sm font-bold text-blue-700 dark:text-blue-400">${sumRequired.toFixed(1)}명·일</div>
+                    <div class="text-sm font-bold text-blue-700 dark:text-blue-400">${sumRequired}명·일</div>
                 </div>
                 <div class="bg-indigo-50 dark:bg-indigo-900/30 p-2 rounded text-center">
                     <div class="text-[10px] text-indigo-700 dark:text-indigo-400 font-bold">합계 가용</div>
-                    <div class="text-sm font-bold text-indigo-700 dark:text-indigo-400">${sumAvail.toFixed(1)}명·일</div>
+                    <div class="text-sm font-bold text-indigo-700 dark:text-indigo-400">${sumAvail}명·일</div>
                 </div>
                 <div class="bg-red-50 dark:bg-red-900/30 p-2 rounded text-center">
                     <div class="text-[10px] text-red-700 dark:text-red-400 font-bold">⚠️ 부족 일수</div>
@@ -503,11 +506,11 @@ const forecastCardHtml = (label, r, inputs) => {
         <div class="grid grid-cols-2 gap-3 mb-3">
             <div class="bg-white/70 dark:bg-gray-800/60 rounded-lg p-3 text-center border border-gray-100 dark:border-gray-700">
                 <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">필요 인원</div>
-                <div class="text-2xl font-black text-gray-900 dark:text-white mt-0.5">${r.requiredFTE.toFixed(1)}<span class="text-xs font-bold ml-0.5">명</span></div>
+                <div class="text-2xl font-black text-gray-900 dark:text-white mt-0.5">${r.requiredFTE}<span class="text-xs font-bold ml-0.5">명</span></div>
             </div>
             <div class="bg-white/70 dark:bg-gray-800/60 rounded-lg p-3 text-center border border-gray-100 dark:border-gray-700">
                 <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">가용 인원</div>
-                <div class="text-2xl font-black text-gray-900 dark:text-white mt-0.5">${staffN.toFixed(1)}<span class="text-xs font-bold ml-0.5">명</span></div>
+                <div class="text-2xl font-black text-gray-900 dark:text-white mt-0.5">${Math.round(staffN)}<span class="text-xs font-bold ml-0.5">명</span></div>
             </div>
         </div>
         <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-gray-500 dark:text-gray-400">
