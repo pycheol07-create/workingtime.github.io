@@ -22,7 +22,8 @@ const SIM_TASKS = [
     { id: 'domestic', key: '국내배송', label: '국내배송', auto: 'ai',           optional: false },
     { id: 'china',    key: '중국제작', label: '중국제작', auto: 'manual',       optional: false },
     { id: 'sample',   key: '샘플검수', label: '샘플검수', auto: 'china-linked', optional: true  }, // 중국제작 입고 시 자동 표시
-    { id: 'direct',   key: '직진배송', label: '직진배송', auto: 'manual',       optional: false },
+    { id: 'direct',   key: '직진배송', label: '직진배송', auto: 'rolling7',     optional: false },
+    { id: 'ably',     key: '에이블리배송', label: '에이블리배송', auto: 'rolling7', optional: false },
     { id: 'fill',     key: '채우기',   label: '채우기',   auto: 'rolling7',     optional: false },
     { id: 'return',   key: '교환반품', label: '교환반품', auto: 'rolling7',     optional: false }, // 기본 표시로 이동
     { id: 'full',     key: '전량검수', label: '전량검수', auto: 'rolling7',     optional: true  },
@@ -84,14 +85,25 @@ const computeSampleRatio = (historyData) => {
     return chinaSum > 0 ? sampleSum / chinaSum : 0;
 };
 
-/** 최근 7일간 해당 작업 수량 평균 (0 또는 빈 일자는 제외) */
+/** 최근 N일간 해당 작업 수량 평균 (0 또는 빈 일자는 제외).
+ *  기본 7일 우선, 최근 7일에 데이터가 없으면 14→28일로 확장해 값을 찾는다.
+ *  (교환반품처럼 물량이 매일 잡히지 않는 작업도 대표값이 표시되도록) */
 const compute7DayAvg = (historyData, taskKey) => {
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
-    const cutoffStr = ymd(cutoff);
-    const recent = (historyData || []).filter(d => typeof d.id === 'string' && d.id >= cutoffStr);
-    const valued = recent.filter(d => Number(d.taskQuantities?.[taskKey]) > 0);
-    const sum = valued.reduce((s, d) => s + (Number(d.taskQuantities?.[taskKey]) || 0), 0);
-    return valued.length > 0 ? Math.round(sum / valued.length) : 0;
+    const tryWindow = (windowDays) => {
+        const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - windowDays);
+        const cutoffStr = ymd(cutoff);
+        const recent = (historyData || []).filter(d => typeof d.id === 'string' && d.id >= cutoffStr);
+        const valued = recent.filter(d => Number(d.taskQuantities?.[taskKey]) > 0);
+        if (valued.length === 0) return null;
+        const sum = valued.reduce((s, d) => s + (Number(d.taskQuantities?.[taskKey]) || 0), 0);
+        return Math.round(sum / valued.length);
+    };
+    const v = tryWindow(7);
+    if (v != null) return v;
+    const v14 = tryWindow(14);
+    if (v14 != null) return v14;
+    const v28 = tryWindow(28);
+    return v28 != null ? v28 : 0;
 };
 
 /** 미래 날짜의 국내배송 AI 예측값. 과거이면 실측치 사용. */
@@ -208,7 +220,9 @@ const autoFillSimInputs = (dateStr) => {
     // 국내배송: AI
     setQty('domestic', getAIPredictedDomestic(data, dateStr));
 
-    // 채우기·교환반품: 7일 평균 (기본 표시 항상)
+    // 직진배송·에이블리배송·채우기·교환반품: 7일 평균 (기본 표시 항상)
+    setQty('direct', compute7DayAvg(data, '직진배송'));
+    setQty('ably',   compute7DayAvg(data, '에이블리배송'));
     setQty('fill',   compute7DayAvg(data, '채우기'));
     setQty('return', compute7DayAvg(data, '교환반품'));
 
@@ -455,6 +469,7 @@ const computeAutoInputsForDate = (dateStr) => {
         '중국제작': china,
         '샘플검수': china > 0 ? Math.round(ratio * china) : 0,
         '직진배송': compute7DayAvg(data, '직진배송'),
+        '에이블리배송': compute7DayAvg(data, '에이블리배송'),
         '채우기':   compute7DayAvg(data, '채우기'),
         '교환반품': compute7DayAvg(data, '교환반품'),
         '전량검수': 0,
