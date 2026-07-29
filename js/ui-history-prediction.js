@@ -612,6 +612,8 @@ const renderChannelTabs = (historyData) => {
 // 주문건수 기록이 아직 없는 채널·기간은 예전과 동일하게 1.2로 폴백한다.
 const DEFAULT_ITEMS_PER_ORDER = 1.2;
 let itemsPerOrder = DEFAULT_ITEMS_PER_ORDER;
+// 직진배송·도착보장은 건수 개념이 없어 장수만 표시한다(전체도 섞이므로 장수만).
+let showDeliveryCases = true;
 
 const computeItemsPerOrder = (historyData, scope) => {
     let sumDel = 0, sumOrd = 0;
@@ -626,9 +628,10 @@ const computeItemsPerOrder = (historyData, scope) => {
     return (ratio >= 0.5 && ratio <= 10) ? ratio : DEFAULT_ITEMS_PER_ORDER;
 };
 
-/** 장 → "N건 / M장" (건수는 채널별 건당 상품수로 환산) */
+/** 장 → "N건 / M장" (건수 개념이 있는 채널만 병기, 그 외는 "M장") */
 const formatDelivery = (val) => {
     const v = Math.round(Number(val) || 0);
+    if (!showDeliveryCases) return `${v.toLocaleString()}장`;
     if (v <= 0) return '0건 / 0장';
     const cases = Math.round(v / (itemsPerOrder || DEFAULT_ITEMS_PER_ORDER));
     return `${cases.toLocaleString()}건 / ${v.toLocaleString()}장`;
@@ -655,6 +658,14 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
 
     // 배송량의 "건" 환산 계수도 선택한 채널 기준으로 갱신 (채널마다 건당 상품수가 다름)
     itemsPerOrder = computeItemsPerOrder(historyData, scope);
+    showDeliveryCases = scope.showDeliveryCases !== false;
+
+    // 건수 개념이 없는 채널(직진배송·도착보장)에서는 주문건수 관련 카드를 감춘다.
+    const showOrd = scope.hasOrderCount !== false;
+    ['pred-card-tomorrow-ord', 'pred-card-avg-ord', 'pred-today-ord-block'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden', !showOrd);
+    });
 
     const result = predictFutureTrends(historyData, daysToPredict, scope);
 
@@ -665,10 +676,15 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     if (revScopeEl) revScopeEl.textContent = scopeSuffix;
     if (delScopeEl) {
         const base = predChannelId === 'all' ? '전체 합계' : scope.deliverySource;
-        delScopeEl.textContent = `(${base} · 건당 ${itemsPerOrder.toFixed(2)}장 기준)`;
-        delScopeEl.title = itemsPerOrder === DEFAULT_ITEMS_PER_ORDER
-            ? '주문건수 기록이 없어 기본값 1.2장/건으로 환산했습니다.'
-            : '실제 기록(Σ배송량 ÷ Σ주문건수)에서 계산한 건당 상품수입니다.';
+        if (showDeliveryCases) {
+            delScopeEl.textContent = `(${base} · 건당 ${itemsPerOrder.toFixed(2)}장 기준)`;
+            delScopeEl.title = itemsPerOrder === DEFAULT_ITEMS_PER_ORDER
+                ? '주문건수 기록이 없어 기본값 1.2장/건으로 환산했습니다.'
+                : '실제 기록(Σ배송량 ÷ Σ주문건수)에서 계산한 건당 상품수입니다.';
+        } else {
+            delScopeEl.textContent = `(${base} · 장수 기준)`;
+            delScopeEl.title = '이 채널은 주문 건수 개념이 없어 장수(상품수)로만 표시합니다.';
+        }
     }
 
     if (!result) {
@@ -785,7 +801,10 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
         if (tomorrow.delivery > 0) {
             const minDel = prediction.rangeDelivery[0].min;
             const maxDel = prediction.rangeDelivery[0].max;
-            elTomDel.innerHTML = `${formatDelivery(tomorrow.delivery)} <span class="text-[11px] text-gray-500 font-normal ml-1 mt-1 block md:inline">(최소 ${toCases(minDel).toLocaleString()}건 ~ 최대 ${toCases(maxDel).toLocaleString()}건)</span>`;
+            const rangeTxt = showDeliveryCases
+                ? `(최소 ${toCases(minDel).toLocaleString()}건 ~ 최대 ${toCases(maxDel).toLocaleString()}건)`
+                : `(최소 ${minDel.toLocaleString()}장 ~ 최대 ${maxDel.toLocaleString()}장)`;
+            elTomDel.innerHTML = `${formatDelivery(tomorrow.delivery)} <span class="text-[11px] text-gray-500 font-normal ml-1 mt-1 block md:inline">${rangeTxt}</span>`;
         } else {
             elTomDel.textContent = '휴무(0)';
         }

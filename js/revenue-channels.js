@@ -16,13 +16,16 @@
 //   실적 예측에서 채널 하나를 고르면 매출·주문건·배송량이 모두 그 채널 기준으로만
 //   계산되도록 세 값을 한 묶음으로 정의해 둔다.
 //   (예: 일반배송 = 국내배송 업무량 + 카페24 매출/주문건)
+// hasOrderCount = 그 채널에 '주문 건수' 개념이 있는지.
+//   일반배송(카페24)만 건수가 집계되고, 직진배송·도착보장은 장수(상품수)만 다룬다.
+//   false인 채널에서는 배송량을 '장'으로만 보여주고 주문건수 예측 카드도 감춘다.
 export const REVENUE_CHANNELS = [
     { id: 'cafe24',  label: '일반배송(카페24)', shortLabel: '일반배송', color: '#4f46e5',
-      field: 'revenueCafe24',  orderField: 'orderCountCafe24',  taskKey: '국내배송' },
+      field: 'revenueCafe24',  orderField: 'orderCountCafe24',  taskKey: '국내배송',     hasOrderCount: true },
     { id: 'direct',  label: '직진배송',         shortLabel: '직진배송', color: '#a855f7',
-      field: 'revenueDirect',  orderField: 'orderCountDirect',  taskKey: '직진배송' },
+      field: 'revenueDirect',  orderField: 'orderCountDirect',  taskKey: '직진배송',     hasOrderCount: false },
     { id: 'arrival', label: '도착보장',         shortLabel: '도착보장', color: '#0ea5e9',
-      field: 'revenueArrival', orderField: 'orderCountArrival', taskKey: '에이블리배송' }
+      field: 'revenueArrival', orderField: 'orderCountArrival', taskKey: '에이블리배송', hasOrderCount: false }
 ];
 
 export const channelById = (id) => REVENUE_CHANNELS.find(c => c.id === id) || null;
@@ -71,7 +74,11 @@ export const channelScope = (id) => {
             orderCountOf: (d) => orderCountTotalOf(d?.management),
             deliveryOf: (d) => REVENUE_CHANNELS.reduce((s, ch) => s + (Number(d?.taskQuantities?.[ch.taskKey]) || 0), 0),
             deliveryLabel: '전체 배송량',
-            deliverySource: REVENUE_CHANNELS.map(ch => ch.taskKey).join(' + ')
+            deliverySource: REVENUE_CHANNELS.map(ch => ch.taskKey).join(' + '),
+            // 전체는 건수가 있는 채널과 없는 채널이 섞여 있어 배송량을 건수로 환산하면 뜻이 흐려진다.
+            // 주문건수 자체는 합계로 보여주되(hasOrderCount), 배송량은 장수로만 표기(showDeliveryCases).
+            hasOrderCount: true,
+            showDeliveryCases: false
         };
     }
     return {
@@ -80,6 +87,8 @@ export const channelScope = (id) => {
         orderCountOf: (d) => Number(d?.management?.[c.orderField]) || 0,
         deliveryOf: (d) => Number(d?.taskQuantities?.[c.taskKey]) || 0,
         deliveryLabel: `${c.shortLabel} 배송량`,
-        deliverySource: c.taskKey
+        deliverySource: c.taskKey,
+        hasOrderCount: !!c.hasOrderCount,
+        showDeliveryCases: !!c.hasOrderCount
     };
 };
