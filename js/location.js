@@ -214,16 +214,50 @@ function updateZikjinInfoDisplay() {
     _zikjinMeta = (zMeta && zMeta.at) ? zMeta : null;
     const el = document.getElementById('zikjin-update-info');
     if (!el) return;
+
+    // 기본(정상) 스타일
+    const setTone = (bg, border, color) => {
+        el.style.background = bg;
+        el.style.borderColor = border;
+        el.style.color = color;
+    };
+
     if (!zMeta || !zMeta.at) {
-        el.innerHTML = '📂 ZG&AB 출고: 전송 기록 없음';
-        el.title = '직진·에이블리(ZG&AB) 출고 데이터가 아직 업로드되지 않았습니다.';
+        el.innerHTML = '⚠️ ZG&AB 출고: 전송 기록 없음';
+        el.title = '직진·에이블리(ZG&AB) 출고 데이터가 아직 업로드되지 않았습니다.\n[📂 1-1. ZG&AB 출고 데이터 업로드]에서 파일을 올려주세요.';
+        setTone('#ffebee', '#ef9a9a', '#c62828');
         return;
     }
+
     const d = new Date(zMeta.at);
     const p = n => String(n).padStart(2, '0');
     const cnt = Number(zMeta.count || 0).toLocaleString();
-    el.innerHTML = `📂 ZG&AB 출고: ${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())} · ${cnt}건 <span style="text-decoration:underline; color:#1976d2;">상세</span>`;
-    el.title = `직진·에이블리(ZG&AB) 출고 전송: ${d.toLocaleString('ko-KR')} · ${zMeta.count}건 — 클릭 시 전송 데이터 상세 보기`;
+
+    // 🔔 최신성 경고 — ZG&AB 출고 데이터는 자동으로 들어오지 않고 '수동 업로드'로만 갱신된다.
+    //    올리는 걸 잊으면 로케이션 변경 추천이 옛날 출고량으로 계산되므로, 지난 날짜면 눈에 띄게 표시한다.
+    const startOfDay = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+    const now = new Date();
+    const daysAgo = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+
+    let prefix = '📂', warn = '';
+    if (daysAgo <= 0) {
+        setTone('#e8f5e9', '#a5d6a7', '#2e7d32'); // 오늘 — 정상
+    } else if (daysAgo === 1) {
+        prefix = '⚠️';
+        warn = ' <b>· 어제 자료</b>';
+        setTone('#fff8e1', '#ffcc80', '#e65100');
+    } else {
+        prefix = '⚠️';
+        warn = ` <b>· ${daysAgo}일 지남</b>`;
+        setTone('#ffebee', '#ef9a9a', '#c62828');
+    }
+
+    el.innerHTML = `${prefix} ZG&AB 출고: ${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())} · ${cnt}건${warn} <span style="text-decoration:underline; color:#1976d2;">상세</span>`;
+    el.title = `직진·에이블리(ZG&AB) 출고 전송: ${d.toLocaleString('ko-KR')} · ${zMeta.count}건`
+        + (daysAgo > 0
+            ? `\n\n⚠️ 오늘 올라온 자료가 아닙니다(${daysAgo}일 지남).\nZG&AB 출고 데이터는 자동 전송되지 않고 수동 업로드로만 갱신됩니다.\n출고 작업을 했다면 [📂 1-1. ZG&AB 출고 데이터 업로드]에서 파일을 올려주세요.`
+            : '')
+        + `\n\n클릭 시 전송 데이터 상세 보기`;
 }
 
 // 📂 ZG&AB 출고(직진·에이블리) 전송 데이터 상세 모달
