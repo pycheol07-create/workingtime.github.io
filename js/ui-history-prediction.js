@@ -604,11 +604,38 @@ const renderChannelTabs = (historyData) => {
     }
 };
 
-// 💡 장(상품수)을 건수(주문건수)로 변환하여 "건 / 장" 포맷으로 반환하는 헬퍼 함수 (1.2 기준)
-// 배송량은 '장(상품수)' 그대로 표시한다.
-// 예전에는 ÷1.2로 건수를 추정해 병기했지만, 이제 주문 건수를 채널별로 직접 입력받으므로
-// 추정치를 함께 보여주면 실제 주문건수 카드와 값이 달라 혼동만 준다.
-const formatDelivery = (val) => `${Math.round(Number(val) || 0).toLocaleString()}장`;
+// 💡 배송량은 "건 / 장"으로 함께 표시한다. (장 = 상품수, 건 = 주문건수)
+//
+// 건수 환산 계수(건당 상품수)는 고정값 1.2가 아니라 **선택한 채널의 실제 기록**에서 구한다.
+//   계수 = Σ배송량(장) ÷ Σ주문건수(건)   ← 최근 이력 중 둘 다 입력된 날만 사용
+// 채널마다 건당 상품수가 다르므로(일반배송 ~1.2, 직진/도착보장은 다름) 채널별로 계산해야 맞다.
+// 주문건수 기록이 아직 없는 채널·기간은 예전과 동일하게 1.2로 폴백한다.
+const DEFAULT_ITEMS_PER_ORDER = 1.2;
+let itemsPerOrder = DEFAULT_ITEMS_PER_ORDER;
+
+const computeItemsPerOrder = (historyData, scope) => {
+    let sumDel = 0, sumOrd = 0;
+    (historyData || []).forEach(d => {
+        const del = scope.deliveryOf(d);
+        const ord = scope.orderCountOf(d);
+        if (del > 0 && ord > 0) { sumDel += del; sumOrd += ord; }
+    });
+    if (sumOrd <= 0) return DEFAULT_ITEMS_PER_ORDER;
+    const ratio = sumDel / sumOrd;
+    // 비정상값(입력 실수 등) 방어 — 1건당 0.5~10장 범위를 벗어나면 기본값 사용
+    return (ratio >= 0.5 && ratio <= 10) ? ratio : DEFAULT_ITEMS_PER_ORDER;
+};
+
+/** 장 → "N건 / M장" (건수는 채널별 건당 상품수로 환산) */
+const formatDelivery = (val) => {
+    const v = Math.round(Number(val) || 0);
+    if (v <= 0) return '0건 / 0장';
+    const cases = Math.round(v / (itemsPerOrder || DEFAULT_ITEMS_PER_ORDER));
+    return `${cases.toLocaleString()}건 / ${v.toLocaleString()}장`;
+};
+
+/** 장 수를 건수로만 환산 (범위 표기용) */
+const toCases = (val) => Math.round((Number(val) || 0) / (itemsPerOrder || DEFAULT_ITEMS_PER_ORDER));
 
 export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     // (업무량 시뮬레이션은 '업무 예상' 탭(renderForecastTab)으로 이동됨)
@@ -626,6 +653,9 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     const scope = predScope();
     renderChannelTabs(historyData);
 
+    // 배송량의 "건" 환산 계수도 선택한 채널 기준으로 갱신 (채널마다 건당 상품수가 다름)
+    itemsPerOrder = computeItemsPerOrder(historyData, scope);
+
     const result = predictFutureTrends(historyData, daysToPredict, scope);
 
     // 차트 제목에 현재 기준 표시
@@ -633,7 +663,13 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     const revScopeEl = document.getElementById('pred-chart-rev-scope');
     const delScopeEl = document.getElementById('pred-chart-del-scope');
     if (revScopeEl) revScopeEl.textContent = scopeSuffix;
-    if (delScopeEl) delScopeEl.textContent = predChannelId === 'all' ? '(전체 합계)' : `(${scope.deliverySource})`;
+    if (delScopeEl) {
+        const base = predChannelId === 'all' ? '전체 합계' : scope.deliverySource;
+        delScopeEl.textContent = `(${base} · 건당 ${itemsPerOrder.toFixed(2)}장 기준)`;
+        delScopeEl.title = itemsPerOrder === DEFAULT_ITEMS_PER_ORDER
+            ? '주문건수 기록이 없어 기본값 1.2장/건으로 환산했습니다.'
+            : '실제 기록(Σ배송량 ÷ Σ주문건수)에서 계산한 건당 상품수입니다.';
+    }
 
     if (!result) {
         renderNoData(revenueCtx, "데이터가 부족하여 예측할 수 없습니다.");
@@ -749,7 +785,7 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
         if (tomorrow.delivery > 0) {
             const minDel = prediction.rangeDelivery[0].min;
             const maxDel = prediction.rangeDelivery[0].max;
-            elTomDel.innerHTML = `${formatDelivery(tomorrow.delivery)} <span class="text-[11px] text-gray-500 font-normal ml-1 mt-1 block md:inline">(최소 ${minDel.toLocaleString()} ~ 최대 ${maxDel.toLocaleString()}장)</span>`;
+            elTomDel.innerHTML = `${formatDelivery(tomorrow.delivery)} <span class="text-[11px] text-gray-500 font-normal ml-1 mt-1 block md:inline">(최소 ${toCases(minDel).toLocaleString()}건 ~ 최대 ${toCases(maxDel).toLocaleString()}건)</span>`;
         } else {
             elTomDel.textContent = '휴무(0)';
         }
