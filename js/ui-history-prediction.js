@@ -660,12 +660,22 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     itemsPerOrder = computeItemsPerOrder(historyData, scope);
     showDeliveryCases = scope.showDeliveryCases !== false;
 
-    // 건수 개념이 없는 채널(직진배송·도착보장)에서는 주문건수 관련 카드를 감춘다.
-    const showOrd = scope.hasOrderCount !== false;
+    // 주문건수는 세 채널 모두 유효하므로 항상 표시한다.
+    // 다만 풀필먼트 채널(직진배송·도착보장)은 '그날 보낸 장수'와 '그날 잡히는 주문건수'가
+    // 서로 다른 시점의 값이라 둘을 연결해 보면 안 된다는 안내를 띄운다.
     ['pred-card-tomorrow-ord', 'pred-card-avg-ord', 'pred-today-ord-block'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.toggle('hidden', !showOrd);
+        document.getElementById(id)?.classList.remove('hidden');
     });
+    const noteEl = document.getElementById('pred-fulfillment-note');
+    if (noteEl) {
+        const isFulfillment = scope.fulfillment === true && predChannelId !== 'all';
+        noteEl.classList.toggle('hidden', !isFulfillment);
+        if (isFulfillment) {
+            noteEl.innerHTML = `ℹ️ <b>${scope.label}</b>은 풀필먼트(채널 창고로 선입고 후 판매) 방식입니다. `
+                + `배송량(장)은 <b>우리가 그날 보낸 수량</b>, 매출·주문건수는 <b>그날 채널에서 수집된 판매 실적</b>이라 `
+                + `서로 다른 시점의 값입니다. 두 값을 곱하거나 나눠 비교하지 말고 <b>각각 따로</b> 보세요.`;
+        }
+    }
 
     const result = predictFutureTrends(historyData, daysToPredict, scope);
 

@@ -16,16 +16,18 @@
 //   실적 예측에서 채널 하나를 고르면 매출·주문건·배송량이 모두 그 채널 기준으로만
 //   계산되도록 세 값을 한 묶음으로 정의해 둔다.
 //   (예: 일반배송 = 국내배송 업무량 + 카페24 매출/주문건)
-// hasOrderCount = 그 채널에 '주문 건수' 개념이 있는지.
-//   일반배송(카페24)만 건수가 집계되고, 직진배송·도착보장은 장수(상품수)만 다룬다.
-//   false인 채널에서는 배송량을 '장'으로만 보여주고 주문건수 예측 카드도 감춘다.
+// fulfillment = 풀필먼트(선입고 후 판매) 채널인지.
+//   직진배송·도착보장은 우리가 작업해 보낸 수량이 그 채널 창고에 들어간 뒤 거기서 판매된다.
+//   즉 **당일 배송한 장수와, 같은 날 수집되는 매출·주문건수는 시점이 달라 서로 대응되지 않는다.**
+//   → 주문 건수는 세 채널 모두 유효하지만(각각 수집·관리),
+//     배송량(장)을 건수로 환산해 병기하는 것은 직접배송인 일반배송(카페24)에서만 의미가 있다.
 export const REVENUE_CHANNELS = [
     { id: 'cafe24',  label: '일반배송(카페24)', shortLabel: '일반배송', color: '#4f46e5',
-      field: 'revenueCafe24',  orderField: 'orderCountCafe24',  taskKey: '국내배송',     hasOrderCount: true },
+      field: 'revenueCafe24',  orderField: 'orderCountCafe24',  taskKey: '국내배송',     fulfillment: false },
     { id: 'direct',  label: '직진배송',         shortLabel: '직진배송', color: '#a855f7',
-      field: 'revenueDirect',  orderField: 'orderCountDirect',  taskKey: '직진배송',     hasOrderCount: false },
+      field: 'revenueDirect',  orderField: 'orderCountDirect',  taskKey: '직진배송',     fulfillment: true },
     { id: 'arrival', label: '도착보장',         shortLabel: '도착보장', color: '#0ea5e9',
-      field: 'revenueArrival', orderField: 'orderCountArrival', taskKey: '에이블리배송', hasOrderCount: false }
+      field: 'revenueArrival', orderField: 'orderCountArrival', taskKey: '에이블리배송', fulfillment: true }
 ];
 
 export const channelById = (id) => REVENUE_CHANNELS.find(c => c.id === id) || null;
@@ -75,9 +77,9 @@ export const channelScope = (id) => {
             deliveryOf: (d) => REVENUE_CHANNELS.reduce((s, ch) => s + (Number(d?.taskQuantities?.[ch.taskKey]) || 0), 0),
             deliveryLabel: '전체 배송량',
             deliverySource: REVENUE_CHANNELS.map(ch => ch.taskKey).join(' + '),
-            // 전체는 건수가 있는 채널과 없는 채널이 섞여 있어 배송량을 건수로 환산하면 뜻이 흐려진다.
-            // 주문건수 자체는 합계로 보여주되(hasOrderCount), 배송량은 장수로만 표기(showDeliveryCases).
-            hasOrderCount: true,
+            // 전체는 직접배송(카페24)과 풀필먼트 채널이 섞여 있어 배송량↔주문건수 대응이 성립하지 않는다.
+            // → 주문건수는 합계로 보여주되, 배송량은 장수로만 표기한다.
+            fulfillment: true,
             showDeliveryCases: false
         };
     }
@@ -88,7 +90,9 @@ export const channelScope = (id) => {
         deliveryOf: (d) => Number(d?.taskQuantities?.[c.taskKey]) || 0,
         deliveryLabel: `${c.shortLabel} 배송량`,
         deliverySource: c.taskKey,
-        hasOrderCount: !!c.hasOrderCount,
-        showDeliveryCases: !!c.hasOrderCount
+        fulfillment: !!c.fulfillment,
+        // 풀필먼트 채널은 그날 보낸 장수와 그날 잡히는 주문건수가 서로 다른 시점의 값이라
+        // 배송량을 건수로 환산해 병기하면 안 된다. 주문건수는 별도 지표로 그대로 보여준다.
+        showDeliveryCases: !c.fulfillment
     };
 };
