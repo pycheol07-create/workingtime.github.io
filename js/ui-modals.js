@@ -154,6 +154,9 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
     if (!container) return;
     container.innerHTML = '';
 
+    // 예정 물량 모드 전용 안내는 기본적으로 숨긴다(예정 모드에서 다시 켬)
+    document.getElementById('planned-auto-hint')?.classList.add('hidden');
+
     const missingTaskSet = new Set(missingTasksList);
     const confirmedZeroSet = new Set(confirmedZeroTasks);
 

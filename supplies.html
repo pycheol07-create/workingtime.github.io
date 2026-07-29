@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="비품관리">
+    <title>비품 관리</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class' }</script>
+    <style>
+        body { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
+        .sup-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+        .sup-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-align: left; position: sticky; top: 0; z-index: 1; }
+        .sup-table td { padding: 8px 10px; border-bottom: 1px solid #eef2f7; color: #334155; vertical-align: middle; }
+        .sup-table tbody tr:hover td { background: #f8fafc; }
+        .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .lbl { display:block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
+        .inp { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+        .inp:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <header class="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-20 shadow-sm">
+        <h1 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">📦 비품 관리</h1>
+        <div class="flex items-center gap-2">
+            <button id="btn-add-item" class="text-xs font-bold px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition">➕ 비품 추가</button>
+            <button id="btn-refresh" class="text-xs font-bold px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition">🔄 새로고침</button>
+            <button id="btn-close" class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 hover:bg-red-100 hover:text-red-600 text-slate-700 transition" title="창 닫기">✕ 닫기</button>
+        </div>
+    </header>
+
+    <div id="auth-gate" class="hidden max-w-md mx-auto mt-24 text-center p-8 bg-white rounded-2xl shadow">
+        <div class="text-4xl mb-3">🔒</div>
+        <div class="font-bold text-slate-800 mb-1">로그인이 필요합니다</div>
+        <div class="text-sm text-slate-500">메인 앱(업무관리)에서 먼저 로그인한 뒤<br>이 페이지를 열어주세요.</div>
+    </div>
+
+    <main id="main" class="hidden max-w-7xl mx-auto px-4 py-5 space-y-5">
+
+        <!-- 주요 비품 (택배봉투 / 포장봉투 등) -->
+        <section>
+            <h2 class="text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">⭐ 주요 비품</h2>
+            <div id="main-items" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        </section>
+
+        <!-- 요약 -->
+        <section id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></section>
+
+        <!-- 전체 목록 -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-sm font-bold text-slate-700">전체 비품 목록</h2>
+                <div class="flex flex-wrap items-center gap-2">
+                    <select id="filter-category" class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white"></select>
+                    <input id="filter-search" type="search" placeholder="품명·업체 검색" class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 w-44">
+                    <label class="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
+                        <input type="checkbox" id="filter-low"> 부족분만
+                    </label>
+                </div>
+            </div>
+            <div class="overflow-x-auto max-h-[60vh]">
+                <table class="sup-table">
+                    <thead>
+                        <tr>
+                            <th>종류</th>
+                            <th>품명</th>
+                            <th class="num">현재고</th>
+                            <th class="num">안전재고</th>
+                            <th class="num">단가</th>
+                            <th class="num">재고금액</th>
+                            <th>사이즈</th>
+                            <th>업체</th>
+                            <th>발주정보</th>
+                            <th class="text-center">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="items-body"></tbody>
+                </table>
+            </div>
+            <div id="empty-state" class="hidden p-10 text-center text-slate-400 text-sm">
+                등록된 비품이 없습니다. <b>➕ 비품 추가</b>로 등록하세요.
+            </div>
+        </section>
+    </main>
+
+    <!-- 비품 추가/수정 모달 -->
+    <div id="item-modal" class="hidden fixed inset-0 bg-black/50 items-center justify-center z-50 p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-8">
+            <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                <h2 id="item-modal-title" class="text-base font-bold">➕ 비품 추가</h2>
+                <button type="button" data-close class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="md:col-span-2">
+                        <label class="lbl">품명 *</label>
+                        <input id="f-name" class="inp" placeholder="예: 택배봉투">
+                    </div>
+                    <div>
+                        <label class="lbl">종류</label>
+                        <input id="f-category" class="inp" list="category-list" placeholder="예: 포장자재">
+                        <datalist id="category-list"></datalist>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                        <label class="lbl">현재고 *</label>
+                        <input id="f-stock" type="number" min="0" class="inp num" placeholder="0">
+                    </div>
+                    <div>
+                        <label class="lbl">단위</label>
+                        <input id="f-unit" class="inp" placeholder="개 / 박스 / 롤">
+                    </div>
+                    <div>
+                        <label class="lbl">안전재고</label>
+                        <input id="f-safety" type="number" min="0" class="inp num" placeholder="0">
+                    </div>
+                    <div>
+                        <label class="lbl">단가 (원)</label>
+                        <input id="f-price" type="number" min="0" class="inp num" placeholder="0">
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-100 pt-4">
+                    <div class="text-xs font-bold text-slate-500 mb-3">📋 상세 정보</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="lbl">사이즈 / 규격</label>
+                            <input id="f-size" class="inp" placeholder="예: 25 x 35cm, 두께 0.06mm">
+                        </div>
+                        <div>
+                            <label class="lbl">업체명</label>
+                            <input id="f-vendor" class="inp" placeholder="예: ○○포장">
+                        </div>
+                        <div>
+                            <label class="lbl">업체 연락처 / 담당자</label>
+                            <input id="f-vendor-contact" class="inp" placeholder="예: 김대리 010-0000-0000">
+                        </div>
+                        <div>
+                            <label class="lbl">발주 단위</label>
+                            <input id="f-order-unit" class="inp" placeholder="예: 1박스 = 500장 / 최소 10박스">
+                        </div>
+                        <div>
+                            <label class="lbl">입고 소요일 (리드타임)</label>
+                            <input id="f-leadtime" type="number" min="0" class="inp num" placeholder="예: 3">
+                        </div>
+                        <div>
+                            <label class="lbl">최근 발주일</label>
+                            <input id="f-last-order" type="date" class="inp">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="lbl">발주 메모 / 기타</label>
+                            <input id="f-memo" class="inp" placeholder="예: 매주 화요일 발주, 우천 시 배송 지연">
+                        </div>
+                    </div>
+                </div>
+
+                <label class="flex items-center gap-2 text-sm font-bold text-slate-600">
+                    <input type="checkbox" id="f-main"> 주요 비품으로 상단에 고정
+                </label>
+
+                <p id="item-modal-error" class="hidden text-xs text-red-600 font-bold"></p>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-between items-center">
+                <button type="button" id="btn-delete-item" class="hidden px-3 py-2 text-xs rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold">삭제</button>
+                <div class="flex gap-2 ml-auto">
+                    <button type="button" data-close class="px-4 py-2 text-sm rounded-lg bg-white border border-slate-300 hover:bg-slate-100">취소</button>
+                    <button type="button" id="btn-save-item" class="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 재고 조정 모달 -->
+    <div id="stock-modal" class="hidden fixed inset-0 bg-black/50 items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                <h2 id="stock-modal-title" class="text-base font-bold">재고 조정</h2>
+                <button type="button" data-close class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="text-sm text-slate-500">현재고 <b id="stock-current" class="text-slate-800">0</b></div>
+                <div>
+                    <label class="lbl">동작</label>
+                    <div class="grid grid-cols-3 gap-2 text-xs font-bold">
+                        <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer"><input type="radio" name="stock-op" value="in" checked> 입고(+)</label>
+                        <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer"><input type="radio" name="stock-op" value="out"> 사용(−)</label>
+                        <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer"><input type="radio" name="stock-op" value="set"> 실사(=)</label>
+                    </div>
+                </div>
+                <div>
+                    <label class="lbl">수량</label>
+                    <input id="stock-qty" type="number" min="0" class="inp num" placeholder="0">
+                </div>
+                <div>
+                    <label class="lbl">메모 (선택)</label>
+                    <input id="stock-memo" class="inp" placeholder="예: ○○포장 입고분">
+                </div>
+                <div class="text-xs text-slate-500">조정 후 예상 재고: <b id="stock-preview" class="text-indigo-600">-</b></div>
+                <p id="stock-modal-error" class="hidden text-xs text-red-600 font-bold"></p>
+
+                <div id="stock-log" class="border-t border-slate-100 pt-3 max-h-40 overflow-y-auto space-y-1"></div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-2">
+                <button type="button" data-close class="px-4 py-2 text-sm rounded-lg bg-white border border-slate-300 hover:bg-slate-100">취소</button>
+                <button type="button" id="btn-save-stock" class="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold">적용</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/supplies.js"></script>
+    <script src="js/connection-banner.js"></script>
+    <script src="js/modal-esc.js"></script>
+</body>
+</html>

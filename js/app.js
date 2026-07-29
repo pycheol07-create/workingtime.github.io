@@ -15,6 +15,8 @@ import { setupWeekendListeners } from './listeners-weekend.js';
 import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js';
 import { setupNotificationListeners } from './app-notifications.js';
 import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js';
+import { healYesterdayOnStartup } from './history-data-manager.js';
+import { initWorkCalendarWidget } from './widget-calendar.js';
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
@@ -112,6 +114,14 @@ async function startAppAfterLogin(user) {
 
     // ✅ 2. Firebase 실시간 동기화 리스너 실행 (분리된 파일 호출)
     setupFirebaseListeners(render, markDataAsDirty);
+
+    // 🩺 3. 어제 업무기록이 이력에 없으면 자동 복구 (관리자 세션, 하루 1회)
+    if (State.appState.currentUserRole === 'admin') {
+        healYesterdayOnStartup().catch(e => console.warn('자가복구 건너뜀:', e));
+    }
+
+    // 🗓️ 4. 업무 캘린더 위젯 (근태 예정·입고일정 연동 + 일정 등록/수정/삭제)
+    initWorkCalendarWidget().catch(e => console.warn('업무 캘린더 초기화 실패:', e));
 }
 
 async function main() {

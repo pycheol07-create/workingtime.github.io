@@ -4,7 +4,41 @@
 import { formatDuration, getWeekOfYear, isWeekday, buildMemberHourlyWageMap } from './utils.js';
 import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js';
 import { appConfig } from './state.js';
+import { REVENUE_CHANNELS, revenueTotalOf, isLegacyRevenue } from './revenue-channels.js';
 // predictFutureTrends import 제거됨
+
+// 💰 채널별 매출 입력 행 (카페24 / 직진배송 / 도착보장)
+// 합계는 입력할 때마다 즉시 다시 계산해 화면에 보여준다.
+// ⚠️ 이 문자열은 oninput="..." 속성 안에 들어가므로 큰따옴표를 쓰면 안 된다.
+const recalcRevenueTotalJs = `(function(){` +
+    `var ids=[${REVENUE_CHANNELS.map(c => `'mgmt-input-${c.field}'`).join(',')}];` +
+    `var sum=ids.reduce(function(s,id){var el=document.getElementById(id);` +
+    `return s+(Number(((el&&el.value)||'0').replace(/[^0-9]/g,''))||0);},0);` +
+    `var out=document.getElementById('mgmt-revenue-total');` +
+    `if(out) out.textContent=sum.toLocaleString();})();`;
+
+const revenueChannelRowsHtml = (mgmt, prevMgmt, formatVal, onInputHandler) => {
+    const legacyNote = isLegacyRevenue(mgmt)
+        ? `<p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded p-2 leading-relaxed">
+             ⚠️ 이 날짜는 채널 구분 이전에 입력된 데이터입니다. 총액 <b>${Number(mgmt.revenue).toLocaleString()}원</b>만 남아 있어
+             채널별 값이 비어 있습니다. 채널별로 나눠 입력한 뒤 저장하면 합계가 새로 계산됩니다.
+           </p>`
+        : '';
+
+    const rows = REVENUE_CHANNELS.map(c => `
+        <div class="flex items-center gap-2">
+            <label for="mgmt-input-${c.field}" class="text-sm text-gray-600 w-20 shrink-0">${c.label}</label>
+            <input type="text" id="mgmt-input-${c.field}" data-revenue-channel="${c.id}"
+                class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800"
+                placeholder="0" value="${formatVal(mgmt[c.field])}"
+                oninput="${onInputHandler} ${recalcRevenueTotalJs}">
+            <span class="text-sm font-medium w-20 text-right">
+                ${getDiffHtmlForMetric('totalCost', mgmt[c.field], prevMgmt[c.field])}
+            </span>
+        </div>`).join('');
+
+    return legacyNote + rows;
+};
 
 // 헬퍼: 숫자를 통화 형식(콤마)으로 변환
 const formatCurrency = (num) => {
@@ -23,6 +57,34 @@ const calculateTurnoverRatio = (totalRevenue, avgInventoryAmt) => {
     return totalRevenue / avgInventoryAmt;
 };
 
+// 💰 총 매출 카드 안에 채널별 구성비를 함께 보여준다.
+const revenueChannelBreakdownHtml = (stats) => {
+    const total = Number(stats.revenue) || 0;
+    if (total <= 0) return '';
+    const pct = (v) => total > 0 ? ((v / total) * 100).toFixed(1) : '0.0';
+
+    const rows = REVENUE_CHANNELS.map(c => {
+        const v = Number(stats.revenueByChannel?.[c.id]) || 0;
+        return `<div class="flex items-center justify-between gap-2">
+            <span class="flex items-center gap-1.5 text-gray-600">
+                <span class="inline-block w-2 h-2 rounded-full" style="background:${c.color}"></span>${c.label}
+            </span>
+            <span class="font-bold text-gray-700">${formatCurrency(v)}<span class="text-gray-400 font-normal ml-1">(${pct(v)}%)</span></span>
+        </div>`;
+    }).join('');
+
+    const legacy = (Number(stats.revenueUnclassified) || 0) > 0
+        ? `<div class="flex items-center justify-between gap-2">
+             <span class="flex items-center gap-1.5 text-gray-400">
+               <span class="inline-block w-2 h-2 rounded-full bg-gray-300"></span>채널 미구분
+             </span>
+             <span class="font-bold text-gray-500">${formatCurrency(stats.revenueUnclassified)}<span class="text-gray-400 font-normal ml-1">(${pct(stats.revenueUnclassified)}%)</span></span>
+           </div>`
+        : '';
+
+    return `<div class="mt-3 pt-3 border-t border-gray-100 space-y-1 text-xs">${rows}${legacy}</div>`;
+};
+
 // 헬퍼: 데이터 집계 함수
 export const aggregateManagementData = (dataList) => {
     const result = {
@@ -34,13 +96,19 @@ export const aggregateManagementData = (dataList) => {
         avgInventoryQty: 0,
         avgInventoryAmt: 0,
         usdRateSum: 0, cnyRateSum: 0, daysWithFx: 0,
-        avgUsdRate: 0, avgCnyRate: 0
+        avgUsdRate: 0, avgCnyRate: 0,
+        // 💰 채널별 매출 합계 (카페24 / 직진배송 / 도착보장)
+        revenueByChannel: REVENUE_CHANNELS.reduce((a, c) => ({ ...a, [c.id]: 0 }), {}),
+        revenueUnclassified: 0 // 채널 구분 이전에 입력된 총액
     };
 
     dataList.forEach(day => {
         const mgmt = day.management || {};
-        result.revenue += (Number(mgmt.revenue) || 0);
+        result.revenue += revenueTotalOf(mgmt);
         result.orderCount += (Number(mgmt.orderCount) || 0);
+
+        REVENUE_CHANNELS.forEach(c => { result.revenueByChannel[c.id] += (Number(mgmt[c.field]) || 0); });
+        if (isLegacyRevenue(mgmt)) result.revenueUnclassified += (Number(mgmt.revenue) || 0);
 
         const invQty = Number(mgmt.inventoryQty) || 0;
         const invAmt = Number(mgmt.inventoryAmt) || 0;
@@ -191,7 +259,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
         dayData || { workRecords: [], taskQuantities: {} }, 
         appConfig, 
         wageMap, 
-        Number(mgmt.revenue) || 0
+        revenueTotalOf(mgmt)
     );
 
     const analysisHtml = generateCostAnalysisHTML(analysis);
@@ -219,14 +287,17 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         💰 매출 현황
                     </h4>
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">일 매출액 (원)</label>
-                            <div class="flex items-center gap-2">
-                                <input type="text" id="mgmt-input-revenue" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${formatVal(mgmt.revenue)}" oninput="${onInputHandler}">
-                                <span class="text-sm font-medium w-20 text-right">
-                                    ${getDiffHtmlForMetric('totalCost', mgmt.revenue, prevMgmt.revenue)}
-                                </span>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">채널별 매출액 (원)</label>
+                            ${revenueChannelRowsHtml(mgmt, prevMgmt, formatVal, onInputHandler)}
+                            <div class="flex items-center justify-between pt-2 border-t border-blue-100">
+                                <span class="text-sm font-bold text-blue-800">일 매출액 합계</span>
+                                <div class="flex items-center gap-2">
+                                    <span id="mgmt-revenue-total" class="text-base font-black text-blue-800">${Number(revenueTotalOf(mgmt)).toLocaleString()}</span>
+                                    <span class="text-sm font-medium w-20 text-right">
+                                        ${getDiffHtmlForMetric('totalCost', revenueTotalOf(mgmt), revenueTotalOf(prevMgmt))}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                         <div>
@@ -243,7 +314,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                             <div class="flex justify-between text-sm">
                                 <span class="text-gray-600">건당 평균 매출 (객단가)</span>
                                 <span class="font-bold text-gray-800">
-                                    ${(Number(mgmt.orderCount) > 0) ? Math.round(Number(mgmt.revenue) / Number(mgmt.orderCount)).toLocaleString() : '0'} 원
+                                    ${(Number(mgmt.orderCount) > 0) ? Math.round(revenueTotalOf(mgmt) / Number(mgmt.orderCount)).toLocaleString() : "0"} 원
                                 </span>
                             </div>
                         </div>
@@ -279,7 +350,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                             <div class="flex justify-between text-sm">
                                 <span class="text-gray-600">재고 순환율 (매출/재고)</span>
                                 <span class="font-bold text-indigo-600">
-                                    ${(Number(mgmt.inventoryAmt) > 0) ? (Number(mgmt.revenue) / Number(mgmt.inventoryAmt) * 100).toFixed(1) : '0.0'} %
+                                    ${(Number(mgmt.inventoryAmt) > 0) ? (revenueTotalOf(mgmt) / Number(mgmt.inventoryAmt) * 100).toFixed(1) : "0.0"} %
                                 </span>
                             </div>
                         </div>
@@ -513,6 +584,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                     <div class="text-sm">
                         ${getDiffHtmlForMetric('totalCost', currentStats.revenue, prevStats?.revenue)}
                     </div>
+                    ${revenueChannelBreakdownHtml(currentStats)}
                 </div>
 
                 <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden group hover:border-green-400 transition">

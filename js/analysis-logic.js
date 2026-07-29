@@ -4,6 +4,7 @@
 import * as State from './state.js';
 import { formatDuration, getTodayDateString } from './utils.js';
 import { calculateStandardThroughputs } from './ui-history-reports-logic.js';
+import { revenueTotalOf } from './revenue-channels.js';
 
 /**
  * 누락된 처리량이 있는지 확인하는 함수
@@ -115,6 +116,126 @@ const calculateLinkedTaskAverageDuration = (allHistoryData, appConfig) => {
     return mainTaskAvgDurations;
 };
 
+// ───────────────────────────────────────────────────────────
+// 📊 예측 엔진 공통 부품
+//   요일별 평균(이상치 제거) × 백테스트 보정계수 × EMA 추세 계수
+//   매출·배송량뿐 아니라 채널별/업무별 어떤 지표에도 같은 방식으로 쓸 수 있도록 분리했다.
+// ───────────────────────────────────────────────────────────
+const filterOutliers = (arr) => {
+    if (arr.length < 4) return arr;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const q1 = sorted[Math.floor((sorted.length / 4))];
+    const q3 = sorted[Math.floor((sorted.length * (3 / 4)))];
+    const iqr = q3 - q1;
+    const lowerBound = q1 - 1.5 * iqr;
+    const upperBound = q3 + 1.5 * iqr;
+    return arr.filter(x => x >= Math.max(0, lowerBound) && x <= upperBound);
+};
+
+const calcEMA = (dataArray, period) => {
+    if (dataArray.length === 0) return 0;
+    const k = 2 / (period + 1);
+    let ema = dataArray[0];
+    for (let i = 1; i < dataArray.length; i++) {
+        ema = (dataArray[i] * k) + (ema * (1 - k));
+    }
+    return ema;
+};
+
+/**
+ * 하나의 지표(valueOf로 뽑아낸 값)에 대한 예측 시리즈를 만든다.
+ * @param {Array}    pastData      오늘 이전의 일자 데이터(오래된 순)
+ * @param {Object}   todayData     오늘 데이터
+ * @param {number}   daysToPredict 예측할 일수
+ * @param {Function} valueOf       (dayData) => number
+ * @param {number}   margin        예측 구간 폭 (0.10 = ±10%)
+ */
+const buildMetricPrediction = (pastData, todayData, todayStr, daysToPredict, valueOf, margin = 0.10) => {
+    const dowAvg = {};
+    for (let dow = 0; dow < 7; dow++) {
+        const sameDow = pastData.filter(r => new Date(r.id).getDay() === dow);
+        const valid = filterOutliers(sameDow.map(valueOf).filter(v => v > 0));
+        dowAvg[dow] = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : 0;
+    }
+
+    const series = pastData.map(valueOf).filter(v => v > 0);
+    const ema7 = calcEMA(series.slice(-7), 7);
+    const ema30 = calcEMA(series.slice(-30), 30);
+    const trend = ema30 > 0 ? Math.max(0.7, Math.min(1.3, ema7 / ema30)) : 1;
+
+    // 최근 14일 백테스트로 편향 보정
+    let sumActual = 0, sumPred = 0;
+    pastData.slice(-14).forEach(day => {
+        const actual = valueOf(day);
+        if (actual > 0) { sumActual += actual; sumPred += dowAvg[new Date(day.id).getDay()]; }
+    });
+    const errorFactor = sumPred > 0 ? Math.max(0.85, Math.min(1.15, sumActual / sumPred)) : 1;
+
+    const todayDow = new Date(todayStr).getDay();
+    const todayPredicted = Math.round(Math.max(0, dowAvg[todayDow] * errorFactor * trend));
+    const todayActual = valueOf(todayData);
+
+    const labels = [], predicted = [], range = [];
+    const todayDateObj = new Date(todayStr);
+    let tomorrow = 0;
+
+    for (let i = 1; i <= daysToPredict; i++) {
+        const targetDate = new Date(todayDateObj.getTime() + (i * 86400000));
+        const decayTrend = 1 + (trend - 1) * Math.max(0.5, (1 - i * 0.05));
+        const p = Math.round(Math.max(0, dowAvg[targetDate.getDay()] * errorFactor * decayTrend));
+
+        labels.push(targetDate.toISOString().slice(5, 10));
+        predicted.push(p);
+        range.push({ min: Math.round(p * (1 - margin)), max: Math.round(p * (1 + margin)) });
+        if (i === 1) tomorrow = p;
+    }
+
+    return { labels, predicted, range, trend, errorFactor, todayPredicted, todayActual, tomorrow };
+};
+
+/** 예측에 쓸 과거/오늘 데이터 분리 (최근 90일). 데이터가 7일 미만이면 null. */
+const splitHistoryForPrediction = (historyData) => {
+    const todayStr = getTodayDateString();
+    const sortedData = [...(historyData || [])].sort((a, b) => a.id.localeCompare(b.id));
+    const pastData = sortedData.filter(d => d.id < todayStr).slice(-90);
+    if (pastData.length < 7) return null;
+    const todayData = sortedData.find(d => d.id === todayStr) || { id: todayStr, management: {}, taskQuantities: {} };
+    return { todayStr, sortedData, pastData, todayData };
+};
+
+/**
+ * 🔮 지표를 여러 갈래로 나눠 각각 예측한다.
+ *   예) 배송량 → 일반배송 / 직진출고 / 에이블리출고
+ *       매출   → 카페24 / 직진배송 / 도착보장
+ * @param {Array} historyData
+ * @param {number} daysToPredict
+ * @param {Array<{id,label,color,valueOf}>} seriesDefs
+ * @returns {{labels:string[], historicalLabels:string[], series:Array}|null}
+ */
+export const predictBreakdown = (historyData, daysToPredict = 14, seriesDefs = []) => {
+    const ctx = splitHistoryForPrediction(historyData);
+    if (!ctx) return null;
+    const { todayStr, sortedData, pastData, todayData } = ctx;
+    const displayHist = sortedData.slice(-30);
+
+    const series = seriesDefs.map(def => {
+        const p = buildMetricPrediction(pastData, todayData, todayStr, daysToPredict, def.valueOf);
+        return {
+            id: def.id,
+            label: def.label,
+            color: def.color,
+            historical: displayHist.map(def.valueOf),
+            ...p
+        };
+    });
+
+    return {
+        historicalLabels: displayHist.map(d => d.id.substring(5)),
+        labels: series[0] ? series[0].labels : [],
+        series
+    };
+};
+
 /**
  * 🚀 [개선된 엔진] 고도화된 실적 및 트렌드 예측 (이상치 제거, EMA 적용)
  */
@@ -125,28 +246,7 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
     const pastData = sortedData.filter(d => d.id < todayStr).slice(-90);
     const todayData = sortedData.find(d => d.id === todayStr) || { id: todayStr, management: { revenue: 0 }, taskQuantities: { '국내배송': 0 } };
 
-    if (pastData.length < 7) return null; 
-
-    const filterOutliers = (arr) => {
-        if (arr.length < 4) return arr;
-        const sorted = [...arr].sort((a, b) => a - b);
-        const q1 = sorted[Math.floor((sorted.length / 4))];
-        const q3 = sorted[Math.floor((sorted.length * (3 / 4)))];
-        const iqr = q3 - q1;
-        const lowerBound = q1 - 1.5 * iqr;
-        const upperBound = q3 + 1.5 * iqr;
-        return arr.filter(x => x >= Math.max(0, lowerBound) && x <= upperBound);
-    };
-
-    const calcEMA = (dataArray, period) => {
-        if (dataArray.length === 0) return 0;
-        const k = 2 / (period + 1);
-        let ema = dataArray[0];
-        for (let i = 1; i < dataArray.length; i++) {
-            ema = (dataArray[i] * k) + (ema * (1 - k));
-        }
-        return ema;
-    };
+    if (pastData.length < 7) return null;
 
     const getAdvancedDowPrediction = (records, targetDow, type) => {
         const sameDayRecords = records.filter(r => new Date(r.id).getDay() === targetDow);
@@ -154,7 +254,7 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
 
         sameDayRecords.sort((a, b) => b.id.localeCompare(a.id));
 
-        const rawValues = sameDayRecords.map(r => type === 'rev' ? (Number(r.management?.revenue) || 0) : (Number(r.taskQuantities?.['국내배송']) || 0));
+        const rawValues = sameDayRecords.map(r => type === 'rev' ? revenueTotalOf(r.management) : (Number(r.taskQuantities?.['국내배송']) || 0));
         
         const validValues = filterOutliers(rawValues.filter(v => v > 0));
         if (validValues.length === 0) return 0;
@@ -169,7 +269,7 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
         advDowAvgDel[i] = getAdvancedDowPrediction(pastData, i, 'del');
     }
 
-    const revSeries = pastData.map(d => Number(d.management?.revenue) || 0).filter(v => v > 0);
+    const revSeries = pastData.map(d => revenueTotalOf(d.management)).filter(v => v > 0);
     const delSeries = pastData.map(d => Number(d.taskQuantities?.['국내배송']) || 0).filter(v => v > 0);
 
     const ema7Rev = calcEMA(revSeries.slice(-7), 7);
@@ -187,7 +287,7 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
 
     backtestDays.forEach(day => {
         const dow = new Date(day.id).getDay();
-        const actualRev = Number(day.management?.revenue) || 0;
+        const actualRev = revenueTotalOf(day.management);
         const actualDel = Number(day.taskQuantities?.['국내배송']) || 0;
 
         if (actualRev > 0) { sumActualRev += actualRev; sumPredRev += advDowAvgRev[dow]; }
@@ -207,7 +307,7 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
     todayPredRev = Math.round(Math.max(0, todayPredRev));
     todayPredDel = Math.round(Math.max(0, todayPredDel));
 
-    const todayActualRev = Number(todayData.management?.revenue) || 0;
+    const todayActualRev = revenueTotalOf(todayData.management);
     const todayActualDel = Number(todayData.taskQuantities?.['국내배송']) || 0;
 
     const futureLabels = [];
@@ -249,7 +349,7 @@ export const predictFutureTrends = (historyData, daysToPredict = 14) => {
     return {
         historical: {
             labels: displayHist.map(d => d.id.substring(5)),
-            revenue: displayHist.map(d => Number(d.management?.revenue) || 0),
+            revenue: displayHist.map(d => revenueTotalOf(d.management)),
             delivery: displayHist.map(d => Number(d.taskQuantities?.['국내배송']) || 0)
         },
         prediction: {

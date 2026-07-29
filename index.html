@@ -302,6 +302,31 @@
                 </div>
                 </div>
 
+                <!-- 🗓️ 업무 캘린더 (전체 팀원 현황 ↔ 오늘의 업무 분석 사이) -->
+                <div id="work-calendar-widget" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mt-8 overflow-hidden transition-colors depth-panel">
+                    <div class="p-4 md:p-5 border-b border-gray-100 dark:border-gray-700 flex flex-wrap justify-between items-center gap-3 bg-gray-50/50 dark:bg-gray-800/50">
+                        <h3 class="text-md font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                            <span>🗓️</span> 업무 캘린더
+                            <span class="text-xs font-normal text-gray-400 dark:text-gray-500 hidden md:inline">(근태 예정 · 입고일정 연동)</span>
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="work-calendar-prev" class="w-7 h-7 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 font-bold leading-none">‹</button>
+                            <span id="work-calendar-label" class="text-sm font-bold text-gray-700 dark:text-gray-200 min-w-[7rem] text-center">—</span>
+                            <button type="button" id="work-calendar-next" class="w-7 h-7 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 font-bold leading-none">›</button>
+                            <button type="button" id="work-calendar-today" class="ml-1 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200">오늘</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-0">
+                        <div id="work-calendar-body" class="lg:col-span-2 p-3 md:p-4"></div>
+                        <div id="work-calendar-detail" class="lg:col-span-1 p-3 md:p-4 border-t lg:border-t-0 lg:border-l border-gray-100 dark:border-gray-700 bg-gray-50/40 dark:bg-gray-900/20"></div>
+                    </div>
+                    <div class="px-4 pb-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-400">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:#3b82f6"></span>업무 일정</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:#ef4444"></span>근태 예정</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:#f97316"></span>입고 예정(시트 연동·읽기전용)</span>
+                    </div>
+                </div>
+
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mt-8 overflow-hidden transition-colors depth-panel">
                     <div id="toggle-analysis" class="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                         <h3 class="text-md font-bold text-gray-800 dark:text-white flex items-center gap-2">
@@ -483,6 +508,9 @@
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
+
+            // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
+            import('./js/uph-tooltip.js').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();

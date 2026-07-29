@@ -10,6 +10,7 @@ import { fetchAllHistoryData, syncTodayToHistory, getDailyDocRef, selfHealRecent
 import { checkMissingQuantities } from './analysis-logic.js';
 import { renderQuantityModalInputs } from './ui.js';
 import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js';
+import { getAutoQuantitiesForDate } from './ui-history-prediction.js';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -137,15 +138,23 @@ export const openPlannedQuantityModal = (dateStr) => {
     if (!dateStr) return;
     const allTasks = getAllTaskKeys(State.appConfig);
 
-    // 기존 예정값 + 중국제작은 입고일정 값 반영(미입력 시 기본으로 채움)
-    const planned = { ...getPlannedQuantitiesForDate(dateStr) };
-    const chinaIncoming = Math.round(Number(getIncomingQtyByDateFromCache()[dateStr]) || 0);
-    if (chinaIncoming > 0 && !(Number(planned['중국제작']) > 0)) planned['중국제작'] = chinaIncoming;
+    // 자동 추정값(업무 예상 시뮬레이션과 동일한 계산 — 지난 7회 평균 / AI / 입고일정)을 먼저 깔고,
+    // 이미 수기로 저장해 둔 예정값이 있으면 그 값으로 덮는다.
+    // → 화면을 열자마자 시뮬레이션과 같은 값이 보이고, 여기서 고친 값이 시뮬레이션에 그대로 반영된다.
+    const auto = getAutoQuantitiesForDate(dateStr);
+    const saved = getPlannedQuantitiesForDate(dateStr);
+    const planned = { ...auto, ...saved };
 
     renderQuantityModalInputs(planned, allTasks, [], []);
 
     const title = document.getElementById('quantity-modal-title');
     if (title) title.textContent = `📅 ${dateStr} 예정 물량 입력`;
+
+    const hint = document.getElementById('planned-auto-hint');
+    if (hint) {
+        hint.textContent = '자동 추정값(국내배송=AI 예측 · 중국제작=입고일정 · 그 외=지난 7회 업무량 평균)이 미리 채워져 있습니다. 값을 고쳐 저장하면 업무 예상 시뮬레이션에도 그대로 적용됩니다.';
+        hint.classList.remove('hidden');
+    }
 
     // 확정 체크박스는 예정 입력엔 불필요 — 꺼둠
     const confirmCheckbox = document.getElementById('quantity-confirm-checkbox');

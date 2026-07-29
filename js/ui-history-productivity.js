@@ -5,14 +5,15 @@ import { buildMemberHourlyWageMap } from './utils.js';
 let productivityChartInstance = null;
 
 export function renderProductivityTab(filteredData, appConfig) {
-    const taskTypes = ['국내배송', '중국제작', '직진배송'];
-    
+    const taskTypes = ['국내배송', '중국제작', '직진배송', '에이블리배송'];
+
     // 각 파트별 유니크 작업자 집계를 위해 Set 객체 추가
     const summary = {
         '종합': { duration: 0, qty: 0, members: new Set() },
         '국내배송': { duration: 0, qty: 0, members: new Set() },
         '중국제작': { duration: 0, qty: 0, members: new Set() },
-        '직진배송': { duration: 0, qty: 0, members: new Set() }
+        '직진배송': { duration: 0, qty: 0, members: new Set() },
+        '에이블리배송': { duration: 0, qty: 0, members: new Set() }
     };
 
     const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
@@ -97,12 +98,13 @@ export function renderProductivityTab(filteredData, appConfig) {
     setProductivityText('domestic', summary['국내배송'], true); // 건수 병기
     setProductivityText('china',    summary['중국제작']);
     setProductivityText('direct',   summary['직진배송']);
+    setProductivityText('ably',     summary['에이블리배송']);
 
     const ctx = document.getElementById('chart-productivity-efficiency');
     if (ctx) {
         if (productivityChartInstance) productivityChartInstance.destroy();
 
-        const colors = { '국내배송': '#10b981', '중국제작': '#ef4444', '직진배송': '#a855f7' };
+        const colors = { '국내배송': '#10b981', '중국제작': '#ef4444', '직진배송': '#a855f7', '에이블리배송': '#ec4899' };
         const datasets = taskTypes.map(type => {
             const hours = summary[type].duration / 60;
             // 실제 평균 소요시간 계산

@@ -3,7 +3,8 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js';
+import { predictFutureTrends, predictBreakdown } from './analysis-logic.js';
+import { REVENUE_CHANNELS } from './revenue-channels.js';
 import * as State from './state.js';
 import { getTodayDateString, getRegularMembersForCount } from './utils.js';
 import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js';
@@ -26,17 +27,20 @@ const getIncomingChinaForDate = (dateStr) => {
 // ───────────────────────────────────────────────────────────
 // 시뮬레이션 상수/헬퍼
 // ───────────────────────────────────────────────────────────
+// 모든 업무를 기본 등록으로 둔다('+ 추가 선택' 폐지).
+// 자동값 규칙: ai=국내배송 예측 / incoming=입고일정 / last7=지난 7회 업무량 평균
+// 어느 경우든 '예정 물량'에 수기 입력값이 있으면 그 값이 최우선이다.
 const SIM_TASKS = [
-    { id: 'domestic', key: '국내배송', label: '국내배송', auto: 'ai',           optional: false },
-    { id: 'china',    key: '중국제작', label: '중국제작', auto: 'manual',       optional: false },
-    { id: 'sample',   key: '샘플검수', label: '샘플검수', auto: 'china-linked', optional: true  }, // 중국제작 입고 시 자동 표시
-    { id: 'direct',   key: '직진배송', label: '직진배송', auto: 'rolling7',     optional: false },
-    { id: 'ably',     key: '에이블리배송', label: '에이블리배송', auto: 'rolling7', optional: false },
-    { id: 'fill',     key: '채우기',   label: '채우기',   auto: 'rolling7',     optional: false },
-    { id: 'return',   key: '교환반품', label: '교환반품', auto: 'rolling7',     optional: false }, // 기본 표시로 이동
-    { id: 'full',     key: '전량검수', label: '전량검수', auto: 'rolling7',     optional: true  },
-    { id: 'other',    key: '국내기타', label: '국내기타', auto: 'manual',       optional: true  },
-    { id: 'localprod',key: '국내제작', label: '국내제작', auto: 'manual',       optional: true  }
+    { id: 'domestic', key: '국내배송', label: '국내배송', auto: 'ai' },
+    { id: 'china',    key: '중국제작', label: '중국제작', auto: 'incoming' },
+    { id: 'sample',   key: '샘플검수', label: '샘플검수', auto: 'last7' },
+    { id: 'direct',   key: '직진배송', label: '직진배송', auto: 'last7' },
+    { id: 'ably',     key: '에이블리배송', label: '에이블리배송', auto: 'last7' },
+    { id: 'fill',     key: '채우기',   label: '채우기',   auto: 'last7' },
+    { id: 'return',   key: '교환반품', label: '교환반품', auto: 'last7' },
+    { id: 'full',     key: '전량검수', label: '전량검수', auto: 'last7' },
+    { id: 'other',    key: '국내기타', label: '국내기타', auto: 'last7' },
+    { id: 'localprod',key: '국내제작', label: '국내제작', auto: 'last7' }
 ];
 const LEAVE_OFF_TYPES = new Set(['연차', '결근', '휴직', '출장', '매장근무']);
 const UTILIZATION = 0.8;
@@ -77,41 +81,21 @@ const computeTaskUPHs = (historyData) => {
     return uph;
 };
 
-/** 샘플검수 비율 = 최근 4주에서 중국제작>0인 날들의 (Σ샘플검수 / Σ중국제작) */
-const computeSampleRatio = (historyData) => {
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 28);
-    const cutoffStr = ymd(cutoff);
-    const recent = (historyData || []).filter(d => typeof d.id === 'string' && d.id >= cutoffStr);
-    let chinaSum = 0, sampleSum = 0;
-    recent.forEach(d => {
-        const china = Number(d.taskQuantities?.['중국제작']) || 0;
-        if (china > 0) {
-            chinaSum += china;
-            sampleSum += Number(d.taskQuantities?.['샘플검수']) || 0;
-        }
-    });
-    return chinaSum > 0 ? sampleSum / chinaSum : 0;
-};
+/** 지난 7회 업무량 평균 — 그 업무가 실제로 발생한 최근 7일(물량 > 0)의 평균.
+ *  달력 기준 7일이 아니라 '발생 횟수' 기준이라, 매일 잡히지 않는 업무
+ *  (전량검수·국내제작·교환반품 등)도 항상 대표값을 얻을 수 있다.
+ *  오늘 이후(미래) 날짜는 실적이 아니므로 제외한다. */
+const computeLast7Avg = (historyData, taskKey, occurrences = 7) => {
+    const today = getTodayDateString();
+    const valued = (historyData || [])
+        .filter(d => d && typeof d.id === 'string' && d.id <= today)
+        .filter(d => Number(d.taskQuantities?.[taskKey]) > 0)
+        .sort((a, b) => b.id.localeCompare(a.id))   // 최신순
+        .slice(0, occurrences);
 
-/** 최근 N일간 해당 작업 수량 평균 (0 또는 빈 일자는 제외).
- *  기본 7일 우선, 최근 7일에 데이터가 없으면 14→28일로 확장해 값을 찾는다.
- *  (교환반품처럼 물량이 매일 잡히지 않는 작업도 대표값이 표시되도록) */
-const compute7DayAvg = (historyData, taskKey) => {
-    const tryWindow = (windowDays) => {
-        const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - windowDays);
-        const cutoffStr = ymd(cutoff);
-        const recent = (historyData || []).filter(d => typeof d.id === 'string' && d.id >= cutoffStr);
-        const valued = recent.filter(d => Number(d.taskQuantities?.[taskKey]) > 0);
-        if (valued.length === 0) return null;
-        const sum = valued.reduce((s, d) => s + (Number(d.taskQuantities?.[taskKey]) || 0), 0);
-        return Math.round(sum / valued.length);
-    };
-    const v = tryWindow(7);
-    if (v != null) return v;
-    const v14 = tryWindow(14);
-    if (v14 != null) return v14;
-    const v28 = tryWindow(28);
-    return v28 != null ? v28 : 0;
+    if (valued.length === 0) return 0;
+    const sum = valued.reduce((s, d) => s + (Number(d.taskQuantities[taskKey]) || 0), 0);
+    return Math.round(sum / valued.length);
 };
 
 /** 미래 날짜의 국내배송 AI 예측값. 과거이면 실측치 사용. */
@@ -174,48 +158,42 @@ const setQty = (id, val) => {
     el.value = (val == null || val === 0 || val === '') ? '' : val;
 };
 
-const isRowVisible = (id) => {
-    const row = document.getElementById(`sim-row-${id}`);
-    return row && !row.classList.contains('hidden');
-};
+/** 한 업무의 대상일 자동값.
+ *  ⭐ 우선순위: 업무 기록 및 관리의 '예정 물량' 수기 입력값 > 업무별 자동 추정값
+ *  → 예정 물량에 값을 넣으면 시뮬레이션도 즉시 그 값으로 계산된다.
+ */
+const autoValueFor = (dateStr, task, historyData) => {
+    const planned = getPlanned(dateStr, task.key);
+    if (planned != null) return planned;
 
-const showOptionalRow = (id) => {
-    const row = document.getElementById(`sim-row-${id}`);
-    if (row) {
-        row.classList.remove('hidden');
-        row.classList.add('flex'); // ensure flex layout
-    }
-    const addBtn = document.querySelector(`.sim-add-btn[data-add="${id}"]`);
-    if (addBtn) {
-        addBtn.disabled = true;
-        addBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    switch (task.auto) {
+        case 'ai':       return getAIPredictedDomestic(historyData, dateStr);
+        case 'incoming': return getIncomingChinaForDate(dateStr);
+        default:         return computeLast7Avg(historyData, task.key);
     }
 };
 
-const hideOptionalRow = (id) => {
-    const row = document.getElementById(`sim-row-${id}`);
-    if (row) {
-        row.classList.add('hidden');
-        row.classList.remove('flex');
-    }
-    setQty(id, '');
-    const addBtn = document.querySelector(`.sim-add-btn[data-add="${id}"]`);
-    if (addBtn) {
-        addBtn.disabled = false;
-        addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-    }
+/** 해당 업무의 대상일 값이 예정 물량(수기 입력)에서 온 것인지 여부 — UI 배지 표시용 */
+const isPlannedValue = (dateStr, task) => getPlanned(dateStr, task.key) != null;
+
+const AUTO_BADGE = {
+    ai:       { text: 'AI 예측',   cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300', tip: '국내배송 AI 추세 예측값' },
+    incoming: { text: '입고일정',  cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',       tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
+    last7:    { text: '지난7회평균', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',        tip: '이 업무가 발생한 최근 7일의 업무량 평균' }
+};
+const PLANNED_BADGE = {
+    text: '예정물량', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+    tip: '업무 기록 및 관리 > 예정 물량에 직접 입력한 값입니다. 자동값보다 우선 적용됩니다.'
 };
 
-/** 중국제작 입력값을 반영해 샘플검수 자동 표시·계산 (없으면 row 숨김) */
-const syncSampleFromChina = (historyData) => {
-    const chinaQty = Number(document.getElementById('sim-qty-china')?.value) || 0;
-    if (chinaQty > 0) {
-        const ratio = computeSampleRatio(historyData);
-        setQty('sample', Math.round(ratio * chinaQty));
-        showOptionalRow('sample');
-    } else {
-        hideOptionalRow('sample');
-    }
+/** 값의 출처를 행 옆 배지로 표시 (예정물량 수기입력이면 강조) */
+const markSourceBadge = (task, fromPlanned) => {
+    const el = document.getElementById(`sim-src-${task.id}`);
+    if (!el) return;
+    const b = fromPlanned ? PLANNED_BADGE : (AUTO_BADGE[task.auto] || AUTO_BADGE.last7);
+    el.className = `text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${b.cls}`;
+    el.textContent = b.text;
+    el.title = b.tip;
 };
 
 // ───────────────────────────────────────────────────────────
@@ -226,28 +204,11 @@ const autoFillSimInputs = (dateStr) => {
     const data = State.allHistoryData;
     const config = State.appConfig;
 
-    // 우선순위: 예정 물량(수동 입력) > 자동 추정값
-    // 국내배송: 예정 > AI
-    setQty('domestic', getPlanned(dateStr, '국내배송') ?? getAIPredictedDomestic(data, dateStr));
-
-    // 직진배송·에이블리배송·채우기·교환반품: 예정 > 7일 평균 (기본 표시 항상)
-    setQty('direct', getPlanned(dateStr, '직진배송') ?? compute7DayAvg(data, '직진배송'));
-    setQty('ably',   getPlanned(dateStr, '에이블리배송') ?? compute7DayAvg(data, '에이블리배송'));
-    setQty('fill',   getPlanned(dateStr, '채우기') ?? compute7DayAvg(data, '채우기'));
-    setQty('return', getPlanned(dateStr, '교환반품') ?? compute7DayAvg(data, '교환반품'));
-
-    // 전량검수: 예정값이 있으면 표시·반영, 없으면 row 활성 시에만 7일평균
-    const plannedFull = getPlanned(dateStr, '전량검수');
-    if (plannedFull != null) { showOptionalRow('full'); setQty('full', plannedFull); }
-    else if (isRowVisible('full')) setQty('full', compute7DayAvg(data, '전량검수'));
-
-    // 중국제작: 예정 > 입고일정(도착일 기준)
-    setQty('china', getPlanned(dateStr, '중국제작') ?? getIncomingChinaForDate(dateStr));
-
-    // 샘플검수: 예정값 우선, 없으면 중국제작 입력값에 따라 자동 표시·계산
-    const plannedSample = getPlanned(dateStr, '샘플검수');
-    if (plannedSample != null) { showOptionalRow('sample'); setQty('sample', plannedSample); }
-    else syncSampleFromChina(data);
+    // 모든 업무가 기본 등록 — 예정 물량이 있으면 그 값, 없으면 업무별 자동값
+    SIM_TASKS.forEach(t => {
+        setQty(t.id, autoValueFor(dateStr, t, data));
+        markSourceBadge(t, isPlannedValue(dateStr, t));
+    });
 
     // 가용 인원
     const staffInfo = computeAvailableStaff(dateStr, config, State.persistentLeaveSchedule, data);
@@ -267,8 +228,6 @@ const autoFillSimInputs = (dateStr) => {
 const readSimInputs = () => {
     const tasks = {};
     SIM_TASKS.forEach(t => {
-        // 옵션 항목은 row가 활성화된 경우만 카운트
-        if (t.optional && !isRowVisible(t.id)) { tasks[t.key] = 0; return; }
         const el = document.getElementById(`sim-qty-${t.id}`);
         tasks[t.key] = Number(el?.value) || 0;
     });
@@ -320,25 +279,10 @@ const runSimulation = () => {
         if (mode === 'single' || i === 0) {
             return simulateOneDay(d, baseInputs, taskUPH, cfg);
         }
-        // batch 모드의 2일차 이후: 자동값 기반 inputs
+        // batch 모드의 2일차 이후: 날짜별 자동값(예정 물량 우선) 사용
         const autoTasks = {};
         SIM_TASKS.forEach(t => {
-            // 옵션 row가 비활성이면 0 (단, 샘플검수는 중국제작 값에 따라 자동 활성 처리)
-            if (t.optional && !isRowVisible(t.id) && t.id !== 'sample') {
-                autoTasks[t.key] = 0;
-            } else if (t.auto === 'ai' && t.key === '국내배송') {
-                autoTasks[t.key] = getAIPredictedDomestic(State.allHistoryData, d);
-            } else if (t.auto === 'rolling7') {
-                autoTasks[t.key] = compute7DayAvg(State.allHistoryData, t.key);
-            } else if (t.auto === 'china-linked' && t.id === 'sample') {
-                // 미래 일자의 중국제작 입고는 알 수 없으므로 사용자가 대상일에 넣은 값 사용
-                const china = baseInputs.tasks['중국제작'] || 0;
-                const ratio = computeSampleRatio(State.allHistoryData);
-                autoTasks[t.key] = Math.round(ratio * china);
-            } else {
-                // manual: 사용자가 대상일에 입력한 값을 그대로 가정
-                autoTasks[t.key] = baseInputs.tasks[t.key];
-            }
+            autoTasks[t.key] = autoValueFor(d, t, State.allHistoryData);
         });
         const staffInfo = computeAvailableStaff(d, cfg, State.persistentLeaveSchedule, State.allHistoryData);
         const dayInputs = { tasks: autoTasks, staffFulltime: staffInfo.available, staffPart: baseInputs.staffPart };
@@ -478,23 +422,28 @@ const renderSimResult = (results, taskUPH, mode) => {
 const computeAutoInputsForDate = (dateStr) => {
     const data = State.allHistoryData;
     const cfg = State.appConfig;
-    const china = getIncomingChinaForDate(dateStr);
-    const ratio = computeSampleRatio(data);
-    // 우선순위: 예정 물량(수동 입력) > 자동 추정값
-    const tasks = {
-        '국내배송': getPlanned(dateStr, '국내배송') ?? getAIPredictedDomestic(data, dateStr),
-        '중국제작': getPlanned(dateStr, '중국제작') ?? china,
-        '샘플검수': getPlanned(dateStr, '샘플검수') ?? (china > 0 ? Math.round(ratio * china) : 0),
-        '직진배송': getPlanned(dateStr, '직진배송') ?? compute7DayAvg(data, '직진배송'),
-        '에이블리배송': getPlanned(dateStr, '에이블리배송') ?? compute7DayAvg(data, '에이블리배송'),
-        '채우기':   getPlanned(dateStr, '채우기') ?? compute7DayAvg(data, '채우기'),
-        '교환반품': getPlanned(dateStr, '교환반품') ?? compute7DayAvg(data, '교환반품'),
-        '전량검수': getPlanned(dateStr, '전량검수') ?? 0,
-        '국내기타': getPlanned(dateStr, '국내기타') ?? 0,
-        '국내제작': getPlanned(dateStr, '국내제작') ?? 0
-    };
+    // 우선순위: 예정 물량(수기 입력) > 업무별 자동값
+    const tasks = {};
+    SIM_TASKS.forEach(t => { tasks[t.key] = autoValueFor(dateStr, t, data); });
     const staffInfo = computeAvailableStaff(dateStr, cfg, State.persistentLeaveSchedule, data);
     return { tasks, staffFulltime: staffInfo.available, staffPart: 0, staffInfo };
+};
+
+/** 📅 예정 물량 입력 화면 프리필용 — 해당 날짜의 자동 추정 물량(예정 수기값은 제외).
+ *  시뮬레이션이 쓰는 것과 완전히 같은 계산(지난 7회 평균 등)을 사용하므로,
+ *  예정 물량 화면과 시뮬레이션의 기본값이 항상 일치한다.
+ */
+export const getAutoQuantitiesForDate = (dateStr) => {
+    const data = State.allHistoryData;
+    const out = {};
+    SIM_TASKS.forEach(t => {
+        let v;
+        if (t.auto === 'ai') v = getAIPredictedDomestic(data, dateStr);
+        else if (t.auto === 'incoming') v = getIncomingChinaForDate(dateStr);
+        else v = computeLast7Avg(data, t.key);
+        if (v > 0) out[t.key] = Math.round(v);
+    });
+    return out;
 };
 
 const forecastCardHtml = (label, r, inputs) => {
@@ -593,41 +542,9 @@ const setupSimulationListeners = () => {
     document.getElementById('sim-autofill-btn')?.addEventListener('click', () => autoFillSimInputs(dateEl?.value));
     runBtn.addEventListener('click', runSimulation);
 
-    // 중국제작 input 변경 시 → 샘플검수 자동 표시·계산
-    const chinaEl = document.getElementById('sim-qty-china');
-    if (chinaEl) {
-        chinaEl.addEventListener('input', () => syncSampleFromChina(State.allHistoryData));
-    }
-
-    // '+ 추가 선택' 버튼들 → 해당 row 표시 + 자동값 채움
-    document.querySelectorAll('.sim-add-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const id = btn.dataset.add;
-            if (!id) return;
-            showOptionalRow(id);
-            // 자동 항목은 값 채워주기
-            if (id === 'sample') syncSampleFromChina(State.allHistoryData);
-            else if (id === 'full') setQty('full', compute7DayAvg(State.allHistoryData, '전량검수'));
-            // other / localprod 은 수동 입력 — 빈 채로 둠
-            document.getElementById(`sim-qty-${id}`)?.focus();
-        });
-    });
-
-    // row 안의 ✕ (제거) 버튼들 — 이벤트 위임
-    document.getElementById('sim-task-list')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.sim-remove-task');
-        if (btn) {
-            const id = btn.dataset.remove;
-            if (id) hideOptionalRow(id);
-        }
-    });
-
     document.getElementById('sim-reset-btn')?.addEventListener('click', () => {
-        // 모든 수량/인원 입력 초기화 + 옵션 row 숨김
-        SIM_TASKS.forEach(t => {
-            setQty(t.id, '');
-            if (t.optional) hideOptionalRow(t.id);
-        });
+        // 모든 수량/인원 입력 초기화 (업무 목록은 항상 기본 등록이므로 숨기지 않음)
+        SIM_TASKS.forEach(t => setQty(t.id, ''));
         ['sim-staff-fulltime','sim-staff-parttimer'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
@@ -643,6 +560,109 @@ const setupSimulationListeners = () => {
 const predictionCharts = {
     revenue: null,
     delivery: null
+};
+
+// ───────────────────────────────────────────────────────────
+// 🔀 구분별 예측 (출고 3분할 / 매출 채널 3분할)
+// ───────────────────────────────────────────────────────────
+const DELIVERY_SPLITS = [
+    { id: 'general', label: '일반배송',    color: '#10b981', taskKey: '국내배송' },
+    { id: 'direct',  label: '직진출고',    color: '#a855f7', taskKey: '직진배송' },
+    { id: 'ably',    label: '에이블리출고', color: '#ec4899', taskKey: '에이블리배송' }
+];
+
+let splitCharts = { delivery: null, revenue: null };
+
+const buildSplitDefs = (kind) => kind === 'delivery'
+    ? DELIVERY_SPLITS.map(s => ({ ...s, valueOf: (d) => Number(d?.taskQuantities?.[s.taskKey]) || 0 }))
+    : REVENUE_CHANNELS.map(c => ({ id: c.id, label: c.label, color: c.color, valueOf: (d) => Number(d?.management?.[c.field]) || 0 }));
+
+const splitCardHtml = (s, unit) => {
+    const trendPct = ((s.trend - 1) * 100);
+    const icon = trendPct > 5 ? '📈' : (trendPct < -5 ? '📉' : '➡️');
+    const tone = trendPct > 5 ? 'text-red-500' : (trendPct < -5 ? 'text-blue-500' : 'text-gray-500');
+    const r = s.range[0] || { min: 0, max: 0 };
+    return `
+    <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50/60 dark:bg-gray-900/30">
+        <div class="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-300">
+            <span class="inline-block w-2.5 h-2.5 rounded-full" style="background:${s.color}"></span>${s.label}
+        </div>
+        <div class="text-lg font-black text-gray-900 dark:text-white mt-1">
+            ${s.tomorrow > 0 ? s.tomorrow.toLocaleString() : '0'}<span class="text-[11px] font-bold text-gray-400 ml-1">${unit}</span>
+        </div>
+        <div class="text-[10px] text-gray-400 mt-0.5">내일 예측 · 범위 ${r.min.toLocaleString()}~${r.max.toLocaleString()}</div>
+        <div class="text-[10px] mt-1 ${tone} font-bold">${icon} 추세 ${trendPct >= 0 ? '+' : ''}${trendPct.toFixed(1)}%</div>
+    </div>`;
+};
+
+const renderSplitSection = (kind, historyData, daysToPredict) => {
+    const canvas = document.getElementById(`chart-prediction-${kind}-split`);
+    const cardsEl = document.getElementById(`pred-${kind}-split-cards`);
+    if (!canvas || !cardsEl) return;
+
+    if (splitCharts[kind]) { splitCharts[kind].destroy(); splitCharts[kind] = null; }
+
+    const result = predictBreakdown(historyData, daysToPredict, buildSplitDefs(kind));
+    if (!result) {
+        cardsEl.innerHTML = '<div class="col-span-full text-center text-xs text-gray-400 py-4">데이터가 부족하여 예측할 수 없습니다.</div>';
+        return;
+    }
+
+    const unit = kind === 'delivery' ? '장' : '원';
+    const hasAny = result.series.some(s => s.historical.some(v => v > 0) || s.tomorrow > 0);
+    if (!hasAny) {
+        cardsEl.innerHTML = kind === 'revenue'
+            ? '<div class="col-span-full text-center text-xs text-gray-400 py-4">채널별 매출 입력 기록이 아직 없습니다. 경영 지표에서 카페24 · 직진배송 · 도착보장 매출을 입력하면 예측이 표시됩니다.</div>'
+            : '<div class="col-span-full text-center text-xs text-gray-400 py-4">출고 구분별 물량 기록이 아직 없습니다.</div>';
+        return;
+    }
+
+    cardsEl.innerHTML = result.series.map(s => splitCardHtml(s, unit)).join('');
+
+    const splitIndex = result.historicalLabels.length;
+    const allLabels = [...result.historicalLabels, ...result.labels];
+
+    const datasets = [];
+    result.series.forEach(s => {
+        datasets.push({
+            label: `${s.label} (실적)`,
+            data: [...s.historical, ...new Array(result.labels.length).fill(null)],
+            borderColor: s.color,
+            backgroundColor: s.color,
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.3
+        });
+        datasets.push({
+            label: `${s.label} (예측)`,
+            // 실적 마지막 점과 예측 첫 점을 이어 선이 끊기지 않게 한다
+            data: [...new Array(Math.max(0, splitIndex - 1)).fill(null), s.historical[splitIndex - 1] ?? null, ...s.predicted],
+            borderColor: s.color,
+            backgroundColor: s.color,
+            borderWidth: 2,
+            borderDash: [5, 4],
+            pointRadius: 0,
+            tension: 0.3
+        });
+    });
+
+    splitCharts[kind] = new Chart(canvas, {
+        type: 'line',
+        data: { labels: allLabels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { boxWidth: 10, font: { size: 10 } } },
+                tooltip: { callbacks: { label: (c) => c.parsed.y == null ? null : `${c.dataset.label}: ${Math.round(c.parsed.y).toLocaleString()}${unit}` } }
+            },
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: kind === 'delivery' ? '물량 (장)' : '매출 (원)' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
 };
 
 // 💡 장(상품수)을 건수(주문건수)로 변환하여 "건 / 장" 포맷으로 반환하는 헬퍼 함수 (1.2 기준)
@@ -665,6 +685,10 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     }
 
     const result = predictFutureTrends(historyData, daysToPredict);
+
+    // 🔀 구분별 예측(출고 3분할 / 매출 채널 3분할)은 전체 예측 성공 여부와 무관하게 각각 렌더
+    renderSplitSection('delivery', historyData, daysToPredict);
+    renderSplitSection('revenue', historyData, daysToPredict);
 
     if (!result) {
         renderNoData(revenueCtx, "데이터가 부족하여 예측할 수 없습니다.");

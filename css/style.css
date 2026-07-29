@@ -562,3 +562,44 @@ html.dark .depth-panel {
 .task-quick-other .task-quick-name { flex: none; color: #6b7280; }
 .dark .task-quick-other .task-quick-name { color: #9ca3af; }
 .task-quick-plus { font-size: 16px; font-weight: 800; color: #9ca3af; line-height: 1; }
+
+/* ============================================================
+   🗓️ 업무 캘린더 위젯 (대시보드)
+   ============================================================ */
+.cal-dowrow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+.cal-dowrow > div { text-align: center; font-size: 11px; font-weight: 800; padding: 4px 0; }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-cell {
+    display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+    min-height: 74px; padding: 5px 4px;
+    border: 1px solid #f1f5f9; border-radius: 10px; background: #fff;
+    text-align: left; cursor: pointer; overflow: hidden;
+    transition: border-color .12s, background .12s;
+}
+.cal-cell:hover { border-color: #93c5fd; background: #f8fafc; }
+.cal-cell-out { background: #fafafa; opacity: .65; }
+.cal-cell-sel { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.18); }
+.dark .cal-cell { background: #1f2937; border-color: #374151; }
+.dark .cal-cell:hover { background: #243140; border-color: #3b82f6; }
+.dark .cal-cell-out { background: #111827; }
+
+.cal-daynum { font-size: 12px; font-weight: 800; line-height: 1.2; }
+.cal-today {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 19px; height: 19px; padding: 0 4px;
+    background: #2563eb; color: #fff !important; border-radius: 9999px;
+}
+.cal-dots { display: flex; gap: 3px; min-height: 6px; }
+.cal-dot { width: 5px; height: 5px; border-radius: 9999px; display: inline-block; }
+.cal-chips { display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+.cal-chip {
+    font-size: 10px; font-weight: 700; line-height: 1.35;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+    .cal-cell { min-height: 54px; }
+    .cal-chips { display: none; }
+    .cal-dots { min-height: 8px; }
+}

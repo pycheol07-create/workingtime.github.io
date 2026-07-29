@@ -185,7 +185,11 @@ export const syncTodayToHistory = async () => {
     }
 };
 
-export async function saveProgress(isAutoSave = false, isQuantityVerified = false) {
+// isFinalize=true 이면 "마감/자동마감" 확정 저장으로 간주하고,
+// 기록 수가 줄었을 때 저장을 건너뛰는 방어 로직을 우회한다.
+// (0분 기록 삭제·중복 정리로 건수가 줄어드는 것이 정상인데, 그 때문에 최종 근무시간이
+//  history에 반영되지 않고 유실되던 문제가 있었다.)
+export async function saveProgress(isAutoSave = false, isQuantityVerified = false, { isFinalize = false, overrideRecords = null } = {}) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
 
@@ -207,7 +211,10 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             isQuantityVerified: State.appState.isQuantityVerified || false
         };
 
-        const liveWorkRecords = (State.appState.workRecords || []).map(record => {
+        // overrideRecords가 주어지면(마감 시 Firestore에서 직접 읽은 확정 기록) 그것을 신뢰한다.
+        // 라이브 미러(State.appState.workRecords)는 onSnapshot 반영 지연으로 비어 있을 수 있다.
+        const sourceRecords = Array.isArray(overrideRecords) ? overrideRecords : (State.appState.workRecords || []);
+        const liveWorkRecords = sourceRecords.map(record => {
             const data = { ...record };
             if (data.status === 'ongoing' || data.status === 'paused') {
                 data.duration = calcElapsedMinutes(data.startTime, now, data.pauses);
@@ -223,13 +230,15 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
         const existingHistory = State.allHistoryData.find(d => d.id === dateStr) || {};
         const existingRecordsCount = (existingHistory.workRecords || []).length;
         
-        if (existingRecordsCount > 0 && liveWorkRecords.length < existingRecordsCount) {
+        // 마감 확정(isFinalize)이 아니고, 살아있는 기록이 아예 0건인데 이력엔 있는 경우에만 방어.
+        // (라이브 상태가 아직 동기화되지 않은 탭이 이력을 지우는 것을 막는 것이 원래 목적)
+        if (!isFinalize && existingRecordsCount > 0 && liveWorkRecords.length === 0) {
             if (!isAutoSave) showToast("이미 데이터가 안전하게 마감/저장되었습니다.");
-            return; 
+            return;
         }
 
-        if (liveWorkRecords.length === 0 && 
-            Object.keys(dailyData.taskQuantities).length === 0 && 
+        if (liveWorkRecords.length === 0 &&
+            Object.keys(dailyData.taskQuantities).length === 0 &&
             (!dailyData.inspectionList || dailyData.inspectionList.length === 0)) {
              return;
         }
@@ -256,7 +265,17 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             await setDoc(getDailyDocRef(), { isQuantityVerified: true }, { merge: true });
         }
 
-        await syncTodayToHistory(); 
+        // 메모리 이력도 방금 저장한 값으로 즉시 맞춘다.
+        // (overrideRecords로 저장한 경우 라이브 미러가 아직 비어 있을 수 있어,
+        //  syncTodayToHistory만 호출하면 화면이 옛 값을 계속 보여준다)
+        const memIdx = State.allHistoryData.findIndex(d => d.id === dateStr);
+        if (memIdx > -1) State.allHistoryData[memIdx] = { ...State.allHistoryData[memIdx], ...historyData };
+        else {
+            State.allHistoryData.push({ ...historyData });
+            State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
+        }
+
+        if (!overrideRecords) await syncTodayToHistory();
         clearLocalCache(); // ✨ 데이터 변경 시 캐시 지우기
 
         if (!isAutoSave) {
@@ -271,7 +290,8 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
 
 export async function saveDayDataToHistory(shouldReset) {
     const workRecordsColRef = getWorkRecordsCollectionRef();
-    const globalEndTime = getCurrentTime(); 
+    const globalEndTime = getCurrentTime();
+    const finalizedRecords = []; // 마감 확정된 기록(이력 저장의 신뢰 원본)
 
     try {
         const dailyDocRef = getDailyDocRef();
@@ -304,7 +324,7 @@ export async function saveDayDataToHistory(shouldReset) {
             let removedCount = 0;
 
             querySnapshot.forEach(docSnap => {
-                const record = docSnap.data();
+                const record = { id: docSnap.id, ...docSnap.data() };
                 let duration = record.duration || 0;
                 let pauses = record.pauses || [];
                 let needsUpdate = false;
@@ -342,6 +362,10 @@ export async function saveDayDataToHistory(shouldReset) {
                         duration: duration,
                         pauses: pauses
                     });
+                    finalizedRecords.push({ ...record, status: 'completed', endTime: recordEndTime, duration, pauses });
+                } else {
+                    // 이미 완료된 기록도 이력에 그대로 포함시켜야 한다.
+                    finalizedRecords.push({ ...record, duration, pauses });
                 }
             });
             await batch.commit();
@@ -350,8 +374,12 @@ export async function saveDayDataToHistory(shouldReset) {
          console.error("Finalizing error: ", e);
     }
 
-    await new Promise(resolve => setTimeout(resolve, 500));
-    await saveProgress(false); 
+    // 🛡️ 라이브 미러(onSnapshot) 반영을 기다리지 않고, 방금 Firestore에서 읽어 확정한 기록을
+    //    그대로 이력에 저장한다. (기존 500ms 대기 방식은 반영이 늦으면 근무시간이 통째로 누락됐다)
+    await saveProgress(false, false, {
+        isFinalize: true,
+        overrideRecords: finalizedRecords.length > 0 ? finalizedRecords : null
+    });
 
     if (shouldReset) {
          try {
@@ -463,17 +491,24 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
             return data;
         }).filter(r => r.status !== 'completed' || Math.round(r.duration || 0) > 0);
 
+        // 🛡️ 이미 history에 있는 값은 절대 후퇴시키지 않는다.
+        //    (마감 시 daily_data의 물량/검증여부가 초기화되므로, 원본이 비면 기존 이력을 유지)
+        const keep = (fromDaily, fromHist, isEmpty) =>
+            (!isEmpty(fromDaily) ? fromDaily : (fromHist !== undefined && fromHist !== null ? fromHist : fromDaily));
+        const emptyObj = (v) => !v || Object.keys(v).length === 0;
+        const emptyArr = (v) => !Array.isArray(v) || v.length === 0;
+
         const historyData = {
             id: dateKey,
             workRecords,
-            taskQuantities: dailyData.taskQuantities || {},
-            confirmedZeroTasks: dailyData.confirmedZeroTasks || [],
-            onLeaveMembers: dailyData.onLeaveMembers || [],
-            partTimers: dailyData.partTimers || [],
-            dailyAttendance: dailyData.dailyAttendance || {},
-            management: dailyData.management || (existing && existing.management) || {},
-            inspectionList: dailyData.inspectionList || [],
-            isQuantityVerified: dailyData.isQuantityVerified || false,
+            taskQuantities: keep(dailyData.taskQuantities || {}, existing && existing.taskQuantities, emptyObj),
+            confirmedZeroTasks: keep(dailyData.confirmedZeroTasks || [], existing && existing.confirmedZeroTasks, emptyArr),
+            onLeaveMembers: keep(dailyData.onLeaveMembers || [], existing && existing.onLeaveMembers, emptyArr),
+            partTimers: keep(dailyData.partTimers || [], existing && existing.partTimers, emptyArr),
+            dailyAttendance: keep(dailyData.dailyAttendance || {}, existing && existing.dailyAttendance, emptyObj),
+            management: keep(dailyData.management || {}, existing && existing.management, emptyObj),
+            inspectionList: keep(dailyData.inspectionList || [], existing && existing.inspectionList, emptyArr),
+            isQuantityVerified: !!(dailyData.isQuantityVerified || (existing && existing.isQuantityVerified)),
             savedAt: getCurrentTime(),
             recoveredAt: new Date().toISOString(),
         };
@@ -503,12 +538,16 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
 // - 이미 메모리에 로드된 allHistoryData만 보고 후보(빈 날)를 고르므로 후보 선별엔 추가 읽기 없음.
 // - '빈 날'에 대해서만 daily_data를 1회 확인하고, 확인한 날짜는 localStorage에 기록해 재읽기를 막음(읽기요금 방어).
 // - 주말/오늘은 제외. 정상적으로 마감된 날엔 후보가 없어 추가 비용 0.
+// ⚠️ 판정 로직을 고칠 때마다 키의 버전을 올린다.
+//    (이전 로직이 "확인 완료"로 잘못 표시해 둔 날짜를 다시 검사하게 하기 위함)
+const SELF_HEAL_CHECKED_KEY = 'selfHealCheckedDates_v2';
+
 export async function selfHealRecentHistory({ days = 7 } = {}) {
     if (!State.auth || !State.auth.currentUser) return { healed: [] };
     const today = getTodayDateString();
 
     let checked = [];
-    try { checked = JSON.parse(localStorage.getItem('selfHealCheckedDates') || '[]'); } catch (_) {}
+    try { checked = JSON.parse(localStorage.getItem(SELF_HEAL_CHECKED_KEY) || '[]'); } catch (_) {}
     const checkedSet = new Set(checked);
 
     // 후보 선별: 최근 days일(오늘·주말 제외) 중 history가 비어있고 아직 확인 안 한 날
@@ -523,9 +562,12 @@ export async function selfHealRecentHistory({ days = 7 } = {}) {
         const key = local.toISOString().slice(0, 10);
         if (key >= today || checkedSet.has(key)) continue;
         const h = State.allHistoryData.find(x => x.id === key);
-        const histEmpty = !h || !h.workRecords || h.workRecords.length === 0;
-        const histHasQty = h && h.taskQuantities && Object.keys(h.taskQuantities).length > 0;
-        if (histEmpty && !histHasQty) candidates.push(key);
+        // 🩺 판정 기준은 오직 '업무기록(workRecords)이 비었는가'.
+        //    예전에는 물량(taskQuantities)이 있으면 후보에서 제외했는데,
+        //    그 때문에 "물량은 저장됐지만 근무기록만 유실된 날"이 영영 복구되지 않았다.
+        //    (17:30 자동마감이 history에 쓰지 않던 버그와 겹쳐 실제 유실 발생)
+        const histEmpty = !h || !Array.isArray(h.workRecords) || h.workRecords.length === 0;
+        if (histEmpty) candidates.push(key);
     }
 
     if (candidates.length === 0) return { healed: [] };
@@ -542,7 +584,7 @@ export async function selfHealRecentHistory({ days = 7 } = {}) {
     }
 
     // 확인 기록 저장 (최근 60개만 유지)
-    try { localStorage.setItem('selfHealCheckedDates', JSON.stringify([...checkedSet].slice(-60))); } catch (_) {}
+    try { localStorage.setItem(SELF_HEAL_CHECKED_KEY, JSON.stringify([...checkedSet].slice(-60))); } catch (_) {}
 
     if (healed.length > 0) {
         const total = healed.reduce((s, x) => s + x.records, 0);
@@ -550,6 +592,43 @@ export async function selfHealRecentHistory({ days = 7 } = {}) {
         showToast(`🩺 마감 누락 ${healed.length}일 자동 복구됨 (업무 ${total}건)`);
     }
     return { healed };
+}
+
+// 🩺 앱 시작 시 가벼운 자가복구: '어제' 하루만 확인한다.
+// 데이터 관리 창을 열지 않아도 동작해야 하므로 별도로 둔다.
+// 비용: 하루 최대 1회, history 1건 읽기(+누락일 때만 daily_data 조회/쓰기).
+export async function healYesterdayOnStartup() {
+    if (!State.auth || !State.auth.currentUser) return null;
+
+    const today = getTodayDateString();
+    const d = new Date(today + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) return null; // 주말 제외
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const guard = 'startupHealChecked_' + key;
+    if (localStorage.getItem(guard)) return null;
+
+    try {
+        const histSnap = await getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', key));
+        const hist = histSnap.exists() ? histSnap.data() : null;
+        const hasRecords = hist && Array.isArray(hist.workRecords) && hist.workRecords.length > 0;
+
+        localStorage.setItem(guard, '1');
+        if (hasRecords) return null;
+
+        const res = await recoverDailyDataToHistory(key, { force: true, silent: true });
+        if (res && res.records > 0) {
+            clearLocalCache();
+            showToast(`🩺 어제(${key}) 마감 누락 업무 ${res.records}건을 자동 복구했습니다.`);
+            return res;
+        }
+    } catch (e) {
+        console.warn('시작 시 어제 자가복구 실패:', e);
+        try { localStorage.removeItem(guard); } catch (_) {}
+    }
+    return null;
 }
 
 export async function fetchAllHistoryData(forceRefresh = false) {

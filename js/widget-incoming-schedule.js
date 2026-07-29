@@ -142,6 +142,8 @@ async function fetchIncomingSchedule() {
         } catch (_) {}
 
         renderItems(items);
+        // 🗓️ 업무 캘린더가 입고 표시를 다시 그릴 수 있도록 알림
+        try { document.dispatchEvent(new CustomEvent('incoming-schedule-updated')); } catch (_) {}
         const now = new Date();
         if (statusEl) statusEl.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} 갱신`;
         _lastFetchAt = Date.now();
@@ -252,6 +254,26 @@ export function getIncomingQtyByDateFromCache() {
             if (isNaN(d.getTime())) return;
             const key = ymd(d);
             out[key] = (out[key] || 0) + (Number(it.qty) || 0);
+        });
+    } catch (_) {}
+    return out;
+}
+
+// 캘린더 위젯용: 도착일(YYYY-MM-DD)별 입고 상세.
+// 반환: { 'YYYY-MM-DD': { qty, boxes, entries:[{packDateText, qty, boxes}] } }
+export function getIncomingDetailsByDateFromCache() {
+    const out = {};
+    try {
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+        if (!cached || !Array.isArray(cached.items)) return out;
+        cached.items.forEach(it => {
+            const d = new Date(it.arrivalDate);
+            if (isNaN(d.getTime())) return;
+            const key = ymd(d);
+            if (!out[key]) out[key] = { qty: 0, boxes: 0, entries: [] };
+            out[key].qty += Number(it.qty) || 0;
+            out[key].boxes += Number(it.boxes) || 0;
+            out[key].entries.push({ packDateText: it.packDateText, qty: Number(it.qty) || 0, boxes: Number(it.boxes) || 0 });
         });
     } catch (_) {}
     return out;

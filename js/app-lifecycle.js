@@ -128,6 +128,72 @@ async function autoBackfillMissingFx(todayKey) {
 // ✨ 야근 확인 팝업 및 타이머용 변수 추가
 let localAutoClosePromptExecuted = false;
 let autoCloseTimer = null;
+let overtimeOptOut = false;      // [연장 근무 계속하기]를 누른 날은 강제 마감하지 않는다
+let eodFlushCooldownUntil = 0;   // 종료시각 이후 이력 확정 저장 재시도 쿨다운
+
+const AUTO_END_TIME = '17:30';
+
+// 진행/일시정지 기록을 지정 시각으로 마감(Firestore 배치 + 로컬 미러 갱신)
+async function closeRecordsAt(records, endTime, dayKey) {
+    if (!records || records.length === 0) return 0;
+    const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dayKey, 'workRecords');
+    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dayKey, 'activeLocks');
+    const batch = writeBatch(State.db);
+
+    records.forEach(rec => {
+        const recRef = doc(colRef, rec.id);
+        // 일시정지 중이면 열린 pause 구간을 종료시각으로 닫아야 시간이 정확하다.
+        const pauses = Array.isArray(rec.pauses) ? rec.pauses.map(p => ({ ...p })) : [];
+        if (rec.status === 'paused' && pauses.length > 0) {
+            const lp = pauses[pauses.length - 1];
+            if (lp && !lp.end) lp.end = endTime;
+        }
+        const duration = Math.max(0, calcElapsedMinutes(rec.startTime, endTime, pauses));
+        batch.update(recRef, { status: 'completed', endTime, duration, pauses });
+        // 🛡️ 멤버 잠금 해제
+        if (rec.member) batch.delete(doc(lockColRef, String(rec.member)));
+        // 화면 즉시 갱신용 로컬 미러
+        rec.status = 'completed';
+        rec.endTime = endTime;
+        rec.duration = duration;
+        rec.pauses = pauses;
+    });
+
+    await batch.commit();
+    return records.length;
+}
+
+// 🛟 최후의 안전망: 종료시각 이후 오늘 상태를 history에 확정 저장한다.
+// 자동마감 팝업 창(17:30~17:34)을 놓쳤거나, 비관리자만 접속했거나,
+// 아무도 '업무 마감'을 누르지 않은 날에도 근무기록이 이력에 남도록 한다.
+async function eodFlushToHistory(todayKey, isAdmin) {
+    if (!State.auth || !State.auth.currentUser) return;
+    if (Date.now() < eodFlushCooldownUntil) return;
+
+    const lsKey = 'eodFlushed_' + todayKey;
+    if (localStorage.getItem(lsKey)) return;
+
+    const records = State.appState.workRecords || [];
+    if (records.length === 0) return; // 저장할 것이 없음 → 다음 틱에 재시도
+
+    const openOnes = records.filter(r => r.status === 'ongoing' || r.status === 'paused');
+    eodFlushCooldownUntil = Date.now() + 30 * 60 * 1000; // 실패/야근 시 30분 뒤 재시도
+
+    try {
+        // 야근을 선택하지 않았는데 아직 안 끝난 기록이 있으면 종료시각 기준으로 마감
+        if (openOnes.length > 0 && isAdmin && !overtimeOptOut) {
+            await closeRecordsAt(openOnes, AUTO_END_TIME, todayKey);
+        }
+
+        await saveProgress(true, false, { isFinalize: true });
+
+        // 모두 마감된 상태로 저장했다면 그날은 더 이상 재시도하지 않는다.
+        const stillOpen = (State.appState.workRecords || []).some(r => r.status === 'ongoing' || r.status === 'paused');
+        if (!stillOpen) localStorage.setItem(lsKey, '1');
+    } catch (e) {
+        console.warn('종료시각 이력 확정 저장 실패(30분 뒤 재시도):', e);
+    }
+}
 
 export const updateElapsedTimes = async () => {
     const now = getCurrentTime();
@@ -145,6 +211,8 @@ export const updateElapsedTimes = async () => {
         localAutoClosePromptExecuted = false;
         if (autoCloseTimer) clearTimeout(autoCloseTimer);
         autoCloseTimer = null;
+        overtimeOptOut = false;
+        eodFlushCooldownUntil = 0;
         _fxFetchedDay = null; // 환율 자동입력 가드도 초기화
         _fxGapDay = null;     // 환율 자동 갭필 가드도 초기화
 
@@ -198,7 +266,9 @@ export const updateElapsedTimes = async () => {
     if (isAdmin && isTodayWeekday && now >= '17:30' && now < '17:35' && !localAutoClosePromptExecuted) {
         localAutoClosePromptExecuted = true;
 
-        const ongoingRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing');
+        // 진행 중(ongoing) 뿐 아니라 일시정지(paused) 상태도 마감 대상이다.
+        // (예전에는 ongoing만 처리해서, 점심 자동정지 후 재개되지 않은 기록이 미마감으로 남았다)
+        const ongoingRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
 
         if (ongoingRecords.length > 0) {
             const modal = document.getElementById('overtime-prompt-modal');
@@ -212,28 +282,24 @@ export const updateElapsedTimes = async () => {
             //  markDataAsDirty/saveStateToFirestore로는 저장되지 않음)
             const executeAutoClose = async () => {
                 // 실행 시점에 다시 필터 — 이미 누가 마감했으면 빈 배치(no-op)
-                const ongoing = (State.appState.workRecords || []).filter(r => r.status === 'ongoing');
+                const ongoing = (State.appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
                 if (ongoing.length === 0) {
                     if (modal) modal.classList.add('hidden');
                     return;
                 }
                 try {
-                    const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
-                    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
-                    const batch = writeBatch(State.db);
-                    ongoing.forEach(rec => {
-                        const recRef = doc(colRef, rec.id);
-                        const duration = Math.max(0, calcElapsedMinutes(rec.startTime, '17:30', rec.pauses || []));
-                        batch.update(recRef, { status: 'completed', endTime: '17:30', duration });
-                        // 🛡️ 멤버 잠금 해제
-                        if (rec.member) batch.delete(doc(lockColRef, String(rec.member)));
-                        // 화면 즉시 갱신용 로컬 미러
-                        rec.status = 'completed';
-                        rec.endTime = '17:30';
-                        rec.duration = duration;
-                    });
-                    await batch.commit();
-                    showToast(`17:30 기준으로 ${ongoing.length}개 업무가 자동 마감되었습니다.`, false);
+                    await closeRecordsAt(ongoing, AUTO_END_TIME, getTodayDateString());
+
+                    // 🛟 자동마감 결과를 반드시 history에도 확정 저장한다.
+                    //    (이 호출이 없어서 자동마감된 날의 근무시간이 이력에 남지 않고 유실됐다)
+                    try {
+                        await saveProgress(true, false, { isFinalize: true });
+                        localStorage.setItem('eodFlushed_' + getTodayDateString(), '1');
+                    } catch (e2) {
+                        console.error('Auto-close history save error:', e2);
+                    }
+
+                    showToast(`${AUTO_END_TIME} 기준으로 ${ongoing.length}개 업무가 자동 마감되었습니다.`, false);
                 } catch (e) {
                     console.error('Auto-close batch error:', e);
                     showToast('업무 자동 마감 중 오류가 발생했습니다. 콘솔을 확인해주세요.', true);
@@ -248,6 +314,7 @@ export const updateElapsedTimes = async () => {
             if (btnContinue) {
                 btnContinue.onclick = () => {
                     clearTimeout(autoCloseTimer);
+                    overtimeOptOut = true; // 안전망(eodFlush)이 강제 마감하지 않도록
                     if (modal) modal.classList.add('hidden');
                     showToast('연장 근무가 활성화되었습니다. 퇴근 시 직접 마감해주세요.', false);
                 };
@@ -261,6 +328,12 @@ export const updateElapsedTimes = async () => {
                 };
             }
         }
+    }
+
+    // 🛟 최후의 안전망: 17:35 이후 오늘 기록을 history에 확정 저장(하루 1회).
+    //    자동마감 팝업 창을 놓쳤거나 아무도 마감을 누르지 않아도 근무시간이 유실되지 않는다.
+    if (isTodayWeekday && now >= '17:35') {
+        eodFlushToHistory(todayDate, isAdmin);
     }
 
     document.querySelectorAll('.ongoing-duration').forEach(el => {

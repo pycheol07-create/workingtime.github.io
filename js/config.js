@@ -195,7 +195,8 @@ function getDefaultConfig() {
                     { name: '주말 근무 신청', link: '#' },
                     { name: '내 연차관리', link: '#' },
                     { name: '운영 시뮬레이션', link: '#' },
-                    { name: '로케이션 관리', link: 'location.html' }
+                    { name: '로케이션 관리', link: 'location.html' },
+                    { name: '비품 관리', link: 'supplies.html' }
                 ]
             },
             {

@@ -462,8 +462,30 @@ const EXTERNAL_LINK_META = [
     { match: 'manual.html',   icon: '📖', target: '_blank' },          // 업무 매뉴얼
     { match: 'sheets.html',   icon: '🗂️', target: 'sheets_window' },   // 업무시트 대시보드 (메인 대시보드 📊와 구분)
     { match: 'location.html', icon: '📍', target: 'location_window' }, // 로케이션 관리
+    { match: 'supplies.html', icon: '📦', target: 'supplies_window' }, // 비품 관리
     { match: 'admin.html',    icon: '⚙️', target: 'admin_window' },    // 관리자 페이지
 ];
+
+// 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu(파이어스토어)에 없으면 자동으로 끼워 넣는다.
+// (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
+const BUILTIN_MENU_ITEMS = [
+    { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' }
+];
+
+const withBuiltinMenus = (dashboardMenu) => {
+    const menu = dashboardMenu.map(g => ({ ...g, items: [...g.items] }));
+    BUILTIN_MENU_ITEMS.forEach(entry => {
+        const exists = menu.some(g => g.items.some(i => i.link && i.link.includes(entry.link)));
+        if (exists) return;
+        let group = menu.find(g => g.category === entry.category) || menu[menu.length - 1];
+        if (!group) {
+            group = { category: entry.category, items: [] };
+            menu.push(group);
+        }
+        group.items.push({ name: entry.name, link: entry.link });
+    });
+    return menu;
+};
 const resolveLinkMeta = (link) => {
     if (!link) return null;
     return EXTERNAL_LINK_META.find(m => link.includes(m.match)) || null;
@@ -519,7 +541,7 @@ export const applyDynamicSidebar = (appConfig) => {
         });
     }
 
-    appConfig.dashboardMenu.forEach((group, index) => {
+    withBuiltinMenus(appConfig.dashboardMenu).forEach((group, index) => {
         const visibleItems = group.items.filter(item => {
             if (allowedMenus === null) return true; 
             return allowedMenus.includes(item.name);

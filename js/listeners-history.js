@@ -11,6 +11,7 @@ import { setupHistoryInspectionListeners } from './listeners-history-inspection.
 import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js';
 import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js';
 import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js';
+import { REVENUE_CHANNELS } from './revenue-channels.js';
 import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js';
@@ -297,7 +298,14 @@ export function setupHistoryModalListeners() {
         managementSaveBtn.addEventListener('click', async () => {
             const dateKey = managementSaveBtn.dataset.dateKey;
             if (!dateKey) return;
-            const revenue = document.getElementById('mgmt-input-revenue')?.value.replace(/,/g, '') || 0;
+            // 💰 채널별 매출(카페24 / 직진배송 / 도착보장) — 총액(revenue)은 세 값의 합계로 저장한다.
+            const channelValues = {};
+            REVENUE_CHANNELS.forEach(c => {
+                const raw = document.getElementById(`mgmt-input-${c.field}`)?.value.replace(/[^0-9]/g, '') || 0;
+                channelValues[c.field] = Number(raw) || 0;
+            });
+            const revenue = REVENUE_CHANNELS.reduce((s, c) => s + channelValues[c.field], 0);
+
             const orderCount = document.getElementById('mgmt-input-orderCount')?.value.replace(/,/g, '') || 0;
             const inventoryQty = document.getElementById('mgmt-input-inventoryQty')?.value.replace(/,/g, '') || 0;
             const inventoryAmt = document.getElementById('mgmt-input-inventoryAmt')?.value.replace(/,/g, '') || 0;
@@ -308,7 +316,10 @@ export function setupHistoryModalListeners() {
             try {
                 managementSaveBtn.disabled = true; managementSaveBtn.textContent = '저장 중...';
                 await saveManagementData(dateKey, {
-                    revenue: Number(revenue), orderCount: Number(orderCount),
+                    ...channelValues,
+                    // 채널을 하나도 입력하지 않았다면 기존 총액을 지우지 않는다(구 데이터 보호)
+                    revenue: revenue > 0 ? revenue : (Number(existingMgmt.revenue) || 0),
+                    orderCount: Number(orderCount),
                     inventoryQty: Number(inventoryQty), inventoryAmt: Number(inventoryAmt),
                     usdRate: Number(usdRate), cnyRate: Number(cnyRate),
                     ...(existingMgmt.fxAt ? { fxAt: existingMgmt.fxAt } : {})
