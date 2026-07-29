@@ -4,40 +4,69 @@
 import { formatDuration, getWeekOfYear, isWeekday, buildMemberHourlyWageMap } from './utils.js';
 import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js';
 import { appConfig } from './state.js';
-import { REVENUE_CHANNELS, revenueTotalOf, isLegacyRevenue } from './revenue-channels.js';
+import {
+    REVENUE_CHANNELS, CHANNEL_METRICS,
+    revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
+} from './revenue-channels.js';
 // predictFutureTrends import 제거됨
 
-// 💰 채널별 매출 입력 행 (카페24 / 직진배송 / 도착보장)
-// 합계는 입력할 때마다 즉시 다시 계산해 화면에 보여준다.
-// ⚠️ 이 문자열은 oninput="..." 속성 안에 들어가므로 큰따옴표를 쓰면 안 된다.
-const recalcRevenueTotalJs = `(function(){` +
-    `var ids=[${REVENUE_CHANNELS.map(c => `'mgmt-input-${c.field}'`).join(',')}];` +
+// 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장)
+//    매출액·주문 건수 두 지표 모두 같은 방식으로 만들어진다.
+//    합계는 입력할 때마다 즉시 다시 계산해 화면에 보여준다.
+// ⚠️ 아래 스크립트 문자열은 oninput="..." 속성 안에 들어가므로 큰따옴표를 쓰면 안 된다.
+const recalcTotalJs = (metricKey, fieldOf) => `(function(){` +
+    `var ids=[${REVENUE_CHANNELS.map(c => `'mgmt-input-${fieldOf(c)}'`).join(',')}];` +
     `var sum=ids.reduce(function(s,id){var el=document.getElementById(id);` +
     `return s+(Number(((el&&el.value)||'0').replace(/[^0-9]/g,''))||0);},0);` +
-    `var out=document.getElementById('mgmt-revenue-total');` +
+    `var out=document.getElementById('mgmt-${metricKey}-total');` +
     `if(out) out.textContent=sum.toLocaleString();})();`;
 
-const revenueChannelRowsHtml = (mgmt, prevMgmt, formatVal, onInputHandler) => {
-    const legacyNote = isLegacyRevenue(mgmt)
-        ? `<p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded p-2 leading-relaxed">
-             ⚠️ 이 날짜는 채널 구분 이전에 입력된 데이터입니다. 총액 <b>${Number(mgmt.revenue).toLocaleString()}원</b>만 남아 있어
-             채널별 값이 비어 있습니다. 채널별로 나눠 입력한 뒤 저장하면 합계가 새로 계산됩니다.
-           </p>`
-        : '';
+const legacyNoteHtml = (isLegacy, total, unit) => isLegacy
+    ? `<p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded p-2 leading-relaxed">
+         ⚠️ 이 날짜는 채널 구분 이전에 입력된 데이터입니다. 총계 <b>${formatCurrency(total)}${unit}</b>만 남아 있어
+         채널별 값이 비어 있습니다. 채널별로 나눠 입력한 뒤 저장하면 합계가 새로 계산됩니다.
+       </p>`
+    : '';
 
-    const rows = REVENUE_CHANNELS.map(c => `
+const channelRowsHtml = (metric, mgmt, prevMgmt, formatVal, onInputHandler) => {
+    const isRevenue = metric.key === 'revenue';
+    const diffKind = isRevenue ? 'totalCost' : 'quantity';
+    const isLegacy = isRevenue ? isLegacyRevenue(mgmt) : isLegacyOrderCount(mgmt);
+    const legacyTotal = isRevenue ? Number(mgmt.revenue) : Number(mgmt.orderCount);
+
+    const rows = REVENUE_CHANNELS.map(c => {
+        const field = metric.fieldOf(c);
+        return `
         <div class="flex items-center gap-2">
-            <label for="mgmt-input-${c.field}" class="text-sm text-gray-600 w-20 shrink-0">${c.label}</label>
-            <input type="text" id="mgmt-input-${c.field}" data-revenue-channel="${c.id}"
+            <label for="mgmt-input-${field}" class="text-[13px] text-gray-600 w-28 shrink-0">${c.label}</label>
+            <input type="text" id="mgmt-input-${field}" data-channel="${c.id}" data-metric="${metric.key}"
                 class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800"
-                placeholder="0" value="${formatVal(mgmt[c.field])}"
-                oninput="${onInputHandler} ${recalcRevenueTotalJs}">
+                placeholder="0" value="${formatVal(mgmt[field])}"
+                oninput="${onInputHandler} ${recalcTotalJs(metric.key, metric.fieldOf)}">
             <span class="text-sm font-medium w-20 text-right">
-                ${getDiffHtmlForMetric('totalCost', mgmt[c.field], prevMgmt[c.field])}
+                ${getDiffHtmlForMetric(diffKind, mgmt[field], prevMgmt[field])}
             </span>
-        </div>`).join('');
+        </div>`;
+    }).join('');
 
-    return legacyNote + rows;
+    const total = isRevenue ? revenueTotalOf(mgmt) : orderCountTotalOf(mgmt);
+    const prevTotal = isRevenue ? revenueTotalOf(prevMgmt) : orderCountTotalOf(prevMgmt);
+
+    return `
+    <div class="space-y-2">
+        <label class="block text-sm font-medium text-gray-700">채널별 ${metric.label} (${metric.unit})</label>
+        ${legacyNoteHtml(isLegacy, legacyTotal, metric.unit)}
+        ${rows}
+        <div class="flex items-center justify-between pt-2 border-t border-blue-100">
+            <span class="text-sm font-bold text-blue-800">${isRevenue ? '일 매출액' : '주문 건수'} 합계</span>
+            <div class="flex items-center gap-2">
+                <span id="mgmt-${metric.key}-total" class="text-base font-black text-blue-800">${formatCurrency(total)}</span>
+                <span class="text-sm font-medium w-20 text-right">
+                    ${getDiffHtmlForMetric(diffKind, total, prevTotal)}
+                </span>
+            </div>
+        </div>
+    </div>`;
 };
 
 // 헬퍼: 숫자를 통화 형식(콤마)으로 변환
@@ -57,30 +86,27 @@ const calculateTurnoverRatio = (totalRevenue, avgInventoryAmt) => {
     return totalRevenue / avgInventoryAmt;
 };
 
-// 💰 총 매출 카드 안에 채널별 구성비를 함께 보여준다.
-const revenueChannelBreakdownHtml = (stats) => {
-    const total = Number(stats.revenue) || 0;
+// 💰 총 매출 / 총 주문건수 카드 안에 채널별 구성비를 함께 보여준다.
+//    metricKey: 'revenue' | 'orderCount'
+const channelBreakdownHtml = (stats, metricKey) => {
+    const isRevenue = metricKey === 'revenue';
+    const total = Number(isRevenue ? stats.revenue : stats.orderCount) || 0;
     if (total <= 0) return '';
-    const pct = (v) => total > 0 ? ((v / total) * 100).toFixed(1) : '0.0';
 
-    const rows = REVENUE_CHANNELS.map(c => {
-        const v = Number(stats.revenueByChannel?.[c.id]) || 0;
-        return `<div class="flex items-center justify-between gap-2">
-            <span class="flex items-center gap-1.5 text-gray-600">
-                <span class="inline-block w-2 h-2 rounded-full" style="background:${c.color}"></span>${c.label}
+    const byChannel = isRevenue ? stats.revenueByChannel : stats.orderCountByChannel;
+    const unclassified = Number(isRevenue ? stats.revenueUnclassified : stats.orderCountUnclassified) || 0;
+    const pct = (v) => ((v / total) * 100).toFixed(1);
+
+    const row = (label, value, color, muted = false) => `
+        <div class="flex items-center justify-between gap-2">
+            <span class="flex items-center gap-1.5 ${muted ? 'text-gray-400' : 'text-gray-600'}">
+                <span class="inline-block w-2 h-2 rounded-full" style="background:${color}"></span>${label}
             </span>
-            <span class="font-bold text-gray-700">${formatCurrency(v)}<span class="text-gray-400 font-normal ml-1">(${pct(v)}%)</span></span>
+            <span class="font-bold ${muted ? 'text-gray-500' : 'text-gray-700'}">${formatCurrency(value)}<span class="text-gray-400 font-normal ml-1">(${pct(value)}%)</span></span>
         </div>`;
-    }).join('');
 
-    const legacy = (Number(stats.revenueUnclassified) || 0) > 0
-        ? `<div class="flex items-center justify-between gap-2">
-             <span class="flex items-center gap-1.5 text-gray-400">
-               <span class="inline-block w-2 h-2 rounded-full bg-gray-300"></span>채널 미구분
-             </span>
-             <span class="font-bold text-gray-500">${formatCurrency(stats.revenueUnclassified)}<span class="text-gray-400 font-normal ml-1">(${pct(stats.revenueUnclassified)}%)</span></span>
-           </div>`
-        : '';
+    const rows = REVENUE_CHANNELS.map(c => row(c.label, Number(byChannel?.[c.id]) || 0, c.color)).join('');
+    const legacy = unclassified > 0 ? row('채널 미구분', unclassified, '#d1d5db', true) : '';
 
     return `<div class="mt-3 pt-3 border-t border-gray-100 space-y-1 text-xs">${rows}${legacy}</div>`;
 };
@@ -97,18 +123,24 @@ export const aggregateManagementData = (dataList) => {
         avgInventoryAmt: 0,
         usdRateSum: 0, cnyRateSum: 0, daysWithFx: 0,
         avgUsdRate: 0, avgCnyRate: 0,
-        // 💰 채널별 매출 합계 (카페24 / 직진배송 / 도착보장)
+        // 💰 채널별 매출·주문건수 합계 (일반배송(카페24) / 직진배송 / 도착보장)
         revenueByChannel: REVENUE_CHANNELS.reduce((a, c) => ({ ...a, [c.id]: 0 }), {}),
-        revenueUnclassified: 0 // 채널 구분 이전에 입력된 총액
+        orderCountByChannel: REVENUE_CHANNELS.reduce((a, c) => ({ ...a, [c.id]: 0 }), {}),
+        revenueUnclassified: 0,   // 채널 구분 이전에 입력된 총액
+        orderCountUnclassified: 0 // 채널 구분 이전에 입력된 총 건수
     };
 
     dataList.forEach(day => {
         const mgmt = day.management || {};
         result.revenue += revenueTotalOf(mgmt);
-        result.orderCount += (Number(mgmt.orderCount) || 0);
+        result.orderCount += orderCountTotalOf(mgmt);
 
-        REVENUE_CHANNELS.forEach(c => { result.revenueByChannel[c.id] += (Number(mgmt[c.field]) || 0); });
+        REVENUE_CHANNELS.forEach(c => {
+            result.revenueByChannel[c.id] += (Number(mgmt[c.field]) || 0);
+            result.orderCountByChannel[c.id] += (Number(mgmt[c.orderField]) || 0);
+        });
         if (isLegacyRevenue(mgmt)) result.revenueUnclassified += (Number(mgmt.revenue) || 0);
+        if (isLegacyOrderCount(mgmt)) result.orderCountUnclassified += (Number(mgmt.orderCount) || 0);
 
         const invQty = Number(mgmt.inventoryQty) || 0;
         const invAmt = Number(mgmt.inventoryAmt) || 0;
@@ -286,36 +318,27 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                     <h4 class="font-bold text-blue-800 mb-4 flex items-center">
                         💰 매출 현황
                     </h4>
-                    <div class="space-y-4">
-                        <div class="space-y-2">
-                            <label class="block text-sm font-medium text-gray-700">채널별 매출액 (원)</label>
-                            ${revenueChannelRowsHtml(mgmt, prevMgmt, formatVal, onInputHandler)}
-                            <div class="flex items-center justify-between pt-2 border-t border-blue-100">
-                                <span class="text-sm font-bold text-blue-800">일 매출액 합계</span>
-                                <div class="flex items-center gap-2">
-                                    <span id="mgmt-revenue-total" class="text-base font-black text-blue-800">${Number(revenueTotalOf(mgmt)).toLocaleString()}</span>
-                                    <span class="text-sm font-medium w-20 text-right">
-                                        ${getDiffHtmlForMetric('totalCost', revenueTotalOf(mgmt), revenueTotalOf(prevMgmt))}
+                    <div class="space-y-5">
+                        ${CHANNEL_METRICS.map(m => channelRowsHtml(m, mgmt, prevMgmt, formatVal, onInputHandler)).join('')}
+                        <div class="pt-3 border-t">
+                            <div class="text-sm font-bold text-gray-700 mb-2">건당 평균 매출 (객단가)</div>
+                            <div class="space-y-1 text-sm">
+                                ${REVENUE_CHANNELS.map(c => {
+                                    const rev = Number(mgmt[c.field]) || 0;
+                                    const ord = Number(mgmt[c.orderField]) || 0;
+                                    return `<div class="flex justify-between">
+                                        <span class="flex items-center gap-1.5 text-gray-600 text-[13px]">
+                                            <span class="inline-block w-2 h-2 rounded-full" style="background:${c.color}"></span>${c.label}
+                                        </span>
+                                        <span class="font-bold text-gray-700">${ord > 0 ? formatCurrency(Math.round(rev / ord)) : '0'} 원</span>
+                                    </div>`;
+                                }).join('')}
+                                <div class="flex justify-between pt-1.5 border-t border-gray-100">
+                                    <span class="text-gray-800 font-bold">전체</span>
+                                    <span class="font-bold text-gray-800">
+                                        ${orderCountTotalOf(mgmt) > 0 ? formatCurrency(Math.round(revenueTotalOf(mgmt) / orderCountTotalOf(mgmt))) : '0'} 원
                                     </span>
                                 </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">주문 건수 (건)</label>
-                            <div class="flex items-center gap-2">
-                                <input type="text" id="mgmt-input-orderCount" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${formatVal(mgmt.orderCount)}" oninput="${onInputHandler}">
-                                <span class="text-sm font-medium w-20 text-right">
-                                    ${getDiffHtmlForMetric('quantity', mgmt.orderCount, prevMgmt.orderCount)}
-                                </span>
-                            </div>
-                        </div>
-                        <div class="pt-3 border-t mt-2">
-                            <div class="flex justify-between text-sm">
-                                <span class="text-gray-600">건당 평균 매출 (객단가)</span>
-                                <span class="font-bold text-gray-800">
-                                    ${(Number(mgmt.orderCount) > 0) ? Math.round(revenueTotalOf(mgmt) / Number(mgmt.orderCount)).toLocaleString() : "0"} 원
-                                </span>
                             </div>
                         </div>
                     </div>
@@ -584,7 +607,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                     <div class="text-sm">
                         ${getDiffHtmlForMetric('totalCost', currentStats.revenue, prevStats?.revenue)}
                     </div>
-                    ${revenueChannelBreakdownHtml(currentStats)}
+                    ${channelBreakdownHtml(currentStats, 'revenue')}
                 </div>
 
                 <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden group hover:border-green-400 transition">
@@ -598,6 +621,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                     <div class="text-sm">
                         ${getDiffHtmlForMetric('quantity', currentStats.orderCount, prevStats?.orderCount)}
                     </div>
+                    ${channelBreakdownHtml(currentStats, 'orderCount')}
                 </div>
 
                 <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden group hover:border-purple-400 transition">

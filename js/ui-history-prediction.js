@@ -4,7 +4,7 @@
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
 import { predictFutureTrends, predictBreakdown } from './analysis-logic.js';
-import { REVENUE_CHANNELS } from './revenue-channels.js';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js';
 import * as State from './state.js';
 import { getTodayDateString, getRegularMembersForCount } from './utils.js';
 import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js';
@@ -573,9 +573,21 @@ const DELIVERY_SPLITS = [
 
 let splitCharts = { delivery: null, revenue: null };
 
-const buildSplitDefs = (kind) => kind === 'delivery'
-    ? DELIVERY_SPLITS.map(s => ({ ...s, valueOf: (d) => Number(d?.taskQuantities?.[s.taskKey]) || 0 }))
-    : REVENUE_CHANNELS.map(c => ({ id: c.id, label: c.label, color: c.color, valueOf: (d) => Number(d?.management?.[c.field]) || 0 }));
+// 채널별 실적 예측에서 보고 있는 지표 ('revenue' | 'orderCount')
+let perfMetricKey = 'revenue';
+const perfMetric = () => CHANNEL_METRICS.find(m => m.key === perfMetricKey) || CHANNEL_METRICS[0];
+
+const buildSplitDefs = (kind) => {
+    if (kind === 'delivery') {
+        return DELIVERY_SPLITS.map(s => ({ ...s, valueOf: (d) => Number(d?.taskQuantities?.[s.taskKey]) || 0 }));
+    }
+    // 채널별 실적 — 선택된 지표(매출액/주문 건수)의 채널 필드를 읽는다.
+    const m = perfMetric();
+    return REVENUE_CHANNELS.map(c => ({
+        id: c.id, label: c.label, color: c.color,
+        valueOf: (d) => Number(d?.management?.[m.fieldOf(c)]) || 0
+    }));
+};
 
 const splitCardHtml = (s, unit) => {
     const trendPct = ((s.trend - 1) * 100);
@@ -608,11 +620,11 @@ const renderSplitSection = (kind, historyData, daysToPredict) => {
         return;
     }
 
-    const unit = kind === 'delivery' ? '장' : '원';
+    const unit = kind === 'delivery' ? '장' : perfMetric().unit;
     const hasAny = result.series.some(s => s.historical.some(v => v > 0) || s.tomorrow > 0);
     if (!hasAny) {
         cardsEl.innerHTML = kind === 'revenue'
-            ? '<div class="col-span-full text-center text-xs text-gray-400 py-4">채널별 매출 입력 기록이 아직 없습니다. 경영 지표에서 카페24 · 직진배송 · 도착보장 매출을 입력하면 예측이 표시됩니다.</div>'
+            ? `<div class="col-span-full text-center text-xs text-gray-400 py-4">채널별 ${perfMetric().label} 입력 기록이 아직 없습니다. 경영 지표에서 일반배송(카페24) · 직진배송 · 도착보장으로 나눠 입력하면 예측이 표시됩니다.</div>`
             : '<div class="col-span-full text-center text-xs text-gray-400 py-4">출고 구분별 물량 기록이 아직 없습니다.</div>';
         return;
     }
@@ -658,10 +670,35 @@ const renderSplitSection = (kind, historyData, daysToPredict) => {
                 tooltip: { callbacks: { label: (c) => c.parsed.y == null ? null : `${c.dataset.label}: ${Math.round(c.parsed.y).toLocaleString()}${unit}` } }
             },
             scales: {
-                y: { beginAtZero: true, title: { display: true, text: kind === 'delivery' ? '물량 (장)' : '매출 (원)' } },
+                y: { beginAtZero: true, title: { display: true, text: kind === 'delivery' ? '물량 (장)' : `${perfMetric().label} (${unit})` } },
                 x: { grid: { display: false } }
             }
         }
+    });
+};
+
+// 채널별 실적 예측의 매출/주문건수 전환 버튼
+const bindPerfMetricToggle = () => {
+    const btns = document.querySelectorAll('.perf-metric-btn');
+    if (btns.length === 0) return;
+
+    const paint = () => btns.forEach(b => {
+        const on = b.dataset.perfMetric === perfMetricKey;
+        b.className = `perf-metric-btn px-3 py-1.5 ${on
+            ? 'bg-indigo-600 text-white'
+            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`;
+    });
+    paint();
+
+    btns.forEach(b => {
+        if (b.dataset.bound === 'true') return;
+        b.dataset.bound = 'true';
+        b.addEventListener('click', () => {
+            perfMetricKey = b.dataset.perfMetric || 'revenue';
+            paint();
+            const days = parseInt(document.getElementById('prediction-days-select')?.value, 10) || 14;
+            renderSplitSection('revenue', State.allHistoryData, days);
+        });
     });
 };
 
@@ -686,7 +723,8 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
 
     const result = predictFutureTrends(historyData, daysToPredict);
 
-    // 🔀 구분별 예측(출고 3분할 / 매출 채널 3분할)은 전체 예측 성공 여부와 무관하게 각각 렌더
+    // 🔀 구분별 예측(출고 3분할 / 채널별 실적 3분할)은 전체 예측 성공 여부와 무관하게 각각 렌더
+    bindPerfMetricToggle();
     renderSplitSection('delivery', historyData, daysToPredict);
     renderSplitSection('revenue', historyData, daysToPredict);
 

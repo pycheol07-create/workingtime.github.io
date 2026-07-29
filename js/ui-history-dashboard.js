@@ -2,6 +2,7 @@
 import * as State from './state.js';
 import { analyzeUnitCost } from './ui-history-reports-logic.js';
 import { getWeekOfYear, buildMemberHourlyWageMap } from './utils.js';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js';
 
 let dashboardChartInstance = null;
 
@@ -211,8 +212,8 @@ export function renderDashboardTab(filteredData, appConfig) {
         });
 
         const mgmt = day.management || {};
-        totalOrderCount += (Number(mgmt.orderCount) || 0);
-        totalRevenue += (Number(mgmt.revenue) || 0);
+        totalOrderCount += orderCountTotalOf(mgmt);
+        totalRevenue += revenueTotalOf(mgmt);
         
         if (Number(mgmt.inventoryAmt) > 0) {
             totalInventoryAmt += Number(mgmt.inventoryAmt);
