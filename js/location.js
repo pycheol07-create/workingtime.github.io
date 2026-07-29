@@ -203,8 +203,14 @@ let _zikjinMeta = null;         // 상세 모달에서 쓰는 '유효' 메타
 let _zikjinConfigMeta = null;   // INFO_CONFIG.zikjinMeta (메타 기능 이후 업로드분)
 let _zikjinDerivedMeta = null;  // ZikjinData 청크의 updatedAt/건수로 역산(메타 이전 업로드분 대응)
 function updateZikjinInfoDisplay() {
-    // 명시적 메타 우선, 없으면 데이터에서 역산한 메타로 폴백
-    const zMeta = (_zikjinConfigMeta && _zikjinConfigMeta.at) ? _zikjinConfigMeta : _zikjinDerivedMeta;
+    // ⚠️ 두 메타 중 '더 최신'을 쓴다. (예전엔 INFO_CONFIG 메타를 무조건 우선했다)
+    //   - _zikjinConfigMeta : 이 앱의 업로드 버튼으로 올렸을 때만 기록됨
+    //   - _zikjinDerivedMeta: ZikjinData 청크의 updatedAt에서 역산 — 실제 데이터가 언제 들어왔는지의 사실
+    // 외부(스크립트 등)에서 ZikjinData만 직접 갱신하면 INFO_CONFIG 메타는 옛날 값 그대로 남아
+    // "오늘 전송했는데 어제 날짜로 표시"되는 문제가 있었다.
+    const zMeta = [_zikjinConfigMeta, _zikjinDerivedMeta]
+        .filter(m => m && m.at)
+        .sort((a, b) => b.at - a.at)[0] || null;
     _zikjinMeta = (zMeta && zMeta.at) ? zMeta : null;
     const el = document.getElementById('zikjin-update-info');
     if (!el) return;
@@ -234,16 +240,32 @@ window.openZikjinDetail = function () {
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     // 전송 일시 (몇일 몇시)
+    const _days = ['일', '월', '화', '수', '목', '금', '토'];
+    const _p = n => String(n).padStart(2, '0');
+    const fmtAt = (ms) => {
+        const d = new Date(ms);
+        return `${d.getFullYear()}-${_p(d.getMonth() + 1)}-${_p(d.getDate())}(${_days[d.getDay()]}) ${_p(d.getHours())}:${_p(d.getMinutes())}`;
+    };
+
     let sentLine = '';
     if (_zikjinMeta && _zikjinMeta.at) {
-        const d = new Date(_zikjinMeta.at);
-        const days = ['일', '월', '화', '수', '목', '금', '토'];
-        const p = n => String(n).padStart(2, '0');
-        const sentStr = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}(${days[d.getDay()]}) ${p(d.getHours())}:${p(d.getMinutes())}`;
-        sentLine = `<div style="font-size:12.5px; color:#37474f; margin-top:4px; font-weight:700;">🕒 전송 일시: ${sentStr}</div>`;
+        sentLine = `<div style="font-size:12.5px; color:#37474f; margin-top:4px; font-weight:700;">🕒 전송 일시: ${fmtAt(_zikjinMeta.at)}</div>`;
     } else {
         sentLine = `<div style="font-size:12px; color:#90a4ae; margin-top:4px;">🕒 전송 일시: 기록 없음</div>`;
     }
+
+    // 🔎 진단: "오늘 보냈는데 왜 어제로 보이지?"를 바로 확인할 수 있게 두 소스를 함께 보여준다.
+    //   업로드 기록 = 이 앱의 업로드 버튼으로 올린 시각
+    //   데이터 반영 = ZikjinData 문서가 실제로 마지막으로 쓰인 시각(외부 자동 전송 포함)
+    const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${_p(d.getMonth() + 1)}-${_p(d.getDate())}`; })();
+    const isToday = (ms) => ms && fmtAt(ms).slice(0, 10) === todayKey;
+    const srcLine = (label, meta) => meta && meta.at
+        ? `<span style="color:${isToday(meta.at) ? '#2e7d32' : '#90a4ae'};">${label} ${fmtAt(meta.at)}${isToday(meta.at) ? ' <b>(오늘)</b>' : ''} · ${Number(meta.count || 0).toLocaleString()}건</span>`
+        : `<span style="color:#b0bec5;">${label} 없음</span>`;
+    const diagLine = `<div style="font-size:11px; margin-top:4px; line-height:1.7;">
+        ${srcLine('· 업로드 기록:', _zikjinConfigMeta)}<br>
+        ${srcLine('· 데이터 반영:', _zikjinDerivedMeta)}
+      </div>`;
 
     const body = rows.length === 0
         ? '<div style="padding:36px; text-align:center; color:#888;">전송된 ZG&AB 출고 데이터가 없습니다.</div>'
@@ -271,6 +293,7 @@ window.openZikjinDetail = function () {
             <div style="font-size:16px; font-weight:800; color:#1976d2;">📂 ZG&AB 출고(직진·에이블리) 전송 데이터</div>
             <div style="font-size:12px; color:#607d8b; margin-top:2px;">총 ${rows.length.toLocaleString()}개 상품 · 출고량 합계 ${total.toLocaleString()}</div>
             ${sentLine}
+            ${diagLine}
           </div>
           <button onclick="document.getElementById('zikjin-detail-overlay').remove()" style="border:none; background:none; font-size:22px; cursor:pointer; color:#888;">✕</button>
         </div>

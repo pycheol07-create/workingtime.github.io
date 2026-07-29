@@ -4,7 +4,7 @@
 import * as State from './state.js';
 import { formatDuration, getTodayDateString } from './utils.js';
 import { calculateStandardThroughputs } from './ui-history-reports-logic.js';
-import { revenueTotalOf } from './revenue-channels.js';
+import { channelScope } from './revenue-channels.js';
 
 /**
  * 누락된 처리량이 있는지 확인하는 함수
@@ -204,176 +204,68 @@ const splitHistoryForPrediction = (historyData) => {
 };
 
 /**
- * 🔮 지표를 여러 갈래로 나눠 각각 예측한다.
- *   예) 배송량 → 일반배송 / 직진출고 / 에이블리출고
- *       매출   → 카페24 / 직진배송 / 도착보장
- * @param {Array} historyData
+ * 🚀 [개선된 엔진] 고도화된 실적 및 트렌드 예측 (이상치 제거, EMA 적용)
+ *
+ * @param {Array}  historyData
  * @param {number} daysToPredict
- * @param {Array<{id,label,color,valueOf}>} seriesDefs
- * @returns {{labels:string[], historicalLabels:string[], series:Array}|null}
+ * @param {Object} scope  채널 스코프(revenue-channels.js의 channelScope). 생략하면 전체(총계) 기준.
+ *   - revenueOf(day)     : 그 날의 매출
+ *   - orderCountOf(day)  : 그 날의 주문 건수
+ *   - deliveryOf(day)    : 그 날의 배송 물량
+ *   채널을 지정하면 매출·주문건수·배송량이 모두 그 채널 데이터만으로 계산된다.
  */
-export const predictBreakdown = (historyData, daysToPredict = 14, seriesDefs = []) => {
+export const predictFutureTrends = (historyData, daysToPredict = 14, scope = null) => {
     const ctx = splitHistoryForPrediction(historyData);
     if (!ctx) return null;
     const { todayStr, sortedData, pastData, todayData } = ctx;
-    const displayHist = sortedData.slice(-30);
 
-    const series = seriesDefs.map(def => {
-        const p = buildMetricPrediction(pastData, todayData, todayStr, daysToPredict, def.valueOf);
-        return {
-            id: def.id,
-            label: def.label,
-            color: def.color,
-            historical: displayHist.map(def.valueOf),
-            ...p
-        };
-    });
+    const sc = scope || channelScope(null);
+    const revenueOf = sc.revenueOf;
+    const orderCountOf = sc.orderCountOf;
+    const deliveryOf = sc.deliveryOf;
 
-    return {
-        historicalLabels: displayHist.map(d => d.id.substring(5)),
-        labels: series[0] ? series[0].labels : [],
-        series
-    };
-};
-
-/**
- * 🚀 [개선된 엔진] 고도화된 실적 및 트렌드 예측 (이상치 제거, EMA 적용)
- */
-export const predictFutureTrends = (historyData, daysToPredict = 14) => {
-    const todayStr = getTodayDateString();
-    const sortedData = [...historyData].sort((a, b) => a.id.localeCompare(b.id));
-
-    const pastData = sortedData.filter(d => d.id < todayStr).slice(-90);
-    const todayData = sortedData.find(d => d.id === todayStr) || { id: todayStr, management: { revenue: 0 }, taskQuantities: { '국내배송': 0 } };
-
-    if (pastData.length < 7) return null;
-
-    const getAdvancedDowPrediction = (records, targetDow, type) => {
-        const sameDayRecords = records.filter(r => new Date(r.id).getDay() === targetDow);
-        if (sameDayRecords.length === 0) return 0;
-
-        sameDayRecords.sort((a, b) => b.id.localeCompare(a.id));
-
-        const rawValues = sameDayRecords.map(r => type === 'rev' ? revenueTotalOf(r.management) : (Number(r.taskQuantities?.['국내배송']) || 0));
-        
-        const validValues = filterOutliers(rawValues.filter(v => v > 0));
-        if (validValues.length === 0) return 0;
-
-        return validValues.reduce((a, b) => a + b, 0) / validValues.length;
-    };
-
-    const advDowAvgRev = {};
-    const advDowAvgDel = {};
-    for (let i = 0; i < 7; i++) {
-        advDowAvgRev[i] = getAdvancedDowPrediction(pastData, i, 'rev');
-        advDowAvgDel[i] = getAdvancedDowPrediction(pastData, i, 'del');
-    }
-
-    const revSeries = pastData.map(d => revenueTotalOf(d.management)).filter(v => v > 0);
-    const delSeries = pastData.map(d => Number(d.taskQuantities?.['국내배송']) || 0).filter(v => v > 0);
-
-    const ema7Rev = calcEMA(revSeries.slice(-7), 7);
-    const ema30Rev = calcEMA(revSeries.slice(-30), 30);
-    const ema7Del = calcEMA(delSeries.slice(-7), 7);
-    const ema30Del = calcEMA(delSeries.slice(-30), 30);
-
-    let trendRev = 1, trendDel = 1;
-    if (ema30Rev > 0) trendRev = Math.max(0.7, Math.min(1.3, ema7Rev / ema30Rev));
-    if (ema30Del > 0) trendDel = Math.max(0.7, Math.min(1.3, ema7Del / ema30Del));
-
-    const backtestDays = pastData.slice(-14);
-    let sumActualRev = 0, sumPredRev = 0;
-    let sumActualDel = 0, sumPredDel = 0;
-
-    backtestDays.forEach(day => {
-        const dow = new Date(day.id).getDay();
-        const actualRev = revenueTotalOf(day.management);
-        const actualDel = Number(day.taskQuantities?.['국내배송']) || 0;
-
-        if (actualRev > 0) { sumActualRev += actualRev; sumPredRev += advDowAvgRev[dow]; }
-        if (actualDel > 0) { sumActualDel += actualDel; sumPredDel += advDowAvgDel[dow]; }
-    });
-
-    let errorFactorRev = sumPredRev > 0 ? Math.max(0.85, Math.min(1.15, sumActualRev / sumPredRev)) : 1;
-    let errorFactorDel = sumPredDel > 0 ? Math.max(0.85, Math.min(1.15, sumActualDel / sumPredDel)) : 1;
-
-    const marginRev = 0.10; 
-    const marginDel = 0.10;
-
-    const todayDow = new Date(todayStr).getDay();
-    let todayPredRev = advDowAvgRev[todayDow] * errorFactorRev * trendRev;
-    let todayPredDel = advDowAvgDel[todayDow] * errorFactorDel * trendDel;
-
-    todayPredRev = Math.round(Math.max(0, todayPredRev));
-    todayPredDel = Math.round(Math.max(0, todayPredDel));
-
-    const todayActualRev = revenueTotalOf(todayData.management);
-    const todayActualDel = Number(todayData.taskQuantities?.['국내배송']) || 0;
-
-    const futureLabels = [];
-    const predictedRevenue = [];
-    const predictedDelivery = [];
-    
-    const rangeRevenue = [];
-    const rangeDelivery = [];
-
-    let tomorrowRev = 0, tomorrowDel = 0;
-    const todayDateObj = new Date(todayStr);
-
-    for (let i = 1; i <= daysToPredict; i++) {
-        const targetDate = new Date(todayDateObj.getTime() + (i * 24 * 60 * 60 * 1000));
-        const dow = targetDate.getDay();
-        const dateStr = targetDate.toISOString().slice(5, 10);
-
-        const decayTrendRev = 1 + (trendRev - 1) * Math.max(0.5, (1 - i*0.05));
-        const decayTrendDel = 1 + (trendDel - 1) * Math.max(0.5, (1 - i*0.05));
-
-        let pRev = Math.round(Math.max(0, advDowAvgRev[dow] * errorFactorRev * decayTrendRev));
-        let pDel = Math.round(Math.max(0, advDowAvgDel[dow] * errorFactorDel * decayTrendDel));
-
-        futureLabels.push(dateStr);
-        predictedRevenue.push(pRev);
-        predictedDelivery.push(pDel);
-
-        rangeRevenue.push({ min: Math.round(pRev * (1 - marginRev)), max: Math.round(pRev * (1 + marginRev)) });
-        rangeDelivery.push({ min: Math.round(pDel * (1 - marginDel)), max: Math.round(pDel * (1 + marginDel)) });
-
-        if (i === 1) {
-            tomorrowRev = pRev;
-            tomorrowDel = pDel;
-        }
-    }
+    const rev = buildMetricPrediction(pastData, todayData, todayStr, daysToPredict, revenueOf);
+    const del = buildMetricPrediction(pastData, todayData, todayStr, daysToPredict, deliveryOf);
+    const ord = buildMetricPrediction(pastData, todayData, todayStr, daysToPredict, orderCountOf);
 
     const displayHist = sortedData.slice(-30);
 
     return {
+        scope: { id: sc.id, label: sc.label, color: sc.color, deliveryLabel: sc.deliveryLabel, deliverySource: sc.deliverySource },
         historical: {
             labels: displayHist.map(d => d.id.substring(5)),
-            revenue: displayHist.map(d => revenueTotalOf(d.management)),
-            delivery: displayHist.map(d => Number(d.taskQuantities?.['국내배송']) || 0)
+            revenue: displayHist.map(revenueOf),
+            delivery: displayHist.map(deliveryOf),
+            orderCount: displayHist.map(orderCountOf)
         },
         prediction: {
-            labels: futureLabels,
-            revenue: predictedRevenue,
-            delivery: predictedDelivery,
-            rangeRevenue: rangeRevenue,
-            rangeDelivery: rangeDelivery,
+            labels: rev.labels,
+            revenue: rev.predicted,
+            delivery: del.predicted,
+            orderCount: ord.predicted,
+            rangeRevenue: rev.range,
+            rangeDelivery: del.range,
+            rangeOrderCount: ord.range,
             today: {
-                predictedRev: todayPredRev,
-                predictedDel: todayPredDel,
-                actualRev: todayActualRev,
-                actualDel: todayActualDel,
-                errorFactorRev: errorFactorRev,
-                errorFactorDel: errorFactorDel
+                predictedRev: rev.todayPredicted,
+                predictedDel: del.todayPredicted,
+                predictedOrd: ord.todayPredicted,
+                actualRev: rev.todayActual,
+                actualDel: del.todayActual,
+                actualOrd: ord.todayActual,
+                errorFactorRev: rev.errorFactor,
+                errorFactorDel: del.errorFactor
             },
             tomorrow: {
-                revenue: tomorrowRev,
-                delivery: tomorrowDel
+                revenue: rev.tomorrow,
+                delivery: del.tomorrow,
+                orderCount: ord.tomorrow
             }
         },
         trend: {
-            revenueFactor: trendRev,
-            deliveryFactor: trendDel
+            revenueFactor: rev.trend,
+            deliveryFactor: del.trend,
+            orderCountFactor: ord.trend
         }
     };
 };

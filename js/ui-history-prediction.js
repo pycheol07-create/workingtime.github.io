@@ -3,8 +3,8 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends, predictBreakdown } from './analysis-logic.js';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js';
+import { predictFutureTrends } from './analysis-logic.js';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js';
 import * as State from './state.js';
 import { getTodayDateString, getRegularMembersForCount } from './utils.js';
 import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js';
@@ -111,7 +111,9 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
         return Number(day?.taskQuantities?.['국내배송']) || 0;
     }
     if (diff > 30) return 0; // 너무 먼 미래는 신뢰도 낮음
-    const result = predictFutureTrends(historyData, Math.max(14, diff));
+    // ⚠️ 반드시 일반배송(카페24) 스코프로 예측해야 delivery가 '국내배송' 물량이 된다.
+    //    스코프를 생략하면 전 채널 물량 합계가 나와 시뮬레이션 값이 부풀려진다.
+    const result = predictFutureTrends(historyData, Math.max(14, diff), channelScope('cafe24'));
     if (!result || !result.prediction || !Array.isArray(result.prediction.delivery)) return 0;
     return Math.round(result.prediction.delivery[diff - 1] || 0);
 };
@@ -563,151 +565,50 @@ const predictionCharts = {
 };
 
 // ───────────────────────────────────────────────────────────
-// 🔀 구분별 예측 (출고 3분할 / 매출 채널 3분할)
+// 🔀 채널 선택 — 실적 예측 전체(KPI·오늘 진행률·차트)를 한 채널 기준으로 계산한다.
+//   '전체'는 총계(모든 채널 합), 개별 채널은 그 채널의 매출·주문건수·배송량만 사용.
+//   예) 일반배송(카페24) = 국내배송 물량 + 카페24 매출/주문건
 // ───────────────────────────────────────────────────────────
-const DELIVERY_SPLITS = [
-    { id: 'general', label: '일반배송',    color: '#10b981', taskKey: '국내배송' },
-    { id: 'direct',  label: '직진출고',    color: '#a855f7', taskKey: '직진배송' },
-    { id: 'ably',    label: '에이블리출고', color: '#ec4899', taskKey: '에이블리배송' }
-];
+let predChannelId = 'all';
+const predScope = () => channelScope(predChannelId === 'all' ? null : predChannelId);
 
-let splitCharts = { delivery: null, revenue: null };
+const renderChannelTabs = (historyData) => {
+    const host = document.getElementById('pred-channel-tabs');
+    const note = document.getElementById('pred-channel-note');
+    if (!host) return;
 
-// 채널별 실적 예측에서 보고 있는 지표 ('revenue' | 'orderCount')
-let perfMetricKey = 'revenue';
-const perfMetric = () => CHANNEL_METRICS.find(m => m.key === perfMetricKey) || CHANNEL_METRICS[0];
+    const opts = [{ id: 'all', label: '전체' }, ...REVENUE_CHANNELS.map(c => ({ id: c.id, label: c.label }))];
+    host.innerHTML = opts.map(o => {
+        const on = o.id === predChannelId;
+        return `<button type="button" data-pred-channel="${o.id}"
+            class="px-3 py-1.5 border-r border-gray-200 dark:border-gray-600 last:border-r-0 ${on
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}">${o.label}</button>`;
+    }).join('');
 
-const buildSplitDefs = (kind) => {
-    if (kind === 'delivery') {
-        return DELIVERY_SPLITS.map(s => ({ ...s, valueOf: (d) => Number(d?.taskQuantities?.[s.taskKey]) || 0 }));
-    }
-    // 채널별 실적 — 선택된 지표(매출액/주문 건수)의 채널 필드를 읽는다.
-    const m = perfMetric();
-    return REVENUE_CHANNELS.map(c => ({
-        id: c.id, label: c.label, color: c.color,
-        valueOf: (d) => Number(d?.management?.[m.fieldOf(c)]) || 0
-    }));
-};
-
-const splitCardHtml = (s, unit) => {
-    const trendPct = ((s.trend - 1) * 100);
-    const icon = trendPct > 5 ? '📈' : (trendPct < -5 ? '📉' : '➡️');
-    const tone = trendPct > 5 ? 'text-red-500' : (trendPct < -5 ? 'text-blue-500' : 'text-gray-500');
-    const r = s.range[0] || { min: 0, max: 0 };
-    return `
-    <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50/60 dark:bg-gray-900/30">
-        <div class="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-300">
-            <span class="inline-block w-2.5 h-2.5 rounded-full" style="background:${s.color}"></span>${s.label}
-        </div>
-        <div class="text-lg font-black text-gray-900 dark:text-white mt-1">
-            ${s.tomorrow > 0 ? s.tomorrow.toLocaleString() : '0'}<span class="text-[11px] font-bold text-gray-400 ml-1">${unit}</span>
-        </div>
-        <div class="text-[10px] text-gray-400 mt-0.5">내일 예측 · 범위 ${r.min.toLocaleString()}~${r.max.toLocaleString()}</div>
-        <div class="text-[10px] mt-1 ${tone} font-bold">${icon} 추세 ${trendPct >= 0 ? '+' : ''}${trendPct.toFixed(1)}%</div>
-    </div>`;
-};
-
-const renderSplitSection = (kind, historyData, daysToPredict) => {
-    const canvas = document.getElementById(`chart-prediction-${kind}-split`);
-    const cardsEl = document.getElementById(`pred-${kind}-split-cards`);
-    if (!canvas || !cardsEl) return;
-
-    if (splitCharts[kind]) { splitCharts[kind].destroy(); splitCharts[kind] = null; }
-
-    const result = predictBreakdown(historyData, daysToPredict, buildSplitDefs(kind));
-    if (!result) {
-        cardsEl.innerHTML = '<div class="col-span-full text-center text-xs text-gray-400 py-4">데이터가 부족하여 예측할 수 없습니다.</div>';
-        return;
+    const sc = predScope();
+    if (note) {
+        note.textContent = predChannelId === 'all'
+            ? `매출·주문건수는 전체 합계, 배송량은 ${sc.deliverySource} 합계 기준`
+            : `매출·주문건수는 ${sc.label}, 배송량은 ${sc.deliverySource} 물량 기준`;
     }
 
-    const unit = kind === 'delivery' ? '장' : perfMetric().unit;
-    const hasAny = result.series.some(s => s.historical.some(v => v > 0) || s.tomorrow > 0);
-    if (!hasAny) {
-        cardsEl.innerHTML = kind === 'revenue'
-            ? `<div class="col-span-full text-center text-xs text-gray-400 py-4">채널별 ${perfMetric().label} 입력 기록이 아직 없습니다. 경영 지표에서 일반배송(카페24) · 직진배송 · 도착보장으로 나눠 입력하면 예측이 표시됩니다.</div>`
-            : '<div class="col-span-full text-center text-xs text-gray-400 py-4">출고 구분별 물량 기록이 아직 없습니다.</div>';
-        return;
+    if (host.dataset.bound !== 'true') {
+        host.dataset.bound = 'true';
+        host.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-pred-channel]');
+            if (!btn) return;
+            predChannelId = btn.dataset.predChannel;
+            renderPredictionTab(State.allHistoryData);
+        });
     }
-
-    cardsEl.innerHTML = result.series.map(s => splitCardHtml(s, unit)).join('');
-
-    const splitIndex = result.historicalLabels.length;
-    const allLabels = [...result.historicalLabels, ...result.labels];
-
-    const datasets = [];
-    result.series.forEach(s => {
-        datasets.push({
-            label: `${s.label} (실적)`,
-            data: [...s.historical, ...new Array(result.labels.length).fill(null)],
-            borderColor: s.color,
-            backgroundColor: s.color,
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0.3
-        });
-        datasets.push({
-            label: `${s.label} (예측)`,
-            // 실적 마지막 점과 예측 첫 점을 이어 선이 끊기지 않게 한다
-            data: [...new Array(Math.max(0, splitIndex - 1)).fill(null), s.historical[splitIndex - 1] ?? null, ...s.predicted],
-            borderColor: s.color,
-            backgroundColor: s.color,
-            borderWidth: 2,
-            borderDash: [5, 4],
-            pointRadius: 0,
-            tension: 0.3
-        });
-    });
-
-    splitCharts[kind] = new Chart(canvas, {
-        type: 'line',
-        data: { labels: allLabels, datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: { labels: { boxWidth: 10, font: { size: 10 } } },
-                tooltip: { callbacks: { label: (c) => c.parsed.y == null ? null : `${c.dataset.label}: ${Math.round(c.parsed.y).toLocaleString()}${unit}` } }
-            },
-            scales: {
-                y: { beginAtZero: true, title: { display: true, text: kind === 'delivery' ? '물량 (장)' : `${perfMetric().label} (${unit})` } },
-                x: { grid: { display: false } }
-            }
-        }
-    });
-};
-
-// 채널별 실적 예측의 매출/주문건수 전환 버튼
-const bindPerfMetricToggle = () => {
-    const btns = document.querySelectorAll('.perf-metric-btn');
-    if (btns.length === 0) return;
-
-    const paint = () => btns.forEach(b => {
-        const on = b.dataset.perfMetric === perfMetricKey;
-        b.className = `perf-metric-btn px-3 py-1.5 ${on
-            ? 'bg-indigo-600 text-white'
-            : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`;
-    });
-    paint();
-
-    btns.forEach(b => {
-        if (b.dataset.bound === 'true') return;
-        b.dataset.bound = 'true';
-        b.addEventListener('click', () => {
-            perfMetricKey = b.dataset.perfMetric || 'revenue';
-            paint();
-            const days = parseInt(document.getElementById('prediction-days-select')?.value, 10) || 14;
-            renderSplitSection('revenue', State.allHistoryData, days);
-        });
-    });
 };
 
 // 💡 장(상품수)을 건수(주문건수)로 변환하여 "건 / 장" 포맷으로 반환하는 헬퍼 함수 (1.2 기준)
-const formatDelivery = (val) => {
-    if (!val || val <= 0) return '0건 / 0장';
-    const cases = Math.round(val / 1.2); // 1.2로 나누어 건수 계산
-    return `${cases.toLocaleString()}건 / ${Math.round(val).toLocaleString()}장`;
-};
+// 배송량은 '장(상품수)' 그대로 표시한다.
+// 예전에는 ÷1.2로 건수를 추정해 병기했지만, 이제 주문 건수를 채널별로 직접 입력받으므로
+// 추정치를 함께 보여주면 실제 주문건수 카드와 값이 달라 혼동만 준다.
+const formatDelivery = (val) => `${Math.round(Number(val) || 0).toLocaleString()}장`;
 
 export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     // (업무량 시뮬레이션은 '업무 예상' 탭(renderForecastTab)으로 이동됨)
@@ -721,12 +622,18 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
         daysToPredict = parseInt(selectEl.value, 10);
     }
 
-    const result = predictFutureTrends(historyData, daysToPredict);
+    // 🔀 선택된 채널 기준으로 매출·주문건수·배송량을 모두 계산한다.
+    const scope = predScope();
+    renderChannelTabs(historyData);
 
-    // 🔀 구분별 예측(출고 3분할 / 채널별 실적 3분할)은 전체 예측 성공 여부와 무관하게 각각 렌더
-    bindPerfMetricToggle();
-    renderSplitSection('delivery', historyData, daysToPredict);
-    renderSplitSection('revenue', historyData, daysToPredict);
+    const result = predictFutureTrends(historyData, daysToPredict, scope);
+
+    // 차트 제목에 현재 기준 표시
+    const scopeSuffix = predChannelId === 'all' ? '(전체 합계)' : `(${scope.label})`;
+    const revScopeEl = document.getElementById('pred-chart-rev-scope');
+    const delScopeEl = document.getElementById('pred-chart-del-scope');
+    if (revScopeEl) revScopeEl.textContent = scopeSuffix;
+    if (delScopeEl) delScopeEl.textContent = predChannelId === 'all' ? '(전체 합계)' : `(${scope.deliverySource})`;
 
     if (!result) {
         renderNoData(revenueCtx, "데이터가 부족하여 예측할 수 없습니다.");
@@ -741,8 +648,8 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     const allLabels = [...historical.labels, ...prediction.labels];
 
     // ✨ 범위(range) 데이터를 함께 넘겨주어 신뢰 구간을 그리도록 수정
-    renderChart('revenue', revenueCtx, allLabels, historical.revenue, prediction.revenue, prediction.rangeRevenue, splitIndex, '매출 (원)', 'rgb(79, 70, 229)'); 
-    renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, prediction.rangeDelivery, splitIndex, '배송량 (장)', 'rgb(16, 185, 129)'); 
+    renderChart('revenue', revenueCtx, allLabels, historical.revenue, prediction.revenue, prediction.rangeRevenue, splitIndex, '매출 (원)', 'rgb(79, 70, 229)');
+    renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, prediction.rangeDelivery, splitIndex, '배송량 (장)', 'rgb(16, 185, 129)');
 
     updateKPICards(prediction, trend, daysToPredict);
 
@@ -763,26 +670,31 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
     const elTodayEstDel = document.getElementById('pred-today-est-del');
     const elTodayActDel = document.getElementById('pred-today-act-del');
     const elTodayDelBar = document.getElementById('pred-today-del-bar');
+
+    const elTodayEstOrd = document.getElementById('pred-today-est-ord');
+    const elTodayActOrd = document.getElementById('pred-today-act-ord');
+    const elTodayOrdBar = document.getElementById('pred-today-ord-bar');
     const elErrorText = document.getElementById('pred-error-rate-text');
 
     // Tomorrow & Period UI
     const elTomRev = document.getElementById('pred-tomorrow-revenue');
     const elTomDel = document.getElementById('pred-tomorrow-delivery');
+    const elTomOrd = document.getElementById('pred-tomorrow-ordercount');
     const elPerAvgRev = document.getElementById('pred-period-avg-revenue');
     const elPerAvgDel = document.getElementById('pred-period-avg-delivery');
+    const elPerAvgOrd = document.getElementById('pred-period-avg-ordercount');
     const elPeriodLabel = document.getElementById('pred-period-label');
     const elRevTrend = document.getElementById('pred-revenue-trend');
     const elDelTrend = document.getElementById('pred-delivery-trend');
+    const elOrdTrend = document.getElementById('pred-ordercount-trend');
 
     if (!prediction) {
-        if (elTomRev) elTomRev.textContent = '-';
-        if (elTomDel) elTomDel.textContent = '-';
-        if (elPerAvgRev) elPerAvgRev.textContent = '-';
-        if (elPerAvgDel) elPerAvgDel.textContent = '-';
+        [elTomRev, elTomDel, elTomOrd, elPerAvgRev, elPerAvgDel, elPerAvgOrd]
+            .forEach(el => { if (el) el.textContent = '-'; });
         return;
     }
 
-    const { today, tomorrow, revenue, delivery } = prediction;
+    const { today, tomorrow, revenue, delivery, orderCount } = prediction;
 
     // 1. 당일 실적 추적 모니터링 업데이트
     if (today) {
@@ -800,6 +712,13 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
             elTodayDelBar.style.width = `${delPct}%`;
         }
 
+        if (elTodayEstOrd) elTodayEstOrd.textContent = `${(today.predictedOrd || 0).toLocaleString()}건`;
+        if (elTodayActOrd) elTodayActOrd.textContent = `${(today.actualOrd || 0).toLocaleString()}건`;
+        if (elTodayOrdBar) {
+            const ordPct = today.predictedOrd > 0 ? Math.min(100, (today.actualOrd / today.predictedOrd) * 100) : 0;
+            elTodayOrdBar.style.width = `${ordPct}%`;
+        }
+
         if (elErrorText) {
             const revFactorPct = ((today.errorFactorRev - 1) * 100).toFixed(1);
             const delFactorPct = ((today.errorFactorDel - 1) * 100).toFixed(1);
@@ -813,6 +732,8 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
     // 2. 내일 예측 및 기간 평균 업데이트 (✨ 범위 텍스트 추가됨)
     const avgRev = revenue.reduce((a,b)=>a+b,0) / revenue.length;
     const avgDel = delivery.reduce((a,b)=>a+b,0) / delivery.length;
+    const ordSeries = orderCount || [];
+    const avgOrd = ordSeries.length ? ordSeries.reduce((a,b)=>a+b,0) / ordSeries.length : 0;
 
     if (elTomRev) {
         if (tomorrow.revenue > 0) {
@@ -828,16 +749,24 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
         if (tomorrow.delivery > 0) {
             const minDel = prediction.rangeDelivery[0].min;
             const maxDel = prediction.rangeDelivery[0].max;
-            const minCases = Math.round(minDel / 1.2);
-            const maxCases = Math.round(maxDel / 1.2);
-            elTomDel.innerHTML = `${formatDelivery(tomorrow.delivery)} <span class="text-[11px] text-gray-500 font-normal ml-1 mt-1 block md:inline">(최소 ${minCases.toLocaleString()}건 ~ 최대 ${maxCases.toLocaleString()}건)</span>`;
+            elTomDel.innerHTML = `${formatDelivery(tomorrow.delivery)} <span class="text-[11px] text-gray-500 font-normal ml-1 mt-1 block md:inline">(최소 ${minDel.toLocaleString()} ~ 최대 ${maxDel.toLocaleString()}장)</span>`;
         } else {
             elTomDel.textContent = '휴무(0)';
         }
     }
     
+    if (elTomOrd) {
+        if (tomorrow.orderCount > 0) {
+            const r = (prediction.rangeOrderCount && prediction.rangeOrderCount[0]) || { min: 0, max: 0 };
+            elTomOrd.innerHTML = `${tomorrow.orderCount.toLocaleString()}건 <span class="text-[11px] text-gray-500 font-normal ml-1">(최소 ${r.min.toLocaleString()} ~ 최대 ${r.max.toLocaleString()})</span>`;
+        } else {
+            elTomOrd.textContent = '휴무(0)';
+        }
+    }
+
     if (elPerAvgRev) elPerAvgRev.textContent = Math.round(avgRev).toLocaleString();
     if (elPerAvgDel) elPerAvgDel.textContent = formatDelivery(avgDel);
+    if (elPerAvgOrd) elPerAvgOrd.textContent = `${Math.round(avgOrd).toLocaleString()}건`;
     if (elPeriodLabel) elPeriodLabel.textContent = `향후 ${daysToPredict}일 기준`;
 
     // 3. 장기 추세 안내 텍스트
@@ -847,6 +776,14 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
         if (factor > 1.05) { trendIcon = '📈'; trendText = `최근 매출 꾸준한 상승세`; color = 'text-red-500'; }
         else if (factor < 0.95) { trendIcon = '📉'; trendText = `최근 매출 하락세 주의`; color = 'text-blue-500'; }
         elRevTrend.innerHTML = `${trendIcon} <span class="${color} font-bold">${trendText}</span>`;
+    }
+
+    if (elOrdTrend && trend) {
+        const factor = trend.orderCountFactor || 1;
+        let trendIcon = '➡️', trendText = '보합세 유지 중', color = 'text-blue-500';
+        if (factor > 1.05) { trendIcon = '🧾📈'; trendText = `최근 주문건수 증가 추세`; color = 'text-red-500'; }
+        else if (factor < 0.95) { trendIcon = '🧾📉'; trendText = `최근 주문건수 감소 추세`; color = 'text-blue-500'; }
+        elOrdTrend.innerHTML = `${trendIcon} <span class="${color} font-bold">${trendText}</span>`;
     }
 
     if (elDelTrend && trend) {

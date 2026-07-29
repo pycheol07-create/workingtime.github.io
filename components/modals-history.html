@@ -400,11 +400,23 @@
                     <p id="pred-error-rate-text" class="text-xs text-gray-500 dark:text-gray-400 text-right"></p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- 🔀 채널 선택 — KPI·오늘 진행률·차트가 모두 선택한 채널 기준으로 계산된다 -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-xs font-bold text-gray-500 dark:text-gray-400 mr-1">채널</span>
+                    <div id="pred-channel-tabs" class="inline-flex flex-wrap rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-xs font-bold"></div>
+                    <span id="pred-channel-note" class="text-[11px] text-gray-400 dark:text-gray-500"></span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <div class="text-sm font-bold text-gray-500 dark:text-gray-400">내일 매출 예측</div>
                         <div id="pred-tomorrow-revenue" class="text-xl md:text-2xl font-black text-gray-900 dark:text-white mt-2">-</div>
                         <div id="pred-revenue-trend" class="text-xs mt-2"></div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <div class="text-sm font-bold text-gray-500 dark:text-gray-400">내일 주문건수 예측</div>
+                        <div id="pred-tomorrow-ordercount" class="text-xl md:text-2xl font-black text-gray-900 dark:text-white mt-2">-</div>
+                        <div id="pred-ordercount-trend" class="text-xs mt-2"></div>
                     </div>
                     <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <div class="text-sm font-bold text-gray-500 dark:text-gray-400">내일 배송량 예측</div>
@@ -416,12 +428,16 @@
                         <div id="pred-period-avg-revenue" class="text-xl md:text-2xl font-black text-gray-900 dark:text-white mt-2">-</div>
                     </div>
                     <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <div class="text-sm font-bold text-gray-500 dark:text-gray-400">기간 평균 주문건수 (일)</div>
+                        <div id="pred-period-avg-ordercount" class="text-xl md:text-2xl font-black text-gray-900 dark:text-white mt-2">-</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <div class="text-sm font-bold text-gray-500 dark:text-gray-400">기간 평균 배송량 (일)</div>
                         <div id="pred-period-avg-delivery" class="text-xl md:text-2xl font-black text-gray-900 dark:text-white mt-2">-</div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                     <div>
                         <div class="flex justify-between text-sm mb-2">
                             <span class="font-bold text-gray-700 dark:text-gray-300">오늘 매출 (실적 / 예측)</span>
@@ -440,48 +456,29 @@
                             <div id="pred-today-del-bar" class="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
                         </div>
                     </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="font-bold text-gray-700 dark:text-gray-300">오늘 주문건수 (실적 / 예측)</span>
+                            <span class="text-gray-600 dark:text-gray-400"><span id="pred-today-act-ord" class="font-bold text-gray-900 dark:text-white">0</span> / <span id="pred-today-est-ord">0</span></span>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                            <div id="pred-today-ord-bar" class="bg-sky-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 min-h-[350px]">
                     <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex flex-col">
-                        <h4 class="text-md font-bold text-gray-800 dark:text-white mb-4">📈 매출 트렌드 및 AI 예측</h4>
+                        <h4 class="text-md font-bold text-gray-800 dark:text-white mb-4">📈 매출 트렌드 및 AI 예측 <span id="pred-chart-rev-scope" class="text-[11px] font-normal text-gray-400"></span></h4>
                         <div class="relative flex-grow min-h-[250px]">
                             <canvas id="chart-prediction-revenue"></canvas>
                         </div>
                     </div>
                     <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex flex-col">
-                        <h4 class="text-md font-bold text-gray-800 dark:text-white mb-4">📦 배송량 트렌드 및 AI 예측 <span class="text-[11px] font-normal text-gray-400">(전체 합계)</span></h4>
+                        <h4 class="text-md font-bold text-gray-800 dark:text-white mb-4">📦 배송량 트렌드 및 AI 예측 <span id="pred-chart-del-scope" class="text-[11px] font-normal text-gray-400"></span></h4>
                         <div class="relative flex-grow min-h-[250px]">
                             <canvas id="chart-prediction-delivery"></canvas>
                         </div>
-                    </div>
-                </div>
-
-                <!-- 🔀 출고 구분별 예측 (일반배송 / 직진출고 / 에이블리출고) -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                    <h4 class="text-md font-bold text-gray-800 dark:text-white mb-1">🔀 출고 구분별 예측</h4>
-                    <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-4">일반배송 · 직진출고 · 에이블리출고를 각각 따로 예측합니다.</p>
-                    <div id="pred-delivery-split-cards" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4"></div>
-                    <div class="relative min-h-[260px] h-[260px]">
-                        <canvas id="chart-prediction-delivery-split"></canvas>
-                    </div>
-                </div>
-
-                <!-- 💰 채널별 실적 예측 (일반배송(카페24) / 직진배송 / 도착보장) -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                    <div class="flex flex-wrap items-start justify-between gap-3 mb-1">
-                        <div>
-                            <h4 class="text-md font-bold text-gray-800 dark:text-white">💰 채널별 실적 예측</h4>
-                            <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">경영 지표에 입력한 <b>일반배송(카페24) · 직진배송 · 도착보장</b> 실적을 채널별로 따로 예측합니다.</p>
-                        </div>
-                        <div class="inline-flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-xs font-bold shrink-0">
-                            <button type="button" data-perf-metric="revenue" class="perf-metric-btn px-3 py-1.5 bg-indigo-600 text-white">매출액</button>
-                            <button type="button" data-perf-metric="orderCount" class="perf-metric-btn px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300">주문 건수</button>
-                        </div>
-                    </div>
-                    <div id="pred-revenue-split-cards" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 mt-4"></div>
-                    <div class="relative min-h-[260px] h-[260px]">
-                        <canvas id="chart-prediction-revenue-split"></canvas>
                     </div>
                 </div>
 
