@@ -701,13 +701,15 @@ export const renderLeaveScheduleWidget = () => {
 
     el.innerHTML = groups.map(g => {
         const isToday = g.start <= today && g.end >= today;
+        // 같은 날짜 안의 근태는 세로로 한 줄씩 쌓는다.
         const chips = g.members.map(m => `
-            <span class="inline-flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded ${tone(m.type)}" title="${esc(m.member)} · ${esc(m.type)}">
-                <span class="text-gray-800 dark:text-gray-100">${esc(m.member)}</span>${esc(m.type)}
+            <span class="flex items-center gap-1.5 w-full">
+                <span class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate" title="${esc(m.member)}">${esc(m.member)}</span>
+                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ml-auto ${tone(m.type)}">${esc(m.type)}</span>
             </span>`).join('');
         return `<div class="flex items-start gap-2 px-2 py-1.5 rounded-lg ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'} transition-colors">
             <span class="text-[11px] font-bold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'} w-[56px] shrink-0 pt-0.5">${esc(dLabel(g.start, g.end))}</span>
-            <span class="flex-1 min-w-0 flex flex-wrap gap-1">${chips}</span>
+            <span class="flex-1 min-w-0 flex flex-col gap-1">${chips}</span>
             ${g.members.length > 1 ? `<span class="text-[10px] text-gray-400 shrink-0 pt-0.5">${g.members.length}명</span>` : ''}
         </div>`;
     }).join('');
