@@ -144,39 +144,66 @@ async function removeLeaveEntry(id) {
 // ────────────────────────────────────────
 // 렌더
 // ────────────────────────────────────────
-function dayMarkersHtml(dateStr, incoming) {
-    const dots = [];
-    const evs = eventsByDate.get(dateStr) || [];
-    const seen = new Set();
-    evs.forEach(ev => {
-        const t = typeOf(ev.type);
-        if (seen.has(t.id)) return;
-        seen.add(t.id);
-        dots.push(`<span class="cal-dot" style="background:${t.color}"></span>`);
-    });
-    if (leavesForDate(dateStr).length > 0) dots.push(`<span class="cal-dot" style="background:${LEAVE_COLOR}"></span>`);
-    if (incoming[dateStr]) dots.push(`<span class="cal-dot" style="background:${INCOMING_COLOR}"></span>`);
-    return dots.slice(0, 4).join('');
-}
+/** 한 날짜의 모든 항목을 한 줄짜리 데이터로 모은다. (일정 → 근태 → 입고 순) */
+function itemsForDate(dateStr, incoming) {
+    const out = [];
 
-function daySummaryHtml(dateStr, incoming) {
-    const parts = [];
-    const evs = eventsByDate.get(dateStr) || [];
-    evs.slice(0, 2).forEach(ev => {
-        const t = typeOf(ev.type);
-        parts.push(`<div class="cal-chip" style="color:${t.color}" title="${esc(ev.title)}">${esc(ev.title)}</div>`);
+    (eventsByDate.get(dateStr) || [])
+        .slice()
+        .sort((a, b) => (a.time || '~').localeCompare(b.time || '~'))
+        .forEach(ev => {
+            const t = typeOf(ev.type);
+            out.push({
+                kind: 'event', id: ev.id, color: t.color,
+                label: `${ev.time ? ev.time + ' ' : ''}${ev.title}`,
+                sub: `${t.label}${ev.memo ? ' · ' + ev.memo : ''}`,
+                span: (ev.endDate && ev.endDate !== ev.date) ? `${ev.date}~${ev.endDate}` : '',
+                editable: true
+            });
+        });
+
+    leavesForDate(dateStr).forEach(l => {
+        out.push({
+            kind: 'leave', id: l.id, color: LEAVE_COLOR,
+            label: `${l.member} ${l.type}`,
+            sub: '근태 예정',
+            span: (l.endDate && l.endDate !== l.startDate) ? `${l.startDate}~${l.endDate}` : '',
+            editable: true
+        });
     });
-    const leaves = leavesForDate(dateStr);
-    if (leaves.length > 0) {
-        parts.push(`<div class="cal-chip" style="color:${LEAVE_COLOR}">근태 ${leaves.length}건</div>`);
-    }
+
     const inc = incoming[dateStr];
     if (inc) {
-        parts.push(`<div class="cal-chip" style="color:${INCOMING_COLOR}">입고 ${inc.qty.toLocaleString()}개</div>`);
+        out.push({
+            kind: 'incoming', id: 'inc-' + dateStr, color: INCOMING_COLOR,
+            label: `입고 ${inc.qty.toLocaleString()}개`,
+            sub: `${inc.entries.map(e => e.packDateText + ' 패킹').join(', ')}`
+                 + (inc.boxes > 0 ? ` · ${inc.boxes.toLocaleString()}박스` : '')
+                 + ' — 입고 시트 연동(읽기 전용)',
+            span: '', editable: false
+        });
     }
-    const extra = evs.length - 2;
-    if (extra > 0) parts.push(`<div class="cal-chip text-gray-400">+${extra}건 더</div>`);
-    return parts.join('');
+
+    return out;
+}
+
+// 날짜칸 안에 들어가는 항목 줄. 클릭하면 그 항목을 바로 편집한다.
+const MAX_CELL_ITEMS = 3;
+
+function cellItemsHtml(items) {
+    if (items.length === 0) return '';
+    const shown = items.slice(0, MAX_CELL_ITEMS);
+    const rest = items.length - shown.length;
+
+    const rows = shown.map(it => `
+        <span class="cal-item" data-cal-item-kind="${it.kind}" data-cal-item-id="${esc(it.id)}"
+              title="${esc(it.label)}${it.sub ? ' — ' + esc(it.sub) : ''}">
+            <span class="cal-item-dot" style="background:${it.color}"></span>
+            <span class="cal-item-text">${esc(it.label)}</span>
+        </span>`).join('');
+
+    const more = rest > 0 ? `<span class="cal-more">+${rest}건 더</span>` : '';
+    return rows + more;
 }
 
 function renderCalendar() {
@@ -201,19 +228,23 @@ function renderCalendar() {
         const key = ymd(d);
         const inMonth = d.getMonth() === viewMonth.getMonth();
         const isToday = key === today;
-        const isSelected = key === selectedDate;
         const dow = d.getDay();
 
         const tone = !inMonth ? 'text-gray-300 dark:text-gray-600'
             : (dow === 0 ? 'text-red-500' : (dow === 6 ? 'text-blue-500' : 'text-gray-700 dark:text-gray-200'));
 
+        const items = itemsForDate(key, incoming);
+
         cells.push(`
-            <button type="button" data-cal-date="${key}"
-                class="cal-cell ${inMonth ? '' : 'cal-cell-out'} ${isSelected ? 'cal-cell-sel' : ''}">
-                <span class="cal-daynum ${tone} ${isToday ? 'cal-today' : ''}">${d.getDate()}</span>
-                <span class="cal-dots">${dayMarkersHtml(key, incoming)}</span>
-                <span class="cal-chips">${daySummaryHtml(key, incoming)}</span>
-            </button>`);
+            <div data-cal-date="${key}" role="button" tabindex="0"
+                class="cal-cell ${inMonth ? '' : 'cal-cell-out'} ${isToday ? 'cal-cell-today' : ''}"
+                title="${key} — 클릭하면 일정을 등록·수정·삭제할 수 있습니다">
+                <div class="cal-cell-head">
+                    <span class="cal-daynum ${tone} ${isToday ? 'cal-today' : ''}">${d.getDate()}</span>
+                    <span class="cal-add" data-cal-add="${key}" title="이 날짜에 일정 추가">＋</span>
+                </div>
+                <div class="cal-items">${cellItemsHtml(items)}</div>
+            </div>`);
 
         // 마지막 주가 통째로 다음 달이면 그리지 않는다(6주 → 5주)
         if (i === 34 && new Date(gridStart.getTime() + 35 * 86400000).getMonth() !== viewMonth.getMonth()) break;
@@ -223,77 +254,109 @@ function renderCalendar() {
         <div class="cal-dowrow">${DOW.map((w, i) => `<div class="${i === 0 ? 'text-red-400' : (i === 6 ? 'text-blue-400' : 'text-gray-400')}">${w}</div>`).join('')}</div>
         <div class="cal-grid">${cells.join('')}</div>`;
 
-    renderDayDetail(selectedDate || today, incoming);
+    // 날짜 관리 팝업이 열려 있으면 목록도 같이 갱신
+    if (isDayModalOpen() && selectedDate) renderDayModalList(selectedDate);
 }
 
-function renderDayDetail(dateStr, incoming) {
-    const el = document.getElementById('work-calendar-detail');
-    if (!el) return;
-    if (!incoming) incoming = getIncomingDetailsByDateFromCache();
+const requireAdmin = () => {
+    if (isAdmin()) return true;
+    showToast('일정 등록·수정·삭제는 관리자만 가능합니다.', true);
+    return false;
+};
 
-    const d = new Date(dateStr + 'T00:00:00');
-    const heading = `${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]})`;
-
-    const evs = (eventsByDate.get(dateStr) || []).slice().sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-    const leaves = leavesForDate(dateStr);
-    const inc = incoming[dateStr];
-
-    const evHtml = evs.map(ev => {
-        const t = typeOf(ev.type);
-        const span = (ev.endDate && ev.endDate !== ev.date) ? `<span class="text-[10px] text-gray-400 ml-1">${ev.date}~${ev.endDate}</span>` : '';
-        return `
-        <li class="flex items-start gap-2 py-1.5 border-b border-gray-50 dark:border-gray-700/50 last:border-0">
-            <span class="mt-1.5 w-2 h-2 rounded-full shrink-0" style="background:${t.color}"></span>
-            <div class="min-w-0 flex-1">
-                <div class="text-[13px] font-bold text-gray-800 dark:text-gray-100 truncate">
-                    ${ev.time ? `<span class="text-gray-500 font-mono mr-1">${esc(ev.time)}</span>` : ''}${esc(ev.title)}${span}
-                </div>
-                <div class="text-[11px] text-gray-500 dark:text-gray-400">${esc(t.label)}${ev.memo ? ` · ${esc(ev.memo)}` : ''}</div>
+// ────────────────────────────────────────
+// 날짜 클릭 → 그 날짜의 일정 관리 팝업 (목록 + 추가/수정/삭제)
+// ────────────────────────────────────────
+function ensureDayModal() {
+    if (document.getElementById('cal-day-modal')) return;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+    <div id="cal-day-modal" class="fixed inset-0 bg-gray-900/70 hidden items-center justify-center z-[68] p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col">
+            <div class="p-4 md:p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center gap-2">
+                <h3 id="cal-day-title" class="text-base font-bold text-gray-900 dark:text-white"></h3>
+                <button type="button" id="cal-day-close" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
             </div>
-            <div class="flex gap-1 shrink-0">
-                <button type="button" data-cal-edit="${esc(ev.id)}" class="text-[11px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200">수정</button>
-                <button type="button" data-cal-del="${esc(ev.id)}" class="text-[11px] px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100">삭제</button>
-            </div>
-        </li>`;
-    }).join('');
-
-    const leaveHtml = leaves.map(l => `
-        <li class="flex items-start gap-2 py-1.5 border-b border-gray-50 dark:border-gray-700/50 last:border-0">
-            <span class="mt-1.5 w-2 h-2 rounded-full shrink-0" style="background:${LEAVE_COLOR}"></span>
-            <div class="min-w-0 flex-1">
-                <div class="text-[13px] font-bold text-gray-800 dark:text-gray-100 truncate">${esc(l.member)} <span class="font-normal text-gray-500">· ${esc(l.type)}</span></div>
-                <div class="text-[11px] text-gray-500 dark:text-gray-400">근태 예정 ${esc(l.startDate)}${l.endDate && l.endDate !== l.startDate ? ` ~ ${esc(l.endDate)}` : ''}</div>
-            </div>
-            <div class="flex gap-1 shrink-0">
-                <button type="button" data-cal-leave-edit="${esc(l.id)}" class="text-[11px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200">수정</button>
-                <button type="button" data-cal-leave-del="${esc(l.id)}" class="text-[11px] px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100">삭제</button>
-            </div>
-        </li>`).join('');
-
-    const incHtml = inc ? `
-        <li class="flex items-start gap-2 py-1.5">
-            <span class="mt-1.5 w-2 h-2 rounded-full shrink-0" style="background:${INCOMING_COLOR}"></span>
-            <div class="min-w-0 flex-1">
-                <div class="text-[13px] font-bold text-gray-800 dark:text-gray-100">입고 예정 ${inc.qty.toLocaleString()}개${inc.boxes > 0 ? ` · ${inc.boxes.toLocaleString()}박스` : ''}</div>
-                <div class="text-[11px] text-gray-500 dark:text-gray-400">
-                    ${inc.entries.map(e => esc(e.packDateText) + ' 패킹').join(', ')}
-                    <span class="text-gray-400">— 입고 시트 연동(읽기 전용)</span>
-                </div>
-            </div>
-        </li>` : '';
-
-    const body = (evHtml + leaveHtml + incHtml)
-        || '<li class="py-4 text-center text-xs text-gray-400 italic">등록된 일정이 없습니다.</li>';
-
-    el.innerHTML = `
-        <div class="flex items-center justify-between mb-2">
-            <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200">${heading}</h4>
-            <div class="flex gap-1.5">
-                <button type="button" id="cal-add-event" class="text-[11px] font-bold px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100">+ 업무 일정</button>
-                <button type="button" id="cal-add-leave" class="text-[11px] font-bold px-2 py-1 rounded bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100">+ 근태</button>
+            <div id="cal-day-list" class="p-4 md:p-5 overflow-y-auto flex-1"></div>
+            <div class="p-4 bg-gray-50 dark:bg-gray-900/40 rounded-b-2xl flex flex-wrap gap-2 justify-end">
+                <button type="button" id="cal-day-add-event" class="px-3 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white">＋ 업무 일정</button>
+                <button type="button" id="cal-day-add-leave" class="px-3 py-2 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-700 text-white">＋ 근태</button>
             </div>
         </div>
-        <ul class="divide-y-0">${body}</ul>`;
+    </div>`;
+    document.body.appendChild(wrap.firstElementChild);
+
+    document.getElementById('cal-day-close').addEventListener('click', closeDayModal);
+    document.getElementById('cal-day-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'cal-day-modal') closeDayModal();
+    });
+    document.getElementById('cal-day-add-event').addEventListener('click', () => {
+        if (!requireAdmin()) return;
+        openModal('event', selectedDate || getTodayDateString());
+    });
+    document.getElementById('cal-day-add-leave').addEventListener('click', () => {
+        if (!requireAdmin()) return;
+        openModal('leave', selectedDate || getTodayDateString());
+    });
+}
+
+function closeDayModal() {
+    const m = document.getElementById('cal-day-modal');
+    if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+}
+
+function isDayModalOpen() {
+    const m = document.getElementById('cal-day-modal');
+    return !!m && !m.classList.contains('hidden');
+}
+
+function openDayModal(dateStr) {
+    ensureDayModal();
+    selectedDate = dateStr;
+
+    const d = new Date(dateStr + 'T00:00:00');
+    document.getElementById('cal-day-title').textContent =
+        `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]})`;
+
+    renderDayModalList(dateStr);
+
+    const m = document.getElementById('cal-day-modal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+}
+
+function renderDayModalList(dateStr) {
+    const host = document.getElementById('cal-day-list');
+    if (!host) return;
+
+    const items = itemsForDate(dateStr, getIncomingDetailsByDateFromCache());
+    if (items.length === 0) {
+        host.innerHTML = `<div class="py-8 text-center text-xs text-gray-400 italic">
+            등록된 일정이 없습니다.<br>아래 버튼으로 추가하세요.</div>`;
+        return;
+    }
+
+    host.innerHTML = `<ul class="space-y-1">${items.map(it => {
+        const btns = it.editable
+            ? `<div class="flex gap-1 shrink-0">
+                   <button type="button" data-day-edit-kind="${it.kind}" data-day-edit-id="${esc(it.id)}"
+                       class="text-[11px] px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200">수정</button>
+                   <button type="button" data-day-del-kind="${it.kind}" data-day-del-id="${esc(it.id)}"
+                       class="text-[11px] px-2 py-1 rounded bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100">삭제</button>
+               </div>`
+            : `<span class="text-[10px] text-gray-400 shrink-0">읽기전용</span>`;
+        return `
+        <li class="flex items-start gap-2 py-2 border-b border-gray-100 dark:border-gray-700/50 last:border-0">
+            <span class="mt-1.5 w-2 h-2 rounded-full shrink-0" style="background:${it.color}"></span>
+            <div class="min-w-0 flex-1">
+                <div class="text-[13px] font-bold text-gray-800 dark:text-gray-100 break-words">${esc(it.label)}</div>
+                <div class="text-[11px] text-gray-500 dark:text-gray-400 break-words">
+                    ${esc(it.sub)}${it.span ? ` <span class="text-gray-400">(${esc(it.span)})</span>` : ''}
+                </div>
+            </div>
+            ${btns}
+        </li>`;
+    }).join('')}</ul>`;
 }
 
 // ────────────────────────────────────────
@@ -494,14 +557,45 @@ function bind() {
     if (!host) return;
     isBound = true;
 
-    host.addEventListener('click', async (e) => {
-        const cell = e.target.closest('[data-cal-date]');
-        if (cell) {
-            selectedDate = cell.dataset.calDate;
-            renderCalendar();
+    // 항목(일정/근태) 편집 — 날짜칸 안의 줄, 또는 날짜 팝업의 [수정] 버튼에서 공통으로 쓴다.
+    const editItem = (kind, id) => {
+        if (kind === 'event') {
+            let target = null;
+            eventsByDate.forEach(list => {
+                const hit = list.find(x => x.id === id);
+                if (hit) target = hit;
+            });
+            if (target) openModal('event', target.date, target);
             return;
         }
+        if (kind === 'leave') {
+            const l = (State.persistentLeaveSchedule?.onLeaveMembers || []).find(x => x.id === id);
+            if (l) openModal('leave', l.startDate, l);
+        }
+    };
 
+    const deleteItem = async (kind, id) => {
+        if (kind === 'event') {
+            if (!confirm('이 일정을 삭제할까요?')) return;
+            try {
+                await removeEvent(id);
+                renderCalendar();
+                showToast('일정이 삭제되었습니다.');
+            } catch (err) { showToast('삭제 실패: ' + (err.message || err), true); }
+            return;
+        }
+        if (kind === 'leave') {
+            if (!confirm('이 근태 예정을 삭제할까요?')) return;
+            try {
+                await removeLeaveEntry(id);
+                renderCalendar();
+                showToast('근태 예정이 삭제되었습니다.');
+            } catch (err) { showToast('삭제 실패: ' + (err.message || err), true); }
+        }
+    };
+
+    host.addEventListener('click', async (e) => {
+        // 월 이동 / 오늘
         const prev = e.target.closest('#work-calendar-prev');
         const next = e.target.closest('#work-calendar-next');
         const todayBtn = e.target.closest('#work-calendar-today');
@@ -512,59 +606,64 @@ function bind() {
                 selectedDate = getTodayDateString();
             } else {
                 viewMonth = addMonths(viewMonth, prev ? -1 : 1);
-                selectedDate = null;
             }
             await loadEvents(viewMonth);
             renderCalendar();
             return;
         }
 
-        const addEv = e.target.closest('#cal-add-event');
-        const addLv = e.target.closest('#cal-add-leave');
-        if (addEv || addLv) {
-            if (!isAdmin()) return showToast('일정 등록은 관리자만 가능합니다.', true);
-            openModal(addEv ? 'event' : 'leave', selectedDate || getTodayDateString());
+        // 날짜칸의 ＋ 버튼 → 바로 일정 추가
+        const addBtn = e.target.closest('[data-cal-add]');
+        if (addBtn) {
+            e.stopPropagation();
+            if (!requireAdmin()) return;
+            selectedDate = addBtn.dataset.calAdd;
+            openModal('event', selectedDate);
             return;
         }
 
-        const editBtn = e.target.closest('[data-cal-edit]');
-        if (editBtn) {
-            if (!isAdmin()) return showToast('일정 수정은 관리자만 가능합니다.', true);
-            const id = editBtn.dataset.calEdit;
-            const ev = (eventsByDate.get(selectedDate || getTodayDateString()) || []).find(x => x.id === id);
-            if (ev) openModal('event', ev.date, ev);
+        // 날짜칸 안의 항목 클릭 → 그 항목 바로 수정 (입고는 읽기전용이라 날짜 팝업으로)
+        const itemEl = e.target.closest('[data-cal-item-id]');
+        if (itemEl) {
+            e.stopPropagation();
+            const kind = itemEl.dataset.calItemKind;
+            const cellEl = itemEl.closest('[data-cal-date]');
+            if (cellEl) selectedDate = cellEl.dataset.calDate;
+            if (kind === 'incoming') { openDayModal(selectedDate); return; }
+            if (!requireAdmin()) return;
+            editItem(kind, itemEl.dataset.calItemId);
             return;
         }
 
-        const delBtn = e.target.closest('[data-cal-del]');
-        if (delBtn) {
-            if (!isAdmin()) return showToast('일정 삭제는 관리자만 가능합니다.', true);
-            if (!confirm('이 일정을 삭제할까요?')) return;
-            try {
-                await removeEvent(delBtn.dataset.calDel);
-                renderCalendar();
-                showToast('일정이 삭제되었습니다.');
-            } catch (err) { showToast('삭제 실패: ' + (err.message || err), true); }
+        // 날짜칸 클릭 → 그 날짜 일정 관리 팝업
+        const cell = e.target.closest('[data-cal-date]');
+        if (cell) {
+            openDayModal(cell.dataset.calDate);
             return;
         }
+    });
 
-        const leaveEdit = e.target.closest('[data-cal-leave-edit]');
-        if (leaveEdit) {
-            if (!isAdmin()) return showToast('근태 수정은 관리자만 가능합니다.', true);
-            const l = (State.persistentLeaveSchedule?.onLeaveMembers || []).find(x => x.id === leaveEdit.dataset.calLeaveEdit);
-            if (l) openModal('leave', l.startDate, l);
+    // 키보드 접근성: 날짜칸에서 Enter/Space → 팝업 열기
+    host.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const cell = e.target.closest('[data-cal-date]');
+        if (!cell) return;
+        e.preventDefault();
+        openDayModal(cell.dataset.calDate);
+    });
+
+    // 날짜 관리 팝업의 [수정]/[삭제] — 팝업은 body 직속이라 별도 위임
+    document.addEventListener('click', async (e) => {
+        const ed = e.target.closest('[data-day-edit-id]');
+        if (ed) {
+            if (!requireAdmin()) return;
+            editItem(ed.dataset.dayEditKind, ed.dataset.dayEditId);
             return;
         }
-
-        const leaveDel = e.target.closest('[data-cal-leave-del]');
-        if (leaveDel) {
-            if (!isAdmin()) return showToast('근태 삭제는 관리자만 가능합니다.', true);
-            if (!confirm('이 근태 예정을 삭제할까요?')) return;
-            try {
-                await removeLeaveEntry(leaveDel.dataset.calLeaveDel);
-                renderCalendar();
-                showToast('근태 예정이 삭제되었습니다.');
-            } catch (err) { showToast('삭제 실패: ' + (err.message || err), true); }
+        const dl = e.target.closest('[data-day-del-id]');
+        if (dl) {
+            if (!requireAdmin()) return;
+            await deleteItem(dl.dataset.dayDelKind, dl.dataset.dayDelId);
         }
     });
 }
