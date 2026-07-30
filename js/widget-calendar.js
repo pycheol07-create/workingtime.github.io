@@ -42,9 +42,14 @@ const addMonths = (d, n) => { const x = new Date(d); x.setDate(1); x.setMonth(x.
 // 상태
 // ────────────────────────────────────────
 let viewMonth = null;          // 보고 있는 달의 1일 Date
-let eventsByDate = new Map();  // 'YYYY-MM-DD' → [event]
+let eventsByDate = new Map();  // 'YYYY-MM-DD' → [event]  (날짜 조회용)
+let eventList = [];            // 일정 원본 평면 목록 (기간 바 계산용)
 let loadedRange = null;        // { from, to } — 현재 메모리에 올라온 범위
 let selectedDate = null;
+// 보기 모드: 'month' | 'list' — 모바일에서는 목록 보기가 기본
+let viewMode = null;
+const isNarrow = () => window.matchMedia('(max-width: 767px)').matches;
+let userPickedView = false;  // 사용자가 직접 보기를 고르면 화면 폭 변화로 되돌리지 않는다
 let isBound = false;
 
 const eventsColRef = () => collection(State.db, ...APP_PATH, 'calendarEvents');
@@ -77,6 +82,11 @@ async function loadEvents(monthDate, { force = false } = {}) {
             }
         });
         eventsByDate = map;
+        eventList = [];
+        snap.forEach(d => {
+            const ev = { id: d.id, ...d.data() };
+            if (ev.date) eventList.push(ev);
+        });
         loadedRange = { from, to };
     } catch (e) {
         console.warn('[calendar] 일정 로드 실패:', e);
@@ -145,114 +155,272 @@ async function removeLeaveEntry(id) {
 // 렌더
 // ────────────────────────────────────────
 /** 한 날짜의 모든 항목을 한 줄짜리 데이터로 모은다. (일정 → 근태 → 입고 순) */
-function itemsForDate(dateStr, incoming) {
+// ────────────────────────────────────────
+// 기간(start~end) 단위 아이템 — 노션식 기간 바를 그리기 위해 날짜별이 아니라 '구간'으로 다룬다.
+// ────────────────────────────────────────
+const KIND_TONE = {
+    leave:    { bg: '#fee2e2', fg: '#b91c1c', bar: '#ef4444', darkBg: 'rgba(239,68,68,.22)',  darkFg: '#fca5a5' },
+    incoming: { bg: '#ffedd5', fg: '#c2410c', bar: '#f97316', darkBg: 'rgba(249,115,22,.22)', darkFg: '#fdba74' }
+};
+
+/** 업무 일정은 분류 색에서 톤을 만든다(배경은 옅게, 글자는 진하게). */
+const hexToRgba = (hex, a) => {
+    const h = String(hex).replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+};
+
+function toneOf(item) {
+    if (item.kind === 'leave') return KIND_TONE.leave;
+    if (item.kind === 'incoming') return KIND_TONE.incoming;
+    return {
+        bg: hexToRgba(item.color, 0.14), fg: item.color, bar: item.color,
+        darkBg: hexToRgba(item.color, 0.26), darkFg: item.color
+    };
+}
+
+/** 달력에 그릴 모든 구간을 모은다. (일정 → 근태 → 입고) */
+function allRanges() {
     const out = [];
 
-    (eventsByDate.get(dateStr) || [])
-        .slice()
-        .sort((a, b) => (a.time || '~').localeCompare(b.time || '~'))
-        .forEach(ev => {
-            const t = typeOf(ev.type);
-            out.push({
-                kind: 'event', id: ev.id, color: t.color,
-                label: `${ev.time ? ev.time + ' ' : ''}${ev.title}`,
-                sub: `${t.label}${ev.memo ? ' · ' + ev.memo : ''}`,
-                span: (ev.endDate && ev.endDate !== ev.date) ? `${ev.date}~${ev.endDate}` : '',
-                editable: true
-            });
-        });
-
-    leavesForDate(dateStr).forEach(l => {
+    eventList.forEach(ev => {
+        const t = typeOf(ev.type);
         out.push({
-            kind: 'leave', id: l.id, color: LEAVE_COLOR,
-            label: `${l.member} ${l.type}`,
-            sub: '근태 예정',
-            span: (l.endDate && l.endDate !== l.startDate) ? `${l.startDate}~${l.endDate}` : '',
+            kind: 'event', id: ev.id, color: t.color,
+            label: `${ev.time ? ev.time + ' ' : ''}${ev.title}`,
+            sub: `${t.label}${ev.memo ? ' · ' + ev.memo : ''}`,
+            start: ev.date,
+            end: (ev.endDate && ev.endDate >= ev.date) ? ev.endDate : ev.date,
             editable: true
         });
     });
 
-    const inc = incoming[dateStr];
-    if (inc) {
+    (State.persistentLeaveSchedule?.onLeaveMembers || []).forEach(l => {
+        if (!l || !l.startDate) return;
         out.push({
-            kind: 'incoming', id: 'inc-' + dateStr, color: INCOMING_COLOR,
+            kind: 'leave', id: l.id, color: LEAVE_COLOR,
+            label: `${l.member} ${l.type}`,
+            sub: '근태 예정',
+            start: l.startDate,
+            end: l.endDate && l.endDate >= l.startDate ? l.endDate : l.startDate,
+            editable: true
+        });
+    });
+
+    const incoming = getIncomingDetailsByDateFromCache();
+    Object.keys(incoming).forEach(date => {
+        const inc = incoming[date];
+        out.push({
+            kind: 'incoming', id: 'inc-' + date, color: INCOMING_COLOR,
             label: `입고 ${inc.qty.toLocaleString()}개`,
             sub: `${inc.entries.map(e => e.packDateText + ' 패킹').join(', ')}`
                  + (inc.boxes > 0 ? ` · ${inc.boxes.toLocaleString()}박스` : '')
                  + ' — 입고 시트 연동(읽기 전용)',
-            span: '', editable: false
+            start: date, end: date, editable: false
         });
+    });
+
+    // 기간 긴 것 → 시작 이른 것 순으로 두면 레인 배치가 안정적이다.
+    return out.sort((a, b) =>
+        a.start.localeCompare(b.start) ||
+        (dayDiff(a.start, a.end) < dayDiff(b.start, b.end) ? 1 : -1)
+    );
+}
+
+const dayDiff = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+const mdLabel = (ds) => { const p = String(ds).split('-'); return `${Number(p[1])}/${Number(p[2])}`; };
+
+/** 특정 날짜에 걸치는 항목들 (날짜 팝업·목록 보기에서 사용) */
+function itemsForDate(dateStr) {
+    return allRanges().filter(r => dateStr >= r.start && dateStr <= r.end);
+}
+
+// ────────────────────────────────────────
+// 월간 보기 — 주 단위로 잘라 기간 바를 배치
+// ────────────────────────────────────────
+const BAR_H = 18, BAR_GAP = 2, HEAD_H = 22, WEEK_PAD = 6;
+
+/** 한 주(7일)에 놓일 바들을 레인(겹치지 않는 줄)에 배치 */
+function layoutWeek(ranges, weekStart, weekEnd) {
+    const segs = [];
+    ranges.forEach(r => {
+        if (r.end < weekStart || r.start > weekEnd) return;
+        const c1 = Math.max(0, dayDiff(weekStart, r.start));
+        const c2 = Math.min(6, dayDiff(weekStart, r.end));
+        segs.push({
+            ref: r, c1, c2,
+            cutLeft: r.start < weekStart,
+            cutRight: r.end > weekEnd
+        });
+    });
+
+    const lanes = [];
+    segs.forEach(seg => {
+        let li = lanes.findIndex(lane => lane.every(x => seg.c2 < x.c1 || seg.c1 > x.c2));
+        if (li === -1) { lanes.push([]); li = lanes.length - 1; }
+        lanes[li].push(seg);
+        seg.lane = li;
+    });
+
+    return { segs, laneCount: lanes.length };
+}
+
+function barHtml(seg) {
+    const r = seg.ref;
+    const t = toneOf(r);
+    const multi = r.start !== r.end;
+    const rangeTxt = multi ? ` (${mdLabel(r.start)}~${mdLabel(r.end)})` : '';
+    const radius = `${seg.cutLeft ? '0' : '5px'} ${seg.cutRight ? '0' : '5px'} ${seg.cutRight ? '0' : '5px'} ${seg.cutLeft ? '0' : '5px'}`;
+
+    return `<div class="cal-bar ${r.editable ? '' : 'cal-bar-ro'}"
+        data-cal-item-kind="${r.kind}" data-cal-item-id="${esc(r.id)}" data-cal-item-start="${r.start}"
+        style="grid-column: ${seg.c1 + 1} / span ${seg.c2 - seg.c1 + 1}; grid-row: ${seg.lane + 1};
+               --bg:${t.bg}; --fg:${t.fg}; --bar:${t.bar}; --dbg:${t.darkBg}; --dfg:${t.darkFg};
+               border-radius:${radius};
+               ${seg.cutLeft ? 'border-left:0;' : ''}"
+        title="${esc(r.label)}${rangeTxt} — ${esc(r.sub)}">
+        <span class="cal-bar-text">${seg.cutLeft ? '↪ ' : ''}${esc(r.label)}${rangeTxt}</span>
+    </div>`;
+}
+
+function renderMonthView(root, today) {
+    const ranges = allRanges();
+    const first = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+    const gridStart = new Date(first);
+    gridStart.setDate(gridStart.getDate() - first.getDay());
+
+    const weekCount = (() => {
+        const last = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0);
+        return Math.ceil((first.getDay() + last.getDate()) / 7);
+    })();
+
+    const weeks = [];
+    for (let w = 0; w < weekCount; w++) {
+        const wStart = new Date(gridStart);
+        wStart.setDate(wStart.getDate() + w * 7);
+        const wEnd = new Date(wStart);
+        wEnd.setDate(wEnd.getDate() + 6);
+        const wsKey = ymd(wStart), weKey = ymd(wEnd);
+
+        const { segs, laneCount } = layoutWeek(ranges, wsKey, weKey);
+        const height = HEAD_H + Math.max(1, laneCount) * (BAR_H + BAR_GAP) + WEEK_PAD;
+
+        const cells = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(wStart);
+            d.setDate(d.getDate() + i);
+            const key = ymd(d);
+            const inMonth = d.getMonth() === viewMonth.getMonth();
+            const isToday = key === today;
+            const dow = d.getDay();
+            const tone = !inMonth ? 'text-gray-300 dark:text-gray-600'
+                : (dow === 0 ? 'text-red-500' : (dow === 6 ? 'text-blue-500' : 'text-gray-700 dark:text-gray-200'));
+
+            cells.push(`
+                <div class="cal-daycell ${inMonth ? '' : 'cal-daycell-out'} ${isToday ? 'cal-daycell-today' : ''}"
+                     data-cal-date="${key}" role="button" tabindex="0"
+                     title="${key} — 클릭하면 일정을 등록·수정·삭제할 수 있습니다">
+                    <span class="cal-daynum ${tone} ${isToday ? 'cal-today' : ''}">${d.getDate()}</span>
+                    <span class="cal-add" data-cal-add="${key}" title="이 날짜에 일정 추가">＋</span>
+                </div>`);
+        }
+
+        weeks.push(`
+            <div class="cal-week" style="height:${height}px">
+                <div class="cal-week-days">${cells.join('')}</div>
+                <div class="cal-bars" style="grid-auto-rows:${BAR_H}px; row-gap:${BAR_GAP}px; padding-top:${HEAD_H}px">
+                    ${segs.map(barHtml).join('')}
+                </div>
+            </div>`);
     }
 
-    return out;
+    root.innerHTML = `
+        <div class="cal-dowrow">${DOW.map((w, i) => `<div class="${i === 0 ? 'text-red-400' : (i === 6 ? 'text-blue-400' : 'text-gray-400')}">${w}</div>`).join('')}</div>
+        <div class="cal-monthgrid">${weeks.join('')}</div>`;
 }
 
-// 날짜칸 안에 들어가는 항목 줄. 클릭하면 그 항목을 바로 편집한다.
-const MAX_CELL_ITEMS = 3;
+// ────────────────────────────────────────
+// 목록 보기 (모바일 기본) — 날짜별로 묶어서 세로로 나열
+// ────────────────────────────────────────
+function renderListView(root, today) {
+    const ranges = allRanges();
+    const monthStart = ymd(new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1));
+    const monthEnd = ymd(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0));
 
-function cellItemsHtml(items) {
-    if (items.length === 0) return '';
-    const shown = items.slice(0, MAX_CELL_ITEMS);
-    const rest = items.length - shown.length;
+    // 이 달에 걸치는 날짜만, 항목이 있는 날짜만 추린다.
+    const byDate = new Map();
+    ranges.forEach(r => {
+        const from = r.start > monthStart ? r.start : monthStart;
+        const to = r.end < monthEnd ? r.end : monthEnd;
+        if (from > to) return;
+        for (let d = new Date(from + 'T00:00:00'); ymd(d) <= to; d.setDate(d.getDate() + 1)) {
+            const key = ymd(d);
+            if (!byDate.has(key)) byDate.set(key, []);
+            byDate.get(key).push(r);
+        }
+    });
 
-    const rows = shown.map(it => `
-        <span class="cal-item" data-cal-item-kind="${it.kind}" data-cal-item-id="${esc(it.id)}"
-              title="${esc(it.label)}${it.sub ? ' — ' + esc(it.sub) : ''}">
-            <span class="cal-item-dot" style="background:${it.color}"></span>
-            <span class="cal-item-text">${esc(it.label)}</span>
-        </span>`).join('');
+    const dates = [...byDate.keys()].sort();
+    if (dates.length === 0) {
+        root.innerHTML = `<div class="py-10 text-center text-xs text-gray-400 italic">
+            이 달에 등록된 일정이 없습니다.<br>날짜를 눌러 추가하세요.</div>
+            ${listAddBarHtml(today)}`;
+        return;
+    }
 
-    const more = rest > 0 ? `<span class="cal-more">+${rest}건 더</span>` : '';
-    return rows + more;
+    const rows = dates.map(key => {
+        const d = new Date(key + 'T00:00:00');
+        const isToday = key === today;
+        const items = byDate.get(key).map(r => {
+            const t = toneOf(r);
+            const multi = r.start !== r.end;
+            const rangeTxt = multi ? ` (${mdLabel(r.start)}~${mdLabel(r.end)})` : '';
+            return `<span class="cal-listchip" data-cal-item-kind="${r.kind}" data-cal-item-id="${esc(r.id)}"
+                style="--bg:${t.bg}; --fg:${t.fg}; --bar:${t.bar}; --dbg:${t.darkBg}; --dfg:${t.darkFg}">
+                ${esc(r.label)}${rangeTxt}
+            </span>`;
+        }).join('');
+
+        return `<div class="cal-listrow ${isToday ? 'cal-listrow-today' : ''}" data-cal-date="${key}" role="button" tabindex="0">
+            <div class="cal-listdate">
+                <span class="cal-listdd ${isToday ? 'cal-today' : ''}">${d.getDate()}</span>
+                <span class="cal-listdow">${DOW[d.getDay()]}</span>
+            </div>
+            <div class="cal-listitems">${items}</div>
+        </div>`;
+    }).join('');
+
+    root.innerHTML = `<div class="cal-list">${rows}</div>${listAddBarHtml(today)}`;
 }
 
+const listAddBarHtml = (today) => `
+    <div class="pt-3 mt-2 border-t border-gray-100 dark:border-gray-700 flex gap-2">
+        <button type="button" data-cal-add="${today}"
+            class="flex-1 py-2 text-xs font-bold rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">＋ 오늘 일정 추가</button>
+        <button type="button" id="cal-list-pick"
+            class="flex-1 py-2 text-xs font-bold rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">날짜 선택</button>
+    </div>`;
+
+/** 헤더의 [월간|목록] 버튼 상태를 현재 모드에 맞춘다. */
+function syncViewToggle() {
+    document.querySelectorAll('[data-cal-view]').forEach(b => {
+        const on = b.dataset.calView === viewMode;
+        b.className = `cal-viewbtn ${on ? 'cal-viewbtn-on' : ''}`;
+    });
+}
+
+// ────────────────────────────────────────
 function renderCalendar() {
     const root = document.getElementById('work-calendar-body');
     const label = document.getElementById('work-calendar-label');
     if (!root || !viewMonth) return;
 
-    const incoming = getIncomingDetailsByDateFromCache();
     const today = getTodayDateString();
-
     if (label) label.textContent = `${viewMonth.getFullYear()}년 ${viewMonth.getMonth() + 1}월`;
 
-    const first = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
-    const startOffset = first.getDay();
-    const gridStart = new Date(first);
-    gridStart.setDate(gridStart.getDate() - startOffset);
-
-    const cells = [];
-    for (let i = 0; i < 42; i++) {
-        const d = new Date(gridStart);
-        d.setDate(d.getDate() + i);
-        const key = ymd(d);
-        const inMonth = d.getMonth() === viewMonth.getMonth();
-        const isToday = key === today;
-        const dow = d.getDay();
-
-        const tone = !inMonth ? 'text-gray-300 dark:text-gray-600'
-            : (dow === 0 ? 'text-red-500' : (dow === 6 ? 'text-blue-500' : 'text-gray-700 dark:text-gray-200'));
-
-        const items = itemsForDate(key, incoming);
-
-        cells.push(`
-            <div data-cal-date="${key}" role="button" tabindex="0"
-                class="cal-cell ${inMonth ? '' : 'cal-cell-out'} ${isToday ? 'cal-cell-today' : ''}"
-                title="${key} — 클릭하면 일정을 등록·수정·삭제할 수 있습니다">
-                <div class="cal-cell-head">
-                    <span class="cal-daynum ${tone} ${isToday ? 'cal-today' : ''}">${d.getDate()}</span>
-                    <span class="cal-add" data-cal-add="${key}" title="이 날짜에 일정 추가">＋</span>
-                </div>
-                <div class="cal-items">${cellItemsHtml(items)}</div>
-            </div>`);
-
-        // 마지막 주가 통째로 다음 달이면 그리지 않는다(6주 → 5주)
-        if (i === 34 && new Date(gridStart.getTime() + 35 * 86400000).getMonth() !== viewMonth.getMonth()) break;
-    }
-
-    root.innerHTML = `
-        <div class="cal-dowrow">${DOW.map((w, i) => `<div class="${i === 0 ? 'text-red-400' : (i === 6 ? 'text-blue-400' : 'text-gray-400')}">${w}</div>`).join('')}</div>
-        <div class="cal-grid">${cells.join('')}</div>`;
+    syncViewToggle();
+    if (viewMode === 'list') renderListView(root, today);
+    else renderMonthView(root, today);
 
     // 날짜 관리 팝업이 열려 있으면 목록도 같이 갱신
     if (isDayModalOpen() && selectedDate) renderDayModalList(selectedDate);
@@ -329,7 +497,7 @@ function renderDayModalList(dateStr) {
     const host = document.getElementById('cal-day-list');
     if (!host) return;
 
-    const items = itemsForDate(dateStr, getIncomingDetailsByDateFromCache());
+    const items = itemsForDate(dateStr);
     if (items.length === 0) {
         host.innerHTML = `<div class="py-8 text-center text-xs text-gray-400 italic">
             등록된 일정이 없습니다.<br>아래 버튼으로 추가하세요.</div>`;
@@ -595,6 +763,23 @@ function bind() {
     };
 
     host.addEventListener('click', async (e) => {
+        // 보기 전환 (월간 / 목록)
+        const viewBtn = e.target.closest('[data-cal-view]');
+        if (viewBtn) {
+            viewMode = viewBtn.dataset.calView;
+            userPickedView = true;
+            renderCalendar();
+            return;
+        }
+
+        // 목록 보기의 [날짜 선택] → 날짜를 골라 그 날짜 팝업 열기
+        if (e.target.closest('#cal-list-pick')) {
+            const picked = prompt('일정을 추가할 날짜를 입력하세요 (YYYY-MM-DD)', getTodayDateString());
+            if (picked && /^\d{4}-\d{2}-\d{2}$/.test(picked)) openDayModal(picked);
+            else if (picked) showToast('날짜 형식이 올바르지 않습니다. (예: 2026-08-01)', true);
+            return;
+        }
+
         // 월 이동 / 오늘
         const prev = e.target.closest('#work-calendar-prev');
         const next = e.target.closest('#work-calendar-next');
@@ -622,13 +807,14 @@ function bind() {
             return;
         }
 
-        // 날짜칸 안의 항목 클릭 → 그 항목 바로 수정 (입고는 읽기전용이라 날짜 팝업으로)
+        // 기간 바 / 목록 칩 클릭 → 그 항목 바로 수정 (입고는 읽기전용이라 날짜 팝업으로)
         const itemEl = e.target.closest('[data-cal-item-id]');
         if (itemEl) {
             e.stopPropagation();
             const kind = itemEl.dataset.calItemKind;
             const cellEl = itemEl.closest('[data-cal-date]');
-            if (cellEl) selectedDate = cellEl.dataset.calDate;
+            selectedDate = itemEl.dataset.calItemStart
+                || (cellEl ? cellEl.dataset.calDate : getTodayDateString());
             if (kind === 'incoming') { openDayModal(selectedDate); return; }
             if (!requireAdmin()) return;
             editItem(kind, itemEl.dataset.calItemId);
@@ -678,8 +864,21 @@ export async function initWorkCalendarWidget() {
     const t = new Date();
     viewMonth = new Date(t.getFullYear(), t.getMonth(), 1);
     selectedDate = getTodayDateString();
+    if (viewMode === null) viewMode = isNarrow() ? 'list' : 'month';
 
     bind();
+
+    // 화면 폭이 바뀌면(회전 등) 사용자가 직접 고르지 않은 경우에만 기본 보기를 따라간다.
+    if (!window.__calResizeBound) {
+        window.__calResizeBound = true;
+        let lastNarrow = isNarrow();
+        window.addEventListener('resize', () => {
+            const now = isNarrow();
+            if (now === lastNarrow) return;
+            lastNarrow = now;
+            if (!userPickedView) { viewMode = now ? 'list' : 'month'; renderCalendar(); }
+        });
+    }
 
     // 입고일정은 구글시트에서 비동기로 들어오므로, 도착하면 달력을 다시 그린다.
     if (!document.__calIncomingBound) {

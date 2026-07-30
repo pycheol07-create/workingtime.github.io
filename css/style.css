@@ -565,68 +565,134 @@ html.dark .depth-panel {
 
 /* ============================================================
    🗓️ 업무 캘린더 위젯 (대시보드)
-   날짜칸 안에 그날의 상세내역(일정/근태/입고)을 직접 표시한다.
+   - 월간 보기: 주 단위 격자 + 기간 바(노션식). 여러 날 일정은 이어서 표시.
+   - 목록 보기: 모바일 기본. 날짜별로 묶어 세로 나열.
+   - 항목 구분은 점이 아니라 '배경색'으로 한다.
    ============================================================ */
-.cal-dowrow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+
+/* 보기 전환 버튼 */
+.cal-viewbtn {
+    padding: 5px 10px; font-size: 11px; font-weight: 800;
+    background: #fff; color: #6b7280; border: 0; cursor: pointer;
+    transition: background .12s, color .12s;
+}
+.cal-viewbtn + .cal-viewbtn { border-left: 1px solid #e5e7eb; }
+.cal-viewbtn:hover { background: #f3f4f6; }
+.cal-viewbtn-on { background: #2563eb; color: #fff; }
+.cal-viewbtn-on:hover { background: #1d4ed8; }
+.dark .cal-viewbtn { background: #374151; color: #d1d5db; }
+.dark .cal-viewbtn + .cal-viewbtn { border-left-color: #4b5563; }
+.dark .cal-viewbtn:hover { background: #4b5563; }
+.dark .cal-viewbtn-on, .dark .cal-viewbtn-on:hover { background: #2563eb; color: #fff; }
+
+/* 범례 칩 */
+.cal-legend {
+    display: inline-block; padding: 2px 7px; border-radius: 5px;
+    background: var(--bg); color: var(--fg);
+    border-left: 3px solid var(--bar);
+    font-size: 10px; font-weight: 700;
+}
+.dark .cal-legend { background: var(--dbg); color: var(--dfg); }
+
+/* ── 월간 보기 ─────────────────────────────────────────── */
+.cal-dowrow { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
 .cal-dowrow > div { text-align: center; font-size: 11px; font-weight: 800; padding: 4px 0; }
 
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-.cal-cell {
-    display: flex; flex-direction: column; gap: 3px;
-    min-height: 116px; padding: 6px 5px;
-    border: 1px solid #e8edf3; border-radius: 10px; background: #fff;
-    text-align: left; cursor: pointer; overflow: hidden;
-    transition: border-color .12s, background .12s, box-shadow .12s;
+.cal-monthgrid {
+    border: 1px solid #e5e9ef; border-radius: 10px; overflow: hidden; background: #fff;
 }
-.cal-cell:hover { border-color: #93c5fd; background: #f8fafc; box-shadow: 0 1px 6px rgba(37,99,235,.10); }
-.cal-cell:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
-.cal-cell-out { background: #fafafa; opacity: .6; }
-.cal-cell-today { border-color: #93c5fd; background: #f5f9ff; }
-.dark .cal-cell { background: #1f2937; border-color: #374151; }
-.dark .cal-cell:hover { background: #243140; border-color: #3b82f6; }
-.dark .cal-cell-out { background: #111827; }
-.dark .cal-cell-today { background: #1e293b; border-color: #3b82f6; }
+.dark .cal-monthgrid { border-color: #374151; background: #1f2937; }
 
-.cal-cell-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-.cal-daynum { font-size: 12px; font-weight: 800; line-height: 1.2; }
+.cal-week { position: relative; }
+.cal-week + .cal-week { border-top: 1px solid #eef2f7; }
+.dark .cal-week + .cal-week { border-top-color: #374151; }
+
+.cal-week-days { display: grid; grid-template-columns: repeat(7, 1fr); height: 100%; }
+.cal-daycell {
+    position: relative; padding: 4px 5px 0; cursor: pointer;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 4px;
+    transition: background .12s;
+}
+.cal-daycell + .cal-daycell { border-left: 1px solid #eef2f7; }
+.dark .cal-daycell + .cal-daycell { border-left-color: #374151; }
+.cal-daycell:hover { background: #f6f9fe; }
+.dark .cal-daycell:hover { background: #243140; }
+.cal-daycell:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+.cal-daycell-out { background: #fafbfc; }
+.dark .cal-daycell-out { background: #18202b; }
+.cal-daycell-today { background: #f2f7ff; }
+.dark .cal-daycell-today { background: #1e293b; }
+
+.cal-daynum { font-size: 12px; font-weight: 800; line-height: 1.3; }
 .cal-today {
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 19px; height: 19px; padding: 0 4px;
     background: #2563eb; color: #fff !important; border-radius: 9999px;
 }
-/* 날짜칸 우상단 ＋ (마우스 올릴 때만 보임) */
 .cal-add {
     font-size: 13px; font-weight: 800; line-height: 1; color: #9ca3af;
-    padding: 0 3px; border-radius: 5px; opacity: 0; transition: opacity .12s, background .12s, color .12s;
+    padding: 1px 3px; border-radius: 5px; opacity: 0;
+    transition: opacity .12s, background .12s, color .12s;
 }
-.cal-cell:hover .cal-add { opacity: 1; }
+.cal-daycell:hover .cal-add { opacity: 1; }
 .cal-add:hover { background: #dbeafe; color: #1d4ed8; }
 .dark .cal-add:hover { background: #1e3a5f; color: #bfdbfe; }
 
-/* 날짜칸 안의 항목 줄 */
-.cal-items { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
-.cal-item {
-    display: flex; align-items: center; gap: 4px;
-    padding: 2px 4px; border-radius: 5px; background: #f3f6fa;
-    font-size: 10.5px; line-height: 1.35; cursor: pointer;
-    transition: background .12s;
+/* 기간 바 오버레이 — 날짜칸 위에 겹쳐 그리되 빈 곳 클릭은 아래 칸으로 통과 */
+.cal-bars {
+    position: absolute; inset: 0;
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    align-content: start; pointer-events: none;
 }
-.cal-item:hover { background: #e0e9f5; }
-.dark .cal-item { background: #273444; }
-.dark .cal-item:hover { background: #33465c; }
-.cal-item-dot { width: 5px; height: 5px; border-radius: 9999px; flex-shrink: 0; }
-.cal-item-text {
-    flex: 1; min-width: 0; font-weight: 600; color: #334155;
+.cal-bar {
+    pointer-events: auto; cursor: pointer;
+    margin: 0 3px; padding: 0 6px;
+    display: flex; align-items: center; overflow: hidden;
+    background: var(--bg); color: var(--fg);
+    border-left: 3px solid var(--bar);
+    font-size: 11px; font-weight: 700; line-height: 18px;
+    transition: filter .12s;
+}
+.cal-bar:hover { filter: brightness(.94); }
+.cal-bar-ro { cursor: default; }
+.cal-bar-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dark .cal-bar { background: var(--dbg); color: var(--dfg); }
+
+/* ── 목록 보기 ─────────────────────────────────────────── */
+.cal-list { display: flex; flex-direction: column; }
+.cal-listrow {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 6px; cursor: pointer; border-radius: 8px;
+    border-bottom: 1px solid #f1f5f9; transition: background .12s;
+}
+.dark .cal-listrow { border-bottom-color: #374151; }
+.cal-listrow:last-child { border-bottom: 0; }
+.cal-listrow:hover { background: #f8fafc; }
+.dark .cal-listrow:hover { background: #243140; }
+.cal-listrow-today { background: #f2f7ff; }
+.dark .cal-listrow-today { background: #1e293b; }
+.cal-listrow:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+
+.cal-listdate {
+    width: 34px; flex-shrink: 0; display: flex; flex-direction: column;
+    align-items: center; line-height: 1.2;
+}
+.cal-listdd { font-size: 15px; font-weight: 800; color: #334155; }
+.dark .cal-listdd { color: #e2e8f0; }
+.cal-listdow { font-size: 10px; font-weight: 700; color: #94a3b8; }
+.cal-listitems { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.cal-listchip {
+    display: inline-block; max-width: 100%;
+    padding: 3px 8px; border-radius: 6px;
+    background: var(--bg); color: var(--fg);
+    border-left: 3px solid var(--bar);
+    font-size: 11.5px; font-weight: 700; cursor: pointer;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.dark .cal-item-text { color: #cbd5e1; }
-.cal-more { font-size: 10px; font-weight: 700; color: #94a3b8; padding-left: 4px; }
+.dark .cal-listchip { background: var(--dbg); color: var(--dfg); }
 
 @media (max-width: 767px) {
-    /* 항목 3줄 + '+N건 더'가 잘리지 않을 최소 높이 */
-    .cal-cell { min-height: 96px; padding: 4px 3px; gap: 2px; }
-    .cal-item { padding: 1px 3px; font-size: 9.5px; gap: 3px; }
-    .cal-item-text { font-weight: 500; }
-    .cal-more { font-size: 9px; padding-left: 3px; }
+    .cal-bar { font-size: 10px; padding: 0 4px; margin: 0 2px; }
+    .cal-daycell { padding: 3px 3px 0; }
     .cal-add { display: none; }
 }

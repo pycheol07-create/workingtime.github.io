@@ -685,12 +685,30 @@ export const renderLeaveScheduleWidget = () => {
         return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
     };
 
-    el.innerHTML = items.map(l => {
-        const isToday = l.start <= today && l.end >= today;
-        return `<div class="flex items-center gap-2 px-2 py-1.5 rounded-lg ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'} transition-colors">
-            <span class="text-[11px] font-bold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'} w-[56px] shrink-0">${esc(dLabel(l.start, l.end))}</span>
-            <span class="text-xs font-bold text-gray-800 dark:text-gray-200 flex-1 truncate" title="${esc(l.member)}">${esc(l.member)}</span>
-            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${tone(l.type)}">${esc(l.type)}</span>
+    // 같은 시작일(+기간)은 한 줄에 묶어서 표시 — 날짜를 근태마다 반복하지 않는다.
+    const groups = [];
+    const byKey = new Map();
+    items.forEach(l => {
+        const key = `${l.start}|${l.end}`;
+        let g = byKey.get(key);
+        if (!g) {
+            g = { start: l.start, end: l.end, members: [] };
+            byKey.set(key, g);
+            groups.push(g);
+        }
+        g.members.push({ member: l.member, type: l.type });
+    });
+
+    el.innerHTML = groups.map(g => {
+        const isToday = g.start <= today && g.end >= today;
+        const chips = g.members.map(m => `
+            <span class="inline-flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded ${tone(m.type)}" title="${esc(m.member)} · ${esc(m.type)}">
+                <span class="text-gray-800 dark:text-gray-100">${esc(m.member)}</span>${esc(m.type)}
+            </span>`).join('');
+        return `<div class="flex items-start gap-2 px-2 py-1.5 rounded-lg ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'} transition-colors">
+            <span class="text-[11px] font-bold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'} w-[56px] shrink-0 pt-0.5">${esc(dLabel(g.start, g.end))}</span>
+            <span class="flex-1 min-w-0 flex flex-wrap gap-1">${chips}</span>
+            ${g.members.length > 1 ? `<span class="text-[10px] text-gray-400 shrink-0 pt-0.5">${g.members.length}명</span>` : ''}
         </div>`;
     }).join('');
 };
