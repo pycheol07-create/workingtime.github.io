@@ -3,6 +3,7 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js';
 import { showToast, getTodayDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js';
 import { saveStateToFirestore } from './app-data.js';
 import { saveLeaveSchedule } from './config.js';
@@ -58,6 +59,7 @@ export function setupFormAttendanceListeners() {
                     currentLeaves = currentLeaves.filter(l => !idsToDelete.includes(l.id));
                     await setDoc(docRef, { onLeaveMembers: currentLeaves }, { merge: true });
                     State.persistentLeaveSchedule.onLeaveMembers = currentLeaves;
+                    notifyLeaveScheduleChanged('leave-delete');
 
                     idsToDelete.forEach(id => {
                         State.allHistoryData.forEach(dayData => {
@@ -189,6 +191,7 @@ export function setupFormAttendanceListeners() {
 
                     await setDoc(docRef, { onLeaveMembers: currentLeaves }, { merge: true });
                     State.persistentLeaveSchedule.onLeaveMembers = currentLeaves;
+                    notifyLeaveScheduleChanged('leave-save');
                     updateLocalHistoryForLeave(leaveEntry, 'add');
 
                     const todayLeaves = currentLeaves.filter(entry => {
@@ -390,6 +393,7 @@ export function setupFormAttendanceListeners() {
                         const persistDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
                         await setDoc(persistDocRef, { onLeaveMembers: currentLeaves }, { merge: true });
                         State.persistentLeaveSchedule.onLeaveMembers = currentLeaves;
+                        notifyLeaveScheduleChanged('leave-edit');
                     }
                     showToast('근태 기록이 수정되었습니다.');
                     editLeaveModal.classList.add('hidden');

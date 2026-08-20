@@ -17,6 +17,7 @@ import { setupNotificationListeners } from './app-notifications.js';
 import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js';
 import { healYesterdayOnStartup } from './history-data-manager.js';
 import { initWorkCalendarWidget } from './widget-calendar.js';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js';
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
@@ -122,6 +123,10 @@ async function startAppAfterLogin(user) {
 
     // 🗓️ 4. 업무 캘린더 위젯 (근태 예정·입고일정 연동 + 일정 등록/수정/삭제)
     initWorkCalendarWidget().catch(e => console.warn('업무 캘린더 초기화 실패:', e));
+
+    // 🔗 5. 근태(연차) 일정 실시간 구독 — 어느 화면에서 바뀌든(다른 사용자 포함)
+    //        대시보드 근태예정 위젯·업무 캘린더·내 연차관리가 함께 갱신된다.
+    subscribeLeaveSchedule();
 }
 
 async function main() {
@@ -147,6 +152,7 @@ async function main() {
             if (State.unsubscribeToday) State.unsubscribeToday();
             if (State.unsubscribeWorkRecords) State.unsubscribeWorkRecords();
             if (unsubscribeNotifications) unsubscribeNotifications();
+            unsubscribeLeaveSchedule();
 
             State.appState.workRecords = [];
             State.appState.currentUser = null;

@@ -3,6 +3,7 @@
 import { appState, appConfig, persistentLeaveSchedule } from './state.js';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
 import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -523,6 +524,11 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
     };
     // 삭제·수정 후 목록 즉시 갱신용으로 노출(모달 열려있는 동안만 유효)
     window.__refreshUpcomingLeave = updateUpcomingLeaveView;
+
+    // 🔗 캘린더·데이터관리 등 다른 화면에서 근태가 바뀌어도 이 목록을 최신으로 유지
+    onLeaveScheduleChanged('my-leave-modal', () => {
+        try { window.__refreshUpcomingLeave && window.__refreshUpcomingLeave(); } catch (e) {}
+    });
 
     const activateTab = (tab) => {
         if (tab === 'status') {

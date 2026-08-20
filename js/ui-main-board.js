@@ -1,6 +1,7 @@
 // === js/ui-main-board.js ===
 import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js';
 import * as State from './state.js';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js';
 import { getLeaveDisplayLabel } from './ui-main-utils.js';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
@@ -647,6 +648,11 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     renderAttendanceToggle(appState);
     renderLeaveScheduleWidget();
 };
+
+// 🔗 근태가 어디서 바뀌든(연차관리 모달·캘린더·데이터관리·다른 사용자) 이 위젯을 다시 그린다.
+onLeaveScheduleChanged('leave-widget', () => {
+    try { renderLeaveScheduleWidget(); } catch (e) { console.warn('근태예정 위젯 갱신 실패:', e); }
+});
 
 // 🗓️ 근태 예정 리스트 위젯 (전체 팀원 현황 옆) — 당일 포함 예정된 근태만 표시
 export const renderLeaveScheduleWidget = () => {

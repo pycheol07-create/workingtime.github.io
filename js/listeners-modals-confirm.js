@@ -3,6 +3,7 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js';
 import { showToast, getTodayDateString, getCurrentTime } from './utils.js';
 import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js';
 import { saveLeaveSchedule } from './config.js';
@@ -166,7 +167,10 @@ export function setupConfirmationModalListeners() {
                             State.setIsDataDirty(true); 
                             await saveStateToFirestore();
                         }
-                        if (persistentChanged) await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+                        if (persistentChanged) {
+                            await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+                            notifyLeaveScheduleChanged('leave-cancel-2');
+                        }
                         showToast(`${memberName}님의 '${displayType}' 기록이 삭제되었습니다.`);
                     } catch (e) {
                         console.error("Error deleting leave record:", e);
@@ -337,7 +341,10 @@ export function setupConfirmationModalListeners() {
                     State.setIsDataDirty(true); 
                     await saveStateToFirestore();
                 }
-                if (persistentChanged) await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+                if (persistentChanged) {
+                    await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+                    notifyLeaveScheduleChanged('leave-cancel');
+                }
 
                 if (dailyChanged || persistentChanged) {
                     showToast(`${memberName}님 ${actionMessage} 처리되었습니다.`);

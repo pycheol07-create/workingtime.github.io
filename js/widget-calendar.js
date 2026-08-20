@@ -11,6 +11,7 @@
 import * as State from './state.js';
 import { showToast, getTodayDateString, getRegularMembersForCount } from './utils.js';
 import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
@@ -141,6 +142,7 @@ async function saveLeaveEntry(entry) {
 
     await setDoc(leaveDocRef(), { onLeaveMembers: list }, { merge: true });
     State.persistentLeaveSchedule.onLeaveMembers = list;
+    notifyLeaveScheduleChanged('calendar-save');
 }
 
 async function removeLeaveEntry(id) {
@@ -149,6 +151,7 @@ async function removeLeaveEntry(id) {
     const next = list.filter(l => l.id !== id);
     await setDoc(leaveDocRef(), { onLeaveMembers: next }, { merge: true });
     State.persistentLeaveSchedule.onLeaveMembers = next;
+    notifyLeaveScheduleChanged('calendar-delete');
 }
 
 // ────────────────────────────────────────
@@ -885,6 +888,9 @@ export async function initWorkCalendarWidget() {
         document.__calIncomingBound = true;
         document.addEventListener('incoming-schedule-updated', () => refreshWorkCalendar());
     }
+
+    // 🔗 근태가 다른 화면에서 바뀌어도 달력에 즉시 반영
+    onLeaveScheduleChanged('calendar', () => refreshWorkCalendar());
 
     await loadEvents(viewMonth);
     renderCalendar();

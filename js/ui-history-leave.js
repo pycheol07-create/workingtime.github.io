@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/
 
 // ✅ 엑셀 변환 함수 불러오기
 import { downloadLeaveLedgerExcel } from './history-excel.js';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js';
 
 let currentYear = new Date().getFullYear();
 let fullLeaveConfig = {}; 
@@ -421,6 +422,7 @@ async function openLeaveManager(member) {
             if(State.persistentLeaveSchedule) {
                 State.persistentLeaveSchedule.onLeaveMembers = currentAll;
             }
+            notifyLeaveScheduleChanged('leave-history-edit');
 
             showToast('연차 정보가 저장되었습니다.');
             
