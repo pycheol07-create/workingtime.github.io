@@ -242,6 +242,9 @@ function itemsForDate(dateStr) {
 // 월간 보기 — 주 단위로 잘라 기간 바를 배치
 // ────────────────────────────────────────
 const BAR_H = 18, BAR_GAP = 2, HEAD_H = 22, WEEK_PAD = 6;
+// 일정이 없는 주도 달력 칸이 납작해지지 않도록 최소 높이를 둔다.
+// (좁은 화면에서는 월간 격자가 더 촘촘해도 되므로 조금 낮게)
+const MIN_WEEK_H_DESKTOP = 96, MIN_WEEK_H_NARROW = 68;
 
 /** 한 주(7일)에 놓일 바들을 레인(겹치지 않는 줄)에 배치 */
 function layoutWeek(ranges, weekStart, weekEnd) {
@@ -306,7 +309,8 @@ function renderMonthView(root, today) {
         const wsKey = ymd(wStart), weKey = ymd(wEnd);
 
         const { segs, laneCount } = layoutWeek(ranges, wsKey, weKey);
-        const height = HEAD_H + Math.max(1, laneCount) * (BAR_H + BAR_GAP) + WEEK_PAD;
+        const minH = isNarrow() ? MIN_WEEK_H_NARROW : MIN_WEEK_H_DESKTOP;
+        const height = Math.max(minH, HEAD_H + laneCount * (BAR_H + BAR_GAP) + WEEK_PAD);
 
         const cells = [];
         for (let i = 0; i < 7; i++) {
