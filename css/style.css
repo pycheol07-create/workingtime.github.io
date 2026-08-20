@@ -290,14 +290,18 @@ html.dark .depth-panel {
     #history-global-sidebar {
         max-height: 230px !important; /* 일/주/월/년 버튼 + 트리 ≈ 230px */
     }
+    /* ⚠️ 높이는 이 컨테이너가 직접 갖는다(모달 컴포넌트 스타일과 동일 규칙).
+       flex로 부모 높이를 물려받게 하면 조상 높이가 확정되지 않을 때
+       한 줄까지 눌려 '항목 1개만 보이고 스크롤 불가'가 된다. */
     #history-date-list-container {
         width: 100% !important;
-        flex: 1 1 auto !important;
+        flex: 0 1 auto !important;
         min-height: 0 !important;
-        max-height: none !important;
+        max-height: 55vh !important;
         overflow-x: hidden !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior: contain !important;
         border-right: none !important;
         border-bottom: 1px solid #e5e7eb !important;
         display: block !important;
