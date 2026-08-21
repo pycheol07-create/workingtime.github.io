@@ -14,9 +14,13 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
         return historyData;
     }
 
-    const persistentLeaves = leaves.filter(
-        entry => entry.type === '연차' || entry.type === '출장' || entry.type === '결근' || entry.type === '매장근무'
-    );
+    // ⚠️ 근태 '종류'로 거르지 말 것.
+    //    예전에는 연차·출장·결근·매장근무 4종만 날짜별로 펼쳐서,
+    //    휴직·재택근무·외근처럼 나중에 추가된 기간형 근태가 개인 리포트 등
+    //    day.onLeaveMembers를 읽는 모든 화면에서 통째로 빠졌다.
+    //    판단 기준은 '기간(startDate)을 가진 근태인가' 하나면 충분하다.
+    //    (외출·조퇴·지각은 startDate 없이 그날 daily_data에 직접 저장되므로 자연히 제외된다)
+    const persistentLeaves = leaves.filter(entry => entry && entry.startDate);
 
     if (persistentLeaves.length === 0) return historyData;
 
@@ -29,7 +33,8 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
             : (day.onLeaveMembers ? Object.values(day.onLeaveMembers) : []);
 
         dayLeaves.forEach(entry => {
-            if (entry.startDate || entry.type === '연차' || entry.type === '출장' || entry.type === '결근' || entry.type === '매장근무') {
+            // 기간형(startDate 보유) 근태만 중복 판정 대상 — 종류는 따지지 않는다.
+            if (entry && entry.startDate) {
                 entries.add(`${entry.member}::${entry.type}`);
             }
         });

@@ -1,7 +1,7 @@
 // === js/ui-history-personal.js ===
 // 설명: '개인 리포트' 탭의 데이터 집계 및 렌더링 로직을 담당합니다.
 
-import { formatDuration, getWeekOfYear, formatTimeTo24H, calculateDateDifference, isWeekday } from './utils.js';
+import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday } from './utils.js';
 import { appConfig, context, LEAVE_TYPES, db } from './state.js';
 import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js';
 import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -111,6 +111,10 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
     // 근태 카운트 초기화
     LEAVE_TYPES.forEach(t => { stats.attendanceCounts[t] = 0; stats.attendanceDays[t] = 0; });
 
+    // 기간형 근태(연차·휴직 등)는 여러 날에 걸쳐 나타나므로 '횟수'는 건별로 한 번만 센다.
+    // (예전엔 날마다 1회씩 세고 일수도 날마다 전체 기간을 더해, 2일짜리 연차가 '2회 4일'로 부풀었다)
+    const countedLeaveKeys = new Set();
+
     // 시급/기본급 정보
     // memberWages 값 = 월 기본급(월급제). 시급 = 기본급 ÷ 209. 명단에 없으면 파트타이머(시급제).
     const monthlyBase = appConfig.memberWages?.[memberName] || 0;
@@ -164,14 +168,21 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
         const myLeaves = (day.onLeaveMembers || []).filter(l => l.member === memberName);
         myLeaves.forEach(leave => {
             const type = leave.type;
-            
-            // 횟수 집계
-            stats.attendanceCounts[type] = (stats.attendanceCounts[type] || 0) + 1;
 
-            // 일수 계산 (연차, 결근, 출장 등 기간이 있는 근태)
-            if (type === '연차' || type === '결근' || type === '출장') {
-                const days = calculateDateDifference(leave.startDate, leave.endDate || leave.startDate);
-                stats.attendanceDays[type] = (stats.attendanceDays[type] || 0) + days;
+            if (leave.startDate) {
+                // 기간형 근태(연차·휴직·출장·재택근무·외근·매장근무 등)
+                //  · 횟수: 같은 건은 한 번만
+                //  · 일수: 조회 기간 안에 실제로 걸친 날 수만큼 (달을 걸쳐도 과다 집계되지 않음.
+                //          주말은 이미 병합 단계에서 빠져 있다)
+                const leaveKey = leave.id || `${type}|${leave.startDate}|${leave.endDate || ''}`;
+                if (!countedLeaveKeys.has(leaveKey)) {
+                    countedLeaveKeys.add(leaveKey);
+                    stats.attendanceCounts[type] = (stats.attendanceCounts[type] || 0) + 1;
+                }
+                stats.attendanceDays[type] = (stats.attendanceDays[type] || 0) + 1;
+            } else {
+                // 당일형 근태(외출·조퇴·지각) — 발생할 때마다 1회
+                stats.attendanceCounts[type] = (stats.attendanceCounts[type] || 0) + 1;
             }
 
             // 급여 차감 누적 (월급제) — 결근/조퇴/외출
@@ -454,7 +465,8 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
             const count = stats.attendanceCounts[type] || 0;
             if (count === 0) return '';
             let text = `${type}: <strong>${count}회</strong>`;
-            if (type === '연차' || type === '결근' || type === '출장') {
+            // 기간형 근태는 일수도 함께 표기 (집계된 값이 있으면 종류 제한 없이)
+            if (stats.attendanceDays[type] > 0) {
                 text += ` <span class="text-xs text-gray-500">(${stats.attendanceDays[type]}일)</span>`;
             }
             return `<div class="bg-gray-50 rounded px-3 py-2 text-sm text-gray-700 border border-gray-200 shadow-sm">${text}</div>`;
