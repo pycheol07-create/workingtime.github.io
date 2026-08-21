@@ -1,5 +1,6 @@
 // === js/app-sync.js ===
 import * as State from './state.js';
+import { isPersistentLeaveType } from './state.js';
 import * as DOM from './dom-elements.js';
 import { getTodayDateString, getCurrentTime, showToast } from './utils.js';
 // ✨ limit가 추가되었습니다.
@@ -38,7 +39,7 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         const leaves = State.persistentLeaveSchedule.onLeaveMembers || [];
         
         State.appState.dateBasedOnLeaveMembers = leaves.filter(entry => {
-            if (['연차', '출장', '결근', '매장근무', '재택근무', '휴직', '외근'].includes(entry.type)) {
+            if (isPersistentLeaveType(entry.type)) {
                 const endDate = entry.endDate || entry.startDate;
                 return entry.startDate && typeof entry.startDate === 'string' &&
                     today >= entry.startDate && today <= (endDate || entry.startDate);

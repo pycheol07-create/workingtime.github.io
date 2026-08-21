@@ -46,6 +46,16 @@ export const AUTO_SAVE_INTERVAL = 1 * 60 * 1000;
 // ✅ '재택근무', '휴직' 항목 추가
 export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장', '지각', '매장근무', '재택근무', '휴직', '외근'];
 
+// 근태는 두 갈래로 나뉜다.
+//  · 당일형(TIME_BASED): 시각(startTime)만 있고 그날 daily_data에 직접 저장됨
+//  · 기간형(PERSISTENT): 시작~종료일(startDate/endDate)을 갖고 persistent_data/leaveSchedule에 저장됨
+// 기간형 목록은 LEAVE_TYPES에서 당일형을 뺀 나머지로 자동 계산한다.
+// ⚠️ 개별 화면에서 ['연차','출장','결근'] 같은 목록을 직접 적지 말 것.
+//    그렇게 하면 휴직·재택근무·외근처럼 나중에 추가된 종류가 조용히 누락된다.
+export const TIME_BASED_LEAVE_TYPES = ['외출', '조퇴', '지각'];
+export const PERSISTENT_LEAVE_TYPES = LEAVE_TYPES.filter(t => !TIME_BASED_LEAVE_TYPES.includes(t));
+export const isPersistentLeaveType = (type) => PERSISTENT_LEAVE_TYPES.includes(type);
+
 // --- State Objects ---
 export const context = {
     recordCounter: 0,

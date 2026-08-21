@@ -3,6 +3,7 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
+import { isPersistentLeaveType } from './state.js';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js';
 import { showToast, getTodayDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js';
 import { saveStateToFirestore } from './app-data.js';
@@ -121,7 +122,7 @@ export function setupFormAttendanceListeners() {
             DOM.confirmLeaveBtn.disabled = true;
             DOM.confirmLeaveBtn.textContent = '저장 중...';
 
-            if (['연차', '출장', '결근', '매장근무', '재택근무', '휴직', '외근'].includes(type)) {
+            if (isPersistentLeaveType(type)) {
                 if (startDate > endDate) {
                     showToast('종료 날짜는 시작 날짜보다 빠를 수 없습니다.', true);
                     DOM.confirmLeaveBtn.disabled = false;

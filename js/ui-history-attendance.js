@@ -3,6 +3,11 @@
 import { formatTimeTo24H, formatDuration, getWeekOfYear } from './utils.js';
 import { context, LEAVE_TYPES } from './state.js';
 
+// 근태 요약 표의 열 순서. 기존 순서를 유지하되, LEAVE_TYPES에 있는데 여기 없는 종류는
+// 뒤에 자동으로 붙는다 → 근태 종류가 추가돼도 표에서 누락되지 않는다.
+const ATT_COL_BASE = ['지각', '외출', '조퇴', '결근', '연차', '출장', '매장근무', '재택근무', '휴직', '외근'];
+const ATT_COLS = [...ATT_COL_BASE, ...LEAVE_TYPES.filter(t => !ATT_COL_BASE.includes(t))];
+
 const getSortIcon = (currentKey, currentDir, targetKey) => {
     if (currentKey !== targetKey) return '<span class="text-gray-300 text-[10px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
     return currentDir === 'asc' 
@@ -243,7 +248,7 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         if (!memberMap[member]) {
             memberMap[member] = {
                 member: member,
-                counts: { '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0, '매장근무': 0 },
+                counts: ATT_COLS.reduce((acc, t) => { acc[t] = 0; return acc; }, {}),
                 totalCount: 0,
                 totalAbsenceDays: 0,
                 totalLeaveDays: 0
@@ -340,27 +345,26 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
                     <thead class="text-xs text-gray-700 uppercase bg-gray-100">
                         <tr>
                             ${th('member', '이름', 'sticky left-0 bg-gray-100 z-10')}
-                            ${th('지각', '지각')} ${th('외출', '외출')} ${th('조퇴', '조퇴')} ${th('결근', '결근')} ${th('연차', '연차')} ${th('출장', '출장')} ${th('매장근무', '매장근무')}
+                            ${ATT_COLS.map(t => th(t, t)).join(' ')}
                             ${th('totalCount', '총 횟수')} ${th('totalAbsenceDays', '총 결근일')} ${th('totalLeaveDays', '총 연차일')}
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">`;
 
     if (summary.length === 0) {
-         html += `<tr><td colspan="11" class="text-center py-8 text-gray-500">필터 조건에 맞는 데이터가 없습니다.</td></tr>`;
+         html += `<tr><td colspan="${ATT_COLS.length + 4}" class="text-center py-8 text-gray-500">필터 조건에 맞는 데이터가 없습니다.</td></tr>`;
     } else {
         summary.forEach(item => {
             const cell = (k, color='text-gray-400') => `<td class="px-4 py-3 text-center ${item.counts[k]>0 ? 'text-gray-800 font-medium' : color}">${item.counts[k]||0}</td>`;
             html += `
                 <tr class="bg-white hover:bg-gray-50">
                     <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${item.member}</td>
-                    ${cell('지각', 'text-gray-300')}
-                    ${cell('외출', 'text-gray-300')}
-                    ${cell('조퇴', 'text-gray-300')}
-                    <td class="px-4 py-3 text-center ${item.counts['결근']>0?'text-red-600 font-bold':'text-gray-300'}">${item.counts['결근']||0}</td>
-                    <td class="px-4 py-3 text-center ${item.counts['연차']>0?'text-blue-600 font-bold':'text-gray-300'}">${item.counts['연차']||0}</td>
-                    ${cell('출장', 'text-gray-300')}
-                    ${cell('매장근무', 'text-gray-300')}
+                    ${ATT_COLS.map(t => {
+                        const v = item.counts[t] || 0;
+                        if (t === '결근') return `<td class="px-4 py-3 text-center ${v>0?'text-red-600 font-bold':'text-gray-300'}">${v}</td>`;
+                        if (t === '연차') return `<td class="px-4 py-3 text-center ${v>0?'text-blue-600 font-bold':'text-gray-300'}">${v}</td>`;
+                        return cell(t, 'text-gray-300');
+                    }).join('')}
                     <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${item.totalCount}</td>
                     <td class="px-4 py-3 text-center font-bold text-red-600 bg-red-50">${item.totalAbsenceDays}</td>
                     <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${item.totalLeaveDays}</td>

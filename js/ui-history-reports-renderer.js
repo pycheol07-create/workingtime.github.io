@@ -1,8 +1,13 @@
 // === js/ui-history-reports-renderer.js ===
 
-import { formatDuration, calculateDateDifference } from './utils.js';
+import { formatDuration } from './utils.js';
 import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js';
-import { context } from './state.js';
+import { context, LEAVE_TYPES } from './state.js';
+
+// 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
+// → 근태 종류가 추가돼도 표에서 누락되지 않는다.
+const ATT_COL_BASE = ['지각', '외출', '조퇴', '결근', '연차', '출장', '매장근무', '재택근무', '휴직', '외근'];
+const ATT_COLS = [...ATT_COL_BASE, ...LEAVE_TYPES.filter(t => !ATT_COL_BASE.includes(t))];
 
 // --- 헬퍼: 정렬 아이콘 ---
 const getSortIcon = (currentKey, currentDir, targetKey) => {
@@ -723,7 +728,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
         if (!attSummaryMap[entry.member]) {
             attSummaryMap[entry.member] = {
                 member: entry.member,
-                counts: { '지각': 0, '외출': 0, '조퇴': 0, '결근': 0, '연차': 0, '출장': 0 },
+                counts: ATT_COLS.reduce((acc, t) => { acc[t] = 0; return acc; }, {}),
                 totalCount: 0,
                 totalLeaveDays: 0,
                 totalAbsenceDays: 0
@@ -740,13 +745,10 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
 
         if (type !== '연차') rec.totalCount++;
 
-        if (type === '연차') {
-             const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
-             rec.totalLeaveDays += days;
-        } else if (type === '결근') {
-             const days = calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
-             rec.totalAbsenceDays += days;
-        }
+        // 일수는 '그 날 하루'만 더한다. attendanceData는 이미 날짜별로 펼쳐진 기록이라
+        // 여기서 다시 전체 기간을 더하면 2일짜리 연차가 4일로 부풀었다.
+        if (type === '연차') rec.totalLeaveDays += 1;
+        else if (type === '결근') rec.totalAbsenceDays += 1;
     });
     
     attDataList = Object.values(attSummaryMap);
@@ -779,12 +781,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
                 <tr>
                     ${th_att('member', '이름', 'sticky left-0 bg-gray-100 z-10')}
-                    ${th_att('지각', '지각')}
-                    ${th_att('외출', '외출')}
-                    ${th_att('조퇴', '조퇴')}
-                    ${th_att('결근', '결근')}
-                    ${th_att('연차', '연차')}
-                    ${th_att('출장', '출장')}
+                    ${ATT_COLS.map(t => th_att(t, t)).join('')}
                     ${th_att('totalCount', '총 횟수')}
                     ${th_att('totalAbsenceDays', '총 결근일')}
                     ${th_att('totalLeaveDays', '총 연차일')}
@@ -799,12 +796,12 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             html += `
                 <tr class="bg-white hover:bg-gray-50">
                     <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${item.member}</td>
-                    ${cell('지각', 'text-gray-300')}
-                    ${cell('외출', 'text-gray-300')}
-                    ${cell('조퇴', 'text-gray-300')}
-                    <td class="px-4 py-3 text-center ${item.counts['결근']>0?'text-red-600 font-bold':'text-gray-300'}">${item.counts['결근']||0}</td>
-                    <td class="px-4 py-3 text-center ${item.counts['연차']>0?'text-blue-600 font-bold':'text-gray-300'}">${item.counts['연차']||0}</td>
-                    ${cell('출장', 'text-gray-300')}
+                    ${ATT_COLS.map(t => {
+                        const v = item.counts[t] || 0;
+                        if (t === '결근') return `<td class="px-4 py-3 text-center ${v>0?'text-red-600 font-bold':'text-gray-300'}">${v}</td>`;
+                        if (t === '연차') return `<td class="px-4 py-3 text-center ${v>0?'text-blue-600 font-bold':'text-gray-300'}">${v}</td>`;
+                        return cell(t, 'text-gray-300');
+                    }).join('')}
                     <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${item.totalCount}</td>
                     <td class="px-4 py-3 text-center font-bold text-red-600 bg-red-50">${item.totalAbsenceDays}</td>
                     <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${item.totalLeaveDays}</td>

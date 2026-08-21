@@ -3,6 +3,7 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
+import { isPersistentLeaveType } from './state.js';
 import { showToast, getTodayDateString, getCurrentTime } from './utils.js';
 import { renderAttendanceDailyHistory } from './ui-history.js';
 import { clearLocalCache } from './history-data-manager.js';
@@ -50,7 +51,7 @@ function handleAttendanceListClicks(e) {
         }
 
         const isTimeBased = ['외출', '조퇴', '지각'].includes(record.type);
-        const isDateBased = ['연차', '출장', '결근'].includes(record.type);
+        const isDateBased = isPersistentLeaveType(record.type);
         const isOuting = (record.type === '외출');
         
         if (DOM.editAttendanceTimeFields) {

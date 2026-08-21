@@ -1,6 +1,17 @@
 // === js/history-excel-attendance.js ===
-import { allHistoryData } from './state.js';
-import { calculateDateDifference, formatTimeTo24H, getWeekOfYear, showToast } from './utils.js';
+import { allHistoryData, LEAVE_TYPES } from './state.js';
+
+// 엑셀 근태 요약의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
+// → 근태 종류가 추가돼도 엑셀에서 누락되지 않는다.
+const ATT_COL_BASE = ['지각', '외출', '조퇴', '결근', '연차', '출장', '매장근무', '재택근무', '휴직', '외근'];
+const ATT_COLS = [...ATT_COL_BASE, ...LEAVE_TYPES.filter(t => !ATT_COL_BASE.includes(t))];
+const newAttRow = (member) => {
+    const row = { '이름': member };
+    ATT_COLS.forEach(t => { row[t] = 0; });
+    row['총 횟수'] = 0; row['총 결근일수'] = 0; row['총 연차일수'] = 0;
+    return row;
+};
+import { formatTimeTo24H, getWeekOfYear, showToast } from './utils.js';
 import { fitToColumn } from './history-excel-utils.js';
 
 export const downloadPeriodAttendanceAsExcel = (startDate, endDate, format = 'xlsx') => {
@@ -12,13 +23,14 @@ export const downloadPeriodAttendanceAsExcel = (startDate, endDate, format = 'xl
     dataList.forEach(day => {
         (day.onLeaveMembers || []).forEach(entry => {
             if (!summary[entry.member]) {
-                summary[entry.member] = { '이름': entry.member, '지각':0, '외출':0, '조퇴':0, '결근':0, '연차':0, '출장':0, '총 횟수':0, '총 결근일수':0, '총 연차일수':0 };
+                summary[entry.member] = newAttRow(entry.member);
             }
             const rec = summary[entry.member];
             if (rec.hasOwnProperty(entry.type)) rec[entry.type]++;
             if (entry.type !== '연차') rec['총 횟수']++;
-            if (entry.type === '결근') rec['총 결근일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
-            if (entry.type === '연차') rec['총 연차일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+            // 일수는 '그 날 하루'만 더한다(날짜별로 이미 펼쳐져 있음).
+            if (entry.type === '결근') rec['총 결근일수'] += 1;
+            if (entry.type === '연차') rec['총 연차일수'] += 1;
         });
     });
 
@@ -76,13 +88,15 @@ export const downloadAttendanceExcel = (viewMode, key, format = 'xlsx') => {
         dataList.forEach(day => {
             (day.onLeaveMembers || []).forEach(entry => {
                 if (!summary[entry.member]) {
-                    summary[entry.member] = { '이름': entry.member, '지각':0, '외출':0, '조퇴':0, '결근':0, '연차':0, '출장':0, '총 횟수':0, '총 결근일수':0, '총 연차일수':0 };
+                    summary[entry.member] = newAttRow(entry.member);
                 }
                 const rec = summary[entry.member];
                 if (rec.hasOwnProperty(entry.type)) rec[entry.type]++;
                 if (entry.type !== '연차') rec['총 횟수']++;
-                if (entry.type === '결근') rec['총 결근일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
-                if (entry.type === '연차') rec['총 연차일수'] += calculateDateDifference(entry.startDate, entry.endDate || entry.startDate);
+                // 일수는 '그 날 하루'만 더한다. onLeaveMembers는 이미 날짜별로 펼쳐져 있어서
+                // 여기서 다시 전체 기간을 더하면 2일짜리 연차가 4일로 부풀었다.
+                if (entry.type === '결근') rec['총 결근일수'] += 1;
+                if (entry.type === '연차') rec['총 연차일수'] += 1;
             });
         });
 

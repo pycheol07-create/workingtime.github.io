@@ -3,6 +3,7 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
+import { isPersistentLeaveType } from './state.js';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js';
 import { showToast, getTodayDateString, getCurrentTime } from './utils.js';
 import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js';
@@ -86,7 +87,7 @@ export function setupConfirmationModalListeners() {
                 const dayData = State.allHistoryData.find(d => d.id === dateKey);
                 if (dayData && dayData.onLeaveMembers && dayData.onLeaveMembers[index]) {
                     const recordToDelete = dayData.onLeaveMembers[index];
-                    const isPersistentType = ['연차', '출장', '결근'].includes(recordToDelete.type);
+                    const isPersistentType = isPersistentLeaveType(recordToDelete.type);
                     
                     let deletedFromPersistent = false;
                     if (isPersistentType) {
