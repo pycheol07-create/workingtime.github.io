@@ -28,12 +28,13 @@ const getIncomingChinaForDate = (dateStr) => {
 // 시뮬레이션 상수/헬퍼
 // ───────────────────────────────────────────────────────────
 // 모든 업무를 기본 등록으로 둔다('+ 추가 선택' 폐지).
-// 자동값 규칙: ai=국내배송 예측 / incoming=입고일정 / last7=지난 7회 업무량 평균
+// 자동값 규칙: ai=국내배송 예측 / incoming=입고일정 / china-linked=중국제작 입고량×검수비율
+//              last7=지난 7회 업무량 평균
 // 어느 경우든 '예정 물량'에 수기 입력값이 있으면 그 값이 최우선이다.
 const SIM_TASKS = [
     { id: 'domestic', key: '국내배송', label: '국내배송', auto: 'ai' },
     { id: 'china',    key: '중국제작', label: '중국제작', auto: 'incoming' },
-    { id: 'sample',   key: '샘플검수', label: '샘플검수', auto: 'last7' },
+    { id: 'sample',   key: '샘플검수', label: '샘플검수', auto: 'china-linked' },
     { id: 'direct',   key: '직진배송', label: '직진배송', auto: 'last7' },
     { id: 'ably',     key: '에이블리배송', label: '에이블리배송', auto: 'last7' },
     { id: 'fill',     key: '채우기',   label: '채우기',   auto: 'last7' },
@@ -81,6 +82,23 @@ const computeTaskUPHs = (historyData) => {
     return uph;
 };
 
+/** 샘플검수 비율 = 최근 4주에서 중국제작 > 0 인 날들의 (Σ샘플검수 ÷ Σ중국제작).
+ *  중국제작 입고가 있는 날에만 샘플검수가 생기므로, 그 비율로 입고량에서 역산한다. */
+const computeSampleRatio = (historyData) => {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 28);
+    const cutoffStr = ymd(cutoff);
+    const recent = (historyData || []).filter(d => typeof d.id === 'string' && d.id >= cutoffStr);
+    let chinaSum = 0, sampleSum = 0;
+    recent.forEach(d => {
+        const china = Number(d.taskQuantities?.['중국제작']) || 0;
+        if (china > 0) {
+            chinaSum += china;
+            sampleSum += Number(d.taskQuantities?.['샘플검수']) || 0;
+        }
+    });
+    return chinaSum > 0 ? sampleSum / chinaSum : 0;
+};
+
 /** 지난 7회 업무량 평균 — 그 업무가 실제로 발생한 최근 7일(물량 > 0)의 평균.
  *  달력 기준 7일이 아니라 '발생 횟수' 기준이라, 매일 잡히지 않는 업무
  *  (전량검수·국내제작·교환반품 등)도 항상 대표값을 얻을 수 있다.
@@ -105,17 +123,34 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
     const xD = new Date(dateStr + 'T00:00:00');
     if (isNaN(xD.getTime()) || isNaN(tD.getTime())) return 0;
     const diff = Math.round((xD - tD) / 86400000);
-    if (diff <= 0) {
-        // 오늘 또는 과거 → 실측값
+
+    // 과거: 실측값 그대로
+    if (diff < 0) {
         const day = (historyData || []).find(d => d.id === dateStr);
         return Number(day?.taskQuantities?.['국내배송']) || 0;
     }
     if (diff > 30) return 0; // 너무 먼 미래는 신뢰도 낮음
+
     // ⚠️ 반드시 일반배송(카페24) 스코프로 예측해야 delivery가 '국내배송' 물량이 된다.
     //    스코프를 생략하면 전 채널 물량 합계가 나와 시뮬레이션 값이 부풀려진다.
-    const result = predictFutureTrends(historyData, Math.max(14, diff), channelScope('cafe24'));
-    if (!result || !result.prediction || !Array.isArray(result.prediction.delivery)) return 0;
-    return Math.round(result.prediction.delivery[diff - 1] || 0);
+    const result = predictFutureTrends(historyData, Math.max(14, diff || 1), channelScope('cafe24'));
+
+    if (diff === 0) {
+        // 오늘: 이미 입력된 실측이 있으면 그 값, 없으면 실적 예측의 '오늘 예측값'.
+        // (예전엔 실측만 봐서, 물량 입력 전인 오전에는 항상 0 → 칸이 비어 있었다)
+        const day = (historyData || []).find(d => d.id === dateStr);
+        const actual = Number(day?.taskQuantities?.['국내배송']) || 0;
+        if (actual > 0) return actual;
+        const todayPred = result?.prediction?.today?.predictedDel;
+        if (todayPred > 0) return Math.round(todayPred);
+        return computeLast7Avg(historyData, '국내배송');
+    }
+
+    const predicted = result?.prediction?.delivery?.[diff - 1];
+    if (predicted > 0) return Math.round(predicted);
+
+    // 예측 불가(이력 7일 미만 등) → 최근 실적 평균으로라도 채운다
+    return computeLast7Avg(historyData, '국내배송');
 };
 
 /** 가용 인원 = 전체 정직원 − 해당일 휴무자(persistentLeave + 그날 onLeaveMembers)
@@ -171,6 +206,13 @@ const autoValueFor = (dateStr, task, historyData) => {
     switch (task.auto) {
         case 'ai':       return getAIPredictedDomestic(historyData, dateStr);
         case 'incoming': return getIncomingChinaForDate(dateStr);
+        case 'china-linked': {
+            // 샘플검수는 중국제작 입고가 있는 날에만 발생한다.
+            // 그 날의 중국제작 수량(예정 물량 > 입고일정)에 최근 검수비율을 곱해 산출.
+            const china = getPlanned(dateStr, '중국제작') ?? getIncomingChinaForDate(dateStr);
+            if (!(china > 0)) return 0;   // 입고 없는 날은 비워 둔다
+            return Math.round(computeSampleRatio(historyData) * china);
+        }
         default:         return computeLast7Avg(historyData, task.key);
     }
 };
@@ -181,7 +223,9 @@ const isPlannedValue = (dateStr, task) => getPlanned(dateStr, task.key) != null;
 const AUTO_BADGE = {
     ai:       { text: 'AI 예측',   cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300', tip: '국내배송 AI 추세 예측값' },
     incoming: { text: '입고일정',  cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',       tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
-    last7:    { text: '지난7회평균', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',        tip: '이 업무가 발생한 최근 7일의 업무량 평균' }
+    last7:    { text: '지난7회평균', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',        tip: '이 업무가 발생한 최근 7일의 업무량 평균' },
+    'china-linked': { text: '중국제작 연동', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+                      tip: '중국제작 입고가 있는 날만 자동 입력됩니다. (그 날 입고량 × 최근 4주 검수비율)' }
 };
 const PLANNED_BADGE = {
     text: '예정물량', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
@@ -543,6 +587,18 @@ const setupSimulationListeners = () => {
     }
     document.getElementById('sim-autofill-btn')?.addEventListener('click', () => autoFillSimInputs(dateEl?.value));
     runBtn.addEventListener('click', runSimulation);
+
+    // 중국제작 수량을 직접 고치면 샘플검수도 그 비율로 다시 계산한다.
+    // 단, 예정 물량에 샘플검수를 수기로 넣어둔 날은 그 값을 덮지 않는다.
+    document.getElementById('sim-qty-china')?.addEventListener('input', () => {
+        const dateStr = document.getElementById('sim-target-date')?.value;
+        if (!dateStr) return;
+        if (getPlanned(dateStr, '샘플검수') != null) return;
+        const china = Number(document.getElementById('sim-qty-china')?.value) || 0;
+        const sampleTask = SIM_TASKS.find(t => t.id === 'sample');
+        setQty('sample', china > 0 ? Math.round(computeSampleRatio(State.allHistoryData) * china) : 0);
+        if (sampleTask) markSourceBadge(sampleTask, false);
+    });
 
     document.getElementById('sim-reset-btn')?.addEventListener('click', () => {
         // 모든 수량/인원 입력 초기화 (업무 목록은 항상 기본 등록이므로 숨기지 않음)
