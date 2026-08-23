@@ -137,6 +137,16 @@ function setupRealtimeListenerB() {
             }
         });
         _zikjinDerivedMeta = maxAt > 0 ? { at: maxAt, count: rowCount } : null;
+
+        // 직진/에이블리 소스별 합계 (버튼·상세에서 구분 표시용)
+        _zikjinSourceTotals = { zikjin: 0, ably: 0, unknown: 0 };
+        Object.values(zikjinData).forEach(item => {
+            const sp = _zikjinSourceSplit(item);
+            _zikjinSourceTotals.zikjin += sp.zikjin;
+            _zikjinSourceTotals.ably += sp.ably;
+            _zikjinSourceTotals.unknown += sp.unknown;
+        });
+
         updateZikjinInfoDisplay();
         applyFiltersAndSort();
     }, (error) => console.error("직진배송 오류:", error));
@@ -199,6 +209,7 @@ function updateLastUpdateDisplay(ts) {
 }
 
 // 📂 직진·에이블리(ZG&AB 출고) 전송 기록 간략 표시 (언제/얼마나 + 상세 링크)
+let _zikjinSourceTotals = { zikjin: 0, ably: 0, unknown: 0 }; // 소스별 출고량 합계
 let _zikjinMeta = null;         // 상세 모달에서 쓰는 '유효' 메타
 let _zikjinConfigMeta = null;   // INFO_CONFIG.zikjinMeta (메타 기능 이후 업로드분)
 let _zikjinDerivedMeta = null;  // ZikjinData 청크의 updatedAt/건수로 역산(메타 이전 업로드분 대응)
@@ -252,12 +263,38 @@ function updateZikjinInfoDisplay() {
         setTone('#ffebee', '#ef9a9a', '#c62828');
     }
 
-    el.innerHTML = `${prefix} ZG&AB 출고: ${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())} · ${cnt}건${warn} <span style="text-decoration:underline; color:#1976d2;">상세</span>`;
+    // 직진/에이블리 구분 요약 (데이터가 있을 때만)
+    const st = _zikjinSourceTotals || { zikjin: 0, ably: 0 };
+    const splitTxt = (st.zikjin > 0 || st.ably > 0)
+        ? ` <span style="font-weight:800; color:#1976d2;">직진 ${st.zikjin.toLocaleString()}</span>`
+          + `<span style="color:#b0bec5;"> / </span>`
+          + `<span style="font-weight:800; color:#c2185b;">에이블리 ${st.ably.toLocaleString()}</span>`
+        : '';
+
+    el.innerHTML = `${prefix} ZG&AB 출고: ${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())} · ${cnt}건${warn}${splitTxt} <span style="text-decoration:underline; color:#1976d2;">상세</span>`;
     el.title = `직진·에이블리(ZG&AB) 출고 전송: ${d.toLocaleString('ko-KR')} · ${zMeta.count}건`
+        + ((st.zikjin > 0 || st.ably > 0)
+            ? `
+
+출고량 — 직진배송 ${st.zikjin.toLocaleString()} / 에이블리 ${st.ably.toLocaleString()}`
+              + (st.unknown > 0 ? ` / 구분없음 ${st.unknown.toLocaleString()}` : '')
+            : '')
         + (daysAgo > 0
             ? `\n\n⚠️ 오늘 올라온 자료가 아닙니다(${daysAgo}일 지남).\nZG&AB 출고 데이터는 자동 전송되지 않고 수동 업로드로만 갱신됩니다.\n출고 작업을 했다면 [📂 1-1. ZG&AB 출고 데이터 업로드]에서 파일을 올려주세요.`
             : '')
         + `\n\n클릭 시 전송 데이터 상세 보기`;
+}
+
+// 구분 뱃지(헤더 요약용) / 태그(표 행용)
+function _zikBadge(label, qty, count, fg, bg) {
+    return `<span style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800;
+        color:${fg}; background:${bg}; border:1px solid ${fg}33; border-radius:6px; padding:3px 8px;">
+        ${label} <b style="font-weight:900;">${Number(qty || 0).toLocaleString()}</b>
+        <span style="font-weight:600; opacity:.75;">(${Number(count || 0).toLocaleString()}종)</span></span>`;
+}
+function _zikTag(label, qty, fg, bg) {
+    return `<span style="display:inline-block; font-size:10.5px; font-weight:800; color:${fg}; background:${bg};
+        border-radius:5px; padding:2px 6px;">${label} ${Number(qty || 0).toLocaleString()}</span>`;
 }
 
 // 📂 ZG&AB 출고(직진·에이블리) 전송 데이터 상세 모달
@@ -265,12 +302,26 @@ window.openZikjinDetail = function () {
     const existing = document.getElementById('zikjin-detail-overlay');
     if (existing) existing.remove();
 
-    const rows = Object.entries(zikjinData).map(([code, item]) => ({
-        code,
-        name: (item['상품명'] || item['상품명칭'] || '').toString(),
-        qty: _ablyQtyFromItem(item)
-    })).sort((a, b) => b.qty - a.qty);
+    const rows = Object.entries(zikjinData).map(([code, item]) => {
+        const sp = _zikjinSourceSplit(item);
+        return {
+            code,
+            name: (item['상품명'] || item['상품명칭'] || '').toString(),
+            qty: _ablyQtyFromItem(item),
+            zikjin: sp.zikjin,
+            ably: sp.ably,
+            unknown: sp.unknown
+        };
+    }).sort((a, b) => b.qty - a.qty);
     const total = rows.reduce((s, r) => s + r.qty, 0);
+
+    // 소스별 합계 — 직진 / 에이블리 / 구분없음(구버전 업로드분)
+    const sumZ = rows.reduce((s, r) => s + r.zikjin, 0);
+    const sumA = rows.reduce((s, r) => s + r.ably, 0);
+    const sumU = rows.reduce((s, r) => s + r.unknown, 0);
+    const cntZ = rows.filter(r => r.zikjin > 0).length;
+    const cntA = rows.filter(r => r.ably > 0).length;
+    const cntU = rows.filter(r => r.unknown > 0 && r.zikjin === 0 && r.ably === 0).length;
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     // 전송 일시 (몇일 몇시)
@@ -307,14 +358,38 @@ window.openZikjinDetail = function () {
              <thead><tr style="position:sticky; top:0; background:#eceff1; z-index:1;">
                <th style="text-align:left; padding:8px;">상품코드</th>
                <th style="text-align:left; padding:8px;">상품명</th>
+               <th style="text-align:center; padding:8px; width:150px;">구분</th>
                <th style="text-align:right; padding:8px;">출고량</th>
              </tr></thead>
-             <tbody>${rows.map(r => `<tr style="border-bottom:1px solid #eee;">
-               <td style="padding:6px 8px; font-family:monospace;">${esc(r.code)}</td>
-               <td style="padding:6px 8px;">${esc(r.name)}</td>
-               <td style="padding:6px 8px; text-align:right; font-weight:600;">${r.qty.toLocaleString()}</td>
-             </tr>`).join('')}</tbody>
+             <tbody>${rows.map(r => {
+               // 한 상품이 직진·에이블리 양쪽에서 나갈 수 있으므로 각각 표시한다.
+               const tags = [];
+               if (r.zikjin > 0) tags.push(_zikTag('직진', r.zikjin, '#1976d2', '#e3f2fd'));
+               if (r.ably > 0) tags.push(_zikTag('에이블리', r.ably, '#c2185b', '#fce4ec'));
+               if (tags.length === 0) tags.push(_zikTag('구분없음', r.unknown || r.qty, '#90a4ae', '#eceff1'));
+               const src = (r.zikjin > 0 && r.ably > 0) ? 'both' : (r.zikjin > 0 ? 'zikjin' : (r.ably > 0 ? 'ably' : 'unknown'));
+               return `<tr class="zik-row" data-src="${src}" style="border-bottom:1px solid #eee;">
+                 <td style="padding:6px 8px; font-family:monospace;">${esc(r.code)}</td>
+                 <td style="padding:6px 8px;">${esc(r.name)}</td>
+                 <td style="padding:6px 8px; text-align:center; white-space:nowrap;">${tags.join(' ')}</td>
+                 <td style="padding:6px 8px; text-align:right; font-weight:600;">${r.qty.toLocaleString()}</td>
+               </tr>`;
+             }).join('')}</tbody>
            </table>`;
+
+    // 구분 필터 (전체 / 직진 / 에이블리)
+    const filterBar = rows.length === 0 ? '' : `
+      <div style="padding:8px 18px; border-bottom:1px solid #eee; background:#fafafa; display:flex; gap:6px; align-items:center;">
+        <span style="font-size:11px; font-weight:700; color:#78909c; margin-right:2px;">구분 보기</span>
+        ${['전체', '직진', '에이블리'].map((label, i) => {
+          const key = ['all', 'zikjin', 'ably'][i];
+          return `<button type="button" data-zik-filter="${key}" onclick="window.__zikFilter && window.__zikFilter('${key}')"
+            style="font-size:11px; font-weight:700; padding:4px 10px; border-radius:6px; cursor:pointer;
+                   border:1px solid ${key === 'all' ? '#1976d2' : '#cfd8dc'};
+                   background:${key === 'all' ? '#1976d2' : '#fff'}; color:${key === 'all' ? '#fff' : '#546e7a'};">${label}</button>`;
+        }).join('')}
+        <span id="zik-filter-count" style="font-size:11px; color:#90a4ae; margin-left:4px;"></span>
+      </div>`;
 
     const overlay = document.createElement('div');
     overlay.id = 'zikjin-detail-overlay';
@@ -326,14 +401,43 @@ window.openZikjinDetail = function () {
           <div>
             <div style="font-size:16px; font-weight:800; color:#1976d2;">📂 ZG&AB 출고(직진·에이블리) 전송 데이터</div>
             <div style="font-size:12px; color:#607d8b; margin-top:2px;">총 ${rows.length.toLocaleString()}개 상품 · 출고량 합계 ${total.toLocaleString()}</div>
+            <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+              ${_zikBadge('직진배송', sumZ, cntZ, '#1976d2', '#e3f2fd')}
+              ${_zikBadge('에이블리', sumA, cntA, '#c2185b', '#fce4ec')}
+              ${sumU > 0 ? _zikBadge('구분없음', sumU, cntU, '#607d8b', '#eceff1') : ''}
+            </div>
             ${sentLine}
             ${diagLine}
           </div>
           <button onclick="document.getElementById('zikjin-detail-overlay').remove()" style="border:none; background:none; font-size:22px; cursor:pointer; color:#888;">✕</button>
         </div>
+        ${filterBar}
         <div style="overflow:auto; flex:1;">${body}</div>
       </div>`;
     document.body.appendChild(overlay);
+
+    // 구분 필터: 행을 보이고/숨기고 버튼 색을 바꾼다.
+    window.__zikFilter = (key) => {
+        const ov = document.getElementById('zikjin-detail-overlay');
+        if (!ov) return;
+        let shown = 0;
+        ov.querySelectorAll('.zik-row').forEach(tr => {
+            const src = tr.dataset.src;
+            const hit = key === 'all'
+                || (key === 'zikjin' && (src === 'zikjin' || src === 'both'))
+                || (key === 'ably' && (src === 'ably' || src === 'both'));
+            tr.style.display = hit ? '' : 'none';
+            if (hit) shown++;
+        });
+        ov.querySelectorAll('[data-zik-filter]').forEach(btn => {
+            const on = btn.dataset.zikFilter === key;
+            btn.style.background = on ? '#1976d2' : '#fff';
+            btn.style.color = on ? '#fff' : '#546e7a';
+            btn.style.borderColor = on ? '#1976d2' : '#cfd8dc';
+        });
+        const cnt = ov.querySelector('#zik-filter-count');
+        if (cnt) cnt.textContent = key === 'all' ? '' : `${shown.toLocaleString()}개 상품`;
+    };
 };
 
 function setupRealtimeListenerA() {
@@ -852,6 +956,22 @@ const getBaseLocsForCode = (code) => {
 
 // 에이블리 출고량 계산. '수량/기간배송수량' 총량 컬럼이 있으면 사용하고,
 // 없으면(에이블리 파일이 상품코드 + 날짜별 컬럼만 있는 경우) 날짜별(YYYYMMDD) 컬럼 합계를 출고량으로 사용.
+// 📦 ZG&AB 출고 행의 소스별(직진/에이블리) 수량 분해.
+//   출고 자동화 프로그램이 각 행에 _q: { 소스ID: 수량 } 을 남긴다.
+//     ZG  = 직진 일반   / ZGF = 직진 즉시출고
+//     AB  = 에이블리 일반 / ABF = 에이블리 즉시출고
+//     LEGACY = 소스 구분이 없던 시절(앱에서 엑셀 직접 업로드)분
+function _zikjinSourceSplit(item) {
+    const q = (item && typeof item._q === 'object' && item._q) ? item._q : null;
+    if (!q) return { zikjin: 0, ably: 0, unknown: _ablyQtyFromItem(item) };
+    const num = v => Number(v) || 0;
+    return {
+        zikjin: num(q.ZG) + num(q.ZGF),
+        ably:   num(q.AB) + num(q.ABF),
+        unknown: num(q.LEGACY)
+    };
+}
+
 function _ablyQtyFromItem(aItem) {
     if (!aItem) return 0;
     const direct = Number(aItem['수량'] || aItem['기간배송수량'] || aItem['기간발주수량'] || 0);
