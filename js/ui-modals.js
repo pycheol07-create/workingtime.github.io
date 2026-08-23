@@ -1,6 +1,6 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule } from './state.js';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
 import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js';
 import { onLeaveScheduleChanged } from './leave-schedule-sync.js';
@@ -478,6 +478,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             '연차':    'bg-blue-50 text-blue-700 border-blue-200',
             '출장':    'bg-purple-50 text-purple-700 border-purple-200',
             '결근':    'bg-red-50 text-red-700 border-red-200',
+            '기타':    'bg-gray-100 text-gray-700 border-gray-300',
             '휴직':    'bg-gray-100 text-gray-700 border-gray-300',
             '매장근무': 'bg-emerald-50 text-emerald-700 border-emerald-200',
             '재택근무': 'bg-teal-50 text-teal-700 border-teal-200',
@@ -594,12 +595,20 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         if (e.target.classList.contains('leave-type-radio')) {
             const selectedType = e.target.value;
             
-            // 날짜 선택형 항목들
-            const dateTypes = ['연차', '출장', '매장근무', '재택근무', '휴직', '결근', '외근'];
-            // 시간 선택형 항목들
-            const timeTypes = ['외출', '지각', '조퇴'];
+            // '기타'를 고르면 항목명 직접 입력칸을 연다.
+            const otherWrap = document.getElementById('leave-other-label-wrap');
+            const otherInput = document.getElementById('leave-other-label-input');
+            if (otherWrap) {
+                const isOther = (selectedType === OTHER_LEAVE_TYPE);
+                otherWrap.classList.toggle('hidden', !isOther);
+                if (isOther && otherInput) setTimeout(() => otherInput.focus(), 30);
+                if (!isOther && otherInput) otherInput.value = '';
+            }
 
-            if (dateTypes.includes(selectedType)) {
+            // 기간(날짜) 선택형 / 시간 선택형 — 종류 목록은 state.js 한 곳에서만 관리한다.
+            const timeTypes = TIME_BASED_LEAVE_TYPES;
+
+            if (isPersistentLeaveType(selectedType)) {
                 if(dateInputsDiv) dateInputsDiv.classList.remove('hidden');
                 if(timeInputsDiv) timeInputsDiv.classList.add('hidden');
                 

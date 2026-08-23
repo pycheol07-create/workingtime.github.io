@@ -43,18 +43,34 @@ export const setPersistentLeaveSchedule = (val) => { persistentLeaveSchedule = v
 
 // --- Constants ---
 export const AUTO_SAVE_INTERVAL = 1 * 60 * 1000;
-// ✅ '재택근무', '휴직' 항목 추가
-export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장', '지각', '매장근무', '재택근무', '휴직', '외근'];
+// '기타'는 목록에 없는 근태를 직접 적어 쓰는 항목. 선택하면 항목명을 수기로 입력받고,
+// 그 값은 entry.customLabel 에 저장한다(type 은 '기타' 그대로 유지).
+// ⚠️ type 에 사용자 입력을 그대로 넣지 말 것 — 기간형 판정·집계·필터가 전부 깨진다.
+export const OTHER_LEAVE_TYPE = '기타';
+export const LEAVE_TYPES = ['연차', '외출', '조퇴', '결근', '출장', '지각', '매장근무', '재택근무', '기타', '외근'];
+
+// 더 이상 새로 고를 수는 없지만 과거 기록에 남아 있을 수 있는 종류.
+// (2026-07-30 '휴직' → '기타' 로 교체. 예전 기록이 기간형으로 계속 인식되도록 남겨둔다)
+export const LEGACY_LEAVE_TYPES = ['휴직'];
 
 // 근태는 두 갈래로 나뉜다.
 //  · 당일형(TIME_BASED): 시각(startTime)만 있고 그날 daily_data에 직접 저장됨
 //  · 기간형(PERSISTENT): 시작~종료일(startDate/endDate)을 갖고 persistent_data/leaveSchedule에 저장됨
-// 기간형 목록은 LEAVE_TYPES에서 당일형을 뺀 나머지로 자동 계산한다.
+// 기간형 목록은 (LEAVE_TYPES + 과거 종류)에서 당일형을 뺀 나머지로 자동 계산한다.
 // ⚠️ 개별 화면에서 ['연차','출장','결근'] 같은 목록을 직접 적지 말 것.
-//    그렇게 하면 휴직·재택근무·외근처럼 나중에 추가된 종류가 조용히 누락된다.
+//    그렇게 하면 나중에 추가·변경된 종류가 조용히 누락된다.
 export const TIME_BASED_LEAVE_TYPES = ['외출', '조퇴', '지각'];
-export const PERSISTENT_LEAVE_TYPES = LEAVE_TYPES.filter(t => !TIME_BASED_LEAVE_TYPES.includes(t));
+export const PERSISTENT_LEAVE_TYPES = [...LEAVE_TYPES, ...LEGACY_LEAVE_TYPES]
+    .filter(t => !TIME_BASED_LEAVE_TYPES.includes(t));
 export const isPersistentLeaveType = (type) => PERSISTENT_LEAVE_TYPES.includes(type);
+
+/** 화면에 표시할 근태 이름. '기타'는 직접 입력한 항목명을 괄호로 함께 보여준다. */
+export const leaveTypeLabel = (entry) => {
+    if (!entry) return '';
+    const type = entry.type || '';
+    const custom = (entry.customLabel || '').trim();
+    return (type === OTHER_LEAVE_TYPE && custom) ? `${type}(${custom})` : type;
+};
 
 // --- State Objects ---
 export const context = {

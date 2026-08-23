@@ -9,6 +9,7 @@
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
 import * as State from './state.js';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js';
 import { showToast, getTodayDateString, getRegularMembersForCount } from './utils.js';
 import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js';
 import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js';
@@ -31,7 +32,9 @@ export const EVENT_TYPES = [
 ];
 const typeOf = (id) => EVENT_TYPES.find(t => t.id === id) || EVENT_TYPES[0];
 
-const LEAVE_TYPES = ['연차', '반차', '출장', '결근', '매장근무', '재택근무', '휴직', '외근'];
+// 캘린더에서 고를 수 있는 근태 종류.
+// 기간형 종류(state.js)를 그대로 쓰되, 캘린더에만 있던 '반차'는 앞쪽에 유지한다.
+const CAL_LEAVE_TYPES = ['연차', '반차', ...PERSISTENT_LEAVE_TYPES.filter(t => t !== '연차' && !LEGACY_LEAVE_TYPES.includes(t))];
 const LEAVE_COLOR = '#ef4444';
 const INCOMING_COLOR = '#f97316';
 
@@ -202,7 +205,7 @@ function allRanges() {
         if (!l || !l.startDate) return;
         out.push({
             kind: 'leave', id: l.id, color: LEAVE_COLOR,
-            label: `${l.member} ${l.type}`,
+            label: `${l.member} ${leaveTypeLabel(l)}`,
             sub: '근태 예정',
             start: l.startDate,
             end: l.endDate && l.endDate >= l.startDate ? l.endDate : l.startDate,
@@ -580,9 +583,14 @@ function ensureModal() {
                         <div>
                             <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">근태 유형</label>
                             <select id="cal-f-leavetype" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
-                                ${LEAVE_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
+                                ${CAL_LEAVE_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
                             </select>
                         </div>
+                    </div>
+                    <div id="cal-f-other-wrap" class="hidden">
+                        <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">항목명 직접 입력 <span class="text-red-500">*</span></label>
+                        <input type="text" id="cal-f-otherlabel" maxlength="20" placeholder="예: 교육, 예비군, 경조사"
+                            class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
                     </div>
                 </div>
 
@@ -605,6 +613,14 @@ function ensureModal() {
         </div>
     </div>`;
     document.body.appendChild(wrap.firstElementChild);
+
+    // '기타' 선택 시 항목명 입력칸 노출
+    const typeSel = document.getElementById('cal-f-leavetype');
+    const toggleOther = () => {
+        const wrap = document.getElementById('cal-f-other-wrap');
+        if (wrap) wrap.classList.toggle('hidden', typeSel.value !== OTHER_LEAVE_TYPE);
+    };
+    if (typeSel) typeSel.addEventListener('change', toggleOther);
 
     document.getElementById('cal-modal-close').addEventListener('click', closeModal);
     document.getElementById('cal-modal-cancel').addEventListener('click', closeModal);
@@ -654,6 +670,10 @@ function openModal(mode, dateStr, existing = null) {
         sel.innerHTML = members.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
         if (existing?.member) sel.value = existing.member;
         document.getElementById('cal-f-leavetype').value = existing?.type || '연차';
+        const otherInput = document.getElementById('cal-f-otherlabel');
+        const otherWrap = document.getElementById('cal-f-other-wrap');
+        if (otherInput) otherInput.value = existing?.customLabel || '';
+        if (otherWrap) otherWrap.classList.toggle('hidden', (existing?.type || '연차') !== OTHER_LEAVE_TYPE);
         start.value = existing?.startDate || dateStr;
         end.value = existing?.endDate || existing?.startDate || dateStr;
     }
@@ -688,10 +708,15 @@ async function submitModal() {
     } else {
         const member = document.getElementById('cal-f-member').value;
         if (!member) return showModalError('대상자를 선택해주세요.');
+        const leaveType = document.getElementById('cal-f-leavetype').value;
+        if (leaveType === OTHER_LEAVE_TYPE && !(document.getElementById('cal-f-otherlabel')?.value || '').trim()) {
+            return showModalError('기타 항목명을 입력해주세요.');
+        }
         payload = {
             id: editingId,
             member,
             type: document.getElementById('cal-f-leavetype').value,
+            customLabel: (document.getElementById('cal-f-otherlabel')?.value || '').trim(),
             startDate,
             endDate
         };

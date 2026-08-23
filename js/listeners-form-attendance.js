@@ -3,7 +3,7 @@
 
 import * as DOM from './dom-elements.js';
 import * as State from './state.js';
-import { isPersistentLeaveType } from './state.js';
+import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js';
 import { showToast, getTodayDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js';
 import { saveStateToFirestore } from './app-data.js';
@@ -114,6 +114,17 @@ export function setupFormAttendanceListeners() {
 
             const type = selectedTypeRadio.value;
             const today = getTodayDateString();
+
+            // '기타'는 항목명을 반드시 직접 입력받는다. (type 은 '기타' 그대로, 이름은 customLabel 에)
+            let customLabel = '';
+            if (type === OTHER_LEAVE_TYPE) {
+                customLabel = (document.getElementById('leave-other-label-input')?.value || '').trim();
+                if (!customLabel) {
+                    showToast('기타 항목명을 입력해주세요.', true);
+                    document.getElementById('leave-other-label-input')?.focus();
+                    return;
+                }
+            }
             const startDate = document.getElementById('leave-start-date-input').value || today;
             const endDate = document.getElementById('leave-end-date-input').value || startDate;
 
@@ -175,6 +186,8 @@ export function setupFormAttendanceListeners() {
                             leaveEntry.type = type;
                             leaveEntry.startDate = startDate;
                             leaveEntry.endDate = endDate;
+                            if (type === OTHER_LEAVE_TYPE) leaveEntry.customLabel = customLabel;
+                            else delete leaveEntry.customLabel;
                             isEdit = true;
                             delete DOM.confirmLeaveBtn.dataset.editingId;
                             DOM.confirmLeaveBtn.textContent = '설정 저장';
@@ -185,7 +198,8 @@ export function setupFormAttendanceListeners() {
                             member: memberName,
                             type,
                             startDate,
-                            endDate
+                            endDate,
+                            ...(type === OTHER_LEAVE_TYPE ? { customLabel } : {})
                         };
                         currentLeaves.push(leaveEntry);
                     }
@@ -209,7 +223,7 @@ export function setupFormAttendanceListeners() {
                         if (typeof window.__refreshUpcomingLeave === 'function') window.__refreshUpcomingLeave();
                     } else {
                         if (type === '연차') showToast(`${memberName}님 ${diffDays}일(평일기준) 연차 처리 완료.`);
-                        else showToast(`${memberName}님 ${type} 처리 완료.`);
+                        else showToast(`${memberName}님 ${leaveTypeLabel(leaveEntry)} 처리 완료.`);
                     }
                     document.getElementById('leave-start-date-input').value = '';
                     document.getElementById('leave-end-date-input').value = '';

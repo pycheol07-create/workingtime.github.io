@@ -6,8 +6,11 @@ import { context, LEAVE_TYPES } from './state.js';
 
 // 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 표에서 누락되지 않는다.
-const ATT_COL_BASE = ['지각', '외출', '조퇴', '결근', '연차', '출장', '매장근무', '재택근무', '휴직', '외근'];
+const ATT_COL_BASE = ['지각', '외출', '조퇴', '결근', '연차', '출장', '매장근무', '재택근무', '기타', '외근'];
 const ATT_COLS = [...ATT_COL_BASE, ...LEAVE_TYPES.filter(t => !ATT_COL_BASE.includes(t))];
+// 데이터에 실제로 존재하는 종류만 뒤에 덧붙인다(예: 예전 '휴직' 기록).
+// 쓰지 않는 옛 종류로 빈 열이 생기지 않으면서, 남아 있는 기록도 숨겨지지 않는다.
+const attColsFor = (types) => [...ATT_COLS, ...[...new Set(types)].filter(t => t && !ATT_COLS.includes(t))];
 
 // --- 헬퍼: 정렬 아이콘 ---
 const getSortIcon = (currentKey, currentDir, targetKey) => {
@@ -723,6 +726,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     // 4. 근태 현황
     let attDataList = [];
     const attSummaryMap = {};
+    const seenAttTypes = new Set();  // 실제 데이터에 등장한 근태 종류(옛 종류 포함)
     
     (attendanceData || []).forEach(entry => {
         if (!attSummaryMap[entry.member]) {
@@ -736,6 +740,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
         }
         const rec = attSummaryMap[entry.member];
         const type = entry.type;
+        if (type) seenAttTypes.add(type);
 
         if (rec.counts.hasOwnProperty(type)) {
             rec.counts[type]++;
@@ -758,6 +763,8 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
         attDataList = attDataList.filter(d => d.member === filterState.attendanceSummary.member);
     }
 
+    // 데이터에 실제로 있는 종류까지 포함해 열을 구성한다
+    const attCols = attColsFor(seenAttTypes);
     const aSort = sortState.attendanceSummary || { key: 'member', dir: 'asc' };
     attDataList.sort((a, b) => {
         let vA = 0, vB = 0;
@@ -781,7 +788,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
                 <tr>
                     ${th_att('member', '이름', 'sticky left-0 bg-gray-100 z-10')}
-                    ${ATT_COLS.map(t => th_att(t, t)).join('')}
+                    ${attCols.map(t => th_att(t, t)).join('')}
                     ${th_att('totalCount', '총 횟수')}
                     ${th_att('totalAbsenceDays', '총 결근일')}
                     ${th_att('totalLeaveDays', '총 연차일')}
@@ -796,7 +803,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             html += `
                 <tr class="bg-white hover:bg-gray-50">
                     <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${item.member}</td>
-                    ${ATT_COLS.map(t => {
+                    ${attCols.map(t => {
                         const v = item.counts[t] || 0;
                         if (t === '결근') return `<td class="px-4 py-3 text-center ${v>0?'text-red-600 font-bold':'text-gray-300'}">${v}</td>`;
                         if (t === '연차') return `<td class="px-4 py-3 text-center ${v>0?'text-blue-600 font-bold':'text-gray-300'}">${v}</td>`;

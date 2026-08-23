@@ -2,7 +2,7 @@
 // 설명: '개인 리포트' 탭의 데이터 집계 및 렌더링 로직을 담당합니다.
 
 import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday } from './utils.js';
-import { appConfig, context, LEAVE_TYPES, db } from './state.js';
+import { appConfig, context, LEAVE_TYPES, db, leaveTypeLabel } from './state.js';
 import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js';
 import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -212,7 +212,7 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
                 detail = leave.startDate + (leave.endDate && leave.endDate !== leave.startDate ? ` ~ ${leave.endDate}` : '');
             }
             
-            stats.attendanceLogs.push({ date, type, detail });
+            stats.attendanceLogs.push({ date, type, detail, label: leaveTypeLabel(leave) });
             dayAttendanceStatus.push(type);
         });
 
@@ -501,7 +501,7 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                              ${attLogs.map(log => `
                                 <tr class="hover:bg-red-50">
                                     <td class="px-4 py-2 font-medium">${log.date}</td>
-                                    <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-xs font-bold ${log.type==='지각'||log.type==='결근'?'bg-red-100 text-red-700':'bg-gray-100 text-gray-700'}">${log.type}</span></td>
+                                    <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-xs font-bold ${log.type==='지각'||log.type==='결근'?'bg-red-100 text-red-700':'bg-gray-100 text-gray-700'}">${log.label || log.type}</span></td>
                                     <td class="px-4 py-2 text-gray-500">${log.detail}</td>
                                 </tr>
                             `).join('')}

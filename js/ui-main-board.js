@@ -1,6 +1,7 @@
 // === js/ui-main-board.js ===
 import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js';
 import * as State from './state.js';
+import { leaveTypeLabel } from './state.js';
 import { onLeaveScheduleChanged } from './leave-schedule-sync.js';
 import { getLeaveDisplayLabel } from './ui-main-utils.js';
 
@@ -664,7 +665,7 @@ export const renderLeaveScheduleWidget = () => {
     const items = leaves.map(l => {
         const start = l.startDate || l.date || (l.startTime ? String(l.startTime).substring(0, 10) : '');
         const end = l.endDate || start;
-        return { member: l.member || l.name || '', type: l.type || '', start, end };
+        return { member: l.member || l.name || '', type: l.type || '', customLabel: l.customLabel || '', start, end };
     }).filter(l => l.start && l.end >= today)
       .sort((a, b) => (a.start || '').localeCompare(b.start || '') || (a.member || '').localeCompare(b.member || ''));
 
@@ -702,7 +703,7 @@ export const renderLeaveScheduleWidget = () => {
             byKey.set(key, g);
             groups.push(g);
         }
-        g.members.push({ member: l.member, type: l.type });
+        g.members.push({ member: l.member, type: l.type, customLabel: l.customLabel });
     });
 
     el.innerHTML = groups.map(g => {
@@ -711,7 +712,7 @@ export const renderLeaveScheduleWidget = () => {
         const chips = g.members.map(m => `
             <span class="flex items-center gap-1.5 w-full">
                 <span class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate" title="${esc(m.member)}">${esc(m.member)}</span>
-                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ml-auto ${tone(m.type)}">${esc(m.type)}</span>
+                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ml-auto ${tone(m.type)}" title="${esc(leaveTypeLabel(m))}">${esc(leaveTypeLabel(m))}</span>
             </span>`).join('');
         return `<div class="flex items-start gap-2 px-2 py-1.5 rounded-lg ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'} transition-colors">
             <span class="text-[11px] font-bold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'} w-[56px] shrink-0 pt-0.5">${esc(dLabel(g.start, g.end))}</span>
