@@ -96,8 +96,9 @@ async function fetchSheet(sheetId, force, opts = {}) {
     if (!config.scriptUrl) throw new Error('Apps Script URL이 설정되지 않았습니다. (⚙️ 설정)');
     const tab = (opts.tabName || '').trim();
     const range = (opts.range || '').trim();
-    // 탭·범위가 다르면 다른 데이터이므로 캐시도 따로 둔다.
-    const cacheKey = 'sheetdash_' + sheetId + '|' + tab + '|' + range;
+    // 캐시는 '등록한 시트 항목(localId)' 단위로 둔다.
+    // 같은 스프레드시트를 탭만 달리해 두 번 등록해도 서로의 데이터를 물려받지 않는다.
+    const cacheKey = 'sheetdash_' + (opts.localId || sheetId) + '|' + tab + '|' + range;
     if (!force) {
         try {
             const c = JSON.parse(localStorage.getItem(cacheKey) || 'null');
@@ -412,6 +413,7 @@ function renderAll() {
                     <button data-refresh="${cfg.localId}" class="text-xs px-2 py-1.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700" title="새로고침">🔄</button>
                 </div>
             </div>
+            <div id="warn-${cfg.localId}" class="hidden"></div>
             <div id="body-${cfg.localId}" class="overflow-auto" style="max-height:calc(100vh - 256px); min-height:220px;">
                 <div class="p-6 text-center text-slate-400 text-sm">불러오는 중…</div>
             </div>`;
@@ -482,14 +484,32 @@ async function loadCard(cfg, force) {
     if (!body) return;
     try {
         body.innerHTML = `<div class="p-6 text-center text-slate-400 text-sm">불러오는 중…</div>`;
-        const data = await fetchSheet(cfg.sheetId, force, { tabName: cfg.tabName, range: cfg.range });
+        const data = await fetchSheet(cfg.sheetId, force, { localId: cfg.localId, tabName: cfg.tabName, range: cfg.range });
         cardData[cfg.localId] = data;
         const orderIdx = orderColsFor(cfg, data.headers);
         if (orderIdx) renderKpi(cfg, data, orderIdx);
         else renderSheetTable(cfg, data);
+
+        // 탭을 지정했는데 다른 탭 내용이 왔다면(= Apps Script가 tab 값을 무시) 알려 준다.
+        // 이걸 알리지 않으면 같은 스프레드시트의 두 시트가 똑같은 내용으로 보인다.
+        // 표 영역이 아니라 전용 자리에 두어, 컬럼을 다시 골라도 경고가 사라지지 않게 한다.
+        const warnEl = $('warn-' + cfg.localId);
+        const wantTab = (cfg.tabName || '').trim();
+        const gotTab = String(data.sheetName || '').trim();
+        const tabIgnored = wantTab && gotTab && norm(gotTab) !== norm(wantTab);
+        if (warnEl) {
+            warnEl.classList.toggle('hidden', !tabIgnored);
+            warnEl.innerHTML = tabIgnored
+                ? `<div class="mx-4 mt-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-relaxed">
+                       ⚠️ 지정한 탭 <b>${esc(wantTab)}</b> 대신 <b>${esc(gotTab)}</b> 탭 내용이 왔습니다.
+                       Apps Script가 <code>tab</code> 값을 받아 처리하도록 고쳐야 탭 선택이 적용됩니다.
+                   </div>` : '';
+        }
         const ts = data.ts ? new Date(data.ts) : new Date();
         if (cnt) cnt.textContent = `· ${data.rows.length}행 · ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')} 갱신`;
     } catch (e) {
+        const w = $('warn-' + cfg.localId);
+        if (w) { w.innerHTML = ''; w.classList.add('hidden'); }
         body.innerHTML = `<div class="p-6 text-center text-red-500 text-sm">⚠️ ${esc(e.message)}</div>`;
     }
     scheduleFit();
@@ -641,7 +661,13 @@ $('btn-save-cols').onclick = async () => {
     const checks = [...$('cols-list').querySelectorAll('input[type=checkbox]')];
     cfg.hiddenCols = checks.filter(c => !c.checked).map(c => c.value);
     await saveConfig(); hide('cols-modal');
-    if (cardData[localId]) renderSheetTable(cfg, cardData[localId]);
+    // 이 시트의 보기 방식(KPI / 표)을 그대로 유지한 채 다시 그린다.
+    // 예전에는 무조건 표로 그려서, 컬럼을 한 번 체크했다 풀면 화면이 바뀌어 보였다.
+    const d = cardData[localId];
+    if (d) {
+        const ix = orderColsFor(cfg, d.headers);
+        if (ix) renderKpi(cfg, d, ix); else renderSheetTable(cfg, d);
+    }
 };
 
 // 모달 공용 닫기
