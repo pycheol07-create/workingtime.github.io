@@ -151,24 +151,22 @@ const norm = (h) => String(h == null ? '' : h).replace(/[\s\n]/g, '');
 const periodState = {}; // localId -> 'today'|'week'|'month'|'year'|'custom'
 const periodRange = {}; // localId -> { from, to }  (custom 기간 조회용)
 
-/** 시트마다 정해 둔 보기 방식.
- *  'table' 기본 표 / 'kpi' 오더·결제 KPI 화면 / 'auto' 머리글 보고 판단(예전 방식).
- *  서로 다른 스프레드시트라도 머리글 양식이 같으면 자동 판별은 똑같이 잡히므로,
- *  탭별로 직접 골라 둘 수 있게 한다. */
+/** 시트마다 정해 둔 보기 방식 — 'kpi'(오더·결제 화면)로 직접 지정한 시트만 특별 화면이다.
+ *  예전에는 머리글을 보고 자동 판별했는데, 서로 다른 스프레드시트라도 양식이 같으면
+ *  모두 같은 화면으로 잡혀서(금액관리 ↔ 패킹·송금관리) 구분이 되지 않았다.
+ *  그래서 특별 화면은 '켠 시트만' 쓰도록 바꿨다. 나머지는 전부 시트 그대로 표로 본다. */
 const VIEW_BADGE = {
-    table: { text: '기본 표',   cls: 'bg-slate-100 text-slate-500' },
-    kpi:   { text: '금액관리',  cls: 'bg-indigo-100 text-indigo-700' },
-    auto:  { text: '자동',      cls: 'bg-amber-100 text-amber-700' }
+    table: { text: '기본 표',  cls: 'bg-slate-100 text-slate-500' },
+    kpi:   { text: '금액관리', cls: 'bg-indigo-100 text-indigo-700' }
 };
 
 function viewModeOf(cfg) {
-    const m = cfg && cfg.viewMode;
-    return (m === 'table' || m === 'kpi') ? m : 'auto';
+    return (cfg && cfg.viewMode === 'kpi') ? 'kpi' : 'table';
 }
 
-/** KPI 화면에 쓸 열 위치. 표로 보기로 정한 시트는 아예 찾지 않는다. */
+/** KPI 화면에 쓸 열 위치. 'kpi'로 지정한 시트에서만 찾는다. */
 function orderColsFor(cfg, headers) {
-    if (viewModeOf(cfg) === 'table') return null;
+    if (viewModeOf(cfg) !== 'kpi') return null;
     return detectOrderCols(headers);
 }
 
@@ -648,7 +646,7 @@ $('btn-save-sheet').onclick = async () => {
     if (!name || !sheetId) { alert('이름과 시트 URL을 입력하세요.'); return; }
     const tabName = getVal('inp-sheet-tab').trim();
     const range = getVal('inp-sheet-range').trim();
-    const viewMode = getVal('inp-sheet-view', 'auto');
+    const viewMode = getVal('inp-sheet-view', 'table');
     if (range && !parseA1Range(range)) {
         alert('범위 형식을 확인해주세요.\n\n예) A1:H200 · B:F · A5: · 3:100');
         return;
