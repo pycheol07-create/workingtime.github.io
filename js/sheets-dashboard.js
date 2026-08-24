@@ -359,7 +359,7 @@ function renderAll() {
                 </div>
             </div>
             <div id="summary-${cfg.localId}" class="px-4 py-2.5 flex flex-wrap gap-2 border-b border-slate-50 bg-slate-50/50"></div>
-            <div id="body-${cfg.localId}" class="overflow-auto" style="max-height:calc(100vh - 260px); min-height:220px;">
+            <div id="body-${cfg.localId}" class="overflow-auto" style="max-height:calc(100vh - 256px); min-height:220px;">
                 <div class="p-6 text-center text-slate-400 text-sm">불러오는 중…</div>
             </div>`;
         card.classList.toggle('hidden', cfg.localId !== activeSheetId);
@@ -381,6 +381,25 @@ function renderTabs() {
                  data-tab="${esc(cfg.localId)}">${esc(cfg.name || '시트')}</button>`).join('');
 }
 
+/** 보이는 카드의 표 영역이 화면 아래까지 꽉 차도록 높이를 맞춘다.
+ *  머리글 줄이 접히는 좁은 화면에서도 어긋나지 않게, 고정값 대신 실제 위치를 잰다. */
+function fitCardHeight() {
+    const body = $('body-' + activeSheetId);
+    if (!body) return;
+    const top = body.getBoundingClientRect().top;
+    const h = Math.max(220, Math.round(window.innerHeight - top - 16));
+    body.style.maxHeight = h + 'px';
+}
+
+// 요약 칩 줄 수는 글꼴이 늦게 로드되면 한 번 더 바뀐다 → 잠시 뒤 다시 맞춘다.
+let fitTimer = null;
+function scheduleFit() {
+    fitCardHeight();
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(fitCardHeight, 120);
+}
+window.addEventListener('resize', fitCardHeight);
+
 /** 탭 전환 — 해당 카드만 보이고, 처음 여는 탭이면 그때 불러온다. */
 function activateSheet(localId) {
     if (!config.sheets.some(s => s.localId === localId)) return;
@@ -396,6 +415,7 @@ function activateSheet(localId) {
         const cfg = config.sheets.find(s => s.localId === localId);
         if (cfg) loadCard(cfg, false);
     }
+    scheduleFit();
 }
 
 $('sheet-tabs').addEventListener('click', (e) => {
@@ -421,6 +441,7 @@ async function loadCard(cfg, force) {
         if (summary) summary.innerHTML = '';
         body.innerHTML = `<div class="p-6 text-center text-red-500 text-sm">⚠️ ${esc(e.message)}</div>`;
     }
+    scheduleFit();
 }
 
 const cardData = {}; // localId -> {headers, rows, sheetName}
