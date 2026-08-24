@@ -102,6 +102,13 @@
                 <span class="text-amber-600">탭 이름</span>은 Apps Script가 <code>tab</code> 값을 지원할 때만 적용됩니다.
                 범위는 스크립트가 지원하지 않아도 받아온 뒤 잘라서 보여줍니다.
             </p>
+            <label class="flex items-start gap-2 text-xs text-slate-600 mb-4 cursor-pointer">
+                <input type="checkbox" id="inp-sheet-plain" class="w-4 h-4 mt-0.5">
+                <span><b>표로만 보기</b> — 오더/결제 KPI 화면을 쓰지 않고 시트 내용을 그대로 표로 보여줍니다.<br>
+                <span class="text-slate-400">금액관리처럼 별도 화면이 필요한 시트가 아니라면 켜세요.
+                (양식이 같으면 자동으로 KPI 화면이 잡히기 때문입니다)</span></span>
+            </label>
+
             <div class="flex justify-between items-center">
                 <button id="btn-delete-sheet" class="hidden px-3 py-2 text-xs rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold">삭제</button>
                 <div class="flex gap-2 ml-auto">

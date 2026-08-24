@@ -149,6 +149,14 @@ const norm = (h) => String(h == null ? '' : h).replace(/[\s\n]/g, '');
 const periodState = {}; // localId -> 'today'|'week'|'month'|'year'|'custom'
 const periodRange = {}; // localId -> { from, to }  (custom 기간 조회용)
 
+/** 이 시트를 오더/결제 KPI 화면으로 볼지 결정한다.
+ *  머리글 모양만으로 자동 판별하면, 양식이 같은 다른 시트(예: 패킹·송금관리)까지
+ *  KPI 화면으로 잡힌다. 시트 설정에서 '표로만 보기'를 켜면 그냥 표로 보여준다. */
+function orderColsFor(cfg, headers) {
+    if (cfg && cfg.viewMode === 'table') return null;
+    return detectOrderCols(headers);
+}
+
 function detectOrderCols(headers) {
     const find = (pred) => { const i = (headers || []).findIndex(h => pred(norm(h))); return i < 0 ? null : i; };
     const idx = {
@@ -216,7 +224,7 @@ function rerenderKpiCards() {
     config.sheets.forEach(cfg => {
         const d = cardData[cfg.localId];
         if (!d) return;
-        const ix = detectOrderCols(d.headers);
+        const ix = orderColsFor(cfg, d.headers);
         if (ix) renderKpi(cfg, d, ix);
     });
 }
@@ -476,7 +484,7 @@ async function loadCard(cfg, force) {
         body.innerHTML = `<div class="p-6 text-center text-slate-400 text-sm">불러오는 중…</div>`;
         const data = await fetchSheet(cfg.sheetId, force, { tabName: cfg.tabName, range: cfg.range });
         cardData[cfg.localId] = data;
-        const orderIdx = detectOrderCols(data.headers);
+        const orderIdx = orderColsFor(cfg, data.headers);
         if (orderIdx) renderKpi(cfg, data, orderIdx);
         else renderSheetTable(cfg, data);
         const ts = data.ts ? new Date(data.ts) : new Date();
@@ -529,14 +537,14 @@ $('sheets-container').addEventListener('click', (e) => {
 $('sheets-container').addEventListener('input', (e) => {
     const s = e.target.closest('[id^="search-"]');
     if (s) { const id = s.id.replace('search-', ''); const cfg = config.sheets.find(x => x.localId === id);
-        if (cfg && cardData[id] && !detectOrderCols(cardData[id].headers)) renderSheetTable(cfg, cardData[id]); }
+        if (cfg && cardData[id] && !orderColsFor(cfg, cardData[id].headers)) renderSheetTable(cfg, cardData[id]); }
 });
 // 기간 드롭다운/날짜 입력 변경 → 해당 시트만 다시 렌더
 $('sheets-container').addEventListener('change', (e) => {
     const rerender = (id) => {
         const cfg = config.sheets.find(s => s.localId === id);
         const d = cardData[id];
-        const ix = d && detectOrderCols(d.headers);
+        const ix = d && orderColsFor(cfg, d.headers);
         if (cfg && ix) renderKpi(cfg, d, ix);
     };
     const sel = e.target.closest('[data-period-sel]');
@@ -577,6 +585,7 @@ function openSheetModal(localId) {
     $('inp-sheet-url').value = cfg ? cfg.sheetId : '';
     $('inp-sheet-tab').value = cfg ? (cfg.tabName || '') : '';
     $('inp-sheet-range').value = cfg ? (cfg.range || '') : '';
+    $('inp-sheet-plain').checked = cfg ? (cfg.viewMode === 'table') : false;
     $('btn-delete-sheet').classList.toggle('hidden', !cfg);
     show('sheet-modal');
 }
@@ -586,6 +595,7 @@ $('btn-save-sheet').onclick = async () => {
     if (!name || !sheetId) { alert('이름과 시트 URL을 입력하세요.'); return; }
     const tabName = $('inp-sheet-tab').value.trim();
     const range = $('inp-sheet-range').value.trim();
+    const viewMode = $('inp-sheet-plain').checked ? 'table' : 'auto';
     if (range && !parseA1Range(range)) {
         alert('범위 형식을 확인해주세요.\n\n예) A1:H200 · B:F · A5: · 3:100');
         return;
@@ -594,10 +604,10 @@ $('btn-save-sheet').onclick = async () => {
     const localId = $('inp-sheet-localid').value;
     if (localId) {
         const cfg = config.sheets.find(s => s.localId === localId);
-        if (cfg) { cfg.name = name; cfg.sheetId = sheetId; cfg.tabName = tabName; cfg.range = range; }
+        if (cfg) { cfg.name = name; cfg.sheetId = sheetId; cfg.tabName = tabName; cfg.range = range; cfg.viewMode = viewMode; }
     } else {
         const localId = uid();
-        config.sheets.push({ localId, name, sheetId, tabName, range, hiddenCols: [] });
+        config.sheets.push({ localId, name, sheetId, tabName, range, viewMode, hiddenCols: [] });
         activeSheetId = localId;   // 새로 추가한 시트를 바로 보여준다
     }
     await saveConfig(); hide('sheet-modal'); renderAll();
