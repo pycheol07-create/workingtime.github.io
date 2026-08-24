@@ -35,10 +35,17 @@ const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 const isLow = (it) => num(it.safetyStock) > 0 && num(it.stock) <= num(it.safetyStock);
 const stockValueOf = (it) => num(it.stock) * num(it.unitPrice);
 
+/** 문자열 안의 네 자리 이상 숫자에 천 단위 쉼표를 넣는다.
+ *  MOQ는 '1박스 = 10000장'처럼 자유 입력이라, 숫자 부분만 골라 찍는다.
+ *  이미 찍혀 있던 쉼표는 먼저 지우고 다시 계산해 중복을 막는다. */
+const withThousands = (s) => String(s == null ? '' : s)
+    .replace(/\d{1,3}(?:,\d{3})+/g, m => m.replace(/,/g, ''))
+    .replace(/\d{4,}/g, m => Number(m).toLocaleString());
+
 /** 발주정보 칸에 들어가는 문자열 — 표시와 필터가 같은 값을 보도록 한 곳에서 만든다. */
 function orderInfoOf(it) {
     const parts = [];
-    if (it.orderUnit) parts.push(it.orderUnit);
+    if (it.orderUnit) parts.push(withThousands(it.orderUnit));
     if (num(it.leadTimeDays) > 0) parts.push(`리드타임 ${num(it.leadTimeDays)}일`);
     if (it.lastOrderDate) parts.push(`최근발주 ${it.lastOrderDate}`);
     if (it.memo) parts.push(it.memo);
@@ -462,7 +469,7 @@ function openItemModal(id = null) {
     $('f-size').value = it?.size || '';
     $('f-vendor').value = it?.vendor || '';
     $('f-vendor-contact').value = it?.vendorContact || '';
-    $('f-order-unit').value = it?.orderUnit || '';
+    $('f-order-unit').value = withThousands(it?.orderUnit || '');
     $('f-leadtime').value = it ? (num(it.leadTimeDays) || '') : '';
     $('f-last-order').value = it?.lastOrderDate || '';
     $('f-memo').value = it?.memo || '';
@@ -489,7 +496,7 @@ async function saveItem() {
         size: $('f-size').value.trim(),
         vendor: $('f-vendor').value.trim(),
         vendorContact: $('f-vendor-contact').value.trim(),
-        orderUnit: $('f-order-unit').value.trim(),
+        orderUnit: withThousands($('f-order-unit').value.trim()),
         leadTimeDays: num($('f-leadtime').value),
         lastOrderDate: $('f-last-order').value,
         memo: $('f-memo').value.trim(),
@@ -634,6 +641,9 @@ $('btn-reset-filters').addEventListener('click', resetAllFilters);
     $(id).addEventListener('input', renderTable);
     $(id).addEventListener('change', renderTable);
 });
+
+// MOQ는 입력을 마치면 천 단위 쉼표를 찍어 보여준다.
+$('f-order-unit').addEventListener('blur', (e) => { e.target.value = withThousands(e.target.value); });
 
 $('stock-qty').addEventListener('input', updateStockPreview);
 document.querySelectorAll('input[name="stock-op"]').forEach(r => r.addEventListener('change', updateStockPreview));
