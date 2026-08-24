@@ -227,8 +227,6 @@ function buildDateBreakdown(rows, idx, inPeriod) {
 
 function renderKpi(cfg, data, idx) {
     const body = $('body-' + cfg.localId);
-    const summary = $('summary-' + cfg.localId);
-    if (summary) summary.innerHTML = '';
     if ($('search-' + cfg.localId)) $('search-' + cfg.localId).style.display = 'none';
     const today = getTodayStr();
     const period = periodState[cfg.localId] || 'month:0';
@@ -358,7 +356,6 @@ function renderAll() {
                     <button data-refresh="${cfg.localId}" class="text-xs px-2 py-1.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700" title="새로고침">🔄</button>
                 </div>
             </div>
-            <div id="summary-${cfg.localId}" class="px-4 py-2.5 flex flex-wrap gap-2 border-b border-slate-50 bg-slate-50/50"></div>
             <div id="body-${cfg.localId}" class="overflow-auto" style="max-height:calc(100vh - 256px); min-height:220px;">
                 <div class="p-6 text-center text-slate-400 text-sm">불러오는 중…</div>
             </div>`;
@@ -425,7 +422,6 @@ $('sheet-tabs').addEventListener('click', (e) => {
 
 async function loadCard(cfg, force) {
     const body = $('body-' + cfg.localId);
-    const summary = $('summary-' + cfg.localId);
     const cnt = $('cnt-' + cfg.localId);
     if (!body) return;
     try {
@@ -434,11 +430,10 @@ async function loadCard(cfg, force) {
         cardData[cfg.localId] = data;
         const orderIdx = detectOrderCols(data.headers);
         if (orderIdx) renderKpi(cfg, data, orderIdx);
-        else renderTableAndSummary(cfg, data);
+        else renderSheetTable(cfg, data);
         const ts = data.ts ? new Date(data.ts) : new Date();
         if (cnt) cnt.textContent = `· ${data.rows.length}행 · ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')} 갱신`;
     } catch (e) {
-        if (summary) summary.innerHTML = '';
         body.innerHTML = `<div class="p-6 text-center text-red-500 text-sm">⚠️ ${esc(e.message)}</div>`;
     }
     scheduleFit();
@@ -446,7 +441,10 @@ async function loadCard(cfg, force) {
 
 const cardData = {}; // localId -> {headers, rows, sheetName}
 
-function renderTableAndSummary(cfg, data) {
+// 표만 그린다. 예전에는 위에 '총 n행 · 컬럼별 합계' 칩 줄을 붙였는데,
+// 컬럼이 많으면 여러 줄로 늘어져 표를 가렸고 날짜 같은 컬럼까지 합계가 잡혔다.
+// 행 수는 카드 제목 옆(cnt-*)에 이미 나온다.
+function renderSheetTable(cfg, data) {
     const { headers, rows } = data;
     const hidden = new Set(cfg.hiddenCols || []);
     const visIdx = headers.map((h, i) => i).filter(i => !hidden.has(headers[i]));
@@ -455,16 +453,6 @@ function renderTableAndSummary(cfg, data) {
     // 검색 필터
     const q = ($('search-' + cfg.localId)?.value || '').trim().toLowerCase();
     const filtered = q ? rows.filter(r => visIdx.some(i => String(r[i] == null ? '' : r[i]).toLowerCase().includes(q))) : rows;
-
-    // 요약 칩: 행 수 + 숫자 컬럼 합계(표시 컬럼만)
-    const summary = $('summary-' + cfg.localId);
-    let chips = `<span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">총 ${filtered.length.toLocaleString()}행${q ? ` / ${rows.length}` : ''}</span>`;
-    visIdx.forEach(i => {
-        if (!isNum[i]) return;
-        const sum = filtered.reduce((a, r) => a + (parseNum(r[i]) || 0), 0);
-        chips += `<span class="text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-800">${esc(headers[i])} 합계 <b>${sum.toLocaleString()}</b></span>`;
-    });
-    if (summary) summary.innerHTML = chips;
 
     // 표
     const body = $('body-' + cfg.localId);
@@ -493,7 +481,7 @@ $('sheets-container').addEventListener('click', (e) => {
 $('sheets-container').addEventListener('input', (e) => {
     const s = e.target.closest('[id^="search-"]');
     if (s) { const id = s.id.replace('search-', ''); const cfg = config.sheets.find(x => x.localId === id);
-        if (cfg && cardData[id] && !detectOrderCols(cardData[id].headers)) renderTableAndSummary(cfg, cardData[id]); }
+        if (cfg && cardData[id] && !detectOrderCols(cardData[id].headers)) renderSheetTable(cfg, cardData[id]); }
 });
 // 기간 드롭다운/날짜 입력 변경 → 해당 시트만 다시 렌더
 $('sheets-container').addEventListener('change', (e) => {
@@ -586,7 +574,7 @@ $('btn-save-cols').onclick = async () => {
     const checks = [...$('cols-list').querySelectorAll('input[type=checkbox]')];
     cfg.hiddenCols = checks.filter(c => !c.checked).map(c => c.value);
     await saveConfig(); hide('cols-modal');
-    if (cardData[localId]) renderTableAndSummary(cfg, cardData[localId]);
+    if (cardData[localId]) renderSheetTable(cfg, cardData[localId]);
 };
 
 // 모달 공용 닫기

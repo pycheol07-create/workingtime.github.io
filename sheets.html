@@ -14,7 +14,12 @@
     <style>
         body { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
         .data-table { border-collapse: collapse; width: 100%; font-size: 12px; }
-        .data-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 6px 10px; border: 1px solid #e2e8f0; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+        /* 표 머리글은 스크롤해도 맨 위에 붙어 있는다.
+           border-collapse: collapse 에서는 고정된 칸의 테두리가 같이 스크롤되어 사라지므로,
+           아래쪽 선은 box-shadow 로 그린다. */
+        .data-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 6px 10px;
+                         border: 1px solid #e2e8f0; border-bottom: 0; white-space: nowrap;
+                         position: sticky; top: 0; z-index: 2; box-shadow: inset 0 -1px 0 #cbd5e1; }
         .data-table td { padding: 5px 10px; border: 1px solid #eef2f7; color: #334155; white-space: nowrap; }
         .data-table tr:nth-child(even) td { background: #fafcff; }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
