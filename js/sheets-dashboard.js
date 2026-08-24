@@ -14,6 +14,11 @@ const CACHE_TTL_MS = 10 * 60 * 1000; // 10분 (수동 새로고침으로 즉시 
 
 let config = { scriptUrl: '', sheets: [] };
 
+// 한 번에 한 시트만 보여준다. 마지막으로 보던 탭은 기기별로 기억한다.
+const ACTIVE_KEY = 'sheetDashboardActiveTab';
+let activeSheetId = localStorage.getItem(ACTIVE_KEY) || '';
+const loadedSheets = new Set();   // 탭을 처음 열 때만 불러온다(불필요한 호출 방지)
+
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const uid = () => 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -328,7 +333,15 @@ function renderRawTable(data, mount, dateIdx) {
 function renderAll() {
     const container = $('sheets-container');
     container.innerHTML = '';
+    loadedSheets.clear();
     $('no-config').classList.toggle('hidden', !(config.sheets.length === 0));
+
+    // 지워졌거나 아직 정한 적 없는 탭이면 첫 시트로
+    if (!config.sheets.some(s => s.localId === activeSheetId)) {
+        activeSheetId = config.sheets.length ? config.sheets[0].localId : '';
+    }
+    renderTabs();
+
     config.sheets.forEach(cfg => {
         const card = document.createElement('section');
         card.className = 'bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden';
@@ -346,13 +359,49 @@ function renderAll() {
                 </div>
             </div>
             <div id="summary-${cfg.localId}" class="px-4 py-2.5 flex flex-wrap gap-2 border-b border-slate-50 bg-slate-50/50"></div>
-            <div id="body-${cfg.localId}" class="overflow-auto" style="max-height:60vh;">
+            <div id="body-${cfg.localId}" class="overflow-auto" style="max-height:calc(100vh - 260px); min-height:220px;">
                 <div class="p-6 text-center text-slate-400 text-sm">불러오는 중…</div>
             </div>`;
+        card.classList.toggle('hidden', cfg.localId !== activeSheetId);
         container.appendChild(card);
-        loadCard(cfg, false);
     });
+
+    // 보이는 탭만 불러온다. 나머지는 그 탭을 눌렀을 때.
+    const active = config.sheets.find(s => s.localId === activeSheetId);
+    if (active) { loadedSheets.add(active.localId); loadCard(active, false); }
 }
+
+/** 시트 탭 줄 */
+function renderTabs() {
+    const bar = $('sheet-tabs');
+    if (!bar) return;
+    bar.classList.toggle('hidden', config.sheets.length === 0);
+    bar.innerHTML = config.sheets.map(cfg =>
+        `<button type="button" class="sheet-tab ${cfg.localId === activeSheetId ? 'active' : ''}"
+                 data-tab="${esc(cfg.localId)}">${esc(cfg.name || '시트')}</button>`).join('');
+}
+
+/** 탭 전환 — 해당 카드만 보이고, 처음 여는 탭이면 그때 불러온다. */
+function activateSheet(localId) {
+    if (!config.sheets.some(s => s.localId === localId)) return;
+    activeSheetId = localId;
+    try { localStorage.setItem(ACTIVE_KEY, localId); } catch (_) {}
+    renderTabs();
+    config.sheets.forEach(cfg => {
+        const card = $('card-' + cfg.localId);
+        if (card) card.classList.toggle('hidden', cfg.localId !== localId);
+    });
+    if (!loadedSheets.has(localId)) {
+        loadedSheets.add(localId);
+        const cfg = config.sheets.find(s => s.localId === localId);
+        if (cfg) loadCard(cfg, false);
+    }
+}
+
+$('sheet-tabs').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-tab]');
+    if (t) activateSheet(t.dataset.tab);
+});
 
 async function loadCard(cfg, force) {
     const body = $('body-' + cfg.localId);
@@ -446,7 +495,10 @@ $('sheets-container').addEventListener('change', (e) => {
     }
 });
 
-$('btn-refresh-all').onclick = () => config.sheets.forEach(cfg => loadCard(cfg, true));
+// 이미 열어 본 시트만 다시 부른다. 아직 안 연 탭은 그 탭을 누를 때 불러온다.
+$('btn-refresh-all').onclick = () => config.sheets
+    .filter(cfg => loadedSheets.has(cfg.localId))
+    .forEach(cfg => loadCard(cfg, true));
 
 // 창 닫기 — 별도 창/탭으로 열린 경우 닫고, 브라우저가 막으면 메인으로 복귀
 $('btn-close').onclick = () => {
@@ -478,7 +530,9 @@ $('btn-save-sheet').onclick = async () => {
         const cfg = config.sheets.find(s => s.localId === localId);
         if (cfg) { cfg.name = name; cfg.sheetId = sheetId; }
     } else {
-        config.sheets.push({ localId: uid(), name, sheetId, hiddenCols: [] });
+        const localId = uid();
+        config.sheets.push({ localId, name, sheetId, hiddenCols: [] });
+        activeSheetId = localId;   // 새로 추가한 시트를 바로 보여준다
     }
     await saveConfig(); hide('sheet-modal'); renderAll();
 };

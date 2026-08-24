@@ -18,6 +18,11 @@
         .data-table td { padding: 5px 10px; border: 1px solid #eef2f7; color: #334155; white-space: nowrap; }
         .data-table tr:nth-child(even) td { background: #fafcff; }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
+        /* 시트 탭 */
+        .sheet-tab { flex: 0 0 auto; padding: 8px 14px; font-size: 13px; font-weight: 700; color: #64748b;
+                     background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; border-radius: 8px 8px 0 0; }
+        .sheet-tab:hover { color: #334155; background: #e2e8f0; }
+        .sheet-tab.active { color: #4338ca; border-bottom-color: #4f46e5; background: #fff; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800">
@@ -45,7 +50,9 @@
         <div id="no-config" class="hidden text-center p-10 bg-white rounded-2xl border border-dashed border-slate-300 text-slate-500">
             먼저 <b>⚙️ 설정</b>에서 Apps Script URL을 등록하고, <b>➕ 시트 추가</b>로 요약할 시트를 등록하세요.
         </div>
-        <div id="sheets-container" class="space-y-5"></div>
+        <!-- 시트 탭 — 한 번에 한 시트만 보여준다(js/sheets-dashboard.js 가 만든다) -->
+        <div id="sheet-tabs" class="hidden flex gap-1 overflow-x-auto border-b border-slate-200 -mb-1"></div>
+        <div id="sheets-container"></div>
     </main>
 
     <!-- 설정 모달 -->
