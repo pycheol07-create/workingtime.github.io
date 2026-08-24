@@ -281,7 +281,7 @@ function renderHead() {
                     title="${esc(c.label)} 필터" aria-label="${esc(c.label)} 필터">▼</button>
             </div>
         </th>`;
-    }).join('') + '<th class="text-center" style="min-width:96px">관리</th>';
+    }).join('') + '<th class="text-center" style="min-width:170px">관리</th>';
 
     $('btn-reset-filters').classList.toggle('hidden', !anyFilterActive());
 }
@@ -301,6 +301,8 @@ function renderTable() {
             ${COLS.map(c => `<td class="${c.td || ''}">${c.cell(it)}</td>`).join('')}
             <td class="text-center whitespace-nowrap">
                 <button data-stock="${esc(it.id)}" class="text-[11px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100">재고</button>
+                <button data-upload="${esc(it.id)}" title="현재고조회 엑셀을 올려 재고를 맞춥니다"
+                    class="text-[11px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100">엑셀</button>
                 <button data-edit="${esc(it.id)}" class="text-[11px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">수정</button>
             </td>
         </tr>`).join('');
@@ -563,6 +565,89 @@ async function deleteItem() {
     }
 }
 
+// ───────── 현재고조회 엑셀 업로드 ─────────
+// 사내 시스템의 '현재고조회' 내려받기는 확장자만 .xls 이고 실제로는 HTML 표다.
+// 열: 작업일 · 작업(입고/출고/조정) · 수량 · 재고(그 작업 뒤 잔량) · 작업자 · 메모 · 전표
+// 가장 최근 작업일의 '재고'가 곧 현재고이므로, 그 값으로 실사(맞춤) 처리한다.
+let pendingUploadId = null;
+
+async function readFileText(file) {
+    const buf = await file.arrayBuffer();
+    // 대개 UTF-8이지만 예전 내려받기는 EUC-KR인 경우가 있다.
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+    catch (_) { return new TextDecoder('euc-kr').decode(buf); }
+}
+
+function parseStockFile(text) {
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    const rows = [...doc.querySelectorAll('tr')];
+    if (rows.length < 2) throw new Error('표를 찾지 못했습니다.');
+
+    const cellsOf = (tr) => [...tr.querySelectorAll('td,th')]
+        .map(td => (td.textContent || '').replace(/ /g, ' ').trim());
+
+    // '재고' 칸이 있는 첫 줄을 머리글로 본다(위에 제목 줄이 붙어 있어도 괜찮다).
+    let hi = -1, head = null;
+    for (let i = 0; i < rows.length; i++) {
+        const c = cellsOf(rows[i]);
+        if (c.some(h => h === '재고')) { hi = i; head = c; break; }
+    }
+    if (hi < 0) throw new Error("'재고' 열을 찾지 못했습니다.");
+
+    const iStock = head.indexOf('재고');
+    const iDate = head.findIndex(h => h.includes('작업일') || h.includes('일자') || h.includes('날짜'));
+    const iOp = head.findIndex(h => h === '작업' || h.includes('구분'));
+    const iQty = head.indexOf('수량');
+    const toNum = (v) => Number(String(v == null ? '' : v).replace(/[^0-9.-]/g, ''));
+
+    const entries = [];
+    for (let i = hi + 1; i < rows.length; i++) {
+        const c = cellsOf(rows[i]);
+        if (c.length <= iStock || c[iStock] === '') continue;
+        const stock = toNum(c[iStock]);
+        if (!Number.isFinite(stock)) continue;
+        entries.push({
+            at: iDate >= 0 ? (c[iDate] || '') : '',
+            op: iOp >= 0 ? (c[iOp] || '') : '',
+            qty: iQty >= 0 ? (toNum(c[iQty]) || 0) : 0,
+            stock
+        });
+    }
+    if (!entries.length) throw new Error('읽을 수 있는 행이 없습니다.');
+
+    // 파일이 최신순/과거순 어느 쪽이든 상관없도록 작업일로 정렬한다.
+    entries.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    return { latest: entries[entries.length - 1], count: entries.length };
+}
+
+async function handleStockFile(file) {
+    const it = items.find(x => x.id === pendingUploadId);
+    if (!it) return;
+    try {
+        const { latest, count } = parseStockFile(await readFileText(file));
+
+        // 재고 조정 모달을 '실사(맞춤)'로 미리 채워 두고, 저장은 사용자가 확인 후 누른다.
+        openStockModal(it.id);
+        document.querySelector('input[name="stock-op"][value="set"]').checked = true;
+        $('stock-qty').value = latest.stock;
+        $('stock-memo').value = `현재고조회 업로드${latest.at ? ` · 기준 ${latest.at}` : ''}`;
+        updateStockPreview();
+
+        const diff = latest.stock - num(it.stock);
+        const note = $('stock-import-note');
+        note.textContent = `📄 ${file.name} — ${count}건 중 가장 최근 작업(${latest.at || '날짜 없음'}) 기준 재고 `
+            + `${fmt(latest.stock)}${it.unit || '개'}. 현재 ${fmt(it.stock)} → ${fmt(latest.stock)} `
+            + `(${diff > 0 ? '+' : ''}${fmt(diff)}). 확인 후 [저장]을 누르세요.`;
+        note.classList.remove('hidden');
+    } catch (e) {
+        alert(`파일을 읽지 못했습니다.
+
+${e.message}
+
+'현재고조회' 엑셀(작업일 · 작업 · 수량 · 재고 열) 형식을 올려주세요.`);
+    }
+}
+
 // ───────── 재고 조정 모달 ─────────
 function pushLog(it, op, delta, after, memo) {
     if (!Array.isArray(it.logs)) it.logs = [];
@@ -592,6 +677,7 @@ function openStockModal(id) {
     stockTargetId = id;
 
     $('stock-modal-title').textContent = `${it.name} — 재고 조정`;
+    $('stock-import-note').classList.add('hidden');
     $('stock-current').textContent = `${fmt(it.stock)} ${it.unit || '개'}`;
     $('stock-qty').value = '';
     $('stock-memo').value = '';
@@ -683,4 +769,15 @@ document.addEventListener('click', (e) => {
     if (stockBtn) return openStockModal(stockBtn.dataset.stock);
     const editBtn = e.target.closest('[data-edit]');
     if (editBtn) return openItemModal(editBtn.dataset.edit);
+    const upBtn = e.target.closest('[data-upload]');
+    if (upBtn) {
+        pendingUploadId = upBtn.dataset.upload;
+        $('stock-file').value = '';   // 같은 파일을 다시 골라도 change가 뜨도록
+        $('stock-file').click();
+    }
+});
+
+$('stock-file').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) handleStockFile(file);
 });
