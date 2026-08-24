@@ -1,7 +1,24 @@
 // === js/history-enricher.js ===
 // 설명: 이력 데이터에 연차/휴무 정보를 병합하는 순수 데이터 처리 로직입니다.
 
+/** 이전에 펼쳐 넣은 사본(__fromSchedule)을 모두 걷어낸다.
+ *  이 함수는 근태를 고칠 때마다 다시 불리는데, 옛 사본을 지우지 않으면
+ *  같은 근태가 옛 내용 그대로 남고 바뀐 기간에는 새 사본이 또 생겨
+ *  '수정이 반영되지 않고 항목만 늘어나는' 현상이 된다. */
+function stripInjectedLeave(historyData) {
+    (historyData || []).forEach(day => {
+        if (!Array.isArray(day.onLeaveMembers)) return;
+        if (day.onLeaveMembers.some(e => e && e.__fromSchedule)) {
+            day.onLeaveMembers = day.onLeaveMembers.filter(e => !(e && e.__fromSchedule));
+        }
+    });
+}
+
 export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
+    // ⚠️ 반드시 맨 앞에서 — 아래 조기 return 경로에서도 옛 사본은 사라져야 한다.
+    //    (일정에서 근태를 지웠는데 화면에 계속 남아 있던 문제도 여기서 해결된다)
+    stripInjectedLeave(historyData);
+
     if (!leaveSchedule || !leaveSchedule.onLeaveMembers) {
         return historyData;
     }

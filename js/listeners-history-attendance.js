@@ -37,6 +37,83 @@ const mergeLeave = (prev, next, isTimeBased) => {
     return merged;
 };
 
+/** 현재 조회 기간 필터가 걸린 이력 목록 — 화면을 다시 그릴 때 쓴다. */
+const filteredHistoryForView = () => {
+    const start = State.context.historyStartDate;
+    const end = State.context.historyEndDate;
+    if (!start && !end) return State.allHistoryData;
+    return State.allHistoryData.filter(d => {
+        if (start && end) return d.id >= start && d.id <= end;
+        if (start) return d.id >= start;
+        return d.id <= end;
+    });
+};
+
+/** 그날 근태가 저장되는 문서 — 오늘은 daily_data, 지난 날짜는 history. */
+const dayDocRef = (dateKey) => doc(State.db, 'artifacts', 'team-work-logger-v2',
+    (dateKey === getTodayDateString()) ? 'daily_data' : 'history', dateKey);
+
+/** 그날 문서에 근태 한 건 덧붙이기(문서가 없으면 만든다). */
+const appendToDayDoc = async (dateKey, entry) => {
+    const docRef = dayDocRef(dateKey);
+    const snap = await getDoc(docRef).catch(() => null);
+    let list = [];
+    if (snap && snap.exists()) {
+        const raw = snap.data().onLeaveMembers;
+        list = Array.isArray(raw) ? raw : (raw ? Object.values(raw) : []);
+        list.push(entry);
+        await updateDoc(docRef, { onLeaveMembers: list });
+    } else {
+        list = [entry];
+        if (dateKey === getTodayDateString()) await setDoc(docRef, { onLeaveMembers: list }, { merge: true });
+        else await setDoc(docRef, { id: dateKey, onLeaveMembers: list });
+    }
+    const i = State.allHistoryData.findIndex(d => d.id === dateKey);
+    if (i > -1) State.allHistoryData[i].onLeaveMembers = list;
+    return list;
+};
+
+/** leaveSchedule 목록(없으면 만들어서) 돌려주기. */
+const scheduleList = () => {
+    if (!State.persistentLeaveSchedule) State.setPersistentLeaveSchedule({ onLeaveMembers: [] });
+    if (!Array.isArray(State.persistentLeaveSchedule.onLeaveMembers)) {
+        State.persistentLeaveSchedule.onLeaveMembers = [];
+    }
+    return State.persistentLeaveSchedule.onLeaveMembers;
+};
+
+/** 근태 일정 저장 — 실패하면 메모리를 원래대로 되돌리고 다시 던진다. */
+const saveScheduleOrRollback = async (backup) => {
+    try {
+        await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+    } catch (e) {
+        State.persistentLeaveSchedule.onLeaveMembers = backup;
+        throw e;
+    }
+};
+
+/** 수정 내용을 leaveSchedule에 반영한다.
+ *  · 기간형  → 일정에 없으면 새로 넣고(upsert), 있으면 갱신한다.
+ *              (그래야 시작일 하루가 아니라 기간 전체 날짜에 표시된다)
+ *  · 당일형  → 외출·조퇴·지각은 기간 개념이 없으므로 일정에서 뺀다.
+ *  반환값: 일정이 실제로 바뀌었는지 여부. */
+const syncScheduleForEdit = async (origin, newEntry, isTimeBased) => {
+    const list = scheduleList();
+    const backup = list.slice();
+    const si = list.findIndex(l => isSameLeave(l, origin));
+
+    if (isTimeBased) {
+        if (si < 0) return false;
+        list.splice(si, 1);
+    } else {
+        const merged = mergeLeave(si > -1 ? list[si] : {}, newEntry, false);
+        if (!merged.id) merged.id = origin.id || `leave-${Date.now()}`;
+        if (si > -1) list[si] = merged; else list.push(merged);
+    }
+    await saveScheduleOrRollback(backup);
+    return true;
+};
+
 export function setupHistoryAttendanceListeners() {
     // 1. 리스트 뷰 내 버튼 클릭 이벤트 (수정/삭제/추가 팝업 열기)
     if (DOM.attendanceHistoryViewContainer) {
@@ -187,35 +264,20 @@ function setupAttendanceModalButtons() {
             if (!origin) { showToast('수정할 항목을 다시 선택해주세요.', true); return; }
 
             try {
-                const todayKey = getTodayDateString();
-                let scheduleChanged = false;
-
                 // ① 기간형 근태의 원본은 persistent_data/leaveSchedule 이다.
-                //    (그날 문서에도 같은 기록이 있으면 아래 ②에서 함께 고친다)
-                const sched = State.persistentLeaveSchedule?.onLeaveMembers;
-                if (Array.isArray(sched)) {
-                    const si = sched.findIndex(l => isSameLeave(l, origin));
-                    if (si > -1) {
-                        // 저장이 실패하면 메모리만 새 값으로 남아 Firestore와 어긋난다 → 되돌린다.
-                        const before = sched[si];
-                        sched[si] = mergeLeave(before, newEntry, isTimeBased);
-                        try {
-                            await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
-                            scheduleChanged = true;
-                        } catch (e) {
-                            sched[si] = before;
-                            throw e;
-                        }
-                    }
-                }
+                //    그날 문서에만 저장하면 시작일 하루에만 보이므로, 기간형이면 항상 일정에 반영한다.
+                //    (반대로 당일형으로 바뀌었으면 일정에서 빼야 한다)
+                const scheduleChanged = await syncScheduleForEdit(origin, newEntry, isTimeBased);
 
-                if (editingAttendance.fromSchedule) {
+                if (editingAttendance.fromSchedule && !isTimeBased) {
                     // 화면에만 펼쳐 넣은 사본 → 그날 문서에는 손댈 것이 없다.
                     if (!scheduleChanged) { showToast('수정할 항목을 찾을 수 없습니다.', true); return; }
+                } else if (editingAttendance.fromSchedule && isTimeBased) {
+                    // 기간형 → 당일형으로 바뀌었다: 일정에서 빠졌으니 그날 문서에 새로 넣는다.
+                    await appendToDayDoc(dateKey, mergeLeave(origin, newEntry, true));
                 } else {
                     // ② 그날 문서(daily_data/history)에 실제로 저장된 기록
-                    const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2',
-                        (dateKey === todayKey) ? 'daily_data' : 'history', dateKey);
+                    const docRef = dayDocRef(dateKey);
 
                     // 문서 전체 읽기 → 배열 수정 → 전체 덮어쓰기
                     // (array index update 방식은 Map 변환 버그를 유발하므로 쓰지 않는다)
@@ -247,7 +309,7 @@ function setupAttendanceModalButtons() {
 
                 clearLocalCache(); // 캐시 무효화 → 새로고침 시 최신값 재조회(수정 사라짐 방지)
                 if (scheduleChanged) notifyLeaveScheduleChanged('attendance-edit');
-                // 일정에서 펼쳐 넣는 항목을 새 내용으로 다시 만든다.
+                // 옛 사본을 걷어내고 새 내용으로 다시 펼친다.
                 augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
                 editingAttendance = null;
 
@@ -311,6 +373,23 @@ function setupAttendanceModalButtons() {
                 const todayKey = getTodayDateString();
                 let docRef;
                 let isToday = (dateKey === todayKey);
+
+                // 기간형 근태(연차·출장 등)의 원본은 persistent_data/leaveSchedule 이다.
+                // 그날 문서에만 넣으면 기간을 잡아도 그 하루에만 표시된다.
+                if (!isTimeBased) {
+                    const list = scheduleList();
+                    const backup = list.slice();
+                    list.push({ ...newEntry });
+                    await saveScheduleOrRollback(backup);
+                    notifyLeaveScheduleChanged('attendance-add');
+                    augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
+                    clearLocalCache();
+
+                    showToast('근태 기록이 추가되었습니다.');
+                    DOM.addAttendanceRecordModal.classList.add('hidden');
+                    renderAttendanceDailyHistory(dateKey, filteredHistoryForView());
+                    return;
+                }
 
                 if (isToday) {
                     docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
