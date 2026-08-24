@@ -42,11 +42,17 @@ const withThousands = (s) => String(s == null ? '' : s)
     .replace(/\d{1,3}(?:,\d{3})+/g, m => m.replace(/,/g, ''))
     .replace(/\d{4,}/g, m => Number(m).toLocaleString());
 
+// 리드타임 단위. 수치는 예전부터 쓰던 leadTimeDays 필드에 그대로 담고,
+// 단위만 leadTimeUnit으로 따로 둔다(없으면 '일' — 기존 데이터가 모두 일 단위였다).
+const LEADTIME_UNITS = { day: '일', week: '주', month: '개월' };
+const leadTimeUnitOf = (it) => (LEADTIME_UNITS[it?.leadTimeUnit] ? it.leadTimeUnit : 'day');
+const leadTimeTextOf = (it) => `${num(it.leadTimeDays)}${LEADTIME_UNITS[leadTimeUnitOf(it)]}`;
+
 /** 발주정보 칸에 들어가는 문자열 — 표시와 필터가 같은 값을 보도록 한 곳에서 만든다. */
 function orderInfoOf(it) {
     const parts = [];
     if (it.orderUnit) parts.push(withThousands(it.orderUnit));
-    if (num(it.leadTimeDays) > 0) parts.push(`리드타임 ${num(it.leadTimeDays)}일`);
+    if (num(it.leadTimeDays) > 0) parts.push(`리드타임 ${leadTimeTextOf(it)}`);
     if (it.lastOrderDate) parts.push(`최근발주 ${it.lastOrderDate}`);
     if (it.memo) parts.push(it.memo);
     return parts.join(' · ');
@@ -107,7 +113,7 @@ async function load() {
             items = SEED_ITEMS.map(s => ({
                 id: uid(), stock: 0, safetyStock: 0, unitPrice: 0,
                 size: '', vendor: '', vendorContact: '', orderUnit: '',
-                leadTimeDays: 0, lastOrderDate: '', memo: '', logs: [], ...s
+                leadTimeDays: 0, leadTimeUnit: 'day', lastOrderDate: '', memo: '', logs: [], ...s
             }));
             await persist();
         }
@@ -471,6 +477,7 @@ function openItemModal(id = null) {
     $('f-vendor-contact').value = it?.vendorContact || '';
     $('f-order-unit').value = withThousands(it?.orderUnit || '');
     $('f-leadtime').value = it ? (num(it.leadTimeDays) || '') : '';
+    $('f-leadtime-unit').value = leadTimeUnitOf(it);
     $('f-last-order').value = it?.lastOrderDate || '';
     $('f-memo').value = it?.memo || '';
     $('f-main').checked = !!it?.isMain;
@@ -498,6 +505,7 @@ async function saveItem() {
         vendorContact: $('f-vendor-contact').value.trim(),
         orderUnit: withThousands($('f-order-unit').value.trim()),
         leadTimeDays: num($('f-leadtime').value),
+        leadTimeUnit: $('f-leadtime-unit').value,
         lastOrderDate: $('f-last-order').value,
         memo: $('f-memo').value.trim(),
         isMain: $('f-main').checked,
