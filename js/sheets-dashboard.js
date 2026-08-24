@@ -150,11 +150,18 @@ const norm = (h) => String(h == null ? '' : h).replace(/[\s\n]/g, '');
 const periodState = {}; // localId -> 'today'|'week'|'month'|'year'|'custom'
 const periodRange = {}; // localId -> { from, to }  (custom 기간 조회용)
 
-/** 이 시트를 오더/결제 KPI 화면으로 볼지 결정한다.
- *  머리글 모양만으로 자동 판별하면, 양식이 같은 다른 시트(예: 패킹·송금관리)까지
- *  KPI 화면으로 잡힌다. 시트 설정에서 '표로만 보기'를 켜면 그냥 표로 보여준다. */
+/** 시트마다 정해 둔 보기 방식.
+ *  'table' 기본 표 / 'kpi' 오더·결제 KPI 화면 / 'auto' 머리글 보고 판단(예전 방식).
+ *  서로 다른 스프레드시트라도 머리글 양식이 같으면 자동 판별은 똑같이 잡히므로,
+ *  탭별로 직접 골라 둘 수 있게 한다. */
+function viewModeOf(cfg) {
+    const m = cfg && cfg.viewMode;
+    return (m === 'table' || m === 'kpi') ? m : 'auto';
+}
+
+/** KPI 화면에 쓸 열 위치. 표로 보기로 정한 시트는 아예 찾지 않는다. */
 function orderColsFor(cfg, headers) {
-    if (cfg && cfg.viewMode === 'table') return null;
+    if (viewModeOf(cfg) === 'table') return null;
     return detectOrderCols(headers);
 }
 
@@ -496,13 +503,19 @@ async function loadCard(cfg, force) {
         const warnEl = $('warn-' + cfg.localId);
         const wantTab = (cfg.tabName || '').trim();
         const gotTab = String(data.sheetName || '').trim();
-        const tabIgnored = wantTab && gotTab && norm(gotTab) !== norm(wantTab);
+        const msgs = [];
+        if (wantTab && gotTab && norm(gotTab) !== norm(wantTab)) {
+            msgs.push(`⚠️ 지정한 탭 <b>${esc(wantTab)}</b> 대신 <b>${esc(gotTab)}</b> 탭 내용이 왔습니다.
+                       Apps Script가 <code>tab</code> 값을 받아 처리하도록 고쳐야 탭 선택이 적용됩니다.`);
+        }
+        if (viewModeOf(cfg) === 'kpi' && !orderIdx) {
+            msgs.push(`⚠️ 금액관리 화면으로 설정했지만 필요한 열(일자 · 오더 · 결제)을 찾지 못해 표로 보여줍니다.`);
+        }
         if (warnEl) {
-            warnEl.classList.toggle('hidden', !tabIgnored);
-            warnEl.innerHTML = tabIgnored
+            warnEl.classList.toggle('hidden', msgs.length === 0);
+            warnEl.innerHTML = msgs.length
                 ? `<div class="mx-4 mt-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-relaxed">
-                       ⚠️ 지정한 탭 <b>${esc(wantTab)}</b> 대신 <b>${esc(gotTab)}</b> 탭 내용이 왔습니다.
-                       Apps Script가 <code>tab</code> 값을 받아 처리하도록 고쳐야 탭 선택이 적용됩니다.
+                       ${msgs.join('<br>')}
                    </div>` : '';
         }
         const ts = data.ts ? new Date(data.ts) : new Date();
@@ -605,7 +618,7 @@ function openSheetModal(localId) {
     $('inp-sheet-url').value = cfg ? cfg.sheetId : '';
     $('inp-sheet-tab').value = cfg ? (cfg.tabName || '') : '';
     $('inp-sheet-range').value = cfg ? (cfg.range || '') : '';
-    $('inp-sheet-plain').checked = cfg ? (cfg.viewMode === 'table') : false;
+    $('inp-sheet-view').value = cfg ? viewModeOf(cfg) : 'table';   // 새 시트는 '기본 표'로 시작
     $('btn-delete-sheet').classList.toggle('hidden', !cfg);
     show('sheet-modal');
 }
@@ -615,7 +628,7 @@ $('btn-save-sheet').onclick = async () => {
     if (!name || !sheetId) { alert('이름과 시트 URL을 입력하세요.'); return; }
     const tabName = $('inp-sheet-tab').value.trim();
     const range = $('inp-sheet-range').value.trim();
-    const viewMode = $('inp-sheet-plain').checked ? 'table' : 'auto';
+    const viewMode = $('inp-sheet-view').value;
     if (range && !parseA1Range(range)) {
         alert('범위 형식을 확인해주세요.\n\n예) A1:H200 · B:F · A5: · 3:100');
         return;
