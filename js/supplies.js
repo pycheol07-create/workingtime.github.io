@@ -173,25 +173,23 @@ function renderMainItems() {
     host.innerHTML = mains.map(it => {
         const low = isLow(it);
         return `
-        <div class="bg-white rounded-2xl border ${low ? 'border-red-300' : 'border-slate-200'} shadow-sm p-4">
-            <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0">
-                    <div class="text-[11px] font-bold text-slate-400">${esc(it.category || '비품')}</div>
-                    <div class="text-base font-extrabold text-slate-800 truncate">${esc(it.name)}</div>
-                </div>
-                ${low ? '<span class="text-[10px] font-bold px-2 py-1 rounded-full bg-red-100 text-red-600 shrink-0">재고 부족</span>' : ''}
+        <div class="bg-white rounded-xl border ${low ? 'border-red-300' : 'border-slate-200'} shadow-sm p-2.5">
+            <div class="flex items-center justify-between gap-1">
+                <div class="text-[10px] font-bold text-slate-400 truncate">${esc(it.category || '비품')}</div>
+                ${low ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 shrink-0">부족</span>' : ''}
             </div>
-            <div class="mt-3 flex items-end gap-1">
-                <span class="text-3xl font-black ${low ? 'text-red-600' : 'text-slate-800'}">${fmt(it.stock)}</span>
-                <span class="text-xs font-bold text-slate-400 mb-1">${esc(it.unit || '개')}</span>
+            <div class="text-[13px] font-extrabold text-slate-800 truncate" title="${esc(it.name)}">${esc(it.name)}</div>
+            <div class="mt-1.5 flex items-end gap-1">
+                <span class="text-2xl font-black leading-none ${low ? 'text-red-600' : 'text-slate-800'}">${fmt(it.stock)}</span>
+                <span class="text-[11px] font-bold text-slate-400">${esc(it.unit || '개')}</span>
             </div>
-            <div class="text-[11px] text-slate-500 mt-1">
-                ${num(it.safetyStock) > 0 ? `안전재고 ${fmt(it.safetyStock)}${esc(it.unit || '개')} · ` : ''}
+            <div class="text-[10px] text-slate-500 mt-1 leading-tight">
+                ${num(it.safetyStock) > 0 ? `안전 ${fmt(it.safetyStock)}${esc(it.unit || '개')}<br>` : ''}
                 ${num(it.unitPrice) > 0 ? `단가 ${fmt(it.unitPrice)}원` : '단가 미등록'}
             </div>
-            <div class="flex gap-2 mt-3">
-                <button data-stock="${esc(it.id)}" class="flex-1 text-xs font-bold py-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100">재고 조정</button>
-                <button data-edit="${esc(it.id)}" class="text-xs font-bold py-2 px-3 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">상세</button>
+            <div class="flex gap-1 mt-2">
+                <button data-stock="${esc(it.id)}" class="flex-1 text-[11px] font-bold py-1.5 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100">재고</button>
+                <button data-edit="${esc(it.id)}" class="flex-1 text-[11px] font-bold py-1.5 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200">상세</button>
             </div>
         </div>`;
     }).join('');
