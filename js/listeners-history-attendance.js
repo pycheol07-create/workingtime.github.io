@@ -7,7 +7,35 @@ import { isPersistentLeaveType } from './state.js';
 import { showToast, getTodayDateString, getCurrentTime } from './utils.js';
 import { renderAttendanceDailyHistory } from './ui-history.js';
 import { clearLocalCache } from './history-data-manager.js';
+import { saveLeaveSchedule } from './config.js';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js';
 import { doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// 수정 모달이 지금 다루고 있는 근태의 '원본'.
+// 화면 목록(State.allHistoryData)에는 그날 문서에 실제로 있는 기록과,
+// leaveSchedule에서 날짜별로 펼쳐 넣은 사본이 섞여 있다.
+// 그래서 행 번호(index)만으로는 어느 문서를 고쳐야 하는지 알 수 없고,
+// 펼쳐 넣은 항목은 그날 문서 배열 범위를 넘어가 '수정할 항목을 찾을 수 없습니다'가 떴다.
+let editingAttendance = null;   // { dateKey, index, record, fromSchedule }
+
+/** 두 근태 기록이 같은 것인지 — id가 있으면 id, 없으면 내용으로 판정한다. */
+const isSameLeave = (a, b) => {
+    if (!a || !b) return false;
+    if (a.id && b.id) return a.id === b.id;
+    return a.member === b.member
+        && a.type === b.type
+        && (a.startDate || '') === (b.startDate || '')
+        && (a.startTime || '') === (b.startTime || '');
+};
+
+/** 기존 값(id·기타항목명 등)은 살리되, 유형이 바뀌면 반대쪽 필드는 없앤다. */
+const mergeLeave = (prev, next, isTimeBased) => {
+    const merged = { ...(prev || {}), ...next };
+    if (isTimeBased) { delete merged.startDate; delete merged.endDate; }
+    else             { delete merged.startTime; delete merged.endTime; }
+    return merged;
+};
 
 export function setupHistoryAttendanceListeners() {
     // 1. 리스트 뷰 내 버튼 클릭 이벤트 (수정/삭제/추가 팝업 열기)
@@ -70,6 +98,7 @@ function handleAttendanceListClicks(e) {
         // 메타 데이터 저장
         if (DOM.editAttendanceDateKeyInput) DOM.editAttendanceDateKeyInput.value = dateKey;
         if (DOM.editAttendanceRecordIndexInput) DOM.editAttendanceRecordIndexInput.value = index;
+        editingAttendance = { dateKey, index, record, fromSchedule: record.__fromSchedule === true };
         
         if (DOM.editAttendanceRecordModal) DOM.editAttendanceRecordModal.classList.remove('hidden');
         return;
@@ -153,48 +182,74 @@ function setupAttendanceModalButtons() {
                 if (!newEntry.startDate) { showToast('시작일을 입력해주세요.', true); return; }
             }
 
+            const origin = (editingAttendance && editingAttendance.dateKey === dateKey)
+                ? editingAttendance.record : null;
+            if (!origin) { showToast('수정할 항목을 다시 선택해주세요.', true); return; }
+
             try {
                 const todayKey = getTodayDateString();
-                let docRef;
-                let isToday = (dateKey === todayKey);
+                let scheduleChanged = false;
 
-                if (isToday) {
-                    docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
-                } else {
-                    docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+                // ① 기간형 근태의 원본은 persistent_data/leaveSchedule 이다.
+                //    (그날 문서에도 같은 기록이 있으면 아래 ②에서 함께 고친다)
+                const sched = State.persistentLeaveSchedule?.onLeaveMembers;
+                if (Array.isArray(sched)) {
+                    const si = sched.findIndex(l => isSameLeave(l, origin));
+                    if (si > -1) {
+                        // 저장이 실패하면 메모리만 새 값으로 남아 Firestore와 어긋난다 → 되돌린다.
+                        const before = sched[si];
+                        sched[si] = mergeLeave(before, newEntry, isTimeBased);
+                        try {
+                            await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+                            scheduleChanged = true;
+                        } catch (e) {
+                            sched[si] = before;
+                            throw e;
+                        }
+                    }
                 }
 
-                // ✅ [수정] 안전한 업데이트 로직: 문서 전체 읽기 -> 배열 수정 -> 전체 덮어쓰기
-                // 기존의 array index update 방식은 Map 변환 버그를 유발하므로 제거함.
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
+                if (editingAttendance.fromSchedule) {
+                    // 화면에만 펼쳐 넣은 사본 → 그날 문서에는 손댈 것이 없다.
+                    if (!scheduleChanged) { showToast('수정할 항목을 찾을 수 없습니다.', true); return; }
+                } else {
+                    // ② 그날 문서(daily_data/history)에 실제로 저장된 기록
+                    const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2',
+                        (dateKey === todayKey) ? 'daily_data' : 'history', dateKey);
+
+                    // 문서 전체 읽기 → 배열 수정 → 전체 덮어쓰기
+                    // (array index update 방식은 Map 변환 버그를 유발하므로 쓰지 않는다)
+                    const docSnap = await getDoc(docRef);
+                    if (!docSnap.exists()) { showToast('문서를 찾을 수 없습니다.', true); return; }
+
                     const data = docSnap.data();
                     // 오염된 데이터(Map)일 경우 배열로 변환, 아니면 배열 그대로 사용
                     let currentLeaves = [];
                     if (data.onLeaveMembers) {
-                        currentLeaves = Array.isArray(data.onLeaveMembers) 
-                            ? data.onLeaveMembers 
+                        currentLeaves = Array.isArray(data.onLeaveMembers)
+                            ? data.onLeaveMembers
                             : Object.values(data.onLeaveMembers);
                     }
 
-                    if (index >= 0 && index < currentLeaves.length) {
-                        currentLeaves[index] = newEntry; // 수정
-                        await updateDoc(docRef, { onLeaveMembers: currentLeaves });
-                        
-                        // 1. 로컬 데이터 업데이트
-                        const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-                        if (dayDataIndex > -1) {
-                            State.allHistoryData[dayDataIndex].onLeaveMembers = currentLeaves;
-                        }
-                        clearLocalCache(); // 캐시 무효화 → 새로고침 시 최신값 재조회(수정 사라짐 방지)
-                    } else {
-                        showToast('수정할 항목을 찾을 수 없습니다.', true);
-                        return;
+                    // 행 번호는 화면 목록 기준이라 어긋날 수 있으니 내용으로 먼저 찾는다.
+                    let target = currentLeaves.findIndex(l => isSameLeave(l, origin));
+                    if (target < 0 && index >= 0 && index < currentLeaves.length) target = index;
+                    if (target < 0) { showToast('수정할 항목을 찾을 수 없습니다.', true); return; }
+
+                    currentLeaves[target] = mergeLeave(currentLeaves[target], newEntry, isTimeBased);
+                    await updateDoc(docRef, { onLeaveMembers: currentLeaves });
+
+                    const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
+                    if (dayDataIndex > -1) {
+                        State.allHistoryData[dayDataIndex].onLeaveMembers = currentLeaves;
                     }
-                } else {
-                    showToast('문서를 찾을 수 없습니다.', true);
-                    return;
                 }
+
+                clearLocalCache(); // 캐시 무효화 → 새로고침 시 최신값 재조회(수정 사라짐 방지)
+                if (scheduleChanged) notifyLeaveScheduleChanged('attendance-edit');
+                // 일정에서 펼쳐 넣는 항목을 새 내용으로 다시 만든다.
+                augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
+                editingAttendance = null;
 
                 showToast('근태 기록이 수정되었습니다.');
                 DOM.editAttendanceRecordModal.classList.add('hidden');

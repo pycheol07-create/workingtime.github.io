@@ -70,7 +70,13 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
                         dayData.onLeaveMembers = dayData.onLeaveMembers ? Object.values(dayData.onLeaveMembers) : [];
                     }
                     
-                    dayData.onLeaveMembers.push({ ...pLeave });
+                    // ⚠️ 이 항목은 그날 문서(daily_data/history)에는 없고
+                    //    persistent_data/leaveSchedule 에서 날짜별로 펼쳐 넣은 사본이다.
+                    //    수정·삭제 시 어느 문서를 고쳐야 하는지 구분할 수 있도록 표식을 단다.
+                    //    enumerable:false → 스프레드·JSON·Firestore 저장에는 절대 섞이지 않는다.
+                    const injected = { ...pLeave };
+                    Object.defineProperty(injected, '__fromSchedule', { value: true, enumerable: false });
+                    dayData.onLeaveMembers.push(injected);
                     existingEntries.add(entryKey);
                 }
             }

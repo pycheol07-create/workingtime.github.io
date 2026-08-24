@@ -13,7 +13,7 @@ import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js
 import { saveStateToFirestore } from './app-data.js';
 
 import {
-    doc, deleteDoc, writeBatch, collection, updateDoc, getDocs, setDoc, query
+    doc, deleteDoc, writeBatch, collection, updateDoc, getDoc, getDocs, setDoc, query
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 헬퍼: 단일 업무 기록 문서 삭제
@@ -112,14 +112,27 @@ export function setupConfirmationModalListeners() {
                     dayData.onLeaveMembers.splice(index, 1);
 
                     try {
-                        let docRef;
-                        if (dateKey === todayKey) {
-                            docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey);
-                        } else {
-                            docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+                        // ⚠️ dayData.onLeaveMembers 에는 leaveSchedule에서 날짜별로 펼쳐 넣은
+                        //    사본이 섞여 있다. 그대로 덮어쓰면 그날 문서에 원래 없던 기록까지
+                        //    저장돼 버리므로, 문서를 다시 읽어 '그 문서에 실제로 있는 기록'만 지운다.
+                        //    펼쳐 넣은 사본이면 원본(leaveSchedule)만 지우면 되므로 문서는 건드리지 않는다.
+                        if (!recordToDelete.__fromSchedule) {
+                            const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2',
+                                (dateKey === todayKey) ? 'daily_data' : 'history', dateKey);
+                            const snap = await getDoc(docRef);
+                            const raw = snap.exists() ? snap.data().onLeaveMembers : null;
+                            const stored = Array.isArray(raw) ? raw : (raw ? Object.values(raw) : []);
+                            const di = stored.findIndex(l => (recordToDelete.id && l.id)
+                                ? l.id === recordToDelete.id
+                                : (l.member === recordToDelete.member
+                                    && l.type === recordToDelete.type
+                                    && (l.startDate || '') === (recordToDelete.startDate || '')
+                                    && (l.startTime || '') === (recordToDelete.startTime || '')));
+                            if (di > -1) stored.splice(di, 1);
+                            await updateDoc(docRef, { onLeaveMembers: stored });
                         }
 
-                        await updateDoc(docRef, { onLeaveMembers: dayData.onLeaveMembers });
+                        if (deletedFromPersistent) notifyLeaveScheduleChanged('attendance-delete');
                         clearLocalCache(); // 캐시 무효화 → 새로고침 시 최신값 재조회
 
                         showToast(`${recordToDelete.member}님의 '${recordToDelete.type}' 기록이 삭제되었습니다.`);
