@@ -45,31 +45,58 @@ const withThousands = (s) => String(s == null ? '' : s)
 // 리드타임 단위. 수치는 예전부터 쓰던 leadTimeDays 필드에 그대로 담고,
 // 단위만 leadTimeUnit으로 따로 둔다(없으면 '일' — 기존 데이터가 모두 일 단위였다).
 const LEADTIME_UNITS = { day: '일', week: '주', month: '개월' };
+const LEADTIME_DAYS = { day: 1, week: 7, month: 30 };
 const leadTimeUnitOf = (it) => (LEADTIME_UNITS[it?.leadTimeUnit] ? it.leadTimeUnit : 'day');
 const leadTimeTextOf = (it) => `${num(it.leadTimeDays)}${LEADTIME_UNITS[leadTimeUnitOf(it)]}`;
+// 단위가 섞여 있어도 길이를 비교할 수 있도록 일수로 환산한 값(정렬·범위 필터용).
+const leadTimeDaysEquiv = (it) => num(it.leadTimeDays) * LEADTIME_DAYS[leadTimeUnitOf(it)];
 
-/** 발주정보 칸에 들어가는 문자열 — 표시와 필터가 같은 값을 보도록 한 곳에서 만든다. */
-function orderInfoOf(it) {
-    const parts = [];
-    if (it.orderUnit) parts.push(withThousands(it.orderUnit));
-    if (num(it.leadTimeDays) > 0) parts.push(`리드타임 ${leadTimeTextOf(it)}`);
-    if (it.lastOrderDate) parts.push(`최근발주 ${it.lastOrderDate}`);
-    if (it.memo) parts.push(it.memo);
-    return parts.join(' · ');
-}
-
-// ───────── 목록 컬럼 정의 (헤더 정렬·필터의 기준) ─────────
-// type: 'text' → 값 목록 체크박스 필터 / 'num' → 최소·최대 범위 필터
+// ───────── 목록 컬럼 정의 ─────────
+// 헤더(정렬·필터)와 본문 셀을 한 곳에서 만든다 — 둘이 어긋나지 않도록.
+//   type : 'text' → 값 목록 체크박스 필터 / 'num' → 최소·최대 범위 필터
+//   get  : 정렬·필터가 보는 값
+//   cell : 표에 그릴 내용(HTML)
+//   hint : 필터 팝업에 덧붙일 설명
 const COLS = [
-    { key: 'category',   label: '종류',     type: 'text', get: it => it.category || '미분류' },
-    { key: 'name',       label: '품명',     type: 'text', get: it => it.name || '' },
-    { key: 'stock',      label: '현재고',   type: 'num',  get: it => num(it.stock) },
-    { key: 'safetyStock',label: '안전재고', type: 'num',  get: it => num(it.safetyStock) },
-    { key: 'unitPrice',  label: '단가',     type: 'num',  get: it => num(it.unitPrice) },
-    { key: 'stockValue', label: '재고금액', type: 'num',  get: it => stockValueOf(it) },
-    { key: 'size',       label: '사이즈',   type: 'text', get: it => it.size || '' },
-    { key: 'vendor',     label: '업체',     type: 'text', get: it => it.vendor || '' },
-    { key: 'orderInfo',  label: '발주정보', type: 'text', get: it => orderInfoOf(it) }
+    { key: 'category', label: '종류', type: 'text', td: 'text-slate-500',
+      get: it => it.category || '미분류',
+      cell: it => esc(it.category || '미분류') },
+    { key: 'name', label: '품명', type: 'text', td: 'font-bold',
+      get: it => it.name || '',
+      cell: it => `${it.isMain ? '<span class="text-amber-500 mr-1">★</span>' : ''}${esc(it.name)}` },
+    { key: 'stock', label: '현재고', type: 'num', td: 'num font-bold',
+      get: it => num(it.stock),
+      cell: it => `<span class="${isLow(it) ? 'text-red-600' : ''}">${fmt(it.stock)}</span>`
+                + ` <span class="text-[11px] font-normal text-slate-400">${esc(it.unit || '개')}</span>` },
+    { key: 'safetyStock', label: '안전재고', type: 'num', td: 'num text-slate-500',
+      get: it => num(it.safetyStock),
+      cell: it => num(it.safetyStock) > 0 ? fmt(it.safetyStock) : '-' },
+    { key: 'unitPrice', label: '단가', type: 'num', td: 'num',
+      get: it => num(it.unitPrice),
+      cell: it => num(it.unitPrice) > 0 ? fmt(it.unitPrice) + '원' : '-' },
+    { key: 'stockValue', label: '재고금액', type: 'num', td: 'num text-slate-600',
+      get: it => stockValueOf(it),
+      cell: it => stockValueOf(it) > 0 ? fmt(Math.round(stockValueOf(it))) + '원' : '-' },
+    { key: 'size', label: '사이즈', type: 'text', td: 'text-slate-600',
+      get: it => it.size || '',
+      cell: it => esc(it.size || '-') },
+    { key: 'vendor', label: '업체', type: 'text', td: 'text-slate-600',
+      get: it => it.vendor || '',
+      cell: it => `${esc(it.vendor || '-')}`
+                + (it.vendorContact ? `<div class="text-[11px] text-slate-400">${esc(it.vendorContact)}</div>` : '') },
+    { key: 'moq', label: 'MOQ', type: 'text', td: 'text-slate-600',
+      get: it => withThousands(it.orderUnit || ''),
+      cell: it => it.orderUnit ? esc(withThousands(it.orderUnit)) : '-' },
+    { key: 'leadTime', label: '리드타임', type: 'num', td: 'num text-slate-600',
+      hint: '일수로 환산해 비교합니다 (주=7일, 개월=30일)',
+      get: it => leadTimeDaysEquiv(it),
+      cell: it => num(it.leadTimeDays) > 0 ? esc(leadTimeTextOf(it)) : '-' },
+    { key: 'lastOrderDate', label: '최근발주', type: 'text', td: 'text-slate-600 whitespace-nowrap',
+      get: it => it.lastOrderDate || '',
+      cell: it => esc(it.lastOrderDate || '-') },
+    { key: 'memo', label: '메모', type: 'text', td: 'text-slate-500 text-[12px] max-w-[14rem]',
+      get: it => it.memo || '',
+      cell: it => esc(it.memo || '-') }
 ];
 const colOf = (key) => COLS.find(c => c.key === key);
 const NUM_COLS = new Set(COLS.filter(c => c.type === 'num').map(c => c.key));
@@ -270,27 +297,15 @@ function renderTable() {
         $('empty-state').innerHTML = '조건에 맞는 비품이 없습니다. 필터를 확인해 주세요.';
     }
 
-    body.innerHTML = list.map(it => {
-        const low = isLow(it);
-        const orderInfo = orderInfoOf(it);
-
-        return `
+    // 셀은 COLS의 cell()이 만든다 — 헤더와 순서가 어긋날 수 없다.
+    body.innerHTML = list.map(it => `
         <tr>
-            <td class="text-slate-500">${esc(it.category || '미분류')}</td>
-            <td class="font-bold">${it.isMain ? '<span class="text-amber-500 mr-1">★</span>' : ''}${esc(it.name)}</td>
-            <td class="num font-bold ${low ? 'text-red-600' : ''}">${fmt(it.stock)} <span class="text-[11px] font-normal text-slate-400">${esc(it.unit || '개')}</span></td>
-            <td class="num text-slate-500">${num(it.safetyStock) > 0 ? fmt(it.safetyStock) : '-'}</td>
-            <td class="num">${num(it.unitPrice) > 0 ? fmt(it.unitPrice) + '원' : '-'}</td>
-            <td class="num text-slate-600">${stockValueOf(it) > 0 ? fmt(Math.round(stockValueOf(it))) + '원' : '-'}</td>
-            <td class="text-slate-600">${esc(it.size || '-')}</td>
-            <td class="text-slate-600">${esc(it.vendor || '-')}${it.vendorContact ? `<div class="text-[11px] text-slate-400">${esc(it.vendorContact)}</div>` : ''}</td>
-            <td class="text-slate-500 text-[12px] max-w-[16rem]">${orderInfo ? esc(orderInfo) : '-'}</td>
+            ${COLS.map(c => `<td class="${c.td || ''}">${c.cell(it)}</td>`).join('')}
             <td class="text-center whitespace-nowrap">
                 <button data-stock="${esc(it.id)}" class="text-[11px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100">재고</button>
                 <button data-edit="${esc(it.id)}" class="text-[11px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">수정</button>
             </td>
-        </tr>`;
-    }).join('');
+        </tr>`).join('');
 }
 
 // ───────── 헤더 필터 팝업 ─────────
@@ -315,7 +330,8 @@ function openFilterPop(key, anchor) {
     if (col.type === 'num') {
         const r = numFilters[key] || { min: '', max: '' };
         pop.innerHTML = `
-            <div class="font-bold text-slate-600 mb-2">${esc(col.label)} 범위</div>
+            <div class="font-bold text-slate-600 mb-1">${esc(col.label)} 범위</div>
+            ${col.hint ? `<div class="text-[11px] text-slate-400 mb-2">${esc(col.hint)}</div>` : '<div class="mb-1"></div>'}
             <div class="flex items-center gap-1">
                 <input type="number" class="inp" style="padding:5px 7px;font-size:12px" data-min placeholder="최소" value="${esc(r.min)}">
                 <span class="text-slate-400">~</span>
