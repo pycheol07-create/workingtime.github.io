@@ -35,6 +35,46 @@ const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 const isLow = (it) => num(it.safetyStock) > 0 && num(it.stock) <= num(it.safetyStock);
 const stockValueOf = (it) => num(it.stock) * num(it.unitPrice);
 
+/** 발주정보 칸에 들어가는 문자열 — 표시와 필터가 같은 값을 보도록 한 곳에서 만든다. */
+function orderInfoOf(it) {
+    const parts = [];
+    if (it.orderUnit) parts.push(it.orderUnit);
+    if (num(it.leadTimeDays) > 0) parts.push(`리드타임 ${num(it.leadTimeDays)}일`);
+    if (it.lastOrderDate) parts.push(`최근발주 ${it.lastOrderDate}`);
+    if (it.memo) parts.push(it.memo);
+    return parts.join(' · ');
+}
+
+// ───────── 목록 컬럼 정의 (헤더 정렬·필터의 기준) ─────────
+// type: 'text' → 값 목록 체크박스 필터 / 'num' → 최소·최대 범위 필터
+const COLS = [
+    { key: 'category',   label: '종류',     type: 'text', get: it => it.category || '미분류' },
+    { key: 'name',       label: '품명',     type: 'text', get: it => it.name || '' },
+    { key: 'stock',      label: '현재고',   type: 'num',  get: it => num(it.stock) },
+    { key: 'safetyStock',label: '안전재고', type: 'num',  get: it => num(it.safetyStock) },
+    { key: 'unitPrice',  label: '단가',     type: 'num',  get: it => num(it.unitPrice) },
+    { key: 'stockValue', label: '재고금액', type: 'num',  get: it => stockValueOf(it) },
+    { key: 'size',       label: '사이즈',   type: 'text', get: it => it.size || '' },
+    { key: 'vendor',     label: '업체',     type: 'text', get: it => it.vendor || '' },
+    { key: 'orderInfo',  label: '발주정보', type: 'text', get: it => orderInfoOf(it) }
+];
+const colOf = (key) => COLS.find(c => c.key === key);
+const NUM_COLS = new Set(COLS.filter(c => c.type === 'num').map(c => c.key));
+
+// 헤더에서 고른 정렬·필터 상태
+let sortState = { key: '', dir: 'asc' };
+// { [key]: Set<string> }  — 값이 있으면 그 값들만 통과. text 컬럼 전용
+const textFilters = {};
+// { [key]: { min, max } } — 빈 문자열이면 제한 없음. num 컬럼 전용
+const numFilters = {};
+
+const hasColFilter = (key) =>
+    (textFilters[key] && textFilters[key].size > 0) ||
+    (numFilters[key] && (numFilters[key].min !== '' || numFilters[key].max !== ''));
+const anyFilterActive = () =>
+    COLS.some(c => hasColFilter(c.key)) || !!sortState.key ||
+    !!$('filter-category').value || !!$('filter-search').value.trim() || $('filter-low').checked;
+
 // ───────── 인증 게이트 ─────────
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -145,34 +185,81 @@ function renderCategoryFilter() {
     $('category-list').innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
 }
 
+/** 상단 도구모음 + 헤더 필터를 모두 통과한 항목. */
 function visibleItems() {
     const cat = $('filter-category').value;
     const kw = $('filter-search').value.trim().toLowerCase();
     const lowOnly = $('filter-low').checked;
 
-    return items.filter(it => {
+    const list = items.filter(it => {
         if (cat && (it.category || '미분류') !== cat) return false;
         if (lowOnly && !isLow(it)) return false;
         if (kw) {
             const hay = `${it.name} ${it.category} ${it.vendor} ${it.size} ${it.memo}`.toLowerCase();
             if (!hay.includes(kw)) return false;
         }
+        // 헤더에서 고른 컬럼별 필터 — 모두 만족해야 통과(AND)
+        for (const col of COLS) {
+            const picked = textFilters[col.key];
+            if (picked && picked.size > 0 && !picked.has(String(col.get(it)))) return false;
+            const range = numFilters[col.key];
+            if (range) {
+                const v = num(col.get(it));
+                if (range.min !== '' && v < num(range.min)) return false;
+                if (range.max !== '' && v > num(range.max)) return false;
+            }
+        }
         return true;
-    }).sort((a, b) => (b.isMain ? 1 : 0) - (a.isMain ? 1 : 0) || String(a.category || '').localeCompare(String(b.category || '')) || String(a.name).localeCompare(String(b.name)));
+    });
+
+    if (sortState.key) {
+        const col = colOf(sortState.key);
+        const sign = sortState.dir === 'desc' ? -1 : 1;
+        list.sort((a, b) => {
+            const va = col.get(a), vb = col.get(b);
+            const r = (col.type === 'num') ? (num(va) - num(vb)) : String(va).localeCompare(String(vb), 'ko');
+            return r * sign || String(a.name).localeCompare(String(b.name), 'ko');
+        });
+        return list;
+    }
+    // 기본 정렬 — 주요 비품 먼저, 그다음 종류·품명
+    return list.sort((a, b) => (b.isMain ? 1 : 0) - (a.isMain ? 1 : 0)
+        || String(a.category || '').localeCompare(String(b.category || ''))
+        || String(a.name).localeCompare(String(b.name)));
+}
+
+/** 헤더 — 컬럼마다 정렬 버튼과 필터 버튼을 붙인다. */
+function renderHead() {
+    const head = $('items-head');
+    if (!head) return;
+    head.innerHTML = COLS.map(c => {
+        const on = sortState.key === c.key;
+        const ic = on ? (sortState.dir === 'asc' ? '▲' : '▼') : '↕';
+        return `<th class="${c.type === 'num' ? 'num' : ''}">
+            <div class="th-wrap">
+                <button type="button" class="th-sort ${on ? 'active' : ''}" data-sort="${c.key}"
+                    title="클릭해서 정렬 (오름차순 → 내림차순 → 해제)">${esc(c.label)} <span class="th-ic">${ic}</span></button>
+                <button type="button" class="th-filter ${hasColFilter(c.key) ? 'on' : ''}" data-filter="${c.key}"
+                    title="${esc(c.label)} 필터" aria-label="${esc(c.label)} 필터">▼</button>
+            </div>
+        </th>`;
+    }).join('') + '<th class="text-center">관리</th>';
+
+    $('btn-reset-filters').classList.toggle('hidden', !anyFilterActive());
 }
 
 function renderTable() {
+    renderHead();
     const list = visibleItems();
     const body = $('items-body');
     $('empty-state').classList.toggle('hidden', list.length > 0);
+    if (items.length > 0) {
+        $('empty-state').innerHTML = '조건에 맞는 비품이 없습니다. 필터를 확인해 주세요.';
+    }
 
     body.innerHTML = list.map(it => {
         const low = isLow(it);
-        const orderParts = [];
-        if (it.orderUnit) orderParts.push(esc(it.orderUnit));
-        if (num(it.leadTimeDays) > 0) orderParts.push(`리드타임 ${num(it.leadTimeDays)}일`);
-        if (it.lastOrderDate) orderParts.push(`최근발주 ${esc(it.lastOrderDate)}`);
-        if (it.memo) orderParts.push(esc(it.memo));
+        const orderInfo = orderInfoOf(it);
 
         return `
         <tr>
@@ -184,13 +271,177 @@ function renderTable() {
             <td class="num text-slate-600">${stockValueOf(it) > 0 ? fmt(Math.round(stockValueOf(it))) + '원' : '-'}</td>
             <td class="text-slate-600">${esc(it.size || '-')}</td>
             <td class="text-slate-600">${esc(it.vendor || '-')}${it.vendorContact ? `<div class="text-[11px] text-slate-400">${esc(it.vendorContact)}</div>` : ''}</td>
-            <td class="text-slate-500 text-[12px] max-w-[16rem]">${orderParts.length ? orderParts.join(' · ') : '-'}</td>
+            <td class="text-slate-500 text-[12px] max-w-[16rem]">${orderInfo ? esc(orderInfo) : '-'}</td>
             <td class="text-center whitespace-nowrap">
                 <button data-stock="${esc(it.id)}" class="text-[11px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100">재고</button>
                 <button data-edit="${esc(it.id)}" class="text-[11px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">수정</button>
             </td>
         </tr>`;
     }).join('');
+}
+
+// ───────── 헤더 필터 팝업 ─────────
+// 표가 overflow 컨테이너 안에 있어 잘리므로, 팝업은 body에 붙이고 좌표로 띄운다.
+let openFilterKey = null;
+
+function closeFilterPop() {
+    document.querySelectorAll('.flt-pop').forEach(p => p.remove());
+    openFilterKey = null;
+}
+
+function openFilterPop(key, anchor) {
+    if (openFilterKey === key) return closeFilterPop();
+    closeFilterPop();
+    openFilterKey = key;
+
+    const col = colOf(key);
+    const pop = document.createElement('div');
+    pop.className = 'flt-pop';
+    pop.dataset.key = key;
+
+    if (col.type === 'num') {
+        const r = numFilters[key] || { min: '', max: '' };
+        pop.innerHTML = `
+            <div class="font-bold text-slate-600 mb-2">${esc(col.label)} 범위</div>
+            <div class="flex items-center gap-1">
+                <input type="number" class="inp" style="padding:5px 7px;font-size:12px" data-min placeholder="최소" value="${esc(r.min)}">
+                <span class="text-slate-400">~</span>
+                <input type="number" class="inp" style="padding:5px 7px;font-size:12px" data-max placeholder="최대" value="${esc(r.max)}">
+            </div>
+            <div class="text-right mt-2"><button type="button" class="flt-btn" data-clear>초기화</button></div>`;
+    } else {
+        // 값 목록은 '이 컬럼을 뺀 나머지 필터'를 통과한 항목에서 뽑는다(엑셀과 같은 방식).
+        const others = items.filter(it => COLS.every(c => {
+            if (c.key === key) return true;
+            const picked = textFilters[c.key];
+            if (picked && picked.size > 0 && !picked.has(String(c.get(it)))) return false;
+            const range = numFilters[c.key];
+            if (range) {
+                const v = num(c.get(it));
+                if (range.min !== '' && v < num(range.min)) return false;
+                if (range.max !== '' && v > num(range.max)) return false;
+            }
+            return true;
+        }));
+        const counts = new Map();
+        others.forEach(it => {
+            const v = String(col.get(it));
+            counts.set(v, (counts.get(v) || 0) + 1);
+        });
+        const picked = textFilters[key];
+        const values = Array.from(counts.keys()).sort((a, b) => a.localeCompare(b, 'ko'));
+        pop.innerHTML = `
+            <div class="flex items-center justify-between gap-1 mb-1">
+                <span class="font-bold text-slate-600">${esc(col.label)}</span>
+                <span><button type="button" class="flt-btn" data-all>전체</button><button type="button" class="flt-btn" data-none>해제</button></span>
+            </div>
+            <input type="search" class="inp" style="padding:5px 7px;font-size:12px" data-q placeholder="값 검색">
+            <div class="flt-list">${
+                values.length === 0
+                    ? '<div class="text-slate-400 text-center py-2">값이 없습니다.</div>'
+                    : values.map(v => `
+                    <label class="flt-row" data-v="${esc(v)}">
+                        <input type="checkbox" data-val="${esc(v)}" ${(!picked || picked.size === 0 || picked.has(v)) ? 'checked' : ''}>
+                        <span title="${esc(v)}">${esc(v === '' ? '(빈 값)' : v)}</span>
+                        <span class="flt-cnt">${counts.get(v)}</span>
+                    </label>`).join('')
+            }</div>`;
+    }
+
+    document.body.appendChild(pop);
+
+    // 화면 밖으로 나가지 않게 위치 보정
+    const a = anchor.getBoundingClientRect();
+    const w = pop.offsetWidth, h = pop.offsetHeight;
+    pop.style.left = Math.max(8, Math.min(a.left, window.innerWidth - w - 8)) + 'px';
+    pop.style.top = (a.bottom + h + 8 > window.innerHeight ? Math.max(8, a.top - h - 4) : a.bottom + 4) + 'px';
+
+    const qEl = pop.querySelector('[data-q]');
+    if (qEl) setTimeout(() => qEl.focus(), 20);
+}
+
+/** 팝업의 체크 상태를 필터에 반영한다. 전부 체크면 '필터 없음'으로 둔다. */
+function applyTextFilterFromPop(pop) {
+    const key = pop.dataset.key;
+    const boxes = [...pop.querySelectorAll('input[data-val]')];
+    const checked = boxes.filter(b => b.checked).map(b => b.dataset.val);
+    if (checked.length === boxes.length) delete textFilters[key];
+    else textFilters[key] = new Set(checked);
+    renderTable();
+}
+
+document.addEventListener('click', (e) => {
+    // 정렬 — 오름차순 → 내림차순 → 해제
+    const sortBtn = e.target.closest('[data-sort]');
+    if (sortBtn) {
+        const key = sortBtn.dataset.sort;
+        if (sortState.key !== key) sortState = { key, dir: 'asc' };
+        else if (sortState.dir === 'asc') sortState.dir = 'desc';
+        else sortState = { key: '', dir: 'asc' };
+        closeFilterPop();
+        renderTable();
+        return;
+    }
+    const fltBtn = e.target.closest('[data-filter]');
+    if (fltBtn) { openFilterPop(fltBtn.dataset.filter, fltBtn); return; }
+    if (!e.target.closest('.flt-pop')) closeFilterPop();
+});
+
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeFilterPop(); });
+window.addEventListener('resize', closeFilterPop);
+
+// 팝업 내부 조작
+document.addEventListener('input', (e) => {
+    const pop = e.target.closest('.flt-pop');
+    if (!pop) return;
+    const key = pop.dataset.key;
+
+    if (e.target.matches('[data-q]')) {
+        const q = e.target.value.trim().toLowerCase();
+        pop.querySelectorAll('.flt-row').forEach(r => {
+            r.style.display = r.dataset.v.toLowerCase().includes(q) ? '' : 'none';
+        });
+        return;
+    }
+    if (e.target.matches('[data-min],[data-max]')) {
+        const min = pop.querySelector('[data-min]').value;
+        const max = pop.querySelector('[data-max]').value;
+        if (min === '' && max === '') delete numFilters[key];
+        else numFilters[key] = { min, max };
+        renderTable();
+    }
+});
+
+document.addEventListener('change', (e) => {
+    const pop = e.target.closest('.flt-pop');
+    if (pop && e.target.matches('input[data-val]')) applyTextFilterFromPop(pop);
+});
+
+document.addEventListener('click', (e) => {
+    const pop = e.target.closest('.flt-pop');
+    if (!pop) return;
+    if (e.target.matches('[data-all]')) {
+        pop.querySelectorAll('input[data-val]').forEach(b => { b.checked = true; });
+        applyTextFilterFromPop(pop);
+    } else if (e.target.matches('[data-none]')) {
+        pop.querySelectorAll('input[data-val]').forEach(b => { b.checked = false; });
+        applyTextFilterFromPop(pop);
+    } else if (e.target.matches('[data-clear]')) {
+        pop.querySelector('[data-min]').value = '';
+        pop.querySelector('[data-max]').value = '';
+        delete numFilters[pop.dataset.key];
+        renderTable();
+    }
+});
+
+function resetAllFilters() {
+    COLS.forEach(c => { delete textFilters[c.key]; delete numFilters[c.key]; });
+    sortState = { key: '', dir: 'asc' };
+    $('filter-category').value = '';
+    $('filter-search').value = '';
+    $('filter-low').checked = false;
+    closeFilterPop();
+    renderTable();
 }
 
 // ───────── 비품 추가/수정 모달 ─────────
@@ -377,6 +628,7 @@ $('btn-delete-item').addEventListener('click', deleteItem);
 $('btn-save-stock').addEventListener('click', saveStock);
 $('btn-refresh').addEventListener('click', async () => { await load(); renderAll(); });
 $('btn-close').addEventListener('click', () => window.close());
+$('btn-reset-filters').addEventListener('click', resetAllFilters);
 
 ['filter-category', 'filter-search', 'filter-low'].forEach(id => {
     $(id).addEventListener('input', renderTable);

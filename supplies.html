@@ -14,7 +14,26 @@
     <style>
         body { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
         .sup-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-        .sup-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-align: left; position: sticky; top: 0; z-index: 1; }
+        .sup-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-align: left; position: sticky; top: 0; z-index: 1; }
+        /* 헤더 정렬·필터 */
+        .th-wrap { display: flex; align-items: center; gap: 2px; }
+        .sup-table th.num .th-wrap { justify-content: flex-end; }
+        .th-sort { display: inline-flex; align-items: center; gap: 3px; font: inherit; color: inherit; background: none; border: 0; padding: 4px 3px; cursor: pointer; border-radius: 4px; white-space: nowrap; }
+        .th-sort:hover { background: #e2e8f0; }
+        .th-ic { font-size: 10px; color: #94a3b8; }
+        .th-sort.active { color: #4338ca; }
+        .th-sort.active .th-ic { color: #4f46e5; }
+        .th-filter { border: 0; background: none; color: #94a3b8; font-size: 9px; cursor: pointer; padding: 4px 3px; border-radius: 4px; line-height: 1; }
+        .th-filter:hover { background: #e2e8f0; color: #475569; }
+        .th-filter.on { color: #4f46e5; background: #e0e7ff; }
+        .flt-pop { position: fixed; z-index: 60; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.18); padding: 10px; width: 224px; font-size: 12px; color: #334155; }
+        .flt-list { max-height: 220px; overflow: auto; margin-top: 6px; border-top: 1px solid #f1f5f9; padding-top: 6px; }
+        .flt-row { display: flex; align-items: center; gap: 6px; padding: 3px 2px; cursor: pointer; border-radius: 4px; }
+        .flt-row:hover { background: #f1f5f9; }
+        .flt-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .flt-cnt { margin-left: auto; color: #94a3b8; font-size: 11px; }
+        .flt-btn { font-size: 11px; font-weight: 700; color: #4f46e5; background: none; border: 0; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+        .flt-btn:hover { background: #eef2ff; }
         .sup-table td { padding: 8px 10px; border-bottom: 1px solid #eef2f7; color: #334155; vertical-align: middle; }
         .sup-table tbody tr:hover td { background: #f8fafc; }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -61,23 +80,14 @@
                     <label class="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
                         <input type="checkbox" id="filter-low"> 부족분만
                     </label>
+                    <button id="btn-reset-filters" class="hidden text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-red-100 hover:text-red-600 transition">필터 초기화</button>
                 </div>
             </div>
             <div class="overflow-x-auto max-h-[60vh]">
                 <table class="sup-table">
                     <thead>
-                        <tr>
-                            <th>종류</th>
-                            <th>품명</th>
-                            <th class="num">현재고</th>
-                            <th class="num">안전재고</th>
-                            <th class="num">단가</th>
-                            <th class="num">재고금액</th>
-                            <th>사이즈</th>
-                            <th>업체</th>
-                            <th>발주정보</th>
-                            <th class="text-center">관리</th>
-                        </tr>
+                        <!-- 헤더는 js/supplies.js 의 COLS 로부터 생성된다(정렬·필터 버튼 포함) -->
+                        <tr id="items-head"></tr>
                     </thead>
                     <tbody id="items-body"></tbody>
                 </table>
