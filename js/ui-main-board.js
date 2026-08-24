@@ -667,7 +667,9 @@ export const renderLeaveScheduleWidget = () => {
         const end = l.endDate || start;
         return { member: l.member || l.name || '', type: l.type || '', customLabel: l.customLabel || '', start, end };
     }).filter(l => l.start && l.end >= today)
-      .sort((a, b) => (a.start || '').localeCompare(b.start || '') || (a.member || '').localeCompare(b.member || ''));
+      .sort((a, b) => (a.start || '').localeCompare(b.start || '')
+                   || (a.end || '').localeCompare(b.end || '')
+                   || (a.member || '').localeCompare(b.member || ''));
 
     if (!items.length) {
         el.innerHTML = '<div class="text-xs text-gray-400 dark:text-gray-500 italic py-3 text-center">예정된 근태가 없습니다.</div>';
@@ -709,15 +711,17 @@ export const renderLeaveScheduleWidget = () => {
     el.innerHTML = groups.map(g => {
         const isToday = g.start <= today && g.end >= today;
         // 같은 날짜 안의 근태는 세로로 한 줄씩 쌓는다.
+        // 한 줄 = [날짜] [이름 … 유형배지] [n명]
+        // 세 열 모두 고정 폭이라 행이 달라도 왼쪽(이름)·오른쪽(배지) 끝이 같은 자리에 선다.
         const chips = g.members.map(m => `
-            <span class="flex items-center gap-1.5 w-full">
+            <span class="flex items-center gap-1.5 w-full min-h-[18px]">
                 <span class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate" title="${esc(m.member)}">${esc(m.member)}</span>
                 <span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ml-auto ${tone(m.type)}" title="${esc(leaveTypeLabel(m))}">${esc(leaveTypeLabel(m))}</span>
             </span>`).join('');
         return `<div class="flex items-start gap-2 px-2 py-1.5 rounded-lg ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'} transition-colors">
-            <span class="text-[11px] font-bold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'} w-[56px] shrink-0 pt-0.5">${esc(dLabel(g.start, g.end))}</span>
+            <span class="text-[10px] font-bold tabular-nums whitespace-nowrap ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'} w-[66px] shrink-0 pt-1">${esc(dLabel(g.start, g.end))}</span>
             <span class="flex-1 min-w-0 flex flex-col gap-1">${chips}</span>
-            ${g.members.length > 1 ? `<span class="text-[10px] text-gray-400 shrink-0 pt-0.5">${g.members.length}명</span>` : ''}
+            <span class="text-[10px] text-gray-400 shrink-0 pt-1 w-[26px] text-right">${g.members.length > 1 ? `${g.members.length}명` : ''}</span>
         </div>`;
     }).join('');
 };
