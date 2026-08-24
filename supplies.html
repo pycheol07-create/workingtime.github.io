@@ -15,10 +15,9 @@
         body { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
         /* 칸마다 최소 폭(th의 min-width)을 두므로 표는 내용 폭을 따르되, 좁을 땐 영역을 꽉 채운다. */
         .sup-table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 13px; }
-        .sup-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 4px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-align: left; position: sticky; top: 0; z-index: 1; }
+        .sup-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 4px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-align: center; position: sticky; top: 0; z-index: 1; }
         /* 헤더 정렬·필터 */
-        .th-wrap { display: flex; align-items: center; gap: 2px; }
-        .sup-table th.num .th-wrap { justify-content: flex-end; }
+        .th-wrap { display: flex; align-items: center; justify-content: center; gap: 2px; }
         .th-sort { display: inline-flex; align-items: center; gap: 3px; font: inherit; color: inherit; background: none; border: 0; padding: 4px 3px; cursor: pointer; border-radius: 4px; white-space: nowrap; }
         .th-sort:hover { background: #e2e8f0; }
         .th-ic { font-size: 10px; color: #94a3b8; }
@@ -39,6 +38,7 @@
         .sup-table td.wrap { white-space: normal; }
         .sup-table tbody tr:hover td { background: #f8fafc; }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .sup-table td.mid { text-align: center; font-variant-numeric: tabular-nums; }
         .lbl { display:block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
         .inp { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
         .inp:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }

@@ -58,45 +58,46 @@ const leadTimeDaysEquiv = (it) => num(it.leadTimeDays) * LEADTIME_DAYS[leadTimeU
 //   cell : 표에 그릴 내용(HTML)
 //   hint : 필터 팝업에 덧붙일 설명
 const COLS = [
-    { key: 'category', label: '종류', type: 'text', td: 'text-slate-500', w: 96,
+    { key: 'category', label: '종류', type: 'text', td: 'text-slate-500',
       get: it => it.category || '미분류',
       cell: it => esc(it.category || '미분류') },
-    { key: 'name', label: '품명', type: 'text', td: 'font-bold', w: 150,
+    { key: 'name', label: '품명', type: 'text', td: 'font-bold',
       get: it => it.name || '',
       cell: it => `${it.isMain ? '<span class="text-amber-500 mr-1">★</span>' : ''}${esc(it.name)}` },
-    { key: 'stock', label: '현재고', type: 'num', td: 'num font-bold', w: 110,
+    { key: 'stock', label: '현재고', type: 'num', td: 'num font-bold',
       get: it => num(it.stock),
       cell: it => `<span class="${isLow(it) ? 'text-red-600' : ''}">${fmt(it.stock)}</span>`
                 + ` <span class="text-[11px] font-normal text-slate-400">${esc(it.unit || '개')}</span>` },
-    { key: 'safetyStock', label: '안전재고', type: 'num', td: 'num text-slate-500', w: 100,
+    { key: 'safetyStock', label: '안전재고', type: 'num', td: 'num text-slate-500',
       get: it => num(it.safetyStock),
       cell: it => num(it.safetyStock) > 0 ? fmt(it.safetyStock) : '-' },
-    { key: 'unitPrice', label: '단가', type: 'num', td: 'num', w: 100,
+    { key: 'unitPrice', label: '단가', type: 'num', td: 'num',
       get: it => num(it.unitPrice),
       cell: it => num(it.unitPrice) > 0 ? fmt(it.unitPrice) + '원' : '-' },
-    { key: 'stockValue', label: '재고금액', type: 'num', td: 'num text-slate-600', w: 120,
+    { key: 'stockValue', label: '재고금액', type: 'num', td: 'num text-slate-600',
       get: it => stockValueOf(it),
       cell: it => stockValueOf(it) > 0 ? fmt(Math.round(stockValueOf(it))) + '원' : '-' },
-    { key: 'size', label: '사이즈', type: 'text', td: 'text-slate-600', w: 110,
+    { key: 'size', label: '사이즈', type: 'text', td: 'text-slate-600',
       get: it => it.size || '',
       cell: it => esc(it.size || '-') },
-    { key: 'vendor', label: '업체', type: 'text', td: 'text-slate-600', w: 150,
+    { key: 'vendor', label: '업체', type: 'text', td: 'text-slate-600',
       get: it => it.vendor || '',
       cell: it => `${esc(it.vendor || '-')}`
                 + (it.vendorContact ? `<div class="text-[11px] text-slate-400">${esc(it.vendorContact)}</div>` : '') },
-    { key: 'moq', label: 'MOQ', type: 'text', td: 'text-slate-600', w: 180,
+    { key: 'moq', label: 'MOQ', type: 'text', td: 'text-slate-600',
       get: it => withThousands(it.orderUnit || ''),
       cell: it => it.orderUnit ? esc(withThousands(it.orderUnit)) : '-' },
-    { key: 'leadTime', label: '리드타임', type: 'num', td: 'num text-slate-600', w: 100,
+    { key: 'leadTime', label: '리드타임', type: 'num', td: 'mid text-slate-600',
       hint: '일수로 환산해 비교합니다 (주=7일, 개월=30일)',
       get: it => leadTimeDaysEquiv(it),
       cell: it => num(it.leadTimeDays) > 0 ? esc(leadTimeTextOf(it)) : '-' },
-    { key: 'lastOrderDate', label: '최근발주', type: 'text', td: 'text-slate-600', w: 120,
+    { key: 'lastOrderDate', label: '최근발주', type: 'text', td: 'mid text-slate-600',
       get: it => it.lastOrderDate || '',
       cell: it => esc(it.lastOrderDate || '-') },
-    { key: 'memo', label: '메모', type: 'text', td: 'wrap text-slate-500 text-[12px] max-w-[18rem]', w: 190,
+    // 메모는 길 수 있어 한 줄로 자르고(넘치면 …), 전체 내용은 마우스를 올리면 보인다.
+    { key: 'memo', label: '메모', type: 'text', td: 'text-slate-500 text-[12px] max-w-[22rem] overflow-hidden text-ellipsis',
       get: it => it.memo || '',
-      cell: it => esc(it.memo || '-') }
+      cell: it => it.memo ? `<span title="${esc(it.memo)}">${esc(it.memo)}</span>` : '-' }
 ];
 const colOf = (key) => COLS.find(c => c.key === key);
 const NUM_COLS = new Set(COLS.filter(c => c.type === 'num').map(c => c.key));
@@ -270,10 +271,13 @@ function visibleItems() {
 function renderHead() {
     const head = $('items-head');
     if (!head) return;
+    // 머리글 글자 + 정렬(↕)·필터(▼) 버튼이 한 줄에 들어갈 최소 폭.
+    // 이보다 긴 값이 있으면 그 칸은 내용 폭에 맞춰 저절로 넓어진다.
+    const headMinW = (label) => label.length * 13 + 46;
     head.innerHTML = COLS.map(c => {
         const on = sortState.key === c.key;
         const ic = on ? (sortState.dir === 'asc' ? '▲' : '▼') : '↕';
-        return `<th class="${c.type === 'num' ? 'num' : ''}" style="min-width:${c.w || 90}px">
+        return `<th class="${c.type === 'num' ? 'num' : ''}" style="min-width:${headMinW(c.label)}px">
             <div class="th-wrap">
                 <button type="button" class="th-sort ${on ? 'active' : ''}" data-sort="${c.key}"
                     title="클릭해서 정렬 (오름차순 → 내림차순 → 해제)">${esc(c.label)} <span class="th-ic">${ic}</span></button>
