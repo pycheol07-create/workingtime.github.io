@@ -58,21 +58,66 @@ async function saveConfig() {
     catch (e) { alert('설정 저장 실패: ' + e.message); }
 }
 
+// ───────── 가져올 영역(A1 범위) ─────────
+// 'A1:H200' · 'B:F'(열만) · 'A5:'(5행부터) · '3:100'(행만) 형태를 받는다.
+// 범위의 첫 줄이 머리글이 된다.
+function parseA1Range(range) {
+    const s = String(range || '').trim().toUpperCase().replace(/\s/g, '');
+    if (!s) return null;
+    const m = s.match(/^([A-Z]*)(\d*)(?::([A-Z]*)(\d*))?$/);
+    if (!m || (!m[1] && !m[2])) return null;
+    const colNum = (c) => { let n = 0; for (const ch of c) n = n * 26 + (ch.charCodeAt(0) - 64); return n - 1; };
+    const [, c1, r1, c2, r2] = m;
+    const hasEnd = s.includes(':');
+    return {
+        col0: c1 ? colNum(c1) : 0,
+        col1: hasEnd ? (c2 ? colNum(c2) : Infinity) : (c1 ? colNum(c1) : Infinity),
+        row0: r1 ? Number(r1) - 1 : 0,
+        row1: hasEnd ? (r2 ? Number(r2) - 1 : Infinity) : (r1 ? Number(r1) - 1 : Infinity)
+    };
+}
+
+/** 받아온 표를 지정한 범위로 자른다.
+ *  Apps Script가 이미 잘라서 준 경우(json.appliedRange)는 그대로 쓴다. */
+function applyRange(data, range) {
+    const r = parseA1Range(range);
+    if (!r) return data;
+    // headers 는 시트 1행, rows 는 2행부터다 → A1 행 번호와 맞추려면 다시 이어 붙인다.
+    const grid = [data.headers || [], ...(data.rows || [])];
+    const cut = grid
+        .slice(r.row0, r.row1 === Infinity ? undefined : r.row1 + 1)
+        .map(row => (row || []).slice(r.col0, r.col1 === Infinity ? undefined : r.col1 + 1));
+    if (!cut.length) return { ...data, headers: [], rows: [] };
+    return { ...data, headers: cut[0], rows: cut.slice(1) };
+}
+
 // ───────── Apps Script fetch (+ localStorage 캐시) ─────────
-async function fetchSheet(sheetId, force) {
+async function fetchSheet(sheetId, force, opts = {}) {
     if (!config.scriptUrl) throw new Error('Apps Script URL이 설정되지 않았습니다. (⚙️ 설정)');
-    const cacheKey = 'sheetdash_' + sheetId;
+    const tab = (opts.tabName || '').trim();
+    const range = (opts.range || '').trim();
+    // 탭·범위가 다르면 다른 데이터이므로 캐시도 따로 둔다.
+    const cacheKey = 'sheetdash_' + sheetId + '|' + tab + '|' + range;
     if (!force) {
         try {
             const c = JSON.parse(localStorage.getItem(cacheKey) || 'null');
             if (c && Date.now() - c.at < CACHE_TTL_MS && c.data) return c.data;
         } catch (_) {}
     }
-    const url = config.scriptUrl + (config.scriptUrl.includes('?') ? '&' : '?') + 'id=' + encodeURIComponent(sheetId);
+    let url = config.scriptUrl + (config.scriptUrl.includes('?') ? '&' : '?') + 'id=' + encodeURIComponent(sheetId);
+    // Apps Script가 tab/range를 지원하면 서버에서 잘라 보내 준다(전송량 절감).
+    // 지원하지 않는 예전 스크립트는 이 값을 무시하므로, 아래에서 받아온 표를 직접 자른다.
+    if (tab) url += '&tab=' + encodeURIComponent(tab);
+    if (range) url += '&range=' + encodeURIComponent(range);
+
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+    let json = await res.json();
     if (!json.ok) throw new Error(json.error || '읽기 실패');
+
+    if (range && !json.appliedRange) json = applyRange(json, range);
+    json.requestedTab = tab;
+
     try { localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data: json })); } catch (_) {}
     return json;
 }
@@ -347,6 +392,9 @@ function renderAll() {
         card.innerHTML = `
             <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                 <div class="font-bold text-slate-800 flex items-center gap-2">📄 ${esc(cfg.name || '시트')}
+                    ${(cfg.tabName || cfg.range)
+                        ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${
+                            esc([cfg.tabName, cfg.range].filter(Boolean).join(' · '))}</span>` : ''}
                     <span id="cnt-${cfg.localId}" class="text-[11px] font-bold text-slate-400"></span>
                 </div>
                 <div class="flex items-center gap-1.5">
@@ -426,7 +474,7 @@ async function loadCard(cfg, force) {
     if (!body) return;
     try {
         body.innerHTML = `<div class="p-6 text-center text-slate-400 text-sm">불러오는 중…</div>`;
-        const data = await fetchSheet(cfg.sheetId, force);
+        const data = await fetchSheet(cfg.sheetId, force, { tabName: cfg.tabName, range: cfg.range });
         cardData[cfg.localId] = data;
         const orderIdx = detectOrderCols(data.headers);
         if (orderIdx) renderKpi(cfg, data, orderIdx);
@@ -527,6 +575,8 @@ function openSheetModal(localId) {
     $('inp-sheet-localid').value = cfg ? cfg.localId : '';
     $('inp-sheet-name').value = cfg ? cfg.name : '';
     $('inp-sheet-url').value = cfg ? cfg.sheetId : '';
+    $('inp-sheet-tab').value = cfg ? (cfg.tabName || '') : '';
+    $('inp-sheet-range').value = cfg ? (cfg.range || '') : '';
     $('btn-delete-sheet').classList.toggle('hidden', !cfg);
     show('sheet-modal');
 }
@@ -534,13 +584,20 @@ $('btn-save-sheet').onclick = async () => {
     const name = $('inp-sheet-name').value.trim();
     const sheetId = extractSheetId($('inp-sheet-url').value);
     if (!name || !sheetId) { alert('이름과 시트 URL을 입력하세요.'); return; }
+    const tabName = $('inp-sheet-tab').value.trim();
+    const range = $('inp-sheet-range').value.trim();
+    if (range && !parseA1Range(range)) {
+        alert('범위 형식을 확인해주세요.\n\n예) A1:H200 · B:F · A5: · 3:100');
+        return;
+    }
+
     const localId = $('inp-sheet-localid').value;
     if (localId) {
         const cfg = config.sheets.find(s => s.localId === localId);
-        if (cfg) { cfg.name = name; cfg.sheetId = sheetId; }
+        if (cfg) { cfg.name = name; cfg.sheetId = sheetId; cfg.tabName = tabName; cfg.range = range; }
     } else {
         const localId = uid();
-        config.sheets.push({ localId, name, sheetId, hiddenCols: [] });
+        config.sheets.push({ localId, name, sheetId, tabName, range, hiddenCols: [] });
         activeSheetId = localId;   // 새로 추가한 시트를 바로 보여준다
     }
     await saveConfig(); hide('sheet-modal'); renderAll();

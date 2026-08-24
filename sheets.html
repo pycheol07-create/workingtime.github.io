@@ -84,7 +84,24 @@
             <input id="inp-sheet-name" type="text" placeholder="예: 발주 현황" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm mb-3">
             <label class="block text-xs font-bold text-slate-600 mb-1">스프레드시트 URL 또는 ID</label>
             <input id="inp-sheet-url" type="text" placeholder="https://docs.google.com/spreadsheets/d/...." class="w-full p-2.5 border border-slate-300 rounded-lg text-sm mb-1">
-            <p class="text-[11px] text-slate-400 mb-4">붙여넣으면 시트 ID를 자동 추출합니다. 항상 <b>첫 번째 탭</b>을 읽습니다.</p>
+            <p class="text-[11px] text-slate-400 mb-3">붙여넣으면 시트 ID를 자동 추출합니다.</p>
+
+            <div class="grid grid-cols-2 gap-3 mb-1">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">탭 이름</label>
+                    <input id="inp-sheet-tab" type="text" placeholder="비우면 첫 번째 탭" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">가져올 범위</label>
+                    <input id="inp-sheet-range" type="text" placeholder="비우면 전체 (예: A1:H200)" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm">
+                </div>
+            </div>
+            <p id="range-hint" class="text-[11px] text-slate-400 mb-4 leading-relaxed">
+                범위의 <b>첫 줄이 머리글</b>이 됩니다. <code>A1:H200</code> · <code>B:F</code>(열만) ·
+                <code>A5:</code>(5행부터) · <code>3:100</code>(행만) 형태로 적습니다.<br>
+                <span class="text-amber-600">탭 이름</span>은 Apps Script가 <code>tab</code> 값을 지원할 때만 적용됩니다.
+                범위는 스크립트가 지원하지 않아도 받아온 뒤 잘라서 보여줍니다.
+            </p>
             <div class="flex justify-between items-center">
                 <button id="btn-delete-sheet" class="hidden px-3 py-2 text-xs rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold">삭제</button>
                 <div class="flex gap-2 ml-auto">
