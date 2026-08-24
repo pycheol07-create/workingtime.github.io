@@ -54,8 +54,9 @@ async function loadConfig() {
     } catch (e) { console.warn('설정 로드 실패:', e); }
 }
 async function saveConfig() {
-    try { await setDoc(CONFIG_REF, config); }
-    catch (e) { alert('설정 저장 실패: ' + e.message); }
+    // 실패를 삼키면 화면만 바뀌고 새로고침하면 되돌아가 '수정이 안 되는' 것처럼 보인다.
+    // 호출한 쪽에서 사용자에게 알리도록 그대로 던진다.
+    await setDoc(CONFIG_REF, config);
 }
 
 // ───────── 가져올 영역(A1 범위) ─────────
@@ -154,6 +155,12 @@ const periodRange = {}; // localId -> { from, to }  (custom 기간 조회용)
  *  'table' 기본 표 / 'kpi' 오더·결제 KPI 화면 / 'auto' 머리글 보고 판단(예전 방식).
  *  서로 다른 스프레드시트라도 머리글 양식이 같으면 자동 판별은 똑같이 잡히므로,
  *  탭별로 직접 골라 둘 수 있게 한다. */
+const VIEW_BADGE = {
+    table: { text: '기본 표',   cls: 'bg-slate-100 text-slate-500' },
+    kpi:   { text: '금액관리',  cls: 'bg-indigo-100 text-indigo-700' },
+    auto:  { text: '자동',      cls: 'bg-amber-100 text-amber-700' }
+};
+
 function viewModeOf(cfg) {
     const m = cfg && cfg.viewMode;
     return (m === 'table' || m === 'kpi') ? m : 'auto';
@@ -408,9 +415,13 @@ function renderAll() {
         card.innerHTML = `
             <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                 <div class="font-bold text-slate-800 flex items-center gap-2">📄 ${esc(cfg.name || '시트')}
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        VIEW_BADGE[viewModeOf(cfg)].cls}" title="보기 방식">${VIEW_BADGE[viewModeOf(cfg)].text}</span>
                     ${(cfg.tabName || cfg.range)
                         ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${
                             esc([cfg.tabName, cfg.range].filter(Boolean).join(' · '))}</span>` : ''}
+                    <span class="text-[10px] text-slate-300 font-mono" title="스프레드시트 ID: ${esc(cfg.sheetId || '')}">${
+                        esc(String(cfg.sheetId || '').slice(0, 6))}…</span>
                     <span id="cnt-${cfg.localId}" class="text-[11px] font-bold text-slate-400"></span>
                 </div>
                 <div class="flex items-center gap-1.5">
@@ -610,40 +621,59 @@ $('btn-save-settings').onclick = async () => { config.scriptUrl = $('inp-script-
 
 // 시트 추가/편집 모달
 $('btn-add').onclick = () => openSheetModal(null);
+// 화면(HTML)과 스크립트 버전이 어긋나 입력칸이 없을 수 있다.
+// 그때 예외로 죽으면 '저장이 안 되는' 것처럼 보이므로, 없으면 건너뛰고 알려 준다.
+const setVal = (id, v) => { const el = $(id); if (el) el.value = v; };
+const getVal = (id, fallback = '') => { const el = $(id); return el ? el.value : fallback; };
+
 function openSheetModal(localId) {
     const cfg = localId ? config.sheets.find(s => s.localId === localId) : null;
     $('sheet-modal-title').textContent = cfg ? '✏️ 시트 편집' : '➕ 시트 추가';
-    $('inp-sheet-localid').value = cfg ? cfg.localId : '';
-    $('inp-sheet-name').value = cfg ? cfg.name : '';
-    $('inp-sheet-url').value = cfg ? cfg.sheetId : '';
-    $('inp-sheet-tab').value = cfg ? (cfg.tabName || '') : '';
-    $('inp-sheet-range').value = cfg ? (cfg.range || '') : '';
-    $('inp-sheet-view').value = cfg ? viewModeOf(cfg) : 'table';   // 새 시트는 '기본 표'로 시작
+    setVal('inp-sheet-localid', cfg ? cfg.localId : '');
+    setVal('inp-sheet-name', cfg ? cfg.name : '');
+    setVal('inp-sheet-url', cfg ? cfg.sheetId : '');
+    setVal('inp-sheet-tab', cfg ? (cfg.tabName || '') : '');
+    setVal('inp-sheet-range', cfg ? (cfg.range || '') : '');
+    setVal('inp-sheet-view', cfg ? viewModeOf(cfg) : 'table');   // 새 시트는 '기본 표'로 시작
+    if (!$('inp-sheet-view')) {
+        alert('화면이 예전 버전으로 남아 있습니다.\n\n브라우저를 강력 새로고침(Ctrl+Shift+R) 한 뒤 다시 시도해주세요.');
+    }
     $('btn-delete-sheet').classList.toggle('hidden', !cfg);
     show('sheet-modal');
 }
 $('btn-save-sheet').onclick = async () => {
-    const name = $('inp-sheet-name').value.trim();
-    const sheetId = extractSheetId($('inp-sheet-url').value);
+  try {
+    const name = getVal('inp-sheet-name').trim();
+    const sheetId = extractSheetId(getVal('inp-sheet-url'));
     if (!name || !sheetId) { alert('이름과 시트 URL을 입력하세요.'); return; }
-    const tabName = $('inp-sheet-tab').value.trim();
-    const range = $('inp-sheet-range').value.trim();
-    const viewMode = $('inp-sheet-view').value;
+    const tabName = getVal('inp-sheet-tab').trim();
+    const range = getVal('inp-sheet-range').trim();
+    const viewMode = getVal('inp-sheet-view', 'auto');
     if (range && !parseA1Range(range)) {
         alert('범위 형식을 확인해주세요.\n\n예) A1:H200 · B:F · A5: · 3:100');
         return;
     }
 
-    const localId = $('inp-sheet-localid').value;
+    const localId = getVal('inp-sheet-localid');
     if (localId) {
         const cfg = config.sheets.find(s => s.localId === localId);
-        if (cfg) { cfg.name = name; cfg.sheetId = sheetId; cfg.tabName = tabName; cfg.range = range; cfg.viewMode = viewMode; }
+        if (!cfg) { alert('수정할 시트를 찾지 못했습니다. 창을 닫고 다시 시도해주세요.'); return; }
+        cfg.name = name; cfg.sheetId = sheetId; cfg.tabName = tabName; cfg.range = range; cfg.viewMode = viewMode;
+        // 설정이 바뀌었으니 예전에 받아 둔 내용은 버린다(옛 화면이 남지 않도록).
+        delete cardData[localId];
+        loadedSheets.delete(localId);
     } else {
-        const localId = uid();
-        config.sheets.push({ localId, name, sheetId, tabName, range, viewMode, hiddenCols: [] });
-        activeSheetId = localId;   // 새로 추가한 시트를 바로 보여준다
+        const newId = uid();
+        config.sheets.push({ localId: newId, name, sheetId, tabName, range, viewMode, hiddenCols: [] });
+        activeSheetId = newId;   // 새로 추가한 시트를 바로 보여준다
     }
-    await saveConfig(); hide('sheet-modal'); renderAll();
+    await saveConfig();
+    hide('sheet-modal');
+    renderAll();
+  } catch (e) {
+    console.error('시트 설정 저장 실패:', e);
+    alert('시트 설정을 저장하지 못했습니다.\n\n' + (e && e.message ? e.message : e));
+  }
 };
 $('btn-delete-sheet').onclick = async () => {
     const localId = $('inp-sheet-localid').value;
