@@ -164,6 +164,20 @@ function viewModeOf(cfg) {
     return (cfg && cfg.viewMode === 'kpi') ? 'kpi' : 'table';
 }
 
+// ───────── 금액 칸 서식 ─────────
+// 머리글이 금액을 뜻하는 칸만 통화로 보여준다.
+// '송금일'처럼 날짜인 칸이 걸리지 않도록 '송금액'을 통째로 본다.
+const MONEY_WORDS = ['금액', '수수료', '합계', '송금액', '잔액', '단가', '원가', '총액', '비용', '매출', '가격', '결제'];
+const isMoneyHeader = (h) => {
+    const t = norm(h);
+    if (!t) return false;
+    if (t.includes('일') && !t.includes('금액')) return false;   // 송금일·마감일 등 날짜 칸 제외
+    return MONEY_WORDS.some(w => t.includes(w));
+};
+const moneyFormatOf = (cfg) => (cfg && cfg.moneyFormat === 'usd') ? 'usd' : 'none';
+const USD_FMT = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD',
+    minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 /** KPI 화면에 쓸 열 위치. 'kpi'로 지정한 시트에서만 찾는다. */
 function orderColsFor(cfg, headers) {
     if (viewModeOf(cfg) !== 'kpi') return null;
@@ -415,6 +429,8 @@ function renderAll() {
                 <div class="font-bold text-slate-800 flex items-center gap-2">📄 ${esc(cfg.name || '시트')}
                     <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${
                         VIEW_BADGE[viewModeOf(cfg)].cls}" title="보기 방식">${VIEW_BADGE[viewModeOf(cfg)].text}</span>
+                    ${moneyFormatOf(cfg) === 'usd'
+                        ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700" title="금액 칸을 달러로 표시">$</span>' : ''}
                     ${(cfg.tabName || cfg.range)
                         ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${
                             esc([cfg.tabName, cfg.range].filter(Boolean).join(' · '))}</span>` : ''}
@@ -547,6 +563,14 @@ function renderSheetTable(cfg, data) {
     const hidden = new Set(cfg.hiddenCols || []);
     const visIdx = headers.map((h, i) => i).filter(i => !hidden.has(headers[i]));
     const isNum = numericColumns(headers, rows);
+    // 금액 칸은 통화로 보여준다(설정한 시트만). 숫자가 아닌 값은 그대로 둔다.
+    const asMoney = moneyFormatOf(cfg) === 'usd';
+    const isMoney = headers.map((h, i) => asMoney && isNum[i] && isMoneyHeader(h));
+    const cellText = (v, i) => {
+        if (!isMoney[i]) return esc(v);
+        const n = parseNum(v);
+        return n === null ? esc(v) : USD_FMT.format(n);
+    };
 
     // 검색 필터
     const q = ($('search-' + cfg.localId)?.value || '').trim().toLowerCase();
@@ -561,7 +585,7 @@ function renderSheetTable(cfg, data) {
     const MAX = 500; // 과도한 렌더 방지
     filtered.slice(0, MAX).forEach(r => {
         html += '<tr>';
-        visIdx.forEach(i => { html += `<td class="${isNum[i] ? 'num' : ''}">${esc(r[i])}</td>`; });
+        visIdx.forEach(i => { html += `<td class="${isNum[i] ? 'num' : ''}">${cellText(r[i], i)}</td>`; });
         html += '</tr>';
     });
     html += '</tbody></table>';
@@ -633,6 +657,7 @@ function openSheetModal(localId) {
     setVal('inp-sheet-tab', cfg ? (cfg.tabName || '') : '');
     setVal('inp-sheet-range', cfg ? (cfg.range || '') : '');
     setVal('inp-sheet-view', cfg ? viewModeOf(cfg) : 'table');   // 새 시트는 '기본 표'로 시작
+    setVal('inp-sheet-money', cfg ? moneyFormatOf(cfg) : 'none');
     if (!$('inp-sheet-view')) {
         alert('화면이 예전 버전으로 남아 있습니다.\n\n브라우저를 강력 새로고침(Ctrl+Shift+R) 한 뒤 다시 시도해주세요.');
     }
@@ -647,6 +672,7 @@ $('btn-save-sheet').onclick = async () => {
     const tabName = getVal('inp-sheet-tab').trim();
     const range = getVal('inp-sheet-range').trim();
     const viewMode = getVal('inp-sheet-view', 'table');
+    const moneyFormat = getVal('inp-sheet-money', 'none');
     if (range && !parseA1Range(range)) {
         alert('범위 형식을 확인해주세요.\n\n예) A1:H200 · B:F · A5: · 3:100');
         return;
@@ -656,13 +682,13 @@ $('btn-save-sheet').onclick = async () => {
     if (localId) {
         const cfg = config.sheets.find(s => s.localId === localId);
         if (!cfg) { alert('수정할 시트를 찾지 못했습니다. 창을 닫고 다시 시도해주세요.'); return; }
-        cfg.name = name; cfg.sheetId = sheetId; cfg.tabName = tabName; cfg.range = range; cfg.viewMode = viewMode;
+        cfg.name = name; cfg.sheetId = sheetId; cfg.tabName = tabName; cfg.range = range; cfg.viewMode = viewMode; cfg.moneyFormat = moneyFormat;
         // 설정이 바뀌었으니 예전에 받아 둔 내용은 버린다(옛 화면이 남지 않도록).
         delete cardData[localId];
         loadedSheets.delete(localId);
     } else {
         const newId = uid();
-        config.sheets.push({ localId: newId, name, sheetId, tabName, range, viewMode, hiddenCols: [] });
+        config.sheets.push({ localId: newId, name, sheetId, tabName, range, viewMode, moneyFormat, hiddenCols: [] });
         activeSheetId = newId;   // 새로 추가한 시트를 바로 보여준다
     }
     await saveConfig();

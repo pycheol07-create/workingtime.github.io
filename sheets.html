@@ -107,9 +107,19 @@
                 <option value="table">기본 표 — 시트 내용을 그대로 보여줍니다</option>
                 <option value="kpi">금액관리 — 오더·결제 KPI 화면</option>
             </select>
-            <p class="text-[11px] text-slate-400 mb-4 leading-relaxed">
+            <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">
                 시트마다 따로 정합니다. <b>금액관리</b>를 고른 시트에서만 특별 화면이 나오고,
                 나머지는 양식이 같아도 시트 내용을 그대로 보여줍니다.
+            </p>
+
+            <label class="block text-xs font-bold text-slate-600 mb-1">금액 칸 서식</label>
+            <select id="inp-sheet-money" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm mb-1">
+                <option value="none">그대로 (시트 값 그대로)</option>
+                <option value="usd">달러 — $1,234.56 (소수점 둘째 자리)</option>
+            </select>
+            <p class="text-[11px] text-slate-400 mb-4 leading-relaxed">
+                금액 · 수수료 · 합계 · 송금액 · 잔액 · 단가처럼 <b>금액을 뜻하는 머리글</b>의 칸에만 적용됩니다.
+                주차 · 박스 같은 숫자 칸과 날짜 칸은 그대로 둡니다.
             </p>
 
             <div class="flex justify-between items-center">
@@ -136,7 +146,7 @@
         </div>
     </div>
 
-    <script type="module" src="js/sheets-dashboard.js?v=20260824b"></script>
+    <script type="module" src="js/sheets-dashboard.js?v=20260824c"></script>
     <script src="js/connection-banner.js"></script>
     <script src="js/modal-esc.js"></script>
 </body>
