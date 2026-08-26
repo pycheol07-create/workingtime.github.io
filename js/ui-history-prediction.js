@@ -195,51 +195,91 @@ const setQty = (id, val) => {
     el.value = (val == null || val === 0 || val === '') ? '' : val;
 };
 
-/** 한 업무의 대상일 자동값.
- *  ⭐ 우선순위: 업무 기록 및 관리의 '예정 물량' 수기 입력값 > 업무별 자동 추정값
- *  → 예정 물량에 값을 넣으면 시뮬레이션도 즉시 그 값으로 계산된다.
+/** 대상일이 오늘일 때, '오늘 처리량 입력'에 이미 들어간 실측값. 없으면 null.
+ *  오늘 데이터는 daily_data가 allHistoryData의 오늘 항목으로 합쳐져 있다. */
+const todayActualQty = (historyData, dateStr, taskKey) => {
+    if (dateStr !== getTodayDateString()) return null;
+    const day = (historyData || []).find(d => d.id === dateStr);
+    const v = Number(day?.taskQuantities?.[taskKey]) || 0;
+    return v > 0 ? Math.round(v) : null;
+};
+
+/** 한 업무의 대상일 값과 그 출처.
+ *  ⭐ 우선순위
+ *    1. 예정 물량(수기 입력)      — 업무 기록 및 관리 > 예정 물량
+ *    2. 오늘 처리량 입력(실측)     — 대상일이 오늘일 때만
+ *    3. 업무별 자동 추정값         — AI 예측 / 입고일정 / 중국제작 연동 / 지난 7회 평균
+ *  반환: { value, source }  (source는 배지 표시에 그대로 쓴다)
  */
 const autoValueFor = (dateStr, task, historyData) => {
     const planned = getPlanned(dateStr, task.key);
-    if (planned != null) return planned;
+    if (planned != null) return { value: planned, source: 'planned' };
+
+    const actual = todayActualQty(historyData, dateStr, task.key);
+    if (actual != null) return { value: actual, source: 'actual' };
 
     switch (task.auto) {
-        case 'ai':       return getAIPredictedDomestic(historyData, dateStr);
-        case 'incoming': return getIncomingChinaForDate(dateStr);
+        case 'ai':       return { value: getAIPredictedDomestic(historyData, dateStr), source: 'ai' };
+        case 'incoming': return { value: getIncomingChinaForDate(dateStr), source: 'incoming' };
         case 'china-linked': {
             // 샘플검수는 중국제작 입고가 있는 날에만 발생한다.
             // 그 날의 중국제작 수량(예정 물량 > 입고일정)에 최근 검수비율을 곱해 산출.
             const china = getPlanned(dateStr, '중국제작') ?? getIncomingChinaForDate(dateStr);
-            if (!(china > 0)) return 0;   // 입고 없는 날은 비워 둔다
-            return Math.round(computeSampleRatio(historyData) * china);
+            const v = (china > 0) ? Math.round(computeSampleRatio(historyData) * china) : 0;
+            return { value: v, source: 'china-linked' };   // 입고 없는 날은 0(빈칸)
         }
-        default:         return computeLast7Avg(historyData, task.key);
+        default:         return { value: computeLast7Avg(historyData, task.key), source: 'last7' };
     }
 };
 
-/** 해당 업무의 대상일 값이 예정 물량(수기 입력)에서 온 것인지 여부 — UI 배지 표시용 */
-const isPlannedValue = (dateStr, task) => getPlanned(dateStr, task.key) != null;
+/** 값만 필요한 곳에서 쓰는 짧은 형태 */
+const autoQtyFor = (dateStr, task, historyData) => autoValueFor(dateStr, task, historyData).value;
 
-const AUTO_BADGE = {
-    ai:       { text: 'AI 예측',   cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300', tip: '국내배송 AI 추세 예측값' },
-    incoming: { text: '입고일정',  cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',       tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
-    last7:    { text: '지난7회평균', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',        tip: '이 업무가 발생한 최근 7일의 업무량 평균' },
+const SOURCE_BADGE = {
+    planned:  { text: '예정물량',   cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+                tip: '업무 기록 및 관리 > 예정 물량에 직접 입력한 값입니다. 가장 먼저 적용됩니다.' },
+    actual:   { text: '오늘 실측',   cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+                tip: '오늘 처리량 입력에 이미 들어간 실제 값입니다. 예정 물량 다음으로 우선 적용됩니다.' },
+    ai:       { text: 'AI 예측',    cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+                tip: '국내배송 AI 추세 예측값' },
+    incoming: { text: '입고일정',    cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+                tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
+    last7:    { text: '지난7회평균', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                tip: '이 업무가 발생한 최근 7일의 업무량 평균' },
     'china-linked': { text: '중국제작 연동', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-                      tip: '중국제작 입고가 있는 날만 자동 입력됩니다. (그 날 입고량 × 최근 4주 검수비율)' }
-};
-const PLANNED_BADGE = {
-    text: '예정물량', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-    tip: '업무 기록 및 관리 > 예정 물량에 직접 입력한 값입니다. 자동값보다 우선 적용됩니다.'
+                tip: '중국제작 입고가 있는 날만 자동 입력됩니다. (그 날 입고량 × 최근 4주 검수비율)' }
 };
 
-/** 값의 출처를 행 옆 배지로 표시 (예정물량 수기입력이면 강조) */
-const markSourceBadge = (task, fromPlanned) => {
+/** 값의 출처를 항목 배지로 표시 */
+const markSourceBadge = (task, source) => {
     const el = document.getElementById(`sim-src-${task.id}`);
     if (!el) return;
-    const b = fromPlanned ? PLANNED_BADGE : (AUTO_BADGE[task.auto] || AUTO_BADGE.last7);
-    el.className = `text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${b.cls}`;
+    const b = SOURCE_BADGE[source] || SOURCE_BADGE.last7;
+    el.className = `text-[9px] leading-none px-1.5 py-1 rounded-md font-bold shrink-0 ${b.cls}`;
     el.textContent = b.text;
     el.title = b.tip;
+};
+
+/** 작업량 입력 칸을 SIM_TASKS로부터 만든다(항목이 늘어도 화면과 어긋나지 않게). */
+const renderSimTaskInputs = () => {
+    const host = document.getElementById('sim-task-list');
+    if (!host || host.dataset.built === 'true') return;
+    host.dataset.built = 'true';
+    host.innerHTML = SIM_TASKS.map(t => `
+        <div id="sim-row-${t.id}" data-row-id="${t.id}"
+             class="pred-sim-row rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 px-2.5 py-2
+                    transition focus-within:border-indigo-400 dark:focus-within:border-indigo-500
+                    focus-within:ring-2 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-900/40">
+            <div class="flex items-center justify-between gap-1 mb-1">
+                <span class="text-[11px] font-bold text-gray-600 dark:text-gray-300 truncate" title="${t.label}">${t.label}</span>
+                <span id="sim-src-${t.id}" class="text-[9px] leading-none px-1.5 py-1 rounded-md font-bold shrink-0
+                      bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">지난7회평균</span>
+            </div>
+            <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric"
+                   class="w-full bg-transparent border-0 p-0 text-right text-[17px] font-extrabold tabular-nums
+                          text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600
+                          focus:outline-none focus:ring-0">
+        </div>`).join('');
 };
 
 // ───────────────────────────────────────────────────────────
@@ -252,8 +292,9 @@ const autoFillSimInputs = (dateStr) => {
 
     // 모든 업무가 기본 등록 — 예정 물량이 있으면 그 값, 없으면 업무별 자동값
     SIM_TASKS.forEach(t => {
-        setQty(t.id, autoValueFor(dateStr, t, data));
-        markSourceBadge(t, isPlannedValue(dateStr, t));
+        const { value, source } = autoValueFor(dateStr, t, data);
+        setQty(t.id, value);
+        markSourceBadge(t, source);
     });
 
     // 가용 인원
@@ -328,7 +369,7 @@ const runSimulation = () => {
         // batch 모드의 2일차 이후: 날짜별 자동값(예정 물량 우선) 사용
         const autoTasks = {};
         SIM_TASKS.forEach(t => {
-            autoTasks[t.key] = autoValueFor(d, t, State.allHistoryData);
+            autoTasks[t.key] = autoQtyFor(d, t, State.allHistoryData);
         });
         const staffInfo = computeAvailableStaff(d, cfg, State.persistentLeaveSchedule, State.allHistoryData);
         const dayInputs = { tasks: autoTasks, staffFulltime: staffInfo.available, staffPart: baseInputs.staffPart };
@@ -341,8 +382,7 @@ const runSimulation = () => {
 // ───────────────────────────────────────────────────────────
 // 결과 렌더
 // ───────────────────────────────────────────────────────────
-const gapColor = g => g > 1 ? 'text-green-600 dark:text-green-400' : (g < -1 ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400');
-const gapIcon  = g => g > 1 ? '✅' : (g < -1 ? '⚠️' : '⚖️');
+// 과부족 표현은 색 배지(GAP_TONE)로 통일했다. 아이콘/글자색 헬퍼는 더 쓰지 않는다.
 const gapText  = g => g > 1 ? `${Math.round(g)}명 여유` : (g < -1 ? `${Math.abs(Math.round(g))}명 부족` : '적정');
 const fmtH     = h => `${(h || 0).toFixed(1)}h`;
 
@@ -350,114 +390,131 @@ const renderSimResult = (results, taskUPH, mode) => {
     const container = document.getElementById('sim-result-container');
     if (!container) return;
 
+    const cardOpen = (title, sub) => `
+        <section class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+            <header class="px-4 md:px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-1.5">
+                <h4 class="text-sm font-extrabold text-gray-800 dark:text-white">${title}</h4>
+                <div class="text-[11px] text-gray-400 dark:text-gray-500">${sub}</div>
+            </header>`;
+
     if (mode === 'single') {
         const r = results[0];
+        const tone = GAP_TONE(r.gap);
         const rows = SIM_TASKS.map(t => {
             const v = r.taskTimes[t.key];
             if (!v || v.qty <= 0) return '';
-            return `<tr class="border-b border-gray-100 dark:border-gray-700">
-                <td class="py-1.5 px-2">${t.label}</td>
-                <td class="py-1.5 px-2 text-right">${v.qty.toLocaleString()}</td>
-                <td class="py-1.5 px-2 text-right">${v.uph > 0 ? v.uph.toFixed(1) : '<span class="text-gray-400">기준 없음</span>'}</td>
-                <td class="py-1.5 px-2 text-right font-semibold">${v.uph > 0 ? fmtH(v.hours) : '—'}</td>
+            // 소요시간이 긴 업무가 눈에 띄도록 막대를 함께 그린다.
+            const w = r.totalHours > 0 ? Math.max(2, Math.round(v.hours / r.totalHours * 100)) : 0;
+            return `<tr class="border-t border-gray-100 dark:border-gray-700/60">
+                <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${t.label}</td>
+                <td class="py-2 px-3 text-right tabular-nums">${v.qty.toLocaleString()}</td>
+                <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${v.uph > 0 ? v.uph.toFixed(1) : '<span class="text-gray-300 dark:text-gray-600">기준 없음</span>'}</td>
+                <td class="py-2 px-3 text-right">
+                    <div class="flex items-center justify-end gap-2">
+                        <div class="hidden sm:block w-16 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                            <div class="h-full bg-indigo-400 dark:bg-indigo-500 rounded-full" style="width:${w}%"></div>
+                        </div>
+                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100">${v.uph > 0 ? fmtH(v.hours) : '—'}</span>
+                    </div>
+                </td>
             </tr>`;
         }).filter(Boolean).join('');
 
+        const stat = (label, value, sub, cls) => `
+            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-3">
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">${label}</div>
+                <div class="text-2xl font-black mt-1 ${cls || 'text-gray-900 dark:text-white'}">${value}</div>
+                <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">${sub}</div>
+            </div>`;
+
         container.innerHTML = `
-        <div class="bg-white dark:bg-gray-800 p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-            <div class="flex flex-col md:flex-row md:items-center justify-between mb-3 gap-2">
-                <h4 class="text-md font-bold text-gray-800 dark:text-white">🎯 시뮬레이션 결과 — ${dayLabel(r.date)}${r.weekend ? ' <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded ml-1">주말</span>' : ''}</h4>
-                <div class="text-[11px] text-gray-500 dark:text-gray-400">기준 UPH: 최근 4주 평균 · 가동률 ${(UTILIZATION*100)|0}% · 1일 ${r.dailyHours}h</div>
-            </div>
-            <div class="overflow-x-auto mb-4">
-                <table class="w-full text-sm">
-                    <thead class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-                        <tr>
-                            <th class="py-2 px-2 text-left">작업</th>
-                            <th class="py-2 px-2 text-right">수량 (개)</th>
-                            <th class="py-2 px-2 text-right">기준 UPH (개/시)</th>
-                            <th class="py-2 px-2 text-right">예상 소요시간</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows || '<tr><td colspan="4" class="py-4 text-center text-gray-400">입력된 작업량이 없습니다.</td></tr>'}</tbody>
-                    <tfoot class="font-bold bg-gray-50 dark:bg-gray-700/50">
-                        <tr>
-                            <td class="py-2 px-2" colspan="3">합계</td>
-                            <td class="py-2 px-2 text-right">${fmtH(r.totalHours)}</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-            <div class="grid grid-cols-3 gap-3">
-                <div class="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg">
-                    <div class="text-[10px] text-blue-700 dark:text-blue-400 font-bold uppercase">필요 인원</div>
-                    <div class="text-xl md:text-2xl font-black text-blue-700 dark:text-blue-400 mt-1">${r.requiredFTE}<span class="text-sm font-bold ml-0.5">명</span></div>
-                    <div class="text-[10px] text-blue-600/70 dark:text-blue-300/70 mt-1">${fmtH(r.totalHours)} ÷ ${r.dailyHours}h ÷ ${UTILIZATION}</div>
+        ${cardOpen(`시뮬레이션 결과 — ${dayLabel(r.date)}${r.weekend ? ' <span class="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded ml-1">주말</span>' : ''}`,
+                   `기준 UPH 최근 4주 평균 · 1일 ${r.dailyHours}h · 가동률 ${(UTILIZATION*100)|0}%`)}
+            <div class="p-4 md:p-5 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    ${stat('필요 인원', `${r.requiredFTE}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span>`,
+                           `${fmtH(r.totalHours)} ÷ ${r.dailyHours}h ÷ ${UTILIZATION}`)}
+                    ${stat('가용 인원', `${r.availableTotal}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span>`, '정직원 + 알바')}
+                    <div class="rounded-xl border ${tone.ring} p-3 flex flex-col justify-center">
+                        <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">결과</div>
+                        <div class="mt-1"><span class="text-lg font-extrabold px-3 py-1 rounded-full ${tone.chip}">${gapText(r.gap)}</span></div>
+                    </div>
                 </div>
-                <div class="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg">
-                    <div class="text-[10px] text-indigo-700 dark:text-indigo-400 font-bold uppercase">가용 인원</div>
-                    <div class="text-xl md:text-2xl font-black text-indigo-700 dark:text-indigo-400 mt-1">${r.availableTotal}<span class="text-sm font-bold ml-0.5">명</span></div>
-                    <div class="text-[10px] text-indigo-600/70 dark:text-indigo-300/70 mt-1">정직원 + 알바</div>
-                </div>
-                <div class="p-3 rounded-lg border-2 ${r.gap > 1 ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30' : (r.gap < -1 ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30' : 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30')}">
-                    <div class="text-[10px] font-bold uppercase ${gapColor(r.gap)}">${gapIcon(r.gap)} 결과</div>
-                    <div class="text-xl md:text-2xl font-black ${gapColor(r.gap)} mt-1">${gapText(r.gap)}</div>
+
+                <div class="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="text-[11px] text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40">
+                                <tr>
+                                    <th class="py-2.5 px-3 text-left font-bold">작업</th>
+                                    <th class="py-2.5 px-3 text-right font-bold">수량 (개)</th>
+                                    <th class="py-2.5 px-3 text-right font-bold">기준 UPH</th>
+                                    <th class="py-2.5 px-3 text-right font-bold">예상 소요시간</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows || '<tr><td colspan="4" class="py-6 text-center text-gray-400">입력된 작업량이 없습니다.</td></tr>'}</tbody>
+                            <tfoot class="bg-gray-50 dark:bg-gray-900/40 font-extrabold text-gray-800 dark:text-gray-100">
+                                <tr class="border-t border-gray-200 dark:border-gray-700">
+                                    <td class="py-2.5 px-3" colspan="3">합계</td>
+                                    <td class="py-2.5 px-3 text-right tabular-nums">${fmtH(r.totalHours)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
             </div>
-        </div>`;
+        </section>`;
     } else {
-        const trows = results.map(r => `
-            <tr class="border-b border-gray-100 dark:border-gray-700 ${r.weekend ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}">
-                <td class="py-2 px-2 font-medium">${dayLabel(r.date)}${r.weekend ? ' <span class="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">주말</span>' : ''}</td>
-                <td class="py-2 px-2 text-right">${fmtH(r.totalHours)}</td>
-                <td class="py-2 px-2 text-right">${r.requiredFTE}명</td>
-                <td class="py-2 px-2 text-right">${r.availableTotal}명</td>
-                <td class="py-2 px-2 text-right font-bold ${gapColor(r.gap)}">${gapIcon(r.gap)} ${gapText(r.gap)}</td>
-            </tr>`).join('');
+        const trows = results.map(r => {
+            const tone = GAP_TONE(r.gap);
+            return `
+            <tr class="border-t border-gray-100 dark:border-gray-700/60 ${r.weekend ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}">
+                <td class="py-2.5 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${dayLabel(r.date)}${r.weekend ? ' <span class="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1 rounded">주말</span>' : ''}</td>
+                <td class="py-2.5 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${fmtH(r.totalHours)}</td>
+                <td class="py-2.5 px-3 text-right tabular-nums font-bold">${r.requiredFTE}</td>
+                <td class="py-2.5 px-3 text-right tabular-nums font-bold">${r.availableTotal}</td>
+                <td class="py-2.5 px-3 text-right"><span class="text-[11px] font-extrabold px-2 py-1 rounded-full ${tone.chip}">${gapText(r.gap)}</span></td>
+            </tr>`;
+        }).join('');
         const sumRequired = results.reduce((s, r) => s + r.requiredFTE, 0);
         const sumAvail    = results.reduce((s, r) => s + r.availableTotal, 0);
         const shortageDays = results.filter(r => r.gap < -1).length;
         const surplusDays  = results.filter(r => r.gap > 1).length;
+        const partN = Number(document.getElementById('sim-staff-parttimer')?.value) || 0;
+
+        const mini = (label, value, cls) => `
+            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-2.5 text-center">
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500">${label}</div>
+                <div class="text-base font-black mt-0.5 ${cls || 'text-gray-900 dark:text-white'}">${value}</div>
+            </div>`;
 
         container.innerHTML = `
-        <div class="bg-white dark:bg-gray-800 p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-            <div class="flex flex-col md:flex-row md:items-center justify-between mb-3 gap-2">
-                <h4 class="text-md font-bold text-gray-800 dark:text-white">🎯 7일치 일괄 시뮬레이션</h4>
-                <div class="text-[11px] text-gray-500 dark:text-gray-400">대상일 외 6일은 자동값 사용 · 알바 ${results[0].availableTotal - (results[0].availableTotal - (Number(document.getElementById('sim-staff-parttimer')?.value)||0))}명 동일 적용</div>
-            </div>
-            <div class="overflow-x-auto mb-3">
-                <table class="w-full text-sm">
-                    <thead class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-                        <tr>
-                            <th class="py-2 px-2 text-left">일자</th>
-                            <th class="py-2 px-2 text-right">총 소요</th>
-                            <th class="py-2 px-2 text-right">필요</th>
-                            <th class="py-2 px-2 text-right">가용</th>
-                            <th class="py-2 px-2 text-right">결과</th>
-                        </tr>
-                    </thead>
-                    <tbody>${trows}</tbody>
-                </table>
-            </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                <div class="bg-blue-50 dark:bg-blue-900/30 p-2 rounded text-center">
-                    <div class="text-[10px] text-blue-700 dark:text-blue-400 font-bold">합계 필요</div>
-                    <div class="text-sm font-bold text-blue-700 dark:text-blue-400">${sumRequired}명·일</div>
+        ${cardOpen('7일치 일괄 시뮬레이션', `대상일 외 6일은 자동값 사용 · 알바 ${partN}명 동일 적용`)}
+            <div class="p-4 md:p-5 space-y-4">
+                <div class="grid grid-cols-[repeat(2,minmax(0,1fr))] md:grid-cols-[repeat(4,minmax(0,1fr))] gap-2.5">
+                    ${mini('합계 필요', `${sumRequired}<span class="text-[11px] font-bold text-gray-400 ml-0.5">명·일</span>`)}
+                    ${mini('합계 가용', `${sumAvail}<span class="text-[11px] font-bold text-gray-400 ml-0.5">명·일</span>`)}
+                    ${mini('부족 일수', `${shortageDays}<span class="text-[11px] font-bold text-gray-400 ml-0.5">일</span>`, 'text-rose-600 dark:text-rose-400')}
+                    ${mini('여유 일수', `${surplusDays}<span class="text-[11px] font-bold text-gray-400 ml-0.5">일</span>`, 'text-emerald-600 dark:text-emerald-400')}
                 </div>
-                <div class="bg-indigo-50 dark:bg-indigo-900/30 p-2 rounded text-center">
-                    <div class="text-[10px] text-indigo-700 dark:text-indigo-400 font-bold">합계 가용</div>
-                    <div class="text-sm font-bold text-indigo-700 dark:text-indigo-400">${sumAvail}명·일</div>
-                </div>
-                <div class="bg-red-50 dark:bg-red-900/30 p-2 rounded text-center">
-                    <div class="text-[10px] text-red-700 dark:text-red-400 font-bold">⚠️ 부족 일수</div>
-                    <div class="text-sm font-bold text-red-700 dark:text-red-400">${shortageDays}일</div>
-                </div>
-                <div class="bg-green-50 dark:bg-green-900/30 p-2 rounded text-center">
-                    <div class="text-[10px] text-green-700 dark:text-green-400 font-bold">✅ 여유 일수</div>
-                    <div class="text-sm font-bold text-green-700 dark:text-green-400">${surplusDays}일</div>
+                <div class="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="text-[11px] text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40">
+                                <tr>
+                                    <th class="py-2.5 px-3 text-left font-bold">일자</th>
+                                    <th class="py-2.5 px-3 text-right font-bold">총 소요</th>
+                                    <th class="py-2.5 px-3 text-right font-bold">필요</th>
+                                    <th class="py-2.5 px-3 text-right font-bold">가용</th>
+                                    <th class="py-2.5 px-3 text-right font-bold">결과</th>
+                                </tr>
+                            </thead>
+                            <tbody>${trows}</tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-        </div>`;
+        </section>`;
     }
 };
 
@@ -470,7 +527,7 @@ const computeAutoInputsForDate = (dateStr) => {
     const cfg = State.appConfig;
     // 우선순위: 예정 물량(수기 입력) > 업무별 자동값
     const tasks = {};
-    SIM_TASKS.forEach(t => { tasks[t.key] = autoValueFor(dateStr, t, data); });
+    SIM_TASKS.forEach(t => { tasks[t.key] = autoQtyFor(dateStr, t, data); });
     const staffInfo = computeAvailableStaff(dateStr, cfg, State.persistentLeaveSchedule, data);
     return { tasks, staffFulltime: staffInfo.available, staffPart: 0, staffInfo };
 };
@@ -492,41 +549,55 @@ export const getAutoQuantitiesForDate = (dateStr) => {
     return out;
 };
 
+// 인원 과부족 톤 — 카드 테두리/강조색을 한 곳에서 정한다.
+const GAP_TONE = (g) => g > 1
+    ? { ring: 'border-emerald-200 dark:border-emerald-800', chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', bar: 'bg-emerald-500' }
+    : (g < -1
+        ? { ring: 'border-rose-200 dark:border-rose-800', chip: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300', bar: 'bg-rose-500' }
+        : { ring: 'border-amber-200 dark:border-amber-800', chip: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', bar: 'bg-amber-500' });
+
 const forecastCardHtml = (label, r, inputs) => {
     const gap = r.gap;
-    const toneBox = gap > 1 ? 'border-green-200 dark:border-green-800 bg-green-50/60 dark:bg-green-900/20'
-        : (gap < -1 ? 'border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-900/20'
-        : 'border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/20');
+    const tone = GAP_TONE(gap);
     const china = inputs.tasks['중국제작'] || 0;
-    const chinaChip = china > 0
-        ? `<span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-100/70 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">🚚 중국제작 입고 ${china.toLocaleString()}개</span>`
-        : '';
-    const staffN = inputs.staffInfo ? inputs.staffInfo.available : r.availableTotal;
+    const staffN = Math.round(inputs.staffInfo ? inputs.staffInfo.available : r.availableTotal);
+    // 필요 대비 가용을 막대로 — 숫자만 보는 것보다 한눈에 들어온다.
+    const pct = r.requiredFTE > 0 ? Math.min(100, Math.round(staffN / r.requiredFTE * 100)) : 100;
+
     return `
-    <div class="rounded-xl border ${toneBox} p-4 md:p-5 shadow-sm depth-panel">
-        <div class="flex items-center justify-between mb-3 gap-2">
-            <div class="flex items-center gap-2 min-w-0">
-                <span class="text-sm font-black text-gray-800 dark:text-white shrink-0">${label}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400 truncate">${dayLabel(r.date)}</span>
-                ${r.weekend ? '<span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded shrink-0">주말</span>' : ''}
+    <div class="rounded-2xl border ${tone.ring} bg-white dark:bg-gray-800 p-4 md:p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-2 mb-4">
+            <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-base font-extrabold text-gray-900 dark:text-white">${label}</span>
+                    ${r.weekend ? '<span class="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded">주말</span>' : ''}
+                </div>
+                <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">${dayLabel(r.date)}</div>
             </div>
-            <span class="text-xs font-bold ${gapColor(gap)} shrink-0">${gapIcon(gap)} ${gapText(gap)}</span>
+            <span class="text-[11px] font-extrabold px-2.5 py-1 rounded-full shrink-0 ${tone.chip}">${gapText(gap)}</span>
         </div>
-        <div class="grid grid-cols-2 gap-3 mb-3">
-            <div class="bg-white/70 dark:bg-gray-800/60 rounded-lg p-3 text-center border border-gray-100 dark:border-gray-700">
-                <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">필요 인원</div>
-                <div class="text-2xl font-black text-gray-900 dark:text-white mt-0.5">${r.requiredFTE}<span class="text-xs font-bold ml-0.5">명</span></div>
+
+        <div class="flex items-end gap-4 mb-3">
+            <div>
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">필요</div>
+                <div class="text-3xl font-black leading-none text-gray-900 dark:text-white mt-1">${r.requiredFTE}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
             </div>
-            <div class="bg-white/70 dark:bg-gray-800/60 rounded-lg p-3 text-center border border-gray-100 dark:border-gray-700">
-                <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">가용 인원</div>
-                <div class="text-2xl font-black text-gray-900 dark:text-white mt-0.5">${Math.round(staffN)}<span class="text-xs font-bold ml-0.5">명</span></div>
+            <div class="text-gray-200 dark:text-gray-700 text-2xl font-light leading-none pb-1">/</div>
+            <div>
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">가용</div>
+                <div class="text-3xl font-black leading-none text-gray-900 dark:text-white mt-1">${staffN}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
             </div>
         </div>
-        <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+
+        <div class="h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden mb-3">
+            <div class="h-full ${tone.bar} rounded-full transition-all" style="width:${pct}%"></div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
             <span>총 소요 <b class="text-gray-700 dark:text-gray-200">${fmtH(r.totalHours)}</b></span>
             <span class="text-gray-300 dark:text-gray-600">·</span>
             <span>1일 ${r.dailyHours}h · 가동률 ${(UTILIZATION*100)|0}%</span>
-            ${chinaChip ? `<span class="w-full"></span>${chinaChip}` : ''}
+            ${china > 0 ? `<span class="w-full"></span><span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">🚚 중국제작 입고 ${china.toLocaleString()}개</span>` : ''}
         </div>
     </div>`;
 };
@@ -548,6 +619,7 @@ const renderForecastSummary = () => {
 
 /** '업무 예상' 탭 진입 시 호출: 시뮬레이션 리스너 결합 + 오늘/내일 요약 + 상세 자동값 채움 */
 export const renderForecastTab = () => {
+    renderSimTaskInputs();
     setupSimulationListeners();
 
     const dateEl = document.getElementById('sim-target-date');
@@ -590,14 +662,16 @@ const setupSimulationListeners = () => {
 
     // 중국제작 수량을 직접 고치면 샘플검수도 그 비율로 다시 계산한다.
     // 단, 예정 물량에 샘플검수를 수기로 넣어둔 날은 그 값을 덮지 않는다.
-    document.getElementById('sim-qty-china')?.addEventListener('input', () => {
+    // 입력칸은 JS가 다시 만들 수 있으므로 목록 컨테이너에 위임해서 듣는다.
+    document.getElementById('sim-task-list')?.addEventListener('input', (e) => {
+        if (!e.target.matches('#sim-qty-china')) return;
         const dateStr = document.getElementById('sim-target-date')?.value;
         if (!dateStr) return;
         if (getPlanned(dateStr, '샘플검수') != null) return;
-        const china = Number(document.getElementById('sim-qty-china')?.value) || 0;
+        const china = Number(e.target.value) || 0;
         const sampleTask = SIM_TASKS.find(t => t.id === 'sample');
         setQty('sample', china > 0 ? Math.round(computeSampleRatio(State.allHistoryData) * china) : 0);
-        if (sampleTask) markSourceBadge(sampleTask, false);
+        if (sampleTask) markSourceBadge(sampleTask, 'china-linked');
     });
 
     document.getElementById('sim-reset-btn')?.addEventListener('click', () => {
