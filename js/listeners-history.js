@@ -409,9 +409,51 @@ export function setupHistoryModalListeners() {
                 refreshFunc(); return;
             }
         });
+        // 다중 선택: 체크박스 조작 / '전체'·'해제' 버튼 / 값 검색
+        container.addEventListener('click', (e) => {
+            const dd = e.target.closest('.filter-dropdown');
+            if (!dd) return;
+            const allBtn = e.target.closest('[data-filter-all]');
+            const noneBtn = e.target.closest('[data-filter-none]');
+            if (!allBtn && !noneBtn) return;
+            e.stopPropagation();
+            const btn = allBtn || noneBtn;
+            const mode = btn.dataset.filterTarget, key = btn.dataset.filterKey;
+            if (!State.context[stateKeyFilter][mode]) State.context[stateKeyFilter][mode] = {};
+            // 전체 = 필터 없음(null) / 해제 = 빈 배열(아무것도 통과 못 함)
+            State.context[stateKeyFilter][mode][key] = allBtn ? null : [];
+            refreshFunc();
+        });
+
+        // 목록 안 값 검색 — 다시 그리지 않고 항목만 숨긴다(입력 흐름이 끊기지 않도록)
         container.addEventListener('input', (e) => {
-            const filterInput = e.target.closest('[data-filter-key]');
-            if (filterInput) {
+            const q = e.target.closest('[data-filter-search]');
+            if (!q) return;
+            e.stopPropagation();
+            const list = q.closest('.filter-dropdown')?.querySelector('[data-filter-list]');
+            if (!list) return;
+            const kw = q.value.trim().toLowerCase();
+            list.querySelectorAll('label').forEach(l => {
+                l.style.display = l.textContent.toLowerCase().includes(kw) ? '' : 'none';
+            });
+        });
+
+        container.addEventListener('change', (e) => {
+            const box = e.target.closest('input[data-filter-multi]');
+            if (!box) return;
+            const dd = box.closest('.filter-dropdown');
+            const mode = box.dataset.filterTarget, key = box.dataset.filterKey;
+            if (!State.context[stateKeyFilter][mode]) State.context[stateKeyFilter][mode] = {};
+            const boxes = [...dd.querySelectorAll('input[data-filter-multi]')];
+            const checked = boxes.filter(b => b.checked).map(b => b.value);
+            // 전부 체크 = 필터 없음
+            State.context[stateKeyFilter][mode][key] = (checked.length === boxes.length) ? null : checked;
+            refreshFunc();
+        });
+
+        container.addEventListener('input', (e) => {
+            const filterInput = e.target.closest('[data-filter-key]:not([data-filter-multi])');
+            if (filterInput && !filterInput.hasAttribute('data-filter-search')) {
                 const mode = filterInput.dataset.filterTarget, key = filterInput.dataset.filterKey;
                 if (!State.context[stateKeyFilter][mode]) State.context[stateKeyFilter][mode] = {};
                 State.context[stateKeyFilter][mode][key] = filterInput.value;

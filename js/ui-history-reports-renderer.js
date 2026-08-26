@@ -3,6 +3,7 @@
 import { formatDuration } from './utils.js';
 import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js';
 import { context, LEAVE_TYPES } from './state.js';
+import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js';
 
 // 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -20,32 +21,26 @@ const getSortIcon = (currentKey, currentDir, targetKey) => {
         : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
 };
 
-// --- 헬퍼: 필터 드롭다운 ---
+// --- 헬퍼: 필터 드롭다운 (여러 값을 동시에 고를 수 있다) ---
 const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
     const dropdownId = `${target}-${key}`;
     const isActive = context.activeFilterDropdown === dropdownId;
-    const hasValue = currentFilterValue && currentFilterValue !== '';
+    const hasValue = hasFilter(currentFilterValue);
+    const nSel = filterCount(currentFilterValue);
     const iconColorClass = hasValue ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:bg-gray-200';
 
-    let inputHtml = '';
-    if (options && options.length > 0) {
-        const optionsHtml = options.map(opt => 
-            `<option value="${opt}" ${currentFilterValue === opt ? 'selected' : ''}>${opt}</option>`
-        ).join('');
-        inputHtml = `<select class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer" data-filter-target="${target}" data-filter-key="${key}"><option value="">(전체)</option>${optionsHtml}</select>`;
-    } else {
-        inputHtml = `<input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="검색..." value="${currentFilterValue || ''}" data-filter-target="${target}" data-filter-key="${key}" autocomplete="off">`;
-    }
+    const inputHtml = multiFilterBody(target, key, currentFilterValue, options);
 
     return `
         <div class="relative inline-block ml-1 filter-container">
-            <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
+            <button type="button" class="filter-icon-btn p-1 rounded transition inline-flex items-center gap-0.5 ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" /></svg>
+                ${nSel > 0 ? `<span class="text-[9px] font-bold leading-none">${nSel}</span>` : ''}
             </button>
-            <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left cursor-default">
+            <div class="filter-dropdown absolute top-full right-0 mt-2 w-60 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left cursor-default">
                 <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
                     <span>필터 조건</span>
-                    ${hasValue ? `<button class="text-[10px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input,select'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
+                    ${hasValue ? `<button type="button" class="text-[10px] text-red-500 hover:underline" data-filter-all data-filter-target="${target}" data-filter-key="${key}">지우기</button>` : ''}
                 </div>
                 ${inputHtml}
             </div>
@@ -586,9 +581,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     const allPartNames = [...new Set(partData.map(d => d.partName))].sort();
     
     // 필터
-    if (filterState.partSummary?.partName) {
-        partData = partData.filter(d => d.partName === filterState.partSummary.partName);
-    }
+    partData = partData.filter(d => matchesFilter(d.partName, filterState.partSummary?.partName));
     // 정렬
     const pSort = sortState.partSummary || { key: 'partName', dir: 'asc' };
     partData.sort((a, b) => {
@@ -624,8 +617,8 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     const allMemberParts = [...new Set(memberData.map(d => d.part))].sort();
 
     // 필터
-    if (filterState.memberSummary?.memberName) memberData = memberData.filter(d => d.memberName === filterState.memberSummary.memberName);
-    if (filterState.memberSummary?.part) memberData = memberData.filter(d => d.part === filterState.memberSummary.part);
+    memberData = memberData.filter(d => matchesFilter(d.memberName, filterState.memberSummary?.memberName)
+                                     && matchesFilter(d.part, filterState.memberSummary?.part));
     // 정렬
     const mSort = sortState.memberSummary || { key: 'memberName', dir: 'asc' };
     memberData.sort((a, b) => {
@@ -661,7 +654,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     const allTaskNames = [...new Set(taskData.map(d => d.taskName))].sort();
 
     // 필터
-    if (filterState.taskSummary?.taskName) taskData = taskData.filter(d => d.taskName === filterState.taskSummary.taskName);
+    taskData = taskData.filter(d => matchesFilter(d.taskName, filterState.taskSummary?.taskName));
     // 정렬
     const tSort = sortState.taskSummary || { key: 'taskName', dir: 'asc' };
     taskData.sort((a, b) => {

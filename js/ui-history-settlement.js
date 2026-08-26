@@ -7,6 +7,7 @@ import * as State from './state.js';
 import { LEAVE_TYPES } from './state.js';
 import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap } from './utils.js';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js';
 
 import {
     calculateReportKPIs,
@@ -654,6 +655,74 @@ const tableShell = (theadHtml, tbodyHtml, maxH = 'max-h-[420px]') => `
     </div>`;
 
 const th = (label, align = 'left') => `<th class="px-3 py-2 text-${align} font-bold whitespace-nowrap">${label}</th>`;
+
+// ────────────────────────────────────────────────────────────
+// 표 정렬 · 다중선택 필터
+//  각 표는 컬럼 정의(cols)와 행 배열만 넘기면 된다.
+//   cols: { key, label, align, type:'text'|'num', get(row), cell(row), filterable }
+//  상태는 표별로 모듈에 남고, 보고서를 다시 그려도 유지된다.
+// ────────────────────────────────────────────────────────────
+const _sf = {};   // tableId -> { sort:{key,dir}, filters:{key: value} }
+const sfState = (id) => (_sf[id] = _sf[id] || { sort: { key: '', dir: 'asc' }, filters: {} });
+
+/** 필터를 통과하고 정렬까지 마친 행 */
+const sfApply = (id, rows, cols) => {
+    const st = sfState(id);
+    let out = (rows || []).filter(r => cols.every(c => !c.filterable || matchesFilter(c.get(r), st.filters[c.key])));
+    if (st.sort.key) {
+        const c = cols.find(x => x.key === st.sort.key);
+        if (c) {
+            const sign = st.sort.dir === 'desc' ? -1 : 1;
+            out = out.slice().sort((a, b) => {
+                const va = c.get(a), vb = c.get(b);
+                const r = (c.type === 'num') ? (Number(va) || 0) - (Number(vb) || 0)
+                                             : String(va ?? '').localeCompare(String(vb ?? ''), 'ko');
+                return r * sign;
+            });
+        }
+    }
+    return out;
+};
+
+/** 정렬 버튼 + 필터 버튼이 붙은 머리글. allRows 는 필터 후보값을 뽑는 데 쓴다. */
+const sfHead = (id, cols, allRows) => {
+    const st = sfState(id);
+    return cols.map(c => {
+        const on = st.sort.key === c.key;
+        const ic = on ? (st.sort.dir === 'asc' ? '▲' : '▼') : '↕';
+        const f = st.filters[c.key];
+        const n = filterCount(f);
+        const active = hasFilter(f);
+        const opts = c.filterable
+            ? [...new Set((allRows || []).map(r => String(c.get(r) ?? '')))].sort((x, y) => x.localeCompare(y, 'ko'))
+            : [];
+        return `<th class="px-3 py-2 text-${c.align || 'left'} font-bold whitespace-nowrap">
+            <span class="inline-flex items-center gap-0.5 ${c.align === 'right' ? 'flex-row-reverse' : ''}">
+                <button type="button" data-tf-sort="${c.key}" data-tf-table="${id}"
+                        class="inline-flex items-center gap-1 hover:text-blue-600 ${on ? 'text-blue-600' : ''}"
+                        title="클릭해서 정렬 (오름차순 → 내림차순 → 해제)">${label(c)} <span class="text-[9px] ${on ? '' : 'text-gray-300'}">${ic}</span></button>
+                ${c.filterable ? `<button type="button" data-tf-filter="${c.key}" data-tf-table="${id}"
+                        class="px-1 rounded text-[9px] ${active ? 'text-blue-600 bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-200'}"
+                        title="${c.label} 필터">▼${n > 0 ? `<span class="ml-0.5 font-bold">${n}</span>` : ''}</button>` : ''}
+            </span>
+        </th>`;
+    }).join('');
+};
+const label = (c) => esc(c.label);
+
+/** 행 HTML */
+const sfBody = (rows, cols, emptyMsg = '데이터 없음') => rows.length
+    ? rows.map(r => `<tr>${cols.map(c => td(c.cell(r), c.align || 'left')).join('')}</tr>`).join('')
+    : `<tr><td colspan="${cols.length}" class="text-center text-gray-400 py-6">${emptyMsg}</td></tr>`;
+
+/** 표 하나를 통째로 (머리글 + 본문) */
+const sfTable = (id, cols, rows, maxH, emptyMsg) => {
+    _sfCols[id] = cols;
+    _sfRows[id] = rows;
+    return tableShell(sfHead(id, cols, rows), sfBody(sfApply(id, rows, cols), cols, emptyMsg), maxH || 'max-h-[420px]');
+};
+const _sfCols = {};   // 필터 팝업이 후보값을 뽑을 때 쓴다
+const _sfRows = {};
 const td = (content, align = 'left', extra = '') => `<td class="px-3 py-2 text-${align} ${extra}">${content}</td>`;
 
 const emptyNote = (msg) => `<div class="text-xs text-gray-400 text-center py-6">${msg}</div>`;
@@ -794,17 +863,16 @@ function renderProductivitySection(tp, core, workingDaysCount) {
 
         <div class="mb-5">
             <div class="text-xs font-bold text-gray-600 mb-2">🧩 업무별 처리량 분해 (점유율 · 전기간 대비)</div>
-            ${tableShell(
-                th('업무') + th('처리량', 'right') + th('점유율', 'right') + th('전기간 대비', 'right') + th('평균 투입인원', 'right') + th('처리속도(개/분)', 'right'),
-                tp.taskEntries.map(t => `<tr>
-                    ${td(esc(t.task))}
-                    ${td(`<div class="flex items-center gap-2 justify-end"><span class="font-bold text-gray-800">${fmt(t.quantity)}</span></div>`, 'right')}
-                    ${td(`<div class="w-24 inline-block align-middle mr-2">${progressBar(t.share, 'bg-blue-500')}</div><span class="text-xs text-gray-500">${t.share.toFixed(1)}%</span>`, 'right')}
-                    ${td(changeBadge(t.changePct), 'right')}
-                    ${td(t.avgStaff.toFixed(1) + '명', 'right')}
-                    ${td(t.avgThroughput.toFixed(2), 'right')}
-                </tr>`).join('') || '<tr><td colspan="6" class="text-center text-gray-400 py-6">데이터 없음</td></tr>'
-            )}
+            ${sfTable('tpTask', [
+                { key: 'task', label: '업무', filterable: true, get: t => t.task, cell: t => esc(t.task) },
+                { key: 'quantity', label: '처리량', align: 'right', type: 'num', get: t => t.quantity,
+                  cell: t => `<span class="font-bold text-gray-800">${fmt(t.quantity)}</span>` },
+                { key: 'share', label: '점유율', align: 'right', type: 'num', get: t => t.share,
+                  cell: t => `<div class="w-24 inline-block align-middle mr-2">${progressBar(t.share, 'bg-blue-500')}</div><span class="text-xs text-gray-500">${t.share.toFixed(1)}%</span>` },
+                { key: 'changePct', label: '전기간 대비', align: 'right', type: 'num', get: t => t.changePct ?? 0, cell: t => changeBadge(t.changePct) },
+                { key: 'avgStaff', label: '평균 투입인원', align: 'right', type: 'num', get: t => t.avgStaff, cell: t => t.avgStaff.toFixed(1) + '명' },
+                { key: 'avgThroughput', label: '처리속도(개/분)', align: 'right', type: 'num', get: t => t.avgThroughput, cell: t => t.avgThroughput.toFixed(2) }
+            ], tp.taskEntries)}
         </div>
 
         <div class="text-xs font-bold text-gray-600 mb-2">⚙️ 효율성 부가 지표 (참고용)</div>
@@ -864,19 +932,18 @@ function renderWorkforceSection(wf, core, workingDaysCount) {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
                 <div class="text-xs font-bold text-gray-600 mb-2">🧑‍🤝‍🧑 파트별 인력 분포</div>
-                ${tableShell(
-                    th('파트') + th('인원', 'right') + th('투입시간', 'right'),
-                    wf.partDistribution.map(p => `<tr>${td(esc(p.part))}${td(p.memberCount + '명', 'right')}${td(formatDuration(p.duration), 'right')}</tr>`).join('') || '<tr><td colspan="3" class="text-center text-gray-400 py-4">데이터 없음</td></tr>',
-                    'max-h-[220px]'
-                )}
+                ${sfTable('wfPart', [
+                    { key: 'part', label: '파트', filterable: true, get: p => p.part, cell: p => esc(p.part) },
+                    { key: 'memberCount', label: '인원', align: 'right', type: 'num', get: p => p.memberCount, cell: p => p.memberCount + '명' },
+                    { key: 'duration', label: '투입시간', align: 'right', type: 'num', get: p => p.duration, cell: p => formatDuration(p.duration) }
+                ], wf.partDistribution, 'max-h-[220px]')}
             </div>
             <div>
                 <div class="text-xs font-bold text-gray-600 mb-2">🏖️ 연차·반차 사용 상위 인원</div>
-                ${tableShell(
-                    th('이름') + th('사용일수', 'right'),
-                    wf.topLeaveUsers.map(m => `<tr>${td(esc(m.member))}${td(m.days.toFixed(1) + '일', 'right')}</tr>`).join('') || '<tr><td colspan="2" class="text-center text-gray-400 py-4">사용 내역 없음</td></tr>',
-                    'max-h-[220px]'
-                )}
+                ${sfTable('wfLeave', [
+                    { key: 'member', label: '이름', filterable: true, get: m => m.member, cell: m => esc(m.member) },
+                    { key: 'days', label: '사용일수', align: 'right', type: 'num', get: m => m.days, cell: m => m.days.toFixed(1) + '일' }
+                ], wf.topLeaveUsers, 'max-h-[220px]', '사용 내역 없음')}
             </div>
         </div>
     `;
@@ -894,35 +961,34 @@ function renderWorkReportSection(wr, workingDaysCount) {
 
         <div class="mb-5">
             <div class="text-xs font-bold text-gray-600 mb-2">📋 업무별 상세 (투입시간 순)</div>
-            ${tableShell(
-                th('업무') + th('투입시간', 'right') + th('시간 점유율', 'right') + th('생산량', 'right') + th('인건비', 'right') + th('가동일수', 'right'),
-                wr.taskEntries.map(t => `<tr>
-                    ${td(esc(t.task))}
-                    ${td(formatDuration(t.duration), 'right')}
-                    ${td(`<div class="w-20 inline-block align-middle mr-2">${progressBar(t.timeShare, 'bg-indigo-500')}</div><span class="text-xs text-gray-500">${t.timeShare.toFixed(1)}%</span>`, 'right')}
-                    ${td(fmt(t.quantity) + '개', 'right')}
-                    ${td(fmt(t.cost) + '원', 'right')}
-                    ${td(t.workDays + '일', 'right')}
-                </tr>`).join('') || '<tr><td colspan="6" class="text-center text-gray-400 py-6">데이터 없음</td></tr>'
-            )}
+            ${sfTable('wrTask', [
+                { key: 'task', label: '업무', filterable: true, get: t => t.task, cell: t => esc(t.task) },
+                { key: 'duration', label: '투입시간', align: 'right', type: 'num', get: t => t.duration, cell: t => formatDuration(t.duration) },
+                { key: 'timeShare', label: '시간 점유율', align: 'right', type: 'num', get: t => t.timeShare,
+                  cell: t => `<div class="w-20 inline-block align-middle mr-2">${progressBar(t.timeShare, 'bg-indigo-500')}</div><span class="text-xs text-gray-500">${t.timeShare.toFixed(1)}%</span>` },
+                { key: 'quantity', label: '생산량', align: 'right', type: 'num', get: t => t.quantity, cell: t => fmt(t.quantity) + '개' },
+                { key: 'cost', label: '인건비', align: 'right', type: 'num', get: t => t.cost, cell: t => fmt(t.cost) + '원' },
+                { key: 'workDays', label: '가동일수', align: 'right', type: 'num', get: t => t.workDays, cell: t => t.workDays + '일' }
+            ], wr.taskEntries)}
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
                 <div class="text-xs font-bold text-gray-600 mb-2">🧑‍🤝‍🧑 파트별 요약</div>
-                ${tableShell(
-                    th('파트') + th('인원', 'right') + th('투입시간', 'right'),
-                    wr.partRows.map(p => `<tr>${td(esc(p.part))}${td(p.memberCount + '명', 'right')}${td(formatDuration(p.duration), 'right')}</tr>`).join(''),
-                    'max-h-[260px]'
-                )}
+                ${sfTable('wrPart', [
+                    { key: 'part', label: '파트', filterable: true, get: p => p.part, cell: p => esc(p.part) },
+                    { key: 'memberCount', label: '인원', align: 'right', type: 'num', get: p => p.memberCount, cell: p => p.memberCount + '명' },
+                    { key: 'duration', label: '투입시간', align: 'right', type: 'num', get: p => p.duration, cell: p => formatDuration(p.duration) }
+                ], wr.partRows, 'max-h-[260px]')}
             </div>
             <div>
                 <div class="text-xs font-bold text-gray-600 mb-2">🙋 인원별 상세 (투입시간 순)</div>
-                ${tableShell(
-                    th('이름') + th('파트') + th('투입시간', 'right') + th('업무 수', 'right'),
-                    wr.memberEntries.map(m => `<tr>${td(esc(m.member))}${td(esc(m.part))}${td(formatDuration(m.duration), 'right')}${td(m.taskCount + '종', 'right')}</tr>`).join(''),
-                    'max-h-[260px]'
-                )}
+                ${sfTable('wrMember', [
+                    { key: 'member', label: '이름', filterable: true, get: m => m.member, cell: m => esc(m.member) },
+                    { key: 'part', label: '파트', filterable: true, get: m => m.part, cell: m => esc(m.part) },
+                    { key: 'duration', label: '투입시간', align: 'right', type: 'num', get: m => m.duration, cell: m => formatDuration(m.duration) },
+                    { key: 'taskCount', label: '업무 수', align: 'right', type: 'num', get: m => m.taskCount, cell: m => m.taskCount + '종' }
+                ], wr.memberEntries, 'max-h-[260px]')}
             </div>
         </div>
     `;
@@ -943,18 +1009,18 @@ function renderAttendanceSection(att) {
             </div>
             <div class="md:col-span-2">
                 <div class="text-xs font-bold text-gray-600 mb-2">⚠️ 결근·지각·외출·조퇴 상위 인원</div>
-                ${tableShell(
-                    th('이름') + th('결근', 'right') + th('지각', 'right') + th('외출', 'right') + th('조퇴', 'right') + th('총 건수', 'right'),
-                    att.memberRows.map(m => `<tr>
-                        ${td(esc(m.member))}
-                        ${td(m.absence > 0 ? `<span class="text-red-600 font-bold">${m.absence}</span>` : '0', 'right')}
-                        ${td(m.late > 0 ? `<span class="text-orange-500 font-bold">${m.late}</span>` : '0', 'right')}
-                        ${td(m.outing > 0 ? `<span class="text-amber-600 font-bold">${m.outing}</span>` : '0', 'right')}
-                        ${td(m.earlyLeave > 0 ? `<span class="text-yellow-600 font-bold">${m.earlyLeave}</span>` : '0', 'right')}
-                        ${td(m.total, 'right')}
-                    </tr>`).join('') || '<tr><td colspan="6" class="text-center text-gray-400 py-4">결근·지각·외출·조퇴 없음</td></tr>',
-                    'max-h-[260px]'
-                )}
+                ${sfTable('attMember', [
+                    { key: 'member', label: '이름', filterable: true, get: m => m.member, cell: m => esc(m.member) },
+                    { key: 'absence', label: '결근', align: 'right', type: 'num', get: m => m.absence,
+                      cell: m => m.absence > 0 ? `<span class="text-red-600 font-bold">${m.absence}</span>` : '0' },
+                    { key: 'late', label: '지각', align: 'right', type: 'num', get: m => m.late,
+                      cell: m => m.late > 0 ? `<span class="text-orange-500 font-bold">${m.late}</span>` : '0' },
+                    { key: 'outing', label: '외출', align: 'right', type: 'num', get: m => m.outing,
+                      cell: m => m.outing > 0 ? `<span class="text-amber-600 font-bold">${m.outing}</span>` : '0' },
+                    { key: 'earlyLeave', label: '조퇴', align: 'right', type: 'num', get: m => m.earlyLeave,
+                      cell: m => m.earlyLeave > 0 ? `<span class="text-yellow-600 font-bold">${m.earlyLeave}</span>` : '0' },
+                    { key: 'total', label: '총 건수', align: 'right', type: 'num', get: m => m.total, cell: m => m.total }
+                ], att.memberRows, 'max-h-[260px]', '결근·지각·외출·조퇴 없음')}
             </div>
         </div>
     `;
@@ -1013,16 +1079,13 @@ function renderInspectionSection(insp) {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
                 <div class="text-xs font-bold text-gray-600 mb-2">⚠️ 불량 상위 제품</div>
-                ${tableShell(
-                    th('제품') + th('불량건수', 'right') + th('불량수량', 'right') + th('주요 불량사유'),
-                    insp.topDefective.map(p => `<tr>
-                        ${td(esc(p.name))}
-                        ${td(`<span class="text-red-600 font-bold">${p.defectCount}</span>`, 'right')}
-                        ${td(fmt(p.defectQty) + '개', 'right')}
-                        ${td(esc(p.commonReason))}
-                    </tr>`).join('') || '<tr><td colspan="4" class="text-center text-gray-400 py-4">불량 없음</td></tr>',
-                    'max-h-[300px]'
-                )}
+                ${sfTable('inspDefect', [
+                    { key: 'name', label: '제품', filterable: true, get: r => r.name, cell: r => esc(r.name) },
+                    { key: 'defectCount', label: '불량건수', align: 'right', type: 'num', get: r => r.defectCount,
+                      cell: r => `<span class="text-red-600 font-bold">${r.defectCount}</span>` },
+                    { key: 'defectQty', label: '불량수량', align: 'right', type: 'num', get: r => r.defectQty, cell: r => fmt(r.defectQty) + '개' },
+                    { key: 'commonReason', label: '주요 불량사유', filterable: true, get: r => r.commonReason, cell: r => esc(r.commonReason) }
+                ], insp.topDefective, 'max-h-[300px]', '불량 없음')}
             </div>
             <div>
                 <div class="text-xs font-bold text-gray-600 mb-2">📋 불량 사유 상위 항목</div>
@@ -1292,6 +1355,49 @@ function attachPeriodControlListeners(container, appConfig) {
     }
 }
 
+/** 머리글의 정렬·필터 버튼 처리. 컨테이너를 다시 그려도 한 번만 붙는다. */
+function bindSortFilterListeners(container, appConfig) {
+    if (!container || container.dataset.sfBound === 'true') return;
+    container.dataset.sfBound = 'true';
+
+    container.addEventListener('click', (e) => {
+        const sortBtn = e.target.closest('[data-tf-sort]');
+        if (sortBtn) {
+            const st = sfState(sortBtn.dataset.tfTable);
+            const key = sortBtn.dataset.tfSort;
+            // 오름차순 → 내림차순 → 해제
+            if (st.sort.key !== key) st.sort = { key, dir: 'asc' };
+            else if (st.sort.dir === 'asc') st.sort.dir = 'desc';
+            else st.sort = { key: '', dir: 'asc' };
+            closeFloatingFilter();
+            renderSettlementReport(container, appConfig);
+            return;
+        }
+        const fBtn = e.target.closest('[data-tf-filter]');
+        if (fBtn) {
+            const id = fBtn.dataset.tfTable, key = fBtn.dataset.tfFilter;
+            const cols = _sfCols[id] || [];
+            const col = cols.find(c => c.key === key);
+            const st = sfState(id);
+            if (!col) return;
+            // 다른 칸에 걸린 필터를 통과한 행에서만 후보값을 뽑는다(엑셀과 같은 방식)
+            const others = (_sfRows[id] || []).filter(r =>
+                cols.every(c => c.key === key || !c.filterable || matchesFilter(c.get(r), st.filters[c.key])));
+            const options = [...new Set(others.map(r => String(col.get(r) ?? '')))].sort((x, y) => x.localeCompare(y, 'ko'));
+            openFloatingFilter(fBtn, {
+                key: id + '|' + key,
+                label: col.label,
+                options,
+                current: st.filters[key],
+                onChange: (v) => {
+                    if (v == null) delete st.filters[key]; else st.filters[key] = v;
+                    renderSettlementReport(container, appConfig);
+                }
+            });
+        }
+    });
+}
+
 export function renderSettlementReport(container, appConfig) {
     if (!container) return;
     appConfig = appConfig || State.appConfig || {};
@@ -1339,6 +1445,8 @@ export function renderSettlementReport(container, appConfig) {
             ${renderOverallOpinionSection(opinion, periodLabel, workingDaysCount)}
         </div>
     `;
+
+    bindSortFilterListeners(container, appConfig);
 
     // 차트 인스턴스 생성 (DOM 마운트 이후)
     if (prodResult.chartId && prodResult.chartData) {
