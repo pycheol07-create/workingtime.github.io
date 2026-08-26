@@ -43,6 +43,13 @@ const SIM_TASKS = [
     { id: 'other',    key: '국내기타', label: '국내기타', auto: 'last7' },
     { id: 'localprod',key: '국내제작', label: '국내제작', auto: 'last7' }
 ];
+// 입력 칸을 성격별로 묶어 보여준다(10개를 한 덩어리로 늘어놓으면 읽기 어렵다).
+const SIM_GROUPS = [
+    { label: '출고',      ids: ['domestic', 'direct', 'ably'] },
+    { label: '입고 · 제작', ids: ['china', 'sample', 'localprod'] },
+    { label: '그 외 작업',  ids: ['fill', 'return', 'full', 'other'] }
+];
+
 const LEAVE_OFF_TYPES = new Set(['연차', '결근', '휴직', '출장', '매장근무']);
 const UTILIZATION = 0.8;
 
@@ -235,50 +242,64 @@ const autoValueFor = (dateStr, task, historyData) => {
 /** 값만 필요한 곳에서 쓰는 짧은 형태 */
 const autoQtyFor = (dateStr, task, historyData) => autoValueFor(dateStr, task, historyData).value;
 
+// 사람이 직접 넣은 값(예정물량·오늘 실측)만 색 배지로 눈에 띄게 하고,
+// 자동으로 채워진 값은 조용한 회색 글씨로 둔다 — 10칸이 배지로 뒤덮이지 않도록.
 const SOURCE_BADGE = {
-    planned:  { text: '예정물량',   cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+    planned:  { text: '예정물량', muted: false, cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
                 tip: '업무 기록 및 관리 > 예정 물량에 직접 입력한 값입니다. 가장 먼저 적용됩니다.' },
-    actual:   { text: '오늘 실측',   cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+    actual:   { text: '오늘 실측', muted: false, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
                 tip: '오늘 처리량 입력에 이미 들어간 실제 값입니다. 예정 물량 다음으로 우선 적용됩니다.' },
-    ai:       { text: 'AI 예측',    cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
-                tip: '국내배송 AI 추세 예측값' },
-    incoming: { text: '입고일정',    cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-                tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
-    last7:    { text: '지난7회평균', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
-                tip: '이 업무가 발생한 최근 7일의 업무량 평균' },
-    'china-linked': { text: '중국제작 연동', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+    ai:       { text: 'AI 예측',    muted: true, tip: '국내배송 AI 추세 예측값' },
+    incoming: { text: '입고일정',    muted: true, tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
+    last7:    { text: '지난 7회 평균', muted: true, tip: '이 업무가 발생한 최근 7일의 업무량 평균' },
+    'china-linked': { text: '중국제작 연동', muted: true,
                 tip: '중국제작 입고가 있는 날만 자동 입력됩니다. (그 날 입고량 × 최근 4주 검수비율)' }
 };
 
-/** 값의 출처를 항목 배지로 표시 */
+/** 값의 출처를 항목 아래에 표시 */
 const markSourceBadge = (task, source) => {
     const el = document.getElementById(`sim-src-${task.id}`);
     if (!el) return;
     const b = SOURCE_BADGE[source] || SOURCE_BADGE.last7;
-    el.className = `text-[9px] leading-none px-1.5 py-1 rounded-md font-bold shrink-0 ${b.cls}`;
+    el.className = b.muted
+        ? 'text-[10px] font-medium text-gray-400 dark:text-gray-500'
+        : `text-[10px] font-bold px-1.5 py-0.5 rounded-md ${b.cls}`;
     el.textContent = b.text;
     el.title = b.tip;
 };
 
-/** 작업량 입력 칸을 SIM_TASKS로부터 만든다(항목이 늘어도 화면과 어긋나지 않게). */
+/** 작업량 입력 칸을 SIM_TASKS로부터 만든다.
+ *  성격별(출고 / 입고·제작 / 그 외)로 구획을 나눠 한눈에 구분되게 한다. */
 const renderSimTaskInputs = () => {
     const host = document.getElementById('sim-task-list');
     if (!host || host.dataset.built === 'true') return;
     host.dataset.built = 'true';
-    host.innerHTML = SIM_TASKS.map(t => `
+
+    const cell = (t) => `
         <div id="sim-row-${t.id}" data-row-id="${t.id}"
-             class="pred-sim-row rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 px-2.5 py-2
-                    transition focus-within:border-indigo-400 dark:focus-within:border-indigo-500
+             class="pred-sim-row rounded-xl border border-gray-200/70 dark:border-gray-700/70 bg-gray-50/60 dark:bg-gray-900/20 px-3 py-2.5
+                    transition hover:border-gray-300 dark:hover:border-gray-600
+                    focus-within:bg-white dark:focus-within:bg-gray-800 focus-within:border-indigo-400 dark:focus-within:border-indigo-500
                     focus-within:ring-2 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-900/40">
-            <div class="flex items-center justify-between gap-1 mb-1">
-                <span class="text-[11px] font-bold text-gray-600 dark:text-gray-300 truncate" title="${t.label}">${t.label}</span>
-                <span id="sim-src-${t.id}" class="text-[9px] leading-none px-1.5 py-1 rounded-md font-bold shrink-0
-                      bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">지난7회평균</span>
-            </div>
+            <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 truncate" title="${t.label}">${t.label}</div>
             <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric"
-                   class="w-full bg-transparent border-0 p-0 text-right text-[17px] font-extrabold tabular-nums
+                   class="w-full bg-transparent border-0 p-0 mt-1 text-right text-[19px] leading-tight font-extrabold tabular-nums
                           text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600
                           focus:outline-none focus:ring-0">
+            <div class="mt-1 text-right leading-none">
+                <span id="sim-src-${t.id}" class="text-[10px] font-medium text-gray-400 dark:text-gray-500">지난 7회 평균</span>
+            </div>
+        </div>`;
+
+    host.innerHTML = SIM_GROUPS.map(g => `
+        <div>
+            <div class="flex items-center gap-2.5 mb-2">
+                <span class="text-[10px] font-extrabold tracking-widest text-gray-400 dark:text-gray-500">${g.label}</span>
+                <span class="flex-1 h-px bg-gray-150 dark:bg-gray-700/70" style="background-color:rgba(0,0,0,.06)"></span>
+            </div>
+            <div class="grid grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-[repeat(4,minmax(0,1fr))] gap-2.5">
+                ${g.ids.map(id => cell(SIM_TASKS.find(t => t.id === id))).filter(Boolean).join('')}
+            </div>
         </div>`).join('');
 };
 
@@ -435,7 +456,7 @@ const renderSimResult = (results, taskUPH, mode) => {
                     ${stat('필요 인원', `${r.requiredFTE}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span>`,
                            `${fmtH(r.totalHours)} ÷ ${r.dailyHours}h ÷ ${UTILIZATION}`)}
                     ${stat('가용 인원', `${r.availableTotal}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span>`, '정직원 + 알바')}
-                    <div class="rounded-xl border ${tone.ring} p-3 flex flex-col justify-center">
+                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-3 flex flex-col justify-center">
                         <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">결과</div>
                         <div class="mt-1"><span class="text-lg font-extrabold px-3 py-1 rounded-full ${tone.chip}">${gapText(r.gap)}</span></div>
                     </div>
@@ -549,12 +570,13 @@ export const getAutoQuantitiesForDate = (dateStr) => {
     return out;
 };
 
-// 인원 과부족 톤 — 카드 테두리/강조색을 한 곳에서 정한다.
+// 인원 과부족 톤 — 색은 상태 배지와 막대에만 쓴다.
+// 카드 테두리까지 물들이면 화면 전체가 색으로 뒤덮여 오히려 읽기 어렵다.
 const GAP_TONE = (g) => g > 1
-    ? { ring: 'border-emerald-200 dark:border-emerald-800', chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', bar: 'bg-emerald-500' }
+    ? { chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', bar: 'bg-emerald-500' }
     : (g < -1
-        ? { ring: 'border-rose-200 dark:border-rose-800', chip: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300', bar: 'bg-rose-500' }
-        : { ring: 'border-amber-200 dark:border-amber-800', chip: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', bar: 'bg-amber-500' });
+        ? { chip: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300', bar: 'bg-rose-500' }
+        : { chip: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', bar: 'bg-amber-500' });
 
 const forecastCardHtml = (label, r, inputs) => {
     const gap = r.gap;
@@ -565,7 +587,7 @@ const forecastCardHtml = (label, r, inputs) => {
     const pct = r.requiredFTE > 0 ? Math.min(100, Math.round(staffN / r.requiredFTE * 100)) : 100;
 
     return `
-    <div class="rounded-2xl border ${tone.ring} bg-white dark:bg-gray-800 p-4 md:p-5 shadow-sm">
+    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 md:p-5 shadow-sm">
         <div class="flex items-start justify-between gap-2 mb-4">
             <div class="min-w-0">
                 <div class="flex items-center gap-1.5">

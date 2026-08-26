@@ -555,50 +555,51 @@
                         <div class="p-4 md:p-5 space-y-5">
                             <!-- 작업량 -->
                             <div>
-                                <div class="flex items-baseline justify-between gap-2 mb-2.5">
-                                    <h5 class="text-xs font-extrabold text-gray-700 dark:text-gray-200">작업량 <span class="font-medium text-gray-400">(개)</span></h5>
-                                    <span class="text-[11px] text-gray-400 dark:text-gray-500">값 옆 배지가 어디서 온 값인지 알려줍니다</span>
+                                <div class="flex items-baseline gap-2 mb-3">
+                                    <h5 class="text-sm font-extrabold text-gray-800 dark:text-gray-100">작업량</h5>
+                                    <span class="text-[11px] text-gray-400 dark:text-gray-500">단위: 개</span>
                                 </div>
-                                <!-- 항목 칸은 js/ui-history-prediction.js 의 SIM_TASKS 로부터 생성 -->
-                                <!-- 임의값 클래스: 전역 모바일 규칙(.grid-cols-N → 1열)에 걸리지 않아 좁은 화면에서도 2열을 유지한다 -->
-                                <div id="sim-task-list" class="grid grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-[repeat(3,minmax(0,1fr))] xl:grid-cols-[repeat(5,minmax(0,1fr))] gap-2.5"></div>
-                                <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-                                    <span class="font-bold text-gray-600 dark:text-gray-300">적용 순서</span>
-                                    <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 font-bold text-[10px]">예정물량</span> 수기 입력</span>
-                                    <span class="text-gray-300 dark:text-gray-600">›</span>
-                                    <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 font-bold text-[10px]">오늘 실측</span> 오늘 처리량 입력값</span>
-                                    <span class="text-gray-300 dark:text-gray-600">›</span>
-                                    <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 font-bold text-[10px]">자동값</span> AI 예측 · 입고일정 · 지난 7회 평균</span>
-                                </div>
+                                <!-- 분류별 구획과 입력 칸은 js/ui-history-prediction.js 의 SIM_GROUPS · SIM_TASKS 로부터 생성 -->
+                                <div id="sim-task-list" class="space-y-4"></div>
+                                <p class="mt-3 text-[11px] text-gray-400 dark:text-gray-500">
+                                    값은 <b class="text-amber-700 dark:text-amber-400">예정물량</b> ›
+                                    <b class="text-rose-600 dark:text-rose-400">오늘 실측</b> › 자동값 순으로 채워집니다.
+                                    숫자 아래에 어디서 온 값인지 표시됩니다.
+                                </p>
                             </div>
 
                             <!-- 인원 -->
-                            <div>
-                                <h5 class="text-xs font-extrabold text-gray-700 dark:text-gray-200 mb-2.5">인원 <span class="font-medium text-gray-400">(명)</span></h5>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 px-3 py-2.5
-                                                transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-900/40">
-                                        <div class="flex items-center justify-between gap-1 mb-1">
-                                            <span class="text-[11px] font-bold text-gray-600 dark:text-gray-300">정직원</span>
-                                            <span class="text-[9px] leading-none px-1.5 py-1 rounded-md font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">자동</span>
-                                        </div>
-                                        <input id="sim-staff-fulltime" type="number" min="0" placeholder="0" inputmode="numeric"
-                                            class="w-full bg-transparent border-0 p-0 text-right text-[17px] font-extrabold tabular-nums
-                                                   text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600 focus:outline-none focus:ring-0">
-                                    </div>
-                                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 px-3 py-2.5
-                                                transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-900/40">
-                                        <div class="flex items-center justify-between gap-1 mb-1">
-                                            <span class="text-[11px] font-bold text-gray-600 dark:text-gray-300">알바 추가</span>
-                                            <span class="text-[9px] leading-none px-1.5 py-1 rounded-md font-bold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">직접</span>
-                                        </div>
-                                        <input id="sim-staff-parttimer" type="number" min="0" placeholder="0" inputmode="numeric"
-                                            class="w-full bg-transparent border-0 p-0 text-right text-[17px] font-extrabold tabular-nums
-                                                   text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600 focus:outline-none focus:ring-0">
-                                    </div>
+                            <div class="pt-1">
+                                <div class="flex items-baseline gap-2 mb-3">
+                                    <h5 class="text-sm font-extrabold text-gray-800 dark:text-gray-100">인원</h5>
+                                    <span class="text-[11px] text-gray-400 dark:text-gray-500">단위: 명</span>
                                 </div>
-                                <div id="sim-on-leave-info" class="mt-2.5 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">대상일을 고르면 휴무자를 차감해서 자동 표시합니다.</div>
-                                <div class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">가동률 80% · 주중 8h / 주말 4h (인력 운영 탭과 동일 정책)</div>
+                                <div class="grid grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-[repeat(4,minmax(0,1fr))] gap-2.5">
+                                    <div class="rounded-xl border border-gray-200/70 dark:border-gray-700/70 bg-gray-50/60 dark:bg-gray-900/20 px-3 py-2.5
+                                                transition hover:border-gray-300 dark:hover:border-gray-600
+                                                focus-within:bg-white dark:focus-within:bg-gray-800 focus-within:border-indigo-400
+                                                focus-within:ring-2 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-900/40">
+                                        <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400">정직원</div>
+                                        <input id="sim-staff-fulltime" type="number" min="0" placeholder="0" inputmode="numeric"
+                                            class="w-full bg-transparent border-0 p-0 mt-1 text-right text-[19px] leading-tight font-extrabold tabular-nums
+                                                   text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600 focus:outline-none focus:ring-0">
+                                        <div class="mt-1 text-right leading-none"><span class="text-[10px] font-medium text-gray-400 dark:text-gray-500">휴무 차감 자동</span></div>
+                                    </div>
+                                    <div class="rounded-xl border border-gray-200/70 dark:border-gray-700/70 bg-gray-50/60 dark:bg-gray-900/20 px-3 py-2.5
+                                                transition hover:border-gray-300 dark:hover:border-gray-600
+                                                focus-within:bg-white dark:focus-within:bg-gray-800 focus-within:border-indigo-400
+                                                focus-within:ring-2 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-900/40">
+                                        <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400">알바 추가</div>
+                                        <input id="sim-staff-parttimer" type="number" min="0" placeholder="0" inputmode="numeric"
+                                            class="w-full bg-transparent border-0 p-0 mt-1 text-right text-[19px] leading-tight font-extrabold tabular-nums
+                                                   text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600 focus:outline-none focus:ring-0">
+                                        <div class="mt-1 text-right leading-none"><span class="text-[10px] font-medium text-gray-400 dark:text-gray-500">직접 입력</span></div>
+                                    </div>
+                                    <div id="sim-on-leave-info"
+                                         class="col-span-2 rounded-xl bg-gray-50/60 dark:bg-gray-900/20 border border-gray-200/70 dark:border-gray-700/70
+                                                px-3 py-2.5 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed flex items-center">대상일을 고르면 휴무자를 차감해서 자동 표시합니다.</div>
+                                </div>
+                                <p class="mt-3 text-[11px] text-gray-400 dark:text-gray-500">가동률 80% · 주중 8h / 주말 4h — 인력 운영 탭과 같은 정책입니다.</p>
                             </div>
                         </div>
 
