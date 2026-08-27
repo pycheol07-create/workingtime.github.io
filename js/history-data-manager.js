@@ -165,7 +165,9 @@ export const syncTodayToHistory = async () => {
             id: todayKey,
             workRecords: finalWorkRecords,
             taskQuantities: finalQuantities,
-            confirmedZeroTasks: State.appState.confirmedZeroTasks || (existingHistory?.confirmedZeroTasks || []),
+            // 라이브가 비어 있을 때 이력의 확인 표시를 지우지 않는다.
+            confirmedZeroTasks: (State.appState.confirmedZeroTasks?.length
+                ? State.appState.confirmedZeroTasks : (existingHistory?.confirmedZeroTasks || [])),
             onLeaveMembers: State.appState.dailyOnLeaveMembers || (existingHistory?.onLeaveMembers || []),
             partTimers: State.appState.partTimers || (existingHistory?.partTimers || []),
             dailyAttendance: State.appState.dailyAttendance || (existingHistory?.dailyAttendance || {}),
@@ -873,7 +875,12 @@ export async function saveManagementData(dateKey, managementData) {
 
     const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
     if (dayIndex > -1) {
-        State.allHistoryData[dayIndex].management = managementData;
+        // Firestore 는 merge 로 깊게 합치므로 메모리도 같게 맞춘다.
+        // (통째로 바꾸면 이번에 안 보낸 항목이 화면에서만 사라져 다음 저장 때 0으로 덮인다)
+        State.allHistoryData[dayIndex].management = {
+            ...(State.allHistoryData[dayIndex].management || {}),
+            ...managementData
+        };
     } else {
         State.allHistoryData.push({
             id: dateKey, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [], management: managementData

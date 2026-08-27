@@ -77,6 +77,9 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         
         State.appState.inspectionList = data.inspectionList || []; 
         State.appState.dailyOnLeaveMembers = data.onLeaveMembers || [];
+        // ⚠️ 이 값을 되읽지 않으면 메모리에는 늘 빈 배열이 남는다.
+        //    그 상태로 1분 자동저장이 돌면 '0으로 확인' 표시가 통째로 지워진다.
+        State.appState.confirmedZeroTasks = data.confirmedZeroTasks || [];
 
         State.setIsDataDirty(false); 
         renderCallback();

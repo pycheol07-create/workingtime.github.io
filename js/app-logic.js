@@ -802,6 +802,8 @@ export const saveManualTaskQuantities = async (newQuantities, confirmedZeroTasks
         
         if (confirmedZeroTasks && confirmedZeroTasks.length > 0) {
             updates.confirmedZeroTasks = confirmedZeroTasks;
+            // 스냅샷이 오기 전에 자동저장이 돌아 빈 배열로 덮지 않도록 메모리도 바로 맞춘다.
+            State.appState.confirmedZeroTasks = confirmedZeroTasks;
         }
 
         if (Object.keys(updates).length > 0) {

@@ -2,7 +2,13 @@
 import { getAllDashboardDefinitions } from './admin-ui.js';
 
 export function collectConfigFromDOM(currentConfig) {
+    // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
+    //    saveAppConfig 는 문서를 통째로 덮어쓰므로(merge 아님), 여기서 빠뜨린 키는
+    //    관리자 설정을 한 번 저장하는 순간 Firestore에서 사라진다.
+    //    (예: headcountExcludedMembers, utilizationRate)
     const newConfig = {
+        ...(currentConfig || {}),
+
         dashboardMenu: [],
         teamGroups: [],
         memberWages: {},
