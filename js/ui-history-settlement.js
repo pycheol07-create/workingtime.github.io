@@ -950,13 +950,19 @@ function renderWorkforceSection(wf, core, workingDaysCount) {
     return sectionPanel('👥', '인력 운영', '인력 배치와 가동 현황', body, 'border-l-violet-500');
 }
 
-function renderWorkReportSection(wr, workingDaysCount) {
+function renderWorkReportSection(wr, workingDaysCount, totalDaysCount) {
     if (workingDaysCount === 0) return sectionPanel('📁', '업무 리포트', '업무별·인원별 상세', emptyNote('해당 기간에 업무 기록이 없습니다.'), 'border-l-indigo-500');
 
+    // 업무별 '가동일수'를 전체 가동일수와 견줘 볼 수 있도록 기준값을 만들어 둔다.
+    const totalDays = Number(totalDaysCount) || 0;
+    const opRate = (n) => workingDaysCount > 0 ? Math.round(n / workingDaysCount * 100) : 0;
+
     const body = `
-        <div class="grid grid-cols-2 gap-3 mb-5">
+        <div class="grid grid-cols-3 gap-3 mb-5">
             ${heroStat('활동 인원', wr.memberCount, '명', '', 'text-indigo-700')}
             ${heroStat('수행 업무 종류', wr.taskCount, '종')}
+            ${heroStat('총 가동일수', workingDaysCount, '일',
+                `<span class="text-[10px] text-gray-400">기간 ${totalDays}일 중 업무 기록이 있는 날</span>`)}
         </div>
 
         <div class="mb-5">
@@ -968,7 +974,10 @@ function renderWorkReportSection(wr, workingDaysCount) {
                   cell: t => `<div class="w-20 inline-block align-middle mr-2">${progressBar(t.timeShare, 'bg-indigo-500')}</div><span class="text-xs text-gray-500">${t.timeShare.toFixed(1)}%</span>` },
                 { key: 'quantity', label: '생산량', align: 'right', type: 'num', get: t => t.quantity, cell: t => fmt(t.quantity) + '개' },
                 { key: 'cost', label: '인건비', align: 'right', type: 'num', get: t => t.cost, cell: t => fmt(t.cost) + '원' },
-                { key: 'workDays', label: '가동일수', align: 'right', type: 'num', get: t => t.workDays, cell: t => t.workDays + '일' }
+                { key: 'workDays', label: '가동일수', align: 'right', type: 'num', get: t => t.workDays,
+                  cell: t => `<span class="font-bold text-gray-800">${t.workDays}</span>`
+                           + `<span class="text-gray-400"> / ${workingDaysCount}일</span>`
+                           + `<div class="text-[10px] text-gray-400">${opRate(t.workDays)}%</div>` }
             ], wr.taskEntries)}
         </div>
 
@@ -992,7 +1001,7 @@ function renderWorkReportSection(wr, workingDaysCount) {
             </div>
         </div>
     `;
-    return sectionPanel('📁', '업무 리포트', '업무별·인원별 상세', body, 'border-l-indigo-500');
+    return sectionPanel('📁', '업무 리포트', `업무별·인원별 상세 · 총 가동일수 ${workingDaysCount}일 / 기간 ${totalDays}일`, body, 'border-l-indigo-500');
 }
 
 function renderAttendanceSection(att) {
@@ -1437,7 +1446,7 @@ export function renderSettlementReport(container, appConfig) {
         <div class="space-y-5">
             ${prodResult.html || prodResult}
             ${renderWorkforceSection(wf, core, workingDaysCount)}
-            ${renderWorkReportSection(wr, workingDaysCount)}
+            ${renderWorkReportSection(wr, workingDaysCount, currentDays.length)}
             ${attResult.html || attResult}
             ${mgResult.html || mgResult}
             ${renderInspectionSection(insp)}
