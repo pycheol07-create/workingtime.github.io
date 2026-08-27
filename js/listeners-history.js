@@ -322,6 +322,9 @@ export function setupHistoryModalListeners() {
             try {
                 managementSaveBtn.disabled = true; managementSaveBtn.textContent = '저장 중...';
                 await saveManagementData(dateKey, {
+                    // 이미 저장된 값 위에 화면 입력값을 얹는다.
+                    // 화면에 없는 항목(fxAt 등)이나 앞으로 늘어날 항목이 저장 때 사라지지 않는다.
+                    ...existingMgmt,
                     ...channelValues,
                     // 채널을 하나도 입력하지 않았다면 기존 총계를 지우지 않는다(구 데이터 보호)
                     ...CHANNEL_METRICS.reduce((acc, m) => {

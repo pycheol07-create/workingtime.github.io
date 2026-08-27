@@ -169,7 +169,9 @@ export const syncTodayToHistory = async () => {
             onLeaveMembers: State.appState.dailyOnLeaveMembers || (existingHistory?.onLeaveMembers || []),
             partTimers: State.appState.partTimers || (existingHistory?.partTimers || []),
             dailyAttendance: State.appState.dailyAttendance || (existingHistory?.dailyAttendance || {}),
-            management: State.appState.management || (existingHistory?.management || {}),
+            // ⚠️ 통째로 고르면(||) 라이브 쪽이 환율만 든 부분 객체일 때 저장된 매출·재고가 사라진다.
+            //    반드시 합쳐야 한다(라이브 값이 우선).
+            management: { ...(existingHistory?.management || {}), ...(State.appState.management || {}) },
             inspectionList: State.appState.inspectionList || (existingHistory?.inspectionList || []),
             isQuantityVerified: State.appState.isQuantityVerified || (existingHistory?.isQuantityVerified || false)
         };
@@ -206,7 +208,11 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             onLeaveMembers: State.appState.dailyOnLeaveMembers || [],
             partTimers: State.appState.partTimers || [],
             dailyAttendance: State.appState.dailyAttendance || {},
-            management: State.appState.management || {},
+            // 라이브 management 가 일부 필드만 들고 있을 수 있으므로 이미 저장된 값 위에 얹는다.
+            management: {
+                ...((State.allHistoryData.find(d => d.id === dateStr) || {}).management || {}),
+                ...(State.appState.management || {})
+            },
             inspectionList: State.appState.inspectionList || [],
             isQuantityVerified: State.appState.isQuantityVerified || false
         };

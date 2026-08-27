@@ -47,7 +47,13 @@ async function autoFetchDailyFx(todayKey) {
         ]);
 
         // 메모리 즉시 반영
-        if (State.appState) State.appState.management = { ...(State.appState.management || {}), usdRate, cnyRate, fxAt };
+        // ⚠️ appState.management 는 처음엔 비어 있다. 여기서 환율만 담아 두면
+        //    '부분 객체'가 되어, 이후 동기화가 이미 저장된 매출·재고를 덮어 지운다.
+        //    그래서 이미 알고 있는 그날 값 위에 환율만 얹는다.
+        const memMgmt = (State.allHistoryData || []).find(d => d.id === todayKey)?.management || {};
+        if (State.appState) {
+            State.appState.management = { ...memMgmt, ...(State.appState.management || {}), usdRate, cnyRate, fxAt };
+        }
         const di = (State.allHistoryData || []).findIndex(d => d.id === todayKey);
         if (di > -1) State.allHistoryData[di].management = { ...(State.allHistoryData[di].management || {}), usdRate, cnyRate, fxAt };
 
