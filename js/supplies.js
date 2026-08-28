@@ -84,6 +84,9 @@ const COLS = [
       get: it => it.vendor || '',
       cell: it => `${esc(it.vendor || '-')}`
                 + (it.vendorContact ? `<div class="text-[11px] text-slate-400">${esc(it.vendorContact)}</div>` : '') },
+    { key: 'ezCode', label: '이지어드민코드', type: 'text', td: 'text-slate-500 text-[12px]',
+      get: it => it.ezCode || '',
+      cell: it => it.ezCode ? esc(it.ezCode) : '-' },
     { key: 'moq', label: 'MOQ', type: 'text', td: 'text-slate-600',
       get: it => withThousands(it.orderUnit || ''),
       cell: it => it.orderUnit ? esc(withThousands(it.orderUnit)) : '-' },
@@ -140,7 +143,7 @@ async function load() {
             // 최초 진입 — 기본 비품(택배봉투·포장봉투) 생성
             items = SEED_ITEMS.map(s => ({
                 id: uid(), stock: 0, safetyStock: 0, unitPrice: 0,
-                size: '', vendor: '', vendorContact: '', orderUnit: '',
+                size: '', vendor: '', vendorContact: '', orderUnit: '', ezCode: '',
                 leadTimeDays: 0, leadTimeUnit: 'day', lastOrderDate: '', memo: '', logs: [], ...s
             }));
             await persist();
@@ -234,7 +237,7 @@ function visibleItems() {
         if (cat && (it.category || '미분류') !== cat) return false;
         if (lowOnly && !isLow(it)) return false;
         if (kw) {
-            const hay = `${it.name} ${it.category} ${it.vendor} ${it.size} ${it.memo}`.toLowerCase();
+            const hay = `${it.name} ${it.category} ${it.vendor} ${it.size} ${it.memo} ${it.ezCode || ''}`.toLowerCase();
             if (!hay.includes(kw)) return false;
         }
         // 헤더에서 고른 컬럼별 필터 — 모두 만족해야 통과(AND)
@@ -495,6 +498,7 @@ function openItemModal(id = null) {
     $('f-size').value = it?.size || '';
     $('f-vendor').value = it?.vendor || '';
     $('f-vendor-contact').value = it?.vendorContact || '';
+    $('f-ez-code').value = it?.ezCode || '';
     $('f-order-unit').value = withThousands(it?.orderUnit || '');
     $('f-leadtime').value = it ? (num(it.leadTimeDays) || '') : '';
     $('f-leadtime-unit').value = leadTimeUnitOf(it);
@@ -523,6 +527,7 @@ async function saveItem() {
         size: $('f-size').value.trim(),
         vendor: $('f-vendor').value.trim(),
         vendorContact: $('f-vendor-contact').value.trim(),
+        ezCode: $('f-ez-code').value.trim(),
         orderUnit: withThousands($('f-order-unit').value.trim()),
         leadTimeDays: num($('f-leadtime').value),
         leadTimeUnit: $('f-leadtime-unit').value,
