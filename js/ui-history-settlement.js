@@ -1062,7 +1062,7 @@ function renderManagementSection(mg) {
             ${miniStat('인건비', fmt(mg.unitCost.costs.labor) + '원')}
             ${miniStat('자재비', fmt(mg.unitCost.costs.material) + '원')}
             ${miniStat('배송비', fmt(mg.unitCost.costs.shipping) + '원')}
-            ${miniStat('직진배송', fmt(mg.unitCost.costs.directDelivery) + '원')}
+            ${miniStat('ZG&AB배송', fmt(mg.unitCost.costs.directDelivery) + '원')}
             ${miniStat('개당 원가 합계', fmt(mg.unitCost.costs.total) + '원')}
         </div>
         <div class="grid grid-cols-3 gap-2 text-center">

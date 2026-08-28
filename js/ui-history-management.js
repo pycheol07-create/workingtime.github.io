@@ -245,7 +245,7 @@ const generateCostAnalysisHTML = (analysis) => {
                         </div>
                         
                         <div class="flex justify-between items-center text-purple-700">
-                            <span>직진배송 화물비 <span class="text-xs">(${costs.directDeliveryCount}회)</span></span>
+                            <span>ZG&AB배송 화물비 <span class="text-xs">(${costs.directDeliveryCount}회)</span></span>
                             <span class="font-semibold">+ ${Math.round(costs.directDelivery).toLocaleString()}원</span>
                         </div>
 
