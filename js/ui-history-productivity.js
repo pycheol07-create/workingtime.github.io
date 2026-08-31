@@ -181,7 +181,7 @@ export function renderProductivityTab(filteredData, appConfig) {
 // 기간 선택과 무관하게 항상 State.allHistoryData 전체 이력을 사용한다(구간 개수를 충분히 확보하기 위함).
 // ============================================================
 let fillErrorDurationChartInstance = null;
-let fillErrorHeadcountChartInstance = null;
+let fillErrorQuantityChartInstance = null;
 
 function computeFillErrorAnalysis(allHistoryData) {
     const sortedDays = [...(allHistoryData || [])]
@@ -190,7 +190,8 @@ function computeFillErrorAnalysis(allHistoryData) {
 
     const errorRecordsOf = (day) => (day.workRecords || []).filter(r => r.task === '오류' && (Number(r.duration) || 0) > 0);
     const errorDurationOf = (day) => errorRecordsOf(day).reduce((s, r) => s + (Number(r.duration) || 0), 0);
-    const errorHeadcountOf = (day) => new Set(errorRecordsOf(day).map(r => r.member)).size;
+    // 오류 처리량은 업무기록(시간)이 아니라 그날 입력된 '오류' 처리 수량을 본다
+    const errorQuantityOf = (day) => Number(day.taskQuantities?.['오류']) || 0;
 
     const fillHappenedOn = (day) => {
         if ((Number(day.taskQuantities?.['채우기']) || 0) > 0) return true;
@@ -206,9 +207,9 @@ function computeFillErrorAnalysis(allHistoryData) {
 
     // offset(채우기 이후 경과일, 기록 있는 날 기준 순번) → 값 목록
     const durationBuckets = {};
-    const headcountBuckets = {};
+    const quantityBuckets = {};
     const durationPairs = []; // 상관계수 계산용
-    const headcountPairs = [];
+    const quantityPairs = [];
     const intervalLengths = [];
 
     for (let k = 0; k < fillEventIndices.length; k++) {
@@ -219,13 +220,13 @@ function computeFillErrorAnalysis(allHistoryData) {
             const offset = j - startIdx;
             const day = sortedDays[j];
             const durVal = errorDurationOf(day);
-            const hcVal = errorHeadcountOf(day);
+            const qtyVal = errorQuantityOf(day);
             if (!durationBuckets[offset]) durationBuckets[offset] = [];
-            if (!headcountBuckets[offset]) headcountBuckets[offset] = [];
+            if (!quantityBuckets[offset]) quantityBuckets[offset] = [];
             durationBuckets[offset].push(durVal);
-            headcountBuckets[offset].push(hcVal);
+            quantityBuckets[offset].push(qtyVal);
             durationPairs.push({ offset, val: durVal });
-            headcountPairs.push({ offset, val: hcVal });
+            quantityPairs.push({ offset, val: qtyVal });
         }
     }
 
@@ -267,7 +268,7 @@ function computeFillErrorAnalysis(allHistoryData) {
         fillEventCount: fillEventIndices.length,
         avgIntervalLength,
         duration: { ...buildSeries(durationBuckets), correlation: pearson(durationPairs) },
-        headcount: { ...buildSeries(headcountBuckets), correlation: pearson(headcountPairs) }
+        quantity: { ...buildSeries(quantityBuckets), correlation: pearson(quantityPairs) }
     };
 }
 
@@ -312,9 +313,9 @@ function renderFillErrorAnalysis() {
 
     if (result.insufficientData) {
         if (fillErrorDurationChartInstance) { fillErrorDurationChartInstance.destroy(); fillErrorDurationChartInstance = null; }
-        if (fillErrorHeadcountChartInstance) { fillErrorHeadcountChartInstance.destroy(); fillErrorHeadcountChartInstance = null; }
-        ['chart-fill-error-duration', 'chart-fill-error-headcount'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
-        ['fill-error-empty-duration', 'fill-error-empty-headcount'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+        if (fillErrorQuantityChartInstance) { fillErrorQuantityChartInstance.destroy(); fillErrorQuantityChartInstance = null; }
+        ['chart-fill-error-duration', 'chart-fill-error-quantity'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+        ['fill-error-empty-duration', 'fill-error-empty-quantity'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
         if (summaryEl) summaryEl.textContent = '';
         return;
     }
@@ -325,15 +326,15 @@ function renderFillErrorAnalysis() {
         return `${label} r=${r.toFixed(2)}(${trend})`;
     };
     if (summaryEl) {
-        summaryEl.textContent = `채우기 ${result.fillEventCount}회 · 평균 주기 ${result.avgIntervalLength.toFixed(1)}일 · ${corrText(result.duration.correlation, '투입시간')} · ${corrText(result.headcount.correlation, '투입인원')}`;
+        summaryEl.textContent = `채우기 ${result.fillEventCount}회 · 평균 주기 ${result.avgIntervalLength.toFixed(1)}일 · ${corrText(result.duration.correlation, '투입시간')} · ${corrText(result.quantity.correlation, '처리량')}`;
     }
 
     fillErrorDurationChartInstance = renderFillErrorSubChart(
         'chart-fill-error-duration', 'fill-error-empty-duration',
         result.duration, '평균 투입시간', '#ef4444', '분', fillErrorDurationChartInstance
     );
-    fillErrorHeadcountChartInstance = renderFillErrorSubChart(
-        'chart-fill-error-headcount', 'fill-error-empty-headcount',
-        result.headcount, '평균 투입인원', '#f97316', '명', fillErrorHeadcountChartInstance
+    fillErrorQuantityChartInstance = renderFillErrorSubChart(
+        'chart-fill-error-quantity', 'fill-error-empty-quantity',
+        result.quantity, '평균 처리량', '#f97316', '건', fillErrorQuantityChartInstance
     );
 }
