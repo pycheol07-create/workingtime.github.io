@@ -183,9 +183,9 @@ function renderTabs() {
 }
 
 function renderSheet() {
-    const body = $('sheet-body');
+    const bodyA = $('sheet-body-a'), bodyB = $('sheet-body-b');
     const p = personById(currentPid);
-    if (!p) { body.innerHTML = ''; return; }
+    if (!p) { bodyA.innerHTML = ''; bodyB.innerHTML = ''; return; }
 
     const rec = records[p.id] || {};
     const n = daysInMonth(currentYm);
@@ -211,7 +211,10 @@ function renderSheet() {
                            maxlength="30" value="${esc(r.memo || '')}"></td>
             </tr>`);
     }
-    body.innerHTML = rows.join('');
+    // 앞 절반은 왼쪽, 나머지는 오른쪽 — 31일이 스크롤 없이 한 화면에 들어간다
+    const half = Math.ceil(rows.length / 2);
+    bodyA.innerHTML = rows.slice(0, half).join('');
+    bodyB.innerHTML = rows.slice(half).join('');
     renderBulkBar();
     renderSummary();
 }
@@ -234,22 +237,23 @@ function renderSummary() {
     // 총금액은 분 단위까지 그대로 곱한 뒤 원 단위에서 버린다
     const pay = Math.floor(hours * num(p.wage));
 
-    const card = (label, value, sub = '', color = 'text-slate-800') => `
-        <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
-            <div class="text-[11px] text-slate-500 mb-0.5">${esc(label)}</div>
-            <div class="text-lg font-extrabold ${color} tabular-nums">${value}</div>
-            ${sub ? `<div class="text-[10px] text-slate-400 mt-0.5">${esc(sub)}</div>` : ''}
-        </div>`;
+    // 한 줄짜리 항목 — 카드보다 훨씬 낮아 표를 위한 높이를 남긴다
+    const stat = (label, value, sub = '', color = 'text-slate-800') => `
+        <span class="flex items-baseline gap-1.5">
+            <span class="text-[11px] text-slate-500">${esc(label)}</span>
+            <b class="text-base font-extrabold ${color} tabular-nums">${value}</b>
+            ${sub ? `<span class="text-[10px] text-slate-400">${esc(sub)}</span>` : ''}
+        </span>`;
 
     // 월 총액을 당일 환율 하나로 환산한다
     const cny = fx.rate > 0 ? pay / fx.rate : 0;
     const cnyText = cny > 0 ? '¥ ' + cny.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 
     $('summary').innerHTML =
-        card('근무 일수', days + '일')
-        + card('월 총 근무시간', hoursText(workedMin), hours.toFixed(2) + ' 시간')
-        + card('월 총금액', fmt(pay) + '원', '연장·야간·주휴수당 미포함', 'text-indigo-700')
-        + card('위안화 환산', cnyText, '당일 환율 기준', 'text-rose-600');
+        stat('근무일수', days + '일')
+        + stat('총 근무시간', hoursText(workedMin), hours.toFixed(2) + 'h')
+        + stat('총금액', fmt(pay) + '원', '수당 미포함', 'text-indigo-700')
+        + stat('위안화', cnyText, '', 'text-rose-600');
 
     // 어떤 환율이 쓰였는지 밝힌다. 숫자만 보여주면 근거를 알 수 없다.
     const note = $('fx-note');
@@ -282,7 +286,7 @@ function renderAll() {
 }
 
 // ── 입력 처리 ────────────────────────────────────────────────────
-$('sheet-body').addEventListener('input', (e) => {
+$('sheet-grid').addEventListener('input', (e) => {
     const el = e.target.closest('[data-f]');
     if (!el || !currentPid) return;
     const tr = el.closest('tr');
@@ -331,7 +335,7 @@ function renderBulkBar() {
 
 /** 체크 상태를 화면에 반영한다(표를 다시 그리지 않는다 — 입력 중인 칸이 날아가지 않도록) */
 function syncCheckboxes() {
-    document.querySelectorAll('#sheet-body tr').forEach(tr => {
+    document.querySelectorAll('#sheet-grid tbody tr').forEach(tr => {
         const box = tr.querySelector('.chk');
         if (box) box.checked = selected.has(tr.dataset.day);
     });
@@ -371,7 +375,7 @@ $('chk-all')?.addEventListener('change', (e) => {
     syncCheckboxes();
 });
 
-$('sheet-body').addEventListener('change', (e) => {
+$('sheet-grid').addEventListener('change', (e) => {
     const box = e.target.closest('.chk');
     if (!box) return;
     const key = box.closest('tr')?.dataset.day;
