@@ -39,6 +39,7 @@ let currentUser = '';
 let editingPid = null;
 let saveTimer = null;
 let fx = { rate: 0, date: '' };   // 당일 위안 환율 (1 CNY = ? 원)
+let selected = new Set();         // 일괄 처리 대상 날짜 키('01', '02' …)
 
 // ── 시간 계산 ────────────────────────────────────────────────────
 /** 'HH:MM' → 분. 형식이 아니면 null. */
@@ -50,9 +51,16 @@ const toMin = (s) => {
     return h * 60 + mi;
 };
 
-/** 4시간마다 30분. 8시간이면 1시간이 빠진다.
- *  기준은 '출근~퇴근 전체 시간'이다(휴게를 뺀 뒤 다시 재면 경계에서 값이 흔들린다). */
-const autoBreak = (grossMin) => Math.floor(Math.max(0, grossMin) / 240) * 30;
+// 정규 근무(08:30~17:30) — 이 시간대로 꽉 채운 날만 휴게 60분이 자동으로 잡힌다.
+const FULL_IN = '08:30', FULL_OUT = '17:30', FULL_BREAK = 60;
+
+/** 휴게시간 기본값. 기본은 0이고, 정규 근무시간과 정확히 같은 날만 60분.
+ *  (짧게 일한 날까지 자동으로 깎이면 실제와 어긋난다) */
+const autoBreak = (rec) => {
+    if (!rec) return 0;
+    return (String(rec.in || '').trim() === FULL_IN && String(rec.out || '').trim() === FULL_OUT)
+        ? FULL_BREAK : 0;
+};
 
 /** 하루치 계산. { gross, breakMin, worked } (분). 값이 없으면 null. */
 const calcDay = (rec) => {
@@ -62,7 +70,7 @@ const calcDay = (rec) => {
     // 퇴근이 출근보다 이르면 자정을 넘긴 것으로 본다
     const gross = o >= i ? o - i : (24 * 60 - i) + o;
     const breakMin = (rec.breakMin === '' || rec.breakMin == null)
-        ? autoBreak(gross) : Math.max(0, num(rec.breakMin));
+        ? autoBreak(rec) : Math.max(0, num(rec.breakMin));
     return { gross, breakMin, worked: Math.max(0, gross - breakMin) };
 };
 
@@ -190,11 +198,12 @@ function renderSheet() {
         const cls = wd === 0 ? 'sun' : wd === 6 ? 'sat' : '';
         rows.push(`
             <tr class="${cls}" data-day="${key}">
+                <td><input type="checkbox" class="chk" ${selected.has(key) ? 'checked' : ''}></td>
                 <td><b>${d}</b> <span class="day-name">${DAY_NAME[wd]}</span></td>
                 <td><input class="t-in" data-f="in"  type="time" value="${esc(r.in || '')}"></td>
                 <td><input class="t-in" data-f="out" type="time" value="${esc(r.out || '')}"></td>
                 <td><input class="t-in b-in" data-f="breakMin" inputmode="numeric"
-                           placeholder="${calc ? autoBreak(calc.gross) : ''}"
+                           placeholder="${calc ? autoBreak(r) : ''}"
                            value="${r.breakMin === '' || r.breakMin == null ? '' : esc(r.breakMin)}"></td>
                 <td class="tabular-nums ${calc ? 'font-bold text-slate-800' : 'text-slate-300'}">
                     ${calc ? hoursText(calc.worked) : '-'}</td>
@@ -203,6 +212,7 @@ function renderSheet() {
             </tr>`);
     }
     body.innerHTML = rows.join('');
+    renderBulkBar();
     renderSummary();
 }
 
@@ -289,20 +299,126 @@ $('sheet-body').addEventListener('input', (e) => {
 
     // 근무시간 칸과 합계만 다시 그린다 — 표 전체를 다시 그리면 입력 흐름이 끊긴다
     const calc = calcDay(records[currentPid][day]);
-    const cell = tr.children[4];
+    const cell = tr.children[5];
     cell.textContent = calc ? hoursText(calc.worked) : '-';
     cell.className = `tabular-nums ${calc ? 'font-bold text-slate-800' : 'text-slate-300'}`;
     const bIn = tr.querySelector('[data-f="breakMin"]');
-    if (bIn) bIn.placeholder = calc ? String(autoBreak(calc.gross)) : '';
+    if (bIn) bIn.placeholder = calc ? String(autoBreak(records[currentPid][day])) : '';
 
     renderSummary();
     queueSave();
+});
+
+// ── 일괄 입력·수정·삭제 ──────────────────────────────────────────
+// 여러 날을 체크해 한 번에 넣거나 지운다.
+// 비워 둔 칸은 건드리지 않는다 — '출근만 일괄 수정' 같은 쓰임을 막지 않기 위함.
+function renderBulkBar() {
+    const bar = $('bulk-bar');
+    if (!bar) return;
+    const n = selected.size;
+    bar.classList.toggle('hidden', n === 0);
+    const cnt = $('bulk-count');
+    if (cnt) cnt.textContent = `${n}일 선택됨`;
+
+    // 전체 선택 체크박스 상태(일부만 선택되면 중간 표시)
+    const all = $('chk-all');
+    if (all) {
+        const total = daysInMonth(currentYm);
+        all.checked = n > 0 && n === total;
+        all.indeterminate = n > 0 && n < total;
+    }
+}
+
+/** 체크 상태를 화면에 반영한다(표를 다시 그리지 않는다 — 입력 중인 칸이 날아가지 않도록) */
+function syncCheckboxes() {
+    document.querySelectorAll('#sheet-body tr').forEach(tr => {
+        const box = tr.querySelector('.chk');
+        if (box) box.checked = selected.has(tr.dataset.day);
+    });
+    renderBulkBar();
+}
+
+const dayHasData = (key) => {
+    const r = (records[currentPid] || {})[key];
+    return !!(r && (r.in || r.out || r.memo || r.breakMin));
+};
+
+document.querySelectorAll('.sel-btn').forEach(btn => btn.addEventListener('click', () => {
+    if (!currentPid) return;
+    const mode = btn.dataset.sel;
+    selected = new Set();
+    if (mode !== 'none') {
+        const n = daysInMonth(currentYm);
+        for (let d = 1; d <= n; d++) {
+            const key = pad2(d), wd = weekdayOf(currentYm, d);
+            const isWeekend = wd === 0 || wd === 6;
+            if (mode === 'all'
+                || (mode === 'weekday' && !isWeekend)
+                || (mode === 'weekend' && isWeekend)
+                || (mode === 'filled' && dayHasData(key))) selected.add(key);
+        }
+    }
+    syncCheckboxes();
+}));
+
+$('chk-all')?.addEventListener('change', (e) => {
+    if (!currentPid) return;
+    selected = new Set();
+    if (e.target.checked) {
+        const n = daysInMonth(currentYm);
+        for (let d = 1; d <= n; d++) selected.add(pad2(d));
+    }
+    syncCheckboxes();
+});
+
+$('sheet-body').addEventListener('change', (e) => {
+    const box = e.target.closest('.chk');
+    if (!box) return;
+    const key = box.closest('tr')?.dataset.day;
+    if (!key) return;
+    if (box.checked) selected.add(key); else selected.delete(key);
+    renderBulkBar();
+});
+
+$('btn-bulk-apply').addEventListener('click', async () => {
+    if (!currentPid || selected.size === 0) return;
+    const vIn = $('bulk-in').value.trim();
+    const vOut = $('bulk-out').value.trim();
+    const vBreak = $('bulk-break').value.replace(/[^0-9]/g, '');
+    if (!vIn && !vOut && !vBreak) { toast('넣을 값을 하나 이상 입력해 주세요.', true); return; }
+
+    if (!records[currentPid]) records[currentPid] = {};
+    selected.forEach(key => {
+        const rec = records[currentPid][key] || (records[currentPid][key] = {});
+        if (vIn) rec.in = vIn;
+        if (vOut) rec.out = vOut;
+        if (vBreak !== '') rec.breakMin = vBreak;
+    });
+
+    renderSheet();
+    try { await saveMonth(); toast(`${selected.size}일에 적용했습니다.`); }
+    catch (e) { toast('저장 실패: ' + (e.message || e), true); }
+});
+
+$('btn-bulk-clear').addEventListener('click', async () => {
+    if (!currentPid || selected.size === 0) return;
+    const withData = [...selected].filter(dayHasData).length;
+    if (withData === 0) { toast('선택한 날에 지울 기록이 없습니다.'); return; }
+    if (!confirm(`선택한 ${selected.size}일 중 기록이 있는 ${withData}일을 지웁니다.
+
+되돌릴 수 없습니다. 계속할까요?`)) return;
+
+    selected.forEach(key => { if (records[currentPid]) delete records[currentPid][key]; });
+    renderSheet();
+    try { await saveMonth(); toast(`${withData}일을 지웠습니다.`); }
+    catch (e) { toast('저장 실패: ' + (e.message || e), true); }
 });
 
 $('person-tabs').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-pid]');
     if (!btn) return;
     currentPid = btn.dataset.pid;
+    selected = new Set();
     renderAll();
 });
 
@@ -324,6 +440,7 @@ $('wage-input').addEventListener('blur', (e) => {
 // ── 월 이동 ──────────────────────────────────────────────────────
 const goMonth = async (ym) => {
     currentYm = ym;
+    selected = new Set();
     try {
         await Promise.all([loadMonth(ym), loadRate()]);
     } catch (e) {
