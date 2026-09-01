@@ -18,6 +18,7 @@ import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHisto
 import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js';
 import { preloadWeekendPay } from './ui-history-personal.js';
 import { saveView, reloadAfterSave } from './view-state.js';
+import { placeOpenDropdown } from './table-filter.js';
 
 let isHistoryMaximized = false;
 
@@ -395,8 +396,14 @@ export function setupHistoryModalListeners() {
         });
     }
 
-    const setupFilterListeners = (container, stateKeySort, stateKeyFilter, refreshFunc) => {
+    const setupFilterListeners = (container, stateKeySort, stateKeyFilter, rawRefresh) => {
         if (!container) return;
+        // 다시 그린 뒤에는 열려 있는 필터 창의 위치를 화면 기준으로 다시 잡아 준다.
+        // (표의 스크롤 상자에 잘려 안 보이던 문제)
+        const refreshFunc = () => {
+            rawRefresh();
+            requestAnimationFrame(() => placeOpenDropdown(container));
+        };
         container.addEventListener('click', (e) => {
             if (e.target.closest('.filter-dropdown')) { e.stopPropagation(); return; }
             const filterIconBtn = e.target.closest('.filter-icon-btn');

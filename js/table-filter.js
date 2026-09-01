@@ -143,3 +143,36 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeFloatingFilter(); });
 window.addEventListener('resize', closeFloatingFilter);
+
+/**
+ * 표 안에 그려지는 필터 드롭다운을 화면 기준(fixed)으로 띄운다.
+ *
+ * 표는 가로·세로 스크롤이 걸린 상자 안에 있어서, 드롭다운을 표 안에 두면
+ * 그 상자에 잘려 반쯤만 보인다(업무리포트 첫 헤더에서 실제로 그랬다).
+ * 위치만 화면 기준으로 옮기면 잘리지 않는다.
+ *
+ * 드롭다운은 다시 그려질 때마다 새로 만들어지므로, 렌더 직후에 불러 준다.
+ */
+export function placeOpenDropdown(container) {
+    if (!container) return;
+    const dd = container.querySelector('.filter-dropdown:not(.hidden)');
+    if (!dd) return;
+    const btn = dd.closest('.filter-container')?.querySelector('.filter-icon-btn');
+    if (!btn) return;
+
+    const a = btn.getBoundingClientRect();
+    dd.style.position = 'fixed';
+    dd.style.right = 'auto';          // 클래스(right-0)가 남아 있으면 폭이 늘어난다
+    dd.style.marginTop = '0';
+    dd.style.zIndex = '1000';
+
+    const w = dd.offsetWidth || 240;
+    const h = dd.offsetHeight || 260;
+    // 오른쪽 정렬을 유지하되 화면 밖으로 나가지 않게 한다
+    let left = a.right - w;
+    left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+    dd.style.left = left + 'px';
+    dd.style.top = (a.bottom + h + 8 > window.innerHeight
+        ? Math.max(8, a.top - h - 4)
+        : a.bottom + 4) + 'px';
+}
