@@ -12,6 +12,7 @@ import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.
 import * as UILeave from './ui-history-leave.js';
 import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js';
 import { loadAndRenderWeekendStats } from './ui-history-weekend.js';
+import { saveView } from './view-state.js';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {
@@ -156,6 +157,7 @@ export function setupHistoryTabsListeners() {
             if (!btn) return;
             const tabName = btn.dataset.mainTab;
             State.context.activeHistoryView = tabName;
+            saveView({ main: tabName });   // 새로고침해도 이 탭으로 돌아오도록
 
             document.querySelectorAll('.history-main-tab-btn').forEach(b => {
                 const isActive = (b === btn);
@@ -240,6 +242,7 @@ export function setupHistoryTabsListeners() {
         btn.addEventListener('click', (e) => {
             const subTabName = e.target.dataset.subTab;
             State.context.activeMainHistoryTab = subTabName;
+            saveView({ main: 'rawdata', sub: subTabName });
 
             document.querySelectorAll('.rawdata-sub-tab-btn').forEach(b => {
                  const isActive = (b === e.target);
@@ -285,6 +288,7 @@ function setupGranularityListeners() {
         if (!gran) return;
 
         State.context.globalGranularity = gran;
+        saveView({ gran });
         updateGranularityButtons(gran);
 
         const mainView = State.context.activeHistoryView || 'rawdata';

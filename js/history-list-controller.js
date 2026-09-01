@@ -12,6 +12,7 @@ import { renderQuantityModalInputs } from './ui.js';
 import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js';
 import { getAutoQuantitiesForDate } from './ui-history-prediction.js';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { reloadAfterSave } from './view-state.js';
 
 let isRenderingList = false;
 let renderListQueue = null;
@@ -462,6 +463,7 @@ export const openHistoryQuantityModal = (dateKey) => {
             }, { merge: true });
 
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
+            reloadAfterSave();   // 새로고침해서 실제로 저장됐는지 눈으로 확인
 
             localStorage.removeItem('historyDataCache');
             localStorage.removeItem('historyDataCacheTime');

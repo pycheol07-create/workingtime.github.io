@@ -17,6 +17,7 @@ import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/
 import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js';
 import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js';
 import { preloadWeekendPay } from './ui-history-personal.js';
+import { saveView, reloadAfterSave } from './view-state.js';
 
 let isHistoryMaximized = false;
 
@@ -218,6 +219,7 @@ export function setupHistoryModalListeners() {
             DOM.historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold'));
             btn.classList.add('bg-blue-100', 'font-bold');
             const dateKey = btn.dataset.key;
+            saveView({ dateKey });   // 새로고침해도 이 날짜가 다시 선택되도록
 
             // 📱 모바일: 선택한 날짜를 토글 바 라벨에 반영. 드로어는 실제 사용자 탭일 때만 닫음
             // (세분화 변경 시 자동 선택되는 프로그래밍적 클릭 e.isTrusted=false 에서는 열린 상태 유지)
@@ -337,6 +339,7 @@ export function setupHistoryModalListeners() {
                     ...(existingMgmt.fxAt ? { fxAt: existingMgmt.fxAt } : {})
                 });
                 showToast('경영 지표가 저장되었습니다.'); refreshManagementView();
+                reloadAfterSave();   // 새로고침해서 실제로 저장됐는지 눈으로 확인
             } catch (e) { showToast('저장 중 오류가 발생했습니다.', true); } 
             finally { managementSaveBtn.disabled = false; managementSaveBtn.textContent = '저장'; }
         });

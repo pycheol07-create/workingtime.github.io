@@ -156,6 +156,15 @@
                 try { await import('./js/app.js'); } catch(e) {} 
                 
                 const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js');
+                const { restoreHistoryView } = await import('./js/view-state.js');
+
+                // 초기 준비(로우데이터 → 일별 → 첫 날짜)를 마친 뒤,
+                // 보고 있던 자리로 되돌린다. 기억된 게 없으면 평소대로 대시보드.
+                const showLastViewOrDashboard = async (dashboardBtn) => {
+                    let restored = false;
+                    try { restored = await restoreHistoryView(); } catch (e) { console.error('화면 복원 실패:', e); }
+                    if (!restored && dashboardBtn) dashboardBtn.click();
+                };
 
                 const triggerInitialUI = () => {
                     // 💡 [안전장치 추가] 0.3초 뒤 무조건 화면을 표시하여 투명한 상태에 영원히 갇히는 현상 방지
@@ -189,7 +198,7 @@
                                     if (firstDateItem) firstDateItem.click();
                                     
                                     setTimeout(() => {
-                                        if (dashboardMainTabBtn) dashboardMainTabBtn.click();
+                                        showLastViewOrDashboard(dashboardMainTabBtn);
                                         
                                         setTimeout(() => {
                                             const modal = document.getElementById('history-modal');
@@ -203,7 +212,7 @@
                                 }, 100);
                             } catch (e) {
                                 console.error("백그라운드 UI 렌더링 오류:", e);
-                                if (dashboardMainTabBtn) dashboardMainTabBtn.click();
+                                showLastViewOrDashboard(dashboardMainTabBtn);
                                 setTimeout(() => {
                                     const modal = document.getElementById('history-modal');
                                     if (modal) modal.classList.add('ready-show');
@@ -213,7 +222,7 @@
                         } else if (uiAttempts > 50) {
                             clearInterval(triggerInterval);
                             const dashboardMainTabBtn = document.querySelector('[data-main-tab="dashboard"]');
-                            if (dashboardMainTabBtn) dashboardMainTabBtn.click();
+                            showLastViewOrDashboard(dashboardMainTabBtn);
                             setTimeout(() => {
                                 const modal = document.getElementById('history-modal');
                                 if (modal) modal.classList.add('ready-show');

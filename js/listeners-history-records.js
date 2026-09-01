@@ -12,6 +12,7 @@ import {
 import { renderHistoryDetail } from './app-history-logic.js';
 import { renderHistoryRecordsTable, openHistoryRecordManager } from './history-record-table.js';
 import { generateId } from './app-data.js';
+import { reloadAfterSave } from './view-state.js';
 
 export function setupHistoryRecordListeners() {
 
@@ -73,6 +74,7 @@ export function setupHistoryRecordListeners() {
 
                 await Promise.all(updatePromises);
                 showToast(`${targets.length}건의 기록이 일괄 수정되었습니다.`);
+                reloadAfterSave();   // 새로고침해서 실제로 저장됐는지 눈으로 확인
                 renderHistoryRecordsTable(dateKey);
                 renderHistoryDetail(dateKey); 
             } catch (e) {
@@ -258,6 +260,7 @@ export function setupHistoryRecordListeners() {
                 try {
                     await Promise.all(updatePromises);
                     showToast(`총 ${updateCount}건의 기록이 일괄 저장되었습니다.`);
+                    reloadAfterSave();
                     
                     renderHistoryRecordsTable(dateKey); // 재렌더링
                     const selectedDateKey = document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key;
