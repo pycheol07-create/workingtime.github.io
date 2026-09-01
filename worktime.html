@@ -13,7 +13,7 @@
     <script>tailwind.config = { darkMode: 'class' }</script>
     <style>
         body { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
-        .ws-table { border-collapse: collapse; width: max-content; font-size: 13px; }
+        .ws-table { border-collapse: collapse; width: 100%; min-width: 700px; font-size: 13px; }
         .ws-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 7px 8px;
                        border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-align: center;
                        position: sticky; top: 0; z-index: 1; }
@@ -37,7 +37,7 @@
         .t-in:focus { outline: none; border-color: #3b82f6; background: #fff;
                       box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
         .b-in { min-width: 60px; }
-        .m-in { min-width: 0; text-align: left !important; }
+        .m-in { min-width: 120px; text-align: left !important; }
         .lbl { display: block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
         .inp { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
         .inp:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
@@ -51,11 +51,8 @@
 </head>
 <body class="bg-slate-100 text-slate-800">
 
-    <header class="bg-white border-b border-slate-200 px-5 py-2 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-20 shadow-sm">
-        <h1 class="text-base font-extrabold text-slate-800 flex items-center gap-2">🕘 출퇴근 기록표
-            <span class="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-0.5"
-                  title="여기 입력한 내용은 팀 인건비·생산성·결산 어디에도 반영되지 않습니다.">팀 데이터와 분리됨</span>
-        </h1>
+    <header class="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-20 shadow-sm">
+        <h1 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">🕘 출퇴근 기록표</h1>
         <div class="flex items-center gap-2">
             <button id="btn-add-person" class="text-xs font-bold px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition">➕ 인원 등록</button>
             <button id="btn-excel" class="text-xs font-bold px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition">⬇ 엑셀</button>
@@ -69,98 +66,94 @@
         <div class="text-sm text-slate-500">메인 앱(업무관리)에서 먼저 로그인한 뒤<br>이 페이지를 열어주세요.</div>
     </div>
 
-    <main id="main" class="hidden px-3 py-2">
+    <main id="main" class="hidden px-4 py-5 max-w-5xl mx-auto">
+
+        <div class="mb-1 text-[11px] text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            팀 업무 기록과 <b>완전히 분리된 표</b>입니다. 여기 입력한 내용은 팀 인건비·생산성·결산 어디에도 반영되지 않습니다.
+        </div>
 
         <!-- 인원 탭 -->
-        <div id="person-tabs" class="flex items-end gap-1 overflow-x-auto"></div>
+        <div id="person-tabs" class="flex items-end gap-1 mt-4 overflow-x-auto"></div>
 
-        <div class="bg-white rounded-b-2xl rounded-tr-2xl border border-slate-200 shadow-sm
-                    flex flex-col lg:flex-row items-stretch overflow-hidden">
+        <section class="bg-white rounded-b-2xl rounded-tr-2xl border border-slate-200 shadow-sm overflow-hidden">
 
-            <!-- 왼쪽: 달·시급·합계·선택·일괄입력 (표의 세로 자리를 비워 주기 위해 옆으로 뺐다) -->
-            <aside class="w-full lg:w-[248px] lg:shrink-0 border-b lg:border-b-0 lg:border-r border-slate-100
-                          p-3 space-y-3 overflow-y-auto">
-
-                <div class="flex items-center gap-1">
-                    <button id="btn-prev" class="text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200">◀</button>
-                    <span id="month-label" class="text-sm font-extrabold text-slate-800 tabular-nums flex-1 text-center"></span>
-                    <button id="btn-next" class="text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200">▶</button>
-                    <button id="btn-this" class="text-[11px] font-bold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200">이번달</button>
+            <!-- 월 이동 + 인원 정보 -->
+            <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <button id="btn-prev" class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200">◀</button>
+                    <span id="month-label" class="text-sm font-extrabold text-slate-800 tabular-nums"></span>
+                    <button id="btn-next" class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200">▶</button>
+                    <button id="btn-this" class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200">이번 달</button>
+                    <span class="text-slate-300 mx-1">|</span>
+                    <span class="text-[11px] font-bold text-slate-400">선택</span>
+                    <button class="sel-btn text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200" data-sel="all">전체</button>
+                    <button class="sel-btn text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200" data-sel="weekday">평일</button>
+                    <button class="sel-btn text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200" data-sel="weekend">주말</button>
+                    <button class="sel-btn text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200" data-sel="filled">입력된 날</button>
+                    <button class="sel-btn text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200" data-sel="none">해제</button>
                 </div>
-
-                <div class="flex items-center gap-1.5">
-                    <label class="text-[11px] font-bold text-slate-500 shrink-0">시급</label>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-bold text-slate-500">시급</label>
                     <input id="wage-input" type="text" inputmode="numeric"
-                           class="w-full min-w-0 text-right px-2 py-1.5 border border-slate-300 rounded-lg text-sm tabular-nums">
-                    <span class="text-[11px] text-slate-500 shrink-0">원</span>
-                    <button id="btn-edit-person" class="text-[11px] font-bold px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 shrink-0">수정</button>
-                </div>
-
-                <div id="summary" class="bg-slate-50 rounded-xl p-2.5 space-y-1.5"></div>
-                <div id="fx-note" class="text-[10px] text-slate-500 leading-snug"></div>
-
-                <div>
-                    <div class="text-[11px] font-bold text-slate-500 mb-1.5">날짜 선택</div>
-                    <div class="flex flex-wrap gap-1">
-                        <button class="sel-btn text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200" data-sel="all">전체</button>
-                        <button class="sel-btn text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200" data-sel="weekday">평일</button>
-                        <button class="sel-btn text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200" data-sel="weekend">주말</button>
-                        <button class="sel-btn text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200" data-sel="filled">입력된 날</button>
-                        <button class="sel-btn text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200" data-sel="none">해제</button>
-                    </div>
-                </div>
-
-                <!-- 일괄 입력 — 체크한 날짜에만 적용된다 -->
-                <div id="bulk-bar" class="hidden bg-indigo-50 border border-indigo-100 rounded-xl p-2.5 space-y-2">
-                    <b id="bulk-count" class="text-[11px] text-indigo-700 block"></b>
-                    <div class="grid grid-cols-[34px_1fr] items-center gap-1.5 text-[11px]">
-                        <label class="font-bold text-slate-600">출근</label>
-                        <input id="bulk-in" type="time" class="w-full px-1.5 py-1 border border-slate-300 rounded-lg text-xs">
-                        <label class="font-bold text-slate-600">퇴근</label>
-                        <input id="bulk-out" type="time" class="w-full px-1.5 py-1 border border-slate-300 rounded-lg text-xs">
-                        <label class="font-bold text-slate-600">휴게</label>
-                        <input id="bulk-break" inputmode="numeric" placeholder="자동"
-                               class="w-full px-1.5 py-1 border border-slate-300 rounded-lg text-xs text-center">
-                    </div>
-                    <div class="flex gap-1.5">
-                        <button id="btn-bulk-apply" class="flex-1 text-[11px] font-bold px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">적용</button>
-                        <button id="btn-bulk-clear" class="flex-1 text-[11px] font-bold px-2 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100">지우기</button>
-                    </div>
-                    <div class="text-[10px] text-slate-500">비워 둔 칸은 그대로 둡니다</div>
-                </div>
-
-                <details class="text-[10px] text-slate-400">
-                    <summary class="cursor-pointer hover:text-slate-600 select-none">계산 규칙 보기</summary>
-                    <div class="mt-1.5 leading-relaxed">
-                        · 근무시간 = 퇴근 − 출근 − 휴게. 휴게는 <b>기본 0분</b>, <b>08:30~17:30 정규 근무인 날만 60분</b>이 자동으로 들어갑니다.<br>
-                        · 체크한 날에 출근·퇴근·휴게를 한 번에 넣거나 지울 수 있습니다.<br>
-                        · 월 총금액 = 총 근무시간 × 시급. <b>연장·야간·주휴수당은 계산하지 않습니다.</b><br>
-                        · 위안화는 월 총액을 당일 환율로 환산합니다(경영지표 값을 읽어 씀).<br>
-                        · 퇴근이 출근보다 이르면 자정을 넘긴 것으로 봅니다.<br>
-                        · 이 표는 팀 업무 기록과 완전히 분리되어 있습니다.
-                    </div>
-                </details>
-            </aside>
-
-            <!-- 오른쪽: 날짜 표 (한 단, 세로 스크롤) -->
-            <div id="sheet-grid" class="flex-1 min-w-0 overflow-auto" style="max-height: calc(100vh - 118px);">
-                <table class="ws-table">
-                    <thead><tr>
-                        <th style="width:38px;"><input type="checkbox" id="chk-all" title="전체 선택"></th>
-                        <th style="width:92px;">날짜</th>
-                        <th style="width:124px;">출근</th>
-                        <th style="width:124px;">퇴근</th>
-                        <th style="width:86px;">휴게<span class="font-normal text-slate-400">(분)</span></th>
-                        <th style="width:104px;">근무시간</th>
-                        <th style="width:150px;">메모</th>
-                    </tr></thead>
-                    <tbody id="sheet-body"></tbody>
-                </table>
-                <div id="empty-state" class="hidden p-12 text-center text-slate-400 text-sm">
-                    등록된 인원이 없습니다. <b>➕ 인원 등록</b>으로 추가하세요.
+                           class="w-28 text-right px-2 py-1.5 border border-slate-300 rounded-lg text-sm tabular-nums">
+                    <span class="text-xs text-slate-500">원</span>
+                    <button id="btn-edit-person" class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200">인원 수정</button>
                 </div>
             </div>
-        </div>
+
+            <!-- 월 합계 -->
+            <div class="bg-slate-50 border-b border-slate-100 px-4 py-3">
+                <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+                <div id="fx-note" class="text-[11px] text-slate-500 mt-2"></div>
+            </div>
+
+            <!-- 일괄 입력 — 체크한 날짜에만 적용된다 -->
+            <div id="bulk-bar" class="hidden px-4 py-2.5 bg-indigo-50 border-b border-indigo-100
+                 flex flex-wrap items-center gap-2 text-xs sticky top-0 z-[2]">
+                <b id="bulk-count" class="text-indigo-700"></b>
+                <span class="text-slate-400">|</span>
+                <label class="font-bold text-slate-600">출근</label>
+                <input id="bulk-in" type="time" class="px-2 py-1 border border-slate-300 rounded-lg">
+                <label class="font-bold text-slate-600">퇴근</label>
+                <input id="bulk-out" type="time" class="px-2 py-1 border border-slate-300 rounded-lg">
+                <label class="font-bold text-slate-600">휴게</label>
+                <input id="bulk-break" inputmode="numeric" placeholder="자동"
+                       class="w-16 px-2 py-1 border border-slate-300 rounded-lg text-center">
+                <button id="btn-bulk-apply" class="font-bold px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">적용</button>
+                <button id="btn-bulk-clear" class="font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100">선택 지우기</button>
+                <span class="text-[11px] text-slate-500 ml-auto">비워 둔 칸은 그대로 둡니다</span>
+            </div>
+
+            <div class="overflow-auto max-h-[calc(100vh-380px)]">
+                <table class="ws-table">
+                    <thead>
+                        <tr>
+                            <th style="width:38px;"><input type="checkbox" id="chk-all" title="전체 선택"></th>
+                            <th style="width:92px;">날짜</th>
+                            <th style="width:124px;">출근</th>
+                            <th style="width:124px;">퇴근</th>
+                            <th style="width:86px;">휴게<span class="font-normal text-slate-400">(분)</span></th>
+                            <th style="width:104px;">근무시간</th>
+                            <th>메모</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sheet-body"></tbody>
+                </table>
+            </div>
+
+            <div id="empty-state" class="hidden p-12 text-center text-slate-400 text-sm">
+                등록된 인원이 없습니다. <b>➕ 인원 등록</b>으로 추가하세요.
+            </div>
+        </section>
+
+        <p class="text-[11px] text-slate-400 mt-3 leading-relaxed">
+            · 근무시간 = 퇴근 − 출근 − 휴게시간. 휴게는 <b>기본 0분</b>이고, <b>08:30~17:30 정규 근무인 날만 60분</b>이 자동으로 들어갑니다. 칸에서 직접 고칠 수 있습니다.<br>
+            · 왼쪽 체크박스로 여러 날을 고르면 <b>출근·퇴근·휴게를 한 번에</b> 넣거나 지울 수 있습니다. 일괄 입력에서 비워 둔 칸은 그대로 둡니다.<br>
+            · 월 총금액 = 총 근무시간 × 시급입니다. <b>연장·야간·주휴수당은 계산하지 않습니다.</b> 실제 급여는 따로 확인해 주세요.<br>
+            · 위안화는 <b>월 총액을 당일 환율로</b> 환산합니다. 환율은 경영지표에 기록된 값을 읽어 쓰며, 이 화면에서 고치지 않습니다.<br>
+            · 퇴근이 출근보다 이르면 자정을 넘긴 것으로 보고 다음 날로 계산합니다.<br>
+            · 왼쪽 체크박스로 날짜를 고르면 <b>일괄 입력·수정·삭제</b>를 할 수 있습니다. 비워 둔 칸은 건드리지 않습니다.
+        </p>
     </main>
 
     <!-- 인원 등록/수정 -->
