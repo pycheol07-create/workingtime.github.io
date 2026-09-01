@@ -80,6 +80,29 @@ async function until(fn, timeout = 3000, step = 60) {
 
 const esc = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/"/g, '\\"');
 
+// 날짜 트리를 쓰지 않는 화면들 — 여기서는 날짜를 복원할 것이 없다
+const TREELESS_SUBS = ['inspection', 'leave', 'weekend'];
+const TREELESS_MAINS = ['milestones', 'settlement', 'forecast'];
+
+// 날짜를 고른다.
+// 분석 탭은 열릴 때 날짜 목록을 다시 그리면서 '가장 최근 날짜'를 자동으로 눌러 버린다.
+// 우리가 먼저 눌러도 그 자동 선택에 덮인다. 그래서 눌러 놓고 실제로 유지되는지
+// 확인한 뒤, 밀렸으면 다시 누른다.
+async function selectDate(dateKey) {
+    const sel = () => document.querySelector(`.history-date-btn[data-key="${esc(dateKey)}"]`);
+    const btn = await until(sel, 4000);
+    if (!btn) return false;
+
+    for (let i = 0; i < 3; i++) {
+        const target = sel();
+        if (!target) return false;
+        if (!target.classList.contains('bg-blue-100')) target.click();
+        await wait(350);
+        if (sel()?.classList.contains('bg-blue-100')) return true;
+    }
+    return false;
+}
+
 // 데이터관리(history.html) 화면을 기억해 둔 자리로 되돌린다.
 // 초기 렌더링이 끝난 뒤에 부른다.
 export async function restoreHistoryView() {
@@ -96,24 +119,23 @@ export async function restoreHistoryView() {
         await wait(250);
     }
 
-    // 2) 보고 있던 날짜 (목록이 다시 그려질 때까지 기다린다)
-    if (v.dateKey) {
-        const btn = await until(() =>
-            document.querySelector(`.history-date-btn[data-key="${esc(v.dateKey)}"]`), 3000);
-        if (btn && !btn.classList.contains('bg-blue-100')) {
-            btn.click();
-            await wait(200);
-        }
-    }
-
-    // 3) 로우데이터 안의 서브탭 (업무기록 / 근태현황 / 경영지표 …)
-    if (v.sub) {
+    // 2) 로우데이터 안의 서브탭 (업무기록 / 근태현황 / 경영지표 …)
+    //    날짜보다 먼저 눌러야 한다. 날짜 클릭은 '지금 어느 서브탭인지' 를 보고
+    //    그릴 화면을 정하기 때문에, 순서가 반대면 엉뚱한 화면이 그려진다.
+    if (v.main === 'rawdata' && v.sub) {
         document.querySelector(`.rawdata-sub-tab-btn[data-sub-tab="${esc(v.sub)}"]`)?.click();
-        await wait(150);
+        await wait(200);
     }
 
-    // 4) 메인 탭 — 마지막에 눌러야 해당 패널이 최종적으로 보인다
+    // 3) 메인 탭
     document.querySelector(`[data-main-tab="${esc(v.main)}"]`)?.click();
+    await wait(300);
+
+    // 4) 날짜는 맨 마지막에.
+    //    앞의 단계들이 날짜 목록을 다시 그리며 선택을 되돌리기 때문이다.
+    const noTree = TREELESS_MAINS.includes(v.main)
+        || (v.main === 'rawdata' && TREELESS_SUBS.includes(v.sub));
+    if (v.dateKey && !noTree) await selectDate(v.dateKey);
 
     // 여기서부터는 사용자의 진짜 클릭이므로 다시 기억하기 시작한다
     unlockViewSaving();
