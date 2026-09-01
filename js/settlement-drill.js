@@ -233,6 +233,54 @@ function efficiencyBody(key, prod) {
             )}` : ''}`;
 }
 
+// ── 4) FTE 세 막대 → 무슨 뜻이고 어떻게 이어지는지 ────────────────
+// FTE 는 세 값이 곱셈으로 이어진다. 그 연결을 보여주는 게 핵심이다.
+//   가용 → (시간 활용률) → 실작업 → (업무 효율성) → 표준 필요
+function fteBody(prod) {
+    if (!prod) return emptyRow('계산에 쓸 값이 없습니다.');
+
+    const a = prod.availableFTE || 0;
+    const w = prod.workedFTE || 0;
+    const r = prod.requiredFTE || 0;
+    const n = (v) => v.toFixed(1);
+
+    const step = (from, rate, to, rateLabel, meaning, gapLabel) => `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0;">
+            <b style="color:#0f172a;">${n(from)}명</b>
+            <span style="color:#94a3b8;">×</span>
+            <span style="background:#ede9fe;color:#5b21b6;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;">
+                ${esc(rateLabel)} ${rate.toFixed(0)}%</span>
+            <span style="color:#94a3b8;">=</span>
+            <b style="color:#6d28d9;">${n(to)}명</b>
+            <span style="color:#94a3b8;font-size:11px;">(차이 ${n(Math.max(0, from - to))}명 = ${esc(gapLabel)})</span>
+        </div>
+        <div style="font-size:11px;color:#64748b;margin:0 0 12px;line-height:1.6;">${esc(meaning)}</div>`;
+
+    return `
+        <div style="color:#475569;line-height:1.7;">
+            <b>FTE 1 = 표준 근무시간을 온전히 채운 한 사람 몫</b>입니다.
+            실제 머릿수가 아니라 <b>일한 양을 사람 수로 환산한 값</b>이라, 반만 일한 두 사람은 1로 셉니다.
+        </div>
+
+        ${table(['구분', '값', '뜻'], [
+            ['가용 인력', `<b>${n(a)}</b>명`, '<span style="font-size:11px;color:#64748b;">그 기간 하루 평균 나온 인원</span>'],
+            ['실작업 인력', `<b>${n(w)}</b>명`, '<span style="font-size:11px;color:#64748b;">실제 업무에 쓴 시간을 사람 수로 환산</span>'],
+            ['표준 필요인력', `<b>${n(r)}</b>명`, '<span style="font-size:11px;color:#64748b;">그 일을 표준 속도로 했다면 필요했을 인원</span>']
+        ])}
+
+        <div style="margin-top:14px;font-size:11px;font-weight:700;color:#64748b;margin-bottom:2px;">어떻게 줄어드나</div>
+        ${step(a, prod.utilizationRate || 0, w, '시간 활용률', '나와는 있었지만 업무에 쓰이지 않은 시간만큼 줄어듭니다. 대기·공백이 여기에 잡힙니다.', '가용 손실')}
+        ${step(w, prod.efficiencyRatio || 0, r, '업무 효율성', '표준 속도보다 오래 걸린 만큼 사람이 더 들어간 셈입니다. 이 차이가 작을수록 표준에 가깝게 일한 것입니다.', '속도 손실')}
+
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;font-size:12px;line-height:1.7;">
+            <b style="color:#0f172a;">읽는 법</b><br>
+            <b>가용</b>과 <b>표준 필요</b>의 차이 <b style="color:#6d28d9;">${n(Math.max(0, a - r))}명</b>이
+            이 기간에 여유가 있었던 인력입니다.<br>
+            <span style="color:#64748b;">다만 표준 속도 자체가 과거 실적의 평균이라, 표준 필요인력을 곧바로
+            &lsquo;적정 인원&rsquo;으로 보면 안 됩니다. 추세를 보는 값으로 쓰시는 게 맞습니다.</span>
+        </div>`;
+}
+
 // ── 클릭 연결 ────────────────────────────────────────────────────
 // 눌리는 값에만 표시를 준다. 전부 눌러보게 만들어 놓고 대부분 반응이
 // 없으면, 아무 표시도 없느니만 못하다.
@@ -269,6 +317,8 @@ export function bindDrillListeners(container, ctx) {
         } else if (kind === 'revenue' || kind === 'orderCount') {
             openDrill(kind === 'revenue' ? '채널별 매출' : '채널별 발주 건수',
                 '일반배송(카페24) · 직진배송 · 도착보장', channelBody(c.days, kind));
+        } else if (kind === 'fte') {
+            openDrill('투입 인력 비교 (FTE)', '세 값이 어떻게 이어지는지', fteBody(c.prod));
         } else if (EFFICIENCY[kind]) {
             openDrill(EFFICIENCY[kind].title, '계산식과 실제 대입값', efficiencyBody(kind, c.prod));
         }

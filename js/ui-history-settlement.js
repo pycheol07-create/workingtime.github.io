@@ -916,7 +916,7 @@ function renderWorkforceSection(wf, core, workingDaysCount) {
         </div>
 
         <div class="mb-5">
-            <div class="text-xs font-bold text-gray-600 mb-2">⚖️ 투입 인력 비교 (FTE)</div>
+            <div class="text-xs font-bold text-gray-600 mb-2">⚖️ 투입 인력 비교 (${drillWrap('FTE란?', 'fte')})</div>
             <div class="space-y-2">
                 <div class="flex items-center gap-3 text-xs">
                     <span class="w-24 text-gray-500">가용 인력</span>
