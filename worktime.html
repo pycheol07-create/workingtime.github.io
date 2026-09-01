@@ -13,11 +13,11 @@
     <script>tailwind.config = { darkMode: 'class' }</script>
     <style>
         body { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
-        .ws-table { border-collapse: collapse; width: max-content; font-size: 12px; }
-        .ws-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 4px;
+        .ws-table { border-collapse: collapse; width: max-content; font-size: 13px; }
+        .ws-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 7px 8px;
                        border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-align: center;
-                       font-size: 11px; position: sticky; top: 0; z-index: 1; }
-        .ws-table td { padding: 0 4px; border-bottom: 1px solid #eef2f7; color: #334155;
+                       position: sticky; top: 0; z-index: 1; }
+        .ws-table td { padding: 4px 8px; border-bottom: 1px solid #eef2f7; color: #334155;
                        text-align: center; white-space: nowrap; }
         .ws-table tbody tr:hover td { background: #f8fafc; }
         .ws-table tr.sat td { background: #f8fafc; }
@@ -30,13 +30,13 @@
         /* 시간 입력칸 — 표 안에서 테두리 없이, 값이 있을 때만 진하게 */
         /* 시각 입력칸은 브라우저가 그리는 시:분 위젯이라 폭이 좁으면 잘린다.
            크롬에서 24시간 표기 기준으로 여유를 두고 잡는다. */
-        .t-in { width: 100%; min-width: 90px; padding: 1px 3px; border: 1px solid transparent;
-                border-radius: 5px; text-align: center; font-size: 12px; background: transparent;
+        .t-in { width: 100%; min-width: 104px; padding: 4px 6px; border: 1px solid transparent;
+                border-radius: 6px; text-align: center; font-size: 13px; background: transparent;
                 color: #334155; font-variant-numeric: tabular-nums; box-sizing: border-box; }
         .t-in:hover { border-color: #cbd5e1; background: #fff; }
         .t-in:focus { outline: none; border-color: #3b82f6; background: #fff;
                       box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
-        .b-in { min-width: 46px; }
+        .b-in { min-width: 60px; }
         .m-in { min-width: 0; text-align: left !important; }
         .lbl { display: block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
         .inp { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
@@ -146,12 +146,12 @@
             <div id="sheet-grid" class="flex-1 min-w-0 overflow-auto" style="max-height: calc(100vh - 118px);">
                 <table class="ws-table">
                     <thead><tr>
-                        <th style="width:32px;"><input type="checkbox" id="chk-all" title="전체 선택"></th>
-                        <th style="width:70px;">날짜</th>
-                        <th style="width:100px;">출근</th>
-                        <th style="width:100px;">퇴근</th>
-                        <th style="width:56px;">휴게</th>
-                        <th style="width:72px;">근무</th>
+                        <th style="width:38px;"><input type="checkbox" id="chk-all" title="전체 선택"></th>
+                        <th style="width:92px;">날짜</th>
+                        <th style="width:124px;">출근</th>
+                        <th style="width:124px;">퇴근</th>
+                        <th style="width:86px;">휴게<span class="font-normal text-slate-400">(분)</span></th>
+                        <th style="width:104px;">근무시간</th>
                         <th style="width:150px;">메모</th>
                     </tr></thead>
                     <tbody id="sheet-body"></tbody>
