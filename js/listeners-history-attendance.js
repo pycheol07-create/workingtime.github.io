@@ -10,7 +10,6 @@ import { clearLocalCache } from './history-data-manager.js';
 import { saveLeaveSchedule } from './config.js';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js';
 import { augmentHistoryWithPersistentLeave } from './history-enricher.js';
-import { reloadAfterSave } from './view-state.js';
 import { doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 수정 모달이 지금 다루고 있는 근태의 '원본'.
@@ -316,7 +315,6 @@ function setupAttendanceModalButtons() {
 
                 showToast('근태 기록이 수정되었습니다.');
                 DOM.editAttendanceRecordModal.classList.add('hidden');
-                reloadAfterSave();   // 새로고침해서 실제로 저장됐는지 눈으로 확인
                 
                 // 3. 화면 갱신 (현재 필터 상태 유지)
                 const filteredData = (State.context.historyStartDate || State.context.historyEndDate)
@@ -388,7 +386,6 @@ function setupAttendanceModalButtons() {
                     clearLocalCache();
 
                     showToast('근태 기록이 추가되었습니다.');
-                    reloadAfterSave();
                     DOM.addAttendanceRecordModal.classList.add('hidden');
                     renderAttendanceDailyHistory(dateKey, filteredHistoryForView());
                     return;
@@ -440,7 +437,6 @@ function setupAttendanceModalButtons() {
                 clearLocalCache(); // 캐시 무효화 → 새로고침 시 최신값 재조회
 
                 showToast('근태 기록이 추가되었습니다.');
-                    reloadAfterSave();
                 DOM.addAttendanceRecordModal.classList.add('hidden');
 
                 // 3. 화면 갱신

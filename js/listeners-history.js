@@ -17,7 +17,7 @@ import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/
 import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js';
 import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js';
 import { preloadWeekendPay } from './ui-history-personal.js';
-import { saveView, reloadAfterSave } from './view-state.js';
+import { saveView } from './view-state.js';
 import { placeOpenDropdown } from './table-filter.js';
 
 let isHistoryMaximized = false;
@@ -340,7 +340,6 @@ export function setupHistoryModalListeners() {
                     ...(existingMgmt.fxAt ? { fxAt: existingMgmt.fxAt } : {})
                 });
                 showToast('경영 지표가 저장되었습니다.'); refreshManagementView();
-                reloadAfterSave();   // 새로고침해서 실제로 저장됐는지 눈으로 확인
             } catch (e) { showToast('저장 중 오류가 발생했습니다.', true); } 
             finally { managementSaveBtn.disabled = false; managementSaveBtn.textContent = '저장'; }
         });
@@ -388,7 +387,6 @@ export function setupHistoryModalListeners() {
                     }
                     showToast(`${dateKey}의 데이터가 삭제되었습니다.`);
                     await loadAndRenderHistoryList();
-                    reloadAfterSave();   // 삭제도 저장과 똑같이 새로고침해 확인
                 } catch (e) { showToast('삭제 중 오류가 발생했습니다.', true); }
             }
             if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.add('hidden');

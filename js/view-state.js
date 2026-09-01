@@ -1,7 +1,6 @@
 // 🔖 화면 상태 기억
 // -----------------------------------------------------------------
-// 새로고침(F5)해도, 저장 후 자동 새로고침이 되어도
-// 보고 있던 탭·항목·날짜로 그대로 돌아오게 한다.
+// 새로고침(F5)해도 보고 있던 탭·항목·날짜로 그대로 돌아오게 한다.
 //
 // 왜 필요한가: history.html 은 처음 뜰 때 '로우데이터 → 일별 → 첫 날짜 → 대시보드'
 // 순서로 고정 클릭하며 화면을 깨운다. 그래서 무엇을 보고 있었든 항상 대시보드로
@@ -46,23 +45,6 @@ export function saveView(patch) {
 
 export function clearView() {
     try { sessionStorage.removeItem(KEY); } catch (e) { }
-}
-
-// 새로고침해서는 안 되는 화면.
-// 메인 대시보드는 진행 중인 업무 타이머가 도는 작업 화면이라,
-// 저장할 때마다 새로고침하면 오히려 일을 방해한다.
-// (같은 저장 함수를 메인 화면과 데이터관리 창이 함께 쓰는 곳이 있다)
-const NO_RELOAD_PAGES = ['index.html', ''];
-
-export function canReload() {
-    return !NO_RELOAD_PAGES.includes(location.pathname.split('/').pop() || '');
-}
-
-// 저장 직후 새로고침해서 '정말 저장됐는지' 눈으로 확인할 수 있게 한다.
-// 토스트를 읽을 시간을 잠깐 준 뒤 새로고침한다.
-export function reloadAfterSave(delay = 900) {
-    if (!canReload()) return;
-    setTimeout(() => location.reload(), delay);
 }
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));

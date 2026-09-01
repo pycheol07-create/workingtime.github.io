@@ -29,7 +29,6 @@ export const clearLocalCache = () => {
 // ============================================================
 // 📅 예정 물량(plannedData) — 미래 날짜별 계획 처리량 (실적 history와 분리)
 // ============================================================
-import { reloadAfterSave } from './view-state.js';
 
 const PLANNED_CACHE_KEY = 'plannedDataCache';
 const PLANNED_CACHE_TIME_KEY = 'plannedDataCacheTime';
@@ -117,7 +116,6 @@ export async function savePlannedQuantities(dateStr, plannedQuantities) {
         } catch (_) {}
 
         showToast(`${dateStr} 예정 물량이 저장되었습니다.`);
-        reloadAfterSave();   // 데이터관리 창에서만 새로고침(메인 화면은 건너뜀)
         return true;
     } catch (e) {
         console.error('savePlannedQuantities failed:', e);
