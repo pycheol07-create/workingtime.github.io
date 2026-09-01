@@ -387,6 +387,7 @@ export function setupHistoryModalListeners() {
                     }
                     showToast(`${dateKey}의 데이터가 삭제되었습니다.`);
                     await loadAndRenderHistoryList();
+                    reloadAfterSave();   // 삭제도 저장과 똑같이 새로고침해 확인
                 } catch (e) { showToast('삭제 중 오류가 발생했습니다.', true); }
             }
             if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.add('hidden');

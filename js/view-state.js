@@ -19,7 +19,26 @@ export function readView() {
     }
 }
 
+// 이 모듈이 처음 불러와지는 시점의 값을 붙잡아 둔다.
+// 화면이 뜰 때 초기화 과정이 탭·날짜를 프로그램적으로 클릭하는데,
+// 그 클릭도 saveView 를 부르기 때문에 기억해 둔 값이 지워져 버린다.
+// (실제로 그래서 새로고침하면 늘 '업무기록및관리'로 돌아갔다)
+const initialView = readView();
+
+// 초기화 클릭이 기억을 덮어쓰지 못하게 하는 잠금.
+// 복원이 끝나면 풀린다.
+let saveLocked = true;
+
+export function unlockViewSaving() {
+    saveLocked = false;
+}
+
+// 안전장치: 복원 단계까지 못 갔더라도 언젠가는 다시 기억하기 시작해야 한다.
+// (초기화가 중간에 실패하면 잠금이 영원히 안 풀려 아무것도 기억하지 못한다)
+setTimeout(unlockViewSaving, 15000);
+
 export function saveView(patch) {
+    if (saveLocked) return;
     try {
         sessionStorage.setItem(KEY, JSON.stringify({ ...(readView() || {}), ...patch, at: Date.now() }));
     } catch (e) { /* 못 저장해도 동작에는 지장 없다 */ }
@@ -64,8 +83,12 @@ const esc = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replac
 // 데이터관리(history.html) 화면을 기억해 둔 자리로 되돌린다.
 // 초기 렌더링이 끝난 뒤에 부른다.
 export async function restoreHistoryView() {
-    const v = readView();
-    if (!v || !v.main) return false;
+    // 지금 저장소가 아니라, 화면이 뜨기 전에 붙잡아 둔 값을 쓴다
+    const v = initialView;
+    if (!v || !v.main) {
+        unlockViewSaving();
+        return false;
+    }
 
     // 1) 기간 단위 — 날짜 목록이 이 단위로 다시 그려진다
     if (v.gran && v.gran !== 'day') {
@@ -91,5 +114,8 @@ export async function restoreHistoryView() {
 
     // 4) 메인 탭 — 마지막에 눌러야 해당 패널이 최종적으로 보인다
     document.querySelector(`[data-main-tab="${esc(v.main)}"]`)?.click();
+
+    // 여기서부터는 사용자의 진짜 클릭이므로 다시 기억하기 시작한다
+    unlockViewSaving();
     return true;
 }
