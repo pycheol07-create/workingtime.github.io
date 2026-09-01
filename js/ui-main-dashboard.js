@@ -471,7 +471,8 @@ const EXTERNAL_LINK_META = [
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
 const BUILTIN_MENU_ITEMS = [
     { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' },
-    { name: '출퇴근 기록표', link: 'worktime.html', category: '관리자 메뉴' }
+    // before: 이 항목 바로 앞에 끼워 넣는다(없으면 맨 뒤)
+    { name: '출퇴근 기록표', link: 'worktime.html', category: '관리자 메뉴', before: '업무 마감' }
 ];
 
 const withBuiltinMenus = (dashboardMenu) => {
@@ -484,7 +485,11 @@ const withBuiltinMenus = (dashboardMenu) => {
             group = { category: entry.category, items: [] };
             menu.push(group);
         }
-        group.items.push({ name: entry.name, link: entry.link });
+        const item = { name: entry.name, link: entry.link };
+        // before 가 지정돼 있으면 그 항목 앞에 넣는다(메뉴 순서를 코드에서 정할 수 있게)
+        const at = entry.before ? group.items.findIndex(i => i.name === entry.before) : -1;
+        if (at > -1) group.items.splice(at, 0, item);
+        else group.items.push(item);
     });
     return menu;
 };

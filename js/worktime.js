@@ -38,7 +38,7 @@ let currentPid = '';
 let currentUser = '';
 let editingPid = null;
 let saveTimer = null;
-let rates = {};           // { "01": 195.3, ... }  그 달 날짜별 위안 환율 (1 CNY = ? 원)
+let fx = { rate: 0, date: '' };   // 당일 위안 환율 (1 CNY = ? 원)
 
 // ── 시간 계산 ────────────────────────────────────────────────────
 /** 'HH:MM' → 분. 형식이 아니면 null. */
@@ -135,49 +135,32 @@ const queueSave = () => {
 // 앱이 매일 아침 history/{날짜}.management.cnyRate 에 그날 환율을 넣어 둔다.
 // 여기서는 **읽기만** 한다 — 팀 데이터를 건드리지 않는다는 원칙 그대로다.
 //
-// 지난달 환율은 더 바뀌지 않으므로 브라우저에 담아 두고 다시 읽지 않는다.
-// (이 화면을 열 때마다 30일치를 새로 읽으면 읽기 비용이 아깝다)
-const rateCacheKey = (ym) => `worktime_cny_${ym}`;
+// 월 총액을 '당일 환율' 하나로 환산한다. 오늘 값이 없으면(주말·휴일 등)
+// 며칠 거슬러 올라가 가장 가까운 기록을 쓴다.
+const FX_CACHE_KEY = 'worktime_cny_today';
 
-async function loadRates(ym) {
-    const isCurrent = ym === thisYm();
+async function loadRate() {
     try {
-        const cached = JSON.parse(localStorage.getItem(rateCacheKey(ym)) || 'null');
-        // 지난달은 그대로 쓰고, 이번 달은 6시간까지만 믿는다
-        if (cached && cached.rates && (!isCurrent || Date.now() - cached.at < 6 * 3600 * 1000)) {
-            rates = cached.rates; return;
-        }
+        const c = JSON.parse(localStorage.getItem(FX_CACHE_KEY) || 'null');
+        if (c && c.rate > 0 && Date.now() - c.at < 6 * 3600 * 1000) { fx = c; return; }
     } catch (e) { /* 캐시가 깨졌으면 새로 읽는다 */ }
 
-    rates = {};
-    try {
-        const q = query(
-            collection(db, 'artifacts', 'team-work-logger-v2', 'history'),
-            orderBy(documentId()), startAt(`${ym}-01`), endAt(`${ym}-31`)
-        );
-        const snap = await getDocs(q);
-        snap.forEach(d => {
-            const r = num(d.data()?.management?.cnyRate);
-            if (r > 0) rates[d.id.slice(8)] = r;
-        });
+    fx = { rate: 0, date: '', at: Date.now() };
+    const d = new Date();
+    // 오늘부터 최대 7일 거슬러 올라간다. 보통은 첫 번째(오늘)에서 찾는다.
+    for (let i = 0; i < 7; i++) {
+        const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
         try {
-            localStorage.setItem(rateCacheKey(ym), JSON.stringify({ at: Date.now(), rates }));
-        } catch (e) { /* 저장 못 해도 동작에는 지장 없다 */ }
-    } catch (e) {
-        console.warn('환율을 읽지 못했습니다:', e);
+            const snap = await getDoc(doc(db, 'artifacts', 'team-work-logger-v2', 'history', key));
+            const r = snap.exists() ? num(snap.data()?.management?.cnyRate) : 0;
+            if (r > 0) { fx = { rate: r, date: key, at: Date.now() }; break; }
+        } catch (e) {
+            console.warn('환율을 읽지 못했습니다:', e); break;
+        }
+        d.setDate(d.getDate() - 1);
     }
+    try { localStorage.setItem(FX_CACHE_KEY, JSON.stringify(fx)); } catch (e) { }
 }
-
-/** 그날 환율. 없으면 그 달에서 가장 가까운 날의 환율을 쓴다. */
-const rateFor = (dayKey) => {
-    if (rates[dayKey] > 0) return { rate: rates[dayKey], exact: true };
-    const keys = Object.keys(rates).filter(k => rates[k] > 0);
-    if (keys.length === 0) return { rate: 0, exact: false };
-    const target = Number(dayKey);
-    const near = keys.reduce((best, k) =>
-        Math.abs(Number(k) - target) < Math.abs(Number(best) - target) ? k : best, keys[0]);
-    return { rate: rates[near], exact: false };
-};
 
 // ── 그리기 ───────────────────────────────────────────────────────
 const activePeople = () => people.filter(p => p.active);
@@ -215,7 +198,7 @@ function renderSheet() {
                            value="${r.breakMin === '' || r.breakMin == null ? '' : esc(r.breakMin)}"></td>
                 <td class="tabular-nums ${calc ? 'font-bold text-slate-800' : 'text-slate-300'}">
                     ${calc ? hoursText(calc.worked) : '-'}</td>
-                <td><input class="t-in" style="width:100%;text-align:left;" data-f="memo"
+                <td><input class="t-in m-in" data-f="memo"
                            maxlength="30" value="${esc(r.memo || '')}"></td>
             </tr>`);
     }
@@ -223,41 +206,20 @@ function renderSheet() {
     renderSummary();
 }
 
-/** 월 집계. 위안 환산은 '그날 금액을 그날 환율로' 바꿔 더한다.
- *  월 총액을 한 환율로 한 번에 나누면, 환율이 크게 움직인 달에 실제와 벌어진다. */
-function monthTotals(pid, wage = 0) {
+function monthTotals(pid) {
     const rec = records[pid] || {};
-    let workedMin = 0, days = 0, cny = 0, approxDays = 0, noRateDays = 0;
-    let rateMin = Infinity, rateMax = 0;
-
+    let workedMin = 0, days = 0;
     Object.keys(rec).forEach(k => {
         const c = calcDay(rec[k]);
-        if (!c || c.worked <= 0) return;
-        workedMin += c.worked; days++;
-
-        if (wage > 0) {
-            const { rate, exact } = rateFor(k);
-            if (rate > 0) {
-                cny += (c.worked / 60) * wage / rate;
-                if (!exact) approxDays++;
-                rateMin = Math.min(rateMin, rate);
-                rateMax = Math.max(rateMax, rate);
-            } else {
-                noRateDays++;
-            }
-        }
+        if (c && c.worked > 0) { workedMin += c.worked; days++; }
     });
-    return {
-        workedMin, days, cny, approxDays, noRateDays,
-        rateMin: rateMin === Infinity ? 0 : rateMin, rateMax
-    };
+    return { workedMin, days };
 }
 
 function renderSummary() {
     const p = personById(currentPid);
     if (!p) { $('summary').innerHTML = ''; $('fx-note').textContent = ''; return; }
-    const t = monthTotals(p.id, num(p.wage));
-    const { workedMin, days } = t;
+    const { workedMin, days } = monthTotals(p.id);
     const hours = hoursDecimal(workedMin);
     // 총금액은 분 단위까지 그대로 곱한 뒤 원 단위에서 버린다
     const pay = Math.floor(hours * num(p.wage));
@@ -269,29 +231,26 @@ function renderSummary() {
             ${sub ? `<div class="text-[10px] text-slate-400 mt-0.5">${esc(sub)}</div>` : ''}
         </div>`;
 
-    const cnyText = t.cny > 0 ? '¥ ' + t.cny.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
+    // 월 총액을 당일 환율 하나로 환산한다
+    const cny = fx.rate > 0 ? pay / fx.rate : 0;
+    const cnyText = cny > 0 ? '¥ ' + cny.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 
     $('summary').innerHTML =
         card('근무 일수', days + '일')
         + card('월 총 근무시간', hoursText(workedMin), hours.toFixed(2) + ' 시간')
         + card('월 총금액', fmt(pay) + '원', '연장·야간·주휴수당 미포함', 'text-indigo-700')
-        + card('위안화 환산', cnyText, '날짜별 환율로 환산', 'text-rose-600');
+        + card('위안화 환산', cnyText, '당일 환율 기준', 'text-rose-600');
 
     // 어떤 환율이 쓰였는지 밝힌다. 숫자만 보여주면 근거를 알 수 없다.
     const note = $('fx-note');
     if (!note) return;
-    if (days === 0 || num(p.wage) <= 0) { note.textContent = ''; return; }
-    if (t.rateMax <= 0) {
-        note.innerHTML = '<span class="text-amber-600">그 달의 환율 기록이 없어 위안화로 환산하지 못했습니다.</span>';
+    if (fx.rate <= 0) {
+        note.innerHTML = '<span class="text-amber-600">환율 기록을 찾지 못해 위안화로 환산하지 못했습니다.</span>';
         return;
     }
-    const range = t.rateMin === t.rateMax
-        ? `1위안 = ${t.rateMin.toLocaleString()}원`
-        : `1위안 = ${t.rateMin.toLocaleString()}~${t.rateMax.toLocaleString()}원`;
-    const warn = [];
-    if (t.approxDays > 0) warn.push(`${t.approxDays}일은 가장 가까운 날 환율로 대신했습니다`);
-    if (t.noRateDays > 0) warn.push(`${t.noRateDays}일은 환율이 없어 환산에서 빠졌습니다`);
-    note.innerHTML = `적용 환율 ${range}` + (warn.length ? ` · <span class="text-amber-600">${warn.join(' · ')}</span>` : '');
+    const today = `${new Date().getFullYear()}-${pad2(new Date().getMonth() + 1)}-${pad2(new Date().getDate())}`;
+    const stale = fx.date && fx.date !== today ? ` <span class="text-amber-600">(오늘 환율이 아직 없어 ${fx.date} 값을 씁니다)</span>` : '';
+    note.innerHTML = `적용 환율 1위안 = ${fx.rate.toLocaleString()}원 · ${fx.date} 기준${stale}`;
 }
 
 function renderAll() {
@@ -366,7 +325,7 @@ $('wage-input').addEventListener('blur', (e) => {
 const goMonth = async (ym) => {
     currentYm = ym;
     try {
-        await Promise.all([loadMonth(ym), loadRates(ym)]);
+        await Promise.all([loadMonth(ym), loadRate()]);
     } catch (e) {
         console.error(e); toast('기록을 불러오지 못했습니다.', true); records = {};
     }
@@ -453,22 +412,22 @@ $('btn-excel').addEventListener('click', () => {
             '휴게(분)': c ? c.breakMin : '',
             '근무시간': c ? hoursText(c.worked) : '',
             '근무시간(소수)': c ? Number(hoursDecimal(c.worked).toFixed(2)) : '',
-            '환율(1위안)': c ? (rateFor(key).rate || '') : '',
             '금액(원)': c ? Math.floor(hoursDecimal(c.worked) * num(p.wage)) : '',
-            '금액(위안)': (c && rateFor(key).rate > 0)
-                ? Number(((hoursDecimal(c.worked) * num(p.wage)) / rateFor(key).rate).toFixed(2)) : '',
             '메모': r.memo || ''
         });
     }
-    const t = monthTotals(p.id, num(p.wage));
-    const hours = hoursDecimal(t.workedMin);
+    const { workedMin, days } = monthTotals(p.id);
+    const hours = hoursDecimal(workedMin);
+    const pay = Math.floor(hours * num(p.wage));
     rows.push({});
-    rows.push({ '날짜': '합계', '요일': `${t.days}일`, '근무시간': hoursText(t.workedMin),
-                '근무시간(소수)': Number(hours.toFixed(2)),
-                '금액(원)': Math.floor(hours * num(p.wage)),
-                '금액(위안)': t.cny > 0 ? Number(t.cny.toFixed(2)) : '' });
+    rows.push({ '날짜': '합계', '요일': `${days}일`, '근무시간': hoursText(workedMin),
+                '근무시간(소수)': Number(hours.toFixed(2)), '금액(원)': pay });
     rows.push({ '날짜': '시급(원)', '금액(원)': num(p.wage) });
-    rows.push({ '날짜': '참고', '메모': '연장·야간·주휴수당 미포함 · 위안화는 날짜별 환율로 환산' });
+    if (fx.rate > 0) {
+        rows.push({ '날짜': `환율(${fx.date})`, '금액(원)': fx.rate });
+        rows.push({ '날짜': '금액(위안)', '금액(원)': Number((pay / fx.rate).toFixed(2)) });
+    }
+    rows.push({ '날짜': '참고', '메모': '연장·야간·주휴수당 미포함 · 위안화는 당일 환율로 총액 환산' });
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -491,7 +450,7 @@ onAuthStateChanged(auth, async (user) => {
     currentYm = thisYm();
     try {
         await loadPeople();
-        await Promise.all([loadMonth(currentYm), loadRates(currentYm)]);
+        await Promise.all([loadMonth(currentYm), loadRate()]);
     } catch (e) {
         console.error(e);
         toast('불러오지 못했습니다: ' + (e.message || e), true);
