@@ -23,12 +23,13 @@ const noticeScheduleLabel = (v) => {
     const day = new Date(Number(y), Number(mo) - 1, Number(d));
     const diff = Math.round((day - today) / 86400000);
 
-    let when = '', tone = 'text-red-600 dark:text-red-400';
-    if (diff < 0) { when = ` · ${-diff}일 지남`; tone = 'text-gray-400 dark:text-gray-500'; }
-    else if (diff === 0) { when = ' · 오늘'; tone = 'text-red-600 dark:text-red-400 font-black'; }
+    let when = '';
+    let tone = 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40';   // 일주일 안
+    if (diff < 0) { when = ` · ${-diff}일 지남`; tone = 'text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50'; }
+    else if (diff === 0) { when = ' · 오늘'; tone = 'text-white bg-red-600 dark:bg-red-500'; }
     else if (diff === 1) when = ' · 내일';
     else if (diff <= 7) when = ` · ${diff}일 뒤`;
-    else tone = 'text-gray-500 dark:text-gray-400';
+    else tone = 'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/50';
 
     return { text: `${Number(mo)}월 ${Number(d)}일(${wd})${time}${when}`, tone };
 };
@@ -66,7 +67,9 @@ export const renderNoticeWidget = (appState) => {
         const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, mentionStyle);
 
         const sched = noticeScheduleLabel(notice.scheduleAt);
-        const schedHtml = sched ? `<span class="block mt-0.5 text-[10px] font-bold ${sched.tone}">🗓 ${sched.text}</span>` : '';
+        const schedHtml = sched
+            ? `<span class="inline-flex items-center gap-1 mt-1 text-xs font-extrabold px-1.5 py-0.5 rounded-md ${sched.tone}">🗓 ${sched.text}</span>`
+            : '';
 
         html += `<li class="${textClass} list-none flex items-start gap-2 px-3 py-2"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words flex-1">${highlightedText}${schedHtml}</span></li>`;
     });

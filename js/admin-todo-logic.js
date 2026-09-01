@@ -51,6 +51,8 @@ export const loadAdminTodos = () => {
                 
                 renderAdminTodoList();
                 document.dispatchEvent(new CustomEvent('renderNotices'));
+                // 일정이 지난 공지 정리. 지우면 스냅샷이 다시 돌아 화면도 갱신된다.
+                purgeExpiredNotices().catch(e => console.warn('지난 공지 정리 실패:', e));
                 resolve(); 
             }, (error) => {
                 console.error("실시간 동기화 오류:", error);
@@ -243,6 +245,36 @@ const processMentions = async (text) => {
  * @param {string} text  공지 내용
  * @param {string} [scheduleAt]  'YYYY-MM-DDTHH:MM' 형태의 일정. 비우면 일정 없는 공지.
  */
+/** 일정이 지난 공지를 걷어낸다.
+ *
+ *  '지났다'의 기준은 **그 날짜가 끝난 뒤**다(다음 날 00:00 이후).
+ *  시간을 14:00 으로 넣었다고 14:01 에 사라지면, 정작 그날 확인해야 할
+ *  공지가 눈앞에서 없어진다. 하루는 온전히 남겨 둔다.
+ *
+ *  일정이 없는 공지는 건드리지 않는다.
+ *  지우는 것이므로 되돌릴 수 없다 — 조건을 좁게 잡은 이유다.
+ */
+export const purgeExpiredNotices = async () => {
+    const list = State.appState.importantNotices || [];
+    if (list.length === 0) return 0;
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
+    const kept = list.filter(n => {
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(n && n.scheduleAt || ''));
+        if (!m) return true;                       // 일정 없는 공지는 그대로
+        const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        return day >= today;                       // 오늘 것까지는 남긴다
+    });
+
+    const removed = list.length - kept.length;
+    if (removed === 0) return 0;
+
+    State.appState.importantNotices = kept;
+    await saveAdminTodos();
+    return removed;
+};
+
 export const addNotice = async (text, scheduleAt = '') => {
     if (!text.trim()) { showToast("알림 내용을 입력해주세요.", true); return; }
     const newNotice = {

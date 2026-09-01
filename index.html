@@ -701,7 +701,7 @@
                         </button>
                         <span class="notice-text-span flex-1 text-sm break-words ${notice.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200 font-bold'}">
                             ${highlightedText}
-                            ${notice.scheduleAt ? `<span class="block mt-1 text-[11px] font-bold text-red-600 dark:text-red-400">🗓 ${window.formatNoticeSchedule(notice.scheduleAt)}</span>` : ''}
+                            ${notice.scheduleAt ? `<span class="inline-flex items-center gap-1 mt-1.5 text-xs font-extrabold px-2 py-0.5 rounded-md text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40">🗓 ${window.formatNoticeSchedule(notice.scheduleAt)}</span>` : ''}
                         </span>
                     </div>
                     <div class="flex items-center gap-2 shrink-0 ml-3 mt-1">
