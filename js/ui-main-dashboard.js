@@ -10,6 +10,29 @@ const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 
 // 가장 최근에 계산된 상세 데이터 (호버 툴팁용)
 let lastPersonnelDetail = null;
 
+/** 공지 일정 표시용. 지난 일정·오늘·앞으로를 색으로 구분한다.
+ *  반환 { text, tone } / 일정이 없으면 null. */
+const noticeScheduleLabel = (v) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(String(v || ''));
+    if (!m) return null;
+    const [, y, mo, d, hh, mi] = m;
+    const wd = ['일', '월', '화', '수', '목', '금', '토'][new Date(Number(y), Number(mo) - 1, Number(d)).getDay()];
+    const time = (hh && !(hh === '00' && mi === '00')) ? ` ${hh}:${mi}` : '';
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const day = new Date(Number(y), Number(mo) - 1, Number(d));
+    const diff = Math.round((day - today) / 86400000);
+
+    let when = '', tone = 'text-red-600 dark:text-red-400';
+    if (diff < 0) { when = ` · ${-diff}일 지남`; tone = 'text-gray-400 dark:text-gray-500'; }
+    else if (diff === 0) { when = ' · 오늘'; tone = 'text-red-600 dark:text-red-400 font-black'; }
+    else if (diff === 1) when = ' · 내일';
+    else if (diff <= 7) when = ` · ${diff}일 뒤`;
+    else tone = 'text-gray-500 dark:text-gray-400';
+
+    return { text: `${Number(mo)}월 ${Number(d)}일(${wd})${time}${when}`, tone };
+};
+
 export const renderNoticeWidget = (appState) => {
     const memoList = document.getElementById('widget-memo-list');
     if (!memoList) return;
@@ -24,8 +47,16 @@ export const renderNoticeWidget = (appState) => {
         return;
     }
 
+    // 일정이 있는 공지를 먼저(이른 날짜순), 일정 없는 것은 최근 등록순으로 뒤에
+    const ordered = [...notices].sort((a, b) => {
+        if (a.scheduleAt && b.scheduleAt) return a.scheduleAt.localeCompare(b.scheduleAt);
+        if (a.scheduleAt) return -1;
+        if (b.scheduleAt) return 1;
+        return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+
     let html = '';
-    notices.forEach(notice => {
+    ordered.forEach(notice => {
         const textClass = notice.completed ? 'line-through text-yellow-700/50 dark:text-yellow-500/50' : 'text-yellow-900 dark:text-yellow-200 font-bold';
         const icon = notice.completed ? '✅' : '📌';
 
@@ -34,7 +65,10 @@ export const renderNoticeWidget = (appState) => {
         const mentionStyle = '<span class="inline-block bg-indigo-100/80 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50 rounded-md px-1.5 py-0 text-[10px] font-black mx-1 align-middle shadow-sm leading-tight">@$1</span>';
         const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, mentionStyle);
 
-        html += `<li class="${textClass} list-none flex items-start gap-2 px-3 py-2"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words flex-1">${highlightedText}</span></li>`;
+        const sched = noticeScheduleLabel(notice.scheduleAt);
+        const schedHtml = sched ? `<span class="block mt-0.5 text-[10px] font-bold ${sched.tone}">🗓 ${sched.text}</span>` : '';
+
+        html += `<li class="${textClass} list-none flex items-start gap-2 px-3 py-2"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words flex-1">${highlightedText}${schedHtml}</span></li>`;
     });
     memoList.innerHTML = html;
 };

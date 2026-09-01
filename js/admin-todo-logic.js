@@ -239,11 +239,17 @@ const processMentions = async (text) => {
     }
 };
 
-export const addNotice = async (text) => {
+/**
+ * @param {string} text  공지 내용
+ * @param {string} [scheduleAt]  'YYYY-MM-DDTHH:MM' 형태의 일정. 비우면 일정 없는 공지.
+ */
+export const addNotice = async (text, scheduleAt = '') => {
     if (!text.trim()) { showToast("알림 내용을 입력해주세요.", true); return; }
     const newNotice = {
         id: createId(), text: text.trim(), completed: false, createdAt: Date.now()
     };
+    // 일정은 넣었을 때만 담는다. 빈 값을 넣어 두면 '일정 없음'과 구분이 흐려진다.
+    if (String(scheduleAt || '').trim()) newNotice.scheduleAt = String(scheduleAt).trim();
     if(!State.appState.importantNotices) State.appState.importantNotices = [];
     State.appState.importantNotices.push(newNotice);
     
@@ -267,10 +273,15 @@ export const deleteNotice = async (id) => {
     await saveAdminTodos();
 };
 
-export const editNotice = async (id, newText) => {
+export const editNotice = async (id, newText, scheduleAt) => {
     const notice = State.appState.importantNotices.find(n => n.id === id);
     if (notice && newText.trim()) {
         notice.text = newText.trim();
+        // undefined 면 손대지 않고, 빈 문자열이면 일정을 없앤다
+        if (scheduleAt !== undefined) {
+            if (String(scheduleAt).trim()) notice.scheduleAt = String(scheduleAt).trim();
+            else delete notice.scheduleAt;
+        }
         await saveAdminTodos();
 
         // 수정 시에도 새롭게 멘션된 사람이 있다면 푸시

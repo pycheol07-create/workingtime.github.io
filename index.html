@@ -211,7 +211,6 @@
                             </h3>
                             <div class="flex items-center gap-1">
                                 <button id="refresh-incoming-btn" class="text-[10px] bg-amber-100 dark:bg-amber-800/60 text-amber-700 dark:text-amber-200 px-2 py-1 rounded font-bold hover:bg-amber-200 dark:hover:bg-amber-700 transition cursor-pointer shadow-sm" title="입고 일정 새로고침">🔄</button>
-                                <button id="open-notice-modal-btn" class="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition cursor-pointer shadow-sm">관리</button>
                             </div>
                         </div>
                         <div class="flex-1 overflow-y-auto p-3 space-y-2">
@@ -233,7 +232,7 @@
                                     <h4 class="text-xs font-extrabold text-red-700 dark:text-red-300 flex items-center gap-1.5">
                                         📢 중요 공지사항 <span id="widget-notice-count" class="text-[10px] bg-red-500 text-white px-1.5 rounded-full tabular-nums">0</span>
                                     </h4>
-                                    <span class="text-[9px] text-red-500 dark:text-red-400">관리자 작성</span>
+                                    <button id="open-notice-modal-btn" class="text-[10px] bg-red-500 hover:bg-red-600 text-white px-2 py-0.5 rounded font-bold transition cursor-pointer shadow-sm">등록</button>
                                 </div>
                                 <ul id="widget-memo-list" class="divide-y divide-red-100 dark:divide-red-800/40 text-sm text-yellow-900 dark:text-yellow-200 font-medium">
                                 </ul>
@@ -412,6 +411,17 @@
                 <div class="flex gap-2">
                     <textarea id="new-notice-input" placeholder="새 알림 내용을 입력하세요 (@이름 으로 멘션 알림 가능)" class="flex-1 p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-sm dark:text-white outline-none focus:border-yellow-500 resize-none" rows="2"></textarea>
                     <button id="add-notice-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold px-5 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap shadow-sm h-fit self-end">등록</button>
+                </div>
+                <!-- 일정(선택) — 넣으면 목록에 날짜가 함께 표시되고 그 순서로 정렬된다 -->
+                <div class="flex flex-wrap items-center gap-2 mt-2">
+                    <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400">일정</label>
+                    <input type="date" id="new-notice-date"
+                           class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-xs dark:text-white outline-none focus:border-yellow-500">
+                    <input type="time" id="new-notice-time"
+                           class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-xs dark:text-white outline-none focus:border-yellow-500">
+                    <button type="button" id="clear-notice-date"
+                            class="text-[11px] font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 px-1.5 py-1">지우기</button>
+                    <span class="text-[10px] text-gray-400">비워 두면 일정 없는 공지로 등록됩니다</span>
                 </div>
             </div>
 
@@ -620,11 +630,25 @@
             }
         });
 
+        // 날짜만 넣고 시간을 비우면 그날 00:00 로 본다
+        window.noticeScheduleValue = () => {
+            const d = document.getElementById('new-notice-date')?.value || '';
+            const t = document.getElementById('new-notice-time')?.value || '';
+            return d ? `${d}T${t || '00:00'}` : '';
+        };
+
+        document.getElementById('clear-notice-date')?.addEventListener('click', () => {
+            const d = document.getElementById('new-notice-date');
+            const t = document.getElementById('new-notice-time');
+            if (d) d.value = ''; if (t) t.value = '';
+        });
+
         document.getElementById('add-notice-btn')?.addEventListener('click', () => {
             const input = document.getElementById('new-notice-input');
             if (input && input.value) {
-                addNotice(input.value);
+                addNotice(input.value, window.noticeScheduleValue());
                 input.value = '';
+                document.getElementById('clear-notice-date')?.click();
             }
         });
 
@@ -632,6 +656,17 @@
             renderNoticeWidget(appState);
             renderNoticeModalList();
         });
+
+        /** 'YYYY-MM-DDTHH:MM' → '9월 3일(수) 14:00'. 00:00 이면 시간은 생략한다. */
+        window.formatNoticeSchedule = (v) => {
+            const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(String(v || ''));
+            if (!m) return String(v || '');
+            const [, y, mo, d, hh, mi] = m;
+            const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+            const wd = ['일','월','화','수','목','금','토'][dt.getDay()];
+            const time = (hh && !(hh === '00' && mi === '00')) ? ` ${hh}:${mi}` : '';
+            return `${Number(mo)}월 ${Number(d)}일(${wd})${time}`;
+        };
 
         window.renderNoticeModalList = () => {
             const list = document.getElementById('notice-management-list');
@@ -644,7 +679,13 @@
                 return;
             }
 
-            const sorted = [...notices].sort((a, b) => b.createdAt - a.createdAt);
+            // 일정이 있는 공지를 먼저, 이른 날짜순. 일정 없는 것은 최근 등록순으로 뒤에.
+            const sorted = [...notices].sort((a, b) => {
+                if (a.scheduleAt && b.scheduleAt) return a.scheduleAt.localeCompare(b.scheduleAt);
+                if (a.scheduleAt) return -1;
+                if (b.scheduleAt) return 1;
+                return b.createdAt - a.createdAt;
+            });
 
             list.innerHTML = sorted.map(notice => {
                 const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
@@ -660,6 +701,7 @@
                         </button>
                         <span class="notice-text-span flex-1 text-sm break-words ${notice.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200 font-bold'}">
                             ${highlightedText}
+                            ${notice.scheduleAt ? `<span class="block mt-1 text-[11px] font-bold text-red-600 dark:text-red-400">🗓 ${window.formatNoticeSchedule(notice.scheduleAt)}</span>` : ''}
                         </span>
                     </div>
                     <div class="flex items-center gap-2 shrink-0 ml-3 mt-1">
@@ -679,6 +721,11 @@
                 toggleNotice(toggleBtn.dataset.id);
             } else if (deleteBtn) {
                 deleteNotice(deleteBtn.dataset.id);
+            } else if (e.target.closest('.notice-edit-clear')) {
+                const wrap = e.target.closest('li');
+                const d = wrap?.querySelector('.notice-edit-date');
+                const t = wrap?.querySelector('.notice-edit-time');
+                if (d) d.value = ''; if (t) t.value = '';
             } else if (editBtn) {
                 const noticeId = editBtn.dataset.id;
                 const li = editBtn.closest('li');
@@ -688,7 +735,19 @@
                     const notice = appState.importantNotices.find(n => n.id === noticeId);
                     const currentText = notice ? notice.text : '';
                     
-                    textSpan.outerHTML = `<textarea class="notice-edit-textarea flex-1 p-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:border-blue-500 resize-none w-full" rows="3">${currentText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>`;
+                    // 일정도 함께 고칠 수 있게 날짜·시간 칸을 붙인다
+                    const sch = (notice && notice.scheduleAt) || '';
+                    const schDate = sch.slice(0, 10);
+                    const schTime = sch.length > 10 ? sch.slice(11, 16) : '';
+                    textSpan.outerHTML = `<div class="flex-1 w-full">
+                        <textarea class="notice-edit-textarea w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:border-blue-500 resize-none" rows="3">${currentText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+                        <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">일정</span>
+                            <input type="date" class="notice-edit-date px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-800 dark:text-white" value="${schDate}">
+                            <input type="time" class="notice-edit-time px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-800 dark:text-white" value="${schTime}">
+                            <button type="button" class="notice-edit-clear text-[11px] font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 px-1">지우기</button>
+                        </div>
+                    </div>`;
                     
                     editBtn.textContent = '저장';
                     editBtn.classList.replace('text-blue-600', 'text-green-600');
@@ -697,8 +756,10 @@
                     const textarea = li.querySelector('.notice-edit-textarea');
                     if (textarea) {
                         const newText = textarea.value;
+                        const d = li.querySelector('.notice-edit-date')?.value || '';
+                        const t = li.querySelector('.notice-edit-time')?.value || '';
                         if (newText.trim() !== '') {
-                            editNotice(noticeId, newText);
+                            editNotice(noticeId, newText, d ? `${d}T${t || '00:00'}` : '');
                         } else {
                             alert("내용을 입력해주세요.");
                         }
