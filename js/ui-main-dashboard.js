@@ -469,7 +469,8 @@ const EXTERNAL_LINK_META = [
 // 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu(파이어스토어)에 없으면 자동으로 끼워 넣는다.
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
 const BUILTIN_MENU_ITEMS = [
-    { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' }
+    { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' },
+    { name: '출퇴근 기록표', link: 'worktime.html', category: '관리 및 조회' }
 ];
 
 const withBuiltinMenus = (dashboardMenu) => {
