@@ -37,7 +37,7 @@
         .t-in:focus { outline: none; border-color: #3b82f6; background: #fff;
                       box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
         .b-in { min-width: 60px; }
-        .m-in { min-width: 120px; text-align: left !important; }
+        .m-in { min-width: 120px; }   /* 정렬은 .t-in 의 가운데 정렬을 그대로 쓴다 */
         .lbl { display: block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
         .inp { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
         .inp:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
@@ -66,7 +66,7 @@
         <div class="text-sm text-slate-500">메인 앱(업무관리)에서 먼저 로그인한 뒤<br>이 페이지를 열어주세요.</div>
     </div>
 
-    <main id="main" class="hidden px-4 py-5 max-w-5xl mx-auto">
+    <main id="main" class="hidden px-4 py-5 max-w-[1280px] mx-auto">
 
         <div class="mb-1 text-[11px] text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             팀 업무 기록과 <b>완전히 분리된 표</b>입니다. 여기 입력한 내용은 팀 인건비·생산성·결산 어디에도 반영되지 않습니다.
@@ -101,44 +101,50 @@
                 </div>
             </div>
 
-            <!-- 월 합계 -->
-            <div class="bg-slate-50 border-b border-slate-100 px-4 py-3">
-                <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
-                <div id="fx-note" class="text-[11px] text-slate-500 mt-2"></div>
-            </div>
+            <div class="flex flex-col lg:flex-row items-stretch">
 
-            <!-- 일괄 입력 — 체크한 날짜에만 적용된다 -->
-            <div id="bulk-bar" class="hidden px-4 py-2.5 bg-indigo-50 border-b border-indigo-100
-                 flex flex-wrap items-center gap-2 text-xs sticky top-0 z-[2]">
-                <b id="bulk-count" class="text-indigo-700"></b>
-                <span class="text-slate-400">|</span>
-                <label class="font-bold text-slate-600">출근</label>
-                <input id="bulk-in" type="time" class="px-2 py-1 border border-slate-300 rounded-lg">
-                <label class="font-bold text-slate-600">퇴근</label>
-                <input id="bulk-out" type="time" class="px-2 py-1 border border-slate-300 rounded-lg">
-                <label class="font-bold text-slate-600">휴게</label>
-                <input id="bulk-break" inputmode="numeric" placeholder="자동"
-                       class="w-16 px-2 py-1 border border-slate-300 rounded-lg text-center">
-                <button id="btn-bulk-apply" class="font-bold px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">적용</button>
-                <button id="btn-bulk-clear" class="font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100">선택 지우기</button>
-                <span class="text-[11px] text-slate-500 ml-auto">비워 둔 칸은 그대로 둡니다</span>
-            </div>
+                <!-- 월 합계 — 표 위가 아니라 왼쪽에 따로 세운다 -->
+                <aside class="w-full lg:w-[212px] lg:shrink-0 bg-slate-50
+                              border-b lg:border-b-0 lg:border-r border-slate-100 p-3">
+                    <div id="summary" class="grid grid-cols-2 lg:grid-cols-1 gap-2"></div>
+                    <div id="fx-note" class="text-[11px] text-slate-500 mt-2 leading-snug"></div>
+                </aside>
 
-            <div class="overflow-auto max-h-[calc(100vh-380px)]">
-                <table class="ws-table">
-                    <thead>
-                        <tr>
-                            <th style="width:38px;"><input type="checkbox" id="chk-all" title="전체 선택"></th>
-                            <th style="width:92px;">날짜</th>
-                            <th style="width:124px;">출근</th>
-                            <th style="width:124px;">퇴근</th>
-                            <th style="width:86px;">휴게<span class="font-normal text-slate-400">(분)</span></th>
-                            <th style="width:104px;">근무시간</th>
-                            <th>메모</th>
-                        </tr>
-                    </thead>
-                    <tbody id="sheet-body"></tbody>
-                </table>
+                <div class="flex-1 min-w-0">
+                    <!-- 일괄 입력 — 체크한 날짜에만 적용된다 -->
+                    <div id="bulk-bar" class="hidden px-4 py-2.5 bg-indigo-50 border-b border-indigo-100
+                         flex flex-wrap items-center gap-2 text-xs">
+                        <b id="bulk-count" class="text-indigo-700"></b>
+                        <span class="text-slate-400">|</span>
+                        <label class="font-bold text-slate-600">출근</label>
+                        <input id="bulk-in" type="time" class="px-2 py-1 border border-slate-300 rounded-lg">
+                        <label class="font-bold text-slate-600">퇴근</label>
+                        <input id="bulk-out" type="time" class="px-2 py-1 border border-slate-300 rounded-lg">
+                        <label class="font-bold text-slate-600">휴게</label>
+                        <input id="bulk-break" inputmode="numeric" placeholder="자동"
+                               class="w-16 px-2 py-1 border border-slate-300 rounded-lg text-center">
+                        <button id="btn-bulk-apply" class="font-bold px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">적용</button>
+                        <button id="btn-bulk-clear" class="font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100">선택 지우기</button>
+                        <span class="text-[11px] text-slate-500 ml-auto">비워 둔 칸은 그대로 둡니다</span>
+                    </div>
+
+                    <div class="overflow-auto max-h-[calc(100vh-250px)]">
+                        <table class="ws-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:38px;"><input type="checkbox" id="chk-all" title="전체 선택"></th>
+                                    <th style="width:92px;">날짜</th>
+                                    <th style="width:124px;">출근</th>
+                                    <th style="width:124px;">퇴근</th>
+                                    <th style="width:86px;">휴게<span class="font-normal text-slate-400">(분)</span></th>
+                                    <th style="width:104px;">근무시간</th>
+                                    <th>메모</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sheet-body"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <div id="empty-state" class="hidden p-12 text-center text-slate-400 text-sm">

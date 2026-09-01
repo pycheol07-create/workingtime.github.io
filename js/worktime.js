@@ -234,11 +234,12 @@ function renderSummary() {
     // 총금액은 분 단위까지 그대로 곱한 뒤 원 단위에서 버린다
     const pay = Math.floor(hours * num(p.wage));
 
+    // 왼쪽에 세로로 쌓이는 카드 — 좁은 화면에서는 2열로 접힌다
     const card = (label, value, sub = '', color = 'text-slate-800') => `
-        <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+        <div class="bg-white rounded-xl border border-slate-200 px-3 py-2 text-center">
             <div class="text-[11px] text-slate-500 mb-0.5">${esc(label)}</div>
-            <div class="text-lg font-extrabold ${color} tabular-nums">${value}</div>
-            ${sub ? `<div class="text-[10px] text-slate-400 mt-0.5">${esc(sub)}</div>` : ''}
+            <div class="text-lg font-extrabold ${color} tabular-nums leading-tight">${value}</div>
+            ${sub ? `<div class="text-[10px] text-slate-400 mt-0.5 leading-tight">${esc(sub)}</div>` : ''}
         </div>`;
 
     // 월 총액을 당일 환율 하나로 환산한다
