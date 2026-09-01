@@ -183,9 +183,9 @@ function renderTabs() {
 }
 
 function renderSheet() {
-    const bodyA = $('sheet-body-a'), bodyB = $('sheet-body-b');
+    const body = $('sheet-body');
     const p = personById(currentPid);
-    if (!p) { bodyA.innerHTML = ''; bodyB.innerHTML = ''; return; }
+    if (!p) { body.innerHTML = ''; return; }
 
     const rec = records[p.id] || {};
     const n = daysInMonth(currentYm);
@@ -211,10 +211,7 @@ function renderSheet() {
                            maxlength="30" value="${esc(r.memo || '')}"></td>
             </tr>`);
     }
-    // 앞 절반은 왼쪽, 나머지는 오른쪽 — 31일이 스크롤 없이 한 화면에 들어간다
-    const half = Math.ceil(rows.length / 2);
-    bodyA.innerHTML = rows.slice(0, half).join('');
-    bodyB.innerHTML = rows.slice(half).join('');
+    body.innerHTML = rows.join('');
     renderBulkBar();
     renderSummary();
 }
@@ -237,13 +234,15 @@ function renderSummary() {
     // 총금액은 분 단위까지 그대로 곱한 뒤 원 단위에서 버린다
     const pay = Math.floor(hours * num(p.wage));
 
-    // 한 줄짜리 항목 — 카드보다 훨씬 낮아 표를 위한 높이를 남긴다
+    // 왼쪽 패널에 세로로 쌓는다(표의 세로 자리를 뺏지 않는다)
     const stat = (label, value, sub = '', color = 'text-slate-800') => `
-        <span class="flex items-baseline gap-1.5">
-            <span class="text-[11px] text-slate-500">${esc(label)}</span>
-            <b class="text-base font-extrabold ${color} tabular-nums">${value}</b>
-            ${sub ? `<span class="text-[10px] text-slate-400">${esc(sub)}</span>` : ''}
-        </span>`;
+        <div class="flex items-baseline justify-between gap-2">
+            <span class="text-[11px] text-slate-500 shrink-0">${esc(label)}</span>
+            <span class="text-right">
+                <b class="text-sm font-extrabold ${color} tabular-nums">${value}</b>
+                ${sub ? `<span class="block text-[10px] text-slate-400 leading-tight">${esc(sub)}</span>` : ''}
+            </span>
+        </div>`;
 
     // 월 총액을 당일 환율 하나로 환산한다
     const cny = fx.rate > 0 ? pay / fx.rate : 0;
@@ -251,8 +250,8 @@ function renderSummary() {
 
     $('summary').innerHTML =
         stat('근무일수', days + '일')
-        + stat('총 근무시간', hoursText(workedMin), hours.toFixed(2) + 'h')
-        + stat('총금액', fmt(pay) + '원', '수당 미포함', 'text-indigo-700')
+        + stat('총 근무시간', hoursText(workedMin), hours.toFixed(2) + ' 시간')
+        + stat('총금액', fmt(pay) + '원', '연장·야간·주휴수당 미포함', 'text-indigo-700')
         + stat('위안화', cnyText, '', 'text-rose-600');
 
     // 어떤 환율이 쓰였는지 밝힌다. 숫자만 보여주면 근거를 알 수 없다.
