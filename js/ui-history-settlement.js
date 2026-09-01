@@ -8,6 +8,7 @@ import { LEAVE_TYPES } from './state.js';
 import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap } from './utils.js';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js';
 
 import {
     calculateReportKPIs,
@@ -136,7 +137,8 @@ function buildDailySeries(days, valueFn) {
     const sorted = [...days].sort((a, b) => a.id.localeCompare(b.id));
     return {
         labels: sorted.map(d => d.id.slice(5)),
-        values: sorted.map(d => valueFn(d))
+        values: sorted.map(d => valueFn(d)),
+        ids: sorted.map(d => d.id)          // 파고들기에서 그날 상세를 찾을 때 쓴다
     };
 }
 
@@ -185,8 +187,9 @@ function computeThroughputSummary(currentDays, core) {
     daily.labels.forEach((label, i) => {
         const v = daily.values[i];
         if (v <= 0) return;
-        if (!peakDay || v > peakDay.value) peakDay = { label, value: v };
-        if (!lowDay || v < lowDay.value) lowDay = { label, value: v };
+        const id = daily.ids ? daily.ids[i] : null;
+        if (!peakDay || v > peakDay.value) peakDay = { label, value: v, id };
+        if (!lowDay || v < lowDay.value) lowDay = { label, value: v, id };
     });
 
     // 업무별 처리량 전체 분해 (share %, 전기간 대비, UPH는 참고용)
@@ -852,8 +855,12 @@ function renderProductivitySection(tp, core, workingDaysCount) {
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             ${heroStat('총 처리량', fmt(tp.totalQuantity), '개', changeBadge(qtyChangePct), 'text-blue-700')}
             ${heroStat('일평균 처리량', fmt(tp.avgDailyQuantity), '개/일', '', 'text-gray-800')}
-            ${heroStat('최고 처리일', tp.peakDay ? fmt(tp.peakDay.value) : '-', tp.peakDay ? `개 (${tp.peakDay.label})` : '', '', 'text-emerald-600')}
-            ${heroStat('최저 처리일', tp.lowDay ? fmt(tp.lowDay.value) : '-', tp.lowDay ? `개 (${tp.lowDay.label})` : '', '', 'text-gray-500')}
+            ${heroStat('최고 처리일',
+                tp.peakDay ? (tp.peakDay.id ? drillWrap(fmt(tp.peakDay.value), 'day', tp.peakDay.id) : fmt(tp.peakDay.value)) : '-',
+                tp.peakDay ? `개 (${tp.peakDay.label})` : '', '', 'text-emerald-600')}
+            ${heroStat('최저 처리일',
+                tp.lowDay ? (tp.lowDay.id ? drillWrap(fmt(tp.lowDay.value), 'day', tp.lowDay.id) : fmt(tp.lowDay.value)) : '-',
+                tp.lowDay ? `개 (${tp.lowDay.label})` : '', '', 'text-gray-500')}
         </div>
 
         <div class="mb-5">
@@ -877,9 +884,9 @@ function renderProductivitySection(tp, core, workingDaysCount) {
 
         <div class="text-xs font-bold text-gray-600 mb-2">⚙️ 효율성 부가 지표 (참고용)</div>
         <div class="grid grid-cols-3 gap-2 mb-3">
-            ${miniStat('시간 활용률', core.curProd.utilizationRate.toFixed(0) + '%')}
-            ${miniStat('업무 효율성', core.curProd.efficiencyRatio.toFixed(0) + '%')}
-            ${miniStat('품질 효율', core.curProd.qualityRatio.toFixed(0) + '%')}
+            ${miniStat('시간 활용률', drillWrap(core.curProd.utilizationRate.toFixed(0) + '%', 'utilizationRate'))}
+            ${miniStat('업무 효율성', drillWrap(core.curProd.efficiencyRatio.toFixed(0) + '%', 'efficiencyRatio'))}
+            ${miniStat('품질 효율', drillWrap(core.curProd.qualityRatio.toFixed(0) + '%', 'qualityRatio'))}
         </div>
         <div class="grid grid-cols-3 gap-2 text-center mb-3">
             <div class="text-[11px] text-gray-500">가용 손실 <b class="text-gray-700 block text-sm">${fmt(core.curProd.availabilityLossCost)}원</b></div>
@@ -1044,8 +1051,8 @@ function renderManagementSection(mg) {
 
     const body = `
         <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
-            ${heroStat('총 매출', fmt(mg.curMgmt.revenue), '원', changeBadge(revenueChangePct), 'text-emerald-700')}
-            ${heroStat('총 발주 건수', fmt(mg.curMgmt.orderCount), '건')}
+            ${heroStat('총 매출', drillWrap(fmt(mg.curMgmt.revenue), 'revenue'), '원', changeBadge(revenueChangePct), 'text-emerald-700')}
+            ${heroStat('총 발주 건수', drillWrap(fmt(mg.curMgmt.orderCount), 'orderCount'), '건')}
             ${heroStat('평균 재고금액', fmt(mg.curMgmt.avgInventoryAmt), '원')}
             ${heroStat('평균 환율(USD)', mg.curMgmt.avgUsdRate > 0 ? mg.curMgmt.avgUsdRate.toFixed(1) : '-', '')}
             ${heroStat('평균 환율(CNY)', mg.curMgmt.avgCnyRate > 0 ? mg.curMgmt.avgCnyRate.toFixed(1) : '-', '')}
@@ -1456,6 +1463,7 @@ export function renderSettlementReport(container, appConfig) {
     `;
 
     bindSortFilterListeners(container, appConfig);
+    bindDrillListeners(container, { days: currentDays, prod: core.curProd });
 
     // 차트 인스턴스 생성 (DOM 마운트 이후)
     if (prodResult.chartId && prodResult.chartData) {
