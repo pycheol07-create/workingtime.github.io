@@ -35,9 +35,9 @@ const SIM_TASKS = [
     { id: 'domestic', key: '국내배송', label: '국내배송', auto: 'ai' },
     { id: 'china',    key: '중국제작', label: '중국제작', auto: 'incoming' },
     { id: 'sample',   key: '샘플검수', label: '샘플검수', auto: 'china-linked' },
-    { id: 'direct',   key: '직진배송', label: '직진배송', auto: 'last7' },
-    { id: 'ably',     key: '에이블리배송', label: '에이블리배송', auto: 'last7' },
-    { id: 'fill',     key: '채우기',   label: '채우기',   auto: 'last7' },
+    { id: 'direct',   key: '직진배송', label: '직진배송', auto: 'cadence' },
+    { id: 'ably',     key: '에이블리배송', label: '에이블리배송', auto: 'cadence' },
+    { id: 'fill',     key: '채우기',   label: '채우기',   auto: 'cadence' },
     { id: 'return',   key: '교환반품', label: '교환반품', auto: 'last7' },
     { id: 'full',     key: '전량검수', label: '전량검수', auto: 'last7' },
     { id: 'other',    key: '국내기타', label: '국내기타', auto: 'last7' },
@@ -121,6 +121,144 @@ const computeLast7Avg = (historyData, taskKey, occurrences = 7) => {
     if (valued.length === 0) return 0;
     const sum = valued.reduce((s, d) => s + (Number(d.taskQuantities[taskKey]) || 0), 0);
     return Math.round(sum / valued.length);
+};
+
+/** 🗓️ '언제 하는 업무인가' 분석 — 매일 하지 않는 업무의 예상치를 바로잡는다.
+ *
+ *  기존 방식(지난 7회 평균)은 '발생한 날'만 골라 평균을 낸 뒤 그 값을 매일 넣었다.
+ *  3일에 한 번 하는 업무라면 예상 총량이 3배가 된다.
+ *  그래서 얼마나 자주·어느 요일에 했는지를 같이 본다.
+ *
+ *  모집단은 '근무 기록이 있는 날'만 쓴다. 휴무일을 미발생으로 세면 빈도가 낮게 나온다.
+ */
+const analyzeCadence = (historyData, taskKey, windowWorkDays = 56) => {
+    const today = getTodayDateString();
+    const days = (historyData || [])
+        .filter(d => d && typeof d.id === 'string' && d.id <= today)
+        .filter(d => (d.workRecords || []).length > 0)
+        .sort((a, b) => b.id.localeCompare(a.id))
+        .slice(0, windowWorkDays)
+        .sort((a, b) => a.id.localeCompare(b.id));      // 오래된 → 최신
+
+    const byWd = Array.from({ length: 7 }, () => ({ total: 0, hit: 0, sum: 0 }));
+    const hitDates = [];
+    let hits = 0, sum = 0;
+
+    days.forEach(d => {
+        const wd = new Date(d.id + 'T00:00:00').getDay();
+        if (isNaN(wd)) return;
+        byWd[wd].total++;
+        const q = Number(d.taskQuantities?.[taskKey]) || 0;
+        if (q > 0) {
+            byWd[wd].hit++; byWd[wd].sum += q;
+            hits++; sum += q;
+            hitDates.push(d.id);
+        }
+    });
+
+    if (hits === 0) return null;
+    const avgQty = Math.round(sum / hits);
+    const overallP = days.length > 0 ? hits / days.length : 0;
+
+    // 발생 간격은 '근무일' 기준으로 센다.
+    // 달력 날짜로 세면 주말이 낀 구간만 2일씩 길어져, 규칙적으로 하는 업무도
+    // 불규칙해 보인다(3근무일 주기가 3·3·5일로 흩어진다).
+    const hitIdx = [];
+    days.forEach((d, i) => { if ((Number(d.taskQuantities?.[taskKey]) || 0) > 0) hitIdx.push(i); });
+    const gaps = [];
+    for (let i = 1; i < hitIdx.length; i++) gaps.push(hitIdx[i] - hitIdx[i - 1]);
+    const sorted = [...gaps].sort((x, y) => x - y);
+    const medianGap = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+    // 간격이 고른가 — 절반 이상이 가운데값 ±1 안에 들면 규칙적으로 본다
+    const nearMedian = gaps.filter(g => Math.abs(g - medianGap) <= 1).length;
+    const regular = gaps.length >= 3 && nearMedian / gaps.length >= 0.6 && medianGap >= 2;
+
+    return {
+        days, hits, avgQty, overallP, byWd, hitDates, hitIdx,
+        lastDate: hitDates[hitDates.length - 1] || null,
+        medianGap, regular, sampleDays: days.length
+    };
+};
+
+/** 마지막 진행일부터 대상일까지 '근무일'이 몇 번 지났는지.
+ *  과거 구간은 실제 근무 기록으로 세고, 오늘 이후는 평일(월~금)로 어림한다.
+ *  (앞으로의 휴무일은 알 수 없으므로) */
+const workdaysBetween = (c, dateStr) => {
+    const idx = c.days.findIndex(d => d.id === c.lastDate);
+    if (idx < 0) return null;
+
+    const inList = c.days.findIndex(d => d.id === dateStr);
+    if (inList >= 0) return inList - idx;               // 대상일이 과거 근무일이면 그대로
+
+    const lastKnown = c.days[c.days.length - 1];
+    if (!lastKnown || dateStr <= lastKnown.id) return null;
+
+    let n = (c.days.length - 1) - idx;                  // 마지막 진행일 → 마지막 기록일
+    const cur = new Date(lastKnown.id + 'T00:00:00');
+    const end = new Date(dateStr + 'T00:00:00');
+    if (isNaN(cur.getTime()) || isNaN(end.getTime())) return null;
+    while (cur < end) {
+        cur.setDate(cur.getDate() + 1);
+        const w = cur.getDay();
+        if (w !== 0 && w !== 6) n++;                    // 주말은 세지 않는다
+    }
+    return n;
+};
+
+/** 위 분석을 바탕으로 대상일의 예상 물량을 낸다.
+ *  반환 { value, source, detail } — source 는 배지 문구에 그대로 쓰인다.
+ */
+const cadenceValueFor = (historyData, taskKey, dateStr) => {
+    const c = analyzeCadence(historyData, taskKey);
+    // 표본이 적으면 예전 방식이 그나마 안전하다
+    if (!c || c.hits < 3) {
+        return { value: computeLast7Avg(historyData, taskKey), source: 'last7' };
+    }
+
+    const wd = new Date(dateStr + 'T00:00:00').getDay();
+    const w = (!isNaN(wd) && c.byWd[wd]) ? c.byWd[wd] : null;
+    const WD_NAME = ['일', '월', '화', '수', '목', '금', '토'];
+
+    // ① 거의 매일 하는 업무 — 예전과 같게 둔다
+    if (c.overallP >= 0.85) {
+        return { value: c.avgQty, source: 'last7', detail: '거의 매일 진행' };
+    }
+
+    // ② 특정 요일에 몰려 있는가 (그 요일 표본이 3일 이상일 때만 판단)
+    if (w && w.total >= 3) {
+        const pw = w.hit / w.total;
+        if (pw >= 0.7) {
+            const wdAvg = w.hit >= 2 ? Math.round(w.sum / w.hit) : c.avgQty;
+            return { value: wdAvg, source: 'cadence-weekday',
+                     detail: `${WD_NAME[wd]}요일엔 ${w.hit}/${w.total}회 진행` };
+        }
+        // 전체적으로 자주 하는 업무인데 이 요일만 유독 안 한다면 0 으로 둔다.
+        // 원래 드문 업무까지 0 으로 만들면 어느 날에도 잡히지 않아 아예 사라진다.
+        if (pw <= 0.2 && c.overallP >= 0.3) {
+            return { value: 0, source: 'cadence-weekday',
+                     detail: `${WD_NAME[wd]}요일엔 ${w.hit}/${w.total}회만 진행` };
+        }
+    }
+
+    // ③ 며칠에 한 번씩 규칙적으로 하는가
+    if (c.regular && c.lastDate) {
+        const elapsed = workdaysBetween(c, dateStr);
+        // 주기의 '박자'를 맞춰 본다. 마지막 진행일로부터 주기의 배수가 되는 날만 차례다.
+        // (elapsed >= medianGap 으로 판단하면 그 뒤로 며칠이든 계속 차례가 되어,
+        //  3일 주기인데 이틀 연속 가득 잡히는 일이 생긴다)
+        // 너무 먼 날짜는 박자가 어긋나므로 아래 ④(빈도 반영)로 넘긴다.
+        if (elapsed != null && elapsed > 0 && elapsed <= c.medianGap * 3) {
+            const due = (elapsed % c.medianGap) === 0;
+            return { value: due ? c.avgQty : 0, source: 'cadence-interval',
+                     detail: `평균 ${c.medianGap}근무일에 한 번 · 마지막 진행 ${c.lastDate}`
+                           + ` (그 뒤 ${elapsed}근무일째)` };
+        }
+    }
+
+    // ④ 그 외 — 발생 빈도만큼 나눠 담는다(기간 총량이 맞도록)
+    const p = (w && w.total >= 3) ? (w.hit / w.total) : c.overallP;
+    return { value: Math.round(c.avgQty * p), source: 'cadence-rate',
+             detail: `근무일 ${c.sampleDays}일 중 ${c.hits}일 진행 (${Math.round(p * 100)}%)` };
 };
 
 /** 미래 날짜의 국내배송 AI 예측값. 과거이면 실측치 사용. */
@@ -235,6 +373,7 @@ const autoValueFor = (dateStr, task, historyData) => {
             const v = (china > 0) ? Math.round(computeSampleRatio(historyData) * china) : 0;
             return { value: v, source: 'china-linked' };   // 입고 없는 날은 0(빈칸)
         }
+        case 'cadence':  return cadenceValueFor(historyData, task.key, dateStr);
         default:         return { value: computeLast7Avg(historyData, task.key), source: 'last7' };
     }
 };
@@ -252,12 +391,18 @@ const SOURCE_BADGE = {
     ai:       { text: 'AI 예측',    muted: true, tip: '국내배송 AI 추세 예측값' },
     incoming: { text: '입고일정',    muted: true, tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
     last7:    { text: '지난 7회 평균', muted: true, tip: '이 업무가 발생한 최근 7일의 업무량 평균' },
+    'cadence-weekday':  { text: '요일 패턴', muted: true,
+                tip: '이 업무를 주로 하는 요일인지 보고 넣습니다. 잘 안 하는 요일은 0으로 둡니다.' },
+    'cadence-interval': { text: '주기 반영', muted: true,
+                tip: '며칠에 한 번씩 하는지를 보고, 마지막 진행일 기준으로 이번 차례인 날에만 넣습니다.' },
+    'cadence-rate':     { text: '빈도 반영', muted: true,
+                tip: '매일 하는 업무가 아니라, 진행 빈도만큼 나눠 담습니다. 기간 전체 총량이 맞도록 한 값입니다.' },
     'china-linked': { text: '중국제작 연동', muted: true,
                 tip: '중국제작 입고가 있는 날만 자동 입력됩니다. (그 날 입고량 × 최근 4주 검수비율)' }
 };
 
 /** 값의 출처를 항목 아래에 표시 */
-const markSourceBadge = (task, source) => {
+const markSourceBadge = (task, source, detail = '') => {
     const el = document.getElementById(`sim-src-${task.id}`);
     if (!el) return;
     const b = SOURCE_BADGE[source] || SOURCE_BADGE.last7;
@@ -265,7 +410,11 @@ const markSourceBadge = (task, source) => {
         ? 'text-[10px] font-medium text-gray-400 dark:text-gray-500'
         : `text-[10px] font-bold px-1.5 py-0.5 rounded-md ${b.cls}`;
     el.textContent = b.text;
-    el.title = b.tip;
+    // 왜 그 값이 나왔는지(예: '월요일엔 7/8회 진행')를 함께 보여준다.
+    // 0 이 들어간 칸을 보고 고장으로 오해하지 않도록 근거가 필요하다.
+    el.title = detail ? `${b.tip}
+
+${detail}` : b.tip;
 };
 
 /** 작업량 입력 칸을 SIM_TASKS로부터 만든다.
@@ -313,9 +462,9 @@ const autoFillSimInputs = (dateStr) => {
 
     // 모든 업무가 기본 등록 — 예정 물량이 있으면 그 값, 없으면 업무별 자동값
     SIM_TASKS.forEach(t => {
-        const { value, source } = autoValueFor(dateStr, t, data);
+        const { value, source, detail } = autoValueFor(dateStr, t, data);
         setQty(t.id, value);
-        markSourceBadge(t, source);
+        markSourceBadge(t, source, detail);
     });
 
     // 가용 인원
