@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202609021350';
-import { LEAVE_TYPES } from './state.js?v=202609021350';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap } from './utils.js?v=202609021350';
+import * as State from './state.js?v=202609021359';
+import { LEAVE_TYPES } from './state.js?v=202609021359';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap } from './utils.js?v=202609021359';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202609021350';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202609021350';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202609021359';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202609021359';
 
 import {
     calculateReportKPIs,
@@ -19,10 +19,10 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202609021350';
+} from './ui-history-reports-logic.js?v=202609021359';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202609021350';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202609021350';
+import { aggregateManagementData } from './ui-history-management.js?v=202609021359';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202609021359';
 
 // ============================================================
 // 모듈 상태
@@ -1279,7 +1279,10 @@ async function downloadSettlementPdf(periodLabel) {
 
     const holder = document.createElement('div');
     holder.id = 'settle-pdf-holder';
-    holder.style.cssText = 'width:1180px;height:auto;background:#fff;padding:16px;overflow:visible;';
+    // 폭은 화면에 보이는 그 폭으로 맞춘다. 임의의 넓은 폭을 쓰면 레이아웃이
+    // 다시 잡히면서 캡처 영역이 어긋나 좌우에 빈 띠가 생긴다.
+    const capW0 = Math.max(900, Math.round(panel.clientWidth));
+    holder.style.cssText = `width:${capW0}px;height:auto;background:#fff;padding:16px;overflow:visible;`;
     holder.innerHTML = `<style>
         #settle-pdf-holder * { overflow: visible !important; max-height: none !important;
                                scrollbar-width: none !important; }
@@ -1336,13 +1339,30 @@ async function downloadSettlementPdf(periodLabel) {
 
     holder.appendChild(clone);
     wrap.appendChild(holder);
-    document.body.appendChild(wrap);
+    document.body.insertBefore(wrap, document.body.firstChild);
+
+    // 이 화면(history.html)의 body 는 flex + overflow:hidden + 높이 고정이라
+    // 임시 상자가 화면 밖으로 밀리고, 그러면 캡처 영역이 어긋나 내용이 잘린다.
+    // 캡처하는 동안만 그 제약을 풀고, 끝나면 되돌린다.
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'visible';
+    document.documentElement.style.overflow = 'visible';
+
+    // 캡처할 영역을 픽셀로 못 박는다. 요소 위치로 알아서 잡게 두면
+    // 창 크기·스크롤에 따라 좌우가 잘린다.
+    const capW = Math.ceil(holder.scrollWidth);
+    const capH = Math.ceil(holder.scrollHeight);
 
     const opt = {
         margin: [8, 8, 8, 8],
         filename: `팀결산보고_${periodLabel.replace(/[\/:*?"<>|]/g, '')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', windowWidth: 1180 },
+        html2canvas: {
+            scale: 2, useCORS: true, backgroundColor: '#ffffff',
+            scrollX: 0, scrollY: 0,
+            width: capW, height: capH, windowWidth: capW, windowHeight: capH
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css', 'legacy'], avoid: ['.depth-panel', 'table', 'tr'] }
     };
@@ -1357,6 +1377,8 @@ async function downloadSettlementPdf(periodLabel) {
         console.error('결산 PDF 저장 실패:', e);
         alert('PDF 저장 중 오류가 발생했습니다.');
     } finally {
+        document.body.style.overflow = prevBody;
+        document.documentElement.style.overflow = prevHtml;
         wrap.remove();
         if (btn) { btn.disabled = false; btn.textContent = btnText; }
     }
