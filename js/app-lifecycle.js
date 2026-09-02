@@ -1,8 +1,8 @@
 // === js/app-lifecycle.js ===
-import * as State from './state.js';
-import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js';
-import { saveProgress } from './history-data-manager.js';
-import { saveStateToFirestore } from './app-data.js';
+import * as State from './state.js?v=202609021350';
+import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202609021350';
+import { saveProgress } from './history-data-manager.js?v=202609021350';
+import { saveStateToFirestore } from './app-data.js?v=202609021350';
 import { collection, doc, writeBatch, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let localLunchPauseExecuted = false;

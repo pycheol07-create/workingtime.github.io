@@ -1,13 +1,13 @@
 // === js/listeners-form-team.js ===
 // 설명: 팀원 선택 및 알바 관리(추가/수정/삭제) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js';
-import * as State from './state.js';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js';
-import { generateId, debouncedSaveState, updateDailyData } from './app-data.js';
-import { markDataAsDirty } from './app-lifecycle.js';
-import { renderTeamSelectionModalContent } from './ui-modals.js';
-import { startWorkGroup, addMembersToWorkGroup } from './app-logic.js';
+import * as DOM from './dom-elements.js?v=202609021350';
+import * as State from './state.js?v=202609021350';
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202609021350';
+import { generateId, debouncedSaveState, updateDailyData } from './app-data.js?v=202609021350';
+import { markDataAsDirty } from './app-lifecycle.js?v=202609021350';
+import { renderTeamSelectionModalContent } from './ui-modals.js?v=202609021350';
+import { startWorkGroup, addMembersToWorkGroup } from './app-logic.js?v=202609021350';
 import { collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 헬퍼 변수

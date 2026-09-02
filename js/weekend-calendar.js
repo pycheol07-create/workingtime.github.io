@@ -1,10 +1,10 @@
 // === js/weekend-calendar.js ===
-import * as State from './state.js';
-import { store, currentManageDateStr } from './weekend-store.js';
-import { showToast } from './utils.js';
+import * as State from './state.js?v=202609021350';
+import { store, currentManageDateStr } from './weekend-store.js?v=202609021350';
+import { showToast } from './utils.js?v=202609021350';
 import { collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderWeekendStats, renderWeekendList, renderWeekendGrid, renderWeekendFairness } from './weekend-ui.js';
-import { processSelectedDatesBulkAction, populatePastDateAddSelect, renderPastDateMembers } from './weekend-admin.js';
+import { renderWeekendStats, renderWeekendList, renderWeekendGrid, renderWeekendFairness } from './weekend-ui.js?v=202609021350';
+import { processSelectedDatesBulkAction, populatePastDateAddSelect, renderPastDateMembers } from './weekend-admin.js?v=202609021350';
 
 let currentViewMode = 'list'; 
 
@@ -207,7 +207,7 @@ async function loadWeekendRequests(year, month) {
     }
 }
 
-export { currentManageDateStr } from './weekend-store.js';
-export * from './weekend-core.js';
-export * from './weekend-admin.js';
-export * from './weekend-ui.js';
+export { currentManageDateStr } from './weekend-store.js?v=202609021350';
+export * from './weekend-core.js?v=202609021350';
+export * from './weekend-admin.js?v=202609021350';
+export * from './weekend-ui.js?v=202609021350';
