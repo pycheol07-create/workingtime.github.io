@@ -3,18 +3,20 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609030842';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609030842';
-import * as State from './state.js?v=202609030842';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609030842';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609030842';
-import { getPlannedQuantitiesForDate, fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609030842';
+import { predictFutureTrends } from './analysis-logic.js?v=202609030859';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609030859';
+import * as State from './state.js?v=202609030859';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609030859';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609030859';
+import { getPlannedQuantitiesForDate, fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609030859';
 
-/** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백. */
+/** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
+ *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
 const getPlanned = (dateStr, taskKey) => {
     const p = getPlannedQuantitiesForDate(dateStr) || {};
+    if (!Object.prototype.hasOwnProperty.call(p, taskKey)) return null;
     const v = Number(p[taskKey]);
-    return v > 0 ? Math.round(v) : null;
+    return Number.isFinite(v) && v >= 0 ? Math.round(v) : null;
 };
 
 /** 대상일(YYYY-MM-DD)에 도착 예정인 입고 수량 = 중국제작 자동값. 캐시에 없으면 0. */
@@ -477,15 +479,46 @@ const autoFillSimInputs = (dateStr) => {
     const staffInfo = computeAvailableStaff(dateStr, config, State.persistentLeaveSchedule, data);
     const elStaff = document.getElementById('sim-staff-fulltime');
     if (elStaff) elStaff.value = staffInfo.available;
-    const elLeaveInfo = document.getElementById('sim-on-leave-info');
-    if (elLeaveInfo) {
-        if (staffInfo.onLeaveList.length > 0) {
-            const tags = staffInfo.onLeaveList.map(e => `${e.member}<span class="text-gray-400">(${e.type})</span>`).join(', ');
-            elLeaveInfo.innerHTML = `📅 휴무 ${staffInfo.onLeaveList.length}명: ${tags} — 총 ${staffInfo.total}명 중 <strong>${staffInfo.available}명 가용</strong>`;
-        } else {
-            elLeaveInfo.innerHTML = `📅 등록된 휴무 없음 — 전체 <strong>${staffInfo.total}명 가용</strong>`;
-        }
+    renderLeaveInfo(staffInfo);
+    paintStaffTotal();
+};
+
+/** 휴무자 명단 — 이름과 종류를 한 덩어리(칩)로 묶어 줄바꿈이 이름 사이를 끊지 않게 한다.
+ *  (예전에는 "이승운(휴직)"이 "이 / 승운 / (휴직)"처럼 글자 단위로 쪼개져 읽을 수 없었다) */
+const renderLeaveInfo = (staffInfo) => {
+    const el = document.getElementById('sim-on-leave-info');
+    if (!el) return;
+    const tail = `<span class="whitespace-nowrap">총 ${staffInfo.total}명 중 <strong class="text-gray-700 dark:text-gray-200">${staffInfo.available}명 가용</strong></span>`;
+
+    if (!staffInfo.onLeaveList || staffInfo.onLeaveList.length === 0) {
+        el.innerHTML = `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span class="whitespace-nowrap font-bold text-gray-600 dark:text-gray-300">📅 등록된 휴무 없음</span>
+            ${tail}
+        </div>`;
+        return;
     }
+
+    const chips = staffInfo.onLeaveList.map(e => `
+        <span class="inline-flex items-center gap-1 whitespace-nowrap px-1.5 py-0.5 rounded-md
+                     bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+            <span class="font-bold text-gray-600 dark:text-gray-300">${e.member}</span>
+            <span class="text-gray-400 dark:text-gray-500">${e.type}</span>
+        </span>`).join('');
+
+    el.innerHTML = `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span class="whitespace-nowrap font-bold text-gray-600 dark:text-gray-300">📅 휴무 ${staffInfo.onLeaveList.length}명</span>
+        ${chips}
+        ${tail}
+    </div>`;
+};
+
+/** 정직원 + 알바 합계 표시 */
+const paintStaffTotal = () => {
+    const el = document.getElementById('sim-staff-total');
+    if (!el) return;
+    const f = Number(document.getElementById('sim-staff-fulltime')?.value) || 0;
+    const p = Number(document.getElementById('sim-staff-parttimer')?.value) || 0;
+    el.textContent = Math.round(f + p).toLocaleString();
 };
 
 const readSimInputs = () => {
@@ -930,7 +963,7 @@ const renderForecastSummary = () => {
 /** 이 날짜에 저장돼 있는(수기) 작업량 목록 */
 const savedSimEntries = (dateStr) => {
     const saved = getPlannedQuantitiesForDate(dateStr) || {};
-    return SIM_TASKS.filter(t => Number(saved[t.key]) > 0)
+    return SIM_TASKS.filter(t => Object.prototype.hasOwnProperty.call(saved, t.key) && Number.isFinite(Number(saved[t.key])))
                     .map(t => ({ task: t, value: Math.round(Number(saved[t.key])) }));
 };
 
@@ -943,7 +976,7 @@ const updateSavedInfo = (dateStr) => {
         el.innerHTML = `<span class="text-gray-400 dark:text-gray-500">저장된 수기 값 없음 — 자동값으로 계산 중</span>`;
         return;
     }
-    const list = entries.map(e => `${e.task.label} ${e.value.toLocaleString()}`).join(', ');
+    const list = entries.map(e => `${e.task.label} ${e.value > 0 ? e.value.toLocaleString() : '0'}`).join(', ');
     el.innerHTML = `<span class="text-amber-700 dark:text-amber-400 font-bold">💾 저장됨 ${entries.length}개</span>
         <span class="text-gray-400 dark:text-gray-500">— ${list} · '자동값'을 누르기 전까지 유지됩니다.</span>`;
 };
@@ -958,14 +991,12 @@ const saveSimQuantities = async () => {
     const { tasks } = readSimInputs();
     // 이 화면에 없는 업무(예: 해외배송)의 예정 물량은 건드리지 않는다
     const merged = { ...(getPlannedQuantitiesForDate(dateStr) || {}) };
-    SIM_TASKS.forEach(t => {
-        const v = Math.round(Number(tasks[t.key]) || 0);
-        if (v > 0) merged[t.key] = v; else delete merged[t.key];
-    });
+    // 0과 빈칸(=0)도 '그렇게 하기로 한 값'으로 그대로 저장한다.
+    SIM_TASKS.forEach(t => { merged[t.key] = Math.max(0, Math.round(Number(tasks[t.key]) || 0)); });
 
     const btn = document.getElementById('sim-save-btn');
     if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
-    const ok = await savePlannedQuantities(dateStr, merged);
+    const ok = await savePlannedQuantities(dateStr, merged, { keepZeros: true });
     if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
     if (!ok) return;
 
@@ -990,7 +1021,7 @@ ${list}
         if (!confirm(msg)) return;
         const rest = { ...(getPlannedQuantitiesForDate(dateStr) || {}) };
         SIM_TASKS.forEach(t => delete rest[t.key]);
-        const ok = await savePlannedQuantities(dateStr, rest);
+        const ok = await savePlannedQuantities(dateStr, rest, { keepZeros: true });
         if (!ok) return;
     }
     autoFillSimInputs(dateStr);
@@ -1067,6 +1098,9 @@ const setupSimulationListeners = () => {
         el?.addEventListener('input', syncSummary);
         el?.addEventListener('change', syncSummary);
     });
+    ['sim-staff-fulltime', 'sim-staff-parttimer'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', paintStaffTotal);
+    });
 
     // 업무 제외시간은 10분 단위로 스냅하고, 옆에 '1시간 20분'처럼 풀어서 보여준다.
     const exclEl = document.getElementById('sim-exclude-min');
@@ -1108,6 +1142,7 @@ const setupSimulationListeners = () => {
         });
         const resEl = document.getElementById('sim-result-container');
         if (resEl) resEl.innerHTML = '';
+        paintStaffTotal();
         simOverride = null;              // 요약 카드는 자동값 기준으로 되돌린다
         renderForecastSummary();
     });

@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202609030842';
-import * as State from './state.js?v=202609030842';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202609030842';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202609030842';
+import * as DOM from './dom-elements.js?v=202609030859';
+import * as State from './state.js?v=202609030859';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202609030859';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202609030859';
 import { fetchAllHistoryData, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202609030842';
-import { checkMissingQuantities } from './analysis-logic.js?v=202609030842';
-import { renderQuantityModalInputs } from './ui.js?v=202609030842';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609030842';
-import { getAutoQuantitiesForDate } from './ui-history-prediction.js?v=202609030842';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202609030859';
+import { checkMissingQuantities } from './analysis-logic.js?v=202609030859';
+import { renderQuantityModalInputs } from './ui.js?v=202609030859';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609030859';
+import { getAutoQuantitiesForDate } from './ui-history-prediction.js?v=202609030859';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -99,13 +99,15 @@ const buildPlannedGroupHtml = () => {
     const incoming = getIncomingQtyByDateFromCache();
     const items = dates.map(dateStr => {
         const planned = getPlannedQuantitiesForDate(dateStr);
-        const count = Object.keys(planned).length;
-        const hasData = count > 0;
+        // 업무 예상 화면에서 '0으로 저장'한 값도 들어올 수 있다 — 지정 여부(hasData)와
+        // 실제 물량이 있는 개수(count)를 나눠서 본다.
+        const hasData = Object.keys(planned).length > 0;
+        const count = Object.values(planned).filter(v => Number(v) > 0).length;
         const chinaIncoming = Math.round(Number(incoming[dateStr]) || 0);
         const d = new Date(dateStr + 'T00:00:00');
         const wd = isNaN(d.getDay()) ? '' : ` (${days[d.getDay()]})`;
         const rightLabel = hasData
-            ? `<span class="ml-auto text-[10px] text-indigo-500 shrink-0">${count}개 입력</span>`
+            ? `<span class="ml-auto text-[10px] text-indigo-500 shrink-0">${count > 0 ? `${count}개 입력` : '0으로 지정'}</span>`
             : (chinaIncoming > 0
                 ? `<span class="ml-auto text-[10px] text-blue-500 shrink-0">입고 ${chinaIncoming.toLocaleString()}</span>`
                 : `<span class="ml-auto text-[10px] text-gray-400 shrink-0">미입력</span>`);

@@ -571,7 +571,7 @@
                                     <b class="text-rose-600 dark:text-rose-400">오늘 실측</b> › 자동값 순으로 채워집니다.
                                     숫자 아래에 어디서 온 값인지 표시됩니다.
                                     <br>수기로 고친 값은 <b>💾 작업량 저장</b>으로 이 날짜에 보관되며,
-                                    <b>🔄 자동값</b>으로 지우기 전까지 계속 유지됩니다. (0/빈칸은 저장되지 않고 자동값으로 다시 채워집니다)
+                                    <b>🔄 자동값</b>으로 지우기 전까지 계속 유지됩니다. (0·빈칸도 '0'으로 그대로 저장됩니다)
                                 </p>
                             </div>
 
@@ -612,10 +612,16 @@
                                                    text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600 focus:outline-none focus:ring-0">
                                         <div class="mt-1 text-right leading-none"><span id="sim-exclude-hint" class="text-[10px] font-medium text-gray-400 dark:text-gray-500">10분 단위</span></div>
                                     </div>
-                                    <div id="sim-on-leave-info"
-                                         class="col-span-2 sm:col-span-1 rounded-xl bg-gray-50/60 dark:bg-gray-900/20 border border-gray-200/70 dark:border-gray-700/70
-                                                px-3 py-2.5 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed flex items-center">대상일을 고르면 휴무자를 차감해서 자동 표시합니다.</div>
+                                    <div class="rounded-xl border border-gray-200/70 dark:border-gray-700/70 bg-gray-50/60 dark:bg-gray-900/20 px-3 py-2.5 flex flex-col justify-center">
+                                        <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400">가용 합계</div>
+                                        <div class="mt-1 text-right text-[19px] leading-tight font-extrabold tabular-nums text-gray-900 dark:text-white"><span id="sim-staff-total">0</span></div>
+                                        <div class="mt-1 text-right leading-none"><span class="text-[10px] font-medium text-gray-400 dark:text-gray-500">정직원 + 알바</span></div>
+                                    </div>
                                 </div>
+                                <!-- 휴무자 명단은 이름이 중간에서 끊기지 않도록 한 줄 전체를 쓴다 -->
+                                <div id="sim-on-leave-info"
+                                     class="mt-2.5 rounded-xl bg-gray-50/60 dark:bg-gray-900/20 border border-gray-200/70 dark:border-gray-700/70
+                                            px-3 py-2.5 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">대상일을 고르면 휴무자를 차감해서 자동 표시합니다.</div>
                                 <p class="mt-3 text-[11px] text-gray-400 dark:text-gray-500">
                                     가동률 80% · 주중 8h / 주말 4h — 인력 운영 탭과 같은 정책입니다.
                                     <b>업무 제외시간</b>은 1인당 그날 업무시간에서 빼고 계산합니다(10분 단위).

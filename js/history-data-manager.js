@@ -1,6 +1,6 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202609030842';
-import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609030842';
+import * as State from './state.js?v=202609030859';
+import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609030859';
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc,
     query, where, writeBatch, updateDoc, increment, documentId
@@ -89,14 +89,19 @@ export function getPlannedQuantitiesForDate(dateStr) {
 }
 
 // 예정 물량 저장 (문서 전체 교체 — 0으로 지운 항목이 남지 않도록 merge 안 함)
-export async function savePlannedQuantities(dateStr, plannedQuantities) {
+//  keepZeros: 0도 '0으로 하기로 한 값'으로 보고 그대로 저장한다.
+//    업무 예상 화면의 '작업량 저장'이 이 방식이다 — 0을 지워 버리면 다시 자동값이 채워져
+//    "0으로 고쳐 저장했는데 값이 되살아난다"가 된다.
+//    반대로 예정 물량 입력 모달은 빈칸도 0으로 넘겨주므로 기존처럼 0을 버린다.
+export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZeros = false } = {}) {
     if (!State.auth || !State.auth.currentUser) { showToast('로그인이 필요합니다.', true); return false; }
     if (!dateStr) return false;
 
     const clean = {};
     Object.entries(plannedQuantities || {}).forEach(([k, v]) => {
-        const n = Number(v) || 0;
-        if (n > 0) clean[k] = n;
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < 0) return;
+        if (n > 0 || keepZeros) clean[k] = n;
     });
 
     try {
