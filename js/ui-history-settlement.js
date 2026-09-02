@@ -1249,6 +1249,90 @@ function renderOverallOpinionSection(op, periodLabel, workingDaysCount) {
 }
 
 // ============================================================
+// 7-1. 화면 그대로 PDF 저장
+// ------------------------------------------------------------------
+// 엑셀은 숫자만 남고 색·그래프·구성이 사라진다. 보고용으로 그대로 넘기려면
+// 화면 모습 그대로가 필요해서 따로 만든다.
+//
+// ⚠️ 버튼을 전부 지우면 안 된다.
+//    이 화면은 표의 열 제목이 정렬 버튼 안에 들어 있고(sfHead),
+//    파고들기 숫자도 버튼 안에 있다(drillWrap). 통째로 지우면 제목과
+//    숫자가 사라진 종이가 나온다. 조작용만 지우고 나머지는 껍데기만 벗긴다.
+async function downloadSettlementPdf(periodLabel) {
+    if (typeof html2pdf === 'undefined') {
+        alert('PDF 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+        return;
+    }
+    const panel = document.getElementById('settlement-panel');
+    if (!panel) return;
+
+    const btn = document.getElementById('settle-pdf-btn');
+    const btnText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '만드는 중…'; }
+
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:1180px;background:#fff;padding:16px;';
+    const clone = panel.cloneNode(true);
+
+    // 조작용 요소만 걷어낸다
+    clone.querySelectorAll(
+        '[data-html2canvas-ignore], [data-tf-filter], .settle-gran-btn, ' +
+        '#settle-year-select, #settle-sub-select, #settle-generate-btn, ' +
+        '#settle-download-btn, #settle-pdf-btn, input, select'
+    ).forEach(el => el.remove());
+    // 기간 선택 줄 통째로
+    // 'print:hidden' 은 콜론이 들어간 클래스라 CSS 선택자에서 이스케이프가 필요하다.
+    // 헷갈리기 쉬우니 속성 선택자로 찾는다.
+    clone.querySelectorAll('[class*="print:hidden"]').forEach(el => el.remove());
+
+    // 내용이 든 버튼은 지우지 말고 껍데기만 벗긴다
+    clone.querySelectorAll('button').forEach(b => {
+        const span = document.createElement('span');
+        span.innerHTML = b.innerHTML;
+        span.className = (b.className || '').replace(/hover:[^\s]+/g, '');
+        b.replaceWith(span);
+    });
+
+    // 그래프는 캔버스라 복제만으론 빈 사각형이 된다. 픽셀을 옮겨 담는다.
+    const src = panel.querySelectorAll('canvas');
+    const dst = clone.querySelectorAll('canvas');
+    src.forEach((c, i) => {
+        if (!dst[i]) return;
+        const img = document.createElement('img');
+        try { img.src = c.toDataURL('image/png'); } catch (e) { return; }
+        img.style.cssText = `width:${c.clientWidth}px;height:${c.clientHeight}px;`;
+        dst[i].replaceWith(img);
+    });
+
+    // 스크롤 상자를 펼쳐 잘리지 않게 한다
+    clone.querySelectorAll('*').forEach(el => {
+        el.style.maxHeight = 'none';
+        el.style.overflow = 'visible';
+    });
+
+    holder.appendChild(clone);
+    document.body.appendChild(holder);
+
+    const opt = {
+        margin: [8, 8, 8, 8],
+        filename: `팀결산보고_${periodLabel.replace(/[\/:*?"<>|]/g, '')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', windowWidth: 1180 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'], avoid: ['.depth-panel', 'table', 'tr'] }
+    };
+
+    try {
+        await html2pdf().from(holder).set(opt).save();
+    } catch (e) {
+        console.error('결산 PDF 저장 실패:', e);
+        alert('PDF 저장 중 오류가 발생했습니다.');
+    } finally {
+        holder.remove();
+        if (btn) { btn.disabled = false; btn.textContent = btnText; }
+    }
+}
+
 // 7. 엑셀 다운로드
 // ============================================================
 function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, ms, opinion) {
@@ -1342,7 +1426,8 @@ function buildPeriodControlsHtml() {
             </div>
             <div class="flex items-center gap-2">
                 <span id="settle-generated-at" class="text-xs text-gray-400"></span>
-                <button id="settle-download-btn" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition">⬇️ 엑셀 다운로드</button>
+                <button id="settle-download-btn" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition">⬇️ 엑셀</button>
+                <button id="settle-pdf-btn" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition" title="화면 모습 그대로 저장합니다">🖼️ PDF</button>
             </div>
         </div>`;
 }
@@ -1481,6 +1566,9 @@ export function renderSettlementReport(container, appConfig) {
 
     const downloadBtn = container.querySelector('#settle-download-btn');
     if (downloadBtn) downloadBtn.addEventListener('click', () => downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, ms, opinion));
+
+    const pdfBtn = container.querySelector('#settle-pdf-btn');
+    if (pdfBtn) pdfBtn.addEventListener('click', () => downloadSettlementPdf(periodLabel));
 
     attachPeriodControlListeners(container, appConfig);
 }
