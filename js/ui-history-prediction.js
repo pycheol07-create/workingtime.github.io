@@ -3,12 +3,12 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609021409';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609021409';
-import * as State from './state.js?v=202609021409';
-import { getTodayDateString, getRegularMembersForCount } from './utils.js?v=202609021409';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609021409';
-import { getPlannedQuantitiesForDate, fetchPlannedData } from './history-data-manager.js?v=202609021409';
+import { predictFutureTrends } from './analysis-logic.js?v=202609021437';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609021437';
+import * as State from './state.js?v=202609021437';
+import { getTodayDateString, getRegularMembersForCount } from './utils.js?v=202609021437';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609021437';
+import { getPlannedQuantitiesForDate, fetchPlannedData } from './history-data-manager.js?v=202609021437';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백. */
 const getPlanned = (dateStr, taskKey) => {
@@ -37,7 +37,10 @@ const SIM_TASKS = [
     { id: 'sample',   key: '샘플검수', label: '샘플검수', auto: 'china-linked' },
     { id: 'direct',   key: '직진배송', label: '직진배송', auto: 'cadence' },
     { id: 'ably',     key: '에이블리배송', label: '에이블리배송', auto: 'cadence' },
-    { id: 'fill',     key: '채우기',   label: '채우기',   auto: 'cadence' },
+    // 채우기는 요일이나 주기가 아니라 재고 상황에 따라 하는 업무다.
+    // 요일·주기 판정은 '그날은 0' 처럼 딱 떨어지게 잡아 실제와 어긋나므로 쓰지 않고,
+    // 진행 빈도만 반영한다(기간 총량이 맞는 쪽으로).
+    { id: 'fill',     key: '채우기',   label: '채우기',   auto: 'cadence', skip: ['weekday', 'interval'] },
     { id: 'return',   key: '교환반품', label: '교환반품', auto: 'last7' },
     { id: 'full',     key: '전량검수', label: '전량검수', auto: 'last7' },
     { id: 'other',    key: '국내기타', label: '국내기타', auto: 'last7' },
@@ -208,7 +211,7 @@ const workdaysBetween = (c, dateStr) => {
 /** 위 분석을 바탕으로 대상일의 예상 물량을 낸다.
  *  반환 { value, source, detail } — source 는 배지 문구에 그대로 쓰인다.
  */
-const cadenceValueFor = (historyData, taskKey, dateStr) => {
+const cadenceValueFor = (historyData, taskKey, dateStr, skip = []) => {
     const c = analyzeCadence(historyData, taskKey);
     // 표본이 적으면 예전 방식이 그나마 안전하다
     if (!c || c.hits < 3) {
@@ -225,7 +228,7 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
     }
 
     // ② 특정 요일에 몰려 있는가 (그 요일 표본이 3일 이상일 때만 판단)
-    if (w && w.total >= 3) {
+    if (!skip.includes('weekday') && w && w.total >= 3) {
         const pw = w.hit / w.total;
         if (pw >= 0.7) {
             const wdAvg = w.hit >= 2 ? Math.round(w.sum / w.hit) : c.avgQty;
@@ -241,7 +244,7 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
     }
 
     // ③ 며칠에 한 번씩 규칙적으로 하는가
-    if (c.regular && c.lastDate) {
+    if (!skip.includes('interval') && c.regular && c.lastDate) {
         const elapsed = workdaysBetween(c, dateStr);
         // 주기의 '박자'를 맞춰 본다. 마지막 진행일로부터 주기의 배수가 되는 날만 차례다.
         // (elapsed >= medianGap 으로 판단하면 그 뒤로 며칠이든 계속 차례가 되어,
@@ -256,7 +259,8 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
     }
 
     // ④ 그 외 — 발생 빈도만큼 나눠 담는다(기간 총량이 맞도록)
-    const p = (w && w.total >= 3) ? (w.hit / w.total) : c.overallP;
+    // 요일 판정을 끈 업무는 요일별 확률도 쓰지 않는다(전체 빈도로만 본다)
+    const p = (!skip.includes('weekday') && w && w.total >= 3) ? (w.hit / w.total) : c.overallP;
     return { value: Math.round(c.avgQty * p), source: 'cadence-rate',
              detail: `근무일 ${c.sampleDays}일 중 ${c.hits}일 진행 (${Math.round(p * 100)}%)` };
 };
@@ -373,7 +377,7 @@ const autoValueFor = (dateStr, task, historyData) => {
             const v = (china > 0) ? Math.round(computeSampleRatio(historyData) * china) : 0;
             return { value: v, source: 'china-linked' };   // 입고 없는 날은 0(빈칸)
         }
-        case 'cadence':  return cadenceValueFor(historyData, task.key, dateStr);
+        case 'cadence':  return cadenceValueFor(historyData, task.key, dateStr, task.skip || []);
         default:         return { value: computeLast7Avg(historyData, task.key), source: 'last7' };
     }
 };
