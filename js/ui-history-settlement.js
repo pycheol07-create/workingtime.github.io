@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202609021359';
-import { LEAVE_TYPES } from './state.js?v=202609021359';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap } from './utils.js?v=202609021359';
+import * as State from './state.js?v=202609021409';
+import { LEAVE_TYPES } from './state.js?v=202609021409';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap } from './utils.js?v=202609021409';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202609021359';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202609021359';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202609021409';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202609021409';
 
 import {
     calculateReportKPIs,
@@ -19,10 +19,10 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202609021359';
+} from './ui-history-reports-logic.js?v=202609021409';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202609021359';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202609021359';
+import { aggregateManagementData } from './ui-history-management.js?v=202609021409';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202609021409';
 
 // ============================================================
 // 모듈 상태
@@ -789,7 +789,7 @@ function createHorizontalBarChart(canvasId, labels, values, colorHex) {
 function renderExecutiveSummary(core, tp, wf, att, mg, insp, periodLabel, workingDaysCount) {
     if (workingDaysCount === 0) {
         return `
-        <div class="bg-gradient-to-br from-gray-700 to-gray-900 rounded-2xl shadow-md p-6 text-white">
+        <div class="settle-exec bg-gradient-to-br from-gray-700 to-gray-900 rounded-2xl shadow-md p-6 text-white">
             <h2 class="text-xl font-bold mb-1">🧾 ${periodLabel} 팀 결산 보고</h2>
             <p class="text-sm text-gray-300">해당 기간에 업무 기록이 없어 요약할 내용이 없습니다.</p>
         </div>`;
@@ -1352,7 +1352,40 @@ async function downloadSettlementPdf(periodLabel) {
     // 캡처할 영역을 픽셀로 못 박는다. 요소 위치로 알아서 잡게 두면
     // 창 크기·스크롤에 따라 좌우가 잘린다.
     const capW = Math.ceil(holder.scrollWidth);
-    const capH = Math.ceil(holder.scrollHeight);
+
+    // 한 섹션이 두 쪽으로 갈리지 않게 한다.
+    //
+    // html2pdf 의 pagebreak.avoid 는 이 방식(화면을 통째로 그림으로 떠서 일정 높이로
+    // 자르는 방식)에서는 듣지 않는다. 실제로 걸어 봤지만 섹션이 그대로 갈렸다.
+    // 그래서 자를 자리를 직접 계산해, 걸치는 섹션 앞에 빈 칸을 넣어 다음 장으로 민다.
+    //
+    //   A4 가로 297x210mm, 위아래 여백 8mm → 한 쪽에 쓸 수 있는 높이 194mm
+    //   가로 297-16=281mm 가 capW 픽셀에 대응하므로 1px = 281/capW mm
+    const pageH = Math.floor(194 / (281 / capW));
+    const holderTop = holder.getBoundingClientRect().top;
+    let pushed = 0, tooTall = 0;
+
+    holder.querySelectorAll('section, .settle-exec').forEach(el => {
+        const r = el.getBoundingClientRect();
+        const top = r.top - holderTop;
+        const h = r.height;
+        if (h > pageH) { tooTall++; return; }        // 한 쪽보다 큰 섹션은 어쩔 수 없다
+        const startPage = Math.floor(top / pageH);
+        const endPage = Math.floor((top + h - 1) / pageH);
+        if (startPage === endPage) return;           // 이미 한 쪽에 들어간다
+
+        const gap = (startPage + 1) * pageH - top;   // 다음 장 머리까지 밀어낸다
+        const spacer = document.createElement('div');
+        spacer.style.cssText = `height:${gap}px;`;
+        el.parentNode.insertBefore(spacer, el);
+        pushed++;
+    });
+    if (pushed || tooTall) {
+        console.info(`결산 PDF: ${pushed}개 섹션을 다음 장으로 밀었습니다.`
+            + (tooTall ? ` (${tooTall}개는 한 쪽 ${pageH}px 보다 커서 나뉩니다)` : ''));
+    }
+
+    const capH = Math.ceil(holder.scrollHeight);   // 빈 칸을 넣은 뒤의 최종 높이
 
     const opt = {
         margin: [8, 8, 8, 8],
@@ -1363,8 +1396,8 @@ async function downloadSettlementPdf(periodLabel) {
             scrollX: 0, scrollY: 0,
             width: capW, height: capH, windowWidth: capW, windowHeight: capH
         },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'], avoid: ['.depth-panel', 'table', 'tr'] }
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: [] }   // 자를 자리는 위에서 직접 맞췄다
     };
 
     try {

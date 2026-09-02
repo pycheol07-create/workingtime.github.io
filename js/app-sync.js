@@ -1,13 +1,13 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202609021359';
-import { isPersistentLeaveType } from './state.js?v=202609021359';
-import * as DOM from './dom-elements.js?v=202609021359';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202609021359';
+import * as State from './state.js?v=202609021409';
+import { isPersistentLeaveType } from './state.js?v=202609021409';
+import * as DOM from './dom-elements.js?v=202609021409';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202609021409';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202609021359';
-import { renderTodoList } from './inspection-logic.js?v=202609021359';
-import { renderNotificationList } from './app-notifications.js?v=202609021359';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202609021409';
+import { renderTodoList } from './inspection-logic.js?v=202609021409';
+import { renderNotificationList } from './app-notifications.js?v=202609021409';
 
 let unsubLeave = null;
 let unsubConfig = null;

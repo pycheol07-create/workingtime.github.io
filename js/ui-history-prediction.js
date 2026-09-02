@@ -3,12 +3,12 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609021359';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609021359';
-import * as State from './state.js?v=202609021359';
-import { getTodayDateString, getRegularMembersForCount } from './utils.js?v=202609021359';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609021359';
-import { getPlannedQuantitiesForDate, fetchPlannedData } from './history-data-manager.js?v=202609021359';
+import { predictFutureTrends } from './analysis-logic.js?v=202609021409';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609021409';
+import * as State from './state.js?v=202609021409';
+import { getTodayDateString, getRegularMembersForCount } from './utils.js?v=202609021409';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609021409';
+import { getPlannedQuantitiesForDate, fetchPlannedData } from './history-data-manager.js?v=202609021409';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백. */
 const getPlanned = (dateStr, taskKey) => {
