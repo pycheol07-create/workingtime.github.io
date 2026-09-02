@@ -1270,9 +1270,29 @@ async function downloadSettlementPdf(periodLabel) {
     const btnText = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = '만드는 중…'; }
 
+    // ⚠️ 임시 상자는 반드시 '문서 흐름 안'에 있어야 한다.
+    //    position 을 fixed/absolute 로 두면 html2pdf 가 높이를 0 으로 재고
+    //    빈 종이가 나온다(실측: 캔버스 794x0). 흐름에 둔 채로 감추려고
+    //    높이 0 · overflow hidden 인 껍데기에 넣는다. 화면에는 보이지 않는다.
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'height:0;overflow:hidden;';
+
     const holder = document.createElement('div');
-    holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:1180px;background:#fff;padding:16px;';
+    holder.id = 'settle-pdf-holder';
+    holder.style.cssText = 'width:1180px;height:auto;background:#fff;padding:16px;overflow:visible;';
+    holder.innerHTML = `<style>
+        #settle-pdf-holder * { overflow: visible !important; max-height: none !important;
+                               scrollbar-width: none !important; }
+        #settle-pdf-holder .depth-panel, #settle-pdf-holder table { page-break-inside: avoid; }
+        #settle-pdf-holder tr { page-break-inside: avoid; }
+    </style>`;
     const clone = panel.cloneNode(true);
+
+    // ⚠️ 원본 패널은 'flex-1 h-full' 로 부모 높이를 따라간다.
+    //    높이 기준이 없는 임시 상자에 그대로 넣으면 높이가 0 이 되어 빈 종이가 나온다.
+    //    복제본은 흐름대로 쌓이도록 되돌린다.
+    clone.classList.remove('hidden', 'flex-1', 'h-full', 'overflow-y-auto', 'overflow-hidden', 'absolute', 'inset-0');
+    clone.style.cssText = 'display:block;position:static;width:100%;height:auto;max-height:none;overflow:visible;';
 
     // 조작용 요소만 걷어낸다
     clone.querySelectorAll(
@@ -1304,14 +1324,19 @@ async function downloadSettlementPdf(periodLabel) {
         dst[i].replaceWith(img);
     });
 
-    // 스크롤 상자를 펼쳐 잘리지 않게 한다
+    // 스크롤 상자를 펼치고, 화면에 겹쳐 놓기 위한 배치를 흐름 배치로 되돌린다.
+    // (남겨 두면 서로 겹쳐 그려지거나 높이가 0 이 된다)
     clone.querySelectorAll('*').forEach(el => {
+        el.classList.remove('h-full', 'h-screen', 'overflow-y-auto', 'overflow-x-auto', 'overflow-auto', 'sticky');
         el.style.maxHeight = 'none';
         el.style.overflow = 'visible';
+        const pos = getComputedStyle(el).position;
+        if (pos === 'fixed' || pos === 'sticky' || pos === 'absolute') el.style.position = 'static';
     });
 
     holder.appendChild(clone);
-    document.body.appendChild(holder);
+    wrap.appendChild(holder);
+    document.body.appendChild(wrap);
 
     const opt = {
         margin: [8, 8, 8, 8],
@@ -1323,12 +1348,16 @@ async function downloadSettlementPdf(periodLabel) {
     };
 
     try {
+        // 여기서 높이가 0 이면 빈 종이가 나온다. 저장하기 전에 잡아낸다.
+        if (holder.scrollHeight < 50) {
+            throw new Error('내용 높이를 계산하지 못했습니다 (' + holder.scrollHeight + 'px)');
+        }
         await html2pdf().from(holder).set(opt).save();
     } catch (e) {
         console.error('결산 PDF 저장 실패:', e);
         alert('PDF 저장 중 오류가 발생했습니다.');
     } finally {
-        holder.remove();
+        wrap.remove();
         if (btn) { btn.disabled = false; btn.textContent = btnText; }
     }
 }
