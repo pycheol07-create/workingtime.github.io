@@ -1,23 +1,23 @@
 // === js/app.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule } from './config.js?v=202609021437';
-import { displayCurrentDate, showToast } from './utils.js?v=202609021437';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202609021437';
-import { initializeAppListeners } from './app-listeners.js?v=202609021437';
-import * as DOM from './dom-elements.js?v=202609021437';
-import * as State from './state.js?v=202609021437';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202609021437';
-import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202609021437';
-import { setupWeekendListeners } from './listeners-weekend.js?v=202609021437';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule } from './config.js?v=202609030842';
+import { displayCurrentDate, showToast } from './utils.js?v=202609030842';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202609030842';
+import { initializeAppListeners } from './app-listeners.js?v=202609030842';
+import * as DOM from './dom-elements.js?v=202609030842';
+import * as State from './state.js?v=202609030842';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202609030842';
+import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202609030842';
+import { setupWeekendListeners } from './listeners-weekend.js?v=202609030842';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202609021437';
-import { setupNotificationListeners } from './app-notifications.js?v=202609021437';
-import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202609021437';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=202609021437';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=202609021437';
-import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202609021437';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202609030842';
+import { setupNotificationListeners } from './app-notifications.js?v=202609030842';
+import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202609030842';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=202609030842';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=202609030842';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202609030842';
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
