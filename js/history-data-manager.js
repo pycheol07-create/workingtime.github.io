@@ -1,6 +1,6 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202609031018';
-import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609031018';
+import * as State from './state.js?v=202609031021';
+import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609031021';
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc,
     query, where, writeBatch, updateDoc, increment, documentId
@@ -88,6 +88,13 @@ export function getPlannedQuantitiesForDate(dateStr) {
     return (rec && rec.plannedQuantities) ? rec.plannedQuantities : {};
 }
 
+// 특정 날짜의 업무 제외시간(분). 저장한 적 없으면 null
+export function getPlannedExcludeMinutesForDate(dateStr) {
+    const rec = (State.plannedData || []).find(d => d.id === dateStr);
+    const v = Number(rec?.plannedExcludeMinutes);
+    return Number.isFinite(v) && v >= 0 ? Math.round(v) : null;
+}
+
 // 특정 날짜의 '시간으로 잡는 업무' 계획 (없으면 {})
 //   { '개인담당업무': { minutes: 180, workers: 2 } } — 처리량이 없는 업무를 투입시간으로 저장한다.
 export function getPlannedTimeTasksForDate(dateStr) {
@@ -102,7 +109,8 @@ export function getPlannedTimeTasksForDate(dateStr) {
 //    반대로 예정 물량 입력 모달은 빈칸도 0으로 넘겨주므로 기존처럼 0을 버린다.
 //  timeTasks: '시간으로 잡는 업무'({ 업무명: {minutes, workers} }). 넘기지 않으면 기존 값을 그대로 둔다
 //    (예정 물량 모달은 물량만 다루므로, 그 저장이 담당업무 시간을 지우면 안 된다).
-export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZeros = false, timeTasks = null } = {}) {
+//  excludeMinutes: 업무 제외시간(분). null이면 기존 값 유지, -1이면 지운다
+export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZeros = false, timeTasks = null, excludeMinutes = null } = {}) {
     if (!State.auth || !State.auth.currentUser) { showToast('로그인이 필요합니다.', true); return false; }
     if (!dateStr) return false;
 
@@ -122,15 +130,25 @@ export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZe
         cleanTime[k] = { minutes: m, workers: Math.max(1, Math.round(Number(v?.workers) || 1)) };
     });
 
+    // 제외시간: 넘기지 않으면(null) 기존 값 유지, -1이면 삭제
+    let cleanExclude = getPlannedExcludeMinutesForDate(dateStr);
+    if (excludeMinutes != null) {
+        const n = Math.round(Number(excludeMinutes));
+        cleanExclude = (Number.isFinite(n) && n >= 0) ? n : null;
+    }
+
     try {
-        await setDoc(doc(plannedColRef(), dateStr), {
+        const payload = {
             plannedQuantities: clean,
             plannedTimeTasks: cleanTime,
             updatedAt: getCurrentTime(),
             updatedBy: State.appState?.currentUser || 'unknown'
-        });
+        };
+        if (cleanExclude != null) payload.plannedExcludeMinutes = cleanExclude;
+        await setDoc(doc(plannedColRef(), dateStr), payload);
 
         const rec = { id: dateStr, plannedQuantities: clean, plannedTimeTasks: cleanTime };
+        if (cleanExclude != null) rec.plannedExcludeMinutes = cleanExclude;
         const idx = (State.plannedData || []).findIndex(d => d.id === dateStr);
         if (idx > -1) State.plannedData[idx] = rec;
         else { State.plannedData.push(rec); State.plannedData.sort((a, b) => a.id.localeCompare(b.id)); }

@@ -3,12 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609031018';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609031018';
-import * as State from './state.js?v=202609031018';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609031018';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609031018';
-import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609031018';
+import { predictFutureTrends } from './analysis-logic.js?v=202609031021';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609031021';
+import * as State from './state.js?v=202609031021';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609031021';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609031021';
+import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609031021';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -711,8 +712,25 @@ const autoFillSimInputs = (dateStr) => {
     const staffInfo = computeAvailableStaff(dateStr, config, State.persistentLeaveSchedule, data);
     const elStaff = document.getElementById('sim-staff-fulltime');
     if (elStaff) elStaff.value = staffInfo.available;
+    // 이 날짜에 저장해 둔 업무 제외시간이 있으면 그 값으로 (없으면 비운다)
+    const exEl = document.getElementById('sim-exclude-min');
+    if (exEl) {
+        const savedEx = getPlannedExcludeMinutesForDate(dateStr);
+        exEl.value = (savedEx != null && savedEx > 0) ? savedEx : '';
+    }
+    paintExcludeHint();
+
     renderLeaveInfo(staffInfo);
     paintStaffTotal();
+};
+
+/** 제외시간 옆 안내 문구 ('1시간 20분 차감') */
+const paintExcludeHint = () => {
+    const hint = document.getElementById('sim-exclude-hint');
+    if (!hint) return;
+    const m = readExcludeMinutes();
+    const saved = getPlannedExcludeMinutesForDate(document.getElementById('sim-target-date')?.value);
+    hint.textContent = m > 0 ? `${fmtMin(m)} 차감${saved != null && saved === m ? ' · 저장됨' : ''}` : '10분 단위';
 };
 
 /** 휴무자 명단 — 이름과 종류를 한 덩어리(칩)로 묶어 줄바꿈이 이름 사이를 끊지 않게 한다.
@@ -892,7 +910,7 @@ const runSimulation = () => {
         const staffInfo = computeAvailableStaff(d, cfg, State.persistentLeaveSchedule, State.allHistoryData);
         const dayInputs = { tasks: autoTasks, timeTasks: autoTimeTasks,
                             staffFulltime: staffInfo.available, staffPart: baseInputs.staffPart,
-                            excludeMinutes: baseInputs.excludeMinutes };
+                            excludeMinutes: getPlannedExcludeMinutesForDate(d) ?? baseInputs.excludeMinutes };
         return simulateOneDay(d, dayInputs, taskUPH, cfg);
     });
 
@@ -1120,6 +1138,9 @@ const renderSimResult = (results, taskUPH, mode) => {
 const computeAutoInputsForDate = (dateStr, excludeMinutes = 0) => {
     const data = State.allHistoryData;
     const cfg = State.appConfig;
+    // 그 날짜에 저장해 둔 제외시간이 있으면 그 값이 우선
+    const savedEx = getPlannedExcludeMinutesForDate(dateStr);
+    if (savedEx != null) excludeMinutes = savedEx;
     // 우선순위: 예정 물량(수기 입력) > 업무별 자동값
     const tasks = {};
     SIM_TASKS.forEach(t => { tasks[t.key] = autoQtyFor(dateStr, t, data); });
@@ -1290,7 +1311,11 @@ const savedSimEntries = (dateStr) => {
         .map(t => ({ t, v: getPlannedTime(dateStr, t.key) }))
         .filter(x => x.v)
         .map(x => ({ task: x.t, value: x.v.minutes, kind: 'time' }));
-    return [...qty, ...time];
+    const ex = getPlannedExcludeMinutesForDate(dateStr);
+    const extra = (ex != null && ex > 0)
+        ? [{ task: { label: '업무 제외시간' }, value: ex, kind: 'time' }]
+        : [];
+    return [...qty, ...time, ...extra];
 };
 
 /** 저장 목록 한 줄 표기 — 시간형은 '분'으로 */
@@ -1335,7 +1360,9 @@ const saveSimQuantities = async () => {
                               workers: Math.max(1, Math.round(Number(e.workers) || 1)) };
     });
 
-    const ok = await savePlannedQuantities(dateStr, merged, { keepZeros: true, timeTasks: mergedTime });
+    const excl = readExcludeMinutes();
+    const ok = await savePlannedQuantities(dateStr, merged,
+        { keepZeros: true, timeTasks: mergedTime, excludeMinutes: excl > 0 ? excl : -1 });
     if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
     if (!ok) return;
 
@@ -1362,7 +1389,7 @@ ${list}
         SIM_TASKS.forEach(t => delete rest[t.key]);
         const restTime = { ...(getPlannedTimeTasksForDate(dateStr) || {}) };
         SIM_TIME_TASKS.forEach(t => delete restTime[t.key]);
-        const ok = await savePlannedQuantities(dateStr, rest, { keepZeros: true, timeTasks: restTime });
+        const ok = await savePlannedQuantities(dateStr, rest, { keepZeros: true, timeTasks: restTime, excludeMinutes: -1 });
         if (!ok) return;
     }
     autoFillSimInputs(dateStr);
@@ -1446,19 +1473,13 @@ const setupSimulationListeners = () => {
 
     // 업무 제외시간은 10분 단위로 스냅하고, 옆에 '1시간 20분'처럼 풀어서 보여준다.
     const exclEl = document.getElementById('sim-exclude-min');
-    const exclHint = document.getElementById('sim-exclude-hint');
-    const paintExcl = () => {
-        if (!exclHint) return;
-        const m = readExcludeMinutes();
-        exclHint.textContent = m > 0 ? `${fmtMin(m)} 차감` : '10분 단위';
-    };
-    exclEl?.addEventListener('input', paintExcl);
+    exclEl?.addEventListener('input', paintExcludeHint);
     exclEl?.addEventListener('change', () => {
         const m = readExcludeMinutes();
-        if (exclEl.value !== '' ) exclEl.value = m > 0 ? m : '';
-        paintExcl();
+        if (exclEl.value !== '') exclEl.value = m > 0 ? m : '';
+        paintExcludeHint();
     });
-    paintExcl();
+    paintExcludeHint();
 
     // 중국제작 수량을 직접 고치면 샘플검수도 그 비율로 다시 계산한다.
     // 단, 예정 물량에 샘플검수를 수기로 넣어둔 날은 그 값을 덮지 않는다.
