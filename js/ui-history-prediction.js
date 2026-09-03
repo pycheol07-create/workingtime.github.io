@@ -3,12 +3,12 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609031007';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609031007';
-import * as State from './state.js?v=202609031007';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609031007';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609031007';
-import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609031007';
+import { predictFutureTrends } from './analysis-logic.js?v=202609031018';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609031018';
+import * as State from './state.js?v=202609031018';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609031018';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609031018';
+import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609031018';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -948,7 +948,7 @@ const renderSimResult = (results, taskUPH, mode) => {
                     </div>
                 </td>
                 <td class="py-2 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300"
-                    title="가용 인원 ${r.availableTotal}명이 이 업무에만 붙었을 때 실제로 걸리는 시간">${(v.uph > 0 && r.availableTotal > 0) ? fmtHM(v.elapsed) : '—'}</td>
+                    title="물량 업무에 투입되는 ${r.qtyStaff.toFixed(1)}명이 이 업무에만 붙었을 때 걸리는 시간${r.timeHours > 0 ? ` (가용 ${r.availableTotal}명 − 담당 업무에 묶인 ${r.tiedFTE.toFixed(1)}명)` : ''}">${(v.uph > 0 && r.qtyStaff > 0) ? fmtHM(v.elapsed) : '—'}</td>
             </tr>`;
         }).filter(Boolean).join('');
 
@@ -971,7 +971,7 @@ const renderSimResult = (results, taskUPH, mode) => {
                     </div>
                 </td>
                 <td class="py-2 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300"
-                    title="담당 ${v.workers}명이 붙어 있는 실제 시간">${fmtHM(v.elapsed)}</td>
+                    title="담당 ${v.workers}명이 ${v.minutes}분(인시 ${fmtH(v.hours)})을 나눠 할 때 붙어 있는 시간">${fmtHM(v.elapsed)}</td>
             </tr>`;
         }).filter(Boolean).join('');
 
@@ -1008,7 +1008,10 @@ const renderSimResult = (results, taskUPH, mode) => {
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     ${stat('총 소요시간', fmtHM(r.totalHours), '모든 업무의 인시(사람×시간) 합계')}
                     ${stat('실 소요시간', r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—',
-                           r.availableTotal > 0 ? `가용 ${r.availableTotal}명이 함께 할 때 실제 걸리는 시간` : '가용 인원을 입력하세요',
+                           r.availableTotal <= 0 ? '가용 인원을 입력하세요'
+                             : (r.elapsedCappedByTimeTask
+                                 ? `담당 업무가 끝나는 시간 (물량 업무는 ${r.qtyStaff.toFixed(1)}명이 ${fmtHM(r.qtyElapsed)})`
+                                 : `물량 업무에 투입되는 ${r.qtyStaff.toFixed(1)}명이 함께 할 때 걸리는 시간`),
                            'text-indigo-600 dark:text-indigo-300')}
                     ${stat(slackPositive ? '남는 시간' : '초과 시간', slackLabel,
                            `업무시간 ${fmtHM(r.netDailyHours)} 기준${r.excludeMinutes > 0 ? ` (제외 ${fmtMin(r.excludeMinutes)} 반영)` : ''}`,
@@ -1032,7 +1035,7 @@ const renderSimResult = (results, taskUPH, mode) => {
                                     <th class="py-2.5 px-3 text-right font-bold">수량 (개)</th>
                                     <th class="py-2.5 px-3 text-right font-bold">기준 UPH</th>
                                     <th class="py-2.5 px-3 text-right font-bold" title="이 업무에 들어가는 인시(사람×시간) 합계입니다.">총 소요시간</th>
-                                    <th class="py-2.5 px-3 text-right font-bold" title="가용 인원이 전부 붙었을 때 실제로 흘러가는 시간입니다.">실 소요시간</th>
+                                    <th class="py-2.5 px-3 text-right font-bold" title="실제로 흘러가는 시간입니다. 물량 업무는 담당 업무에 묶인 인원을 뺀 '투입 인원' 기준, 담당 업무는 그 업무의 동시 인원 기준입니다.">실 소요시간</th>
                                 </tr>
                             </thead>
                             <tbody>${(rows + timeRows) || '<tr><td colspan="5" class="py-6 text-center text-gray-400">입력된 작업량이 없습니다.</td></tr>'}</tbody>
@@ -1094,7 +1097,7 @@ const renderSimResult = (results, taskUPH, mode) => {
                                 <tr>
                                     <th class="py-2.5 px-3 text-left font-bold">일자</th>
                                     <th class="py-2.5 px-3 text-right font-bold" title="인시(사람×시간) 합계">총 소요시간</th>
-                                    <th class="py-2.5 px-3 text-right font-bold" title="가용 인원이 전부 붙었을 때 실제 걸리는 시간">실 소요시간</th>
+                                    <th class="py-2.5 px-3 text-right font-bold" title="실제로 흘러가는 시간 — 담당 업무에 묶인 인원을 뺀 인원으로 물량 업무를 끝내는 시간과, 담당 업무가 끝나는 시간 중 더 긴 쪽">실 소요시간</th>
                                     <th class="py-2.5 px-3 text-right font-bold" title="정규 업무시간 대비 남는(+) / 초과(-) 시간">남는 시간</th>
                                     <th class="py-2.5 px-3 text-right font-bold">필요</th>
                                     <th class="py-2.5 px-3 text-right font-bold">가용</th>
@@ -1198,7 +1201,7 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
                 <div class="text-[13px] font-extrabold text-gray-800 dark:text-gray-100 mt-0.5 tabular-nums">${fmtHM(r.totalHours)}</div>
             </div>
             <div class="rounded-lg bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 px-2 py-1.5"
-                 title="가용 ${r.availableTotal}명이 함께 했을 때 실제로 걸리는 시간">
+                 title="실제로 흘러가는 시간 — 물량 업무는 담당 업무에 묶인 인원(${r.tiedFTE.toFixed(1)}명)을 뺀 ${r.qtyStaff.toFixed(1)}명 기준이고, 담당 업무가 더 오래 걸리면 그 시간을 씁니다">
                 <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500">실 소요시간</div>
                 <div class="text-[13px] font-extrabold text-indigo-600 dark:text-indigo-300 mt-0.5 tabular-nums">${r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—'}</div>
             </div>
