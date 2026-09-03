@@ -503,10 +503,11 @@
 
                 <!-- 헤더 -->
                 <div class="sticky top-0 z-20 bg-white/85 dark:bg-gray-900/85 backdrop-blur border-b border-gray-200 dark:border-gray-800">
-                    <div class="max-w-6xl mx-auto w-full px-4 md:px-6 py-4 flex flex-wrap items-center justify-between gap-3">
-                        <div class="min-w-0">
+                    <!-- 아래 본문과 같은 폭·여백을 써서 제목이 콘텐츠 왼쪽 끝에 맞도록 한다 -->
+                    <div class="max-w-[1700px] mx-auto w-full px-4 md:px-6 py-3.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                        <div class="min-w-0 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
                             <h3 class="text-lg md:text-xl font-extrabold tracking-tight text-gray-900 dark:text-white">업무 예상</h3>
-                            <p class="text-[11px] md:text-xs text-gray-500 dark:text-gray-400 mt-0.5">작업량 대비 필요·가용 인원을 예측합니다</p>
+                            <p class="text-[11px] md:text-xs text-gray-500 dark:text-gray-400">작업량 대비 필요·가용 인원을 예측합니다</p>
                         </div>
                         <button id="forecast-refresh-btn"
                             class="shrink-0 text-xs font-bold px-3.5 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600

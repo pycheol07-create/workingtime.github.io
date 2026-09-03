@@ -1,12 +1,12 @@
 // === js/admin-todo-logic.js ===
-import * as State from './state.js?v=202609031039';
-import * as DOM from './dom-elements.js?v=202609031039';
-import { showToast } from './utils.js?v=202609031039';
+import * as State from './state.js?v=202609031051';
+import * as DOM from './dom-elements.js?v=202609031051';
+import { showToast } from './utils.js?v=202609031051';
 import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202609031039';
+import { initializeFirebase } from './config.js?v=202609031051';
 
 // 🔥 [신규] 멘션 발송을 위해 알림 함수 가져오기
-import { sendNotification } from './app-notifications.js?v=202609031039';
+import { sendNotification } from './app-notifications.js?v=202609031051';
 
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
