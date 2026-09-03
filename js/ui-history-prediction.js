@@ -3,12 +3,12 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609030922';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609030922';
-import * as State from './state.js?v=202609030922';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609030922';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609030922';
-import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609030922';
+import { predictFutureTrends } from './analysis-logic.js?v=202609030945';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609030945';
+import * as State from './state.js?v=202609030945';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609030945';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609030945';
+import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609030945';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -56,12 +56,67 @@ const SIM_GROUPS = [
 ];
 
 // ⏳ '시간으로 잡는 업무' — 처리량(개수)이 없고 얼마나 오래 붙어 있었나로만 남는 업무.
-//    UPH를 낼 수 없으므로 수량 대신 '투입시간(분)'으로 넣고, 그 시간을 총 소요시간에 그대로 더한다.
-//    자동값은 실적(workRecords)의 최근 4주 근무일 1일 평균 투입시간.
-//    ※ 여기에 업무명을 추가하면 입력칸·자동값·저장이 모두 따라온다.
-const SIM_TIME_TASKS = [
-    { id: 'personal', key: '개인담당업무', label: '개인담당업무' }
-];
+//    UPH를 낼 수 없으므로 수량 대신 '투입시간(분)'으로 넣고, 그 시간을 총 소요시간에 더한다.
+//    목록을 코드에 박지 않고, 실제 업무 기록에서 '자주·오래 하는 순서'로 뽑는다.
+//    (관리자 설정에 simTimeTasks 배열이 있으면 그 목록을 그대로 쓴다)
+let SIM_TIME_TASKS = [];
+
+const TIME_TASK_MAX = 6;              // 화면에 세울 최대 항목 수
+const TIME_TASK_MIN_AVG_MIN = 10;     // 근무일 1일 평균 10분 미만이면 뺀다(잡음 제거)
+// 근태로 이미 가용 인원에서 빠지는 항목 · 시뮬레이션 대상이 아닌 항목
+const TIME_TASK_EXCLUDE = new Set(['매장근무', '출장', '연차', '휴직', '결근', '교육']);
+
+/** 업무 기록에서 시간형 업무 후보를 뽑는다 — 수량으로 잡히는 업무는 제외(그쪽은 UPH로 계산). */
+const buildTimeTaskList = (historyData, appConfig, windowDays = 56) => {
+    const manual = appConfig?.simTimeTasks;
+    const qtyKeys = new Set([
+        ...SIM_TASKS.map(t => t.key),
+        ...(appConfig?.quantityTaskTypes || [])
+    ]);
+
+    const toEntry = (key, i) => ({ id: `tt${i}`, key, label: key });
+    if (Array.isArray(manual) && manual.length > 0) {
+        return manual.filter(k => k && !qtyKeys.has(k)).slice(0, TIME_TASK_MAX).map(toEntry);
+    }
+
+    const today = getTodayDateString();
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - windowDays);
+    const cutoffStr = ymd(cutoff);
+    const days = (historyData || [])
+        .filter(d => d && typeof d.id === 'string' && d.id >= cutoffStr && d.id <= today)
+        .filter(d => (d.workRecords || []).length > 0);
+    if (days.length === 0) return [];
+
+    // 업무별 총 투입시간 · 진행 일수
+    const agg = new Map();
+    days.forEach(d => {
+        const seen = new Set();
+        (d.workRecords || []).forEach(r => {
+            const key = r && r.task;
+            if (!key || qtyKeys.has(key) || TIME_TASK_EXCLUDE.has(key)) return;
+            const cur = agg.get(key) || { minutes: 0, days: 0 };
+            cur.minutes += Number(r.duration) || 0;
+            if (!seen.has(key)) { cur.days += 1; seen.add(key); }
+            agg.set(key, cur);
+        });
+    });
+
+    return [...agg.entries()]
+        .map(([key, v]) => ({ key, avg: v.minutes / days.length, days: v.days, minutes: v.minutes }))
+        .filter(x => x.avg >= TIME_TASK_MIN_AVG_MIN)
+        .sort((a, b) => b.minutes - a.minutes)      // 오래 걸리는 업무부터
+        .slice(0, TIME_TASK_MAX)
+        .map((x, i) => toEntry(x.key, i));
+};
+
+/** 시간형 업무 목록 갱신. 목록이 바뀌면 true (입력칸을 다시 그려야 한다) */
+const refreshTimeTasks = () => {
+    const next = buildTimeTaskList(State.allHistoryData, State.appConfig);
+    const sig = (arr) => arr.map(t => t.key).join('|');
+    if (sig(next) === sig(SIM_TIME_TASKS)) return false;
+    SIM_TIME_TASKS = next;
+    return true;
+};
 
 /** 저장해 둔 시간형 업무 값(수기). 없으면 null → 실적 평균으로 폴백 */
 const getPlannedTime = (dateStr, taskKey) => {
@@ -482,9 +537,10 @@ const markSourceBadge = (task, source, detail = '') => {
     const el = document.getElementById(`sim-src-${task.id}`);
     if (!el) return;
     const b = SOURCE_BADGE[source] || SOURCE_BADGE.last7;
+    const base = 'w-[74px] shrink-0 text-right text-[10px] truncate';   // 줄 레이아웃 유지
     el.className = b.muted
-        ? 'text-[10px] font-medium text-gray-400 dark:text-gray-500'
-        : `text-[10px] font-bold px-1.5 py-0.5 rounded-md ${b.cls}`;
+        ? `${base} font-medium text-gray-400 dark:text-gray-500`
+        : `${base} font-bold rounded-md ${b.cls}`;
     el.textContent = b.text;
     // 왜 그 값이 나왔는지(예: '월요일엔 7/8회 진행')를 함께 보여준다.
     // 0 이 들어간 칸을 보고 고장으로 오해하지 않도록 근거가 필요하다.
@@ -495,70 +551,68 @@ ${detail}` : b.tip;
 
 /** 작업량 입력 칸을 SIM_TASKS로부터 만든다.
  *  성격별(출고 / 입고·제작 / 그 외)로 구획을 나눠 한눈에 구분되게 한다. */
+/** 작업량 입력 목록 — 카드 대신 '한 줄에 한 업무'인 표 형태로 촘촘하게 세운다.
+ *  (카드 10여 개가 격자로 흩어져 있으면 어느 업무가 얼마인지 훑기 어렵다)
+ *  줄 구성:  업무명 ........ [입력] 개 · 값 출처
+ */
 const renderSimTaskInputs = () => {
     const host = document.getElementById('sim-task-list');
-    if (!host || host.dataset.built === 'true') return;
+    if (!host) return;
+    const sig = SIM_TIME_TASKS.map(t => t.key).join('|');
+    if (host.dataset.built === 'true' && host.dataset.timeSig === sig) return;
     host.dataset.built = 'true';
+    host.dataset.timeSig = sig;
 
-    const cell = (t) => `
-        <div id="sim-row-${t.id}" data-row-id="${t.id}"
-             class="pred-sim-row rounded-xl border border-gray-200/70 dark:border-gray-700/70 bg-gray-50/60 dark:bg-gray-900/20 px-3 py-2.5
-                    transition hover:border-gray-300 dark:hover:border-gray-600
-                    focus-within:bg-white dark:focus-within:bg-gray-800 focus-within:border-indigo-400 dark:focus-within:border-indigo-500
-                    focus-within:ring-2 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-900/40">
-            <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 truncate" title="${t.label}">${t.label}</div>
-            <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric"
-                   class="w-full bg-transparent border-0 p-0 mt-1 text-right text-[19px] leading-tight font-extrabold tabular-nums
-                          text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600
-                          focus:outline-none focus:ring-0">
-            <div class="mt-1 text-right leading-none">
-                <span id="sim-src-${t.id}" class="text-[10px] font-medium text-gray-400 dark:text-gray-500">지난 7회 평균</span>
-            </div>
+    const ROW = `flex items-center gap-2 px-2.5 py-1.5 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0
+                 transition hover:bg-gray-50 dark:hover:bg-gray-900/30
+                 focus-within:bg-indigo-50/50 dark:focus-within:bg-indigo-900/20`;
+    const NUM = `w-20 bg-transparent border-0 border-b border-transparent p-0 text-right text-[15px] leading-tight font-extrabold tabular-nums
+                 text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600
+                 focus:outline-none focus:ring-0 focus:border-indigo-400`;
+
+    const row = (t) => `
+        <div id="sim-row-${t.id}" data-row-id="${t.id}" class="pred-sim-row ${ROW}">
+            <span class="flex-1 min-w-0 truncate text-[12px] font-bold text-gray-600 dark:text-gray-300" title="${t.label}">${t.label}</span>
+            <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric" class="${NUM}">
+            <span class="w-4 text-[10px] text-gray-400 dark:text-gray-500">개</span>
+            <span id="sim-src-${t.id}" class="w-[74px] shrink-0 text-right text-[10px] font-medium text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
         </div>`;
 
-    const timeCell = (t) => `
-        <div id="sim-row-t-${t.id}" data-row-id="t-${t.id}"
-             class="pred-sim-row rounded-xl border border-gray-200/70 dark:border-gray-700/70 bg-gray-50/60 dark:bg-gray-900/20 px-3 py-2.5
-                    transition hover:border-gray-300 dark:hover:border-gray-600
-                    focus-within:bg-white dark:focus-within:bg-gray-800 focus-within:border-indigo-400 dark:focus-within:border-indigo-500
-                    focus-within:ring-2 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-900/40">
-            <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 truncate" title="${t.label}">${t.label} <span class="font-medium text-gray-400">(분)</span></div>
-            <input id="sim-time-${t.id}" type="number" min="0" step="10" placeholder="0" inputmode="numeric"
-                   class="w-full bg-transparent border-0 p-0 mt-1 text-right text-[19px] leading-tight font-extrabold tabular-nums
-                          text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600
-                          focus:outline-none focus:ring-0">
-            <div class="mt-1 flex items-center justify-between gap-1.5">
-                <label class="text-[10px] font-medium text-gray-400 dark:text-gray-500 whitespace-nowrap"
-                       title="이 업무에 동시에 붙는 인원. 담당자가 정해져 있어 여러 명이 나눠 할 수 없는 일이라, 실 소요시간은 이 인원 기준으로 계산합니다.">동시
-                    <input id="sim-workers-${t.id}" type="number" min="1" step="1" value="1"
-                           class="w-7 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
-                                  text-[10px] font-bold text-gray-500 dark:text-gray-300 focus:outline-none focus:ring-0">명</label>
-                <span id="sim-src-t-${t.id}" class="text-[10px] font-medium text-gray-400 dark:text-gray-500 text-right truncate">지난 4주 평균</span>
-            </div>
+    const timeRow = (t) => `
+        <div id="sim-row-t-${t.id}" data-row-id="t-${t.id}" class="pred-sim-row ${ROW}">
+            <span class="flex-1 min-w-0 truncate text-[12px] font-bold text-gray-600 dark:text-gray-300" title="${t.label}">${t.label}</span>
+            <label class="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
+                   title="이 업무에 동시에 붙는 인원. 담당자가 정해져 있어 여러 명이 나눠 할 수 없으므로, 이 인원만큼은 다른 업무에서 빠지는 것으로 계산합니다.">동시
+                <input id="sim-workers-${t.id}" type="number" min="1" step="1" value="1"
+                       class="w-7 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
+                              text-[11px] font-bold text-gray-500 dark:text-gray-300 focus:outline-none focus:ring-0">명</label>
+            <input id="sim-time-${t.id}" type="number" min="0" step="10" placeholder="0" inputmode="numeric" class="${NUM}">
+            <span class="w-4 text-[10px] text-gray-400 dark:text-gray-500">분</span>
+            <span id="sim-src-t-${t.id}" class="w-[74px] shrink-0 text-right text-[10px] font-medium text-gray-400 dark:text-gray-500 truncate">지난 4주 평균</span>
         </div>`;
 
-    const timeGroupHtml = `
-        <div>
-            <div class="flex items-center gap-2.5 mb-2">
-                <span class="text-[10px] font-extrabold tracking-widest text-gray-400 dark:text-gray-500">시간으로 잡는 업무</span>
-                <span class="text-[10px] text-gray-400 dark:text-gray-500">처리량이 없는 업무 — 투입시간(분)으로 넣습니다</span>
-                <span class="flex-1 h-px" style="background-color:rgba(0,0,0,.06)"></span>
+    const block = (title, sub, rowsHtml, tone = '') => `
+        <div class="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800/40">
+            <div class="flex items-baseline gap-2 px-2.5 py-1.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+                <span class="text-[10px] font-extrabold tracking-widest ${tone || 'text-gray-500 dark:text-gray-400'}">${title}</span>
+                ${sub ? `<span class="text-[10px] text-gray-400 dark:text-gray-500 truncate">${sub}</span>` : ''}
             </div>
-            <div class="grid grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-[repeat(4,minmax(0,1fr))] gap-2.5">
-                ${SIM_TIME_TASKS.map(timeCell).join('')}
-            </div>
+            ${rowsHtml}
         </div>`;
 
-    host.innerHTML = SIM_GROUPS.map(g => `
-        <div>
-            <div class="flex items-center gap-2.5 mb-2">
-                <span class="text-[10px] font-extrabold tracking-widest text-gray-400 dark:text-gray-500">${g.label}</span>
-                <span class="flex-1 h-px bg-gray-150 dark:bg-gray-700/70" style="background-color:rgba(0,0,0,.06)"></span>
-            </div>
-            <div class="grid grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-[repeat(4,minmax(0,1fr))] gap-2.5">
-                ${g.ids.map(id => cell(SIM_TASKS.find(t => t.id === id))).filter(Boolean).join('')}
-            </div>
-        </div>`).join('') + timeGroupHtml;
+    const qtyBlocks = SIM_GROUPS.map(g => block(
+        g.label, '',
+        g.ids.map(id => SIM_TASKS.find(t => t.id === id)).filter(Boolean).map(row).join('')
+    )).join('');
+
+    const timeBlock = SIM_TIME_TASKS.length > 0
+        ? block('담당 · 시간 업무', '처리량이 없는 업무 — 투입시간(분)', SIM_TIME_TASKS.map(timeRow).join('') ,
+                'text-indigo-500 dark:text-indigo-300')
+        : '';
+
+    // 데스크톱에서는 2열로 세워 세로 길이를 줄인다(항목이 많아 한 줄씩이면 화면을 넘긴다)
+    host.className = 'grid grid-cols-1 lg:grid-cols-2 gap-3 items-start';
+    host.innerHTML = qtyBlocks + timeBlock;
 };
 
 /** 시간형 업무 입력칸 채우기 */
@@ -573,9 +627,10 @@ const markTimeSourceBadge = (t, source, detail = '') => {
     const el = document.getElementById(`sim-src-t-${t.id}`);
     if (!el) return;
     const saved = source === 'planned-time';
+    const base = 'w-[74px] shrink-0 text-right text-[10px] truncate';
     el.className = saved
-        ? 'text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-        : 'text-[10px] font-medium text-gray-400 dark:text-gray-500 text-right truncate';
+        ? `${base} font-bold rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300`
+        : `${base} font-medium text-gray-400 dark:text-gray-500`;
     el.textContent = saved ? '저장값' : '지난 4주 평균';
     const tip = saved
         ? '이 날짜에 직접 저장해 둔 투입시간입니다. 실적 평균보다 먼저 적용됩니다.'
@@ -592,6 +647,9 @@ const autoFillSimInputs = (dateStr) => {
     if (!dateStr) return;
     const data = State.allHistoryData;
     const config = State.appConfig;
+
+    // 업무 이력이 늦게 도착하면 시간형 업무 목록도 그때 정해진다 — 바뀌었으면 입력칸을 다시 그린다
+    if (refreshTimeTasks()) renderSimTaskInputs();
 
     // 모든 업무가 기본 등록 — 예정 물량이 있으면 그 값, 없으면 업무별 자동값
     SIM_TASKS.forEach(t => {
@@ -694,23 +752,19 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
     const netDailyHours = Math.max(0.5, dailyHours - excludeHours);
 
     const availableTotal = Math.round(inputs.staffFulltime + inputs.staffPart);
-    // 인원 전부가 붙었을 때 1시간에 소화되는 '총 소요시간'의 양 (가동률 반영)
-    const teamRate = availableTotal * UTILIZATION;
 
+    // ① 수량으로 잡는 업무 — 물량 ÷ UPH = 인시
     const taskTimes = {};
-    let totalHours = 0;
+    let qtyHours = 0;
     SIM_TASKS.forEach(t => {
         const qty = inputs.tasks[t.key] || 0;
         const uph = taskUPH[t.key] || 0;
-        const hours = (qty > 0 && uph > 0) ? qty / uph : 0;          // 총 소요시간(인시)
-        const elapsed = teamRate > 0 ? hours / teamRate : 0;         // 실 소요시간(시계 시간)
-        taskTimes[t.key] = { qty, uph, hours, elapsed };
-        totalHours += hours;
+        const hours = (qty > 0 && uph > 0) ? qty / uph : 0;
+        taskTimes[t.key] = { qty, uph, hours, elapsed: 0 };
+        qtyHours += hours;
     });
 
-    // ⏳ 시간으로 잡는 업무 — 수량이 없으므로 투입시간(인시)을 그대로 더한다.
-    //    실 소요시간은 담당 인원 기준으로 본다: 담당자가 정해진 일이라 팀 전체로 나눠지지 않는다.
-    //    (실적에서 온 '실제로 붙어 있던 시간'이라 가동률로 다시 깎지 않는다)
+    // ② 시간으로 잡는 업무 — 실적에서 온 '실제로 붙어 있던 시간'이라 가동률로 다시 깎지 않는다
     const timeTaskTimes = {};
     let timeElapsedFloor = 0, timeHours = 0;
     SIM_TIME_TASKS.forEach(t => {
@@ -718,33 +772,48 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
         const minutes = Math.max(0, Math.round(Number(e.minutes) || 0));
         const workers = Math.max(1, Math.round(Number(e.workers) || 1));
         const hours = minutes / 60;
-        const elapsed = hours / workers;
+        const elapsed = hours / workers;          // 담당자가 실제로 붙어 있는 시간
         timeTaskTimes[t.key] = { minutes, workers, hours, elapsed };
-        totalHours += hours;
         timeHours += hours;
         timeElapsedFloor = Math.max(timeElapsedFloor, elapsed);
     });
 
-    // 필요·가용 인원은 정수로 반올림해 표시·비교 (소수점 없이)
-    const rawRequiredFTE = (netDailyHours > 0 && UTILIZATION > 0) ? totalHours / netDailyHours / UTILIZATION : 0;
+    const totalHours = qtyHours + timeHours;
+
+    // ③ 담당 업무에 묶이는 인력 — 그 시간 동안 이 사람들은 다른 업무를 할 수 없다.
+    //    묶이는 양을 인원(FTE)으로 환산해 가용 인원에서 뺀 뒤, 나머지로 물량 업무를 계산한다.
+    //    (예전에는 담당 업무 시간에도 전체 인원이 물량 업무를 하는 것으로 계산돼 시간이 짧게 나왔다)
+    const tiedFTE = netDailyHours > 0 ? timeHours / netDailyHours : 0;
+    const qtyStaff = Math.max(0, availableTotal - tiedFTE);
+    const qtyRate = qtyStaff * UTILIZATION;                 // 물량 업무에 붙는 팀의 시간당 처리 인시
+    const staffShortForQty = qtyHours > 0 && qtyRate <= 0;  // 담당 업무가 인원을 다 먹은 경우
+    const qtyElapsed = qtyRate > 0 ? qtyHours / qtyRate : 0;
+    Object.keys(taskTimes).forEach(k => {
+        taskTimes[k].elapsed = qtyRate > 0 ? taskTimes[k].hours / qtyRate : 0;
+    });
+
+    // ④ 필요 인원 — 물량 업무는 가동률을 감안하고, 담당 업무는 실제 시간 그대로 더한다
+    const rawRequiredFTE = netDailyHours > 0
+        ? (qtyHours / UTILIZATION + timeHours) / netDailyHours
+        : 0;
     const requiredFTE = Math.round(rawRequiredFTE);
     const gap = availableTotal - requiredFTE;
 
-    // ⏱ 시간 관점
-    //  - totalHours   : 총 소요시간 = 모든 업무의 인시 합계 (기존 계산과 동일)
-    //  - elapsedHours : 실 소요시간 = 가용 인원이 전부 붙었을 때 실제로 걸리는 시간
+    // ⑤ 시간 관점
+    //  - totalHours   : 총 소요시간 = 모든 업무의 인시 합계
+    //  - elapsedHours : 실 소요시간 = 물량 업무를 남은 인원으로 끝내는 시간과,
+    //                   담당자가 담당 업무에 붙어 있는 시간 중 더 긴 쪽
     //  - slackHours   : 다 끝내고 남는 시간(+) / 정규 시간을 넘기는 시간(-)
-    //   시간형 업무는 담당자만 하므로, 아무리 인원이 많아도 그 시간보다 빨리 끝나지 않는다.
-    const spreadHours = teamRate > 0 ? totalHours / teamRate : 0;
-    const elapsedHours = Math.max(spreadHours, timeElapsedFloor);
-    const elapsedCappedByTimeTask = timeElapsedFloor > spreadHours && timeElapsedFloor > 0;
+    const elapsedHours = Math.max(qtyElapsed, timeElapsedFloor);
+    const elapsedCappedByTimeTask = timeElapsedFloor > qtyElapsed && timeElapsedFloor > 0;
     const capacityHours = availableTotal * netDailyHours * UTILIZATION;   // 그날 처리 가능한 인시
     const slackHours = netDailyHours - elapsedHours;
 
     return {
         date: dateStr, weekend, dailyHours, netDailyHours, excludeMinutes,
-        taskTimes, timeTaskTimes, timeHours, totalHours,
-        elapsedHours, spreadHours, elapsedCappedByTimeTask, capacityHours, slackHours,
+        taskTimes, timeTaskTimes, qtyHours, timeHours, totalHours,
+        tiedFTE, qtyStaff, staffShortForQty, qtyElapsed,
+        elapsedHours, elapsedCappedByTimeTask, capacityHours, slackHours,
         rawRequiredFTE, requiredFTE, availableTotal, gap
     };
 };
@@ -884,7 +953,9 @@ const renderSimResult = (results, taskUPH, mode) => {
             <div class="p-4 md:p-5 space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     ${stat('필요 인원', `${r.requiredFTE}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span>`,
-                           `${fmtH(r.totalHours)} ÷ ${fmtHM(r.netDailyHours)} ÷ ${UTILIZATION}`)}
+                           r.timeHours > 0
+                             ? `(물량 ${fmtH(r.qtyHours)} ÷ ${UTILIZATION} + 담당 ${fmtH(r.timeHours)}) ÷ ${fmtHM(r.netDailyHours)}`
+                             : `${fmtH(r.totalHours)} ÷ ${fmtHM(r.netDailyHours)} ÷ ${UTILIZATION}`)}
                     ${stat('가용 인원', `${r.availableTotal}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span>`, '정직원 + 알바')}
                     <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-3 flex flex-col justify-center">
                         <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">결과</div>
@@ -902,9 +973,13 @@ const renderSimResult = (results, taskUPH, mode) => {
                            slackCls)}
                 </div>
 
-                ${r.elapsedCappedByTimeTask ? `<p class="text-[11px] text-gray-500 dark:text-gray-400 -mt-1">
-                    ⏳ 실 소요시간이 <b>담당 업무 시간</b>에 걸려 있습니다 — 인원을 더 넣어도 그보다 빨리 끝나지 않습니다
-                    (인원 분산 기준 ${fmtHM(r.spreadHours)}).</p>` : ''}
+                ${r.timeHours > 0 ? `<p class="text-[11px] text-gray-500 dark:text-gray-400 -mt-1 leading-relaxed">
+                    ⏳ 담당 업무 ${fmtHM(r.timeHours)}에 <b>${r.tiedFTE.toFixed(1)}명</b>이 묶여,
+                    물량 업무에는 <b>${r.qtyStaff.toFixed(1)}명</b>이 투입되는 것으로 계산했습니다
+                    (물량 업무 ${r.staffShortForQty ? '계산 불가' : fmtHM(r.qtyElapsed)}).
+                    ${r.elapsedCappedByTimeTask ? '실 소요시간은 <b>담당 업무 시간</b>에 걸려 있습니다 — 인원을 더 넣어도 그보다 빨리 끝나지 않습니다.' : ''}
+                    ${r.staffShortForQty ? '<span class="text-rose-600 dark:text-rose-400 font-bold">담당 업무가 가용 인원을 모두 차지해 물량 업무를 할 사람이 없습니다.</span>' : ''}
+                </p>` : ''}
 
                 <div class="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div class="overflow-x-auto">
@@ -1253,6 +1328,7 @@ ${list}
 
 /** '업무 예상' 탭 진입 시 호출: 시뮬레이션 리스너 결합 + 오늘/내일 요약 + 상세 자동값 채움 */
 export const renderForecastTab = () => {
+    refreshTimeTasks();          // 실적에서 시간형 업무 목록을 뽑는다(바뀌면 입력칸을 다시 그림)
     renderSimTaskInputs();
     setupSimulationListeners();
 

@@ -1,8 +1,8 @@
 // === js/weekend-ui.js ===
-import * as State from './state.js?v=202609030922';
-import { store } from './weekend-store.js?v=202609030922';
-import { handleDateClick } from './weekend-core.js?v=202609030922';
-import { openAdminDatePopup, openPastDateEditPopup, handleAdminBadgeClick } from './weekend-admin.js?v=202609030922';
+import * as State from './state.js?v=202609030945';
+import { store } from './weekend-store.js?v=202609030945';
+import { handleDateClick } from './weekend-core.js?v=202609030945';
+import { openAdminDatePopup, openPastDateEditPopup, handleAdminBadgeClick } from './weekend-admin.js?v=202609030945';
 
 // 주말근무 기준 관리자 명단 (계정 역할이 admin이 아니어도 관리자 권한 부여)
 const WEEKEND_ADMINS = ['박영철', '박호진', '유아라', '이승운'];

@@ -1,8 +1,8 @@
 // === js/app-data.js ===
-import { getTodayDateString, debounce } from './utils.js?v=202609030922';
-import * as State from './state.js?v=202609030922';
+import { getTodayDateString, debounce } from './utils.js?v=202609030945';
+import * as State from './state.js?v=202609030945';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from './utils.js?v=202609030922';
+import { showToast } from './utils.js?v=202609030945';
 
 export const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 

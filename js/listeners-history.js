@@ -1,24 +1,24 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202609030922';
-import * as State from './state.js?v=202609030922';
-import { showToast, getTodayDateString } from './utils.js?v=202609030922';
+import * as DOM from './dom-elements.js?v=202609030945';
+import * as State from './state.js?v=202609030945';
+import { showToast, getTodayDateString } from './utils.js?v=202609030945';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202609030922';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202609030922';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202609030922';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202609030922';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202609030945';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202609030945';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202609030945';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202609030945';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202609030922';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202609030922';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202609030922';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202609030922';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202609030945';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202609030945';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202609030945';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202609030945';
 import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202609030922';
-import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js?v=202609030922';
-import { preloadWeekendPay } from './ui-history-personal.js?v=202609030922';
-import { saveView } from './view-state.js?v=202609030922';
-import { placeOpenDropdown } from './table-filter.js?v=202609030922';
+import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202609030945';
+import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js?v=202609030945';
+import { preloadWeekendPay } from './ui-history-personal.js?v=202609030945';
+import { saveView } from './view-state.js?v=202609030945';
+import { placeOpenDropdown } from './table-filter.js?v=202609030945';
 
 let isHistoryMaximized = false;
 
