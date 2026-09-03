@@ -1,7 +1,7 @@
 // === js/history-excel-work.js ===
-import { appConfig, allHistoryData } from './state.js?v=202609031144';
-import { formatTimeTo24H, getWeekOfYear, showToast, buildMemberHourlyWageMap } from './utils.js?v=202609031144';
-import { fitToColumn, appendTotalRow } from './history-excel-utils.js?v=202609031144';
+import { appConfig, allHistoryData } from './state.js?v=202609031149';
+import { formatTimeTo24H, getWeekOfYear, showToast, buildMemberHourlyWageMap } from './utils.js?v=202609031149';
+import { fitToColumn, appendTotalRow } from './history-excel-utils.js?v=202609031149';
 
 export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
     try {
@@ -133,40 +133,6 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFil
         console.error('Period export failed:', error);
         showToast('기간 데이터 다운로드 실패', true);
     }
-};
-
-export const downloadPeriodWeekendAsExcel = (startDate, endDate, format = 'xlsx') => {
-    if (!startDate || !endDate) return showToast('기간을 선택해주세요.', true);
-    const dataList = allHistoryData.filter(d => {
-        if (d.id < startDate || d.id > endDate) return false;
-        const dayOfWeek = new Date(d.id + "T00:00:00").getDay();
-        return dayOfWeek === 0 || dayOfWeek === 6; 
-    });
-
-    if (dataList.length === 0) return showToast('선택한 기간에 주말 근무 데이터가 없습니다.', true);
-
-    const workbook = XLSX.utils.book_new();
-    const historyWageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
-    const sheet1Headers = ['날짜', '팀원', '업무 종류', '시작 시간', '종료 시간', '소요 시간(분)', '인건비(원)'];
-    const sheet1Data = dataList.flatMap(day => 
-        (day.workRecords || []).map(r => {
-            const duration = Number(r.duration) || 0;
-            const wage = historyWageMap[r.member] || (appConfig.defaultPartTimerWage || 10000);
-            return {
-                '날짜': day.id, '팀원': r.member || '', '업무 종류': r.task || '', '시작 시간': formatTimeTo24H(r.startTime), '종료 시간': formatTimeTo24H(r.endTime),
-                '소요 시간(분)': Math.round(duration), '인건비(원)': Math.round((duration / 60) * wage)
-            };
-        })
-    ).sort((a,b) => a['날짜'].localeCompare(b['날짜']));
-
-    if (sheet1Data.length === 0) return showToast('해당 기간 주말에 상세 업무 기록이 없습니다.', true);
-
-    const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
-    appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
-    fitToColumn(worksheet1);
-    XLSX.utils.book_append_sheet(workbook, worksheet1, `주말 상세 기록`);
-    XLSX.writeFile(workbook, `주말업무기록_기간_${startDate}_${endDate}.${format}`);
-    showToast('기간별 주말기록 다운로드 완료');
 };
 
 export const downloadWeeklyHistoryAsExcel = async (weekKey, format = 'xlsx') => {

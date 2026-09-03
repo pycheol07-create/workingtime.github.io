@@ -1,7 +1,7 @@
 // === js/listeners-history-download.js ===
-import * as DOM from './dom-elements.js?v=202609031144';
-import * as State from './state.js?v=202609031144';
-import { showToast, getTodayDateString } from './utils.js?v=202609031144';
+import * as DOM from './dom-elements.js?v=202609031149';
+import * as State from './state.js?v=202609031149';
+import { showToast, getTodayDateString } from './utils.js?v=202609031149';
 
 import {
     downloadHistoryAsExcel,
@@ -11,11 +11,10 @@ import {
     downloadAttendanceExcel,
     downloadPeriodAttendanceAsExcel, // ✅ 신규 추가: 기간별 근태
     downloadPeriodInspectionAsExcel, // ✅ 신규 추가: 기간별 검수
-    downloadPeriodWeekendAsExcel,    // ✅ 신규 추가: 기간별 주말
     downloadReportExcel,
     downloadPersonalReportExcel,
     downloadInspectionHistory
-} from './history-excel.js?v=202609031144';
+} from './history-excel.js?v=202609031149';
 
 const getSelectedDateKey = () => {
     const btn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
@@ -134,9 +133,6 @@ export function setupHistoryDownloadListeners() {
             } 
             else if (isVisible('history-inspection-panel')) {
                 downloadPeriodInspectionAsExcel(startDate, endDate);
-            } 
-            else if (isVisible('history-weekend-panel') || isVisible('weekend-history-panel') || isVisible('weekend-panel')) {
-                downloadPeriodWeekendAsExcel(startDate, endDate);
             } 
             else if (isVisible('history-comprehensive-panel') || isVisible('history-report-panel')) {
                 const reportData = State.context.lastReportData;

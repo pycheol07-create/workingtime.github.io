@@ -1,18 +1,17 @@
 // === js/listeners-history-tabs.js ===
-import * as DOM from './dom-elements.js?v=202609031144';
-import * as State from './state.js?v=202609031144';
-import { showToast, getTodayDateString, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202609031144';
+import * as DOM from './dom-elements.js?v=202609031149';
+import * as State from './state.js?v=202609031149';
+import { showToast, getTodayDateString, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202609031149';
 
-import { renderDashboardTab } from './ui-history-dashboard.js?v=202609031144';
-import { renderProductivityTab } from './ui-history-productivity.js?v=202609031144';
-import { renderStaffingTab } from './ui-history-staffing.js?v=202609031144';
+import { renderDashboardTab } from './ui-history-dashboard.js?v=202609031149';
+import { renderProductivityTab } from './ui-history-productivity.js?v=202609031149';
+import { renderStaffingTab } from './ui-history-staffing.js?v=202609031149';
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202609031144';
-import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202609031144';
-import * as UILeave from './ui-history-leave.js?v=202609031144';
-import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202609031144';
-import { loadAndRenderWeekendStats } from './ui-history-weekend.js?v=202609031144';
-import { saveView } from './view-state.js?v=202609031144';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202609031149';
+import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202609031149';
+import * as UILeave from './ui-history-leave.js?v=202609031149';
+import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202609031149';
+import { saveView } from './view-state.js?v=202609031149';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {
@@ -111,13 +110,12 @@ export function setupGlobalFilterListeners() {
     }
 }
 
-const TREELESS_SUBTABS = ['inspection', 'leave', 'weekend'];
+const TREELESS_SUBTABS = ['inspection', 'leave'];
 
-// 검수/연차/주말 등 트리를 쓰지 않는 서브탭 진입 처리
+// 검수/연차 등 트리를 쓰지 않는 서브탭 진입 처리
 const loadTreelessSubTab = (subTabName) => {
     if (subTabName === 'inspection') fetchAndRenderInspectionHistory();
     else if (subTabName === 'leave') UILeave.initLeaveManagement();
-    else if (subTabName === 'weekend') loadAndRenderWeekendStats();
 };
 
 // 직원 선택 셀렉트 채우기 (개인 리포트)
@@ -193,7 +191,7 @@ export function setupHistoryTabsListeners() {
             // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
             if (tabName === 'milestones') {
                 try {
-                    const mod = await import('./ui-history-milestones.js?v=202609031144');
+                    const mod = await import('./ui-history-milestones.js?v=202609031149');
                     mod.subscribeMilestones();
                     mod.bindMilestoneListeners();
                     // 사이드바 숨김 (마일스톤은 자체 리스트 사용)
@@ -208,7 +206,7 @@ export function setupHistoryTabsListeners() {
             // 🧾 팀 결산 보고 탭: 월/분기/년 단위 종합 요약 보고서 (자체 기간 선택 UI 사용)
             if (tabName === 'settlement') {
                 try {
-                    const mod = await import('./ui-history-settlement.js?v=202609031144');
+                    const mod = await import('./ui-history-settlement.js?v=202609031149');
                     await mod.initSettlementReport();
                     const sidebar = document.getElementById('history-global-sidebar');
                     if (sidebar) sidebar.style.display = 'none';
@@ -258,8 +256,7 @@ export function setupHistoryTabsListeners() {
                 'personal': document.getElementById('personal-report-panel'),
                 'management': document.getElementById('management-panel'),
                 'inspection': document.getElementById('inspection-history-panel'),
-                'leave': document.getElementById('history-leave-panel'),
-                'weekend': document.getElementById('history-weekend-panel')
+                'leave': document.getElementById('history-leave-panel')
             };
 
             Object.keys(panels).forEach(key => { if (panels[key]) panels[key].classList.toggle('hidden', key !== subTabName); });

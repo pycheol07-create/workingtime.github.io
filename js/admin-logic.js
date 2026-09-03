@@ -1,5 +1,5 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions } from './admin-ui.js?v=202609031144';
+import { getAllDashboardDefinitions } from './admin-ui.js?v=202609031149';
 
 export function collectConfigFromDOM(currentConfig) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
