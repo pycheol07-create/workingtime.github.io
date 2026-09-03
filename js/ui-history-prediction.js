@@ -3,12 +3,12 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609030945';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609030945';
-import * as State from './state.js?v=202609030945';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609030945';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609030945';
-import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609030945';
+import { predictFutureTrends } from './analysis-logic.js?v=202609031007';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609031007';
+import * as State from './state.js?v=202609031007';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609031007';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609031007';
+import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609031007';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -192,13 +192,16 @@ const computeSampleRatio = (historyData) => {
  *   workers    : 그 업무를 한 날의 평균 투입 인원(동시에 몇 명이 붙는지)
  *   maxMinutes : 가장 많이 쓴 날 (편차를 알려주기 위한 참고값)
  */
-const computeTimeTaskStats = (historyData, taskKey, windowDays = 28) => {
+const computeTimeTaskStats = (historyData, taskKey, windowDays = 28, dayFilter = null) => {
     const today = getTodayDateString();
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - windowDays);
     const cutoffStr = ymd(cutoff);
-    const days = (historyData || [])
+    let days = (historyData || [])
         .filter(d => d && typeof d.id === 'string' && d.id >= cutoffStr && d.id <= today)
         .filter(d => (d.workRecords || []).length > 0);
+    // 연동 업무가 있는 날에만 생기는 업무는 그런 날만 모아 평균을 낸다
+    // (전체 근무일로 나누면 '입고 있는 날'의 실제 소요보다 훨씬 작게 나온다)
+    if (typeof dayFilter === 'function') days = days.filter(dayFilter);
     if (days.length === 0) return null;
 
     let sumMin = 0, hitDays = 0, maxMin = 0, workerSum = 0;
@@ -224,15 +227,54 @@ const computeTimeTaskStats = (historyData, taskKey, windowDays = 28) => {
 };
 
 /** 대상일의 시간형 업무 값 — 저장한 수기값 › 실적 평균 */
-const autoTimeValueFor = (dateStr, t, historyData) => {
+/** 🔗 물량 업무와 묶인 담당 업무 — 그 물량이 있는 날에만 생긴다.
+ *  (중국제작 입고가 없으면 '중국제작(담당)'도 없고, 직진·에이블리 출고가 없으면 사전작업도 없다)
+ *  관리자 설정 simTimeTaskDeps 로 덮어쓸 수 있고, 없으면 업무명에 물량 업무명이 들어간 경우를 자동으로 잇는다.
+ */
+const DEFAULT_TIME_TASK_DEPS = {
+    '중국제작(담당)': ['중국제작'],
+    '직진배송 사전작업': ['직진배송', '에이블리배송']
+};
+
+const timeTaskDeps = (taskKey) => {
+    const cfg = State.appConfig?.simTimeTaskDeps;
+    if (cfg && Array.isArray(cfg[taskKey])) return cfg[taskKey];
+    if (DEFAULT_TIME_TASK_DEPS[taskKey]) return DEFAULT_TIME_TASK_DEPS[taskKey];
+    // 이름에 물량 업무명이 들어 있으면 그 업무와 묶는다 (예: 'OO 사전작업', 'OO(담당)')
+    const hit = SIM_TASKS.find(t => taskKey !== t.key && taskKey.includes(t.key));
+    return hit ? [hit.key] : [];
+};
+
+/** 대상일의 담당 업무 값 — 저장값 › (연동 물량이 있을 때만) 실적 평균
+ *  qtyLookup: 연동 물량을 어디서 볼지. 기본은 자동 추정값, 화면에서는 지금 입력된 값. */
+const autoTimeValueFor = (dateStr, t, historyData, qtyLookup = null) => {
     const saved = getPlannedTime(dateStr, t.key);
     if (saved) return { ...saved, source: 'planned-time' };
-    const st = computeTimeTaskStats(historyData, t.key);
+
+    const deps = timeTaskDeps(t.key);
+    const lookup = qtyLookup || ((key) => {
+        const task = SIM_TASKS.find(x => x.key === key);
+        return task ? autoQtyFor(dateStr, task, historyData) : 0;
+    });
+
+    let dayFilter = null;
+    if (deps.length > 0) {
+        const hasDep = deps.some(k => (Number(lookup(k)) || 0) > 0);
+        if (!hasDep) {
+            return { minutes: 0, workers: 1, source: 'record-avg',
+                     detail: `${deps.join(' · ')} 물량이 없는 날이라 0으로 둡니다.` };
+        }
+        dayFilter = (d) => deps.some(k => (Number(d.taskQuantities?.[k]) || 0) > 0);
+    }
+
+    const st = computeTimeTaskStats(historyData, t.key, 28, dayFilter);
     if (!st) return { minutes: 0, workers: 1, source: 'record-avg', detail: '최근 4주 기록 없음' };
+    // 담당 인원은 기본 1명 — 여러 명이 붙는 날은 화면에서 직접 올린다
     return {
-        minutes: st.avgMinutes, workers: st.workers, source: 'record-avg',
-        detail: `근무일 ${st.sampleDays}일 중 ${st.hitDays}일 진행 · 가장 많은 날 ${Math.round(st.maxMinutes)}분`
-              + ` · 평균 동시 ${st.workers}명`
+        minutes: st.avgMinutes, workers: 1, source: 'record-avg',
+        detail: (deps.length > 0 ? `${deps.join(' · ')} 있는 날 기준 · ` : '')
+              + `${st.sampleDays}일 중 ${st.hitDays}일 진행 · 가장 많은 날 ${Math.round(st.maxMinutes)}분`
+              + ` · 실적 평균 동시 ${st.workers}명(기본값은 1명)`
     };
 };
 
@@ -1427,6 +1469,29 @@ const setupSimulationListeners = () => {
         const sampleTask = SIM_TASKS.find(t => t.id === 'sample');
         setQty('sample', china > 0 ? Math.round(computeSampleRatio(State.allHistoryData) * china) : 0);
         if (sampleTask) markSourceBadge(sampleTask, 'china-linked');
+    });
+
+    // 물량을 직접 고치면, 그 물량에 묶인 담당 업무(중국제작(담당)·직진배송 사전작업 등)도 다시 잡는다.
+    // 물량이 0이 되면 그 담당 업무도 0이 된다.
+    document.getElementById('sim-task-list')?.addEventListener('input', (e) => {
+        const m = /^sim-qty-(.+)$/.exec(e.target?.id || '');
+        if (!m) return;
+        const changed = SIM_TASKS.find(t => t.id === m[1]);
+        const dateStr = document.getElementById('sim-target-date')?.value;
+        if (!changed || !dateStr) return;
+
+        const lookup = (key) => {
+            const t2 = SIM_TASKS.find(x => x.key === key);
+            const el = t2 ? document.getElementById(`sim-qty-${t2.id}`) : null;
+            return el ? (Number(el.value) || 0) : 0;
+        };
+        SIM_TIME_TASKS.forEach(t => {
+            if (!timeTaskDeps(t.key).includes(changed.key)) return;
+            if (getPlannedTime(dateStr, t.key)) return;      // 저장해 둔 값은 건드리지 않는다
+            const v = autoTimeValueFor(dateStr, t, State.allHistoryData, lookup);
+            setTimeInputs(t, v);
+            markTimeSourceBadge(t, v.source, v.detail);
+        });
     });
 
     document.getElementById('sim-reset-btn')?.addEventListener('click', () => {
