@@ -558,7 +558,7 @@
                             <div>
                                 <div class="flex flex-wrap items-baseline gap-2 mb-1">
                                     <h5 class="text-sm font-extrabold text-gray-800 dark:text-gray-100">작업량</h5>
-                                    <span class="text-[11px] text-gray-400 dark:text-gray-500">단위: 개</span>
+                                    <span class="text-[11px] text-gray-400 dark:text-gray-500">단위: 개 (시간형 업무는 분)</span>
                                     <button id="sim-save-btn" title="지금 입력한 작업량을 이 날짜에 저장합니다. '자동값'을 누르기 전까지 유지됩니다."
                                         class="ml-auto text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700
                                                text-white shadow-sm transition">💾 작업량 저장</button>
@@ -572,6 +572,8 @@
                                     숫자 아래에 어디서 온 값인지 표시됩니다.
                                     <br>수기로 고친 값은 <b>💾 작업량 저장</b>으로 이 날짜에 보관되며,
                                     <b>🔄 자동값</b>으로 지우기 전까지 계속 유지됩니다. (0·빈칸도 '0'으로 그대로 저장됩니다)
+                                    <br><b>시간으로 잡는 업무</b>(개인담당업무 등)는 처리량이 없어 <b>투입시간(분)</b>으로 넣습니다 —
+                                    자동값은 최근 4주 업무 기록의 근무일 1일 평균이고, 이 시간도 총 소요시간·필요 인원에 그대로 더해집니다.
                                 </p>
                             </div>
 
