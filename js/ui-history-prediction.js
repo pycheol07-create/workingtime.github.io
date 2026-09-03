@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609031026';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609031026';
-import * as State from './state.js?v=202609031026';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609031026';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609031026';
+import { predictFutureTrends } from './analysis-logic.js?v=202609031035';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609031035';
+import * as State from './state.js?v=202609031035';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609031035';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609031035';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609031026';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609031035';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -887,10 +887,14 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
     };
 };
 
-const runSimulation = () => {
+const runSimulation = ({ silent = false } = {}) => {
     const dateEl = document.getElementById('sim-target-date');
     const modeEl = document.getElementById('sim-mode');
-    if (!dateEl?.value) { alert('대상일을 선택해주세요.'); return; }
+    if (!dateEl?.value) {
+        if (!silent) alert('대상일을 선택해주세요.');
+        else showResultPlaceholder();
+        return;
+    }
     const baseDate = dateEl.value;
     const mode = modeEl?.value || 'single';
 
@@ -942,6 +946,20 @@ const fmtHM = (h) => {
 };
 /** 제외시간 표기: 90 → '1시간 30분' */
 const fmtMin = (m) => fmtHM((Number(m) || 0) / 60);
+
+/** 결과칸이 비어 있을 때 자리 안내 (오른쪽 칸이 휑하지 않도록) */
+const resultPlaceholder = () => `
+    <section class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30
+                    p-8 text-center text-gray-400 dark:text-gray-500">
+        <div class="text-2xl mb-2">📊</div>
+        <div class="text-sm font-bold text-gray-500 dark:text-gray-400">시뮬레이션 결과</div>
+        <p class="text-[11px] mt-1 leading-relaxed">왼쪽에서 값을 고친 뒤 <b>시뮬레이션 실행</b>을 누르면<br>여기에 결과가 나옵니다.</p>
+    </section>`;
+
+const showResultPlaceholder = () => {
+    const el = document.getElementById('sim-result-container');
+    if (el) el.innerHTML = resultPlaceholder();
+};
 
 const renderSimResult = (results, taskUPH, mode) => {
     const container = document.getElementById('sim-result-container');
@@ -1419,6 +1437,7 @@ export const renderForecastTab = () => {
     updateSavedInfo(dateEl?.value);
     simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
     renderForecastSummary();
+    runSimulation({ silent: true });      // 오른쪽 결과칸을 자동값 기준으로 미리 채워 둔다
 
     // 예정 물량이 아직 안 실렸으면 로드 후 다시 채움(캐시라 대부분 즉시)
     fetchPlannedData().then(() => {
@@ -1427,6 +1446,7 @@ export const renderForecastTab = () => {
         updateSavedInfo(d);
         simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
         renderForecastSummary();
+        runSimulation({ silent: true });
     }).catch(() => {});
 
     const rBtn = document.getElementById('forecast-refresh-btn');
@@ -1438,6 +1458,7 @@ export const renderForecastTab = () => {
             updateSavedInfo(d);
             simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
             renderForecastSummary();
+            runSimulation({ silent: true });
         });
     }
 };
@@ -1459,11 +1480,12 @@ const setupSimulationListeners = () => {
             updateSavedInfo(dateEl.value);
             simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
             renderForecastSummary();
+            runSimulation({ silent: true });
         });
     }
     document.getElementById('sim-autofill-btn')?.addEventListener('click', handleAutoFillClick);
     document.getElementById('sim-save-btn')?.addEventListener('click', saveSimQuantities);
-    runBtn.addEventListener('click', runSimulation);
+    runBtn.addEventListener('click', () => runSimulation());
 
     // 값을 바꾸면 상단 요약 카드도 같은 값으로 다시 계산한다(입력이 잦으므로 살짝 미뤄서).
     let syncTimer = null;
@@ -1536,8 +1558,7 @@ const setupSimulationListeners = () => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
-        const resEl = document.getElementById('sim-result-container');
-        if (resEl) resEl.innerHTML = '';
+        showResultPlaceholder();
         paintStaffTotal();
         simOverride = null;              // 요약 카드는 자동값 기준으로 되돌린다
         renderForecastSummary();

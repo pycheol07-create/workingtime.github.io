@@ -1,10 +1,10 @@
 // === js/analysis-logic.js ===
 // 설명: 순수 계산 및 분석 함수 모음입니다. (시뮬레이션, 병목 분석, 예측 등)
 
-import * as State from './state.js?v=202609031026';
-import { formatDuration, getTodayDateString } from './utils.js?v=202609031026';
-import { calculateStandardThroughputs } from './ui-history-reports-logic.js?v=202609031026';
-import { channelScope } from './revenue-channels.js?v=202609031026';
+import * as State from './state.js?v=202609031035';
+import { formatDuration, getTodayDateString } from './utils.js?v=202609031035';
+import { calculateStandardThroughputs } from './ui-history-reports-logic.js?v=202609031035';
+import { channelScope } from './revenue-channels.js?v=202609031035';
 
 /**
  * 누락된 처리량이 있는지 확인하는 함수
