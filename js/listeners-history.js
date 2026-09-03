@@ -1,24 +1,24 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202609031051';
-import * as State from './state.js?v=202609031051';
-import { showToast, getTodayDateString } from './utils.js?v=202609031051';
+import * as DOM from './dom-elements.js?v=202609031144';
+import * as State from './state.js?v=202609031144';
+import { showToast, getTodayDateString } from './utils.js?v=202609031144';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202609031051';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202609031051';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202609031051';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202609031051';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202609031144';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202609031144';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202609031144';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202609031144';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202609031051';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202609031051';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202609031051';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202609031051';
-import { doc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202609031144';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202609031144';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202609031144';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202609031144';
+import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202609031051';
-import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js?v=202609031051';
-import { preloadWeekendPay } from './ui-history-personal.js?v=202609031051';
-import { saveView } from './view-state.js?v=202609031051';
-import { placeOpenDropdown } from './table-filter.js?v=202609031051';
+import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202609031144';
+import { setupWeekendListeners, loadAndRenderWeekendStats } from './ui-history-weekend.js?v=202609031144';
+import { preloadWeekendPay } from './ui-history-personal.js?v=202609031144';
+import { saveView } from './view-state.js?v=202609031144';
+import { placeOpenDropdown } from './table-filter.js?v=202609031144';
 
 let isHistoryMaximized = false;
 
@@ -298,49 +298,77 @@ export function setupHistoryModalListeners() {
     if (DOM.personalReportMemberSelect) DOM.personalReportMemberSelect.addEventListener('change', (e) => { State.context.personalReportMember = e.target.value; refreshPersonalView(); });
 
     if (managementSaveBtn) {
+        // 💹 경영 지표 저장
+        //  ⚠️ 빈 칸은 '0'이 아니라 '건드리지 않음'으로 다룬다.
+        //     예전에는 빈 칸을 0으로 저장해서, 다른 항목만 입력해 저장하거나
+        //     내 화면이 오래된 캐시일 때(다른 사람이 넣은 매출·환율이 안 보일 때)
+        //     이미 저장돼 있던 값이 0으로 덮여 사라졌다.
+        //  ⚠️ 저장 직전에 서버의 현재 값을 다시 읽어 메모리·합계 계산의 기준으로 삼는다.
+        const readInput = (id, { decimal = false } = {}) => {
+            const el = document.getElementById(id);
+            if (!el) return null;
+            const raw = String(el.value ?? '').trim();
+            if (raw === '') return null;                                  // 빈 칸 → 변경 없음
+            const cleaned = decimal ? raw.replace(/[^0-9.]/g, '') : raw.replace(/[^0-9]/g, '');
+            if (cleaned === '') return null;
+            const n = Number(cleaned);
+            return Number.isFinite(n) ? n : null;
+        };
+
         managementSaveBtn.addEventListener('click', async () => {
             const dateKey = managementSaveBtn.dataset.dateKey;
             if (!dateKey) return;
-            // 💰 채널별 매출·주문건수(일반배송(카페24) / 직진배송 / 도착보장).
-            //    총액(revenue)·총건수(orderCount)는 각각 세 값의 합계로 저장한다.
-            const channelValues = {};
-            const channelTotals = {};
-            CHANNEL_METRICS.forEach(m => {
-                let sum = 0;
-                REVENUE_CHANNELS.forEach(c => {
-                    const field = m.fieldOf(c);
-                    const raw = document.getElementById(`mgmt-input-${field}`)?.value.replace(/[^0-9]/g, '') || 0;
-                    channelValues[field] = Number(raw) || 0;
-                    sum += channelValues[field];
-                });
-                channelTotals[m.totalField] = sum;
-            });
 
-            const inventoryQty = document.getElementById('mgmt-input-inventoryQty')?.value.replace(/,/g, '') || 0;
-            const inventoryAmt = document.getElementById('mgmt-input-inventoryAmt')?.value.replace(/,/g, '') || 0;
-            const usdRate = document.getElementById('mgmt-input-usdRate')?.value.replace(/,/g, '') || 0;
-            const cnyRate = document.getElementById('mgmt-input-cnyRate')?.value.replace(/,/g, '') || 0;
-            const existingMgmt = (State.allHistoryData.find(d => d.id === dateKey) || {}).management || {};
-
+            managementSaveBtn.disabled = true; managementSaveBtn.textContent = '저장 중...';
             try {
-                managementSaveBtn.disabled = true; managementSaveBtn.textContent = '저장 중...';
-                await saveManagementData(dateKey, {
-                    // 이미 저장된 값 위에 화면 입력값을 얹는다.
-                    // 화면에 없는 항목(fxAt 등)이나 앞으로 늘어날 항목이 저장 때 사라지지 않는다.
-                    ...existingMgmt,
-                    ...channelValues,
-                    // 채널을 하나도 입력하지 않았다면 기존 총계를 지우지 않는다(구 데이터 보호)
-                    ...CHANNEL_METRICS.reduce((acc, m) => {
-                        const sum = channelTotals[m.totalField];
-                        acc[m.totalField] = sum > 0 ? sum : (Number(existingMgmt[m.totalField]) || 0);
-                        return acc;
-                    }, {}),
-                    inventoryQty: Number(inventoryQty), inventoryAmt: Number(inventoryAmt),
-                    usdRate: Number(usdRate), cnyRate: Number(cnyRate),
-                    ...(existingMgmt.fxAt ? { fxAt: existingMgmt.fxAt } : {})
+                // ① 서버의 현재 값 (내 캐시가 오래됐을 수 있으므로 여기서 다시 읽는다)
+                let serverMgmt = {};
+                try {
+                    const snap = await getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey));
+                    if (snap.exists()) serverMgmt = snap.data().management || {};
+                    if (dateKey === getTodayDateString()) {
+                        const dsnap = await getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey));
+                        if (dsnap.exists()) serverMgmt = { ...serverMgmt, ...(dsnap.data().management || {}) };
+                    }
+                } catch (_) { /* 못 읽으면 화면 값만으로 진행 */ }
+
+                // 서버 값을 메모리에도 반영해 둔다(저장 후 화면이 최신으로 그려지도록)
+                const mi = State.allHistoryData.findIndex(d => d.id === dateKey);
+                if (mi > -1) {
+                    State.allHistoryData[mi].management = { ...serverMgmt, ...(State.allHistoryData[mi].management || {}) };
+                }
+
+                // ② 화면에서 실제로 입력된 값만 모은다
+                const payload = {};
+                CHANNEL_METRICS.forEach(m => {
+                    let sum = 0, touched = false;
+                    REVENUE_CHANNELS.forEach(c => {
+                        const field = m.fieldOf(c);
+                        const v = readInput(`mgmt-input-${field}`);
+                        if (v != null) { payload[field] = v; sum += v; touched = true; }
+                        else sum += Number(serverMgmt[field]) || 0;      // 안 건드린 채널은 저장된 값으로 합산
+                    });
+                    // 채널을 하나라도 입력했을 때만 총계를 다시 쓴다(구 데이터 보호)
+                    if (touched) payload[m.totalField] = sum;
                 });
+
+                const inventoryQty = readInput('mgmt-input-inventoryQty');
+                const inventoryAmt = readInput('mgmt-input-inventoryAmt');
+                const usdRate = readInput('mgmt-input-usdRate', { decimal: true });
+                const cnyRate = readInput('mgmt-input-cnyRate', { decimal: true });
+                if (inventoryQty != null) payload.inventoryQty = inventoryQty;
+                if (inventoryAmt != null) payload.inventoryAmt = inventoryAmt;
+                if (usdRate != null) payload.usdRate = usdRate;
+                if (cnyRate != null) payload.cnyRate = cnyRate;
+
+                if (Object.keys(payload).length === 0) {
+                    showToast('입력된 값이 없습니다. 저장할 내용이 없습니다.', true);
+                    return;
+                }
+
+                await saveManagementData(dateKey, payload);
                 showToast('경영 지표가 저장되었습니다.'); refreshManagementView();
-            } catch (e) { showToast('저장 중 오류가 발생했습니다.', true); } 
+            } catch (e) { showToast('저장 중 오류가 발생했습니다.', true); }
             finally { managementSaveBtn.disabled = false; managementSaveBtn.textContent = '저장'; }
         });
     }

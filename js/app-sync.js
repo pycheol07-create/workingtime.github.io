@@ -1,13 +1,13 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202609031051';
-import { isPersistentLeaveType } from './state.js?v=202609031051';
-import * as DOM from './dom-elements.js?v=202609031051';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202609031051';
+import * as State from './state.js?v=202609031144';
+import { isPersistentLeaveType } from './state.js?v=202609031144';
+import * as DOM from './dom-elements.js?v=202609031144';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202609031144';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202609031051';
-import { renderTodoList } from './inspection-logic.js?v=202609031051';
-import { renderNotificationList } from './app-notifications.js?v=202609031051';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202609031144';
+import { renderTodoList } from './inspection-logic.js?v=202609031144';
+import { renderNotificationList } from './app-notifications.js?v=202609031144';
 
 let unsubLeave = null;
 let unsubConfig = null;
@@ -80,6 +80,19 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         // ⚠️ 이 값을 되읽지 않으면 메모리에는 늘 빈 배열이 남는다.
         //    그 상태로 1분 자동저장이 돌면 '0으로 확인' 표시가 통째로 지워진다.
         State.appState.confirmedZeroTasks = data.confirmedZeroTasks || [];
+
+        // 💹 경영지표도 같은 이유로 되읽는다.
+        //    되읽지 않으면 메모리에는 환율만 든 반쪽 객체가 남고, 다른 사람이 넣은
+        //    매출·재고·환율이 화면에 안 보인 채로 저장돼 0으로 덮이는 일이 생긴다.
+        State.appState.management = data.management || {};
+        const todayKey = getTodayDateString();
+        const ti = (State.allHistoryData || []).findIndex(d => d.id === todayKey);
+        if (ti > -1 && data.management) {
+            State.allHistoryData[ti].management = {
+                ...(State.allHistoryData[ti].management || {}),
+                ...data.management
+            };
+        }
 
         State.setIsDataDirty(false); 
         renderCallback();
