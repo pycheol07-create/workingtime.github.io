@@ -1,11 +1,11 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202609031021';
-import * as State from './state.js?v=202609031021';
-import { render } from './app.js?v=202609031021';
-import { showToast, formatTimeTo24H } from './utils.js?v=202609031021';
-import { renderTeamSelectionModalContent, renderLeaveTypeModalOptions } from './ui.js?v=202609031021';
+import * as DOM from './dom-elements.js?v=202609031026';
+import * as State from './state.js?v=202609031026';
+import { render } from './app.js?v=202609031026';
+import { showToast, formatTimeTo24H } from './utils.js?v=202609031026';
+import { renderTeamSelectionModalContent, renderLeaveTypeModalOptions } from './ui.js?v=202609031026';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -13,10 +13,10 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202609031021';
+} from './app-logic.js?v=202609031026';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202609031021';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202609031021';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202609031026';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202609031026';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {

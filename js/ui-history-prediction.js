@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609031021';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609031021';
-import * as State from './state.js?v=202609031021';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609031021';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609031021';
+import { predictFutureTrends } from './analysis-logic.js?v=202609031026';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609031026';
+import * as State from './state.js?v=202609031026';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609031026';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609031026';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609031021';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609031026';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -205,7 +205,7 @@ const computeTimeTaskStats = (historyData, taskKey, windowDays = 28, dayFilter =
     if (typeof dayFilter === 'function') days = days.filter(dayFilter);
     if (days.length === 0) return null;
 
-    let sumMin = 0, hitDays = 0, maxMin = 0, workerSum = 0;
+    let sumMin = 0, hitDays = 0, maxMin = 0, workerSum = 0, perPersonSum = 0;
     days.forEach(d => {
         let m = 0;
         const members = new Set();
@@ -215,12 +215,19 @@ const computeTimeTaskStats = (historyData, taskKey, windowDays = 28, dayFilter =
             if (r.member) members.add(r.member);
         });
         sumMin += m;
-        if (m > 0) { hitDays++; maxMin = Math.max(maxMin, m); workerSum += Math.max(1, members.size); }
+        if (m > 0) {
+            const n = Math.max(1, members.size);
+            hitDays++; maxMin = Math.max(maxMin, m / n); workerSum += n;
+            perPersonSum += m / n;               // 그날 '1인이 쓴 시간'
+        }
     });
 
-    if (hitDays === 0) return { avgMinutes: 0, workers: 1, hitDays: 0, sampleDays: days.length, maxMinutes: 0 };
+    if (hitDays === 0) return { avgMinutes: 0, teamMinutes: 0, workers: 1, hitDays: 0, sampleDays: days.length, maxMinutes: 0 };
+    const r10 = (x) => Math.round(x / 10) * 10;
     return {
-        avgMinutes: Math.round(sumMin / days.length / 10) * 10,      // 10분 단위로 반올림
+        // 입력 단위는 '1인 기준' — 여러 명이 나눠 한 날도 한 사람이 쓴 시간으로 환산한다
+        avgMinutes: r10(perPersonSum / days.length),
+        teamMinutes: r10(sumMin / days.length),       // 참고: 팀 전체 합계(인분)
         workers: Math.max(1, Math.round(workerSum / hitDays)),
         hitDays, sampleDays: days.length,
         maxMinutes: Math.round(maxMin)
@@ -270,12 +277,13 @@ const autoTimeValueFor = (dateStr, t, historyData, qtyLookup = null) => {
 
     const st = computeTimeTaskStats(historyData, t.key, 28, dayFilter);
     if (!st) return { minutes: 0, workers: 1, source: 'record-avg', detail: '최근 4주 기록 없음' };
-    // 담당 인원은 기본 1명 — 여러 명이 붙는 날은 화면에서 직접 올린다
+    // 시간·인원 모두 1명 기준 — 여러 명이 붙는 업무는 화면에서 동시 인원을 올린다
     return {
         minutes: st.avgMinutes, workers: 1, source: 'record-avg',
         detail: (deps.length > 0 ? `${deps.join(' · ')} 있는 날 기준 · ` : '')
-              + `${st.sampleDays}일 중 ${st.hitDays}일 진행 · 가장 많은 날 ${Math.round(st.maxMinutes)}분`
-              + ` · 실적 평균 동시 ${st.workers}명(기본값은 1명)`
+              + `${st.sampleDays}일 중 ${st.hitDays}일 진행 · 1인 기준 평균 ${st.avgMinutes}분`
+              + ` (가장 많은 날 ${Math.round(st.maxMinutes)}분)`
+              + ` · 실적은 평균 ${st.workers}명이 하루 ${st.teamMinutes}분(팀 합계) — 동시 인원을 올리면 그만큼 인시가 늘어납니다`
     };
 };
 
@@ -623,9 +631,9 @@ const renderSimTaskInputs = () => {
 
     const timeRow = (t) => `
         <div id="sim-row-t-${t.id}" data-row-id="t-${t.id}" class="pred-sim-row ${ROW}">
-            <span class="flex-1 min-w-0 truncate text-[12px] font-bold text-gray-600 dark:text-gray-300" title="${t.label}">${t.label}</span>
+            <span class="flex-1 min-w-0 truncate text-[12px] font-bold text-gray-600 dark:text-gray-300" title="${t.label} — 시간은 1인 기준입니다">${t.label}</span>
             <label class="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
-                   title="이 업무에 동시에 붙는 인원. 담당자가 정해져 있어 여러 명이 나눠 할 수 없으므로, 이 인원만큼은 다른 업무에서 빠지는 것으로 계산합니다.">동시
+                   title="이 업무를 하는 인원. 입력한 시간을 각자 쓰는 것으로 보고 인시(사람×시간)를 계산하며, 그만큼 물량 업무에서 인원이 빠집니다.">동시
                 <input id="sim-workers-${t.id}" type="number" min="1" step="1" value="1"
                        class="w-7 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
                               text-[11px] font-bold text-gray-500 dark:text-gray-300 focus:outline-none focus:ring-0">명</label>
@@ -649,7 +657,7 @@ const renderSimTaskInputs = () => {
     )).join('');
 
     const timeBlock = SIM_TIME_TASKS.length > 0
-        ? block('담당 · 시간 업무', '처리량이 없는 업무 — 투입시간(분)', SIM_TIME_TASKS.map(timeRow).join('') ,
+        ? block('담당 · 시간 업무', '처리량이 없는 업무 — 1인 기준 투입시간(분)', SIM_TIME_TASKS.map(timeRow).join('') ,
                 'text-indigo-500 dark:text-indigo-300')
         : '';
 
@@ -831,8 +839,9 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
         const e = (inputs.timeTasks || {})[t.key] || {};
         const minutes = Math.max(0, Math.round(Number(e.minutes) || 0));
         const workers = Math.max(1, Math.round(Number(e.workers) || 1));
-        const hours = minutes / 60;
-        const elapsed = hours / workers;          // 담당자가 실제로 붙어 있는 시간
+        // 입력은 '1인 기준 시간' — 인시는 인원만큼 늘고, 실제로 흐르는 시간은 1인 시간 그대로다
+        const elapsed = minutes / 60;             // 담당자가 붙어 있는 시간
+        const hours = elapsed * workers;          // 인시(사람×시간)
         timeTaskTimes[t.key] = { minutes, workers, hours, elapsed };
         timeHours += hours;
         timeElapsedFloor = Math.max(timeElapsedFloor, elapsed);
@@ -978,7 +987,7 @@ const renderSimResult = (results, taskUPH, mode) => {
             return `<tr class="border-t border-gray-100 dark:border-gray-700/60 bg-indigo-50/30 dark:bg-indigo-900/10">
                 <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${t.label}
                     <span class="ml-1 text-[10px] font-bold text-indigo-500 dark:text-indigo-300">시간형</span></td>
-                <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">${v.minutes}분</td>
+                <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">1인 ${v.minutes}분</td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">담당 ${v.workers}명</td>
                 <td class="py-2 px-3 text-right">
                     <div class="flex items-center justify-end gap-2">
@@ -989,7 +998,7 @@ const renderSimResult = (results, taskUPH, mode) => {
                     </div>
                 </td>
                 <td class="py-2 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300"
-                    title="담당 ${v.workers}명이 ${v.minutes}분(인시 ${fmtH(v.hours)})을 나눠 할 때 붙어 있는 시간">${fmtHM(v.elapsed)}</td>
+                    title="담당 ${v.workers}명이 각자 ${v.minutes}분씩 (인시 합계 ${fmtH(v.hours)})">${fmtHM(v.elapsed)}</td>
             </tr>`;
         }).filter(Boolean).join('');
 
