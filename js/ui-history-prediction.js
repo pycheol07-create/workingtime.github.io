@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609031657';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609031657';
-import * as State from './state.js?v=202609031657';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609031657';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609031657';
+import { predictFutureTrends } from './analysis-logic.js?v=202609040834';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609040834';
+import * as State from './state.js?v=202609040834';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609040834';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609040834';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609031657';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609040834';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -588,7 +588,7 @@ const markSourceBadge = (task, source, detail = '') => {
     const el = document.getElementById(`sim-src-${task.id}`);
     if (!el) return;
     const b = SOURCE_BADGE[source] || SOURCE_BADGE.last7;
-    const base = 'w-[74px] shrink-0 text-right text-[10px] truncate';   // 줄 레이아웃 유지
+    const base = 'w-[74px] shrink-0 text-center text-[10px] truncate';   // 줄 레이아웃 유지
     el.className = b.muted
         ? `${base} font-medium text-gray-400 dark:text-gray-500`
         : `${base} font-bold rounded-md ${b.cls}`;
@@ -626,7 +626,7 @@ const renderSimTaskInputs = () => {
             <span class="flex-1 min-w-0 truncate text-[12px] font-bold text-gray-600 dark:text-gray-300" title="${t.label}">${t.label}</span>
             <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric" class="${NUM}">
             <span class="w-4 text-[10px] text-gray-400 dark:text-gray-500">개</span>
-            <span id="sim-src-${t.id}" class="w-[74px] shrink-0 text-right text-[10px] font-medium text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
+            <span id="sim-src-${t.id}" class="w-[74px] shrink-0 text-center text-[10px] font-medium text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
         </div>`;
 
     const timeRow = (t) => `
@@ -639,7 +639,7 @@ const renderSimTaskInputs = () => {
                               text-[11px] font-bold text-gray-500 dark:text-gray-300 focus:outline-none focus:ring-0">명</label>
             <input id="sim-time-${t.id}" type="number" min="0" step="10" placeholder="0" inputmode="numeric" class="${NUM}">
             <span class="w-4 text-[10px] text-gray-400 dark:text-gray-500">분</span>
-            <span id="sim-src-t-${t.id}" class="w-[74px] shrink-0 text-right text-[10px] font-medium text-gray-400 dark:text-gray-500 truncate">지난 4주 평균</span>
+            <span id="sim-src-t-${t.id}" class="w-[74px] shrink-0 text-center text-[10px] font-medium text-gray-400 dark:text-gray-500 truncate">지난 4주 평균</span>
         </div>`;
 
     const block = (title, sub, rowsHtml, tone = '') => `
@@ -678,7 +678,7 @@ const markTimeSourceBadge = (t, source, detail = '') => {
     const el = document.getElementById(`sim-src-t-${t.id}`);
     if (!el) return;
     const saved = source === 'planned-time';
-    const base = 'w-[74px] shrink-0 text-right text-[10px] truncate';
+    const base = 'w-[74px] shrink-0 text-center text-[10px] truncate';
     el.className = saved
         ? `${base} font-bold rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300`
         : `${base} font-medium text-gray-400 dark:text-gray-500`;
@@ -694,6 +694,9 @@ ${detail}` : tip;
 // ───────────────────────────────────────────────────────────
 // 시뮬레이션 UI 핸들러
 // ───────────────────────────────────────────────────────────
+// 🧾 방금 자동으로 채워 넣은 값과 그 출처. 저장할 때 '손대지 않은 오늘 실측'을 가려내는 데 쓴다.
+const lastAutoFilled = new Map();   // taskId → { value, source }
+
 const autoFillSimInputs = (dateStr) => {
     if (!dateStr) return;
     const data = State.allHistoryData;
@@ -703,10 +706,12 @@ const autoFillSimInputs = (dateStr) => {
     if (refreshTimeTasks()) renderSimTaskInputs();
 
     // 모든 업무가 기본 등록 — 예정 물량이 있으면 그 값, 없으면 업무별 자동값
+    lastAutoFilled.clear();
     SIM_TASKS.forEach(t => {
         const { value, source, detail } = autoValueFor(dateStr, t, data);
         setQty(t.id, value);
         markSourceBadge(t, source, detail);
+        lastAutoFilled.set(t.id, { value: Math.round(Number(value) || 0), source });
     });
 
     // 시간으로 잡는 업무(개인담당업무 등) — 저장값 › 실적 평균
@@ -1350,18 +1355,22 @@ const savedEntryText = (e) => e.kind === 'time'
     ? `${e.task.label} ${e.value}분`
     : `${e.task.label} ${e.value > 0 ? e.value.toLocaleString() : '0'}`;
 
-const updateSavedInfo = (dateStr) => {
+const updateSavedInfo = (dateStr, skipped = []) => {
     const el = document.getElementById('sim-saved-info');
     if (!el) return;
     if (!dateStr) { el.textContent = ''; return; }
+    const skipNote = skipped.length > 0
+        ? `<br><span class="text-rose-600 dark:text-rose-400 font-bold">오늘 실측 ${skipped.length}개는 저장하지 않았습니다</span>
+           <span class="text-gray-400 dark:text-gray-500">— ${skipped.join(', ')} · 실측값은 처리량 입력에서 자동으로 반영됩니다.</span>`
+        : '';
     const entries = savedSimEntries(dateStr);
     if (entries.length === 0) {
-        el.innerHTML = `<span class="text-gray-400 dark:text-gray-500">저장된 수기 값 없음 — 자동값으로 계산 중</span>`;
+        el.innerHTML = `<span class="text-gray-400 dark:text-gray-500">저장된 수기 값 없음 — 자동값으로 계산 중</span>${skipNote}`;
         return;
     }
     const list = entries.map(savedEntryText).join(', ');
     el.innerHTML = `<span class="text-amber-700 dark:text-amber-400 font-bold">💾 저장됨 ${entries.length}개</span>
-        <span class="text-gray-400 dark:text-gray-500">— ${list} · '자동값'을 누르기 전까지 유지됩니다.</span>`;
+        <span class="text-gray-400 dark:text-gray-500">— ${list} · '자동값'을 누르기 전까지 유지됩니다.</span>${skipNote}`;
 };
 
 const saveSimQuantities = async () => {
@@ -1375,7 +1384,16 @@ const saveSimQuantities = async () => {
     // 이 화면에 없는 업무(예: 해외배송)의 예정 물량은 건드리지 않는다
     const merged = { ...(getPlannedQuantitiesForDate(dateStr) || {}) };
     // 0과 빈칸(=0)도 '그렇게 하기로 한 값'으로 그대로 저장한다.
-    SIM_TASKS.forEach(t => { merged[t.key] = Math.max(0, Math.round(Number(tasks[t.key]) || 0)); });
+    // 다만 '오늘 실측'으로 채워진 값을 손대지 않았다면 저장하지 않는다.
+    //   실측은 오늘 처리량 입력에서 계속 바뀌는 값인데, 여기서 예정 물량으로 굳혀 버리면
+    //   그 뒤에 늘어난 실적이 반영되지 않고 배지도 '예정물량'으로 바뀌어 버린다.
+    const skipped = [];
+    SIM_TASKS.forEach(t => {
+        const v = Math.max(0, Math.round(Number(tasks[t.key]) || 0));
+        const af = lastAutoFilled.get(t.id);
+        if (af && af.source === 'actual' && af.value === v) { skipped.push(t.label); return; }
+        merged[t.key] = v;
+    });
 
     const btn = document.getElementById('sim-save-btn');
     if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
@@ -1394,7 +1412,7 @@ const saveSimQuantities = async () => {
     if (!ok) return;
 
     autoFillSimInputs(dateStr);       // 배지를 '예정물량'으로 갱신
-    updateSavedInfo(dateStr);
+    updateSavedInfo(dateStr, skipped);
     simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
     renderForecastSummary();
 };
