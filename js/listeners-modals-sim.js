@@ -1,10 +1,10 @@
 // === js/listeners-modals-sim.js ===
-import * as DOM from './dom-elements.js?v=202609031149';
-import { appState, appConfig, allHistoryData } from './state.js?v=202609031149';
-import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js?v=202609031149';
-import { runAdvancedSimulation } from './analysis-logic.js?v=202609031149'; 
-import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js?v=202609031149';
-import { fetchAllHistoryData } from './history-data-manager.js?v=202609031149';
+import * as DOM from './dom-elements.js?v=202609031657';
+import { appState, appConfig, allHistoryData } from './state.js?v=202609031657';
+import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js?v=202609031657';
+import { runAdvancedSimulation } from './analysis-logic.js?v=202609031657'; 
+import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js?v=202609031657';
+import { fetchAllHistoryData } from './history-data-manager.js?v=202609031657';
 
 const CUSTOM_TASK_ORDER = ['채우기', '국내배송', '교환반품', '해외배송', '상.하차', '중국제작', '직진배송', '티니'];
 const DEFAULT_CONCURRENT_TASKS = ['해외배송', '상.하차'];

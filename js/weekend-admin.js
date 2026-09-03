@@ -1,9 +1,9 @@
 // === js/weekend-admin.js ===
-import * as State from './state.js?v=202609031149';
-import { store, currentManageDateStr, setCurrentManageDateStr } from './weekend-store.js?v=202609031149';
-import { createRequest } from './weekend-core.js?v=202609031149';
-import { showToast } from './utils.js?v=202609031149';
-import { getMonthlyFairCount, getWeekendCapacity } from './weekend-ui.js?v=202609031149';
+import * as State from './state.js?v=202609031657';
+import { store, currentManageDateStr, setCurrentManageDateStr } from './weekend-store.js?v=202609031657';
+import { createRequest } from './weekend-core.js?v=202609031657';
+import { showToast } from './utils.js?v=202609031657';
+import { getMonthlyFairCount, getWeekendCapacity } from './weekend-ui.js?v=202609031657';
 import { doc, updateDoc, deleteDoc, setDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const WEEKEND_ADMIN_MEMBERS = ['박영철', '박호진', '유아라', '이승운'];

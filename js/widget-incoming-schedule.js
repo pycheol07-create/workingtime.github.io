@@ -4,11 +4,62 @@
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw8ZaiYF8McexD_ZWXWoOZ0F4UQKgQVBH3w8XLiTxW3bPSMoOcptXnb2N-gW_hRJW4-Xw/exec';
 
-// 컬럼 인덱스 (0-based). A=0 ... B=1 ... Q=16 ... R=17 ... AC=28
+// 컬럼은 '헤더 이름'으로 찾는다. 시트에 열이 추가·이동돼도 따라가도록.
+// 이름을 못 찾은 항목만 예전 고정 위치로 폴백한다.
+// (0-based) A=0 ... B=1 ... Q=16 ... R=17 ... AC=28
 const COL_PACK_DATE = 1;   // B열 — 패킹 일자
 const COL_BOXES = 16;      // Q열 — 박스 수
 const COL_QTY = 17;        // R열 — 수량
 const COL_ARRIVAL = 28;    // AC열 — 도착일
+
+// 헤더 글자 정규화: 공백 제거 + 소문자 (줄바꿈이 든 두 줄 헤더도 한 덩어리로)
+const normHeader = (v) => String(v ?? '').replace(/\s+/g, '').toLowerCase();
+
+// 항목별 헤더 판별 규칙 — 시트마다 표기가 조금씩 달라 '포함' 기준으로 본다.
+const HEADER_RULES = {
+    arrival: { label: '도착일', fallback: COL_ARRIVAL,
+               test: (h) => /도착/.test(h) || /입고(예정)?일/.test(h) },
+    qty:     { label: '수량',   fallback: COL_QTY,
+               test: (h) => (/수량/.test(h) || /pcs/.test(h)) && !/박스|box|ctn|금액/.test(h) },
+    boxes:   { label: '박스',   fallback: COL_BOXES,
+               test: (h) => /박스|box|ctn/.test(h) },
+    pack:    { label: '패킹일', fallback: COL_PACK_DATE,
+               test: (h) => /패킹|포장/.test(h) }
+};
+
+/** 헤더 줄을 찾아 각 항목의 열 번호를 정한다.
+ *  - 위에서 5줄까지 훑어 '가장 많이 맞아떨어지는 줄'을 헤더로 본다(제목 줄이 위에 있어도 안전).
+ *  - 못 찾은 항목은 예전 고정 위치를 그대로 쓴다.
+ *  반환 { cols, startRow, missing, headerRow }
+ */
+function resolveColumns(rows) {
+    let best = { score: -1, idx: 0, cols: {} };
+    const scan = Math.min(5, rows.length);
+    for (let r = 0; r < scan; r++) {
+        const row = Array.isArray(rows[r]) ? rows[r] : [];
+        const cols = {};
+        let score = 0;
+        Object.entries(HEADER_RULES).forEach(([key, rule]) => {
+            const i = row.findIndex(cell => {
+                const h = normHeader(cell);
+                return h.length > 0 && rule.test(h);
+            });
+            if (i > -1) { cols[key] = i; score++; }
+        });
+        if (score > best.score) best = { score, idx: r, cols };
+    }
+
+    const cols = {};
+    const missing = [];
+    Object.entries(HEADER_RULES).forEach(([key, rule]) => {
+        if (best.cols[key] != null) cols[key] = best.cols[key];
+        else { cols[key] = rule.fallback; missing.push(rule.label); }
+    });
+
+    // 헤더를 하나도 못 찾으면 예전처럼 '첫 줄은 헤더'로 보고 고정 위치를 쓴다
+    const headerRow = best.score > 0 ? best.idx : 0;
+    return { cols, startRow: headerRow + 1, missing, headerRow, matched: Math.max(0, best.score) };
+}
 
 const REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2시간
 const CACHE_KEY = 'incoming_schedule_cache_v1';
@@ -110,19 +161,26 @@ async function fetchIncomingSchedule() {
         const rows = Array.isArray(json) ? json : json.data;
         const today = new Date(); today.setHours(0, 0, 0, 0);
 
+        // 헤더 이름으로 열 위치를 잡는다(못 찾은 항목만 고정 위치 폴백)
+        const { cols, startRow, missing, headerRow } = resolveColumns(rows || []);
+        if (missing.length > 0) {
+            console.warn(`[widget-incoming] 헤더를 못 찾은 항목: ${missing.join(', ')} → 기존 열 위치로 읽습니다.`,
+                         { headerRow, cols });
+        }
+
         const items = [];
-        for (let i = 1; i < rows.length; i++) {
+        for (let i = startRow; i < rows.length; i++) {
             const r = rows[i];
             if (!r || r.length < 3) continue;
-            const arrivalRaw = r[COL_ARRIVAL];
+            const arrivalRaw = r[cols.arrival];
             const arrival = parseDateCell(arrivalRaw);
             if (!arrival) continue;
             const arr = new Date(arrival); arr.setHours(0, 0, 0, 0);
             if (arr < today) continue; // 과거는 제외
 
-            const packDate = r[COL_PACK_DATE];
-            const boxes = Number(String(r[COL_BOXES] || '').replace(/[^0-9.-]/g, '')) || 0;
-            const qty = Number(String(r[COL_QTY] || '').replace(/[^0-9.-]/g, '')) || 0;
+            const packDate = r[cols.pack];
+            const boxes = Number(String(r[cols.boxes] || '').replace(/[^0-9.-]/g, '')) || 0;
+            const qty = Number(String(r[cols.qty] || '').replace(/[^0-9.-]/g, '')) || 0;
             if (boxes === 0 && qty === 0) continue; // 빈 행 제외
 
             items.push({
@@ -145,7 +203,13 @@ async function fetchIncomingSchedule() {
         // 🗓️ 업무 캘린더가 입고 표시를 다시 그릴 수 있도록 알림
         try { document.dispatchEvent(new CustomEvent('incoming-schedule-updated')); } catch (_) {}
         const now = new Date();
-        if (statusEl) statusEl.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} 갱신`;
+        if (statusEl) {
+            statusEl.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} 갱신`
+                                 + (missing.length > 0 ? ' ⚠️' : '');
+            statusEl.title = missing.length > 0
+                ? `시트에서 ${missing.join(', ')} 헤더를 찾지 못해 기존 열 위치로 읽었습니다. 시트 머리글을 확인하세요.`
+                : `${headerRow + 1}행을 머리글로 보고 열 이름으로 읽었습니다.`;
+        }
         _lastFetchAt = Date.now();
     } catch (e) {
         console.warn('[widget-incoming] fetch 실패:', e);
