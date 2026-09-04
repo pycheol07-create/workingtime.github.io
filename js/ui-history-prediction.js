@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609041037';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609041037';
-import * as State from './state.js?v=202609041037';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609041037';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609041037';
+import { predictFutureTrends } from './analysis-logic.js?v=202609041043';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609041043';
+import * as State from './state.js?v=202609041043';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609041043';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609041043';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609041037';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609041043';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -284,7 +284,7 @@ const autoTimeValueFor = (dateStr, t, historyData, qtyLookup = null) => {
               + `${st.sampleDays}일 중 ${st.hitDays}일 진행 · 1인 기준 평균 ${st.avgMinutes}분`
               + ` (가장 많은 날 ${Math.round(st.maxMinutes)}분)`
               + ` · 실적은 평균 ${st.workers}명이 하루 ${st.teamMinutes}분(팀 합계)`
-              + ` — 인원을 바꾸면 이 시간을 그 인원으로 나눠 1인 시간이 자동 조정됩니다`
+              + ` — 인원을 올리면 각자 이 시간만큼 더 들어갑니다`
     };
 };
 
@@ -635,7 +635,7 @@ const renderSimTaskInputs = () => {
         <div id="sim-row-t-${t.id}" data-row-id="t-${t.id}" class="pred-sim-row ${ROW}">
             <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${t.label} — 시간은 1인 기준입니다">${t.label}</span>
             <label class="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
-                   title="이 업무를 하는 인원. 인원을 바꾸면 총 투입시간을 그 인원으로 나눠 1인 시간이 자동으로 다시 잡힙니다(2명이면 절반씩). 이 시간만큼 물량 업무에서 인원이 빠집니다.">동시
+                   title="이 업무를 하는 인원. 각자 자기 몫을 따로 하는 업무라, 인원이 늘면 그 인원만큼 시간(인시)이 더해집니다. 2명 × 280분이면 총 560분이 들어가고, 각자는 280분씩 붙어 있습니다.">동시
                 <input id="sim-workers-${t.id}" type="number" min="1" step="1" value="1"
                        class="w-8 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
                               text-[12px] font-bold text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-0">명</label>
@@ -666,21 +666,6 @@ const renderSimTaskInputs = () => {
     // 데스크톱에서는 2열로 세워 세로 길이를 줄인다(항목이 많아 한 줄씩이면 화면을 넘긴다)
     host.className = 'grid grid-cols-1 lg:grid-cols-2 gap-3 items-start';
     host.innerHTML = qtyBlocks + timeBlock;
-};
-
-// 🧮 담당 업무의 기준 총 투입시간(인분). 인원을 조정하면 이 값을 인원수로 나눠 1인 시간을 다시 잡는다.
-//    (기본 1명 · 1인 평균 시간이 곧 기준 총량이 된다)
-const timeTaskBase = new Map();   // taskId → 총 투입시간(분)
-
-const setTimeBase = (t, minutes, workers) => {
-    timeTaskBase.set(t.id, Math.max(0, Math.round(Number(minutes) || 0)) * Math.max(1, Math.round(Number(workers) || 1)));
-};
-
-/** 인원 n명으로 나눈 1인 시간(10분 단위) */
-const perPersonMinutes = (baseMinutes, workers) => {
-    const w = Math.max(1, Math.round(Number(workers) || 1));
-    const m = Math.max(0, Number(baseMinutes) || 0) / w;
-    return Math.round(m / 10) * 10;
 };
 
 /** 시간형 업무 입력칸 채우기 */
@@ -730,7 +715,6 @@ const autoFillSimInputs = (dateStr) => {
     SIM_TIME_TASKS.forEach(t => {
         const v = autoTimeValueFor(dateStr, t, data);
         setTimeInputs(t, v);
-        setTimeBase(t, v.minutes, v.workers);
         markTimeSourceBadge(t, v.source, v.detail);
     });
 
@@ -1567,44 +1551,15 @@ const setupSimulationListeners = () => {
             if (getPlannedTime(dateStr, t.key)) return;      // 저장해 둔 값은 건드리지 않는다
             const v = autoTimeValueFor(dateStr, t, State.allHistoryData, lookup);
             setTimeInputs(t, v);
-            setTimeBase(t, v.minutes, v.workers);
-            markTimeSourceBadge(t, v.source, v.detail);
+                markTimeSourceBadge(t, v.source, v.detail);
         });
-    });
-
-    // ⏳ 담당 업무 — 인원을 바꾸면 그 인원에 맞는 1인 평균시간으로 자동 조정한다.
-    //    (총 투입시간은 그대로 두고 인원수로 나눈다: 2명이면 절반씩, 4명이면 1/4씩)
-    //    시간을 직접 고치면 그 값을 새 기준으로 삼는다.
-    document.getElementById('sim-task-list')?.addEventListener('input', (e) => {
-        const id = e.target?.id || '';
-        const mW = /^sim-workers-(.+)$/.exec(id);
-        if (mW) {
-            const t = SIM_TIME_TASKS.find(x => x.id === mW[1]);
-            if (!t) return;
-            const workers = Math.max(1, Math.round(Number(e.target.value) || 1));
-            const base = timeTaskBase.get(t.id);
-            if (base == null) return;
-            const mEl = document.getElementById(`sim-time-${t.id}`);
-            const per = perPersonMinutes(base, workers);
-            if (mEl) mEl.value = per > 0 ? per : '';
-            const badge = document.getElementById(`sim-src-t-${t.id}`);
-            if (badge) badge.title = `총 투입시간 ${base}분을 ${workers}명이 나눠 하는 것으로 보고 1인 ${per}분으로 잡았습니다.`;
-            return;
-        }
-        const mT = /^sim-time-(.+)$/.exec(id);
-        if (mT) {
-            const t = SIM_TIME_TASKS.find(x => x.id === mT[1]);
-            if (!t) return;
-            const workers = Math.max(1, Math.round(Number(document.getElementById(`sim-workers-${t.id}`)?.value) || 1));
-            setTimeBase(t, Number(e.target.value) || 0, workers);   // 직접 고친 값이 새 기준
-        }
     });
 
     document.getElementById('sim-reset-btn')?.addEventListener('click', () => {
         // 모든 수량/인원 입력 초기화 (업무 목록은 항상 기본 등록이므로 숨기지 않음)
         // ※ 저장해 둔 수기 값은 지우지 않는다(그건 '자동값' 버튼의 역할).
         SIM_TASKS.forEach(t => setQty(t.id, ''));
-        SIM_TIME_TASKS.forEach(t => { setTimeInputs(t, { minutes: 0, workers: 1 }); timeTaskBase.set(t.id, 0); });
+        SIM_TIME_TASKS.forEach(t => setTimeInputs(t, { minutes: 0, workers: 1 }));
         ['sim-staff-fulltime','sim-staff-parttimer','sim-exclude-min'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';

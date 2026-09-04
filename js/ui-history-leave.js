@@ -1,11 +1,11 @@
 // === js/ui-history-leave.js ===
-import * as State from './state.js?v=202609041037';
-import { showToast, isMemberActiveOn } from './utils.js?v=202609041037';
+import * as State from './state.js?v=202609041043';
+import { showToast, isMemberActiveOn } from './utils.js?v=202609041043';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ 엑셀 변환 함수 불러오기
-import { downloadLeaveLedgerExcel } from './history-excel.js?v=202609041037';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609041037';
+import { downloadLeaveLedgerExcel } from './history-excel.js?v=202609041043';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609041043';
 
 let currentYear = new Date().getFullYear();
 let fullLeaveConfig = {}; 
