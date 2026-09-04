@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609040938';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609040938';
-import * as State from './state.js?v=202609040938';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609040938';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609040938';
+import { predictFutureTrends } from './analysis-logic.js?v=202609041029';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609041029';
+import * as State from './state.js?v=202609041029';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609041029';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609041029';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609040938';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609041029';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -533,17 +533,18 @@ const todayActualQty = (historyData, dateStr, taskKey) => {
 
 /** 한 업무의 대상일 값과 그 출처.
  *  ⭐ 우선순위
- *    1. 예정 물량(수기 입력)      — 업무 기록 및 관리 > 예정 물량
- *    2. 오늘 처리량 입력(실측)     — 대상일이 오늘일 때만
+ *    1. 오늘 처리량 입력(실측)     — 대상일이 오늘일 때만. 실제로 처리한 값이므로 예정보다 우선.
+ *    2. 예정 물량(수기 입력)      — 업무 기록 및 관리 > 예정 물량 / 이 화면의 '작업량 저장'
  *    3. 업무별 자동 추정값         — AI 예측 / 입고일정 / 중국제작 연동 / 지난 7회 평균
  *  반환: { value, source }  (source는 배지 표시에 그대로 쓴다)
  */
 const autoValueFor = (dateStr, task, historyData) => {
-    const planned = getPlanned(dateStr, task.key);
-    if (planned != null) return { value: planned, source: 'planned' };
-
+    // 실측이 잡히면 예정 물량을 저장해 뒀더라도 실측이 이긴다
     const actual = todayActualQty(historyData, dateStr, task.key);
     if (actual != null) return { value: actual, source: 'actual' };
+
+    const planned = getPlanned(dateStr, task.key);
+    if (planned != null) return { value: planned, source: 'planned' };
 
     switch (task.auto) {
         case 'ai':       return { value: getAIPredictedDomestic(historyData, dateStr), source: 'ai' };
@@ -567,9 +568,9 @@ const autoQtyFor = (dateStr, task, historyData) => autoValueFor(dateStr, task, h
 // 자동으로 채워진 값은 조용한 회색 글씨로 둔다 — 10칸이 배지로 뒤덮이지 않도록.
 const SOURCE_BADGE = {
     planned:  { text: '예정물량', muted: false, cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-                tip: '업무 기록 및 관리 > 예정 물량에 직접 입력한 값입니다. 가장 먼저 적용됩니다.' },
+                tip: '예정 물량(또는 이 화면의 작업량 저장)에 직접 넣은 값입니다. 오늘 실측이 없을 때 적용됩니다.' },
     actual:   { text: '오늘 실측', muted: false, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-                tip: '오늘 처리량 입력에 이미 들어간 실제 값입니다. 예정 물량 다음으로 우선 적용됩니다.' },
+                tip: '오늘 처리량 입력에 들어간 실제 값입니다. 저장해 둔 예정 물량이 있어도 이 값이 먼저 적용됩니다.' },
     ai:       { text: 'AI 예측',    muted: true, tip: '국내배송 AI 추세 예측값' },
     incoming: { text: '입고일정',    muted: true, tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
     last7:    { text: '지난 7회 평균', muted: true, tip: '이 업무가 발생한 최근 7일의 업무량 평균' },
@@ -694,9 +695,6 @@ ${detail}` : tip;
 // ───────────────────────────────────────────────────────────
 // 시뮬레이션 UI 핸들러
 // ───────────────────────────────────────────────────────────
-// 🧾 방금 자동으로 채워 넣은 값과 그 출처. 저장할 때 '손대지 않은 오늘 실측'을 가려내는 데 쓴다.
-const lastAutoFilled = new Map();   // taskId → { value, source }
-
 const autoFillSimInputs = (dateStr) => {
     if (!dateStr) return;
     const data = State.allHistoryData;
@@ -706,12 +704,10 @@ const autoFillSimInputs = (dateStr) => {
     if (refreshTimeTasks()) renderSimTaskInputs();
 
     // 모든 업무가 기본 등록 — 예정 물량이 있으면 그 값, 없으면 업무별 자동값
-    lastAutoFilled.clear();
     SIM_TASKS.forEach(t => {
         const { value, source, detail } = autoValueFor(dateStr, t, data);
         setQty(t.id, value);
         markSourceBadge(t, source, detail);
-        lastAutoFilled.set(t.id, { value: Math.round(Number(value) || 0), source });
     });
 
     // 시간으로 잡는 업무(개인담당업무 등) — 저장값 › 실적 평균
@@ -1354,22 +1350,18 @@ const savedEntryText = (e) => e.kind === 'time'
     ? `${e.task.label} ${e.value}분`
     : `${e.task.label} ${e.value > 0 ? e.value.toLocaleString() : '0'}`;
 
-const updateSavedInfo = (dateStr, skipped = []) => {
+const updateSavedInfo = (dateStr) => {
     const el = document.getElementById('sim-saved-info');
     if (!el) return;
     if (!dateStr) { el.textContent = ''; return; }
-    const skipNote = skipped.length > 0
-        ? `<br><span class="text-rose-600 dark:text-rose-400 font-bold">오늘 실측 ${skipped.length}개는 저장하지 않았습니다</span>
-           <span class="text-gray-400 dark:text-gray-500">— ${skipped.join(', ')} · 실측값은 처리량 입력에서 자동으로 반영됩니다.</span>`
-        : '';
     const entries = savedSimEntries(dateStr);
     if (entries.length === 0) {
-        el.innerHTML = `<span class="text-gray-400 dark:text-gray-500">저장된 수기 값 없음 — 자동값으로 계산 중</span>${skipNote}`;
+        el.innerHTML = `<span class="text-gray-400 dark:text-gray-500">저장된 수기 값 없음 — 자동값으로 계산 중</span>`;
         return;
     }
     const list = entries.map(savedEntryText).join(', ');
     el.innerHTML = `<span class="text-amber-700 dark:text-amber-400 font-bold">💾 저장됨 ${entries.length}개</span>
-        <span class="text-gray-400 dark:text-gray-500">— ${list} · '자동값'을 누르기 전까지 유지됩니다.</span>${skipNote}`;
+        <span class="text-gray-400 dark:text-gray-500">— ${list} · '자동값'을 누르기 전까지 유지되며, 오늘 실측이 잡히면 실측이 우선합니다.</span>`;
 };
 
 const saveSimQuantities = async () => {
@@ -1383,15 +1375,10 @@ const saveSimQuantities = async () => {
     // 이 화면에 없는 업무(예: 해외배송)의 예정 물량은 건드리지 않는다
     const merged = { ...(getPlannedQuantitiesForDate(dateStr) || {}) };
     // 0과 빈칸(=0)도 '그렇게 하기로 한 값'으로 그대로 저장한다.
-    // 다만 '오늘 실측'으로 채워진 값을 손대지 않았다면 저장하지 않는다.
-    //   실측은 오늘 처리량 입력에서 계속 바뀌는 값인데, 여기서 예정 물량으로 굳혀 버리면
-    //   그 뒤에 늘어난 실적이 반영되지 않고 배지도 '예정물량'으로 바뀌어 버린다.
-    const skipped = [];
+    // 실측으로 채워진 값도 그대로 저장한다 — 실측이 예정 물량보다 우선이라,
+    // 나중에 실적이 더 쌓이면 그 값이 자동으로 앞선다(저장값에 갇히지 않는다).
     SIM_TASKS.forEach(t => {
-        const v = Math.max(0, Math.round(Number(tasks[t.key]) || 0));
-        const af = lastAutoFilled.get(t.id);
-        if (af && af.source === 'actual' && af.value === v) { skipped.push(t.label); return; }
-        merged[t.key] = v;
+        merged[t.key] = Math.max(0, Math.round(Number(tasks[t.key]) || 0));
     });
 
     const btn = document.getElementById('sim-save-btn');
@@ -1411,7 +1398,7 @@ const saveSimQuantities = async () => {
     if (!ok) return;
 
     autoFillSimInputs(dateStr);       // 배지를 '예정물량'으로 갱신
-    updateSavedInfo(dateStr, skipped);
+    updateSavedInfo(dateStr);
     simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
     renderForecastSummary();
 };
@@ -1536,6 +1523,7 @@ const setupSimulationListeners = () => {
         if (!e.target.matches('#sim-qty-china')) return;
         const dateStr = document.getElementById('sim-target-date')?.value;
         if (!dateStr) return;
+        if (todayActualQty(State.allHistoryData, dateStr, '샘플검수') != null) return;
         if (getPlanned(dateStr, '샘플검수') != null) return;
         const china = Number(e.target.value) || 0;
         const sampleTask = SIM_TASKS.find(t => t.id === 'sample');
