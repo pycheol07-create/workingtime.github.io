@@ -12,7 +12,7 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202609041402';
+import { initializeFirebase } from './config.js?v=202609041419';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -197,9 +197,25 @@ const personById = (id) => people.find(p => p.id === id) || null;
 function renderTabs() {
     const host = $('person-tabs');
     const list = activePeople();
-    host.innerHTML = list.map(p =>
-        `<button class="p-tab ${p.id === currentPid ? 'on' : ''}" data-pid="${esc(p.id)}">${esc(p.name || '이름없음')}</button>`
-    ).join('');
+    if (list.length === 0) {
+        host.innerHTML = '<div class="text-[11px] text-slate-400 px-1 py-2">등록된 근무자가 없습니다.</div>';
+        return;
+    }
+    host.innerHTML = list.map(p => {
+        const ck = checkStats(p.id);
+        const t = monthTotals(p.id);
+        // 카드에 그 사람의 이번 달 상태를 같이 보여준다(탭만 있을 때는 알 수 없던 정보)
+        const badge = ck.todo > 0
+            ? `<span class="badge text-amber-600">미확인 ${ck.todo}</span>`
+            : (ck.target > 0 ? '<span class="badge text-emerald-600">확인 완료</span>' : '');
+        return `<button class="p-card ${p.id === currentPid ? 'on' : ''}" data-pid="${esc(p.id)}">
+            <div class="flex items-center justify-between gap-2">
+                <span class="nm truncate">${esc(p.name || '이름없음')}</span>
+                ${badge}
+            </div>
+            <div class="sub">${t.days}일 · ${hoursText(t.workedMin)}${p.memo ? ' · ' + esc(p.memo) : ''}</div>
+        </button>`;
+    }).join('');
 }
 
 function renderSheet() {
@@ -578,6 +594,7 @@ const openPersonModal = (pid) => {
 const closePersonModal = () => $('person-modal').classList.add('hidden');
 
 $('btn-add-person').addEventListener('click', () => openPersonModal(null));
+$('btn-add-person-side')?.addEventListener('click', () => openPersonModal(null));
 $('btn-edit-person').addEventListener('click', () => { if (currentPid) openPersonModal(currentPid); });
 document.querySelectorAll('[data-close-person]').forEach(b => b.addEventListener('click', closePersonModal));
 $('person-modal').addEventListener('click', (e) => { if (e.target === $('person-modal')) closePersonModal(); });

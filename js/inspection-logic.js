@@ -1,12 +1,12 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202609041402';
-import * as State from './state.js?v=202609041402';
-import { updateDailyData } from './app-data.js?v=202609041402'; 
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202609041402';
+import * as DOM from './dom-elements.js?v=202609041419';
+import * as State from './state.js?v=202609041419';
+import { updateDailyData } from './app-data.js?v=202609041419'; 
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202609041419';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { currentImageBase64, clearImageState, setCurrentImageBase64 } from './inspection-media.js?v=202609041402';
+import { currentImageBase64, clearImageState, setCurrentImageBase64 } from './inspection-media.js?v=202609041419';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -879,6 +879,6 @@ export const clearTodayList = () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202609041402';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202609041402';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202609041402';
+export { handleExcelUpload } from './inspection-excel.js?v=202609041419';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202609041419';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202609041419';
