@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>중국제작 미발계산기</title>
+    <style>
+        :root { --primary: #e65100; --bg: #f8f9fa; --card: #ffffff; }
+        body { background: var(--bg); margin: 0; font-family: 'Noto Sans KR', sans-serif; overflow: hidden; }
+        
+        .controls-header { padding: 15px 20px 10px 20px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
+        .version-badge { background: #fff3e0; color: #bf360c; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; border: 1px solid #ffcc80; }
+        
+        .date-bar { margin: 0 20px 10px 20px; background: white; border: 1px solid #ddd; border-radius: 10px; padding: 10px 15px; display: flex; align-items: center; gap: 12px; position: relative; }
+        .btn-date-dropdown { padding: 6px 12px; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; color: #333; display: flex; align-items: center; gap: 5px; min-width: 140px; }
+        .date-dropdown-popup { display: none; position: absolute; top: 100%; left: 0; background: white; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 10002; margin-top: 5px; width: 320px; max-height: 400px; overflow-y: auto; padding: 10px; }
+        .date-item { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: 12px; cursor: pointer; border-radius: 4px; }
+        .selected-date-tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 1; margin: 0 10px; overflow: hidden; }
+        .date-tag { display: inline-flex; align-items: center; gap: 5px; background: #fff3e0; color: #bf360c; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid #ffcc80; }
+        .date-actions { display: flex; gap: 5px; border-left: 1px solid #eee; padding-left: 15px; }
+
+        /* 요약 바 및 버튼 그룹 스타일 */
+        .summary-bar { margin: 0 20px 10px 20px; display: flex; gap: 15px; flex-wrap: wrap; }
+        .summary-card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px 18px; display: flex; flex-direction: column; align-items: center; min-width: 100px; }
+        .summary-card .label { font-size: 11px; color: #888; font-weight: bold; }
+        .summary-card .value { font-size: 22px; font-weight: 900; color: #333; }
+        .summary-card.highlight .value { color: var(--primary); }
+
+
+        .list-container { overflow: auto; background: white; margin: 0 20px 10px 20px; border-radius: 12px; border: 1px solid #ccc; height: calc(100vh - 230px); }
+        .list-table { width: 100%; border-collapse: collapse; min-width: 1400px; }
+        .list-table th, .list-table td { padding: 10px 12px; text-align: center; border: 1px solid #ccc; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .list-table th { background: #f4f4f4; position: sticky; top: -1px; z-index: 10; font-weight: 800; }
+        .th-sortable { cursor: pointer; }
+        /* [Ver 8.52] 헤더 열 필터 */
+        .th-cell .th-label { }
+        .col-filter { display: inline-block; margin-left: 4px; cursor: pointer; color: #b0b0b0; font-size: 11px; vertical-align: middle; user-select: none; }
+        .col-filter:hover { color: #1976d2; }
+        .col-filter.active { color: #e65100; font-weight: 900; }
+        .col-filter-pop { position: fixed; z-index: 10002; background: #fff; border: 1px solid #bbb; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); width: 232px; padding: 8px; }
+        .col-filter-pop .cfp-search { width: 100%; box-sizing: border-box; padding: 6px; border: 1px solid #ccc; border-radius: 5px; font-size: 12px; margin-bottom: 6px; }
+        .col-filter-pop .cfp-list { max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; padding: 2px; }
+        .col-filter-pop .cfp-item { display: flex; align-items: center; gap: 6px; padding: 4px 6px; font-size: 12px; cursor: pointer; border-radius: 4px; text-align: left; white-space: normal; word-break: break-all; }
+        .col-filter-pop .cfp-item:hover { background: #f5f5f5; }
+        .col-filter-pop .cfp-allrow { border-bottom: 1px solid #eee; margin-bottom: 2px; }
+        .col-filter-pop .cfp-btns { display: flex; gap: 5px; margin-top: 8px; }
+        .col-filter-pop .cfp-btns button { flex: 1; padding: 7px 0; border: 1px solid #ccc; background: #fff; border-radius: 5px; font-size: 12px; font-weight: bold; cursor: pointer; }
+        .col-filter-pop .cfp-btns button.primary { background: #1976d2; color: #fff; border-color: #1976d2; }
+        .editable-cell { cursor: text; background: #fffde7; }
+        .code-cell { font-weight: bold; color: #1565c0; cursor: copy; }
+
+        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 999999; flex-direction: column; justify-content: center; align-items: center; color: white; backdrop-filter: blur(3px); }
+        .spinner { border: 6px solid rgba(255,255,255,0.3); border-top: 6px solid var(--primary); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* [긴급 수정] 모달 CSS 복구 */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 25px; border-radius: 10px; width: 450px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+
+        #toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 10001; left: 50%; bottom: 50px; transform: translateX(-50%); opacity: 0; transition: 0.3s; }
+        #toast.show { visibility: visible; opacity: 1; }
+
+        /* [Ver 6.8] 보기 모드(미발계산기/위치지정모드) 전환 */
+        #app-title { cursor: pointer; user-select: none; }
+        #app-title:hover { color: #1976d2; }
+        .loc-only { display: none; }
+        body[data-view="location"] .loc-only { display: flex; }
+        /* 위치지정모드 서브뷰: 당일입고지정(today) / 기존재고지정(existing) */
+        .loc-today-only, .loc-existing-only { display: none; }
+        body[data-view="location"][data-locsub="today"] .loc-today-only { display: flex; }
+        body[data-view="location"][data-locsub="existing"] .loc-existing-only { display: block; }
+        /* 위치지정모드: 요약(총SKU/도착/미발)은 입고 관련이라 항상 숨김 */
+        body[data-view="location"] .summary-bar { display: none; }
+        /* 기존재고지정에서는 출고일/상품표도 숨김 */
+        body[data-view="location"][data-locsub="existing"] .date-bar,
+        body[data-view="location"][data-locsub="existing"] .list-container { display: none; }
+        /* 헤더 메뉴 항목 모드별 표시 (미발 전용 / 위치 전용) */
+        body[data-view="location"] .mode-mibal { display: none !important; }
+        body[data-view="mibal"] .mode-loc { display: none !important; }
+        .mode-card { border:2px solid #ddd; border-radius:12px; padding:22px 18px; cursor:pointer; text-align:center; transition:.15s; background:#fff; }
+        .mode-card:hover { border-color:#1976d2; box-shadow:0 4px 14px rgba(0,0,0,.12); transform:translateY(-2px); }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loading-text">데이터 처리 중...</div>
+    </div>
+
+    <div class="controls-header">
+        <div class="header-left">
+            <h2 id="app-title" title="클릭하면 모드 선택 (미발계산기 / 위치지정모드)" style="margin:0; font-size:20px; color:#333;"><span id="app-title-label">🏭 중국제작 미발계산기</span> <span style="font-size:13px; color:#999;">▾</span></h2>
+            <div class="version-badge">🚀 Ver 9.9</div>
+            <input type="text" id="search-input" placeholder="🔍 상품코드/상품명 검색" style="padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; width: 180px;">
+        </div>
+        <div class="header-actions">
+            <button id="btn-scan-lock" title="스캔 잠금: 새로고침·업로드·초기화 등 모든 기능을 잠가 작업자 스캔 중 ScanDB를 보호" style="padding: 8px 15px; background: #c62828; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">🔒 스캔잠금</button>
+            <button class="mode-mibal" id="btn-mibal-send" style="padding: 8px 15px; background: #00897b; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📤 미발전송</button>
+            <div class="upload-dropdown mode-mibal" style="position: relative; display: inline-block;">
+                <button class="btn-main-upload" id="btn-toggle-download" style="padding: 8px 15px; background: #1976d2; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 파일 다운로드 ▼</button>
+                <div class="upload-menu" id="download-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 10001; width: 240px;">
+                    <div class="mode-mibal" style="padding:8px 15px; background:#eceff1; font-size:11px; color:#546e7a;">📂 업로드</div>
+                    <label class="mode-mibal" style="display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; font-weight: bold; color:#5d4037;">📂 미발재고로그 업로드<input type="file" id="upload-stock-log" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
+                    <div class="mode-mibal" style="padding:8px 15px; background:#eceff1; font-size:11px; color:#546e7a; border-top:1px solid #ddd;">📥 파일 다운로드</div>
+                    <button id="btn-excel-download" class="mode-mibal" style="display:block; width:100%; text-align:left; padding: 12px 20px; font-size: 13px; cursor: pointer; border:none; border-bottom: 1px solid #eee; font-weight: bold; background:#fff; color:#1976d2;">📥 입고용파일다운로드</button>
+                    <button id="btn-mibal-download" class="mode-mibal" style="display:block; width:100%; text-align:left; padding: 12px 20px; font-size: 13px; cursor: pointer; border:none; border-bottom: 1px solid #eee; font-weight: bold; background:#fff; color:#00897b;">📥 미발확인파일다운로드</button>
+                    <button id="btn-floor2-download" class="mode-mibal" style="display:block; width:100%; text-align:left; padding: 12px 20px; font-size: 13px; cursor: pointer; border:none; border-bottom: 1px solid #eee; font-weight: bold; background:#fff; color:#6a1b9a;">📥 비축창고 엑셀저장</button>
+                    <button id="btn-inspection-download" class="mode-mibal" style="display:block; width:100%; text-align:left; padding: 12px 20px; font-size: 13px; cursor: pointer; border:none; border-bottom: 1px solid #eee; font-weight: bold; background:#fff; color:#c2185b;">📥 검수리스트파일다운로드</button>
+                    <button id="btn-inspection-print" class="mode-mibal" style="display:block; width:100%; text-align:left; padding: 12px 20px; font-size: 13px; cursor: pointer; border:none; font-weight: bold; background:#fff; color:#ad1457;">🖨️ 검수리스트인쇄</button>
+                </div>
+            </div>
+            <div class="upload-dropdown" style="position: relative; display: inline-block;">
+                <button class="btn-main-upload" id="btn-toggle-menu" style="padding: 8px 15px; background: #333; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">⚙️ 환경설정 ▼</button>
+                <div class="upload-menu" id="main-tools-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 10001; width: 280px;">
+                    <div class="mode-mibal" style="padding:8px 15px; background:#eceff1; font-size:11px; color:#546e7a;">🛠️ 도구</div>
+                    <div class="menu-item mode-mibal" id="btn-version-history" title="ScanDB 버전 기록 / 롤백 — 미발재고로그 업로드마다 자동 저장, 문제 시 원하는 시점으로 복원" style="display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; font-weight: bold; color:#5d4037;">🕘 버전기록 (롤백)</div>
+                    <div class="menu-item mode-mibal" id="btn-mibal-predict" style="display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; font-weight: bold; color:#5e35b1;">📈 미발예측</div>
+                    <div class="mode-mibal" style="padding:8px 15px; background:#eceff1; font-size:11px; color:#546e7a;">⚙️ 설정</div>
+                    <div class="menu-item mode-mibal" id="btn-open-grace" style="display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; font-weight: bold; color:#2e7d32;">📅 본사도착 유예 일수</div>
+                    <div class="menu-item mode-mibal" id="btn-open-sheet-settings" style="display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; font-weight: bold; color:#607d8b;">📎 CSV 시트 링크 설정</div>
+                    <div class="menu-item mode-mibal" id="btn-open-mibal-formula" style="display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; font-weight: bold; color:#e65100;">🧮 미발수량 공식 설정</div>
+                    <div class="menu-item mode-mibal" id="btn-open-zone-cap" style="display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; font-weight: bold; color:#1565c0;">📦 적재량 구역별 일괄 설정</div>
+                    <div class="menu-item mode-mibal" id="btn-open-column" style="display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; font-weight: bold; color:#00838f;">🔧 표 열(헤더) 설정</div>
+                    <div class="loc-existing-only" style="padding:8px 15px; background:#eceff1; font-size:11px; color:#546e7a;">📍 위치 관리</div>
+                    <div class="menu-item loc-existing-only" id="btn-open-location-map" style="padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; font-weight: bold; color:#7b1fa2;">📍 위치매핑 관리 (스캐너용)</div>
+                    <div class="menu-item mode-loc" id="btn-open-column-loc" style="display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; font-weight: bold; color:#00838f;">🔧 표 열(헤더) 설정</div>
+                    <div style="padding:8px 15px; background:#eceff1; font-size:11px; color:#546e7a; border-top:1px solid #ddd;">🔀 스캐너</div>
+                    <div class="menu-item" id="btn-open-barcode-alias" style="display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; font-weight: bold; color:#d84315;">🔀 오류바코드매칭</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- [Ver 8.92] 스캔 잠금 오버레이: 잠금 중 전체 화면을 덮어 모든 조작 차단 -->
+    <div id="scan-lock-overlay" style="display:none; position:fixed; inset:0; z-index:2147483000; background:rgba(20,20,20,0.72); align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:16px; padding:28px 34px; max-width:440px; text-align:center; box-shadow:0 12px 50px rgba(0,0,0,0.5); border:3px solid #c62828;">
+            <div style="font-size:52px; line-height:1;">🔒</div>
+            <div style="font-size:22px; font-weight:900; color:#c62828; margin:10px 0 6px;">스캔 잠금 중</div>
+            <div style="font-size:14px; color:#444; line-height:1.7; margin-bottom:10px;">작업자 스캔을 보호하는 중입니다.<br><b>새로고침 · 업로드 · 초기화 · 출고일 변경 등<br>모든 기능이 잠겼습니다.</b><br>스캔DB(ScanDB)는 변경되지 않습니다.</div>
+            <div style="font-size:12px; color:#b71c1c; background:#ffebee; border-radius:8px; padding:9px 11px; margin-bottom:18px; line-height:1.6;">⚠️ 작업이 끝난 뒤에만 잠금을 해제하세요.<br>해제 후 재계산/새로고침해야 ScanDB가 갱신됩니다.</div>
+            <button id="btn-scan-unlock" style="padding:12px 30px; background:#2e7d32; color:white; border:none; border-radius:8px; font-weight:900; font-size:16px; cursor:pointer;">🔓 잠금 해제</button>
+        </div>
+    </div>
+
+    <!-- [Ver 8.94] ScanDB 버전 기록 / 롤백 모달 -->
+    <div id="version-modal" style="display:none; position:fixed; inset:0; z-index:2147483100; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; width:min(560px,92vw); max-height:82vh; display:flex; flex-direction:column; box-shadow:0 12px 50px rgba(0,0,0,0.45);">
+            <div style="padding:15px 18px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:8px;">
+                <div style="font-size:18px; font-weight:900; color:#333; flex:1;">🕘 버전 기록 <span style="font-size:12px; color:#888; font-weight:normal;">(ScanDB · 순수 미발수량)</span></div>
+                <button id="btn-version-manual" style="padding:7px 12px; background:#2e7d32; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px;">📌 현재 저장</button>
+                <button id="btn-version-close" style="padding:7px 12px; background:#eceff1; color:#333; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px;">✕ 닫기</button>
+            </div>
+            <div style="padding:9px 15px; background:#fff8e1; font-size:12px; color:#795548; border-bottom:1px solid #ffe082; line-height:1.55;">미발재고로그 업로드마다 자동 저장 · <b>당일(오늘) 버전만 보관</b>(새 입고일 작업 시작 시 이전 날 자동 정리). <b>롤백하면</b> 그 시점 미발수량으로 복원되고 <b>자동 스캔잠금</b>이 걸립니다.</div>
+            <div id="version-list" style="overflow-y:auto; flex:1;"></div>
+        </div>
+    </div>
+
+    <div class="date-bar">
+        <label style="font-size: 13px; font-weight: bold; color: #555; white-space: nowrap;">📅 출고일 선택:</label>
+        <div class="date-dropdown-container" style="position: relative;">
+            <button class="btn-date-dropdown" id="btn-date-dropdown">▼ 출고일 선택</button>
+            <div class="date-dropdown-popup" id="date-dropdown-popup">
+                <div style="display: flex; gap: 5px; padding-bottom: 8px; border-bottom: 1px solid #eee; margin-bottom: 8px;">
+                    <button id="btn-date-all" style="padding: 3px 8px; font-size: 11px; cursor: pointer; background: #f0f0f0; border: 1px solid #ccc; border-radius: 3px;">전체선택</button>
+                    <button id="btn-date-none" style="padding: 3px 8px; font-size: 11px; cursor: pointer; background: #f0f0f0; border: 1px solid #ccc; border-radius: 3px;">전체해제</button>
+                </div>
+                <div id="date-checklist-container"></div>
+            </div>
+        </div>
+        <div class="selected-date-tags" id="date-tags-container">
+            <span class="no-selection-text">선택된 출고일 없음</span>
+        </div>
+        <div class="date-actions">
+            <button id="btn-date-clear" style="padding: 5px 12px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">🗑️ 전체 초기화</button>
+        </div>
+    </div>
+
+    <div class="summary-bar">
+        <div class="summary-card highlight"><span class="label">총 SKU</span><span class="value" id="sum-sku">0</span></div>
+        <div class="summary-card highlight"><span class="label">총 도착수량</span><span class="value" id="sum-arrival">0</span></div>
+        <div class="summary-card"><span class="label">총 미발수량</span><span class="value" id="sum-mibal">0</span></div>
+    </div>
+
+    <!-- [Ver 7.1] 위치지정모드 서브탭: 당일입고지정 / 기존재고지정 -->
+    <div id="loc-subtabs" class="loc-only" style="gap:8px; align-items:center; flex-wrap:wrap; padding:9px 16px; background:#ede7f6; border-bottom:1px solid #d1c4e9;">
+        <button class="loc-subtab" data-sub="today" style="padding:7px 15px; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">📅 당일입고지정</button>
+        <button class="loc-subtab" data-sub="existing" style="padding:7px 15px; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">📦 기존재고지정</button>
+    </div>
+    <!-- 당일입고지정 안내 + 다운로드 (당일 서브뷰 전용) -->
+    <div id="loc-tools-today" class="loc-today-only" style="gap:10px; align-items:center; flex-wrap:wrap; padding:10px 16px; background:#f3e5f5; border-bottom:1px solid #e1bee7;">
+        <button id="btn-loc-download-today" style="padding:8px 14px; background:#5e35b1; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">⬇️ 옵션추가항목1 다운로드</button>
+        <span style="font-size:12px; color:#6a1b9a;">※ 위치 지정은 스캐너([📱 입고앱실행])의 '당일 입고분' 모드로. 아래 표 <b>위치확인</b> 열에서 누락 확인하고, 위 <b>[⬇️ 옵션추가항목1 다운로드]</b>로 받으세요.</span>
+    </div>
+
+    <div class="list-container">
+        <table class="list-table">
+            <thead>
+                <tr>
+                    <th style="width:40px;">No</th>
+                    <th class="th-sortable" data-sort="code" style="width:100px;">상품코드</th>
+                    <th class="th-sortable" data-sort="name" style="min-width:150px;">상품명</th>
+                    <th style="width:120px;">옵션명</th>
+                    <th class="th-sortable" data-sort="arrivalQty" style="width:80px;">도착수량</th>
+                    <th class="th-sortable" data-sort="mibalQty" style="width:80px;">미발수량</th>
+                    <th class="th-sortable" data-sort="totalStock" style="width:70px;">총재고</th>
+                    <th style="width:120px;">로케이션</th>
+                    <th style="width:60px;">적재량</th>
+                    <th style="width:70px;">입고확인</th>
+                    <th style="width:70px;">부족수량</th>
+                    <th style="width:80px;">직진배송</th>
+                    <th>비고</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <tr><td colspan="13" style="text-align:center; padding:50px; color:#888;">출고일을 선택하세요.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- [Ver 7.1] 기존재고지정 패널 (인라인) -->
+    <div id="existing-panel" class="loc-existing-only" style="padding:14px 16px;">
+        <div style="font-size:12px; color:#555; background:#e0f2f1; border-radius:6px; padding:8px 10px; margin-bottom:10px; line-height:1.6;">
+            <b>스캐너로 전송된 기존재고 상품</b>이 표시됩니다(이미 있던 위치를 다시 찍어도 전송 확인용으로 보임). <b>[📥 기존재고 업로드]</b>로 현재 옵션추가항목1을 세팅 → 스캐너 <b>'기존재고'</b> 모드로 위치 전송 → <b>[⬇️ 다운로드]</b>로 받아 이지어드민에 업로드하세요.<br>
+            다운로드 전에 각 행의 <b>✏️</b>로 위치값을 고치거나 <b>🗑️</b>로 목록에서 제외할 수 있습니다.<br>
+            <span style="background:#c8e6c9; color:#1b5e20; font-weight:bold; padding:0 5px; border-radius:3px;">초록</span> = 새로 추가된 자리 · 회색 = 기존 자리 · <span style="background:#fff3e0; color:#e65100; border:1px solid #ffcc80; border-radius:3px; padding:0 4px; font-weight:bold;">⚠️ 파일에 없던 상품</span> = 시드에 없어 기존 위치 모름(다운로드 시 주의)
+        </div>
+        <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
+            <label style="padding:8px 14px; background:#00838f; color:#fff; border-radius:5px; cursor:pointer; font-weight:bold;">📥 기존재고 업로드<input type="file" id="upload-existing-loc" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
+            <button id="btn-locmove-download" style="padding:8px 14px; background:#5e35b1; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">⬇️ 옵션추가항목1 다운로드</button>
+            <button id="btn-locmove-reset" style="padding:8px 14px; background:#fff; color:#c62828; border:1px solid #c62828; border-radius:5px; cursor:pointer; font-weight:bold;">🗑️ 초기화</button>
+            <label style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:bold; color:#555; cursor:pointer; white-space:nowrap;" title="체크하면 다운로드 시 새로 추가된 자리를 기존 위치의 맨앞에 놓습니다 (기본: 맨뒤)"><input type="checkbox" id="chk-newloc-front" style="width:16px; height:16px; cursor:pointer;">🆕 새 위치 맨앞으로</label>
+            <input id="lm-search" placeholder="🔍 상품코드/위치" style="flex:1; min-width:120px; padding:7px 10px; border:1px solid #ccc; border-radius:5px; font-size:13px;">
+            <span id="lm-count" style="color:#888; font-size:12px; white-space:nowrap;"></span>
+        </div>
+        <div style="max-height:60vh; overflow:auto; border:1px solid #eee; border-radius:6px;">
+            <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
+                <thead><tr>
+                    <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">상품코드</th>
+                    <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">위치</th>
+                    <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">시각</th>
+                    <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">관리</th>
+                </tr></thead>
+                <tbody id="lm-tbody"></tbody>
+            </table>
+        </div>
+        <div id="lm-more" style="font-size:11px; color:#888; text-align:center; padding:6px 0;"></div>
+    </div>
+
+    <div id="sheet-settings-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="margin-top:0;">📎 CSV 시트 링크 설정</h3>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <label style="font-size:12px; font-weight:bold;">원본 CSV 링크</label>
+                <input type="text" id="modal-csv-order" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+                <label style="font-size:12px; font-weight:bold;">사입 CSV 링크</label>
+                <input type="text" id="modal-csv-buy" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:8px;">
+                <button id="btn-sheet-cancel" style="padding:8px 15px; border:none; border-radius:4px; cursor:pointer;">취소</button>
+                <button id="btn-sheet-save" style="padding:8px 15px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mibal-formula-modal" class="modal-overlay">
+        <div class="modal-content" style="width:540px; max-width:94vw; max-height:90vh; overflow-y:auto;">
+            <h3 style="margin-top:0;">🧮 미발수량 규칙 설정</h3>
+
+            <!-- [Ver 7.5] 규칙 변수(재고로그 헤더) 관리 -->
+            <div style="background:#f3e5f5; border:1px solid #e1bee7; border-radius:8px; padding:10px 12px; margin-bottom:14px;">
+                <div style="font-weight:800; color:#6a1b9a; font-size:13px; margin-bottom:5px;">🏷️ 규칙 변수 (재고로그 헤더 추가)</div>
+                <div style="font-size:11px; color:#777; margin-bottom:8px; line-height:1.5;">기본 변수 <b>총재고 · 적재량 · 부족수량 · 직진배송</b> 외에, 미발재고로그 헤더를 골라 변수로 추가하면 아래 규칙 조립에서 그 이름 그대로 쓸 수 있습니다.</div>
+                <div id="mibal-vars-list" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;"></div>
+                <div style="display:flex; gap:6px;">
+                    <select id="mibal-var-select" style="flex:1; min-width:0; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;"></select>
+                    <button id="btn-mibal-var-add" style="padding:6px 12px; border:none; background:#7b1fa2; color:#fff; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px; white-space:nowrap;">+ 변수 추가</button>
+                </div>
+            </div>
+
+            <!-- 규칙 조립 (유일 모드) -->
+            <div id="fmode-builder" style="display:block;">
+                <div style="font-size:12px; color:#555; background:#e3f2fd; border-radius:6px; padding:8px 10px; margin-bottom:10px; line-height:1.6;">
+                    <b>"만약 ~이면 → 미발수량 = ~"</b> 조건을 위에서부터 순서대로 확인합니다. 맞으면 그 값으로, 아니면 다음 조건으로, 다 아니면 <b>그 외</b> 값이 됩니다.<br>
+                    <span style="color:#1565c0;">아래 <b>팔레트</b>에서 변수·부등호·사칙연산을 <b>맨 밑 드롭존으로 끌어다 놓거나 클릭</b>하면 식이 하나씩 쌓입니다. <code>→ 결과</code>로 결과값을 구분하고 <b>[조건 넣기]</b>를 누르면 위에 한 줄로 추가돼요.<br>
+                    예) <code>도착수량</code> <code>+</code> <code>총재고</code> <code>≤</code> <code>적재량</code> <code>→결과</code> <code>도착수량</code></span>
+                </div>
+                <div id="rule-palette" style="background:#faf7ff; border:1px solid #e1d5f5; border-radius:8px; padding:8px 10px; margin-bottom:10px;"></div>
+                <div id="rule-rows"></div>
+                <div id="rule-add-zone" style="margin-top:10px; padding:14px; border:2px solid #bbdefb; border-radius:10px; background:#f5faff;"></div>
+                <!-- [Ver 8.9] 완성된 예시: 임의 값으로 내가 만든 규칙을 적용한 결과 -->
+                <div style="margin-top:12px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; padding:10px;">
+                    <div style="font-weight:bold; font-size:12px; color:#e65100; margin-bottom:6px;">🧪 완성된 예시 — 임의 값으로 내 규칙을 적용한 결과</div>
+                    <div id="rule-examples" style="font-size:12px; color:#444; line-height:1.9;"></div>
+                </div>
+                <button id="btn-builder-apply" style="width:100%; margin-top:12px; padding:13px; border:none; background:#1976d2; color:#fff; border-radius:8px; font-size:16px; font-weight:800; cursor:pointer;">✔ 이 규칙 적용</button>
+            </div>
+
+            <div style="margin-top:16px; text-align:right; border-top:1px solid #eee; padding-top:12px;">
+                <button id="btn-mibal-cancel" style="padding:8px 18px; border:1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer;">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="zone-cap-modal" class="modal-overlay">
+        <div class="modal-content" style="width:420px; max-height:88vh; overflow-y:auto;">
+            <h3 style="margin-top:0;">📦 적재량 구역별 일괄 설정</h3>
+            <div style="font-size:12px; color:#555; background:#e3f2fd; border-radius:6px; padding:8px 10px; margin-bottom:10px; line-height:1.6;">
+                로케이션 <b>앞 한 글자(구역)</b>별로 적재량을 한 번에 지정합니다.<br>표에서 상품별로 직접 고친 값이 있으면 <b>그 값이 우선</b>됩니다.
+            </div>
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:center;">
+                    <thead><tr style="background:#eceff1; color:#546e7a;"><th style="padding:6px;">구역</th><th>상품수</th><th>적재량</th></tr></thead>
+                    <tbody id="zone-cap-tbody"></tbody>
+                </table>
+            </div>
+            <div style="margin-top:16px; display:flex; justify-content:flex-end; gap:8px;">
+                <button id="btn-zone-cancel" style="padding:8px 15px; border:1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer;">취소</button>
+                <button id="btn-zone-save" style="padding:8px 15px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="column-modal" class="modal-overlay">
+        <div class="modal-content" style="width:460px; max-height:88vh; overflow-y:auto;">
+            <h3 id="column-modal-title" style="margin-top:0;">🔧 표 열(헤더) 설정</h3>
+            <div style="font-size:12px; color:#555; background:#e0f2f1; border-radius:6px; padding:8px 10px; margin-bottom:10px; line-height:1.6;">
+                순서를 바꾸거나(<b>↑ ↓</b>), 열을 빼거나(<b>✕</b>), 아래에서 <b>재고로그 필드</b>를 골라 추가하세요.
+            </div>
+            <div id="column-list"></div>
+            <div style="margin-top:10px; display:flex; gap:6px; align-items:center;">
+                <select id="column-add-select" style="flex:1; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:13px;"></select>
+                <button id="btn-column-add" style="padding:7px 14px; border:none; background:#00838f; color:#fff; border-radius:4px; cursor:pointer; font-weight:bold; white-space:nowrap;">+ 추가</button>
+            </div>
+            <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
+                <button id="btn-column-reset" style="padding:8px 14px; border:1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer; font-size:12px;">기본값 복원</button>
+                <div style="display:flex; gap:8px;">
+                    <button id="btn-column-cancel" style="padding:8px 15px; border:1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer;">취소</button>
+                    <button id="btn-column-save" style="padding:8px 15px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- [Ver 6.8] 모드 선택 (제목 클릭) -->
+    <div id="mode-select-modal" class="modal-overlay">
+        <div class="modal-content" style="width:440px; max-width:92vw;">
+            <h3 style="margin-top:0; text-align:center;">모드 선택</h3>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:10px;">
+                <div class="mode-card" data-mode="mibal">
+                    <div style="font-size:34px;">🏭</div>
+                    <div style="font-weight:800; margin-top:8px; font-size:15px;">미발계산기</div>
+                    <div style="font-size:12px; color:#888; margin-top:6px; line-height:1.5;">도착·미발·재고·적재량<br>계산 및 파일 다운로드</div>
+                </div>
+                <div class="mode-card" data-mode="location">
+                    <div style="font-size:34px;">📍</div>
+                    <div style="font-weight:800; margin-top:8px; font-size:15px;">위치지정모드</div>
+                    <div style="font-size:12px; color:#888; margin-top:6px; line-height:1.5;">상품별 위치 확인<br>옵션추가항목1 업/다운로드</div>
+                </div>
+            </div>
+            <div style="margin-top:18px; text-align:right;">
+                <button id="btn-mode-close" style="padding:8px 18px; border:1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer; font-weight:bold;">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- [Ver 8.11] 모바일 접속 시 입고앱 실행 안내 -->
+    <div id="mobile-gate" style="display:none; position:fixed; inset:0; z-index:100000; background:linear-gradient(160deg,#6a1b9a,#4a148c); color:#fff; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:24px; box-sizing:border-box;">
+        <div style="font-size:54px; margin-bottom:12px;">📱</div>
+        <div style="font-size:21px; font-weight:800; margin-bottom:8px;">입고앱(스캐너)을 실행하시겠습니까?</div>
+        <div style="font-size:14px; opacity:.85; margin-bottom:30px; line-height:1.6;">모바일에서는 스캐너로 바로 작업할 수 있습니다.<br><span style="font-size:12px; opacity:.7;">미발계산기 화면은 PC에서 보기 편합니다.</span></div>
+        <button id="mg-open-scan" style="width:100%; max-width:330px; padding:17px; font-size:18px; font-weight:800; border:none; border-radius:12px; background:#fff; color:#4a148c; cursor:pointer; margin-bottom:12px;">📱 입고앱 실행</button>
+        <button id="mg-open-web" style="width:100%; max-width:330px; padding:12px; font-size:14px; font-weight:700; border:1px solid rgba(255,255,255,.55); border-radius:12px; background:transparent; color:#fff; cursor:pointer;">그냥 웹 페이지 보기</button>
+    </div>
+
+    <!-- [Ver 8.32] 오류바코드매칭 모달 -->
+    <div id="barcode-alias-modal" class="modal-overlay">
+        <div class="modal-content" style="width:540px; max-width:94vw; max-height:90vh; overflow-y:auto;">
+            <h3 style="margin-top:0;">🔀 오류바코드매칭</h3>
+            <div style="font-size:12px; color:#5d4037; background:#fff3e0; border:1px solid #ffcc80; border-radius:6px; padding:9px 11px; margin-bottom:12px; line-height:1.6;">
+                스캔한 <b>바코드값</b>을 지정한 <b>상품코드</b>로 인식시킵니다. <b>오류 사유</b>를 적으면, 스캐너 작업자가 그 바코드를 찍을 때 사유가 표시되어 처리 판단에 씁니다. <b>스캐너에 즉시 반영</b>됩니다.<br>
+                파일 업로드 시 <b>바코드 · 상품코드</b> 열 필요 (<b>사유</b> 열은 선택).
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+                <label style="padding:8px 14px; background:#00838f; color:#fff; border-radius:5px; cursor:pointer; font-weight:bold; font-size:13px;">📂 파일 업로드<input type="file" id="upload-barcode-alias" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
+                <button id="btn-barcode-alias-download" style="padding:8px 14px; background:#5e35b1; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold; font-size:13px;">⬇️ 목록 다운로드</button>
+                <button id="btn-barcode-alias-clear" style="padding:8px 14px; background:#fff; color:#c62828; border:1px solid #c62828; border-radius:5px; cursor:pointer; font-weight:bold; font-size:13px;">🗑️ 전체 삭제</button>
+            </div>
+            <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
+                <input id="ba-barcode" placeholder="바코드(스캔값)" style="flex:1; min-width:0; padding:8px; border:1px solid #ccc; border-radius:5px; font-size:13px;">
+                <span style="font-weight:900; color:#888;">→</span>
+                <input id="ba-code" placeholder="상품코드" style="flex:1; min-width:0; padding:8px; border:1px solid #ccc; border-radius:5px; font-size:13px;">
+            </div>
+            <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center;">
+                <input id="ba-memo" placeholder="오류 사유 (스캐너에 표시, 선택)" style="flex:1; min-width:0; padding:8px; border:1px solid #ffcc80; border-radius:5px; font-size:13px; background:#fffdf6;">
+                <button id="btn-ba-add" style="padding:8px 14px; background:#5e35b1; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold; font-size:13px; white-space:nowrap;">+ 추가</button>
+            </div>
+            <input id="ba-search" placeholder="🔍 바코드/상품코드/사유 검색" style="width:100%; padding:7px 10px; border:1px solid #ccc; border-radius:5px; font-size:13px; margin-bottom:8px; box-sizing:border-box;">
+            <div style="font-size:12px; color:#888; margin-bottom:4px;" id="ba-count"></div>
+            <div style="max-height:50vh; overflow:auto; border:1px solid #eee; border-radius:6px;">
+                <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
+                    <thead><tr>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">바코드(스캔값)</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">상품코드</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">사유</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">수정/삭제</th>
+                    </tr></thead>
+                    <tbody id="ba-tbody"></tbody>
+                </table>
+            </div>
+            <div style="margin-top:16px; text-align:right; border-top:1px solid #eee; padding-top:12px;">
+                <button id="btn-barcode-alias-close" style="padding:8px 18px; border:1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer;">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- [Ver 8.62] 위치매핑 관리 모달 -->
+    <div id="location-map-modal" class="modal-overlay">
+        <div class="modal-content" style="width:540px; max-width:94vw; max-height:90vh; overflow-y:auto;">
+            <h3 style="margin-top:0;">📍 위치매핑 관리 (스캐너용)</h3>
+            <div style="font-size:12px; color:#4a148c; background:#f3e5f5; border:1px solid #ce93d8; border-radius:6px; padding:9px 11px; margin-bottom:12px; line-height:1.6;">
+                스캐너가 상품을 찍을 때 상품코드로 자동 인식할 <b>고정 위치값</b> 매핑입니다. 여기서 추가·수정·삭제하면 <b>스캐너에 즉시 반영</b>됩니다.<br>
+                파일 업로드 시 <b>상품코드</b> 열과 <b>위치</b> 열(로케이션/위치/옵션추가항목1/옵션 중 하나)이 있어야 하며, 같은 상품코드는 덮어씁니다.
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+                <label style="padding:8px 14px; background:#7b1fa2; color:#fff; border-radius:5px; cursor:pointer; font-weight:bold; font-size:13px;">📂 파일 업로드<input type="file" id="upload-location-map" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
+                <button id="btn-locmap-download" style="padding:8px 14px; background:#5e35b1; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold; font-size:13px;">⬇️ 목록 다운로드</button>
+                <button id="btn-locmap-clear" style="padding:8px 14px; background:#fff; color:#c62828; border:1px solid #c62828; border-radius:5px; cursor:pointer; font-weight:bold; font-size:13px;">🗑️ 전체 삭제</button>
+            </div>
+            <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center;">
+                <input id="locmap-code" placeholder="상품코드" style="flex:1; min-width:0; padding:8px; border:1px solid #ccc; border-radius:5px; font-size:13px;">
+                <span style="font-weight:900; color:#888;">→</span>
+                <input id="locmap-loc" placeholder="위치(로케이션)" style="flex:1; min-width:0; padding:8px; border:1px solid #ccc; border-radius:5px; font-size:13px;">
+                <button id="btn-locmap-add" style="padding:8px 14px; background:#7b1fa2; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold; font-size:13px; white-space:nowrap;">+ 추가</button>
+            </div>
+            <input id="locmap-search" placeholder="🔍 상품코드/위치 검색" style="width:100%; padding:7px 10px; border:1px solid #ccc; border-radius:5px; font-size:13px; margin-bottom:8px; box-sizing:border-box;">
+            <div style="font-size:12px; color:#888; margin-bottom:4px;" id="locmap-count"></div>
+            <div style="max-height:50vh; overflow:auto; border:1px solid #eee; border-radius:6px;">
+                <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center;">
+                    <thead><tr>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">상품코드</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">위치</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">수정 / 삭제</th>
+                    </tr></thead>
+                    <tbody id="locmap-tbody"></tbody>
+                </table>
+            </div>
+            <div style="margin-top:16px; text-align:right; border-top:1px solid #eee; padding-top:12px;">
+                <button id="btn-location-map-close" style="padding:8px 18px; border:1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer;">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- [Ver 8.36] 미발예측 데이터 모달 -->
+    <div id="mibal-predict-modal" class="modal-overlay">
+        <div class="modal-content" style="width:760px; max-width:96vw; max-height:90vh; overflow-y:auto;">
+            <h3 style="margin-top:0;">📈 미발 예측 데이터</h3>
+            <div id="mp-summary" style="font-size:13px; color:#333; background:#ede7f6; border:1px solid #d1c4e9; border-radius:8px; padding:10px 12px; margin-bottom:10px; line-height:1.6;"></div>
+            <div style="font-size:11px; color:#888; margin-bottom:8px; line-height:1.5;">
+                · <b>출고미발</b> = 출고 시점(첫 전송) 미발수량 · <b>입고미발</b> = 입고일(도착) 이후 전송 미발수량<br>
+                · <b>상승률</b> = (입고미발 − 출고미발) / 출고미발 · <b>예상미발</b> = 출고미발 × (1 + 평균상승률) — 데이터 없으면 기본 40%<br>
+                · <b>평균상승률</b>은 상승률이 <b>1~100%</b>인 패킹만 평균(이상치 제외, 시트 AVERAGEIFS와 동일). 표의 상승률은 실제값 그대로 표시
+            </div>
+            <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
+                <button id="btn-mp-download" style="padding:7px 13px; background:#5e35b1; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold; font-size:12px;">⬇️ 다운로드</button>
+                <input id="mp-search" placeholder="🔍 출고일/입고일 검색" style="flex:1; min-width:0; padding:7px 10px; border:1px solid #ccc; border-radius:5px; font-size:13px;">
+            </div>
+            <div style="max-height:56vh; overflow:auto; border:1px solid #eee; border-radius:6px;">
+                <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center; white-space:nowrap;">
+                    <thead><tr>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">출고일</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">입고일</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">출고미발</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">입고미발</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">상승률</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">예상미발</th>
+                        <th style="padding:8px 6px; position:sticky; top:0; background:#eceff1; z-index:1;">예측편차</th>
+                    </tr></thead>
+                    <tbody id="mp-tbody"></tbody>
+                </table>
+            </div>
+            <div style="margin-top:16px; text-align:right; border-top:1px solid #eee; padding-top:12px;">
+                <button id="btn-mibal-predict-close" style="padding:8px 18px; border:1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer;">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- ?v= 는 버전 배지와 함께 올려서 브라우저가 옛 JS 캐시를 쓰지 않게 함 -->
+    <script type="module" src="js/china-stock-goods.js?v=9.9"></script>
+</body>
+</html>
