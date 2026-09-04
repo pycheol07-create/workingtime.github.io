@@ -1,18 +1,14 @@
 // === js/china-stock-gate.js ===
-// 🔒 화면 게이트 — 메인 앱(업무관리)에 로그인돼 있는지만 확인한다.
+// 🔒 화면 게이트 — 로그인돼 있는지 확인하고, 아니면 화면을 가린다.
 //
-// 왜 이렇게 하나
-//   이 페이지의 데이터는 china-stock 전용 프로젝트(location-e2ff9 등)를 쓰지만,
-//   로그인 계정은 메인 앱 프로젝트(work-tool-e2943)에 있다. 그래서 로그인 확인만
-//   메인 프로젝트로 따로 물어본다. 같은 사이트에서 이미 로그인했다면 다시 로그인할 필요가 없다.
+// china-stock 이 메인 앱과 같은 프로젝트(work-tool-e2943)로 통합되면서
+// 로그인 계정도 같아졌다. 메인 앱에서 한 번 로그인해 두면 같은 브라우저에서는
+// 다시 입력하지 않는다(같은 사이트·같은 프로젝트라 세션이 공유된다).
 //
-// ⚠️ china-stock-config.js 가 기본 앱('[DEFAULT]')을 이미 쓰므로,
-//    여기서는 반드시 다른 이름('MainAuthApp')으로 올린다. 같은 이름으로 올리면 충돌한다.
-//
-// ⚠️ 이건 '화면을 가리는' 장치다. 데이터 자체를 막지는 못한다(그건 Firestore 규칙의 몫).
-import { initializeApp, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { firebaseConfig as mainConfig } from './config.js?v=202609041543';
+// ⚠️ 이건 '화면을 가리는' 장치다. 데이터 자체는 firestore.rules 가 막는다.
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+// ⚠️ china-stock-goods.js 와 '똑같은 주소'로 가져와야 모듈이 한 번만 만들어진다(?v=9.9 포함).
+import { initializeFirebase } from './china-stock-config.js?v=202609041549';
 
 const OVERLAY_ID = 'cs-auth-gate';
 
@@ -42,13 +38,13 @@ const hideGate = () => {
 showGate('로그인 상태를 확인하는 중입니다…');
 
 try {
-    let app;
-    try { app = getApp('MainAuthApp'); } catch (e) { app = initializeApp(mainConfig, 'MainAuthApp'); }
-    onAuthStateChanged(getAuth(app), (user) => {
-        if (user) hideGate();
-        else {
-            hideGate();
-            showGate('업무관리(메인 앱)에서 먼저 로그인한 뒤 이 페이지를 열어 주세요.<br>이미 로그인돼 있으면 다시 입력하지 않아도 됩니다.');
+    const { auth } = initializeFirebase();
+    if (!auth) throw new Error('auth 없음');
+    onAuthStateChanged(auth, (user) => {
+        hideGate();
+        if (!user) {
+            showGate('업무관리(메인 앱)에서 먼저 로그인한 뒤 이 페이지를 열어 주세요.<br>'
+                   + '이미 로그인돼 있으면 다시 입력하지 않아도 됩니다.');
         }
     });
 } catch (e) {

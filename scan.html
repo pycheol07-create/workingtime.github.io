@@ -174,11 +174,12 @@
     <div id="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202609041543"></script>
+    <script src="js/location-map.js?v=202609041549"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202609041543'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { firebaseConfig } from './js/china-stock-config.js?v=202609041549'; // china-stock 전용 설정(work-tool-e2943)
 
         const SCAN_VERSION = '9.9'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -186,6 +187,13 @@
         const params = new URLSearchParams(location.search);
         let serverCfg = null;
         try { serverCfg = JSON.parse(localStorage.getItem('scanServerCfg') || 'null'); } catch (e) {}
+        // [2026-09-04] china-stock 프로젝트 통합 — 폰에 저장돼 있던 옛 서버(location-*) 설정은 버린다.
+        //   그대로 두면 스캔 결과가 더 이상 쓰지 않는 프로젝트로 들어간다.
+        const RETIRED_PROJECTS = ['location-e2ff9', 'location-data-c374f'];
+        if (serverCfg && RETIRED_PROJECTS.includes(serverCfg.projectId)) {
+            localStorage.removeItem('scanServerCfg');
+            serverCfg = null;
+        }
         if (params.get('projectId') && params.get('apiKey')) {
             serverCfg = {
                 label: params.get('label') || params.get('projectId'),
@@ -201,6 +209,29 @@
         const serverLabel = serverCfg ? (serverCfg.label || serverCfg.projectId) : (firebaseConfig.projectId + ' (기본)');
         const app = initializeApp(activeCfg, 'scanApp');
         const db = getFirestore(app);
+
+        // ── 🔒 로그인 확인 ─────────────────────────────────────────────
+        // 기본 서버(메인 프로젝트)를 쓸 때만 확인한다. QR/URL로 다른 서버를 지정한 경우는
+        // 그 서버의 규칙을 따르므로 여기서 막지 않는다.
+        // 폰에서도 메인 앱(업무관리)에 한 번 로그인해 두면 그 뒤로는 그대로 열린다.
+        if (!serverCfg) {
+            const gate = document.createElement('div');
+            gate.style.cssText = `position:fixed; inset:0; z-index:2147483600; background:#111; color:#fff;
+                display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+                font-family:'Noto Sans KR',sans-serif; text-align:center; padding:24px;`;
+            gate.innerHTML = `<div style="font-size:42px;">🔒</div>
+                <div style="font-size:17px; font-weight:800;">로그인 확인 중…</div>`;
+            document.body.appendChild(gate);
+            onAuthStateChanged(getAuth(app), (user) => {
+                if (user) { gate.remove(); return; }
+                gate.innerHTML = `<div style="font-size:42px;">🔒</div>
+                    <div style="font-size:17px; font-weight:800;">로그인이 필요합니다</div>
+                    <div style="font-size:13px; color:#b0bec5; line-height:1.7;">
+                        이 폰에서 업무관리에 한 번 로그인하면<br>그 뒤로는 바로 열립니다.</div>
+                    <a href="index.html" style="margin-top:6px; font-size:14px; font-weight:700; text-decoration:none;
+                       background:#1976d2; color:#fff; padding:11px 18px; border-radius:10px;">업무관리 열고 로그인</a>`;
+            });
+        }
 
         // [Ver 5.8] 위치 매핑을 Firebase(LOCATION_MAP)에서 로드 - 하드코딩 대신 (없으면 location-map.js 기본값)
         let locMapOverride = null;
