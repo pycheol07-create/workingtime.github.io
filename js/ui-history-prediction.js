@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609040849';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609040849';
-import * as State from './state.js?v=202609040849';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609040849';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609040849';
+import { predictFutureTrends } from './analysis-logic.js?v=202609040927';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609040927';
+import * as State from './state.js?v=202609040927';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609040927';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609040927';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609040849';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609040927';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -588,7 +588,7 @@ const markSourceBadge = (task, source, detail = '') => {
     const el = document.getElementById(`sim-src-${task.id}`);
     if (!el) return;
     const b = SOURCE_BADGE[source] || SOURCE_BADGE.last7;
-    const base = 'w-[92px] shrink-0 text-center text-[12px] truncate';   // 줄 레이아웃 유지
+    const base = 'w-[84px] shrink-0 text-center text-[11px] truncate';   // 줄 레이아웃 유지
     el.className = b.muted
         ? `${base} font-medium text-gray-400 dark:text-gray-500`
         : `${base} font-bold rounded-md ${b.cls}`;
@@ -614,39 +614,39 @@ const renderSimTaskInputs = () => {
     host.dataset.built = 'true';
     host.dataset.timeSig = sig;
 
-    const ROW = `flex items-center gap-3 px-3.5 py-3 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0
+    const ROW = `flex items-center gap-2.5 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0
                  transition hover:bg-gray-50 dark:hover:bg-gray-900/30
                  focus-within:bg-indigo-50/50 dark:focus-within:bg-indigo-900/20`;
-    const NUM = `w-24 bg-transparent border-0 border-b border-transparent p-0 text-right text-[21px] leading-tight font-extrabold tabular-nums
+    const NUM = `w-24 bg-transparent border-0 border-b border-transparent p-0 text-right text-[17px] leading-tight font-extrabold tabular-nums
                  text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600
                  focus:outline-none focus:ring-0 focus:border-indigo-400`;
 
     const row = (t) => `
         <div id="sim-row-${t.id}" data-row-id="${t.id}" class="pred-sim-row ${ROW}">
-            <span class="flex-1 min-w-0 truncate text-[15px] font-bold text-gray-700 dark:text-gray-200" title="${t.label}">${t.label}</span>
+            <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${t.label}">${t.label}</span>
             <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric" class="${NUM}">
-            <span class="w-5 text-[13px] text-gray-400 dark:text-gray-500">개</span>
-            <span id="sim-src-${t.id}" class="w-[92px] shrink-0 text-center text-[12px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
+            <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">개</span>
+            <span id="sim-src-${t.id}" class="w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
         </div>`;
 
     const timeRow = (t) => `
         <div id="sim-row-t-${t.id}" data-row-id="t-${t.id}" class="pred-sim-row ${ROW}">
-            <span class="flex-1 min-w-0 truncate text-[15px] font-bold text-gray-700 dark:text-gray-200" title="${t.label} — 시간은 1인 기준입니다">${t.label}</span>
-            <label class="text-[13px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
+            <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${t.label} — 시간은 1인 기준입니다">${t.label}</span>
+            <label class="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
                    title="이 업무를 하는 인원. 입력한 시간을 각자 쓰는 것으로 보고 인시(사람×시간)를 계산하며, 그만큼 물량 업무에서 인원이 빠집니다.">동시
                 <input id="sim-workers-${t.id}" type="number" min="1" step="1" value="1"
                        class="w-8 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
-                              text-[14px] font-bold text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-0">명</label>
+                              text-[12px] font-bold text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-0">명</label>
             <input id="sim-time-${t.id}" type="number" min="0" step="10" placeholder="0" inputmode="numeric" class="${NUM}">
-            <span class="w-5 text-[13px] text-gray-400 dark:text-gray-500">분</span>
-            <span id="sim-src-t-${t.id}" class="w-[92px] shrink-0 text-center text-[12px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 4주 평균</span>
+            <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">분</span>
+            <span id="sim-src-t-${t.id}" class="w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 4주 평균</span>
         </div>`;
 
     const block = (title, sub, rowsHtml, tone = '') => `
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800/40">
             <div class="flex items-baseline gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
-                <span class="text-[13px] font-extrabold tracking-wider ${tone || 'text-gray-500 dark:text-gray-400'}">${title}</span>
-                ${sub ? `<span class="text-[12px] text-gray-400 dark:text-gray-500 truncate">${sub}</span>` : ''}
+                <span class="text-[11px] font-extrabold tracking-wider ${tone || 'text-gray-500 dark:text-gray-400'}">${title}</span>
+                ${sub ? `<span class="text-[11px] text-gray-400 dark:text-gray-500 truncate">${sub}</span>` : ''}
             </div>
             ${rowsHtml}
         </div>`;
@@ -678,7 +678,7 @@ const markTimeSourceBadge = (t, source, detail = '') => {
     const el = document.getElementById(`sim-src-t-${t.id}`);
     if (!el) return;
     const saved = source === 'planned-time';
-    const base = 'w-[92px] shrink-0 text-center text-[12px] truncate';
+    const base = 'w-[84px] shrink-0 text-center text-[11px] truncate';
     el.className = saved
         ? `${base} font-bold rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300`
         : `${base} font-medium text-gray-400 dark:text-gray-500`;
@@ -755,7 +755,7 @@ const renderLeaveInfo = (staffInfo) => {
 
     if (!staffInfo.onLeaveList || staffInfo.onLeaveList.length === 0) {
         el.innerHTML = `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span class="whitespace-nowrap text-[13px] font-bold text-gray-600 dark:text-gray-300">📅 등록된 휴무 없음</span>
+            <span class="whitespace-nowrap text-[11px] font-bold text-gray-600 dark:text-gray-300">📅 등록된 휴무 없음</span>
             ${tail}
         </div>`;
         return;
@@ -769,7 +769,7 @@ const renderLeaveInfo = (staffInfo) => {
         </span>`).join('');
 
     el.innerHTML = `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span class="whitespace-nowrap text-[13px] font-bold text-gray-600 dark:text-gray-300">📅 휴무 ${staffInfo.onLeaveList.length}명</span>
+        <span class="whitespace-nowrap text-[11px] font-bold text-gray-600 dark:text-gray-300">📅 휴무 ${staffInfo.onLeaveList.length}명</span>
         ${chips}
         ${tail}
     </div>`;
@@ -1223,24 +1223,24 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
         <div class="flex items-start justify-between gap-2 mb-4">
             <div class="min-w-0">
                 <div class="flex items-center gap-1.5 flex-wrap">
-                    <span class="text-lg font-extrabold text-gray-900 dark:text-white">${label}</span>
+                    <span class="text-base font-extrabold text-gray-900 dark:text-white">${label}</span>
                     ${r.weekend ? '<span class="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded">주말</span>' : ''}
                     ${simLinked ? '<span class="text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-1.5 py-0.5 rounded" title="아래 상세 시뮬레이션에 입력한 값이 그대로 반영된 결과입니다.">시뮬레이션 반영</span>' : ''}
                 </div>
-                <div class="text-[12px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">${dayLabel(r.date)}</div>
+                <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">${dayLabel(r.date)}</div>
             </div>
-            <span class="text-[12px] font-extrabold px-2.5 py-1 rounded-full shrink-0 ${tone.chip}">${gapText(gap)}</span>
+            <span class="text-[11px] font-extrabold px-2.5 py-1 rounded-full shrink-0 ${tone.chip}">${gapText(gap)}</span>
         </div>
 
         <div class="flex items-end gap-4 mb-3">
             <div>
-                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">필요</div>
-                <div class="text-4xl font-black leading-none text-gray-900 dark:text-white mt-1">${r.requiredFTE}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">필요</div>
+                <div class="text-3xl font-black leading-none text-gray-900 dark:text-white mt-1">${r.requiredFTE}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
             </div>
             <div class="text-gray-200 dark:text-gray-700 text-2xl font-light leading-none pb-1">/</div>
             <div>
-                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">가용</div>
-                <div class="text-4xl font-black leading-none text-gray-900 dark:text-white mt-1">${staffN}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">가용</div>
+                <div class="text-3xl font-black leading-none text-gray-900 dark:text-white mt-1">${staffN}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
             </div>
         </div>
 
@@ -1250,22 +1250,22 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
 
         <div class="grid grid-cols-3 gap-2 mb-3">
             <div class="rounded-lg bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 px-2 py-1.5">
-                <div class="text-[12px] font-bold text-gray-400 dark:text-gray-500">총 소요시간</div>
-                <div class="text-[17px] font-extrabold text-gray-800 dark:text-gray-100 mt-0.5 tabular-nums">${fmtHM(r.totalHours)}</div>
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500">총 소요시간</div>
+                <div class="text-[14px] font-extrabold text-gray-800 dark:text-gray-100 mt-0.5 tabular-nums">${fmtHM(r.totalHours)}</div>
             </div>
             <div class="rounded-lg bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 px-2 py-1.5"
                  title="실제로 흘러가는 시간 — 물량 업무는 담당 업무에 묶인 인원(${r.tiedFTE.toFixed(1)}명)을 뺀 ${r.qtyStaff.toFixed(1)}명 기준이고, 담당 업무가 더 오래 걸리면 그 시간을 씁니다">
-                <div class="text-[12px] font-bold text-gray-400 dark:text-gray-500">실 소요시간</div>
-                <div class="text-[17px] font-extrabold text-indigo-600 dark:text-indigo-300 mt-0.5 tabular-nums">${r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—'}</div>
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500">실 소요시간</div>
+                <div class="text-[14px] font-extrabold text-indigo-600 dark:text-indigo-300 mt-0.5 tabular-nums">${r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—'}</div>
             </div>
             <div class="rounded-lg bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 px-2 py-1.5"
                  title="업무시간 ${fmtHM(r.netDailyHours)} 안에서 다 끝내고 남는 시간(초과면 −)">
-                <div class="text-[12px] font-bold text-gray-400 dark:text-gray-500">${r.slackHours >= 0 ? '남는 시간' : '초과 시간'}</div>
-                <div class="text-[17px] font-extrabold mt-0.5 tabular-nums ${r.availableTotal <= 0 ? 'text-gray-400' : (r.slackHours >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}">${r.availableTotal > 0 ? fmtHM(Math.abs(r.slackHours)) : '—'}</div>
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500">${r.slackHours >= 0 ? '남는 시간' : '초과 시간'}</div>
+                <div class="text-[14px] font-extrabold mt-0.5 tabular-nums ${r.availableTotal <= 0 ? 'text-gray-400' : (r.slackHours >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}">${r.availableTotal > 0 ? fmtHM(Math.abs(r.slackHours)) : '—'}</div>
             </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] text-gray-500 dark:text-gray-400">
+        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
             <span>1일 ${r.dailyHours}h${r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)}` : ''} · 가동률 ${(UTILIZATION*100)|0}%</span>
             ${r.timeHours > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="처리량이 없는 담당 업무의 예상 투입시간(실적 평균)">🗂 담당 업무 ${fmtHM(r.timeHours)}</span>` : ''}
             ${china > 0 ? `<span class="w-full"></span><span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">🚚 중국제작 입고 ${china.toLocaleString()}개</span>` : ''}
