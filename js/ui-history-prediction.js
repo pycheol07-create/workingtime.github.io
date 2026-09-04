@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609040927';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609040927';
-import * as State from './state.js?v=202609040927';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609040927';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609040927';
+import { predictFutureTrends } from './analysis-logic.js?v=202609040933';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609040933';
+import * as State from './state.js?v=202609040933';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609040933';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609040933';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609040927';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609040933';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -656,9 +656,10 @@ const renderSimTaskInputs = () => {
         g.ids.map(id => SIM_TASKS.find(t => t.id === id)).filter(Boolean).map(row).join('')
     )).join('');
 
+    // 담당 업무는 이름이 길어(예: '직진배송 사전작업') 2열에서는 잘린다 → 한 줄 전체를 쓴다
     const timeBlock = SIM_TIME_TASKS.length > 0
-        ? block('담당 · 시간 업무', '처리량이 없는 업무 — 1인 기준 투입시간(분)', SIM_TIME_TASKS.map(timeRow).join('') ,
-                'text-indigo-500 dark:text-indigo-300')
+        ? `<div class="lg:col-span-2">${block('담당 · 시간 업무', '처리량이 없는 업무 — 1인 기준 투입시간(분)',
+                SIM_TIME_TASKS.map(timeRow).join(''), 'text-indigo-500 dark:text-indigo-300')}</div>`
         : '';
 
     // 데스크톱에서는 2열로 세워 세로 길이를 줄인다(항목이 많아 한 줄씩이면 화면을 넘긴다)
@@ -957,8 +958,7 @@ const resultPlaceholder = () => `
     <section class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30
                     p-8 text-center text-gray-400 dark:text-gray-500">
         <div class="text-2xl mb-2">📊</div>
-        <div class="text-sm font-bold text-gray-500 dark:text-gray-400">시뮬레이션 결과</div>
-        <p class="text-[11px] mt-1 leading-relaxed">왼쪽에서 값을 고친 뒤 <b>시뮬레이션 실행</b>을 누르면<br>여기에 결과가 나옵니다.</p>
+        <p class="text-[11px] leading-relaxed">왼쪽에서 값을 고친 뒤 <b>시뮬레이션 실행</b>을 누르면<br>여기에 결과가 나옵니다.</p>
     </section>`;
 
 const showResultPlaceholder = () => {
@@ -1040,7 +1040,7 @@ const renderSimResult = (results, taskUPH, mode) => {
             : (slackPositive ? `${fmtHM(r.slackHours)} 남음` : `${fmtHM(Math.abs(r.slackHours))} 초과`);
 
         container.innerHTML = `
-        ${cardOpen(`시뮬레이션 결과 — ${dayLabel(r.date)}${r.weekend ? ' <span class="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded ml-1">주말</span>' : ''}`,
+        ${cardOpen(`${dayLabel(r.date)}${r.weekend ? ' <span class="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded ml-1">주말</span>' : ''}`,
                    `기준 UPH 최근 4주 평균 · 1일 ${r.dailyHours}h${r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)} = ${fmtHM(r.netDailyHours)}` : ''} · 가동률 ${(UTILIZATION*100)|0}%`)}
             <div class="p-4 md:p-5 space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">

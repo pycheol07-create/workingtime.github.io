@@ -8,11 +8,11 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202609040927';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202609040927';
-import { showToast, getTodayDateString, getRegularMembersForCount } from './utils.js?v=202609040927';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609040927';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609040927';
+import * as State from './state.js?v=202609040933';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202609040933';
+import { showToast, getTodayDateString, getRegularMembersForCount } from './utils.js?v=202609040933';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609040933';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609040933';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
