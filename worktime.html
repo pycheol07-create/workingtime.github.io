@@ -159,14 +159,22 @@
             </div>
         </section>
 
-        <p class="text-[11px] text-slate-400 mt-3 leading-relaxed">
-            · 근무시간 = 퇴근 − 출근 − 휴게시간. 휴게는 <b>기본 0분</b>이고, <b>08:30~17:30 정규 근무인 날만 60분</b>이 자동으로 들어갑니다. 칸에서 직접 고칠 수 있습니다.<br>
-            · 왼쪽 체크박스로 여러 날을 고르면 <b>출근·퇴근·휴게를 한 번에</b> 넣거나 지울 수 있습니다. 일괄 입력에서 비워 둔 칸은 그대로 둡니다.<br>
-            · 월 총금액 = 총 근무시간 × 시급입니다. <b>연장·야간·주휴수당은 계산하지 않습니다.</b> 실제 급여는 따로 확인해 주세요.<br>
-            · 위안화는 <b>월 총액을 당일 환율로</b> 환산합니다. 환율은 경영지표에 기록된 값을 읽어 쓰며, 이 화면에서 고치지 않습니다.<br>
-            · 퇴근이 출근보다 이르면 자정을 넘긴 것으로 보고 다음 날로 계산합니다.<br>
-            · 왼쪽 체크박스로 날짜를 고르면 <b>일괄 입력·수정·삭제</b>를 할 수 있습니다. 비워 둔 칸은 건드리지 않습니다.
-        </p>
+        <!-- 계산 규칙 — 평소엔 접어 둔다(표를 가리지 않도록) -->
+        <details class="group mt-3">
+            <summary class="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none inline-flex items-center gap-1
+                            text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition">
+                <span class="transition-transform group-open:rotate-90">▸</span>계산 규칙 · 사용법
+            </summary>
+            <p class="text-[11px] text-slate-500 mt-2 leading-relaxed bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+                · 근무시간 = 퇴근 − 출근 − 휴게시간. 휴게는 <b>기본 0분</b>이고, <b>08:30~17:30 정규 근무인 날만 60분</b>이 자동으로 들어갑니다. 칸에서 직접 고칠 수 있습니다.<br>
+                · 퇴근이 출근보다 이르면 자정을 넘긴 것으로 보고 다음 날로 계산합니다.<br>
+                · <b>확인</b> 칸은 그날 일정대로 근무를 마쳤는지 표시하는 곳입니다. 지난 날짜인데 확인하지 않은 날은 노랗게 표시되고,
+                  출근·퇴근·휴게를 고치면 확인이 자동으로 해제됩니다.<br>
+                · 왼쪽 체크박스로 여러 날을 고르면 <b>출근·퇴근·휴게 일괄 입력·삭제</b>와 <b>확인 처리·해제</b>를 한 번에 할 수 있습니다. 비워 둔 칸은 그대로 둡니다.<br>
+                · 월 총금액 = 총 근무시간 × 시급입니다. <b>연장·야간·주휴수당은 계산하지 않습니다.</b> 실제 급여는 따로 확인해 주세요.<br>
+                · 위안화는 <b>월 총액을 당일 환율로</b> 환산합니다. 환율은 경영지표에 기록된 값을 읽어 쓰며, 이 화면에서 고치지 않습니다.
+            </p>
+        </details>
     </main>
 
     <!-- 인원 등록/수정 -->
@@ -207,6 +215,6 @@
     <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg z-[60]"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/worktime.js?v=202609041400"></script>
+    <script type="module" src="js/worktime.js?v=202609041402"></script>
 </body>
 </html>

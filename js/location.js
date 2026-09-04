@@ -1,4 +1,4 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202609041400';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202609041402';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
