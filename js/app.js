@@ -1,23 +1,23 @@
 // === js/app.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule } from './config.js?v=202609041549';
-import { displayCurrentDate, showToast } from './utils.js?v=202609041549';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202609041549';
-import { initializeAppListeners } from './app-listeners.js?v=202609041549';
-import * as DOM from './dom-elements.js?v=202609041549';
-import * as State from './state.js?v=202609041549';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202609041549';
-import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202609041549';
-import { setupWeekendListeners } from './listeners-weekend.js?v=202609041549';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule } from './config.js?v=202609041553';
+import { displayCurrentDate, showToast } from './utils.js?v=202609041553';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202609041553';
+import { initializeAppListeners } from './app-listeners.js?v=202609041553';
+import * as DOM from './dom-elements.js?v=202609041553';
+import * as State from './state.js?v=202609041553';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202609041553';
+import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202609041553';
+import { setupWeekendListeners } from './listeners-weekend.js?v=202609041553';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202609041549';
-import { setupNotificationListeners } from './app-notifications.js?v=202609041549';
-import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202609041549';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=202609041549';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=202609041549';
-import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202609041549';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202609041553';
+import { setupNotificationListeners } from './app-notifications.js?v=202609041553';
+import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202609041553';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=202609041553';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=202609041553';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202609041553';
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
@@ -75,7 +75,10 @@ async function startAppAfterLogin(user) {
             DOM.userGreeting.textContent = `${currentUserName}님 (${currentUserRole}), 안녕하세요.`;
             DOM.userGreeting.classList.remove('hidden');
         }
+        // PC·모바일 로그아웃 버튼을 함께 켠다.
+        // (모바일 쪽을 빠뜨려 hidden 이 그대로 남아 버튼이 아예 보이지 않았다)
         if (DOM.logoutBtn) DOM.logoutBtn.classList.remove('hidden');
+        if (DOM.logoutBtnMobile) DOM.logoutBtnMobile.classList.remove('hidden');
 
         // 관리자용 UI
         const adminElements = [document.getElementById('admin-link-btn'), DOM.adminLinkBtnMobile, DOM.resetAppBtn, DOM.resetAppBtnMobile, DOM.openHistoryBtn, DOM.openHistoryBtnMobile, document.getElementById('open-admin-todo-btn')];

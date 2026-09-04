@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
     parseAmount, inDateRange, resolvePeriodRange, calcWorkMinutes, weekendFairness,
     outingDeductibleMinutes, earlyLeaveDeductibleMinutes,
-} from '../js/lib/calc.js?v=202609041549';
+} from '../js/lib/calc.js?v=202609041553';
 
 const H = (hh, mm = 0) => hh * 60 + mm; // 시:분 → 분
 

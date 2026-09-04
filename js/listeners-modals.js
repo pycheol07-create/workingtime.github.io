@@ -3,7 +3,7 @@
 // (개별 모달 로직은 'listeners-modals-sim.js', 'listeners-modals-confirm.js', 'listeners-modals-form.js'로 분리됨)
 
 // ✅ [신규] DOM 임포트
-import * as DOM from './dom-elements.js?v=202609041549';
+import * as DOM from './dom-elements.js?v=202609041553';
 
 export function setupGeneralModalListeners() {
 
