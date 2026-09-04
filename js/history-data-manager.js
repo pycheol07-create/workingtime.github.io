@@ -1,6 +1,6 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202609041049';
-import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609041049';
+import * as State from './state.js?v=202609041057';
+import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609041057';
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc,
     query, where, writeBatch, updateDoc, increment, documentId
@@ -127,7 +127,8 @@ export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZe
     Object.entries(srcTime || {}).forEach(([k, v]) => {
         const m = Math.round(Number(v?.minutes));
         if (!Number.isFinite(m) || m < 0) return;
-        cleanTime[k] = { minutes: m, workers: Math.max(1, Math.round(Number(v?.workers) || 1)) };
+        // 인원 0명 = 그날은 하지 않는 업무 — 0도 그대로 저장한다
+        cleanTime[k] = { minutes: m, workers: Math.max(0, Math.round(Number(v?.workers) || 0)) };
     });
 
     // 제외시간: 넘기지 않으면(null) 기존 값 유지, -1이면 삭제

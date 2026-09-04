@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609041049';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609041049';
-import * as State from './state.js?v=202609041049';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609041049';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609041049';
+import { predictFutureTrends } from './analysis-logic.js?v=202609041057';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609041057';
+import * as State from './state.js?v=202609041057';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609041057';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609041057';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609041049';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609041057';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -126,7 +126,7 @@ const getPlannedTime = (dateStr, taskKey) => {
     const e = m[taskKey] || {};
     const minutes = Math.round(Number(e.minutes));
     if (!Number.isFinite(minutes) || minutes < 0) return null;
-    return { minutes, workers: Math.max(1, Math.round(Number(e.workers) || 1)) };
+    return { minutes, workers: Math.max(0, Math.round(Number(e.workers) || 0)) };
 };
 
 const LEAVE_OFF_TYPES = new Set(['연차', '결근', '휴직', '출장', '매장근무']);
@@ -257,7 +257,15 @@ const timeTaskDeps = (taskKey) => {
  *  qtyLookup: 연동 물량을 어디서 볼지. 기본은 자동 추정값, 화면에서는 지금 입력된 값. */
 const autoTimeValueFor = (dateStr, t, historyData, qtyLookup = null) => {
     const saved = getPlannedTime(dateStr, t.key);
-    if (saved) return { ...saved, source: 'planned-time' };
+    if (saved) {
+        // 인원을 올렸을 때 시간을 다시 잡으려면 '1인 기준 시간'이 있어야 한다.
+        // 0명으로 저장해 둔 날은 실적 평균을 기준으로 삼는다.
+        const st = saved.workers > 0 ? null : computeTimeTaskStats(historyData, t.key);
+        const unitMinutes = saved.workers > 0
+            ? Math.round(saved.minutes / saved.workers)
+            : (st ? st.avgMinutes : 0);
+        return { ...saved, unitMinutes, source: 'planned-time' };
+    }
 
     const deps = timeTaskDeps(t.key);
     const lookup = qtyLookup || ((key) => {
@@ -269,17 +277,22 @@ const autoTimeValueFor = (dateStr, t, historyData, qtyLookup = null) => {
     if (deps.length > 0) {
         const hasDep = deps.some(k => (Number(lookup(k)) || 0) > 0);
         if (!hasDep) {
-            return { minutes: 0, workers: 1, source: 'record-avg',
-                     detail: `${deps.join(' · ')} 물량이 없는 날이라 0으로 둡니다.` };
+            // 물량이 없는 날 → 인원 0명(그날은 안 함). 인원을 올리면 이 기준 시간으로 살아난다.
+            const base = computeTimeTaskStats(historyData, t.key, 28,
+                (d) => deps.some(k => (Number(d.taskQuantities?.[k]) || 0) > 0));
+            const unit = base ? base.avgMinutes : 0;
+            return { minutes: 0, workers: 0, unitMinutes: unit, source: 'record-avg',
+                     detail: `${deps.join(' · ')} 물량이 없는 날이라 인원 0명으로 둡니다.`
+                           + (unit > 0 ? ` (인원을 올리면 1인 ${unit}분으로 잡힙니다)` : '') };
         }
         dayFilter = (d) => deps.some(k => (Number(d.taskQuantities?.[k]) || 0) > 0);
     }
 
     const st = computeTimeTaskStats(historyData, t.key, 28, dayFilter);
-    if (!st) return { minutes: 0, workers: 1, source: 'record-avg', detail: '최근 4주 기록 없음' };
+    if (!st) return { minutes: 0, workers: 0, unitMinutes: 0, source: 'record-avg', detail: '최근 4주 기록 없음' };
     // 시간·인원 모두 1명 기준 — 여러 명이 붙는 업무는 화면에서 동시 인원을 올린다
     return {
-        minutes: st.avgMinutes, workers: 1, source: 'record-avg',
+        minutes: st.avgMinutes, workers: st.avgMinutes > 0 ? 1 : 0, unitMinutes: st.avgMinutes, source: 'record-avg',
         detail: (deps.length > 0 ? `${deps.join(' · ')} 있는 날 기준 · ` : '')
               + `${st.sampleDays}일 중 ${st.hitDays}일 진행 · 1인 기준 평균 ${st.avgMinutes}분`
               + ` (가장 많은 날 ${Math.round(st.maxMinutes)}분)`
@@ -635,8 +648,8 @@ const renderSimTaskInputs = () => {
         <div id="sim-row-t-${t.id}" data-row-id="t-${t.id}" class="pred-sim-row ${ROW}">
             <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${t.label} — 인원이 늘면 그만큼 시간이 더해집니다">${t.label}</span>
             <label class="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
-                   title="이 업무를 하는 인원. 각자 자기 몫을 따로 하는 업무라, 인원을 올리면 1인 시간만큼 총 시간이 자동으로 더해집니다(1명 340분 → 2명 680분). 각자는 340분씩 붙어 있습니다.">동시
-                <input id="sim-workers-${t.id}" type="number" min="1" step="1" value="1"
+                   title="이 업무를 하는 인원. 인원을 올리면 1인 시간만큼 총 시간이 자동으로 더해집니다(1명 340분 → 2명 680분). 0명으로 두면 그날은 하지 않는 업무로 보고 시간도 0이 됩니다.">동시
+                <input id="sim-workers-${t.id}" type="number" min="0" step="1" value="1"
                        class="w-8 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
                               text-[12px] font-bold text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-0">명</label>
             <input id="sim-time-${t.id}" type="number" min="0" step="10" placeholder="0" inputmode="numeric" class="${NUM}">
@@ -672,7 +685,8 @@ const renderSimTaskInputs = () => {
 const timeTaskUnit = new Map();   // taskId → 1인 시간(분)
 
 const setTimeUnit = (t, minutes, workers) => {
-    const w = Math.max(1, Math.round(Number(workers) || 1));
+    const w = Math.max(0, Math.round(Number(workers) || 0));
+    if (w <= 0) return;              // 0명일 때는 1인 기준을 덮지 않는다(그대로 보존)
     timeTaskUnit.set(t.id, Math.max(0, Math.round((Number(minutes) || 0) / w)));
 };
 
@@ -681,7 +695,7 @@ const setTimeInputs = (t, { minutes, workers }) => {
     const mEl = document.getElementById(`sim-time-${t.id}`);
     if (mEl) mEl.value = (minutes == null || minutes === 0) ? '' : Math.round(minutes);
     const wEl = document.getElementById(`sim-workers-${t.id}`);
-    if (wEl) wEl.value = Math.max(1, Math.round(workers || 1));
+    if (wEl) wEl.value = Math.max(0, Math.round(Number(workers) || 0));
 };
 
 const markTimeSourceBadge = (t, source, detail = '') => {
@@ -723,7 +737,7 @@ const autoFillSimInputs = (dateStr) => {
     SIM_TIME_TASKS.forEach(t => {
         const v = autoTimeValueFor(dateStr, t, data);
         setTimeInputs(t, v);
-        setTimeUnit(t, v.minutes, v.workers);
+        timeTaskUnit.set(t.id, Math.max(0, Math.round(Number(v.unitMinutes ?? v.minutes) || 0)));
         markTimeSourceBadge(t, v.source, v.detail);
     });
 
@@ -800,7 +814,7 @@ const readSimInputs = () => {
     SIM_TIME_TASKS.forEach(t => {
         timeTasks[t.key] = {
             minutes: Math.max(0, Math.round(Number(document.getElementById(`sim-time-${t.id}`)?.value) || 0)),
-            workers: Math.max(1, Math.round(Number(document.getElementById(`sim-workers-${t.id}`)?.value) || 1))
+            workers: Math.max(0, Math.round(Number(document.getElementById(`sim-workers-${t.id}`)?.value) || 0))
         };
     });
     const staffFulltime = Number(document.getElementById('sim-staff-fulltime')?.value) || 0;
@@ -848,12 +862,13 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
     let timeElapsedFloor = 0, timeHours = 0;
     SIM_TIME_TASKS.forEach(t => {
         const e = (inputs.timeTasks || {})[t.key] || {};
-        const minutes = Math.max(0, Math.round(Number(e.minutes) || 0));
-        const workers = Math.max(1, Math.round(Number(e.workers) || 1));
+        const workers = Math.max(0, Math.round(Number(e.workers) || 0));
+        // 인원 0명 = 그날은 하지 않는 업무 → 시간도 0으로 본다
+        const minutes = workers > 0 ? Math.max(0, Math.round(Number(e.minutes) || 0)) : 0;
         // 입력칸은 '총 투입시간(인분)'. 인원이 늘면 그만큼 총시간이 커지고(각자 자기 몫),
         // 각자 붙어 있는 시간은 총시간을 인원으로 나눈 값이다.
         const hours = minutes / 60;               // 인시(사람×시간)
-        const elapsed = hours / workers;          // 담당자 한 사람이 붙어 있는 시간
+        const elapsed = workers > 0 ? hours / workers : 0;   // 담당자 한 사람이 붙어 있는 시간
         timeTaskTimes[t.key] = { minutes, workers, hours, elapsed };
         timeHours += hours;
         timeElapsedFloor = Math.max(timeElapsedFloor, elapsed);
@@ -1561,7 +1576,8 @@ const setupSimulationListeners = () => {
             if (getPlannedTime(dateStr, t.key)) return;      // 저장해 둔 값은 건드리지 않는다
             const v = autoTimeValueFor(dateStr, t, State.allHistoryData, lookup);
             setTimeInputs(t, v);
-                markTimeSourceBadge(t, v.source, v.detail);
+            timeTaskUnit.set(t.id, Math.max(0, Math.round(Number(v.unitMinutes ?? v.minutes) || 0)));
+            markTimeSourceBadge(t, v.source, v.detail);
         });
     });
 
@@ -1574,22 +1590,28 @@ const setupSimulationListeners = () => {
         if (mW) {
             const t = SIM_TIME_TASKS.find(x => x.id === mW[1]);
             if (!t) return;
-            const workers = Math.max(1, Math.round(Number(e.target.value) || 1));
+            const workers = Math.max(0, Math.round(Number(e.target.value) || 0));
             const unit = timeTaskUnit.get(t.id);
             if (unit == null) return;
             const total = unit * workers;
             const mEl = document.getElementById(`sim-time-${t.id}`);
             if (mEl) mEl.value = total > 0 ? total : '';
             const badge = document.getElementById(`sim-src-t-${t.id}`);
-            if (badge) badge.title = `1인 ${unit}분 × ${workers}명 = 총 ${total}분으로 잡았습니다.`;
+            if (badge) badge.title = workers > 0
+                ? `1인 ${unit}분 × ${workers}명 = 총 ${total}분으로 잡았습니다.`
+                : '인원 0명 — 그날은 하지 않는 업무로 봅니다. 인원을 올리면 시간이 다시 잡힙니다.';
             return;
         }
         const mT = /^sim-time-(.+)$/.exec(id);
         if (mT) {
             const t = SIM_TIME_TASKS.find(x => x.id === mT[1]);
             if (!t) return;
-            const workers = Math.max(1, Math.round(Number(document.getElementById(`sim-workers-${t.id}`)?.value) || 1));
-            setTimeUnit(t, Number(e.target.value) || 0, workers);   // 직접 고친 값이 새 기준
+            const wEl = document.getElementById(`sim-workers-${t.id}`);
+            let workers = Math.max(0, Math.round(Number(wEl?.value) || 0));
+            const typed = Math.max(0, Number(e.target.value) || 0);
+            // 0명인데 시간을 넣으면 1명으로 올려 준다(0명이면 계산에서 빠지므로)
+            if (workers === 0 && typed > 0) { workers = 1; if (wEl) wEl.value = 1; }
+            setTimeUnit(t, typed, workers);        // 직접 고친 값이 새 기준
         }
     });
 
@@ -1597,7 +1619,7 @@ const setupSimulationListeners = () => {
         // 모든 수량/인원 입력 초기화 (업무 목록은 항상 기본 등록이므로 숨기지 않음)
         // ※ 저장해 둔 수기 값은 지우지 않는다(그건 '자동값' 버튼의 역할).
         SIM_TASKS.forEach(t => setQty(t.id, ''));
-        SIM_TIME_TASKS.forEach(t => { setTimeInputs(t, { minutes: 0, workers: 1 }); timeTaskUnit.set(t.id, 0); });
+        SIM_TIME_TASKS.forEach(t => setTimeInputs(t, { minutes: 0, workers: 0 }));
         ['sim-staff-fulltime','sim-staff-parttimer','sim-exclude-min'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
