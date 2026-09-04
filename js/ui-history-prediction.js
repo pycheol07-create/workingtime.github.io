@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609041043';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609041043';
-import * as State from './state.js?v=202609041043';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609041043';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609041043';
+import { predictFutureTrends } from './analysis-logic.js?v=202609041049';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609041049';
+import * as State from './state.js?v=202609041049';
+import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609041049';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609041049';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609041043';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609041049';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -284,7 +284,7 @@ const autoTimeValueFor = (dateStr, t, historyData, qtyLookup = null) => {
               + `${st.sampleDays}일 중 ${st.hitDays}일 진행 · 1인 기준 평균 ${st.avgMinutes}분`
               + ` (가장 많은 날 ${Math.round(st.maxMinutes)}분)`
               + ` · 실적은 평균 ${st.workers}명이 하루 ${st.teamMinutes}분(팀 합계)`
-              + ` — 인원을 올리면 각자 이 시간만큼 더 들어갑니다`
+              + ` — 인원을 올리면 1인 시간만큼 총 시간이 더해집니다`
     };
 };
 
@@ -633,9 +633,9 @@ const renderSimTaskInputs = () => {
 
     const timeRow = (t) => `
         <div id="sim-row-t-${t.id}" data-row-id="t-${t.id}" class="pred-sim-row ${ROW}">
-            <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${t.label} — 시간은 1인 기준입니다">${t.label}</span>
+            <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${t.label} — 인원이 늘면 그만큼 시간이 더해집니다">${t.label}</span>
             <label class="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
-                   title="이 업무를 하는 인원. 각자 자기 몫을 따로 하는 업무라, 인원이 늘면 그 인원만큼 시간(인시)이 더해집니다. 2명 × 280분이면 총 560분이 들어가고, 각자는 280분씩 붙어 있습니다.">동시
+                   title="이 업무를 하는 인원. 각자 자기 몫을 따로 하는 업무라, 인원을 올리면 1인 시간만큼 총 시간이 자동으로 더해집니다(1명 340분 → 2명 680분). 각자는 340분씩 붙어 있습니다.">동시
                 <input id="sim-workers-${t.id}" type="number" min="1" step="1" value="1"
                        class="w-8 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
                               text-[12px] font-bold text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-0">명</label>
@@ -659,13 +659,21 @@ const renderSimTaskInputs = () => {
     )).join('');
 
     const timeBlock = SIM_TIME_TASKS.length > 0
-        ? block('담당 · 시간 업무', '처리량이 없는 업무 — 1인 기준 투입시간(분)', SIM_TIME_TASKS.map(timeRow).join(''),
+        ? block('담당 · 시간 업무', '처리량이 없는 업무 — 총 투입시간(분)', SIM_TIME_TASKS.map(timeRow).join(''),
                 'text-indigo-500 dark:text-indigo-300')
         : '';
 
     // 데스크톱에서는 2열로 세워 세로 길이를 줄인다(항목이 많아 한 줄씩이면 화면을 넘긴다)
     host.className = 'grid grid-cols-1 lg:grid-cols-2 gap-3 items-start';
     host.innerHTML = qtyBlocks + timeBlock;
+};
+
+// 🧮 담당 업무의 '1인 기준 시간(분)'. 인원을 바꾸면 이 값 × 인원으로 총 투입시간을 다시 잡는다.
+const timeTaskUnit = new Map();   // taskId → 1인 시간(분)
+
+const setTimeUnit = (t, minutes, workers) => {
+    const w = Math.max(1, Math.round(Number(workers) || 1));
+    timeTaskUnit.set(t.id, Math.max(0, Math.round((Number(minutes) || 0) / w)));
 };
 
 /** 시간형 업무 입력칸 채우기 */
@@ -715,6 +723,7 @@ const autoFillSimInputs = (dateStr) => {
     SIM_TIME_TASKS.forEach(t => {
         const v = autoTimeValueFor(dateStr, t, data);
         setTimeInputs(t, v);
+        setTimeUnit(t, v.minutes, v.workers);
         markTimeSourceBadge(t, v.source, v.detail);
     });
 
@@ -841,9 +850,10 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
         const e = (inputs.timeTasks || {})[t.key] || {};
         const minutes = Math.max(0, Math.round(Number(e.minutes) || 0));
         const workers = Math.max(1, Math.round(Number(e.workers) || 1));
-        // 입력은 '1인 기준 시간' — 인시는 인원만큼 늘고, 실제로 흐르는 시간은 1인 시간 그대로다
-        const elapsed = minutes / 60;             // 담당자가 붙어 있는 시간
-        const hours = elapsed * workers;          // 인시(사람×시간)
+        // 입력칸은 '총 투입시간(인분)'. 인원이 늘면 그만큼 총시간이 커지고(각자 자기 몫),
+        // 각자 붙어 있는 시간은 총시간을 인원으로 나눈 값이다.
+        const hours = minutes / 60;               // 인시(사람×시간)
+        const elapsed = hours / workers;          // 담당자 한 사람이 붙어 있는 시간
         timeTaskTimes[t.key] = { minutes, workers, hours, elapsed };
         timeHours += hours;
         timeElapsedFloor = Math.max(timeElapsedFloor, elapsed);
@@ -1006,7 +1016,7 @@ const renderSimResult = (results, taskUPH, mode) => {
             return `<tr class="border-t border-gray-100 dark:border-gray-700/60 bg-indigo-50/30 dark:bg-indigo-900/10">
                 <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${t.label}
                     <span class="ml-1 text-[10px] font-bold text-indigo-500 dark:text-indigo-300">시간형</span></td>
-                <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">1인 ${v.minutes}분</td>
+                <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">${v.minutes}분</td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">담당 ${v.workers}명</td>
                 <td class="py-2 px-3 text-right">
                     <div class="flex items-center justify-end gap-2">
@@ -1017,7 +1027,7 @@ const renderSimResult = (results, taskUPH, mode) => {
                     </div>
                 </td>
                 <td class="py-2 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300"
-                    title="담당 ${v.workers}명이 각자 ${v.minutes}분씩 (인시 합계 ${fmtH(v.hours)})">${fmtHM(v.elapsed)}</td>
+                    title="총 ${v.minutes}분을 ${v.workers}명이 각자 ${Math.round(v.minutes / v.workers)}분씩 (인시 합계 ${fmtH(v.hours)})">${fmtHM(v.elapsed)}</td>
             </tr>`;
         }).filter(Boolean).join('');
 
@@ -1555,11 +1565,39 @@ const setupSimulationListeners = () => {
         });
     });
 
+    // ⏳ 담당 업무 — 인원을 바꾸면 '1인 시간 × 인원'으로 총 투입시간을 다시 넣는다.
+    //    (각자 자기 몫을 따로 하는 업무라, 사람이 늘면 그 사람 시간이 통째로 더해진다)
+    //    시간을 직접 고치면 그 값을 인원으로 나눈 값이 새 1인 기준이 된다.
+    document.getElementById('sim-task-list')?.addEventListener('input', (e) => {
+        const id = e.target?.id || '';
+        const mW = /^sim-workers-(.+)$/.exec(id);
+        if (mW) {
+            const t = SIM_TIME_TASKS.find(x => x.id === mW[1]);
+            if (!t) return;
+            const workers = Math.max(1, Math.round(Number(e.target.value) || 1));
+            const unit = timeTaskUnit.get(t.id);
+            if (unit == null) return;
+            const total = unit * workers;
+            const mEl = document.getElementById(`sim-time-${t.id}`);
+            if (mEl) mEl.value = total > 0 ? total : '';
+            const badge = document.getElementById(`sim-src-t-${t.id}`);
+            if (badge) badge.title = `1인 ${unit}분 × ${workers}명 = 총 ${total}분으로 잡았습니다.`;
+            return;
+        }
+        const mT = /^sim-time-(.+)$/.exec(id);
+        if (mT) {
+            const t = SIM_TIME_TASKS.find(x => x.id === mT[1]);
+            if (!t) return;
+            const workers = Math.max(1, Math.round(Number(document.getElementById(`sim-workers-${t.id}`)?.value) || 1));
+            setTimeUnit(t, Number(e.target.value) || 0, workers);   // 직접 고친 값이 새 기준
+        }
+    });
+
     document.getElementById('sim-reset-btn')?.addEventListener('click', () => {
         // 모든 수량/인원 입력 초기화 (업무 목록은 항상 기본 등록이므로 숨기지 않음)
         // ※ 저장해 둔 수기 값은 지우지 않는다(그건 '자동값' 버튼의 역할).
         SIM_TASKS.forEach(t => setQty(t.id, ''));
-        SIM_TIME_TASKS.forEach(t => setTimeInputs(t, { minutes: 0, workers: 1 }));
+        SIM_TIME_TASKS.forEach(t => { setTimeInputs(t, { minutes: 0, workers: 1 }); timeTaskUnit.set(t.id, 0); });
         ['sim-staff-fulltime','sim-staff-parttimer','sim-exclude-min'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
