@@ -1,7 +1,7 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202609041423';
-import * as State from './state.js?v=202609041423';
-import { getRegularMembersForCount } from './utils.js?v=202609041423';
+import { getAllDashboardDefinitions } from './ui.js?v=202609041536';
+import * as State from './state.js?v=202609041536';
+import { getRegularMembersForCount } from './utils.js?v=202609041536';
 
 export let currentEzadminData = null;
 
@@ -499,12 +499,16 @@ const EXTERNAL_LINK_META = [
     { match: 'supplies.html', icon: '📦', target: 'supplies_window' }, // 비품 관리
     { match: 'admin.html',    icon: '⚙️', target: 'admin_window' },    // 관리자 페이지
     { match: 'worktime.html', icon: '🕘', target: 'worktime_window' }, // 출퇴근 기록표
+    { match: 'china-stock-goods.html', icon: '🧮', target: 'chinastock_window' }, // 중국제작 미발계산기
+    { match: 'scan.html',     icon: '📷', target: 'scan_window' },      // 입고 스캐너(미발계산기 안에서도 열림)
 ];
 
 // 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu(파이어스토어)에 없으면 자동으로 끼워 넣는다.
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
 const BUILTIN_MENU_ITEMS = [
     { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' },
+    // 로케이션 관리 바로 아래에 (비품 관리 앞)
+    { name: '중국제작 미발계산기', link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' },
     // before: 이 항목 바로 앞에 끼워 넣는다(없으면 맨 뒤)
     { name: '출퇴근 기록표', link: 'worktime.html', category: '관리자 메뉴', before: '업무 마감' }
 ];

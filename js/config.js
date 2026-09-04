@@ -196,6 +196,7 @@ function getDefaultConfig() {
                     { name: '내 연차관리', link: '#' },
                     { name: '운영 시뮬레이션', link: '#' },
                     { name: '로케이션 관리', link: 'location.html' },
+                    { name: '중국제작 미발계산기', link: 'china-stock-goods.html' },
                     { name: '비품 관리', link: 'supplies.html' }
                 ]
             },
