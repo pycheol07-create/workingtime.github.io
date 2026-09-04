@@ -79,9 +79,21 @@
     </div>
 
     <!-- 헤더를 뺀 나머지 높이를 전부 쓴다 (표를 최대한 길게) -->
-    <main id="main" class="hidden px-4 py-3 max-w-[1600px] w-full mx-auto flex flex-col flex-1 min-h-0">
+    <main id="main" class="hidden px-4 py-3 max-w-[1600px] w-full mx-auto flex flex-col lg:flex-row gap-3 flex-1 min-h-0">
 
-        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
+        <!-- 근무자 목록 — 기록표와 별개의 왼쪽 영역 -->
+        <aside id="people-panel"
+               class="w-full lg:w-[190px] lg:shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm
+                      p-3 flex flex-col min-h-0 lg:max-h-full overflow-hidden">
+            <div class="flex items-center justify-between mb-2 shrink-0">
+                <span class="text-[11px] font-extrabold text-slate-500">근무자</span>
+                <button id="btn-add-person-side"
+                        class="text-[11px] font-bold px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">➕ 등록</button>
+            </div>
+            <div id="person-tabs" class="flex flex-row lg:flex-col gap-1.5 overflow-auto"></div>
+        </aside>
+
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 min-w-0 min-h-0 flex flex-col">
 
             <!-- 월 이동 + 인원 정보 -->
             <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
@@ -109,17 +121,10 @@
 
             <div class="flex flex-col lg:flex-row items-stretch flex-1 min-h-0">
 
-                <!-- 왼쪽: 근무자 카드 목록 · 월 합계 · 계산 규칙 -->
-                <aside class="w-full lg:w-[236px] lg:shrink-0 bg-slate-50
+                <!-- 월 합계 · 계산 규칙 -->
+                <aside class="w-full lg:w-[212px] lg:shrink-0 bg-slate-50
                               border-b lg:border-b-0 lg:border-r border-slate-100 p-3
                               overflow-y-auto">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-[11px] font-extrabold text-slate-500">근무자</span>
-                        <button id="btn-add-person-side"
-                                class="text-[11px] font-bold px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">➕ 등록</button>
-                    </div>
-                    <div id="person-tabs" class="flex flex-col gap-1.5 mb-3"></div>
-
                     <div id="summary" class="grid grid-cols-2 lg:grid-cols-1 gap-2"></div>
                     <div id="fx-note" class="text-[11px] text-slate-500 mt-2 leading-snug"></div>
 
@@ -225,6 +230,6 @@
     <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg z-[60]"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/worktime.js?v=202609041419"></script>
+    <script type="module" src="js/worktime.js?v=202609041423"></script>
 </body>
 </html>

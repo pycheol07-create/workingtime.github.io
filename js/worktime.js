@@ -12,7 +12,7 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202609041419';
+import { initializeFirebase } from './config.js?v=202609041423';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -202,18 +202,10 @@ function renderTabs() {
         return;
     }
     host.innerHTML = list.map(p => {
-        const ck = checkStats(p.id);
         const t = monthTotals(p.id);
-        // 카드에 그 사람의 이번 달 상태를 같이 보여준다(탭만 있을 때는 알 수 없던 정보)
-        const badge = ck.todo > 0
-            ? `<span class="badge text-amber-600">미확인 ${ck.todo}</span>`
-            : (ck.target > 0 ? '<span class="badge text-emerald-600">확인 완료</span>' : '');
         return `<button class="p-card ${p.id === currentPid ? 'on' : ''}" data-pid="${esc(p.id)}">
-            <div class="flex items-center justify-between gap-2">
-                <span class="nm truncate">${esc(p.name || '이름없음')}</span>
-                ${badge}
-            </div>
-            <div class="sub">${t.days}일 · ${hoursText(t.workedMin)}${p.memo ? ' · ' + esc(p.memo) : ''}</div>
+            <div class="nm truncate">${esc(p.name || '이름없음')}</div>
+            <div class="sub">${t.days}일 · ${hoursText(t.workedMin)}</div>
         </button>`;
     }).join('');
 }
