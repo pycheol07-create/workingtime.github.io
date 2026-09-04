@@ -1,7 +1,7 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 9.9 (설정파일 분리: config.js → china-stock-config.js — 최종관리자 공유 config.js와 충돌 방지. 관리자 인계 PR 준비)
 
-import { initializeFirebase } from './china-stock-config.js?v=202609041556'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202609041600'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const { db } = initializeFirebase();
@@ -1082,10 +1082,33 @@ async function saveZoneCap() {
 async function saveSheetSettings() {
     csvUrlOrder = document.getElementById('modal-csv-order').value.trim();
     csvUrlBuy = document.getElementById('modal-csv-buy').value.trim();
-    await saveConfig();
-    closeSheetSettingsModal();
-    showToast('✅ CSV 링크 저장 완료');
-    syncOrderData();
+    // 저장이 실패해도 아무 표시가 없어 '눌러도 안 된다'로 보였다 → 이유를 알려준다
+    const btn = document.getElementById('btn-sheet-save');
+    const label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
+    try {
+        await saveConfig();
+        closeSheetSettingsModal();
+        showToast('✅ CSV 링크 저장 완료');
+        syncOrderData();
+    } catch (e) {
+        console.error('[china-stock] CSV 링크 저장 실패:', e);
+        showToast(saveErrorMessage(e));
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = label || '저장'; }
+    }
+}
+
+/** 저장 실패 사유를 사람이 읽을 수 있게. 권한 오류가 가장 흔하다(규칙 미게시·로그아웃). */
+function saveErrorMessage(e) {
+    const code = (e && e.code) || '';
+    if (code === 'permission-denied')
+        return '❌ 저장 권한이 없습니다 — 로그인 상태와 Firestore 규칙(게시 여부)을 확인해 주세요.';
+    if (code === 'unauthenticated')
+        return '❌ 로그인이 풀렸습니다. 새로고침 후 다시 로그인해 주세요.';
+    if (code === 'unavailable')
+        return '❌ 네트워크에 연결되지 않아 저장하지 못했습니다.';
+    return '❌ 저장 실패: ' + (code || (e && e.message) || e);
 }
 
 // ---------------------------------------------------------

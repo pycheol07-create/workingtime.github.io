@@ -1,17 +1,17 @@
 // === js/listeners-history-records.js ===
 // 설명: 이력 보기의 '기록 관리'(상세 내역 수정/삭제/일괄적용) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202609041556';
-import * as State from './state.js?v=202609041556';
-import { showToast } from './utils.js?v=202609041556';
+import * as DOM from './dom-elements.js?v=202609041600';
+import * as State from './state.js?v=202609041600';
+import { showToast } from './utils.js?v=202609041600';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=202609041556';
-import { renderHistoryDetail } from './app-history-logic.js?v=202609041556';
-import { renderHistoryRecordsTable, openHistoryRecordManager } from './history-record-table.js?v=202609041556';
-import { generateId } from './app-data.js?v=202609041556';
+} from './history-data-manager.js?v=202609041600';
+import { renderHistoryDetail } from './app-history-logic.js?v=202609041600';
+import { renderHistoryRecordsTable, openHistoryRecordManager } from './history-record-table.js?v=202609041600';
+import { generateId } from './app-data.js?v=202609041600';
 
 export function setupHistoryRecordListeners() {
 
