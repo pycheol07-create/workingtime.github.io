@@ -1,6 +1,6 @@
 // === js/history-excel-reports.js ===
-import { formatDuration, formatTimeTo24H, showToast } from './utils.js?v=202609041553';
-import { fitToColumn } from './history-excel-utils.js?v=202609041553';
+import { formatDuration, formatTimeTo24H, showToast } from './utils.js?v=202609041556';
+import { fitToColumn } from './history-excel-utils.js?v=202609041556';
 
 export const downloadReportExcel = (reportData, format = 'xlsx') => {
     if (!reportData) return showToast('리포트 데이터가 없습니다.', true);

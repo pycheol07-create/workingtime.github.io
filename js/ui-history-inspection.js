@@ -1,7 +1,7 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202609041553';
-import * as State from './state.js?v=202609041553';
-import { getWeekOfYear } from './utils.js?v=202609041553';
+import * as DOM from './dom-elements.js?v=202609041556';
+import * as State from './state.js?v=202609041556';
+import { getWeekOfYear } from './utils.js?v=202609041556';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
