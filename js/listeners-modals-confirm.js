@@ -1,16 +1,16 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202609041029';
-import * as State from './state.js?v=202609041029';
-import { isPersistentLeaveType } from './state.js?v=202609041029';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609041029';
-import { showToast, getTodayDateString, getCurrentTime } from './utils.js?v=202609041029';
-import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202609041029';
-import { saveLeaveSchedule } from './config.js?v=202609041029';
-import { switchHistoryView } from './app-history-logic.js?v=202609041029';
-import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202609041029';
-import { saveStateToFirestore } from './app-data.js?v=202609041029';
+import * as DOM from './dom-elements.js?v=202609041037';
+import * as State from './state.js?v=202609041037';
+import { isPersistentLeaveType } from './state.js?v=202609041037';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609041037';
+import { showToast, getTodayDateString, getCurrentTime } from './utils.js?v=202609041037';
+import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202609041037';
+import { saveLeaveSchedule } from './config.js?v=202609041037';
+import { switchHistoryView } from './app-history-logic.js?v=202609041037';
+import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202609041037';
+import { saveStateToFirestore } from './app-data.js?v=202609041037';
 
 import {
     doc, deleteDoc, writeBatch, collection, updateDoc, getDoc, getDocs, setDoc, query
@@ -317,7 +317,7 @@ export function setupConfirmationModalListeners() {
                             r.startTime < dailyEntry.startTime
                         );
                         if (stale.length > 0) {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202609041029');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202609041037');
                             const r = await forceEndMemberWork(memberName, dailyEntry.startTime);
                             if (r.ended > 0) {
                                 console.warn(`[외출 복귀 보호막] ${memberName}: 외출 전부터 진행 중이던 ${r.ended}건을 ${dailyEntry.startTime}로 정리`, r.summaries);

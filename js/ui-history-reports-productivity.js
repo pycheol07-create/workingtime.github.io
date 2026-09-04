@@ -1,7 +1,7 @@
 // === js/ui-history-reports-productivity.js ===
-import { isWeekday, getTodayDateString, buildMemberHourlyWageMap } from './utils.js?v=202609041029';
-import { getAsArray } from './ui-history-reports-utils.js?v=202609041029';
-import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202609041029';
+import { isWeekday, getTodayDateString, buildMemberHourlyWageMap } from './utils.js?v=202609041037';
+import { getAsArray } from './ui-history-reports-utils.js?v=202609041037';
+import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202609041037';
 
 export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
     if (!allHistoryData || allHistoryData.length === 0) return null;
