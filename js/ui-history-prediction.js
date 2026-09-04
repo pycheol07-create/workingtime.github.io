@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609041057';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609041057';
-import * as State from './state.js?v=202609041057';
-import { getTodayDateString, getRegularMembersForCount, showToast } from './utils.js?v=202609041057';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609041057';
+import { predictFutureTrends } from './analysis-logic.js?v=202609041159';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609041159';
+import * as State from './state.js?v=202609041159';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609041159';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609041159';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609041057';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609041159';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -144,6 +144,20 @@ const addDays = (dateStr, n) => {
 const isWeekendDate = (dateStr) => {
     const dow = new Date(dateStr + 'T00:00:00').getDay();
     return dow === 0 || dow === 6;
+};
+/** 법정 공휴일인가 */
+const isHolidayDate = (dateStr) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return false;
+    return !!getHolidayName(d.getFullYear(), d.getMonth() + 1, d.getDate());
+};
+/** 쉬는 날(주말·공휴일) */
+const isOffDay = (dateStr) => isWeekendDate(dateStr) || isHolidayDate(dateStr);
+/** 기준일 다음의 첫 근무일 — 주말·공휴일은 건너뛴다(연휴가 길어도 최대 14일까지 찾는다) */
+const nextWorkingDay = (fromDateStr, maxSteps = 14) => {
+    let d = addDays(fromDateStr, 1);
+    for (let i = 0; i < maxSteps && isOffDay(d); i++) d = addDays(d, 1);
+    return d;
 };
 const dayLabel = (dateStr) => {
     const days = ['일', '월', '화', '수', '목', '금', '토'];
@@ -1333,7 +1347,10 @@ const renderForecastSummary = () => {
     const taskUPH = computeTaskUPHs(State.allHistoryData);
     const cfg = State.appConfig;
     const today = getTodayDateString();
-    const days = [{ label: '오늘', date: today }, { label: '내일', date: addDays(today, 1) }];
+    // 두 번째 카드는 '다음 근무일' — 내일이 주말·공휴일이면 건너뛴다
+    const nextDay = nextWorkingDay(today);
+    const nextLabel = nextDay === addDays(today, 1) ? '내일' : '다음 근무일';
+    const days = [{ label: '오늘', date: today }, { label: nextLabel, date: nextDay }];
     el.innerHTML = days.map(({ label, date }) => {
         const { inputs, linked } = inputsForSummaryDate(date);
         const r = simulateOneDay(date, inputs, taskUPH, cfg);

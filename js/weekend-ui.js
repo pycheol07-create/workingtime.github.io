@@ -1,8 +1,11 @@
 // === js/weekend-ui.js ===
-import * as State from './state.js?v=202609041057';
-import { store } from './weekend-store.js?v=202609041057';
-import { handleDateClick } from './weekend-core.js?v=202609041057';
-import { openAdminDatePopup, openPastDateEditPopup, handleAdminBadgeClick } from './weekend-admin.js?v=202609041057';
+import * as State from './state.js?v=202609041159';
+// 공휴일 표는 utils.js 로 옮겼다(업무 예상에서도 쓰기 위해). 기존 사용처를 위해 그대로 다시 내보낸다.
+import { getHolidayName } from './utils.js?v=202609041159';
+export { getHolidayName };
+import { store } from './weekend-store.js?v=202609041159';
+import { handleDateClick } from './weekend-core.js?v=202609041159';
+import { openAdminDatePopup, openPastDateEditPopup, handleAdminBadgeClick } from './weekend-admin.js?v=202609041159';
 
 // 주말근무 기준 관리자 명단 (계정 역할이 admin이 아니어도 관리자 권한 부여)
 const WEEKEND_ADMINS = ['박영철', '박호진', '유아라', '이승운'];
@@ -11,36 +14,6 @@ const WEEKEND_ADMINS = ['박영철', '박호진', '유아라', '이승운'];
 function isWeekendAdmin() {
     return State.appState.currentUserRole === 'admin'
         || WEEKEND_ADMINS.includes(State.appState.currentUser);
-}
-
-// 🔥 법정 공휴일 데이터를 반환하는 헬퍼 함수 (달력 뷰에서만 사용)
-export function getHolidayName(year, month, day) {
-    const mm = String(month).padStart(2, '0');
-    const dd = String(day).padStart(2, '0');
-    const md = `${mm}-${dd}`;
-    const ymd = `${year}-${mm}-${dd}`;
-
-    const fixedHolidays = {
-        '01-01': '신정', '03-01': '3·1절', '05-05': '어린이날', '06-06': '현충일',
-        '08-15': '광복절', '10-03': '개천절', '10-09': '한글날', '12-25': '기독탄신일(크리스마스)'
-    };
-
-    const variableHolidays = {
-        '2024-02-09': '설날 연휴', '2024-02-10': '설날', '2024-02-11': '설날 연휴', '2024-02-12': '대체공휴일',
-        '2024-04-10': '국회의원선거', '2024-05-06': '대체공휴일', '2024-05-15': '부처님오신날',
-        '2024-09-16': '추석 연휴', '2024-09-17': '추석', '2024-09-18': '추석 연휴',
-        '2025-01-28': '설날 연휴', '2025-01-29': '설날', '2025-01-30': '설날 연휴',
-        '2025-03-03': '대체공휴일', '2025-05-05': '어린이날/부처님오신날', '2025-05-06': '대체공휴일',
-        '2025-10-05': '추석 연휴', '2025-10-06': '추석', '2025-10-07': '추석 연휴', '2025-10-08': '대체공휴일',
-        '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
-        '2026-03-02': '대체공휴일', '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일',
-        '2026-06-03': '지방선거', '2026-08-16': '대체공휴일',
-        '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴', '2026-10-04': '대체공휴일', '2026-10-05': '대체공휴일'
-    };
-
-    if (variableHolidays[ymd]) return variableHolidays[ymd];
-    if (fixedHolidays[md]) return fixedHolidays[md];
-    return null;
 }
 
 // 📅 해당 월 주말 근무일 수 + 1인당 적정(공평) 횟수 계산 후 상단 배너에 표시
