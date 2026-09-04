@@ -12,7 +12,7 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202609041159';
+import { initializeFirebase } from './config.js?v=202609041356';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -72,6 +72,26 @@ const calcDay = (rec) => {
     const breakMin = (rec.breakMin === '' || rec.breakMin == null)
         ? autoBreak(rec) : Math.max(0, num(rec.breakMin));
     return { gross, breakMin, worked: Math.max(0, gross - breakMin) };
+};
+
+// ── 근무 확인 ────────────────────────────────────────────────────
+// 한 달치 일정을 미리 넣어 두므로, 그날 정말 그대로 근무했는지 하루씩 확인해 표시한다.
+// rec.ok = true 이면 확인됨(누가·언제 확인했는지도 함께 남긴다).
+const isOk = (rec) => !!(rec && rec.ok);
+
+/** 오늘(로컬) YYYY-MM-DD */
+const todayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+};
+
+/** 그날이 이미 지났는가(오늘은 아직 근무 중일 수 있으므로 제외) */
+const isPastDay = (ym, day) => `${ym}-${pad2(day)}` < todayStr();
+
+/** 확인이 필요한 날 — 지난 날짜인데 기록(일정)이 있고 아직 확인하지 않은 날 */
+const needsCheck = (rec, ym, day) => {
+    const c = calcDay(rec);
+    return !!c && !isOk(rec) && isPastDay(ym, day);
 };
 
 const hoursText = (min) => {
@@ -195,7 +215,8 @@ function renderSheet() {
         const r = rec[key] || {};
         const wd = weekdayOf(currentYm, d);
         const calc = calcDay(r);
-        const cls = wd === 0 ? 'sun' : wd === 6 ? 'sat' : '';
+        let cls = wd === 0 ? 'sun' : wd === 6 ? 'sat' : '';
+        if (needsCheck(r, currentYm, d)) cls += ' todo';
         rows.push(`
             <tr class="${cls}" data-day="${key}">
                 <td><input type="checkbox" class="chk" ${selected.has(key) ? 'checked' : ''}></td>
@@ -207,6 +228,7 @@ function renderSheet() {
                            value="${r.breakMin === '' || r.breakMin == null ? '' : esc(r.breakMin)}"></td>
                 <td class="tabular-nums ${calc ? 'font-bold text-slate-800' : 'text-slate-300'}">
                     ${calc ? hoursText(calc.worked) : '-'}</td>
+                <td>${okCellHtml(r, currentYm, d)}</td>
                 <td><input class="t-in m-in" data-f="memo"
                            maxlength="30" value="${esc(r.memo || '')}"></td>
             </tr>`);
@@ -214,6 +236,51 @@ function renderSheet() {
     body.innerHTML = rows.join('');
     renderBulkBar();
     renderSummary();
+}
+
+/** 확인 칸 HTML — 기록이 없는 날은 체크할 것이 없으므로 비워 둔다 */
+function okCellHtml(rec, ym, day) {
+    const c = calcDay(rec);
+    if (!c) return '<span class="text-slate-300">-</span>';
+    const done = isOk(rec);
+    const todo = needsCheck(rec, ym, day);
+    const tip = done
+        ? `확인함${rec.okBy ? ' · ' + rec.okBy : ''}${rec.okAt ? ' · ' + rec.okAt : ''}`
+        : (todo ? '아직 확인하지 않은 날입니다' : '근무 후 확인해 주세요');
+    return `<label class="ok-cell" title="${esc(tip)}">
+        <input type="checkbox" class="ok-box" ${done ? 'checked' : ''}>
+        <span class="ok-txt ${done ? 'ok-done' : (todo ? 'ok-todo' : 'text-slate-400')}">${done ? '확인' : (todo ? '미확인' : '')}</span>
+    </label>`;
+}
+
+/** 확인 상태 기록/해제 */
+function setDayOk(pid, key, on) {
+    const rec = (records[pid] || {})[key];
+    if (!rec) return false;
+    if (on) {
+        if (!calcDay(rec)) return false;          // 출퇴근 시간이 없으면 확인할 것이 없다
+        rec.ok = true;
+        rec.okBy = String(currentUser || '').split('@')[0];
+        rec.okAt = todayStr();
+    } else {
+        delete rec.ok; delete rec.okBy; delete rec.okAt;
+    }
+    return true;
+}
+
+/** 그 사람의 그 달 확인 현황 { done, target, todo } */
+function checkStats(pid) {
+    const rec = records[pid] || {};
+    const n = daysInMonth(currentYm);
+    let done = 0, target = 0, todo = 0;
+    for (let d = 1; d <= n; d++) {
+        const r = rec[pad2(d)];
+        if (!calcDay(r)) continue;
+        target++;
+        if (isOk(r)) done++;
+        else if (isPastDay(currentYm, d)) todo++;
+    }
+    return { done, target, todo };
 }
 
 function monthTotals(pid) {
@@ -246,8 +313,13 @@ function renderSummary() {
     const cny = fx.rate > 0 ? pay / fx.rate : 0;
     const cnyText = cny > 0 ? '¥ ' + cny.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 
+    const ck = checkStats(p.id);
+    const ckColor = ck.todo > 0 ? 'text-amber-600' : (ck.target > 0 && ck.done === ck.target ? 'text-emerald-600' : 'text-slate-800');
+    const ckSub = ck.todo > 0 ? `지난 날짜 중 ${ck.todo}일 미확인` : (ck.target === 0 ? '기록 없음' : '모두 확인함');
+
     $('summary').innerHTML =
-        card('근무 일수', days + '일')
+        card('근무 확인', `${ck.done} / ${ck.target}일`, ckSub, ckColor)
+        + card('근무 일수', days + '일')
         + card('월 총 근무시간', hoursText(workedMin), hours.toFixed(2) + ' 시간')
         + card('월 총금액', fmt(pay) + '원', '연장·야간·주휴수당 미포함', 'text-indigo-700')
         + card('위안화 환산', cnyText, '당일 환율 기준', 'text-rose-600');
@@ -294,6 +366,16 @@ $('sheet-body').addEventListener('input', (e) => {
     const rec = records[currentPid][day] || (records[currentPid][day] = {});
     const f = el.dataset.f;
     rec[f] = f === 'breakMin' ? el.value.replace(/[^0-9]/g, '') : el.value;
+
+    // 시간을 고치면 이전 확인은 무효 — 다시 확인하도록 해제한다
+    if (f !== 'memo' && isOk(rec)) {
+        setDayOk(currentPid, day, false);
+        const box = tr.querySelector('.ok-box');
+        if (box) box.checked = false;
+        const txt = tr.querySelector('.ok-txt');
+        if (txt) { txt.textContent = '미확인'; txt.className = 'ok-txt ok-todo'; }
+        toast('시간이 바뀌어 확인 표시를 해제했습니다.');
+    }
 
     // 아무 값도 없는 날은 저장하지 않는다(빈 칸이 문서에 쌓이지 않도록)
     if (!rec.in && !rec.out && !rec.memo && !rec.breakMin) delete records[currentPid][day];
@@ -373,6 +455,18 @@ $('chk-all')?.addEventListener('change', (e) => {
 });
 
 $('sheet-body').addEventListener('change', (e) => {
+    // 근무 확인 체크
+    const okBox = e.target.closest('.ok-box');
+    if (okBox) {
+        const key = okBox.closest('tr')?.dataset.day;
+        if (!key || !currentPid) return;
+        if (!setDayOk(currentPid, key, okBox.checked)) { okBox.checked = false; return; }
+        renderSheet();
+        renderSummary();
+        queueSave();
+        return;
+    }
+
     const box = e.target.closest('.chk');
     if (!box) return;
     const key = box.closest('tr')?.dataset.day;
@@ -394,12 +488,27 @@ $('btn-bulk-apply').addEventListener('click', async () => {
         if (vIn) rec.in = vIn;
         if (vOut) rec.out = vOut;
         if (vBreak !== '') rec.breakMin = vBreak;
+        // 시간이 바뀌었으므로 이전 확인은 무효
+        delete rec.ok; delete rec.okBy; delete rec.okAt;
     });
 
     renderSheet();
     try { await saveMonth(); toast(`${selected.size}일에 적용했습니다.`); }
     catch (e) { toast('저장 실패: ' + (e.message || e), true); }
 });
+
+// 선택한 날짜를 한 번에 확인 처리 / 해제
+const bulkOk = async (on) => {
+    if (!currentPid || selected.size === 0) return;
+    let n = 0;
+    selected.forEach(key => { if (setDayOk(currentPid, key, on)) n++; });
+    if (n === 0) { toast(on ? '확인할 기록이 없습니다.' : '해제할 기록이 없습니다.'); return; }
+    renderSheet();
+    try { await saveMonth(); toast(`${n}일을 ${on ? '확인 처리' : '확인 해제'}했습니다.`); }
+    catch (e) { toast('저장 실패: ' + (e.message || e), true); }
+};
+$('btn-bulk-ok')?.addEventListener('click', () => bulkOk(true));
+$('btn-bulk-unok')?.addEventListener('click', () => bulkOk(false));
 
 $('btn-bulk-clear').addEventListener('click', async () => {
     if (!currentPid || selected.size === 0) return;
@@ -529,6 +638,8 @@ $('btn-excel').addEventListener('click', () => {
             '출근': r.in || '', '퇴근': r.out || '',
             '휴게(분)': c ? c.breakMin : '',
             '근무시간': c ? hoursText(c.worked) : '',
+            '확인': c ? (r.ok ? '확인' : '미확인') : '',
+            '확인일': r.okAt || '',
             '근무시간(소수)': c ? Number(hoursDecimal(c.worked).toFixed(2)) : '',
             '금액(원)': c ? Math.floor(hoursDecimal(c.worked) * num(p.wage)) : '',
             '메모': r.memo || ''

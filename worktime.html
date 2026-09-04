@@ -23,6 +23,14 @@
         .ws-table tr.sat td { background: #f8fafc; }
         .ws-table tr.sun td { background: #fef2f2; }
         .ws-table tr.sat:hover td, .ws-table tr.sun:hover td { filter: brightness(.98); }
+        /* 지난 날짜인데 아직 확인하지 않은 줄 — 눈에 띄게 */
+        .ws-table tr.todo td { background: #fffbeb; }
+        .ws-table tr.todo:hover td { background: #fef3c7; }
+        .ok-cell { display: inline-flex; align-items: center; gap: 4px; }
+        .ok-box { width: 16px; height: 16px; accent-color: #059669; cursor: pointer; }
+        .ok-txt { font-size: 10px; font-weight: 700; }
+        .ok-done { color: #059669; }
+        .ok-todo { color: #d97706; }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
         .day-name { font-size: 11px; color: #94a3b8; }
         .sun .day-name { color: #ef4444; }
@@ -124,6 +132,8 @@
                         <input id="bulk-break" inputmode="numeric" placeholder="자동"
                                class="w-16 px-2 py-1 border border-slate-300 rounded-lg text-center">
                         <button id="btn-bulk-apply" class="font-bold px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">적용</button>
+                        <button id="btn-bulk-ok" class="font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white">확인 처리</button>
+                        <button id="btn-bulk-unok" class="font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-50">확인 해제</button>
                         <button id="btn-bulk-clear" class="font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100">선택 지우기</button>
                         <span class="text-[11px] text-slate-500 ml-auto">비워 둔 칸은 그대로 둡니다</span>
                     </div>
@@ -138,6 +148,7 @@
                                     <th style="width:124px;">퇴근</th>
                                     <th style="width:86px;">휴게<span class="font-normal text-slate-400">(분)</span></th>
                                     <th style="width:104px;">근무시간</th>
+                                    <th style="width:88px;" title="일정대로 출퇴근해 근무를 마쳤는지 확인한 표시입니다. 시간을 고치면 자동으로 해제됩니다.">확인</th>
                                     <th>메모</th>
                                 </tr>
                             </thead>
@@ -200,6 +211,6 @@
     <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg z-[60]"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/worktime.js?v=202609041159"></script>
+    <script type="module" src="js/worktime.js?v=202609041356"></script>
 </body>
 </html>
