@@ -1,7 +1,7 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 9.9 (설정파일 분리: config.js → china-stock-config.js — 최종관리자 공유 config.js와 충돌 방지. 관리자 인계 PR 준비)
 
-import { initializeFirebase } from './china-stock-config.js?v=202609041600'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202609041609'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const { db } = initializeFirebase();
@@ -1181,14 +1181,65 @@ async function syncOrderData(silent = false) {
         orderDataOriginal = dataOrder; orderDataBuy = dataBuy;
         extractShipDates(); 
         if(!silent) { hideLoading(); showToast('✅ 동기화 완료'); }
-    } catch (e) { if(!silent) hideLoading(); }
+    } catch (e) {
+        if(!silent) hideLoading();
+        // 예전에는 조용히 끝나서 '저장은 됐는데 데이터가 없다'로만 보였다
+        console.error('[china-stock] 동기화 실패:', e);
+        if(!silent) showToast('❌ ' + (e && e.userMessage ? e.userMessage : ('동기화 실패: ' + ((e && e.message) || e))));
+    }
 }
 
-async function fetchCSV(url) {
-    if(!url) return [];
+// 구글 시트 주소를 CSV로 읽을 수 있는 주소로 바꾼다.
+//   · .../edit?gid=123#gid=123      → .../export?format=csv&gid=123   (편집 링크를 그냥 붙여넣는 경우가 많다)
+//   · .../pub?output=csv            → 그대로 (웹에 게시한 주소 — 가장 확실하다)
+// ⚠️ '편집 링크'는 시트가 비공개면 어떤 방법으로도 못 읽는다. 그때는 [파일 > 공유 > 웹에 게시]로
+//    CSV 주소를 만들어 넣어야 한다(브라우저에서 남의 서버 자료를 읽으려면 그쪽이 허용해 줘야 한다).
+function toCsvUrl(url) {
+    const u = String(url || '').trim();
+    if (!u) return u;
+    if (!/docs\.google\.com\/spreadsheets/.test(u)) return u;      // 구글 시트가 아니면 그대로
+    if (/\/pub\?|output=csv|format=csv|tqx=out:csv/.test(u)) return u; // 이미 CSV 주소
+    const id = (u.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/) || [])[1];
+    if (!id) return u;
+    const gid = (u.match(/[?&#]gid=(\d+)/) || [])[1] || '0';
+    return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
+}
+
+async function fetchCSV(rawUrl) {
+    if(!rawUrl) return [];
+    const url = toCsvUrl(rawUrl);
     let textData = '';
-    try { const res = await fetch(url); textData = await res.text(); }
-    catch (e) { const res2 = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`); textData = await res2.text(); }
+    // 1) 직접 → 2) 프록시 두 곳 순서로 시도한다(브라우저 CORS 제한 우회).
+    const tries = [
+        url,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        `https://corsproxy.io/?${encodeURIComponent(url)}`
+    ];
+    let lastErr = null, ok = false;
+    for (const t of tries) {
+        try {
+            const res = await fetch(t);
+            if (!res.ok) { lastErr = new Error('HTTP ' + res.status); continue; }
+            textData = await res.text();
+            // 로그인 페이지(HTML)가 오면 비공개 시트다 — 표로 읽으면 엉뚱한 값이 된다
+            if (/^\s*<(!doctype|html)/i.test(textData) && /accounts\.google\.com|Sign in|로그인/i.test(textData)) {
+                lastErr = new Error('비공개 시트');
+                textData = '';
+                continue;
+            }
+            ok = true;
+            break;
+        } catch (e) { lastErr = e; }
+    }
+    if (!ok) {
+        const msg = (lastErr && lastErr.message === '비공개 시트')
+            ? 'CSV를 읽지 못했습니다 — 시트가 비공개입니다. [파일 > 공유 > 웹에 게시]에서 CSV 주소를 만들어 넣어 주세요.'
+            : 'CSV를 읽지 못했습니다 — 주소를 확인해 주세요. 구글 시트는 [파일 > 공유 > 웹에 게시]로 만든 CSV 주소가 가장 확실합니다.';
+        const err = new Error(msg);
+        err.userMessage = msg;
+        console.error('[china-stock] CSV 읽기 실패:', url, lastErr);
+        throw err;
+    }
     const wb = XLSX.read(textData, { type: 'string' });
     const rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
     let headerIdx = -1, headers = [];
