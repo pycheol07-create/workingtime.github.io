@@ -1,7 +1,7 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 9.9 (설정파일 분리: config.js → china-stock-config.js — 최종관리자 공유 config.js와 충돌 방지. 관리자 인계 PR 준비)
 
-import { initializeFirebase } from './china-stock-config.js?v=202609080842'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202609080852'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const { db } = initializeFirebase();
@@ -59,10 +59,11 @@ function normalizeDate(dateStr) {
     if (!dateStr) return '';
     let s = dateStr.toString().trim();
     if (/^\d{4,5}(\.\d+)?$/.test(s)) s = formatExcelDate(parseFloat(s));
-    s = s.replace(/\./g, '-').replace(/\//g, '-');
+    // '2026. 9. 8.' 처럼 점·공백이 섞인 표기(구글시트 표시값)도 받아들인다
+    s = s.replace(/\./g, '-').replace(/\//g, '-').replace(/\s+/g, '').replace(/-+$/, '');
     const parts = s.split('-');
     if (parts.length === 3) {
-        let [y, m, d] = parts;
+        let [y, m, d] = parts.map(v => v.trim());
         if (y.length === 2) y = '20' + y;
         return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
     }
@@ -1252,6 +1253,13 @@ async function fetchCSV(rawUrl) {
             break; 
         }
     }
+    if (headerIdx === -1) {
+        const msg = '표의 머리글을 찾지 못했습니다 — 시트(탭) 이름이 맞는지, 첫 20줄 안에 \'상품코드\' 열이 있는지 확인해 주세요.';
+        const err = new Error(msg); err.userMessage = msg;
+        console.error('[china-stock] 머리글 없음. 받은 첫 줄:', (rawData[0] || []).join(' | '));
+        throw err;
+    }
+
     const result = [];
     for (let i = headerIdx + 1; i < rawData.length; i++) {
         let obj = {}, empty = true;
@@ -1259,6 +1267,12 @@ async function fetchCSV(rawUrl) {
         for (let j = 0; j < headers.length; j++) { if (headers[j]) { const v = rawData[i][j]; if (!(headers[j] in obj) || obj[headers[j]] === '' || obj[headers[j]] === undefined) obj[headers[j]] = v; if (v !== '') empty = false; } }
         if (!empty) result.push(obj);
     }
+    if (result.length === 0) {
+        const msg = '표는 읽었지만 데이터 행이 없습니다 — 시트(탭)를 확인해 주세요.';
+        const err = new Error(msg); err.userMessage = msg;
+        throw err;
+    }
+    console.log(`[china-stock] CSV ${result.length}행 · 머리글: ${headers.filter(Boolean).slice(0, 12).join(', ')}`);
     return result;
 }
 
@@ -1953,7 +1967,21 @@ function extractShipDates() {
     arrivalByShip = {};
     Object.entries(dateMap).forEach(([ship, info]) => { arrivalByShip[ship] = [...info.arrivals].sort(); });
     const sorted = Object.entries(dateMap).sort((a, b) => b[0].localeCompare(a[0]));
-    if (sorted.length === 0) { checklistContainer.innerHTML = '출고 데이터 없음'; return; }
+    if (sorted.length === 0) {
+        // 왜 없는지 알 수 있게 — 행은 불러왔는지, 출고일 열이 있는지
+        const total = (orderDataOriginal.length + orderDataBuy.length);
+        const sample = orderDataOriginal[0] || orderDataBuy[0] || {};
+        const hasShipCol = oCols.some(c => c in sample);
+        const why = total === 0
+            ? '불러온 행이 없습니다.'
+            : (hasShipCol ? `출고일이 채워진 행이 없습니다(또는 도착일+유예가 지났습니다).`
+                          : `'1차패킹리스트출고일' 같은 열을 찾지 못했습니다.`);
+        checklistContainer.innerHTML =
+            `<div style="font-size:12px; color:#8d6e63; line-height:1.7;">출고 데이터 없음<br>`
+          + `<span style="color:#a1887f;">불러온 행 ${total.toLocaleString()}개 — ${why}</span></div>`;
+        if (total > 0 && !hasShipCol) console.warn('[china-stock] 첫 행의 열 이름:', Object.keys(sample).join(', '));
+        return;
+    }
     let html = '';
     sorted.forEach(([date, info]) => {
         const isChecked = savedDates.includes(date) ? 'checked' : '';
