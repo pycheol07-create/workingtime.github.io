@@ -1,7 +1,7 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 9.9 (설정파일 분리: config.js → china-stock-config.js — 최종관리자 공유 config.js와 충돌 방지. 관리자 인계 PR 준비)
 
-import { initializeFirebase } from './china-stock-config.js?v=202609080852'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202609080854'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const { db } = initializeFirebase();
@@ -1216,12 +1216,22 @@ async function fetchCSV(rawUrl) {
         `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
         `https://corsproxy.io/?${encodeURIComponent(url)}`
     ];
-    let lastErr = null, ok = false;
+    let lastErr = null, ok = false, fatal = null;
     for (const t of tries) {
         try {
             const res = await fetch(t);
             if (!res.ok) { lastErr = new Error('HTTP ' + res.status); continue; }
             textData = await res.text();
+            // Apps Script 가 돌려준 안내 문구는 그대로 사람에게 보여준다(표로 읽으면 '머리글 없음'으로만 보인다)
+            const head = textData.trim().slice(0, 80).toLowerCase();
+            if (head.startsWith('unauthorized')) {
+                fatal = '스크립트 열쇠(key)가 맞지 않습니다 — 주소의 key= 값과 Apps Script 의 KEY 가 같은지 확인해 주세요.';
+                break;
+            }
+            if (head.startsWith('sheet not found')) {
+                fatal = '시트(탭) 이름을 찾지 못했습니다 — ' + textData.trim().slice(0, 200);
+                break;
+            }
             // 로그인 페이지(HTML)가 오면 비공개 시트다 — 표로 읽으면 엉뚱한 값이 된다
             if (/^\s*<(!doctype|html)/i.test(textData) && /accounts\.google\.com|Sign in|로그인/i.test(textData)) {
                 lastErr = new Error('비공개 시트');
@@ -1231,6 +1241,11 @@ async function fetchCSV(rawUrl) {
             ok = true;
             break;
         } catch (e) { lastErr = e; }
+    }
+    if (fatal) {
+        const err = new Error(fatal); err.userMessage = fatal;
+        console.error('[china-stock] CSV 응답:', textData.trim().slice(0, 200));
+        throw err;
     }
     if (!ok) {
         const msg = (lastErr && lastErr.message === '비공개 시트')

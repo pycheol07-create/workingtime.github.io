@@ -1,6 +1,6 @@
 // === js/ui-history-reports-calculations.js ===
-import { isWeekday, getTodayDateString, getRegularMembersForCount } from './utils.js?v=202609080852';
-import { getAsArray } from './ui-history-reports-utils.js?v=202609080852';
+import { isWeekday, getTodayDateString, getRegularMembersForCount } from './utils.js?v=202609080854';
+import { getAsArray } from './ui-history-reports-utils.js?v=202609080854';
 
 export const calculateReportKPIs = (data, appConfig, wageMap) => {
     if (!data) {
