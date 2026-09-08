@@ -174,12 +174,12 @@
     <div id="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202609080854"></script>
+    <script src="js/location-map.js?v=202609080922"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202609080854'; // china-stock 전용 설정(work-tool-e2943)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202609080922'; // china-stock 전용 설정(work-tool-e2943)
 
         const SCAN_VERSION = '9.9'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -260,12 +260,22 @@
             });
         }
 
+        // 큰 맵은 문서에 JSON 문자열(mapStr)로 저장된다 — 옛 형식(map)도 함께 지원
+        function unpackMap(data) {
+            if (!data) return {};
+            if (typeof data.mapStr === 'string') {
+                try { return JSON.parse(data.mapStr) || {}; } catch (e) { return {}; }
+            }
+            return data.map || {};
+        }
+
         // [Ver 5.8] 위치 매핑을 Firebase(LOCATION_MAP)에서 로드 - 하드코딩 대신 (없으면 location-map.js 기본값)
         let locMapOverride = null;
         async function loadLocationMap() {
             try {
                 const snap = await getDoc(doc(db, 'ChinaStockGoods', 'LOCATION_MAP'));
-                if (snap.exists() && snap.data().map && Object.keys(snap.data().map).length) locMapOverride = snap.data().map;
+                const m = snap.exists() ? unpackMap(snap.data()) : {};
+                if (Object.keys(m).length) locMapOverride = m;
             } catch (e) {}
         }
         function getLoc(key) { return locMapOverride ? locMapOverride[key] : (typeof barcodeMap !== 'undefined' ? barcodeMap[key] : undefined); }
@@ -281,8 +291,8 @@
                     getDoc(doc(db, 'ChinaStockGoods', 'BARCODE_MAP')),
                     getDoc(doc(db, 'ChinaStockGoods', 'BARCODE_ALIAS'))
                 ]);
-                const auto = (snap.exists() && snap.data().map) ? snap.data().map : {};
-                const alias = (aSnap.exists() && aSnap.data().map) ? aSnap.data().map : {};
+                const auto = snap.exists() ? unpackMap(snap.data()) : {};
+                const alias = aSnap.exists() ? unpackMap(aSnap.data()) : {};
                 barcodeToCode = {}; barcodeMemo = {};
                 for (const b in auto) barcodeToCode[b] = auto[b]; // 자동맵은 문자열
                 for (const b in alias) { // [Ver 8.83] 수동맵: 문자열(구버전) 또는 {code, memo}
@@ -303,7 +313,7 @@
         async function loadBarcodeMemo(retry = 0) {
             try {
                 const s = await getDoc(doc(db, 'ChinaStockGoods', 'BARCODE_MEMO'));
-                const m = (s.exists() && s.data().map) ? s.data().map : {};
+                const m = s.exists() ? unpackMap(s.data()) : {};
                 for (const b in m) { if (m[b]) barcodeMemo[b] = m[b]; } // 작은 문서로 사유 보강(확실히 로드)
                 memoReady = true;
             } catch (e) { if (retry < 6) setTimeout(() => loadBarcodeMemo(retry + 1), 1500 * (retry + 1)); }

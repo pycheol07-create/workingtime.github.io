@@ -1,7 +1,7 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 9.9 (설정파일 분리: config.js → china-stock-config.js — 최종관리자 공유 config.js와 충돌 방지. 관리자 인계 PR 준비)
 
-import { initializeFirebase } from './china-stock-config.js?v=202609080854'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202609080922'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const { db } = initializeFirebase();
@@ -38,6 +38,27 @@ let scanDataReady = false; // [Ver 8.93] 초기 데이터 로드 완료 여부 �
 
 // 유틸리티
 const cleanKey = (str) => (str || '').toString().replace(/[^a-zA-Z0-9가-힣]/g, '');
+
+// 🔑 큰 맵(바코드 수만 건 등)은 '맵'이 아니라 'JSON 문자열'로 저장한다.
+//    맵으로 넣으면 Firestore 가 키마다 색인을 만들어, 문서 하나가 색인 한도(4만 건)를 넘기면
+//    "too many index entries for entity" 로 저장 자체가 막힌다. 문자열은 색인이 1건이라 안전하다.
+//    (재고로그를 dataStr 로 저장하는 것과 같은 이유)
+const MAP_STR_LIMIT = 900000;   // 문서 1MB 한도 안에서 여유를 둔 상한
+function packMap(obj) {
+    const mapStr = JSON.stringify(obj || {});
+    if (mapStr.length > MAP_STR_LIMIT) {
+        throw new Error(`저장할 자료가 너무 큽니다(${Math.round(mapStr.length / 1024)}KB). 오래된 항목을 정리해 주세요.`);
+    }
+    return { mapStr, count: Object.keys(obj || {}).length, updatedAt: new Date() };
+}
+/** 저장된 문서에서 맵을 꺼낸다 — 새 형식(mapStr)·옛 형식(map) 모두 지원 */
+function unpackMap(data) {
+    if (!data) return {};
+    if (typeof data.mapStr === 'string') {
+        try { return JSON.parse(data.mapStr) || {}; } catch (e) { return {}; }
+    }
+    return data.map || {};
+}
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 // [Ver 6.6] 위치 열 선택: known 배열의 '우선순위 순서'대로 찾음 (파일 열 순서 아님).
 //   예) 옵션추가항목1을 옵션보다 우선. 못 찾으면 상품코드가 아닌 첫 비어있지 않은 열.
@@ -1379,7 +1400,7 @@ function handleStockLogUpload(e) {
                 const bc = (row['바코드'] || '').toString().trim().toUpperCase();
                 if (c && bc && bc !== c) bcMap[bc] = c;
             });
-            try { await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_MAP'), { map: bcMap, count: Object.keys(bcMap).length, updatedAt: new Date() }); } catch (e) {}
+            try { await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_MAP'), packMap(bcMap)); } catch (e) { console.warn('BARCODE_MAP 저장 실패:', e); }
             hideLoading();
             showToast(`✅ 미발재고 저장 완료 (바코드≠상품코드 ${Object.keys(bcMap).length}건 매핑)`);
             if (tableData.length > 0) applyDates();
@@ -1433,10 +1454,10 @@ async function handleLocationMapUpload(e) {
 // [Ver 8.62] 위치매핑 관리 모달: LOCATION_MAP(상품코드→스캐너 고정 위치) 조회/추가/수정/삭제
 let locationMapData = {};
 async function loadLocationMapDoc() {
-    try { const s = await getDoc(doc(db, CHINA_COLLECTION, 'LOCATION_MAP')); locationMapData = (s.exists() && s.data().map) ? s.data().map : {}; } catch (e) { locationMapData = {}; }
+    try { const s = await getDoc(doc(db, CHINA_COLLECTION, 'LOCATION_MAP')); locationMapData = s.exists() ? unpackMap(s.data()) : {}; } catch (e) { locationMapData = {}; }
 }
 async function saveLocationMapDoc() {
-    try { await setDoc(doc(db, CHINA_COLLECTION, 'LOCATION_MAP'), { map: locationMapData, count: Object.keys(locationMapData).length, updatedAt: new Date() }); } catch (e) { alert('저장 실패: ' + e.message); }
+    try { await setDoc(doc(db, CHINA_COLLECTION, 'LOCATION_MAP'), packMap(locationMapData)); } catch (e) { alert('저장 실패: ' + e.message); }
 }
 async function openLocationMapModal() {
     closeAllMenus();
@@ -1498,14 +1519,14 @@ function escBa(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').rep
 function baCode(v) { return (v && typeof v === 'object') ? (v.code || '') : (v || ''); }
 function baMemo(v) { return (v && typeof v === 'object') ? (v.memo || '') : ''; }
 async function loadBarcodeAlias() {
-    try { const s = await getDoc(doc(db, CHINA_COLLECTION, 'BARCODE_ALIAS')); barcodeAlias = (s.exists() && s.data().map) ? s.data().map : {}; } catch (e) { barcodeAlias = {}; }
+    try { const s = await getDoc(doc(db, CHINA_COLLECTION, 'BARCODE_ALIAS')); barcodeAlias = s.exists() ? unpackMap(s.data()) : {}; } catch (e) { barcodeAlias = {}; }
 }
 async function saveBarcodeAlias() {
     try {
-        await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_ALIAS'), { map: barcodeAlias, count: Object.keys(barcodeAlias).length, updatedAt: new Date() });
+        await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_ALIAS'), packMap(barcodeAlias));
         // [Ver 8.88] 사유만 담은 작은 문서 → 스캐너가 큰 목록(315KB)과 무관하게 빠르고 확실하게 사유 로드
         const memoMap = {}; for (const b in barcodeAlias) { const m = baMemo(barcodeAlias[b]); if (m) memoMap[b] = m; }
-        await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_MEMO'), { map: memoMap, updatedAt: new Date() });
+        await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_MEMO'), packMap(memoMap));
     } catch (e) { alert('저장 실패: ' + e.message); }
 }
 async function openBarcodeAliasModal() {

@@ -1,7 +1,7 @@
 // === ui-history-summary.js ===
 
-import { formatDuration, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202609080854';
-import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202609080854';
+import { formatDuration, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202609080922';
+import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202609080922';
 
 const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPeriodDataset = null) => {
     const records = dataset.workRecords || [];
