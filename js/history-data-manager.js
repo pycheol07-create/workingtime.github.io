@@ -1,8 +1,8 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202609081413';
-import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609081413';
+import * as State from './state.js?v=202609081418';
+import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609081418';
 import {
-    doc, setDoc, getDoc, collection, getDocs, deleteDoc,
+    doc, setDoc, getDoc, collection, getDocs, deleteDoc, deleteField,
     query, where, writeBatch, updateDoc, increment, documentId
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -135,6 +135,34 @@ export async function saveForecastSnapshot(dateStr, snapshot) {
     } catch (e) {
         console.error('saveForecastSnapshot failed:', e);
         showToast('계획 확정 실패: ' + (e.message || e), true);
+        return false;
+    }
+}
+
+/** 계획 확정 취소 — 스냅샷만 지운다(예정 물량은 그대로 둔다).
+ *  잘못 확정한 날이 정확도 통계를 계속 오염시키는 것을 막기 위해 지난 날짜도 지울 수 있다.
+ *  (기록을 지우는 것은 없던 계획을 만들어 내는 것과 달라 안전하다) */
+export async function deleteForecastSnapshot(dateStr) {
+    if (!State.auth || !State.auth.currentUser) { showToast('로그인이 필요합니다.', true); return false; }
+    if (!dateStr) return false;
+    try {
+        await setDoc(doc(plannedColRef(), dateStr), { forecastSnapshot: deleteField() }, { merge: true });
+
+        const idx = (State.plannedData || []).findIndex(d => d.id === dateStr);
+        if (idx > -1) {
+            const rec = { ...State.plannedData[idx] };
+            delete rec.forecastSnapshot;
+            State.plannedData[idx] = rec;
+            try {
+                localStorage.setItem(PLANNED_CACHE_KEY, JSON.stringify(State.plannedData));
+                localStorage.setItem(PLANNED_CACHE_TIME_KEY, Date.now().toString());
+            } catch (_) {}
+        }
+        showToast(`${dateStr} 계획 확정을 취소했습니다.`);
+        return true;
+    } catch (e) {
+        console.error('deleteForecastSnapshot failed:', e);
+        showToast('확정 취소 실패: ' + (e.message || e), true);
         return false;
     }
 }

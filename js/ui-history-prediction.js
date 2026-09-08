@@ -3,16 +3,17 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609081413';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081413';
-import * as State from './state.js?v=202609081413';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081413';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081413';
+import { predictFutureTrends } from './analysis-logic.js?v=202609081418';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081418';
+import * as State from './state.js?v=202609081418';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081418';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081418';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
-         saveForecastSnapshot, fetchForecastSnapshots, getForecastSnapshotForDate } from './history-data-manager.js?v=202609081413';
+         saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609081418';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609081413';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609081418';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1522,8 +1523,15 @@ const updateSavedInfo = (dateStr) => {
     // 📌 확정 여부 — 확정한 날만 마감 후 '정확도'에서 비교된다
     const snap = getForecastSnapshotForDate(dateStr);
     const snapMark = snap
-        ? `<span class="text-indigo-600 dark:text-indigo-300 font-bold" title="${(snap.at || '').slice(0, 16).replace('T', ' ')} 확정 · 마감 후 정확도 화면에서 비교됩니다">📌 계획 확정됨</span> <span class="text-gray-300 dark:text-gray-600">|</span> `
+        ? `<span class="text-indigo-600 dark:text-indigo-300 font-bold" title="${(snap.at || '').slice(0, 16).replace('T', ' ')} 확정 · 마감 후 정확도 화면에서 비교됩니다">📌 계획 확정됨</span>
+           <button type="button" id="sim-snapshot-cancel"
+                   class="text-[11px] font-bold text-gray-400 dark:text-gray-500 underline underline-offset-2 hover:text-rose-500 transition"
+                   title="이 날짜의 확정 계획을 지웁니다. 작업량 저장값과 계산에는 영향이 없고, 정확도 비교에서만 빠집니다.">확정 취소</button>
+           <span class="text-gray-300 dark:text-gray-600">|</span> `
         : '';
+    // 이미 확정한 날은 버튼 문구를 바꿔, 새로 찍는 게 아니라 덮어쓰는 것임을 알린다
+    const snapBtn = document.getElementById('sim-snapshot-btn');
+    if (snapBtn) snapBtn.textContent = snap ? '📌 다시 확정' : '📌 계획 확정';
 
     const entries = savedSimEntries(dateStr);
     if (entries.length === 0) {
@@ -1716,16 +1724,39 @@ const setupSimulationListeners = () => {
         }
     });
 
+    // 📌 확정 취소 (계획 화면 — 오늘·앞으로의 날짜)
+    document.getElementById('sim-saved-info')?.addEventListener('click', async (e) => {
+        if (!e.target?.closest?.('#sim-snapshot-cancel')) return;
+        const dateStr = document.getElementById('sim-target-date')?.value;
+        if (!dateStr) return;
+        if (!confirm(`${dateStr} 계획 확정을 취소할까요?\n\n작업량 저장값과 계산은 그대로이고, 정확도 비교에서만 빠집니다.`)) return;
+        await deleteForecastSnapshot(dateStr);
+        accuracySnapshots = null;
+        updateSavedInfo(dateStr);
+    });
+
     // 정확도 화면 조작 (기간 변경 · 다시 읽기)
     document.getElementById('forecast-accuracy-body')?.addEventListener('change', (e) => {
         if (e.target?.id !== 'accuracy-days') return;
         accuracyDays = Number(e.target.value) || 14;
         renderAccuracyBody();
     });
-    document.getElementById('forecast-accuracy-body')?.addEventListener('click', (e) => {
-        if (!e.target?.closest?.('#accuracy-reload')) return;
-        accuracySnapshots = null;
-        renderAccuracyView();
+    document.getElementById('forecast-accuracy-body')?.addEventListener('click', async (e) => {
+        if (e.target?.closest?.('#accuracy-reload')) {
+            accuracySnapshots = null;
+            renderAccuracyView();
+            return;
+        }
+        // 잘못 확정한 지난 날짜를 통계에서 뺀다 (그 날짜를 볼 수 있는 곳이 여기뿐이다)
+        const drop = e.target?.closest?.('.accuracy-drop');
+        if (drop && drop.dataset.date) {
+            const d = drop.dataset.date;
+            if (!confirm(`${d}의 확정 계획을 지울까요?\n\n그날은 정확도 비교에서 빠집니다. 업무 기록과 실적은 그대로입니다.`)) return;
+            if (await deleteForecastSnapshot(d)) {
+                if (accuracySnapshots) delete accuracySnapshots[d];
+                renderAccuracyBody();
+            }
+        }
     });
 
     // 값 없는 업무 펼치기·접기
@@ -2370,6 +2401,7 @@ const renderAccuracyBody = () => {
                             <th class="py-2 px-3 text-right font-bold">오차</th>
                             <th class="py-2 px-3 text-right font-bold">계획 인원</th>
                             <th class="py-2 px-3 text-right font-bold">실제 투입</th>
+                            <th class="py-2 px-2 w-8"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -2381,6 +2413,10 @@ const renderAccuracyBody = () => {
                             <td class="py-2 px-3 text-right tabular-nums font-bold ${errTone(r.hourErr)}">${pctText(r.hourErr)}</td>
                             <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${r.planFTE}명</td>
                             <td class="py-2 px-3 text-right tabular-nums text-gray-600 dark:text-gray-300">${r.actualMembers}명</td>
+                            <td class="py-2 px-2 text-center">
+                                <button type="button" class="accuracy-drop text-gray-300 dark:text-gray-600 hover:text-rose-500 transition text-[13px] leading-none"
+                                        data-date="${r.date}" title="이 날의 확정 계획을 지웁니다 (정확도 비교에서 제외 · 업무 기록은 그대로)">✕</button>
+                            </td>
                         </tr>`).join('')}
                     </tbody>
                 </table>
@@ -2390,7 +2426,8 @@ const renderAccuracyBody = () => {
         <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed px-1">
             · <b>계획</b>은 그날 <b>📌 계획 확정</b>을 누른 시점의 값입니다. 누르지 않은 날은 비교에서 빠집니다.<br>
             · <b>실제 시간</b>은 그날 업무 기록의 소요시간 합계(인시)입니다.<br>
-            · <b>실제 UPH</b>가 기준보다 꾸준히 높거나 낮으면, 기준 UPH(최근 4주 평균)를 다시 볼 때가 된 것입니다.
+            · <b>실제 UPH</b>가 기준보다 꾸준히 높거나 낮으면, 기준 UPH(최근 4주 평균)를 다시 볼 때가 된 것입니다.<br>
+            · 잘못 확정한 날은 오른쪽 <b>✕</b>로 비교에서 뺄 수 있습니다(업무 기록·실적은 지워지지 않습니다).
         </p>
       </div>`;
 };
