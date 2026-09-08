@@ -3,9 +3,9 @@
 //   낮에는 아무도 데이터관리 창을 열지 않는다 — 계획 대비 얼마나 왔는지,
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
-import * as State from './state.js?v=202609081418';
-import { getTodayProgressSummary } from './ui-history-prediction.js?v=202609081418';
-import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202609081418';
+import * as State from './state.js?v=202609081656';
+import { getTodayProgressSummary } from './ui-history-prediction.js?v=202609081656';
+import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202609081656';
 
 const EL = 'today-progress-strip';
 let timer = null;
@@ -92,6 +92,11 @@ export const initTodayProgressStrip = async () => {
         await Promise.all([fetchAllHistoryData(), fetchPlannedData()]);
     } catch (e) { console.warn('[today-progress] 자료 로드 실패:', e); }
     render();
+
+    // 오늘 업무 기록은 별도 실시간 구독으로 조금 늦게 도착한다.
+    // 처음 한 번만 그리면 그 사이에 '아직 시작된 업무 없음'이 떠 버리므로,
+    // 초반 몇 초 동안 몇 번 더 그려 준다.
+    [1500, 4000, 8000, 15000].forEach(ms => setTimeout(render, ms));
 
     clearInterval(timer);
     timer = setInterval(render, 60000);

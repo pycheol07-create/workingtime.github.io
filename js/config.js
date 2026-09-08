@@ -2,6 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202609081656';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -21,6 +22,9 @@ export const initializeFirebase = () => {
         const app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
+        // 🧪 로컬에서 ?emu=1 로 열었을 때만 에뮬레이터로 돌린다(첫 읽기·쓰기보다 먼저 불러야 한다).
+        //    운영(GitHub Pages)에서는 hostname 검사에 걸려 아무 일도 하지 않는다.
+        connectEmulatorsIfEnabled(db, auth);
         console.log("Firebase initialized successfully.");
         return { app, db, auth };
     } catch (error) {

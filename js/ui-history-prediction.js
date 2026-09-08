@@ -3,17 +3,17 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609081418';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081418';
-import * as State from './state.js?v=202609081418';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081418';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081418';
+import { predictFutureTrends } from './analysis-logic.js?v=202609081656';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081656';
+import * as State from './state.js?v=202609081656';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081656';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081656';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609081418';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609081656';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609081418';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609081656';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1720,7 +1720,10 @@ const setupSimulationListeners = () => {
             accuracySnapshots = null;              // 다음에 정확도 화면을 열 때 다시 읽는다
             updateSavedInfo(dateStr);
         } finally {
-            if (btn) { btn.disabled = false; btn.textContent = '📌 계획 확정'; }
+            // 문구는 updateSavedInfo 가 확정 여부를 보고 정한다('📌 다시 확정').
+            // 여기서 고정값으로 되돌리면 방금 확정한 표시가 지워진다.
+            if (btn) btn.disabled = false;
+            updateSavedInfo(dateStr);
         }
     });
 
@@ -1902,16 +1905,19 @@ const buildTodayPlan = () => {
     return { today, inputs, linked, r };
 };
 
-/** 계획에 시간이 잡힌 업무만 줄로 만든다(0인 업무까지 늘어놓으면 읽을 수 없다) */
+/** 계획 줄 — 시뮬레이션이 아는 업무는 계획이 0이어도 넣는다.
+ *  '계획 외'는 시뮬레이션이 아예 모르는 업무(예: 창고정리)만을 뜻해야 한다.
+ *  오늘 물량이 0으로 잡힌 채우기까지 '계획 외'가 되면 읽는 사람이 오해한다.
+ *  (계획 0 · 실적 0 인 줄은 buildProgressRows 가 걸러 낸다) */
 const planRowsOf = (r) => {
     const rows = [];
     SIM_TASKS.forEach(t => {
         const e = r.taskTimes[t.key];
-        if (e && e.hours > 0) rows.push({ key: t.key, label: t.label, planHours: e.hours, kind: 'qty' });
+        rows.push({ key: t.key, label: t.label, planHours: e ? e.hours : 0, kind: 'qty' });
     });
     SIM_TIME_TASKS.forEach(t => {
         const e = r.timeTaskTimes[t.key];
-        if (e && e.hours > 0) rows.push({ key: t.key, label: t.label, planHours: e.hours, kind: 'time' });
+        rows.push({ key: t.key, label: t.label, planHours: e ? e.hours : 0, kind: 'time' });
     });
     return rows;
 };

@@ -6,7 +6,7 @@
 //    처리량은 업무를 '끝낼 때' 한 번에 들어오므로(app-logic.js), 진행 중인 업무의 물량은 알 수 없다.
 //    낮에는 시간만 보고, 물량 비교는 마감 후 '정확도' 화면에서 한다.
 
-import { calcElapsedMinutes } from './utils.js?v=202609081418';
+import { calcElapsedMinutes } from './utils.js?v=202609081656';
 
 /** 'HH:MM' → 자정부터의 분. 형식이 아니면 null */
 export const hhmmToMin = (s) => {
@@ -120,13 +120,16 @@ export const buildProgressRows = (planRows, progress) => {
         });
     });
 
+    // 계획도 0이고 실제로 하지도 않은 업무는 보여줄 이유가 없다
+    const shown = rows.filter(r => r.planHours > 0 || r.spentHours > 0);
+
     // 진행 중 › 정지 › 계획 남은 순 — 지금 봐야 할 것이 위로 오게
     const rank = { working: 0, paused: 1, todo: 2, ended: 3 };
-    rows.sort((a, b) => {
+    shown.sort((a, b) => {
         if (rank[a.status] !== rank[b.status]) return rank[a.status] - rank[b.status];
         return (b.planHours - b.spentHours) - (a.planHours - a.spentHours);
     });
-    return rows;
+    return shown;
 };
 
 /** 지금 페이스로 언제 끝날지.
