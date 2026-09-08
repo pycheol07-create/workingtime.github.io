@@ -1,6 +1,6 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202609082342';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609082342';
+import * as State from './state.js?v=202609082352';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609082352';
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc, deleteField,
     query, where, writeBatch, updateDoc, increment, documentId

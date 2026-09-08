@@ -3,9 +3,10 @@
 //   낮에는 아무도 데이터관리 창을 열지 않는다 — 계획 대비 얼마나 왔는지,
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
-import * as State from './state.js?v=202609082342';
-import { getTodayProgressSummary } from './ui-history-prediction.js?v=202609082342';
-import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202609082342';
+import * as State from './state.js?v=202609082352';
+import { formatHM } from './utils.js?v=202609082352';
+import { getTodayProgressSummary } from './ui-history-prediction.js?v=202609082352';
+import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202609082352';
 
 const EL = 'today-progress-strip';
 let timer = null;
@@ -20,13 +21,7 @@ const waitForAuth = async (timeoutMs = 90000) => {
     return false;
 };
 
-const fmtHM = (h) => {
-    const total = Math.round(Math.abs(h || 0) * 60);
-    const sign = (h || 0) < 0 ? '-' : '';
-    const hh = Math.floor(total / 60), mm = total % 60;
-    if (hh === 0) return `${sign}${mm}분`;
-    return mm === 0 ? `${sign}${hh}시간` : `${sign}${hh}시간 ${mm}분`;
-};
+const fmtHM = formatHM;   // 정의는 utils.js 한 곳에
 const fmtMin = (m) => fmtHM((Number(m) || 0) / 60);
 
 const tones = (diffMin) => {

@@ -8,11 +8,11 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202609082342';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202609082342';
-import { showToast, getTodayDateString, getRegularMembersForCount } from './utils.js?v=202609082342';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609082342';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609082342';
+import * as State from './state.js?v=202609082352';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202609082352';
+import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc } from './utils.js?v=202609082352';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609082352';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609082352';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
@@ -38,7 +38,6 @@ const CAL_LEAVE_TYPES = ['연차', '반차', ...PERSISTENT_LEAVE_TYPES.filter(t 
 const LEAVE_COLOR = '#ef4444';
 const INCOMING_COLOR = '#f97316';
 
-const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const addMonths = (d, n) => { const x = new Date(d); x.setDate(1); x.setMonth(x.getMonth() + n); return x; };
 

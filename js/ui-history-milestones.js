@@ -1,8 +1,8 @@
 // === js/ui-history-milestones.js ===
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
-import * as State from './state.js?v=202609082342';
-import { showToast, getTodayDateString } from './utils.js?v=202609082342';
+import * as State from './state.js?v=202609082352';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202609082352';
 import {
     doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -182,7 +182,6 @@ function renderTypeFilters() {
     }).join('');
 }
 
-const escapeHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
 
 // 전체 업무 목록(그룹별 + 중복 제거). taskGroups 우선, keyTasks/quantityTaskTypes/qualityCostTasks로 보충.
 function getAllTaskTypes() {

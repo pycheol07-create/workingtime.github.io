@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609082342';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609082342';
-import * as State from './state.js?v=202609082342';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609082342';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609082342';
+import { predictFutureTrends } from './analysis-logic.js?v=202609082352';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609082352';
+import * as State from './state.js?v=202609082352';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM } from './utils.js?v=202609082352';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609082352';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609082342';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609082352';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609082342';
-import { taskUph, recentDays } from './task-throughput.js?v=202609082342';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609082352';
+import { taskUph, recentDays } from './task-throughput.js?v=202609082352';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1082,13 +1082,7 @@ const runSimulation = ({ silent = false } = {}) => {
 const gapText  = g => g > 1 ? `${Math.round(g)}명 여유` : (g < -1 ? `${Math.abs(Math.round(g))}명 부족` : '적정');
 const fmtH     = h => `${(h || 0).toFixed(1)}h`;
 /** 2.5 → '2시간 30분' (시간은 분 단위까지 봐야 감이 온다) */
-const fmtHM = (h) => {
-    const total = Math.round(Math.abs(h || 0) * 60);
-    const sign = (h || 0) < 0 ? '-' : '';
-    const hh = Math.floor(total / 60), mm = total % 60;
-    if (hh === 0) return `${sign}${mm}분`;
-    return mm === 0 ? `${sign}${hh}시간` : `${sign}${hh}시간 ${mm}분`;
-};
+const fmtHM = formatHM;   // 정의는 utils.js 한 곳에
 /** 제외시간 표기: 90 → '1시간 30분' */
 const fmtMin = (m) => fmtHM((Number(m) || 0) / 60);
 

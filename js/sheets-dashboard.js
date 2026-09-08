@@ -2,11 +2,11 @@
 // 📊 업무 시트 대시보드 — 여러 비공개 구글 시트(첫 탭)를 Apps Script Web App으로 읽어
 // 요약/정리해서 보여주는 별도 페이지. 설정은 Firestore 단일 문서에 저장(동기화).
 
-import { initializeFirebase } from './config.js?v=202609082342';
+import { initializeFirebase } from './config.js?v=202609082352';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { resolvePeriodRange, inDateRange } from './lib/calc.js?v=202609082342';
-import { showConfirm } from './utils.js?v=202609082342';
+import { resolvePeriodRange, inDateRange } from './lib/calc.js?v=202609082352';
+import { showConfirm, escapeHtml as esc } from './utils.js?v=202609082352';
 
 const { db, auth } = initializeFirebase();
 const CONFIG_REF = doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'sheetDashboard');
@@ -20,7 +20,6 @@ let activeSheetId = localStorage.getItem(ACTIVE_KEY) || '';
 const loadedSheets = new Set();   // 탭을 처음 열 때만 불러온다(불필요한 호출 방지)
 
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const uid = () => 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 function extractSheetId(url) {

@@ -1,4 +1,5 @@
 // === js/widget-incoming-schedule.js ===
+import { escapeHtml } from './utils.js?v=202609082352';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
 // Apps Script Web App에서 JSON을 받아 도착일이 당일 이후인 행을 표시.
 
@@ -301,7 +302,6 @@ function renderItems(items) {
     }).join('');
 }
 
-const escapeHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
 
 // ────────────────────────────────────────
 // 입고일정 캐시 조회 (업무 예상 시뮬레이션의 '중국제작' 자동입력용)

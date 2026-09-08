@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202609082342';
-import { LEAVE_TYPES } from './state.js?v=202609082342';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString } from './utils.js?v=202609082342';
+import * as State from './state.js?v=202609082352';
+import { LEAVE_TYPES } from './state.js?v=202609082352';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202609082352';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202609082342';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202609082342';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202609082352';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202609082352';
 
 import {
     calculateReportKPIs,
@@ -19,10 +19,10 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202609082342';
+} from './ui-history-reports-logic.js?v=202609082352';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202609082342';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202609082342';
+import { aggregateManagementData } from './ui-history-management.js?v=202609082352';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202609082352';
 
 // ============================================================
 // 모듈 상태
@@ -610,7 +610,6 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
 // ============================================================
 // 4. 렌더 헬퍼
 // ============================================================
-const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString();
 
 // 섹션 컨테이너 (전체 폭 패널 — 카드 나열이 아니라 보고서 챕터처럼 구성)

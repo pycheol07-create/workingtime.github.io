@@ -5,7 +5,8 @@
 //  - 비품은 수십 건 규모라 문서 하나로 관리하는 편이 읽기·쓰기 모두 저렴하다.
 //  - 각 비품은 종류·현재고를 기본으로 하고, 단가/사이즈/발주정보/업체 등 상세를 함께 보관한다.
 
-import { initializeFirebase } from './config.js?v=202609082342';
+import { initializeFirebase } from './config.js?v=202609082352';
+import { escapeHtml as esc } from './utils.js?v=202609082352';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -26,7 +27,6 @@ let editingId = null;
 let stockTargetId = null;
 
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const num = (v) => Number(v) || 0;
 const fmt = (v) => num(v).toLocaleString();
 const uid = () => 'sup-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);

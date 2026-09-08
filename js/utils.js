@@ -177,6 +177,25 @@ export const getCurrentTime = () => {
     return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 }
 
+/** HTML 에 값을 끼워 넣기 전에 반드시 통과시킬 것.
+ *  상품명·메모처럼 사람이 넣은 값에 < " ' 가 들어오면 마크업이 깨지거나 코드로 해석된다.
+ *  (예전에는 이 함수를 모듈마다 다시 써서 13벌이 돌아다녔다) */
+export const escapeHtml = (s) => String(s == null ? '' : s)
+    .replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/** 시간(hour) → '2시간 30분'. 음수도 부호를 붙여 그대로 표기한다.
+ *  formatDuration 과 달리 공백이 없고 음수를 다룬다(남는 시간/초과 시간 표시용). */
+export const formatHM = (hours) => {
+    const total = Math.round(Math.abs(Number(hours) || 0) * 60);
+    const sign = (Number(hours) || 0) < 0 ? '-' : '';
+    const h = Math.floor(total / 60), m = total % 60;
+    if (h === 0) return `${sign}${m}분`;
+    return m === 0 ? `${sign}${h}시간` : `${sign}${h}시간 ${m}분`;
+};
+
+/** 분 → '1시간 30분' */
+export const formatMinutesHM = (minutes) => formatHM((Number(minutes) || 0) / 60);
+
 export const formatDuration = (minutes) => {
     minutes = Math.round(minutes);
     if (isNaN(minutes) || minutes < 0) return '0 분';

@@ -12,7 +12,8 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202609082342';
+import { initializeFirebase } from './config.js?v=202609082352';
+import { escapeHtml as esc } from './utils.js?v=202609082352';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -23,8 +24,6 @@ const peopleRef = () => doc(db, ...ROOT, 'worktime_people');
 const monthRef = (ym) => doc(db, ...ROOT, `worktime_${ym}`);
 
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
-    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const num = (v) => Number(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')) || 0;
 const fmt = (v) => num(v).toLocaleString();
 const uid = () => 'wt-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);

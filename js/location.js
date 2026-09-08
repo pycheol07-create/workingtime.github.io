@@ -1,6 +1,19 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202609082342';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202609082352';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+// 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
+//    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
+//    마크업이 깨진다(상품명·옵션은 외부 시트에서 들어오는 임의 문자열이다).
+//    JS 문자열로 한 번, HTML 속성으로 한 번 — 두 겹을 다 막는다.
+const jsArg = (v) => String(v == null ? '' : v)
+    .replace(/\\/g, '\\\\')     // 역슬래시
+    .replace(/'/g, "\\'")        // JS 문자열 종료
+    .replace(/\r?\n/g, ' ')       // 줄바꿈은 속성 안에서 깨진다
+    .replace(/&/g, '&amp;')      // 여기부터 HTML 속성 이스케이프
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 
 // 🗓️ Date → 'YYYY-MM-DD' (로컬 기준).
 //    toISOString().slice(0,10) 을 쓰면 UTC 로 바뀌어 한국시간 오전 9시 이전에는 '어제'가 된다.
@@ -2739,7 +2752,7 @@ window.calculateAndRenderUsage = function() {
         const zones = Object.keys(zoneStats).sort((a,b) => (a==='★'?-1:(b==='★'?1:a.localeCompare(b))));
         zones.forEach(z => {
             const zTotal = zoneStats[z].total; const zUsed = zoneStats[z].used; const zEmpty = zTotal - zUsed; const zRate = ((zUsed / zTotal) * 100).toFixed(1);
-            detailHtml += `<tr><td><strong>${z}</strong> 구역</td><td>${zTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${z}', 'used')">${zUsed}</td><td style="color:#ff5252; cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${z}', 'empty')">${zEmpty}</td><td>${zRate}%</td></tr>`;
+            detailHtml += `<tr><td><strong>${z}</strong> 구역</td><td>${zTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${jsArg(z)}', 'used')">${zUsed}</td><td style="color:#ff5252; cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${jsArg(z)}', 'empty')">${zEmpty}</td><td>${zRate}%</td></tr>`;
         });
         detailHtml += `</tbody></table></div>`;
 
@@ -2858,7 +2871,7 @@ function updateLocPopupUI() {
     let locHtml = window.getFilterSearchHtml('pop-id') + getSortButtonsHtml('id');
     const isAllSelected = filters.loc.length === 0;
     locHtml += `<div class="filter-option ${isAllSelected ? 'selected' : ''}" onclick="toggleLocFilter('all')">${isAllSelected ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
-    prefixes.forEach(p => { const isSelected = filters.loc.includes(p); locHtml += `<div class="filter-option ${isSelected ? 'selected' : ''}" onclick="toggleLocFilter('${p}')">${isSelected ? '✔️ ' : ''}${p} 구역</div>`; });
+    prefixes.forEach(p => { const isSelected = filters.loc.includes(p); locHtml += `<div class="filter-option ${isSelected ? 'selected' : ''}" onclick="toggleLocFilter('${jsArg(p)}')">${isSelected ? '✔️ ' : ''}${p} 구역</div>`; });
     locPop.innerHTML = locHtml;
 }
 
@@ -2926,7 +2939,7 @@ function setupFilterPopups() {
     let dongHtml = window.getFilterSearchHtml('pop-dong') + getSortButtonsHtml('dong') + `<div class="filter-option ${dongAll ? 'selected' : ''}" onclick="setFilter('dong', 'all')">${dongAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
     dongs.forEach(d => { 
         const sel = filters.dong.includes(d);
-        dongHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('dong', '${d}')">${sel ? '✔️ ' : ''}${d}</div>`; 
+        dongHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('dong', '${jsArg(d)}')">${sel ? '✔️ ' : ''}${d}</div>`; 
     });
     if(dongPop) dongPop.innerHTML = dongHtml;
     const poses = [...new Set(originalData.map(d => (d.pos || '').toString()))].filter(Boolean).sort();
@@ -2934,7 +2947,7 @@ function setupFilterPopups() {
     let posHtml = window.getFilterSearchHtml('pop-pos') + getSortButtonsHtml('pos') + `<div class="filter-option ${posAll ? 'selected' : ''}" onclick="setFilter('pos', 'all')">${posAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
     poses.forEach(p => { 
         const sel = filters.pos.includes(p);
-        posHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('pos', '${p}')">${sel ? '✔️ ' : ''}${p}</div>`; 
+        posHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('pos', '${jsArg(p)}')">${sel ? '✔️ ' : ''}${p}</div>`; 
     });
     if(posPop) posPop.innerHTML = posHtml;
     const stocks = [...new Set(originalData.map(d => (d.stock || '0').toString()))].sort((a, b) => Number(a) - Number(b));
@@ -2942,7 +2955,7 @@ function setupFilterPopups() {
     let stockHtml = window.getFilterSearchHtml('pop-stock') + getSortButtonsHtml('stock') + `<div class="filter-option ${stockAll ? 'selected' : ''}" onclick="setFilter('stock', 'all')">${stockAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
     stocks.forEach(s => { 
         const sel = filters.stock.includes(s);
-        stockHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock', '${s}')">${sel ? '✔️ ' : ''}${s}</div>`; 
+        stockHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock', '${jsArg(s)}')">${sel ? '✔️ ' : ''}${s}</div>`; 
     });
     if(stockPop) stockPop.innerHTML = stockHtml;
    const stock2fPop = document.getElementById('pop-stock2f');
@@ -2951,7 +2964,7 @@ function setupFilterPopups() {
     let stock2fHtml = window.getFilterSearchHtml('pop-stock2f') + getSortButtonsHtml('stock2f') + `<div class="filter-option ${stock2fAll ? 'selected' : ''}" onclick="setFilter('stock2f', 'all')">${stock2fAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
     stocks2f.forEach(s => { 
         const sel = filters.stock2f && filters.stock2f.includes(s);
-        stock2fHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock2f', '${s}')">${sel ? '✔️ ' : ''}${s}</div>`; 
+        stock2fHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock2f', '${jsArg(s)}')">${sel ? '✔️ ' : ''}${s}</div>`; 
     });
     if(stock2fPop) stock2fPop.innerHTML = stock2fHtml;
 
@@ -2961,7 +2974,7 @@ function setupFilterPopups() {
     let categoryHtml = window.getFilterSearchHtml('pop-category') + getSortButtonsHtml('category') + `<div class="filter-option ${categoryAll ? 'selected' : ''}" onclick="setFilter('category', 'all')">${categoryAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
     categories.forEach(c => {
         const sel = filters.category && filters.category.includes(c);
-        categoryHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('category', '${c}')">${sel ? '✔️ ' : ''}${c}</div>`;
+        categoryHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('category', '${jsArg(c)}')">${sel ? '✔️ ' : ''}${c}</div>`;
     });
     if(categoryPop) categoryPop.innerHTML = categoryHtml;
 
@@ -3113,7 +3126,7 @@ function setupFilterPopups() {
         }
 
         normalVals.forEach(v => {
-            const escaped = v.replace(/'/g, "\\'");
+            const escaped = jsArg(v);
             const sel = arr.includes(v);
             html += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('${col}', '${escaped}')">${sel ? '✔️ ' : ''}${v}</div>`;
         });
@@ -3655,12 +3668,12 @@ function renderVisibleRows() {
         }
         
         let isChecked = VS.checkedIds.has(loc.id) ? 'checked' : '';
-        html += `<tr onclick="handleRowClick(event, '${loc.id}')" style="${rowStyle}">`;
+        html += `<tr onclick="handleRowClick(event, '${jsArg(loc.id)}')" style="${rowStyle}">`;
         html += `<td onclick="event.stopPropagation()"><input type="checkbox" class="loc-check" value="${loc.id}" ${isChecked} onchange="window.vsCheckChanged(this)"></td>`;
         window.visibleColumns.forEach(col => {
             if (col === 'std_dong') html += `<td style="color:#666;">${loc.dong || ''}</td>`;
             else if (col === 'std_pos') html += `<td style="color:#666;">${loc.pos || ''}</td>`;
-            else if (col === 'std_id') html += `<td class="loc-copy-cell" onclick="copyLocationToClipboard(event, '${loc.id}')" title="클릭하여 복사 및 예약">${loc.id}</td>`;
+            else if (col === 'std_id') html += `<td class="loc-copy-cell" onclick="copyLocationToClipboard(event, '${jsArg(loc.id)}')" title="클릭하여 복사 및 예약">${loc.id}</td>`;
             else if (col === 'std_category') html += `<td style="color:${(loc.category || '피킹용') === '기타' ? '#8d6e63' : '#666'};">${loc.category || '피킹용'}</td>`;
             else if (col === 'std_code') html += `<td style="color:#3d5afe; font-weight:bold;">${loc.code === loc.id ? '' : (loc.code || '')}${codeTagHtml}</td>`;
             else if (col === 'std_name') html += `<td style="text-align:left;">${loc.name || ''}</td>`;
@@ -5333,7 +5346,7 @@ window.renderIncomingQueue = function() {
         }
         
         html += `
-            <div class="incoming-item" onclick="activatePreAssignMode('${code}', '${name.replace(/'/g, "\\'")}', '${qty}', '${option.replace(/'/g, "\\'")}')">
+            <div class="incoming-item" onclick="activatePreAssignMode('${jsArg(code)}', '${jsArg(name)}', '${jsArg(qty)}', '${jsArg(option)}')">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                     <div style="font-weight:bold; color:var(--primary); font-size:14px;">${code}</div>
                     <span style="font-size:10px; background:${src==='제작'?'#e3f2fd':'#fbe9e7'}; color:${src==='제작'?'#1976d2':'#d84315'}; padding:2px 5px; border-radius:3px; font-weight:bold;">${src}</span>
@@ -5970,7 +5983,7 @@ function renderCorridor(idx) {
                     onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
                     <div style="width:${cellSize}px;height:${cellSize + 6}px;${cellStyle(loc)}border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                         onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
-                        onclick="window.copyLocationToClipboard(event, '${loc.id}')">
+                        onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
                         ${cellInner(loc)}
                     </div>${tooltipHtml(loc)}</div>`;
             });
@@ -6006,7 +6019,7 @@ function renderCorridor(idx) {
                 onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
                 <div style="width:${cs}px;height:${cs+6}px;${cellStyle(loc)}border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                     onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
-                    onclick="window.copyLocationToClipboard(event, '${loc.id}')">
+                    onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
                     <div style="font-size:${idFontSize}px;color:#bbb;line-height:1.1;">${loc.id}</div>
                     <div style="font-size:${nameFontSize}px;font-weight:bold;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cs-4}px;text-align:center;line-height:1.3;">${displayName}</div>
                 </div>${tooltipHtml(loc)}</div>`;
@@ -6053,7 +6066,7 @@ function renderCorridor(idx) {
                     onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
                     <div style="width:${cellSize}px;height:${cellSize+6}px;${cellStyle(loc)}border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                         onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
-                        onclick="window.copyLocationToClipboard(event, '${loc.id}')">
+                        onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
                         <div style="font-size:${idFontSize}px;color:#bbb;line-height:1.1;">${loc.id}</div>
                         <div style="font-size:${nameFontSize}px;font-weight:bold;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize-4}px;text-align:center;line-height:1.3;">${displayName}</div>
                     </div>${tooltipHtml(loc)}</div>`;
