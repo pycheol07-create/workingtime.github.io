@@ -1,7 +1,7 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 9.9 (설정파일 분리: config.js → china-stock-config.js — 최종관리자 공유 config.js와 충돌 방지. 관리자 인계 PR 준비)
 
-import { initializeFirebase } from './china-stock-config.js?v=202609080922'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202609080944'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const { db } = initializeFirebase();
@@ -1133,6 +1133,17 @@ function saveErrorMessage(e) {
     return '❌ 저장 실패: ' + (code || (e && e.message) || e);
 }
 
+/** 오더 자료를 언제 받은 것인지 날짜 바에 작게 표시 */
+function showCsvCacheNote(at) {
+    const el = document.getElementById('csv-updated-note');
+    if (!el || !at) return;
+    const d = new Date(at);
+    const p2 = (n) => String(n).padStart(2, '0');
+    const fresh = (Date.now() - at) < 60 * 1000;
+    el.textContent = fresh ? '방금 갱신' : `오더 ${p2(d.getHours())}:${p2(d.getMinutes())} 기준`;
+    el.title = '오더/사입 시트를 마지막으로 받아온 시각입니다. [🔄 동기화]로 지금 받아올 수 있습니다.';
+}
+
 // ---------------------------------------------------------
 // 데이터 통신 로직 (Firebase & CSV)
 // ---------------------------------------------------------
@@ -1195,13 +1206,32 @@ function loadFloor2() {
     });
 }
 
-async function syncOrderData(silent = false) {
+async function syncOrderData(silent = false, opts) {
     if (!csvUrlOrder && !csvUrlBuy) return;
+
+    // ⚡ 저장해 둔 값이 있으면 그걸로 먼저 그린다 — 화면이 바로 뜨고, 새 자료는 뒤에서 받아 갱신한다.
+    if (silent && !(opts && opts.force)) {
+        const co = csvUrlOrder ? readCsvCache(toCsvUrl(csvUrlOrder)) : null;
+        const cb = csvUrlBuy ? readCsvCache(toCsvUrl(csvUrlBuy)) : null;
+        if ((co && co.fresh) || (cb && cb.fresh)) {
+            try {
+                orderDataOriginal = co ? parseCsvBody(co.text) : [];
+                orderDataBuy = cb ? parseCsvBody(cb.text) : [];
+                extractShipDates();
+                showCsvCacheNote(Math.max(co ? co.at : 0, cb ? cb.at : 0));
+                // 뒤에서 최신본 받아 조용히 교체
+                setTimeout(() => syncOrderData(true, { force: true }), 300);
+                return;
+            } catch (e) { console.warn('[china-stock] 저장해 둔 CSV 사용 실패 — 새로 받습니다:', e); }
+        }
+    }
+
     if(!silent) showLoading('🔄 오더리스트 동기화 중...');
     try {
-        const [dataOrder, dataBuy] = await Promise.all([fetchCSV(csvUrlOrder), fetchCSV(csvUrlBuy)]);
+        const [dataOrder, dataBuy] = await Promise.all([fetchCSV(csvUrlOrder, opts), fetchCSV(csvUrlBuy, opts)]);
         orderDataOriginal = dataOrder; orderDataBuy = dataBuy;
-        extractShipDates(); 
+        extractShipDates();
+        showCsvCacheNote(Date.now());
         if(!silent) { hideLoading(); showToast('✅ 동기화 완료'); }
     } catch (e) {
         if(!silent) hideLoading();
@@ -1209,6 +1239,30 @@ async function syncOrderData(silent = false) {
         console.error('[china-stock] 동기화 실패:', e);
         if(!silent) showToast('❌ ' + (e && e.userMessage ? e.userMessage : ('동기화 실패: ' + ((e && e.message) || e))));
     }
+}
+
+// ⚡ CSV 캐시 — 열 때마다 시트를 새로 받으면 몇 초씩 걸린다.
+//    받은 원문을 브라우저에 저장해 두고, 다음에 열 때는 그걸로 '먼저 그린 뒤'
+//    뒤에서 새로 받아 달라진 경우에만 다시 그린다(stale-while-revalidate).
+const CSV_CACHE_KEY = 'chinastock_csv_cache_v1';
+const CSV_CACHE_TTL = 6 * 60 * 60 * 1000;   // 6시간(그 이후엔 캐시를 쓰지 않고 기다렸다 받는다)
+const CSV_CACHE_MAX = 2 * 1024 * 1024;      // 한 주소당 2MB 까지만 저장
+
+function readCsvCache(url) {
+    try {
+        const all = JSON.parse(localStorage.getItem(CSV_CACHE_KEY) || '{}');
+        const hit = all[url];
+        if (!hit || !hit.text) return null;
+        return { text: hit.text, at: hit.at || 0, fresh: (Date.now() - (hit.at || 0)) < CSV_CACHE_TTL };
+    } catch (e) { return null; }
+}
+function writeCsvCache(url, text) {
+    if (!url || !text || text.length > CSV_CACHE_MAX) return;
+    try {
+        const all = JSON.parse(localStorage.getItem(CSV_CACHE_KEY) || '{}');
+        all[url] = { text, at: Date.now() };
+        localStorage.setItem(CSV_CACHE_KEY, JSON.stringify(all));
+    } catch (e) { /* 저장공간 부족 등은 무시 — 캐시는 있으면 좋은 것일 뿐 */ }
 }
 
 // 구글 시트 주소를 CSV로 읽을 수 있는 주소로 바꾼다.
@@ -1227,9 +1281,10 @@ function toCsvUrl(url) {
     return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
 }
 
-async function fetchCSV(rawUrl) {
+async function fetchCSV(rawUrl, opts) {
     if(!rawUrl) return [];
     const url = toCsvUrl(rawUrl);
+    const useCache = !(opts && opts.force);
     let textData = '';
     // 1) 직접 → 2) 프록시 두 곳 순서로 시도한다(브라우저 CORS 제한 우회).
     const tries = [
@@ -1268,6 +1323,11 @@ async function fetchCSV(rawUrl) {
         console.error('[china-stock] CSV 응답:', textData.trim().slice(0, 200));
         throw err;
     }
+    if (!ok && useCache) {
+        // 네트워크가 안 되면 저장해 둔 값이라도 쓴다(오프라인·프록시 장애)
+        const c = readCsvCache(url);
+        if (c) { console.warn('[china-stock] 새로 받지 못해 저장해 둔 값을 씁니다:', url); return parseCsvBody(c.text); }
+    }
     if (!ok) {
         const msg = (lastErr && lastErr.message === '비공개 시트')
             ? 'CSV를 읽지 못했습니다 — 시트가 비공개입니다. [파일 > 공유 > 웹에 게시]에서 CSV 주소를 만들어 넣어 주세요.'
@@ -1277,6 +1337,12 @@ async function fetchCSV(rawUrl) {
         console.error('[china-stock] CSV 읽기 실패:', url, lastErr);
         throw err;
     }
+    writeCsvCache(url, textData);
+    return parseCsvBody(textData);
+}
+
+/** CSV 원문 → 표(객체 배열). 머리글(상품코드) 행을 찾아 그 아래를 읽는다. */
+function parseCsvBody(textData) {
     const wb = XLSX.read(textData, { type: 'string' });
     const rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
     let headerIdx = -1, headers = [];
@@ -2711,6 +2777,8 @@ function setupEventListeners() {
 
     // 5. #btn-open-sheet-settings (CSV 링크 설정 모달 열기)
     document.getElementById('btn-open-sheet-settings')?.addEventListener('click', () => openSheetSettingsModal());
+    // 저장해 둔 값 무시하고 시트를 지금 다시 받아온다
+    document.getElementById('btn-csv-refresh')?.addEventListener('click', () => syncOrderData(false, { force: true }));
 
 
     // 7. #upload-stock-log (미발재고로그 업로드)
