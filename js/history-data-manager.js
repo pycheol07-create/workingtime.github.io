@@ -1,6 +1,6 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202609081344';
-import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609081344';
+import * as State from './state.js?v=202609081413';
+import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609081413';
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc,
     query, where, writeBatch, updateDoc, increment, documentId
@@ -102,6 +102,65 @@ export function getPlannedTimeTasksForDate(dateStr) {
     return (rec && rec.plannedTimeTasks) ? rec.plannedTimeTasks : {};
 }
 
+// 📸 그날 아침 확정한 계획 스냅샷.
+//   자동값은 실적이 쌓이면서 매일 바뀌므로, 나중에 다시 계산하면 '그날의 예상치'를 재현할 수 없다.
+//   오차를 재려면 확정 시점의 값을 얼려 두어야 한다.
+export function getForecastSnapshotForDate(dateStr) {
+    const rec = (State.plannedData || []).find(d => d.id === dateStr);
+    return (rec && rec.forecastSnapshot) ? rec.forecastSnapshot : null;
+}
+
+/** 계획 스냅샷 저장 — 같은 문서의 예정 물량은 건드리지 않는다(merge). */
+export async function saveForecastSnapshot(dateStr, snapshot) {
+    if (!State.auth || !State.auth.currentUser) { showToast('로그인이 필요합니다.', true); return false; }
+    if (!dateStr || !snapshot) return false;
+    try {
+        const payload = {
+            ...snapshot,
+            at: new Date().toISOString(),
+            by: State.appState?.currentUser || 'unknown'
+        };
+        await setDoc(doc(plannedColRef(), dateStr), { forecastSnapshot: payload }, { merge: true });
+
+        const idx = (State.plannedData || []).findIndex(d => d.id === dateStr);
+        if (idx > -1) State.plannedData[idx] = { ...State.plannedData[idx], forecastSnapshot: payload };
+        else State.plannedData.push({ id: dateStr, forecastSnapshot: payload });
+        try {
+            localStorage.setItem(PLANNED_CACHE_KEY, JSON.stringify(State.plannedData));
+            localStorage.setItem(PLANNED_CACHE_TIME_KEY, Date.now().toString());
+        } catch (_) {}
+
+        showToast(`${dateStr} 계획을 확정했습니다. 마감 후 '정확도'에서 비교할 수 있습니다.`);
+        return true;
+    } catch (e) {
+        console.error('saveForecastSnapshot failed:', e);
+        showToast('계획 확정 실패: ' + (e.message || e), true);
+        return false;
+    }
+}
+
+/** 지난 날짜의 계획 스냅샷을 한 번에 읽는다(정확도 화면 전용).
+ *  fetchPlannedData 는 '오늘 이후'만 담으므로 과거는 여기서 따로 가져온다. */
+export async function fetchForecastSnapshots(fromDate, toDate) {
+    if (!State.auth || !State.auth.currentUser) return {};
+    if (!fromDate || !toDate) return {};
+    try {
+        const q = query(plannedColRef(),
+                        where(documentId(), '>=', fromDate),
+                        where(documentId(), '<=', toDate));
+        const snap = await getDocs(q);
+        const out = {};
+        snap.forEach(d => {
+            const v = d.data();
+            if (v && v.forecastSnapshot) out[d.id] = v.forecastSnapshot;
+        });
+        return out;
+    } catch (e) {
+        console.error('fetchForecastSnapshots failed:', e);
+        return {};
+    }
+}
+
 // 예정 물량 저장 (문서 전체 교체 — 0으로 지운 항목이 남지 않도록 merge 안 함)
 //  keepZeros: 0도 '0으로 하기로 한 값'으로 보고 그대로 저장한다.
 //    업무 예상 화면의 '작업량 저장'이 이 방식이다 — 0을 지워 버리면 다시 자동값이 채워져
@@ -146,10 +205,14 @@ export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZe
             updatedBy: State.appState?.currentUser || 'unknown'
         };
         if (cleanExclude != null) payload.plannedExcludeMinutes = cleanExclude;
+        // 문서를 통째로 바꾸므로, 따로 저장해 둔 계획 스냅샷은 그대로 옮겨 싣는다
+        const keepSnapshot = getForecastSnapshotForDate(dateStr);
+        if (keepSnapshot) payload.forecastSnapshot = keepSnapshot;
         await setDoc(doc(plannedColRef(), dateStr), payload);
 
         const rec = { id: dateStr, plannedQuantities: clean, plannedTimeTasks: cleanTime };
         if (cleanExclude != null) rec.plannedExcludeMinutes = cleanExclude;
+        if (keepSnapshot) rec.forecastSnapshot = keepSnapshot;
         const idx = (State.plannedData || []).findIndex(d => d.id === dateStr);
         if (idx > -1) State.plannedData[idx] = rec;
         else { State.plannedData.push(rec); State.plannedData.sort((a, b) => a.id.localeCompare(b.id)); }

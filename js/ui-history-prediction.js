@@ -3,13 +3,16 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609081344';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081344';
-import * as State from './state.js?v=202609081344';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081344';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081344';
+import { predictFutureTrends } from './analysis-logic.js?v=202609081413';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081413';
+import * as State from './state.js?v=202609081413';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081413';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081413';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609081344';
+         fetchPlannedData, savePlannedQuantities,
+         saveForecastSnapshot, fetchForecastSnapshots, getForecastSnapshotForDate } from './history-data-manager.js?v=202609081413';
+import { computeDayProgress, buildProgressRows, projectFinish,
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609081413';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -772,6 +775,58 @@ const markTimeSourceBadge = (t, source, detail = '') => {
 ${detail}` : tip;
 };
 
+/** 📉 오늘 값이 없는 업무는 접어 둔다.
+ *  업무가 열댓 개인데 대부분 0인 날이 많아, 0인 줄이 화면 절반을 먹는다.
+ *  숨긴 개수를 버튼으로 보여 주고, 누르면 모두 펼친다(값을 넣으려면 펼쳐야 하므로). */
+let showEmptySimRows = false;
+
+const isEmptyRowValue = (el) => {
+    if (!el) return true;
+    const v = String(el.value ?? '').trim();
+    return v === '' || Number(v) === 0;
+};
+
+const applyEmptyRowFolding = () => {
+    const host = document.getElementById('sim-task-list');
+    const wrap = document.getElementById('sim-empty-wrap');
+    if (!host) return;
+
+    let hidden = 0;
+    const markRow = (rowId, empty) => {
+        const row = document.getElementById(`sim-row-${rowId}`);
+        if (!row) return;
+        const hide = empty && !showEmptySimRows;
+        row.classList.toggle('hidden', hide);
+        if (hide) hidden++;
+    };
+
+    SIM_TASKS.forEach(t => markRow(t.id, isEmptyRowValue(document.getElementById(`sim-qty-${t.id}`))));
+    SIM_TIME_TASKS.forEach(t => {
+        // 담당 업무는 '시간 0' 또는 '인원 0' 이면 그날 하지 않는 업무다
+        const noTime = isEmptyRowValue(document.getElementById(`sim-time-${t.id}`));
+        const noOne  = (Number(document.getElementById(`sim-workers-${t.id}`)?.value) || 0) <= 0;
+        markRow(`t-${t.id}`, noTime || noOne);
+    });
+
+    // 구획 안이 전부 숨겨졌으면 구획째로 숨긴다(빈 제목만 남지 않도록)
+    host.querySelectorAll(':scope > div').forEach(block => {
+        const rows = block.querySelectorAll('.pred-sim-row');
+        if (rows.length === 0) return;
+        const allHidden = [...rows].every(r => r.classList.contains('hidden'));
+        block.classList.toggle('hidden', allHidden);
+    });
+
+    if (!wrap) return;
+    if (hidden === 0 && !showEmptySimRows) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = `
+        <button type="button" id="sim-empty-toggle"
+                class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg
+                       text-gray-500 dark:text-gray-400 bg-gray-100/70 dark:bg-gray-700/50
+                       hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+            ${showEmptySimRows ? '▴ 값 없는 업무 접기' : `▾ 오늘 없는 업무 ${hidden}개 보기`}
+        </button>`;
+};
+
 // ───────────────────────────────────────────────────────────
 // 시뮬레이션 UI 핸들러
 // ───────────────────────────────────────────────────────────
@@ -812,6 +867,7 @@ const autoFillSimInputs = (dateStr) => {
 
     renderLeaveInfo(staffInfo);
     paintStaffTotal();
+    applyEmptyRowFolding();
 };
 
 /** 제외시간 옆 안내 문구 ('1시간 20분 차감') */
@@ -821,6 +877,7 @@ const paintExcludeHint = () => {
     const m = readExcludeMinutes();
     const saved = getPlannedExcludeMinutesForDate(document.getElementById('sim-target-date')?.value);
     hint.textContent = m > 0 ? `${fmtMin(m)} 차감${saved != null && saved === m ? ' · 저장됨' : ''}` : '10분 단위';
+    paintStaffChip();
 };
 
 /** 휴무자 명단 — 이름과 종류를 한 덩어리(칩)로 묶어 줄바꿈이 이름 사이를 끊지 않게 한다.
@@ -854,11 +911,24 @@ const renderLeaveInfo = (staffInfo) => {
 
 /** 정직원 + 알바 합계 표시 */
 const paintStaffTotal = () => {
-    const el = document.getElementById('sim-staff-total');
-    if (!el) return;
     const f = Number(document.getElementById('sim-staff-fulltime')?.value) || 0;
     const p = Number(document.getElementById('sim-staff-parttimer')?.value) || 0;
-    el.textContent = Math.round(f + p).toLocaleString();
+    const el = document.getElementById('sim-staff-total');
+    if (el) el.textContent = Math.round(f + p).toLocaleString();
+    paintStaffChip();
+};
+
+/** 접어 둔 '인원' 칸의 요약 칩 — 열지 않아도 현재 값이 보이도록 한다. */
+const paintStaffChip = () => {
+    const chip = document.getElementById('sim-staff-chip');
+    if (!chip) return;
+    const f = Number(document.getElementById('sim-staff-fulltime')?.value) || 0;
+    const p = Number(document.getElementById('sim-staff-parttimer')?.value) || 0;
+    const ex = readExcludeMinutes();
+    const parts = [`가용 ${Math.round(f + p)}명`];
+    if (p > 0) parts.push(`알바 ${p}명 포함`);
+    if (ex > 0) parts.push(`제외 ${fmtMin(ex)}`);
+    chip.textContent = parts.join(' · ');
 };
 
 const readSimInputs = () => {
@@ -1121,32 +1191,37 @@ const renderSimResult = (results, taskUPH, mode) => {
         ${cardOpen(`${dayLabel(r.date)}${r.weekend ? ' <span class="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded ml-1">주말</span>' : ''}`,
                    `기준 UPH 최근 4주 평균 · 1일 ${r.dailyHours}h${r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)} = ${fmtHM(r.netDailyHours)}` : ''} · 가동률 ${(UTILIZATION*100)|0}%`)}
             <div class="p-4 md:p-5 space-y-4">
+                <!-- 판단에 필요한 숫자 셋만 크게. 나머지 근거는 아래 '업무별 상세'에 접어 둔다. -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     ${stat('필요 인원', `${r.requiredFTE}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span>`,
-                           r.timeHours > 0
-                             ? `(물량 ${fmtH(r.qtyHours)} ÷ ${UTILIZATION} + 담당 ${fmtH(r.timeHours)}) ÷ ${fmtHM(r.netDailyHours)}`
-                             : `${fmtH(r.totalHours)} ÷ ${fmtHM(r.netDailyHours)} ÷ ${UTILIZATION}`)}
-                    ${stat('가용 인원', `${r.availableTotal}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span>`, '정직원 + 알바')}
-                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-3 flex flex-col justify-center">
-                        <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">결과</div>
-                        <div class="mt-1"><span class="text-lg font-extrabold px-3 py-1 rounded-full ${tone.chip}">${gapText(r.gap)}</span></div>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    ${stat('총 소요시간', fmtHM(r.totalHours), '모든 업무의 인시(사람×시간) 합계')}
+                           `가용 ${r.availableTotal}명`)}
                     ${stat('실 소요시간', r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—',
                            r.availableTotal <= 0 ? '가용 인원을 입력하세요'
                              : (r.elapsedCappedByTimeTask
-                                 ? `담당 업무가 끝나는 시간 (물량 업무는 ${r.qtyStaff.toFixed(1)}명이 ${fmtHM(r.qtyElapsed)})`
-                                 : `물량 업무에 투입되는 ${r.qtyStaff.toFixed(1)}명이 함께 할 때 걸리는 시간`),
+                                 ? `담당 업무가 끝나는 시간에 걸림`
+                                 : `투입 ${r.qtyStaff.toFixed(1)}명이 함께 할 때`),
                            'text-indigo-600 dark:text-indigo-300')}
                     ${stat(slackPositive ? '남는 시간' : '초과 시간', slackLabel,
-                           `업무시간 ${fmtHM(r.netDailyHours)} 기준${r.excludeMinutes > 0 ? ` (제외 ${fmtMin(r.excludeMinutes)} 반영)` : ''}`,
+                           `업무시간 ${fmtHM(r.netDailyHours)} 기준`,
                            slackCls)}
                 </div>
 
-                ${r.timeHours > 0 ? `<p class="text-[11px] text-gray-500 dark:text-gray-400 -mt-1 leading-relaxed">
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <span class="text-sm font-extrabold px-3 py-1 rounded-full ${tone.chip}">${gapText(r.gap)}</span>
+                    <span class="text-[11px] text-gray-400 dark:text-gray-500">
+                        총 소요시간 <b class="text-gray-600 dark:text-gray-300">${fmtHM(r.totalHours)}</b> (인시 합계)
+                        ${r.excludeMinutes > 0 ? ` · 제외 ${fmtMin(r.excludeMinutes)} 반영` : ''}
+                    </span>
+                </div>
+
+                <details class="group">
+                    <summary class="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none inline-flex items-center gap-1
+                                    text-[11px] font-bold text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition">
+                        <span class="transition-transform group-open:rotate-90">▸</span>업무별 상세
+                    </summary>
+                    <div class="mt-3 space-y-3">
+
+                ${r.timeHours > 0 ? `<p class="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
                     ⏳ 담당 업무 ${fmtHM(r.timeHours)}에 <b>${r.tiedFTE.toFixed(1)}명</b>이 묶여,
                     물량 업무에는 <b>${r.qtyStaff.toFixed(1)}명</b>이 투입되는 것으로 계산했습니다
                     (물량 업무 ${r.staffShortForQty ? '계산 불가' : fmtHM(r.qtyElapsed)}).
@@ -1177,6 +1252,9 @@ const renderSimResult = (results, taskUPH, mode) => {
                         </table>
                     </div>
                 </div>
+
+                    </div>
+                </details>
             </div>
         </section>`;
     } else {
@@ -1440,13 +1518,20 @@ const updateSavedInfo = (dateStr) => {
     const el = document.getElementById('sim-saved-info');
     if (!el) return;
     if (!dateStr) { el.textContent = ''; return; }
+
+    // 📌 확정 여부 — 확정한 날만 마감 후 '정확도'에서 비교된다
+    const snap = getForecastSnapshotForDate(dateStr);
+    const snapMark = snap
+        ? `<span class="text-indigo-600 dark:text-indigo-300 font-bold" title="${(snap.at || '').slice(0, 16).replace('T', ' ')} 확정 · 마감 후 정확도 화면에서 비교됩니다">📌 계획 확정됨</span> <span class="text-gray-300 dark:text-gray-600">|</span> `
+        : '';
+
     const entries = savedSimEntries(dateStr);
     if (entries.length === 0) {
-        el.innerHTML = `<span class="text-gray-400 dark:text-gray-500">저장된 수기 값 없음 — 자동값으로 계산 중</span>`;
+        el.innerHTML = snapMark + `<span class="text-gray-400 dark:text-gray-500">저장된 수기 값 없음 — 자동값으로 계산 중</span>`;
         return;
     }
     const list = entries.map(savedEntryText).join(', ');
-    el.innerHTML = `<span class="text-amber-700 dark:text-amber-400 font-bold">💾 저장됨 ${entries.length}개</span>
+    el.innerHTML = snapMark + `<span class="text-amber-700 dark:text-amber-400 font-bold">💾 저장됨 ${entries.length}개</span>
         <span class="text-gray-400 dark:text-gray-500">— ${list} · '자동값'을 누르기 전까지 유지되며, 오늘 실측이 잡히면 실측이 우선합니다.</span>`;
 };
 
@@ -1528,6 +1613,8 @@ export const renderForecastTab = () => {
     simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
     renderForecastSummary();
     runSimulation({ silent: true });      // 오른쪽 결과칸을 자동값 기준으로 미리 채워 둔다
+    // 진행 중인 업무가 있으면 '오늘 현황'으로, 아니면 '계획'으로 연다
+    setForecastView(pickInitialForecastView());
 
     // 예정 물량이 아직 안 실렸으면 로드 후 다시 채움(캐시라 대부분 즉시)
     fetchPlannedData().then(() => {
@@ -1537,6 +1624,7 @@ export const renderForecastTab = () => {
         simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
         renderForecastSummary();
         runSimulation({ silent: true });
+        if (forecastView === 'today') renderTodayProgress();   // 예정 물량이 실리면 기준선이 달라진다
     }).catch(() => {});
 
     const rBtn = document.getElementById('forecast-refresh-btn');
@@ -1581,7 +1669,11 @@ const setupSimulationListeners = () => {
     let syncTimer = null;
     const syncSummary = () => {
         clearTimeout(syncTimer);
-        syncTimer = setTimeout(() => { captureSimOverride(); renderForecastSummary(); }, 200);
+        syncTimer = setTimeout(() => {
+            captureSimOverride();
+            renderForecastSummary();
+            if (forecastView === 'today') renderTodayProgress();   // 계획을 고치면 현황 기준선도 같이 움직인다
+        }, 200);
     };
     ['sim-task-list', 'sim-staff-fulltime', 'sim-staff-parttimer', 'sim-exclude-min'].forEach(id => {
         const el = document.getElementById(id);
@@ -1601,6 +1693,53 @@ const setupSimulationListeners = () => {
         paintExcludeHint();
     });
     paintExcludeHint();
+
+    // 📌 계획 확정 — 지금 값을 그 날짜의 '확정 계획'으로 얼려 둔다
+    document.getElementById('sim-snapshot-btn')?.addEventListener('click', async () => {
+        const dateStr = document.getElementById('sim-target-date')?.value;
+        if (!dateStr) { alert('대상일을 선택해주세요.'); return; }
+        if (dateStr < getTodayDateString()) {
+            showToast('지난 날짜는 확정할 수 없습니다. 지금 값으로 얼려도 그날의 예상치가 아니기 때문입니다.', true);
+            return;
+        }
+        const already = getForecastSnapshotForDate(dateStr);
+        if (already && !confirm(`${dateStr} 계획은 이미 확정되어 있습니다.\n지금 값으로 다시 확정할까요?`)) return;
+
+        const btn = document.getElementById('sim-snapshot-btn');
+        if (btn) { btn.disabled = true; btn.textContent = '확정 중…'; }
+        try {
+            await saveForecastSnapshot(dateStr, buildForecastSnapshot(dateStr));
+            accuracySnapshots = null;              // 다음에 정확도 화면을 열 때 다시 읽는다
+            updateSavedInfo(dateStr);
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '📌 계획 확정'; }
+        }
+    });
+
+    // 정확도 화면 조작 (기간 변경 · 다시 읽기)
+    document.getElementById('forecast-accuracy-body')?.addEventListener('change', (e) => {
+        if (e.target?.id !== 'accuracy-days') return;
+        accuracyDays = Number(e.target.value) || 14;
+        renderAccuracyBody();
+    });
+    document.getElementById('forecast-accuracy-body')?.addEventListener('click', (e) => {
+        if (!e.target?.closest?.('#accuracy-reload')) return;
+        accuracySnapshots = null;
+        renderAccuracyView();
+    });
+
+    // 값 없는 업무 펼치기·접기
+    document.getElementById('sim-empty-wrap')?.addEventListener('click', (e) => {
+        if (!e.target?.closest?.('#sim-empty-toggle')) return;
+        showEmptySimRows = !showEmptySimRows;
+        applyEmptyRowFolding();
+    });
+
+    // 화면 전환 (오늘 현황 / 계획 / 정확도)
+    document.getElementById('forecast-view-switch')?.addEventListener('click', (e) => {
+        const b = e.target?.closest?.('.forecast-view-btn');
+        if (b && b.dataset.fview) setForecastView(b.dataset.fview);
+    });
 
     // '하는 날 N' 을 누르면 그 값을 작업량 칸에 넣는다.
     // input 이벤트를 직접 일으켜, 상단 요약·연동 업무도 함께 다시 계산되게 한다.
@@ -1709,6 +1848,569 @@ const setupSimulationListeners = () => {
     autoFillSimInputs(dateEl?.value);
     updateSavedInfo(dateEl?.value);
 };
+
+// ═══════════════════════════════════════════════════════════
+// ⏱ 오늘 진행 현황 — 지금까지 쓴 시간(인시)을 계획과 맞춰 본다.
+//    물량은 업무를 끝낼 때만 들어오므로 여기서는 다루지 않는다(정확도 화면에서 비교).
+// ═══════════════════════════════════════════════════════════
+
+/** 오늘의 업무 기록. 실시간 동기화되는 appState 를 먼저 쓰고, 없으면 이력에서 찾는다. */
+const todayWorkRecords = () => {
+    const live = State.appState?.workRecords;
+    if (Array.isArray(live) && live.length > 0) return live;
+    const today = getTodayDateString();
+    const day = (State.allHistoryData || []).find(d => d.id === today);
+    return (day && day.workRecords) || [];
+};
+
+/** 오늘 계획 — 계획 화면에 넣어 둔 값이 오늘 것이면 그 값을, 아니면 자동값을 쓴다. */
+const buildTodayPlan = () => {
+    const today = getTodayDateString();
+    const { inputs, linked } = inputsForSummaryDate(today);
+    const r = simulateOneDay(today, inputs, computeTaskUPHs(State.allHistoryData), State.appConfig);
+    return { today, inputs, linked, r };
+};
+
+/** 계획에 시간이 잡힌 업무만 줄로 만든다(0인 업무까지 늘어놓으면 읽을 수 없다) */
+const planRowsOf = (r) => {
+    const rows = [];
+    SIM_TASKS.forEach(t => {
+        const e = r.taskTimes[t.key];
+        if (e && e.hours > 0) rows.push({ key: t.key, label: t.label, planHours: e.hours, kind: 'qty' });
+    });
+    SIM_TIME_TASKS.forEach(t => {
+        const e = r.timeTaskTimes[t.key];
+        if (e && e.hours > 0) rows.push({ key: t.key, label: t.label, planHours: e.hours, kind: 'time' });
+    });
+    return rows;
+};
+
+/** 오늘 현황 한 덩어리 계산 — 화면과 대시보드 띠가 같은 값을 쓰도록 한 곳에 모은다. */
+const computeTodayStatus = () => {
+    // 대시보드 띠처럼 '업무 예상' 탭을 거치지 않고 부르는 경로에서는 시간형 업무 목록이 비어 있다.
+    // 비워 두면 담당 업무 시간이 계획에서 통째로 빠져 띠와 상세 화면의 숫자가 어긋난다.
+    if (SIM_TIME_TASKS.length === 0) { try { refreshTimeTasks(); } catch (e) {} }
+
+    const { today, r, linked } = buildTodayPlan();
+    const nowStr = nowTimeString();
+    const nowMin = hhmmToMin(nowStr) ?? 0;
+
+    const progress = computeDayProgress(todayWorkRecords(), nowStr);
+    const rows = buildProgressRows(planRowsOf(r), progress);
+
+    const planHours = r.totalHours;
+    const spentHours = progress.totalSpentMin / 60;
+    const pct = planHours > 0 ? Math.round(spentHours / planHours * 100) : 0;
+
+    const fin = projectFinish({
+        planHours, spentHours,
+        activeWorkers: progress.activeWorkers,
+        fallbackWorkers: r.availableTotal,
+        nowMin, firstStartMin: progress.firstStartMin,
+        dailyHours: r.dailyHours, excludeMinutes: r.excludeMinutes
+    });
+
+    return { today, r, linked, nowStr, nowMin, progress, rows, planHours, spentHours, pct, fin };
+};
+
+/** 대시보드 띠가 쓰는 요약 (계산 결과가 없으면 null) */
+export const getTodayProgressSummary = () => {
+    try {
+        const s = computeTodayStatus();
+        if (!s.progress.hasRecords && s.planHours <= 0) return null;
+        return {
+            planHours: s.planHours, spentHours: s.spentHours, pct: s.pct,
+            activeWorkers: s.progress.activeWorkers,
+            started: s.progress.hasRecords,
+            finishText: s.fin.finishMin == null ? null : minToHhmm(s.fin.finishMin),
+            baseFinishText: minToHhmm(s.fin.baseFinishMin),
+            diffMin: s.fin.diffMin
+        };
+    } catch (e) { console.warn('[forecast] 오늘 진행 요약 실패:', e); return null; }
+};
+
+/** 늦음/이름 상태에 따른 색 한 벌 */
+const paceTone = (diffMin) => {
+    if (diffMin == null) return { text: 'text-gray-500 dark:text-gray-400', bar: 'bg-gray-400', chip: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' };
+    if (diffMin <= 0)   return { text: 'text-emerald-600 dark:text-emerald-400', bar: 'bg-emerald-500', chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' };
+    if (diffMin <= 30)  return { text: 'text-amber-600 dark:text-amber-400', bar: 'bg-amber-500', chip: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' };
+    return { text: 'text-rose-600 dark:text-rose-400', bar: 'bg-rose-500', chip: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' };
+};
+
+const STATUS_CHIP = {
+    working: { cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+    paused:  { cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+    ended:   { cls: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' },
+    todo:    { cls: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300' }
+};
+
+const statusLabel = (row) => {
+    if (row.extra) return row.working > 0 ? `계획 외 · ${row.working}명` : '계획 외';
+    if (row.status === 'working') return `${row.working}명 진행 중`;
+    if (row.status === 'paused')  return `${row.paused}명 정지`;
+    if (row.status === 'ended')   return '종료';
+    return '미착수';
+};
+
+const progressRowHtml = (row) => {
+    const pct = row.planHours > 0 ? Math.min(100, Math.round(row.spentHours / row.planHours * 100)) : (row.spentHours > 0 ? 100 : 0);
+    const over = row.planHours > 0 && row.spentHours > row.planHours;
+    const chip = STATUS_CHIP[row.status] || STATUS_CHIP.ended;
+    const barColor = row.extra ? 'bg-violet-400'
+                   : over ? 'bg-rose-500'
+                   : row.status === 'working' ? 'bg-indigo-500'
+                   : row.status === 'ended' ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600';
+    const planText = row.planHours > 0 ? fmtHM(row.planHours) : '—';
+    const memberTip = row.members.length ? `\n지금: ${row.members.join(', ')}` : '';
+    return `
+        <div class="flex items-center gap-3 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0"
+             title="계획 ${planText} · 소진 ${fmtHM(row.spentHours)}${memberTip}">
+            <span class="w-28 md:w-32 shrink-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200">${row.label}</span>
+            <div class="flex-1 min-w-0 h-2.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                <div class="h-full rounded-full ${barColor} transition-all" style="width:${pct}%"></div>
+            </div>
+            <span class="w-[112px] shrink-0 text-right text-[12px] font-bold tabular-nums ${over ? 'text-rose-600 dark:text-rose-400' : 'text-gray-600 dark:text-gray-300'}">
+                ${fmtHM(row.spentHours)} <span class="font-medium text-gray-400 dark:text-gray-500">/ ${planText}</span>
+            </span>
+            <span class="w-[92px] shrink-0 text-center text-[11px] font-bold rounded-md py-0.5 ${row.extra ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : chip.cls}">${statusLabel(row)}</span>
+        </div>`;
+};
+
+const bigStat = (label, value, sub, tone = '') => `
+    <div class="flex-1 min-w-[150px] px-4 py-3">
+        <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400">${label}</div>
+        <div class="mt-0.5 text-[26px] leading-tight font-extrabold tabular-nums ${tone || 'text-gray-900 dark:text-white'}">${value}</div>
+        <div class="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">${sub}</div>
+    </div>`;
+
+const renderTodayProgress = () => {
+    const host = document.getElementById('today-progress-body');
+    if (!host) return;
+
+    let s;
+    try { s = computeTodayStatus(); }
+    catch (e) {
+        console.error('[forecast] 오늘 현황 계산 실패:', e);
+        host.innerHTML = `<div class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-gray-400 text-[12px]">현황을 계산하지 못했습니다.</div>`;
+        return;
+    }
+
+    if (!s.progress.hasRecords) {
+        host.innerHTML = `
+            <section class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30 p-10 text-center">
+                <div class="text-3xl mb-2">☕</div>
+                <p class="text-sm font-bold text-gray-600 dark:text-gray-300">아직 시작된 업무가 없습니다</p>
+                <p class="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                    오늘 계획은 <b class="text-gray-600 dark:text-gray-300">${fmtHM(s.planHours)}</b> ·
+                    필요 인원 <b class="text-gray-600 dark:text-gray-300">${s.r.requiredFTE}명</b> 입니다.
+                    업무가 시작되면 여기에서 진행 상황을 볼 수 있습니다.
+                </p>
+            </section>`;
+        return;
+    }
+
+    const tone = paceTone(s.fin.diffMin);
+    const elapsedMin = s.progress.firstStartMin != null ? Math.max(0, s.nowMin - s.progress.firstStartMin) : 0;
+    const barPct = Math.min(100, Math.max(0, s.pct));
+
+    const diffText = s.fin.diffMin == null ? '—'
+        : s.fin.diffMin === 0 ? '정시'
+        : s.fin.diffMin > 0 ? `정시 +${fmtMin(s.fin.diffMin)}` : `정시 −${fmtMin(-s.fin.diffMin)}`;
+
+    const finishText = s.fin.finishMin == null ? '—' : minToHhmm(s.fin.finishMin);
+
+    host.innerHTML = `
+      <div class="space-y-4">
+
+        <!-- 큰 숫자 세 개 -->
+        <section class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+            <div class="flex flex-wrap divide-x divide-gray-100 dark:divide-gray-700">
+                ${bigStat('경과', fmtMin(elapsedMin),
+                          s.progress.firstStartMin != null
+                            ? `${minToHhmm(s.progress.firstStartMin)} 첫 업무 시작 · 지금 ${s.nowStr}`
+                            : `지금 ${s.nowStr}`)}
+                ${bigStat('계획 대비 소진', `${s.pct}%`,
+                          `${fmtHM(s.spentHours)} / ${fmtHM(s.planHours)} 인시`)}
+                ${bigStat('종료 예상', finishText,
+                          s.fin.rate > 0
+                            ? `기준 ${minToHhmm(s.fin.baseFinishMin)} · ${s.fin.usedFallback ? '가용' : '현재'} ${s.fin.rate}명 기준`
+                            : '투입 인원이 없어 계산할 수 없습니다',
+                          tone.text)}
+                <div class="flex-1 min-w-[150px] px-4 py-3">
+                    <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400">지금 투입</div>
+                    <div class="mt-0.5 text-[26px] leading-tight font-extrabold tabular-nums text-gray-900 dark:text-white">${s.progress.activeWorkers}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
+                    <div class="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">남은 계획 ${fmtHM(s.fin.remainHours)}</div>
+                </div>
+            </div>
+            <div class="px-4 pb-3">
+                <div class="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                    <div class="h-full rounded-full ${tone.bar} transition-all" style="width:${barPct}%"></div>
+                </div>
+                <div class="mt-1.5 flex items-center justify-between text-[11px]">
+                    <span class="text-gray-400 dark:text-gray-500">
+                        ${s.linked ? '계획 화면에 넣은 값 기준' : '자동값 기준'} ·
+                        시간(인시)만 비교합니다 — 물량은 마감 후 <b class="font-bold">정확도</b>에서
+                    </span>
+                    <span class="font-extrabold ${tone.text}">${diffText}</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 업무별 -->
+        <section class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+            <header class="flex items-baseline gap-2 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+                <h4 class="text-[12px] font-extrabold text-gray-700 dark:text-gray-200">업무별 진행</h4>
+                <span class="text-[11px] text-gray-400 dark:text-gray-500">소진 시간 / 계획 시간 · 진행 중인 것부터</span>
+                <span class="ml-auto text-[11px] text-gray-400 dark:text-gray-500 tabular-nums">${s.rows.length}개</span>
+            </header>
+            ${s.rows.length ? s.rows.map(progressRowHtml).join('')
+                            : '<p class="px-3.5 py-6 text-center text-[11px] text-gray-400">표시할 업무가 없습니다.</p>'}
+        </section>
+
+        <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed px-1">
+            · <b>소진 시간</b>은 업무 기록의 실제 투입 시간입니다(쉰 시간 제외, 진행 중인 업무는 지금까지).<br>
+            · <b>종료 예상</b>은 남은 계획 시간을 지금 붙어 있는 인원으로 나눈 값입니다.
+              기준 시각은 첫 업무 시작 + ${s.r.dailyHours}시간${s.r.excludeMinutes > 0 ? ` + 제외 ${fmtMin(s.r.excludeMinutes)}` : ''} 이며 휴게시간은 셈에 넣지 않았습니다.<br>
+            · <b class="text-violet-500">계획 외</b>는 계획에 없었는데 실제로 진행한 업무입니다.
+        </p>
+      </div>`;
+};
+
+// ── 화면 전환 (오늘 현황 / 계획 / 정확도) ────────────────────────
+const FORECAST_VIEWS = {
+    today:    { sub: '지금까지 쓴 시간을 계획과 맞춰 봅니다' },
+    plan:     { sub: '작업량 대비 필요·가용 인원을 예측합니다' },
+    accuracy: { sub: '마감 후 계획과 실제가 얼마나 달랐는지 봅니다' }
+};
+let forecastView = 'plan';
+let todayTimer = null;
+
+const paintViewButtons = () => {
+    document.querySelectorAll('.forecast-view-btn').forEach(b => {
+        const on = b.dataset.fview === forecastView;
+        b.className = `forecast-view-btn px-3 py-1.5 transition ${b.dataset.fview !== 'today' ? 'border-l border-gray-300 dark:border-gray-600 ' : ''}`
+            + (on ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700');
+    });
+    const sub = document.getElementById('forecast-view-sub');
+    if (sub) sub.textContent = FORECAST_VIEWS[forecastView]?.sub || '';
+};
+
+const setForecastView = (v) => {
+    if (!FORECAST_VIEWS[v]) v = 'plan';
+    forecastView = v;
+    ['today', 'plan', 'accuracy'].forEach(k => {
+        document.getElementById(`forecast-view-${k}`)?.classList.toggle('hidden', k !== v);
+    });
+    paintViewButtons();
+
+    clearInterval(todayTimer); todayTimer = null;
+    if (v === 'today') {
+        renderTodayProgress();
+        // 진행 중인 업무는 시간이 계속 흐르므로 1분마다 다시 그린다
+        todayTimer = setInterval(() => {
+            if (forecastView !== 'today' || !document.getElementById('today-progress-body')) {
+                clearInterval(todayTimer); todayTimer = null; return;
+            }
+            renderTodayProgress();
+        }, 60000);
+    } else if (v === 'accuracy') {
+        renderAccuracyView();
+    }
+};
+
+/** 탭을 열 때 어느 화면을 보여줄지 — 진행 중인 업무가 있으면 '오늘 현황' */
+const pickInitialForecastView = () => {
+    const live = todayWorkRecords();
+    const busy = live.some(r => r && (r.status === 'ongoing' || r.status === 'paused'));
+    return busy ? 'today' : 'plan';
+};
+
+// 정확도 화면 — 아래 '정확도' 절에서 실제 구현으로 바뀐다.
+let renderAccuracyView = () => {};
+
+// ═══════════════════════════════════════════════════════════
+// 🎯 정확도 — 아침에 확정한 계획과 실제가 얼마나 달랐는지.
+//    계획은 자동값이 매일 바뀌므로 '확정 스냅샷'이 있는 날만 비교한다.
+// ═══════════════════════════════════════════════════════════
+
+/** 지금 계획 화면의 값 그대로를 스냅샷으로 만든다(확정 버튼용) */
+const buildForecastSnapshot = (dateStr) => {
+    const { tasks, timeTasks, staffFulltime, staffPart, excludeMinutes } = readSimInputs();
+    const taskUPH = computeTaskUPHs(State.allHistoryData);
+    const staffInfo = computeAvailableStaff(dateStr, State.appConfig, State.persistentLeaveSchedule, State.allHistoryData);
+    const inputs = {
+        tasks, timeTasks, staffFulltime, staffPart, excludeMinutes,
+        staffInfo: { ...staffInfo, available: Math.round(staffFulltime + staffPart) }
+    };
+    const r = simulateOneDay(dateStr, inputs, taskUPH, State.appConfig);
+
+    // 그날 기준 UPH도 함께 얼린다 — 나중에 UPH가 바뀌면 시간 비교를 재현할 수 없다
+    const uph = {};
+    SIM_TASKS.forEach(t => { if (taskUPH[t.key] > 0) uph[t.key] = Number(taskUPH[t.key].toFixed(2)); });
+
+    return {
+        tasks, timeTasks, uph,
+        staffFulltime, staffPart, excludeMinutes,
+        availableTotal: r.availableTotal, requiredFTE: r.requiredFTE,
+        totalHours: Number(r.totalHours.toFixed(3)),
+        qtyHours: Number(r.qtyHours.toFixed(3)),
+        timeHours: Number(r.timeHours.toFixed(3)),
+        elapsedHours: Number(r.elapsedHours.toFixed(3)),
+        dailyHours: r.dailyHours
+    };
+};
+
+let accuracyDays = 14;          // 되돌아볼 근무일 수
+let accuracySnapshots = null;   // { 날짜: 스냅샷 }
+let accuracyLoading = false;
+
+/** 마감된 날(어제까지) 중 근무 기록이 있는 최근 N일 */
+const recentClosedDays = (n) => {
+    const today = getTodayDateString();
+    return (State.allHistoryData || [])
+        .filter(d => d && typeof d.id === 'string' && d.id < today)
+        .filter(d => (d.workRecords || []).length > 0)
+        .sort((a, b) => b.id.localeCompare(a.id))
+        .slice(0, n)
+        .sort((a, b) => a.id.localeCompare(b.id));
+};
+
+/** 하루치 계획 대비 실제 */
+const accuracyRowOf = (day, snap) => {
+    const spentMin = (day.workRecords || []).reduce((sum, r) => {
+        const d = Number(r?.duration);
+        return sum + (Number.isFinite(d) && d > 0 ? d : 0);
+    }, 0);
+    const members = new Set((day.workRecords || []).map(r => r?.member).filter(Boolean));
+
+    const planHours = Number(snap.totalHours) || 0;
+    const actualHours = spentMin / 60;
+
+    const qty = {};
+    Object.entries(snap.tasks || {}).forEach(([k, v]) => {
+        qty[k] = { plan: Math.round(Number(v) || 0), actual: Math.round(Number(day.taskQuantities?.[k]) || 0) };
+    });
+    // 계획엔 없었는데 실제로 물량이 잡힌 업무도 담는다
+    Object.entries(day.taskQuantities || {}).forEach(([k, v]) => {
+        if (qty[k]) return;
+        if (!SIM_TASKS.some(t => t.key === k)) return;      // 시뮬레이션이 다루는 업무만
+        qty[k] = { plan: 0, actual: Math.round(Number(v) || 0) };
+    });
+
+    return {
+        date: day.id, planHours, actualHours,
+        hourDiff: actualHours - planHours,
+        hourErr: planHours > 0 ? (actualHours - planHours) / planHours : null,
+        planFTE: Number(snap.requiredFTE) || 0,
+        actualMembers: members.size,
+        qty, snapAt: snap.at || null, spentMin
+    };
+};
+
+const pctText = (v) => v == null ? '—' : `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
+const errTone = (v) => {
+    if (v == null) return 'text-gray-400';
+    const a = Math.abs(v);
+    if (a <= 0.1) return 'text-emerald-600 dark:text-emerald-400';
+    if (a <= 0.25) return 'text-amber-600 dark:text-amber-400';
+    return 'text-rose-600 dark:text-rose-400';
+};
+
+const renderAccuracyBody = () => {
+    const host = document.getElementById('forecast-accuracy-body');
+    if (!host) return;
+
+    const head = (note) => `
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+            <h4 class="text-sm font-extrabold text-gray-800 dark:text-gray-100">정확도</h4>
+            <span class="text-[11px] text-gray-400 dark:text-gray-500">${note}</span>
+            <div class="ml-auto flex items-center gap-1.5">
+                <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400">기간</label>
+                <select id="accuracy-days" class="text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white font-medium">
+                    <option value="7"${accuracyDays === 7 ? ' selected' : ''}>최근 7근무일</option>
+                    <option value="14"${accuracyDays === 14 ? ' selected' : ''}>최근 14근무일</option>
+                    <option value="30"${accuracyDays === 30 ? ' selected' : ''}>최근 30근무일</option>
+                </select>
+                <button id="accuracy-reload" class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">🔄</button>
+            </div>
+        </div>`;
+
+    if (accuracyLoading) {
+        host.innerHTML = head('불러오는 중…')
+            + `<div class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 p-10 text-center text-gray-400 text-[12px]">확정해 둔 계획을 불러오는 중입니다…</div>`;
+        return;
+    }
+
+    const days = recentClosedDays(accuracyDays);
+    const snaps = accuracySnapshots || {};
+    const rows = days.map(d => (snaps[d.id] ? accuracyRowOf(d, snaps[d.id]) : null)).filter(Boolean);
+
+    if (rows.length === 0) {
+        host.innerHTML = head('아직 비교할 자료가 없습니다')
+            + `<section class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30 p-10 text-center">
+                <div class="text-3xl mb-2">🎯</div>
+                <p class="text-sm font-bold text-gray-600 dark:text-gray-300">확정해 둔 계획이 없습니다</p>
+                <p class="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500 max-w-md mx-auto">
+                    자동값은 실적이 쌓이면서 매일 바뀝니다. 나중에 다시 계산해도 <b>그날 아침의 예상치</b>는 되살릴 수 없어,
+                    오차를 재려면 그 시점의 값을 얼려 두어야 합니다.<br><br>
+                    <b class="text-gray-600 dark:text-gray-300">계획</b> 화면에서 값을 맞춘 뒤
+                    <b class="text-indigo-500">📌 계획 확정</b>을 누르면, 마감 후 이 화면에서 비교할 수 있습니다.
+                </p>
+            </section>`;
+        return;
+    }
+
+    // ── 요약 ──────────────────────────────────────────────
+    const hourErrs = rows.map(r => r.hourErr).filter(v => v != null);
+    const avgHourErr = hourErrs.length ? hourErrs.reduce((a, b) => a + b, 0) / hourErrs.length : null;
+    const avgAbsHourErr = hourErrs.length ? hourErrs.reduce((a, b) => a + Math.abs(b), 0) / hourErrs.length : null;
+
+    // ── 업무별 누적 ────────────────────────────────────────
+    const agg = new Map();      // 업무 → { plan, actual, days, spentMin }
+    rows.forEach(r => {
+        Object.entries(r.qty).forEach(([k, v]) => {
+            const e = agg.get(k) || { key: k, plan: 0, actual: 0, days: 0, spentMin: 0 };
+            e.plan += v.plan; e.actual += v.actual;
+            if (v.plan > 0 || v.actual > 0) e.days++;
+            agg.set(k, e);
+        });
+    });
+    // 실제 UPH를 내기 위해 업무별 실제 투입시간을 모은다
+    days.forEach(d => {
+        if (!snaps[d.id]) return;
+        (d.workRecords || []).forEach(rec => {
+            const e = agg.get(rec?.task);
+            if (!e) return;
+            const m = Number(rec.duration);
+            if (Number.isFinite(m) && m > 0) e.spentMin += m;
+        });
+    });
+
+    const stdUPH = computeTaskUPHs(State.allHistoryData);
+    const taskRows = [...agg.values()]
+        .filter(e => e.plan > 0 || e.actual > 0)
+        .map(e => {
+            const err = e.plan > 0 ? (e.actual - e.plan) / e.plan : null;
+            const realUPH = e.spentMin > 0 ? e.actual / (e.spentMin / 60) : null;
+            const base = stdUPH[e.key] || 0;
+            const uphErr = (realUPH != null && base > 0) ? (realUPH - base) / base : null;
+            const label = SIM_TASKS.find(t => t.key === e.key)?.label || e.key;
+            return { ...e, err, realUPH, base, uphErr, label };
+        })
+        .sort((a, b) => Math.abs(b.err ?? 0) - Math.abs(a.err ?? 0));
+
+    const worst = taskRows.find(t => t.err != null && Math.abs(t.err) > 0.2);
+
+    const stat = (label, value, sub, cls) => `
+        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-3">
+            <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">${label}</div>
+            <div class="text-2xl font-black mt-1 ${cls || 'text-gray-900 dark:text-white'}">${value}</div>
+            <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">${sub}</div>
+        </div>`;
+
+    host.innerHTML = head(`확정한 계획이 있는 ${rows.length}일을 비교했습니다`) + `
+      <div class="space-y-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            ${stat('비교한 날', `${rows.length}<span class="text-sm font-bold text-gray-400 ml-0.5">일</span>`, `최근 ${accuracyDays}근무일 중`)}
+            ${stat('시간 평균 오차', avgAbsHourErr == null ? '—' : `${Math.round(avgAbsHourErr * 100)}%`,
+                   avgHourErr == null ? '' : (avgHourErr > 0 ? '실제가 계획보다 오래 걸림' : '실제가 계획보다 빨리 끝남'),
+                   errTone(avgAbsHourErr))}
+            ${stat('치우침', pctText(avgHourErr),
+                   '평균적으로 계획 대비 이만큼', errTone(avgHourErr))}
+            ${stat('가장 어긋난 업무', worst ? worst.label : '없음',
+                   worst ? `물량 ${pctText(worst.err)}` : '모두 ±20% 안', worst ? errTone(worst.err) : 'text-emerald-600 dark:text-emerald-400')}
+        </div>
+
+        <!-- 업무별 누적 -->
+        <section class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+            <header class="flex items-baseline gap-2 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+                <h5 class="text-[12px] font-extrabold text-gray-700 dark:text-gray-200">업무별 누적</h5>
+                <span class="text-[11px] text-gray-400 dark:text-gray-500">계획 물량 대비 실제 · 어긋난 순</span>
+            </header>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-[11px] text-gray-500 dark:text-gray-400 bg-gray-50/60 dark:bg-gray-900/20">
+                        <tr>
+                            <th class="py-2 px-3 text-left font-bold">업무</th>
+                            <th class="py-2 px-3 text-right font-bold">계획 합</th>
+                            <th class="py-2 px-3 text-right font-bold">실제 합</th>
+                            <th class="py-2 px-3 text-right font-bold">오차</th>
+                            <th class="py-2 px-3 text-right font-bold" title="실제 물량 ÷ 실제 투입 인시">실제 UPH</th>
+                            <th class="py-2 px-3 text-right font-bold" title="지금 시뮬레이션이 쓰는 기준 UPH(최근 4주 평균)">기준 UPH</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${taskRows.map(t => `
+                        <tr class="border-t border-gray-100 dark:border-gray-700/60">
+                            <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${t.label}</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${t.plan.toLocaleString()}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100">${t.actual.toLocaleString()}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold ${errTone(t.err)}">${pctText(t.err)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums ${t.uphErr != null && Math.abs(t.uphErr) > 0.15 ? 'font-bold ' + errTone(t.uphErr) : 'text-gray-600 dark:text-gray-300'}">${t.realUPH != null ? t.realUPH.toFixed(1) : '—'}</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-500">${t.base > 0 ? t.base.toFixed(1) : '—'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 날짜별 -->
+        <section class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+            <header class="flex items-baseline gap-2 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+                <h5 class="text-[12px] font-extrabold text-gray-700 dark:text-gray-200">날짜별</h5>
+                <span class="text-[11px] text-gray-400 dark:text-gray-500">계획 소요시간(인시) 대비 실제 투입</span>
+            </header>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-[11px] text-gray-500 dark:text-gray-400 bg-gray-50/60 dark:bg-gray-900/20">
+                        <tr>
+                            <th class="py-2 px-3 text-left font-bold">날짜</th>
+                            <th class="py-2 px-3 text-right font-bold">계획 시간</th>
+                            <th class="py-2 px-3 text-right font-bold">실제 시간</th>
+                            <th class="py-2 px-3 text-right font-bold">오차</th>
+                            <th class="py-2 px-3 text-right font-bold">계획 인원</th>
+                            <th class="py-2 px-3 text-right font-bold">실제 투입</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows.slice().reverse().map(r => `
+                        <tr class="border-t border-gray-100 dark:border-gray-700/60">
+                            <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${dayLabel(r.date)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${fmtHM(r.planHours)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100">${fmtHM(r.actualHours)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold ${errTone(r.hourErr)}">${pctText(r.hourErr)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${r.planFTE}명</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-600 dark:text-gray-300">${r.actualMembers}명</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed px-1">
+            · <b>계획</b>은 그날 <b>📌 계획 확정</b>을 누른 시점의 값입니다. 누르지 않은 날은 비교에서 빠집니다.<br>
+            · <b>실제 시간</b>은 그날 업무 기록의 소요시간 합계(인시)입니다.<br>
+            · <b>실제 UPH</b>가 기준보다 꾸준히 높거나 낮으면, 기준 UPH(최근 4주 평균)를 다시 볼 때가 된 것입니다.
+        </p>
+      </div>`;
+};
+
+/** 정확도 화면 진입 — 과거 스냅샷을 한 번 읽어 온다(들어올 때만) */
+renderAccuracyView = () => {
+    if (accuracySnapshots) { renderAccuracyBody(); return; }
+    accuracyLoading = true;
+    renderAccuracyBody();
+
+    const days = recentClosedDays(30);
+    const from = days[0]?.id, to = days[days.length - 1]?.id;
+    if (!from || !to) { accuracyLoading = false; accuracySnapshots = {}; renderAccuracyBody(); return; }
+
+    fetchForecastSnapshots(from, to)
+        .then(m => { accuracySnapshots = m || {}; })
+        .catch(e => { console.error('[forecast] 스냅샷 로드 실패:', e); accuracySnapshots = {}; })
+        .finally(() => { accuracyLoading = false; renderAccuracyBody(); });
+};
+
 
 const predictionCharts = {
     revenue: null,

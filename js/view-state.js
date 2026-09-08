@@ -88,6 +88,19 @@ async function selectDate(dateKey) {
 // 데이터관리(history.html) 화면을 기억해 둔 자리로 되돌린다.
 // 초기 렌더링이 끝난 뒤에 부른다.
 export async function restoreHistoryView() {
+    // 주소 뒤에 #forecast / #forecast-today 가 붙어 있으면 그 화면을 바로 연다.
+    // (대시보드의 '오늘 진행' 띠에서 넘어오는 길 — 기억해 둔 자리보다 우선한다)
+    const hash = (location.hash || '').replace('#', '');
+    if (hash === 'forecast' || hash === 'forecast-today') {
+        document.querySelector('[data-main-tab="forecast"]')?.click();
+        if (hash === 'forecast-today') {
+            await wait(450);
+            document.querySelector('.forecast-view-btn[data-fview="today"]')?.click();
+        }
+        unlockViewSaving();
+        return true;
+    }
+
     // 지금 저장소가 아니라, 화면이 뜨기 전에 붙잡아 둔 값을 쓴다
     const v = initialView;
     if (!v || !v.main) {
