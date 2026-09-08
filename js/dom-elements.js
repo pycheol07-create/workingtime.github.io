@@ -222,33 +222,8 @@ export const openLeaveModalBtn = document.getElementById('open-leave-modal-btn')
 export const adminCancelLeaveBtn = document.getElementById('admin-cancel-leave-btn');
 export const adminCancelLeaveText = document.getElementById('admin-cancel-leave-text');
 
-export const costSimulationModal = document.getElementById('cost-simulation-modal');
-export const openCostSimulationBtn = document.getElementById('open-cost-simulation-btn');
-export const simTaskSelect = document.getElementById('sim-task-select');
-export const simTargetQuantityInput = document.getElementById('sim-target-quantity');
-export const simWorkerCountInput = document.getElementById('sim-worker-count');
-export const simCalculateBtn = document.getElementById('sim-calculate-btn');
-export const simResultContainer = document.getElementById('sim-result-container');
-export const simResultDuration = document.getElementById('sim-result-duration');
-export const simResultCost = document.getElementById('sim-result-cost');
-export const simResultSpeed = document.getElementById('sim-result-speed');
 export const simModeRadios = document.getElementsByName('sim-mode');
-export const simInputWorkerGroup = document.getElementById('sim-input-worker-group');
-export const simInputDurationGroup = document.getElementById('sim-input-duration-group');
-export const simTargetDurationInput = document.getElementById('sim-target-duration');
-export const simEfficiencyChartCanvas = document.getElementById('sim-efficiency-chart');
-export const simAddComparisonBtn = document.getElementById('sim-add-to-compare-btn');
-export const simComparisonContainer = document.getElementById('sim-comparison-container');
-export const simComparisonTbody = document.getElementById('sim-comparison-tbody');
-export const simClearComparisonBtn = document.getElementById('sim-clear-comparison-btn');
-export const simResultLabel1 = document.getElementById('sim-result-label-1');
-export const simResultValue1 = document.getElementById('sim-result-value-1');
-export const simBottleneckContainer = document.getElementById('sim-bottleneck-container');
-export const simBottleneckTbody = document.getElementById('sim-bottleneck-tbody');
-export const simChartContainer = document.getElementById('sim-chart-container');
-export const simInputArea = document.getElementById('sim-input-area');
 
-export const openCostSimulationBtnMobile = document.getElementById('open-cost-simulation-btn-mobile');
 export const openHistoryBtnMobile = document.getElementById('open-history-btn-mobile');
 export const endShiftBtnMobile = document.getElementById('end-shift-btn-mobile');
 

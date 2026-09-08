@@ -1,7 +1,7 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202609081930';
-import * as State from './state.js?v=202609081930';
-import { getRegularMembersForCount } from './utils.js?v=202609081930';
+import { getAllDashboardDefinitions } from './ui.js?v=202609081944';
+import * as State from './state.js?v=202609081944';
+import { getRegularMembersForCount } from './utils.js?v=202609081944';
 
 export let currentEzadminData = null;
 
@@ -513,8 +513,13 @@ const BUILTIN_MENU_ITEMS = [
     { name: '출퇴근 기록표', link: 'worktime.html', category: '관리자 메뉴', before: '업무 마감' }
 ];
 
+// 없어진 기능 — 저장된 dashboardMenu(파이어스토어)에 남아 있어도 메뉴에서 걷어낸다.
+// (관리자 설정을 손대지 않아도 사라지도록. 눌러도 아무 일 없는 항목이 남지 않게)
+const RETIRED_MENU_ITEMS = ['운영 시뮬레이션'];
+
 const withBuiltinMenus = (dashboardMenu) => {
-    const menu = dashboardMenu.map(g => ({ ...g, items: [...g.items] }));
+    const menu = dashboardMenu
+        .map(g => ({ ...g, items: [...g.items].filter(i => !RETIRED_MENU_ITEMS.includes(i && i.name)) }));
     BUILTIN_MENU_ITEMS.forEach(entry => {
         const exists = menu.some(g => g.items.some(i => i.link && i.link.includes(entry.link)));
         if (exists) return;

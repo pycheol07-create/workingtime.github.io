@@ -23,7 +23,7 @@
     <!-- 팀 결산 보고 '화면 그대로 PDF' 저장용 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=202609081930">
+    <link rel="stylesheet" href="css/style.css?v=202609081944">
     <style>
         /* 💡 탭 전환 시 hidden 클래스가 충돌하는 문제 방지 */
         .hidden { display: none !important; }
@@ -129,7 +129,12 @@
 
     <div id="modals-container-history" class="w-full h-full"></div>
     <div id="modals-container-history-popups"></div>
-    <div id="modals-container-form"></div> 
+    <div id="modals-container-form-attendance"></div>
+    <div id="modals-container-form-record"></div>
+    <div id="modals-container-form-quantity"></div>
+    <div id="modals-container-form-team"></div>
+    <div id="modals-container-form-inspection"></div>
+    <div id="modals-container-form-total-inspection"></div> 
     <div id="modals-container-download"></div>
     <div id="modals-container-confirm"></div>
     
@@ -150,15 +155,23 @@
                 loadComponent('components/modals-history.html', 'modals-container-history'),
                 loadComponent('components/modals-history-popups.html', 'modals-container-history-popups'),
                 loadComponent('components/modals-confirm.html', 'modals-container-confirm'),
-                loadComponent('components/modals-form.html', 'modals-container-form') 
+                // ⚠️ 예전의 modals-form.html 은 아래 6개 파일로 쪼개졌는데 여기만 옛 이름을 부르고 있었다.
+                // 그래서 데이터 관리 창에는 처리량 수정·근태 기록·업무 기록 수정 모달의
+                // 마크업이 통째로 없었고, 버튼을 눌러도 아무 일이 일어나지 않았다.
+                loadComponent('components/modals-form-attendance.html', 'modals-container-form-attendance'),
+                loadComponent('components/modals-form-record.html', 'modals-container-form-record'),
+                loadComponent('components/modals-form-quantity.html', 'modals-container-form-quantity'),
+                loadComponent('components/modals-form-team.html', 'modals-container-form-team'),
+                loadComponent('components/modals-form-inspection.html', 'modals-container-form-inspection'),
+                loadComponent('components/modals-form-total-inspection.html', 'modals-container-form-total-inspection')
             ]);
 
             try {
-                const State = await import('./js/state.js?v=202609081930');
-                try { await import('./js/app.js?v=202609081930'); } catch(e) {} 
+                const State = await import('./js/state.js?v=202609081944');
+                try { await import('./js/app.js?v=202609081944'); } catch(e) {} 
                 
-                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202609081930');
-                const { restoreHistoryView } = await import('./js/view-state.js?v=202609081930');
+                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202609081944');
+                const { restoreHistoryView } = await import('./js/view-state.js?v=202609081944');
 
                 // 초기 준비(로우데이터 → 일별 → 첫 날짜)를 마친 뒤,
                 // 보고 있던 자리로 되돌린다. 기억된 게 없으면 평소대로 대시보드.
@@ -289,7 +302,7 @@
 
         initHistoryApp();
     </script>
-    <script src="js/connection-banner.js?v=202609081930"></script>
-    <script src="js/modal-esc.js?v=202609081930"></script>
+    <script src="js/connection-banner.js?v=202609081944"></script>
+    <script src="js/modal-esc.js?v=202609081944"></script>
 </body>
 </html>

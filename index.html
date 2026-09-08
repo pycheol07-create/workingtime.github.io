@@ -24,7 +24,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=202609081930">
+    <link rel="stylesheet" href="css/style.css?v=202609081944">
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-['Inter'] overflow-hidden transition-colors duration-200">
     <div id="toast-container" class="fixed bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -54,9 +54,6 @@
                 </button>
                 <button id="open-my-leave-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
                     <span class="text-lg">🏖️</span> 내 연차관리
-                </button>
-                <button id="open-cost-simulation-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
-                    <span class="text-lg">💰</span> 운영 시뮬레이션
                 </button>
                 <a href="location.html" id="location-link-btn" target="location_window" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
                     <span class="text-lg">📍</span> 로케이션 관리
@@ -136,7 +133,6 @@
                 
                 <button id="open-weekend-modal-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🗓️</span> 주말 근무 신청</button>
                 <button id="open-my-leave-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🏖️</span> 내 연차관리</button>
-                <button id="open-cost-simulation-btn-mobile" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">💰</span> 운영 시뮬레이션</button>
                 <a href="location.html" id="location-link-btn-mobile" target="location_window" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📍</span> 로케이션 관리</a>
                 <a href="sheets.html" id="sheets-link-btn-mobile" target="sheets_window" class="text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🗂️</span> 업무 시트 대시보드</a>
 
@@ -370,7 +366,6 @@
     </div>
     
     <div id="modals-container-auth"></div>
-    <div id="modals-container-simulation"></div>
     <div id="modals-container-confirm"></div>
     <div id="modals-container-history"></div>
     <div id="modals-container-history-popups"></div>
@@ -506,7 +501,6 @@
         async function initApp() {
             await Promise.all([
                 loadComponent('components/modals-auth.html', 'modals-container-auth'),
-                loadComponent('components/modals-simulation.html', 'modals-container-simulation'),
                 loadComponent('components/modals-confirm.html', 'modals-container-confirm'),
                 loadComponent('components/modals-history.html', 'modals-container-history'),
                 loadComponent('components/modals-history-popups.html', 'modals-container-history-popups'),
@@ -522,13 +516,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202609081930');
+                await import('./js/app.js?v=202609081944');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202609081930').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202609081944').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -610,11 +604,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202609081930';
-        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202609081930';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202609081930';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202609081930';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202609081930';
+        import { appState } from './js/state.js?v=202609081944';
+        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202609081944';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202609081944';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202609081944';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202609081944';
 
         loadAdminTodos();
         // 🚚 입고 예정 위젯 시작 (구글 시트에서 자동 가져옴 + 30분 주기 갱신)
@@ -777,8 +771,8 @@
             }
         });
     </script>
-    <script src="js/connection-banner.js?v=202609081930"></script>
-    <script src="js/modal-esc.js?v=202609081930"></script>
-    <script src="js/app-version.js?v=202609081930"></script>
+    <script src="js/connection-banner.js?v=202609081944"></script>
+    <script src="js/modal-esc.js?v=202609081944"></script>
+    <script src="js/app-version.js?v=202609081944"></script>
 </body>
 </html>

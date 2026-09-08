@@ -1,22 +1,21 @@
 // === js/ui-history-reports.js ===
-import { getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202609081930';
+import { getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202609081944';
 
 import {
     calculateReportKPIs,
     calculateReportAggregations,
     aggregateDaysToSingleData,
-    calculateStandardThroughputs,
     calculatePeriodThroughputs, // 🌟 [추가] 기간별 평균 속도 계산 함수 가져오기
     analyzeRevenueBasedStaffing,
     analyzeRevenueWorkloadTrend,
     calculateAdvancedProductivity,
     calculateBenchmarkOEE,
     calculateAverageStaffing
-} from './ui-history-reports-logic.js?v=202609081930';
+} from './ui-history-reports-logic.js?v=202609081944';
 
 import {
     renderGenericReport
-} from './ui-history-reports-renderer.js?v=202609081930';
+} from './ui-history-reports-renderer.js?v=202609081944';
 
 
 const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {

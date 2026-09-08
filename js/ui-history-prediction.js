@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609081930';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081930';
-import * as State from './state.js?v=202609081930';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081930';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081930';
+import { predictFutureTrends } from './analysis-logic.js?v=202609081944';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081944';
+import * as State from './state.js?v=202609081944';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081944';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081944';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609081930';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609081944';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609081930';
-import { taskUph, recentDays } from './task-throughput.js?v=202609081930';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609081944';
+import { taskUph, recentDays } from './task-throughput.js?v=202609081944';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
