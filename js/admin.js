@@ -1,5 +1,5 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js?v=202609081944';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js?v=202609082134';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -12,12 +12,12 @@ import {
     openDashboardItemModal,
     getAllDashboardDefinitions,
     renderDashboardMenu
-} from './admin-ui.js?v=202609081944';
+} from './admin-ui.js?v=202609082134';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202609081944';
+} from './admin-logic.js?v=202609082134';
 
 let db, auth;
 let appConfig = {}; 
