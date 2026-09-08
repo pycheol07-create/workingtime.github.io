@@ -3,17 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609081709';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081709';
-import * as State from './state.js?v=202609081709';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081709';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081709';
+import { predictFutureTrends } from './analysis-logic.js?v=202609081930';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081930';
+import * as State from './state.js?v=202609081930';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081930';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081930';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609081709';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609081930';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609081709';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609081930';
+import { taskUph, recentDays } from './task-throughput.js?v=202609081930';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -169,24 +170,13 @@ const dayLabel = (dateStr) => {
     return isNaN(d.getTime()) ? dateStr : `${dateStr} (${days[d.getDay()]})`;
 };
 
-/** 작업별 최근 4주 UPH = Σ 처리량 ÷ (Σ 그 작업 투입시간/60) */
-const computeTaskUPHs = (historyData) => {
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 28);
-    const cutoffStr = ymd(cutoff);
-    const recent = (historyData || []).filter(d => typeof d.id === 'string' && d.id >= cutoffStr);
-    const uph = {};
-    SIM_TASKS.forEach(t => {
-        let dur = 0, qty = 0;
-        recent.forEach(d => {
-            (d.workRecords || []).forEach(r => {
-                if (r && r.task === t.key) dur += (r.duration || 0);
-            });
-            qty += Number(d.taskQuantities?.[t.key]) || 0;
-        });
-        uph[t.key] = dur > 0 ? qty / (dur / 60) : 0;
+/** 작업별 최근 4주 UPH(개/시) = Σ 처리량 ÷ Σ 그 작업 투입시간.
+ *  계산 자체는 js/task-throughput.js 한 곳에 모여 있다(화면마다 다른 답이 나오지 않도록). */
+const computeTaskUPHs = (historyData) =>
+    taskUph(recentDays(historyData, 28, getTodayDateString()), {
+        mode: 'total',
+        tasks: new Set(SIM_TASKS.map(t => t.key))
     });
-    return uph;
-};
 
 /** 샘플검수 비율 = 최근 4주에서 중국제작 > 0 인 날들의 (Σ샘플검수 ÷ Σ중국제작).
  *  중국제작 입고가 있는 날에만 샘플검수가 생기므로, 그 비율로 입고량에서 역산한다. */

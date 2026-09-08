@@ -1,5 +1,6 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202609081709';
+import * as State from './state.js?v=202609081930';
+import { overallUph } from './task-throughput.js?v=202609081930';
 
 let staffingChartInstance = null;
 
@@ -30,13 +31,8 @@ export function renderStaffingTab(filteredData, appConfig) {
 
     // ── 1단계: 기간 전체 종합 UPH 산출 (대시보드 종합 UPH와 동일한 정의) ──
     // 분모에는 전체 작업시간을 모두 포함해 검수·교환반품·재작업 등 지원 작업까지 반영합니다.
-    let sumAllQty = 0;
-    let sumAllMinutes = 0;
-    filteredData.forEach(day => {
-        Object.values(day.taskQuantities || {}).forEach(q => { sumAllQty += (Number(q) || 0); });
-        (day.workRecords || []).forEach(r => { sumAllMinutes += (r.duration || 0); });
-    });
-    const overallUPH = (sumAllMinutes > 0) ? (sumAllQty / (sumAllMinutes / 60)) : 0;
+    // 계산은 js/task-throughput.js 로 모았습니다(같은 값을 재는 코드가 여러 벌이지 않도록).
+    const overallUPH = overallUph(filteredData);
 
     // ── 2단계: 일별 필요 FTE 계산 ──
     let sumActualStaff = 0;
