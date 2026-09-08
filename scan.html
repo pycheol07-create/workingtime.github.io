@@ -174,12 +174,12 @@
     <div id="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202609080944"></script>
+    <script src="js/location-map.js?v=202609080950"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202609080944'; // china-stock 전용 설정(work-tool-e2943)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202609080950'; // china-stock 전용 설정(work-tool-e2943)
 
         const SCAN_VERSION = '9.9'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -523,7 +523,9 @@
                     const alt = 'S' + key;
                     const s2 = await getDoc(doc(db, 'ChinaStockGoods_ScanDB', alt));
                     if (s2.exists()) { key = alt; snap = s2; }
-                    else if (!forceAllowSet.has(key)) { key = alt; snap = s2; } // 둘 다 없으면 S형태로 안내(예전과 동일)
+                    // 둘 다 없을 때: 'S+6자리'(예: 550076) 모양일 때만 S 를 붙여 안내한다.
+                    // 546881055 처럼 숫자 자체가 상품코드인 경우도 있어, 함부로 바꾸면 엉뚱한 코드로 등록된다.
+                    else if (/^[0-9]{6}$/.test(key)) { key = alt; snap = s2; }
                 }
             } catch (e) { dbError = true; }
 
@@ -604,7 +606,9 @@
             }
             if (!fixedLocation) { speak('위치를 먼저 찍으세요'); toast('위치 바코드를 먼저 스캔하세요'); resumeScan(); return; }
             const key = resolveCode(raw); // [Ver 8.3] 바코드 → 상품코드 변환
-            if (!/^S\d{6}$/.test(key)) { showAlert('형식 오류\n(올바른 상품 바코드가 아닙니다)'); return; }
+            // 상품코드는 S550076 · 546881055 · P000DCUU000B 처럼 형태가 여러 가지다.
+            // 'S+6자리'만 허용하면 나머지 상품을 위치지정에서 아예 못 찍는다.
+            if (!/^[A-Z0-9]{5,}$/.test(key)) { showAlert('형식 오류\n(올바른 상품 바코드가 아닙니다)\n(' + key + ')'); return; }
             // [Ver 4.1→8.1] ScanDB 조회 (오프라인이면 생략 → 스캔은 허용)
             let name = '', exists = false, dbError = false;
             if (navigator.onLine) {
@@ -673,16 +677,16 @@
                     if (!snap.exists() && /^\d+$/.test(key)) {
                         const alt = 'S' + key;
                         const s2 = await getDoc(doc(db, 'ChinaStockGoods_ScanDB', alt));
-                        key = alt; snap = s2;
+                        if (s2.exists() || /^\d{6}$/.test(key)) { key = alt; snap = s2; }
                     }
                     if (snap.exists()) { exists = true; name = snap.data().name || ''; }
                 } catch (e) { dbError = true; }
-            } else if (/^\d+$/.test(key)) {
-                key = 'S' + key;   // 오프라인이면 확인할 수 없으므로 예전 규칙대로
+            } else if (/^\d{6}$/.test(key)) {
+                key = 'S' + key;   // 오프라인: 확인할 수 없으므로 'S+6자리' 모양일 때만 붙인다
             }
             // 형식 검사는 등록된 상품이 아닐 때만 — P코드 등 다른 형식도 있으므로
-            if (!exists && !dbError && !/^[A-Z]\d{6}$/.test(key) && !/^[A-Z][A-Z0-9]{5,}$/.test(key)) {
-                showAlert('형식 오류\n상품코드를 확인해 주세요 (예: S123456)'); return;
+            if (!exists && !dbError && !/^[A-Z0-9]{5,}$/.test(key)) {
+                showAlert('형식 오류\n상품코드를 확인해 주세요\n(예: S550076 · 546881055 · P000DCUU000B)'); return;
             }
             const addLoc = () => { // [Ver 8.56] 위치 큐 추가 (강제추가에서도 재사용)
                 locationQueue.unshift({ barcode: key, location: fixedLocation, name, sub: locSubMode, time: new Date().toTimeString().slice(0, 8) });
