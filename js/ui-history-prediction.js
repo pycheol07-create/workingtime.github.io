@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609082134';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609082134';
-import * as State from './state.js?v=202609082134';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609082134';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609082134';
+import { predictFutureTrends } from './analysis-logic.js?v=202609082342';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609082342';
+import * as State from './state.js?v=202609082342';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609082342';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609082342';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609082134';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609082342';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609082134';
-import { taskUph, recentDays } from './task-throughput.js?v=202609082134';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609082342';
+import { taskUph, recentDays } from './task-throughput.js?v=202609082342';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1330,6 +1330,52 @@ const computeAutoInputsForDate = (dateStr, excludeMinutes = 0) => {
     });
     const staffInfo = computeAvailableStaff(dateStr, cfg, State.persistentLeaveSchedule, data);
     return { tasks, timeTasks, staffFulltime: staffInfo.available, staffPart: 0, excludeMinutes, staffInfo };
+};
+
+/** 👥 앞으로 N근무일의 인원 수급 전망 — 인력 운영 탭이 쓴다.
+ *
+ *  인력 운영 탭은 지금까지 '지나간 기간의 평균'만 보여줘서, 정작 필요한
+ *  "앞으로 어느 날 사람이 모자라는가"를 알려주지 못했다. 예정 물량은 이미
+ *  저장되고 있으니(업무 예상의 작업량 저장·예정 물량 입력), 그대로 먹이면 된다.
+ *
+ *  계산은 업무 예상과 완전히 같은 경로를 쓴다 — 두 화면이 다른 답을 내지 않도록.
+ *  주말·공휴일은 건너뛴다.
+ */
+export const getStaffingOutlook = (workDays = 10) => {
+    // 대시보드처럼 '업무 예상' 탭을 거치지 않고 부르면 시간형 업무 목록이 비어 있다
+    if (SIM_TIME_TASKS.length === 0) { try { refreshTimeTasks(); } catch (e) {} }
+
+    const taskUPH = computeTaskUPHs(State.allHistoryData);
+    const cfg = State.appConfig;
+    const out = [];
+
+    let date = getTodayDateString();
+    if (isOffDay(date)) date = nextWorkingDay(date);
+
+    for (let i = 0; i < workDays && date; i++) {
+        let row;
+        try {
+            const inputs = computeAutoInputsForDate(date, 0);
+            const r = simulateOneDay(date, inputs, taskUPH, cfg);
+            const planned = getPlannedQuantitiesForDate(date) || {};
+            row = {
+                date,
+                requiredFTE: r.requiredFTE,
+                available: r.availableTotal,
+                gap: r.gap,
+                totalHours: r.totalHours,
+                onLeave: (inputs.staffInfo && inputs.staffInfo.onLeaveList) ? inputs.staffInfo.onLeaveList.length : 0,
+                // 수기로 저장해 둔 예정 물량이 있는 날인지 — 없으면 자동 추정값이라 신뢰도가 낮다
+                hasPlanned: Object.keys(planned).length > 0
+            };
+        } catch (e) {
+            console.warn('[staffing-outlook] 계산 실패:', date, e);
+            row = { date, requiredFTE: 0, available: 0, gap: 0, totalHours: 0, onLeave: 0, hasPlanned: false, failed: true };
+        }
+        out.push(row);
+        date = nextWorkingDay(date);
+    }
+    return out;
 };
 
 /** 📅 예정 물량 입력 화면 프리필용 — 해당 날짜의 자동 추정 물량(예정 수기값은 제외).

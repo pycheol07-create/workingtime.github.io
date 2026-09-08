@@ -1,6 +1,9 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202609082134';
-import { overallUph } from './task-throughput.js?v=202609082134';
+import * as State from './state.js?v=202609082342';
+import { overallUph } from './task-throughput.js?v=202609082342';
+import { getStaffingOutlook } from './ui-history-prediction.js?v=202609082342';
+import { fetchPlannedData } from './history-data-manager.js?v=202609082342';
+import { getTodayDateString } from './utils.js?v=202609082342';
 
 let staffingChartInstance = null;
 
@@ -22,6 +25,11 @@ const staffingBasketOf = (appConfig) => {
 };
 
 export function renderStaffingTab(filteredData, appConfig) {
+    // 앞날 전망은 선택 기간과 무관하다(예정 물량 기반) — 위쪽 분석이 비어도 그린다.
+    renderStaffingOutlook();
+    // 예정 물량이 아직 안 실렸으면 불러온 뒤 한 번 더 (대부분 캐시라 즉시)
+    fetchPlannedData().then(() => renderStaffingOutlook()).catch(() => {});
+
     if (!filteredData || filteredData.length === 0) return;
 
     const totalDays = filteredData.length;
@@ -160,6 +168,136 @@ export function renderStaffingTab(filteredData, appConfig) {
                     <div class="pt-1 text-yellow-100 font-bold">→ 추가 필요 알바: <strong>${additionalAlba.toFixed(1)}명</strong></div>
                 </div>
             `;
+        });
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// 📅 앞으로의 인원 수급 — 저장해 둔 예정 물량으로 '모자랄 날'을 미리 본다.
+//
+// 이 탭의 위쪽은 전부 '지나간 기간의 평균'이라, 정작 필요한
+// "다음 주 화요일에 사람이 모자란다"를 알려주지 못했다.
+// 예정 물량은 이미 저장되고 있으니(업무 예상의 작업량 저장 · 예정 물량 입력)
+// 업무 예상과 같은 계산으로 앞날을 돌려 보여 준다.
+// ═══════════════════════════════════════════════════════════
+
+const OUTLOOK_DAYS = 10;
+
+const fmtDay = (dateStr) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return dateStr;
+    const w = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
+    return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} (${w})`;
+};
+
+const outlookRow = (r, maxNeed, todayStr) => {
+    const short = r.gap < 0;
+    const barPct = maxNeed > 0 ? Math.min(100, Math.round(r.requiredFTE / maxNeed * 100)) : 0;
+    const availPct = maxNeed > 0 ? Math.min(100, Math.round(r.available / maxNeed * 100)) : 0;
+    const tone = short ? 'text-rose-600 dark:text-rose-400'
+        : (r.gap > 2 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400');
+    const gapText = r.gap === 0 ? '적정' : (r.gap > 0 ? `+${r.gap}명 여유` : `${Math.abs(r.gap)}명 부족`);
+
+    return `
+    <tr class="border-t border-gray-100 dark:border-gray-700/60 ${short ? 'bg-rose-50/50 dark:bg-rose-900/10' : ''}
+               hover:bg-gray-50 dark:hover:bg-gray-900/30 cursor-pointer staffing-outlook-row" data-date="${r.date}"
+        title="누르면 업무 예상에서 이 날짜를 자세히 볼 수 있습니다">
+        <td class="py-2 px-3 whitespace-nowrap font-medium text-gray-700 dark:text-gray-200">
+            ${fmtDay(r.date)}${r.date === todayStr ? '<span class="ml-1 text-[10px] font-bold text-indigo-500">오늘</span>' : ''}
+        </td>
+        <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400 whitespace-nowrap">
+            ${r.totalHours.toFixed(1)}<span class="text-[10px] ml-0.5">인시</span>
+        </td>
+        <td class="py-2 px-3">
+            <div class="relative h-4 rounded bg-gray-100 dark:bg-gray-700 overflow-hidden min-w-[90px]">
+                <div class="absolute inset-y-0 left-0 ${short ? 'bg-rose-400' : 'bg-indigo-400'} opacity-80" style="width:${barPct}%"></div>
+                <div class="absolute inset-y-0 border-r-2 border-gray-700 dark:border-gray-200" style="left:${availPct}%" title="가용 ${r.available}명"></div>
+            </div>
+        </td>
+        <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100 whitespace-nowrap">${r.requiredFTE}명</td>
+        <td class="py-2 px-3 text-right tabular-nums text-gray-600 dark:text-gray-300 whitespace-nowrap">
+            ${r.available}명${r.onLeave > 0 ? `<span class="text-[10px] text-gray-400 ml-1">(휴무 ${r.onLeave})</span>` : ''}
+        </td>
+        <td class="py-2 px-3 text-right whitespace-nowrap font-bold ${tone}">${gapText}</td>
+        <td class="py-2 px-2 text-center">
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${r.hasPlanned
+                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'}"
+                  title="${r.hasPlanned ? '저장해 둔 예정 물량으로 계산했습니다' : '예정 물량이 없어 실적 기반 자동 추정으로 계산했습니다'}">${r.hasPlanned ? '예정' : '추정'}</span>
+        </td>
+    </tr>`;
+};
+
+export function renderStaffingOutlook() {
+    const host = document.getElementById('staffing-outlook');
+    if (!host) return;
+
+    let rows = [];
+    try { rows = getStaffingOutlook(OUTLOOK_DAYS) || []; }
+    catch (e) { console.error('[staffing-outlook] 실패:', e); }
+
+    if (rows.length === 0) {
+        host.innerHTML = '';
+        return;
+    }
+
+    const todayStr = getTodayDateString();
+    const maxNeed = Math.max(...rows.map(r => Math.max(r.requiredFTE, r.available)), 1);
+    const shortDays = rows.filter(r => r.gap < 0);
+    const worst = shortDays.reduce((a, b) => (a && a.gap <= b.gap ? a : b), null);
+    const plannedCount = rows.filter(r => r.hasPlanned).length;
+
+    const headline = shortDays.length === 0
+        ? `<span class="text-emerald-600 dark:text-emerald-400 font-bold">${rows.length}근무일 모두 인원이 충분합니다.</span>`
+        : `<span class="text-rose-600 dark:text-rose-400 font-bold">${rows.length}근무일 중 ${shortDays.length}일 부족</span>`
+          + (worst ? ` <span class="text-gray-500 dark:text-gray-400">— 가장 모자란 날 ${fmtDay(worst.date)} <b>${Math.abs(worst.gap)}명</b></span>` : '');
+
+    host.innerHTML = `
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white">📅 앞으로 ${rows.length}근무일 인원 수급</h4>
+            <span class="text-[11px] text-gray-400 dark:text-gray-500">
+                저장해 둔 예정 물량 ${plannedCount}일 · 나머지는 실적 기반 추정 · 업무 예상과 같은 계산
+            </span>
+        </div>
+        <div class="px-5 py-3 text-xs md:text-sm border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/20">${headline}</div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="text-[11px] text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40">
+                    <tr>
+                        <th class="py-2.5 px-3 text-left font-bold">날짜</th>
+                        <th class="py-2.5 px-3 text-right font-bold" title="그날 모든 업무의 인시 합계">작업량</th>
+                        <th class="py-2.5 px-3 text-left font-bold w-[24%]">필요 대비 가용</th>
+                        <th class="py-2.5 px-3 text-right font-bold">필요</th>
+                        <th class="py-2.5 px-3 text-right font-bold">가용</th>
+                        <th class="py-2.5 px-3 text-right font-bold">과부족</th>
+                        <th class="py-2.5 px-2 text-center font-bold" title="예정 = 저장해 둔 물량 / 추정 = 실적 기반 자동값">근거</th>
+                    </tr>
+                </thead>
+                <tbody>${rows.map(r => outlookRow(r, maxNeed, todayStr)).join('')}</tbody>
+            </table>
+        </div>
+        <p class="px-5 py-3 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-gray-700">
+            · 막대는 <b>필요 인원</b>, 세로선은 <b>가용 인원</b>입니다. 막대가 선을 넘으면 그날 사람이 모자랍니다.<br>
+            · <b class="text-gray-500 dark:text-gray-300">추정</b>인 날은 예정 물량을 아직 넣지 않아 과거 실적으로 어림한 값입니다 —
+              물량을 알고 있다면 <b>업무 예상 › 계획</b>에서 넣어 두면 이 표가 정확해집니다.<br>
+            · 줄을 누르면 업무 예상에서 그 날짜를 자세히 볼 수 있습니다.
+        </p>
+    </div>`;
+
+    // 줄 클릭 → 업무 예상 탭에서 그 날짜 열기
+    if (!host.dataset.bound) {
+        host.dataset.bound = 'true';
+        host.addEventListener('click', (e) => {
+            const row = e.target.closest('.staffing-outlook-row');
+            if (!row || !row.dataset.date) return;
+            document.querySelector('[data-main-tab="forecast"]')?.click();
+            setTimeout(() => {
+                const el = document.getElementById('sim-target-date');
+                if (!el) return;
+                el.value = row.dataset.date;
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }, 500);
         });
     }
 }
