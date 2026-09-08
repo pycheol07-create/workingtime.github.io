@@ -1,8 +1,8 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202609081656';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202609081656';
-import { getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202609081656';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202609081656';
+import * as State from './state.js?v=202609081709';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202609081709';
+import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202609081709';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202609081709';
 
 let dashboardChartInstance = null;
 
@@ -33,8 +33,8 @@ const getBaselinePeriod = (granularity, selectedKey, allHistoryData) => {
         if (isNaN(target.getTime())) return none;
         const start = new Date(target); start.setDate(start.getDate() - 7);
         const end   = new Date(target); end.setDate(end.getDate() - 1);
-        const startStr = start.toISOString().slice(0,10);
-        const endStr   = end.toISOString().slice(0,10);
+        const startStr = toDateString(start);
+        const endStr   = toDateString(end);
         const data = allHistoryData.filter(d => d.id >= startStr && d.id <= endStr);
         if (data.some(d => (d.workRecords||[]).length > 0)) {
             return { data, type: 'rolling', description: `최근 7일 평균 (${startStr} ~ ${endStr})`, range: `${startStr} ~ ${endStr}` };
@@ -99,7 +99,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202609081656').then(mod => {
+        import('./ui-history-milestones.js?v=202609081709').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }

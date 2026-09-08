@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202609081656';
-import { LEAVE_TYPES } from './state.js?v=202609081656';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap } from './utils.js?v=202609081656';
+import * as State from './state.js?v=202609081709';
+import { LEAVE_TYPES } from './state.js?v=202609081709';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString } from './utils.js?v=202609081709';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202609081656';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202609081656';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202609081709';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202609081709';
 
 import {
     calculateReportKPIs,
@@ -19,10 +19,10 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202609081656';
+} from './ui-history-reports-logic.js?v=202609081709';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202609081656';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202609081656';
+import { aggregateManagementData } from './ui-history-management.js?v=202609081709';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202609081709';
 
 // ============================================================
 // 모듈 상태
@@ -1471,7 +1471,7 @@ function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, m
         worksheet['!cols'] = [{ wch: 16 }, { wch: 24 }, { wch: 16 }];
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, '팀 결산 보고');
-        XLSX.writeFile(workbook, `팀결산보고_${periodLabel.replace(/\s/g, '')}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        XLSX.writeFile(workbook, `팀결산보고_${periodLabel.replace(/\s/g, '')}_${getTodayDateString()}.xlsx`);
     } catch (e) {
         console.error('결산 보고서 엑셀 다운로드 실패:', e);
         alert('엑셀 다운로드 중 오류가 발생했습니다.');

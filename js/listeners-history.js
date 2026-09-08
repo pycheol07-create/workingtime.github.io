@@ -1,23 +1,23 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202609081656';
-import * as State from './state.js?v=202609081656';
-import { showToast, getTodayDateString } from './utils.js?v=202609081656';
+import * as DOM from './dom-elements.js?v=202609081709';
+import * as State from './state.js?v=202609081709';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202609081709';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202609081656';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202609081656';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202609081656';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202609081656';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202609081709';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202609081709';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202609081709';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202609081709';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202609081656';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202609081656';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202609081656';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202609081656';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202609081709';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202609081709';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202609081709';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202609081709';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202609081656';
-import { preloadWeekendPay } from './ui-history-personal.js?v=202609081656';
-import { saveView } from './view-state.js?v=202609081656';
-import { placeOpenDropdown } from './table-filter.js?v=202609081656';
+import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202609081709';
+import { preloadWeekendPay } from './ui-history-personal.js?v=202609081709';
+import { saveView } from './view-state.js?v=202609081709';
+import { placeOpenDropdown } from './table-filter.js?v=202609081709';
 
 let isHistoryMaximized = false;
 
@@ -115,12 +115,11 @@ export function setupHistoryModalListeners() {
 
     // 🛟 마감 누락 복구 도구 (콘솔에서 실행).
     // 어제(기본값) 또는 특정 날짜의 daily_data 원본을 history로 옮긴다.
-    // 로컬 시간대 기준 어제 (UTC toISOString은 오전에 하루 밀리므로 offset 보정)
+    // 로컬 시간대 기준 어제 (utils.toDateString 이 시차를 보정한다)
     const yesterdayStr = () => {
         const d = new Date();
         d.setDate(d.getDate() - 1);
-        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-        return local.toISOString().slice(0, 10);
+        return toDateString(d);
     };
     // 1) 미리보기: __peekDay() 또는 __peekDay('2026-07-27')
     window.__peekDay = async (dateKey = yesterdayStr()) => peekDailyData(dateKey);

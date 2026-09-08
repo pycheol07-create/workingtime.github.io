@@ -1,6 +1,6 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202609081656';
-import { getTodayDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609081656';
+import * as State from './state.js?v=202609081709';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609081709';
 import {
     doc, setDoc, getDoc, collection, getDocs, deleteDoc, deleteField,
     query, where, writeBatch, updateDoc, increment, documentId
@@ -42,8 +42,7 @@ export function getUpcomingPlannedDateStrings(n = 7) {
     const out = [];
     for (let i = 1; i <= n; i++) {
         const d = new Date(base); d.setDate(d.getDate() + i);
-        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-        out.push(local.toISOString().slice(0, 10));
+        out.push(toDateString(d));
     }
     return out;
 }
@@ -702,8 +701,7 @@ export async function selfHealRecentHistory({ days = 7 } = {}) {
         d.setDate(d.getDate() - i);
         const dow = d.getDay();
         if (dow === 0 || dow === 6) continue; // 주말 제외
-        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-        const key = local.toISOString().slice(0, 10);
+        const key = toDateString(d);
         if (key >= today || checkedSet.has(key)) continue;
         const h = State.allHistoryData.find(x => x.id === key);
         // 🩺 판정 기준은 오직 '업무기록(workRecords)이 비었는가'.
@@ -807,7 +805,7 @@ export async function fetchAllHistoryData(forceRefresh = false) {
             const d = new Date();
             // 이력 조회 범위: 최근 12개월. (세션 캐시 5분이 있어 같은 세션 내 재호출은 추가 read 없음)
             d.setMonth(d.getMonth() - 12);
-            const oneYearAgoStr = d.toISOString().split('T')[0];
+            const oneYearAgoStr = toDateString(d);
 
             const q = query(historyCollectionRef, where(documentId(), ">=", oneYearAgoStr));
             const querySnapshot = await getDocs(q);
@@ -831,6 +829,8 @@ export async function fetchAllHistoryData(forceRefresh = false) {
             const end = new Date(today);
 
             while (current <= end) {
+                // ⓘ current 는 new Date('YYYY-MM-DD') = UTC 자정이라 toISOString 과 짝이 맞는다.
+                //    (로컬 자정으로 만든 날짜였다면 하루 밀렸을 자리 — utils.toDateString 참고)
                 const dateStr = current.toISOString().slice(0, 10);
                 if (dataMap.has(dateStr)) {
                     fullHistory.push(dataMap.get(dateStr));
@@ -1117,7 +1117,7 @@ export async function checkUnverifiedRecords(forceRefresh = false) {
             const d = new Date();
             // 🚨 기존 14일 -> 7일로 축소하여 읽기 요금 반토막
             d.setDate(d.getDate() - 7); 
-            const sevenDaysAgoStr = d.toISOString().split('T')[0];
+            const sevenDaysAgoStr = toDateString(d);
 
             const q = query(historyCol, where(documentId(), ">=", sevenDaysAgoStr)); 
             const snapshot = await getDocs(q);

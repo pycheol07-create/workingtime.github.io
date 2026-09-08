@@ -1,5 +1,5 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js?v=202609081656';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js?v=202609081709';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -12,12 +12,12 @@ import {
     openDashboardItemModal,
     getAllDashboardDefinitions,
     renderDashboardMenu
-} from './admin-ui.js?v=202609081656';
+} from './admin-ui.js?v=202609081709';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202609081656';
+} from './admin-logic.js?v=202609081709';
 
 let db, auth;
 let appConfig = {}; 
@@ -458,7 +458,9 @@ function handleDynamicClicks(e) {
         const newMemberEl = document.createElement('div');
         newMemberEl.className = 'flex flex-col gap-3 mb-4 p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30 shadow-sm member-item transition-colors';
         
-        const today = new Date().toISOString().split('T')[0];
+        // 로컬 기준 오늘(UTC 로 바꾸면 한국시간 오전 9시 이전에 '어제'가 된다)
+        const _n = new Date();
+        const today = `${_n.getFullYear()}-${String(_n.getMonth() + 1).padStart(2, '0')}-${String(_n.getDate()).padStart(2, '0')}`;
 
         newMemberEl.innerHTML = `
             <div class="flex flex-wrap md:flex-nowrap justify-between items-start gap-4">

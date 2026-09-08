@@ -1,13 +1,24 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202609081656';
+import * as State from './state.js?v=202609081709';
 
 let staffingChartInstance = null;
 
 // 표준 처리량 바스켓: 출고성 + 채우기
 // (검수·교환반품·상.하차·재고/앵글/상품재작업·오류 등 비-출고 작업은 제외)
-const STAFFING_THROUGHPUT_TASKS = new Set([
-    '국내배송', '중국제작', '직진배송', '해외배송', '택배포장', '티니', '채우기'
-]);
+//
+// ⚠️ 이 목록이 코드에 박혀 있어서 '에이블리배송'이 빠진 채로 오래 돌았다.
+//    빠진 업무의 물량은 수요에서 통째로 사라져 필요 인원이 실제보다 적게 나온다.
+//    그래서 관리자 설정(appConfig.staffingBasketTasks)으로 덮어쓸 수 있게 열어 둔다.
+const DEFAULT_STAFFING_TASKS = [
+    '국내배송', '중국제작', '직진배송', '에이블리배송', '해외배송', '택배포장', '티니', '채우기'
+];
+
+/** 이 기간의 수요 바스켓. 설정에 목록이 있으면 그걸 쓰고, 없으면 기본값. */
+const staffingBasketOf = (appConfig) => {
+    const custom = appConfig && appConfig.staffingBasketTasks;
+    const list = (Array.isArray(custom) && custom.length > 0) ? custom : DEFAULT_STAFFING_TASKS;
+    return new Set(list.map(t => String(t).trim()).filter(Boolean));
+};
 
 export function renderStaffingTab(filteredData, appConfig) {
     if (!filteredData || filteredData.length === 0) return;
@@ -15,6 +26,7 @@ export function renderStaffingTab(filteredData, appConfig) {
     const totalDays = filteredData.length;
     const stdHours = (appConfig && appConfig.standardDailyWorkHours) || { weekday: 8, weekend: 4 };
     const utilization = (appConfig && typeof appConfig.utilizationRate === 'number') ? appConfig.utilizationRate : 0.8;
+    const basket = staffingBasketOf(appConfig);
 
     // ── 1단계: 기간 전체 종합 UPH 산출 (대시보드 종합 UPH와 동일한 정의) ──
     // 분모에는 전체 작업시간을 모두 포함해 검수·교환반품·재작업 등 지원 작업까지 반영합니다.
@@ -40,7 +52,7 @@ export function renderStaffingTab(filteredData, appConfig) {
         let dayBasketQty = 0;
         (day.workRecords || []).forEach(r => { dayWorkTime += (r.duration || 0); });
         Object.entries(day.taskQuantities || {}).forEach(([task, q]) => {
-            if (STAFFING_THROUGHPUT_TASKS.has(task)) dayBasketQty += (Number(q) || 0);
+            if (basket.has(task)) dayBasketQty += (Number(q) || 0);
         });
 
         totalWorkMinutes += dayWorkTime;
@@ -71,7 +83,10 @@ export function renderStaffingTab(filteredData, appConfig) {
 
     const commentEl = document.getElementById('staff-fte-comment');
     if (commentEl) {
-        const meta = `<span class="block mt-1 text-gray-400 dark:text-gray-500">기준 UPH ${overallUPH.toFixed(1)}개/시 (= 종합 UPH) · 가동률 ${Math.round(utilization * 100)}% · 수요 바스켓: 출고성+채우기</span>`;
+        // 실제로 물량이 잡힌 업무만 추려 보여 준다 — 빠진 업무가 있으면 여기서 바로 눈에 띈다
+        const counted = [...basket].filter(t => filteredData.some(d => (Number(d.taskQuantities?.[t]) || 0) > 0));
+        const basketLabel = counted.length > 0 ? counted.join(' · ') : '해당 물량 없음';
+        const meta = `<span class="block mt-1 text-gray-400 dark:text-gray-500">기준 UPH ${overallUPH.toFixed(1)}개/시 (= 종합 UPH) · 가동률 ${Math.round(utilization * 100)}% · 수요 바스켓: ${basketLabel}</span>`;
         if (overallUPH <= 0) {
             commentEl.innerHTML = `📉 선택 기간에 종합 UPH 산출용 데이터가 부족해 필요 인원을 계산할 수 없습니다.`;
         } else {

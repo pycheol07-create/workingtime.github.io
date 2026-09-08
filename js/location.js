@@ -1,6 +1,15 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202609081656';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202609081709';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+// 🗓️ Date → 'YYYY-MM-DD' (로컬 기준).
+//    toISOString().slice(0,10) 을 쓰면 UTC 로 바뀌어 한국시간 오전 9시 이전에는 '어제'가 된다.
+//    입고 목록 필터·정리 로그 날짜가 하루 밀리던 원인이라 이 헬퍼로 통일한다.
+const toDateStr = (date = new Date()) => {
+    const d = (date instanceof Date) ? date : new Date(date);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const { db, auth } = initializeFirebase();
 const LOC_COLLECTION = 'Locations';
@@ -172,7 +181,7 @@ function setupRealtimeListenerB() {
         incomingData = {};
         incomingTotalByCode = {}; // ★ 합계 초기화
         // ★ v3.53: 오늘 날짜 (YYYY-MM-DD)
-        const _today = new Date().toISOString().slice(0, 10);
+        const _today = toDateStr();
         snapshot.forEach(docSnap => { 
             let data = docSnap.data();
             if(data.dataStr) {
@@ -2193,7 +2202,7 @@ window.applyAllRecommendations = async function() {
             if (loc.code && loc.code !== loc.id) existingLocMap[loc.code] = true;
         });
         
-        const _today = new Date().toISOString().slice(0, 10);
+        const _today = toDateStr();
         
         let list = [];
         for (const code in incomingData) { list.push(incomingData[code]); }
@@ -2813,7 +2822,7 @@ window.calculateAndRenderUsage = function() {
                 const extraDays = Math.ceil(remainAfter / dailyAvg);
                 const estDate = new Date(d2);
                 estDate.setDate(estDate.getDate() + extraDays);
-                estimatedDate = estDate.toISOString().slice(0, 10);
+                estimatedDate = toDateStr(estDate);
             }
             
             if (estimatedDate && dailyAvg > 0) {
@@ -4171,7 +4180,7 @@ window.processOrderData = async function(rows) {
         } catch (e) {}
         const metaUpdate = {
             orderAnalysisMeta: {
-                lastUploadDate: latestDate || new Date().toISOString().slice(0, 10),
+                lastUploadDate: latestDate || toDateStr(),
                 lastUploadAt: Date.now(),
                 totalProcessedOrders: prevTotal + targetOrderNos.length,
                 totalPairs: Object.keys(existingPairs).length,
@@ -4780,7 +4789,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     totalStock: twoFloorStockSum,
                     codes: Array.from(twoFloorCodes), // 디버그/검증용
                     savedAt: new Date(),
-                    sourceDate: window._v44_getTodayDateString ? window._v44_getTodayDateString() : new Date().toISOString().slice(0, 10)
+                    sourceDate: toDateStr()
                 };
                 await setDoc(doc(db, 'artifacts', 'team-work-logger-v2', 'locationStock', 'twoFloorLatest'), twoFloorData);
                 console.log('[v4.4] 2F SKU 데이터 저장 완료: SKU', twoFloorCodes.size, '개 / 총 재고', twoFloorStockSum);
@@ -4885,7 +4894,7 @@ window.cleanupDeprecatedPairs = async function() {
         // 4. 30일 cutoff 날짜 계산
         const now = new Date();
         const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
-        const cutoffStr = cutoff.toISOString().slice(0, 10);
+        const cutoffStr = toDateStr(cutoff);
         
         // 5. 상품코드별로 그룹핑 (마지막배송일, 재고 합계 집계)
         const codeMap = {}; // { code: { lastDelivery, totalStock, locIds: [] } }
@@ -5086,10 +5095,10 @@ window.cleanupDeprecatedPairs = async function() {
         if (bc > 0) await batch.commit();
         
         // 11. DeprecatedLog 컬렉션에 상세 로그 저장 (날짜별 1문서)
-        const logDocId = new Date().toISOString().slice(0, 10) + '_' + Date.now();
+        const logDocId = toDateStr() + '_' + Date.now();
         await setDoc(doc(db, 'DeprecatedLog', logDocId), {
             cleanedAt: Date.now(),
-            cleanedAtDate: new Date().toISOString().slice(0, 10),
+            cleanedAtDate: toDateStr(),
             cutoffDate: cutoffStr,
             deprecatedCount: deprecatedSet.size,
             deletedPairCount,
@@ -5101,7 +5110,7 @@ window.cleanupDeprecatedPairs = async function() {
         await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), {
             orderAnalysisMeta: {
                 lastCleanupAt: Date.now(),
-                lastCleanupDate: new Date().toISOString().slice(0, 10),
+                lastCleanupDate: toDateStr(),
                 totalPairs: survivingPairs.length,
                 totalCodes: survivingStats.length
             }
@@ -5262,7 +5271,7 @@ window.renderIncomingQueue = function() {
     for(let code in incomingData) { list.push(incomingData[code]); }
 
     // ★ v3.53: 오늘 날짜 (YYYY-MM-DD)
-    const _today = new Date().toISOString().slice(0, 10);
+    const _today = toDateStr();
     list = list.filter(item => {
         if(filterSource !== 'all' && item.source !== filterSource) return false;
         if(existingLocMap[item['상품코드']]) return false; 
@@ -6901,12 +6910,7 @@ window.showPairRecommendation = function() {
 //   5. 종합 대시보드 탭: 사용률 팝업 내용 + SKU + 재고회전율 통합
 (function v44Module() {
     // ===== 유틸: 오늘 날짜 문자열 (메인 시스템과 동일 KST 보정 방식) =====
-    window._v44_getTodayDateString = function() {
-        const now = new Date();
-        const offset = now.getTimezoneOffset() * 60000;
-        const localDate = new Date(now - offset);
-        return localDate.toISOString().slice(0, 10);
-    };
+    window._v44_getTodayDateString = () => toDateStr();
     
     // ===== 현재 재고 집계 =====
     // 3층은 originalData에서 stock 합산, 2F는 캐시된 데이터에서 가져옴
@@ -8208,6 +8212,6 @@ window.__dashDownloadBucketExcel = function () {
     const scope = (zoneFilter || 'ALL') + '_' + (dongFilter || 'ALL');
     const sheetName = `${bucket}_${scope}`.slice(0, 31);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    const fname = `데드스톡_${bucket}_${scope}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const fname = `데드스톡_${bucket}_${scope}_${toDateStr()}.xlsx`;
     XLSX.writeFile(wb, fname);
 };

@@ -1,13 +1,13 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, buildMemberHourlyWageMap } from './utils.js?v=202609081656';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202609081656';
-import { appConfig } from './state.js?v=202609081656';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202609081709';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202609081709';
+import { appConfig } from './state.js?v=202609081709';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,
     revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
-} from './revenue-channels.js?v=202609081656';
+} from './revenue-channels.js?v=202609081709';
 // predictFutureTrends import 제거됨
 
 // 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장)
@@ -473,7 +473,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
         const earliest = filteredData[0].id;
         const s = new Date(earliest + 'T00:00:00'); s.setDate(s.getDate() - 7);
         const e = new Date(earliest + 'T00:00:00'); e.setDate(e.getDate() - 1);
-        const lo = s.toISOString().slice(0, 10), hi = e.toISOString().slice(0, 10);
+        const lo = toDateString(s), hi = toDateString(e);
         const pd = allHistoryData.filter(d => d.id >= lo && d.id <= hi);
         if (pd.length > 0) { prevFxStats = aggregateManagementData(pd); fxCompareLabel = 'vs 직전주'; }
     }

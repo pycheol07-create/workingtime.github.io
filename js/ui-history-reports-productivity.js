@@ -1,7 +1,7 @@
 // === js/ui-history-reports-productivity.js ===
-import { isWeekday, getTodayDateString, buildMemberHourlyWageMap } from './utils.js?v=202609081656';
-import { getAsArray } from './ui-history-reports-utils.js?v=202609081656';
-import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202609081656';
+import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202609081709';
+import { getAsArray } from './ui-history-reports-utils.js?v=202609081709';
+import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202609081709';
 
 export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
     if (!allHistoryData || allHistoryData.length === 0) return null;
@@ -323,11 +323,11 @@ export const calculateSimulationThroughputs = (allHistoryData) => {
     
     const yesterdayDate = new Date(todayDate);
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const yesterdayKey = yesterdayDate.toISOString().slice(0, 10);
+    const yesterdayKey = toDateString(yesterdayDate);
     
     const twoMonthsAgoDate = new Date(yesterdayDate);
     twoMonthsAgoDate.setMonth(twoMonthsAgoDate.getMonth() - 2);
-    const twoMonthsAgoKey = twoMonthsAgoDate.toISOString().slice(0, 10);
+    const twoMonthsAgoKey = toDateString(twoMonthsAgoDate);
 
     const pastTwoMonthsData = allHistoryData.filter(d => d.id >= twoMonthsAgoKey && d.id <= yesterdayKey);
 

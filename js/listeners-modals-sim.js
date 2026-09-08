@@ -1,10 +1,10 @@
 // === js/listeners-modals-sim.js ===
-import * as DOM from './dom-elements.js?v=202609081656';
-import { appState, appConfig, allHistoryData } from './state.js?v=202609081656';
-import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime } from './utils.js?v=202609081656';
-import { runAdvancedSimulation } from './analysis-logic.js?v=202609081656'; 
-import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js?v=202609081656';
-import { fetchAllHistoryData } from './history-data-manager.js?v=202609081656';
+import * as DOM from './dom-elements.js?v=202609081709';
+import { appState, appConfig, allHistoryData } from './state.js?v=202609081709';
+import { showToast, formatDuration, calcElapsedMinutes, getCurrentTime, toDateString } from './utils.js?v=202609081709';
+import { runAdvancedSimulation } from './analysis-logic.js?v=202609081709'; 
+import { calculateAverageStaffing, calculateStandardThroughputs } from './ui-history-reports-logic.js?v=202609081709';
+import { fetchAllHistoryData } from './history-data-manager.js?v=202609081709';
 
 const CUSTOM_TASK_ORDER = ['채우기', '국내배송', '교환반품', '해외배송', '상.하차', '중국제작', '직진배송', '티니'];
 const DEFAULT_CONCURRENT_TASKS = ['해외배송', '상.하차'];
@@ -22,7 +22,7 @@ const getRecentHistoryData = (months = 2) => {
     if (!allHistoryData || allHistoryData.length === 0) return [];
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - months);
-    const cutoffStr = cutoffDate.toISOString().slice(0, 10);
+    const cutoffStr = toDateString(cutoffDate);
     return allHistoryData.filter(d => d.id >= cutoffStr);
 };
 

@@ -73,6 +73,8 @@ export function augmentHistoryWithPersistentLeave(historyData, leaveSchedule) {
             const dayOfWeek = d.getUTCDay();
             if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
+            // ⓘ d 는 Date.UTC 로 만들어 setUTCDate 로 넘기므로 toISOString 과 짝이 맞는다.
+            //    (로컬 기준 날짜였다면 하루 밀렸을 자리 — utils.toDateString 참고)
             const dateKey = d.toISOString().slice(0, 10);
             const dayData = historyData.find(day => day.id === dateKey);
             const existingEntries = existingEntriesMap.get(dateKey);

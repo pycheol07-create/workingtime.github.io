@@ -1,9 +1,9 @@
 // === js/ui-history-personal.js ===
 // 설명: '개인 리포트' 탭의 데이터 집계 및 렌더링 로직을 담당합니다.
 
-import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday } from './utils.js?v=202609081656';
-import { appConfig, context, LEAVE_TYPES, db, leaveTypeLabel } from './state.js?v=202609081656';
-import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202609081656';
+import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202609081709';
+import { appConfig, context, LEAVE_TYPES, db, leaveTypeLabel } from './state.js?v=202609081709';
+import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202609081709';
 import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 급여 차감 기준 근무시간 (가정값 — 회사 규정에 맞게 조정 가능)
@@ -191,7 +191,7 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
                     let d = new Date(leave.startDate + 'T00:00:00');
                     const end = new Date((leave.endDate || leave.startDate) + 'T00:00:00');
                     while (d <= end) {
-                        const ds = d.toISOString().slice(0, 10);
+                        const ds = toDateString(d);
                         if (isWeekday(ds)) absentDates.add(ds);
                         d.setDate(d.getDate() + 1);
                     }

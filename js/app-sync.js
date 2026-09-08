@@ -1,15 +1,15 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202609081656';
-import { isPersistentLeaveType } from './state.js?v=202609081656';
-import * as DOM from './dom-elements.js?v=202609081656';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202609081656';
+import * as State from './state.js?v=202609081709';
+import { isPersistentLeaveType } from './state.js?v=202609081709';
+import * as DOM from './dom-elements.js?v=202609081709';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202609081709';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202609081656';
-import { renderTodoList } from './inspection-logic.js?v=202609081656';
-import { renderNotificationList } from './app-notifications.js?v=202609081656';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202609081709';
+import { renderTodoList } from './inspection-logic.js?v=202609081709';
+import { renderNotificationList } from './app-notifications.js?v=202609081709';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609081709';
 
-let unsubLeave = null;
 let unsubConfig = null;
 let unsubToday = null;
 let unsubWorkRecords = null;
@@ -18,6 +18,22 @@ export let unsubscribeNotifications = null;
 // ✨ 핵심 방어막: 초기화 잠금 변수
 let isListenersInitialized = false;
 
+/** 오늘 날짜에 걸리는 '기간형 근태'만 추려 둔다(대시보드 인원 계산이 이 값을 쓴다). */
+function recomputeDateBasedLeaves() {
+    const today = getTodayDateString();
+    const leaves = (State.persistentLeaveSchedule && State.persistentLeaveSchedule.onLeaveMembers) || [];
+    State.appState.dateBasedOnLeaveMembers = leaves.filter(entry => {
+        if (!isPersistentLeaveType(entry.type)) return false;
+        const endDate = entry.endDate || entry.startDate;
+        return entry.startDate && typeof entry.startDate === 'string' &&
+               today >= entry.startDate && today <= (endDate || entry.startDate);
+    });
+}
+
+let leaveRenderCallback = null;
+
+// markDirtyCallback 은 더 이상 쓰지 않는다(위 근태 구독 주석 참고).
+// app.js 의 호출부를 그대로 두려고 인자는 남겨 둔다.
 export function setupFirebaseListeners(renderCallback, markDirtyCallback, force = false) {
     // 🚨 라우터 이동이나 토큰 갱신 시 리스너가 중복 재실행되어 데이터를 다시 통째로 다운받는 현상 차단
     if (isListenersInitialized && !force) {
@@ -26,29 +42,24 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
     }
     isListenersInitialized = true;
 
-    if (unsubLeave) { unsubLeave(); unsubLeave = null; }
     if (unsubConfig) { unsubConfig(); unsubConfig = null; }
     if (unsubToday) { unsubToday(); unsubToday = null; }
     if (unsubWorkRecords) { unsubWorkRecords(); unsubWorkRecords = null; }
     if (unsubscribeNotifications) { unsubscribeNotifications(); unsubscribeNotifications = null; }
 
-    const leaveScheduleDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
-    unsubLeave = onSnapshot(leaveScheduleDocRef, (docSnap) => {
-        State.setPersistentLeaveSchedule(docSnap.exists() ? docSnap.data() : { onLeaveMembers: [] });
-        const today = getTodayDateString();
-        const leaves = State.persistentLeaveSchedule.onLeaveMembers || [];
-        
-        State.appState.dateBasedOnLeaveMembers = leaves.filter(entry => {
-            if (isPersistentLeaveType(entry.type)) {
-                const endDate = entry.endDate || entry.startDate;
-                return entry.startDate && typeof entry.startDate === 'string' &&
-                    today >= entry.startDate && today <= (endDate || entry.startDate);
-            }
-            return false;
-        });
-        markDirtyCallback();
-        renderCallback();
+    // 🔗 근태 일정은 leave-schedule-sync.js 가 구독한다(구독처는 한 곳이어야 한다).
+    //    여기서는 그 알림을 받아 '오늘 해당되는 근태'만 다시 계산하고 화면을 새로 그린다.
+    //
+    //    ⚠️ 예전에는 이 자리에서 같은 문서를 또 구독하면서 markDirtyCallback() 까지 불렀다.
+    //       구독은 붙는 즉시 첫 스냅샷을 쏘므로, 탭을 열기만 해도 dirty 가 서고
+    //       1분 뒤 자동저장이 daily_data 문서를 통째로 썼다(열린 탭 수만큼 반복).
+    //       dirty 는 '사람이 고쳤을 때'만 서야 하므로 여기서는 세우지 않는다.
+    leaveRenderCallback = renderCallback;
+    onLeaveScheduleChanged('app-sync', () => {
+        recomputeDateBasedLeaves();
+        if (leaveRenderCallback) leaveRenderCallback();
     });
+    recomputeDateBasedLeaves();   // 알림이 오기 전에도 한 번은 맞춰 둔다
 
     const configDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
     unsubConfig = onSnapshot(configDocRef, (docSnap) => {

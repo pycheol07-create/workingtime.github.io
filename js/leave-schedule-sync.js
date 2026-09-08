@@ -16,7 +16,7 @@
 //  2) subscribeLeaveSchedule()     — Firestore 문서를 실시간 구독해, 다른 사람·다른 탭에서
 //                                    바뀐 근태도 메모리에 반영하고 같은 알림을 쏜다.
 
-import * as State from './state.js?v=202609081656';
+import * as State from './state.js?v=202609081709';
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 export const LEAVE_CHANGED_EVENT = 'leave-schedule-changed';
@@ -45,18 +45,21 @@ let lastJson = null;
 export function subscribeLeaveSchedule() {
     if (unsubscribe || !State.db) return;
 
+    // ⚠️ 이 문서의 구독은 여기 한 곳뿐이어야 한다.
+    //    예전에는 app-sync.js 도 같은 문서를 따로 구독해, 근태가 한 번 바뀔 때마다
+    //    탭마다 읽기가 2회씩 발생했다. 파생값 계산은 아래 알림을 받아서 한다.
     const ref = doc(State.db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'leaveSchedule');
     unsubscribe = onSnapshot(ref, (snap) => {
-        const list = (snap.exists() && Array.isArray(snap.data().onLeaveMembers))
-            ? snap.data().onLeaveMembers : [];
+        const data = snap.exists() ? snap.data() : { onLeaveMembers: [] };
+        const list = Array.isArray(data.onLeaveMembers) ? data.onLeaveMembers : [];
 
         // 내용이 실제로 바뀐 경우에만 알린다(불필요한 재렌더 방지).
         const json = JSON.stringify(list);
         if (json === lastJson) return;
         lastJson = json;
 
-        if (!State.persistentLeaveSchedule) State.setPersistentLeaveSchedule({ onLeaveMembers: [] });
-        State.persistentLeaveSchedule.onLeaveMembers = list;
+        // 문서 전체를 싣는다 — onLeaveMembers 말고 다른 필드가 생겨도 잃지 않도록.
+        State.setPersistentLeaveSchedule({ ...data, onLeaveMembers: list });
         notifyLeaveScheduleChanged('firestore');
     }, (err) => {
         console.warn('[leave-sync] 근태 일정 구독 실패:', err);

@@ -195,12 +195,19 @@ export const isWeekday = (dateString) => {
     return day >= 1 && day <= 5; // 월(1) ~ 금(5)
 };
 
-export const getTodayDateString = () => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    const localDate = new Date(now - offset);
-    return localDate.toISOString().slice(0, 10);
+/** Date → 'YYYY-MM-DD' (로컬 기준).
+ *
+ *  ⚠️ toISOString().slice(0,10) 을 그냥 쓰면 안 된다 — UTC 로 바뀌면서 한국시간(UTC+9)에서는
+ *     ① 오전 9시 이전의 new Date() 가 '어제'가 되고,
+ *     ② new Date('2026-09-08T00:00:00') 처럼 로컬 자정으로 만든 날짜도 통째로 하루 밀린다.
+ *     날짜 문자열이 필요하면 언제나 이 함수를 쓸 것. */
+export const toDateString = (date = new Date()) => {
+    const d = (date instanceof Date) ? date : new Date(date);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
+
+export const getTodayDateString = () => toDateString(new Date());
 
 export const getWeekOfYear = (date) => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
