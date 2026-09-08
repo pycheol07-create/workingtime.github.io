@@ -3,13 +3,13 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609080950';
-import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609080950';
-import * as State from './state.js?v=202609080950';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609080950';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609080950';
+import { predictFutureTrends } from './analysis-logic.js?v=202609081344';
+import { REVENUE_CHANNELS, channelScope } from './revenue-channels.js?v=202609081344';
+import * as State from './state.js?v=202609081344';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName } from './utils.js?v=202609081344';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609081344';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
-         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609080950';
+         fetchPlannedData, savePlannedQuantities } from './history-data-manager.js?v=202609081344';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -444,8 +444,9 @@ const cadenceValueFor = (historyData, taskKey, dateStr, skip = []) => {
         // 전체적으로 자주 하는 업무인데 이 요일만 유독 안 한다면 0 으로 둔다.
         // 원래 드문 업무까지 0 으로 만들면 어느 날에도 잡히지 않아 아예 사라진다.
         if (pw <= 0.2 && c.overallP >= 0.3) {
-            return { value: 0, source: 'cadence-weekday',
-                     detail: `${WD_NAME[wd]}요일엔 ${w.hit}/${w.total}회만 진행` };
+            return { value: 0, source: 'cadence-weekday', dayValue: c.avgQty,
+                     detail: `${WD_NAME[wd]}요일엔 ${w.hit}/${w.total}회만 진행`
+                           + ` · 하는 날은 평균 ${c.avgQty.toLocaleString()}개` };
         }
     }
 
@@ -459,16 +460,24 @@ const cadenceValueFor = (historyData, taskKey, dateStr, skip = []) => {
         if (elapsed != null && elapsed > 0 && elapsed <= c.medianGap * 3) {
             const due = (elapsed % c.medianGap) === 0;
             return { value: due ? c.avgQty : 0, source: 'cadence-interval',
+                     dayValue: due ? null : c.avgQty,
                      detail: `평균 ${c.medianGap}근무일에 한 번 · 마지막 진행 ${c.lastDate}`
-                           + ` (그 뒤 ${elapsed}근무일째)` };
+                           + ` (그 뒤 ${elapsed}근무일째)`
+                           + (due ? '' : ` · 하는 날은 평균 ${c.avgQty.toLocaleString()}개`) };
         }
     }
 
     // ④ 그 외 — 발생 빈도만큼 나눠 담는다(기간 총량이 맞도록)
     // 요일 판정을 끈 업무는 요일별 확률도 쓰지 않는다(전체 빈도로만 본다)
     const p = (!skip.includes('weekday') && w && w.total >= 3) ? (w.hit / w.total) : c.overallP;
-    return { value: Math.round(c.avgQty * p), source: 'cadence-rate',
-             detail: `근무일 ${c.sampleDays}일 중 ${c.hits}일 진행 (${Math.round(p * 100)}%)` };
+    // ⚠️ 이 값은 '기간 총량'이 맞도록 펴 바른 값이라, 하루치로는 실제와 어긋난다.
+    //    (주 1회 3,000개 업무라면 매일 600개로 잡힌다 — 주 합계는 맞지만 그날 인원은 5분의 1)
+    //    그래서 '하는 날 기준값'을 같이 넘겨, 진행하는 날임을 아는 사람이 눌러 넣을 수 있게 한다.
+    return { value: Math.round(c.avgQty * p), source: 'cadence-rate', dayValue: c.avgQty,
+             detail: `근무일 ${c.sampleDays}일 중 ${c.hits}일 진행 (${Math.round(p * 100)}%)`
+                   + ` · 하는 날은 평균 ${c.avgQty.toLocaleString()}개`
+                   + `\n\n지금 값은 기간 총량이 맞도록 빈도만큼 나눠 담은 값입니다.`
+                   + ` 오늘 이 업무를 한다면 옆의 [하는 날] 값을 눌러 넣으세요.` };
 };
 
 /** 미래 날짜의 국내배송 AI 예측값. 과거이면 실측치 사용. */
@@ -603,17 +612,49 @@ const SOURCE_BADGE = {
     incoming: { text: '입고일정',    muted: true, tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
     last7:    { text: '지난 7회 평균', muted: true, tip: '이 업무가 발생한 최근 7일의 업무량 평균' },
     'cadence-weekday':  { text: '요일 패턴', muted: true,
-                tip: '이 업무를 주로 하는 요일인지 보고 넣습니다. 잘 안 하는 요일은 0으로 둡니다.' },
+                tip: '이 업무를 주로 하는 요일인지 보고 넣습니다. 잘 안 하는 요일은 0으로 둡니다.'
+                   + ' 그 날 실제로 진행한다면 옆의 [하는 날] 값을 눌러 넣으세요.' },
     'cadence-interval': { text: '주기 반영', muted: true,
-                tip: '며칠에 한 번씩 하는지를 보고, 마지막 진행일 기준으로 이번 차례인 날에만 넣습니다.' },
+                tip: '며칠에 한 번씩 하는지를 보고, 마지막 진행일 기준으로 이번 차례인 날에만 넣습니다.'
+                   + ' 차례가 앞당겨졌다면 옆의 [하는 날] 값을 눌러 넣으세요.' },
     'cadence-rate':     { text: '빈도 반영', muted: true,
-                tip: '매일 하는 업무가 아니라, 진행 빈도만큼 나눠 담습니다. 기간 전체 총량이 맞도록 한 값입니다.' },
+                tip: '매일 하는 업무가 아니라, 진행 빈도만큼 나눠 담습니다.'
+                   + ' 기간 전체 총량은 맞지만, 하루치로는 실제와 어긋납니다'
+                   + '(주 1회 3,000개 업무라면 매일 600개로 잡힙니다).'
+                   + ' 그 날 진행하는 것을 알고 있다면 옆의 [하는 날] 값을 눌러 넣으세요.' },
     'china-linked': { text: '중국제작 연동', muted: true,
                 tip: '중국제작 입고가 있는 날만 자동 입력됩니다. (그 날 입고량 × 최근 4주 검수비율)' }
 };
 
+/** '하는 날 기준값' 버튼 — 빈도로 나눠 담은 값 옆에 실제 진행일 기준 물량을 띄운다.
+ *  자동값은 기간 총량이 맞는 값이라 하루치로는 작게 나온다. 그 날 이 업무를 한다는 걸
+ *  아는 사람이 눌러서 제 값으로 바꿔 넣을 수 있게 한다. (누를 값이 없으면 자리만 비워 둔다) */
+const paintDayApply = (task, dayValue) => {
+    const b = document.getElementById(`sim-day-${task.id}`);
+    if (!b) return;
+    const v = Number(dayValue);
+    const cur = Number(document.getElementById(`sim-qty-${task.id}`)?.value) || 0;
+    // 이미 그 값이 들어 있으면 누를 이유가 없다
+    if (!v || v <= 0 || v === cur) {
+        b.className = 'pred-day-apply w-[58px] shrink-0 text-center text-[11px] leading-tight tabular-nums invisible';
+        b.textContent = '';
+        b.dataset.value = '';
+        return;
+    }
+    b.className = `pred-day-apply w-[58px] shrink-0 text-center text-[11px] leading-tight tabular-nums
+                   rounded border border-dashed border-indigo-300 dark:border-indigo-700 px-1 py-0.5
+                   font-bold text-indigo-500 dark:text-indigo-300
+                   hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition`;
+    b.textContent = v.toLocaleString();
+    b.dataset.value = String(v);
+    b.title = `하는 날 기준 ${v.toLocaleString()}개\n\n`
+            + '지금 칸에 든 값은 진행 빈도만큼 나눠 담은 값이라 하루치로는 작습니다.\n'
+            + '이 날 실제로 이 업무를 한다면 눌러서 제 값으로 바꿔 넣으세요.';
+};
+
 /** 값의 출처를 항목 아래에 표시 */
-const markSourceBadge = (task, source, detail = '') => {
+const markSourceBadge = (task, source, detail = '', dayValue = null) => {
+    paintDayApply(task, dayValue);
     const el = document.getElementById(`sim-src-${task.id}`);
     if (!el) return;
     const b = SOURCE_BADGE[source] || SOURCE_BADGE.last7;
@@ -656,6 +697,8 @@ const renderSimTaskInputs = () => {
             <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric" class="${NUM}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">개</span>
             <span id="sim-src-${t.id}" class="w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
+            <button type="button" id="sim-day-${t.id}" data-task-id="${t.id}" tabindex="-1"
+                    class="pred-day-apply w-[58px] shrink-0 text-center text-[11px] leading-tight tabular-nums invisible"></button>
         </div>`;
 
     const timeRow = (t) => `
@@ -742,9 +785,9 @@ const autoFillSimInputs = (dateStr) => {
 
     // 모든 업무가 기본 등록 — 예정 물량이 있으면 그 값, 없으면 업무별 자동값
     SIM_TASKS.forEach(t => {
-        const { value, source, detail } = autoValueFor(dateStr, t, data);
+        const { value, source, detail, dayValue } = autoValueFor(dateStr, t, data);
         setQty(t.id, value);
-        markSourceBadge(t, source, detail);
+        markSourceBadge(t, source, detail, dayValue);
     });
 
     // 시간으로 잡는 업무(개인담당업무 등) — 저장값 › 실적 평균
@@ -1558,6 +1601,21 @@ const setupSimulationListeners = () => {
         paintExcludeHint();
     });
     paintExcludeHint();
+
+    // '하는 날 N' 을 누르면 그 값을 작업량 칸에 넣는다.
+    // input 이벤트를 직접 일으켜, 상단 요약·연동 업무도 함께 다시 계산되게 한다.
+    document.getElementById('sim-task-list')?.addEventListener('click', (e) => {
+        const btn = e.target?.closest?.('.pred-day-apply');
+        if (!btn || !btn.dataset.value) return;
+        const id = btn.dataset.taskId;
+        const el = document.getElementById(`sim-qty-${id}`);
+        if (!el) return;
+        el.value = btn.dataset.value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        const t = SIM_TASKS.find(x => x.id === id);
+        if (t) paintDayApply(t, Number(btn.dataset.value));   // 같은 값이 되었으니 버튼은 사라진다
+        el.focus();
+    });
 
     // 중국제작 수량을 직접 고치면 샘플검수도 그 비율로 다시 계산한다.
     // 단, 예정 물량에 샘플검수를 수기로 넣어둔 날은 그 값을 덮지 않는다.
