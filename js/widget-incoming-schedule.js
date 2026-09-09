@@ -1,5 +1,5 @@
 // === js/widget-incoming-schedule.js ===
-import { escapeHtml } from './utils.js?v=202609082352';
+import { escapeHtml } from './utils.js?v=202609100846';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
 // Apps Script Web App에서 JSON을 받아 도착일이 당일 이후인 행을 표시.
 
@@ -28,38 +28,57 @@ const HEADER_RULES = {
                test: (h) => /패킹|포장/.test(h) }
 };
 
+// 머리글을 찾기 위해 위에서 몇 줄까지 훑을지.
+// 시트 상단에 요약 블록(총 미결제 잔액·오늘 입고 패킹 등)이 붙으면서 머리글이 11행까지
+// 밀린 적이 있어 넉넉히 잡는다. 요약 블록이 더 늘어도 견디도록.
+const HEADER_SCAN_ROWS = 20;
+// 머리글로 인정할 최소 매칭 항목 수. 1개는 우연히 걸린 것으로 보고 고정 위치 폴백을 쓴다.
+const HEADER_MIN_SCORE = 2;
+// 이 개수 이상 이름으로 찾았을 때만 캐시에 저장한다.
+// 캐시는 캘린더·업무 예상·인력 수급이 함께 읽으므로, 열을 잘못 잡은 값이 새어나가면 안 된다.
+const CACHE_MIN_MATCHED = 3;
+
 /** 헤더 줄을 찾아 각 항목의 열 번호를 정한다.
- *  - 위에서 5줄까지 훑어 '가장 많이 맞아떨어지는 줄'을 헤더로 본다(제목 줄이 위에 있어도 안전).
+ *  - 위에서 HEADER_SCAN_ROWS 줄까지 훑어 '가장 많이 맞아떨어지는 줄'을 헤더로 본다(제목 줄이 위에 있어도 안전).
  *  - 못 찾은 항목은 예전 고정 위치를 그대로 쓴다.
  *  반환 { cols, startRow, missing, headerRow }
  */
 function resolveColumns(rows) {
     let best = { score: -1, idx: 0, cols: {} };
-    const scan = Math.min(5, rows.length);
+    const scan = Math.min(HEADER_SCAN_ROWS, rows.length);
     for (let r = 0; r < scan; r++) {
         const row = Array.isArray(rows[r]) ? rows[r] : [];
         const cols = {};
+        const used = new Set();   // 한 셀이 두 규칙에 걸려 같은 열을 두 항목이 쓰는 걸 막는다
         let score = 0;
         Object.entries(HEADER_RULES).forEach(([key, rule]) => {
-            const i = row.findIndex(cell => {
+            const i = row.findIndex((cell, idx) => {
+                if (used.has(idx)) return false;
                 const h = normHeader(cell);
                 return h.length > 0 && rule.test(h);
             });
-            if (i > -1) { cols[key] = i; score++; }
+            if (i > -1) { cols[key] = i; used.add(i); score++; }
         });
         if (score > best.score) best = { score, idx: r, cols };
+        // 확실한 머리글(2항목 이상)을 만나면 멈춘다. 그 아래는 데이터 행이고,
+        // 비고·상태 칸에 '도착지연' '박스 재포장' 같은 값이 들어가면 머리글로 오인될 수 있다.
+        if (best.score >= HEADER_MIN_SCORE) break;
     }
+
+    // 1항목만 우연히 걸린 줄은 머리글로 인정하지 않는다.
+    // (요약 블록의 '오늘 입고 패킹' 같은 셀이 패킹일 헤더로 잡히던 사고가 있었다)
+    const accepted = best.score >= HEADER_MIN_SCORE;
 
     const cols = {};
     const missing = [];
     Object.entries(HEADER_RULES).forEach(([key, rule]) => {
-        if (best.cols[key] != null) cols[key] = best.cols[key];
+        if (accepted && best.cols[key] != null) cols[key] = best.cols[key];
         else { cols[key] = rule.fallback; missing.push(rule.label); }
     });
 
-    // 헤더를 하나도 못 찾으면 예전처럼 '첫 줄은 헤더'로 보고 고정 위치를 쓴다
-    const headerRow = best.score > 0 ? best.idx : 0;
-    return { cols, startRow: headerRow + 1, missing, headerRow, matched: Math.max(0, best.score) };
+    // 헤더를 못 찾으면 예전처럼 '첫 줄은 헤더'로 보고 고정 위치를 쓴다
+    const headerRow = accepted ? best.idx : 0;
+    return { cols, startRow: headerRow + 1, missing, headerRow, matched: accepted ? best.score : 0 };
 }
 
 const REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2시간
@@ -163,7 +182,7 @@ async function fetchIncomingSchedule() {
         const today = new Date(); today.setHours(0, 0, 0, 0);
 
         // 헤더 이름으로 열 위치를 잡는다(못 찾은 항목만 고정 위치 폴백)
-        const { cols, startRow, missing, headerRow } = resolveColumns(rows || []);
+        const { cols, startRow, missing, headerRow, matched } = resolveColumns(rows || []);
         if (missing.length > 0) {
             console.warn(`[widget-incoming] 헤더를 못 찾은 항목: ${missing.join(', ')} → 기존 열 위치로 읽습니다.`,
                          { headerRow, cols });
@@ -195,10 +214,15 @@ async function fetchIncomingSchedule() {
         // 도착일 가까운 순 정렬
         items.sort((a, b) => a.arrivalDate - b.arrivalDate);
 
-        // 캐시 저장 (오프라인 fallback)
-        try {
-            localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), items: items.map(it => ({ ...it, arrivalDate: it.arrivalDate.toISOString() })) }));
-        } catch (_) {}
+        // 캐시 저장 (오프라인 fallback). 열을 이름으로 제대로 잡았을 때만 저장한다 —
+        // 이 캐시는 캘린더·업무 예상·인력 수급도 함께 읽으므로 잘못 읽은 값을 남기면 안 된다.
+        if (matched >= CACHE_MIN_MATCHED) {
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), items: items.map(it => ({ ...it, arrivalDate: it.arrivalDate.toISOString() })) }));
+            } catch (_) {}
+        } else {
+            console.warn('[widget-incoming] 열을 이름으로 충분히 찾지 못해 캐시를 갱신하지 않습니다.', { matched, cols });
+        }
 
         renderItems(items);
         // 🗓️ 업무 캘린더가 입고 표시를 다시 그릴 수 있도록 알림
