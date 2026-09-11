@@ -1,23 +1,23 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202609111706';
-import * as State from './state.js?v=202609111706';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202609111706';
+import * as DOM from './dom-elements.js?v=202609112339';
+import * as State from './state.js?v=202609112339';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202609112339';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202609111706';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202609111706';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202609111706';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202609111706';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202609112339';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202609112339';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202609112339';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202609112339';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202609111706';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202609111706';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202609111706';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202609111706';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202609112339';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202609112339';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202609112339';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202609112339';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202609111706';
-import { preloadWeekendPay } from './ui-history-personal.js?v=202609111706';
-import { saveView } from './view-state.js?v=202609111706';
-import { placeOpenDropdown } from './table-filter.js?v=202609111706';
+import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202609112339';
+import { preloadWeekendPay } from './ui-history-personal.js?v=202609112339';
+import { saveView } from './view-state.js?v=202609112339';
+import { placeOpenDropdown } from './table-filter.js?v=202609112339';
 
 let isHistoryMaximized = false;
 
@@ -320,6 +320,7 @@ export function setupHistoryModalListeners() {
             try {
                 // ① 서버의 현재 값 (내 캐시가 오래됐을 수 있으므로 여기서 다시 읽는다)
                 let serverMgmt = {};
+                let serverReadFailed = false;
                 try {
                     const snap = await getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey));
                     if (snap.exists()) serverMgmt = snap.data().management || {};
@@ -327,7 +328,12 @@ export function setupHistoryModalListeners() {
                         const dsnap = await getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey));
                         if (dsnap.exists()) serverMgmt = { ...serverMgmt, ...(dsnap.data().management || {}) };
                     }
-                } catch (_) { /* 못 읽으면 화면 값만으로 진행 */ }
+                } catch (e) {
+                    // 못 읽으면 '안 건드린 채널'을 0으로 보게 되어 총계가 입력분만으로 덮인다.
+                    // 채널값은 그대로 남고 총액만 작아져 불일치가 DB에 굳으므로, 총계 갱신을 건너뛴다.
+                    serverReadFailed = true;
+                    console.warn('[경영지표] 저장 전 서버 값 읽기 실패 — 총계는 갱신하지 않습니다.', e);
+                }
 
                 // 서버 값을 메모리에도 반영해 둔다(저장 후 화면이 최신으로 그려지도록)
                 const mi = State.allHistoryData.findIndex(d => d.id === dateKey);
@@ -345,8 +351,9 @@ export function setupHistoryModalListeners() {
                         if (v != null) { payload[field] = v; sum += v; touched = true; }
                         else sum += Number(serverMgmt[field]) || 0;      // 안 건드린 채널은 저장된 값으로 합산
                     });
-                    // 채널을 하나라도 입력했을 때만 총계를 다시 쓴다(구 데이터 보호)
-                    if (touched) payload[m.totalField] = sum;
+                    // 채널을 하나라도 입력했을 때만 총계를 다시 쓴다(구 데이터 보호).
+                    // 서버 값을 못 읽었으면 합계가 틀리므로 총계는 건드리지 않는다.
+                    if (touched && !serverReadFailed) payload[m.totalField] = sum;
                 });
 
                 const inventoryQty = readInput('mgmt-input-inventoryQty');

@@ -1,16 +1,16 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202609111706';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202609111706';
-import { appConfig } from './state.js?v=202609111706';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202609112339';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202609112339';
+import { appConfig } from './state.js?v=202609112339';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,
     revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
-} from './revenue-channels.js?v=202609111706';
+} from './revenue-channels.js?v=202609112339';
 // predictFutureTrends import 제거됨
 
-// 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장)
+// 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장 / 기타)
 //    매출액·주문 건수 두 지표 모두 같은 방식으로 만들어진다.
 //    합계는 입력할 때마다 즉시 다시 계산해 화면에 보여준다.
 // ⚠️ 아래 스크립트 문자열은 oninput="..." 속성 안에 들어가므로 큰따옴표를 쓰면 안 된다.
@@ -77,7 +77,11 @@ const channelGridHtml = (mgmt, prevMgmt, formatVal, onInputHandler) => {
         ? legacyNoteHtml(isLegacyRevenue(mgmt), Number(mgmt.revenue), m.unit)
         : legacyNoteHtml(isLegacyOrderCount(mgmt), Number(mgmt.orderCount), m.unit)).join('');
 
-    return `<div class="space-y-2">${notes}${header}${rows}${totalRow}</div>`;
+    // 칸을 비우고 저장하면 '변경 없음'으로 처리돼 기존 값이 그대로 남는다.
+    // 자동입력이 잘못 넣은 값을 지우려는 사람이 여기서 막히므로 미리 알려 둔다.
+    const clearHint = `<p class="text-[10px] text-gray-400 pt-1">값을 지우려면 칸을 비우지 말고 <b>0</b>을 입력하세요.</p>`;
+
+    return `<div class="space-y-2">${notes}${header}${rows}${totalRow}${clearHint}</div>`;
 };
 
 // 헬퍼: 숫자를 통화 형식(콤마)으로 변환
@@ -134,7 +138,7 @@ export const aggregateManagementData = (dataList) => {
         avgInventoryAmt: 0,
         usdRateSum: 0, cnyRateSum: 0, daysWithFx: 0,
         avgUsdRate: 0, avgCnyRate: 0,
-        // 💰 채널별 매출·주문건수 합계 (일반배송(카페24) / 직진배송 / 도착보장)
+        // 💰 채널별 매출·주문건수 합계 (일반배송(카페24) / 직진배송 / 도착보장 / 기타)
         revenueByChannel: REVENUE_CHANNELS.reduce((a, c) => ({ ...a, [c.id]: 0 }), {}),
         orderCountByChannel: REVENUE_CHANNELS.reduce((a, c) => ({ ...a, [c.id]: 0 }), {}),
         revenueUnclassified: 0,   // 채널 구분 이전에 입력된 총액
