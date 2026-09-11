@@ -1,7 +1,7 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus } from './menu-catalog.js?v=202609111649';
+import { withBuiltinMenus } from './menu-catalog.js?v=202609111706';
 
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
@@ -79,9 +79,15 @@ export function renderPermissionsConfig(config) {
     container.innerHTML = '';
 
     const allUsers = [];
-    
+
+    // 퇴사자는 목록에서 뺀다. 저장 시 admin-logic 이 이 명단을 기준으로
+    // 접근을 전부 해제하므로, 여기서 빼는 것 = 그 사람의 접근 차단이다.
+    const resigned = config.resignedMembers || {};
+    const isResigned = (name) => Boolean(resigned[name]);
+
     (config.teamGroups || []).forEach(g => {
         (g.members || []).forEach(m => {
+            if (isResigned(m)) return;
             const email = config.memberEmails?.[m] || '';
             if(email) allUsers.push({ name: m, email: email, type: '팀원' });
         });

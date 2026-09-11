@@ -1,5 +1,5 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js?v=202609111649';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js?v=202609111706';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -12,12 +12,12 @@ import {
     openDashboardItemModal,
     getAllDashboardDefinitions,
     renderDashboardMenu
-} from './admin-ui.js?v=202609111649';
+} from './admin-ui.js?v=202609111706';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202609111649';
+} from './admin-logic.js?v=202609111706';
 
 let db, auth;
 let appConfig = {}; 
@@ -251,7 +251,11 @@ async function handleSaveAll() {
         }
 
         appConfig = newConfig;
-        alert('✅ 모든 변경사항이 성공적으로 저장되었습니다!' + (leaveCleanup && leaveCleanup.deletedCount ? `\n(연차 내역 ${leaveCleanup.deletedCount}건 정리됨)` : ''));
+        // 퇴사자는 저장할 때 접근이 전부 해제된다. 말없이 지우면 관리자가 눈치채지 못하므로 알린다.
+        const resignedCount = Object.keys(newConfig.resignedMembers || {}).length;
+        alert('✅ 모든 변경사항이 성공적으로 저장되었습니다!'
+            + (leaveCleanup && leaveCleanup.deletedCount ? `\n(연차 내역 ${leaveCleanup.deletedCount}건 정리됨)` : '')
+            + (resignedCount > 0 ? `\n(퇴사자 ${resignedCount}명은 권한 목록에서 제외되고 접근이 해제됩니다)` : ''));
 
         renderAdminUI(appConfig);
         setupAllDragListeners();

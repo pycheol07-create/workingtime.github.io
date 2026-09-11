@@ -1,6 +1,6 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions } from './admin-ui.js?v=202609111649';
-import { withBuiltinMenus } from './menu-catalog.js?v=202609111649';
+import { getAllDashboardDefinitions } from './admin-ui.js?v=202609111706';
+import { withBuiltinMenus } from './menu-catalog.js?v=202609111706';
 
 export function collectConfigFromDOM(currentConfig) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
@@ -188,10 +188,29 @@ export function collectConfigFromDOM(currentConfig) {
         });
     });
     
+    // 퇴사자 이메일은 이 기본값 부여에서 제외한다.
+    // 권한 화면에서 퇴사자를 뿌렸기 때문에, 제외하지 않으면 아래 루프가
+    // '목록에 없는 사람'으로 보고 오히려 전체 메뉴 허용을 다시 박아 넣는다.
+    const resignedEmails = new Set();
+    Object.keys(newConfig.resignedMembers || {}).forEach(name => {
+        const em = newConfig.memberEmails?.[name];
+        if (em) resignedEmails.add(String(em).trim().toLowerCase());
+    });
+
     Array.from(emailCheck.keys()).forEach(email => {
+        if (resignedEmails.has(email)) {
+            // 퇴사자: 접근 전부 해제. 퇴사일을 지우면(재입사) 다시 권한을 줄 수 있다.
+            newConfig.memberRoles[email] = 'user';
+            newConfig.memberMenuAccess[email] = [];
+            return;
+        }
         if (!newConfig.memberRoles[email]) {
             newConfig.memberRoles[email] = 'user';
-            newConfig.memberMenuAccess[email] = allMenus; // 기본적으로 모든 메뉴 허용
+            // 직전까지 퇴사자였던 사람(= 이번에 복귀)은 권한 화면에 행이 없어
+            // 여기로 떨어지는데, 그걸 '신규'로 보고 전체 메뉴를 주면
+            // 퇴사 전보다 권한이 넘치게 된다. 빈 값으로 두고 관리자가 명시적으로 주게 한다.
+            const wasResigned = Boolean((currentConfig?.resignedMembers || {})[emailCheck.get(email)]);
+            newConfig.memberMenuAccess[email] = wasResigned ? [] : allMenus;
         }
     });
 
@@ -268,6 +287,16 @@ export function collectConfigFromDOM(currentConfig) {
 }
 
 export function validateConfig(newConfig) {
+    // 관리자가 한 명도 안 남으면 아무도 관리자 페이지에 들어갈 수 없게 된다.
+    // (마지막 관리자가 자기 퇴사일을 입력하고 저장하는 경우 등)
+    // Firestore 콘솔을 직접 고치는 것 외엔 되돌릴 수 없으므로 저장 자체를 막는다.
+    if (!Object.values(newConfig.memberRoles || {}).includes('admin')) {
+        throw new Error(`[저장 실패] 관리자가 한 명도 없습니다.
+
+이대로 저장하면 아무도 관리자 페이지에 들어올 수 없습니다.
+권한 관리에서 최소 한 명을 '관리자'로 지정해 주세요.`);
+    }
+
     const allTaskNames = new Set(
         newConfig.taskGroups.flatMap(group => group.tasks).map(t => t.trim().toLowerCase())
     );
