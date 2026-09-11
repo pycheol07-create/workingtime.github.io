@@ -355,16 +355,20 @@
                     <span>👥</span> 인력 운영 최적화 및 예측
                 </h3>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-start">
                     <div class="bg-white dark:bg-gray-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white mb-4">현재 투입 vs 필요 인력 (FTE)</h4>
                         <div class="space-y-4">
                             <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
-                                <span class="text-xs md:text-sm text-gray-500">실제 출근 인원</span>
+                                <span class="text-xs md:text-sm text-gray-500" title="출근 기록(출퇴근 체크)이 있는 인원">실제 출근 인원</span>
                                 <span class="text-lg md:text-xl font-bold" id="staff-actual">0명</span>
                             </div>
                             <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
-                                <span class="text-xs md:text-sm text-gray-500">표준 기준 필요 인원</span>
+                                <span class="text-xs md:text-sm text-gray-500" title="그날 업무 기록에 이름이 올라간 인원. 출근했어도 업무 기록이 없으면 빠집니다">실 근무 인원</span>
+                                <span class="text-lg md:text-xl font-bold text-violet-600" id="staff-worked">0.0명</span>
+                            </div>
+                            <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
+                                <span class="text-xs md:text-sm text-gray-500" title="그날 업무량을 평상시 속도로 처리한다면 출근~퇴근 시간 안에 몇 명이 필요했는지. 정산 화면의 FTE는 명부·표준시간 기준이라 값이 다릅니다">표준 필요 인원</span>
                                 <span class="text-lg md:text-xl font-bold text-blue-600" id="staff-required">0.0명</span>
                             </div>
                             <div class="pt-2">
@@ -374,7 +378,8 @@
                     </div>
 
                     <div class="bg-white dark:bg-gray-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white mb-4">근태 손실 시간</h4>
+                        <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white mb-1">근태 손실 시간</h4>
+                        <p class="text-[10px] md:text-xs text-gray-400 dark:text-gray-500 mb-3">재실시간(출근~퇴근) 중 업무 기록이 없는 시간</p>
                         <div class="flex items-center justify-center h-28 md:h-32">
                             <canvas id="chart-staffing-loss"></canvas>
                         </div>

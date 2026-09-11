@@ -1,15 +1,15 @@
 // === js/listeners-history-attendance.js ===
 // 설명: 이력 보기의 '근태 이력' 관리(추가/수정/삭제 요청) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202609100846';
-import * as State from './state.js?v=202609100846';
-import { isPersistentLeaveType } from './state.js?v=202609100846';
-import { showToast, getTodayDateString, getCurrentTime } from './utils.js?v=202609100846';
-import { renderAttendanceDailyHistory } from './ui-history.js?v=202609100846';
-import { clearLocalCache } from './history-data-manager.js?v=202609100846';
-import { saveLeaveSchedule } from './config.js?v=202609100846';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609100846';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202609100846';
+import * as DOM from './dom-elements.js?v=202609111640';
+import * as State from './state.js?v=202609111640';
+import { isPersistentLeaveType } from './state.js?v=202609111640';
+import { showToast, getTodayDateString, getCurrentTime } from './utils.js?v=202609111640';
+import { renderAttendanceDailyHistory } from './ui-history.js?v=202609111640';
+import { clearLocalCache } from './history-data-manager.js?v=202609111640';
+import { saveLeaveSchedule } from './config.js?v=202609111640';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609111640';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202609111640';
 import { doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 수정 모달이 지금 다루고 있는 근태의 '원본'.
@@ -56,7 +56,10 @@ const dayDocRef = (dateKey) => doc(State.db, 'artifacts', 'team-work-logger-v2',
 /** 그날 문서에 근태 한 건 덧붙이기(문서가 없으면 만든다). */
 const appendToDayDoc = async (dateKey, entry) => {
     const docRef = dayDocRef(dateKey);
-    const snap = await getDoc(docRef).catch(() => null);
+    // ⚠️ 읽기 실패를 '문서 없음'으로 넘기지 않는다.
+    //    예전엔 .catch(() => null) 이라 네트워크 오류 한 번이 아래 '문서 생성' 분기로 빠졌고,
+    //    merge 없는 setDoc 이 그 날짜의 업무기록·처리량·경영지표를 통째로 지웠다.
+    const snap = await getDoc(docRef);
     let list = [];
     if (snap && snap.exists()) {
         const raw = snap.data().onLeaveMembers;
@@ -65,8 +68,8 @@ const appendToDayDoc = async (dateKey, entry) => {
         await updateDoc(docRef, { onLeaveMembers: list });
     } else {
         list = [entry];
-        if (dateKey === getTodayDateString()) await setDoc(docRef, { onLeaveMembers: list }, { merge: true });
-        else await setDoc(docRef, { id: dateKey, onLeaveMembers: list });
+        // merge 필수 — 없으면 문서 전체 교체다.
+        await setDoc(docRef, { id: dateKey, onLeaveMembers: list }, { merge: true });
     }
     const i = State.allHistoryData.findIndex(d => d.id === dateKey);
     if (i > -1) State.allHistoryData[i].onLeaveMembers = list;
@@ -398,26 +401,24 @@ function setupAttendanceModalButtons() {
                 }
 
                 // ✅ [수정] 추가 로직도 안전하게 변경 (읽고 -> 배열에 push -> 저장)
-                const docSnap = await getDoc(docRef).catch(() => null);
+                // ⚠️ 읽기 실패를 '문서 없음'으로 넘기지 않는다 — 아래 생성 분기로 빠지면
+                //    그 날짜의 업무기록·처리량·경영지표가 통째로 날아간다.
+                const docSnap = await getDoc(docRef);
                 let currentLeaves = [];
-                
+
                 if (docSnap && docSnap.exists()) {
                     const data = docSnap.data();
                     if (data.onLeaveMembers) {
-                        currentLeaves = Array.isArray(data.onLeaveMembers) 
-                            ? data.onLeaveMembers 
+                        currentLeaves = Array.isArray(data.onLeaveMembers)
+                            ? data.onLeaveMembers
                             : Object.values(data.onLeaveMembers);
                     }
                     currentLeaves.push(newEntry);
                     await updateDoc(docRef, { onLeaveMembers: currentLeaves });
                 } else {
-                    // 문서가 없으면 생성
+                    // 문서가 없으면 생성 — merge 필수. 없으면 문서 전체 교체다.
                     currentLeaves = [newEntry];
-                    if (isToday) {
-                        await setDoc(docRef, { onLeaveMembers: currentLeaves }, { merge: true });
-                    } else {
-                        await setDoc(docRef, { id: dateKey, onLeaveMembers: currentLeaves });
-                    }
+                    await setDoc(docRef, { id: dateKey, onLeaveMembers: currentLeaves }, { merge: true });
                 }
 
                 // 1. 로컬 데이터 업데이트
