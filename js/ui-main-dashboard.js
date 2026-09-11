@@ -1,7 +1,8 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202609111640';
-import * as State from './state.js?v=202609111640';
-import { getRegularMembersForCount } from './utils.js?v=202609111640';
+import { getAllDashboardDefinitions } from './ui.js?v=202609111649';
+import * as State from './state.js?v=202609111649';
+import { getRegularMembersForCount } from './utils.js?v=202609111649';
+import { withBuiltinMenus } from './menu-catalog.js?v=202609111649';
 
 export let currentEzadminData = null;
 
@@ -503,39 +504,10 @@ const EXTERNAL_LINK_META = [
     { match: 'scan.html',     icon: '📷', target: 'scan_window' },      // 입고 스캐너(미발계산기 안에서도 열림)
 ];
 
-// 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu(파이어스토어)에 없으면 자동으로 끼워 넣는다.
-// (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
-const BUILTIN_MENU_ITEMS = [
-    { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' },
-    // 로케이션 관리 바로 아래에 (비품 관리 앞)
-    { name: '중국제작 미발계산기', link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' },
-    // before: 이 항목 바로 앞에 끼워 넣는다(없으면 맨 뒤)
-    { name: '출퇴근 기록표', link: 'worktime.html', category: '관리자 메뉴', before: '업무 마감' }
-];
+// 신규·폐기 메뉴 보정은 js/menu-catalog.js 로 옮겼다.
+// 관리자 페이지의 '권한 관리'도 같은 목록을 봐야 해서(신규 메뉴의 권한을 못 고르던 문제)
+// 양쪽에서 쓰는 공용 모듈로 뺐다.
 
-// 없어진 기능 — 저장된 dashboardMenu(파이어스토어)에 남아 있어도 메뉴에서 걷어낸다.
-// (관리자 설정을 손대지 않아도 사라지도록. 눌러도 아무 일 없는 항목이 남지 않게)
-const RETIRED_MENU_ITEMS = ['운영 시뮬레이션'];
-
-const withBuiltinMenus = (dashboardMenu) => {
-    const menu = dashboardMenu
-        .map(g => ({ ...g, items: [...g.items].filter(i => !RETIRED_MENU_ITEMS.includes(i && i.name)) }));
-    BUILTIN_MENU_ITEMS.forEach(entry => {
-        const exists = menu.some(g => g.items.some(i => i.link && i.link.includes(entry.link)));
-        if (exists) return;
-        let group = menu.find(g => g.category === entry.category) || menu[menu.length - 1];
-        if (!group) {
-            group = { category: entry.category, items: [] };
-            menu.push(group);
-        }
-        const item = { name: entry.name, link: entry.link };
-        // before 가 지정돼 있으면 그 항목 앞에 넣는다(메뉴 순서를 코드에서 정할 수 있게)
-        const at = entry.before ? group.items.findIndex(i => i.name === entry.before) : -1;
-        if (at > -1) group.items.splice(at, 0, item);
-        else group.items.push(item);
-    });
-    return menu;
-};
 const resolveLinkMeta = (link) => {
     if (!link) return null;
     return EXTERNAL_LINK_META.find(m => link.includes(m.match)) || null;

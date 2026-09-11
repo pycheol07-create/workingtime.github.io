@@ -1,5 +1,6 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions } from './admin-ui.js?v=202609111640';
+import { getAllDashboardDefinitions } from './admin-ui.js?v=202609111649';
+import { withBuiltinMenus } from './menu-catalog.js?v=202609111649';
 
 export function collectConfigFromDOM(currentConfig) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
@@ -178,8 +179,14 @@ export function collectConfigFromDOM(currentConfig) {
     });
 
     // 💡 방금 막 새로 추가되어 권한 섹션에 나타나지 않은 사용자에 대한 기본값(일반, 전체메뉴접근) 부여
+    // 저장된 메뉴만 보면 코드로 추가된 신규 메뉴(중국제작 미발계산기 등)가 빠진 채로
+    // 기본 권한이 박혀, 새 팀원만 그 메뉴를 못 보게 된다. 권한 화면과 같은 목록을 쓴다.
     const allMenus = [];
-    newConfig.dashboardMenu.forEach(c => c.items.forEach(i => allMenus.push(i.name)));
+    withBuiltinMenus(newConfig.dashboardMenu).forEach(c => {
+        (c.items || []).forEach(i => {
+            if (i && i.name && !allMenus.includes(i.name)) allMenus.push(i.name);
+        });
+    });
     
     Array.from(emailCheck.keys()).forEach(email => {
         if (!newConfig.memberRoles[email]) {

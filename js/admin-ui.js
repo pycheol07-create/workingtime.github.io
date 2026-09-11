@@ -1,6 +1,8 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
+import { withBuiltinMenus } from './menu-catalog.js?v=202609111649';
+
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
     'leave-staff': { title: '휴무' },
@@ -91,10 +93,12 @@ export function renderPermissionsConfig(config) {
 
     const uniqueUsers = Array.from(new Map(allUsers.map(item => [item.email.toLowerCase(), item])).values());
 
+    // 저장된 메뉴만 보면 그 뒤에 코드로 추가된 메뉴(중국제작 미발계산기 등)가 빠져
+    // 권한을 아예 선택할 수 없다. 대시보드 사이드바와 같은 목록을 쓴다.
     const allMenus = [];
-    (config.dashboardMenu || []).forEach(cat => {
+    withBuiltinMenus(config.dashboardMenu || []).forEach(cat => {
         (cat.items || []).forEach(item => {
-            allMenus.push(item.name);
+            if (item && item.name && !allMenus.includes(item.name)) allMenus.push(item.name);
         });
     });
 

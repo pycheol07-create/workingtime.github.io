@@ -6,7 +6,7 @@
 //    처리량은 업무를 '끝낼 때' 한 번에 들어오므로(app-logic.js), 진행 중인 업무의 물량은 알 수 없다.
 //    낮에는 시간만 보고, 물량 비교는 마감 후 '정확도' 화면에서 한다.
 
-import { calcElapsedMinutes } from './utils.js?v=202609111640';
+import { calcElapsedMinutes } from './utils.js?v=202609111649';
 
 /** 'HH:MM' → 자정부터의 분. 형식이 아니면 null */
 export const hhmmToMin = (s) => {
