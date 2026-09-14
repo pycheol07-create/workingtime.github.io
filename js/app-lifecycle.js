@@ -1,8 +1,8 @@
 // === js/app-lifecycle.js ===
-import * as State from './state.js?v=202609112339';
-import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202609112339';
-import { saveProgress } from './history-data-manager.js?v=202609112339';
-import { saveStateToFirestore } from './app-data.js?v=202609112339';
+import * as State from './state.js?v=202609141352';
+import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202609141352';
+import { saveProgress } from './history-data-manager.js?v=202609141352';
+import { saveStateToFirestore } from './app-data.js?v=202609141352';
 import { collection, doc, writeBatch, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let localLunchPauseExecuted = false;
@@ -145,6 +145,7 @@ async function closeRecordsAt(records, endTime, dayKey) {
     const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dayKey, 'workRecords');
     const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dayKey, 'activeLocks');
     const batch = writeBatch(State.db);
+    const pending = [];   // 커밋 성공 뒤에 화면 미러에 반영할 값
 
     records.forEach(rec => {
         const recRef = doc(colRef, rec.id);
@@ -158,14 +159,21 @@ async function closeRecordsAt(records, endTime, dayKey) {
         batch.update(recRef, { status: 'completed', endTime, duration, pauses });
         // 🛡️ 멤버 잠금 해제
         if (rec.member) batch.delete(doc(lockColRef, String(rec.member)));
-        // 화면 즉시 갱신용 로컬 미러
+        // 화면 갱신은 커밋이 성공한 뒤에 한다(아래).
+        pending.push({ rec, duration, pauses });
+    });
+
+    await batch.commit();
+
+    // ⚠️ 커밋 성공 뒤에만 미러를 바꾼다.
+    //    예전엔 커밋 전에 바꿔서, 실패해도 화면은 '마감됨'으로 보였고
+    //    다음 재시도 때 진행 중 기록이 하나도 안 잡혀 그날 마감이 건너뛰어졌다.
+    pending.forEach(({ rec, duration, pauses }) => {
         rec.status = 'completed';
         rec.endTime = endTime;
         rec.duration = duration;
         rec.pauses = pauses;
     });
-
-    await batch.commit();
     return records.length;
 }
 
@@ -191,11 +199,13 @@ async function eodFlushToHistory(todayKey, isAdmin) {
             await closeRecordsAt(openOnes, AUTO_END_TIME, todayKey);
         }
 
-        await saveProgress(true, false, { isFinalize: true });
+        const saved = (await saveProgress(true, false, { isFinalize: true })) === 'saved';
 
-        // 모두 마감된 상태로 저장했다면 그날은 더 이상 재시도하지 않는다.
+        // 모두 마감된 상태로 '실제로 저장에 성공'했을 때만 그날을 완료로 찍는다.
+        // 예전엔 saveProgress 가 조용히 중단돼도(서버를 못 읽는 등) 완료로 표시해
+        // 그날 재시도가 영영 사라졌다.
         const stillOpen = (State.appState.workRecords || []).some(r => r.status === 'ongoing' || r.status === 'paused');
-        if (!stillOpen) localStorage.setItem(lsKey, '1');
+        if (saved && !stillOpen) localStorage.setItem(lsKey, '1');
     } catch (e) {
         console.warn('종료시각 이력 확정 저장 실패(30분 뒤 재시도):', e);
     }
@@ -299,8 +309,12 @@ export const updateElapsedTimes = async () => {
                     // 🛟 자동마감 결과를 반드시 history에도 확정 저장한다.
                     //    (이 호출이 없어서 자동마감된 날의 근무시간이 이력에 남지 않고 유실됐다)
                     try {
-                        await saveProgress(true, false, { isFinalize: true });
-                        localStorage.setItem('eodFlushed_' + getTodayDateString(), '1');
+                        // saveProgress 는 실패해도 throw 하지 않고 false 를 돌려준다.
+                        // 무조건 플래그를 찍으면 17:35 최후 안전망이 그날 내내 차단돼
+                        // 저장되지 않은 근무기록이 영영 이력에 남지 않는다.
+                        const savedAuto = (await saveProgress(true, false, { isFinalize: true })) === 'saved';
+                        if (savedAuto) localStorage.setItem('eodFlushed_' + getTodayDateString(), '1');
+                        else console.warn('[autoClose] 이력 확정 저장 실패 — 17:35 안전망에 맡깁니다.');
                     } catch (e2) {
                         console.error('Auto-close history save error:', e2);
                     }

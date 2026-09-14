@@ -1,8 +1,9 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202609112339';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609112339';
+import * as State from './state.js?v=202609141352';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609141352';
 import {
-    doc, setDoc, getDoc, collection, getDocs, deleteDoc, deleteField,
+    doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
+    deleteDoc, deleteField,
     query, where, writeBatch, updateDoc, increment, documentId
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -328,6 +329,9 @@ export const syncTodayToHistory = async () => {
 // 기록 수가 줄었을 때 저장을 건너뛰는 방어 로직을 우회한다.
 // (0분 기록 삭제·중복 정리로 건수가 줄어드는 것이 정상인데, 그 때문에 최종 근무시간이
 //  history에 반영되지 않고 유실되던 문제가 있었다.)
+// 반환값: 'saved'(저장함) | 'nothing'(저장할 게 없음) | 'failed'(서버를 못 읽었거나 예외)
+//   · 'nothing' 은 실패가 아니다 — 화면에 오류로 띄우면 안 된다.
+//   · 다만 마감 안전망 입장엔 '아직 못 끝냄'이라 'saved' 일 때만 완료로 찍어야 한다.
 export async function saveProgress(isAutoSave = false, isQuantityVerified = false, { isFinalize = false, overrideRecords = null } = {}) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
@@ -346,17 +350,40 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             partTimers: State.appState.partTimers || [],
             dailyAttendance: State.appState.dailyAttendance || {},
             // 라이브 management 가 일부 필드만 들고 있을 수 있으므로 이미 저장된 값 위에 얹는다.
-            management: {
-                ...((State.allHistoryData.find(d => d.id === dateStr) || {}).management || {}),
-                ...(State.appState.management || {})
-            },
+            // 베이스는 아래에서 읽는 serverHistory.management 로 교체된다(메모리 캐시는 얼어붙어 있어,
+            // 그걸 베이스로 쓰면 내 탭이 켜진 뒤 남이 고친 매출·재고가 옛 값으로 되돌아간다).
+            management: { ...(State.appState.management || {}) },
             inspectionList: State.appState.inspectionList || [],
             isQuantityVerified: State.appState.isQuantityVerified || false
         };
 
-        // overrideRecords가 주어지면(마감 시 Firestore에서 직접 읽은 확정 기록) 그것을 신뢰한다.
-        // 라이브 미러(State.appState.workRecords)는 onSnapshot 반영 지연으로 비어 있을 수 있다.
-        const sourceRecords = Array.isArray(overrideRecords) ? overrideRecords : (State.appState.workRecords || []);
+        // 업무기록은 '서버 원본'에서 읽는다.
+        //
+        // 예전엔 라이브 미러(State.appState.workRecords)를 그대로 이력 배열에 썼다.
+        // Firestore merge 는 배열을 합치지 않고 통째로 바꾸므로, 오프라인·절전 복귀·스냅샷 지연으로
+        // 미러가 뒤처진 탭이 저장하면 그 사이 남이 추가한 기록이 이력에서 사라졌다.
+        // overrideRecords(마감 시 이미 서버에서 읽어 온 확정 기록)가 있으면 그걸 신뢰한다.
+        let sourceRecords;
+        if (Array.isArray(overrideRecords)) {
+            sourceRecords = overrideRecords;
+        } else {
+            try {
+                // ⚠️ getDocs 가 아니라 getDocsFromServer 여야 한다.
+                //    getDocs 는 서버에 못 닿으면 throw 하지 않고 로컬 캐시로 조용히 성공한다.
+                //    이 컬렉션엔 onSnapshot 리스너가 붙어 있어 그 캐시 내용이 곧 라이브 미러와 같다 —
+                //    즉 getDocs 를 쓰면 "미러로 폴백하지 않는다"는 의도가 그대로 무너진다.
+                const wrSnap = await getDocsFromServer(
+                    collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateStr, 'workRecords')
+                );
+                sourceRecords = [];
+                wrSnap.forEach(d => sourceRecords.push({ id: d.id, ...d.data() }));
+            } catch (e) {
+                // 못 읽었으면 미러로 대신하지 않는다. 그게 바로 유실 경로다.
+                console.warn('[saveProgress] 서버 기록을 읽지 못해 저장하지 않습니다.', e);
+                if (!isAutoSave) showToast('서버에서 기록을 읽지 못해 저장하지 않았습니다. 연결을 확인한 뒤 다시 시도하세요.', true);
+                return 'failed';
+            }
+        }
         const liveWorkRecords = sourceRecords.map(record => {
             const data = { ...record };
             if (data.status === 'ongoing' || data.status === 'paused') {
@@ -370,32 +397,57 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             return Math.round(record.duration || 0) > 0;
         });
 
-        const existingHistory = State.allHistoryData.find(d => d.id === dateStr) || {};
-        const existingRecordsCount = (existingHistory.workRecords || []).length;
-        
-        // 마감 확정(isFinalize)이 아니고, 살아있는 기록이 아예 0건인데 이력엔 있는 경우에만 방어.
-        // (라이브 상태가 아직 동기화되지 않은 탭이 이력을 지우는 것을 막는 것이 원래 목적)
-        if (!isFinalize && existingRecordsCount > 0 && liveWorkRecords.length === 0) {
-            if (!isAutoSave) showToast("이미 데이터가 안전하게 마감/저장되었습니다.");
-            return;
+        // 이력의 현재 기록 수도 서버에서 확인한다.
+        // 메모리 캐시(State.allHistoryData)는 탭을 켠 시점에 얼어붙어 있어 남의 변경을 모른다.
+        let serverHistory = {};
+        try {
+            // 여기도 getDoc 이 아니라 getDocFromServer — 캐시로 조용히 성공하면 의미가 없다.
+            const hSnap = await getDocFromServer(historyDocRef);
+            if (hSnap.exists()) serverHistory = hSnap.data() || {};
+        } catch (e) {
+            console.warn('[saveProgress] 이력을 읽지 못해 저장하지 않습니다.', e);
+            if (!isAutoSave) showToast('서버에서 이력을 읽지 못해 저장하지 않았습니다. 연결을 확인한 뒤 다시 시도하세요.', true);
+            return 'failed';
+        }
+        const existingRecordsCount = (serverHistory.workRecords || []).length;
+
+        // management 베이스를 서버 값으로 교체 (위 주석 참조)
+        dailyData.management = { ...(serverHistory.management || {}), ...(State.appState.management || {}) };
+
+        // 살아있는 기록이 0건인데 이력엔 있으면 '업무기록만' 손대지 않는다.
+        //
+        // ⚠️ 예전엔 isFinalize(마감 확정)면 이 방어를 통째로 우회했다. 그 탓에
+        //    탭을 켜 둔 채 자정을 넘긴 탭의 17:35 안전망이 '어제 기록'으로 오늘 이력을
+        //    덮어 그날 기록이 통째로 사라지는 경로가 열려 있었다.
+        //    isFinalize 의 원래 목적은 '0분 기록 정리로 건수가 줄어드는 것'을 허용하는 것이지
+        //    0건으로 만드는 게 아니므로, 0건일 때는 마감이어도 기록을 덮지 않는다.
+        //
+        // 다만 저장 자체를 중단하면 같은 payload 에 실린 물량·검수·검증여부까지 함께 날아간다
+        // (0분 기록을 전부 지우고 물량만 입력한 날의 마감이 그 경우다).
+        // 그래서 '중단'이 아니라 'workRecords 키만 빼기'로 처리한다 — merge 라 서버 배열이 보존된다.
+        const keepServerRecords = existingRecordsCount > 0 && liveWorkRecords.length === 0;
+        if (keepServerRecords) {
+            console.warn(`[saveProgress] ${dateStr}: 살아있는 기록 0건, 이력 ${existingRecordsCount}건 — 업무기록은 건드리지 않고 나머지만 저장합니다.`);
         }
 
         if (liveWorkRecords.length === 0 &&
             Object.keys(dailyData.taskQuantities).length === 0 &&
             (!dailyData.inspectionList || dailyData.inspectionList.length === 0)) {
-             return;
+             // 저장할 것이 아무것도 없는 상태. 실패가 아니지만 저장도 아니다 —
+             // 마감 안전망은 재시도해야 하고, 화면은 오류로 안내하면 안 되어 따로 구분한다.
+             return 'nothing';
         }
 
         const mergedAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
 
         const historyData = {
             id: dateStr,
-            workRecords: liveWorkRecords,
+            ...(keepServerRecords ? {} : { workRecords: liveWorkRecords }),
             taskQuantities: dailyData.taskQuantities,
             confirmedZeroTasks: dailyData.confirmedZeroTasks,
             onLeaveMembers: dailyData.onLeaveMembers,
             partTimers: dailyData.partTimers,
-            dailyAttendance: mergedAttendance, 
+            dailyAttendance: mergedAttendance,
             management: dailyData.management,
             inspectionList: dailyData.inspectionList,
             isQuantityVerified: isQuantityVerified || State.appState.isQuantityVerified || false,
@@ -408,26 +460,47 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             await setDoc(getDailyDocRef(), { isQuantityVerified: true }, { merge: true });
         }
 
-        // 메모리 이력도 방금 저장한 값으로 즉시 맞춘다.
+        // ⚠️ 순서 주의 — syncTodayToHistory 가 먼저다.
+        //    이 함수는 메모리의 오늘 행을 '라이브 미러' 기준으로 통째 교체한다.
+        //    memPatch 뒤에 두면 방금 서버 기준으로 맞춘 값이 뒤처진 미러로 되돌아가,
+        //    메모리만 0건(또는 옛 건수)으로 남고 그 배열이 다른 함수를 통해 서버로 되쓰인다.
+        if (!overrideRecords) await syncTodayToHistory();
+
+        // 메모리 이력을 '방금 서버에 저장한 값'으로 최종 확정한다.
         // (overrideRecords로 저장한 경우 라이브 미러가 아직 비어 있을 수 있어,
         //  syncTodayToHistory만 호출하면 화면이 옛 값을 계속 보여준다)
+        // 기록을 안 건드린 경우엔 메모리에도 '서버의 실제 기록'을 넣는다.
+        const memRecords = keepServerRecords ? (serverHistory.workRecords || []) : liveWorkRecords;
+        const memPatch = { ...historyData, workRecords: memRecords };
+
         const memIdx = State.allHistoryData.findIndex(d => d.id === dateStr);
-        if (memIdx > -1) State.allHistoryData[memIdx] = { ...State.allHistoryData[memIdx], ...historyData };
+        if (memIdx > -1) State.allHistoryData[memIdx] = { ...State.allHistoryData[memIdx], ...memPatch };
         else {
-            State.allHistoryData.push({ ...historyData });
+            State.allHistoryData.push({ ...memPatch });
             State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
         }
 
-        if (!overrideRecords) await syncTodayToHistory();
         clearLocalCache(); // ✨ 데이터 변경 시 캐시 지우기
+
+        // 계측용 — 무엇을 어디서 읽어 몇 건 저장했는지 남긴다.
+        // 이력이 또 사라졌다는 신고가 오면 이 줄로 출처를 좁힌다.
+        console.info('[saveProgress]', {
+            date: dateStr,
+            source: overrideRecords ? 'override(마감 확정)' : 'server(daily_data)',
+            saved: liveWorkRecords.length,
+            existingBefore: existingRecordsCount,
+            isFinalize, isAutoSave
+        });
 
         if (!isAutoSave) {
             showToast('최신 상태가 이력에 안전하게 저장되었습니다.');
         }
+        return 'saved';
 
     } catch (e) {
         console.error('Error in saveProgress: ', e);
         if (!isAutoSave) showToast(`저장 중 오류가 발생했습니다: ${e.message}`, true);
+        return 'failed';
     }
 }
 
@@ -519,10 +592,25 @@ export async function saveDayDataToHistory(shouldReset) {
 
     // 🛡️ 라이브 미러(onSnapshot) 반영을 기다리지 않고, 방금 Firestore에서 읽어 확정한 기록을
     //    그대로 이력에 저장한다. (기존 500ms 대기 방식은 반영이 늦으면 근무시간이 통째로 누락됐다)
-    await saveProgress(false, false, {
+    // isAutoSave=true — 여기서는 saveProgress 자체 토스트를 끄고,
+    // 성공은 아래 '초기화했습니다', 실패는 게이트 안내로 한 번만 알린다.
+    const saveResult = await saveProgress(true, false, {
         isFinalize: true,
         overrideRecords: finalizedRecords.length > 0 ? finalizedRecords : null
     });
+
+    // 🛡️ 이력 저장에 성공했을 때만 원본을 지운다.
+    //    저장이 실패했는데 원본까지 지우면 그날 기록은 어디에도 남지 않는다(복구 불가).
+    //    오프라인에서 특히 위험하다 — 삭제 쓰기는 로컬 큐에 쌓여 재연결 시 그대로 반영되는데,
+    //    이력 쓰기는 애초에 일어나지 않았기 때문이다.
+    // 'nothing'(이력에 넣을 것이 없음)은 막지 않는다.
+    // 그때는 보존할 실데이터도 없어서, 막으면 0분 기록만 있던 날이
+    // 몇 번을 눌러도 영우히 초기화되지 않는다. 유실 위험은 'failed' 에만 있다.
+    if (shouldReset && saveResult === 'failed') {
+        console.warn('[saveDayDataToHistory] 이력 저장 실패 — 원본을 지우지 않습니다.', { saveResult });
+        showToast('이력 저장에 실패해 오늘 기록을 초기화하지 않았습니다. 연결을 확인한 뒤 다시 마감해 주세요.', true);
+        return;
+    }
 
     if (shouldReset) {
          try {
@@ -592,10 +680,13 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
     const historyDocRef = doc(State.db, ...base, 'history', dateKey);
 
     try {
+        // ⚠️ 서버 강제 읽기. getDoc/getDocs 는 서버에 못 닿으면 throw 하지 않고
+        //    로컬 캐시로 조용히 성공한다. 그러면 아래 existingCount 가 0 으로 잊혀
+        //    서버의 진짜 기록을 빈 배열로 덮어쓰는 경로가 열린다.
         const [dailySnap, wrSnap, histSnap] = await Promise.all([
-            getDoc(dailyDocRef),
-            getDocs(workRecordsColRef),
-            getDoc(historyDocRef),
+            getDocFromServer(dailyDocRef),
+            getDocsFromServer(workRecordsColRef),
+            getDocFromServer(historyDocRef),
         ]);
 
         const dailyData = dailySnap.exists() ? dailySnap.data() : {};
@@ -641,9 +732,19 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
         const emptyObj = (v) => !v || Object.keys(v).length === 0;
         const emptyArr = (v) => !Array.isArray(v) || v.length === 0;
 
+        // 🛡️ 원본에서 건진 기록이 0건인데 이력엔 기록이 있으면 workRecords 를 아예 보내지 않는다.
+        //    merge 라 키를 빼면 서버 배열이 그대로 보존된다. (배열은 merge 로 합쳐지지 않고 통째 교체되므로
+        //    빈 배열을 보내면 이력의 실제 기록이 지워진다.)
+        //    selfHealRecentHistory 가 '얼어붙은 메모리 캐시'로 후보를 고르는 탓에
+        //    서버엔 기록이 있는 날이 복구 대상이 되는 경로가 있어, 여기서 한 겹 막는다.
+        const keepExistingRecords = workRecords.length === 0 && existingCount > 0;
+        if (keepExistingRecords) {
+            console.warn(`[recoverDailyData] ${dateKey}: 원본 기록 0건, 이력 ${existingCount}건 — 이력의 업무기록은 건드리지 않습니다.`);
+        }
+
         const historyData = {
             id: dateKey,
-            workRecords,
+            ...(keepExistingRecords ? {} : { workRecords }),
             taskQuantities: keep(dailyData.taskQuantities || {}, existing && existing.taskQuantities, emptyObj),
             confirmedZeroTasks: keep(dailyData.confirmedZeroTasks || [], existing && existing.confirmedZeroTasks, emptyArr),
             onLeaveMembers: keep(dailyData.onLeaveMembers || [], existing && existing.onLeaveMembers, emptyArr),
@@ -659,16 +760,34 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
         await setDoc(historyDocRef, historyData, { merge: true });
 
         // 메모리 캐시도 갱신 (재조회 없이 화면 반영)
+        // ⚠️ 기록을 안 건드린 경우엔 메모리에 '서버의 실제 기록'을 넣어야 한다.
+        //    payload 에서 workRecords 키를 뺐다고 메모리까지 비워 두면, 그 빈 배열을 기준으로
+        //    과거 기록을 추가·수정하는 함수가 서버에 통째로 다시 써서 방금 지킨 기록이 사라진다.
+        const memRecords = keepExistingRecords ? ((existing && existing.workRecords) || []) : workRecords;
+        const memPatch = { ...historyData, workRecords: memRecords };
+
         const idx = State.allHistoryData.findIndex(d => d.id === dateKey);
-        if (idx > -1) State.allHistoryData[idx] = { ...State.allHistoryData[idx], ...historyData };
+        if (idx > -1) State.allHistoryData[idx] = { ...State.allHistoryData[idx], ...memPatch };
         else {
-            State.allHistoryData.push(historyData);
+            State.allHistoryData.push(memPatch);
             State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
         }
         clearLocalCache();
 
-        if (!silent) showToast(`✅ ${dateKey} 복구 완료 — 업무 ${workRecords.length}건, 물량 ${Object.keys(historyData.taskQuantities).length}종`);
-        return { date: dateKey, records: workRecords.length, quantities: Object.keys(historyData.taskQuantities).length, hadExisting: existingCount > 0 };
+        const qtyCount = Object.keys(historyData.taskQuantities).length;
+        if (!silent) {
+            showToast(keepExistingRecords
+                ? `✅ ${dateKey} 복구 완료 — 이력의 업무 ${existingCount}건은 그대로 두고 물량 ${qtyCount}종만 반영`
+                : `✅ ${dateKey} 복구 완료 — 업무 ${workRecords.length}건, 물량 ${qtyCount}종`);
+        }
+        return {
+            date: dateKey,
+            records: memRecords.length,          // 복구 후 그 날짜의 실제 기록 수
+            recovered: keepExistingRecords ? 0 : workRecords.length,
+            keptExisting: keepExistingRecords,
+            quantities: qtyCount,
+            hadExisting: existingCount > 0
+        };
 
     } catch (e) {
         console.error('recoverDailyDataToHistory error:', e);
@@ -718,11 +837,18 @@ export async function selfHealRecentHistory({ days = 7 } = {}) {
     for (const key of candidates) {
         try {
             const res = await recoverDailyDataToHistory(key, { force: true, silent: true });
-            if (res && res.records > 0) healed.push({ date: key, records: res.records });
+            // recovered = 이번에 실제로 복구한 건수.
+            // records 는 '복구 후 그 날짜의 전체 건수'라, 기존 이력을 그대로 둔
+            // 경우에도 0보다 커져 '복구했다'고 잘못 알리게 된다.
+            const got = res ? (res.recovered != null ? res.recovered : res.records) : 0;
+            if (got > 0) healed.push({ date: key, records: got });
+            // ⚠️ res === null 은 '서버를 못 읽었다'는 뜻이다(recover 는 throw 하지 않는다).
+            //    이걸 확인 완료로 찍으면, 회선이 돌아와도 그 날짜는 다시 검사되지 않아
+            //    유실된 날이 영원히 방치된다. 읽지도 못한 건 캐싱할 이유가 없다.
+            if (res !== null) checkedSet.add(key);
         } catch (e) {
             console.warn('selfHeal 실패:', key, e);
         }
-        checkedSet.add(key); // 결과와 무관하게 확인 완료로 표시(재읽기 방지)
     }
 
     // 확인 기록 저장 (최근 60개만 유지)
@@ -757,13 +883,22 @@ export async function healYesterdayOnStartup() {
         const hist = histSnap.exists() ? histSnap.data() : null;
         const hasRecords = hist && Array.isArray(hist.workRecords) && hist.workRecords.length > 0;
 
-        localStorage.setItem(guard, '1');
-        if (hasRecords) return null;
+        if (hasRecords) { localStorage.setItem(guard, '1'); return null; }
 
         const res = await recoverDailyDataToHistory(key, { force: true, silent: true });
-        if (res && res.records > 0) {
+        // ⚠️ res === null 은 서버를 못 읽은 것(recover 는 throw 하지 않는다).
+        //    가드를 찍어 버리면 그 브라우저에선 어제 데이터가 두 번 다시 복구되지 않고,
+        //    사용자는 실패했다는 사실조차 모른다. 성공했을 때만 확인 완료로 찍는다.
+        if (res === null) {
+            console.warn(`[healYesterday] ${key}: 서버를 못 읽어 복구를 건너뜁니다. 다음 접속 때 다시 시도합니다.`);
+            return null;
+        }
+        localStorage.setItem(guard, '1');
+
+        const gotY = res.recovered != null ? res.recovered : res.records;
+        if (gotY > 0) {
             clearLocalCache();
-            showToast(`🩺 어제(${key}) 마감 누락 업무 ${res.records}건을 자동 복구했습니다.`);
+            showToast(`🩺 어제(${key}) 마감 누락 업무 ${gotY}건을 자동 복구했습니다.`);
             return res;
         }
     } catch (e) {
@@ -953,6 +1088,7 @@ async function updateHistoryDirectly(dateKey, recordId, updateData) {
     if (dayIndex === -1) throw new Error("이력 없음");
 
     const dayData = State.allHistoryData[dayIndex];
+    if (!Array.isArray(dayData.workRecords)) dayData.workRecords = [];
     const recordIndex = dayData.workRecords.findIndex(r => r.id === recordId);
     if (recordIndex === -1) throw new Error("기록 없음");
 
@@ -996,6 +1132,7 @@ export async function deleteHistoryWorkRecord(dateKey, recordId) {
     if (dayIndex === -1) throw new Error("해당 날짜의 이력을 찾을 수 없습니다.");
 
     const dayData = State.allHistoryData[dayIndex];
+    if (!Array.isArray(dayData.workRecords)) dayData.workRecords = [];
     const newRecords = dayData.workRecords.filter(r => r.id !== recordId);
 
     if (dayData.workRecords.length === newRecords.length) return;

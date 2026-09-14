@@ -1,33 +1,33 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202609112339';
-import * as State from './state.js?v=202609112339';
+import * as DOM from './dom-elements.js?v=202609141352';
+import * as State from './state.js?v=202609141352';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202609112339';
-import { updateDailyData } from './app-data.js?v=202609112339';
+import { render } from './app.js?v=202609141352';
+import { updateDailyData } from './app-data.js?v=202609141352';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202609112339';
+import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202609141352';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202609112339';
+} from './ui.js?v=202609141352';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202609112339';
-import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords } from './history-data-manager.js?v=202609112339';
-import { checkMissingQuantities } from './analysis-logic.js?v=202609112339';
-import { openHistoryQuantityModal } from './app-history-logic.js?v=202609112339';
+} from './app-logic.js?v=202609141352';
+import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords } from './history-data-manager.js?v=202609141352';
+import { checkMissingQuantities } from './analysis-logic.js?v=202609141352';
+import { openHistoryQuantityModal } from './app-history-logic.js?v=202609141352';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Admin Todo 로직 임포트
-import * as AdminTodoLogic from './admin-todo-logic.js?v=202609112339';
+import * as AdminTodoLogic from './admin-todo-logic.js?v=202609141352';
 
 export function setupMainScreenListeners() {
 
@@ -299,9 +299,16 @@ export function setupMainScreenListeners() {
                 });
 
                 // 오늘 입력은 '가저장' 상태이므로 isQuantityVerified = false로 저장
-                saveProgress(false, false); 
+                // (isAutoSave=true 로 주어 saveProgress 자체 토스트를 끄고, 결과만 여기서 한 번 알린다)
+                // 처리량 자체는 위 updateDailyData 로 이미 반영됐다 — 확인은 먼저 알린다.
+                showToast('오늘의 처리량(예상)을 반영했습니다.');
 
-                showToast('오늘의 처리량(예상)이 저장되었습니다.');
+                // ⚠️ await 를 빼면 안 된다. 이 호출이 떠 있는 동안 사용자가 '업무 마감'을 누르면,
+                //    뒤늦게 끝난 이쪽이 마감 전 상태(ongoing)로 이력을 통째 덮어쓴다.
+                //    (workRecords 는 배열이라 merge 가 아니라 교체다)
+                const resToday = await saveProgress(true, false);
+                // 'nothing'(저장할 게 없음)은 정상, 'failed' 만 오류로 안내한다.
+                if (resToday === 'failed') showToast('처리량은 반영됐지만 이력 저장에 실패했습니다. 연결을 확인해 주세요.', true);
             };
 
             State.context.quantityModalContext.onCancel = () => {};
@@ -347,9 +354,11 @@ export function setupMainScreenListeners() {
                     confirmedZeroTasks: confirmedZeroTasks
                 });
                 
-                saveProgress(false, false);
+                showToast('오늘의 처리량(예상)을 반영했습니다.');
 
-                showToast('오늘의 처리량(예상)이 저장되었습니다.');
+                // await 필수 — 위 데스크톱 분기의 주석 참조(마감과의 경합).
+                const resToday2 = await saveProgress(true, false);
+                if (resToday2 === 'failed') showToast('처리량은 반영됐지만 이력 저장에 실패했습니다. 연결을 확인해 주세요.', true);
             };
 
             State.context.quantityModalContext.onCancel = () => {};
