@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609141352';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609141352';
-import * as State from './state.js?v=202609141352';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM } from './utils.js?v=202609141352';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609141352';
+import { predictFutureTrends } from './analysis-logic.js?v=202609151411';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609151411';
+import * as State from './state.js?v=202609151411';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609151411';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609151411';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609141352';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609151411';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609141352';
-import { taskUph, recentDays } from './task-throughput.js?v=202609141352';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609151411';
+import { taskUph, recentDays } from './task-throughput.js?v=202609151411';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -39,7 +39,7 @@ const getIncomingChinaForDate = (dateStr) => {
 // 자동값 규칙: ai=국내배송 예측 / incoming=입고일정 / china-linked=중국제작 입고량×검수비율
 //              last7=지난 7회 업무량 평균
 // 어느 경우든 '예정 물량'에 수기 입력값이 있으면 그 값이 최우선이다.
-const SIM_TASKS = [
+const LEGACY_SIM_TASKS = [
     { id: 'domestic', key: '국내배송', label: '국내배송', auto: 'ai' },
     { id: 'china',    key: '중국제작', label: '중국제작', auto: 'incoming' },
     { id: 'sample',   key: '샘플검수', label: '샘플검수', auto: 'china-linked' },
@@ -55,11 +55,18 @@ const SIM_TASKS = [
     { id: 'localprod',key: '국내제작', label: '국내제작', auto: 'last7' }
 ];
 // 입력 칸을 성격별로 묶어 보여준다(10개를 한 덩어리로 늘어놓으면 읽기 어렵다).
-const SIM_GROUPS = [
+const BASE_SIM_GROUPS = [
     { label: '출고',      ids: ['domestic', 'direct', 'ably'] },
     { label: '입고 · 제작', ids: ['china', 'sample', 'localprod'] },
     { label: '그 외 작업',  ids: ['fill', 'return', 'full', 'other'] }
 ];
+
+// 위 10개는 '늘 하는 업무'라 코드에 두지만, 그 밖에도 실제로 처리량을 세는 업무가 계속 늘어난다.
+// 목록에 없으면 계획 칸이 아예 안 생기고 나중에 전부 '계획 외'로 찍히므로,
+// 관리자에 등록돼 있고 최근에 실제로 물량이 잡힌 업무는 자동으로 뒤에 붙인다.
+// ⚠️ 저장 키는 id 가 아니라 업무명(key)이다 — 기존 10개의 key 를 바꾸면 저장된 계획이 깨진다.
+let SIM_TASKS = LEGACY_SIM_TASKS.slice();
+let SIM_GROUPS = BASE_SIM_GROUPS.map(g => ({ ...g, ids: g.ids.slice() }));
 
 // ⏳ '시간으로 잡는 업무' — 처리량(개수)이 없고 얼마나 오래 붙어 있었나로만 남는 업무.
 //    UPH를 낼 수 없으므로 수량 대신 '투입시간(분)'으로 넣고, 그 시간을 총 소요시간에 더한다.
@@ -67,22 +74,128 @@ const SIM_GROUPS = [
 //    (관리자 설정에 simTimeTasks 배열이 있으면 그 목록을 그대로 쓴다)
 let SIM_TIME_TASKS = [];
 
-const TIME_TASK_MAX = 6;              // 화면에 세울 최대 항목 수
-const TIME_TASK_MIN_AVG_MIN = 10;     // 근무일 1일 평균 10분 미만이면 뺀다(잡음 제거)
+const TIME_TASK_MAX = 12;             // 화면에 세울 최대 항목 수
+const TIME_TASK_MIN_AVG_MIN = 3;      // 근무일 1일 평균 3분 미만이면 뺀다(잡음 제거)
+const TIME_TASK_MIN_DAYS = 3;         // 한 번 크게 한 일회성 업무를 거른다(진행일 3일 이상)
+const TIME_TASK_RARE_RATIO = 0.3;     // 진행일이 근무일의 30% 미만이면 '가끔 하는 업무'로 따로 묶는다
 // 근태로 이미 가용 인원에서 빠지는 항목 · 시뮬레이션 대상이 아닌 항목
 const TIME_TASK_EXCLUDE = new Set(['매장근무', '출장', '연차', '휴직', '결근', '교육']);
+
+// ───────────────────────────────────────────────────────────
+// 수량형 업무 목록 자동 구성
+// ───────────────────────────────────────────────────────────
+const SIM_WINDOW_DAYS = 56;           // '최근에 실제로 한 업무' 판정 구간
+
+// 이력은 배열 길이를 바꾸지 않고 제자리 갱신된다(과거 날짜 물량 정정 등).
+// 길이만 시그니처로 쓰면 캐시가 세션 내내 굳으므로 내용까지 훑는다.
+// 경로마다 다시 세지 않도록 ensureSimTasks 에서 한 번만 갱신해 공유한다.
+let historySigValue = '0';
+const refreshHistorySig = () => {
+    const data = State.allHistoryData;
+    const today = getTodayDateString();
+    // 합으로 누르면 '직진배송 100 → 에이블리 100' 처럼 총량이 같은 정정을 못 잡는다.
+    // 업무명·물량·근무기록(업무·시간)을 순서대로 섞는다.
+    let h = 7;
+    const mix = (v) => {
+        const str = String(v == null ? '' : v);
+        for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+        h = (h * 31 + 1) | 0;
+    };
+    let n = 0;
+    (Array.isArray(data) ? data : []).forEach(d => {
+        if (typeof d?.id !== 'string' || d.id > today) return;
+        n++;
+        mix(d.id);
+        (d.workRecords || []).forEach(r => { mix(r?.task); mix(r?.duration); });
+        Object.entries(d.taskQuantities || {}).forEach(([k, v]) => { mix(k); mix(v); });
+    });
+    historySigValue = `${n}:${h}:${today}`;
+    return historySigValue;
+};
+const LEGACY_SIM_KEYS = new Set(LEGACY_SIM_TASKS.map(t => t.key));
+
+/** 업무명 → DOM/맵에 쓸 id. 한글은 살리고 나머지 기호는 뗀다('상.하차' → 'k상하차').
+ *  ⚠️ 이 id 는 getElementById 로만 쓸 것 — querySelector('#...') 는 한글 id 에서 깨진다. */
+const safeTaskId = (key, used) => {
+    let base = 'k' + String(key).replace(/[^0-9A-Za-z가-힣]/g, '');
+    if (base === 'k') {
+        let h = 7;
+        for (const ch of String(key)) h = (h * 31 + ch.charCodeAt(0)) | 0;
+        base = 'k' + Math.abs(h);
+    }
+    let id = base, n = 2;
+    while (used.has(id)) id = `${base}_${n++}`;
+    used.add(id);
+    return id;
+};
+
+/** 최근 구간의 업무별 처리량 합계 */
+const recentQtyTotals = (historyData) => {
+    const out = new Map();
+    const today = getTodayDateString();
+    recentDays(historyData, SIM_WINDOW_DAYS, today).forEach(d => {
+        if (typeof d?.id !== 'string' || d.id > today) return;   // 미래 날짜 문서는 실적이 아니다
+        Object.entries(d?.taskQuantities || {}).forEach(([k, v]) => {
+            const q = Number(v) || 0;
+            if (q > 0) out.set(k, (out.get(k) || 0) + q);
+        });
+    });
+    return out;
+};
+
+/** 기존 10개 + (관리자에 '처리량 업무'로 등록됐고 최근 물량이 잡힌 업무).
+ *  등록만 되고 최근 실적이 없는 업무는 넣지 않는다 — 빈 칸만 늘면 더 읽기 어렵다. */
+const buildSimTasks = (historyData, appConfig) => {
+    const list = LEGACY_SIM_TASKS.slice();
+    const used = new Set(LEGACY_SIM_TASKS.map(t => t.id));
+    const totals = recentQtyTotals(historyData);
+    const registered = new Set(appConfig?.quantityTaskTypes || []);
+    getAllTaskKeys(appConfig).forEach(key => {
+        if (LEGACY_SIM_KEYS.has(key) || TIME_TASK_EXCLUDE.has(key)) return;
+        if (!registered.has(key)) return;
+        if (!((totals.get(key) || 0) > 0)) return;
+        // 새 업무의 기본 추정은 'cadence' — 안 하는 날은 0으로 잡혀 화면에서 접힌다.
+        // 표본이 적으면 cadenceValueFor 가 알아서 지난 7회 평균으로 떨어진다.
+        list.push({ id: safeTaskId(key, used), key, label: key, auto: 'cadence' });
+    });
+    return list;
+};
+
+let simTasksSig = null;
+
+/** 수량형 목록 갱신. 목록이 바뀌면 true (입력칸을 다시 그려야 한다).
+ *  ⚠️ appConfig·업무이력이 늦게 도착하므로 모듈 최상위에서 한 번 만들면 안 된다. */
+const ensureSimTasks = () => {
+    const cfg = State.appConfig;
+    const data = State.allHistoryData;
+    const sig = [(cfg?.quantityTaskTypes || []).join('|'), refreshHistorySig()].join('#');
+    if (sig === simTasksSig) return false;
+    simTasksSig = sig;
+
+    const next = buildSimTasks(data, cfg);
+    if (next.map(t => t.id).join('|') === SIM_TASKS.map(t => t.id).join('|')) return false;
+    SIM_TASKS = next;
+
+    // 어느 구획에도 안 들어간 업무는 조용히 화면에서 사라진다 → 남는 건 뒤에 모아 붙인다
+    const placed = new Set(BASE_SIM_GROUPS.flatMap(g => g.ids));
+    const extras = SIM_TASKS.filter(t => !placed.has(t.id)).map(t => t.id);
+    SIM_GROUPS = BASE_SIM_GROUPS.map(g => ({ ...g, ids: g.ids.slice() }));
+    if (extras.length > 0) SIM_GROUPS.push({ label: '가끔 하는 업무', ids: extras });
+    return true;
+};
 
 /** 업무 기록에서 시간형 업무 후보를 뽑는다 — 수량으로 잡히는 업무는 제외(그쪽은 UPH로 계산). */
 const buildTimeTaskList = (historyData, appConfig, windowDays = 56) => {
     const manual = appConfig?.simTimeTasks;
-    const qtyKeys = new Set([
-        ...SIM_TASKS.map(t => t.key),
-        ...(appConfig?.quantityTaskTypes || [])
-    ]);
+    // 수량형으로 확정된 업무만 뺀다.
+    // (quantityTaskTypes 전체를 빼면, 등록만 돼 있고 물량 기록이 없어 수량형에도 못 들어간 업무가
+    //  양쪽에서 모두 빠져 계획 시간이 통째로 사라진다)
+    const qtyKeys = new Set(SIM_TASKS.map(t => t.key));
 
-    const toEntry = (key, i) => ({ id: `tt${i}`, key, label: key });
+    const used = new Set();
+    const toEntry = (key, rare = false) => ({ id: safeTaskId(key, used), key, label: key, rare });
     if (Array.isArray(manual) && manual.length > 0) {
-        return manual.filter(k => k && !qtyKeys.has(k)).slice(0, TIME_TASK_MAX).map(toEntry);
+        return manual.filter(k => k && !qtyKeys.has(k)).slice(0, TIME_TASK_MAX).map(k => toEntry(k));
     }
 
     const today = getTodayDateString();
@@ -109,19 +222,54 @@ const buildTimeTaskList = (historyData, appConfig, windowDays = 56) => {
 
     return [...agg.entries()]
         .map(([key, v]) => ({ key, avg: v.minutes / days.length, days: v.days, minutes: v.minutes }))
-        .filter(x => x.avg >= TIME_TASK_MIN_AVG_MIN)
+        .filter(x => x.avg >= TIME_TASK_MIN_AVG_MIN && x.days >= TIME_TASK_MIN_DAYS)
         .sort((a, b) => b.minutes - a.minutes)      // 오래 걸리는 업무부터
         .slice(0, TIME_TASK_MAX)
-        .map((x, i) => toEntry(x.key, i));
+        .map(x => toEntry(x.key, x.days < days.length * TIME_TASK_RARE_RATIO));
 };
+
+const timeTaskSig = (arr) => arr.map(t => t.key + (t.rare ? '*' : '')).join('|');
 
 /** 시간형 업무 목록 갱신. 목록이 바뀌면 true (입력칸을 다시 그려야 한다) */
 const refreshTimeTasks = () => {
     const next = buildTimeTaskList(State.allHistoryData, State.appConfig);
-    const sig = (arr) => arr.map(t => t.key).join('|');
-    if (sig(next) === sig(SIM_TIME_TASKS)) return false;
+    if (timeTaskSig(next) === timeTaskSig(SIM_TIME_TASKS)) return false;
     SIM_TIME_TASKS = next;
     return true;
+};
+
+/** 계산에 쓸 시간형 업무 — 수량형에 이미 들어간 업무는 뺀다.
+ *  목록은 만들어진 시점의 SIM_TASKS 로만 걸러지므로, 나중에 수량형이 늘어나면
+ *  같은 업무가 양쪽에 남아 시간이 두 번 더해진다. 여기서 한 번 더 막는다. */
+const activeTimeTasks = () => {
+    const qty = new Set(SIM_TASKS.map(t => t.key));
+    return SIM_TIME_TASKS.filter(t => !qty.has(t.key));
+};
+
+let timeListSig = null;
+let timeListBuilt = false;
+let simInputsStale = false;   // 목록이 바뀌었는데 입력칸은 아직 옛 세대
+
+/** 수량형 → 시간형 순으로 목록을 맞춘다(시간형은 수량형 키를 빼고 뽑으므로 순서가 중요).
+ *  ⚠️ '비어 있을 때만 다시 뽑기'로 두면, 관리자가 simTimeTasks 를 고치거나 날이 바뀌어도
+ *     목록이 옛것으로 굳어 화면마다 계획 총시간이 달라진다. 자체 시그니처로 판단한다.
+ *  반환: 목록이 바뀌었는가 (입력칸을 다시 그려야 하는지) */
+const ensureSimLists = (force = false) => {
+    const qtyChanged = ensureSimTasks();
+    const cfg = State.appConfig;
+    const sig = [
+        historySigValue,
+        Array.isArray(cfg?.simTimeTasks) ? cfg.simTimeTasks.join('|') : ''
+    ].join('#');
+    const stale = force || qtyChanged || sig !== timeListSig || !timeListBuilt;
+    timeListSig = sig;
+    let timeChanged = false;
+    if (stale) { timeChanged = refreshTimeTasks(); timeListBuilt = true; }
+    const changed = timeChanged || qtyChanged;
+    // 계획 화면을 안 거치는 경로(대시보드 띠·인력 운영·정확도)에서 목록이 바뀌면
+    // 입력칸은 옛 세대 그대로다 — 계획 화면으로 돌아올 때 다시 그리도록 표시해 둔다.
+    if (changed && document.getElementById('sim-task-list')?.dataset.built === 'true') simInputsStale = true;
+    return changed;
 };
 
 /** 저장해 둔 시간형 업무 값(수기). 없으면 null → 실적 평균으로 폴백 */
@@ -172,11 +320,26 @@ const dayLabel = (dateStr) => {
 
 /** 작업별 최근 4주 UPH(개/시) = Σ 처리량 ÷ Σ 그 작업 투입시간.
  *  계산 자체는 js/task-throughput.js 한 곳에 모여 있다(화면마다 다른 답이 나오지 않도록). */
-const computeTaskUPHs = (historyData) =>
-    taskUph(recentDays(historyData, 28, getTodayDateString()), {
-        mode: 'total',
-        tasks: new Set(SIM_TASKS.map(t => t.key))
+const UPH_MIN_MINUTES_NEW = 60;   // 새로 편입된 업무의 최소 표본(최근 4주 총 투입시간)
+
+const computeTaskUPHs = (historyData) => {
+    const days = recentDays(historyData, 28, getTodayDateString());
+    const uph = taskUph(days, { mode: 'total', tasks: new Set(SIM_TASKS.map(t => t.key)) });
+
+    // 새로 편입된 업무는 표본이 몇 분뿐이면 속도가 수십 배로 튀어, 계획 시간이
+    // 비현실적으로 짧게 잡힌다. 표본이 모자라면 '기준 없음'(0)으로 둔다.
+    // 기존 10개는 지금까지의 값을 그대로 유지한다(회귀 방지).
+    const minutes = {};
+    days.forEach(d => (d?.workRecords || []).forEach(r => {
+        const m = Number(r?.duration) || 0;
+        if (r?.task && m > 0) minutes[r.task] = (minutes[r.task] || 0) + m;
+    }));
+    Object.keys(uph).forEach(k => {
+        if (LEGACY_SIM_KEYS.has(k)) return;
+        if ((minutes[k] || 0) < UPH_MIN_MINUTES_NEW) uph[k] = 0;
     });
+    return uph;
+};
 
 /** 샘플검수 비율 = 최근 4주에서 중국제작 > 0 인 날들의 (Σ샘플검수 ÷ Σ중국제작).
  *  중국제작 입고가 있는 날에만 샘플검수가 생기므로, 그 비율로 입고량에서 역산한다. */
@@ -257,25 +420,32 @@ const timeTaskDeps = (taskKey) => {
     if (cfg && Array.isArray(cfg[taskKey])) return cfg[taskKey];
     if (DEFAULT_TIME_TASK_DEPS[taskKey]) return DEFAULT_TIME_TASK_DEPS[taskKey];
     // 이름에 물량 업무명이 들어 있으면 그 업무와 묶는다 (예: 'OO 사전작업', 'OO(담당)')
-    const hit = SIM_TASKS.find(t => taskKey !== t.key && taskKey.includes(t.key));
+    // ⚠️ 기존 10개로만 판단한다. 목록 전체를 대상으로 하면 새로 편입된 업무에 우연히 이름이
+    //    걸려, 그 업무 물량이 0인 날 시간이 통째로 사라진다(조용히 틀리는 유형).
+    const hit = LEGACY_SIM_TASKS.find(t => taskKey !== t.key && taskKey.includes(t.key));
     return hit ? [hit.key] : [];
 };
 
 /** 대상일의 담당 업무 값 — 저장값 › (연동 물량이 있을 때만) 실적 평균
  *  qtyLookup: 연동 물량을 어디서 볼지. 기본은 자동 추정값, 화면에서는 지금 입력된 값. */
 const autoTimeValueFor = (dateStr, t, historyData, qtyLookup = null) => {
+    const deps = timeTaskDeps(t.key);
     const saved = getPlannedTime(dateStr, t.key);
     if (saved) {
         // 인원을 올렸을 때 시간을 다시 잡으려면 '1인 기준 시간'이 있어야 한다.
-        // 0명으로 저장해 둔 날은 실적 평균을 기준으로 삼는다.
-        const st = saved.workers > 0 ? null : computeTimeTaskStats(historyData, t.key);
-        const unitMinutes = saved.workers > 0
-            ? Math.round(saved.minutes / saved.workers)
-            : (st ? st.avgMinutes : 0);
-        return { ...saved, unitMinutes, source: 'planned-time' };
+        if (saved.workers > 0) {
+            return { ...saved, unitMinutes: Math.round(saved.minutes / saved.workers), source: 'planned-time' };
+        }
+        // 0명으로 저장해 둔 날 = 그날은 안 하는 업무. 계산도 0분이므로 화면도 0분으로 맞춘다.
+        // 인원을 올렸을 때 쓸 기준은 실적 평균에서 가져오되, 연동 업무가 있으면 그 업무를 한 날만 본다
+        // (전체 근무일로 나누면 실제 소요보다 훨씬 작게 나온다).
+        const st = computeTimeTaskStats(historyData, t.key, 28,
+            deps.length > 0 ? (d) => deps.some(k => (Number(d.taskQuantities?.[k]) || 0) > 0) : null);
+        // {minutes>0, workers:0} 인 옛 저장값은 '여러 명이 합쳐 쓴 시간'일 수 있어 1인 기준으로 쓰면 인원배만큼 부푼다
+        const unit = (st && st.avgMinutes > 0) ? st.avgMinutes : saved.minutes;
+        return { minutes: 0, workers: 0, unitMinutes: unit, source: 'planned-time' };
     }
 
-    const deps = timeTaskDeps(t.key);
     const lookup = qtyLookup || ((key) => {
         const task = SIM_TASKS.find(x => x.key === key);
         return task ? autoQtyFor(dateStr, task, historyData) : 0;
@@ -334,8 +504,24 @@ const computeLast7Avg = (historyData, taskKey, occurrences = 7) => {
  *
  *  모집단은 '근무 기록이 있는 날'만 쓴다. 휴무일을 미발생으로 세면 빈도가 낮게 나온다.
  */
+// 대상 날짜와 무관한 계산이라 업무별로 한 번만 하면 된다.
+// (인원 전망은 10일치 × 업무 수만큼 부르므로, 캐시가 없으면 전체 이력을 수백 번 훑는다)
+const cadenceCache = new Map();
+let cadenceCacheSig = '';
+
+// ⚠️ 캐시 키가 ensureSimTasks() 가 갱신하는 historySigValue 다 — 이 함수를 부르는 새 경로를 만들 때는
+//    앞단에서 ensureSimTasks()(또는 ensureSimLists())를 먼저 태울 것. 안 그러면 캐시가 옛 값으로 굳는다.
 const analyzeCadence = (historyData, taskKey, windowWorkDays = 56) => {
     const today = getTodayDateString();
+    const sig = `${historySigValue}#${windowWorkDays}`;
+    if (sig !== cadenceCacheSig) { cadenceCache.clear(); cadenceCacheSig = sig; }
+    if (cadenceCache.has(taskKey)) return cadenceCache.get(taskKey);
+    const result = analyzeCadenceUncached(historyData, taskKey, windowWorkDays, today);
+    cadenceCache.set(taskKey, result);
+    return result;
+};
+
+const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => {
     const days = (historyData || [])
         .filter(d => d && typeof d.id === 'string' && d.id <= today)
         .filter(d => (d.workRecords || []).length > 0)
@@ -577,6 +763,11 @@ const autoValueFor = (dateStr, task, historyData) => {
     const planned = getPlanned(dateStr, task.key);
     if (planned != null) return { value: planned, source: 'planned' };
 
+    return estimatedValueFor(dateStr, task, historyData);
+};
+
+/** 수기값(실측·예정)을 뺀 순수 자동 추정값만. 예정 물량 입력 화면의 프리필이 쓴다. */
+const estimatedValueFor = (dateStr, task, historyData) => {
     switch (task.auto) {
         case 'ai':       return { value: getAIPredictedDomestic(historyData, dateStr), source: 'ai' };
         case 'incoming': return { value: getIncomingChinaForDate(dateStr), source: 'incoming' };
@@ -673,10 +864,17 @@ ${detail}` : b.tip;
 const renderSimTaskInputs = () => {
     const host = document.getElementById('sim-task-list');
     if (!host) return;
-    const sig = SIM_TIME_TASKS.map(t => t.key).join('|');
-    if (host.dataset.built === 'true' && host.dataset.timeSig === sig) return;
+    const sig = timeTaskSig(SIM_TIME_TASKS);
+    const qtySig = SIM_TASKS.map(t => t.id).join('|');
+    // 이미 지금 목록대로 그려져 있으면 옛 세대가 아니다
+    if (host.dataset.built === 'true' && host.dataset.timeSig === sig && host.dataset.qtySig === qtySig) {
+        simInputsStale = false;
+        return;
+    }
     host.dataset.built = 'true';
     host.dataset.timeSig = sig;
+    host.dataset.qtySig = qtySig;
+    simInputsStale = false;
 
     const ROW = `flex items-center gap-2.5 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0
                  transition hover:bg-gray-50 dark:hover:bg-gray-900/30
@@ -685,9 +883,10 @@ const renderSimTaskInputs = () => {
                  text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600
                  focus:outline-none focus:ring-0 focus:border-indigo-400`;
 
+    // 업무명은 관리자 설정에서 오는 임의 문자열이다 — 따옴표 하나에 줄 전체가 깨진다
     const row = (t) => `
         <div id="sim-row-${t.id}" data-row-id="${t.id}" class="pred-sim-row ${ROW}">
-            <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${t.label}">${t.label}</span>
+            <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)}">${escapeHtml(t.label)}</span>
             <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric" class="${NUM}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">개</span>
             <span id="sim-src-${t.id}" class="w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
@@ -697,7 +896,7 @@ const renderSimTaskInputs = () => {
 
     const timeRow = (t) => `
         <div id="sim-row-t-${t.id}" data-row-id="t-${t.id}" class="pred-sim-row ${ROW}">
-            <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${t.label} — 인원이 늘면 그만큼 시간이 더해집니다">${t.label}</span>
+            <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)} — 인원이 늘면 그만큼 시간이 더해집니다">${escapeHtml(t.label)}</span>
             <label class="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
                    title="이 업무를 하는 인원. 인원을 올리면 1인 시간만큼 총 시간이 자동으로 더해집니다(1명 340분 → 2명 680분). 0명으로 두면 그날은 하지 않는 업무로 보고 시간도 0이 됩니다.">동시
                 <input id="sim-workers-${t.id}" type="number" min="0" step="1" value="1"
@@ -717,15 +916,24 @@ const renderSimTaskInputs = () => {
             ${rowsHtml}
         </div>`;
 
-    const qtyBlocks = SIM_GROUPS.map(g => block(
-        g.label, '',
-        g.ids.map(id => SIM_TASKS.find(t => t.id === id)).filter(Boolean).map(row).join('')
-    )).join('');
+    const qtyBlocks = SIM_GROUPS.map(g => {
+        const rows = g.ids.map(id => SIM_TASKS.find(t => t.id === id)).filter(Boolean);
+        return rows.length > 0 ? block(g.label, '', rows.map(row).join('')) : '';
+    }).join('');
 
-    const timeBlock = SIM_TIME_TASKS.length > 0
-        ? block('담당 · 시간 업무', '처리량이 없는 업무 — 총 투입시간(분)', SIM_TIME_TASKS.map(timeRow).join(''),
-                'text-indigo-500 dark:text-indigo-300')
-        : '';
+    // 자주 하는 업무와 가끔 하는 업무를 나눈다 — 목록이 길어져도 위쪽은 평소 모습 그대로 남는다
+    const shown = activeTimeTasks();
+    const freqTime = shown.filter(t => !t.rare);
+    const rareTime = shown.filter(t => t.rare);
+    const timeBlock =
+        (freqTime.length > 0
+            ? block('담당 · 시간 업무', '처리량이 없는 업무 — 총 투입시간(분)', freqTime.map(timeRow).join(''),
+                    'text-indigo-500 dark:text-indigo-300')
+            : '')
+        + (rareTime.length > 0
+            ? block('가끔 하는 시간 업무', '진행 빈도가 낮은 업무', rareTime.map(timeRow).join(''),
+                    'text-indigo-400 dark:text-indigo-300/80')
+            : '');
 
     // 데스크톱에서는 2열로 세워 세로 길이를 줄인다(항목이 많아 한 줄씩이면 화면을 넘긴다)
     host.className = 'grid grid-cols-1 lg:grid-cols-2 gap-3 items-start';
@@ -733,12 +941,12 @@ const renderSimTaskInputs = () => {
 };
 
 // 🧮 담당 업무의 '1인 기준 시간(분)'. 인원을 바꾸면 이 값 × 인원으로 총 투입시간을 다시 잡는다.
-const timeTaskUnit = new Map();   // taskId → 1인 시간(분)
+const timeTaskUnit = new Map();   // 업무명 → 1인 시간(분). id 는 목록 재구성 때 바뀌므로 키로 쓰지 않는다
 
 const setTimeUnit = (t, minutes, workers) => {
     const w = Math.max(0, Math.round(Number(workers) || 0));
     if (w <= 0) return;              // 0명일 때는 1인 기준을 덮지 않는다(그대로 보존)
-    timeTaskUnit.set(t.id, Math.max(0, Math.round((Number(minutes) || 0) / w)));
+    timeTaskUnit.set(t.key, Math.max(0, Math.round((Number(minutes) || 0) / w)));
 };
 
 /** 시간형 업무 입력칸 채우기 */
@@ -826,8 +1034,9 @@ const autoFillSimInputs = (dateStr) => {
     const data = State.allHistoryData;
     const config = State.appConfig;
 
-    // 업무 이력이 늦게 도착하면 시간형 업무 목록도 그때 정해진다 — 바뀌었으면 입력칸을 다시 그린다
-    if (refreshTimeTasks()) renderSimTaskInputs();
+    // 업무 이력·설정이 늦게 도착하면 업무 목록도 그때 정해진다 — 바뀌었으면 입력칸을 다시 그린다
+    // (시간형은 수량형 키를 빼고 뽑으므로 항상 수량형이 먼저다)
+    if (ensureSimLists(true)) renderSimTaskInputs();
 
     // 모든 업무가 기본 등록 — 예정 물량이 있으면 그 값, 없으면 업무별 자동값
     SIM_TASKS.forEach(t => {
@@ -840,7 +1049,7 @@ const autoFillSimInputs = (dateStr) => {
     SIM_TIME_TASKS.forEach(t => {
         const v = autoTimeValueFor(dateStr, t, data);
         setTimeInputs(t, v);
-        timeTaskUnit.set(t.id, Math.max(0, Math.round(Number(v.unitMinutes ?? v.minutes) || 0)));
+        timeTaskUnit.set(t.key, Math.max(0, Math.round(Number(v.unitMinutes ?? v.minutes) || 0)));
         markTimeSourceBadge(t, v.source, v.detail);
     });
 
@@ -889,8 +1098,8 @@ const renderLeaveInfo = (staffInfo) => {
     const chips = staffInfo.onLeaveList.map(e => `
         <span class="inline-flex items-center gap-1 whitespace-nowrap px-1.5 py-0.5 rounded-md
                      bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-            <span class="font-bold text-gray-600 dark:text-gray-300">${e.member}</span>
-            <span class="text-gray-400 dark:text-gray-500">${e.type}</span>
+            <span class="font-bold text-gray-600 dark:text-gray-300">${escapeHtml(e.member)}</span>
+            <span class="text-gray-400 dark:text-gray-500">${escapeHtml(e.type)}</span>
         </span>`).join('');
 
     el.innerHTML = `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -923,16 +1132,22 @@ const paintStaffChip = () => {
 };
 
 const readSimInputs = () => {
+    // ⚠️ 입력칸이 없는 업무는 건너뛴다. 0 으로 읽으면, 목록이 늘어난 직후처럼 아직 칸이
+    //    안 그려진 업무를 '작업량 저장'이 0 으로 덮어써 예정 물량이 조용히 사라진다.
     const tasks = {};
     SIM_TASKS.forEach(t => {
         const el = document.getElementById(`sim-qty-${t.id}`);
-        tasks[t.key] = Number(el?.value) || 0;
+        if (!el) return;
+        tasks[t.key] = Number(el.value) || 0;
     });
     const timeTasks = {};
-    SIM_TIME_TASKS.forEach(t => {
+    activeTimeTasks().forEach(t => {
+        const mEl = document.getElementById(`sim-time-${t.id}`);
+        const wEl = document.getElementById(`sim-workers-${t.id}`);
+        if (!mEl && !wEl) return;
         timeTasks[t.key] = {
-            minutes: Math.max(0, Math.round(Number(document.getElementById(`sim-time-${t.id}`)?.value) || 0)),
-            workers: Math.max(0, Math.round(Number(document.getElementById(`sim-workers-${t.id}`)?.value) || 0))
+            minutes: Math.max(0, Math.round(Number(mEl?.value) || 0)),
+            workers: Math.max(0, Math.round(Number(wEl?.value) || 0))
         };
     });
     const staffFulltime = Number(document.getElementById('sim-staff-fulltime')?.value) || 0;
@@ -978,7 +1193,7 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
     // ② 시간으로 잡는 업무 — 실적에서 온 '실제로 붙어 있던 시간'이라 가동률로 다시 깎지 않는다
     const timeTaskTimes = {};
     let timeElapsedFloor = 0, timeHours = 0;
-    SIM_TIME_TASKS.forEach(t => {
+    activeTimeTasks().forEach(t => {
         const e = (inputs.timeTasks || {})[t.key] || {};
         const workers = Math.max(0, Math.round(Number(e.workers) || 0));
         // 인원 0명 = 그날은 하지 않는 업무 → 시간도 0으로 본다
@@ -1061,7 +1276,7 @@ const runSimulation = ({ silent = false } = {}) => {
             autoTasks[t.key] = autoQtyFor(d, t, State.allHistoryData);
         });
         const autoTimeTasks = {};
-        SIM_TIME_TASKS.forEach(t => {
+        activeTimeTasks().forEach(t => {
             const v = autoTimeValueFor(d, t, State.allHistoryData);
             autoTimeTasks[t.key] = { minutes: v.minutes, workers: v.workers };
         });
@@ -1119,7 +1334,7 @@ const renderSimResult = (results, taskUPH, mode) => {
             // 소요시간이 긴 업무가 눈에 띄도록 막대를 함께 그린다.
             const w = r.totalHours > 0 ? Math.max(2, Math.round(v.hours / r.totalHours * 100)) : 0;
             return `<tr class="border-t border-gray-100 dark:border-gray-700/60">
-                <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${t.label}</td>
+                <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}</td>
                 <td class="py-2 px-3 text-right tabular-nums">${v.qty.toLocaleString()}</td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${v.uph > 0 ? v.uph.toFixed(1) : '<span class="text-gray-300 dark:text-gray-600">기준 없음</span>'}</td>
                 <td class="py-2 px-3 text-right">
@@ -1136,12 +1351,12 @@ const renderSimResult = (results, taskUPH, mode) => {
         }).filter(Boolean).join('');
 
         // ⏳ 시간으로 잡는 업무 — 수량·UPH 칸은 비우고 시간만 보여준다
-        const timeRows = SIM_TIME_TASKS.map(t => {
+        const timeRows = activeTimeTasks().map(t => {
             const v = r.timeTaskTimes?.[t.key];
             if (!v || v.minutes <= 0) return '';
             const w = r.totalHours > 0 ? Math.max(2, Math.round(v.hours / r.totalHours * 100)) : 0;
             return `<tr class="border-t border-gray-100 dark:border-gray-700/60 bg-indigo-50/30 dark:bg-indigo-900/10">
-                <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${t.label}
+                <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}
                     <span class="ml-1 text-[10px] font-bold text-indigo-500 dark:text-indigo-300">시간형</span></td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">${v.minutes}분</td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">담당 ${v.workers}명</td>
@@ -1318,7 +1533,7 @@ const computeAutoInputsForDate = (dateStr, excludeMinutes = 0) => {
     const tasks = {};
     SIM_TASKS.forEach(t => { tasks[t.key] = autoQtyFor(dateStr, t, data); });
     const timeTasks = {};
-    SIM_TIME_TASKS.forEach(t => {
+    activeTimeTasks().forEach(t => {
         const v = autoTimeValueFor(dateStr, t, data);
         timeTasks[t.key] = { minutes: v.minutes, workers: v.workers };
     });
@@ -1336,8 +1551,9 @@ const computeAutoInputsForDate = (dateStr, excludeMinutes = 0) => {
  *  주말·공휴일은 건너뛴다.
  */
 export const getStaffingOutlook = (workDays = 10) => {
-    // 대시보드처럼 '업무 예상' 탭을 거치지 않고 부르면 시간형 업무 목록이 비어 있다
-    if (SIM_TIME_TASKS.length === 0) { try { refreshTimeTasks(); } catch (e) {} }
+    // 대시보드처럼 '업무 예상' 탭을 거치지 않고 부르면 업무 목록이 비어 있거나 옛 목록이다.
+    // 여기서 맞추지 않으면 화면마다 계획 총시간이 다르게 나온다.
+    try { ensureSimLists(); } catch (e) {}
 
     const taskUPH = computeTaskUPHs(State.allHistoryData);
     const cfg = State.appConfig;
@@ -1377,13 +1593,12 @@ export const getStaffingOutlook = (workDays = 10) => {
  *  예정 물량 화면과 시뮬레이션의 기본값이 항상 일치한다.
  */
 export const getAutoQuantitiesForDate = (dateStr) => {
+    try { ensureSimTasks(); } catch (e) {}
     const data = State.allHistoryData;
     const out = {};
     SIM_TASKS.forEach(t => {
-        let v;
-        if (t.auto === 'ai') v = getAIPredictedDomestic(data, dateStr);
-        else if (t.auto === 'incoming') v = getIncomingChinaForDate(dateStr);
-        else v = computeLast7Avg(data, t.key);
+        // 시뮬레이션과 같은 추정기를 쓴다(예전엔 여기만 지난 7회 평균이라 값이 어긋났다)
+        const v = Number(estimatedValueFor(dateStr, t, data).value) || 0;
         if (v > 0) out[t.key] = Math.round(v);
     });
     return out;
@@ -1529,7 +1744,7 @@ const savedSimEntries = (dateStr) => {
     const qty = SIM_TASKS
         .filter(t => Object.prototype.hasOwnProperty.call(saved, t.key) && Number.isFinite(Number(saved[t.key])))
         .map(t => ({ task: t, value: Math.round(Number(saved[t.key])), kind: 'qty' }));
-    const time = SIM_TIME_TASKS
+    const time = activeTimeTasks()
         .map(t => ({ t, v: getPlannedTime(dateStr, t.key) }))
         .filter(x => x.v)
         .map(x => ({ task: x.t, value: x.v.minutes, kind: 'time' }));
@@ -1542,8 +1757,8 @@ const savedSimEntries = (dateStr) => {
 
 /** 저장 목록 한 줄 표기 — 시간형은 '분'으로 */
 const savedEntryText = (e) => e.kind === 'time'
-    ? `${e.task.label} ${e.value}분`
-    : `${e.task.label} ${e.value > 0 ? e.value.toLocaleString() : '0'}`;
+    ? `${escapeHtml(e.task.label)} ${e.value}분`
+    : `${escapeHtml(e.task.label)} ${e.value > 0 ? e.value.toLocaleString() : '0'}`;
 
 const updateSavedInfo = (dateStr) => {
     const el = document.getElementById('sim-saved-info');
@@ -1587,6 +1802,9 @@ const saveSimQuantities = async () => {
     // 실측으로 채워진 값도 그대로 저장한다 — 실측이 예정 물량보다 우선이라,
     // 나중에 실적이 더 쌓이면 그 값이 자동으로 앞선다(저장값에 갇히지 않는다).
     SIM_TASKS.forEach(t => {
+        // 입력칸이 없어 읽지 못한 업무는 건드리지 않는다.
+        // 0 으로 써 버리면 예정 물량 화면에 넣어 둔 값이 조용히 사라지고, 0 이 자동값을 이겨 굳는다.
+        if (!Object.prototype.hasOwnProperty.call(tasks, t.key)) return;
         merged[t.key] = Math.max(0, Math.round(Number(tasks[t.key]) || 0));
     });
 
@@ -1594,11 +1812,14 @@ const saveSimQuantities = async () => {
     if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
     // 시간형 업무도 0(=안 함)까지 그대로 저장한다
     const mergedTime = { ...(getPlannedTimeTasksForDate(dateStr) || {}) };
-    SIM_TIME_TASKS.forEach(t => {
-        const e = timeTasks[t.key] || {};
+    activeTimeTasks().forEach(t => {
+        const e = timeTasks[t.key];
+        if (!e) return;               // 입력칸이 없던 업무는 건드리지 않는다
         mergedTime[t.key] = { minutes: Math.max(0, Math.round(Number(e.minutes) || 0)),
-                              workers: Math.max(1, Math.round(Number(e.workers) || 1)) };
+                              workers: Math.max(0, Math.round(Number(e.workers) || 0)) };
     });
+    // 수량형으로 옮겨간 업무가 시간형 잔재로 남으면 나중에 되살아나 시간이 두 번 더해진다
+    SIM_TASKS.forEach(t => delete mergedTime[t.key]);
 
     const excl = readExcludeMinutes();
     const ok = await savePlannedQuantities(dateStr, merged,
@@ -1629,6 +1850,8 @@ ${list}
         SIM_TASKS.forEach(t => delete rest[t.key]);
         const restTime = { ...(getPlannedTimeTasksForDate(dateStr) || {}) };
         SIM_TIME_TASKS.forEach(t => delete restTime[t.key]);
+        // 수량형으로 옮겨간 업무의 시간형 잔재는 지운다(남겨 두면 나중에 되살아나 이중 계산된다)
+        SIM_TASKS.forEach(t => delete restTime[t.key]);
         const ok = await savePlannedQuantities(dateStr, rest, { keepZeros: true, timeTasks: restTime, excludeMinutes: -1 });
         if (!ok) return;
     }
@@ -1640,7 +1863,7 @@ ${list}
 
 /** '업무 예상' 탭 진입 시 호출: 시뮬레이션 리스너 결합 + 오늘/내일 요약 + 상세 자동값 채움 */
 export const renderForecastTab = () => {
-    refreshTimeTasks();          // 실적에서 시간형 업무 목록을 뽑는다(바뀌면 입력칸을 다시 그림)
+    ensureSimLists(true);        // 등록된 업무 + 최근 실적으로 업무 목록을 확정한다(수량형 → 시간형 순)
     renderSimTaskInputs();
     setupSimulationListeners();
 
@@ -1854,7 +2077,7 @@ const setupSimulationListeners = () => {
             if (getPlannedTime(dateStr, t.key)) return;      // 저장해 둔 값은 건드리지 않는다
             const v = autoTimeValueFor(dateStr, t, State.allHistoryData, lookup);
             setTimeInputs(t, v);
-            timeTaskUnit.set(t.id, Math.max(0, Math.round(Number(v.unitMinutes ?? v.minutes) || 0)));
+            timeTaskUnit.set(t.key, Math.max(0, Math.round(Number(v.unitMinutes ?? v.minutes) || 0)));
             markTimeSourceBadge(t, v.source, v.detail);
         });
     });
@@ -1869,7 +2092,7 @@ const setupSimulationListeners = () => {
             const t = SIM_TIME_TASKS.find(x => x.id === mW[1]);
             if (!t) return;
             const workers = Math.max(0, Math.round(Number(e.target.value) || 0));
-            const unit = timeTaskUnit.get(t.id);
+            const unit = timeTaskUnit.get(t.key);
             if (unit == null) return;
             const total = unit * workers;
             const mEl = document.getElementById(`sim-time-${t.id}`);
@@ -1943,9 +2166,11 @@ const planRowsOf = (r) => {
     const rows = [];
     SIM_TASKS.forEach(t => {
         const e = r.taskTimes[t.key];
-        rows.push({ key: t.key, label: t.label, planHours: e ? e.hours : 0, kind: 'qty' });
+        // 물량은 잡혔는데 기준 속도(UPH)가 없어 계획 시간이 0인 업무 — 진행률 분모에서 빠지므로 표시해 준다
+        const noBaseline = !!(e && e.qty > 0 && !(e.hours > 0));
+        rows.push({ key: t.key, label: t.label, planHours: e ? e.hours : 0, kind: 'qty', noBaseline });
     });
-    SIM_TIME_TASKS.forEach(t => {
+    activeTimeTasks().forEach(t => {
         const e = r.timeTaskTimes[t.key];
         rows.push({ key: t.key, label: t.label, planHours: e ? e.hours : 0, kind: 'time' });
     });
@@ -1956,7 +2181,7 @@ const planRowsOf = (r) => {
 const computeTodayStatus = () => {
     // 대시보드 띠처럼 '업무 예상' 탭을 거치지 않고 부르는 경로에서는 시간형 업무 목록이 비어 있다.
     // 비워 두면 담당 업무 시간이 계획에서 통째로 빠져 띠와 상세 화면의 숫자가 어긋난다.
-    if (SIM_TIME_TASKS.length === 0) { try { refreshTimeTasks(); } catch (e) {} }
+    try { ensureSimLists(); } catch (e) {}
 
     const { today, r, linked } = buildTodayPlan();
     const nowStr = nowTimeString();
@@ -2013,6 +2238,12 @@ const STATUS_CHIP = {
 
 const statusLabel = (row) => {
     if (row.extra) return row.working > 0 ? `계획 외 · ${row.working}명` : '계획 외';
+    if (row.noBaseline) {
+        if (row.working > 0) return `기준 없음 · ${row.working}명 진행 중`;
+        if (row.paused > 0) return `기준 없음 · ${row.paused}명 정지`;
+        if (row.done > 0) return '기준 없음 · 종료';
+        return '기준 없음 · 미착수';
+    }
     if (row.status === 'working') return `${row.working}명 진행 중`;
     if (row.status === 'paused')  return `${row.paused}명 정지`;
     if (row.status === 'ended')   return '종료';
@@ -2020,7 +2251,10 @@ const statusLabel = (row) => {
 };
 
 const progressRowHtml = (row) => {
-    const pct = row.planHours > 0 ? Math.min(100, Math.round(row.spentHours / row.planHours * 100)) : (row.spentHours > 0 ? 100 : 0);
+    // 계획 시간이 없는 줄(기준 없음)을 100%로 그리면 다 끝난 것처럼 보인다
+    const pct = row.planHours > 0
+        ? Math.min(100, Math.round(row.spentHours / row.planHours * 100))
+        : (row.noBaseline ? 0 : (row.spentHours > 0 ? 100 : 0));
     const over = row.planHours > 0 && row.spentHours > row.planHours;
     const chip = STATUS_CHIP[row.status] || STATUS_CHIP.ended;
     const barColor = row.extra ? 'bg-violet-400'
@@ -2031,8 +2265,8 @@ const progressRowHtml = (row) => {
     const memberTip = row.members.length ? `\n지금: ${row.members.join(', ')}` : '';
     return `
         <div class="flex items-center gap-3 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0"
-             title="계획 ${planText} · 소진 ${fmtHM(row.spentHours)}${memberTip}">
-            <span class="w-28 md:w-32 shrink-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200">${row.label}</span>
+             title="계획 ${planText} · 소진 ${fmtHM(row.spentHours)}${escapeHtml(memberTip)}">
+            <span class="w-28 md:w-32 shrink-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200">${escapeHtml(row.label)}</span>
             <div class="flex-1 min-w-0 h-2.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                 <div class="h-full rounded-full ${barColor} transition-all" style="width:${pct}%"></div>
             </div>
@@ -2138,7 +2372,8 @@ const renderTodayProgress = () => {
             · <b>소진 시간</b>은 업무 기록의 실제 투입 시간입니다(쉰 시간 제외, 진행 중인 업무는 지금까지).<br>
             · <b>종료 예상</b>은 남은 계획 시간을 지금 붙어 있는 인원으로 나눈 값입니다.
               기준 시각은 첫 업무 시작 + ${s.r.dailyHours}시간${s.r.excludeMinutes > 0 ? ` + 제외 ${fmtMin(s.r.excludeMinutes)}` : ''} 이며 휴게시간은 셈에 넣지 않았습니다.<br>
-            · <b class="text-violet-500">계획 외</b>는 계획에 없었는데 실제로 진행한 업무입니다.
+            · <b class="text-violet-500">계획 외</b>는 계획에 없었는데 실제로 진행한 업무입니다.<br>
+            · <b>기준 없음</b>은 물량은 잡혔지만 처리 속도 기준이 아직 없어 계획 시간을 못 낸 업무입니다(진행률 계산에서 빠집니다).
         </p>
       </div>`;
 };
@@ -2169,6 +2404,16 @@ const setForecastView = (v) => {
         document.getElementById(`forecast-view-${k}`)?.classList.toggle('hidden', k !== v);
     });
     paintViewButtons();
+
+    // 다른 화면에 있는 동안 업무 목록이 바뀌었으면 입력칸부터 다시 그린다
+    if (v === 'plan' && simInputsStale) {
+        simInputsStale = false;
+        renderSimTaskInputs();
+        autoFillSimInputs(document.getElementById('sim-target-date')?.value);
+        simOverride = null;
+        renderForecastSummary();
+        runSimulation({ silent: true });
+    }
 
     clearInterval(todayTimer); todayTimer = null;
     if (v === 'today') {
@@ -2286,6 +2531,8 @@ const errTone = (v) => {
 const renderAccuracyBody = () => {
     const host = document.getElementById('forecast-accuracy-body');
     if (!host) return;
+    // 이 화면만 따로 열면 업무 목록이 옛 상태라, 확정 스냅샷에 있던 업무가 통째로 빠진다
+    try { ensureSimLists(); } catch (e) {}
 
     const head = (note) => `
         <div class="flex flex-wrap items-center gap-2 mb-3">
@@ -2384,7 +2631,7 @@ const renderAccuracyBody = () => {
                    errTone(avgAbsHourErr))}
             ${stat('치우침', pctText(avgHourErr),
                    '평균적으로 계획 대비 이만큼', errTone(avgHourErr))}
-            ${stat('가장 어긋난 업무', worst ? worst.label : '없음',
+            ${stat('가장 어긋난 업무', worst ? escapeHtml(worst.label) : '없음',
                    worst ? `물량 ${pctText(worst.err)}` : '모두 ±20% 안', worst ? errTone(worst.err) : 'text-emerald-600 dark:text-emerald-400')}
         </div>
 
@@ -2409,7 +2656,7 @@ const renderAccuracyBody = () => {
                     <tbody>
                         ${taskRows.map(t => `
                         <tr class="border-t border-gray-100 dark:border-gray-700/60">
-                            <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${t.label}</td>
+                            <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}</td>
                             <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${t.plan.toLocaleString()}</td>
                             <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100">${t.actual.toLocaleString()}</td>
                             <td class="py-2 px-3 text-right tabular-nums font-bold ${errTone(t.err)}">${pctText(t.err)}</td>
