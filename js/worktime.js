@@ -12,8 +12,8 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202609151411';
-import { escapeHtml as esc } from './utils.js?v=202609151411';
+import { initializeFirebase } from './config.js?v=202609211403';
+import { escapeHtml as esc } from './utils.js?v=202609211403';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -212,7 +212,7 @@ function renderTabs() {
 function renderSheet() {
     const body = $('sheet-body');
     const p = personById(currentPid);
-    if (!p) { body.innerHTML = ''; return; }
+    if (!p) { body.innerHTML = ''; renderBulkBar(); renderSummary(); return; }
 
     const rec = records[p.id] || {};
     const n = daysInMonth(currentYm);
@@ -302,7 +302,11 @@ function monthTotals(pid) {
 
 function renderSummary() {
     const p = personById(currentPid);
-    if (!p) { $('summary').innerHTML = ''; $('fx-note').textContent = ''; return; }
+    if (!p) {
+        $('summary').innerHTML = ''; $('fx-note').textContent = '';
+        const m = $('summary-mini'); if (m) m.textContent = '요약';
+        return;
+    }
     const { workedMin, days } = monthTotals(p.id);
     const hours = hoursDecimal(workedMin);
     // 총금액은 분 단위까지 그대로 곱한 뒤 원 단위에서 버린다
@@ -323,6 +327,9 @@ function renderSummary() {
     const ck = checkStats(p.id);
     const ckColor = ck.todo > 0 ? 'text-amber-600' : (ck.target > 0 && ck.done === ck.target ? 'text-emerald-600' : 'text-slate-800');
     const ckSub = ck.todo > 0 ? `지난 날짜 중 ${ck.todo}일 미확인` : (ck.target === 0 ? '기록 없음' : '모두 확인함');
+
+    const mini = $('summary-mini');
+    if (mini) mini.textContent = `${days}일 · ${hoursText(workedMin)}${ck.todo > 0 ? ` · 미확인 ${ck.todo}` : ''}`;
 
     $('summary').innerHTML =
         card('근무 확인', `${ck.done} / ${ck.target}일`, ckSub, ckColor)
@@ -530,6 +537,21 @@ $('btn-bulk-clear').addEventListener('click', async () => {
     try { await saveMonth(); toast(`${withData}일을 지웠습니다.`); }
     catch (e) { toast('저장 실패: ' + (e.message || e), true); }
 });
+
+// 📱 모바일에서 접어 둔 영역(요약 · 선택/시급 도구) 열고 닫기. PC 에서는 CSS 가 무시한다.
+const bindMobileToggle = (btnId, panelIds) => {
+    const btn = $(btnId);
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        const open = btn.getAttribute('aria-expanded') !== 'true';
+        btn.setAttribute('aria-expanded', String(open));
+        panelIds.forEach(id => $(id)?.classList.toggle('m-collapsed', !open));
+        const arrow = btn.lastChild;
+        if (arrow && arrow.nodeType === Node.TEXT_NODE) arrow.textContent = arrow.textContent.replace(/[▾▴]\s*$/, open ? '▴' : '▾');
+    });
+};
+bindMobileToggle('btn-m-summary', ['m-summary-panel']);
+bindMobileToggle('btn-m-tools', ['m-tools-sel', 'm-tools-wage']);
 
 $('person-tabs').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-pid]');
