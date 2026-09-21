@@ -1,7 +1,7 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 9.9 (설정파일 분리: config.js → china-stock-config.js — 최종관리자 공유 config.js와 충돌 방지. 관리자 인계 PR 준비)
 
-import { initializeFirebase } from './china-stock-config.js?v=202609211619'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202609211626'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const { db } = initializeFirebase();
@@ -1359,6 +1359,9 @@ async function fetchCSV(rawUrl, opts) {
 
 /** CSV 원문 → 표(객체 배열). 머리글(상품코드) 행을 찾아 그 아래를 읽는다. */
 function parseCsvBody(textData) {
+    // 시트 셀 안의 줄바꿈이 따옴표 없이 '\r' 하나로 들어오는 경우가 있다(예: '메이드 코튼 와이드PT⏎').
+    // 그대로 읽으면 그 자리에서 행이 잘리고 뒤 행들이 어긋나 패킹 값이 통째로 빠진다 → 셀 안 '\r' 은 공백으로.
+    textData = String(textData || '').replace(/\r\n/g, '\n').replace(/\r/g, ' ');
     const wb = XLSX.read(textData, { type: 'string' });
     const rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
     let headerIdx = -1, headers = [];
