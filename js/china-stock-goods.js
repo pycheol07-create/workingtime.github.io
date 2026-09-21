@@ -1,7 +1,7 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 9.9 (설정파일 분리: config.js → china-stock-config.js — 최종관리자 공유 config.js와 충돌 방지. 관리자 인계 PR 준비)
 
-import { initializeFirebase } from './china-stock-config.js?v=202609211403'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202609211619'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const { db } = initializeFirebase();
@@ -1213,10 +1213,15 @@ async function syncOrderData(silent = false, opts) {
     if (silent && !(opts && opts.force)) {
         const co = csvUrlOrder ? readCsvCache(toCsvUrl(csvUrlOrder)) : null;
         const cb = csvUrlBuy ? readCsvCache(toCsvUrl(csvUrlBuy)) : null;
-        if ((co && co.fresh) || (cb && cb.fresh)) {
+        // 설정된 시트가 '모두' 저장돼 있을 때만 쓴다 — 하나라도 없으면(오더시트는 2MB를 넘어 저장이 안 된다)
+        // 나머지 시트만으로 표가 그려져 패킹이 일부만 보이고, 그 일부가 스캐너 DB 로도 넘어간다
+        const okO = !csvUrlOrder || (co && co.fresh), okB = !csvUrlBuy || (cb && cb.fresh);
+        if (okO && okB) {
             try {
                 orderDataOriginal = co ? parseCsvBody(co.text) : [];
                 orderDataBuy = cb ? parseCsvBody(cb.text) : [];
+                if (co) lastCsvText[toCsvUrl(csvUrlOrder)] = co.text;
+                if (cb) lastCsvText[toCsvUrl(csvUrlBuy)] = cb.text;
                 extractShipDates();
                 showCsvCacheNote(Math.max(co ? co.at : 0, cb ? cb.at : 0));
                 // 뒤에서 최신본 받아 조용히 교체
@@ -1228,9 +1233,15 @@ async function syncOrderData(silent = false, opts) {
 
     if(!silent) showLoading('🔄 오더리스트 동기화 중...');
     try {
+        const csvSig = () => [csvUrlOrder, csvUrlBuy].map(u => (u && lastCsvText[toCsvUrl(u)]) || '').join(' ');
+        const before = csvSig();
         const [dataOrder, dataBuy] = await Promise.all([fetchCSV(csvUrlOrder, opts), fetchCSV(csvUrlBuy, opts)]);
+        const changed = csvSig() !== before;
         orderDataOriginal = dataOrder; orderDataBuy = dataBuy;
         extractShipDates();
+        // 새로 받은 자료가 다르면 선택된 출고일 표도 다시 만든다(예전엔 날짜 목록만 바뀌고 표는 옛 자료 그대로였다).
+        // 첫 로드(force 아님)·init 도중(재고로그 아직 없음)은 init 이 곧바로 applyDates 하므로 여기선 건너뛴다.
+        if (opts && opts.force && scanDataReady && changed && savedDates.length > 0) { renderSelectedTags(); applyDates(); }
         showCsvCacheNote(Date.now());
         if(!silent) { hideLoading(); showToast('✅ 동기화 완료'); }
     } catch (e) {
@@ -1247,6 +1258,7 @@ async function syncOrderData(silent = false, opts) {
 const CSV_CACHE_KEY = 'chinastock_csv_cache_v1';
 const CSV_CACHE_TTL = 6 * 60 * 60 * 1000;   // 6시간(그 이후엔 캐시를 쓰지 않고 기다렸다 받는다)
 const CSV_CACHE_MAX = 2 * 1024 * 1024;      // 한 주소당 2MB 까지만 저장
+const lastCsvText = {};                     // 주소 → 마지막으로 읽은 CSV 원문(바뀌었는지 가볍게 비교용)
 
 function readCsvCache(url) {
     try {
@@ -1257,9 +1269,11 @@ function readCsvCache(url) {
     } catch (e) { return null; }
 }
 function writeCsvCache(url, text) {
-    if (!url || !text || text.length > CSV_CACHE_MAX) return;
+    if (!url || !text) return;
     try {
         const all = JSON.parse(localStorage.getItem(CSV_CACHE_KEY) || '{}');
+        // 너무 크면 저장하지 않고, 예전에 저장된 옛 원문도 지운다(오프라인일 때 몇 주 전 자료가 쓰이지 않게)
+        if (text.length > CSV_CACHE_MAX) { if (all[url]) { delete all[url]; localStorage.setItem(CSV_CACHE_KEY, JSON.stringify(all)); } return; }
         all[url] = { text, at: Date.now() };
         localStorage.setItem(CSV_CACHE_KEY, JSON.stringify(all));
     } catch (e) { /* 저장공간 부족 등은 무시 — 캐시는 있으면 좋은 것일 뿐 */ }
@@ -1326,7 +1340,7 @@ async function fetchCSV(rawUrl, opts) {
     if (!ok && useCache) {
         // 네트워크가 안 되면 저장해 둔 값이라도 쓴다(오프라인·프록시 장애)
         const c = readCsvCache(url);
-        if (c) { console.warn('[china-stock] 새로 받지 못해 저장해 둔 값을 씁니다:', url); return parseCsvBody(c.text); }
+        if (c && c.fresh) { console.warn('[china-stock] 새로 받지 못해 저장해 둔 값을 씁니다:', url); lastCsvText[url] = c.text; return parseCsvBody(c.text); }
     }
     if (!ok) {
         const msg = (lastErr && lastErr.message === '비공개 시트')
@@ -1338,7 +1352,9 @@ async function fetchCSV(rawUrl, opts) {
         throw err;
     }
     writeCsvCache(url, textData);
-    return parseCsvBody(textData);
+    const parsed = parseCsvBody(textData);
+    lastCsvText[url] = textData;
+    return parsed;
 }
 
 /** CSV 원문 → 표(객체 배열). 머리글(상품코드) 행을 찾아 그 아래를 읽는다. */
