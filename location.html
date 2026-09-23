@@ -685,7 +685,7 @@
                        title="비축·SAM 등 피킹 자리가 아닌 위치까지 '현재 위치'에 표시합니다">
                     <input type="checkbox" id="dash-bucket-include-etc" style="vertical-align:middle;"
                            onchange="window.__dashRerenderBucketList && window.__dashRerenderBucketList()">
-                    <span style="vertical-align:middle;">📦 비축 위치도 표시</span>
+                    <span style="vertical-align:middle;">📦 비축랙 위치도 표시</span>
                 </label>
             </div>
             <div style="flex:1; min-height:0; overflow-y:auto; border:1px solid #ccc; border-radius:8px;">
@@ -697,7 +697,7 @@
                             <th style="border-top:none;">옵션</th>
                             <th style="border-top:none;">현재 위치</th>
                             <th style="border-top:none;">정상재고</th>
-                            <th style="border-top:none;">2층재고</th>
+                            <th style="border-top:none;">비축창고재고</th>
                             <th style="border-top:none;">마지막출고.배송일</th>
                             <th style="border-top:none;">최근활동</th>
                         </tr>
@@ -1070,7 +1070,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202609230913"></script>
+    <script type="module" src="js/location.js?v=202609230938"></script>
     <script>
         function switchView(view) {
             document.getElementById('view-list').style.display = view === 'list' ? 'block' : 'none';
@@ -1137,7 +1137,7 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202609230913"></script>
-    <script src="js/modal-esc.js?v=202609230913"></script>
+    <script src="js/connection-banner.js?v=202609230938"></script>
+    <script src="js/modal-esc.js?v=202609230938"></script>
 </body>
 </html>

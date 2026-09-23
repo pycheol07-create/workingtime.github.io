@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202609230913';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202609230938';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202609230913';
+import { escapeHtml as escAttr } from './utils.js?v=202609230938';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -24,6 +24,12 @@ const toDateStr = (date = new Date()) => {
     if (isNaN(d.getTime())) return '';
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
+
+// 피킹용이 아닌 자리(대분류 '기타' = 비축·SAM·A-1-R 형식 등) 판정 — 여러 화면이 같은 기준을 쓴다.
+function isEtcLocation(d) {
+    const id = String((d && d.id) || '').trim();
+    return String((d && d.category) || '피킹용').trim() === '기타' || /^비축/.test(id) || /^SAM/i.test(id);
+}
 
 const { db, auth } = initializeFirebase();
 const LOC_COLLECTION = 'Locations';
@@ -532,6 +538,13 @@ function setupRealtimeListenerA() {
                     } else if (!locObj.rawData) {
                         locObj.rawData = {};
                     }
+                    // 비축(2층 창고) 재고: 엑셀 열 이름이 '비축창고재고' 로 바뀌어 stock2f 가 비어 있는 자료 보정.
+                    // 기타(비축·SAM) 칸은 같은 수량을 '정상재고' 쪽에 담으므로 건드리지 않는다(이중 계상 방지).
+                    if (!Number(locObj.stock2f || 0) && !isEtcLocation(locObj)) {
+                        const _b = locObj.rawData['비축창고재고'] ?? locObj.rawData['2층창고재고'];
+                        const _n = String(_b == null ? '' : _b).replace(/[^0-9.-]/g, '');
+                        if (_n !== '' && Number(_n)) locObj.stock2f = _n;
+                    }
                     
                     tempLocMap[locId] = locObj; 
                 }
@@ -873,7 +886,7 @@ window.downloadMainExcel = function() {
     }
     
     // 헤더 구성
-    const stdHeaders = ['로케이션', '동', '위치', '상품코드', '상품명', '옵션', '정상재고', '2층창고재고'];
+    const stdHeaders = ['로케이션', '동', '위치', '상품코드', '상품명', '옵션', '정상재고', '비축창고재고'];
     const cusHeaders = (window.excelHeaders || []).filter(h => h && !h.includes('<') && !h.includes('>') && !h.includes('='));
     const allHeaders = [...stdHeaders, ...cusHeaders];
     
@@ -1278,7 +1291,8 @@ window.showRecommendation = function() {
                 
                 currentLocsObjs.forEach(d => {
                     totalStock += Number(d.stock || 0);
-                    totalStock2f += Number(d.stock2f || 0);
+                    // 비축재고는 같은 상품의 모든 칸에 같은 값이 반복 저장돼 있다 → 더하지 말고 대표값 하나
+                    totalStock2f = Math.max(totalStock2f, Number(d.stock2f || 0));
                     if (d.option && !itemOption) itemOption = d.option; 
                 });
                 
@@ -1719,7 +1733,7 @@ function renderTableHeader() {
         else if (col === 'std_name') { html += createTh('name', '상품명', 'auto', true, col); popupHtml += `<div id="pop-name" class="filter-popup"></div>`; }
         else if (col === 'std_option') { html += createTh('option', '옵션', 180, true, col); popupHtml += `<div id="pop-option" class="filter-popup"></div>`; }
         else if (col === 'std_stock') { html += createTh('stock', '정상재고', 130, true, col); popupHtml += `<div id="pop-stock" class="filter-popup"></div>`; }
-        else if (col === 'std_stock2f') { html += createTh('stock2f', '2층창고재고', 130, true, col); popupHtml += `<div id="pop-stock2f" class="filter-popup"></div>`; }
+        else if (col === 'std_stock2f') { html += createTh('stock2f', '비축창고재고', 130, true, col); popupHtml += `<div id="pop-stock2f" class="filter-popup"></div>`; }
         else if (col.startsWith('cus_')) {
             const label = col.replace('cus_', '');
             // ★ 입고대기 컬럼에 툴팁 추가
@@ -1824,7 +1838,7 @@ window.openSettingsModal = (e) => {
     
     const stdCols = [
         { id: 'std_dong', label: '동' }, { id: 'std_pos', label: '위치' }, { id: 'std_id', label: '로케이션(ID)' }, { id: 'std_category', label: '대분류' },
-        { id: 'std_code', label: '상품코드' }, { id: 'std_name', label: '상품명' }, { id: 'std_option', label: '옵션' }, { id: 'std_stock', label: '정상재고' }, { id: 'std_stock2f', label: '2층창고재고' }
+        { id: 'std_code', label: '상품코드' }, { id: 'std_name', label: '상품명' }, { id: 'std_option', label: '옵션' }, { id: 'std_stock', label: '정상재고' }, { id: 'std_stock2f', label: '비축창고재고' }
     ];
     
     stdCols.forEach(col => {
@@ -2781,7 +2795,13 @@ window.calculateAndRenderUsage = function() {
         html += detailHtml;
 
     } else {
-        let sum2F = 0; originalData.forEach(loc => { sum2F += Number(loc.stock2f || 0); });
+        // 상품코드별 대표값 한 번씩만 더한다(같은 상품이 여러 칸에 있으면 같은 비축수량이 반복 저장돼 있다)
+        const _b2f = {};
+        originalData.forEach(loc => {
+            const c = String(loc.code || loc.id || '').trim();
+            _b2f[c] = Math.max(_b2f[c] || 0, Number(loc.stock2f || 0));
+        });
+        let sum2F = Object.values(_b2f).reduce((a, v) => a + v, 0);
         let rate2F = ((sum2F / window.capacity2F) * 100).toFixed(1);
         let remaining2F = window.capacity2F - sum2F;
         
@@ -3865,7 +3885,7 @@ const universalExcelReader = (file) => {
 // ★ v3.95: 업로드별 필수 헤더 안내 + 진단 코드별 alert 메시지 헬퍼
 const _uploadHeaderGuide = {
     'permanent': '로케이션, 동, 위치, 칸수, 대분류(피킹/기타, 선택)',
-    'daily':     '로케이션, 상품코드, 상품명, 옵션, 정상재고, 2층창고재고',
+    'daily':     '로케이션, 상품코드, 상품명, 옵션, 정상재고, 비축창고재고(옛 이름: 2층창고재고)',
     'zikjin':    '상품코드(또는 어드민상품코드/대표상품코드 등), 수량 또는 날짜별(YYYYMMDD) 출고수량 컬럼',
     'weekly':    '상품코드(또는 어드민상품코드/대표상품코드 등), 기간배송수량 또는 기간발주수량'
 };
@@ -4469,7 +4489,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
         const allHeadersSet = new Set();
         rows.forEach(row => { Object.keys(row).forEach(k => allHeadersSet.add(k)); });
         const allHeaders = [...allHeadersSet];
-        const excludeRaw = ['동', 'dong', '위치', 'pos', '상품코드', '로케이션', '상품명', '옵션', '정상재고', '2층창고재고', '대분류'];
+        const excludeRaw = ['동', 'dong', '위치', 'pos', '상품코드', '로케이션', '상품명', '옵션', '정상재고', '비축창고재고', '2층창고재고', '대분류'];
         // 공백제거 버전도 제외 목록에 포함
         const exclude = [...new Set([...excludeRaw, ...excludeRaw.map(h => h.replace(/\s+/g, ''))])];
         
@@ -4609,7 +4629,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     if (twoFCode) {
                         twoFloorCodes.add(twoFCode);
                         // 2F 재고 수량 누적 (정상재고 또는 2층창고재고 컬럼 사용)
-                        const stockVal = Number(row['정상재고'] || row['2층창고재고'] || 0);
+                        const stockVal = Number(row['정상재고'] || row['비축창고재고'] || row['2층창고재고'] || 0);
                         if (!isNaN(stockVal) && stockVal > 0) {
                             twoFloorStockSum += stockVal;
                         }
@@ -4692,7 +4712,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
                         updateData.name = row['상품명']?.toString().trim() || '';
                         updateData.option = row['옵션']?.toString().trim() || '';
                         updateData.stock = row['정상재고']?.toString().trim() || '0';
-                        updateData.stock2f = row['2층창고재고']?.toString().trim() || '0';
+                        updateData.stock2f = (row['비축창고재고'] ?? row['2층창고재고'])?.toString().trim() || '0';
                         
                         if (finalCode && finalCode.trim() !== '') {
                             updateData.preAssigned = false;
@@ -4767,7 +4787,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
                         opt1UpdateData.name = row['상품명']?.toString().trim() || '';
                         opt1UpdateData.option = row['옵션']?.toString().trim() || '';
                         // 기타칸의 재고수량은 '2층창고재고' 헤더 값을 사용 (위치별로 동일 수량 반복 표시)
-                        opt1UpdateData.stock = row['2층창고재고']?.toString().trim() || '0';
+                        opt1UpdateData.stock = (row['비축창고재고'] ?? row['2층창고재고'])?.toString().trim() || '0';
                         opt1UpdateData.stock2f = '0';
                     }
 
@@ -6574,7 +6594,8 @@ window.showSingleRecommendation = function() {
                 
                 // v3.94 결과 양식: 이동수량(정상재고-2층재고) + 방향 뱃지 + 점수 툴팁
                 let _ts = 0, _ts2 = 0;
-                originalData.forEach(d => { if (d.code === item.code) { _ts += Number(d.stock || 0); _ts2 += Number(d.stock2f || 0); } });
+                // 비축재고는 칸마다 같은 값이 반복 저장돼 있다 → 합이 아니라 대표값
+                originalData.forEach(d => { if (d.code === item.code) { _ts += Number(d.stock || 0); _ts2 = Math.max(_ts2, Number(d.stock2f || 0)); } });
                 const moveQty = _ts - _ts2;
                 const moveQtyDisplay = moveQty > 0
                     ? `<span style="color:#e65100; font-weight:900; font-size:13px;">${moveQty.toLocaleString()}</span><span style="font-size:9px; color:#888; margin-left:1px;">개</span>`
@@ -7329,10 +7350,7 @@ window.showPairRecommendation = function() {
 // ============================================================
 
 // 피킹용이 아닌 자리(대분류 '기타' = 비축·SAM·A-1-R 형식 등) 판정 — 대시보드 여러 곳에서 같은 기준을 쓴다.
-window.__isEtcLoc = function (d) {
-    const id = String((d && d.id) || '').trim();
-    return String((d && d.category) || '피킹용').trim() === '기타' || /^비축/.test(id) || /^SAM/i.test(id);
-};
+window.__isEtcLoc = isEtcLocation;
 
 // 마지막출고.배송일(배송일/출고일 중 최신) + 직진/주차별 출고 활동을 함께 고려한 분류 헬퍼.
 // 일반배송 기록만 보면 직진배송으로 나간 물건이 데드로 잘못 잡힘 → 두 데이터를 합산.
@@ -8038,7 +8056,7 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
         const sumStock = (rows) => rows.reduce((a, l) => a + Number(l.stock || 0), 0);
         const pickRows = arr.filter(l => !window.__isEtcLoc(l));
         const etcRows = arr.filter(l => window.__isEtcLoc(l));
-        const totalStock2f = arr.reduce((a, l) => a + Number(l.stock2f || 0), 0);
+        const totalStock2f = arr.reduce((a, l) => Math.max(a, Number(l.stock2f || 0)), 0);
         items.push({
             code, name, option,
             locsStr, pickLocs, etcLocs,
@@ -8113,7 +8131,7 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
             };
             return `<span style="${colors[cat] || 'background:#eceff1; color:#37474f;'} padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold;">${cat}</span>`;
         };
-        const etcHint = (it) => ` <span style="color:#a1887f; font-size:10px;" title="${escAttr(it.etcLocs.join(', '))}">비축 ${it.etcLocs.length}곳</span>`;
+        const etcHint = (it) => ` <span style="color:#a1887f; font-size:10px;" title="${escAttr(it.etcLocs.join(', '))}">비축랙 ${it.etcLocs.length}곳</span>`;
         tbody.innerHTML = items.map(it => `
             <tr>
                 <td style="font-family:monospace; font-size:11px;">${escAttr(it.code)}</td>
@@ -8123,7 +8141,7 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
                     || '<span style="color:#cfd8dc;">-</span>'}${
                     (!includeEtc && it.etcLocs.length) ? etcHint(it) : ''}</td>
                 <td style="font-weight:bold;">${it.stockPick.toLocaleString()}${
-                    it.stockEtc > 0 ? ` <span style="color:#a1887f; font-size:10px; font-weight:normal;">+비축 ${it.stockEtc.toLocaleString()}</span>` : ''}</td>
+                    it.stockEtc > 0 ? ` <span style="color:#a1887f; font-size:10px; font-weight:normal;">+비축랙 ${it.stockEtc.toLocaleString()}</span>` : ''}</td>
                 <td style="color:#607d8b;">${it.stock2f > 0 ? it.stock2f.toLocaleString() : '<span style=\"color:#cfd8dc;\">·</span>'}</td>
                 ${isDeadAll ? `<td>${catBadge(it.cat)}</td>` : ''}
                 <td>${it.lastDelivery || '<span style=\"color:#c62828;\">기록없음</span>'}</td>
@@ -8245,10 +8263,10 @@ window.__dashDownloadBucketExcel = function () {
         '상품명': it.name,
         '옵션': it.option,
         '현재위치': (it.pickLocs || []).join(', '),
-        '비축·기타위치': (it.etcLocs || []).join(', '),
+        '비축랙위치': (it.etcLocs || []).join(', '),
         '정상재고': it.stockPick,
-        '비축·기타재고': it.stockEtc,
-        '2층재고': it.stock2f,
+        '비축랙재고': it.stockEtc,
+        '비축창고재고': it.stock2f,
         '마지막출고.배송일': it.lastDelivery || '',
         '직진활동': it.hasRecentActivity ? 'O' : ''
     }));
