@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202609230938';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202609231339';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202609230938';
+import { escapeHtml as escAttr } from './utils.js?v=202609231339';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -8029,7 +8029,11 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
         codeMap.get(code).push(loc);
     });
 
-    // 비축·기타 자리 표시 여부 (체크박스, 기본 꺼짐)
+    // 자리 id 로 실제 로케이션을 찾기 위한 맵 (공백·NBSP·대소문자 흔들림을 흡수)
+    const normLocId = (v) => String(v == null ? '' : v).replace(/[\s\u00A0]+/g, '').toUpperCase();
+    const locById = new Map(originalData.map(l => [normLocId(l.id), l]));
+
+    // 비축랙 자리 표시 여부 (체크박스, 기본 꺼짐)
     const includeEtc = !!document.getElementById('dash-bucket-include-etc')?.checked;
 
     const todayMs = new Date().setHours(0, 0, 0, 0);
@@ -8049,20 +8053,27 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
         const rep = arr[0] || {};
         const name = rep.name || (zikjinData[code]?.['상품명']) || (weeklyData[code]?.['상품명']) || '';
         const option = rep.option || '';
-        // 현재 위치: 피킹 자리와 비축·기타 자리를 나눠 둔다 (기본은 피킹만 표시, 체크하면 비축도 함께)
-        const pickLocs = arr.filter(l => !window.__isEtcLoc(l)).map(l => l.id);
-        const etcLocs = arr.filter(l => window.__isEtcLoc(l)).map(l => l.id);
+        // 현재 위치: 피킹 자리와 비축랙 자리를 나눠 둔다 (기본은 피킹만 표시, 체크하면 비축랙도 함께)
+        // ★ 비축랙 자리는 상품 행의 '옵션추가항목1'(예: '비축-002,비축-007,H-3-L')이 정확하다.
+        //   비축 칸 문서에는 상품코드가 한 개만 남아(나중 행이 덮어씀) 거꾸로 찾으면 대부분 빠진다.
+        const pickRows = arr.filter(l => !window.__isEtcLoc(l));
+        const pickLocs = pickRows.map(l => l.id);
+        const etcSet = new Set();
+        const addEtc = (raw) => {
+            const hit = locById.get(normLocId(raw));          // 실제로 있는 자리만 (오타·폐기·남의 피킹자리 제외)
+            if (hit && window.__isEtcLoc(hit) && !pickLocs.includes(hit.id)) etcSet.add(hit.id);
+        };
+        arr.forEach(l => String((l.rawData || {})['옵션추가항목1'] || '').split(',').forEach(addEtc));
+        arr.filter(l => window.__isEtcLoc(l)).forEach(l => addEtc(l.id));
+        const etcLocs = [...etcSet].sort((a, b) => a.localeCompare(b));
         const locsStr = (includeEtc ? [...pickLocs, ...etcLocs] : pickLocs).join(', ');
         const sumStock = (rows) => rows.reduce((a, l) => a + Number(l.stock || 0), 0);
-        const pickRows = arr.filter(l => !window.__isEtcLoc(l));
-        const etcRows = arr.filter(l => window.__isEtcLoc(l));
         const totalStock2f = arr.reduce((a, l) => Math.max(a, Number(l.stock2f || 0)), 0);
         items.push({
             code, name, option,
             locsStr, pickLocs, etcLocs,
             stock: sumStock(arr),
             stockPick: sumStock(pickRows),
-            stockEtc: sumStock(etcRows),
             stock2f: totalStock2f,
             lastDelivery: info.lastDelivery || '',
             hasRecentActivity: info.hasRecentActivity,
@@ -8140,8 +8151,7 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
                 <td style="font-family:monospace; font-size:11px;">${escAttr(it.locsStr)
                     || '<span style="color:#cfd8dc;">-</span>'}${
                     (!includeEtc && it.etcLocs.length) ? etcHint(it) : ''}</td>
-                <td style="font-weight:bold;">${it.stockPick.toLocaleString()}${
-                    it.stockEtc > 0 ? ` <span style="color:#a1887f; font-size:10px; font-weight:normal;">+비축랙 ${it.stockEtc.toLocaleString()}</span>` : ''}</td>
+                <td style="font-weight:bold;">${it.stockPick.toLocaleString()}</td>
                 <td style="color:#607d8b;">${it.stock2f > 0 ? it.stock2f.toLocaleString() : '<span style=\"color:#cfd8dc;\">·</span>'}</td>
                 ${isDeadAll ? `<td>${catBadge(it.cat)}</td>` : ''}
                 <td>${it.lastDelivery || '<span style=\"color:#c62828;\">기록없음</span>'}</td>
@@ -8265,7 +8275,6 @@ window.__dashDownloadBucketExcel = function () {
         '현재위치': (it.pickLocs || []).join(', '),
         '비축랙위치': (it.etcLocs || []).join(', '),
         '정상재고': it.stockPick,
-        '비축랙재고': it.stockEtc,
         '비축창고재고': it.stock2f,
         '마지막출고.배송일': it.lastDelivery || '',
         '직진활동': it.hasRecentActivity ? 'O' : ''
