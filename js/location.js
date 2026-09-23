@@ -1,6 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202609211626';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202609230913';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { escapeHtml as escAttr } from './utils.js?v=202609230913';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -7327,6 +7328,12 @@ window.showPairRecommendation = function() {
 // 📊 로케이션 현황 대시보드
 // ============================================================
 
+// 피킹용이 아닌 자리(대분류 '기타' = 비축·SAM·A-1-R 형식 등) 판정 — 대시보드 여러 곳에서 같은 기준을 쓴다.
+window.__isEtcLoc = function (d) {
+    const id = String((d && d.id) || '').trim();
+    return String((d && d.category) || '피킹용').trim() === '기타' || /^비축/.test(id) || /^SAM/i.test(id);
+};
+
 // 마지막출고.배송일(배송일/출고일 중 최신) + 직진/주차별 출고 활동을 함께 고려한 분류 헬퍼.
 // 일반배송 기록만 보면 직진배송으로 나간 물건이 데드로 잘못 잡힘 → 두 데이터를 합산.
 function __dashInferDelivery(code, locs) {
@@ -7463,7 +7470,7 @@ window.renderLocationDashboard = function () {
     const locs3F = originalData.filter(d => (d.id || '').charAt(0).toUpperCase() !== 'K');
     // ★ 3F 위치를 3분류로 구분: 피킹용 / 기타용(비축+A-1-R 형식) / SAM
     const _isSam = (d) => /^SAM/i.test(String(d.id || '').trim());
-    const _isEtcAll = (d) => String(d.category || '피킹용').trim() === '기타' || /^비축/.test(String(d.id || '').trim()) || _isSam(d);
+    const _isEtcAll = (d) => window.__isEtcLoc(d);
     // 랙 사용률/총 칸수 통계용 — 피킹용(기타·비축·SAM 제외)만
     const locsUsage = locs3F.filter(d => !_isEtcAll(d));
     const etcLocs = locs3F.filter(d => _isEtcAll(d) && !_isSam(d)); // 기타용 = 비축 + A-1-R 형식(대분류 '기타')
@@ -8004,6 +8011,9 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
         codeMap.get(code).push(loc);
     });
 
+    // 비축·기타 자리 표시 여부 (체크박스, 기본 꺼짐)
+    const includeEtc = !!document.getElementById('dash-bucket-include-etc')?.checked;
+
     const todayMs = new Date().setHours(0, 0, 0, 0);
     // bucket이 'dead-all'이면 데드스톡 3종(3개월/6개월+/1년+)을 모두 포함.
     const DEAD_SET = new Set(['3개월', '6개월+', '1년+']);
@@ -8021,13 +8031,20 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
         const rep = arr[0] || {};
         const name = rep.name || (zikjinData[code]?.['상품명']) || (weeklyData[code]?.['상품명']) || '';
         const option = rep.option || '';
-        const locsStr = arr.map(l => l.id).join(', ');
-        const totalStock = arr.reduce((a, l) => a + Number(l.stock || 0), 0);
+        // 현재 위치: 피킹 자리와 비축·기타 자리를 나눠 둔다 (기본은 피킹만 표시, 체크하면 비축도 함께)
+        const pickLocs = arr.filter(l => !window.__isEtcLoc(l)).map(l => l.id);
+        const etcLocs = arr.filter(l => window.__isEtcLoc(l)).map(l => l.id);
+        const locsStr = (includeEtc ? [...pickLocs, ...etcLocs] : pickLocs).join(', ');
+        const sumStock = (rows) => rows.reduce((a, l) => a + Number(l.stock || 0), 0);
+        const pickRows = arr.filter(l => !window.__isEtcLoc(l));
+        const etcRows = arr.filter(l => window.__isEtcLoc(l));
         const totalStock2f = arr.reduce((a, l) => a + Number(l.stock2f || 0), 0);
         items.push({
             code, name, option,
-            locsStr,
-            stock: totalStock,
+            locsStr, pickLocs, etcLocs,
+            stock: sumStock(arr),
+            stockPick: sumStock(pickRows),
+            stockEtc: sumStock(etcRows),
             stock2f: totalStock2f,
             lastDelivery: info.lastDelivery || '',
             hasRecentActivity: info.hasRecentActivity,
@@ -8064,7 +8081,9 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
                 '1년+': '1년 이상 출고 없는 재고 — 우선 정리 대상',
                 '기록없음': '마지막출고.배송일 기록이 없는 상품'
             }[bucket] || '');
-        metaEl.textContent = desc;
+        const etcCount = items.filter(it => it.etcLocs.length > 0).length;
+        metaEl.textContent = desc + (etcCount > 0
+            ? ` · 비축·기타 자리에도 지정된 상품 ${etcCount}종 (${includeEtc ? '함께 표시 중' : '표시하려면 오른쪽 체크'})` : '');
     }
 
     // dead-all 모드일 때 분류 컬럼 추가
@@ -8094,13 +8113,17 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
             };
             return `<span style="${colors[cat] || 'background:#eceff1; color:#37474f;'} padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold;">${cat}</span>`;
         };
+        const etcHint = (it) => ` <span style="color:#a1887f; font-size:10px;" title="${escAttr(it.etcLocs.join(', '))}">비축 ${it.etcLocs.length}곳</span>`;
         tbody.innerHTML = items.map(it => `
             <tr>
-                <td style="font-family:monospace; font-size:11px;">${it.code}</td>
-                <td style="text-align:left; padding-left:8px;">${it.name || '<span style=\"color:#cfd8dc;\">-</span>'}</td>
-                <td>${it.option || '<span style=\"color:#cfd8dc;\">-</span>'}</td>
-                <td style="font-family:monospace; font-size:11px;">${it.locsStr}</td>
-                <td style="font-weight:bold;">${it.stock.toLocaleString()}</td>
+                <td style="font-family:monospace; font-size:11px;">${escAttr(it.code)}</td>
+                <td style="text-align:left; padding-left:8px;">${escAttr(it.name) || '<span style=\"color:#cfd8dc;\">-</span>'}</td>
+                <td>${escAttr(it.option) || '<span style=\"color:#cfd8dc;\">-</span>'}</td>
+                <td style="font-family:monospace; font-size:11px;">${escAttr(it.locsStr)
+                    || '<span style="color:#cfd8dc;">-</span>'}${
+                    (!includeEtc && it.etcLocs.length) ? etcHint(it) : ''}</td>
+                <td style="font-weight:bold;">${it.stockPick.toLocaleString()}${
+                    it.stockEtc > 0 ? ` <span style="color:#a1887f; font-size:10px; font-weight:normal;">+비축 ${it.stockEtc.toLocaleString()}</span>` : ''}</td>
                 <td style="color:#607d8b;">${it.stock2f > 0 ? it.stock2f.toLocaleString() : '<span style=\"color:#cfd8dc;\">·</span>'}</td>
                 ${isDeadAll ? `<td>${catBadge(it.cat)}</td>` : ''}
                 <td>${it.lastDelivery || '<span style=\"color:#c62828;\">기록없음</span>'}</td>
@@ -8203,6 +8226,13 @@ window.__dashShowLocList = function (type) {
     modal.style.display = 'flex';
 };
 
+// '비축 위치도 표시' 체크박스 → 같은 조건으로 목록만 다시 그린다
+window.__dashRerenderBucketList = function () {
+    const last = __dashLastBucketList;
+    if (!last || !last.bucket) return;
+    window.__dashShowBucketList(last.bucket, last.zoneFilter, last.dongFilter);
+};
+
 // 엑셀 다운로드 (XLSX는 페이지에 이미 로드됨)
 window.__dashDownloadBucketExcel = function () {
     if (!__dashLastBucketList || !__dashLastBucketList.items || __dashLastBucketList.items.length === 0) {
@@ -8214,8 +8244,10 @@ window.__dashDownloadBucketExcel = function () {
         '상품코드': it.code,
         '상품명': it.name,
         '옵션': it.option,
-        '현재위치': it.locsStr,
-        '정상재고': it.stock,
+        '현재위치': (it.pickLocs || []).join(', '),
+        '비축·기타위치': (it.etcLocs || []).join(', '),
+        '정상재고': it.stockPick,
+        '비축·기타재고': it.stockEtc,
         '2층재고': it.stock2f,
         '마지막출고.배송일': it.lastDelivery || '',
         '직진활동': it.hasRecentActivity ? 'O' : ''

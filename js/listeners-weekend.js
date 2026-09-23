@@ -1,5 +1,5 @@
 // === js/listeners-weekend.js ===
-import * as WeekendCalendar from './weekend-calendar.js?v=202609211626';
+import * as WeekendCalendar from './weekend-calendar.js?v=202609230913';
 
 export function setupWeekendListeners() {
     // DOM 요소 캐싱

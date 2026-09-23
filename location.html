@@ -679,7 +679,15 @@
                 <span>📅 상품 리스트</span>
                 <button onclick="document.getElementById('dash-bucket-modal').style.display='none'" style="background:none; border:none; font-size:24px; cursor:pointer;">×</button>
             </div>
-            <div id="dash-bucket-meta" style="font-size:12px; color:#607d8b; margin-bottom: 12px;"></div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom: 12px;">
+                <div id="dash-bucket-meta" style="font-size:12px; color:#607d8b;"></div>
+                <label style="font-size:12px; color:#6d4c41; cursor:pointer; user-select:none; white-space:nowrap;"
+                       title="비축·SAM 등 피킹 자리가 아닌 위치까지 '현재 위치'에 표시합니다">
+                    <input type="checkbox" id="dash-bucket-include-etc" style="vertical-align:middle;"
+                           onchange="window.__dashRerenderBucketList && window.__dashRerenderBucketList()">
+                    <span style="vertical-align:middle;">📦 비축 위치도 표시</span>
+                </label>
+            </div>
             <div style="flex:1; min-height:0; overflow-y:auto; border:1px solid #ccc; border-radius:8px;">
                 <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none; font-size:12px;">
                     <thead style="position:sticky; top:0; box-shadow:0 2px 4px rgba(0,0,0,0.1); z-index:1;">
@@ -1062,7 +1070,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202609211626"></script>
+    <script type="module" src="js/location.js?v=202609230913"></script>
     <script>
         function switchView(view) {
             document.getElementById('view-list').style.display = view === 'list' ? 'block' : 'none';
@@ -1129,7 +1137,7 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202609211626"></script>
-    <script src="js/modal-esc.js?v=202609211626"></script>
+    <script src="js/connection-banner.js?v=202609230913"></script>
+    <script src="js/modal-esc.js?v=202609230913"></script>
 </body>
 </html>
