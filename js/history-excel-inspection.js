@@ -1,7 +1,7 @@
 // === js/history-excel-inspection.js ===
-import { db, allHistoryData } from './state.js?v=202609231339'; 
-import { showToast, getTodayDateString } from './utils.js?v=202609231339';
-import { fitToColumn } from './history-excel-utils.js?v=202609231339';
+import { db, allHistoryData } from './state.js?v=202609250708'; 
+import { showToast, getTodayDateString } from './utils.js?v=202609250708';
+import { fitToColumn } from './history-excel-utils.js?v=202609250708';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; 
 
 const downloadListInspectionHistory = (format = 'xlsx') => {

@@ -1,7 +1,7 @@
 // === js/inspection-media.js ===
-import * as DOM from './dom-elements.js?v=202609231339';
-import { showToast } from './utils.js?v=202609231339';
-import { searchProductHistory } from './inspection-logic.js?v=202609231339';
+import * as DOM from './dom-elements.js?v=202609250708';
+import { showToast } from './utils.js?v=202609250708';
+import { searchProductHistory } from './inspection-logic.js?v=202609250708';
 
 export let html5QrCode = null;
 export let currentImageBase64 = null;

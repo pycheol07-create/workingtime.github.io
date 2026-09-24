@@ -1,7 +1,7 @@
 // === js/listeners-form-inspection.js ===
 // 설명: '검수 매니저(입력)' 모달 내부의 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202609231339';
+import * as DOM from './dom-elements.js?v=202609250708';
 import { 
     searchProductHistory, 
     saveInspectionAndNext, 
@@ -12,7 +12,7 @@ import {
     clearTodayList,
     deleteInspectionList,
     openInspectionListWindow
-} from './inspection-logic.js?v=202609231339';
+} from './inspection-logic.js?v=202609250708';
 
 export function setupFormInspectionListeners() {
 
