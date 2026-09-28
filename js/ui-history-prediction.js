@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609281106';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281106';
-import * as State from './state.js?v=202609281106';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281106';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281106';
+import { predictFutureTrends } from './analysis-logic.js?v=202609281109';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281109';
+import * as State from './state.js?v=202609281109';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281109';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281109';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281106';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281109';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281106';
-import { taskUph, recentDays } from './task-throughput.js?v=202609281106';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281109';
+import { taskUph, recentDays } from './task-throughput.js?v=202609281109';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -483,13 +483,18 @@ const precursorTasks = (taskKey) => {
     return Array.isArray(v) ? v : [];
 };
 /** 그 선행 업무가 준비하는 물량 업무들 — 선행관계의 역방향에서 구한다.
- *  simTimeTaskDeps(사전작업 시간 계산용)와 엮으면 한쪽을 바꿀 때 다른 쪽 판정이 같이 뒤틀린다. */
+ *  simTimeTaskDeps(사전작업 시간 계산용)와 엮으면 한쪽을 바꿀 때 다른 쪽 판정이 같이 뒤틀린다.
+ *  ⚠️ 설정으로 한 업무의 선행관계를 지우면(예: {'직진배송': []}) 같은 사전작업을 공유하는
+ *     다른 업무('에이블리배송')의 ready/with 판정 기준도 함께 바뀐다. 전체를 끄려면 두 키 모두 [] 로. */
 const precursorOutputs = (preKeys) => {
     const map = precursorMap();
     return Object.keys(map).filter(qk => Array.isArray(map[qk]) && map[qk].some(k => preKeys.includes(k)));
 };
 
-/** 근무일(기록 있는 날) → 그 날의 문서. 이력이 바뀔 때만 다시 만든다. */
+/** 내용이 들어 있는 날 → 그 날의 문서. 이력이 바뀔 때만 다시 만든다.
+ *  ⚠️ 캐시 키가 historySigValue 다 — 이 함수를 부르는 새 경로를 만들 때는 앞단에서
+ *     ensureSimTasks()(또는 ensureSimLists())를 먼저 태울 것. 안 그러면 빈 맵이 굳어
+ *     사전작업이 조용히 '0분 · 기록 없음'이 된다(에러가 안 난다). */
 let workDayMapCache = null, workDayMapSig = '';
 const workDayMap = (historyData) => {
     const today = getTodayDateString();
@@ -498,9 +503,13 @@ const workDayMap = (historyData) => {
     const m = new Map();
     (historyData || []).forEach(d => {
         // 미래 날짜 문서가 섞이면 '오늘의 다음날'이 그 문서로 잡혀 오늘이 표본에서 빠진다
-        if (d && typeof d.id === 'string' && d.id <= today && (d.workRecords || []).length > 0) m.set(d.id, d);
+        if (!d || typeof d.id !== 'string' || d.id > today) return;
+        // 판정 대상이 '물량'이므로 물량만 들어간 날(근무기록 입력 누락)도 아는 날로 본다.
+        // 근무기록만 보면 그런 날 앞의 표본이 통째로 빠져 평균이 소수의 완전기록일로 계산된다.
+        if ((d.workRecords || []).length > 0 || Object.keys(d.taskQuantities || {}).length > 0) m.set(d.id, d);
     });
-    workDayMapCache = m; workDayMapSig = sig;
+    // 이력 서명이 아직 안 잡힌 상태(초기값)면 캐시하지 않는다 — 빈 맵이 굳는 것을 막는다
+    if (historySigValue) { workDayMapCache = m; workDayMapSig = sig; }
     return m;
 };
 
@@ -611,6 +620,8 @@ let cadenceCacheSig = '';
 const analyzeCadence = (historyData, taskKey, windowWorkDays = CADENCE_PATTERN_DAYS) => {
     const today = getTodayDateString();
     // 선행관계 설정도 키에 넣는다 — 설정만 바꿨을 때 옛 통계가 굳어 보정이 안 걸린다
+    // simTimeTaskDeps 는 지금 이 계산에 쓰이지 않지만(precursorOutputs 로 분리),
+    // 다시 엮일 때 캐시가 굳는 쪽이 더 위험하므로 방어적으로 남겨 둔다.
     const cfgSig = JSON.stringify([State.appConfig?.simPrecursorTasks || 0,
                                    State.appConfig?.simTimeTaskDeps || 0]);
     const sig = `${historySigValue}#${windowWorkDays}#${cfgSig}`;
@@ -781,8 +792,11 @@ const precursorStateFor = (c, dateStr) => {
     });
     if (saved == null) return null;
     if (!(saved > 0)) return 'none';
-    let out = 0;
-    outKeys.forEach(k => { const pl = getPlanned(pw, k); if (pl != null) out += Number(pl) || 0; });
+    // 물량 예정값이 하나라도 비어 있으면 'ready'(= 출고 확정 신호)와 'with' 를 가를 수 없다.
+    // 안 넣은 날을 'ready' 로 읽으면 '준비만 한 날'로 오해해 다음날을 강제 배정한다.
+    let out = 0, known = true;
+    outKeys.forEach(k => { const pl = getPlanned(pw, k); if (pl == null) known = false; else out += Number(pl) || 0; });
+    if (!known) return null;
     return out > 0 ? 'with' : 'ready';
 };
 
@@ -886,9 +900,12 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
         ? plan[dateStr] > 0 : (p >= CADENCE_ON_P);
 
     const elapsed = workdaysBetween(c, dateStr);
-    // 확정(sure)일 때만 '확정'이라고 쓴다 — 표본이 모자라면 확률 보정만 걸린다
+    // 확정(sure)이고 실제로 배정된 날만 '확정'이라고 쓴다.
+    // 확정 신호라도 주간 배정 한도(+1회)에 걸려 잘릴 수 있어, 그 경우는 잘렸다고 밝힌다.
+    const sureNote = !pr.sure ? ''
+        : (picked ? ' → 이 날 출고 확정' : ' → 확정 신호이지만 주간 배정 한도로 이 날은 미배정');
     const PRE_NOTE = {
-        ready: '전 근무일에 사전작업만 하고 출고가 없었음' + (pr.sure ? ' → 이 날 출고 확정' : ''),
+        ready: '전 근무일에 사전작업만 하고 출고가 없었음' + sureNote,
         with:  '전 근무일에 사전작업 있었음',
         none:  '전 근무일에 사전작업 없었음'
     };
@@ -944,7 +961,7 @@ const cadenceWeekPlan = (historyData, taskKey, dates, fixedInfo = null) => {
     //    다만 주간 총량이 무너지지 않게, 주 배정 횟수를 최대 1회까지만 넘긴다
     //    (이 함수가 있는 이유가 '확률로만 보면 주간 총량이 부푼다'는 것이므로).
     const sure = open.filter(x => x.sure);
-    const sureLimit = Math.max(remain, Math.min(sure.length, remain + 1));
+    const sureLimit = Math.min(sure.length, remain + 1);
     const sureOn = sure.slice(0, sureLimit);
     const on = new Set(sureOn.map(x => x.date));
     const slots = Math.max(0, remain - sureOn.length);
