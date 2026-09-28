@@ -1,8 +1,8 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202609250708';
-import * as State from './state.js?v=202609250708';
-import { getRegularMembersForCount } from './utils.js?v=202609250708';
-import { withBuiltinMenus } from './menu-catalog.js?v=202609250708';
+import { getAllDashboardDefinitions } from './ui.js?v=202609280943';
+import * as State from './state.js?v=202609280943';
+import { getRegularMembersForCount } from './utils.js?v=202609280943';
+import { withBuiltinMenus } from './menu-catalog.js?v=202609280943';
 
 export let currentEzadminData = null;
 
