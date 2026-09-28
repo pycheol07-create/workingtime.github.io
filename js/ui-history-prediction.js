@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609281143';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281143';
-import * as State from './state.js?v=202609281143';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281143';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281143';
+import { predictFutureTrends } from './analysis-logic.js?v=202609281146';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281146';
+import * as State from './state.js?v=202609281146';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281146';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281146';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281143';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281146';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281143';
-import { taskUph, recentDays } from './task-throughput.js?v=202609281143';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281146';
+import { taskUph, recentDays } from './task-throughput.js?v=202609281146';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -84,6 +84,9 @@ const TIME_TASK_EXCLUDE = new Set(['매장근무', '출장', '연차', '휴직',
 //    매일 하는 일이 아니거나 그날 붙을 사람이 정해져 있어서, 평균으로 미리 깔아 두면
 //    계획 시간만 부풀린다. 필요한 날에 인원을 올리면 '1인 기준 시간 × 인원'으로 살아난다.
 //    설정값 simTimeTasksZero(업무명 배열)로 바꿀 수 있다 — []로 두면 자동 추정으로 돌아간다.
+//    ⚠️ 연동 물량이 있는 업무('직진배송 사전작업' 등)는 이 목록에 넣지 말 것 — dep 추정이
+//       통째로 무력화되고, 0명 저장값이 선행 신호(precursorStateFor)까지 '안 했음'으로 뒤틀어
+//       다음 근무일 출고가 0으로 잡힌다. 아래 분기에서 한 번 더 막는다.
 const DEFAULT_SIM_ZERO_TASKS = ['청소', '앵글정리'];
 let warnedZeroCfg = false;
 const simZeroTasks = () => {
@@ -274,10 +277,9 @@ const ensureSimLists = (force = false) => {
     const cfg = State.appConfig;
     const sig = [
         historySigValue,
-        Array.isArray(cfg?.simTimeTasks) ? cfg.simTimeTasks.join('|') : '',
-        // '설정 없음'(기본값 적용)과 '빈 배열'(기본값 해제)을 구분해야 한다 —
-        // 둘이 같은 문자가 되면 설정이 늦게 도착할 때 화면마다 계획 총시간이 갈린다
-        JSON.stringify(Array.isArray(cfg?.simTimeTasksZero) ? cfg.simTimeTasksZero : null)
+        Array.isArray(cfg?.simTimeTasks) ? cfg.simTimeTasks.join('|') : ''
+        // ※ simTimeTasksZero 는 여기 넣지 않는다 — 목록 구성(buildTimeTaskList)에는 쓰이지 않고,
+        //    값은 autoTimeValueFor 가 매번 State.appConfig 에서 직접 읽으므로 화면 간 차이가 없다.
     ].join('#');
     const stale = force || qtyChanged || sig !== timeListSig || !timeListBuilt;
     timeListSig = sig;
@@ -577,7 +579,7 @@ const autoTimeValueFor = (dateStr, t, historyData, qtyLookup = null) => {
     // 🙋 기본 0명으로 두는 업무 — 저장해 둔 값이 없으면 자동 추정은 0명·0분이다.
     //    실적 평균을 깔아 두지 않는다(그만큼 계획 시간이 부푼다). 대신 '1인 기준 시간'은
     //    실적에서 가져와, 그날 인원을 올리면 바로 현실적인 시간이 잡히게 한다.
-    if (simZeroTasks().has(t.key)) {
+    if (simZeroTasks().has(t.key) && !nextDay) {
         const st = computeTimeTaskStats(historyData, t.key, 28,
             deps.length > 0 ? depDayFilter(historyData, deps, nextDay) : null);
         // 인원을 올린다 = '오늘 이 업무를 한다'는 뜻이므로, 기준은 '하는 날 1인 평균'이다
@@ -1387,11 +1389,13 @@ const applyEmptyRowFolding = () => {
     };
 
     SIM_TASKS.forEach(t => markRow(t.id, isEmptyRowValue(document.getElementById(`sim-qty-${t.id}`))));
+    const zeroKeys = simZeroTasks();
     SIM_TIME_TASKS.forEach(t => {
         // 담당 업무는 '시간 0' 또는 '인원 0' 이면 그날 하지 않는 업무다
         const noTime = isEmptyRowValue(document.getElementById(`sim-time-${t.id}`));
         const noOne  = (Number(document.getElementById(`sim-workers-${t.id}`)?.value) || 0) <= 0;
-        markRow(`t-${t.id}`, noTime || noOne);
+        // 기본 0명 업무는 늘 0이라 접으면 화면에서 아예 사라진다 — 인원을 올릴 수 없게 된다.
+        markRow(`t-${t.id}`, !zeroKeys.has(t.key) && (noTime || noOne));
     });
 
     // 구획 안이 전부 숨겨졌으면 구획째로 숨긴다(빈 제목만 남지 않도록)
@@ -2264,11 +2268,17 @@ const saveSimQuantities = async () => {
     if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
     // 시간형 업무도 0(=안 함)까지 그대로 저장한다
     const mergedTime = { ...(getPlannedTimeTasksForDate(dateStr) || {}) };
+    const zeroKeys = simZeroTasks();
     activeTimeTasks().forEach(t => {
         const e = timeTasks[t.key];
         if (!e) return;               // 입력칸이 없던 업무는 건드리지 않는다
-        mergedTime[t.key] = { minutes: Math.max(0, Math.round(Number(e.minutes) || 0)),
-                              workers: Math.max(0, Math.round(Number(e.workers) || 0)) };
+        const mm = Math.max(0, Math.round(Number(e.minutes) || 0));
+        const ww = Math.max(0, Math.round(Number(e.workers) || 0));
+        // '기본 0명' 업무를 손대지 않은 채 저장하면 {0,0} 이 저장값으로 굳는다.
+        // 그러면 배지가 '저장값'으로 바뀌어 사용자가 0으로 정한 것처럼 보이고,
+        // 나중에 설정(simTimeTasksZero)을 되돌려도 저장값이 이겨 계속 0으로 남는다.
+        if (mm === 0 && ww === 0 && zeroKeys.has(t.key) && !getPlannedTime(dateStr, t.key)) return;
+        mergedTime[t.key] = { minutes: mm, workers: ww };
     });
     // 수량형으로 옮겨간 업무가 시간형 잔재로 남으면 나중에 되살아나 시간이 두 번 더해진다
     SIM_TASKS.forEach(t => delete mergedTime[t.key]);
@@ -2953,7 +2963,21 @@ const accuracyRowOf = (day, snap) => {
     }, 0);
     const members = new Set((day.workRecords || []).map(r => r?.member).filter(Boolean));
 
-    const planHours = Number(snap.totalHours) || 0;
+    // 계획이 0이던 업무(기본 0명 업무·그날 안 하기로 본 빈도형 업무·근태성 기록)를 실제로 한
+    // 시간까지 오차에 그대로 섞으면, 늘 '계획보다 많이 했다'로 읽혀 계획을 부풀리는
+    // 잘못된 조치를 부른다. 오늘 현황(computeTodayStatus)과 같은 방식으로 계획 쪽에도 더하고,
+    // 그 양은 따로 돌려줘 이유가 보이게 한다.
+    const plannedKeys = new Set();
+    Object.entries(snap.tasks || {}).forEach(([k, v]) => { if ((Number(v) || 0) > 0) plannedKeys.add(k); });
+    Object.entries(snap.timeTasks || {}).forEach(([k, v]) => { if ((Number(v?.minutes) || 0) > 0) plannedKeys.add(k); });
+    let unplannedMin = 0;
+    (day.workRecords || []).forEach(r => {
+        const d = Number(r?.duration);
+        if (!r?.task || !(Number.isFinite(d) && d > 0)) return;
+        if (!plannedKeys.has(r.task)) unplannedMin += d;
+    });
+
+    const planHours = (Number(snap.totalHours) || 0) + unplannedMin / 60;
     const actualHours = spentMin / 60;
 
     const qty = {};
@@ -2973,6 +2997,7 @@ const accuracyRowOf = (day, snap) => {
         hourErr: planHours > 0 ? (actualHours - planHours) / planHours : null,
         planFTE: Number(snap.requiredFTE) || 0,
         actualMembers: members.size,
+        unplannedHours: unplannedMin / 60,
         qty, snapAt: snap.at || null, spentMin
     };
 };
