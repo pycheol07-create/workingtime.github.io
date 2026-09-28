@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609280957';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609280957';
-import * as State from './state.js?v=202609280957';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609280957';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609280957';
+import { predictFutureTrends } from './analysis-logic.js?v=202609281015';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281015';
+import * as State from './state.js?v=202609281015';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281015';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281015';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609280957';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281015';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609280957';
-import { taskUph, recentDays } from './task-throughput.js?v=202609280957';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281015';
+import { taskUph, recentDays } from './task-throughput.js?v=202609281015';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -329,11 +329,10 @@ const HAZARD_MAX_GAP = 5;         // 마지막 진행 후 5근무일 이상은 �
 const CADENCE_ON_P = 0.6;         // 이 확률 이상이면 '하는 날'로 보고 물량을 넣는다
 const CADENCE_OFF_P = 0.3;        // 이 확률 이하면 '안 하는 날'
 const CADENCE_MIN_HITS = 4;       // 판정에 필요한 최소 진행 횟수
-// 창 길이: 패턴(요일·연속성)은 40근무일, '하는 날 물량'은 최근 20근무일.
+// 창 길이: 패턴(요일·연속성)은 최근 40근무일, '하는 날 물량'은 최근 5회 진행분.
 // 빈도보다 물량이 먼저 변한다(예: 채우기는 최근 한 달 하는 날 물량이 437 → 68로 줄었다).
-// 과거 데이터 검증에서 40/20 조합이 가장 정확했다(56/56 대비 하루 평균 오차 180 → 157).
 const CADENCE_PATTERN_DAYS = 40;
-const CADENCE_QTY_DAYS = 20;
+const CADENCE_QTY_HITS = 5;       // '하는 날 물량'은 최근 5회 진행분으로 낸다
 
 const computeTaskUPHs = (historyData) => {
     const days = recentDays(historyData, 28, getTodayDateString());
@@ -581,11 +580,14 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
         return v.length ? Math.round(v[Math.floor(v.length / 2)]) : 0;
     };
     const hitQtys = days.map(d => Number(d.taskQuantities?.[taskKey]) || 0).filter(q => q > 0);
-    // 물량은 최근 20근무일만 본다 — 그보다 옛날 물량을 섞으면 최근에 바뀐 수준을 못 따라간다
-    const recentQtys = days.slice(-CADENCE_QTY_DAYS)
-        .map(d => Number(d.taskQuantities?.[taskKey]) || 0).filter(q => q > 0);
-    // 최근 표본이 1~2회뿐이면 그 한 번이 대표값이 되므로, 그땐 창 전체 중앙값을 쓴다
-    const dayQty = (recentQtys.length >= 3 ? med(recentQtys) : 0) || med(hitQtys) || avgQty;
+    // 하는 날 물량 — '최근 5회 평균'. 한 번 크게 한 날은 그 5회 중앙값의 2배로 눌러서 넣는다.
+    //   · 중앙값만 쓰면 물량이 오르는 추세를 못 따라가 계획이 꾸준히 12% 적게 잡혔다(실측).
+    //   · 평균만 쓰면 하루 튄 날에 끌려간다 → 상한을 씌워 둘을 절충(검증: 편향 -12% → -5%).
+    const lastHits = hitQtys.slice(-CADENCE_QTY_HITS);
+    const capBase = med(lastHits);
+    const dayQty = (lastHits.length >= 3
+        ? Math.round(lastHits.reduce((a, q) => a + Math.min(q, capBase > 0 ? capBase * 2 : q), 0) / lastHits.length)
+        : 0) || med(hitQtys) || avgQty;
 
     // 연속성(해저드) — '마지막 진행 후 n 근무일째'에 다시 할 확률.
     // 실측: 채우기는 어제 했으면 75%, 이틀 쉬면 10%, 사흘 쉬면 86% — 며칠 몰아서 하고 쉬는 모양이라
@@ -701,6 +703,11 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
     const dayQty = c.dayQty;
     const p = cadenceP(c, dateStr);
 
+    // 그 주에 '몇 번 하는 업무인지'를 지켜 고른 날인가 (설명 문구에도 쓴다)
+    const plan = weekPlanFor(historyData, taskKey, dateStr);
+    const picked = (plan && Object.prototype.hasOwnProperty.call(plan, dateStr))
+        ? plan[dateStr] > 0 : (p >= CADENCE_ON_P);
+
     const elapsed = workdaysBetween(c, dateStr);
     const why = [
         `최근 근무일 ${c.sampleDays}일 중 ${c.hits}일 진행` + (c.weeklyCount > 0 ? ` (주 ${c.weeklyCount}회꼴)` : ''),
@@ -708,48 +715,87 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
         (c.lastDate && elapsed != null) ? `마지막 진행 ${c.lastDate} (그 뒤 ${elapsed}근무일째)` : null,
         `하는 날은 ${dayQty.toLocaleString()}개`
     ].filter(Boolean).join(' · ');
-    const detail = `진행 확률 ${Math.round(p * 100)}%
+    const planNote = plan
+        ? `이번 주 ${plan.__quota}회 배정 기준 · ${picked ? '이 날 배정됨' : '이 날은 미배정'}`
+        : `진행 확률 ${Math.round(p * 100)}%`;
+    const detail = `${planNote} (이 날 진행 확률 ${Math.round(p * 100)}%)
 ${why}`;
 
-    if (p >= CADENCE_ON_P) {
+    if (picked) {
         return { value: dayQty, source: 'cadence-on', prob: p, dayValue: dayQty, detail };
     }
     if (p <= CADENCE_OFF_P) {
         return { value: 0, source: 'cadence-off', prob: p, dayValue: dayQty, detail };
     }
-    // 애매한 구간 — 0 으로 두되 '진행 시' 계산에 쓰도록 표시해 둔다
+    // 고르진 않았지만 가능성이 남은 날 — 0 으로 두되 '진행 시' 계산에 쓰도록 표시해 둔다
     return { value: 0, source: 'cadence-maybe', prob: p, dayValue: dayQty, uncertain: true, detail };
 };
 
-/** 📅 7일치: 주 몇 회 하는 업무인지를 지켜서 '가장 유력한 날'에만 몰아넣는다.
- *  하루씩 따로 판단하면 한 주에 5번 들어가거나 0번이 되기도 한다.
- *  반환: { 날짜: 물량 } (빈도형이 아니면 null) */
-const cadenceWeekPlan = (historyData, taskKey, dates, fixedDates = new Set()) => {
+/** 📅 그 주에 '몇 번 하는 업무인지'를 지켜, 유력한 날에만 물량을 넣는다.
+ *  하루만 떼어 확률로 보면 빈도 70~85% 업무가 거의 매일 잡혀 주간 총량이 부풀려진다.
+ *  이미 진행했거나(지난 날 실적) 예정 물량이 저장된 날은 그 횟수를 빼고 남은 만큼만 배치한다.
+ *  반환: { 날짜: 물량 } — 후보가 아닌 날(주말·공휴일 등)도 0 으로 채워 키는 항상 있다. */
+const cadenceWeekPlan = (historyData, taskKey, dates, fixedInfo = null) => {
     const c = analyzeCadence(historyData, taskKey);
     if (!c || c.hits < CADENCE_MIN_HITS) return null;
-    // 후보 = 쉬는 날(주말·공휴일)이 아닌 날. 그 요일에 실제로 한 적이 있으면 주말도 후보로 둔다.
-    // 이미 값이 정해진 날(실측·예정 물량·1일차 사용자 입력)은 배치 대상에서 뺀다.
-    const cand = dates
-        .filter(d => !fixedDates.has(d))
-        .map(d => ({ date: d, wd: new Date(d + 'T00:00:00').getDay(), ...cadenceProbFor(c, d) }))
-        .filter(x => !isOffDay(x.date) || (c.byWd[x.wd] && c.byWd[x.wd].hit > 0));
+
+    // 후보 = 쉬는 날(주말·공휴일)이 아닌 날. 그 요일에 실제로 한 적이 있으면 주말도 후보.
+    const isCand = (d) => {
+        const wd = new Date(d + 'T00:00:00').getDay();
+        return !isOffDay(d) || !!(c.byWd[wd] && c.byWd[wd].hit > 0);
+    };
+    const cand = dates.filter(isCand);
     if (cand.length === 0) return null;
-    // 몇 번 넣을지 — 최근 진행 빈도 × 대상 일수. 반올림해서 0이면 그 기간엔 넣지 않는다
-    // (월 1회짜리 업무를 매주 한 번으로 부풀리지 않기 위해 1 로 올리지 않는다)
-    const slots = Math.min(cand.length, Math.round(c.overallP * cand.length));
-    // 확률이 확실한 날(60% 이상)은 넣되, 진행 빈도로 상한을 둔다.
-    //  · 하한(slots)만 두면 거의 매일 하는 업무가 7일치에서만 빠져 하루 화면과 답이 달라진다.
-    //  · 상한(cap)이 없으면 '며칠 쉬면 다시 한다'는 신호가 뒤쪽 날짜에 똑같이 걸려 연속으로 들어간다.
-    const cap = Math.min(cand.length, Math.max(slots, Math.ceil(c.overallP * cand.length)));
-    const ranked = cand.slice().sort((a, b) => (b.raw - a.raw) || a.date.localeCompare(b.date));
-    const on = new Set();
-    for (const x of ranked) { if (on.size >= cap) break; if (x.p >= CADENCE_ON_P) on.add(x.date); }
-    for (const x of ranked) { if (on.size >= slots) break; on.add(x.date); }
+
+    const fixed = fixedInfo || { dates: new Set(), done: 0 };
+    // 이번 기간에 몇 번 할 업무인가 → 이미 확정된 횟수를 뺀 나머지만 배치
+    const quota = Math.round(c.overallP * cand.length);
+    const remain = Math.max(0, Math.min(cand.length, quota - fixed.done));
+
+    const open = cand.filter(d => !fixed.dates.has(d))
+        .map(d => ({ date: d, ...cadenceProbFor(c, d) }))
+        .sort((a, b) => (b.raw - a.raw) || a.date.localeCompare(b.date));
+    const on = new Set(open.slice(0, remain).map(x => x.date));
+
     const out = {};
-    dates.forEach(d => {
-        out[d] = on.has(d) ? c.dayQty : 0;
-    });
+    dates.forEach(d => { out[d] = on.has(d) ? c.dayQty : 0; });
+    out.__quota = quota;          // 화면 설명용(배지 문구)
+    out.__remain = remain;
     return out;
+};
+
+/** 대상일이 속한 주(월~일)의 배치표. 모든 화면이 이 한 곳을 거쳐 같은 답을 쓴다.
+ *  같은 주는 한 번만 계산한다(이력·예정 물량이 바뀌면 자동으로 다시 계산). */
+const weekPlanMemo = new Map();
+const weekPlanFor = (historyData, taskKey, dateStr) => {
+    const wk = isoWeekKey(dateStr);
+    if (!wk) return null;
+
+    // 그 주 7일을 통째로 본다(대상일이 주말이어도 키가 빠지지 않게)
+    const dates = Array.from({ length: 7 }, (_, i) => addDays(wk, i));
+
+    // 이미 값이 정해진 날 — 지난 날의 실적, 오늘 실측, 저장해 둔 예정 물량
+    const today = getTodayDateString();
+    const fixedDates = new Set();
+    let done = 0;
+    const fixedKey = dates.map(d => {
+        let v = null;
+        if (d <= today) {
+            const day = (historyData || []).find(x => x.id === d);
+            if (day) v = Math.round(Number(day.taskQuantities?.[taskKey]) || 0);
+        }
+        if (v == null) { const pl = getPlanned(d, taskKey); if (pl != null) v = Math.round(pl); }
+        if (v != null) { fixedDates.add(d); if (v > 0) done++; }
+        return v == null ? '' : String(v);
+    }).join(',');
+
+    const memoKey = `${historySigValue}#${taskKey}#${wk}#${fixedKey}`;
+    if (weekPlanMemo.has(memoKey)) return weekPlanMemo.get(memoKey);
+    if (weekPlanMemo.size > 400) weekPlanMemo.clear();
+
+    const plan = cadenceWeekPlan(historyData, taskKey, dates, { dates: fixedDates, done });
+    weekPlanMemo.set(memoKey, plan);
+    return plan;
 };
 
 /** 미래 날짜의 국내배송 AI 예측값. 과거이면 실측치 사용. */
@@ -889,13 +935,13 @@ const SOURCE_BADGE = {
     incoming: { text: '입고일정',    muted: true, tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
     last7:    { text: '지난 7회 평균', muted: true, tip: '이 업무가 발생한 최근 7일의 업무량 평균' },
     'cadence-on':    { text: '하는 날', muted: true,
-                tip: '요일 성향과 마지막 진행일을 보고 이 날은 진행하는 것으로 봤습니다.'
-                   + ' 실제로 안 한다면 0으로 고치세요.' },
+                tip: '매일 하는 업무가 아니어서, 최근 기록 기준 이번 주에 몇 번 하는지를 세고'
+                   + ' 요일 성향·마지막 진행일로 가장 유력한 날에 배정했습니다. 실제로 안 한다면 0으로 고치세요.' },
     'cadence-off':   { text: '안 하는 날', muted: true,
-                tip: '이 날은 진행하지 않는 것으로 봤습니다(확률 30% 이하).'
+                tip: '이번 주 배정에서 빠졌고 진행 가능성도 낮은 날입니다.'
                    + ' 진행한다면 옆의 [하는 날] 값을 눌러 넣으세요.' },
     'cadence-maybe': { text: '진행 불확실', muted: true,
-                tip: '진행할지 애매한 날입니다(확률 30~60%). 기본은 0으로 두고,'
+                tip: '이번 주 배정에서는 빠졌지만 진행할 수도 있는 날입니다. 기본은 0으로 두고,'
                    + ' 결과 화면에 이 업무를 진행할 때의 시간·인원을 함께 보여줍니다.' },
     'china-linked': { text: '중국제작 연동', muted: true,
                 tip: '중국제작 입고가 있는 날만 자동 입력됩니다. (그 날 입고량 × 최근 4주 검수비율)' }
@@ -1356,22 +1402,6 @@ const runSimulation = ({ silent = false } = {}) => {
         ? Array.from({ length: 7 }, (_, i) => addDays(baseDate, i))
         : [baseDate];
 
-    // 7일치일 때만: 빈도형 업무를 '주 몇 회'만큼 유력한 날에 배치 (2일차부터 적용).
-    // 1일차와 실측·예정 물량이 있는 날은 이미 값이 정해졌으므로 배치 대상에서 뺀다
-    // (안 빼면 주 3회 업무가 5회로 늘어난다)
-    const weekPlans = {};
-    if (mode === 'batch7') {
-        SIM_TASKS.forEach(t => {
-            if (t.auto !== 'cadence') return;
-            const fixed = new Set([dates[0]]);
-            dates.forEach(d => {
-                if (todayActualQty(State.allHistoryData, d, t.key) != null || getPlanned(d, t.key) != null) fixed.add(d);
-            });
-            const plan = cadenceWeekPlan(State.allHistoryData, t.key, dates, fixed);
-            if (plan) weekPlans[t.key] = plan;
-        });
-    }
-
     // 🔀 진행이 애매한 빈도형 업무 — 기본값은 0이지만, '진행할 때'의 결과도 함께 낸다.
     //    (사람이 직접 숫자를 넣어 둔 칸은 건드리지 않는다)
     const maybeTasks = [];
@@ -1402,13 +1432,8 @@ const runSimulation = ({ silent = false } = {}) => {
         }
         // batch 모드의 2일차 이후: 날짜별 자동값(예정 물량 우선) 사용
         const autoTasks = {};
-        SIM_TASKS.forEach(t => {
-            // 빈도형 업무는 '주 몇 회'를 지켜 미리 배치해 둔 값을 쓴다(하루씩 따로 보면 한 주에 5번이 되기도 한다)
-            const fixed = todayActualQty(State.allHistoryData, d, t.key) ?? getPlanned(d, t.key);
-            if (fixed != null) { autoTasks[t.key] = fixed; return; }
-            const wk = weekPlans[t.key];
-            autoTasks[t.key] = wk ? (wk[d] || 0) : autoQtyFor(d, t, State.allHistoryData);
-        });
+        // 빈도형 업무는 autoQtyFor 안에서 그 주 배치표를 거친다(화면마다 같은 값)
+        SIM_TASKS.forEach(t => { autoTasks[t.key] = autoQtyFor(d, t, State.allHistoryData); });
         const autoTimeTasks = {};
         activeTimeTasks().forEach(t => {
             const v = autoTimeValueFor(d, t, State.allHistoryData);
@@ -1698,7 +1723,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
 // 업무 예상 — 오늘·내일 자동 요약 예측
 // ───────────────────────────────────────────────────────────
 /** 대상일의 자동 추정 입력값(DOM 미의존). AI 국내배송 + 7일평균 + 입고일정 중국제작 + 휴무 반영 가용인원. */
-const computeAutoInputsForDate = (dateStr, excludeMinutes = 0, weekPlans = null) => {
+const computeAutoInputsForDate = (dateStr, excludeMinutes = 0) => {
     const data = State.allHistoryData;
     const cfg = State.appConfig;
     // 그 날짜에 저장해 둔 제외시간이 있으면 그 값이 우선
@@ -1706,16 +1731,7 @@ const computeAutoInputsForDate = (dateStr, excludeMinutes = 0, weekPlans = null)
     if (savedEx != null) excludeMinutes = savedEx;
     // 우선순위: 예정 물량(수기 입력) > 업무별 자동값
     const tasks = {};
-    SIM_TASKS.forEach(t => {
-        // 빈도형 업무는 기간 전체로 배치해 둔 값을 쓴다(하루씩 따로 보면 화면마다 답이 달라진다)
-        const wk = weekPlans && weekPlans[t.key];
-        if (wk && Object.prototype.hasOwnProperty.call(wk, dateStr)) {
-            const fixed = todayActualQty(data, dateStr, t.key) ?? getPlanned(dateStr, t.key);
-            tasks[t.key] = (fixed != null) ? fixed : wk[dateStr];
-            return;
-        }
-        tasks[t.key] = autoQtyFor(dateStr, t, data);
-    });
+    SIM_TASKS.forEach(t => { tasks[t.key] = autoQtyFor(dateStr, t, data); });
     const timeTasks = {};
     activeTimeTasks().forEach(t => {
         const v = autoTimeValueFor(dateStr, t, data);
@@ -1723,19 +1739,6 @@ const computeAutoInputsForDate = (dateStr, excludeMinutes = 0, weekPlans = null)
     });
     const staffInfo = computeAvailableStaff(dateStr, cfg, State.persistentLeaveSchedule, data);
     return { tasks, timeTasks, staffFulltime: staffInfo.available, staffPart: 0, excludeMinutes, staffInfo };
-};
-
-/** 여러 날짜에 대한 빈도형 업무 배치표를 한 번에 만든다(화면마다 같은 값을 쓰도록). */
-const cadenceWeekPlansFor = (dates) => {
-    const plans = {};
-    SIM_TASKS.forEach(t => {
-        if (t.auto !== 'cadence') return;
-        const fixed = new Set(dates.filter(d =>
-            todayActualQty(State.allHistoryData, d, t.key) != null || getPlanned(d, t.key) != null));
-        const plan = cadenceWeekPlan(State.allHistoryData, t.key, dates, fixed);
-        if (plan) plans[t.key] = plan;
-    });
-    return plans;
 };
 
 /** 👥 앞으로 N근무일의 인원 수급 전망 — 인력 운영 탭이 쓴다.
@@ -1759,16 +1762,11 @@ export const getStaffingOutlook = (workDays = 10) => {
     let date = getTodayDateString();
     if (isOffDay(date)) date = nextWorkingDay(date);
 
-    // 빈도형 업무를 기간 전체에 '주 몇 회'만큼 배치해 둔다 — 7일치 시뮬레이션과 같은 방식
-    const outlookDates = [];
-    let cur = date;
-    for (let i = 0; i < workDays && cur; i++) { outlookDates.push(cur); cur = nextWorkingDay(cur); }
-    const weekPlans = cadenceWeekPlansFor(outlookDates);
 
     for (let i = 0; i < workDays && date; i++) {
         let row;
         try {
-            const inputs = computeAutoInputsForDate(date, 0, weekPlans);
+            const inputs = computeAutoInputsForDate(date, 0);
             const r = simulateOneDay(date, inputs, taskUPH, cfg);
             const planned = getPlannedQuantitiesForDate(date) || {};
             row = {
@@ -1893,8 +1891,7 @@ const captureSimOverride = () => {
 const inputsForSummaryDate = (dateStr) => {
     const excl = simOverride ? simOverride.excludeMinutes : readExcludeMinutes();
     if (!simOverride || simOverride.date !== dateStr) {
-        // 인력 운영 10일 전망과 같은 배치를 쓴다 — 같은 날짜에 두 화면이 다른 물량을 쓰지 않도록
-        return { inputs: computeAutoInputsForDate(dateStr, excl || 0, cadenceWeekPlansFor([dateStr])), linked: false };
+        return { inputs: computeAutoInputsForDate(dateStr, excl || 0), linked: false };
     }
     const staffInfo = computeAvailableStaff(dateStr, State.appConfig, State.persistentLeaveSchedule, State.allHistoryData);
     const total = Math.round(simOverride.staffFulltime + simOverride.staffPart);
