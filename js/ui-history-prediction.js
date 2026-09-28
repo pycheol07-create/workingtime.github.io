@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609281109';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281109';
-import * as State from './state.js?v=202609281109';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281109';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281109';
+import { predictFutureTrends } from './analysis-logic.js?v=202609281124';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281124';
+import * as State from './state.js?v=202609281124';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281124';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281124';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281109';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281124';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281109';
-import { taskUph, recentDays } from './task-throughput.js?v=202609281109';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281124';
+import { taskUph, recentDays } from './task-throughput.js?v=202609281124';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -80,6 +80,20 @@ const TIME_TASK_MIN_DAYS = 3;         // 한 번 크게 한 일회성 업무를 
 const TIME_TASK_RARE_RATIO = 0.3;     // 진행일이 근무일의 30% 미만이면 '가끔 하는 업무'로 따로 묶는다
 // 근태로 이미 가용 인원에서 빠지는 항목 · 시뮬레이션 대상이 아닌 항목
 const TIME_TASK_EXCLUDE = new Set(['매장근무', '출장', '연차', '휴직', '결근', '교육']);
+// 🧹 계획을 세우지 않는 업무 — 실제로 시간을 쓰는 일이지만 예상 대상에서 뺀다.
+//    빠진 시간은 계획에서 사라지고 실적에서는 '계획 외'로 잡힌다.
+//    설정값 simTimeTasksExcluded(업무명 배열)로 바꿀 수 있다 — []로 두면 다시 포함된다.
+const DEFAULT_SIM_EXCLUDED_TASKS = ['청소', '앵글정리'];
+let warnedExcludedCfg = false;
+const simExcludedTasks = () => {
+    const cfg = State.appConfig?.simTimeTasksExcluded;
+    if (cfg != null && !Array.isArray(cfg)) {
+        if (!warnedExcludedCfg) { warnedExcludedCfg = true; console.warn('simTimeTasksExcluded 는 업무명 배열이어야 합니다. 기본값을 씁니다:', cfg); }
+    }
+    const list = Array.isArray(cfg) ? cfg : DEFAULT_SIM_EXCLUDED_TASKS;
+    // 업무명은 저장할 때 trim 되므로 설정값도 같이 다듬는다(끝 공백 하나로 조용히 안 맞는 걸 막는다)
+    return new Set(list.map(k => String(k == null ? '' : k).trim()).filter(Boolean));
+};
 
 // ───────────────────────────────────────────────────────────
 // 수량형 업무 목록 자동 구성
@@ -150,8 +164,12 @@ const buildSimTasks = (historyData, appConfig) => {
     const used = new Set(LEGACY_SIM_TASKS.map(t => t.id));
     const totals = recentQtyTotals(historyData);
     const registered = new Set(appConfig?.quantityTaskTypes || []);
+    const excluded = simExcludedTasks();
     getAllTaskKeys(appConfig).forEach(key => {
+        // ⚠️ 기본 10개(LEGACY_SIM_KEYS)는 위에서 먼저 걸러지므로 제외 목록으로 뺄 수 없다.
+        //    제외 목록은 사실상 '자동으로 붙는 업무'(수량형 추가분·시간형) 전용이다.
         if (LEGACY_SIM_KEYS.has(key) || TIME_TASK_EXCLUDE.has(key)) return;
+        if (excluded.has(key)) return;
         if (!registered.has(key)) return;
         if (!((totals.get(key) || 0) > 0)) return;
         // 새 업무의 기본 추정은 'cadence' — 안 하는 날은 0으로 잡혀 화면에서 접힌다.
@@ -192,10 +210,12 @@ const buildTimeTaskList = (historyData, appConfig, windowDays = 56) => {
     //  양쪽에서 모두 빠져 계획 시간이 통째로 사라진다)
     const qtyKeys = new Set(SIM_TASKS.map(t => t.key));
 
+    const excluded = simExcludedTasks();
     const used = new Set();
     const toEntry = (key, rare = false) => ({ id: safeTaskId(key, used), key, label: key, rare });
     if (Array.isArray(manual) && manual.length > 0) {
-        return manual.filter(k => k && !qtyKeys.has(k)).slice(0, TIME_TASK_MAX).map(k => toEntry(k));
+        return manual.filter(k => k && !qtyKeys.has(k) && !excluded.has(k))
+                     .slice(0, TIME_TASK_MAX).map(k => toEntry(k));
     }
 
     const today = getTodayDateString();
@@ -212,7 +232,7 @@ const buildTimeTaskList = (historyData, appConfig, windowDays = 56) => {
         const seen = new Set();
         (d.workRecords || []).forEach(r => {
             const key = r && r.task;
-            if (!key || qtyKeys.has(key) || TIME_TASK_EXCLUDE.has(key)) return;
+            if (!key || qtyKeys.has(key) || TIME_TASK_EXCLUDE.has(key) || excluded.has(key)) return;
             const cur = agg.get(key) || { minutes: 0, days: 0 };
             cur.minutes += Number(r.duration) || 0;
             if (!seen.has(key)) { cur.days += 1; seen.add(key); }
@@ -259,7 +279,10 @@ const ensureSimLists = (force = false) => {
     const cfg = State.appConfig;
     const sig = [
         historySigValue,
-        Array.isArray(cfg?.simTimeTasks) ? cfg.simTimeTasks.join('|') : ''
+        Array.isArray(cfg?.simTimeTasks) ? cfg.simTimeTasks.join('|') : '',
+        // '설정 없음'(기본 제외 적용)과 '빈 배열'(다시 포함)을 구분해야 한다 —
+        // 둘이 같은 문자가 되면 설정이 늦게 도착할 때 화면마다 계획 총시간이 갈린다
+        JSON.stringify(Array.isArray(cfg?.simTimeTasksExcluded) ? cfg.simTimeTasksExcluded : null)
     ].join('#');
     const stale = force || qtyChanged || sig !== timeListSig || !timeListBuilt;
     timeListSig = sig;
@@ -2234,6 +2257,9 @@ const saveSimQuantities = async () => {
     });
     // 수량형으로 옮겨간 업무가 시간형 잔재로 남으면 나중에 되살아나 시간이 두 번 더해진다
     SIM_TASKS.forEach(t => delete mergedTime[t.key]);
+    // 예상 대상에서 뺀 업무의 옛 저장값도 지운다. 남겨 두면 입력칸이 없어 보이지도 않고
+    // 지울 수도 없는 값으로 남고, 나중에 다시 포함했을 때 몇 주 묵은 값이 되살아난다.
+    simExcludedTasks().forEach(k => delete mergedTime[k]);
 
     const excl = readExcludeMinutes();
     const ok = await savePlannedQuantities(dateStr, merged,
@@ -2266,6 +2292,8 @@ ${list}
         SIM_TIME_TASKS.forEach(t => delete restTime[t.key]);
         // 수량형으로 옮겨간 업무의 시간형 잔재는 지운다(남겨 두면 나중에 되살아나 이중 계산된다)
         SIM_TASKS.forEach(t => delete restTime[t.key]);
+        // 예상 대상에서 뺀 업무의 옛 저장값도 같이 지운다
+        simExcludedTasks().forEach(k => delete restTime[k]);
         const ok = await savePlannedQuantities(dateStr, rest, { keepZeros: true, timeTasks: restTime, excludeMinutes: -1 });
         if (!ok) return;
     }
@@ -2882,6 +2910,9 @@ const buildForecastSnapshot = (dateStr) => {
 
     return {
         tasks, timeTasks, uph,
+        // 그날 기준 '예상 대상이 아니던 업무' — 실적과 비교할 때 같은 기준으로 빼야 한다.
+        // 얼려 두지 않으면 제외 목록을 바꾼 날에 정확도 추세가 계단처럼 꺾인다.
+        excludedTasks: [...simExcludedTasks()],
         staffFulltime, staffPart, excludeMinutes,
         availableTotal: r.availableTotal, requiredFTE: r.requiredFTE,
         totalHours: Number(r.totalHours.toFixed(3)),
@@ -2909,7 +2940,11 @@ const recentClosedDays = (n) => {
 
 /** 하루치 계획 대비 실제 */
 const accuracyRowOf = (day, snap) => {
+    // 계획에서 뺀 업무는 실적에서도 뺀다 — 한쪽만 빼면 계획이 늘 적게 잡힌 것처럼 보인다.
+    // 기준은 '그 날 스냅샷에 얼려 둔 목록'이다(옛 스냅샷에는 없으므로 그때는 아무것도 빼지 않는다).
+    const exc = new Set(Array.isArray(snap.excludedTasks) ? snap.excludedTasks : []);
     const spentMin = (day.workRecords || []).reduce((sum, r) => {
+        if (r && exc.has(r.task)) return sum;
         const d = Number(r?.duration);
         return sum + (Number.isFinite(d) && d > 0 ? d : 0);
     }, 0);

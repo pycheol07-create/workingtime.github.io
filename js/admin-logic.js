@@ -1,6 +1,6 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions } from './admin-ui.js?v=202609281109';
-import { withBuiltinMenus } from './menu-catalog.js?v=202609281109';
+import { getAllDashboardDefinitions } from './admin-ui.js?v=202609281124';
+import { withBuiltinMenus } from './menu-catalog.js?v=202609281124';
 
 export function collectConfigFromDOM(currentConfig) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
@@ -37,6 +37,14 @@ export function collectConfigFromDOM(currentConfig) {
         costCalcTasks: [],
 
         simulationTaskLinks: currentConfig.simulationTaskLinks || {},
+        // 화면에 입력칸이 없는 업무예상 설정값 — 여기서 보존하지 않으면 관리자 저장 한 번에 사라진다
+        // (saveAppConfig 는 merge 없이 문서를 통째로 덮어쓴다)
+        ...(currentConfig.simTimeTasks !== undefined ? { simTimeTasks: currentConfig.simTimeTasks } : {}),
+        ...(currentConfig.simTimeTasksExcluded !== undefined ? { simTimeTasksExcluded: currentConfig.simTimeTasksExcluded } : {}),
+        ...(currentConfig.simPrecursorTasks !== undefined ? { simPrecursorTasks: currentConfig.simPrecursorTasks } : {}),
+        ...(currentConfig.simTimeTaskDeps !== undefined ? { simTimeTaskDeps: currentConfig.simTimeTaskDeps } : {}),
+        ...(currentConfig.simTimeTaskDepsNextDay !== undefined ? { simTimeTaskDepsNextDay: currentConfig.simTimeTaskDepsNextDay } : {}),
+        ...(currentConfig.staffingBasketTasks !== undefined ? { staffingBasketTasks: currentConfig.staffingBasketTasks } : {}),
         qualityCostTasks: currentConfig.qualityCostTasks || [],
         systemAccountsOld: currentConfig.systemAccounts || [], 
         standardDailyWorkHours: currentConfig.standardDailyWorkHours || { weekday: 8, weekend: 4 }
