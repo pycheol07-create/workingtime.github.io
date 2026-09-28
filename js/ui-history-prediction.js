@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609281146';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281146';
-import * as State from './state.js?v=202609281146';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281146';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281146';
+import { predictFutureTrends } from './analysis-logic.js?v=202609281302';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281302';
+import * as State from './state.js?v=202609281302';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281302';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281302';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281146';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281302';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281146';
-import { taskUph, recentDays } from './task-throughput.js?v=202609281146';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281302';
+import { taskUph, recentDays } from './task-throughput.js?v=202609281302';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -2042,6 +2042,171 @@ export const getStaffingOutlook = (workDays = 10) => {
         date = nextWorkingDay(date);
     }
     return out;
+};
+
+// ───────────────────────────────────────────────────────────
+// 🔌 업무예상 슬랙 알림용 디버그 훅 — window.__forecastForDate(dateStr?)
+//
+//  앱\업무예상알림 이 헤드리스 브라우저로 이 함수를 불러 '다음 업무일' 예상치를 읽어 간다.
+//  계산을 파이썬으로 옮기면 조용히 어긋나므로, 여기서 결과만 꺼내 준다.
+//  window.__peekDay / __runFxBackfill(js/listeners-history.js) 과 같은 디버그 훅 방식이다.
+//
+//  계산 순서는 위 getStaffingOutlook 과 똑같이 맞춘다 — 화면과 다른 답을 내면 안 된다.
+//  다만 세 가지를 더한다:
+//    ① 준비 확인   — State 는 ES 모듈이라 브라우저 밖에서 볼 수 없다. 여기서 알려 준다.
+//    ② fetchPlannedData() — 탭을 거치지 않고 불리므로 수기 '예정 물량'을 직접 실어야 한다.
+//    ③ 예외를 삼키지 않음 — 0 을 채워 넣으면 '필요 0명' 이라는 거짓말이 슬랙으로 나간다.
+//
+//  ⚠️ 부르지 않으면 아무것도 실행되지 않는다. DOM 을 읽거나 쓰지 않는다.
+//     Firestore 쓰기 경로 없음(fetchPlannedData / getForecastSnapshotForDate 는 읽기).
+// ───────────────────────────────────────────────────────────
+window.__forecastForDate = async (dateStr) => {
+    try {
+        const n = (v, d = 2) => (Number.isFinite(Number(v)) ? Number(Number(v).toFixed(d)) : 0);
+
+        // ⓪ 대상일 형식 검사 — '2026-9-29'(0 패딩 누락)는 사람 눈에 맞아 보이지만
+        //    getPlannedQuantitiesForDate 의 id 비교가 어긋나 예정 물량이 전부 빠진다.
+        if (dateStr != null && dateStr !== '') {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr))
+                || Number.isNaN(new Date(String(dateStr) + 'T00:00:00').getTime())) {
+                return { ok: false, reason: 'calc-failed', message: '대상일 형식 오류: ' + dateStr };
+            }
+        }
+
+        // ① 준비 확인.
+        //    appState.currentUser 까지 본다 — app.js 의 startAppAfterLogin 이
+        //    appConfig → 휴무일정 → (미등록·퇴사 차단) → currentUser 순으로 세팅하므로,
+        //    이 값이 있으면 휴무일정이 실렸고 계정 관문도 통과했다는 뜻이다.
+        //    appConfig 만 보면 휴무자를 아무도 빼지 않은 '가용 인원'이 나갈 수 있다.
+        const configKeys = Object.keys(State.appConfig || {}).length;
+        const appUser = (State.appState && State.appState.currentUser) || null;
+        if ((State.allHistoryData || []).length === 0 || configKeys === 0 || !appUser) {
+            return { ok: false, reason: 'not-ready',
+                     historyRows: (State.allHistoryData || []).length, configKeys, appUser };
+        }
+
+        // ② 수기 예정 물량 — 빼면 자동 추정값만 나온다(조용히 틀린 숫자).
+        //    ⚠️ fetchPlannedData 는 실패해도 throw 하지 않고 빈 값을 돌려준다.
+        //       그래서 catch 로는 못 잡는다 — 위 ①의 로그인 확인이 실질적인 방어선이고,
+        //       읽어온 뒤 건수를 비교해 한 번 더 본다.
+        let plannedLoaded = true;
+        try { await fetchPlannedData(); } catch (e) { plannedLoaded = false; }
+        if (!(State.plannedData || []).length) plannedLoaded = false;
+
+        // ③ 업무 목록 확정 — 빼면 시간형 업무가 누락돼 총시간이 화면과 달라진다
+        let simListsOk = true;
+        try { ensureSimLists(); } catch (e) { simListsOk = false; }
+
+        // ④ 대상일 — 인자가 없으면 '다음 업무일', 휴무면 그 이후 첫 업무일.
+        //    nextWorkingDay 는 14일까지만 밀어내고 그 뒤엔 휴일 날짜를 그대로 돌려준다.
+        //    그걸 걸러내지 않으면 아무도 출근 안 하는 날의 예상치가 발송된다.
+        let date = dateStr || nextWorkingDay(getTodayDateString());
+        if (date && isOffDay(date)) date = nextWorkingDay(date);
+        if (!date || isOffDay(date)) return { ok: false, reason: 'no-working-day' };
+
+        const taskUPH = computeTaskUPHs(State.allHistoryData);
+        const inputs = computeAutoInputsForDate(date, 0);
+        const r = simulateOneDay(date, inputs, taskUPH, State.appConfig);
+        const planned = getPlannedQuantitiesForDate(date) || {};
+
+        // JS 산술은 예외를 던지지 않고 NaN/Infinity 를 낸다. 그걸 0 으로 바꿔 내보내면
+        // '필요 0명' 이라는 거짓말이 그대로 발송된다 — 여기서 막는다.
+        if (![r.rawRequiredFTE, r.elapsedHours, r.availableTotal, r.dailyHours].every(Number.isFinite)) {
+            return { ok: false, reason: 'calc-failed',
+                     message: '비정상 수치(NaN/Infinity): required=' + r.rawRequiredFTE
+                              + ' elapsed=' + r.elapsedHours + ' avail=' + r.availableTotal };
+        }
+
+        const labelOf = (key) => {
+            const t = SIM_TASKS.find(x => x.key === key)
+                   || activeTimeTasks().find(x => x.key === key);
+            return (t && t.label) || key;
+        };
+
+        // 물량 0 만 뺀다. UPH 실적이 없어 hours=0 인 업무는 남긴다 —
+        // 빼면 물량이 소리 없이 사라져 필요 인원을 낮게 보게 된다(알림이 '시간 미정'으로 찍는다).
+        const tasks = Object.entries(r.taskTimes || {})
+            .filter(([, v]) => (Number(v && v.qty) || 0) > 0)
+            .map(([key, v]) => ({ key, label: labelOf(key),
+                                  qty: Math.round(Number(v.qty) || 0),
+                                  uph: n(v.uph), hours: n(v.hours) }));
+        const timeTasks = Object.entries(r.timeTaskTimes || {})
+            .filter(([, v]) => (Number(v && v.hours) || 0) > 0)
+            .map(([key, v]) => ({ key, label: labelOf(key),
+                                  minutes: Math.round(Number(v.minutes) || 0),
+                                  workers: Math.round(Number(v.workers) || 0),
+                                  hours: n(v.hours) }));
+
+        const leave = (inputs.staffInfo && inputs.staffInfo.onLeaveList) || [];
+
+        // 🔀 '진행할지 애매한' 빈도형 업무 — 화면(runSimulation)은 0 으로 두되 '진행 시' 결과를
+        //    함께 보여준다. 훅이 이걸 빼면 슬랙에는 그 업무가 아예 없는 채로
+        //    '딱 맞음' 이 나가고, 다음 날 실제로 진행하면 물량이 그대로 밀린다.
+        //    판정 조건·계산은 runSimulation 과 같은 함수를 그대로 쓴다(DOM 검사만 제외).
+        const maybeTasks = [];
+        SIM_TASKS.forEach(t => {
+            if (t.auto !== 'cadence') return;
+            if ((inputs.tasks[t.key] || 0) > 0) return;
+            if (todayActualQty(State.allHistoryData, date, t.key) != null) return;
+            if ((getPlanned(date, t.key) || 0) > 0) return;
+            if (!(taskUPH[t.key] > 0)) return;   // 기준 속도가 없으면 '진행 시'도 같은 값이라 혼란만 준다
+            const info = cadenceValueFor(State.allHistoryData, t.key, date);
+            if (info && info.uncertain && info.dayValue > 0) {
+                maybeTasks.push({ key: t.key, label: t.label,
+                                  qty: Math.round(Number(info.dayValue) || 0),
+                                  prob: n(info.prob) });
+            }
+        });
+        let maybeAlt = null;
+        if (maybeTasks.length > 0) {
+            const altTasks = { ...inputs.tasks };
+            maybeTasks.forEach(m => { altTasks[m.key] = m.qty; });
+            const ar = simulateOneDay(date, { ...inputs, tasks: altTasks }, taskUPH, State.appConfig);
+            maybeAlt = { rawRequiredFTE: n(ar.rawRequiredFTE), requiredFTE: ar.requiredFTE,
+                         elapsedHours: n(ar.elapsedHours, 3), slackHours: n(ar.slackHours, 3) };
+        }
+
+        // 예정 물량 중 '실제로 계산에 반영된' 키만 가려낸다.
+        // 물량 0(= 안 하기로 정함)이나 업무 목록에서 빠진 옛 업무명을 그대로 찍으면
+        // 받는 사람은 그게 반영된 숫자라고 믿는다.
+        const qtyKeys = new Set(SIM_TASKS.map(t => t.key));
+        const plannedKeys = Object.keys(planned)
+            .filter(k => qtyKeys.has(k) && (Number(planned[k]) || 0) > 0);
+        const droppedPlannedKeys = Object.keys(planned).filter(k => !qtyKeys.has(k));
+
+        return {
+            ok: true, hookVersion: 1,
+            date, todayDate: getTodayDateString(), weekend: !!r.weekend,
+            // 알림은 requiredFTE(정수)를 쓴다 — 화면 표시값과 같아야 대조 검증이 된다.
+            // rawRequiredFTE(소수)는 근거·되돌리기용으로 같이 준다.
+            requiredFTE: r.requiredFTE, rawRequiredFTE: n(r.rawRequiredFTE),
+            availableTotal: r.availableTotal, gap: r.gap,
+            totalHours: n(r.totalHours, 3), qtyHours: n(r.qtyHours, 3), timeHours: n(r.timeHours, 3),
+            elapsedHours: n(r.elapsedHours, 3), slackHours: n(r.slackHours, 3),
+            dailyHours: r.dailyHours, netDailyHours: n(r.netDailyHours, 3),
+            excludeMinutes: r.excludeMinutes,      // simulateOneDay 가 클램프한 값
+            staffShortForQty: !!r.staffShortForQty,
+            elapsedCappedByTimeTask: !!r.elapsedCappedByTimeTask,
+            tasks, timeTasks, maybeTasks, maybeAlt,
+            hasPlanned: plannedKeys.length > 0,
+            plannedKeys, droppedPlannedKeys,
+            onLeave: leave.length,
+            onLeaveNames: leave.map(e => (e && e.member) || '').filter(Boolean),
+            // 로그인 판정용. appUser 는 미등록·퇴사 관문을 통과한 뒤에만 채워진다
+            // (State.auth.currentUser 는 그 관문 '전에' 이미 true 라서 판정에 쓸 수 없다).
+            appUser,
+            // ⚠️ 스냅샷 본문은 내주지 않는다. buildForecastSnapshot 의 스키마는
+            //    tasks 가 배열이 아니라 맵이고 rawRequiredFTE·weekend 가 없어서
+            //    메시지.build() 에 그대로 먹이면 '필요 0.0명' 이 나간다.
+            //    폴백을 구현할 땐 전용 변환기를 따로 만들 것. (확정한 사람 실명도 들어 있다)
+            hasSnapshot: !!getForecastSnapshotForDate(date),
+            // historyRows 는 await 뒤에 다시 읽는다 — 그 사이 Firestore 응답으로 갱신될 수 있다
+            flags: { plannedLoaded, simListsOk, historyRows: (State.allHistoryData || []).length }
+        };
+    } catch (e) {
+        return { ok: false, reason: 'calc-failed',
+                 message: String((e && e.stack) || e).slice(0, 500) };
+    }
 };
 
 /** 📅 예정 물량 입력 화면 프리필용 — 해당 날짜의 자동 추정 물량(예정 수기값은 제외).
