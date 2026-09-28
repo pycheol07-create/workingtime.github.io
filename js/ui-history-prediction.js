@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609281302';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281302';
-import * as State from './state.js?v=202609281302';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281302';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281302';
+import { predictFutureTrends } from './analysis-logic.js?v=202609281405';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281405';
+import * as State from './state.js?v=202609281405';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281405';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281405';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281302';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281405';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281302';
-import { taskUph, recentDays } from './task-throughput.js?v=202609281302';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281405';
+import { taskUph, recentDays } from './task-throughput.js?v=202609281405';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -2190,6 +2190,13 @@ window.__forecastForDate = async (dateStr) => {
             tasks, timeTasks, maybeTasks, maybeAlt,
             hasPlanned: plannedKeys.length > 0,
             plannedKeys, droppedPlannedKeys,
+            // 저장된 원본 그대로 — 알림이 '작업량이 저장됐는지' 를 판정하는 근거다.
+            // ⚠️ plannedKeys(값>0 만) 로는 판정할 수 없다. 앱은 keepZeros:true 로 0 도 저장하고
+            //    getPlanned 가 0 을 '0으로 하기로 한 값' 으로 인정해 자동 추정값을 이긴다.
+            //    즉 '중국제작 0 저장' 은 계산을 크게 바꾸는데 plannedKeys 에는 안 나타난다.
+            plannedRaw: planned,
+            plannedTimeRaw: getPlannedTimeTasksForDate(date) || {},
+            plannedExcludeRaw: getPlannedExcludeMinutesForDate(date),
             onLeave: leave.length,
             onLeaveNames: leave.map(e => (e && e.member) || '').filter(Boolean),
             // 로그인 판정용. appUser 는 미등록·퇴사 관문을 통과한 뒤에만 채워진다
