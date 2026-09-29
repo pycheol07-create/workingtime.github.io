@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609291107';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291107';
-import * as State from './state.js?v=202609291107';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291107';
-import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291107';
+import { predictFutureTrends } from './analysis-logic.js?v=202609291112';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291112';
+import * as State from './state.js?v=202609291112';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291112';
+import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291112';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291107';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291112';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291107';
-import { taskUph, recentDays } from './task-throughput.js?v=202609291107';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291112';
+import { taskUph, recentDays } from './task-throughput.js?v=202609291112';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -440,8 +440,10 @@ const computeTaskUPHs = (historyData) => {
     //    '종료된 기록만'을 실제로 보면 17.86h → 13.74h.
     //    minMinutes 10 — 몇 분짜리 기록 하나가 극단적인 속도를 만드는 것을 막는다.
     //    skipDate — 오늘은 물량이 덜 차 있어 속도가 튄다.
+    //    minSamples 3 — 표본 1~2개짜리 중앙값은 이상치 저항이 0 이라, 그럴 땐 합계로 돌아간다
+    //    (실측: 로케이션 동선관리는 표본 2일뿐이라 중앙값이 합계의 절반으로 튀었다)
     const uph = taskUph(days, {
-        mode: 'dailyMedian', minMinutes: 10, skipDate: today,
+        mode: 'dailyMedian', minMinutes: 10, skipDate: today, minSamples: 3,
         tasks: new Set(SIM_TASKS.map(t => t.key))
     });
 
@@ -449,10 +451,15 @@ const computeTaskUPHs = (historyData) => {
     // 비현실적으로 짧게 잡힌다. 표본이 모자라면 '기준 없음'(0)으로 둔다.
     // 기존 10개는 지금까지의 값을 그대로 유지한다(회귀 방지).
     const minutes = {};
-    days.forEach(d => (d?.workRecords || []).forEach(r => {
-        const m = Number(r?.duration) || 0;
-        if (r?.task && m > 0) minutes[r.task] = (minutes[r.task] || 0) + m;
-    }));
+    days.forEach(d => {
+        // UPH 표본과 같은 기준으로 센다 — 오늘은 물량이 덜 차 있어 표본에서 뺐다.
+        // 여기만 오늘을 세면 '오늘 진행 중인 시간'으로 최소표본을 통과해 보호가 헐거워진다.
+        if (!d || d.id === today) return;
+        (d.workRecords || []).forEach(r => {
+            const m = Number(r?.duration) || 0;
+            if (r?.task && m > 0) minutes[r.task] = (minutes[r.task] || 0) + m;
+        });
+    });
     Object.keys(uph).forEach(k => {
         if (LEGACY_SIM_KEYS.has(k)) return;
         if ((minutes[k] || 0) < UPH_MIN_MINUTES_NEW) uph[k] = 0;

@@ -45,12 +45,21 @@ export const dailyTaskStats = (day) => {
  *                '잘 돌아갔을 때의 속도' = 목표치. 평상시보다 높게 나오는 것이 정상이다.
  *
  * minMinutes — 그날 그 업무에 이만큼 이상 투입된 날만 센다(짧은 기록의 튀는 속도 제외).
+ * minSamples — 일별 모드에서 표본이 이보다 적으면 그 업무만 'total'(합계) 값으로 돌려준다.
+ *              표본 1~2개짜리 중앙값은 이상치 저항이 0 이라(n=1은 그 하루 값, n=2는 평균)
+ *              한 번 잘못 기록된 날에 그대로 끌려간다. 그럴 바엔 합계가 덜 흔들린다.
  * skipDate   — 제외할 날짜(보통 진행 중이라 물량이 덜 찬 '오늘').
  * tasks      — 지정하면 그 업무만, 없는 업무도 0으로 채워서 돌려준다.
  */
+const SPEED_MODES = new Set(['total', 'dailyAvg', 'dailyMedian', 'bestDays']);
+
 export const taskSpeedPerMinute = (days, {
-    mode = 'total', minMinutes = 0, skipDate = null, topN = 20, tasks = null
+    mode = 'total', minMinutes = 0, skipDate = null, topN = 20, tasks = null, minSamples = 0
 } = {}) => {
+    // ⚠️ 오타 하나가 조용히 다른 숫자를 돌려주면 아무도 모른다(이 파일 머리의 60배 사고와 같은 종류).
+    if (!SPEED_MODES.has(mode)) {
+        throw new Error(`taskSpeedPerMinute: 모르는 mode '${mode}' (가능: ${[...SPEED_MODES].join(', ')})`);
+    }
     const list = Array.isArray(days) ? days : [];
     const totals = {};        // mode 'total'
     const speeds = {};        // mode 'dailyAvg' | 'bestDays'
@@ -60,12 +69,11 @@ export const taskSpeedPerMinute = (days, {
         const stats = dailyTaskStats(day);
         Object.entries(stats).forEach(([task, s]) => {
             if (tasks && !tasks.has(task)) return;
-            if (mode === 'total') {
-                if (!totals[task]) totals[task] = { minutes: 0, qty: 0 };
-                totals[task].minutes += s.minutes;
-                totals[task].qty += s.qty;
-                return;
-            }
+            // 합계는 어느 모드에서든 모아 둔다 — 일별 표본이 모자랄 때 되돌아갈 값이다
+            if (!totals[task]) totals[task] = { minutes: 0, qty: 0 };
+            totals[task].minutes += s.minutes;
+            totals[task].qty += s.qty;
+            if (mode === 'total') return;
             if (s.minutes > 0 && s.minutes >= minMinutes && s.qty > 0) {
                 (speeds[task] || (speeds[task] = [])).push(s.qty / s.minutes);
             }
@@ -78,8 +86,18 @@ export const taskSpeedPerMinute = (days, {
             out[task] = s.minutes > 0 ? s.qty / s.minutes : 0;
         });
     } else {
+        const totalOf = (task) => {
+            const t = totals[task];
+            return (t && t.minutes > 0) ? t.qty / t.minutes : 0;
+        };
+        // 일별 표본이 아예 없거나 모자란 업무는 합계로 돌려준다.
+        // (안 그러면 속도 0 → 계획 시간 0 이 되어, 물량은 보이는데 시간만 조용히 사라진다)
+        Object.keys(totals).forEach(task => {
+            if (tasks && !tasks.has(task)) return;
+            if ((speeds[task] || []).length < Math.max(1, minSamples)) out[task] = totalOf(task);
+        });
         Object.entries(speeds).forEach(([task, arr]) => {
-            if (arr.length === 0) { out[task] = 0; return; }
+            if (arr.length < Math.max(1, minSamples)) { out[task] = totalOf(task); return; }
             if (mode === 'dailyMedian') {
                 const v = [...arr].sort((a, b) => a - b);
                 const m = Math.floor(v.length / 2);
