@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609291022';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291022';
-import * as State from './state.js?v=202609291022';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291022';
-import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291022';
+import { predictFutureTrends } from './analysis-logic.js?v=202609291030';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291030';
+import * as State from './state.js?v=202609291030';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291030';
+import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291030';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291022';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291030';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291022';
-import { taskUph, recentDays } from './task-throughput.js?v=202609291022';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291030';
+import { taskUph, recentDays } from './task-throughput.js?v=202609291030';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -879,6 +879,11 @@ const precursorStateFor = (c, dateStr) => {
         // 오늘은 아직 안 끝난 날일 수 있다 — 기록이 덜 쌓였으면 '안 했다'로 단정하지 않는다.
         // (오전에 단정하면 내일 출고가 0이 되고, 그 0 때문에 오늘 사전작업도 0분이 된다)
         if (st === 'none' && prev.id >= today && !dayLooksRecorded(prev, c)) return null;
+        // 'ready'(준비만 하고 출고 없음)는 '출고 물량이 0' 을 근거로 한다.
+        // 오늘 물량이 아직 안 들어왔으면 'ready' 인지 'with' 인지 가를 수 없다 —
+        // 여기서 'ready' 로 단정하면 내일이 '출고 확정'이 되어, 오늘과 내일에 이중으로 배정된다.
+        if (st === 'ready' && prev.id >= today
+            && !outKeys.every(k => qtyZeroConfirmed(prev, k))) return null;
         return st;
     }
 
@@ -1298,21 +1303,22 @@ const loadUnloadRatios = (historyData, taskKey, incomingKey, shipKeys, windowWor
 };
 
 /** 그 날 그 업무의 '0' 이 진짜 0 인가 — 아직 입력 안 된 0 과 구분한다.
- *  ① '0으로 확정' 목록에 있거나 물량 검수가 끝났으면 확실히 0.
- *  ② 실제 운영 데이터에는 ①이 거의 안 남는다(검수 표시 0/301일, 확정목록 52/301일).
- *     그래서 '다른 업무 물량이 이미 여러 개 들어간 날'이면 그 업무의 0 도 입력된 0 으로 본다.
- *     (예: 2026-09-23 은 7개 업무 물량이 들어갔고 직진·에이블리만 없다 → 진짜 안 한 날) */
-const QTY_ENTERED_MIN = 3;
+ *  ① 그 업무를 지금 하고 있으면 0 은 아직 확정이 아니다(끝나고 물량이 들어온다).
+ *  ② '0으로 확정' 목록에 있거나 물량 검수가 끝났으면 확실히 0.
+ *  ③ 처리량 입력 모달은 저장할 때 <b>모든 업무를 0 까지 함께</b> 쓴다
+ *     (listeners-form-quantity.js: newQuantities[taskName] = Number(input.value) || 0).
+ *     그래서 그 업무의 '키가 있는지' 가 곧 '입력을 거쳤는지' 다.
+ *     ⚠️ '0 아닌 값이 몇 개인가'로 세면 입력 순서에 좌우된다 — 직진·에이블리를 마지막에 넣는
+ *        습관이면 중간에 그 업무들이 '0 확정'으로 오판된다. 그래서 키 유무로 판단한다. */
 const qtyZeroConfirmed = (dayRec, taskKey) => {
     if (!dayRec) return false;
+    const working = (dayRec.workRecords || [])
+        .some(r => r && r.task === taskKey && (Number(r.duration) || 0) > 0);
+    if (working) return false;
     const list = dayRec.confirmedZeroTasks;
     if (Array.isArray(list) && list.includes(taskKey)) return true;
     if (dayRec.isQuantityVerified) return true;
-    let n = 0;
-    Object.entries(dayRec.taskQuantities || {}).forEach(([k, v]) => {
-        if (k !== taskKey && (Number(v) || 0) > 0) n++;
-    });
-    return n >= QTY_ENTERED_MIN;
+    return Object.prototype.hasOwnProperty.call(dayRec.taskQuantities || {}, taskKey);
 };
 
 /** 📦 상.하차 예상 = 하차분(입고 박스) + 상차분(전 근무일 출고량).
@@ -2554,6 +2560,10 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
 /** 🔗 상세 시뮬레이션에서 지금 입력해 둔 값. 대상일이 오늘/내일이면 위 요약 카드도 이 값으로 계산한다.
  *  (상세에서 숫자를 바꿨는데 상단 카드가 자동값 그대로면 두 숫자가 어긋나 보인다) */
 let simOverride = null;   // { date, tasks, staffFulltime, staffPart, excludeMinutes }
+// ✍️ 사람이 직접 고친 물량 칸(업무명). 자동값 그대로인 칸과 구분해 저장할 때 쓴다.
+//    자동으로 0 이 들어간 칸까지 저장해 버리면, 그 0 이 다음부터 자동 추정을 이겨
+//    그 날은 영구히 0 이 된다(실제로 교환반품이 9/15·16·17·22·28 에 0 으로 굳어 있었다).
+let simDirtyQty = new Set();
 
 const captureSimOverride = () => {
     const dateStr = document.getElementById('sim-target-date')?.value;
@@ -2681,7 +2691,13 @@ const saveSimQuantities = async () => {
         // 입력칸이 없어 읽지 못한 업무는 건드리지 않는다.
         // 0 으로 써 버리면 예정 물량 화면에 넣어 둔 값이 조용히 사라지고, 0 이 자동값을 이겨 굳는다.
         if (!Object.prototype.hasOwnProperty.call(tasks, t.key)) return;
-        merged[t.key] = Math.max(0, Math.round(Number(tasks[t.key]) || 0));
+        const v = Math.max(0, Math.round(Number(tasks[t.key]) || 0));
+        // 사람이 손대지 않은 칸의 0 은 저장하지 않는다 — 자동 추정이 넣은 0 이기 때문이다.
+        // 그걸 저장하면 다음부터 그 0 이 자동 추정을 이겨 그 날은 영구히 0 이 된다.
+        // (사람이 직접 0 을 넣었으면 simDirtyQty 에 있으므로 그대로 저장된다)
+        if (v === 0 && !simDirtyQty.has(t.key)
+            && getPlanned(dateStr, t.key) == null) return;
+        merged[t.key] = v;
     });
 
     const btn = document.getElementById('sim-save-btn');
@@ -2709,6 +2725,7 @@ const saveSimQuantities = async () => {
     if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
     if (!ok) return;
 
+    simDirtyQty = new Set();          // 저장 완료 — 다시 자동값 기준으로 본다
     autoFillSimInputs(dateStr);       // 배지를 '예정물량'으로 갱신
     updateSavedInfo(dateStr);
     simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
@@ -2719,6 +2736,7 @@ const saveSimQuantities = async () => {
 const handleAutoFillClick = async () => {
     const dateStr = document.getElementById('sim-target-date')?.value;
     if (!dateStr) return;
+    simDirtyQty = new Set();          // 자동값으로 되돌리므로 '손댄 칸'도 없어진다
     const entries = savedSimEntries(dateStr);
     if (entries.length > 0) {
         const list = entries.map(e => ` · ${savedEntryText(e)}`).join('\n');
@@ -2797,6 +2815,7 @@ const setupSimulationListeners = () => {
             dateEl.value = getTodayDateString();
         }
         dateEl.addEventListener('change', () => {
+            simDirtyQty = new Set();      // 날짜가 바뀌면 '손댄 칸' 기록도 새로 시작한다
             autoFillSimInputs(dateEl.value);
             updateSavedInfo(dateEl.value);
             simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
@@ -2960,6 +2979,7 @@ const setupSimulationListeners = () => {
         const m = /^sim-qty-(.+)$/.exec(e.target?.id || '');
         if (!m) return;
         const changed = SIM_TASKS.find(t => t.id === m[1]);
+        if (changed) simDirtyQty.add(changed.key);
         const dateStr = document.getElementById('sim-target-date')?.value;
         if (!changed || !dateStr) return;
 
