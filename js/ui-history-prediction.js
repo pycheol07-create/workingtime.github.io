@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609291006';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291006';
-import * as State from './state.js?v=202609291006';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291006';
-import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291006';
+import { predictFutureTrends } from './analysis-logic.js?v=202609291013';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291013';
+import * as State from './state.js?v=202609291013';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291013';
+import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291013';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291006';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291013';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291006';
-import { taskUph, recentDays } from './task-throughput.js?v=202609291006';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291013';
+import { taskUph, recentDays } from './task-throughput.js?v=202609291013';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1227,39 +1227,54 @@ const autoValueFor = (dateStr, task, historyData) => {
  *  ① 먼저 '순수 상차일'(입고 없고 전날 출고 있는 날)로 상차 단위를 배운다 — 표본이 많다.
  *  ② 그 상차분을 뺀 나머지로 '박스당 개수'를 배운다 — 순수 하차일만 쓰면 표본이 2~3일뿐이다.
  */
+let loadUnloadCache = new Map(), loadUnloadSig = '';
 const loadUnloadRatios = (historyData, taskKey, incomingKey, shipKeys, windowWorkDays = 40) => {
     const today = getTodayDateString();
+    // 10일 전망·키 입력마다 불리므로 캐시한다(이력 전체를 filter+sort 하는 비용이 반복된다)
+    const sig = `${historySigValue}#${today}#${windowWorkDays}`;
+    if (sig !== loadUnloadSig) { loadUnloadCache = new Map(); loadUnloadSig = sig; }
+    const ck = `${taskKey}#${incomingKey}#${shipKeys.join(',')}`;
+    if (loadUnloadCache.has(ck)) return loadUnloadCache.get(ck);
+
     const days = (historyData || [])
         .filter(d => d && typeof d.id === 'string' && d.id < today)
         .filter(d => (d.workRecords || []).length > 0)
         .sort((a, b) => a.id.localeCompare(b.id))
         .slice(-windowWorkDays);
+    const byId = new Map(days.map(d => [d.id, d]));
     const num = (d, k) => Number(d?.taskQuantities?.[k]) || 0;
     const shipOf = (d) => shipKeys.reduce((a, k) => a + num(d, k), 0);
+    // ⚠️ 추론은 prevWorkingDay(달력 기준)를 쓴다 — 학습도 같은 정의를 써야 한다.
+    //    '이력상 직전 기록일'로 배우면 연휴·기록 누락이 끼었을 때 관계가 없는 쌍이 표본에 섞인다.
+    const prevOf = (d) => byId.get(prevWorkingDay(d.id)) || null;
     const med = (arr) => {
         if (arr.length === 0) return 0;
         const v = [...arr].sort((x, y) => x - y);
-        return v[Math.floor(v.length / 2)];
+        const m = Math.floor(v.length / 2);
+        // 짝수 표본에서 위쪽 값만 고르면 비율이 한 방향으로 치우친다
+        return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
     };
 
     // ① 상차 단위 — '전날 출고 몇 개당 상.하차 1개'
     const a = [];
-    for (let i = 1; i < days.length; i++) {
-        const cur = days[i], prev = days[i - 1];
+    days.forEach(cur => {
+        const prev = prevOf(cur);
+        if (!prev) return;
         const t = num(cur, taskKey), sp = shipOf(prev);
         if (num(cur, incomingKey) === 0 && sp > 0 && t > 0) a.push(sp / t);
-    }
+    });
     const perShip = a.length >= 3 ? med(a) : 0;
 
     // ② 박스당 개수 — 입고일에서 상차분을 뺀 나머지 기준
     const b = [];
-    for (let i = 1; i < days.length; i++) {
-        const cur = days[i], prev = days[i - 1];
+    days.forEach(cur => {
         const inq = num(cur, incomingKey), t = num(cur, taskKey);
-        if (inq <= 0 || t <= 0) continue;
-        const boxPart = t - (perShip > 0 ? shipOf(prev) / perShip : 0);
+        if (inq <= 0 || t <= 0) return;
+        const prev = prevOf(cur);
+        const sp = prev ? shipOf(prev) : 0;
+        const boxPart = t - (perShip > 0 ? sp / perShip : 0);
         if (boxPart > 0) b.push(inq / boxPart);
-    }
+    });
     let perBox = b.length >= 3 ? med(b) : 0;
     if (perBox <= 0) {
         // 표본이 모자라면 상차분을 빼지 않은 전체 비율로 어림한다
@@ -1270,7 +1285,27 @@ const loadUnloadRatios = (historyData, taskKey, incomingKey, shipKeys, windowWor
         });
         perBox = c.length >= 3 ? med(c) : 0;
     }
-    return { perShip, perBox, sampleShip: a.length, sampleBox: b.length };
+    const out = { perShip, perBox, sampleShip: a.length, sampleBox: b.length };
+    loadUnloadCache.set(ck, out);
+    return out;
+};
+
+/** 그 날 그 업무의 '0' 이 진짜 0 인가 — 아직 입력 안 된 0 과 구분한다.
+ *  ① '0으로 확정' 목록에 있거나 물량 검수가 끝났으면 확실히 0.
+ *  ② 실제 운영 데이터에는 ①이 거의 안 남는다(검수 표시 0/301일, 확정목록 52/301일).
+ *     그래서 '다른 업무 물량이 이미 여러 개 들어간 날'이면 그 업무의 0 도 입력된 0 으로 본다.
+ *     (예: 2026-09-23 은 7개 업무 물량이 들어갔고 직진·에이블리만 없다 → 진짜 안 한 날) */
+const QTY_ENTERED_MIN = 3;
+const qtyZeroConfirmed = (dayRec, taskKey) => {
+    if (!dayRec) return false;
+    const list = dayRec.confirmedZeroTasks;
+    if (Array.isArray(list) && list.includes(taskKey)) return true;
+    if (dayRec.isQuantityVerified) return true;
+    let n = 0;
+    Object.entries(dayRec.taskQuantities || {}).forEach(([k, v]) => {
+        if (k !== taskKey && (Number(v) || 0) > 0) n++;
+    });
+    return n >= QTY_ENTERED_MIN;
 };
 
 /** 📦 상.하차 예상 = 하차분(입고 박스) + 상차분(전 근무일 출고량).
@@ -1301,21 +1336,45 @@ const incomingBoxesValueFor = (dateStr, task, historyData, incomingKey = '중국
     }
 
     // ── 상차분: 전 근무일에 직진배송·에이블리배송을 한 만큼 다음날 실어 보낸다
+    //    ⚠️ 지난 날은 실적을 '직접' 읽어야 한다. autoQtyFor 는 지난 날에 0 을 돌려준다
+    //       (todayActualQty 는 오늘만 보고, plannedData 는 오늘 이후만 읽고,
+    //        cadenceWeekPlan 은 이미 지난 날을 '확정된 날'로 보고 0 을 넣는다).
+    //       이걸 놓치면 '오늘·내일' 계획에서 상차분이 통째로 0 이 된다 — 가장 흔한 경우다.
     const prev = prevWorkingDay(dateStr);
-    let shipQty = 0;
+    const prevRec = (historyData || []).find(d => d && d.id === prev);
+    const prevClosed = prev < getTodayDateString();
+    let shipQty = 0, shipFromRecord = false, shipGuessed = false, shipMissing = [];
     shipKeys.forEach(k => {
+        const act = prevRec ? (Number(prevRec.taskQuantities?.[k]) || 0) : 0;
+        if (act > 0) { shipQty += act; shipFromRecord = true; return; }
+        // 마감된 날에 기록이 없으면 진짜로 안 한 것이다
+        if (prevClosed) return;
         const t = SIM_TASKS.find(x => x.key === k);
-        if (!t) return;
+        if (!t) { shipMissing.push(k); return; }
         // 스스로를 다시 부르는 경로는 막는다(설정으로 출고 업무에 이 모드를 걸어 둔 경우)
         if (parseAutoMode(t.auto).mode === 'incoming-boxes') return;
-        shipQty += Math.max(0, Number(autoQtyFor(prev, t, historyData)) || 0);
+        const info = autoValueFor(prev, t, historyData) || {};
+        let v = Math.max(0, Number(info.value) || 0);
+        // ⚠️ '오늘'은 이력 문서가 이미 있어 빈도형 판정이 '확정된 날'로 보고 0 을 돌려준다.
+        //    오전에 오늘 출고량을 아직 안 넣었으면 그 0 때문에 내일 상차분이 통째로 사라진다.
+        //    단 '0으로 확정'했거나 물량 검수가 끝난 날이면 그 0 은 진짜다 — 그때는 그대로 둔다.
+        if (v === 0 && Number(info.dayValue) > 0 && !qtyZeroConfirmed(prevRec, k)) {
+            v = Math.round(Number(info.dayValue));
+            shipGuessed = true;
+        }
+        shipQty += v;
     });
     const loadOut = (shipQty > 0 && perShip > 0) ? Math.round(shipQty / perShip) : 0;
+    const src = shipFromRecord ? '실적' : (shipGuessed ? '하는 날 기준' : '예상');
     const loadNote = shipQty > 0
         ? (perShip > 0
-            ? `전 근무일(${prev}) 출고 ${shipQty.toLocaleString()}개 상차 (${Math.round(perShip)}개당 1)`
+            ? `전 근무일(${prev}) 출고 ${shipQty.toLocaleString()}개(${src}) 상차 (${Math.round(perShip)}개당 1)`
             : `전 근무일 출고 ${shipQty.toLocaleString()}개가 있지만 상차 비율을 배울 표본이 모자랍니다`)
         : `전 근무일(${prev})에 ${shipKeys.join(' · ')} 출고가 없어 상차분은 없습니다`;
+    // 설정에 적은 출고 업무를 목록에서 못 찾으면 그 몫이 조용히 빠진다 — 알려 준다
+    const missNote = shipMissing.length > 0
+        ? ` ⚠️ 출고 업무 ${shipMissing.join(' · ')} 를 목록에서 찾지 못해 그 몫은 빠졌습니다`
+        : '';
 
     const parts = [unloadNote, loadNote].filter(Boolean);
     const zeroNote = (unload <= 0 && loadOut <= 0 && byHand)
@@ -1324,7 +1383,7 @@ const incomingBoxesValueFor = (dateStr, task, historyData, incomingKey = '중국
     return {
         value: Math.max(0, unload + loadOut),
         source: 'incoming-boxes',
-        detail: (zeroNote || parts.join(' + '))
+        detail: (zeroNote || parts.join(' + ')) + missNote
               + `\n= 하차 ${unload.toLocaleString()} + 상차 ${loadOut.toLocaleString()}`
     };
 };
@@ -1371,9 +1430,10 @@ const SOURCE_BADGE = {
     'cadence-maybe': { text: '진행 불확실', muted: true,
                 tip: '이번 주 배정에서는 빠졌지만 진행할 수도 있는 날입니다. 기본은 0으로 두고,'
                    + ' 결과 화면에 이 업무를 진행할 때의 시간·인원을 함께 보여줍니다.' },
-    'incoming-boxes': { text: '입고 박스', muted: true,
-                tip: '대시보드 입고일정의 그날 도착 예정 박스 수에, 입고와 무관한 평소 물량을 더한 값입니다.'
-                   + ' (박스 수만 쓰면 입고 없는 날이 0이 되어 총량이 모자랍니다)' },
+    'incoming-boxes': { text: '입고·상차', muted: true,
+                tip: '하차분 + 상차분입니다. 하차분은 그날 도착 예정 박스 수,'
+                   + ' 상차분은 전 근무일에 직진배송·에이블리배송을 한 물량을 상차 단위로 나눈 값입니다.'
+                   + ' 둘 다 없는 날은 0 입니다.' },
     'china-linked': { text: '중국제작 연동', muted: true,
                 tip: '중국제작 입고가 있는 날만 자동 입력됩니다. (그 날 입고량 × 최근 4주 검수비율)' }
 };
