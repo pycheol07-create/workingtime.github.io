@@ -1,10 +1,10 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202609291112';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202609291112';
-import { getStaffingOutlook } from './ui-history-prediction.js?v=202609291112';
-import { fetchPlannedData } from './history-data-manager.js?v=202609291112';
-import { getTodayDateString } from './utils.js?v=202609291112';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202609291112';
+import * as State from './state.js?v=202609291534';
+import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202609291534';
+import { getStaffingOutlook } from './ui-history-prediction.js?v=202609291534';
+import { fetchPlannedData } from './history-data-manager.js?v=202609291534';
+import { getTodayDateString } from './utils.js?v=202609291534';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202609291534';
 
 let staffingChartInstance = null;
 

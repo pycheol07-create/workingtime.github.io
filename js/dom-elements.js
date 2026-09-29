@@ -135,6 +135,8 @@ export const manualAddForm = document.getElementById('manual-add-form');
 export const endShiftConfirmModal = document.getElementById('end-shift-confirm-modal');
 export const endShiftConfirmTitle = document.getElementById('end-shift-confirm-title');
 export const endShiftConfirmMessage = document.getElementById('end-shift-confirm-message');
+export const endShiftTimeInput = document.getElementById('end-shift-time');
+export const endShiftPreview = document.getElementById('end-shift-preview');
 export const confirmEndShiftBtn = document.getElementById('confirm-end-shift-btn');
 export const cancelEndShiftBtn = document.getElementById('cancel-end-shift-btn');
 export const loginModal = document.getElementById('login-modal');
@@ -404,6 +406,8 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
                 endShiftConfirmModal,
                 endShiftConfirmTitle,
                 endShiftConfirmMessage,
+                endShiftTimeInput,
+                endShiftPreview,
                 confirmEndShiftBtn,
                 cancelEndShiftBtn,
                 loginModal,

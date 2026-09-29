@@ -24,7 +24,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=202609291112">
+    <link rel="stylesheet" href="css/style.css?v=202609291534">
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-['Inter'] overflow-hidden transition-colors duration-200">
     <div id="toast-container" class="fixed bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -69,7 +69,7 @@
                 <a href="admin.html" id="admin-link-btn" target="admin_window" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
                     <span class="text-lg">⚙️</span> 관리자 페이지
                 </a>
-                <button id="end-shift-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
+                <button id="end-shift-btn" class="w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" style="display: none;">
                     <span class="text-lg">🏁</span> 업무 마감
                 </button>
             </nav>
@@ -139,7 +139,7 @@
                 <div class="px-5 py-2 mt-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase">관리자 메뉴</div>
                 <button id="open-admin-todo-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">📅</span> 관리자 일정/투두</button>
                 <a href="admin.html" id="admin-link-btn-mobile" target="admin_window" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2" style="display: none;"><span class="text-lg">⚙️</span> 관리자 페이지</a>
-                <button id="end-shift-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-bold text-gray-600 dark:text-gray-400 flex items-center gap-2"><span class="text-lg">🏁</span> 업무 마감</button>
+                <button id="end-shift-btn-mobile" class="text-left px-5 py-3 border-b dark:border-gray-700 text-sm font-bold text-gray-600 dark:text-gray-400 flex items-center gap-2" style="display: none;"><span class="text-lg">🏁</span> 업무 마감</button>
                 
                 <button id="logout-btn-mobile" class="hidden text-left px-5 py-4 text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2 bg-red-50 dark:bg-red-900/20"><span class="text-lg">🚪</span> 로그아웃</button>
             </div>
@@ -516,13 +516,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202609291112');
+                await import('./js/app.js?v=202609291534');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202609291112').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202609291534').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -604,11 +604,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202609291112';
-        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202609291112';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202609291112';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202609291112';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202609291112';
+        import { appState } from './js/state.js?v=202609291534';
+        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202609291534';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202609291534';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202609291534';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202609291534';
 
         loadAdminTodos();
         // 🚚 입고 예정 위젯 시작 (구글 시트에서 자동 가져옴 + 30분 주기 갱신)
@@ -771,8 +771,8 @@
             }
         });
     </script>
-    <script src="js/connection-banner.js?v=202609291112"></script>
-    <script src="js/modal-esc.js?v=202609291112"></script>
-    <script src="js/app-version.js?v=202609291112"></script>
+    <script src="js/connection-banner.js?v=202609291534"></script>
+    <script src="js/modal-esc.js?v=202609291534"></script>
+    <script src="js/app-version.js?v=202609291534"></script>
 </body>
 </html>

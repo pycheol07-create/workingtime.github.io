@@ -1,14 +1,14 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202609291112';
-import { isPersistentLeaveType } from './state.js?v=202609291112';
-import * as DOM from './dom-elements.js?v=202609291112';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202609291112';
+import * as State from './state.js?v=202609291534';
+import { isPersistentLeaveType } from './state.js?v=202609291534';
+import * as DOM from './dom-elements.js?v=202609291534';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202609291534';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202609291112';
-import { renderTodoList } from './inspection-logic.js?v=202609291112';
-import { renderNotificationList } from './app-notifications.js?v=202609291112';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609291112';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202609291534';
+import { renderTodoList } from './inspection-logic.js?v=202609291534';
+import { renderNotificationList } from './app-notifications.js?v=202609291534';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609291534';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -270,7 +270,10 @@ async function cleanupDuplicateOngoing(workRecordsColRef, dupes) {
 
             // pauses 정리: 미종료 pause가 있으면 endTime에서 닫음
             const pauses = Array.isArray(r.pauses) ? r.pauses.map(p => ({ ...p })) : [];
-            pauses.forEach(p => { if (p && p.end === null) p.end = endTime; });
+            // `=== null` 이 아니라 `!p.end` — end 키가 아예 없는 휴식(undefined)은
+            // 닫히지 않고, calcDurationMinutes 가 끝없는 휴식을 무시해 휴식시간이
+            // 통째로 근무시간에 더해진다. (마감 경로들과 같은 판정으로 맞춤)
+            pauses.forEach(p => { if (p && !p.end) p.end = (endTime > p.start) ? endTime : p.start; });
 
             const duration = calcDurationMinutes(r.startTime, endTime, pauses);
 
@@ -441,7 +444,8 @@ export async function forceEndMemberWork(memberName, endHHMM) {
         const finalEnd = endMins < startMins ? rec.startTime : cutTime;
 
         const pauses = Array.isArray(rec.pauses) ? rec.pauses.map(p => ({ ...p })) : [];
-        pauses.forEach(p => { if (p && p.end === null) p.end = finalEnd; });
+        // 위와 같은 이유로 `!p.end`. end < start 가 되지 않게 최소 방어도 함께.
+        pauses.forEach(p => { if (p && !p.end) p.end = (finalEnd > p.start) ? finalEnd : p.start; });
         const duration = calcDurationMinutes(rec.startTime, finalEnd, pauses);
 
         const recRef = doc(colRefWR, rec.id);

@@ -1,6 +1,6 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202609291112';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609291112';
+import * as State from './state.js?v=202609291534';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202609291534';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -504,44 +504,198 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
     }
 }
 
-export async function saveDayDataToHistory(shouldReset) {
+// 마감 기준시각 형식. 0채움 HH:MM 만 받는다.
+// 이 값은 아래에서 record.startTime 과 **문자열로** 비교되므로('9:30' > '17:30' 이 true),
+// 0채움이 아닌 값이 들어오면 엉뚱한 기록이 0분 처리돼 삭제된다.
+const END_TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/**
+ * 🔍 마감을 그 시각에 누르면 무엇이 어떻게 되는지 미리 계산한다. (아무것도 쓰지 않는다)
+ *
+ * 아래 saveDayDataToHistory 의 규칙과 **반드시 같아야 한다.** 한쪽만 고치면
+ * 사용자는 화면에서 본 것과 다른 결과를 확정하게 되고, 마감은 되돌릴 수 없다.
+ *
+ * @returns {{closed:number, closedMinutes:number, deleted:number, deletedCompleted:number,
+ *            kept:number, clamped:number, lateStart:number, invalid:number, outTimeFixed:number}}
+ */
+export function previewDayClose(records, dailyAttendance, endTime) {
+    const att = {};
+    Object.entries(dailyAttendance || {}).forEach(([k, v]) => {
+        if (v && typeof v === 'object') att[k] = { ...v };
+    });
+
+    let outTimeFixed = 0;
+    Object.keys(att).forEach(m => {
+        if (att[m].status === 'active') {
+            att[m].status = 'returned';
+            att[m].outTime = endTime;
+            outTimeFixed++;
+        }
+    });
+
+    // 마감시각이 출근시각보다 이른 사람 — 그대로 두면 outTime < inTime 이 되고
+    // attendance-stats 가 그 사람을 재실시간 집계에서 통째로 뺀다. 마감 자체를 막는다.
+    const outTimeBeforeIn = Object.values(dailyAttendance || {}).filter(
+        v => v && typeof v === 'object' && v.status === 'active' && v.inTime && endTime < v.inTime).length;
+
+    const out = { closed: 0, closedMinutes: 0, deleted: 0, deletedCompleted: 0,
+                  kept: 0, clamped: 0, lateStart: 0, invalid: 0, outTimeFixed, outTimeBeforeIn };
+
+    (records || []).forEach(record => {
+        const start = record.startTime;
+        if (!END_TIME_RE.test(String(start || '')) || !END_TIME_RE.test(String(endTime || ''))) {
+            out.invalid++;
+            return;
+        }
+        const isOpen = record.status === 'ongoing' || record.status === 'paused';
+
+        let recordEndTime = endTime;
+        let late = false, clamp = false;
+        const a = att[record.member];
+        if (a && a.status === 'returned' && a.outTime) {
+            if (a.outTime > start) recordEndTime = (a.outTime <= endTime) ? a.outTime : endTime;
+        }
+        if (start > recordEndTime) { recordEndTime = start; late = true; }
+        else if (recordEndTime !== endTime) clamp = true;
+
+        // ⓘ 이미 completed 인 기록은 아래에서 다시 계산하지 않는다(= 잘리지 않는다).
+        //    그래서 '늦게 시작'·'조퇴 클램프' 도 열린 기록에만 센다.
+        if (isOpen && late) out.lateStart++;
+        if (isOpen && clamp) out.clamped++;
+
+        let duration;
+        if (isOpen) {
+            const pauses = (record.pauses || []).map(p => ({ ...p }));
+            if (record.status === 'paused' && pauses.length > 0) {
+                const lp = pauses[pauses.length - 1];
+                if (lp && !lp.end) lp.end = recordEndTime;
+            }
+            duration = calcElapsedMinutes(start, recordEndTime, pauses);
+        } else {
+            duration = Number(record.duration) || 0;
+        }
+
+        if (Math.round(duration) <= 0) {
+            out.deleted++;
+            if (!isOpen) out.deletedCompleted++;
+        } else if (isOpen) {
+            out.closed++;
+            out.closedMinutes += duration;
+        } else {
+            out.kept++;
+        }
+    });
+    return out;
+}
+
+/**
+ * 🏁 하루 마감. 되돌릴 수 없다.
+ *
+ * @param {boolean} shouldReset      이력 저장 후 오늘 원본을 초기화할지
+ * @param {string|null} endTimeOverride 마감 기준시각 'HH:MM'. 없으면 현재시각.
+ *
+ * ⚠️ endTimeOverride 가 왜 필요한가 — 이 값이 아직 퇴근을 찍지 않은 사람 **전원의
+ *    퇴근시각**이 된다. 21시에 버튼을 누르면 전원이 21시 퇴근으로 확정된다.
+ *    늦게 누르는 날에도 실제 종료시각으로 마감할 수 있어야 한다.
+ */
+export async function saveDayDataToHistory(shouldReset, endTimeOverride = null, opts = {}) {
+    const { closedVia = '앱', confirmDestructive = null } = opts;
     const workRecordsColRef = getWorkRecordsCollectionRef();
-    const globalEndTime = getCurrentTime();
+
+    // 🔒 관리자만. 버튼을 숨기는 것(app.js)은 화면일 뿐이라 콘솔에서 그대로 부를 수 있다.
+    //    이 한 번이 전 직원 퇴근시각을 확정하고 그날 원본을 지운다.
+    //    (Firestore 규칙은 daily_data/history 쓰기를 전원에게 허용하므로 여기가 유일한 문지기다)
+    if (State.appState?.currentUserRole && State.appState.currentUserRole !== 'admin') {
+        showToast('업무 마감은 관리자만 할 수 있습니다.', true);
+        return false;
+    }
+
+    // 형식이 틀린 값을 조용히 현재시각으로 바꾸지 않는다.
+    // 그러면 사용자는 17:30 으로 마감했다고 믿고 실제로는 21:00 이 확정된다.
+    if (endTimeOverride != null && !END_TIME_RE.test(String(endTimeOverride))) {
+        showToast('마감 시각 형식이 올바르지 않습니다 (예: 17:30). 마감하지 않았습니다.', true);
+        return false;
+    }
+    const globalEndTime = endTimeOverride || getCurrentTime();
     const finalizedRecords = []; // 마감 확정된 기록(이력 저장의 신뢰 원본)
 
     try {
         const dailyDocRef = getDailyDocRef();
         const dailyDocSnap = await getDoc(dailyDocRef);
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
-        
+
         const dailyAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
         const querySnapshot = await getDocs(workRecordsColRef);
-        
+
+        // 🛑 시작시각이 HH:MM 이 아닌 기록이 있으면 아예 마감하지 않는다.
+        //    아래 비교는 전부 **문자열 비교**라('9:30' > '17:30' 이 true) 그런 기록은
+        //    recordEndTime 이 '9:30' 이 되고, Date 파싱이 Invalid 라 duration 이 NaN 이 된다.
+        //    NaN 은 `Math.round(NaN) <= 0` 이 false 라 삭제되지도 않고 그대로 저장된다.
+        const badStart = [];
+        querySnapshot.forEach(d => {
+            const st = d.data()?.startTime;
+            if (!END_TIME_RE.test(String(st || ''))) badStart.push(`${d.data()?.member || '?'}(${st || '없음'})`);
+        });
+        if (badStart.length > 0) {
+            showToast(`시작시각이 이상한 기록 ${badStart.length}건이 있어 마감하지 않았습니다: `
+                + badStart.slice(0, 3).join(', ') + (badStart.length > 3 ? ' 외' : '')
+                + ' — 기록을 수정한 뒤 다시 마감해 주세요.', true);
+            return false;
+        }
+
+        // 🛑 마감 기준시각이 누군가의 출근시각보다 이르면 마감하지 않는다.
+        //    그대로 두면 outTime < inTime 이 되고, attendance-stats 는 그런 사람을
+        //    재실시간 집계에서 통째로 빼 버린다(그 사람 하루가 사라진다).
+        const beforeIn = Object.entries(dailyAttendance)
+            .filter(([, a]) => a && typeof a === 'object' && a.status === 'active'
+                               && a.inTime && globalEndTime < a.inTime)
+            .map(([m, a]) => `${m}(출근 ${a.inTime})`);
+        if (beforeIn.length > 0) {
+            showToast(`마감 시각(${globalEndTime})이 출근시각보다 이른 분이 있어 마감하지 않았습니다: `
+                + beforeIn.slice(0, 3).join(', ') + (beforeIn.length > 3 ? ' 외' : ''), true);
+            return false;
+        }
+
+        // 🛑 되돌릴 수 없는 삭제는 **서버에서 읽은 기록**으로 다시 세어 확인받는다.
+        //    확인창의 미리보기는 라이브 미러(State.appState.workRecords)로 그린 것이라,
+        //    미러가 뒤처져 있으면 "6건 삭제" 라고 승인받고 실제로는 8건이 지워질 수 있다.
+        //    승인받은 숫자와 실제 지워지는 숫자는 같아야 한다.
+        if (typeof confirmDestructive === 'function') {
+            const serverRecords = [];
+            querySnapshot.forEach(d => serverRecords.push({ id: d.id, ...d.data() }));
+            const pv = previewDayClose(serverRecords, dailyAttendance, globalEndTime);
+            if (pv.deleted > 0) {
+                const okToGo = await confirmDestructive(pv, globalEndTime);
+                if (!okToGo) return false;
+            }
+        }
+
         let attendanceUpdated = false;
         Object.keys(dailyAttendance).forEach(member => {
-            if (dailyAttendance[member].status === 'active') {
-                let autoOutTime = globalEndTime; 
-                if (dailyAttendance[member].inTime && autoOutTime < dailyAttendance[member].inTime) {
-                    autoOutTime = globalEndTime;
-                }
-                dailyAttendance[member].status = 'returned'; 
-                dailyAttendance[member].outTime = autoOutTime;
+            const a = dailyAttendance[member];
+            if (a && typeof a === 'object' && a.status === 'active') {
+                a.status = 'returned';
+                a.outTime = globalEndTime;
                 attendanceUpdated = true;
             }
         });
 
         if (attendanceUpdated) {
-            await updateDoc(dailyDocRef, { dailyAttendance: dailyAttendance });
+            // updateDoc 은 문서가 없으면 throw 한다(필드를 한 번도 안 쓴 날).
+            // 예전엔 그 예외를 catch 가 삼키고 그대로 saveProgress 로 넘어가,
+            // 지정한 마감시각이 조용히 '지금 시각'으로 바뀐 채 확정됐다.
+            await setDoc(dailyDocRef, { dailyAttendance }, { merge: true });
             State.appState.dailyAttendance = dailyAttendance;
         }
-        
+
         if (!querySnapshot.empty) {
             const batch = writeBatch(State.db);
             let removedCount = 0;
 
             querySnapshot.forEach(docSnap => {
                 const record = { id: docSnap.id, ...docSnap.data() };
-                let duration = record.duration || 0;
+                // 레거시 데이터에 문자열 duration 이 섞여 있으면 이력 합계가 문자열 연결로 깨진다.
+                let duration = Number(record.duration) || 0;
                 let pauses = record.pauses || [];
                 let needsUpdate = false;
                 
@@ -561,11 +715,28 @@ export async function saveDayDataToHistory(shouldReset) {
                 if (record.status === 'ongoing' || record.status === 'paused') {
                     if (record.status === 'paused') {
                         const lastPause = pauses.length > 0 ? pauses[pauses.length - 1] : null;
-                        if (lastPause && lastPause.end === null) lastPause.end = recordEndTime;
+                        // `=== null` 이 아니라 `!end` 로 본다.
+                        // end 키가 아예 없는 휴식(undefined)은 `=== null` 을 통과하지 못해
+                        // 닫히지 않았고, calcElapsedMinutes 는 끝이 없는 휴식을 무시하므로
+                        // 그 휴식시간이 통째로 근무시간에 더해졌다.
+                        // app-lifecycle.js 의 closeRecordsAt 은 원래 `!lp.end` 를 쓴다 —
+                        // 같은 마감인데 경로마다 값이 달랐다.
+                        // 휴식 시작보다 이른 시각으로 닫으면(조퇴 클램프와 겹칠 때)
+                        // end < start 인 구간이 되어 calcElapsedMinutes 가 통째로 무시한다
+                        // → 휴식이 차감되지 않은 값이 저장된다.
+                        if (lastPause && !lastPause.end) {
+                            lastPause.end = (recordEndTime > lastPause.start) ? recordEndTime : lastPause.start;
+                        }
                     }
                     duration = calcElapsedMinutes(record.startTime, recordEndTime, pauses);
-                    
+
                     needsUpdate = true;
+                }
+
+                if (!Number.isFinite(duration)) {
+                    // 여기 오면 위의 시작시각 검사를 통과한 값으로도 계산이 깨진 것이다.
+                    // NaN 을 저장하면 이력과 원본이 어긋난 채 남는다. 통째로 중단한다.
+                    throw new Error(`계산 불가(${record.member}/${record.task}): duration=${duration}`);
                 }
 
                 if (Math.round(duration) <= 0) {
@@ -588,6 +759,12 @@ export async function saveDayDataToHistory(shouldReset) {
         }
     } catch (e) {
          console.error("Finalizing error: ", e);
+         // ⚠️ 예전엔 여기서 예외를 삼키고 그대로 아래로 흘렀다. 그러면 finalizedRecords 가 비어
+         //    saveProgress 가 overrideRecords 없이 돌고, 그 안의 getCurrentTime() 으로
+         //    **지금 시각** 마감이 된다 — 지정한 시각은 사라지는데 아래에서 closeEndTime 에는
+         //    지정값이 찍혀 '17:30 에 마감했다' 는 거짓 기록이 남았다.
+         showToast('마감 처리 중 오류가 발생했습니다. 아무것도 저장하지 않았습니다. 다시 시도해 주세요.', true);
+         return false;
     }
 
     // 🛡️ 라이브 미러(onSnapshot) 반영을 기다리지 않고, 방금 Firestore에서 읽어 확정한 기록을
@@ -609,10 +786,11 @@ export async function saveDayDataToHistory(shouldReset) {
     if (shouldReset && saveResult === 'failed') {
         console.warn('[saveDayDataToHistory] 이력 저장 실패 — 원본을 지우지 않습니다.', { saveResult });
         showToast('이력 저장에 실패해 오늘 기록을 초기화하지 않았습니다. 연결을 확인한 뒤 다시 마감해 주세요.', true);
-        return;
+        return false;
     }
 
     if (shouldReset) {
+        let cleared = false;
          try {
             const qAll = query(workRecordsColRef);
             const snapshotAll = await getDocs(qAll);
@@ -622,14 +800,56 @@ export async function saveDayDataToHistory(shouldReset) {
                 await deleteBatch.commit();
             }
             await setDoc(getDailyDocRef(), { taskQuantities: {}, confirmedZeroTasks: [], isQuantityVerified: false }, { merge: true });
+            cleared = true;
         } catch (e) {
              console.error("Error clearing daily data: ", e);
         }
-        
-        State.appState.workRecords = []; 
+
+        // 🏁 '마감 완료' 표시. **초기화까지 성공한 뒤에만** 찍는다.
+        //
+        // 왜 별도 필드인가 — savedAt 은 '진행상황 저장'·17:30 자동마감·종료시각 안전망이
+        // 모두 찍어서 마감 신호가 못 된다. history 문서 존재 여부도 마찬가지다
+        // (eodFlushToHistory 는 이력만 저장하고 원본을 남긴다).
+        // 그래서 "마감했는지" 를 밖에서 알 방법이 없었다 — 슬랙 알림 봇이 추측해야 했다.
+        //
+        // 왜 초기화 뒤인가 — 앞에서 찍으면 초기화가 실패한 날이 '마감됨' 으로 보여
+        // 재시도 알림이 영영 안 온다.
+        // 저장할 것이 아무것도 없던 날('nothing')에는 표시를 남기지 않는다.
+        // 그러면 이력에 closedAt 만 있는 빈 문서가 새로 생겨 이력 목록에 유령 날짜가 낀다.
+        if (cleared && saveResult !== 'nothing') {
+            try {
+                await setDoc(
+                    doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', getTodayDateString()),
+                    {
+                        id: getTodayDateString(),
+                        closedAt: new Date().toISOString(),
+                        closeEndTime: globalEndTime,
+                        closedBy: State.auth?.currentUser?.email || State.auth?.currentUser?.uid || '',
+                        // 확인창이 기본값으로 현재시각을 채우므로 endTimeOverride 는 사실상 항상 들어온다.
+                        // 그걸로 '시각지정/버튼' 을 나누면 늘 '시각지정' 이라 거짓말이 된다.
+                        // 기준시각은 closeEndTime 에 그대로 있으니 여기는 경로만 남긴다.
+                        closedVia: closedVia,
+                    },
+                    { merge: true }
+                );
+            } catch (e) {
+                // 표시를 못 찍어도 마감 자체는 끝났다. 알림이 한 번 더 올 뿐이다.
+                console.warn('[saveDayDataToHistory] 마감 표시(closedAt) 기록 실패:', e);
+            }
+        }
+
+        // ⚠️ 초기화가 실패했는데 화면만 비우고 '초기화했습니다' 라고 하면,
+        //    관리자는 마감이 끝난 줄 알고 퇴근하고 서버엔 기록이 그대로 남는다.
+        if (!cleared) {
+            showToast('오늘 기록 초기화에 실패했습니다. 이력은 저장됐으니 다시 마감해 주세요.', true);
+            return false;
+        }
+
+        State.appState.workRecords = [];
         clearLocalCache();
         showToast('오늘의 업무 기록을 초기화했습니다.');
     }
+    return true;
 }
 
 // 🛟 복구: 특정 날짜의 daily_data(원본)를 history로 옮긴다.

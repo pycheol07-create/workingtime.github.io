@@ -1,16 +1,16 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202609291112';
-import * as State from './state.js?v=202609291112';
-import { isPersistentLeaveType } from './state.js?v=202609291112';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609291112';
-import { showToast, getTodayDateString, getCurrentTime } from './utils.js?v=202609291112';
-import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202609291112';
-import { saveLeaveSchedule } from './config.js?v=202609291112';
-import { switchHistoryView } from './app-history-logic.js?v=202609291112';
-import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202609291112';
-import { saveStateToFirestore } from './app-data.js?v=202609291112';
+import * as DOM from './dom-elements.js?v=202609291534';
+import * as State from './state.js?v=202609291534';
+import { isPersistentLeaveType } from './state.js?v=202609291534';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202609291534';
+import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202609291534';
+import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202609291534';
+import { saveLeaveSchedule } from './config.js?v=202609291534';
+import { switchHistoryView } from './app-history-logic.js?v=202609291534';
+import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202609291534';
+import { saveStateToFirestore } from './app-data.js?v=202609291534';
 
 import {
     doc, deleteDoc, writeBatch, collection, updateDoc, getDoc, getDocs, setDoc, query
@@ -317,7 +317,7 @@ export function setupConfirmationModalListeners() {
                             r.startTime < dailyEntry.startTime
                         );
                         if (stale.length > 0) {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202609291112');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202609291534');
                             const r = await forceEndMemberWork(memberName, dailyEntry.startTime);
                             if (r.ended > 0) {
                                 console.warn(`[외출 복귀 보호막] ${memberName}: 외출 전부터 진행 중이던 ${r.ended}건을 ${dailyEntry.startTime}로 정리`, r.summaries);
@@ -386,8 +386,46 @@ export function setupConfirmationModalListeners() {
     // 6. 업무 마감 확인
     if (DOM.confirmEndShiftBtn) {
         DOM.confirmEndShiftBtn.addEventListener('click', async () => {
-            await saveDayDataToHistory(true); 
-            DOM.endShiftConfirmModal.classList.add('hidden');
+            // 🕐 마감 기준시각. 이 값이 퇴근 미기록자 전원의 퇴근시각이 되고,
+            //    진행 중 기록이 이 시각으로 마감된다. 되돌릴 수 없다.
+            //
+            // ⚠️ 입력칸이 없으면(옛 modals-confirm.html 이 캐시된 경우) 그냥 넘기지 않는다.
+            //    그러면 검증을 통째로 건너뛰고 조용히 예전 동작('누른 시각')으로 돌아간다.
+            if (!DOM.endShiftTimeInput) {
+                showToast('마감 시각 입력칸을 찾지 못했습니다. 새로고침(Ctrl+F5) 후 다시 시도해 주세요.', true);
+                return;
+            }
+            const t = String(DOM.endShiftTimeInput.value || '').trim();
+            if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(t)) {
+                showToast('마감 시각을 17:30 형식으로 입력해 주세요.', true);
+                return;   // 창을 닫지 않는다 — 고쳐서 다시 누를 수 있게
+            }
+            // 아직 오지 않은 시각으로 마감하면 하지 않은 근무가 확정된다. (19:30 ← 18:30 오타)
+            if (t > getCurrentTime()) {
+                const 계속 = await showConfirm(
+                    `${t} 는 아직 오지 않은 시각입니다 (지금 ${getCurrentTime()}).\n`
+                    + '그 시각까지 일한 것으로 확정됩니다. 계속할까요?',
+                    { danger: true, okText: '그대로 마감' });
+                if (!계속) return;
+            }
+
+            const btn = DOM.confirmEndShiftBtn;
+            btn.disabled = true;   // await 동안 두 번 눌리면 마감이 두 번 돈다
+            try {
+                // 삭제 확인은 saveDayDataToHistory 안에서 **서버 기록으로 다시 세어** 받는다.
+                // 여기(라이브 미러)에서 세면 승인받은 건수와 실제 삭제 건수가 다를 수 있다.
+                const ok = await saveDayDataToHistory(true, t, {
+                    closedVia: '앱',
+                    confirmDestructive: (pv, endTime) => showConfirm(
+                        `${endTime} 로 마감하면 기록 ${pv.deleted}건이 0분이 되어 삭제됩니다.\n`
+                        + '삭제된 기록은 되돌릴 수 없습니다. 그대로 마감할까요?',
+                        { danger: true, okText: '삭제하고 마감' }),
+                });
+                // 실패했으면 창을 닫지 않는다 — 다시 시도해야 하는데 끝난 것처럼 보이면 안 된다.
+                if (ok) DOM.endShiftConfirmModal.classList.add('hidden');
+            } finally {
+                btn.disabled = false;
+            }
         });
     }
 
