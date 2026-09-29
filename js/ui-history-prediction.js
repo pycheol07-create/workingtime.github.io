@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609281405';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609281405';
-import * as State from './state.js?v=202609281405';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609281405';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202609281405';
+import { predictFutureTrends } from './analysis-logic.js?v=202609290930';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609290930';
+import * as State from './state.js?v=202609290930';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609290930';
+import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609290930';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609281405';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609290930';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609281405';
-import { taskUph, recentDays } from './task-throughput.js?v=202609281405';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609290930';
+import { taskUph, recentDays } from './task-throughput.js?v=202609290930';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -30,6 +30,15 @@ const getIncomingChinaForDate = (dateStr) => {
     if (!dateStr) return 0;
     const map = getIncomingQtyByDateFromCache();
     return Math.round(Number(map[dateStr]) || 0);
+};
+
+/** 대상일에 도착 예정인 입고 '박스 수' = 상.하차 자동값의 재료. 캐시에 없으면 0.
+ *  (대시보드 입고일정 위젯이 시트를 읽어 캐시에 넣어 둔다 — 위젯을 한 번도 안 열었으면 0) */
+const getIncomingBoxesForDate = (dateStr) => {
+    if (!dateStr) return 0;
+    const map = getIncomingDetailsByDateFromCache();
+    // 시트에 정정행(-5 박스 등)이 있으면 합계가 음수가 될 수 있다 — 음수는 0으로 본다
+    return Math.max(0, Math.round(Number(map[dateStr]?.boxes) || 0));
 };
 
 // ───────────────────────────────────────────────────────────
@@ -161,6 +170,38 @@ const recentQtyTotals = (historyData) => {
     return out;
 };
 
+/** 📦 자동으로 목록에 붙는 물량 업무의 추정 방식 지정.
+ *  기본은 'cadence'(빈도형)인데, 입고 박스 수처럼 확실한 근거가 있으면 그것을 쓴다.
+ *  'incoming-boxes:중국제작' 처럼 콜론 뒤에 '어느 입고에 연동할지'를 함께 적는다
+ *  — 연동 업무명을 코드에 숨겨 두면, 다른 업무를 이 모드로 지정했을 때 엉뚱한 입고에 붙는다.
+ *  설정값 simAutoModes({업무명: 모드}) 로 바꿀 수 있다. */
+const DEFAULT_SIM_AUTO_MODES = { '상.하차': 'incoming-boxes:중국제작' };
+const AUTO_MODES = new Set(['ai', 'incoming', 'china-linked', 'incoming-boxes', 'cadence', 'last7']);
+let warnedAutoMode = false;
+/** 'incoming-boxes:중국제작' → { mode:'incoming-boxes', arg:'중국제작' } */
+const parseAutoMode = (raw) => {
+    const str = String(raw == null ? '' : raw).trim();
+    const i = str.indexOf(':');
+    const mode = (i < 0 ? str : str.slice(0, i)).trim();
+    const arg = i < 0 ? '' : str.slice(i + 1).trim();
+    if (!AUTO_MODES.has(mode)) {
+        // 오타 하나가 조용히 'last7'(매일 하는 날 물량)로 떨어지면 계획이 몇 배로 부푼다
+        if (mode && !warnedAutoMode) {
+            warnedAutoMode = true;
+            console.warn(`simAutoModes 에 모르는 추정 방식이 있습니다: '${mode}'. 'cadence' 로 대신합니다.`,
+                         [...AUTO_MODES]);
+        }
+        return { mode: 'cadence', arg: '' };
+    }
+    return { mode, arg };
+};
+const autoModeFor = (taskKey) => {
+    const key = String(taskKey == null ? '' : taskKey).trim();
+    const cfg = State.appConfig?.simAutoModes;
+    if (cfg && typeof cfg === 'object' && typeof cfg[key] === 'string') return cfg[key];
+    return DEFAULT_SIM_AUTO_MODES[key] || 'cadence';
+};
+
 /** 기존 10개 + (관리자에 '처리량 업무'로 등록됐고 최근 물량이 잡힌 업무).
  *  등록만 되고 최근 실적이 없는 업무는 넣지 않는다 — 빈 칸만 늘면 더 읽기 어렵다. */
 const buildSimTasks = (historyData, appConfig) => {
@@ -174,7 +215,8 @@ const buildSimTasks = (historyData, appConfig) => {
         if (!((totals.get(key) || 0) > 0)) return;
         // 새 업무의 기본 추정은 'cadence' — 안 하는 날은 0으로 잡혀 화면에서 접힌다.
         // 표본이 적으면 cadenceValueFor 가 알아서 지난 7회 평균으로 떨어진다.
-        list.push({ id: safeTaskId(key, used), key, label: key, auto: 'cadence' });
+        // 확실한 근거가 있는 업무(상.하차 ← 입고 박스 수)는 그 방식을 쓴다.
+        list.push({ id: safeTaskId(key, used), key, label: key, auto: autoModeFor(key) });
     });
     return list;
 };
@@ -186,18 +228,31 @@ let simTasksSig = null;
 const ensureSimTasks = () => {
     const cfg = State.appConfig;
     const data = State.allHistoryData;
-    const sig = [(cfg?.quantityTaskTypes || []).join('|'), refreshHistorySig()].join('#');
+    // auto 모드가 설정 의존값이 됐으므로 시그니처·비교에 모두 넣는다.
+    // (id 목록만 비교하면 '상.하차를 cadence로 되돌리기' 같은 설정 변경이 새로고침 전까지 안 먹는다)
+    const sig = [(cfg?.quantityTaskTypes || []).join('|'),
+                 JSON.stringify(cfg?.simAutoModes || null),
+                 refreshHistorySig()].join('#');
     if (sig === simTasksSig) return false;
     simTasksSig = sig;
 
     const next = buildSimTasks(data, cfg);
-    if (next.map(t => t.id).join('|') === SIM_TASKS.map(t => t.id).join('|')) return false;
+    const shape = (arr) => arr.map(t => `${t.id}:${t.auto}`).join('|');
+    if (shape(next) === shape(SIM_TASKS)) return false;
     SIM_TASKS = next;
 
     // 어느 구획에도 안 들어간 업무는 조용히 화면에서 사라진다 → 남는 건 뒤에 모아 붙인다
-    const placed = new Set(BASE_SIM_GROUPS.flatMap(g => g.ids));
-    const extras = SIM_TASKS.filter(t => !placed.has(t.id)).map(t => t.id);
     SIM_GROUPS = BASE_SIM_GROUPS.map(g => ({ ...g, ids: g.ids.slice() }));
+    // 입고에 연동되는 업무는 '가끔 하는 업무'가 아니다 — 입고·제작 구획에 붙인다
+    const incomingGroup = SIM_GROUPS.find(g => g.label === '입고 · 제작');
+    SIM_TASKS.forEach(t => {
+        if (parseAutoMode(t.auto).mode !== 'incoming-boxes') return;
+        if (!incomingGroup || incomingGroup.ids.includes(t.id)) return;
+        if (BASE_SIM_GROUPS.some(g => g.ids.includes(t.id))) return;
+        incomingGroup.ids.push(t.id);
+    });
+    const placed = new Set(SIM_GROUPS.flatMap(g => g.ids));
+    const extras = SIM_TASKS.filter(t => !placed.has(t.id)).map(t => t.id);
     if (extras.length > 0) SIM_GROUPS.push({ label: '가끔 하는 업무', ids: extras });
     return true;
 };
@@ -637,6 +692,52 @@ const computeLast7Avg = (historyData, taskKey, occurrences = 7) => {
     if (valued.length === 0) return 0;
     const sum = valued.reduce((s, d) => s + (Number(d.taskQuantities[taskKey]) || 0), 0);
     return Math.round(sum / valued.length);
+};
+
+/** 📦 입고가 없는 날의 평소 물량 — 상.하차처럼 '입고 박스 + 평소 작업'이 섞이는 업무의 기준선.
+ *  실측: 최근 60근무일 중 중국제작 입고가 없는 45일 가운데 40일에도 상.하차가 있었다(평균 43개).
+ *  박스 수만 넣으면 그 날들이 0이 되어 총량이 61% 모자랐다 → 기준선을 더한다(검증: 치우침 0%).
+ */
+/** 📦 '박스당 개수' — 입고 개수만 있고 박스 수를 못 읽을 때 박스를 어림하는 데 쓴다.
+ *  입고가 있던 날의 (입고 개수 ÷ 그 업무 물량) 중앙값.
+ *  ⚠️ '평소 물량을 뺀 나머지'로 나누는 쪽이 이론상 맞아 보이지만, 실제 이력으로 재 보면
+ *     그쪽이 더 나쁘다(입고일 오차 31.3 vs 18.4, 치우침 −12% vs +12%). 상.하차가 입고량에
+ *     비례하지 않고 흩어지기 때문이다. 그래서 실측이 나은 이 방식을 쓴다 — 어디까지나
+ *     박스 열이 빈 경우의 대타이고, 입고일에 12%쯤 많게 잡는다. */
+const piecesPerBox = (historyData, taskKey, incomingKey = '중국제작', windowWorkDays = 40) => {
+    const today = getTodayDateString();
+    const days = (historyData || [])
+        .filter(d => d && typeof d.id === 'string' && d.id < today)
+        .filter(d => (d.workRecords || []).length > 0)
+        .sort((a, b) => b.id.localeCompare(a.id))
+        .slice(0, windowWorkDays);
+    const r = [];
+    days.forEach(d => {
+        const q = Number(d.taskQuantities?.[incomingKey]) || 0;
+        const t = Number(d.taskQuantities?.[taskKey]) || 0;
+        if (q > 0 && t > 0) r.push(q / t);
+    });
+    if (r.length < 3) return 0;              // 표본이 모자라면 어림하지 않는다
+    r.sort((a, b) => a - b);
+    return Math.round(r[Math.floor(r.length / 2)]);
+};
+
+const baselineWithoutIncoming = (historyData, taskKey, incomingKey = '중국제작',
+                                 wantDays = 10, maxWorkDays = 40) => {
+    const today = getTodayDateString();
+    // '오늘'은 아직 입력 중이라 물량이 0으로 잡혀 기준선을 낮춘다 — 마감된 날만 쓴다
+    const pool = (historyData || [])
+        .filter(d => d && typeof d.id === 'string' && d.id < today)
+        .filter(d => (d.workRecords || []).length > 0)
+        .sort((a, b) => b.id.localeCompare(a.id))
+        .slice(0, maxWorkDays)
+        .filter(d => !((Number(d.taskQuantities?.[incomingKey]) || 0) > 0));
+    // 입고가 몰린 시기엔 최근 20일이 전부 입고일일 수 있다 → 최대 40근무일까지 넓혀서
+    // '입고 없던 날' 10일을 모은다. (표본이 0이면 '박스 수만' 방식이 되어 총량이 61% 모자랐다)
+    const days = pool.slice(0, wantDays);
+    if (days.length === 0) return { value: 0, sampleDays: 0 };
+    const sum = days.reduce((a, d) => a + (Number(d.taskQuantities?.[taskKey]) || 0), 0);
+    return { value: Math.round(sum / days.length), sampleDays: days.length };
 };
 
 /** 🗓️ '언제 하는 업무인가' 분석 — 매일 하지 않는 업무의 예상치를 바로잡는다.
@@ -1154,9 +1255,53 @@ const autoValueFor = (dateStr, task, historyData) => {
     return estimatedValueFor(dateStr, task, historyData);
 };
 
+/** 📦 입고 박스 연동 값 — 그날 도착 예정 '박스 수' + 입고와 무관한 평소 물량.
+ *  inQtyOverride: 화면에서 입고 수량을 직접 고친 경우 그 값(선적 지연으로 0 으로 고치는 등).
+ */
+const incomingBoxesValueFor = (dateStr, task, historyData, incomingKey = '중국제작', inQtyOverride = null) => {
+    const inKey = incomingKey || '중국제작';
+    // '입고가 있나'는 박스가 아니라 입고 수량으로 판단한다.
+    // 시트에 박스 열이 비고 수량만 있는 행도 있어서(위젯이 그 행을 그대로 담는다),
+    // 박스 0 을 '입고 없음'으로 읽으면 값도 틀리고 근거 문구도 거짓이 된다.
+    const savedIn = getPlanned(dateStr, inKey);
+    // 사람이 정한 값인가(화면 입력·예정 물량) — 문구를 가려 쓰기 위해 구분해 둔다
+    const byHand = (inQtyOverride != null) || (savedIn != null);
+    const inQty = (inQtyOverride != null)
+        ? Math.max(0, Math.round(Number(inQtyOverride) || 0))
+        : (savedIn ?? getIncomingChinaForDate(dateStr));
+    // 입고를 0 으로 고친 날(선적 지연)에 박스만 남으면 안 된다
+    const boxes = inQty > 0 ? getIncomingBoxesForDate(dateStr) : 0;
+
+    const b = baselineWithoutIncoming(historyData, task.key, inKey);
+    const base = b.value;
+    const sampleNote = b.sampleDays > 0
+        ? ` (평소 물량은 ${inKey} 입고가 없던 최근 ${b.sampleDays}일 평균)`
+        : ` (${inKey} 입고가 없던 날이 최근 기록에 없어 평소 물량을 못 냈습니다)`;
+
+    let boxEst = boxes, note;
+    if (boxes > 0) {
+        note = `입고일정 ${boxes.toLocaleString()}박스 + 평소 ${base.toLocaleString()}개`;
+    } else if (inQty > 0) {
+        // 박스 수를 못 읽은 상태 — 입고 개수를 '박스당 개수'로 나눠 어림한다
+        const per = piecesPerBox(historyData, task.key, inKey);
+        boxEst = per > 0 ? Math.round(inQty / per) : 0;
+        note = per > 0
+            ? `${inKey} 입고 ${inQty.toLocaleString()}개가 있는데 박스 수를 못 읽어,`
+              + ` 박스당 ${per}개로 나눈 ${boxEst.toLocaleString()}박스로 어림했습니다 + 평소 ${base.toLocaleString()}개`
+            : `${inKey} 입고 ${inQty.toLocaleString()}개가 있는데 박스 수를 읽을 수 없어 평소 물량만 잡았습니다`;
+    } else {
+        note = byHand
+            ? `${inKey} 물량을 0 으로 정해 두셨으므로 평소 물량 ${base.toLocaleString()}개만 잡았습니다`
+            : `그날 ${inKey} 입고 예정이 없어 평소 물량 ${base.toLocaleString()}개만 잡았습니다`
+              + ' (대시보드 입고일정을 한 번도 열지 않은 브라우저에서는 입고를 못 읽습니다)';
+    }
+    return { value: Math.max(0, boxEst + base), source: 'incoming-boxes', detail: note + sampleNote };
+};
+
 /** 수기값(실측·예정)을 뺀 순수 자동 추정값만. 예정 물량 입력 화면의 프리필이 쓴다. */
 const estimatedValueFor = (dateStr, task, historyData) => {
-    switch (task.auto) {
+    const { mode, arg } = parseAutoMode(task.auto);
+    switch (mode) {
         case 'ai':       return { value: getAIPredictedDomestic(historyData, dateStr), source: 'ai' };
         case 'incoming': return { value: getIncomingChinaForDate(dateStr), source: 'incoming' };
         case 'china-linked': {
@@ -1166,6 +1311,8 @@ const estimatedValueFor = (dateStr, task, historyData) => {
             const v = (china > 0) ? Math.round(computeSampleRatio(historyData) * china) : 0;
             return { value: v, source: 'china-linked' };   // 입고 없는 날은 0(빈칸)
         }
+        case 'incoming-boxes':
+            return incomingBoxesValueFor(dateStr, task, historyData, arg);
         case 'cadence':  return cadenceValueFor(historyData, task.key, dateStr);
         default:         return { value: computeLast7Avg(historyData, task.key), source: 'last7' };
     }
@@ -1193,6 +1340,9 @@ const SOURCE_BADGE = {
     'cadence-maybe': { text: '진행 불확실', muted: true,
                 tip: '이번 주 배정에서는 빠졌지만 진행할 수도 있는 날입니다. 기본은 0으로 두고,'
                    + ' 결과 화면에 이 업무를 진행할 때의 시간·인원을 함께 보여줍니다.' },
+    'incoming-boxes': { text: '입고 박스', muted: true,
+                tip: '대시보드 입고일정의 그날 도착 예정 박스 수에, 입고와 무관한 평소 물량을 더한 값입니다.'
+                   + ' (박스 수만 쓰면 입고 없는 날이 0이 되어 총량이 모자랍니다)' },
     'china-linked': { text: '중국제작 연동', muted: true,
                 tip: '중국제작 입고가 있는 날만 자동 입력됩니다. (그 날 입고량 × 최근 4주 검수비율)' }
 };
@@ -2684,12 +2834,26 @@ const setupSimulationListeners = () => {
         if (!e.target.matches('#sim-qty-china')) return;
         const dateStr = document.getElementById('sim-target-date')?.value;
         if (!dateStr) return;
-        if (todayActualQty(State.allHistoryData, dateStr, '샘플검수') != null) return;
-        if (getPlanned(dateStr, '샘플검수') != null) return;
         const china = Number(e.target.value) || 0;
-        const sampleTask = SIM_TASKS.find(t => t.id === 'sample');
-        setQty('sample', china > 0 ? Math.round(computeSampleRatio(State.allHistoryData) * china) : 0);
-        if (sampleTask) markSourceBadge(sampleTask, 'china-linked');
+        const data = State.allHistoryData;
+        const untouched = (key) => todayActualQty(data, dateStr, key) == null && getPlanned(dateStr, key) == null;
+
+        if (untouched('샘플검수')) {
+            const sampleTask = SIM_TASKS.find(t => t.id === 'sample');
+            setQty('sample', china > 0 ? Math.round(computeSampleRatio(data) * china) : 0);
+            if (sampleTask) markSourceBadge(sampleTask, 'china-linked');
+        }
+        // 상.하차처럼 입고 박스에 연동된 업무도 같이 다시 계산한다
+        // (선적이 밀려 입고를 0 으로 고쳤는데 상.하차만 그대로 남으면 인원이 과대 산출된다)
+        SIM_TASKS.forEach(t => {
+            const { mode, arg } = parseAutoMode(t.auto);
+            if (mode !== 'incoming-boxes') return;
+            if ((arg || '중국제작') !== '중국제작') return;   // 이 입력칸은 중국제작이다
+            if (!untouched(t.key)) return;
+            const v = incomingBoxesValueFor(dateStr, t, data, arg, china);
+            setQty(t.id, v.value);
+            markSourceBadge(t, v.source, v.detail);
+        });
     });
 
     // 물량을 직접 고치면, 그 물량에 묶인 담당 업무(중국제작(담당)·직진배송 사전작업 등)도 다시 잡는다.
