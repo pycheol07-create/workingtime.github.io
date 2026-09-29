@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609291013';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291013';
-import * as State from './state.js?v=202609291013';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291013';
-import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291013';
+import { predictFutureTrends } from './analysis-logic.js?v=202609291022';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291022';
+import * as State from './state.js?v=202609291022';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291022';
+import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291022';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291013';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291022';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291013';
-import { taskUph, recentDays } from './task-throughput.js?v=202609291013';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291022';
+import { taskUph, recentDays } from './task-throughput.js?v=202609291022';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1085,6 +1085,10 @@ const weekPlanFor = (historyData, taskKey, dateStr) => {
     const dates = Array.from({ length: 7 }, (_, i) => addDays(wk, i));
 
     // 이미 값이 정해진 날 — 지난 날의 실적, 오늘 실측, 저장해 둔 예정 물량
+    // ⚠️ '오늘'은 문서가 생겼다는 것만으로 정해진 날이 아니다. 근무 기록이 들어오면 문서가 만들어지는데,
+    //    물량은 보통 한참 뒤에 넣는다. 그 사이 0 을 '정해진 값'으로 보면 오늘이 주 배정에서 아예
+    //    빠져 아침 계획이 통째로 0 이 된다(실측: 빈도형 7개 합계 하루 약 1,600개가 사라졌다).
+    //    그래서 오늘은 '물량이 들어왔거나 0 으로 확정된 경우'에만 정해진 날로 본다.
     const today = getTodayDateString();
     const fixedDates = new Set();
     let done = 0;
@@ -1092,7 +1096,10 @@ const weekPlanFor = (historyData, taskKey, dateStr) => {
         let v = null;
         if (d <= today) {
             const day = (historyData || []).find(x => x.id === d);
-            if (day) v = Math.round(Number(day.taskQuantities?.[taskKey]) || 0);
+            if (day) {
+                const q = Math.round(Number(day.taskQuantities?.[taskKey]) || 0);
+                if (d < today || q > 0 || qtyZeroConfirmed(day, taskKey)) v = q;
+            }
         }
         if (v == null) { const pl = getPlanned(d, taskKey); if (pl != null) v = Math.round(pl); }
         if (v != null) { fixedDates.add(d); if (v > 0) done++; }
