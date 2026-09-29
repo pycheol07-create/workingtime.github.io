@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609291044';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291044';
-import * as State from './state.js?v=202609291044';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291044';
-import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291044';
+import { predictFutureTrends } from './analysis-logic.js?v=202609291107';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291107';
+import * as State from './state.js?v=202609291107';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291107';
+import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291107';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291044';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291107';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291044';
-import { taskUph, recentDays } from './task-throughput.js?v=202609291044';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291107';
+import { taskUph, recentDays } from './task-throughput.js?v=202609291107';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -429,8 +429,21 @@ const PRECURSOR_MIN_TOTAL = 3;    // 배율 보정에 필요한 최소 표본(3�
 const PRECURSOR_SURE_MIN = 4;
 
 const computeTaskUPHs = (historyData) => {
-    const days = recentDays(historyData, 28, getTodayDateString());
-    const uph = taskUph(days, { mode: 'total', tasks: new Set(SIM_TASKS.map(t => t.key)) });
+    const today = getTodayDateString();
+    const days = recentDays(historyData, 28, today);
+    // ⚠️ 합계(Σ물량÷Σ시간)가 아니라 '하루 속도의 가운데값'을 쓴다.
+    //    기록을 시작하고 '종료'를 안 누른 건이 쌓여 있어(전체 830건·2,374시간),
+    //    그런 날은 그 업무 시간이 하루 끝까지 잡혀 분모가 통째로 부푼다.
+    //    합계는 그 하루에 그대로 끌려간다 — 실측: 에이블리배송 49.8 (실제 100 안팎),
+    //    상.하차 62.9 (실제 92), 반대로 시간 기록이 빠진 날 때문에 직진배송은 143 (실제 123).
+    //    검증(최근 30근무일): 물량을 시간으로 바꿀 때의 오차 23.96h → 20.77h,
+    //    '종료된 기록만'을 실제로 보면 17.86h → 13.74h.
+    //    minMinutes 10 — 몇 분짜리 기록 하나가 극단적인 속도를 만드는 것을 막는다.
+    //    skipDate — 오늘은 물량이 덜 차 있어 속도가 튄다.
+    const uph = taskUph(days, {
+        mode: 'dailyMedian', minMinutes: 10, skipDate: today,
+        tasks: new Set(SIM_TASKS.map(t => t.key))
+    });
 
     // 새로 편입된 업무는 표본이 몇 분뿐이면 속도가 수십 배로 튀어, 계획 시간이
     // 비현실적으로 짧게 잡힌다. 표본이 모자라면 '기준 없음'(0)으로 둔다.

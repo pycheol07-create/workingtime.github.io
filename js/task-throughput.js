@@ -36,6 +36,11 @@ export const dailyTaskStats = (day) => {
  *   'total'    — 기간 합계 비율 (Σ물량 ÷ Σ투입시간).
  *                물량이 많은 날에 자연히 가중치가 실린다. 실적을 가장 정직하게 요약한다.
  *   'dailyAvg' — 일별 속도를 낸 뒤 단순 평균. 모든 날을 같은 무게로 본다.
+ *   'dailyMedian' — 일별 속도의 가운데값. 잘못 기록된 하루에 끌려가지 않는다.
+ *                기록을 시작하고 '종료'를 안 누른 건이 830건(2,374시간) 있는데,
+ *                그런 날은 그 업무 시간이 하루 끝까지 잡혀 속도가 몇 분의 일로 나온다.
+ *                합계 방식은 분모가 통째로 부풀어 그대로 끌려간다 — 실측으로
+ *                에이블리배송 UPH 가 49.8 로 나왔지만 실제는 100 안팎이었다.
  *   'bestDays' — 일별 속도 중 빠른 순 topN 일의 평균.
  *                '잘 돌아갔을 때의 속도' = 목표치. 평상시보다 높게 나오는 것이 정상이다.
  *
@@ -75,6 +80,13 @@ export const taskSpeedPerMinute = (days, {
     } else {
         Object.entries(speeds).forEach(([task, arr]) => {
             if (arr.length === 0) { out[task] = 0; return; }
+            if (mode === 'dailyMedian') {
+                const v = [...arr].sort((a, b) => a - b);
+                const m = Math.floor(v.length / 2);
+                // 표본이 짝수일 때 위쪽 값만 고르면 속도가 한 방향으로 치우친다
+                out[task] = v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+                return;
+            }
             const use = (mode === 'bestDays')
                 ? [...arr].sort((a, b) => b - a).slice(0, topN)
                 : arr;
