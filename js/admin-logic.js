@@ -1,6 +1,6 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions } from './admin-ui.js?v=202609290930';
-import { withBuiltinMenus } from './menu-catalog.js?v=202609290930';
+import { getAllDashboardDefinitions } from './admin-ui.js?v=202609291006';
+import { withBuiltinMenus } from './menu-catalog.js?v=202609291006';
 
 export function collectConfigFromDOM(currentConfig) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.

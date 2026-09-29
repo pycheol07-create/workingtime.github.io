@@ -3,18 +3,18 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609290930';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609290930';
-import * as State from './state.js?v=202609290930';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609290930';
-import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609290930';
+import { predictFutureTrends } from './analysis-logic.js?v=202609291006';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291006';
+import * as State from './state.js?v=202609291006';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291006';
+import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291006';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609290930';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291006';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609290930';
-import { taskUph, recentDays } from './task-throughput.js?v=202609290930';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291006';
+import { taskUph, recentDays } from './task-throughput.js?v=202609291006';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -177,6 +177,13 @@ const recentQtyTotals = (historyData) => {
  *  설정값 simAutoModes({업무명: 모드}) 로 바꿀 수 있다. */
 const DEFAULT_SIM_AUTO_MODES = { '상.하차': 'incoming-boxes:중국제작' };
 const AUTO_MODES = new Set(['ai', 'incoming', 'china-linked', 'incoming-boxes', 'cadence', 'last7']);
+/** 📦 '다음날 상차'를 만드는 출고 업무 — 설정값 simLoadoutSources 로 바꿀 수 있다. */
+const DEFAULT_LOADOUT_SOURCES = ['직진배송', '에이블리배송'];
+const loadoutSourceTasks = () => {
+    const cfg = State.appConfig?.simLoadoutSources;
+    const list = Array.isArray(cfg) ? cfg : DEFAULT_LOADOUT_SOURCES;
+    return list.map(k => String(k == null ? '' : k).trim()).filter(Boolean);
+};
 let warnedAutoMode = false;
 /** 'incoming-boxes:중국제작' → { mode:'incoming-boxes', arg:'중국제작' } */
 const parseAutoMode = (raw) => {
@@ -694,51 +701,6 @@ const computeLast7Avg = (historyData, taskKey, occurrences = 7) => {
     return Math.round(sum / valued.length);
 };
 
-/** 📦 입고가 없는 날의 평소 물량 — 상.하차처럼 '입고 박스 + 평소 작업'이 섞이는 업무의 기준선.
- *  실측: 최근 60근무일 중 중국제작 입고가 없는 45일 가운데 40일에도 상.하차가 있었다(평균 43개).
- *  박스 수만 넣으면 그 날들이 0이 되어 총량이 61% 모자랐다 → 기준선을 더한다(검증: 치우침 0%).
- */
-/** 📦 '박스당 개수' — 입고 개수만 있고 박스 수를 못 읽을 때 박스를 어림하는 데 쓴다.
- *  입고가 있던 날의 (입고 개수 ÷ 그 업무 물량) 중앙값.
- *  ⚠️ '평소 물량을 뺀 나머지'로 나누는 쪽이 이론상 맞아 보이지만, 실제 이력으로 재 보면
- *     그쪽이 더 나쁘다(입고일 오차 31.3 vs 18.4, 치우침 −12% vs +12%). 상.하차가 입고량에
- *     비례하지 않고 흩어지기 때문이다. 그래서 실측이 나은 이 방식을 쓴다 — 어디까지나
- *     박스 열이 빈 경우의 대타이고, 입고일에 12%쯤 많게 잡는다. */
-const piecesPerBox = (historyData, taskKey, incomingKey = '중국제작', windowWorkDays = 40) => {
-    const today = getTodayDateString();
-    const days = (historyData || [])
-        .filter(d => d && typeof d.id === 'string' && d.id < today)
-        .filter(d => (d.workRecords || []).length > 0)
-        .sort((a, b) => b.id.localeCompare(a.id))
-        .slice(0, windowWorkDays);
-    const r = [];
-    days.forEach(d => {
-        const q = Number(d.taskQuantities?.[incomingKey]) || 0;
-        const t = Number(d.taskQuantities?.[taskKey]) || 0;
-        if (q > 0 && t > 0) r.push(q / t);
-    });
-    if (r.length < 3) return 0;              // 표본이 모자라면 어림하지 않는다
-    r.sort((a, b) => a - b);
-    return Math.round(r[Math.floor(r.length / 2)]);
-};
-
-const baselineWithoutIncoming = (historyData, taskKey, incomingKey = '중국제작',
-                                 wantDays = 10, maxWorkDays = 40) => {
-    const today = getTodayDateString();
-    // '오늘'은 아직 입력 중이라 물량이 0으로 잡혀 기준선을 낮춘다 — 마감된 날만 쓴다
-    const pool = (historyData || [])
-        .filter(d => d && typeof d.id === 'string' && d.id < today)
-        .filter(d => (d.workRecords || []).length > 0)
-        .sort((a, b) => b.id.localeCompare(a.id))
-        .slice(0, maxWorkDays)
-        .filter(d => !((Number(d.taskQuantities?.[incomingKey]) || 0) > 0));
-    // 입고가 몰린 시기엔 최근 20일이 전부 입고일일 수 있다 → 최대 40근무일까지 넓혀서
-    // '입고 없던 날' 10일을 모은다. (표본이 0이면 '박스 수만' 방식이 되어 총량이 61% 모자랐다)
-    const days = pool.slice(0, wantDays);
-    if (days.length === 0) return { value: 0, sampleDays: 0 };
-    const sum = days.reduce((a, d) => a + (Number(d.taskQuantities?.[taskKey]) || 0), 0);
-    return { value: Math.round(sum / days.length), sampleDays: days.length };
-};
 
 /** 🗓️ '언제 하는 업무인가' 분석 — 매일 하지 않는 업무의 예상치를 바로잡는다.
  *
@@ -1255,47 +1217,116 @@ const autoValueFor = (dateStr, task, historyData) => {
     return estimatedValueFor(dateStr, task, historyData);
 };
 
-/** 📦 입고 박스 연동 값 — 그날 도착 예정 '박스 수' + 입고와 무관한 평소 물량.
+/** 📦 상.하차 비율 학습 — 상.하차는 두 가지 일이 겹친다.
+ *    ① 하차: 중국제작 입고가 예정된 날, 그 날 도착하는 박스를 내린다
+ *    ② 상차: 전 근무일에 직진배송·에이블리배송을 한 만큼 다음날 실어 보낸다
+ *  실측(최근 60근무일): 전날 출고가 있으면 상.하차 진행률 97%(38/39일), 없으면 20%(1/5일).
+ *  전날 출고량과 상.하차 물량의 상관계수 0.89 — 고정 평균보다 훨씬 잘 맞는다.
+ *  (검증 40근무일: 고정 기준선 방식 오차 19.4개 → 이 방식 6.5개, 전날 출고 없는 날은 0으로 정확)
+ *
+ *  ① 먼저 '순수 상차일'(입고 없고 전날 출고 있는 날)로 상차 단위를 배운다 — 표본이 많다.
+ *  ② 그 상차분을 뺀 나머지로 '박스당 개수'를 배운다 — 순수 하차일만 쓰면 표본이 2~3일뿐이다.
+ */
+const loadUnloadRatios = (historyData, taskKey, incomingKey, shipKeys, windowWorkDays = 40) => {
+    const today = getTodayDateString();
+    const days = (historyData || [])
+        .filter(d => d && typeof d.id === 'string' && d.id < today)
+        .filter(d => (d.workRecords || []).length > 0)
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .slice(-windowWorkDays);
+    const num = (d, k) => Number(d?.taskQuantities?.[k]) || 0;
+    const shipOf = (d) => shipKeys.reduce((a, k) => a + num(d, k), 0);
+    const med = (arr) => {
+        if (arr.length === 0) return 0;
+        const v = [...arr].sort((x, y) => x - y);
+        return v[Math.floor(v.length / 2)];
+    };
+
+    // ① 상차 단위 — '전날 출고 몇 개당 상.하차 1개'
+    const a = [];
+    for (let i = 1; i < days.length; i++) {
+        const cur = days[i], prev = days[i - 1];
+        const t = num(cur, taskKey), sp = shipOf(prev);
+        if (num(cur, incomingKey) === 0 && sp > 0 && t > 0) a.push(sp / t);
+    }
+    const perShip = a.length >= 3 ? med(a) : 0;
+
+    // ② 박스당 개수 — 입고일에서 상차분을 뺀 나머지 기준
+    const b = [];
+    for (let i = 1; i < days.length; i++) {
+        const cur = days[i], prev = days[i - 1];
+        const inq = num(cur, incomingKey), t = num(cur, taskKey);
+        if (inq <= 0 || t <= 0) continue;
+        const boxPart = t - (perShip > 0 ? shipOf(prev) / perShip : 0);
+        if (boxPart > 0) b.push(inq / boxPart);
+    }
+    let perBox = b.length >= 3 ? med(b) : 0;
+    if (perBox <= 0) {
+        // 표본이 모자라면 상차분을 빼지 않은 전체 비율로 어림한다
+        const c = [];
+        days.forEach(d => {
+            const inq = num(d, incomingKey), t = num(d, taskKey);
+            if (inq > 0 && t > 0) c.push(inq / t);
+        });
+        perBox = c.length >= 3 ? med(c) : 0;
+    }
+    return { perShip, perBox, sampleShip: a.length, sampleBox: b.length };
+};
+
+/** 📦 상.하차 예상 = 하차분(입고 박스) + 상차분(전 근무일 출고량).
  *  inQtyOverride: 화면에서 입고 수량을 직접 고친 경우 그 값(선적 지연으로 0 으로 고치는 등).
  */
 const incomingBoxesValueFor = (dateStr, task, historyData, incomingKey = '중국제작', inQtyOverride = null) => {
     const inKey = incomingKey || '중국제작';
-    // '입고가 있나'는 박스가 아니라 입고 수량으로 판단한다.
-    // 시트에 박스 열이 비고 수량만 있는 행도 있어서(위젯이 그 행을 그대로 담는다),
-    // 박스 0 을 '입고 없음'으로 읽으면 값도 틀리고 근거 문구도 거짓이 된다.
+    const shipKeys = loadoutSourceTasks();
+    const { perShip, perBox } = loadUnloadRatios(historyData, task.key, inKey, shipKeys);
+
+    // ── 하차분: 그날 도착 예정 박스 수
     const savedIn = getPlanned(dateStr, inKey);
-    // 사람이 정한 값인가(화면 입력·예정 물량) — 문구를 가려 쓰기 위해 구분해 둔다
     const byHand = (inQtyOverride != null) || (savedIn != null);
     const inQty = (inQtyOverride != null)
         ? Math.max(0, Math.round(Number(inQtyOverride) || 0))
         : (savedIn ?? getIncomingChinaForDate(dateStr));
-    // 입고를 0 으로 고친 날(선적 지연)에 박스만 남으면 안 된다
-    const boxes = inQty > 0 ? getIncomingBoxesForDate(dateStr) : 0;
-
-    const b = baselineWithoutIncoming(historyData, task.key, inKey);
-    const base = b.value;
-    const sampleNote = b.sampleDays > 0
-        ? ` (평소 물량은 ${inKey} 입고가 없던 최근 ${b.sampleDays}일 평균)`
-        : ` (${inKey} 입고가 없던 날이 최근 기록에 없어 평소 물량을 못 냈습니다)`;
-
-    let boxEst = boxes, note;
-    if (boxes > 0) {
-        note = `입고일정 ${boxes.toLocaleString()}박스 + 평소 ${base.toLocaleString()}개`;
-    } else if (inQty > 0) {
-        // 박스 수를 못 읽은 상태 — 입고 개수를 '박스당 개수'로 나눠 어림한다
-        const per = piecesPerBox(historyData, task.key, inKey);
-        boxEst = per > 0 ? Math.round(inQty / per) : 0;
-        note = per > 0
-            ? `${inKey} 입고 ${inQty.toLocaleString()}개가 있는데 박스 수를 못 읽어,`
-              + ` 박스당 ${per}개로 나눈 ${boxEst.toLocaleString()}박스로 어림했습니다 + 평소 ${base.toLocaleString()}개`
-            : `${inKey} 입고 ${inQty.toLocaleString()}개가 있는데 박스 수를 읽을 수 없어 평소 물량만 잡았습니다`;
-    } else {
-        note = byHand
-            ? `${inKey} 물량을 0 으로 정해 두셨으므로 평소 물량 ${base.toLocaleString()}개만 잡았습니다`
-            : `그날 ${inKey} 입고 예정이 없어 평소 물량 ${base.toLocaleString()}개만 잡았습니다`
-              + ' (대시보드 입고일정을 한 번도 열지 않은 브라우저에서는 입고를 못 읽습니다)';
+    // '입고가 있나'는 박스가 아니라 입고 수량으로 판단한다 — 시트에 박스 열이 비고 수량만
+    // 있는 행도 있어서, 박스 0 을 '입고 없음'으로 읽으면 값도 틀리고 근거 문구도 거짓이 된다.
+    const sheetBoxes = inQty > 0 ? getIncomingBoxesForDate(dateStr) : 0;
+    let unload = sheetBoxes, unloadNote = '';
+    if (inQty > 0 && sheetBoxes <= 0) {
+        unload = perBox > 0 ? Math.round(inQty / perBox) : 0;
+        unloadNote = perBox > 0
+            ? `${inKey} 입고 ${inQty.toLocaleString()}개 (박스 수를 못 읽어 박스당 ${Math.round(perBox)}개로 나눈 ${unload.toLocaleString()}박스)`
+            : `${inKey} 입고 ${inQty.toLocaleString()}개 (박스 수도 박스당 개수도 알 수 없어 하차분을 못 냈습니다)`;
+    } else if (sheetBoxes > 0) {
+        unloadNote = `입고 ${sheetBoxes.toLocaleString()}박스 하차`;
     }
-    return { value: Math.max(0, boxEst + base), source: 'incoming-boxes', detail: note + sampleNote };
+
+    // ── 상차분: 전 근무일에 직진배송·에이블리배송을 한 만큼 다음날 실어 보낸다
+    const prev = prevWorkingDay(dateStr);
+    let shipQty = 0;
+    shipKeys.forEach(k => {
+        const t = SIM_TASKS.find(x => x.key === k);
+        if (!t) return;
+        // 스스로를 다시 부르는 경로는 막는다(설정으로 출고 업무에 이 모드를 걸어 둔 경우)
+        if (parseAutoMode(t.auto).mode === 'incoming-boxes') return;
+        shipQty += Math.max(0, Number(autoQtyFor(prev, t, historyData)) || 0);
+    });
+    const loadOut = (shipQty > 0 && perShip > 0) ? Math.round(shipQty / perShip) : 0;
+    const loadNote = shipQty > 0
+        ? (perShip > 0
+            ? `전 근무일(${prev}) 출고 ${shipQty.toLocaleString()}개 상차 (${Math.round(perShip)}개당 1)`
+            : `전 근무일 출고 ${shipQty.toLocaleString()}개가 있지만 상차 비율을 배울 표본이 모자랍니다`)
+        : `전 근무일(${prev})에 ${shipKeys.join(' · ')} 출고가 없어 상차분은 없습니다`;
+
+    const parts = [unloadNote, loadNote].filter(Boolean);
+    const zeroNote = (unload <= 0 && loadOut <= 0 && byHand)
+        ? `${inKey} 물량을 0 으로 정해 두셨고 전날 출고도 없어 0 으로 둡니다`
+        : '';
+    return {
+        value: Math.max(0, unload + loadOut),
+        source: 'incoming-boxes',
+        detail: (zeroNote || parts.join(' + '))
+              + `\n= 하차 ${unload.toLocaleString()} + 상차 ${loadOut.toLocaleString()}`
+    };
 };
 
 /** 수기값(실측·예정)을 뺀 순수 자동 추정값만. 예정 물량 입력 화면의 프리필이 쓴다. */
