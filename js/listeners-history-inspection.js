@@ -1,20 +1,20 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202609291030';
-import * as State from './state.js?v=202609291030';
-import { showToast, getTodayDateString } from './utils.js?v=202609291030';
+import * as DOM from './dom-elements.js?v=202609291044';
+import * as State from './state.js?v=202609291044';
+import { showToast, getTodayDateString } from './utils.js?v=202609291044';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202609291030'; 
+} from './ui-history.js?v=202609291044'; 
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202609291030';
+} from './ui-history-inspection.js?v=202609291044';
 
 import {
     loadInspectionLogs,
@@ -26,7 +26,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202609291030';
+} from './inspection-logic.js?v=202609291044';
 
 import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 

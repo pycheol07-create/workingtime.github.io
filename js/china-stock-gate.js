@@ -13,7 +13,7 @@
 // ⚠️ 이건 '화면을 가리는' 장치다. 데이터 자체는 firestore.rules 가 막는다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // ⚠️ china-stock-goods.js 와 '똑같은 주소'로 가져와야 모듈이 한 번만 만들어진다(?v=9.9 포함).
-import { initializeFirebase } from './china-stock-config.js?v=202609291030';
+import { initializeFirebase } from './china-stock-config.js?v=202609291044';
 
 const OVERLAY_ID = 'cs-auth-gate';
 
@@ -28,15 +28,26 @@ const showChecking = () => {
     const el = document.createElement('div');
     el.id = OVERLAY_ID;
     el.style.cssText = BASE_STYLE;
-    el.innerHTML = `<div style="font-size:40px;">🔒</div>
-        <div style="font-size:16px; font-weight:800;">로그인 상태를 확인하는 중…</div>`;
+    setGateBody(el, `<div style="font-size:40px;">🔒</div>
+        <div style="font-size:16px; font-weight:800;">로그인 상태를 확인하는 중…</div>`);
     document.body.appendChild(el);
     document.documentElement.style.overflow = 'hidden';
 };
 
+// ⚠️ 모바일에서 키보드가 올라오면 보이는 높이가 350~400px 로 줄어든다.
+//    'flex + justify-content:center' 만 쓰면 내용이 그보다 커질 때 위아래가 잘리고,
+//    스크롤도 안 돼서 로그인 버튼을 누를 수가 없다.
+//    → 바깥은 스크롤 되는 상자, 안쪽은 margin:auto 로 가운데 정렬(넘치면 위에서부터 보인다).
 const BASE_STYLE = `position:fixed; inset:0; z-index:2147483600; background:#f5f5f5;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
-    font-family:'Noto Sans KR',sans-serif; color:#37474f; text-align:center; padding:24px;`;
+    display:flex; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    font-family:'Noto Sans KR',sans-serif; color:#37474f; text-align:center;`;
+const INNER_STYLE = `margin:auto; display:flex; flex-direction:column; align-items:center;
+    gap:10px; padding:24px; width:100%;`;
+
+/** 게이트 내용 채우기 — 바깥 스크롤 상자 안에 가운데 정렬 상자를 하나 두고 거기에 넣는다 */
+const setGateBody = (el, html) => {
+    el.innerHTML = `<div style="${INNER_STYLE}">${html}</div>`;
+};
 
 /** 로그인 칸이 있는 게이트 */
 const showLogin = (auth) => {
@@ -44,7 +55,7 @@ const showLogin = (auth) => {
     const el = document.createElement('div');
     el.id = OVERLAY_ID;
     el.style.cssText = BASE_STYLE;
-    el.innerHTML = `
+    setGateBody(el, `
         <div style="font-size:40px;">🔒</div>
         <div style="font-size:17px; font-weight:800;">로그인이 필요합니다</div>
         <div style="font-size:12.5px; color:#78909c; line-height:1.7; max-width:320px;">
@@ -59,7 +70,7 @@ const showLogin = (auth) => {
                     style="padding:12px; border:0; border-radius:9px; background:#1976d2; color:#fff; font-size:15px; font-weight:700;">로그인</button>
             <div id="cs-login-err" style="font-size:12px; color:#c62828; min-height:16px;"></div>
         </form>
-        <a href="index.html" style="font-size:12.5px; color:#607d8b;">업무관리 열기</a>`;
+        <a href="index.html" style="font-size:12.5px; color:#607d8b;">업무관리 열기</a>`);
     document.body.appendChild(el);
     document.documentElement.style.overflow = 'hidden';
 
