@@ -6,7 +6,8 @@
 //    처리량은 업무를 '끝낼 때' 한 번에 들어오므로(app-logic.js), 진행 중인 업무의 물량은 알 수 없다.
 //    낮에는 시간만 보고, 물량 비교는 마감 후 '정확도' 화면에서 한다.
 
-import { calcElapsedMinutes } from './utils.js?v=202609291534';
+import { calcElapsedMinutes } from './utils.js?v=202610010855';
+import { addWorkMinutes, LUNCH_START_MIN, LUNCH_END_MIN } from './lib/calc.js?v=202610010855';
 
 /** 'HH:MM' → 자정부터의 분. 형식이 아니면 null */
 export const hhmmToMin = (s) => {
@@ -136,24 +137,48 @@ export const buildProgressRows = (planRows, progress) => {
 
 /** 지금 페이스로 언제 끝날지.
  *  rate(시간당 소화하는 인시) = 지금 붙어 있는 사람 수. 아무도 없으면 가용 인원으로 어림한다.
- *  기준 종료 = 첫 업무 시작 + 하루 업무시간 + 업무 제외시간 (휴게시간은 셈에 넣지 않는다)
+ *  기준 종료 = 첫 업무 시작 + 하루 업무시간 + 업무 제외시간 + (점심 1시간)
+ *
+ *  ★ 점심(12:30~13:30)은 **기준 종료와 종료 예상 둘 다** 건너뛴다. 한쪽만 건너뛰면
+ *    diffMin(색 판정)이 시각에 따라 60분씩 흔들린다 — 예측이 점심을 지나는 오전에는
+ *    1시간 낙관적으로, 점심 뒤에는 정확하게 나와서, 13:30 을 넘기는 순간 초록이 주황으로
+ *    튄다. 소진 인시(spentMinutesOf)는 이미 점심 pause 를 빼고 세므로, 남은 작업시간을
+ *    벽시계로 옮길 때 점심을 다시 끼워 넣어야 앞뒤가 맞는다.
+ *  skipLunch=false 면 점심을 더하지 않는다 — 점심 자동 일시정지가 돌지 않은 날
+ *  (주말, 또는 12:30~13:30 에 아무도 앱을 안 열어 pause 가 안 찍힌 평일)은
+ *  소진 인시에 점심이 포함돼 있어서, 여기서 또 더하면 이중 계산이 된다.
+ *
+ *  ⚠️ 기본값이 false 인 것은 **하위호환** 때문이다(기존 호출을 바꾸지 않으려고).
+ *     새로 부르는 곳은 점심을 반영할지 **반드시 명시**할 것 — 빠뜨리면 점심 없는 기준이
+ *     조용히 나와, 같은 화면의 다른 숫자와 1시간 어긋난다.
  */
 export const projectFinish = ({
     planHours, spentHours, activeWorkers, fallbackWorkers,
-    nowMin, firstStartMin, dailyHours, excludeMinutes = 0
+    nowMin, firstStartMin, dailyHours, excludeMinutes = 0, skipLunch = false
 }) => {
     const remainHours = Math.max(0, (Number(planHours) || 0) - (Number(spentHours) || 0));
     const rate = activeWorkers > 0 ? activeWorkers : Math.max(0, Number(fallbackWorkers) || 0);
     const etaMin = rate > 0 ? Math.round((remainHours / rate) * 60) : null;
-    const finishMin = etaMin == null ? null : nowMin + etaMin;
+    const finishMin = etaMin == null ? null : addWorkMinutes(nowMin, etaMin, { skipLunch });
 
     const startMin = firstStartMin != null ? firstStartMin : 9 * 60;
-    const baseFinishMin = startMin + Math.round((Number(dailyHours) || 8) * 60)
-                        + Math.max(0, Math.round(Number(excludeMinutes) || 0));
+    const 기준작업분 = Math.round((Number(dailyHours) || 8) * 60)
+                    + Math.max(0, Math.round(Number(excludeMinutes) || 0));
+    const baseFinishMin = addWorkMinutes(startMin, 기준작업분, { skipLunch });
+    const 점심분 = baseFinishMin - startMin - 기준작업분;
 
     return {
         remainHours, rate, etaMin, finishMin, baseFinishMin,
         diffMin: finishMin == null ? null : finishMin - baseFinishMin,
-        usedFallback: activeWorkers <= 0 && rate > 0
+        usedFallback: activeWorkers <= 0 && rate > 0,
+        // 화면 각주용. **기준 종료에** 더해진 점심 분이다(종료 예상에 더해진 값이 아니다 —
+        // 점심 뒤에는 예상 쪽에 0 이 더해지므로 둘이 다르다).
+        skipLunch: !!skipLunch,
+        baseLunchMin: 점심분,
+        // 실제로 건너뛴 구간. 점심 중에 시작한 날은 12:30 이 아니라 그 시각부터다
+        // (45분만 더했는데 '12:30~13:30' 이라고 쓰면 읽는 사람이 멈춘다).
+        baseLunchText: 점심분 > 0
+            ? `${minToHhmm(Math.max(startMin, LUNCH_START_MIN))}~${minToHhmm(LUNCH_END_MIN)}`
+            : ''
     };
 };

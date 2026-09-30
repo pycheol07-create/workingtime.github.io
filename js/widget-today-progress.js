@@ -3,10 +3,10 @@
 //   낮에는 아무도 데이터관리 창을 열지 않는다 — 계획 대비 얼마나 왔는지,
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
-import * as State from './state.js?v=202609291534';
-import { formatHM } from './utils.js?v=202609291534';
-import { getTodayProgressSummary } from './ui-history-prediction.js?v=202609291534';
-import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202609291534';
+import * as State from './state.js?v=202610010855';
+import { formatHM } from './utils.js?v=202610010855';
+import { getTodayProgressSummary } from './ui-history-prediction.js?v=202610010855';
+import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610010855';
 
 const EL = 'today-progress-strip';
 let timer = null;
@@ -66,6 +66,9 @@ const render = () => {
         </div>`;
     el.title = `계획 ${fmtHM(s.planHours)} 중 ${fmtHM(s.spentHours)} 소진`
              + (s.started ? `\n기준 종료 ${s.baseFinishText}` : '')
+             // 기준 종료가 왜 그 시각인지 띠만 보는 사람도 알 수 있게 (점심 포함 여부)
+             + (s.started && s.baseLunchMin > 0
+                    ? ` (점심 ${s.baseLunchMin}분 포함 · ${s.baseLunchText})` : '')
              + '\n\n업무 기록의 실제 투입 시간을 계획과 맞춰 본 값입니다. 눌러서 업무별로 볼 수 있습니다.';
 };
 

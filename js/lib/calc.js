@@ -76,18 +76,47 @@ export function minutesOverlap(aStart, aEnd, bStart, bEnd) {
     return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
 }
 
+// 점심시간 경계(자정부터의 분). 12:30~13:30.
+// ⚠️ 같은 값이 app-logic.js(자동 일시정지) · app-lifecycle.js · attendance-stats.js 에도
+//    따로 박혀 있다. 이 파일이 '계산의 출처'이니 새 계산은 여기를 쓴다.
+export const LUNCH_START_MIN = 750;   // 12:30
+export const LUNCH_END_MIN = 810;     // 13:30
+
+// 시작 시각(분)에서 '작업 시간' workMin 만큼 일했을 때의 **벽시계 시각**(분).
+//  점심시간은 일하지 않으므로 그만큼 시계가 더 흐른다.
+//    09:00 시작 · 작업 8시간 → 18:00 (점심 1시간 포함해 9시간 뒤)
+//    09:00 시작 · 작업 3시간 → 12:00 (점심 전에 끝나므로 그대로)
+//  ⚠️ 점심 '중' 에 시작한 경우는 남은 점심만 건너뛴다 — 12:45 시작이면 45분만.
+//     (autoPauseForLunch 가 pauseStart = max(업무시작, 12:30) 으로 잡으므로 실제로
+//      잃는 시간도 45분이다. 60분을 더하면 15분을 두 번 세는 셈이 된다)
+//  skipLunch=false 면 점심을 무시하고 그냥 더한다(주말 등).
+export function addWorkMinutes(startMin, workMin, { lunchStart = LUNCH_START_MIN,
+                                                   lunchEnd = LUNCH_END_MIN,
+                                                   skipLunch = true } = {}) {
+    const s = Number(startMin) || 0;
+    const w = Number(workMin) || 0;
+    if (w <= 0) return s;
+    if (!skipLunch) return s + w;
+    if (!(lunchEnd > lunchStart)) return s + w;
+    if (s >= lunchEnd) return s + w;                 // 점심 뒤에 시작 — 겹칠 일이 없다
+    const 점심전작업 = Math.max(0, lunchStart - s);    // 점심 시작 전에 일할 수 있는 분
+    if (w <= 점심전작업) return s + w;                 // 점심 전에 끝난다 (딱 12:30 도 포함)
+    const 남은점심 = lunchEnd - Math.max(s, lunchStart);
+    return s + w + 남은점심;
+}
+
 // 외출로 인한 급여 차감 분.
 //  - 점심시간(기본 12:30~13:30, 분 단위 750~810) 겹친 부분은 차감하지 않는다.
 //  - graceMin(기본 60분)까지는 무차감. (그 이상 초과분만 차감)
 //  start/end 는 분 단위(0~1440). end<=start 또는 null이면 0.
-export function outingDeductibleMinutes(startMin, endMin, { lunchStart = 750, lunchEnd = 810, graceMin = 60 } = {}) {
+export function outingDeductibleMinutes(startMin, endMin, { lunchStart = LUNCH_START_MIN, lunchEnd = LUNCH_END_MIN, graceMin = 60 } = {}) {
     if (startMin == null || endMin == null || endMin <= startMin) return 0;
     const net = (endMin - startMin) - minutesOverlap(startMin, endMin, lunchStart, lunchEnd);
     return Math.max(0, net - graceMin);
 }
 
 // 조퇴로 인한 급여 차감 분. (종업시각까지 빠진 시간 − 점심 겹침)
-export function earlyLeaveDeductibleMinutes(startMin, workEndMin = 1080, { lunchStart = 750, lunchEnd = 810 } = {}) {
+export function earlyLeaveDeductibleMinutes(startMin, workEndMin = 1080, { lunchStart = LUNCH_START_MIN, lunchEnd = LUNCH_END_MIN } = {}) {
     if (startMin == null || startMin >= workEndMin) return 0;
     return Math.max(0, (workEndMin - startMin) - minutesOverlap(startMin, workEndMin, lunchStart, lunchEnd));
 }

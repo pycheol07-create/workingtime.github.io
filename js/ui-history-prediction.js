@@ -3,18 +3,19 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202609291534';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202609291534';
-import * as State from './state.js?v=202609291534';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202609291534';
-import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202609291534';
+import { predictFutureTrends } from './analysis-logic.js?v=202610010855';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610010855';
+import * as State from './state.js?v=202610010855';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610010855';
+import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610010855';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202609291534';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610010855';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202609291534';
-import { taskUph, recentDays } from './task-throughput.js?v=202609291534';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610010855';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610010855';
+import { taskUph, recentDays } from './task-throughput.js?v=202610010855';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -3088,6 +3089,26 @@ const todayWorkRecords = () => {
     return (day && day.workRecords) || [];
 };
 
+/** 기준 종료에 점심 1시간을 더해야 하는가.
+ *
+ *  ★ 기준은 '평일인가' 가 아니라 **'점심 자동정지가 실제로 돌았는가'** 다.
+ *    소진 인시(spentMinutesOf)는 lunch pause 가 찍힌 만큼만 점심을 빼기 때문이다.
+ *    pause 가 안 찍힌 날에 기준에만 +60 을 하면 두 효과가 같은 방향으로 겹쳐
+ *    (소진 부풀음 + 기준 늦어짐) 실제로는 늦고 있는데 계속 초록으로 보인다.
+ *
+ *  · 주말: autoPauseForLunch 가 아예 호출되지 않는다(app-lifecycle.js 는 평일만) → 더하지 않는다.
+ *  · 평일 점심 전·중: 아직 돌 차례가 안 됐으니 돌 것으로 보고 더한다(오전 판정이 흔들리지 않게).
+ *  · 평일 점심 후: lunch pause 나 실행 플래그가 있어야 더한다.
+ *    12:30~13:29 에 아무도 앱을 열지 않은 날은 pause 가 안 남는다 — 그때는 더하지 않는다.
+ */
+const 점심반영할까 = (records, nowMin, weekend) => {
+    if (weekend) return false;
+    if (nowMin < LUNCH_END_MIN) return true;
+    const 점심정지있음 = (records || []).some(r =>
+        Array.isArray(r?.pauses) && r.pauses.some(p => p && p.type === 'lunch'));
+    return 점심정지있음 || !!State.appState?.lunchPauseExecuted;
+};
+
 /** 오늘 계획 — 계획 화면에 넣어 둔 값이 오늘 것이면 그 값을, 아니면 자동값을 쓴다. */
 const buildTodayPlan = () => {
     const today = getTodayDateString();
@@ -3125,7 +3146,8 @@ const computeTodayStatus = () => {
     const nowStr = nowTimeString();
     const nowMin = hhmmToMin(nowStr) ?? 0;
 
-    const progress = computeDayProgress(todayWorkRecords(), nowStr);
+    const 기록들 = todayWorkRecords();
+    const progress = computeDayProgress(기록들, nowStr);
     const rows = buildProgressRows(planRowsOf(r), progress);
 
     // 계획이 0 인 업무(오늘은 안 하는 것으로 본 빈도형 업무 등)를 실제로 하고 있으면,
@@ -3141,7 +3163,8 @@ const computeTodayStatus = () => {
         activeWorkers: progress.activeWorkers,
         fallbackWorkers: r.availableTotal,
         nowMin, firstStartMin: progress.firstStartMin,
-        dailyHours: r.dailyHours, excludeMinutes: r.excludeMinutes
+        dailyHours: r.dailyHours, excludeMinutes: r.excludeMinutes,
+        skipLunch: 점심반영할까(기록들, nowMin, r.weekend)
     });
 
     return { today, r, linked, nowStr, nowMin, progress, rows, planHours, spentHours, pct, fin };
@@ -3158,6 +3181,8 @@ export const getTodayProgressSummary = () => {
             started: s.progress.hasRecords,
             finishText: s.fin.finishMin == null ? null : minToHhmm(s.fin.finishMin),
             baseFinishText: minToHhmm(s.fin.baseFinishMin),
+            baseLunchMin: s.fin.baseLunchMin,
+            baseLunchText: s.fin.baseLunchText,
             diffMin: s.fin.diffMin
         };
     } catch (e) { console.warn('[forecast] 오늘 진행 요약 실패:', e); return null; }
@@ -3313,7 +3338,7 @@ const renderTodayProgress = () => {
         <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed px-1">
             · <b>소진 시간</b>은 업무 기록의 실제 투입 시간입니다(쉰 시간 제외, 진행 중인 업무는 지금까지).<br>
             · <b>종료 예상</b>은 남은 계획 시간을 지금 붙어 있는 인원으로 나눈 값입니다.
-              기준 시각은 첫 업무 시작 + ${s.r.dailyHours}시간${s.r.excludeMinutes > 0 ? ` + 제외 ${fmtMin(s.r.excludeMinutes)}` : ''} 이며 휴게시간은 셈에 넣지 않았습니다.<br>
+              기준 시각은 첫 업무 시작 + ${s.r.dailyHours}시간${s.r.excludeMinutes > 0 ? ` + 제외 ${fmtMin(s.r.excludeMinutes)}` : ''}${s.fin.baseLunchMin > 0 ? ` + 점심 ${fmtMin(s.fin.baseLunchMin)}(${s.fin.baseLunchText})` : ''} 입니다.${s.fin.baseLunchMin > 0 ? '' : (s.r.weekend ? ' 주말은 점심 자동정지가 없어 점심을 더하지 않습니다.' : (s.fin.skipLunch ? '' : ' 오늘은 점심 자동정지 기록이 없어 점심을 더하지 않았습니다.'))}<br>
             · <b class="text-violet-500">계획 외</b>는 계획에 없었는데 실제로 진행한 업무입니다.<br>
             · <b>기준 없음</b>은 물량은 잡혔지만 처리 속도 기준이 아직 없어 계획 시간을 못 낸 업무입니다(진행률 계산에서 빠집니다).
         </p>
