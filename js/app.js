@@ -1,23 +1,24 @@
 // === js/app.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule } from './config.js?v=202610010855';
-import { displayCurrentDate, showToast } from './utils.js?v=202610010855';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610010855';
-import { initializeAppListeners } from './app-listeners.js?v=202610010855';
-import * as DOM from './dom-elements.js?v=202610010855';
-import * as State from './state.js?v=202610010855';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610010855';
-import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202610010855';
-import { setupWeekendListeners } from './listeners-weekend.js?v=202610010855';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule } from './config.js?v=202610011126';
+import { displayCurrentDate, showToast } from './utils.js?v=202610011126';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610011126';
+import { initializeAppListeners } from './app-listeners.js?v=202610011126';
+import * as DOM from './dom-elements.js?v=202610011126';
+import * as State from './state.js?v=202610011126';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610011126';
+import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202610011126';
+import { setupWeekendListeners } from './listeners-weekend.js?v=202610011126';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610010855';
-import { setupNotificationListeners } from './app-notifications.js?v=202610010855';
-import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610010855';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=202610010855';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=202610010855';
-import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610010855';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610011126';
+import { setupNotificationListeners } from './app-notifications.js?v=202610011126';
+import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610011126';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=202610011126';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=202610011126';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610011126';
+import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610011126';
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
@@ -143,6 +144,7 @@ async function startAppAfterLogin(user) {
     // 🔗 5. 근태(연차) 일정 실시간 구독 — 어느 화면에서 바뀌든(다른 사용자 포함)
     //        대시보드 근태예정 위젯·업무 캘린더·내 연차관리가 함께 갱신된다.
     subscribeLeaveSchedule();
+    subscribeEzadmin();
 }
 
 async function main() {
@@ -169,6 +171,7 @@ async function main() {
             if (State.unsubscribeWorkRecords) State.unsubscribeWorkRecords();
             if (unsubscribeNotifications) unsubscribeNotifications();
             unsubscribeLeaveSchedule();
+            unsubscribeEzadmin();
 
             State.appState.workRecords = [];
             State.appState.currentUser = null;

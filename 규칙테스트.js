@@ -111,6 +111,19 @@ async function check(name, expect, fn) {
   await check('관리자가 남의 매뉴얼 수정', 'ALLOW',
     () => updateDoc(doc(admin, ...APP, 'manuals', 'm_staff'), { title: 'z' }));
 
+  // ── integrations (자동화 전용 — 클라이언트 쓰기 금지) ─────────────────
+  // 이지어드민 연동 숫자가 여기 있다. 대시보드가 이 문서의 lastOkAt 으로
+  // '언제 기준 숫자인가'·'오래됐다' 를 판단하므로, 클라이언트가 쓸 수 있으면
+  // 브라우저 콘솔 한 줄로 그 경고를 거짓으로 만들 수 있다.
+  await check('직원이 integrations 생성', 'DENY',
+    () => setDoc(doc(staff, ...APP, 'integrations', 'ezadmin'), { invoice: 9 }));
+  await check('직원이 integrations 수정', 'DENY',
+    () => updateDoc(doc(staff, ...APP, 'integrations', 'ezadmin'), { invoice: 9 }));
+  await check('관리자도 integrations 쓰기 금지', 'DENY',
+    () => setDoc(doc(admin, ...APP, 'integrations', 'ezadmin'), { invoice: 9 }));
+  await check('직원이 integrations 읽기', 'ALLOW',
+    () => getDoc(doc(staff, ...APP, 'integrations', 'ezadmin')));
+
   // ── 최상위 컬렉션 ─────────────────────────────────────────────────────
   await check('직원이 Locations 수정', 'ALLOW',
     () => updateDoc(doc(staff, 'Locations', 'x'), { t: 1 }));

@@ -1,10 +1,15 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610010855';
-import * as State from './state.js?v=202610010855';
-import { getRegularMembersForCount } from './utils.js?v=202610010855';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610010855';
+import { getAllDashboardDefinitions } from './ui.js?v=202610011126';
+import * as State from './state.js?v=202610011126';
+import { getRegularMembersForCount } from './utils.js?v=202610011126';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610011126';
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610011126';
 
+// 확장(ezadmin-bridge)이 postMessage 로 넘겨 주는 값. **폴백 전용.**
+// 확장 payload 에는 시각이 없어서(invoice·delivery 뿐) 받은 시각을 여기서 직접 찍어 둔다.
 export let currentEzadminData = null;
+let 확장받은때 = 0;
+const 확장_유효_분 = 5;
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'ongoing-tasks']);
@@ -74,20 +79,121 @@ export const renderNoticeWidget = (appState) => {
     memoList.innerHTML = html;
 };
 
-export const updateEzadminDisplay = () => {
-    const ezData = currentEzadminData;
-    if (!ezData) return;
+/** 지금 무엇을 보여 줄지 고른다.
+ *
+ *  Firestore(상주 수집기) 가 1순위다. 그게 오래됐거나 없으면 확장 값을 폴백으로 쓴다.
+ *  ⚠️ '더 최신 것을 쓴다' 는 불가능하다 — 확장 payload 에 시각이 없다. 그래서
+ *     '신선한 쪽을 우선' 이라는 규칙으로 정한다.
+ */
+const EZ사유문구 = {
+    'not-logged-in': '이지어드민 로그인 끊김',
+    'no-element': '이지어드민 화면이 바뀜',
+    'partial-element': '이지어드민 화면이 일부 바뀜',
+    'empty-value': '숫자를 못 읽음',
+    'nav-failed': '화면 접속 실패',
+};
 
+const ezadmin표시값 = () => {
+    const fs = ezadmin상태();
+    if (fs.있음 && !fs.오래됨) {
+        return { invoice: fs.invoice, delivery: fs.delivery,
+                 라벨: fs.라벨, 흐림: false, 출처: '' };
+    }
+    if (fs.있음) {
+        // Firestore 값이 오래됐다 — 왜 그런지(error)를 같이 알려 줘야 조치가 갈린다.
+        const 사유 = !fs.ok && fs.error
+            ? (EZ사유문구[fs.error] || fs.error)
+            : '수집기 멈춤?';
+        return { invoice: fs.invoice, delivery: fs.delivery,
+                 라벨: `${fs.라벨 || `${STALE_분}분 넘게 갱신 없음`} · ${사유}`,
+                 흐림: true, 사유 };
+    }
+    // Firestore 값이 아예 없다 → 확장 값이라도 쓴다(수집기를 아직 안 돌리는 PC).
+    // ⚠️ 확장 payload 에는 시각이 없다. 오래됐다고 숫자를 지우면, 예전엔 보이던 숫자가
+    //    사라져 "연동이 깨졌다" 로 읽힌다. 그래서 **값은 계속 보여 주고 흐리게만** 한다.
+    if (currentEzadminData) {
+        // Firestore 쪽과 같은 기준 — 숫자가 아니면 '값이 없다' 로 본다.
+        // `|| 0` 을 쓰면 확장이 빈 값을 보낸 순간 '송장 0건' 이 멀쩡히 표시된다.
+        const e1 = Number(currentEzadminData.invoice);
+        const e2 = Number(currentEzadminData.delivery);
+        if (Number.isFinite(e1) && Number.isFinite(e2)) {
+            const 지남 = (Date.now() - 확장받은때) / 60000;
+            const 오래 = 지남 >= 확장_유효_분;
+            return { invoice: e1, delivery: e2,
+                     라벨: 오래 ? `확장 기준 · ${Math.floor(지남)}분 전` : '확장 기준',
+                     흐림: 오래, 사유: 오래 ? '좀비창이 멈췄을 수 있습니다' : '' };
+        }
+    }
+    // ★ 숫자는 없지만 '왜 없는지' 는 알 때가 있다 — 수집기가 한 번도 성공하지 못한 경우다
+    //   (화면 개편이면 invoice·delivery·lastOkAt 이 아예 안 쓰인다).
+    //   그걸 '연동 대기 중' 으로 보여 주면 "아직 안 켰다" 로 읽혀 아무도 손대지 않는다.
+    if (fs.ok === false && fs.error) {
+        return { invoice: null, delivery: null,
+                 라벨: EZ사유문구[fs.error] || fs.error, 흐림: true,
+                 사유: '수집기가 숫자를 한 번도 읽지 못했습니다' };
+    }
+    return null;          // 아직 아무 값도 없다 → '연동 대기 중'
+};
+
+export const updateEzadminDisplay = () => {
     const invoiceEl = document.getElementById('ezadmin-invoice-count');
     const deliveryEl = document.getElementById('ezadmin-delivery-count');
+    const 라벨El = document.getElementById('ezadmin-asof');
+    if (!invoiceEl && !deliveryEl && !라벨El) return;
 
-    if (invoiceEl && ezData.invoice !== undefined) {
-        invoiceEl.textContent = ezData.invoice.toLocaleString();
+    const v = ezadmin표시값();
+    if (v && v.invoice == null) {
+        // 사유는 아는데 숫자는 없는 상태 — 숫자 자리는 비우고 사유를 빨갛게 보여 준다.
+        if (invoiceEl) { invoiceEl.textContent = '–'; invoiceEl.classList.add('opacity-50'); }
+        if (deliveryEl) { deliveryEl.textContent = '–'; deliveryEl.classList.add('opacity-50'); }
+        if (라벨El) {
+            라벨El.textContent = v.라벨;
+            라벨El.className = 'mt-1.5 text-[10px] font-bold text-rose-500 dark:text-rose-400';
+            라벨El.title = [v.사유, '앱 폴더의 이지어드민연동/로그 를 확인하세요.']
+                .filter(Boolean).join('\n');
+        }
+        return;
     }
-    if (deliveryEl && ezData.delivery !== undefined) {
-        deliveryEl.textContent = ezData.delivery.toLocaleString();
+    if (!v) {
+        // 0 을 보여 주면 '송장 0건' 과 구분이 안 된다. 아예 숫자를 안 쓴다.
+        if (invoiceEl) invoiceEl.textContent = '–';
+        if (deliveryEl) deliveryEl.textContent = '–';
+        if (라벨El) {
+            라벨El.textContent = '연동 대기 중';
+            라벨El.className = 'mt-1.5 text-[10px] text-gray-400 dark:text-gray-500';
+        }
+        return;
+    }
+
+    // 반짝임은 **값이 실제로 바뀔 때만.** 예전에는 메시지가 오면 무조건 반짝여서
+    // 같은 숫자로 1분마다 깜빡였다.
+    const 칠하기 = (el, n, 색) => {
+        if (!el) return;
+        const 새글 = n.toLocaleString();
+        const 바뀜 = el.textContent !== 새글;
+        el.textContent = 새글;
+        el.classList.toggle('opacity-50', !!v.흐림);
+        if (바뀜) {
+            el.classList.add('scale-125', 색);
+            setTimeout(() => el.classList.remove('scale-125', 색), 500);
+        }
+    };
+    칠하기(invoiceEl, v.invoice, 'text-orange-500');
+    칠하기(deliveryEl, v.delivery, 'text-purple-500');
+
+    if (라벨El) {
+        라벨El.textContent = v.라벨;
+        라벨El.className = 'mt-1.5 text-[10px] ' + (v.흐림
+            ? 'font-bold text-rose-500 dark:text-rose-400'
+            : 'text-gray-400 dark:text-gray-500');
+        const 도움 = [v.사유, '숫자는 마지막으로 읽은 값입니다.',
+                     '앱 폴더의 이지어드민연동/로그 를 확인하세요.'].filter(Boolean);
+        라벨El.title = v.흐림 ? 도움.join('\n') : '';
     }
 };
+
+// Firestore 값이 바뀌거나 '몇 분 전' 이 흘러가면 다시 그린다.
+onEzadminChange(() => { try { updateEzadminDisplay(); } catch (e) {} });
 
 export const renderDashboardLayout = (appConfig) => {
     const personnelContainer = document.getElementById('summary-personnel');
@@ -135,8 +241,8 @@ export const renderDashboardLayout = (appConfig) => {
         }
     });
 
-    const ezInvoice = (currentEzadminData && currentEzadminData.invoice) || 0;
-    const ezDelivery = (currentEzadminData && currentEzadminData.delivery) || 0;
+    // 첫 그림은 빈 칸으로 두고, 아래 updateEzadminDisplay() 가 실제 값을 채운다.
+    // (0 을 먼저 그리면 '송장 0건' 처럼 보인다)
 
     workloadHtml += `
         <div class="mt-4 p-3 border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl shadow-sm">
@@ -146,18 +252,23 @@ export const renderDashboardLayout = (appConfig) => {
             <div class="flex gap-2">
                 <div class="flex-1 flex justify-between items-center bg-orange-50 dark:bg-orange-900/20 px-2.5 py-2 rounded-lg border border-orange-100 dark:border-orange-800/50 transition-colors shadow-sm">
                     <span class="text-xs font-extrabold text-orange-600 dark:text-orange-400 break-keep">송장</span>
-                    <span id="ezadmin-invoice-count" class="text-sm font-black text-orange-700 dark:text-orange-300 transition-all duration-300">${ezInvoice.toLocaleString()}</span>
+                    <span id="ezadmin-invoice-count" class="text-sm font-black text-orange-700 dark:text-orange-300 transition-all duration-300">–</span>
                 </div>
                 <div class="flex-1 flex justify-between items-center bg-purple-50 dark:bg-purple-900/20 px-2.5 py-2 rounded-lg border border-purple-100 dark:border-purple-800/50 transition-colors shadow-sm">
                     <span class="text-xs font-extrabold text-purple-600 dark:text-purple-400 break-keep">배송</span>
-                    <span id="ezadmin-delivery-count" class="text-sm font-black text-purple-700 dark:text-purple-300 transition-all duration-300">${ezDelivery.toLocaleString()}</span>
+                    <span id="ezadmin-delivery-count" class="text-sm font-black text-purple-700 dark:text-purple-300 transition-all duration-300">–</span>
                 </div>
             </div>
+            <div id="ezadmin-asof" class="mt-1.5 text-[10px] text-gray-400 dark:text-gray-500"></div>
         </div>
     `;
 
     if (personnelContainer) personnelContainer.innerHTML = personnelHtml;
     if (workloadContainer) workloadContainer.innerHTML = workloadHtml;
+
+    // ⚠️ 위에서 workloadContainer 를 통째로 갈아끼웠다 — 방금 만든 element 는 새것이고
+    //    숫자·라벨이 비어 있다. 그려 넣지 않으면 30초마다 '–' 로 깜빡인다.
+    try { updateEzadminDisplay(); } catch (e) {}
 };
 
 export const updateSummary = (appState, appConfig) => {
@@ -471,22 +582,13 @@ const setupPersonnelInteractions = () => {
 
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
-        const ezData = event.data.data;
-        currentEzadminData = ezData; 
-
-        const invoiceEl = document.getElementById('ezadmin-invoice-count');
-        const deliveryEl = document.getElementById('ezadmin-delivery-count');
-        
-        if (invoiceEl && ezData.invoice !== undefined) {
-            invoiceEl.textContent = ezData.invoice.toLocaleString();
-            invoiceEl.classList.add('scale-125', 'text-orange-500');
-            setTimeout(() => invoiceEl.classList.remove('scale-125', 'text-orange-500'), 500);
-        }
-        if (deliveryEl && ezData.delivery !== undefined) {
-            deliveryEl.textContent = ezData.delivery.toLocaleString();
-            deliveryEl.classList.add('scale-125', 'text-purple-500');
-            setTimeout(() => deliveryEl.classList.remove('scale-125', 'text-purple-500'), 500);
-        }
+        // 확장(ezadmin-bridge)의 값 — **폴백 전용.** 상주 수집기 쪽이 신선하면 이 값은 안 쓴다.
+        // 받은 시각을 여기서 찍어 둔다(확장 payload 에는 시각이 없다).
+        currentEzadminData = event.data.data;
+        확장받은때 = Date.now();
+        // 그리기는 updateEzadminDisplay 한 곳에서만 한다 — 두 곳에서 그리면
+        // 어느 값이 보이는지가 '마지막에 그린 쪽' 으로 결정돼 버린다.
+        try { updateEzadminDisplay(); } catch (e) {}
     }
 });
 
