@@ -1,6 +1,6 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610011126';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610011126';
+import * as State from './state.js?v=202610011559';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610011559';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -139,6 +139,49 @@ export async function saveForecastSnapshot(dateStr, snapshot) {
     }
 }
 
+/** 📸 자동 계획 스냅샷 — **없을 때만** 쓴다.
+ *
+ *  왜 서버를 다시 읽는가
+ *    State.plannedData 는 10분 TTL localStorage 캐시다. 캐시만 믿으면 다른 사람·다른 탭이
+ *    방금 찍은 스냅샷이 안 보여서 덮어쓰게 된다. 아침에 사람이 값을 맞춰 확정한 것을
+ *    자동값으로 갈아엎는 것이 최악이므로, 쓰기 직전에 서버에서 한 번 더 확인한다.
+ *
+ *  조용하다 — 토스트를 띄우지 않는다. 메인 화면 렌더 중에 돌기 때문이다.
+ *  실패해도 throw 하지 않고 { ok:false, reason } 을 돌려준다.
+ */
+export async function saveForecastSnapshotIfAbsent(dateStr, snapshot) {
+    if (!State.auth || !State.auth.currentUser) return { ok: false, reason: 'not-signed-in' };
+    if (!dateStr || !snapshot) return { ok: false, reason: 'bad-args' };
+    try {
+        const ref = doc(plannedColRef(), dateStr);
+        // 캐시가 아니라 서버 — 다른 사람/탭이 이미 찍었는지 본다
+        const snap = await getDocFromServer(ref);
+        if (snap.exists() && snap.data()?.forecastSnapshot) {
+            return { ok: false, reason: 'already-exists' };
+        }
+        const payload = {
+            ...snapshot,
+            at: new Date().toISOString(),
+            by: 'auto'
+        };
+        await setDoc(ref, { forecastSnapshot: payload }, { merge: true });
+
+        const idx = (State.plannedData || []).findIndex(d => d.id === dateStr);
+        if (idx > -1) State.plannedData[idx] = { ...State.plannedData[idx], forecastSnapshot: payload };
+        else State.plannedData.push({ id: dateStr, forecastSnapshot: payload });
+        try {
+            localStorage.setItem(PLANNED_CACHE_KEY, JSON.stringify(State.plannedData));
+            localStorage.setItem(PLANNED_CACHE_TIME_KEY, Date.now().toString());
+        } catch (_) {}
+
+        return { ok: true };
+    } catch (e) {
+        // 조용히 넘어간다 — 자동 스냅샷 실패가 화면을 막아서는 안 된다
+        console.warn('saveForecastSnapshotIfAbsent failed:', e);
+        return { ok: false, reason: 'error' };
+    }
+}
+
 /** 계획 확정 취소 — 스냅샷만 지운다(예정 물량은 그대로 둔다).
  *  잘못 확정한 날이 정확도 통계를 계속 오염시키는 것을 막기 위해 지난 날짜도 지울 수 있다.
  *  (기록을 지우는 것은 없던 계획을 만들어 내는 것과 달라 안전하다) */
@@ -209,14 +252,18 @@ export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZe
     });
 
     // 시간형 업무: 넘어온 값이 있으면 그걸로, 없으면 기존 문서 값을 유지
-    const cleanTime = {};
-    const srcTime = timeTasks || getPlannedTimeTasksForDate(dateStr);
-    Object.entries(srcTime || {}).forEach(([k, v]) => {
-        const m = Math.round(Number(v?.minutes));
-        if (!Number.isFinite(m) || m < 0) return;
-        // 인원 0명 = 그날은 하지 않는 업무 — 0도 그대로 저장한다
-        cleanTime[k] = { minutes: m, workers: Math.max(0, Math.round(Number(v?.workers) || 0)) };
-    });
+    const 시간형_정리 = (src) => {
+        const out = {};
+        Object.entries(src || {}).forEach(([k, v]) => {
+            const m = Math.round(Number(v?.minutes));
+            if (!Number.isFinite(m) || m < 0) return;
+            // 인원 0명 = 그날은 하지 않는 업무 — 0도 그대로 저장한다
+            out[k] = { minutes: m, workers: Math.max(0, Math.round(Number(v?.workers) || 0)) };
+        });
+        return out;
+    };
+    // let — 아래에서 서버 값이 더 최신이면 그걸로 바꾼다
+    let cleanTime = 시간형_정리(timeTasks || getPlannedTimeTasksForDate(dateStr));
 
     // 제외시간: 넘기지 않으면(null) 기존 값 유지, -1이면 삭제
     let cleanExclude = getPlannedExcludeMinutesForDate(dateStr);
@@ -233,8 +280,31 @@ export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZe
             updatedBy: State.appState?.currentUser || 'unknown'
         };
         if (cleanExclude != null) payload.plannedExcludeMinutes = cleanExclude;
-        // 문서를 통째로 바꾸므로, 따로 저장해 둔 계획 스냅샷은 그대로 옮겨 싣는다
-        const keepSnapshot = getForecastSnapshotForDate(dateStr);
+        // 문서를 통째로 바꾸므로, 따로 저장해 둔 계획 스냅샷은 그대로 옮겨 싣는다.
+        // ⚠️ 로컬 캐시(10분 TTL)만 보면 안 된다 — 다른 PC·탭이 그 사이 찍은 스냅샷이
+        //    캐시에 없어서 이 저장으로 조용히 사라진다. 자동 스냅샷이 매일 생기므로
+        //    예전(수동 확정일만)보다 사고 확률이 훨씬 높다. 서버에서 한 번 더 읽는다.
+        let keepSnapshot = getForecastSnapshotForDate(dateStr);
+        try {
+            const 서버 = await getDocFromServer(doc(plannedColRef(), dateStr));
+            const d = 서버.exists() ? (서버.data() || {}) : {};
+            if (d.forecastSnapshot) keepSnapshot = d.forecastSnapshot;
+            // 이 저장이 넘기지 않은 항목도 같은 이유로 서버 값이 더 최신일 수 있다.
+            // (A PC 가 시간형 계획을 저장한 직후 B PC 가 물량만 저장하면, B 의 10분 캐시에
+            //  그 시간형이 없어서 문서 교체로 사라진다 — 스냅샷과 완전히 같은 유형의 사고)
+            // 서버 문서를 읽었다면 그게 정본이다 — 키가 **없는 것**도 '비어 있음'으로 본다.
+            // (키가 있을 때만 반영하면, 다른 PC 가 방금 지운 값이 내 10분 캐시에서 되살아난다)
+            if (서버.exists()) {
+                if (timeTasks == null) cleanTime = 시간형_정리(d.plannedTimeTasks);
+                if (excludeMinutes == null) {
+                    const ex = Number(d.plannedExcludeMinutes);
+                    cleanExclude = Number.isFinite(ex) && ex >= 0 ? Math.round(ex) : null;
+                }
+            }
+        } catch (e) {
+            // 서버를 못 읽었으면 캐시값으로 간다(없는 것보다 낫다)
+            console.warn('예정 물량 서버 확인 실패, 캐시값 사용:', e);
+        }
         if (keepSnapshot) payload.forecastSnapshot = keepSnapshot;
         await setDoc(doc(plannedColRef(), dateStr), payload);
 

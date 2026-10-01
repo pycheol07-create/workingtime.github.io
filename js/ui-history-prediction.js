@@ -3,19 +3,21 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610011126';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610011126';
-import * as State from './state.js?v=202610011126';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610011126';
-import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610011126';
+import { predictFutureTrends } from './analysis-logic.js?v=202610011559';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610011559';
+import * as State from './state.js?v=202610011559';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610011559';
+import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610011559';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
-         saveForecastSnapshot, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610011126';
+         saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610011559';
+import { decomposeAccuracy, summarizeAccuracyRows } from './forecast-accuracy.js?v=202610011559';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610011126';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610011126';
-import { taskUph, recentDays } from './task-throughput.js?v=202610011126';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610011559';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610011559';
+import { taskUph, recentDays } from './task-throughput.js?v=202610011559';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -405,6 +407,60 @@ const dayLabel = (dateStr) => {
     const days = ['일', '월', '화', '수', '목', '금', '토'];
     const d = new Date(dateStr + 'T00:00:00');
     return isNaN(d.getTime()) ? dateStr : `${dateStr} (${days[d.getDay()]})`;
+};
+
+/** 🧊 오늘 실적을 비운 기록으로 fn 을 한 번 돌린다 — **자동 계획 스냅샷 전용**.
+ *
+ *  왜 이렇게 하는가
+ *    계획 스냅샷은 '그날 아침의 예상치'여야 한다. 그런데 자동 추정값은 오늘 실적을 여러 경로로
+ *    끌어온다 — autoValueFor 의 1순위 실측, analyzeCadence 의 '하는 날 물량'과 마지막 진행일,
+ *    국내배송 AI 의 오늘 실측 우선, 시간형 업무의 최근 평균, 샘플검수 비율까지.
+ *    실적을 계획으로 얼리면 계획 = 실적이 되어 정확도가 늘 100% 로 나온다(측정이 무의미해진다).
+ *
+ *  왜 함수마다 플래그를 넘기지 않는가
+ *    경로가 8곳이 넘고, 하나만 빠뜨려도 조용히 왜곡된 계획이 **영구 저장**된다(그날이 지나면
+ *    되돌릴 수 없다). 들어오는 자료를 한 곳에서 비우면 모든 경로가 동시에 막힌다.
+ *
+ *  ⚠️ State.allHistoryData 를 잠깐 바꿔치기한다. 이유: analyzeCadence·workDayMap·weekPlanFor 등의
+ *     캐시 키가 historySigValue 이고, 그 값은 인자가 아니라 State.allHistoryData 에서 나온다.
+ *     인자만 바꿔 넘기면 **비운 결과가 평소 서명으로 캐시돼 화면 전체를 오염시킨다.**
+ *     그래서 바꿔치기 + refreshHistorySig() 로 서명까지 함께 바꾼다.
+ *  ⚠️ fn 은 **반드시 동기 함수**여야 한다. await 가 끼면 그 사이 다른 코드가 비워진 기록을 본다.
+ *     (비동기를 넘기면 던진다 — 조용히 틀리는 것보다 낫다)
+ *  ⚠️ fn 안에서 ensureSimTasks()·ensureSimLists() 를 부르지 않는다. 그 함수들이 목록 서명을
+ *     저장하므로, 비워진 기록으로 만든 업무 목록이 그대로 굳는다(오늘만 물량이 있는 신규
+ *     업무가 목록에서 빠진다). 업무 목록은 비우기 **전에** 맞춰 둔다.
+ */
+const 오늘실적_없이 = (fn) => {
+    const arr = State.allHistoryData;
+    if (!Array.isArray(arr)) return fn();
+    const today = getTodayDateString();
+    const 바꾼곳 = [];
+    try {
+        // state.js 의 allHistoryData 는 const 배열(제자리 수정)이라 재할당할 수 없다.
+        // 오늘 항목 하나만 바꿔 끼우고 끝나면 되돌린다 — 길이는 건드리지 않는다.
+        for (let i = 0; i < arr.length; i++) {
+            const d = arr[i];
+            if (!d || d.id !== today) continue;
+            바꾼곳.push([i, d]);
+            arr[i] = {
+                ...d,
+                taskQuantities: {}, workRecords: [],
+                // '0 으로 확정' 표시도 오늘의 실적이다. 남겨 두면 qtyZeroConfirmed 가 true 가 되고,
+                // weekPlanFor 가 오늘을 '이미 끝난 날'로 보아 빈도형 업무가 계획 0 으로 얼려진다
+                // (isQuantityVerified 가 켜져 있으면 전 업무가 한꺼번에 0 이 된다).
+                confirmedZeroTasks: [], isQuantityVerified: false
+            };
+        }
+        refreshHistorySig();
+        const r = fn();
+        // 비동기 fn 이면 finally 가 먼저 돌아 평소 데이터로 계산된다 — 조용히 틀리는 대신 터뜨린다
+        if (r && typeof r.then === 'function') throw new Error('오늘실적_없이: fn 은 동기 함수여야 합니다');
+        return r;
+    } finally {
+        바꾼곳.forEach(([i, d]) => { arr[i] = d; });
+        refreshHistorySig();
+    }
 };
 
 /** 작업별 최근 4주 UPH(개/시) = Σ 처리량 ÷ Σ 그 작업 투입시간.
@@ -1238,6 +1294,10 @@ const todayActualQty = (historyData, dateStr, taskKey) => {
  *    2. 예정 물량(수기 입력)      — 업무 기록 및 관리 > 예정 물량 / 이 화면의 '작업량 저장'
  *    3. 업무별 자동 추정값         — AI 예측 / 입고일정 / 중국제작 연동 / 지난 7회 평균
  *  반환: { value, source }  (source는 배지 표시에 그대로 쓴다)
+ *
+ *  ⚠️ '오늘 실측을 계획으로 쓰지 않아야 하는' 자동 계획 스냅샷은 이 함수에 플래그를 주지 않는다.
+ *     대신 computeAutoInputsForDate 가 **오늘 실적을 비운 기록**을 건넨다(아래 그 함수의 주석).
+ *     그래야 cadence·AI·시간형 통계까지 한 번에 막힌다.
  */
 const autoValueFor = (dateStr, task, historyData) => {
     // 실측이 잡히면 예정 물량을 저장해 뒀더라도 실측이 이긴다
@@ -2253,21 +2313,31 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
 // 업무 예상 — 오늘·내일 자동 요약 예측
 // ───────────────────────────────────────────────────────────
 /** 대상일의 자동 추정 입력값(DOM 미의존). AI 국내배송 + 7일평균 + 입고일정 중국제작 + 휴무 반영 가용인원. */
-const computeAutoInputsForDate = (dateStr, excludeMinutes = 0) => {
-    const data = State.allHistoryData;
+const computeAutoInputsForDate = (dateStr, excludeMinutes = 0, { ignoreActual = false } = {}) => {
     const cfg = State.appConfig;
     // 그 날짜에 저장해 둔 제외시간이 있으면 그 값이 우선
     const savedEx = getPlannedExcludeMinutesForDate(dateStr);
     if (savedEx != null) excludeMinutes = savedEx;
-    // 우선순위: 예정 물량(수기 입력) > 업무별 자동값
-    const tasks = {};
-    SIM_TASKS.forEach(t => { tasks[t.key] = autoQtyFor(dateStr, t, data); });
-    const timeTasks = {};
-    activeTimeTasks().forEach(t => {
-        const v = autoTimeValueFor(dateStr, t, data);
-        timeTasks[t.key] = { minutes: v.minutes, workers: v.workers };
-    });
-    const staffInfo = computeAvailableStaff(dateStr, cfg, State.persistentLeaveSchedule, data);
+
+    // 가용 인원은 **실제 기록**으로 센다 — 오늘 출근·휴무 입력이 반영돼야 맞다.
+    const staffInfo = computeAvailableStaff(dateStr, cfg, State.persistentLeaveSchedule, State.allHistoryData);
+
+    const 물량계산 = (data) => {
+        // 우선순위: 예정 물량(수기 입력) > 업무별 자동값
+        const tasks = {};
+        SIM_TASKS.forEach(t => { tasks[t.key] = autoQtyFor(dateStr, t, data); });
+        const timeTasks = {};
+        activeTimeTasks().forEach(t => {
+            const v = autoTimeValueFor(dateStr, t, data);
+            timeTasks[t.key] = { minutes: v.minutes, workers: v.workers };
+        });
+        return { tasks, timeTasks };
+    };
+
+    const { tasks, timeTasks } = ignoreActual
+        ? 오늘실적_없이(() => 물량계산(State.allHistoryData))
+        : 물량계산(State.allHistoryData);
+
     return { tasks, timeTasks, staffFulltime: staffInfo.available, staffPart: 0, excludeMinutes, staffInfo };
 };
 
@@ -2674,11 +2744,13 @@ const updateSavedInfo = (dateStr) => {
 
     // 📌 확정 여부 — 확정한 날만 마감 후 '정확도'에서 비교된다
     const snap = getForecastSnapshotForDate(dateStr);
+    // 자동으로 얼린 것과 사람이 맞춰 확정한 것을 구분해 보여준다 —
+    // 자동값이 마음에 안 들면 값을 고치고 '다시 확정'을 누르면 된다는 신호가 된다.
     const snapMark = snap
-        ? `<span class="text-indigo-600 dark:text-indigo-300 font-bold" title="${(snap.at || '').slice(0, 16).replace('T', ' ')} 확정 · 마감 후 정확도 화면에서 비교됩니다">📌 계획 확정됨</span>
+        ? `<span class="${snap.auto ? 'text-gray-500 dark:text-gray-400' : 'text-indigo-600 dark:text-indigo-300'} font-bold" title="${(snap.at || '').slice(0, 16).replace('T', ' ')} ${snap.auto ? '자동 저장' : '확정'} · 마감 후 정확도 화면에서 비교됩니다">${snap.auto ? `🤖 자동 계획 저장됨${snap.autoAt ? ` (${snap.autoAt})` : ''}` : '📌 계획 확정됨'}</span>
            <button type="button" id="sim-snapshot-cancel"
                    class="text-[11px] font-bold text-gray-400 dark:text-gray-500 underline underline-offset-2 hover:text-rose-500 transition"
-                   title="이 날짜의 확정 계획을 지웁니다. 작업량 저장값과 계산에는 영향이 없고, 정확도 비교에서만 빠집니다.">확정 취소</button>
+                   title="이 날짜의 얼려 둔 계획을 지웁니다. 작업량 저장값과 계산에는 영향이 없고, 정확도 비교에서만 빠집니다.">${snap.auto ? '지우기' : '확정 취소'}</button>
            <span class="text-gray-300 dark:text-gray-600">|</span> `
         : '';
     // 이미 확정한 날은 버튼 문구를 바꿔, 새로 찍는 게 아니라 덮어쓰는 것임을 알린다
@@ -3345,6 +3417,159 @@ const renderTodayProgress = () => {
       </div>`;
 };
 
+// ───────────────────────────────────────────────────────────
+// 🤖 자동 계획 스냅샷
+//
+//  왜 필요한가
+//    정확도는 '📌 계획 확정'을 누른 날만 비교된다. 그런데 계획이 어긋나는 날은 아침부터
+//    바쁜 날이고, 바쁜 날에는 아무도 버튼을 누르지 않는다. 그래서 남은 표본이 '잘 맞은 날'로
+//    치우친다 — 실측: 2026-09-18~27 열흘이 통째로 비어 있었다.
+//    표본을 늘리는 게 아니라 **고르게** 만드는 것이 목적이다.
+//
+//  왜 readSimInputs 를 쓰지 않는가
+//    그 함수는 계획 화면의 입력칸(DOM)을 읽는다. 게다가 '입력칸이 없는 업무는 건너뛴다' 라서,
+//    DOM 이 없으면 에러도 없이 빈 계획(총 0시간)이 저장된다. 대상일이 내일로 바뀌어 있으면
+//    내일 값이 오늘 스냅샷으로 얼려지기까지 한다. → computeAutoInputsForDate(DOM 미의존)를 쓴다.
+//
+//  왜 ignoreActual 인가
+//    자동값은 '오늘 실측'을 1순위로 쓴다(autoValueFor). 그대로 찍으면 계획 = 실적이 되어
+//    정확도가 늘 100%로 나온다. 측정을 고치려는 작업이 측정을 망치는 셈이라 반드시 끈다.
+// ───────────────────────────────────────────────────────────
+const AUTO_SNAPSHOT_CUTOFF_MIN = 13 * 60;   // 13:00 — 이보다 늦은 첫 접속이면 찍지 않는다
+// 하한도 필요하다. 공용 PC 대시보드를 켠 채 퇴근하면 60초 타이머가 자정을 넘기며 돌아,
+// 그날 휴무자도 예정물량도 전혀 반영되지 않은 값이 '아침 예상치'로 굳어 버린다.
+const AUTO_SNAPSHOT_EARLIEST_MIN = 6 * 60;  // 06:00
+// 입고일정 캐시는 '오늘 갱신분'만 인정한다(isIncomingCacheFreshToday).
+// 어제 캐시로 얼리면 오늘 아침 시트에서 빠진 선적이 그대로 계획에 들어간다.
+let autoSnapInFlight = false;
+let autoSnapDoneDate = null;
+let autoSnapForcedFetchDate = null;   // 예정물량 강제 갱신은 하루 1회
+let autoSnapNextTryAt = 0;            // 재시도 쿨다운(실패한 날 60초마다 서버를 때리지 않게)
+const AUTO_SNAPSHOT_RETRY_MS = 10 * 60 * 1000;
+let 입고경고_날짜 = null;
+
+const 자동스냅_키 = (d) => `forecastAutoSnap:${d}`;
+const 자동스냅_했나 = (d) => {
+    if (autoSnapDoneDate === d) return true;
+    try { return localStorage.getItem(자동스냅_키(d)) === '1'; } catch (_) { return false; }
+};
+const 자동스냅_표시 = (d) => {
+    autoSnapDoneDate = d;
+    try {
+        // 어제까지의 표시는 지운다 — 하루에 하나씩 영원히 쌓이지 않게
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('forecastAutoSnap:') && k !== 자동스냅_키(d)) localStorage.removeItem(k);
+        }
+        localStorage.setItem(자동스냅_키(d), '1');
+    } catch (_) {}
+};
+
+/** 자동 스냅샷용 계획값 — DOM 을 보지 않고, 오늘 실측도 계획으로 쓰지 않는다. */
+const buildAutoForecastSnapshot = (dateStr) => {
+    const inputs = computeAutoInputsForDate(dateStr, 0, { ignoreActual: true });
+
+    // 쓰레기 스냅샷 방지 — 계획이 통째로 비었으면 찍지 않는다(되돌릴 수 없다)
+    const qty합 = Object.values(inputs.tasks || {}).reduce((a, v) => a + (Number(v) || 0), 0);
+    const time합 = Object.values(inputs.timeTasks || {})
+        .reduce((a, v) => a + (Number(v?.minutes) || 0), 0);
+    if (qty합 <= 0 && time합 <= 0) return null;
+
+    const taskUPH = computeTaskUPHs(State.allHistoryData);
+    const r = simulateOneDay(dateStr, inputs, taskUPH, State.appConfig);
+    if (!(r.totalHours > 0)) return null;
+
+    // 그날 기준 UPH도 함께 얼린다 — 수동 확정(buildForecastSnapshot)과 같은 스키마여야
+    // 정확도 화면이 두 종류를 구분 없이 읽을 수 있다.
+    const uph = {};
+    SIM_TASKS.forEach(t => { if (taskUPH[t.key] > 0) uph[t.key] = Number(taskUPH[t.key].toFixed(2)); });
+
+    return {
+        tasks: inputs.tasks, timeTasks: inputs.timeTasks, uph,
+        staffFulltime: inputs.staffFulltime, staffPart: inputs.staffPart,
+        excludeMinutes: inputs.excludeMinutes,
+        availableTotal: r.availableTotal, requiredFTE: r.requiredFTE,
+        totalHours: Number(r.totalHours.toFixed(3)),
+        qtyHours: Number(r.qtyHours.toFixed(3)),
+        timeHours: Number(r.timeHours.toFixed(3)),
+        elapsedHours: Number(r.elapsedHours.toFixed(3)),
+        dailyHours: r.dailyHours,
+        auto: true,
+        autoAt: nowTimeString()
+    };
+};
+
+/** 오늘 계획 스냅샷이 없으면 조용히 하나 찍는다.
+ *  절대 throw 하지 않고, 토스트도 띄우지 않는다(메인 화면 렌더 중에 돈다).
+ *  가드 하나라도 걸리면 **찍지 않는다** — 잘못 얼린 스냅샷은 그날이 지나면 되돌릴 수 없다. */
+const ensureTodayForecastSnapshot = async () => {
+    if (autoSnapInFlight) return;
+    const today = getTodayDateString();
+    if (자동스냅_했나(today)) return;
+    if (Date.now() < autoSnapNextTryAt) return;      // 방금 제대로 시도해 실패했다 — 10분 뒤에 다시
+
+    autoSnapInFlight = true;
+    try {
+        // ① 로그인 — appState.currentUser 는 설정·휴무일정까지 준비됐다는 신호다
+        if (!State.auth?.currentUser || !State.appState?.currentUser) return;
+        // ② 계산 재료 — 없으면 가용인원 0 · UPH 0 이 얼려진다
+        if (!(State.allHistoryData || []).length) return;
+        if (!Object.keys(State.appConfig || {}).length) return;
+        // ③ 주말·공휴일은 비교 대상이 아니다
+        if (isOffDay(today)) { 자동스냅_표시(today); return; }
+        // ④ 시각 — 너무 늦으면 '아침의 예상치'가 아니고, 너무 이르면(자정 등) 아무것도 안 차 있다
+        const 지금분 = hhmmToMin(nowTimeString());
+        if (지금분 >= AUTO_SNAPSHOT_CUTOFF_MIN) { 자동스냅_표시(today); return; }
+        if (지금분 < AUTO_SNAPSHOT_EARLIEST_MIN) return;      // 재시도 — 아침에 다시 걸린다
+        // ⑤ 입고일정 캐시 — 중국제작·샘플검수·상.하차 하차분이 전부 여기서 나온다.
+        //    비었거나 오래된 캐시로 찍으면 입고 300박스가 예정된 날이 0 으로 얼려지고
+        //    되돌릴 수 없다. 표시하지 않고 return 해서 캐시가 채워진 뒤 다시 시도한다.
+        if (!isIncomingCacheFreshToday()) {
+            // 시트 열 이름이 바뀌면 캐시가 영원히 갱신되지 않아, 이 기능이 아무 흔적 없이 멈춘다.
+            // 하루 한 번은 콘솔에 남겨 둔다.
+            if (입고경고_날짜 !== today) {
+                입고경고_날짜 = today;
+                console.warn('[자동 계획] 입고일정 캐시가 오늘 갱신되지 않아 계획을 얼리지 않았습니다.'
+                    + ' 대시보드 입고일정이 정상인지 확인하세요.');
+            }
+            return;
+        }
+        // ⑥ 업무 목록 — 빼면 시간형 업무가 통째로 빠진 스냅샷이 남는다
+        ensureSimLists();
+        // ⑦ 예정 물량 — 그날 **처음 한 번은 서버에서 강제로** 다시 읽는다.
+        //    10분 TTL 캐시를 그대로 쓰면, 다른 PC 가 아침에 넣은 예정 물량을 못 보고
+        //    자동 추정값으로 얼려 버린다. 단 강제 갱신을 매번 하면, 스냅샷이 안 찍히는 날
+        //    (계획이 통째로 0 인 날 등) 60초마다 서버를 때린다 — 그래서 하루 1회로 묶는다.
+        //    길이 0 은 정상이다(아무도 예정물량을 안 넣은 날) — 실패로 보면 정작
+        //    자동 스냅샷이 가장 필요한 날에 기능이 안 켜진다.
+        // 여기서부터가 비용이 드는 구간이다. 이 지점을 넘었다면 '제대로 시도했다'로 보고
+        // 실패해도 10분은 쉰다 — 위의 준비 가드(①~⑤)에 걸려 되돌아가는 것은 쿨다운 대상이 아니다
+        // (초기 로딩 중에는 0·1.5·4초 렌더가 연달아 걸리는데, 그걸 10분씩 미루면 안 된다).
+        autoSnapNextTryAt = Date.now() + AUTO_SNAPSHOT_RETRY_MS;
+        const 강제 = autoSnapForcedFetchDate !== today;
+        autoSnapForcedFetchDate = today;
+        await fetchPlannedData(강제);
+        // ⑧ 수동 확정 보존 (서버 재확인은 저장 함수가 한 번 더 한다)
+        if (getForecastSnapshotForDate(today)) { 자동스냅_표시(today); return; }
+
+        const snapshot = buildAutoForecastSnapshot(today);
+        if (!snapshot) return;
+
+        const res = await saveForecastSnapshotIfAbsent(today, snapshot);
+        // already-exists = 다른 사람·탭이 먼저 찍었다. 성공과 똑같이 '끝난 일'이다.
+        if (res?.ok || res?.reason === 'already-exists') {
+            자동스냅_표시(today);
+            accuracySnapshots = null;      // 정확도 화면을 열 때 다시 읽는다
+        }
+    } catch (e) {
+        console.warn('ensureTodayForecastSnapshot 건너뜀:', e);
+    } finally {
+        autoSnapInFlight = false;
+    }
+};
+
+export { ensureTodayForecastSnapshot };
+
 // ── 화면 전환 (오늘 현황 / 계획 / 정확도) ────────────────────────
 const FORECAST_VIEWS = {
     today:    { sub: '지금까지 쓴 시간을 계획과 맞춰 봅니다' },
@@ -3384,6 +3609,8 @@ const setForecastView = (v) => {
 
     clearInterval(todayTimer); todayTimer = null;
     if (v === 'today') {
+        // 아직 오늘 계획이 얼려져 있지 않으면 조용히 하나 찍는다(렌더를 막지 않는다)
+        void ensureTodayForecastSnapshot();
         renderTodayProgress();
         // 진행 중인 업무는 시간이 계속 흐르므로 1분마다 다시 그린다
         todayTimer = setInterval(() => {
@@ -3454,7 +3681,9 @@ const recentClosedDays = (n) => {
         .sort((a, b) => a.id.localeCompare(b.id));
 };
 
-/** 하루치 계획 대비 실제 */
+/** 하루치 계획 대비 실제.
+ *  시간 쪽 수식은 forecast-accuracy.js(순수·테스트됨)에 있다 — 여기서는 화면에 필요한
+ *  물량 비교·인원·스냅샷 정보만 덧붙인다. 기존 필드(planHours·hourErr…)는 그대로 유지한다. */
 const accuracyRowOf = (day, snap) => {
     const spentMin = (day.workRecords || []).reduce((sum, r) => {
         const d = Number(r?.duration);
@@ -3462,22 +3691,7 @@ const accuracyRowOf = (day, snap) => {
     }, 0);
     const members = new Set((day.workRecords || []).map(r => r?.member).filter(Boolean));
 
-    // 계획이 0이던 업무(기본 0명 업무·그날 안 하기로 본 빈도형 업무·근태성 기록)를 실제로 한
-    // 시간까지 오차에 그대로 섞으면, 늘 '계획보다 많이 했다'로 읽혀 계획을 부풀리는
-    // 잘못된 조치를 부른다. 오늘 현황(computeTodayStatus)과 같은 방식으로 계획 쪽에도 더하고,
-    // 그 양은 따로 돌려줘 이유가 보이게 한다.
-    const plannedKeys = new Set();
-    Object.entries(snap.tasks || {}).forEach(([k, v]) => { if ((Number(v) || 0) > 0) plannedKeys.add(k); });
-    Object.entries(snap.timeTasks || {}).forEach(([k, v]) => { if ((Number(v?.minutes) || 0) > 0) plannedKeys.add(k); });
-    let unplannedMin = 0;
-    (day.workRecords || []).forEach(r => {
-        const d = Number(r?.duration);
-        if (!r?.task || !(Number.isFinite(d) && d > 0)) return;
-        if (!plannedKeys.has(r.task)) unplannedMin += d;
-    });
-
-    const planHours = (Number(snap.totalHours) || 0) + unplannedMin / 60;
-    const actualHours = spentMin / 60;
+    const t = decomposeAccuracy(snap, day);
 
     const qty = {};
     Object.entries(snap.tasks || {}).forEach(([k, v]) => {
@@ -3491,13 +3705,11 @@ const accuracyRowOf = (day, snap) => {
     });
 
     return {
-        date: day.id, planHours, actualHours,
-        hourDiff: actualHours - planHours,
-        hourErr: planHours > 0 ? (actualHours - planHours) / planHours : null,
+        ...t,
+        date: day.id,
         planFTE: Number(snap.requiredFTE) || 0,
         actualMembers: members.size,
-        unplannedHours: unplannedMin / 60,
-        qty, snapAt: snap.at || null, spentMin
+        qty, snapAt: snap.at || null, snapAutoAt: snap.autoAt || null, spentMin
     };
 };
 
@@ -3549,17 +3761,16 @@ const renderAccuracyBody = () => {
                 <p class="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500 max-w-md mx-auto">
                     자동값은 실적이 쌓이면서 매일 바뀝니다. 나중에 다시 계산해도 <b>그날 아침의 예상치</b>는 되살릴 수 없어,
                     오차를 재려면 그 시점의 값을 얼려 두어야 합니다.<br><br>
-                    <b class="text-gray-600 dark:text-gray-300">계획</b> 화면에서 값을 맞춘 뒤
-                    <b class="text-indigo-500">📌 계획 확정</b>을 누르면, 마감 후 이 화면에서 비교할 수 있습니다.
+                    평일에는 그날 앱을 처음 열 때 자동으로 얼려 두므로, 내일부터는 이 화면이 채워집니다.
+                    더 정확히 맞추고 싶으면 <b class="text-gray-600 dark:text-gray-300">계획</b> 화면에서 값을 고친 뒤
+                    <b class="text-indigo-500">📌 계획 확정</b>을 누르세요.
                 </p>
             </section>`;
         return;
     }
 
     // ── 요약 ──────────────────────────────────────────────
-    const hourErrs = rows.map(r => r.hourErr).filter(v => v != null);
-    const avgHourErr = hourErrs.length ? hourErrs.reduce((a, b) => a + b, 0) / hourErrs.length : null;
-    const avgAbsHourErr = hourErrs.length ? hourErrs.reduce((a, b) => a + Math.abs(b), 0) / hourErrs.length : null;
+    const sum = summarizeAccuracyRows(rows);
 
     // ── 업무별 누적 ────────────────────────────────────────
     const agg = new Map();      // 업무 → { plan, actual, days, spentMin }
@@ -3607,15 +3818,27 @@ const renderAccuracyBody = () => {
     host.innerHTML = head(`확정한 계획이 있는 ${rows.length}일을 비교했습니다`) + `
       <div class="space-y-4">
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-            ${stat('비교한 날', `${rows.length}<span class="text-sm font-bold text-gray-400 ml-0.5">일</span>`, `최근 ${accuracyDays}근무일 중`)}
-            ${stat('시간 평균 오차', avgAbsHourErr == null ? '—' : `${Math.round(avgAbsHourErr * 100)}%`,
-                   avgHourErr == null ? '' : (avgHourErr > 0 ? '실제가 계획보다 오래 걸림' : '실제가 계획보다 빨리 끝남'),
-                   errTone(avgAbsHourErr))}
-            ${stat('치우침', pctText(avgHourErr),
-                   '평균적으로 계획 대비 이만큼', errTone(avgHourErr))}
-            ${stat('가장 어긋난 업무', worst ? escapeHtml(worst.label) : '없음',
-                   worst ? `물량 ${pctText(worst.err)}` : '모두 ±20% 안', worst ? errTone(worst.err) : 'text-emerald-600 dark:text-emerald-400')}
+            ${stat('비교한 날', `${rows.length}<span class="text-sm font-bold text-gray-400 ml-0.5">일</span>`,
+                   `최근 ${accuracyDays}근무일 중${sum.autoDays > 0 ? ` · 자동 ${sum.autoDays}일` : ''}`)}
+            ${stat('계획 적중', sum.avgAbsPlanHitErr == null ? '—' : `${Math.round(sum.avgAbsPlanHitErr * 100)}%`,
+                   sum.avgPlanHitErr == null ? '계획한 업무만의 시간 오차'
+                     : `치우침 ${pctText(sum.avgPlanHitErr)}${sum.avgPlanHitErr === 0 ? ''
+                         : ` · ${sum.avgPlanHitErr > 0 ? '계획보다 오래 걸림' : '계획보다 덜 함'}`}`,
+                   errTone(sum.avgAbsPlanHitErr))}
+            ${stat('계획 외 유입', sum.avgUnplannedShare == null ? '—' : `${Math.round(sum.avgUnplannedShare * 100)}%`,
+                   '실제 시간 중 계획에 없던 업무', sum.avgUnplannedShare == null ? '' : errTone(sum.avgUnplannedShare))}
+            ${stat('미착수', sum.missedTaskTotal === 0 ? '없음'
+                     : `${sum.missedTaskTotal}<span class="text-sm font-bold text-gray-400 ml-0.5">건</span>`,
+                   (sum.missedTaskTotal === 0 ? '계획한 업무를 모두 진행'
+                     : `${sum.missedDays}일에 걸쳐 · 계획 ${fmtHM(sum.missedHoursTotal)} 분량`)
+                     + (sum.noBaselineDays > 0 ? ` · 판정 불가 ${sum.noBaselineDays}일` : ''),
+                   sum.missedTaskTotal === 0
+                     ? (sum.noBaselineDays > 0 ? 'text-gray-400 dark:text-gray-500' : 'text-emerald-600 dark:text-emerald-400')
+                     : 'text-rose-600 dark:text-rose-400')}
         </div>
+        ${worst ? `<p class="text-[11px] text-gray-400 dark:text-gray-500 px-1 -mt-1.5">
+            · 물량이 가장 어긋난 업무: <b class="${errTone(worst.err)}">${escapeHtml(worst.label)} ${pctText(worst.err)}</b>
+        </p>` : ''}
 
         <!-- 업무별 누적 -->
         <section class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
@@ -3663,7 +3886,14 @@ const renderAccuracyBody = () => {
                             <th class="py-2 px-3 text-left font-bold">날짜</th>
                             <th class="py-2 px-3 text-right font-bold">계획 시간</th>
                             <th class="py-2 px-3 text-right font-bold">실제 시간</th>
-                            <th class="py-2 px-3 text-right font-bold">오차</th>
+                            <th class="py-2 px-3 text-right font-bold"
+                                title="계획한 업무만 비교한 시간 오차. 계획 외 업무는 빼고 봅니다 — 계획 자체가 맞았는지를 봅니다.">계획 적중</th>
+                            <th class="py-2 px-3 text-right font-bold"
+                                title="그날 실제 투입시간 중 계획에 없던 업무가 차지한 비중">계획 외</th>
+                            <th class="py-2 px-3 text-right font-bold"
+                                title="계획 물량·시간이 있었는데 실적이 0인 업무 수">미착수</th>
+                            <th class="py-2 px-3 text-right font-bold"
+                                title="계획 외 업무를 계획 쪽에 더해 본 종전 지표. 계획 외 업무가 많은 날은 오차가 작게 보입니다.">전체 오차</th>
                             <th class="py-2 px-3 text-right font-bold">계획 인원</th>
                             <th class="py-2 px-3 text-right font-bold">실제 투입</th>
                             <th class="py-2 px-2 w-8"></th>
@@ -3672,10 +3902,17 @@ const renderAccuracyBody = () => {
                     <tbody>
                         ${rows.slice().reverse().map(r => `
                         <tr class="border-t border-gray-100 dark:border-gray-700/60">
-                            <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${dayLabel(r.date)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${fmtHM(r.planHours)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100">${fmtHM(r.actualHours)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums font-bold ${errTone(r.hourErr)}">${pctText(r.hourErr)}</td>
+                            <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${dayLabel(r.date)}${r.auto
+                                ? ` <span class="text-[10px] text-gray-400 dark:text-gray-500" title="아침에 자동으로 얼린 계획${r.snapAutoAt ? ` (${r.snapAutoAt})` : ''}">🤖</span>` : ''}</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${fmtHM(r.planPlannedHours)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100"
+                                title="전체 ${fmtHM(r.actualHours)} = 계획한 업무 ${fmtHM(r.actualPlannedHours)} + 계획 외 ${fmtHM(r.unplannedHours)}${r.untaggedHours > 0 ? ` + 업무명 없는 기록 ${fmtHM(r.untaggedHours)}` : ''}">${fmtHM(r.actualHours)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold ${errTone(r.planHitErr)}"
+                                title="계획 ${fmtHM(r.planPlannedHours)} 대비 계획한 업무에 쓴 ${fmtHM(r.actualPlannedHours)}">${pctText(r.planHitErr)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums ${(r.unplannedShare || 0) > 0.3 ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'}">${r.unplannedShare == null ? '—' : `${Math.round(r.unplannedShare * 100)}%`}</td>
+                            <td class="py-2 px-3 text-right tabular-nums ${r.missed.count > 0 ? 'font-bold text-rose-600 dark:text-rose-400' : 'text-gray-300 dark:text-gray-600'}"${r.missed.count > 0 ? ` title="${escapeHtml(r.missed.keys.join(' · '))}"` : ''}>${r.missed.count > 0 ? `${r.missed.count}건` : '—'}</td>
+                            <td class="py-2 px-3 text-right tabular-nums ${errTone(r.hourErr)} opacity-60"
+                                title="분모 = 계획 ${fmtHM(r.planPlannedHours)} + 계획 외 ${fmtHM(r.unplannedHours)} = ${fmtHM(r.planHours)}">${pctText(r.hourErr)}</td>
                             <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${r.planFTE}명</td>
                             <td class="py-2 px-3 text-right tabular-nums text-gray-600 dark:text-gray-300">${r.actualMembers}명</td>
                             <td class="py-2 px-2 text-center">
@@ -3689,7 +3926,14 @@ const renderAccuracyBody = () => {
         </section>
 
         <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed px-1">
-            · <b>계획</b>은 그날 <b>📌 계획 확정</b>을 누른 시점의 값입니다. 누르지 않은 날은 비교에서 빠집니다.<br>
+            · <b>계획</b>은 그날 아침에 얼려 둔 값입니다. 아무도 <b>📌 계획 확정</b>을 누르지 않아도
+              그날 앱을 처음 열 때 <b>🤖 자동으로</b> 얼립니다(평일 13:00 이전 첫 접속).
+              그보다 늦게 처음 열린 날은 비교에서 빠집니다.<br>
+            · <b>주말·공휴일 특근</b>은 자동으로 얼리지 않습니다(인원·업무 구성이 평일과 달라
+              평일 평균을 흐립니다). 그날도 비교하고 싶으면 <b>📌 계획 확정</b>을 눌러 두세요.<br>
+            · <b>계획 적중</b>이 이 화면의 주된 지표입니다. <b>전체 오차</b>는 계획에 없던 업무까지 계획으로 쳐서
+              계산한 종전 값이라, 계획이 통째로 어긋난 날도 작게 보입니다 — 두 값이 많이 다른 날은
+              <b>계획 외</b>·<b>미착수</b> 칸을 함께 보세요.<br>
             · <b>실제 시간</b>은 그날 업무 기록의 소요시간 합계(인시)입니다.<br>
             · <b>실제 UPH</b>가 기준보다 꾸준히 높거나 낮으면, 기준 UPH(최근 4주 평균)를 다시 볼 때가 된 것입니다.<br>
             · 잘못 확정한 날은 오른쪽 <b>✕</b>로 비교에서 뺄 수 있습니다(업무 기록·실적은 지워지지 않습니다).

@@ -3,10 +3,10 @@
 //   낮에는 아무도 데이터관리 창을 열지 않는다 — 계획 대비 얼마나 왔는지,
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
-import * as State from './state.js?v=202610011126';
-import { formatHM } from './utils.js?v=202610011126';
-import { getTodayProgressSummary } from './ui-history-prediction.js?v=202610011126';
-import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610011126';
+import * as State from './state.js?v=202610011559';
+import { formatHM } from './utils.js?v=202610011559';
+import { getTodayProgressSummary, ensureTodayForecastSnapshot } from './ui-history-prediction.js?v=202610011559';
+import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610011559';
 
 const EL = 'today-progress-strip';
 let timer = null;
@@ -34,6 +34,11 @@ const tones = (diffMin) => {
 const render = () => {
     const el = document.getElementById(EL);
     if (!el) return;
+
+    // 오늘 계획이 아직 얼려져 있지 않으면 조용히 하나 찍는다.
+    // 여기에 두는 이유: 바쁜 날은 아무도 데이터관리 > 업무 예상 탭을 열지 않는다.
+    // 메인 화면이라 아침 첫 접속자가 반드시 지나간다. 내부에 하루 1회 가드가 있다.
+    void ensureTodayForecastSnapshot();
 
     const s = getTodayProgressSummary();
     // 계획도 실적도 없으면(주말·데이터 로딩 전 등) 띠 자체를 숨긴다 — 빈 줄이 자리를 먹지 않도록

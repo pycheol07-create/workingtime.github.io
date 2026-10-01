@@ -1,5 +1,5 @@
 // === js/widget-incoming-schedule.js ===
-import { escapeHtml } from './utils.js?v=202610011126';
+import { escapeHtml } from './utils.js?v=202610011559';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
 // Apps Script Web App에서 JSON을 받아 도착일이 당일 이후인 행을 표시.
 
@@ -332,6 +332,22 @@ function renderItems(items) {
 //  - 대시보드 위젯이 저장해 둔 캐시에서 도착일(YYYY-MM-DD)별 입고 수량 합계를 반환.
 //  - 반환: { 'YYYY-MM-DD': totalQty, ... }  (데이터 없으면 빈 객체)
 // ────────────────────────────────────────
+/** 입고일정 캐시가 **오늘 갱신된 데다 묵지 않았는지**. 자동 계획 스냅샷이 이 판정을 쓴다.
+ *  어제 캐시로 계획을 얼리면 오늘 아침 시트에서 빠진 선적이 그대로 계획에 들어간다.
+ *  날짜만 보면 공용 PC 를 켠 채 둔 경우 00:30 갱신분이 06:00 에도 통과하므로 경과시간도 본다.
+ *  캐시 키를 이 파일 밖으로 내보내지 않기 위해 판정을 여기 둔다 — 키가 바뀌어도 같이 따라간다. */
+const INCOMING_FRESH_MAX_AGE_MS = 3 * 60 * 60 * 1000;   // 갱신 주기가 2시간이라 3시간
+export function isIncomingCacheFreshToday() {
+    try {
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+        if (!cached || !Array.isArray(cached.items)) return false;
+        const at = Number(cached.at);
+        if (!Number.isFinite(at)) return false;
+        if (ymd(new Date(at)) !== ymd(new Date())) return false;
+        return (Date.now() - at) < INCOMING_FRESH_MAX_AGE_MS;
+    } catch (_) { return false; }
+}
+
 export function getIncomingQtyByDateFromCache() {
     const out = {};
     try {
