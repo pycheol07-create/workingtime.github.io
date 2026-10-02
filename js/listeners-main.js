@@ -1,34 +1,34 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202610021350';
-import * as State from './state.js?v=202610021350';
+import * as DOM from './dom-elements.js?v=202610021407';
+import * as State from './state.js?v=202610021407';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202610021350';
-import { updateDailyData } from './app-data.js?v=202610021350';
+import { render } from './app.js?v=202610021407';
+import { updateDailyData } from './app-data.js?v=202610021407';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610021350';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610021350';
+import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610021407';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610021407';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202610021350';
+} from './ui.js?v=202610021407';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202610021350';
-import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords, previewDayClose } from './history-data-manager.js?v=202610021350';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610021350';
-import { openHistoryQuantityModal } from './app-history-logic.js?v=202610021350';
+} from './app-logic.js?v=202610021407';
+import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords, previewDayClose } from './history-data-manager.js?v=202610021407';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610021407';
+import { openHistoryQuantityModal } from './app-history-logic.js?v=202610021407';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Admin Todo 로직 임포트
-import * as AdminTodoLogic from './admin-todo-logic.js?v=202610021350';
+import * as AdminTodoLogic from './admin-todo-logic.js?v=202610021407';
 
 export function setupMainScreenListeners() {
 
@@ -183,6 +183,14 @@ export function setupMainScreenListeners() {
             `· 진행 중 기록 <b>${p.closed}건</b>이 마감됩니다 (합계 ${시간(p.closedMinutes)})`,
             `· 퇴근 미기록 <b>${p.outTimeFixed}명</b>의 퇴근시각이 <b>${t}</b>로 확정됩니다`,
         ];
+        // 기본값이 17:30 이라 '늦게 눌렀을 때 부풀기' 는 막았지만, 반대로 **진짜 늦게까지
+        // 일한 날** 이 조용히 깎인다. 부풀기는 27시간처럼 터무니없는 숫자로 드러나지만
+        // 깎이는 쪽은 '조금 적은' 값이라 아무도 신고하지 않는다. 그래서 알려 준다.
+        const 지금t = getCurrentTime();
+        if (지금t > t) {
+            줄.push(`· <span class="text-amber-700">지금 ${지금t} 인데 <b>${t}</b> 기준으로 마감합니다.`
+                + ' 더 늦게까지 일한 날이면 위 시각을 고쳐 주세요.</span>');
+        }
         if (p.deleted > 0) {
             const 사유 = [];
             if (p.deletedCompleted) 사유.push(`${p.deletedCompleted}건은 이미 종료된 0분 기록`);

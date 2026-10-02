@@ -1,14 +1,14 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610021350';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610021350';
-import { clampOpenRecords } from './lib/record-close.js?v=202610021350';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610021350';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610021350';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610021350';
+import * as State from './state.js?v=202610021407';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610021407';
+import { clampOpenRecords } from './lib/record-close.js?v=202610021407';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610021407';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610021407';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610021407';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
-    query, where, writeBatch, updateDoc, increment, documentId
+    query, where, writeBatch, updateDoc, increment, documentId, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isHistoryCached = false;
@@ -787,9 +787,34 @@ export async function saveDayDataToHistory(shouldReset, endTimeOverride = null, 
     let finalizedDocIds = [];
     // 재마감을 확인창으로 막으려 했다가 되돌렸다. 슬랙 봇이 이 화면을 playwright 로
     // 조작하는데, playwright 는 네이티브 confirm 을 **자동으로 거부**한다 — 봇 마감이
-    // 조용히 '불확실' 로 끝난다. 그래서 묻지 않고, '마감된 날은 어떤 경로로도 이력을
-    // 교체하지 않는다' 를 saveProgress 안에서 코드로 보장한다.
+    // 조용히 '불확실' 로 끝난다. 그래서 **묻지 않고 코드로 막는다**(바로 아래).
     const finalizedRecords = []; // 마감 확정된 기록(이력 저장의 신뢰 원본)
+
+    // 🔒 이미 마감된 날은 **다시 마감하지 않는다.**
+    //
+    //   기록과 근태는 saveProgress 안에서 이미 지켜진다(마감된 날은 교체하지 않고 덧붙이기만,
+    //   근태는 서버 우선). 그런데 **마감 표시 자체**는 그 보호 밖에 있었다 —
+    //   제시간에 마감한 날을 밤에 다시 누르면 `closeEndTime` 이 그 밤 시각으로 덮어써져,
+    //   그날이 '22시에 끝난 날' 로 기록된다. 슬랙 알림과 보고서가 그 값을 읽는다.
+    //
+    //   초기화가 실패해 closedAt 을 못 찍은 날은 여기에 걸리지 않는다
+    //   ('다시 마감해 주세요' 안내를 따라 재시도할 수 있어야 한다 — closedAt 은 초기화
+    //    성공 뒤에만 찍힌다).
+    //
+    //   읽기에 실패하면(unknown) 막지 않는다. 첫 마감을 못 하게 만드는 쪽이 더 위험하고,
+    //   기록 유실은 saveProgress 가 스스로 closedAt 을 다시 읽어 이중으로 막는다.
+    //   (다만 '아무 숫자도 안 움직인다' 는 아니다 — 아래 초기화가 daily_data 의 물량을
+    //    다시 비우므로, 마감 뒤 입력된 물량이 화면에서 사라진다. 이력에는 남는다)
+    const 이미마감 = await isDayClosedOnServer(closeDateStr);
+    if (이미마감 === 'closed') {
+        console.warn(`[마감] ${closeDateStr}: 이미 마감된 날이라 다시 마감하지 않았습니다.`);
+        showToast(`${closeDateStr} 은 이미 마감된 날입니다. 다시 마감하지 않았습니다.`, true);
+        // 'false'(재시도하라) 와 구분한다 — 이건 영구 거부라 호출한 쪽이 창을 닫아야 한다.
+        return 'already-closed';
+    }
+    if (이미마감 === 'unknown') {
+        console.warn(`[마감] ${closeDateStr}: 마감 여부를 확인하지 못한 채 진행합니다.`);
+    }
 
     try {
         const dailyDocRef = getDailyDocRef();
@@ -1013,24 +1038,45 @@ export async function saveDayDataToHistory(shouldReset, endTimeOverride = null, 
         // 저장할 것이 아무것도 없던 날('nothing')에는 표시를 남기지 않는다.
         // 그러면 이력에 closedAt 만 있는 빈 문서가 새로 생겨 이력 목록에 유령 날짜가 낀다.
         if (cleared && saveResult !== 'nothing') {
+            // 🔒 **한 번만 쓴다(write-once).** 이미 closedAt 이 있으면 아무것도 바꾸지 않는다.
+            //
+            //   함수 맨 앞의 재마감 가드만으로는 부족하다. 그건 읽기 한 번이고, 그 뒤
+            //   삭제 확인창이 **사람이 모달을 읽는 내내** 열려 있다. 그 사이 다른 PC·봇이
+            //   마감을 끝내면, 돌아와서 누른 이 쓰기가 closeEndTime 을 그 시각으로 덮는다.
+            //   closedAt 쓰기만 실패한 날(아래 catch)도 같은 경로로 다시 덮인다.
+            //
+            //   merge setDoc 은 후착순이라 '먼저 마감한 쪽' 이 진다. 트랜잭션으로 바꾸면
+            //   읽기-쓰기 사이에 끼어들 틈이 없어져, 그날 처음 찍힌 마감시각이 영구히 남는다.
             try {
-                await setDoc(
-                    doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', closeDateStr),
-                    {
+                const histRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', closeDateStr);
+                const 이미있음 = await runTransaction(State.db, async (tx) => {
+                    const snap = await tx.get(histRef);
+                    if (snap.exists() && snap.data()?.closedAt) return snap.data().closedAt;
+                    tx.set(histRef, {
                         id: closeDateStr,
                         closedAt: new Date().toISOString(),
                         closeEndTime: globalEndTime,
                         closedBy: State.auth?.currentUser?.email || State.auth?.currentUser?.uid || '',
-                        // 확인창이 기본값으로 현재시각을 채우므로 endTimeOverride 는 사실상 항상 들어온다.
+                        // 확인창이 항상 기본값을 채우므로 endTimeOverride 는 사실상 항상 들어온다.
                         // 그걸로 '시각지정/버튼' 을 나누면 늘 '시각지정' 이라 거짓말이 된다.
                         // 기준시각은 closeEndTime 에 그대로 있으니 여기는 경로만 남긴다.
                         closedVia: closedVia,
-                    },
-                    { merge: true }
-                );
+                    }, { merge: true });
+                    return null;
+                });
+                if (이미있음) {
+                    console.warn(`[마감] ${closeDateStr}: 이미 ${이미있음} 에 마감된 날이라`
+                        + ' 마감 시각을 덮어쓰지 않았습니다.');
+                    showToast('이 날은 이미 마감돼 있어 마감 시각을 바꾸지 않았습니다.', true);
+                }
             } catch (e) {
-                // 표시를 못 찍어도 마감 자체는 끝났다. 알림이 한 번 더 올 뿐이다.
+                // ⚠️ 성공으로 보고하지 않는다. closedAt 은 '마감이 끝났다' 의 유일한 신호이고,
+                //    이게 없으면 그날은 영영 '마감 안 된 날' 로 남아 다른 경로가 손댈 수 있다.
+                //    예전엔 warn 만 찍고 녹색 '초기화했습니다' 로 끝나서, 관리자는 끝난 줄 알고
+                //    퇴근하고 밤에 누군가 다시 마감해 그 시각이 박혔다.
                 console.warn('[saveDayDataToHistory] 마감 표시(closedAt) 기록 실패:', e);
+                showToast('마감은 끝났지만 "마감 완료" 표시를 남기지 못했습니다.'
+                    + ' 잠시 뒤 마감을 한 번 더 눌러 표시를 남겨 주세요.', true);
             }
         }
 

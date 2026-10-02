@@ -1,16 +1,16 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610021350';
-import * as State from './state.js?v=202610021350';
-import { isPersistentLeaveType } from './state.js?v=202610021350';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610021350';
-import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202610021350';
-import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202610021350';
-import { saveLeaveSchedule } from './config.js?v=202610021350';
-import { switchHistoryView } from './app-history-logic.js?v=202610021350';
-import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202610021350';
-import { saveStateToFirestore } from './app-data.js?v=202610021350';
+import * as DOM from './dom-elements.js?v=202610021407';
+import * as State from './state.js?v=202610021407';
+import { isPersistentLeaveType } from './state.js?v=202610021407';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610021407';
+import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202610021407';
+import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202610021407';
+import { saveLeaveSchedule } from './config.js?v=202610021407';
+import { switchHistoryView } from './app-history-logic.js?v=202610021407';
+import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202610021407';
+import { saveStateToFirestore } from './app-data.js?v=202610021407';
 
 import {
     doc, deleteDoc, writeBatch, collection, updateDoc, getDoc, getDocs, setDoc, query
@@ -317,7 +317,7 @@ export function setupConfirmationModalListeners() {
                             r.startTime < dailyEntry.startTime
                         );
                         if (stale.length > 0) {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202610021350');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202610021407');
                             const r = await forceEndMemberWork(memberName, dailyEntry.startTime);
                             if (r.ended > 0) {
                                 console.warn(`[외출 복귀 보호막] ${memberName}: 외출 전부터 진행 중이던 ${r.ended}건을 ${dailyEntry.startTime}로 정리`, r.summaries);
@@ -422,7 +422,11 @@ export function setupConfirmationModalListeners() {
                         { danger: true, okText: '삭제하고 마감' }),
                 });
                 // 실패했으면 창을 닫지 않는다 — 다시 시도해야 하는데 끝난 것처럼 보이면 안 된다.
-                if (ok) DOM.endShiftConfirmModal.classList.add('hidden');
+                // 단 '이미 마감된 날' 은 고쳐서 다시 누를 수 있는 실패가 아니라 영구 거부다.
+                // 창을 남기면 토스트가 사라진 뒤 '왜 안 닫히지' 만 남는다.
+                if (ok === true || ok === 'already-closed') {
+                    DOM.endShiftConfirmModal.classList.add('hidden');
+                }
             } finally {
                 btn.disabled = false;
             }
