@@ -68,6 +68,8 @@ export function foldReasonFor({ kind = 'qty', value = 0, source = '', uph = 0,
 
     // ⑤ 자동값이 평소와 크게 다른 날(AI 예측·입고일정 연동이 튀는 경우).
     //    cadence-on·last7 은 value 가 '평소' 그 자체라 구조적으로 튈 수 없어 걸리지 않는다.
+    //    ⚠️ 예외: 'cadence-carry'(연휴 밀림)는 평소값에 배수를 건 값이라 여기 걸린다 —
+    //       의도된 것이고, 배지는 KEEP_SOURCE_BADGE 가 '연휴 밀림'으로 지킨다.
     //    시간형도 autoTimeValueFor 가 1인 평균을 그대로 돌려주므로 판정하지 않는다.
     if (kind === 'qty' && 바뀜이큰가(수(value), 수(base), 수(sample))) return 'outlier';
 

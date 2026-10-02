@@ -3,25 +3,26 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610021709';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610021709';
-import * as State from './state.js?v=202610021709';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610021709';
+import { predictFutureTrends } from './analysis-logic.js?v=202610021732';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610021732';
+import * as State from './state.js?v=202610021732';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610021732';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610021709';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610021732';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610021709';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610021709';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610021732';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610021732';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610021709';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610021709';
-import { taskUph, recentDays } from './task-throughput.js?v=202610021709';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610021732';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610021732';
+import { taskUph, recentDays } from './task-throughput.js?v=202610021732';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610021709';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610021732';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
-         DEFAULT_CARRY } from './lib/backlog-carry.js?v=202610021709';
+         DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
+         excessOffDays } from './lib/backlog-carry.js?v=202610021732';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -897,11 +898,27 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
     // 하는 날 물량 — '최근 5회 평균'. 한 번 크게 한 날은 그 5회 중앙값의 2배로 눌러서 넣는다.
     //   · 중앙값만 쓰면 물량이 오르는 추세를 못 따라가 계획이 꾸준히 12% 적게 잡혔다(실측).
     //   · 평균만 쓰면 하루 튄 날에 끌려간다 → 상한을 씌워 둘을 절충(검증: 편향 -12% → -5%).
-    const lastHits = hitQtys.slice(-CADENCE_QTY_HITS);
-    const capBase = med(lastHits);
-    const dayQty = (lastHits.length >= 3
-        ? Math.round(lastHits.reduce((a, q) => a + Math.min(q, capBase > 0 ? capBase * 2 : q), 0) / lastHits.length)
-        : 0) || med(hitQtys) || avgQty;
+    const 하는날물량 = (qtys) => {
+        const last = qtys.slice(-CADENCE_QTY_HITS);
+        const cap = med(last);
+        return (last.length >= 3
+            ? Math.round(last.reduce((a, q) => a + Math.min(q, cap > 0 ? cap * 2 : q), 0) / last.length)
+            : 0) || med(qtys) || avgQty;
+    };
+    const dayQty = 하는날물량(hitQtys);
+
+    // 🛌 연휴 직후 날을 뺀 '평소 하는 날 물량' — **밀림 보정의 기준값 전용**이다.
+    //    dayQty 는 최근 5회 평균이라, 지난 연휴 직후 폭증한 날이 그 5회 안에 들면 이미 부풀어
+    //    있다. 거기에 또 배수를 곱하면 같은 밀림을 두 번 센다
+    //    (예: 평소 1,200 · 추석 직후 1,800 → dayQty 1,320 → ×1.6 = 2,112 로 +17% 과대).
+    //    배우는 쪽(learnCarryPerOffDay)이 같은 이유로 연휴 날을 빼는 것과 짝을 맞춘다.
+    //    ⚠️ dayQty 자체는 바꾸지 않는다 — weekPlanFor·picked 판정이 그 값을 쓰고 있다.
+    const cleanQtys = days
+        .filter(d => excessOffDays(d.id, isOffDay) === 0)
+        .map(d => Number(d.taskQuantities?.[taskKey]) || 0)
+        .filter(q => q > 0);
+    // 표본이 모자라면 평소값을 못 낸다 → dayQty 를 쓴다(보정이 과해지는 쪽보다 낫다)
+    const dayQtyClean = cleanQtys.length >= 3 ? 하는날물량(cleanQtys) : dayQty;
 
     // 연속성(해저드) — '마지막 진행 후 n 근무일째'에 다시 할 확률.
     // 실측: 채우기는 어제 했으면 75%, 이틀 쉬면 10%, 사흘 쉬면 86% — 며칠 몰아서 하고 쉬는 모양이라
@@ -948,7 +965,7 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
 
     return {
         taskKey, precursor,
-        days, hits, avgQty, dayQty, overallP, byWd, hitDates, hitIdx, hazard, weeklyCount,
+        days, hits, avgQty, dayQty, dayQtyClean, overallP, byWd, hitDates, hitIdx, hazard, weeklyCount,
         lastDate: hitDates[hitDates.length - 1] || null,
         medianGap, regular, sampleDays: days.length
     };
@@ -1110,7 +1127,15 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
     const WD_NAME = ['일', '월', '화', '수', '목', '금', '토'];
     const wd = new Date(dateStr + 'T00:00:00').getDay();
     const w = (!isNaN(wd) && c.byWd[wd]) ? c.byWd[wd] : null;
-    const dayQty = c.dayQty;
+    // 🛌 연휴 밀림 — '그날 얼마나'만 올린다. '몇 번 하느냐'(weekPlanFor 의 배정 횟수)는
+    //    휴일이 끼면 이미 줄어들어 있고, 여기서 또 건드리면 같은 밀림을 두 번 세게 된다.
+    //    ⚠️ 과거 날짜는 소급해 바뀌면 안 되므로 오늘 이후에만.
+    const 밀림 = (dateStr >= getTodayDateString() && backlogTaskSet().has(taskKey))
+        ? backlogInfoFor(historyData, dateStr) : null;
+    const 밀림배수 = (밀림 && 밀림.factor > 1) ? 밀림.factor : 1;
+    // 밀림을 걸 때만 '연휴 직후를 뺀 평소값'을 기준으로 삼는다(이중계산 방지)
+    const 기준물량 = 밀림배수 > 1 ? (c.dayQtyClean || c.dayQty) : c.dayQty;
+    const dayQty = carriedQty(기준물량, 밀림배수);
     const pr = cadenceProbFor(c, dateStr);
     const p = pr.p;
 
@@ -1133,17 +1158,27 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
         `최근 근무일 ${c.sampleDays}일 중 ${c.hits}일 진행` + (c.weeklyCount > 0 ? ` (주 ${c.weeklyCount}회꼴)` : ''),
         (w && w.total >= 3) ? `${WD_NAME[wd]}요일은 ${w.hit}/${w.total}회` : null,
         (c.lastDate && elapsed != null) ? `마지막 진행 ${c.lastDate} (그 뒤 ${elapsed}근무일째)` : null,
-        `하는 날은 ${dayQty.toLocaleString()}개`,
+        `하는 날은 ${기준물량.toLocaleString()}개`,   // 이력에서 배운 값 — 밀림 보정 전
         pr.pre ? PRE_NOTE[pr.pre] : null
     ].filter(Boolean).join(' · ');
     const planNote = plan
         ? `이번 주 ${plan.__quota}회 배정 기준 · ${picked ? '이 날 배정됨' : '이 날은 미배정'}`
         : `진행 확률 ${Math.round(p * 100)}%`;
-    const detail = `${planNote} (이 날 진행 확률 ${Math.round(p * 100)}%)
+    // 밀림이 걸렸으면 **맨 앞에** 쓴다 — 사람이 먼저 볼 것은 '왜 평소보다 큰가'다
+    const 밀림글 = 밀림배수 > 1
+        ? carryReason(밀림, { holidayName: precedingHolidayName(dateStr), dow: wd,
+                             baseValue: 기준물량, finalValue: dayQty })
+          // ⚠️ 비율은 국내배송 실적에서 구한 **팀 공통값**이다. 이 업무 자체로 재면
+          //    '월·화·수 중심' 같은 요일 편성이 밀림으로 오인돼 과대 추정된다(표본도 모자라다).
+          //    화면에 '이 업무를 비교해 구했다'로 읽히면 안 되므로 출처를 밝힌다.
+          + `\n${carrySourceNote(밀림.learned, { fromTask: '국내배송' })}\n`
+        : '';
+    const detail = `${밀림글}${planNote} (이 날 진행 확률 ${Math.round(p * 100)}%)
 ${why}`;
 
     if (picked) {
-        return { value: dayQty, source: 'cadence-on', prob: p, dayValue: dayQty, detail };
+        return { value: dayQty, source: 밀림배수 > 1 ? 'cadence-carry' : 'cadence-on',
+                 prob: p, dayValue: dayQty, detail };
     }
     if (p <= CADENCE_OFF_P) {
         return { value: 0, source: 'cadence-off', prob: p, dayValue: dayQty, detail };
@@ -1257,8 +1292,50 @@ const carryFallback = () => {
     return (Number.isFinite(v) && v >= 0 && v <= 1) ? v : DEFAULT_CARRY;
 };
 
+/** 🎯 밀림 보정을 걸 업무. 설정값 forecastBacklogTasks(업무명 배열)로 바꾼다.
+ *  ⚠️ EVIDENCE_MODES(입고일정 기반) 업무는 설정에 적혀 있어도 뺀다 —
+ *     그 값은 시트의 실제 도착일이라 배수를 곱하면 없는 물건을 만든다. */
+let warnedBacklogShape = false, warnedBacklogDrop = '';
+const backlogTaskSet = () => {
+    const set = resolveBacklogTasks(State.appConfig?.forecastBacklogTasks, {
+        onBadConfig: (v) => {
+            if (warnedBacklogShape) return;
+            warnedBacklogShape = true;
+            console.warn('forecastBacklogTasks 는 업무명 배열이어야 합니다. 기본값을 씁니다:', v);
+        }
+    });
+
+    // 보정하면 안 되는 업무를 걷어낸다. 두 종류이고 이유가 다르다.
+    const 뺀것 = [];
+    SIM_TASKS.forEach(t => {
+        if (!set.has(t.key)) return;
+        if (!EVIDENCE_MODES.has(parseAutoMode(t.auto).mode)) return;
+        set.delete(t.key);
+        뺀것.push(`${t.key}(입고일정 기준 — 곱하면 실제로 오지 않는 물량이 생긴다)`);
+    });
+    // 출고 업무: 다음 근무일 '상.하차'가 전 근무일 출고량을 상차 재료로 쓴다.
+    //   여기를 올리면 그 상차분도 같이 올라 **같은 밀림을 두 번 센다.**
+    loadoutSourceTasks().forEach(k => {
+        if (!set.has(k)) return;
+        set.delete(k);
+        뺀것.push(`${k}(다음날 상.하차 상차분이 같이 올라 두 번 셈)`);
+    });
+
+    const 키 = 뺀것.join('|');
+    if (키 && 키 !== warnedBacklogDrop) {
+        warnedBacklogDrop = 키;
+        console.warn('[연휴 밀림] 다음 업무는 보정 대상에서 뺐습니다 — ' + 뺀것.join(' · '));
+    }
+    return set;
+};
+
 /** 결과를 바꾸는 설정값 — 캐시 키에 함께 넣는다(이력이 안 바뀌어도 설정은 바뀐다) */
-const backlogCfgSig = () => `${State.appConfig?.forecastBacklogEnabled === false ? 'off' : 'on'}#${carryFallback()}`;
+// ⚠️ 업무 목록은 여기 넣지 않는다 — 이 캐시가 담는 값(factor·carry·learned)은 달력과
+//    설정 두 개에만 좌우되고 목록과 무관하다. 넣으면 호출마다 SIM_TASKS 를 훑고,
+//    ensureSimTasks() 가 목록을 갱신할 때마다 캐시가 통째로 버려진다.
+//    목록은 쓰는 쪽(cadenceValueFor·estimatedValueFor)이 매번 직접 확인한다.
+const backlogCfgSig = () => `${State.appConfig?.forecastBacklogEnabled === false ? 'off' : 'on'}`
+    + `#${carryFallback()}`;
 
 let backlogCarryCache = null, backlogCarrySig = '';
 /** 하루당 밀림 비율 — 이력 전체를 훑으므로 이력 서명으로 캐시한다
@@ -1316,8 +1393,8 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
     const bump = (v) => {
         const q = Math.round(Number(v) || 0);
         if (q <= 0) return q;
-        const f = backlogInfoFor(historyData, dateStr).factor;
-        return f > 1 ? Math.round(q * f) : q;
+        if (!backlogTaskSet().has('국내배송')) return q;
+        return carriedQty(q, backlogInfoFor(historyData, dateStr).factor);
     };
 
     // ⚠️ 반드시 일반배송(카페24) 스코프로 예측해야 delivery가 '국내배송' 물량이 된다.
@@ -1615,7 +1692,8 @@ const estimatedValueFor = (dateStr, task, historyData) => {
             const 오늘실측 = dateStr === getTodayDateString()
                 ? (Number((historyData || []).find(d => d.id === dateStr)?.taskQuantities?.['국내배송']) || 0)
                 : 0;
-            const 보정됨 = dateStr >= getTodayDateString() && 오늘실측 <= 0 && info.factor > 1 && value > 0;
+            const 보정됨 = dateStr >= getTodayDateString() && 오늘실측 <= 0 && info.factor > 1
+                        && value > 0 && backlogTaskSet().has('국내배송');
             if (!보정됨) return { value, source: 'ai' };
             const reason = carryReason(info, {
                 holidayName: precedingHolidayName(dateStr),
@@ -1666,6 +1744,11 @@ const SOURCE_BADGE = {
     'cadence-off':   { text: '안 하는 날', muted: true,
                 tip: '이번 주 배정에서 빠졌고 진행 가능성도 낮은 날입니다.'
                    + ' 진행한다면 옆의 [하는 날] 값을 눌러 넣으세요.' },
+    'cadence-carry': { text: '연휴 밀림', muted: true,
+                tip: '쉬는 동안 밀린 몫을 더해 "하는 날" 물량을 올렸습니다.'
+                   + ' 보통 주말만큼(월요일)은 평소 값에 이미 들어 있어서, 그보다 더 쉰 날수만큼만 올립니다.'
+                   + ' 하는 횟수는 늘리지 않습니다 — 그 날 양만 올립니다.'
+                   + ' 너무 많다 싶으면 칸에 직접 숫자를 넣으세요 — 수기 입력이 항상 우선합니다.' },
     'cadence-maybe': { text: '진행 불확실', muted: true,
                 tip: '이번 주 배정에서는 빠졌지만 진행할 수도 있는 날입니다. 기본은 0으로 두고,'
                    + ' 결과 화면에 이 업무를 진행할 때의 시간·인원을 함께 보여줍니다.' },
@@ -1705,7 +1788,7 @@ const paintDayApply = (task, dayValue) => {
 };
 
 /** 접기 사유에 덮이면 안 되는 출처 — 그 자체가 '왜 이 값인지'의 답이다 */
-const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'holiday-off']);
+const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off']);
 
 /** 값의 출처를 항목 아래에 표시 */
 const markSourceBadge = (task, source, detail = '', dayValue = null) => {
@@ -2842,11 +2925,15 @@ window.__forecastForDate = async (dateStr) => {
             //    캐시 객체를 그대로 넘기면 받는 쪽이 손댈 때 캐시가 오염된다(복사해서 낸다).
             backlog: (() => {
                 const b = backlogInfoFor(State.allHistoryData, date);
-                const t = SIM_TASKS.find(x => x.key === '국내배송');
                 // 화면이 쓰는 바로 그 함수로 출처를 다시 묻는다 — 조건을 여기서 또 적으면 어긋난다
-                const src = t ? autoValueFor(date, t, State.allHistoryData).source : null;
+                const 보정출처 = ['ai-carry', 'cadence-carry'];
+                const 걸린업무 = SIM_TASKS
+                    .filter(t => 보정출처.includes(autoValueFor(date, t, State.allHistoryData).source))
+                    .map(t => t.key);
+                // applied = '이 날 보정이 실제로 걸렸나'. 업무가 하나라도 걸리면 true 다
+                // (예전엔 국내배송만 봤다 — appliedTasks 와 어긋나지 않게 맞춘다).
                 return { ...b, learned: b.learned ? { ...b.learned } : null,
-                         applied: src === 'ai-carry' };
+                         applied: 걸린업무.length > 0, appliedTasks: 걸린업무 };
             })(),
             // 알림은 requiredFTE(정수)를 쓴다 — 화면 표시값과 같아야 대조 검증이 된다.
             // rawRequiredFTE(소수)는 근거·되돌리기용으로 같이 준다.

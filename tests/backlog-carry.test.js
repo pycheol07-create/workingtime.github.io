@@ -11,7 +11,8 @@ import {
     offDaysBefore, excessOffDays, learnCarryPerOffDay, backlogFactor,
     carryReason, carrySourceNote, dowOf,
     DEFAULT_CARRY, MAX_BACKLOG_FACTOR, CARRY_MIN, MIN_MONDAY_SAMPLES,
-} from '../js/lib/backlog-carry.js?v=202610021709';
+    DEFAULT_BACKLOG_TASKS, resolveBacklogTasks, carriedQty,
+} from '../js/lib/backlog-carry.js?v=202610021732';
 
 // 실제 달력 대신 '이 날짜들이 공휴일' 이라고 꽂아 둔다 — 공휴일 표가 바뀌어도 테스트는 안 흔들린다.
 const 공휴일 = new Set([
@@ -254,4 +255,74 @@ test('carrySourceNote — 배운 경우와 기본값인 경우를 구분해 쓴�
     assert.match(carrySourceNote(learnCarryPerOffDay(표본(10), isOff)), /월요일 10일 \/ 화~금 40일/);
     assert.match(carrySourceNote(learnCarryPerOffDay(표본(3), isOff)), /기본값/);
     assert.equal(carrySourceNote(null), '');
+});
+
+
+// ── 보정을 걸 업무 목록 ──────────────────────────────────────
+test('resolveBacklogTasks — 설정이 없으면 기본값(국내배송·채우기)', () => {
+    const r = resolveBacklogTasks(undefined);
+    assert.deepEqual([...r].sort(), [...DEFAULT_BACKLOG_TASKS].sort());
+    assert.ok(r.has('국내배송') && r.has('채우기'));
+});
+
+test('resolveBacklogTasks — 공백을 다듬고 빈 값을 버린다', () => {
+    const r = resolveBacklogTasks(['채우기 ', '', null, undefined, '  교환반품']);
+    assert.deepEqual([...r].sort(), ['교환반품', '채우기']);
+});
+
+test('resolveBacklogTasks — 🔒 빈 배열은 "전부 끄기"다 (기본값으로 되돌리지 않는다)', () => {
+    assert.equal(resolveBacklogTasks([]).size, 0);
+});
+
+test('resolveBacklogTasks — 배열이 아니면 기본값 + 경고 한 번', () => {
+    let 경고 = 0;
+    const r = resolveBacklogTasks('채우기', { onBadConfig: () => { 경고++; } });
+    assert.equal(경고, 1);
+    assert.ok(r.has('국내배송'));
+});
+
+// ── 물량에 배수 적용 ─────────────────────────────────────────
+test('carriedQty — 배수가 1 이하면 값을 바꾸지 않는다', () => {
+    assert.equal(carriedQty(1000, 1), 1000);
+    assert.equal(carriedQty(1000, 0.5), 1000);
+    assert.equal(carriedQty(1000, NaN), 1000);
+});
+
+test('carriedQty — 🔒 0 이하에는 배수를 곱하지 않는다 (안 하는 날에 물량을 만들지 않는다)', () => {
+    assert.equal(carriedQty(0, 1.6), 0);
+    assert.equal(carriedQty(-5, 1.6), -5);
+});
+
+test('carriedQty — 올리고 반올림한다', () => {
+    assert.equal(carriedQty(1000, 1.6), 1600);
+    assert.equal(carriedQty(333, 1.3), 433);
+});
+
+test('carriedQty — backlogFactor 와 묶으면 최대 2배를 못 넘는다', () => {
+    const f = backlogFactor('2026-02-19', isOff, 0.6).factor;   // 상한에 걸린다
+    assert.equal(f, MAX_BACKLOG_FACTOR);
+    assert.equal(carriedQty(1000, f), 2000);
+});
+
+test('carriedQty — 🔒 평범한 월요일에는 값이 그대로다', () => {
+    const f = backlogFactor('2026-10-19', isOff, 0.3).factor;
+    assert.equal(f, 1);
+    assert.equal(carriedQty(1000, f), 1000);
+});
+
+
+test('carrySourceNote — 🔒 다른 업무에서 빌린 비율이면 그 사실을 숨기지 않는다', () => {
+    // 채우기 행에 "채우기를 비교해 구했다"로 읽히면 거짓말이 된다.
+    const learned = learnCarryPerOffDay(표본(10), isOff);
+    const 자기값 = carrySourceNote(learned);
+    const 빌린값 = carrySourceNote(learned, { fromTask: '국내배송' });
+    assert.doesNotMatch(자기값, /국내배송/);
+    assert.match(빌린값, /국내배송/);
+    assert.match(빌린값, /표본이 모자라/);
+});
+
+test('carrySourceNote — 기본값·보정꺼짐 문구에도 출처가 붙는다', () => {
+    assert.match(carrySourceNote(learnCarryPerOffDay(표본(3), isOff), { fromTask: '국내배송' }), /국내배송/);
+    assert.match(carrySourceNote(learnCarryPerOffDay(표본(10, { mon: 1000, mid: 1000 }), isOff),
+                                 { fromTask: '국내배송' }), /국내배송/);
 });

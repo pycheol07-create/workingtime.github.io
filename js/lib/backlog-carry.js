@@ -145,6 +145,38 @@ export function backlogFactor(dateStr, isOff, carry, { max = MAX_BACKLOG_FACTOR,
     return { factor: Math.min(max, 1 + c * excess), excess, gap, carry: c };
 }
 
+/** 🎯 밀림 보정을 걸 업무 — 기본값.
+ *  - 국내배송: 쉬는 동안 주문이 쌓인다(원래 대상).
+ *  - 채우기  : 빈도형이라 '언제/몇 번'은 휴일을 알지만 '그날 얼마나'는 아무도 안 올렸다.
+ *  기본값에서 뺀 것과 이유:
+ *  - 교환반품 : 밀릴 개연성은 있으나 측정된 근거가 없다. 설정에 적으면 켜진다.
+ *  - 직진배송·에이블리배송 : 다음날 '상.하차'가 전 근무일 출고량을 재료로 쓴다.
+ *                            여기를 올리면 같은 밀림이 두 번 센다(전파 검증이 먼저다).
+ *  - 중국제작·샘플검수·상.하차 : 입고일정 시트의 실제 도착일이 근거다. 곱하면 거짓이 된다.
+ */
+export const DEFAULT_BACKLOG_TASKS = ['국내배송', '채우기'];
+
+/** 설정값(업무명 배열)을 Set 으로. 배열이 아니면 기본값으로 물러난다.
+ *  ⚠️ 빈 배열 []는 '전부 끄기'다 — 기본값으로 되돌리지 않는다. */
+export function resolveBacklogTasks(cfgList, { fallback = DEFAULT_BACKLOG_TASKS, onBadConfig = null } = {}) {
+    let list = fallback;
+    if (cfgList != null) {
+        if (Array.isArray(cfgList)) list = cfgList;
+        else if (typeof onBadConfig === 'function') onBadConfig(cfgList);
+    }
+    return new Set((list || []).map(k => String(k == null ? '' : k).trim()).filter(Boolean));
+}
+
+/** 물량에 밀림 배수를 적용한다. 규칙을 한 곳에 둔다(경로마다 반올림이 달라지지 않게).
+ *  0 이하는 그대로 — '안 하는 날'에 배수를 곱해 물량을 만들어내지 않는다. */
+export function carriedQty(qty, factor) {
+    const q = Number(qty);
+    const f = Number(factor);
+    if (!Number.isFinite(q) || q <= 0) return qty;
+    if (!Number.isFinite(f) || !(f > 1)) return Math.round(q);
+    return Math.round(q * f);
+}
+
 /** 🗣 물류팀이 읽을 근거 한 줄. 보정이 없으면 빈 문자열. */
 export function carryReason(info, { holidayName = '', dow = null, baseValue = null, finalValue = null } = {}) {
     if (!info || !(info.factor > 1)) return '';
@@ -164,14 +196,19 @@ export function carryReason(info, { holidayName = '', dow = null, baseValue = nu
     return `${head} · ${cmp}, 쉬는 날 하루당 ${pct}%씩 더해 ${amount}`;
 }
 
-/** 배운 값인지 기본값인지 한 줄로 덧붙인다 */
-export function carrySourceNote(learned) {
+/** 배운 값인지 기본값인지 한 줄로 덧붙인다.
+ *  @param {string} fromTask  비율을 **다른 업무 실적**에서 가져왔을 때 그 업무명.
+ *    빈도형 업무는 자기 실적으로 재면 요일 편성(월·화·수 중심 등)이 밀림으로 오인되고
+ *    표본도 모자라, 팀 공통 비율을 빌려 쓴다. 그 사실을 화면에 숨기지 않는다. */
+export function carrySourceNote(learned, { fromTask = '' } = {}) {
     if (!learned) return '';
+    const 출처 = fromTask ? `${fromTask} ` : '';
     if (learned.source === 'no-signal') {
-        return `최근 실적에서는 월요일(${learned.monDays}일)이 화~금(${learned.midDays}일)보다 크지 않아,`
+        return `${출처}최근 실적에서는 월요일(${learned.monDays}일)이 화~금(${learned.midDays}일)보다 크지 않아,`
              + ' 쉬었다 나온 날 밀리는 경향이 보이지 않습니다 — 보정하지 않습니다';
     }
+    const 빌림 = fromTask ? ` (이 업무만으로는 비교할 표본이 모자라 ${fromTask} 기준을 함께 씁니다)` : '';
     return learned.source === 'learned'
-        ? `${Math.round(learned.carry * 100)}%는 최근 실적의 월요일 ${learned.monDays}일 / 화~금 ${learned.midDays}일을 비교해 구한 값입니다`
-        : `비교할 월요일 실적이 모자라 기본값(쉬는 날 하루당 ${Math.round(learned.carry * 100)}%)을 썼습니다`;
+        ? `${Math.round(learned.carry * 100)}%는 ${출처}최근 실적의 월요일 ${learned.monDays}일 / 화~금 ${learned.midDays}일을 비교해 구한 값입니다${빌림}`
+        : `비교할 ${출처}월요일 실적이 모자라 기본값(쉬는 날 하루당 ${Math.round(learned.carry * 100)}%)을 썼습니다`;
 }
