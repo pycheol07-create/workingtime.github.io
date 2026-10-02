@@ -3,21 +3,23 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610020913';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610020913';
-import * as State from './state.js?v=202610020913';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610020913';
+import { predictFutureTrends } from './analysis-logic.js?v=202610021021';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610021021';
+import * as State from './state.js?v=202610021021';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610021021';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610020913';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610021021';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610020913';
-import { decomposeAccuracy, summarizeAccuracyRows } from './forecast-accuracy.js?v=202610020913';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610021021';
+import { decomposeAccuracy, summarizeAccuracyRows } from './forecast-accuracy.js?v=202610021021';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610020913';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610020913';
-import { taskUph, recentDays } from './task-throughput.js?v=202610020913';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610021021';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610021021';
+import { taskUph, recentDays } from './task-throughput.js?v=202610021021';
+import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610021021';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1582,15 +1584,16 @@ ${detail}` : b.tip;
  *  (카드 10여 개가 격자로 흩어져 있으면 어느 업무가 얼마인지 훑기 어렵다)
  *  줄 구성:  업무명 ........ [입력] 개 · 값 출처
  */
+/** @returns {boolean} 실제로 입력칸을 다시 그렸는가(= DOM 의 값이 날아갔는가) */
 const renderSimTaskInputs = () => {
     const host = document.getElementById('sim-task-list');
-    if (!host) return;
+    if (!host) return false;
     const sig = timeTaskSig(SIM_TIME_TASKS);
     const qtySig = SIM_TASKS.map(t => t.id).join('|');
     // 이미 지금 목록대로 그려져 있으면 옛 세대가 아니다
     if (host.dataset.built === 'true' && host.dataset.timeSig === sig && host.dataset.qtySig === qtySig) {
         simInputsStale = false;
-        return;
+        return false;
     }
     host.dataset.built = 'true';
     host.dataset.timeSig = sig;
@@ -1610,6 +1613,7 @@ const renderSimTaskInputs = () => {
             <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)}">${escapeHtml(t.label)}</span>
             <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric" class="${NUM}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">개</span>
+            <span id="sim-why-${t.id}" class="hidden shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 whitespace-nowrap"></span>
             <span id="sim-src-${t.id}" class="w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
             <button type="button" id="sim-day-${t.id}" data-task-id="${t.id}" tabindex="-1"
                     class="pred-day-apply w-[58px] shrink-0 text-center text-[11px] leading-tight tabular-nums invisible"></button>
@@ -1625,6 +1629,7 @@ const renderSimTaskInputs = () => {
                               text-[12px] font-bold text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-0">명</label>
             <input id="sim-time-${t.id}" type="number" min="0" step="10" placeholder="0" inputmode="numeric" class="${NUM}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">분</span>
+            <span id="sim-why-t-${t.id}" class="hidden shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 whitespace-nowrap"></span>
             <span id="sim-src-t-${t.id}" class="w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 4주 평균</span>
         </div>`;
 
@@ -1659,6 +1664,7 @@ const renderSimTaskInputs = () => {
     // 데스크톱에서는 2열로 세워 세로 길이를 줄인다(항목이 많아 한 줄씩이면 화면을 넘긴다)
     host.className = 'grid grid-cols-1 lg:grid-cols-2 gap-3 items-start';
     host.innerHTML = qtyBlocks + timeBlock;
+    return true;
 };
 
 // 🧮 담당 업무의 '1인 기준 시간(분)'. 인원을 바꾸면 이 값 × 인원으로 총 투입시간을 다시 잡는다.
@@ -1667,6 +1673,9 @@ const timeTaskUnit = new Map();   // 업무명 → 1인 시간(분). id 는 목�
 const setTimeUnit = (t, minutes, workers) => {
     const w = Math.max(0, Math.round(Number(workers) || 0));
     if (w <= 0) return;              // 0명일 때는 1인 기준을 덮지 않는다(그대로 보존)
+    // 분을 비웠을 때도 기준을 덮지 않는다. 덮으면 기준이 0 이 되어, 그 뒤 인원을 올려도
+    // 분이 0 으로 남고 '기준 없음' 안내까지 떠서 사용자가 영문을 모른 채 막힌다.
+    if (!(Number(minutes) > 0)) return;
     timeTaskUnit.set(t.key, Math.max(0, Math.round((Number(minutes) || 0) / w)));
 };
 
@@ -1709,28 +1718,88 @@ const isEmptyRowValue = (el) => {
     return v === '' || Number(v) === 0;
 };
 
+// ───────────────────────────────────────────────────────────
+// 작업량 입력의 상태 — 접기 판정과 저장 범위를 가른다
+// ───────────────────────────────────────────────────────────
+/** 행별 접기 판정 재료. 키는 수량형=업무명, 시간형='t:'+업무명.
+ *  autoFillSimInputs 가 화면을 채울 때 같이 채운다 — 그래야 화면에 실제로 들어간 값과 같다. */
+const simRowMeta = new Map();
+
+/** ✍️ 사람이 직접 고친 물량 칸(업무명).
+ *
+ *  저장이 '손댄 칸만' 으로 바뀐 뒤로 이 집합이 **유일한 판단축**이다. 오염되면
+ *  사용자가 넣지 않은 값이 수기값으로 굳고, 비면 사용자 입력이 저장되지 않는다.
+ *  채우는 곳은 입력 이벤트 2곳뿐이고, 비우는 곳은 autoFillSimInputs(화면을 덮는 모든 경로)·
+ *  저장 완료·자동값·날짜 변경·전체 초기화다.
+ *
+ *  원래 목적은 '사람이 일부러 넣은 0' 과 '자동 추정이 넣은 0' 의 구분이었다 —
+ *  자동으로 들어간 0 을 저장하면 그 0 이 다음부터 자동 추정을 이겨 그 날은 영구히 0 이 된다
+ *  (실제로 교환반품이 9/15·16·17·22·28 에 0 으로 굳어 있었다). */
+let simDirtyQty = new Set();
+/** 시간형(분·인원)도 따로 센다 — 예전에는 수량형만 추적했다. */
+let simDirtyTime = new Set();
+
+/** 코드가 값을 다시 계산해 넣었을 때 접기 판정 재료도 같이 고친다.
+ *  안 고치면 접힘 버튼 title 이 화면에 없는 옛 숫자를 보여 주고, outlier 판정도 옛 값으로 내려진다. */
+const 덮어쓴meta = (metaKey, value, source) => {
+    const m = simRowMeta.get(metaKey);
+    if (!m) return;
+    simRowMeta.set(metaKey, { ...m, value: Number(value) || 0, source: source ?? m.source });
+};
+
 const applyEmptyRowFolding = () => {
     const host = document.getElementById('sim-task-list');
     const wrap = document.getElementById('sim-empty-wrap');
     if (!host) return;
 
+    // ⚠️ 숨기는 방법은 절대 바꾸지 않는다 — class 토글이라 DOM 에 그대로 남는다.
+    //    행을 지우면 readSimInputs 가 '입력칸이 없는 업무는 건너뛴다' 로 되어 있어
+    //    📌 계획 확정이 빈 계획을 찍고, 그 업무가 전부 '계획 외' 로 집계돼 정확도가 망가진다.
     let hidden = 0;
-    const markRow = (rowId, empty) => {
+    const 접힌것 = [];
+    const markRow = (rowId, fold, label, value) => {
         const row = document.getElementById(`sim-row-${rowId}`);
         if (!row) return;
-        const hide = empty && !showEmptySimRows;
+        const hide = fold && !showEmptySimRows;
         row.classList.toggle('hidden', hide);
-        if (hide) hidden++;
+        if (hide) {
+            hidden++;
+            // 시간형은 분이다 — 단위 없이 수량과 나란히 쓰면 개수로 읽힌다
+            const 단위 = String(rowId).startsWith('t-') ? '분' : '';
+            접힌것.push(`${label} ${value > 0 ? value.toLocaleString() : 0}${단위}`);
+        }
     };
 
-    SIM_TASKS.forEach(t => markRow(t.id, isEmptyRowValue(document.getElementById(`sim-qty-${t.id}`))));
-    const zeroKeys = simZeroTasks();
+    const 사유표시 = (id, reason) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        // 왜 펼쳐져 있는지 한 단어로 알려 준다(배지 옆, 조용한 글씨)
+        el.textContent = reason && reason !== 'saved' ? (FOLD_REASON_TEXT[reason] || '') : '';
+        el.classList.toggle('hidden', !el.textContent);
+    };
+
+    SIM_TASKS.forEach(t => {
+        const meta = simRowMeta.get(t.key);
+        const el = document.getElementById(`sim-qty-${t.id}`);
+        // meta 가 아직 없으면(첫 렌더 등) 예전 기준으로 폴백한다
+        // 폴백에서도 '손댄 칸은 접지 않는다' 는 규칙이 먼저다.
+        // (preserveDirty 로 meta 를 못 채운 칸이 여기로 온다 — 방금 넣은 0 이 사라지면 안 된다)
+        const reason = simDirtyQty.has(t.key) ? 'edited'
+            : (meta ? foldReasonFor({ ...meta, dirty: false })
+                    : (isEmptyRowValue(el) ? null : 'edited'));
+        사유표시(`sim-why-${t.id}`, reason);
+        markRow(t.id, reason === null, t.label, meta ? meta.value : (Number(el?.value) || 0));
+    });
     SIM_TIME_TASKS.forEach(t => {
-        // 담당 업무는 '시간 0' 또는 '인원 0' 이면 그날 하지 않는 업무다
+        const meta = simRowMeta.get('t:' + t.key);
         const noTime = isEmptyRowValue(document.getElementById(`sim-time-${t.id}`));
         const noOne  = (Number(document.getElementById(`sim-workers-${t.id}`)?.value) || 0) <= 0;
-        // 기본 0명 업무는 늘 0이라 접으면 화면에서 아예 사라진다 — 인원을 올릴 수 없게 된다.
-        markRow(`t-${t.id}`, !zeroKeys.has(t.key) && (noTime || noOne));
+        const reason = simDirtyTime.has(t.key) ? 'edited'
+            : (meta ? foldReasonFor({ ...meta, dirty: false })
+                    : (simZeroTasks().has(t.key) ? 'zero-default'
+                       : (!(noTime || noOne) ? 'edited' : null)));
+        사유표시(`sim-why-t-${t.id}`, reason);
+        markRow(`t-${t.id}`, reason === null, t.label, meta ? meta.value : 0);
     });
 
     // 구획 안이 전부 숨겨졌으면 구획째로 숨긴다(빈 제목만 남지 않도록)
@@ -1743,40 +1812,79 @@ const applyEmptyRowFolding = () => {
 
     if (!wrap) return;
     if (hidden === 0 && !showEmptySimRows) { wrap.innerHTML = ''; return; }
+    // 접힌 업무의 이름·값을 title 에 전부 담는다 — 숫자가 사라진 게 아님을 확인할 수 있게.
+    const 목록 = 접힌것.join(' · ');
     wrap.innerHTML = `
         <button type="button" id="sim-empty-toggle"
+                title="${escapeHtml(목록 || '')}"
                 class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg
                        text-gray-500 dark:text-gray-400 bg-gray-100/70 dark:bg-gray-700/50
                        hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-            ${showEmptySimRows ? '▴ 값 없는 업무 접기' : `▾ 오늘 없는 업무 ${hidden}개 보기`}
+            ${showEmptySimRows ? '▴ 자동값 그대로인 업무 접기' : `▾ 자동값 그대로 ${hidden}개 보기`}
         </button>`;
 };
 
 // ───────────────────────────────────────────────────────────
 // 시뮬레이션 UI 핸들러
 // ───────────────────────────────────────────────────────────
-const autoFillSimInputs = (dateStr) => {
+/** 화면을 자동값·저장값으로 채운다.
+ *  @param {boolean} opts.preserveDirty 사람이 고친 칸은 건드리지 않는다(늦게 도착한 데이터용). */
+const autoFillSimInputs = (dateStr, opts = {}) => {
     if (!dateStr) return;
+    let preserveDirty = !!opts.preserveDirty;
+    // 펼침은 '보기 상태' 라 함부로 되돌리지 않는다 — 새로고침·탭 전환마다 접히면
+    // 사용자가 방금 펼친 것이 사라진다. 다른 날짜로 넘어갈 때와 자동값으로 되돌릴 때만 끈다
+    // (전체 초기화가 켜 둔 펼침이 세션 내내 남는 것도 그 두 경로에서 정리된다).
+    if (opts.resetFoldView) showEmptySimRows = false;
     const data = State.allHistoryData;
     const config = State.appConfig;
 
     // 업무 이력·설정이 늦게 도착하면 업무 목록도 그때 정해진다 — 바뀌었으면 입력칸을 다시 그린다
     // (시간형은 수량형 키를 빼고 뽑으므로 항상 수량형이 먼저다)
-    if (ensureSimLists(true)) renderSimTaskInputs();
+    // ⚠️ 다시 그리면 innerHTML 교체로 **타이핑한 값이 이미 사라진다.** 그 상태에서
+    //    preserveDirty 로 그 칸을 건너뛰면 빈 칸 + dirty 가 남아 저장 때 0 으로 굳는다.
+    //    지킬 값이 없으므로 그때는 전체를 다시 채운다.
+    // ⚠️ '목록이 바뀌었다' 가 아니라 '실제로 다시 그렸다' 로 판정한다.
+    //    업무 id 는 그대로인데 auto 모드만 바뀌면 ensureSimLists 는 true 지만 DOM 은 그대로다.
+    //    그때까지 preserveDirty 를 끄면, 멀쩡히 살아 있는 사용자의 입력을 자동값으로 덮는다.
+    if (ensureSimLists(true) && renderSimTaskInputs()) preserveDirty = false;
+
+    // 접기 판정에 쓸 재료를 같이 모은다. 여기서 모아야 화면에 실제로 들어간 값과 같다
+    //  — 나중에 따로 계산하면 화면 숫자와 판정이 어긋난다.
+    simRowMeta.clear();
+    const uphMap = computeTaskUPHs(data);      // 루프 밖에서 1회
 
     // 모든 업무가 기본 등록 — 예정 물량이 있으면 그 값, 없으면 업무별 자동값
     SIM_TASKS.forEach(t => {
+        if (preserveDirty && simDirtyQty.has(t.key)) return;   // 사람이 고친 칸은 그대로 둔다
         const { value, source, detail, dayValue } = autoValueFor(dateStr, t, data);
         setQty(t.id, value);
         markSourceBadge(t, source, detail, dayValue);
+        simRowMeta.set(t.key, {
+            kind: 'qty',
+            value: Number(value) || 0,
+            source,
+            uph: uphMap[t.key] || 0,
+            // '평소' 는 배지 '지난 7회 평균' 과 같은 숫자를 쓴다(화면과 어긋나지 않게)
+            base: computeLast7Avg(data, t.key),
+            sample: analyzeCadence(data, t.key)?.hits || 0
+        });
     });
 
     // 시간으로 잡는 업무(개인담당업무 등) — 저장값 › 실적 평균
+    const zeroKeysForFold = simZeroTasks();
     SIM_TIME_TASKS.forEach(t => {
+        if (preserveDirty && simDirtyTime.has(t.key)) return;
         const v = autoTimeValueFor(dateStr, t, data);
         setTimeInputs(t, v);
         timeTaskUnit.set(t.key, Math.max(0, Math.round(Number(v.unitMinutes ?? v.minutes) || 0)));
         markTimeSourceBadge(t, v.source, v.detail);
+        simRowMeta.set('t:' + t.key, {
+            kind: 'time',
+            value: Number(v.minutes) || 0,
+            source: v.source,
+            zeroDefault: zeroKeysForFold.has(t.key)
+        });
     });
 
     // 가용 인원
@@ -1793,6 +1901,14 @@ const autoFillSimInputs = (dateStr) => {
 
     renderLeaveInfo(staffInfo);
     paintStaffTotal();
+    // 🔑 이 함수는 '화면을 자동값·저장값으로 덮는다' 는 뜻이다. 그러니 여기서 '손댐' 기록을
+    //    비운다. 안 비우면 가장 위험한 경로가 열린다 — fetchPlannedData().then 이 사용자가
+    //    타이핑한 직후 늦게 도착해 화면을 덮는데 dirty 는 남아, 저장을 누르면 **사용자가
+    //    넣지 않은 값이 '수기값' 으로 저장된다.** 새로고침 버튼·탭 진입·설정 저장 후
+    //    재채움까지 네 경로가 여기서 한 번에 막힌다.
+    //    ⚠️ 그래서 이 함수 안에서는 setQty/setTimeInputs 같은 '코드가 값을 넣는' 경로만
+    //       써야 한다(그 함수들은 input 이벤트를 발생시키지 않아 dirty 를 오염시키지 않는다).
+    if (!preserveDirty) { simDirtyQty = new Set(); simDirtyTime = new Set(); }
     applyEmptyRowFolding();
 };
 
@@ -2651,10 +2767,6 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
 /** 🔗 상세 시뮬레이션에서 지금 입력해 둔 값. 대상일이 오늘/내일이면 위 요약 카드도 이 값으로 계산한다.
  *  (상세에서 숫자를 바꿨는데 상단 카드가 자동값 그대로면 두 숫자가 어긋나 보인다) */
 let simOverride = null;   // { date, tasks, staffFulltime, staffPart, excludeMinutes }
-// ✍️ 사람이 직접 고친 물량 칸(업무명). 자동값 그대로인 칸과 구분해 저장할 때 쓴다.
-//    자동으로 0 이 들어간 칸까지 저장해 버리면, 그 0 이 다음부터 자동 추정을 이겨
-//    그 날은 영구히 0 이 된다(실제로 교환반품이 9/15·16·17·22·28 에 0 으로 굳어 있었다).
-let simDirtyQty = new Set();
 
 const captureSimOverride = () => {
     const dateStr = document.getElementById('sim-target-date')?.value;
@@ -2781,44 +2893,86 @@ const saveSimQuantities = async () => {
     // 실측으로 채워진 값도 그대로 저장한다 — 실측이 예정 물량보다 우선이라,
     // 나중에 실적이 더 쌓이면 그 값이 자동으로 앞선다(저장값에 갇히지 않는다).
     SIM_TASKS.forEach(t => {
-        // 입력칸이 없어 읽지 못한 업무는 건드리지 않는다.
-        // 0 으로 써 버리면 예정 물량 화면에 넣어 둔 값이 조용히 사라지고, 0 이 자동값을 이겨 굳는다.
-        if (!Object.prototype.hasOwnProperty.call(tasks, t.key)) return;
-        const v = Math.max(0, Math.round(Number(tasks[t.key]) || 0));
-        // 사람이 손대지 않은 칸의 0 은 저장하지 않는다 — 자동 추정이 넣은 0 이기 때문이다.
-        // 그걸 저장하면 다음부터 그 0 이 자동 추정을 이겨 그 날은 영구히 0 이 된다.
-        // (사람이 직접 0 을 넣었으면 simDirtyQty 에 있으므로 그대로 저장된다)
-        if (v === 0 && !simDirtyQty.has(t.key)
-            && getPlanned(dateStr, t.key) == null) return;
-        merged[t.key] = v;
+        // 🔑 사람이 손댄 칸만 저장한다 (shouldSaveQty).
+        //   예전에는 화면의 모든 칸을 저장했다. 그래서 한 칸 고치고 누르면 자동값까지
+        //   28개가 '예정물량'(우선순위 2위)으로 굳어, 🔄 자동값을 누르기 전까지 자동 추정
+        //   (AI 예측·빈도 분석·입고일정 연동)을 영구히 이겼다 — 정확도를 올리려고 만든
+        //   추정기들이 그 날엔 작동하지 않았다(실측: 저장이 있는 15일에 거의 전 업무가 저장됨).
+        //
+        //   hasInput — 입력칸이 없어 읽지 못한 업무는 건드리지 않는다. 0 으로 써 버리면
+        //   예정 물량 화면에 넣어 둔 값이 조용히 사라지고, 그 0 이 자동값을 이겨 굳는다.
+        //
+        //   '사람이 일부러 넣은 0' 과 '자동 추정이 넣은 0' 의 구분은 simDirtyQty 가 담당한다.
+        //   예전의 별도 0 처리 규칙은 이 한 줄에 그대로 포괄된다.
+        const hasInput = Object.prototype.hasOwnProperty.call(tasks, t.key);
+        if (!shouldSaveQty({ hasInput, dirty: simDirtyQty.has(t.key) })) return;
+        merged[t.key] = Math.max(0, Math.round(Number(tasks[t.key]) || 0));
     });
 
     const btn = document.getElementById('sim-save-btn');
     if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
     // 시간형 업무도 0(=안 함)까지 그대로 저장한다
     const mergedTime = { ...(getPlannedTimeTasksForDate(dateStr) || {}) };
-    const zeroKeys = simZeroTasks();
+    const zeroKeysForSave = simZeroTasks();
+    const 알림 = [];   // 화면과 저장이 달라진 것 — 조용히 넘기면 사용자가 영문을 모른다
     activeTimeTasks().forEach(t => {
         const e = timeTasks[t.key];
-        if (!e) return;               // 입력칸이 없던 업무는 건드리지 않는다
-        const mm = Math.max(0, Math.round(Number(e.minutes) || 0));
-        const ww = Math.max(0, Math.round(Number(e.workers) || 0));
-        // '기본 0명' 업무를 손대지 않은 채 저장하면 {0,0} 이 저장값으로 굳는다.
-        // 그러면 배지가 '저장값'으로 바뀌어 사용자가 0으로 정한 것처럼 보이고,
-        // 나중에 설정(simTimeTasksZero)을 되돌려도 저장값이 이겨 계속 0으로 남는다.
-        if (mm === 0 && ww === 0 && zeroKeys.has(t.key) && !getPlannedTime(dateStr, t.key)) return;
+        // 수량형과 같은 규칙 — 손댄 칸만.
+        // 분이 0 이면 '그날 안 함' 으로 정리한다(normalizeTimeEntry — 순수·테스트됨)
+        const { minutes: mm, workers: ww, changed } = normalizeTimeEntry(e || {});
+        const dirty = simDirtyTime.has(t.key);
+        if (!shouldSaveTime({
+            hasInput: !!e, dirty,
+            zeroDefault: zeroKeysForSave.has(t.key), minutes: mm, workers: ww
+        })) {
+            // '기본 0명' 업무(청소·앵글정리)를 0 으로 되돌린 경우다.
+            // ⚠️ 거르기만 하면 **이미 저장해 둔 값이 그대로 남는다** — 사용자는 0명으로
+            //    되돌렸는데 다음 진입에서 옛 값이 되살아나고, 탈출구가 '🔄 자동값'(그 날
+            //    저장값 전체 삭제)뿐이게 된다. 거름과 되돌림은 다른 동작이다.
+            if (dirty && Object.prototype.hasOwnProperty.call(mergedTime, t.key)) {
+                delete mergedTime[t.key];
+                알림.push(`${t.label}: 저장해 둔 값을 지우고 기본값(0명)으로 되돌렸습니다`);
+            }
+            return;
+        }
+        if (changed) 알림.push(`${t.label}: 분이 0 이라 '오늘 안 함'(0명)으로 저장했습니다`);
         mergedTime[t.key] = { minutes: mm, workers: ww };
     });
     // 수량형으로 옮겨간 업무가 시간형 잔재로 남으면 나중에 되살아나 시간이 두 번 더해진다
     SIM_TASKS.forEach(t => delete mergedTime[t.key]);
 
     const excl = readExcludeMinutes();
+    // 바뀐 것이 없으면 서버에 쓰지 않는다. '실패' 가 아니라 '저장할 것이 없음' 이다.
+    // ⚠️ dirty 집합의 크기가 아니라 **결과를 비교**한다. 고친 칸이 전부 걸러진 경우
+    //    (기본 0명 업무를 원래대로 되돌린 것뿐인 경우)에 '저장되었습니다' 가 뜨면서
+    //    변화 없는 문서를 서버에 쓰던 문제가 있었다.
+    const 같나 = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    const 바뀐것없음 =
+        같나(merged, getPlannedQuantitiesForDate(dateStr) || {})
+        && 같나(mergedTime, getPlannedTimeTasksForDate(dateStr) || {})
+        && excl === (getPlannedExcludeMinutesForDate(dateStr) ?? 0);
+    if (바뀐것없음) {
+        if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
+        showToast(알림.length > 0
+            ? 알림.join(' / ')
+            : '고친 칸이 없습니다 — 저장할 내용이 없습니다.');
+        simDirtyQty = new Set();
+        simDirtyTime = new Set();
+        return;
+    }
     const ok = await savePlannedQuantities(dateStr, merged,
         { keepZeros: true, timeTasks: mergedTime, excludeMinutes: excl > 0 ? excl : -1 });
     if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
     if (!ok) return;
 
+    // 화면과 저장이 달라진 것은 반드시 알린다 — 조용히 넘기면 '저장되었습니다' 만 보고
+    // 사용자는 자기가 넣은 인원이 왜 사라졌는지 모른다.
+    // 토스트는 하나로 합친다 — 여러 개를 띄우면 성공 토스트와 같은 색으로 겹쳐 쌓여
+    // 맨 위의 안내가 '실패' 로 읽힌다.
+    if (알림.length > 0) showToast(알림.join(' / '));
+
     simDirtyQty = new Set();          // 저장 완료 — 다시 자동값 기준으로 본다
+    simDirtyTime = new Set();
     autoFillSimInputs(dateStr);       // 배지를 '예정물량'으로 갱신
     updateSavedInfo(dateStr);
     simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
@@ -2830,6 +2984,7 @@ const handleAutoFillClick = async () => {
     const dateStr = document.getElementById('sim-target-date')?.value;
     if (!dateStr) return;
     simDirtyQty = new Set();          // 자동값으로 되돌리므로 '손댄 칸'도 없어진다
+    simDirtyTime = new Set();
     const entries = savedSimEntries(dateStr);
     if (entries.length > 0) {
         const list = entries.map(e => ` · ${savedEntryText(e)}`).join('\n');
@@ -2848,7 +3003,8 @@ ${list}
         const ok = await savePlannedQuantities(dateStr, rest, { keepZeros: true, timeTasks: restTime, excludeMinutes: -1 });
         if (!ok) return;
     }
-    autoFillSimInputs(dateStr);
+    // 자동값으로 되돌리는 것이므로 펼침 상태도 기본(접힘)으로 돌린다
+    autoFillSimInputs(dateStr, { resetFoldView: true });
     updateSavedInfo(dateStr);
     simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
     renderForecastSummary();
@@ -2873,7 +3029,12 @@ export const renderForecastTab = () => {
     // 예정 물량이 아직 안 실렸으면 로드 후 다시 채움(캐시라 대부분 즉시)
     fetchPlannedData().then(() => {
         const d = document.getElementById('sim-target-date')?.value;
-        autoFillSimInputs(d);
+        // ⚠️ 그 사이 사용자가 고친 칸은 덮지 않는다. 캐시가 만료된 상태면 이 then 이
+        //    수백 ms 뒤에 도착하는데, 그때 화면을 통째로 덮으면 방금 타이핑한 값이
+        //    자동값으로 되돌아간다. 그렇다고 통째로 건너뛰면 저장해 둔 예정물량이
+        //    그 세션 내내 화면에 안 들어와서, 📌 계획 확정이 그 값이 빠진 계획을 얼린다.
+        //    → 고친 칸만 지키고 나머지는 채운다.
+        autoFillSimInputs(d, { preserveDirty: true });
         updateSavedInfo(d);
         simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
         renderForecastSummary();
@@ -2909,7 +3070,8 @@ const setupSimulationListeners = () => {
         }
         dateEl.addEventListener('change', () => {
             simDirtyQty = new Set();      // 날짜가 바뀌면 '손댄 칸' 기록도 새로 시작한다
-            autoFillSimInputs(dateEl.value);
+            simDirtyTime = new Set();
+            autoFillSimInputs(dateEl.value, { resetFoldView: true });
             updateSavedInfo(dateEl.value);
             simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
             renderForecastSummary();
@@ -3050,8 +3212,12 @@ const setupSimulationListeners = () => {
 
         if (untouched('샘플검수')) {
             const sampleTask = SIM_TASKS.find(t => t.id === 'sample');
-            setQty('sample', china > 0 ? Math.round(computeSampleRatio(data) * china) : 0);
-            if (sampleTask) markSourceBadge(sampleTask, 'china-linked');
+            const 새값 = china > 0 ? Math.round(computeSampleRatio(data) * china) : 0;
+            setQty('sample', 새값);
+            if (sampleTask) {
+                markSourceBadge(sampleTask, 'china-linked');
+                덮어쓴meta(sampleTask.key, 새값, 'china-linked');
+            }
         }
         // 상.하차처럼 입고 박스에 연동된 업무도 같이 다시 계산한다
         // (선적이 밀려 입고를 0 으로 고쳤는데 상.하차만 그대로 남으면 인원이 과대 산출된다)
@@ -3063,7 +3229,9 @@ const setupSimulationListeners = () => {
             const v = incomingBoxesValueFor(dateStr, t, data, arg, china);
             setQty(t.id, v.value);
             markSourceBadge(t, v.source, v.detail);
+            덮어쓴meta(t.key, v.value, v.source);
         });
+        applyEmptyRowFolding();
     });
 
     // 물량을 직접 고치면, 그 물량에 묶인 담당 업무(중국제작(담당)·직진배송 사전작업 등)도 다시 잡는다.
@@ -3090,6 +3258,7 @@ const setupSimulationListeners = () => {
             setTimeInputs(t, v);
             timeTaskUnit.set(t.key, Math.max(0, Math.round(Number(v.unitMinutes ?? v.minutes) || 0)));
             markTimeSourceBadge(t, v.source, v.detail);
+            덮어쓴meta('t:' + t.key, Number(v.minutes) || 0, v.source);
         });
     });
 
@@ -3104,7 +3273,20 @@ const setupSimulationListeners = () => {
             if (!t) return;
             const workers = Math.max(0, Math.round(Number(e.target.value) || 0));
             const unit = timeTaskUnit.get(t.key);
-            if (unit == null) return;
+            // 1인 기준을 모르거나(null) 0 이면 분 칸이 0 으로 남는다. 그 상태로 '손댐' 을 찍으면
+            // {분 0, 인원 N} 이 되어 저장에서 막히고, 사용자에게는 아무 일도 안 일어난 것처럼
+            // 보인다(기준 시간이 없는 신규 업무에서 정상 조작만으로 재현된다).
+            if (!(unit > 0)) {
+                // title 은 마우스를 올려야 보인다 — 글씨로도 알린다.
+                const badge0 = document.getElementById(`sim-src-t-${t.id}`);
+                if (badge0) {
+                    badge0.textContent = '분 직접 입력';
+                    badge0.title = '이 업무는 최근 4주 기록이 없어 1인 기준 시간을 모릅니다.'
+                        + ' 인원만 올려서는 시간이 잡히지 않습니다 — 분을 직접 넣으면 그 값이 기준이 됩니다.';
+                }
+                return;
+            }
+            simDirtyTime.add(t.key);
             const total = unit * workers;
             const mEl = document.getElementById(`sim-time-${t.id}`);
             if (mEl) mEl.value = total > 0 ? total : '';
@@ -3118,11 +3300,15 @@ const setupSimulationListeners = () => {
         if (mT) {
             const t = SIM_TIME_TASKS.find(x => x.id === mT[1]);
             if (!t) return;
+            simDirtyTime.add(t.key);
             const wEl = document.getElementById(`sim-workers-${t.id}`);
             let workers = Math.max(0, Math.round(Number(wEl?.value) || 0));
             const typed = Math.max(0, Number(e.target.value) || 0);
             // 0명인데 시간을 넣으면 1명으로 올려 준다(0명이면 계산에서 빠지므로)
             if (workers === 0 && typed > 0) { workers = 1; if (wEl) wEl.value = 1; }
+            // ⚠️ 여기서 인원을 0 으로 내리지 않는다. 그렇게 했더니 인원 2 였던 업무가
+            //    분을 지웠다 다시 넣을 때 1 로 되살아나 1인 기준이 2배가 됐다(120분 → 240분).
+            //    '분 0' 의 정규화는 **저장 시점**에 한다 — 화면의 인원은 사용자 것이다.
             setTimeUnit(t, typed, workers);        // 직접 고친 값이 새 기준
         }
     });
@@ -3130,6 +3316,14 @@ const setupSimulationListeners = () => {
     document.getElementById('sim-reset-btn')?.addEventListener('click', () => {
         // 모든 수량/인원 입력 초기화 (업무 목록은 항상 기본 등록이므로 숨기지 않음)
         // ※ 저장해 둔 수기 값은 지우지 않는다(그건 '자동값' 버튼의 역할).
+        // ⚠️ '손댐' 기록도 비운다. 남겨 두면 리셋으로 비워진 칸이 '사람이 0 으로 정한 값' 이
+        //    되어, 그 뒤 저장을 누를 때 0 으로 굳는다(저장이 손댄 칸만 쓰게 된 뒤로는
+        //    이 집합이 유일한 판단축이라 오염되면 그대로 사고가 된다).
+        simDirtyQty = new Set();
+        simDirtyTime = new Set();
+        // 접기 판정 재료도 버린다. 안 버리면 비워진 화면을 초기화 **전** 값으로 판정해,
+        // 접힘 버튼 title 이 화면에 없는 숫자를 보여 준다.
+        simRowMeta.clear();
         SIM_TASKS.forEach(t => setQty(t.id, ''));
         SIM_TIME_TASKS.forEach(t => setTimeInputs(t, { minutes: 0, workers: 0 }));
         ['sim-staff-fulltime','sim-staff-parttimer','sim-exclude-min'].forEach(id => {
@@ -3138,6 +3332,10 @@ const setupSimulationListeners = () => {
         });
         showResultPlaceholder();
         paintStaffTotal();
+        // 초기화는 '직접 넣겠다' 는 뜻이다. 접기 기준으로는 빈 칸이 전부 접혀서
+        // 입력칸이 화면에서 사라지므로(구획까지 숨는다), 펼친 상태로 둔다.
+        showEmptySimRows = true;
+        applyEmptyRowFolding();
         simOverride = null;              // 요약 카드는 자동값 기준으로 되돌린다
         renderForecastSummary();
     });
@@ -3662,7 +3860,12 @@ const buildForecastSnapshot = (dateStr) => {
         qtyHours: Number(r.qtyHours.toFixed(3)),
         timeHours: Number(r.timeHours.toFixed(3)),
         elapsedHours: Number(r.elapsedHours.toFixed(3)),
-        dailyHours: r.dailyHours
+        dailyHours: r.dailyHours,
+        // ⚠️ 반드시 명시한다. 저장이 merge 라, 자동으로 먼저 찍힌 날에 사람이 '다시 확정' 해도
+        //    예전 auto:true·autoAt 이 그대로 남아 정확도 화면이 🤖 자동으로 거짓 표시했다
+        //    (에뮬레이터에서 실제로 재현했다 — 수동 확정인데 auto:true 였다).
+        auto: false,
+        autoAt: null
     };
 };
 
