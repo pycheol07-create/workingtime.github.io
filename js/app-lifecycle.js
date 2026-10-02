@@ -1,8 +1,8 @@
 // === js/app-lifecycle.js ===
-import * as State from './state.js?v=202610011559';
-import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202610011559';
-import { saveProgress } from './history-data-manager.js?v=202610011559';
-import { saveStateToFirestore } from './app-data.js?v=202610011559';
+import * as State from './state.js?v=202610020907';
+import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202610020907';
+import { saveProgress, isDayClosedOnServer } from './history-data-manager.js?v=202610020907';
+import { saveStateToFirestore } from './app-data.js?v=202610020907';
 import { collection, doc, writeBatch, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let localLunchPauseExecuted = false;
@@ -153,7 +153,10 @@ async function closeRecordsAt(records, endTime, dayKey) {
         const pauses = Array.isArray(rec.pauses) ? rec.pauses.map(p => ({ ...p })) : [];
         if (rec.status === 'paused' && pauses.length > 0) {
             const lp = pauses[pauses.length - 1];
-            if (lp && !lp.end) lp.end = endTime;
+            // 휴식 시작보다 이른 시각으로 닫으면 end < start 인 구간이 원본에 영구히 남는다.
+            // 계산에서는 무시되지만 휴식시간 표시·엑셀 출력이 역순 구간을 그대로 들고 다닌다.
+            // (history-data-manager.js 의 두 경로와 같게 맞춘다)
+            if (lp && !lp.end) lp.end = (endTime > lp.start) ? endTime : lp.start;
         }
         const duration = Math.max(0, calcElapsedMinutes(rec.startTime, endTime, pauses));
         batch.update(recRef, { status: 'completed', endTime, duration, pauses });
@@ -187,11 +190,35 @@ async function eodFlushToHistory(todayKey, isAdmin) {
     const lsKey = 'eodFlushed_' + todayKey;
     if (localStorage.getItem(lsKey)) return;
 
+    // ⚠️ 쿨다운을 **첫 await 앞에서** 찍는다. 이 함수는 1초 타이머가 await 없이 부르므로,
+    //    아래 서버 조회(수백 ms~수 초) 동안 다음 틱이 그대로 재진입해 여러 개가 겹쳐 돈다.
+    //    조기 return 경로에도 쿨다운이 걸려야 한다 — 안 걸면 '기록 0건' 인 날이나 회선이
+    //    끊긴 저녁에 getDocFromServer 가 **초당 1회** 돈다(탭당 하루 2만 회 이상).
+    eodFlushCooldownUntil = Date.now() + 30 * 60 * 1000;
+
+    // 🔒 이미 마감된 날이면 손대지 않는다.
+    //    이 안전망은 30분마다 자정까지 재시도하는데, 마감을 실행한 쪽(봇·다른 PC)에만
+    //    위 localStorage 플래그가 찍힌다. 그래서 '아침부터 켜 둔 다른 탭' 은 마감이 끝난
+    //    뒤에도 계속 여기로 들어와 자기 기준으로 이력을 덮어쓸 수 있었다.
+    //    (2026-10-01: 마감 뒤 저장이 돌아 기록 7건 유실 · 근무시간 27시간 부풀림)
+    const closedState = await isDayClosedOnServer(todayKey);
+    if (closedState === 'closed') {
+        localStorage.setItem(lsKey, '1');   // 그날은 끝났다 — 재시도도 멈춘다
+        console.warn(`[eodFlush] ${todayKey}: 이미 마감된 날 — 아무것도 저장하지 않습니다.`);
+        return;
+    }
+    if (closedState === 'unknown') {
+        // 서버를 못 읽었으면 덮어쓸 위험을 감수하지 않는다. 회선 문제는 금방 풀릴 수 있어
+        // 30분을 다 기다리지 않고 5분 뒤에 다시 본다.
+        eodFlushCooldownUntil = Date.now() + 5 * 60 * 1000;
+        console.warn(`[eodFlush] ${todayKey}: 마감 여부를 확인하지 못해 건너뜁니다(5분 뒤 재시도).`);
+        return;
+    }
+
     const records = State.appState.workRecords || [];
-    if (records.length === 0) return; // 저장할 것이 없음 → 다음 틱에 재시도
+    if (records.length === 0) return; // 저장할 것이 없음 → 쿨다운 뒤 재시도
 
     const openOnes = records.filter(r => r.status === 'ongoing' || r.status === 'paused');
-    eodFlushCooldownUntil = Date.now() + 30 * 60 * 1000; // 실패/야근 시 30분 뒤 재시도
 
     try {
         // 야근을 선택하지 않았는데 아직 안 끝난 기록이 있으면 종료시각 기준으로 마감

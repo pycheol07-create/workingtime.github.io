@@ -1,6 +1,6 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610011559';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610011559';
+import * as State from './state.js?v=202610020907';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610020907';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -402,7 +402,27 @@ export const syncTodayToHistory = async () => {
 // 반환값: 'saved'(저장함) | 'nothing'(저장할 게 없음) | 'failed'(서버를 못 읽었거나 예외)
 //   · 'nothing' 은 실패가 아니다 — 화면에 오류로 띄우면 안 된다.
 //   · 다만 마감 안전망 입장엔 '아직 못 끝냄'이라 'saved' 일 때만 완료로 찍어야 한다.
-export async function saveProgress(isAutoSave = false, isQuantityVerified = false, { isFinalize = false, overrideRecords = null } = {}) {
+/** 그 날짜가 **서버 기준으로** 마감됐는지. 'closed' | 'open' | 'unknown'
+ *
+ *  왜 서버인가 — 메모리 캐시(State.allHistoryData)는 탭을 켠 시점에 얼어붙어 있어
+ *  다른 PC·봇이 마감한 것을 모른다. 마감 여부를 캐시로 판단하면 보호가 통째로 헛돈다.
+ *  왜 'unknown' 을 따로 두는가 — 못 읽은 것을 'open' 으로 보면, 네트워크가 흔들리는
+ *  순간에 마감된 날을 덮어쓰게 된다. 호출자는 unknown 이면 아무것도 하지 않아야 한다.
+ */
+export async function isDayClosedOnServer(dateKey) {
+    if (!State.db || !dateKey) return 'unknown';
+    try {
+        const snap = await getDocFromServer(
+            doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey));
+        return (snap.exists() && snap.data()?.closedAt) ? 'closed' : 'open';
+    } catch (e) {
+        console.warn('[isDayClosedOnServer] 읽기 실패:', e);
+        return 'unknown';
+    }
+}
+
+export async function saveProgress(isAutoSave = false, isQuantityVerified = false,
+        { isFinalize = false, overrideRecords = null } = {}) {
     const dateStr = getTodayDateString();
     const now = getCurrentTime();
 
@@ -500,6 +520,52 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             console.warn(`[saveProgress] ${dateStr}: 살아있는 기록 0건, 이력 ${existingRecordsCount}건 — 업무기록은 건드리지 않고 나머지만 저장합니다.`);
         }
 
+        // 🔒 이미 마감된 날은 **배열을 교체하지 않는다.**
+        //
+        // 실제 사고 (2026-10-01)
+        //   17:30 에 마감(슬랙 봇)이 정상적으로 끝나 이력에 53건이 저장됐다.
+        //   그런데 22:12 에, 마감 전 상태를 메모리에 들고 있던 세션이 저장을 돌렸다.
+        //   그 세션의 기준으로 통째로 교체되어 **7건이 사라지고**, 진행 중으로 남아 있던
+        //   기록 3건이 17:25 대신 22:12 로 종료돼 **근무시간이 27시간 부풀었다**
+        //   (이미 15:24 에 끝난 기록이 다시 열려 22:12 로 종료되기까지 했다).
+        //   위의 keepServerRecords 는 '살아있는 기록 0건' 일 때만 지켜서 막지 못했다.
+        //
+        //   봇이 원격으로 마감하게 되면서 '마감된 뒤에도 열려 있는 세션' 이 흔해졌다.
+        //   예전에는 마감을 누른 사람이 그 PC 앞에 있었기 때문에 잘 드러나지 않았다.
+        //
+        // 왜 '쓰기 금지' 가 아니라 '덧붙이기' 인가
+        //   마감 뒤에 실제로 더 일한 기록은 이력에 들어가야 한다. 통째로 막으면 그게 사라진다.
+        //   그래서 서버에 **없는 id 만** 덧붙이고, 서버에 이미 있는 기록은 그대로 둔다.
+        //   (이미 있는 기록을 고치는 일은 이력 편집 기능이 따로 담당한다)
+        //
+        // isFinalize 는 예외다 — 마감 자체가 다시 돌아야 하는 경우가 있고,
+        // 그 경로는 사람이 확인창을 거친다.
+        // ⚠️ 어떤 경로도 이 보호를 뚫지 못한다.
+        //    예전엔 isFinalize 면 통과였는데, eodFlushToHistory(30분마다 자정까지 재시도)와
+        //    자동마감이 isFinalize:true 로 부르기 때문에 사람 손을 안 거치는 경로가 그대로
+        //    마감된 날을 덮어썼다. '마감 경로에만 예외를 준다' 도 두 가지 이유로 버렸다 —
+        //    (1) 첫 마감은 closedAt 이 아직 없어서 예외가 필요 없다(closedAt 은 초기화 성공
+        //        뒤에 찍힌다), (2) 예외를 두면 삭제 확인창을 띄워 둔 사이에 다른 PC·봇이
+        //        마감을 끝내는 창이 열려, 막으려던 사고가 그대로 재현된다.
+        //    이미 마감된 날을 고쳐야 하면 이력 편집으로 한다(버튼 한 번으로 덮지 않는다).
+        const isClosedDay = !!serverHistory.closedAt;
+        let appendOnlyRecords = null;
+        if (isClosedDay && !keepServerRecords) {
+            const serverRecords = serverHistory.workRecords || [];
+            const serverIds = new Set(serverRecords.map(r => r && r.id).filter(Boolean));
+            // 진행 중 기록은 덧붙이지 않는다. endTime 이 '저장한 시각' 으로 박히고,
+            // 그 뒤에는 '이미 있는 id' 라 영원히 갱신되지 않아 거짓 시간이 굳는다.
+            const appendable = liveWorkRecords.filter(r => r && r.status === 'completed');
+            const noId = appendable.filter(r => !r.id).length;
+            const newRecords = appendable.filter(r => r.id && !serverIds.has(r.id));
+            appendOnlyRecords = newRecords.length > 0 ? [...serverRecords, ...newRecords] : null;
+            console.warn(`[saveProgress] ${dateStr}: 이미 마감된 날(closedAt=${serverHistory.closedAt})`
+                + ` — 이력 ${serverRecords.length}건을 교체하지 않습니다.`
+                + (newRecords.length > 0 ? ` 완료된 새 기록 ${newRecords.length}건만 덧붙입니다.` : ' 덧붙일 새 기록이 없습니다.')
+                + (noId > 0 ? ` ⚠️ id 가 없어 건너뛴 기록 ${noId}건.` : ''));
+        }
+        const omitRecordsKey = keepServerRecords || (isClosedDay && appendOnlyRecords === null);
+
         if (liveWorkRecords.length === 0 &&
             Object.keys(dailyData.taskQuantities).length === 0 &&
             (!dailyData.inspectionList || dailyData.inspectionList.length === 0)) {
@@ -508,19 +574,42 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
              return 'nothing';
         }
 
-        const mergedAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
+        // 마감된 날에는 서버 값이 이긴다. 마감이 확정한 퇴근시각을, 그 전 상태를 들고 있던
+        // 세션이 지우거나 되살리지 못하게 한다(마감 후 재출근이 되살아난 과거 사고와 같은 종류다).
+        // 마감된 날: 서버에 이미 있는 사람의 근태는 **그대로 지키고**, 마감 뒤에 새로 생긴
+        // 사람만 더한다. 키를 통째로 빼려고 했다가 되돌렸다 — 이력의 근태를 고치는 UI 가
+        // 저장소에 존재하지 않아서(listeners-history-attendance.js 는 onLeaveMembers 만 다룬다),
+        // 키를 빼면 마감 뒤 퇴근시각이 틀렸을 때 사용자가 고칠 방법이 0개가 된다.
+        const liveAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
+        const mergedAttendance = isClosedDay
+            ? { ...liveAttendance, ...(serverHistory.dailyAttendance || {}) }
+            : liveAttendance;
+
+        // 🛡️ 마감된 날에는 '이력에 있는 값을 후퇴시키지 않는다'.
+        //    마감이 daily_data 의 물량·검증여부를 초기화하기 때문에, 마감 뒤에 열린 세션이
+        //    저장을 돌리면 빈 값이 이력을 덮어 그날 물량이 통째로 사라진다.
+        //    recoverDailyDataToHistory 가 쓰는 것과 같은 규칙이다(중복 구현을 피해 같은 모양으로 둔다).
+        //    dailyAttendance 는 아예 **키를 뺀다** — 마감이 확정한 퇴근시각은 이력 편집으로만
+        //    고친다(.claude/skills/attendance-check 1번 규칙과 같은 방향).
+        const emptyObj_ = (v) => !v || Object.keys(v).length === 0;
+        const emptyArr_ = (v) => !Array.isArray(v) || v.length === 0;
+        const keepClosed = (live, hist, isEmpty) => (!isClosedDay || !isEmpty(live))
+            ? live
+            : (hist !== undefined && hist !== null ? hist : live);
 
         const historyData = {
             id: dateStr,
-            ...(keepServerRecords ? {} : { workRecords: liveWorkRecords }),
-            taskQuantities: dailyData.taskQuantities,
-            confirmedZeroTasks: dailyData.confirmedZeroTasks,
-            onLeaveMembers: dailyData.onLeaveMembers,
-            partTimers: dailyData.partTimers,
+            ...(omitRecordsKey ? {} : { workRecords: appendOnlyRecords || liveWorkRecords }),
+            taskQuantities: keepClosed(dailyData.taskQuantities, serverHistory.taskQuantities, emptyObj_),
+            confirmedZeroTasks: keepClosed(dailyData.confirmedZeroTasks, serverHistory.confirmedZeroTasks, emptyArr_),
+            onLeaveMembers: keepClosed(dailyData.onLeaveMembers, serverHistory.onLeaveMembers, emptyArr_),
+            partTimers: keepClosed(dailyData.partTimers, serverHistory.partTimers, emptyArr_),
             dailyAttendance: mergedAttendance,
             management: dailyData.management,
-            inspectionList: dailyData.inspectionList,
-            isQuantityVerified: isQuantityVerified || State.appState.isQuantityVerified || false,
+            inspectionList: keepClosed(dailyData.inspectionList, serverHistory.inspectionList, emptyArr_),
+            // 서버값을 항상 OR 에 넣는다 — 검증을 찍은 뒤 다른 탭이 저장하면 false 로 후퇴했다.
+            isQuantityVerified: !!(isQuantityVerified || State.appState.isQuantityVerified
+                || serverHistory.isQuantityVerified),
             savedAt: now
         };
 
@@ -540,7 +629,12 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
         // (overrideRecords로 저장한 경우 라이브 미러가 아직 비어 있을 수 있어,
         //  syncTodayToHistory만 호출하면 화면이 옛 값을 계속 보여준다)
         // 기록을 안 건드린 경우엔 메모리에도 '서버의 실제 기록'을 넣는다.
-        const memRecords = keepServerRecords ? (serverHistory.workRecords || []) : liveWorkRecords;
+        // ⚠️ 서버에 실제로 남은 배열과 반드시 같아야 한다. 어긋나면 addHistoryWorkRecord·
+        //    updateHistoryDirectly·deleteHistoryWorkRecord 가 '메모리 배열을 통째로' 서버에
+        //    쓰면서 방금 지킨 기록을 날린다(바로 위 주석의 사고가 그 경로다).
+        const memRecords = omitRecordsKey
+            ? (serverHistory.workRecords || [])
+            : (appendOnlyRecords || liveWorkRecords);
         const memPatch = { ...historyData, workRecords: memRecords };
 
         const memIdx = State.allHistoryData.findIndex(d => d.id === dateStr);
@@ -687,15 +781,33 @@ export async function saveDayDataToHistory(shouldReset, endTimeOverride = null, 
         return false;
     }
     const globalEndTime = endTimeOverride || getCurrentTime();
+    // ⚠️ 날짜를 **한 번만** 잡는다. 아래에서 getTodayDateString() 을 다시 부르면,
+    //    23:59 에 시작한 마감이 서버 읽기·확인창으로 자정을 넘길 때 삭제는 전날 컬렉션인데
+    //    초기화와 closedAt 은 새 날짜 문서에 찍힌다(전날은 영구 미마감 + 새 날짜에 유령 마감).
+    const closeDateStr = getTodayDateString();
+    // 마감이 실제로 읽어 이력에 확정한 원본 문서 id. 초기화는 이 집합만 지운다 —
+    // 읽은 뒤 다른 PC 가 추가한 기록까지 지우면 이력에도 없고 원본에도 없게 된다
+    // (마감된 날은 append-only 라 나중에 되살릴 경로도 없다).
+    let finalizedDocIds = [];
+    // 재마감을 확인창으로 막으려 했다가 되돌렸다. 슬랙 봇이 이 화면을 playwright 로
+    // 조작하는데, playwright 는 네이티브 confirm 을 **자동으로 거부**한다 — 봇 마감이
+    // 조용히 '불확실' 로 끝난다. 그래서 묻지 않고, '마감된 날은 어떤 경로로도 이력을
+    // 교체하지 않는다' 를 saveProgress 안에서 코드로 보장한다.
     const finalizedRecords = []; // 마감 확정된 기록(이력 저장의 신뢰 원본)
 
     try {
         const dailyDocRef = getDailyDocRef();
-        const dailyDocSnap = await getDoc(dailyDocRef);
+        // 🛡️ 서버 강제 읽기. getDoc/getDocs 는 서버에 못 닿으면 throw 하지 않고 로컬 캐시로
+        //    조용히 성공한다(이 컬렉션엔 onSnapshot 이 붙어 있어 캐시가 곧 라이브 미러다).
+        //    마감은 이 읽기 결과를 '그날의 전부' 로 보고 확정·삭제하므로, 캐시로 읽으면
+        //    남의 PC 가 올린 기록을 보지 못한 채 원본을 지운다.
+        const dailyDocSnap = await getDocFromServer(dailyDocRef);
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
 
         const dailyAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
-        const querySnapshot = await getDocs(workRecordsColRef);
+        const querySnapshot = await getDocsFromServer(workRecordsColRef);
+        // 삭제는 '지금 읽어서 이력에 확정한' 문서만 대상으로 한다(아래 초기화 단계).
+        finalizedDocIds = querySnapshot.docs.map(d => d.id);
 
         // 🛑 시작시각이 HH:MM 이 아닌 기록이 있으면 아예 마감하지 않는다.
         //    아래 비교는 전부 **문자열 비교**라('9:30' > '17:30' 이 true) 그런 기록은
@@ -862,17 +974,35 @@ export async function saveDayDataToHistory(shouldReset, endTimeOverride = null, 
     if (shouldReset) {
         let cleared = false;
          try {
-            const qAll = query(workRecordsColRef);
-            const snapshotAll = await getDocs(qAll);
-            if (!snapshotAll.empty) {
+            // ⚠️ 다시 읽어서 '전부' 지우지 않는다. 마감 처리 중(확인창·배치·이력 저장)에
+            //    다른 PC 가 완료한 기록이 들어올 수 있고, 그건 이력에 확정되지 않았다.
+            //    읽은 집합만 지우면 그 기록은 원본에 남아 다음 마감·복구가 처리한다.
+            // 배치 한 번에 500건 상한이 있다. 며칠 밀린 날을 한 번에 마감하면 넘을 수 있고,
+            // 넘으면 commit 이 throw 해서 '초기화 실패' 로 떨어진다.
+            for (let i = 0; i < finalizedDocIds.length; i += 400) {
                 const deleteBatch = writeBatch(State.db);
-                snapshotAll.forEach(doc => deleteBatch.delete(doc.ref));
+                finalizedDocIds.slice(i, i + 400)
+                    .forEach(id => deleteBatch.delete(doc(workRecordsColRef, id)));
                 await deleteBatch.commit();
             }
             await setDoc(getDailyDocRef(), { taskQuantities: {}, confirmedZeroTasks: [], isQuantityVerified: false }, { merge: true });
             cleared = true;
         } catch (e) {
              console.error("Error clearing daily data: ", e);
+        }
+
+        // ⚠️ 이 확인은 **치명 구간 밖**이다. 경고를 남기기 위한 읽기일 뿐인데 위의 try 안에
+        //    두면, 삭제·이력 저장이 다 끝난 뒤 이 읽기 하나가 실패해도 cleared 가 false 로
+        //    남는다. 그러면 closedAt 을 못 찍고(아래), 그날은 '마감 안 된 날' 로 남아
+        //    다른 탭의 안전망이 이력을 통째로 덮어쓴다 — 2026-10-01 사고가 그대로 재현된다.
+        try {
+            const 남은것 = await getDocsFromServer(workRecordsColRef);
+            if (!남은것.empty) {
+                console.warn(`[마감] 마감 처리 중 새로 들어온 기록 ${남은것.size}건은 지우지 않았습니다`
+                    + ' — 다음 마감이나 복구가 이력에 반영합니다.');
+            }
+        } catch (e) {
+            console.warn('[마감] 남은 기록 확인만 실패했습니다(마감 자체는 끝났습니다).', e);
         }
 
         // 🏁 '마감 완료' 표시. **초기화까지 성공한 뒤에만** 찍는다.
@@ -889,9 +1019,9 @@ export async function saveDayDataToHistory(shouldReset, endTimeOverride = null, 
         if (cleared && saveResult !== 'nothing') {
             try {
                 await setDoc(
-                    doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', getTodayDateString()),
+                    doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', closeDateStr),
                     {
-                        id: getTodayDateString(),
+                        id: closeDateStr,
                         closedAt: new Date().toISOString(),
                         closeEndTime: globalEndTime,
                         closedBy: State.auth?.currentUser?.email || State.auth?.currentUser?.uid || '',
@@ -1005,7 +1135,11 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
                 const pauses = Array.isArray(data.pauses) ? [...data.pauses] : [];
                 if (data.status === 'paused' && pauses.length > 0) {
                     const lp = pauses[pauses.length - 1];
-                    if (lp && lp.end === null) lp.end = AUTO_END;
+                    // `=== null` 이 아니라 `!end` 로 본다 — end 키가 아예 없는 휴식(undefined)은
+            // 닫히지 않고, calcElapsedMinutes 는 끝이 없는 휴식을 무시하므로 그 시간이
+            // 통째로 근무시간에 더해진다(이 파일의 마감 경로가 이미 같은 함정을 적어 뒀다).
+            // 휴식 시작보다 이른 시각으로 닫으면 end < start 가 되어 역시 무시된다.
+            if (lp && !lp.end) lp.end = (AUTO_END > lp.start) ? AUTO_END : lp.start;
                 }
                 data.endTime = AUTO_END;
                 data.duration = Math.max(0, calcElapsedMinutes(data.startTime, AUTO_END, pauses));
@@ -1032,14 +1166,38 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
             console.warn(`[recoverDailyData] ${dateKey}: 원본 기록 0건, 이력 ${existingCount}건 — 이력의 업무기록은 건드리지 않습니다.`);
         }
 
+        // 🔒 이미 마감된 날은 이 버튼도 이력을 **교체하지 않는다.**
+        //    실패 시나리오였던 것: 17:30 마감(이력 53건·원본 삭제) → 저녁에 누가 재출근해
+        //    업무 3건을 하고 → "그 3건이 이력에 없다" 며 복구를 누르면 원본 3건이 0건이 아니라
+        //    이력 53건이 3건으로 교체됐다. 근태도 저녁 재출근 버전으로 덮였다.
+        //    그래서 saveProgress 와 같은 규칙을 쓴다 — 서버에 없는 '완료된' 기록만 덧붙이고,
+        //    서버에 이미 있는 사람의 근태는 지킨다.
+        const isClosedDay = !!(existing && existing.closedAt);
+        let appendOnly = null;
+        if (isClosedDay && !keepExistingRecords) {
+            const serverRecords = (existing && existing.workRecords) || [];
+            const serverIds = new Set(serverRecords.map(r => r && r.id).filter(Boolean));
+            const newRecords = workRecords.filter(
+                r => r && r.id && r.status === 'completed' && !serverIds.has(r.id));
+            appendOnly = newRecords.length > 0 ? [...serverRecords, ...newRecords] : null;
+            console.warn(`[recoverDailyData] ${dateKey}: 이미 마감된 날 — 이력 ${serverRecords.length}건을`
+                + ` 교체하지 않습니다.`
+                + (newRecords.length > 0 ? ` 완료된 새 기록 ${newRecords.length}건만 덧붙입니다.` : ''));
+        }
+        const omitRecordsKey = keepExistingRecords || (isClosedDay && appendOnly === null);
+
         const historyData = {
             id: dateKey,
-            ...(keepExistingRecords ? {} : { workRecords }),
+            ...(omitRecordsKey ? {} : { workRecords: appendOnly || workRecords }),
             taskQuantities: keep(dailyData.taskQuantities || {}, existing && existing.taskQuantities, emptyObj),
             confirmedZeroTasks: keep(dailyData.confirmedZeroTasks || [], existing && existing.confirmedZeroTasks, emptyArr),
             onLeaveMembers: keep(dailyData.onLeaveMembers || [], existing && existing.onLeaveMembers, emptyArr),
             partTimers: keep(dailyData.partTimers || [], existing && existing.partTimers, emptyArr),
-            dailyAttendance: keep(dailyData.dailyAttendance || {}, existing && existing.dailyAttendance, emptyObj),
+            // 마감된 날은 서버(이력)에 이미 있는 사람의 근태가 이긴다 — 마감이 확정한
+            // 퇴근시각을 저녁 재출근 상태로 덮지 않는다. 새로 생긴 사람은 그대로 더해진다.
+            dailyAttendance: isClosedDay
+                ? { ...(dailyData.dailyAttendance || {}), ...((existing && existing.dailyAttendance) || {}) }
+                : keep(dailyData.dailyAttendance || {}, existing && existing.dailyAttendance, emptyObj),
             management: keep(dailyData.management || {}, existing && existing.management, emptyObj),
             inspectionList: keep(dailyData.inspectionList || [], existing && existing.inspectionList, emptyArr),
             isQuantityVerified: !!(dailyData.isQuantityVerified || (existing && existing.isQuantityVerified)),
@@ -1053,7 +1211,12 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
         // ⚠️ 기록을 안 건드린 경우엔 메모리에 '서버의 실제 기록'을 넣어야 한다.
         //    payload 에서 workRecords 키를 뺐다고 메모리까지 비워 두면, 그 빈 배열을 기준으로
         //    과거 기록을 추가·수정하는 함수가 서버에 통째로 다시 써서 방금 지킨 기록이 사라진다.
-        const memRecords = keepExistingRecords ? ((existing && existing.workRecords) || []) : workRecords;
+        // ⚠️ 서버에 실제로 남은 배열과 반드시 같아야 한다. 마감된 날 append-only 로 썼는데
+        //    메모리에 원본만 넣으면, 이력 편집(add/update/delete)이 그 배열을 통째로 서버에
+        //    써서 지킨 기록이 사라진다 — 바로 위 주석의 사고다.
+        const memRecords = omitRecordsKey
+            ? ((existing && existing.workRecords) || [])
+            : (appendOnly || workRecords);
         const memPatch = { ...historyData, workRecords: memRecords };
 
         const idx = State.allHistoryData.findIndex(d => d.id === dateKey);
@@ -1065,16 +1228,24 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
         clearLocalCache();
 
         const qtyCount = Object.keys(historyData.taskQuantities).length;
+        // 마감된 날은 '덧붙인 건수' 를 말해야 한다. 예전엔 53건을 지키고 3건만 더했는데도
+        // "업무 3건" 으로 보고해서, 사용자가 53건이 3건으로 줄었다고 읽었다.
+        const addedCount = appendOnly
+            ? (appendOnly.length - (((existing && existing.workRecords) || []).length))
+            : 0;
         if (!silent) {
             showToast(keepExistingRecords
                 ? `✅ ${dateKey} 복구 완료 — 이력의 업무 ${existingCount}건은 그대로 두고 물량 ${qtyCount}종만 반영`
-                : `✅ ${dateKey} 복구 완료 — 업무 ${workRecords.length}건, 물량 ${qtyCount}종`);
+                : (isClosedDay
+                    ? `✅ ${dateKey} 복구 완료 — 마감된 날이라 이력 ${existingCount}건은 그대로 두고`
+                      + ` 새 기록 ${addedCount}건을 더했습니다 (물량 ${qtyCount}종)`
+                    : `✅ ${dateKey} 복구 완료 — 업무 ${workRecords.length}건, 물량 ${qtyCount}종`));
         }
         return {
             date: dateKey,
             records: memRecords.length,          // 복구 후 그 날짜의 실제 기록 수
-            recovered: keepExistingRecords ? 0 : workRecords.length,
-            keptExisting: keepExistingRecords,
+            recovered: keepExistingRecords ? 0 : (isClosedDay ? addedCount : workRecords.length),
+            keptExisting: keepExistingRecords || (isClosedDay && omitRecordsKey),
             quantities: qtyCount,
             hadExisting: existingCount > 0
         };

@@ -363,10 +363,10 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610011559"></script>
+    <script type="module" src="js/admin.js?v=202610020907"></script>
 
     <script type="module">
-        import { saveDayDataToHistory } from './js/history-data-manager.js?v=202610011559';
+        import { saveDayDataToHistory } from './js/history-data-manager.js?v=202610020907';
         
         document.addEventListener('DOMContentLoaded', () => {
             // 사이드바 탭 클릭 처리
@@ -420,7 +420,13 @@
                             // closedVia 를 구분한다 — 이건 '오늘 데이터 초기화' 버튼이지
                             // 정규 업무 마감이 아니다. 같은 표시를 남기면 오전에 초기화한 날이
                             // '정상 마감된 날'로 보여 마감 알림이 영영 울리지 않는다.
-                            await saveDayDataToHistory(true, null, { closedVia: '관리자-초기화' });
+                            // 반환값을 버리면 '마감하지 않았다' 를 성공으로 알린다
+                            // (관리자 아님·시각 형식 오류·이력 저장 실패 등은 false 로 돌아온다).
+                            const ok = await saveDayDataToHistory(true, null, { closedVia: '관리자-초기화' });
+                            if (!ok) {
+                                alert('초기화하지 못했습니다. 화면의 안내를 확인한 뒤 다시 시도해 주세요.');
+                                return;
+                            }
                             alert('오늘의 모든 데이터가 안전하게 초기화되었습니다.');
                         } catch(e) {
                             console.error(e);
@@ -470,7 +476,7 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610011559"></script>
-    <script src="js/modal-esc.js?v=202610011559"></script>
+    <script src="js/connection-banner.js?v=202610020907"></script>
+    <script src="js/modal-esc.js?v=202610020907"></script>
 </body>
 </html>
