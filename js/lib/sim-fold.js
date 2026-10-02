@@ -43,11 +43,12 @@ const 수 = (v) => {
  * @param {number} p.sample          표본 수 — analyzeCadence().hits
  * @param {boolean} p.dirty          사람이 이 칸을 손댔는가
  * @param {boolean} p.zeroDefault    simZeroTasks(기본 0명 업무) 인가
+ * @param {boolean} p.always         늘 보여야 하는 주요 업무인가(접지 않는다)
  * @returns {null|'edited'|'saved'|'maybe'|'no-uph'|'outlier'|'zero-default'}
  */
 export function foldReasonFor({ kind = 'qty', value = 0, source = '', uph = 0,
                                 base = 0, sample = 0, dirty = false,
-                                zeroDefault = false } = {}) {
+                                zeroDefault = false, always = false } = {}) {
     // ① 사람이 타이핑한 칸은 어떤 조건에서도 접지 않는다.
     //    접히면 방금 넣은 값이 눈앞에서 사라진다.
     if (dirty) return 'edited';
@@ -74,6 +75,11 @@ export function foldReasonFor({ kind = 'qty', value = 0, source = '', uph = 0,
     //    그러면 인원을 올릴 방법이 없어진다 — 기존 보호를 그대로 지킨다.
     if (kind === 'time' && zeroDefault) return 'zero-default';
 
+    // ⑦ 주요 업무는 자동값 그대로여도 접지 않는다. 매일 눈으로 확인하는 숫자라,
+    //    접히면 '고칠 것이 없다' 가 아니라 '안 보인다' 로 느껴진다.
+    //    ⚠️ 맨 뒤에 둔다 — 위의 사유들이 더 구체적이라 그쪽을 먼저 보여 줘야 한다.
+    if (always) return 'core';
+
     return null;
 }
 
@@ -95,10 +101,12 @@ function 바뀜이큰가(value, base, sample) {
 export const FOLD_REASON_TEXT = {
     edited: '고친 칸',
     saved: '내가 넣은 값',
-    maybe: '오늘 할지 불확실',
-    'no-uph': '기준 속도 없음',
+    // ⚠️ 출처 배지 자리(84px)에 쓰므로 짧아야 한다 — 길면 뒤가 잘려 뜻이 사라진다
+    maybe: '진행 불확실',
+    'no-uph': '기준 없음',
     outlier: '평소와 다름',
-    'zero-default': '기본 0명 업무'
+    'zero-default': '기본 0명 업무',
+    core: ''        // 주요 업무는 사유를 적지 않는다 — 늘 보이는 것이 당연하다
 };
 
 /**

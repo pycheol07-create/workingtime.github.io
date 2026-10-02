@@ -3,9 +3,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    foldReasonFor, shouldSaveQty, shouldSaveTime, normalizeTimeEntry,
+    foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime, normalizeTimeEntry,
     FOLD_OUTLIER_RATIO, FOLD_OUTLIER_MIN_ABS, FOLD_OUTLIER_MIN_SAMPLE,
-} from '../js/lib/sim-fold.js?v=202610021023';
+} from '../js/lib/sim-fold.js?v=202610021042';
 
 /** 자동값 그대로인 평범한 수량 행 */
 const 평범 = (over = {}) => ({
@@ -173,4 +173,28 @@ test('normalizeTimeEntry + shouldSaveTime 을 실제 저장 순서대로 엮어 
     assert.equal(저장할까({ minutes: 0, workers: 2 }, true), false);
     // 기본 0명 업무라도 분을 넣었으면 저장한다
     assert.equal(저장할까({ minutes: 120, workers: 1 }, true), true);
+});
+
+test('주요 업무(always)는 자동값 그대로여도 접지 않는다', () => {
+    // 국내배송·직진배송·에이블리배송·중국제작 같은 매일 보는 숫자
+    assert.equal(foldReasonFor(평범({ always: true })), 'core');
+    assert.equal(foldReasonFor(평범({ always: false })), null);
+    // 값이 0 이어도 보인다
+    assert.equal(foldReasonFor(평범({ always: true, value: 0, base: 0, sample: 0 })), 'core');
+    // 시간형도 같다
+    assert.equal(foldReasonFor({ kind: 'time', source: 'record-avg', value: 0, always: true }), 'core');
+});
+
+test('always 는 맨 뒤 순위 — 더 구체적인 사유가 있으면 그쪽을 보여 준다', () => {
+    assert.equal(foldReasonFor(평범({ always: true, dirty: true })), 'edited');
+    assert.equal(foldReasonFor(평범({ always: true, source: 'planned' })), 'saved');
+    assert.equal(foldReasonFor(평범({ always: true, source: 'cadence-maybe', value: 0 })), 'maybe');
+    assert.equal(foldReasonFor(평범({ always: true, uph: 0, value: 300, base: 300 })), 'no-uph');
+    assert.equal(foldReasonFor({ kind: 'qty', always: true, source: 'ai', uph: 100,
+                                 value: 700, base: 400, sample: 20 }), 'outlier');
+});
+
+test("FOLD_REASON_TEXT: 'core' 는 글씨가 비어 있다 — 늘 보이는 것이 당연해 사유를 적지 않는다", () => {
+    assert.equal(FOLD_REASON_TEXT.core, '');
+    assert.equal(FOLD_REASON_TEXT.edited, '고친 칸');
 });

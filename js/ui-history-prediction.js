@@ -3,23 +3,23 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610021023';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610021023';
-import * as State from './state.js?v=202610021023';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610021023';
+import { predictFutureTrends } from './analysis-logic.js?v=202610021042';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610021042';
+import * as State from './state.js?v=202610021042';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610021042';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610021023';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610021042';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610021023';
-import { decomposeAccuracy, summarizeAccuracyRows } from './forecast-accuracy.js?v=202610021023';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610021042';
+import { decomposeAccuracy, summarizeAccuracyRows } from './forecast-accuracy.js?v=202610021042';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610021023';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610021023';
-import { taskUph, recentDays } from './task-throughput.js?v=202610021023';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610021042';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610021042';
+import { taskUph, recentDays } from './task-throughput.js?v=202610021042';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610021023';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610021042';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -101,6 +101,23 @@ const TIME_TASK_EXCLUDE = new Set(['매장근무', '출장', '연차', '휴직',
 //    ⚠️ 연동 물량이 있는 업무('직진배송 사전작업' 등)는 이 목록에 넣지 말 것 — dep 추정이
 //       통째로 무력화되고, 0명 저장값이 선행 신호(precursorStateFor)까지 '안 했음'으로 뒤틀어
 //       다음 근무일 출고가 0으로 잡힌다. 아래 분기에서 한 번 더 막는다.
+// 📌 늘 보여야 하는 주요 업무 — 자동값 그대로여도 접지 않는다.
+//    매일 눈으로 확인하는 숫자라, 접히면 '고칠 것이 없다' 가 아니라 '안 보인다' 로 느껴진다.
+//    관리자 설정 simAlwaysShowTasks 로 덮을 수 있다.
+const DEFAULT_SIM_ALWAYS_TASKS = ['국내배송', '직진배송', '에이블리배송', '중국제작'];
+let warnedAlwaysCfg = false;
+const simAlwaysTasks = () => {
+    const cfg = State.appConfig?.simAlwaysShowTasks;
+    if (cfg != null && !Array.isArray(cfg)) {
+        if (!warnedAlwaysCfg) {
+            warnedAlwaysCfg = true;
+            console.warn('simAlwaysShowTasks 는 업무명 배열이어야 합니다. 기본값을 씁니다:', cfg);
+        }
+    }
+    const list = Array.isArray(cfg) ? cfg : DEFAULT_SIM_ALWAYS_TASKS;
+    return new Set(list.map(k => String(k == null ? '' : k).trim()).filter(Boolean));
+};
+
 const DEFAULT_SIM_ZERO_TASKS = ['청소', '앵글정리'];
 let warnedZeroCfg = false;
 const simZeroTasks = () => {
@@ -1544,7 +1561,8 @@ const paintDayApply = (task, dayValue) => {
     const cur = Number(document.getElementById(`sim-qty-${task.id}`)?.value) || 0;
     // 이미 그 값이 들어 있으면 누를 이유가 없다
     if (!v || v <= 0 || v === cur) {
-        b.className = 'pred-day-apply w-[58px] shrink-0 text-center text-[11px] leading-tight tabular-nums invisible';
+        // invisible 이 아니라 hidden — invisible 은 58px 을 계속 먹어 업무명이 잘린다
+        b.className = 'pred-day-apply shrink-0 text-center text-[11px] leading-tight tabular-nums hidden';
         b.textContent = '';
         b.dataset.value = '';
         return;
@@ -1566,11 +1584,15 @@ const markSourceBadge = (task, source, detail = '', dayValue = null) => {
     const el = document.getElementById(`sim-src-${task.id}`);
     if (!el) return;
     const b = SOURCE_BADGE[source] || SOURCE_BADGE.last7;
-    const base = 'w-[84px] shrink-0 text-center text-[11px] truncate';   // 줄 레이아웃 유지
+    const base = 'w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] truncate';   // 줄 레이아웃 유지
     el.className = b.muted
         ? `${base} font-medium text-gray-400 dark:text-gray-500`
         : `${base} font-bold rounded-md ${b.cls}`;
     el.textContent = b.text;
+    // 접기 판정이 이 자리에 '펼친 사유' 를 쓸 때 원래 글씨를 보관해 둔다.
+    // 새로 쓸 때 보관값을 버리지 않으면, 사유가 사라질 때 **옛 출처**가 되살아난다.
+    delete el.dataset.srcText;
+    delete el.dataset.warn;
     // 왜 그 값이 나왔는지(예: '월요일엔 7/8회 진행')를 함께 보여준다.
     // 0 이 들어간 칸을 보고 고장으로 오해하지 않도록 근거가 필요하다.
     el.title = detail ? `${b.tip}
@@ -1603,34 +1625,33 @@ const renderSimTaskInputs = () => {
     const ROW = `flex items-center gap-2.5 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0
                  transition hover:bg-gray-50 dark:hover:bg-gray-900/30
                  focus-within:bg-indigo-50/50 dark:focus-within:bg-indigo-900/20`;
-    const NUM = `w-24 bg-transparent border-0 border-b border-transparent p-0 text-right text-[17px] leading-tight font-extrabold tabular-nums
+    // w-20 → sm 부터 w-24. 모바일에서 입력칸이 96px 를 고정으로 먹으면 행이 넘친다.
+    const NUM = `w-20 sm:w-24 bg-transparent border-0 border-b border-transparent p-0 text-right text-[17px] leading-tight font-extrabold tabular-nums
                  text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600
                  focus:outline-none focus:ring-0 focus:border-indigo-400`;
 
     // 업무명은 관리자 설정에서 오는 임의 문자열이다 — 따옴표 하나에 줄 전체가 깨진다
     const row = (t) => `
         <div id="sim-row-${t.id}" data-row-id="${t.id}" class="pred-sim-row ${ROW}">
-            <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)}">${escapeHtml(t.label)}</span>
+            <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)}">${escapeHtml(t.label)}</span>
             <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric" class="${NUM}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">개</span>
-            <span id="sim-why-${t.id}" class="hidden shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 whitespace-nowrap"></span>
-            <span id="sim-src-${t.id}" class="w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
+            <span id="sim-src-${t.id}" class="w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
             <button type="button" id="sim-day-${t.id}" data-task-id="${t.id}" tabindex="-1"
-                    class="pred-day-apply w-[58px] shrink-0 text-center text-[11px] leading-tight tabular-nums invisible"></button>
+                    class="pred-day-apply shrink-0 text-center text-[11px] leading-tight tabular-nums hidden"></button>
         </div>`;
 
     const timeRow = (t) => `
         <div id="sim-row-t-${t.id}" data-row-id="t-${t.id}" class="pred-sim-row ${ROW}">
-            <span class="flex-1 min-w-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)} — 인원이 늘면 그만큼 시간이 더해집니다">${escapeHtml(t.label)}</span>
-            <label class="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
+            <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)} — 인원이 늘면 그만큼 시간이 더해집니다">${escapeHtml(t.label)}</span>
+            <label class="shrink-0 text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
                    title="이 업무를 하는 인원. 인원을 올리면 1인 시간만큼 총 시간이 자동으로 더해집니다(1명 340분 → 2명 680분). 0명으로 두면 그날은 하지 않는 업무로 보고 시간도 0이 됩니다.">동시
                 <input id="sim-workers-${t.id}" type="number" min="0" step="1" value="1"
                        class="w-8 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
                               text-[12px] font-bold text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-0">명</label>
             <input id="sim-time-${t.id}" type="number" min="0" step="10" placeholder="0" inputmode="numeric" class="${NUM}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">분</span>
-            <span id="sim-why-t-${t.id}" class="hidden shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 whitespace-nowrap"></span>
-            <span id="sim-src-t-${t.id}" class="w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 4주 평균</span>
+            <span id="sim-src-t-${t.id}" class="w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 4주 평균</span>
         </div>`;
 
     const block = (title, sub, rowsHtml, tone = '') => `
@@ -1661,8 +1682,13 @@ const renderSimTaskInputs = () => {
                     'text-indigo-400 dark:text-indigo-300/80')
             : '');
 
-    // 데스크톱에서는 2열로 세워 세로 길이를 줄인다(항목이 많아 한 줄씩이면 화면을 넘긴다)
-    host.className = 'grid grid-cols-1 lg:grid-cols-2 gap-3 items-start';
+    // 예전에는 '항목이 많아 한 줄씩이면 화면을 넘친다' 는 이유로 lg 부터 2열이었다.
+    // 지금은 자동값 그대로인 업무가 접혀 평소 3~6줄이라 그 이유가 없어졌고, 2열에서는
+    // 한 칸이 ~320px 라 고정폭(입력·단위·출처배지·'하는 날' 버튼)에 밀려 업무명이
+    // 0px 까지 눌려 잘렸다(실측: 직진배송·관리자 개별업무 등 6개). 아주 넓을 때만 2열로 둔다.
+    // 2열은 **아주 넓을 때만**. 1536px(2xl)에서 켜면 바깥 레이아웃(1.35fr) 때문에
+    // 한 칸이 ~394px 뿐이라, 1열에서 없앤 잘림이 그 구간으로 그대로 옮겨간다.
+    host.className = 'grid grid-cols-1 min-[1800px]:grid-cols-2 gap-3 items-start';
     host.innerHTML = qtyBlocks + timeBlock;
     return true;
 };
@@ -1692,11 +1718,13 @@ const markTimeSourceBadge = (t, source, detail = '') => {
     if (!el) return;
     const saved = source === 'planned-time';
     const zero = source === 'zero-default';
-    const base = 'w-[84px] shrink-0 text-center text-[11px] truncate';
+    const base = 'w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] truncate';
     el.className = saved
         ? `${base} font-bold rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300`
         : `${base} font-medium text-gray-400 dark:text-gray-500`;
     el.textContent = saved ? '저장값' : (zero ? '기본 0명' : '지난 4주 평균');
+    delete el.dataset.srcText;   // 보관해 둔 옛 글씨를 버린다(markSourceBadge 와 같은 이유)
+    delete el.dataset.warn;
     const tip = saved
         ? '이 날짜에 직접 저장해 둔 투입시간입니다. 실적 평균보다 먼저 적용됩니다.'
         : (zero
@@ -1770,35 +1798,46 @@ const applyEmptyRowFolding = () => {
         }
     };
 
+    // 왜 펼쳐져 있는지를 **출처 배지 자리에** 쓴다(칸을 더 만들지 않는다 — 업무명이 잘린다).
+    // 출처는 title 에 남으므로 마우스를 올리면 확인할 수 있다.
     const 사유표시 = (id, reason) => {
         const el = document.getElementById(id);
         if (!el) return;
-        // 왜 펼쳐져 있는지 한 단어로 알려 준다(배지 옆, 조용한 글씨)
-        el.textContent = reason && reason !== 'saved' ? (FOLD_REASON_TEXT[reason] || '') : '';
-        el.classList.toggle('hidden', !el.textContent);
+        if (el.dataset.warn === '1') return;   // 방금 띄운 경고를 덮지 않는다
+        const 글 = (reason && reason !== 'saved') ? (FOLD_REASON_TEXT[reason] || '') : '';
+        if (!글) {
+            // 사유가 없거나 '내가 넣은 값' 이면 출처 배지를 그대로 둔다(이미 색으로 구분된다)
+            if (el.dataset.srcText) { el.textContent = el.dataset.srcText; delete el.dataset.srcText; }
+            return;
+        }
+        if (!el.dataset.srcText) el.dataset.srcText = el.textContent;
+        el.textContent = 글;
     };
 
+    const alwaysKeys = simAlwaysTasks();
     SIM_TASKS.forEach(t => {
         const meta = simRowMeta.get(t.key);
         const el = document.getElementById(`sim-qty-${t.id}`);
         // meta 가 아직 없으면(첫 렌더 등) 예전 기준으로 폴백한다
         // 폴백에서도 '손댄 칸은 접지 않는다' 는 규칙이 먼저다.
         // (preserveDirty 로 meta 를 못 채운 칸이 여기로 온다 — 방금 넣은 0 이 사라지면 안 된다)
+        const always = alwaysKeys.has(t.key);
         const reason = simDirtyQty.has(t.key) ? 'edited'
-            : (meta ? foldReasonFor({ ...meta, dirty: false })
-                    : (isEmptyRowValue(el) ? null : 'edited'));
-        사유표시(`sim-why-${t.id}`, reason);
+            : (meta ? foldReasonFor({ ...meta, dirty: false, always })
+                    : (always ? 'core' : (isEmptyRowValue(el) ? null : 'edited')));
+        사유표시(`sim-src-${t.id}`, reason);
         markRow(t.id, reason === null, t.label, meta ? meta.value : (Number(el?.value) || 0));
     });
     SIM_TIME_TASKS.forEach(t => {
         const meta = simRowMeta.get('t:' + t.key);
         const noTime = isEmptyRowValue(document.getElementById(`sim-time-${t.id}`));
         const noOne  = (Number(document.getElementById(`sim-workers-${t.id}`)?.value) || 0) <= 0;
+        const always = alwaysKeys.has(t.key);
         const reason = simDirtyTime.has(t.key) ? 'edited'
-            : (meta ? foldReasonFor({ ...meta, dirty: false })
+            : (meta ? foldReasonFor({ ...meta, dirty: false, always })
                     : (simZeroTasks().has(t.key) ? 'zero-default'
-                       : (!(noTime || noOne) ? 'edited' : null)));
-        사유표시(`sim-why-t-${t.id}`, reason);
+                       : (always ? 'core' : (!(noTime || noOne) ? 'edited' : null))));
+        사유표시(`sim-src-t-${t.id}`, reason);
         markRow(`t-${t.id}`, reason === null, t.label, meta ? meta.value : 0);
     });
 
@@ -3280,6 +3319,9 @@ const setupSimulationListeners = () => {
                 // title 은 마우스를 올려야 보인다 — 글씨로도 알린다.
                 const badge0 = document.getElementById(`sim-src-t-${t.id}`);
                 if (badge0) {
+                    // 폴딩이 이 자리에 '펼친 사유' 를 쓰므로, 경고가 덮이지 않게 표시해 둔다.
+                    // (경고는 사유보다 우선한다 — 사용자가 방금 한 조작에 대한 답이다)
+                    badge0.dataset.warn = '1';
                     badge0.textContent = '분 직접 입력';
                     badge0.title = '이 업무는 최근 4주 기록이 없어 1인 기준 시간을 모릅니다.'
                         + ' 인원만 올려서는 시간이 잡히지 않습니다 — 분을 직접 넣으면 그 값이 기준이 됩니다.';
