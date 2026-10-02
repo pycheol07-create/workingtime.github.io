@@ -1,33 +1,34 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202610021228';
-import * as State from './state.js?v=202610021228';
+import * as DOM from './dom-elements.js?v=202610021350';
+import * as State from './state.js?v=202610021350';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202610021228';
-import { updateDailyData } from './app-data.js?v=202610021228';
+import { render } from './app.js?v=202610021350';
+import { updateDailyData } from './app-data.js?v=202610021350';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610021228';
+import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610021350';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610021350';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202610021228';
+} from './ui.js?v=202610021350';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202610021228';
-import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords, previewDayClose } from './history-data-manager.js?v=202610021228';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610021228';
-import { openHistoryQuantityModal } from './app-history-logic.js?v=202610021228';
+} from './app-logic.js?v=202610021350';
+import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords, previewDayClose } from './history-data-manager.js?v=202610021350';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610021350';
+import { openHistoryQuantityModal } from './app-history-logic.js?v=202610021350';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Admin Todo 로직 임포트
-import * as AdminTodoLogic from './admin-todo-logic.js?v=202610021228';
+import * as AdminTodoLogic from './admin-todo-logic.js?v=202610021350';
 
 export function setupMainScreenListeners() {
 
@@ -214,8 +215,19 @@ export function setupMainScreenListeners() {
             if (DOM.endShiftConfirmTitle) DOM.endShiftConfirmTitle.textContent = `오늘 업무 마감`;
             if (DOM.endShiftConfirmMessage) DOM.endShiftConfirmMessage.textContent = `진행 중인 업무가 없습니다. 이대로 오늘 업무를 마감하시겠습니까?`;
         }
-        // 기본값은 현재시각 — 예전 동작과 같다. 그대로 누르면 결과가 달라지지 않는다.
-        if (DOM.endShiftTimeInput) DOM.endShiftTimeInput.value = getCurrentTime();
+        // 기본값은 업무일 종료시각(17:30). **단 그보다 일찍 마감하면 현재시각.**
+        //
+        // 왜 현재시각이 아닌가 — 이 칸의 값이 그날 **전원의 퇴근시각**이 된다.
+        // 깜빡하고 밤 10시에 마감을 누르면 그대로 10시 퇴근으로 확정됐다
+        // (2026-10-01 에 같은 종류로 근무시간이 27시간 부풀었다).
+        //
+        // 왜 그냥 17:30 이 아닌가 — 오전에 일찍 마감하는 날 17:30 을 넣으면 이번엔
+        // 반대로 아직 오지 않은 시각이 퇴근시각이 되어 부풀린다. 둘 중 **이른 쪽**을 쓴다.
+        // (늦게까지 일한 날은 이 칸을 손으로 고치면 된다 — 미리보기가 결과를 보여 준다)
+        const 지금 = getCurrentTime();
+        if (DOM.endShiftTimeInput) {
+            DOM.endShiftTimeInput.value = (지금 < AUTO_END_TIME) ? 지금 : AUTO_END_TIME;
+        }
         renderEndShiftPreview();
         if (DOM.endShiftConfirmModal) DOM.endShiftConfirmModal.classList.remove('hidden');
     };

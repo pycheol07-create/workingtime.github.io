@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import {
     resolveOpenRecordEnd, clampOpenRecords,
     AUTO_END_TIME, MAX_OPEN_RECORD_MINUTES,
-} from '../js/lib/record-close.js?v=202610021228';
+} from '../js/lib/record-close.js?v=202610021350';
 
 /** 10:00 에 시작해 아직 안 끝난 기록 */
 const 열린기록 = (over = {}) => ({
