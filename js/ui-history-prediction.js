@@ -3,23 +3,25 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610021445';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610021445';
-import * as State from './state.js?v=202610021445';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610021445';
+import { predictFutureTrends } from './analysis-logic.js?v=202610021709';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610021709';
+import * as State from './state.js?v=202610021709';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610021709';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610021445';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610021709';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610021445';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610021445';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610021709';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610021709';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610021445';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610021445';
-import { taskUph, recentDays } from './task-throughput.js?v=202610021445';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610021709';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610021709';
+import { taskUph, recentDays } from './task-throughput.js?v=202610021709';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610021445';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610021709';
+import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
+         DEFAULT_CARRY } from './lib/backlog-carry.js?v=202610021709';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -410,6 +412,23 @@ const isHolidayDate = (dateStr) => {
 };
 /** 쉬는 날(주말·공휴일) */
 const isOffDay = (dateStr) => isWeekendDate(dateStr) || isHolidayDate(dateStr);
+/** 공휴일 이름('추석 연휴' 등). 공휴일이 아니면 빈 문자열 */
+const holidayNameOf = (dateStr) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return '';
+    return getHolidayName(d.getFullYear(), d.getMonth() + 1, d.getDate()) || '';
+};
+/** 대상일 직전 휴일 묶음에 붙은 공휴일 이름 — '추석 연휴로 4일 쉰 뒤' 처럼 쓴다.
+ *  주말만 쉰 경우는 이름이 없으므로 빈 문자열(그때는 문구에서 날수만 말한다). */
+const precedingHolidayName = (dateStr, maxBack = 10) => {
+    let cur = addDays(dateStr, -1);
+    for (let i = 0; i < maxBack && isOffDay(cur); i++) {
+        const nm = holidayNameOf(cur);
+        if (nm) return nm;
+        cur = addDays(cur, -1);
+    }
+    return '';
+};
 /** 기준일 다음의 첫 근무일 — 주말·공휴일은 건너뛴다(연휴가 길어도 최대 14일까지 찾는다) */
 const nextWorkingDay = (fromDateStr, maxSteps = 14) => {
     let d = addDays(fromDateStr, 1);
@@ -1219,7 +1238,66 @@ const weekPlanFor = (historyData, taskKey, dateStr) => {
     return plan;
 };
 
-/** 미래 날짜의 국내배송 AI 예측값. 과거이면 실측치 사용. */
+// ───────────────────────────────────────────────────────────
+// 🛌 휴일 다음 첫 근무일의 '밀린 물량'
+// ───────────────────────────────────────────────────────────
+//  국내배송 AI 예측은 요일평균(dowAvg)이 뼈대다. 요일평균은 '월요일은 원래 크다'는 형태로
+//  **주말 밀림을 이미 품고 있지만 공휴일은 전혀 모른다** — 연휴 다음 화요일을 평범한 화요일로
+//  예측한다. 그 차이만 메운다. 규칙 자체는 js/lib/backlog-carry.js 에 있고 테스트가 붙어 있다.
+//
+//  ⚠️ 보정은 **국내배송(ai 모드) 한 곳에만** 건다. 다른 업무는 이미 휴일을 알고 있다 —
+//     cadence 는 간격을 근무일로 세고(workdaysBetween), 주 배정량도 그 주의 근무일 수로 줄인다.
+//     중국제작은 입고일정 시트의 실제 도착일, 상.하차는 prevWorkingDay 의 출고량이다.
+//     여기에 배수를 더 곱하면 같은 밀림을 두 번 센다.
+const BACKLOG_SAMPLE_DAYS = 90;   // AI 예측(splitHistoryForPrediction)이 보는 창과 같게 맞춘다
+
+/** 관리자 설정으로 바꿀 수 있는 기본 밀림 비율(쉬는 날 하루당). 0~1 밖의 값은 무시한다. */
+const carryFallback = () => {
+    const v = Number(State.appConfig?.forecastBacklogCarryPerOffDay);
+    return (Number.isFinite(v) && v >= 0 && v <= 1) ? v : DEFAULT_CARRY;
+};
+
+/** 결과를 바꾸는 설정값 — 캐시 키에 함께 넣는다(이력이 안 바뀌어도 설정은 바뀐다) */
+const backlogCfgSig = () => `${State.appConfig?.forecastBacklogEnabled === false ? 'off' : 'on'}#${carryFallback()}`;
+
+let backlogCarryCache = null, backlogCarrySig = '';
+/** 하루당 밀림 비율 — 이력 전체를 훑으므로 이력 서명으로 캐시한다
+ *  (10일 전망·주간 표가 날짜마다 부른다). */
+const domesticCarry = (historyData) => {
+    const sig = `${historySigValue}#${backlogCfgSig()}`;
+    if (backlogCarrySig === sig && backlogCarryCache) return backlogCarryCache;
+    const today = getTodayDateString();
+    // 예측이 쓰는 지표와 같은 값으로 배워야 비율이 맞는다(카페24 = 국내배송 물량)
+    const deliveryOf = channelScope('cafe24').deliveryOf;
+    const samples = (historyData || [])
+        .filter(d => d && typeof d.id === 'string' && d.id < today)
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .slice(-BACKLOG_SAMPLE_DAYS)
+        .map(d => ({ date: d.id, value: Number(deliveryOf(d)) || 0 }));
+    backlogCarryCache = learnCarryPerOffDay(samples, isOffDay, { fallback: carryFallback() });
+    backlogCarrySig = sig;
+    return backlogCarryCache;
+};
+
+let backlogInfoCache = new Map(), backlogInfoSig = '';
+/** 대상일의 밀림 보정값. 평소와 같은 날이면 factor = 1 (아무것도 바꾸지 않는다). */
+const backlogInfoFor = (historyData, dateStr) => {
+    const sig = `${historySigValue}#${backlogCfgSig()}`;
+    if (backlogInfoSig !== sig) { backlogInfoCache = new Map(); backlogInfoSig = sig; }
+    if (backlogInfoCache.has(dateStr)) return backlogInfoCache.get(dateStr);
+    let out;
+    if (State.appConfig?.forecastBacklogEnabled === false) {
+        out = { factor: 1, excess: 0, gap: 0, carry: 0, learned: null };
+    } else {
+        const learned = domesticCarry(historyData);
+        out = { ...backlogFactor(dateStr, isOffDay, learned.carry), learned };
+    }
+    backlogInfoCache.set(dateStr, out);
+    return out;
+};
+
+/** 미래 날짜의 국내배송 AI 예측값. 과거이면 실측치 사용.
+ *  휴일 다음 첫 근무일이면 쉬는 동안 쌓인 몫을 더한다(실측에는 곱하지 않는다). */
 const getAIPredictedDomestic = (historyData, dateStr) => {
     const today = getTodayDateString();
     const tD = new Date(today + 'T00:00:00');
@@ -1234,6 +1312,14 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
     }
     if (diff > 30) return 0; // 너무 먼 미래는 신뢰도 낮음
 
+    // 🛌 쉬는 동안 쌓인 몫. 추정값에만 곱한다 — 실측은 이미 일어난 일이라 손대지 않는다.
+    const bump = (v) => {
+        const q = Math.round(Number(v) || 0);
+        if (q <= 0) return q;
+        const f = backlogInfoFor(historyData, dateStr).factor;
+        return f > 1 ? Math.round(q * f) : q;
+    };
+
     // ⚠️ 반드시 일반배송(카페24) 스코프로 예측해야 delivery가 '국내배송' 물량이 된다.
     //    스코프를 생략하면 전 채널 물량 합계가 나와 시뮬레이션 값이 부풀려진다.
     const result = predictFutureTrends(historyData, Math.max(14, diff || 1), channelScope('cafe24'));
@@ -1245,15 +1331,15 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
         const actual = Number(day?.taskQuantities?.['국내배송']) || 0;
         if (actual > 0) return actual;
         const todayPred = result?.prediction?.today?.predictedDel;
-        if (todayPred > 0) return Math.round(todayPred);
-        return computeLast7Avg(historyData, '국내배송');
+        if (todayPred > 0) return bump(todayPred);
+        return bump(computeLast7Avg(historyData, '국내배송'));
     }
 
     const predicted = result?.prediction?.delivery?.[diff - 1];
-    if (predicted > 0) return Math.round(predicted);
+    if (predicted > 0) return bump(predicted);
 
     // 예측 불가(이력 7일 미만 등) → 최근 실적 평균으로라도 채운다
-    return computeLast7Avg(historyData, '국내배송');
+    return bump(computeLast7Avg(historyData, '국내배송'));
 };
 
 /** 가용 인원 = 전체 정직원 − 해당일 휴무자(persistentLeave + 그날 onLeaveMembers)
@@ -1501,11 +1587,43 @@ const incomingBoxesValueFor = (dateStr, task, historyData, incomingKey = '중국
     };
 };
 
+/** 📅 '그날의 실제 근거'에서 오는 추정 — 공휴일이어도 값을 지우지 않는다.
+ *  입고일정 시트가 "그날 300박스 도착"이라고 말하면, 그날은 사람이 나온다는 뜻이다.
+ *  나머지(ai·cadence·last7)는 **과거 패턴의 관성**이라 쉬는 날에 깔아 둘 이유가 없다. */
+const EVIDENCE_MODES = new Set(['incoming', 'china-linked', 'incoming-boxes']);
+
 /** 수기값(실측·예정)을 뺀 순수 자동 추정값만. 예정 물량 입력 화면의 프리필이 쓴다. */
 const estimatedValueFor = (dateStr, task, historyData) => {
     const { mode, arg } = parseAutoMode(task.auto);
+
+    // 🏖 공휴일에는 과거 패턴으로 물량을 깔지 않는다 — 아무도 안 나오는 날에 '필요 5명'이 뜬다.
+    //    과거 날짜는 실측을 보여줘야 하므로 오늘 이후에만 적용한다.
+    //    (그날 출근한다면 '예정 물량'을 넣으면 된다 — 수기값이 항상 이긴다)
+    if (!EVIDENCE_MODES.has(mode) && dateStr >= getTodayDateString() && isHolidayDate(dateStr)) {
+        const nm = holidayNameOf(dateStr);
+        return { value: 0, source: 'holiday-off',
+                 detail: `${nm || '공휴일'} 입니다. 출근해서 작업한다면 직접 물량을 넣으세요.` };
+    }
+
     switch (mode) {
-        case 'ai':       return { value: getAIPredictedDomestic(historyData, dateStr), source: 'ai' };
+        case 'ai': {
+            const value = getAIPredictedDomestic(historyData, dateStr);
+            const info = backlogInfoFor(historyData, dateStr);
+            // 배지는 **실제로 보정이 걸린 경우에만** 붙인다.
+            // getAIPredictedDomestic 은 과거(실측)와 오늘 실측에는 배수를 곱하지 않는다 —
+            // 같은 조건을 여기서도 똑같이 따져야 '연휴 밀림'이라 써 놓고 값은 그대로인 일이 없다.
+            const 오늘실측 = dateStr === getTodayDateString()
+                ? (Number((historyData || []).find(d => d.id === dateStr)?.taskQuantities?.['국내배송']) || 0)
+                : 0;
+            const 보정됨 = dateStr >= getTodayDateString() && 오늘실측 <= 0 && info.factor > 1 && value > 0;
+            if (!보정됨) return { value, source: 'ai' };
+            const reason = carryReason(info, {
+                holidayName: precedingHolidayName(dateStr),
+                dow: new Date(dateStr + 'T00:00:00').getDay(),
+                baseValue: value / info.factor, finalValue: value
+            });
+            return { value, source: 'ai-carry', detail: `${reason}\n${carrySourceNote(info.learned)}` };
+        }
         case 'incoming': return { value: getIncomingChinaForDate(dateStr), source: 'incoming' };
         case 'china-linked': {
             // 샘플검수는 중국제작 입고가 있는 날에만 발생한다.
@@ -1532,6 +1650,14 @@ const SOURCE_BADGE = {
     actual:   { text: '오늘 실측', muted: false, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
                 tip: '오늘 처리량 입력에 들어간 실제 값입니다. 저장해 둔 예정 물량이 있어도 이 값이 먼저 적용됩니다.' },
     ai:       { text: 'AI 예측',    muted: true, tip: '국내배송 AI 추세 예측값' },
+    'ai-carry': { text: '연휴 밀림', muted: true,
+                tip: '국내배송 AI 예측값에, 쉬는 동안 쌓인 몫을 더한 값입니다.'
+                   + ' 보통 주말만큼(월요일)은 이미 요일 평균에 들어 있어서,'
+                   + ' 그보다 더 쉰 날수만큼만 올립니다.'
+                   + ' 너무 많다 싶으면 칸에 직접 숫자를 넣으세요 — 수기 입력이 항상 우선합니다.' },
+    'holiday-off': { text: '공휴일', muted: true,
+                tip: '이 날은 공휴일이라 0 으로 둡니다.'
+                   + ' 출근해서 작업한다면 칸에 직접 물량을 넣으세요.' },
     incoming: { text: '입고일정',    muted: true, tip: '대시보드 입고일정에서 도착일 기준 자동 반영' },
     last7:    { text: '지난 7회 평균', muted: true, tip: '이 업무가 발생한 최근 7일의 업무량 평균' },
     'cadence-on':    { text: '하는 날', muted: true,
@@ -1578,6 +1704,9 @@ const paintDayApply = (task, dayValue) => {
             + '실제로 이 업무를 한다면 눌러서 이 값을 넣으세요.';
 };
 
+/** 접기 사유에 덮이면 안 되는 출처 — 그 자체가 '왜 이 값인지'의 답이다 */
+const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'holiday-off']);
+
 /** 값의 출처를 항목 아래에 표시 */
 const markSourceBadge = (task, source, detail = '', dayValue = null) => {
     paintDayApply(task, dayValue);
@@ -1593,6 +1722,11 @@ const markSourceBadge = (task, source, detail = '', dayValue = null) => {
     // 새로 쓸 때 보관값을 버리지 않으면, 사유가 사라질 때 **옛 출처**가 되살아난다.
     delete el.dataset.srcText;
     delete el.dataset.warn;
+    // 🛡 출처 자체가 '왜 평소와 다른지'를 설명하는 배지는 접기 사유에 덮이면 안 된다.
+    //    연휴 밀림은 값이 크게 튀는 것이 **정상**이라, 덮이면 화면에는 '평소와 다름'(outlier)만
+    //    남아 경고처럼 읽히고, 정작 이유인 '연휴 밀림'은 끝내 보이지 않는다.
+    if (KEEP_SOURCE_BADGE.has(source)) el.dataset.keepSrc = '1';
+    else delete el.dataset.keepSrc;
     // 왜 그 값이 나왔는지(예: '월요일엔 7/8회 진행')를 함께 보여준다.
     // 0 이 들어간 칸을 보고 고장으로 오해하지 않도록 근거가 필요하다.
     el.title = detail ? `${b.tip}
@@ -1804,6 +1938,10 @@ const applyEmptyRowFolding = () => {
         const el = document.getElementById(id);
         if (!el) return;
         if (el.dataset.warn === '1') return;   // 방금 띄운 경고를 덮지 않는다
+        // '연휴 밀림' 등 출처가 곧 설명인 배지는 **그 배지가 더 정확한 사유일 때만** 지킨다.
+        // ⚠️ 전부 막으면 안 된다 — 사용자가 직접 고친 칸('고친 칸')이 '연휴 밀림'으로 남고,
+        //    기준 속도가 없어 계획에서 통째로 빠지는 'no-uph' 경고까지 가려진다.
+        if (el.dataset.keepSrc === '1' && (reason === 'outlier' || reason === 'core')) return;
         const 글 = (reason && reason !== 'saved') ? (FOLD_REASON_TEXT[reason] || '') : '';
         if (!글) {
             // 사유가 없거나 '내가 넣은 값' 이면 출처 배지를 그대로 둔다(이미 색으로 구분된다)
@@ -2043,9 +2181,30 @@ const readExcludeMinutes = () => {
     return Math.round(raw / EXCLUDE_STEP_MIN) * EXCLUDE_STEP_MIN;   // 10분 단위로 맞춤
 };
 
+/** 쉬는 날 칩 — 주말/공휴일을 같은 자리에 세운다.
+ *  simulateOneDay 결과(r)를 그대로 받는다. 평일이면 빈 문자열. */
+const offDayChip = (r, { pad = 'px-1.5 py-0.5', lead = '' } = {}) => {
+    const cls = `text-[10px] font-bold ${pad} rounded ${lead}`;
+    if (r?.holiday) {
+        const nm = r.holidayName || '공휴일';
+        return ` <span class="${cls} bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"`
+             + ` title="${escapeHtml(nm)}">공휴일</span>`;
+    }
+    if (r?.weekend) {
+        return ` <span class="${cls} bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">주말</span>`;
+    }
+    return '';
+};
+
 const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
     const stdHours = config?.standardDailyWorkHours || { weekday: 8, weekend: 4 };
     const weekend = isWeekendDate(dateStr);
+    const holiday = !weekend && isHolidayDate(dateStr);
+    const holidayName = holiday ? holidayNameOf(dateStr) : '';
+    // ⚠️ 주중 공휴일에 dailyHours 를 주말값(4h)으로 줄이지 않는다.
+    //    자동값 0 처리는 국내배송 한 업무에만 걸리는데 분모만 반으로 줄이면,
+    //    입고가 잡힌 공휴일에 '필요 인원'이 오히려 2배로 뜬다(실제로 출근하는 날이 그렇다).
+    //    공휴일은 **표시(배지)로만** 알리고 계산 기준은 평일 그대로 둔다.
     const dailyHours = weekend ? (Number(stdHours.weekend) || 4) : (Number(stdHours.weekday) || 8);
 
     // 업무 제외시간을 빼고 남는 '실제 업무에 쓸 수 있는 시간'(1인 기준)
@@ -2120,7 +2279,7 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
     const slackHours = netDailyHours - elapsedHours;
 
     return {
-        date: dateStr, weekend, dailyHours, netDailyHours, excludeMinutes,
+        date: dateStr, weekend, holiday, holidayName, dailyHours, netDailyHours, excludeMinutes,
         taskTimes, timeTaskTimes, qtyHours, timeHours, totalHours,
         tiedFTE, qtyStaff, staffShortForQty, qtyElapsed,
         elapsedHours, elapsedCappedByTimeTask, capacityHours, slackHours,
@@ -2331,7 +2490,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                 </div>` : '';
 
         container.innerHTML = `
-        ${cardOpen(`${dayLabel(r.date)}${r.weekend ? ' <span class="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded ml-1">주말</span>' : ''}`,
+        ${cardOpen(`${dayLabel(r.date)}${offDayChip(r, { lead: 'ml-1' })}`,
                    `기준 UPH 최근 4주 평균 · 1일 ${r.dailyHours}h${r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)} = ${fmtHM(r.netDailyHours)}` : ''} · 가동률 ${(UTILIZATION*100)|0}%`)}
             <div class="p-4 md:p-5 space-y-4">
                 <!-- 판단에 필요한 숫자 셋만 크게. 나머지 근거는 아래 '업무별 상세'에 접어 둔다. -->
@@ -2406,8 +2565,8 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
         const trows = results.map(r => {
             const tone = GAP_TONE(r.gap);
             return `
-            <tr class="border-t border-gray-100 dark:border-gray-700/60 ${r.weekend ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}">
-                <td class="py-2.5 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${dayLabel(r.date)}${r.weekend ? ' <span class="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1 rounded">주말</span>' : ''}</td>
+            <tr class="border-t border-gray-100 dark:border-gray-700/60 ${r.holiday ? 'bg-rose-50/40 dark:bg-rose-900/10' : (r.weekend ? 'bg-amber-50/40 dark:bg-amber-900/10' : '')}">
+                <td class="py-2.5 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${dayLabel(r.date)}${offDayChip(r, { pad: 'px-1' })}</td>
                 <td class="py-2.5 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${fmtH(r.totalHours)}</td>
                 <td class="py-2.5 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300">${r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—'}</td>
                 <td class="py-2.5 px-3 text-right tabular-nums font-bold ${r.availableTotal <= 0 ? 'text-gray-400' : (r.slackHours >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}">${r.availableTotal > 0 ? (r.slackHours >= 0 ? `+${fmtHM(r.slackHours)}` : `-${fmtHM(Math.abs(r.slackHours))}`) : '—'}</td>
@@ -2677,6 +2836,18 @@ window.__forecastForDate = async (dateStr) => {
         return {
             ok: true, hookVersion: 1,
             date, todayDate: getTodayDateString(), weekend: !!r.weekend,
+            holiday: !!r.holiday, holidayName: r.holidayName || '',
+            // ⚠️ factor 는 '그 날짜의 달력 계산'일 뿐이다. 예정물량을 수기로 넣어 두면
+            //    보정은 적용되지 않는다 — 소비자가 그걸 구분할 수 있게 applied 를 함께 낸다.
+            //    캐시 객체를 그대로 넘기면 받는 쪽이 손댈 때 캐시가 오염된다(복사해서 낸다).
+            backlog: (() => {
+                const b = backlogInfoFor(State.allHistoryData, date);
+                const t = SIM_TASKS.find(x => x.key === '국내배송');
+                // 화면이 쓰는 바로 그 함수로 출처를 다시 묻는다 — 조건을 여기서 또 적으면 어긋난다
+                const src = t ? autoValueFor(date, t, State.allHistoryData).source : null;
+                return { ...b, learned: b.learned ? { ...b.learned } : null,
+                         applied: src === 'ai-carry' };
+            })(),
             // 알림은 requiredFTE(정수)를 쓴다 — 화면 표시값과 같아야 대조 검증이 된다.
             // rawRequiredFTE(소수)는 근거·되돌리기용으로 같이 준다.
             requiredFTE: r.requiredFTE, rawRequiredFTE: n(r.rawRequiredFTE),
@@ -2754,7 +2925,7 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
             <div class="min-w-0">
                 <div class="flex items-center gap-1.5 flex-wrap">
                     <span class="text-base font-extrabold text-gray-900 dark:text-white">${label}</span>
-                    ${r.weekend ? '<span class="text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded">주말</span>' : ''}
+                    ${offDayChip(r).trim()}
                     ${simLinked ? '<span class="text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-1.5 py-0.5 rounded" title="아래 상세 시뮬레이션에 입력한 값이 그대로 반영된 결과입니다.">시뮬레이션 반영</span>' : ''}
                 </div>
                 <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">${dayLabel(r.date)}</div>
