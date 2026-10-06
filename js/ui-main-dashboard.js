@@ -1,9 +1,9 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610061647';
-import * as State from './state.js?v=202610061647';
-import { getRegularMembersForCount } from './utils.js?v=202610061647';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610061647';
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610061647';
+import { getAllDashboardDefinitions } from './ui.js?v=202610061715';
+import * as State from './state.js?v=202610061715';
+import { getRegularMembersForCount } from './utils.js?v=202610061715';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610061715';
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610061715';
 
 // 확장(ezadmin-bridge)이 postMessage 로 넘겨 주는 값. **폴백 전용.**
 // 확장 payload 에는 시각이 없어서(invoice·delivery 뿐) 받은 시각을 여기서 직접 찍어 둔다.
@@ -675,14 +675,14 @@ export const applyDynamicSidebar = (appConfig) => {
 
         if (pcNav) {
             const pcCat = document.createElement('div');
-            pcCat.className = `text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-2 ${index > 0 ? 'mt-6' : ''}`;
+            pcCat.className = `text-[12.5px] font-extrabold text-gray-700 dark:text-gray-200 tracking-wider mb-2 ml-2 pl-2 border-l-[3px] border-blue-500 dark:border-blue-400 leading-4 ${index > 0 ? 'mt-6' : ''}`;
             pcCat.textContent = group.category;
             pcNav.appendChild(pcCat);
         }
 
         if (mobileNav) {
             const mobCat = document.createElement('div');
-            mobCat.className = `px-5 py-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase ${index > 0 ? 'mt-2' : ''}`;
+            mobCat.className = `px-5 py-2 text-[13px] font-extrabold text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/50 border-l-[3px] border-blue-500 dark:border-blue-400 ${index > 0 ? 'mt-2' : ''}`;
             mobCat.textContent = group.category;
             if (logoutBtn) mobileNav.insertBefore(mobCat, logoutBtn);
             else mobileNav.appendChild(mobCat);
