@@ -1,9 +1,9 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610061628';
-import * as State from './state.js?v=202610061628';
-import { getRegularMembersForCount } from './utils.js?v=202610061628';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610061628';
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610061628';
+import { getAllDashboardDefinitions } from './ui.js?v=202610061647';
+import * as State from './state.js?v=202610061647';
+import { getRegularMembersForCount } from './utils.js?v=202610061647';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610061647';
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610061647';
 
 // 확장(ezadmin-bridge)이 postMessage 로 넘겨 주는 값. **폴백 전용.**
 // 확장 payload 에는 시각이 없어서(invoice·delivery 뿐) 받은 시각을 여기서 직접 찍어 둔다.
@@ -597,7 +597,7 @@ window.addEventListener('message', (event) => {
 // 항상 페이지에 맞는 아이콘이 표시되고, 같은 named target으로 별도 창에서 열린다.
 const EXTERNAL_LINK_META = [
     { match: 'manual.html',   icon: '📖', target: '_blank' },          // 업무 매뉴얼
-    { match: 'sheets.html',   icon: '🗂️', target: 'sheets_window' },   // 업무시트 대시보드 (메인 대시보드 📊와 구분)
+    { match: 'calculator/',   icon: '🧾', target: 'calculator_window' }, // 통합 계산기(통관·수입·배송비·창고비) — 별도 탭
     { match: 'location.html', icon: '📍', target: 'location_window' }, // 로케이션 관리
     { match: 'supplies.html', icon: '📦', target: 'supplies_window' }, // 비품 관리
     { match: 'admin.html',    icon: '⚙️', target: 'admin_window' },    // 관리자 페이지

@@ -1,13 +1,13 @@
 // === js/listeners-form-total-inspection.js ===
 // 설명: 전량 검수 매니저 및 샘플 검수 전환 버튼 리스너
 
-import * as DOM from './dom-elements.js?v=202610061628';
+import * as DOM from './dom-elements.js?v=202610061647';
 import { 
     searchTotalInspection, 
     updateTotalInspRemaining, 
     saveTotalInspection, 
     triggerTotalInspectionFromSample 
-} from './total-inspection-logic.js?v=202610061628';
+} from './total-inspection-logic.js?v=202610061647';
 
 export function setupTotalInspectionListeners() {
     

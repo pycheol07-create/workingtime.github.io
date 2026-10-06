@@ -50,7 +50,7 @@ async function check(name, expect, fn) {
     roles[ADMIN] = 'admin';
     roles[STAFF] = 'user';
     await setDoc(doc(db, ...APP, 'config', 'mainConfig'), { memberRoles: roles });
-    await setDoc(doc(db, ...APP, 'config', 'sheetDashboard'), { scriptUrl: '', sheets: [] });
+    await setDoc(doc(db, ...APP, 'config', 'tools'), { x: 1 });   // mainConfig 외 config 문서
     await setDoc(doc(db, ...APP, 'daily_data', '2026-09-28'), { x: 1 });
     await setDoc(doc(db, ...APP, 'daily_data', '2026-09-28', 'workRecords', 'r1'), { x: 1 });
     await setDoc(doc(db, ...APP, 'history', '2026-09-28'), { x: 1 });
@@ -95,8 +95,8 @@ async function check(name, expect, fn) {
     () => setDoc(cfg(admin), { memberLeaveSettings: { a: 1 } }, { merge: true }));
 
   // ── config 의 다른 문서는 전원 쓰기 (시트 대시보드) ───────────────────
-  await check('직원이 sheetDashboard 수정', 'ALLOW',
-    () => updateDoc(doc(staff, ...APP, 'config', 'sheetDashboard'), { t: 1 }));
+  await check('직원이 config 의 다른 문서(tools) 수정', 'ALLOW',
+    () => updateDoc(doc(staff, ...APP, 'config', 'tools'), { t: 1 }));
 
   // ── 일상 업무 경로 — 막히면 안 된다 ───────────────────────────────────
   await check('직원이 daily_data 수정', 'ALLOW',
