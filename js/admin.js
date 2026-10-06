@@ -1,5 +1,5 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610061548';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610061628';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -11,13 +11,17 @@ import {
     populateTaskSelectModal,
     openDashboardItemModal,
     getAllDashboardDefinitions,
-    renderDashboardMenu
-} from './admin-ui.js?v=202610061548';
+    renderDashboardMenu,
+    menuItemRowHtml,
+    loadMenuPageList,
+    findDeadMenuItems,
+    countNamelessMenuRows
+} from './admin-ui.js?v=202610061628';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202610061548';
+} from './admin-logic.js?v=202610061628';
 
 let db, auth;
 let appConfig = {};
@@ -63,6 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         privateLoadFailed = true;
                         console.warn('급여·원가 불러오기 실패:', e && e.code);
                     }
+                    // 메뉴 관리의 '연결할 곳' 목록에 새 html 페이지를 붙인다(배포 때 만든 pages.json).
+                    await loadMenuPageList();
                     renderAdminUI(appConfig);
                     setupEventListeners();
                     if (adminContent) adminContent.classList.remove('hidden');
@@ -272,6 +278,16 @@ async function handleSaveAll() {
         const newConfig = collectConfigFromDOM(appConfig);
         validateConfig(newConfig);
 
+        // 눌러도 열리지 않을 메뉴는 저장 전에 알린다(막지는 않는다 — 만들다 만 상태로 저장할 수도 있다).
+        const deadMenus = findDeadMenuItems(newConfig.dashboardMenu);
+        const nameless = countNamelessMenuRows();   // 이름이 비어 저장에서 빠질 줄
+        if ((deadMenus.length || nameless) && !confirm('⚠️ 메뉴 관리에 확인할 줄이 있습니다.\n\n'
+            + (deadMenus.length ? '눌러도 열리지 않는 메뉴(연결할 곳 없음):\n' + deadMenus.map(n => ' · ' + n).join('\n') + '\n\n' : '')
+            + (nameless ? `이름이 비어 있어 저장되지 않고 사라질 메뉴: ${nameless}개\n\n` : '')
+            + '그래도 저장할까요?')) {
+            return;
+        }
+
         const leaveCleanup = await prepareLeaveCleanup(appConfig, newConfig);
         if (leaveCleanup === 'cancelled') {
             return;
@@ -474,18 +490,12 @@ function handleDynamicClicks(e) {
 
     else if (e.target.classList.contains('add-menu-item-btn')) {
         const container = e.target.closest('.menu-category-card').querySelector('.menu-items-container');
-        const newItemEl = document.createElement('div');
-        newItemEl.className = 'flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm';
-        newItemEl.innerHTML = `
-            <div class="flex items-center gap-3 flex-grow">
-                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
-                <input type="text" value="" class="menu-item-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none" placeholder="새 메뉴 이름">
-                <input type="text" value="" class="menu-item-link w-1/3 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="연결 링크 (예: index.html)">
-            </div>
-            <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-menu-item-btn opacity-0 group-hover:opacity-100" type="button">삭제</button>
-        `;
+        // 렌더링과 같은 줄 모양(연결할 곳 선택 목록 포함). 파일명을 칠 필요 없이 목록에서 고른다.
+        const tmp = document.createElement('div');
+        tmp.innerHTML = menuItemRowHtml({ name: '', link: '' }).trim();
+        const newItemEl = tmp.firstElementChild;
         container.appendChild(newItemEl);
-        newItemEl.querySelector('.menu-item-name')?.focus();
+        newItemEl.querySelector('.menu-item-link')?.focus();
     }
 
     else if (e.target.classList.contains('add-member-btn')) {

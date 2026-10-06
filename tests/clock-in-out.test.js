@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import {
     validateClockInOut, normalizeClock, netPresenceMinutes,
     MIN_PRESENCE_MIN, MAX_PRESENCE_MIN,
-} from '../js/lib/clock-in-out.js?v=202610061548';
+} from '../js/lib/clock-in-out.js?v=202610061628';
 
 const 판정 = (inTime, outTime, opts) => validateClockInOut({ inTime, outTime }, opts);
 

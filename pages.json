@@ -1,0 +1,46 @@
+[
+ {
+  "file": "admin.html",
+  "title": "관리자 페이지 - 물류팀 시스템"
+ },
+ {
+  "file": "china-stock-goods.html",
+  "title": "중국제작 미발계산기"
+ },
+ {
+  "file": "china-stock-migrate.html",
+  "title": "미발계산기 손입력 데이터 이관"
+ },
+ {
+  "file": "history.html",
+  "title": "물류팀 데이터 관리"
+ },
+ {
+  "file": "index.html",
+  "title": "물류팀 업무관리"
+ },
+ {
+  "file": "location.html",
+  "title": "3층 로케이션 관리 시스템 (통합 DB)"
+ },
+ {
+  "file": "manual.html",
+  "title": "업무 매뉴얼 및 도구 - 물류팀 시스템"
+ },
+ {
+  "file": "scan.html",
+  "title": "입고 스캐너"
+ },
+ {
+  "file": "sheets.html",
+  "title": "업무 시트 대시보드"
+ },
+ {
+  "file": "supplies.html",
+  "title": "비품 관리"
+ },
+ {
+  "file": "worktime.html",
+  "title": "출퇴근 기록표"
+ }
+]

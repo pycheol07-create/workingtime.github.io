@@ -80,6 +80,20 @@ async function check(name, expect, fn) {
   await check('직원이 mainConfig 삭제', 'DENY', () => deleteDoc(cfg(staff)));
   await check('대소문자 달라도 관리자 인정', 'ALLOW', () => updateDoc(cfg(upper), { t: 1 }));
 
+  // ── 급여분리 5단계: 급여·원가 키는 관리자라도 mainConfig 에 못 쓴다 ─────
+  //    (옛 버전 앱 탭의 '전체 저장' 이 공개 문서에 급여를 되쓰는 것을 막는다)
+  const rolesOnly = { [ADMIN]: 'admin', [STAFF]: 'user' };
+  await check('★ 관리자가 mainConfig 에 급여 쓰기', 'DENY',
+    () => updateDoc(cfg(admin), { memberWages: { a: 1 } }));
+  await check('★ 관리자가 mainConfig 에 원가 쓰기', 'DENY',
+    () => updateDoc(cfg(admin), { fixedMaterialCost: 1 }));
+  await check('★ 옛 탭식 통째 저장(급여 포함)', 'DENY',
+    () => setDoc(cfg(admin), { memberRoles: rolesOnly, memberWages: { a: 1 } }));
+  await check('새 앱식 통째 저장(급여 없음)', 'ALLOW',
+    () => setDoc(cfg(admin), { memberRoles: rolesOnly, t: 2 }));
+  await check('관리자가 연차 설정 merge 저장', 'ALLOW',
+    () => setDoc(cfg(admin), { memberLeaveSettings: { a: 1 } }, { merge: true }));
+
   // ── config 의 다른 문서는 전원 쓰기 (시트 대시보드) ───────────────────
   await check('직원이 sheetDashboard 수정', 'ALLOW',
     () => updateDoc(doc(staff, ...APP, 'config', 'sheetDashboard'), { t: 1 }));

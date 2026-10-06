@@ -1,6 +1,6 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions } from './admin-ui.js?v=202610061548';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610061548';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610061628';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610061628';
 
 export function collectConfigFromDOM(currentConfig) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
@@ -52,11 +52,9 @@ export function collectConfigFromDOM(currentConfig) {
         
         const items = [];
         categoryCard.querySelectorAll('.menu-item').forEach(itemEl => {
-            const itemName = itemEl.querySelector('.menu-item-name')?.value.trim();
-            const itemLink = itemEl.querySelector('.menu-item-link')?.value.trim();
-            if (itemName) {
-                items.push({ name: itemName, link: itemLink });
-            }
+            // 링크 칸은 이제 '연결할 곳' 선택 목록이다. 값 해석은 admin-ui 의 readMenuItem 이 맡는다.
+            const it = readMenuItem(itemEl);
+            if (it) items.push(it);
         });
         newConfig.dashboardMenu.push({ category: categoryName, items: items });
     });

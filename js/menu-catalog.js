@@ -20,6 +20,37 @@ export const BUILTIN_MENU_ITEMS = [
     { name: '출퇴근 기록표', link: 'worktime.html', category: '관리자 메뉴', before: '업무 마감' }
 ];
 
+// 메뉴에 걸 수 있는 것 — 관리자 페이지 '메뉴 관리' 의 선택 목록.
+//   action : index.html 사이드바에 버튼이 이미 있어 **이름으로** 연결된다(ui-main-dashboard.js 가
+//            버튼 글자로 찾는다). 이름이 한 글자라도 다르면 메뉴는 보이지만 눌러도 아무 일이 없다.
+//            그래서 관리자 화면에서 고르면 이름을 자동으로 넣고 잠근다.
+//   page   : 링크(html 파일)로 열린다. 이름은 자유.
+// 새 html 페이지는 여기 적지 않아도 된다 — 배포.py 가 pages.json 을 만들어 목록에 자동으로 붙인다.
+// 여기 적는 건 '기본 이름·아이콘' 을 정해 주고 싶을 때뿐이다.
+export const MENU_TARGETS = [
+    { kind: 'action', name: '대시보드',         link: 'index.html',   icon: '📊' },
+    { kind: 'action', name: '오늘 처리량 입력', link: '#',            icon: '📈' },
+    { kind: 'action', name: '데이터 관리',      link: 'history.html', icon: '📜' },
+    { kind: 'action', name: '주말 근무 신청',   link: '#',            icon: '🗓️' },
+    { kind: 'action', name: '내 연차관리',      link: '#',            icon: '🏖️' },
+    { kind: 'action', name: '관리자 일정/투두', link: '#',            icon: '📅' },
+    { kind: 'action', name: '업무 마감',        link: '#',            icon: '🏁' },
+    { kind: 'page', name: '로케이션 관리',       link: 'location.html',          icon: '📍' },
+    { kind: 'page', name: '중국제작 미발계산기', link: 'china-stock-goods.html', icon: '🧮' },
+    { kind: 'page', name: '비품 관리',           link: 'supplies.html',          icon: '📦' },
+    { kind: 'page', name: '출퇴근 기록표',       link: 'worktime.html',          icon: '🕘' },
+    { kind: 'page', name: '업무 시트 대시보드',  link: 'sheets.html',            icon: '🗂️' },
+    { kind: 'page', name: '업무 매뉴얼 및 도구', link: 'manual.html',            icon: '📖' },
+    { kind: 'page', name: '관리자 페이지',       link: 'admin.html',             icon: '⚙️' },
+    { kind: 'page', name: '입고 스캐너',         link: 'scan.html',              icon: '📷' }
+];
+
+export const isActionMenuName = (name) =>
+    MENU_TARGETS.some(t => t.kind === 'action' && t.name === name);
+
+// 메뉴에 걸 페이지가 아닌 것 — pages.json 에 있어도 선택 목록에 띄우지 않는다.
+export const HIDDEN_MENU_PAGES = ['china-stock-migrate.html'];   // 1회용 데이터 이관 도구
+
 // 없어진 기능 — 저장된 dashboardMenu 에 남아 있어도 메뉴에서 걷어낸다.
 // (관리자 설정을 손대지 않아도 사라지도록. 눌러도 아무 일 없는 항목이 남지 않게)
 export const RETIRED_MENU_ITEMS = ['운영 시뮬레이션'];

@@ -1,7 +1,7 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus } from './menu-catalog.js?v=202610061548';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610061628';
 
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
@@ -64,7 +64,9 @@ export function renderAdminUI(config) {
 
     renderSystemAccountsConfig(config.systemAccounts || []);
     renderPermissionsConfig(config);
-    renderDashboardMenu(config.dashboardMenu || []);
+    // 편집기에도 사이드바와 똑같은 목록을 보여준다. 저장본만 그리면 코드로 붙는 메뉴
+    // (미발계산기·출퇴근 기록표)가 편집기에 안 보여 순서를 바꿀 수 없었다.
+    renderDashboardMenu(withBuiltinMenus(config.dashboardMenu || []));
     renderDashboardItemsConfig(config.dashboardItems || [], config);
     renderKeyTasks(config.keyTasks || []);
     renderTaskGroups(config.taskGroups || []);
@@ -606,26 +608,183 @@ export function openDashboardItemModal(fullConfig) {
     document.getElementById('select-dashboard-item-modal').classList.remove('hidden');
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// 🧭 메뉴 연결 대상 고르기
+//   예전엔 링크 칸에 'supplies.html' 같은 파일명을 직접 쳐야 했다. 이제 목록에서 고른다.
+//   - 화면 기능(action): 고르면 이름을 넣고 잠근다. 사이드바가 '이름'으로 버튼을 찾기 때문에
+//     한 글자만 달라도 메뉴는 보이는데 눌러도 아무 일이 없다.
+//   - 페이지(page): 고르면 이름이 비어 있을 때 기본 이름을 채운다. 이름은 바꿔도 된다.
+//   - 직접 입력: 외부 주소 등 목록에 없는 예외용.
+//   select 의 값: 'a:<이름>' · 'p:<링크>' · '__custom__' · ''(미선택)
+// ─────────────────────────────────────────────────────────────────────────
+const MENU_CUSTOM = '__custom__';
+let pageTargets = MENU_TARGETS.filter(t => t.kind === 'page');
+
+const escAttr = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const linkKey = (link) => String(link || '').split(/[?#]/)[0].trim();   // ?v=… 같은 꼬리 무시
+
+// 배포.py 가 만든 pages.json(사이트의 html 목록)을 읽어, 카탈로그에 없는 새 페이지를 붙인다.
+// 새 html 을 만들어 배포하기만 하면 여기 목록에 저절로 나온다. 못 읽으면(로컬 등) 카탈로그만 쓴다.
+let pageListLoaded = false;   // 같은 탭에서 다시 로그인해도 '새 페이지' 가 두 번 붙지 않게
+export async function loadMenuPageList() {
+    if (pageListLoaded) return;
+    try {
+        const res = await fetch('pages.json', { cache: 'no-store' });
+        if (!res.ok) return;
+        const list = await res.json();
+        if (!Array.isArray(list)) return;
+        // 화면 기능이 이미 쓰는 링크(index.html·history.html)도 '새 페이지' 로 또 띄우지 않는다.
+        const known = new Set(MENU_TARGETS.map(t => linkKey(t.link)).filter(k => k && k !== '#'));
+        HIDDEN_MENU_PAGES.forEach(f => known.add(f));
+        pageListLoaded = true;
+        list.forEach(p => {
+            const file = p && p.file ? String(p.file) : '';
+            if (!file || known.has(file)) return;
+            // '업무 매뉴얼 및 도구 - 물류팀 시스템' → '업무 매뉴얼 및 도구'
+            const title = String(p.title || '').split(' - ')[0].trim() || file.replace(/\.html$/, '');
+            pageTargets.push({ kind: 'page', name: title, link: file, icon: '📄', auto: true });
+            known.add(file);
+        });
+    } catch (e) { /* 목록이 없어도 편집은 된다 */ }
+}
+
+function menuOptionValue(item) {
+    if (!item) return '';
+    if (isActionMenuName(item.name)) return 'a:' + item.name;
+    const raw = String(item.link || '').trim();
+    const key = linkKey(raw);
+    if (!key || key === '#') return '';
+    // 'manual.html#tools' · 'history.html?tab=x' 처럼 꼬리가 붙은 링크는 원문 그대로 지키려고
+    // '직접 입력' 으로 둔다. 페이지 목록에서 고르게 하면 저장할 때 꼬리가 조용히 떨어진다.
+    if (raw !== key) return MENU_CUSTOM;
+    if (pageTargets.some(t => linkKey(t.link) === key)) return 'p:' + key;
+    return MENU_CUSTOM;
+}
+
+function menuSelectHtml(selected) {
+    const opt = (v, label) => `<option value="${escAttr(v)}"${v === selected ? ' selected' : ''}>${escAttr(label)}</option>`;
+    const actions = MENU_TARGETS.filter(t => t.kind === 'action')
+        .map(t => opt('a:' + t.name, `${t.icon} ${t.name}`)).join('');
+    const pages = pageTargets
+        .map(t => opt('p:' + linkKey(t.link), `${t.icon} ${t.name}  (${linkKey(t.link)})${t.auto ? ' · 새 페이지' : ''}`)).join('');
+    return `<option value=""${selected === '' ? ' selected' : ''}>— 연결할 곳 선택 —</option>`
+        + `<optgroup label="화면 기능 (이름 고정)">${actions}</optgroup>`
+        + `<optgroup label="페이지">${pages}</optgroup>`
+        + `<optgroup label="기타">${opt(MENU_CUSTOM, '✏️ 직접 입력 (외부 주소 등)')}</optgroup>`;
+}
+
+// 메뉴 한 줄. 렌더링(저장본)과 '+ 소분류 추가'(admin.js) 가 같은 모양을 쓰도록 하나로 둔다.
+export function menuItemRowHtml(item = {}) {
+    const selected = menuOptionValue(item);
+    const isAction = selected.startsWith('a:');
+    const custom = selected === MENU_CUSTOM ? (item.link || '') : '';
+    // 코드로 붙는 메뉴(menu-catalog BUILTIN_MENU_ITEMS)는 지우거나 연결을 바꿔도 다음에 다시 생긴다
+    // (withBuiltinMenus 가 링크로 찾아 없으면 끼워 넣는다). 그래서 연결·삭제를 잠그고 이름·순서만 허용한다.
+    // 숨기고 싶으면 '권한 관리' 에서 접근을 빼면 된다.
+    const isBuiltin = BUILTIN_MENU_ITEMS.some(b => linkKey(item.link) === b.link);
+    const builtinTitle = '코드로 추가된 메뉴라 지우거나 연결을 바꿔도 다시 생깁니다. 숨기려면 권한 관리에서 접근을 해제하세요.';
+    return `
+            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm">
+                <div class="flex items-center gap-3 flex-grow flex-wrap">
+                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
+                    <input type="text" value="${escAttr(item.name)}" ${isAction ? 'readonly title="화면 기능은 이름이 정해져 있습니다(바꾸면 메뉴가 열리지 않습니다)"' : ''} class="menu-item-name flex-grow min-w-[8rem] p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none ${isAction ? 'text-gray-500 dark:text-gray-400 cursor-not-allowed' : ''}" placeholder="메뉴 이름">
+                    <select ${isBuiltin ? `disabled title="${escAttr(builtinTitle)}"` : ''} class="menu-item-link w-56 p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 ${isBuiltin ? 'opacity-60 cursor-not-allowed' : ''}">${menuSelectHtml(selected)}</select>
+                    <input type="text" value="${escAttr(custom)}" class="menu-item-link-custom ${selected === MENU_CUSTOM ? '' : 'hidden'} w-48 p-1.5 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="https://… 또는 파일명">
+                </div>
+                ${isBuiltin
+                    ? `<span class="text-[10px] text-gray-400 dark:text-gray-500 px-2 py-1 whitespace-nowrap" title="${escAttr(builtinTitle)}">기본 메뉴</span>`
+                    : `<button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-menu-item-btn opacity-0 group-hover:opacity-100" type="button">삭제</button>`}
+            </div>
+        `;
+}
+
+// 고르면 이름을 채우거나 잠그고, '직접 입력' 이면 입력칸을 연다. 컨테이너에 한 번만 건다.
+export function bindMenuItemPickers(container) {
+    if (!container || container.dataset.menuPickerBound) return;
+    container.dataset.menuPickerBound = '1';
+    container.addEventListener('change', (e) => {
+        const sel = e.target.closest && e.target.closest('select.menu-item-link');
+        if (!sel) return;
+        const row = sel.closest('.menu-item');
+        const nameEl = row.querySelector('.menu-item-name');
+        const customEl = row.querySelector('.menu-item-link-custom');
+        const v = sel.value;
+        const wasLocked = nameEl.readOnly;
+        nameEl.readOnly = false;
+        nameEl.removeAttribute('title');
+        nameEl.classList.remove('text-gray-500', 'dark:text-gray-400', 'cursor-not-allowed');
+        if (customEl) customEl.classList.toggle('hidden', v !== MENU_CUSTOM);
+        if (v.startsWith('a:')) {
+            nameEl.value = v.slice(2);
+            nameEl.readOnly = true;
+            nameEl.title = '화면 기능은 이름이 정해져 있습니다(바꾸면 메뉴가 열리지 않습니다)';
+            nameEl.classList.add('text-gray-500', 'dark:text-gray-400', 'cursor-not-allowed');
+        } else if (v.startsWith('p:')) {
+            const t = pageTargets.find(p => linkKey(p.link) === v.slice(2));
+            // 이름이 비었거나, 방금 전까지 화면 기능 이름(잠김)이었다면 페이지 기본 이름으로 바꾼다.
+            if (t && (!nameEl.value.trim() || wasLocked || nameEl.dataset.autoName === nameEl.value)) {
+                nameEl.value = t.name;
+                nameEl.dataset.autoName = t.name;
+            }
+        } else if (v === MENU_CUSTOM) {
+            // 이름은 비우지 않는다. 비우면 저장할 때 그 줄이 통째로 빠지는데(이름 없는 줄은 버림),
+            // 화면 기능을 실수로 바꾼 경우 '업무 마감' 같은 메뉴가 경고 없이 사라진다.
+            customEl?.focus();
+        }
+    });
+}
+
+// 저장할 때 한 줄을 { name, link } 로 읽는다(admin-logic.js 가 쓴다). 이름이 없으면 null.
+export function readMenuItem(itemEl) {
+    const name = (itemEl.querySelector('.menu-item-name')?.value || '').trim();
+    if (!name) return null;
+    const v = itemEl.querySelector('.menu-item-link')?.value || '';
+    let link = '';
+    if (v.startsWith('a:')) {
+        const t = MENU_TARGETS.find(x => x.kind === 'action' && x.name === v.slice(2));
+        link = t ? t.link : '#';
+    } else if (v.startsWith('p:')) {
+        link = v.slice(2);
+    } else if (v === MENU_CUSTOM) {
+        link = (itemEl.querySelector('.menu-item-link-custom')?.value || '').trim();
+    }
+    return { name, link };
+}
+
+// 연결할 곳은 골랐는데 이름이 비어 있는 줄 수 — 저장하면 그 줄이 빠지므로 미리 알린다.
+export function countNamelessMenuRows() {
+    let n = 0;
+    document.querySelectorAll('#menu-categories-container .menu-item').forEach(row => {
+        const name = (row.querySelector('.menu-item-name')?.value || '').trim();
+        const v = row.querySelector('.menu-item-link')?.value || '';
+        if (!name && v) n++;
+    });
+    return n;
+}
+
+// 눌러도 열리지 않을 메뉴(연결 대상이 없거나, '#' 인데 화면 기능 이름이 아님) 이름 목록.
+export function findDeadMenuItems(dashboardMenu) {
+    const dead = [];
+    (dashboardMenu || []).forEach(g => (g.items || []).forEach(i => {
+        const l = String(i.link || '').trim();
+        if ((!l || l === '#') && !isActionMenuName(i.name)) dead.push(`${g.category} › ${i.name}`);
+    }));
+    return dead;
+}
+
 export function renderDashboardMenu(menuConfig) {
     const container = document.getElementById('menu-categories-container');
     if (!container) return;
     container.innerHTML = '';
+    bindMenuItemPickers(container);
 
     (menuConfig || []).forEach((menuGroup, index) => {
         const groupEl = document.createElement('div');
         groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm menu-category-card transition-colors drop-zone';
         groupEl.dataset.index = index;
 
-        const itemsHtml = (menuGroup.items || []).map((item, iIndex) => `
-            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm">
-                <div class="flex items-center gap-3 flex-grow">
-                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
-                    <input type="text" value="${item.name}" class="menu-item-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none" placeholder="소분류 이름">
-                    <input type="text" value="${item.link || ''}" class="menu-item-link w-1/3 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="연결 링크 (예: index.html)">
-                </div>
-                <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-menu-item-btn opacity-0 group-hover:opacity-100" type="button">삭제</button>
-            </div>
-        `).join('');
+        const itemsHtml = (menuGroup.items || []).map(item => menuItemRowHtml(item)).join('');
 
         groupEl.innerHTML = `
              <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
