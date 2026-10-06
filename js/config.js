@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610021732';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610061548';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -16,6 +16,36 @@ export const firebaseConfig = {
 
 const APP_ID = 'team-work-logger-v2';
 let db, auth;
+
+// 🔒 급여·원가는 mainConfig 에 두지 않는다.
+//    mainConfig 는 artifacts/** 아래라 규칙상 로그인한 직원 전원이 읽는다(출퇴근·업무보드에 필요).
+//    Firestore 규칙은 OR 로 합쳐지므로, 같은 경로 안에서는 '관리자만 읽기' 를 덧붙여도 막히지 않는다.
+//    그래서 경로 자체를 artifacts 밖(adminPrivate/settings)으로 옮기고, 그 경로는 관리자만 읽고 쓴다.
+//    defaultPartTimerWage 는 일반 직원의 '알바 추가' 가 쓰므로 그대로 둔다.
+export const PRIVATE_CONFIG_KEYS = ['memberWages', 'fixedMaterialCost', 'fixedShippingCost', 'fixedDirectDeliveryCost'];
+const privateConfigRef = (dbToUse) => doc(dbToUse, 'adminPrivate', 'settings');
+
+// 관리자만 부른다. 문서가 없으면 {} · **읽기에 실패하면 예외를 던진다.**
+// ⚠️ '읽지 못함' 을 '없음({})' 으로 삼키면 안 된다. 관리자 화면이 급여를 0 으로 그리고,
+//    그 상태로 '전체 저장' 을 누르면 전원 급여·원가가 0 으로 영구히 덮인다.
+//    부르는 쪽이 실패를 알고 저장을 막아야 한다.
+export const loadPrivateConfig = async (dbInstance) => {
+    const dbToUse = dbInstance || db;
+    if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
+    const snap = await getDoc(privateConfigRef(dbToUse));
+    return snap.exists() ? snap.data() : {};
+};
+
+// 불러온 관리자 전용 값을 설정 객체에 얹는다. 비어 있으면 아무것도 바꾸지 않는다
+// (이전 기간에 mainConfig 에 남아 있던 값을 지우지 않기 위해서).
+export const applyPrivateConfig = (config, privateData) => {
+    if (!config || !privateData) return config;
+    PRIVATE_CONFIG_KEYS.forEach(k => {
+        if (privateData[k] === undefined) return;
+        config[k] = (k === 'memberWages') ? { ...(config.memberWages || {}), ...privateData.memberWages } : privateData[k];
+    });
+    return config;
+};
 
 export const initializeFirebase = () => {
     try {
@@ -152,6 +182,27 @@ export const saveAppConfig = async (dbInstance, configData) => {
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
     const cleanedConfig = JSON.parse(JSON.stringify(configData));
     const configDocRef = doc(dbToUse, 'artifacts', APP_ID, 'config', 'mainConfig');
+
+    // 급여·원가를 떼어 관리자 전용 문서에 먼저 쓴다.
+    // ⚠️ 순서가 중요하다. mainConfig 는 통째로 덮어쓰므로(merge 아님) 여기서 뗀 값은 mainConfig 에서
+    //    사라진다. 관리자 전용 문서 쓰기가 실패하면(규칙 미게시 등) 예외로 멈춰서 mainConfig 를
+    //    건드리지 않는다 — 그래야 급여 값이 어디에도 없는 상태가 생기지 않는다.
+    const privatePart = {};
+    PRIVATE_CONFIG_KEYS.forEach(k => {
+        if (cleanedConfig[k] !== undefined) { privatePart[k] = cleanedConfig[k]; delete cleanedConfig[k]; }
+    });
+    if (Object.keys(privatePart).length > 0) {
+        // 관리자 화면 '전체 저장' 은 네 값을 모두 넘긴다 → 통째로 덮어쓴다(예전 mainConfig 와 같은 동작).
+        // merge 로 쓰면 명단에서 뺀 직원의 급여가 저장소에 계속 남는다.
+        // 일부만 넘어온 경우에만 merge 로 나머지를 보존한다.
+        const isFull = PRIVATE_CONFIG_KEYS.every(k => privatePart[k] !== undefined);
+        try {
+            await setDoc(privateConfigRef(dbToUse), privatePart, isFull ? {} : { merge: true });
+        } catch (e) {
+            throw new Error('급여·원가 저장 실패(관리자 전용 저장소). 설정은 저장하지 않았습니다. ' +
+                            'Firestore 규칙에 adminPrivate 가 게시됐는지 확인하세요. (' + ((e && e.code) || e) + ')');
+        }
+    }
     await setDoc(configDocRef, cleanedConfig);
 };
 

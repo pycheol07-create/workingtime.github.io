@@ -13,7 +13,7 @@ const {
   initializeTestEnvironment, assertSucceeds, assertFails,
 } = require('@firebase/rules-unit-testing');
 const {
-  doc, getDoc, setDoc, updateDoc, deleteDoc,
+  doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection,
 } = require('firebase/firestore');
 
 const APP = ['artifacts', 'team-work-logger-v2'];
@@ -61,6 +61,7 @@ async function check(name, expect, fn) {
     await setDoc(doc(db, ...APP, 'manuals', 'm_old'), { title: 'c' });   // author 없음
     await setDoc(doc(db, 'Locations', 'x'), { x: 1 });
     await setDoc(doc(db, 'ChinaStockGoods', 'x'), { x: 1 });
+    await setDoc(doc(db, 'adminPrivate', 'settings'), { memberWages: { a: 1 } });
   });
 
   const admin = testEnv.authenticatedContext('uadmin', { email: ADMIN }).firestore();
@@ -137,6 +138,17 @@ async function check(name, expect, fn) {
   await check('미인증 Locations 읽기', 'DENY', () => getDoc(doc(anon, 'Locations', 'x')));
   await check('미인증 쓰기', 'DENY',
     () => setDoc(doc(anon, ...APP, 'daily_data', '2026-09-28'), { t: 1 }));
+
+  // ── 관리자 전용: 급여·원가 (adminPrivate) ──────────────────────────────
+  //    ★ 표시는 이번 변경의 핵심. 직원 '읽기' 가 막히는 것이 목적이다.
+  const priv = (db) => doc(db, 'adminPrivate', 'settings');
+  await check('관리자가 급여 읽기', 'ALLOW', () => getDoc(priv(admin)));
+  await check('관리자가 급여 저장(덮어쓰기)', 'ALLOW', () => setDoc(priv(admin), { memberWages: { a: 2 } }));
+  await check('관리자(대문자 이메일)가 급여 읽기', 'ALLOW', () => getDoc(priv(upper)));
+  await check('★ 직원이 급여 읽기', 'DENY', () => getDoc(priv(staff)));
+  await check('★ 직원이 급여 목록 조회', 'DENY', () => getDocs(collection(staff, 'adminPrivate')));
+  await check('직원이 급여 수정', 'DENY', () => setDoc(priv(staff), { memberWages: {} }));
+  await check('미인증 급여 읽기', 'DENY', () => getDoc(priv(anon)));
 
   // ── 규칙에 없는 경로 ──────────────────────────────────────────────────
   await check('직원이 미정의 컬렉션 쓰기', 'DENY',

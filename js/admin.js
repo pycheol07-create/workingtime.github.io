@@ -1,5 +1,5 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule } from './config.js?v=202610021732';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610061548';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -12,15 +12,18 @@ import {
     openDashboardItemModal,
     getAllDashboardDefinitions,
     renderDashboardMenu
-} from './admin-ui.js?v=202610021732';
+} from './admin-ui.js?v=202610061548';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202610021732';
+} from './admin-logic.js?v=202610061548';
 
 let db, auth;
-let appConfig = {}; 
+let appConfig = {};
+// 급여·원가(adminPrivate)를 못 읽었으면 화면의 급여 칸이 0 이다. 그 상태로 저장하면
+// 전원 급여가 0 으로 덮이므로, 이 깃발이 서 있는 동안은 저장을 막는다.
+let privateLoadFailed = false;
 
 let draggedItem = null;
 let currentModalTarget = null;
@@ -52,9 +55,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 const currentUserRole = memberRoles[userEmailLower] || 'user';
 
                 if (currentUserRole === 'admin') {
+                    // 🔒 급여·원가는 관리자 전용 저장소에서 받아 얹는다(mainConfig 에는 없다).
+                    try {
+                        applyPrivateConfig(appConfig, await loadPrivateConfig(db));
+                        privateLoadFailed = false;
+                    } catch (e) {
+                        privateLoadFailed = true;
+                        console.warn('급여·원가 불러오기 실패:', e && e.code);
+                    }
                     renderAdminUI(appConfig);
                     setupEventListeners();
                     if (adminContent) adminContent.classList.remove('hidden');
+                    const saveBtn = document.getElementById('save-all-btn');
+                    if (!privateLoadFailed && saveBtn && saveBtn.dataset.lockedByPrivate) {
+                        // 같은 탭에서 다시 로그인해 이번엔 읽혔다면, 앞서 걸어 둔 잠금을 푼다.
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = saveBtn.dataset.lockedByPrivate;
+                        delete saveBtn.dataset.lockedByPrivate;
+                    }
+                    if (privateLoadFailed) {
+                        if (saveBtn) {
+                            if (!saveBtn.dataset.lockedByPrivate) saveBtn.dataset.lockedByPrivate = saveBtn.textContent;
+                            saveBtn.disabled = true; saveBtn.textContent = '저장 잠김 — 새로고침 필요';
+                        }
+                        alert('⚠️ 급여·원가를 불러오지 못했습니다.\n\n지금 화면의 급여 칸은 실제 값이 아닙니다(0).\n'
+                            + '이 상태로 저장하면 전 직원 급여가 0 으로 덮이므로 저장을 잠갔습니다.\n'
+                            + '새로고침해 주세요. 계속되면 관리자 권한(memberRoles)을 확인하세요.');
+                    }
                 } else {
                     if (adminContent) {
                          adminContent.innerHTML = `<div class="flex justify-center items-center h-full mt-20"><div class="text-center bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700"><span class="text-4xl mb-4 block">🚫</span><h2 class="text-xl font-bold text-gray-800 dark:text-white mb-2">접근 권한이 없습니다</h2><p class="text-gray-500 dark:text-gray-400 text-sm">관리자 계정으로 로그인해주세요.</p></div></div>`;
@@ -234,6 +261,11 @@ async function prepareLeaveCleanup(oldConfig, newConfig) {
 
 async function handleSaveAll() {
     const btn = document.getElementById('save-all-btn');
+    // 버튼을 잠가도 단축키·다른 경로로 들어올 수 있으므로 함수 입구에서 한 번 더 막는다.
+    if (privateLoadFailed) {
+        alert('급여·원가를 불러오지 못한 상태라 저장할 수 없습니다. 새로고침해 주세요.');
+        return;
+    }
     if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
 
     try {

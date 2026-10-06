@@ -1,24 +1,24 @@
 // === js/app.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule } from './config.js?v=202610021732';
-import { displayCurrentDate, showToast } from './utils.js?v=202610021732';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610021732';
-import { initializeAppListeners } from './app-listeners.js?v=202610021732';
-import * as DOM from './dom-elements.js?v=202610021732';
-import * as State from './state.js?v=202610021732';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610021732';
-import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202610021732';
-import { setupWeekendListeners } from './listeners-weekend.js?v=202610021732';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610061548';
+import { displayCurrentDate, showToast } from './utils.js?v=202610061548';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610061548';
+import { initializeAppListeners } from './app-listeners.js?v=202610061548';
+import * as DOM from './dom-elements.js?v=202610061548';
+import * as State from './state.js?v=202610061548';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610061548';
+import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202610061548';
+import { setupWeekendListeners } from './listeners-weekend.js?v=202610061548';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610021732';
-import { setupNotificationListeners } from './app-notifications.js?v=202610021732';
-import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610021732';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=202610021732';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=202610021732';
-import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610021732';
-import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610021732';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610061548';
+import { setupNotificationListeners } from './app-notifications.js?v=202610061548';
+import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610061548';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=202610061548';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=202610061548';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610061548';
+import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610061548';
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
@@ -77,6 +77,17 @@ async function startAppAfterLogin(user) {
             showToast('퇴사 처리된 계정입니다. 관리자에게 문의하세요.', true);
             State.auth.signOut();
             return;
+        }
+
+        // 🔒 급여·원가는 관리자 전용 저장소에서 관리자만 받는다(일반 직원은 요청도 하지 않는다).
+        if (currentUserRole === 'admin') {
+            try {
+                applyPrivateConfig(State.appConfig, await loadPrivateConfig(State.db));
+            } catch (e) {
+                // 조용히 넘기면 인건비·원가가 0(또는 알바 시급)으로 계산된 리포트가 정상처럼 보인다.
+                console.warn('급여·원가 불러오기 실패:', e && e.code);
+                showToast('급여·원가를 불러오지 못했습니다. 인건비·원가 숫자가 틀리게 보일 수 있으니 새로고침해 주세요.', true);
+            }
         }
 
         State.appState.currentUser = currentUserName;

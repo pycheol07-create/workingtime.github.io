@@ -1,14 +1,15 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202610021732';
-import { isPersistentLeaveType } from './state.js?v=202610021732';
-import * as DOM from './dom-elements.js?v=202610021732';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610021732';
+import * as State from './state.js?v=202610061548';
+import { isPersistentLeaveType } from './state.js?v=202610061548';
+import * as DOM from './dom-elements.js?v=202610061548';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610061548';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610021732';
-import { renderTodoList } from './inspection-logic.js?v=202610021732';
-import { renderNotificationList } from './app-notifications.js?v=202610021732';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610021732';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610061548';
+import { renderTodoList } from './inspection-logic.js?v=202610061548';
+import { renderNotificationList } from './app-notifications.js?v=202610061548';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610061548';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610061548';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -65,6 +66,9 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
     unsubConfig = onSnapshot(configDocRef, (docSnap) => {
         if (docSnap.exists()) {
             const loadedConfig = docSnap.data();
+            // 🔒 급여·원가의 기준은 adminPrivate 다(관리자일 때 시작 시 받아 둔다).
+            //    mainConfig 에 옛 값이 남아 있거나 옛 버전 탭이 되써도 그걸로 덮지 않는다.
+            PRIVATE_CONFIG_KEYS.forEach(k => { delete loadedConfig[k]; });
             const mergedConfig = { ...State.appConfig, ...loadedConfig };
             
             if (Array.isArray(loadedConfig.taskGroups)) mergedConfig.taskGroups = loadedConfig.taskGroups;
