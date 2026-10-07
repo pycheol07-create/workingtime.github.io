@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610070928';
-import * as State from './state.js?v=202610070928';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610070928';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610070928';
-import { fetchAllHistoryData, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610070928';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610070928';
-import { renderQuantityModalInputs } from './ui.js?v=202610070928';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610070928';
-import { getAutoQuantitiesForDate } from './ui-history-prediction.js?v=202610070928';
+import * as DOM from './dom-elements.js?v=202610070958';
+import * as State from './state.js?v=202610070958';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610070958';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610070958';
+import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610070958';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610070958';
+import { renderQuantityModalInputs } from './ui.js?v=202610070958';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610070958';
+import { getAutoQuantitiesForDate } from './ui-history-prediction.js?v=202610070958';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -21,6 +21,9 @@ export const loadAndRenderHistoryList = async () => {
     DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500 text-sm">이력 로딩 중...</div></li>';
 
     await fetchAllHistoryData();
+    // 🔄 최근 14일은 서버에서 다시 받는다 — 매출·재고 자동입력이 밖에서 쓴 값이 캐시 때문에 안 보이던 문제.
+    //    반드시 augmentHistoryWithPersistentLeave 보다 앞(아래 순서 유지). 이유는 함수 주석 참고.
+    await refreshRecentHistory();
     await syncTodayToHistory();
 
     // 📅 예정 물량(미래 7일) 로드 — 목록 상단 '예정' 그룹 + 예측 연동에 사용

@@ -1,10 +1,10 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610070928';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610070928';
-import { clampOpenRecords } from './lib/record-close.js?v=202610070928';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610070928';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610070928';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610070928';
+import * as State from './state.js?v=202610070958';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610070958';
+import { clampOpenRecords } from './lib/record-close.js?v=202610070958';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610070958';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610070958';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610070958';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -1486,6 +1486,7 @@ export async function fetchAllHistoryData(forceRefresh = false) {
             State.allHistoryData.push(...fullHistory); 
             
             isHistoryCached = true; 
+            lastServerHistoryFetchAt = Date.now();   // refreshRecentHistory 가 방금 받은 것을 또 받지 않게
             
             // ✨ 성공적으로 가져왔다면 로컬 스토리지에 캐싱 (용량 초과 시 안전하게 스킵)
             try {
@@ -1507,6 +1508,90 @@ export async function fetchAllHistoryData(forceRefresh = false) {
     })();
 
     return historyFetchPromise;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 최근 이력만 서버에서 다시 받기 (2026-10-07)
+//
+// 과거 이력은 한 번 받으면 메모리(isHistoryCached)·localStorage(30분)에 캐시되어 탭이 열려 있는 동안
+// 다시 읽지 않는다. 그런데 파이썬 자동화가 history/{과거날짜}.management 를 밖에서 쓴다
+// (매출 자동입력 매일 09:30 경, 재고 자동입력 07:00). 그래서 DB 에는 값이 있는데 화면엔 비어 보였다.
+// 데이터 관리를 열 때 최근 RECENT_REFRESH_DAYS 일만 다시 받아 그 날짜 칸을 서버 문서로 바꿔 끼운다.
+//
+// ⚠️ 호출 순서 고정: loadAndRenderHistoryList 안에서 fetchAllHistoryData() 바로 뒤, 그리고
+//    augmentHistoryWithPersistentLeave() 보다 앞에서만 부른다.
+//    - 서버 문서로 바꿔 끼우면 augment 가 넣은 기간형 근태(__fromSchedule)가 빠진다 → 뒤의 augment 가 다시 넣는다.
+//    - 읽는 사이 이 탭에서 고친 날은 덮지 않는다(읽기 전 모습과 비교). 모바일에서 모달을 다시 열면
+//      옛 상세·편집 버튼이 남아 있어 '로딩 중엔 편집이 없다' 는 전제가 성립하지 않기 때문이다.
+//    다른 곳에서 부르려면 augment 순서부터 해결할 것.
+// 오늘은 제외한다 — 오늘 값은 daily_data 가 관리하고 syncTodayToHistory 가 덮는다.
+// ─────────────────────────────────────────────────────────────────────────────
+const RECENT_REFRESH_DAYS = 14;
+const RECENT_REFRESH_MIN_GAP_MS = 60 * 1000;
+let lastServerHistoryFetchAt = 0;   // fetchAllHistoryData 가 '서버에서' 받은 시각 (localStorage 에서 꺼낸 건 제외)
+let lastRecentRefreshAt = 0;
+
+export async function refreshRecentHistory(days = RECENT_REFRESH_DAYS) {
+    // 전체 fetch 가 실패하면 allHistoryData 가 [] 로 비워진다. 여기서 14일치만 채우면
+    // '최근 2주만 있는 이력' 이 정상처럼 보이므로 아무것도 하지 않는다.
+    if (!State.db || !State.allHistoryData.length) return;
+    const now = Date.now();
+    if (now - lastServerHistoryFetchAt < RECENT_REFRESH_MIN_GAP_MS) return;   // 방금 전체를 서버에서 받았다
+    if (now - lastRecentRefreshAt < RECENT_REFRESH_MIN_GAP_MS) return;        // 모달을 연달아 열었다
+    lastRecentRefreshAt = now;
+
+    const today = getTodayDateString();
+    const from = new Date(); from.setDate(from.getDate() - days);
+    const fromStr = toDateString(from);
+    // 읽는 사이(1~2초) 그 날짜를 화면에서 고치면(모바일에서 모달을 다시 열면 옛 상세·편집 버튼이 남아 있다)
+    // 서버 결과가 방금 고친 메모리를 덮을 수 있다. 읽기 전 모습을 찍어 두고, 그사이 바뀐 날은 건드리지 않는다.
+    const before = new Map();
+    State.allHistoryData.forEach(x => {
+        if (x && x.id >= fromStr && x.id < today) {
+            try { before.set(x.id, { obj: x, json: JSON.stringify(x) }); } catch (_) {}
+        }
+    });
+    try {
+        const ref = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
+        const snap = await getDocs(query(ref, where(documentId(), '>=', fromStr), where(documentId(), '<', today)));
+        let changed = 0;
+        snap.forEach((d) => {
+            const data = d.data();
+            if (!data) return;
+            const fresh = { id: d.id, ...data };
+            const i = State.allHistoryData.findIndex(x => x.id === d.id);
+            if (i > -1) {
+                const was = before.get(d.id);
+                const cur = State.allHistoryData[i];
+                let touched = !was || was.obj !== cur;
+                if (!touched) { try { touched = JSON.stringify(cur) !== was.json; } catch (_) { touched = true; } }
+                if (touched) return;   // 읽는 사이 이 탭에서 고친 날 — 지금 메모리가 더 최신이다
+                State.allHistoryData[i] = fresh;   // 다른 경로와 같이 슬롯째 교체
+            } else {
+                State.allHistoryData.push(fresh);
+            }
+            changed++;
+        });
+        // 서버에 문서가 없는 날은 손대지 않는다(전체 fetch 가 넣어 둔 빈 행 유지).
+        State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));   // 기존과 같은 내림차순
+
+        // localStorage 캐시도 갱신해 새로고침해도 보이게 한다. 단,
+        //  - 시각은 그대로 둔다: 30분 TTL 이 14일보다 오래된 날짜를 다시 받는 유일한 경로다.
+        //  - 캐시가 없으면 되살리지 않는다: 다른 경로가 clearLocalCache() 로 일부러 지웠을 수 있다.
+        //  - 근태 펼침 사본(__fromSchedule)은 빼고 저장한다: 표식이 enumerable:false 라 JSON 에서 사라져
+        //    다음 로드 때 '실제 기록' 처럼 남는다(stripInjectedLeave 가 못 걷어냄). 앞서 augment 가 돈 슬롯이 섞여 있다.
+        if (changed && localStorage.getItem('historyDataCacheTime')) {
+            try {
+                const clean = State.allHistoryData.map(day => (day && Array.isArray(day.onLeaveMembers)
+                    && day.onLeaveMembers.some(e => e && e.__fromSchedule))
+                    ? { ...day, onLeaveMembers: day.onLeaveMembers.filter(e => !(e && e.__fromSchedule)) }
+                    : day);
+                localStorage.setItem('historyDataCache', JSON.stringify(clean));
+            } catch (_) {}
+        }
+    } catch (e) {
+        console.warn('[history] 최근 이력 재조회 실패 — 기존 데이터로 계속:', e);
+    }
 }
 
 export async function addHistoryWorkRecord(dateKey, newRecordData) {
