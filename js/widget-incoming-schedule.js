@@ -1,7 +1,7 @@
 // === js/widget-incoming-schedule.js ===
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=202610070924';
-import * as State from './state.js?v=202610070924';
+import { escapeHtml } from './utils.js?v=202610070928';
+import * as State from './state.js?v=202610070928';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
 //
 // 구글 시트 「패킹.송금관리」에 붙은 Apps Script 가 **시트를 고칠 때 즉시 + 1시간마다** 4개 열
@@ -249,7 +249,7 @@ function renderFromCache() {
 
 const hhmm = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
-/** 지금 가진 문서(_last)로 위젯을 다시 그린다. 타이머·탭 복귀·새로고침 버튼이 부른다. */
+/** 지금 가진 문서(_last)로 위젯을 다시 그린다. 문서 변경·타이머·탭 복귀가 부른다. */
 function redraw() {
     const listEl = document.getElementById('widget-incoming-list');
     const statusEl = document.getElementById('widget-incoming-status');
@@ -489,13 +489,6 @@ export function initIncomingScheduleWidget() {
         // 탭이 백그라운드면 타이머가 늦춰진다. 돌아올 때 즉시 맞춘다.
         document.addEventListener('visibilitychange', () => { if (!document.hidden) redraw(); });
     }
-
-    const refreshBtn = document.getElementById('refresh-incoming-btn');
-    if (refreshBtn && !refreshBtn.__bound) {
-        refreshBtn.__bound = true;
-        // 시트를 다시 읽게 할 방법은 없다(공개 주소가 없으므로). 새 값은 문서가 바뀌는 즉시
-        // 자동으로 들어오므로, 버튼은 날짜 라벨·경과시간만 다시 판정한다.
-        refreshBtn.title = '시트를 고치면 바로 반영됩니다 (최소 1시간마다 한 번 더 확인)';
-        refreshBtn.addEventListener('click', redraw);
-    }
+    // 새로고침 버튼은 2026-10-07 에 없앴다 — 새 값은 문서가 바뀌는 즉시 들어오고,
+    // 날짜 라벨·경과시간은 위 타이머와 탭 복귀가 다시 판정하므로 누를 일이 없다.
 }

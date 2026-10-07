@@ -24,7 +24,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=202610070924">
+    <link rel="stylesheet" href="css/style.css?v=202610070928">
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-['Inter'] overflow-hidden transition-colors duration-200">
     <div id="toast-container" class="fixed bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -207,9 +207,6 @@
                             <h3 class="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
                                 <span>📅</span> 주요 일정 및 알림
                             </h3>
-                            <div class="flex items-center gap-1">
-                                <button id="refresh-incoming-btn" class="text-[10px] bg-amber-100 dark:bg-amber-800/60 text-amber-700 dark:text-amber-200 px-2 py-1 rounded font-bold hover:bg-amber-200 dark:hover:bg-amber-700 transition cursor-pointer shadow-sm" title="입고 일정 새로고침">🔄</button>
-                            </div>
                         </div>
                         <div class="flex-1 overflow-y-auto p-3 space-y-2">
                             <!-- 🚚 입고일정 (구글 시트 자동) -->
@@ -512,13 +509,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202610070924');
+                await import('./js/app.js?v=202610070928');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202610070924').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202610070928').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -600,11 +597,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202610070924';
-        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202610070924';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202610070924';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610070924';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610070924';
+        import { appState } from './js/state.js?v=202610070928';
+        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202610070928';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202610070928';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610070928';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610070928';
 
         loadAdminTodos();
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
@@ -767,8 +764,8 @@
             }
         });
     </script>
-    <script src="js/connection-banner.js?v=202610070924"></script>
-    <script src="js/modal-esc.js?v=202610070924"></script>
-    <script src="js/app-version.js?v=202610070924"></script>
+    <script src="js/connection-banner.js?v=202610070928"></script>
+    <script src="js/modal-esc.js?v=202610070928"></script>
+    <script src="js/app-version.js?v=202610070928"></script>
 </body>
 </html>
