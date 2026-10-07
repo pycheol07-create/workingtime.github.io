@@ -71,6 +71,9 @@
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-setting">
                 <span class="text-lg">⚙️</span> 기본 설정
             </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-automation">
+                <span class="text-lg">🤖</span> 자동화 상태
+            </button>
             <div class="pt-6 pb-2">
                 <hr class="border-gray-200 dark:border-gray-700">
             </div>
@@ -111,6 +114,7 @@
                         <option value="section-quantity">🔗 처리량 집계 연동</option>
                         <option value="section-cost">💰 원가 및 손익 설정</option>
                         <option value="section-setting">⚙️ 기타 기본 설정</option>
+                        <option value="section-automation">🤖 자동화 상태</option>
                     </select>
                 </div>
 
@@ -300,6 +304,17 @@
                     </div>
                 </div>
 
+                <!-- 읽기 전용: '전체 저장' 대상 아님. 탭을 처음 열 때 js/admin-automation.js 가 구독한다. -->
+                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors w-full" id="section-automation">
+                    <div class="p-6 border-b border-gray-100 dark:border-gray-700 w-full">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🤖</span> 자동화 상태</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">자동화감시가 10분마다 모은 각 자동화의 마지막 성공 (읽기 전용 · ★ 즉시알림 대상)</p>
+                        <div id="automation-status-head" class="mt-3"></div>
+                    </div>
+                    <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[400px] w-full">
+                        <div id="automation-status-body" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 w-full"></div>
+                    </div>
+                </div>
 
             </div>
         </div>
@@ -342,7 +357,8 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610071625"></script>
+    <script type="module" src="js/admin.js?v=202610080843"></script>
+    <script type="module" src="js/admin-automation.js?v=202610080843"></script>
 
     <script type="module">
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
@@ -429,7 +445,7 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610071625"></script>
-    <script src="js/modal-esc.js?v=202610071625"></script>
+    <script src="js/connection-banner.js?v=202610080843"></script>
+    <script src="js/modal-esc.js?v=202610080843"></script>
 </body>
 </html>

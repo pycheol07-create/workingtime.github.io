@@ -1,25 +1,25 @@
 // === js/app.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610071625';
-import { displayCurrentDate, showToast } from './utils.js?v=202610071625';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610071625';
-import { initializeAppListeners } from './app-listeners.js?v=202610071625';
-import * as DOM from './dom-elements.js?v=202610071625';
-import * as State from './state.js?v=202610071625';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610071625';
-import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202610071625';
-import { setupWeekendListeners } from './listeners-weekend.js?v=202610071625';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610080843';
+import { displayCurrentDate, showToast } from './utils.js?v=202610080843';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610080843';
+import { initializeAppListeners } from './app-listeners.js?v=202610080843';
+import * as DOM from './dom-elements.js?v=202610080843';
+import * as State from './state.js?v=202610080843';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610080843';
+import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202610080843';
+import { setupWeekendListeners } from './listeners-weekend.js?v=202610080843';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610071625';
-import { setupNotificationListeners } from './app-notifications.js?v=202610071625';
-import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610071625';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=202610071625';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=202610071625';
-import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610071625';
-import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610071625';
-import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610071625';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610080843';
+import { setupNotificationListeners } from './app-notifications.js?v=202610080843';
+import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610080843';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=202610080843';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=202610080843';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610080843';
+import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610080843';
+import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610080843';
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
