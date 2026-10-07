@@ -1,16 +1,16 @@
 // === js/listeners-history-attendance.js ===
 // 설명: 이력 보기의 '근태 이력' 관리(추가/수정/삭제 요청) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610071535';
-import * as State from './state.js?v=202610071535';
-import { isPersistentLeaveType } from './state.js?v=202610071535';
-import { showToast, getTodayDateString, getCurrentTime } from './utils.js?v=202610071535';
-import { renderAttendanceDailyHistory } from './ui-history.js?v=202610071535';
-import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202610071535';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610071535';
-import { saveLeaveSchedule } from './config.js?v=202610071535';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610071535';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610071535';
+import * as DOM from './dom-elements.js?v=202610071540';
+import * as State from './state.js?v=202610071540';
+import { isPersistentLeaveType } from './state.js?v=202610071540';
+import { showToast, getTodayDateString, getCurrentTime } from './utils.js?v=202610071540';
+import { renderAttendanceDailyHistory } from './ui-history.js?v=202610071540';
+import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202610071540';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610071540';
+import { saveLeaveSchedule } from './config.js?v=202610071540';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610071540';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610071540';
 import { doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 수정 모달이 지금 다루고 있는 근태의 '원본'.

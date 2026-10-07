@@ -7,7 +7,7 @@ import {
     withinGrace, arrivalFor, buildLocIndex, computeRows, summarize, compareRowsOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from '../js/lib/mibal2-rows.js?v=202610071535';
+} from '../js/lib/mibal2-rows.js?v=202610071540';
 
 const NOW = new Date(2026, 9, 7, 9, 0, 0);   // 2026-10-07 09:00 (로컬)
 

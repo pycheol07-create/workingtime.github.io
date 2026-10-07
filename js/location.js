@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610071535';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610071540';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610071535';
+import { escapeHtml as escAttr } from './utils.js?v=202610071540';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -2403,6 +2403,38 @@ async function loadIncomingFromCollector() {
         return null;
     }
 }
+
+/**
+ * [⏱ 지금 갱신] — 수집기에 '시트를 지금 새로 읽어 달라' 요청만 남긴다(미발계산기(신규)의 [지금 갱신]과 같은 요청 문서).
+ * 수집기 규칙(미발수집_apps_script.gs 요청확인): 월~토 07~19시만 · 마지막 성공 10분 안이면 무시 ·
+ * 수동 요청 하루 8회 · 20분 간격. 규칙에 걸릴 게 뻔하면 요청을 쓰지 않고 안내만 한다.
+ */
+window.requestIncomingRefresh = async () => {
+    const now = new Date();
+    if (now.getDay() === 0 || now.getHours() < 7 || now.getHours() >= 19) {
+        return alert('지금은 새로 읽기 요청이 처리되지 않는 시간입니다.\n(월~토 07~19시에만 처리 · 매일 07:30 자동 수집)');
+    }
+    try {
+        const ls = await getDoc(doc(db, 'artifacts/team-work-logger-v2/integrations/mibal2Latest'));
+        const l = ls.exists() ? ls.data() : {};
+        const ms = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
+        const okAt = ms(l.lastOkAt), noteAt = ms(l.noteAt), runAt = ms(l.lastRunAt);
+        if (okAt && Date.now() - okAt < 10 * 60 * 1000) {
+            return alert(`방금(${fmtHM(okAt)}) 새로 읽었습니다.\n[🔄 시트 동기화]를 누르면 그 자료가 반영됩니다.`);
+        }
+        const req = await getDoc(doc(db, MIBAL2_REQUEST_PATH));
+        const reqAt = req.exists() ? ms(req.data().requestedAt) : 0;
+        if (reqAt && reqAt > runAt && Date.now() - reqAt < 15 * 60 * 1000) {
+            return alert(`이미 ${fmtHM(reqAt)} 에 요청이 들어가 처리를 기다리는 중입니다.\n5~10분 뒤 [🔄 시트 동기화]를 눌러 주세요.`);
+        }
+        const refused = (l.note && noteAt && Date.now() - noteAt < 30 * 60 * 1000) ? `\n\n⚠ 최근 요청이 처리되지 않았습니다: ${l.note}` : '';
+        if (!confirm(`오더리스트·사입리스트를 지금 새로 읽어 오도록 요청할까요?\n(5~10분 뒤 반영 · 하루 8회·20분 간격 한도 — 미발계산기(신규)와 함께 셉니다)${refused}`)) return;
+        await setDoc(doc(db, MIBAL2_REQUEST_PATH), { requestedAt: serverTimestamp() });
+        alert('요청했습니다.\n5~10분 뒤 [🔄 시트 동기화]를 눌러 주세요. 알림의 "시트 기준" 시각이 바뀌어 있으면 반영된 것입니다.');
+    } catch (e) {
+        alert('요청을 보내지 못했습니다: ' + (e.code || e.message));
+    }
+};
 
 const fmtHM = (ms) => { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
