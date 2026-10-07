@@ -3,26 +3,29 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610071053';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610071053';
-import * as State from './state.js?v=202610071053';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610071053';
+import { predictFutureTrends } from './analysis-logic.js?v=202610071220';
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610071220';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610071220';
+import * as State from './state.js?v=202610071220';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610071220';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610071220';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610071053';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610071220';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610071053';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610071053';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610071220';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610071220';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610071053';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610071053';
-import { taskUph, recentDays } from './task-throughput.js?v=202610071053';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610071220';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610071220';
+import { taskUph, recentDays } from './task-throughput.js?v=202610071220';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610071053';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610071220';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610071053';
+         excessOffDays } from './lib/backlog-carry.js?v=202610071220';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1664,6 +1667,85 @@ const incomingBoxesValueFor = (dateStr, task, historyData, incomingKey = '중국
     };
 };
 
+// ───────────────────────────────────────────────────────────
+// 📦 미발 → 도착일 국내배송 가산 (2026-10-07)
+//   중국 입고분이 도착하는 날은 미발 상품을 바로 내보내 국내배송이 미발수량만큼 튄다
+//   (실측 9/17 +743·9/29 +1,016 …). AI 요일 평균은 이걸 모르므로 그날 국내배송에 더한다.
+//   계산 규칙은 js/lib/mibal-forecast.js(미발계산기와 같은 규칙). 원본: ChinaStockGoods/MIBAL_HISTORY.
+//
+//   ⚠️ 로딩은 비동기, 값 계산(estimatedValueFor)은 동기다. 그래서 값을 쓰는 경로마다 먼저
+//      ensureMibalHistory() 를 기다린다 — 업무 예상 탭, 인력 전망, 자동 계획 스냅샷, 슬랙 훅.
+//      하나라도 빠지면 화면·저장값·슬랙이 서로 다른 숫자를 낸다.
+//      localStorage 캐시는 두지 않는다 — 문서 하나라 읽기가 싸고, 묵은 값이 계획 스냅샷을 오염시킨다.
+// ───────────────────────────────────────────────────────────
+const MIBAL_RELOAD_MS = 10 * 60 * 1000;
+let mibalHistory = null;          // null = 아직 못 읽음 / {} = 읽었는데 비어 있음
+// 입고일정 원본 행(최근 7일 지난 도착 포함) — 나눠 오는 패킹의 첫 분량이 이미 왔는지 보려고 같이 읽는다.
+// 못 읽으면 대시보드 캐시(오늘 이후만)로 물러난다.
+let incomingAllByArrival = null;
+let mibalLoadedDay = '';
+let mibalLoadedAt = 0;
+let mibalLoading = null;
+
+/** 오늘 MIBAL_HISTORY 를 읽었는지(10분마다 다시 읽는다). 읽기 실패해도 throw 하지 않는다.
+ *  @returns {Promise<boolean>} 오늘 읽은 값이 있으면 true */
+export async function ensureMibalHistory() {
+    const today = getTodayDateString();
+    const 오늘읽음 = () => mibalHistory !== null && mibalLoadedDay === today;
+    if (오늘읽음() && Date.now() - mibalLoadedAt < MIBAL_RELOAD_MS) return true;
+    if (!State.db || !State.auth?.currentUser) return 오늘읽음();
+    if (mibalLoading) return mibalLoading;
+    mibalLoading = (async () => {
+        try {
+            const [s, inc] = await Promise.all([
+                getDoc(doc(State.db, 'ChinaStockGoods', 'MIBAL_HISTORY')),
+                getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'incomingSchedule')).catch(() => 'ERR')
+            ]);
+            mibalHistory = (s.exists() && s.data() && s.data().map) ? s.data().map : {};
+            // 입고일정 읽기만 잠깐 실패했으면 직전 값을 그대로 둔다(폴백 캐시는 지난 도착을 몰라 이중 가산이 난다)
+            if (inc !== 'ERR') {
+                try {
+                    const rows = inc && inc.exists() ? JSON.parse(inc.data().rowsJson || 'null') : null;
+                    incomingAllByArrival = Array.isArray(rows) ? groupIncomingRowsByArrival(rows) : null;
+                } catch (e) { /* 해석 실패 — 직전 값 유지 */ }
+            }
+            mibalLoadedDay = today;
+            mibalLoadedAt = Date.now();
+            mibalMapCache = null;
+            return true;
+        } catch (e) {
+            console.warn('[업무 예상] 미발 이력을 읽지 못했습니다 — 국내배송에 미발을 더하지 않습니다:', e);
+            return 오늘읽음();
+        } finally {
+            mibalLoading = null;
+        }
+    })();
+    return mibalLoading;
+}
+
+// 날짜·업무마다 불리므로 도착일별 결과를 잠깐 들고 있는다(입고일정 캐시가 바뀌면 30초 안에 반영)
+let mibalMapCache = null;
+const mibalForDate = (dateStr) => {
+    if (!mibalHistory) return null;
+    const today = getTodayDateString();
+    if (!mibalMapCache || mibalMapCache.today !== today || mibalMapCache.loadedAt !== mibalLoadedAt
+        || Date.now() - mibalMapCache.at > 30 * 1000) {
+        let map = {};
+        try {
+            map = mibalByArrival(mibalHistory, {
+                arrivalOf: makeArrivalLookup(incomingAllByArrival || getIncomingDetailsByDateFromCache()),
+                today, isOffDay
+            });
+        } catch (e) { console.warn('[업무 예상] 미발 계산 실패:', e); }
+        mibalMapCache = { map, today, loadedAt: mibalLoadedAt, at: Date.now() };
+    }
+    return mibalMapCache.map[dateStr] || null;
+};
+
+const mibalNote = (m) => `📦 중국 입고 미발 +${m.qty.toLocaleString()} 포함 — ${m.lines.join(' · ')}`
+    + (m.rate ? `\n(상승률은 지난 입고 ${m.rate.n}건 기준 — 미발계산기 '미발전송' 기록)`
+              : `\n(상승률 기록이 없어 기본 40% 로 계산 — 미발계산기에서 입고일에도 '미발전송' 을 누르면 정확해집니다)`);
+
 /** 📅 '그날의 실제 근거'에서 오는 추정 — 공휴일이어도 값을 지우지 않는다.
  *  입고일정 시트가 "그날 300박스 도착"이라고 말하면, 그날은 사람이 나온다는 뜻이다.
  *  나머지(ai·cadence·last7)는 **과거 패턴의 관성**이라 쉬는 날에 깔아 둘 이유가 없다. */
@@ -1684,7 +1766,7 @@ const estimatedValueFor = (dateStr, task, historyData) => {
 
     switch (mode) {
         case 'ai': {
-            const value = getAIPredictedDomestic(historyData, dateStr);
+            const aiValue = getAIPredictedDomestic(historyData, dateStr);
             const info = backlogInfoFor(historyData, dateStr);
             // 배지는 **실제로 보정이 걸린 경우에만** 붙인다.
             // getAIPredictedDomestic 은 과거(실측)와 오늘 실측에는 배수를 곱하지 않는다 —
@@ -1693,14 +1775,25 @@ const estimatedValueFor = (dateStr, task, historyData) => {
                 ? (Number((historyData || []).find(d => d.id === dateStr)?.taskQuantities?.['국내배송']) || 0)
                 : 0;
             const 보정됨 = dateStr >= getTodayDateString() && 오늘실측 <= 0 && info.factor > 1
-                        && value > 0 && backlogTaskSet().has('국내배송');
-            if (!보정됨) return { value, source: 'ai' };
+                        && aiValue > 0 && backlogTaskSet().has('국내배송');
+            // 📦 그날 중국 입고분이 도착하면 미발수량을 더한다 — 연휴 배수는 AI 몫에만(이미 곱해져 있다),
+            //    미발은 그 뒤에 더하기만 한다. 과거·오늘 실측이 있는 날은 더하지 않는다(실측이 이미 담고 있다).
+            const 미발 = (dateStr >= getTodayDateString() && 오늘실측 <= 0) ? mibalForDate(dateStr) : null;
+            const 미발수 = 미발 && 미발.qty > 0 ? 미발.qty : 0;
+            const value = aiValue + 미발수;
+            if (!보정됨) {
+                if (미발수) return { value, source: 'ai-mibal',
+                                    detail: `AI 예측 ${aiValue.toLocaleString()} + 미발 ${미발수.toLocaleString()}\n${mibalNote(미발)}` };
+                return { value, source: 'ai' };
+            }
             const reason = carryReason(info, {
                 holidayName: precedingHolidayName(dateStr),
                 dow: new Date(dateStr + 'T00:00:00').getDay(),
-                baseValue: value / info.factor, finalValue: value
+                baseValue: aiValue / info.factor, finalValue: aiValue
             });
-            return { value, source: 'ai-carry', detail: `${reason}\n${carrySourceNote(info.learned)}` };
+            // 둘 다 걸리면 배지는 '연휴 밀림' 을 유지한다(슬랙 훅의 보정 판정이 이 source 를 본다). 설명에 미발 줄만 덧붙인다.
+            return { value, source: 'ai-carry',
+                     detail: `${reason}\n${carrySourceNote(info.learned)}` + (미발수 ? `\n${mibalNote(미발)}` : '') };
         }
         case 'incoming': return { value: getIncomingChinaForDate(dateStr), source: 'incoming' };
         case 'china-linked': {
@@ -1733,6 +1826,10 @@ const SOURCE_BADGE = {
                    + ' 보통 주말만큼(월요일)은 이미 요일 평균에 들어 있어서,'
                    + ' 그보다 더 쉰 날수만큼만 올립니다.'
                    + ' 너무 많다 싶으면 칸에 직접 숫자를 넣으세요 — 수기 입력이 항상 우선합니다.' },
+    'ai-mibal': { text: '미발 포함', muted: true,
+                tip: '국내배송 AI 예측값에, 이날 도착하는 중국 입고분의 미발수량을 더한 값입니다.'
+                   + ' 입고일엔 미발 상품을 바로 내보내 국내배송이 그만큼 늘어납니다.'
+                   + ' 미발수량은 미발계산기의 미발전송 기록(출고미발 × 평균상승률)으로 잡습니다.' },
     'holiday-off': { text: '공휴일', muted: true,
                 tip: '이 날은 공휴일이라 0 으로 둡니다.'
                    + ' 출근해서 작업한다면 칸에 직접 물량을 넣으세요.' },
@@ -1788,7 +1885,7 @@ const paintDayApply = (task, dayValue) => {
 };
 
 /** 접기 사유에 덮이면 안 되는 출처 — 그 자체가 '왜 이 값인지'의 답이다 */
-const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off']);
+const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off', 'ai-mibal']);
 
 /** 값의 출처를 항목 아래에 표시 */
 const markSourceBadge = (task, source, detail = '', dayValue = null) => {
@@ -2834,6 +2931,9 @@ window.__forecastForDate = async (dateStr) => {
         let plannedLoaded = true;
         try { await fetchPlannedData(); } catch (e) { plannedLoaded = false; }
         if (!(State.plannedData || []).length) plannedLoaded = false;
+        // ②-b 미발 이력 — 빼면 입고일 국내배송이 화면보다 미발만큼 적게 나간다
+        let mibalLoaded = false;
+        try { mibalLoaded = await ensureMibalHistory(); } catch (e) {}
 
         // ③ 업무 목록 확정 — 빼면 시간형 업무가 누락돼 총시간이 화면과 달라진다
         let simListsOk = true;
@@ -2966,7 +3066,7 @@ window.__forecastForDate = async (dateStr) => {
             //    폴백을 구현할 땐 전용 변환기를 따로 만들 것. (확정한 사람 실명도 들어 있다)
             hasSnapshot: !!getForecastSnapshotForDate(date),
             // historyRows 는 await 뒤에 다시 읽는다 — 그 사이 Firestore 응답으로 갱신될 수 있다
-            flags: { plannedLoaded, simListsOk, historyRows: (State.allHistoryData || []).length }
+            flags: { plannedLoaded, mibalLoaded, simListsOk, historyRows: (State.allHistoryData || []).length }
         };
     } catch (e) {
         return { ok: false, reason: 'calc-failed',
@@ -3323,8 +3423,8 @@ export const renderForecastTab = () => {
     // 진행 중인 업무가 있으면 '오늘 현황'으로, 아니면 '계획'으로 연다
     setForecastView(pickInitialForecastView());
 
-    // 예정 물량이 아직 안 실렸으면 로드 후 다시 채움(캐시라 대부분 즉시)
-    fetchPlannedData().then(() => {
+    // 예정 물량·미발 이력이 아직 안 실렸으면 로드 후 다시 채움(캐시라 대부분 즉시)
+    Promise.all([fetchPlannedData(), ensureMibalHistory()]).then(() => {
         const d = document.getElementById('sim-target-date')?.value;
         // ⚠️ 그 사이 사용자가 고친 칸은 덮지 않는다. 캐시가 만료된 상태면 이 then 이
         //    수백 ms 뒤에 도착하는데, 그때 화면을 통째로 덮으면 방금 타이핑한 값이
@@ -3945,6 +4045,8 @@ let autoSnapForcedFetchDate = null;   // 예정물량 강제 갱신은 하루 1�
 let autoSnapNextTryAt = 0;            // 재시도 쿨다운(실패한 날 60초마다 서버를 때리지 않게)
 const AUTO_SNAPSHOT_RETRY_MS = 10 * 60 * 1000;
 let 입고경고_날짜 = null;
+let 미발경고_날짜 = null;
+let 미발실패_횟수 = 0;
 
 const 자동스냅_키 = (d) => `forecastAutoSnap:${d}`;
 const 자동스냅_했나 = (d) => {
@@ -4031,6 +4133,19 @@ const ensureTodayForecastSnapshot = async () => {
                     + ' 대시보드 입고일정이 정상인지 확인하세요.');
             }
             return;
+        }
+        // ⑤-b 미발 이력 — 못 읽은 채로 찍으면 입고일(쉬는 날에서 넘어온 날 포함) 국내배송이 미발만큼
+        //      적게 얼려진다. 오늘이 그런 날인지는 이력을 읽어야 알 수 있으므로, 읽기 실패면 10분 뒤 다시 본다.
+        //      단 계속 실패하면 3번(약 30분)까지만 미루고 미발 없이 찍는다 — 하루 종일 스냅샷이 없는 것보다 낫다.
+        if (!(await ensureMibalHistory())) {
+            if (미발경고_날짜 !== today) { 미발경고_날짜 = today; 미발실패_횟수 = 0; }
+            미발실패_횟수 += 1;
+            if (미발실패_횟수 <= 3) {
+                autoSnapNextTryAt = Date.now() + 10 * 60 * 1000;
+                if (미발실패_횟수 === 1) console.warn('[자동 계획] 미발 이력을 읽지 못해 계획 얼리기를 미룹니다(10분 뒤 다시).');
+                return;
+            }
+            if (미발실패_횟수 === 4) console.warn('[자동 계획] 미발 이력을 계속 못 읽어 미발 없이 계획을 얼립니다.');
         }
         // ⑥ 업무 목록 — 빼면 시간형 업무가 통째로 빠진 스냅샷이 남는다
         ensureSimLists();

@@ -3,10 +3,10 @@
 //   낮에는 아무도 데이터관리 창을 열지 않는다 — 계획 대비 얼마나 왔는지,
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
-import * as State from './state.js?v=202610071053';
-import { formatHM } from './utils.js?v=202610071053';
-import { getTodayProgressSummary, ensureTodayForecastSnapshot } from './ui-history-prediction.js?v=202610071053';
-import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610071053';
+import * as State from './state.js?v=202610071220';
+import { formatHM } from './utils.js?v=202610071220';
+import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory } from './ui-history-prediction.js?v=202610071220';
+import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610071220';
 
 const EL = 'today-progress-strip';
 let timer = null;
@@ -92,7 +92,8 @@ export const initTodayProgressStrip = async () => {
 
     // 저장해 둔 예정 물량까지 실어야 데이터관리의 '오늘 현황'과 같은 계획으로 계산된다
     try {
-        await Promise.all([fetchAllHistoryData(), fetchPlannedData()]);
+        // 미발 이력도 — 입고일 오전엔 국내배송 계획에 미발이 더해진다(업무 예상 '오늘 현황'과 같게)
+        await Promise.all([fetchAllHistoryData(), fetchPlannedData(), ensureMibalHistory()]);
     } catch (e) { console.warn('[today-progress] 자료 로드 실패:', e); }
     render();
 

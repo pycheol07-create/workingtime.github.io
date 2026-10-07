@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610071053';
-import * as State from './state.js?v=202610071053';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610071053';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610071053';
+import * as DOM from './dom-elements.js?v=202610071220';
+import * as State from './state.js?v=202610071220';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610071220';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610071220';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610071053';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610071053';
-import { renderQuantityModalInputs } from './ui.js?v=202610071053';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610071053';
-import { getAutoQuantitiesForDate } from './ui-history-prediction.js?v=202610071053';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610071220';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610071220';
+import { renderQuantityModalInputs } from './ui.js?v=202610071220';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610071220';
+import { getAutoQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610071220';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -139,8 +139,12 @@ const buildPlannedGroupHtml = () => {
 };
 
 // 📅 예정 물량 입력 모달 (기존 처리량 모달 재사용, 저장은 plannedData로)
-export const openPlannedQuantityModal = (dateStr) => {
+export const openPlannedQuantityModal = async (dateStr) => {
     if (!dateStr) return;
+    // 입고일 국내배송에 미발이 더해진다 — 이력을 읽기 전에 채우면 미발 없는 값이 '예정 물량'으로
+    // 저장돼(이 모달은 모든 칸을 저장한다) 그날 미발 가산이 영영 사라진다.
+    let 미발읽음 = false;
+    try { 미발읽음 = await ensureMibalHistory(); } catch (e) {}
     const allTasks = getAllTaskKeys(State.appConfig);
 
     // 자동 추정값(업무 예상 시뮬레이션과 동일한 계산 — 지난 7회 평균 / AI / 입고일정)을 먼저 깔고,
@@ -157,7 +161,8 @@ export const openPlannedQuantityModal = (dateStr) => {
 
     const hint = document.getElementById('planned-auto-hint');
     if (hint) {
-        hint.textContent = '자동 추정값(국내배송=AI 예측 · 중국제작=입고일정 · 그 외=지난 7회 업무량 평균)이 미리 채워져 있습니다. 값을 고쳐 저장하면 업무 예상 시뮬레이션에도 그대로 적용됩니다.';
+        hint.textContent = '자동 추정값(국내배송=AI 예측 + 입고일엔 미발수량 · 중국제작=입고일정 · 그 외=지난 7회 업무량 평균)이 미리 채워져 있습니다. 값을 고쳐 저장하면 업무 예상 시뮬레이션에도 그대로 적용됩니다.'
+            + (미발읽음 ? '' : ' ⚠️ 미발 이력을 불러오지 못해 국내배송에 미발이 빠졌을 수 있습니다 — 중국 입고일이면 저장 전에 국내배송 값을 확인하세요.');
         hint.classList.remove('hidden');
     }
 

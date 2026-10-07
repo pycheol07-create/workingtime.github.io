@@ -1,10 +1,10 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202610071053';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610071053';
-import { getStaffingOutlook } from './ui-history-prediction.js?v=202610071053';
-import { fetchPlannedData } from './history-data-manager.js?v=202610071053';
-import { getTodayDateString } from './utils.js?v=202610071053';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610071053';
+import * as State from './state.js?v=202610071220';
+import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610071220';
+import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610071220';
+import { fetchPlannedData } from './history-data-manager.js?v=202610071220';
+import { getTodayDateString } from './utils.js?v=202610071220';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610071220';
 
 let staffingChartInstance = null;
 
@@ -75,7 +75,8 @@ export function renderStaffingTab(filteredData, appConfig) {
     // 앞날 전망은 선택 기간과 무관하다(예정 물량 기반) — 위쪽 분석이 비어도 그린다.
     renderStaffingOutlook();
     // 예정 물량이 아직 안 실렸으면 불러온 뒤 한 번 더 (대부분 캐시라 즉시)
-    fetchPlannedData().then(() => renderStaffingOutlook()).catch(() => {});
+    // 예정 물량·미발 이력(입고일 국내배송에 더해진다)이 실리면 다시 그린다
+    Promise.all([fetchPlannedData(), ensureMibalHistory()]).then(() => renderStaffingOutlook()).catch(() => {});
 
     // 값을 안 지우면 직전 기간 숫자·도넛·시뮬레이터 결과가 그대로 남아 이 기간 값으로 오독된다.
     const clearStaffingCard = (message) => {

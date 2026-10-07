@@ -1,7 +1,7 @@
 // === js/widget-incoming-schedule.js ===
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=202610071053';
-import * as State from './state.js?v=202610071053';
+import { escapeHtml } from './utils.js?v=202610071220';
+import * as State from './state.js?v=202610071220';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
 //
 // 구글 시트 「패킹.송금관리」에 붙은 Apps Script 가 **시트를 고칠 때 즉시 + 1시간마다** 4개 열
@@ -228,6 +228,28 @@ function processRows(rows) {
     // 도착일 가까운 순 정렬
     items.sort((a, b) => a.arrivalDate - b.arrivalDate);
     return { items, missing, headerRow, matched, cols };
+}
+
+/** 업무 예상(미발 가산)용 — 시트 행을 **지난 날짜까지 포함해** 도착일별 패킹으로 묶는다.
+ *  위젯 화면·캐시는 오늘 이후만 담는데, 나눠 들어오는 패킹의 첫 분량이 이미 도착했는지 알려면
+ *  지난 도착 행(시트 연동이 최근 7일분을 보낸다)이 필요하다. 열·날짜 해석은 위젯과 같은 함수를 쓴다.
+ *  @returns { 'YYYY-MM-DD': { entries: [{ packDateText, qty, boxes }] } } */
+export function groupIncomingRowsByArrival(rows) {
+    const out = {};
+    if (!Array.isArray(rows) || !rows.length) return out;
+    const { cols, startRow } = resolveColumns(rows);
+    for (let i = startRow; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || r.length < 3) continue;
+        const arrival = parseDateCell(r[cols.arrival]);
+        if (!arrival) continue;
+        const boxes = Number(String(r[cols.boxes] || '').replace(/[^0-9.-]/g, '')) || 0;
+        const qty = Number(String(r[cols.qty] || '').replace(/[^0-9.-]/g, '')) || 0;
+        if (boxes === 0 && qty === 0) continue;
+        const key = ymd(arrival);
+        (out[key] || (out[key] = { entries: [] })).entries.push({ packDateText: normalizePackDateText(r[cols.pack]), qty, boxes });
+    }
+    return out;
 }
 
 /** 마지막으로 저장된 캐시를 오늘 기준으로 다시 걸러 그린다. 없으면 false. */
