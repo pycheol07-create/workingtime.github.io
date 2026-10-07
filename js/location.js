@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610071220';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610071229';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610071220';
+import { escapeHtml as escAttr } from './utils.js?v=202610071229';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -2358,21 +2358,14 @@ window.syncIncomingData = async () => {
 
         const fetchAndParse = async (url, sourceName) => {
             if (!url) return [];
+            // 외부 프록시(allorigins·corsproxy) 우회는 쓰지 않는다 — 시트에 단가가 있어 제3자 서버를 거치면 안 됨
             let textData = "";
             try {
                 const res1 = await fetch(url);
-                if (!res1.ok) throw new Error("1차 다이렉트 연결 실패");
-                textData = await res1.text(); 
+                if (!res1.ok) throw new Error(`HTTP ${res1.status}`);
+                textData = await res1.text();
             } catch (e1) {
-                try {
-                    const res2 = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
-                    if (!res2.ok) throw new Error("2차 프록시 실패");
-                    textData = await res2.text();
-                } catch (e2) {
-                    const res3 = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
-                    if (!res3.ok) throw new Error("3차 프록시 실패");
-                    textData = await res3.text();
-                }
+                throw new Error(`${sourceName} 시트를 직접 받지 못했습니다 (${e1.message}). 링크 설정을 확인하세요.`);
             }
 
             const workbook = XLSX.read(textData, { type: 'string' });
