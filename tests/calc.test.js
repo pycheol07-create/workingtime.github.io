@@ -6,8 +6,8 @@ import {
     parseAmount, inDateRange, resolvePeriodRange, calcWorkMinutes, weekendFairness,
     outingDeductibleMinutes, earlyLeaveDeductibleMinutes,
     addWorkMinutes, LUNCH_START_MIN, LUNCH_END_MIN,
-} from '../js/lib/calc.js?v=202610071540';
-import { projectFinish } from '../js/forecast-progress.js?v=202610071540';
+} from '../js/lib/calc.js?v=202610071546';
+import { projectFinish } from '../js/forecast-progress.js?v=202610071546';
 
 const H = (hh, mm = 0) => hh * 60 + mm; // 시:분 → 분
 

@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { calcNew, calcOld, capacityFor, sumOrders, explain, zoneKey }
-    from '../js/lib/mibal2-calc.js?v=202610071540';
+    from '../js/lib/mibal2-calc.js?v=202610071546';
 
 // ---------- calcNew ----------
 test('calcNew: 기본 — 도착이 미발보다 많으면 남는 건 비축', () => {

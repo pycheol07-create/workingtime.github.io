@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610071540';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610071546';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610071540';
+import { escapeHtml as escAttr } from './utils.js?v=202610071546';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -2384,7 +2384,9 @@ async function applyIncomingRows(finalJson, cancelledCodes, sourceMsg) {
 // (2026-10-07 대조: 576행·476코드·9개 항목 전부 일치). 공개 '웹에 게시' 주소를 쓰지 않는다.
 const INCOMING_SHEET_PATH = 'artifacts/team-work-logger-v2/integrations/incomingSheet';
 const MIBAL2_REQUEST_PATH = 'artifacts/team-work-logger-v2/mibal2/refreshRequest';
-const INCOMING_STALE_MS = 3 * 60 * 60 * 1000; // 3시간 넘은 자료면 새 수집을 권한다
+const MIBAL2_LATEST_PATH = 'artifacts/team-work-logger-v2/integrations/mibal2Latest';
+const INCOMING_FRESH_MS = 15 * 60 * 1000;     // 15분 안에 읽은 자료면 새로 읽지 않고 바로 반영
+const INCOMING_WAIT_MAX_MS = 15 * 60 * 1000;  // 새로 읽기를 기다리는 최대 시간(넘으면 있던 자료로 반영)
 
 /** 수집기 자료를 읽는다. 쓸 수 없으면 null(→ 옛 경로) */
 async function loadIncomingFromCollector() {
@@ -2395,7 +2397,7 @@ async function loadIncomingFromCollector() {
         if (d.ok === false || typeof d.rowsJson !== 'string') return null;
         const rows = JSON.parse(d.rowsJson);
         if (!Array.isArray(rows)) return null;
-        const at = d.updatedAt && typeof d.updatedAt.toMillis === 'function' ? d.updatedAt.toMillis() : 0;
+        const at = tsMillis(d.updatedAt);
         const cancelled = new Set((Array.isArray(d.cancelledCodes) ? d.cancelledCodes : []).map(c => String(c).trim()).filter(Boolean));
         return { rows, cancelled, at };
     } catch (e) {
@@ -2404,79 +2406,122 @@ async function loadIncomingFromCollector() {
     }
 }
 
-/**
- * [⏱ 지금 갱신] — 수집기에 '시트를 지금 새로 읽어 달라' 요청만 남긴다(미발계산기(신규)의 [지금 갱신]과 같은 요청 문서).
- * 수집기 규칙(미발수집_apps_script.gs 요청확인): 월~토 07~19시만 · 마지막 성공 10분 안이면 무시 ·
- * 수동 요청 하루 8회 · 20분 간격. 규칙에 걸릴 게 뻔하면 요청을 쓰지 않고 안내만 한다.
- */
-window.requestIncomingRefresh = async () => {
-    const now = new Date();
-    if (now.getDay() === 0 || now.getHours() < 7 || now.getHours() >= 19) {
-        return alert('지금은 새로 읽기 요청이 처리되지 않는 시간입니다.\n(월~토 07~19시에만 처리 · 매일 07:30 자동 수집)');
-    }
-    try {
-        const ls = await getDoc(doc(db, 'artifacts/team-work-logger-v2/integrations/mibal2Latest'));
-        const l = ls.exists() ? ls.data() : {};
-        const ms = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
-        const okAt = ms(l.lastOkAt), noteAt = ms(l.noteAt), runAt = ms(l.lastRunAt);
-        if (okAt && Date.now() - okAt < 10 * 60 * 1000) {
-            return alert(`방금(${fmtHM(okAt)}) 새로 읽었습니다.\n[🔄 시트 동기화]를 누르면 그 자료가 반영됩니다.`);
-        }
-        const req = await getDoc(doc(db, MIBAL2_REQUEST_PATH));
-        const reqAt = req.exists() ? ms(req.data().requestedAt) : 0;
-        if (reqAt && reqAt > runAt && Date.now() - reqAt < 15 * 60 * 1000) {
-            return alert(`이미 ${fmtHM(reqAt)} 에 요청이 들어가 처리를 기다리는 중입니다.\n5~10분 뒤 [🔄 시트 동기화]를 눌러 주세요.`);
-        }
-        const refused = (l.note && noteAt && Date.now() - noteAt < 30 * 60 * 1000) ? `\n\n⚠ 최근 요청이 처리되지 않았습니다: ${l.note}` : '';
-        if (!confirm(`오더리스트·사입리스트를 지금 새로 읽어 오도록 요청할까요?\n(5~10분 뒤 반영 · 하루 8회·20분 간격 한도 — 미발계산기(신규)와 함께 셉니다)${refused}`)) return;
-        await setDoc(doc(db, MIBAL2_REQUEST_PATH), { requestedAt: serverTimestamp() });
-        alert('요청했습니다.\n5~10분 뒤 [🔄 시트 동기화]를 눌러 주세요. 알림의 "시트 기준" 시각이 바뀌어 있으면 반영된 것입니다.');
-    } catch (e) {
-        alert('요청을 보내지 못했습니다: ' + (e.code || e.message));
-    }
-};
-
+const tsMillis = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
 const fmtHM = (ms) => { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
+/** 수집기 자료를 입고대기 목록에 반영 */
+async function applyCollectorRows(col, extraMsg) {
+    window.showLoading("🔄 시트 자료를 반영하는 중입니다...");
+    try {
+        const c = { '제작': 0, '사입': 0 };
+        col.rows.forEach(r => { if (c[r.source] !== undefined) c[r.source]++; });
+        await applyIncomingRows(col.rows, col.cancelled,
+            `(제작 ${c['제작']}건, 사입 ${c['사입']}건 · 시트 기준 ${col.at ? fmtHM(col.at) : '시각 모름'})` + (extraMsg ? `\n\n${extraMsg}` : ''));
+    } catch (error) {
+        window.hideLoading();
+        alert(`🚨 반영 실패!\n(${error.message})`);
+        console.error("입고예정 반영 실패:", error);
+    }
+}
+
+// ── 새로 읽기를 기다리는 동안의 상태(패널 버튼 아래 한 줄) ──
+let incomingWait = null;   // { unsubs:[], timer, col }
+function setSyncStatus(html) {
+    const el = document.getElementById('incoming-sync-status');
+    if (!el) return;
+    el.style.display = html ? 'block' : 'none';
+    el.innerHTML = html || '';
+}
+function stopIncomingWait() {
+    if (!incomingWait) return;
+    incomingWait.unsubs.forEach(u => { try { u(); } catch (e) { /* 이미 해제 */ } });
+    clearInterval(incomingWait.timer);
+    incomingWait = null;
+    setSyncStatus('');
+}
+/** 기다리지 않고 지금 있는 자료로 반영 */
+window.applyIncomingNow = async () => {
+    const col = incomingWait ? incomingWait.col : null;
+    stopIncomingWait();
+    const c2 = (await loadIncomingFromCollector()) || col;
+    if (c2) await applyCollectorRows(c2, '새로 읽기를 기다리지 않고 반영했습니다.');
+    else alert('시트 자료를 읽지 못했습니다.');
+};
+
+/**
+ * [🔄 시트 동기화] — 버튼 하나로:
+ *   · 15분 안에 읽은 자료면 바로 반영
+ *   · 아니면 수집기에 '지금 새로 읽기' 요청(미발계산기(신규) [지금 갱신]과 같은 요청 문서) → 끝나면 자동 반영
+ *     (패널에 진행 표시, 기다리지 않고 반영하는 버튼도 있음)
+ *   · 수집기가 쉬는 시간(일요일·07시 전·19시 이후)이거나 요청이 거절·실패·시간초과되면 있던 자료로 반영하고 이유를 알린다
+ * 수집기 규칙(업무자동화\앱\미발계산기2\미발수집_apps_script.gs 요청확인): 월~토 07~19시 · 마지막 성공 10분 안이면 무시 ·
+ * 수동 요청 하루 8회 · 20분 간격(미발계산기(신규)와 함께 셈).
+ */
 window.syncIncomingData = async () => {
+    if (incomingWait) return alert('지금 시트를 새로 읽는 중입니다. 끝나면 자동으로 반영됩니다.\n(기다리지 않으려면 패널의 [지금 자료로 반영]을 누르세요)');
+
     // 1순위: 수집기 자료
     const col = await loadIncomingFromCollector();
     if (col) {
-        // 수집기 요청확인() 은 월~토 07~19시에만 돈다 — 그 밖에는 요청해도 처리되지 않으므로 묻지 않는다
         const now = new Date();
         const collectorAwake = now.getDay() !== 0 && now.getHours() >= 7 && now.getHours() < 19;
-        if (col.at && Date.now() - col.at > INCOMING_STALE_MS && collectorAwake) {
-            // 직전 요청이 한도(하루 8회)·간격(20분)에 걸려 거절됐으면 그 사유를 먼저 보여 준다
-            let refusedNote = '';
-            try {
-                const ls = await getDoc(doc(db, 'artifacts/team-work-logger-v2/integrations/mibal2Latest'));
-                const l = ls.exists() ? ls.data() : {};
-                const noteAt = l.noteAt && typeof l.noteAt.toMillis === 'function' ? l.noteAt.toMillis() : 0;
-                if (l.note && noteAt && Date.now() - noteAt < 30 * 60 * 1000) refusedNote = String(l.note);
-            } catch (e) { /* 못 읽어도 아래 선택은 그대로 */ }
-            const go = confirm(`시트 자료 기준 시각이 ${fmtHM(col.at)} 입니다 (3시간 넘음).\n` +
-                (refusedNote ? `⚠ 최근 새로 읽기 요청이 처리되지 않았습니다: ${refusedNote}\n` : '') +
-                `\n[확인] 시트를 새로 읽어 오도록 요청합니다 — 5~10분 뒤 이 버튼을 다시 누르세요.\n` +
-                `        (하루 8회·20분 간격 한도에 걸리면 처리되지 않습니다)\n` +
-                `[취소] 지금 자료(${fmtHM(col.at)} 기준)로 그대로 반영합니다.`);
-            if (go) {
-                try {
-                    await setDoc(doc(db, MIBAL2_REQUEST_PATH), { requestedAt: serverTimestamp() });
-                    alert('새로 읽어 오기를 요청했습니다.\n5~10분 뒤 [🔄 시트 동기화]를 다시 눌러 주세요.');
-                } catch (e) { alert('요청을 보내지 못했습니다: ' + (e.code || e.message)); }
-                return;
-            }
+        if (col.at && Date.now() - col.at < INCOMING_FRESH_MS) return applyCollectorRows(col, '');
+        if (!collectorAwake) {
+            return applyCollectorRows(col, '※ 지금은 시트를 새로 읽는 시간이 아니라(월~토 07~19시) 이 기준 자료로 반영했습니다. 매일 07:30 자동으로 새로 읽습니다.');
         }
-        window.showLoading("🔄 시트 자료를 반영하는 중입니다...");
+
+        // 수집기 상태 확인 → 필요하면 요청
+        let l = {}, reqAt = 0;
         try {
-            const c = { '제작': 0, '사입': 0 };
-            col.rows.forEach(r => { if (c[r.source] !== undefined) c[r.source]++; });
-            await applyIncomingRows(col.rows, col.cancelled, `(제작 ${c['제작']}건, 사입 ${c['사입']}건 · 시트 기준 ${col.at ? fmtHM(col.at) : '시각 모름'})`);
-        } catch (error) {
-            window.hideLoading();
-            alert(`🚨 반영 실패!\n(${error.message})`);
-            console.error("입고예정 반영 실패:", error);
+            const ls = await getDoc(doc(db, MIBAL2_LATEST_PATH));
+            l = ls.exists() ? ls.data() : {};
+            const rq = await getDoc(doc(db, MIBAL2_REQUEST_PATH));
+            reqAt = rq.exists() ? tsMillis(rq.data().requestedAt) : 0;
+        } catch (e) { /* 못 읽어도 요청은 시도 */ }
+        const okAt = tsMillis(l.lastOkAt), runAt = tsMillis(l.lastRunAt), baseNoteAt = tsMillis(l.noteAt);
+        if (okAt && Date.now() - okAt < 10 * 60 * 1000) return applyCollectorRows(col, '');   // 방금 읽었다(수집기도 무시한다)
+        // 직전 요청이 이미 거절됐으면(요청 뒤에 note) 기다려도 오지 않는다 — 그 이유로 바로 반영
+        if (reqAt && reqAt > runAt && l.note && baseNoteAt >= reqAt && Date.now() - baseNoteAt < 30 * 60 * 1000) {
+            return applyCollectorRows(col, `⚠ 새로 읽기 요청이 처리되지 않았습니다: ${l.note}\n그래서 이 기준 자료로 반영했습니다.`);
         }
+        const pending = reqAt && reqAt > runAt && baseNoteAt < reqAt && Date.now() - reqAt < 15 * 60 * 1000;
+        let reqMs = pending ? reqAt : Date.now();
+        if (!pending) {
+            try { await setDoc(doc(db, MIBAL2_REQUEST_PATH), { requestedAt: serverTimestamp() }); }
+            catch (e) { return applyCollectorRows(col, `⚠ 새로 읽기를 요청하지 못해(${e.code || e.message}) 이 기준 자료로 반영했습니다.`); }
+        }
+
+        // 기다리기 — 입고예정 문서가 새로 써지면 자동 반영
+        const startMs = Date.now();
+        incomingWait = { unsubs: [], timer: null, col };
+        const finish = async (msg, useNew) => {
+            stopIncomingWait();
+            const c2 = useNew ? ((await loadIncomingFromCollector()) || col) : col;
+            await applyCollectorRows(c2, msg);
+        };
+        const render = () => {
+            const s = Math.floor((Date.now() - startMs) / 1000);
+            setSyncStatus(`⏳ 시트를 새로 읽는 중… <b>${Math.floor(s / 60)}분 ${s % 60}초</b> 경과 (보통 5~10분) — 끝나면 자동으로 반영됩니다.<br>` +
+                `<button type="button" onclick="applyIncomingNow()" style="margin-top:4px; padding:3px 8px; font-size:11px; border:1px solid #bbb; border-radius:4px; background:#fff; cursor:pointer;">기다리지 않고 지금 자료(${fmtHM(col.at)} 기준)로 반영</button>`);
+            if (Date.now() - startMs > INCOMING_WAIT_MAX_MS) finish(`⚠ ${INCOMING_WAIT_MAX_MS / 60000}분 안에 새로 읽지 못해 이 기준 자료로 반영했습니다. 잠시 뒤 다시 눌러 보세요.`, false);
+        };
+        render();
+        incomingWait.timer = setInterval(render, 1000);
+        incomingWait.unsubs.push(onSnapshot(doc(db, INCOMING_SHEET_PATH), snap => {
+            const d = snap.data() || {};
+            if (!incomingWait || tsMillis(d.updatedAt) <= col.at) return;
+            if (d.ok === false) finish('⚠ 시트를 새로 읽었지만 입고예정 자료를 저장하지 못해(크기 초과 등) 이 기준 자료로 반영했습니다.', false);
+            else finish('', true);
+        }, () => { /* 읽기 오류는 시간초과로 처리 */ }));
+        incomingWait.unsubs.push(onSnapshot(doc(db, MIBAL2_LATEST_PATH), snap => {
+            if (!incomingWait) return;
+            const d = snap.data() || {};
+            if (d.note && tsMillis(d.noteAt) > baseNoteAt) {
+                finish(`⚠ 새로 읽기 요청이 처리되지 않았습니다: ${d.note}\n그래서 이 기준 자료로 반영했습니다.`, false);
+            } else if (d.ok === false && tsMillis(d.lastRunAt) > reqMs - 60 * 1000) {
+                finish('⚠ 시트를 새로 읽다가 실패해서 이 기준 자료로 반영했습니다.', false);
+            }
+        }, () => { /* 읽기 오류는 시간초과로 처리 */ }));
         return;
     }
 

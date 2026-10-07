@@ -451,10 +451,10 @@
             <button onclick="toggleIncomingSidebar()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">×</button>
         </div>
         <div style="display:flex; justify-content:space-between; padding: 10px 15px; background: #fff; border-bottom: 1px solid #ddd; gap:10px;">
-            <button onclick="syncIncomingData()" style="flex:1; padding:6px 10px; background:#ff9800; color:white; border:none; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">🔄 시트 동기화</button>
-            <button onclick="requestIncomingRefresh()" title="오더리스트·사입리스트를 지금 새로 읽어 오도록 요청합니다(5~10분 뒤 반영). 그다음 [🔄 시트 동기화]를 누르세요." style="flex:1; padding:6px 10px; background:#00897b; color:white; border:none; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">⏱ 지금 갱신</button>
-            <button onclick="openSheetModal(event)" style="flex:1; padding:6px 10px; background:#607d8b; color:white; border:none; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">⚙️ 설정</button>
+            <button onclick="syncIncomingData()" style="flex:1; padding:6px 10px; background:#ff9800; color:white; border:none; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">🔄 시트 동기화</button>            <button onclick="openSheetModal(event)" style="flex:1; padding:6px 10px; background:#607d8b; color:white; border:none; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">⚙️ 설정</button>
         </div>
+        <!-- [🔄 시트 동기화] 가 시트를 새로 읽는 동안(5~10분) 진행 상황 — location.js setSyncStatus -->
+        <div id="incoming-sync-status" style="display:none; padding:8px 15px; background:#e0f2f1; border-bottom:1px solid #b2dfdb; font-size:11px; color:#00695c; line-height:1.5;"></div>
         <div style="padding:10px 15px; background:#fff3e0; border-bottom:1px solid #ffe0b2; font-size:11px; color:#e65100; line-height:1.5;">
             <div style="font-weight:bold; margin-bottom:4px;">📌 목록 표시 조건</div>
             <div style="color:#bf360c; font-weight:normal;">
@@ -1126,7 +1126,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610071540"></script>
+    <script type="module" src="js/location.js?v=202610071546"></script>
     <script>
         function switchView(view) {
             document.getElementById('view-list').style.display = view === 'list' ? 'block' : 'none';
@@ -1193,7 +1193,7 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610071540"></script>
-    <script src="js/modal-esc.js?v=202610071540"></script>
+    <script src="js/connection-banner.js?v=202610071546"></script>
+    <script src="js/modal-esc.js?v=202610071546"></script>
 </body>
 </html>
