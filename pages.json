@@ -4,6 +4,10 @@
   "title": "관리자 페이지 - 물류팀 시스템"
  },
  {
+  "file": "china-mibal2.html",
+  "title": "미발계산기(신규·시험)"
+ },
+ {
   "file": "china-stock-goods.html",
   "title": "중국제작 미발계산기"
  },

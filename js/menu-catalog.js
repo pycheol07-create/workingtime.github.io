@@ -16,6 +16,9 @@ export const BUILTIN_MENU_ITEMS = [
     { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' },
     // 로케이션 관리 바로 아래에 (비품 관리 앞)
     { name: '중국제작 미발계산기', link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' },
+    // 신규 미발계산기(병행 비교 시험, 2026-10-07) — 위 항목 다음에 처리되므로 '중국제작 미발계산기' 바로 아래(비품 관리 앞)에 붙는다.
+    // 관리자 외에는 memberMenuAccess 에 넣어 주지 않는 한 보이지 않는다(ui-main-dashboard.js applyDynamicSidebar).
+    { name: '미발계산기(신규·시험)', link: 'china-mibal2.html', category: '관리 및 조회', before: '비품 관리' },
     // before: 이 항목 바로 앞에 끼워 넣는다(없으면 맨 뒤)
     { name: '출퇴근 기록표', link: 'worktime.html', category: '관리자 메뉴', before: '업무 마감' },
     // 통합 계산기(통관·수입·배송비·창고비) — 2026-10-06 계산기앱에서 옮겨 붙임. 별도 탭(calculator_window)으로 열린다.
@@ -39,6 +42,7 @@ export const MENU_TARGETS = [
     { kind: 'action', name: '업무 마감',        link: '#',            icon: '🏁' },
     { kind: 'page', name: '로케이션 관리',       link: 'location.html',          icon: '📍' },
     { kind: 'page', name: '중국제작 미발계산기', link: 'china-stock-goods.html', icon: '🧮' },
+    { kind: 'page', name: '미발계산기(신규·시험)', link: 'china-mibal2.html',    icon: '🧪' },
     { kind: 'page', name: '비품 관리',           link: 'supplies.html',          icon: '📦' },
     { kind: 'page', name: '출퇴근 기록표',       link: 'worktime.html',          icon: '🕘' },
     { kind: 'page', name: '통합 계산기',         link: 'calculator/index.html',  icon: '🧾' },
