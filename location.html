@@ -840,20 +840,25 @@
             <!-- 탭 1: 시트 링크 -->
             <div id="incoming-tab-content-sheet" style="display:block;">
                 <div class="modal-body">
-                    <label style="color:var(--primary);">① 오더리스트(제작) CSV 링크</label>
-                    <input type="text" id="modal-sheet-url-order" placeholder="https://docs.google.com/spreadsheets/.../pub?output=csv">
-                    
-                    <label style="color:var(--primary); margin-top:15px;">② 사입리스트 CSV 링크</label>
-                    <input type="text" id="modal-sheet-url-buy" placeholder="https://docs.google.com/spreadsheets/.../pub?output=csv">
-                    
-                    <div style="font-size:11px; color:#666; margin-top:10px; line-height:1.4; background:#f9f9f9; padding:10px; border-radius:6px; border:1px solid #ddd;">
-                        ※ 각 원본 시트의 해당 탭(시트)을 선택한 후 <strong>[파일] > [공유] > [웹에 게시]</strong> 클릭<br>
-                        ※ 형식을 '웹페이지'가 아닌 <strong>'CSV'</strong>로 변경한 뒤 각각 생성된 링크를 칸에 맞게 붙여넣으세요.
+                    <!-- 2026-10-07 비활성: [🔄 시트 동기화]가 수집기(Apps Script) 자료를 읽도록 바뀌어 링크 입력이 필요 없다.
+                         저장된 옛 링크는 수집기 자료를 못 읽을 때의 예비 경로로만 쓰인다(화면에 보이지 않게 함 — 공개 주소). -->
+                    <div style="font-size:12px; color:#4e342e; line-height:1.6; background:#fff8e1; padding:12px; border-radius:6px; border:1px solid #ffcc80; margin-bottom:12px;">
+                        <strong>🔒 시트 링크 설정은 사용하지 않습니다 (2026-10-07 변경)</strong><br>
+                        [🔄 시트 동기화]는 이제 오더리스트·사입리스트를 <strong>자동 수집 자료</strong>에서 가져옵니다
+                        (매일 07:30 자동 수집 · 필요한 열만 · 단가 등 금액 열 제외).<br>
+                        그래서 여기에 링크를 넣을 필요가 없습니다.<br>
+                        <span style="color:#8d6e63;">※ 예전에 쓰던 '웹에 게시' 링크는 로그인 없이 누구나 열 수 있어 단가가 공개되는 문제가 있었습니다.
+                        수집 자료를 읽지 못할 때만 예비로 쓰이며, 확인이 끝나면 시트의 '웹에 게시'를 끄고 지울 예정입니다.</span>
                     </div>
+                    <label style="color:#999;">① 오더리스트(제작) CSV 링크</label>
+                    <input type="text" id="modal-sheet-url-order" disabled placeholder="사용 안 함" style="background:#f0f0f0; color:#999;">
+
+                    <label style="color:#999; margin-top:15px;">② 사입리스트 CSV 링크</label>
+                    <input type="text" id="modal-sheet-url-buy" disabled placeholder="사용 안 함" style="background:#f0f0f0; color:#999;">
                 </div>
                 <div class="modal-footer">
-                    <button class="btn-modal-cancel" onclick="closeSheetModal()">취소</button>
-                    <button class="btn-modal-save" onclick="saveSheetUrl()">저장</button>
+                    <button class="btn-modal-cancel" onclick="closeSheetModal()">닫기</button>
+                    <button class="btn-modal-save" disabled style="opacity:0.4; cursor:not-allowed;" title="사용하지 않는 설정입니다">저장</button>
                 </div>
             </div>
             
@@ -1120,7 +1125,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610071529"></script>
+    <script type="module" src="js/location.js?v=202610071535"></script>
     <script>
         function switchView(view) {
             document.getElementById('view-list').style.display = view === 'list' ? 'block' : 'none';
@@ -1187,7 +1192,7 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610071529"></script>
-    <script src="js/modal-esc.js?v=202610071529"></script>
+    <script src="js/connection-banner.js?v=202610071535"></script>
+    <script src="js/modal-esc.js?v=202610071535"></script>
 </body>
 </html>

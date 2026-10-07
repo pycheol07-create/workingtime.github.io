@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610071529';
-import * as State from './state.js?v=202610071529';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610071529';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610071529';
+import * as DOM from './dom-elements.js?v=202610071535';
+import * as State from './state.js?v=202610071535';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610071535';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610071535';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610071529';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610071529';
-import { renderQuantityModalInputs } from './ui.js?v=202610071529';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610071529';
-import { getAutoQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610071529';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610071535';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610071535';
+import { renderQuantityModalInputs } from './ui.js?v=202610071535';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610071535';
+import { getAutoQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610071535';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;

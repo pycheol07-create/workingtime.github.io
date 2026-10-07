@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610071529';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610071535';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610071529';
+import { escapeHtml as escAttr } from './utils.js?v=202610071535';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -1911,11 +1911,12 @@ window.openSheetModal = (e) => {
     if (e) e.stopPropagation();
     if (typeof window.closeAllPopups === 'function') window.closeAllPopups();
     
-    // 시트 링크 값 설정 (시스템 전체에서 window.sheetUrlOrder/Buy 사용)
+    // 시트 링크 칸은 2026-10-07 비활성 — 저장된 링크(공개 웹게시 주소)를 화면에 채우지 않는다.
+    // window.sheetUrlOrder/Buy 는 syncIncomingData 의 예비 경로에서만 쓴다.
     const urlOrder = document.getElementById('modal-sheet-url-order');
     const urlBuy = document.getElementById('modal-sheet-url-buy');
-    if (urlOrder) urlOrder.value = window.sheetUrlOrder || '';
-    if (urlBuy) urlBuy.value = window.sheetUrlBuy || '';
+    if (urlOrder) urlOrder.value = '';
+    if (urlBuy) urlBuy.value = '';
 
     // [1단계] 모달 오픈 시 기본 탭 초기화
     if (typeof window.switchIncomingSettingsTab === 'function') {
@@ -2323,6 +2324,10 @@ window.applyAllRecommendations = async function() {
 };
 
 window.saveSheetUrl = async () => {
+    // 2026-10-07 비활성: [🔄 시트 동기화]가 수집기 자료(incomingSheet)를 읽는다. 링크를 새로 저장하지 않는다.
+    alert('시트 링크 설정은 더 이상 사용하지 않습니다.\n[🔄 시트 동기화]는 자동 수집 자료를 가져옵니다.');
+    return;
+    // eslint-disable-next-line no-unreachable
     const urlOrder = document.getElementById('modal-sheet-url-order').value.trim();
     const urlBuy = document.getElementById('modal-sheet-url-buy').value.trim();
     
@@ -2459,7 +2464,7 @@ window.syncIncomingData = async () => {
                 if (!res1.ok) throw new Error(`HTTP ${res1.status}`);
                 textData = await res1.text();
             } catch (e1) {
-                throw new Error(`${sourceName} 시트를 직접 받지 못했습니다 (${e1.message}). 링크 설정을 확인하세요.`);
+                throw new Error(`자동 수집 자료를 읽지 못했고, 예비 경로(${sourceName} 시트 직접)도 실패했습니다 (${e1.message}). 관리자에게 알려 주세요.`);
             }
 
             const workbook = XLSX.read(textData, { type: 'string' });
