@@ -12,7 +12,7 @@ import {
     carryReason, carrySourceNote, dowOf,
     DEFAULT_CARRY, MAX_BACKLOG_FACTOR, CARRY_MIN, MIN_MONDAY_SAMPLES,
     DEFAULT_BACKLOG_TASKS, resolveBacklogTasks, carriedQty,
-} from '../js/lib/backlog-carry.js?v=202610070958';
+} from '../js/lib/backlog-carry.js?v=202610071053';
 
 // 실제 달력 대신 '이 날짜들이 공휴일' 이라고 꽂아 둔다 — 공휴일 표가 바뀌어도 테스트는 안 흔들린다.
 const 공휴일 = new Set([

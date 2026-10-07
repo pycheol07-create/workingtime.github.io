@@ -301,11 +301,11 @@ export const debounce = (func, delay) => {
 //    (연휴를 주말로만 세어 '업무 예상'의 밀린 물량 보정이 사라진다).
 //    그래서 표가 못 덮는 해를 물어보면 콘솔에 한 번 경고한다.
 export const HOLIDAY_TABLE_LAST_YEAR = 2027;
-let warnedHolidayYear = 0;
+const warnedHolidayYears = new Set();   // 해마다 한 번만 경고(달력은 두 해를 번갈아 묻는다)
 
 export function getHolidayName(year, month, day) {
-    if (year > HOLIDAY_TABLE_LAST_YEAR && warnedHolidayYear !== year) {
-        warnedHolidayYear = year;
+    if (year > HOLIDAY_TABLE_LAST_YEAR && !warnedHolidayYears.has(year)) {
+        warnedHolidayYears.add(year);
         console.warn(`[공휴일] ${year}년 표가 없습니다 — 설·추석·대체공휴일이 평일로 잡힙니다.`
                    + ` js/utils.js 의 variableHolidays 에 ${year}년을 추가하세요`
                    + ` (현재 ${HOLIDAY_TABLE_LAST_YEAR}년까지).`);
@@ -334,7 +334,7 @@ export function getHolidayName(year, month, day) {
         '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
         '2026-03-02': '대체공휴일', '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일',
         '2026-06-03': '지방선거', '2026-08-17': '대체공휴일',
-        '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴', '2026-10-04': '대체공휴일', '2026-10-05': '대체공휴일',
+        '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴', '2026-10-05': '대체공휴일',   /* 개천절(10/3 토) 대체 = 10/5(월). 10/4(일)는 잘못 들어가 있던 항목이라 뺐다(2026-10-07) */
         // 2027 — 설(2/7 일) → 2/9 대체 · 광복절(8/15 일) → 8/16 · 개천절(10/3 일) → 10/4
         //        한글날(10/9 토) → 10/11 · 성탄절(12/25 토) → 12/27
         //        추석(9/14~16 화·수·목)은 주말과 안 겹쳐 대체공휴일이 없다.

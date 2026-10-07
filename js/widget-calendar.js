@@ -8,11 +8,11 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202610070958';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610070958';
-import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc } from './utils.js?v=202610070958';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610070958';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610070958';
+import * as State from './state.js?v=202610071053';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610071053';
+import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610071053';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610071053';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610071053';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
@@ -35,8 +35,10 @@ const typeOf = (id) => EVENT_TYPES.find(t => t.id === id) || EVENT_TYPES[0];
 // 캘린더에서 고를 수 있는 근태 종류.
 // 기간형 종류(state.js)를 그대로 쓰되, 캘린더에만 있던 '반차'는 앞쪽에 유지한다.
 const CAL_LEAVE_TYPES = ['연차', '반차', ...PERSISTENT_LEAVE_TYPES.filter(t => t !== '연차' && !LEGACY_LEAVE_TYPES.includes(t))];
-const LEAVE_COLOR = '#ef4444';
+// 근태는 초록 — 빨강은 공휴일 차지다(달력 관습: 빨간 날 = 쉬는 날). 2026-10-07 에 빨강→초록으로 바꿈.
+const LEAVE_COLOR = '#22c55e';
 const INCOMING_COLOR = '#f97316';
+const HOLIDAY_COLOR = '#ef4444';
 
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const addMonths = (d, n) => { const x = new Date(d); x.setDate(1); x.setMonth(x.getMonth() + n); return x; };
@@ -164,7 +166,8 @@ async function removeLeaveEntry(id) {
 // 기간(start~end) 단위 아이템 — 노션식 기간 바를 그리기 위해 날짜별이 아니라 '구간'으로 다룬다.
 // ────────────────────────────────────────
 const KIND_TONE = {
-    leave:    { bg: '#fee2e2', fg: '#b91c1c', bar: '#ef4444', darkBg: 'rgba(239,68,68,.22)',  darkFg: '#fca5a5' },
+    leave:    { bg: '#dcfce7', fg: '#15803d', bar: '#22c55e', darkBg: 'rgba(34,197,94,.22)',  darkFg: '#86efac' },
+    holiday:  { bg: '#fee2e2', fg: '#b91c1c', bar: '#ef4444', darkBg: 'rgba(239,68,68,.22)',  darkFg: '#fca5a5' },
     incoming: { bg: '#ffedd5', fg: '#c2410c', bar: '#f97316', darkBg: 'rgba(249,115,22,.22)', darkFg: '#fdba74' }
 };
 
@@ -177,6 +180,7 @@ const hexToRgba = (hex, a) => {
 
 function toneOf(item) {
     if (item.kind === 'leave') return KIND_TONE.leave;
+    if (item.kind === 'holiday') return KIND_TONE.holiday;
     if (item.kind === 'incoming') return KIND_TONE.incoming;
     return {
         bg: hexToRgba(item.color, 0.14), fg: item.color, bar: item.color,
@@ -184,9 +188,27 @@ function toneOf(item) {
     };
 }
 
-/** 달력에 그릴 모든 구간을 모은다. (일정 → 근태 → 입고) */
-function allRanges() {
+/** 보고 있는 달 앞뒤 한 달까지의 대한민국 공휴일 (utils.getHolidayName 표 — 대체공휴일 포함).
+ *  월간 격자의 앞뒤 날짜·날짜 팝업이 이 범위 안에 든다. */
+function holidayRanges() {
     const out = [];
+    const from = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1);
+    const to = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 2, 0);
+    for (const d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        const name = getHolidayName(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        if (!name) continue;
+        const key = ymd(d);
+        out.push({
+            kind: 'holiday', id: 'hol-' + key, color: HOLIDAY_COLOR,
+            label: name, sub: '공휴일', start: key, end: key, editable: false
+        });
+    }
+    return out;
+}
+
+/** 달력에 그릴 모든 구간을 모은다. (공휴일 → 일정 → 근태 → 입고) */
+function allRanges() {
+    const out = holidayRanges();
 
     eventList.forEach(ev => {
         const t = typeOf(ev.type);
@@ -225,10 +247,13 @@ function allRanges() {
         });
     });
 
-    // 기간 긴 것 → 시작 이른 것 순으로 두면 레인 배치가 안정적이다.
+    // 시작 이른 것 → 기간 긴 것 → 종류(공휴일·일정·근태·입고) 순으로 두면 레인 배치가 안정적이다.
+    // (같은 날·같은 길이에서 항상 -1 을 돌려주던 비교는 정렬 기준이 일관되지 않아 순서가 흔들렸다)
+    const KIND_ORDER = { holiday: 0, event: 1, leave: 2, incoming: 3 };
     return out.sort((a, b) =>
         a.start.localeCompare(b.start) ||
-        (dayDiff(a.start, a.end) < dayDiff(b.start, b.end) ? 1 : -1)
+        (dayDiff(b.start, b.end) - dayDiff(a.start, a.end)) ||
+        ((KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9))
     );
 }
 
@@ -322,8 +347,9 @@ function renderMonthView(root, today) {
             const inMonth = d.getMonth() === viewMonth.getMonth();
             const isToday = key === today;
             const dow = d.getDay();
+            const holiday = getHolidayName(d.getFullYear(), d.getMonth() + 1, d.getDate());
             const tone = !inMonth ? 'text-gray-300 dark:text-gray-600'
-                : (dow === 0 ? 'text-red-500' : (dow === 6 ? 'text-blue-500' : 'text-gray-700 dark:text-gray-200'));
+                : ((dow === 0 || holiday) ? 'text-red-500' : (dow === 6 ? 'text-blue-500' : 'text-gray-700 dark:text-gray-200'));
 
             cells.push(`
                 <div class="cal-daycell ${inMonth ? '' : 'cal-daycell-out'} ${isToday ? 'cal-daycell-today' : ''}"
@@ -457,7 +483,7 @@ function ensureDayModal() {
             <div id="cal-day-list" class="p-4 md:p-5 overflow-y-auto flex-1"></div>
             <div class="p-4 bg-gray-50 dark:bg-gray-900/40 rounded-b-2xl flex flex-wrap gap-2 justify-end">
                 <button type="button" id="cal-day-add-event" class="px-3 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white">＋ 업무 일정</button>
-                <button type="button" id="cal-day-add-leave" class="px-3 py-2 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-700 text-white">＋ 근태</button>
+                <button type="button" id="cal-day-add-leave" class="px-3 py-2 text-xs font-bold rounded-lg bg-green-600 hover:bg-green-700 text-white">＋ 근태</button>
             </div>
         </div>
     </div>`;
@@ -846,7 +872,7 @@ function bind() {
             const cellEl = itemEl.closest('[data-cal-date]');
             selectedDate = itemEl.dataset.calItemStart
                 || (cellEl ? cellEl.dataset.calDate : getTodayDateString());
-            if (kind === 'incoming') { openDayModal(selectedDate); return; }
+            if (kind === 'incoming' || kind === 'holiday') { openDayModal(selectedDate); return; }   // 읽기전용
             if (!requireAdmin()) return;
             editItem(kind, itemEl.dataset.calItemId);
             return;
