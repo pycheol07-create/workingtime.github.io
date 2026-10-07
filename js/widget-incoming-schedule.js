@@ -1,9 +1,18 @@
 // === js/widget-incoming-schedule.js ===
-import { escapeHtml } from './utils.js?v=202610061715';
+import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { escapeHtml } from './utils.js?v=202610070924';
+import * as State from './state.js?v=202610070924';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
-// Apps Script Web App에서 JSON을 받아 도착일이 당일 이후인 행을 표시.
-
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw8ZaiYF8McexD_ZWXWoOZ0F4UQKgQVBH3w8XLiTxW3bPSMoOcptXnb2N-gW_hRJW4-Xw/exec';
+//
+// 구글 시트 「패킹.송금관리」에 붙은 Apps Script 가 **시트를 고칠 때 즉시 + 1시간마다** 4개 열
+// (패킹일자·박스·수량·도착일)을 Firestore integrations/incomingSchedule 문서(rowsJson)에 쓴다.
+// 원본: 앱\업무현황 앱\입고위젯_apps_script.gs
+// 이 모듈은 그 문서를 구독해 도착일이 당일 이후인 행을 표시한다.
+//
+// 예전에는 Apps Script 웹 앱(공개 주소, 인증 없음)을 직접 fetch 했다. 주소만 알면 누구나
+// 시트를 읽을 수 있었고, 그 스크립트가 지워지자 위젯이 통째로 멈췄다(2026-10-07).
+// 지금은 공개 주소가 없고, integrations 는 로그인한 직원만 읽고 브라우저는 쓸 수 없다(firestore.rules).
+const 문서경로 = ['artifacts', 'team-work-logger-v2', 'integrations', 'incomingSchedule'];
 
 // 컬럼은 '헤더 이름'으로 찾는다. 시트에 열이 추가·이동돼도 따라가도록.
 // 이름을 못 찾은 항목만 예전 고정 위치로 폴백한다.
@@ -81,12 +90,16 @@ function resolveColumns(rows) {
     return { cols, startRow: headerRow + 1, missing, headerRow, matched: accepted ? best.score : 0 };
 }
 
-const REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2시간
+// 문서가 안 바뀌면 onSnapshot 콜백이 오지 않는다 — 트리거가 죽어도 화면은 조용하다.
+// 그래서 주기적으로 다시 그려 '오늘/내일' 라벨·지난 입고 제외·'N시간 전 기준' 경고를 다시 판정한다.
+const REDRAW_INTERVAL_MS = 10 * 60 * 1000; // 10분
 const CACHE_KEY = 'incoming_schedule_cache_v1';
-const CACHE_TTL_MS = 3 * 60 * 60 * 1000; // 3시간 (오프라인 fallback)
+const STALE_HOURS = 3;   // 1시간 주기인데 이보다 오래됐으면 시트 연동이 멈춘 것으로 본다
 
-let _refreshTimer = null;
-let _lastFetchAt = 0;
+let _unsub = null;
+let _redrawTimer = null;
+let _retryTimer = null;
+let _last = null;        // { rows|null, updatedAt(ms)|null, ok, error, absent, denied }
 
 // ────────────────────────────────────────
 // 날짜 파서 — "6/15", "06/15", "2026-06-15", "6/15(월)" 등 다양한 형식 처리
@@ -164,99 +177,182 @@ function normalizePackDateText(raw) {
 const numFmt = (n) => Number(n || 0).toLocaleString();
 
 // ────────────────────────────────────────
-// 메인: fetch → 파싱 → 필터 → 렌더
+// 메인: Firestore 문서 → 파싱 → 필터 → 렌더
 // ────────────────────────────────────────
-async function fetchIncomingSchedule() {
+
+/** Firestore Timestamp | ISO 문자열 | Date → ms (못 읽으면 null) */
+const 밀리초 = (v) => {
+    if (!v) return null;
+    try {
+        if (typeof v.toMillis === 'function') return v.toMillis();
+        if (typeof v.seconds === 'number') return v.seconds * 1000;
+        const t = new Date(v).getTime();
+        return Number.isFinite(t) ? t : null;
+    } catch (e) { return null; }
+};
+
+/** 시트 행(2차원 배열) → 오늘 이후 입고 항목. 화면·캐시 둘 다 이 결과를 쓴다. */
+function processRows(rows) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
+    // 헤더 이름으로 열 위치를 잡는다(못 찾은 항목만 고정 위치 폴백)
+    const { cols, startRow, missing, headerRow, matched } = resolveColumns(rows || []);
+    if (missing.length > 0) {
+        console.warn(`[widget-incoming] 헤더를 못 찾은 항목: ${missing.join(', ')} → 기존 열 위치로 읽습니다.`,
+                     { headerRow, cols });
+    }
+
+    const items = [];
+    for (let i = startRow; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || r.length < 3) continue;
+        const arrivalRaw = r[cols.arrival];
+        const arrival = parseDateCell(arrivalRaw);
+        if (!arrival) continue;
+        const arr = new Date(arrival); arr.setHours(0, 0, 0, 0);
+        if (arr < today) continue; // 과거는 제외
+
+        const packDate = r[cols.pack];
+        const boxes = Number(String(r[cols.boxes] || '').replace(/[^0-9.-]/g, '')) || 0;
+        const qty = Number(String(r[cols.qty] || '').replace(/[^0-9.-]/g, '')) || 0;
+        if (boxes === 0 && qty === 0) continue; // 빈 행 제외
+
+        items.push({
+            arrivalDate: arr,
+            arrivalLabel: formatArrivalLabel(arr),
+            packDateText: normalizePackDateText(packDate),
+            boxes, qty
+        });
+    }
+
+    // 도착일 가까운 순 정렬
+    items.sort((a, b) => a.arrivalDate - b.arrivalDate);
+    return { items, missing, headerRow, matched, cols };
+}
+
+/** 마지막으로 저장된 캐시를 오늘 기준으로 다시 걸러 그린다. 없으면 false. */
+function renderFromCache() {
+    try {
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+        if (!cached || !Array.isArray(cached.items)) return false;
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const items = cached.items
+            .map(it => {
+                const d = new Date(it.arrivalDate); d.setHours(0, 0, 0, 0);
+                return { ...it, arrivalDate: d, arrivalLabel: formatArrivalLabel(d) };
+            })
+            .filter(it => it.arrivalDate >= today);
+        renderItems(items);
+        return true;
+    } catch (_) { return false; }
+}
+
+const hhmm = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
+/** 지금 가진 문서(_last)로 위젯을 다시 그린다. 타이머·탭 복귀·새로고침 버튼이 부른다. */
+function redraw() {
     const listEl = document.getElementById('widget-incoming-list');
     const statusEl = document.getElementById('widget-incoming-status');
     if (!listEl) return;
+    const setStatus = (text, title) => {
+        if (!statusEl) return;
+        statusEl.textContent = text;
+        statusEl.title = title || '';
+    };
 
+    if (!_last) {
+        // 로그인 전이거나 첫 응답 전 — 지난번 값이 있으면 그것부터 보여 준다
+        if (!renderFromCache()) listEl.innerHTML = `<li class="px-3 py-2 text-[10px] text-gray-400 italic">불러오는 중...</li>`;
+        setStatus('불러오는 중...');
+        return;
+    }
+
+    if (!_last.rows) {
+        const why = _last.denied ? '입고 데이터를 읽을 권한이 없습니다(로그인 확인).'
+            : _last.absent ? '입고 데이터가 아직 없습니다. 시트의 입고위젯 Apps Script 설치(설치 함수 실행)를 확인하세요.'
+            : `시트 연동이 실패했습니다: ${_last.error || '원인 미상'}`;
+        if (renderFromCache()) { setStatus('⚠️ 지난 값', why); return; }
+        setIncomingCount(0);
+        listEl.innerHTML = `<li class="px-3 py-2 text-[10px] text-red-500">⚠️ ${escapeHtml(why)}</li>`;
+        setStatus('오류', why);
+        return;
+    }
+
+    const { items, missing, headerRow } = processRows(_last.rows);
+    renderItems(items);
+
+    const at = _last.updatedAt;
+    // 쓰는 쪽(구글)과 보는 PC 의 시계가 다를 수 있다 — 음수는 0 으로 본다.
+    const 경과시간 = at == null ? null : Math.max(0, (Date.now() - at) / 3600000);
+    const 오래됨 = 경과시간 == null || 경과시간 >= STALE_HOURS;
+    const 경고 = [];
+    if (오래됨) 경고.push(`시트 반영이 ${경과시간 == null ? '언제인지 알 수 없습니다' : `${Math.floor(경과시간)}시간째 멈춰 있습니다`} — 1시간마다 자동 반영돼야 합니다. 시트의 Apps Script 트리거를 확인하세요.`);
+    if (_last.ok === false) 경고.push(`마지막 반영 시도 실패: ${_last.error || '원인 미상'} (지금 보이는 것은 그 전에 성공한 값)`);
+    if (missing.length > 0) 경고.push(`시트에서 ${missing.join(', ')} 헤더를 찾지 못해 기존 열 위치로 읽었습니다. 시트 머리글을 확인하세요.`);
+
+    const 기준 = at == null ? '' : (오래됨 ? `${Math.floor(경과시간)}시간 전 기준` : `${hhmm(at)} 기준`);
+    setStatus((경고.length ? '⚠️ ' : '') + 기준,
+              경고.length ? 경고.join('\n') : `시트 ${headerRow + 1}행을 머리글로 읽었습니다. 시트를 고치면 바로, 그리고 1시간마다 자동 반영됩니다.`);
+}
+
+/** 문서가 바뀔 때마다: 캐시 저장(업무 예상·캘린더용) → 다시 그리기 → 캘린더에 알림 */
+function onDoc(snap) {
+    if (!snap.exists()) { _last = { rows: null, absent: true }; redraw(); return; }
+    const d = snap.data() || {};
+    let rows = null;
     try {
-        if (statusEl) statusEl.textContent = '조회 중...';
-        const res = await fetch(SCRIPT_URL, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (json && json.error) throw new Error(json.error);
-        // Apps Script가 { data: [[...]] } 또는 직접 [[...]] 둘 다 처리
-        const rows = Array.isArray(json) ? json : json.data;
-        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const parsed = typeof d.rowsJson === 'string' ? JSON.parse(d.rowsJson) : null;
+        if (Array.isArray(parsed)) rows = parsed;
+    } catch (e) { console.warn('[widget-incoming] rowsJson 해석 실패:', e); }
+    const updatedAt = 밀리초(d.updatedAt);
+    _last = { rows, updatedAt, ok: d.ok, error: d.error || '' };
 
-        // 헤더 이름으로 열 위치를 잡는다(못 찾은 항목만 고정 위치 폴백)
-        const { cols, startRow, missing, headerRow, matched } = resolveColumns(rows || []);
-        if (missing.length > 0) {
-            console.warn(`[widget-incoming] 헤더를 못 찾은 항목: ${missing.join(', ')} → 기존 열 위치로 읽습니다.`,
-                         { headerRow, cols });
-        }
-
-        const items = [];
-        for (let i = startRow; i < rows.length; i++) {
-            const r = rows[i];
-            if (!r || r.length < 3) continue;
-            const arrivalRaw = r[cols.arrival];
-            const arrival = parseDateCell(arrivalRaw);
-            if (!arrival) continue;
-            const arr = new Date(arrival); arr.setHours(0, 0, 0, 0);
-            if (arr < today) continue; // 과거는 제외
-
-            const packDate = r[cols.pack];
-            const boxes = Number(String(r[cols.boxes] || '').replace(/[^0-9.-]/g, '')) || 0;
-            const qty = Number(String(r[cols.qty] || '').replace(/[^0-9.-]/g, '')) || 0;
-            if (boxes === 0 && qty === 0) continue; // 빈 행 제외
-
-            items.push({
-                arrivalDate: arr,
-                arrivalLabel: formatArrivalLabel(arr),
-                packDateText: normalizePackDateText(packDate),
-                boxes, qty
-            });
-        }
-
-        // 도착일 가까운 순 정렬
-        items.sort((a, b) => a.arrivalDate - b.arrivalDate);
-
-        // 캐시 저장 (오프라인 fallback). 열을 이름으로 제대로 잡았을 때만 저장한다 —
+    // rowsJson 이 없는 문서(첫 반영이 실패한 경우)로는 캐시를 덮지 않는다 —
+    // 0건으로 덮으면 업무 예상이 '입고 0' 으로 계획을 얼린다.
+    if (rows) {
+        const { items, matched, cols } = processRows(rows);
+        // 캐시 저장. 열을 이름으로 제대로 잡았을 때만 저장한다 —
         // 이 캐시는 캘린더·업무 예상·인력 수급도 함께 읽으므로 잘못 읽은 값을 남기면 안 된다.
-        if (matched >= CACHE_MIN_MATCHED) {
+        // at 은 '브라우저가 받은 시각' 이 아니라 '시트에서 읽은 시각' 이다 —
+        // 그래야 시트 연동이 멈췄을 때 isIncomingCacheFreshToday 가 그걸 안다.
+        if (matched >= CACHE_MIN_MATCHED && updatedAt != null) {
             try {
-                localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), items: items.map(it => ({ ...it, arrivalDate: it.arrivalDate.toISOString() })) }));
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ at: updatedAt, items: items.map(it => ({ ...it, arrivalDate: it.arrivalDate.toISOString() })) }));
             } catch (_) {}
         } else {
             console.warn('[widget-incoming] 열을 이름으로 충분히 찾지 못해 캐시를 갱신하지 않습니다.', { matched, cols });
         }
-
-        renderItems(items);
-        // 🗓️ 업무 캘린더가 입고 표시를 다시 그릴 수 있도록 알림
-        try { document.dispatchEvent(new CustomEvent('incoming-schedule-updated')); } catch (_) {}
-        const now = new Date();
-        if (statusEl) {
-            statusEl.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} 갱신`
-                                 + (missing.length > 0 ? ' ⚠️' : '');
-            statusEl.title = missing.length > 0
-                ? `시트에서 ${missing.join(', ')} 헤더를 찾지 못해 기존 열 위치로 읽었습니다. 시트 머리글을 확인하세요.`
-                : `${headerRow + 1}행을 머리글로 보고 열 이름으로 읽었습니다.`;
-        }
-        _lastFetchAt = Date.now();
-    } catch (e) {
-        console.warn('[widget-incoming] fetch 실패:', e);
-        // 캐시 폴백
-        try {
-            const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-            if (cached && Date.now() - cached.at < CACHE_TTL_MS && Array.isArray(cached.items)) {
-                const items = cached.items.map(it => ({ ...it, arrivalDate: new Date(it.arrivalDate) }))
-                    .filter(it => {
-                        const d = new Date(it.arrivalDate); d.setHours(0, 0, 0, 0);
-                        const today = new Date(); today.setHours(0, 0, 0, 0);
-                        return d >= today;
-                    });
-                renderItems(items);
-                if (statusEl) statusEl.textContent = '⚠️ 오프라인 (캐시)';
-                return;
-            }
-        } catch (_) {}
-        setIncomingCount(0);
-        listEl.innerHTML = `<li class="px-3 py-2 text-[10px] text-red-500">⚠️ 입고 데이터 조회 실패. Apps Script URL 또는 권한을 확인하세요.</li>`;
-        if (statusEl) statusEl.textContent = '오류';
     }
+    redraw();
+    // 🗓️ 업무 캘린더가 입고 표시를 다시 그릴 수 있도록 알림
+    try { document.dispatchEvent(new CustomEvent('incoming-schedule-updated')); } catch (_) {}
+}
+
+/** 로그인 후 app.js 가 부른다 (subscribeEzadmin 옆). */
+export function subscribeIncomingSchedule() {
+    if (_unsub || !State.db) return;
+    try {
+        _unsub = onSnapshot(doc(State.db, ...문서경로), onDoc, (e) => {
+            console.warn('[widget-incoming] 구독 실패:', e);
+            _last = { rows: null, denied: !!(e && e.code === 'permission-denied'), error: (e && e.code) || '' };
+            redraw();
+            // onSnapshot 은 에러가 나면 리스너를 영구 종료한다. _unsub 를 비워 두지 않으면
+            // 새로고침 전까지 다시 구독하지 못한다(로그인 직후 토큰 타이밍 등 일시 오류).
+            _unsub = null;
+            clearTimeout(_retryTimer);
+            _retryTimer = setTimeout(() => {
+                if (State.auth && State.auth.currentUser) subscribeIncomingSchedule();   // 로그아웃했으면 그만
+            }, 60 * 1000);
+        });
+    } catch (e) {
+        console.warn('[widget-incoming] 구독을 시작하지 못했습니다:', e);
+    }
+}
+
+export function unsubscribeIncomingSchedule() {
+    clearTimeout(_retryTimer); _retryTimer = null;
+    if (_unsub) { try { _unsub(); } catch (e) {} _unsub = null; }
+    _last = null;
 }
 
 function setIncomingCount(n) {
@@ -336,7 +432,7 @@ function renderItems(items) {
  *  어제 캐시로 계획을 얼리면 오늘 아침 시트에서 빠진 선적이 그대로 계획에 들어간다.
  *  날짜만 보면 공용 PC 를 켠 채 둔 경우 00:30 갱신분이 06:00 에도 통과하므로 경과시간도 본다.
  *  캐시 키를 이 파일 밖으로 내보내지 않기 위해 판정을 여기 둔다 — 키가 바뀌어도 같이 따라간다. */
-const INCOMING_FRESH_MAX_AGE_MS = 3 * 60 * 60 * 1000;   // 갱신 주기가 2시간이라 3시간
+const INCOMING_FRESH_MAX_AGE_MS = 3 * 60 * 60 * 1000;   // 시트 반영이 1시간 주기라 3시간 (cached.at = 시트에서 읽은 시각)
 export function isIncomingCacheFreshToday() {
     try {
         const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
@@ -384,20 +480,22 @@ export function getIncomingDetailsByDateFromCache() {
 }
 
 // ────────────────────────────────────────
-// 초기화 / 자동 갱신
+// 초기화 (index.html 이 로그인 전에도 부른다 — 데이터 구독은 subscribeIncomingSchedule)
 // ────────────────────────────────────────
 export function initIncomingScheduleWidget() {
-    fetchIncomingSchedule(); // 즉시 1회
-    if (_refreshTimer) clearInterval(_refreshTimer);
-    _refreshTimer = setInterval(fetchIncomingSchedule, REFRESH_INTERVAL_MS);
+    redraw(); // 지난번 캐시부터 즉시
+    if (!_redrawTimer) {
+        _redrawTimer = setInterval(redraw, REDRAW_INTERVAL_MS);
+        // 탭이 백그라운드면 타이머가 늦춰진다. 돌아올 때 즉시 맞춘다.
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) redraw(); });
+    }
 
     const refreshBtn = document.getElementById('refresh-incoming-btn');
     if (refreshBtn && !refreshBtn.__bound) {
         refreshBtn.__bound = true;
-        refreshBtn.addEventListener('click', () => {
-            // 짧은 쿨다운 — 30초 내 재요청 방지
-            if (Date.now() - _lastFetchAt < 30_000) return;
-            fetchIncomingSchedule();
-        });
+        // 시트를 다시 읽게 할 방법은 없다(공개 주소가 없으므로). 새 값은 문서가 바뀌는 즉시
+        // 자동으로 들어오므로, 버튼은 날짜 라벨·경과시간만 다시 판정한다.
+        refreshBtn.title = '시트를 고치면 바로 반영됩니다 (최소 1시간마다 한 번 더 확인)';
+        refreshBtn.addEventListener('click', redraw);
     }
 }
