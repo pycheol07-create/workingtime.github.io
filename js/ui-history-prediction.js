@@ -3,29 +3,29 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610071448';
+import { predictFutureTrends } from './analysis-logic.js?v=202610071505';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610071448';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610071448';
-import * as State from './state.js?v=202610071448';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610071448';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610071448';
+import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610071505';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610071505';
+import * as State from './state.js?v=202610071505';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610071505';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610071505';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610071448';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610071505';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610071448';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610071448';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610071505';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610071505';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610071448';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610071448';
-import { taskUph, recentDays } from './task-throughput.js?v=202610071448';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610071505';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610071505';
+import { taskUph, recentDays } from './task-throughput.js?v=202610071505';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610071448';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610071505';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610071448';
+         excessOffDays } from './lib/backlog-carry.js?v=202610071505';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */

@@ -155,6 +155,7 @@
         <div class="summary-card"><span class="label">피킹행 합</span><span class="value" id="sum-pick">0</span></div>
         <div class="summary-card"><span class="label">비축행 합</span><span class="value" id="sum-reserve">0</span></div>
         <div class="summary-card"><span class="label">보충필요 SKU</span><span class="value" id="sum-refill">0</span></div>
+        <div class="summary-card"><span class="label">밀린주문 합(미발 제외)</span><span class="value" id="sum-backlog">0</span></div>
     </div>
 
     <div class="tool-bar">
@@ -182,6 +183,7 @@
                     <th class="sortable" data-sort="inv">송장</th>
                     <th class="sortable" data-sort="out">출고예정</th>
                     <th class="sortable" data-sort="remain">남는양</th>
+                    <th class="sortable" data-sort="backlog" title="출고예정이 정상재고보다 많은 양. 피킹칸에 다 안 들어가서 미발에 넣지 않는다 — 비축에서 꺼내 바로 출고">밀린주문</th>
                     <th class="sortable" data-sort="old">기존 미발</th>
                     <th class="sortable" data-sort="oldNew" title="기존 공식(시트 3조건)에 신규 입력을 넣은 값. 부족수량=max(접수+송장−정상,0), 직진=0">기존공식×신규입력</th>
                     <th class="sortable new-col" data-sort="mibal">신규 미발</th>
@@ -193,7 +195,7 @@
                 </tr>
             </thead>
             <tbody id="table-body">
-                <tr><td colspan="19" style="text-align:center; padding:50px; color:#888;">불러오는 중…</td></tr>
+                <tr><td colspan="20" style="text-align:center; padding:50px; color:#888;">불러오는 중…</td></tr>
             </tbody>
         </table>
     </div>
@@ -201,7 +203,7 @@
 
     <div id="toast"></div>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610071448"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610071448"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610071505"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610071505"></script>
 </body>
 </html>

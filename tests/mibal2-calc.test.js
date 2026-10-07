@@ -4,20 +4,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { calcNew, calcOld, capacityFor, sumOrders, explain, zoneKey }
-    from '../js/lib/mibal2-calc.js?v=202610071448';
+    from '../js/lib/mibal2-calc.js?v=202610071505';
 
 // ---------- calcNew ----------
 test('calcNew: 기본 — 도착이 미발보다 많으면 남는 건 비축', () => {
     const r = calcNew({ 정상: 18, 접수: 12, 송장: 3, 적재량: 30, 도착: 40 });
-    assert.deepEqual(r, { 출고예정: 15, 남는양: 3, 미발: 27, 피킹행: 27, 비축행: 13, 보충필요: 0, flags: [] });
+    assert.deepEqual(r, { 출고예정: 15, 남는양: 3, 미발: 27, 밀린주문: 0, 피킹행: 27, 비축행: 13, 보충필요: 0, flags: [] });
 });
 
-test('calcNew: 정상 0 — 적재량 + 출고예정 만큼 채운다', () => {
+test('calcNew: 정상 0 + 밀린 주문 — 미발은 적재량까지만, 밀린주문은 따로', () => {
     const r = calcNew({ 정상: 0, 접수: 2, 송장: 1, 적재량: 20, 도착: 50 });
     assert.equal(r.남는양, -3);
-    assert.equal(r.미발, 23);
-    assert.equal(r.피킹행, 23);
-    assert.equal(r.비축행, 27);
+    assert.equal(r.미발, 20);
+    assert.equal(r.밀린주문, 3);
+    assert.equal(r.피킹행, 20);
+    assert.equal(r.비축행, 30);
     assert.deepEqual(r.flags, ['backlog']);
 });
 
@@ -30,11 +31,11 @@ test('calcNew: 도착 < 미발 → 보충필요', () => {
     assert.deepEqual(r.flags, ['needRefill']);
 });
 
-test('calcNew: 남는양 음수 → 미발이 적재량을 넘는다(밀린 주문)', () => {
+test('calcNew: 남는양 음수 → 미발은 적재량을 넘지 않는다(밀린 주문은 밀린주문 칸)', () => {
     const r = calcNew({ 정상: 4, 접수: 10, 송장: 4, 적재량: 15, 도착: 100 });
     assert.equal(r.남는양, -10);
-    assert.equal(r.미발, 25);
-    assert.ok(r.미발 > 15);
+    assert.equal(r.미발, 15);
+    assert.equal(r.밀린주문, 10);
     assert.deepEqual(r.flags, ['backlog']);
 });
 
@@ -60,7 +61,8 @@ test('calcNew: 정상 null 은 모름(noStock, 계산 안 함) — 정상 0 과 
     const u = calcNew({ 접수: 1, 송장: 1, 적재량: 20, 도착: 5 }); // undefined 도 모름
     assert.deepEqual(u.flags, ['noStock']);
     const z = calcNew({ 정상: 0, 접수: 1, 송장: 1, 적재량: 20, 도착: 5 });
-    assert.equal(z.미발, 22);
+    assert.equal(z.미발, 20);
+    assert.equal(z.밀린주문, 2);
 });
 
 test('calcNew: 접수/송장 null 은 모름(noOrders, 계산 안 함) — 0 과 다르다', () => {
@@ -78,7 +80,7 @@ test('calcNew: 접수/송장 null 은 모름(noOrders, 계산 안 함) — 0 과
 test('calcNew: NaN·소수·음수 방어', () => {
     const r = calcNew({ 정상: 10.9, 접수: '2', 송장: 1.5, 적재량: 20.7, 도착: -5 });
     // 정상 10, 접수 2, 송장 1, 적재량 20, 도착 0
-    assert.deepEqual(r, { 출고예정: 3, 남는양: 7, 미발: 13, 피킹행: 0, 비축행: 0, 보충필요: 13, flags: ['needRefill'] });
+    assert.deepEqual(r, { 출고예정: 3, 남는양: 7, 미발: 13, 밀린주문: 0, 피킹행: 0, 비축행: 0, 보충필요: 13, flags: ['needRefill'] });
     assert.deepEqual(calcNew({ 정상: NaN, 접수: 0, 송장: 0, 적재량: 20, 도착: 0 }).flags, ['noStock']);
     assert.deepEqual(calcNew({ 정상: 'abc', 접수: 0, 송장: 0, 적재량: 20, 도착: 0 }).flags, ['noStock']);
     assert.equal(calcNew({ 정상: 5, 접수: 0, 송장: 0, 적재량: 20, 도착: NaN }).피킹행, 0);
@@ -177,13 +179,13 @@ test('sumOrders: okCs 를 바꿀 수 있고, 빈 입력은 빈 객체', () => {
 test('explain: 기본 근거 문자열', () => {
     const input = { 정상: 18, 접수: 12, 송장: 3, 적재량: 30, 도착: 40 };
     assert.equal(explain(input, calcNew(input)),
-        '출고예정 = 12+3 = 15 / 남는양 = 18−15 = 3 / 미발 = max(30−3,0) = 27 / 도착 40 → 피킹 27, 비축 13');
+        '출고예정 = 12+3 = 15 / 남는양 = 18−15 = 3 / 미발 = 30−max(3,0) = 27 / 도착 40 → 피킹 27, 비축 13');
 });
 
 test('explain: 남는양 음수·보충필요', () => {
     const input = { 정상: 4, 접수: 10, 송장: 4, 적재량: 15, 도착: 20 };
     assert.equal(explain(input, calcNew(input)),
-        '출고예정 = 10+4 = 14 / 남는양 = 4−14 = (−10) / 미발 = max(15−(−10),0) = 25 / 도착 20 → 피킹 20, 비축 0 / 보충필요 5');
+        '출고예정 = 10+4 = 14 / 남는양 = 4−14 = (−10) / 미발 = 15−max((−10),0) = 15 / 도착 20 → 피킹 15, 비축 5 / 밀린주문 10(미발에 안 넣음 — 비축에서 꺼내 출고)');
 });
 
 test('explain: 모름이면 계산 안 함', () => {

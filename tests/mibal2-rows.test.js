@@ -7,7 +7,7 @@ import {
     withinGrace, arrivalFor, buildLocIndex, computeRows, summarize, compareRowsOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from '../js/lib/mibal2-rows.js?v=202610071448';
+} from '../js/lib/mibal2-rows.js?v=202610071505';
 
 const NOW = new Date(2026, 9, 7, 9, 0, 0);   // 2026-10-07 09:00 (로컬)
 
@@ -123,6 +123,6 @@ test('날짜별 사본 형식으로 바꿔도 실시간과 같은 미발이 나�
 
 test('summarize · compareRowsOf', () => {
     const rows = computeRows(bundle());
-    assert.deepEqual(summarize(rows), { sku: 1, arr: 40, mibal: 17, old: 20, diff: -3, pick: 17, reserve: 23, refill: 0 });
+    assert.deepEqual(summarize(rows), { sku: 1, arr: 40, mibal: 17, old: 20, diff: -3, pick: 17, reserve: 23, backlog: 0, refill: 0 });
     assert.deepEqual(compareRowsOf(rows), { S000001: [20, 0, 17, 40, 17, 23] });
 });

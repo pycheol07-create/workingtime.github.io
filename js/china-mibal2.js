@@ -13,15 +13,15 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610071448'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610071505'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610071448';
+import { explain } from './lib/mibal2-calc.js?v=202610071505';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610071448';
+} from './lib/mibal2-rows.js?v=202610071505';
 
 const { db, auth } = initializeFirebase();
 
@@ -330,13 +330,13 @@ function renderTable() {
     const tb = $('table-body');
     $('row-count').textContent = `${viewRows.length}행 / 전체 ${allRows.length}행`;
     if (viewMode === 'daily') {
-        if (!daily) { tb.innerHTML = `<tr><td colspan="19" style="padding:50px; color:#888;">날짜를 고르세요.</td></tr>`; return; }
-        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="19" style="padding:50px; color:#c62828;">${esc(daily.msg)}</td></tr>`; return; }
+        if (!daily) { tb.innerHTML = `<tr><td colspan="20" style="padding:50px; color:#888;">날짜를 고르세요.</td></tr>`; return; }
+        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="20" style="padding:50px; color:#c62828;">${esc(daily.msg)}</td></tr>`; return; }
     } else {
-        if (!latest) { tb.innerHTML = `<tr><td colspan="19" style="padding:50px; color:#c62828;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
-        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="19" style="padding:50px; color:#888;">출고일을 선택하세요.</td></tr>`; return; }
+        if (!latest) { tb.innerHTML = `<tr><td colspan="20" style="padding:50px; color:#c62828;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
+        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="20" style="padding:50px; color:#888;">출고일을 선택하세요.</td></tr>`; return; }
     }
-    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="19" style="padding:50px; color:#888;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
+    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="20" style="padding:50px; color:#888;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
     let html = '';
     viewRows.forEach((r, i) => {
         const cls = ['data-row'];
@@ -355,6 +355,7 @@ function renderTable() {
             <td>${numOr(r.inv)}</td>
             <td>${numOr(r.out)}</td>
             <td>${numOr(r.remain)}</td>
+            <td>${r.backlog ? `<b style="color:#6a1b9a;">${num(r.backlog)}</b>` : numOr(r.backlog)}</td>
             <td>${numOr(r.old)}</td>
             <td>${numOr(r.oldNew)}</td>
             <td class="new-mibal">${numOr(r.mibal)}</td>
@@ -364,7 +365,7 @@ function renderTable() {
             <td>${r.refill ? `<b style="color:#e65100;">${num(r.refill)}</b>` : numOr(r.refill)}</td>
             <td>${flagsHtml(r)}</td>
         </tr>`;
-        if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="19">${detailHtml(r)}</td></tr>`;
+        if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="20">${detailHtml(r)}</td></tr>`;
     });
     tb.innerHTML = html;
 }
@@ -379,6 +380,7 @@ function renderSummary() {
     $('sum-pick').textContent = s.pick.toLocaleString();
     $('sum-reserve').textContent = s.reserve.toLocaleString();
     $('sum-refill').textContent = s.refill;
+    $('sum-backlog').textContent = (s.backlog || 0).toLocaleString();
 }
 
 function renderSourceNote() {

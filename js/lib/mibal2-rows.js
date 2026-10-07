@@ -7,7 +7,7 @@
 //
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcNew, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT } from './mibal2-calc.js?v=202610071448';
+import { calcNew, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT } from './mibal2-calc.js?v=202610071505';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
@@ -236,7 +236,7 @@ export function computeRows(b) {
             code, name: it.nm || '', option: it.op || '', loc: locInfo ? locInfo.id : '미지정', locInfo,
             cap, arr: a.qty, arrUsed: a.used, arrSkipped: a.skipped,
             stock: input.정상, recv: input.접수, inv: input.송장,
-            out: res.출고예정, remain: res.남는양, mibal: res.미발, pick: res.피킹행, reserve: res.비축행, refill: res.보충필요,
+            out: res.출고예정, remain: res.남는양, backlog: res.밀린주문, mibal: res.미발, pick: res.피킹행, reserve: res.비축행, refill: res.보충필요,
             old, oldArr, oldNew, shortage, diff, diffAbs: diff === null ? -1 : Math.abs(diff),
             flags, input, res, capSrc: capacitySource(locId, b.zoneConfig, ed)
         };
@@ -249,7 +249,7 @@ export function summarize(rows) {
     return {
         sku: (rows || []).filter(r => r.arr > 0).length,
         arr: sum('arr'), mibal: sum('mibal'), old: sum('old'), diff: sum('diff'),
-        pick: sum('pick'), reserve: sum('reserve'),
+        pick: sum('pick'), reserve: sum('reserve'), backlog: sum('backlog'),
         refill: (rows || []).filter(r => (r.refill || 0) > 0).length
     };
 }

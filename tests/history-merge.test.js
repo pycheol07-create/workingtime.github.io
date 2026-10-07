@@ -6,7 +6,7 @@
 // 먼저 저쪽 주석을 읽을 것. 이 규칙들은 전부 **실제 사고 뒤에** 생겼다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decideHistoryMerge } from '../js/lib/history-merge.js?v=202610071448';
+import { decideHistoryMerge } from '../js/lib/history-merge.js?v=202610071505';
 
 const 기록 = (id, over = {}) => ({ id, member: '멤버A', task: '국내배송',
                                    status: 'completed', duration: 300, ...over });

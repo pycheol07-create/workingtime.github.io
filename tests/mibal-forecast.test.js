@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeAvgRise, predictByShip, mibalByArrival, makeArrivalLookup, DEFAULT_RISE }
-    from '../js/lib/mibal-forecast.js?v=202610071448';
+    from '../js/lib/mibal-forecast.js?v=202610071505';
 
 // 2026-10-07 실측 MIBAL_HISTORY 와 같은 모양
 const H = {

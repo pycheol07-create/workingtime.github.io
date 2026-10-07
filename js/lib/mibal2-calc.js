@@ -4,7 +4,8 @@
 // 업무 의미: 정상재고 = 피킹 로케이션. 미발 = 피킹 칸에 채워 둘 양(적재량까지).
 //   출고예정 = 접수 + 송장
 //   남는양   = 정상 − 출고예정
-//   미발     = max(적재량 − 남는양, 0)          ← 밀린 주문이 있으면 적재량을 넘어도 된다
+//   미발     = max(적재량 − max(남는양,0), 0)   ← 피킹칸에 실제로 넣을 양. 적재량을 넘지 않는다
+//   밀린주문 = max(−남는양, 0)                  ← 미발에 넣지 않고 따로 보여 준다(피킹칸에 다 안 들어감 — 2026-10-07 사용자 결정)
 //   피킹행   = min(도착, 미발) · 비축행 = 도착 − 피킹행 · 보충필요 = max(미발 − 도착, 0)
 // 직진·에이블리 재고출고는 전날 이지어드민에 올라가 정상재고에 이미 빠져 있으므로 더하지 않는다.
 //
@@ -55,20 +56,21 @@ export function calcNew({ 정상, 접수, 송장, 적재량, 도착 } = {}) {
     if (stock === null) flags.push('noStock');
     if (recv === null || inv === null) flags.push('noOrders');
 
-    const empty = { 출고예정: null, 남는양: null, 미발: null, 피킹행: null, 비축행: null, 보충필요: null, flags };
+    const empty = { 출고예정: null, 남는양: null, 미발: null, 밀린주문: null, 피킹행: null, 비축행: null, 보충필요: null, flags };
     if (stock === null || recv === null || inv === null) return empty;
 
     // 주문 수량은 음수가 될 수 없다 — 들어오면 0 으로
     const 출고예정 = Math.max(recv, 0) + Math.max(inv, 0);
     const 남는양 = stock - 출고예정;
-    const 미발 = Math.max(cap - 남는양, 0);
+    const 미발 = Math.max(cap - Math.max(남는양, 0), 0);   // 피킹칸 적재량을 넘지 않는다
+    const 밀린주문 = Math.max(-남는양, 0);                  // 미발에 넣지 않음 — 따로 표시
     const 피킹행 = Math.min(arr, 미발);
     const 비축행 = arr - 피킹행;
     const 보충필요 = Math.max(미발 - arr, 0);
 
     if (남는양 < 0) flags.push('backlog');
     if (보충필요 > 0) flags.push('needRefill');
-    return { 출고예정, 남는양, 미발, 피킹행, 비축행, 보충필요, flags };
+    return { 출고예정, 남는양, 미발, 밀린주문, 피킹행, 비축행, 보충필요, flags };
 }
 
 /**
@@ -193,8 +195,9 @@ export function explain(input, result) {
     const arr = intOrZero(i.도착);
     let s = `출고예정 = ${recv}+${inv} = ${r.출고예정}`
         + ` / 남는양 = ${fmt(stock)}−${r.출고예정} = ${fmt(r.남는양)}`
-        + ` / 미발 = max(${cap}−${fmt(r.남는양)},0) = ${r.미발}`
+        + ` / 미발 = ${cap}−max(${fmt(r.남는양)},0) = ${r.미발}`
         + ` / 도착 ${arr} → 피킹 ${r.피킹행}, 비축 ${r.비축행}`;
     if (r.보충필요 > 0) s += ` / 보충필요 ${r.보충필요}`;
+    if (r.밀린주문 > 0) s += ` / 밀린주문 ${r.밀린주문}(미발에 안 넣음 — 비축에서 꺼내 출고)`;
     return s;
 }
