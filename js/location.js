@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610071505';
-import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610071529';
+import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610071505';
+import { escapeHtml as escAttr } from './utils.js?v=202610071529';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -2349,8 +2349,102 @@ function formatExcelDate(excelDate) {
     return `${y}-${m}-${d}`;
 }
 
+// 입고대기 목록(IncomingData) 저장 + 오더취소 선지정 안내 — 수집기 경로·옛 시트 경로가 함께 쓴다
+async function applyIncomingRows(finalJson, cancelledCodes, sourceMsg) {
+    if (finalJson.length > 0) {
+        await updateDatabaseB(finalJson, 'IncomingData', null, true);
+        window.hideLoading();
+        alert(`✅ 입고 대기 상품 연동 완료!\n${sourceMsg}`);
+    } else {
+        window.hideLoading();
+        alert("입고 대기(수량 1개 이상) 상품이 없거나 데이터를 찾지 못했습니다.");
+    }
+
+    // ★ v3.96: 오더취소된 상품 중 선지정된 자리 찾기 → 모달 자동 표시
+    if (cancelledCodes.size > 0) {
+        const cancelledPreAssigns = originalData.filter(loc =>
+            loc.preAssigned === true &&
+            loc.preAssignedCode &&
+            cancelledCodes.has(loc.preAssignedCode.toString().trim())
+        );
+
+        if (cancelledPreAssigns.length > 0) {
+            window.showCancelledPreAssignModal(cancelledPreAssigns);
+        }
+    }
+}
+
+// 2026-10-07: 수집기(Apps Script, 업무자동화\앱\미발계산기2\미발수집_apps_script.gs)가 오더리스트·사입리스트에서
+// 필요한 열만 읽어 저장해 둔 문서. 아래 옛 경로(syncIncomingData 의 fetchAndParse)와 같은 필드·같은 거르기다
+// (2026-10-07 대조: 576행·476코드·9개 항목 전부 일치). 공개 '웹에 게시' 주소를 쓰지 않는다.
+const INCOMING_SHEET_PATH = 'artifacts/team-work-logger-v2/integrations/incomingSheet';
+const MIBAL2_REQUEST_PATH = 'artifacts/team-work-logger-v2/mibal2/refreshRequest';
+const INCOMING_STALE_MS = 3 * 60 * 60 * 1000; // 3시간 넘은 자료면 새 수집을 권한다
+
+/** 수집기 자료를 읽는다. 쓸 수 없으면 null(→ 옛 경로) */
+async function loadIncomingFromCollector() {
+    try {
+        const snap = await getDoc(doc(db, INCOMING_SHEET_PATH));
+        if (!snap.exists()) return null;
+        const d = snap.data() || {};
+        if (d.ok === false || typeof d.rowsJson !== 'string') return null;
+        const rows = JSON.parse(d.rowsJson);
+        if (!Array.isArray(rows)) return null;
+        const at = d.updatedAt && typeof d.updatedAt.toMillis === 'function' ? d.updatedAt.toMillis() : 0;
+        const cancelled = new Set((Array.isArray(d.cancelledCodes) ? d.cancelledCodes : []).map(c => String(c).trim()).filter(Boolean));
+        return { rows, cancelled, at };
+    } catch (e) {
+        console.warn('[입고예정] 수집기 자료 읽기 실패 — 옛 시트 경로로:', e && (e.code || e.message));
+        return null;
+    }
+}
+
+const fmtHM = (ms) => { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
 window.syncIncomingData = async () => {
-    if (!window.sheetUrlOrder && !window.sheetUrlBuy) return alert("구글시트 링크가 설정되지 않았습니다.\n[⚙️ 링크 설정] 에서 시트 링크를 저장해주세요.");
+    // 1순위: 수집기 자료
+    const col = await loadIncomingFromCollector();
+    if (col) {
+        // 수집기 요청확인() 은 월~토 07~19시에만 돈다 — 그 밖에는 요청해도 처리되지 않으므로 묻지 않는다
+        const now = new Date();
+        const collectorAwake = now.getDay() !== 0 && now.getHours() >= 7 && now.getHours() < 19;
+        if (col.at && Date.now() - col.at > INCOMING_STALE_MS && collectorAwake) {
+            // 직전 요청이 한도(하루 8회)·간격(20분)에 걸려 거절됐으면 그 사유를 먼저 보여 준다
+            let refusedNote = '';
+            try {
+                const ls = await getDoc(doc(db, 'artifacts/team-work-logger-v2/integrations/mibal2Latest'));
+                const l = ls.exists() ? ls.data() : {};
+                const noteAt = l.noteAt && typeof l.noteAt.toMillis === 'function' ? l.noteAt.toMillis() : 0;
+                if (l.note && noteAt && Date.now() - noteAt < 30 * 60 * 1000) refusedNote = String(l.note);
+            } catch (e) { /* 못 읽어도 아래 선택은 그대로 */ }
+            const go = confirm(`시트 자료 기준 시각이 ${fmtHM(col.at)} 입니다 (3시간 넘음).\n` +
+                (refusedNote ? `⚠ 최근 새로 읽기 요청이 처리되지 않았습니다: ${refusedNote}\n` : '') +
+                `\n[확인] 시트를 새로 읽어 오도록 요청합니다 — 5~10분 뒤 이 버튼을 다시 누르세요.\n` +
+                `        (하루 8회·20분 간격 한도에 걸리면 처리되지 않습니다)\n` +
+                `[취소] 지금 자료(${fmtHM(col.at)} 기준)로 그대로 반영합니다.`);
+            if (go) {
+                try {
+                    await setDoc(doc(db, MIBAL2_REQUEST_PATH), { requestedAt: serverTimestamp() });
+                    alert('새로 읽어 오기를 요청했습니다.\n5~10분 뒤 [🔄 시트 동기화]를 다시 눌러 주세요.');
+                } catch (e) { alert('요청을 보내지 못했습니다: ' + (e.code || e.message)); }
+                return;
+            }
+        }
+        window.showLoading("🔄 시트 자료를 반영하는 중입니다...");
+        try {
+            const c = { '제작': 0, '사입': 0 };
+            col.rows.forEach(r => { if (c[r.source] !== undefined) c[r.source]++; });
+            await applyIncomingRows(col.rows, col.cancelled, `(제작 ${c['제작']}건, 사입 ${c['사입']}건 · 시트 기준 ${col.at ? fmtHM(col.at) : '시각 모름'})`);
+        } catch (error) {
+            window.hideLoading();
+            alert(`🚨 반영 실패!\n(${error.message})`);
+            console.error("입고예정 반영 실패:", error);
+        }
+        return;
+    }
+
+    // 2순위(전환 기간만): 옛 경로 — '웹에 게시' 시트를 직접 받는다. 시트 웹게시를 끄면 이 경로는 실패한다.
+    if (!window.sheetUrlOrder && !window.sheetUrlBuy) return alert("시트 자료를 읽지 못했습니다.\n(수집기 자료가 없고, 예전 시트 링크도 설정되어 있지 않습니다)");
     window.showLoading("🔄 원본 시트에서 데이터를 분석하여 가져오는 중입니다...");
     
     try {
@@ -2463,28 +2557,8 @@ window.syncIncomingData = async () => {
             row['상태'] !== '오더취소'  // ★ v3.96: 오더취소 상품은 IncomingData에서 제외
         );
 
-        if (finalJson.length > 0) {
-            await updateDatabaseB(finalJson, 'IncomingData', null, true);
-            window.hideLoading();
-            alert(`✅ 입고 대기 상품 연동 완료!\n(오더리스트 ${orderData.length}건, 사입리스트 ${buyData.length}건)`);
-        } else { 
-            window.hideLoading(); 
-            alert("입고 대기(수량 1개 이상) 상품이 없거나 데이터를 찾지 못했습니다."); 
-        }
-
-        // ★ v3.96: 오더취소된 상품 중 선지정된 자리 찾기 → 모달 자동 표시
-        if (cancelledCodes.size > 0) {
-            const cancelledPreAssigns = originalData.filter(loc => 
-                loc.preAssigned === true && 
-                loc.preAssignedCode && 
-                cancelledCodes.has(loc.preAssignedCode.toString().trim())
-            );
-            
-            if (cancelledPreAssigns.length > 0) {
-                window.showCancelledPreAssignModal(cancelledPreAssigns);
-            }
-        }
-    } catch (error) { 
+        await applyIncomingRows(finalJson, cancelledCodes, `(오더리스트 ${orderData.length}건, 사입리스트 ${buyData.length}건 · 웹게시 시트에서 직접)`);
+    } catch (error) {
         window.hideLoading(); 
         alert(`🚨 연결 실패!\n데이터를 가져오지 못했습니다.\n(${error.message})`); 
         console.error("데이터 동기화 실패:", error);
