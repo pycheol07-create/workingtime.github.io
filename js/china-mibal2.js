@@ -13,15 +13,15 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610081033'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610081327'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610081033';
+import { explain } from './lib/mibal2-calc.js?v=202610081327';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610081033';
+} from './lib/mibal2-rows.js?v=202610081327';
 
 const { db, auth } = initializeFirebase();
 
@@ -329,7 +329,8 @@ function detailHtml(r) {
         : r.bneed === null || r.bneed === undefined
             ? `${num(r.bstock)} (이지어드민 불량창고=비축) · 정상재고/주문 모름 → 판단 안 함`
             : `${num(r.bstock)} (이지어드민 불량창고=비축) · 필요 = 밀린 ${num(r.backlog)} + 보충 ${num(r.refill)} = ${num(r.bneed)} → 여유 ${num(r.bleft)}`
-              + ` · 오늘 도착 비축행 ${num(r.reserve)} 포함 시 ${r.bArrOk ? '충분' : '부족'}`;
+              // 입고 처리(이지어드민 비축 입고)는 바로 반영된다 — 수집이 입고 뒤면 도착분이 이미 비축에 들어 있어 두 번 세게 되므로 조건부 문장으로만
+              + (r.reserve > 0 && r.bleft < 0 ? ` · (입고 처리 전 수집이라면) 오늘 도착 비축행 ${num(r.reserve)} 을 더하면 ${r.bArrOk ? '충분' : '부족'} — 입고 처리 뒤 수집이면 이미 비축재고에 포함됨` : '');
     return `<div class="formula">${esc(explain(r.input, r.res))}</div>
         <ul>
             <li><b>정상·접수·송장</b>: 이지어드민 → Apps Script 수집 (${c.okMs ? mdhm(c.okMs) : '시각 모름'} 성공분 · 접수 ${esc(range['접수From'] || '?')}~ · 송장 ${esc(range['송장From'] || '?')}~)

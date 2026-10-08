@@ -74,6 +74,9 @@
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-automation">
                 <span class="text-lg">🤖</span> 자동화 상태
             </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-refill">
+                <span class="text-lg">📦</span> 채우기 설정
+            </button>
             <div class="pt-6 pb-2">
                 <hr class="border-gray-200 dark:border-gray-700">
             </div>
@@ -115,6 +118,7 @@
                         <option value="section-cost">💰 원가 및 손익 설정</option>
                         <option value="section-setting">⚙️ 기타 기본 설정</option>
                         <option value="section-automation">🤖 자동화 상태</option>
+                        <option value="section-refill">📦 채우기 설정</option>
                     </select>
                 </div>
 
@@ -316,6 +320,50 @@
                     </div>
                 </div>
 
+                <!-- '전체 저장' 대상 아님: 이 탭의 [저장] 버튼만 adminPrivate/refillSettings 에 쓴다(js/admin-refill.js).
+                     앱\채우기자동화(채우기 지시서)가 매일 아침 이 값을 읽는다. -->
+                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors w-full" id="section-refill">
+                    <div class="p-6 border-b border-gray-100 dark:border-gray-700 w-full">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>📦</span> 채우기 설정</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">비축창고 → 피킹 로케이션 채우기 지시서(매일 아침 슬랙 발송)의 기준. 남는양(정상재고 − 출고예정)이 기준 이하이면 채운다 — 기준 = 적재량의 % 와 최소 개수 중 큰 값</p>
+                    </div>
+                    <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[400px] w-full">
+                        <div id="refill-status" class="text-sm mb-4 text-gray-500 dark:text-gray-400">탭을 열면 불러옵니다.</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm w-full">
+                                <label class="inline-flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300"><input type="checkbox" id="refill-enabled" class="w-4 h-4" disabled> 지시서 보내기</label>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">끄면 자동화가 '쉼' 으로 끝나고 슬랙에 보내지 않습니다.</p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm w-full">
+                                <span class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">보내는 요일</span>
+                                <div class="flex flex-wrap gap-3">
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="0" disabled> 월</label>
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="1" disabled> 화</label>
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="2" disabled> 수</label>
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="3" disabled> 목</label>
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="4" disabled> 금</label>
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="5" disabled> 토</label>
+                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="6" disabled> 일</label>
+                                </div>
+                                <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mt-3"><input type="checkbox" id="refill-skip-holidays" class="w-4 h-4" disabled> 공휴일 제외 (달력과 같은 공휴일 표)</label>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm w-full">
+                                <label for="refill-pct" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">적재량 기준 (%)</label>
+                                <input type="number" id="refill-pct" min="0" max="100" step="1" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white bg-gray-50 dark:bg-gray-900 outline-none focus:border-blue-500" disabled>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm w-full">
+                                <label for="refill-minqty" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">최소 기준 (개)</label>
+                                <input type="number" id="refill-minqty" min="0" max="999" step="1" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white bg-gray-50 dark:bg-gray-900 outline-none focus:border-blue-500" disabled>
+                            </div>
+                        </div>
+                        <p id="refill-example" class="text-sm text-blue-700 dark:text-blue-400 mt-4">예) 적재량 20 이면 남는양 6개 이하일 때 채움 (비축재고가 있을 때만)</p>
+                        <div class="mt-6 flex flex-wrap items-center gap-3">
+                            <button type="button" id="refill-save-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-sm text-sm disabled:opacity-50" disabled>저장</button>
+                            <span id="refill-meta" class="text-xs text-gray-500 dark:text-gray-400"></span>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </main>
@@ -357,8 +405,9 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610081033"></script>
-    <script type="module" src="js/admin-automation.js?v=202610081033"></script>
+    <script type="module" src="js/admin.js?v=202610081327"></script>
+    <script type="module" src="js/admin-automation.js?v=202610081327"></script>
+    <script type="module" src="js/admin-refill.js?v=202610081327"></script>
 
     <script type="module">
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
@@ -445,7 +494,7 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610081033"></script>
-    <script src="js/modal-esc.js?v=202610081033"></script>
+    <script src="js/connection-banner.js?v=202610081327"></script>
+    <script src="js/modal-esc.js?v=202610081327"></script>
 </body>
 </html>

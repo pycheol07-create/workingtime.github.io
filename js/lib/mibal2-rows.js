@@ -4,10 +4,11 @@
 // 실시간 화면(오늘)과 날짜별 비교(integrations/mibal2Daily_*)가 **같은 함수**로 계산하도록 여기 모았다.
 // 수집기(미발수집_apps_script.gs)가 Daily 문서에 넣는 locJson 도 이 파일의 buildLocIndex 규칙을 그대로 옮겼다.
 // 이쪽을 바꾸면 gs 의 buildLocIndex_ 도 바꿀 것.
+// 채우기자동화\규칙.py 도 isEtcLocObj·pickLocation·buildLocIndex 를 같은 규칙으로 옮겼다 — 바꾸면 그쪽도 바꿀 것(tests\test_JS일치.py 가 비교).
 //
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcNew, calcOld, reserveCheck, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT } from './mibal2-calc.js?v=202610081033';
+import { calcNew, calcOld, reserveCheck, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT } from './mibal2-calc.js?v=202610081327';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
