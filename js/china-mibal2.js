@@ -13,15 +13,15 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610080843'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610081033'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610080843';
+import { explain } from './lib/mibal2-calc.js?v=202610081033';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610080843';
+} from './lib/mibal2-rows.js?v=202610081033';
 
 const { db, auth } = initializeFirebase();
 
@@ -75,7 +75,7 @@ function judgeStatus(latest, now = new Date()) {
 
 // 전역 상태 — 오늘(실시간)
 let latest = null;             // mibal2Latest 문서
-let stockRows = {};            // rowsJson: { code: { n, r, i } }
+let stockRows = {};            // rowsJson: { code: { n, r, i, b } }  (b = 비축재고, 10/8 수집기부터 · 모르면 키 없음)
 let ship = { items: {} };      // shipJson
 let parseError = '';
 let config = {};               // ChinaStockGoods/CONFIG
@@ -187,8 +187,15 @@ function applyLatest(data) {
 const FLAG_LABEL = {
     zeroCapacity: ['적재량0', 'warn'], backlog: ['밀린주문', 'warn'], noStock: ['재고모름', 'bad'], noOrders: ['주문모름', 'bad'],
     needRefill: ['보충필요', 'warn'], noLoc: ['로케이션없음', 'bad'], etcLoc: ['기타자리만', 'warn'], multiLoc: ['여러자리', ''],
-    onlyOld: ['기존에만', 'bad'], noOld: ['신규에만', 'warn'], arrDiff: ['도착다름', 'warn']
+    onlyOld: ['기존에만', 'bad'], noOld: ['신규에만', 'warn'], arrDiff: ['도착다름', 'warn'],
+    reserveShort: ['비축부족', 'bad'], refillShort: ['보충부족', 'warn']
 };
+
+/** 수집기 counts 의 비축재고 실행 상태 → { status, missing, calls }. '비축상태' 칸이 없으면 null(10/8 수집기 갱신 전 사본) */
+function reserveStatusOf(counts) {
+    if (!counts || counts['비축상태'] === undefined || counts['비축상태'] === null) return null;
+    return { status: String(counts['비축상태']), missing: counts['비축미응답'], calls: counts['비축호출'] };
+}
 
 function liveBundle() {
     return {
@@ -208,6 +215,7 @@ function liveCtx() {
         editedCount: Object.keys(editedCells).filter(c => editedCells[c] && editedCells[c].capacity !== undefined && editedCells[c].capacity !== '').length,
         locCount: Object.keys(locIndex).length,
         oldSource: oldSnap ? { kind: oldSnap.kind, atMs: oldSnap.atMs, trigger: oldSnap.trigger, note: oldSnap.note, noUpload: oldSnap.noUpload } : null,
+        reserveStatus: reserveStatusOf(latest && latest.counts),
         refDate: new Date()
     };
 }
@@ -251,6 +259,7 @@ function buildDaily(id, data) {
         graceDays: g, parseError: '', editedCount: Object.keys(ed).length, locCount: Object.keys(loc).length,
         oldSource: os ? { kind: os.kind, atMs: Number(os.atMs) || 0, trigger: os.trigger || '', note: '', noUpload: !!os.noUpload } : null,
         compareAtMs: tsMs(data.compareAt), compareStatus: data.compareStatus || '',
+        reserveStatus: reserveStatusOf(data.counts),
         refDate
     };
     const dateInfo = {};
@@ -314,6 +323,13 @@ function detailHtml(r) {
         : `${num(r.old)} (${oldSourceText(c.oldSource)}${r.oldArr !== null ? ` · 그때 도착 ${num(r.oldArr)}` : ''})`;
     const oldNewTxt = r.oldNew === null ? '입력 모름 → 계산 안 함'
         : `총재고 ${num(r.stock)} · 적재량 ${num(r.cap)} · 도착 ${num(r.arr)} · 부족수량 max(${num(r.recv)}+${num(r.inv)}−${num(r.stock)},0)=${num(r.shortage)} · 직진 0 → ${num(r.oldNew)}`;
+    // 비축재고 판단(계산엔 안 넣음) — 도착분(비축행)은 판단에서 빼고 참고 문장으로만
+    const bTxt = r.bstock === null || r.bstock === undefined
+        ? '모름 (이 날 수집에 비축재고가 없거나 이 코드 응답 없음) → 판단 안 함'
+        : r.bneed === null || r.bneed === undefined
+            ? `${num(r.bstock)} (이지어드민 불량창고=비축) · 정상재고/주문 모름 → 판단 안 함`
+            : `${num(r.bstock)} (이지어드민 불량창고=비축) · 필요 = 밀린 ${num(r.backlog)} + 보충 ${num(r.refill)} = ${num(r.bneed)} → 여유 ${num(r.bleft)}`
+              + ` · 오늘 도착 비축행 ${num(r.reserve)} 포함 시 ${r.bArrOk ? '충분' : '부족'}`;
     return `<div class="formula">${esc(explain(r.input, r.res))}</div>
         <ul>
             <li><b>정상·접수·송장</b>: 이지어드민 → Apps Script 수집 (${c.okMs ? mdhm(c.okMs) : '시각 모름'} 성공분 · 접수 ${esc(range['접수From'] || '?')}~ · 송장 ${esc(range['송장From'] || '?')}~)
@@ -323,6 +339,7 @@ function detailHtml(r) {
             <li><b>적재량 ${num(r.cap)}</b>: ${esc(r.capSrc)}</li>
             <li><b>기존 미발</b>: ${oldTxt}</li>
             <li><b>기존공식×신규입력</b>: ${oldNewTxt}</li>
+            <li><b>비축재고</b>: ${bTxt}</li>
         </ul>`;
 }
 
@@ -330,13 +347,13 @@ function renderTable() {
     const tb = $('table-body');
     $('row-count').textContent = `${viewRows.length}행 / 전체 ${allRows.length}행`;
     if (viewMode === 'daily') {
-        if (!daily) { tb.innerHTML = `<tr><td colspan="20" style="padding:50px; color:#888;">날짜를 고르세요.</td></tr>`; return; }
-        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="20" style="padding:50px; color:#c62828;">${esc(daily.msg)}</td></tr>`; return; }
+        if (!daily) { tb.innerHTML = `<tr><td colspan="22" style="padding:50px; color:#888;">날짜를 고르세요.</td></tr>`; return; }
+        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="22" style="padding:50px; color:#c62828;">${esc(daily.msg)}</td></tr>`; return; }
     } else {
-        if (!latest) { tb.innerHTML = `<tr><td colspan="20" style="padding:50px; color:#c62828;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
-        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="20" style="padding:50px; color:#888;">출고일을 선택하세요.</td></tr>`; return; }
+        if (!latest) { tb.innerHTML = `<tr><td colspan="22" style="padding:50px; color:#c62828;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
+        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="22" style="padding:50px; color:#888;">출고일을 선택하세요.</td></tr>`; return; }
     }
-    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="20" style="padding:50px; color:#888;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
+    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="22" style="padding:50px; color:#888;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
     let html = '';
     viewRows.forEach((r, i) => {
         const cls = ['data-row'];
@@ -351,6 +368,7 @@ function renderTable() {
             <td>${num(r.cap)}</td>
             <td><b>${num(r.arr)}</b></td>
             <td>${numOr(r.stock)}</td>
+            <td>${numOr(r.bstock)}</td>
             <td>${numOr(r.recv)}</td>
             <td>${numOr(r.inv)}</td>
             <td>${numOr(r.out)}</td>
@@ -363,9 +381,10 @@ function renderTable() {
             <td>${numOr(r.pick)}</td>
             <td>${numOr(r.reserve)}</td>
             <td>${r.refill ? `<b style="color:#e65100;">${num(r.refill)}</b>` : numOr(r.refill)}</td>
+            <td${r.bleft !== null && r.bleft !== undefined ? ` title="비축 ${num(r.bstock)} − (밀린 ${num(r.backlog)} + 보충 ${num(r.refill)})"` : ''}>${r.bleft < 0 ? `<b style="color:#c62828;">${num(r.bleft)}</b>` : numOr(r.bleft)}</td>
             <td>${flagsHtml(r)}</td>
         </tr>`;
-        if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="20">${detailHtml(r)}</td></tr>`;
+        if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="22">${detailHtml(r)}</td></tr>`;
     });
     tb.innerHTML = html;
 }
@@ -381,6 +400,11 @@ function renderSummary() {
     $('sum-reserve').textContent = s.reserve.toLocaleString();
     $('sum-refill').textContent = s.refill;
     $('sum-backlog').textContent = (s.backlog || 0).toLocaleString();
+    // 비축재고 — 아는 행이 하나도 없으면(옛 사본) '–'
+    const noB = s.bstock === null;
+    $('sum-bstock').textContent = noB ? '–' : s.bstock.toLocaleString();
+    $('sum-bshort').textContent = noB ? '–' : s.reserveShort;
+    $('sum-brefill').textContent = '보충부족 ' + (noB ? '–' : s.refillShort);
 }
 
 function renderSourceNote() {
@@ -411,6 +435,9 @@ function renderSourceNote() {
     const os = c.oldSource;
     if (os && os.atMs && c.refDate && !sameDay(new Date(os.atMs), c.refDate)) warns.push(c.mode === 'daily' ? '기존 미발 비교값이 그날 것이 아닙니다' : '기존 미발 비교값이 오늘 것이 아닙니다');
     if (os && os.noUpload) warns.push(`최근 버전기록 ${VERSIONS_LIMIT}개 안에 '업로드' 버전이 없어 ${os.kind === 'version' ? `'${os.trigger}' 버전` : '현재 ScanDB'}로 비교합니다 — 스캐너 입고분이 빠져 있을 수 있음`);
+    const rs = c.reserveStatus;
+    if (!rs) warns.push(c.mode === 'daily' ? '이 날 사본에는 비축재고 없음(10/8 수집기 갱신 전)' : '이 수집 자료에는 비축재고 없음(10/8 수집기 갱신 전)');
+    else if (rs.status !== 'ok' || Number(rs.missing) > 0) warns.push(`비축재고 수집 ${rs.status} — 비축 미응답 코드 ${num(rs.missing)}개(그 코드는 '–', 판단 안 함)`);
     box.innerHTML = parts.join(' · ') + (warns.length ? `<br><span style="color:#c62828;">⚠ ${warns.map(esc).join(' / ')}</span>` : '');
 }
 

@@ -7,7 +7,7 @@
 //
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcNew, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT } from './mibal2-calc.js?v=202610080843';
+import { calcNew, calcOld, reserveCheck, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT } from './mibal2-calc.js?v=202610081033';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
@@ -177,7 +177,7 @@ export function locFromDaily(obj) {
 
 /**
  * @param {object} b 입력 묶음
- * @param {Object<string,{n,r,i}>} b.stockRows   mibal2 rowsJson (정상·접수·송장)
+ * @param {Object<string,{n,r,i,b}>} b.stockRows  mibal2 rowsJson (정상·접수·송장·비축재고). b 는 10/8 수집기부터, 모르면 키 없음
  * @param {Object<string,{nm,op,s}>} b.shipItems  mibal2 shipJson.items
  * @param {Object<string,{mibal:number, arr:number|null}>|null} b.oldMap  기존 미발 비교값. null = 비교 자료 없음(플래그도 안 붙임)
  * @param {object} b.zoneConfig   capacityFor 에 넘길 CONFIG({zoneCapacity})
@@ -214,6 +214,8 @@ export function computeRows(b) {
         const cap = capacityFor(locId, b.zoneConfig, ed);
         const input = { 정상: sr ? sr.n : null, 접수: sr ? sr.r : null, 송장: sr ? sr.i : null, 적재량: cap, 도착: a.qty };
         const res = calcNew(input);
+        // 비축재고(이지어드민 불량창고=비축) — 판단 보조만. calcNew 결과는 그대로
+        const rc = reserveCheck({ 비축: sr ? sr.b : null, 밀린주문: res.밀린주문, 보충필요: res.보충필요, 비축행: res.비축행 });
         // 기존공식 × 신규입력: 부족수량 = max(접수+송장−정상, 0), 직진 = 0
         let oldNew = null, shortage = null;
         if (sr && sr.n !== null && sr.n !== undefined && sr.r !== null && sr.r !== undefined && sr.i !== null && sr.i !== undefined) {
@@ -224,7 +226,7 @@ export function computeRows(b) {
         const old = o ? o.mibal : null;
         const oldArr = o && o.arr !== null && o.arr !== undefined ? o.arr : null;
         const diff = (old !== null && res.미발 !== null) ? res.미발 - old : null;
-        const flags = [...res.flags];
+        const flags = [...res.flags, ...rc.flags];
         if (!locInfo) flags.push('noLoc');
         else { if (locInfo.etcOnly) flags.push('etcLoc'); if (locInfo.count > 1) flags.push('multiLoc'); }
         if (oldMap) {
@@ -237,26 +239,34 @@ export function computeRows(b) {
             cap, arr: a.qty, arrUsed: a.used, arrSkipped: a.skipped,
             stock: input.정상, recv: input.접수, inv: input.송장,
             out: res.출고예정, remain: res.남는양, backlog: res.밀린주문, mibal: res.미발, pick: res.피킹행, reserve: res.비축행, refill: res.보충필요,
+            bstock: rc.비축재고, bneed: rc.비축필요, bleft: rc.비축여유, bArrOk: rc.도착포함충분,
             old, oldArr, oldNew, shortage, diff, diffAbs: diff === null ? -1 : Math.abs(diff),
             flags, input, res, capSrc: capacitySource(locId, b.zoneConfig, ed)
         };
     });
 }
 
-/** 요약 카드 숫자 — 모르는 값(null)은 0 으로 더한다. SKU 는 도착>0 행, 보충필요는 보충필요>0 행 수 */
+/**
+ * 요약 카드 숫자 — 모르는 값(null)은 0 으로 더한다. SKU 는 도착>0 행, 보충필요는 보충필요>0 행 수.
+ * bstock(비축재고 합)은 모든 행의 비축재고가 모름이면 null(옛 사본). reserveShort·refillShort 는 그 플래그가 붙은 행 수
+ */
 export function summarize(rows) {
     const sum = (k) => (rows || []).reduce((s, r) => s + (r[k] || 0), 0);
+    const flagCount = (f) => (rows || []).filter(r => (r.flags || []).includes(f)).length;
+    const hasB = (rows || []).some(r => r.bstock !== null && r.bstock !== undefined);
     return {
         sku: (rows || []).filter(r => r.arr > 0).length,
         arr: sum('arr'), mibal: sum('mibal'), old: sum('old'), diff: sum('diff'),
         pick: sum('pick'), reserve: sum('reserve'), backlog: sum('backlog'),
-        refill: (rows || []).filter(r => (r.refill || 0) > 0).length
+        refill: (rows || []).filter(r => (r.refill || 0) > 0).length,
+        bstock: hasB ? sum('bstock') : null,
+        reserveShort: flagCount('reserveShort'), refillShort: flagCount('refillShort')
     };
 }
 
-/** 비교 저장 형식 {code:[기존, 기존공식×신규입력, 신규, 도착, 피킹행, 비축행]} — 상품명·금액은 넣지 않는다 */
+/** 비교 저장 형식 {code:[기존, 기존공식×신규입력, 신규, 도착, 피킹행, 비축행, 비축재고]} — 상품명·금액은 넣지 않는다. 인덱스 6(비축재고)은 2026-10-08 추가(0~5 불변) */
 export function compareRowsOf(rows) {
     const out = {};
-    (rows || []).forEach(r => { out[r.code] = [r.old, r.oldNew, r.mibal, r.arr, r.pick, r.reserve]; });
+    (rows || []).forEach(r => { out[r.code] = [r.old, r.oldNew, r.mibal, r.arr, r.pick, r.reserve, r.bstock]; });
     return out;
 }

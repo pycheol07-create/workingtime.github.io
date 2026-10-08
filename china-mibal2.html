@@ -156,6 +156,8 @@
         <div class="summary-card"><span class="label">비축행 합</span><span class="value" id="sum-reserve">0</span></div>
         <div class="summary-card"><span class="label">보충필요 SKU</span><span class="value" id="sum-refill">0</span></div>
         <div class="summary-card"><span class="label">밀린주문 합(미발 제외)</span><span class="value" id="sum-backlog">0</span></div>
+        <div class="summary-card" title="이지어드민 불량창고(=비축창고) 재고 합. 도착분 중 비축으로 가는 '비축행'과 다릅니다"><span class="label">비축재고 합</span><span class="value" id="sum-bstock">–</span></div>
+        <div class="summary-card" title="비축부족: 비축재고 &lt; 밀린주문 · 보충부족: 밀린주문 ≤ 비축재고 &lt; 밀린주문+보충필요"><span class="label">비축부족 SKU</span><span class="value" id="sum-bshort">–</span><span class="label" id="sum-brefill" style="font-weight:normal;">보충부족 –</span></div>
     </div>
 
     <div class="tool-bar">
@@ -179,6 +181,7 @@
                     <th class="sortable" data-sort="cap">적재량</th>
                     <th class="sortable" data-sort="arr">도착</th>
                     <th class="sortable" data-sort="stock">정상</th>
+                    <th class="sortable" data-sort="bstock" title="비축재고 = 이지어드민 불량창고(=비축창고) 재고(get_stock_info bad=1). 도착분 중 비축으로 가는 '비축행'과 다릅니다. 계산(미발)에는 넣지 않고 판단만 돕습니다">비축재고</th>
                     <th class="sortable" data-sort="recv">접수</th>
                     <th class="sortable" data-sort="inv">송장</th>
                     <th class="sortable" data-sort="out">출고예정</th>
@@ -191,11 +194,12 @@
                     <th class="sortable new-col" data-sort="pick">피킹행</th>
                     <th class="sortable new-col" data-sort="reserve">비축행</th>
                     <th class="sortable new-col" data-sort="refill">보충필요</th>
+                    <th class="sortable" data-sort="bleft" title="비축여유 = 비축재고 − (밀린주문 + 보충필요). 음수면 비축이 모자람(오늘 도착분은 넣지 않음)">비축여유</th>
                     <th>플래그</th>
                 </tr>
             </thead>
             <tbody id="table-body">
-                <tr><td colspan="20" style="text-align:center; padding:50px; color:#888;">불러오는 중…</td></tr>
+                <tr><td colspan="22" style="text-align:center; padding:50px; color:#888;">불러오는 중…</td></tr>
             </tbody>
         </table>
     </div>
@@ -203,7 +207,7 @@
 
     <div id="toast"></div>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610080843"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610080843"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610081033"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610081033"></script>
 </body>
 </html>

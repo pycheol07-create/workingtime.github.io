@@ -7,6 +7,7 @@
 //   미발     = max(적재량 − max(남는양,0), 0)   ← 피킹칸에 실제로 넣을 양. 적재량을 넘지 않는다
 //   밀린주문 = max(−남는양, 0)                  ← 미발에 넣지 않고 따로 보여 준다(피킹칸에 다 안 들어감 — 2026-10-07 사용자 결정)
 //   피킹행   = min(도착, 미발) · 비축행 = 도착 − 피킹행 · 보충필요 = max(미발 − 도착, 0)
+//   비축재고(이지어드민 불량창고=비축, 2026-10-08)는 위 계산에 넣지 않는다 — reserveCheck 로 판단만 보조
 // 직진·에이블리 재고출고는 전날 이지어드민에 올라가 정상재고에 이미 빠져 있으므로 더하지 않는다.
 //
 // 기존 미발계산기(js/china-stock-goods.js)의 적재량 규칙·기본 공식을 비교용으로 **같게** 옮겨 둔다.
@@ -71,6 +72,36 @@ export function calcNew({ 정상, 접수, 송장, 적재량, 도착 } = {}) {
     if (남는양 < 0) flags.push('backlog');
     if (보충필요 > 0) flags.push('needRefill');
     return { 출고예정, 남는양, 미발, 밀린주문, 피킹행, 비축행, 보충필요, flags };
+}
+
+/**
+ * 비축재고 판단(표시·판단 보조 — calcNew 결과는 바꾸지 않는다). 2026-10-08
+ * 비축재고 = 이지어드민 get_stock_info bad=1(불량창고 = 이 회사의 비축창고) stock. calcNew 의 '비축행'(도착분 중 비축으로 가는 양)과 다르다.
+ *   비축필요 = 밀린주문 + 보충필요
+ *   비축여유 = 비축재고 − 비축필요            (음수 = 부족)
+ *   플래그(택1): 'reserveShort' 비축재고 < 밀린주문 · 'refillShort' 밀린주문 ≤ 비축재고 < 비축필요
+ * 도착분(비축행)은 판단에 넣지 않는다(수집 시점 비축에 오늘 도착 미스캔분은 없다고 보수적으로 가정).
+ * 도착포함충분 = 비축재고 + 비축행 ≥ 비축필요 — 근거 문장용.
+ * @param {object} p
+ * @param {number|null} p.비축     비축재고. null/''/숫자 아님 = 모름 → 전부 null·플래그 없음. 소수는 내림, 음수는 그대로(intOrNull).
+ * @param {number|null} p.밀린주문 calcNew 결과. null 이면 판단 안 함(비축재고만 돌려준다).
+ * @param {number|null} p.보충필요 calcNew 결과. null 규칙은 밀린주문과 같다.
+ * @param {number|null} p.비축행   calcNew 결과. 모름/음수는 0.
+ * @returns {{비축재고:number|null, 비축필요:number|null, 비축여유:number|null, 도착포함충분:boolean|null, flags:string[]}}
+ */
+export function reserveCheck({ 비축, 밀린주문, 보충필요, 비축행 } = {}) {
+    const bstock = intOrNull(비축);
+    const backlog = intOrNull(밀린주문);
+    const refill = intOrNull(보충필요);
+    const out = { 비축재고: bstock, 비축필요: null, 비축여유: null, 도착포함충분: null, flags: [] };
+    if (bstock === null || backlog === null || refill === null) return out;
+    const need = backlog + refill;
+    out.비축필요 = need;
+    out.비축여유 = bstock - need;
+    out.도착포함충분 = bstock + intOrZero(비축행) >= need;
+    if (bstock < backlog) out.flags.push('reserveShort');
+    else if (bstock < need) out.flags.push('refillShort');
+    return out;
 }
 
 /**
