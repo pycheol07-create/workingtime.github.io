@@ -1,11 +1,11 @@
 // === js/inspection-editor.js ===
-import * as DOM from './dom-elements.js?v=202610121722';
-import * as State from './state.js?v=202610121722';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610121722';
+import * as DOM from './dom-elements.js?v=202610122212';
+import * as State from './state.js?v=202610122212';
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610122212';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202610121722';
-import { getUniqueInboundCount } from './inspection-logic.js?v=202610121722';
-import { manualImageBase64, clearManualImageState } from './inspection-media.js?v=202610121722';
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202610122212';
+import { getUniqueInboundCount } from './inspection-logic.js?v=202610122212';
+import { manualImageBase64, clearManualImageState } from './inspection-media.js?v=202610122212';
 
 export let currentProductLogs = [];
 

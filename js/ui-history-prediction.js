@@ -3,29 +3,30 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610121722';
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610121722';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610121722';
-import * as State from './state.js?v=202610121722';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610121722';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610121722';
+import { predictFutureTrends } from './analysis-logic.js?v=202610122212';
+import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610122212';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610122212';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610122212';
+import * as State from './state.js?v=202610122212';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610122212';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610122212';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610121722';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610122212';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610121722';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610121722';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610122212';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610122212';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610121722';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610121722';
-import { taskUph, recentDays } from './task-throughput.js?v=202610121722';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610122212';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610122212';
+import { taskUph, recentDays } from './task-throughput.js?v=202610122212';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610121722';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610122212';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610121722';
+         excessOffDays } from './lib/backlog-carry.js?v=202610122212';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1259,6 +1260,8 @@ const weekPlanFor = (historyData, taskKey, dateStr) => {
                 if (d < today || q > 0 || qtyZeroConfirmed(day, taskKey)) v = q;
             }
         }
+        // 📤 전송값은 예정 물량보다 앞선다(autoValueFor 와 같은 순서) — 값이 fixedKey 에 들어가 캐시도 같이 바뀐다
+        if (v == null) { const tr = transmitFor(d, taskKey, historyData); if (tr) v = tr.value; }
         if (v == null) { const pl = getPlanned(d, taskKey); if (pl != null) v = Math.round(pl); }
         if (v != null) { fixedDates.add(d); if (v > 0) done++; }
         return v == null ? '' : String(v);
@@ -1476,8 +1479,9 @@ const todayActualQty = (historyData, dateStr, taskKey) => {
 /** 한 업무의 대상일 값과 그 출처.
  *  ⭐ 우선순위
  *    1. 오늘 처리량 입력(실측)     — 대상일이 오늘일 때만. 실제로 처리한 값이므로 예정보다 우선.
- *    2. 예정 물량(수기 입력)      — 업무 기록 및 관리 > 예정 물량 / 이 화면의 '작업량 저장'
- *    3. 업무별 자동 추정값         — AI 예측 / 입고일정 / 중국제작 연동 / 지난 7회 평균
+ *    2. 전송값(직진·에이블리)      — 전 근무일 사전작업 + 출고자동화가 로케이션으로 보낸 수량
+ *    3. 예정 물량(수기 입력)      — 업무 기록 및 관리 > 예정 물량 / 이 화면의 '작업량 저장'
+ *    4. 업무별 자동 추정값         — AI 예측 / 입고일정 / 중국제작 연동 / 지난 7회 평균
  *  반환: { value, source }  (source는 배지 표시에 그대로 쓴다)
  *
  *  ⚠️ '오늘 실측을 계획으로 쓰지 않아야 하는' 자동 계획 스냅샷은 이 함수에 플래그를 주지 않는다.
@@ -1488,6 +1492,10 @@ const autoValueFor = (dateStr, task, historyData) => {
     // 실측이 잡히면 예정 물량을 저장해 뒀더라도 실측이 이긴다
     const actual = todayActualQty(historyData, dateStr, task.key);
     if (actual != null) return { value: actual, source: 'actual' };
+
+    // 전송값은 실제로 보낸 숫자라 수기 예정 물량보다 앞선다(사용자 결정 2026-10-12)
+    const transmit = transmitFor(dateStr, task.key, historyData);
+    if (transmit) return transmit;
 
     const planned = getPlanned(dateStr, task.key);
     if (planned != null) return { value: planned, source: 'planned' };
@@ -1686,8 +1694,61 @@ let incomingAllByArrival = null;
 let mibalLoadedDay = '';
 let mibalLoadedAt = 0;
 let mibalLoading = null;
+// 📤 직진·에이블리 전송값(ZikjinData) — 미발과 같이 읽는다(규칙: js/lib/ship-transmit.js).
+//    읽기만 한다. 못 읽으면 직전 값을 그대로 둔다.
+//    ⚠️ ZikjinData 에는 마지막 전송일 하루치만 남는다(다음 전송이 지난 날짜 행을 지운다).
+//       그래서 읽은 요약을 localStorage 에 날짜별로 쌓아 둔다(최근 14일). 집계 숫자뿐이라 개인정보는 없다.
+//       저장값은 시작할 때 먼저 채우지만 '오늘 읽음'(isTransmitFresh)으로는 치지 않는다.
+const TRANSMIT_STORE_KEY = 'transmitByDate_v1';
+const TRANSMIT_KEEP_DAYS = 14;
+const loadStoredTransmit = () => {
+    try {
+        const raw = localStorage.getItem(TRANSMIT_STORE_KEY);
+        if (!raw) return null;
+        const v = mergeTransmitByDate(JSON.parse(raw), null, getTodayDateString(), TRANSMIT_KEEP_DAYS);
+        return Object.keys(v).length ? v : null;
+    } catch (e) { return null; }
+};
+const saveStoredTransmit = (v) => {
+    try { localStorage.setItem(TRANSMIT_STORE_KEY, JSON.stringify(v || {})); } catch (e) { /* 저장 실패 — 이번 세션 값만 쓴다 */ }
+};
+let transmitByDate = loadStoredTransmit();   // null = 아직 아무것도 없음 / {} = 읽었는데 비어 있음
+let transmitLoadedDay = '';       // 마지막으로 읽기에 성공한 날
+/** 오늘 전송 자료를 읽었는가 — 자동 계획 스냅샷 가드·슬랙 훅이 본다 */
+const isTransmitFresh = () => transmitByDate !== null && transmitLoadedDay === getTodayDateString();
+
+/** ZikjinData 스냅샷 → { byDate } 또는 { error }. 판정 규칙은 summarizeTransmitChunks(js/lib/ship-transmit.js) */
+const parseTransmitSnapshot = (snap) => {
+    const chunks = [];
+    snap.forEach(docSnap => {
+        const data = docSnap.data() || {};
+        const u = data.updatedAt;
+        const t = u ? (u.toMillis ? u.toMillis() : new Date(u).getTime()) : 0;
+        chunks.push({ dataStr: data.dataStr, at: Number.isFinite(t) ? t : 0 });
+    });
+    return summarizeTransmitChunks(chunks);
+};
+
+/** 그 날짜에 그 업무의 사전작업 기록이 있나 — 소요시간을 안 적은 기록도 '한 날'이다(precursorStateOfDay 와 같은 기준) */
+const hasPrecursorRecordOn = (historyData, dateStr, taskKey) => {
+    const preKeys = precursorTasks(taskKey);
+    if (preKeys.length === 0) return false;
+    const day = (historyData || []).find(d => d && d.id === dateStr);
+    return (day?.workRecords || []).some(r => r && preKeys.includes(r.task));
+};
+
+/** 대상일·업무의 전송값 { value, source:'transmit', detail } 또는 null.
+ *  historyData 는 부른 쪽이 넘긴 것을 쓴다 — 자동 계획 스냅샷의 '오늘 실적 비운 기록'과 맞춘다. */
+const transmitFor = (dateStr, taskKey, historyData) => {
+    if (!transmitByDate) return null;
+    return transmitValueFor({
+        targetDate: dateStr, taskKey, byDate: transmitByDate, nextWorkingDay,
+        hasPrecursorOn: (d, k) => hasPrecursorRecordOn(historyData, d, k)
+    });
+};
 
 /** 오늘 MIBAL_HISTORY 를 읽었는지(10분마다 다시 읽는다). 읽기 실패해도 throw 하지 않는다.
+ *  직진·에이블리 전송값(ZikjinData)도 여기서 같이 읽는다 — 그쪽 성공 여부는 반환값이 아니라 isTransmitFresh() 로 본다.
  *  @returns {Promise<boolean>} 오늘 읽은 값이 있으면 true */
 export async function ensureMibalHistory() {
     const today = getTodayDateString();
@@ -1697,10 +1758,32 @@ export async function ensureMibalHistory() {
     if (mibalLoading) return mibalLoading;
     mibalLoading = (async () => {
         try {
-            const [s, inc] = await Promise.all([
-                getDoc(doc(State.db, 'ChinaStockGoods', 'MIBAL_HISTORY')),
-                getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'incomingSchedule')).catch(() => 'ERR')
+            // 세 읽기는 서로 독립이다 — 하나가 실패해도 나머지는 반영한다
+            const [s, inc, zk] = await Promise.all([
+                getDoc(doc(State.db, 'ChinaStockGoods', 'MIBAL_HISTORY')).catch(e => { console.warn('[업무 예상] 미발 이력 읽기 실패:', e); return 'ERR'; }),
+                getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'incomingSchedule')).catch(() => 'ERR'),
+                getDocs(collection(State.db, 'ZikjinData')).catch(() => 'ERR')
             ]);
+            // 전송값 — 읽기·해석에 실패하면 직전 값을 그대로 둔다(isTransmitFresh 가 false 로 남는다)
+            if (zk !== 'ERR') {
+                try {
+                    const p = parseTransmitSnapshot(zk);
+                    if (p.byDate) {
+                        transmitByDate = mergeTransmitByDate(transmitByDate, p.byDate, today, TRANSMIT_KEEP_DAYS);
+                        transmitLoadedDay = today;
+                        saveStoredTransmit(transmitByDate);
+                    } else {
+                        console.warn(`[업무 예상] 직진·에이블리 전송값(ZikjinData) ${p.error} — 직전 값을 씁니다.`);
+                    }
+                } catch (e) { console.warn('[업무 예상] 직진·에이블리 전송값 처리 실패 — 직전 값을 씁니다:', e); }
+            } else {
+                console.warn('[업무 예상] 직진·에이블리 전송값(ZikjinData)을 읽지 못했습니다 — 직전 값을 씁니다.');
+            }
+            // 미발 이력을 못 읽었으면 입고일정도 건드리지 않는다(예전과 같은 동작) — '오늘 읽음' 여부만 돌려준다
+            if (s === 'ERR') {
+                console.warn('[업무 예상] 미발 이력을 읽지 못했습니다 — 국내배송에 미발을 더하지 않습니다.');
+                return 오늘읽음();
+            }
             mibalHistory = (s.exists() && s.data() && s.data().map) ? s.data().map : {};
             // 입고일정 읽기만 잠깐 실패했으면 직전 값을 그대로 둔다(폴백 캐시는 지난 도착을 몰라 이중 가산이 난다)
             if (inc !== 'ERR') {
@@ -1764,6 +1847,10 @@ const estimatedValueFor = (dateStr, task, historyData) => {
                  detail: `${nm || '공휴일'} 입니다. 출근해서 작업한다면 직접 물량을 넣으세요.` };
     }
 
+    // 📤 직진·에이블리 전송값 — 자동 추정보다 앞선다. 여기 두면 프리필·스냅샷·슬랙 훅·인력 전망이 같은 값을 쓴다
+    const transmit = transmitFor(dateStr, task.key, historyData);
+    if (transmit) return transmit;
+
     switch (mode) {
         case 'ai': {
             const aiValue = getAIPredictedDomestic(historyData, dateStr);
@@ -1820,6 +1907,9 @@ const SOURCE_BADGE = {
                 tip: '예정 물량(또는 이 화면의 작업량 저장)에 직접 넣은 값입니다. 오늘 실측이 없을 때 적용됩니다.' },
     actual:   { text: '오늘 실측', muted: false, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
                 tip: '오늘 처리량 입력에 들어간 실제 값입니다. 저장해 둔 예정 물량이 있어도 이 값이 먼저 적용됩니다.' },
+    transmit: { text: '전송값', muted: false, cls: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
+                tip: '전 근무일에 직진배송 사전작업 기록이 있고, 출고자동화가 그날 로케이션으로 보낸 수량입니다(즉시출고 포함).'
+                   + ' 저장해 둔 예정 물량보다 먼저 적용되고, 오늘 실측이 들어오면 실측이 이깁니다.' },
     ai:       { text: 'AI 예측',    muted: true, tip: '국내배송 AI 추세 예측값' },
     'ai-carry': { text: '연휴 밀림', muted: true,
                 tip: '국내배송 AI 예측값에, 쉬는 동안 쌓인 몫을 더한 값입니다.'
@@ -1885,7 +1975,7 @@ const paintDayApply = (task, dayValue) => {
 };
 
 /** 접기 사유에 덮이면 안 되는 출처 — 그 자체가 '왜 이 값인지'의 답이다 */
-const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off', 'ai-mibal']);
+const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off', 'ai-mibal', 'transmit']);
 
 /** 값의 출처를 항목 아래에 표시 */
 const markSourceBadge = (task, source, detail = '', dayValue = null) => {
@@ -3011,9 +3101,17 @@ window.__forecastForDate = async (dateStr) => {
         // 예정 물량 중 '실제로 계산에 반영된' 키만 가려낸다.
         // 물량 0(= 안 하기로 정함)이나 업무 목록에서 빠진 옛 업무명을 그대로 찍으면
         // 받는 사람은 그게 반영된 숫자라고 믿는다.
+        // 📤 전송값이 걸린 업무 — 화면이 쓰는 바로 그 함수로 출처를 묻는다(조건을 여기서 또 적으면 어긋난다).
+        //    전송값은 예정 물량보다 앞서므로, 그 업무의 예정 물량은 '반영된 값' 이 아니다.
+        const transmitRaw = {};
+        SIM_TASKS.forEach(t => {
+            const v = autoValueFor(date, t, State.allHistoryData);
+            if (v.source === 'transmit') transmitRaw[t.key] = v.value;
+        });
         const qtyKeys = new Set(SIM_TASKS.map(t => t.key));
         const plannedKeys = Object.keys(planned)
-            .filter(k => qtyKeys.has(k) && (Number(planned[k]) || 0) > 0);
+            .filter(k => qtyKeys.has(k) && (Number(planned[k]) || 0) > 0
+                         && !Object.prototype.hasOwnProperty.call(transmitRaw, k));
         const droppedPlannedKeys = Object.keys(planned).filter(k => !qtyKeys.has(k));
 
         return {
@@ -3053,6 +3151,9 @@ window.__forecastForDate = async (dateStr) => {
             //    getPlanned 가 0 을 '0으로 하기로 한 값' 으로 인정해 자동 추정값을 이긴다.
             //    즉 '중국제작 0 저장' 은 계산을 크게 바꾸는데 plannedKeys 에는 안 나타난다.
             plannedRaw: planned,
+            // 전송값이 실제로 적용된 업무와 그 값 — { 직진배송: n, 에이블리배송: n } (적용 안 된 업무는 키 없음).
+            // 알림이 지문(fingerprint)에 넣어, 18:00 뒤에 전송이 들어오면 다시 보낸다.
+            transmitRaw,
             plannedTimeRaw: getPlannedTimeTasksForDate(date) || {},
             plannedExcludeRaw: getPlannedExcludeMinutesForDate(date),
             onLeave: leave.length,
@@ -3066,7 +3167,8 @@ window.__forecastForDate = async (dateStr) => {
             //    폴백을 구현할 땐 전용 변환기를 따로 만들 것. (확정한 사람 실명도 들어 있다)
             hasSnapshot: !!getForecastSnapshotForDate(date),
             // historyRows 는 await 뒤에 다시 읽는다 — 그 사이 Firestore 응답으로 갱신될 수 있다
-            flags: { plannedLoaded, mibalLoaded, simListsOk, historyRows: (State.allHistoryData || []).length }
+            flags: { plannedLoaded, mibalLoaded, transmitLoaded: isTransmitFresh(), simListsOk,
+                     historyRows: (State.allHistoryData || []).length }
         };
     } catch (e) {
         return { ok: false, reason: 'calc-failed',
@@ -3086,6 +3188,20 @@ export const getAutoQuantitiesForDate = (dateStr) => {
         // 시뮬레이션과 같은 추정기를 쓴다(예전엔 여기만 지난 7회 평균이라 값이 어긋났다)
         const v = Number(estimatedValueFor(dateStr, t, data).value) || 0;
         if (v > 0) out[t.key] = Math.round(v);
+    });
+    return out;
+};
+
+/** 📤 예정 물량 입력 모달용 — 그 날짜에 전송값이 실제로 적용되는 업무 { 업무: { value, detail } }.
+ *  전송값은 저장된 예정 물량보다 앞서므로, 모달이 저장값만 보여주면 실제 계산과 다른 숫자가 보인다.
+ *  ⚠️ 전송 자료는 ensureMibalHistory() 가 읽는다 — 부르기 전에 기다릴 것. */
+export const getTransmitQuantitiesForDate = (dateStr) => {
+    try { ensureSimTasks(); } catch (e) {}
+    const data = State.allHistoryData;
+    const out = {};
+    SIM_TASKS.forEach(t => {
+        const v = autoValueFor(dateStr, t, data);
+        if (v && v.source === 'transmit') out[t.key] = { value: v.value, detail: v.detail || '' };
     });
     return out;
 };
@@ -4047,6 +4163,8 @@ const AUTO_SNAPSHOT_RETRY_MS = 10 * 60 * 1000;
 let 입고경고_날짜 = null;
 let 미발경고_날짜 = null;
 let 미발실패_횟수 = 0;
+let 전송경고_날짜 = null;
+let 전송실패_횟수 = 0;
 
 const 자동스냅_키 = (d) => `forecastAutoSnap:${d}`;
 const 자동스냅_했나 = (d) => {
@@ -4146,6 +4264,18 @@ const ensureTodayForecastSnapshot = async () => {
                 return;
             }
             if (미발실패_횟수 === 4) console.warn('[자동 계획] 미발 이력을 계속 못 읽어 미발 없이 계획을 얼립니다.');
+        }
+        // ⑤-c 직진·에이블리 전송값 — 위에서 미발과 같이 읽는다. 못 읽은 채로 찍으면 전 근무일에 보낸 출고 수량 대신
+        //      빈도형 추정이 얼려진다. 미발과 같은 방식으로 3번(약 30분)까지만 미루고, 그 뒤엔 전송값 없이 찍는다.
+        if (!isTransmitFresh()) {
+            if (전송경고_날짜 !== today) { 전송경고_날짜 = today; 전송실패_횟수 = 0; }
+            전송실패_횟수 += 1;
+            if (전송실패_횟수 <= 3) {
+                autoSnapNextTryAt = Date.now() + 10 * 60 * 1000;
+                if (전송실패_횟수 === 1) console.warn('[자동 계획] 직진·에이블리 전송값을 읽지 못해 계획 얼리기를 미룹니다(10분 뒤 다시).');
+                return;
+            }
+            if (전송실패_횟수 === 4) console.warn('[자동 계획] 직진·에이블리 전송값을 계속 못 읽어 전송값 없이 계획을 얼립니다.');
         }
         // ⑥ 업무 목록 — 빼면 시간형 업무가 통째로 빠진 스냅샷이 남는다
         ensureSimLists();

@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610121722';
-import * as State from './state.js?v=202610121722';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610121722';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610121722';
+import * as DOM from './dom-elements.js?v=202610122212';
+import * as State from './state.js?v=202610122212';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610122212';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610122212';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610121722';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610121722';
-import { renderQuantityModalInputs } from './ui.js?v=202610121722';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610121722';
-import { getAutoQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610121722';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610122212';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610122212';
+import { renderQuantityModalInputs } from './ui.js?v=202610122212';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610122212';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610122212';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -152,9 +152,30 @@ export const openPlannedQuantityModal = async (dateStr) => {
     // → 화면을 열자마자 시뮬레이션과 같은 값이 보이고, 여기서 고친 값이 시뮬레이션에 그대로 반영된다.
     const auto = getAutoQuantitiesForDate(dateStr);
     const saved = getPlannedQuantitiesForDate(dateStr);
-    const planned = { ...auto, ...saved };
+    // 📤 직진·에이블리 전송값은 저장값보다 앞선다 — 실제 계산에 쓰이는 값을 보여 주되 **표시만** 한다.
+    //    그 칸은 읽기 전용이고, 저장할 때는 원래 저장값을 그대로 다시 싣는다(아래 onConfirm).
+    let transmit = {};
+    try { transmit = getTransmitQuantitiesForDate(dateStr) || {}; } catch (e) { transmit = {}; }
+    const transmitVals = Object.fromEntries(Object.entries(transmit).map(([k, v]) => [k, v.value]));
+    const planned = { ...auto, ...saved, ...transmitVals };
 
     renderQuantityModalInputs(planned, allTasks, [], []);
+
+    // 전송값이 걸린 칸은 읽기 전용 + 안내(이 모달의 기존 작은 안내 글씨와 같은 크기).
+    // 입력칸은 모달을 열 때마다 새로 만들어지므로(renderQuantityModalInputs) 다른 모드로 새지 않는다.
+    Object.entries(transmit).forEach(([task, v]) => {
+        const input = document.getElementById(`modal-quantity-${task}`);
+        if (!input || !input.parentElement) return;
+        input.readOnly = true;
+        input.classList.add('bg-sky-50', 'text-sky-900', 'cursor-not-allowed');
+        const zero = document.getElementById(`modal-confirm-zero-${task}`);
+        if (zero) zero.disabled = true;
+        const note = document.createElement('p');
+        note.className = 'mt-1 text-xs font-medium text-sky-700';
+        note.textContent = '📤 전송값 우선 적용(로케이션 전송) — 저장해도 전송값이 우선 적용되고, 이 칸의 기존 저장값(0 제외)은 그대로 둡니다.';
+        if (v.detail) note.title = v.detail;
+        input.insertAdjacentElement('afterend', note);
+    });
 
     const title = document.getElementById('quantity-modal-title');
     if (title) title.textContent = `📅 ${dateStr} 예정 물량 입력`;
@@ -174,7 +195,15 @@ export const openPlannedQuantityModal = async (dateStr) => {
     State.context.quantityModalContext.dateKey = dateStr;
     State.context.quantityModalContext.isVerifyingMode = false;
     State.context.quantityModalContext.onConfirm = async (newQuantities) => {
-        await savePlannedQuantities(dateStr, newQuantities);
+        // 📤 전송값 칸은 화면 숫자를 저장하지 않는다 — 원래 저장값을 그대로 싣고, 없으면 키를 뺀다.
+        //    savePlannedQuantities 는 plannedQuantities 를 통째로 바꾸므로 키를 빼면 '저장값 없음' 이 된다
+        //    (원래 없던 키라 지워지는 것은 없다).
+        const toSave = { ...(newQuantities || {}) };
+        Object.keys(transmit).forEach(k => {
+            if (saved && Object.prototype.hasOwnProperty.call(saved, k)) toSave[k] = saved[k];
+            else delete toSave[k];
+        });
+        await savePlannedQuantities(dateStr, toSave);
         // 좌측 목록의 예정 그룹 갱신
         try { await renderHistoryDateListByMode(State.context.globalGranularity || 'day', State.context.selectedHistoryDate || null); } catch (_) {}
     };
