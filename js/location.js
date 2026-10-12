@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610081327';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610121200';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610081327';
+import { escapeHtml as escAttr } from './utils.js?v=202610121200';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -861,6 +861,16 @@ window.saveMasterSettingsModal = async function() {
     } catch(e) { console.error(e); alert("설정 저장 중 오류가 발생했습니다."); }
 };
 
+const escHtmlLite = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ★ 자리 칸수 = 자리에 저장된 angleSize 만. 업로드 원본(rawData)의 '칸수' 는 쓰지 않는다 —
+//   옵션추가항목1 로 만든 비축 자리도 상품 행의 rawData 를 그대로 받아 남(피킹 자리)의 칸수가 붙기 때문.
+//   채우기자동화 규칙.py pick_label 도 angleSize 만 본다(같은 기준). 숫자 0·false 등 빈 값은 칸수 없음.
+const locAngleSize = (loc) => {
+    const v = loc && loc.angleSize;
+    return v ? String(v).trim() : '';
+};
+
 // ★ 메인 테이블 엑셀 다운로드 (HTML 테이블 .xls 형식)
 window.downloadMainExcel = function() {
     // 1. 체크된 항목 확인 (가상 스크롤 전역 상태 사용)
@@ -886,8 +896,11 @@ window.downloadMainExcel = function() {
     }
     
     // 헤더 구성
-    const stdHeaders = ['로케이션', '동', '위치', '상품코드', '상품명', '옵션', '정상재고', '비축창고재고'];
-    const cusHeaders = (window.excelHeaders || []).filter(h => h && !h.includes('<') && !h.includes('>') && !h.includes('='));
+    // ★ 2026-10-12 사용자 양식: A '로케이션1'(로케이션(칸수) / 상품코드) + B '로케이션'(자리 번호만)
+    const stdHeaders = ['로케이션1', '로케이션', '동', '위치', '상품코드', '상품명', '옵션', '정상재고', '비축창고재고'];
+    const cusHeaders = (window.excelHeaders || []).filter(h => h && !h.includes('<') && !h.includes('>') && !h.includes('=') && h !== '로케이션1');
+    // '칸수' 열이 있는 파일을 한 번도 안 올렸으면 원본 열 목록에 없다 — 그래도 칸수 열은 늘 내보낸다(맨 끝)
+    if (!cusHeaders.includes('칸수')) cusHeaders.push('칸수');
     const allHeaders = [...stdHeaders, ...cusHeaders];
     
     // HTML 테이블 생성
@@ -899,17 +912,14 @@ window.downloadMainExcel = function() {
         const stock = loc.stock || '0';
         const stock2f = loc.stock2f || '0';
         
-        // ★ 로케이션 컬럼 복원: ★★-01(4)/ S561045 형식
-        const angleSize = (loc.angleSize || '').toString().trim();
-        let locDisplay = loc.id;
-        if (angleSize) {
-            locDisplay = code 
-                ? `${loc.id}(${angleSize})/ ${code}` 
-                : `${loc.id}(${angleSize})`;
-        }
-        
+        // ★ 로케이션1: ★★-003(4) / S610026 (칸수 없으면 괄호 없이, 상품 없으면 로케이션(칸수)만)
+        const angleSize = locAngleSize(loc);
+        const locWithAngle = angleSize ? `${loc.id}(${angleSize})` : loc.id;
+        const locDisplay = code ? `${locWithAngle} / ${code}` : locWithAngle;
+
         let row = '';
         row += `<td class='style1'>${locDisplay}</td>`;
+        row += `<td class='style1'>${loc.id}</td>`;
         row += `<td class='style2'>${loc.dong || ''}</td>`;
         row += `<td class='style2'>${loc.pos || ''}</td>`;
         row += `<td class='style1'>${code}</td>`;
@@ -919,7 +929,8 @@ window.downloadMainExcel = function() {
         row += `<td class='style3'>${stock2f}</td>`;
         
         cusHeaders.forEach(h => {
-            const val = (loc.rawData && loc.rawData[h]) ? loc.rawData[h] : '';
+            // 칸수는 자리에 저장된 값(angleSize)이 우선 — 업로드 원본(rawData)은 그다음
+            const val = h === '칸수' ? angleSize : ((loc.rawData && loc.rawData[h]) ? loc.rawData[h] : '');
             const isNum = !isNaN(val) && val !== '';
             row += `<td class='${isNum ? 'style3' : 'style2'}'>${val}</td>`;
         });
@@ -3852,7 +3863,11 @@ function renderVisibleRows() {
         window.visibleColumns.forEach(col => {
             if (col === 'std_dong') html += `<td style="color:#666;">${loc.dong || ''}</td>`;
             else if (col === 'std_pos') html += `<td style="color:#666;">${loc.pos || ''}</td>`;
-            else if (col === 'std_id') html += `<td class="loc-copy-cell" onclick="copyLocationToClipboard(event, '${jsArg(loc.id)}')" title="클릭하여 복사 및 예약">${loc.id}</td>`;
+            else if (col === 'std_id') {
+                // ★ 칸수가 있으면 로케이션 끝에 (칸수) — 복사·예약은 자리 번호만
+                const _ang = locAngleSize(loc);
+                html += `<td class="loc-copy-cell" onclick="copyLocationToClipboard(event, '${jsArg(loc.id)}')" title="클릭하여 복사 및 예약">${loc.id}${_ang ? `<span style="color:#888; font-size:11px;">(${escHtmlLite(_ang)})</span>` : ''}</td>`;
+            }
             else if (col === 'std_category') html += `<td style="color:${(loc.category || '피킹용') === '기타' ? '#8d6e63' : '#666'};">${loc.category || '피킹용'}</td>`;
             else if (col === 'std_code') html += `<td style="color:#3d5afe; font-weight:bold;">${loc.code === loc.id ? '' : (loc.code || '')}${codeTagHtml}</td>`;
             else if (col === 'std_name') html += `<td style="text-align:left;">${loc.name || ''}</td>`;
@@ -3862,6 +3877,7 @@ function renderVisibleRows() {
             else if (col.startsWith('cus_')) {
                 const key = col.replace('cus_', '');
                 let val = (loc.rawData && loc.rawData[key]) ? loc.rawData[key] : '';
+                if (key === '칸수') val = locAngleSize(loc);
                 // ★ 입고대기 컬럼은 오더리스트/사입리스트 합계로 덮어쓰기
                 if (key === '입고대기') {
                     const code = (loc.code && loc.code !== loc.id) ? loc.code : '';
@@ -4668,7 +4684,8 @@ async function updateDatabaseA(rows, mode = 'daily') {
         const allHeadersSet = new Set();
         rows.forEach(row => { Object.keys(row).forEach(k => allHeadersSet.add(k)); });
         const allHeaders = [...allHeadersSet];
-        const excludeRaw = ['동', 'dong', '위치', 'pos', '상품코드', '로케이션', '상품명', '옵션', '정상재고', '비축창고재고', '2층창고재고', '대분류'];
+        // '로케이션1'(다운로드가 만드는 합친 표기)은 다시 올려도 원본 열로 쌓지 않는다
+        const excludeRaw = ['동', 'dong', '위치', 'pos', '상품코드', '로케이션', '로케이션1', '상품명', '옵션', '정상재고', '비축창고재고', '2층창고재고', '대분류'];
         // 공백제거 버전도 제외 목록에 포함
         const exclude = [...new Set([...excludeRaw, ...excludeRaw.map(h => h.replace(/\s+/g, ''))])];
         
@@ -4892,7 +4909,8 @@ async function updateDatabaseA(rows, mode = 'daily') {
                         updateData.option = row['옵션']?.toString().trim() || '';
                         updateData.stock = row['정상재고']?.toString().trim() || '0';
                         updateData.stock2f = (row['비축창고재고'] ?? row['2층창고재고'])?.toString().trim() || '0';
-                        
+                        // 칸수(angleSize)는 영구보전 업로드에서만 읽는다(사용자 결정 2026-10-12) — 일일 업로드는 건드리지 않음
+
                         if (finalCode && finalCode.trim() !== '') {
                             updateData.preAssigned = false;
                             updateData.preAssignedCode = '';
