@@ -86,6 +86,18 @@
 
         #toast { visibility: hidden; min-width: 250px; max-width: 90vw; background-color: #333; color: #fff; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 10001; left: 50%; bottom: 50px; transform: translateX(-50%); opacity: 0; transition: 0.3s; }
         #toast.show { visibility: visible; opacity: 1; }
+
+        /* [모바일] 768px 이하에서만 적용 — 데스크톱 화면은 바뀌지 않는다 */
+        @media (max-width: 768px) {
+            /* 화면 밖으로 잘리던 출고일 선택 팝업 → 화면 안 고정 시트 */
+            .date-dropdown-popup {
+                position: fixed !important; left: 8px !important; right: 8px !important; top: 15dvh !important;
+                width: auto !important; max-width: none; max-height: 70dvh; overflow: auto;
+            }
+
+            /* 로그인 게이트(js/china-stock-gate.js 의 #cs-auth-gate) 안쪽 상자 가로 밀림 방지 */
+            #cs-auth-gate > div { box-sizing: border-box; }
+        }
     </style>
 </head>
 <body>
@@ -207,7 +219,7 @@
 
     <div id="toast"></div>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610121200"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610121200"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610121722"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610121722"></script>
 </body>
 </html>

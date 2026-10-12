@@ -1,5 +1,5 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610121200';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610121722';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -16,12 +16,12 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610121200';
+} from './admin-ui.js?v=202610121722';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202610121200';
+} from './admin-logic.js?v=202610121722';
 
 let db, auth;
 let appConfig = {};
@@ -141,7 +141,7 @@ function setupEventListeners() {
         const groupEl = document.createElement('div');
         groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm menu-category-card transition-colors drop-zone';
         groupEl.innerHTML = `
-            <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
+            <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2"> 
                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>
                    <input type="text" value="새 대분류" class="text-lg font-extrabold text-gray-800 dark:text-white menu-category-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none" placeholder="대분류 이름">
@@ -371,7 +371,7 @@ function addTeamGroup() {
     const groupEl = document.createElement('div');
     groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm team-group-card transition-colors';
     groupEl.innerHTML = `
-        <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
+        <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
             <div class="flex items-center gap-2">
                 <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
                 <input type="text" value="새 그룹" class="text-lg font-extrabold text-gray-800 dark:text-white team-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1">
@@ -394,7 +394,7 @@ function addTaskGroup() {
     const groupEl = document.createElement('div');
     groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm task-group-card transition-colors';
     groupEl.innerHTML = `
-         <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
+         <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
             <div class="flex items-center gap-2"> 
                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
                <input type="text" value="새 업무 그룹" class="text-lg font-extrabold text-gray-800 dark:text-white task-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1">
@@ -409,6 +409,11 @@ function addTaskGroup() {
     container.appendChild(groupEl);
     setupDragDropListeners('.tasks-container', '.task-item');
 }
+
+// 📱 터치 화면(hover 없음)에선 삭제 버튼이 항상 보여 스크롤 중 잘못 누르기 쉬우므로 확인을 받는다.
+//    마우스 환경은 지금처럼 확인 없이 바로 지운다.
+const touchConfirm = (m) => !window.matchMedia('(hover: none)').matches || confirm(m);
+const DELETE_CONFIRM_MSG = '삭제할까요? (전체 저장 전에는 새로고침하면 되돌아갑니다)';
 
 function handleDynamicClicks(e) {
     // 🚪 퇴사자 섹션 접기/펼치기 (기본 접힘)
@@ -443,21 +448,25 @@ function handleDynamicClicks(e) {
         }
     }
     else if (e.target.classList.contains('delete-member-btn')) e.target.closest('.member-item')?.remove();
-    else if (e.target.classList.contains('delete-team-group-btn')) e.target.closest('.team-group-card')?.remove();
-    else if (e.target.classList.contains('delete-key-task-btn')) e.target.closest('.key-task-item')?.remove();
-    else if (e.target.classList.contains('delete-task-btn')) e.target.closest('.task-item')?.remove();
-    else if (e.target.classList.contains('delete-task-group-btn')) e.target.closest('.task-group-card')?.remove();
+    else if (e.target.classList.contains('delete-team-group-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.team-group-card')?.remove(); }
+    else if (e.target.classList.contains('delete-key-task-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.key-task-item')?.remove(); }
+    else if (e.target.classList.contains('delete-task-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.task-item')?.remove(); }
+    else if (e.target.classList.contains('delete-task-group-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.task-group-card')?.remove(); }
     else if (e.target.classList.contains('delete-quantity-task-btn')) {
-        e.target.closest('.quantity-task-item')?.remove();
-        renderQuantityToDashboardMapping({ ...appConfig, quantityTaskTypes: getAllCurrentQuantityTasks() });
+        if (touchConfirm(DELETE_CONFIRM_MSG)) {
+            e.target.closest('.quantity-task-item')?.remove();
+            renderQuantityToDashboardMapping({ ...appConfig, quantityTaskTypes: getAllCurrentQuantityTasks() });
+        }
     }
     else if (e.target.classList.contains('delete-dashboard-item-btn')) {
-        e.target.closest('.dashboard-item-config')?.remove();
-        setTimeout(() => renderQuantityToDashboardMapping(collectConfigFromDOM(appConfig)), 0);
+        if (touchConfirm(DELETE_CONFIRM_MSG)) {
+            e.target.closest('.dashboard-item-config')?.remove();
+            setTimeout(() => renderQuantityToDashboardMapping(collectConfigFromDOM(appConfig)), 0);
+        }
     }
     
     else if (e.target.classList.contains('delete-menu-item-btn')) {
-        e.target.closest('.menu-item')?.remove();
+        if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.menu-item')?.remove();
     }
     else if (e.target.classList.contains('delete-menu-category-btn')) {
         if(confirm('이 대분류와 포함된 모든 메뉴를 삭제하시겠습니까?')) {

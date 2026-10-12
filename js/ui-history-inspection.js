@@ -1,7 +1,7 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610121200';
-import * as State from './state.js?v=202610121200';
-import { getWeekOfYear } from './utils.js?v=202610121200';
+import * as DOM from './dom-elements.js?v=202610121722';
+import * as State from './state.js?v=202610121722';
+import { getWeekOfYear } from './utils.js?v=202610121722';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -391,7 +391,7 @@ export const renderInspectionHistoryTable = (historyData) => {
                         <button class="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-200 rounded px-3 py-1.5 hover:bg-indigo-50 transition pointer-events-none shadow-sm">
                             상세보기 ▾
                         </button>
-                        <button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-3 py-1.5 hover:bg-red-50 transition btn-delete-product opacity-0 group-hover:opacity-100 shadow-sm" 
+                        <button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-3 py-1.5 hover:bg-red-50 transition btn-delete-product opacity-0 group-hover:opacity-100 m-touch-show shadow-sm" 
                                 data-product-name="${item.id}" title="상품 전체 삭제">
                             삭제
                         </button>

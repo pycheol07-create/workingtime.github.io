@@ -3,29 +3,29 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610121200';
+import { predictFutureTrends } from './analysis-logic.js?v=202610121722';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610121200';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610121200';
-import * as State from './state.js?v=202610121200';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610121200';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610121200';
+import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610121722';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610121722';
+import * as State from './state.js?v=202610121722';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610121722';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610121722';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610121200';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610121722';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610121200';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610121200';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610121722';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610121722';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610121200';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610121200';
-import { taskUph, recentDays } from './task-throughput.js?v=202610121200';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610121722';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610121722';
+import { taskUph, recentDays } from './task-throughput.js?v=202610121722';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610121200';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610121722';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610121200';
+         excessOffDays } from './lib/backlog-carry.js?v=202610121722';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -3901,16 +3901,16 @@ const progressRowHtml = (row) => {
     const planText = row.planHours > 0 ? fmtHM(row.planHours) : '—';
     const memberTip = row.members.length ? `\n지금: ${row.members.join(', ')}` : '';
     return `
-        <div class="flex items-center gap-3 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0"
+        <div class="flex items-center gap-2 md:gap-3 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0"
              title="계획 ${planText} · 소진 ${fmtHM(row.spentHours)}${escapeHtml(memberTip)}">
-            <span class="w-28 md:w-32 shrink-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200">${escapeHtml(row.label)}</span>
+            <span class="w-20 md:w-32 shrink-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200">${escapeHtml(row.label)}</span>
             <div class="flex-1 min-w-0 h-2.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                 <div class="h-full rounded-full ${barColor} transition-all" style="width:${pct}%"></div>
             </div>
-            <span class="w-[112px] shrink-0 text-right text-[12px] font-bold tabular-nums ${over ? 'text-rose-600 dark:text-rose-400' : 'text-gray-600 dark:text-gray-300'}">
+            <span class="w-[96px] md:w-[112px] shrink-0 text-right text-[12px] font-bold tabular-nums ${over ? 'text-rose-600 dark:text-rose-400' : 'text-gray-600 dark:text-gray-300'}">
                 ${fmtHM(row.spentHours)} <span class="font-medium text-gray-400 dark:text-gray-500">/ ${planText}</span>
             </span>
-            <span class="w-[92px] shrink-0 text-center text-[11px] font-bold rounded-md py-0.5 ${row.extra ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : chip.cls}">${statusLabel(row)}</span>
+            <span class="w-[72px] md:w-[92px] shrink-0 text-center text-[11px] font-bold rounded-md py-0.5 ${row.extra ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : chip.cls}">${statusLabel(row)}</span>
         </div>`;
 };
 

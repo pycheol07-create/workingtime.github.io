@@ -55,6 +55,11 @@
         .dark .ql-editor hr, .dark .prose hr { border-top-color: #374151; }
         
         #view-body, .ql-editor { transition: zoom 0.2s ease; }
+
+        /* 모바일: 주소창 높이 변화에도 화면 높이를 맞춤 */
+        @media (max-width: 768px) {
+            body.h-screen { height: 100dvh; }
+        }
     </style>
 </head>
 <body class="text-gray-800 dark:text-gray-200 overflow-hidden flex h-screen relative">
@@ -309,8 +314,8 @@
         if(mobileDim) mobileDim.addEventListener('click', toggleSidebar);
     </script>
 
-    <script type="module" src="js/manual.js?v=202610121200"></script>
-    <script src="js/connection-banner.js?v=202610121200"></script>
-    <script src="js/modal-esc.js?v=202610121200"></script>
+    <script type="module" src="js/manual.js?v=202610121722"></script>
+    <script src="js/connection-banner.js?v=202610121722"></script>
+    <script src="js/modal-esc.js?v=202610121722"></script>
 </body>
 </html>

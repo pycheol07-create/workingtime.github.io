@@ -51,6 +51,13 @@
         .send-bar { position: fixed; bottom: 0; left: 0; width: 100%; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: #f4f6f8; border-top: 1px solid #ddd; }
         .btn-send { width: 100%; height: 58px; border: none; border-radius: 12px; background: var(--theme, #1976d2); color: #fff; font-size: 19px; font-weight: 800; cursor: pointer; }
         .btn-send:disabled { background: #b0bec5; }
+        /* 모바일: 전송 막대를 흐름 안으로 넣어 카메라 영역이 막대 위에서 끝나게 함(촬영 버튼이 막대에 가리지 않음).
+           목록은 촬영 버튼(bottom 14 + 높이 60) 위로 10px 띄움 = 84px */
+        @media (hover: none), (max-width: 768px) {
+            .send-bar { position: static; flex-shrink: 0; }
+            .queue { bottom: 84px; }
+            .qdel { padding: 8px 10px; }
+        }
 
         .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 100; justify-content: center; align-items: center; padding: 18px; }
         .modal { background: #fff; border-radius: 14px; padding: 20px; width: 100%; max-width: 360px; max-height: 85dvh; overflow-y: auto; }
@@ -174,12 +181,12 @@
     <div id="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610121200"></script>
+    <script src="js/location-map.js?v=202610121722"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610121200'; // china-stock 전용 설정(work-tool-e2943)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610121722'; // china-stock 전용 설정(work-tool-e2943)
 
         const SCAN_VERSION = '10.3'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 

@@ -24,10 +24,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=202610121200">
+    <link rel="stylesheet" href="css/style.css?v=202610121722">
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-['Inter'] overflow-hidden transition-colors duration-200">
-    <div id="toast-container" class="fixed bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
+    <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
 
     <div class="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden w-full transition-colors duration-200">
         
@@ -111,7 +111,7 @@
                 </div>
             </div>
 
-            <div id="nav-content" class="hidden absolute top-[60px] left-0 w-full bg-white dark:bg-gray-800 shadow-xl z-[60] border-b dark:border-gray-700 flex-col max-h-[80vh] overflow-y-auto pb-4 transition-colors">
+            <div id="nav-content" class="hidden absolute top-[72px] md:top-[60px] left-0 w-full bg-white dark:bg-gray-800 shadow-xl z-[60] border-b dark:border-gray-700 flex-col max-h-[80vh] overflow-y-auto pb-4 transition-colors">
                 <div class="p-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex justify-between items-center">
                     <span class="font-bold text-gray-800 dark:text-white flex items-center gap-2">내 출퇴근 상태</span>
                     <div class="flex items-center gap-2">
@@ -510,13 +510,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202610121200');
+                await import('./js/app.js?v=202610121722');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202610121200').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202610121722').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -598,11 +598,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202610121200';
-        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202610121200';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202610121200';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610121200';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610121200';
+        import { appState } from './js/state.js?v=202610121722';
+        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202610121722';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202610121722';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610121722';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610121722';
 
         loadAdminTodos();
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
@@ -765,8 +765,8 @@
             }
         });
     </script>
-    <script src="js/connection-banner.js?v=202610121200"></script>
-    <script src="js/modal-esc.js?v=202610121200"></script>
-    <script src="js/app-version.js?v=202610121200"></script>
+    <script src="js/connection-banner.js?v=202610121722"></script>
+    <script src="js/modal-esc.js?v=202610121722"></script>
+    <script src="js/app-version.js?v=202610121722"></script>
 </body>
 </html>

@@ -1,8 +1,8 @@
 // === js/ui-history-attendance.js ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear, escapeHtml } from './utils.js?v=202610121200';
-import { context, LEAVE_TYPES, appState, appConfig } from './state.js?v=202610121200';
-import { systemAccountSet } from './attendance-stats.js?v=202610121200';
+import { formatTimeTo24H, formatDuration, getWeekOfYear, escapeHtml } from './utils.js?v=202610121722';
+import { context, LEAVE_TYPES, appState, appConfig } from './state.js?v=202610121722';
+import { systemAccountSet } from './attendance-stats.js?v=202610121722';
 
 // 근태 요약 표의 열 순서. 기존 순서를 유지하되, LEAVE_TYPES에 있는데 여기 없는 종류는
 // 뒤에 자동으로 붙는다 → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -127,7 +127,7 @@ const renderClockInOutTable = (dateKey, data) => {
                 <h4 class="font-bold text-gray-800">출퇴근 시각 <span class="text-xs font-normal text-gray-400">${멤버들.length}명</span></h4>
                 ${관리자 ? '' : '<span class="text-xs text-gray-400">수정은 관리자만 가능합니다</span>'}
             </div>
-            <table class="w-full text-sm text-left">
+            <div class="m-xscroll"><table class="w-full text-sm text-left">
                 <thead class="text-xs text-gray-500 border-b">
                     <tr>
                         <th class="px-3 py-2 font-bold">이름</th>
@@ -139,7 +139,7 @@ const renderClockInOutTable = (dateKey, data) => {
                     </tr>
                 </thead>
                 <tbody>${행들}</tbody>
-            </table>
+            </table></div>
         </div>`;
 };
 
@@ -199,7 +199,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
     html += `
         <div class="bg-white p-4 rounded-lg shadow-sm min-h-[400px]">
-            <table class="w-full text-sm text-left text-gray-600">
+            <div class="m-xscroll"><table class="w-full text-sm text-left text-gray-600">
                 <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
                     <tr>
                         <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-100 transition select-none group relative" data-sort-target="daily" data-sort-key="member">
@@ -227,7 +227,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
     if (leaveEntries.length === 0) {
         html += `<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">조건에 맞는 기록이 없습니다.</td></tr>`;
-        html += `</tbody></table></div>`;
+        html += `</tbody></table></div></div>`;
         view.innerHTML = html;
         return;
     }
@@ -289,7 +289,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
         });
     }
 
-    html += `</tbody></table></div>`;
+    html += `</tbody></table></div></div>`;
     view.innerHTML = html;
 };
 

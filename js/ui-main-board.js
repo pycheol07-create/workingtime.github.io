@@ -1,9 +1,9 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610121200';
-import * as State from './state.js?v=202610121200';
-import { leaveTypeLabel } from './state.js?v=202610121200';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610121200';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610121200';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610121722';
+import * as State from './state.js?v=202610121722';
+import { leaveTypeLabel } from './state.js?v=202610121722';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610121722';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610121722';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -27,7 +27,9 @@ function _cfLayout(rowId) {
     _cfIndex[rowId] = Math.max(0, Math.min(_cfIndex[rowId] || 0, n - 1));
 
     const W = stage.clientWidth || 1;
-    const cw = Math.min(440, Math.max(260, W * 0.42)); // 가운데 카드 폭
+    // 가운데 카드 폭 — 휴대폰(화면 폭 768px 이하)만 무대에 맞춤, 데스크톱은 기존 식 그대로.
+    //   분기는 화면 기준이어야 한다: 데스크톱에서도 사이드바·그리드 때문에 무대 폭 W 가 480 아래로 자주 내려감(리뷰 2026-10-12)
+    const cw = window.matchMedia('(max-width: 768px)').matches ? Math.max(200, W - 96) : Math.min(440, Math.max(260, W * 0.42));
     cards.forEach((card, i) => {
         card.style.width = cw + 'px';
         const off = i - _cfIndex[rowId];
@@ -761,7 +763,7 @@ export const renderCompletedWorkLog = (appState) => {
                 </div>
                 <div>${formatTimeTo24H(record.startTime)} ~ ${formatTimeTo24H(record.endTime)}${pauseText}</div>
             </div>
-            <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 dark:bg-gray-800/95 backdrop-blur px-1.5 py-1 rounded-md shadow-sm border border-gray-100 dark:border-gray-700 flex gap-3">
+            <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 m-touch-show transition-opacity bg-white/95 dark:bg-gray-800/95 backdrop-blur px-1.5 py-1 rounded-md shadow-sm border border-gray-100 dark:border-gray-700 flex gap-3">
                 <button data-action="edit" data-record-id="${record.id}" class="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-bold tracking-wide">수정</button>
                 <div class="w-px bg-gray-200 dark:bg-gray-600"></div>
                 <button data-action="delete" data-record-id="${record.id}" class="text-[11px] text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-bold tracking-wide">삭제</button>

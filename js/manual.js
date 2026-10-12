@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202610121200';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202610121722';
 
 let app, db, auth, storage;
 let appConfig = {};
@@ -11,7 +11,7 @@ let quillEditor;
 let manualList = [];
 let currentEditingId = null;
 let selectedFile = null;
-let currentZoom = 80; 
+let currentZoom = window.matchMedia('(max-width: 768px)').matches ? 100 : 80;
 
 let currentUserName = '';
 let isAdmin = false;
@@ -663,7 +663,14 @@ function renderList() {
                 </div>
             `;
 
-            div.addEventListener('click', () => viewManual(item.id));
+            div.addEventListener('click', () => {
+                viewManual(item.id);
+                // 모바일: 매뉴얼을 고르면 열린 사이드바를 닫아 본문이 보이게 함(manual.html 의 toggleSidebar 재사용)
+                const sb = document.getElementById('sidebar');
+                if (window.matchMedia('(max-width: 768px)').matches && sb && !sb.classList.contains('-translate-x-full') && typeof window.toggleSidebar === 'function') {
+                    window.toggleSidebar();
+                }
+            });
             itemsContainer.appendChild(div);
         });
 

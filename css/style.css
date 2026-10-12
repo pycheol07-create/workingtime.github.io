@@ -700,3 +700,41 @@ html.dark .depth-panel {
     .cal-daycell { padding: 3px 3px 0; }
     .cal-add { display: none; }
 }
+
+/* ===== 모바일 보강 (2026-10-12) — 데스크톱(>768px·마우스)에는 적용되지 않음 =====
+   파일 끝에 둔 이유: 같은 명시도의 기존 규칙(.task-carousel-arrow 등)보다 뒤에 와야 이긴다. */
+@media (max-width: 768px) {
+    /* 모바일 전용 가로 스크롤 감싸개. :not(#_m) 은 ID 명시도를 얹어
+       .fixed.inset-0 > div > div.overflow-y-auto (0,4,0) 의 overflow-x:hidden !important 를 이기기 위함 — 지우지 말 것 */
+    .m-xscroll:not(#_m) { overflow-x: auto !important; -webkit-overflow-scrolling: touch; max-width: 100%; }
+    .m-xscroll:not(#_m) > table { display: table !important; max-width: none !important; }
+
+    /* 표 머리 필터 드롭다운(.filter-dropdown, JS 생성) — 화면 밖으로 잘리지 않게 화면 고정 시트로 */
+    .filter-dropdown {
+        position: fixed !important;
+        left: 8px !important;
+        right: 8px !important;
+        top: 15dvh !important;
+        width: auto !important;
+        max-height: 70dvh;
+        overflow: auto;
+    }
+
+    /* 검수 기록 관리 모달(h-[800px]) — 화면 높이에 맞춤 */
+    #inspection-log-manager-modal > div {
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+    }
+
+    /* 업무현황 커버플로우 좌우 버튼 — 작게, 카드를 덜 가리게 */
+    .task-carousel-arrow { width: 32px; height: 32px; opacity: .85; }
+
+    /* 주소창 높이 변화 대응 (Tailwind CDN 스타일이 뒤에 붙으므로 !important) */
+    .h-screen { height: 100vh !important; height: 100dvh !important; }
+}
+
+/* 터치 기기에서 hover 로만 보이던 버튼을 항상 보이게 (쓰는 곳: JS 가 붙이는 .m-touch-show) */
+@media (hover: none) {
+    .m-touch-show { opacity: 1 !important; }
+}

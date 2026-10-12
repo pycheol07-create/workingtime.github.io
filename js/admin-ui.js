@@ -1,7 +1,7 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610121200';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610121722';
 
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
@@ -274,7 +274,7 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
         const membersHtml = activeMembers.map(member => buildMemberItemHtml(member, maps, group.name)).join('');
 
         groupEl.innerHTML = `
-            <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
+            <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2">
                     <span class="drag-handle mr-2 cursor-move text-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" draggable="true">☰</span> 
                     <input type="text" value="${group.name}" class="text-lg font-extrabold text-gray-800 dark:text-white team-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none">
@@ -450,7 +450,7 @@ export function renderTaskGroups(taskGroups) {
         `).join('');
 
         groupEl.innerHTML = `
-             <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
+             <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2"> 
                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>
                    <input type="text" value="${group.name}" class="text-lg font-extrabold text-gray-800 dark:text-white task-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none">
@@ -686,11 +686,11 @@ export function menuItemRowHtml(item = {}) {
     const builtinTitle = '코드로 추가된 메뉴라 지우거나 연결을 바꿔도 다시 생깁니다. 숨기려면 권한 관리에서 접근을 해제하세요.';
     return `
             <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm">
-                <div class="flex items-center gap-3 flex-grow flex-wrap">
+                <div class="flex items-center gap-3 flex-grow flex-wrap min-w-0">
                     <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
                     <input type="text" value="${escAttr(item.name)}" ${isAction ? 'readonly title="화면 기능은 이름이 정해져 있습니다(바꾸면 메뉴가 열리지 않습니다)"' : ''} class="menu-item-name flex-grow min-w-[8rem] p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none ${isAction ? 'text-gray-500 dark:text-gray-400 cursor-not-allowed' : ''}" placeholder="메뉴 이름">
-                    <select ${isBuiltin ? `disabled title="${escAttr(builtinTitle)}"` : ''} class="menu-item-link w-56 p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 ${isBuiltin ? 'opacity-60 cursor-not-allowed' : ''}">${menuSelectHtml(selected)}</select>
-                    <input type="text" value="${escAttr(custom)}" class="menu-item-link-custom ${selected === MENU_CUSTOM ? '' : 'hidden'} w-48 p-1.5 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="https://… 또는 파일명">
+                    <select ${isBuiltin ? `disabled title="${escAttr(builtinTitle)}"` : ''} class="menu-item-link w-full sm:w-56 p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 ${isBuiltin ? 'opacity-60 cursor-not-allowed' : ''}">${menuSelectHtml(selected)}</select>
+                    <input type="text" value="${escAttr(custom)}" class="menu-item-link-custom ${selected === MENU_CUSTOM ? '' : 'hidden'} w-full sm:w-48 p-1.5 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="https://… 또는 파일명">
                 </div>
                 ${isBuiltin
                     ? `<span class="text-[10px] text-gray-400 dark:text-gray-500 px-2 py-1 whitespace-nowrap" title="${escAttr(builtinTitle)}">기본 메뉴</span>`
@@ -787,7 +787,7 @@ export function renderDashboardMenu(menuConfig) {
         const itemsHtml = (menuGroup.items || []).map(item => menuItemRowHtml(item)).join('');
 
         groupEl.innerHTML = `
-             <div class="flex justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
+             <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2"> 
                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>
                    <input type="text" value="${menuGroup.category}" class="text-lg font-extrabold text-gray-800 dark:text-white menu-category-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none" placeholder="대분류 이름">
