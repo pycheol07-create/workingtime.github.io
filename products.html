@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>상품 관리</title>
+    <!-- 상품 관리(2026-10-13). 설계: 상품DB_설계_v2.md
+         기본정보(ProductCatalog)는 로그인한 전원이 보고, 원가·공급처(adminProductCost·adminSuppliers)는 관리자만.
+         ⚠️ china-stock-config.js / china-stock-gate.js 를 불러오지 않는다 — 그 둘은 Firestore 영속 캐시를 켜서
+            관리자 원가가 브라우저 디스크에 남는다. 이 페이지는 config.js(메모리 캐시) + 자체 IndexedDB(기본정보·메모·위치만). -->
+    <script>
+        // 앱 설정(대시보드 테마 버튼)과 같은 키 — 다크면 html.dark (css/products-d.css 가 토큰을 덮는다)
+        try {
+            if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="css/suit.css?v=202610140834">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610140834">
+    <link rel="stylesheet" href="css/products-d.css?v=202610140834">
+</head>
+<body>
+    <div id="pd-loading" class="pd-loading">
+        <div class="pd-spinner"></div>
+        <div id="pd-loading-text">불러오는 중…</div>
+    </div>
+
+    <div id="pd-app" style="display:none;">
+        <header class="pd-head">
+            <button id="pd-back" class="d-btn pd-icon-btn" aria-label="목록으로" style="display:none;">‹</button>
+            <div class="pd-head-title">
+                <div id="pd-crumb" class="pd-sub" style="display:none;"></div>
+                <h1 id="pd-title">상품 관리</h1>
+                <div id="pd-head-sub" class="pd-sub pd-head-sub"><span class="pd-dot"></span><span id="pd-basis">불러오는 중…</span></div>
+            </div>
+            <nav id="pd-tabs" class="d-seg pd-tabs" aria-label="화면 전환">
+                <button class="d-seg-btn is-on" data-tab="list">상품</button>
+                <button class="d-seg-btn" data-tab="log">변경 이력</button>
+                <button class="d-seg-btn pd-adm" data-tab="sup">공급처 대장</button>
+                <button class="d-seg-btn pd-adm" data-tab="costlog">단가 변경 이력</button>
+            </nav>
+            <div class="pd-head-actions">
+                <button id="pd-refresh" class="d-btn" title="바뀐 것만 다시 받습니다">새로고침</button>
+                <button id="pd-export" class="d-btn">엑셀 받기</button>
+                <button id="pd-up-catalog" class="d-btn pd-adm">기본정보 올리기</button>
+                <button id="pd-up-cost" class="d-btn pd-adm">원가 올리기</button>
+            </div>
+        </header>
+
+        <main id="pd-main" class="pd-main"></main>
+    </div>
+
+    <!-- 엑셀 업로드(관리자) — js/products-excel.js 가 채운다. ESC 는 modal-esc.js 가 닫기 버튼을 누른다 -->
+    <div id="pd-modal" class="pd-modal fixed inset-0 justify-center hidden" role="dialog" aria-modal="true" aria-labelledby="pd-modal-title">
+        <div class="pd-modal-box">
+            <div class="pd-modal-head">
+                <h2 id="pd-modal-title">엑셀 올리기</h2>
+                <button id="pd-modal-close" class="d-btn pd-icon-btn" aria-label="닫기">✕</button>
+            </div>
+            <div id="pd-modal-body" class="pd-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="pd-toast" class="pd-toast" role="status" aria-live="polite"></div>
+
+    <script src="js/connection-banner.js?v=202610140834"></script>
+    <script src="js/modal-esc.js?v=202610140834"></script>
+    <script type="module" src="js/products.js?v=202610140834"></script>
+</body>
+</html>

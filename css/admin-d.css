@@ -1,0 +1,230 @@
+/* === css/admin-d.css — 관리자 페이지(admin.html) 전용 D안 (2026-10-13) ===
+   - admin.html 만 부른다. style.css·dash-d.css·d-theme.css·history-d.css·form-d.css 는 건드리지 않고 여기서 덮는다.
+   - 모든 규칙은 범위 루트 #admin-root(admin.html 의 body) 접두.
+     ID 명시도로 Tailwind CDN(뒤에 주입됨)의 .x / .dark .dark\:x / .hover\:x:hover 를 이긴다.
+   - 토큰은 범위 루트에 둔다(값은 history-d.css 사본 — 값을 바꾸면 location·dash-d·d-theme·history-d·form-d·admin-d 6곳).
+     다크(html.dark)에서는 토큰이 뒤집힌다.
+   - ⚠ display 를 넣지 않는다. 섹션 hidden↔block/flex 토글, 모바일 서랍, md:hidden 을 ID 명시도로 이겨 버린다.
+   - ⚠ box-shadow:none 으로 그림자를 지우지 않는다(포커스 ring 도 box-shadow). --tw-shadow 만 비운다.
+   - ⚠ 상태 표시 클래스(탭 .active, 메뉴 이름 잠금 .text-gray-500, 복귀 .ring-green-400, 위젯 항목 선택 버튼의
+     파랑/회색, 권한 잠금 .opacity-40)는 JS 가 이름으로 넣고 뺀다 — 이름은 그대로 두고 색만 여기서 바꾼다.
+   - 재칠 층(remap)은 생성 스크립트 출력이다. 손으로 고치지 말 것. */
+
+#admin-root {
+    --c-bg: #F5F6F8; --c-surface: #FFFFFF; --c-surface-2: #F7F8FA; --c-track: #EEF0F4;
+    --c-line: #E6E8EC; --c-line-soft: #F0F2F5; --c-line-strong: #D6DAE0;
+    --c-text: #23272E; --c-text-2: #646B75; --c-text-3: #8A9099; --c-text-4: #CDD2D9;
+    --c-accent: #2F62C9; --c-accent-deep: #1E4699; --c-accent-mid: #7FA1E6; --c-accent-light: #C4D4F5; --c-accent-soft: #EAF0FD; --c-accent-row: #F3F6FD;
+    --c-ok: #5A9E96; --c-ok-text: #3D756F; --c-ok-soft: #E5F0EE;
+    --c-warn: #D2A266; --c-warn-text: #8A5E28; --c-warn-soft: #F4EADB; --c-warn-bg: #F9F4EC;
+    --c-risk: #C9808A; --c-risk-text: #A0525C; --c-risk-soft: #F4E3E5; --c-risk-row: #FAF4F5;
+    --r-card: 18px; --r-inner: 14px; --r-sm: 10px; --r-cell: 6px; --r-pill: 999px;
+    --sh-tab: 0 1px 2px rgba(30,40,60,.10); --sh-pop: 0 8px 24px rgba(30,40,60,.12);
+    --font-sans: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    /* 이 화면에서 더 쓰는 값 */
+    --c-ok-line: #CFE3E0; --c-risk-line: #EBCDD1; --c-warn-line: #EBDDC6;
+    --c-ink: #23272E;                      /* 검정 채움·툴팁 — 두 모드 모두 어두워야 한다 */
+    --c-scrim: rgba(30,40,60,.45);         /* 모달·서랍 뒤 가림막 */
+    /* 흰 글자가 올라가는 진한 채움(600 이상) — 다크에서도 어두운 값 그대로 */
+    --c-accent-strong: #1E4699; --c-ok-strong: #3D756F; --c-warn-strong: #8A5E28; --c-risk-strong: #A0525C;
+    --c-nav: #3A4049;                      /* 사이드바 메뉴 글자 (dash-d 와 같은 값) */
+    background-color: var(--c-bg);
+    color: var(--c-text);
+    font-family: var(--font-sans);
+    color-scheme: light;
+}
+html.dark #admin-root {
+    --c-bg: #111418; --c-surface: #1A1E24; --c-surface-2: #20252C; --c-track: #2A3038;
+    --c-line: #2C323A; --c-line-soft: #242A31; --c-line-strong: #3A414B;
+    --c-text: #E6E8EC; --c-text-2: #A9B0BA; --c-text-3: #7D8590; --c-text-4: #4A515B;
+    --c-accent: #6E95E6; --c-accent-deep: #A9C1F2; --c-accent-mid: #4F73BF; --c-accent-light: rgba(110,149,230,.35);
+    --c-accent-soft: rgba(47,98,201,.22); --c-accent-row: rgba(47,98,201,.12);
+    --c-ok-text: #8CC9C0; --c-ok-soft: rgba(90,158,150,.18);
+    --c-warn-text: #E2BE8C; --c-warn-soft: rgba(210,162,102,.18); --c-warn-bg: rgba(210,162,102,.10);
+    --c-risk-text: #E0A3AB; --c-risk-soft: rgba(201,128,138,.18); --c-risk-row: rgba(201,128,138,.10);
+    --sh-tab: 0 1px 2px rgba(0,0,0,.40); --sh-pop: 0 8px 24px rgba(0,0,0,.50);
+    --c-ok-line: rgba(90,158,150,.35); --c-risk-line: rgba(201,128,138,.35); --c-warn-line: rgba(210,162,102,.35);
+    --c-ink: #2A3038; --c-scrim: rgba(0,0,0,.60);
+    --c-accent-strong: #3A6FD8;   /* 다크: 파랑 채움 #2F62C9 위에 올렸을 때 한 단계 밝게(흰 글자 대비 유지) */
+    --c-nav: #C5CAD2;
+    color-scheme: dark;   /* 다크에서 date/number/select 기본 아이콘이 보이게 */
+}
+/* html 의 bg-gray-50 / dark:bg-gray-900 이 튐 스크롤에서 비치지 않게 바탕과 맞춘다 */
+html:has(> body#admin-root) { background-color: #F5F6F8; }
+html.dark:has(> body#admin-root) { background-color: #111418; }
+
+/* ── 표 숫자 자리 맞춤 ── */
+#admin-root :is(td, th) { font-variant-numeric: tabular-nums; }
+
+/* === remap: generated === */
+/* 범위 파일 5개에서 색 클래스 113종 수집 → 규칙 62개. 손으로 고치지 말 것(생성기 scratchpad ad/gen_admin.py 다시 실행). */
+#admin-root .bg-black\/40 { background-color: var(--c-scrim); }
+#admin-root .bg-blue-100 { background-color: var(--c-accent-soft); }
+#admin-root .bg-blue-50 { background-color: var(--c-accent-row); }
+#admin-root .bg-blue-600 { background-color: var(--c-accent); }
+#admin-root .bg-gray-100 { background-color: var(--c-track); }
+#admin-root .bg-gray-100\/70 { background-color: var(--c-track); }
+#admin-root .bg-gray-200 { background-color: var(--c-track); }
+#admin-root .bg-gray-300 { background-color: var(--c-line-strong); }
+#admin-root .bg-gray-50 { background-color: var(--c-surface-2); }
+#admin-root .bg-gray-50\/30 { background-color: var(--c-surface-2); }
+#admin-root .bg-gray-50\/50 { background-color: var(--c-surface-2); }
+#admin-root .bg-gray-900\/60 { background-color: var(--c-scrim); }
+#admin-root .bg-green-100 { background-color: var(--c-ok-soft); }
+#admin-root .bg-green-50 { background-color: var(--c-ok-soft); }
+#admin-root .bg-red-100 { background-color: var(--c-risk-soft); }
+#admin-root .bg-red-50 { background-color: var(--c-risk-row); }
+#admin-root .bg-white { background-color: var(--c-surface); }
+#admin-root .bg-yellow-100 { background-color: var(--c-warn-soft); }
+#admin-root .text-blue-600 { color: var(--c-accent-deep); }
+#admin-root .text-blue-700 { color: var(--c-accent-deep); }
+#admin-root .text-blue-800 { color: var(--c-accent-deep); }
+#admin-root .text-gray-400 { color: var(--c-text-3); }
+#admin-root .text-gray-500 { color: var(--c-text-3); }
+#admin-root .text-gray-600 { color: var(--c-text-2); }
+#admin-root .text-gray-700 { color: var(--c-text-2); }
+#admin-root .text-gray-800 { color: var(--c-text); }
+#admin-root .text-gray-900 { color: var(--c-text); }
+#admin-root .text-green-700 { color: var(--c-ok-text); }
+#admin-root .text-green-800 { color: var(--c-ok-text); }
+#admin-root .text-red-500 { color: var(--c-risk-text); }
+#admin-root .text-red-600 { color: var(--c-risk-text); }
+#admin-root .text-red-700 { color: var(--c-risk-text); }
+#admin-root .text-red-800 { color: var(--c-risk-text); }
+#admin-root .text-yellow-500 { color: var(--c-warn-text); }
+#admin-root .text-yellow-700 { color: var(--c-warn-text); }
+#admin-root .text-yellow-800 { color: var(--c-warn-text); }
+#admin-root .border-blue-100 { border-color: var(--c-accent-soft); }
+#admin-root .border-blue-200 { border-color: var(--c-accent-light); }
+#admin-root .border-blue-500 { border-color: var(--c-accent); }
+#admin-root .border-gray-100 { border-color: var(--c-line-soft); }
+#admin-root .border-gray-200 { border-color: var(--c-line); }
+#admin-root .border-gray-300 { border-color: var(--c-line); }
+#admin-root .border-gray-400 { border-color: var(--c-line-strong); }
+#admin-root .border-red-200 { border-color: var(--c-risk-line); }
+#admin-root .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--c-line-soft); }
+#admin-root .ring-green-400 { --tw-ring-color: var(--c-accent-light); }
+#admin-root .hover\:bg-blue-100:hover { background-color: var(--c-accent-soft); }
+#admin-root .hover\:bg-blue-50:hover { background-color: var(--c-accent-row); }
+#admin-root .hover\:bg-blue-700:hover { background-color: var(--c-accent-strong); }
+#admin-root .hover\:bg-gray-100:hover { background-color: var(--c-track); }
+#admin-root .hover\:bg-gray-200:hover { background-color: var(--c-track); }
+#admin-root .hover\:bg-gray-50:hover { background-color: var(--c-surface-2); }
+#admin-root .hover\:bg-green-100:hover { background-color: var(--c-ok-soft); }
+#admin-root .hover\:bg-red-100:hover { background-color: var(--c-risk-soft); }
+#admin-root .hover\:text-gray-600:hover { color: var(--c-text-2); }
+#admin-root .hover\:text-gray-700:hover { color: var(--c-text-2); }
+#admin-root .hover\:text-gray-800:hover { color: var(--c-text); }
+#admin-root .hover\:text-red-500:hover { color: var(--c-risk-text); }
+#admin-root .hover\:border-blue-300:hover { border-color: var(--c-accent-light); }
+#admin-root .hover\:border-gray-300:hover { border-color: var(--c-line); }
+#admin-root .focus\:border-blue-500:focus { border-color: var(--c-accent); }
+#admin-root .focus\:ring-blue-500:focus { --tw-ring-color: var(--c-accent-light); }
+/* === remap: end === */
+
+/* ──────────── 손 규칙 (재칠 층 뒤 — 순서 중요) ──────────── */
+/* 다크: 흰 글자가 올라가는 파랑 채움 버튼은 밝은 accent(#6E95E6) 대신 주색 그대로 — 대비 유지.
+   :where 로 명시도를 낮게 둬서 hover 규칙은 그대로 이긴다 */
+html.dark #admin-root :where(.bg-blue-600) { background-color: #2F62C9; }
+
+/* ── 바탕: 본문은 D 바탕, 섹션 몸통(bg-gray-50/30)은 카드 안이라 흰색 그대로 ── */
+#admin-root #admin-content { background-color: var(--c-bg); }
+#admin-root .bg-gray-50\/30 { background-color: transparent; }
+
+/* ── 그림자: 변수만 비운다 (포커스 ring 은 살린다) ── */
+#admin-root :is(.shadow, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl, .md\:shadow-sm) {
+    --tw-shadow: 0 0 #0000; --tw-shadow-colored: 0 0 #0000;
+}
+/* 예외: 휴대폰 서랍은 본문 위에 뜨므로 열렸을 때만 경계 그림자 */
+@media (max-width: 767px) {
+    #admin-root #admin-sidebar:not(.-translate-x-full) { box-shadow: var(--sh-pop); }
+}
+
+/* ── 모서리: 안쪽 카드(그룹·대분류)는 inner, 섹션 카드는 card ── */
+#admin-root .rounded-2xl { border-radius: var(--r-inner); }
+#admin-root :is(.admin-section.rounded-2xl, #section-permission > .rounded-2xl) { border-radius: var(--r-card); }
+#admin-root .rounded-t-2xl { border-top-left-radius: var(--r-card); border-top-right-radius: var(--r-card); }
+#admin-root .rounded-b-2xl { border-bottom-left-radius: var(--r-card); border-bottom-right-radius: var(--r-card); }
+#admin-root .rounded-xl { border-radius: var(--r-inner); }
+#admin-root .rounded-lg { border-radius: var(--r-sm); }
+
+/* ── 섹션 카드 테두리: 재칠 층의 line-soft 는 바탕과 구분이 약하다 ── */
+#admin-root :is(.admin-section.border, #section-permission > .border) { border-color: var(--c-line); }
+
+/* ── 떠 있는 상자(팝업 3개): 그림자 + 카드 모서리. 사이드바 가림막은 자식이 없어 안 걸린다 ── */
+#admin-root > .fixed.inset-0 > div { box-shadow: var(--sh-pop); border-radius: var(--r-card); }
+
+/* ── 사이드바 (dash-d 의 d-side·d-nav-item 값) ── */
+#admin-root #admin-sidebar { background-color: var(--c-surface); border-right-color: var(--c-line); }
+#admin-root #admin-sidebar nav > div:first-child {
+    font-size: 12px; font-weight: 500; color: var(--c-text-3); text-transform: none; letter-spacing: 0;
+}
+#admin-root #admin-sidebar :is(.admin-tab-btn, nav > a) {
+    min-height: 40px; padding: 0 14px; border-radius: 20px;
+    color: var(--c-nav); font-size: 14px; font-weight: 500;
+    transition: background-color .15s, color .15s;
+}
+#admin-root #admin-sidebar :is(.admin-tab-btn, nav > a):hover { background-color: var(--c-surface-2); color: var(--c-text); }
+/* 켜짐: 인라인 스크립트가 넣는 .active 로 판정(색 클래스가 아님) */
+#admin-root #admin-sidebar .admin-tab-btn.active,
+#admin-root #admin-sidebar .admin-tab-btn.active:hover {
+    background-color: var(--c-accent-soft); color: var(--c-accent-deep); font-weight: 600;
+}
+
+/* ── 입력칸 (밑줄 입력 .bg-transparent 는 제외 — 그룹명·업무명·메뉴명) ── */
+#admin-root :is(input:not([type=checkbox]):not([type=radio]):not(.bg-transparent), select, textarea) { border-radius: var(--r-sm); }
+#admin-root :is(input, select, textarea):focus-visible { outline: 2px solid var(--c-accent-light); outline-offset: 0; border-color: var(--c-accent); }
+/* CDN 에 forms 플러그인이 없어 text-blue-600 / text-purple-600 은 체크박스 색에 안 먹는다 */
+#admin-root :is(input[type=checkbox], input[type=radio]) { accent-color: var(--c-accent); }
+
+/* ── 버튼은 알약 (폭 전체·탭·카드형 선택 버튼·닫기 × 제외) ── */
+#admin-root button:is(.rounded, .rounded-md, .rounded-lg):not(.w-full):not(.admin-tab-btn):not(.task-select-list-btn):not(.dashboard-item-select-btn):not(.modal-close-btn) {
+    border-radius: var(--r-pill);
+}
+
+/* ── 보조 버튼 → 테두리 버튼. 화면당 채움(주) 버튼은 헤더 '전체 저장' 하나 ── */
+#admin-root :is(#add-team-group-btn, #add-menu-category-btn, #add-task-group-btn, #add-system-account-btn, #add-dashboard-item-btn,
+                #add-custom-dashboard-item-btn, #add-key-task-btn, #add-quantity-task-btn, .add-member-btn, .add-task-btn,
+                .add-menu-item-btn, #cancel-add-to-quantity-btn) {
+    background-color: var(--c-surface); border: 1px solid var(--c-line-strong); color: var(--c-text); border-radius: var(--r-pill);
+}
+#admin-root :is(#add-team-group-btn, #add-menu-category-btn, #add-task-group-btn, #add-system-account-btn, #add-dashboard-item-btn,
+                #add-custom-dashboard-item-btn, #add-key-task-btn, #add-quantity-task-btn, .add-member-btn, .add-task-btn,
+                .add-menu-item-btn, #cancel-add-to-quantity-btn):hover {
+    background-color: var(--c-surface-2);
+}
+
+/* ── 위험(그룹·대분류·팀원·계정 삭제) = 장미 테두리. 줄 끝 작은 '삭제' 글자 버튼은 재칠 층 그대로 ── */
+#admin-root :is(.delete-team-group-btn, .delete-task-group-btn, .delete-menu-category-btn, .delete-member-btn, .delete-sys-account-btn) {
+    background-color: var(--c-surface); border: 1px solid var(--c-risk); color: var(--c-risk-text); border-radius: var(--r-pill);
+}
+#admin-root :is(.delete-team-group-btn, .delete-task-group-btn, .delete-menu-category-btn, .delete-member-btn, .delete-sys-account-btn):hover {
+    background-color: var(--c-risk-soft);
+}
+
+/* ── 퇴사자 재직 복귀: 테두리 + 청록 글자, 복귀 예정 링은 청록 ── */
+#admin-root .reactivate-member-btn {
+    background-color: var(--c-surface); border: 1px solid var(--c-line-strong); color: var(--c-ok-text); border-radius: var(--r-pill);
+}
+#admin-root .reactivate-member-btn:hover { background-color: var(--c-ok-soft); }
+#admin-root .member-item.ring-green-400 { --tw-ring-color: var(--c-ok); }
+
+/* ── 닫기 × (admin.html 인라인 style 의 @apply 는 Play CDN 이 처리하지 않아 무효 — 겉모양만 대신) ── */
+#admin-root .modal-close-btn {
+    color: var(--c-text-3); font-size: 24px; line-height: 1; background-color: transparent; border: 0; cursor: pointer;
+}
+#admin-root .modal-close-btn:hover { color: var(--c-text); }
+/* 확인 팝업만 × 가 상자 첫 자식 — 오른쪽 위에 띄운다(나머지 둘은 머리줄 flex 안) */
+#admin-root #confirm-add-to-quantity-modal .modal-close-btn { position: absolute; top: 16px; right: 16px; }
+
+/* ── 끌어 옮기기 표시 (위와 같은 이유로 @apply 대신) ── */
+#admin-root .drag-handle { color: var(--c-text-4); cursor: move; }
+#admin-root .drag-handle:hover { color: var(--c-text-3); }
+#admin-root .dragging { opacity: .5; background-color: var(--c-accent-row); }
+#admin-root .drag-over { border-top: 2px solid var(--c-accent); }
+
+/* ── 자동화 상태 표 머리 ── */
+#admin-root #automation-status-body thead { background-color: var(--c-surface-2); }
+
+/* 자동화 상태 배지: '꺼짐'(bg-gray-200)을 '쉼'(bg-gray-100)과 구분 — 재칠 층에서는 둘 다 track 으로 같아진다 */
+#admin-root span.bg-gray-200 { background-color: var(--c-line-strong); }

@@ -32,6 +32,10 @@
   "title": "업무 매뉴얼 및 도구 - 물류팀 시스템"
  },
  {
+  "file": "products.html",
+  "title": "상품 관리"
+ },
+ {
   "file": "scan.html",
   "title": "입고 스캐너"
  },

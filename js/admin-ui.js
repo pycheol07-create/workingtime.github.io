@@ -1,7 +1,7 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610131709';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610140834';
 
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
@@ -128,7 +128,7 @@ export function renderPermissionsConfig(config) {
         }).join('');
 
         const row = document.createElement('div');
-        row.className = 'permission-item p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm flex flex-col md:flex-row gap-4 md:items-center transition-colors';
+        row.className = 'permission-item p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col md:flex-row gap-4 md:items-center transition-colors';
         row.dataset.email = emailLower;
 
         row.innerHTML = `
@@ -151,7 +151,7 @@ export function renderPermissionsConfig(config) {
                     <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400">접근 허용 메뉴 (일반 권한 전용)</div>
                     <div class="flex gap-2">
                         <button type="button" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline select-all-menu-btn py-1 px-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">전체 체크</button>
-                        <button type="button" class="text-[10px] font-bold text-red-600 dark:text-red-400 hover:underline deselect-all-menu-btn py-1 px-2 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">전체 해제</button>
+                        <button type="button" class="text-[10px] font-bold text-gray-600 dark:text-gray-400 hover:underline deselect-all-menu-btn py-1 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">전체 해제</button>
                     </div>
                 </div>
                 <div class="flex flex-wrap pt-1">
@@ -189,17 +189,17 @@ function buildMemberItemHtml(member, maps, groupName, opts = {}) {
 
     const actionBtns = isResigned
         ? `<div class="flex flex-col gap-1.5">
-                <button type="button" class="text-xs bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 font-bold px-3 py-2 rounded-md transition reactivate-member-btn">↩️ 재직 복귀</button>
+                <button type="button" class="text-xs bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 font-bold px-3 py-2 rounded-md transition reactivate-member-btn">재직 복귀</button>
                 <button type="button" class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-2 rounded-md transition delete-member-btn" title="과거 기록 계산에서 급여까지 완전히 제거됩니다.">완전 삭제</button>
            </div>`
         : `<button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-2 rounded-md transition delete-member-btn">삭제</button>`;
 
     const groupBadge = isResigned
-        ? `<span class="text-[10px] font-bold text-white bg-gray-500 dark:bg-gray-600 rounded px-2 py-1 self-center" title="원래 소속 그룹">${groupName}</span>`
+        ? `<span class="text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 self-center" title="원래 소속 그룹">${groupName}</span>`
         : '';
 
     return `
-    <div class="flex flex-col gap-3 mb-4 p-4 rounded-xl border ${cardBg} shadow-sm member-item transition-colors" data-group-name="${groupName}">
+    <div class="flex flex-col gap-3 mb-4 p-4 rounded-xl border ${cardBg} member-item transition-colors" data-group-name="${groupName}">
         <div class="flex flex-wrap md:flex-nowrap justify-between items-start gap-4">
             <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
                 <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
@@ -230,14 +230,14 @@ function buildMemberItemHtml(member, maps, groupName, opts = {}) {
         </div>
 
         <div class="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-            <span class="text-xs font-bold text-blue-600 dark:text-blue-400 w-full md:w-auto mb-2 md:mb-0">🏖️ 연차 설정</span>
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300 w-full md:w-auto mb-2 md:mb-0">연차 설정</span>
             <div class="flex flex-col">
-                <label class="text-[9px] text-blue-600 dark:text-blue-400 mb-1">입사일자</label>
-                <input type="date" value="${joinDate}" class="member-join-date w-32 p-1.5 border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 rounded text-xs dark:text-gray-200 outline-none">
+                <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1">입사일자</label>
+                <input type="date" value="${joinDate}" class="member-join-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs dark:text-gray-200 outline-none">
             </div>
             <div class="flex flex-col">
-                <label class="text-[9px] text-blue-600 dark:text-blue-400 mb-1">총연차(일)</label>
-                <input type="number" value="${totalLeave}" class="member-total-leave w-16 p-1.5 border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 rounded text-xs text-center dark:text-gray-200 outline-none" min="0">
+                <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1">총연차(일)</label>
+                <input type="number" value="${totalLeave}" class="member-total-leave w-16 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs text-center dark:text-gray-200 outline-none" min="0">
             </div>
             <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
             <div class="flex flex-col">
@@ -250,7 +250,7 @@ function buildMemberItemHtml(member, maps, groupName, opts = {}) {
             </div>
             <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
             <div class="flex flex-col">
-                <label class="text-[9px] text-gray-700 dark:text-gray-300 mb-1 font-bold">🚪 퇴사일 (비활성)</label>
+                <label class="text-[9px] text-gray-700 dark:text-gray-300 mb-1 font-bold">퇴사일 (비활성)</label>
                 <input type="date" value="${resignDate}" class="member-resign-date w-32 p-1.5 border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-800 dark:text-gray-100 outline-none" title="입력하면 이 날짜 다음날부터 팀 선택·명단·집계에서 제외되고, 저장 시 아래 '퇴사자' 섹션으로 이동합니다. 급여·과거기록은 그대로 보존됩니다. 비우면 재직으로 복귀합니다.">
             </div>
         </div>
@@ -266,7 +266,7 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
 
     teamGroups.forEach((group, index) => {
         const groupEl = document.createElement('div');
-        groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm team-group-card transition-colors';
+        groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 team-group-card transition-colors';
         groupEl.dataset.index = index;
 
         // 그룹 카드에는 '재직 중'(퇴사일 미지정) 팀원만 표시. 퇴사자는 하단 별도 섹션으로.
@@ -284,7 +284,7 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
             <div class="space-y-3 members-container">${membersHtml}</div>
             
             <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 text-center">
-                <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition w-full md:w-auto shadow-sm add-member-btn">+ 팀원 추가</button>
+                <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition w-full md:w-auto add-member-btn">+ 팀원 추가</button>
             </div>
         `;
         container.appendChild(groupEl);
@@ -371,9 +371,9 @@ export function renderCostAnalysisConfig(config) {
             Array.from(allTasks).sort().forEach(taskName => {
                 const isChecked = savedTasks.has(taskName) ? 'checked' : '';
                 const div = document.createElement('div');
-                div.className = 'flex items-center p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:border-purple-300 dark:hover:border-purple-500 transition-colors';
+                div.className = 'flex items-center p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-500 transition-colors';
                 div.innerHTML = `
-                    <input type="checkbox" id="cost-task-${taskName}" value="${taskName}" class="cost-calc-task-checkbox w-4 h-4 text-purple-600 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500 bg-gray-50 dark:bg-gray-900" ${isChecked}>
+                    <input type="checkbox" id="cost-task-${taskName}" value="${taskName}" class="cost-calc-task-checkbox w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 bg-gray-50 dark:bg-gray-900" ${isChecked}>
                     <label for="cost-task-${taskName}" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer select-none flex-grow">${taskName}</label>
                 `;
                 container.appendChild(div);
@@ -396,13 +396,13 @@ export function renderDashboardItemsConfig(itemIds, fullConfig) {
         const isQuantity = itemDef.isQuantity === true;
         const bgClass = isQuantity ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-400' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300';
         
-        itemEl.className = `flex items-center gap-3 p-3 rounded-lg border ${bgClass} shadow-sm dashboard-item-config group transition-colors`;
+        itemEl.className = `flex items-center gap-3 p-3 rounded-lg border ${bgClass} dashboard-item-config group transition-colors`;
         itemEl.dataset.index = index;
 
         let itemHtml = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
             <span class="dashboard-item-name flex-grow font-bold text-sm" data-id="${id}">
-                ${isQuantity ? '📦 ' : ''}${itemDef.title}
+                ${itemDef.title}
             </span>
         `;
         itemHtml += `<button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-dashboard-item-btn opacity-0 group-hover:opacity-100" data-id="${id}">삭제</button>`;
@@ -418,11 +418,11 @@ export function renderKeyTasks(keyTasks) {
     
     keyTasks.forEach((task, index) => {
         const taskEl = document.createElement('div');
-        taskEl.className = 'flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm key-task-item group transition-colors';
+        taskEl.className = 'flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 key-task-item group transition-colors';
         taskEl.dataset.index = index;
         taskEl.innerHTML = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
-            <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300">⭐ <span class="key-task-name">${task}</span></span>
+            <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="key-task-name">${task}</span></span>
             <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-key-task-btn opacity-0 group-hover:opacity-100" data-index="${index}">삭제</button>
         `;
         container.appendChild(taskEl);
@@ -436,11 +436,11 @@ export function renderTaskGroups(taskGroups) {
 
     (taskGroups || []).forEach((group, index) => {
         const groupEl = document.createElement('div');
-        groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm task-group-card transition-colors';
+        groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 task-group-card transition-colors';
         groupEl.dataset.index = index;
 
         const tasksHtml = (group.tasks || []).map((task, tIndex) => `
-            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group shadow-sm">
+            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group">
                 <div class="flex items-center gap-2 flex-grow">
                     <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
                     <input type="text" value="${task}" class="task-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none">
@@ -461,7 +461,7 @@ export function renderTaskGroups(taskGroups) {
             <div class="space-y-2 tasks-container grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">${tasksHtml}</div>
             
             <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition shadow-sm add-task-btn">+ 업무 추가</button>
+                <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition add-task-btn">+ 업무 추가</button>
             </div>
         `;
         container.appendChild(groupEl);
@@ -475,11 +475,11 @@ export function renderQuantityTasks(quantityTasks) {
     
     quantityTasks.forEach((task, index) => {
         const taskEl = document.createElement('div');
-        taskEl.className = 'flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm quantity-task-item group transition-colors';
+        taskEl.className = 'flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 quantity-task-item group transition-colors';
         taskEl.dataset.index = index;
         taskEl.innerHTML = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
-            <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300">📝 <span class="quantity-task-name">${task}</span></span>
+            <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="quantity-task-name">${task}</span></span>
             <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-quantity-task-btn opacity-0 group-hover:opacity-100" data-index="${index}">삭제</button>
         `;
         container.appendChild(taskEl);
@@ -521,8 +521,8 @@ export function renderQuantityToDashboardMapping(config) {
 
         row.innerHTML = `
             <label class="w-full md:w-1/3 font-extrabold text-sm text-gray-700 dark:text-gray-200 break-all">${taskName}</label>
-            <span class="hidden md:inline text-gray-400">➡️</span>
-            <select class="dashboard-mapping-select flex-grow p-2.5 border border-blue-200 dark:border-blue-800 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-400 font-bold outline-none transition-colors w-full md:w-auto">
+            <span class="hidden md:inline text-gray-400">→</span>
+            <select class="dashboard-mapping-select flex-grow p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-semibold outline-none transition-colors w-full md:w-auto">
                 ${dashboardOptions.join('')}
             </select>
         `;
@@ -558,7 +558,7 @@ export function populateTaskSelectModal(targetType) {
     allTasks.sort((a, b) => a.localeCompare(b)).forEach(taskName => {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'task-select-list-btn w-full text-left p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-500 transition-colors font-bold text-gray-700 dark:text-gray-200 text-sm shadow-sm';
+        button.className = 'task-select-list-btn w-full text-left p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-500 transition-colors font-bold text-gray-700 dark:text-gray-200 text-sm';
         button.textContent = taskName;
         button.dataset.taskName = taskName;
         listContainer.appendChild(button);
@@ -584,7 +584,7 @@ export function openDashboardItemModal(fullConfig) {
 
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'dashboard-item-select-btn w-full text-left p-3 rounded-xl border transition-colors font-bold text-sm shadow-sm';
+        button.className = 'dashboard-item-select-btn w-full text-left p-3 rounded-xl border transition-colors font-bold text-sm';
         button.textContent = itemDef.title + (id.startsWith('custom-') ? ' (커스텀)' : '');
         button.dataset.id = id;
 
@@ -665,13 +665,13 @@ function menuOptionValue(item) {
 function menuSelectHtml(selected) {
     const opt = (v, label) => `<option value="${escAttr(v)}"${v === selected ? ' selected' : ''}>${escAttr(label)}</option>`;
     const actions = MENU_TARGETS.filter(t => t.kind === 'action')
-        .map(t => opt('a:' + t.name, `${t.icon} ${t.name}`)).join('');
+        .map(t => opt('a:' + t.name, t.name)).join('');
     const pages = pageTargets
-        .map(t => opt('p:' + linkKey(t.link), `${t.icon} ${t.name}  (${linkKey(t.link)})${t.auto ? ' · 새 페이지' : ''}`)).join('');
+        .map(t => opt('p:' + linkKey(t.link), `${t.name}  (${linkKey(t.link)})${t.auto ? ' · 새 페이지' : ''}`)).join('');
     return `<option value=""${selected === '' ? ' selected' : ''}>— 연결할 곳 선택 —</option>`
         + `<optgroup label="화면 기능 (이름 고정)">${actions}</optgroup>`
         + `<optgroup label="페이지">${pages}</optgroup>`
-        + `<optgroup label="기타">${opt(MENU_CUSTOM, '✏️ 직접 입력 (외부 주소 등)')}</optgroup>`;
+        + `<optgroup label="기타">${opt(MENU_CUSTOM, '직접 입력 (외부 주소 등)')}</optgroup>`;
 }
 
 // 메뉴 한 줄. 렌더링(저장본)과 '+ 소분류 추가'(admin.js) 가 같은 모양을 쓰도록 하나로 둔다.
@@ -685,7 +685,7 @@ export function menuItemRowHtml(item = {}) {
     const isBuiltin = BUILTIN_MENU_ITEMS.some(b => linkKey(item.link) === b.link);
     const builtinTitle = '코드로 추가된 메뉴라 지우거나 연결을 바꿔도 다시 생깁니다. 숨기려면 권한 관리에서 접근을 해제하세요.';
     return `
-            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group shadow-sm">
+            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group">
                 <div class="flex items-center gap-3 flex-grow flex-wrap min-w-0">
                     <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
                     <input type="text" value="${escAttr(item.name)}" ${isAction ? 'readonly title="화면 기능은 이름이 정해져 있습니다(바꾸면 메뉴가 열리지 않습니다)"' : ''} class="menu-item-name flex-grow min-w-[8rem] p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none ${isAction ? 'text-gray-500 dark:text-gray-400 cursor-not-allowed' : ''}" placeholder="메뉴 이름">
@@ -781,7 +781,7 @@ export function renderDashboardMenu(menuConfig) {
 
     (menuConfig || []).forEach((menuGroup, index) => {
         const groupEl = document.createElement('div');
-        groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm menu-category-card transition-colors drop-zone';
+        groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 menu-category-card transition-colors drop-zone';
         groupEl.dataset.index = index;
 
         const itemsHtml = (menuGroup.items || []).map(item => menuItemRowHtml(item)).join('');
@@ -798,7 +798,7 @@ export function renderDashboardMenu(menuConfig) {
             <div class="space-y-2 menu-items-container min-h-[60px] p-2 -mx-2 rounded-lg border-2 border-transparent border-dashed hover:border-gray-300 dark:hover:border-gray-600 transition-colors">${itemsHtml}</div>
             
             <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition shadow-sm add-menu-item-btn" type="button">+ 소분류 추가</button>
+                <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition add-menu-item-btn" type="button">+ 소분류 추가</button>
             </div>
         `;
         container.appendChild(groupEl);

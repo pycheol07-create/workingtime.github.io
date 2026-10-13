@@ -1,5 +1,5 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610131709';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610140834';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -16,12 +16,12 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610131709';
+} from './admin-ui.js?v=202610140834';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202610131709';
+} from './admin-logic.js?v=202610140834';
 
 let db, auth;
 let appConfig = {};
@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     if (adminContent) {
-                         adminContent.innerHTML = `<div class="flex justify-center items-center h-full mt-20"><div class="text-center bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700"><span class="text-4xl mb-4 block">🚫</span><h2 class="text-xl font-bold text-gray-800 dark:text-white mb-2">접근 권한이 없습니다</h2><p class="text-gray-500 dark:text-gray-400 text-sm">관리자 계정으로 로그인해주세요.</p></div></div>`;
+                         adminContent.innerHTML = `<div class="flex justify-center items-center h-full mt-20"><div class="text-center bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700"><h2 class="text-xl font-bold text-gray-800 dark:text-white mb-2">접근 권한이 없습니다</h2><p class="text-gray-500 dark:text-gray-400 text-sm">관리자 계정으로 로그인해주세요.</p></div></div>`;
                          adminContent.classList.remove('hidden');
                     }
                 }
@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
              if (adminContent) {
-                adminContent.innerHTML = `<div class="flex justify-center items-center h-full mt-20"><div class="text-center bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700"><span class="text-4xl mb-4 block">🔒</span><h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">로그인이 필요합니다</h2><a href="index.html" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">메인 앱으로 이동</a></div></div>`;
+                adminContent.innerHTML = `<div class="flex justify-center items-center h-full mt-20"><div class="text-center bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700"><h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">로그인이 필요합니다</h2><a href="index.html" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">메인 앱으로 이동</a></div></div>`;
                 adminContent.classList.remove('hidden');
              }
         }
@@ -139,7 +139,7 @@ function setupEventListeners() {
         const container = document.getElementById('menu-categories-container');
         if (!container) return;
         const groupEl = document.createElement('div');
-        groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm menu-category-card transition-colors drop-zone';
+        groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 menu-category-card transition-colors drop-zone';
         groupEl.innerHTML = `
             <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2"> 
@@ -150,7 +150,7 @@ function setupEventListeners() {
             </div>
             <div class="space-y-2 menu-items-container min-h-[60px] p-2 -mx-2 rounded-lg border-2 border-transparent border-dashed hover:border-gray-300 dark:hover:border-gray-600 transition-colors"></div>
             <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition shadow-sm add-menu-item-btn" type="button">+ 소분류 추가</button>
+                <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition add-menu-item-btn" type="button">+ 소분류 추가</button>
             </div>
         `;
         container.appendChild(groupEl);
@@ -369,7 +369,7 @@ function addTeamGroup() {
     if (!container) return;
 
     const groupEl = document.createElement('div');
-    groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm team-group-card transition-colors';
+    groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 team-group-card transition-colors';
     groupEl.innerHTML = `
         <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
             <div class="flex items-center gap-2">
@@ -380,7 +380,7 @@ function addTeamGroup() {
         </div>
         <div class="space-y-3 members-container"></div>
         <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 text-center">
-            <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition w-full md:w-auto shadow-sm add-member-btn">+ 팀원 추가</button>
+            <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition w-full md:w-auto add-member-btn">+ 팀원 추가</button>
         </div>
     `;
     container.appendChild(groupEl);
@@ -392,7 +392,7 @@ function addTaskGroup() {
     if (!container) return;
 
     const groupEl = document.createElement('div');
-    groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm task-group-card transition-colors';
+    groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 task-group-card transition-colors';
     groupEl.innerHTML = `
          <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
             <div class="flex items-center gap-2"> 
@@ -403,7 +403,7 @@ function addTaskGroup() {
         </div>
         <div class="space-y-2 tasks-container grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2"></div>
         <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-            <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition shadow-sm add-task-btn">+ 업무 추가</button>
+            <button class="text-sm bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition add-task-btn">+ 업무 추가</button>
         </div>
     `;
     container.appendChild(groupEl);
@@ -443,7 +443,7 @@ function handleDynamicClicks(e) {
             const dateInput = item.querySelector('.member-resign-date');
             if (dateInput) dateInput.value = '';
             item.classList.add('ring-2', 'ring-green-400');
-            e.target.textContent = '↩️ 복귀 예정 (저장하세요)';
+            e.target.textContent = '복귀 예정 (저장하세요)';
             e.target.disabled = true;
         }
     }
@@ -511,7 +511,7 @@ function handleDynamicClicks(e) {
         const container = e.target.closest('.team-group-card').querySelector('.members-container');
         const defaultWage = document.getElementById('default-part-timer-wage')?.value || 10000;
         const newMemberEl = document.createElement('div');
-        newMemberEl.className = 'flex flex-col gap-3 mb-4 p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30 shadow-sm member-item transition-colors';
+        newMemberEl.className = 'flex flex-col gap-3 mb-4 p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30 member-item transition-colors';
         
         // 로컬 기준 오늘(UTC 로 바꾸면 한국시간 오전 9시 이전에 '어제'가 된다)
         const _n = new Date();
@@ -556,14 +556,14 @@ function handleDynamicClicks(e) {
             </div>
             
             <div class="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <span class="text-xs font-bold text-blue-600 dark:text-blue-400 w-full md:w-auto mb-2 md:mb-0">🏖️ 연차 설정</span>
+                <span class="text-xs font-bold text-gray-700 dark:text-gray-300 w-full md:w-auto mb-2 md:mb-0">연차 설정</span>
                 <div class="flex flex-col">
-                    <label class="text-[9px] text-blue-600 dark:text-blue-400 mb-1">입사일자</label>
-                    <input type="date" value="${today}" class="member-join-date w-32 p-1.5 border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 rounded text-xs dark:text-gray-200">
+                    <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1">입사일자</label>
+                    <input type="date" value="${today}" class="member-join-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs dark:text-gray-200">
                 </div>
                 <div class="flex flex-col">
-                    <label class="text-[9px] text-blue-600 dark:text-blue-400 mb-1">총연차(일)</label>
-                    <input type="number" value="15" class="member-total-leave w-16 p-1.5 border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 rounded text-xs text-center dark:text-gray-200" min="0">
+                    <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1">총연차(일)</label>
+                    <input type="number" value="15" class="member-total-leave w-16 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs text-center dark:text-gray-200" min="0">
                 </div>
                 <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
                 <div class="flex flex-col">
@@ -576,7 +576,7 @@ function handleDynamicClicks(e) {
                 </div>
                 <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
                 <div class="flex flex-col">
-                    <label class="text-[9px] text-gray-700 dark:text-gray-300 mb-1 font-bold">🚪 퇴사일 (비활성)</label>
+                    <label class="text-[9px] text-gray-700 dark:text-gray-300 mb-1 font-bold">퇴사일 (비활성)</label>
                     <input type="date" value="" class="member-resign-date w-32 p-1.5 border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-800 dark:text-gray-100" title="입력하면 이 날짜 다음날부터 팀 선택·명단·집계에서 제외됩니다. 급여·과거기록은 그대로 보존됩니다.">
                 </div>
             </div>
@@ -586,7 +586,7 @@ function handleDynamicClicks(e) {
     else if (e.target.classList.contains('add-task-btn')) {
         const container = e.target.closest('.task-group-card').querySelector('.tasks-container');
         const newTaskEl = document.createElement('div');
-        newTaskEl.className = 'flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group shadow-sm';
+        newTaskEl.className = 'flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group';
         newTaskEl.innerHTML = `
             <div class="flex items-center gap-2 flex-grow">
                 <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>

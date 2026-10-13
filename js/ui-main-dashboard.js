@@ -1,9 +1,9 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610131709';
-import * as State from './state.js?v=202610131709';
-import { getRegularMembersForCount } from './utils.js?v=202610131709';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610131709';
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610131709';
+import { getAllDashboardDefinitions } from './ui.js?v=202610140834';
+import * as State from './state.js?v=202610140834';
+import { getRegularMembersForCount } from './utils.js?v=202610140834';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610140834';
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610140834';
 
 // 확장(ezadmin-bridge)이 postMessage 로 넘겨 주는 값. **폴백 전용.**
 // 확장 payload 에는 시각이 없어서(invoice·delivery 뿐) 받은 시각을 여기서 직접 찍어 둔다.
@@ -630,6 +630,7 @@ const EXTERNAL_LINK_META = [
     { match: 'worktime.html', icon: 선아이콘('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), target: 'worktime_window' }, // 출퇴근 기록표
     { match: 'china-stock-goods.html', icon: 선아이콘('<path d="M4 6h16M4 12h16M4 18h10"/>'), target: 'chinastock_window' }, // 중국제작 미발계산기
     { match: 'china-mibal2.html', icon: 선아이콘('<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7.5 15h9"/>'), target: 'chinamibal2_window' },     // 미발계산기(신규·시험) — 병행 비교용
+    { match: 'products.html', icon: 선아이콘('<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>'), target: 'products_window' }, // 상품 관리
     { match: 'scan.html',     icon: 선아이콘('<path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3M8 12h8"/>'), target: 'scan_window' },      // 입고 스캐너(미발계산기 안에서도 열림)
 ];
 
