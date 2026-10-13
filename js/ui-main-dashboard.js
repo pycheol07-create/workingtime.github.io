@@ -1,9 +1,9 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610131042';
-import * as State from './state.js?v=202610131042';
-import { getRegularMembersForCount } from './utils.js?v=202610131042';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610131042';
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610131042';
+import { getAllDashboardDefinitions } from './ui.js?v=202610131327';
+import * as State from './state.js?v=202610131327';
+import { getRegularMembersForCount } from './utils.js?v=202610131327';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610131327';
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610131327';
 
 // 확장(ezadmin-bridge)이 postMessage 로 넘겨 주는 값. **폴백 전용.**
 // 확장 payload 에는 시각이 없어서(invoice·delivery 뿐) 받은 시각을 여기서 직접 찍어 둔다.
@@ -12,7 +12,14 @@ let 확장받은때 = 0;
 const 확장_유효_분 = 5;
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
-const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'ongoing-tasks']);
+const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
+// 실시간 인원 맨 위 큰 숫자(D안). 관리자가 대시보드 항목에서 빼도 늘 보인다 — 아래 목록에서는 건너뛴다.
+const HERO_ITEMS = [
+    { key: 'working-staff', label: '업무 중', valueId: 'summary-working-staff', tone: 'is-working' },
+    { key: 'idle-staff',    label: '대기',    valueId: 'summary-idle-staff',    tone: 'is-idle' },
+    { key: 'paused-staff',  label: '휴식',    valueId: 'summary-paused-staff',  tone: 'is-paused' },
+];
+const HERO_KEYS = new Set(HERO_ITEMS.map(h => h.key));
 // 가장 최근에 계산된 상세 데이터 (호버 툴팁용)
 let lastPersonnelDetail = null;
 
@@ -29,12 +36,13 @@ const noticeScheduleLabel = (v) => {
     const day = new Date(Number(y), Number(mo) - 1, Number(d));
     const diff = Math.round((day - today) / 86400000);
 
-    let when = '', tone = 'text-red-600 dark:text-red-400';
-    if (diff < 0) { when = ` · ${-diff}일 지남`; tone = 'text-gray-400 dark:text-gray-500'; }
-    else if (diff === 0) { when = ' · 오늘'; tone = 'text-red-600 dark:text-red-400'; }
+    // 오늘 = 장미(risk), 1~7일 = 본문색, 그 뒤 = 보조색, 지남 = 흐림 (색은 css/dash-d.css)
+    let when = '', tone = 't-1';
+    if (diff < 0) { when = ` · ${-diff}일 지남`; tone = 't-3'; }
+    else if (diff === 0) { when = ' · 오늘'; tone = 't-risk'; }
     else if (diff === 1) when = ' · 내일';
     else if (diff <= 7) when = ` · ${diff}일 뒤`;
-    else tone = 'text-gray-500 dark:text-gray-400';
+    else tone = 't-2';
 
     return { text: `${Number(mo)}월 ${Number(d)}일(${wd})${time}${when}`, tone };
 };
@@ -49,7 +57,7 @@ export const renderNoticeWidget = (appState) => {
     if (countEl) countEl.textContent = notices.length;
 
     if (notices.length === 0) {
-        memoList.innerHTML = `<li class="list-none text-yellow-700/60 dark:text-yellow-500/60 text-center text-xs px-3 py-3 font-normal">등록된 중요 공지사항이 없습니다.</li>`;
+        memoList.innerHTML = `<li class="list-none t-3 text-center text-xs px-3 py-3 font-normal">등록된 중요 공지사항이 없습니다.</li>`;
         return;
     }
 
@@ -63,18 +71,18 @@ export const renderNoticeWidget = (appState) => {
 
     let html = '';
     ordered.forEach(notice => {
-        const textClass = notice.completed ? 'line-through text-yellow-700/50 dark:text-yellow-500/50' : 'text-yellow-900 dark:text-yellow-200 font-bold';
-        const icon = notice.completed ? '✅' : '📌';
+        // 완료한 공지는 취소선 + 흐림 (예전 ✅/📌 아이콘은 D안에서 뺐다)
+        const textClass = notice.completed ? 'line-through t-3' : 't-1 font-medium';
 
         const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
 
-        const mentionStyle = '<span class="inline-block bg-indigo-100/80 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50 rounded-md px-1.5 py-0 text-[10px] font-black mx-1 align-middle shadow-sm leading-tight">@$1</span>';
+        const mentionStyle = '<span class="inline-block d-mention align-baseline leading-tight">@$1</span>';
         const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, mentionStyle);
 
         const sched = noticeScheduleLabel(notice.scheduleAt);
-        const schedHtml = sched ? `<span class="block mt-1 text-xs font-bold ${sched.tone}">🗓 ${sched.text}</span>` : '';
+        const schedHtml = sched ? `<span class="block mt-1 text-xs font-semibold ${sched.tone}">${sched.text}</span>` : '';
 
-        html += `<li class="${textClass} list-none flex items-start gap-2 px-3 py-2"><span class="shrink-0 text-sm mt-0.5">${icon}</span> <span class="leading-snug break-words flex-1">${highlightedText}${schedHtml}</span></li>`;
+        html += `<li class="${textClass} list-none flex items-start gap-2 px-3 py-2"><span class="leading-snug break-words flex-1">${highlightedText}${schedHtml}</span></li>`;
     });
     memoList.innerHTML = html;
 };
@@ -143,12 +151,12 @@ export const updateEzadminDisplay = () => {
 
     const v = ezadmin표시값();
     if (v && v.invoice == null) {
-        // 사유는 아는데 숫자는 없는 상태 — 숫자 자리는 비우고 사유를 빨갛게 보여 준다.
+        // 사유는 아는데 숫자는 없는 상태 — 숫자 자리는 비우고 사유를 장미색(is-warn)으로 보여 준다.
         if (invoiceEl) { invoiceEl.textContent = '–'; invoiceEl.classList.add('opacity-50'); }
         if (deliveryEl) { deliveryEl.textContent = '–'; deliveryEl.classList.add('opacity-50'); }
         if (라벨El) {
             라벨El.textContent = v.라벨;
-            라벨El.className = 'mt-1.5 text-[10px] font-bold text-rose-500 dark:text-rose-400';
+            라벨El.className = 'ez-asof is-warn mt-1.5';
             라벨El.title = [v.사유, '앱 폴더의 이지어드민연동/로그 를 확인하세요.']
                 .filter(Boolean).join('\n');
         }
@@ -160,32 +168,23 @@ export const updateEzadminDisplay = () => {
         if (deliveryEl) deliveryEl.textContent = '–';
         if (라벨El) {
             라벨El.textContent = '연동 대기 중';
-            라벨El.className = 'mt-1.5 text-[10px] text-gray-400 dark:text-gray-500';
+            라벨El.className = 'ez-asof mt-1.5';
         }
         return;
     }
 
-    // 반짝임은 **값이 실제로 바뀔 때만.** 예전에는 메시지가 오면 무조건 반짝여서
-    // 같은 숫자로 1분마다 깜빡였다.
-    const 칠하기 = (el, n, 색) => {
+    // D안: 값이 바뀔 때 커지며 색이 번쩍이던 효과는 뺐다. 오래된 값만 흐리게 둔다.
+    const 칠하기 = (el, n) => {
         if (!el) return;
-        const 새글 = n.toLocaleString();
-        const 바뀜 = el.textContent !== 새글;
-        el.textContent = 새글;
+        el.textContent = n.toLocaleString();
         el.classList.toggle('opacity-50', !!v.흐림);
-        if (바뀜) {
-            el.classList.add('scale-125', 색);
-            setTimeout(() => el.classList.remove('scale-125', 색), 500);
-        }
     };
-    칠하기(invoiceEl, v.invoice, 'text-orange-500');
-    칠하기(deliveryEl, v.delivery, 'text-purple-500');
+    칠하기(invoiceEl, v.invoice);
+    칠하기(deliveryEl, v.delivery);
 
     if (라벨El) {
         라벨El.textContent = v.라벨;
-        라벨El.className = 'mt-1.5 text-[10px] ' + (v.흐림
-            ? 'font-bold text-rose-500 dark:text-rose-400'
-            : 'text-gray-400 dark:text-gray-500');
+        라벨El.className = 'ez-asof mt-1.5' + (v.흐림 ? ' is-warn' : '');
         const 도움 = [v.사유, '숫자는 마지막으로 읽은 값입니다.',
                      '앱 폴더의 이지어드민연동/로그 를 확인하세요.'].filter(Boolean);
         라벨El.title = v.흐림 ? 도움.join('\n') : '';
@@ -204,7 +203,17 @@ export const renderDashboardLayout = (appConfig) => {
     const itemIds = appConfig.dashboardItems || [];
     const allDefinitions = getAllDashboardDefinitions(appConfig);
 
-    let personnelHtml = '';
+    // 큰 숫자(업무 중·대기·휴식) — 누르면 아래에 명단이 펼쳐진다(상세 칸은 data-detail-content 로 찾는다)
+    let personnelHtml = `
+        <div class="d-hero">
+            ${HERO_ITEMS.map(h => `
+            <div class="personnel-row d-hero-item ${h.tone}" data-detail-key="${h.key}">
+                <div class="d-hero-label">${h.label}</div>
+                <div id="${h.valueId}" class="d-hero-num">0</div>
+            </div>`).join('')}
+        </div>
+        ${HERO_ITEMS.map(h => `<div class="personnel-detail hidden" data-detail-content="${h.key}"></div>`).join('')}
+    `;
     let workloadHtml = '';
 
     itemIds.forEach(id => {
@@ -212,30 +221,32 @@ export const renderDashboardLayout = (appConfig) => {
         if (!def) return;
 
         const isQuantity = def.isQuantity === true;
-        const safeTitle = def.title.replace(/ /g, '&nbsp;'); 
+        if (!isQuantity && HERO_KEYS.has(id)) return;   // 위 큰 숫자로 이미 보인다
+        // 라벨-값 한 줄 목록이라 제목 안의 줄바꿈(<br>)은 띄어쓰기로 편다
+        const safeTitle = def.title.replace(/<br\s*\/?>/gi, ' ').replace(/ /g, '&nbsp;');
 
         if (isQuantity) {
             workloadHtml += `
-                <div class="flex justify-between items-center py-2 border-b border-blue-50 dark:border-blue-900/50 last:border-0 hover:bg-blue-50/50 dark:hover:bg-blue-900/30 transition-colors px-2 rounded gap-2 overflow-hidden">
-                    <span class="text-sm font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap shrink-0 break-keep tracking-tight">${safeTitle}</span>
-                    <span id="${def.valueId}" class="text-sm font-extrabold text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-md shadow-sm border border-blue-100 dark:border-blue-800 transition-all shrink-0">0</span>
+                <div class="d-kv d-kv-lg overflow-hidden">
+                    <span class="d-kv-label whitespace-nowrap shrink-0 break-keep">${safeTitle}</span>
+                    <span id="${def.valueId}" class="d-kv-val shrink-0">0</span>
                 </div>
             `;
         } else if (EXPANDABLE_ITEMS.has(id)) {
             personnelHtml += `
-                <div class="personnel-row py-2 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors px-2 rounded cursor-pointer select-none" data-detail-key="${id}">
-                    <div class="flex justify-between items-center gap-2 overflow-hidden">
-                        <span class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap shrink-0 break-keep tracking-tight">${safeTitle}</span>
-                        <span id="${def.valueId}" class="text-sm font-extrabold text-gray-800 dark:text-gray-200 transition-all shrink-0">0</span>
+                <div class="personnel-row d-kv is-x select-none" data-detail-key="${id}">
+                    <div class="d-kv-line">
+                        <span class="d-kv-label whitespace-nowrap shrink-0 break-keep">${safeTitle}</span>
+                        <span id="${def.valueId}" class="d-kv-val shrink-0">0</span>
                     </div>
-                    <div class="personnel-detail hidden mt-1.5 pl-2 border-l-2 border-blue-400 dark:border-blue-500" data-detail-content="${id}"></div>
+                    <div class="personnel-detail hidden" data-detail-content="${id}"></div>
                 </div>
             `;
         } else {
             personnelHtml += `
-                <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors px-2 rounded gap-2 overflow-hidden">
-                    <span class="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap shrink-0 break-keep tracking-tight">${safeTitle}</span>
-                    <span id="${def.valueId}" class="text-sm font-extrabold text-gray-800 dark:text-gray-200 transition-all shrink-0">0</span>
+                <div class="d-kv overflow-hidden">
+                    <span class="d-kv-label whitespace-nowrap shrink-0 break-keep">${safeTitle}</span>
+                    <span id="${def.valueId}" class="d-kv-val shrink-0">0</span>
                 </div>
             `;
         }
@@ -245,21 +256,13 @@ export const renderDashboardLayout = (appConfig) => {
     // (0 을 먼저 그리면 '송장 0건' 처럼 보인다)
 
     workloadHtml += `
-        <div class="mt-4 p-3 border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl shadow-sm">
-            <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-2.5 flex items-center gap-1">
-                <span>🚚</span> 이지어드민 연동
+        <div class="d-sub mt-3 px-4 py-3">
+            <div class="text-[13px] font-semibold t-1">이지어드민 연동</div>
+            <div class="flex flex-wrap gap-x-6 gap-y-1 mt-2 text-sm">
+                <span class="whitespace-nowrap"><span class="t-2">송장</span> <span id="ezadmin-invoice-count" class="ez-num">–</span></span>
+                <span class="whitespace-nowrap"><span class="t-2">배송</span> <span id="ezadmin-delivery-count" class="ez-num">–</span></span>
             </div>
-            <div class="flex gap-2">
-                <div class="flex-1 flex justify-between items-center bg-orange-50 dark:bg-orange-900/20 px-2.5 py-2 rounded-lg border border-orange-100 dark:border-orange-800/50 transition-colors shadow-sm">
-                    <span class="text-xs font-extrabold text-orange-600 dark:text-orange-400 break-keep">송장</span>
-                    <span id="ezadmin-invoice-count" class="text-sm font-black text-orange-700 dark:text-orange-300 transition-all duration-300">–</span>
-                </div>
-                <div class="flex-1 flex justify-between items-center bg-purple-50 dark:bg-purple-900/20 px-2.5 py-2 rounded-lg border border-purple-100 dark:border-purple-800/50 transition-colors shadow-sm">
-                    <span class="text-xs font-extrabold text-purple-600 dark:text-purple-400 break-keep">배송</span>
-                    <span id="ezadmin-delivery-count" class="text-sm font-black text-purple-700 dark:text-purple-300 transition-all duration-300">–</span>
-                </div>
-            </div>
-            <div id="ezadmin-asof" class="mt-1.5 text-[10px] text-gray-400 dark:text-gray-500"></div>
+            <div id="ezadmin-asof" class="ez-asof mt-1.5"></div>
         </div>
     `;
 
@@ -340,6 +343,9 @@ export const updateSummary = (appState, appConfig) => {
     if (elements['working-staff']) elements['working-staff'].textContent = `${totalWorkingCount}`;
     if (elements['idle-staff']) elements['idle-staff'].textContent = `${totalIdleCount}`;
     if (elements['ongoing-tasks']) elements['ongoing-tasks'].textContent = `${ongoingTaskCount}`;
+    // 휴식(일시정지) 인원 — 대시보드 항목 정의에는 없고 인원 큰 숫자에만 있다
+    const pausedEl = document.getElementById('summary-paused-staff');
+    if (pausedEl) pausedEl.textContent = `${pausedStaffCount + pausedPartTimerCount}`;
 
     const quantitiesFromState = appState.taskQuantities || {};
     const quantityStatuses = appState.taskQuantityStatuses || {};
@@ -353,13 +359,13 @@ export const updateSummary = (appState, appConfig) => {
             const el = elements[targetDashboardId];
             el.textContent = quantity;
 
-            el.classList.remove('quantity-estimated', 'quantity-confirmed', 'text-red-500', 'text-green-500');
+            el.classList.remove('quantity-estimated', 'quantity-confirmed', 'text-red-500', 'text-green-500', 'q-est', 'q-ok');
 
             const status = quantityStatuses[task];
             if (status === 'estimated') {
-                el.classList.add('text-red-500'); 
+                el.classList.add('q-est');   // 예상(미확정) — 색은 css/dash-d.css
             } else if (status === 'confirmed') {
-                el.classList.add('text-green-500'); 
+                el.classList.add('q-ok');    // 확정
             }
         }
     }
@@ -376,6 +382,18 @@ export const updateSummary = (appState, appConfig) => {
 // ───────────────────────────────────────────────────────────
 // 실시간 인원 현황 상세(펼침/툴팁)
 // ───────────────────────────────────────────────────────────
+// 기록 목록에서 조건에 맞는 인원을 한 번씩만 뽑는다(인원별 첫 업무), 업무명·이름순
+const pickMembers = (records, pred) => {
+    const seen = new Set();
+    const out = [];
+    records.forEach(r => {
+        if (!pred(r) || seen.has(r.member)) return;
+        seen.add(r.member);
+        out.push({ member: r.member, task: r.task || '-', paused: false });
+    });
+    return out.sort((a, b) => (a.task || '').localeCompare(b.task || '') || a.member.localeCompare(b.member));
+};
+
 const buildPersonnelDetailData = (appState, appConfig) => {
     const allStaffMembers = getRegularMembersForCount(appConfig);
     const allPartTimers = new Set((appState.partTimers || []).map(p => p.name));
@@ -437,40 +455,43 @@ const buildPersonnelDetailData = (appState, appConfig) => {
     return {
         'leave-staff': leaveDetail,
         'idle-staff': idleDetail,
-        'working-staff': workingDetail,
+        // 큰 숫자(updateSummary)와 같은 기준: 업무 중 = ongoing 기록이 있는 인원, 휴식 = paused 기록이 있는 직원·알바
+        'working-staff': pickMembers(workingRecords, r => r.status === 'ongoing'),
+        'paused-staff': pickMembers(workingRecords, r => r.status === 'paused' && (allStaffMembers.has(r.member) || allPartTimers.has(r.member)))
+            .map(w => ({ ...w, paused: true })),
         'ongoing-tasks': ongoingTasksDetail
     };
 };
 
 const renderDetailListHtml = (key, items) => {
     if (!items || items.length === 0) {
-        return '<div class="text-xs text-gray-400 dark:text-gray-500 italic py-1">해당 인원 없음</div>';
+        return '<div class="text-xs t-3 italic py-1">해당 인원 없음</div>';
     }
     if (key === 'leave-staff') {
         return '<div class="flex flex-wrap gap-1 py-1">' + items.map(it =>
-            `<span class="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-[11px] px-1.5 py-0.5 rounded">
-                <strong>${it.member}</strong><span class="text-[9px] text-gray-500 dark:text-gray-400">${it.type}</span>
+            `<span class="inline-flex items-center gap-1 d-chip text-[11px] px-1.5 py-0.5">
+                <strong class="font-semibold">${it.member}</strong><span class="text-[10px] t-2">${it.type}</span>
              </span>`
         ).join('') + '</div>';
     }
     if (key === 'idle-staff') {
         return '<div class="flex flex-wrap gap-1 py-1">' + items.map(name =>
-            `<span class="inline-flex bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-[11px] px-1.5 py-0.5 rounded">${name}</span>`
+            `<span class="inline-flex d-chip text-[11px] px-1.5 py-0.5">${name}</span>`
         ).join('') + '</div>';
     }
-    if (key === 'working-staff') {
+    if (key === 'working-staff' || key === 'paused-staff') {
         return '<div class="space-y-0.5 py-1">' + items.map(it =>
-            `<div class="flex items-center justify-between text-[11px] gap-2 ${it.paused ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-700 dark:text-gray-300'}">
+            `<div class="flex items-center justify-between text-[11px] gap-2 ${it.paused ? 't-warn' : 't-1'}">
                 <span class="font-medium shrink-0">${it.member}</span>
-                <span class="text-[10px] text-gray-500 dark:text-gray-400 truncate">${it.task}${it.paused ? ' (휴식)' : ''}</span>
+                <span class="text-[10px] t-2 truncate">${it.task}${it.paused ? ' (휴식)' : ''}</span>
              </div>`
         ).join('') + '</div>';
     }
     if (key === 'ongoing-tasks') {
         return '<div class="space-y-0.5 py-1">' + items.map(it =>
-            `<div class="flex items-center justify-between text-[11px] gap-2 text-gray-700 dark:text-gray-300">
+            `<div class="flex items-center justify-between text-[11px] gap-2 t-1">
                 <span class="font-medium truncate">${it.task}</span>
-                <span class="text-[10px] text-gray-500 dark:text-gray-400 shrink-0">${it.count}명${it.paused > 0 ? ` <span class="text-yellow-700 dark:text-yellow-400">(${it.paused}명 휴식)</span>` : ''}</span>
+                <span class="text-[10px] t-2 shrink-0">${it.count}명${it.paused > 0 ? ` <span class="t-warn">(${it.paused}명 휴식)</span>` : ''}</span>
              </div>`
         ).join('') + '</div>';
     }
@@ -487,9 +508,9 @@ const paintPersonnelDetailContainers = (data) => {
 
 const buildTooltipHtml = (key) => {
     const items = lastPersonnelDetail && lastPersonnelDetail[key];
-    const title = { 'leave-staff': '📋 휴무 인원', 'idle-staff': '⏸️ 대기 인원', 'working-staff': '🏃 진행 인력', 'ongoing-tasks': '📋 진행 업무' }[key] || '';
-    const header = `<div class="font-bold text-yellow-300 mb-1.5">${title}</div>`;
-    const footer = '<div class="text-[10px] text-gray-400 mt-2 italic">💡 클릭으로 고정</div>';
+    const title = { 'leave-staff': '휴무 인원', 'idle-staff': '대기 인원', 'working-staff': '진행 인력', 'paused-staff': '휴식 인원', 'ongoing-tasks': '진행 업무' }[key] || '';
+    const header = `<div class="font-semibold text-white mb-1.5">${title}</div>`;
+    const footer = '<div class="text-[10px] text-gray-400 mt-2">클릭으로 고정</div>';
     if (!items || items.length === 0) {
         return header + '<div class="text-gray-300">해당 인원 없음</div>' + footer;
     }
@@ -498,7 +519,7 @@ const buildTooltipHtml = (key) => {
         body = items.map(it => `<div>${it.member} <span class="text-gray-400">(${it.type})</span></div>`).join('');
     } else if (key === 'idle-staff') {
         body = items.map(n => `<div>${n}</div>`).join('');
-    } else if (key === 'working-staff') {
+    } else if (key === 'working-staff' || key === 'paused-staff') {
         body = items.map(it => `<div>${it.member} <span class="text-gray-400">— ${it.task}${it.paused ? ' (휴식)' : ''}</span></div>`).join('');
     } else if (key === 'ongoing-tasks') {
         body = items.map(it => `<div>${it.task} <span class="text-gray-400">— ${it.count}명${it.paused > 0 ? ` (${it.paused}명 휴식)` : ''}</span></div>`).join('');
@@ -528,7 +549,8 @@ const setupPersonnelInteractions = () => {
     if (!tooltipEl) {
         tooltipEl = document.createElement('div');
         tooltipEl.id = 'personnel-hover-tooltip';
-        tooltipEl.className = 'fixed pointer-events-none z-[200] bg-gray-900 text-white text-xs rounded-lg shadow-xl p-3 max-w-xs leading-relaxed hidden';
+        // 배경색은 css/dash-d.css 의 #personnel-hover-tooltip
+        tooltipEl.className = 'fixed pointer-events-none z-[200] text-white text-xs rounded-lg shadow-xl p-3 max-w-xs leading-relaxed hidden';
         document.body.appendChild(tooltipEl);
     }
 
@@ -564,17 +586,18 @@ const setupPersonnelInteractions = () => {
     container.addEventListener('click', (e) => {
         const row = e.target.closest('.personnel-row[data-detail-key]');
         if (!row) return;
-        const detailEl = row.querySelector('.personnel-detail');
+        // 큰 숫자(히어로)는 상세 칸이 행 밖(히어로 아래)에 있어 키로 찾는다
+        const detailEl = container.querySelector(`[data-detail-content="${row.dataset.detailKey}"]`);
         if (!detailEl) return;
         const isExpanded = row.dataset.expanded === 'true';
         if (isExpanded) {
             row.dataset.expanded = 'false';
             detailEl.classList.add('hidden');
-            row.classList.remove('bg-blue-50/40', 'dark:bg-blue-900/20');
+            row.classList.remove('is-open');
         } else {
             row.dataset.expanded = 'true';
             detailEl.classList.remove('hidden');
-            row.classList.add('bg-blue-50/40', 'dark:bg-blue-900/20');
+            row.classList.add('is-open');
             hideTooltip();
         }
     });
@@ -595,16 +618,19 @@ window.addEventListener('message', (event) => {
 // 외부 페이지(별도 창으로 열려야 하는 링크)별 아이콘 + 창 타겟 매핑.
 // 관리자 페이지에서 메뉴 이름을 다르게 등록해도 '링크' 기준으로 적용되므로
 // 항상 페이지에 맞는 아이콘이 표시되고, 같은 named target으로 별도 창에서 열린다.
+// 아이콘은 선 SVG(D안) — 메뉴 이름은 아이콘 span 밖의 텍스트 노드로 둔다(이름으로 메뉴를 찾음).
+const 선아이콘 = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON_LINK = 선아이콘('<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>');
 const EXTERNAL_LINK_META = [
-    { match: 'manual.html',   icon: '📖', target: '_blank' },          // 업무 매뉴얼
-    { match: 'calculator/',   icon: '🧾', target: 'calculator_window' }, // 통합 계산기(통관·수입·배송비·창고비) — 별도 탭
-    { match: 'location.html', icon: '📍', target: 'location_window' }, // 로케이션 관리
-    { match: 'supplies.html', icon: '📦', target: 'supplies_window' }, // 비품 관리
-    { match: 'admin.html',    icon: '⚙️', target: 'admin_window' },    // 관리자 페이지
-    { match: 'worktime.html', icon: '🕘', target: 'worktime_window' }, // 출퇴근 기록표
-    { match: 'china-stock-goods.html', icon: '🧮', target: 'chinastock_window' }, // 중국제작 미발계산기
-    { match: 'china-mibal2.html', icon: '🧪', target: 'chinamibal2_window' },     // 미발계산기(신규·시험) — 병행 비교용
-    { match: 'scan.html',     icon: '📷', target: 'scan_window' },      // 입고 스캐너(미발계산기 안에서도 열림)
+    { match: 'manual.html',   icon: 선아이콘('<path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/>'), target: '_blank' },          // 업무 매뉴얼
+    { match: 'calculator/',   icon: 선아이콘('<rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 7h6M9 12h1M14 12h1M9 16h1M14 16h1"/>'), target: 'calculator_window' }, // 통합 계산기(통관·수입·배송비·창고비) — 별도 탭
+    { match: 'location.html', icon: 선아이콘('<path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'), target: 'location_window' }, // 로케이션 관리
+    { match: 'supplies.html', icon: 선아이콘('<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/>'), target: 'supplies_window' }, // 비품 관리
+    { match: 'admin.html',    icon: 선아이콘('<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'), target: 'admin_window' },    // 관리자 페이지
+    { match: 'worktime.html', icon: 선아이콘('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), target: 'worktime_window' }, // 출퇴근 기록표
+    { match: 'china-stock-goods.html', icon: 선아이콘('<path d="M4 6h16M4 12h16M4 18h10"/>'), target: 'chinastock_window' }, // 중국제작 미발계산기
+    { match: 'china-mibal2.html', icon: 선아이콘('<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7.5 15h9"/>'), target: 'chinamibal2_window' },     // 미발계산기(신규·시험) — 병행 비교용
+    { match: 'scan.html',     icon: 선아이콘('<path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3M8 12h8"/>'), target: 'scan_window' },      // 입고 스캐너(미발계산기 안에서도 열림)
 ];
 
 // 신규·폐기 메뉴 보정은 js/menu-catalog.js 로 옮겼다.
@@ -676,14 +702,14 @@ export const applyDynamicSidebar = (appConfig) => {
 
         if (pcNav) {
             const pcCat = document.createElement('div');
-            pcCat.className = `text-[12.5px] font-extrabold text-gray-700 dark:text-gray-200 tracking-wider mb-2 ml-2 pl-2 border-l-[3px] border-blue-500 dark:border-blue-400 leading-4 ${index > 0 ? 'mt-6' : ''}`;
+            pcCat.className = 'd-nav-cat';   // 첫 대분류의 윗여백은 css(:first-child)가 줄인다
             pcCat.textContent = group.category;
             pcNav.appendChild(pcCat);
         }
 
         if (mobileNav) {
             const mobCat = document.createElement('div');
-            mobCat.className = `px-5 py-2 text-[13px] font-extrabold text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/50 border-l-[3px] border-blue-500 dark:border-blue-400 ${index > 0 ? 'mt-2' : ''}`;
+            mobCat.className = 'd-nav-cat';
             mobCat.textContent = group.category;
             if (logoutBtn) mobileNav.insertBefore(mobCat, logoutBtn);
             else mobileNav.appendChild(mobCat);
@@ -700,14 +726,14 @@ export const applyDynamicSidebar = (appConfig) => {
                         pcEl.href = item.link;
                         if (meta) pcEl.target = meta.target; // 별도 창 / 새 탭
                     }
-                    if (meta) { const ic = pcEl.querySelector('span'); if (ic) ic.textContent = meta.icon; }
+                    if (meta) { const ic = pcEl.querySelector('span'); if (ic) ic.innerHTML = meta.icon; }
                     pcNav.appendChild(pcEl);
                 } else {
                     const newPc = document.createElement('a');
                     newPc.href = item.link || '#';
                     if (meta) newPc.target = meta.target; // 별도 창 / 새 탭
-                    newPc.className = "w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition";
-                    newPc.innerHTML = `<span class="text-lg">${meta ? meta.icon : '🔗'}</span> ${item.name}`;
+                    newPc.className = "d-nav-item w-full flex items-center gap-3";
+                    newPc.innerHTML = `<span class="d-ico">${meta ? meta.icon : ICON_LINK}</span> ${item.name}`;
                     pcNav.appendChild(newPc);
                 }
             }
@@ -719,15 +745,15 @@ export const applyDynamicSidebar = (appConfig) => {
                         mobEl.href = item.link;
                         if (meta) mobEl.target = meta.target; // 별도 창 / 새 탭
                     }
-                    if (meta) { const ic = mobEl.querySelector('span'); if (ic) ic.textContent = meta.icon; }
+                    if (meta) { const ic = mobEl.querySelector('span'); if (ic) ic.innerHTML = meta.icon; }
                     if (logoutBtn) mobileNav.insertBefore(mobEl, logoutBtn);
                     else mobileNav.appendChild(mobEl);
                 } else {
                     const newMob = document.createElement('a');
                     newMob.href = item.link || '#';
                     if (meta) newMob.target = meta.target; // 별도 창 / 새 탭
-                    newMob.className = "text-left px-5 py-4 border-b dark:border-gray-700 text-sm font-medium dark:text-gray-200 flex items-center gap-2";
-                    newMob.innerHTML = `<span class="text-lg">${meta ? meta.icon : '🔗'}</span> ${item.name}`;
+                    newMob.className = "d-nav-item flex items-center gap-2";
+                    newMob.innerHTML = `<span class="d-ico">${meta ? meta.icon : ICON_LINK}</span> ${item.name}`;
                     if (logoutBtn) mobileNav.insertBefore(newMob, logoutBtn);
                     else mobileNav.appendChild(newMob);
                 }

@@ -3,10 +3,10 @@
 //   낮에는 아무도 데이터관리 창을 열지 않는다 — 계획 대비 얼마나 왔는지,
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
-import * as State from './state.js?v=202610131042';
-import { formatHM } from './utils.js?v=202610131042';
-import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory } from './ui-history-prediction.js?v=202610131042';
-import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610131042';
+import * as State from './state.js?v=202610131327';
+import { formatHM } from './utils.js?v=202610131327';
+import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory } from './ui-history-prediction.js?v=202610131327';
+import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610131327';
 
 const EL = 'today-progress-strip';
 let timer = null;
@@ -24,11 +24,12 @@ const waitForAuth = async (timeoutMs = 90000) => {
 const fmtHM = formatHM;   // 정의는 utils.js 한 곳에
 const fmtMin = (m) => fmtHM((Number(m) || 0) / 60);
 
+// 막대는 늘 accent(css/dash-d.css 의 tp-bar). 종료 예상 글자색만 정시 대비로 바꾼다.
 const tones = (diffMin) => {
-    if (diffMin == null) return { text: 'text-gray-500 dark:text-gray-400', bar: 'bg-gray-400' };
-    if (diffMin <= 0)    return { text: 'text-emerald-600 dark:text-emerald-400', bar: 'bg-emerald-500' };
-    if (diffMin <= 30)   return { text: 'text-amber-600 dark:text-amber-400', bar: 'bg-amber-500' };
-    return { text: 'text-rose-600 dark:text-rose-400', bar: 'bg-rose-500' };
+    if (diffMin == null) return { text: 't-2' };
+    if (diffMin <= 0)    return { text: 't-ok' };
+    if (diffMin <= 30)   return { text: 't-warn' };
+    return { text: 't-risk' };
 };
 
 const render = () => {
@@ -49,25 +50,31 @@ const render = () => {
     const pct = Math.min(100, Math.max(0, s.pct));
 
     const right = !s.started
-        ? `<span class="text-[11px] font-bold text-gray-400 dark:text-gray-500">아직 시작된 업무 없음</span>`
+        ? `<span class="text-[13px] font-medium t-3 whitespace-nowrap">아직 시작된 업무 없음</span>`
         : s.finishText == null
-            ? `<span class="text-[11px] font-bold text-gray-400 dark:text-gray-500">투입 인원 없음</span>`
-            : `<span class="text-[11px] font-bold ${t.text} whitespace-nowrap">종료 예상 ${s.finishText}
-                 <span class="font-medium">(${s.diffMin === 0 ? '정시' : s.diffMin > 0 ? `정시 +${fmtMin(s.diffMin)}` : `정시 −${fmtMin(-s.diffMin)}`})</span>
-               </span>`;
+            ? `<span class="text-[13px] font-medium t-3 whitespace-nowrap">투입 인원 없음</span>`
+            : `<div class="shrink-0">
+                 <div class="text-[13px] t-2">종료 예상</div>
+                 <div class="text-[17px] font-semibold tabular-nums ${t.text} whitespace-nowrap mt-0.5">${s.finishText}
+                   <span class="text-[12.5px] font-medium">(${s.diffMin === 0 ? '정시' : s.diffMin > 0 ? `정시 +${fmtMin(s.diffMin)}` : `정시 −${fmtMin(-s.diffMin)}`})</span>
+                 </div>
+               </div>`;
 
     el.innerHTML = `
-        <div class="flex items-center gap-3 flex-wrap md:flex-nowrap">
-            <span class="text-sm font-bold text-gray-700 dark:text-gray-200 whitespace-nowrap">📐 오늘 진행</span>
-            <span class="text-[15px] font-extrabold tabular-nums ${t.text} whitespace-nowrap">${s.pct}%</span>
-            <div class="flex-1 min-w-[120px] h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                <div class="h-full rounded-full ${t.bar} transition-all" style="width:${pct}%"></div>
+        <div class="flex items-center gap-x-8 gap-y-3 flex-wrap md:flex-nowrap">
+            <div class="shrink-0">
+                <div class="text-[13px] t-2 whitespace-nowrap">오늘 진행</div>
+                <div class="text-[30px] font-semibold tabular-nums t-1 leading-tight whitespace-nowrap">${s.pct}%</div>
             </div>
-            <span class="text-[11px] font-medium text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap">
-                ${fmtHM(s.spentHours)} / ${fmtHM(s.planHours)} 인시${s.activeWorkers > 0 ? ` · ${s.activeWorkers}명 투입` : ''}
-            </span>
+            <div class="flex-1 min-w-[160px]">
+                <div class="tp-track"><div class="tp-bar" style="width:${pct}%"></div></div>
+                <div class="flex justify-between gap-3 mt-2 text-[12.5px] t-3 tabular-nums">
+                    <span class="whitespace-nowrap">${fmtHM(s.spentHours)} / ${fmtHM(s.planHours)} 인시${s.activeWorkers > 0 ? ` · ${s.activeWorkers}명 투입` : ''}</span>
+                    ${s.started && s.baseFinishText ? `<span class="whitespace-nowrap">정시 ${s.baseFinishText}</span>` : ''}
+                </div>
+            </div>
             ${right}
-            <span class="text-[11px] font-bold text-indigo-500 dark:text-indigo-300 whitespace-nowrap">자세히 →</span>
+            <span class="d-btn inline-block">자세히</span>
         </div>`;
     el.title = `계획 ${fmtHM(s.planHours)} 중 ${fmtHM(s.spentHours)} 소진`
              + (s.started ? `\n기준 종료 ${s.baseFinishText}` : '')

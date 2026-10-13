@@ -1,0 +1,288 @@
+/* === css/dash-d.css — 메인 대시보드(index.html) 전용 D안 (2026-10-13) ===
+   - style.css 는 history.html·scan.html·calculator 와 같이 쓰므로 건드리지 않고, 여기서 덮는다.
+   - 모든 규칙은 #dash-root 접두 — ID 명시도로 Tailwind CDN(뒤에 주입됨)의 색 클래스를 이긴다.
+   - ⚠ 여기 규칙에는 display 를 넣지 않는다. .hidden / md:flex 토글을 ID 명시도로 이겨 버려
+     접기·숨김이 깨진다. 숨김 토글이 없는 요소(d-kv·d-hero·d-live-dot·점)만 예외.
+   - 토큰 원본: location.html <style> 앞부분. 다크 토큰은 html.dark 에서 덮는다. */
+
+:root {
+    --c-bg: #F5F6F8; --c-surface: #FFFFFF; --c-surface-2: #F7F8FA; --c-track: #EEF0F4;
+    --c-line: #E6E8EC; --c-line-soft: #F0F2F5; --c-line-strong: #D6DAE0;
+    --c-text: #23272E; --c-text-2: #646B75; --c-text-3: #8A9099; --c-text-4: #CDD2D9;
+    --c-accent: #2F62C9; --c-accent-deep: #1E4699; --c-accent-mid: #7FA1E6; --c-accent-light: #C4D4F5; --c-accent-soft: #EAF0FD; --c-accent-row: #F3F6FD;
+    --c-ok: #5A9E96; --c-ok-text: #3D756F; --c-ok-soft: #E5F0EE;
+    --c-warn: #D2A266; --c-warn-text: #8A5E28; --c-warn-soft: #F4EADB; --c-warn-bg: #F9F4EC;
+    --c-risk: #C9808A; --c-risk-text: #A0525C; --c-risk-soft: #F4E3E5; --c-risk-row: #FAF4F5;
+    --r-card: 18px; --r-inner: 14px; --r-sm: 10px; --r-cell: 6px; --r-pill: 999px;
+    --sh-tab: 0 1px 2px rgba(30,40,60,.10); --sh-pop: 0 8px 24px rgba(30,40,60,.12);
+    --font-sans: 'IBM Plex Sans KR', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    /* 대시보드에서 더 쓰는 값 */
+    --c-nav: #3A4049; --c-mute: #F2F3F5; --c-dot-off: #B8BEC6; --c-warn-line: #EBDDC6;
+    --sh-center: 0 8px 24px rgba(30,40,60,.12);
+}
+html.dark {
+    --c-bg: #111418; --c-surface: #1A1E24; --c-surface-2: #20252C; --c-track: #2A3038;
+    --c-line: #2C323A; --c-line-soft: #242A31; --c-line-strong: #3A414B;
+    --c-text: #E6E8EC; --c-text-2: #A9B0BA; --c-text-3: #7D8590; --c-text-4: #4A515B;
+    --c-accent: #6E95E6; --c-accent-deep: #A9C1F2; --c-accent-mid: #4F73BF; --c-accent-light: rgba(110,149,230,.35);
+    --c-accent-soft: rgba(47,98,201,.22); --c-accent-row: rgba(47,98,201,.12);
+    --c-ok-text: #8CC9C0; --c-ok-soft: rgba(90,158,150,.18);
+    --c-warn-text: #E2BE8C; --c-warn-soft: rgba(210,162,102,.18); --c-warn-bg: rgba(210,162,102,.10);
+    --c-risk-text: #E0A3AB; --c-risk-soft: rgba(201,128,138,.18); --c-risk-row: rgba(201,128,138,.10);
+    --sh-tab: 0 1px 2px rgba(0,0,0,.40); --sh-pop: 0 8px 24px rgba(0,0,0,.50);
+    --c-nav: #C5CAD2; --c-mute: #242A31; --c-dot-off: #4A515B; --c-warn-line: rgba(210,162,102,.35);
+    --sh-center: 0 8px 24px rgba(0,0,0,.45);
+}
+
+html body { font-family: var(--font-sans); background: var(--c-bg); color: var(--c-text); }
+#dash-root { background: var(--c-bg); color: var(--c-text); }
+#dash-root main { background: transparent; }
+
+/* ── 글자색·선 도우미 (색만) ── */
+#dash-root .t-1 { color: var(--c-text); }
+#dash-root .t-2 { color: var(--c-text-2); }
+#dash-root .t-3 { color: var(--c-text-3); }
+#dash-root .t-4 { color: var(--c-text-4); }
+#dash-root .t-accent { color: var(--c-accent-deep); }
+#dash-root .t-ok { color: var(--c-ok-text); }
+#dash-root .t-warn { color: var(--c-warn-text); }
+#dash-root .t-risk { color: var(--c-risk-text); }
+#dash-root .d-line { border-color: var(--c-line-soft); }
+#dash-root .d-rule { background: var(--c-line); }
+#dash-root .d-divide > * + * { border-color: var(--c-line-soft); }
+
+/* ── 뼈대: 사이드바·상단바·모바일 메뉴 ── */
+#dash-root .d-side { background: var(--c-surface); border-right: 1px solid var(--c-line); }
+#dash-root .d-topbar { background: var(--c-surface); border-bottom: 1px solid var(--c-line); }
+#dash-root .d-menu { background: var(--c-surface); border-color: var(--c-line); box-shadow: var(--sh-pop); }
+#dash-root .d-strip { background: var(--c-surface-2); }
+#dash-root .d-sub { background: var(--c-surface-2); border-radius: var(--r-inner); }
+
+#dash-root .d-nav-cat { padding: 18px 14px 6px; font-size: 12px; font-weight: 500; color: var(--c-text-3); }
+#dash-root aside nav > .d-nav-cat:first-child { padding-top: 2px; }
+#dash-root .d-nav-item {
+    min-height: 40px; padding: 0 14px; border-radius: 20px;
+    color: var(--c-nav); font-size: 14px; font-weight: 500; text-align: left;
+    transition: background .15s, color .15s;
+}
+#dash-root .d-nav-item:hover { background: var(--c-surface-2); color: var(--c-text); }
+#dash-root .d-nav-item.is-active { background: var(--c-accent-soft); color: var(--c-accent-deep); font-weight: 600; }
+#dash-root .d-ico { width: 18px; height: 18px; flex-shrink: 0; line-height: 0; color: inherit; }
+#dash-root .d-ico svg { display: block; width: 18px; height: 18px; }
+/* 모바일 메뉴는 목록형(구분선) */
+#dash-root #nav-content .d-nav-item { min-height: 0; padding: 14px 20px; border-radius: 0; border-bottom: 1px solid var(--c-line-soft); color: var(--c-text); }
+#dash-root #nav-content .d-nav-cat { padding: 14px 20px 6px; }
+#dash-root #nav-content .d-nav-logout { color: var(--c-text-2); border-bottom: 0; }
+
+/* ── 카드 ── */
+#dash-root .d-card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); box-shadow: none; }
+#dash-root .d-card.is-link { transition: border-color .15s; }
+#dash-root .d-card.is-link:hover { border-color: var(--c-line-strong); }
+#dash-root .d-card-head { background: transparent; border-bottom: 1px solid var(--c-line-soft); color: var(--c-text); }
+#dash-root .d-card-head h3 { color: var(--c-text); font-weight: 600; }
+#dash-root .d-card-head.is-click { transition: background .15s; }
+#dash-root .d-card-head.is-click:hover { background: var(--c-surface-2); }
+#dash-root .d-box { border: 1px solid var(--c-line); border-radius: var(--r-inner); }
+#dash-root .d-box-head { background: var(--c-surface-2); color: var(--c-text); }
+#dash-root .d-box-head.is-warn { background: var(--c-warn-bg); color: var(--c-warn-text); }
+
+/* ── 버튼 ── */
+#dash-root .d-btn {
+    min-height: 32px; padding: 0 14px; line-height: 30px;
+    border: 1px solid var(--c-line-strong); border-radius: var(--r-pill);
+    background: var(--c-surface); color: var(--c-text);
+    font-size: 13px; font-weight: 500; text-align: center;
+    white-space: nowrap; flex-shrink: 0; cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+}
+#dash-root .d-btn:hover { background: var(--c-surface-2); }
+#dash-root .d-btn-sm { min-height: 26px; line-height: 24px; padding: 0 10px; font-size: 12px; }
+#dash-root .d-btn-sq { width: 32px; padding: 0; }
+#dash-root .d-btn-accent { border-color: var(--c-accent); color: var(--c-accent-deep); font-weight: 600; }
+#dash-root .d-btn-accent:hover { background: var(--c-accent-soft); }
+#dash-root .d-btn-risk { border-color: transparent; background: transparent; color: var(--c-risk-text); }
+#dash-root .d-btn-risk:hover { background: var(--c-risk-soft); }
+#dash-root .d-roundbtn {
+    width: 40px; height: 40px; padding: 0; border: 1px solid var(--c-line-strong); border-radius: var(--r-pill);
+    background: var(--c-surface); color: var(--c-text-2); transition: background .15s;
+}
+#dash-root .d-roundbtn:hover { background: var(--c-surface-2); color: var(--c-text); }
+#dash-root .d-badge { background: var(--c-risk); border-color: var(--c-surface); }
+
+/* ── 알약 ── */
+#dash-root .d-pill-accent, #dash-root .d-pill-ok, #dash-root .d-pill-warn,
+#dash-root .d-pill-risk, #dash-root .d-pill-mute, #dash-root .d-pill-home {
+    padding: 1px 10px; border-radius: var(--r-pill); font-weight: 600; line-height: 1.5; white-space: nowrap; border: 0;
+}
+#dash-root .d-pill-accent { background: var(--c-accent-soft); color: var(--c-accent-deep); }
+#dash-root .d-pill-ok { background: var(--c-ok-soft); color: var(--c-ok-text); }
+#dash-root .d-pill-warn { background: var(--c-warn-soft); color: var(--c-warn-text); }
+#dash-root .d-pill-risk { background: var(--c-risk-soft); color: var(--c-risk-text); }
+#dash-root .d-pill-mute { background: var(--c-track); color: var(--c-text-2); }
+#dash-root .d-pill-home { background: var(--c-surface-2); color: var(--c-ok-text); box-shadow: inset 0 0 0 1px var(--c-line); }
+#dash-root .d-mention { background: var(--c-accent-soft); color: var(--c-accent-deep); border-radius: var(--r-pill); padding: 0 6px; margin: 0 2px; font-size: 11px; font-weight: 600; }
+#dash-root .d-chip { background: var(--c-track); color: var(--c-text); border-radius: var(--r-cell); }
+
+/* ── 연결 상태·점 ── */
+#dash-root .d-live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 4px; background: var(--c-ok); flex-shrink: 0; }
+#dash-root .d-dot { display: inline-block; width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0; }
+#dash-root .d-dot-on { background: var(--c-accent); }
+#dash-root .d-dot-paused { background: var(--c-warn); }
+#dash-root .d-dot-idle { background: var(--c-ok); }
+#dash-root .d-dot-off { background: var(--c-dot-off); }
+
+/* ── 출퇴근 토글 (style.css 135-182 의 색만) ── */
+#dash-root .attendance-toggle { background-color: var(--c-track); border-color: var(--c-line-strong); }
+#dash-root .attendance-toggle:has(input:checked) { background-color: var(--c-ok-soft); border-color: var(--c-ok); }
+#dash-root .attendance-toggle-knob { background-color: var(--c-surface); box-shadow: 0 1px 3px rgba(30,40,60,.25); }
+#dash-root .attendance-toggle:has(input:checked) .attendance-toggle-knob { background-color: var(--c-ok); }
+#dash-root .attendance-toggle:not(:has(input:checked)) .attendance-toggle-knob { background-color: var(--c-text-3); }
+#dash-root .attendance-toggle .text-in { color: var(--c-ok-text); }
+#dash-root .attendance-toggle .text-out { color: var(--c-text-2); }
+
+/* ── 오늘 진행 띠 ── */
+#dash-root .tp-track { height: 10px; background: var(--c-track); border-radius: var(--r-pill); overflow: hidden; }
+#dash-root .tp-bar { height: 100%; background: var(--c-accent); border-radius: var(--r-pill); transition: width .3s; }
+
+/* ── 실시간 인원: 큰 숫자 + 라벨-값 행 ── */
+#dash-root .d-hero { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 8px; }
+#dash-root .d-hero-item { padding: 6px 12px; border-radius: var(--r-sm); cursor: pointer; user-select: none; transition: background .15s; }
+#dash-root .d-hero-item:hover { background: var(--c-surface-2); }
+#dash-root .d-hero-label { font-size: 13px; color: var(--c-text-2); white-space: nowrap; }
+#dash-root .d-hero-num { font-size: 30px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; color: var(--c-text); }
+#dash-root .d-hero-item.is-working .d-hero-num { color: var(--c-accent-deep); }
+#dash-root .d-hero-item.is-idle .d-hero-num { color: var(--c-ok-text); }
+#dash-root .d-hero-item.is-paused .d-hero-num { color: var(--c-warn-text); }
+
+#dash-root .d-kv { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 10px 4px; border-bottom: 1px solid var(--c-line-soft); font-size: 14px; }
+#dash-root .d-kv:last-child { border-bottom: 0; }
+#dash-root .d-kv.is-x { display: block; }
+#dash-root .d-kv-line { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; overflow: hidden; }
+#dash-root .d-kv-label { color: var(--c-text-2); }
+#dash-root .d-kv-val { color: var(--c-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+#dash-root .d-kv-lg .d-kv-val { font-size: 20px; line-height: 1.2; }
+#dash-root .d-kv-val.q-est { color: var(--c-warn-text); }
+#dash-root .d-kv-val.q-ok { color: var(--c-ok-text); }
+#dash-root .personnel-row.d-kv { cursor: pointer; transition: background .15s; }
+#dash-root .personnel-row.d-kv:hover { background: var(--c-surface-2); }
+#dash-root .personnel-row.is-open, #dash-root .personnel-row.is-open:hover { background: var(--c-accent-row); }
+#dash-root .personnel-detail { margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--c-accent); }
+#dash-root #summary-personnel > .personnel-detail { margin: 0 0 8px 4px; }
+#dash-root .ez-asof { font-size: 11px; color: var(--c-text-3); }
+#dash-root .ez-asof.is-warn { color: var(--c-risk-text); font-weight: 600; }
+#dash-root .ez-num { color: var(--c-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* body 에 붙는 툴팁 */
+#personnel-hover-tooltip { background: #23272E; color: #FFFFFF; }
+html.dark #personnel-hover-tooltip { background: #2A3038; box-shadow: 0 0 0 1px #3A414B, 0 8px 24px rgba(0,0,0,.5); }
+
+/* ── 일정·공지 ── */
+#dash-root .inc-row { color: var(--c-text); }
+
+/* ── 업무 현황: 롤링 구조는 그대로, 색·그림자만 (style.css 495-568) ── */
+#dash-root .task-row-label { color: var(--c-text-3); }
+#dash-root .task-row-empty { color: var(--c-text-3); }
+#dash-root .task-coverflow > .cf-card { box-shadow: none; }
+#dash-root .task-coverflow > .cf-card.is-center { box-shadow: var(--sh-center); }
+#dash-root .task-carousel-arrow { background: var(--c-surface); color: var(--c-text-2); box-shadow: none; border: 1px solid var(--c-line-strong); }
+#dash-root .task-carousel-arrow:hover { background: var(--c-surface-2); color: var(--c-text); }
+#dash-root .task-cf-dot { background: var(--c-line-strong); }
+#dash-root .task-cf-dot.on { background: var(--c-accent); }
+#dash-root .task-quick-list { border-left-color: var(--c-line); }
+#dash-root .task-quick-title { color: var(--c-text-3); }
+#dash-root .task-quick-title-second { border-top-color: var(--c-line); }
+#dash-root .task-quick-empty { color: var(--c-text-3); border-color: var(--c-line); }
+#dash-root .task-quick-card { background: var(--c-surface); border-color: var(--c-line); }
+#dash-root .task-quick-card:hover { background: var(--c-surface-2); border-color: var(--c-accent-mid); }
+#dash-root .task-quick-name { color: var(--c-text); }
+#dash-root .task-quick-dot.is-on { background: var(--c-accent); box-shadow: none; }
+#dash-root .task-quick-dot.is-paused { background: var(--c-warn); box-shadow: none; }
+#dash-root .task-quick-badge { color: var(--c-accent-deep); background: var(--c-accent-soft); }
+#dash-root .task-quick-other .task-quick-name, #dash-root .task-quick-plus { color: var(--c-text-2); }
+
+/* 진행 카드 */
+#dash-root .d-card-inner { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: 16px; }
+#dash-root .d-card-inner.is-paused { background: var(--c-warn-bg); border-color: var(--c-warn-line); }
+#dash-root .tc-head { background: transparent; border-bottom: 1px solid var(--c-line-soft); }
+#dash-root .d-card-inner.is-paused .tc-head, #dash-root .d-card-inner.is-paused .d-line { border-color: var(--c-warn-line); }
+#dash-root .tc-title { color: var(--c-text); font-weight: 600; }
+#dash-root .tc-time { color: var(--c-text-2); font-weight: 500; }
+#dash-root .tc-head.is-on .ongoing-duration { color: var(--c-accent-deep); font-weight: 600; }
+#dash-root .tc-head.is-paused .ongoing-duration { color: var(--c-warn-text); font-weight: 600; }
+#dash-root .tc-member { border-radius: var(--r-sm); transition: background .15s; }
+#dash-root .tc-member:hover { background: var(--c-surface-2); }
+#dash-root .d-card-inner.is-paused .tc-member:hover { background: var(--c-surface); }
+#dash-root .tc-name { color: var(--c-text); font-weight: 600; }
+#dash-root .tc-sub { color: var(--c-text-3); }
+#dash-root .d-icobtn { border: 1px solid var(--c-line); border-radius: var(--r-pill); background: var(--c-surface); color: var(--c-text-2); transition: background .15s, color .15s; }
+#dash-root .d-icobtn:hover { background: var(--c-surface-2); color: var(--c-text); }
+#dash-root .d-icobtn.accent { color: var(--c-accent-deep); }
+#dash-root .d-icobtn.accent:hover { background: var(--c-accent-soft); }
+#dash-root .d-icobtn.warn { color: var(--c-warn-text); }
+#dash-root .d-icobtn.warn:hover { background: var(--c-warn-soft); }
+#dash-root .d-icobtn.risk { color: var(--c-risk-text); }
+#dash-root .d-icobtn.risk:hover { background: var(--c-risk-soft); }
+/* 빈 카드(업무 시작) · 기타 업무 */
+#dash-root .tc-empty { background: var(--c-surface-2); border: 1.5px dashed var(--c-line-strong); border-radius: 16px; color: var(--c-text-2); transition: border-color .15s; }
+#dash-root .tc-empty:hover { border-color: var(--c-accent-mid); }
+#dash-root .tc-plus { background: var(--c-surface); border: 1px solid var(--c-line-strong); color: var(--c-text-3); transition: color .15s, border-color .15s; }
+#dash-root .tc-empty:hover .tc-plus { color: var(--c-accent); border-color: var(--c-accent-mid); }
+#dash-root .tc-empty-title { color: var(--c-text-2); font-weight: 600; transition: color .15s; }
+#dash-root .tc-empty:hover .tc-empty-title { color: var(--c-accent-deep); }
+#dash-root .tc-empty-sub { color: var(--c-text-3); }
+
+/* ── 팀원 현황 ── */
+#dash-root .ms-group-title { color: var(--c-text-3); font-weight: 500; letter-spacing: 0; text-transform: none; }
+#dash-root .ms-card { border: 1px solid transparent; border-radius: var(--r-inner); box-shadow: none; transition: border-color .15s; }
+#dash-root .ms-card .ms-name { color: var(--c-text); font-weight: 600; }
+#dash-root .ms-card .ms-sub { color: var(--c-text-2); font-weight: 500; }
+#dash-root .ms-card .ms-sub2 { color: var(--c-text-3); }
+#dash-root .ms-working { background: var(--c-accent-soft); }
+#dash-root .ms-working .ms-sub { color: var(--c-accent-deep); }
+#dash-root .ms-paused { background: var(--c-warn-soft); }
+#dash-root .ms-paused .ms-sub { color: var(--c-warn-text); }
+#dash-root .ms-idle { background: var(--c-ok-soft); }
+#dash-root .ms-idle .ms-sub { color: var(--c-ok-text); }
+#dash-root .ms-leave { background: var(--c-mute); }
+#dash-root .ms-off { background: var(--c-mute); }
+#dash-root .ms-off .ms-name { color: var(--c-text-2); }
+#dash-root .ms-off .ms-sub { color: var(--c-text-3); }
+#dash-root .ms-before { background: var(--c-surface); border-color: var(--c-line); }
+#dash-root .ms-before .ms-name, #dash-root .ms-before .ms-sub { color: var(--c-text-3); }
+#dash-root .ms-card.ms-click:hover { border-color: var(--c-accent-mid); }
+
+/* ── 근태 예정 · 최근 완료 ── */
+#dash-root .d-row-today { background: var(--c-accent-row); }
+#dash-root .d-row-hover { transition: background .15s; }
+#dash-root .d-row-hover:hover { background: var(--c-surface-2); }
+#dash-root .d-hoverbar { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-sm); }
+
+/* 모바일 새로고침 (body 에 붙음) */
+#mobile-refresh-btn.d-fab { background: var(--c-accent); color: #FFFFFF; box-shadow: var(--sh-pop); }
+
+/* ── 업무 캘린더 (style.css 577-702 의 색만) ── */
+#dash-root .d-seg { background: var(--c-track); border-radius: var(--r-pill); padding: 3px; }
+#dash-root .cal-viewbtn { background: transparent; color: var(--c-text-2); border-radius: var(--r-pill); }
+#dash-root .cal-viewbtn + .cal-viewbtn { border-left: 0; }
+#dash-root .cal-viewbtn:hover { background: transparent; color: var(--c-text); }
+#dash-root .cal-viewbtn-on, #dash-root .cal-viewbtn-on:hover { background: var(--c-surface); color: var(--c-accent-deep); box-shadow: var(--sh-tab); }
+#dash-root .cal-monthgrid { border-color: var(--c-line); background: var(--c-surface); }
+#dash-root .cal-week + .cal-week { border-top-color: var(--c-line-soft); }
+#dash-root .cal-daycell + .cal-daycell { border-left-color: var(--c-line-soft); }
+#dash-root .cal-daycell-out { background: var(--c-surface-2); }
+#dash-root .cal-daycell-today { background: var(--c-accent-row); }
+#dash-root .cal-daycell:hover { background: var(--c-surface-2); }
+#dash-root .cal-daycell:focus-visible, #dash-root .cal-listrow:focus-visible { outline-color: var(--c-accent); }
+#dash-root .cal-today { background: var(--c-accent); }
+#dash-root .cal-add { color: var(--c-text-3); }
+#dash-root .cal-add:hover { background: var(--c-accent-soft); color: var(--c-accent-deep); }
+#dash-root .cal-listrow { border-bottom-color: var(--c-line-soft); }
+#dash-root .cal-listrow:hover { background: var(--c-surface-2); }
+#dash-root .cal-listrow-today { background: var(--c-accent-row); }
+#dash-root .cal-listdd { color: var(--c-text); }
+#dash-root .cal-listdow { color: var(--c-text-3); }
+
+/* ── 오늘의 업무 분석 탭 (listeners-main.js 가 text-blue-600 을 붙였다 뗀다) ── */
+#dash-root #analysis-tabs .analysis-tab-btn { color: var(--c-text-3); border-color: transparent; }
+#dash-root #analysis-tabs .analysis-tab-btn:hover { color: var(--c-text); }
+#dash-root #analysis-tabs .analysis-tab-btn.text-blue-600 { color: var(--c-accent-deep); border-color: var(--c-accent); font-weight: 600; }

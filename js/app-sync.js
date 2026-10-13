@@ -1,15 +1,15 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202610131042';
-import { isPersistentLeaveType } from './state.js?v=202610131042';
-import * as DOM from './dom-elements.js?v=202610131042';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610131042';
+import * as State from './state.js?v=202610131327';
+import { isPersistentLeaveType } from './state.js?v=202610131327';
+import * as DOM from './dom-elements.js?v=202610131327';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610131327';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610131042';
-import { renderTodoList } from './inspection-logic.js?v=202610131042';
-import { renderNotificationList } from './app-notifications.js?v=202610131042';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610131042';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610131042';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610131327';
+import { renderTodoList } from './inspection-logic.js?v=202610131327';
+import { renderNotificationList } from './app-notifications.js?v=202610131327';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610131327';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610131327';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -113,8 +113,8 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         renderCallback();
         renderTodoList();
         
-        if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (메타)';
-        if (DOM.statusDotEl) DOM.statusDotEl.className = 'w-2.5 h-2.5 rounded-full bg-green-500';
+        if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '실시간 연결';
+        if (DOM.statusDotEl) DOM.statusDotEl.className = 'd-live-dot';   // 색은 css/dash-d.css
     });
     
     const workRecordsCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
@@ -133,7 +133,7 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         try { reconcileActiveLocksDebounced(); } catch (e) { console.error('Stale lock reconcile failed:', e); }
 
         renderCallback();
-        if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '동기화 (업무)';
+        if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '실시간 연결';
     });
 
     if (State.appState.currentUser) {

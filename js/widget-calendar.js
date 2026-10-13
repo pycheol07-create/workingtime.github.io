@@ -8,11 +8,11 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202610131042';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610131042';
-import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610131042';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610131042';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610131042';
+import * as State from './state.js?v=202610131327';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610131327';
+import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610131327';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610131327';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610131327';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
@@ -23,7 +23,7 @@ const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 업무 일정 분류 — 색상은 달력 점/배지에 그대로 쓰인다.
 export const EVENT_TYPES = [
-    { id: 'general',   label: '일반',     color: '#3b82f6' },
+    { id: 'general',   label: '일반',     color: '#2F62C9' },   // D안 accent
     { id: 'inbound',   label: '입고',     color: '#f59e0b' },
     { id: 'outbound',  label: '출고',     color: '#a855f7' },
     { id: 'inventory', label: '재고조사', color: '#14b8a6' },
@@ -35,10 +35,11 @@ const typeOf = (id) => EVENT_TYPES.find(t => t.id === id) || EVENT_TYPES[0];
 // 캘린더에서 고를 수 있는 근태 종류.
 // 기간형 종류(state.js)를 그대로 쓰되, 캘린더에만 있던 '반차'는 앞쪽에 유지한다.
 const CAL_LEAVE_TYPES = ['연차', '반차', ...PERSISTENT_LEAVE_TYPES.filter(t => t !== '연차' && !LEGACY_LEAVE_TYPES.includes(t))];
-// 근태는 초록 — 빨강은 공휴일 차지다(달력 관습: 빨간 날 = 쉬는 날). 2026-10-07 에 빨강→초록으로 바꿈.
-const LEAVE_COLOR = '#22c55e';
-const INCOMING_COLOR = '#f97316';
-const HOLIDAY_COLOR = '#ef4444';
+// 근태는 초록(ok) — 빨강은 공휴일 차지다(달력 관습: 빨간 날 = 쉬는 날). 2026-10-07 에 빨강→초록으로 바꿈.
+// 2026-10-13 D안 토큰으로: 근태 ok · 입고 warn · 공휴일 risk
+const LEAVE_COLOR = '#5A9E96';
+const INCOMING_COLOR = '#D2A266';
+const HOLIDAY_COLOR = '#C9808A';
 
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const addMonths = (d, n) => { const x = new Date(d); x.setDate(1); x.setMonth(x.getMonth() + n); return x; };
@@ -166,9 +167,9 @@ async function removeLeaveEntry(id) {
 // 기간(start~end) 단위 아이템 — 노션식 기간 바를 그리기 위해 날짜별이 아니라 '구간'으로 다룬다.
 // ────────────────────────────────────────
 const KIND_TONE = {
-    leave:    { bg: '#dcfce7', fg: '#15803d', bar: '#22c55e', darkBg: 'rgba(34,197,94,.22)',  darkFg: '#86efac' },
-    holiday:  { bg: '#fee2e2', fg: '#b91c1c', bar: '#ef4444', darkBg: 'rgba(239,68,68,.22)',  darkFg: '#fca5a5' },
-    incoming: { bg: '#ffedd5', fg: '#c2410c', bar: '#f97316', darkBg: 'rgba(249,115,22,.22)', darkFg: '#fdba74' }
+    leave:    { bg: '#E5F0EE', fg: '#3D756F', bar: '#5A9E96', darkBg: 'rgba(90,158,150,.22)',  darkFg: '#8CC9C0' },
+    holiday:  { bg: '#F4E3E5', fg: '#A0525C', bar: '#C9808A', darkBg: 'rgba(201,128,138,.22)', darkFg: '#E0A3AB' },
+    incoming: { bg: '#F4EADB', fg: '#8A5E28', bar: '#D2A266', darkBg: 'rgba(210,162,102,.22)', darkFg: '#E2BE8C' }
 };
 
 /** 업무 일정은 분류 색에서 톤을 만든다(배경은 옅게, 글자는 진하게). */
@@ -348,8 +349,9 @@ function renderMonthView(root, today) {
             const isToday = key === today;
             const dow = d.getDay();
             const holiday = getHolidayName(d.getFullYear(), d.getMonth() + 1, d.getDate());
-            const tone = !inMonth ? 'text-gray-300 dark:text-gray-600'
-                : ((dow === 0 || holiday) ? 'text-red-500' : (dow === 6 ? 'text-blue-500' : 'text-gray-700 dark:text-gray-200'));
+            // 색은 css/dash-d.css 의 t-* (일·공휴일 risk, 토 accent)
+            const tone = !inMonth ? 't-4'
+                : ((dow === 0 || holiday) ? 't-risk' : (dow === 6 ? 't-accent' : 't-1'));
 
             cells.push(`
                 <div class="cal-daycell ${inMonth ? '' : 'cal-daycell-out'} ${isToday ? 'cal-daycell-today' : ''}"
@@ -370,7 +372,7 @@ function renderMonthView(root, today) {
     }
 
     root.innerHTML = `
-        <div class="cal-dowrow">${DOW.map((w, i) => `<div class="${i === 0 ? 'text-red-400' : (i === 6 ? 'text-blue-400' : 'text-gray-400')}">${w}</div>`).join('')}</div>
+        <div class="cal-dowrow">${DOW.map((w, i) => `<div class="${i === 0 ? 't-risk' : (i === 6 ? 't-accent' : 't-3')}">${w}</div>`).join('')}</div>
         <div class="cal-monthgrid">${weeks.join('')}</div>`;
 }
 
@@ -397,7 +399,7 @@ function renderListView(root, today) {
 
     const dates = [...byDate.keys()].sort();
     if (dates.length === 0) {
-        root.innerHTML = `<div class="py-10 text-center text-xs text-gray-400 italic">
+        root.innerHTML = `<div class="py-10 text-center text-xs t-3 italic">
             이 달에 등록된 일정이 없습니다.<br>날짜를 눌러 추가하세요.</div>
             ${listAddBarHtml(today)}`;
         return;
@@ -429,11 +431,11 @@ function renderListView(root, today) {
 }
 
 const listAddBarHtml = (today) => `
-    <div class="pt-3 mt-2 border-t border-gray-100 dark:border-gray-700 flex gap-2">
+    <div class="pt-3 mt-2 border-t d-line flex gap-2">
         <button type="button" data-cal-add="${today}"
-            class="flex-1 py-2 text-xs font-bold rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">＋ 오늘 일정 추가</button>
+            class="flex-1 d-btn d-btn-accent">＋ 오늘 일정 추가</button>
         <button type="button" id="cal-list-pick"
-            class="flex-1 py-2 text-xs font-bold rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">날짜 선택</button>
+            class="flex-1 d-btn">날짜 선택</button>
     </div>`;
 
 /** 헤더의 [월간|목록] 버튼 상태를 현재 모드에 맞춘다. */

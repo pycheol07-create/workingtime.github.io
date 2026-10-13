@@ -1,9 +1,9 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610131042';
-import * as State from './state.js?v=202610131042';
-import { leaveTypeLabel } from './state.js?v=202610131042';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610131042';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610131042';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610131327';
+import * as State from './state.js?v=202610131327';
+import { leaveTypeLabel } from './state.js?v=202610131327';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610131327';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610131327';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -244,37 +244,36 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
         if (groupRecords.length > 0) {
             const firstRecord = groupRecords[0];
-            const headerColor = isPaused ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800' : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800';
-            const titleColor = isPaused ? 'text-yellow-800 dark:text-yellow-400' : 'text-blue-800 dark:text-blue-400';
-            
-            card.className = `${mobileVisibilityClass} flex-col min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden transition-all hover:shadow-md cursor-pointer`;
-            card.dataset.task = task; 
-            card.dataset.groupId = firstRecord.groupId; 
+            const headTone = isPaused ? 'is-paused' : 'is-on';   // 색은 css/dash-d.css (tc-head)
 
-            let membersHtml = '<div class="p-2 overflow-y-auto max-h-48 space-y-1.5 bg-gray-50/50 dark:bg-gray-900/50 flex-grow">';
+            card.className = `${mobileVisibilityClass} flex-col min-h-[280px] d-card-inner ${isPaused ? 'is-paused' : ''} overflow-hidden cursor-pointer`;
+            card.dataset.task = task;
+            card.dataset.groupId = firstRecord.groupId;
+
+            let membersHtml = '<div class="p-2 overflow-y-auto max-h-48 space-y-1 flex-grow">';
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 const isRecPaused = rec.status === 'paused';
                 const pauseMin = calcTotalPauseMinutes(rec.pauses);
-                const memberPauseText = pauseMin > 0 ? `<span class="text-[10px] text-gray-400 dark:text-gray-500 ml-1">(휴:${formatDuration(pauseMin)})</span>` : '';
+                const memberPauseText = pauseMin > 0 ? `<span class="text-[10px] tc-sub ml-1">(휴:${formatDuration(pauseMin)})</span>` : '';
 
                 membersHtml += `
-                    <div class="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-gray-800 border ${isRecPaused ? 'border-yellow-200 dark:border-yellow-700' : 'border-gray-100 dark:border-gray-700'} shadow-sm hover:border-blue-300 dark:hover:border-blue-500 transition-colors member-row">
+                    <div class="flex items-center justify-between p-2 tc-member member-row">
                         <div class="flex items-start gap-2 overflow-hidden flex-1">
-                            <div class="w-2 h-2 shrink-0 rounded-full ${isRecPaused ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'} mt-1.5"></div>
+                            <div class="w-2 h-2 shrink-0 rounded-full ${isRecPaused ? 'd-dot-paused' : 'd-dot-on'} mt-1.5"></div>
                             <div class="flex flex-col min-w-0">
-                                <span class="font-bold text-gray-800 dark:text-gray-200 text-sm truncate" title="${rec.member}">${rec.member}</span>
-                                <span class="text-[10px] text-gray-400 dark:text-gray-500 truncate">
+                                <span class="tc-name text-sm truncate" title="${rec.member}">${rec.member}</span>
+                                <span class="text-[10px] tc-sub truncate">
                                     (${formatTimeTo24H(rec.startTime)})${memberPauseText}
                                 </span>
                             </div>
                         </div>
                         <div class="flex gap-1 shrink-0 member-actions ml-2">
                             ${isRecPaused 
-                                ? `<button data-action="resume-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-md bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-800/50 transition" title="재개"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg></button>`
-                                : `<button data-action="pause-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-md bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-800/50 transition" title="정지"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg></button>`
+                                ? `<button data-action="resume-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center d-icobtn accent" title="재개"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg></button>`
+                                : `<button data-action="pause-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center d-icobtn warn" title="정지"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg></button>`
                             }
-                            <button data-action="stop-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center rounded-md bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-800/50 transition" title="종료"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-                            <button data-action="edit-individual-start-time" data-record-id="${rec.id}" data-current-start-time="${rec.startTime || ''}" class="w-7 h-7 flex items-center justify-center rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition" title="시작시간 수정"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
+                            <button data-action="stop-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center d-icobtn risk" title="종료"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                            <button data-action="edit-individual-start-time" data-record-id="${rec.id}" data-current-start-time="${rec.startTime || ''}" class="w-7 h-7 flex items-center justify-center d-icobtn" title="시작시간 수정"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></button>
                         </div>
                     </div>`;
             });
@@ -284,13 +283,13 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
             const pausesJson = JSON.stringify(representativeRecord.pauses || []);
             const totalPauseMinutes = calcTotalPauseMinutes(representativeRecord.pauses);
-            const pauseDisplay = totalPauseMinutes > 0 ? `<span class="text-[10px] text-gray-500 font-normal ml-1">(전체휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
+            const pauseDisplay = totalPauseMinutes > 0 ? `<span class="text-[10px] tc-sub font-normal ml-1">(전체휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
 
             let specialButtonHtml = '';
             if (task === '샘플검수') {
                 specialButtonHtml = `
-                    <div class="px-3 pt-3 pb-1 bg-gray-50/50 dark:bg-gray-900/50 shrink-0 border-b border-gray-100 dark:border-gray-800">
-                        <button data-action="open-inspection" class="w-full py-2.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-800/60 font-extrabold text-sm rounded-xl transition flex justify-center items-center gap-1 shadow-sm border border-purple-200 dark:border-purple-800">
+                    <div class="px-3 pt-3 pb-3 shrink-0 border-b d-line">
+                        <button data-action="open-inspection" class="w-full d-btn d-btn-accent flex justify-center items-center gap-1">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
                             정밀검수 매니저 열기
                         </button>
@@ -298,8 +297,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 `;
             } else if (task === '전량검수') {
                 specialButtonHtml = `
-                    <div class="px-3 pt-3 pb-1 bg-gray-50/50 dark:bg-gray-900/50 shrink-0 border-b border-gray-100 dark:border-gray-800">
-                        <button data-action="open-total-inspection" class="w-full py-2.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 font-extrabold text-sm rounded-xl transition flex justify-center items-center gap-1 shadow-sm border border-indigo-200 dark:border-indigo-800">
+                    <div class="px-3 pt-3 pb-3 shrink-0 border-b d-line">
+                        <button data-action="open-total-inspection" class="w-full d-btn d-btn-accent flex justify-center items-center gap-1">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
                             전량검수 창 열기
                         </button>
@@ -308,32 +307,32 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             }
 
             card.innerHTML = `
-                <div class="px-4 py-3 ${headerColor} border-b flex justify-between items-start shrink-0">
-                    <div>
-                        <h3 class="font-bold text-lg ${titleColor} tracking-tight">${task}</h3>
-                        <div class="text-[11px] ${isPaused ? 'text-yellow-700 dark:text-yellow-500' : 'text-blue-600 dark:text-blue-400'} mt-1 font-bold group-time-display cursor-pointer" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}" title="그룹 시작시간 수정">
+                <div class="px-4 py-3 tc-head ${headTone} border-b flex justify-between items-start gap-2 shrink-0">
+                    <div class="min-w-0">
+                        <h3 class="tc-title text-lg tracking-tight">${task}</h3>
+                        <div class="text-[11px] tc-time mt-1 group-time-display cursor-pointer" data-action="edit-group-start-time" data-group-id="${firstRecord.groupId}" data-current-start-time="${earliestStartTime || ''}" title="그룹 시작시간 수정">
                             시작: ${formatTimeTo24H(earliestStartTime)}
-                            <span class="ongoing-duration ml-1 font-extrabold" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>
+                            <span class="ongoing-duration ml-1" data-start-time="${earliestStartTime || ''}" data-status="${isOngoing ? 'ongoing' : 'paused'}" data-pauses-json='${pausesJson}'></span>
                             ${pauseDisplay}
                         </div>
                     </div>
-                    <span class="px-2 py-1 ${isPaused ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'} text-xs font-bold rounded-full shadow-sm">${groupRecords.length}명 참여</span>
+                    <span class="${isPaused ? 'd-pill-warn' : 'd-pill-accent'} text-xs shrink-0">${groupRecords.length}명 참여</span>
                 </div>
                 ${specialButtonHtml}
                 ${membersHtml}
-                <div class="p-3 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex gap-2 shrink-0 card-actions">
-                    <button data-task="${task}" class="${isPaused ? 'resume-work-group-btn bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800/60' : 'pause-work-group-btn bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-800/60'} flex-1 py-2 font-bold text-sm rounded-xl transition flex justify-center items-center gap-1 shadow-sm">${isPaused ? '▶ 전체재개' : '⏸ 전체정지'}</button>
-                    <button data-task="${task}" class="stop-work-group-btn flex-1 py-2 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800/60 font-bold text-sm rounded-xl transition flex justify-center items-center gap-1 shadow-sm">⏹ 전체종료</button>
+                <div class="p-3 border-t d-line flex gap-2 shrink-0 card-actions">
+                    <button data-task="${task}" class="${isPaused ? 'resume-work-group-btn d-btn d-btn-accent' : 'pause-work-group-btn d-btn'} flex-1 flex justify-center items-center gap-1">${isPaused ? '전체재개' : '전체정지'}</button>
+                    <button data-task="${task}" class="stop-work-group-btn d-btn d-btn-risk flex-1 flex justify-center items-center gap-1">전체종료</button>
                 </div>
             `;
         } else {
-            card.className = `${mobileVisibilityClass} flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-400 dark:hover:border-blue-500 transition-all group`;
+            card.className = `${mobileVisibilityClass} flex-col justify-center items-center min-h-[280px] tc-empty cursor-pointer group`;
             card.dataset.action = 'start-task';
             card.dataset.task = task;
             card.innerHTML = `
-                <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 group-hover:border-blue-200 dark:group-hover:border-blue-800 transition-all mb-4 text-2xl font-light">+</div>
-                <h3 class="font-bold text-lg text-gray-600 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">${task} 시작</h3>
-                <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 font-medium">클릭하여 인원 선택</p>
+                <div class="w-14 h-14 rounded-full tc-plus flex items-center justify-center mb-4 text-2xl font-light">+</div>
+                <h3 class="tc-empty-title text-lg">${task} 시작</h3>
+                <p class="text-xs tc-empty-sub mt-2 font-medium">클릭하여 인원 선택</p>
             `;
         }
         card.classList.add('cf-card'); // 커버플로우 카드 (className 할당 이후에 추가)
@@ -342,15 +341,15 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
     const buildOtherTaskCard = () => {
         const otherTaskCard = document.createElement('div');
-        otherTaskCard.className = `flex flex-col justify-center items-center min-h-[280px] bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all group`;
+        otherTaskCard.className = `flex flex-col justify-center items-center min-h-[280px] tc-empty cursor-pointer group`;
         otherTaskCard.classList.add('cf-card');
         otherTaskCard.dataset.action = 'other';
         otherTaskCard.innerHTML = `
-            <div class="w-14 h-14 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 transition-all mb-4 text-xl">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <div class="w-14 h-14 rounded-full tc-plus flex items-center justify-center mb-4 text-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" /></svg>
             </div>
-            <h3 class="font-bold text-lg text-gray-600 dark:text-gray-300">기타 업무</h3>
-            <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 font-medium">새로운 업무 만들기</p>
+            <h3 class="tc-empty-title text-lg">기타 업무</h3>
+            <p class="text-xs tc-empty-sub mt-2 font-medium">새로운 업무 만들기</p>
         `;
         return otherTaskCard;
     };
@@ -482,7 +481,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     orderedTeamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
         groupContainer.className = 'mb-6';
-        groupContainer.innerHTML = `<div class="flex items-center gap-2 mb-3 hidden md:flex"><h4 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">${group.name}</h4><div class="h-px bg-gray-200 dark:bg-gray-700 flex-grow"></div></div>`;
+        groupContainer.innerHTML = `<div class="flex items-center gap-2 mb-3 hidden md:flex"><h4 class="text-[12.5px] ms-group-title">${group.name}</h4><div class="h-px d-rule flex-grow"></div></div>`;
         const groupGrid = document.createElement('div');
         groupGrid.className = 'flex flex-wrap gap-2.5';
         
@@ -500,7 +499,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const isSelf = (member === currentUserName);
             const visibilityClass = (isSelf || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
             
-            card.className = `p-2 rounded-xl border text-center transition-all min-h-[76px] ${visibilityClass} ${isSelf ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center shadow-sm`;
+            card.className = `ms-card p-2 text-center min-h-[76px] ${visibilityClass} ${isSelf ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center`;
             card.dataset.memberName = member;
 
             if (isOnLeave) {
@@ -511,9 +510,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 card.dataset.endTime = leaveInfo.endTime || ''; 
                 card.dataset.endDate = leaveInfo.endDate || '';
                 
-                card.className += ' bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400';
+                card.className += ' ms-leave';
                 if (currentUserRole === 'admin' || isSelf) {
-                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30';
+                    card.className += ' cursor-pointer ms-click';
                 } else {
                     card.className += ' cursor-not-allowed';
                 }
@@ -521,45 +520,41 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 const displayLabel = getLeaveDisplayLabel(member, leaveInfo);
                 let detailText = leaveInfo.startTime ? formatTimeTo24H(leaveInfo.startTime) + (leaveInfo.endTime ? ` - ${formatTimeTo24H(leaveInfo.endTime)}` : (leaveInfo.type === '외출' ? ' ~' : '')) : (leaveInfo.startDate ? leaveInfo.startDate.substring(5) + (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate ? ` ~ ${leaveInfo.endDate.substring(5)}` : '') : '');
                 
-                card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-0.5">${member}</div><div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded inline-block">${displayLabel}</div>${detailText ? `<div class="text-[10px] mt-1 text-gray-400 dark:text-gray-500">${detailText}</div>` : ''}`;
+                card.innerHTML = `<div class="ms-name text-sm mb-0.5">${member}</div><div class="ms-sub text-[11px]">${displayLabel}</div>${detailText ? `<div class="ms-sub2 text-[10px] mt-0.5">${detailText}</div>` : ''}`;
             } else if (isWorking) {
                 card.dataset.action = 'member-toggle-leave';
-                card.className += ' opacity-80 cursor-not-allowed';
+                card.className += ' cursor-not-allowed';
                 
-                if (ongoingMembers.has(member)) {
-                    card.className += ' bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
-                } else {
-                    card.className += ' bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800';
-                }
+                card.className += ongoingMembers.has(member) ? ' ms-working' : ' ms-paused';
 
-                card.innerHTML = `<div class="font-extrabold text-sm ${ongoingMembers.has(member) ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'} mb-1">${member}</div><div class="text-[10px] font-bold ${ongoingMembers.has(member) ? 'text-red-500 dark:text-red-500' : 'text-yellow-600 dark:text-yellow-500'} truncate px-1" title="${workingMembersMap.get(member)}">${ongoingMembers.has(member) ? workingMembersMap.get(member) : '휴식 중'}</div>`;
+                card.innerHTML = `<div class="ms-name text-sm mb-1">${member}</div><div class="ms-sub text-[11px] truncate px-1" title="${workingMembersMap.get(member)}">${ongoingMembers.has(member) ? workingMembersMap.get(member) : '휴식 중'}</div>`;
             } else if (isClockedIn) {
                 card.dataset.action = 'member-toggle-leave';
-                card.className += ' bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
+                card.className += ' ms-idle';
                 if (currentUserRole === 'admin' || isSelf) {
-                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                    card.className += ' cursor-pointer ms-click';
                 } else {
                     card.className += ' cursor-not-allowed opacity-70';
                 }
-                card.innerHTML = `<div class="font-extrabold text-sm text-green-700 dark:text-green-400 mb-1">${member}</div><div class="text-[11px] font-bold text-green-600 dark:text-green-500">대기 중</div>`;
+                card.innerHTML = `<div class="ms-name text-sm mb-1">${member}</div><div class="ms-sub text-[11px]">대기 중</div>`;
             } else if (isReturned) {
                 card.dataset.action = 'member-toggle-leave';
-                card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700';
+                card.className += ' ms-off';
                 if (currentUserRole === 'admin' || isSelf) {
-                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                    card.className += ' cursor-pointer ms-click';
                 } else {
                     card.className += ' cursor-not-allowed opacity-60';
                 }
-                card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-1">${member}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">퇴근 완료</div>`;
+                card.innerHTML = `<div class="ms-name text-sm mb-1">${member}</div><div class="ms-sub text-[11px]">퇴근 완료</div>`;
             } else {
                 card.dataset.action = 'member-toggle-leave';
-                card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 opacity-60';
+                card.className += ' ms-before opacity-60';
                  if (currentUserRole === 'admin' || isSelf) {
-                     card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                     card.className += ' cursor-pointer ms-click';
                  } else {
                      card.className += ' cursor-not-allowed';
                  }
-                card.innerHTML = `<div class="font-extrabold text-sm mb-1">${member}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">출근 전</div>`;
+                card.innerHTML = `<div class="ms-name text-sm mb-1">${member}</div><div class="ms-sub text-[11px]">출근 전</div>`;
             }
             groupGrid.appendChild(card);
         });
@@ -570,7 +565,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const activePartTimers = (appState.partTimers || []).filter(pt => ongoingMembers.has(pt.name) || onLeaveStatusMap.has(pt.name) || appState.dailyAttendance?.[pt.name]);
     if (activePartTimers.length > 0) {
         const albaContainer = document.createElement('div'); albaContainer.className = 'mb-6'; 
-        albaContainer.innerHTML = `<div class="flex items-center gap-2 mb-3 hidden md:flex"><h4 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">알바</h4><div class="h-px bg-gray-200 dark:bg-gray-700 flex-grow"></div></div>`;
+        albaContainer.innerHTML = `<div class="flex items-center gap-2 mb-3 hidden md:flex"><h4 class="text-[12.5px] ms-group-title">알바</h4><div class="h-px d-rule flex-grow"></div></div>`;
         const albaGrid = document.createElement('div'); albaGrid.className = 'flex flex-wrap gap-2.5';
         
         activePartTimers.forEach(pt => {
@@ -578,7 +573,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
              const isSelfAlba = (pt.name === currentUserName);
              const visibilityClassAlba = (isSelfAlba || isMobileMemberViewExpanded) ? 'flex' : 'hidden md:flex mobile-member-hidden';
              
-             card.className = `p-2 rounded-xl border text-center transition-all min-h-[76px] ${visibilityClassAlba} ${isSelfAlba ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center shadow-sm`;
+             card.className = `ms-card p-2 text-center min-h-[76px] ${visibilityClassAlba} ${isSelfAlba ? 'w-full md:w-[110px]' : 'w-[110px]'} flex-col justify-center`;
              
              const albaLeaveInfo = onLeaveStatusMap.get(pt.name);
              const isAlbaOnLeave = !!albaLeaveInfo;
@@ -592,54 +587,50 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             if (isAlbaOnLeave) {
                 card.dataset.action = 'member-toggle-leave'; card.dataset.leaveType = albaLeaveInfo.type; card.dataset.startTime = albaLeaveInfo.startTime || ''; card.dataset.startDate = albaLeaveInfo.startDate || ''; card.dataset.endTime = albaLeaveInfo.endTime || ''; card.dataset.endDate = albaLeaveInfo.endDate || '';
                 
-                card.className += ' bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400';
+                card.className += ' ms-leave';
                 if (currentUserRole === 'admin' || isSelfAlba) {
-                    card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30';
+                    card.className += ' cursor-pointer ms-click';
                 } else {
                     card.className += ' cursor-not-allowed';
                 }
 
                 const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
                 let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? ' ~' : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
-                card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-0.5">${pt.name}</div><div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded inline-block">${displayLabel}</div>${detailText ? `<div class="text-[10px] mt-1 text-gray-400 dark:text-gray-500">${detailText}</div>` : ''}`;
+                card.innerHTML = `<div class="ms-name text-sm mb-0.5">${pt.name}</div><div class="ms-sub text-[11px]">${displayLabel}</div>${detailText ? `<div class="ms-sub2 text-[10px] mt-0.5">${detailText}</div>` : ''}`;
             } else if (isAlbaWorking) {
                 card.dataset.action = 'member-toggle-leave';
-                card.className += ' opacity-80 cursor-not-allowed';
+                card.className += ' cursor-not-allowed';
                 
-                if (ongoingMembers.has(pt.name)) {
-                    card.className += ' bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
-                } else {
-                    card.className += ' bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800';
-                }
+                card.className += ongoingMembers.has(pt.name) ? ' ms-working' : ' ms-paused';
 
-                card.innerHTML = `<div class="font-extrabold text-sm ${ongoingMembers.has(pt.name) ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'} mb-1">${pt.name}</div><div class="text-[10px] font-bold ${ongoingMembers.has(pt.name) ? 'text-red-500 dark:text-red-500' : 'text-yellow-600 dark:text-yellow-500'} truncate px-1">${ongoingMembers.has(pt.name) ? workingMembersMap.get(pt.name) : '휴식 중'}</div>`;
+                card.innerHTML = `<div class="ms-name text-sm mb-1">${pt.name}</div><div class="ms-sub text-[11px] truncate px-1">${ongoingMembers.has(pt.name) ? workingMembersMap.get(pt.name) : '휴식 중'}</div>`;
             } else if (isAlbaClockedIn) {
                  card.dataset.action = 'member-toggle-leave';
-                 card.className += ' bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
+                 card.className += ' ms-idle';
                  if (currentUserRole === 'admin' || isSelfAlba) {
-                     card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                     card.className += ' cursor-pointer ms-click';
                  } else {
                      card.className += ' cursor-not-allowed opacity-70';
                  }
-                 card.innerHTML = `<div class="font-extrabold text-sm text-green-700 dark:text-green-400 mb-1">${pt.name}</div><div class="text-[11px] font-bold text-green-600 dark:text-green-500">대기 중</div>`;
+                 card.innerHTML = `<div class="ms-name text-sm mb-1">${pt.name}</div><div class="ms-sub text-[11px]">대기 중</div>`;
             } else if (isAlbaReturned) {
                  card.dataset.action = 'member-toggle-leave';
-                 card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700';
+                 card.className += ' ms-off';
                  if (currentUserRole === 'admin' || isSelfAlba) {
-                     card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                     card.className += ' cursor-pointer ms-click';
                  } else {
                      card.className += ' cursor-not-allowed opacity-60';
                  }
-                 card.innerHTML = `<div class="font-extrabold text-sm text-gray-600 dark:text-gray-300 mb-1">${pt.name}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">퇴근 완료</div>`;
+                 card.innerHTML = `<div class="ms-name text-sm mb-1">${pt.name}</div><div class="ms-sub text-[11px]">퇴근 완료</div>`;
             } else {
                  card.dataset.action = 'member-toggle-leave';
-                 card.className += ' bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 opacity-60';
+                 card.className += ' ms-before opacity-60';
                  if (currentUserRole === 'admin' || isSelfAlba) {
-                     card.className += ' cursor-pointer hover:border-blue-400 dark:hover:border-blue-500';
+                     card.className += ' cursor-pointer ms-click';
                  } else {
                      card.className += ' cursor-not-allowed';
                  }
-                 card.innerHTML = `<div class="font-extrabold text-sm mb-1">${pt.name}</div><div class="text-[11px] font-medium text-gray-400 dark:text-gray-500">출근 전</div>`;
+                 card.innerHTML = `<div class="ms-name text-sm mb-1">${pt.name}</div><div class="ms-sub text-[11px]">출근 전</div>`;
             }
              albaGrid.appendChild(card);
         });
@@ -674,7 +665,7 @@ export const renderLeaveScheduleWidget = () => {
                    || (a.member || '').localeCompare(b.member || ''));
 
     if (!items.length) {
-        el.innerHTML = '<div class="text-xs text-gray-400 dark:text-gray-500 italic py-3 text-center">예정된 근태가 없습니다.</div>';
+        el.innerHTML = '<div class="text-xs t-3 italic py-3 text-center">예정된 근태가 없습니다.</div>';
         return;
     }
 
@@ -686,14 +677,14 @@ export const renderLeaveScheduleWidget = () => {
         if (end && end !== start) head += `~${mk(end)}`;
         return head;
     };
+    // 근태 종류별 배지 색 (D안 토큰 — css/dash-d.css 의 d-pill-*)
     const tone = (t) => {
-        if (t.includes('연차') || t.includes('반차')) return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
-        if (t.includes('출장') || t.includes('외근') || t.includes('외출')) return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300';
-        if (t.includes('결근')) return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
-        if (t.includes('재택')) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
-        if (t.includes('매장')) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
-        if (t.includes('휴직')) return 'bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-200';
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+        if (t.includes('연차') || t.includes('반차')) return 'd-pill-accent';
+        if (t.includes('출장') || t.includes('외근') || t.includes('외출')) return 'd-pill-ok';
+        if (t.includes('결근')) return 'd-pill-risk';
+        if (t.includes('재택')) return 'd-pill-home';
+        if (t.includes('매장')) return 'd-pill-warn';
+        return 'd-pill-mute';   // 휴직·기타
     };
 
     // 같은 시작일(+기간)은 한 줄에 묶어서 표시 — 날짜를 근태마다 반복하지 않는다.
@@ -717,13 +708,13 @@ export const renderLeaveScheduleWidget = () => {
         // 행이 달라도 이름 시작과 배지 오른쪽 끝이 같은 자리에 선다.
         const chips = g.members.map(m => `
             <span class="flex items-center gap-1.5 w-full min-h-[18px]">
-                <span class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate" title="${esc(m.member)}">${esc(m.member)}</span>
-                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ml-auto ${tone(m.type)}" title="${esc(leaveTypeLabel(m))}">${esc(leaveTypeLabel(m))}</span>
+                <span class="text-xs font-semibold t-1 truncate" title="${esc(m.member)}">${esc(m.member)}</span>
+                <span class="text-[10px] shrink-0 ml-auto ${tone(m.type)}" title="${esc(leaveTypeLabel(m))}">${esc(leaveTypeLabel(m))}</span>
             </span>`).join('');
         // 날짜 그룹 사이를 가로선으로 나눈다(마지막 줄은 제외).
-        const divider = (i < groups.length - 1) ? ' border-b border-gray-100 dark:border-gray-700' : '';
-        return `<div class="flex items-start gap-2 px-2 py-2${divider} ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'} transition-colors">
-            <span class="text-[10px] font-bold tabular-nums whitespace-nowrap ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'} w-[66px] shrink-0 pt-1">${esc(dLabel(g.start, g.end))}</span>
+        const divider = (i < groups.length - 1) ? ' border-b d-line' : '';
+        return `<div class="flex items-start gap-2 px-2 py-2${divider} ${isToday ? 'd-row-today' : 'd-row-hover'}">
+            <span class="text-[10px] font-semibold tabular-nums whitespace-nowrap ${isToday ? 't-accent' : 't-2'} w-[66px] shrink-0 pt-1">${esc(dLabel(g.start, g.end))}</span>
             <span class="flex-1 min-w-0 flex flex-col gap-1">${chips}</span>
         </div>`;
     }).join('');
@@ -738,7 +729,7 @@ export const renderCompletedWorkLog = (appState) => {
     const completedRecords = allRecords.filter(r => r.status === 'completed');
 
     if (completedRecords.length === 0) {
-        workLogBody.innerHTML = `<div class="text-center py-10 text-gray-400 dark:text-gray-500 text-sm font-medium">오늘 완료된 업무가 없습니다.</div>`;
+        workLogBody.innerHTML = `<div class="text-center py-10 t-3 text-sm font-medium">오늘 완료된 업무가 없습니다.</div>`;
         return;
     }
 
@@ -746,27 +737,25 @@ export const renderCompletedWorkLog = (appState) => {
 
     completedRecords.forEach(record => {
         const item = document.createElement('div');
-        item.className = 'bg-white dark:bg-gray-800 p-3.5 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm mb-2.5 hover:border-blue-300 dark:hover:border-blue-500 transition-colors relative group';
+        // 구분선 목록 행(D안) — 카드 테두리·그림자 없이 아래 선으로만 나눈다
+        item.className = 'px-1 py-3 border-b d-line last:border-b-0 relative group';
         
         const pauseMin = calcTotalPauseMinutes(record.pauses);
-        const pauseText = pauseMin > 0 ? `<span class="text-[10px] text-gray-400 dark:text-gray-500 ml-1 font-normal">(휴:${formatDuration(pauseMin)} 포함)</span>` : '';
+        const pauseText = pauseMin > 0 ? `<span class="text-[10px] t-3 ml-1 font-normal">(휴:${formatDuration(pauseMin)} 포함)</span>` : '';
         
         item.innerHTML = `
-            <div class="flex justify-between items-center mb-1.5">
-                <span class="font-extrabold text-sm text-gray-800 dark:text-gray-200">${record.task}</span>
-                <span class="text-[11px] font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 px-2 py-0.5 rounded-md shadow-sm">${formatDuration(record.duration)}</span>
+            <div class="flex justify-between items-center gap-2 mb-1">
+                <span class="font-semibold text-sm t-1 truncate">${record.task}</span>
+                <span class="text-[11px] d-pill-accent tabular-nums shrink-0">${formatDuration(record.duration)}</span>
             </div>
-            <div class="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 font-medium">
-                <div class="flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full"></span>
-                    ${record.member}
-                </div>
-                <div>${formatTimeTo24H(record.startTime)} ~ ${formatTimeTo24H(record.endTime)}${pauseText}</div>
+            <div class="flex justify-between items-center gap-2 text-xs t-2">
+                <div class="truncate">${record.member}</div>
+                <div class="tabular-nums shrink-0">${formatTimeTo24H(record.startTime)} ~ ${formatTimeTo24H(record.endTime)}${pauseText}</div>
             </div>
-            <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 m-touch-show transition-opacity bg-white/95 dark:bg-gray-800/95 backdrop-blur px-1.5 py-1 rounded-md shadow-sm border border-gray-100 dark:border-gray-700 flex gap-3">
-                <button data-action="edit" data-record-id="${record.id}" class="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-bold tracking-wide">수정</button>
-                <div class="w-px bg-gray-200 dark:bg-gray-600"></div>
-                <button data-action="delete" data-record-id="${record.id}" class="text-[11px] text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-bold tracking-wide">삭제</button>
+            <div class="absolute top-2 right-1 opacity-0 group-hover:opacity-100 m-touch-show transition-opacity d-hoverbar px-2 py-1 flex gap-3">
+                <button data-action="edit" data-record-id="${record.id}" class="text-[11px] t-accent hover:underline font-semibold">수정</button>
+                <div class="w-px d-rule"></div>
+                <button data-action="delete" data-record-id="${record.id}" class="text-[11px] t-risk hover:underline font-semibold">삭제</button>
             </div>
         `;
         workLogBody.appendChild(item);
@@ -777,7 +766,7 @@ const setupMobileRefreshButton = () => {
     if (document.getElementById('mobile-refresh-btn')) return;
     const btn = document.createElement('button');
     btn.id = 'mobile-refresh-btn';
-    btn.className = 'fixed bottom-6 right-6 w-12 h-12 bg-blue-600/90 text-white rounded-full shadow-lg z-50 md:hidden flex items-center justify-center';
+    btn.className = 'fixed bottom-6 right-6 w-12 h-12 d-fab rounded-full z-50 md:hidden flex items-center justify-center';   // 색은 css/dash-d.css
     btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>`;
     btn.onclick = () => window.location.reload();
     document.body.appendChild(btn);

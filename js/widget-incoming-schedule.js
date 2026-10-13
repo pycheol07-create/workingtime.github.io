@@ -1,7 +1,7 @@
 // === js/widget-incoming-schedule.js ===
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=202610131042';
-import * as State from './state.js?v=202610131042';
+import { escapeHtml } from './utils.js?v=202610131327';
+import * as State from './state.js?v=202610131327';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
 //
 // 구글 시트 「패킹.송금관리」에 붙은 Apps Script 가 **시트를 고칠 때 즉시 + 1시간마다** 4개 열
@@ -284,7 +284,7 @@ function redraw() {
 
     if (!_last) {
         // 로그인 전이거나 첫 응답 전 — 지난번 값이 있으면 그것부터 보여 준다
-        if (!renderFromCache()) listEl.innerHTML = `<li class="px-3 py-2 text-[10px] text-gray-400 italic">불러오는 중...</li>`;
+        if (!renderFromCache()) listEl.innerHTML = `<li class="px-3 py-2 text-[10px] t-3 italic">불러오는 중...</li>`;
         setStatus('불러오는 중...');
         return;
     }
@@ -293,9 +293,9 @@ function redraw() {
         const why = _last.denied ? '입고 데이터를 읽을 권한이 없습니다(로그인 확인).'
             : _last.absent ? '입고 데이터가 아직 없습니다. 시트의 입고위젯 Apps Script 설치(설치 함수 실행)를 확인하세요.'
             : `시트 연동이 실패했습니다: ${_last.error || '원인 미상'}`;
-        if (renderFromCache()) { setStatus('⚠️ 지난 값', why); return; }
+        if (renderFromCache()) { setStatus('지난 값', why); return; }
         setIncomingCount(0);
-        listEl.innerHTML = `<li class="px-3 py-2 text-[10px] text-red-500">⚠️ ${escapeHtml(why)}</li>`;
+        listEl.innerHTML = `<li class="px-3 py-2 text-[10px] t-risk">${escapeHtml(why)}</li>`;
         setStatus('오류', why);
         return;
     }
@@ -313,7 +313,7 @@ function redraw() {
     if (missing.length > 0) 경고.push(`시트에서 ${missing.join(', ')} 헤더를 찾지 못해 기존 열 위치로 읽었습니다. 시트 머리글을 확인하세요.`);
 
     const 기준 = at == null ? '' : (오래됨 ? `${Math.floor(경과시간)}시간 전 기준` : `${hhmm(at)} 기준`);
-    setStatus((경고.length ? '⚠️ ' : '') + 기준,
+    setStatus((경고.length ? '확인 필요 · ' : '') + 기준,
               경고.length ? 경고.join('\n') : `시트 ${headerRow + 1}행을 머리글로 읽었습니다. 시트를 고치면 바로, 그리고 1시간마다 자동 반영됩니다.`);
 }
 
@@ -413,7 +413,7 @@ function renderItems(items) {
     if (!listEl) return;
     if (items.length === 0) {
         setIncomingCount(0);
-        listEl.innerHTML = `<li class="px-3 py-2 text-[10px] text-gray-400 italic">표시할 입고 예정이 없습니다.</li>`;
+        listEl.innerHTML = `<li class="px-3 py-2 text-[10px] t-3 italic">표시할 입고 예정이 없습니다.</li>`;
         return;
     }
 
@@ -422,9 +422,8 @@ function renderItems(items) {
     setIncomingCount(groups.length);
 
     listEl.innerHTML = groups.map(g => {
-        const arrTone = g.arrivalLabel === '오늘' ? 'text-red-600 dark:text-red-400'
-            : (g.arrivalLabel === '내일' ? 'text-orange-600 dark:text-orange-400'
-            : 'text-amber-700 dark:text-amber-300');
+        // 오늘 도착 = 장미(risk), 그 외 = 입고색(warn) — css/dash-d.css
+        const arrTone = g.arrivalLabel === '오늘' ? 't-risk' : 't-warn';
         const totalText = qtyPartsText(g.totalBoxes, g.totalQty);
         const lines = g.entries.map(it => {
             const detail = qtyPartsText(it.boxes, it.qty);
@@ -433,7 +432,7 @@ function renderItems(items) {
 
         // 날짜 라벨은 고정 폭(w-14) + gap-2 → 아래 패킹 줄은 같은 offset(pl-16)으로 들여써서 날짜 칸을 침범하지 않게 함
         return `
-            <li class="px-3 py-2">
+            <li class="inc-row px-3 py-2">
                 <div class="flex items-baseline gap-2">
                     <span class="w-14 shrink-0 text-[12.5px] font-extrabold ${arrTone} whitespace-nowrap">${g.arrivalLabel}</span>
                     ${totalText ? `<span class="text-[12.5px] font-bold min-w-0">총 ${escapeHtml(totalText)} 입고예정</span>` : ''}
