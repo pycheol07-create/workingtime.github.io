@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610122212';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610131032';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610122212';
+import { escapeHtml as escAttr } from './utils.js?v=202610131032';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -23,6 +23,17 @@ const toDateStr = (date = new Date()) => {
     const d = (date instanceof Date) ? date : new Date(date);
     if (isNaN(d.getTime())) return '';
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// D안 상태색 — location.html :root 토큰을 가리킨다. 화면 템플릿에서 hex 대신 이 값을 쓴다.
+const TONE = {
+    ok: 'var(--c-ok)', okText: 'var(--c-ok-text)', okSoft: 'var(--c-ok-soft)',
+    accent: 'var(--c-accent)', accentDeep: 'var(--c-accent-deep)', accentMid: 'var(--c-accent-mid)',
+    accentLight: 'var(--c-accent-light)', accentSoft: 'var(--c-accent-soft)', accentRow: 'var(--c-accent-row)',
+    warn: 'var(--c-warn)', warnText: 'var(--c-warn-text)', warnSoft: 'var(--c-warn-soft)', warnBg: 'var(--c-warn-bg)',
+    risk: 'var(--c-risk)', riskText: 'var(--c-risk-text)', riskSoft: 'var(--c-risk-soft)', riskRow: 'var(--c-risk-row)',
+    text: 'var(--c-text)', text2: 'var(--c-text-2)', text3: 'var(--c-text-3)', text4: 'var(--c-text-4)',
+    line: 'var(--c-line)', lineSoft: 'var(--c-line-soft)', track: 'var(--c-track)', surface2: 'var(--c-surface-2)'
 };
 
 // 피킹용이 아닌 자리(대분류 '기타' = 비축·SAM·A-1-R 형식 등) 판정 — 여러 화면이 같은 기준을 쓴다.
@@ -94,16 +105,22 @@ const injectPuzzleStyle = () => {
     style.innerHTML = `
         .puzzle-container { display: flex; flex-direction: column; gap: 6px; }
         .puzzle-row { display: flex; align-items: stretch; gap: 8px; }
-        .puzzle-label { width: 70px; background: #e0e0e0; font-weight: bold; font-size: 12px; color: #333; display: flex; align-items: center; justify-content: center; border-radius: 6px; text-align: center; }
-        .puzzle-drop-area { flex: 1; min-height: 42px; border: 2px dashed #bbb; border-radius: 6px; padding: 6px; display: flex; flex-wrap: wrap; gap: 5px; background: #fafafa; transition: 0.2s; }
-        .puzzle-drop-area.dragover { background: #eef1ff; border-color: var(--primary); }
-        .puzzle-block, .puzzle-sort-block { width: 28px; height: 28px; background: white; border: 2px solid #666; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; cursor: grab; box-shadow: 0 2px 4px rgba(0,0,0,0.1); user-select: none; transition: transform 0.1s; }
-        .puzzle-sort-block { width: 34px; border-color: var(--primary); color: var(--primary); }
+        .puzzle-label { width: 70px; background: var(--c-track); font-weight: 600; font-size: 12px; color: var(--c-text); display: flex; align-items: center; justify-content: center; border-radius: var(--r-sm); text-align: center; }
+        .puzzle-label.pz-r0 { background: var(--c-warn-soft); color: var(--c-warn-text); }
+        .puzzle-label.pz-r1 { background: var(--c-ok-soft); color: var(--c-ok-text); }
+        .puzzle-label.pz-r2 { background: var(--c-accent-soft); color: var(--c-accent-deep); }
+        .puzzle-label.pz-r3 { background: var(--c-accent-light); color: var(--c-accent-deep); }
+        .puzzle-label.pz-none { background: var(--c-track); color: var(--c-text-2); border: 1px solid var(--c-line-strong); }
+        .puzzle-drop-area { flex: 1; min-height: 42px; border: 2px dashed var(--c-line-strong); border-radius: var(--r-sm); padding: 6px; display: flex; flex-wrap: wrap; gap: 5px; background: var(--c-surface-2); transition: 0.2s; }
+        .puzzle-drop-area.pz-none-area { background: var(--c-track); }
+        .puzzle-drop-area.dragover { background: var(--c-accent-row); border-color: var(--c-accent); }
+        .puzzle-block, .puzzle-sort-block { width: 28px; height: 28px; background: var(--c-surface); color: var(--c-text); border: 1.5px solid var(--c-line-strong); border-radius: var(--r-cell); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; cursor: grab; box-shadow: var(--sh-tab); user-select: none; transition: transform 0.1s; }
+        .puzzle-sort-block { width: 34px; border-color: var(--c-accent-mid); color: var(--c-accent-deep); }
         .puzzle-block:active, .puzzle-sort-block:active { cursor: grabbing; transform: scale(1.1); }
-        .puzzle-block.dragging, .puzzle-sort-block.dragging { opacity: 0.4; border: 2px dashed #999; }
-        .sort-container { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: #f0f4ff; border-radius: 6px; border: 1px solid #c5cae9; min-height: 46px; align-items: center; }
-        .section-toggle { background: #f1f1f1; padding: 10px 15px; border-radius: 6px; font-weight: bold; color: #333; display: flex; justify-content: space-between; cursor: pointer; border: 1px solid #ddd; transition: background 0.2s; }
-        .section-toggle:hover { background: #e8e8e8; }
+        .puzzle-block.dragging, .puzzle-sort-block.dragging { opacity: 0.4; border: 1.5px dashed var(--c-text-3); }
+        .sort-container { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: var(--c-accent-row); border-radius: var(--r-sm); border: 1px solid var(--c-accent-soft); min-height: 46px; align-items: center; }
+        .section-toggle { background: var(--c-surface-2); padding: 10px 15px; border-radius: var(--r-sm); font-weight: 600; color: var(--c-text); display: flex; justify-content: space-between; cursor: pointer; border: 1px solid var(--c-line); transition: background 0.2s; }
+        .section-toggle:hover { background: var(--c-track); }
         .section-content { display: none; padding: 15px 5px 5px 5px; animation: slideDown 0.2s ease-out; }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
     `;
@@ -227,14 +244,33 @@ function setupRealtimeListenerB() {
 }
 
 // 🕒 마지막 데이터 최신화 시각 표시 (상단 헤더)
+let _lastDataUpdateTs = null;   // 마지막으로 받은 lastDataUpdate (자정 넘김 재칠하기용)
+let _hdrStatusReady = false;    // INFO_CONFIG 를 한 번이라도 받았는지
 function updateLastUpdateDisplay(ts) {
+    _lastDataUpdateTs = ts;
+    _hdrStatusReady = true;
     const el = document.getElementById('last-data-update');
     if (!el) return;
-    if (!ts) { el.textContent = '🕒 최신화: 기록 없음'; return; }
+    if (!ts) { el.innerHTML = '<span class="dot"></span>재고<span class="lu-label"> 최신화</span> <b>기록 없음</b>'; return; }
     const d = new Date(ts);
     const p = n => String(n).padStart(2, '0');
-    el.textContent = `🕒 최신화: ${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    // 점 색: ZG&AB 출고와 같은 일수 기준 — 오늘 ok / 어제 warn / 2일 이상 risk
+    const startOfDay = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+    const daysAgo = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+    const tone = daysAgo <= 0 ? 'ok' : (daysAgo === 1 ? 'warn' : 'risk');
+    el.innerHTML = `<span class="dot" style="background:var(--c-${tone});"></span>재고<span class="lu-label"> 최신화</span> <b>${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}</b>`;
     el.title = '마지막 데이터 최신화: ' + d.toLocaleString('ko-KR');
+}
+
+// 헤더 상태 색(오늘/어제/2일+)은 날짜가 바뀌면 달라진다 — 데이터를 다시 읽지 않고 마지막 값으로 1분마다·탭 복귀 때 다시 칠한다
+function refreshHeaderStatusTone() {
+    if (!_hdrStatusReady) return;
+    updateLastUpdateDisplay(_lastDataUpdateTs);
+    updateZikjinInfoDisplay();
+}
+if (!window.__locHdrToneTimer) {
+    window.__locHdrToneTimer = setInterval(refreshHeaderStatusTone, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshHeaderStatusTone(); });
 }
 
 // 📂 직진·에이블리(ZG&AB 출고) 전송 기록 간략 표시 (언제/얼마나 + 상세 링크)
@@ -255,17 +291,18 @@ function updateZikjinInfoDisplay() {
     const el = document.getElementById('zikjin-update-info');
     if (!el) return;
 
-    // 기본(정상) 스타일
-    const setTone = (bg, border, color) => {
-        el.style.background = bg;
-        el.style.borderColor = border;
-        el.style.color = color;
+    // 상태 색: ok(오늘) / warn(어제) / risk(2일+ · 기록 없음) — soft 바탕 + text 글자
+    const setTone = (tone) => {
+        el.style.background = `var(--c-${tone}-soft)`;
+        el.style.borderColor = `var(--c-${tone}-soft)`;
+        el.style.color = `var(--c-${tone}-text)`;
     };
+    const dot = (tone) => `<span class="dot" style="background:var(--c-${tone});"></span>`;
 
     if (!zMeta || !zMeta.at) {
-        el.innerHTML = '⚠️ ZG&AB 출고: 전송 기록 없음';
-        el.title = '직진·에이블리(ZG&AB) 출고 데이터가 아직 업로드되지 않았습니다.\n[📂 1-1. ZG&AB 출고 데이터 업로드]에서 파일을 올려주세요.';
-        setTone('#ffebee', '#ef9a9a', '#c62828');
+        el.innerHTML = `${dot('risk')}<span class="zk-label">ZG&AB </span>출고 <b>전송 기록 없음</b>`;
+        el.title = '직진·에이블리(ZG&AB) 출고 데이터가 아직 업로드되지 않았습니다.\n[작업] 메뉴의 [ZG&AB 출고 데이터 업로드]에서 파일을 올려주세요.';
+        setTone('risk');
         return;
     }
 
@@ -279,28 +316,29 @@ function updateZikjinInfoDisplay() {
     const now = new Date();
     const daysAgo = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
 
-    let prefix = '📂', warn = '';
+    // 경고 글자는 날짜 앞에 둔다 — 좁은 폭에서 말줄임이 뒤에서부터 잘라도 경고는 남게
+    let tone = 'ok', warn = '';
     if (daysAgo <= 0) {
-        setTone('#e8f5e9', '#a5d6a7', '#2e7d32'); // 오늘 — 정상
+        tone = 'ok'; // 오늘 — 정상
     } else if (daysAgo === 1) {
-        prefix = '⚠️';
-        warn = ' <b>· 어제 자료</b>';
-        setTone('#fff8e1', '#ffcc80', '#e65100');
+        tone = 'warn';
+        warn = ' <b>어제 자료</b> ·';
     } else {
-        prefix = '⚠️';
-        warn = ` <b>· ${daysAgo}일 지남</b>`;
-        setTone('#ffebee', '#ef9a9a', '#c62828');
+        tone = 'risk';
+        warn = ` <b>${daysAgo}일 지남</b> ·`;
     }
+    setTone(tone);
 
     // 직진/에이블리 구분 요약 (데이터가 있을 때만)
     const st = _zikjinSourceTotals || { zikjin: 0, ably: 0 };
     const splitTxt = (st.zikjin > 0 || st.ably > 0)
-        ? ` <span style="font-weight:800; color:#1976d2;">직진 ${st.zikjin.toLocaleString()}</span>`
-          + `<span style="color:#b0bec5;"> / </span>`
-          + `<span style="font-weight:800; color:#c2185b;">에이블리 ${st.ably.toLocaleString()}</span>`
+        ? ` <span style="font-weight:600; color:var(--c-accent-deep);">직진 ${st.zikjin.toLocaleString()}</span>`
+          + `<span style="color:var(--c-text-4);"> / </span>`
+          + `<span style="font-weight:600; color:var(--c-risk-text);">에이블리 ${st.ably.toLocaleString()}</span>`
         : '';
 
-    el.innerHTML = `${prefix} ZG&AB 출고: ${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())} · ${cnt}건${warn}${splitTxt} <span style="text-decoration:underline; color:#1976d2;">상세</span>`;
+    // 좁은 폭에서는 .zk-extra(직진·에이블리 숫자·상세) → .zk-cnt(건수) 순으로 숨긴다 (location.html 헤더 CSS)
+    el.innerHTML = `${dot(tone)}<span class="zk-label">ZG&AB </span>출고${warn} <b>${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}<span class="zk-cnt"> · ${cnt}건</span></b><span class="zk-extra">${splitTxt} <span style="text-decoration:underline; color:var(--c-text-2);">상세</span></span>`;
     el.title = `직진·에이블리(ZG&AB) 출고 전송: ${d.toLocaleString('ko-KR')} · ${zMeta.count}건`
         + ((st.zikjin > 0 || st.ably > 0)
             ? `
@@ -309,21 +347,21 @@ function updateZikjinInfoDisplay() {
               + (st.unknown > 0 ? ` / 구분없음 ${st.unknown.toLocaleString()}` : '')
             : '')
         + (daysAgo > 0
-            ? `\n\n⚠️ 오늘 올라온 자료가 아닙니다(${daysAgo}일 지남).\nZG&AB 출고 데이터는 자동 전송되지 않고 수동 업로드로만 갱신됩니다.\n출고 작업을 했다면 [📂 1-1. ZG&AB 출고 데이터 업로드]에서 파일을 올려주세요.`
+            ? `\n\n오늘 올라온 자료가 아닙니다(${daysAgo}일 지남).\nZG&AB 출고 데이터는 자동 전송되지 않고 수동 업로드로만 갱신됩니다.\n출고 작업을 했다면 [작업] 메뉴의 [ZG&AB 출고 데이터 업로드]에서 파일을 올려주세요.`
             : '')
         + `\n\n클릭 시 전송 데이터 상세 보기`;
 }
 
 // 구분 뱃지(헤더 요약용) / 태그(표 행용)
 function _zikBadge(label, qty, count, fg, bg) {
-    return `<span style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800;
-        color:${fg}; background:${bg}; border:1px solid ${fg}33; border-radius:6px; padding:3px 8px;">
-        ${label} <b style="font-weight:900;">${Number(qty || 0).toLocaleString()}</b>
+    return `<span style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600;
+        color:${fg}; background:${bg}; border:1px solid ${bg}; border-radius:var(--r-pill); padding:3px 10px;">
+        ${label} <b style="font-weight:700;">${Number(qty || 0).toLocaleString()}</b>
         <span style="font-weight:600; opacity:.75;">(${Number(count || 0).toLocaleString()}종)</span></span>`;
 }
 function _zikTag(label, qty, fg, bg) {
-    return `<span style="display:inline-block; font-size:10.5px; font-weight:800; color:${fg}; background:${bg};
-        border-radius:5px; padding:2px 6px;">${label} ${Number(qty || 0).toLocaleString()}</span>`;
+    return `<span style="display:inline-block; font-size:10.5px; font-weight:600; color:${fg}; background:${bg};
+        border-radius:var(--r-pill); padding:2px 8px;">${label} ${Number(qty || 0).toLocaleString()}</span>`;
 }
 
 // 📂 ZG&AB 출고(직진·에이블리) 전송 데이터 상세 모달
@@ -363,9 +401,9 @@ window.openZikjinDetail = function () {
 
     let sentLine = '';
     if (_zikjinMeta && _zikjinMeta.at) {
-        sentLine = `<div style="font-size:12.5px; color:#37474f; margin-top:4px; font-weight:700;">🕒 전송 일시: ${fmtAt(_zikjinMeta.at)}</div>`;
+        sentLine = `<div style="font-size:12.5px; color:var(--c-text); margin-top:4px; font-weight:600;">전송 일시: ${fmtAt(_zikjinMeta.at)}</div>`;
     } else {
-        sentLine = `<div style="font-size:12px; color:#90a4ae; margin-top:4px;">🕒 전송 일시: 기록 없음</div>`;
+        sentLine = `<div style="font-size:12px; color:var(--c-text-3); margin-top:4px;">전송 일시: 기록 없음</div>`;
     }
 
     // 🔎 진단: "오늘 보냈는데 왜 어제로 보이지?"를 바로 확인할 수 있게 두 소스를 함께 보여준다.
@@ -374,17 +412,17 @@ window.openZikjinDetail = function () {
     const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${_p(d.getMonth() + 1)}-${_p(d.getDate())}`; })();
     const isToday = (ms) => ms && fmtAt(ms).slice(0, 10) === todayKey;
     const srcLine = (label, meta) => meta && meta.at
-        ? `<span style="color:${isToday(meta.at) ? '#2e7d32' : '#90a4ae'};">${label} ${fmtAt(meta.at)}${isToday(meta.at) ? ' <b>(오늘)</b>' : ''} · ${Number(meta.count || 0).toLocaleString()}건</span>`
-        : `<span style="color:#b0bec5;">${label} 없음</span>`;
+        ? `<span style="color:${isToday(meta.at) ? 'var(--c-ok-text)' : 'var(--c-text-3)'};">${label} ${fmtAt(meta.at)}${isToday(meta.at) ? ' <b>(오늘)</b>' : ''} · ${Number(meta.count || 0).toLocaleString()}건</span>`
+        : `<span style="color:var(--c-text-4);">${label} 없음</span>`;
     const diagLine = `<div style="font-size:11px; margin-top:4px; line-height:1.7;">
         ${srcLine('· 업로드 기록:', _zikjinConfigMeta)}<br>
         ${srcLine('· 데이터 반영:', _zikjinDerivedMeta)}
       </div>`;
 
     const body = rows.length === 0
-        ? '<div style="padding:36px; text-align:center; color:#888;">전송된 ZG&AB 출고 데이터가 없습니다.</div>'
+        ? '<div style="padding:36px; text-align:center; color:var(--c-text-3);">전송된 ZG&AB 출고 데이터가 없습니다.</div>'
         : `<table style="width:100%; border-collapse:collapse; font-size:13px;">
-             <thead><tr style="position:sticky; top:0; background:#eceff1; z-index:1;">
+             <thead><tr style="position:sticky; top:0; background:var(--c-track); z-index:1;">
                <th style="text-align:left; padding:8px;">상품코드</th>
                <th style="text-align:left; padding:8px;">상품명</th>
                <th style="text-align:center; padding:8px; width:150px;">구분</th>
@@ -393,11 +431,11 @@ window.openZikjinDetail = function () {
              <tbody>${rows.map(r => {
                // 한 상품이 직진·에이블리 양쪽에서 나갈 수 있으므로 각각 표시한다.
                const tags = [];
-               if (r.zikjin > 0) tags.push(_zikTag('직진', r.zikjin, '#1976d2', '#e3f2fd'));
-               if (r.ably > 0) tags.push(_zikTag('에이블리', r.ably, '#c2185b', '#fce4ec'));
-               if (tags.length === 0) tags.push(_zikTag('구분없음', r.unknown || r.qty, '#90a4ae', '#eceff1'));
+               if (r.zikjin > 0) tags.push(_zikTag('직진', r.zikjin, TONE.accentDeep, TONE.accentSoft));
+               if (r.ably > 0) tags.push(_zikTag('에이블리', r.ably, TONE.riskText, TONE.riskSoft));
+               if (tags.length === 0) tags.push(_zikTag('구분없음', r.unknown || r.qty, TONE.text2, TONE.track));
                const src = (r.zikjin > 0 && r.ably > 0) ? 'both' : (r.zikjin > 0 ? 'zikjin' : (r.ably > 0 ? 'ably' : 'unknown'));
-               return `<tr class="zik-row" data-src="${src}" style="border-bottom:1px solid #eee;">
+               return `<tr class="zik-row" data-src="${src}" style="border-bottom:1px solid var(--c-line-soft);">
                  <td style="padding:6px 8px; font-family:monospace;">${esc(r.code)}</td>
                  <td style="padding:6px 8px;">${esc(r.name)}</td>
                  <td style="padding:6px 8px; text-align:center; white-space:nowrap;">${tags.join(' ')}</td>
@@ -408,37 +446,35 @@ window.openZikjinDetail = function () {
 
     // 구분 필터 (전체 / 직진 / 에이블리)
     const filterBar = rows.length === 0 ? '' : `
-      <div style="padding:8px 18px; border-bottom:1px solid #eee; background:#fafafa; display:flex; gap:6px; align-items:center;">
-        <span style="font-size:11px; font-weight:700; color:#78909c; margin-right:2px;">구분 보기</span>
+      <div style="padding:8px 18px; border-bottom:1px solid var(--c-line-soft); background:var(--c-surface-2); display:flex; gap:6px; align-items:center;">
+        <span style="font-size:11px; font-weight:700; color:var(--c-text-3); margin-right:2px;">구분 보기</span>
         ${['전체', '직진', '에이블리'].map((label, i) => {
           const key = ['all', 'zikjin', 'ably'][i];
           return `<button type="button" data-zik-filter="${key}" onclick="window.__zikFilter && window.__zikFilter('${key}')"
-            style="font-size:11px; font-weight:700; padding:4px 10px; border-radius:6px; cursor:pointer;
-                   border:1px solid ${key === 'all' ? '#1976d2' : '#cfd8dc'};
-                   background:${key === 'all' ? '#1976d2' : '#fff'}; color:${key === 'all' ? '#fff' : '#546e7a'};">${label}</button>`;
+            class="zik-chip${key === 'all' ? ' on' : ''}">${label}</button>`;
         }).join('')}
-        <span id="zik-filter-count" style="font-size:11px; color:#90a4ae; margin-left:4px;"></span>
+        <span id="zik-filter-count" style="font-size:11px; color:var(--c-text-3); margin-left:4px;"></span>
       </div>`;
 
     const overlay = document.createElement('div');
     overlay.id = 'zikjin-detail-overlay';
-    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px;';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(30,40,60,0.45); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px;';
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     overlay.innerHTML = `
-      <div style="background:#fff; border-radius:12px; width:100%; max-width:760px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,0.3);">
-        <div style="padding:14px 18px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+      <div style="background:var(--c-surface); border-radius:var(--r-card); width:100%; max-width:760px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--sh-pop);">
+        <div style="padding:14px 18px; border-bottom:1px solid var(--c-line-soft); display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <div style="font-size:16px; font-weight:800; color:#1976d2;">📂 ZG&AB 출고(직진·에이블리) 전송 데이터</div>
-            <div style="font-size:12px; color:#607d8b; margin-top:2px;">총 ${rows.length.toLocaleString()}개 상품 · 출고량 합계 ${total.toLocaleString()}</div>
+            <div style="font-size:16px; font-weight:600; color:var(--c-text);">ZG&AB 출고(직진·에이블리) 전송 데이터</div>
+            <div style="font-size:12px; color:var(--c-text-2); margin-top:2px;">총 ${rows.length.toLocaleString()}개 상품 · 출고량 합계 ${total.toLocaleString()}</div>
             <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-              ${_zikBadge('직진배송', sumZ, cntZ, '#1976d2', '#e3f2fd')}
-              ${_zikBadge('에이블리', sumA, cntA, '#c2185b', '#fce4ec')}
-              ${sumU > 0 ? _zikBadge('구분없음', sumU, cntU, '#607d8b', '#eceff1') : ''}
+              ${_zikBadge('직진배송', sumZ, cntZ, TONE.accentDeep, TONE.accentSoft)}
+              ${_zikBadge('에이블리', sumA, cntA, TONE.riskText, TONE.riskSoft)}
+              ${sumU > 0 ? _zikBadge('구분없음', sumU, cntU, TONE.text2, TONE.track) : ''}
             </div>
             ${sentLine}
             ${diagLine}
           </div>
-          <button onclick="document.getElementById('zikjin-detail-overlay').remove()" style="border:none; background:none; font-size:22px; cursor:pointer; color:#888;">✕</button>
+          <button class="modal-x" onclick="document.getElementById('zikjin-detail-overlay').remove()" aria-label="닫기">×</button>
         </div>
         ${filterBar}
         <div style="overflow:auto; flex:1;">${body}</div>
@@ -460,9 +496,7 @@ window.openZikjinDetail = function () {
         });
         ov.querySelectorAll('[data-zik-filter]').forEach(btn => {
             const on = btn.dataset.zikFilter === key;
-            btn.style.background = on ? '#1976d2' : '#fff';
-            btn.style.color = on ? '#fff' : '#546e7a';
-            btn.style.borderColor = on ? '#1976d2' : '#cfd8dc';
+            btn.classList.toggle('on', on);
         });
         const cnt = ov.querySelector('#zik-filter-count');
         if (cnt) cnt.textContent = key === 'all' ? '' : `${shown.toLocaleString()}개 상품`;
@@ -670,7 +704,7 @@ function updateExcludePreview() {
     if (!input || !preview) return;
     const combos = input.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
     if (combos.length === 0) { preview.innerHTML = '<span style="font-size:11px; color:#999;">제외 항목 없음</span>'; return; }
-    preview.innerHTML = combos.map(c => `<span style="display:inline-block; background:#ff5252; color:white; padding:3px 8px; border-radius:4px; font-size:12px; font-weight:bold;">❌ ${c}</span>`).join('');
+    preview.innerHTML = combos.map(c => `<span style="display:inline-block; background:#ff5252; color:white; padding:3px 8px; border-radius:4px; font-size:12px; font-weight:bold;">${c}</span>`).join('');
 }
 
 window.openRatioModal = function(e) {
@@ -681,38 +715,38 @@ window.openRatioModal = function(e) {
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'ratio-settings-modal';
-        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:10000;";
+        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(30,40,60,0.45); display:none; align-items:center; justify-content:center; z-index:10000;";
         modal.innerHTML = `
-            <div style="background:white; padding:25px; border-radius:12px; width:520px; max-height:90vh; overflow-y:auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--primary); padding-bottom:10px; margin-bottom:15px;">
-                    <h2 style="margin:0; color:var(--primary); font-size:20px;">⚙️ 추천 알고리즘 설정</h2>
-                    <button onclick="document.getElementById('ratio-settings-modal').style.display='none'" style="background:none; border:none; font-size:24px; cursor:pointer;">×</button>
+            <div style="background:var(--c-surface); color:var(--c-text); padding:24px; border-radius:var(--r-card); width:520px; max-height:90vh; overflow-y:auto; box-shadow: var(--sh-pop);">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--c-line); padding-bottom:10px; margin-bottom:15px;">
+                    <h2 style="margin:0; color:var(--c-text); font-size:18px; font-weight:600;">추천 알고리즘 설정</h2>
+                    <button class="modal-x" onclick="document.getElementById('ratio-settings-modal').style.display='none'" aria-label="닫기">×</button>
                 </div>
 
-                <div style="background:#fcfcfc; border:1px solid #ddd; border-radius:8px; padding:15px; margin-bottom:15px;">
-                    <h4 style="margin:0 0 10px 0; color:#333;">📊 점수 반영 비율 (총합 100%)</h4>
+                <div style="background:var(--c-surface-2); border:1px solid var(--c-line); border-radius:var(--r-inner); padding:15px; margin-bottom:15px;">
+                    <h4 style="margin:0 0 10px 0; color:var(--c-text); font-weight:600;">점수 반영 비율 (총합 100%)</h4>
                     <div style="display:flex; justify-content:space-around; align-items:center; gap:5px;">
                         <label style="display:flex; flex-direction:column; align-items:center; font-size:12px; font-weight:bold;">
                             ZG&AB 출고
                             <div style="margin-top:5px; display:flex; align-items:center;">
-                                <input type="number" id="mod-ratio-zikjin" style="width:50px; text-align:right; padding:6px; border:1px solid #ccc; border-radius:4px; font-weight:bold;">
-                                <span style="margin-left:4px; color:#555;">%</span>
+                                <input type="number" id="mod-ratio-zikjin" style="width:50px; text-align:right; padding:6px; border:1px solid var(--c-line-strong); border-radius:4px; font-weight:bold;">
+                                <span style="margin-left:4px; color:var(--c-text-2);">%</span>
                             </div>
                         </label>
-                        <span style="font-size:20px; color:#aaa; margin-top:15px;">+</span>
+                        <span style="font-size:20px; color:var(--c-text-3); margin-top:15px;">+</span>
                         <label style="display:flex; flex-direction:column; align-items:center; font-size:12px; font-weight:bold;">
                             주차별
                             <div style="margin-top:5px; display:flex; align-items:center;">
-                                <input type="number" id="mod-ratio-weekly" style="width:50px; text-align:right; padding:6px; border:1px solid #ccc; border-radius:4px; font-weight:bold;">
-                                <span style="margin-left:4px; color:#555;">%</span>
+                                <input type="number" id="mod-ratio-weekly" style="width:50px; text-align:right; padding:6px; border:1px solid var(--c-line-strong); border-radius:4px; font-weight:bold;">
+                                <span style="margin-left:4px; color:var(--c-text-2);">%</span>
                             </div>
                         </label>
-                        <span style="font-size:20px; color:#aaa; margin-top:15px;">+</span>
+                        <span style="font-size:20px; color:var(--c-text-3); margin-top:15px;">+</span>
                         <label style="display:flex; flex-direction:column; align-items:center; font-size:12px; font-weight:bold;">
                             상승세
                             <div style="margin-top:5px; display:flex; align-items:center;">
-                                <input type="number" id="mod-ratio-trend" style="width:50px; text-align:right; padding:6px; border:1px solid #ccc; border-radius:4px; font-weight:bold;">
-                                <span style="margin-left:4px; color:#555;">%</span>
+                                <input type="number" id="mod-ratio-trend" style="width:50px; text-align:right; padding:6px; border:1px solid var(--c-line-strong); border-radius:4px; font-weight:bold;">
+                                <span style="margin-left:4px; color:var(--c-text-2);">%</span>
                             </div>
                         </label>
                     </div>
@@ -720,51 +754,51 @@ window.openRatioModal = function(e) {
 
                 <div style="margin-bottom:10px;">
                     <div class="section-toggle" onclick="toggleSection('sec-zone', 'icon-zone')">
-                        <span>🧩 구역(알파벳) 우선순위 배치</span>
+                        <span>구역(알파벳) 우선순위 배치</span>
                         <span id="icon-zone">▼</span>
                     </div>
                     <div id="sec-zone" class="section-content">
-                        <p style="margin:0 0 10px 0; font-size:11px; color:#666;">※ 마우스로 알파벳 조각을 끌어서 원하는 순위 칸에 놓으세요.</p>
+                        <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 마우스로 알파벳 조각을 끌어서 원하는 순위 칸에 놓으세요.</p>
                         <div class="puzzle-container">
-                            <div class="puzzle-row"><div class="puzzle-label" style="background:#ffd54f;">0순위</div><div class="puzzle-drop-area" id="pz-0" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row"><div class="puzzle-label" style="background:#81c784;">1순위</div><div class="puzzle-drop-area" id="pz-1" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row"><div class="puzzle-label" style="background:#64b5f6;">2순위</div><div class="puzzle-drop-area" id="pz-2" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row"><div class="puzzle-label" style="background:#ba68c8; color:white;">3순위</div><div class="puzzle-drop-area" id="pz-3" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row" style="margin-top:5px;"><div class="puzzle-label" style="background:#eee; border:1px solid #ccc;">미지정<br>(후순위)</div><div class="puzzle-drop-area" id="pz-none" style="background:#f0f0f0; border-color:#ccc;" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                            <div class="puzzle-row"><div class="puzzle-label pz-r0">0순위</div><div class="puzzle-drop-area" id="pz-0" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                            <div class="puzzle-row"><div class="puzzle-label pz-r1">1순위</div><div class="puzzle-drop-area" id="pz-1" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                            <div class="puzzle-row"><div class="puzzle-label pz-r2">2순위</div><div class="puzzle-drop-area" id="pz-2" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                            <div class="puzzle-row"><div class="puzzle-label pz-r3">3순위</div><div class="puzzle-drop-area" id="pz-3" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                            <div class="puzzle-row" style="margin-top:5px;"><div class="puzzle-label pz-none">미지정<br>(후순위)</div><div class="puzzle-drop-area pz-none-area" id="pz-none" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
                         </div>
                     </div>
                 </div>
 
                 <div style="margin-bottom:20px;">
                     <div class="section-toggle" onclick="toggleSection('sec-dongpos', 'icon-dongpos')">
-                        <span>🏢 동 / 위치 우선순위 줄세우기</span>
+                        <span>동 / 위치 우선순위 줄세우기</span>
                         <span id="icon-dongpos">▼</span>
                     </div>
                     <div id="sec-dongpos" class="section-content">
-                        <p style="margin:0 0 10px 0; font-size:11px; color:#666;">※ 마우스로 블록을 잡고 좌우로 끌어서 순서를 맞춰주세요. (왼쪽이 1순위)</p>
+                        <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 마우스로 블록을 잡고 좌우로 끌어서 순서를 맞춰주세요. (왼쪽이 1순위)</p>
                         
-                        <div style="font-size:13px; font-weight:bold; margin-bottom:5px; color:var(--primary);">▶ 동 우선순위</div>
+                        <div style="font-size:13px; font-weight:600; margin-bottom:5px; color:var(--c-accent-deep);">▶ 동 우선순위</div>
                         <div class="sort-container" id="sort-dongs" ondragover="handleSortDragOver(event)"></div>
 
-                        <div style="font-size:13px; font-weight:bold; margin-top:15px; margin-bottom:5px; color:var(--primary);">▶ 위치 우선순위</div>
+                        <div style="font-size:13px; font-weight:600; margin-top:15px; margin-bottom:5px; color:var(--c-accent-deep);">▶ 위치 우선순위</div>
                         <div class="sort-container" id="sort-poses" ondragover="handleSortDragOver(event)"></div>
                     </div>
                 </div>
 
                 <div style="margin-bottom:20px;">
                     <div class="section-toggle" onclick="toggleSection('sec-exclude', 'icon-exclude')">
-                        <span>❌ 추천 제외 구역 설정</span>
+                        <span>추천 제외 구역 설정</span>
                         <span id="icon-exclude">▼</span>
                     </div>
                     <div id="sec-exclude" class="section-content">
-                        <p style="margin:0 0 10px 0; font-size:11px; color:#666;">※ 구역+동 조합을 입력하면 해당 조합의 로케이션이 추천에서 제외됩니다.<br>예시: Z-1, A-3, ★-2 (쉼표로 구분)</p>
-                        <input type="text" id="exclude-combos-input" placeholder="예: Z-1, A-3, ★-2" style="width:100%; padding:10px; border:2px solid #ef9a9a; border-radius:6px; font-size:14px; background:#ffebee; box-sizing:border-box;">
+                        <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 구역+동 조합을 입력하면 해당 조합의 로케이션이 추천에서 제외됩니다.<br>예시: Z-1, A-3, ★-2 (쉼표로 구분)</p>
+                        <input type="text" id="exclude-combos-input" class="risk-input" placeholder="예: Z-1, A-3, ★-2">
                         <div id="exclude-combos-preview" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;"></div>
                     </div>
                 </div>
                 
                 <div style="display:flex; justify-content:center;">
-                    <button onclick="saveMasterSettingsModal()" style="width:100%; padding:12px; font-size:16px; border:none; background:var(--primary); color:white; border-radius:6px; cursor:pointer; font-weight:bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">💾 변경사항 저장 및 즉시 재계산</button>
+                    <button class="btn btn-primary" onclick="saveMasterSettingsModal()" style="width:100%;">변경사항 저장 및 즉시 재계산</button>
                 </div>
             </div>
         `;
@@ -828,7 +862,7 @@ window.saveMasterSettingsModal = async function() {
     const z = Number(document.getElementById('mod-ratio-zikjin').value) || 0;
     const w = Number(document.getElementById('mod-ratio-weekly').value) || 0;
     const t = Number(document.getElementById('mod-ratio-trend').value) || 0;
-    if (z + w + t !== 100) return alert(`🚨 점수 반영 비율의 합계가 100%가 되어야 합니다.\n(현재 합계: ${z + w + t}%)`);
+    if (z + w + t !== 100) return alert(`점수 반영 비율의 합계가 100%가 되어야 합니다.\n(현재 합계: ${z + w + t}%)`);
     
     let newZones = {};
     for(let i=0; i<=3; i++){
@@ -854,7 +888,7 @@ window.saveMasterSettingsModal = async function() {
         window.recommendPriorities = newPriorities;
         
         document.getElementById('ratio-settings-modal').style.display = 'none';
-        showToast("✅ 마스터 설정이 저장되었습니다.");
+        showToast("마스터 설정이 저장되었습니다.");
         
         const recModal = document.getElementById('recommend-modal');
         if (recModal && recModal.style.display === 'flex') window.showPairRecommendation();
@@ -1050,7 +1084,7 @@ function _getDemandForCode(code) {
 }
 
 window.showRecommendation = function() {
-    window.showLoading("💡 우선순위 알고리즘을 분석하여 최적의 로케이션을 매칭 중입니다...");
+    window.showLoading("우선순위 알고리즘을 분석하여 최적의 로케이션을 매칭 중입니다...");
 
     setTimeout(() => {
         window.currentRecommendations = [];
@@ -1338,17 +1372,17 @@ window.showRecommendation = function() {
                 let moveBadge = '';
                 let moveText = '';
                 if (currentLocsObjs.length === 0) {
-                    moveBadge = `<span style="display:inline-block; background:#e3f2fd; color:#1565c0; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">✨ 신규</span>`;
-                    moveText = '✨신규';
+                    moveBadge = `<span style="display:inline-block; background:#e3f2fd; color:#1565c0; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">신규</span>`;
+                    moveText = '신규';
                 } else if (targetScore < bestCurrentScore) {
-                    moveBadge = `<span style="display:inline-block; background:#ffebee; color:#b71c1c; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔺 전진</span>`;
-                    moveText = '🔺전진';
+                    moveBadge = `<span style="display:inline-block; background:#ffebee; color:#b71c1c; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">전진</span>`;
+                    moveText = '전진';
                 } else if (targetScore > bestCurrentScore) {
-                    moveBadge = `<span style="display:inline-block; background:#eceff1; color:#37474f; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">🔻 후퇴</span>`;
-                    moveText = '🔻후퇴';
+                    moveBadge = `<span style="display:inline-block; background:#eceff1; color:#37474f; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">후퇴</span>`;
+                    moveText = '후퇴';
                 } else {
-                    moveBadge = `<span style="display:inline-block; background:#f5f5f5; color:#616161; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">➖ 수평</span>`;
-                    moveText = '➖수평';
+                    moveBadge = `<span style="display:inline-block; background:#f5f5f5; color:#616161; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">수평</span>`;
+                    moveText = '수평';
                 }
                 
                 window.currentRecommendations.push({
@@ -1367,14 +1401,14 @@ window.showRecommendation = function() {
                 const moveQtyDisplay = moveQty > 0 ? `<span style="color:#e65100; font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:#888;">개</span>` : `<span style="color:#bbb; font-size:12px;">-</span>`;
 
                 // ★ 점수 세부 툴팁 HTML (html += 윗줄에 선언)
-                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
                 // v3.98: 페어 보정 배지
                 let pairBadgeHtml = '';
                 if (matchedPairScore > 0 && pairWeightMax > 0) {
                     const normScore = Math.min(100, (matchedPairScore / pairWeightMax) * 100);
                     const partnerCount = (pairMap[item.code] || []).length;
-                    pairBadgeHtml = `<br><span style="display:inline-block; background:#fff3e0; color:#e65100; padding:3px 7px; border-radius:4px; font-size:10px; font-weight:bold; margin-top:3px; border:1px solid #ffcc80;" title="페어 가중치: ${matchedPairScore.toFixed(2)} (정규화 ${normScore.toFixed(0)}점, 페어 ${partnerCount}개)">🔗 페어 ${partnerCount}개와 가까이</span>`;
+                    pairBadgeHtml = `<br><span style="display:inline-block; background:#fff3e0; color:#e65100; padding:3px 7px; border-radius:4px; font-size:10px; font-weight:bold; margin-top:3px; border:1px solid #ffcc80;" title="페어 가중치: ${matchedPairScore.toFixed(2)} (정규화 ${normScore.toFixed(0)}점, 페어 ${partnerCount}개)">페어 ${partnerCount}개와 가까이</span>`;
                 }
 
                 html += `
@@ -1533,7 +1567,7 @@ window.render2FSupplierList = function(supplierSet, excluded) {
     if (!box) return;
     const suppliers = [...supplierSet].sort((a, b) => a.localeCompare(b, 'ko'));
     if (suppliers.length === 0) {
-        box.innerHTML = '<span style="font-size:12px; color:#999;">공급처 정보가 있는 상품이 없습니다.</span>';
+        box.innerHTML = '<span style="font-size:12px; color:var(--c-text-3);">공급처 정보가 있는 상품이 없습니다.</span>';
         const allCb0 = document.getElementById('2f-supplier-all');
         if (allCb0) allCb0.checked = false;
         return;
@@ -1541,7 +1575,7 @@ window.render2FSupplierList = function(supplierSet, excluded) {
     box.innerHTML = suppliers.map(s => {
         const checked = excluded.has(s) ? ' checked' : '';
         const safe = String(s).replace(/"/g, '&quot;');
-        return '<label style="font-size:12px; color:#333; cursor:pointer; user-select:none; white-space:nowrap;">' +
+        return '<label style="font-size:12px; color:var(--c-text); cursor:pointer; user-select:none; white-space:nowrap;">' +
                '<input type="checkbox" class="f2-supplier-cb" value="' + safe + '"' + checked + ' style="vertical-align:middle;"> ' + s +
                '</label>';
     }).join('');
@@ -1661,24 +1695,24 @@ window.render2FTable = function() {
     const tbody = document.getElementById('2f-tbody');
     let html = '';
     window.current2FList.forEach((item, idx) => {
-        const rowBg = idx % 2 === 0 ? '#ffffff' : '#f9fafb';
+        const rowBg = idx % 2 === 0 ? 'var(--c-surface)' : 'var(--c-surface-2)';
         html += `
             <tr style="background:${rowBg};">
                 <td><input type="checkbox" class="check-2f-item" data-idx="${idx}"></td>
-                <td style="font-weight:bold; color:#7b1fa2;">${idx + 1}</td>
-                <td style="font-weight:bold; color:#1a237e; white-space:nowrap;">${item.code}</td>
+                <td style="font-weight:600; color:var(--c-text-2);">${idx + 1}</td>
+                <td style="font-weight:600; color:var(--c-accent-deep); white-space:nowrap;">${item.code}</td>
                 <td style="text-align:left; font-size:13px; white-space:nowrap;">${item.name}</td>
                 <td style="font-size:12px; white-space:nowrap;">${item.option}</td>
-                <td style="font-size:12px; color:#555; white-space:nowrap;">${item.supplier || '-'}</td>
+                <td style="font-size:12px; color:var(--c-text-2); white-space:nowrap;">${item.supplier || '-'}</td>
                 <td style="font-weight:bold;">${item.totalStock}</td>
-                <td style="font-size:12px; color:${item.lastDelivery === '기록없음' ? '#ff5252' : '#555'};">${item.lastDelivery}</td>
+                <td style="font-size:12px; color:${item.lastDelivery === '기록없음' ? 'var(--c-risk-text)' : 'var(--c-text-2)'};">${item.lastDelivery}</td>
                 <td style="font-size:12px;">${item.locIds}</td>
-                <td style="background:#f3e5f5; font-weight:bold; color:#4a148c; font-size:12px;">${item.changeValue}</td>
+                <td style="background:var(--c-accent-soft); font-weight:600; color:var(--c-accent-deep); font-size:12px;">${item.changeValue}</td>
             </tr>
         `;
     });
     if (window.current2FList.length === 0) {
-        html = '<tr><td colspan="10" style="padding:40px; color:#888;">조건에 해당하는 상품이 없습니다.</td></tr>';
+        html = '<tr><td colspan="10" style="padding:40px; color:var(--c-text-3);">조건에 해당하는 상품이 없습니다.</td></tr>';
     }
     tbody.innerHTML = html;
     document.getElementById('2f-check-all').checked = false;
@@ -1750,7 +1784,7 @@ function renderTableHeader() {
             // ★ 입고대기 컬럼에 툴팁 추가
             let displayLabel = label;
             if (label === '입고대기') {
-                displayLabel = `입고대기<span class="info-tip" data-tip-key="header-incoming">i<span class="info-tip-content">📦 <b>오더리스트 + 사입리스트 합계</b><br>입고대기 사이드바에 연동된 구글시트의 <b>미입고수량</b>을 상품코드 기준으로 합산한 값입니다.<br>(같은 상품코드의 옵션별 수량이 모두 더해집니다)</span></span>`;
+                displayLabel = `입고대기<span class="info-tip" data-tip-key="header-incoming">i<span class="info-tip-content"><b>오더리스트 + 사입리스트 합계</b><br>입고대기 사이드바에 연동된 구글시트의 <b>미입고수량</b>을 상품코드 기준으로 합산한 값입니다.<br>(같은 상품코드의 옵션별 수량이 모두 더해집니다)</span></span>`;
             }
             html += createTh(col, displayLabel, 120, true, col);
             popupHtml += `<div id="pop-${col}" class="filter-popup"></div>`;
@@ -1832,10 +1866,10 @@ function moveVisibleColumn(fromCol, toCol, placeAfter) {
 async function saveVisibleColumnOrder(cols) {
     try {
         await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { visibleColumns: cols }, { merge: true });
-        showToast('✅ 헤더 순서가 저장되었습니다.');
+        showToast('헤더 순서가 저장되었습니다.');
     } catch (e) {
         console.error('헤더 순서 저장 실패:', e);
-        showToast('⚠️ 헤더 순서 저장에 실패했습니다.');
+        showToast('헤더 순서 저장에 실패했습니다.');
     }
 }
 
@@ -1887,7 +1921,7 @@ window.saveHeaderSettings = async () => {
         document.getElementById('settings-modal').style.display = 'none';
         renderTableHeader(); 
         applyFiltersAndSort(); 
-        showToast("✅ 화면 헤더 설정이 저장되었습니다.");
+        showToast("화면 헤더 설정이 저장되었습니다.");
     } catch(e) { console.error(e); alert("저장 실패"); }
 };
 
@@ -1902,18 +1936,14 @@ window.switchIncomingSettingsTab = function(tab) {
     if (tab === 'sheet') {
         contentSheet.style.display = 'block';
         contentPriority.style.display = 'none';
-        tabBtnSheet.style.background = '#607d8b';
-        tabBtnSheet.style.color = 'white';
-        tabBtnPriority.style.background = '#eee';
-        tabBtnPriority.style.color = '#555';
+        tabBtnSheet.classList.add('active');
+        tabBtnPriority.classList.remove('active');
     } else if (tab === 'priority') {
         contentSheet.style.display = 'none';
         contentPriority.style.display = 'block';
-        tabBtnSheet.style.background = '#eee';
-        tabBtnSheet.style.color = '#555';
-        tabBtnPriority.style.background = '#607d8b';
-        tabBtnPriority.style.color = 'white';
-        
+        tabBtnSheet.classList.remove('active');
+        tabBtnPriority.classList.add('active');
+                
         // 2단계에서 우선순위 UI 렌더링 함수 호출 예정
     }
 };
@@ -2006,7 +2036,7 @@ window.saveIncomingPriorities = async function() {
             const pz = document.getElementById(`incoming-pz-${i}`);
             if (!pz) { 
                 console.warn(`[saveIncomingPriorities] incoming-pz-${i} 엘리먼트 없음`); 
-                return alert("⚠️ 우선순위 UI를 찾을 수 없습니다. 페이지를 새로고침 해주세요.");
+                return alert("우선순위 UI를 찾을 수 없습니다. 페이지를 새로고침 해주세요.");
             }
             const blocks = pz.querySelectorAll('.puzzle-block');
             newZones[i] = Array.from(blocks).map(b => b.innerText.trim());
@@ -2016,7 +2046,7 @@ window.saveIncomingPriorities = async function() {
         const dongsEl = document.getElementById('incoming-sort-dongs');
         const posesEl = document.getElementById('incoming-sort-poses');
         if (!dongsEl || !posesEl) {
-            return alert("⚠️ 동/위치 우선순위 UI를 찾을 수 없습니다. 페이지를 새로고침 해주세요.");
+            return alert("동/위치 우선순위 UI를 찾을 수 없습니다. 페이지를 새로고침 해주세요.");
         }
         const newDongs = Array.from(dongsEl.querySelectorAll('.puzzle-sort-block')).map(b => b.innerText.trim());
         const newPoses = Array.from(posesEl.querySelectorAll('.puzzle-sort-block')).map(b => b.innerText.trim());
@@ -2038,15 +2068,15 @@ window.saveIncomingPriorities = async function() {
         window.incomingRecommendPriorities = newPriorities;
         
         if (typeof showToast === 'function') {
-            showToast("✅ 입고 추천 우선순위가 저장되었습니다.");
+            showToast("입고 추천 우선순위가 저장되었습니다.");
         } else {
-            alert("✅ 입고 추천 우선순위가 저장되었습니다.");
+            alert("입고 추천 우선순위가 저장되었습니다.");
         }
         
         if (typeof window.closeSheetModal === 'function') window.closeSheetModal();
     } catch(e) {
         console.error("[saveIncomingPriorities] 저장 실패:", e);
-        alert("⚠️ 입고 추천 우선순위 저장 중 오류가 발생했습니다.");
+        alert("입고 추천 우선순위 저장 중 오류가 발생했습니다.");
     }
 };
 
@@ -2289,7 +2319,7 @@ window.applyAllRecommendations = async function() {
         }
         
         // 4) 사용자 확인
-        const msg = `📍 추천 자리 일괄 적용\n\n` +
+        const msg = `추천 자리 일괄 적용\n\n` +
                     `대상: ${assignments.length}개 상품\n` +
                     (skipped.length > 0 ? `추천 불가로 제외: ${skipped.length}개\n` : '') +
                     `\n계속 진행하시겠습니까?`;
@@ -2330,13 +2360,13 @@ window.applyAllRecommendations = async function() {
         }
     } catch (e) {
         console.error('[applyAllRecommendations] 실패:', e);
-        alert('⚠️ 일괄 적용 중 오류가 발생했습니다: ' + (e && e.message ? e.message : e));
+        alert('일괄 적용 중 오류가 발생했습니다: ' + (e && e.message ? e.message : e));
     }
 };
 
 window.saveSheetUrl = async () => {
-    // 2026-10-07 비활성: [🔄 시트 동기화]가 수집기 자료(incomingSheet)를 읽는다. 링크를 새로 저장하지 않는다.
-    alert('시트 링크 설정은 더 이상 사용하지 않습니다.\n[🔄 시트 동기화]는 자동 수집 자료를 가져옵니다.');
+    // 2026-10-07 비활성: [시트 동기화]가 수집기 자료(incomingSheet)를 읽는다. 링크를 새로 저장하지 않는다.
+    alert('시트 링크 설정은 더 이상 사용하지 않습니다.\n[시트 동기화]는 자동 수집 자료를 가져옵니다.');
     return;
     // eslint-disable-next-line no-unreachable
     const urlOrder = document.getElementById('modal-sheet-url-order').value.trim();
@@ -2346,7 +2376,7 @@ window.saveSheetUrl = async () => {
         await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { sheetUrlOrder: urlOrder, sheetUrlBuy: urlBuy }, { merge: true });
         window.sheetUrlOrder = urlOrder;
         window.sheetUrlBuy = urlBuy;
-        alert("✅ 구글시트 링크가 안전하게 저장되었습니다.");
+        alert("구글시트 링크가 안전하게 저장되었습니다.");
         if (typeof window.closeSheetModal === 'function') window.closeSheetModal();
     } catch(e) { console.error("링크 저장 실패:", e); alert("오류가 발생했습니다."); }
 };
@@ -2370,7 +2400,7 @@ async function applyIncomingRows(finalJson, cancelledCodes, sourceMsg) {
     if (finalJson.length > 0) {
         await updateDatabaseB(finalJson, 'IncomingData', null, true);
         window.hideLoading();
-        alert(`✅ 입고 대기 상품 연동 완료!\n${sourceMsg}`);
+        alert(`입고 대기 상품 연동 완료!\n${sourceMsg}`);
     } else {
         window.hideLoading();
         alert("입고 대기(수량 1개 이상) 상품이 없거나 데이터를 찾지 못했습니다.");
@@ -2422,7 +2452,7 @@ const fmtHM = (ms) => { const d = new Date(ms); return `${d.getMonth() + 1}/${d.
 
 /** 수집기 자료를 입고대기 목록에 반영 */
 async function applyCollectorRows(col, extraMsg) {
-    window.showLoading("🔄 시트 자료를 반영하는 중입니다...");
+    window.showLoading("시트 자료를 반영하는 중입니다...");
     try {
         const c = { '제작': 0, '사입': 0 };
         col.rows.forEach(r => { if (c[r.source] !== undefined) c[r.source]++; });
@@ -2430,7 +2460,7 @@ async function applyCollectorRows(col, extraMsg) {
             `(제작 ${c['제작']}건, 사입 ${c['사입']}건 · 시트 기준 ${col.at ? fmtHM(col.at) : '시각 모름'})` + (extraMsg ? `\n\n${extraMsg}` : ''));
     } catch (error) {
         window.hideLoading();
-        alert(`🚨 반영 실패!\n(${error.message})`);
+        alert(`반영 실패!\n(${error.message})`);
         console.error("입고예정 반영 실패:", error);
     }
 }
@@ -2460,7 +2490,7 @@ window.applyIncomingNow = async () => {
 };
 
 /**
- * [🔄 시트 동기화] — 버튼 하나로:
+ * [시트 동기화] — 버튼 하나로:
  *   · 15분 안에 읽은 자료면 바로 반영
  *   · 아니면 수집기에 '지금 새로 읽기' 요청(미발계산기(신규) [지금 갱신]과 같은 요청 문서) → 끝나면 자동 반영
  *     (패널에 진행 표시, 기다리지 않고 반영하는 버튼도 있음)
@@ -2493,13 +2523,13 @@ window.syncIncomingData = async () => {
         if (okAt && Date.now() - okAt < 10 * 60 * 1000) return applyCollectorRows(col, '');   // 방금 읽었다(수집기도 무시한다)
         // 직전 요청이 이미 거절됐으면(요청 뒤에 note) 기다려도 오지 않는다 — 그 이유로 바로 반영
         if (reqAt && reqAt > runAt && l.note && baseNoteAt >= reqAt && Date.now() - baseNoteAt < 30 * 60 * 1000) {
-            return applyCollectorRows(col, `⚠ 새로 읽기 요청이 처리되지 않았습니다: ${l.note}\n그래서 이 기준 자료로 반영했습니다.`);
+            return applyCollectorRows(col, `새로 읽기 요청이 처리되지 않았습니다: ${l.note}\n그래서 이 기준 자료로 반영했습니다.`);
         }
         const pending = reqAt && reqAt > runAt && baseNoteAt < reqAt && Date.now() - reqAt < 15 * 60 * 1000;
         let reqMs = pending ? reqAt : Date.now();
         if (!pending) {
             try { await setDoc(doc(db, MIBAL2_REQUEST_PATH), { requestedAt: serverTimestamp() }); }
-            catch (e) { return applyCollectorRows(col, `⚠ 새로 읽기를 요청하지 못해(${e.code || e.message}) 이 기준 자료로 반영했습니다.`); }
+            catch (e) { return applyCollectorRows(col, `새로 읽기를 요청하지 못해(${e.code || e.message}) 이 기준 자료로 반영했습니다.`); }
         }
 
         // 기다리기 — 입고예정 문서가 새로 써지면 자동 반영
@@ -2514,23 +2544,23 @@ window.syncIncomingData = async () => {
             const s = Math.floor((Date.now() - startMs) / 1000);
             setSyncStatus(`⏳ 시트를 새로 읽는 중… <b>${Math.floor(s / 60)}분 ${s % 60}초</b> 경과 (보통 5~10분) — 끝나면 자동으로 반영됩니다.<br>` +
                 `<button type="button" onclick="applyIncomingNow()" style="margin-top:4px; padding:3px 8px; font-size:11px; border:1px solid #bbb; border-radius:4px; background:#fff; cursor:pointer;">기다리지 않고 지금 자료(${fmtHM(col.at)} 기준)로 반영</button>`);
-            if (Date.now() - startMs > INCOMING_WAIT_MAX_MS) finish(`⚠ ${INCOMING_WAIT_MAX_MS / 60000}분 안에 새로 읽지 못해 이 기준 자료로 반영했습니다. 잠시 뒤 다시 눌러 보세요.`, false);
+            if (Date.now() - startMs > INCOMING_WAIT_MAX_MS) finish(`${INCOMING_WAIT_MAX_MS / 60000}분 안에 새로 읽지 못해 이 기준 자료로 반영했습니다. 잠시 뒤 다시 눌러 보세요.`, false);
         };
         render();
         incomingWait.timer = setInterval(render, 1000);
         incomingWait.unsubs.push(onSnapshot(doc(db, INCOMING_SHEET_PATH), snap => {
             const d = snap.data() || {};
             if (!incomingWait || tsMillis(d.updatedAt) <= col.at) return;
-            if (d.ok === false) finish('⚠ 시트를 새로 읽었지만 입고예정 자료를 저장하지 못해(크기 초과 등) 이 기준 자료로 반영했습니다.', false);
+            if (d.ok === false) finish('시트를 새로 읽었지만 입고예정 자료를 저장하지 못해(크기 초과 등) 이 기준 자료로 반영했습니다.', false);
             else finish('', true);
         }, () => { /* 읽기 오류는 시간초과로 처리 */ }));
         incomingWait.unsubs.push(onSnapshot(doc(db, MIBAL2_LATEST_PATH), snap => {
             if (!incomingWait) return;
             const d = snap.data() || {};
             if (d.note && tsMillis(d.noteAt) > baseNoteAt) {
-                finish(`⚠ 새로 읽기 요청이 처리되지 않았습니다: ${d.note}\n그래서 이 기준 자료로 반영했습니다.`, false);
+                finish(`새로 읽기 요청이 처리되지 않았습니다: ${d.note}\n그래서 이 기준 자료로 반영했습니다.`, false);
             } else if (d.ok === false && tsMillis(d.lastRunAt) > reqMs - 60 * 1000) {
-                finish('⚠ 시트를 새로 읽다가 실패해서 이 기준 자료로 반영했습니다.', false);
+                finish('시트를 새로 읽다가 실패해서 이 기준 자료로 반영했습니다.', false);
             }
         }, () => { /* 읽기 오류는 시간초과로 처리 */ }));
         return;
@@ -2538,7 +2568,7 @@ window.syncIncomingData = async () => {
 
     // 2순위(전환 기간만): 옛 경로 — '웹에 게시' 시트를 직접 받는다. 시트 웹게시를 끄면 이 경로는 실패한다.
     if (!window.sheetUrlOrder && !window.sheetUrlBuy) return alert("시트 자료를 읽지 못했습니다.\n(수집기 자료가 없고, 예전 시트 링크도 설정되어 있지 않습니다)");
-    window.showLoading("🔄 원본 시트에서 데이터를 분석하여 가져오는 중입니다...");
+    window.showLoading("원본 시트에서 데이터를 분석하여 가져오는 중입니다...");
     
     try {
         let combinedData = [];
@@ -2653,7 +2683,7 @@ window.syncIncomingData = async () => {
         await applyIncomingRows(finalJson, cancelledCodes, `(오더리스트 ${orderData.length}건, 사입리스트 ${buyData.length}건 · 웹게시 시트에서 직접)`);
     } catch (error) {
         window.hideLoading(); 
-        alert(`🚨 연결 실패!\n데이터를 가져오지 못했습니다.\n(${error.message})`); 
+        alert(`연결 실패!\n데이터를 가져오지 못했습니다.\n(${error.message})`); 
         console.error("데이터 동기화 실패:", error);
     }
 };
@@ -2670,7 +2700,7 @@ window.showCancelledPreAssignModal = function(items) {
     
     let html = '';
     items.forEach((loc, idx) => {
-        const rowBg = idx % 2 === 0 ? '#ffffff' : '#fff5f5';
+        const rowBg = idx % 2 === 0 ? 'var(--c-surface)' : 'var(--c-risk-row)';
         const code = loc.preAssignedCode || '';
         const name = loc.preAssignedName || '';
         const option = loc.option || '';
@@ -2678,14 +2708,14 @@ window.showCancelledPreAssignModal = function(items) {
         
         html += `
             <tr style="background:${rowBg};">
-                <td style="font-weight:bold; color:#d32f2f;">${idx + 1}</td>
-                <td style="font-weight:bold; color:#1a237e; font-size:14px;">${loc.id}</td>
-                <td style="font-weight:bold; color:#1a237e;">${code}</td>
+                <td style="font-weight:600; color:var(--c-risk-text);">${idx + 1}</td>
+                <td style="font-weight:600; color:var(--c-text); font-size:14px;">${loc.id}</td>
+                <td style="font-weight:600; color:var(--c-accent-deep);">${code}</td>
                 <td style="text-align:left; font-size:13px;">${name}</td>
                 <td style="font-size:12px;">${option}</td>
-                <td style="font-size:11px; color:#666;">${source}</td>
-                <td style="background:#ffebee;">
-                    <button onclick="window.releasePreAssign('${loc.id}')" style="padding:5px 10px; background:#d32f2f; color:white; border:none; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;">🗑️ 해제</button>
+                <td style="font-size:11px; color:var(--c-text-2);">${source}</td>
+                <td style="background:var(--c-risk-row);">
+                    <button class="btn btn-risk btn-sm" onclick="window.releasePreAssign('${loc.id}')" style="height:28px; padding:0 12px; font-size:11px;">해제</button>
                 </td>
             </tr>
         `;
@@ -2728,7 +2758,7 @@ window.releasePreAssign = async function(locId) {
             // 모두 해제됐으면 모달 닫기
             if (window._cancelledPreAssignItems.length === 0) {
                 document.getElementById('cancelled-preassign-modal').style.display = 'none';
-                showToast(`✅ 모든 취소된 선지정 자리가 해제되었습니다.`);
+                showToast(`모든 취소된 선지정 자리가 해제되었습니다.`);
             } else {
                 // 남은 항목으로 모달 다시 그리기
                 window.showCancelledPreAssignModal(window._cancelledPreAssignItems);
@@ -2785,7 +2815,7 @@ window.releaseAllCancelledPreAssigns = async function() {
         window.hideLoading();
         document.getElementById('cancelled-preassign-modal').style.display = 'none';
         window._cancelledPreAssignItems = [];
-        alert(`✅ 총 ${items.length}건의 선지정이 일괄 해제되었습니다.`);
+        alert(`총 ${items.length}건의 선지정이 일괄 해제되었습니다.`);
     } catch (e) {
         window.hideLoading();
         console.error("일괄 해제 오류:", e);
@@ -2902,16 +2932,16 @@ window.calculateAndRenderUsage = function() {
         html += `
             <div style="display:flex; justify-content: space-around; background: #eef1ff; padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #c5cae9;">
                 <div style="text-align:center;">
-                    <div style="font-size:11px; color:#555; font-weight:bold;">당일지정수량<span class="info-tip" data-tip-key="usage-today-reserved">i<span class="info-tip-content">📌 <b>오늘 작업 중 예약된 자리</b><br>로케이션 셀을 클릭하면 현재 작업자가 예약(복사+잠금)한 상태가 됩니다.<br><br>자정에 자동으로 초기화됩니다.</span></span></div>
+                    <div style="font-size:11px; color:#555; font-weight:bold;">당일지정수량<span class="info-tip" data-tip-key="usage-today-reserved">i<span class="info-tip-content"><b>오늘 작업 중 예약된 자리</b><br>로케이션 셀을 클릭하면 현재 작업자가 예약(복사+잠금)한 상태가 됩니다.<br><br>자정에 자동으로 초기화됩니다.</span></span></div>
                     <div style="font-size:18px; color:var(--primary); font-weight:900;">${todayReservedCount}</div>
                 </div>
                 <div style="width:1px; background:#ccc;"></div>
                 <div style="text-align:center;">
-                    <div style="font-size:11px; color:#555; font-weight:bold;">선지정수량<span class="info-tip" data-tip-key="usage-pre-assigned">i<span class="info-tip-content">📦 <b>입고 전에 미리 찜해둔 자리</b><br>입고대기 사이드바에서 상품을 클릭하고 빈 자리를 지정하면 선지정됩니다.<br><br>로케이션 변경 추천에서 보호(제외)되며, 자정에 초기화되지 않습니다.</span></span></div>
+                    <div style="font-size:11px; color:#555; font-weight:bold;">선지정수량<span class="info-tip" data-tip-key="usage-pre-assigned">i<span class="info-tip-content"><b>입고 전에 미리 찜해둔 자리</b><br>입고대기 사이드바에서 상품을 클릭하고 빈 자리를 지정하면 선지정됩니다.<br><br>로케이션 변경 추천에서 보호(제외)되며, 자정에 초기화되지 않습니다.</span></span></div>
                     <div style="font-size:18px; color:#e65100; font-weight:900;">${preAssignedCount}</div>
                 </div>
             </div>
-            <div style="font-size:16px; font-weight:bold; margin-bottom:5px; color:var(--primary); text-align:center;">📊 3층 전체 사용률: ${usageRate}%</div>
+            <div style="font-size:16px; font-weight:bold; margin-bottom:5px; color:var(--primary); text-align:center;">3층 전체 사용률: ${usageRate}%</div>
             <div style="font-size:12px; color:#333; text-align:center;">전체 ${total}칸 중 <span style="color:var(--primary); font-weight:bold;">${used}칸 사용</span> / <span style="color:#ff5252; font-weight:bold;">${total - used}칸 빈칸</span></div>
             <div style="text-align:center; margin-top:10px;">
                 <span onclick="toggleUsageDetails()" id="usage-details-btn" style="color:var(--primary); font-size:13px; text-decoration:underline; cursor:pointer; font-weight:bold;">자세히보기 ▼</span>
@@ -2994,11 +3024,11 @@ window.calculateAndRenderUsage = function() {
         }
         
         if (sortedDates.length === 0) {
-            predictionHtml = `<tr><th style="background:#eceff1;">📅 만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content">📊 <b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="color:#888; text-align:right;">입고대기 데이터 없음 (시트 동기화 필요)</td></tr>`;
+            predictionHtml = `<tr><th style="background:#eceff1;">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="color:#888; text-align:right;">입고대기 데이터 없음 (시트 동기화 필요)</td></tr>`;
         } else if (sum2F >= window.capacity2F) {
-            predictionHtml = `<tr><th style="background:#ffebee;">⚠️ 만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content">📊 <b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#d32f2f; text-align:right;">이미 초과 상태입니다! (${(sum2F - window.capacity2F).toLocaleString()}장 초과)</td></tr>`;
+            predictionHtml = `<tr><th style="background:#ffebee;">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#d32f2f; text-align:right;">이미 초과 상태입니다! (${(sum2F - window.capacity2F).toLocaleString()}장 초과)</td></tr>`;
         } else if (fullDate) {
-            predictionHtml = `<tr><th style="background:#fff3e0;">📅 만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content">📊 <b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#e65100; text-align:right;">${fullDate}<br><span style="font-size:11px; color:#888;">현재 ${sum2F.toLocaleString()}장 + 입고예정 누적 → ${cumTotal.toLocaleString()}장 도달</span></td></tr>`;
+            predictionHtml = `<tr><th style="background:#fff3e0;">만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#e65100; text-align:right;">${fullDate}<br><span style="font-size:11px; color:#888;">현재 ${sum2F.toLocaleString()}장 + 입고예정 누적 → ${cumTotal.toLocaleString()}장 도달</span></td></tr>`;
         } else {
             const afterAll = sum2F + totalIncoming;
             const remainAfter = window.capacity2F - afterAll;
@@ -3020,13 +3050,13 @@ window.calculateAndRenderUsage = function() {
             }
             
             if (estimatedDate && dailyAvg > 0) {
-                predictionHtml = `<tr><th style="background:#e8f5e9;">📅 만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content">📊 <b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#2e7d32; text-align:right;">${estimatedDate} (추정)<br><span style="font-size:11px; color:#888;">일평균 입고 ${Math.round(dailyAvg).toLocaleString()}장 기준, 입고예정 후 여유 ${remainAfter.toLocaleString()}장</span></td></tr>`;
+                predictionHtml = `<tr><th style="background:#e8f5e9;">만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#2e7d32; text-align:right;">${estimatedDate} (추정)<br><span style="font-size:11px; color:#888;">일평균 입고 ${Math.round(dailyAvg).toLocaleString()}장 기준, 입고예정 후 여유 ${remainAfter.toLocaleString()}장</span></td></tr>`;
             } else {
-                predictionHtml = `<tr><th style="background:#e8f5e9;">📅 만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content">📊 <b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#2e7d32; text-align:right;">입고예정 전량 입고 후에도 여유 ${remainAfter.toLocaleString()}장<br><span style="font-size:11px; color:#888;">예상 적재: ${afterAll.toLocaleString()} / ${window.capacity2F.toLocaleString()}장</span></td></tr>`;
+                predictionHtml = `<tr><th style="background:#e8f5e9;">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#2e7d32; text-align:right;">입고예정 전량 입고 후에도 여유 ${remainAfter.toLocaleString()}장<br><span style="font-size:11px; color:#888;">예상 적재: ${afterAll.toLocaleString()} / ${window.capacity2F.toLocaleString()}장</span></td></tr>`;
             }
         }
         
-        html += `<div style="font-size:15px; font-weight:bold; margin-bottom:15px; color:var(--primary); text-align:center;">🏢 2층 전체 창고 사용률: ${rate2F}%</div><table class="usage-table" style="width:100%;"><tr><th style="background:#eef1ff; width: 40%;">총 적재가능수량</th><td style="text-align: right;"><input type="number" id="input-cap-2f" value="${window.capacity2F}" style="width:80px; padding:3px; text-align:right; font-size:13px; font-weight:bold;"> 장 <button onclick="saveCapacity2F()" style="padding:4px 8px; margin-left:5px; font-size:11px; background:var(--primary); color:white; border:none; border-radius:3px; cursor:pointer;">기준변경</button></td></tr><tr><th style="background:#eef1ff;">현재 적재수량</th><td style="font-weight:bold; color:var(--primary); text-align: right;">${sum2F.toLocaleString()} 장</td></tr><tr><th style="background:#eef1ff;">남은 수량</th><td style="font-weight:bold; color:#ff5252; text-align: right;">${remaining2F.toLocaleString()} 장</td></tr>${predictionHtml}</table>`;
+        html += `<div style="font-size:15px; font-weight:bold; margin-bottom:15px; color:var(--primary); text-align:center;">2층 전체 창고 사용률: ${rate2F}%</div><table class="usage-table" style="width:100%;"><tr><th style="background:#eef1ff; width: 40%;">총 적재가능수량</th><td style="text-align: right;"><input type="number" id="input-cap-2f" value="${window.capacity2F}" style="width:80px; padding:3px; text-align:right; font-size:13px; font-weight:bold;"> 장 <button onclick="saveCapacity2F()" style="padding:4px 8px; margin-left:5px; font-size:11px; background:var(--primary); color:white; border:none; border-radius:3px; cursor:pointer;">기준변경</button></td></tr><tr><th style="background:#eef1ff;">현재 적재수량</th><td style="font-weight:bold; color:var(--primary); text-align: right;">${sum2F.toLocaleString()} 장</td></tr><tr><th style="background:#eef1ff;">남은 수량</th><td style="font-weight:bold; color:#ff5252; text-align: right;">${remaining2F.toLocaleString()} 장</td></tr>${predictionHtml}</table>`;
     }
     popup.innerHTML = html;
 };
@@ -3041,7 +3071,7 @@ window.toggleUsagePopup = function(e) {
 function getSortButtonsHtml(key) {
     const isAsc = sortConfig.key === key && sortConfig.direction === 'asc';
     const isDesc = sortConfig.key === key && sortConfig.direction === 'desc';
-    return `<div class="filter-option ${isAsc ? 'selected' : ''}" onclick="executeSort('${key}', 'asc')">${isAsc ? '✔️ ' : ''}⬆️ 오름차순 정렬</div><div class="filter-option ${isDesc ? 'selected' : ''}" onclick="executeSort('${key}', 'desc')">${isDesc ? '✔️ ' : ''}⬇️ 내림차순 정렬</div><div class="filter-divider"></div>`;
+    return `<div class="filter-option ${isAsc ? 'selected' : ''}" onclick="executeSort('${key}', 'asc')">오름차순 정렬</div><div class="filter-option ${isDesc ? 'selected' : ''}" onclick="executeSort('${key}', 'desc')">내림차순 정렬</div><div class="filter-divider"></div>`;
 }
 
 function updateLocPopupUI() {
@@ -3051,8 +3081,8 @@ function updateLocPopupUI() {
     const prefixes = [...prefixSet].sort((a, b) => (a === '★' ? -1 : (b === '★' ? 1 : a.localeCompare(b))));
     let locHtml = window.getFilterSearchHtml('pop-id') + getSortButtonsHtml('id');
     const isAllSelected = filters.loc.length === 0;
-    locHtml += `<div class="filter-option ${isAllSelected ? 'selected' : ''}" onclick="toggleLocFilter('all')">${isAllSelected ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
-    prefixes.forEach(p => { const isSelected = filters.loc.includes(p); locHtml += `<div class="filter-option ${isSelected ? 'selected' : ''}" onclick="toggleLocFilter('${jsArg(p)}')">${isSelected ? '✔️ ' : ''}${p} 구역</div>`; });
+    locHtml += `<div class="filter-option ${isAllSelected ? 'selected' : ''}" onclick="toggleLocFilter('all')">전체선택/해제</div>`;
+    prefixes.forEach(p => { const isSelected = filters.loc.includes(p); locHtml += `<div class="filter-option ${isSelected ? 'selected' : ''}" onclick="toggleLocFilter('${jsArg(p)}')">${p} 구역</div>`; });
     locPop.innerHTML = locHtml;
 }
 
@@ -3105,57 +3135,57 @@ function setupFilterPopups() {
     const isNotEmpty = filters.code.includes('not-empty');
     const codeAll = filters.code.length === 0 && !isReservedOnly && !isPreassignedOnly && !isDesignatedOnly;
     let codeHtml = window.getFilterSearchHtml('pop-code') + getSortButtonsHtml('code') + 
-      `<div class="filter-option ${codeAll ? 'selected' : ''}" onclick="setCodeTagFilter('all')">${codeAll ? '✔️ ' : ''}🔄 전체선택/해제</div>` +
-        `<div class="filter-option ${isEmpty ? 'selected' : ''}" onclick="setCodeTagFilter('empty')">${isEmpty ? '✔️ ' : ''}빈칸</div>` +
-        `<div class="filter-option ${isNotEmpty ? 'selected' : ''}" onclick="setCodeTagFilter('not-empty')">${isNotEmpty ? '✔️ ' : ''}내용있음</div>` +
+      `<div class="filter-option ${codeAll ? 'selected' : ''}" onclick="setCodeTagFilter('all')">전체선택/해제</div>` +
+        `<div class="filter-option ${isEmpty ? 'selected' : ''}" onclick="setCodeTagFilter('empty')">빈칸</div>` +
+        `<div class="filter-option ${isNotEmpty ? 'selected' : ''}" onclick="setCodeTagFilter('not-empty')">내용있음</div>` +
         `<div class="filter-divider"></div>` +
-        `<div class="filter-option ${isDesignatedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('designated-only')">${isDesignatedOnly ? '✔️ ' : ''}📝 지정값만 보기</div>` + // 추가
-        `<div class="filter-option ${isReservedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('당일지정')">${isReservedOnly ? '✔️ ' : ''}📌 당일지정</div>` +
-        `<div class="filter-option ${isPreassignedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('선지정')">${isPreassignedOnly ? '✔️ ' : ''}📦 선지정</div>`;
+        `<div class="filter-option ${isDesignatedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('designated-only')">지정값만 보기</div>` + // 추가
+        `<div class="filter-option ${isReservedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('당일지정')">당일지정</div>` +
+        `<div class="filter-option ${isPreassignedOnly ? 'selected' : ''}" onclick="setCodeTagFilter('선지정')">선지정</div>`;
     if(codePop) codePop.innerHTML = codeHtml;
     if(namePop) namePop.innerHTML = window.getFilterSearchHtml('pop-name') + getSortButtonsHtml('name');
     if(optionPop) optionPop.innerHTML = window.getFilterSearchHtml('pop-option') + getSortButtonsHtml('option');
     const dongs = [...new Set(originalData.map(d => (d.dong || '').toString()))].filter(Boolean).sort();
     const dongAll = filters.dong.length === 0;
-    let dongHtml = window.getFilterSearchHtml('pop-dong') + getSortButtonsHtml('dong') + `<div class="filter-option ${dongAll ? 'selected' : ''}" onclick="setFilter('dong', 'all')">${dongAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    let dongHtml = window.getFilterSearchHtml('pop-dong') + getSortButtonsHtml('dong') + `<div class="filter-option ${dongAll ? 'selected' : ''}" onclick="setFilter('dong', 'all')">전체선택/해제</div>`;
     dongs.forEach(d => { 
         const sel = filters.dong.includes(d);
-        dongHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('dong', '${jsArg(d)}')">${sel ? '✔️ ' : ''}${d}</div>`; 
+        dongHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('dong', '${jsArg(d)}')">${d}</div>`; 
     });
     if(dongPop) dongPop.innerHTML = dongHtml;
     const poses = [...new Set(originalData.map(d => (d.pos || '').toString()))].filter(Boolean).sort();
     const posAll = filters.pos.length === 0;
-    let posHtml = window.getFilterSearchHtml('pop-pos') + getSortButtonsHtml('pos') + `<div class="filter-option ${posAll ? 'selected' : ''}" onclick="setFilter('pos', 'all')">${posAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    let posHtml = window.getFilterSearchHtml('pop-pos') + getSortButtonsHtml('pos') + `<div class="filter-option ${posAll ? 'selected' : ''}" onclick="setFilter('pos', 'all')">전체선택/해제</div>`;
     poses.forEach(p => { 
         const sel = filters.pos.includes(p);
-        posHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('pos', '${jsArg(p)}')">${sel ? '✔️ ' : ''}${p}</div>`; 
+        posHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('pos', '${jsArg(p)}')">${p}</div>`; 
     });
     if(posPop) posPop.innerHTML = posHtml;
     const stocks = [...new Set(originalData.map(d => (d.stock || '0').toString()))].sort((a, b) => Number(a) - Number(b));
     const stockAll = filters.stock.length === 0;
-    let stockHtml = window.getFilterSearchHtml('pop-stock') + getSortButtonsHtml('stock') + `<div class="filter-option ${stockAll ? 'selected' : ''}" onclick="setFilter('stock', 'all')">${stockAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    let stockHtml = window.getFilterSearchHtml('pop-stock') + getSortButtonsHtml('stock') + `<div class="filter-option ${stockAll ? 'selected' : ''}" onclick="setFilter('stock', 'all')">전체선택/해제</div>`;
     stocks.forEach(s => { 
         const sel = filters.stock.includes(s);
-        stockHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock', '${jsArg(s)}')">${sel ? '✔️ ' : ''}${s}</div>`; 
+        stockHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock', '${jsArg(s)}')">${s}</div>`; 
     });
     if(stockPop) stockPop.innerHTML = stockHtml;
    const stock2fPop = document.getElementById('pop-stock2f');
     const stocks2f = [...new Set(originalData.map(d => (d.stock2f || '0').toString()))].sort((a, b) => Number(a) - Number(b));
     const stock2fAll = !filters.stock2f || filters.stock2f.length === 0;
-    let stock2fHtml = window.getFilterSearchHtml('pop-stock2f') + getSortButtonsHtml('stock2f') + `<div class="filter-option ${stock2fAll ? 'selected' : ''}" onclick="setFilter('stock2f', 'all')">${stock2fAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    let stock2fHtml = window.getFilterSearchHtml('pop-stock2f') + getSortButtonsHtml('stock2f') + `<div class="filter-option ${stock2fAll ? 'selected' : ''}" onclick="setFilter('stock2f', 'all')">전체선택/해제</div>`;
     stocks2f.forEach(s => { 
         const sel = filters.stock2f && filters.stock2f.includes(s);
-        stock2fHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock2f', '${jsArg(s)}')">${sel ? '✔️ ' : ''}${s}</div>`; 
+        stock2fHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock2f', '${jsArg(s)}')">${s}</div>`; 
     });
     if(stock2fPop) stock2fPop.innerHTML = stock2fHtml;
 
     const categoryPop = document.getElementById('pop-category');
     const categories = [...new Set(originalData.map(d => (d.category || '피킹용').toString()))].sort();
     const categoryAll = !filters.category || filters.category.length === 0;
-    let categoryHtml = window.getFilterSearchHtml('pop-category') + getSortButtonsHtml('category') + `<div class="filter-option ${categoryAll ? 'selected' : ''}" onclick="setFilter('category', 'all')">${categoryAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+    let categoryHtml = window.getFilterSearchHtml('pop-category') + getSortButtonsHtml('category') + `<div class="filter-option ${categoryAll ? 'selected' : ''}" onclick="setFilter('category', 'all')">전체선택/해제</div>`;
     categories.forEach(c => {
         const sel = filters.category && filters.category.includes(c);
-        categoryHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('category', '${jsArg(c)}')">${sel ? '✔️ ' : ''}${c}</div>`;
+        categoryHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('category', '${jsArg(c)}')">${c}</div>`;
     });
     if(categoryPop) categoryPop.innerHTML = categoryHtml;
 
@@ -3176,9 +3206,9 @@ function setupFilterPopups() {
             const isE = arr.includes('empty');
             const isN = arr.includes('not-empty');
             let html = getSortButtonsHtml(col) +
-                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">${curAll ? '✔️ ' : ''}🔄 전체선택/해제</div>` +
-                `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">${isE ? '✔️ ' : ''}빈칸</div>` +
-                `<div class="filter-option ${isN ? 'selected' : ''}" onclick="setFilter('${col}', 'not-empty')">${isN ? '✔️ ' : ''}내용있음</div>`;
+                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">전체선택/해제</div>` +
+                `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">빈칸</div>` +
+                `<div class="filter-option ${isN ? 'selected' : ''}" onclick="setFilter('${col}', 'not-empty')">내용있음</div>`;
             pop.innerHTML = html;
             return;
         }
@@ -3230,12 +3260,12 @@ function setupFilterPopups() {
             
             // 정렬 + 전체선택/해제
             let html = window.getFilterSearchHtml(`pop-${col}`) + getSortButtonsHtml(col) +
-                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">${curAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">전체선택/해제</div>`;
             
             // 빈칸 옵션 (있을 경우만)
             if (hasEmpty) {
                 const isE = arr.includes('empty');
-                html += `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">${isE ? '✔️ ' : ''}📋 빈칸</div>`;
+                html += `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">빈칸</div>`;
             }
             
             // 년도 계층 구조
@@ -3244,12 +3274,12 @@ function setupFilterPopups() {
                 Object.keys(byYear[y]).forEach(m => { yearDates.push(...byYear[y][m]); });
                 const yearAllSelected = yearDates.every(d => arr.includes(d));
                 const yearPartialSelected = !yearAllSelected && yearDates.some(d => arr.includes(d));
-                const yearCheck = yearAllSelected ? '✔️' : (yearPartialSelected ? '🟦' : '☐');
+                const yearCheck = yearAllSelected ? 'is-all' : (yearPartialSelected ? 'is-part' : 'is-none');
                 
                 html += `<div class="date-node date-year" data-col="${col}" data-year="${y}">
                     <div class="date-row date-year-row">
                         <span class="date-toggle" onclick="event.stopPropagation(); window.toggleDateNode(this);">▶</span>
-                        <span class="date-check" onclick="event.stopPropagation(); window.toggleDateGroup('${col}', 'year', '${y}');">${yearCheck}</span>
+                        <span class="date-check ${yearCheck}" onclick="event.stopPropagation(); window.toggleDateGroup('${col}', 'year', '${y}');"></span>
                         <span class="date-label">${y}</span>
                     </div>
                     <div class="date-children" style="display:none;">`;
@@ -3259,12 +3289,12 @@ function setupFilterPopups() {
                     const monthDates = byYear[y][m];
                     const monthAllSelected = monthDates.every(d => arr.includes(d));
                     const monthPartialSelected = !monthAllSelected && monthDates.some(d => arr.includes(d));
-                    const monthCheck = monthAllSelected ? '✔️' : (monthPartialSelected ? '🟦' : '☐');
+                    const monthCheck = monthAllSelected ? 'is-all' : (monthPartialSelected ? 'is-part' : 'is-none');
                     
                     html += `<div class="date-node date-month" data-col="${col}" data-year="${y}" data-month="${m}">
                         <div class="date-row date-month-row">
                             <span class="date-toggle" onclick="event.stopPropagation(); window.toggleDateNode(this);">▶</span>
-                            <span class="date-check" onclick="event.stopPropagation(); window.toggleDateGroup('${col}', 'month', '${y}-${m}');">${monthCheck}</span>
+                            <span class="date-check ${monthCheck}" onclick="event.stopPropagation(); window.toggleDateGroup('${col}', 'month', '${y}-${m}');"></span>
                             <span class="date-label">${m}월</span>
                         </div>
                         <div class="date-children" style="display:none;">`;
@@ -3272,9 +3302,9 @@ function setupFilterPopups() {
                     // 일 체크박스
                     monthDates.forEach(d => {
                         const sel = arr.includes(d);
-                        const dayCheck = sel ? '✔️' : '☐';
+                        const dayCheck = sel ? 'is-all' : 'is-none';
                         html += `<div class="date-row date-day-row ${sel ? 'selected' : ''}" onclick="event.stopPropagation(); setFilter('${col}', '${d}');">
-                            <span class="date-check">${dayCheck}</span>
+                            <span class="date-check ${dayCheck}"></span>
                             <span class="date-label">${d}</span>
                         </div>`;
                     });
@@ -3298,18 +3328,18 @@ function setupFilterPopups() {
         });
 
         let html = window.getFilterSearchHtml(`pop-${col}`) + getSortButtonsHtml(col) +
-            `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">${curAll ? '✔️ ' : ''}🔄 전체선택/해제</div>`;
+            `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">전체선택/해제</div>`;
 
         // ★ 입고대기: 빈칸 옵션 추가
         if (key === '입고대기') {
             const isE = arr.includes('empty');
-            html += `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">${isE ? '✔️ ' : ''}빈칸</div>`;
+            html += `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">빈칸</div>`;
         }
 
         normalVals.forEach(v => {
             const escaped = jsArg(v);
             const sel = arr.includes(v);
-            html += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('${col}', '${escaped}')">${sel ? '✔️ ' : ''}${v}</div>`;
+            html += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('${col}', '${escaped}')">${v}</div>`;
         });
         pop.innerHTML = html;
     });
@@ -3443,7 +3473,7 @@ window.updateFilterSearch = function(popId, query) {
         // 일반 필터: 옵션 표시/숨김
         const q = (query || '').toLowerCase();
         pop.querySelectorAll('.filter-option').forEach(opt => {
-            // 정렬 버튼(⬆️/⬇️)과 전체선택/해제는 항상 표시
+            // 정렬 버튼(오름차순/내림차순)과 전체선택/해제는 항상 표시
             const text = opt.textContent || '';
             if (text.includes('오름차순') || text.includes('내림차순') || text.includes('전체선택/해제')) {
                 opt.style.display = '';
@@ -3452,8 +3482,8 @@ window.updateFilterSearch = function(popId, query) {
             if (!q) {
                 opt.style.display = '';
             } else {
-                // ✔️ 앞자리 마크 제외하고 비교
-                const cleanText = text.replace(/^✔️\s*/, '').toLowerCase();
+                // 앞자리 체크 표시 제외하고 비교 (체크는 이제 CSS ::before 라 글자에 없음)
+                const cleanText = text.replace(/^\u2714\uFE0F?\s*/, '').toLowerCase();
                 opt.style.display = cleanText.includes(q) ? '' : 'none';
             }
         });
@@ -3507,13 +3537,13 @@ window.renderDateFilterFlat = function(popId, query) {
     let html = searchHtml + getSortButtonsHtml(col);
     
     if (matched.length === 0) {
-        html += `<div class="filter-option" style="color:#999; font-style:italic; cursor:default;">검색 결과 없음</div>`;
+        html += `<div class="filter-option" style="color:var(--c-text-3); font-style:italic; cursor:default;">검색 결과 없음</div>`;
     } else {
         matched.forEach(d => {
             const sel = arr.includes(d);
-            const dayCheck = sel ? '✔️' : '☐';
+            const dayCheck = sel ? 'is-all' : 'is-none';
             html += `<div class="date-row date-day-row ${sel ? 'selected' : ''}" style="padding-left:15px;" onclick="event.stopPropagation(); setFilter('${col}', '${d}');">
-                <span class="date-check">${dayCheck}</span>
+                <span class="date-check ${dayCheck}"></span>
                 <span class="date-label">${d}</span>
             </div>`;
         });
@@ -3535,10 +3565,10 @@ window.renderDateFilterFlat = function(popId, query) {
 window.getFilterSearchHtml = function(popId) {
     const curQuery = (window._filterSearchQuery && window._filterSearchQuery[popId]) || '';
     return `<div class="filter-search-wrap" onclick="event.stopPropagation();">
-        <input type="text" class="filter-search-input" placeholder="🔍 검색..." value="${curQuery}"
+        <input type="text" class="filter-search-input" placeholder="검색..." value="${curQuery}"
                onkeydown="event.stopPropagation();"
                oninput="event.stopPropagation(); updateFilterSearch('${popId}', this.value);">
-        ${curQuery ? `<button type="button" class="filter-search-clear" onclick="event.stopPropagation(); this.previousElementSibling.value=''; updateFilterSearch('${popId}', '');">✕</button>` : ''}
+        ${curQuery ? `<button type="button" class="filter-search-clear" onclick="event.stopPropagation(); this.previousElementSibling.value=''; updateFilterSearch('${popId}', '');" aria-label="검색어 지우기">×</button>` : ''}
     </div>`;
 };
 
@@ -3604,7 +3634,7 @@ window.clearAllFilters = function(e) {
     applyFiltersAndSort();
     
     // 사용자에게 알림
-    showToast("✅ 모든 필터가 해제되었습니다.");
+    showToast("모든 필터가 해제되었습니다.");
 };
 
 function applyFiltersAndSort() {
@@ -3734,7 +3764,7 @@ window.handleRowClick = async function(event, locId) {
             }
             if (!confirm(`이미 다른 상품(${loc.preAssignedCode})이 선지정된 자리입니다.\n기존 선지정을 무시하고 덮어쓰시겠습니까?`)) return; 
         } else {
-            if (hasContent) { alert("🚨 이미 물건이 들어있는 자리입니다. 텅 빈 빈칸을 선택해주세요."); return; }
+            if (hasContent) { alert("이미 물건이 들어있는 자리입니다. 텅 빈 빈칸을 선택해주세요."); return; }
         }
         
         try {
@@ -3806,7 +3836,7 @@ function renderTable(data) {
     }
 
     if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" style="padding:50px;">데이터가 없습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="padding:50px; color:var(--c-text-3);">데이터가 없습니다.</td></tr>';
         updateLocBulkBar();
         return;
     }
@@ -3846,34 +3876,35 @@ function renderVisibleRows() {
     
     for (let i = startIdx; i < endIdx; i++) {
         const loc = VS.data[i];
-        let rowStyle = ''; 
+        let rowClass = '';
         let codeTagHtml = '';
-        
-        if (loc.codeTag === '당일지정') { 
-            rowStyle = 'background-color: #fffde7 !important;';
-            codeTagHtml = `<br><span style="color:#1565c0; font-size:10px; font-weight:bold; background:#e3f2fd; padding:1px 5px; border-radius:3px;">📌 당일지정</span>`;
+
+        // 행 높이 40px 이하 유지: 배지는 줄바꿈 없이 코드 옆에 붙인다
+        if (loc.codeTag === '당일지정') {
+            rowClass = 'row-today';
+            codeTagHtml = `<span class="badge badge-accent list-tag">당일지정</span>`;
         } else if (loc.codeTag === '선지정') {
-            rowStyle = 'background-color: #ffe0b2 !important;';
-            codeTagHtml = `<br><span style="color:#e65100; font-size:10px; font-weight:bold; background:#fff3e0; padding:1px 5px; border-radius:3px;">📦 선지정</span>`;
+            rowClass = 'row-pre';
+            codeTagHtml = `<span class="badge badge-risk list-tag">선지정</span>`;
         }
-        
+
         let isChecked = VS.checkedIds.has(loc.id) ? 'checked' : '';
-        html += `<tr onclick="handleRowClick(event, '${jsArg(loc.id)}')" style="${rowStyle}">`;
+        html += `<tr onclick="handleRowClick(event, '${jsArg(loc.id)}')" class="${rowClass}">`;
         html += `<td onclick="event.stopPropagation()"><input type="checkbox" class="loc-check" value="${loc.id}" ${isChecked} onchange="window.vsCheckChanged(this)"></td>`;
         window.visibleColumns.forEach(col => {
-            if (col === 'std_dong') html += `<td style="color:#666;">${loc.dong || ''}</td>`;
-            else if (col === 'std_pos') html += `<td style="color:#666;">${loc.pos || ''}</td>`;
+            if (col === 'std_dong') html += `<td style="color:var(--c-text-2);">${loc.dong || ''}</td>`;
+            else if (col === 'std_pos') html += `<td style="color:var(--c-text-2);">${loc.pos || ''}</td>`;
             else if (col === 'std_id') {
                 // ★ 칸수가 있으면 로케이션 끝에 (칸수) — 복사·예약은 자리 번호만
                 const _ang = locAngleSize(loc);
-                html += `<td class="loc-copy-cell" onclick="copyLocationToClipboard(event, '${jsArg(loc.id)}')" title="클릭하여 복사 및 예약">${loc.id}${_ang ? `<span style="color:#888; font-size:11px;">(${escHtmlLite(_ang)})</span>` : ''}</td>`;
+                html += `<td class="loc-copy-cell" onclick="copyLocationToClipboard(event, '${jsArg(loc.id)}')" title="클릭하여 복사 및 예약">${loc.id}${_ang ? `<span class="list-sub">(${escHtmlLite(_ang)})</span>` : ''}</td>`;
             }
-            else if (col === 'std_category') html += `<td style="color:${(loc.category || '피킹용') === '기타' ? '#8d6e63' : '#666'};">${loc.category || '피킹용'}</td>`;
-            else if (col === 'std_code') html += `<td style="color:#3d5afe; font-weight:bold;">${loc.code === loc.id ? '' : (loc.code || '')}${codeTagHtml}</td>`;
+            else if (col === 'std_category') html += `<td style="color:${(loc.category || '피킹용') === '기타' ? 'var(--c-warn-text)' : 'var(--c-text-2)'};">${loc.category || '피킹용'}</td>`;
+            else if (col === 'std_code') html += `<td style="color:var(--c-accent-deep); font-weight:600;">${loc.code === loc.id ? '' : (loc.code || '')}${codeTagHtml}</td>`;
             else if (col === 'std_name') html += `<td style="text-align:left;">${loc.name || ''}</td>`;
             else if (col === 'std_option') html += `<td style="text-align:left; font-size:12px;">${loc.option || ''}</td>`;
-            else if (col === 'std_stock') html += `<td style="font-weight:bold;">${loc.stock || '0'}</td>`;
-            else if (col === 'std_stock2f') html += `<td style="font-weight:bold;">${loc.stock2f || '0'}</td>`;
+            else if (col === 'std_stock') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${loc.stock || '0'}</td>`;
+            else if (col === 'std_stock2f') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${loc.stock2f || '0'}</td>`;
             else if (col.startsWith('cus_')) {
                 const key = col.replace('cus_', '');
                 let val = (loc.rawData && loc.rawData[key]) ? loc.rawData[key] : '';
@@ -4089,25 +4120,25 @@ function _showUploadDiagnosisAlert(diagnosis, uploadType) {
     const headers = _uploadHeaderGuide[uploadType] || '';
     let msg = '';
     if (diagnosis === 'frameset') {
-        msg = "🚨 잘못된 파일 형식입니다.\n\n" +
+        msg = "잘못된 파일 형식입니다.\n\n" +
               "이 파일은 Excel에서 '웹 페이지(*.htm)' 형식으로 저장된 파일입니다.\n" +
               "실제 데이터가 별도 폴더에 분리되어 있어 시스템에서 읽을 수 없습니다.\n\n" +
-              "✅ 해결 방법:\n" +
+              "해결 방법:\n" +
               "1. 파일을 Excel로 엽니다\n" +
               "2. [다른 이름으로 저장] → 형식을 'Excel 통합 문서(*.xlsx)' 로 선택\n" +
               "3. 다시 업로드해주세요";
     } else if (diagnosis === 'empty-table') {
-        msg = "⚠️ 파일에 데이터 행이 없습니다.\n\n" +
+        msg = "파일에 데이터 행이 없습니다.\n\n" +
               "헤더(첫 행)는 있지만 실제 데이터가 입력되지 않은 빈 파일입니다.\n" +
               "데이터가 입력된 파일을 업로드해주세요.";
     } else if (diagnosis === 'no-required-header') {
-        msg = "⚠️ 파일에서 필수 컬럼을 찾을 수 없습니다.\n\n" +
+        msg = "파일에서 필수 컬럼을 찾을 수 없습니다.\n\n" +
               "이 업로드에 필요한 헤더: " + headers + "\n\n" +
-              "✅ 해결 방법:\n" +
+              "해결 방법:\n" +
               "- 파일의 첫 행에 위 헤더가 정확히 입력되어 있는지 확인\n" +
               "- 한글이 깨져 보이면 UTF-8 또는 EUC-KR로 다시 저장";
     } else {
-        msg = "⚠️ 데이터가 없습니다.\n\n" +
+        msg = "데이터가 없습니다.\n\n" +
               "파일 형식 또는 내용을 다시 확인해주세요.\n" +
               "(예상 헤더: " + headers + ")";
     }
@@ -4184,7 +4215,7 @@ const fileInputOrders = document.getElementById('excel-upload-orders');
 if (fileInputOrders) {
     fileInputOrders.addEventListener('change', async function(e) {
         const file = e.target.files[0]; if (!file) return;
-        window.showLoading('📦 주문 데이터를 분석 중입니다...');
+        window.showLoading('주문 데이터를 분석 중입니다...');
         try {
             const result = await universalExcelReader(file);
             if (result.rows.length > 0) {
@@ -4228,7 +4259,7 @@ async function fetchExistingProcessedOrders(orderNos) {
 // 주문 데이터 처리: 중복 검사 → 신규만 자동 누적 저장
 window.processOrderData = async function(rows) {
     try {
-        window.showLoading('🔍 주문번호별로 그룹화 중...');
+        window.showLoading('주문번호별로 그룹화 중...');
         // 1. 주문번호별 그룹화
         const orderMap = {};
         for (const row of rows) {
@@ -4249,7 +4280,7 @@ window.processOrderData = async function(rows) {
 
         // 2. 기존 ProcessedOrders 조회 (중복 업로드 방지)
         // 💰 전체 스캔 대신 이번 파일의 주문번호만 조회 → 읽기 요금 대폭 절감
-        window.showLoading('💾 중복 주문 검사 중...');
+        window.showLoading('중복 주문 검사 중...');
         const processedSet = await fetchExistingProcessedOrders(orderNos);
 
         // 3. 신규 주문만 필터링
@@ -4258,12 +4289,12 @@ window.processOrderData = async function(rows) {
 
         if (targetOrderNos.length === 0) {
             window.hideLoading();
-            alert(`⚠️ 모든 주문이 이미 처리되었습니다.\n\n파일 총 주문: ${orderNos.length.toLocaleString()}건\n이미 처리됨: ${dupCount.toLocaleString()}건\n\n이전에 같은 파일을 업로드했을 가능성이 큽니다.`);
+            alert(`모든 주문이 이미 처리되었습니다.\n\n파일 총 주문: ${orderNos.length.toLocaleString()}건\n이미 처리됨: ${dupCount.toLocaleString()}건\n\n이전에 같은 파일을 업로드했을 가능성이 큽니다.`);
             return;
         }
 
         // 4. 페어/단독 카운트 집계 (신규분만)
-        window.showLoading('📊 페어 통계 계산 중...');
+        window.showLoading('페어 통계 계산 중...');
         const newPairCounts = {};
         const newCodeCounts = {};
         let latestDate = '';
@@ -4296,7 +4327,7 @@ window.processOrderData = async function(rows) {
         }
 
         // 5. 기존 청크 로드 + 병합
-        window.showLoading('💾 기존 누적 데이터와 병합 중...');
+        window.showLoading('기존 누적 데이터와 병합 중...');
         const existingPairs = {};
         const existingStats = {};
 
@@ -4343,7 +4374,7 @@ window.processOrderData = async function(rows) {
         }
 
         // 6. 청크 압축 저장 (기존 청크 삭제 후 다시 작성)
-        window.showLoading('💾 Firebase에 청크 압축 저장 중...');
+        window.showLoading('Firebase에 청크 압축 저장 중...');
 
         let batch = writeBatch(db);
         let bc = 0;
@@ -4386,7 +4417,7 @@ window.processOrderData = async function(rows) {
         if (bc > 0) await batch.commit();
 
         // 7. ProcessedOrders 추가 (처리한 주문번호)
-        window.showLoading('💾 처리 이력 저장 중...');
+        window.showLoading('처리 이력 저장 중...');
         batch = writeBatch(db);
         bc = 0;
         for (const ono of targetOrderNos) {
@@ -4421,13 +4452,13 @@ window.processOrderData = async function(rows) {
         window.hideLoading();
 
         // 9. 결과 alert + 자동 리포트 표시
-        let msg = `✅ 주문 데이터 분석 완료!\n\n`;
+        let msg = `주문 데이터 분석 완료!\n\n`;
         msg += `파일 총 주문: ${orderNos.length.toLocaleString()}건\n`;
-        msg += `✨ 신규 처리: ${targetOrderNos.length.toLocaleString()}건\n`;
-        if (dupCount > 0) msg += `🔄 이미 처리됨 (건너뜀): ${dupCount.toLocaleString()}건\n`;
+        msg += `신규 처리: ${targetOrderNos.length.toLocaleString()}건\n`;
+        if (dupCount > 0) msg += `이미 처리됨 (건너뜀): ${dupCount.toLocaleString()}건\n`;
         msg += `\n누적 페어: ${Object.keys(existingPairs).length.toLocaleString()}개\n`;
         msg += `누적 상품: ${Object.keys(existingStats).length.toLocaleString()}개\n\n`;
-        msg += `자세한 리포트는 [📊 페어 분석 리포트 보기]에서 확인하세요.`;
+        msg += `자세한 리포트는 [페어 분석 리포트 보기]에서 확인하세요.`;
         alert(msg);
         
         // 💰 읽기요금 절감: 방금 병합한 메모리 데이터로 페어 캐시를 직접 갱신.
@@ -4455,9 +4486,9 @@ window.processOrderData = async function(rows) {
 // 분석 리포트 모달 열기
 window.openOrderAnalysisReport = async function() {
     document.getElementById('order-analysis-modal').style.display = 'flex';
-    document.getElementById('order-analysis-summary').innerHTML = '<div style="text-align:center; color:#666;">데이터 로딩 중...</div>';
+    document.getElementById('order-analysis-summary').innerHTML = '<div style="text-align:center; color:var(--c-text-2);">데이터 로딩 중...</div>';
     document.getElementById('order-analysis-tbody').innerHTML = '';
-    window.showLoading('📊 분석 리포트 로딩 중...');
+    window.showLoading('분석 리포트 로딩 중...');
 
     try {
         let meta = {};
@@ -4505,24 +4536,24 @@ window.openOrderAnalysisReport = async function() {
         let summaryHtml = `
             <div style="display:flex; justify-content:space-around; flex-wrap:wrap; gap:15px;">
                 <div style="text-align:center;">
-                    <div style="font-size:11px; color:#666;">최근 업로드</div>
-                    <div style="font-size:14px; color:#4a148c; font-weight:bold;">${meta.lastUploadDate || '-'}</div>
+                    <div style="font-size:11px; color:var(--c-text-2);">최근 업로드</div>
+                    <div style="font-size:14px; color:var(--c-accent-deep); font-weight:600;">${meta.lastUploadDate || '-'}</div>
                 </div>
                 <div style="text-align:center;">
-                    <div style="font-size:11px; color:#666;">처리한 주문 건수</div>
-                    <div style="font-size:18px; color:#4a148c; font-weight:900;">${(meta.totalProcessedOrders || 0).toLocaleString()}</div>
+                    <div style="font-size:11px; color:var(--c-text-2);">처리한 주문 건수</div>
+                    <div style="font-size:18px; color:var(--c-accent-deep); font-weight:700;">${(meta.totalProcessedOrders || 0).toLocaleString()}</div>
                 </div>
                 <div style="text-align:center;">
-                    <div style="font-size:11px; color:#666;">분석된 상품 종류</div>
-                    <div style="font-size:18px; color:#4a148c; font-weight:900;">${Object.keys(stats).length.toLocaleString()}</div>
+                    <div style="font-size:11px; color:var(--c-text-2);">분석된 상품 종류</div>
+                    <div style="font-size:18px; color:var(--c-accent-deep); font-weight:700;">${Object.keys(stats).length.toLocaleString()}</div>
                 </div>
                 <div style="text-align:center;">
-                    <div style="font-size:11px; color:#666;">함께 팔린 상품 조합</div>
-                    <div style="font-size:18px; color:#4a148c; font-weight:900;">${pairs.length.toLocaleString()}</div>
+                    <div style="font-size:11px; color:var(--c-text-2);">함께 팔린 상품 조합</div>
+                    <div style="font-size:18px; color:var(--c-accent-deep); font-weight:700;">${pairs.length.toLocaleString()}</div>
                 </div>
                 <div style="text-align:center;">
-                    <div style="font-size:11px; color:#666;">🏆 자주 함께 팔리는 조합</div>
-                    <div style="font-size:22px; color:#7b1fa2; font-weight:900;">${trustedPairs.length.toLocaleString()}</div>
+                    <div style="font-size:11px; color:var(--c-text-2);">자주 함께 팔리는 조합</div>
+                    <div style="font-size:22px; color:var(--c-accent); font-weight:700;">${trustedPairs.length.toLocaleString()}</div>
                 </div>
             </div>
         `;
@@ -4531,47 +4562,47 @@ window.openOrderAnalysisReport = async function() {
         const top30 = trustedPairs.slice(0, 30);
         let html = '';
         if (top30.length === 0) {
-            html = '<tr><td colspan="7" style="padding:40px; color:#888;">데이터를 더 누적하면 페어가 생성됩니다.</td></tr>';
+            html = '<tr><td colspan="7" style="padding:40px; color:var(--c-text-3);">데이터를 더 누적하면 페어가 생성됩니다.</td></tr>';
         } else {
             // v3.99: 상품 상세 정보 HTML 생성 헬퍼
             const buildProductCell = (code) => {
                 const matches = originalData.filter(d => d.code === code);
                 if (matches.length === 0) {
-                    return `<div style="font-weight:bold; color:#7b1fa2;">${code}</div>` +
-                           `<div style="font-size:11px; color:#999; margin-top:2px;">⚠️ 로케이션 없음</div>`;
+                    return `<div style="font-weight:600; color:var(--c-accent-deep);">${code}</div>` +
+                           `<div style="font-size:11px; color:var(--c-text-3); margin-top:2px;">로케이션 없음</div>`;
                 }
                 const loc = matches[0];
                 const name = (loc.name || '').toString().trim();
                 const option = (loc.option || '').toString().trim();
                 const locId = (loc.id || '').toString().trim();
                 const dupBadge = matches.length > 1
-                    ? `<span style="display:inline-block; background:#fff3e0; color:#e65100; padding:1px 5px; border-radius:3px; font-size:9px; font-weight:bold; margin-left:4px;" title="같은 상품코드가 ${matches.length}개 자리에 있습니다 (데이터 이상)">⚠️ ${matches.length}자리</span>`
+                    ? `<span style="display:inline-block; background:var(--c-warn-soft); color:var(--c-warn-text); padding:1px 6px; border-radius:var(--r-pill); font-size:9px; font-weight:600; margin-left:4px;" title="같은 상품코드가 ${matches.length}개 자리에 있습니다 (데이터 이상)">${matches.length}자리</span>`
                     : '';
-                const optionHtml = option ? `<span style="color:#666; font-weight:normal; font-size:11px; margin-left:4px;">[${option}]</span>` : '';
-                const locHtml = locId ? `<div style="font-size:11px; color:#1b5e20; margin-top:2px;">📍 ${locId}${dupBadge}</div>` : `<div style="font-size:11px; color:#999; margin-top:2px;">📍 자리 없음${dupBadge}</div>`;
-                const nameHtml = name ? `<div style="font-size:11px; color:#555; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:190px;" title="${name}">${name}</div>` : '';
-                return `<div style="font-weight:bold; color:#7b1fa2;">${code}${optionHtml}</div>` + locHtml + nameHtml;
+                const optionHtml = option ? `<span style="color:var(--c-text-2); font-weight:normal; font-size:11px; margin-left:4px;">[${option}]</span>` : '';
+                const locHtml = locId ? `<div style="font-size:11px; color:var(--c-ok-text); margin-top:2px;">${locId}${dupBadge}</div>` : `<div style="font-size:11px; color:var(--c-text-3); margin-top:2px;">자리 없음${dupBadge}</div>`;
+                const nameHtml = name ? `<div style="font-size:11px; color:var(--c-text-2); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:190px;" title="${name}">${name}</div>` : '';
+                return `<div style="font-weight:600; color:var(--c-accent-deep);">${code}${optionHtml}</div>` + locHtml + nameHtml;
             };
             
             top30.forEach((p, idx) => {
                 const locA = originalData.find(d => d.code === p.codeA);
                 const locB = originalData.find(d => d.code === p.codeB);
                 let distance = (locA && locB && locA.dong === locB.dong && locA.dong !== '') 
-                    ? `<span style="color:#2e7d32; font-weight:bold;">같은 동</span>` 
-                    : `<span style="color:#d32f2f; font-weight:bold;">다른 동</span>`;
-                html += `<tr style="background:${idx % 2 === 0 ? '#ffffff' : '#faf5fc'};">
-                    <td style="font-weight:bold; color:#7b1fa2;">${idx+1}</td>
+                    ? `<span style="color:var(--c-ok-text); font-weight:600;">같은 동</span>`
+                    : `<span style="color:var(--c-risk-text); font-weight:600;">다른 동</span>`;
+                html += `<tr style="background:${idx % 2 === 0 ? 'var(--c-surface)' : 'var(--c-surface-2)'};">
+                    <td style="font-weight:600; color:var(--c-text-2);">${idx+1}</td>
                     <td style="text-align:left; padding:8px 10px;">${buildProductCell(p.codeA)}</td>
                     <td style="text-align:left; padding:8px 10px;">${buildProductCell(p.codeB)}</td>
-                    <td style="font-weight:bold; color:#7b1fa2;">${p.count}회</td>
-                    <td style="font-weight:bold; color:#e65100;">${p.lift.toFixed(2)}</td>
+                    <td style="font-weight:600; color:var(--c-accent-deep);">${p.count}회</td>
+                    <td style="font-weight:600; color:var(--c-warn-text);">${p.lift.toFixed(2)}</td>
                     <td style="font-size:11px;">${p.lastDate || '-'}</td><td>${distance}</td></tr>`;
             });
         }
         document.getElementById('order-analysis-tbody').innerHTML = html;
     } catch (e) {
         console.error('리포트 로드 오류:', e);
-        document.getElementById('order-analysis-summary').innerHTML = `<div style="color:#d32f2f;">로드 실패: ${e.message}</div>`;
+        document.getElementById('order-analysis-summary').innerHTML = `<div style="color:var(--c-risk-text);">로드 실패: ${e.message}</div>`;
     } finally {
         window.hideLoading();
     }
@@ -4581,7 +4612,7 @@ window.openOrderAnalysisReport = async function() {
 window.resetOrderAnalysis = async function() {
     if (!confirm('함께 팔리는 상품 분석 데이터를 전체 삭제하시겠습니까?\n\n(주문 데이터, 상품 조합, 통계가 모두 초기화됩니다)')) return;
     if (!confirm('OrderPairsChunks, OrderStatsChunks, ProcessedOrders가 모두 삭제됩니다. 계속하시겠습니까?')) return;
-    window.showLoading('🗑️ 누적 데이터 삭제 중...');
+    window.showLoading('누적 데이터 삭제 중...');
     try {
         const colls = [ORDER_PAIRS_COLL, ORDER_STATS_COLL, PROCESSED_ORDERS_COLL];
         for (const collName of colls) {
@@ -4592,7 +4623,7 @@ window.resetOrderAnalysis = async function() {
         }
         await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { orderAnalysisMeta: deleteField() }, { merge: true });
         window.hideLoading();
-        alert('✅ 누적 데이터가 모두 삭제되었습니다.');
+        alert('누적 데이터가 모두 삭제되었습니다.');
         document.getElementById('order-analysis-modal').style.display = 'none';
         
         // v3.98: 페어 캐시 초기화
@@ -4643,7 +4674,7 @@ async function updateDatabaseB(rows, collectionName, inputElement, silent = fals
             }
         } catch (e) { console.warn('전송 기록 메타 저장 실패:', e); }
 
-        if (!silent) alert(`✅ [${label}] 압축 저장 완료!\n총 ${validRows.length}건이 단 ${chunkCount}번의 쓰기로 반영되었습니다.`);
+        if (!silent) alert(`[${label}] 압축 저장 완료!\n총 ${validRows.length}건이 단 ${chunkCount}번의 쓰기로 반영되었습니다.`);
         
     } catch (error) { 
         console.error(`${label} 실패:`, error); 
@@ -5051,9 +5082,9 @@ async function updateDatabaseA(rows, mode = 'daily') {
         }
         
         if (mode === 'permanent') {
-            alert(`✅ 완료! ${updateCount}개 로케이션의 랙 구조(동/위치) 영구 세팅이 완료되었습니다.`);
+            alert(`완료! ${updateCount}개 로케이션의 랙 구조(동/위치) 영구 세팅이 완료되었습니다.`);
         } else {
-            let msg = `✅ 스마트 클린 업데이트 완료!\n과거 유령 재고는 완벽히 비워졌고, 엑셀의 최신 데이터 ${updateCount}건만 정확하게 반영되었습니다.`;
+            let msg = `스마트 클린 업데이트 완료!\n과거 유령 재고는 완벽히 비워졌고, 엑셀의 최신 데이터 ${updateCount}건만 정확하게 반영되었습니다.`;
             if(skipCount > 0) msg += `\n(※ 기존 도면에 없거나 2F 로케이션 ${skipCount}건은 3층 시스템에서 무시됨)`;
             if(twoFloorMsgPart) msg += twoFloorMsgPart;
             alert(msg);
@@ -5464,7 +5495,7 @@ window.addSingleLocationFromSetting = async () => {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists() && docSnap.data()[newId]) return alert(`이미 존재합니다.`);
         await setDoc(docRef, { [newId]: { dong: '', pos: '', code: '', name: '', option: '', stock: '0', reserved: false, reservedAt: 0, assignedAt: 0, reservedBy: '', updatedAt: new Date(), rawData: {} } }, { merge: true });
-        inputObj.value = ''; alert(`✅ 추가 완료`); 
+        inputObj.value = ''; alert(`추가 완료`); 
     } catch (error) { console.error(error); }
 };
 
@@ -5485,7 +5516,7 @@ window.deleteSelectedLocations = async () => {
         if (batchCount > 0) await batch.commit();
         VS.checkedIds.clear();
         updateLocBulkBar();
-        alert(`🗑️ ${checkedIds.length}개 삭제 완료`);
+        alert(`${checkedIds.length}개 삭제 완료`);
     } catch (error) { console.error(error); alert('삭제 실패: ' + (error && error.message ? error.message : error)); }
 };
 
@@ -5504,9 +5535,9 @@ window.openLocBulkEdit = function () {
     const byId = new Map(originalData.map(l => [l.id, l]));
     const rows = ids.map(id => byId.get(id)).filter(Boolean);
     const preview = rows.slice(0, 30).map(l =>
-        `${escAttr(l.id)} <span style="color:#90a4ae;">(동 ${escAttr(l.dong || '-')} · 위치 ${escAttr(l.pos || '-')} · ${escAttr(l.category || '피킹용')})</span>`
+        `${escAttr(l.id)} <span style="color:var(--c-text-3);">(동 ${escAttr(l.dong || '-')} · 위치 ${escAttr(l.pos || '-')} · ${escAttr(l.category || '피킹용')})</span>`
     ).join('<br>');
-    target.innerHTML = `<b>${rows.length}개 로케이션</b>${rows.length > 30 ? ' <span style="color:#90a4ae;">(아래는 앞 30개)</span>' : ''}<br>${preview || '선택한 자리를 찾지 못했습니다.'}`;
+    target.innerHTML = `<b>${rows.length}개 로케이션</b>${rows.length > 30 ? ' <span style="color:var(--c-text-3);">(아래는 앞 30개)</span>' : ''}<br>${preview || '선택한 자리를 찾지 못했습니다.'}`;
 
     // 값이 모두 같으면 그 값을 미리 채워 준다
     const one = (key) => { const s = new Set(rows.map(l => (l[key] || '').toString().trim())); return s.size === 1 ? [...s][0] : ''; };
@@ -5550,7 +5581,7 @@ window.applyLocBulkEdit = async function () {
     }
     if (!confirm(`${ids.length}개 로케이션을 바꿉니다.\n\n${what}\n${notes.length ? '\n' + notes.join('\n') + '\n' : ''}\n진행할까요?`)) return;
 
-    window.showLoading(`✏️ ${ids.length}개 로케이션 수정 중...`);
+    window.showLoading(`${ids.length}개 로케이션 수정 중...`);
     try {
         // 같은 구역 문서에 여러 자리가 몰리므로 문서 단위로 묶어 쓴다(문서당 쓰기 1회)
         const byZone = new Map();
@@ -5570,7 +5601,7 @@ window.applyLocBulkEdit = async function () {
         window.hideLoading();
         document.getElementById('loc-bulk-modal').style.display = 'none';
         window.clearLocSelection();
-        alert(`✅ ${ids.length}개 로케이션을 수정했습니다.`);
+        alert(`${ids.length}개 로케이션을 수정했습니다.`);
     } catch (e) {
         window.hideLoading();
         console.error('[location] 일괄 수정 실패:', e);
@@ -5650,28 +5681,28 @@ window.renderIncomingQueue = function() {
         const rec = recLocMap[code];
         if (rec && rec.loc && rec.loc.id) {
             const caseLabel = rec.case === 'A'
-                ? `<span style="font-size:10px; color:#7b1fa2; font-weight:normal;">(페어 ${rec.partnerCount}개)</span>`
-                : `<span style="font-size:10px; color:#777; font-weight:normal;">(우선순위)</span>`;
-            recHtml = `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed #ddd; font-size:11px; color:#1976d2;">📍 추천: <b>${rec.loc.id}</b> ${caseLabel}</div>`;
+                ? `<span style="font-size:10px; color:var(--c-accent-deep); font-weight:normal;">(페어 ${rec.partnerCount}개)</span>`
+                : `<span style="font-size:10px; color:var(--c-text-3); font-weight:normal;">(우선순위)</span>`;
+            recHtml = `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed var(--c-line); font-size:11px; color:var(--c-accent-deep);">추천: <b>${rec.loc.id}</b> ${caseLabel}</div>`;
         }
         
         html += `
             <div class="incoming-item" onclick="activatePreAssignMode('${jsArg(code)}', '${jsArg(name)}', '${jsArg(qty)}', '${jsArg(option)}')">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                    <div style="font-weight:bold; color:var(--primary); font-size:14px;">${code}</div>
-                    <span style="font-size:10px; background:${src==='제작'?'#e3f2fd':'#fbe9e7'}; color:${src==='제작'?'#1976d2':'#d84315'}; padding:2px 5px; border-radius:3px; font-weight:bold;">${src}</span>
+                    <div style="font-weight:600; color:var(--c-accent-deep); font-size:14px;">${code}</div>
+                    <span class="badge incoming-src ${src==='제작'?'badge-accent':'badge-warn'}">${src}</span>
                 </div>
-                <div style="font-size:12px; color:#333; margin-bottom:${option ? '2px' : '6px'};">${name}</div>
-                ${option ? `<div style="font-size:11px; color:#777; margin-bottom:6px;">${option}</div>` : ''}
+                <div style="font-size:12px; color:var(--c-text); margin-bottom:${option ? '2px' : '6px'};">${name}</div>
+                ${option ? `<div style="font-size:11px; color:var(--c-text-3); margin-bottom:6px;">${option}</div>` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px;">
-                    <span style="color:#555;">${src==='제작'?'출고일':'도착일'}: <b style="color:#d32f2f;">${date}</b></span>
-                    <span style="color:#e65100; font-weight:bold; font-size:12px;">대기: ${qty}개</span>
+                    <span style="color:var(--c-text-2);">${src==='제작'?'출고일':'도착일'}: <b style="color:var(--c-text);">${date}</b></span>
+                    <span style="color:var(--c-warn-text); font-weight:600; font-size:12px;">대기: ${qty}개</span>
                 </div>
                 ${recHtml}
             </div>
         `;
     });
-    container.innerHTML = html || '<div style="text-align:center; padding:30px; color:#888;">지정이 필요한 상품이 없습니다.</div>';
+    container.innerHTML = html || '<div style="text-align:center; padding:30px; color:var(--c-text-3);">지정이 필요한 상품이 없습니다.</div>';
 };
 
 window.activatePreAssignMode = function(code, name, qty, option = '') {
@@ -5735,23 +5766,23 @@ function _ttRenderTabs(tip, key, activeTab) {
     
     content.innerHTML = `
         <div class="tt-tabs">
-            <button type="button" class="tt-tab-btn ${activeTab==='desc'?'active':''}" data-tab="desc">📖 설명</button>
-            <button type="button" class="tt-tab-btn ${activeTab==='manual'?'active':''}" data-tab="manual">📝 메뉴얼</button>
+            <button type="button" class="tt-tab-btn ${activeTab==='desc'?'active':''}" data-tab="desc">설명</button>
+            <button type="button" class="tt-tab-btn ${activeTab==='manual'?'active':''}" data-tab="manual">메뉴얼</button>
         </div>
         <div class="tt-tab-content tt-tab-desc ${activeTab==='desc'?'':'hidden'}">
             <div class="tt-view-wrap">
                 <div class="tt-view-body">${descHtml}</div>
                 <div class="tt-btn-row">
-                    <button type="button" class="tt-btn-edit" data-target="desc">✏️ 편집</button>
-                    ${isDescCustom ? '<button type="button" class="tt-btn-reset" data-target="desc">🔄 기본값 복원</button>' : ''}
+                    <button type="button" class="tt-btn-edit" data-target="desc">편집</button>
+                    ${isDescCustom ? '<button type="button" class="tt-btn-reset" data-target="desc">기본값 복원</button>' : ''}
                 </div>
             </div>
         </div>
         <div class="tt-tab-content tt-tab-manual ${activeTab==='manual'?'':'hidden'}">
             <div class="tt-view-wrap">
-                <div class="tt-view-body">${manualHtml ? manualHtml : '<div class="tt-empty">아직 등록된 메뉴얼이 없습니다.<br>아래 ✏️ 편집 버튼으로 추가하세요.</div>'}</div>
+                <div class="tt-view-body">${manualHtml ? manualHtml : '<div class="tt-empty">아직 등록된 메뉴얼이 없습니다.<br>아래 편집 버튼으로 추가하세요.</div>'}</div>
                 <div class="tt-btn-row">
-                    <button type="button" class="tt-btn-edit" data-target="manual">✏️ 편집</button>
+                    <button type="button" class="tt-btn-edit" data-target="manual">편집</button>
                 </div>
             </div>
         </div>
@@ -5786,7 +5817,7 @@ function _ttRenderTabs(tip, key, activeTab) {
             delete customTooltips[key + '__desc'];
             try {
                 await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { customTooltips }, { merge: true });
-                showToast("🔄 기본값으로 복원되었습니다.");
+                showToast("기본값으로 복원되었습니다.");
                 _ttRenderTabs(tip, key, 'desc');
             } catch(err) { console.error(err); alert("복원 실패"); }
         });
@@ -5815,7 +5846,7 @@ function _ttShowEditor(tip, key, target) {
     // ★ v3.56: <br> → \n 역변환 (메모장처럼 표시)
     const displayVal = currentVal.replace(/<br\s*\/?>/gi, '\n');
     
-    const labelText = target === 'desc' ? '📖 설명 편집' : '📝 메뉴얼 편집';
+    const labelText = target === 'desc' ? '설명 편집' : '메뉴얼 편집';
     
     tabBody.innerHTML = `
         <div class="tt-editor">
@@ -5823,22 +5854,22 @@ function _ttShowEditor(tip, key, target) {
             <div class="tt-toolbar">
                 <button type="button" class="tt-tb-btn" data-action="bold" title="굵게">𝐁</button>
                 <div class="tt-tb-color-wrap">
-                    <button type="button" class="tt-tb-btn" data-action="color-toggle" title="색상">🎨</button>
+                    <button type="button" class="tt-tb-btn" data-action="color-toggle" title="색상">색</button>
                     <div class="tt-tb-palette">
                         <button type="button" class="tt-color-swatch" data-color="#ff5252" style="background:#ff5252;" title="빨강"></button>
                         <button type="button" class="tt-color-swatch" data-color="#e65100" style="background:#e65100;" title="주황"></button>
                         <button type="button" class="tt-color-swatch" data-color="#fbc02d" style="background:#fbc02d;" title="노랑"></button>
                         <button type="button" class="tt-color-swatch" data-color="#2e7d32" style="background:#2e7d32;" title="초록"></button>
                         <button type="button" class="tt-color-swatch" data-color="#1976d2" style="background:#1976d2;" title="파랑"></button>
-                        <button type="button" class="tt-color-swatch tt-color-none" data-color="" title="색상 제거">✕</button>
+                        <button type="button" class="tt-color-swatch tt-color-none" data-color="" title="색상 제거">×</button>
                     </div>
                 </div>
                 <button type="button" class="tt-tb-btn" data-action="hr" title="구분선 삽입">━</button>
             </div>
             <textarea class="tt-editor-textarea" placeholder="메모장처럼 자유롭게 입력하세요.&#10;엔터로 줄바꿈, 위 버튼으로 서식 적용"></textarea>
             <div class="tt-editor-btns">
-                <button type="button" class="tt-btn-cancel">❌ 취소</button>
-                <button type="button" class="tt-btn-save">💾 저장</button>
+                <button type="button" class="tt-btn-cancel">취소</button>
+                <button type="button" class="tt-btn-save">저장</button>
             </div>
         </div>
     `;
@@ -5953,7 +5984,7 @@ function _ttShowEditor(tip, key, target) {
         }
         try {
             await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { customTooltips }, { merge: true });
-            showToast(`✅ ${target === 'desc' ? '설명' : '메뉴얼'}이 저장되었습니다.`);
+            showToast(`${target === 'desc' ? '설명' : '메뉴얼'}이 저장되었습니다.`);
             _ttEditingLock = false;
             tip.classList.remove('tt-editing');
             _ttRenderTabs(tip, key, target);
@@ -6117,15 +6148,7 @@ window.setMapLegendFilter = function(filterType) {
     Object.keys(legendMap).forEach(key => {
         const el = document.getElementById(legendMap[key]);
         if (!el) return;
-        if (_mapLegendFilter === key) {
-            el.style.outline = '2px solid #3d5afe';
-            el.style.outlineOffset = '2px';
-            el.style.fontWeight = '900';
-        } else {
-            el.style.outline = '';
-            el.style.outlineOffset = '';
-            el.style.fontWeight = '';
-        }
+        el.classList.toggle('is-active', _mapLegendFilter === key);
     });
     // 도면 재렌더링 (opacity 반영)
     renderCorridor(currentCorridorIdx);
@@ -6136,7 +6159,7 @@ window.renderMap = function() {
     const tabContainer = document.getElementById('map-zone-tabs');
 
     if (!originalData || originalData.length === 0) {
-        mapBody.innerHTML = '<div style="text-align:center;padding:60px;color:#aaa;">⏳ Firebase에서 데이터를 불러오는 중입니다.<br>잠시 후 자동으로 표시됩니다.</div>';
+        mapBody.innerHTML = '<div style="text-align:center;padding:60px;color:var(--c-text-3);">Firebase에서 데이터를 불러오는 중입니다.<br>잠시 후 자동으로 표시됩니다.</div>';
         tabContainer.innerHTML = '';
         return;
     }
@@ -6165,7 +6188,7 @@ window.renderMap = function() {
 
     // 기타 로케이션이 하나라도 있으면 맨 뒤에 전용 '기타' 탭 추가
     if (originalData.some(isEtcLoc)) {
-        svCorridorList.push({ zone: '__ETC__', label: '📦 기타' });
+        svCorridorList.push({ zone: '__ETC__', label: '기타' });
     }
 
     // 탭 렌더링
@@ -6174,15 +6197,13 @@ window.renderMap = function() {
         const btn = document.createElement('button');
         btn.id = `sv-tab-${i}`;
         btn.innerText = item.label;
-        btn.style.cssText = `padding:6px 14px; border-radius:20px; font-size:13px; font-weight:bold; border:1.5px solid #ccc; background:#f5f5f5; color:#333; cursor:pointer; transition:0.2s;`;
+        btn.className = 'map-zone-tab';
         btn.onclick = () => {
             _mapShowAllZones = false; // 구역 탭 클릭 → 단일 구역 모드로 전환
             currentCorridorIdx = i;
             renderCorridor(i);
-            document.querySelectorAll('#map-zone-tabs button').forEach(b => {
-                b.style.background = '#f5f5f5'; b.style.color = '#333'; b.style.borderColor = '#ccc';
-            });
-            btn.style.background = '#3d5afe'; btn.style.color = 'white'; btn.style.borderColor = '#3d5afe';
+            document.querySelectorAll('#map-zone-tabs button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
         };
         tabContainer.appendChild(btn);
     });
@@ -6210,41 +6231,39 @@ function renderCorridor(idx) {
         return true;
     }
     function cellStyle(loc) {
-        if (!loc) return 'background:#f0f0f0; border:1px dashed #ddd;';
+        if (!loc) return 'background:var(--c-bg); border:1px dashed var(--c-line);';
         let s;
-        if (loc.preAssigned) s = 'background:#ffe0b2; border:1.5px solid #fb8c00;';
-        else if (loc.reserved) s = 'background:#fff9c4; border:1.5px solid #f9a825;';
-        else if (hasContent(loc)) s = 'background:#c8e6c9; border:1.5px solid #66bb6a;';
-        else s = 'background:#f0f0f0; border:1px solid #ccc;';
+        if (loc.preAssigned) s = 'background:var(--c-risk-soft); border:1.5px solid var(--c-risk);';
+        else if (loc.reserved) s = 'background:var(--c-accent-soft); border:1.5px solid var(--c-accent-mid);';
+        else if (hasContent(loc)) s = 'background:var(--c-ok-soft); border:1.5px solid var(--c-ok);';
+        else s = 'background:var(--c-surface); border:1px solid var(--c-line-strong);';
         return s;
     }
     function cellInner(loc) {
         if (!loc) return '';
         const nameText = hasContent(loc) ? (loc.name || loc.code || '') : '';
-        const nameColor = hasContent(loc) ? '#1b5e20' : '#999';
+        const nameColor = hasContent(loc) ? 'var(--c-ok-text)' : 'var(--c-text-3)';
         const idFontSize = Math.max(7, Math.floor(cellSize / 8));
         const nameFontSize = Math.max(10, Math.floor(cellSize / 5));
         const maxChars = Math.max(4, Math.floor((cellSize - 6) / (nameFontSize * 0.55)));
         const displayName = nameText.substring(0, maxChars) || '빈칸';
-        return `<div style="font-size:${idFontSize}px;color:#bbb;line-height:1.1;">${loc.id}</div>
-                <div style="font-size:${nameFontSize}px;font-weight:bold;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize - 4}px;text-align:center;line-height:1.3;">${displayName}</div>`;
+        return `<div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;">${loc.id}</div>
+                <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize - 4}px;text-align:center;line-height:1.3;">${displayName}</div>`;
     }
     function tooltipHtml(loc) {
         if (!loc) return '';
         const isReserved = loc.reserved === true;
         const isPreAssigned = loc.preAssigned === true;
         let status = '빈칸';
-        if (isPreAssigned) status = '📦 선지정';
-        else if (isReserved) status = `🔒 예약중 (${loc.reservedBy || ''})`;
-        else if (hasContent(loc)) status = '✅ 사용중';
+        if (isPreAssigned) status = '선지정';
+        else if (isReserved) status = `예약중 (${loc.reservedBy || ''})`;
+        else if (hasContent(loc)) status = '사용중';
         const tipId = 'tip-' + (loc.id || '').replace(/[^a-zA-Z0-9]/g, '_');
-        return `<div id="${tipId}" style="position:fixed;background:white;border:1px solid #ccc;border-radius:8px;padding:10px 12px;
-            white-space:nowrap;pointer-events:none;font-size:12px;line-height:1.7;
-            box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:99999;display:none;" class="sv-tip">
-            <div style="font-weight:bold;color:#3d5afe;">${loc.id}</div>
-            <div style="color:#555;">${status}</div>
-            ${hasContent(loc) ? `<div style="color:#333;"><b>상품명</b>: ${loc.name || '-'}</div>${loc.option ? `<div style="color:#666;"><b>옵션</b>: ${loc.option}</div>` : ''}<div style="color:#1976d2;"><b>재고</b>: ${loc.stock || '0'}개</div>` : ''}
-            ${isPreAssigned ? `<div style="color:#bf360c;"><b>선지정코드</b>: ${loc.preAssignedCode || '-'}</div>` : ''}
+        return `<div id="${tipId}" class="sv-tip map-tip">
+            <div class="tip-id">${loc.id}</div>
+            <div>${status}</div>
+            ${hasContent(loc) ? `<div><b>상품명</b>: ${loc.name || '-'}</div>${loc.option ? `<div><b>옵션</b>: ${loc.option}</div>` : ''}<div><b>재고</b>: ${loc.stock || '0'}개</div>` : ''}
+            ${isPreAssigned ? `<div style="color:var(--c-risk-text);"><b style="color:inherit;">선지정코드</b>: ${loc.preAssignedCode || '-'}</div>` : ''}
         </div>`;
     }
     function getCell(locs, pos, num) {
@@ -6278,12 +6297,12 @@ function renderCorridor(idx) {
                 if (!hasMatch) return;
             }
             html += `<div style="display:flex;flex-direction:row;align-items:center;gap:3px;">
-                <div style="font-size:10px;font-weight:bold;color:#bbb;min-width:18px;text-align:center;">${pos}</div>`;
+                <div style="font-size:10px;font-weight:600;color:var(--c-text-3);min-width:18px;text-align:center;">${pos}</div>`;
             posNums.forEach(num => {
                 const loc = getCell(locs, pos, num);
                 if (!loc) {
                     if (_mapLegendFilter) return; // 필터 ON → null 셀(placeholder)도 숨김 (옆이 당겨옴)
-                    html += `<div style="width:${cellSize}px;height:${cellSize + 6}px;${cellStyle(null)}border-radius:4px;"></div>`;
+                    html += `<div style="width:${cellSize}px;height:${cellSize + 6}px;${cellStyle(null)}border-radius:var(--r-cell);"></div>`;
                     return;
                 }
                 if (!matchesLegendFilter(loc)) return; // 미매칭 셀은 출력 안 함
@@ -6291,7 +6310,7 @@ function renderCorridor(idx) {
                 html += `<div style="position:relative;"
                     onmouseenter="(function(e){var t=document.getElementById('${tid}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
                     onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
-                    <div style="width:${cellSize}px;height:${cellSize + 6}px;${cellStyle(loc)}border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
+                    <div style="width:${cellSize}px;height:${cellSize + 6}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                         onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
                         onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
                         ${cellInner(loc)}
@@ -6322,16 +6341,16 @@ function renderCorridor(idx) {
             if (!matchesLegendFilter(loc)) return; // 범례 필터 미매칭 셀 숨김
             const tid = 'tip-' + (loc.id || '').replace(/[^a-zA-Z0-9]/g, '_');
             const nameText = hasContent(loc) ? (loc.name || loc.code || '') : '';
-            const nameColor = hasContent(loc) ? '#1b5e20' : '#999';
+            const nameColor = hasContent(loc) ? 'var(--c-ok-text)' : 'var(--c-text-3)';
             const displayName = nameText.substring(0, maxChars) || '빈칸';
             h += `<div style="position:relative;"
                 onmouseenter="(function(e){var t=document.getElementById('${tid}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
                 onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
-                <div style="width:${cs}px;height:${cs+6}px;${cellStyle(loc)}border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
+                <div style="width:${cs}px;height:${cs+6}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                     onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
                     onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
-                    <div style="font-size:${idFontSize}px;color:#bbb;line-height:1.1;">${loc.id}</div>
-                    <div style="font-size:${nameFontSize}px;font-weight:bold;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cs-4}px;text-align:center;line-height:1.3;">${displayName}</div>
+                    <div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;">${loc.id}</div>
+                    <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cs-4}px;text-align:center;line-height:1.3;">${displayName}</div>
                 </div>${tooltipHtml(loc)}</div>`;
         });
         return h;
@@ -6369,16 +6388,16 @@ function renderCorridor(idx) {
                 if (!matchesLegendFilter(loc)) return; // 미매칭 셀은 출력 안 함
                 const tid = 'tip-' + (loc.id || '').replace(/[^a-zA-Z0-9]/g, '_');
                 const nameText = hasContent(loc) ? (loc.name || loc.code || '') : '';
-                const nameColor = hasContent(loc) ? '#1b5e20' : '#999';
+                const nameColor = hasContent(loc) ? 'var(--c-ok-text)' : 'var(--c-text-3)';
                 const displayName = nameText.substring(0, maxChars) || '빈칸';
                 h += `<div style="position:relative;"
                     onmouseenter="(function(e){var t=document.getElementById('${tid}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
                     onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
-                    <div style="width:${cellSize}px;height:${cellSize+6}px;${cellStyle(loc)}border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
+                    <div style="width:${cellSize}px;height:${cellSize+6}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                         onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
                         onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
-                        <div style="font-size:${idFontSize}px;color:#bbb;line-height:1.1;">${loc.id}</div>
-                        <div style="font-size:${nameFontSize}px;font-weight:bold;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize-4}px;text-align:center;line-height:1.3;">${displayName}</div>
+                        <div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;">${loc.id}</div>
+                        <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize-4}px;text-align:center;line-height:1.3;">${displayName}</div>
                     </div>${tooltipHtml(loc)}</div>`;
             });
             h += '</div>';
@@ -6386,13 +6405,13 @@ function renderCorridor(idx) {
         }
 
         bodyHtml += `
-            <div style="border:1px solid #ddd;border-radius:10px;overflow:hidden;">
-                <div style="background:#f4f4f4;padding:6px 16px;font-size:13px;font-weight:bold;color:#3d5afe;border-bottom:1px solid #ddd;">★★ 구역</div>
+            <div class="map-sec" style="margin-bottom:0;">
+                <div class="map-sec-head">★★ 구역</div>
                 ${starRow(topLocs)}
-                ${_mapLegendFilter ? '' : `<div style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fafafa;padding:7px 16px;border-top:1px solid #eee;border-bottom:1px solid #eee;">
-                    <div style="font-size:11px;color:#ccc;letter-spacing:4px;">← ← ←</div>
-                    <div style="font-size:11px;color:#bbb;font-weight:bold;">★★ 통로</div>
-                    <div style="font-size:11px;color:#ccc;letter-spacing:4px;">→ → →</div>
+                ${_mapLegendFilter ? '' : `<div class="map-aisle">
+                    <div class="aisle-arrow">← ← ←</div>
+                    <div class="aisle-label">★★ 통로</div>
+                    <div class="aisle-arrow">→ → →</div>
                 </div>`}
                 ${starRow(botLocs)}
             </div>`;
@@ -6401,9 +6420,9 @@ function renderCorridor(idx) {
         const etcLocs = originalData.filter(isEtc)
             .sort((a, b) => (a.id || '').localeCompare(b.id || '', undefined, {numeric: true}));
         const etcGroups = [
-            { key: 'bichuk', label: '📦 비축', bg: '#efebe9', color: '#8d6e63', border: '#d7ccc8' },
-            { key: 'general', label: '🧩 기타 (알파벳-숫자-L/R 등)', bg: '#eef2f7', color: '#455a64', border: '#cfd8dc' },
-            { key: 'sam', label: '🏷️ SAM', bg: '#fff3e0', color: '#e65100', border: '#ffe0b2' }
+            { key: 'bichuk', label: '비축', bg: 'var(--c-warn-bg)', color: 'var(--c-warn-text)', border: 'var(--c-warn-soft)' },
+            { key: 'general', label: '기타 (알파벳-숫자-L/R 등)', bg: 'var(--c-surface-2)', color: 'var(--c-text-2)', border: 'var(--c-line)' },
+            { key: 'sam', label: 'SAM', bg: 'var(--c-accent-row)', color: 'var(--c-accent-deep)', border: 'var(--c-accent-soft)' }
         ];
         etcGroups.forEach(g => {
             const groupLocs = etcLocs.filter(d => classifyEtc(d) === g.key);
@@ -6412,8 +6431,8 @@ function renderCorridor(idx) {
             const cells = simpleGridCells(groupLocs, cellSize);
             if (cells) {
                 bodyHtml += `
-                    <div style="border:1px solid #ddd;border-radius:10px;overflow:hidden;margin-bottom:12px;">
-                        <div style="background:${g.bg};padding:6px 16px;font-size:13px;font-weight:bold;color:${g.color};border-bottom:1px solid ${g.border};">${g.label}</div>
+                    <div class="map-sec">
+                        <div class="map-sec-head" style="background:${g.bg};color:${g.color};border-bottom-color:${g.border};">${g.label}</div>
                         <div style="padding:8px;display:flex;flex-wrap:wrap;gap:3px;">${cells}</div>
                     </div>`;
             }
@@ -6465,15 +6484,13 @@ function renderCorridor(idx) {
             // cellSize는 슬라이더 값 사용 (구역별 고정)
 
             bodyHtml += `
-                <div style="border:1px solid #ddd;border-radius:10px;overflow:hidden;margin-bottom:12px;">
-                    <div style="background:#f4f4f4;padding:5px 16px;border-bottom:1px solid #ddd;">
-                        <div style="font-size:13px;font-weight:bold;color:#3d5afe;">${item.zone}구역 ${dong}동</div>
-                    </div>
+                <div class="map-sec">
+                    <div class="map-sec-head">${item.zone}구역 ${dong}동</div>
                     ${buildRackSection(leftLocs, numsByPos, posLabels, 'left', cellSize)}
-                    ${_mapLegendFilter ? '' : `<div style="display:flex;align-items:center;justify-content:center;gap:12px;background:#fafafa;padding:5px 16px;border-top:1px solid #eee;border-bottom:1px solid #eee;">
-                        <div style="font-size:11px;color:#ccc;letter-spacing:4px;">← ← ←</div>
-                        <div style="font-size:11px;color:#bbb;font-weight:bold;">${dong}동 통로</div>
-                        <div style="font-size:11px;color:#ccc;letter-spacing:4px;">→ → →</div>
+                    ${_mapLegendFilter ? '' : `<div class="map-aisle">
+                        <div class="aisle-arrow">← ← ←</div>
+                        <div class="aisle-label">${dong}동 통로</div>
+                        <div class="aisle-arrow">→ → →</div>
                     </div>`}
                     ${buildRackSection(rightLocs, numsByPos, posLabels, 'right', cellSize)}
                 </div>`;
@@ -6491,10 +6508,8 @@ function renderCorridor(idx) {
             const cells = simpleGridCells(orphanLocs, cellSize);
             if (cells) {
                 bodyHtml += `
-                    <div style="border:1px solid #ffcc80;border-radius:10px;overflow:hidden;margin-bottom:12px;">
-                        <div style="background:#fff3e0;padding:5px 16px;border-bottom:1px solid #ffe0b2;">
-                            <div style="font-size:13px;font-weight:bold;color:#e65100;">⚠️ ${item.zone}구역 · 미배치 (동/위치 미지정)</div>
-                        </div>
+                    <div class="map-sec" style="border-color:var(--c-warn);">
+                        <div class="map-sec-head" style="background:var(--c-warn-bg);color:var(--c-warn-text);border-bottom-color:var(--c-warn-soft);">${item.zone}구역 · 미배치 (동/위치 미지정)</div>
                         <div style="padding:8px;display:flex;flex-wrap:wrap;gap:3px;">${cells}</div>
                     </div>`;
             }
@@ -6503,17 +6518,17 @@ function renderCorridor(idx) {
     }); // itemsToRender.forEach 닫기
 
     if (!bodyHtml.trim()) {
-        bodyHtml = '<div style="text-align:center;padding:60px;color:#aaa;font-size:14px;">📭 선택한 필터에 매칭되는 자리가 없습니다.</div>';
+        bodyHtml = '<div style="text-align:center;padding:60px;color:var(--c-text-3);font-size:14px;">선택한 필터에 매칭되는 자리가 없습니다.</div>';
     }
 
     mapBody.innerHTML = `
         <div>
             ${bodyHtml}
             <div style="display:flex;gap:12px;padding:10px 0;flex-wrap:wrap;">
-                <span style="font-size:11px;color:#555;display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#c8e6c9;border:1px solid #66bb6a;"></span>상품있음</span>
-                <span style="font-size:11px;color:#555;display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#f0f0f0;border:1px solid #ccc;"></span>빈칸</span>
-                <span style="font-size:11px;color:#555;display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#fff9c4;border:1px solid #f9a825;"></span>예약중</span>
-                <span style="font-size:11px;color:#555;display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#ffe0b2;border:1px solid #fb8c00;"></span>선지정</span>
+                <span class="map-key"><i style="background:var(--c-ok-soft);border-color:var(--c-ok);"></i>상품있음</span>
+                <span class="map-key"><i style="background:var(--c-surface);border-color:var(--c-line-strong);"></i>빈칸</span>
+                <span class="map-key"><i style="background:var(--c-accent-soft);border-color:var(--c-accent-mid);"></i>예약중</span>
+                <span class="map-key"><i style="background:var(--c-risk-soft);border-color:var(--c-risk);"></i>선지정</span>
             </div>
         </div>
     `;
@@ -6665,17 +6680,13 @@ window.switchRecTab = function(tabName) {
     if (tabName === 'single') {
         singleTab.style.display = '';
         pairTab.style.display = 'none';
-        singleBtn.style.background = '#4caf50';
-        singleBtn.style.color = 'white';
-        pairBtn.style.background = '#e0e0e0';
-        pairBtn.style.color = '#555';
+        singleBtn.classList.add('active');
+        pairBtn.classList.remove('active');
     } else if (tabName === 'pair') {
         singleTab.style.display = 'none';
         pairTab.style.display = '';
-        singleBtn.style.background = '#e0e0e0';
-        singleBtn.style.color = '#555';
-        pairBtn.style.background = '#4caf50';
-        pairBtn.style.color = 'white';
+        singleBtn.classList.remove('active');
+        pairBtn.classList.add('active');
     }
 };
 
@@ -6692,7 +6703,7 @@ window.runActiveRecommendation = function() {
 
 // 1. [v4.2-fix1] showSingleRecommendation 함수 수정 부분
 window.showSingleRecommendation = function() {
-    window.showLoading("📦 단독 추천을 계산 중입니다...");
+    window.showLoading("단독 추천을 계산 중입니다...");
     
     setTimeout(() => {
         try {
@@ -6879,7 +6890,7 @@ window.showSingleRecommendation = function() {
                 }
                 
                 const option = getOptionByCode(item.code);
-                const rowBg = matchCount % 2 === 0 ? '#ffffff' : '#fafafa';
+                const rowBg = matchCount % 2 === 0 ? 'var(--c-surface)' : 'var(--c-surface-2)';
                 
                 // v3.94 결과 양식: 이동수량(정상재고-2층재고) + 방향 뱃지 + 점수 툴팁
                 let _ts = 0, _ts2 = 0;
@@ -6887,26 +6898,26 @@ window.showSingleRecommendation = function() {
                 originalData.forEach(d => { if (d.code === item.code) { _ts += Number(d.stock || 0); _ts2 = Math.max(_ts2, Number(d.stock2f || 0)); } });
                 const moveQty = _ts - _ts2;
                 const moveQtyDisplay = moveQty > 0
-                    ? `<span style="color:#e65100; font-weight:900; font-size:13px;">${moveQty.toLocaleString()}</span><span style="font-size:9px; color:#888; margin-left:1px;">개</span>`
-                    : `<span style="color:#bbb; font-size:11px;">-</span>`;
-                const _badge = (bg, fg, label) => `<span style="display:inline-block; background:${bg}; color:${fg}; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold; vertical-align:middle;">${label}</span>`;
+                    ? `<span style="color:var(--c-warn-text); font-weight:700; font-size:13px;">${moveQty.toLocaleString()}</span><span style="font-size:9px; color:var(--c-text-3); margin-left:1px;">개</span>`
+                    : `<span style="color:var(--c-text-4); font-size:11px;">-</span>`;
+                const _badge = (bg, fg, label) => `<span style="display:inline-block; background:${bg}; color:${fg}; padding:1px 8px; border-radius:var(--r-pill); font-size:10px; font-weight:600; vertical-align:middle;">${label}</span>`;
                 const _slot = getEmptyLocInfo(foundSlot);
                 let moveBadge;
-                if (!currentLocId) moveBadge = _badge('#e3f2fd', '#1565c0', '✨신규');
-                else if (_slot.dongRank < currentInfo.dongRank || (_slot.dongRank === currentInfo.dongRank && _slot.posRank < currentInfo.posRank)) moveBadge = _badge('#ffebee', '#b71c1c', '🔺전진');
-                else moveBadge = _badge('#f5f5f5', '#616161', '➖수평');
-                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content">📊 <b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>💡 반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+                if (!currentLocId) moveBadge = _badge(TONE.accentSoft, TONE.accentDeep, '신규');
+                else if (_slot.dongRank < currentInfo.dongRank || (_slot.dongRank === currentInfo.dongRank && _slot.posRank < currentInfo.posRank)) moveBadge = _badge(TONE.okSoft, TONE.okText, '전진');
+                else moveBadge = _badge(TONE.track, TONE.text2, '수평');
+                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
                 html += `
                     <tr style="background:${rowBg}; line-height:1.3;">
-                        <td style="color:var(--primary); font-weight:900; font-size:12px; padding:5px 8px; white-space:nowrap;">${matchCount + 1}위 <span style="font-size:10px; color:#e65100; font-weight:bold;">(${item.score.toFixed(1)}${scoreTip})</span></td>
-                        <td style="font-weight:bold; color:#1a237e; font-size:11px; padding:5px 8px; white-space:nowrap;">${item.code}</td>
-                        <td style="text-align:left; font-size:12px; font-weight:600; color:#212121; padding:5px 10px;">${item.name}${option ? `<span style="color:#90a4ae; font-size:10px; margin-left:6px;">(${option})</span>` : ''}</td>
+                        <td style="color:var(--c-accent-deep); font-weight:700; font-size:12px; padding:5px 8px; white-space:nowrap;">${matchCount + 1}위 <span style="font-size:10px; color:var(--c-text-3); font-weight:600;">(${item.score.toFixed(1)}${scoreTip})</span></td>
+                        <td style="font-weight:600; color:var(--c-accent-deep); font-size:11px; padding:5px 8px; white-space:nowrap;">${item.code}</td>
+                        <td style="text-align:left; font-size:12px; font-weight:600; color:var(--c-text); padding:5px 10px;">${item.name}${option ? `<span style="color:var(--c-text-3); font-size:10px; margin-left:6px;">(${option})</span>` : ''}</td>
                         <td style="text-align:center; padding:5px 6px; white-space:nowrap;">${moveQtyDisplay}</td>
-                        <td style="color:#555; font-size:11px; padding:5px 8px; white-space:nowrap;">${currentInfo.id} <span style="color:#999;">${currentInfo.dong}동</span></td>
-                        <td style="background:#f1f8e9; padding:5px 10px; text-align:center; white-space:nowrap;">
-                            <span style="color:#1b5e20; font-weight:900; font-size:13px;">${foundSlot.id}</span>
-                            <span style="font-size:10px; color:#777; margin-left:4px;">${(foundSlot.dong || '').toString().trim()}동·${(foundSlot.pos || '').toString().trim()}위치</span>
+                        <td style="color:var(--c-text-2); font-size:11px; padding:5px 8px; white-space:nowrap;">${currentInfo.id} <span style="color:var(--c-text-3);">${currentInfo.dong}동</span></td>
+                        <td style="background:var(--c-ok-soft); padding:5px 10px; text-align:center; white-space:nowrap;">
+                            <span style="color:var(--c-ok-text); font-weight:700; font-size:13px;">${foundSlot.id}</span>
+                            <span style="font-size:10px; color:var(--c-text-3); margin-left:4px;">${(foundSlot.dong || '').toString().trim()}동·${(foundSlot.pos || '').toString().trim()}위치</span>
                             <span style="margin-left:6px;">${moveBadge}</span>
                         </td>
                     </tr>
@@ -6944,7 +6955,7 @@ window.showSingleRecommendation = function() {
             console.log('[v4.1] 단독 추천 종료: 성공', matchCount, '개 / 건너뜀(현재자리없음)', skipNoCurrentLoc, '개 / 건너뜀(이미최적)', skipNoBetterSlot, '개 / 엑셀 데이터', window.currentSingleRecommendations.length, '개');
             
             if (matchCount === 0) {
-                html += '<tr><td colspan="6" style="padding:40px; text-align:center; color:#666;">표시할 추천이 없습니다.<br>(모든 상품이 이미 최적 자리에 있거나, 더 좋은 빈 자리가 없습니다)</td></tr>';
+                html += '<tr><td colspan="6" style="padding:40px; text-align:center; color:var(--c-text-3);">표시할 추천이 없습니다.<br>(모든 상품이 이미 최적 자리에 있거나, 더 좋은 빈 자리가 없습니다)</td></tr>';
             }
             
             tbody.innerHTML = html;
@@ -6972,7 +6983,7 @@ window.showSingleRecommendation = function() {
 //      - 근처 빈 자리 없으면 페어 매칭 포기
 //   6. 자리 변동 없는 페어(케이스 A) = 표시 안 함
 window.showPairRecommendation = function() {
-    window.showLoading("🔗 페어 추천을 계산 중입니다...");
+    window.showLoading("페어 추천을 계산 중입니다...");
     
     setTimeout(() => {
         try {
@@ -7159,30 +7170,30 @@ window.showPairRecommendation = function() {
                 
                 const aCurrentLoc = itemA.currentLocs || '-';
                 const bCurrentLoc = itemB.currentLocs || '-';
-                const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
+                const rowBg = i % 2 === 0 ? 'var(--c-surface)' : 'var(--c-surface-2)';
                 
                 html += `
                     <tr style="background:${rowBg};">
-                        <td style="text-align:center; color:var(--primary); font-weight:900; font-size:13px; padding:5px 6px;">${i + 1}</td>
+                        <td style="text-align:center; color:var(--c-accent-deep); font-weight:700; font-size:13px; padding:5px 6px;">${i + 1}</td>
                         <td style="padding:5px 8px; font-size:12px; line-height:1.35;">
-                            <span style="font-weight:bold; color:#1976d2;">${itemA.code}</span>
-                            <span style="color:#333;"> · ${itemA.name}</span>
-                            ${itemA.option ? `<span style="color:#999; font-size:11px;"> (${itemA.option})</span>` : ''}
-                            <span style="color:#777; font-size:11px;"> · 현재 ${aCurrentLoc}</span>
+                            <span style="font-weight:600; color:var(--c-accent-deep);">${itemA.code}</span>
+                            <span style="color:var(--c-text);"> · ${itemA.name}</span>
+                            ${itemA.option ? `<span style="color:var(--c-text-3); font-size:11px;"> (${itemA.option})</span>` : ''}
+                            <span style="color:var(--c-text-3); font-size:11px;"> · 현재 ${aCurrentLoc}</span>
                         </td>
-                        <td style="text-align:center; padding:5px 6px; background:#e8f5e9; white-space:nowrap;">
-                            <span style="font-weight:bold; color:#2e7d32; font-size:12px;">${slotA_id}</span>
-                            <span style="font-size:10px; color:#777;"> ${slotA_dong}동</span>
+                        <td style="text-align:center; padding:5px 6px; background:var(--c-ok-soft); white-space:nowrap;">
+                            <span style="font-weight:600; color:var(--c-ok-text); font-size:12px;">${slotA_id}</span>
+                            <span style="font-size:10px; color:var(--c-text-3);"> ${slotA_dong}동</span>
                         </td>
                         <td style="padding:5px 8px; font-size:12px; line-height:1.35;">
-                            <span style="font-weight:bold; color:#1976d2;">${itemB.code}</span>
-                            <span style="color:#333;"> · ${itemB.name}</span>
-                            ${itemB.option ? `<span style="color:#999; font-size:11px;"> (${itemB.option})</span>` : ''}
-                            <span style="color:#777; font-size:11px;"> · 현재 ${bCurrentLoc}</span>
+                            <span style="font-weight:600; color:var(--c-accent-deep);">${itemB.code}</span>
+                            <span style="color:var(--c-text);"> · ${itemB.name}</span>
+                            ${itemB.option ? `<span style="color:var(--c-text-3); font-size:11px;"> (${itemB.option})</span>` : ''}
+                            <span style="color:var(--c-text-3); font-size:11px;"> · 현재 ${bCurrentLoc}</span>
                         </td>
-                        <td style="text-align:center; padding:5px 6px; background:#e8f5e9; white-space:nowrap;">
-                            <span style="font-weight:bold; color:#2e7d32; font-size:12px;">${slotB_id}</span>
-                            <span style="font-size:10px; color:#777;"> ${slotB_dong}동</span>
+                        <td style="text-align:center; padding:5px 6px; background:var(--c-ok-soft); white-space:nowrap;">
+                            <span style="font-weight:600; color:var(--c-ok-text); font-size:12px;">${slotB_id}</span>
+                            <span style="font-size:10px; color:var(--c-text-3);"> ${slotB_dong}동</span>
                         </td>
                     </tr>
                 `;
@@ -7463,11 +7474,11 @@ window.showPairRecommendation = function() {
         // 첫째 줄: 지정 + SKU
         // v4.4 v3: 2F SKU 카드 삭제 - 순서 = 당일지정 / 선지정 / 3층 SKU / 2층 SKU / 총 SKU
         let cardsRow1 = '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">';
-        cardsRow1 += card('📌', '당일지정수량', codeTagCount.toLocaleString());
-        cardsRow1 += card('🔒', '선지정수량', preAssignCount.toLocaleString());
-        cardsRow1 += card('📦', '3층 SKU', sku3F.toLocaleString(), '고유 상품코드');
-        cardsRow1 += card('🏬', '2층 SKU', sku2층.toLocaleString(), '2층창고재고 보유');
-        cardsRow1 += card('🎯', '총 SKU', skuTotal.toLocaleString(), '3층 + 2층');
+        cardsRow1 += card('', '당일지정수량', codeTagCount.toLocaleString());
+        cardsRow1 += card('', '선지정수량', preAssignCount.toLocaleString());
+        cardsRow1 += card('', '3층 SKU', sku3F.toLocaleString(), '고유 상품코드');
+        cardsRow1 += card('', '2층 SKU', sku2층.toLocaleString(), '2층창고재고 보유');
+        cardsRow1 += card('', '총 SKU', skuTotal.toLocaleString(), '3층 + 2층');
         cardsRow1 += '</div>';
         
         // 둘째 줄: 재고회전율
@@ -7475,7 +7486,7 @@ window.showPairRecommendation = function() {
         let cardsRow2 = '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px;">';
         if (!turnover.sufficient) {
             cardsRow2 += `<div style="background:#fff8e1; border:1px solid #ffd54f; border-radius:8px; padding:12px 16px; flex:1; font-size:12px; color:#a36800;">
-                ⚠️ ${turnover.message}<br>
+                ${turnover.message}<br>
                 <span style="font-size:11px; color:#999;">일일 최신화 업로드를 2영업일 이상 반복하면 회전율이 계산됩니다</span>
             </div>`;
         } else {
@@ -7484,8 +7495,8 @@ window.showPairRecommendation = function() {
             const prevTotal = (turnover.previousStock3F || 0) + (turnover.previousStock2F || 0);
             const currTotal = (turnover.currentStock3F || 0) + (turnover.currentStock2F || 0);
             const subAll = `${turnover.previousDate}: ${prevTotal.toLocaleString()}<br>${turnover.currentDate}: ${currTotal.toLocaleString()}`;
-            cardsRow2 += card('🔄', '재고회전율 (3층)', formatRate(turnover.rate3F), sub3F);
-            cardsRow2 += card('🔄', '재고회전율 (합산)', formatRate(turnover.rateAll), subAll);
+            cardsRow2 += card('', '재고회전율 (3층)', formatRate(turnover.rate3F), sub3F);
+            cardsRow2 += card('', '재고회전율 (합산)', formatRate(turnover.rateAll), subAll);
         }
         cardsRow2 += '</div>';
         
@@ -7499,14 +7510,14 @@ window.showPairRecommendation = function() {
         
         container.innerHTML = `
             <div style="padding: 8px 12px;">
-                ${sectionTitle('📊 요약 정보')}
+                ${sectionTitle('요약 정보')}
                 ${cardsRow1}
                 ${cardsRow2}
                 
-                ${sectionTitle('🏢 3층 로케이션 사용률')}
+                ${sectionTitle('3층 로케이션 사용률')}
                 <div style="margin-bottom:18px;">${usage3FHtml}</div>
                 
-                ${sectionTitle('🏬 2층 창고 사용률')}
+                ${sectionTitle('2층 창고 사용률')}
                 <div>${usage2FHtml}</div>
             </div>
         `;
@@ -7900,82 +7911,56 @@ window.renderLocationDashboard = function () {
     const __fmtRate = (rate) => {
         if (rate === null || rate === undefined) return '-';
         const sign = rate > 0 ? '+' : '';
-        const color = rate > 0 ? '#e65100' : (rate < 0 ? '#1976d2' : '#666');
+        const color = rate > 0 ? TONE.warnText : (rate < 0 ? TONE.accentDeep : TONE.text3);
         return `<span style="color:${color};">${sign}${rate.toFixed(1)}%</span>`;
     };
 
-    // ---- KPI 카드 렌더 ----
-    const donutSvg = (rate) => {
-        const r = 22, c = 2 * Math.PI * r;
-        const dash = c * (rate / 100);
-        const color = rate >= 80 ? '#ef5350' : rate >= 50 ? '#3d5afe' : '#66bb6a';
-        return `<svg class="kpi-donut" viewBox="0 0 56 56">
-            <circle cx="28" cy="28" r="${r}" fill="none" stroke="#eceff1" stroke-width="7"/>
-            <circle cx="28" cy="28" r="${r}" fill="none" stroke="${color}" stroke-width="7"
-                stroke-dasharray="${dash.toFixed(2)} ${(c - dash).toFixed(2)}"
-                transform="rotate(-90 28 28)" stroke-linecap="round"/>
-            <text x="28" y="32" text-anchor="middle">${rate.toFixed(0)}%</text>
-        </svg>`;
+    // ---- KPI 띠 렌더 ----
+    // 사용률 기준색: 90%+ risk / 85%+ warn / 65%+ accent / 그 외 ok (구역 막대도 같은 기준)
+    const usageTone = (rate) => rate >= 90 ? 'risk' : rate >= 85 ? 'warn' : rate >= 65 ? 'accent' : 'ok';
+    const usageBar = (rate) => {
+        const w = Math.max(0, Math.min(100, rate || 0));
+        return `<div class="kpi-bar"><div style="width:${w.toFixed(1)}%; background:${TONE[usageTone(rate || 0)]};"></div></div>`;
     };
 
     const kpiHtml = `
         <div class="dash-kpi-card">
-            ${donutSvg(usageRate)}
-            <div class="kpi-body">
-                <div class="kpi-title">피킹용 사용률</div>
-                <div class="kpi-value">${usageRate.toFixed(1)}%</div>
-                <div class="kpi-sub">${used.toLocaleString()}/${total.toLocaleString()} 칸 · 빈 ${empty.toLocaleString()}</div>
-            </div>
+            <div class="kpi-title">피킹용 사용률</div>
+            <div class="kpi-value">${usageRate.toFixed(1)}%</div>
+            ${usageBar(usageRate)}
+            <div class="kpi-sub">${used.toLocaleString()}/${total.toLocaleString()} 칸 · 빈 ${empty.toLocaleString()}</div>
         </div>
         <div class="dash-kpi-card">
-            ${donutSvg(stEtc.rate)}
-            <div class="kpi-body">
-                <div class="kpi-title">기타용 사용률 <span style="font-size:10px; color:#90a4ae; font-weight:normal;">비축+A-1-R</span></div>
-                <div class="kpi-value">${stEtc.total > 0 ? stEtc.rate.toFixed(1) + '%' : '-'}</div>
-                <div class="kpi-sub">${stEtc.used.toLocaleString()}/${stEtc.total.toLocaleString()} 칸 · 빈 ${stEtc.empty.toLocaleString()}</div>
-            </div>
+            <div class="kpi-title">기타용 사용률 <span class="kpi-note">비축+A-1-R</span></div>
+            <div class="kpi-value">${stEtc.total > 0 ? stEtc.rate.toFixed(1) + '%' : '-'}</div>
+            ${usageBar(stEtc.rate)}
+            <div class="kpi-sub">${stEtc.used.toLocaleString()}/${stEtc.total.toLocaleString()} 칸 · 빈 ${stEtc.empty.toLocaleString()}</div>
         </div>
         <div class="dash-kpi-card">
-            ${donutSvg(stSam.rate)}
-            <div class="kpi-body">
-                <div class="kpi-title">SAM 사용률</div>
-                <div class="kpi-value">${stSam.total > 0 ? stSam.rate.toFixed(1) + '%' : '-'}</div>
-                <div class="kpi-sub">${stSam.used.toLocaleString()}/${stSam.total.toLocaleString()} 칸 · 빈 ${stSam.empty.toLocaleString()}</div>
-            </div>
+            <div class="kpi-title">SAM 사용률</div>
+            <div class="kpi-value">${stSam.total > 0 ? stSam.rate.toFixed(1) + '%' : '-'}</div>
+            ${usageBar(stSam.rate)}
+            <div class="kpi-sub">${stSam.used.toLocaleString()}/${stSam.total.toLocaleString()} 칸 · 빈 ${stSam.empty.toLocaleString()}</div>
         </div>
-        <div class="dash-kpi-card" style="cursor:pointer;" onclick="window.__dashGoToList('empty', true)" title="클릭: 데이터 리스트에서 피킹용 빈 자리만 보기 (기타·비축·SAM 제외)"
-            onmouseover="this.style.boxShadow='0 2px 10px rgba(61,90,254,0.25)';" onmouseout="this.style.boxShadow='';">
-            <div class="kpi-icon green">🟢</div>
-            <div class="kpi-body">
-                <div class="kpi-title">피킹용 빈 자리 <span style="font-size:11px; color:#90a4ae;">▸</span></div>
-                <div class="kpi-value">${empty.toLocaleString()}</div>
-                <div class="kpi-sub">전체 대비 ${total > 0 ? (empty / total * 100).toFixed(1) : 0}%</div>
-            </div>
+        <div class="dash-kpi-card kpi-click" onclick="window.__dashGoToList('empty', true)" title="클릭: 데이터 리스트에서 피킹용 빈 자리만 보기 (기타·비축·SAM 제외)">
+            <div class="kpi-title">피킹용 빈 자리</div>
+            <div class="kpi-value" style="color:${TONE.okText};">${empty.toLocaleString()}</div>
+            <div class="kpi-sub">전체 대비 ${total > 0 ? (empty / total * 100).toFixed(1) : 0}% · <span class="kpi-link" style="color:${TONE.okText};">목록 보기</span></div>
         </div>
         <div class="dash-kpi-card">
-            <div class="kpi-icon blue">📦</div>
-            <div class="kpi-body">
-                <div class="kpi-title">등록 상품 (고유)</div>
-                <div class="kpi-value">${uniqueCodes.toLocaleString()}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span></div>
-                <div class="kpi-sub">총 재고 ${registeredStockSum.toLocaleString()}개 · 평균 ${uniqueCodes > 0 ? (used / uniqueCodes).toFixed(1) : 0} 칸/상품</div>
-            </div>
+            <div class="kpi-title">등록 상품 (고유)</div>
+            <div class="kpi-value">${uniqueCodes.toLocaleString()}<span class="kpi-unit"> 종</span></div>
+            <div class="kpi-sub">총 재고 ${registeredStockSum.toLocaleString()}개 · 평균 ${uniqueCodes > 0 ? (used / uniqueCodes).toFixed(1) : 0} 칸/상품</div>
         </div>
-        <div class="dash-kpi-card" style="cursor:pointer;" onclick="window.__dashShowLocList('preassigned')" title="클릭: 선지정/당일지정 리스트 보기"
-            onmouseover="this.style.boxShadow='0 2px 10px rgba(230,81,0,0.25)';" onmouseout="this.style.boxShadow='';">
-            <div class="kpi-icon amber">📌</div>
-            <div class="kpi-body">
-                <div class="kpi-title">선지정 / 당일지정 <span style="font-size:11px; color:#90a4ae;">▸</span></div>
-                <div class="kpi-value">${preAssigned} <span style="font-size:14px; color:#90a4ae; font-weight:bold;">/ ${todayReserved}</span></div>
-                <div class="kpi-sub">미입고 찜 ${preAssigned}건, 오늘 작업 ${todayReserved}건</div>
-            </div>
+        <div class="dash-kpi-card kpi-click" onclick="window.__dashShowLocList('preassigned')" title="클릭: 선지정/당일지정 리스트 보기">
+            <div class="kpi-title">선지정 / 당일지정</div>
+            <div class="kpi-value"><span style="color:${TONE.riskText};">${preAssigned}</span> <span class="kpi-unit">/</span> <span style="color:${TONE.accentDeep};">${todayReserved}</span></div>
+            <div class="kpi-sub">미입고 찜 ${preAssigned}건, 오늘 작업 ${todayReserved}건 · <span class="kpi-link" style="color:${TONE.accentDeep};">목록 보기</span></div>
         </div>
-        <div class="dash-kpi-card">
-            <div class="kpi-icon red">📥</div>
-            <div class="kpi-body">
-                <div class="kpi-title">입고 대기</div>
-                <div class="kpi-value">${incomingCodes.length}<span style="font-size:14px; color:#90a4ae; font-weight:bold;"> 종</span></div>
-                <div class="kpi-sub">총 ${incomingQtyTotal.toLocaleString()} 개 미입고</div>
-            </div>
+        <div class="dash-kpi-card kpi-incoming">
+            <div class="kpi-title">입고 대기</div>
+            <div class="kpi-value">${incomingCodes.length}<span class="kpi-unit"> 종</span></div>
+            <div class="kpi-sub">총 ${incomingQtyTotal.toLocaleString()} 개 미입고</div>
         </div>
     `;
     document.getElementById('dash-kpi-row').innerHTML = kpiHtml;
@@ -7985,23 +7970,25 @@ window.renderLocationDashboard = function () {
     const zoneBars = sortedZones.map(z => {
         const s = zoneStats[z];
         const rate = s.total > 0 ? (s.used / s.total * 100) : 0;
-        return `<div class="zone-bar-row">
+        const tone = usageTone(rate);
+        return `<div class="zone-bar-row is-${tone}">
             <div class="zb-label">${z} 구역</div>
-            <div class="zb-track"><div class="zb-fill" style="width:${rate.toFixed(1)}%;"></div></div>
+            <div class="zb-track"><div class="zb-fill zb-${tone}" style="width:${rate.toFixed(1)}%;"></div></div>
             <div class="zb-text">${s.used} / ${s.total} (${rate.toFixed(1)}%)</div>
         </div>`;
     }).join('');
-    document.getElementById('dash-zone-bars').innerHTML = zoneBars || '<div style="color:#90a4ae; font-size:12px;">데이터 없음</div>';
+    document.getElementById('dash-zone-bars').innerHTML = zoneBars || `<div style="color:${TONE.text3}; font-size:12px;">데이터 없음</div>`;
 
     // ---- 마지막배송일 분포 ----
+    // 색: 1주 ok / 1개월 accent / 3개월 accent-mid / 6개월+ warn / 1년+ risk / 기록없음 text-4
     const totalForBuckets = Object.values(buckets).reduce((a, b) => a + b, 0);
     const bucketDef = [
-        { key: '1주', cls: '' },
-        { key: '1개월', cls: '' },
-        { key: '3개월', cls: 'warn' },
-        { key: '6개월+', cls: 'danger' },
-        { key: '1년+', cls: 'danger' },
-        { key: '기록없음', cls: 'gray' }
+        { key: '1주', cls: 'zb-ok' },
+        { key: '1개월', cls: 'zb-accent' },
+        { key: '3개월', cls: 'zb-mid' },
+        { key: '6개월+', cls: 'zb-warn' },
+        { key: '1년+', cls: 'zb-risk' },
+        { key: '기록없음', cls: 'zb-none' }
     ];
     const deliveryBars = bucketDef.map(b => {
         const v = buckets[b.key];
@@ -8009,7 +7996,7 @@ window.renderLocationDashboard = function () {
         const cursor = v > 0 ? 'cursor:pointer;' : '';
         const clickAttr = v > 0 ? `onclick="window.__dashShowBucketList('${b.key}')"` : '';
         return `<div class="zone-bar-row" style="${cursor} transition: background 0.15s;" ${clickAttr}
-                    onmouseover="if(${v})this.style.background='#f5f7ff';"
+                    onmouseover="if(${v})this.style.background='var(--c-accent-row)';"
                     onmouseout="this.style.background='';"
                     title="${v > 0 ? '클릭: 이 기간 상품 리스트 보기' : ''}">
             <div class="zb-label">${b.key}</div>
@@ -8022,71 +8009,77 @@ window.renderLocationDashboard = function () {
     // ---- 인사이트 카드 ----
     const insightHtml = `
         <div class="insight-card">
-            <h4>🔄 재고 회전</h4>
+            <h4>재고 회전</h4>
             ${__turnover.sufficient
-                ? `<div class="ins-big">${((__turnover.currentStock3F || 0) + (__turnover.currentStock2F || 0)).toLocaleString()}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 개</span> <span style="font-size:15px;">${__fmtRate(__turnover.rateAll)}</span></div>
+                ? `<div class="ins-big">${((__turnover.currentStock3F || 0) + (__turnover.currentStock2F || 0)).toLocaleString()}<span class="kpi-unit"> 개</span> <span style="font-size:15px;">${__fmtRate(__turnover.rateAll)}</span></div>
                    <div class="ins-desc">3층 ${(__turnover.currentStock3F || 0).toLocaleString()}개 ${__fmtRate(__turnover.rate3F)} (전일 대비) · ${__turnover.previousDate} → ${__turnover.currentDate}</div>`
-                : `<div class="ins-big" style="font-size:18px; color:#a36800;">데이터 부족</div>
+                : `<div class="ins-big" style="font-size:18px; color:${TONE.warnText};">데이터 부족</div>
                    <div class="ins-desc">일일 최신화 2회 이상 누적 시 계산됩니다.</div>`}
         </div>
         <div class="insight-card">
-            <h4>🔁 다중 위치 상품</h4>
+            <h4>다중 위치 상품</h4>
             <div class="ins-big" ${multiLocCodes.length > 0 ? `style="cursor:pointer; transition: color 0.15s;" onclick="window.__dashShowLocList('multiloc')" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color=''" title="전체 다중 위치 상품 리스트 보기"` : ''}>
-                ${multiLocCodes.length}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span>
-                ${multiLocCodes.length > 0 ? '<span style="font-size:11px; color:#90a4ae; font-weight:normal; margin-left:4px;">▸</span>' : ''}
+                ${multiLocCodes.length}<span class="kpi-unit"> 종</span>
+                ${multiLocCodes.length > 0 ? `<span style="font-size:11px; color:${TONE.text3}; font-weight:normal; margin-left:4px;">▸</span>` : ''}
             </div>
-            <div class="ins-desc">한 상품코드가 2곳 이상 분산된 상품. 통합하면 빈 슬롯이 늘어납니다. <span style="color:#90a4ae;">(숫자 클릭: 전체 리스트)</span></div>
+            <div class="ins-desc">한 상품코드가 2곳 이상 분산된 상품. 통합하면 빈 슬롯이 늘어납니다. <span style="color:${TONE.text3};">(숫자 클릭: 전체 리스트)</span></div>
             <div class="ins-list">
                 ${multiLocCodes.slice(0, 5).map(([c, arr]) =>
                     `<div><span class="pill">${arr.length}곳</span> ${c}</div>`
-                ).join('') || '<div style="color:#90a4ae;">없음</div>'}
+                ).join('') || `<div style="color:${TONE.text3};">없음</div>`}
             </div>
-            <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #e0e0e0; font-size:12px;">
-                <span style="color:#37474f; font-weight:700;">⚠️ 한 자리 2+ 상품</span>
-                <span ${(window.__dupLocations || []).length > 0 ? `style="cursor:pointer; color:#c62828; font-weight:900; margin-left:4px;" onclick="window.__dashShowLocList('duploc')" title="중복 지정된 로케이션 보기"` : 'style="color:#90a4ae; margin-left:4px;"'}>${(window.__dupLocations || []).length}건${(window.__dupLocations || []).length > 0 ? ' ▸' : ''}</span>
-                <div style="color:#90a4ae; font-size:11px; margin-top:2px;">최근 데이터 최신화에서 같은 로케이션에 다른 상품이 들어온 경우</div>
+            <div style="margin-top:10px; padding-top:10px; border-top:1px dashed ${TONE.line}; font-size:12px;">
+                <span style="color:${TONE.text}; font-weight:600;">한 자리 2+ 상품</span>
+                <span ${(window.__dupLocations || []).length > 0 ? `style="cursor:pointer; color:${TONE.riskText}; font-weight:700; margin-left:4px;" onclick="window.__dashShowLocList('duploc')" title="중복 지정된 로케이션 보기"` : `style="color:${TONE.text3}; margin-left:4px;"`}>${(window.__dupLocations || []).length}건${(window.__dupLocations || []).length > 0 ? ' ▸' : ''}</span>
+                <div style="color:${TONE.text3}; font-size:11px; margin-top:2px;">최근 데이터 최신화에서 같은 로케이션에 다른 상품이 들어온 경우</div>
             </div>
         </div>
         <div class="insight-card">
-            <h4>💤 데드 스톡 후보</h4>
+            <h4>데드 스톡 후보</h4>
             <div class="ins-big" ${deadStockCount > 0 ? `style="cursor:pointer; transition: color 0.15s;" onclick="window.__dashShowBucketList('dead-all')" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color=''" title="전체 데드스톡 합계 리스트 보기"` : ''}>
-                ${deadStockCount}<span style="font-size:13px; color:#90a4ae; font-weight:bold;"> 종</span>
-                <span style="font-size:14px; color:#90a4ae; font-weight:bold;"> / ${deadStockQty.toLocaleString()}개</span>
-                ${deadStockCount > 0 ? '<span style="font-size:11px; color:#90a4ae; font-weight:normal; margin-left:4px;">▸</span>' : ''}
+                ${deadStockCount}<span class="kpi-unit"> 종</span>
+                <span class="kpi-unit"> / ${deadStockQty.toLocaleString()}개</span>
+                ${deadStockCount > 0 ? `<span style="font-size:11px; color:${TONE.text3}; font-weight:normal; margin-left:4px;">▸</span>` : ''}
             </div>
             <div class="ins-list">
-                <span class="pill" style="cursor:pointer; background:#fff8e1; color:#e65100;" onclick="window.__dashShowBucketList('3개월')" title="3개월 경과 상품 보기">3개월: ${buckets['3개월']}종 / ${bucketsQty['3개월'].toLocaleString()}개</span>
-                <span class="pill" style="cursor:pointer; background:#ffebee; color:#c62828;" onclick="window.__dashShowBucketList('6개월+')" title="6개월~1년 경과 상품 보기">6개월+: ${buckets['6개월+']}종 / ${bucketsQty['6개월+'].toLocaleString()}개</span>
-                <span class="pill" style="cursor:pointer; background:#fce4ec; color:#880e4f;" onclick="window.__dashShowBucketList('1년+')" title="1년 이상 경과 상품 보기">1년+: ${buckets['1년+']}종 / ${bucketsQty['1년+'].toLocaleString()}개</span>
+                <span class="pill" style="cursor:pointer; background:${TONE.accentLight}; color:${TONE.accentDeep};" onclick="window.__dashShowBucketList('3개월')" title="3개월 경과 상품 보기">3개월: ${buckets['3개월']}종 / ${bucketsQty['3개월'].toLocaleString()}개</span>
+                <span class="pill" style="cursor:pointer; background:${TONE.warnSoft}; color:${TONE.warnText};" onclick="window.__dashShowBucketList('6개월+')" title="6개월~1년 경과 상품 보기">6개월+: ${buckets['6개월+']}종 / ${bucketsQty['6개월+'].toLocaleString()}개</span>
+                <span class="pill" style="cursor:pointer; background:${TONE.riskSoft}; color:${TONE.riskText};" onclick="window.__dashShowBucketList('1년+')" title="1년 이상 경과 상품 보기">1년+: ${buckets['1년+']}종 / ${bucketsQty['1년+'].toLocaleString()}개</span>
             </div>
         </div>
         <div class="insight-card">
-            <h4>🏚️ 빈 자리 많은 동 Top 3</h4>
+            <h4>빈 자리 많은 동 Top 3</h4>
             ${topEmptyDongs.length > 0 ? `
                 <div class="ins-list" style="margin-top: 4px;">
                     ${topEmptyDongs.map(d => `
                         <div style="display:flex; align-items:center; gap:8px; padding:4px 0;">
-                            <span class="pill" style="background:#fff3e0; color:#e65100;">${d.dong}동</span>
-                            <span style="color:#37474f; font-weight:bold;">${d.empty}/${d.total}</span>
-                            <span style="color:#90a4ae;">(${(d.rate * 100).toFixed(0)}%)</span>
+                            <span class="pill" style="background:${TONE.okSoft}; color:${TONE.okText};">${d.dong}동</span>
+                            <span style="color:${TONE.text}; font-weight:600;">${d.empty}/${d.total}</span>
+                            <span style="color:${TONE.text3};">(${(d.rate * 100).toFixed(0)}%)</span>
                         </div>
                     `).join('')}
                 </div>
-            ` : '<div style="color:#90a4ae; font-size:12px; margin-top: 8px;">동 데이터가 부족합니다.</div>'}
+            ` : `<div style="color:${TONE.text3}; font-size:12px; margin-top: 8px;">동 데이터가 부족합니다.</div>`}
         </div>
     `;
     document.getElementById('dash-insight-row').innerHTML = insightHtml;
 
-    // ---- 빠른 작업 ----
+    // ---- 처리할 일 ----
+    // 색: 입고 warn / 변경추천 accent / 빈칸확보 ok — 아이콘은 선 SVG
+    const taskIcon = {
+        box: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"></path><path d="M3 8v8l9 5 9-5V8"></path></svg>',
+        swap: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3"></path></svg>',
+        grid: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"></rect><rect x="13" y="4" width="7" height="7" rx="1.5"></rect><rect x="4" y="13" width="7" height="7" rx="1.5"></rect><rect x="13" y="13" width="7" height="7" rx="1.5" stroke-dasharray="2 2"></rect></svg>'
+    };
     const actionsHtml = `
-        <button class="dash-action-btn act-orange" onclick="window.toggleIncomingSidebar()">
-            📦 입고대기 패널 <span class="badge">${incomingCodes.length}건</span>
+        <button class="dash-task" onclick="window.toggleIncomingSidebar()">
+            <span class="dash-task-ic tone-warn">${taskIcon.box}</span><span class="dash-task-label">입고대기 패널</span><span class="badge badge-warn">${incomingCodes.length}건</span>
         </button>
-        <button class="dash-action-btn act-green" onclick="window.openRecommendModal && window.openRecommendModal()">
-            💡 변경 추천 ${recCount > 0 ? `<span class="badge">${recCount}건</span>` : ''}
+        <button class="dash-task" onclick="window.openRecommendModal && window.openRecommendModal()">
+            <span class="dash-task-ic tone-accent">${taskIcon.swap}</span><span class="dash-task-label">변경 추천</span>${recCount > 0 ? `<span class="badge badge-accent">${recCount}건</span>` : `<span class="dash-task-go" style="color:${TONE.accentDeep};">열기</span>`}
         </button>
-        <button class="dash-action-btn act-purple" onclick="document.getElementById('modal-2f').style.display='flex'; window.calc2FList && window.calc2FList();">
-            📭 빈칸확보
+        <button class="dash-task" onclick="document.getElementById('modal-2f').style.display='flex'; window.calc2FList && window.calc2FList();">
+            <span class="dash-task-ic tone-ok">${taskIcon.grid}</span><span class="dash-task-label">빈칸확보</span><span class="dash-task-go" style="color:${TONE.okText};">열기</span>
         </button>
     `;
     document.getElementById('dash-actions').innerHTML = actionsHtml;
@@ -8098,11 +8091,11 @@ window.renderLocationDashboard = function () {
     const zikjinKeys = Object.keys(zikjinData || {}).length;
     const weeklyKeys = Object.keys(weeklyData || {}).length;
     const freshHtml = `
-        <div>📅 <b>오늘:</b> ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</div>
-        <div>📂 <b>ZG&AB 출고 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
-        <div>📂 <b>주차별 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : '<span style="color:#c62828;">미업로드</span>'}</div>
-        <div>📦 <b>입고대기 종 수:</b> ${incomingCodes.length.toLocaleString()}</div>
-        <div>🗄️ <b>등록 로케이션:</b> ${originalData.length.toLocaleString()}칸 (3F: ${total.toLocaleString()}, 그 외: ${(originalData.length - total).toLocaleString()})</div>
+        <div><b>오늘:</b> ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+        <div><b>ZG&AB 출고 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : `<span style="color:${TONE.riskText};">미업로드</span>`}</div>
+        <div><b>주차별 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : `<span style="color:${TONE.riskText};">미업로드</span>`}</div>
+        <div><b>입고대기 종 수:</b> ${incomingCodes.length.toLocaleString()}</div>
+        <div><b>등록 로케이션:</b> ${originalData.length.toLocaleString()}칸 (3F: ${total.toLocaleString()}, 그 외: ${(originalData.length - total).toLocaleString()})</div>
     `;
     document.getElementById('dash-freshness').innerHTML = freshHtml;
 };
@@ -8118,31 +8111,31 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
     if (thead) {
         const A = __dashSortArrow;
         const sortKey = __dashZdSort.key;
-        const cellBase = 'padding:8px; border:1px solid #e0e6ed; cursor:pointer; user-select:none;';
+        const cellBase = `padding:8px; border:1px solid ${TONE.line}; cursor:pointer; user-select:none; font-weight:600; color:${TONE.text2};`;
         const isActive = (k) => sortKey === k;
-        const hl = (k, baseBg) => isActive(k) ? 'background:#e3f2fd;' : (baseBg ? `background:${baseBg};` : '');
+        const hl = (k, baseBg) => isActive(k) ? `background:${TONE.accentSoft}; color:${TONE.accentDeep};` : (baseBg ? `background:${baseBg};` : '');
         const zoneSubActive = sortKey === 'zone';
         const dongSubActive = sortKey === 'dong';
         thead.innerHTML = `
-            <tr style="background:#f4f4f4;">
-                <th style="${cellBase} ${(zoneSubActive||dongSubActive)?'background:#e3f2fd;':''}" title="구역 또는 동 기준 정렬">
+            <tr style="background:${TONE.surface2};">
+                <th style="${cellBase} ${(zoneSubActive||dongSubActive)?`background:${TONE.accentSoft};`:''}" title="구역 또는 동 기준 정렬">
                     <div style="display:flex; gap:6px; justify-content:center; align-items:center;">
-                        <span onclick="window.__dashZdSortBy('zone')" style="cursor:pointer; padding:2px 6px; border-radius:4px; ${zoneSubActive?'background:white; color:var(--primary); font-weight:900;':'color:#37474f;'}">
+                        <span onclick="window.__dashZdSortBy('zone')" style="cursor:pointer; padding:2px 8px; border-radius:var(--r-pill); ${zoneSubActive?'background:var(--c-surface); color:var(--c-accent-deep); font-weight:700;':`color:${TONE.text};`}">
                             구역 ${A('zone')}
                         </span>
-                        <span style="color:#cfd8dc;">|</span>
-                        <span onclick="window.__dashZdSortBy('dong')" style="cursor:pointer; padding:2px 6px; border-radius:4px; ${dongSubActive?'background:white; color:var(--primary); font-weight:900;':'color:#37474f;'}">
+                        <span style="color:${TONE.text4};">|</span>
+                        <span onclick="window.__dashZdSortBy('dong')" style="cursor:pointer; padding:2px 8px; border-radius:var(--r-pill); ${dongSubActive?'background:var(--c-surface); color:var(--c-accent-deep); font-weight:700;':`color:${TONE.text};`}">
                             동 ${A('dong')}
                         </span>
                     </div>
                 </th>
                 <th style="${cellBase} ${hl('used')}" onclick="window.__dashZdSortBy('used')">사용중 ${A('used')}</th>
-                <th style="${cellBase} ${hl('w1', '#e8f5e9')}" onclick="window.__dashZdSortBy('w1')">1주 ${A('w1')}</th>
-                <th style="${cellBase} ${hl('m1', '#f1f8e9')}" onclick="window.__dashZdSortBy('m1')">1개월 ${A('m1')}</th>
-                <th style="${cellBase} ${hl('m3', '#fff8e1')}" onclick="window.__dashZdSortBy('m3')">3개월 ${A('m3')}</th>
-                <th style="${cellBase} ${hl('m6plus', '#ffebee')}" onclick="window.__dashZdSortBy('m6plus')">6개월+ ${A('m6plus')}</th>
-                <th style="${cellBase} ${hl('y1plus', '#fce4ec')}" onclick="window.__dashZdSortBy('y1plus')">1년+ ${A('y1plus')}</th>
-                <th style="${cellBase} ${hl('none', '#eceff1')}" onclick="window.__dashZdSortBy('none')">기록없음 ${A('none')}</th>
+                <th style="${cellBase} ${hl('w1', TONE.okSoft)}" onclick="window.__dashZdSortBy('w1')">1주 ${A('w1')}</th>
+                <th style="${cellBase} ${hl('m1', TONE.accentSoft)}" onclick="window.__dashZdSortBy('m1')">1개월 ${A('m1')}</th>
+                <th style="${cellBase} ${hl('m3', TONE.accentLight)}" onclick="window.__dashZdSortBy('m3')">3개월 ${A('m3')}</th>
+                <th style="${cellBase} ${hl('m6plus', TONE.warnSoft)}" onclick="window.__dashZdSortBy('m6plus')">6개월+ ${A('m6plus')}</th>
+                <th style="${cellBase} ${hl('y1plus', TONE.riskSoft)}" onclick="window.__dashZdSortBy('y1plus')">1년+ ${A('y1plus')}</th>
+                <th style="${cellBase} ${hl('none', TONE.track)}" onclick="window.__dashZdSortBy('none')">기록없음 ${A('none')}</th>
                 <th style="${cellBase} ${hl('dead')} min-width: 180px;" onclick="window.__dashZdSortBy('dead')">데드율 (3개월+) ${A('dead')}</th>
             </tr>
         `;
@@ -8227,43 +8220,45 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
     __dashSortRows(rows);
 
     if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" style="padding:20px; color:#90a4ae;">조건에 맞는 구역-동이 없습니다. (최소 사용 슬롯 ${minSlots} 기준)</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="padding:20px; color:${TONE.text3};">조건에 맞는 구역-동이 없습니다. (최소 사용 슬롯 ${minSlots} 기준)</td></tr>`;
         if (summary) summary.innerHTML = '';
         return;
     }
 
-    const cellFmt = (v) => v > 0 ? v.toLocaleString() : '<span style="color:#cfd8dc;">·</span>';
+    const cellFmt = (v) => v > 0 ? v.toLocaleString() : `<span style="color:${TONE.text4};">·</span>`;
     // 데드율 내림차순 정렬일 때만 1~3위 강조 (다른 정렬에선 의미 없으므로 끔)
     const isDefaultDeadSort = __dashZdSort.key === 'dead' && __dashZdSort.dir === 'desc';
     const html = rows.map((r, idx) => {
-        const barColor = r.deadRate >= 50 ? '#c62828' : r.deadRate >= 30 ? '#ef6c00' : r.deadRate >= 15 ? '#fbc02d' : '#66bb6a';
+        // 데드율 색: 50%+ risk / 30%+ warn / 15%+ accent-mid / 그 외 ok (막대=기본색, 숫자=글자색)
+        const barColor = r.deadRate >= 50 ? TONE.risk : r.deadRate >= 30 ? TONE.warn : r.deadRate >= 15 ? TONE.accentMid : TONE.ok;
+        const rateColor = r.deadRate >= 50 ? TONE.riskText : r.deadRate >= 30 ? TONE.warnText : r.deadRate >= 15 ? TONE.accentDeep : TONE.okText;
         const showRank = isDefaultDeadSort && idx < 3;
-        const rankBadge = showRank ? `<span style="display:inline-block; background:${idx===0?'#c62828':idx===1?'#ef6c00':'#fbc02d'}; color:white; font-weight:900; font-size:10px; padding:2px 6px; border-radius:10px; margin-right:6px;">${idx+1}위</span>` : '';
+        const rankBadge = showRank ? `<span style="display:inline-block; background:${idx===0?TONE.risk:TONE.warn}; color:white; font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:var(--r-pill); margin-right:6px;">${idx+1}위</span>` : '';
         // 클릭 셀 빌더 (값 > 0 이고 bucket 있을 때만 클릭 가능)
         const clickCell = (bucket, value, baseStyle) => {
             if (value > 0) {
                 const safeZ = String(r.zone).replace(/'/g, "\\'");
                 const safeD = String(r.dong).replace(/'/g, "\\'");
-                return `<td style="${baseStyle} cursor:pointer;" onclick="window.__dashShowBucketList('${bucket}','${safeZ}','${safeD}')" title="${r.zone}-${r.dong} ${bucket} 상품 보기" onmouseover="this.style.background='#eef1ff';" onmouseout="this.style.background='';">${cellFmt(value)}</td>`;
+                return `<td style="${baseStyle} cursor:pointer;" onclick="window.__dashShowBucketList('${bucket}','${safeZ}','${safeD}')" title="${r.zone}-${r.dong} ${bucket} 상품 보기" onmouseover="this.style.background='var(--c-accent-row)';" onmouseout="this.style.background='';">${cellFmt(value)}</td>`;
             }
             return `<td style="${baseStyle}">${cellFmt(value)}</td>`;
         };
         return `
-        <tr style="${showRank ? 'background: #fff3e0;' : ''}">
-            <td style="padding:8px; border:1px solid #e0e6ed; font-weight:bold; text-align:left;">${rankBadge}${r.zone} 구역 - ${r.dong} 동</td>
-            <td style="padding:8px; border:1px solid #e0e6ed;">${r.usedCount.toLocaleString()}</td>
-            ${clickCell('1주', r.w1, 'padding:8px; border:1px solid #e0e6ed; color:#2e7d32;')}
-            ${clickCell('1개월', r.m1, 'padding:8px; border:1px solid #e0e6ed; color:#558b2f;')}
-            ${clickCell('3개월', r.m3, 'padding:8px; border:1px solid #e0e6ed; color:#ef6c00; font-weight:bold;')}
-            ${clickCell('6개월+', r.m6plus, 'padding:8px; border:1px solid #e0e6ed; color:#c62828; font-weight:bold;')}
-            ${clickCell('1년+', r.y1plus, 'padding:8px; border:1px solid #e0e6ed; color:#880e4f; font-weight:bold; background:#fce4ec;')}
-            ${clickCell('기록없음', r.none, 'padding:8px; border:1px solid #e0e6ed; color:#78909c;')}
-            <td style="padding:8px; border:1px solid #e0e6ed;">
+        <tr style="${showRank ? `background: ${TONE.warnBg};` : ''}">
+            <td style="padding:8px; border:1px solid ${TONE.line}; font-weight:600; text-align:left;">${rankBadge}${r.zone} 구역 - ${r.dong} 동</td>
+            <td style="padding:8px; border:1px solid ${TONE.line};">${r.usedCount.toLocaleString()}</td>
+            ${clickCell('1주', r.w1, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.okText};`)}
+            ${clickCell('1개월', r.m1, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.accent};`)}
+            ${clickCell('3개월', r.m3, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.accentDeep}; font-weight:600;`)}
+            ${clickCell('6개월+', r.m6plus, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.warnText}; font-weight:600;`)}
+            ${clickCell('1년+', r.y1plus, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.riskText}; font-weight:600; background:${TONE.riskRow};`)}
+            ${clickCell('기록없음', r.none, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.text3};`)}
+            <td style="padding:8px; border:1px solid ${TONE.line};">
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <div style="flex:1; background:#eceff1; height:14px; border-radius:7px; overflow:hidden;">
-                        <div style="height:100%; width:${r.deadRate.toFixed(1)}%; background:${barColor}; transition: width 0.4s;"></div>
+                    <div style="flex:1; background:${TONE.track}; height:8px; border-radius:4px; overflow:hidden;">
+                        <div style="height:100%; width:${r.deadRate.toFixed(1)}%; background:${barColor}; border-radius:4px; transition: width 0.4s;"></div>
                     </div>
-                    <span style="font-weight:bold; color:${barColor}; min-width: 42px; text-align:right;">${r.deadRate.toFixed(1)}%</span>
+                    <span style="font-weight:600; color:${rateColor}; min-width: 42px; text-align:right; font-variant-numeric: tabular-nums;">${r.deadRate.toFixed(1)}%</span>
                 </div>
             </td>
         </tr>`;
@@ -8278,10 +8273,10 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
     const best = rows[rows.length - 1];
     if (summary) {
         summary.innerHTML = `
-            📊 표시된 ${rows.length}개 구역-동의 평균 데드율: <b style="color:#37474f;">${avgRate.toFixed(1)}%</b>
-            &nbsp;|&nbsp; 최악: <b style="color:#c62828;">${worst.zone}-${worst.dong}동 (${worst.deadRate.toFixed(1)}%)</b>
-            &nbsp;|&nbsp; 최상: <b style="color:#2e7d32;">${best.zone}-${best.dong}동 (${best.deadRate.toFixed(1)}%)</b>
-            ${includeNone ? ' &nbsp;<span style="color:#90a4ae;">(기록없음 포함)</span>' : ''}
+            표시된 ${rows.length}개 구역-동의 평균 데드율: <b style="color:${TONE.text};">${avgRate.toFixed(1)}%</b>
+            &nbsp;|&nbsp; 최악: <b style="color:${TONE.riskText};">${worst.zone}-${worst.dong}동 (${worst.deadRate.toFixed(1)}%)</b>
+            &nbsp;|&nbsp; 최상: <b style="color:${TONE.okText};">${best.zone}-${best.dong}동 (${best.deadRate.toFixed(1)}%)</b>
+            ${includeNone ? ` &nbsp;<span style="color:${TONE.text3};">(기록없음 포함)</span>` : ''}
         `;
     }
 }
@@ -8386,7 +8381,7 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
         : '전체 ';
     const displayBucket = isDeadAll ? '데드스톡 후보 합계' : bucket;
     if (titleEl) {
-        titleEl.querySelector('span').textContent = `📅 ${scopeLabel}[${displayBucket}] 상품 리스트 (${items.length}종)`;
+        titleEl.querySelector('span').textContent = `${scopeLabel}[${displayBucket}] 상품 리스트 (${items.length}종)`;
     }
     if (metaEl) {
         const desc = isDeadAll
@@ -8421,30 +8416,31 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
 
     if (items.length === 0) {
         const colCount = isDeadAll ? 9 : 8;
-        tbody.innerHTML = `<tr><td colspan="${colCount}" style="padding:30px; text-align:center; color:#90a4ae;">해당 조건에 맞는 상품이 없습니다.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${colCount}" style="padding:30px; text-align:center; color:var(--c-text-3);">해당 조건에 맞는 상품이 없습니다.</td></tr>`;
     } else {
         const catBadge = (cat) => {
+            // 출고 경과 매핑(대시보드와 같음): 3개월 accent-mid · 6개월+ warn · 1년+ risk — soft 바탕
             const colors = {
-                '3개월': 'background:#fff8e1; color:#ef6c00;',
-                '6개월+': 'background:#ffebee; color:#c62828;',
-                '1년+': 'background:#fce4ec; color:#880e4f;'
+                '3개월': 'background:var(--c-accent-soft); color:var(--c-accent-deep);',
+                '6개월+': 'background:var(--c-warn-soft); color:var(--c-warn-text);',
+                '1년+': 'background:var(--c-risk-soft); color:var(--c-risk-text);'
             };
-            return `<span style="${colors[cat] || 'background:#eceff1; color:#37474f;'} padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold;">${cat}</span>`;
+            return `<span style="${colors[cat] || 'background:var(--c-track); color:var(--c-text-2);'} padding:2px 8px; border-radius:var(--r-pill); font-size:11px; font-weight:600;">${cat}</span>`;
         };
-        const etcHint = (it) => ` <span style="color:#a1887f; font-size:10px;" title="${escAttr(it.etcLocs.join(', '))}">비축랙 ${it.etcLocs.length}곳</span>`;
+        const etcHint = (it) => ` <span style="color:var(--c-warn-text); font-size:10px;" title="${escAttr(it.etcLocs.join(', '))}">비축랙 ${it.etcLocs.length}곳</span>`;
         tbody.innerHTML = items.map(it => `
             <tr>
                 <td style="font-family:monospace; font-size:11px;">${escAttr(it.code)}</td>
-                <td style="text-align:left; padding-left:8px;">${escAttr(it.name) || '<span style=\"color:#cfd8dc;\">-</span>'}</td>
-                <td>${escAttr(it.option) || '<span style=\"color:#cfd8dc;\">-</span>'}</td>
+                <td style="text-align:left; padding-left:8px;">${escAttr(it.name) || '<span style=\"color:var(--c-text-4);\">-</span>'}</td>
+                <td>${escAttr(it.option) || '<span style=\"color:var(--c-text-4);\">-</span>'}</td>
                 <td style="font-family:monospace; font-size:11px;">${escAttr(it.locsStr)
-                    || '<span style="color:#cfd8dc;">-</span>'}${
+                    || '<span style="color:var(--c-text-4);">-</span>'}${
                     (!includeEtc && it.etcLocs.length) ? etcHint(it) : ''}</td>
-                <td style="font-weight:bold;">${it.stockPick.toLocaleString()}</td>
-                <td style="color:#607d8b;">${it.stock2f > 0 ? it.stock2f.toLocaleString() : '<span style=\"color:#cfd8dc;\">·</span>'}</td>
+                <td style="font-weight:600;">${it.stockPick.toLocaleString()}</td>
+                <td style="color:var(--c-text-2);">${it.stock2f > 0 ? it.stock2f.toLocaleString() : '<span style=\"color:var(--c-text-4);\">·</span>'}</td>
                 ${isDeadAll ? `<td>${catBadge(it.cat)}</td>` : ''}
-                <td>${it.lastDelivery || '<span style=\"color:#c62828;\">기록없음</span>'}</td>
-                <td>${it.hasRecentActivity ? '<span style="background:#e8f5e9; color:#2e7d32; padding:2px 6px; border-radius:8px; font-size:10px; font-weight:bold;">직진 활동</span>' : '<span style=\"color:#cfd8dc;\">·</span>'}</td>
+                <td>${it.lastDelivery || '<span style=\"color:var(--c-risk-text);\">기록없음</span>'}</td>
+                <td>${it.hasRecentActivity ? '<span style="background:var(--c-ok-soft); color:var(--c-ok-text); padding:2px 8px; border-radius:var(--r-pill); font-size:10px; font-weight:600;">직진 활동</span>' : '<span style=\"color:var(--c-text-4);\">·</span>'}</td>
             </tr>
         `).join('');
     }
@@ -8475,7 +8471,7 @@ window.__dashShowLocList = function (type) {
 
     if (type === 'empty') {
         const rows = locsUsage.filter(l => !isUsed(l)).sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-        setTitle(`🟢 빈 자리 리스트 (${rows.length}칸)`);
+        setTitle(`빈 자리 리스트 (${rows.length}칸)`);
         if (metaEl) metaEl.textContent = '현재 비어 있는 3층 로케이션 — 입고/이동 배치에 사용 가능';
         thead.innerHTML = th([{ t: '로케이션', w: '130px' }, { t: '구역', w: '80px' }, { t: '동', w: '80px' }, { t: '위치' }]);
         tbody.innerHTML = rows.length ? rows.map(l => `<tr>
@@ -8483,23 +8479,23 @@ window.__dashShowLocList = function (type) {
             <td>${(l.id || '').charAt(0).toUpperCase() || '-'}</td>
             <td>${String(l.dong || '').trim() || '-'}</td>
             <td>${String(l.pos || '').trim() || '-'}</td></tr>`).join('')
-            : `<tr><td colspan="4" style="padding:30px; text-align:center; color:#90a4ae;">빈 자리가 없습니다.</td></tr>`;
+            : `<tr><td colspan="4" style="padding:30px; text-align:center; color:var(--c-text-3);">빈 자리가 없습니다.</td></tr>`;
     } else if (type === 'preassigned') {
         const rows = locs3F.filter(l => l.codeTag === '선지정' || l.codeTag === '당일지정')
             .sort((a, b) => (a.codeTag || '').localeCompare(b.codeTag || '') || (a.id || '').localeCompare(b.id || ''));
-        setTitle(`📌 선지정 / 당일지정 리스트 (${rows.length}건)`);
+        setTitle(`선지정 / 당일지정 리스트 (${rows.length}건)`);
         if (metaEl) metaEl.textContent = '선지정(미입고 찜) · 당일지정(오늘 작업) 상태인 로케이션';
         thead.innerHTML = th([{ t: '로케이션', w: '130px' }, { t: '구분', w: '90px' }, { t: '상품코드', w: '120px' }, { t: '상품명' }, { t: '동', w: '70px' }]);
         const tagBadge = (tag) => tag === '선지정'
-            ? '<span style="background:#fff3e0; color:#e65100; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold;">선지정</span>'
-            : '<span style="background:#e3f2fd; color:#1565c0; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold;">당일지정</span>';
+            ? '<span class="badge badge-risk">선지정</span>'
+            : '<span class="badge badge-accent">당일지정</span>';
         tbody.innerHTML = rows.length ? rows.map(l => `<tr>
             <td style="font-family:monospace; font-weight:bold;">${l.id}</td>
             <td>${tagBadge(l.codeTag)}</td>
             <td style="font-family:monospace; font-size:11px;">${l.preAssignedCode || l.code || '-'}</td>
             <td style="text-align:left; padding-left:8px;">${l.name || '-'}</td>
             <td>${String(l.dong || '').trim() || '-'}</td></tr>`).join('')
-            : `<tr><td colspan="5" style="padding:30px; text-align:center; color:#90a4ae;">선지정/당일지정 항목이 없습니다.</td></tr>`;
+            : `<tr><td colspan="5" style="padding:30px; text-align:center; color:var(--c-text-3);">선지정/당일지정 항목이 없습니다.</td></tr>`;
     } else if (type === 'multiloc') {
         const codeMap = new Map();
         locs3F.forEach(l => {
@@ -8516,26 +8512,26 @@ window.__dashShowLocList = function (type) {
                 stock: arr.reduce((a, l) => a + Number(l.stock || 0), 0)
             }))
             .sort((a, b) => b.count - a.count || b.stock - a.stock);
-        setTitle(`🔁 다중 위치 상품 (${rows.length}종)`);
+        setTitle(`다중 위치 상품 (${rows.length}종)`);
         if (metaEl) metaEl.textContent = '한 상품코드가 2곳 이상에 분산된 상품 — 통합 시 빈 슬롯 확보 가능';
         thead.innerHTML = th([{ t: '상품코드', w: '120px' }, { t: '상품명' }, { t: '분산 위치' }, { t: '칸수', w: '70px' }, { t: '정상재고', w: '90px' }]);
         tbody.innerHTML = rows.length ? rows.map(r => `<tr>
-            <td style="font-family:monospace; font-size:11px; font-weight:bold; color:#1976d2;">${r.code}</td>
+            <td style="font-family:monospace; font-size:11px; font-weight:600; color:var(--c-accent-deep);">${r.code}</td>
             <td style="text-align:left; padding-left:8px;">${r.name || '-'}</td>
             <td style="font-family:monospace; font-size:11px;">${r.locs}</td>
             <td style="font-weight:bold;">${r.count}곳</td>
             <td>${r.stock.toLocaleString()}</td></tr>`).join('')
-            : `<tr><td colspan="5" style="padding:30px; text-align:center; color:#90a4ae;">다중 위치 상품이 없습니다.</td></tr>`;
+            : `<tr><td colspan="5" style="padding:30px; text-align:center; color:var(--c-text-3);">다중 위치 상품이 없습니다.</td></tr>`;
     } else if (type === 'duploc') {
         const dups = window.__dupLocations || [];
-        setTitle(`⚠️ 한 로케이션 2+ 상품 (${dups.length}건)`);
+        setTitle(`한 로케이션 2+ 상품 (${dups.length}건)`);
         if (metaEl) metaEl.textContent = '최근 데이터 최신화 시 같은 로케이션에 서로 다른 상품코드가 들어온 경우 — 저장 시 마지막 행만 남으므로 원본 엑셀을 확인하세요.';
         thead.innerHTML = th([{ t: '로케이션', w: '160px' }, { t: '지정된 상품코드들' }, { t: '개수', w: '70px' }]);
         tbody.innerHTML = dups.length ? dups.map(d => `<tr>
             <td style="font-family:monospace; font-weight:bold;">${esc(d.loc)}</td>
             <td style="text-align:left; padding-left:8px; font-family:monospace; font-size:11px;">${esc((d.codes || []).join(', '))}</td>
-            <td style="font-weight:bold; color:#c62828;">${(d.codes || []).length}</td></tr>`).join('')
-            : `<tr><td colspan="3" style="padding:30px; text-align:center; color:#90a4ae;">중복 지정된 로케이션이 없습니다.</td></tr>`;
+            <td style="font-weight:600; color:var(--c-risk-text);">${(d.codes || []).length}</td></tr>`).join('')
+            : `<tr><td colspan="3" style="padding:30px; text-align:center; color:var(--c-text-3);">중복 지정된 로케이션이 없습니다.</td></tr>`;
     } else {
         return;
     }

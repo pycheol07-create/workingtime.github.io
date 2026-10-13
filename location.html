@@ -9,96 +9,163 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #3d5afe; --bg: #f8f9fa; --card: #ffffff; }
-        body { background: var(--bg); margin: 0; font-family: 'Noto Sans KR', sans-serif; overflow: hidden; } 
+        /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
+        :root {
+            --c-bg: #F5F6F8; --c-surface: #FFFFFF; --c-surface-2: #F7F8FA; --c-track: #EEF0F4;
+            --c-line: #E6E8EC; --c-line-soft: #F0F2F5; --c-line-strong: #D6DAE0;
+            --c-text: #23272E; --c-text-2: #646B75; --c-text-3: #8A9099; --c-text-4: #CDD2D9;
+            --c-accent: #2F62C9; --c-accent-deep: #1E4699; --c-accent-mid: #7FA1E6; --c-accent-light: #C4D4F5; --c-accent-soft: #EAF0FD; --c-accent-row: #F3F6FD;
+            --c-ok: #5A9E96; --c-ok-text: #3D756F; --c-ok-soft: #E5F0EE;
+            --c-warn: #D2A266; --c-warn-text: #8A5E28; --c-warn-soft: #F4EADB; --c-warn-bg: #F9F4EC;
+            --c-risk: #C9808A; --c-risk-text: #A0525C; --c-risk-soft: #F4E3E5; --c-risk-row: #FAF4F5;
+            --r-card: 18px; --r-inner: 14px; --r-sm: 10px; --r-cell: 6px; --r-pill: 999px;
+            --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+            --sh-tab: 0 1px 2px rgba(30,40,60,.10); --sh-pop: 0 8px 24px rgba(30,40,60,.12);
+            --font-sans: 'IBM Plex Sans KR', 'Noto Sans KR', 'Malgun Gothic', sans-serif; --font-brand: 'Gowun Batang', serif;
+            --h-ctl: 40px; --h-ctl-sm: 32px;
+            /* 옛 이름 호환 */
+            --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface);
+        }
+        body { background: var(--bg); margin: 0; font-family: var(--font-sans); color: var(--c-text); overflow: hidden; }  
         
-        .controls-header { margin: 8px 12px 6px 12px; display: flex; justify-content: space-between; align-items: center; }
-        .tabs { display: flex; background: #eee; padding: 3px; border-radius: 8px; width: fit-content; align-items: center; }
-        .tab-btn { padding: 7px 14px; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; font-size: 13px; background: none; }
-        .tab-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .controls-header { margin: 0 0 8px 0; padding: 7px 16px; background: var(--c-surface); border-bottom: 1px solid var(--c-line); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+        .ch-left { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1 1 auto; }
+        .ch-left > .ch-brand, .ch-left > .tabs, .ch-left > .btn-clear-filters, .header-actions > * { flex-shrink: 0; }
+        .tab-btn, .btn-main-upload { white-space: nowrap; }
+        .ch-brand { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+        .ch-mark { font-family: var(--font-brand); font-size: 20px; letter-spacing: 1px; color: var(--c-accent); line-height: 1; }
+        .ch-title { font-size: 15px; font-weight: 600; color: var(--c-text); }
+        .ch-status { display: flex; align-items: center; gap: 6px 14px; font-size: 13px; color: var(--c-text-2); min-width: 0; flex: 1 1 auto; overflow: hidden; white-space: nowrap; }
+        .ch-stat { flex-shrink: 0; }
+        .ch-status b { color: var(--c-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+        .ch-zikjin { display: inline-block; min-width: 0; max-width: 100%; box-sizing: border-box; height: 30px; line-height: 28px; padding: 0 12px; font-size: 13px; color: var(--c-text-2);
+                     background: var(--c-surface-2); border: 1px solid var(--c-line); border-radius: var(--r-pill); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ch-status .ch-zikjin b { color: inherit; }
+        .ch-zikjin .dot { margin-right: 2px; }
+        .ch-stat { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+        /* 좁은 폭: 직진·에이블리 숫자·상세 → 건수 순으로 숨기고, 1100px 이하는 두 줄로 쌓아 날짜·경고를 남긴다 (헤더 높이 63px 유지) */
+        @media (max-width: 1366px) { .ch-zikjin .zk-extra { display: none; } }
+        @media (max-width: 1100px) {
+            .ch-status { flex-direction: column; align-items: flex-start; gap: 1px; font-size: 12px; line-height: 18px; }
+            .ch-zikjin { height: 20px; line-height: 18px; padding: 0 10px; font-size: 12px; }
+            .ch-zikjin .zk-cnt { display: none; }
+        }
+        /* 더 좁으면 라벨을 줄인다: '재고 최신화' → '재고', 'ZG&AB 출고' → '출고' (전체 이름은 title 에 있음) */
+        @media (max-width: 960px) { .ch-status .lu-label, .ch-status .zk-label { display: none; } }
+        .tabs { display: flex; gap: 4px; background: var(--c-track); padding: 3px; border-radius: var(--r-pill); width: fit-content; align-items: center; }
+        .tab-btn { height: 34px; padding: 0 16px; border: none; cursor: pointer; border-radius: var(--r-pill); font-family: inherit; font-weight: 500; font-size: 14px; color: var(--c-text-2); background: none; }
+        .tab-btn:hover { color: var(--c-text); }
+        .tab-btn.active { background: var(--c-surface); color: var(--c-accent-deep); font-weight: 600; box-shadow: var(--sh-tab); }
+        /* 1024px 이하: 헤더 간격·탭 여백 축소 (.tab-btn 기본 규칙 뒤에 있어야 이긴다) */
+        @media (max-width: 1024px) { .controls-header, .ch-left { gap: 10px; } .tab-btn { padding: 0 12px; } }
 
         .usage-container { position: relative; display: inline-block; margin-left: 10px; }
-        .btn-usage { padding: 8px 15px; background: #ff9800; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s; }
-        .btn-usage:hover { background: #e68a00; }
-        .usage-popup { 
-            display: none; position: absolute; top: 100%; left: 0; 
-            background: white; border: 1px solid #ccc; border-radius: 8px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); padding: 15px; z-index: 10000; 
-            width: max-content; margin-top: 5px; max-height: 70vh; overflow-y: auto;
+        .btn-usage { height: var(--h-ctl); padding: 0 18px; background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); font-family: inherit; font-weight: 600; cursor: pointer; transition: 0.15s; }
+        .btn-usage:hover { background: var(--c-surface-2); }
+        .usage-popup {
+            display: none; position: absolute; top: 100%; left: 0;
+            background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner);
+            box-shadow: var(--sh-pop); padding: 16px; z-index: 10000;
+            width: max-content; margin-top: 6px; max-height: 70vh; overflow-y: auto;
         }
-        .usage-table { border-collapse: collapse; background: white; font-size: 13px; color: #333; text-align: center; }
-        .usage-table th { background: #f4f4f4; padding: 8px 12px; border: 1px solid #ddd; font-weight: bold; }
-        .usage-table td { padding: 8px 12px; border: 1px solid #ddd; }
-        .usage-table tr:nth-child(even) { background-color: #f9f9f9; }
+        .usage-table { border-collapse: collapse; background: var(--c-surface); font-size: 13px; color: var(--c-text); text-align: center; }
+        .usage-table th { background: var(--c-surface-2); padding: 8px 12px; border: 1px solid var(--c-line); font-weight: 600; color: var(--c-text-2); }
+        .usage-table td { padding: 8px 12px; border: 1px solid var(--c-line); }
+        .usage-table tr:nth-child(even) { background-color: var(--c-surface-2); }
 
         .header-actions { display: flex; gap: 10px; align-items: center; }
         
-        /* ✨ 버전 뱃지 스타일 업데이트 */
-        .version-badge { background: #e0f7fa; color: #006064; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; border: 1px solid #80deea; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        /* 버전 표시 (작게) */
+        .version-badge { color: var(--c-text-3); font-size: 12px; font-weight: 500; white-space: nowrap; }
 
         .upload-dropdown { position: relative; display: inline-block; }
-        .btn-main-upload { padding: 8px 15px; background: #333; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s; display: flex; align-items: center; gap: 5px; }
-        .btn-main-upload:hover { filter: brightness(1.2); }
-        .btn-settings { background: #607d8b; padding: 8px 12px; border-radius: 6px; font-weight: bold; border: none; color: white; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s; }
-        .btn-settings:hover { background: #455a64; }
+        .btn-main-upload { height: var(--h-ctl); padding: 0 20px; background: var(--c-accent); color: #FFFFFF; border: none; border-radius: var(--r-pill); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 6px; }
+        .btn-main-upload:hover { background: var(--c-accent-deep); }
+        .btn-settings { height: var(--h-ctl); padding: 0 16px; background: var(--c-surface); color: var(--c-text-2); border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); font-family: inherit; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+        .btn-settings:hover { background: var(--c-surface-2); color: var(--c-text); }
 
-        .upload-menu { display: none; position: absolute; top: 100%; right: 0; background: white; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); margin-top: 5px; z-index: 10001; overflow: hidden; white-space: nowrap; }
-        .upload-menu label, .upload-menu div.menu-item { display: block; padding: 12px 20px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; transition: background 0.2s; color: #333; font-weight: bold; }
-        .upload-menu label:hover, .upload-menu div.menu-item:hover { background: #f0f4ff; color: var(--primary); }
-        .upload-menu input[type="file"] { display: none; } 
-        .menu-divider { border-top: 2px solid #ddd; margin: 0; }
+        .upload-menu { display: none; position: absolute; top: 100%; right: 0; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner); box-shadow: var(--sh-pop); margin-top: 6px; z-index: 10001; overflow: hidden; white-space: nowrap; }
+        .upload-menu label, .upload-menu div.menu-item { display: block; padding: 11px 18px; font-size: 13.5px; cursor: pointer; border-bottom: 1px solid var(--c-line-soft); transition: background 0.15s; color: var(--c-text); font-weight: 500; }
+        .upload-menu label:hover, .upload-menu div.menu-item:hover { background: var(--c-accent-row); color: var(--c-accent-deep); }
+        .upload-menu input[type="file"] { display: none; }
+        .upload-menu .menu-section { padding: 8px 18px 6px; background: var(--c-surface-2); font-size: 12px; color: var(--c-text-3); font-weight: 600; border-top: 1px solid var(--c-line-soft); }
+        .upload-menu .menu-section:first-child { border-top: 0; }
+        .upload-menu .menu-risk { color: var(--c-risk-text); }
+        .menu-divider { border-top: 1px solid var(--c-line); margin: 0; }
 
-        .action-input { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 150px; }
-        .btn-add { padding: 6px 12px; background: var(--primary); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .btn-add:hover { background: #324ee0; }
-        .btn-delete-bulk { padding: 6px 12px; background: #ff5252; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .btn-delete-bulk:hover { background: #e04848; }
+        .action-input { height: var(--h-ctl-sm); box-sizing: border-box; padding: 0 14px; border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); font-family: inherit; font-size: 14px; color: var(--c-text); background: var(--c-surface); width: 150px; }
+        .action-input:disabled { background: var(--c-surface-2); color: var(--c-text-3); }
+        .btn-add { height: var(--h-ctl-sm); padding: 0 16px; background: var(--c-accent); color: #FFFFFF; border: none; border-radius: var(--r-pill); font-family: inherit; font-weight: 600; cursor: pointer; }
+        .btn-add:hover { background: var(--c-accent-deep); }
+        .btn-delete-bulk { height: var(--h-ctl-sm); padding: 0 16px; background: var(--c-surface); color: var(--c-risk-text); border: 1px solid var(--c-risk); border-radius: var(--r-pill); font-family: inherit; font-weight: 600; cursor: pointer; }
+        .btn-delete-bulk:hover { background: var(--c-risk-soft); }
 
         .list-container {
             overflow: auto;
-            background: white;
-            margin: 0 8px 6px 8px;
+            background: var(--c-surface);
+            margin: 0 16px 6px 16px;
             padding: 0;
-            border-radius: 12px;
-            border: 1px solid #ccc;
-            height: calc(100vh - 88px);
+            border-radius: var(--r-card);
+            border: 1px solid var(--c-line);
+            height: calc(100vh - 97px); /* 헤더 63px(D안) 기준 */
         }
         .list-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        /* 행 높이는 40px 이하로 유지 — 가상 스크롤(VS.rowHeight 42)이 이 값에 기대고 있다 */
         .list-table th, .list-table td {
-            padding: 4px 7px;
+            padding: 7px 12px;
             text-align: center;
-            border: 1px solid #ccc;
-            font-size: 12.5px;
+            border: 0;
+            border-bottom: 1px solid var(--c-line-soft);
+            font-size: 13px;
             line-height: 1.35;
+            color: var(--c-text);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
-        .list-table tbody tr { cursor: pointer; transition: background 0.2s; }
-        .list-table tbody tr:hover { filter: brightness(0.95); }
+        .list-table tbody tr { cursor: pointer; transition: background 0.15s; }
+        .list-table tbody tr:hover { background: var(--c-surface-2); }
+        .list-table tbody tr.row-today { background: var(--c-accent-row); }
+        .list-table tbody tr.row-today:hover { background: var(--c-accent-soft); }
+        .list-table tbody tr.row-pre { background: var(--c-risk-row); }
+        .list-table tbody tr.row-pre:hover { background: var(--c-risk-soft); }
+        /* 상품코드 열: 배지(당일지정·선지정)가 든 행이 스크롤로 들어와도 열 폭이 흔들리지 않게 최소 폭 고정 (코드 7자 + 배지 기준) */
+        .list-table th[data-col="std_code"] { min-width: 124px; }
+        .badge.list-tag { height: 20px; padding: 0 8px; margin-left: 8px; font-size: 11.5px; vertical-align: middle; }
+        .list-sub { color: var(--c-text-3); font-size: 11px; font-weight: 400; }
 
         .list-table th {
-            background: #f4f4f4;
+            background: var(--c-surface-2);
             position: sticky;
             top: -1px;
             z-index: 10;
             user-select: none;
-            box-shadow: inset 0 -1px 0 #ccc, inset 0 1px 0 #ccc;
+            box-shadow: inset 0 -1px 0 var(--c-line);
         }
         .th-content { display: flex; justify-content: center; align-items: center; gap: 6px; }
-        .title-text { font-size: 12.5px; font-weight: 800; color: #222; }
+        .title-text { font-size: 12.5px; font-weight: 600; color: var(--c-text-2); }
 
-        .filter-btn { cursor: pointer; padding: 1px 5px; border-radius: 4px; color: #666; font-size: 11px; background: #e0e0e0; transition: 0.2s; }
-        .filter-btn:hover { background: #d0d0d0; color: var(--primary); }
-        .filter-btn.active { background: var(--primary); color: white; }
+        .filter-btn { cursor: pointer; padding: 1px 6px; border-radius: var(--r-pill); color: var(--c-text-3); font-size: 10px; background: transparent; transition: 0.15s; }
+        .filter-btn:hover { background: var(--c-track); color: var(--c-accent-deep); }
+        .filter-btn.active { background: var(--c-accent); color: #FFFFFF; }
 
-        .filter-popup { display: none; position: absolute; background: white; border: 1px solid #999; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999; min-width: 160px; max-height: 350px; overflow-y: auto; text-align: left; padding: 8px 0; }
-        .filter-option { padding: 8px 15px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
-        .filter-option:hover { background: #f0f2ff; color: var(--primary); }
-        .filter-option.selected { font-weight: bold; color: var(--primary); background: #eef1ff; }
-        .filter-divider { height: 1px; background: #ddd; margin: 4px 0; }
+        /* 선택 막대 (체크한 줄이 있을 때만 보임 — display 는 location.js 가 바꾼다) */
+        .bulk-bar { align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 16px 8px 16px; padding: 8px 10px 8px 16px;
+                    background: var(--c-accent-soft); border: 1px solid var(--c-accent-light); border-radius: var(--r-inner); font-size: 13px; color: var(--c-text-2); }
+        .bulk-bar .bulk-count { color: var(--c-accent-deep); font-weight: 600; }
+
+        .filter-popup { display: none; position: absolute; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-sm); box-shadow: var(--sh-pop); z-index: 9999; min-width: 160px; max-height: 350px; overflow-y: auto; text-align: left; padding: 6px 0; color: var(--c-text); }
+        .filter-option { padding: 8px 15px 8px 10px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+        .filter-option:hover { background: var(--c-accent-row); color: var(--c-accent-deep); }
+        .filter-option.selected { font-weight: 600; color: var(--c-accent-deep); background: var(--c-accent-soft); }
+        /* 선택 표시(체크)는 글자가 아니라 그림으로 — 필터 검색이 글자를 읽으므로 글자에 넣지 않는다 */
+        .filter-option::before { content: ''; flex: none; width: 14px; height: 14px; box-sizing: border-box; }
+        .filter-option.selected::before { width: 5px; height: 10px; margin: -3px 5px 0 4px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+        .filter-divider { height: 1px; background: var(--c-line); margin: 4px 0; }
 
         .checkbox-cell { width: 40px; }
         .loc-check { cursor: pointer; width: 16px; height: 16px; }
@@ -106,7 +173,7 @@
         /* ★ 헤더 드래그앤드롭(컬럼 순서 변경) */
         th[data-col] { cursor: grab; }
         th[data-col]:active { cursor: grabbing; }
-        th[data-col].th-dragging { opacity: 0.45; background: #e8eaf6; }
+        th[data-col].th-dragging { opacity: 0.45; background: var(--c-accent-soft); }
         th[data-col].th-drop-left { box-shadow: inset 3px 0 0 0 var(--primary); }
         th[data-col].th-drop-right { box-shadow: inset -3px 0 0 0 var(--primary); }
         /* 필터 ▼ 버튼은 드래그 대신 클릭이 우선되도록 */
@@ -114,76 +181,146 @@
 
         .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); z-index: 10000; justify-content: center; align-items: center;
+            background: rgba(30,40,60,0.45); z-index: 10000; justify-content: center; align-items: center;
         }
         .modal-content {
-            background: white; padding: 25px; border-radius: 10px; width: 400px;
-            max-height: 85vh; overflow-y: auto;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            background: var(--c-surface); padding: 24px; border-radius: var(--r-card); width: 400px;
+            max-height: 85vh; overflow-y: auto; color: var(--c-text);
+            box-shadow: var(--sh-pop);
         }
-        .modal-header { font-size: 18px; font-weight: bold; margin-bottom: 20px; color: #333; }
+        .modal-header { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--c-text); }
         .modal-body { display: flex; flex-direction: column; gap: 12px; }
-        .modal-body label { font-size: 13px; font-weight: bold; color: #555; margin-bottom: -5px; }
-        .modal-body input { padding: 8px 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
-        .modal-body input[readonly] { background: #eee; color: #666; cursor: not-allowed; }
-        .modal-footer { margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px; }
-        .btn-modal-save { padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        .btn-modal-cancel { padding: 8px 16px; background: #888; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .modal-body label { font-size: 13px; font-weight: 600; color: var(--c-text-2); margin-bottom: -5px; }
+        .modal-body input { padding: 8px 12px; border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); font-family: inherit; font-size: 14px; color: var(--c-text); }
+        .modal-body input[readonly] { background: var(--c-surface-2); color: var(--c-text-3); cursor: not-allowed; }
+        .modal-footer { margin-top: 24px; display: flex; justify-content: flex-end; gap: 10px; }
+        .btn-modal-save { height: var(--h-ctl); padding: 0 20px; background: var(--c-accent); color: #FFFFFF; border: none; border-radius: var(--r-pill); font-family: inherit; font-size: 14px; cursor: pointer; font-weight: 600; }
+        .btn-modal-save:hover { background: var(--c-accent-deep); }
+        .btn-modal-cancel { height: var(--h-ctl); padding: 0 18px; background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); font-family: inherit; font-size: 14px; cursor: pointer; font-weight: 600; }
+        .btn-modal-cancel:hover { background: var(--c-surface-2); }
 
-        .loc-copy-cell { cursor: copy; font-weight: bold; font-size: 15px; transition: color 0.2s; }
-        .loc-copy-cell:hover { color: var(--primary); text-decoration: underline; }
-        .badge-reserved { display: inline-block; background: #ff9800; color: white; font-weight: bold; font-size: 11px; padding: 3px 6px; border-radius: 4px; margin-top: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .badge-incoming { display: inline-block; background: #e65100; color: white; font-weight: bold; font-size: 11px; padding: 3px 6px; border-radius: 4px; margin-top: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .loc-copy-cell { cursor: copy; font-weight: 600; font-size: 14px; transition: color 0.15s; }
+        .loc-copy-cell:hover { color: var(--c-accent); text-decoration: underline; }
+        .badge-reserved { display: inline-block; background: var(--c-accent-soft); color: var(--c-accent-deep); font-weight: 600; font-size: 11px; padding: 2px 8px; border-radius: var(--r-pill); margin-top: 5px; }
+        .badge-incoming { display: inline-block; background: var(--c-warn-soft); color: var(--c-warn-text); font-weight: 600; font-size: 11px; padding: 2px 8px; border-radius: var(--r-pill); margin-top: 5px; }
         
-        #toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 10001; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 14px; opacity: 0; transition: opacity 0.3s, bottom 0.3s; }
+        #toast { visibility: hidden; min-width: 250px; background-color: var(--c-text); color: #fff; text-align: center; border-radius: var(--r-sm); box-shadow: var(--sh-pop); padding: 12px 18px;  position: fixed; z-index: 10001; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 14px; opacity: 0; transition: opacity 0.3s, bottom 0.3s; }
         #toast.show { visibility: visible; opacity: 1; bottom: 50px; }
 
-        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); z-index: 999999; flex-direction: column; justify-content: center; align-items: center; color: white; backdrop-filter: blur(3px); }
+        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30, 40, 60, 0.75); z-index: 999999; flex-direction: column; justify-content: center; align-items: center; color: white; backdrop-filter: blur(3px); }
         .spinner { border: 6px solid rgba(255,255,255,0.3); border-top: 6px solid var(--primary); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .loading-text { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
-        .loading-subtext { font-size: 13px; color: #ccc; margin-top: 10px; }
+        .loading-text { font-size: 18px; font-weight: 600; letter-spacing: 1px; }
+        .loading-subtext { font-size: 13px; color: var(--c-text-4); margin-top: 10px; }
 
-        .map-legend { display:inline-flex; align-items:center; padding:3px 10px; border-radius:4px; font-size:12px; font-weight:bold; color:#333; }
-        .incoming-sidebar { position: fixed; right: -360px; top: 0; width: 340px; height: 100vh; background: #fafafa; box-shadow: -4px 0 15px rgba(0,0,0,0.15); z-index: 9999; transition: right 0.3s ease; display: flex; flex-direction: column; }
+        /* ====== 도면 (D안) ====== */
+        .map-toolbar { display: flex; align-items: center; gap: 10px 16px; padding: 10px 16px; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); margin-bottom: 10px; flex-wrap: wrap; }
+        .map-toolbar-label { font-size: 13px; font-weight: 600; color: var(--c-text-2); }
+        .map-legend { display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600; color: var(--c-text-2); border: 1.5px solid transparent; cursor: pointer; box-sizing: border-box; }
+        .map-legend.lg-empty { background: var(--c-surface); border-color: var(--c-line-strong); color: var(--c-text-2); }
+        .map-legend.lg-content { background: var(--c-ok-soft); border-color: var(--c-ok); color: var(--c-ok-text); }
+        .map-legend.lg-reserved { background: var(--c-accent-soft); border-color: var(--c-accent-mid); color: var(--c-accent-deep); }
+        .map-legend.lg-preassigned { background: var(--c-risk-soft); border-color: var(--c-risk); color: var(--c-risk-text); }
+        .map-legend.is-active { outline: 2px solid var(--c-accent); outline-offset: 2px; font-weight: 700; }
+        .map-size { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--c-text-2); font-weight: 600; }
+        .map-size input[type=range] { width: 80px; accent-color: var(--c-accent); }
+        .map-size b { color: var(--c-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+        .map-zone-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .map-zone-tab { height: 32px; padding: 0 14px; border-radius: var(--r-pill); font-size: 13px; font-weight: 500; border: 1px solid var(--c-line-strong);
+                        background: var(--c-surface); color: var(--c-text-2); cursor: pointer; transition: background 0.15s, color 0.15s; }
+        .map-zone-tab:hover { background: var(--c-surface-2); color: var(--c-text); }
+        .map-zone-tab.active { background: var(--c-accent-soft); border-color: var(--c-accent-light); color: var(--c-accent-deep); font-weight: 600; }
+        #map-body { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 16px; overflow: auto; }
+        .map-sec { border: 1px solid var(--c-line); border-radius: var(--r-inner); overflow: hidden; margin-bottom: 12px; }
+        .map-sec-head { background: var(--c-surface-2); padding: 6px 16px; font-size: 13px; font-weight: 600; color: var(--c-accent-deep); border-bottom: 1px solid var(--c-line); }
+        .map-aisle { display: flex; align-items: center; justify-content: center; gap: 12px; background: var(--c-surface-2); padding: 6px 16px; border-top: 1px solid var(--c-line-soft); border-bottom: 1px solid var(--c-line-soft); font-size: 11px; }
+        .map-aisle .aisle-arrow { color: var(--c-text-4); letter-spacing: 4px; }
+        .map-aisle .aisle-label { color: var(--c-text-3); font-weight: 600; }
+        .map-tip { position: fixed; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-sm); padding: 10px 12px; white-space: nowrap; pointer-events: none;
+                   font-size: 12px; line-height: 1.7; color: var(--c-text-2); box-shadow: var(--sh-pop); z-index: 99999; display: none; }
+        .map-tip .tip-id { font-weight: 600; color: var(--c-accent-deep); }
+        .map-tip b { color: var(--c-text); font-weight: 600; }
+        .map-key { font-size: 11px; color: var(--c-text-2); display: flex; align-items: center; gap: 5px; }
+        .map-key i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; box-sizing: border-box; border: 1px solid; }
+        /* 입고 대기 사이드바 (D안: 흰 머리 + warn 제목) */
+        .incoming-sidebar { position: fixed; right: -360px; top: 0; width: 340px; height: 100vh; background: var(--c-surface-2); box-shadow: var(--sh-pop); border-left: 1px solid var(--c-line); z-index: 9999; transition: right 0.3s ease; display: flex; flex-direction: column; }
         .incoming-sidebar.open { right: 0; }
-        .incoming-header { background: #e65100; color: white; padding: 15px 20px; font-weight: bold; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
-        
-        .incoming-filters { padding: 15px; background: #f5f5f5; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; gap: 12px; font-size: 13px; }
+        .incoming-header { background: var(--c-surface); color: var(--c-warn-text); padding: 14px 16px 14px 20px; font-weight: 600; font-size: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--c-line); }
+        .incoming-actions { display: flex; gap: 8px; padding: 10px 16px; background: var(--c-surface); border-bottom: 1px solid var(--c-line); }
+        .incoming-actions .btn { flex: 1; }
+        .incoming-sync-status { display: none; padding: 8px 16px; background: var(--c-accent-row); border-bottom: 1px solid var(--c-accent-soft); font-size: 11px; color: var(--c-accent-deep); line-height: 1.5; }
+        .incoming-rules { padding: 10px 16px; background: var(--c-warn-bg); border-bottom: 1px solid var(--c-warn-soft); font-size: 11px; color: var(--c-warn-text); line-height: 1.6; }
+        .incoming-rules .rules-title { font-weight: 600; margin-bottom: 4px; }
+        .incoming-rules .rules-foot { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--c-warn-soft); color: var(--c-text-3); font-size: 10px; }
+
+        .incoming-filters { padding: 12px 16px; background: var(--c-surface); border-bottom: 1px solid var(--c-line); display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
         .incoming-filters > div { display: flex; justify-content: space-between; align-items: center; }
-        .incoming-filters select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; width: 160px; background: white; font-weight:bold; color:#333; }
-        
-        .incoming-list { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .incoming-item { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 12px; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .incoming-item:hover { border-color: #e65100; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(230,81,0,0.15); }
-        
-        .pre-assign-banner { display: none; position: fixed; top: 15px; left: 50%; transform: translateX(-50%); background: #e65100; color: white; padding: 12px 25px; border-radius: 30px; font-weight: bold; z-index: 10002; box-shadow: 0 4px 15px rgba(0,0,0,0.3); align-items: center; gap: 20px; font-size: 15px; }
-        .pre-assign-banner button { background: white; color: #e65100; border: none; padding: 6px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .pre-assign-banner button:hover { background: #ffe0b2; }
-        /* ℹ️ 호버 툴팁 공통 스타일 */
+        .incoming-filters b { font-weight: 600; color: var(--c-text-2); }
+        .incoming-filters select { height: 30px; padding: 0 10px; border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); font-size: 12px; width: 170px; background: var(--c-surface); font-weight: 500; color: var(--c-text); }
+
+        .incoming-list { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+        .incoming-item { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 12px 14px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+        .incoming-item:hover { border-color: var(--c-warn); background: var(--c-warn-bg); }
+        .badge.incoming-src { height: 20px; padding: 0 8px; font-size: 10.5px; }
+        .incoming-foot { padding: 10px 16px; border-top: 1px solid var(--c-line); background: var(--c-surface); flex-shrink: 0; }
+        .incoming-foot .btn { width: 100%; }
+
+        /* 선지정 모드 배너 (risk-text 바탕 흰 글자) */
+        .pre-assign-banner { display: none; position: fixed; top: 15px; left: 50%; transform: translateX(-50%); background: var(--c-risk-text); color: #FFFFFF; padding: 10px 12px 10px 24px; border-radius: var(--r-pill); font-weight: 600; z-index: 10002; box-shadow: var(--sh-pop); align-items: center; gap: 20px; font-size: 15px; }
+        .pre-assign-banner .banner-item { color: #FFFFFF; text-decoration: underline; }
+        .pre-assign-banner button { height: 32px; background: #FFFFFF; color: var(--c-risk-text); border: none; padding: 0 16px; border-radius: var(--r-pill); font-family: inherit; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+        .pre-assign-banner button:hover { background: var(--c-risk-soft); }
+
+        /* 모달 공통 조각 (D안) */
+        .modal-x { margin-left: auto; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--c-text-3); font-size: 22px; line-height: 1; cursor: pointer; flex: none; }
+        .modal-x:hover { background: var(--c-track); color: var(--c-text); }
+        .modal-meta { font-size: 12px; color: var(--c-text-2); }
+        .table-box { border: 1px solid var(--c-line); border-radius: var(--r-inner); }
+        .table-box > .usage-table { border-left: none; border-right: none; border-bottom: none; }
+        .table-box thead { position: sticky; top: 0; z-index: 1; }
+        .table-box thead th { border-top: none; }
+        .note-box { font-size: 12px; line-height: 1.6; padding: 10px 12px; border-radius: var(--r-sm); background: var(--c-surface-2); border: 1px solid var(--c-line); color: var(--c-text-2); }
+        .note-box.note-warn { background: var(--c-warn-bg); border-color: var(--c-warn-soft); color: var(--c-warn-text); }
+        .note-box.note-risk { background: var(--c-risk-row); border-color: var(--c-risk-soft); color: var(--c-risk-text); }
+        .note-box.note-accent { background: var(--c-accent-row); border-color: var(--c-accent-soft); color: var(--c-accent-deep); }
+        .seg-tabs { display: flex; gap: 4px; padding: 3px; background: var(--c-track); border-radius: var(--r-pill); width: fit-content; margin-bottom: 12px; flex-shrink: 0; }
+        .seg-tab { height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: none; color: var(--c-text-2); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+        .seg-tab:hover { color: var(--c-text); }
+        .seg-tab.active { background: var(--c-surface); color: var(--c-accent-deep); font-weight: 600; box-shadow: var(--sh-tab); }
+        .set-sec { margin-bottom: 24px; }
+        .set-sec h4 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--c-text); padding-bottom: 6px; border-bottom: 1px solid var(--c-line); }
+        .set-sec h4.is-risk { color: var(--c-risk-text); }
+        .ctl-sm { height: 28px; padding: 0 10px; font-size: 12px; border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); background: var(--c-surface); color: var(--c-text); cursor: pointer; }
+        .rec-panel { background: var(--c-surface-2); border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 8px 14px; margin-bottom: 10px; font-size: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 16px; color: var(--c-text-2); flex-shrink: 0; }
+        .rec-panel label { display: flex; align-items: center; gap: 6px; }
+        .rec-panel .rec-label { font-weight: 600; color: var(--c-text); }
+        .risk-input { width: 100%; padding: 10px 14px; border: 1.5px solid var(--c-risk); border-radius: var(--r-sm); font-size: 14px; background: var(--c-risk-row); color: var(--c-text); box-sizing: border-box; }
+        .zik-chip { font-size: 11px; font-weight: 600; height: 26px; padding: 0 12px; border-radius: var(--r-pill); cursor: pointer; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-text-2); }
+        .zik-chip.on { background: var(--c-accent); border-color: var(--c-accent); color: #FFFFFF; }
+        /* 호버 툴팁 공통 스타일 */
         .info-tip { 
             position: relative; display: inline-block; 
             cursor: help; margin-left: 4px; 
             width: 16px; height: 16px; line-height: 16px; 
             text-align: center; border-radius: 50%; 
-            background: #b0bec5; color: white; 
-            font-size: 11px; font-weight: bold; 
+            background: var(--c-text-4); color: #FFFFFF;
+            font-size: 11px; font-weight: 600;  
             font-style: normal; vertical-align: middle;
         }
-        .info-tip:hover { background: var(--primary); }
+        .info-tip:hover { background: var(--c-accent); }
         .info-tip .info-tip-content {
-            display: none; position: fixed; 
-            background: #263238; color: white; 
-            padding: 0; border-radius: 8px; 
+            display: none; position: fixed;
+            background: var(--c-text); color: #FFFFFF;
+            padding: 0; border-radius: var(--r-sm);  
             font-size: 12px; font-weight: normal; font-style: normal;
             line-height: 1.6; text-align: left;
             white-space: normal; width: 320px; max-width: 320px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: var(--sh-pop);
             z-index: 9999999; pointer-events: auto;
             overflow: hidden;
         }
         .info-tip.tip-open .info-tip-content { display: block; }
-        /* 툴팁이 열렸을 때 같은 페이지의 다른 ℹ️ 아이콘들을 흐리게 */
+        /* 툴팁이 열렸을 때 같은 페이지의 다른 아이콘들을 흐리게 */
         body:has(.info-tip.tip-open) .info-tip:not(.tip-open) {
             opacity: 0.15;
             pointer-events: none;
@@ -193,22 +330,22 @@
         /* v3.54: 툴팁 탭 */
         .tt-tabs { display: flex; background: #1a2327; border-bottom: 1px solid #37474f; }
         .tt-tab-btn { flex: 1; padding: 8px; background: none; border: none; color: #90a4ae; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.15s; }
-        .tt-tab-btn:hover { background: #263238; color: #80deea; }
-        .tt-tab-btn.active { background: #263238; color: #80deea; border-bottom: 2px solid #80deea; }
+        .tt-tab-btn:hover { background: var(--c-text); color: #80deea; }
+        .tt-tab-btn.active { background: var(--c-text); color: #80deea; border-bottom: 2px solid #80deea; }
         .tt-tab-content { padding: 10px 14px; min-height: 60px; max-height: 280px; overflow-y: auto; }
         .tt-tab-content.hidden { display: none; }
         .tt-empty { color: #90a4ae; font-style: italic; text-align: center; padding: 20px 0; }
-        .tt-btn-edit { display: block; margin: 10px auto 0; padding: 5px 14px; background: #3d5afe; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; }
-        .tt-btn-edit:hover { background: #5870ff; }
+        .tt-btn-edit { display: block; margin: 10px auto 0; padding: 5px 14px; background: var(--c-accent); color: #FFFFFF; border: none; border-radius: var(--r-pill); font-size: 11px; font-weight: 600; cursor: pointer; }
+        .tt-btn-edit:hover { background: var(--c-accent-mid); }
         .tt-editor textarea { width: 100%; min-height: 120px; padding: 8px; background: #1a2327; color: white; border: 1px solid #455a64; border-radius: 4px; font-family: monospace; font-size: 11px; box-sizing: border-box; resize: vertical; }
         .tt-editor-btns { display: flex; gap: 6px; margin-top: 8px; justify-content: flex-end; }
-        .tt-btn-save { padding: 5px 12px; background: #4caf50; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; }
-        .tt-btn-cancel { padding: 5px 12px; background: #78909c; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; }
+        .tt-btn-save { padding: 5px 12px; background: var(--c-ok); color: #FFFFFF; border: none; border-radius: var(--r-pill); font-size: 11px; font-weight: 600; cursor: pointer; }
+        .tt-btn-cancel { padding: 5px 12px; background: #78909c; color: #FFFFFF; border: none; border-radius: var(--r-pill); font-size: 11px; font-weight: 600; cursor: pointer; }
         /* v3.55: 설명 탭 편집 + 복원 + 편집 모드 표시 */
         .tt-view-wrap { display: flex; flex-direction: column; gap: 8px; }
         .tt-view-body { min-height: 40px; }
         .tt-btn-row { display: flex; gap: 6px; justify-content: center; margin-top: 6px; }
-        .tt-btn-reset { padding: 5px 10px; background: #546e7a; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; }
+        .tt-btn-reset { padding: 5px 10px; background: #546e7a; color: #FFFFFF; border: none; border-radius: var(--r-pill); font-size: 11px; font-weight: 600; cursor: pointer; }
         .tt-btn-reset:hover { background: #78909c; }
         .tt-editor-label { font-size: 11px; color: #80deea; font-weight: bold; margin-bottom: 4px; }
         
@@ -261,182 +398,193 @@
             padding: 5px 10px; cursor: pointer;
             user-select: none;
         }
-        .date-row:hover { background: #f0f2ff; color: var(--primary); }
-        .date-year-row { font-weight: bold; color: #333; }
-        .date-month-row { padding-left: 25px; font-weight: 600; color: #555; }
-        .date-day-row { padding-left: 45px; color: #666; }
-        .date-day-row.selected { background: #eef1ff; color: var(--primary); font-weight: bold; }
+        .date-row:hover { background: var(--c-accent-row); color: var(--c-accent-deep); }
+        .date-year-row { font-weight: 600; color: var(--c-text); }
+        .date-month-row { padding-left: 25px; font-weight: 500; color: var(--c-text-2); }
+        .date-day-row { padding-left: 45px; color: var(--c-text-2); }
+        .date-day-row.selected { background: var(--c-accent-soft); color: var(--c-accent-deep); font-weight: 600; }
         .date-toggle {
             display: inline-block; width: 14px; text-align: center;
-            font-size: 10px; color: #999;
+            font-size: 10px; color: var(--c-text-3);
         }
-        .date-toggle:hover { color: var(--primary); }
+        .date-toggle:hover { color: var(--c-accent); }
+        /* 날짜 체크 상자: is-all(전부) / is-part(일부) / is-none(없음) — 그림으로 그린다 */
         .date-check {
-            display: inline-block; width: 18px; text-align: center;
-            font-size: 12px;
+            position: relative; display: inline-block; flex: none; width: 14px; height: 14px; box-sizing: border-box; margin: 0 2px;
+            border: 1.5px solid var(--c-line-strong); border-radius: 4px; background: var(--c-surface);
         }
+        .date-check.is-all { background: var(--c-accent); border-color: var(--c-accent); }
+        .date-check.is-all::after { content: ''; position: absolute; left: 3.5px; top: 0.5px; width: 3px; height: 7px; border: solid #FFFFFF; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+        .date-check.is-part { border-color: var(--c-accent); }
+        .date-check.is-part::after { content: ''; position: absolute; left: 2px; top: 4px; width: 7px; height: 3px; border-radius: 1px; background: var(--c-accent); }
         .date-label { flex: 1; }
-        .date-children { background: #fafafa; }
+        .date-children { background: var(--c-surface-2); }
         /* v3.60: 필터 검색창 */
         .filter-search-wrap {
             display: flex; align-items: center;
             padding: 8px 10px 6px 10px;
-            background: #fafafa;
-            border-bottom: 1px solid #eee;
+            background: var(--c-surface);
+            border-bottom: 1px solid var(--c-line-soft);
             position: sticky; top: 0;
             z-index: 5;
         }
         .filter-search-input {
             flex: 1;
-            padding: 5px 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            height: 30px; box-sizing: border-box;
+            padding: 0 12px;
+            border: 1px solid var(--c-line-strong);
+            border-radius: var(--r-pill);
             font-size: 12px;
+            color: var(--c-text);
             outline: none;
             transition: border-color 0.15s;
         }
         .filter-search-input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(61, 90, 254, 0.15);
+            border-color: var(--c-accent);
+            box-shadow: 0 0 0 2px var(--c-accent-soft);
         }
         .filter-search-clear {
             margin-left: 5px;
-            padding: 3px 7px;
-            background: #eceff1;
-            color: #555;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-            font-size: 11px;
+            width: 26px; height: 26px; padding: 0;
+            background: var(--c-track);
+            color: var(--c-text-2);
+            border: 0;
+            border-radius: var(--r-pill);
+            font-size: 14px; line-height: 1;
             cursor: pointer;
-            font-weight: bold;
+            font-weight: 600;
         }
         .filter-search-clear:hover {
-            background: #ffcdd2;
-            color: #c62828;
-            border-color: #ef9a9a;
+            background: var(--c-risk-soft);
+            color: var(--c-risk-text);
         }
-        /* ====== 📊 대시보드 전용 스타일 ====== */
+        /* ====== 대시보드 (D안) ====== */
         .dash-container {
-            padding: 0 20px 20px 20px;
-            height: calc(100vh - 120px);
+            padding: 4px max(24px, calc((100% - 1360px) / 2)) 20px;
+            height: calc(100vh - 129px); /* 헤더 63px(D안) 기준 */
             overflow-y: auto;
+            display: flex; flex-direction: column; gap: 24px;
         }
-        .dash-toolbar {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 15px;
-        }
-        .dash-toolbar h2 { margin: 0; font-size: 20px; color: #263238; }
-        .dash-toolbar .dash-refresh {
-            padding: 6px 14px; background: var(--primary); color: white;
-            border: none; border-radius: 6px; font-weight: bold; cursor: pointer;
-            font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-        }
-        .dash-toolbar .dash-refresh:hover { background: #324ee0; }
+        .dash-toolbar { display: flex; justify-content: space-between; align-items: center; }
+        .dash-toolbar h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--c-text); }
 
-        /* KPI 카드 */
+        /* KPI 띠 — 한 상자 안에 칸으로 나눔 */
         .dash-kpi-row {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;
-            margin-bottom: 18px;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); overflow: hidden;
         }
-        @media (max-width: 1100px) { .dash-kpi-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
-        .dash-kpi-card {
-            background: white; border-radius: 12px; padding: 16px 18px;
-            border: 1px solid #e0e6ed; box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-            display: flex; align-items: center; gap: 12px; min-height: 90px;
-        }
-        .dash-kpi-card .kpi-icon {
-            width: 44px; height: 44px; border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 22px; flex-shrink: 0;
-        }
-        .dash-kpi-card .kpi-body { flex: 1; min-width: 0; }
-        .dash-kpi-card .kpi-title { font-size: 12px; color: #607d8b; font-weight: bold; margin-bottom: 4px; }
-        .dash-kpi-card .kpi-value { font-size: 22px; font-weight: 900; color: #263238; line-height: 1.1; }
-        .dash-kpi-card .kpi-sub { font-size: 11px; color: #90a4ae; margin-top: 2px; }
-        .kpi-icon.blue { background: #e3f2fd; color: #1565c0; }
-        .kpi-icon.green { background: #e8f5e9; color: #2e7d32; }
-        .kpi-icon.amber { background: #fff8e1; color: #ef6c00; }
-        .kpi-icon.purple { background: #f3e5f5; color: #6a1b9a; }
-        .kpi-icon.red { background: #ffebee; color: #c62828; }
+        .dash-kpi-card { padding: 22px 24px; border-right: 1px solid var(--c-line-soft); min-width: 0; }
+        .dash-kpi-card:last-child { border-right: 0; }
+        .dash-kpi-card.kpi-click { cursor: pointer; transition: background 0.15s; }
+        .dash-kpi-card.kpi-click:hover { background: var(--c-accent-row); }
+        .dash-kpi-card.kpi-incoming { background: var(--c-warn-bg); }
+        .dash-kpi-card .kpi-title { font-size: 13px; color: var(--c-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dash-kpi-card .kpi-note { font-size: 11px; color: var(--c-text-3); }
+        .dash-kpi-card .kpi-value { font-size: 28px; font-weight: 600; margin-top: 6px; color: var(--c-text); line-height: 1.15; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .dash-kpi-card .kpi-sub { font-size: 12.5px; color: var(--c-text-2); margin-top: 8px; }
+        .dash-kpi-card .kpi-link { text-decoration: underline; white-space: nowrap; }
+        .dash-kpi-card.kpi-incoming .kpi-title, .dash-kpi-card.kpi-incoming .kpi-sub, .dash-kpi-card.kpi-incoming .kpi-value { color: var(--c-warn-text); }
+        .kpi-unit { font-size: 14px; color: var(--c-text-3); font-weight: 500; }
+        .kpi-bar { height: 6px; background: var(--c-track); border-radius: 3px; margin-top: 12px; overflow: hidden; }
+        .kpi-bar > div { height: 100%; border-radius: 3px; transition: width 0.4s; }
 
-        /* 도넛 미니 (KPI 카드 안) */
-        .kpi-donut { width: 56px; height: 56px; flex-shrink: 0; }
-        .kpi-donut text { font-size: 12px; font-weight: 900; fill: #263238; }
+        /* 2열: 구역별 사용률 | (처리할 일 + 출고 경과) */
+        .dash-main-row { display: flex; flex-wrap: wrap; gap: 24px; }
+        .dash-main-row > .dash-zone-panel { flex: 999 1 560px; min-width: 0; }
+        .dash-side { flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+        .dash-panel { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 24px 28px; }
+        .dash-panel h3 { margin: 0 0 14px 0; font-size: 16px; font-weight: 600; color: var(--c-text); }
+        .dash-panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 16px; margin-bottom: 18px; }
+        .dash-panel-head h3 { margin: 0; }
+        .dash-legend { display: flex; gap: 14px; font-size: 12px; color: var(--c-text-2); }
+        .dash-sub { font-size: 12px; color: var(--c-text-3); font-weight: 400; }
+        .dash-note { font-size: 12px; color: var(--c-text-3); margin-top: 12px; text-align: right; }
 
-        /* 차트 박스 */
-        .dash-charts-row {
-            display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px;
-            margin-bottom: 18px;
-        }
-        @media (max-width: 1100px) { .dash-charts-row { grid-template-columns: 1fr; } }
-        .dash-panel {
-            background: white; border-radius: 12px; padding: 16px 18px;
-            border: 1px solid #e0e6ed; box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-        }
-        .dash-panel h3 { margin: 0 0 12px 0; font-size: 14px; color: #37474f; font-weight: 800; }
-
-        /* 구역별 사용률 막대 */
-        .zone-bars { display: flex; flex-direction: column; gap: 8px; }
-        .zone-bar-row { display: grid; grid-template-columns: 60px 1fr 90px; align-items: center; gap: 10px; }
-        .zone-bar-row .zb-label { font-weight: bold; font-size: 13px; color: #455a64; }
-        .zone-bar-row .zb-track { background: #eceff1; height: 18px; border-radius: 9px; overflow: hidden; }
-        .zone-bar-row .zb-fill { height: 100%; background: linear-gradient(90deg, #5c6bc0, #3d5afe); transition: width 0.4s; }
-        .zone-bar-row .zb-text { font-size: 12px; color: #546e7a; text-align: right; }
-
-        /* 마지막배송일 분포 (수평 bar 5개) */
-        .delivery-bars { display: flex; flex-direction: column; gap: 8px; }
-        .delivery-bars .zb-fill { background: linear-gradient(90deg, #66bb6a, #2e7d32); }
-        .delivery-bars .zb-fill.warn { background: linear-gradient(90deg, #ffa726, #ef6c00); }
-        .delivery-bars .zb-fill.danger { background: linear-gradient(90deg, #ef5350, #c62828); }
-        .delivery-bars .zb-fill.gray { background: linear-gradient(90deg, #b0bec5, #78909c); }
+        /* 구역별 사용률 / 출고 경과 막대 */
+        .zone-bars, .delivery-bars { display: flex; flex-direction: column; gap: 12px; }
+        .zone-bar-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) 128px; align-items: center; gap: 14px; font-size: 13.5px; border-radius: var(--r-cell); }
+        .delivery-bars .zone-bar-row { grid-template-columns: 56px minmax(0, 1fr) 104px; gap: 10px; padding: 3px 6px; margin: 0 -6px; }
+        .zone-bar-row .zb-label { font-weight: 500; color: var(--c-text); white-space: nowrap; }
+        .zone-bar-row .zb-track { background: var(--c-track); height: 10px; border-radius: 5px; overflow: hidden; }
+        .zone-bar-row .zb-fill { height: 100%; border-radius: 5px; background: var(--c-accent); transition: width 0.4s; }
+        .zone-bar-row .zb-text { font-size: 12.5px; color: var(--c-text-2); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .zb-fill.zb-ok { background: var(--c-ok); }
+        .zb-fill.zb-accent { background: var(--c-accent); }
+        .zb-fill.zb-mid { background: var(--c-accent-mid); }
+        .zb-fill.zb-warn { background: var(--c-warn); }
+        .zb-fill.zb-risk { background: var(--c-risk); }
+        .zb-fill.zb-none { background: var(--c-text-4); }
+        .zone-bar-row.is-warn .zb-text { color: var(--c-warn-text); font-weight: 600; }
+        .zone-bar-row.is-risk .zb-text { color: var(--c-risk-text); font-weight: 600; }
 
         /* 인사이트 카드 */
-        .dash-insight-row {
-            display: grid; grid-template-columns: 1fr 1fr 1.6fr 0.7fr; gap: 12px;
-            margin-bottom: 18px;
-        }
+        .dash-insight-row { display: grid; grid-template-columns: 1fr 1fr 1.6fr 0.9fr; gap: 16px; }
         @media (max-width: 1100px) { .dash-insight-row { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 640px) { .dash-insight-row { grid-template-columns: 1fr; } }
-        .insight-card {
-            background: white; border-radius: 12px; padding: 14px 16px;
-            border: 1px solid #e0e6ed; box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-        }
-        .insight-card h4 { margin: 0 0 10px 0; font-size: 13px; color: #37474f; font-weight: 800; }
-        .insight-card .ins-big { font-size: 28px; font-weight: 900; color: #263238; }
-        .insight-card .ins-desc { font-size: 12px; color: #607d8b; margin-top: 6px; line-height: 1.5; }
-        .insight-card .ins-list { font-size: 12px; color: #455a64; margin-top: 8px; line-height: 1.7; }
+        .insight-card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 20px 22px; }
+        .insight-card h4 { margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: var(--c-text); }
+        .insight-card .ins-big { font-size: 26px; font-weight: 600; color: var(--c-text); font-variant-numeric: tabular-nums; }
+        .insight-card .ins-desc { font-size: 12.5px; color: var(--c-text-2); margin-top: 6px; line-height: 1.55; }
+        .insight-card .ins-list { font-size: 12.5px; color: var(--c-text-2); margin-top: 8px; line-height: 1.8; }
         .insight-card .ins-list .pill {
-            display: inline-block; background: #eceff1; color: #37474f;
-            padding: 2px 8px; border-radius: 12px; margin-right: 6px; font-weight: bold;
+            display: inline-block; background: var(--c-track); color: var(--c-text-2);
+            padding: 1px 10px; border-radius: var(--r-pill); margin-right: 6px; font-weight: 600; font-size: 12px; line-height: 1.7;
         }
 
-        /* 빠른 작업 버튼 */
-        .dash-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
-        .dash-action-btn {
-            padding: 12px 18px; border-radius: 10px; border: none;
-            font-weight: bold; font-size: 13px; cursor: pointer;
-            display: flex; align-items: center; gap: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.08); transition: 0.2s;
-            color: white;
+        /* 처리할 일 */
+        .dash-actions { display: flex; flex-direction: column; gap: 8px; }
+        .dash-task {
+            display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 0 14px;
+            border: 0; border-radius: var(--r-inner); background: var(--c-surface-2);
+            font-size: 14px; color: var(--c-text); text-align: left; cursor: pointer; transition: background 0.15s;
         }
-        .dash-action-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
-        .dash-action-btn.act-orange { background: #e65100; }
-        .dash-action-btn.act-green { background: #2e7d32; }
-        .dash-action-btn.act-purple { background: #6a1b9a; }
-        .dash-action-btn .badge {
-            background: rgba(255,255,255,0.25); padding: 2px 8px; border-radius: 10px;
-            font-size: 11px;
-        }
+        .dash-task:hover { background: var(--c-track); }
+        .dash-task-ic { width: 32px; height: 32px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; flex: none; }
+        .dash-task-label { flex: 1; }
+        .dash-task-go { font-size: 13px; font-weight: 600; }
+        .tone-warn { background: var(--c-warn-soft); color: var(--c-warn-text); }
+        .tone-accent { background: var(--c-accent-soft); color: var(--c-accent-deep); }
+        .tone-ok { background: var(--c-ok-soft); color: var(--c-ok-text); }
 
-        /* 데이터 신선도 */
-        .dash-freshness {
-            background: #fafafa; border: 1px dashed #cfd8dc; border-radius: 10px;
-            padding: 10px 14px; font-size: 12px; color: #546e7a;
-            display: flex; flex-wrap: wrap; gap: 16px;
-        }
-        .dash-freshness b { color: #263238; }
+        /* 데이터 신선도 (각주) */
+        .dash-freshness { font-size: 12px; color: var(--c-text-3); display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 0 4px; }
+        .dash-freshness b { color: var(--c-text-2); font-weight: 600; }
 
-        /* ====== 📱 모바일 전용 (768px 이하) — 데스크톱 화면은 바꾸지 않음 ====== */
+        /* ====== D안 공통 클래스 (2026-10-13) ====== */
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--h-ctl); padding: 0 18px;
+               border: 1px solid transparent; border-radius: var(--r-pill); font-family: inherit; font-size: 14px; font-weight: 600;
+               cursor: pointer; white-space: nowrap; box-shadow: none; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn-primary { background: var(--c-accent); color: #FFFFFF; }
+        .btn-primary:hover { background: var(--c-accent-deep); }
+        .btn-secondary { background: var(--c-surface); color: var(--c-text); border-color: var(--c-line-strong); }
+        .btn-secondary:hover { background: var(--c-surface-2); }
+        .btn-ghost { background: transparent; color: var(--c-text-2); }
+        .btn-ghost:hover { background: var(--c-track); color: var(--c-text); }
+        .btn-risk { background: var(--c-surface); color: var(--c-risk-text); border-color: var(--c-risk); }
+        .btn-risk:hover { background: var(--c-risk-soft); }
+        .btn-sm { height: var(--h-ctl-sm); padding: 0 14px; font-size: 13px; }
+        .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: var(--h-ctl); height: var(--h-ctl); padding: 0;
+                    border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); background: var(--c-surface); color: var(--c-text-2); cursor: pointer; }
+        .icon-btn:hover { background: var(--c-surface-2); color: var(--c-text); }
+        .badge { display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600;
+                 white-space: nowrap; font-variant-numeric: tabular-nums; background: var(--c-track); color: var(--c-text-2); }
+        .badge-accent { background: var(--c-accent-soft); color: var(--c-accent-deep); }
+        .badge-ok { background: var(--c-ok-soft); color: var(--c-ok-text); }
+        .badge-warn { background: var(--c-warn-soft); color: var(--c-warn-text); }
+        .badge-risk { background: var(--c-risk-soft); color: var(--c-risk-text); }
+        .badge-neutral { background: var(--c-track); color: var(--c-text-2); }
+        .card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); }
+        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--c-text-4); flex-shrink: 0; }
+        .input { height: var(--h-ctl); box-sizing: border-box; padding: 0 16px; border: 1px solid var(--c-line-strong); border-radius: var(--r-pill);
+                 font-family: inherit; font-size: 14px; color: var(--c-text); background: var(--c-surface); }
+        textarea.input { height: auto; padding: 10px 14px; border-radius: var(--r-sm); }
+        button, input, select, textarea { font-family: inherit; }
+        :focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+        /* 좁은 데스크톱: 헤더 한 줄 유지 — 부가 글자부터 숨김 */
+        @media (max-width: 1280px) { .ch-title, .version-badge { display: none; } }
+
+        /* ====== 모바일 전용 (768px 이하) — 데스크톱 화면은 바꾸지 않음 ====== */
         @media (max-width: 768px) {
             /* 헤더: 줄바꿈 허용, 탭은 가로 스크롤 */
             .controls-header { flex-wrap: wrap; gap: 6px; margin: 6px 8px; }
@@ -475,35 +623,36 @@
 </head>
 <body onclick="closeAllPopups()">
     <div id="pre-assign-banner" class="pre-assign-banner">
-        <span>📦 선지정 모드: <span id="pre-assign-banner-text" style="color:#ffe0b2; text-decoration:underline;"></span> 지정할 빈칸을 클릭하세요!</span>
+        <span>선지정 모드: <span id="pre-assign-banner-text" class="banner-item"></span> 지정할 빈칸을 클릭하세요!</span>
         <button onclick="cancelPreAssignMode()">작업 취소</button>
     </div>
 
     <div id="incoming-sidebar" class="incoming-sidebar">
         <div class="incoming-header">
-            <span>📦 입고 대기 목록 (신규)</span>
-            <button onclick="toggleIncomingSidebar()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">×</button>
+            <span>입고 대기 목록 (신규)</span>
+            <button class="modal-x" onclick="toggleIncomingSidebar()" aria-label="닫기">×</button>
         </div>
-        <div style="display:flex; justify-content:space-between; padding: 10px 15px; background: #fff; border-bottom: 1px solid #ddd; gap:10px;">
-            <button onclick="syncIncomingData()" style="flex:1; padding:6px 10px; background:#ff9800; color:white; border:none; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">🔄 시트 동기화</button>            <button onclick="openSheetModal(event)" style="flex:1; padding:6px 10px; background:#607d8b; color:white; border:none; border-radius:4px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);">⚙️ 설정</button>
+        <div class="incoming-actions">
+            <button class="btn btn-secondary btn-sm" onclick="syncIncomingData()">시트 동기화</button>
+            <button class="btn btn-secondary btn-sm" onclick="openSheetModal(event)">설정</button>
         </div>
-        <!-- [🔄 시트 동기화] 가 시트를 새로 읽는 동안(5~10분) 진행 상황 — location.js setSyncStatus -->
-        <div id="incoming-sync-status" style="display:none; padding:8px 15px; background:#e0f2f1; border-bottom:1px solid #b2dfdb; font-size:11px; color:#00695c; line-height:1.5;"></div>
-        <div style="padding:10px 15px; background:#fff3e0; border-bottom:1px solid #ffe0b2; font-size:11px; color:#e65100; line-height:1.5;">
-            <div style="font-weight:bold; margin-bottom:4px;">📌 목록 표시 조건</div>
-            <div style="color:#bf360c; font-weight:normal;">
-                ✅ 미입고수량이 <b>1개 이상</b>인 상품<br>
-                ✅ 도착예상일(또는 표시날짜)이 <b>오늘 이후</b>인 상품<br>
-                ✅ 아직 <b>로케이션 배정 전</b>인 상품<br>
-                ✅ <b>선지정되지 않은</b> 상품
+        <!-- [시트 동기화] 가 시트를 새로 읽는 동안(5~10분) 진행 상황 — location.js setSyncStatus -->
+        <div id="incoming-sync-status" class="incoming-sync-status"></div>
+        <div class="incoming-rules">
+            <div class="rules-title">목록 표시 조건</div>
+            <div>
+                · 미입고수량이 <b>1개 이상</b>인 상품<br>
+                · 도착예상일(또는 표시날짜)이 <b>오늘 이후</b>인 상품<br>
+                · 아직 <b>로케이션 배정 전</b>인 상품<br>
+                · <b>선지정되지 않은</b> 상품
             </div>
-            <div style="margin-top:5px; padding-top:5px; border-top:1px dashed #ffb74d; color:#999; font-weight:normal; font-size:10px;">
+            <div class="rules-foot">
                 ※ 위 조건에 해당하는 상품만 자동으로 표시됩니다.
             </div>
         </div>
         <div class="incoming-filters">
             <div>
-                <b>📂 분류</b>
+                <b>분류</b>
                 <select id="filter-source" onchange="renderIncomingQueue()">
                     <option value="all">전체보기 (제작+사입)</option>
                     <option value="제작">제작 (오더리스트)</option>
@@ -511,7 +660,7 @@
                 </select>
             </div>
             <div>
-                <b>🔄 정렬</b>
+                <b>정렬</b>
                 <select id="sort-incoming" onchange="renderIncomingQueue()">
                     <option value="qty-desc">미입고수량 많은 순</option>
                     <option value="date-asc">출고예상일 빠른 순</option>
@@ -521,8 +670,8 @@
         <div id="incoming-list" class="incoming-list">
             </div>
         <!-- [5단계] 하단 고정: 추천 자리 일괄 적용 버튼 -->
-        <div style="padding:10px 15px; border-top:1px solid #ddd; background:#fff; flex-shrink:0;">
-            <button onclick="applyAllRecommendations()" style="width:100%; padding:10px; background:#43a047; color:white; border:none; border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.1);">📍 추천 자리 일괄 적용</button>
+        <div class="incoming-foot">
+            <button class="btn btn-primary" onclick="applyAllRecommendations()">추천 자리 일괄 적용</button>
         </div>
     </div>
 
@@ -535,80 +684,78 @@
     <div id="firebase-guide" style="display:none;"><pre>match /Locations/{document=**} { allow read, write: if true; }</pre></div>
 
     <div class="controls-header">
-        <div style="display:flex; align-items:center; gap:16px;">
+        <div class="ch-left">
+        <div class="ch-brand"><span class="ch-mark">GGS</span><span class="ch-title">로케이션 관리</span></div>
         <div class="tabs">
-            <button class="tab-btn active" id="tab-btn-locdash" onclick="switchView('locdash')">📊 대시보드</button>
+            <button class="tab-btn active" id="tab-btn-locdash" onclick="switchView('locdash')">대시보드</button>
             <button class="tab-btn" id="tab-btn-list" onclick="switchView('list')">데이터 리스트</button>
-            <button class="tab-btn" id="tab-btn-map" onclick="switchView('map')">도면 보기</button>
-            
+            <button class="tab-btn" id="tab-btn-map" onclick="switchView('map')">도면</button>
+
             <!-- v4.4: 기존 사용률 팝업 영역 제거 (대시보드 탭으로 통합), 단 hidden 컨테이너로 남겨둠 (calculateAndRenderUsage가 usage-popup 엘리먼트를 직접 사용함) -->
             <div class="usage-container" style="display:none;">
                 <div class="usage-popup" id="usage-popup" onclick="event.stopPropagation()"></div>
             </div>
-            
-            <button class="btn-clear-filters" onclick="window.clearAllFilters(event)" style="margin-left: 10px; padding: 8px 15px; background: #78909c; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s;" onmouseover="this.style.background='#546e7a'" onmouseout="this.style.background='#78909c'">🧹 필터 전체 해제</button>
         </div>
-        <span id="last-data-update" style="font-size:12px; color:#607d8b; font-weight:700; white-space:nowrap;" title="마지막 데이터 최신화 시각">🕒 최신화: —</span>
-        <button id="zikjin-update-info" type="button" onclick="window.openZikjinDetail && window.openZikjinDetail()" style="font-size:12px; color:#455a64; font-weight:700; white-space:nowrap; background:#eceff1; border:1px solid #cfd8dc; border-radius:6px; padding:4px 10px; cursor:pointer; margin-left:8px;" title="직진·에이블리(ZG&AB) 출고 전송 기록 — 클릭 시 상세">📂 ZG&AB 출고: —</button>
+        <button class="btn-clear-filters btn btn-ghost btn-sm" onclick="window.clearAllFilters(event)">필터 전체 해제</button>
+        <div class="ch-status">
+        <span id="last-data-update" class="ch-stat" title="마지막 데이터 최신화 시각"><span class="dot"></span>재고<span class="lu-label"> 최신화</span> <b>—</b></span>
+        <button id="zikjin-update-info" class="ch-zikjin" type="button" onclick="window.openZikjinDetail && window.openZikjinDetail()" title="직진·에이블리(ZG&AB) 출고 전송 기록 — 클릭 시 상세"><span class="dot"></span><span class="zk-label">ZG&AB </span>출고 <b>—</b></button>
+        </div>
         </div>
 
         <div class="header-actions">
-            <div class="version-badge">🚀 Ver 4.4</div>
-            
-            <button onclick="window.downloadMainExcel()" style="padding:8px 15px; background:#1976d2; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.1); display:flex; align-items:center; gap:5px; font-size:13px;">📥 다운로드</button>
+            <div class="version-badge">Ver 4.4</div>
+
+            <button class="btn btn-secondary" onclick="window.downloadMainExcel()">엑셀 받기</button>
 
             <div class="upload-dropdown">
-                <button class="btn-main-upload" onclick="toggleUploadMenu(event, 'main-tools-menu')">🛠️ 작업 메뉴 ▼</button>
+                <button class="btn-main-upload" onclick="toggleUploadMenu(event, 'main-tools-menu')">작업 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
                 <div class="upload-menu" id="main-tools-menu" onclick="event.stopPropagation()" style="width: 270px;">
-    
-                    <div style="padding: 8px 15px; background: #eceff1; font-size: 12px; color: #546e7a; font-weight: bold;">📊 기본 데이터 관리</div>
+
+                    <div class="menu-section">기본 데이터</div>
                     <label for="excel-upload-a">
-                        <span style="color:var(--primary);">📥 로케이션 일일 최신화 (재고업뎃)<span class="info-tip" data-tip-key="menu-daily" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📥 <b>일일 최신화</b><br>재고관리 시스템에서 추출한 일일 재고/상품 엑셀 파일을 업로드합니다.<br><br>기존 데이터는 모두 비워지고 엑셀의 최신 재고 정보로 덮어씁니다.<br><br>※ 선지정된 자리는 보호됩니다.</span></span></span>
+                        <span class="menu-risk">로케이션 일일 최신화 (재고 업데이트)<span class="info-tip" data-tip-key="menu-daily" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>일일 최신화</b><br>재고관리 시스템에서 추출한 일일 재고/상품 엑셀 파일을 업로드합니다.<br><br>기존 데이터는 모두 비워지고 엑셀의 최신 재고 정보로 덮어씁니다.<br><br>※ 선지정된 자리는 보호됩니다.</span></span></span>
                         <input type="file" id="excel-upload-a" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
-    
-                    <div style="padding: 8px 15px; background: #eceff1; font-size: 12px; color: #546e7a; font-weight: bold; border-top: 1px solid #ddd;">💡 로케이션 변경 추천</div>
-    
-                   <label style="border-bottom: 1px solid #eee;" for="excel-upload-zikjin">
-                        <span style="color:#1976d2;">📂 1-1. ZG&AB 출고 데이터 업로드<span class="info-tip" data-tip-key="menu-zikjin" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📂 <b>ZG&AB 출고 데이터</b><br>직진+에이블리 출고를 합친 엑셀 파일(상품코드 + 수량 또는 날짜별 컬럼)을 업로드합니다.<br><br>점수 계산의 <b>'ZG&AB 출고'</b> 항목에 사용됩니다.</span></span></span>
+
+                    <div class="menu-section">로케이션 변경 추천</div>
+
+                    <label for="excel-upload-zikjin">
+                        <span>ZG&AB 출고 데이터 업로드<span class="info-tip" data-tip-key="menu-zikjin" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>ZG&AB 출고 데이터</b><br>직진+에이블리 출고를 합친 엑셀 파일(상품코드 + 수량 또는 날짜별 컬럼)을 업로드합니다.<br><br>점수 계산의 <b>'ZG&AB 출고'</b> 항목에 사용됩니다.</span></span></span>
                         <input type="file" id="excel-upload-zikjin" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
-                    <label style="border-bottom: 1px solid #eee;" for="excel-upload-weekly">
-                        <span style="color:#d32f2f;">📂 1-2. 주차별 데이터 업로드<span class="info-tip" data-tip-key="menu-weekly" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📂 <b>주차별 데이터</b><br>주차별 배송/발주 엑셀 파일을 업로드합니다.<br><br>점수 계산의 <b>'주차별'</b> 및 <b>'상승세'</b> 항목에 사용됩니다.</span></span></span>
+                    <label for="excel-upload-weekly">
+                        <span>주차별 데이터 업로드<span class="info-tip" data-tip-key="menu-weekly" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>주차별 데이터</b><br>주차별 배송/발주 엑셀 파일을 업로드합니다.<br><br>점수 계산의 <b>'주차별'</b> 및 <b>'상승세'</b> 항목에 사용됩니다.</span></span></span>
                         <input type="file" id="excel-upload-weekly" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
-                    <label style="border-bottom: 1px solid #eee;" for="excel-upload-orders">
-                        <span style="color:#7b1fa2;">📦 1-3. 주문 데이터 업로드 (동선 분석용)<span class="info-tip" data-tip-key="menu-orders" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📦 <b>주문 데이터 업로드</b><br>재고관리 시스템에서 다운로드한 확장주문검색 엑셀 파일을 업로드합니다.<br><br>같은 주문번호로 함께 산 상품 페어를 누적 분석하여, 피킹 작업자의 동선을 줄이는 데 사용됩니다.<br><br>※ 매일 업로드 가능. 누적 통계로 저장됩니다.</span></span></span>
+                    <label for="excel-upload-orders">
+                        <span>주문 데이터 업로드 (동선 분석)<span class="info-tip" data-tip-key="menu-orders" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>주문 데이터 업로드</b><br>재고관리 시스템에서 다운로드한 확장주문검색 엑셀 파일을 업로드합니다.<br><br>같은 주문번호로 함께 산 상품 페어를 누적 분석하여, 피킹 작업자의 동선을 줄이는 데 사용됩니다.<br><br>※ 매일 업로드 가능. 누적 통계로 저장됩니다.</span></span></span>
                         <input type="file" id="excel-upload-orders" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
-    
-                    <div class="menu-item" style="text-align:center; color:var(--primary);" onclick="window.openRecommendModal(); closeAllPopups();">
-                        🚀 <strong>2. 로케이션 변경 리스트 보기</strong><span class="info-tip" data-tip-key="menu-recommend" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">🚀 <b>로케이션 변경 리스트</b><br>업로드된 직진배송·에이블리(ZG&AB 출고)/주차별 데이터를 기반으로 계산된 추천 리스트를 확인합니다.<br><br>각 상품별로 최적의 빈 로케이션이 추천되며, 이동 방향(전진/후퇴/수평/신규)도 함께 표시됩니다.<br><br>📊 페어 통계 및 동선 최적화 옵션도 함께 표시됩니다.</span></span>
+
+                    <div class="menu-item" onclick="window.openRecommendModal(); closeAllPopups();">
+                        로케이션 변경 리스트 보기<span class="info-tip" data-tip-key="menu-recommend" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>로케이션 변경 리스트</b><br>업로드된 직진배송·에이블리(ZG&AB 출고)/주차별 데이터를 기반으로 계산된 추천 리스트를 확인합니다.<br><br>각 상품별로 최적의 빈 로케이션이 추천되며, 이동 방향(전진/후퇴/수평/신규)도 함께 표시됩니다.<br><br>페어 통계 및 동선 최적화 옵션도 함께 표시됩니다.</span></span>
                     </div>
 
-                    <div style="padding: 8px 15px; background: #eceff1; font-size: 12px; color: #546e7a; font-weight: bold; border-top: 1px solid #ddd;">📦 입고 관리</div>
-                    <div class="menu-item" style="text-align:center; color:#e65100; font-size: 14px;" onclick="toggleIncomingSidebar(event)">
-                        📋 <strong>입고대기 선지정 패널 열기</strong><span class="info-tip" data-tip-key="menu-incoming" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content">📋 <b>입고대기 선지정 패널</b><br>입고 예정 상품들을 빈 로케이션에 미리 찜(선지정)할 수 있는 사이드바를 엽니다.<br><br>선지정된 자리는 로케이션 변경 추천에서 보호되며, 다른 작업자가 사용할 수 없습니다.</span></span>
+                    <div class="menu-section">입고 관리</div>
+                    <div class="menu-item" onclick="toggleIncomingSidebar(event)">
+                        입고대기 선지정 패널 열기<span class="info-tip" data-tip-key="menu-incoming" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>입고대기 선지정 패널</b><br>입고 예정 상품들을 빈 로케이션에 미리 찜(선지정)할 수 있는 사이드바를 엽니다.<br><br>선지정된 자리는 로케이션 변경 추천에서 보호되며, 다른 작업자가 사용할 수 없습니다.</span></span>
                     </div>
 
                 </div>
             </div>
 
-            <button class="btn-settings" onclick="openSettingsModal(event)">⚙️ 환경설정</button>
+            <button class="icon-btn" onclick="openSettingsModal(event)" title="환경설정" aria-label="환경설정"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"></path></svg></button>
         </div>
     </div>
 
     <div id="view-list" class="content-view" style="display:none;">
         <!-- 체크한 줄의 동·위치·대분류를 바로 고치는 막대 (선택이 있을 때만 보임) -->
-        <div id="loc-bulk-bar" style="display:none; align-items:center; gap:10px; flex-wrap:wrap;
-                                      margin: 0 20px 8px 20px; padding:10px 14px; background:#e8f0fe;
-                                      border:1px solid #90caf9; border-radius:10px; font-size:13px;">
-            <b style="color:#1565c0;">✔ <span id="loc-bulk-count">0</span>개 선택됨</b>
-            <button onclick="window.openLocBulkEdit()"
-                    style="padding:6px 14px; background:#1565c0; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">✏️ 동·위치·대분류 수정</button>
-            <button onclick="window.clearLocSelection()"
-                    style="padding:6px 12px; background:#eceff1; color:#455a64; border:1px solid #cfd8dc; border-radius:6px; font-weight:bold; cursor:pointer;">선택 해제</button>
-            <span style="color:#607d8b;">※ 상품·재고가 아니라 <b>자리 정보</b>만 바뀝니다. 자리 번호(로케이션)는 바뀌지 않습니다.</span>
+        <div id="loc-bulk-bar" class="bulk-bar" style="display:none;">
+            <span class="bulk-count"><span id="loc-bulk-count">0</span>개 선택됨</span>
+            <button class="btn btn-primary btn-sm" onclick="window.openLocBulkEdit()">동·위치·대분류 수정</button>
+            <button class="btn btn-secondary btn-sm" onclick="window.clearLocSelection()">선택 해제</button>
+            <span>※ 상품·재고가 아니라 <b>자리 정보</b>만 바뀝니다. 자리 번호(로케이션)는 바뀌지 않습니다.</span>
         </div>
         <div class="list-container" id="list-container">
             <table class="list-table">
@@ -619,7 +766,7 @@
                     </tr>
                 </thead>
                 <tbody id="location-list-body">
-                    <tr><td colspan="10" style="text-align:center; padding: 50px; color:#888;">데이터를 불러오는 중입니다...</td></tr>
+                    <tr><td colspan="10" style="text-align:center; padding: 50px; color:var(--c-text-3);">데이터를 불러오는 중입니다...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -628,93 +775,101 @@
     <div id="view-map" class="content-view" style="display:none;">
         <div id="map-root" style="margin: 0 20px 10px 20px;">
             <!-- 범례 -->
-            <div style="display:flex; align-items:center; gap:16px; padding:10px 15px; background:#fff; border:1px solid #ddd; border-radius:10px; margin-bottom:10px; flex-wrap:wrap;">
-                <span style="font-weight:bold; font-size:13px; color:#555;">범례:</span>
-                <span id="map-legend-empty" class="map-legend" style="background:#f0f0f0; border:1.5px solid #bbb; cursor:pointer;" onclick="window.setMapLegendFilter('empty')" title="클릭: 빈칸만 보기 / 다시 클릭: 해제">빈칸</span>
-                <span id="map-legend-content" class="map-legend" style="background:#c8e6c9; border:1.5px solid #66bb6a; color:#1b5e20; cursor:pointer;" onclick="window.setMapLegendFilter('content')" title="클릭: 상품있음만 보기 / 다시 클릭: 해제">상품있음</span>
-                <span id="map-legend-reserved" class="map-legend" style="background:#fff9c4; border:1.5px solid #f9a825; color:#e65100; cursor:pointer;" onclick="window.setMapLegendFilter('reserved')" title="클릭: 예약중만 보기 / 다시 클릭: 해제">예약중</span>
-                <span id="map-legend-preassigned" class="map-legend" style="background:#ffe0b2; border:1.5px solid #fb8c00; color:#bf360c; cursor:pointer;" onclick="window.setMapLegendFilter('preassigned')" title="클릭: 선지정만 보기 / 다시 클릭: 해제">선지정</span>
-                <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
-                    <label style="font-size:12px; color:#555; font-weight:bold;">칸 크기:</label>
-                    <input type="range" id="map-cell-size" min="30" max="120" value="54" style="width:80px;" oninput="updateMapCellSize(this.value)">
-                    <span id="map-cell-size-label" style="font-size:12px; color:#333; font-weight:bold;">54px</span>
+            <div class="map-toolbar">
+                <span class="map-toolbar-label">범례</span>
+                <span id="map-legend-empty" class="map-legend lg-empty" onclick="window.setMapLegendFilter('empty')" title="클릭: 빈칸만 보기 / 다시 클릭: 해제">빈칸</span>
+                <span id="map-legend-content" class="map-legend lg-content" onclick="window.setMapLegendFilter('content')" title="클릭: 상품있음만 보기 / 다시 클릭: 해제">상품있음</span>
+                <span id="map-legend-reserved" class="map-legend lg-reserved" onclick="window.setMapLegendFilter('reserved')" title="클릭: 예약중만 보기 / 다시 클릭: 해제">예약중</span>
+                <span id="map-legend-preassigned" class="map-legend lg-preassigned" onclick="window.setMapLegendFilter('preassigned')" title="클릭: 선지정만 보기 / 다시 클릭: 해제">선지정</span>
+                <div class="map-size">
+                    <label for="map-cell-size">칸 크기</label>
+                    <input type="range" id="map-cell-size" min="30" max="120" value="54" oninput="updateMapCellSize(this.value)">
+                    <b id="map-cell-size-label">54px</b>
                 </div>
             </div>
             <!-- 구역 탭 -->
-            <div id="map-zone-tabs" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;"></div>
+            <div id="map-zone-tabs" class="map-zone-tabs"></div>
             <!-- 도면 본체 -->
-            <div id="map-body" style="background:#fff; border:1px solid #ddd; border-radius:10px; padding:15px; overflow:auto; max-height:calc(100vh - 220px);"></div>
+            <div id="map-body" style="max-height:calc(100vh - 229px);"></div>
         </div>
         <!-- 툴팁 -->
         <div id="map-tooltip" style="
             display:none; position:fixed; z-index:99999;
-            background:#fff; border:1px solid #bbb; border-radius:8px;
-            box-shadow:0 4px 16px rgba(0,0,0,0.18); padding:12px 15px;
+            background:var(--c-surface); border:1px solid var(--c-line); border-radius:var(--r-sm);
+            box-shadow:var(--sh-pop); padding:12px 15px; color:var(--c-text);
             min-width:180px; max-width:280px; pointer-events:none; font-size:13px; line-height:1.7;
         "></div>
     </div>
 
-    <!-- 로케이션 현황 대시보드 영역 (메인 탭) -->
+    <!-- 로케이션 현황 대시보드 영역 (메인 탭) — D안: KPI 띠 → (구역별 사용률 | 처리할 일 + 출고 경과) → 인사이트 → 데드스톡 → 신선도 -->
     <div id="view-locdash" class="content-view active">
         <div class="dash-container">
             <div class="dash-toolbar">
-                <h2>📊 로케이션 현황 대시보드</h2>
-                <button class="dash-refresh" onclick="window.renderLocationDashboard && window.renderLocationDashboard()">🔄 새로고침</button>
+                <h2>로케이션 현황</h2>
+                <button class="dash-refresh btn btn-secondary btn-sm" onclick="window.renderLocationDashboard && window.renderLocationDashboard()">새로고침</button>
             </div>
 
-            <!-- KPI 카드 -->
+            <!-- KPI 띠 -->
             <div class="dash-kpi-row" id="dash-kpi-row">
-                <div class="dash-kpi-card"><div class="kpi-icon blue">📊</div><div class="kpi-body"><div class="kpi-title">데이터 로딩 중...</div></div></div>
+                <div class="dash-kpi-card" style="grid-column:1/-1;"><div class="kpi-title">데이터 로딩 중...</div></div>
             </div>
 
-            <!-- 인사이트 (다중위치 / 데드스톡 / 빈자리 동) -->
-            <div class="dash-insight-row" id="dash-insight-row"></div>
-
-            <!-- 빠른 작업 -->
-            <div class="dash-panel" style="margin-bottom: 18px;">
-                <h3>⚡ 빠른 작업</h3>
-                <div class="dash-actions" id="dash-actions"></div>
-            </div>
-
-            <!-- 데이터 신선도 -->
-            <div class="dash-freshness" id="dash-freshness" style="margin-bottom: 18px;"></div>
-
-            <!-- 차트 -->
-            <div class="dash-charts-row">
-                <div class="dash-panel">
-                    <h3>📍 구역별 사용률</h3>
+            <div class="dash-main-row">
+                <div class="dash-panel dash-zone-panel">
+                    <div class="dash-panel-head">
+                        <h3>구역별 사용률</h3>
+                        <div class="dash-legend">
+                            <span><span class="dot" style="background:var(--c-ok);"></span>여유</span>
+                            <span><span class="dot" style="background:var(--c-accent);"></span>보통</span>
+                            <span><span class="dot" style="background:var(--c-warn);"></span>85% 이상</span>
+                            <span><span class="dot" style="background:var(--c-risk);"></span>90% 이상</span>
+                        </div>
+                    </div>
                     <div class="zone-bars" id="dash-zone-bars"></div>
                 </div>
-                <div class="dash-panel">
-                    <h3>📅 마지막출고.배송일 분포</h3>
-                    <div class="delivery-bars" id="dash-delivery-bars"></div>
-                    <div style="font-size: 11px; color: #90a4ae; margin-top: 10px; text-align: right;">※ 정상재고 있는 상품 기준</div>
+                <div class="dash-side">
+                    <!-- 처리할 일 -->
+                    <div class="dash-panel">
+                        <h3>처리할 일</h3>
+                        <div class="dash-actions" id="dash-actions"></div>
+                    </div>
+                    <div class="dash-panel">
+                        <h3>마지막 출고 후 지난 기간</h3>
+                        <div class="delivery-bars" id="dash-delivery-bars"></div>
+                        <div class="dash-note">※ 정상재고 있는 상품 기준</div>
+                    </div>
                 </div>
             </div>
 
+            <!-- 인사이트 (재고 회전 / 다중위치 / 데드스톡 / 빈자리 동) -->
+            <div class="dash-insight-row" id="dash-insight-row"></div>
+
             <!-- 구역·동별 데드스톡 분석 (동선 비효율 진단) -->
-            <div class="dash-panel" style="margin-bottom: 18px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom: 12px;">
-                    <h3 style="margin:0;">🗺️ 구역·동별 데드스톡 분석 <span style="font-size:11px; color:#90a4ae; font-weight:normal;">(데드율 높은 순 = 동선 비효율 후보)</span></h3>
-                    <div style="display:flex; gap:14px; align-items:center; font-size:12px;">
+            <div class="dash-panel">
+                <div class="dash-panel-head">
+                    <h3>구역·동별 데드스톡 분석 <span class="dash-sub">(데드율 높은 순 = 동선 비효율 후보)</span></h3>
+                    <div style="display:flex; gap:14px; align-items:center; font-size:12.5px; color:var(--c-text-2);">
                         <label style="cursor:pointer; user-select:none;">
                             <input type="checkbox" id="dash-zd-include-none" onchange="window.renderLocationDashboard && window.renderLocationDashboard()" style="vertical-align: middle;">
                             <span style="vertical-align: middle;">기록없음 포함</span>
                         </label>
                         <label style="cursor:pointer; user-select:none;">
                             <span>최소 사용 슬롯</span>
-                            <input type="number" id="dash-zd-min-slots" value="10" min="0" style="width:48px; padding:2px 4px; border:1px solid #ccc; border-radius:4px; font-size:12px; text-align:center;" onchange="window.renderLocationDashboard && window.renderLocationDashboard()">
+                            <input type="number" id="dash-zd-min-slots" value="10" min="0" style="width:56px; height:28px; box-sizing:border-box; padding:0 6px; border:1px solid var(--c-line-strong); border-radius:var(--r-pill); font-size:12px; text-align:center;" onchange="window.renderLocationDashboard && window.renderLocationDashboard()">
                         </label>
                     </div>
                 </div>
                 <div style="overflow-x:auto;">
-                    <table class="usage-table" id="dash-zonedong-table" style="width:100%; min-width:780px; text-align:center; font-size:12px;">
+                    <table class="usage-table" id="dash-zonedong-table" style="width:100%; min-width:780px; text-align:center; font-size:12.5px;">
                         <thead id="dash-zonedong-thead"></thead>
                         <tbody id="dash-zonedong-tbody"></tbody>
                     </table>
                 </div>
-                <div id="dash-zonedong-summary" style="margin-top: 10px; font-size: 12px; color: #607d8b;"></div>
+                <div id="dash-zonedong-summary" style="margin-top: 12px; font-size: 12.5px; color: var(--c-text-2);"></div>
             </div>
+
+            <!-- 데이터 신선도 (작은 각주) -->
+            <div class="dash-freshness" id="dash-freshness"></div>
         </div>
     </div>
 
@@ -722,38 +877,38 @@
     <div id="dash-bucket-modal" class="modal-overlay" onclick="if(event.target.id==='dash-bucket-modal') document.getElementById('dash-bucket-modal').style.display='none'">
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 1200px; max-width: 96vw; max-height: 92vh; padding: 22px 20px; display:flex; flex-direction:column;">
             <div class="modal-header" id="dash-bucket-title" style="display:flex; align-items:center; justify-content:space-between;">
-                <span>📅 상품 리스트</span>
-                <button onclick="document.getElementById('dash-bucket-modal').style.display='none'" style="background:none; border:none; font-size:24px; cursor:pointer;">×</button>
+                <span>상품 리스트</span>
+                <button class="modal-x" onclick="document.getElementById('dash-bucket-modal').style.display='none'" aria-label="닫기">×</button>
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom: 12px;">
-                <div id="dash-bucket-meta" style="font-size:12px; color:#607d8b;"></div>
-                <label style="font-size:12px; color:#6d4c41; cursor:pointer; user-select:none; white-space:nowrap;"
+                <div id="dash-bucket-meta" class="modal-meta"></div>
+                <label style="font-size:12px; color:var(--c-text-2); cursor:pointer; user-select:none; white-space:nowrap;"
                        title="비축·SAM 등 피킹 자리가 아닌 위치까지 '현재 위치'에 표시합니다">
                     <input type="checkbox" id="dash-bucket-include-etc" style="vertical-align:middle;"
                            onchange="window.__dashRerenderBucketList && window.__dashRerenderBucketList()">
-                    <span style="vertical-align:middle;">📦 비축랙 위치도 표시</span>
+                    <span style="vertical-align:middle;">비축랙 위치도 표시</span>
                 </label>
             </div>
-            <div style="flex:1; min-height:0; overflow-y:auto; border:1px solid #ccc; border-radius:8px;">
-                <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none; font-size:12px;">
-                    <thead style="position:sticky; top:0; box-shadow:0 2px 4px rgba(0,0,0,0.1); z-index:1;">
+            <div class="table-box" style="flex:1; min-height:0; overflow-y:auto;">
+                <table class="usage-table" style="width:100%; font-size:12px;">
+                    <thead>
                         <tr>
-                            <th style="border-top:none;">상품코드</th>
-                            <th style="border-top:none;">상품명</th>
-                            <th style="border-top:none;">옵션</th>
-                            <th style="border-top:none;">현재 위치</th>
-                            <th style="border-top:none;">정상재고</th>
-                            <th style="border-top:none;">비축창고재고</th>
-                            <th style="border-top:none;">마지막출고.배송일</th>
-                            <th style="border-top:none;">최근활동</th>
+                            <th>상품코드</th>
+                            <th>상품명</th>
+                            <th>옵션</th>
+                            <th>현재 위치</th>
+                            <th>정상재고</th>
+                            <th>비축창고재고</th>
+                            <th>마지막출고.배송일</th>
+                            <th>최근활동</th>
                         </tr>
                     </thead>
                     <tbody id="dash-bucket-tbody"></tbody>
                 </table>
             </div>
             <div class="modal-footer" style="justify-content: space-between; margin-top: 12px;">
-                <button onclick="window.__dashDownloadBucketExcel && window.__dashDownloadBucketExcel()" style="padding:8px 15px; background:#1976d2; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px;">📥 엑셀 다운로드</button>
-                <button class="btn-modal-cancel" style="background:#555; width:100px;" onclick="document.getElementById('dash-bucket-modal').style.display='none'">닫기</button>
+                <button class="btn btn-primary" onclick="window.__dashDownloadBucketExcel && window.__dashDownloadBucketExcel()">엑셀 다운로드</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('dash-bucket-modal').style.display='none'">닫기</button>
             </div>
         </div>
     </div>
@@ -763,17 +918,17 @@
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 1000px; max-width: 96vw; max-height: 90vh; padding: 22px 20px; display:flex; flex-direction:column;">
             <div class="modal-header" id="dash-loc-title" style="display:flex; align-items:center; justify-content:space-between;">
                 <span>리스트</span>
-                <button onclick="document.getElementById('dash-loc-modal').style.display='none'" style="background:none; border:none; font-size:24px; cursor:pointer;">×</button>
+                <button class="modal-x" onclick="document.getElementById('dash-loc-modal').style.display='none'" aria-label="닫기">×</button>
             </div>
-            <div id="dash-loc-meta" style="font-size:12px; color:#607d8b; margin-bottom: 12px;"></div>
-            <div style="flex:1; min-height:0; overflow-y:auto; border:1px solid #ccc; border-radius:8px;">
-                <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none; font-size:12px; text-align:center;">
-                    <thead id="dash-loc-thead" style="position:sticky; top:0; box-shadow:0 2px 4px rgba(0,0,0,0.1); z-index:1;"></thead>
+            <div id="dash-loc-meta" class="modal-meta" style="margin-bottom: 12px;"></div>
+            <div class="table-box" style="flex:1; min-height:0; overflow-y:auto;">
+                <table class="usage-table" style="width:100%; font-size:12px; text-align:center;">
+                    <thead id="dash-loc-thead"></thead>
                     <tbody id="dash-loc-tbody"></tbody>
                 </table>
             </div>
             <div class="modal-footer" style="justify-content: flex-end; margin-top: 12px;">
-                <button class="btn-modal-cancel" style="background:#555; width:100px;" onclick="document.getElementById('dash-loc-modal').style.display='none'">닫기</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('dash-loc-modal').style.display='none'">닫기</button>
             </div>
         </div>
     </div>
@@ -783,23 +938,23 @@
     <!-- 선택한 로케이션의 동·위치·대분류 일괄 수정 -->
     <div id="loc-bulk-modal" class="modal-overlay" onclick="if(event.target.id==='loc-bulk-modal') document.getElementById('loc-bulk-modal').style.display='none'">
         <div class="modal-content" onclick="event.stopPropagation()" style="width:520px; max-width:94vw;">
-            <div class="modal-header">✏️ 선택한 로케이션 수정</div>
-            <div id="loc-bulk-target" style="font-size:12px; color:#546e7a; background:#f5f7fa; border:1px solid #e0e6ed; border-radius:8px; padding:10px; margin-bottom:14px; max-height:110px; overflow-y:auto;"></div>
+            <div class="modal-header">선택한 로케이션 수정</div>
+            <div id="loc-bulk-target" class="note-box" style="margin-bottom:14px; max-height:110px; overflow-y:auto;"></div>
 
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <label style="display:flex; align-items:center; gap:10px; font-size:13px;">
                     <input type="checkbox" id="loc-bulk-use-dong" onchange="document.getElementById('loc-bulk-dong').disabled = !this.checked">
-                    <span style="width:60px; font-weight:bold;">동</span>
+                    <span style="width:60px; font-weight:600;">동</span>
                     <input type="text" id="loc-bulk-dong" class="action-input" disabled placeholder="예: 3" style="flex:1;">
                 </label>
                 <label style="display:flex; align-items:center; gap:10px; font-size:13px;">
                     <input type="checkbox" id="loc-bulk-use-pos" onchange="document.getElementById('loc-bulk-pos').disabled = !this.checked">
-                    <span style="width:60px; font-weight:bold;">위치</span>
+                    <span style="width:60px; font-weight:600;">위치</span>
                     <input type="text" id="loc-bulk-pos" class="action-input" disabled placeholder="예: 041" style="flex:1;">
                 </label>
                 <label style="display:flex; align-items:center; gap:10px; font-size:13px;">
                     <input type="checkbox" id="loc-bulk-use-cat" onchange="document.getElementById('loc-bulk-cat').disabled = !this.checked">
-                    <span style="width:60px; font-weight:bold;">대분류</span>
+                    <span style="width:60px; font-weight:600;">대분류</span>
                     <select id="loc-bulk-cat" class="action-input" disabled style="flex:1;">
                         <option value="피킹용">피킹용</option>
                         <option value="기타">기타(비축·샘플)</option>
@@ -807,49 +962,49 @@
                 </label>
             </div>
 
-            <div style="font-size:12px; color:#8d6e63; background:#fff8e1; border:1px solid #ffe082; border-radius:8px; padding:10px; margin-top:14px; line-height:1.6;">
+            <div class="note-box note-warn" style="margin-top:14px;">
                 ※ 체크한 항목만 바뀝니다. 체크하지 않은 항목은 그대로 둡니다.<br>
                 ※ <b>영구보전 데이터를 다시 업로드하면 그 파일 내용으로 덮어써집니다.</b> 계속 유지하려면 원본 엑셀도 함께 고쳐 주세요.
             </div>
 
             <div class="modal-footer" style="justify-content:space-between; margin-top:16px;">
-                <button class="btn-modal-cancel" style="background:#555; width:100px;" onclick="document.getElementById('loc-bulk-modal').style.display='none'">취소</button>
-                <button onclick="window.applyLocBulkEdit()" style="padding:8px 18px; background:#1565c0; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">저장</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('loc-bulk-modal').style.display='none'">취소</button>
+                <button class="btn btn-primary" onclick="window.applyLocBulkEdit()">저장</button>
             </div>
         </div>
     </div>
 
     <div id="settings-modal" class="modal-overlay" onclick="closeSettingsModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">⚙️ 시스템 환경설정</div>
-            
-            <div style="margin-bottom: 25px;">
-                <h4 style="margin-bottom: 10px; font-size:14px; border-bottom: 2px solid #eee; padding-bottom: 5px; color:var(--primary);">1. 빈 로케이션 추가 / 삭제</h4>
+            <div class="modal-header">시스템 환경설정</div>
+
+            <div class="set-sec">
+                <h4>1. 빈 로케이션 추가 / 삭제</h4>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                     <input type="text" id="setting-new-loc" class="action-input" placeholder="예: A-1-001" style="flex:1;" onkeypress="if(event.key === 'Enter') addSingleLocationFromSetting()">
-                    <button class="btn-add" onclick="addSingleLocationFromSetting()">➕ 개별 추가</button>
+                    <button class="btn-add" onclick="addSingleLocationFromSetting()">개별 추가</button>
                 </div>
-                <div style="font-size: 12px; color: #555; background:#f9f9f9; padding:8px; border-radius:6px; border:1px solid #ddd;">
+                <div class="note-box">
                     ※ 삭제 방법: 바깥의 메인 데이터 리스트에서 체크박스를 선택한 후 아래 버튼을 누르세요.<br>
-                    <button class="btn-delete-bulk" style="margin-top:8px; width:100%;" onclick="deleteSelectedLocations()">🗑️ 선택 항목 일괄 삭제</button>
+                    <button class="btn-delete-bulk" style="margin-top:8px; width:100%;" onclick="deleteSelectedLocations()">선택 항목 일괄 삭제</button>
                 </div>
             </div>
 
-            <div style="margin-bottom: 25px;">
-                <h4 style="margin-bottom: 10px; font-size:14px; border-bottom: 2px solid #eee; padding-bottom: 5px; color:var(--primary);">2. 화면 표시 헤더(열) 설정</h4>
-                <div style="font-size:11px; color:#888; margin-bottom:8px;">※ 체크한 항목만 리스트 화면에 표시됩니다. (주황색은 엑셀에서 새로 추가된 항목)</div>
-                <div id="setting-headers-container" style="display: flex; flex-wrap: wrap; gap: 10px; max-height: 120px; overflow-y: auto; padding: 12px; border: 1px solid #ccc; border-radius: 5px; background:#fcfcfc;">
+            <div class="set-sec">
+                <h4>2. 화면 표시 헤더(열) 설정</h4>
+                <div style="font-size:11px; color:var(--c-text-3); margin-bottom:8px;">※ 체크한 항목만 리스트 화면에 표시됩니다. (주황색은 엑셀에서 새로 추가된 항목)</div>
+                <div id="setting-headers-container" style="display: flex; flex-wrap: wrap; gap: 10px; max-height: 120px; overflow-y: auto; padding: 12px; border: 1px solid var(--c-line); border-radius: var(--r-sm); background:var(--c-surface-2);">
                 </div>
             </div>
 
-            <div style="margin-bottom: 10px;">
-                <h4 style="margin-bottom: 10px; font-size:14px; border-bottom: 2px solid #eee; padding-bottom: 5px; color:#e65100;">3. 구조(동/위치/칸수) 영구 세팅 업로드</h4>
-                <div style="font-size:11px; color:#555; background:#fff3e0; padding:8px; border-radius:6px; border:1px solid #ffe0b2; margin-bottom:10px; line-height:1.4;">
+            <div class="set-sec" style="margin-bottom: 10px;">
+                <h4 class="is-risk">3. 구조(동/위치/칸수) 영구 세팅 업로드</h4>
+                <div class="note-box note-warn" style="font-size:11px; margin-bottom:10px; line-height:1.5;">
                     ※ 주의: 이 버튼은 <strong>최초 로케이션/동/위치/칸수 세팅</strong>을 하거나 랙 구조를 아예 변경할 때만 사용하세요. 기존의 동/위치/칸수가 덮어쓰기 됩니다.<br>
-                    📋 엑셀 컬럼: <strong>로케이션, 동, 위치, 칸수</strong> (칸수 = 앵글 한 줄에 들어가는 칸 수, 다운로드 시 ★★-01(4)/ S561045 형식 복원에 사용)
+                    엑셀 컬럼: <strong>로케이션, 동, 위치, 칸수</strong> (칸수 = 앵글 한 줄에 들어가는 칸 수, 다운로드 시 ★★-01(4)/ S561045 형식 복원에 사용)
                 </div>
-                <label style="display:block; text-align:center; padding:10px 15px; background:#e65100; color:white; border-radius:6px; font-weight:bold; cursor:pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s;">
-                    📂 영구 보전 데이터(엑셀) 업로드
+                <label class="btn btn-risk" style="display:flex; width:100%; box-sizing:border-box;">
+                    영구 보전 데이터(엑셀) 업로드
                     <input type="file" id="excel-upload-permanent" accept=".xls,.xlsx,.csv,.html,.htm" style="display:none;">
                 </label>
             </div>
@@ -864,88 +1019,88 @@
 
     <div id="sheet-modal" class="modal-overlay" onclick="closeSheetModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 540px; max-height: 90vh; overflow-y: auto;">
-            <div class="modal-header">⚙️ 입고대기 설정</div>
-            
+            <div class="modal-header">입고대기 설정</div>
+
             <!-- 탭 헤더 -->
-            <div style="display:flex; gap:0; border-bottom:2px solid var(--primary); margin-bottom:15px;">
-                <button id="incoming-tab-btn-sheet" type="button" onclick="window.switchIncomingSettingsTab('sheet')" style="padding:8px 16px; font-size:13px; background:var(--primary); color:white; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:bold;">📋 시트 링크</button>
-                <button id="incoming-tab-btn-priority" type="button" onclick="window.switchIncomingSettingsTab('priority')" style="padding:8px 16px; font-size:13px; background:#e0e0e0; color:#555; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:bold; margin-left:2px;">🎯 입고 추천 우선순위</button>
+            <div class="seg-tabs" style="margin-bottom:15px;">
+                <button id="incoming-tab-btn-sheet" class="seg-tab active" type="button" onclick="window.switchIncomingSettingsTab('sheet')">시트 링크</button>
+                <button id="incoming-tab-btn-priority" class="seg-tab" type="button" onclick="window.switchIncomingSettingsTab('priority')">입고 추천 우선순위</button>
             </div>
-            
+
             <!-- 탭 1: 시트 링크 -->
             <div id="incoming-tab-content-sheet" style="display:block;">
                 <div class="modal-body">
-                    <!-- 2026-10-07 비활성: [🔄 시트 동기화]가 수집기(Apps Script) 자료를 읽도록 바뀌어 링크 입력이 필요 없다.
+                    <!-- 2026-10-07 비활성: [시트 동기화]가 수집기(Apps Script) 자료를 읽도록 바뀌어 링크 입력이 필요 없다.
                          저장된 옛 링크는 수집기 자료를 못 읽을 때의 예비 경로로만 쓰인다(화면에 보이지 않게 함 — 공개 주소). -->
-                    <div style="font-size:12px; color:#4e342e; line-height:1.6; background:#fff8e1; padding:12px; border-radius:6px; border:1px solid #ffcc80; margin-bottom:12px;">
-                        <strong>🔒 시트 링크 설정은 사용하지 않습니다 (2026-10-07 변경)</strong><br>
-                        [🔄 시트 동기화]는 이제 오더리스트·사입리스트를 <strong>자동 수집 자료</strong>에서 가져옵니다
+                    <div class="note-box note-warn" style="padding:12px; margin-bottom:12px;">
+                        <strong>시트 링크 설정은 사용하지 않습니다 (2026-10-07 변경)</strong><br>
+                        [시트 동기화]는 이제 오더리스트·사입리스트를 <strong>자동 수집 자료</strong>에서 가져옵니다
                         (매일 07:30 자동 수집 · 필요한 열만 · 단가 등 금액 열 제외).<br>
                         그래서 여기에 링크를 넣을 필요가 없습니다.<br>
-                        <span style="color:#8d6e63;">※ 예전에 쓰던 '웹에 게시' 링크는 로그인 없이 누구나 열 수 있어 단가가 공개되는 문제가 있었습니다.
+                        <span style="color:var(--c-text-2);">※ 예전에 쓰던 '웹에 게시' 링크는 로그인 없이 누구나 열 수 있어 단가가 공개되는 문제가 있었습니다.
                         수집 자료를 읽지 못할 때만 예비로 쓰이며, 확인이 끝나면 시트의 '웹에 게시'를 끄고 지울 예정입니다.</span>
                     </div>
-                    <label style="color:#999;">① 오더리스트(제작) CSV 링크</label>
-                    <input type="text" id="modal-sheet-url-order" disabled placeholder="사용 안 함" style="background:#f0f0f0; color:#999;">
+                    <label style="color:var(--c-text-3);">① 오더리스트(제작) CSV 링크</label>
+                    <input type="text" id="modal-sheet-url-order" disabled placeholder="사용 안 함" style="background:var(--c-surface-2); color:var(--c-text-3);">
 
-                    <label style="color:#999; margin-top:15px;">② 사입리스트 CSV 링크</label>
-                    <input type="text" id="modal-sheet-url-buy" disabled placeholder="사용 안 함" style="background:#f0f0f0; color:#999;">
+                    <label style="color:var(--c-text-3); margin-top:15px;">② 사입리스트 CSV 링크</label>
+                    <input type="text" id="modal-sheet-url-buy" disabled placeholder="사용 안 함" style="background:var(--c-surface-2); color:var(--c-text-3);">
                 </div>
                 <div class="modal-footer">
                     <button class="btn-modal-cancel" onclick="closeSheetModal()">닫기</button>
                     <button class="btn-modal-save" disabled style="opacity:0.4; cursor:not-allowed;" title="사용하지 않는 설정입니다">저장</button>
                 </div>
             </div>
-            
+
             <!-- 탭 2: 입고 추천 우선순위 (1단계: UI만, 저장 기능은 2단계에서 추가) -->
             <div id="incoming-tab-content-priority" style="display:none;">
                 <div class="modal-body">
-                    <div style="font-size:11px; color:#888; background:#fff8e1; padding:8px; border-radius:6px; border:1px solid #ffe082; margin-bottom:15px; line-height:1.5;">
+                    <div class="note-box note-warn" style="font-size:11px; padding:8px 12px; margin-bottom:15px; line-height:1.5;">
                         ※ 신규 입고 상품(주문 데이터에 페어 기록이 없는 상품)에 적용되는 추천 우선순위입니다.<br>
                         ※ 기존 환경설정의 추천 우선순위와는 별개로 동작합니다.
                     </div>
 
                     <div style="margin-bottom:15px;">
                         <div class="section-toggle" onclick="toggleSection('incoming-sec-zone', 'incoming-icon-zone')">
-                            <span>🧩 구역(알파벳) 우선순위 배치</span>
+                            <span>구역(알파벳) 우선순위 배치</span>
                             <span id="incoming-icon-zone">▼</span>
                         </div>
                         <div id="incoming-sec-zone" class="section-content">
-                            <p style="margin:0 0 10px 0; font-size:11px; color:#666;">※ 마우스로 알파벳 조각을 끌어서 원하는 순위 칸에 놓으세요.</p>
+                            <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 마우스로 알파벳 조각을 끌어서 원하는 순위 칸에 놓으세요.</p>
                             <div class="puzzle-container">
-                                <div class="puzzle-row"><div class="puzzle-label" style="background:#ffd54f;">0순위</div><div class="puzzle-drop-area" id="incoming-pz-0" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                                <div class="puzzle-row"><div class="puzzle-label" style="background:#81c784;">1순위</div><div class="puzzle-drop-area" id="incoming-pz-1" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                                <div class="puzzle-row"><div class="puzzle-label" style="background:#64b5f6;">2순위</div><div class="puzzle-drop-area" id="incoming-pz-2" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                                <div class="puzzle-row"><div class="puzzle-label" style="background:#ba68c8; color:white;">3순위</div><div class="puzzle-drop-area" id="incoming-pz-3" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                                <div class="puzzle-row" style="margin-top:5px;"><div class="puzzle-label" style="background:#eee; border:1px solid #ccc;">미지정<br>(후순위)</div><div class="puzzle-drop-area" id="incoming-pz-none" style="background:#f0f0f0; border-color:#ccc;" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                                <div class="puzzle-row"><div class="puzzle-label pz-r0">0순위</div><div class="puzzle-drop-area" id="incoming-pz-0" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                                <div class="puzzle-row"><div class="puzzle-label pz-r1">1순위</div><div class="puzzle-drop-area" id="incoming-pz-1" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                                <div class="puzzle-row"><div class="puzzle-label pz-r2">2순위</div><div class="puzzle-drop-area" id="incoming-pz-2" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                                <div class="puzzle-row"><div class="puzzle-label pz-r3">3순위</div><div class="puzzle-drop-area" id="incoming-pz-3" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                                <div class="puzzle-row" style="margin-top:5px;"><div class="puzzle-label pz-none">미지정<br>(후순위)</div><div class="puzzle-drop-area pz-none-area" id="incoming-pz-none" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
                             </div>
                         </div>
                     </div>
 
                     <div style="margin-bottom:15px;">
                         <div class="section-toggle" onclick="toggleSection('incoming-sec-dongpos', 'incoming-icon-dongpos')">
-                            <span>🏢 동 / 위치 우선순위 줄세우기</span>
+                            <span>동 / 위치 우선순위 줄세우기</span>
                             <span id="incoming-icon-dongpos">▼</span>
                         </div>
                         <div id="incoming-sec-dongpos" class="section-content">
-                            <p style="margin:0 0 10px 0; font-size:11px; color:#666;">※ 마우스로 블록을 잡고 좌우로 끌어서 순서를 맞춰주세요. (왼쪽이 1순위)</p>
-                            
-                            <div style="font-size:13px; font-weight:bold; margin-bottom:5px; color:var(--primary);">▶ 동 우선순위</div>
+                            <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 마우스로 블록을 잡고 좌우로 끌어서 순서를 맞춰주세요. (왼쪽이 1순위)</p>
+
+                            <div style="font-size:13px; font-weight:600; margin-bottom:5px; color:var(--c-accent-deep);">▶ 동 우선순위</div>
                             <div class="sort-container" id="incoming-sort-dongs" ondragover="handleSortDragOver(event)"></div>
 
-                            <div style="font-size:13px; font-weight:bold; margin-top:15px; margin-bottom:5px; color:var(--primary);">▶ 위치 우선순위</div>
+                            <div style="font-size:13px; font-weight:600; margin-top:15px; margin-bottom:5px; color:var(--c-accent-deep);">▶ 위치 우선순위</div>
                             <div class="sort-container" id="incoming-sort-poses" ondragover="handleSortDragOver(event)"></div>
                         </div>
                     </div>
 
                     <div style="margin-bottom:10px;">
                         <div class="section-toggle" onclick="toggleSection('incoming-sec-exclude', 'incoming-icon-exclude')">
-                            <span>❌ 추천 제외 구역 설정</span>
+                            <span>추천 제외 구역 설정</span>
                             <span id="incoming-icon-exclude">▼</span>
                         </div>
                         <div id="incoming-sec-exclude" class="section-content">
-                            <p style="margin:0 0 10px 0; font-size:11px; color:#666;">※ 구역+동 조합을 입력하면 해당 조합의 로케이션이 추천에서 제외됩니다.<br>예시: Z-1, A-3, ★-2 (쉼표로 구분)</p>
-                            <input type="text" id="incoming-exclude-combos-input" placeholder="예: Z-1, A-3, ★-2" style="width:100%; padding:10px; border:2px solid #ef9a9a; border-radius:6px; font-size:14px; background:#ffebee; box-sizing:border-box;">
+                            <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 구역+동 조합을 입력하면 해당 조합의 로케이션이 추천에서 제외됩니다.<br>예시: Z-1, A-3, ★-2 (쉼표로 구분)</p>
+                            <input type="text" id="incoming-exclude-combos-input" class="risk-input" placeholder="예: Z-1, A-3, ★-2">
                             <div id="incoming-exclude-combos-preview" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;"></div>
                         </div>
                     </div>
@@ -960,150 +1115,150 @@
 
     <div id="recommend-modal" class="modal-overlay" onclick="closeRecommendModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 1400px; max-width: 98vw; padding: 22px 20px; height: 94vh; max-height: 94vh; box-sizing: border-box; display: flex; flex-direction: column;">
-            <div class="modal-header" style="color: #4caf50; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
-                💡 로케이션 변경 리스트
-                <button onclick="window.runActiveRecommendation()" style="padding:6px 12px; font-size:13px; background:#4caf50; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🔍 계산</button>
-                <button onclick="window.openRatioModal()" style="padding:6px 12px; font-size:13px; background:#e65100; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">⚙️ 점수반영비율 설정</button>
-                <button onclick="window.show2FRecommendation()" style="padding:6px 12px; font-size:13px; background:#7b1fa2; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">📭 빈칸확보</button>
+            <div class="modal-header" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
+                로케이션 변경 리스트
+                <button class="btn btn-primary btn-sm" onclick="window.runActiveRecommendation()">계산</button>
+                <button class="btn btn-secondary btn-sm" onclick="window.openRatioModal()">점수반영비율 설정</button>
+                <button class="btn btn-secondary btn-sm" onclick="window.show2FRecommendation()">빈칸확보</button>
             </div>
-            <div style="font-size:12px; color:#666; margin-bottom:15px; margin-top:-10px;">
+            <div style="font-size:12px; color:var(--c-text-2); margin-bottom:15px; margin-top:-10px;">
                 ※ 선지정으로 찜해둔 자리는 물건이 없더라도 이 추천 목록에서 완벽히 보호(제외)됩니다.
             </div>
-            <div id="rec-limit-panel" style="background:#f5f5f5; border:1px solid #e0e0e0; border-radius:6px; padding:8px 12px; margin-bottom:10px; font-size:12px; display:flex; align-items:center; flex-wrap:wrap; gap:14px; color:#555;">
+            <div id="rec-limit-panel" class="rec-panel">
                 <!-- v4.3: 추천 갯수 (라디오 → 드롭다운) -->
-                <label style="display:flex; align-items:center; gap:6px;">
-                    <span style="font-weight:bold; color:#424242;">📋 추천 갯수:</span>
-                    <select id="rec-limit-select" style="padding:3px 8px; font-size:12px; border:1px solid #bbb; border-radius:4px; background:white; cursor:pointer;">
+                <label>
+                    <span class="rec-label">추천 갯수</span>
+                    <select id="rec-limit-select" class="ctl-sm">
                         <option value="10" selected>10개</option>
                         <option value="20">20개</option>
                         <option value="50">50개</option>
                         <option value="100">100개</option>
                         <option value="custom">사용자지정</option>
                     </select>
-                    <span id="rec-limit-custom-display" style="display:none; color:#1976d2; font-weight:bold;">(<span id="rec-limit-custom-num">0</span>개)</span>
+                    <span id="rec-limit-custom-display" style="display:none; color:var(--c-accent-deep); font-weight:600;">(<span id="rec-limit-custom-num">0</span>개)</span>
                     <!-- v4.4 v3: 사용자지정 값 변경 버튼 (사용자지정 선택 시에만 표시) -->
-                    <button id="rec-limit-edit-btn" type="button" style="display:none; padding:2px 8px; font-size:11px; background:#1976d2; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;" title="사용자지정 값 변경">✏️ 변경</button>
+                    <button id="rec-limit-edit-btn" type="button" class="ctl-sm" style="display:none; font-weight:600;" title="사용자지정 값 변경">변경</button>
                 </label>
                 <!-- v4.3: 우선순위 선택 (단독 추천 전용) -->
-                <label style="display:flex; align-items:center; gap:6px;">
-                    <span style="font-weight:bold; color:#424242;">🎯 우선순위:</span>
-                    <select id="rec-priority-mode" style="padding:3px 8px; font-size:12px; border:1px solid #bbb; border-radius:4px; background:white; cursor:pointer;">
+                <label>
+                    <span class="rec-label">우선순위</span>
+                    <select id="rec-priority-mode" class="ctl-sm">
                         <option value="dong" selected>동 이동</option>
                         <option value="pos">위치 이동</option>
                     </select>
                 </label>
             </div>
-            <div id="rec-tab-header" style="display:flex; gap:0; border-bottom:2px solid #4caf50; margin-bottom:10px;">
-                <button id="rec-tab-btn-single" onclick="window.switchRecTab('single')" style="padding:8px 18px; font-size:13px; background:#4caf50; color:white; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:bold;">📦 단독 추천</button>
-                <button id="rec-tab-btn-pair" onclick="window.switchRecTab('pair')" style="padding:8px 18px; font-size:13px; background:#e0e0e0; color:#555; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:bold; margin-left:2px;">🔗 페어 추천</button>
+            <div id="rec-tab-header" class="seg-tabs" style="margin-bottom:10px;">
+                <button id="rec-tab-btn-single" class="seg-tab active" onclick="window.switchRecTab('single')">단독 추천</button>
+                <button id="rec-tab-btn-pair" class="seg-tab" onclick="window.switchRecTab('pair')">페어 추천</button>
             </div>
-            
-            <div id="rec-tab-single" class="modal-body" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
-                <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
-                    <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+
+            <div id="rec-tab-single" class="modal-body table-box" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0;">
+                <table class="usage-table" style="width:100%;">
+                    <thead>
                         <tr>
-                            <th style="width: 92px; border-top:none; font-size:12px;">순위(점수)</th>
-                            <th style="width: 110px; border-top:none; font-size:12px;">상품코드</th>
-                            <th style="border-top:none; font-size:12px;">상품명 (옵션)</th>
-                            <th style="width: 78px; background:#fff8e1; color:#e65100; border-top:none; font-size:12px;">이동수량</th>
-                            <th style="width: 130px; border-top:none; font-size:12px;">현재 위치</th>
-                            <th style="width: 260px; background:#e8f5e9; color:#2e7d32; border-top:none; font-size:12px;">➡️ 추천 로케이션 (방향)</th>
+                            <th style="width: 92px; font-size:12px;">순위(점수)</th>
+                            <th style="width: 110px; font-size:12px;">상품코드</th>
+                            <th style="font-size:12px;">상품명 (옵션)</th>
+                            <th style="width: 78px; background:var(--c-warn-bg); color:var(--c-warn-text); font-size:12px;">이동수량</th>
+                            <th style="width: 130px; font-size:12px;">현재 위치</th>
+                            <th style="width: 260px; background:var(--c-ok-soft); color:var(--c-ok-text); font-size:12px;">추천 로케이션 (방향)</th>
                         </tr>
                     </thead>
                     <tbody id="recommend-single-tbody"></tbody>
                 </table>
             </div>
-            
-            <div id="rec-tab-pair" class="modal-body" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0; display:none;">
-                <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
-                    <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+
+            <div id="rec-tab-pair" class="modal-body table-box" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0; display:none;">
+                <table class="usage-table" style="width:100%;">
+                    <thead>
                         <tr>
-                            <th style="width: 60px; border-top:none; font-size:13px;">순위</th>
-                            <th style="border-top:none; font-size:13px;">상품 A</th>
-                            <th style="width: 160px; background:#e8f5e9; color:#2e7d32; border-top:none; font-size:13px;">➡️ A 추천 자리</th>
-                            <th style="border-top:none; font-size:13px;">상품 B</th>
-                            <th style="width: 160px; background:#e8f5e9; color:#2e7d32; border-top:none; font-size:13px;">➡️ B 추천 자리</th>
+                            <th style="width: 60px; font-size:13px;">순위</th>
+                            <th style="font-size:13px;">상품 A</th>
+                            <th style="width: 160px; background:var(--c-ok-soft); color:var(--c-ok-text); font-size:13px;">A 추천 자리</th>
+                            <th style="font-size:13px;">상품 B</th>
+                            <th style="width: 160px; background:var(--c-ok-soft); color:var(--c-ok-text); font-size:13px;">B 추천 자리</th>
                         </tr>
                     </thead>
                     <tbody id="recommend-tbody"></tbody>
                 </table>
             </div>
-            
+
             <div class="modal-footer" style="justify-content: space-between; margin-top: 15px; flex-shrink: 0;">
-                <button onclick="downloadRecommendationExcel()" style="padding:8px 15px; background:#1976d2; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">📥 엑셀 다운로드</button>
-                <button class="btn-modal-cancel" style="background:#555; width:100px;" onclick="closeRecommendModal()">닫기</button>
+                <button class="btn btn-secondary" onclick="downloadRecommendationExcel()">엑셀 다운로드</button>
+                <button class="btn btn-secondary" onclick="closeRecommendModal()">닫기</button>
             </div>
-            
+
         </div>
     </div>
 
     <div id="cancelled-preassign-modal" class="modal-overlay" onclick="if(event.target.id==='cancelled-preassign-modal') document.getElementById('cancelled-preassign-modal').style.display='none'">
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 720px; max-width: 96vw; padding: 25px 20px;">
-            <div class="modal-header" style="color: #d32f2f; display: flex; align-items: center; gap: 10px;">
-                🚨 오더 취소된 선지정 상품 발견
-                <button onclick="document.getElementById('cancelled-preassign-modal').style.display='none'" style="margin-left:auto; background:none; border:none; font-size:24px; cursor:pointer;">×</button>
+            <div class="modal-header" style="color: var(--c-risk-text); display: flex; align-items: center; gap: 10px;">
+                오더 취소된 선지정 상품 발견
+                <button class="modal-x" onclick="document.getElementById('cancelled-preassign-modal').style.display='none'" aria-label="닫기">×</button>
             </div>
-            <div style="background:#ffebee; border:1px solid #ef9a9a; border-radius:8px; padding:12px 15px; margin-bottom:15px; font-size:13px; color:#b71c1c; line-height:1.6;">
+            <div class="note-box note-risk" style="font-size:13px; padding:12px 15px; margin-bottom:15px;">
                 <b>다음 상품들이 구글시트에서 "오더취소"로 표시되었습니다.</b><br>
                 현재 로케이션 관리 시스템에 선지정된 자리가 있어, 입고가 안 될 가능성이 큽니다.<br>
                 불필요한 자리가 점유되지 않도록 <b>해제</b>를 권장드립니다.
             </div>
-            <div class="modal-body" style="max-height: 50vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
-                <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
-                    <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div class="modal-body table-box" style="max-height: 50vh; overflow-y: auto; padding: 0;">
+                <table class="usage-table" style="width:100%;">
+                    <thead>
                         <tr>
-                            <th style="width:50px; border-top:none; font-size:13px;">No</th>
-                            <th style="width:120px; border-top:none; font-size:13px;">선지정 위치</th>
-                            <th style="width:120px; border-top:none; font-size:13px;">상품코드</th>
-                            <th style="border-top:none; font-size:13px;">상품명</th>
-                            <th style="width:120px; border-top:none; font-size:13px;">옵션</th>
-                            <th style="width:80px; border-top:none; font-size:13px;">분류</th>
-                            <th style="width:90px; background:#ffebee; border-top:none; font-size:13px;">해제</th>
+                            <th style="width:50px; font-size:13px;">No</th>
+                            <th style="width:120px; font-size:13px;">선지정 위치</th>
+                            <th style="width:120px; font-size:13px;">상품코드</th>
+                            <th style="font-size:13px;">상품명</th>
+                            <th style="width:120px; font-size:13px;">옵션</th>
+                            <th style="width:80px; font-size:13px;">분류</th>
+                            <th style="width:90px; background:var(--c-risk-row); font-size:13px;">해제</th>
                         </tr>
                     </thead>
                     <tbody id="cancelled-preassign-tbody"></tbody>
                 </table>
             </div>
             <div class="modal-footer" style="justify-content: space-between; margin-top: 15px;">
-                <button onclick="window.releaseAllCancelledPreAssigns()" style="padding:10px 18px; background:#d32f2f; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🗑️ 모두 해제</button>
-                <button class="btn-modal-cancel" style="background:#555; width:100px;" onclick="document.getElementById('cancelled-preassign-modal').style.display='none'">닫기</button>
+                <button class="btn btn-risk" onclick="window.releaseAllCancelledPreAssigns()">모두 해제</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('cancelled-preassign-modal').style.display='none'">닫기</button>
             </div>
         </div>
     </div>
 
     <div id="order-analysis-modal" class="modal-overlay" onclick="if(event.target.id==='order-analysis-modal') document.getElementById('order-analysis-modal').style.display='none'">
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 850px; max-width: 96vw; padding: 25px 20px;">
-            <div class="modal-header" style="color: #7b1fa2; display: flex; align-items: center; gap: 10px;">
-                📊 함께 팔리는 상품 분석
-                <span class="info-tip" data-tip-key="report-title" onclick="event.stopPropagation(); event.preventDefault();" style="font-size:14px;">i<span class="info-tip-content">📊 <b>함께 팔리는 상품 분석</b><br>━━━━━━━━━━━━━<br>고객이 같은 주문번호로 함께 구매한 상품 조합을 누적 분석한 결과입니다.<br><br>이 데이터는 <b>로케이션 변경 추천</b>에서 자주 함께 팔리는 상품을 가까운 자리에 배치하도록 동선 보정에 사용됩니다.<br><br>피킹 작업자가 한 주문에 여러 상품을 담을 때 이동 거리가 줄어들어 작업 효율이 올라갑니다.</span></span>
-                <button onclick="document.getElementById('order-analysis-modal').style.display='none'" style="margin-left:auto; background:none; border:none; font-size:24px; cursor:pointer;">×</button>
+            <div class="modal-header" style="display: flex; align-items: center; gap: 10px;">
+                함께 팔리는 상품 분석
+                <span class="info-tip" data-tip-key="report-title" onclick="event.stopPropagation(); event.preventDefault();" style="font-size:14px;">i<span class="info-tip-content"><b>함께 팔리는 상품 분석</b><br>━━━━━━━━━━━━━<br>고객이 같은 주문번호로 함께 구매한 상품 조합을 누적 분석한 결과입니다.<br><br>이 데이터는 <b>로케이션 변경 추천</b>에서 자주 함께 팔리는 상품을 가까운 자리에 배치하도록 동선 보정에 사용됩니다.<br><br>피킹 작업자가 한 주문에 여러 상품을 담을 때 이동 거리가 줄어들어 작업 효율이 올라갑니다.</span></span>
+                <button class="modal-x" onclick="document.getElementById('order-analysis-modal').style.display='none'" aria-label="닫기">×</button>
             </div>
-            
-            <div id="order-analysis-summary" style="background:#f3e5f5; border:1px solid #ce93d8; border-radius:8px; padding:15px; margin-bottom:15px; font-size:13px; line-height:1.8;">
-                <div style="text-align:center; color:#666;">데이터를 불러오는 중...</div>
+
+            <div id="order-analysis-summary" class="note-box note-accent" style="padding:15px; margin-bottom:15px; font-size:13px; line-height:1.8;">
+                <div style="text-align:center; color:var(--c-text-2);">데이터를 불러오는 중...</div>
             </div>
-            
-            <div style="font-size:13px; font-weight:bold; color:#4a148c; margin-bottom:8px;">🏆 자주 함께 팔리는 조합 TOP 30 <span style="font-size:11px; color:#666; font-weight:normal;">(5번 이상 + 우연이 아닌 조합)</span><span class="info-tip" data-tip-key="report-top30" onclick="event.stopPropagation(); event.preventDefault();" style="font-size:11px;">i<span class="info-tip-content">🏆 <b>자주 함께 팔리는 조합 TOP 30</b><br>━━━━━━━━━━━━━<br>아래 두 조건을 <b>모두 만족</b>하는 조합만 표시합니다:<br><br>1️⃣ 함께 산 횟수가 <b>5번 이상</b><br>2️⃣ <b>우연이 아닌</b> 조합 (연관도 2.0 이상)<br><br>📌 두 조건을 모두 만족해야 추천 알고리즘에 반영됩니다.<br>데이터가 부족하면 이 표가 비어있을 수 있습니다 — 주문 데이터를 더 누적하세요.</span></span></div>
-            <div class="modal-body" style="max-height: 45vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
-                <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
-                    <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+
+            <div style="font-size:13px; font-weight:600; color:var(--c-text); margin-bottom:8px;">자주 함께 팔리는 조합 TOP 30 <span style="font-size:11px; color:var(--c-text-2); font-weight:normal;">(5번 이상 + 우연이 아닌 조합)</span><span class="info-tip" data-tip-key="report-top30" onclick="event.stopPropagation(); event.preventDefault();" style="font-size:11px;">i<span class="info-tip-content"><b>자주 함께 팔리는 조합 TOP 30</b><br>━━━━━━━━━━━━━<br>아래 두 조건을 <b>모두 만족</b>하는 조합만 표시합니다:<br><br>1) 함께 산 횟수가 <b>5번 이상</b><br>2) <b>우연이 아닌</b> 조합 (연관도 2.0 이상)<br><br>두 조건을 모두 만족해야 추천 알고리즘에 반영됩니다.<br>데이터가 부족하면 이 표가 비어있을 수 있습니다 — 주문 데이터를 더 누적하세요.</span></span></div>
+            <div class="modal-body table-box" style="max-height: 45vh; overflow-y: auto; padding: 0;">
+                <table class="usage-table" style="width:100%;">
+                    <thead>
                         <tr>
-                            <th style="width:50px; border-top:none; font-size:13px;">순위</th>
-                            <th style="width:200px; border-top:none; font-size:13px;">상품A</th>
-                            <th style="width:200px; border-top:none; font-size:13px;">상품B</th>
-                            <th style="width:80px; border-top:none; font-size:13px;">함께 산<br>횟수<span class="info-tip" data-tip-key="report-cobuy" onclick="event.stopPropagation(); event.preventDefault();" style="font-size:11px;">i<span class="info-tip-content">📦 <b>함께 산 횟수</b><br>━━━━━━━━━━━━━<br>같은 주문번호 안에 두 상품이 함께 들어있던 횟수입니다.<br><br>예: 5회 → 5명의 고객이 두 상품을 같은 주문으로 구매</span></span></th>
-                            <th style="width:80px; border-top:none; font-size:13px;">연관도<span class="info-tip" data-tip-key="report-lift" onclick="event.stopPropagation(); event.preventDefault();" style="font-size:11px;">i<span class="info-tip-content">🔗 <b>연관도</b> (lift)<br>━━━━━━━━━━━━━<br>두 상품이 <b>우연 이상으로</b> 함께 팔리는 정도를 숫자로 표현한 값입니다.<br><br>• <b>1.0</b>: 우연 수준 (관련 없음)<br>• <b>2.0</b>: 우연의 2배로 함께 팔림<br>• <b>5.0+</b>: 매우 강한 연관성<br><br>📌 2.0 이상이면 통계적으로 의미 있는 조합으로 봅니다.</span></span></th>
-                            <th style="width:90px; border-top:none; font-size:13px;">최근 함께<br>산 날</th>
-                            <th style="width:90px; background:#f3e5f5; border-top:none; font-size:13px;">현재 위치<span class="info-tip" data-tip-key="report-distance" onclick="event.stopPropagation(); event.preventDefault();" style="font-size:11px;">i<span class="info-tip-content">📍 <b>현재 위치</b><br>━━━━━━━━━━━━━<br>두 상품이 현재 창고에서 어디 있는지 보여줍니다.<br><br>• <span style="color:#2e7d32; font-weight:bold;">같은 동</span>: 이미 가까이 있음 (피킹 동선 짧음)<br>• <span style="color:#d32f2f; font-weight:bold;">다른 동</span>: 떨어져 있음 (옮기면 동선 단축됨)<br><br>📌 추천 모달에서 다른 동에 있는 조합을 같은 동으로 옮기는 추천이 나옵니다.</span></span></th>
+                            <th style="width:50px; font-size:13px;">순위</th>
+                            <th style="width:200px; font-size:13px;">상품A</th>
+                            <th style="width:200px; font-size:13px;">상품B</th>
+                            <th style="width:80px; font-size:13px;">함께 산<br>횟수<span class="info-tip" data-tip-key="report-cobuy" onclick="event.stopPropagation(); event.preventDefault();" style="font-size:11px;">i<span class="info-tip-content"><b>함께 산 횟수</b><br>━━━━━━━━━━━━━<br>같은 주문번호 안에 두 상품이 함께 들어있던 횟수입니다.<br><br>예: 5회 → 5명의 고객이 두 상품을 같은 주문으로 구매</span></span></th>
+                            <th style="width:80px; font-size:13px;">연관도<span class="info-tip" data-tip-key="report-lift" onclick="event.stopPropagation(); event.preventDefault();" style="font-size:11px;">i<span class="info-tip-content"><b>연관도</b> (lift)<br>━━━━━━━━━━━━━<br>두 상품이 <b>우연 이상으로</b> 함께 팔리는 정도를 숫자로 표현한 값입니다.<br><br>• <b>1.0</b>: 우연 수준 (관련 없음)<br>• <b>2.0</b>: 우연의 2배로 함께 팔림<br>• <b>5.0+</b>: 매우 강한 연관성<br><br>2.0 이상이면 통계적으로 의미 있는 조합으로 봅니다.</span></span></th>
+                            <th style="width:90px; font-size:13px;">최근 함께<br>산 날</th>
+                            <th style="width:90px; background:var(--c-accent-soft); font-size:13px;">현재 위치<span class="info-tip" data-tip-key="report-distance" onclick="event.stopPropagation(); event.preventDefault();" style="font-size:11px;">i<span class="info-tip-content"><b>현재 위치</b><br>━━━━━━━━━━━━━<br>두 상품이 현재 창고에서 어디 있는지 보여줍니다.<br><br>• <span style="color:#2e7d32; font-weight:bold;">같은 동</span>: 이미 가까이 있음 (피킹 동선 짧음)<br>• <span style="color:#d32f2f; font-weight:bold;">다른 동</span>: 떨어져 있음 (옮기면 동선 단축됨)<br><br>추천 모달에서 다른 동에 있는 조합을 같은 동으로 옮기는 추천이 나옵니다.</span></span></th>
                         </tr>
                     </thead>
                     <tbody id="order-analysis-tbody"></tbody>
                 </table>
             </div>
-            
+
             <div class="modal-footer" style="justify-content: space-between; margin-top: 15px;">
-                <button onclick="window.resetOrderAnalysis()" style="padding:8px 15px; background:#d32f2f; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">🗑️ 분석 데이터 전체 초기화</button>
-                <button class="btn-modal-cancel" style="background:#555; width:100px;" onclick="document.getElementById('order-analysis-modal').style.display='none'">닫기</button>
+                <button class="btn btn-risk" onclick="window.resetOrderAnalysis()">분석 데이터 전체 초기화</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('order-analysis-modal').style.display='none'">닫기</button>
             </div>
         </div>
     </div>
@@ -1113,38 +1268,38 @@
     <!-- 빈칸확보 모달 (구 2F 이동 추천) -->
     <div id="modal-2f" class="modal-overlay" onclick="if(event.target.id==='modal-2f') document.getElementById('modal-2f').style.display='none'">
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 1500px; max-width: 98vw; padding: 25px 20px; height: 94vh; max-height: 94vh; box-sizing: border-box; display: flex; flex-direction: column;">
-            <div class="modal-header" style="color: #7b1fa2; display: flex; align-items: center; gap: 10px; flex-wrap:wrap; flex-shrink:0;">
-                📭 빈칸확보 리스트
-                <button onclick="document.getElementById('modal-2f').style.display='none'" style="margin-left:auto; background:none; border:none; font-size:24px; cursor:pointer;">×</button>
+            <div class="modal-header" style="display: flex; align-items: center; gap: 10px; flex-wrap:wrap; flex-shrink:0;">
+                빈칸확보 리스트
+                <button class="modal-x" onclick="document.getElementById('modal-2f').style.display='none'" aria-label="닫기">×</button>
             </div>
-            <div style="background:#f3e5f5; border:1px solid #ce93d8; border-radius:8px; padding:12px 15px; margin-bottom:15px;">
+            <div class="note-box" style="padding:12px 15px; margin-bottom:15px; flex-shrink:0;">
                 <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
-                    <label style="font-size:13px; font-weight:bold; color:#4a148c;">🏷️ 제외할 공급처 선택<span class="info-tip" data-tip-key="2f-supplier">i<span class="info-tip-content">🏷️ <b>공급처 제외</b><br>체크한 공급처의 상품은 빈칸확보 목록에서 제외됩니다.<br><br>공급처 정보는 업로드한 재고 엑셀의 <b>공급처</b> 컬럼에서 가져옵니다.</span></span></label>
-                    <span style="font-size:11px; color:#666;">체크한 공급처의 상품은 목록에서 제외</span>
-                    <label style="margin-left:auto; font-size:12px; font-weight:bold; color:#4a148c; cursor:pointer; user-select:none;"><input type="checkbox" id="2f-supplier-all" onclick="window.toggle2FSupplierAll(this)" style="vertical-align:middle;"> 전체 선택</label>
-                    <button onclick="window.calc2FList()" style="padding:8px 16px; background:#7b1fa2; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">🔍 조회</button>
+                    <label style="font-size:13px; font-weight:600; color:var(--c-text);">제외할 공급처 선택<span class="info-tip" data-tip-key="2f-supplier">i<span class="info-tip-content"><b>공급처 제외</b><br>체크한 공급처의 상품은 빈칸확보 목록에서 제외됩니다.<br><br>공급처 정보는 업로드한 재고 엑셀의 <b>공급처</b> 컬럼에서 가져옵니다.</span></span></label>
+                    <span style="font-size:11px; color:var(--c-text-2);">체크한 공급처의 상품은 목록에서 제외</span>
+                    <label style="margin-left:auto; font-size:12px; font-weight:600; color:var(--c-text); cursor:pointer; user-select:none;"><input type="checkbox" id="2f-supplier-all" onclick="window.toggle2FSupplierAll(this)" style="vertical-align:middle;"> 전체 선택</label>
+                    <button class="btn btn-primary btn-sm" onclick="window.calc2FList()">조회</button>
                 </div>
-                <div id="2f-supplier-box" style="max-height:110px; overflow-y:auto; display:flex; flex-wrap:wrap; gap:6px 16px; background:#fff; border:1px solid #ce93d8; border-radius:6px; padding:8px 10px;">
-                    <span style="font-size:12px; color:#999;">조회하면 공급처 목록이 표시됩니다.</span>
+                <div id="2f-supplier-box" style="max-height:110px; overflow-y:auto; display:flex; flex-wrap:wrap; gap:6px 16px; background:var(--c-surface); border:1px solid var(--c-line); border-radius:var(--r-sm); padding:8px 10px;">
+                    <span style="font-size:12px; color:var(--c-text-3);">조회하면 공급처 목록이 표시됩니다.</span>
                 </div>
             </div>
-            <div style="font-size:11px; color:#666; margin-bottom:10px;">
+            <div style="font-size:11px; color:var(--c-text-2); margin-bottom:10px;">
                 ※ <b>현재고 0개</b>이고 <b>입고대기에 포함되지 않은</b> 상품을 빈칸확보 대상으로 표시합니다. (체크한 공급처는 제외)
             </div>
-            <div class="modal-body" style="flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid #ccc; border-radius: 8px; padding: 0;">
-                <table class="usage-table" style="width:100%; border-left:none; border-right:none; border-bottom:none;">
-                    <thead style="position: sticky; top: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div class="modal-body table-box" style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0;">
+                <table class="usage-table" style="width:100%;">
+                    <thead>
                         <tr>
-                            <th style="width:40px; border-top:none;"><input type="checkbox" id="2f-check-all" onclick="window.toggle2FCheckAll(this)"></th>
-                            <th style="width:50px; border-top:none; font-size:13px;">No</th>
-                            <th style="width:120px; border-top:none; font-size:13px;">상품코드</th>
-                            <th style="border-top:none; font-size:13px;">상품명</th>
-                            <th style="width:100px; border-top:none; font-size:13px;">옵션</th>
-                            <th style="width:110px; border-top:none; font-size:13px;">공급처</th>
-                            <th style="width:70px; border-top:none; font-size:13px;">정상재고</th>
-                            <th style="width:100px; border-top:none; font-size:13px; cursor:pointer;" onclick="window.sort2FList()">마지막출고.배송일 <span id="2f-sort-icon">▲</span></th>
-                            <th style="width:100px; border-top:none; font-size:13px;">현재위치</th>
-                            <th style="width:180px; background:#f3e5f5; border-top:none; font-size:13px;">변경값<span class="info-tip" data-tip-key="2f-change-value">i<span class="info-tip-content">🏷️ <b>2F 이동 시 넣을 값</b><br>형식: <b>2F-상품코드 옵션추가항목1</b><br><br>이 값을 복사해서 재고관리 시스템의 로케이션 컬럼에 붙여넣으면, 해당 상품이 2층 창고로 이동된 것으로 처리됩니다.</span></span></th>
+                            <th style="width:40px;"><input type="checkbox" id="2f-check-all" onclick="window.toggle2FCheckAll(this)"></th>
+                            <th style="width:50px; font-size:13px;">No</th>
+                            <th style="width:120px; font-size:13px;">상품코드</th>
+                            <th style="font-size:13px;">상품명</th>
+                            <th style="width:100px; font-size:13px;">옵션</th>
+                            <th style="width:110px; font-size:13px;">공급처</th>
+                            <th style="width:70px; font-size:13px;">정상재고</th>
+                            <th style="width:100px; font-size:13px; cursor:pointer;" onclick="window.sort2FList()">마지막출고.배송일 <span id="2f-sort-icon">▲</span></th>
+                            <th style="width:100px; font-size:13px;">현재위치</th>
+                            <th style="width:180px; background:var(--c-accent-soft); font-size:13px;">변경값<span class="info-tip" data-tip-key="2f-change-value">i<span class="info-tip-content"><b>2F 이동 시 넣을 값</b><br>형식: <b>2F-상품코드 옵션추가항목1</b><br><br>이 값을 복사해서 재고관리 시스템의 로케이션 컬럼에 붙여넣으면, 해당 상품이 2층 창고로 이동된 것으로 처리됩니다.</span></span></th>
                         </tr>
                     </thead>
                     <tbody id="2f-tbody"></tbody>
@@ -1152,15 +1307,15 @@
             </div>
             <div class="modal-footer" style="justify-content: space-between; margin-top: 15px; flex-shrink:0;">
                 <div style="display:flex; gap:8px;">
-                    <button onclick="window.download2FExcel()" style="padding:8px 15px; background:#1976d2; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">📥 엑셀 다운로드 (체크 시 선택만)</button>
+                    <button class="btn btn-secondary" onclick="window.download2FExcel()">엑셀 다운로드 (체크 시 선택만)</button>
                 </div>
-                <button class="btn-modal-cancel" style="background:#555; width:100px;" onclick="document.getElementById('modal-2f').style.display='none'">닫기</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('modal-2f').style.display='none'">닫기</button>
             </div>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610122212"></script>
+    <script type="module" src="js/location.js?v=202610131032"></script>
     <script>
         function switchView(view) {
             document.getElementById('view-list').style.display = view === 'list' ? 'block' : 'none';
@@ -1227,7 +1382,7 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610122212"></script>
-    <script src="js/modal-esc.js?v=202610122212"></script>
+    <script src="js/connection-banner.js?v=202610131032"></script>
+    <script src="js/modal-esc.js?v=202610131032"></script>
 </body>
 </html>
