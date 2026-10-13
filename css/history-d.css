@@ -50,12 +50,13 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) :is(td, th) { font-variant-numeric: tabular-nums; }
 
 /* === remap: generated === */
-/* 범위 파일 40개에서 색 클래스 354종 수집 → 규칙 243개. 손으로 고치지 말 것(생성기 다시 실행). */
+/* 범위 파일 40개에서 색 클래스 355종 수집 → 규칙 244개. 손으로 고치지 말 것(생성기 다시 실행). */
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-100 { background-color: var(--c-warn-soft); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-50 { background-color: var(--c-warn-bg); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-50\/40 { background-color: var(--c-warn-bg); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-50\/60 { background-color: var(--c-warn-bg); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-500 { background-color: var(--c-warn); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-600 { background-color: var(--c-warn-strong); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-black { background-color: var(--c-scrim); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-100 { background-color: var(--c-accent-soft); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-300 { background-color: var(--c-accent-mid); }

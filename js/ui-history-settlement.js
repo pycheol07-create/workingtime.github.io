@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202610131512';
-import { LEAVE_TYPES } from './state.js?v=202610131512';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610131512';
+import * as State from './state.js?v=202610131533';
+import { LEAVE_TYPES } from './state.js?v=202610131533';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610131533';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610131512';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610131512';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610131533';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610131533';
 
 import {
     calculateReportKPIs,
@@ -19,11 +19,11 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202610131512';
+} from './ui-history-reports-logic.js?v=202610131533';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202610131512';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610131512';
-import { D } from './d-chart.js?v=202610131512';
+import { aggregateManagementData } from './ui-history-management.js?v=202610131533';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610131533';
+import { D } from './d-chart.js?v=202610131533';
 
 // ============================================================
 // 모듈 상태
@@ -594,9 +594,9 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
     }
 
     // 최종 판정
-    let verdict = { text: '양호', bg: 'bg-emerald-500' };
-    if (oee < 60 || (qtyPct !== null && qtyPct <= -10) || insp.qtyDefectRate >= 8) verdict = { text: '주의 필요', bg: 'bg-red-500' };
-    else if (oee < 80 || (qtyPct !== null && qtyPct < 0) || insp.qtyDefectRate >= 5) verdict = { text: '보통', bg: 'bg-amber-500' };
+    let verdict = { text: '양호', bg: 'bg-emerald-600' };
+    if (oee < 60 || (qtyPct !== null && qtyPct <= -10) || insp.qtyDefectRate >= 8) verdict = { text: '주의 필요', bg: 'bg-red-600' };
+    else if (oee < 80 || (qtyPct !== null && qtyPct < 0) || insp.qtyDefectRate >= 5) verdict = { text: '보통', bg: 'bg-amber-600' };
 
     // 판정 요약 한 줄
     const verdictSummary = verdict.text === '주의 필요'
@@ -796,9 +796,9 @@ function renderExecutiveSummary(core, tp, wf, att, mg, insp, periodLabel, workin
     }
 
     const d = core.diagnosis?.diagnosis;
-    let verdictText = '양호', verdictBg = 'bg-emerald-500';
-    if (core.curProd.oee < 60) { verdictText = '주의 필요'; verdictBg = 'bg-red-500'; }
-    else if (core.curProd.oee < 80) { verdictText = '보통'; verdictBg = 'bg-amber-500'; }
+    let verdictText = '양호', verdictBg = 'bg-emerald-600';
+    if (core.curProd.oee < 60) { verdictText = '주의 필요'; verdictBg = 'bg-red-600'; }
+    else if (core.curProd.oee < 80) { verdictText = '보통'; verdictBg = 'bg-amber-600'; }
 
     const qtyChangeTxt = tp.prevTotalQuantity > 0
         ? `전기간(${fmt(tp.prevTotalQuantity)}개) 대비 ${tp.totalQuantity >= tp.prevTotalQuantity ? '+' : ''}${(((tp.totalQuantity - tp.prevTotalQuantity) / tp.prevTotalQuantity) * 100).toFixed(1)}%`
@@ -1502,10 +1502,10 @@ function buildPeriodControlsHtml() {
                 <div class="flex rounded-lg overflow-hidden border border-gray-300">
                     ${granBtn('month', '월')}${granBtn('quarter', '분기')}${granBtn('year', '년')}
                 </div>
-                <select id="settle-year-select" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                <select id="settle-year-select" class="border border-gray-300 bg-white text-gray-800 rounded-lg px-2 py-1.5 text-sm">
                     ${yearOptions.map(y => `<option value="${y}" ${String(year) === y ? 'selected' : ''}>${y}년</option>`).join('')}
                 </select>
-                ${granularity !== 'year' ? `<select id="settle-sub-select" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">${subOptions}</select>` : ''}
+                ${granularity !== 'year' ? `<select id="settle-sub-select" class="border border-gray-300 bg-white text-gray-800 rounded-lg px-2 py-1.5 text-sm">${subOptions}</select>` : ''}
                 <button id="settle-generate-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-1.5 rounded-lg transition">보고서 생성</button>
             </div>
             <div class="flex items-center gap-2">

@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610131512';
-import * as State from './state.js?v=202610131512';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610131512';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610131512';
+import * as DOM from './dom-elements.js?v=202610131533';
+import * as State from './state.js?v=202610131533';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610131533';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610131533';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610131512';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610131512';
-import { renderQuantityModalInputs } from './ui.js?v=202610131512';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610131512';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610131512';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610131533';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610131533';
+import { renderQuantityModalInputs } from './ui.js?v=202610131533';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610131533';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610131533';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -48,15 +48,7 @@ export const loadAndRenderHistoryList = async () => {
         return;
     }
 
-    // 메인 탭 스타일 초기화
-    document.querySelectorAll('.history-main-tab-btn[data-main-tab="work"]').forEach(btn => {
-        btn.classList.add('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-        btn.classList.remove('font-medium', 'text-gray-500');
-    });
-    document.querySelectorAll('.history-main-tab-btn:not([data-main-tab="work"])').forEach(btn => {
-        btn.classList.remove('font-semibold', 'text-blue-600', 'border-b-2', 'border-blue-600');
-        btn.classList.add('font-medium', 'text-gray-500');
-    });
+    // 메인 탭(대시보드·생산성 …) 표시는 건드리지 않는다 — 예전엔 없는 'work' 메인 탭을 켜려다 모든 탭의 선택 표시를 지웠다
 
     // 하위 탭 스타일 초기화
     document.querySelectorAll('#history-tabs button[data-view="daily"]').forEach(btn => {
