@@ -1,12 +1,12 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202610131533';
-import * as State from './state.js?v=202610131533';
-import { updateDailyData } from './app-data.js?v=202610131533'; 
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610131533';
+import * as DOM from './dom-elements.js?v=202610131709';
+import * as State from './state.js?v=202610131709';
+import { updateDailyData } from './app-data.js?v=202610131709'; 
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610131709';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { currentImageBase64, clearImageState, setCurrentImageBase64 } from './inspection-media.js?v=202610131533';
+import { currentImageBase64, clearImageState, setCurrentImageBase64 } from './inspection-media.js?v=202610131709';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -170,8 +170,8 @@ export const openInspectionListWindow = () => {
         const trClass = isCompleted ? 'bg-gray-100 text-gray-400' : 'bg-white hover:bg-blue-50 cursor-pointer border-b border-gray-100';
         const statusBadge = isCompleted ? '<span class="text-green-600 font-bold text-xs">완료</span>' : '<span class="text-gray-500 text-xs">대기</span>';
         const onClickAttr = `data-index="${idx}"`;
-        const locInfo = item.location ? `<div class="text-xs font-bold text-indigo-600">📦 ${item.location}</div>` : '';
-        const sampleInfo = item.sampleLocation ? `<div class="text-xs font-bold text-red-600 mt-0.5">📌 샘플: ${item.sampleLocation}</div>` : '';
+        const locInfo = item.location ? `<div class="text-xs font-bold text-indigo-600">위치 ${item.location}</div>` : '';
+        const sampleInfo = item.sampleLocation ? `<div class="text-xs font-bold text-red-600 mt-0.5">샘플: ${item.sampleLocation}</div>` : '';
 
         return `
             <tr class="${trClass} transition" ${onClickAttr}>
@@ -189,15 +189,15 @@ export const openInspectionListWindow = () => {
 
     modal.innerHTML = `
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden animate-fade-in-up">
-            <div class="p-4 bg-indigo-600 text-white flex justify-between items-center shadow-md shrink-0">
+            <div class="p-4 bg-white border-b border-gray-200 flex justify-between items-center shrink-0">
                 <div>
-                    <h2 class="text-lg font-bold flex items-center gap-2">
-                        📋 검수 대기 리스트
-                        <span class="bg-white text-indigo-600 text-xs px-2 py-0.5 rounded-full font-extrabold">${list.length}</span>
+                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        검수 대기 리스트
+                        <span class="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full font-extrabold">${list.length}</span>
                     </h2>
-                    <p class="text-xs text-indigo-200 mt-1">📅 출고일자: <span class="font-bold text-white">${packingDate}</span></p>
+                    <p class="text-xs text-gray-500 mt-1">출고일자: <span class="font-bold text-gray-900">${packingDate}</span></p>
                 </div>
-                <button id="close-dynamic-modal-btn" class="text-white hover:text-gray-200 bg-white/20 hover:bg-white/30 rounded-full p-2 transition">
+                <button id="close-dynamic-modal-btn" class="text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full p-2 transition">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>
@@ -257,9 +257,9 @@ export const renderTodoList = () => {
         const statusBadge = isCompleted
             ? '<span class="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">완료</span>'
             : '<span class="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">대기</span>';
-        const locationInfo = item.location ? `<span class="text-indigo-600 font-bold bg-indigo-50 px-1 rounded">📦 ${item.location}</span>` : '';
-        const sampleInfo = item.sampleLocation ? `<span class="text-red-600 font-bold bg-red-50 px-1 rounded">📌 샘플: ${item.sampleLocation}</span>` : '';
-        const dateInfo = item.packingDate ? `<span class="text-gray-500">📅 출고: ${item.packingDate.slice(2)}</span>` : '';
+        const locationInfo = item.location ? `<span class="text-indigo-600 font-bold bg-indigo-50 px-1 rounded">위치 ${item.location}</span>` : '';
+        const sampleInfo = item.sampleLocation ? `<span class="text-red-600 font-bold bg-red-50 px-1 rounded">샘플: ${item.sampleLocation}</span>` : '';
+        const dateInfo = item.packingDate ? `<span class="text-gray-500">출고: ${item.packingDate.slice(2)}</span>` : '';
 
         // 모바일에서 4컬럼 테이블이 넘쳐 텍스트가 겹치던 문제 → 카드형 레이아웃으로 변경
         card.innerHTML = `
@@ -879,6 +879,6 @@ export const clearTodayList = () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202610131533';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610131533';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610131533';
+export { handleExcelUpload } from './inspection-excel.js?v=202610131709';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610131709';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610131709';

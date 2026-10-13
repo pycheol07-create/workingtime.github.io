@@ -1,9 +1,9 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610131533';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610131709';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js?v=202610131533';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610131533';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js?v=202610131709';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610131709';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -304,7 +304,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             if (isDisabled) card.disabled = true;
 
             let statusLabel = '';
-            if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
+            if (isOngoing) { statusLabel = '<div class="text-xs text-blue-500 font-medium">업무 중</div>'; }
             else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
             else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
             else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; }
@@ -352,7 +352,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         if (isDisabled) card.disabled = true;
 
         let statusLabel = '';
-        if (isOngoing) { statusLabel = '<div class="text-xs text-red-400 font-medium">업무 중</div>'; }
+        if (isOngoing) { statusLabel = '<div class="text-xs text-blue-500 font-medium">업무 중</div>'; }
         else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
         else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
         else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; }

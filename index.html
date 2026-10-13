@@ -24,10 +24,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610131533">
-    <link rel="stylesheet" href="css/style.css?v=202610131533">
-    <link rel="stylesheet" href="css/dash-d.css?v=202610131533">
-    <link rel="stylesheet" href="css/history-d.css?v=202610131533">
+    <link rel="stylesheet" href="css/suit.css?v=202610131709">
+    <link rel="stylesheet" href="css/style.css?v=202610131709">
+    <link rel="stylesheet" href="css/dash-d.css?v=202610131709">
+    <link rel="stylesheet" href="css/history-d.css?v=202610131709">
+    <link rel="stylesheet" href="css/form-d.css?v=202610131709">
 </head>
 <body class="overflow-hidden transition-colors duration-200">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -379,7 +380,6 @@
 
     <div id="overtime-prompt-modal" class="hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 transition-opacity">
         <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center border border-gray-100 dark:border-gray-700">
-            <div class="text-4xl mb-4">🌙</div>
             <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">정규 근무 시간 종료</h3>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 17시 30분이 되었습니다.<br>
@@ -390,7 +390,7 @@
                 <button id="btn-continue-overtime" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-bold transition-colors">
                     연장 근무 계속하기
                 </button>
-                <button id="btn-close-now" class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg shadow-sm text-sm transition-colors font-medium">
+                <button id="btn-close-now" class="bg-white border border-red-300 text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
                     지금 마감하기
                 </button>
             </div>
@@ -400,22 +400,22 @@
     <div id="notice-management-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center hidden z-[100] p-4 transition-opacity">
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg relative border border-gray-100 dark:border-gray-700 flex flex-col max-h-[85vh]">
             <div class="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center shrink-0">
-                <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>📌</span> 중요 알림 관리</h2>
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">중요 알림 관리</h2>
                 <button class="absolute top-5 right-5 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors cursor-pointer bg-transparent border-none text-2xl leading-none" id="close-notice-modal-btn">&times;</button>
             </div>
             
             <div class="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 shrink-0">
                 <div class="flex gap-2">
-                    <textarea id="new-notice-input" placeholder="새 알림 내용을 입력하세요 (@이름 으로 멘션 알림 가능)" class="flex-1 p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-sm dark:text-white outline-none focus:border-yellow-500 resize-none" rows="2"></textarea>
+                    <textarea id="new-notice-input" placeholder="새 알림 내용을 입력하세요 (@이름 으로 멘션 알림 가능)" class="flex-1 p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-sm dark:text-white outline-none focus:border-blue-500 resize-none" rows="2"></textarea>
                     <button id="add-notice-btn" class="bg-[#2F62C9] hover:bg-[#1E4699] text-white font-bold px-5 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap shadow-sm h-fit self-end">등록</button>
                 </div>
                 <!-- 일정(선택) — 넣으면 목록에 날짜가 함께 표시되고 그 순서로 정렬된다 -->
                 <div class="flex flex-wrap items-center gap-2 mt-2">
                     <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400">일정</label>
                     <input type="date" id="new-notice-date"
-                           class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-xs dark:text-white outline-none focus:border-yellow-500">
+                           class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-xs dark:text-white outline-none focus:border-blue-500">
                     <input type="time" id="new-notice-time"
-                           class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-xs dark:text-white outline-none focus:border-yellow-500">
+                           class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-xs dark:text-white outline-none focus:border-blue-500">
                     <button type="button" id="clear-notice-date"
                             class="text-[11px] font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 px-1.5 py-1">지우기</button>
                     <span class="text-[10px] text-gray-400">비워 두면 일정 없는 공지로 등록됩니다</span>
@@ -432,11 +432,11 @@
     <div id="notification-modal" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center hidden z-[250] p-4 transition-opacity">
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm relative border border-gray-100 dark:border-gray-700 flex flex-col max-h-[80vh]">
             <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center shrink-0">
-                <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span>🔔</span> 알림 센터</h2>
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">알림 센터</h2>
                 <button class="text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors text-2xl leading-none" id="close-notification-modal-btn">&times;</button>
             </div>
             <div class="p-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 shrink-0 flex justify-between items-center px-4">
-                <button id="open-send-msg-btn" class="text-xs bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 font-bold px-3 py-1.5 rounded-md transition shadow-sm flex items-center gap-1">✉️ 쪽지 보내기</button>
+                <button id="open-send-msg-btn" class="text-xs bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 font-bold px-3 py-1.5 rounded-md transition shadow-sm flex items-center gap-1">쪽지 보내기</button>
                 <div class="flex gap-3">
                     <button id="read-all-noti-btn" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">모두 읽음 처리</button>
                     <button id="clear-all-noti-btn" class="text-xs font-bold text-red-500 dark:text-red-400 hover:underline">전체 삭제</button>
@@ -453,7 +453,7 @@
     <div id="send-message-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center hidden z-[300] p-4 transition-opacity">
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl relative border border-gray-100 dark:border-gray-700 flex flex-col">
             <div class="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">✉️ 쪽지 보내기</h2>
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">쪽지 보내기</h2>
                 <button class="text-gray-400 hover:text-gray-700 dark:hover:text-white text-2xl leading-none" id="close-send-msg-btn">&times;</button>
             </div>
             <div class="p-5 flex flex-col md:flex-row gap-5 flex-1">
@@ -512,13 +512,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202610131533');
+                await import('./js/app.js?v=202610131709');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202610131533').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202610131709').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -600,11 +600,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202610131533';
-        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202610131533';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202610131533';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610131533';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610131533';
+        import { appState } from './js/state.js?v=202610131709';
+        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202610131709';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202610131709';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610131709';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610131709';
 
         loadAdminTodos();
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
@@ -689,23 +689,23 @@
             list.innerHTML = sorted.map(notice => {
                 const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
                 
-                const mentionStyle = '<span class="inline-block bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50 rounded-md px-1.5 py-0.5 text-[11px] font-black mx-1 align-baseline shadow-sm leading-tight">@$1</span>';
+                const mentionStyle = '<span class="inline-block bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50 rounded-md px-1.5 py-0.5 text-[11px] font-bold mx-1 align-baseline leading-tight">@$1</span>';
                 const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, mentionStyle);
 
                 return `
                 <li class="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm transition-colors">
                     <div class="flex items-start gap-3 flex-1 overflow-hidden mt-0.5">
-                        <button class="toggle-notice-btn text-xl focus:outline-none shrink-0" data-id="${notice.id}">
-                            ${notice.completed ? '✅' : '⬜'}
+                        <button class="toggle-notice-btn focus:outline-none shrink-0" data-id="${notice.id}">
+                            ${notice.completed ? '<span class="inline-flex items-center justify-center w-5 h-5 rounded-md bg-blue-600 border border-blue-600 text-white"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>' : '<span class="inline-flex items-center justify-center w-5 h-5 rounded-md bg-white border border-gray-300"></span>'}
                         </button>
                         <span class="notice-text-span flex-1 text-sm break-words ${notice.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200 font-bold'}">
                             ${highlightedText}
-                            ${notice.scheduleAt ? `<span class="block mt-1 text-xs font-bold text-red-600 dark:text-red-400">🗓 ${window.formatNoticeSchedule(notice.scheduleAt)}</span>` : ''}
+                            ${notice.scheduleAt ? `<span class="block mt-1 text-xs font-bold text-red-600 dark:text-red-400">${window.formatNoticeSchedule(notice.scheduleAt)}</span>` : ''}
                         </span>
                     </div>
                     <div class="flex items-center gap-2 shrink-0 ml-3 mt-1">
                         <button class="edit-notice-btn text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 font-bold px-3 py-1.5 rounded-md transition" data-id="${notice.id}">수정</button>
-                        <button class="delete-notice-btn text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-red-500 dark:text-red-400 hover:bg-[#F4E3E5] dark:hover:bg-gray-700 font-bold px-3 py-1.5 rounded-md transition" data-id="${notice.id}">삭제</button>
+                        <button class="delete-notice-btn text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 font-bold px-3 py-1.5 rounded-md transition" data-id="${notice.id}">삭제</button>
                     </div>
                 </li>
             `}).join('');
@@ -767,8 +767,8 @@
             }
         });
     </script>
-    <script src="js/connection-banner.js?v=202610131533"></script>
-    <script src="js/modal-esc.js?v=202610131533"></script>
-    <script src="js/app-version.js?v=202610131533"></script>
+    <script src="js/connection-banner.js?v=202610131709"></script>
+    <script src="js/modal-esc.js?v=202610131709"></script>
+    <script src="js/app-version.js?v=202610131709"></script>
 </body>
 </html>

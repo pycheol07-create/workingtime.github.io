@@ -1,15 +1,15 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202610131533';
-import { isPersistentLeaveType } from './state.js?v=202610131533';
-import * as DOM from './dom-elements.js?v=202610131533';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610131533';
+import * as State from './state.js?v=202610131709';
+import { isPersistentLeaveType } from './state.js?v=202610131709';
+import * as DOM from './dom-elements.js?v=202610131709';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610131709';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610131533';
-import { renderTodoList } from './inspection-logic.js?v=202610131533';
-import { renderNotificationList } from './app-notifications.js?v=202610131533';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610131533';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610131533';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610131709';
+import { renderTodoList } from './inspection-logic.js?v=202610131709';
+import { renderNotificationList } from './app-notifications.js?v=202610131709';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610131709';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610131709';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -388,6 +388,12 @@ async function backfillActiveLocksOnce(workRecordsColRef) {
 let _staleLockTimer = null;
 let _staleLockLastRun = 0;
 const STALE_LOCK_COOLDOWN_MS = 30_000;
+// 읽기 절약(2026-10-13): 업무 기록이 바뀔 때마다 잠금 전체를 다시 읽지 않는다.
+// 잠금이 남는 건 '진행 중이던 사람이 빠질 때(종료·삭제)'뿐이므로 그때만 바로 확인하고,
+// 그 밖에는 이 간격마다 한 번만 확인한다(다른 경로로 남은 잠금 대비 안전망).
+const STALE_LOCK_IDLE_RECHECK_MS = 10 * 60_000;
+let _staleLockPrevAlive = null;
+let _staleLockPending = false;   // 빠진 사람을 봤지만 쿨다운에 걸려 아직 확인 못 함
 
 async function reconcileActiveLocksNow() {
     const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
@@ -411,14 +417,31 @@ async function reconcileActiveLocksNow() {
 }
 
 function reconcileActiveLocksDebounced() {
+    const alive = new Set(
+        (State.appState.workRecords || [])
+            .filter(r => r.status === 'ongoing' || r.status === 'paused')
+            .map(r => r.member)
+    );
+    const prev = _staleLockPrevAlive;
+    _staleLockPrevAlive = alive;
+    // 처음(prev 없음)이거나 진행 중이던 사람이 빠졌으면 바로 확인 대상, 아니면 10분 안전망만
+    if (!prev || [...prev].some(m => !alive.has(m))) _staleLockPending = true;
+    if (!_staleLockPending && Date.now() - _staleLockLastRun < STALE_LOCK_IDLE_RECHECK_MS) return;
     if (_staleLockTimer) return;
-    if (Date.now() - _staleLockLastRun < STALE_LOCK_COOLDOWN_MS) return;
+    if (Date.now() - _staleLockLastRun < STALE_LOCK_COOLDOWN_MS) {
+        // 쿨다운이 끝나면 다시 시도(기록 변경이 더 없어도 놓치지 않게)
+        _staleLockTimer = setTimeout(() => { _staleLockTimer = null; reconcileActiveLocksDebounced(); },
+            STALE_LOCK_COOLDOWN_MS - (Date.now() - _staleLockLastRun) + 50);
+        return;
+    }
     _staleLockTimer = setTimeout(async () => {
         _staleLockTimer = null;
         try {
+            _staleLockPending = false;
             await reconcileActiveLocksNow();
             _staleLockLastRun = Date.now();
         } catch (e) {
+            _staleLockPending = true;   // 다음 기회에 다시
             console.error('Stale lock reconcile failed:', e);
         }
     }, 5_000);

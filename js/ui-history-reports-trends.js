@@ -1,6 +1,6 @@
 // === js/ui-history-reports-trends.js ===
-import { predictFutureTrends } from './analysis-logic.js?v=202610131533';
-import { channelScope } from './revenue-channels.js?v=202610131533';
+import { predictFutureTrends } from './analysis-logic.js?v=202610131709';
+import { channelScope } from './revenue-channels.js?v=202610131709';
 
 let trendChartInstance = null; 
 

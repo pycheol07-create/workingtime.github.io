@@ -7,7 +7,10 @@
     if (typeof document === 'undefined') return;
 
     // ESC로 닫지 않을 모달 (로그인 등 — 닫으면 화면이 비어버림)
-    const EXCLUDED_IDS = new Set(['login-modal']);
+    // overtime-prompt-modal: 연장근무 확인 — '지금 마감하기'(되돌릴 수 없음)가 들어 있어 ESC 로 아무것도 하지 않는다
+    const EXCLUDED_IDS = new Set(['login-modal', 'overtime-prompt-modal']);
+    // id 에 close 가 들어 있지만 '닫기'가 아닌 동작 버튼 — ESC 가 누르면 안 된다
+    const NOT_CLOSE_BUTTON_IDS = new Set(['btn-close-now']);
 
     function isVisible(el) {
         if (!el || el.classList.contains('hidden')) return false;
@@ -25,10 +28,11 @@
     // (사이드바 딤 오버레이·워터마크 등 fixed inset-0 이지만 모달이 아닌 것 제외)
     function findTopModal() {
         const candidates = Array.from(document.querySelectorAll('.fixed.inset-0'));
+        // 제외 모달도 후보에 넣어 순서를 정한 뒤, 맨 위가 제외 모달이면 ESC 는 아무것도 하지 않는다
+        // (빼고 고르면 그 아래 모달이 대신 닫힌다 — 예: 연장근무 팝업 밑의 처리량 입력)
         const visible = candidates.filter(el =>
             el.className &&
             el.className.indexOf('justify-center') !== -1 &&
-            !EXCLUDED_IDS.has(el.id) &&
             isVisible(el)
         );
         if (visible.length === 0) return null;
@@ -41,14 +45,14 @@
             if (pos & Node.DOCUMENT_POSITION_PRECEDING) return -1;
             return 0;
         });
-        return visible[0];
+        return EXCLUDED_IDS.has(visible[0].id) ? null : visible[0];
     }
 
     // 모달 내부의 "닫기" 성격 버튼을 찾는다. (정리 로직이 있는 전용 닫기 핸들러 우선 실행)
     // 취소/삭제 등 다른 동작 버튼은 건드리지 않도록 보수적으로 매칭한다.
     function findCloseButton(modal) {
         // 1) id에 close가 포함된 버튼 (예: close-weekend-modal-btn, admin-date-close-btn)
-        const byId = modal.querySelector('button[id*="close" i]');
+        const byId = Array.from(modal.querySelectorAll('button[id*="close" i]')).find(b => !NOT_CLOSE_BUTTON_IDS.has(b.id));
         if (byId) return byId;
         // 2) 텍스트가 ×/✕/닫기 인 버튼
         const buttons = modal.querySelectorAll('button');

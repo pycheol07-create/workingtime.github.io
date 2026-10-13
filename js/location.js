@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610131533';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610131709';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610131533';
+import { escapeHtml as escAttr } from './utils.js?v=202610131709';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -46,6 +46,8 @@ const { db, auth } = initializeFirebase();
 const LOC_COLLECTION = 'Locations';
 
 let originalData = []; 
+// 스냅샷에서 받은 자리별 원본 값(보정 전) — 최신화 때 '값이 그대로인 자리'를 건너뛰는 비교용
+let rawLocMap = {};
 let zikjinData = {}; // ZG&AB 출고 (직진+에이블리 합본)
 let weeklyData = {}; // 주차별
 let incomingData = {};
@@ -560,11 +562,13 @@ function setupRealtimeListenerA() {
         document.getElementById('firebase-guide').style.display = 'none';
         
         let tempLocMap = {}; 
+        const tempRawMap = {};
         
         snapshot.forEach(docSnap => {
             const zoneData = docSnap.data();
             for (let locId in zoneData) {
                 if (typeof zoneData[locId] === 'object' && zoneData[locId] !== null) {
+                    tempRawMap[locId] = zoneData[locId];
                     let locObj = { id: locId, ...zoneData[locId] };
                     
                     if (locObj.rawDataStr) {
@@ -586,6 +590,7 @@ function setupRealtimeListenerA() {
         });
         
         originalData = Object.values(tempLocMap);
+        rawLocMap = tempRawMap;
         
         // ★ codeTag 자정 초기화 체크
         const now = new Date();
@@ -5024,6 +5029,26 @@ async function updateDatabaseA(rows, mode = 'daily') {
                 }
             }
         }
+
+        // ★ 쓰기·읽기 절약(2026-10-13): 값이 그대로인 자리는 쓰지 않는다.
+        //   예전엔 최신화마다 모든 자리에 updatedAt 을 새로 찍어 ZONE 문서 전체(약 8.8천)를 다시 썼고,
+        //   열려 있는 로케이션 화면마다 그만큼 다시 읽었다. 비교는 스냅샷 원본(rawLocMap, 보정 전 값) 기준.
+        //   빈 값('', null, undefined, false)은 같은 것으로 본다. 새 자리·옛 rawData 칸이 남은 자리는 항상 쓴다.
+        const _norm = v => (v === undefined || v === null || v === false || v === '') ? ''
+            : (typeof v === 'object' && typeof v.toMillis === 'function') ? String(v.toMillis())
+            : (typeof v === 'object') ? JSON.stringify(v) : String(v);
+        let skippedSameCount = 0;
+        for (const zoneId of Object.keys(zoneUpdates)) {
+            const locs = zoneUpdates[zoneId];
+            for (const locId of Object.keys(locs)) {
+                const upd = locs[locId], cur = rawLocMap[locId];
+                if (!cur || cur.rawData !== undefined) continue;
+                const changed = Object.keys(upd).some(k => k !== 'updatedAt' && k !== 'rawData' && _norm(upd[k]) !== _norm(cur[k]));
+                if (!changed) { delete locs[locId]; skippedSameCount++; }
+            }
+            if (Object.keys(locs).length === 0) delete zoneUpdates[zoneId];
+        }
+        console.log(`[최신화] 바뀐 자리만 저장 — 그대로인 자리 ${skippedSameCount}곳 건너뜀, 쓰는 ZONE 문서 ${Object.keys(zoneUpdates).length}개`);
 
         let currentBatchLocCount = 0;
         for (let zoneId in zoneUpdates) {

@@ -1,11 +1,11 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610131533';
-import * as State from './state.js?v=202610131533';
-import { render } from './app.js?v=202610131533';
-import { showToast, formatTimeTo24H } from './utils.js?v=202610131533';
-import { renderTeamSelectionModalContent, renderLeaveTypeModalOptions } from './ui.js?v=202610131533';
+import * as DOM from './dom-elements.js?v=202610131709';
+import * as State from './state.js?v=202610131709';
+import { render } from './app.js?v=202610131709';
+import { showToast, formatTimeTo24H } from './utils.js?v=202610131709';
+import { renderTeamSelectionModalContent, renderLeaveTypeModalOptions } from './ui.js?v=202610131709';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -13,10 +13,10 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202610131533';
+} from './app-logic.js?v=202610131709';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610131533';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202610131533';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610131709';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202610131709';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -50,7 +50,7 @@ const openMemberActionModal = (memberName) => {
     if (DOM.actionMemberStatusBadge && DOM.actionMemberTimeInfo) {
          if (ongoingRecord) {
             DOM.actionMemberStatusBadge.textContent = `업무 중 (${ongoingRecord.task})`;
-            DOM.actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-800';
+            DOM.actionMemberStatusBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800';
             DOM.actionMemberTimeInfo.textContent = `출근: ${formatTimeTo24H(attendance?.inTime)} | 업무시작: ${formatTimeTo24H(ongoingRecord.startTime)}`;
         } else if (pausedRecord) {
             DOM.actionMemberStatusBadge.textContent = '휴식 중';

@@ -103,15 +103,16 @@ export const showConfirm = (message, opts = {}) => {
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
     return new Promise((resolve) => {
         const ov = document.createElement('div');
-        ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(17,24,39,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
-        const okColor = danger ? '#dc2626' : '#2563eb';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(30,40,60,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+        // D안: 주 버튼 = 주색 채움, 위험 = 흰 바탕 + 장미 테두리 (다크 미대응 — 인라인 스타일)
+        const okStyle = danger ? 'border:1px solid #C9808A;background:#fff;color:#A0525C;' : 'border:1px solid #2F62C9;background:#2F62C9;color:#fff;';
         ov.innerHTML = `
-            <div role="dialog" aria-modal="true" style="background:#fff;border-radius:16px;max-width:380px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3);overflow:hidden;font-family:inherit;">
-              <div style="padding:20px 20px 8px;font-weight:800;font-size:16px;color:#111827;">${esc(title)}</div>
-              <div style="padding:0 20px 18px;font-size:14px;color:#374151;line-height:1.55;white-space:pre-line;">${esc(message)}</div>
-              <div style="display:flex;gap:8px;padding:12px 16px;background:#f9fafb;border-top:1px solid #f1f5f9;justify-content:flex-end;">
-                <button data-act="cancel" style="padding:8px 16px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-weight:700;font-size:13px;cursor:pointer;">${esc(cancelText)}</button>
-                <button data-act="ok" style="padding:8px 16px;border-radius:10px;border:none;background:${okColor};color:#fff;font-weight:700;font-size:13px;cursor:pointer;">${esc(okText)}</button>
+            <div role="dialog" aria-modal="true" style="background:#fff;border-radius:18px;max-width:380px;width:100%;box-shadow:0 8px 24px rgba(30,40,60,.12);overflow:hidden;font-family:inherit;">
+              <div style="padding:20px 20px 8px;font-weight:700;font-size:16px;color:#23272E;">${esc(title)}</div>
+              <div style="padding:0 20px 18px;font-size:14px;color:#646B75;line-height:1.55;white-space:pre-line;">${esc(message)}</div>
+              <div style="display:flex;gap:8px;padding:12px 16px;background:#F7F8FA;border-top:1px solid #E6E8EC;justify-content:flex-end;">
+                <button data-act="cancel" style="padding:8px 16px;border-radius:999px;border:1px solid #D6DAE0;background:#fff;color:#23272E;font-weight:700;font-size:13px;cursor:pointer;">${esc(cancelText)}</button>
+                <button data-act="ok" style="padding:8px 16px;border-radius:999px;${okStyle}font-weight:700;font-size:13px;cursor:pointer;">${esc(okText)}</button>
               </div>
             </div>`;
         const done = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(val); };

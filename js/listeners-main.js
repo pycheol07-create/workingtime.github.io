@@ -1,34 +1,34 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202610131533';
-import * as State from './state.js?v=202610131533';
+import * as DOM from './dom-elements.js?v=202610131709';
+import * as State from './state.js?v=202610131709';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202610131533';
-import { updateDailyData } from './app-data.js?v=202610131533';
+import { render } from './app.js?v=202610131709';
+import { updateDailyData } from './app-data.js?v=202610131709';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610131533';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610131533';
+import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610131709';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610131709';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202610131533';
+} from './ui.js?v=202610131709';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202610131533';
-import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords, previewDayClose } from './history-data-manager.js?v=202610131533';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610131533';
-import { openHistoryQuantityModal } from './app-history-logic.js?v=202610131533';
+} from './app-logic.js?v=202610131709';
+import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords, previewDayClose } from './history-data-manager.js?v=202610131709';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610131709';
+import { openHistoryQuantityModal } from './app-history-logic.js?v=202610131709';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Admin Todo 로직 임포트
-import * as AdminTodoLogic from './admin-todo-logic.js?v=202610131533';
+import * as AdminTodoLogic from './admin-todo-logic.js?v=202610131709';
 
 export function setupMainScreenListeners() {
 
@@ -195,16 +195,16 @@ export function setupMainScreenListeners() {
             const 사유 = [];
             if (p.deletedCompleted) 사유.push(`${p.deletedCompleted}건은 이미 종료된 0분 기록`);
             if (p.lateStart) 사유.push(`${p.lateStart}건은 ${t} 보다 늦게 시작`);
-            줄.push(`· <span class="text-red-600 font-bold">⚠️ ${p.deleted}건은 0분이 되어 삭제됩니다`
+            줄.push(`· <span class="text-red-600 font-bold">${p.deleted}건은 0분이 되어 삭제됩니다`
                 + (사유.length ? ` (그중 ${사유.join(', ')})` : '') + '</span>');
         }
         if (p.clamped > 0) 줄.push(`· ${p.clamped}건은 조퇴/퇴근 시각까지만 계산됩니다`);
         if (p.outTimeBeforeIn > 0) {
-            줄.push(`· <span class="text-red-600 font-bold">⛔ ${p.outTimeBeforeIn}명은 출근시각이 ${t} 보다 늦습니다`
+            줄.push(`· <span class="text-red-600 font-bold">${p.outTimeBeforeIn}명은 출근시각이 ${t} 보다 늦습니다`
                 + ' — 이대로는 마감할 수 없습니다</span>');
         }
         if (p.invalid > 0) {
-            줄.push('· <span class="text-red-600 font-bold">⛔ '
+            줄.push('· <span class="text-red-600 font-bold">'
                 + `${p.invalid}건은 시작시각이 HH:MM 형식이 아닙니다 — 이대로는 마감할 수 없습니다</span>`);
         }
         줄.push(`· 이미 종료된 기록 ${p.kept}건은 그대로 유지됩니다`);

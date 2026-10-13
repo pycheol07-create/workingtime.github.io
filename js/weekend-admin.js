@@ -1,9 +1,9 @@
 // === js/weekend-admin.js ===
-import * as State from './state.js?v=202610131533';
-import { store, currentManageDateStr, setCurrentManageDateStr } from './weekend-store.js?v=202610131533';
-import { createRequest } from './weekend-core.js?v=202610131533';
-import { showToast } from './utils.js?v=202610131533';
-import { getMonthlyFairCount, getWeekendCapacity } from './weekend-ui.js?v=202610131533';
+import * as State from './state.js?v=202610131709';
+import { store, currentManageDateStr, setCurrentManageDateStr } from './weekend-store.js?v=202610131709';
+import { createRequest } from './weekend-core.js?v=202610131709';
+import { showToast } from './utils.js?v=202610131709';
+import { getMonthlyFairCount, getWeekendCapacity } from './weekend-ui.js?v=202610131709';
 import { doc, updateDoc, deleteDoc, setDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const WEEKEND_ADMIN_MEMBERS = ['박영철', '박호진', '유아라', '이승운'];
@@ -429,7 +429,7 @@ export function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, app
                     </div>`;
     
     const finalConfirmed = [...toConfirm, ...toAdd];
-    html += `<div><span class="text-emerald-700 font-bold">✅ 최종 확정 추천 (${finalConfirmed.length}명)</span><div class="mt-2 flex flex-wrap gap-1.5">`;
+    html += `<div><span class="text-emerald-700 font-bold">최종 확정 추천 (${finalConfirmed.length}명)</span><div class="mt-2 flex flex-wrap gap-1.5">`;
     
     finalConfirmed.forEach(m => {
         const yCount = store.currentYearlyStats.get(m) || 0;
@@ -440,26 +440,23 @@ export function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, app
         const isAdmin = ['박영철', '박호진', '유아라', '이승운'].includes(m);
         
         let badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm';
-        let icon = '✔️';
         let subText = `(당월 ${mTotal}회/누적 ${yCount}회)`;
         
         if (isAdmin) {
             badgeClass = 'bg-gray-100 text-gray-800 border-gray-300 shadow-sm';
-            icon = '👑';
             subText = '(관리자)';
         } else if (isNew) {
             badgeClass = 'bg-blue-50 text-blue-800 border-blue-200 shadow-sm';
-            icon = '➕';
         }
-        html += `<span class="border px-1.5 py-1 rounded-md text-[11px] ${badgeClass}">${icon} ${m} <span class="text-[10px] opacity-70">${subText}</span></span>`;
+        html += `<span class="border px-1.5 py-1 rounded-md text-[11px] ${badgeClass}">${m} <span class="text-[10px] opacity-70">${subText}</span></span>`;
     });
     html += `</div></div>`;
 
     if (toDecline.length > 0) {
-        html += `<div class="pt-1"><span class="text-red-600 font-bold">➖ 형평성·정원 조정으로 제외 (${toDecline.length}명)</span><br><span class="text-gray-400 text-[10px]">당월 근무 횟수가 적정 횟수 이상이라 배정에서 제외되며, 취소(노란색) 상태로 변경됩니다.</span><div class="mt-2 flex flex-wrap gap-1.5">`;
+        html += `<div class="pt-1"><span class="text-red-600 font-bold">형평성·정원 조정으로 제외 (${toDecline.length}명)</span><br><span class="text-gray-400 text-[10px]">당월 근무 횟수가 적정 횟수 이상이라 배정에서 제외되며, 취소(회색) 상태로 변경됩니다.</span><div class="mt-2 flex flex-wrap gap-1.5">`;
         toDecline.forEach(m => {
             const ms = store.currentMonthStats.get(m) || {confirmed: 0, requested: 0};
-            html += `<span class="bg-yellow-100 text-yellow-700 border border-yellow-400 px-1.5 py-1 rounded-md text-[11px] line-through shadow-sm">❌ ${m} <span class="text-[10px] opacity-70">(당월 ${ms.confirmed+ms.requested}회)</span></span>`;
+            html += `<span class="bg-gray-100 text-gray-500 border border-gray-300 px-1.5 py-1 rounded-md text-[11px] line-through">${m} <span class="text-[10px] opacity-70">(당월 ${ms.confirmed+ms.requested}회)</span></span>`;
         });
         html += `</div></div>`;
     }

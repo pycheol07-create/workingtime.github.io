@@ -1,12 +1,12 @@
 // === js/admin-todo-logic.js ===
-import * as State from './state.js?v=202610131533';
-import * as DOM from './dom-elements.js?v=202610131533';
-import { showToast } from './utils.js?v=202610131533';
+import * as State from './state.js?v=202610131709';
+import * as DOM from './dom-elements.js?v=202610131709';
+import { showToast } from './utils.js?v=202610131709';
 import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202610131533';
+import { initializeFirebase } from './config.js?v=202610131709';
 
 // 🔥 [신규] 멘션 발송을 위해 알림 함수 가져오기
-import { sendNotification } from './app-notifications.js?v=202610131533';
+import { sendNotification } from './app-notifications.js?v=202610131709';
 
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
@@ -111,19 +111,18 @@ export const renderAdminTodoList = () => {
             const isOverdue = !todo.completed && dueDate < now;
             const isUnconfirmed = isOverdue && !todo.alertConfirmed;
             
-            const dateClass = isUnconfirmed ? 'text-red-600 bg-red-50 border-red-200 font-bold animate-pulse' : 
+            const dateClass = isUnconfirmed ? 'text-red-600 bg-red-50 border-red-200 font-bold' : 
                               (isOverdue ? 'text-red-500 bg-red-50 border-red-100' : 
                               (todo.completed ? 'text-gray-400 bg-gray-50 border-gray-200' : 'text-blue-600 bg-blue-50 border-blue-200'));
             
-            const icon = isOverdue ? '🚨' : '⏰';
-            dateBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded border ml-2 whitespace-nowrap ${dateClass}">${icon} ${formatDateTimeShort(todo.dueDateTime)}</span>`;
+            dateBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded border ml-2 whitespace-nowrap ${dateClass}">${formatDateTimeShort(todo.dueDateTime)}</span>`;
         }
 
         li.innerHTML = `
             <div class="flex flex-col flex-grow min-w-0 cursor-pointer todo-item-click" data-id="${todo.id}">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0 text-lg mr-2">
-                        ${todo.completed ? '✅' : '⬜'}
+                    <div class="flex-shrink-0 mr-2">
+                        ${todo.completed ? '<span class="inline-flex items-center justify-center w-5 h-5 rounded-md bg-blue-600 border border-blue-600 text-white"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>' : '<span class="inline-flex items-center justify-center w-5 h-5 rounded-md bg-white border border-gray-300"></span>'}
                     </div>
                     <span class="text-sm truncate ${todo.completed ? 'text-gray-400 line-through' : 'text-gray-800 font-medium'}">
                         ${todo.text}
@@ -178,7 +177,7 @@ export const checkAdminTodoNotifications = async () => {
                     <div class="flex-grow">
                         <div class="font-bold text-indigo-900 text-sm">${t.text}</div>
                         <div class="text-xs text-indigo-500 mt-1 flex items-center gap-1">
-                            ⏰ 마감: ${t.dueDateTime.replace('T', ' ')}
+                            마감: ${t.dueDateTime.replace('T', ' ')}
                         </div>
                     </div>
                 </div>

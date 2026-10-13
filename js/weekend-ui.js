@@ -1,11 +1,11 @@
 // === js/weekend-ui.js ===
-import * as State from './state.js?v=202610131533';
+import * as State from './state.js?v=202610131709';
 // 공휴일 표는 utils.js 로 옮겼다(업무 예상에서도 쓰기 위해). 기존 사용처를 위해 그대로 다시 내보낸다.
-import { getHolidayName } from './utils.js?v=202610131533';
+import { getHolidayName } from './utils.js?v=202610131709';
 export { getHolidayName };
-import { store } from './weekend-store.js?v=202610131533';
-import { handleDateClick } from './weekend-core.js?v=202610131533';
-import { openAdminDatePopup, openPastDateEditPopup, handleAdminBadgeClick } from './weekend-admin.js?v=202610131533';
+import { store } from './weekend-store.js?v=202610131709';
+import { handleDateClick } from './weekend-core.js?v=202610131709';
+import { openAdminDatePopup, openPastDateEditPopup, handleAdminBadgeClick } from './weekend-admin.js?v=202610131709';
 
 // 주말근무 기준 관리자 명단 (계정 역할이 admin이 아니어도 관리자 권한 부여)
 const WEEKEND_ADMINS = ['박영철', '박호진', '유아라', '이승운'];
@@ -86,7 +86,7 @@ export function renderWeekendFairness(year, month, capacityMap, blockedDatesSet,
     el.innerHTML = `
         <div class="flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
             <div class="text-[11px] md:text-xs text-indigo-900 leading-snug">
-                <div><span class="font-bold">📅 ${year}년 ${month + 1}월</span> 주말 근무일 <b class="text-indigo-800">${openDays}일</b></div>
+                <div><span class="font-bold">${year}년 ${month + 1}월</span> 주말 근무일 <b class="text-indigo-800">${openDays}일</b></div>
                 <div class="text-indigo-700">정원 합 <b>${totalCapacity}명</b> = 관리자 <b>${adminSlots}</b> + 팀원 <b>${teamSlots}</b> <span class="text-indigo-400">(기본 ${WEEKEND_DEFAULT_CAPACITY}명)</span></div>
             </div>
             ${rightHtml}
@@ -247,7 +247,7 @@ export function renderWeekendList(year, month) {
                 if (isAdmin) {
                     rightArea.classList.add('cursor-pointer', 'hover:bg-gray-200');
                     rightArea.onclick = () => openPastDateEditPopup(dateStr);
-                    rightHeader.innerHTML = `<span class="text-blue-600 font-bold">🛠️ 터치하여 인원 편집 (관리자)</span><span class="text-gray-600 font-bold bg-gray-200 px-1.5 rounded border border-gray-300">마감됨</span>`;
+                    rightHeader.innerHTML = `<span class="text-blue-600 font-bold">터치하여 인원 편집 (관리자)</span><span class="text-gray-600 font-bold bg-gray-200 px-1.5 rounded border border-gray-300">마감됨</span>`;
                 } else {
                     rightArea.classList.add('cursor-not-allowed');
                     rightArea.onclick = () => showToast("지나간 주차는 관리자만 편집할 수 있습니다.", true);
@@ -263,7 +263,7 @@ export function renderWeekendList(year, month) {
                 }
 
                 rightArea.onclick = () => handleDateClick(dateStr, isBlocked);
-                rightHeader.innerHTML = `<span class="text-gray-500 font-medium">영역을 터치하여 신청/취소</span>${isBlocked ? '<span class="text-gray-600 font-bold bg-gray-200 border border-gray-300 px-1.5 rounded">마감됨</span>' : isAppliedByMe ? '<span class="text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded">✅ 신청됨</span>' : ''}`;
+                rightHeader.innerHTML = `<span class="text-gray-500 font-medium">영역을 터치하여 신청/취소</span>${isBlocked ? '<span class="text-gray-600 font-bold bg-gray-200 border border-gray-300 px-1.5 rounded">마감됨</span>' : isAppliedByMe ? '<span class="text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded">신청됨</span>' : ''}`;
             }
 
             const badgesArea = document.createElement('div');
@@ -447,7 +447,7 @@ function addBadgeToGrid(dateStr, data, isClickableAdmin) {
     if (data.status === 'confirmed') {
         colorClass = 'bg-blue-600 text-white';
     } else if (data.status === 'canceled') {
-        colorClass = 'bg-yellow-100 text-yellow-700 opacity-70 line-through';
+        colorClass = 'bg-gray-100 text-gray-500 line-through';
     } else {
         colorClass = 'bg-white text-orange-600 border border-orange-200';
     }
@@ -477,21 +477,17 @@ export function addBadgeToCalendar(dateStr, data, isClickableAdmin) {
     const badge = document.createElement('div');
     
     let colorClass = '';
-    let icon = '';
 
     if (data.status === 'confirmed') {
         colorClass = 'bg-blue-600 text-white border-blue-600 shadow-sm';
-        icon = '👌';
     } else if (data.status === 'canceled') {
-        colorClass = 'bg-yellow-100 text-yellow-700 border-yellow-400 shadow-sm opacity-80 line-through';
-        icon = '❌';
+        colorClass = 'bg-gray-100 text-gray-500 border-gray-300 line-through';
     } else {
         colorClass = 'bg-white text-orange-600 border-orange-300 border shadow-sm';
-        icon = '⏳';
     }
     
     badge.className = `px-2.5 md:px-3 py-0.5 md:py-1 rounded-full text-[11px] md:text-sm font-medium border flex items-center gap-1 transition-transform hover:scale-105 ${colorClass}`;
-    badge.innerHTML = `<span class="text-[10px] md:text-xs">${icon}</span> ${data.member}`;
+    badge.textContent = data.member;
 
     if (isClickableAdmin) {
         badge.style.cursor = 'pointer';

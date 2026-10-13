@@ -4,13 +4,13 @@
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
         <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
-            <span class="text-red-500 mr-2">ℹ️</span> COQ(Cost of Quality)란?
+            COQ(Cost of Quality)란?
         </h3>
         <div class="space-y-4 text-sm text-gray-700 leading-relaxed">
             <p>
                 <strong>품질 비용(COQ)</strong>은 제품이나 서비스의 품질을 유지하거나, 품질 저하로 인해 발생하는 모든 비용을 의미합니다.
             </p>
-            <div class="bg-gray-50 p-3 rounded border">
+            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <p class="font-semibold mb-1">이 리포트에서는:</p>
                 <ul class="list-disc pl-5 space-y-1">
                     <li>'오류', '상품재작업' 등 <strong>가치를 창출하지 못하는 재작업</strong>에 투입된 인건비를 집계합니다.</li>
@@ -18,7 +18,7 @@
                 </ul>
             </div>
             <p>
-                💡 <strong>Tip:</strong> COQ 비율이 높을수록 불필요한 손실이 크다는 의미이므로, 원인 파악 및 개선이 필요합니다.
+                <strong>Tip:</strong> COQ 비율이 높을수록 불필요한 손실이 크다는 의미이므로, 원인 파악 및 개선이 필요합니다.
             </p>
         </div>
     </div>
@@ -27,20 +27,20 @@
 <div id="inspection-manager-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[60] p-4">
     <div id="insp-modal-content" class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl relative flex flex-col max-h-[95vh] transition-all duration-300">
         
-        <div class="p-5 border-b border-gray-200 bg-indigo-50 flex justify-between items-center flex-shrink-0 rounded-t-2xl" id="insp-modal-header">
+        <div class="p-5 border-b border-gray-200 bg-white flex justify-between items-center flex-shrink-0 rounded-t-2xl" id="insp-modal-header">
             <div>
-                <h2 class="text-xl font-bold text-indigo-900 flex items-center gap-2">
-                    📋 정밀 검수 매니저 (샘플 검수)
+                <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    정밀 검수 매니저 (샘플 검수)
                 </h2>
-                <p class="text-xs text-indigo-600 mt-1">입고 상품의 스펙과 품질을 상세하게 기록합니다.</p>
+                <p class="text-xs text-gray-500 mt-1">입고 상품의 스펙과 품질을 상세하게 기록합니다.</p>
             </div>
             <div class="flex items-center gap-3">
-                <button id="insp-fullscreen-btn" class="text-indigo-400 hover:text-indigo-700 transition p-1" title="전체화면">
+                <button id="insp-fullscreen-btn" class="text-gray-400 hover:text-gray-700 transition p-1" title="전체화면">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
                     </svg>
                 </button>
-                <button class="modal-close-btn text-indigo-400 hover:text-indigo-700 static transition" onclick="document.getElementById('inspection-manager-modal').classList.add('hidden')">
+                <button class="modal-close-btn text-gray-400 hover:text-gray-700 static transition" onclick="document.getElementById('inspection-manager-modal').classList.add('hidden')">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>
@@ -52,7 +52,7 @@
             <aside class="flex flex-col min-h-0 lg:sticky lg:top-0 lg:self-start lg:max-h-[calc(95vh-160px)]">
                 <div class="flex flex-col gap-2 bg-gray-50 p-3 rounded-t-lg border border-gray-200 border-b-0">
                     <div class="flex justify-between items-center">
-                        <span class="text-sm font-bold text-gray-700">📋 검수 대기 리스트(엑셀)</span>
+                        <span class="text-sm font-bold text-gray-700">검수 대기 리스트(엑셀)</span>
                         <label for="insp-excel-upload" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                             엑셀 업로드
                         </label>
@@ -101,7 +101,7 @@
                         <span id="insp-supplier-display" class="bg-gray-100 px-2 py-0.5 rounded break-all max-w-full">공급처: -</span>
                     </div>
                 </div>
-                <button id="insp-search-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-sm transition h-[46px]">
+                <button id="insp-search-btn" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold py-3 px-6 rounded-lg transition h-[46px]">
                     조회
                 </button>
             </div>
@@ -115,12 +115,11 @@
 
             <div id="insp-history-report" class="hidden bg-blue-50 rounded-lg border border-blue-200 p-4 animate-fade-in">
                 <div class="flex items-start gap-3 mb-2">
-                    <div class="bg-white p-2 rounded-full border border-blue-100 shadow-sm text-xl">📊</div>
                     <div class="flex-grow">
                         <div class="flex justify-between items-start">
                             <div class="flex items-center gap-2">
                                 <h4 class="font-bold text-gray-800 text-lg" id="insp-report-title">-</h4>
-                                <span id="insp-new-product-badge" class="hidden px-2 py-0.5 bg-yellow-400 text-yellow-900 text-xs font-black rounded-full shadow-sm animate-bounce">✨ 최초 입고 상품</span>
+                                <span id="insp-new-product-badge" class="hidden px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-full">최초 입고 상품</span>
                             </div>
                             <span class="text-xs bg-white px-2 py-1 rounded border border-blue-100 text-blue-600 font-bold">
                                 총 <span id="insp-report-count">0</span>회 입고(검수)됨
@@ -132,7 +131,6 @@
                     </div>
                 </div>
                 <div id="insp-alert-box" class="hidden mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-3 items-start">
-                    <span class="text-xl">🚨</span>
                     <div>
                         <p class="text-sm font-bold text-red-800">과거 특이사항 발견!</p>
                         <p class="text-sm text-red-700 mt-1" id="insp-alert-msg">-</p>
@@ -141,7 +139,7 @@
             </div>
 
             <div id="insp-current-input-area" class="hidden pt-2">
-                <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2">📦 금일 입고분 상세 정보</h4>
+                <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2">금일 입고분 상세 정보</h4>
                 
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div>
@@ -162,7 +160,7 @@
                     </div>
                 </div>
 
-                <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2">🔍 품질 체크리스트</h4>
+                <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2">품질 체크리스트</h4>
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
                     
                     <div class="col-span-full border-b border-gray-200 -mx-4 px-4 pt-0 pb-3 mb-2">
@@ -272,7 +270,7 @@
                             <img id="insp-image-preview-img" src="" alt="Preview" class="h-8 w-8 object-cover rounded border border-gray-300">
                             <span class="text-xs text-gray-600">첨부됨</span>
                             <button id="insp-remove-image-btn" class="text-gray-400 hover:text-red-500">
-                                ✖
+                                &times;
                             </button>
                         </div>
                     </div>
@@ -284,10 +282,10 @@
                 </div>
                 
                 <div class="flex gap-3 mt-6">
-                    <button id="insp-switch-to-total-btn" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-lg">
-                        <span>📦 전량검수로 전환</span>
+                    <button id="insp-switch-to-total-btn" class="flex-1 bg-white border border-gray-300 text-gray-800 hover:bg-gray-50 font-bold py-4 rounded-xl transition flex items-center justify-center gap-2 text-lg">
+                        <span>전량검수로 전환</span>
                     </button>
-                    <button id="insp-save-next-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-lg">
+                    <button id="insp-save-next-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-2 text-lg">
                         <span>검수 완료 및 저장</span>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0 1 18 0Z" /></svg>
                     </button>
