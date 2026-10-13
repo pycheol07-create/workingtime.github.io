@@ -1,7 +1,7 @@
 // === js/ui-history-reports-productivity.js ===
-import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610131441';
-import { getAsArray } from './ui-history-reports-utils.js?v=202610131441';
-import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202610131441';
+import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610131512';
+import { getAsArray } from './ui-history-reports-utils.js?v=202610131512';
+import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202610131512';
 
 export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
     if (!allHistoryData || allHistoryData.length === 0) return null;
@@ -52,15 +52,15 @@ export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, current
     let diagnosis = '';
     let colorClass = '';
     if (gap > 10) {
-        diagnosis = '⚠️ 수익성 경고: 매출 대비 업무량 급증'; colorClass = 'text-red-600';
+        diagnosis = '수익성 경고: 매출 대비 업무량 급증'; colorClass = 'text-red-600';
     } else if (gap > 5) {
-        diagnosis = '📉 효율 저하: 업무량이 매출보다 더 빠르게 증가 중'; colorClass = 'text-orange-600';
+        diagnosis = '효율 저하: 업무량이 매출보다 더 빠르게 증가 중'; colorClass = 'text-orange-600';
     } else if (gap < -10) {
-        diagnosis = '🚀 수익성 대폭 개선: 매출 급증에도 업무량은 안정적'; colorClass = 'text-blue-600';
+        diagnosis = '수익성 대폭 개선: 매출 급증에도 업무량은 안정적'; colorClass = 'text-blue-600';
     } else if (gap < -5) {
-        diagnosis = '📈 효율 개선: 매출 증가폭이 업무량 증가폭을 상회'; colorClass = 'text-green-600';
+        diagnosis = '효율 개선: 매출 증가폭이 업무량 증가폭을 상회'; colorClass = 'text-green-600';
     } else {
-        diagnosis = '✅ 균형 성장: 매출과 업무량이 비례하여 증가'; colorClass = 'text-gray-800';
+        diagnosis = '균형 성장: 매출과 업무량이 비례하여 증가'; colorClass = 'text-gray-800';
     }
     return { revenueChangeRate, workloadChangeRate, gap, diagnosis, colorClass };
 };
@@ -270,28 +270,28 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
     if (!metrics) return null;
     const { utilizationRate, efficiencyRatio, qualityRatio, oee } = metrics;
     
-    let diagnosis = { icon: '✅', title: '최적 상태 유지', desc: '업무 시간과 속도 모두 적절한 균형을 유지하고 있습니다.', color: 'text-green-700', bg: 'bg-green-50 border-green-200' };
+    let diagnosis = { title: '최적 상태 유지', desc: '업무 시간과 속도 모두 적절한 균형을 유지하고 있습니다.', color: 'text-green-700', bg: 'bg-green-50 border-green-200' };
     const isOverloaded = utilizationRate >= 100;
     const isUnderloaded = utilizationRate <= 80;
     const isFast = efficiencyRatio >= 110;
     const isSlow = efficiencyRatio <= 90;
 
     if (isOverloaded && isFast) {
-        diagnosis = { icon: '🔥', title: '극한 과부하 (Burnout 위험)', desc: '절대적인 시간이 부족한 와중에도 매우 빠르게 일하고 있습니다. 인원 충원이 시급합니다.', color: 'text-red-700', bg: 'bg-red-50 border-red-200' };
+        diagnosis = { title: '극한 과부하 (Burnout 위험)', desc: '절대적인 시간이 부족한 와중에도 매우 빠르게 일하고 있습니다. 인원 충원이 시급합니다.', color: 'text-red-700', bg: 'bg-red-50 border-red-200' };
     } else if (isOverloaded && isSlow) {
-        diagnosis = { icon: '💦', title: '비효율적 과로', desc: '장시간 근무하고 있지만 실제 처리 속도는 느립니다. 업무 프로세스 점검이나 교육이 필요합니다.', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' };
+        diagnosis = { title: '비효율적 과로', desc: '장시간 근무하고 있지만 실제 처리 속도는 느립니다. 업무 프로세스 점검이나 교육이 필요합니다.', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' };
     } else if (isOverloaded) {
-         diagnosis = { icon: '⏰', title: '시간 부족 (과부하)', desc: '표준 근무 시간을 초과하여 업무 수행. 업무량 조절 필요.', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' };
+         diagnosis = { title: '시간 부족 (과부하)', desc: '표준 근무 시간을 초과하여 업무 수행. 업무량 조절 필요.', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' };
     } else if (isUnderloaded && isFast) {
-        diagnosis = { icon: '⚡', title: '유휴 인력 발생 (고숙련)', desc: '업무를 빨리 끝내고 남는 시간이 많습니다. 인원 효율화 가능.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
+        diagnosis = { title: '유휴 인력 발생 (고숙련)', desc: '업무를 빨리 끝내고 남는 시간이 많습니다. 인원 효율화 가능.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
     } else if (isUnderloaded && isSlow) {
-        diagnosis = { icon: '⚠️', title: '생산성 저하', desc: '시간적 여유가 있음에도 업무 속도가 느립니다.', color: 'text-gray-700', bg: 'bg-gray-100 border-gray-300' };
+        diagnosis = { title: '생산성 저하', desc: '시간적 여유가 있음에도 업무 속도가 느립니다.', color: 'text-gray-700', bg: 'bg-gray-100 border-gray-300' };
     } else if (isUnderloaded) {
-         diagnosis = { icon: '☕', title: '시간 여유', desc: '표준 시간 대비 실제 업무 수행 시간이 적습니다.', color: 'text-gray-600', bg: 'bg-gray-50 border-gray-200' };
+         diagnosis = { title: '시간 여유', desc: '표준 시간 대비 실제 업무 수행 시간이 적습니다.', color: 'text-gray-600', bg: 'bg-gray-50 border-gray-200' };
     } else if (isFast) {
-         diagnosis = { icon: '🚀', title: '고효율 상태', desc: '적절한 시간 내에서 표준보다 빠르게 성과를 냅니다.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
+         diagnosis = { title: '고효율 상태', desc: '적절한 시간 내에서 표준보다 빠르게 성과를 냅니다.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
     } else if (isSlow) {
-         diagnosis = { icon: '🐢', title: '속도 개선 필요', desc: '시간은 적절하나 다소 느립니다.', color: 'text-yellow-600', bg: 'bg-yellow-50 border-yellow-200' };
+         diagnosis = { title: '속도 개선 필요', desc: '시간은 적절하나 다소 느립니다.', color: 'text-yellow-600', bg: 'bg-yellow-50 border-yellow-200' };
     }
 
     let comments = [];
@@ -304,13 +304,13 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
 
     if (qualityRatio < 95) comments.push(`재작업 등으로 인한 <strong>품질 손실이 약 ${(100 - qualityRatio).toFixed(1)}%</strong> 발생했습니다.`);
 
-    if (oee >= 85) comments.push(`종합적으로 <strong>매우 우수한 생산성(OEE ${oee.toFixed(0)}%)</strong>을 기록했습니다. 👏`);
+    if (oee >= 85) comments.push(`종합적으로 <strong>매우 우수한 생산성(OEE ${oee.toFixed(0)}%)</strong>을 기록했습니다.`);
     else if (oee <= 60) comments.push(`전반적인 생산성 지표가 낮습니다. 원인 분석이 필요합니다.`);
 
     if (benchmarkOEE !== null && benchmarkOEE > 0) {
         const diff = oee - benchmarkOEE;
-        if (diff >= 5) comments.push(`📉 최근 30일 평균 OEE(${benchmarkOEE.toFixed(0)}%)보다 <strong>${diff.toFixed(0)}%p 더 높은</strong> 우수한 성과입니다!`);
-        else if (diff <= -5) comments.push(`📉 최근 30일 평균 OEE(${benchmarkOEE.toFixed(0)}%)에 비해 <strong>${Math.abs(diff).toFixed(0)}%p 낮습니다.</strong>`);
+        if (diff >= 5) comments.push(`최근 30일 평균 OEE(${benchmarkOEE.toFixed(0)}%)보다 <strong>${diff.toFixed(0)}%p 더 높은</strong> 우수한 성과입니다!`);
+        else if (diff <= -5) comments.push(`최근 30일 평균 OEE(${benchmarkOEE.toFixed(0)}%)에 비해 <strong>${Math.abs(diff).toFixed(0)}%p 낮습니다.</strong>`);
         else comments.push(`평소 수준(최근 30일 평균 ${benchmarkOEE.toFixed(0)}%)을 유지했습니다.`);
     }
 

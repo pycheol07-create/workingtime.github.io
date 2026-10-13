@@ -1,7 +1,7 @@
 // === js/ui-history-productivity.js ===
-import * as State from './state.js?v=202610131441';
-import { buildMemberHourlyWageMap } from './utils.js?v=202610131441';
-import { D } from './d-chart.js?v=202610131441';
+import * as State from './state.js?v=202610131512';
+import { buildMemberHourlyWageMap } from './utils.js?v=202610131512';
+import { D } from './d-chart.js?v=202610131512';
 
 let productivityChartInstance = null;
 
@@ -152,7 +152,7 @@ export function renderProductivityTab(filteredData, appConfig) {
 
         tbody.innerHTML = `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">⏳ 대기 및 비업무 시간 누수</td>
+                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">대기 및 비업무 시간 누수</td>
                 <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 font-mono">
                     <div class="font-bold text-gray-800 dark:text-gray-200">총 합산 ${Math.round(nonWorkDurationMin).toLocaleString()} 분</div>
                     <div class="text-xs text-blue-500 font-bold">실제 평균 ${Math.round(nonWorkActualMin).toLocaleString()} 분</div>
@@ -160,7 +160,7 @@ export function renderProductivityTab(filteredData, appConfig) {
                 <td class="px-4 py-3 text-right text-red-500 font-bold font-mono">-${Math.round(nonWorkCost).toLocaleString()} 원</td>
             </tr>
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">📦 불량 검수 및 조정 Overhead</td>
+                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">불량 검수 및 조정 Overhead</td>
                 <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 font-mono">
                     <div class="font-bold text-gray-800 dark:text-gray-200">총 합산 ${Math.round(totalDurationGeneral * 0.05)} 분</div>
                     <div class="text-xs text-blue-500 font-bold">실제 평균 ${Math.round(actualDurationGeneral * 0.05)} 분</div>

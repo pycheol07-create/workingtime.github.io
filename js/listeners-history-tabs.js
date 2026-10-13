@@ -1,17 +1,17 @@
 // === js/listeners-history-tabs.js ===
-import * as DOM from './dom-elements.js?v=202610131441';
-import * as State from './state.js?v=202610131441';
-import { showToast, getTodayDateString, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202610131441';
+import * as DOM from './dom-elements.js?v=202610131512';
+import * as State from './state.js?v=202610131512';
+import { showToast, getTodayDateString, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202610131512';
 
-import { renderDashboardTab } from './ui-history-dashboard.js?v=202610131441';
-import { renderProductivityTab } from './ui-history-productivity.js?v=202610131441';
-import { renderStaffingTab } from './ui-history-staffing.js?v=202610131441';
+import { renderDashboardTab } from './ui-history-dashboard.js?v=202610131512';
+import { renderProductivityTab } from './ui-history-productivity.js?v=202610131512';
+import { renderStaffingTab } from './ui-history-staffing.js?v=202610131512';
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202610131441';
-import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202610131441';
-import * as UILeave from './ui-history-leave.js?v=202610131441';
-import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202610131441';
-import { saveView } from './view-state.js?v=202610131441';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202610131512';
+import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202610131512';
+import * as UILeave from './ui-history-leave.js?v=202610131512';
+import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202610131512';
+import { saveView } from './view-state.js?v=202610131512';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {
@@ -160,8 +160,8 @@ export function setupHistoryTabsListeners() {
             document.querySelectorAll('.history-main-tab-btn').forEach(b => {
                 const isActive = (b === btn);
                 b.className = isActive
-                    ? 'history-main-tab-btn py-4 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap'
-                    : 'history-main-tab-btn py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap';
+                    ? 'history-main-tab-btn py-3 md:py-4 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap text-sm md:text-base'
+                    : 'history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base';
             });
 
             document.getElementById('dashboard-panel').classList.toggle('hidden', tabName !== 'dashboard');
@@ -191,7 +191,7 @@ export function setupHistoryTabsListeners() {
             // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
             if (tabName === 'milestones') {
                 try {
-                    const mod = await import('./ui-history-milestones.js?v=202610131441');
+                    const mod = await import('./ui-history-milestones.js?v=202610131512');
                     mod.subscribeMilestones();
                     mod.bindMilestoneListeners();
                     // 사이드바 숨김 (마일스톤은 자체 리스트 사용)
@@ -206,7 +206,7 @@ export function setupHistoryTabsListeners() {
             // 🧾 팀 결산 보고 탭: 월/분기/년 단위 종합 요약 보고서 (자체 기간 선택 UI 사용)
             if (tabName === 'settlement') {
                 try {
-                    const mod = await import('./ui-history-settlement.js?v=202610131441');
+                    const mod = await import('./ui-history-settlement.js?v=202610131512');
                     await mod.initSettlementReport();
                     const sidebar = document.getElementById('history-global-sidebar');
                     if (sidebar) sidebar.style.display = 'none';

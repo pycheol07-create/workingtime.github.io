@@ -1,20 +1,20 @@
 // === js/ui-history-milestones.js ===
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
-import * as State from './state.js?v=202610131441';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610131441';
+import * as State from './state.js?v=202610131512';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610131512';
 import {
     doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const TYPE_LABELS = {
-    location_change: { label: '🗺️ 로케이션 변경', color: 'bg-indigo-100 text-indigo-800 border-indigo-300' },
-    staffing:        { label: '👥 인력 변화',     color: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
-    process:         { label: '🔧 프로세스',      color: 'bg-amber-100 text-amber-800 border-amber-300' },
-    inflow:          { label: '📦 입출고 패턴',   color: 'bg-orange-100 text-orange-800 border-orange-300' },
-    policy:          { label: '🎯 정책',          color: 'bg-purple-100 text-purple-800 border-purple-300' },
-    system:          { label: '⚙️ 시스템/장비',   color: 'bg-gray-100 text-gray-800 border-gray-300' },
-    memo:            { label: '📝 기타 메모',     color: 'bg-blue-100 text-blue-800 border-blue-300' }
+    location_change: { label: '로케이션 변경', color: 'bg-gray-100 text-gray-700 border-gray-200' },
+    staffing:        { label: '인력 변화',     color: 'bg-gray-100 text-gray-700 border-gray-200' },
+    process:         { label: '프로세스',      color: 'bg-gray-100 text-gray-700 border-gray-200' },
+    inflow:          { label: '입출고 패턴',   color: 'bg-gray-100 text-gray-700 border-gray-200' },
+    policy:          { label: '정책',          color: 'bg-gray-100 text-gray-700 border-gray-200' },
+    system:          { label: '시스템/장비',   color: 'bg-gray-100 text-gray-700 border-gray-200' },
+    memo:            { label: '기타 메모',     color: 'bg-gray-100 text-gray-700 border-gray-200' }
 };
 
 // 메모리 캐시 (firestore에서 onSnapshot으로 갱신)
@@ -78,7 +78,7 @@ function renderList() {
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 flex-wrap mb-1">
                                 <span class="inline-block ${typeInfo.color} border text-xs font-bold px-2 py-0.5 rounded-full">${typeInfo.label}</span>
-                                <span class="text-xs text-gray-500 dark:text-gray-400 font-mono">📅 ${m.date || '-'}</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400 font-mono">${m.date || '-'}</span>
                             </div>
                             <div class="font-bold text-gray-800 dark:text-gray-100 text-base">${escapeHtml(m.title || '(제목 없음)')}</div>
                             ${descPreview ? `<div class="text-xs text-gray-600 dark:text-gray-400 mt-1">${escapeHtml(descPreview)}</div>` : ''}
@@ -86,8 +86,8 @@ function renderList() {
                             ${taskHtml ? `<div class="flex flex-wrap gap-1 mt-1"><span class="text-[10px] text-gray-500">영향:</span>${taskHtml}</div>` : ''}
                         </div>
                         <div class="flex gap-2 shrink-0">
-                            <button data-action="compare" data-id="${m.id}" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm">📊 효과 비교</button>
-                            <button data-action="edit" data-id="${m.id}" class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold py-1.5 px-3 rounded-lg">✏️</button>
+                            <button data-action="compare" data-id="${m.id}" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm">효과 비교</button>
+                            <button data-action="edit" data-id="${m.id}" class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold py-1.5 px-3 rounded-lg">수정</button>
                         </div>
                     </div>
                     ${previewBar}
@@ -104,7 +104,7 @@ function renderInlinePreview(m, windowDays) {
     if (!summary.hasEnoughData) {
         return `
             <div class="mt-3 pt-3 border-t border-dashed border-gray-300 dark:border-gray-600 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                <span>⏳ ${summary.statusLabel}</span>
+                <span>${summary.statusLabel}</span>
                 <span class="text-gray-400">(Before ${summary.before.dayCount}일 / After ${summary.after.dayCount}일 — 데이터 누적 중)</span>
             </div>
         `;
@@ -115,7 +115,7 @@ function renderInlinePreview(m, windowDays) {
     return `
         <div class="mt-3 pt-3 border-t border-dashed border-gray-300 dark:border-gray-600">
             <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
-                <div class="text-[11px] font-bold text-gray-600 dark:text-gray-300">📈 ${windowDays}일 전·후 요약</div>
+                <div class="text-[11px] font-bold text-gray-600 dark:text-gray-300">${windowDays}일 전·후 요약</div>
                 <div class="text-[10px] text-gray-500">관측 Before ${summary.before.dayCount}일 / After ${summary.after.dayCount}일</div>
             </div>
             <div class="flex flex-wrap gap-2">${uphChip}${qtyChip}${durChip}</div>
@@ -131,7 +131,7 @@ function makeChangeChip(label, beforeVal, afterVal, digits = 1, betterIfHigh = t
     const good = (betterIfHigh && pct > 0) || (!betterIfHigh && pct < 0);
     const flat = Math.abs(pct) < 0.5;
     const cls = flat ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' : (good ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700');
-    const icon = flat ? '—' : (good ? '✅' : '⚠️');
+    const icon = flat ? '—' : (good ? '개선' : '악화');
     const b = digits === 0 ? Math.round(beforeVal).toLocaleString() : beforeVal.toFixed(digits);
     const a = digits === 0 ? Math.round(afterVal).toLocaleString() : afterVal.toFixed(digits);
     return `
@@ -211,7 +211,7 @@ export function openEditModal(milestoneId = null, presetData = null) {
     const data = existing || presetData || {};
 
     document.getElementById('milestone-edit-id').value = milestoneId || '';
-    document.getElementById('milestone-edit-title').textContent = existing ? '✏️ 마일스톤 수정' : '📍 새 마일스톤 등록';
+    document.getElementById('milestone-edit-title').textContent = existing ? '마일스톤 수정' : '새 마일스톤 등록';
     document.getElementById('milestone-edit-date').value = data.date || getTodayDateString();
     document.getElementById('milestone-edit-type').value = data.type || 'location_change';
     document.getElementById('milestone-edit-title-input').value = data.title || '';
@@ -393,7 +393,7 @@ export function openCompareModal(milestoneId) {
     const m = _milestones.find(x => x.id === milestoneId);
     if (!m) { showToast('마일스톤을 찾을 수 없습니다.', true); return; }
     _currentCompareTarget = m;
-    document.getElementById('milestone-compare-title').textContent = `📊 ${m.title}`;
+    document.getElementById('milestone-compare-title').textContent = `${m.title}`;
     const typeInfo = TYPE_LABELS[m.type] || TYPE_LABELS.memo;
     document.getElementById('milestone-compare-subtitle').textContent = `${typeInfo.label} · 기준일: ${m.date}`;
     // 기본 14일 윈도우
@@ -438,7 +438,7 @@ function renderCompareResults() {
     const arrow = (v, betterIfHigh = true) => {
         if (!isFinite(v) || Math.abs(v) < 0.1) return '—';
         const good = (betterIfHigh && v > 0) || (!betterIfHigh && v < 0);
-        return good ? '✅' : '⚠️';
+        return good ? '개선' : '악화';
     };
     // 시간/건수 등 그 자체로 좋고나쁨을 단정하기 어려운 지표 — 중립 색으로 표기
     const neutralStat = (label, bStr, aStr, chg) => `
@@ -488,12 +488,12 @@ function renderCompareResults() {
     el.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
-                <div class="text-xs text-gray-500 mb-1">⬅️ Before (${beforeStart} ~ ${beforeEnd})</div>
+                <div class="text-xs text-gray-500 mb-1">Before (${beforeStart} ~ ${beforeEnd})</div>
                 <div class="text-2xl font-extrabold text-gray-800 dark:text-gray-100">${before.dayCount} <span class="text-xs font-medium text-gray-500">/ ${w} 일</span></div>
                 <div class="text-xs text-gray-500 mt-1">관측된 데이터 일수</div>
             </div>
             <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-emerald-50 dark:bg-emerald-900/20">
-                <div class="text-xs text-gray-500 mb-1">➡️ After (${afterStart} ~ ${afterEnd})</div>
+                <div class="text-xs text-gray-500 mb-1">After (${afterStart} ~ ${afterEnd})</div>
                 <div class="text-2xl font-extrabold text-gray-800 dark:text-gray-100">${after.dayCount} <span class="text-xs font-medium text-gray-500">/ ${afterFullDays} 일</span></div>
                 <div class="text-xs text-gray-500 mt-1">관측된 데이터 일수</div>
             </div>
@@ -518,11 +518,11 @@ function renderCompareResults() {
         </div>
 
         <div class="mt-3 text-[11px] text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 leading-relaxed">
-            💡 <b>UPH (Units Per Hour · 시간당 처리량)</b> = 총 처리량 ÷ 총 작업시간(시간). 투입한 시간 대비 얼마나 처리했는지를 나타냅니다. 인원 수나 근무시간이 달라도 <b>효율을 공정하게 비교</b>할 수 있어 개선 효과를 판단하는 핵심 지표입니다. <b>값이 높을수록 좋습니다.</b>
+            <b>UPH (Units Per Hour · 시간당 처리량)</b> = 총 처리량 ÷ 총 작업시간(시간). 투입한 시간 대비 얼마나 처리했는지를 나타냅니다. 인원 수나 근무시간이 달라도 <b>효율을 공정하게 비교</b>할 수 있어 개선 효과를 판단하는 핵심 지표입니다. <b>값이 높을수록 좋습니다.</b>
         </div>
 
         <div class="mt-4">
-            <div class="text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-2">⏱️ 근무 시간 데이터 (${escapeHtml(tasksDisplay)} 기준 · 전 기간 합계)</div>
+            <div class="text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-2">근무 시간 데이터 (${escapeHtml(tasksDisplay)} 기준 · 전 기간 합계)</div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 ${neutralStat('총 작업시간', before.totalHours.toFixed(1) + 'h', after.totalHours.toFixed(1) + 'h', pctChange(before.totalHours, after.totalHours))}
                 ${neutralStat('작업 기록 건수', before.recordCount.toLocaleString(), after.recordCount.toLocaleString(), pctChange(before.recordCount, after.recordCount))}
@@ -560,8 +560,8 @@ function renderCompareResults() {
         ${buildMilestoneAssessment(before, after, w)}
 
         <div class="mt-4 text-[11px] text-gray-500 leading-relaxed">
-            ℹ️ 비교 기간: 기준일 전 ${w}일 ↔ 후 ${w}일 (관측 일수가 적으면 ⚠️ 통계적 노이즈 가능성).<br>
-            ℹ️ "UPH 변화 ✅"는 시간당 처리량이 증가했음을, "작업시간 ✅"은 일평균 작업시간이 감소했음을 의미합니다.
+            비교 기간: 기준일 전 ${w}일 ↔ 후 ${w}일 (관측 일수가 적으면 통계적 노이즈 가능성).<br>
+            UPH 변화 '개선'은 시간당 처리량이 증가했음을, 작업시간 '개선'은 일평균 작업시간이 감소했음을 뜻합니다.
         </div>
     `;
 }
@@ -601,23 +601,23 @@ function buildMilestoneAssessment(before, after, w) {
     let tone, verdict, direction;
     if (!enough) {
         tone = 'gray';
-        verdict = '⏳ 데이터가 부족해 아직 효과를 단정하기 어렵습니다.';
+        verdict = '데이터가 부족해 아직 효과를 단정하기 어렵습니다.';
         direction = `관측 일수를 더 확보한 뒤 재평가하세요. (현재 Before ${before.dayCount}일 / After ${after.dayCount}일, 권장 최소 각 ${minDays}일)`;
     } else if (isFinite(uphChange) && uphChange >= 3) {
         tone = 'green';
-        verdict = '✅ 긍정적 — 효율(UPH) 개선이 확인됩니다.';
+        verdict = '긍정적 — 효율(UPH) 개선이 확인됩니다.';
         direction = '변경을 유지하고, 효과가 크면 유사 업무·타 파트로 확대 적용을 검토하세요. 개선이 지속되는지 30일 윈도우로도 재확인하면 좋습니다.';
     } else if (isFinite(uphChange) && uphChange <= -3) {
         tone = 'red';
-        verdict = '⚠️ 부정적 — 효율(UPH)이 하락했습니다.';
+        verdict = '부정적 — 효율(UPH)이 하락했습니다.';
         direction = '이 변경 외 다른 요인(물량 급증, 인력 공백, 적응기 등)이 있었는지 먼저 점검하고, 원인이 이 변경이라면 롤백 또는 보완책을 검토하세요.';
     } else if (isFinite(qtyChange) && qtyChange >= 3) {
         tone = 'amber';
-        verdict = '➖ 효율은 유지, 처리량은 증가 — 투입 증가 효과로 보입니다.';
+        verdict = '효율은 유지, 처리량은 증가 — 투입 증가 효과로 보입니다.';
         direction = '효율(UPH) 개선이 목표라면 이 변경만으로는 부족합니다. 투입 대비 산출을 함께 보고 추가 개선안을 병행하세요.';
     } else {
         tone = 'gray';
-        verdict = '➖ 효과 미미 — 뚜렷한 변화가 관측되지 않습니다.';
+        verdict = '효과 미미 — 뚜렷한 변화가 관측되지 않습니다.';
         direction = '관측 기간을 늘려 지연 효과를 확인하거나, 다른 개선 변수와 함께 재시도하세요. 변경에 비용이 있었다면 유지 여부를 재검토하세요.';
     }
 
@@ -630,13 +630,13 @@ function buildMilestoneAssessment(before, after, w) {
 
     return `
         <div class="mt-5 border ${toneCls} rounded-lg p-4">
-            <div class="text-sm font-extrabold mb-1">🧭 총평</div>
+            <div class="text-sm font-extrabold mb-1">총평</div>
             <div class="text-sm font-bold mb-3">${verdict}</div>
-            <div class="text-xs font-bold opacity-80 mb-1">📖 데이터 해석</div>
+            <div class="text-xs font-bold opacity-80 mb-1">데이터 해석</div>
             <ul class="list-disc list-inside space-y-1 text-xs leading-relaxed mb-3">
                 ${interp.map(t => `<li>${t}</li>`).join('')}
             </ul>
-            <div class="text-xs font-bold opacity-80 mb-1">🚀 진행 방향 의견</div>
+            <div class="text-xs font-bold opacity-80 mb-1">진행 방향 의견</div>
             <div class="text-xs leading-relaxed">${direction}</div>
             <div class="text-[10px] opacity-60 mt-2">※ 자동 생성된 참고 의견입니다. 물량 특성·인력 변동 등 현장 상황을 함께 고려해 최종 판단하세요.</div>
         </div>
@@ -713,12 +713,11 @@ export async function renderMilestonesInsightWidget(containerEl) {
         containerEl.innerHTML = `
             <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm">
                 <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-200">📍 마일스톤별 효과 요약</h3>
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-200">마일스톤별 효과 요약</h3>
                 </div>
                 <div class="text-center py-6 text-gray-400 text-xs">
-                    <div class="text-3xl mb-2">📍</div>
                     <div>아직 등록된 마일스톤이 없습니다.</div>
-                    <div class="mt-1">변경사항이 발생하면 "📍 운영 마일스톤" 탭에서 등록하세요.</div>
+                    <div class="mt-1">변경사항이 발생하면 "운영 마일스톤" 탭에서 등록하세요.</div>
                 </div>
             </div>
         `;
@@ -737,12 +736,12 @@ export async function renderMilestonesInsightWidget(containerEl) {
 
         let verdict = '';
         if (!s.hasEnoughData) {
-            verdict = `<div class="text-[11px] text-gray-500 dark:text-gray-400">⏳ ${s.statusLabel}</div>`;
+            verdict = `<div class="text-[11px] text-gray-500 dark:text-gray-400">${s.statusLabel}</div>`;
         } else {
             const goodCount = (uphPct > 0.5 ? 1 : 0) + (qtyPct > 0.5 ? 1 : 0);
             const badCount = (uphPct < -0.5 ? 1 : 0) + (qtyPct < -0.5 ? 1 : 0);
             const tone = goodCount > badCount ? 'text-emerald-600 dark:text-emerald-400' : (badCount > goodCount ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400');
-            const tag = goodCount > badCount ? '✅ 효과 양호' : (badCount > goodCount ? '⚠️ 부정적 변화' : '— 변화 미미');
+            const tag = goodCount > badCount ? '효과 양호' : (badCount > goodCount ? '부정적 변화' : '— 변화 미미');
             verdict = `<div class="text-[11px] font-bold ${tone}">${tag}</div>`;
         }
 
@@ -768,7 +767,7 @@ export async function renderMilestonesInsightWidget(containerEl) {
         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm">
             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div>
-                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-200 flex items-center gap-1.5">📍 마일스톤별 효과 요약</h3>
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-200 flex items-center gap-1.5">마일스톤별 효과 요약</h3>
                     <p class="text-[11px] text-gray-500 dark:text-gray-400">최근 6건 · 14일 전/후 평균 비교</p>
                 </div>
                 <button id="goto-milestones-tab-btn" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">전체 보기 →</button>
@@ -825,7 +824,7 @@ window.suggestMilestoneFromRecommendation = function (extra = {}) {
     openEditModal(null, {
         date: today,
         type: 'location_change',
-        title: extra.title || '🗺️ 로케이션 변경 적용',
+        title: extra.title || '로케이션 변경 적용',
         description: extra.description || `로케이션 변경 추천 리스트를 적용했습니다. (${extra.count || 0}건)`,
         tags: ['로케이션', '동선최적화'],
         affectedTasks: ['국내배송', '직진배송', '채우기']

@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202610131441';
-import { LEAVE_TYPES } from './state.js?v=202610131441';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610131441';
+import * as State from './state.js?v=202610131512';
+import { LEAVE_TYPES } from './state.js?v=202610131512';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610131512';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610131441';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610131441';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610131512';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610131512';
 
 import {
     calculateReportKPIs,
@@ -19,11 +19,11 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202610131441';
+} from './ui-history-reports-logic.js?v=202610131512';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202610131441';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610131441';
-import { D } from './d-chart.js?v=202610131441';
+import { aggregateManagementData } from './ui-history-management.js?v=202610131512';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610131512';
+import { D } from './d-chart.js?v=202610131512';
 
 // ============================================================
 // 모듈 상태
@@ -499,52 +499,52 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
 
     // 1) 생산성 총평
     if (qtyPct !== null) {
-        if (qtyPct >= 5) points.push({ tone: 'blue', icon: '📈', text: `총 처리량이 전기간 대비 <b>${qtyPct.toFixed(1)}% 증가</b>했습니다(${fmt(tp.prevTotalQuantity)}→${fmt(tp.totalQuantity)}개). 생산 물량이 확대되는 흐름입니다.` });
-        else if (qtyPct <= -5) points.push({ tone: 'red', icon: '📉', text: `총 처리량이 전기간 대비 <b>${Math.abs(qtyPct).toFixed(1)}% 감소</b>했습니다(${fmt(tp.prevTotalQuantity)}→${fmt(tp.totalQuantity)}개). 물량 감소 원인 점검이 필요합니다.` });
-        else points.push({ tone: 'gray', icon: '➖', text: `총 처리량은 전기간과 유사한 수준입니다(${fmt(tp.totalQuantity)}개, ${qtyPct >= 0 ? '+' : ''}${qtyPct.toFixed(1)}%).` });
+        if (qtyPct >= 5) points.push({ tone: 'blue', text: `총 처리량이 전기간 대비 <b>${qtyPct.toFixed(1)}% 증가</b>했습니다(${fmt(tp.prevTotalQuantity)}→${fmt(tp.totalQuantity)}개). 생산 물량이 확대되는 흐름입니다.` });
+        else if (qtyPct <= -5) points.push({ tone: 'red', text: `총 처리량이 전기간 대비 <b>${Math.abs(qtyPct).toFixed(1)}% 감소</b>했습니다(${fmt(tp.prevTotalQuantity)}→${fmt(tp.totalQuantity)}개). 물량 감소 원인 점검이 필요합니다.` });
+        else points.push({ tone: 'gray', text: `총 처리량은 전기간과 유사한 수준입니다(${fmt(tp.totalQuantity)}개, ${qtyPct >= 0 ? '+' : ''}${qtyPct.toFixed(1)}%).` });
     } else {
-        points.push({ tone: 'gray', icon: '📊', text: `이 기간 총 처리량은 <b>${fmt(tp.totalQuantity)}개</b>이며, 비교할 전기간 데이터가 없습니다.` });
+        points.push({ tone: 'gray', text: `이 기간 총 처리량은 <b>${fmt(tp.totalQuantity)}개</b>이며, 비교할 전기간 데이터가 없습니다.` });
     }
 
     // 2) OEE 총평
-    if (oee < 60) points.push({ tone: 'red', icon: '🔴', text: `종합 생산효율(OEE)이 <b>${oee.toFixed(0)}%</b>로 낮은 편입니다. 가용·성능·품질 손실 요인 중 가장 큰 항목부터 개선이 필요합니다.` });
-    else if (oee < 80) points.push({ tone: 'amber', icon: '🟡', text: `종합 생산효율(OEE)은 <b>${oee.toFixed(0)}%</b>로 보통 수준입니다${prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : ''}.` });
-    else points.push({ tone: 'emerald', icon: '🟢', text: `종합 생산효율(OEE)이 <b>${oee.toFixed(0)}%</b>로 우수합니다${prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : ''}. 현재 운영 수준을 유지하는 것이 관건입니다.` });
+    if (oee < 60) points.push({ tone: 'red', text: `종합 생산효율(OEE)이 <b>${oee.toFixed(0)}%</b>로 낮은 편입니다. 가용·성능·품질 손실 요인 중 가장 큰 항목부터 개선이 필요합니다.` });
+    else if (oee < 80) points.push({ tone: 'amber', text: `종합 생산효율(OEE)은 <b>${oee.toFixed(0)}%</b>로 보통 수준입니다${prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : ''}.` });
+    else points.push({ tone: 'emerald', text: `종합 생산효율(OEE)이 <b>${oee.toFixed(0)}%</b>로 우수합니다${prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : ''}. 현재 운영 수준을 유지하는 것이 관건입니다.` });
 
     // 3) 인력 운영
     if (core.curProd.requiredFTE > 0) {
         const gap = core.curProd.workedFTE - core.curProd.requiredFTE;
         const gapPct = core.curProd.requiredFTE > 0 ? (gap / core.curProd.requiredFTE * 100) : 0;
-        if (gapPct > 15) points.push({ tone: 'amber', icon: '👥', text: `실투입 인력(${core.curProd.workedFTE.toFixed(1)} FTE)이 표준 필요인력(${core.curProd.requiredFTE.toFixed(1)} FTE) 대비 <b>${gapPct.toFixed(0)}% 많습니다</b>. 인력 대비 산출이 낮을 수 있어 배치 효율 점검을 권장합니다.` });
-        else if (gapPct < -15) points.push({ tone: 'blue', icon: '👥', text: `실투입 인력(${core.curProd.workedFTE.toFixed(1)} FTE)이 표준 필요인력(${core.curProd.requiredFTE.toFixed(1)} FTE)보다 적은데도 물량을 소화했습니다. 밀도 높은 운영이나 과부하 여부 확인이 필요합니다.` });
-        else points.push({ tone: 'gray', icon: '👥', text: `실투입 인력과 표준 필요인력이 균형(${core.curProd.workedFTE.toFixed(1)} vs ${core.curProd.requiredFTE.toFixed(1)} FTE)을 이루고 있습니다.` });
+        if (gapPct > 15) points.push({ tone: 'amber', text: `실투입 인력(${core.curProd.workedFTE.toFixed(1)} FTE)이 표준 필요인력(${core.curProd.requiredFTE.toFixed(1)} FTE) 대비 <b>${gapPct.toFixed(0)}% 많습니다</b>. 인력 대비 산출이 낮을 수 있어 배치 효율 점검을 권장합니다.` });
+        else if (gapPct < -15) points.push({ tone: 'blue', text: `실투입 인력(${core.curProd.workedFTE.toFixed(1)} FTE)이 표준 필요인력(${core.curProd.requiredFTE.toFixed(1)} FTE)보다 적은데도 물량을 소화했습니다. 밀도 높은 운영이나 과부하 여부 확인이 필요합니다.` });
+        else points.push({ tone: 'gray', text: `실투입 인력과 표준 필요인력이 균형(${core.curProd.workedFTE.toFixed(1)} vs ${core.curProd.requiredFTE.toFixed(1)} FTE)을 이루고 있습니다.` });
     }
 
     // 4) 근태
     const absence = att.typeCounts['결근'] || 0;
     const late = att.typeCounts['지각'] || 0;
-    if (absence + late >= 5) points.push({ tone: 'amber', icon: '🕒', text: `결근 ${absence}건·지각 ${late}건이 발생했습니다. 특정 인원 집중 여부와 원인 관리가 필요합니다.` });
-    else if (att.totalEvents > 0) points.push({ tone: 'gray', icon: '🕒', text: `근태는 대체로 안정적입니다(결근 ${absence}·지각 ${late}건).` });
+    if (absence + late >= 5) points.push({ tone: 'amber', text: `결근 ${absence}건·지각 ${late}건이 발생했습니다. 특정 인원 집중 여부와 원인 관리가 필요합니다.` });
+    else if (att.totalEvents > 0) points.push({ tone: 'gray', text: `근태는 대체로 안정적입니다(결근 ${absence}·지각 ${late}건).` });
 
     // 5) 검수 품질
     if (insp.totalInspectionCount > 0) {
-        if (insp.qtyDefectRate >= 5) points.push({ tone: 'red', icon: '🔍', text: `입고 검수 불량률이 <b>${insp.qtyDefectRate.toFixed(1)}%</b>(수량 기준)로 높습니다. 상위 불량사유(${insp.topReasons.slice(0, 2).map(r => r[0]).join(', ') || '기타'}) 중심의 공급처 개선이 필요합니다.` });
-        else points.push({ tone: 'emerald', icon: '🔍', text: `입고 검수 불량률은 <b>${insp.qtyDefectRate.toFixed(1)}%</b>로 양호한 수준입니다.` });
+        if (insp.qtyDefectRate >= 5) points.push({ tone: 'red', text: `입고 검수 불량률이 <b>${insp.qtyDefectRate.toFixed(1)}%</b>(수량 기준)로 높습니다. 상위 불량사유(${insp.topReasons.slice(0, 2).map(r => r[0]).join(', ') || '기타'}) 중심의 공급처 개선이 필요합니다.` });
+        else points.push({ tone: 'emerald', text: `입고 검수 불량률은 <b>${insp.qtyDefectRate.toFixed(1)}%</b>로 양호한 수준입니다.` });
     }
 
     // 6) 매출/경영
     if (mg.curMgmt.revenue > 0) {
         const revPct = mg.prevMgmt.revenue > 0 ? ((mg.curMgmt.revenue - mg.prevMgmt.revenue) / mg.prevMgmt.revenue * 100) : null;
-        if (revPct !== null) points.push({ tone: revPct >= 0 ? 'blue' : 'red', icon: '💹', text: `총 매출은 <b>${fmt(mg.curMgmt.revenue)}원</b>으로 전기간 대비 ${revPct >= 0 ? '+' : ''}${revPct.toFixed(1)}%입니다.` });
-        else points.push({ tone: 'gray', icon: '💹', text: `총 매출은 <b>${fmt(mg.curMgmt.revenue)}원</b>입니다.` });
+        if (revPct !== null) points.push({ tone: revPct >= 0 ? 'blue' : 'red', text: `총 매출은 <b>${fmt(mg.curMgmt.revenue)}원</b>으로 전기간 대비 ${revPct >= 0 ? '+' : ''}${revPct.toFixed(1)}%입니다.` });
+        else points.push({ tone: 'gray', text: `총 매출은 <b>${fmt(mg.curMgmt.revenue)}원</b>입니다.` });
     }
 
     // 7) 마일스톤 효과
     if (ms.total > 0) {
-        if (ms.measuredCount === 0) points.push({ tone: 'gray', icon: '📍', text: `이 기간에 마일스톤 ${ms.total}건이 등록됐으나 아직 전/후 데이터가 충분치 않아 효과 판정은 보류 상태입니다.` });
-        else if (ms.positiveCount > ms.negativeCount) points.push({ tone: 'emerald', icon: '📍', text: `운영 마일스톤 ${ms.measuredCount}건 중 <b>${ms.positiveCount}건에서 긍정적 효과</b>가 확인됐습니다. 효과가 좋은 변경은 표준화·확대 적용을 검토하세요.` });
-        else if (ms.negativeCount > ms.positiveCount) points.push({ tone: 'amber', icon: '📍', text: `운영 마일스톤 ${ms.measuredCount}건 중 ${ms.negativeCount}건에서 부정적 변화가 관찰됐습니다. 해당 변경의 원복 또는 보완이 필요합니다.` });
-        else points.push({ tone: 'gray', icon: '📍', text: `운영 마일스톤 ${ms.measuredCount}건의 효과는 뚜렷한 방향성 없이 혼재되어 있습니다.` });
+        if (ms.measuredCount === 0) points.push({ tone: 'gray', text: `이 기간에 마일스톤 ${ms.total}건이 등록됐으나 아직 전/후 데이터가 충분치 않아 효과 판정은 보류 상태입니다.` });
+        else if (ms.positiveCount > ms.negativeCount) points.push({ tone: 'emerald', text: `운영 마일스톤 ${ms.measuredCount}건 중 <b>${ms.positiveCount}건에서 긍정적 효과</b>가 확인됐습니다. 효과가 좋은 변경은 표준화·확대 적용을 검토하세요.` });
+        else if (ms.negativeCount > ms.positiveCount) points.push({ tone: 'amber', text: `운영 마일스톤 ${ms.measuredCount}건 중 ${ms.negativeCount}건에서 부정적 변화가 관찰됐습니다. 해당 변경의 원복 또는 보완이 필요합니다.` });
+        else points.push({ tone: 'gray', text: `운영 마일스톤 ${ms.measuredCount}건의 효과는 뚜렷한 방향성 없이 혼재되어 있습니다.` });
     }
 
     // ============================================================
@@ -565,38 +565,38 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
     else oeeTarget = '현 수준(80%+) 유지';
     let planText = `다음 기간 OEE 목표를 <b>${oeeTarget}</b>로 설정하세요.`;
     if (topLoss && topLoss.cost > 0) planText += ` 현재 손실 비중이 가장 큰 <b>${topLoss.key}(${fmt(topLoss.cost)}원)</b>부터 집중 개선합니다 — ${topLoss.tip}`;
-    plans.push({ icon: '🎯', title: '생산 효율(OEE) 개선', text: planText });
+    plans.push({ title: '생산 효율(OEE) 개선', text: planText });
 
     // B) 물량 대응
-    if (qtyPct !== null && qtyPct <= -5) plans.push({ icon: '📦', title: '물량 회복', text: `처리량 감소가 발주·입고 물량 자체의 감소인지, 처리 지연인지 구분해 원인을 규명하세요. 물량 요인이면 영업·발주와 협의하고, 처리 요인이면 병목 업무에 인력을 우선 배치하세요.` });
-    else if (qtyPct !== null && qtyPct >= 10) plans.push({ icon: '📦', title: '증가 물량 대응', text: `물량이 뚜렷이 늘고 있습니다. 피크일 기준으로 인력·작업 공간·검수 캐파를 사전 확보해 처리 지연과 품질 저하를 예방하세요.` });
+    if (qtyPct !== null && qtyPct <= -5) plans.push({ title: '물량 회복', text: `처리량 감소가 발주·입고 물량 자체의 감소인지, 처리 지연인지 구분해 원인을 규명하세요. 물량 요인이면 영업·발주와 협의하고, 처리 요인이면 병목 업무에 인력을 우선 배치하세요.` });
+    else if (qtyPct !== null && qtyPct >= 10) plans.push({ title: '증가 물량 대응', text: `물량이 뚜렷이 늘고 있습니다. 피크일 기준으로 인력·작업 공간·검수 캐파를 사전 확보해 처리 지연과 품질 저하를 예방하세요.` });
 
     // C) 인력 운영 방향
     if (core.curProd.requiredFTE > 0) {
         const gapPct = (core.curProd.workedFTE - core.curProd.requiredFTE) / core.curProd.requiredFTE * 100;
-        if (gapPct > 15) plans.push({ icon: '👥', title: '인력 배치 효율화', text: `표준 대비 인력이 ${gapPct.toFixed(0)}% 초과 투입됐습니다. 저부하 시간대 인원을 축소하거나 고부하 업무로 재배치하고, 파트타이머 투입을 물량에 연동해 조정하세요.` });
-        else if (gapPct < -15) plans.push({ icon: '👥', title: '과부하 예방', text: `표준보다 적은 인력으로 운영되고 있어 특정 인원 과부하·번아웃 위험이 있습니다. 교차 훈련으로 대체 가능 인력을 늘리고 핵심 업무의 백업 인원을 확보하세요.` });
+        if (gapPct > 15) plans.push({ title: '인력 배치 효율화', text: `표준 대비 인력이 ${gapPct.toFixed(0)}% 초과 투입됐습니다. 저부하 시간대 인원을 축소하거나 고부하 업무로 재배치하고, 파트타이머 투입을 물량에 연동해 조정하세요.` });
+        else if (gapPct < -15) plans.push({ title: '과부하 예방', text: `표준보다 적은 인력으로 운영되고 있어 특정 인원 과부하·번아웃 위험이 있습니다. 교차 훈련으로 대체 가능 인력을 늘리고 핵심 업무의 백업 인원을 확보하세요.` });
     }
 
     // D) 근태 관리
-    if (absence + late >= 5) plans.push({ icon: '🕒', title: '근태 관리', text: `결근·지각이 집중된 인원을 식별해 1:1 면담과 원인 파악을 진행하고, 반복 시 근태 기준·교대 방식을 재점검하세요.` });
+    if (absence + late >= 5) plans.push({ title: '근태 관리', text: `결근·지각이 집중된 인원을 식별해 1:1 면담과 원인 파악을 진행하고, 반복 시 근태 기준·교대 방식을 재점검하세요.` });
 
     // E) 품질/공급처
-    if (insp.totalInspectionCount > 0 && insp.qtyDefectRate >= 5) plans.push({ icon: '🔍', title: '입고 품질 개선', text: `불량률이 높습니다. 상위 불량사유(${insp.topReasons.slice(0, 2).map(r => r[0]).join(', ') || '기타'})와 불량 상위 제품을 공급처에 피드백하고, 재발 시 발주 조건·검수 강화 등 조치 기준을 마련하세요.` });
+    if (insp.totalInspectionCount > 0 && insp.qtyDefectRate >= 5) plans.push({ title: '입고 품질 개선', text: `불량률이 높습니다. 상위 불량사유(${insp.topReasons.slice(0, 2).map(r => r[0]).join(', ') || '기타'})와 불량 상위 제품을 공급처에 피드백하고, 재발 시 발주 조건·검수 강화 등 조치 기준을 마련하세요.` });
 
     // F) 마일스톤 운영 방향
     if (ms.total === 0) {
-        plans.push({ icon: '📍', title: '변경 이력 관리', text: `이 기간 등록된 운영 마일스톤이 없습니다. 로케이션·인력·프로세스 변경 시 마일스톤을 등록하면 다음 결산에서 효과를 정량적으로 검증할 수 있습니다.` });
+        plans.push({ title: '변경 이력 관리', text: `이 기간 등록된 운영 마일스톤이 없습니다. 로케이션·인력·프로세스 변경 시 마일스톤을 등록하면 다음 결산에서 효과를 정량적으로 검증할 수 있습니다.` });
     } else {
-        if (ms.positiveCount > 0) plans.push({ icon: '📍', title: '검증된 개선 확산', text: `효과가 확인된 마일스톤 ${ms.positiveCount}건은 표준작업으로 문서화해 유사 공정·구역으로 확대 적용하세요.` });
-        if (ms.negativeCount > 0) plans.push({ icon: '📍', title: '부정 변경 보완', text: `부정적 변화가 나타난 ${ms.negativeCount}건은 원복 또는 보완안을 마련하고, 조치 후 효과를 다시 추적하세요.` });
-        if (ms.measuredCount < ms.total) plans.push({ icon: '📍', title: '효과 관측 지속', text: `아직 판정되지 않은 마일스톤은 데이터가 쌓이는 대로 재평가하고, 최소 2~4주간 지표 변화를 지켜본 뒤 존치 여부를 결정하세요.` });
+        if (ms.positiveCount > 0) plans.push({ title: '검증된 개선 확산', text: `효과가 확인된 마일스톤 ${ms.positiveCount}건은 표준작업으로 문서화해 유사 공정·구역으로 확대 적용하세요.` });
+        if (ms.negativeCount > 0) plans.push({ title: '부정 변경 보완', text: `부정적 변화가 나타난 ${ms.negativeCount}건은 원복 또는 보완안을 마련하고, 조치 후 효과를 다시 추적하세요.` });
+        if (ms.measuredCount < ms.total) plans.push({ title: '효과 관측 지속', text: `아직 판정되지 않은 마일스톤은 데이터가 쌓이는 대로 재평가하고, 최소 2~4주간 지표 변화를 지켜본 뒤 존치 여부를 결정하세요.` });
     }
 
     // 최종 판정
-    let verdict = { icon: '🟢', text: '양호', bg: 'bg-emerald-500' };
-    if (oee < 60 || (qtyPct !== null && qtyPct <= -10) || insp.qtyDefectRate >= 8) verdict = { icon: '🔴', text: '주의 필요', bg: 'bg-red-500' };
-    else if (oee < 80 || (qtyPct !== null && qtyPct < 0) || insp.qtyDefectRate >= 5) verdict = { icon: '🟡', text: '보통', bg: 'bg-amber-500' };
+    let verdict = { text: '양호', bg: 'bg-emerald-500' };
+    if (oee < 60 || (qtyPct !== null && qtyPct <= -10) || insp.qtyDefectRate >= 8) verdict = { text: '주의 필요', bg: 'bg-red-500' };
+    else if (oee < 80 || (qtyPct !== null && qtyPct < 0) || insp.qtyDefectRate >= 5) verdict = { text: '보통', bg: 'bg-amber-500' };
 
     // 판정 요약 한 줄
     const verdictSummary = verdict.text === '주의 필요'
@@ -615,9 +615,9 @@ const fmt = (n) => Math.round(Number(n) || 0).toLocaleString();
 
 // 섹션 컨테이너 (전체 폭 패널 — 카드 나열이 아니라 보고서 챕터처럼 구성)
 const sectionPanel = (icon, title, subtitle, bodyHtml, accentClass = 'border-l-blue-500') => `
-    <section class="bg-white border border-gray-200 ${accentClass} border-l-4 rounded-xl shadow-sm p-5 md:p-6 print:break-inside-avoid">
+    <section class="bg-white border border-gray-200 rounded-xl shadow-sm p-5 md:p-6 print:break-inside-avoid">
         <div class="flex items-baseline justify-between flex-wrap gap-1 mb-4 pb-3 border-b border-gray-100">
-            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">${icon} ${title}</h3>
+            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">${title}</h3>
             <p class="text-xs text-gray-400">${subtitle}</p>
         </div>
         ${bodyHtml}
@@ -789,57 +789,57 @@ function createHorizontalBarChart(canvasId, labels, values, colorHex) {
 function renderExecutiveSummary(core, tp, wf, att, mg, insp, periodLabel, workingDaysCount) {
     if (workingDaysCount === 0) {
         return `
-        <div class="settle-exec bg-gradient-to-br from-gray-700 to-gray-900 rounded-2xl shadow-md p-6 text-white">
-            <h2 class="text-xl font-bold mb-1">🧾 ${periodLabel} 팀 결산 보고</h2>
-            <p class="text-sm text-gray-300">해당 기간에 업무 기록이 없어 요약할 내용이 없습니다.</p>
+        <div class="settle-exec bg-white border border-gray-200 rounded-2xl p-6 text-gray-900">
+            <h2 class="text-xl font-bold mb-1">${periodLabel} 팀 결산 보고</h2>
+            <p class="text-sm text-gray-500">해당 기간에 업무 기록이 없어 요약할 내용이 없습니다.</p>
         </div>`;
     }
 
     const d = core.diagnosis?.diagnosis;
-    let verdictIcon = '🟢', verdictText = '양호', verdictBg = 'bg-emerald-500';
-    if (core.curProd.oee < 60) { verdictIcon = '🔴'; verdictText = '주의 필요'; verdictBg = 'bg-red-500'; }
-    else if (core.curProd.oee < 80) { verdictIcon = '🟡'; verdictText = '보통'; verdictBg = 'bg-amber-500'; }
+    let verdictText = '양호', verdictBg = 'bg-emerald-500';
+    if (core.curProd.oee < 60) { verdictText = '주의 필요'; verdictBg = 'bg-red-500'; }
+    else if (core.curProd.oee < 80) { verdictText = '보통'; verdictBg = 'bg-amber-500'; }
 
     const qtyChangeTxt = tp.prevTotalQuantity > 0
         ? `전기간(${fmt(tp.prevTotalQuantity)}개) 대비 ${tp.totalQuantity >= tp.prevTotalQuantity ? '+' : ''}${(((tp.totalQuantity - tp.prevTotalQuantity) / tp.prevTotalQuantity) * 100).toFixed(1)}%`
         : '전기간 데이터 없음';
 
     return `
-    <div class="bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 rounded-2xl shadow-md p-6 md:p-8 text-white">
+    <div class="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 text-gray-900">
         <div class="flex items-start justify-between flex-wrap gap-3 mb-6">
             <div>
-                <div class="text-xs text-slate-300 tracking-wide uppercase mb-1">Executive Summary</div>
+                <div class="text-xs text-gray-600 tracking-wide uppercase mb-1">Executive Summary</div>
                 <h2 class="text-2xl font-extrabold">${periodLabel} 팀 결산 보고</h2>
             </div>
-            <span class="inline-flex items-center gap-1.5 ${verdictBg} text-white text-sm font-bold px-3 py-1.5 rounded-full shadow">${verdictIcon} ${verdictText}</span>
+            <span class="inline-flex items-center gap-1.5 ${verdictBg} text-white text-sm font-bold px-3 py-1.5 rounded-full shadow">${verdictText}</span>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div>
-                <div class="text-[11px] text-slate-300 mb-1">총 처리량</div>
-                <div class="text-3xl font-extrabold">${fmt(tp.totalQuantity)}<span class="text-sm font-medium text-slate-300 ml-1">개</span></div>
-                <div class="text-[11px] text-slate-300 mt-1">${qtyChangeTxt}</div>
+                <div class="text-[11px] text-gray-600 mb-1">총 처리량</div>
+                <div class="text-3xl font-extrabold">${fmt(tp.totalQuantity)}<span class="text-sm font-medium text-gray-600 ml-1">개</span></div>
+                <div class="text-[11px] text-gray-600 mt-1">${qtyChangeTxt}</div>
             </div>
             <div>
-                <div class="text-[11px] text-slate-300 mb-1">종합 생산 효율 (OEE)</div>
-                <div class="text-3xl font-extrabold">${core.curProd.oee.toFixed(0)}<span class="text-sm font-medium text-slate-300 ml-1">%</span></div>
-                <div class="text-[11px] text-slate-300 mt-1">${core.prevProd.oee > 0 ? `전기간 ${core.prevProd.oee.toFixed(0)}%` : '전기간 데이터 없음'}</div>
+                <div class="text-[11px] text-gray-600 mb-1">종합 생산 효율 (OEE)</div>
+                <div class="text-3xl font-extrabold">${core.curProd.oee.toFixed(0)}<span class="text-sm font-medium text-gray-600 ml-1">%</span></div>
+                <div class="text-[11px] text-gray-600 mt-1">${core.prevProd.oee > 0 ? `전기간 ${core.prevProd.oee.toFixed(0)}%` : '전기간 데이터 없음'}</div>
             </div>
             <div>
-                <div class="text-[11px] text-slate-300 mb-1">일평균 근무인원</div>
-                <div class="text-3xl font-extrabold">${wf.avgActiveMembers.toFixed(1)}<span class="text-sm font-medium text-slate-300 ml-1">명</span></div>
-                <div class="text-[11px] text-slate-300 mt-1">파트타이머 ${wf.partTimerCount}명 포함</div>
+                <div class="text-[11px] text-gray-600 mb-1">일평균 근무인원</div>
+                <div class="text-3xl font-extrabold">${wf.avgActiveMembers.toFixed(1)}<span class="text-sm font-medium text-gray-600 ml-1">명</span></div>
+                <div class="text-[11px] text-gray-600 mt-1">파트타이머 ${wf.partTimerCount}명 포함</div>
             </div>
             <div>
-                <div class="text-[11px] text-slate-300 mb-1">${mg.curMgmt.revenue > 0 ? '총 매출' : '검수 불량률'}</div>
-                <div class="text-3xl font-extrabold">${mg.curMgmt.revenue > 0 ? fmt(mg.curMgmt.revenue) : insp.qtyDefectRate.toFixed(1)}<span class="text-sm font-medium text-slate-300 ml-1">${mg.curMgmt.revenue > 0 ? '원' : '%'}</span></div>
-                <div class="text-[11px] text-slate-300 mt-1">${mg.curMgmt.revenue > 0 ? `발주 ${fmt(mg.curMgmt.orderCount)}건` : `검수 ${fmt(insp.totalInspectionCount)}건`}</div>
+                <div class="text-[11px] text-gray-600 mb-1">${mg.curMgmt.revenue > 0 ? '총 매출' : '검수 불량률'}</div>
+                <div class="text-3xl font-extrabold">${mg.curMgmt.revenue > 0 ? fmt(mg.curMgmt.revenue) : insp.qtyDefectRate.toFixed(1)}<span class="text-sm font-medium text-gray-600 ml-1">${mg.curMgmt.revenue > 0 ? '원' : '%'}</span></div>
+                <div class="text-[11px] text-gray-600 mt-1">${mg.curMgmt.revenue > 0 ? `발주 ${fmt(mg.curMgmt.orderCount)}건` : `검수 ${fmt(insp.totalInspectionCount)}건`}</div>
             </div>
         </div>
 
-        ${d ? `<div class="bg-white/10 backdrop-blur rounded-lg p-4 text-sm leading-relaxed">
-            <span class="font-bold">${d.icon} ${d.title}.</span> ${d.desc}
-            ${core.diagnosis?.commentHtml ? `<div class="mt-2 text-slate-200 text-xs">${core.diagnosis.commentHtml}</div>` : ''}
+        ${d ? `<div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm leading-relaxed text-gray-800">
+            <span class="font-bold">${d.title}.</span> ${d.desc}
+            ${core.diagnosis?.commentHtml ? `<div class="mt-2 text-gray-600 text-xs">${core.diagnosis.commentHtml}</div>` : ''}
         </div>` : ''}
     </div>`;
 }
@@ -864,12 +864,12 @@ function renderProductivitySection(tp, core, workingDaysCount) {
         </div>
 
         <div class="mb-5">
-            <div class="text-xs font-bold text-gray-600 mb-2">📈 일별 처리량 추이</div>
+            <div class="text-xs font-bold text-gray-600 mb-2">일별 처리량 추이</div>
             <div style="height:220px;"><canvas id="${chartId}"></canvas></div>
         </div>
 
         <div class="mb-5">
-            <div class="text-xs font-bold text-gray-600 mb-2">🧩 업무별 처리량 분해 (점유율 · 전기간 대비)</div>
+            <div class="text-xs font-bold text-gray-600 mb-2">업무별 처리량 분해 (점유율 · 전기간 대비)</div>
             ${sfTable('tpTask', [
                 { key: 'task', label: '업무', filterable: true, get: t => t.task, cell: t => esc(t.task) },
                 { key: 'quantity', label: '처리량', align: 'right', type: 'num', get: t => t.quantity,
@@ -882,7 +882,7 @@ function renderProductivitySection(tp, core, workingDaysCount) {
             ], tp.taskEntries)}
         </div>
 
-        <div class="text-xs font-bold text-gray-600 mb-2">⚙️ 효율성 부가 지표 (참고용)</div>
+        <div class="text-xs font-bold text-gray-600 mb-2">효율성 부가 지표 (참고용)</div>
         <div class="grid grid-cols-3 gap-2 mb-3">
             ${miniStat('시간 활용률', drillWrap(core.curProd.utilizationRate.toFixed(0) + '%', 'utilizationRate'))}
             ${miniStat('업무 효율성', drillWrap(core.curProd.efficiencyRatio.toFixed(0) + '%', 'efficiencyRatio'))}
@@ -894,7 +894,7 @@ function renderProductivitySection(tp, core, workingDaysCount) {
             <div class="text-[11px] text-gray-500">품질 손실 <b class="text-gray-700 block text-sm">${fmt(core.curProd.qualityLossCost)}원</b></div>
         </div>
         ${core.curProd.topPerformanceLossTasks && core.curProd.topPerformanceLossTasks.length > 0 ? `
-        <div class="text-[11px] text-gray-500 mb-1">⏱️ 속도 손실 상위 업무</div>
+        <div class="text-[11px] text-gray-500 mb-1">속도 손실 상위 업무</div>
         <div class="space-y-1">
             ${core.curProd.topPerformanceLossTasks.map(t => `<div class="flex justify-between text-xs"><span>${esc(t.task)}</span><span class="text-red-500 font-bold">-${fmt(t.lossMinutes)}분</span></div>`).join('')}
         </div>` : ''}
@@ -916,7 +916,7 @@ function renderWorkforceSection(wf, core, workingDaysCount) {
         </div>
 
         <div class="mb-5">
-            <div class="text-xs font-bold text-gray-600 mb-2">⚖️ 투입 인력 비교 (${drillWrap('FTE란?', 'fte')})</div>
+            <div class="text-xs font-bold text-gray-600 mb-2">투입 인력 비교 (${drillWrap('FTE란?', 'fte')})</div>
             <div class="space-y-2">
                 <div class="flex items-center gap-3 text-xs">
                     <span class="w-24 text-gray-500">가용 인력</span>
@@ -938,7 +938,7 @@ function renderWorkforceSection(wf, core, workingDaysCount) {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-                <div class="text-xs font-bold text-gray-600 mb-2">🧑‍🤝‍🧑 파트별 인력 분포</div>
+                <div class="text-xs font-bold text-gray-600 mb-2">파트별 인력 분포</div>
                 ${sfTable('wfPart', [
                     { key: 'part', label: '파트', filterable: true, get: p => p.part, cell: p => esc(p.part) },
                     { key: 'memberCount', label: '인원', align: 'right', type: 'num', get: p => p.memberCount, cell: p => p.memberCount + '명' },
@@ -946,7 +946,7 @@ function renderWorkforceSection(wf, core, workingDaysCount) {
                 ], wf.partDistribution, 'max-h-[220px]')}
             </div>
             <div>
-                <div class="text-xs font-bold text-gray-600 mb-2">🏖️ 연차·반차 사용 상위 인원</div>
+                <div class="text-xs font-bold text-gray-600 mb-2">연차·반차 사용 상위 인원</div>
                 ${sfTable('wfLeave', [
                     { key: 'member', label: '이름', filterable: true, get: m => m.member, cell: m => esc(m.member) },
                     { key: 'days', label: '사용일수', align: 'right', type: 'num', get: m => m.days, cell: m => m.days.toFixed(1) + '일' }
@@ -973,7 +973,7 @@ function renderWorkReportSection(wr, workingDaysCount, totalDaysCount) {
         </div>
 
         <div class="mb-5">
-            <div class="text-xs font-bold text-gray-600 mb-2">📋 업무별 상세 (투입시간 순)</div>
+            <div class="text-xs font-bold text-gray-600 mb-2">업무별 상세 (투입시간 순)</div>
             ${sfTable('wrTask', [
                 { key: 'task', label: '업무', filterable: true, get: t => t.task, cell: t => esc(t.task) },
                 { key: 'duration', label: '투입시간', align: 'right', type: 'num', get: t => t.duration, cell: t => formatDuration(t.duration) },
@@ -990,7 +990,7 @@ function renderWorkReportSection(wr, workingDaysCount, totalDaysCount) {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-                <div class="text-xs font-bold text-gray-600 mb-2">🧑‍🤝‍🧑 파트별 요약</div>
+                <div class="text-xs font-bold text-gray-600 mb-2">파트별 요약</div>
                 ${sfTable('wrPart', [
                     { key: 'part', label: '파트', filterable: true, get: p => p.part, cell: p => esc(p.part) },
                     { key: 'memberCount', label: '인원', align: 'right', type: 'num', get: p => p.memberCount, cell: p => p.memberCount + '명' },
@@ -998,7 +998,7 @@ function renderWorkReportSection(wr, workingDaysCount, totalDaysCount) {
                 ], wr.partRows, 'max-h-[260px]')}
             </div>
             <div>
-                <div class="text-xs font-bold text-gray-600 mb-2">🙋 인원별 상세 (투입시간 순)</div>
+                <div class="text-xs font-bold text-gray-600 mb-2">인원별 상세 (투입시간 순)</div>
                 ${sfTable('wrMember', [
                     { key: 'member', label: '이름', filterable: true, get: m => m.member, cell: m => esc(m.member) },
                     { key: 'part', label: '파트', filterable: true, get: m => m.part, cell: m => esc(m.part) },
@@ -1020,11 +1020,11 @@ function renderAttendanceSection(att) {
     const body = `
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
             <div class="md:col-span-1">
-                <div class="text-xs font-bold text-gray-600 mb-2">📊 근태 유형별 건수</div>
+                <div class="text-xs font-bold text-gray-600 mb-2">근태 유형별 건수</div>
                 <div style="height:${Math.max(140, activeTypes.length * 32)}px;"><canvas id="${chartId}"></canvas></div>
             </div>
             <div class="md:col-span-2">
-                <div class="text-xs font-bold text-gray-600 mb-2">⚠️ 결근·지각·외출·조퇴 상위 인원</div>
+                <div class="text-xs font-bold text-gray-600 mb-2">결근·지각·외출·조퇴 상위 인원</div>
                 ${sfTable('attMember', [
                     { key: 'member', label: '이름', filterable: true, get: m => m.member, cell: m => esc(m.member) },
                     { key: 'absence', label: '결근', align: 'right', type: 'num', get: m => m.absence,
@@ -1059,12 +1059,12 @@ function renderManagementSection(mg) {
         </div>
 
         <div class="mb-5">
-            <div class="text-xs font-bold text-gray-600 mb-2">📈 일별 매출 추이</div>
+            <div class="text-xs font-bold text-gray-600 mb-2">일별 매출 추이</div>
             <div style="height:200px;"><canvas id="${chartId}"></canvas></div>
         </div>
 
         ${mg.unitCost && mg.unitCost.isValid ? `
-        <div class="text-xs font-bold text-gray-600 mb-2">💰 개당 원가 구조</div>
+        <div class="text-xs font-bold text-gray-600 mb-2">개당 원가 구조</div>
         <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
             ${miniStat('인건비', fmt(mg.unitCost.costs.labor) + '원')}
             ${miniStat('자재비', fmt(mg.unitCost.costs.material) + '원')}
@@ -1094,7 +1094,7 @@ function renderInspectionSection(insp) {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-                <div class="text-xs font-bold text-gray-600 mb-2">⚠️ 불량 상위 제품</div>
+                <div class="text-xs font-bold text-gray-600 mb-2">불량 상위 제품</div>
                 ${sfTable('inspDefect', [
                     { key: 'name', label: '제품', filterable: true, get: r => r.name, cell: r => esc(r.name) },
                     { key: 'defectCount', label: '불량건수', align: 'right', type: 'num', get: r => r.defectCount,
@@ -1104,7 +1104,7 @@ function renderInspectionSection(insp) {
                 ], insp.topDefective, 'max-h-[300px]', '불량 없음')}
             </div>
             <div>
-                <div class="text-xs font-bold text-gray-600 mb-2">📋 불량 사유 상위 항목</div>
+                <div class="text-xs font-bold text-gray-600 mb-2">불량 사유 상위 항목</div>
                 <div class="space-y-2">
                     ${insp.topReasons.map(([reason, count]) => {
                         const max = insp.topReasons[0][1] || 1;
@@ -1128,7 +1128,7 @@ function renderMilestoneSection(ms) {
         const flat = Math.abs(pct) < 0.5;
         const good = (betterIfHigh && pct > 0) || (!betterIfHigh && pct < 0);
         const cls = flat ? 'text-gray-400' : (good ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold');
-        const icon = flat ? '—' : (good ? '✅' : '⚠️');
+        const icon = flat ? '—' : (good ? '개선' : '악화');
         return `<span class="${cls}">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}${suffix} ${icon}</span>`;
     };
 
@@ -1141,7 +1141,7 @@ function renderMilestoneSection(ms) {
                 ${td(`<div class="text-[11px] text-gray-400 font-mono">${esc(m.date)}</div>`)}
                 ${td(`<div class="font-bold text-gray-800">${esc(m.title || '-')}</div><div class="text-[10px] text-gray-400">${esc(it.typeInfo.label)}</div>`)}
                 ${td(`<span class="text-[10px] text-gray-400">${esc(affected)}</span>`)}
-                <td class="px-3 py-2 text-center" colspan="4"><span class="text-[11px] text-gray-400">⏳ ${esc(s.statusLabel)}</span></td>
+                <td class="px-3 py-2 text-center" colspan="4"><span class="text-[11px] text-gray-400">${esc(s.statusLabel)}</span></td>
             </tr>`;
         }
         return `<tr>
@@ -1162,18 +1162,18 @@ function renderMilestoneSection(ms) {
             ${heroStat('긍정 효과', ms.positiveCount, '건', '', 'text-emerald-600')}
             ${heroStat('부정 변화', ms.negativeCount, '건', '', ms.negativeCount > 0 ? 'text-red-500' : 'text-gray-500')}
         </div>
-        <div class="text-xs font-bold text-gray-600 mb-2">📊 마일스톤별 전·후 효과 (기준일 전후 14일 비교)</div>
+        <div class="text-xs font-bold text-gray-600 mb-2">마일스톤별 전·후 효과 (기준일 전후 14일 비교)</div>
         ${tableShell(
             th('기준일') + th('변경 내용') + th('영향 업무') + th('UPH(전→후)', 'right') + th('UPH 변화', 'right') + th('일평균처리량(전→후)', 'right') + th('처리량 변화', 'right'),
             rows,
             'max-h-[360px]'
         )}
         <div class="mt-3 mb-5 text-[11px] text-gray-400 leading-relaxed">
-            ℹ️ 각 마일스톤 기준일의 전 14일 ↔ 후 14일 평균을 비교합니다. 관측 일수가 적은 항목은 "데이터 누적 중"으로 표시됩니다.<br>
-            ℹ️ UPH·처리량 "✅"는 개선(증가), "⚠️"는 악화(감소)를 의미합니다.
+            각 마일스톤 기준일의 전 14일 ↔ 후 14일 평균을 비교합니다. 관측 일수가 적은 항목은 "데이터 누적 중"으로 표시됩니다.<br>
+            UPH·처리량 '개선'은 증가, '악화'는 감소를 뜻합니다.
         </div>
 
-        <div class="text-xs font-bold text-gray-600 mb-2">🧩 결과 해석 및 운영방안</div>
+        <div class="text-xs font-bold text-gray-600 mb-2">결과 해석 및 운영방안</div>
         <div class="space-y-2.5">
             ${ms.items.map(it => {
                 const clsTone = {
@@ -1184,11 +1184,11 @@ function renderMilestoneSection(ms) {
                     insufficient: 'bg-gray-50 border-dashed border-gray-300'
                 }[it.insight.cls] || 'bg-gray-50 border-gray-200';
                 const badge = {
-                    good: '<span class="text-emerald-700 font-bold">✅ 효과 확인</span>',
-                    bad: '<span class="text-red-600 font-bold">⚠️ 부정적</span>',
-                    mixed: '<span class="text-amber-700 font-bold">↔️ 혼재</span>',
+                    good: '<span class="text-emerald-700 font-bold">효과 확인</span>',
+                    bad: '<span class="text-red-600 font-bold">부정적</span>',
+                    mixed: '<span class="text-amber-700 font-bold">혼재</span>',
                     flat: '<span class="text-gray-500 font-bold">— 변화 미미</span>',
-                    insufficient: '<span class="text-gray-400 font-bold">⏳ 관측 중</span>'
+                    insufficient: '<span class="text-gray-400 font-bold">관측 중</span>'
                 }[it.insight.cls] || '';
                 return `
                 <div class="rounded-lg border ${clsTone} p-3">
@@ -1216,7 +1216,7 @@ function renderOverallOpinionSection(op, periodLabel, workingDaysCount) {
     };
     const pointsHtml = op.points.map(p => `
         <li class="flex items-start gap-2.5">
-            <span class="text-base leading-tight ${toneColor[p.tone] || 'text-gray-500'} shrink-0">${p.icon}</span>
+            <span class="mt-[7px] w-1.5 h-1.5 rounded-full bg-current ${toneColor[p.tone] || 'text-gray-500'} shrink-0"></span>
             <span class="text-sm text-gray-700 leading-relaxed">${p.text}</span>
         </li>`).join('');
 
@@ -1224,23 +1224,23 @@ function renderOverallOpinionSection(op, periodLabel, workingDaysCount) {
         <li class="flex items-start gap-3 bg-slate-50 rounded-lg border border-slate-200 p-3">
             <span class="shrink-0 w-6 h-6 rounded-full bg-slate-700 text-white text-xs font-bold flex items-center justify-center">${i + 1}</span>
             <div>
-                <div class="text-sm font-bold text-gray-800 mb-0.5">${pl.icon} ${esc(pl.title)}</div>
+                <div class="text-sm font-bold text-gray-800 mb-0.5">${esc(pl.title)}</div>
                 <div class="text-[13px] text-gray-700 leading-relaxed">${pl.text}</div>
             </div>
         </li>`).join('');
 
     const body = `
         <div class="flex items-center gap-3 mb-3 flex-wrap">
-            <span class="inline-flex items-center gap-1.5 ${op.verdict.bg} text-white text-sm font-bold px-3 py-1.5 rounded-full shadow">${op.verdict.icon} 종합 판정: ${op.verdict.text}</span>
+            <span class="inline-flex items-center gap-1.5 ${op.verdict.bg} text-white text-sm font-bold px-3 py-1.5 rounded-full shadow">종합 판정: ${op.verdict.text}</span>
             <span class="text-xs text-gray-400">${esc(periodLabel)} 운영 전반에 대한 자동 진단</span>
         </div>
         ${op.verdictSummary ? narrative(`<b>총평.</b> ${esc(op.verdictSummary)}`, op.verdict.text === '주의 필요' ? 'red' : (op.verdict.text === '보통' ? 'amber' : 'emerald')) : ''}
 
-        <div class="text-xs font-bold text-gray-600 mt-5 mb-2">🔎 진단값 해석</div>
+        <div class="text-xs font-bold text-gray-600 mt-5 mb-2">진단값 해석</div>
         <ul class="space-y-3">${pointsHtml}</ul>
 
         ${plansHtml ? `
-        <div class="text-xs font-bold text-gray-600 mt-6 mb-2">📋 이후 운영 계획 / 방향</div>
+        <div class="text-xs font-bold text-gray-600 mt-6 mb-2">이후 운영 계획 / 방향</div>
         <ol class="space-y-2.5">${plansHtml}</ol>` : ''}
 
         <div class="mt-4 text-[11px] text-gray-400">※ 본 종합의견·운영계획은 각 섹션 지표를 규칙 기반으로 자동 요약·제안한 것으로, 실제 현장 상황과 함께 판단하시기 바랍니다.</div>
@@ -1506,12 +1506,12 @@ function buildPeriodControlsHtml() {
                     ${yearOptions.map(y => `<option value="${y}" ${String(year) === y ? 'selected' : ''}>${y}년</option>`).join('')}
                 </select>
                 ${granularity !== 'year' ? `<select id="settle-sub-select" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">${subOptions}</select>` : ''}
-                <button id="settle-generate-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-1.5 rounded-lg transition">📊 보고서 생성</button>
+                <button id="settle-generate-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-1.5 rounded-lg transition">보고서 생성</button>
             </div>
             <div class="flex items-center gap-2">
                 <span id="settle-generated-at" class="text-xs text-gray-400"></span>
-                <button id="settle-download-btn" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition">⬇️ 엑셀</button>
-                <button id="settle-pdf-btn" class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition" title="화면 모습 그대로 저장합니다">🖼️ PDF</button>
+                <button id="settle-download-btn" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition">엑셀</button>
+                <button id="settle-pdf-btn" class="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-sm font-bold px-3 py-1.5 rounded-lg transition" title="화면 모습 그대로 저장합니다">PDF</button>
             </div>
         </div>`;
 }
@@ -1613,7 +1613,7 @@ export function renderSettlementReport(container, appConfig) {
     container.innerHTML = `
         <div class="flex items-center justify-between flex-wrap gap-2">
             <div>
-                <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">🧾 팀 결산 보고 <span class="text-blue-600">· ${periodLabel}</span></h2>
+                <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">팀 결산 보고 <span class="text-blue-600">· ${periodLabel}</span></h2>
                 <p class="text-xs text-gray-500 mt-1">근무 기록 ${currentDays.length}일 중 실근무 ${workingDaysCount}일 기준</p>
             </div>
         </div>

@@ -1,7 +1,7 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610131441';
-import * as State from './state.js?v=202610131441';
-import { getWeekOfYear } from './utils.js?v=202610131441';
+import * as DOM from './dom-elements.js?v=202610131512';
+import * as State from './state.js?v=202610131512';
+import { getWeekOfYear } from './utils.js?v=202610131512';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -48,15 +48,15 @@ export const renderInspectionLayout = (container) => {
                 <div class="flex">
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'product' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="product">
-                        📦 상품별 보기
+                        상품별 보기
                     </button>
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="list">
-                        📅 검수 일자별 보기
+                        검수 일자별 보기
                     </button>
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'qc' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="qc">
-                        📊 QC 통계 리포트
+                        QC 통계 리포트
                     </button>
                 </div>
                 <div class="pb-1 pr-1 flex gap-2 items-center">
@@ -179,7 +179,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-2">
-                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
+                        <h4 class="font-bold text-gray-700 text-sm">${selectedDate} 검수 리스트 상세</h4>
                         <span class="text-xs text-gray-500">0건</span>
                     </div>
                 </div>
@@ -238,7 +238,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-3">
-                        <h4 class="font-bold text-gray-700 text-sm">📅 ${selectedDate} 검수 리스트 상세</h4>
+                        <h4 class="font-bold text-gray-700 text-sm">${selectedDate} 검수 리스트 상세</h4>
                         <span class="text-[11px] font-medium bg-white border border-gray-200 shadow-sm px-2.5 py-1 rounded text-gray-600">
                             총 입고: <strong class="text-gray-900">${totalInboundQty.toLocaleString()}</strong>개 <span class="mx-1 text-gray-300">|</span> 
                             총 샘플검수: <strong class="text-blue-600">${totalSampleQty.toLocaleString()}</strong>개
@@ -248,7 +248,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                         ${pendingCount > 0 ? `<button class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1 px-2.5 rounded shadow-sm transition btn-resume-insp" data-date="${selectedDate}" title="이 날짜의 대기 항목을 오늘 검수 대기 리스트로 불러와 이어서 진행">▶ 이어서 검수 (대기 ${pendingCount}건)</button>` : ''}
                         <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list"
                                 data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
-                            🗑️ 리스트 삭제
+                            리스트 삭제
                         </button>
                     </div>
                 </div>
@@ -504,7 +504,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             rowsHtml += `
                 <tr class="bg-indigo-100/70 border-y border-indigo-200">
                     <td colspan="9" class="px-4 py-2 text-xs font-bold text-indigo-900">
-                        🏷️ 분류 (코드 / 옵션) : <span class="text-indigo-700">${groupKey}</span> 
+                        분류 (코드 / 옵션) : <span class="text-indigo-700">${groupKey}</span> 
                         <span class="text-gray-500 font-normal ml-2">(${group.length}건)</span>
                     </td>
                 </tr>
@@ -576,7 +576,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             }).join('');
         });
 
-        const headerTitle = isQcReport ? `🔍 상세 불량 내역 (해당 기간)` : `🔍 상세 검수 이력`;
+        const headerTitle = isQcReport ? `상세 불량 내역 (해당 기간)` : `상세 검수 이력`;
 
         logsHtml = `
             <div class="p-4 bg-indigo-50/50 border-y border-indigo-200">
@@ -812,8 +812,8 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
 
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col shrink-0 mb-8">
                 <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
-                    <h3 class="font-bold text-gray-700">⚠️ QC 집중 관리 대상 (발생 횟수 최다 상품 TOP 15)</h3>
-                    <span class="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded shadow-sm">💡 행을 클릭하면 해당 기간의 불량 상세 내역을 볼 수 있습니다.</span>
+                    <h3 class="font-bold text-gray-700">QC 집중 관리 대상 (발생 횟수 최다 상품 TOP 15)</h3>
+                    <span class="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded shadow-sm">행을 클릭하면 해당 기간의 불량 상세 내역을 볼 수 있습니다.</span>
                 </div>
                 
                 <div class="overflow-x-auto relative">
@@ -821,8 +821,8 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                         <thead class="text-xs text-gray-500 bg-gray-50 outline outline-1 outline-gray-200">
                             <tr class="bg-gray-50">
                                 <th class="px-4 py-3 border-b">상품명</th>
-                                <th class="px-4 py-3 text-center border-b border-l bg-gray-100/50" colspan="3">📊 검수 횟수 (상품 건별) 기준</th>
-                                <th class="px-4 py-3 text-center border-b border-l" colspan="3">📦 샘플검수 수량 (개수) 기준</th>
+                                <th class="px-4 py-3 text-center border-b border-l bg-gray-100/50" colspan="3">검수 횟수 (상품 건별) 기준</th>
+                                <th class="px-4 py-3 text-center border-b border-l" colspan="3">샘플검수 수량 (개수) 기준</th>
                                 <th class="px-4 py-3 border-b border-l">주요 불량 사유</th>
                             </tr>
                             <tr class="text-[11px] text-gray-400 bg-gray-50">
@@ -838,7 +838,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                         </thead>
                         <tbody class="divide-y divide-gray-100 relative z-0">
                             ${topDefectiveProducts.length === 0 ? `
-                                <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다. 🎉</td></tr>
+                                <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다.</td></tr>
                             ` : topDefectiveProducts.map((p, idx) => `
                                 <tr class="hover:bg-indigo-50/50 transition cursor-pointer btn-view-detail group" 
                                     data-product-name="${p.name}" 

@@ -1,9 +1,9 @@
 // === js/ui-history-reports-renderer.js ===
 
-import { formatDuration } from './utils.js?v=202610131441';
-import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202610131441';
-import { context, LEAVE_TYPES } from './state.js?v=202610131441';
-import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202610131441';
+import { formatDuration } from './utils.js?v=202610131512';
+import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202610131512';
+import { context, LEAVE_TYPES } from './state.js?v=202610131512';
+import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202610131512';
 
 // 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -55,7 +55,7 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
           <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM8.94 6.94a.75.75 0 11-1.061-1.061 3 3 0 112.871 5.026v.345a.75.75 0 01-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 108.94 6.94zM10 15a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
         </svg>
         <span class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition bg-gray-800 text-white text-xs rounded-lg p-3 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 break-keep leading-relaxed text-left shadow-xl pointer-events-none" data-html2canvas-ignore="true">
-            <strong class="block mb-1 text-yellow-300 text-sm font-bold">💡 COQ (품질비용) 비율</strong>
+            <strong class="block mb-1 text-yellow-300 text-sm font-bold">COQ (품질비용) 비율</strong>
             <span class="block mb-2 font-mono bg-gray-700 p-1.5 rounded text-center font-bold tracking-wide text-xs">
                 (품질관리 인건비 ÷ 총 인건비) × 100
             </span>
@@ -144,7 +144,7 @@ const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
           <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM8.94 6.94a.75.75 0 11-1.061-1.061 3 3 0 112.871 5.026v.345a.75.75 0 01-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 108.94 6.94zM10 15a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
         </svg>
         <span class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition bg-gray-800 text-white text-xs rounded-lg p-4 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 break-keep leading-relaxed text-left shadow-xl pointer-events-none" data-html2canvas-ignore="true">
-            <strong class="block mb-2 text-yellow-300 text-sm font-bold">💡 인당 생산성 (UPH)</strong>
+            <strong class="block mb-2 text-yellow-300 text-sm font-bold">인당 생산성 (UPH)</strong>
             <span class="block mb-3 font-mono bg-gray-700 p-2 rounded text-center font-bold tracking-wide text-sm">
                 (총 수량 ÷ 총 소요시간) × 60
             </span>
@@ -159,7 +159,7 @@ const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
     let html = `
         <div class="bg-white p-5 rounded-lg shadow-sm">
             <h3 class="text-lg font-bold mb-4 text-gray-800 flex items-center">
-                🧑‍💻 주요 업무 인당 생산성
+                주요 업무 인당 생산성
                 ${infoTooltip}
             </h3>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
@@ -228,7 +228,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
     return `
         <div class="bg-white p-6 rounded-lg shadow-sm">
             <h3 class="text-xl font-bold mb-6 text-gray-800 flex items-center">
-                📊 생산성 심층 분석 (Advanced)
+                생산성 심층 분석 (Advanced)
             </h3>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
@@ -357,7 +357,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
                  <div class="md:w-1/3">
                     <div class="p-5 rounded-lg border ${diagnosis.bg} h-full flex flex-col justify-center text-center md:text-left">
                         <div class="text-xl font-bold ${diagnosis.color} mb-2 flex items-center justify-center md:justify-start">
-                            <span class="mr-2 text-3xl">${diagnosis.icon}</span> ${diagnosis.title}
+                            ${diagnosis.title}
                         </div>
                         <p class="text-sm ${diagnosis.color} opacity-90 leading-relaxed">
                             ${diagnosis.desc}
@@ -366,7 +366,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
                 </div>
                 <div class="md:w-2/3 bg-gray-50 p-5 rounded-lg border border-gray-200">
                     <h4 class="font-bold text-gray-800 mb-3 flex items-center">
-                        🤖 AI 종합 분석 코멘트
+                        AI 종합 분석 코멘트
                     </h4>
                     <div class="text-sm text-gray-700 leading-7 space-y-2">
                         ${commentHtml}
@@ -390,7 +390,7 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, trendAnal
 
         analysisResultHtml += `
             <div class="mb-4 p-4 bg-gray-50 border rounded-lg">
-                <h4 class="font-semibold text-gray-700 mb-3">📉 전월 대비 트렌드 분석</h4>
+                <h4 class="font-semibold text-gray-700 mb-3">전월 대비 트렌드 분석</h4>
                 <div class="flex items-center justify-around text-center mb-3">
                     <div>
                         <div class="text-xs text-gray-500">매출액 변화</div>
@@ -421,7 +421,7 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, trendAnal
         analysisResultHtml += `
             <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
                 <h4 class="font-semibold text-indigo-800 mb-2 flex items-center">
-                    📊 실적 기반 인원 예측 모델
+                    실적 기반 인원 예측 모델
                 </h4>
                 <p class="text-gray-700 text-sm leading-relaxed">
                     이번 달의 실제 업무 패턴을 유지한다고 가정할 때,<br>
@@ -434,13 +434,13 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, trendAnal
             </div>
         `;
     } else if (currentRevenue > 0 && !revenueAnalysisData) {
-         analysisResultHtml += `<div class="mt-4 text-sm text-gray-500">⚠️ 예측 분석을 위한 업무 데이터가 충분하지 않습니다.</div>`;
+         analysisResultHtml += `<div class="mt-4 text-sm text-gray-500">예측 분석을 위한 업무 데이터가 충분하지 않습니다.</div>`;
     }
 
     return `
         <div class="bg-white p-5 rounded-lg shadow-sm mt-6">
             <h3 class="text-lg font-bold mb-4 text-gray-800 flex items-center">
-                💰 매출액 연동 분석 (Beta)
+                매출액 연동 분석 (Beta)
             </h3>
             <div class="flex flex-wrap items-end gap-4 mb-6">
                 <div>
@@ -464,7 +464,7 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, trendAnal
 const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
     let html = `
         <div class="bg-white p-4 rounded-lg shadow-sm">
-            <h3 class="text-lg font-semibold mb-3 text-gray-700">💡 주요 업무 심층 분석</h3>
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">주요 업무 심층 분석</h3>
             <div class="space-y-4">
     `;
 
@@ -495,7 +495,7 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
                 insightsA += `
                     <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <h4 class="font-semibold text-yellow-800 flex items-center">
-                            📉 '${taskName}' - 인원 투입 대비 효율 저하
+                            '${taskName}' - 인원 투입 대비 효율 저하
                         </h4>
                         <p class="text-sm text-gray-700 mt-1 ml-4">
                             투입 인원은 증가했으나(${p.avgStaff.toFixed(1)}명 → ${d.avgStaff.toFixed(1)}명),
@@ -508,7 +508,7 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
                  insightsA += `
                     <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
                         <h4 class="font-semibold text-green-800 flex items-center">
-                            📈 '${taskName}' - 인원 투입 시너지 발생
+                            '${taskName}' - 인원 투입 시너지 발생
                         </h4>
                         <p class="text-sm text-gray-700 mt-1 ml-4">
                             인원을 더 투입함에 따라(${p.avgStaff.toFixed(1)}명 → ${d.avgStaff.toFixed(1)}명)

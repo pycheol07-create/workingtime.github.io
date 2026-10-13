@@ -3,31 +3,31 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610131441';
+import { predictFutureTrends } from './analysis-logic.js?v=202610131512';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610131441';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610131441';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610131441';
-import * as State from './state.js?v=202610131441';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610131441';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610131441';
+import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610131512';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610131512';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610131512';
+import * as State from './state.js?v=202610131512';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610131512';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610131512';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610131441';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610131512';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610131441';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610131441';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610131512';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610131512';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610131441';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610131441';
-import { taskUph, recentDays } from './task-throughput.js?v=202610131441';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610131512';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610131512';
+import { taskUph, recentDays } from './task-throughput.js?v=202610131512';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610131441';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610131512';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610131441';
-import { D } from './d-chart.js?v=202610131441';
+         excessOffDays } from './lib/backlog-carry.js?v=202610131512';
+import { D } from './d-chart.js?v=202610131512';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1661,7 +1661,7 @@ const incomingBoxesValueFor = (dateStr, task, historyData, incomingKey = '중국
         : `전 근무일(${prev})에 ${shipKeys.join(' · ')} 출고가 없어 상차분은 없습니다`;
     // 설정에 적은 출고 업무를 목록에서 못 찾으면 그 몫이 조용히 빠진다 — 알려 준다
     const missNote = shipMissing.length > 0
-        ? ` ⚠️ 출고 업무 ${shipMissing.join(' · ')} 를 목록에서 찾지 못해 그 몫은 빠졌습니다`
+        ? ` 출고 업무 ${shipMissing.join(' · ')} 를 목록에서 찾지 못해 그 몫은 빠졌습니다`
         : '';
 
     const parts = [unloadNote, loadNote].filter(Boolean);
@@ -1826,7 +1826,7 @@ const mibalForDate = (dateStr) => {
     return mibalMapCache.map[dateStr] || null;
 };
 
-const mibalNote = (m) => `📦 중국 입고 미발 +${m.qty.toLocaleString()} 포함 — ${m.lines.join(' · ')}`
+const mibalNote = (m) => `중국 입고 미발 +${m.qty.toLocaleString()} 포함 — ${m.lines.join(' · ')}`
     + (m.rate ? `\n(상승률은 지난 입고 ${m.rate.n}건 기준 — 미발계산기 '미발전송' 기록)`
               : `\n(상승률 기록이 없어 기본 40% 로 계산 — 미발계산기에서 입고일에도 '미발전송' 을 누르면 정확해집니다)`);
 
@@ -2379,7 +2379,7 @@ const renderLeaveInfo = (staffInfo) => {
 
     if (!staffInfo.onLeaveList || staffInfo.onLeaveList.length === 0) {
         el.innerHTML = `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span class="whitespace-nowrap text-[11px] font-bold text-gray-600 dark:text-gray-300">📅 등록된 휴무 없음</span>
+            <span class="whitespace-nowrap text-[11px] font-bold text-gray-600 dark:text-gray-300">등록된 휴무 없음</span>
             ${tail}
         </div>`;
         return;
@@ -2393,7 +2393,7 @@ const renderLeaveInfo = (staffInfo) => {
         </span>`).join('');
 
     el.innerHTML = `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span class="whitespace-nowrap text-[11px] font-bold text-gray-600 dark:text-gray-300">📅 휴무 ${staffInfo.onLeaveList.length}명</span>
+        <span class="whitespace-nowrap text-[11px] font-bold text-gray-600 dark:text-gray-300">휴무 ${staffInfo.onLeaveList.length}명</span>
         ${chips}
         ${tail}
     </div>`;
@@ -2647,7 +2647,6 @@ const fmtMin = (m) => fmtHM((Number(m) || 0) / 60);
 const resultPlaceholder = () => `
     <section class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30
                     p-8 text-center text-gray-400 dark:text-gray-500">
-        <div class="text-2xl mb-2">📊</div>
         <p class="text-[11px] leading-relaxed">왼쪽에서 값을 고친 뒤 <b>시뮬레이션 실행</b>을 누르면<br>여기에 결과가 나옵니다.</p>
     </section>`;
 
@@ -2797,7 +2796,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                     <div class="mt-3 space-y-3">
 
                 ${r.timeHours > 0 ? `<p class="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                    ⏳ 담당 업무 ${fmtHM(r.timeHours)}에 <b>${r.tiedFTE.toFixed(1)}명</b>이 묶여,
+                    담당 업무 ${fmtHM(r.timeHours)}에 <b>${r.tiedFTE.toFixed(1)}명</b>이 묶여,
                     물량 업무에는 <b>${r.qtyStaff.toFixed(1)}명</b>이 투입되는 것으로 계산했습니다
                     (물량 업무 ${r.staffShortForQty ? '계산 불가' : fmtHM(r.qtyElapsed)}).
                     ${r.elapsedCappedByTimeTask ? '실 소요시간은 <b>담당 업무 시간</b>에 걸려 있습니다 — 인원을 더 넣어도 그보다 빨리 끝나지 않습니다.' : ''}
@@ -3272,8 +3271,8 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
 
         <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
             <span>1일 ${r.dailyHours}h${r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)}` : ''} · 가동률 ${(UTILIZATION*100)|0}%</span>
-            ${r.timeHours > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="처리량이 없는 담당 업무의 예상 투입시간(실적 평균)">🗂 담당 업무 ${fmtHM(r.timeHours)}</span>` : ''}
-            ${china > 0 ? `<span class="w-full"></span><span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">🚚 중국제작 입고 ${china.toLocaleString()}개</span>` : ''}
+            ${r.timeHours > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="처리량이 없는 담당 업무의 예상 투입시간(실적 평균)">담당 업무 ${fmtHM(r.timeHours)}</span>` : ''}
+            ${china > 0 ? `<span class="w-full"></span><span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">중국제작 입고 ${china.toLocaleString()}개</span>` : ''}
         </div>
     </div>`;
 };
@@ -3373,7 +3372,7 @@ const updateSavedInfo = (dateStr) => {
     // 자동으로 얼린 것과 사람이 맞춰 확정한 것을 구분해 보여준다 —
     // 자동값이 마음에 안 들면 값을 고치고 '다시 확정'을 누르면 된다는 신호가 된다.
     const snapMark = snap
-        ? `<span class="${snap.auto ? 'text-gray-500 dark:text-gray-400' : 'text-indigo-600 dark:text-indigo-300'} font-bold" title="${(snap.at || '').slice(0, 16).replace('T', ' ')} ${snap.auto ? '자동 저장' : '확정'} · 마감 후 정확도 화면에서 비교됩니다">${snap.auto ? `🤖 자동 계획 저장됨${snap.autoAt ? ` (${snap.autoAt})` : ''}` : '📌 계획 확정됨'}</span>
+        ? `<span class="${snap.auto ? 'text-gray-500 dark:text-gray-400' : 'text-indigo-600 dark:text-indigo-300'} font-bold" title="${(snap.at || '').slice(0, 16).replace('T', ' ')} ${snap.auto ? '자동 저장' : '확정'} · 마감 후 정확도 화면에서 비교됩니다">${snap.auto ? `자동 계획 저장됨${snap.autoAt ? ` (${snap.autoAt})` : ''}` : '계획 확정됨'}</span>
            <button type="button" id="sim-snapshot-cancel"
                    class="text-[11px] font-bold text-gray-400 dark:text-gray-500 underline underline-offset-2 hover:text-rose-500 transition"
                    title="이 날짜의 얼려 둔 계획을 지웁니다. 작업량 저장값과 계산에는 영향이 없고, 정확도 비교에서만 빠집니다.">${snap.auto ? '지우기' : '확정 취소'}</button>
@@ -3381,7 +3380,7 @@ const updateSavedInfo = (dateStr) => {
         : '';
     // 이미 확정한 날은 버튼 문구를 바꿔, 새로 찍는 게 아니라 덮어쓰는 것임을 알린다
     const snapBtn = document.getElementById('sim-snapshot-btn');
-    if (snapBtn) snapBtn.textContent = snap ? '📌 다시 확정' : '📌 계획 확정';
+    if (snapBtn) snapBtn.textContent = snap ? '다시 확정' : '계획 확정';
 
     const entries = savedSimEntries(dateStr);
     if (entries.length === 0) {
@@ -3389,7 +3388,7 @@ const updateSavedInfo = (dateStr) => {
         return;
     }
     const list = entries.map(savedEntryText).join(', ');
-    el.innerHTML = snapMark + `<span class="text-amber-700 dark:text-amber-400 font-bold">💾 저장됨 ${entries.length}개</span>
+    el.innerHTML = snapMark + `<span class="text-amber-700 dark:text-amber-400 font-bold">저장됨 ${entries.length}개</span>
         <span class="text-gray-400 dark:text-gray-500">— ${list} · '자동값'을 누르기 전까지 유지되며, 오늘 실측이 잡히면 실측이 우선합니다.</span>`;
 };
 
@@ -4053,7 +4052,6 @@ const renderTodayProgress = () => {
     if (!s.progress.hasRecords) {
         host.innerHTML = `
             <section class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30 p-10 text-center">
-                <div class="text-3xl mb-2">☕</div>
                 <p class="text-sm font-bold text-gray-600 dark:text-gray-300">아직 시작된 업무가 없습니다</p>
                 <p class="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
                     오늘 계획은 <b class="text-gray-600 dark:text-gray-300">${fmtHM(s.planHours)}</b> ·
@@ -4488,7 +4486,7 @@ const renderAccuracyBody = () => {
                     <option value="14"${accuracyDays === 14 ? ' selected' : ''}>최근 14근무일</option>
                     <option value="30"${accuracyDays === 30 ? ' selected' : ''}>최근 30근무일</option>
                 </select>
-                <button id="accuracy-reload" class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">🔄</button>
+                <button id="accuracy-reload" class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">새로고침</button>
             </div>
         </div>`;
 
@@ -4505,14 +4503,13 @@ const renderAccuracyBody = () => {
     if (rows.length === 0) {
         host.innerHTML = head('아직 비교할 자료가 없습니다')
             + `<section class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30 p-10 text-center">
-                <div class="text-3xl mb-2">🎯</div>
                 <p class="text-sm font-bold text-gray-600 dark:text-gray-300">확정해 둔 계획이 없습니다</p>
                 <p class="mt-1.5 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500 max-w-md mx-auto">
                     자동값은 실적이 쌓이면서 매일 바뀝니다. 나중에 다시 계산해도 <b>그날 아침의 예상치</b>는 되살릴 수 없어,
                     오차를 재려면 그 시점의 값을 얼려 두어야 합니다.<br><br>
                     평일에는 그날 앱을 처음 열 때 자동으로 얼려 두므로, 내일부터는 이 화면이 채워집니다.
                     더 정확히 맞추고 싶으면 <b class="text-gray-600 dark:text-gray-300">계획</b> 화면에서 값을 고친 뒤
-                    <b class="text-indigo-500">📌 계획 확정</b>을 누르세요.
+                    <b class="text-indigo-500">계획 확정</b>을 누르세요.
                 </p>
             </section>`;
         return;
@@ -4664,7 +4661,7 @@ const renderAccuracyBody = () => {
                         ${rows.slice().reverse().map(r => `
                         <tr class="border-t border-gray-100 dark:border-gray-700/60">
                             <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${dayLabel(r.date)}${r.auto
-                                ? ` <span class="text-[10px] text-gray-400 dark:text-gray-500" title="아침에 자동으로 얼린 계획${r.snapAutoAt ? ` (${r.snapAutoAt})` : ''}">🤖</span>` : ''}</td>
+                                ? ` <span class="text-[10px] text-gray-400 dark:text-gray-500" title="아침에 자동으로 얼린 계획${r.snapAutoAt ? ` (${r.snapAutoAt})` : ''}">자동</span>` : ''}</td>
                             <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${fmtHM(r.planPlannedHours)}</td>
                             <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100"
                                 title="전체 ${fmtHM(r.actualHours)} = 계획한 업무 ${fmtHM(r.actualPlannedHours)} + 계획 외 ${fmtHM(r.unplannedHours)}${r.untaggedHours > 0 ? ` + 업무명 없는 기록 ${fmtHM(r.untaggedHours)}` : ''}">${fmtHM(r.actualHours)}</td>
@@ -4687,11 +4684,11 @@ const renderAccuracyBody = () => {
         </section>
 
         <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed px-1">
-            · <b>계획</b>은 그날 아침에 얼려 둔 값입니다. 아무도 <b>📌 계획 확정</b>을 누르지 않아도
-              그날 앱을 처음 열 때 <b>🤖 자동으로</b> 얼립니다(평일 13:00 이전 첫 접속).
+            · <b>계획</b>은 그날 아침에 얼려 둔 값입니다. 아무도 <b>계획 확정</b>을 누르지 않아도
+              그날 앱을 처음 열 때 <b>자동으로</b> 얼립니다(평일 13:00 이전 첫 접속).
               그보다 늦게 처음 열린 날은 비교에서 빠집니다.<br>
             · <b>주말·공휴일 특근</b>은 자동으로 얼리지 않습니다(인원·업무 구성이 평일과 달라
-              평일 평균을 흐립니다). 그날도 비교하고 싶으면 <b>📌 계획 확정</b>을 눌러 두세요.<br>
+              평일 평균을 흐립니다). 그날도 비교하고 싶으면 <b>계획 확정</b>을 눌러 두세요.<br>
             · <b>계획 적중</b>이 이 화면의 주된 지표입니다. <b>전체 오차</b>는 계획에 없던 업무까지 계획으로 쳐서
               계산한 종전 값이라, 계획이 통째로 어긋난 날도 작게 보입니다 — 두 값이 많이 다른 날은
               <b>계획 외</b>·<b>미착수</b> 칸을 함께 보세요.<br>
@@ -4841,7 +4838,7 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
         const isFulfillment = scope.fulfillment === true && predChannelId !== 'all';
         noteEl.classList.toggle('hidden', !isFulfillment);
         if (isFulfillment) {
-            noteEl.innerHTML = `ℹ️ <b>${scope.label}</b>은 풀필먼트(채널 창고로 선입고 후 판매) 방식입니다. `
+            noteEl.innerHTML = `<b>${scope.label}</b>은 풀필먼트(채널 창고로 선입고 후 판매) 방식입니다. `
                 + `배송량(장)은 <b>우리가 그날 보낸 수량</b>, 매출·주문건수는 <b>그날 채널에서 수집된 판매 실적</b>이라 `
                 + `서로 다른 시점의 값입니다. 두 값을 곱하거나 나눠 비교하지 말고 <b>각각 따로</b> 보세요.`;
         }
@@ -5007,26 +5004,26 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
     // 3. 장기 추세 안내 텍스트
     if (elRevTrend && trend) {
         const factor = trend.revenueFactor;
-        let trendIcon = '➡️', trendText = '보합세 유지 중', color = 'text-blue-500';
-        if (factor > 1.05) { trendIcon = '📈'; trendText = `최근 매출 꾸준한 상승세`; color = 'text-red-500'; }
-        else if (factor < 0.95) { trendIcon = '📉'; trendText = `최근 매출 하락세 주의`; color = 'text-blue-500'; }
-        elRevTrend.innerHTML = `${trendIcon} <span class="${color} font-bold">${trendText}</span>`;
+        let trendText = '보합세 유지 중', color = 'text-blue-500';
+        if (factor > 1.05) { trendText = `최근 매출 꾸준한 상승세`; color = 'text-red-500'; }
+        else if (factor < 0.95) { trendText = `최근 매출 하락세 주의`; color = 'text-blue-500'; }
+        elRevTrend.innerHTML = `<span class="${color} font-bold">${trendText}</span>`;
     }
 
     if (elOrdTrend && trend) {
         const factor = trend.orderCountFactor || 1;
-        let trendIcon = '➡️', trendText = '보합세 유지 중', color = 'text-blue-500';
-        if (factor > 1.05) { trendIcon = '🧾📈'; trendText = `최근 주문건수 증가 추세`; color = 'text-red-500'; }
-        else if (factor < 0.95) { trendIcon = '🧾📉'; trendText = `최근 주문건수 감소 추세`; color = 'text-blue-500'; }
-        elOrdTrend.innerHTML = `${trendIcon} <span class="${color} font-bold">${trendText}</span>`;
+        let trendText = '보합세 유지 중', color = 'text-blue-500';
+        if (factor > 1.05) { trendText = `최근 주문건수 증가 추세`; color = 'text-red-500'; }
+        else if (factor < 0.95) { trendText = `최근 주문건수 감소 추세`; color = 'text-blue-500'; }
+        elOrdTrend.innerHTML = `<span class="${color} font-bold">${trendText}</span>`;
     }
 
     if (elDelTrend && trend) {
         const factor = trend.deliveryFactor;
-        let trendIcon = '➡️', trendText = '보합세 유지 중', color = 'text-blue-500';
-        if (factor > 1.05) { trendIcon = '📦📈'; trendText = `최근 배송량 증가 추세`; color = 'text-red-500'; }
-        else if (factor < 0.95) { trendIcon = '📦📉'; trendText = `최근 배송량 감소 추세`; color = 'text-blue-500'; }
-        elDelTrend.innerHTML = `${trendIcon} <span class="${color} font-bold">${trendText}</span>`;
+        let trendText = '보합세 유지 중', color = 'text-blue-500';
+        if (factor > 1.05) { trendText = `최근 배송량 증가 추세`; color = 'text-red-500'; }
+        else if (factor < 0.95) { trendText = `최근 배송량 감소 추세`; color = 'text-blue-500'; }
+        elDelTrend.innerHTML = `<span class="${color} font-bold">${trendText}</span>`;
     }
 };
 
@@ -5084,7 +5081,7 @@ const renderChart = (key, ctx, labels, histData, predData, predRangeData, splitI
                     pointRadius: 0,
                     pointHoverRadius: 0,
                     tension: 0.3,
-                    fill: '+1' // 🔥 하단(최소치) 라인까지 영역을 색칠함 (신뢰 구간 형성)
+                    fill: '+1' // 하단(최소치) 라인까지 영역을 색칠함 (신뢰 구간 형성)
                 },
                 {
                     label: '예측 최소치',

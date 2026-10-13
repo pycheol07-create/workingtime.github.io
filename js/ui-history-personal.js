@@ -1,9 +1,9 @@
 // === js/ui-history-personal.js ===
 // 설명: '개인 리포트' 탭의 데이터 집계 및 렌더링 로직을 담당합니다.
 
-import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202610131441';
-import { appConfig, context, LEAVE_TYPES, db, leaveTypeLabel } from './state.js?v=202610131441';
-import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202610131441';
+import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202610131512';
+import { appConfig, context, LEAVE_TYPES, db, leaveTypeLabel } from './state.js?v=202610131512';
+import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202610131512';
 import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 급여 차감 기준 근무시간 (가정값 — 회사 규정에 맞게 조정 가능)
@@ -233,8 +233,8 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
             workTime: dayWorkMinutes,
             mainTask: mainTask !== '-' ? `${mainTask} 외` : '-',
             attendance: dayAttendanceStatus.length > 0 ? dayAttendanceStatus.join(', ') : (dayWorkMinutes > 0 ? '정상근무' : '-'),
-            inTime: inTime, // ✅ 추가
-            outTime: outTime // ✅ 추가
+            inTime: inTime, // 추가
+            outTime: outTime // 추가
         });
     });
 
@@ -386,10 +386,10 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                     </button>
                 </div>
             </div>
-            <span class="relative inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded mt-2 md:mt-0 cursor-pointer select-none transition" onclick="const m=this.querySelector('.pay-mask'), r=this.querySelector('.pay-real'), ic=this.querySelector('.pay-eye'); m.classList.toggle('hidden'); r.classList.toggle('hidden'); ic.textContent = m.classList.contains('hidden') ? '👁️' : '🙈';" title="클릭하여 표시/가리기">
+            <span class="relative inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded mt-2 md:mt-0 cursor-pointer select-none transition" onclick="const m=this.querySelector('.pay-mask'), r=this.querySelector('.pay-real'), ic=this.querySelector('.pay-eye'); m.classList.toggle('hidden'); r.classList.toggle('hidden'); ic.textContent = m.classList.contains('hidden') ? '가리기' : '표시';" title="클릭하여 표시/가리기">
                 <span class="pay-mask tracking-wider">${stats.salary && stats.salary.isMonthlySalaried ? `기본급 ●●●,●●●원 · 시급 ●●,●●●원` : `적용 시급: ●●,●●●원`}</span>
                 <span class="pay-real hidden">${stats.salary && stats.salary.isMonthlySalaried ? `기본급 ${Math.round(stats.salary.monthlyBase).toLocaleString()}원 · 시급 ${Math.round(stats.salary.hourly).toLocaleString()}원` : `적용 시급: ${Math.round(wage).toLocaleString()}원`}</span>
-                <span class="pay-eye text-[11px]">🙈</span>
+                <span class="pay-eye text-[11px]">표시</span>
             </span>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -401,14 +401,14 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
             </div>
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
                 <div class="text-xs text-gray-500 mb-1">예상 급여 (세전)</div>
-                <div class="cursor-pointer select-none group" onclick="const m=this.querySelector('.pay-mask'), r=this.querySelector('.pay-real'), ic=this.querySelector('.pay-eye'); m.classList.toggle('hidden'); r.classList.toggle('hidden'); ic.textContent = m.classList.contains('hidden') ? '👁️ 클릭하여 가리기' : '🙈 클릭하여 표시';" title="클릭하여 표시/가리기">
+                <div class="cursor-pointer select-none group" onclick="const m=this.querySelector('.pay-mask'), r=this.querySelector('.pay-real'), ic=this.querySelector('.pay-eye'); m.classList.toggle('hidden'); r.classList.toggle('hidden'); ic.textContent = m.classList.contains('hidden') ? '클릭하여 가리기' : '클릭하여 표시';" title="클릭하여 표시/가리기">
                     <div class="pay-mask text-2xl font-extrabold text-gray-300 tracking-widest">●,●●●,●●●원</div>
                     <div class="pay-real hidden">
                         <div class="text-2xl font-extrabold text-gray-800">${Math.round((stats.salary && stats.salary.estimated != null) ? stats.salary.estimated : stats.totalWageCost).toLocaleString()}원</div>
                         ${stats.salary && stats.salary.isMonthlySalaried && stats.salary.totalDeduction > 0 ? `<div class="text-[10px] text-red-500 mt-1">근태 차감 −${Math.round(stats.salary.totalDeduction).toLocaleString()}원</div>` : ''}
                         ${stats.salary && stats.salary.weekendPay > 0 ? `<div class="text-[10px] text-emerald-600 mt-1">주말근무 ${stats.salary.weekendCount}회 +${stats.salary.weekendPay.toLocaleString()}원</div>` : ''}
                     </div>
-                    <div class="pay-eye text-[10px] text-gray-400 mt-1 group-hover:text-blue-500 transition">🙈 클릭하여 표시</div>
+                    <div class="pay-eye text-[10px] text-gray-400 mt-1 group-hover:text-blue-500 transition">클릭하여 표시</div>
                 </div>
             </div>
             <div class="bg-white p-4 rounded-xl border border-red-100 shadow-sm text-center">
@@ -423,7 +423,7 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
 
     html += `
         <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-            <h4 class="text-lg font-bold text-gray-800 mb-4">📊 업무별 수행 내역</h4>
+            <h4 class="text-lg font-bold text-gray-800 mb-4">업무별 수행 내역</h4>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-600">
                     <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b">
@@ -476,7 +476,7 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
 
         html += `
             <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-                <h4 class="text-lg font-bold text-gray-800 mb-4">📅 근태 기록</h4>
+                <h4 class="text-lg font-bold text-gray-800 mb-4">근태 기록</h4>
                 
                 <div class="flex flex-wrap gap-2 mb-4">
                     ${summaryHtml}
@@ -518,7 +518,7 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
         
         html += `
             <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-                <h4 class="text-lg font-bold text-gray-800 mb-4">🗓️ 일자별 활동 요약</h4>
+                <h4 class="text-lg font-bold text-gray-800 mb-4">일자별 활동 요약</h4>
                 <div class="overflow-x-auto max-h-96">
                     <table class="w-full text-sm text-left text-gray-600">
                         <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b sticky top-0">

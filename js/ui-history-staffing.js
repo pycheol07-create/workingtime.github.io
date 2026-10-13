@@ -1,11 +1,11 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202610131441';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610131441';
-import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610131441';
-import { fetchPlannedData } from './history-data-manager.js?v=202610131441';
-import { getTodayDateString } from './utils.js?v=202610131441';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610131441';
-import { D } from './d-chart.js?v=202610131441';
+import * as State from './state.js?v=202610131512';
+import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610131512';
+import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610131512';
+import { fetchPlannedData } from './history-data-manager.js?v=202610131512';
+import { getTodayDateString } from './utils.js?v=202610131512';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610131512';
+import { D } from './d-chart.js?v=202610131512';
 
 let staffingChartInstance = null;
 
@@ -191,7 +191,7 @@ export function renderStaffingTab(filteredData, appConfig) {
     const dayCount = operatingDays.length;
     if (dayCount === 0) {
         // filteredData 는 있는데 전부 빈 날인 경우. 위의 '데이터 없음'과 같은 표기로 통일한다.
-        clearStaffingCard('📉 선택 기간에 출근·업무 기록이 있는 날이 없습니다.');
+        clearStaffingCard('선택 기간에 출근·업무 기록이 있는 날이 없습니다.');
         return;
     }
     const avgActual = dayCount > 0 ? sumAttended / dayCount : 0;
@@ -241,11 +241,11 @@ export function renderStaffingTab(filteredData, appConfig) {
                 ? ` 출근했지만 업무 기록이 없는 인원이 하루 평균 <strong>${idle.toFixed(1)}명</strong>입니다 — 기록 누락인지 확인해 보세요.`
                 : '';
             if (diff > 1.0) {
-                commentEl.innerHTML = `⚠️ 출근 인원 대비 업무량이 <strong class="text-amber-500">${diff.toFixed(1)}명분 적습니다</strong>. 인력 재배치나 업무 배분 점검이 권장됩니다.${idleNote}${meta}`;
+                commentEl.innerHTML = `출근 인원 대비 업무량이 <strong class="text-amber-500">${diff.toFixed(1)}명분 적습니다</strong>. 인력 재배치나 업무 배분 점검이 권장됩니다.${idleNote}${meta}`;
             } else if (diff < -1.0) {
-                commentEl.innerHTML = `🔥 업무 과부하! 출근 인원보다 <strong class="text-red-500">${Math.abs(diff).toFixed(1)}명분 더 필요한</strong> 업무량입니다. 추가 인력 소집을 검토하세요.${idleNote}${meta}`;
+                commentEl.innerHTML = `업무 과부하! 출근 인원보다 <strong class="text-red-500">${Math.abs(diff).toFixed(1)}명분 더 필요한</strong> 업무량입니다. 추가 인력 소집을 검토하세요.${idleNote}${meta}`;
             } else {
-                commentEl.innerHTML = `✅ 출근 인원과 업무량이 <strong class="text-green-500">균형</strong>을 이루고 있습니다.${idleNote}${meta}`;
+                commentEl.innerHTML = `출근 인원과 업무량이 <strong class="text-green-500">균형</strong>을 이루고 있습니다.${idleNote}${meta}`;
             }
         }
     }
@@ -400,7 +400,7 @@ export function renderStaffingOutlook() {
     host.innerHTML = `
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white">📅 앞으로 ${rows.length}근무일 인원 수급</h4>
+            <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white">앞으로 ${rows.length}근무일 인원 수급</h4>
             <span class="text-[11px] text-gray-400 dark:text-gray-500">
                 저장해 둔 예정 물량 ${plannedCount}일 · 나머지는 실적 기반 추정 · 업무 예상과 같은 계산
             </span>

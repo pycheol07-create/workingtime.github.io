@@ -50,7 +50,7 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) :is(td, th) { font-variant-numeric: tabular-nums; }
 
 /* === remap: generated === */
-/* 범위 파일 40개에서 색 클래스 387종 수집 → 규칙 265개. 손으로 고치지 말 것(생성기 다시 실행). */
+/* 범위 파일 40개에서 색 클래스 354종 수집 → 규칙 243개. 손으로 고치지 말 것(생성기 다시 실행). */
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-100 { background-color: var(--c-warn-soft); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-50 { background-color: var(--c-warn-bg); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-50\/40 { background-color: var(--c-warn-bg); }
@@ -58,6 +58,7 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-500 { background-color: var(--c-warn); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-black { background-color: var(--c-scrim); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-100 { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-300 { background-color: var(--c-accent-mid); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-50 { background-color: var(--c-accent-row); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-50\/50 { background-color: var(--c-accent-row); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-500 { background-color: var(--c-accent); }
@@ -110,10 +111,8 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-50\/40 { background-color: var(--c-risk-row); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-50\/50 { background-color: var(--c-risk-row); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-500 { background-color: var(--c-risk); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-600 { background-color: var(--c-risk-strong); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-sky-100 { background-color: var(--c-accent-soft); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-sky-50 { background-color: var(--c-accent-row); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-sky-500 { background-color: var(--c-accent); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-slate-50 { background-color: var(--c-surface-2); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-slate-700 { background-color: var(--c-ink); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-violet-100 { background-color: var(--c-accent-soft); }
@@ -124,13 +123,8 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white\/40 { background-color: var(--c-surface); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white\/60 { background-color: var(--c-surface); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white\/70 { background-color: var(--c-surface); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white\/85 { background-color: var(--c-surface); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white\/90 { background-color: var(--c-surface); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-yellow-100 { background-color: var(--c-warn-soft); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-yellow-50 { background-color: var(--c-warn-bg); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .from-gray-700 { background-color: var(--c-ink); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .from-indigo-500 { background-color: var(--c-accent); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .from-slate-800 { background-color: var(--c-ink); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-amber-500 { color: var(--c-warn-text); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-amber-600 { color: var(--c-warn-text); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-amber-700 { color: var(--c-warn-text); }
@@ -157,8 +151,6 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-green-600 { color: var(--c-ok-text); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-green-700 { color: var(--c-ok-text); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-green-800 { color: var(--c-ok-text); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-100 { color: var(--c-accent-mid); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-100\/80 { color: var(--c-accent-mid); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-400 { color: var(--c-accent); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-500 { color: var(--c-accent); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-600 { color: var(--c-accent-deep); }
@@ -172,7 +164,6 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-orange-700 { color: var(--c-warn-text); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-orange-800 { color: var(--c-warn-text); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-orange-900 { color: var(--c-warn-text); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-pink-600 { color: var(--c-risk-text); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-purple-400 { color: var(--c-accent); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-purple-600 { color: var(--c-accent-deep); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-purple-700 { color: var(--c-accent-deep); }
@@ -187,13 +178,10 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-sky-700 { color: var(--c-accent-deep); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-sky-800 { color: var(--c-accent-deep); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-sky-900 { color: var(--c-accent-deep); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-slate-200 { color: var(--c-text-4); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-slate-300 { color: var(--c-text-4); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-teal-700 { color: var(--c-ok-text); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-violet-500 { color: var(--c-accent); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-violet-600 { color: var(--c-accent-deep); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-violet-700 { color: var(--c-accent-deep); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-yellow-100 { color: var(--c-warn); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-yellow-300 { color: var(--c-warn); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-yellow-600 { color: var(--c-warn-text); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-yellow-700 { color: var(--c-warn-text); }
@@ -227,10 +215,8 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-indigo-600 { border-color: var(--c-accent); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-orange-100 { border-color: var(--c-warn-soft); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-orange-200 { border-color: var(--c-warn-line); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-orange-300 { border-color: var(--c-warn-line); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-orange-500 { border-color: var(--c-warn); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-purple-200 { border-color: var(--c-accent-light); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-purple-300 { border-color: var(--c-accent-light); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-red-100 { border-color: var(--c-risk-soft); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-red-200 { border-color: var(--c-risk-line); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-red-300 { border-color: var(--c-risk-line); }
@@ -239,11 +225,6 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-yellow-100 { border-color: var(--c-warn-soft); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-yellow-200 { border-color: var(--c-warn-line); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-yellow-400 { border-color: var(--c-warn); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-t-blue-500 { border-top-color: var(--c-accent); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-t-green-500 { border-top-color: var(--c-ok); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-t-pink-500 { border-top-color: var(--c-risk); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-t-purple-500 { border-top-color: var(--c-accent); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-t-red-500 { border-top-color: var(--c-risk); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-amber-500 { border-left-color: var(--c-warn); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-blue-500 { border-left-color: var(--c-accent); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-emerald-500 { border-left-color: var(--c-ok); }
@@ -263,7 +244,6 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus-within\:bg-white:focus-within { background-color: var(--c-surface); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus-within\:border-indigo-400:focus-within { border-color: var(--c-accent); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus-within\:ring-indigo-100:focus-within { --tw-ring-color: var(--c-accent-light); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-amber-600:hover { background-color: var(--c-warn-strong); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-blue-100:hover { background-color: var(--c-accent-soft); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-blue-50:hover { background-color: var(--c-accent-row); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-blue-600:hover { background-color: var(--c-accent); }
@@ -284,7 +264,6 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-red-50:hover { background-color: var(--c-risk-row); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-red-600:hover { background-color: var(--c-risk-strong); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-red-700:hover { background-color: var(--c-risk-strong); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-rose-700:hover { background-color: var(--c-risk-strong); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-white:hover { background-color: var(--c-surface); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-blue-600:hover { color: var(--c-accent-deep); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-blue-800:hover { color: var(--c-accent-deep); }
@@ -310,7 +289,6 @@ html.dark :is(#history-modal, #modals-container-history-popups) {
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus\:ring-blue-500:focus { --tw-ring-color: var(--c-accent-light); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus\:ring-emerald-500:focus { --tw-ring-color: var(--c-accent-light); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus\:ring-indigo-500:focus { --tw-ring-color: var(--c-accent-light); }
-:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .active\:bg-amber-700:active { background-color: var(--c-warn-strong); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .active\:bg-indigo-800:active { background-color: var(--c-accent-strong); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .placeholder\:text-gray-300::placeholder { color: var(--c-text-4); }
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .file\:bg-indigo-50::file-selector-button { background-color: var(--c-accent-row); }
@@ -409,17 +387,17 @@ html.dark :is(#history-modal, #modals-container-history-popups) :where(.bg-blue-
     background-color: var(--c-surface); border-color: transparent; color: var(--c-accent-deep); font-weight: 600; box-shadow: var(--sh-tab);
 }
 
-/* 업무 예상 보기 전환 · 예측 채널 · 마일스톤 비교 기간 — 세그먼트. 켜짐 표시는 .bg-indigo-600 / .bg-blue-600 */
-:is(#history-modal, #modals-container-history-popups) :is(#forecast-view-switch, #pred-channel-tabs, .inline-flex:has(> .milestone-compare-window-btn)) {
+/* 업무 예상 보기 전환 · 예측 채널 · 마일스톤 비교 기간 · 결산 월/분기/년 — 세그먼트. 켜짐 표시는 .bg-indigo-600 / .bg-blue-600 */
+:is(#history-modal, #modals-container-history-popups) :is(#forecast-view-switch, #pred-channel-tabs, .inline-flex:has(> .milestone-compare-window-btn), .flex:has(> .settle-gran-btn)) {
     background-color: var(--c-track); border-color: transparent; border-radius: var(--r-pill); padding: 3px; gap: 2px;
 }
-:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn, #pred-channel-tabs > button, .milestone-compare-window-btn),
-:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn, #pred-channel-tabs > button, .milestone-compare-window-btn):hover {
+:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn, #pred-channel-tabs > button, .milestone-compare-window-btn, .settle-gran-btn),
+:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn, #pred-channel-tabs > button, .milestone-compare-window-btn, .settle-gran-btn):hover {
     background-color: transparent; border-color: transparent; color: var(--c-text-2); border-radius: var(--r-pill);
 }
-:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn, #pred-channel-tabs > button, .milestone-compare-window-btn):hover { color: var(--c-text); }
-:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn.bg-indigo-600, #pred-channel-tabs > button.bg-indigo-600, .milestone-compare-window-btn.bg-blue-600),
-:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn.bg-indigo-600, #pred-channel-tabs > button.bg-indigo-600, .milestone-compare-window-btn.bg-blue-600):hover {
+:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn, #pred-channel-tabs > button, .milestone-compare-window-btn, .settle-gran-btn):hover { color: var(--c-text); }
+:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn.bg-indigo-600, #pred-channel-tabs > button.bg-indigo-600, .milestone-compare-window-btn.bg-blue-600, .settle-gran-btn.bg-blue-600),
+:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn.bg-indigo-600, #pred-channel-tabs > button.bg-indigo-600, .milestone-compare-window-btn.bg-blue-600, .settle-gran-btn.bg-blue-600):hover {
     background-color: var(--c-surface); color: var(--c-accent-deep); box-shadow: var(--sh-tab);
 }
 

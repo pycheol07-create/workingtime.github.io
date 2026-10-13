@@ -1,9 +1,9 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202610131441';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610131441';
-import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610131441';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610131441';
-import { D, alpha } from './d-chart.js?v=202610131441';
+import * as State from './state.js?v=202610131512';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610131512';
+import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610131512';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610131512';
+import { D, alpha } from './d-chart.js?v=202610131512';
 
 let dashboardChartInstance = null;
 
@@ -100,7 +100,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202610131441').then(mod => {
+        import('./ui-history-milestones.js?v=202610131512').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }
@@ -315,13 +315,13 @@ export function renderDashboardTab(filteredData, appConfig) {
 
     // 기준 정보 메타 (마우스오버 + 화면 표기)
     const baselineMetaHtml = hasBaseline
-        ? `<div class="text-[11px] text-indigo-600/80 dark:text-indigo-300/80 mt-2 pt-2 border-t border-indigo-100 dark:border-indigo-800/50" title="${baseline.description} · 기준 UPH ${baselineUph.toFixed(1)}개/시">📊 비교 기준: <strong>${baseline.description}</strong> · 기준 UPH <strong>${baselineUph.toFixed(1)}</strong>개/시 · 현재 UPH <strong>${avgUph.toFixed(1)}</strong></div>`
-        : `<div class="text-[11px] text-gray-500 dark:text-gray-400 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700" title="${baseline.description}">📊 비교 기준: <strong>${baseline.description}</strong></div>`;
+        ? `<div class="text-[11px] text-indigo-600/80 dark:text-indigo-300/80 mt-2 pt-2 border-t border-indigo-100 dark:border-indigo-800/50" title="${baseline.description} · 기준 UPH ${baselineUph.toFixed(1)}개/시">비교 기준: <strong>${baseline.description}</strong> · 기준 UPH <strong>${baselineUph.toFixed(1)}</strong>개/시 · 현재 UPH <strong>${avgUph.toFixed(1)}</strong></div>`
+        : `<div class="text-[11px] text-gray-500 dark:text-gray-400 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700" title="${baseline.description}">비교 기준: <strong>${baseline.description}</strong></div>`;
 
     let diagnosticHtml = '';
     if (!hasBaseline) {
         diagnosticHtml = `
-            <div class="text-gray-700 mb-2">ℹ️ <strong class="font-bold text-lg">비교 기준 데이터 부족 — 절대치만 표시</strong></div>
+            <div class="text-gray-700 mb-2"><strong class="font-bold text-lg">비교 기준 데이터 부족 — 절대치만 표시</strong></div>
             <ul class="list-disc pl-5 space-y-1 text-sm">
                 <li>현재 기간 평균 UPH: <strong>${avgUph.toFixed(1)}</strong>개/시</li>
                 <li>건당 총 출고 원가: <strong>${Math.round(unitCost).toLocaleString()}원</strong></li>
@@ -331,7 +331,7 @@ export function renderDashboardTab(filteredData, appConfig) {
         `;
     } else if (oee < 80) {
         diagnosticHtml = `
-            <div class="text-red-700 mb-2">⚠️ <strong class="font-bold text-lg">생산 효율 경고: 기준 대비 ${Math.round(100 - oee)}% 저하</strong></div>
+            <div class="text-red-700 mb-2"><strong class="font-bold text-lg">생산 효율 경고: 기준 대비 ${Math.round(100 - oee)}% 저하</strong></div>
             <ul class="list-disc pl-5 space-y-1 text-sm">
                 <li><span class="font-bold text-gray-900">가장 취약한 파트:</span> <span class="bg-red-100 text-red-800 px-1 rounded">${lowestPart || '전반적'}</span> (현재 UPH: ${lowestUph === Infinity ? 0 : Math.round(lowestUph)})</li>
                 <li><span class="font-bold text-gray-900">조치 권고사항:</span>
@@ -344,7 +344,7 @@ export function renderDashboardTab(filteredData, appConfig) {
         `;
     } else if (oee > 110) {
         diagnosticHtml = `
-            <div class="text-blue-700 mb-2">🔥 <strong class="font-bold text-lg">상승세: 기준 대비 ${Math.round(oee - 100)}% 향상</strong></div>
+            <div class="text-blue-700 mb-2"><strong class="font-bold text-lg">상승세: 기준 대비 ${Math.round(oee - 100)}% 향상</strong></div>
             <ul class="list-disc pl-5 space-y-1 text-sm">
                 <li>현재의 속도가 지속될 경우, 남은 업무량 대비 투입 인원이 남을 수 있습니다.</li>
                 <li><span class="font-bold text-gray-900">조치 권고사항:</span> 작업 속도가 빠른 인원을 <span class="text-blue-600 font-bold">내일 업무 준비나 재고 조사 등</span> 다른 업무로 전환하여 유휴 시간을 줄이세요.</li>
@@ -354,7 +354,7 @@ export function renderDashboardTab(filteredData, appConfig) {
         `;
     } else {
         diagnosticHtml = `
-            <div class="text-green-700 mb-2">✅ <strong class="font-bold text-lg">평소 수준 (효율 ${Math.round(oee)}%)</strong></div>
+            <div class="text-green-700 mb-2"><strong class="font-bold text-lg">평소 수준 (효율 ${Math.round(oee)}%)</strong></div>
             <ul class="list-disc pl-5 space-y-1 text-sm">
                 <li>현재 UPH <strong>${avgUph.toFixed(1)}</strong> / 기준 UPH <strong>${baselineUph.toFixed(1)}</strong> — 평소 수준으로 안정적으로 운영 중입니다.</li>
                 <li><span class="font-bold text-gray-900">모니터링 대상:</span> <span class="bg-yellow-100 text-yellow-800 px-1 rounded">${lowestPart || '일부 파트'}</span> 파트의 처리량이 약간 저하되고 있는지 지속 관찰하세요.</li>

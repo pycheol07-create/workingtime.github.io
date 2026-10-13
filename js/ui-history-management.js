@@ -1,14 +1,14 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610131441';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610131441';
-import { appConfig } from './state.js?v=202610131441';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610131512';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610131512';
+import { appConfig } from './state.js?v=202610131512';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,
     revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
-} from './revenue-channels.js?v=202610131441';
-import { D } from './d-chart.js?v=202610131441';
+} from './revenue-channels.js?v=202610131512';
+import { D } from './d-chart.js?v=202610131512';
 // predictFutureTrends import 제거됨
 
 // 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장 / 기타)
@@ -24,7 +24,7 @@ const recalcTotalJs = (metricKey, fieldOf) => `(function(){` +
 
 const legacyNoteHtml = (isLegacy, total, unit) => isLegacy
     ? `<p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded p-2 leading-relaxed">
-         ⚠️ 이 날짜는 채널 구분 이전에 입력된 데이터입니다. 총계 <b>${formatCurrency(total)}${unit}</b>만 남아 있어
+         이 날짜는 채널 구분 이전에 입력된 데이터입니다. 총계 <b>${formatCurrency(total)}${unit}</b>만 남아 있어
          채널별 값이 비어 있습니다. 채널별로 나눠 입력한 뒤 저장하면 합계가 새로 계산됩니다.
        </p>`
     : '';
@@ -195,7 +195,7 @@ const generateCostAnalysisHTML = (analysis) => {
     if (!analysis.isValid) {
         return `
             <div class="mt-8 p-6 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-center text-gray-500">
-                <p class="mb-2">📉 <strong>원가 분석 데이터를 표시할 수 없습니다.</strong></p>
+                <p class="mb-2"><strong>원가 분석 데이터를 표시할 수 없습니다.</strong></p>
                 <p class="text-xs">관리자 페이지에서 '원가 계산 업무' 및 '고정 비용'을 설정하고,<br>해당 기간의 업무 기록(처리량)이 있어야 분석이 가능합니다.</p>
             </div>
         `;
@@ -208,7 +208,7 @@ const generateCostAnalysisHTML = (analysis) => {
         const marginColor = profit.margin > 0 ? 'text-blue-600' : 'text-red-600';
         profitHtml = `
             <div class="flex-1 bg-green-50 p-4 rounded-lg border border-green-100">
-                <h5 class="text-sm font-bold text-green-800 mb-2">💰 예상 손익 (1개당)</h5>
+                <h5 class="text-sm font-bold text-green-800 mb-2">예상 손익 (1개당)</h5>
                 <div class="flex justify-between items-center text-sm mb-1">
                     <span class="text-gray-600">객단가 (매출/수량)</span>
                     <span class="font-semibold">${Math.round(profit.revenuePerItem).toLocaleString()}원</span>
@@ -230,11 +230,11 @@ const generateCostAnalysisHTML = (analysis) => {
     return `
         <div class="mt-8">
             <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                💸 상품 1개당 원가 및 손익 분석 (기간 평균)
+                상품 1개당 원가 및 손익 분석 (기간 평균)
             </h4>
             <div class="flex flex-col md:flex-row gap-6">
                 <div class="flex-1 bg-orange-50 p-4 rounded-lg border border-orange-100">
-                    <h5 class="text-sm font-bold text-orange-800 mb-2">📦 출고 원가 구성 (1개당)</h5>
+                    <h5 class="text-sm font-bold text-orange-800 mb-2">출고 원가 구성 (1개당)</h5>
                     <div class="space-y-2">
                         <div class="flex justify-between items-center text-sm">
                             <span class="text-gray-600">인건비 <span class="text-xs text-gray-400">(${targetTasks.length}개 업무)</span></span>
@@ -316,7 +316,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
         <div class="max-w-4xl mx-auto">
             <div class="mb-6 flex items-center justify-between">
                 <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    📅 ${dateKey} 경영 지표 입력
+                    ${dateKey} 경영 지표 입력
                 </h3>
                 <div class="flex items-center gap-2">
                     <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mr-2">
@@ -332,7 +332,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-white p-6 rounded-xl border border-blue-100 shadow-sm">
                     <h4 class="font-bold text-blue-800 mb-4 flex items-center">
-                        💰 매출 현황
+                        매출 현황
                     </h4>
                     <div class="space-y-5">
                         ${channelGridHtml(mgmt, prevMgmt, formatVal, onInputHandler)}
@@ -362,7 +362,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
 
                 <div class="bg-white p-6 rounded-xl border border-indigo-100 shadow-sm">
                     <h4 class="font-bold text-indigo-800 mb-4 flex items-center">
-                        📦 재고 현황
+                        재고 현황
                     </h4>
                     <div class="space-y-4">
                         <div>
@@ -398,7 +398,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
 
                 <div class="mt-6 bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
                     <h4 class="font-bold text-emerald-800 mb-4 flex items-center justify-between">
-                        <span>💱 환율 (원)</span>
+                        <span>환율 (원)</span>
                         <span class="text-[11px] font-medium text-gray-400">${mgmt.fxAt ? '자동입력 ' + new Date(mgmt.fxAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '매일 오전 9시 자동입력'}</span>
                     </h4>
                     <div class="grid grid-cols-2 gap-4">
@@ -417,7 +417,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                 </div>
 
                 <div class="mt-6 p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-yellow-800">
-                    💡 <strong>Tip:</strong> 입력한 데이터는 우측 상단 <strong>[저장]</strong> 버튼을 눌러야 반영됩니다. 저장된 데이터는 주간/월간 리포트에서 합산되어 분석됩니다.
+                    <strong>Tip:</strong> 입력한 데이터는 우측 상단 <strong>[저장]</strong> 버튼을 눌러야 반영됩니다. 저장된 데이터는 주간/월간 리포트에서 합산되어 분석됩니다.
                 </div>
             </div>
 
@@ -517,11 +517,11 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
         dailyTableHtml = `
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mt-8 shadow-sm">
                 <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center gap-2 flex-wrap">
-                    <h4 class="font-bold text-gray-800">📅 일자별 상세 내역</h4>
+                    <h4 class="font-bold text-gray-800">일자별 상세 내역</h4>
                     <div class="flex items-center gap-2">
                         <button type="button" onclick="window.__runFxBackfill && window.__runFxBackfill('2026-06-01')"
                                 class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm"
-                                title="환율이 비어있는 과거 날짜를 과거 시세로 일괄 채웁니다 (2026-06-01부터)">💱 과거 환율 채우기</button>
+                                title="환율이 비어있는 과거 날짜를 과거 시세로 일괄 채웁니다 (2026-06-01부터)">과거 환율 채우기</button>
                         <span class="text-xs text-gray-500">일별 회전율은 (매출/재고금액)% 로 계산됩니다.</span>
                     </div>
                 </div>
@@ -608,7 +608,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     container.innerHTML = `
         <div class="max-w-6xl mx-auto pb-10">
             <h3 class="text-xl font-bold text-gray-800 mb-6 text-center">
-                📊 ${key} 경영 성과 요약 <span class="text-sm font-normal text-gray-500 ml-2">${comparisonTitle}</span>
+                ${key} 경영 성과 요약 <span class="text-sm font-normal text-gray-500 ml-2">${comparisonTitle}</span>
             </h3>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -657,7 +657,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
 
             <div class="bg-white rounded-xl border border-emerald-100 shadow-sm mb-8 overflow-hidden">
                 <div class="px-6 py-4 border-b border-emerald-50 bg-emerald-50/50 flex justify-between items-center">
-                    <h4 class="font-bold text-emerald-800 flex items-center gap-2">💱 환율 (기간 평균)</h4>
+                    <h4 class="font-bold text-emerald-800 flex items-center gap-2">환율 (기간 평균)</h4>
                     <span class="text-xs text-gray-500">${currentStats.daysWithFx}일 기록${fxCompareLabel ? ' · ' + fxCompareLabel : ''}</span>
                 </div>
                 <div class="grid grid-cols-2 divide-x divide-gray-100">

@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610131441';
-import * as State from './state.js?v=202610131441';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610131441';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610131441';
+import * as DOM from './dom-elements.js?v=202610131512';
+import * as State from './state.js?v=202610131512';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610131512';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610131512';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610131441';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610131441';
-import { renderQuantityModalInputs } from './ui.js?v=202610131441';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610131441';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610131441';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610131512';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610131512';
+import { renderQuantityModalInputs } from './ui.js?v=202610131512';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610131512';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610131512';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -127,7 +127,6 @@ const buildPlannedGroupHtml = () => {
         <li class="mb-2">
             <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors shadow-sm focus:outline-none shrink-0">
                 <div class="flex items-center gap-2 shrink-0">
-                    <span class="folder-icon text-[15px]">📅</span>
                     <span class="font-bold text-[14px] text-indigo-700 dark:text-indigo-300 whitespace-nowrap tracking-tight shrink-0">예정 물량 (미래 7일)</span>
                 </div>
                 <svg class="w-4 h-4 text-indigo-400 transform transition-transform duration-200 shrink-0 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -172,18 +171,18 @@ export const openPlannedQuantityModal = async (dateStr) => {
         if (zero) zero.disabled = true;
         const note = document.createElement('p');
         note.className = 'mt-1 text-xs font-medium text-sky-700';
-        note.textContent = '📤 전송값 우선 적용(로케이션 전송) — 저장해도 전송값이 우선 적용되고, 이 칸의 기존 저장값(0 제외)은 그대로 둡니다.';
+        note.textContent = '전송값 우선 적용(로케이션 전송) — 저장해도 전송값이 우선 적용되고, 이 칸의 기존 저장값(0 제외)은 그대로 둡니다.';
         if (v.detail) note.title = v.detail;
         input.insertAdjacentElement('afterend', note);
     });
 
     const title = document.getElementById('quantity-modal-title');
-    if (title) title.textContent = `📅 ${dateStr} 예정 물량 입력`;
+    if (title) title.textContent = `${dateStr} 예정 물량 입력`;
 
     const hint = document.getElementById('planned-auto-hint');
     if (hint) {
         hint.textContent = '자동 추정값(국내배송=AI 예측 + 입고일엔 미발수량 · 중국제작=입고일정 · 그 외=지난 7회 업무량 평균)이 미리 채워져 있습니다. 값을 고쳐 저장하면 업무 예상 시뮬레이션에도 그대로 적용됩니다.'
-            + (미발읽음 ? '' : ' ⚠️ 미발 이력을 불러오지 못해 국내배송에 미발이 빠졌을 수 있습니다 — 중국 입고일이면 저장 전에 국내배송 값을 확인하세요.');
+            + (미발읽음 ? '' : ' 미발 이력을 불러오지 못해 국내배송에 미발이 빠졌을 수 있습니다 — 중국 입고일이면 저장 전에 국내배송 값을 확인하세요.');
         hint.classList.remove('hidden');
     }
 
@@ -293,7 +292,6 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                 <li class="mb-2">
                     <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm focus:outline-none shrink-0">
                         <div class="flex items-center gap-2 shrink-0">
-                            <span class="folder-icon text-[15px]">${isOpen ? '📂' : '📁'}</span>
                             <span class="font-bold text-[14px] text-gray-700 dark:text-gray-200 whitespace-nowrap tracking-tight shrink-0">${groupName}</span>
                         </div>
                         <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
