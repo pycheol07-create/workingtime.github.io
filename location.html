@@ -460,7 +460,7 @@
         }
         /* ====== 대시보드 (D안) ====== */
         .dash-container {
-            padding: 4px max(24px, calc((100% - 1360px) / 2)) 20px;
+            padding: 4px 24px 20px; /* 화면 폭 전체 사용 (D안 이전처럼 가운데 묶지 않음) */
             height: calc(100vh - 129px); /* 헤더 63px(D안) 기준 */
             overflow-y: auto;
             display: flex; flex-direction: column; gap: 24px;
@@ -585,6 +585,13 @@
         @media (max-width: 1280px) { .ch-title, .version-badge { display: none; } }
 
         /* ====== 모바일 전용 (768px 이하) — 데스크톱 화면은 바꾸지 않음 ====== */
+        /* 대시보드 칸이 높이 부족으로 눌려 KPI 띠가 2px 로 사라지던 문제(2026-10-13) — 자식은 줄어들지 않게 */
+        .dash-container > * { flex-shrink: 0; }
+        /* 입고 대기 패널이 열리면 PC 에서는 본문이 비켜 겹치지 않게(휴대폰은 위에 덮음) */
+        @media (min-width: 769px) {
+            body:has(#incoming-sidebar.open) { padding-right: 340px; box-sizing: border-box; }
+            .incoming-sidebar.open { box-shadow: -8px 0 24px rgba(30,40,60,.14); }
+        }
         @media (max-width: 768px) {
             /* 헤더: 줄바꿈 허용, 탭은 가로 스크롤 */
             .controls-header { flex-wrap: wrap; gap: 6px; margin: 6px 8px; }
@@ -1315,7 +1322,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610131032"></script>
+    <script type="module" src="js/location.js?v=202610131042"></script>
     <script>
         function switchView(view) {
             document.getElementById('view-list').style.display = view === 'list' ? 'block' : 'none';
@@ -1382,7 +1389,7 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610131032"></script>
-    <script src="js/modal-esc.js?v=202610131032"></script>
+    <script src="js/connection-banner.js?v=202610131042"></script>
+    <script src="js/modal-esc.js?v=202610131042"></script>
 </body>
 </html>
