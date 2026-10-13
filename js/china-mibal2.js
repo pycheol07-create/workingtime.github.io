@@ -13,15 +13,15 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610131327'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610131356'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610131327';
+import { explain } from './lib/mibal2-calc.js?v=202610131356';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610131327';
+} from './lib/mibal2-rows.js?v=202610131356';
 
 const { db, auth } = initializeFirebase();
 
@@ -313,7 +313,7 @@ function detailHtml(r) {
     const range = c.range || {};
     const fmtEntry = (e) => `${esc(e[0])} 출고 ${e[1] ? '→ ' + esc(e[1]) + ' 본사도착' : '(도착일 없음)'} · ${num(parseInt(e[2]) || 0)}장`;
     const used = r.arrUsed.length ? r.arrUsed.map(fmtEntry).join('<br>') : '<span class="muted">선택한 출고일에 해당 없음</span>';
-    const skipped = r.arrSkipped.length ? `<br><span style="color:#c62828;">유예 지나 제외: ${r.arrSkipped.map(fmtEntry).join(' / ')}</span>` : '';
+    const skipped = r.arrSkipped.length ? `<br><span class="t-risk">유예 지나 제외: ${r.arrSkipped.map(fmtEntry).join(' / ')}</span>` : '';
     const li = r.locInfo;
     const loc = li
         ? `${esc(li.id)}${li.count > 1 ? ` (이 코드 자리 ${num(li.count)}곳 중 ${li.etcOnly ? '기타 자리' : '피킹용'} 첫 자리)` : ''}${li.count === null ? ' (그날 수집 사본의 대표 자리)' : ''}`
@@ -348,13 +348,13 @@ function renderTable() {
     const tb = $('table-body');
     $('row-count').textContent = `${viewRows.length}행 / 전체 ${allRows.length}행`;
     if (viewMode === 'daily') {
-        if (!daily) { tb.innerHTML = `<tr><td colspan="22" style="padding:50px; color:#888;">날짜를 고르세요.</td></tr>`; return; }
-        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="22" style="padding:50px; color:#c62828;">${esc(daily.msg)}</td></tr>`; return; }
+        if (!daily) { tb.innerHTML = `<tr><td colspan="22" class="t-3" style="padding:50px;">날짜를 고르세요.</td></tr>`; return; }
+        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="22" class="t-risk" style="padding:50px;">${esc(daily.msg)}</td></tr>`; return; }
     } else {
-        if (!latest) { tb.innerHTML = `<tr><td colspan="22" style="padding:50px; color:#c62828;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
-        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="22" style="padding:50px; color:#888;">출고일을 선택하세요.</td></tr>`; return; }
+        if (!latest) { tb.innerHTML = `<tr><td colspan="22" class="t-risk" style="padding:50px;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
+        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="22" class="t-3" style="padding:50px;">출고일을 선택하세요.</td></tr>`; return; }
     }
-    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="22" style="padding:50px; color:#888;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
+    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="22" class="t-3" style="padding:50px;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
     let html = '';
     viewRows.forEach((r, i) => {
         const cls = ['data-row'];
@@ -364,8 +364,8 @@ function renderTable() {
         html += `<tr class="${cls.join(' ')}" data-code="${esc(r.code)}">
             <td>${i + 1}</td>
             <td class="code-cell">${esc(r.code)}</td>
-            <td class="name-cell" title="${esc(r.name + (r.option ? ' / ' + r.option : ''))}">${esc(r.name)}${r.option ? ` <span style="color:#777;">/ ${esc(r.option)}</span>` : ''}</td>
-            <td>${r.locInfo ? esc(r.loc) : '<span style="color:#c62828;">미지정</span>'}</td>
+            <td class="name-cell" title="${esc(r.name + (r.option ? ' / ' + r.option : ''))}">${esc(r.name)}${r.option ? ` <span class="t-3">/ ${esc(r.option)}</span>` : ''}</td>
+            <td>${r.locInfo ? esc(r.loc) : '<span class="t-risk">미지정</span>'}</td>
             <td>${num(r.cap)}</td>
             <td><b>${num(r.arr)}</b></td>
             <td>${numOr(r.stock)}</td>
@@ -374,15 +374,15 @@ function renderTable() {
             <td>${numOr(r.inv)}</td>
             <td>${numOr(r.out)}</td>
             <td>${numOr(r.remain)}</td>
-            <td>${r.backlog ? `<b style="color:#6a1b9a;">${num(r.backlog)}</b>` : numOr(r.backlog)}</td>
+            <td>${r.backlog ? `<b class="t-warn">${num(r.backlog)}</b>` : numOr(r.backlog)}</td>
             <td>${numOr(r.old)}</td>
             <td>${numOr(r.oldNew)}</td>
             <td class="new-mibal">${numOr(r.mibal)}</td>
             <td class="diff-cell">${diffTxt}</td>
             <td>${numOr(r.pick)}</td>
             <td>${numOr(r.reserve)}</td>
-            <td>${r.refill ? `<b style="color:#e65100;">${num(r.refill)}</b>` : numOr(r.refill)}</td>
-            <td${r.bleft !== null && r.bleft !== undefined ? ` title="비축 ${num(r.bstock)} − (밀린 ${num(r.backlog)} + 보충 ${num(r.refill)})"` : ''}>${r.bleft < 0 ? `<b style="color:#c62828;">${num(r.bleft)}</b>` : numOr(r.bleft)}</td>
+            <td>${r.refill ? `<b class="t-warn">${num(r.refill)}</b>` : numOr(r.refill)}</td>
+            <td${r.bleft !== null && r.bleft !== undefined ? ` title="비축 ${num(r.bstock)} − (밀린 ${num(r.backlog)} + 보충 ${num(r.refill)})"` : ''}>${r.bleft < 0 ? `<b class="t-risk">${num(r.bleft)}</b>` : numOr(r.bleft)}</td>
             <td>${flagsHtml(r)}</td>
         </tr>`;
         if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="22">${detailHtml(r)}</td></tr>`;
@@ -412,14 +412,14 @@ function renderSourceNote() {
     const box = $('src-note');
     if (viewMode === 'daily' && (!daily || !daily.ok)) {
         box.innerHTML = daily
-            ? `<b style="color:#6a1b9a;">📅 ${esc(daily.id)}</b>${daily.okMs ? ` · 수집 ${mdhm(daily.okMs)}` : ''}<br><span style="color:#c62828;">${esc(daily.msg)}</span>`
+            ? `<b class="t-accent">${esc(daily.id)}</b>${daily.okMs ? ` · 수집 ${mdhm(daily.okMs)}` : ''}<br><span class="t-risk">${esc(daily.msg)}</span>`
             : '';
         return;
     }
     const c = ctx || {};
     const parts = [];
     if (c.mode === 'daily') {
-        parts.push(`<b style="color:#6a1b9a;">📅 ${esc(daily.id)} 수집 사본 (읽기 전용)</b>`);
+        parts.push(`<b class="t-accent">${esc(daily.id)} 수집 사본 (읽기 전용)</b>`);
         // 비교 기준 시점 = 수집기가 비교 입력을 읽은 시각(기존 업로드 뒤). 기존 미발 버전 시각은 아래 '기존 미발' 에 나온다
         parts.push(`<b>비교 기준</b> ${c.compareAtMs ? mdhm(c.compareAtMs) : '시각 모름'}${c.compareStatus && c.compareStatus !== 'ok' ? ' · ' + esc(c.compareStatus) : ''}`);
     }
@@ -439,7 +439,7 @@ function renderSourceNote() {
     const rs = c.reserveStatus;
     if (!rs) warns.push(c.mode === 'daily' ? '이 날 사본에는 비축재고 없음(10/8 수집기 갱신 전)' : '이 수집 자료에는 비축재고 없음(10/8 수집기 갱신 전)');
     else if (rs.status !== 'ok' || Number(rs.missing) > 0) warns.push(`비축재고 수집 ${rs.status} — 비축 미응답 코드 ${num(rs.missing)}개(그 코드는 '–', 판단 안 함)`);
-    box.innerHTML = parts.join(' · ') + (warns.length ? `<br><span style="color:#c62828;">⚠ ${warns.map(esc).join(' / ')}</span>` : '');
+    box.innerHTML = parts.join(' · ') + (warns.length ? `<br><span class="t-risk">⚠ ${warns.map(esc).join(' / ')}</span>` : '');
 }
 
 /** 지금 보기 기준으로 다시 계산·그리기 */
@@ -464,7 +464,7 @@ function renderDateList() {
     const list = listShipDates(ship.items, graceDays, new Date());
     dateInfo = {}; list.forEach(x => { dateInfo[x.date] = x; });
     const c = $('date-checklist-container');
-    if (!list.length) { c.innerHTML = '<div style="font-size:12px; color:#8d6e63;">출고 데이터 없음</div>'; }
+    if (!list.length) { c.innerHTML = '<div class="t-3" style="font-size:12px;">출고 데이터 없음</div>'; }
     else {
         c.innerHTML = list.map(x => {
             const arr = x.arrivals.length ? ' → ' + x.arrivals.map(fmtMD).join(',') + ' 입고' : '';
@@ -617,7 +617,7 @@ function renderRefreshUI() {
         msg.textContent = `요청됨 ${hhmm(pending.atMs)} — 최대 약 8분`;
     } else {
         btn.disabled = false;
-        btn.textContent = '🔄 지금 갱신';
+        btn.textContent = '지금 갱신';
     }
 }
 function clearPending(message) {
@@ -660,7 +660,7 @@ async function requestRefresh(isAuto) {
     pending = { atMs: Date.now(), baseRun, baseNoteAt };
     try { sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending)); } catch (e) {}
     renderRefreshUI();
-    showToast(isAuto ? '🔄 오늘 수집 자료가 없어 갱신을 자동 요청했습니다' : '🔄 갱신 요청 — 5분마다 확인하는 수집기가 처리합니다');
+    showToast(isAuto ? '오늘 수집 자료가 없어 갱신을 자동 요청했습니다' : '갱신 요청 — 5분마다 확인하는 수집기가 처리합니다');
 }
 /**
  * 수집 결과가 오면 잠금 해제.
@@ -715,7 +715,7 @@ async function saveCompare() {
             oldSource: oldSnap ? { kind: oldSnap.kind, atMs: oldSnap.atMs || 0, trigger: oldSnap.trigger || '' } : null,
             latestOkAtMs: latest ? tsMs(latest.lastOkAt) : 0
         });
-        showToast(`💾 저장 완료 (compare_${id} · ${allRows.length}행)`);
+        showToast(`저장 완료 (compare_${id} · ${allRows.length}행)`);
     } catch (e) { showToast('⚠️ 저장 실패: ' + (e && e.code || e)); }
 }
 

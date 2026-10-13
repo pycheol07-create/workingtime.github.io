@@ -1,7 +1,7 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610131327'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610131356'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const { db } = initializeFirebase();
@@ -221,8 +221,8 @@ function renderLocList(location, base) {
     const parts = locPartsArr(location);
     if (!parts.length) return '';
     return parts.map(p => b.has(p)
-        ? `<span style="color:#555;">${p}</span>`
-        : `<span style="background:#c8e6c9; color:#1b5e20; font-weight:bold; padding:0 5px; border-radius:3px;">${p}</span>`
+        ? `<span class="t-2">${p}</span>`
+        : `<span class="d-pill-ok" style="padding:0 6px;">${p}</span>`
     ).join(', ');
 }
 // [Ver 8.39] 다운로드 시 새 자리(base에 없던)를 맨앞/맨뒤로 재배치 (기존자리 순서는 유지)
@@ -245,7 +245,7 @@ function renderNewLocOnly(location, base) {
     const b = new Set(locPartsArr(base));
     const news = locPartsArr(location).filter(p => !b.has(p));
     if (!news.length) return '';
-    return news.map(p => `<span style="background:#c8e6c9; color:#1b5e20; font-weight:bold; padding:0 5px; border-radius:3px;">${p}</span>`).join(', ');
+    return news.map(p => `<span class="d-pill-ok" style="padding:0 6px;">${p}</span>`).join(', ');
 }
 // [Ver 8.12] 기존재고 중 '스캐너로 전송된 상품'(worker=Scanner_Web)만 표시 — 새 자리 없어도 전송 확인 가능
 function lmExistingRows() {
@@ -263,18 +263,18 @@ function renderLocMoveTable() {
     const rows = lmExistingRows();
     const cEl = document.getElementById('lm-count'); if (cEl) cEl.textContent = `전송된 상품 ${rows.length}건`;
     const moreEl = document.getElementById('lm-more');
-    if (!rows.length) { tb.innerHTML = '<tr><td colspan="4" style="padding:24px; color:#888;">전송된 기존재고가 없습니다.<br><span style="font-size:11px;">(기존재고 업로드 후 스캐너 \'기존재고\' 모드로 위치를 찍어 전송하면 여기 표시됩니다)</span></td></tr>'; if (moreEl) moreEl.textContent = ''; return; }
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="4" class="t-3" style="padding:24px;">전송된 기존재고가 없습니다.<br><span style="font-size:11px;">(기존재고 업로드 후 스캐너 \'기존재고\' 모드로 위치를 찍어 전송하면 여기 표시됩니다)</span></td></tr>'; if (moreEl) moreEl.textContent = ''; return; }
     const shown = rows.slice(0, LM_RENDER_CAP);
     tb.innerHTML = shown.map(r => {
         const noBase = !r.base; // 시드 파일에 없던 상품(기준 위치 없음)
-        const badge = noBase ? '<div style="margin-top:3px;"><span title="업로드 파일에 없던 상품 — 기존 위치를 몰라 스캔한 자리만 반영됩니다. ERP 업로드 시 기존값이 덮어써질 수 있어요." style="background:#fff3e0; color:#e65100; border:1px solid #ffcc80; border-radius:4px; padding:0 4px; font-size:10px; font-weight:bold; white-space:nowrap;">⚠️ 파일에 없던 상품</span></div>' : '';
-        return `<tr style="border-bottom:1px solid #eee;${noBase ? ' background:#fffdf5;' : ''}"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${r.code}${badge}</td><td style="padding:7px 6px; text-align:left;">${renderLocList(r.location, r.base)}</td><td style="padding:7px 6px; color:#888; white-space:nowrap;">${lmFmtAt(r.at)}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="lm-edit" data-code="${r.code}" title="수정" style="cursor:pointer; margin-right:10px; font-size:15px;">✏️</span><span class="lm-del" data-code="${r.code}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`;
+        const badge = noBase ? '<div style="margin-top:3px;"><span title="업로드 파일에 없던 상품 — 기존 위치를 몰라 스캔한 자리만 반영됩니다. ERP 업로드 시 기존값이 덮어써질 수 있어요." class="d-pill-warn" style="padding:0 6px; font-size:10px;">파일에 없던 상품</span></div>' : '';
+        return `<tr style="border-bottom:1px solid var(--c-line-soft);${noBase ? ' background:var(--c-warn-bg);' : ''}"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${r.code}${badge}</td><td style="padding:7px 6px; text-align:left;">${renderLocList(r.location, r.base)}</td><td class="t-3" style="padding:7px 6px; white-space:nowrap;">${lmFmtAt(r.at)}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="lm-edit" data-code="${r.code}" title="수정" style="cursor:pointer; margin-right:10px; font-size:15px;">✏️</span><span class="lm-del" data-code="${r.code}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`;
     }).join('');
     tb.querySelectorAll('.lm-edit').forEach(b => b.onclick = () => startEditLocMoveRow(b.dataset.code, b.closest('tr')));
     tb.querySelectorAll('.lm-del').forEach(b => b.onclick = () => deleteLocMoveRow(b.dataset.code));
     const flagged = rows.filter(r => !r.base).length;
     const notes = [];
-    if (flagged) notes.push(`<b style="color:#e65100;">⚠️ 파일에 없던 상품 ${flagged}건 포함</b>`);
+    if (flagged) notes.push(`<b class="t-warn">⚠️ 파일에 없던 상품 ${flagged}건 포함</b>`);
     if (rows.length > LM_RENDER_CAP) notes.push(`상위 ${LM_RENDER_CAP}건만 표시 · 전체 ${rows.length}건 (검색으로 좁히기)`);
     if (moreEl) moreEl.innerHTML = notes.join(' · ');
 }
@@ -297,7 +297,7 @@ function startEditLocMoveRow(code, tr) {
     const locTd = tds[1], actTd = tds[3];
     if (!locTd || !actTd) return;
     const cur = (v.location || '').replace(/"/g, '&quot;');
-    locTd.innerHTML = `<input type="text" class="lm-edit-input" value="${cur}" placeholder="예: 비축-211,비축-210 (비우면 삭제)" style="width:100%; padding:5px 6px; border:1px solid #7b1fa2; border-radius:4px; font-size:12px; box-sizing:border-box;">`;
+    locTd.innerHTML = `<input type="text" class="lm-edit-input" value="${cur}" placeholder="예: 비축-211,비축-210 (비우면 삭제)" style="width:100%; padding:5px 6px; border:1px solid var(--c-accent); border-radius:var(--r-cell); font-size:12px; box-sizing:border-box;">`;
     actTd.innerHTML = `<span class="lm-save" title="저장" style="cursor:pointer; margin-right:10px; font-size:15px;">✅</span><span class="lm-cancel" title="취소" style="cursor:pointer; font-size:15px;">✖️</span>`;
     const input = locTd.querySelector('.lm-edit-input');
     input.focus(); input.select();
@@ -666,8 +666,8 @@ function renderMibalVars() {
     const list = document.getElementById('mibal-vars-list');
     if (list) {
         list.innerHTML = mibalVars.length
-            ? mibalVars.map(h => `<span style="display:inline-flex; align-items:center; gap:5px; background:#7b1fa2; color:#fff; padding:3px 9px; border-radius:12px; font-size:12px; font-weight:bold;">${h}<span class="mibal-var-del" data-h="${h}" style="cursor:pointer; font-weight:900;">✕</span></span>`).join('')
-            : '<span style="font-size:11px; color:#999;">추가된 변수 없음</span>';
+            ? mibalVars.map(h => `<span class="d-pill-accent" style="display:inline-flex; align-items:center; gap:5px; padding:3px 9px; font-size:12px;">${h}<span class="mibal-var-del" data-h="${h}" style="cursor:pointer; font-weight:900;">✕</span></span>`).join('')
+            : '<span class="t-3" style="font-size:11px;">추가된 변수 없음</span>';
         list.querySelectorAll('.mibal-var-del').forEach(x => x.onclick = () => removeMibalVar(x.dataset.h));
     }
     const sel = document.getElementById('mibal-var-select');
@@ -722,9 +722,9 @@ function buildExampleRows() {
     const cell = (i,k,v) => `<td><input type="number" class="exi" data-i="${i}" data-k="${k}" value="${v}" style="width:46px; padding:3px;"></td>`;
     tb.innerHTML = exampleRows.map((r,i) => `<tr>
         ${cell(i,'s',r.s)}${cell(i,'c',r.c)}${cell(i,'sh',r.sh)}${cell(i,'d',r.d)}
-        <td><input type="number" class="exi" data-i="${i}" data-k="want" value="${r.want}" placeholder="?" style="width:56px; padding:3px; background:#fff3e0; font-weight:bold;"></td>
+        <td><input type="number" class="exi" data-i="${i}" data-k="want" value="${r.want}" placeholder="?" style="width:56px; padding:3px; background:var(--c-accent-row); font-weight:bold;"></td>
         <td id="ex-cur-${i}" style="color:#888; font-weight:bold;">-</td>
-        <td><button class="exdel" data-i="${i}" style="border:none; background:none; color:#d32f2f; cursor:pointer; font-size:14px;">✕</button></td>
+        <td><button class="exdel t-risk" data-i="${i}" style="border:none; background:none; cursor:pointer; font-size:14px;">✕</button></td>
     </tr>`).join('');
     tb.querySelectorAll('input.exi').forEach(inp => inp.oninput = () => {
         const i = +inp.dataset.i, k = inp.dataset.k;
@@ -845,18 +845,18 @@ function renderRulePalette() {
     const box = document.getElementById('rule-palette');
     if (!box) return;
     const chip = (tok, label, bg, fg, bd) =>
-        `<span class="rule-tok" draggable="true" data-token="${ruleEscAttr(tok)}" title="드롭존으로 끌어다 놓거나 클릭" style="cursor:grab; user-select:none; background:${bg}; color:${fg}; border:1px solid ${bd}; padding:4px 10px; border-radius:12px; font-size:12px; font-weight:bold;">${label}</span>`;
-    const vars = [...RULE_VARS, ...mibalVars].map(v => chip(v, v, '#ede7f6', '#4527a0', '#b39ddb')).join('');
+        `<span class="rule-tok" draggable="true" data-token="${ruleEscAttr(tok)}" title="드롭존으로 끌어다 놓거나 클릭" style="cursor:grab; user-select:none; background:${bg}; color:${fg}; border:1px solid ${bd}; padding:4px 10px; border-radius:var(--r-pill); font-size:12px; font-weight:bold;">${label}</span>`;
+    const vars = [...RULE_VARS, ...mibalVars].map(v => chip(v, v, 'var(--c-accent-soft)', 'var(--c-accent-deep)', 'var(--c-accent-light)')).join('');
     // [Ver 8.24] 숫자는 0~9 키패드로 입력(여러 자리 가능)
-    const numBtn = `<span id="rule-numpad-open" title="숫자 키패드 열기" style="cursor:pointer; user-select:none; background:#eceff1; color:#37474f; border:1px solid #b0bec5; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:bold;">🔢 숫자 입력</span>`;
-    const arith = [['+','+'],['-','−'],['*','×'],['/','÷'],['(','('],[')',')']].map(([t,l]) => chip(t, l, '#fff3e0', '#e65100', '#ffcc80')).join('');
-    const cmp = [['===','='],['!==','≠'],['>','&gt;'],['>=','≥'],['<','&lt;'],['<=','≤']].map(([t,l]) => chip(t, l, '#e3f2fd', '#0d47a1', '#90caf9')).join('');
-    const sep = chip('→', '→ 결과(미발수량 =)', '#e8f5e9', '#1b5e20', '#a5d6a7');
+    const numBtn = `<span id="rule-numpad-open" title="숫자 키패드 열기" style="cursor:pointer; user-select:none; background:var(--c-surface); color:var(--c-text); border:1px solid var(--c-line-strong); padding:4px 12px; border-radius:var(--r-pill); font-size:12px; font-weight:bold;">숫자 입력</span>`;
+    const arith = [['+','+'],['-','−'],['*','×'],['/','÷'],['(','('],[')',')']].map(([t,l]) => chip(t, l, 'var(--c-track)', 'var(--c-text-2)', 'var(--c-line-strong)')).join('');
+    const cmp = [['===','='],['!==','≠'],['>','&gt;'],['>=','≥'],['<','&lt;'],['<=','≤']].map(([t,l]) => chip(t, l, 'var(--c-warn-soft)', 'var(--c-warn-text)', 'var(--c-warn-line)')).join('');
+    const sep = chip('→', '→ 결과(미발수량 =)', 'var(--c-ok-soft)', 'var(--c-ok-text)', 'var(--c-ok)');
     box.innerHTML =
-        `<div style="font-size:11px; color:#777; margin-bottom:6px;">🧩 아래를 <b>드롭존으로 끌어다 놓거나 클릭</b>하면 순서대로 식이 쌓입니다</div>
-         <div style="margin-bottom:5px;"><span style="font-size:10px; color:#999;">변수 · 숫자</span><div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:2px;">${vars} ${numBtn}</div></div>
-         <div style="margin-bottom:5px;"><span style="font-size:10px; color:#999;">사칙연산 · 괄호</span><div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:2px;">${arith}</div></div>
-         <div><span style="font-size:10px; color:#999;">비교(부등호) · 결과구분</span><div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:2px;">${cmp} ${sep}</div></div>`;
+        `<div style="font-size:11px; color:var(--c-text-3); margin-bottom:6px;">🧩 아래를 <b>드롭존으로 끌어다 놓거나 클릭</b>하면 순서대로 식이 쌓입니다</div>
+         <div style="margin-bottom:5px;"><span style="font-size:10px; color:var(--c-text-3);">변수 · 숫자</span><div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:2px;">${vars} ${numBtn}</div></div>
+         <div style="margin-bottom:5px;"><span style="font-size:10px; color:var(--c-text-3);">사칙연산 · 괄호</span><div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:2px;">${arith}</div></div>
+         <div><span style="font-size:10px; color:var(--c-text-3);">비교(부등호) · 결과구분</span><div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:2px;">${cmp} ${sep}</div></div>`;
     box.querySelectorAll('.rule-tok').forEach(el => {
         el.addEventListener('click', () => addDraftToken(el.dataset.token));
         el.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', el.dataset.token); e.dataTransfer.effectAllowed = 'copy'; });
@@ -884,13 +884,13 @@ function renderRuleNumpad() {
     if (!pad) return;
     const keys = ['1','2','3','4','5','6','7','8','9','⌫','0','확인'];
     pad.innerHTML =
-        `<div id="numpad-card" style="background:#fff; border-radius:14px; padding:18px; width:250px; box-shadow:0 10px 34px rgba(0,0,0,.3);">
-            <div style="font-size:12px; color:#666; font-weight:bold; margin-bottom:6px;">숫자 입력 후 [확인]</div>
-            <div style="border:2px solid #1976d2; border-radius:8px; padding:10px 12px; font-size:28px; font-weight:900; text-align:right; min-height:32px; margin-bottom:12px;">${numpadValue || '0'}</div>
+        `<div id="numpad-card" style="background:var(--c-surface); border-radius:var(--r-card); padding:18px; width:250px; box-shadow:var(--sh-pop);">
+            <div style="font-size:12px; color:var(--c-text-2); font-weight:bold; margin-bottom:6px;">숫자 입력 후 [확인]</div>
+            <div style="border:2px solid var(--c-accent); border-radius:var(--r-sm); padding:10px 12px; font-size:28px; font-weight:900; text-align:right; min-height:32px; margin-bottom:12px;">${numpadValue || '0'}</div>
             <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:7px;">
-              ${keys.map(k => `<button type="button" class="np-key" data-k="${k}" style="height:50px; font-size:20px; font-weight:800; border:1px solid #ddd; border-radius:9px; background:${k === '확인' ? '#1976d2' : (k === '⌫' ? '#fff3e0' : '#fafafa')}; color:${k === '확인' ? '#fff' : '#333'}; cursor:pointer;">${k}</button>`).join('')}
+              ${keys.map(k => `<button type="button" class="np-key" data-k="${k}" style="height:50px; font-size:20px; font-weight:800; border:1px solid ${k === '확인' ? 'var(--c-accent)' : 'var(--c-line-strong)'}; border-radius:var(--r-sm); background:${k === '확인' ? 'var(--c-accent)' : (k === '⌫' ? 'var(--c-surface-2)' : 'var(--c-surface)')}; color:${k === '확인' ? '#fff' : 'var(--c-text)'}; cursor:pointer;">${k}</button>`).join('')}
             </div>
-            <button type="button" id="numpad-cancel" style="width:100%; margin-top:9px; height:42px; border:1px solid #ccc; border-radius:9px; background:#fff; color:#555; cursor:pointer; font-weight:bold;">취소</button>
+            <button type="button" id="numpad-cancel" style="width:100%; margin-top:9px; height:42px; border:1px solid var(--c-line-strong); border-radius:var(--r-pill); background:var(--c-surface); color:var(--c-text-2); cursor:pointer; font-weight:bold;">취소</button>
          </div>`;
     pad.onclick = closeRuleNumpad;
     document.getElementById('numpad-card').onclick = e => e.stopPropagation();
@@ -916,37 +916,37 @@ function renderRuleDraft() {
     if (!zone) return;
     // (A) 내가 만든 규칙 목록
     const condLines = ruleRows2.map((r, i) => `
-      <div style="display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #dfe6ee; padding:9px 10px; border-radius:8px; margin-bottom:6px; font-size:13px;">
-        <span style="background:#1976d2; color:#fff; border-radius:11px; padding:2px 9px; font-size:11px; font-weight:bold; flex:none;">${i + 1}</span>
-        <span style="flex:1; line-height:1.55; text-align:left;"><b>만약</b> <span style="color:#4527a0; font-weight:bold;">${ruleEscAttr(r.L)} ${ruleTokLabel(r.op)} ${ruleEscAttr(r.R)}</span> <b>이면 → 미발수량 =</b> <span style="color:#e65100; font-weight:bold;">${ruleEscAttr(r.result)}</span></span>
-        <button class="rl-del" data-i="${i}" title="이 조건 삭제" style="border:none; background:none; color:#d32f2f; cursor:pointer; font-size:17px; flex:none;">✕</button>
+      <div style="display:flex; align-items:center; gap:8px; background:var(--c-surface); border:1px solid var(--c-line); padding:9px 10px; border-radius:var(--r-sm); margin-bottom:6px; font-size:13px;">
+        <span class="d-pill-accent" style="padding:2px 9px; font-size:11px; flex:none;">${i + 1}</span>
+        <span style="flex:1; line-height:1.55; text-align:left;"><b>만약</b> <span style="color:var(--c-accent-deep); font-weight:bold;">${ruleEscAttr(r.L)} ${ruleTokLabel(r.op)} ${ruleEscAttr(r.R)}</span> <b>이면 → 미발수량 =</b> <span class="t-warn" style="font-weight:bold;">${ruleEscAttr(r.result)}</span></span>
+        <button class="rl-del" data-i="${i}" title="이 조건 삭제" style="border:none; background:none; color:var(--c-risk-text); cursor:pointer; font-size:17px; flex:none;">✕</button>
       </div>`).join('');
-    const emptyMsg = ruleRows2.length ? '' : '<div style="color:#90a4ae; font-size:12px; padding:6px 2px; text-align:left;">아직 만든 조건이 없어요. 아래에서 식을 만들어 <b>[조건 넣기]</b> 하세요.</div>';
+    const emptyMsg = ruleRows2.length ? '' : '<div style="color:var(--c-text-3); font-size:12px; padding:6px 2px; text-align:left;">아직 만든 조건이 없어요. 아래에서 식을 만들어 <b>[조건 넣기]</b> 하세요.</div>';
     const elseLine = `
-      <div style="display:flex; align-items:center; gap:8px; background:#eceff1; padding:9px 10px; border-radius:8px; font-size:13px; text-align:left;">
-        <span style="color:#546e7a; font-weight:bold; flex:none;">그 외</span><span style="flex:1;">위 조건에 다 안 맞으면 <b>→ 미발수량 =</b> <b style="color:#333;">${ruleEscAttr(ruleElse)}</b></span>
+      <div style="display:flex; align-items:center; gap:8px; background:var(--c-track); padding:9px 10px; border-radius:var(--r-sm); font-size:13px; text-align:left;">
+        <span style="color:var(--c-text-2); font-weight:bold; flex:none;">그 외</span><span style="flex:1;">위 조건에 다 안 맞으면 <b>→ 미발수량 =</b> <b style="color:var(--c-text);">${ruleEscAttr(ruleElse)}</b></span>
       </div>`;
     // (B) 지금 조립 중
     const { cond, res } = ruleDraftSplit();
     const condStr = cond.map(ruleTokLabel).join(' ');
     const resStr = res.map(ruleTokLabel).join(' ');
     const draftBody = ruleDraftTokens.length === 0
-        ? '<span style="color:#9aa7b4; font-weight:normal;">여기(또는 위 팔레트)에서 <b>변수·부등호·숫자</b>를 끌어다 놓거나 클릭하세요.<br>예) 총재고 <b>=</b> 0 <b>→결과</b> 적재량</span>'
-        : `<b>만약</b> <span style="color:#4527a0;">${condStr || '…'}</span> <b>이면 → 미발수량 =</b> <span style="color:#e65100;">${resStr || '…'}</span>`;
+        ? '<span style="color:var(--c-text-3); font-weight:normal;">여기(또는 위 팔레트)에서 <b>변수·부등호·숫자</b>를 끌어다 놓거나 클릭하세요.<br>예) 총재고 <b>=</b> 0 <b>→결과</b> 적재량</span>'
+        : `<b>만약</b> <span style="color:var(--c-accent-deep);">${condStr || '…'}</span> <b>이면 → 미발수량 =</b> <span class="t-warn">${resStr || '…'}</span>`;
     zone.innerHTML =
         `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
-            <span style="font-weight:bold; font-size:12px; color:#37474f;">🧾 내가 만든 규칙 <span style="color:#90a4ae; font-weight:normal;">(위에서부터 순서대로 적용)</span></span>
-            <button type="button" id="load-default-rule" title="기본공식(시트 3조건) 내용 보기 · 불러오기" style="padding:5px 10px; background:#eef4ff; color:#1565c0; border:1px solid #90caf9; border-radius:6px; cursor:pointer; font-size:11px; font-weight:bold; white-space:nowrap;">📋 기본공식 보기·불러오기</button>
+            <span style="font-weight:bold; font-size:12px; color:var(--c-text);">🧾 내가 만든 규칙 <span style="color:var(--c-text-3); font-weight:normal;">(위에서부터 순서대로 적용)</span></span>
+            <button type="button" id="load-default-rule" class="d-btn d-btn-sm" title="기본공식(시트 3조건) 내용 보기 · 불러오기">기본공식 보기·불러오기</button>
          </div>
          ${condLines}${emptyMsg}${elseLine}
-         <div style="border-top:2px dashed #90caf9; margin:12px 0 10px;"></div>
-         <div style="font-weight:bold; font-size:12px; color:#1565c0; margin-bottom:6px; text-align:left;">🛠 지금 조립 중 <span style="color:#90a4ae; font-weight:normal;">(팔레트를 끌어다 놓거나 클릭)</span></div>
-         <div style="background:#fffdf3; border:1px solid #ffe082; border-radius:8px; padding:13px; font-size:15px; font-weight:bold; line-height:1.7; min-height:28px; text-align:left;">${draftBody}</div>
+         <div style="border-top:2px dashed var(--c-accent-light); margin:12px 0 10px;"></div>
+         <div style="font-weight:bold; font-size:12px; color:var(--c-accent-deep); margin-bottom:6px; text-align:left;">🛠 지금 조립 중 <span style="color:var(--c-text-3); font-weight:normal;">(팔레트를 끌어다 놓거나 클릭)</span></div>
+         <div style="background:var(--c-warn-bg); border:1px solid var(--c-warn-line); border-radius:var(--r-sm); padding:13px; font-size:15px; font-weight:bold; line-height:1.7; min-height:28px; text-align:left;">${draftBody}</div>
          <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:10px;">
-            <button type="button" id="draft-commit" style="padding:9px 18px; background:#1976d2; color:#fff; border:none; border-radius:7px; font-weight:bold; cursor:pointer; font-size:14px;">✔ 조건 넣기</button>
-            <button type="button" id="draft-else" style="padding:9px 12px; background:#fff; color:#455a64; border:1px solid #90a4ae; border-radius:7px; cursor:pointer; font-size:13px; font-weight:bold;">그 외(기본값)으로</button>
-            <button type="button" id="draft-back" style="padding:9px 12px; background:#fff; color:#555; border:1px solid #bbb; border-radius:7px; cursor:pointer; font-size:13px;">⌫ 마지막 빼기</button>
-            <button type="button" id="draft-clear" style="padding:9px 12px; background:#fff; color:#c62828; border:1px solid #ef9a9a; border-radius:7px; cursor:pointer; font-size:13px;">✕ 비우기</button>
+            <button type="button" id="draft-commit" class="d-btn d-btn-primary">조건 넣기</button>
+            <button type="button" id="draft-else" class="d-btn">그 외(기본값)으로</button>
+            <button type="button" id="draft-back" class="d-btn">⌫ 마지막 빼기</button>
+            <button type="button" id="draft-clear" class="d-btn d-btn-risk">✕ 비우기</button>
          </div>`;
     zone.querySelectorAll('.rl-del').forEach(b => b.onclick = () => { ruleRows2.splice(+b.dataset.i, 1); renderRuleRows(); });
     const ld = document.getElementById('load-default-rule');
@@ -1076,7 +1076,7 @@ function parseRuleFormula(expr) {
 function updateRuleCheck() {
     const el = document.getElementById('rule-examples'); if (!el) return;
     const fn = compileMibalFormula(buildRuleFormula());
-    if (!fn) { el.innerHTML = '<span style="color:#d32f2f;">⚠️ 규칙이 아직 올바르지 않습니다.</span>'; return; }
+    if (!fn) { el.innerHTML = '<span class="t-risk">⚠️ 규칙이 아직 올바르지 않습니다.</span>'; return; }
     // 임의 예시 시나리오 [총재고, 적재량, 부족수량, 직진배송] + 추가변수는 시나리오별 임의값
     const base = [[0, 20, 0, 0], [10, 20, 8, 5], [30, 20, 0, 0], [50, 40, 12, 3]];
     const extraVals = [0, 10, 5, 20];
@@ -1085,7 +1085,7 @@ function updateRuleCheck() {
         let out; try { out = Math.round(fn(...b, ...extras)); } catch (e) { out = NaN; }
         if (isNaN(out)) out = 0; if (out < 0) out = 0;
         const parts = [`총재고 ${b[0]}`, `적재량 ${b[1]}`, `부족수량 ${b[2]}`, `직진배송 ${b[3]}`, ...mibalVars.map((v, j) => `${v} ${extras[j]}`)];
-        return `${parts.join(' · ')} <b style="color:#e65100;">→ 미발수량 ${out}</b>`;
+        return `${parts.join(' · ')} <b class="t-warn">→ 미발수량 ${out}</b>`;
     });
     el.innerHTML = lines.join('<br>');
 }
@@ -1609,7 +1609,7 @@ function renderLocationMapList() {
     const total = Object.keys(locationMapData).length;
     const cntEl = document.getElementById('locmap-count'); if (cntEl) cntEl.textContent = `총 ${total}건` + (kw ? ` · 검색 ${entries.length}건` : '');
     tb.innerHTML = entries.length
-        ? entries.map(([c, l]) => `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(c)}</td><td style="padding:7px 6px; color:#7b1fa2; font-weight:bold;">${escBa(l)}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="locmap-edit" data-c="${escBa(c)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:8px;">✏️</span><span class="locmap-del" data-c="${escBa(c)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
+        ? entries.map(([c, l]) => `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(c)}</td><td class="t-accent" style="padding:7px 6px; font-weight:bold;">${escBa(l)}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="locmap-edit" data-c="${escBa(c)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:8px;">✏️</span><span class="locmap-del" data-c="${escBa(c)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
         : '<tr><td colspan="3" style="padding:22px; color:#999;">등록된 위치매핑이 없습니다. 파일 업로드 또는 위에서 직접 추가하세요.</td></tr>';
     tb.querySelectorAll('.locmap-del').forEach(x => x.onclick = async () => { if (confirm(`[${x.dataset.c}] 매핑을 삭제할까요?`)) { delete locationMapData[x.dataset.c]; await saveLocationMapDoc(); renderLocationMapList(); showToast('🗑️ 삭제됨 — 스캐너 즉시 반영'); } });
     tb.querySelectorAll('.locmap-edit').forEach(x => x.onclick = async () => {
@@ -1677,7 +1677,7 @@ function renderBarcodeAliasList() {
     const total = Object.keys(barcodeAlias).length;
     const cnt = document.getElementById('ba-count'); if (cnt) cnt.textContent = `총 ${total}건` + (kw ? ` · 검색 ${entries.length}건` : '');
     tb.innerHTML = entries.length
-        ? entries.map(([b, v]) => `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(b)}</td><td style="padding:7px 6px; color:#1565c0; font-weight:bold;">${escBa(baCode(v))}</td><td style="padding:7px 6px; color:#c62828; text-align:left; word-break:break-all;">${escBa(baMemo(v))}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="ba-edit" data-b="${escBa(b)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:7px;">✏️</span><span class="ba-del" data-b="${escBa(b)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
+        ? entries.map(([b, v]) => `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(b)}</td><td class="t-accent" style="padding:7px 6px; font-weight:bold;">${escBa(baCode(v))}</td><td class="t-risk" style="padding:7px 6px; text-align:left; word-break:break-all;">${escBa(baMemo(v))}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="ba-edit" data-b="${escBa(b)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:7px;">✏️</span><span class="ba-del" data-b="${escBa(b)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
         : '<tr><td colspan="4" style="padding:22px; color:#999;">등록된 매칭이 없습니다. 파일 업로드 또는 위에서 직접 추가하세요.</td></tr>';
     tb.querySelectorAll('.ba-del').forEach(x => x.onclick = async () => { delete barcodeAlias[x.dataset.b]; await saveBarcodeAlias(); renderBarcodeAliasList(); });
     tb.querySelectorAll('.ba-edit').forEach(x => x.onclick = () => { const b = x.dataset.b, v = barcodeAlias[b]; document.getElementById('ba-barcode').value = b; document.getElementById('ba-code').value = baCode(v); document.getElementById('ba-memo').value = baMemo(v); document.getElementById('ba-barcode').focus(); }); // 클릭 시 입력칸에 로드 → 수정 후 +추가로 덮어씀
@@ -1868,13 +1868,13 @@ function applyScanLockUI() {
     if (ov) ov.style.display = pageLocked ? 'flex' : 'none';
     if (btn) {
         if (pageLocked) {
-            btn.disabled = false; btn.textContent = '🔒 잠금중'; btn.style.background = '#8e0000'; btn.style.cursor = 'pointer';
+            btn.disabled = false; btn.textContent = '잠금중'; btn.classList.add('is-locked'); btn.classList.remove('is-busy'); btn.style.cursor = 'pointer';
             btn.title = '스캔 잠금 중 — ScanDB 보호. 오버레이의 [잠금 해제]로 풀 수 있음';
         } else if (!scanDataReady) {
-            btn.disabled = true; btn.textContent = '⏳ 로딩 중…'; btn.style.background = '#9e9e9e'; btn.style.cursor = 'not-allowed';
+            btn.disabled = true; btn.textContent = '로딩 중…'; btn.classList.remove('is-locked'); btn.classList.add('is-busy'); btn.style.cursor = 'not-allowed';
             btn.title = '데이터 로딩 중 — 완료 후 잠글 수 있습니다 (빈/옛 데이터로 잠기는 것 방지)';
         } else {
-            btn.disabled = false; btn.textContent = '🔒 스캔잠금'; btn.style.background = '#c62828'; btn.style.cursor = 'pointer';
+            btn.disabled = false; btn.textContent = '스캔잠금'; btn.classList.remove('is-locked', 'is-busy'); btn.style.cursor = 'pointer';
             btn.title = '스캔 잠금: 지금 데이터를 ScanDB에 확정 저장한 뒤, 새로고침·모든 기능을 잠가 작업자 스캔을 보호';
         }
     }
@@ -1890,7 +1890,7 @@ async function setScanLock(on) {
         if (!scanDataReady) { showToast('⏳ 데이터 로딩 중 — 잠시 후 다시 눌러주세요'); return; }
         clearTimeout(scanDbSyncTimer); // 예약된 자동 동기화 취소 → 여기서 직접 최종 동기화
         if (tableData && tableData.length) {
-            if (btn) { btn.disabled = true; btn.textContent = '⏳ 동기화 중…'; btn.style.background = '#9e9e9e'; btn.style.cursor = 'wait'; }
+            if (btn) { btn.disabled = true; btn.textContent = '동기화 중…'; btn.classList.remove('is-locked'); btn.classList.add('is-busy'); btn.style.cursor = 'wait'; }
             showToast('🔒 잠금 준비 — ScanDB 최종 동기화 중…');
             try {
                 let waited = 0; while (scanDbSyncing && waited < 15000) { await sleep(200); waited += 200; } // 진행 중인 자동 동기화 완료 대기
@@ -2028,13 +2028,13 @@ async function openVersionModal() {
             return `<div style="display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:1px solid #eee;">
               <div style="flex:1; min-width:0;">
                 <div style="font-weight:bold; color:#333;">${fmtVerTime(r.atMs)} <span style="font-size:11px; color:#777; font-weight:normal;">${lbl}</span></div>
-                <div style="font-size:12px; color:#666;">상품 ${r.count || 0}개 · 총 미발수량 <b style="color:#e65100;">${r.totalMibal || 0}</b>${r.note ? ` · <span style="color:#999;">${escHtmlVer(r.note)}</span>` : ''}</div>
+                <div style="font-size:12px; color:#666;">상품 ${r.count || 0}개 · 총 미발수량 <b class="t-1">${r.totalMibal || 0}</b>${r.note ? ` · <span style="color:#999;">${escHtmlVer(r.note)}</span>` : ''}</div>
               </div>
-              <button data-vid="${r.id}" class="ver-rollback-btn" style="padding:8px 14px; background:#c62828; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; white-space:nowrap;">⏪ 롤백</button>
+              <button data-vid="${r.id}" class="ver-rollback-btn d-btn d-btn-risk">롤백</button>
             </div>`;
         }).join('');
         list.querySelectorAll('.ver-rollback-btn').forEach(b => b.addEventListener('click', () => rollbackScanDBVersion(b.dataset.vid)));
-    } catch (e) { list.innerHTML = '<div style="padding:24px; color:#c62828;">불러오기 실패: ' + escHtmlVer(e.message) + '</div>'; }
+    } catch (e) { list.innerHTML = '<div class="t-risk" style="padding:24px;">불러오기 실패: ' + escHtmlVer(e.message) + '</div>'; }
 }
 function closeVersionModal() { const m = document.getElementById('version-modal'); if (m) m.style.display = 'none'; }
 
@@ -2367,19 +2367,17 @@ function applyViewMode() {
     document.body.dataset.view = viewMode;
     const label = document.getElementById('app-title-label');
     const title = document.getElementById('app-title');
-    if (label) label.textContent = viewMode === 'location' ? '📍 중국제작 위치지정모드' : '🏭 중국제작 미발계산기';
-    if (title) title.style.color = viewMode === 'location' ? '#6a1b9a' : '#333';
+    if (label) label.textContent = viewMode === 'location' ? '중국제작 위치지정모드' : '중국제작 미발계산기';
+    if (title) title.style.color = viewMode === 'location' ? 'var(--c-accent-deep)' : 'var(--c-text)';
     const clr = document.getElementById('btn-date-clear'); // [Ver 7.4] 모드별 초기화 라벨
-    if (clr) clr.textContent = viewMode === 'location' ? '🗑️ 위치 초기화' : '🗑️ 미발 초기화';
+    if (clr) clr.textContent = viewMode === 'location' ? '위치 초기화' : '미발 초기화';
     if (viewMode === 'location') { ensureLocationHistory(); ensureFloor2(); applyLocSub(); } else renderTable();
 }
 function applyLocSub() {
     document.body.dataset.locsub = locSubView;
     document.querySelectorAll('.loc-subtab').forEach(b => {
         const on = b.dataset.sub === locSubView;
-        b.style.background = on ? '#5e35b1' : '#fff';
-        b.style.color = on ? '#fff' : '#5e35b1';
-        b.style.boxShadow = on ? 'none' : 'inset 0 0 0 1px #b39ddb';
+        b.classList.toggle('is-on', on);
     });
     if (locSubView === 'existing') { renderLocMoveTable(); renderNewLocPosToggle(); } // 기존재고 인라인 목록
     else applyFilters(); // 당일입고 상품표(위치확인 열) — [Ver 8.75] 비축 대상 필터 재적용
@@ -2423,7 +2421,7 @@ function colValue(key, row, idx) {
     if (key === 'locCheck') { // [Ver 8.31] 추가위치: 앱이 '당일 입고분'으로 지정한 자리 중 새로 추가된 것만 표시
         const a = locationAssignMap[row.code];
         const news = (a && a.location && (a.sub || '') === 'today') ? renderNewLocOnly(a.location, a.base) : '';
-        return news || '<span style="color:#d32f2f; font-weight:bold;">⚠️ 미지정</span>';
+        return news || '<span class="t-risk" style="font-weight:bold;">⚠️ 미지정</span>';
     }
     if (BUILTIN_COLS[key]) return (row[key] !== undefined && row[key] !== null) ? row[key] : '';
     if (key.startsWith('log:')) { const log = stockLogData[row.code] || {}; const v = log[key.slice(4)]; return (v !== undefined && v !== null) ? v : ''; }
@@ -2461,12 +2459,12 @@ function renderTable() {
             const def = BUILTIN_COLS[key] || {};
             const val = colValue(key, row, idx);
             if (def.edit) {
-                let style = key === 'capacity' ? 'background:#e3f2fd;' : '';
+                let style = key === 'capacity' ? 'background:var(--c-accent-row);' : '';
                 let extra = '';
                 if (key === 'confirmed') {
                     // [Ver 8.90] 입고확인 ≠ 도착수량(빈칸=0 포함) → 빨강 통일. 일치 시 앱스캔이면 파랑.
-                    if (confirmedMismatch(row)) { style += 'background:#ffcdd2; color:#b71c1c; font-weight:900;'; extra = ' title="입고확인 ≠ 도착수량 — 수량 확인 필요"'; }
-                    else if (isFromApp) style += 'color:#1976d2; font-weight:900;';
+                    if (confirmedMismatch(row)) { style += 'background:var(--c-risk-soft); color:var(--c-risk-text); font-weight:900;'; extra = ' title="입고확인 ≠ 도착수량 — 수량 확인 필요"'; }
+                    else if (isFromApp) style += 'color:var(--c-accent-deep); font-weight:900;';
                 }
                 tds += `<td class="editable-cell" contenteditable="true" data-code="${row.code}" data-field="${def.edit}" style="${style}"${extra}>${val}</td>`;
             } else if (def.code) {
@@ -2477,7 +2475,7 @@ function renderTable() {
         });
         // [Ver 8.52] 미등록 입고분 강조 / [Ver 10.3] 당일입고지정: 비축 입고분 자리 미지정 줄은 빨강
         const dcMiss = viewMode === 'location' && locSubView === 'today' && (floor2Map[row.code] || 0) > 0 && !isAssignedToday(row.code);
-        html += `<tr${dcMiss ? ' style="background:#ffcdd2;"' : (row.unregistered ? ' style="background:#fff3e0;"' : '')}>${tds}</tr>`;
+        html += `<tr${dcMiss ? ' style="background:var(--c-risk-soft);"' : (row.unregistered ? ' style="background:var(--c-warn-bg);"' : '')}>${tds}</tr>`;
     });
     tbody.innerHTML = html;
 }
@@ -2488,7 +2486,7 @@ function openColumnModal() {
     closeAllMenus();
     colEditList = viewMode === 'location' ? [...getLocationColumns()] : [...getColumns()]; // [Ver 8.53] 모드별 열 로드
     const title = document.getElementById('column-modal-title');
-    if (title) title.textContent = viewMode === 'location' ? '🔧 표 열(헤더) 설정 — 위치지정(당일입고)' : '🔧 표 열(헤더) 설정 — 미발계산기';
+    if (title) title.textContent = viewMode === 'location' ? '표 열(헤더) 설정 — 위치지정(당일입고)' : '표 열(헤더) 설정 — 미발계산기';
     renderColumnEditor();
     document.getElementById('column-modal').style.display = 'flex';
 }
@@ -2496,13 +2494,13 @@ function closeColumnModal() { document.getElementById('column-modal').style.disp
 function renderColumnEditor() {
     const box = document.getElementById('column-list');
     if (!box) return;
-    const bs = 'border:1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer; width:26px; height:26px; font-weight:bold;';
+    const bs = 'border:1px solid var(--c-line-strong); background:var(--c-surface); border-radius:var(--r-cell); cursor:pointer; width:26px; height:26px; font-weight:bold;';
     box.innerHTML = colEditList.map((key,i) => `
-        <div style="display:flex; align-items:center; gap:6px; background:#f5f5f5; padding:6px 8px; border-radius:5px; margin-bottom:5px; font-size:13px;">
-            <span style="flex:1; font-weight:bold;">${colLabel(key)}${key.startsWith('log:') ? ' <span style="color:#1976d2; font-size:11px;">(로그)</span>' : ''}</span>
+        <div style="display:flex; align-items:center; gap:6px; background:var(--c-surface-2); padding:6px 8px; border-radius:var(--r-sm); margin-bottom:5px; font-size:13px;">
+            <span style="flex:1; font-weight:bold;">${colLabel(key)}${key.startsWith('log:') ? ' <span class="t-accent" style="font-size:11px;">(로그)</span>' : ''}</span>
             <button class="col-up" data-i="${i}" ${i===0?'disabled':''} style="${bs}">↑</button>
             <button class="col-down" data-i="${i}" ${i===colEditList.length-1?'disabled':''} style="${bs}">↓</button>
-            <button class="col-del" data-i="${i}" style="${bs} color:#d32f2f;">✕</button>
+            <button class="col-del t-risk" data-i="${i}" style="${bs}">✕</button>
         </div>`).join('');
     const sel = document.getElementById('column-add-select');
     const avail = [];
@@ -2711,20 +2709,20 @@ function closeMibalPredictModal() { document.getElementById('mibal-predict-modal
 function renderMibalPredict() {
     const { rows, useRate, avg } = buildPredictionRows();
     const sum = document.getElementById('mp-summary');
-    if (sum) sum.innerHTML = `평균상승률 <b style="color:#4527a0;">${avg ? (avg.avg >= 0 ? '+' : '') + Math.round(avg.avg * 100) + '% (' + avg.n + '건, 1~100%만)' : '– (데이터 부족, 기본 40% 적용)'}</b> · 예측 배율 <b>×${(1 + useRate).toFixed(2)}</b> · 누적 패킹 <b>${rows.length}건</b>`;
+    if (sum) sum.innerHTML = `평균상승률 <b class="t-accent">${avg ? (avg.avg >= 0 ? '+' : '') + Math.round(avg.avg * 100) + '% (' + avg.n + '건, 1~100%만)' : '– (데이터 부족, 기본 40% 적용)'}</b> · 예측 배율 <b>×${(1 + useRate).toFixed(2)}</b> · 누적 패킹 <b>${rows.length}건</b>`;
     const kw = (document.getElementById('mp-search')?.value || '').trim();
     const view = kw ? rows.filter(r => (fmtMD(r.출고일).includes(kw) || fmtMD(r.입고일).includes(kw) || r.출고일.includes(kw) || (r.입고일 || '').includes(kw))) : rows;
     const tb = document.getElementById('mp-tbody'); if (!tb) return;
     const pct = v => (v === null) ? '–' : `${v >= 0 ? '+' : ''}${Math.round(v * 100)}%`;
-    const dev = v => (v === null) ? '<span style="color:#999;">진행중</span>' : `<span style="color:${v > 0 ? '#c62828' : (v < 0 ? '#1565c0' : '#333')}; font-weight:bold;">${v > 0 ? '+' : ''}${v}</span>`;
+    const dev = v => (v === null) ? '<span class="t-3">진행중</span>' : `<span class="${v > 0 ? 't-risk' : (v < 0 ? 't-accent' : 't-1')}" style="font-weight:bold;">${v > 0 ? '+' : ''}${v}</span>`;
     tb.innerHTML = view.length ? view.map(r => `
         <tr style="border-bottom:1px solid #eee;">
             <td style="padding:7px 6px; font-weight:bold;">${fmtMD(r.출고일)}</td>
-            <td style="padding:7px 6px;">${r.입고일 ? fmtMD(r.입고일) : '<span style="color:#999;">미정</span>'}</td>
+            <td style="padding:7px 6px;">${r.입고일 ? fmtMD(r.입고일) : '<span class="t-3">미정</span>'}</td>
             <td style="padding:7px 6px;">${r.출고미발}</td>
-            <td style="padding:7px 6px; font-weight:bold;">${r.입고미발 === null ? '<span style="color:#999;">진행중</span>' : r.입고미발}</td>
-            <td style="padding:7px 6px; color:#e65100; font-weight:bold;">${pct(r.상승률)}</td>
-            <td style="padding:7px 6px; color:#5e35b1; font-weight:bold;">${r.예상미발}</td>
+            <td style="padding:7px 6px; font-weight:bold;">${r.입고미발 === null ? '<span class="t-3">진행중</span>' : r.입고미발}</td>
+            <td class="t-warn" style="padding:7px 6px; font-weight:bold;">${pct(r.상승률)}</td>
+            <td class="t-accent" style="padding:7px 6px; font-weight:bold;">${r.예상미발}</td>
             <td style="padding:7px 6px;">${dev(r.예측편차)}</td>
         </tr>`).join('') : '<tr><td colspan="7" style="padding:22px; color:#999;">전송된 미발 데이터가 없습니다. 미발전송을 눌러 쌓으세요.</td></tr>';
 }
@@ -2777,7 +2775,7 @@ function setupMobileGate() {
 //  - 웹: 열려있는 탭이 구버전이면 새로고침 배너 표시
 //  - 앱: 최신 앱 버전을 APP_META 문서로 게시 → 앱이 시작 시 확인해 업데이트 유도
 // ---------------------------------------------------------
-const WEB_VERSION = '10.3';
+const WEB_VERSION = '10.4';
 let lastVersionCheck = 0;
 
 async function fetchVersionInfo() {
@@ -2791,11 +2789,11 @@ function showUpdateBanner(newVer) {
     if (document.getElementById('update-banner')) return;
     const div = document.createElement('div');
     div.id = 'update-banner';
-    div.style.cssText = 'position:fixed;top:0;left:0;width:100%;background:#e65100;color:#fff;z-index:999998;padding:12px;text-align:center;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+    div.style.cssText = 'position:fixed;top:0;left:0;width:100%;background:var(--c-accent-soft);color:var(--c-accent-deep);border-bottom:1px solid var(--c-accent-light);z-index:999998;padding:12px;text-align:center;font-weight:bold;box-sizing:border-box;';
     div.textContent = `🔄 새 버전(Ver ${newVer})이 배포되었습니다. `;
     const btn = document.createElement('button');
     btn.textContent = '지금 새로고침';
-    btn.style.cssText = 'margin-left:10px;padding:6px 16px;border:none;border-radius:5px;background:#fff;color:#e65100;font-weight:bold;cursor:pointer;';
+    btn.style.cssText = 'margin-left:10px;padding:6px 16px;border:none;border-radius:999px;background:var(--c-accent);color:#fff;font-weight:bold;cursor:pointer;';
     btn.onclick = () => location.reload();
     div.appendChild(btn);
     document.body.appendChild(div);
@@ -2986,10 +2984,10 @@ function setupEventListeners() {
     // 규칙 조립 모드 — [Ver 8.22] 드롭존은 작업대: 끌어다 놓은 토큰을 순서대로 쌓아 하나의 조건을 만듦
     const addZone = document.getElementById('rule-add-zone');
     if (addZone) {
-        addZone.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; addZone.style.background = '#e3f2fd'; addZone.style.borderColor = '#1976d2'; });
-        addZone.addEventListener('dragleave', () => { addZone.style.background = '#f5faff'; addZone.style.borderColor = '#90caf9'; });
+        addZone.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; addZone.classList.add('is-over'); });
+        addZone.addEventListener('dragleave', () => { addZone.classList.remove('is-over'); });
         addZone.addEventListener('drop', e => {
-            e.preventDefault(); addZone.style.background = '#f5faff'; addZone.style.borderColor = '#90caf9';
+            e.preventDefault(); addZone.classList.remove('is-over');
             addDraftToken(e.dataTransfer.getData('text/plain'));
         });
     }

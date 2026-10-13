@@ -13,7 +13,7 @@
 // ⚠️ 이건 '화면을 가리는' 장치다. 데이터 자체는 firestore.rules 가 막는다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // ⚠️ china-stock-goods.js 와 '똑같은 주소'로 가져와야 모듈이 한 번만 만들어진다(?v=9.9 포함).
-import { initializeFirebase } from './china-stock-config.js?v=202610131327';
+import { initializeFirebase } from './china-stock-config.js?v=202610131356';
 
 const OVERLAY_ID = 'cs-auth-gate';
 
@@ -28,8 +28,7 @@ const showChecking = () => {
     const el = document.createElement('div');
     el.id = OVERLAY_ID;
     el.style.cssText = BASE_STYLE;
-    setGateBody(el, `<div style="font-size:40px;">🔒</div>
-        <div style="font-size:16px; font-weight:800;">로그인 상태를 확인하는 중…</div>`);
+    setGateBody(el, `<div style="font-size:16px; font-weight:600;">로그인 상태를 확인하는 중…</div>`);
     document.body.appendChild(el);
     document.documentElement.style.overflow = 'hidden';
 };
@@ -38,9 +37,9 @@ const showChecking = () => {
 //    'flex + justify-content:center' 만 쓰면 내용이 그보다 커질 때 위아래가 잘리고,
 //    스크롤도 안 돼서 로그인 버튼을 누를 수가 없다.
 //    → 바깥은 스크롤 되는 상자, 안쪽은 margin:auto 로 가운데 정렬(넘치면 위에서부터 보인다).
-const BASE_STYLE = `position:fixed; inset:0; z-index:2147483600; background:#f5f5f5;
+const BASE_STYLE = `position:fixed; inset:0; z-index:2147483600; background:var(--c-bg,#F5F6F8);
     display:flex; overflow-y:auto; -webkit-overflow-scrolling:touch;
-    font-family:'Noto Sans KR',sans-serif; color:#37474f; text-align:center;`;
+    font-family:var(--font-sans,'IBM Plex Sans KR','Noto Sans KR','Malgun Gothic',sans-serif); color:var(--c-text,#23272E); text-align:center;`;
 const INNER_STYLE = `margin:auto; display:flex; flex-direction:column; align-items:center;
     gap:10px; padding:24px; width:100%;`;
 
@@ -56,21 +55,20 @@ const showLogin = (auth) => {
     el.id = OVERLAY_ID;
     el.style.cssText = BASE_STYLE;
     setGateBody(el, `
-        <div style="font-size:40px;">🔒</div>
-        <div style="font-size:17px; font-weight:800;">로그인이 필요합니다</div>
-        <div style="font-size:12.5px; color:#78909c; line-height:1.7; max-width:320px;">
+        <div style="font-size:17px; font-weight:600;">로그인이 필요합니다</div>
+        <div style="font-size:12.5px; color:var(--c-text-2,#646B75); line-height:1.7; max-width:320px;">
             업무관리와 같은 계정입니다.<br>휴대폰에서 한 번 로그인하면 다음부터는 바로 열립니다.
         </div>
         <form id="cs-login-form" style="display:flex; flex-direction:column; gap:8px; width:100%; max-width:300px; margin-top:6px;">
             <input id="cs-email" type="email" inputmode="email" autocomplete="username" placeholder="이메일"
-                   style="padding:11px 12px; border:1px solid #cfd8dc; border-radius:9px; font-size:15px;">
+                   style="padding:11px 12px; border:1px solid var(--c-line-strong,#D6DAE0); border-radius:10px; font-size:15px; font-family:inherit; background:var(--c-surface,#FFFFFF); color:var(--c-text,#23272E);">
             <input id="cs-pw" type="password" autocomplete="current-password" placeholder="비밀번호"
-                   style="padding:11px 12px; border:1px solid #cfd8dc; border-radius:9px; font-size:15px;">
+                   style="padding:11px 12px; border:1px solid var(--c-line-strong,#D6DAE0); border-radius:10px; font-size:15px; font-family:inherit; background:var(--c-surface,#FFFFFF); color:var(--c-text,#23272E);">
             <button type="submit" id="cs-login-btn"
-                    style="padding:12px; border:0; border-radius:9px; background:#1976d2; color:#fff; font-size:15px; font-weight:700;">로그인</button>
-            <div id="cs-login-err" style="font-size:12px; color:#c62828; min-height:16px;"></div>
+                    style="padding:12px; border:0; border-radius:999px; background:var(--c-accent,#2F62C9); color:#fff; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer;">로그인</button>
+            <div id="cs-login-err" style="font-size:12px; color:var(--c-risk-text,#A0525C); min-height:16px;"></div>
         </form>
-        <a href="index.html" style="font-size:12.5px; color:#607d8b;">업무관리 열기</a>`);
+        <a href="index.html" style="font-size:12.5px; color:var(--c-accent-deep,#1E4699);">업무관리 열기</a>`);
     document.body.appendChild(el);
     document.documentElement.style.overflow = 'hidden';
 
