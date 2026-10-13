@@ -1,0 +1,439 @@
+/* === css/history-d.css — 데이터 관리(history.html + index 안 모바일 모달) 전용 D안 (2026-10-13) ===
+   - style.css·dash-d.css·d-theme.css 는 건드리지 않고 여기서 덮는다.
+   - 모든 규칙은 범위 루트 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) 접두.
+     ID 명시도로 Tailwind CDN(뒤에 주입됨)의 .x / .dark .dark\:x / .hover\:x:hover 를 이긴다.
+     index.html 도 이 파일을 부르지만 #dash-root 와 겹치는 규칙이 없어 메인 대시보드에는 닿지 않는다.
+   - 토큰도 :root 가 아니라 범위 루트에 둔다(dash-d.css 의 :root 토큰과 섞이지 않게). 값은 dash-d.css 8-35 사본.
+     #settle-pdf-holder(팀 결산 PDF 복제본)는 다크에서도 라이트 토큰 — 흰 종이에 찍힌다.
+   - ⚠ display 를 넣지 않는다. .hidden / md:flex / hidden↔flex 토글을 ID 명시도로 이겨 버린다.
+   - ⚠ box-shadow:none 으로 그림자를 지우지 않는다(포커스 ring 도 box-shadow). --tw-shadow 만 비운다.
+   - ⚠ 상태 표시 클래스(.bg-blue-100 선택 날짜, .text-blue-600 켜진 탭, .bg-blue-600/.bg-indigo-600 켜진 세그먼트,
+     .border-gray-800 켜진 서브탭)는 JS 가 이름으로 찾는다 — 이름은 그대로 두고 색만 여기서 바꾼다.
+   - 재칠 층(remap)은 생성 스크립트 출력이다. 손으로 고치지 말 것. */
+
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) {
+    --c-bg: #F5F6F8; --c-surface: #FFFFFF; --c-surface-2: #F7F8FA; --c-track: #EEF0F4;
+    --c-line: #E6E8EC; --c-line-soft: #F0F2F5; --c-line-strong: #D6DAE0;
+    --c-text: #23272E; --c-text-2: #646B75; --c-text-3: #8A9099; --c-text-4: #CDD2D9;
+    --c-accent: #2F62C9; --c-accent-deep: #1E4699; --c-accent-mid: #7FA1E6; --c-accent-light: #C4D4F5; --c-accent-soft: #EAF0FD; --c-accent-row: #F3F6FD;
+    --c-ok: #5A9E96; --c-ok-text: #3D756F; --c-ok-soft: #E5F0EE;
+    --c-warn: #D2A266; --c-warn-text: #8A5E28; --c-warn-soft: #F4EADB; --c-warn-bg: #F9F4EC;
+    --c-risk: #C9808A; --c-risk-text: #A0525C; --c-risk-soft: #F4E3E5; --c-risk-row: #FAF4F5;
+    --r-card: 18px; --r-inner: 14px; --r-sm: 10px; --r-cell: 6px; --r-pill: 999px;
+    --sh-tab: 0 1px 2px rgba(30,40,60,.10); --sh-pop: 0 8px 24px rgba(30,40,60,.12);
+    --font-sans: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    /* 이 화면에서 더 쓰는 값 */
+    --c-ok-line: #CFE3E0; --c-risk-line: #EBCDD1; --c-warn-line: #EBDDC6;
+    --c-ink: #23272E;                      /* 검정 채움·툴팁 — 두 모드 모두 어두워야 한다 */
+    --c-scrim: rgba(30,40,60,.45);         /* 모달 뒤 가림막 */
+    /* 흰 글자가 올라가는 진한 채움(600 이상) — 다크에서도 어두운 값 그대로 */
+    --c-accent-strong: #1E4699; --c-ok-strong: #3D756F; --c-warn-strong: #8A5E28; --c-risk-strong: #A0525C;
+    font-family: var(--font-sans);
+    color: var(--c-text);
+}
+html.dark :is(#history-modal, #modals-container-history-popups) {
+    --c-bg: #111418; --c-surface: #1A1E24; --c-surface-2: #20252C; --c-track: #2A3038;
+    --c-line: #2C323A; --c-line-soft: #242A31; --c-line-strong: #3A414B;
+    --c-text: #E6E8EC; --c-text-2: #A9B0BA; --c-text-3: #7D8590; --c-text-4: #4A515B;
+    --c-accent: #6E95E6; --c-accent-deep: #A9C1F2; --c-accent-mid: #4F73BF; --c-accent-light: rgba(110,149,230,.35);
+    --c-accent-soft: rgba(47,98,201,.22); --c-accent-row: rgba(47,98,201,.12);
+    --c-ok-text: #8CC9C0; --c-ok-soft: rgba(90,158,150,.18);
+    --c-warn-text: #E2BE8C; --c-warn-soft: rgba(210,162,102,.18); --c-warn-bg: rgba(210,162,102,.10);
+    --c-risk-text: #E0A3AB; --c-risk-soft: rgba(201,128,138,.18); --c-risk-row: rgba(201,128,138,.10);
+    --sh-tab: 0 1px 2px rgba(0,0,0,.40); --sh-pop: 0 8px 24px rgba(0,0,0,.50);
+    --c-ok-line: rgba(90,158,150,.35); --c-risk-line: rgba(201,128,138,.35); --c-warn-line: rgba(210,162,102,.35);
+    --c-ink: #2A3038; --c-scrim: rgba(0,0,0,.60);
+    --c-accent-strong: #2F62C9;
+}
+
+/* ── 표 숫자 자리 맞춤 ── */
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) :is(td, th) { font-variant-numeric: tabular-nums; }
+
+/* === remap: generated === */
+/* 범위 파일 40개에서 색 클래스 387종 수집 → 규칙 265개. 손으로 고치지 말 것(생성기 다시 실행). */
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-100 { background-color: var(--c-warn-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-50 { background-color: var(--c-warn-bg); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-50\/40 { background-color: var(--c-warn-bg); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-50\/60 { background-color: var(--c-warn-bg); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-amber-500 { background-color: var(--c-warn); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-black { background-color: var(--c-scrim); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-100 { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-50 { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-50\/50 { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-500 { background-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-blue-600 { background-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-emerald-100 { background-color: var(--c-ok-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-emerald-50 { background-color: var(--c-ok-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-emerald-50\/50 { background-color: var(--c-ok-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-emerald-500 { background-color: var(--c-ok); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-emerald-600 { background-color: var(--c-ok-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-100 { background-color: var(--c-track); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-100\/50 { background-color: var(--c-track); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-100\/70 { background-color: var(--c-track); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-100\/80 { background-color: var(--c-track); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-200 { background-color: var(--c-track); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-300 { background-color: var(--c-line-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-400 { background-color: var(--c-line-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-50 { background-color: var(--c-surface-2); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-50\/30 { background-color: var(--c-surface-2); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-50\/60 { background-color: var(--c-surface-2); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-50\/70 { background-color: var(--c-surface-2); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-700 { background-color: var(--c-ink); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-800 { background-color: var(--c-ink); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-900 { background-color: var(--c-ink); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-900\/75 { background-color: var(--c-scrim); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-gray-900\/80 { background-color: var(--c-scrim); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-green-100 { background-color: var(--c-ok-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-green-50 { background-color: var(--c-ok-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-green-500 { background-color: var(--c-ok); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-green-600 { background-color: var(--c-ok-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-indigo-100 { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-indigo-100\/70 { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-indigo-300 { background-color: var(--c-accent-mid); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-indigo-400 { background-color: var(--c-accent-mid); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-indigo-50 { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-indigo-50\/30 { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-indigo-50\/50 { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-indigo-500 { background-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-indigo-600 { background-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-orange-100 { background-color: var(--c-warn-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-orange-50 { background-color: var(--c-warn-bg); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-purple-100 { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-red-100 { background-color: var(--c-risk-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-red-400 { background-color: var(--c-risk); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-red-50 { background-color: var(--c-risk-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-red-500 { background-color: var(--c-risk); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-red-600 { background-color: var(--c-risk-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-100 { background-color: var(--c-risk-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-400 { background-color: var(--c-risk); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-50 { background-color: var(--c-risk-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-50\/40 { background-color: var(--c-risk-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-50\/50 { background-color: var(--c-risk-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-500 { background-color: var(--c-risk); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-rose-600 { background-color: var(--c-risk-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-sky-100 { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-sky-50 { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-sky-500 { background-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-slate-50 { background-color: var(--c-surface-2); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-slate-700 { background-color: var(--c-ink); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-violet-100 { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-violet-400 { background-color: var(--c-accent-mid); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-violet-500 { background-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-violet-600 { background-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white { background-color: var(--c-surface); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white\/40 { background-color: var(--c-surface); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white\/60 { background-color: var(--c-surface); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white\/70 { background-color: var(--c-surface); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white\/85 { background-color: var(--c-surface); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-white\/90 { background-color: var(--c-surface); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-yellow-100 { background-color: var(--c-warn-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .bg-yellow-50 { background-color: var(--c-warn-bg); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .from-gray-700 { background-color: var(--c-ink); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .from-indigo-500 { background-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .from-slate-800 { background-color: var(--c-ink); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-amber-500 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-amber-600 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-amber-700 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-amber-700\/80 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-amber-800 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-blue-400 { color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-blue-500 { color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-blue-600 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-blue-700 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-blue-800 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-emerald-600 { color: var(--c-ok-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-emerald-700 { color: var(--c-ok-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-emerald-800 { color: var(--c-ok-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-gray-200 { color: var(--c-text-4); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-gray-300 { color: var(--c-text-4); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-gray-400 { color: var(--c-text-3); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-gray-500 { color: var(--c-text-3); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-gray-600 { color: var(--c-text-2); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-gray-700 { color: var(--c-text-2); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-gray-800 { color: var(--c-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-gray-900 { color: var(--c-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-green-400 { color: var(--c-ok-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-green-500 { color: var(--c-ok-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-green-600 { color: var(--c-ok-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-green-700 { color: var(--c-ok-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-green-800 { color: var(--c-ok-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-100 { color: var(--c-accent-mid); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-100\/80 { color: var(--c-accent-mid); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-400 { color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-500 { color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-600 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-600\/80 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-700 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-800 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-indigo-900 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-orange-400 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-orange-500 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-orange-600 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-orange-700 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-orange-800 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-orange-900 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-pink-600 { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-purple-400 { color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-purple-600 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-purple-700 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-purple-800 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-red-400 { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-red-500 { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-red-600 { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-red-700 { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-red-800 { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-rose-600 { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-rose-700 { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-sky-700 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-sky-800 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-sky-900 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-slate-200 { color: var(--c-text-4); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-slate-300 { color: var(--c-text-4); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-teal-700 { color: var(--c-ok-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-violet-500 { color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-violet-600 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-violet-700 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-yellow-100 { color: var(--c-warn); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-yellow-300 { color: var(--c-warn); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-yellow-600 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-yellow-700 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .text-yellow-800 { color: var(--c-warn-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-amber-100 { border-color: var(--c-warn-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-amber-200 { border-color: var(--c-warn-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-amber-300 { border-color: var(--c-warn-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-blue-100 { border-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-blue-200 { border-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-blue-300 { border-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-blue-500 { border-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-blue-600 { border-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-emerald-100 { border-color: var(--c-ok-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-emerald-200 { border-color: var(--c-ok-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-emerald-300 { border-color: var(--c-ok-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-emerald-50 { border-color: var(--c-ok-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-gray-100 { border-color: var(--c-line-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-gray-200 { border-color: var(--c-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-gray-200\/70 { border-color: var(--c-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-gray-300 { border-color: var(--c-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-gray-50 { border-color: var(--c-line-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-gray-700 { border-color: var(--c-line-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-gray-800 { border-color: var(--c-line-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-green-100 { border-color: var(--c-ok-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-green-200 { border-color: var(--c-ok-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-indigo-100 { border-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-indigo-100\/50 { border-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-indigo-200 { border-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-indigo-300 { border-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-indigo-500 { border-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-indigo-600 { border-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-orange-100 { border-color: var(--c-warn-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-orange-200 { border-color: var(--c-warn-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-orange-300 { border-color: var(--c-warn-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-orange-500 { border-color: var(--c-warn); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-purple-200 { border-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-purple-300 { border-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-red-100 { border-color: var(--c-risk-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-red-200 { border-color: var(--c-risk-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-red-300 { border-color: var(--c-risk-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-red-500 { border-color: var(--c-risk); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-slate-200 { border-color: var(--c-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-yellow-100 { border-color: var(--c-warn-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-yellow-200 { border-color: var(--c-warn-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-yellow-400 { border-color: var(--c-warn); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-t-blue-500 { border-top-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-t-green-500 { border-top-color: var(--c-ok); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-t-pink-500 { border-top-color: var(--c-risk); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-t-purple-500 { border-top-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-t-red-500 { border-top-color: var(--c-risk); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-amber-500 { border-left-color: var(--c-warn); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-blue-500 { border-left-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-emerald-500 { border-left-color: var(--c-ok); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-indigo-500 { border-left-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-rose-500 { border-left-color: var(--c-risk); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-slate-500 { border-left-color: var(--c-line-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-teal-500 { border-left-color: var(--c-ok); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .border-l-violet-500 { border-left-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--c-line-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--c-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .outline-gray-200 { outline-color: var(--c-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .outline-indigo-200 { outline-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .group:hover .group-hover\:text-blue-500 { color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .group:hover .group-hover\:text-indigo-600 { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .group:hover .group-hover\:border-gray-300 { border-color: var(--c-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus-within\:bg-indigo-50\/50:focus-within { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus-within\:bg-white:focus-within { background-color: var(--c-surface); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus-within\:border-indigo-400:focus-within { border-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus-within\:ring-indigo-100:focus-within { --tw-ring-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-amber-600:hover { background-color: var(--c-warn-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-blue-100:hover { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-blue-50:hover { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-blue-600:hover { background-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-blue-700:hover { background-color: var(--c-accent-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-emerald-700:hover { background-color: var(--c-ok-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-gray-100:hover { background-color: var(--c-track); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-gray-200:hover { background-color: var(--c-track); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-gray-200\/70:hover { background-color: var(--c-track); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-gray-300:hover { background-color: var(--c-line-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-gray-50:hover { background-color: var(--c-surface-2); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-green-700:hover { background-color: var(--c-ok-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-indigo-100:hover { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-indigo-200:hover { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-indigo-50:hover { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-indigo-50\/50:hover { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-indigo-600:hover { background-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-indigo-700:hover { background-color: var(--c-accent-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-red-50:hover { background-color: var(--c-risk-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-red-600:hover { background-color: var(--c-risk-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-red-700:hover { background-color: var(--c-risk-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-rose-700:hover { background-color: var(--c-risk-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:bg-white:hover { background-color: var(--c-surface); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-blue-600:hover { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-blue-800:hover { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-gray-500:hover { color: var(--c-text-3); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-gray-600:hover { color: var(--c-text-2); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-gray-700:hover { color: var(--c-text-2); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-gray-800:hover { color: var(--c-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-gray-900:hover { color: var(--c-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-indigo-600:hover { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-indigo-700:hover { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-indigo-800:hover { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-indigo-900:hover { color: var(--c-accent-deep); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-red-600:hover { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-red-700:hover { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:text-rose-500:hover { color: var(--c-risk-text); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:border-blue-400:hover { border-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:border-gray-300:hover { border-color: var(--c-line); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:border-green-400:hover { border-color: var(--c-ok); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:border-purple-400:hover { border-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus\:border-blue-500:focus { border-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus\:border-indigo-400:focus { border-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus\:border-indigo-500:focus { border-color: var(--c-accent); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus\:ring-blue-500:focus { --tw-ring-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus\:ring-emerald-500:focus { --tw-ring-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .focus\:ring-indigo-500:focus { --tw-ring-color: var(--c-accent-light); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .active\:bg-amber-700:active { background-color: var(--c-warn-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .active\:bg-indigo-800:active { background-color: var(--c-accent-strong); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .placeholder\:text-gray-300::placeholder { color: var(--c-text-4); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .file\:bg-indigo-50::file-selector-button { background-color: var(--c-accent-row); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .hover\:file\:bg-indigo-100::file-selector-button:hover { background-color: var(--c-accent-soft); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .file\:text-indigo-700::file-selector-button { color: var(--c-accent-deep); }
+/* === remap: end === */
+
+/* 진한 채움(결산 요약 카드 등) 안의 옅은 글자 — 재칠의 text-4 는 다크에서 진한 바탕에 묻히므로 밝은 회색 고정 */
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) :is(.from-slate-800, .from-gray-700, .bg-gray-800, .bg-slate-700) :is(.text-slate-300, .text-gray-300, .text-slate-200, .text-gray-200) { color: #CDD2D9; }
+/* 다크: 흰 글자가 올라가는 파랑 채움 버튼은 밝은 accent(#6E95E6) 대신 주색 그대로 — 대비 유지.
+   :where 로 명시도를 낮게 둬서 세그먼트 '켜짐' 규칙은 그대로 이긴다 */
+html.dark :is(#history-modal, #modals-container-history-popups) :where(.bg-blue-500, .bg-blue-600, .bg-indigo-500, .bg-indigo-600, .bg-violet-500, .bg-violet-600, .bg-sky-500) { background-color: #2F62C9; }
+
+/* ── 오버레이 (bg-opacity 조합) ── */
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) :is(.bg-gray-900.bg-opacity-75, .bg-black.bg-opacity-50) { background-color: var(--c-scrim); }
+
+/* ── 그라데이션 걷기 (from-* 색은 재칠 층이 바탕색으로) ── */
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) :is(.bg-gradient-to-r, .bg-gradient-to-br, .bg-gradient-to-b) { background-image: none; }
+
+/* ── 그림자: 변수만 비운다 (포커스 ring 은 살린다) ── */
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) :is(.shadow, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl, .shadow-inner),
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) :is(.hover\:shadow-sm, .hover\:shadow-md, .hover\:shadow-lg):hover {
+    --tw-shadow: 0 0 #0000; --tw-shadow-colored: 0 0 #0000;
+}
+/* style.css .depth-panel(흰 빛반사 윗선 + 그림자) 무력화 — 클래스는 PDF 규칙이 참조하므로 지우지 않는다.
+   윗선만 남는 카드가 없도록 네 변을 같은 선으로 둔다. */
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .depth-panel,
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .depth-panel:hover {
+    box-shadow: none; border: 1px solid var(--c-line) !important; transform: none;
+}
+/* 떠 있는 모달 상자만 그림자 (모바일에서 fixed inset-0 이 붙는 #history-modal-content-box 의 자식은 제외) */
+:is(#history-modal, #modals-container-history-popups) .fixed.inset-0:not(#history-modal-content-box) > div { box-shadow: var(--sh-pop); }
+
+/* ── 모서리 ── */
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .rounded-2xl { border-radius: var(--r-card); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .rounded-t-2xl { border-top-left-radius: var(--r-card); border-top-right-radius: var(--r-card); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .rounded-b-2xl { border-bottom-left-radius: var(--r-card); border-bottom-right-radius: var(--r-card); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .rounded-xl { border-radius: var(--r-inner); }
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) .rounded-lg { border-radius: var(--r-sm); }
+/* 버튼은 알약 (날짜 목록·아코디언·폭 전체 버튼 제외) */
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) button:is(.rounded, .rounded-md, .rounded-lg, .rounded-xl):not(.history-date-btn):not(.accordion-toggle):not(.w-full) {
+    border-radius: var(--r-pill);
+}
+
+/* ── 채움 버튼 정리: 주 버튼(파랑·인디고 채움) 하나만 남기고 나머지는 테두리 버튼 ── */
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) button:is(.bg-green-500, .bg-green-600, .bg-emerald-500, .bg-emerald-600, .bg-teal-600) {
+    background-color: var(--c-surface); border: 1px solid var(--c-line-strong); color: var(--c-ok-text);
+}
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) button:is(.bg-amber-500, .bg-amber-600, .bg-orange-500) {
+    background-color: var(--c-surface); border: 1px solid var(--c-line-strong); color: var(--c-warn-text);
+}
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) button:is(.bg-green-500, .bg-green-600, .bg-emerald-500, .bg-emerald-600, .bg-teal-600, .bg-amber-500, .bg-amber-600, .bg-orange-500):hover {
+    background-color: var(--c-surface-2);
+}
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) button:is(.bg-red-500, .bg-red-600, .bg-rose-600) {
+    background-color: var(--c-surface); border: 1px solid var(--c-risk); color: var(--c-risk-text);
+}
+:is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) button:is(.bg-red-500, .bg-red-600, .bg-rose-600):hover {
+    background-color: var(--c-risk-soft);
+}
+
+/* ───────────── 상태 모양 (재칠 층 뒤에, 더 구체적으로) ───────────── */
+
+/* 메인 탭 — 켜짐 표시는 JS 가 붙이는 .text-blue-600 */
+:is(#history-modal, #modals-container-history-popups) .history-main-tab-btn { color: var(--c-text-3); border-bottom-color: transparent; }
+:is(#history-modal, #modals-container-history-popups) .history-main-tab-btn:hover { color: var(--c-text); }
+:is(#history-modal, #modals-container-history-popups) .history-main-tab-btn.text-blue-600,
+:is(#history-modal, #modals-container-history-popups) .history-main-tab-btn.text-blue-600:hover {
+    color: var(--c-accent-deep); border-bottom-color: var(--c-accent); font-weight: 600;
+}
+/* 로우데이터 서브탭 — 켜짐 표시는 .border-gray-800 */
+:is(#history-modal, #modals-container-history-popups) .rawdata-sub-tab-btn { color: var(--c-text-3); border-bottom-color: transparent; }
+:is(#history-modal, #modals-container-history-popups) .rawdata-sub-tab-btn:hover { color: var(--c-text); }
+:is(#history-modal, #modals-container-history-popups) .rawdata-sub-tab-btn.border-gray-800,
+:is(#history-modal, #modals-container-history-popups) .rawdata-sub-tab-btn.border-gray-800:hover {
+    color: var(--c-accent-deep); border-bottom-color: var(--c-accent); font-weight: 600;
+}
+/* 보기 탭(일별/주별…) — 켜짐 표시는 .text-blue-600 */
+:is(#history-modal, #modals-container-history-popups) :is(.history-tab-btn, .attendance-history-tab-btn, .report-tab-btn, .personal-report-tab-btn, .management-tab-btn).text-blue-600 {
+    color: var(--c-accent-deep); border-bottom-color: var(--c-accent); font-weight: 600;
+}
+
+/* 일/주/월/년 — 세그먼트. 켜짐 표시는 .bg-blue-600 */
+:is(#history-modal, #modals-container-history-popups) #history-granularity-controls {
+    background: var(--c-track); border-radius: var(--r-pill); padding: 3px; gap: 2px;
+    margin: 10px 12px; max-width: calc(100% - 24px); border-bottom-color: transparent;
+}
+:is(#history-modal, #modals-container-history-popups) .history-gran-btn,
+:is(#history-modal, #modals-container-history-popups) .history-gran-btn:hover {
+    background-color: transparent; border-color: transparent; color: var(--c-text-2); font-weight: 500;
+    border-radius: var(--r-pill); box-shadow: none;
+}
+:is(#history-modal, #modals-container-history-popups) .history-gran-btn:hover { color: var(--c-text); }
+:is(#history-modal, #modals-container-history-popups) .history-gran-btn.bg-blue-600,
+:is(#history-modal, #modals-container-history-popups) .history-gran-btn.bg-blue-600:hover {
+    background-color: var(--c-surface); border-color: transparent; color: var(--c-accent-deep); font-weight: 600; box-shadow: var(--sh-tab);
+}
+
+/* 업무 예상 보기 전환 · 예측 채널 · 마일스톤 비교 기간 — 세그먼트. 켜짐 표시는 .bg-indigo-600 / .bg-blue-600 */
+:is(#history-modal, #modals-container-history-popups) :is(#forecast-view-switch, #pred-channel-tabs, .inline-flex:has(> .milestone-compare-window-btn)) {
+    background-color: var(--c-track); border-color: transparent; border-radius: var(--r-pill); padding: 3px; gap: 2px;
+}
+:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn, #pred-channel-tabs > button, .milestone-compare-window-btn),
+:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn, #pred-channel-tabs > button, .milestone-compare-window-btn):hover {
+    background-color: transparent; border-color: transparent; color: var(--c-text-2); border-radius: var(--r-pill);
+}
+:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn, #pred-channel-tabs > button, .milestone-compare-window-btn):hover { color: var(--c-text); }
+:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn.bg-indigo-600, #pred-channel-tabs > button.bg-indigo-600, .milestone-compare-window-btn.bg-blue-600),
+:is(#history-modal, #modals-container-history-popups) :is(.forecast-view-btn.bg-indigo-600, #pred-channel-tabs > button.bg-indigo-600, .milestone-compare-window-btn.bg-blue-600):hover {
+    background-color: var(--c-surface); color: var(--c-accent-deep); box-shadow: var(--sh-tab);
+}
+
+/* 날짜 목록 — 선택 표시는 .bg-blue-100 (JS 가 이 이름으로 선택 날짜를 찾는다) */
+:is(#history-modal, #modals-container-history-popups) .history-date-btn { border-radius: var(--r-sm); }
+:is(#history-modal, #modals-container-history-popups) .history-date-btn.bg-blue-100,
+:is(#history-modal, #modals-container-history-popups) .history-date-btn.bg-blue-100:hover {
+    background-color: var(--c-accent-soft); color: var(--c-accent-deep); font-weight: 600;
+}
+/* 처리량 누락 경고 날짜 (style.css 114-125 덮음) */
+:is(#history-modal, #modals-container-history-popups) .history-date-btn.warning-no-quantity {
+    background-color: var(--c-warn-bg); color: var(--c-warn-text); border: 1px solid var(--c-warn-line);
+}
+:is(#history-modal, #modals-container-history-popups) .history-date-btn.warning-no-quantity:hover,
+:is(#history-modal, #modals-container-history-popups) .history-date-btn.warning-no-quantity.bg-blue-100 {
+    background-color: var(--c-warn-soft); color: var(--c-warn-text); border-color: var(--c-warn);
+}

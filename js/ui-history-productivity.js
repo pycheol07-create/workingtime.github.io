@@ -1,6 +1,7 @@
 // === js/ui-history-productivity.js ===
-import * as State from './state.js?v=202610131356';
-import { buildMemberHourlyWageMap } from './utils.js?v=202610131356';
+import * as State from './state.js?v=202610131441';
+import { buildMemberHourlyWageMap } from './utils.js?v=202610131441';
+import { D } from './d-chart.js?v=202610131441';
 
 let productivityChartInstance = null;
 
@@ -104,7 +105,7 @@ export function renderProductivityTab(filteredData, appConfig) {
     if (ctx) {
         if (productivityChartInstance) productivityChartInstance.destroy();
 
-        const colors = { '국내배송': '#10b981', '중국제작': '#ef4444', '직진배송': '#a855f7', '에이블리배송': '#ec4899' };
+        const colors = { '국내배송': D.ok, '중국제작': D.warn, '직진배송': D.accentMid, '에이블리배송': D.risk };
         const datasets = taskTypes.map(type => {
             const hours = summary[type].duration / 60;
             // 실제 평균 소요시간 계산
@@ -118,7 +119,7 @@ export function renderProductivityTab(filteredData, appConfig) {
                     r: hours > 0 ? 15 : 0, 
                     actualX: parseFloat(actualHours.toFixed(1)) 
                 }],
-                backgroundColor: colors[type] || '#3b82f6'
+                backgroundColor: colors[type] || D.accent
             };
         });
 
@@ -331,10 +332,10 @@ function renderFillErrorAnalysis() {
 
     fillErrorDurationChartInstance = renderFillErrorSubChart(
         'chart-fill-error-duration', 'fill-error-empty-duration',
-        result.duration, '평균 투입시간', '#ef4444', '분', fillErrorDurationChartInstance
+        result.duration, '평균 투입시간', D.risk, '분', fillErrorDurationChartInstance
     );
     fillErrorQuantityChartInstance = renderFillErrorSubChart(
         'chart-fill-error-quantity', 'fill-error-empty-quantity',
-        result.quantity, '평균 처리량', '#f97316', '건', fillErrorQuantityChartInstance
+        result.quantity, '평균 처리량', D.warn, '건', fillErrorQuantityChartInstance
     );
 }

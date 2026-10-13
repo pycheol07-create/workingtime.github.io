@@ -1,13 +1,14 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610131356';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610131356';
-import { appConfig } from './state.js?v=202610131356';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610131441';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610131441';
+import { appConfig } from './state.js?v=202610131441';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,
     revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
-} from './revenue-channels.js?v=202610131356';
+} from './revenue-channels.js?v=202610131441';
+import { D } from './d-chart.js?v=202610131441';
 // predictFutureTrends import 제거됨
 
 // 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장 / 기타)
@@ -121,7 +122,7 @@ const channelBreakdownHtml = (stats, metricKey) => {
         </div>`;
 
     const rows = REVENUE_CHANNELS.map(c => row(c.label, Number(byChannel?.[c.id]) || 0, c.color)).join('');
-    const legacy = unclassified > 0 ? row('채널 미구분', unclassified, '#d1d5db', true) : '';
+    const legacy = unclassified > 0 ? row('채널 미구분', unclassified, D.lineStrong, true) : '';
 
     return `<div class="mt-3 pt-3 border-t border-gray-100 space-y-1 text-xs">${rows}${legacy}</div>`;
 };

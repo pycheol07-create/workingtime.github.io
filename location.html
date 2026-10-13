@@ -10,7 +10,8 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/suit.css?v=202610131441">
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
         :root {
@@ -24,7 +25,7 @@
             --r-card: 18px; --r-inner: 14px; --r-sm: 10px; --r-cell: 6px; --r-pill: 999px;
             --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
             --sh-tab: 0 1px 2px rgba(30,40,60,.10); --sh-pop: 0 8px 24px rgba(30,40,60,.12);
-            --font-sans: 'IBM Plex Sans KR', 'Noto Sans KR', 'Malgun Gothic', sans-serif; --font-brand: 'Gowun Batang', serif;
+            --font-sans: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; --font-brand: 'Gowun Batang', serif;
             --h-ctl: 40px; --h-ctl-sm: 32px;
             /* 옛 이름 호환 */
             --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface);
@@ -1322,7 +1323,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610131356"></script>
+    <script type="module" src="js/location.js?v=202610131441"></script>
     <script>
         function switchView(view) {
             document.getElementById('view-list').style.display = view === 'list' ? 'block' : 'none';
@@ -1389,7 +1390,7 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610131356"></script>
-    <script src="js/modal-esc.js?v=202610131356"></script>
+    <script src="js/connection-banner.js?v=202610131441"></script>
+    <script src="js/modal-esc.js?v=202610131441"></script>
 </body>
 </html>

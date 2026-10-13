@@ -1,10 +1,11 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202610131356';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610131356';
-import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610131356';
-import { fetchPlannedData } from './history-data-manager.js?v=202610131356';
-import { getTodayDateString } from './utils.js?v=202610131356';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610131356';
+import * as State from './state.js?v=202610131441';
+import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610131441';
+import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610131441';
+import { fetchPlannedData } from './history-data-manager.js?v=202610131441';
+import { getTodayDateString } from './utils.js?v=202610131441';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610131441';
+import { D } from './d-chart.js?v=202610131441';
 
 let staffingChartInstance = null;
 
@@ -260,7 +261,7 @@ export function renderStaffingTab(filteredData, appConfig) {
                 labels: ['업무 기록 시간', '재실 중 미기록·대기'],
                 datasets: [{
                     data: [donutWorkMinutes, totalLossMinutes],
-                    backgroundColor: ['#3b82f6', '#f87171'],
+                    backgroundColor: [D.accent, D.risk],
                     borderWidth: 1
                 }]
             },
@@ -286,13 +287,13 @@ export function renderStaffingTab(filteredData, appConfig) {
         freshBtn.addEventListener('click', () => {
             const target = Number(simInput.value);
             if (!target || target <= 0) {
-                simResult.innerHTML = '<div class="mt-3 pt-3 border-t border-white/30 text-yellow-100">목표 매출(원)을 입력해주세요.</div>';
+                simResult.innerHTML = '<div class="mt-3 pt-3 border-t border-gray-200 text-amber-700">목표 매출(원)을 입력해주세요.</div>';
                 return;
             }
             const totalRev = filteredData.reduce((s, d) => s + (Number(d.management && d.management.revenue) || 0), 0);
             const revDays = filteredData.filter(d => Number(d.management && d.management.revenue) > 0).length;
             if (totalRev <= 0 || revDays === 0 || avgActual <= 0) {
-                simResult.innerHTML = '<div class="mt-3 pt-3 border-t border-white/30 text-yellow-100">현재 기간 매출/출근 데이터가 부족해 예측할 수 없습니다.</div>';
+                simResult.innerHTML = '<div class="mt-3 pt-3 border-t border-gray-200 text-amber-700">현재 기간 매출/출근 데이터가 부족해 예측할 수 없습니다.</div>';
                 return;
             }
             const dailyRev = totalRev / revDays;
@@ -304,12 +305,12 @@ export function renderStaffingTab(filteredData, appConfig) {
             const KRW = n => Math.round(n).toLocaleString();
 
             simResult.innerHTML = `
-                <div class="mt-3 pt-3 border-t border-white/30 text-sm space-y-1">
-                    <div>현재 일평균 매출: <strong>${KRW(dailyRev)}원</strong> <span class="text-[11px] text-indigo-100/80">(${revDays}일 기준)</span></div>
-                    <div>목표 일평균 매출: <strong>${KRW(targetDailyRev)}원</strong> <span class="text-[11px] text-indigo-100/80">(월 22일 가정)</span></div>
+                <div class="mt-3 pt-3 border-t border-gray-200 text-sm space-y-1">
+                    <div>현재 일평균 매출: <strong>${KRW(dailyRev)}원</strong> <span class="text-[11px] text-gray-500">(${revDays}일 기준)</span></div>
+                    <div>목표 일평균 매출: <strong>${KRW(targetDailyRev)}원</strong> <span class="text-[11px] text-gray-500">(월 22일 가정)</span></div>
                     <div>스케일링 비율: <strong>${scale.toFixed(2)}배</strong></div>
-                    <div>필요 일평균 인원: <strong>${requiredHeadcount.toFixed(1)}명</strong> <span class="text-[11px] text-indigo-100/80">(현재 ${avgActual.toFixed(1)}명 기준 선형)</span></div>
-                    <div class="pt-1 text-yellow-100 font-bold">→ 추가 필요 알바: <strong>${additionalAlba.toFixed(1)}명</strong></div>
+                    <div>필요 일평균 인원: <strong>${requiredHeadcount.toFixed(1)}명</strong> <span class="text-[11px] text-gray-500">(현재 ${avgActual.toFixed(1)}명 기준 선형)</span></div>
+                    <div class="pt-1 text-amber-700 font-bold">→ 추가 필요 알바: <strong>${additionalAlba.toFixed(1)}명</strong></div>
                 </div>
             `;
         });

@@ -14,7 +14,7 @@
     --c-risk: #C9808A; --c-risk-text: #A0525C; --c-risk-soft: #F4E3E5; --c-risk-row: #FAF4F5;
     --r-card: 18px; --r-inner: 14px; --r-sm: 10px; --r-cell: 6px; --r-pill: 999px;
     --sh-tab: 0 1px 2px rgba(30,40,60,.10); --sh-pop: 0 8px 24px rgba(30,40,60,.12);
-    --font-sans: 'IBM Plex Sans KR', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    --font-sans: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
     /* 대시보드에서 더 쓰는 값 */
     --c-nav: #3A4049; --c-mute: #F2F3F5; --c-dot-off: #B8BEC6; --c-warn-line: #EBDDC6;
     --sh-center: 0 8px 24px rgba(30,40,60,.12);

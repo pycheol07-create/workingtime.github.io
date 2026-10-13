@@ -13,7 +13,7 @@
 // ⚠️ 이건 '화면을 가리는' 장치다. 데이터 자체는 firestore.rules 가 막는다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // ⚠️ china-stock-goods.js 와 '똑같은 주소'로 가져와야 모듈이 한 번만 만들어진다(?v=9.9 포함).
-import { initializeFirebase } from './china-stock-config.js?v=202610131356';
+import { initializeFirebase } from './china-stock-config.js?v=202610131441';
 
 const OVERLAY_ID = 'cs-auth-gate';
 
@@ -39,7 +39,7 @@ const showChecking = () => {
 //    → 바깥은 스크롤 되는 상자, 안쪽은 margin:auto 로 가운데 정렬(넘치면 위에서부터 보인다).
 const BASE_STYLE = `position:fixed; inset:0; z-index:2147483600; background:var(--c-bg,#F5F6F8);
     display:flex; overflow-y:auto; -webkit-overflow-scrolling:touch;
-    font-family:var(--font-sans,'IBM Plex Sans KR','Noto Sans KR','Malgun Gothic',sans-serif); color:var(--c-text,#23272E); text-align:center;`;
+    font-family:var(--font-sans,'SUIT','Noto Sans KR','Malgun Gothic',sans-serif); color:var(--c-text,#23272E); text-align:center;`;
 const INNER_STYLE = `margin:auto; display:flex; flex-direction:column; align-items:center;
     gap:10px; padding:24px; width:100%;`;
 

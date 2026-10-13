@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2563eb">
+    <meta name="theme-color" content="#2F62C9">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="업무관리">
@@ -20,10 +20,21 @@
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // D안 차트 기본값 (이 페이지만 — index 메인 대시보드 차트에는 넣지 않는다). js/d-chart.js 의 값과 같게 유지.
+        if (window.Chart) {
+            const dark = document.documentElement.classList.contains('dark');
+            Chart.defaults.font.family = "'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
+            Chart.defaults.color = dark ? '#A9B0BA' : '#646B75';
+            Chart.defaults.borderColor = dark ? '#2C323A' : '#E6E8EC';
+        }
+    </script>
     <!-- 팀 결산 보고 '화면 그대로 PDF' 저장용 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=202610131356">
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="css/suit.css?v=202610131441">
+    <link rel="stylesheet" href="css/style.css?v=202610131441">
+    <link rel="stylesheet" href="css/history-d.css?v=202610131441">
     <style>
         /* 💡 탭 전환 시 hidden 클래스가 충돌하는 문제 방지 */
         .hidden { display: none !important; }
@@ -36,12 +47,13 @@
             overflow: hidden !important; 
         }
         body { 
-            background-color: #f9fafb; 
+            background-color: #F5F6F8;
             height: 100vh !important; /* 구형 기기 호환용 폴백(Fallback) */
             height: 100dvh !important; 
             display: flex; 
             flex-direction: column; 
         }
+        html.dark body { background-color: #111418; }
         #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
         
         #modals-container-history { 
@@ -58,7 +70,7 @@
             inset: 0 !important;
             display: flex !important; 
             flex-direction: column !important;
-            background: #f9fafb !important; 
+            background: var(--c-bg) !important; /* 토큰은 css/history-d.css 가 #history-modal 에 둔다 */
             width: 100vw !important; 
             height: 100vh !important; 
             height: 100dvh !important; 
@@ -124,7 +136,7 @@
         #toggle-history-fullscreen-btn, #close-history-btn, #history-modal-header { display: none !important; }
     </style>
 </head>
-<body class="text-gray-800 font-['Inter'] transition-colors duration-200">
+<body class="transition-colors duration-200">
     <div id="toast-container" class="space-y-2 w-full max-w-xs"></div>
 
     <div id="modals-container-history" class="w-full h-full"></div>
@@ -167,11 +179,11 @@
             ]);
 
             try {
-                const State = await import('./js/state.js?v=202610131356');
-                try { await import('./js/app.js?v=202610131356'); } catch(e) {} 
+                const State = await import('./js/state.js?v=202610131441');
+                try { await import('./js/app.js?v=202610131441'); } catch(e) {} 
                 
-                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202610131356');
-                const { restoreHistoryView } = await import('./js/view-state.js?v=202610131356');
+                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202610131441');
+                const { restoreHistoryView } = await import('./js/view-state.js?v=202610131441');
 
                 // 초기 준비(로우데이터 → 일별 → 첫 날짜)를 마친 뒤,
                 // 보고 있던 자리로 되돌린다. 기억된 게 없으면 평소대로 대시보드.
@@ -302,7 +314,7 @@
 
         initHistoryApp();
     </script>
-    <script src="js/connection-banner.js?v=202610131356"></script>
-    <script src="js/modal-esc.js?v=202610131356"></script>
+    <script src="js/connection-banner.js?v=202610131441"></script>
+    <script src="js/modal-esc.js?v=202610131441"></script>
 </body>
 </html>

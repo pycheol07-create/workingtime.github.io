@@ -1,9 +1,9 @@
 // === ui-history-trends.js (트렌드 분석 차트 렌더링 담당) ===
 
-import { isWeekday, formatDuration, getRegularMembersForCount, buildMemberHourlyWageMap } from './utils.js?v=202610131356';
+import { isWeekday, formatDuration, getRegularMembersForCount, buildMemberHourlyWageMap } from './utils.js?v=202610131441';
 
 // ✅ [신규] app.js 대신 state.js에서 직접 appConfig를 가져옵니다.
-import { appConfig } from './state.js?v=202610131356';
+import { appConfig } from './state.js?v=202610131441';
 
 /**
  * 트렌드 분석용 일일 KPI 계산 헬퍼
@@ -86,7 +86,7 @@ export const renderTrendAnalysisCharts = (allHistoryData, appConfig, trendCharts
                 if (!ctx) return; 
                 const context = ctx.getContext('2d');
                 context.clearRect(0, 0, ctx.width, ctx.height);
-                context.font = "16px 'Noto Sans KR'";
+                context.font = "16px 'SUIT', 'Noto Sans KR'";
                 context.fillStyle = "#9ca3af";
                 context.textAlign = "center";
                 context.fillText("표시할 데이터가 없습니다.", ctx.width / 2, ctx.height / 2);

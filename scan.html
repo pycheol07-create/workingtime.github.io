@@ -2,12 +2,13 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <link rel="stylesheet" href="css/suit.css?v=202610131441">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; font-family: 'Noto Sans KR', sans-serif; background: #f4f6f8; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+        body { margin: 0; font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; background: #f4f6f8; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
 
         .tabs { display: flex; gap: 8px; padding: 10px 12px 6px; background: var(--theme, #1976d2); align-items: center; }
         .tab { flex: 1; text-align: center; padding: 10px 0; border-radius: 20px; color: #fff; font-weight: 800; font-size: 16px; cursor: pointer; }
@@ -181,12 +182,12 @@
     <div id="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610131356"></script>
+    <script src="js/location-map.js?v=202610131441"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610131356'; // china-stock 전용 설정(work-tool-e2943)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610131441'; // china-stock 전용 설정(work-tool-e2943)
 
         const SCAN_VERSION = '10.3'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -225,7 +226,7 @@
             const gate = document.createElement('div');
             gate.style.cssText = `position:fixed; inset:0; z-index:2147483600; background:#111; color:#fff;
                 display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
-                font-family:'Noto Sans KR',sans-serif; text-align:center; padding:24px;`;
+                font-family:'SUIT','Noto Sans KR',sans-serif; text-align:center; padding:24px;`;
             gate.innerHTML = `<div style="font-size:42px;">🔒</div>
                 <div style="font-size:17px; font-weight:800;">로그인 확인 중…</div>`;
             document.body.appendChild(gate);

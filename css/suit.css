@@ -1,0 +1,8 @@
+/* SUIT 글꼴 (앱 전체 공용, 2026-10-13) — jsdelivr 원본 SUIT.css 에 font-display 가 없어 직접 정의.
+   swap: 글꼴을 받는 동안 대체 글꼴(맑은 고딕 등)로 먼저 보여 준다. */
+@font-face { font-family: 'SUIT'; font-weight: 300; font-style: normal; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2.0.5/fonts/static/woff2/SUIT-Light.woff2') format('woff2'); }
+@font-face { font-family: 'SUIT'; font-weight: 400; font-style: normal; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2.0.5/fonts/static/woff2/SUIT-Regular.woff2') format('woff2'); }
+@font-face { font-family: 'SUIT'; font-weight: 500; font-style: normal; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2.0.5/fonts/static/woff2/SUIT-Medium.woff2') format('woff2'); }
+@font-face { font-family: 'SUIT'; font-weight: 600; font-style: normal; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2.0.5/fonts/static/woff2/SUIT-SemiBold.woff2') format('woff2'); }
+@font-face { font-family: 'SUIT'; font-weight: 700; font-style: normal; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2.0.5/fonts/static/woff2/SUIT-Bold.woff2') format('woff2'); }
+@font-face { font-family: 'SUIT'; font-weight: 800; font-style: normal; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2.0.5/fonts/static/woff2/SUIT-ExtraBold.woff2') format('woff2'); }

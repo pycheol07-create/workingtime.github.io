@@ -2,10 +2,11 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <link rel="stylesheet" href="css/suit.css?v=202610131441">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>미발계산기 손입력 데이터 이관</title>
     <style>
-        body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; margin: 0; padding: 24px; color: #37474f; }
+        body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; background: #f5f5f5; margin: 0; padding: 24px; color: #37474f; }
         .wrap { max-width: 720px; margin: 0 auto; background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 22px; }
         h1 { font-size: 19px; margin: 0 0 6px; }
         .sub { font-size: 13px; color: #78909c; line-height: 1.7; margin-bottom: 18px; }
@@ -52,7 +53,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { firebaseConfig, legacyFirebaseConfig, initializeFirebase } from './js/china-stock-config.js?v=202610131356';
+import { firebaseConfig, legacyFirebaseConfig, initializeFirebase } from './js/china-stock-config.js?v=202610131441';
 
 const COLL = 'ChinaStockGoods';
 // 파일 업로드로는 복구되지 않는 문서들. checked = 기본 복사 대상.

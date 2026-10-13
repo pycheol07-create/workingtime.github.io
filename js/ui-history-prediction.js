@@ -3,30 +3,31 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610131356';
+import { predictFutureTrends } from './analysis-logic.js?v=202610131441';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610131356';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610131356';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610131356';
-import * as State from './state.js?v=202610131356';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610131356';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610131356';
+import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610131441';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610131441';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610131441';
+import * as State from './state.js?v=202610131441';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610131441';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610131441';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610131356';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610131441';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610131356';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610131356';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610131441';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610131441';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610131356';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610131356';
-import { taskUph, recentDays } from './task-throughput.js?v=202610131356';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610131441';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610131441';
+import { taskUph, recentDays } from './task-throughput.js?v=202610131441';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610131356';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610131441';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610131356';
+         excessOffDays } from './lib/backlog-carry.js?v=202610131441';
+import { D } from './d-chart.js?v=202610131441';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -4879,8 +4880,8 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
     const allLabels = [...historical.labels, ...prediction.labels];
 
     // ✨ 범위(range) 데이터를 함께 넘겨주어 신뢰 구간을 그리도록 수정
-    renderChart('revenue', revenueCtx, allLabels, historical.revenue, prediction.revenue, prediction.rangeRevenue, splitIndex, '매출 (원)', 'rgb(79, 70, 229)');
-    renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, prediction.rangeDelivery, splitIndex, '배송량 (장)', 'rgb(16, 185, 129)');
+    renderChart('revenue', revenueCtx, allLabels, historical.revenue, prediction.revenue, prediction.rangeRevenue, splitIndex, '매출 (원)', D.accentRgb);
+    renderChart('delivery', deliveryCtx, allLabels, historical.delivery, prediction.delivery, prediction.rangeDelivery, splitIndex, '배송량 (장)', D.okRgb);
 
     updateKPICards(prediction, trend, daysToPredict);
 
@@ -5099,7 +5100,7 @@ const renderChart = (key, ctx, labels, histData, predData, predRangeData, splitI
                 {
                     label: '예측 평균 (AI)',
                     data: predictionDataset,
-                    borderColor: '#f59e0b', 
+                    borderColor: D.warn,
                     borderWidth: 2,
                     borderDash: [5, 5], 
                     pointRadius: 0,
@@ -5166,8 +5167,8 @@ const renderChart = (key, ctx, labels, histData, predData, predRangeData, splitI
 const renderNoData = (ctx, msg) => {
     const context = ctx.getContext('2d');
     context.clearRect(0, 0, ctx.width, ctx.height);
-    context.font = "14px 'Noto Sans KR'";
-    context.fillStyle = "#9ca3af";
+    context.font = "14px 'SUIT', 'Noto Sans KR'";
+    context.fillStyle = D.text3;
     context.textAlign = "center";
     context.fillText(msg, ctx.width / 2, ctx.height / 2);
 };

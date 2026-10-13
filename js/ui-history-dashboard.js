@@ -1,8 +1,9 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202610131356';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610131356';
-import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610131356';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610131356';
+import * as State from './state.js?v=202610131441';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610131441';
+import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610131441';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610131441';
+import { D, alpha } from './d-chart.js?v=202610131441';
 
 let dashboardChartInstance = null;
 
@@ -99,7 +100,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202610131356').then(mod => {
+        import('./ui-history-milestones.js?v=202610131441').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }
@@ -375,8 +376,8 @@ export function renderDashboardTab(filteredData, appConfig) {
                 {
                     label: '종합 UPH (생산성)',
                     data: uphTrendData,
-                    borderColor: '#2563eb', 
-                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    borderColor: D.accent,
+                    backgroundColor: alpha(D.accent, 0.10),
                     type: 'line',
                     fill: true,
                     tension: 0.3,
@@ -385,7 +386,7 @@ export function renderDashboardTab(filteredData, appConfig) {
                 {
                     label: '총 투입 인력 시간 (Hours)',
                     data: timeTrendData,
-                    backgroundColor: '#cbd5e1', 
+                    backgroundColor: D.lineStrong,
                     type: 'bar',
                     borderRadius: 4,
                     yAxisID: 'y1'
@@ -393,7 +394,7 @@ export function renderDashboardTab(filteredData, appConfig) {
                 {
                     label: '실제 소요 시간 (인당 평균 Hours)',
                     data: actualTimeTrendData,
-                    backgroundColor: '#93c5fd', 
+                    backgroundColor: D.accentLight,
                     type: 'bar',
                     borderRadius: 4,
                     yAxisID: 'y1'
@@ -405,17 +406,17 @@ export function renderDashboardTab(filteredData, appConfig) {
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             plugins: {
-                legend: { position: 'top', labels: { usePointStyle: true, font: { family: "'Inter', sans-serif", weight: 'bold' } } }
+                legend: { position: 'top', labels: { usePointStyle: true, font: { weight: 'bold' } } }
             },
             scales: {
                 y: { 
                     type: 'linear', display: true, position: 'left', 
-                    title: { display: true, text: 'UPH (개/시간)', color: '#2563eb', font: { weight: 'bold' } },
+                    title: { display: true, text: 'UPH (개/시간)', color: D.accent, font: { weight: 'bold' } },
                     grid: { borderDash: [5, 5] }
                 },
                 y1: { 
                     type: 'linear', display: true, position: 'right', 
-                    title: { display: true, text: '시간(h)', color: '#64748b', font: { weight: 'bold' } },
+                    title: { display: true, text: '시간(h)', color: D.text3, font: { weight: 'bold' } },
                     grid: { drawOnChartArea: false } 
                 }
             }

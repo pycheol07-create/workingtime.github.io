@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202610131356';
-import { LEAVE_TYPES } from './state.js?v=202610131356';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610131356';
+import * as State from './state.js?v=202610131441';
+import { LEAVE_TYPES } from './state.js?v=202610131441';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610131441';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610131356';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610131356';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610131441';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610131441';
 
 import {
     calculateReportKPIs,
@@ -19,10 +19,11 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202610131356';
+} from './ui-history-reports-logic.js?v=202610131441';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202610131356';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610131356';
+import { aggregateManagementData } from './ui-history-management.js?v=202610131441';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610131441';
+import { D } from './d-chart.js?v=202610131441';
 
 // ============================================================
 // 모듈 상태
@@ -1635,13 +1636,13 @@ export function renderSettlementReport(container, appConfig) {
 
     // 차트 인스턴스 생성 (DOM 마운트 이후)
     if (prodResult.chartId && prodResult.chartData) {
-        createBarChart(prodResult.chartId, prodResult.chartData.labels, prodResult.chartData.values, '일별 처리량', '#2563eb');
+        createBarChart(prodResult.chartId, prodResult.chartData.labels, prodResult.chartData.values, '일별 처리량', D.accent);
     }
     if (attResult.chartId && attResult.labels && attResult.labels.length > 0) {
-        createHorizontalBarChart(attResult.chartId, attResult.labels, attResult.values, '#f59e0b');
+        createHorizontalBarChart(attResult.chartId, attResult.labels, attResult.values, D.warn);
     }
     if (mgResult.chartId && mgResult.chartData) {
-        createBarChart(mgResult.chartId, mgResult.chartData.labels, mgResult.chartData.values, '일별 매출', '#10b981');
+        createBarChart(mgResult.chartId, mgResult.chartData.labels, mgResult.chartData.values, '일별 매출', D.ok);
     }
 
     const generatedAtEl = container.querySelector('#settle-generated-at');
