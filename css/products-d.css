@@ -205,3 +205,12 @@ textarea.pd-in { height: 84px; padding: 10px 12px; resize: vertical; line-height
 .pd-colpop-list label:hover { background: var(--c-accent-row); }
 .pd-colpop-list label span:nth-of-type(1) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pd-colpop .pd-sub { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+
+/* ── 목록: 머리글 줄 고정 + 보기 개수 (2026-10-14) ──
+   표를 화면 높이에 맞춘 상자 안에서 스크롤하고, 머리글은 그 상자 위에 붙여 둔다.
+   (가로 스크롤 상자 .pd-scroll 이 스크롤 기준이라, 페이지 스크롤로는 sticky 가 먹지 않는다) */
+.pd-list-scroll { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); overflow: auto; }
+.pd-list-scroll .pd-t thead th { position: sticky; top: 0; z-index: 3; border-bottom: 0; box-shadow: inset 0 -1px 0 var(--c-line); }
+.pd-pagesize { display: inline-flex; align-items: center; gap: 6px; margin-right: 6px; color: var(--c-text-3); }
+.pd-pagesize .pd-select { height: 30px; }
+@media (max-width: 768px) { .pd-list-scroll { max-height: 70vh; } }

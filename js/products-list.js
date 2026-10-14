@@ -3,17 +3,26 @@
 //
 // 3,768행을 한 번에 그리지 않는다(50행씩). 추가 읽기 없음 — 전부 products-store.js 가 받아 둔 메모리에서.
 // 관리자 열(공급처·기본 단가)은 관리자일 때만 **만든다**(숨김 아님). 원가 값은 products-cost.js 메모리에만 있다.
-import { S, locSummary } from './products-store.js?v=202610141313';
-import { C, costOf } from './products-cost.js?v=202610141313';
-import { esc, toast } from './products.js?v=202610141313';
-import { loadXLSX } from './products-excel.js?v=202610141313';
-import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610141313';
-import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610141313';
+import { S, locSummary } from './products-store.js?v=202610141333';
+import { C, costOf } from './products-cost.js?v=202610141333';
+import { esc, toast } from './products.js?v=202610141333';
+import { loadXLSX } from './products-excel.js?v=202610141333';
+import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610141333';
+import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610141333';
 
-const PAGE = 50;
+// 한 쪽에 보이는 상품 수 — 사용자가 고른다(이 브라우저에 기억). 'all' = 전체
+const PAGE_SIZES = [20, 50, 100, 200, 500, 'all'];
+const PAGE_KEY = 'products_pageSize';
+function loadPageSize() {
+    try { const v = localStorage.getItem(PAGE_KEY); const n = Number(v); if (PAGE_SIZES.includes(n)) return n; } catch (e) { /* 저장소를 못 쓰면 기본값 */ }
+    return 50;
+}
+// '전체'는 기억하지 않는다 — 기억하면 목록으로 돌아올 때마다 수천 줄을 다시 그려 1초 넘게 멈춘다(이번 화면에만 적용)
+function savePageSize(v) { if (v === 'all') return; try { localStorage.setItem(PAGE_KEY, String(v)); } catch (e) { /* 이번 화면에만 적용 */ } }
 const F = { q: '', cat: '', status: '', gone: false, noPrice: false, optDiff: false, noSup: false, sup: '', page: 0,
             sort: null,   // { key, dir: 1 | -1 } — 머리글 정렬, null 이면 새로 들어온 순
-            cf: {} };     // 머리글 필터 { 열key: {q} | {excl:Set(해제한 값)} | {min,max,empty} }
+            cf: {},       // 머리글 필터 { 열key: {q} | {excl:Set(해제한 값)} | {min,max,empty} }
+            size: loadPageSize() };   // 한 쪽 상품 수(20·50·…·'all')
 const searchKey = new WeakMap();
 
 const todayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -321,14 +330,15 @@ export function renderList(main) {
                 <span id="pd-chips" style="display:contents">${chipsHtml()}</span>
                 <span id="pd-count" class="pd-count num"></span>
             </div>
-            <div class="pd-scroll"><table class="pd-t" style="min-width:${S.isAdmin ? 1280 : 900}px">
+            <div class="pd-scroll pd-list-scroll"><table class="pd-t" style="min-width:${S.isAdmin ? 1280 : 900}px">
                 <thead id="pd-thead">${theadHtml()}</thead>
                 <tbody id="pd-tbody"></tbody></table></div>
             <div class="pd-foot"><span>행을 누르면 상세가 열립니다. 위치·수량은 로케이션관리 기준(평일 아침 요약)입니다.</span>
-                <span class="pd-pager"><button class="d-btn d-btn-sm" id="pd-prev">이전</button><span id="pd-pageno" class="num"></span><button class="d-btn d-btn-sm" id="pd-next">다음</button></span></div>
+                <span class="pd-pager"><label class="pd-pagesize">보기 <select class="pd-select" id="pd-size" aria-label="한 쪽에 보일 상품 수">${PAGE_SIZES.map(v => `<option value="${v}" ${String(F.size) === String(v) ? 'selected' : ''}>${v === 'all' ? '전체' : v + '개씩'}</option>`).join('')}</select></label><button class="d-btn d-btn-sm" id="pd-prev">이전</button><span id="pd-pageno" class="num"></span><button class="d-btn d-btn-sm" id="pd-next">다음</button></span></div>
         </section>`;
     let rows = filtered();
     const draw = () => {
+        const PAGE = F.size === 'all' ? Math.max(1, rows.length) : F.size;
         const pages = Math.max(1, Math.ceil(rows.length / PAGE));
         F.page = Math.min(F.page, pages - 1);
         const from = F.page * PAGE;
@@ -344,6 +354,7 @@ export function renderList(main) {
         if (chips) main.querySelector('#pd-chips').innerHTML = chipsHtml();
         main.querySelector('#pd-thead').innerHTML = theadHtml();
         draw();
+        main.querySelector('.pd-list-scroll').scrollTop = 0;   // 새 결과는 맨 위부터
     };
     closeColPop();
     main.querySelector('#pd-thead').addEventListener('click', (e) => {
@@ -382,8 +393,17 @@ export function renderList(main) {
         else { F.noPrice = a === 'noPrice'; F.noSup = a === 'noSup'; }
         redo();
     });
-    main.querySelector('#pd-prev').addEventListener('click', () => { F.page--; draw(); });
-    main.querySelector('#pd-next').addEventListener('click', () => { F.page++; draw(); });
+    main.querySelector('#pd-size').addEventListener('change', (e) => {
+        const v = e.target.value === 'all' ? 'all' : Number(e.target.value);
+        // 지금 보던 첫 상품이 새 쪽에서도 보이게 쪽 번호를 맞춘다
+        const first = F.page * (F.size === 'all' ? 0 : F.size);
+        F.size = v; savePageSize(v);
+        F.page = v === 'all' ? 0 : Math.floor(first / v);
+        draw();
+        main.querySelector('.pd-list-scroll').scrollTop = 0;
+    });
+    main.querySelector('#pd-prev').addEventListener('click', () => { F.page--; draw(); main.querySelector('.pd-list-scroll').scrollTop = 0; });
+    main.querySelector('#pd-next').addEventListener('click', () => { F.page++; draw(); main.querySelector('.pd-list-scroll').scrollTop = 0; });
     const open = (tr) => { if (tr) location.hash = 'p=' + encodeURIComponent(tr.dataset.pid); };
     main.querySelector('#pd-tbody').addEventListener('click', (e) => open(e.target.closest('tr[data-pid]')));
     main.querySelector('#pd-tbody').addEventListener('keydown', (e) => { if (e.key === 'Enter') open(e.target.closest('tr[data-pid]')); });
