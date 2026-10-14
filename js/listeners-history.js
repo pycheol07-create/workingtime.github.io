@@ -1,23 +1,22 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202610140920';
-import * as State from './state.js?v=202610140920';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610140920';
+import * as DOM from './dom-elements.js?v=202610141002';
+import * as State from './state.js?v=202610141002';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610141002';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610140920';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610140920';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610140920';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610140920';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610141002';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610141002';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610141002';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610141002';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610140920';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610140920';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610140920';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610140920';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610141002';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610141002';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610141002';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610141002';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610140920';
-import { preloadWeekendPay } from './ui-history-personal.js?v=202610140920';
-import { saveView } from './view-state.js?v=202610140920';
-import { placeOpenDropdown } from './table-filter.js?v=202610140920';
+import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610141002';
+import { saveView } from './view-state.js?v=202610141002';
+import { placeOpenDropdown } from './table-filter.js?v=202610141002';
 
 let isHistoryMaximized = false;
 
@@ -92,8 +91,6 @@ export function setupHistoryModalListeners() {
         const viewMode = { day: 'personal-daily', week: 'personal-weekly', month: 'personal-monthly', year: 'personal-yearly' }[gran];
         const memberName = DOM.personalReportMemberSelect?.value;
         if (dateKey && memberName) {
-            // 주말근무 급여(회당 11만원) 반영 위해 해당 연도 확정 주말근무 선로드
-            await preloadWeekendPay(String(dateKey).slice(0, 4));
             renderPersonalReport('personal-report-content', viewMode, dateKey, memberName, State.allHistoryData);
         }
     };

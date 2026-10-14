@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610140920';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610141002';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -247,7 +247,6 @@ function getDefaultConfig() {
             {
                 category: '관리 및 조회',
                 items: [
-                    { name: '주말 근무 신청', link: '#' },
                     { name: '내 연차관리', link: '#' },
                     { name: '로케이션 관리', link: 'location.html' },
                     { name: '중국제작 미발계산기', link: 'china-stock-goods.html' },

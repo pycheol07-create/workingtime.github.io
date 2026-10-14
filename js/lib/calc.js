@@ -138,23 +138,3 @@ export function computeMonthlySalary({ monthlyBase = 0, absentDayCount = 0, week
     const estimated = Math.max(0, monthlyBase - totalDeduction);
     return { hourly, minute, absence, weeklyHoliday, earlyLeave, outing, totalDeduction, estimated };
 }
-
-// 주말 근무 적정(공평) 횟수 계산.
-//  - 정원 미설정 날짜는 defaultCap(기본 3) 적용
-//  - 하루 1명은 관리자 고정 → 팀원 몫 = Σ max(0, 정원-1)
-//  - 1인당 적정 = round(팀원 몫 합계 / 참여 가능 팀원 수)
-// dates: 운영(미마감) 주말 날짜 배열, capacityOf(dateStr)->number|undefined
-export function weekendFairness(dates, capacityOf, eligibleCount, defaultCap = 3) {
-    let openDays = 0, totalCapacity = 0, teamSlots = 0;
-    (dates || []).forEach(dateStr => {
-        openDays++;
-        const set = Number(capacityOf ? capacityOf(dateStr) : 0) || 0;
-        const cap = set > 0 ? set : defaultCap;
-        totalCapacity += cap;
-        teamSlots += Math.max(0, cap - 1);
-    });
-    const adminSlots = totalCapacity - teamSlots;
-    const avg = eligibleCount > 0 ? teamSlots / eligibleCount : 0;
-    const recommended = Math.round(avg);
-    return { openDays, totalCapacity, teamSlots, adminSlots, avg, recommended };
-}

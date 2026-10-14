@@ -1,7 +1,7 @@
 {
   "name": "물류팀 업무관리",
   "short_name": "업무관리",
-  "description": "GGS 물류팀 업무 현황·근태·주말근무 관리",
+  "description": "GGS 물류팀 업무 현황·근태 관리",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

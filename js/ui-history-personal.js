@@ -1,45 +1,15 @@
 // === js/ui-history-personal.js ===
 // 설명: '개인 리포트' 탭의 데이터 집계 및 렌더링 로직을 담당합니다.
 
-import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202610140920';
-import { appConfig, context, LEAVE_TYPES, db, leaveTypeLabel } from './state.js?v=202610140920';
-import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202610140920';
-import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202610141002';
+import { appConfig, context, LEAVE_TYPES, leaveTypeLabel } from './state.js?v=202610141002';
+import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202610141002';
 
 // 급여 차감 기준 근무시간 (가정값 — 회사 규정에 맞게 조정 가능)
 const WORK_END_MIN = 18 * 60;                                   // 종업 18:00
 const LUNCH_START_MIN = 12 * 60 + 30, LUNCH_END_MIN = 13 * 60 + 30; // 점심 12:30~13:30
 const _toMin = (hhmm) => { if (!hhmm) return null; const p = String(hhmm).split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); };
 const _lunchOpts = { lunchStart: LUNCH_START_MIN, lunchEnd: LUNCH_END_MIN };
-
-// 주말근무 급여: 확정 1회당 지급액 (주말 정산과 동일 기준)
-const WEEKEND_PAY_PER_SHIFT = 110000;
-
-// 확정된 주말근무를 연도 단위로 캐싱 (멤버별 근무일자 목록)
-let _weekendCache = { year: null, byMember: new Map() };
-
-// 개인 리포트 렌더 전에 호출 — 해당 연도의 확정 주말근무를 로드해 급여에 반영한다.
-export async function preloadWeekendPay(year) {
-    year = String(year || '').slice(0, 4);
-    if (!year || _weekendCache.year === year) return; // 미지정/캐시 히트
-    const byMember = new Map();
-    try {
-        const colRef = collection(db, 'artifacts', 'team-work-logger-v2', 'weekend_requests');
-        const q = query(colRef, where('date', '>=', `${year}-01-01`), where('date', '<=', `${year}-12-31`));
-        const snap = await getDocs(q);
-        snap.forEach(docSnap => {
-            const d = docSnap.data();
-            if (d.status === 'confirmed' && d.member && d.date) {
-                if (!byMember.has(d.member)) byMember.set(d.member, []);
-                byMember.get(d.member).push(d.date);
-            }
-        });
-        _weekendCache = { year, byMember };
-    } catch (e) {
-        console.error('주말근무 급여 데이터 로드 실패:', e);
-        _weekendCache = { year, byMember: new Map() }; // 실패해도 캐시로 두어 반복 조회 방지
-    }
-}
 
 // --- 헬퍼: 정렬 아이콘 생성 ---
 const getSortIcon = (currentKey, currentDir, targetKey) => {
@@ -256,24 +226,6 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
         stats.salary = { isMonthlySalaried: false, estimated: stats.totalWageCost, hourly: wage };
     }
 
-    // 주말근무 급여 가산: 이 기간에 확정된 주말근무 × 11만원 (월급제·시급제 공통)
-    const _inPersonalPeriod = (dateStr) => {
-        if (!dateStr) return false;
-        if (viewMode === 'personal-daily') return dateStr === dateKey;
-        if (viewMode === 'personal-weekly') return getWeekOfYear(new Date(dateStr)) === dateKey;
-        if (viewMode === 'personal-monthly') return dateStr.startsWith(dateKey);
-        if (viewMode === 'personal-yearly') return dateStr.startsWith(dateKey);
-        return false;
-    };
-    const weekendDates = (_weekendCache.byMember.get(memberName) || []).filter(_inPersonalPeriod).sort();
-    const weekendCount = weekendDates.length;
-    const weekendPay = weekendCount * WEEKEND_PAY_PER_SHIFT;
-    stats.salary.weekendCount = weekendCount;
-    stats.salary.weekendDates = weekendDates;
-    stats.salary.weekendPay = weekendPay;
-    stats.salary.estimatedBeforeWeekend = stats.salary.estimated || 0;
-    stats.salary.estimated = (stats.salary.estimated || 0) + weekendPay;
-
     return { stats, filteredDays, wage };
 };
 
@@ -406,7 +358,6 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                     <div class="pay-real hidden">
                         <div class="text-2xl font-extrabold text-gray-800">${Math.round((stats.salary && stats.salary.estimated != null) ? stats.salary.estimated : stats.totalWageCost).toLocaleString()}원</div>
                         ${stats.salary && stats.salary.isMonthlySalaried && stats.salary.totalDeduction > 0 ? `<div class="text-[10px] text-red-500 mt-1">근태 차감 −${Math.round(stats.salary.totalDeduction).toLocaleString()}원</div>` : ''}
-                        ${stats.salary && stats.salary.weekendPay > 0 ? `<div class="text-[10px] text-emerald-600 mt-1">주말근무 ${stats.salary.weekendCount}회 +${stats.salary.weekendPay.toLocaleString()}원</div>` : ''}
                     </div>
                     <div class="pay-eye text-[10px] text-gray-400 mt-1 group-hover:text-blue-500 transition">클릭하여 표시</div>
                 </div>

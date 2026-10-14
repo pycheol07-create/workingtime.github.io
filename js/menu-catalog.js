@@ -38,7 +38,6 @@ export const MENU_TARGETS = [
     { kind: 'action', name: '대시보드',         link: 'index.html',   icon: '📊' },
     { kind: 'action', name: '오늘 처리량 입력', link: '#',            icon: '📈' },
     { kind: 'action', name: '데이터 관리',      link: 'history.html', icon: '📜' },
-    { kind: 'action', name: '주말 근무 신청',   link: '#',            icon: '🗓️' },
     { kind: 'action', name: '내 연차관리',      link: '#',            icon: '🏖️' },
     { kind: 'action', name: '관리자 일정/투두', link: '#',            icon: '📅' },
     { kind: 'action', name: '업무 마감',        link: '#',            icon: '🏁' },
@@ -63,7 +62,8 @@ export const HIDDEN_MENU_PAGES = ['china-stock-migrate.html'];   // 1회용 데�
 // 없어진 기능 — 저장된 dashboardMenu 에 남아 있어도 메뉴에서 걷어낸다.
 // (관리자 설정을 손대지 않아도 사라지도록. 눌러도 아무 일 없는 항목이 남지 않게)
 export const RETIRED_MENU_ITEMS = ['운영 시뮬레이션',
-    '업무시트 대시보드', '업무 시트 대시보드'];   // 2026-10-06 기능 삭제 (sheets.html · sheets-dashboard.js)
+    '업무시트 대시보드', '업무 시트 대시보드',   // 2026-10-06 기능 삭제 (sheets.html · sheets-dashboard.js)
+    '주말 근무 신청'];                          // 2026-10-14 기능 삭제 (weekend-*.js · modals-weekend.html)
 
 /** 저장된 메뉴에 신규 메뉴를 채우고 폐기된 메뉴를 걷어낸 목록을 돌려준다.
  *  그룹 객체와 items 배열은 새로 만들지만 항목 객체 자체는 원본과 공유한다(읽기 전용으로 쓸 것).

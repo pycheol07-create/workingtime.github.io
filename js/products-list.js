@@ -3,12 +3,12 @@
 //
 // 3,768행을 한 번에 그리지 않는다(50행씩). 추가 읽기 없음 — 전부 products-store.js 가 받아 둔 메모리에서.
 // 관리자 열(공급처·기본 단가)은 관리자일 때만 **만든다**(숨김 아님). 원가 값은 products-cost.js 메모리에만 있다.
-import { S, locSummary } from './products-store.js?v=202610140920';
-import { C, costOf } from './products-cost.js?v=202610140920';
-import { esc, toast } from './products.js?v=202610140920';
-import { loadXLSX } from './products-excel.js?v=202610140920';
-import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610140920';
-import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610140920';
+import { S, locSummary } from './products-store.js?v=202610141002';
+import { C, costOf } from './products-cost.js?v=202610141002';
+import { esc, toast } from './products.js?v=202610141002';
+import { loadXLSX } from './products-excel.js?v=202610141002';
+import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610141002';
+import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610141002';
 
 const PAGE = 50;
 const F = { q: '', cat: '', status: '', gone: false, noPrice: false, optDiff: false, noSup: false, sup: '', page: 0 };

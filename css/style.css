@@ -339,8 +339,7 @@ html.dark .depth-panel {
     #personal-report-panel,
     #management-panel,
     #inspection-history-panel,
-    #history-leave-panel,
-    #history-weekend-panel {
+    #history-leave-panel {
         flex-grow: 1 !important;
         min-height: 0 !important;
     }

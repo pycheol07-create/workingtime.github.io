@@ -63,7 +63,7 @@ async function until(fn, timeout = 3000, step = 60) {
 const esc = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/"/g, '\\"');
 
 // 날짜 트리를 쓰지 않는 화면들 — 여기서는 날짜를 복원할 것이 없다
-const TREELESS_SUBS = ['inspection', 'leave', 'weekend'];
+const TREELESS_SUBS = ['inspection', 'leave'];
 const TREELESS_MAINS = ['milestones', 'settlement', 'forecast'];
 
 // 날짜를 고른다.

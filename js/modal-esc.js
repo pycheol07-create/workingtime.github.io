@@ -51,7 +51,7 @@
     // 모달 내부의 "닫기" 성격 버튼을 찾는다. (정리 로직이 있는 전용 닫기 핸들러 우선 실행)
     // 취소/삭제 등 다른 동작 버튼은 건드리지 않도록 보수적으로 매칭한다.
     function findCloseButton(modal) {
-        // 1) id에 close가 포함된 버튼 (예: close-weekend-modal-btn, admin-date-close-btn)
+        // 1) id에 close가 포함된 버튼 (예: close-notice-modal-btn, close-send-msg-btn)
         const byId = Array.from(modal.querySelectorAll('button[id*="close" i]')).find(b => !NOT_CLOSE_BUTTON_IDS.has(b.id));
         if (byId) return byId;
         // 2) 텍스트가 ×/✕/닫기 인 버튼
@@ -66,7 +66,7 @@
     function closeTopModal(modal) {
         const btn = findCloseButton(modal);
         if (btn) {
-            btn.click(); // 전용 닫기 핸들러 실행 (예: 주말 모달의 리스너 해제)
+            btn.click(); // 전용 닫기 핸들러 실행 (예: 모달별 리스너 해제·정리)
         } else {
             modal.classList.add('hidden'); // 별도 핸들러가 없으면 직접 숨김
         }
