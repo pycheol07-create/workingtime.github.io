@@ -11,8 +11,8 @@
 //    기본정보는 직원 전원이 읽는 문서(ProductCatalog)로 들어가기 때문이다. 테스트가 이것을 고정한다.
 //
 // 순수 모듈(DOM/Firebase 의존 없음). ⚠️ 원가 값을 console 에 찍지 말 것.
-import { isValidCode, utf8Length } from './product-bucket.js?v=202610141002';
-import { parseNum, parseDate, normalizePrice, samePrice, cellToText } from './product-price.js?v=202610141002';
+import { isValidCode, utf8Length } from './product-bucket.js?v=202610141054';
+import { parseNum, parseDate, normalizePrice, samePrice, cellToText } from './product-price.js?v=202610141054';
 
 export const HEADER_SCAN_ROWS = 10;
 export const MAX_ROWS = 40000;

@@ -3,10 +3,10 @@
 //   낮에는 아무도 데이터관리 창을 열지 않는다 — 계획 대비 얼마나 왔는지,
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
-import * as State from './state.js?v=202610141002';
-import { formatHM } from './utils.js?v=202610141002';
-import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory } from './ui-history-prediction.js?v=202610141002';
-import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610141002';
+import * as State from './state.js?v=202610141054';
+import { formatHM } from './utils.js?v=202610141054';
+import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory } from './ui-history-prediction.js?v=202610141054';
+import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610141054';
 
 const EL = 'today-progress-strip';
 let timer = null;
@@ -74,15 +74,19 @@ const render = () => {
                 </div>
             </div>
             ${right}
-            <span class="d-btn inline-block">자세히</span>
+            ${isAdmin() ? '<span class="d-btn inline-block">자세히</span>' : ''}
         </div>`;
     el.title = `계획 ${fmtHM(s.planHours)} 중 ${fmtHM(s.spentHours)} 소진`
              + (s.started ? `\n기준 종료 ${s.baseFinishText}` : '')
              // 기준 종료가 왜 그 시각인지 띠만 보는 사람도 알 수 있게 (점심 포함 여부)
              + (s.started && s.baseLunchMin > 0
                     ? ` (점심 ${s.baseLunchMin}분 포함 · ${s.baseLunchText})` : '')
-             + '\n\n업무 기록의 실제 투입 시간을 계획과 맞춰 본 값입니다. 눌러서 업무별로 볼 수 있습니다.';
+             + '\n\n업무 기록의 실제 투입 시간을 계획과 맞춰 본 값입니다.' + (isAdmin() ? ' 눌러서 업무별로 볼 수 있습니다.' : '');
+    el.classList.toggle('cursor-pointer', isAdmin());
+    el.classList.toggle('is-link', isAdmin());
 };
+
+const isAdmin = () => State.appState && State.appState.currentUserRole === 'admin';
 
 /** 대시보드에서 한 번 호출. 이력(대부분 캐시)을 실은 뒤 그리고, 1분마다 갱신한다. */
 export const initTodayProgressStrip = async () => {
@@ -90,7 +94,8 @@ export const initTodayProgressStrip = async () => {
     if (!el) return;
 
     // 주소 뒤 #forecast-today 를 보고 데이터관리 창이 그 화면을 바로 연다(view-state.js)
-    el.addEventListener('click', () => window.open('history.html#forecast-today', '_blank'));
+    // 데이터관리는 관리자 전용(history.html 이 막는다) — 직원에게는 띠를 보기만 하게 한다(2026-10-14).
+    el.addEventListener('click', () => { if (isAdmin()) window.open('history.html#forecast-today', '_blank'); });
 
     // 로그인·Firebase 준비가 끝나기 전에 읽으면 실패한다 — 준비될 때까지 기다린다.
     // (대시보드는 로그인 화면이 먼저 뜨는 경우가 있어, 바로 읽으면 permission-denied 가 난다)

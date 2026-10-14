@@ -32,10 +32,10 @@
     <!-- 팀 결산 보고 '화면 그대로 PDF' 저장용 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610141002">
-    <link rel="stylesheet" href="css/style.css?v=202610141002">
-    <link rel="stylesheet" href="css/history-d.css?v=202610141002">
-    <link rel="stylesheet" href="css/form-d.css?v=202610141002">
+    <link rel="stylesheet" href="css/suit.css?v=202610141054">
+    <link rel="stylesheet" href="css/style.css?v=202610141054">
+    <link rel="stylesheet" href="css/history-d.css?v=202610141054">
+    <link rel="stylesheet" href="css/form-d.css?v=202610141054">
     <style>
         /* 💡 탭 전환 시 hidden 클래스가 충돌하는 문제 방지 */
         .hidden { display: none !important; }
@@ -180,11 +180,11 @@
             ]);
 
             try {
-                const State = await import('./js/state.js?v=202610141002');
-                try { await import('./js/app.js?v=202610141002'); } catch(e) {} 
+                const State = await import('./js/state.js?v=202610141054');
+                try { await import('./js/app.js?v=202610141054'); } catch(e) {} 
                 
-                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202610141002');
-                const { restoreHistoryView } = await import('./js/view-state.js?v=202610141002');
+                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202610141054');
+                const { restoreHistoryView } = await import('./js/view-state.js?v=202610141054');
 
                 // 초기 준비(로우데이터 → 일별 → 첫 날짜)를 마친 뒤,
                 // 보고 있던 자리로 되돌린다. 기억된 게 없으면 평소대로 대시보드.
@@ -259,6 +259,39 @@
                     }, 100);
                 };
 
+                // 🔒 데이터 관리는 관리자 전용(대시보드 버튼도 관리자만 보인다 — app.js adminElements).
+                //    버튼을 숨겨도 주소를 직접 치면 열리므로 여기서도 막는다. 역할은 app.js 가 로그인 뒤 currentUser 와 함께 넣는다
+                //    (currentUserRole 의 초기값이 'user' 라 역할 값으로는 준비 여부를 알 수 없다 — currentUser 로 기다린다).
+                //    ※ 화면 문지기다. 데이터 자체는 Firestore 규칙(artifacts/** 읽기 = 로그인 전원)을 따른다.
+                const adminOnly = () => {
+                    if (State.appState.currentUserRole === 'admin') return true;
+                    alert('데이터 관리는 관리자만 볼 수 있습니다.');
+                    leavePage();
+                    return false;
+                };
+                // 새 탭(대시보드에서 연 창)이면 닫고, 닫기가 막힌 창이면 메인으로 보낸다(대시보드가 두 탭에서 돌지 않게).
+                const leavePage = () => {
+                    if (window.opener) { try { window.close(); } catch (e) {} }
+                    setTimeout(() => location.replace('index.html'), 300);
+                };
+                // 로그인 뒤 사용자 정보가 끝내 안 들어오면(미등록·퇴사 signOut, 시작 중 오류) 무한 대기하지 않는다.
+                let userWait = null;
+                const waitUser = (onReady) => {
+                    if (userWait) clearInterval(userWait);
+                    let tries = 0;
+                    userWait = setInterval(async () => {
+                        if (State.appConfig && Object.keys(State.appConfig).length > 0 && State.appState && State.appState.currentUser) {
+                            clearInterval(userWait); userWait = null;
+                            if (!adminOnly()) return;
+                            await onReady();
+                        } else if (++tries > 150) {
+                            clearInterval(userWait); userWait = null;
+                            alert('사용자 정보를 확인하지 못했습니다. 메인 화면에서 다시 로그인해 주세요.');
+                            leavePage();
+                        }
+                    }, 100);
+                };
+
                 let checkCount = 0;
                 const waitForAuth = setInterval(async () => {
                     if (State.auth && typeof State.auth.onAuthStateChanged === 'function') {
@@ -266,22 +299,20 @@
                         
                         State.auth.onAuthStateChanged(async (user) => {
                             if (!user) {
+                                if (userWait) { clearInterval(userWait); userWait = null; }
                                 alert("로그인이 필요합니다. 메인 대시보드 창에서 먼저 로그인해주세요.");
-                                window.close();
+                                leavePage();
                                 return;
                             }
 
-                            const waitForData = setInterval(async () => {
-                                if (State.appConfig && Object.keys(State.appConfig).length > 0) {
-                                    clearInterval(waitForData);
-                                    await loadAndRenderHistoryList();
-                                    
-                                    const modal = document.getElementById('history-modal');
-                                    if (modal) modal.classList.remove('hidden');
+                            waitUser(async () => {
+                                await loadAndRenderHistoryList();
+                                
+                                const modal = document.getElementById('history-modal');
+                                if (modal) modal.classList.remove('hidden');
 
-                                    triggerInitialUI();
-                                }
-                            }, 100);
+                                triggerInitialUI();
+                            });
                         });
                     }
                     
@@ -289,21 +320,18 @@
                         clearInterval(waitForAuth);
                         if (!State.appState || !State.appState.currentUser) {
                              alert("로그인 정보를 찾을 수 없습니다.");
-                             window.close();
+                             leavePage();
                              return;
                         }
                         
-                        const fallbackWaitForData = setInterval(async () => {
-                            if (State.appConfig && Object.keys(State.appConfig).length > 0) {
-                                clearInterval(fallbackWaitForData);
-                                await loadAndRenderHistoryList();
-                                
-                                const modal = document.getElementById('history-modal');
-                                if (modal) modal.classList.remove('hidden');
-                                
-                                triggerInitialUI();
-                            }
-                        }, 100);
+                        waitUser(async () => {
+                            await loadAndRenderHistoryList();
+                            
+                            const modal = document.getElementById('history-modal');
+                            if (modal) modal.classList.remove('hidden');
+                            
+                            triggerInitialUI();
+                        });
                     }
                     checkCount++;
                 }, 100);
@@ -315,7 +343,7 @@
 
         initHistoryApp();
     </script>
-    <script src="js/connection-banner.js?v=202610141002"></script>
-    <script src="js/modal-esc.js?v=202610141002"></script>
+    <script src="js/connection-banner.js?v=202610141054"></script>
+    <script src="js/modal-esc.js?v=202610141054"></script>
 </body>
 </html>
