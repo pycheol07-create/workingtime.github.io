@@ -1,5 +1,6 @@
 /* === css/d-theme.css — 미발계산기 2종 전용 D안 토큰·부품 (2026-10-13) ===
-   - china-stock-goods.html · china-mibal2.html 만 불러온다. index.html 은 dash-d.css 를 쓴다.
+   - china-stock-goods.html · china-mibal2.html · products.html · china-stock-migrate.html · scan.html(현장 스캐너) 이 불러온다. index.html 은 dash-d.css 를 쓴다.
+     여기에 body·button 같은 일반 규칙을 넣으면 위 페이지 전부(현장 스캐너 포함)가 바뀐다.
    - 토큰은 dash-d.css 8-22 사본(라이트만). 다크 토큰은 넣지 않는다 — 두 페이지는 라이트 전용이고 JS 인라인 색이 남아 있다.
    - 클래스 이름은 dash-d.css 와 같다(d-btn·d-pill-*·t-*). 범위 접두어(#dash-root)만 없다.
    - 주의: 여기에는 display 를 넣지 않는다. 모달·메뉴·로딩·모드별 표시는 JS·인라인이 켜고 끈다. */

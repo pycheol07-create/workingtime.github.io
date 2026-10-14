@@ -12,8 +12,8 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202610140834';
-import { escapeHtml as esc } from './utils.js?v=202610140834';
+import { initializeFirebase } from './config.js?v=202610140920';
+import { escapeHtml as esc } from './utils.js?v=202610140920';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -336,7 +336,7 @@ function renderSummary() {
         + card('근무 일수', days + '일')
         + card('월 총 근무시간', hoursText(workedMin), hours.toFixed(2) + ' 시간')
         + card('월 총금액', fmt(pay) + '원', '연장·야간·주휴수당 미포함', 'text-indigo-700')
-        + card('위안화 환산', cnyText, '당일 환율 기준', 'text-rose-600');
+        + card('위안화 환산', cnyText, '당일 환율 기준', 'text-slate-800');
 
     // 어떤 환율이 쓰였는지 밝힌다. 숫자만 보여주면 근거를 알 수 없다.
     const note = $('fx-note');

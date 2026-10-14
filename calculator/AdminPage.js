@@ -146,7 +146,7 @@ const AdminPage = ({ onClose }) => {
 
                             <div className="mb-4 p-3 rounded-lg border flex items-center justify-between gap-3 text-sm bg-slate-50 border-slate-200">
                                 <div className="flex-1 min-w-0">
-                                    <div className="font-medium text-gray-800">📊 구글 스프레드시트 자동 동기화</div>
+                                    <div className="font-medium text-gray-800">구글 스프레드시트 자동 동기화</div>
                                     <div className="text-xs text-gray-500 mt-0.5">
                                         {sheetSyncStatus === 'loading' && '동기화 중...'}
                                         {sheetSyncStatus === 'success' && `동기화 성공 (${sheetSyncedAt ? sheetSyncedAt.toLocaleTimeString('ko-KR') : ''}) — M1/O1/P1 값 반영됨`}
@@ -172,7 +172,7 @@ const AdminPage = ({ onClose }) => {
                             <SectionTitle title="통관비 계산기 옵션" />
                             <ArrayEditor title="관세율 옵션" data={localSettings.customs.tariffRates} category="customs" arrayKey="tariffRates" template={{label: '새 옵션', value: 0}} />
                             <div className="p-4 bg-yellow-50 text-yellow-800 text-sm rounded mb-4">
-                                ⚠️ 운송 형태(LCL/FCL)와 수수료 타입은 로직에 영향을 주므로 수정 시 주의하세요.
+                                운송 형태(LCL/FCL)와 수수료 타입은 로직에 영향을 주므로 수정 시 주의하세요.
                             </div>
                         </div>
                     )}

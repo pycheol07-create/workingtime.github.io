@@ -2,32 +2,33 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610140834">
+    <link rel="stylesheet" href="css/suit.css?v=202610140920">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610140920">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>미발계산기 손입력 데이터 이관</title>
     <style>
-        body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; background: #f5f5f5; margin: 0; padding: 24px; color: #37474f; }
-        .wrap { max-width: 720px; margin: 0 auto; background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 22px; }
+        body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; background: var(--c-bg); margin: 0; padding: 24px; color: var(--c-text); }
+        .wrap { max-width: 720px; margin: 0 auto; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 22px; }
         h1 { font-size: 19px; margin: 0 0 6px; }
-        .sub { font-size: 13px; color: #78909c; line-height: 1.7; margin-bottom: 18px; }
-        .box { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
-        .row { display: flex; align-items: center; gap: 10px; padding: 7px 2px; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+        .sub { font-size: 13px; color: var(--c-text-2); line-height: 1.7; margin-bottom: 18px; }
+        .box { border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 12px 14px; margin-bottom: 12px; }
+        .row { display: flex; align-items: center; gap: 10px; padding: 7px 2px; font-size: 13px; border-bottom: 1px solid var(--c-line-soft); }
         .row:last-child { border-bottom: 0; }
         .row .name { font-weight: 700; min-width: 150px; }
-        .row .desc { color: #90a4ae; font-size: 12px; flex: 1; }
+        .row .desc { color: var(--c-text-3); font-size: 12px; flex: 1; }
         .row .state { font-size: 12px; font-weight: 700; min-width: 120px; text-align: right; }
-        button { padding: 10px 18px; border: 0; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; }
-        .primary { background: #1976d2; color: #fff; }
-        .primary:disabled { background: #b0bec5; cursor: not-allowed; }
-        .ghost { background: #eceff1; color: #37474f; }
-        .warn { background: #fff8e1; border: 1px solid #ffe082; color: #8d6e63; font-size: 12.5px;
-                border-radius: 8px; padding: 10px 12px; line-height: 1.7; margin-bottom: 14px; }
-        #log { font-size: 12px; color: #546e7a; white-space: pre-wrap; margin-top: 14px; max-height: 260px; overflow: auto; }
+        button { padding: 10px 18px; border: 0; border-radius: var(--r-pill); font-weight: 700; font-size: 14px; cursor: pointer; }
+        .primary { background: var(--c-accent); color: #fff; }
+        .primary:disabled { background: var(--c-track); color: var(--c-text-3); cursor: not-allowed; }
+        .ghost { background: var(--c-surface); border: 1px solid var(--c-line-strong); color: var(--c-text); }
+        .warn { background: var(--c-warn-bg); border: 1px solid var(--c-warn-line, #EBDDC6); color: var(--c-warn-text); font-size: 12.5px;
+                border-radius: var(--r-inner); padding: 10px 12px; line-height: 1.7; margin-bottom: 14px; }
+        #log { font-size: 12px; color: var(--c-text-2); white-space: pre-wrap; margin-top: 14px; max-height: 260px; overflow: auto; }
     </style>
 </head>
 <body>
 <div class="wrap">
-    <h1>🚚 미발계산기 손입력 데이터 이관</h1>
+    <h1>미발계산기 손입력 데이터 이관</h1>
     <p class="sub">
         옛 프로젝트(<b>location-e2ff9</b>)에 있던 <b>손으로 입력한 문서</b>만 새 프로젝트(<b>work-tool-e2943</b>)로 복사합니다.<br>
         상품/재고 데이터는 소스 파일을 다시 업로드하면 채워지므로 복사하지 않습니다.
@@ -53,7 +54,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { firebaseConfig, legacyFirebaseConfig, initializeFirebase } from './js/china-stock-config.js?v=202610140834';
+import { firebaseConfig, legacyFirebaseConfig, initializeFirebase } from './js/china-stock-config.js?v=202610140920';
 
 const COLL = 'ChinaStockGoods';
 // 파일 업로드로는 복구되지 않는 문서들. checked = 기본 복사 대상.
@@ -103,14 +104,14 @@ $('btn-check').addEventListener('click', async () => {
                 found[d.id] = data;
                 const n = data && data.map && typeof data.map === 'object' ? Object.keys(data.map).length : null;
                 st.textContent = n != null ? `있음 (${n}건)` : '있음';
-                st.style.color = '#2e7d32';
+                st.style.color = 'var(--c-ok-text)';
             } else {
                 st.textContent = '없음';
-                st.style.color = '#b0bec5';
+                st.style.color = 'var(--c-text-3)';
             }
         } catch (e) {
             st.textContent = '읽기 실패';
-            st.style.color = '#c62828';
+            st.style.color = 'var(--c-risk-text)';
             log(`❌ ${d.id}: ${e.message || e}`);
         }
     }
@@ -129,7 +130,7 @@ $('btn-copy').addEventListener('click', async () => {
         try {
             await setDoc(doc(newDb, COLL, d.id), found[d.id]);
             $('st-' + d.id).textContent = '복사 완료';
-            $('st-' + d.id).style.color = '#1976d2';
+            $('st-' + d.id).style.color = 'var(--c-accent-deep)';
             log(`✅ ${d.id} 복사 완료`);
         } catch (e) {
             log(`❌ ${d.id} 복사 실패: ${e.message || e}`);

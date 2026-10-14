@@ -3,7 +3,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202610140834';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202610140920';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610140920';
 
 let app, db, auth, storage;
 let appConfig = {};
@@ -71,6 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
+        connectEmulatorsIfEnabled(db, auth);
         storage = getStorage(app);
     } catch (error) {
         console.error("Firebase 초기화 실패:", error);
@@ -409,8 +411,8 @@ function renderTools() {
     listEl.innerHTML = toolsList.map(t => {
         const isLink = t.type === 'link';
         const actionLabel = isLink ? '↗ 열기' : '⬇ 다운로드';
-        const icon = isLink ? '🔗' : '📎';
-        const admin = isAdmin ? `<button data-tool-edit="${escT(t.id)}" class="text-[10px] text-gray-400 hover:text-blue-600 px-1" title="편집">✏️</button>` : '';
+        const icon = isLink ? '<svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>' : '<svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/></svg>';
+        const admin = isAdmin ? `<button data-tool-edit="${escT(t.id)}" class="text-[10px] text-gray-400 hover:text-blue-600 px-1" title="편집"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg></button>` : '';
         return `
             <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-2">
                 <span class="text-base shrink-0">${icon}</span>
@@ -426,7 +428,7 @@ function renderTools() {
 
 function openToolModal(id) {
     const t = id ? toolsList.find(x => x.id === id) : null;
-    document.getElementById('tool-modal-title').textContent = t ? '🛠️ 도구 편집' : '🛠️ 도구 추가';
+    document.getElementById('tool-modal-title').textContent = t ? '도구 편집' : '도구 추가';
     document.getElementById('tool-edit-id').value = t ? t.id : '';
     document.getElementById('tool-name').value = t ? (t.name || '') : '';
     document.getElementById('tool-desc').value = t ? (t.desc || '') : '';
@@ -610,7 +612,7 @@ function renderList() {
         folderHeader.className = 'flex items-center justify-between p-2 mt-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition select-none group';
         folderHeader.innerHTML = `
             <div class="flex items-center gap-2">
-                <span class="text-sm opacity-80">📁</span>
+                <span class="d-folder-ico" aria-hidden="true"></span>
                 <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                     ${cat} <span class="text-gray-400 font-normal">(${grouped[cat].length})</span>
                 </span>
@@ -642,7 +644,7 @@ function renderList() {
             const hasFile = item.fileUrl ? '<span class="text-[10px] bg-indigo-50 text-indigo-600 px-1 rounded font-bold border border-indigo-100 shadow-sm ml-1">첨부</span>' : '';
             
             const isPrivate = item.allowedMembers && item.allowedMembers.length > 0;
-            const privateBadge = isPrivate ? '<span class="text-[10px] bg-red-50 text-red-600 px-1 rounded font-bold border border-red-100 shadow-sm ml-1">🔒 비공개</span>' : '';
+            const privateBadge = isPrivate ? '<span class="text-[10px] bg-red-50 text-red-600 px-1 rounded font-bold border border-red-100 shadow-sm ml-1">비공개</span>' : '';
             
             // ✨ 공개/비공개 여부에 따른 우측 색상 라인 (비공개: 빨간색, 공개: 녹색)
             const sideBar = isPrivate 
@@ -713,7 +715,7 @@ function openEditor(item = null) {
     document.getElementById('edit-file-upload').value = '';
     
     if (item && item.fileUrl) {
-        fileNameDisplay.innerHTML = `<span class="text-blue-600 font-bold">💾 기존 첨부파일: ${item.fileName || '유지됨'} (선택 시 교체)</span>`;
+        fileNameDisplay.innerHTML = `<span class="text-blue-600 font-bold">기존 첨부파일: ${item.fileName || '유지됨'} (선택 시 교체)</span>`;
     } else {
         fileNameDisplay.textContent = '선택된 파일 없음';
     }

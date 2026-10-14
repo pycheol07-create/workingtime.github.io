@@ -1,0 +1,196 @@
+/* === css/manual-d.css — 업무 매뉴얼(manual.html) 전용 D안 (2026-10-14) ===
+   - manual.html 만 부른다. style.css·dash-d.css·d-theme.css·history-d.css·form-d.css·admin-d.css 는 건드리지 않고 여기서 덮는다.
+   - 모든 규칙은 범위 루트 #manual-root(manual.html 의 body) 접두.
+     ID 명시도로 Tailwind CDN(뒤에 주입됨)의 .x / .dark .dark\:x / .hover\:x:hover 를 이긴다.
+   - 토큰은 범위 루트에 둔다(값은 history-d.css 사본 — 값을 바꾸면 location·dash-d·d-theme·history-d·form-d·admin-d·
+     products-d·tool-d·manual-d·calc-d 10곳). 다크(html.dark)에서는 토큰이 뒤집힌다.
+   - ⚠ display 를 넣지 않는다. 서랍(-translate-x-full), 모달 hidden↔flex, md:hidden 을 ID 명시도로 이겨 버린다.
+   - ⚠ box-shadow:none 으로 그림자를 지우지 않는다(포커스 ring 도 box-shadow). --tw-shadow 만 비운다.
+   - ⚠ 상태 표시 클래스(hidden, rotate-180, -translate-x-full)는 JS 가 이름으로 넣고 뺀다 — 이름은 그대로.
+   - ⚠ 저장된 본문(매뉴얼 내용) 보호: .prose / .ql-editor / #view-body 자손을 겨냥하는 규칙을 여기에 하나도 쓰지 않는다.
+     본문 표시는 manual.html 인라인 <style>(.ql-editor·.prose·img·blockquote·hr)과 typography 플러그인 그대로.
+     #view-body 자신은 재칠 층의 .text-gray-800 → --c-text 만 받는다.
+   - 재칠 층(remap)은 생성 스크립트 출력이다. 손으로 고치지 말 것(tools/d_remap.py). */
+
+#manual-root {
+    --c-bg: #F5F6F8; --c-surface: #FFFFFF; --c-surface-2: #F7F8FA; --c-track: #EEF0F4;
+    --c-line: #E6E8EC; --c-line-soft: #F0F2F5; --c-line-strong: #D6DAE0;
+    --c-text: #23272E; --c-text-2: #646B75; --c-text-3: #8A9099; --c-text-4: #CDD2D9;
+    --c-accent: #2F62C9; --c-accent-deep: #1E4699; --c-accent-mid: #7FA1E6; --c-accent-light: #C4D4F5; --c-accent-soft: #EAF0FD; --c-accent-row: #F3F6FD;
+    --c-ok: #5A9E96; --c-ok-text: #3D756F; --c-ok-soft: #E5F0EE;
+    --c-warn: #D2A266; --c-warn-text: #8A5E28; --c-warn-soft: #F4EADB; --c-warn-bg: #F9F4EC;
+    --c-risk: #C9808A; --c-risk-text: #A0525C; --c-risk-soft: #F4E3E5; --c-risk-row: #FAF4F5;
+    --r-card: 18px; --r-inner: 14px; --r-sm: 10px; --r-cell: 6px; --r-pill: 999px;
+    --sh-tab: 0 1px 2px rgba(30,40,60,.10); --sh-pop: 0 8px 24px rgba(30,40,60,.12);
+    --font-sans: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    /* 이 화면에서 더 쓰는 값 */
+    --c-ok-line: #CFE3E0; --c-risk-line: #EBCDD1; --c-warn-line: #EBDDC6;
+    --c-ink: #23272E;                      /* 검정 채움·툴팁 — 두 모드 모두 어두워야 한다 */
+    --c-scrim: rgba(30,40,60,.45);         /* 모달·서랍 뒤 가림막 */
+    /* 흰 글자가 올라가는 진한 채움(600 이상) — 다크에서도 어두운 값 그대로 */
+    --c-accent-strong: #1E4699; --c-ok-strong: #3D756F; --c-warn-strong: #8A5E28; --c-risk-strong: #A0525C;
+    --c-nav: #3A4049;                      /* 사이드바 메뉴 글자 (dash-d 와 같은 값) */
+    background-color: var(--c-bg);
+    color: var(--c-text);
+    font-family: var(--font-sans);
+    color-scheme: light;
+}
+html.dark #manual-root {
+    --c-bg: #111418; --c-surface: #1A1E24; --c-surface-2: #20252C; --c-track: #2A3038;
+    --c-line: #2C323A; --c-line-soft: #242A31; --c-line-strong: #3A414B;
+    --c-text: #E6E8EC; --c-text-2: #A9B0BA; --c-text-3: #7D8590; --c-text-4: #4A515B;
+    --c-accent: #6E95E6; --c-accent-deep: #A9C1F2; --c-accent-mid: #4F73BF; --c-accent-light: rgba(110,149,230,.35);
+    --c-accent-soft: rgba(47,98,201,.22); --c-accent-row: rgba(47,98,201,.12);
+    --c-ok-text: #8CC9C0; --c-ok-soft: rgba(90,158,150,.18);
+    --c-warn-text: #E2BE8C; --c-warn-soft: rgba(210,162,102,.18); --c-warn-bg: rgba(210,162,102,.10);
+    --c-risk-text: #E0A3AB; --c-risk-soft: rgba(201,128,138,.18); --c-risk-row: rgba(201,128,138,.10);
+    --sh-tab: 0 1px 2px rgba(0,0,0,.40); --sh-pop: 0 8px 24px rgba(0,0,0,.50);
+    --c-ok-line: rgba(90,158,150,.35); --c-risk-line: rgba(201,128,138,.35); --c-warn-line: rgba(210,162,102,.35);
+    --c-ink: #2A3038; --c-scrim: rgba(0,0,0,.60);
+    --c-accent-strong: #3A6FD8;   /* 다크: 파랑 채움 #2F62C9 위에 올렸을 때 한 단계 밝게(흰 글자 대비 유지) */
+    --c-nav: #C5CAD2;
+    color-scheme: dark;   /* 다크에서 date/number/select 기본 아이콘이 보이게 */
+}
+/* html 의 bg-gray-50 / dark:bg-gray-900 이 튐 스크롤에서 비치지 않게 바탕과 맞춘다 */
+html:has(> body#manual-root) { background-color: #F5F6F8; }
+html.dark:has(> body#manual-root) { background-color: #111418; }
+
+/* ── 표 숫자 자리 맞춤 ── */
+#manual-root :is(td, th):not(#view-body *) { font-variant-numeric: tabular-nums; }
+
+/* === remap: generated === */
+/* 범위 파일 2개에서 색 클래스 104종 수집 → 규칙 66개. 손으로 고치지 말 것(tools/d_remap.py 다시 실행). */
+#manual-root .bg-black { background-color: var(--c-scrim); }
+#manual-root .bg-blue-50 { background-color: var(--c-accent-row); }
+#manual-root .bg-blue-600 { background-color: var(--c-accent); }
+#manual-root .bg-emerald-400 { background-color: var(--c-ok); }
+#manual-root .bg-emerald-50 { background-color: var(--c-ok-soft); }
+#manual-root .bg-gray-100 { background-color: var(--c-track); }
+#manual-root .bg-gray-200 { background-color: var(--c-track); }
+#manual-root .bg-gray-50 { background-color: var(--c-surface-2); }
+#manual-root .bg-gray-50\/50 { background-color: var(--c-surface-2); }
+#manual-root .bg-gray-900 { background-color: var(--c-ink); }
+#manual-root .bg-indigo-100 { background-color: var(--c-accent-soft); }
+#manual-root .bg-indigo-50 { background-color: var(--c-accent-row); }
+#manual-root .bg-red-100 { background-color: var(--c-risk-soft); }
+#manual-root .bg-red-400 { background-color: var(--c-risk); }
+#manual-root .bg-red-50 { background-color: var(--c-risk-row); }
+#manual-root .bg-red-600 { background-color: var(--c-risk-strong); }
+#manual-root .bg-white { background-color: var(--c-surface); }
+#manual-root .text-blue-500 { color: var(--c-accent); }
+#manual-root .text-blue-600 { color: var(--c-accent-deep); }
+#manual-root .text-blue-600\/70 { color: var(--c-accent-deep); }
+#manual-root .text-blue-700 { color: var(--c-accent-deep); }
+#manual-root .text-blue-800 { color: var(--c-accent-deep); }
+#manual-root .text-emerald-700 { color: var(--c-ok-text); }
+#manual-root .text-gray-300 { color: var(--c-text-4); }
+#manual-root .text-gray-400 { color: var(--c-text-3); }
+#manual-root .text-gray-500 { color: var(--c-text-3); }
+#manual-root .text-gray-600 { color: var(--c-text-2); }
+#manual-root .text-gray-700 { color: var(--c-text-2); }
+#manual-root .text-gray-800 { color: var(--c-text); }
+#manual-root .text-gray-900 { color: var(--c-text); }
+#manual-root .text-indigo-500 { color: var(--c-accent); }
+#manual-root .text-indigo-600 { color: var(--c-accent-deep); }
+#manual-root .text-indigo-700 { color: var(--c-accent-deep); }
+#manual-root .text-indigo-800 { color: var(--c-accent-deep); }
+#manual-root .text-red-500 { color: var(--c-risk-text); }
+#manual-root .text-red-600 { color: var(--c-risk-text); }
+#manual-root .text-red-800 { color: var(--c-risk-text); }
+#manual-root .border-blue-100 { border-color: var(--c-accent-soft); }
+#manual-root .border-blue-200 { border-color: var(--c-accent-light); }
+#manual-root .border-emerald-200 { border-color: var(--c-ok-line); }
+#manual-root .border-gray-100 { border-color: var(--c-line-soft); }
+#manual-root .border-gray-200 { border-color: var(--c-line); }
+#manual-root .border-gray-300 { border-color: var(--c-line); }
+#manual-root .border-indigo-100 { border-color: var(--c-accent-soft); }
+#manual-root .border-indigo-200 { border-color: var(--c-accent-light); }
+#manual-root .border-red-100 { border-color: var(--c-risk-soft); }
+#manual-root .border-red-200 { border-color: var(--c-risk-line); }
+#manual-root .group:hover .group-hover\:text-blue-600 { color: var(--c-accent-deep); }
+#manual-root .hover\:bg-blue-100:hover { background-color: var(--c-accent-soft); }
+#manual-root .hover\:bg-blue-50:hover { background-color: var(--c-accent-row); }
+#manual-root .hover\:bg-blue-700:hover { background-color: var(--c-accent-strong); }
+#manual-root .hover\:bg-emerald-100:hover { background-color: var(--c-ok-soft); }
+#manual-root .hover\:bg-gray-100:hover { background-color: var(--c-track); }
+#manual-root .hover\:bg-gray-200:hover { background-color: var(--c-track); }
+#manual-root .hover\:bg-gray-300:hover { background-color: var(--c-line-strong); }
+#manual-root .hover\:bg-gray-50:hover { background-color: var(--c-surface-2); }
+#manual-root .hover\:bg-indigo-100:hover { background-color: var(--c-accent-soft); }
+#manual-root .hover\:bg-red-50:hover { background-color: var(--c-risk-row); }
+#manual-root .hover\:bg-red-700:hover { background-color: var(--c-risk-strong); }
+#manual-root .hover\:text-blue-600:hover { color: var(--c-accent-deep); }
+#manual-root .hover\:text-blue-800:hover { color: var(--c-accent-deep); }
+#manual-root .hover\:text-gray-700:hover { color: var(--c-text-2); }
+#manual-root .hover\:text-gray-800:hover { color: var(--c-text); }
+#manual-root .hover\:border-blue-400:hover { border-color: var(--c-accent); }
+#manual-root .focus\:border-blue-500:focus { border-color: var(--c-accent); }
+#manual-root .focus\:ring-blue-500:focus { --tw-ring-color: var(--c-accent-light); }
+/* === remap: end === */
+
+/* ──────────── 손 규칙 (재칠 층 뒤 — 순서 중요) ──────────── */
+/* 다크: 흰 글자가 올라가는 파랑 채움 버튼은 밝은 accent(#6E95E6) 대신 주색 그대로 — 대비 유지.
+   :where 로 명시도를 낮게 둬서 hover 규칙은 그대로 이긴다 */
+html.dark #manual-root :where(.bg-blue-600) { background-color: #2F62C9; }
+
+/* ── 가림막: 재칠 층이 bg-gray-900 을 불투명 --c-ink 로 칠해 bg-opacity-60 과 겹치면 화면이 완전히 가려진다 ── */
+#manual-root #tool-modal { background-color: var(--c-scrim); }
+
+/* ── 바탕: 본문 영역은 D 바탕(카드 안은 흰색 그대로) ── */
+#manual-root :is(main, #manual-view-area, #manual-edit-area) { background-color: var(--c-bg); }
+
+/* ── 그림자: 변수만 비운다 (포커스 ring 은 살린다) ── */
+#manual-root :is(.shadow, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl, .shadow-inner, .hover\:shadow-md:hover) {
+    --tw-shadow: 0 0 #0000; --tw-shadow-colored: 0 0 #0000;
+}
+/* 예외: 휴대폰 서랍은 본문 위에 뜨므로 열렸을 때만 경계 그림자 */
+@media (max-width: 767px) {
+    #manual-root #sidebar:not(.-translate-x-full) { box-shadow: var(--sh-pop); }
+}
+/* 떠 있는 상자(도구 모달) */
+#manual-root #tool-modal > div { box-shadow: var(--sh-pop); }
+
+/* ── 모서리 ── */
+#manual-root .rounded-2xl { border-radius: var(--r-card); }
+#manual-root .rounded-t-2xl { border-top-left-radius: var(--r-card); border-top-right-radius: var(--r-card); }
+#manual-root .rounded-xl { border-radius: var(--r-inner); }
+#manual-root :is(.rounded-lg, .rounded) { border-radius: var(--r-sm); }
+
+/* ── 입력칸 ── */
+#manual-root :is(input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea) { border-radius: var(--r-sm); }
+#manual-root :is(input, select, textarea):focus-visible { outline: 2px solid var(--c-accent-light); outline-offset: 0; border-color: var(--c-accent); }
+/* CDN 에 forms 플러그인이 없어 text-blue-600 은 체크박스 색에 안 먹는다 */
+#manual-root :is(input[type=checkbox], input[type=radio]) { accent-color: var(--c-accent); }
+
+/* ── 버튼은 알약 (기호 버튼·배율 ±·햄버거·폭 전체 제외) ── */
+#manual-root button:is(.rounded, .rounded-md, .rounded-lg):not(.symbol-btn):not(#btn-zoom-in):not(#btn-zoom-out):not(#mobile-menu-btn):not(.w-full) {
+    border-radius: var(--r-pill);
+}
+
+/* ── 보조 버튼 → 테두리 버튼 (#btn-edit-manual 은 이미 테두리) ── */
+#manual-root :is(#btn-close-window, #btn-cancel-edit, #tool-cancel-btn, #btn-trigger-upload, #btn-load-template, #btn-add-step, #btn-divider) {
+    background-color: var(--c-surface); border: 1px solid var(--c-line-strong); color: var(--c-text);
+}
+#manual-root :is(#btn-close-window, #btn-cancel-edit, #tool-cancel-btn, #btn-trigger-upload, #btn-load-template, #btn-add-step, #btn-divider):hover {
+    background-color: var(--c-surface-2); color: var(--c-text);
+}
+#manual-root #btn-edit-manual { border-color: var(--c-line-strong); color: var(--c-text); }
+
+/* ── 위험(매뉴얼 삭제·도구 삭제) = 장미 테두리 ── */
+#manual-root :is(#btn-delete-manual, #tool-delete-btn) {
+    background-color: var(--c-surface); border: 1px solid var(--c-risk); color: var(--c-risk-text);
+}
+#manual-root :is(#btn-delete-manual, #tool-delete-btn):hover { background-color: var(--c-risk-soft); }
+
+/* ── 주 버튼(#btn-new-manual, #btn-save-manual, #tool-save-btn, 도구 '열기')은 재칠 층의 accent 채움 그대로 ── */
+
+/* ── 매뉴얼 목록 폴더 아이콘: <svg> 를 쓰면 manual.js 의 folderHeader.querySelector('svg')(펼침 화살표)가
+      이 아이콘을 잡으므로 mask 로 그린다. 부모가 flex 라 display 없이 크기가 먹는다 ── */
+#manual-root .d-folder-ico {
+    width: 14px; height: 14px; flex-shrink: 0; background-color: var(--c-text-3);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='black' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='black' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* 다크: text-gray-300 만 있는 '미지정' 등 글자가 text-4(#4A515B)로는 거의 안 보인다 — 다크에서만 한 단계 밝게 */
+html.dark #manual-root .text-gray-300 { color: var(--c-text-3); }

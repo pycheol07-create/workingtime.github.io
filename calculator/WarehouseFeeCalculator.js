@@ -201,7 +201,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
-            <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
+            <div ref={formRef} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200">
                 <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">기본 정보 입력</h2>
                 <div className="space-y-6">
                     <div>
@@ -303,7 +303,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                 </div>
             </div>
 
-            <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
+            <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 w-full animate-fade-in-slide-up">
                 <div className="text-center mb-6">
                     <p className="text-lg text-gray-600">추가비용 총 합계</p>
                     <p className="text-5xl font-extrabold text-emerald-600 tracking-tight my-2">{formatKRW(results.grandTotal)}</p>

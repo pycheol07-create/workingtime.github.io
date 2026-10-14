@@ -32,10 +32,10 @@
     <!-- 팀 결산 보고 '화면 그대로 PDF' 저장용 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610140834">
-    <link rel="stylesheet" href="css/style.css?v=202610140834">
-    <link rel="stylesheet" href="css/history-d.css?v=202610140834">
-    <link rel="stylesheet" href="css/form-d.css?v=202610140834">
+    <link rel="stylesheet" href="css/suit.css?v=202610140920">
+    <link rel="stylesheet" href="css/style.css?v=202610140920">
+    <link rel="stylesheet" href="css/history-d.css?v=202610140920">
+    <link rel="stylesheet" href="css/form-d.css?v=202610140920">
     <style>
         /* 💡 탭 전환 시 hidden 클래스가 충돌하는 문제 방지 */
         .hidden { display: none !important; }
@@ -180,11 +180,11 @@
             ]);
 
             try {
-                const State = await import('./js/state.js?v=202610140834');
-                try { await import('./js/app.js?v=202610140834'); } catch(e) {} 
+                const State = await import('./js/state.js?v=202610140920');
+                try { await import('./js/app.js?v=202610140920'); } catch(e) {} 
                 
-                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202610140834');
-                const { restoreHistoryView } = await import('./js/view-state.js?v=202610140834');
+                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202610140920');
+                const { restoreHistoryView } = await import('./js/view-state.js?v=202610140920');
 
                 // 초기 준비(로우데이터 → 일별 → 첫 날짜)를 마친 뒤,
                 // 보고 있던 자리로 되돌린다. 기억된 게 없으면 평소대로 대시보드.
@@ -315,7 +315,7 @@
 
         initHistoryApp();
     </script>
-    <script src="js/connection-banner.js?v=202610140834"></script>
-    <script src="js/modal-esc.js?v=202610140834"></script>
+    <script src="js/connection-banner.js?v=202610140920"></script>
+    <script src="js/modal-esc.js?v=202610140920"></script>
 </body>
 </html>

@@ -5,8 +5,8 @@
 //  - 비품은 수십 건 규모라 문서 하나로 관리하는 편이 읽기·쓰기 모두 저렴하다.
 //  - 각 비품은 종류·현재고를 기본으로 하고, 단가/사이즈/발주정보/업체 등 상세를 함께 보관한다.
 
-import { initializeFirebase } from './config.js?v=202610140834';
-import { escapeHtml as esc } from './utils.js?v=202610140834';
+import { initializeFirebase } from './config.js?v=202610140920';
+import { escapeHtml as esc } from './utils.js?v=202610140920';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -485,7 +485,7 @@ function openItemModal(id = null) {
     editingId = id;
     const it = id ? items.find(x => x.id === id) : null;
 
-    $('item-modal-title').textContent = it ? '✏️ 비품 수정' : '➕ 비품 추가';
+    $('item-modal-title').textContent = it ? '비품 수정' : '비품 추가';
     $('btn-delete-item').classList.toggle('hidden', !it);
     showError('item-modal-error', '');
 
@@ -644,7 +644,7 @@ async function handleStockFile(file) {
 
         const diff = latest.stock - num(it.stock);
         const note = $('stock-import-note');
-        note.textContent = `📄 ${file.name} — ${count}건 중 가장 최근 작업(${latest.at || '날짜 없음'}) 기준 재고 `
+        note.textContent = `${file.name} — ${count}건 중 가장 최근 작업(${latest.at || '날짜 없음'}) 기준 재고 `
             + `${fmt(latest.stock)}${it.unit || '개'}. 현재 ${fmt(it.stock)} → ${fmt(latest.stock)} `
             + `(${diff > 0 ? '+' : ''}${fmt(diff)}). 확인 후 [저장]을 누르세요.`;
         note.classList.remove('hidden');

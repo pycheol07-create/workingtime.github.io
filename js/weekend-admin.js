@@ -1,12 +1,10 @@
 // === js/weekend-admin.js ===
-import * as State from './state.js?v=202610140834';
-import { store, currentManageDateStr, setCurrentManageDateStr } from './weekend-store.js?v=202610140834';
-import { createRequest } from './weekend-core.js?v=202610140834';
-import { showToast } from './utils.js?v=202610140834';
-import { getMonthlyFairCount, getWeekendCapacity } from './weekend-ui.js?v=202610140834';
+import * as State from './state.js?v=202610140920';
+import { store, currentManageDateStr, setCurrentManageDateStr } from './weekend-store.js?v=202610140920';
+import { createRequest } from './weekend-core.js?v=202610140920';
+import { showToast } from './utils.js?v=202610140920';
+import { getMonthlyFairCount, getWeekendCapacity, getWeekendAdminMembers } from './weekend-ui.js?v=202610140920';
 import { doc, updateDoc, deleteDoc, setDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-const WEEKEND_ADMIN_MEMBERS = ['박영철', '박호진', '유아라', '이승운'];
 
 // 📌 정원만큼 확정되면 해당 날짜를 자동 마감(blocked) 처리한다.
 // expectedConfirmed: 이번 작업 후 예상되는 확정 인원 수(스토어 반영 전 결정용).
@@ -316,7 +314,7 @@ export function calculateSmartAllocation() {
     }
     allMembers = [...new Set(allMembers)];
 
-    const adminMembers = WEEKEND_ADMIN_MEMBERS;
+    const adminMembers = getWeekendAdminMembers();
     const eligibleMembers = allMembers.filter(m => !adminMembers.includes(m));
 
     const adminApplicants = applicants.filter(m => adminMembers.includes(m));
@@ -437,7 +435,7 @@ export function renderSmartCalcResult(toConfirm, toDecline, toAdd, capacity, app
         const mTotal = ms.confirmed + ms.requested;
         
         const isNew = toAdd.includes(m);
-        const isAdmin = ['박영철', '박호진', '유아라', '이승운'].includes(m);
+        const isAdmin = getWeekendAdminMembers().includes(m);
         
         let badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm';
         let subText = `(당월 ${mTotal}회/누적 ${yCount}회)`;
@@ -571,7 +569,7 @@ export async function adminRandomSelectMembers(count) {
     }
 
     allMembers = [...new Set(allMembers)];
-    const excludedMembers = ['박영철', '박호진', '유아라', '이승운']; 
+    const excludedMembers = getWeekendAdminMembers();
     const alreadyApplied = (store.requestsByDate[currentManageDateStr] || []).map(req => req.member);
     
     const availableMembers = allMembers.filter(member => !excludedMembers.includes(member) && !alreadyApplied.includes(member));

@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610140834">
+    <link rel="stylesheet" href="css/suit.css?v=202610140920">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -12,52 +12,53 @@
     <title>비품 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
+    <link rel="stylesheet" href="css/tool-d.css?v=202610140920">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         /* 칸마다 최소 폭(th의 min-width)을 두므로 표는 내용 폭을 따르되, 좁을 땐 영역을 꽉 채운다. */
         .sup-table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 13px; }
-        .sup-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 4px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-align: center; position: sticky; top: 0; z-index: 1; }
+        .sup-table th { background: var(--c-surface-2); color: var(--c-text-2); font-weight: 700; padding: 4px 8px; border-bottom: 1px solid var(--c-line); white-space: nowrap; text-align: center; position: sticky; top: 0; z-index: 1; }
         /* 헤더 정렬·필터 */
         .th-wrap { display: flex; align-items: center; justify-content: center; gap: 2px; }
         .th-sort { display: inline-flex; align-items: center; gap: 3px; font: inherit; color: inherit; background: none; border: 0; padding: 4px 3px; cursor: pointer; border-radius: 4px; white-space: nowrap; }
-        .th-sort:hover { background: #e2e8f0; }
-        .th-ic { font-size: 10px; color: #94a3b8; }
-        .th-sort.active { color: #4338ca; }
-        .th-sort.active .th-ic { color: #4f46e5; }
-        .th-filter { border: 0; background: none; color: #94a3b8; font-size: 9px; cursor: pointer; padding: 4px 3px; border-radius: 4px; line-height: 1; }
-        .th-filter:hover { background: #e2e8f0; color: #475569; }
-        .th-filter.on { color: #4f46e5; background: #e0e7ff; }
-        .flt-pop { position: fixed; z-index: 60; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.18); padding: 10px; width: 224px; font-size: 12px; color: #334155; }
-        .flt-list { max-height: 220px; overflow: auto; margin-top: 6px; border-top: 1px solid #f1f5f9; padding-top: 6px; }
+        .th-sort:hover { background: var(--c-track); }
+        .th-ic { font-size: 10px; color: var(--c-text-4); }
+        .th-sort.active { color: var(--c-accent-deep); }
+        .th-sort.active .th-ic { color: var(--c-accent); }
+        .th-filter { border: 0; background: none; color: var(--c-text-3); font-size: 9px; cursor: pointer; padding: 4px 3px; border-radius: 4px; line-height: 1; }
+        .th-filter:hover { background: var(--c-track); color: var(--c-text-2); }
+        .th-filter.on { color: var(--c-accent); background: var(--c-accent-soft); }
+        .flt-pop { position: fixed; z-index: 60; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner); box-shadow: var(--sh-pop); padding: 10px; width: 224px; font-size: 12px; color: var(--c-text); }
+        .flt-list { max-height: 220px; overflow: auto; margin-top: 6px; border-top: 1px solid var(--c-line-soft); padding-top: 6px; }
         .flt-row { display: flex; align-items: center; gap: 6px; padding: 3px 2px; cursor: pointer; border-radius: 4px; }
-        .flt-row:hover { background: #f1f5f9; }
+        .flt-row:hover { background: var(--c-track); }
         .flt-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .flt-cnt { margin-left: auto; color: #94a3b8; font-size: 11px; }
-        .flt-btn { font-size: 11px; font-weight: 700; color: #4f46e5; background: none; border: 0; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
-        .flt-btn:hover { background: #eef2ff; }
-        .sup-table td { padding: 9px 12px; border-bottom: 1px solid #eef2f7; color: #334155; vertical-align: middle; white-space: nowrap; }
+        .flt-cnt { margin-left: auto; color: var(--c-text-3); font-size: 11px; }
+        .flt-btn { font-size: 11px; font-weight: 700; color: var(--c-accent-deep); background: none; border: 0; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+        .flt-btn:hover { background: var(--c-accent-soft); }
+        .sup-table td { padding: 9px 12px; border-bottom: 1px solid var(--c-line-soft); color: var(--c-text); vertical-align: middle; white-space: nowrap; }
         .sup-table td.wrap { white-space: normal; }
-        .sup-table tbody tr:hover td { background: #f8fafc; }
+        .sup-table tbody tr:hover td { background: var(--c-accent-row); }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
         .sup-table td.mid { text-align: center; font-variant-numeric: tabular-nums; }
-        .lbl { display:block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
-        .inp { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
-        .inp:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+        .lbl { display:block; font-size: 11px; font-weight: 700; color: var(--c-text-2); margin-bottom: 4px; }
+        .inp { width: 100%; padding: 8px 10px; border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); font-size: 13px; }
+        .inp:focus { outline: none; border-color: var(--c-accent); box-shadow: 0 0 0 3px var(--c-accent-soft); }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800">
+<body id="tool-root" class="bg-slate-100 text-slate-800">
 
     <header class="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-20 shadow-sm">
-        <h1 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">📦 비품 관리</h1>
+        <h1 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">비품 관리</h1>
         <div class="flex items-center gap-2">
-            <button id="btn-add-item" class="text-xs font-bold px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition">➕ 비품 추가</button>
-            <button id="btn-refresh" class="text-xs font-bold px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition">🔄 새로고침</button>
+            <button id="btn-add-item" class="text-xs font-bold px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition">비품 추가</button>
+            <button id="btn-refresh" class="text-xs font-bold px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition">새로고침</button>
             <button id="btn-close" class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 hover:bg-red-100 hover:text-red-600 text-slate-700 transition" title="창 닫기">✕ 닫기</button>
         </div>
     </header>
 
     <div id="auth-gate" class="hidden max-w-md mx-auto mt-24 text-center p-8 bg-white rounded-2xl shadow">
-        <div class="text-4xl mb-3">🔒</div>
+        <div class="mb-3 text-slate-300"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="inline-block" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
         <div class="font-bold text-slate-800 mb-1">로그인이 필요합니다</div>
         <div class="text-sm text-slate-500">메인 앱(업무관리)에서 먼저 로그인한 뒤<br>이 페이지를 열어주세요.</div>
     </div>
@@ -67,7 +68,7 @@
 
         <!-- 주요 비품 (택배봉투 / 포장봉투 등) -->
         <section class="w-full lg:w-[196px] lg:shrink-0">
-            <h2 class="text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">⭐ 주요 비품</h2>
+            <h2 class="text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">주요 비품</h2>
             <div id="main-items" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3"></div>
         </section>
 
@@ -101,7 +102,7 @@
                 </table>
             </div>
             <div id="empty-state" class="hidden p-10 text-center text-slate-400 text-sm">
-                등록된 비품이 없습니다. <b>➕ 비품 추가</b>로 등록하세요.
+                등록된 비품이 없습니다. <b>비품 추가</b>로 등록하세요.
             </div>
         </section>
 
@@ -115,7 +116,7 @@
     <div id="item-modal" class="hidden fixed inset-0 bg-black/50 items-start md:items-center justify-center z-50 p-4 overflow-y-auto">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-8">
             <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-                <h2 id="item-modal-title" class="text-base font-bold">➕ 비품 추가</h2>
+                <h2 id="item-modal-title" class="text-base font-bold">비품 추가</h2>
                 <button type="button" data-close class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
             </div>
             <div class="p-6 space-y-4">
@@ -151,7 +152,7 @@
                 </div>
 
                 <div class="border-t border-slate-100 pt-4">
-                    <div class="text-xs font-bold text-slate-500 mb-3">📋 상세 정보</div>
+                    <div class="text-xs font-bold text-slate-500 mb-3">상세 정보</div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                             <label class="lbl">사이즈 / 규격</label>
@@ -253,8 +254,8 @@
         </div>
     </div>
 
-    <script type="module" src="js/supplies.js?v=202610140834"></script>
-    <script src="js/connection-banner.js?v=202610140834"></script>
-    <script src="js/modal-esc.js?v=202610140834"></script>
+    <script type="module" src="js/supplies.js?v=202610140920"></script>
+    <script src="js/connection-banner.js?v=202610140920"></script>
+    <script src="js/modal-esc.js?v=202610140920"></script>
 </body>
 </html>

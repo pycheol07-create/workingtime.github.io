@@ -135,7 +135,7 @@ const ShippingCalculator = () => {
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
-            <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
+            <div ref={formRef} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200">
                 <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">정보 입력</h2>
                 <div className="space-y-6">
                     {inputFields.map(field => (<InputControl key={field.name} {...field} value={formData[field.name]} onChange={handleInputChange} onKeyDown={handleKeyDown} />))}
@@ -154,7 +154,7 @@ const ShippingCalculator = () => {
             </div>
 
             {results ? (
-                 <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
+                 <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 w-full animate-fade-in-slide-up">
                     <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">컨테이너 적재 수량</h2>
                     {formData.palletType !== 'none' && results.boxesPerPallet !== undefined && (
                         <div className="text-center mb-6 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
@@ -182,7 +182,7 @@ const ShippingCalculator = () => {
                     </div>
                  </div>
             ) : (
-                <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 flex flex-col items-center justify-center text-center">
+                <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 flex flex-col items-center justify-center text-center">
                     <svg className="w-20 h-20 text-emerald-200 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                     <h3 className="text-xl font-semibold text-gray-700">결과를 기다리는 중...</h3>
                     <p className="text-gray-500 mt-2">좌측에 정보를 입력하면<br /> 컨테이너별 적재 수량이 계산됩니다.</p>

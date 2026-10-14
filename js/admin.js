@@ -1,5 +1,6 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610140834';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610140920';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610140920';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -16,12 +17,12 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610140834';
+} from './admin-ui.js?v=202610140920';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202610140834';
+} from './admin-logic.js?v=202610140920';
 
 let db, auth;
 let appConfig = {};
@@ -76,12 +77,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!privateLoadFailed && saveBtn && saveBtn.dataset.lockedByPrivate) {
                         // 같은 탭에서 다시 로그인해 이번엔 읽혔다면, 앞서 걸어 둔 잠금을 푼다.
                         saveBtn.disabled = false;
-                        saveBtn.textContent = saveBtn.dataset.lockedByPrivate;
+                        saveBtn.innerHTML = saveBtn.dataset.lockedByPrivate;   // 아이콘까지 되살린다
                         delete saveBtn.dataset.lockedByPrivate;
                     }
                     if (privateLoadFailed) {
                         if (saveBtn) {
-                            if (!saveBtn.dataset.lockedByPrivate) saveBtn.dataset.lockedByPrivate = saveBtn.textContent;
+                            if (!saveBtn.dataset.lockedByPrivate) saveBtn.dataset.lockedByPrivate = saveBtn.innerHTML;
                             saveBtn.disabled = true; saveBtn.textContent = '저장 잠김 — 새로고침 필요';
                         }
                         alert('⚠️ 급여·원가를 불러오지 못했습니다.\n\n지금 화면의 급여 칸은 실제 값이 아닙니다(0).\n'
@@ -272,6 +273,7 @@ async function handleSaveAll() {
         alert('급여·원가를 불러오지 못한 상태라 저장할 수 없습니다. 새로고침해 주세요.');
         return;
     }
+    const btnHtml = btn ? btn.innerHTML : '';   // 끝나면 아이콘까지 그대로 되돌린다
     if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
 
     try {
@@ -296,6 +298,7 @@ async function handleSaveAll() {
         await saveAppConfig(db, newConfig);
         if (leaveCleanup && leaveCleanup.updatedLeaveData) {
             await saveLeaveSchedule(db, leaveCleanup.updatedLeaveData);
+            notifyLeaveScheduleChanged('admin-cleanup');
         }
 
         appConfig = newConfig;
@@ -312,7 +315,7 @@ async function handleSaveAll() {
         console.error("저장 실패:", e);
         alert(`❌ 저장 실패:\n${e.message}`);
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = `<svg class="w-4 h-4 inline-block -mt-1 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg> 전체 저장`; }
+        if (btn) { btn.disabled = false; btn.innerHTML = btnHtml; }
     }
 }
 

@@ -60,9 +60,9 @@ const App = () => {
     const handleTouchEnd = () => { if (!isSwiping) return; const swipeThreshold = 50; if (Math.abs(touchDeltaX.current) > swipeThreshold) { if (touchDeltaX.current < 0) { if (activeTabIndex < tabs.length - 1) setActiveTabId(tabs[activeTabIndex + 1].id); } else { if (activeTabIndex > 0) setActiveTabId(tabs[activeTabIndex - 1].id); } } setIsSwiping(false); touchStartX.current = null; touchDeltaX.current = 0; };
     // --- End Swipe Logic ---
 
-    const tabStyles = "flex-1 py-3 px-4 text-center font-semibold rounded-t-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 transition-all duration-300";
-    const activeTabStyles = "bg-white/80 text-emerald-600 shadow-md";
-    const inactiveTabStyles = "bg-white/30 text-slate-600 hover:bg-white/50";
+    const tabStyles = "flex-1 py-2.5 px-4 text-center text-sm font-semibold rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 transition-colors";
+    const activeTabStyles = "bg-white text-emerald-700";
+    const inactiveTabStyles = "text-slate-600 hover:text-slate-900";
     
     const dragOffset = isSwiping ? touchDeltaX.current : 0;
     const transformValue = `translateX(calc(-${activeTabIndex * 100}% + ${dragOffset}px))`;
@@ -76,8 +76,8 @@ const App = () => {
                     <button onClick={() => setIsAdminOpen(true)} className="absolute top-0 right-0 p-2 text-gray-400 hover:text-gray-600" title="설정 관리">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </button>
-                    <header className="text-center mb-10"><h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500 pb-2">비용 계산기</h1><p className="mt-2 text-lg text-slate-600">수입에 필요한 비용을 간편하게 계산해보세요.</p></header>
-                    <div className="w-full max-w-4xl mx-auto"><div className="flex mb-[-1px] z-10 relative">{tabs.map(tab => (<button key={tab.id} onClick={() => setActiveTabId(tab.id)} className={`${tabStyles} ${activeTabId === tab.id ? activeTabStyles : inactiveTabStyles}`} aria-selected={activeTabId === tab.id}><span className="sm:hidden">{tab.title}<br />계산기</span><span className="hidden sm:inline">{tab.title} 계산기</span></button>))}</div></div>
+                    <header className="text-center mb-6"><h1 className="text-2xl sm:text-3xl font-bold text-gray-900">비용 계산기</h1><p className="mt-1 text-sm text-slate-500">수입에 필요한 비용을 간편하게 계산해보세요.</p></header>
+                    <div className="w-full max-w-4xl mx-auto"><div className="flex mb-4 p-1 bg-slate-200/60 rounded-full">{tabs.map(tab => (<button key={tab.id} onClick={() => setActiveTabId(tab.id)} className={`${tabStyles} ${activeTabId === tab.id ? activeTabStyles : inactiveTabStyles}`} aria-selected={activeTabId === tab.id}><span className="sm:hidden">{tab.title}<br />계산기</span><span className="hidden sm:inline">{tab.title} 계산기</span></button>))}</div></div>
                     <main className="w-full overflow-hidden" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}><div className="flex" style={{ transform: transformValue, transition: isSwiping ? 'none' : 'transform 0.4s cubic-bezier(0.4, 0.2, 1)' }}>{tabs.map(tab => (<div key={tab.id} className="w-full flex-shrink-0">{tab.component}</div>))}</div></main>
                 </div>
             </div>

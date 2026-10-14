@@ -228,13 +228,13 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
 
         return (
             <div className="mb-8">
-                <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-lg">✂️ 분할 운송 시나리오 분석<span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">1회 ~ {splitScenarios.length}회 분할</span></h3>
-                <div className={`p-4 rounded-xl border-2 mb-4 ${isCurrentBest ? 'bg-emerald-50 border-emerald-100' : 'bg-blue-50 border-blue-100'}`}>
+                <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-lg">분할 운송 시나리오 분석<span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">1회 ~ {splitScenarios.length}회 분할</span></h3>
+                <div className={`p-4 rounded-xl border-2 mb-4 ${isCurrentBest ? 'bg-green-50 border-green-100' : 'bg-blue-50 border-blue-100'}`}>
                     <div className="flex items-start gap-3">
-                        <div className={`text-3xl ${isCurrentBest ? 'text-emerald-500' : 'text-blue-500'}`}>{isCurrentBest ? '👍' : '💡'}</div>
+                        <div className={`flex-shrink-0 ${isCurrentBest ? 'text-green-500' : 'text-blue-500'}`}>{isCurrentBest ? (<svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>) : (<svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>)}</div>
                         <div>
-                            <h4 className={`font-bold text-lg ${isCurrentBest ? 'text-emerald-800' : 'text-blue-800'}`}>{isCurrentBest ? "한 번에 보내는 것이 가장 저렴합니다!" : `${bestScenario.splitCount}번에 나눠서 보내는 것을 추천합니다!`}</h4>
-                            <p className={`text-sm mt-1 ${isCurrentBest ? 'text-emerald-600' : 'text-blue-600'}`}>{isCurrentBest ? `나눠서 보내면 고정 비용이 중복 발생하여 비용이 증가합니다.` : `총 ${formatCurrency(saving)}원을 절약할 수 있습니다.`}</p>
+                            <h4 className={`font-bold text-lg ${isCurrentBest ? 'text-green-800' : 'text-blue-800'}`}>{isCurrentBest ? "한 번에 보내는 것이 가장 저렴합니다!" : `${bestScenario.splitCount}번에 나눠서 보내는 것을 추천합니다!`}</h4>
+                            <p className={`text-sm mt-1 ${isCurrentBest ? 'text-green-600' : 'text-blue-600'}`}>{isCurrentBest ? `나눠서 보내면 고정 비용이 중복 발생하여 비용이 증가합니다.` : `총 ${formatCurrency(saving)}원을 절약할 수 있습니다.`}</p>
                         </div>
                     </div>
                 </div>
@@ -246,13 +246,13 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
                                 const isBest = row.splitCount === bestScenario.splitCount;
                                 const diff = row.totalScenarioCost - currentScenario.totalScenarioCost;
                                 return (
-                                    <tr key={idx} className={`${isBest ? 'bg-blue-50 font-bold' : 'hover:bg-gray-50'} border-b last:border-0 transition-colors`}>
+                                    <tr key={idx} className={`${isBest ? 'bg-green-50 font-bold' : 'hover:bg-gray-50'} border-b last:border-0 transition-colors`}>
                                         <td className="p-2 border-r text-gray-700">{row.splitCount}회</td>
                                         <td className="p-2 border-r text-gray-600">{row.displayBoxes}</td>
-                                        <td className={`p-2 border-r font-mono ${isBest ? 'text-blue-600' : 'text-gray-800'}`}>{formatCurrency(row.totalScenarioCost)}</td>
+                                        <td className={`p-2 border-r font-mono ${isBest ? 'text-green-700' : 'text-gray-800'}`}>{formatCurrency(row.totalScenarioCost)}</td>
                                         <td className="p-2 text-xs">
                                             {row.splitCount === 1 && <span className="inline-block px-2 py-0.5 rounded bg-gray-200 text-gray-600">기준</span>}
-                                            {isBest && row.splitCount !== 1 && <span className="inline-block px-2 py-0.5 rounded bg-blue-100 text-blue-600">최적</span>}
+                                            {isBest && row.splitCount !== 1 && <span className="inline-block px-2 py-0.5 rounded bg-green-100 text-green-700">최적</span>}
                                             {!isBest && diff > 0 && <span className="text-red-400">+{formatCurrency(diff)}</span>}
                                             {!isBest && diff < 0 && <span className="text-blue-400">{formatCurrency(diff)}</span>}
                                         </td>
@@ -274,7 +274,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
             const addBoxes = betterOption.boxes - currentItem.boxes;
             return (
                 <div className="bg-indigo-50 p-4 rounded-lg mb-8 border border-indigo-200">
-                    <p className="text-indigo-800 font-bold text-lg">💡 더 모아서 보내면 이득!</p>
+                    <p className="text-indigo-800 font-bold text-lg">더 모아서 보내면 이득!</p>
                     <p className="text-indigo-700 text-sm mt-1"><span className="font-bold">{addBoxes}박스</span>만 더 추가({betterOption.boxes}박스)하면, 개당 원가가 <span className="font-bold text-indigo-600">{formatCurrency(savePerUnit)}원</span> 더 저렴해집니다.</p>
                 </div>
             );
@@ -286,7 +286,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={onClose}>
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col animate-fade-in-slide-up max-h-[90vh]" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center border-b p-4 bg-white rounded-t-2xl z-20 flex-shrink-0">
-                    <h2 className="text-xl font-bold text-gray-800">📦 운송 효율 분석 리포트</h2>
+                    <h2 className="text-xl font-bold text-gray-800">운송 효율 분석 리포트</h2>
                     <div className="flex items-center gap-2">
                         <button onClick={handleDownloadPDF} disabled={isGeneratingPdf} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700 disabled:bg-gray-400 transition-colors">
                             {isGeneratingPdf ? (<svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>) : (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>)}
@@ -299,7 +299,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
                 <div ref={printRef} className="p-6 overflow-y-auto custom-scrollbar bg-white flex-grow">
                     {renderSplitAnalysis()}
                     {recommend()}
-                    <h3 className="font-bold text-gray-700 mb-3 border-t pt-6">📊 박스 수량별 단가 변화표</h3>
+                    <h3 className="font-bold text-gray-700 mb-3 border-t pt-6">박스 수량별 단가 변화표</h3>
                     <div className="overflow-x-auto border rounded-lg">
                         <table className="w-full text-sm text-center border-collapse">
                             <thead className="bg-gray-100 text-gray-600 sticky top-0">

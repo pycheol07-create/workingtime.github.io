@@ -7,18 +7,18 @@
 // 🔒 올린 파일·읽은 내용은 어디에도 저장하지 않는다(Firestore·localStorage·IndexedDB 모두). 창을 닫으면 변수에서 버린다.
 //    기본정보 파일에 원가·공급처 열이 있어도 읽지 않는다(lib/product-excel-rows.js FORBIDDEN_RE).
 // ⚠️ 원가 값을 console 에 찍지 말 것 — 시간·행 수만.
-import { S, applyLocalProduct } from './products-store.js?v=202610140834';
-import { C, ledgerCodes } from './products-cost.js?v=202610140834';
-import { esc, toast, route, renderBasis } from './products.js?v=202610140834';
-import { costChangeText } from './products-cost.js?v=202610140834';
-import { catalogChangeText } from './products-detail.js?v=202610140834';
-import { writeBucket, writeCatalogSummary } from './products-write.js?v=202610140834';
-import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610140834';
+import { S, applyLocalProduct } from './products-store.js?v=202610140920';
+import { C, ledgerCodes } from './products-cost.js?v=202610140920';
+import { esc, toast, route, renderBasis } from './products.js?v=202610140920';
+import { costChangeText } from './products-cost.js?v=202610140920';
+import { catalogChangeText } from './products-detail.js?v=202610140920';
+import { writeBucket, writeCatalogSummary } from './products-write.js?v=202610140920';
+import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610140920';
 import {
     CATALOG_COLS, COST_COLS, readRows, groupCatalogRows, diffCatalog, diffCost, defaultChecked,
     catalogJson, costJson, bucketSizesAfter, templateAoa, costExportAoa, resultAoa, STATUS_LABEL, BUCKET_LIMIT,
     sheetToAoa, goneSelected
-} from './lib/product-excel-rows.js?v=202610140834';
+} from './lib/product-excel-rows.js?v=202610140920';
 
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 const PAGE = 50;

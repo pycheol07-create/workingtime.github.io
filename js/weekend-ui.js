@@ -1,19 +1,25 @@
 // === js/weekend-ui.js ===
-import * as State from './state.js?v=202610140834';
+import * as State from './state.js?v=202610140920';
 // 공휴일 표는 utils.js 로 옮겼다(업무 예상에서도 쓰기 위해). 기존 사용처를 위해 그대로 다시 내보낸다.
-import { getHolidayName } from './utils.js?v=202610140834';
+import { getHolidayName } from './utils.js?v=202610140920';
 export { getHolidayName };
-import { store } from './weekend-store.js?v=202610140834';
-import { handleDateClick } from './weekend-core.js?v=202610140834';
-import { openAdminDatePopup, openPastDateEditPopup, handleAdminBadgeClick } from './weekend-admin.js?v=202610140834';
+import { store } from './weekend-store.js?v=202610140920';
+import { handleDateClick } from './weekend-core.js?v=202610140920';
+import { openAdminDatePopup, openPastDateEditPopup, handleAdminBadgeClick } from './weekend-admin.js?v=202610140920';
 
 // 주말근무 기준 관리자 명단 (계정 역할이 admin이 아니어도 관리자 권한 부여)
-const WEEKEND_ADMINS = ['박영철', '박호진', '유아라', '이승운'];
+// 관리자 페이지 팀 구성의 '관리' 그룹을 그대로 쓴다(이름을 코드에 적어 두지 않는다).
+export function getWeekendAdminMembers() {
+    const groups = (State.appConfig && Array.isArray(State.appConfig.teamGroups)) ? State.appConfig.teamGroups : [];
+    const g = groups.find(x => x && x.name === '관리');
+    if (!g && groups.length) console.warn("[주말근무] 팀 구성에 '관리' 그룹이 없어 주말 관리자 명단이 비었습니다.");
+    return (g && Array.isArray(g.members)) ? g.members : [];
+}
 
 // 주말근무 가시성 기준 관리자 여부: 계정 역할 admin 또는 관리 명단 포함
 function isWeekendAdmin() {
     return State.appState.currentUserRole === 'admin'
-        || WEEKEND_ADMINS.includes(State.appState.currentUser);
+        || getWeekendAdminMembers().includes(State.appState.currentUser);
 }
 
 // 📅 해당 월 주말 근무일 수 + 1인당 적정(공평) 횟수 계산 후 상단 배너에 표시
@@ -100,7 +106,7 @@ export function renderWeekendStats(memberStats, yearlyStatsMap) {
     
     if (!sidebar || !list) return;
 
-    const excludedMembers = ['박영철', '박호진', '유아라', '이승운'];
+    const excludedMembers = getWeekendAdminMembers();
     const isAdmin = isWeekendAdmin();
 
     let filteredMembers = [...memberStats.entries()].filter(([name, counts]) => !excludedMembers.includes(name));
@@ -279,7 +285,7 @@ export function renderWeekendList(year, month) {
             listView.appendChild(rowItem);
 
             if (store.requestsByDate[dateStr]) {
-                const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
+                const adminMembers = getWeekendAdminMembers();
                 
                 store.requestsByDate[dateStr].sort((a, b) => {
                     if (a.status === 'canceled' && b.status !== 'canceled') return 1;
@@ -397,7 +403,7 @@ export function renderWeekendGrid(year, month) {
 
             setTimeout(() => {
                 if (store.requestsByDate[dateStr]) {
-                    const adminMembers = ['박영철', '박호진', '유아라', '이승운'];
+                    const adminMembers = getWeekendAdminMembers();
                     store.requestsByDate[dateStr].sort((a, b) => {
                         if (a.status === 'canceled' && b.status !== 'canceled') return 1;
                         if (a.status !== 'canceled' && b.status === 'canceled') return -1;

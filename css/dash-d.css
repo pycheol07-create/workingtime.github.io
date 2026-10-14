@@ -286,3 +286,10 @@ html.dark #personnel-hover-tooltip { background: #2A3038; box-shadow: 0 0 0 1px 
 #dash-root #analysis-tabs .analysis-tab-btn { color: var(--c-text-3); border-color: transparent; }
 #dash-root #analysis-tabs .analysis-tab-btn:hover { color: var(--c-text); }
 #dash-root #analysis-tabs .analysis-tab-btn.text-blue-600 { color: var(--c-accent-deep); border-color: var(--c-accent); font-weight: 600; }
+
+/* 1024~1279px: 업무 현황 칸이 좁아(사이드바 + 3열 그리드의 2칸) 커버플로우 무대가 200px 대로 줄어 카드가 잘렸다.
+   이 구간만 빠른 시작 목록을 태블릿처럼 아래로 내린다. (display 는 건드리지 않는다) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+    #dash-root .task-board-layout { flex-direction: column; }
+    #dash-root .task-quick-list { width: auto; flex: initial; border-left: 0; padding-left: 0; }
+}

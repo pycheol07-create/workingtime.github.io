@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610140834">
+    <link rel="stylesheet" href="css/suit.css?v=202610140920">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -12,52 +12,53 @@
     <title>출퇴근 기록표</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
+    <link rel="stylesheet" href="css/tool-d.css?v=202610140920">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         .ws-table { border-collapse: collapse; width: 100%; min-width: 700px; font-size: 13px; }
-        .ws-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 7px 8px;
-                       border-bottom: 1px solid #e2e8f0; white-space: nowrap; text-align: center;
+        .ws-table th { background: var(--c-surface-2); color: var(--c-text-2); font-weight: 700; padding: 7px 8px;
+                       border-bottom: 1px solid var(--c-line); white-space: nowrap; text-align: center;
                        position: sticky; top: 0; z-index: 1; }
-        .ws-table td { padding: 4px 8px; border-bottom: 1px solid #eef2f7; color: #334155;
+        .ws-table td { padding: 4px 8px; border-bottom: 1px solid var(--c-line-soft); color: var(--c-text);
                        text-align: center; white-space: nowrap; }
-        .ws-table tbody tr:hover td { background: #f8fafc; }
-        .ws-table tr.sat td { background: #f8fafc; }
-        .ws-table tr.sun td { background: #fef2f2; }
+        .ws-table tbody tr:hover td { background: var(--c-accent-row); }
+        .ws-table tr.sat td { background: var(--c-surface-2); }
+        .ws-table tr.sun td { background: var(--c-risk-row); }
         .ws-table tr.sat:hover td, .ws-table tr.sun:hover td { filter: brightness(.98); }
         /* 지난 날짜인데 아직 확인하지 않은 줄 — 눈에 띄게 */
-        .ws-table tr.todo td { background: #fffbeb; }
-        .ws-table tr.todo:hover td { background: #fef3c7; }
+        .ws-table tr.todo td { background: var(--c-warn-bg); }
+        .ws-table tr.todo:hover td { background: var(--c-warn-soft); }
         .ok-cell { display: inline-flex; align-items: center; gap: 4px; }
-        .ok-box { width: 16px; height: 16px; accent-color: #059669; cursor: pointer; }
+        .ok-box { width: 16px; height: 16px; accent-color: var(--c-ok); cursor: pointer; }
         .ok-txt { font-size: 10px; font-weight: 700; }
-        .ok-done { color: #059669; }
-        .ok-todo { color: #d97706; }
+        .ok-done { color: var(--c-ok-text); }
+        .ok-todo { color: var(--c-warn-text); }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
-        .day-name { font-size: 11px; color: #94a3b8; }
-        .sun .day-name { color: #ef4444; }
-        .sat .day-name { color: #3b82f6; }
+        .day-name { font-size: 11px; color: var(--c-text-3); }
+        .sun .day-name { color: var(--c-risk-text); }
+        .sat .day-name { color: var(--c-accent); }
         /* 시간 입력칸 — 표 안에서 테두리 없이, 값이 있을 때만 진하게 */
         /* 시각 입력칸은 브라우저가 그리는 시:분 위젯이라 폭이 좁으면 잘린다.
            크롬에서 24시간 표기 기준으로 여유를 두고 잡는다. */
         .t-in { width: 100%; min-width: 104px; padding: 4px 6px; border: 1px solid transparent;
                 border-radius: 6px; text-align: center; font-size: 13px; background: transparent;
-                color: #334155; font-variant-numeric: tabular-nums; box-sizing: border-box; }
-        .t-in:hover { border-color: #cbd5e1; background: #fff; }
-        .t-in:focus { outline: none; border-color: #3b82f6; background: #fff;
-                      box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+                color: var(--c-text); font-variant-numeric: tabular-nums; box-sizing: border-box; }
+        .t-in:hover { border-color: var(--c-line-strong); background: var(--c-surface); }
+        .t-in:focus { outline: none; border-color: var(--c-accent); background: var(--c-surface);
+                      box-shadow: 0 0 0 3px var(--c-accent-soft); }
         .b-in { min-width: 60px; }
         .m-in { min-width: 120px; }   /* 정렬은 .t-in 의 가운데 정렬을 그대로 쓴다 */
-        .lbl { display: block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
-        .inp { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
-        .inp:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+        .lbl { display: block; font-size: 11px; font-weight: 700; color: var(--c-text-2); margin-bottom: 4px; }
+        .inp { width: 100%; padding: 8px 10px; border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); font-size: 13px; }
+        .inp:focus { outline: none; border-color: var(--c-accent); box-shadow: 0 0 0 3px var(--c-accent-soft); }
         /* 근무자 카드 목록 (왼쪽) */
-        .p-card { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 10px;
-                  background: #fff; border: 1px solid #e2e8f0; cursor: pointer; transition: .12s; }
-        .p-card:hover { border-color: #c7d2fe; background: #f8fafc; }
-        .p-card.on { border-color: #4f46e5; background: #eef2ff; box-shadow: 0 0 0 2px rgba(79,70,229,.12); }
-        .p-card .nm { font-size: 13px; font-weight: 800; color: #334155; }
-        .p-card.on .nm { color: #3730a3; }
-        .p-card .sub { font-size: 10px; color: #94a3b8; margin-top: 2px;
+        .p-card { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: var(--r-sm);
+                  background: var(--c-surface); border: 1px solid var(--c-line); cursor: pointer; transition: .12s; }
+        .p-card:hover { border-color: var(--c-accent-light); background: var(--c-surface-2); }
+        .p-card.on { border-color: var(--c-accent); background: var(--c-accent-soft); }
+        .p-card .nm { font-size: 13px; font-weight: 800; color: var(--c-text); }
+        .p-card.on .nm { color: var(--c-accent-deep); }
+        .p-card .sub { font-size: 10px; color: var(--c-text-3); margin-top: 2px;
                        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .p-card .badge { font-size: 10px; font-weight: 800; }
 
@@ -71,13 +72,13 @@
             /* 표: 여백을 줄이고, 가로로 밀어도 날짜는 왼쪽에 붙어 있게 */
             .ws-table { min-width: 0; font-size: 14px; }
             .ws-table th { padding: 6px 4px; }
-            .ws-table td { padding: 3px 4px; background: #fff; }
+            .ws-table td { padding: 3px 4px; background: var(--c-surface); }
             .ws-table th { width: auto !important; }
             .ws-table th:nth-child(1), .ws-table td:nth-child(1) { position: sticky; left: 0; z-index: 2;
                                                                    width: 32px !important; min-width: 32px; max-width: 32px; }
             .ws-table th:nth-child(2), .ws-table td:nth-child(2) { position: sticky; left: 32px; z-index: 2;
                                                                    width: 58px !important; min-width: 58px;
-                                                                   box-shadow: 1px 0 0 #e2e8f0; }
+                                                                   box-shadow: 1px 0 0 var(--c-line); }
             .ws-table th:nth-child(1), .ws-table th:nth-child(2) { z-index: 3; }
             .t-in { min-width: 92px; font-size: 14px; padding: 5px 2px; }
             .b-in { min-width: 48px; }
@@ -85,19 +86,19 @@
         }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 h-screen h-[100dvh] overflow-hidden flex flex-col">
+<body id="tool-root" class="bg-slate-100 text-slate-800 h-screen h-[100dvh] overflow-hidden flex flex-col">
 
     <header class="bg-white border-b border-slate-200 px-3 py-2 lg:px-5 lg:py-3 flex items-center justify-between gap-2 lg:gap-3 z-20 shadow-sm shrink-0">
-        <h1 class="text-base lg:text-lg font-extrabold text-slate-800 flex items-center gap-2 whitespace-nowrap">🕘 출퇴근 기록표</h1>
+        <h1 class="text-base lg:text-lg font-extrabold text-slate-800 flex items-center gap-2 whitespace-nowrap">출퇴근 기록표</h1>
         <div class="flex items-center gap-1.5 lg:gap-2">
-            <button id="btn-add-person" class="text-xs font-bold px-2.5 py-1.5 lg:px-3 lg:py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition" title="인원 등록">➕<span class="hidden sm:inline"> 인원 등록</span></button>
-            <button id="btn-excel" class="text-xs font-bold px-2.5 py-1.5 lg:px-3 lg:py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition" title="엑셀">⬇<span class="hidden sm:inline"> 엑셀</span></button>
+            <button id="btn-add-person" class="text-xs font-bold px-2.5 py-1.5 lg:px-3 lg:py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition" title="인원 등록"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="inline-block align-[-4px]" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="hidden sm:inline"> 인원 등록</span></button>
+            <button id="btn-excel" class="text-xs font-bold px-2.5 py-1.5 lg:px-3 lg:py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition" title="엑셀"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block align-[-4px]" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span class="hidden sm:inline"> 엑셀</span></button>
             <button id="btn-close" class="text-xs font-bold px-2.5 py-1.5 lg:px-3 lg:py-2 rounded-lg bg-slate-100 hover:bg-red-100 hover:text-red-600 text-slate-700 transition" title="창 닫기">✕<span class="hidden sm:inline"> 닫기</span></button>
         </div>
     </header>
 
     <div id="auth-gate" class="hidden max-w-md mx-auto mt-24 text-center p-8 bg-white rounded-2xl shadow shrink-0">
-        <div class="text-4xl mb-3">🔒</div>
+        <div class="mb-3 text-slate-300"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="inline-block" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
         <div class="font-bold text-slate-800 mb-1">로그인이 필요합니다</div>
         <div class="text-sm text-slate-500">메인 앱(업무관리)에서 먼저 로그인한 뒤<br>이 페이지를 열어주세요.</div>
     </div>
@@ -112,7 +113,7 @@
             <div class="hidden lg:flex items-center justify-between mb-2 shrink-0">
                 <span class="text-[11px] font-extrabold text-slate-500">근무자</span>
                 <button id="btn-add-person-side"
-                        class="text-[11px] font-bold px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">➕ 등록</button>
+                        class="text-[11px] font-bold px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">등록</button>
             </div>
             <div id="person-tabs" class="flex flex-row lg:flex-col gap-1.5 overflow-auto"></div>
         </aside>
@@ -218,7 +219,7 @@
             </div>
 
             <div id="empty-state" class="hidden p-12 text-center text-slate-400 text-sm">
-                등록된 인원이 없습니다. <b>➕ 인원 등록</b>으로 추가하세요.
+                등록된 인원이 없습니다. <b>인원 등록</b>으로 추가하세요.
             </div>
         </section>
 
@@ -262,6 +263,6 @@
     <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg z-[60]"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/worktime.js?v=202610140834"></script>
+    <script type="module" src="js/worktime.js?v=202610140920"></script>
 </body>
 </html>

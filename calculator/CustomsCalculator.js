@@ -218,7 +218,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange }) => {
 
       return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
-            <div ref={formRef} className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
+            <div ref={formRef} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200">
               <div className="grid grid-cols-2 gap-x-4 mb-8">
                   <div>
                       <h3 className="text-base font-semibold text-gray-800 mb-3 text-center">계산 기준</h3>
@@ -344,7 +344,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange }) => {
             />
 
             {results ? (
-              <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
+              <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 w-full animate-fade-in-slide-up">
                   <div className="text-center mb-6">
                       <p className="text-lg text-gray-600">최종 통관 비용</p>
                       <p className="text-5xl font-extrabold text-emerald-600 tracking-tight my-2"><AnimatedNumber value={results.totalCost} formatter={formatCurrency} /></p>
@@ -366,13 +366,13 @@ const CustomsCalculator = ({ exchangeRates, onRateChange }) => {
 
                   <div className="mt-6 pt-6 border-t border-dashed">
                     <button onClick={() => setIsAnalysisOpen(true)} className="w-full py-3 bg-emerald-50 text-emerald-700 font-bold rounded-xl hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2">
-                        <span>📦 운송 효율 분석 (최적 수량 찾기)</span>
+                        <span>운송 효율 분석 (최적 수량 찾기)</span>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" /></svg>
                     </button>
                   </div>
               </div>
             ) : (
-              <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 flex flex-col items-center justify-center text-center">
+              <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 flex flex-col items-center justify-center text-center">
                   <svg className="w-20 h-20 text-emerald-200 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   <h3 className="text-xl font-semibold text-gray-700">결과를 기다리는 중...</h3>
                   <p className="text-gray-500 mt-2">좌측에 정보를 입력하면<br /> 예상 통관 비용이 자동으로 계산됩니다.</p>

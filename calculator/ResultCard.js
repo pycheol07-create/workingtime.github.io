@@ -57,7 +57,7 @@ const ResultCard = ({ results }) => {
   };
   
   return (
-    <div className="bg-gradient-to-br from-emerald-50/60 to-white/60 backdrop-blur-xl p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200 w-full animate-fade-in-slide-up">
+    <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 w-full animate-fade-in-slide-up">
           <div className="text-center mb-6">
               <p className="text-lg text-gray-600">최종 통관 비용</p>
               <p className="text-5xl font-extrabold text-emerald-600 tracking-tight my-2">
