@@ -1,15 +1,9 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610141059';
-import * as State from './state.js?v=202610141059';
-import { getRegularMembersForCount } from './utils.js?v=202610141059';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610141059';
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610141059';
-
-// 확장(ezadmin-bridge)이 postMessage 로 넘겨 주는 값. **폴백 전용.**
-// 확장 payload 에는 시각이 없어서(invoice·delivery 뿐) 받은 시각을 여기서 직접 찍어 둔다.
-export let currentEzadminData = null;
-let 확장받은때 = 0;
-const 확장_유효_분 = 5;
+import { getAllDashboardDefinitions } from './ui.js?v=202610141120';
+import * as State from './state.js?v=202610141120';
+import { getRegularMembersForCount } from './utils.js?v=202610141120';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610141120';
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610141120';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -89,9 +83,8 @@ export const renderNoticeWidget = (appState) => {
 
 /** 지금 무엇을 보여 줄지 고른다.
  *
- *  Firestore(상주 수집기) 가 1순위다. 그게 오래됐거나 없으면 확장 값을 폴백으로 쓴다.
- *  ⚠️ '더 최신 것을 쓴다' 는 불가능하다 — 확장 payload 에 시각이 없다. 그래서
- *     '신선한 쪽을 우선' 이라는 규칙으로 정한다.
+ *  값은 Firestore(상주 수집기, 앱\이지어드민연동) 하나뿐이다. 오래됐으면 흐리게 + 사유.
+ *  (예전 Chrome 확장 ezadmin-bridge 의 postMessage 폴백은 2026-10-14 확장 폐기로 삭제했다.)
  */
 const EZ사유문구 = {
     'not-logged-in': '이지어드민 로그인 끊김',
@@ -115,22 +108,6 @@ const ezadmin표시값 = () => {
         return { invoice: fs.invoice, delivery: fs.delivery,
                  라벨: `${fs.라벨 || `${STALE_분}분 넘게 갱신 없음`} · ${사유}`,
                  흐림: true, 사유 };
-    }
-    // Firestore 값이 아예 없다 → 확장 값이라도 쓴다(수집기를 아직 안 돌리는 PC).
-    // ⚠️ 확장 payload 에는 시각이 없다. 오래됐다고 숫자를 지우면, 예전엔 보이던 숫자가
-    //    사라져 "연동이 깨졌다" 로 읽힌다. 그래서 **값은 계속 보여 주고 흐리게만** 한다.
-    if (currentEzadminData) {
-        // Firestore 쪽과 같은 기준 — 숫자가 아니면 '값이 없다' 로 본다.
-        // `|| 0` 을 쓰면 확장이 빈 값을 보낸 순간 '송장 0건' 이 멀쩡히 표시된다.
-        const e1 = Number(currentEzadminData.invoice);
-        const e2 = Number(currentEzadminData.delivery);
-        if (Number.isFinite(e1) && Number.isFinite(e2)) {
-            const 지남 = (Date.now() - 확장받은때) / 60000;
-            const 오래 = 지남 >= 확장_유효_분;
-            return { invoice: e1, delivery: e2,
-                     라벨: 오래 ? `확장 기준 · ${Math.floor(지남)}분 전` : '확장 기준',
-                     흐림: 오래, 사유: 오래 ? '좀비창이 멈췄을 수 있습니다' : '' };
-        }
     }
     // ★ 숫자는 없지만 '왜 없는지' 는 알 때가 있다 — 수집기가 한 번도 성공하지 못한 경우다
     //   (화면 개편이면 invoice·delivery·lastOkAt 이 아예 안 쓰인다).
@@ -602,18 +579,6 @@ const setupPersonnelInteractions = () => {
         }
     });
 };
-
-window.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'EZADMIN_DATA_UPDATE') {
-        // 확장(ezadmin-bridge)의 값 — **폴백 전용.** 상주 수집기 쪽이 신선하면 이 값은 안 쓴다.
-        // 받은 시각을 여기서 찍어 둔다(확장 payload 에는 시각이 없다).
-        currentEzadminData = event.data.data;
-        확장받은때 = Date.now();
-        // 그리기는 updateEzadminDisplay 한 곳에서만 한다 — 두 곳에서 그리면
-        // 어느 값이 보이는지가 '마지막에 그린 쪽' 으로 결정돼 버린다.
-        try { updateEzadminDisplay(); } catch (e) {}
-    }
-});
 
 // 외부 페이지(별도 창으로 열려야 하는 링크)별 아이콘 + 창 타겟 매핑.
 // 관리자 페이지에서 메뉴 이름을 다르게 등록해도 '링크' 기준으로 적용되므로
