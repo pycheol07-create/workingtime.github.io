@@ -1,6 +1,6 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610141352';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610141352';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610141412';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610141412';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -17,12 +17,12 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610141352';
+} from './admin-ui.js?v=202610141412';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202610141352';
+} from './admin-logic.js?v=202610141412';
 
 let db, auth;
 let appConfig = {};

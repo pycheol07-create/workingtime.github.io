@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610141352">
+    <link rel="stylesheet" href="css/suit.css?v=202610141412">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -113,7 +113,7 @@
             border: 1px solid var(--c-line);
             height: calc(100vh - 97px); /* 헤더 63px(D안) 기준 */
         }
-        .list-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        .list-table { width: 100%; border-collapse: collapse; min-width: 1000px; table-layout: fixed; }   /* 폭은 js 가 열 폭 합계로 준다 */
         /* 행 높이는 40px 이하로 유지 — 가상 스크롤(VS.rowHeight 42)이 이 값에 기대고 있다 */
         .list-table th, .list-table td {
             padding: 7px 12px;
@@ -135,7 +135,6 @@
         .list-table tbody tr.row-pre { background: var(--c-risk-row); }
         .list-table tbody tr.row-pre:hover { background: var(--c-risk-soft); }
         /* 상품코드 열: 배지(당일지정·선지정)가 든 행이 스크롤로 들어와도 열 폭이 흔들리지 않게 최소 폭 고정 (코드 7자 + 배지 기준) */
-        .list-table th[data-col="std_code"] { min-width: 124px; }
         .badge.list-tag { height: 20px; padding: 0 8px; margin-left: 8px; font-size: 11.5px; vertical-align: middle; }
         .list-sub { color: var(--c-text-3); font-size: 11px; font-weight: 400; }
 
@@ -173,6 +172,12 @@
 
         /* ★ 헤더 드래그앤드롭(컬럼 순서 변경) */
         th[data-col] { cursor: grab; }
+        .list-table th { box-sizing: border-box; }
+        /* 열 폭 조절 손잡이 — 머리글 오른쪽 경계(끌기 / 더블클릭 = 기본 폭) */
+        .th-resize { position: absolute; top: 0; right: 0; width: 9px; height: 100%; cursor: col-resize; z-index: 2; touch-action: none; }
+        .th-resize::after { content: ''; position: absolute; top: 25%; bottom: 25%; left: 4px; width: 1px; background: var(--c-line-strong); }
+        .th-resize:hover::after, .th-resize.is-resizing::after { top: 0; bottom: 0; width: 2px; left: 3.5px; background: var(--c-accent); }
+        body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
         th[data-col]:active { cursor: grabbing; }
         th[data-col].th-dragging { opacity: 0.45; background: var(--c-accent-soft); }
         th[data-col].th-drop-left { box-shadow: inset 3px 0 0 0 var(--primary); }
@@ -1388,8 +1393,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610141352"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610141352"></script>
+    <script type="module" src="js/location.js?v=202610141412"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610141412"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1458,7 +1463,7 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610141352"></script>
-    <script src="js/modal-esc.js?v=202610141352"></script>
+    <script src="js/connection-banner.js?v=202610141412"></script>
+    <script src="js/modal-esc.js?v=202610141412"></script>
 </body>
 </html>

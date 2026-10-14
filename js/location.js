@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610141352';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610141412';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610141352';
+import { escapeHtml as escAttr } from './utils.js?v=202610141412';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -1771,8 +1771,10 @@ function renderTableHeader() {
     const popupContainer = document.getElementById('dynamic-popups');
     if (!theadTr || !popupContainer) return;
 
-    let html = `<th class="checkbox-cell"><input type="checkbox" id="check-all" class="loc-check" onclick="toggleAllCheckboxes(this)"></th>`;
+    let html = `<th class="checkbox-cell" style="width: ${COL_W_CHECK}px;"><input type="checkbox" id="check-all" class="loc-check" onclick="toggleAllCheckboxes(this)"></th>`;
     let popupHtml = '';
+    _colWidths = loadColWidths();
+    document.body.classList.remove('col-resizing');   // 끄던 중 다시 그려졌을 때 커서 잠김 풀기
     
     window.visibleColumns.forEach(col => {
         if (col === 'std_dong') { html += createTh('dong', '동', 80, true, col); popupHtml += `<div id="pop-dong" class="filter-popup"></div>`; }
@@ -1798,15 +1800,10 @@ function renderTableHeader() {
 
     theadTr.innerHTML = html;
     popupContainer.innerHTML = popupHtml;
-    // ★ 가로 스크롤(2026-10-14): 표를 화면 폭(100%)에 억지로 맞추면 열이 많을 때 칸이 좁아져 글자가 … 로 잘리고
-    //   가로 스크롤바가 생기지 않았다. 열 폭 합계를 표의 최소 폭으로 줘서, 넘치면 .list-container(overflow:auto)가 가로로 스크롤한다.
-    //   (상품명처럼 폭이 'auto' 인 열은 320px 로 셈한다)
-    const _table = theadTr.closest('table');
-    if (_table) {
-        let _w = 0;
-        theadTr.querySelectorAll('th').forEach(th => { const m = /width:\s*(\d+)px/.exec(th.getAttribute('style') || ''); _w += m ? Number(m[1]) + 24 : (th.classList.contains('checkbox-cell') ? 44 : 320); });
-        _table.style.minWidth = Math.max(1000, _w) + 'px';
-    }
+    // ★ 열 폭 고정 + 끌어서 조절(2026-10-14): 표는 table-layout:fixed, 폭 = 열 폭 합계(넘치면 .list-container 가 가로 스크롤).
+    //   열마다 기본 폭이 있고, 머리글 오른쪽 경계를 끌면 바뀐다. 바꾼 폭은 이 브라우저에만 저장(사람마다 따로).
+    syncTableWidth();
+    setupColumnResize();
 
     document.querySelectorAll('.filter-popup').forEach(p => { p.addEventListener('click', function(e) { e.stopPropagation(); }); });
     setupFilterPopups();
@@ -1814,11 +1811,93 @@ function renderTableHeader() {
 }
 
 function createTh(key, label, width, hasFilter, colId) {
-    let widthStyle = width === 'auto' ? '' : `style="width: ${width}px;"`;
+    // 기본 폭 = 지정 폭 + 좌우 여백(24). 'auto'(상품명)는 280. 저장된 폭이 있으면 그것.
+    const defW = (width === 'auto' ? 280 : width) + 24;
+    const saved = colId ? Number(_colWidths[colId]) : NaN;
+    const w = Number.isFinite(saved) && saved >= COL_W_MIN && saved <= COL_W_MAX ? saved : defW;
+    let widthStyle = `style="width: ${w}px;" data-defw="${defW}"`;
     let filterHtml = hasFilter ? `<span class="filter-btn" id="btn-filter-${key}" onclick="toggleFilterPopup(event, 'pop-${key}')">▼</span>` : '';
     // ★ 드래그앤드롭으로 컬럼 순서 변경 가능하도록 표식 부여
     const dragAttrs = colId ? ` draggable="true" data-col="${colId}" title="드래그해서 헤더 순서를 바꿀 수 있습니다"` : '';
-    return `<th ${widthStyle}${dragAttrs}><div class="th-content"><span class="title-text">${label}</span>${filterHtml}</div></th>`;
+    const resizeHtml = colId ? `<span class="th-resize" data-resize="${colId}" title="끌어서 폭 조절 · 더블클릭하면 기본 폭"></span>` : '';
+    return `<th ${widthStyle}${dragAttrs}><div class="th-content"><span class="title-text">${label}</span>${filterHtml}</div>${resizeHtml}</th>`;
+}
+
+// ── 열 폭 (2026-10-14) ──────────────────────────────────────
+const COL_W_KEY = 'loc.colWidths';
+const COL_W_MIN = 50, COL_W_MAX = 800, COL_W_CHECK = 44;
+let _colWidths = {};
+function loadColWidths() {
+    try { const o = JSON.parse(localStorage.getItem(COL_W_KEY) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; }
+    catch (e) { return {}; }   // 저장소를 못 쓰거나 값이 깨졌으면 기본 폭
+}
+function saveColWidths() {
+    try { localStorage.setItem(COL_W_KEY, JSON.stringify(_colWidths)); } catch (e) { /* 이번 화면에만 적용 */ }
+}
+/** 표 폭 = 머리글 열 폭 합계 (table-layout:fixed 라 열 폭이 그대로 지켜진다) */
+function syncTableWidth() {
+    const theadTr = document.getElementById('dynamic-thead-tr');
+    const table = theadTr && theadTr.closest('table');
+    if (!table) return;
+    let sum = 0;
+    theadTr.querySelectorAll('th').forEach(th => { sum += parseFloat(th.style.width) || 0; });
+    table.style.minWidth = '0';
+    table.style.width = sum + 'px';
+}
+/** 머리글 오른쪽 경계(.th-resize)를 끌어 폭 조절, 더블클릭 = 기본 폭. 헤더 끌어 순서 바꾸기와 겹치지 않게 막는다. */
+function setupColumnResize() {
+    const theadTr = document.getElementById('dynamic-thead-tr');
+    if (!theadTr) return;
+    theadTr.querySelectorAll('.th-resize').forEach(h => {
+        const th = h.closest('th');
+        const colId = h.dataset.resize;
+        h.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
+        h.addEventListener('click', (e) => e.stopPropagation());
+        h.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault(); e.stopPropagation();
+            const startX = e.clientX, startW = parseFloat(th.style.width) || th.offsetWidth;
+            const wasDraggable = th.draggable;
+            th.draggable = false;
+            h.classList.add('is-resizing');
+            document.body.classList.add('col-resizing');
+            try { h.setPointerCapture(e.pointerId); } catch (_) {}
+            const move = (ev) => {
+                const w = Math.round(Math.min(COL_W_MAX, Math.max(COL_W_MIN, startW + (ev.clientX - startX))));
+                th.style.width = w + 'px';
+                syncTableWidth();
+            };
+            let ended = false;
+            const up = () => {
+                if (ended) return;
+                ended = true;
+                h.removeEventListener('pointermove', move);
+                h.removeEventListener('pointerup', up);
+                h.removeEventListener('pointercancel', up);
+                h.removeEventListener('lostpointercapture', up);
+                h.classList.remove('is-resizing');
+                document.body.classList.remove('col-resizing');
+                th.draggable = wasDraggable;
+                const w = parseFloat(th.style.width);
+                if (Number.isFinite(w) && w !== startW) {
+                    if (w === Number(th.dataset.defw)) delete _colWidths[colId]; else _colWidths[colId] = w;
+                    saveColWidths();
+                }
+            };
+            h.addEventListener('pointermove', move);
+            h.addEventListener('pointerup', up);
+            h.addEventListener('pointercancel', up);
+            // 끄는 도중 머리글이 다시 그려지면(onSnapshot) 손잡이가 빠져 pointerup 이 안 온다 — 포인터 잡기가 풀릴 때도 끝낸다
+            h.addEventListener('lostpointercapture', up);
+        });
+        h.addEventListener('dblclick', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            th.style.width = th.dataset.defw + 'px';
+            delete _colWidths[colId];
+            saveColWidths();
+            syncTableWidth();
+        });
+    });
 }
 
 // ★ 헤더 드래그앤드롭 — th를 끌어다 놓으면 visibleColumns 순서를 바꾸고 저장한다.
