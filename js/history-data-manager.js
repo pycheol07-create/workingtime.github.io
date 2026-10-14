@@ -1,10 +1,10 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610141333';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610141333';
-import { clampOpenRecords } from './lib/record-close.js?v=202610141333';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610141333';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610141333';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610141333';
+import * as State from './state.js?v=202610141352';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610141352';
+import { clampOpenRecords } from './lib/record-close.js?v=202610141352';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610141352';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610141352';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610141352';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -12,11 +12,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isHistoryCached = false;
-let cachedUnverifiedDates = null;
-let lastUnverifiedCheckTime = 0;
 
 let historyFetchPromise = null;
-let unverifiedFetchPromise = null;
 
 // 이력 캐시 TTL. 과거 이력은 변하지 않으므로 길게 캐싱(읽기 요금 절감).
 // 오늘 데이터는 실시간 동기화(syncTodayToHistory)로 별도 갱신되므로 영향 없음.
@@ -27,8 +24,6 @@ const HISTORY_CACHE_TTL_MS = 30 * 60 * 1000; // 30분
 export const clearLocalCache = () => {
     localStorage.removeItem('historyDataCache');
     localStorage.removeItem('historyDataCacheTime');
-    localStorage.removeItem('unverifiedDataCache');
-    localStorage.removeItem('unverifiedDataCacheTime');
 };
 
 // ============================================================
@@ -1923,71 +1918,4 @@ export async function backfillFxRates(fromDate = '2026-06-01') {
     clearLocalCache(); // 캐시 무효화 → 다음 조회 시 서버 최신값 반영
     showToast(`과거 환율 채우기 완료: 성공 ${ok}일 / 실패 ${fail}일`);
     return { ok, fail };
-}
-
-export async function checkUnverifiedRecords(forceRefresh = false) {
-    const now = Date.now();
-    if (!forceRefresh && cachedUnverifiedDates && (now - lastUnverifiedCheckTime < 3600000)) {
-        return cachedUnverifiedDates;
-    }
-
-    // ✨ 브라우저 세션 스토리지 캐시 확인
-    if (!forceRefresh) {
-        const cached = localStorage.getItem('unverifiedDataCache');
-        const cacheTime = localStorage.getItem('unverifiedDataCacheTime');
-        if (cached && cacheTime && (now - parseInt(cacheTime) < HISTORY_CACHE_TTL_MS)) {
-            try {
-                cachedUnverifiedDates = JSON.parse(cached);
-                lastUnverifiedCheckTime = now;
-                return cachedUnverifiedDates;
-            } catch(e) {}
-        }
-    }
-
-    if (unverifiedFetchPromise && !forceRefresh) {
-        return unverifiedFetchPromise;
-    }
-
-    unverifiedFetchPromise = (async () => {
-        const historyCol = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
-        
-        try {
-            const d = new Date();
-            // 🚨 기존 14일 -> 7일로 축소하여 읽기 요금 반토막
-            d.setDate(d.getDate() - 7); 
-            const sevenDaysAgoStr = toDateString(d);
-
-            const q = query(historyCol, where(documentId(), ">=", sevenDaysAgoStr)); 
-            const snapshot = await getDocs(q);
-            
-            const unverifiedDates = [];
-            const today = getTodayDateString();
-
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                if (doc.id !== today) {
-                    const hasQuantities = data.taskQuantities && Object.keys(data.taskQuantities).length > 0;
-                    if (hasQuantities && !data.isQuantityVerified) unverifiedDates.push(doc.id);
-                }
-            });
-
-            unverifiedDates.sort();
-            cachedUnverifiedDates = unverifiedDates;
-            lastUnverifiedCheckTime = Date.now();
-            
-            try {
-                localStorage.setItem('unverifiedDataCache', JSON.stringify(unverifiedDates));
-                localStorage.setItem('unverifiedDataCacheTime', Date.now().toString());
-            } catch (e) { /* 용량 초과 시 캐시 스킵 */ }
-
-            return unverifiedDates; 
-        } catch (e) {
-            console.error("Failed to check unverified records:", e);
-            return [];
-        } finally {
-            unverifiedFetchPromise = null;
-        }
-    })();
-
-    return unverifiedFetchPromise;
 }

@@ -1,9 +1,9 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610141333';
-import * as State from './state.js?v=202610141333';
-import { getRegularMembersForCount } from './utils.js?v=202610141333';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610141333';
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610141333';
+import { getAllDashboardDefinitions } from './ui.js?v=202610141352';
+import * as State from './state.js?v=202610141352';
+import { getRegularMembersForCount } from './utils.js?v=202610141352';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610141352';
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610141352';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -325,7 +325,6 @@ export const updateSummary = (appState, appConfig) => {
     if (pausedEl) pausedEl.textContent = `${pausedStaffCount + pausedPartTimerCount}`;
 
     const quantitiesFromState = appState.taskQuantities || {};
-    const quantityStatuses = appState.taskQuantityStatuses || {};
     const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
     
     for (const task in quantitiesFromState) {
@@ -335,15 +334,6 @@ export const updateSummary = (appState, appConfig) => {
         if (targetDashboardId && elements[targetDashboardId]) {
             const el = elements[targetDashboardId];
             el.textContent = quantity;
-
-            el.classList.remove('quantity-estimated', 'quantity-confirmed', 'text-red-500', 'text-green-500', 'q-est', 'q-ok');
-
-            const status = quantityStatuses[task];
-            if (status === 'estimated') {
-                el.classList.add('q-est');   // 예상(미확정) — 색은 css/dash-d.css
-            } else if (status === 'confirmed') {
-                el.classList.add('q-ok');    // 확정
-            }
         }
     }
 

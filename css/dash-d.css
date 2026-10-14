@@ -161,8 +161,6 @@ html body { font-family: var(--font-sans); background: var(--c-bg); color: var(-
 #dash-root .d-kv-label { color: var(--c-text-2); }
 #dash-root .d-kv-val { color: var(--c-text); font-weight: 600; font-variant-numeric: tabular-nums; }
 #dash-root .d-kv-lg .d-kv-val { font-size: 20px; line-height: 1.2; }
-#dash-root .d-kv-val.q-est { color: var(--c-warn-text); }
-#dash-root .d-kv-val.q-ok { color: var(--c-ok-text); }
 #dash-root .personnel-row.d-kv { cursor: pointer; transition: background .15s; }
 #dash-root .personnel-row.d-kv:hover { background: var(--c-surface-2); }
 #dash-root .personnel-row.is-open, #dash-root .personnel-row.is-open:hover { background: var(--c-accent-row); }

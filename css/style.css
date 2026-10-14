@@ -181,12 +181,6 @@ body {
 .attendance-toggle:has(input:checked) .text-in { opacity: 1; }
 .attendance-toggle:has(input:checked) .text-out { opacity: 0; }
 
-/* 처리량 상태별 텍스트 색상 */
-.quantity-estimated { color: #ef4444 !important; font-weight: 800; }
-.quantity-confirmed { color: #22c55e !important; font-weight: 800; }
-.dashboard-card-quantity p.quantity-estimated { color: #f87171 !important; text-shadow: 0 0 8px rgba(248, 113, 113, 0.6); }
-.dashboard-card-quantity p.quantity-confirmed { color: #4ade80 !important; text-shadow: 0 0 8px rgba(74, 222, 128, 0.6); }
-
 /* 날짜 리스트(이력 조회) 경고 뱃지 */
 .date-has-estimates { position: relative; }
 .date-has-estimates::after {

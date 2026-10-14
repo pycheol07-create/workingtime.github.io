@@ -3,19 +3,18 @@
 import {
     generateId,
     saveStateToFirestore,
-    debouncedSaveState,
-    updateDailyData
-} from './app-data.js?v=202610141333';
+    debouncedSaveState
+} from './app-data.js?v=202610141352';
 
 import {
     appState, db, auth
-} from './state.js?v=202610141333';
+} from './state.js?v=202610141352';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610141333';
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610141352';
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=202610141333';
+import { syncTodayToHistory } from './history-data-manager.js?v=202610141352';
 
 
 const getWorkRecordsCollectionRef = () => {
@@ -785,34 +784,5 @@ export const autoResumeFromLunch = async () => {
     } catch (e) {
         console.error("Error during auto-resume from lunch: ", e);
         return 0;
-    }
-};
-
-export const saveManualTaskQuantities = async (newQuantities, confirmedZeroTasks, newStatuses) => {
-    try {
-        const updates = {};
-
-        if (newQuantities && Object.keys(newQuantities).length > 0) {
-            updates.taskQuantities = newQuantities;
-        }
-
-        if (newStatuses && Object.keys(newStatuses).length > 0) {
-            updates.taskQuantityStatuses = newStatuses;
-        }
-        
-        if (confirmedZeroTasks && confirmedZeroTasks.length > 0) {
-            updates.confirmedZeroTasks = confirmedZeroTasks;
-            // 스냅샷이 오기 전에 자동저장이 돌아 빈 배열로 덮지 않도록 메모리도 바로 맞춘다.
-            State.appState.confirmedZeroTasks = confirmedZeroTasks;
-        }
-
-        if (Object.keys(updates).length > 0) {
-            await updateDailyData(updates);
-            showToast('처리량 및 상태가 저장되었습니다.');
-        }
-
-    } catch (e) {
-        console.error("Error saving manual quantities:", e);
-        showToast("처리량 저장 중 오류가 발생했습니다.", true);
     }
 };

@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610141333';
-import * as State from './state.js?v=202610141333';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610141333';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610141333';
+import * as DOM from './dom-elements.js?v=202610141352';
+import * as State from './state.js?v=202610141352';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610141352';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610141352';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610141333';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610141333';
-import { renderQuantityModalInputs } from './ui.js?v=202610141333';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610141333';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610141333';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610141352';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610141352';
+import { renderQuantityModalInputs } from './ui.js?v=202610141352';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610141352';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610141352';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -178,13 +178,8 @@ export const openPlannedQuantityModal = async (dateStr) => {
         hint.classList.remove('hidden');
     }
 
-    // 확정 체크박스는 예정 입력엔 불필요 — 꺼둠
-    const confirmCheckbox = document.getElementById('quantity-confirm-checkbox');
-    if (confirmCheckbox) confirmCheckbox.checked = false;
-
     State.context.quantityModalContext.mode = 'planned';
     State.context.quantityModalContext.dateKey = dateStr;
-    State.context.quantityModalContext.isVerifyingMode = false;
     State.context.quantityModalContext.onConfirm = async (newQuantities) => {
         // 📤 전송값 칸은 화면 숫자를 저장하지 않는다 — 원래 저장값을 그대로 싣고, 없으면 키를 뺀다.
         //    savePlannedQuantities 는 plannedQuantities 를 통째로 바꾸므로 키를 빼면 '저장값 없음' 이 된다
@@ -494,8 +489,6 @@ export const openHistoryQuantityModal = (dateKey) => {
 
             localStorage.removeItem('historyDataCache');
             localStorage.removeItem('historyDataCacheTime');
-            localStorage.removeItem('unverifiedDataCache');
-            localStorage.removeItem('unverifiedDataCacheTime');
 
             if (dateKey === getTodayDateString()) {
                  const dailyDocRef = getDailyDocRef();

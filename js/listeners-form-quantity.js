@@ -1,8 +1,8 @@
 // === js/listeners-form-quantity.js ===
 // 설명: 업무별 처리량 입력 모달 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610141333';
-import * as State from './state.js?v=202610141333';
+import * as DOM from './dom-elements.js?v=202610141352';
+import * as State from './state.js?v=202610141352';
 
 export function setupFormQuantityListeners() {
 
@@ -27,24 +27,10 @@ export function setupFormQuantityListeners() {
                 }
             });
 
-            // [수정] '확정 입력' 체크박스 상태 확인 (추가된 UI 요소)
-            const confirmCheckbox = document.getElementById('quantity-confirm-checkbox');
-            const isConfirmedInput = confirmCheckbox ? confirmCheckbox.checked : false;
-
-            // [수정] 상태 맵(Status Map) 생성 (모든 입력된 태스크에 대해 상태 적용)
-            // 체크박스가 체크되어 있으면 'confirmed', 아니면 'estimated'(예상)
-            const quantityStatuses = {};
-            Object.keys(newQuantities).forEach(task => {
-                quantityStatuses[task] = isConfirmedInput ? 'confirmed' : 'estimated';
-            });
-
-            // [추가] 현재 모달이 '확정(Verification)' 모드인지 확인
-            const isVerifying = State.context.quantityModalContext?.isVerifyingMode;
-
             // 컨텍스트에 저장된 콜백 실행 (일별/이력 모드에 따라 다름)
             if (State.context.quantityModalContext && typeof State.context.quantityModalContext.onConfirm === 'function') {
-                // [중요] onConfirm 콜백에 데이터와 함께 '상태 정보(quantityStatuses)'도 4번째 인자로 전달
-                await State.context.quantityModalContext.onConfirm(newQuantities, confirmedZeroTasks, isVerifying, quantityStatuses);
+                // onConfirm 콜백에 입력값과 '0건 확인' 목록을 넘긴다
+                await State.context.quantityModalContext.onConfirm(newQuantities, confirmedZeroTasks);
             }
 
             if (DOM.quantityModal) DOM.quantityModal.classList.add('hidden');

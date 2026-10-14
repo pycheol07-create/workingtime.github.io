@@ -1,34 +1,33 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202610141333';
-import * as State from './state.js?v=202610141333';
+import * as DOM from './dom-elements.js?v=202610141352';
+import * as State from './state.js?v=202610141352';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202610141333';
-import { updateDailyData } from './app-data.js?v=202610141333';
+import { render } from './app.js?v=202610141352';
+import { updateDailyData } from './app-data.js?v=202610141352';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610141333';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610141333';
+import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610141352';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610141352';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202610141333';
+} from './ui.js?v=202610141352';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202610141333';
-import { saveProgress, saveDayDataToHistory, checkUnverifiedRecords, previewDayClose } from './history-data-manager.js?v=202610141333';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610141333';
-import { openHistoryQuantityModal } from './app-history-logic.js?v=202610141333';
+} from './app-logic.js?v=202610141352';
+import { saveProgress, saveDayDataToHistory, previewDayClose } from './history-data-manager.js?v=202610141352';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610141352';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Admin Todo 로직 임포트
-import * as AdminTodoLogic from './admin-todo-logic.js?v=202610141333';
+import * as AdminTodoLogic from './admin-todo-logic.js?v=202610141352';
 
 export function setupMainScreenListeners() {
 
@@ -258,7 +257,7 @@ export function setupMainScreenListeners() {
 
 
     if (DOM.saveProgressBtn) {
-        // [수정] 수동 저장 시에는 '확정'이 아닌 '가저장' 상태로 저장 (isQuantityVerified = false)
+        // 수동 저장은 검증 플래그 없이 저장한다 (isQuantityVerified = false)
         DOM.saveProgressBtn.addEventListener('click', () => saveProgress(false, false));
     }
 
@@ -342,12 +341,10 @@ export function setupMainScreenListeners() {
             renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes || [], missingTasksList, State.appState.confirmedZeroTasks || []);
 
             const title = document.getElementById('quantity-modal-title');
-            if (title) title.textContent = '오늘의 처리량 입력 (예상값)';
+            if (title) title.textContent = '오늘의 처리량 입력';
 
             State.context.quantityModalContext.mode = 'today';
             State.context.quantityModalContext.dateKey = null;
-            // [중요] 오늘의 입력은 '확정' 단계가 아님 (isVerifyingMode = false)
-            State.context.quantityModalContext.isVerifyingMode = false;
 
             State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
                 State.appState.taskQuantities = newQuantities;
@@ -358,10 +355,10 @@ export function setupMainScreenListeners() {
                     confirmedZeroTasks: confirmedZeroTasks
                 });
 
-                // 오늘 입력은 '가저장' 상태이므로 isQuantityVerified = false로 저장
+                // 오늘 입력은 검증 플래그 없이 저장한다
                 // (isAutoSave=true 로 주어 saveProgress 자체 토스트를 끄고, 결과만 여기서 한 번 알린다)
                 // 처리량 자체는 위 updateDailyData 로 이미 반영됐다 — 확인은 먼저 알린다.
-                showToast('오늘의 처리량(예상)을 반영했습니다.');
+                showToast('오늘의 처리량을 반영했습니다.');
 
                 // ⚠️ await 를 빼면 안 된다. 이 호출이 떠 있는 동안 사용자가 '업무 마감'을 누르면,
                 //    뒤늦게 끝난 이쪽이 마감 전 상태(ongoing)로 이력을 통째 덮어쓴다.
@@ -399,11 +396,10 @@ export function setupMainScreenListeners() {
             renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes || [], missingTasksList, State.appState.confirmedZeroTasks || []);
 
             const title = document.getElementById('quantity-modal-title');
-            if (title) title.textContent = '오늘의 처리량 입력 (예상값)';
+            if (title) title.textContent = '오늘의 처리량 입력';
 
             State.context.quantityModalContext.mode = 'today';
             State.context.quantityModalContext.dateKey = null;
-            State.context.quantityModalContext.isVerifyingMode = false;
 
             State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
                 State.appState.taskQuantities = newQuantities;
@@ -414,7 +410,7 @@ export function setupMainScreenListeners() {
                     confirmedZeroTasks: confirmedZeroTasks
                 });
                 
-                showToast('오늘의 처리량(예상)을 반영했습니다.');
+                showToast('오늘의 처리량을 반영했습니다.');
 
                 // await 필수 — 위 데스크톱 분기의 주석 참조(마감과의 경합).
                 const resToday2 = await saveProgress(true, false);
@@ -532,21 +528,5 @@ export function setupMainScreenListeners() {
                 DOM.adminTodoAlertModal.classList.add('hidden');
             }
         });
-    }
-}
-
-// [신규] 미확정 처리량 데이터 확인 및 모달 호출 함수 (앱 실행 시 호출 권장)
-export async function checkPendingVerifications() {
-    const unverifiedDates = await checkUnverifiedRecords();
-    
-    if (unverifiedDates.length > 0) {
-        // 가장 최근의 미확정 날짜 선택
-        const targetDate = unverifiedDates[unverifiedDates.length - 1];
-        
-        // confirm 창 또는 전용 모달 띄우기
-        if (confirm(`📅 [${targetDate}] 업무 처리량이 아직 '예상치' 상태입니다.\n실제 값을 확인하고 확정하시겠습니까?`)) {
-            // 히스토리 수정 모달을 '확정 모드'로 염
-            openHistoryQuantityModal(targetDate, true); 
-        }
     }
 }
