@@ -11,11 +11,12 @@
 //    기본정보는 직원 전원이 읽는 문서(ProductCatalog)로 들어가기 때문이다. 테스트가 이것을 고정한다.
 //
 // 순수 모듈(DOM/Firebase 의존 없음). ⚠️ 원가 값을 console 에 찍지 말 것.
-import { isValidCode, utf8Length } from './product-bucket.js?v=202610141120';
-import { parseNum, parseDate, normalizePrice, samePrice, cellToText } from './product-price.js?v=202610141120';
+import { isValidCode, utf8Length } from './product-bucket.js?v=202610141249';
+import { parseNum, parseDate, normalizePrice, samePrice, cellToText } from './product-price.js?v=202610141249';
+import { REASON_LABEL } from './product-price-text.js?v=202610141249';
 
 export const HEADER_SCAN_ROWS = 10;
-export const MAX_ROWS = 40000;
+export const MAX_ROWS = 60000;                 // 이지어드민 상품정보 엑셀(옵션 1행씩) 4만 6천여 행을 한 번에
 export const BUCKET_LIMIT = 700000;            // 버킷 문서 하나 안전선(1 MiB 한도의 약 2/3)
 export const GONE_CONFIRM_RATIO = 0.10;        // 사라짐이 기존(활성)의 10% 넘으면 건수 입력 요구
 export const NAME_MAX = 200, TEXT_MAX = 100, MEMO_MAX = 500;
@@ -55,14 +56,16 @@ export const COST_COLS = [
     { key: 'usd', name: '단가_달러', aliases: ['달러', '단가달러', '원가달러'], desc: '※ 숫자' },
     { key: 'rate', name: '환율', aliases: ['환율위안'], desc: '※ 1달러당 위안(예 7.20). 비우면 화면의 기본 환율' },
     { key: 'rateDate', name: '환율기준일', aliases: ['기준일'], desc: '※ 2026-10-13 형식. 비우면 화면의 기준일' },
-    { key: 'sup', name: '공급처코드', aliases: ['공급처'], desc: '※ SUP-001 형식. 공급처 대장에 먼저 등록' },
+    { key: 'krw', name: '원가_원화', aliases: ['원화', '원화원가', '원가원화'], desc: '※ 0 이상 정수(원). 상품 행 = 기본값, 옵션 행 = 그 옵션만' },
+    { key: 'sup', name: '공급처코드', aliases: ['공급처'], desc: '※ 공급처 대장의 코드(예 SUP-001). 대장에 먼저 등록' },
     { key: 'moq', name: 'MOQ', aliases: ['최소주문', '최소주문수량'], desc: '※ 0 이상 정수' },
     { key: 'leadDays', name: '제작기간_일', aliases: ['제작기간', '제작기간일'], desc: '※ 0 이상 정수(일)' },
     { key: 'memo', name: '원가메모', aliases: ['메모'], desc: '※ 500자 이하' },
 ];
 
 /** 기본정보 파일에서 절대 읽지 않는 열(원가·공급처) — 정규화한 머리글에 이 글자가 있으면 무시 */
-export const FORBIDDEN_RE = /원가|매입|공급|orgprice|cost|supplier|supply|위안|달러|환율|단가|마진|margin/i;
+//   추가항목2·비축창고재고 = 이지어드민 상품 엑셀에서 위안·달러 단가를 적어 두는 칸(이름과 다르게 씀)
+export const FORBIDDEN_RE = /원가|매입|공급|orgprice|cost|supplier|supply|위안|달러|환율|단가|마진|margin|추가항목2|비축창고/i;
 
 /**
  * SheetJS 시트 → 2차원 글자 배열. 서식 글자(w) 대신 셀 원시값으로(cellToText) — 숫자 바코드 지수표기·날짜 서식 문제를 피한다.
@@ -150,7 +153,7 @@ const O_FIELDS = ['optName', 'barcode', 'optStatus'];        // 옵션 배열 [s
 export const FIELD_LABEL = {
     code2: '자체상품코드', name: '상품명', brand: '브랜드', cat: '카테고리', price: '판매가', status: '상태',
     regDate: '등록일', gone: '사라짐', optName: '옵션명', barcode: '바코드', optStatus: '옵션상태', opt: '옵션',
-    base: '기본 단가', sup: '공급처', moq: 'MOQ', leadDays: '제작기간', memo: '원가메모'
+    base: '기본 단가', sup: '공급처', moq: 'MOQ', leadDays: '제작기간', memo: '원가메모', krw: '원화 원가', okrw: '원화'
 };
 
 /** 빈 상품 */
@@ -208,8 +211,11 @@ function fieldValue(key, raw, before) {
     }
 }
 
-/** 행 목록 → 품목 단위 묶음 Map(pid → { pid, rows, pv: {key: 문자열}, opts: [{r, scode, v}], errors, warnings }) */
-export function groupCatalogRows(rows) {
+/**
+ * 행 목록 → 품목 단위 묶음 Map(pid → { pid, rows, pv: {key: 문자열}, opts: [{r, scode, v}], errors, warnings })
+ *  opts.regDate = 'min' : 옵션마다 등록일이 다르면 경고 없이 가장 이른 날짜(이지어드민 상품 엑셀). 기본은 첫 값 + 경고
+ */
+export function groupCatalogRows(rows, { regDate = 'first' } = {}) {
     const products = new Map();
     const sRows = new Map();                       // scode → [{pid, r}]
     for (const { r, v } of rows) {
@@ -227,6 +233,9 @@ export function groupCatalogRows(rows) {
             const val = v[c.key];
             if (val === '') continue;
             if (!(c.key in g.pv)) { g.pv[c.key] = val; g.pvRow[c.key] = r; }
+            else if (c.key === 'regDate' && regDate === 'min') {
+                if ((parseDate(val) || val) < (parseDate(g.pv[c.key]) || g.pv[c.key])) { g.pv[c.key] = val; g.pvRow[c.key] = r; }
+            }
             else if (g.pv[c.key] !== val && !g.warnings.some(w => w.includes(`'${FIELD_LABEL[c.key]}'`))) {
                 g.warnings.push(`'${FIELD_LABEL[c.key]}' 값이 행마다 다름 — ${g.pvRow[c.key]}행 값 사용`);
             }
@@ -356,10 +365,11 @@ export function goneSelected(entries, checked) {
 }
 
 export function countStatus(entries) {
-    const c = { new: 0, changed: 0, same: 0, revived: 0, gone: 0, error: 0, warn: 0, total: entries.length };
+    const c = { new: 0, changed: 0, same: 0, revived: 0, gone: 0, error: 0, warn: 0, check: 0, total: entries.length };
     for (const e of entries) {
         c[e.status] = (c[e.status] || 0) + 1;
         if (e.warnings.length && e.status !== 'error') c.warn++;
+        if (e.checks && e.checks.length && e.status !== 'error') c.check++;
     }
     return c;
 }
@@ -398,16 +408,27 @@ export function bucketSizesAfter(buckets, writes, limit = BUCKET_LIMIT) {
 // 원가
 // ─────────────────────────────────────────────────────────────
 
-export const SUP_RE = /^SUP-\d{3,}$/;
+/** 공급처코드 정규화 — NFC, 앞뒤 공백 제거, 연속 공백 하나로 */
+export const normSup = (s) => String(s ?? '').normalize('NFC').trim().replace(/\s+/g, ' ');
+/**
+ * 공급처코드 허용 모양 — 1~40자, 제어문자 없음, '__x__' 아님(Firestore 예약), '-' 한 글자 아님(지움 표시).
+ * 한글·공백·하이픈·영숫자 허용(이지어드민 공급처 값을 그대로 코드로 씀). SUP-001 도 통과.
+ * 대장 맵 키로 쓰므로 쓰기는 반드시 FieldPath('s', 코드).
+ */
+export function isSupCode(s) {
+    const n = normSup(s);
+    return n.length >= 1 && n.length <= 40 && !/[\u0000-\u001f\u007f]/.test(n) && !/^__.*__$/.test(n) && n !== CLEAR;
+}
 
-/** 원가 JSON — 키 순서 고정 */
+/** 원가 JSON — 키 순서 고정. krw = 기본 원화 원가(정수|null), ok = 옵션별 원화 {scode: 정수} */
 export function costJson(c) {
-    const o = {};
+    const o = {}, ok = {};
     for (const k of Object.keys(c.o || {}).sort()) o[k] = priceObj(c.o[k]);
+    for (const k of Object.keys(c.ok || {}).sort()) ok[k] = c.ok[k];
     return JSON.stringify({
         ver: c.ver | 0, at: c.at || 0, by: c.by || '',
-        base: c.base ? priceObj(c.base) : null,
-        sup: c.sup || '', moq: c.moq ?? null, leadDays: c.leadDays ?? null, memo: c.memo || '', o
+        base: c.base ? priceObj(c.base) : null, krw: c.krw ?? null,
+        sup: c.sup || '', moq: c.moq ?? null, leadDays: c.leadDays ?? null, memo: c.memo || '', o, ok
     });
 }
 const priceObj = (p) => ({ cny: p.cny, usd: p.usd, rate: p.rate, rateDate: p.rateDate || null, src: p.src || '' });
@@ -417,11 +438,13 @@ export function parseCostJson(s) {
         const c = JSON.parse(s);
         if (!c || typeof c !== 'object') return null;
         if (!c.o || typeof c.o !== 'object') c.o = {};
+        if (c.krw === undefined) c.krw = null;                         // 옛 JSON(원화 칸 없음)
+        if (!c.ok || typeof c.ok !== 'object') c.ok = {};
         return c;
     } catch (e) { return null; }
 }
 
-export const emptyCost = () => ({ base: null, sup: '', moq: null, leadDays: null, memo: '', o: {} });
+export const emptyCost = () => ({ base: null, krw: null, sup: '', moq: null, leadDays: null, memo: '', o: {}, ok: {} });
 
 function intField(raw, label) {
     if (raw === '') return { keep: true };
@@ -474,7 +497,7 @@ export function diffCost(rows, { catalog, costs, ledger, defaults = {} }) {
             else seen.set(k, r);
         }
         const cur = costs.get(pid) || null;
-        const next = cur ? { ...cur, base: cur.base ? { ...cur.base } : null, o: { ...(cur.o || {}) } } : emptyCost();
+        const next = cur ? { ...cur, base: cur.base ? { ...cur.base } : null, krw: cur.krw ?? null, o: { ...(cur.o || {}) }, ok: { ...(cur.ok || {}) } } : emptyCost();
         const optOwner = new Set((prod && prod.o || []).map(o => o[0]));
         if (!errors.length) {
             for (const { r, v } of list) {
@@ -485,11 +508,17 @@ export function diffCost(rows, { catalog, costs, ledger, defaults = {} }) {
                 if (!v.scode) {
                     if (pc.clear) next.base = null;
                     else if (pc.price) next.base = pc.price;
+                    if (v.krw !== undefined) {
+                        const f = intField(v.krw, '원화 원가');
+                        if (f.error) errors.push(`${r}행: ${f.error}`);
+                        else if (!f.keep) next.krw = f.value;
+                    }
                     if (v.sup !== undefined && v.sup !== '') {
+                        const sup = normSup(v.sup);
                         if (v.sup === CLEAR) next.sup = '';
-                        else if (!SUP_RE.test(v.sup)) errors.push(`${r}행: 공급처코드 모양(SUP-001)이 아님`);
-                        else if (!ledger.has(v.sup)) errors.push(`${r}행: 공급처 ${v.sup} 가 대장에 없음 — 먼저 등록`);
-                        else next.sup = v.sup;
+                        else if (!isSupCode(sup)) errors.push(`${r}행: 공급처코드 모양이 이상함(1~40자)`);
+                        else if (!ledger.has(sup)) errors.push(`${r}행: 공급처가 대장에 없음 — 먼저 등록`);   // 🔒 공급처 값은 메시지에 넣지 않음(결과 엑셀로 나감)
+                        else next.sup = sup;
                     }
                     for (const [key, label] of [['moq', 'MOQ'], ['leadDays', '제작기간']]) {
                         if (v[key] === undefined) continue;
@@ -507,8 +536,17 @@ export function diffCost(rows, { catalog, costs, ledger, defaults = {} }) {
                     if (['sup', 'moq', 'leadDays', 'memo'].some(k => v[k])) warnings.push(`${r}행: 옵션 행의 공급처·MOQ·제작기간·메모는 무시`);
                     if (pc.clear) delete next.o[v.scode];
                     else if (pc.price) next.o[v.scode] = pc.price;
+                    if (v.krw !== undefined) {
+                        const f = intField(v.krw, '원화 원가');
+                        if (f.error) errors.push(`${r}행: ${f.error}`);
+                        else if (!f.keep) { if (f.value === null) delete next.ok[v.scode]; else next.ok[v.scode] = f.value; }
+                    }
                 }
             }
+        }
+        // 옵션 원화가 기본 원화와 같으면 저장하지 않는다
+        for (const [s, k] of Object.entries(next.ok)) {
+            if (next.krw !== null && next.krw !== undefined && k === next.krw) { delete next.ok[s]; infos.push(`${s}: 원화가 기본값과 같아 개별 저장 안 함`); }
         }
         // 옵션 개별값이 기본값과 같으면 저장하지 않는다(상속 유지)
         for (const [s, p] of Object.entries(next.o)) {
@@ -528,7 +566,7 @@ export function diffCostObj(pid, cur, next) {
     const b = cur || emptyCost();
     const changes = [];
     if (!samePrice(b.base, next.base)) changes.push({ pid, opt: null, field: 'base', before: b.base || null, after: next.base || null });
-    for (const k of ['sup', 'moq', 'leadDays', 'memo']) {
+    for (const k of ['krw', 'sup', 'moq', 'leadDays', 'memo']) {
         const x = b[k] ?? null, y = next[k] ?? null;
         if (blankToNull(x) !== blankToNull(y)) changes.push({ pid, opt: null, field: k, before: x, after: y });
     }
@@ -536,6 +574,11 @@ export function diffCostObj(pid, cur, next) {
     for (const s of [...keys].sort()) {
         const x = (b.o || {})[s] || null, y = (next.o || {})[s] || null;
         if (!samePrice(x, y)) changes.push({ pid, opt: s, field: 'opt', before: x, after: y });
+    }
+    const okeys = new Set([...Object.keys(b.ok || {}), ...Object.keys(next.ok || {})]);
+    for (const s of [...okeys].sort()) {
+        const x = (b.ok || {})[s] ?? null, y = (next.ok || {})[s] ?? null;
+        if (x !== y) changes.push({ pid, opt: s, field: 'okrw', before: x, after: y });
     }
     return changes;
 }
@@ -576,11 +619,11 @@ export function costExportAoa(products, costs) {
     for (const [pid, p] of products) {
         if (p.gone) continue;
         const c = costs.get(pid) || emptyCost();
-        aoa.push([pid, '', p.code2 || '', p.name || '', '', ...pr(c.base), c.sup || '', c.moq ?? '', c.leadDays ?? '', c.memo || '']);
+        aoa.push([pid, '', p.code2 || '', p.name || '', '', ...pr(c.base), c.krw ?? '', c.sup || '', c.moq ?? '', c.leadDays ?? '', c.memo || '']);
         for (const o of p.o || []) {
             if (o[4]) continue;
             const own = c.o && c.o[o[0]];
-            aoa.push([pid, o[0], p.code2 || '', p.name || '', o[1] || '', ...pr(own), '', '', '', '']);
+            aoa.push([pid, o[0], p.code2 || '', p.name || '', o[1] || '', ...pr(own), (c.ok && c.ok[o[0]]) ?? '', '', '', '', '']);
         }
     }
     return aoa;
@@ -588,12 +631,13 @@ export function costExportAoa(products, costs) {
 
 export const STATUS_LABEL = { new: '새로', changed: '변경', same: '동일', revived: '다시 나타남', gone: '사라짐', error: '오류' };
 
-/** 결과 엑셀 aoa — 값(원가) 없이 품목코드·판정·반영 결과·사유만 */
+/** 결과 엑셀 aoa — 값(원가) 없이 품목코드·판정·반영 결과·사유만. '확인 필요' 는 사유 라벨만(단가 원문·숫자 없음) */
 export function resultAoa(entries, results) {
-    const aoa = [['품목코드', '판정', '반영', '변경 수', '오류·경고']];
+    const aoa = [['품목코드', '판정', '반영', '변경 수', '오류·경고', '확인 필요']];
     for (const e of entries) {
         const r = results.get(e.pid) || '반영 안 함';
-        aoa.push([e.pid, STATUS_LABEL[e.status] || e.status, r, e.changes.length, [...e.errors, ...e.warnings].join(' / ')]);
+        aoa.push([e.pid, STATUS_LABEL[e.status] || e.status, r, e.changes.length, [...e.errors, ...e.warnings].join(' / '),
+            (e.checks || []).map(x => REASON_LABEL[x] || x).join(', ')]);
     }
     return aoa;
 }

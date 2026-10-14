@@ -6,19 +6,24 @@
 // 반영: 버킷별 트랜잭션을 차례로(products-write.js). 행 = 품목 하나. 충돌(그 사이 누가 고침)은 그 품목만 빠진다.
 // 🔒 올린 파일·읽은 내용은 어디에도 저장하지 않는다(Firestore·localStorage·IndexedDB 모두). 창을 닫으면 변수에서 버린다.
 //    기본정보 파일에 원가·공급처 열이 있어도 읽지 않는다(lib/product-excel-rows.js FORBIDDEN_RE).
+// 이지어드민 '상품정보' 엑셀(2026-10-14): 머리글로 자동 인식(detectEzadmin) → 기본정보는 단독 상품 보정·등록일 최소,
+//   원가는 전용 열(EZ_COST_COLS)·글 단가 해석(diffEzCost). 기본정보 반영 뒤 [원가 단계로 이어서] 로 같은 내용(메모리)을 원가에 쓴다.
+//   새 공급처는 반영 직전 확인 후 대장에 이름 빈칸으로 등록(ensureSuppliers). 설계: 이지어드민상품엑셀_설계.md
 // ⚠️ 원가 값을 console 에 찍지 말 것 — 시간·행 수만.
-import { S, applyLocalProduct } from './products-store.js?v=202610141120';
-import { C, ledgerCodes } from './products-cost.js?v=202610141120';
-import { esc, toast, route, renderBasis } from './products.js?v=202610141120';
-import { costChangeText } from './products-cost.js?v=202610141120';
-import { catalogChangeText } from './products-detail.js?v=202610141120';
-import { writeBucket, writeCatalogSummary } from './products-write.js?v=202610141120';
-import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610141120';
+import { S, applyLocalProduct } from './products-store.js?v=202610141249';
+import { C, ledgerCodes, loadLedger } from './products-cost.js?v=202610141249';
+import { esc, toast, route, renderBasis } from './products.js?v=202610141249';
+import { costChangeText } from './products-cost.js?v=202610141249';
+import { catalogChangeText } from './products-detail.js?v=202610141249';
+import { writeBucket, writeCatalogSummary, ensureSuppliers } from './products-write.js?v=202610141249';
+import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610141249';
 import {
     CATALOG_COLS, COST_COLS, readRows, groupCatalogRows, diffCatalog, diffCost, defaultChecked,
     catalogJson, costJson, bucketSizesAfter, templateAoa, costExportAoa, resultAoa, STATUS_LABEL, BUCKET_LIMIT,
     sheetToAoa, goneSelected
-} from './lib/product-excel-rows.js?v=202610141120';
+} from './lib/product-excel-rows.js?v=202610141249';
+import { EZ_COST_COLS, detectEzadmin, ezCatalogGroups, diffEzCost } from './lib/product-ezadmin.js?v=202610141249';
+import { REASON_LABEL } from './lib/product-price-text.js?v=202610141249';
 
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 const PAGE = 50;
@@ -52,7 +57,7 @@ async function downloadAoa(aoa, sheet, fname, widths) {
 }
 
 // ── 상태 (창을 닫으면 비운다) ─────────────────────────────
-let U = null;        // { kind, entries, checked:Set, filter, page, header, busy, results }
+let U = null;        // { kind, ez, cols, aoa(이지어드민 기본정보 단계만 — 원가 단계로 넘길 내용), fname, entries, checked:Set, filter, page, header, results }
 let busy = false;
 
 function closeModal() {
@@ -66,7 +71,11 @@ function closeModal() {
 }
 let wired = false;
 
-export function openUpload(kind) {
+/**
+ * 업로드 창 열기. kind = 'catalog' | 'cost'.
+ * opts.aoa : 이지어드민 기본정보 단계에서 읽어 둔 내용 — 원가 단계로 이어갈 때(파일을 다시 고르지 않음)
+ */
+export function openUpload(kind, { aoa: givenAoa = null, fname: givenName = '' } = {}) {
     if (!S.isAdmin) return;
     if (!wired) {
         $('pd-modal-close').addEventListener('click', closeModal);
@@ -95,7 +104,10 @@ export function openUpload(kind) {
                        <label class="pd-field" style="width:170px">기준일<input class="pd-in" type="date" data-f="rateDate" value="${ymdDash()}"></label>
                        <span class="pd-note">환율 칸이 빈 행에 씁니다</span>`}
             </div>
-            <div class="pd-row" style="margin-top:12px"><input type="file" data-f="file" accept=".xlsx,.xls,.csv"><span class="pd-note" data-f="readmsg"></span></div>
+            ${givenAoa
+                ? `<div class="pd-row" style="margin-top:12px"><button class="d-btn d-btn-primary" data-act="go">비교 시작</button><span class="pd-note" data-f="readmsg">기본정보 단계에서 읽은 ${esc(givenName)} 을(를) 그대로 씁니다(파일을 다시 고르지 않음)</span></div>`
+                : `<div class="pd-row" style="margin-top:12px"><input type="file" data-f="file" accept=".xlsx,.xls,.csv"><span class="pd-note" data-f="readmsg"></span></div>`}
+            <div class="pd-note" style="margin-top:8px">이지어드민 '상품정보' 엑셀도 그대로 올릴 수 있습니다(머리글로 자동 인식). 순서: 기본정보 → 원가.</div>
         </div>
         <div id="pd-preview"></div>`;
     $('pd-modal').classList.remove('hidden');
@@ -114,18 +126,64 @@ export function openUpload(kind) {
         try { await downloadAoa(costExportAoa(S.products, C.costs), '원가', `원가_현재값_관리자전용_${ymd()}.xlsx`); }
         catch (e) { toast('엑셀을 만들지 못했습니다'); }
     });
-    q('file').addEventListener('change', async (e) => {
+    /** 원가 비교에 쓰는 기본 환율·기준일. 못 쓰면 null(안내 문구를 띄움) */
+    const costDefaults = () => {
+        const msg = q('readmsg');
+        msg.className = 'pd-note pd-err';
+        if (!C.costs) { msg.textContent = '원가를 읽지 못한 상태라 비교할 수 없습니다 — 새로고침 후 다시'; return null; }
+        const rate = Number(q('rate').value);
+        if (!(rate >= 3 && rate <= 15)) { msg.textContent = '기본 환율(3~15, 1달러당 위안)을 먼저 넣어 주세요'; return null; }
+        localStorage.setItem('products_lastRate', String(rate));
+        msg.className = 'pd-note';
+        return { rate, rateDate: q('rateDate').value || ymdDash() };
+    };
+    /** 읽은 aoa → 비교 → 미리보기. 이지어드민 상품 엑셀이면 전용 경로 */
+    const compare = async (aoa, fname, readMs, defaults) => {
+        const msg = q('readmsg');
+        msg.className = 'pd-note';
+        msg.textContent = `비교 중… (${(aoa.length).toLocaleString()}행)`;
+        await nextTick();
+        const t1 = performance.now();
+        const ez = !!detectEzadmin(aoa);
+        const cols = cat ? CATALOG_COLS : ez ? EZ_COST_COLS : COST_COLS;
+        const rr = readRows(aoa, cols, { forbid: cat });
+        let res;
+        if (!rr.fileErrors.length) {
+            const ctx = { catalog: S.products, costs: C.costs, ledger: ledgerCodes(), defaults };
+            if (cat) res = diffCatalog(ez ? ezCatalogGroups(rr.rows) : groupCatalogRows(rr.rows), S.products, { fullList: q('full').checked });
+            else res = ez ? diffEzCost(rr.rows, ctx) : diffCost(rr.rows, ctx);
+        }
+        const t2 = performance.now();
+        console.log(`[products] 엑셀 읽기 ${Math.round(readMs)}ms · 비교 ${Math.round(t2 - t1)}ms · 행 ${rr.rows.length}${ez ? ' · 이지어드민' : ''}`);
+        msg.textContent = `${fname} · ${rr.rows.length.toLocaleString()}행 · ${readMs ? `읽기 ${(readMs / 1000).toFixed(1)}초 · ` : ''}비교 ${((t2 - t1) / 1000).toFixed(1)}초`;
+        U = { kind, ez, cols, aoa: cat && ez ? aoa : null, fname,
+            header: rr.header, fileErrors: rr.fileErrors, skipped: rr.skipped, fullList: cat && q('full').checked,
+            entries: res ? res.entries : [], counts: res ? res.counts : null, needGoneConfirm: !!(res && res.needGoneConfirm),
+            goneRatio: res ? res.goneRatio || 0 : 0, goneOptCount: res ? res.goneOptCount || 0 : 0, goneOptRatio: res ? res.goneOptRatio || 0 : 0,
+            filter: 'todo', page: 0, results: null };
+        U.checked = new Set(U.entries.filter(defaultChecked).map(x => x.pid));
+        renderPreview();
+    };
+    body.querySelector('[data-act="go"]')?.addEventListener('click', async () => {
+        const defaults = costDefaults();
+        if (!defaults) return;
+        $('pd-preview').innerHTML = '';
+        try { await compare(givenAoa, givenName, 0, defaults); }
+        catch (err) {
+            console.error('[products] 비교 실패:', err && err.message);
+            q('readmsg').className = 'pd-note pd-err';
+            q('readmsg').textContent = '비교하지 못했습니다';
+        }
+    });
+    q('file')?.addEventListener('change', async (e) => {
         const f = e.target.files && e.target.files[0];
         if (!f) return;
         const msg = q('readmsg');
         if (f.size > 10 * 1024 * 1024) { msg.textContent = '10MB 가 넘습니다 — 나눠서 올려 주세요'; e.target.value = ''; return; }
         let defaults = null;
         if (!cat) {
-            if (!C.costs) { msg.textContent = '원가를 읽지 못한 상태라 비교할 수 없습니다 — 새로고침 후 다시'; e.target.value = ''; return; }
-            const rate = Number(q('rate').value);
-            if (!(rate >= 3 && rate <= 15)) { msg.textContent = '기본 환율(3~15, 1달러당 위안)을 먼저 넣어 주세요'; e.target.value = ''; return; }
-            defaults = { rate, rateDate: q('rateDate').value || ymdDash() };
-            localStorage.setItem('products_lastRate', String(rate));
+            defaults = costDefaults();
+            if (!defaults) { e.target.value = ''; return; }
         }
         msg.className = 'pd-note'; msg.textContent = '읽는 중…';
         $('pd-preview').innerHTML = '';
@@ -139,24 +197,8 @@ export function openUpload(kind) {
             const ws = wb.Sheets[want] || wb.Sheets[wb.SheetNames[0]];
             const aoa = sheetToAoa(ws, XLSX, { date1904: !!(wb.Workbook && wb.Workbook.WBProps && wb.Workbook.WBProps.date1904) });                      // 원시값 기준(바코드 지수표기·날짜 서식 방지)
             const t1 = performance.now();
-            msg.textContent = `비교 중… (${(aoa.length).toLocaleString()}행)`;
-            await nextTick();
-            const rr = readRows(aoa, cat ? CATALOG_COLS : COST_COLS, { forbid: cat });
-            let res;
-            if (!rr.fileErrors.length) {
-                res = cat ? diffCatalog(groupCatalogRows(rr.rows), S.products, { fullList: q('full').checked })
-                    : diffCost(rr.rows, { catalog: S.products, costs: C.costs, ledger: ledgerCodes(), defaults });
-            }
-            const t2 = performance.now();
-            console.log(`[products] 엑셀 읽기 ${Math.round(t1 - t0)}ms · 비교 ${Math.round(t2 - t1)}ms · 행 ${rr.rows.length}`);
-            msg.textContent = `${f.name} · ${rr.rows.length.toLocaleString()}행 · 읽기 ${((t1 - t0) / 1000).toFixed(1)}초`;
             e.target.value = '';                                   // 파일 참조 버리기
-            U = { kind, header: rr.header, fileErrors: rr.fileErrors, skipped: rr.skipped, fullList: cat && q('full').checked,
-                entries: res ? res.entries : [], counts: res ? res.counts : null, needGoneConfirm: !!(res && res.needGoneConfirm),
-                goneRatio: res ? res.goneRatio || 0 : 0, goneOptCount: res ? res.goneOptCount || 0 : 0, goneOptRatio: res ? res.goneOptRatio || 0 : 0,
-                filter: 'todo', page: 0, results: null };
-            U.checked = new Set(U.entries.filter(defaultChecked).map(x => x.pid));
-            renderPreview();
+            await compare(aoa, f.name, t1 - t0, defaults);
         } catch (err) {
             console.error('[products] 엑셀 읽기 실패:', err && err.message);
             msg.className = 'pd-note pd-err';
@@ -170,7 +212,8 @@ const FILTERS = [
     ['todo', '반영 대상', e => defaultChecked(e)], ['new', '새로', e => e.status === 'new'], ['changed', '변경', e => e.status === 'changed'],
     ['revived', '다시 나타남', e => e.status === 'revived'], ['gone', '사라짐', e => e.status === 'gone'],
     ['warn', '경고', e => e.warnings.length > 0 && e.status !== 'error'], ['error', '오류', e => e.status === 'error'],
-    ['same', '동일', e => e.status === 'same'], ['all', '전체', () => true],
+    ['same', '동일', e => e.status === 'same'], ['check', '확인 필요', e => !!(e.checks && e.checks.length) && e.status !== 'error'],
+    ['all', '전체', () => true],
 ];
 const PILL = { new: 'accent', changed: 'ok', same: 'mute', revived: 'accent', gone: 'risk', error: 'risk' };
 
@@ -180,7 +223,8 @@ function renderPreview() {
     const cat = U.kind === 'catalog';
     if (U.fileErrors.length) { box.innerHTML = `<div class="pd-alert risk">${U.fileErrors.map(esc).join('<br>')}</div>`; return; }
     const h = U.header;
-    const found = Object.keys(h.map).map(k => (cat ? CATALOG_COLS : COST_COLS).find(c => c.key === k).name);
+    const found = Object.keys(h.map).map(k => U.cols.find(c => c.key === k).name);
+    const filters = FILTERS.filter(f => f[0] !== 'check' || !cat);
     const c = U.counts;
     const list = U.entries.filter((FILTERS.find(f => f[0] === U.filter) || FILTERS[0])[2]);
     const pages = Math.max(1, Math.ceil(list.length / PAGE));
@@ -192,11 +236,14 @@ function renderPreview() {
     const chText = cat ? catalogChangeText : costChangeText;
     box.innerHTML = `<div class="pd-step"><h3>3. 미리보기 · 반영</h3>
         <div class="pd-note">찾은 열: ${found.map(esc).join(' · ')}${h.ignored.length ? ` · 모르는 열(무시): ${h.ignored.map(esc).join(', ')}` : ''}${U.skipped ? ` · 설명 행 ${U.skipped}개 건너뜀` : ''}</div>
+        ${U.ez ? `<div class="pd-alert info" style="margin-top:8px">이지어드민 상품 엑셀로 인식했습니다. ${cat
+            ? '이 단계는 기본정보만 읽습니다(대표상품코드가 빈 행 = 단독 상품). 반영한 뒤 <b>원가 단계로 이어서</b>를 누르세요.'
+            : '추가항목2 = 위안 단가, 비축창고재고 = 달러 단가, 원가 = 원화 원가로 읽습니다. 새 품목은 기본정보를 먼저 반영해야 합니다(\'기본정보에 없음\'). 글로 적힌 단가를 확정 못 한 품목은 단가를 바꾸지 않고 원가메모에 원문을 남깁니다(\'확인 필요\').'}</div>` : ''}
         ${h.forbidden.length ? `<div class="pd-alert warn" style="margin-top:8px">원가·공급처로 보이는 열은 읽지 않았습니다: ${h.forbidden.map(esc).join(', ')}</div>` : ''}
         ${h.dupes.length ? `<div class="pd-alert warn" style="margin-top:8px">같은 뜻의 열이 또 있어 뒤의 것은 무시: ${h.dupes.map(esc).join(', ')}</div>` : ''}
         ${cat && U.needGoneConfirm ? `<div class="pd-alert risk" style="margin-top:8px">사라짐이 상품 ${c.gone.toLocaleString()}개(기존의 ${Math.round(U.goneRatio * 100)}%) · 옵션 ${U.goneOptCount.toLocaleString()}개(기존의 ${Math.round(U.goneOptRatio * 100)}%) 입니다. 파일을 잘못 고르지 않았는지 확인하세요.
             ${goneNeed ? `반영하려면 선택한 것 중 사라질 ${sg.options ? '옵션' : '상품'} 수 <b>${goneNeed.toLocaleString()}</b> 을 입력: <input class="pd-in num sm" data-f="goneok" inputmode="numeric" style="width:100px">` : '(지금 선택에는 사라짐이 없습니다)'}</div>` : ''}
-        <div class="pd-row" style="margin-top:12px">${FILTERS.map(([k, label, fn]) => {
+        <div class="pd-row" style="margin-top:12px">${filters.map(([k, label, fn]) => {
             const n = U.entries.filter(fn).length;
             return `<button class="pd-chip ${U.filter === k ? 'is-on' : ''}" data-flt="${k}">${label}<span class="num">${n.toLocaleString()}</span></button>`;
         }).join('')}</div>
@@ -209,8 +256,11 @@ function renderPreview() {
                 const res = U.results ? U.results.get(e.pid) : '';
                 const lines = e.changes.slice(0, 4).map(chText);
                 if (e.changes.length > 4) lines.push(`<span class="pd-inh">외 ${e.changes.length - 4}건</span>`);
-                const notes = [...e.errors.map(x => `<span class="pd-err">${esc(x)}</span>`), ...e.warnings.map(x => `<span class="pd-warn">${esc(x)}</span>`), ...(e.infos || []).map(x => `<span class="pd-inh">${esc(x)}</span>`)];
-                return `<tr class="${e.status === 'error' ? 'is-risk' : e.warnings.length ? 'is-warn' : ''}">
+                const checks = (e.checks || []).map(x => REASON_LABEL[x] || x);   // 사유 라벨만(단가 원문·숫자 없음)
+                const notes = [...e.errors.map(x => `<span class="pd-err">${esc(x)}</span>`),
+                    ...(checks.length ? [`<span class="pd-warn"><b>확인 필요</b>: ${esc(checks.join(', '))} — 단가는 그대로, 원문은 원가메모에</span>`] : []),
+                    ...e.warnings.map(x => `<span class="pd-warn">${esc(x)}</span>`), ...(e.infos || []).map(x => `<span class="pd-inh">${esc(x)}</span>`)];
+                return `<tr class="${e.status === 'error' ? 'is-risk' : (e.warnings.length || checks.length) ? 'is-warn' : ''}">
                     <td><input type="checkbox" class="pd-check" data-pid="${esc(e.pid)}" ${U.checked.has(e.pid) ? 'checked' : ''} ${can && !U.results ? '' : 'disabled'} aria-label="${esc(e.pid)} 반영"></td>
                     <td class="num">${esc(e.pid)}</td><td class="pd-name">${esc(name)}</td>
                     <td><span class="pd-pill ${PILL[e.status]}">${STATUS_LABEL[e.status]}</span>${res ? `<br><span class="pd-sub">${esc(res)}</span>` : ''}</td>
@@ -220,7 +270,7 @@ function renderPreview() {
             <span class="pd-pager"><button class="d-btn d-btn-sm" data-act="prev" ${U.page <= 0 ? 'disabled' : ''}>이전</button><span class="num">${U.page + 1} / ${pages}</span><button class="d-btn d-btn-sm" data-act="next" ${U.page >= pages - 1 ? 'disabled' : ''}>다음</button></span></div>
         <div class="pd-progress" style="margin-top:14px; display:none" data-f="prog"><i></i></div>
         <div class="pd-actions"><span class="pd-note" data-f="applymsg"></span>
-            ${U.results ? `<button class="d-btn pd-btn-lg" data-act="result">결과 엑셀 받기</button><button class="d-btn d-btn-primary pd-btn-lg" data-act="done">닫기</button>`
+            ${U.results ? `<button class="d-btn pd-btn-lg" data-act="result">결과 엑셀 받기</button>${cat && U.ez && U.aoa ? '<button class="d-btn d-btn-primary pd-btn-lg" data-act="tocost">원가 단계로 이어서</button>' : ''}<button class="d-btn ${cat && U.ez && U.aoa ? '' : 'd-btn-primary'} pd-btn-lg" data-act="done">닫기</button>`
                 : `<button class="d-btn d-btn-primary pd-btn-lg" data-act="apply" ${sel.length ? '' : 'disabled'}>선택 ${sel.length.toLocaleString()}개 반영</button>`}</div></div>`;
 
     box.querySelectorAll('[data-flt]').forEach(b => b.addEventListener('click', () => { U.filter = b.dataset.flt; U.page = 0; renderPreview(); }));
@@ -242,6 +292,12 @@ function renderPreview() {
         downloadAoa(resultAoa(U.entries, U.results), '결과', `${cat ? '기본정보' : '원가'}_업로드결과_${ymd()}.xlsx`).catch(() => toast('엑셀을 만들지 못했습니다'));
     });
     box.querySelector('[data-act="done"]')?.addEventListener('click', closeModal);
+    box.querySelector('[data-act="tocost"]')?.addEventListener('click', () => {
+        const aoa = U.aoa, fname = U.fname;
+        U = null;
+        route();                                      // 반영한 기본정보로 뒤 화면 다시 그리기
+        openUpload('cost', { aoa, fname });
+    });
 }
 
 async function apply(sel) {
@@ -277,11 +333,30 @@ async function apply(sel) {
         return;
     }
     if (!confirm(`${sel.length.toLocaleString()}개 품목을 반영합니다${selGone || sg.options ? ` (사라짐 상품 ${selGone}개 · 옵션 ${sg.options}개 포함)` : ''}. 계속할까요?`)) return;
+    // 이지어드민 원가: 대장에 없는 공급처는 이름 빈칸으로 먼저 등록(원가에는 코드만 들어간다)
+    const ledger = ledgerCodes();
+    const newSups = cat ? [] : [...new Set(sel.map(e => e.newSup).filter(c => c && !ledger.has(c)))];
+    if (newSups.length && !confirm(`공급처 ${newSups.length.toLocaleString()}개를 대장에 새로 등록합니다(이름 빈칸). 계속할까요?`)) return;
     busy = true;
     msg.className = 'pd-note';
     const prog = box.querySelector('[data-f="prog"]');
     prog.style.display = 'block';
     box.querySelector('[data-act="apply"]').disabled = true;
+    if (newSups.length) {
+        msg.textContent = `공급처 대장 등록 중… (${newSups.length}개)`;
+        try {
+            await ensureSuppliers(S.db, newSups, S.email);
+            await loadLedger();
+        } catch (e) {
+            console.error('[products] 공급처 대장 등록 실패:', e && e.code);
+            busy = false;
+            prog.style.display = 'none';
+            box.querySelector('[data-act="apply"]').disabled = false;
+            msg.className = 'pd-note pd-err';
+            msg.textContent = '공급처 대장 등록에 실패해 반영하지 않았습니다' + (e && e.code ? ` (${e.code})` : '');
+            return;
+        }
+    }
     const batchId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const results = new Map();
     let i = 0, okN = 0, conflictN = 0, failN = 0;

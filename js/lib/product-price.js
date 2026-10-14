@@ -145,9 +145,17 @@ export function effectivePrice(cost, scode) {
     return { price: cost.base || null, inherited: true };
 }
 
-/** 이 상품의 옵션 개별 단가 중 기본값과 다른 것이 있는가 */
+/** 옵션 실효 원화 원가 = 옵션 원화(ok) ?? 기본 원화(krw). → { krw: 정수|null, inherited } */
+export function effectiveKrw(cost, scode) {
+    if (!cost) return { krw: null, inherited: true };
+    const own = cost.ok && cost.ok[scode];
+    if (own !== undefined && own !== null) return { krw: own, inherited: false };
+    return { krw: cost.krw ?? null, inherited: true };
+}
+
+/** 이 상품의 옵션 개별 단가(위안·달러 또는 원화) 중 기본값과 다른 것이 있는가 */
 export function hasOptionPrices(cost) {
-    return !!(cost && cost.o && Object.keys(cost.o).length);
+    return !!(cost && ((cost.o && Object.keys(cost.o).length) || (cost.ok && Object.keys(cost.ok).length)));
 }
 
 /** 표시용: 12.3 → '12.30' */

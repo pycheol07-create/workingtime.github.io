@@ -1,9 +1,9 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610141120';
-import * as State from './state.js?v=202610141120';
-import { getRegularMembersForCount } from './utils.js?v=202610141120';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610141120';
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610141120';
+import { getAllDashboardDefinitions } from './ui.js?v=202610141249';
+import * as State from './state.js?v=202610141249';
+import { getRegularMembersForCount } from './utils.js?v=202610141249';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610141249';
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610141249';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);

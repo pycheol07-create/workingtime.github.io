@@ -8,12 +8,13 @@
 import {
     doc, getDoc, getDocs, collection, query, where, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610141120';
-import { esc, toast } from './products.js?v=202610141120';
-import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=202610141120';
-import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, SUP_RE } from './lib/product-excel-rows.js?v=202610141120';
-import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=202610141120';
-import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=202610141120';
+import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610141249';
+import { esc, toast } from './products.js?v=202610141249';
+import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=202610141249';
+import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=202610141249';
+import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=202610141249';
+import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=202610141249';
+import { stripCheckMemo } from './lib/product-ezadmin.js?v=202610141249';
 
 export const C = { costs: null, ledger: null };
 
@@ -44,8 +45,15 @@ export async function loadLedger() {
 
 const priceText = (p) => p ? `¥${fmt2(p.cny)} ($${fmt2(p.usd)}, 환율 ${p.rate}${p.rateDate ? ', ' + p.rateDate.slice(5) : ''})` : '없음';
 export function costChangeText(c) {
+    // 원가메모는 원문(단가 원문·메모 내용)을 미리보기·이력 목록에 펼치지 않는다 — 바뀌었다는 것만
+    if (c.field === 'memo') {
+        const markOnly = stripCheckMemo(c.before || '') === stripCheckMemo(c.after || '');
+        return `<b>${esc(FIELD_LABEL.memo)} 변경${markOnly ? '(단가 확인 표식)' : ''}</b>`;
+    }
     const lab = c.opt ? `${c.opt} ${c.field === 'opt' ? '개별 단가' : FIELD_LABEL[c.field] || c.field}` : (FIELD_LABEL[c.field] || c.field);
-    const v = (x) => (c.field === 'base' || c.field === 'opt') ? priceText(x) : (x === null || x === '' ? '없음' : String(x));
+    const v = (x) => (c.field === 'base' || c.field === 'opt') ? priceText(x)
+        : (c.field === 'krw' || c.field === 'okrw') ? (x === null || x === undefined ? '없음' : `${Number(x).toLocaleString()}원`)
+        : (x === null || x === '' ? '없음' : String(x));
     return `<b>${esc(lab)}</b> ${esc(v(c.before))} → ${esc(v(c.after))}`;
 }
 
@@ -66,11 +74,12 @@ export function renderCostCard(container, pid, p, onSaved) {
         ${C.costs ? '' : '<div class="pd-alert risk" style="margin-top:12px">원가를 읽지 못했습니다 — 새로고침 후 다시 시도하세요. (이 상태에서는 저장하지 않습니다)</div>'}
         <div class="pd-grid4">
             <label class="pd-field">공급처
-                <select class="pd-in" data-f="sup"><option value="">(미지정)</option>${sups.map(([k, v]) => `<option value="${esc(k)}" ${k === c.sup ? 'selected' : ''}>${esc(k)}${v.active === false ? ' (중지)' : ''}</option>`).join('')}</select>
+                <select class="pd-in" data-f="sup"><option value="">(미지정)</option>${sups.map(([k, v]) => `<option value="${esc(k)}" ${k === c.sup ? 'selected' : ''}>${esc(k)}${v.active === false ? ' (중지)' : ''}${v.auto && !v.name ? ' (자동 등록)' : ''}</option>`).join('')}</select>
                 <small>이름·연락처는 공급처 대장에</small></label>
             <label class="pd-field">기본 단가 (위안)<input class="pd-in num" data-f="cny" inputmode="decimal" value="${base ? fmt2(base.cny) : ''}"></label>
             <label class="pd-field">기본 단가 (달러)<input class="pd-in num" data-f="usd" inputmode="decimal" value="${base ? fmt2(base.usd) : ''}">
                 <small data-f="srcnote">${base ? (base.src === 'usd' ? '달러로 입력' : base.src === 'both' ? '둘 다 입력' : '위안으로 입력') : ''}</small></label>
+            <label class="pd-field">기본 원가 (원)<input class="pd-in num" data-f="krw" inputmode="numeric" value="${c.krw ?? ''}"></label>
             <label class="pd-field">환율 (1달러당 위안)<input class="pd-in num" data-f="rate" inputmode="decimal" value="${lastRate}"></label>
             <label class="pd-field">기준일<input class="pd-in" data-f="rateDate" type="date" value="${base && base.rateDate ? esc(base.rateDate) : ymd}"></label>
             <label class="pd-field">최소 주문(MOQ)<input class="pd-in num" data-f="moq" inputmode="numeric" value="${c.moq ?? ''}"></label>
@@ -78,15 +87,17 @@ export function renderCostCard(container, pid, p, onSaved) {
             <label class="pd-field">원가 메모<input class="pd-in" data-f="memo" maxlength="${MEMO_MAX}" value="${esc(c.memo || '')}"></label>
         </div>
         <div class="pd-row" style="margin-top:26px"><h3 class="pd-h3 pd-grow">옵션별 단가</h3><span class="pd-note">비우면 기본 단가를 따릅니다(회색)</span></div>
-        <div class="pd-table-box pd-scroll"><table class="pd-t pd-t-sm" style="min-width:560px">
-            <thead><tr><th>상품코드</th><th>옵션</th><th class="r">위안</th><th class="r">달러</th><th>기준일</th></tr></thead>
+        <div class="pd-table-box pd-scroll"><table class="pd-t pd-t-sm" style="min-width:660px">
+            <thead><tr><th>상품코드</th><th>옵션</th><th class="r">위안</th><th class="r">달러</th><th>기준일</th><th class="r">원화</th></tr></thead>
             <tbody>${opts.map(o => {
                 const own = c.o && c.o[o[0]];
+                const ownK = c.ok ? c.ok[o[0]] : undefined;
                 return `<tr data-s="${esc(o[0])}"><td class="num">${esc(o[0])}</td><td>${esc(o[1])}</td>
                     <td class="r"><input class="pd-in num sm ${own ? 'is-own' : ''}" data-o="cny" inputmode="decimal" value="${own ? fmt2(own.cny) : ''}" placeholder="${base ? fmt2(base.cny) : ''}" aria-label="${esc(o[0])} 위안"></td>
                     <td class="r"><input class="pd-in num sm ${own ? 'is-own' : ''}" data-o="usd" inputmode="decimal" value="${own ? fmt2(own.usd) : ''}" placeholder="${base ? fmt2(base.usd) : ''}" aria-label="${esc(o[0])} 달러"></td>
-                    <td class="${own ? '' : 'pd-inh'}">${own ? esc((own.rateDate || '').slice(5)) : '기본값'}</td></tr>`;
-            }).join('') || '<tr><td colspan="5" class="pd-inh">옵션 없음</td></tr>'}</tbody></table></div>
+                    <td class="${own ? '' : 'pd-inh'}">${own ? esc((own.rateDate || '').slice(5)) : '기본값'}</td>
+                    <td class="r"><input class="pd-in num sm ${ownK !== undefined && ownK !== null ? 'is-own' : ''}" data-o="krw" inputmode="numeric" value="${ownK ?? ''}" placeholder="${c.krw ?? ''}" aria-label="${esc(o[0])} 원화"></td></tr>`;
+            }).join('') || '<tr><td colspan="6" class="pd-inh">옵션 없음</td></tr>'}</tbody></table></div>
         <div class="pd-actions"><span class="pd-note" data-f="msg"></span>
             <span class="pd-note">${cur ? `마지막 수정 ${fmtDateTime(cur.at)} · ${esc(cur.by)}` : '아직 입력 없음'}</span>
             <button class="d-btn d-btn-primary pd-btn-lg" data-f="save" ${C.costs ? '' : 'disabled'}>원가 저장</button></div>`;
@@ -109,6 +120,8 @@ export function renderCostCard(container, pid, p, onSaved) {
         const ci = tr.querySelector('[data-o="cny"]'), ui = tr.querySelector('[data-o="usd"]');
         ci.addEventListener('input', () => { osrc.set(tr.dataset.s, 'cny'); recalc(ci, ui, 'cny'); ci.classList.toggle('is-own', !!ci.value); ui.classList.toggle('is-own', !!ci.value); });
         ui.addEventListener('input', () => { osrc.set(tr.dataset.s, 'usd'); recalc(ci, ui, 'usd'); ci.classList.toggle('is-own', !!ui.value); ui.classList.toggle('is-own', !!ui.value); });
+        const ki = tr.querySelector('[data-o="krw"]');
+        ki.addEventListener('input', () => ki.classList.toggle('is-own', !!ki.value));
     });
 
     q('save').addEventListener('click', async () => {
@@ -124,18 +137,25 @@ export function renderCostCard(container, pid, p, onSaved) {
             if (r.errors.length) errs.push(r.errors.join(', '));
             return r;
         };
-        const next = { ...emptyCost(), ...(cur ? { ...cur } : {}), o: {} };
+        const next = { ...emptyCost(), ...(cur ? { ...cur } : {}), o: {}, ok: {} };
         next.base = price(num(q('cny')), num(q('usd')), src, base).price || null;
+        const krwOk = (v) => v === null || (Number.isInteger(v) && v >= 0);
+        next.krw = num(q('krw'));
+        if (!krwOk(next.krw)) errs.push('기본 원가(원)는 0 이상 정수');
         container.querySelectorAll('tr[data-s]').forEach(tr => {
             const s = tr.dataset.s;
             const cv = num(tr.querySelector('[data-o="cny"]')), uv = num(tr.querySelector('[data-o="usd"]'));
             const r = price(cv, uv, osrc.get(s) || 'cny', c.o && c.o[s]);
             if (r.price && !(next.base && round2(r.price.cny) === round2(next.base.cny) && round2(r.price.usd) === round2(next.base.usd))) next.o[s] = r.price;
+            const kv = num(tr.querySelector('[data-o="krw"]'));       // 비우면 기본 원화 상속, 기본값과 같으면 개별 저장 안 함
+            if (!krwOk(kv)) errs.push(`${s} 원화는 0 이상 정수`);
+            else if (kv !== null && kv !== next.krw) next.ok[s] = kv;
         });
-        // 옵션이 지금 목록에 없는(사라진) 개별 단가는 그대로 둔다
+        // 옵션이 지금 목록에 없는(사라진) 개별 단가·원화는 그대로 둔다
         for (const [s, v] of Object.entries(c.o || {})) if (!opts.some(o => o[0] === s)) next.o[s] = v;
+        for (const [s, v] of Object.entries(c.ok || {})) if (!opts.some(o => o[0] === s)) next.ok[s] = v;
         next.sup = q('sup').value;
-        if (next.sup && !SUP_RE.test(next.sup)) errs.push('공급처코드 모양');
+        if (next.sup && !isSupCode(next.sup)) errs.push('공급처코드 모양');
         for (const k of ['moq', 'leadDays']) {
             const v = num(q(k));
             if (v !== null && (!Number.isInteger(v) || v < 0)) errs.push(`${FIELD_LABEL[k]}는 0 이상 정수`);
@@ -219,10 +239,10 @@ export function renderSuppliers(main) {
     const inp = (f, v = '', ph = '') => `<input class="pd-in" data-f="${f}" value="${esc(v)}" placeholder="${ph}" maxlength="${f === 'memo' ? 300 : 100}">`;
     main.innerHTML = `<section class="pd-card pd-card-pad">
         <div class="pd-row"><h2 class="pd-h2 pd-grow">공급처 대장</h2><span class="pd-lock">관리자만 보임</span></div>
-        <div class="pd-note" style="margin-top:6px">공급처 실명·연락처는 여기 한 곳에만 둡니다. 원가에는 코드(SUP-001)만 들어갑니다. 지우지 않고 '중지'로 바꿉니다.</div>
+        <div class="pd-note" style="margin-top:6px">공급처 실명·연락처는 여기 한 곳에만 둡니다. 원가에는 코드만 들어갑니다(직접 추가 = SUP-001 형식, 이지어드민 원가 업로드 = 그 파일의 공급처 값을 코드로 '자동 등록'). 지우지 않고 '중지'로 바꿉니다.</div>
         <div class="pd-scroll" style="margin-top:14px"><table class="pd-t pd-t-sm" style="min-width:880px">
             <thead><tr><th>코드</th><th>이름</th><th>담당자</th><th>연락처</th><th>메모</th><th class="r">상품</th><th>상태</th><th></th></tr></thead>
-            <tbody>${entries.map(([k, v]) => `<tr data-code="${esc(k)}"><td class="num"><b>${esc(k)}</b></td>
+            <tbody>${entries.map(([k, v]) => `<tr data-code="${esc(k)}"><td class="num"><b>${esc(k)}</b>${v.auto ? ' <span class="pd-pill warn">자동 등록</span>' : ''}</td>
                 <td>${inp('name', v.name)}</td><td>${inp('contact', v.contact)}</td><td>${inp('phone', v.phone)}</td><td>${inp('memo', v.memo)}</td>
                 <td class="r num">${used.get(k) || 0}</td>
                 <td><select class="pd-in" data-f="active" style="width:90px"><option value="1" ${v.active !== false ? 'selected' : ''}>사용</option><option value="0" ${v.active === false ? 'selected' : ''}>중지</option></select></td>
@@ -236,7 +256,7 @@ export function renderSuppliers(main) {
         const tr = b.closest('tr');
         const val = (f) => (tr.querySelector(`[data-f="${f}"]`)?.value || '').trim();
         const entry = { name: val('name'), contact: val('contact'), phone: val('phone'), memo: val('memo') };
-        if (!entry.name) { toast('이름을 넣어 주세요'); return; }
+        if (b.dataset.act === 'add' && !entry.name) { toast('이름을 넣어 주세요'); return; }   // 기존 행(자동 등록 포함)은 이름 빈칸도 저장
         b.disabled = true;
         try {
             if (b.dataset.act === 'add') {
@@ -244,6 +264,8 @@ export function renderSuppliers(main) {
                 toast(`${code} 로 등록했습니다`);
             } else {
                 entry.active = val('active') !== '0';
+                const old = (L.s || {})[tr.dataset.code] || {};
+                if (old.auto && !entry.name) entry.auto = 1;          // 이름을 채우기 전까지는 '자동 등록' 표시 유지
                 await updateSupplier(S.db, tr.dataset.code, entry, S.email);
                 toast('저장했습니다');
             }

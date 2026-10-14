@@ -3,10 +3,10 @@
 //   낮에는 아무도 데이터관리 창을 열지 않는다 — 계획 대비 얼마나 왔는지,
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
-import * as State from './state.js?v=202610141120';
-import { formatHM } from './utils.js?v=202610141120';
-import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory } from './ui-history-prediction.js?v=202610141120';
-import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610141120';
+import * as State from './state.js?v=202610141249';
+import { formatHM } from './utils.js?v=202610141249';
+import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory } from './ui-history-prediction.js?v=202610141249';
+import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610141249';
 
 const EL = 'today-progress-strip';
 let timer = null;

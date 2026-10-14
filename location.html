@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610141120">
+    <link rel="stylesheet" href="css/suit.css?v=202610141249">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -489,10 +489,29 @@
         .kpi-bar { height: 6px; background: var(--c-track); border-radius: 3px; margin-top: 12px; overflow: hidden; }
         .kpi-bar > div { height: 100%; border-radius: 3px; transition: width 0.4s; }
 
-        /* 2열: 구역별 사용률 | (처리할 일 + 출고 경과) */
-        .dash-main-row { display: flex; flex-wrap: wrap; gap: 24px; }
-        .dash-main-row > .dash-zone-panel { flex: 999 1 560px; min-width: 0; }
-        .dash-side { flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+        /* 패널 배치 — 12칸 그리드. 순서·폭·높이는 js/locdash-layout.js 가 이 브라우저 localStorage 배치로 정하고,
+           줄 높이 8px 단위로 칸마다 위치(grid-column / grid-row)를 직접 계산해 넣는다(js/lib/dash-layout.js placeItems). */
+        .dash-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 8px; grid-auto-flow: row;
+                     row-gap: 0; column-gap: var(--sp-5); margin-bottom: calc(-1 * var(--sp-5)); /* 칸마다 아래 간격을 품고 있어 마지막 간격만큼 당김 */ }
+        .dash-cell { position: relative; align-self: start; min-width: 0; grid-column: span 12; }
+        .dash-cell.has-h > :first-child { height: 100%; box-sizing: border-box; overflow: auto; }
+        /* 옆 사이드 열에 맞춰 늘린 칸(is-stretched, 높이는 JS) — 패널 상자가 그 높이를 채운다 */
+        .dash-cell > .dash-panel { min-height: 100%; box-sizing: border-box; }
+        /* 배치 편집 (덮개는 칸의 마지막 자식 — 안쪽 innerHTML 을 다시 그려도 지워지지 않게) */
+        .dash-toolbar-right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+        .dash-toolbar [hidden] { display: none !important; }
+        .dash-layout-editbar { display: flex; align-items: center; gap: 8px; }
+        .dash-layout-hint { font-size: 12.5px; color: var(--c-text-3); }
+        .dash-layout-msg { font-size: 12.5px; color: var(--c-warn-text); }
+        .dash-grid.is-editing .dash-cell { outline: 1px dashed var(--c-accent-mid); outline-offset: 4px; border-radius: var(--r-card); }
+        .dash-edit-overlay { position: absolute; inset: 0; z-index: 5; border-radius: var(--r-card); cursor: grab; touch-action: none; user-select: none; }
+        .dash-edit-overlay[hidden] { display: none; }
+        .dash-edit-overlay::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--c-accent-row); opacity: .55; }
+        .dash-edit-label { position: absolute; top: 10px; left: 12px; }
+        .dash-edit-handle { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; box-sizing: border-box; cursor: nwse-resize;
+                            border-right: 2px solid var(--c-accent); border-bottom: 2px solid var(--c-accent); border-bottom-right-radius: var(--r-cell); }
+        .dash-cell.dash-dragging { opacity: .5; }
+        .dash-cell.dash-dragging .dash-edit-overlay { cursor: grabbing; }
         .dash-panel { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 24px 28px; }
         .dash-panel h3 { margin: 0 0 14px 0; font-size: 16px; font-weight: 600; color: var(--c-text); }
         .dash-panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 16px; margin-bottom: 18px; }
@@ -520,8 +539,15 @@
 
         /* 인사이트 카드 */
         .dash-insight-row { display: grid; grid-template-columns: 1fr 1fr 1.6fr 0.9fr; gap: 16px; }
-        @media (max-width: 1100px) { .dash-insight-row { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 640px) { .dash-insight-row { grid-template-columns: 1fr; } }
+        /* 칸 수는 화면 폭이 아니라 인사이트 패널 폭 기준(배치 편집으로 폭이 바뀐다) */
+        .dash-cell[data-panel="insights"] { container-type: inline-size; }
+        @container (max-width: 1000px) { .dash-insight-row { grid-template-columns: repeat(2, 1fr); } }
+        @container (max-width: 560px) { .dash-insight-row { grid-template-columns: 1fr; } }
+        /* @container 를 모르는 브라우저(Chrome 105 미만 등): 예전처럼 화면 폭 기준 */
+        @supports not (container-type: inline-size) {
+            @media (max-width: 1100px) { .dash-insight-row { grid-template-columns: repeat(2, 1fr); } }
+            @media (max-width: 640px) { .dash-insight-row { grid-template-columns: 1fr; } }
+        }
         .insight-card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 20px 22px; }
         .insight-card h4 { margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: var(--c-text); }
         .insight-card .ins-big { font-size: 26px; font-weight: 600; color: var(--c-text); font-variant-numeric: tabular-nums; }
@@ -606,6 +632,10 @@
             body { overflow-x: hidden; overflow-y: auto; }
             .list-container { height: calc(100dvh - 16px); }
             .dash-container { height: auto; overflow: visible; }
+            .dash-grid { display: flex; flex-direction: column; gap: var(--sp-4); margin-bottom: 0; }
+            .dash-cell { align-self: stretch; height: auto !important; grid-column: auto !important; grid-row: auto !important; }
+            .dash-cell.has-h > :first-child { height: auto; overflow: visible; }
+            .dash-layout-edit, .dash-layout-editbar { display: none !important; }
             #map-body { max-height: calc(100dvh - 16px) !important; }
             .incoming-sidebar { height: 100vh; height: 100dvh; width: min(340px, 100vw); }
 
@@ -761,7 +791,7 @@
         <!-- 체크한 줄의 동·위치·대분류를 바로 고치는 막대 (선택이 있을 때만 보임) -->
         <div id="loc-bulk-bar" class="bulk-bar" style="display:none;">
             <span class="bulk-count"><span id="loc-bulk-count">0</span>개 선택됨</span>
-            <button class="btn btn-primary btn-sm" onclick="window.openLocBulkEdit()">동·위치·대분류 수정</button>
+            <button class="btn btn-primary btn-sm" onclick="window.openLocBulkEdit()">동·위치·대분류·칸수 수정</button>
             <button class="btn btn-secondary btn-sm" onclick="window.clearLocSelection()">선택 해제</button>
             <span>※ 상품·재고가 아니라 <b>자리 정보</b>만 바뀝니다. 자리 번호(로케이션)는 바뀌지 않습니다.</span>
         </div>
@@ -814,15 +844,31 @@
         <div class="dash-container">
             <div class="dash-toolbar">
                 <h2>로케이션 현황</h2>
-                <button class="dash-refresh btn btn-secondary btn-sm" onclick="window.renderLocationDashboard && window.renderLocationDashboard()">새로고침</button>
+                <div class="dash-toolbar-right">
+                    <span class="dash-layout-msg" id="dash-layout-msg" hidden></span>
+                    <!-- 패널 배치 편집 (js/locdash-layout.js) — 배치는 이 PC·브라우저에만 저장 -->
+                    <button type="button" class="dash-layout-edit btn btn-secondary btn-sm" id="dash-layout-edit">배치 편집</button>
+                    <div class="dash-layout-editbar" id="dash-layout-editbar" hidden>
+                        <span class="dash-layout-hint">끌어서 순서 변경 · 오른쪽 아래 모서리로 크기 조절 · 위에서부터 순서대로 채워집니다</span>
+                        <button type="button" class="btn btn-ghost btn-sm" id="dash-layout-reset">기본 배치로 되돌리기</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="dash-layout-cancel">취소</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="dash-layout-done">완료</button>
+                    </div>
+                    <button class="dash-refresh btn btn-secondary btn-sm" onclick="window.renderLocationDashboard && window.renderLocationDashboard()">새로고침</button>
+                </div>
             </div>
 
+            <!-- 패널 칸 6개 — 순서·폭·높이는 배치 편집으로 바뀐다. 안쪽 id 칸은 location.js 가 innerHTML 로 다시 그린다 -->
+            <div class="dash-grid" id="dash-grid">
             <!-- KPI 띠 -->
-            <div class="dash-kpi-row" id="dash-kpi-row">
-                <div class="dash-kpi-card" style="grid-column:1/-1;"><div class="kpi-title">데이터 로딩 중...</div></div>
-            </div>
+            <section class="dash-cell" data-panel="kpi">
+                <div class="dash-kpi-row" id="dash-kpi-row">
+                    <div class="dash-kpi-card" style="grid-column:1/-1;"><div class="kpi-title">데이터 로딩 중...</div></div>
+                </div>
+                <div class="dash-edit-overlay" hidden><span class="badge badge-accent dash-edit-label"></span><span class="dash-edit-handle" title="끌면 폭·높이 조절 · 두 번 누르면 높이 자동"></span></div>
+            </section>
 
-            <div class="dash-main-row">
+            <section class="dash-cell" data-panel="zone">
                 <div class="dash-panel dash-zone-panel">
                     <div class="dash-panel-head">
                         <h3>구역별 사용률</h3>
@@ -835,24 +881,35 @@
                     </div>
                     <div class="zone-bars" id="dash-zone-bars"></div>
                 </div>
-                <div class="dash-side">
-                    <!-- 처리할 일 -->
-                    <div class="dash-panel">
-                        <h3>처리할 일</h3>
-                        <div class="dash-actions" id="dash-actions"></div>
-                    </div>
-                    <div class="dash-panel">
-                        <h3>마지막 출고 후 지난 기간</h3>
-                        <div class="delivery-bars" id="dash-delivery-bars"></div>
-                        <div class="dash-note">※ 정상재고 있는 상품 기준</div>
-                    </div>
+                <div class="dash-edit-overlay" hidden><span class="badge badge-accent dash-edit-label"></span><span class="dash-edit-handle" title="끌면 폭·높이 조절 · 두 번 누르면 높이 자동"></span></div>
+            </section>
+
+            <!-- 처리할 일 -->
+            <section class="dash-cell" data-panel="actions">
+                <div class="dash-panel">
+                    <h3>처리할 일</h3>
+                    <div class="dash-actions" id="dash-actions"></div>
                 </div>
-            </div>
+                <div class="dash-edit-overlay" hidden><span class="badge badge-accent dash-edit-label"></span><span class="dash-edit-handle" title="끌면 폭·높이 조절 · 두 번 누르면 높이 자동"></span></div>
+            </section>
+
+            <section class="dash-cell" data-panel="delivery">
+                <div class="dash-panel">
+                    <h3>마지막 출고 후 지난 기간</h3>
+                    <div class="delivery-bars" id="dash-delivery-bars"></div>
+                    <div class="dash-note">※ 정상재고 있는 상품 기준</div>
+                </div>
+                <div class="dash-edit-overlay" hidden><span class="badge badge-accent dash-edit-label"></span><span class="dash-edit-handle" title="끌면 폭·높이 조절 · 두 번 누르면 높이 자동"></span></div>
+            </section>
 
             <!-- 인사이트 (재고 회전 / 다중위치 / 데드스톡 / 빈자리 동) -->
-            <div class="dash-insight-row" id="dash-insight-row"></div>
+            <section class="dash-cell" data-panel="insights">
+                <div class="dash-insight-row" id="dash-insight-row"></div>
+                <div class="dash-edit-overlay" hidden><span class="badge badge-accent dash-edit-label"></span><span class="dash-edit-handle" title="끌면 폭·높이 조절 · 두 번 누르면 높이 자동"></span></div>
+            </section>
 
             <!-- 구역·동별 데드스톡 분석 (동선 비효율 진단) -->
+            <section class="dash-cell" data-panel="deadstock">
             <div class="dash-panel">
                 <div class="dash-panel-head">
                     <h3>구역·동별 데드스톡 분석 <span class="dash-sub">(데드율 높은 순 = 동선 비효율 후보)</span></h3>
@@ -874,6 +931,9 @@
                     </table>
                 </div>
                 <div id="dash-zonedong-summary" style="margin-top: 12px; font-size: 12.5px; color: var(--c-text-2);"></div>
+            </div>
+                <div class="dash-edit-overlay" hidden><span class="badge badge-accent dash-edit-label"></span><span class="dash-edit-handle" title="끌면 폭·높이 조절 · 두 번 누르면 높이 자동"></span></div>
+            </section>
             </div>
 
             <!-- 데이터 신선도 (작은 각주) -->
@@ -943,7 +1003,7 @@
 
     <div id="dynamic-popups"></div>
 
-    <!-- 선택한 로케이션의 동·위치·대분류 일괄 수정 -->
+    <!-- 선택한 로케이션의 동·위치·대분류·칸수 일괄 수정 -->
     <div id="loc-bulk-modal" class="modal-overlay" onclick="if(event.target.id==='loc-bulk-modal') document.getElementById('loc-bulk-modal').style.display='none'">
         <div class="modal-content" onclick="event.stopPropagation()" style="width:520px; max-width:94vw;">
             <div class="modal-header">선택한 로케이션 수정</div>
@@ -967,6 +1027,11 @@
                         <option value="피킹용">피킹용</option>
                         <option value="기타">기타(비축·샘플)</option>
                     </select>
+                </label>
+                <label style="display:flex; align-items:center; gap:10px; font-size:13px;">
+                    <input type="checkbox" id="loc-bulk-use-angle" onchange="document.getElementById('loc-bulk-angle').disabled = !this.checked">
+                    <span style="width:60px; font-weight:600;">칸수</span>
+                    <input type="text" id="loc-bulk-angle" class="action-input" disabled inputmode="numeric" placeholder="예: 4 (비우면 칸수 없음)" style="flex:1;">
                 </label>
             </div>
 
@@ -1323,9 +1388,12 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610141120"></script>
+    <script type="module" src="js/location.js?v=202610141249"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610141249"></script>
     <script>
         function switchView(view) {
+            // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
+            if (view !== 'locdash' && window.__dashLayoutFinishIfEditing) window.__dashLayoutFinishIfEditing();
             document.getElementById('view-list').style.display = view === 'list' ? 'block' : 'none';
             document.getElementById('view-map').style.display = view === 'map' ? 'block' : 'none';
             // 로케이션 현황 대시보드 탭
@@ -1390,7 +1458,7 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610141120"></script>
-    <script src="js/modal-esc.js?v=202610141120"></script>
+    <script src="js/connection-banner.js?v=202610141249"></script>
+    <script src="js/modal-esc.js?v=202610141249"></script>
 </body>
 </html>

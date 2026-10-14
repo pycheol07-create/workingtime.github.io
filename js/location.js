@@ -1,7 +1,7 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610141120';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610141249';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610141120';
+import { escapeHtml as escAttr } from './utils.js?v=202610141249';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -951,10 +951,10 @@ window.downloadMainExcel = function() {
         const stock = loc.stock || '0';
         const stock2f = loc.stock2f || '0';
         
-        // ★ 로케이션1: ★★-003(4) / S610026 (칸수 없으면 괄호 없이, 상품 없으면 로케이션(칸수)만)
+        // ★ 로케이션1: ★★-003(4)/ S610026 (칸수 없으면 괄호 없이, 상품 없으면 로케이션(칸수)만)
         const angleSize = locAngleSize(loc);
         const locWithAngle = angleSize ? `${loc.id}(${angleSize})` : loc.id;
-        const locDisplay = code ? `${locWithAngle} / ${code}` : locWithAngle;
+        const locDisplay = code ? `${locWithAngle}/ ${code}` : locWithAngle;   // 로케이션 바로 뒤에 / (공백 없음, 사용자 요청 2026-10-14)
 
         let row = '';
         row += `<td class='style1'>${locDisplay}</td>`;
@@ -1798,6 +1798,15 @@ function renderTableHeader() {
 
     theadTr.innerHTML = html;
     popupContainer.innerHTML = popupHtml;
+    // ★ 가로 스크롤(2026-10-14): 표를 화면 폭(100%)에 억지로 맞추면 열이 많을 때 칸이 좁아져 글자가 … 로 잘리고
+    //   가로 스크롤바가 생기지 않았다. 열 폭 합계를 표의 최소 폭으로 줘서, 넘치면 .list-container(overflow:auto)가 가로로 스크롤한다.
+    //   (상품명처럼 폭이 'auto' 인 열은 320px 로 셈한다)
+    const _table = theadTr.closest('table');
+    if (_table) {
+        let _w = 0;
+        theadTr.querySelectorAll('th').forEach(th => { const m = /width:\s*(\d+)px/.exec(th.getAttribute('style') || ''); _w += m ? Number(m[1]) + 24 : (th.classList.contains('checkbox-cell') ? 44 : 320); });
+        _table.style.minWidth = Math.max(1000, _w) + 'px';
+    }
 
     document.querySelectorAll('.filter-popup').forEach(p => { p.addEventListener('click', function(e) { e.stopPropagation(); }); });
     setupFilterPopups();
@@ -3937,7 +3946,7 @@ window.vsCheckChanged = function(cb) {
     updateLocBulkBar();
 };
 
-// 선택 막대(체크한 줄의 동·위치·대분류 수정) 표시 갱신
+// 선택 막대(체크한 줄의 동·위치·대분류·칸수 수정) 표시 갱신
 function updateLocBulkBar() {
     const bar = document.getElementById('loc-bulk-bar');
     const cnt = document.getElementById('loc-bulk-count');
@@ -5546,7 +5555,7 @@ window.deleteSelectedLocations = async () => {
 };
 
 // ============================================================
-// ✏️ 선택한 로케이션의 동·위치·대분류 직접 수정
+// ✏️ 선택한 로케이션의 동·위치·대분류·칸수 직접 수정 (칸수 2026-10-14 추가 — 로케이션 뒤 (칸수) 로 표시·다운로드되는 값)
 //    (지금까지는 영구보전 데이터 업로드로만 바꿀 수 있었다. 몇 칸만 고칠 때 엑셀을 다시 만들지 않아도 되게.)
 //    자리 번호(로케이션 id)는 바꾸지 않는다 — 상품 지정·이력이 번호로 연결돼 있다.
 // ============================================================
@@ -5560,13 +5569,13 @@ window.openLocBulkEdit = function () {
     const byId = new Map(originalData.map(l => [l.id, l]));
     const rows = ids.map(id => byId.get(id)).filter(Boolean);
     const preview = rows.slice(0, 30).map(l =>
-        `${escAttr(l.id)} <span style="color:var(--c-text-3);">(동 ${escAttr(l.dong || '-')} · 위치 ${escAttr(l.pos || '-')} · ${escAttr(l.category || '피킹용')})</span>`
+        `${escAttr(l.id)} <span style="color:var(--c-text-3);">(동 ${escAttr(l.dong || '-')} · 위치 ${escAttr(l.pos || '-')} · ${escAttr(l.category || '피킹용')} · 칸수 ${escAttr(locAngleSize(l) || '-')})</span>`
     ).join('<br>');
     target.innerHTML = `<b>${rows.length}개 로케이션</b>${rows.length > 30 ? ' <span style="color:var(--c-text-3);">(아래는 앞 30개)</span>' : ''}<br>${preview || '선택한 자리를 찾지 못했습니다.'}`;
 
     // 값이 모두 같으면 그 값을 미리 채워 준다
     const one = (key) => { const s = new Set(rows.map(l => (l[key] || '').toString().trim())); return s.size === 1 ? [...s][0] : ''; };
-    ['dong', 'pos', 'cat'].forEach(k => {
+    ['dong', 'pos', 'cat', 'angle'].forEach(k => {
         const ck = document.getElementById('loc-bulk-use-' + k);
         if (ck) ck.checked = false;
     });
@@ -5576,6 +5585,8 @@ window.openLocBulkEdit = function () {
     if (dongEl) { dongEl.value = one('dong'); dongEl.disabled = true; }
     if (posEl) { posEl.value = one('pos'); posEl.disabled = true; }
     if (catEl) { catEl.value = one('category') === '기타' ? '기타' : '피킹용'; catEl.disabled = true; }
+    const angleEl = document.getElementById('loc-bulk-angle');
+    if (angleEl) { const s = new Set(rows.map(l => locAngleSize(l))); angleEl.value = s.size === 1 ? [...s][0] : ''; angleEl.disabled = true; }
 
     modal.style.display = 'flex';
 };
@@ -5589,14 +5600,22 @@ window.applyLocBulkEdit = async function () {
     const useDong = document.getElementById('loc-bulk-use-dong')?.checked;
     const usePos = document.getElementById('loc-bulk-use-pos')?.checked;
     const useCat = document.getElementById('loc-bulk-use-cat')?.checked;
-    if (!useDong && !usePos && !useCat) return alert('바꿀 항목을 체크해 주세요.');
+    const useAngle = document.getElementById('loc-bulk-use-angle')?.checked;
+    if (!useDong && !usePos && !useCat && !useAngle) return alert('바꿀 항목을 체크해 주세요.');
 
     const patch = {};
     if (useDong) patch.dong = (document.getElementById('loc-bulk-dong')?.value || '').trim();
     if (usePos) patch.pos = (document.getElementById('loc-bulk-pos')?.value || '').trim();
     if (useCat) patch.category = (document.getElementById('loc-bulk-cat')?.value === '기타') ? '기타' : '피킹용';
+    if (useAngle) {
+        // 칸수는 영구보전 업로드와 같은 곳(angleSize, 문자열)에 쓴다. 비우면 칸수 없음(괄호 표시 안 함).
+        const a = (document.getElementById('loc-bulk-angle')?.value || '').trim();
+        if (a && !/^\d{1,3}$/.test(a)) return alert('칸수는 숫자(1~999)로 넣거나, 칸수를 없애려면 비워 두세요.');
+        patch.angleSize = a.replace(/^0+(?=\d)/, '');
+    }
 
-    const what = [useDong ? `동 → '${patch.dong || '(빈칸)'}'` : '', usePos ? `위치 → '${patch.pos || '(빈칸)'}'` : '', useCat ? `대분류 → '${patch.category}'` : '']
+    const what = [useDong ? `동 → '${patch.dong || '(빈칸)'}'` : '', usePos ? `위치 → '${patch.pos || '(빈칸)'}'` : '', useCat ? `대분류 → '${patch.category}'` : '',
+                  useAngle ? `칸수 → '${patch.angleSize || '(없음)'}'` : '']
         .filter(Boolean).join('\n');
     const notes = [];
     if ((useDong && !patch.dong) || (usePos && !patch.pos)) notes.push('※ 빈칸으로 두면 동·위치 필터에서 그 자리를 찾을 수 없습니다.');

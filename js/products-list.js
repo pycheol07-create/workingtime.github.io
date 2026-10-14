@@ -3,12 +3,12 @@
 //
 // 3,768행을 한 번에 그리지 않는다(50행씩). 추가 읽기 없음 — 전부 products-store.js 가 받아 둔 메모리에서.
 // 관리자 열(공급처·기본 단가)은 관리자일 때만 **만든다**(숨김 아님). 원가 값은 products-cost.js 메모리에만 있다.
-import { S, locSummary } from './products-store.js?v=202610141120';
-import { C, costOf } from './products-cost.js?v=202610141120';
-import { esc, toast } from './products.js?v=202610141120';
-import { loadXLSX } from './products-excel.js?v=202610141120';
-import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610141120';
-import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610141120';
+import { S, locSummary } from './products-store.js?v=202610141249';
+import { C, costOf } from './products-cost.js?v=202610141249';
+import { esc, toast } from './products.js?v=202610141249';
+import { loadXLSX } from './products-excel.js?v=202610141249';
+import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610141249';
+import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610141249';
 
 const PAGE = 50;
 const F = { q: '', cat: '', status: '', gone: false, noPrice: false, optDiff: false, noSup: false, sup: '', page: 0 };
@@ -127,7 +127,8 @@ function rowHtml(pid, p) {
         const b = c && c.base;
         adm = `<td>${c && c.sup ? esc(c.sup) : '<span class="pd-err">미지정</span>'}</td>
             <td class="r num">${b ? '¥' + fmt2(b.cny) : '<span class="pd-warn">미입력</span>'}</td>
-            <td class="r num">${b ? '$' + fmt2(b.usd) : '<span class="pd-warn">미입력</span>'}</td>`;
+            <td class="r num">${b ? '$' + fmt2(b.usd) : '<span class="pd-warn">미입력</span>'}</td>
+            <td class="r num">${c && c.krw !== null && c.krw !== undefined ? Number(c.krw).toLocaleString() : '<span class="pd-inh">–</span>'}</td>`;
         if (!p.gone && !b) { pills += '<span class="pd-pill warn">단가 미입력</span>'; cls = cls || 'is-warn'; }
         if (hasOptionPrices(c)) pills += '<span class="pd-pill accent">옵션별 단가</span>';
         if (!p.gone && !(c && c.sup)) pills += '<span class="pd-pill risk">공급처 미지정</span>';
@@ -154,9 +155,9 @@ export function renderList(main) {
                 <span id="pd-chips" style="display:contents">${chipsHtml()}</span>
                 <span id="pd-count" class="pd-count num"></span>
             </div>
-            <div class="pd-scroll"><table class="pd-t" style="min-width:${S.isAdmin ? 1180 : 900}px">
+            <div class="pd-scroll"><table class="pd-t" style="min-width:${S.isAdmin ? 1280 : 900}px">
                 <thead><tr><th>상품코드</th><th>상품명</th><th>카테고리</th><th class="r">옵션</th>
-                    ${S.isAdmin ? '<th>공급처<span class="pd-adm-tag">관리자</span></th><th class="r">기본 단가(위안)<span class="pd-adm-tag">관리자</span></th><th class="r">기본 단가(달러)<span class="pd-adm-tag">관리자</span></th>' : ''}
+                    ${S.isAdmin ? '<th>공급처<span class="pd-adm-tag">관리자</span></th><th class="r">기본 단가(위안)<span class="pd-adm-tag">관리자</span></th><th class="r">기본 단가(달러)<span class="pd-adm-tag">관리자</span></th><th class="r">원가(원)<span class="pd-adm-tag">관리자</span></th>' : ''}
                     <th>위치</th><th class="r" title="로케이션관리 자리 수량 합(채우기 요약 기준)">자리 수량</th><th>상태</th></tr></thead>
                 <tbody id="pd-tbody"></tbody></table></div>
             <div class="pd-foot"><span>행을 누르면 상세가 열립니다. 위치·수량은 로케이션관리 기준(평일 아침 요약)입니다.</span>
@@ -168,7 +169,7 @@ export function renderList(main) {
         F.page = Math.min(F.page, pages - 1);
         const from = F.page * PAGE;
         main.querySelector('#pd-tbody').innerHTML = rows.slice(from, from + PAGE).map(([pid, p]) => rowHtml(pid, p)).join('')
-            || `<tr><td colspan="${S.isAdmin ? 10 : 7}" class="pd-empty">조건에 맞는 상품이 없습니다</td></tr>`;
+            || `<tr><td colspan="${S.isAdmin ? 11 : 7}" class="pd-empty">조건에 맞는 상품이 없습니다</td></tr>`;
         main.querySelector('#pd-count').textContent = rows.length ? `${rows.length.toLocaleString()}개 중 ${from + 1}–${Math.min(from + PAGE, rows.length)}` : '0개';
         main.querySelector('#pd-pageno').textContent = `${F.page + 1} / ${pages}`;
         main.querySelector('#pd-prev').disabled = F.page <= 0;

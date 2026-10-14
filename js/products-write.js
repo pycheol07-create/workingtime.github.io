@@ -10,7 +10,7 @@
 import {
     doc, collection, runTransaction, FieldPath, serverTimestamp, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { catalogJson, parseCatalogJson, costJson, parseCostJson } from './lib/product-excel-rows.js?v=202610141120';
+import { catalogJson, parseCatalogJson, costJson, parseCostJson } from './lib/product-excel-rows.js?v=202610141249';
 
 const LOG_MAX = 1000;
 
@@ -129,13 +129,40 @@ export async function addSupplier(db, entry, email) {
     let code;
     await runTransaction(db, async (tx) => {
         const s = await tx.get(ref);
-        const no = s.exists() ? (Number(s.get('nextNo')) || 1) : 1;
+        let no = s.exists() ? (Number(s.get('nextNo')) || 1) : 1;
+        const have = (s.exists() && s.get('s')) || {};
+        // 그 번호가 이미 대장에 있으면(이지어드민 자동 등록 값이 'SUP-003' 꼴인 경우 등) 덮어쓰지 않고 건너뛴다
+        while (Object.prototype.hasOwnProperty.call(have, 'SUP-' + String(no).padStart(3, '0'))) no++;
         code = 'SUP-' + String(no).padStart(3, '0');
         const val = { ...entry, active: true, at: Date.now(), by: email };
         if (s.exists()) tx.update(ref, new FieldPath('s', code), val, 'nextNo', no + 1);
         else tx.set(ref, { nextNo: no + 1, s: { [code]: val } });
     });
     return code;
+}
+/**
+ * 이지어드민 원가 업로드 — 대장에 없는 공급처코드를 이름 빈칸으로 한 번에 등록(트랜잭션 1회). nextNo 는 건드리지 않는다.
+ * 코드는 이지어드민 공급처 값 그대로(한글·공백·하이픈) → 쓰기는 반드시 FieldPath('s', 코드). → 새로 등록한 코드 배열
+ */
+export async function ensureSuppliers(db, codes, email) {
+    const ref = doc(db, 'adminSuppliers', 'LEDGER');
+    let added = [];
+    await runTransaction(db, async (tx) => {
+        const s = await tx.get(ref);
+        const have = (s.exists() && s.get('s')) || {};
+        added = [...new Set(codes)].filter(c => c && !Object.prototype.hasOwnProperty.call(have, c));
+        if (!added.length) return;
+        const at = Date.now();
+        const val = () => ({ name: '', contact: '', phone: '', memo: '', active: true, auto: 1, at, by: email });
+        if (s.exists()) {
+            const args = [];
+            for (const c of added) args.push(new FieldPath('s', c), val());
+            tx.update(ref, ...args);
+        } else {
+            tx.set(ref, { nextNo: 1, s: Object.fromEntries(added.map(c => [c, val()])) });
+        }
+    });
+    return added;
 }
 export async function updateSupplier(db, code, entry, email) {
     await updateDoc(doc(db, 'adminSuppliers', 'LEDGER'), new FieldPath('s', code), { ...entry, at: Date.now(), by: email });
