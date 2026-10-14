@@ -1,22 +1,22 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202610141054';
-import * as State from './state.js?v=202610141054';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610141054';
+import * as DOM from './dom-elements.js?v=202610141059';
+import * as State from './state.js?v=202610141059';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610141059';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610141054';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610141054';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610141054';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610141054';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610141059';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610141059';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610141059';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610141059';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610141054';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610141054';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610141054';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610141054';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610141059';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610141059';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610141059';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610141059';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610141054';
-import { saveView } from './view-state.js?v=202610141054';
-import { placeOpenDropdown } from './table-filter.js?v=202610141054';
+import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610141059';
+import { saveView } from './view-state.js?v=202610141059';
+import { placeOpenDropdown } from './table-filter.js?v=202610141059';
 
 let isHistoryMaximized = false;
 

@@ -6,9 +6,8 @@
 //   · updatedAt(serverTimestamp) · updatedBy(이메일 소문자)
 //   대상·수량은 채우기자동화가 정한다(담당자 방식, 2026-10-13~): 주문 > 피킹재고(정상−비축) 인 상품,
 //   채울수량 = min(max(적재량 − 피킹재고, 밀린주문), 비축재고).
-//   pct·minQty 는 더 이상 쓰지 않아 화면에서 뺐다(2026-10-14). 문서에 남은 값은 지우지 않는다 —
-//   규칙.py parse_settings 가 두 칸을 아직 검사해, 없거나 범위 밖이면 슬랙에 '설정 읽기 실패' 를 찍기 때문.
-//   그래서 저장할 때 문서의 두 값이 정상이면 그대로 두고(merge), 없거나 이상하면 옛 기본값(30·3)을 같이 써 넣는다.
+//   pct·minQty 는 더 이상 쓰지 않아 화면에서 뺐다(2026-10-14). 규칙.py parse_settings 도 두 칸을 검사하지 않는다(d658259).
+//   문서에 남은 옛 값은 merge 저장이라 그대로 남지만 무해하다.
 // ⚠️ 이름·범위를 바꾸면 채우기자동화\규칙.py 의 parse_settings 도 바꿀 것(값이 이상하면 그쪽은 기본값을 쓴다).
 // adminPrivate 는 규칙상 관리자만 읽고 쓴다(비관리자는 permission-denied) — 규칙 변경 없음.
 //
@@ -28,7 +27,6 @@ let 시작됨 = false;
 let db = null;
 let auth = null;
 let 불러옴 = false;
-let 옛칸정상 = false;   // 문서의 pct·minQty 가 규칙.py 검사를 통과하는지(통과하면 건드리지 않는다)
 
 const $ = (id) => document.getElementById(id);
 const 입력들 = () => [$('refill-enabled'), $('refill-skip-holidays'),
@@ -104,7 +102,6 @@ async function 불러오기() {
         const snap = await getDoc(doc(db, ...문서경로));
         if (snap.exists()) {
             const d = snap.data() || {};
-            옛칸정상 = 정수(d.pct, 0, 100) && 정수(d.minQty, 0, 999);
             const { 값, 이상 } = 정리(d);
             화면에(값);
             메타(d);
@@ -139,7 +136,6 @@ async function 저장() {
         const email = String((auth && auth.currentUser && auth.currentUser.email) || '').toLowerCase();
         await setDoc(doc(db, ...문서경로), {
             enabled: s.enabled, days: s.days, skipHolidays: s.skipHolidays,
-            ...(옛칸정상 ? {} : { pct: 30, minQty: 3 }),   // 안 쓰는 칸 — 규칙.py 검사 통과용(위 머리 주석)
             updatedAt: serverTimestamp(), updatedBy: email,
         }, { merge: true });
         상태('저장했습니다 — 다음 지시서부터 적용됩니다.', 'ok');

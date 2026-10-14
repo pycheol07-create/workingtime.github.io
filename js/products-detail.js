@@ -6,14 +6,14 @@
 // 메모: 전원 편집. 열 때 본 at 과 지금 at 이 다르면 충돌 확인창. 직전 5개 보관(되돌리기).
 // 기본정보 편집: 관리자만(D5). 같은 트랜잭션 헬퍼(버킷 + META rev + 이력, ver 비교).
 import { doc, getDoc, getDocs, collection, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202610141054';
-import { esc, toast, setHead, isLocOld } from './products.js?v=202610141054';
-import { statusPill } from './products-list.js?v=202610141054';
-import { renderCostCard, renderCostHistory } from './products-cost.js?v=202610141054';
-import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202610141054';
-import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610141054';
-import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202610141054';
-import { parseNum } from './lib/product-price.js?v=202610141054';
+import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202610141059';
+import { esc, toast, setHead, isLocOld } from './products.js?v=202610141059';
+import { statusPill } from './products-list.js?v=202610141059';
+import { renderCostCard, renderCostHistory } from './products-cost.js?v=202610141059';
+import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202610141059';
+import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610141059';
+import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202610141059';
+import { parseNum } from './lib/product-price.js?v=202610141059';
 
 const LOCATION_URL = 'location.html';
 
