@@ -1,10 +1,13 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610141524'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
-import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirebase } from './china-stock-config.js?v=202610141838'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { cleanRows } from './lib/sensitive-cols.js?v=202610141838';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610141838';
 
-const { db } = initializeFirebase();
+const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const CONFIG_DOC = 'CONFIG';
 // [Ver 8.15] 위치 데이터 자동 샤딩: 상품코드 해시로 N개 문서에 분산 (문서당 1MiB 한도 자동 회피)
@@ -170,6 +173,8 @@ function toNum(v) { if (v == null) return 0; const n = parseFloat(String(v).repl
 
 // 수식 문자열을 함수로 컴파일 (실패 시 null). 기본 4변수 + 추가 변수(mibalVars) 지원.
 function compileMibalFormula(expr) {
+    // 보안(2026-10-14): 계산식만 허용(변수·숫자·연산자·Math.max 등). 실행 전에 검사한다.
+    if (!isSafeMibalFormula(expr, [...MIBAL_FIXED_VARS, ...mibalVars, ...MIBAL_COMPUTED_VARS])) return null;
     try {
         const fn = new Function(...MIBAL_FIXED_VARS, ...mibalVars, 'return (' + expr + ');');
         const t = fn(0, 20, 0, 0, ...mibalVars.map(() => 0));
@@ -188,6 +193,72 @@ function evalMibal(총재고, 적재량, 부족수량, 직진배송, log) {
     return v < 0 ? 0 : v;
 }
 mibalFn = compileMibalFormula(mibalFormula);
+
+// ---------------------------------------------------------
+// 보안(2026-10-14): 미발 공식·추가 변수·CSV 주소·전체 초기화는 관리자만
+//   판정 = mainConfig.memberRoles[소문자 이메일] === 'admin' (china-mibal2.js checkAdmin 과 같음, 서버에서 읽기).
+//   읽지 못하면 관리자 아님으로 본다. 이메일은 비교에만 쓰고 출력하지 않는다.
+//   ⚠️ 화면 잠금일 뿐 — 실제 차단은 firestore.rules 가 한다.
+// ---------------------------------------------------------
+const ADMIN_ONLY_MSG = '관리자만 변경 가능합니다.';
+let isAdminUser = false;
+async function checkChinaAdmin(user) {
+    if (!user || !user.email) return false;
+    try {
+        const snap = await getDocFromServer(doc(db, 'artifacts/team-work-logger-v2/config/mainConfig'));
+        const roles = (snap.exists() && snap.data().memberRoles) || {};
+        return roles[user.email.toLowerCase()] === 'admin';
+    } catch (e) {
+        console.warn('[china-stock] 관리자 확인 실패:', e && e.code);
+        return false;
+    }
+}
+function setAdminNote(containerId, noteId) {
+    const box = document.getElementById(containerId);
+    if (!box) return;
+    let note = document.getElementById(noteId);
+    if (isAdminUser) { if (note) note.remove(); return; }
+    if (!note) {
+        note = document.createElement('div');
+        note.id = noteId;
+        note.className = 'd-note is-warn';
+        note.style.cssText = 'font-size:12px; margin-bottom:10px;';
+        note.textContent = '🔒 ' + ADMIN_ONLY_MSG + ' (일반 계정은 보기만 됩니다)';
+        const content = box.querySelector('.modal-content') || box;
+        const h3 = content.querySelector('h3');
+        if (h3) h3.after(note); else content.prepend(note);
+    }
+}
+function applyAdminUI() {
+    const off = !isAdminUser;
+    ['modal-csv-order', 'modal-csv-buy', 'btn-sheet-save', 'mibal-var-select', 'btn-mibal-var-add', 'btn-builder-apply']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = off; });
+    document.querySelectorAll('.mibal-var-del').forEach(x => { x.style.display = off ? 'none' : ''; });
+    refreshClearBtnAccess();
+    setAdminNote('sheet-settings-modal', 'csv-admin-note');
+    setAdminNote('mibal-formula-modal', 'mibal-admin-note');
+}
+// '미발 초기화'만 관리자 전용 — '위치 초기화'(위치지정모드)는 직원도 쓴다. 모드 전환 때도 다시 부른다.
+//   viewMode 는 아래쪽 let 이라 모듈 첫 실행 때는 못 읽는다 → 화면 표시값·저장값으로 본다.
+function refreshClearBtnAccess(mode) {
+    const clr = document.getElementById('btn-date-clear');
+    if (!clr) return;
+    const m = mode || (document.body && document.body.dataset.view) || localStorage.getItem('csgViewMode') || 'mibal';
+    const off = (m !== 'location') && !isAdminUser;
+    clr.style.display = off ? 'none' : '';
+    clr.disabled = off;
+}
+function adminOnlyBlocked() {
+    if (isAdminUser) return false;
+    alert(ADMIN_ONLY_MSG);
+    return true;
+}
+const isPermissionDenied = (e) => !!e && (e.code === 'permission-denied' || /permission/i.test(String(e.message || '')));
+applyAdminUI();
+onAuthStateChanged(auth, async (user) => {
+    isAdminUser = await checkChinaAdmin(user);
+    applyAdminUI();
+});
 
 // ---------------------------------------------------------
 // UI 제어 함수 (모달 및 메뉴)
@@ -617,6 +688,7 @@ function openSheetSettingsModal() {
     closeAllMenus();
     document.getElementById('modal-csv-order').value = csvUrlOrder;
     document.getElementById('modal-csv-buy').value = csvUrlBuy;
+    applyAdminUI();
     document.getElementById('sheet-settings-modal').style.display = 'flex';
 }
 
@@ -638,6 +710,7 @@ function openMibalFormulaModal() {
     ruleDraftTokens = []; // [Ver 8.22] 작업대 초기화
     formulaMode = 'builder';
     renderRuleRows();
+    applyAdminUI();
     document.getElementById('mibal-formula-modal').style.display = 'flex';
 }
 function closeMibalFormulaModal() {
@@ -646,7 +719,9 @@ function closeMibalFormulaModal() {
 
 // 공통: 규칙(수식) 검증 → Firebase 저장 → 표 즉시 재계산
 async function applyAndSaveFormula(expr, okMsg) {
+    if (adminOnlyBlocked()) return;
     if (!expr || !compileMibalFormula(expr)) { alert('규칙이 올바르지 않습니다. 다시 확인해 주세요.'); return; }
+    const prevFormula = mibalFormula;
     mibalFormula = expr;
     mibalFn = compileMibalFormula(expr);
     try {
@@ -654,7 +729,13 @@ async function applyAndSaveFormula(expr, okMsg) {
         closeMibalFormulaModal();
         showToast(okMsg || '✅ 미발수량 규칙 저장됨');
         if (savedDates.length > 0) applyDates();
-    } catch (e) { alert('저장 실패: ' + e.message); }
+    } catch (e) {
+        if (isPermissionDenied(e)) {
+            mibalFormula = prevFormula; mibalFn = compileMibalFormula(prevFormula) || compileMibalFormula(DEFAULT_MIBAL_FORMULA);
+            alert(ADMIN_ONLY_MSG); return;
+        }
+        alert('저장 실패: ' + e.message);
+    }
 }
 
 // ===== 미발 규칙 변수(재고로그 헤더) 관리 [Ver 7.5] =====
@@ -668,7 +749,7 @@ function renderMibalVars() {
         list.innerHTML = mibalVars.length
             ? mibalVars.map(h => `<span class="d-pill-accent" style="display:inline-flex; align-items:center; gap:5px; padding:3px 9px; font-size:12px;">${h}<span class="mibal-var-del" data-h="${h}" style="cursor:pointer; font-weight:900;">✕</span></span>`).join('')
             : '<span class="t-3" style="font-size:11px;">추가된 변수 없음</span>';
-        list.querySelectorAll('.mibal-var-del').forEach(x => x.onclick = () => removeMibalVar(x.dataset.h));
+        list.querySelectorAll('.mibal-var-del').forEach(x => { x.onclick = () => removeMibalVar(x.dataset.h); if (!isAdminUser) x.style.display = 'none'; });
     }
     const sel = document.getElementById('mibal-var-select');
     if (sel) {
@@ -682,6 +763,7 @@ function renderMibalVars() {
     }
 }
 function addMibalVar() {
+    if (adminOnlyBlocked()) return;
     const sel = document.getElementById('mibal-var-select');
     const h = sel && sel.value;
     if (!h) return;
@@ -692,6 +774,7 @@ function addMibalVar() {
     saveMibalVars();
 }
 function removeMibalVar(h) {
+    if (adminOnlyBlocked()) return;
     if (mibalFormula.includes(h) && !confirm(`'${h}' 변수가 현재 규칙에 쓰이는 것 같습니다.\n삭제하면 규칙이 기본 계산으로 돌아갈 수 있습니다. 계속할까요?`)) return;
     mibalVars = mibalVars.filter(v => v !== h);
     renderMibalVars();
@@ -699,7 +782,7 @@ function removeMibalVar(h) {
 }
 async function saveMibalVars() {
     mibalFn = compileMibalFormula(mibalFormula); // 변수 목록 변경 → 재컴파일(인자 수 반영)
-    try { await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { mibalVars, updatedAt: new Date() }, { merge: true }); } catch (e) { }
+    try { await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { mibalVars, updatedAt: new Date() }, { merge: true }); } catch (e) { if (isPermissionDenied(e)) showToast('❌ ' + ADMIN_ONLY_MSG); }
     if (formulaMode === 'builder') renderRuleRows(); // 조립모드 드롭다운 갱신
     if (savedDates.length > 0) applyDates();
 }
@@ -1147,30 +1230,37 @@ async function saveZoneCap() {
 }
 
 async function saveSheetSettings() {
-    csvUrlOrder = document.getElementById('modal-csv-order').value.trim();
-    csvUrlBuy = document.getElementById('modal-csv-buy').value.trim();
+    if (adminOnlyBlocked()) return;
+    const newOrder = document.getElementById('modal-csv-order').value.trim();
+    const newBuy = document.getElementById('modal-csv-buy').value.trim();
     // 저장이 실패해도 아무 표시가 없어 '눌러도 안 된다'로 보였다 → 이유를 알려준다
     const btn = document.getElementById('btn-sheet-save');
     const label = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
     try {
-        await saveConfig();
+        // CSV 주소는 여기서만 쓴다(관리자 전용 키) — 날짜 저장(saveConfig)은 이 키를 건드리지 않는다
+        await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { csvUrlOrder: newOrder, csvUrlBuy: newBuy, updatedAt: new Date() }, { merge: true });
+        csvUrlOrder = newOrder; csvUrlBuy = newBuy;
         closeSheetSettingsModal();
         showToast('✅ CSV 링크 저장 완료');
         syncOrderData();
     } catch (e) {
         console.error('[china-stock] CSV 링크 저장 실패:', e);
-        showToast(saveErrorMessage(e));
+        showToast(saveErrorMessage(e, 'admin'));
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = label || '저장'; }
     }
 }
 
-/** 저장 실패 사유를 사람이 읽을 수 있게. 권한 오류가 가장 흔하다(규칙 미게시·로그아웃). */
-function saveErrorMessage(e) {
+/** 저장 실패 사유를 사람이 읽을 수 있게. 권한 오류가 가장 흔하다(규칙 미게시·로그아웃).
+ *  ctx: 'admin' = 관리자 전용 저장(공식·변수·CSV·초기화) → '관리자만 변경 가능'
+ *       'dates' = 직원도 쓰는 출고일 저장 → 관리자 문구 대신 로그인 확인 안내 */
+function saveErrorMessage(e, ctx = 'admin') {
     const code = (e && e.code) || '';
     if (code === 'permission-denied')
-        return '❌ 저장 권한이 없습니다 — 로그인 상태와 Firestore 규칙(게시 여부)을 확인해 주세요.';
+        return ctx === 'dates'
+            ? '❌ 저장 권한 없음 — 로그인 상태를 확인해 주세요(새로고침 후 다시 로그인).'
+            : '❌ ' + ADMIN_ONLY_MSG + ' (저장 권한 없음 — 관리자 계정·로그인 상태를 확인해 주세요)';
     if (code === 'unauthenticated')
         return '❌ 로그인이 풀렸습니다. 새로고침 후 다시 로그인해 주세요.';
     if (code === 'unavailable')
@@ -1518,6 +1608,9 @@ function handleStockLogUpload(e) {
                 rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' }).filter(r => r['상품코드']);
             }
 
+            // 보안(2026-10-14): 저장 전 원가 열(원가·옵션추가항목2 등) 삭제, 공급처 열은 코드 모양 값만 남김
+            const _clean = cleanRows(rows);
+            rows = _clean.rows;
             stockLogData = {}; 
             rows.forEach(row => { 
                 const code = (row['상품코드'] || '').toString().trim(); 
@@ -1534,7 +1627,9 @@ function handleStockLogUpload(e) {
             });
             try { await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_MAP'), packMap(bcMap)); } catch (e) { console.warn('BARCODE_MAP 저장 실패:', e); }
             hideLoading();
-            showToast(`✅ 미발재고 저장 완료 (바코드≠상품코드 ${Object.keys(bcMap).length}건 매핑)`);
+            const _secNote = (_clean.droppedCols.length ? ` · 원가 열 ${_clean.droppedCols.join(', ')} 저장 안 함` : '')
+                + (_clean.supplierValuesRemoved ? ` · 공급처 이름 값 ${_clean.supplierValuesRemoved}건 지움` : '');
+            showToast(`✅ 미발재고 저장 완료 (바코드≠상품코드 ${Object.keys(bcMap).length}건 매핑)${_secNote}`);
             if (tableData.length > 0) applyDates();
             await saveScanDBVersionOnUpload(file.name); // [Ver 8.94] 업로드마다 순수 미발 버전 자동 저장
 
@@ -2049,7 +2144,8 @@ async function deleteAllDocs(collName) {
 }
 // [Ver 7.4] 전체 초기화 — 현재 모드의 데이터만 초기화 (미발 ↔ 위치 서로 영향 없음)
 async function clearAllData() {
-    if (viewMode === 'location') { await clearLocationData(); return; }
+    if (viewMode === 'location') { await clearLocationData(); return; } // 위치 초기화는 직원도 가능
+    if (adminOnlyBlocked()) return; // 보안(2026-10-14): 미발 초기화(수동편집·미발재고로그·입고이력)는 관리자만
     if (!confirm("미발계산기 데이터를 초기화할까요?\n(수동편집·미발재고로그·앱 입고이력·비축창고 누적 삭제 / 위치 데이터는 유지)")) return;
     showLoading('🗑️ 미발계산기 초기화 중...');
     try {
@@ -2079,7 +2175,7 @@ async function clearAllData() {
         showToast('✅ 미발계산기 초기화 완료 (비축창고 포함 · 위치 데이터는 유지)');
     } catch (e) {
         hideLoading();
-        alert('초기화 실패: ' + e.message);
+        alert(isPermissionDenied(e) ? saveErrorMessage(e, 'admin') : '초기화 실패: ' + e.message); // 미발 초기화 = 관리자 전용
     }
 }
 // [Ver 7.4] 위치 데이터만 초기화 (당일·기존재고 위치 지정 전체 / 미발 데이터는 유지)
@@ -2213,7 +2309,7 @@ function autoApplyDates() {
     if (savedDates.length === 0) {
         tableData = []; filteredData = [];
         renderTable(); updateSummary();
-        saveConfig();
+        saveDatesQuiet();
         return;
     }
     applyDates();
@@ -2221,7 +2317,7 @@ function autoApplyDates() {
 
 function applyDates(opts) {
     if (savedDates.length === 0) return;
-    saveConfig();
+    saveDatesQuiet();
     const oCols = ['1차패킹리스트출고일','2차패킹리스트출고일','3차패킹리스트출고일','4차패킹리스트출고일','5차패킹리스트출고일','6차패킹리스트출고일']; // [Ver 8.28] 기준=출고일
     const dCols = ['1차본사도착일','2차본사도착일','3차본사도착일','4차본사도착일','5차본사도착일','6차본사도착일']; // 도착일(있으면 유예)
     const qCols = ['1차패킹리스트출고수량','2차패킹리스트출고수량','3차패킹리스트출고수량','4차패킹리스트출고수량','5차패킹리스트출고수량','6차패킹리스트출고수량'];
@@ -2371,6 +2467,7 @@ function applyViewMode() {
     if (title) title.style.color = viewMode === 'location' ? 'var(--c-accent-deep)' : 'var(--c-text)';
     const clr = document.getElementById('btn-date-clear'); // [Ver 7.4] 모드별 초기화 라벨
     if (clr) clr.textContent = viewMode === 'location' ? '위치 초기화' : '미발 초기화';
+    refreshClearBtnAccess(viewMode); // 미발 모드에서만 관리자 전용
     if (viewMode === 'location') { ensureLocationHistory(); ensureFloor2(); applyLocSub(); } else renderTable();
 }
 function applyLocSub() {
@@ -2820,11 +2917,26 @@ async function checkVersion(publishAppMeta = false) {
 // ---------------------------------------------------------
 // Firebase 설정 로직
 // ---------------------------------------------------------
-async function loadConfig() { const snap = await getDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC)); if (snap.exists()) { const c = snap.data(); csvUrlOrder = c.csvUrlOrder || ''; csvUrlBuy = c.csvUrlBuy || ''; savedDatesMibal = Array.isArray(c.savedDatesMibal) ? c.savedDatesMibal : (Array.isArray(c.savedDates) ? c.savedDates : []); savedDatesLoc = Array.isArray(c.savedDatesLoc) ? c.savedDatesLoc : []; savedDates = (viewMode === 'location') ? [...savedDatesLoc] : [...savedDatesMibal]; mibalFormula = c.mibalFormula || DEFAULT_MIBAL_FORMULA; mibalVars = sanitizeMibalVars(c.mibalVars); MIBAL_COMPUTED_VARS.forEach(v => { if (!mibalVars.includes(v)) mibalVars.push(v); }); /* [Ver 8.25] 도착수량 등 계산변수는 기본공식에 쓰이므로 항상 포함 */ mibalFn = compileMibalFormula(mibalFormula) || compileMibalFormula(DEFAULT_MIBAL_FORMULA); zoneCapacity = c.zoneCapacity || {}; columnConfig = Array.isArray(c.columnConfig) ? c.columnConfig : null; locationColumnConfig = Array.isArray(c.locationColumnConfig) ? c.locationColumnConfig : null; graceDays = (c.graceDays !== undefined && c.graceDays !== null) ? (parseInt(c.graceDays) || 0) : 1; newLocPosition = (c.newLocPosition === 'front') ? 'front' : 'back'; } }
-async function saveConfig() { persistActiveDates(); await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { csvUrlOrder, csvUrlBuy, savedDatesMibal, savedDatesLoc, updatedAt: new Date() }, { merge: true }); }
+async function loadConfig() { const snap = await getDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC)); if (snap.exists()) { const c = snap.data(); csvUrlOrder = c.csvUrlOrder || ''; csvUrlBuy = c.csvUrlBuy || ''; savedDatesMibal = Array.isArray(c.savedDatesMibal) ? c.savedDatesMibal : (Array.isArray(c.savedDates) ? c.savedDates : []); savedDatesLoc = Array.isArray(c.savedDatesLoc) ? c.savedDatesLoc : []; savedDates = (viewMode === 'location') ? [...savedDatesLoc] : [...savedDatesMibal]; mibalFormula = c.mibalFormula || DEFAULT_MIBAL_FORMULA; mibalVars = sanitizeMibalVars(c.mibalVars); MIBAL_COMPUTED_VARS.forEach(v => { if (!mibalVars.includes(v)) mibalVars.push(v); }); /* [Ver 8.25] 도착수량 등 계산변수는 기본공식에 쓰이므로 항상 포함 */ mibalFn = compileMibalFormula(mibalFormula); if (!mibalFn && c.mibalFormula) { console.warn('[china-stock] 저장된 미발 공식이 허용 형식이 아니어서 기본 공식을 씁니다.'); showToast('⚠️ 저장된 미발 공식이 허용 형식이 아니어서 기본 공식으로 계산합니다'); mibalFormula = DEFAULT_MIBAL_FORMULA; } if (!mibalFn) mibalFn = compileMibalFormula(DEFAULT_MIBAL_FORMULA); zoneCapacity = c.zoneCapacity || {}; columnConfig = Array.isArray(c.columnConfig) ? c.columnConfig : null; locationColumnConfig = Array.isArray(c.locationColumnConfig) ? c.locationColumnConfig : null; graceDays = (c.graceDays !== undefined && c.graceDays !== null) ? (parseInt(c.graceDays) || 0) : 1; newLocPosition = (c.newLocPosition === 'front') ? 'front' : 'back'; } }
+// 직원도 쓰는 출고일 선택만 저장한다. CSV 주소(csvUrl*)·공식(mibalFormula)·추가변수(mibalVars)는 관리자 전용 키라
+//   각자의 저장 함수(saveSheetSettings·공식 적용·추가변수)에서만 쓴다 — 여기서 옛 값을 다시 쓰면 관리자 변경을 덮는다.
+async function saveConfig() { persistActiveDates(); await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { savedDatesMibal, savedDatesLoc, updatedAt: new Date() }, { merge: true }); }
+// 화면 흐름을 막지 않고 저장 — 실패하면 이유를 토스트로 알린다(같은 문구가 짧은 시간에 반복되면 한 번만)
+const DATE_SAVE_TOAST_GAP_MS = 10000;
+let lastDateSaveToast = { msg: '', at: 0 };
+function saveDatesQuiet() {
+    saveConfig().catch(e => {
+        console.warn('[china-stock] 출고일 저장 실패:', e && e.code);
+        const msg = saveErrorMessage(e, 'dates');
+        const now = Date.now();
+        if (msg === lastDateSaveToast.msg && now - lastDateSaveToast.at < DATE_SAVE_TOAST_GAP_MS) return;
+        lastDateSaveToast = { msg, at: now };
+        showToast(msg);
+    });
+}
 async function loadEditedCells() { const snap = await getDoc(doc(db, CHINA_COLLECTION, 'EDITED_CELLS')); if (snap.exists()) editedCells = snap.data().cells || {}; }
 async function saveEditedCells() { await setDoc(doc(db, CHINA_COLLECTION, 'EDITED_CELLS'), { cells: editedCells }); }
-async function loadStockLogFromFirebase() { const snap = await getDocs(collection(db, CHINA_COLLECTION + '_StockLog')); snap.forEach(d => { if(d.data().dataStr) JSON.parse(d.data().dataStr).forEach(r => { const c = (r['상품코드']||'').trim(); if(c) stockLogData[c] = r; }); }); }
+async function loadStockLogFromFirebase() { const snap = await getDocs(collection(db, CHINA_COLLECTION + '_StockLog')); snap.forEach(d => { if(d.data().dataStr) cleanRows(JSON.parse(d.data().dataStr)).rows.forEach(r => { const c = (r['상품코드']||'').trim(); if(c) stockLogData[c] = r; }); }); }
 
 // ---------------------------------------------------------
 // 이벤트 바인딩 (체크리스트 기반 완전 복원)

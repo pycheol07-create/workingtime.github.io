@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610141524';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610141838';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -261,17 +261,19 @@ function getDefaultConfig() {
                 ]
             }
         ],
+        // 보안(2026-10-14): 직원 실명 기본값 삭제 — 실제 명단은 관리자 페이지에서 저장한 mainConfig 를 쓴다.
         teamGroups: [
-            { name: '관리', members: ['박영철', '박호진', '유아라', '이승운'] },
-            { name: '공통파트', members: ['김수은', '이미숙', '김현', '박상희', '배은정', '김성곤', '김동훈', '신민재', '황호석'] },
-            { name: '담당파트', members: ['송다진', '정미혜', '진희주'] },
-            { name: '제작파트', members: ['이승운'] },
+            { name: '관리', members: [] },
+            { name: '공통파트', members: [] },
+            { name: '담당파트', members: [] },
+            { name: '제작파트', members: [] },
         ],
         systemAccounts: ['관리자', '시스템'],
         // 가용인원/총원 산정 시 제외할 ID 명단 (프로그램 전용 계정 등).
         // teamGroups 안에 있어도 인원 카운트에선 빼고, 멤버 선택 UI 등에는 그대로 노출.
-        headcountExcludedMembers: ['물류팀공용', '정진현 상무이사'],
+        headcountExcludedMembers: [], // 예) ['공용계정'] — 운영 값은 mainConfig
         resignedMembers: {}, // { '이름': '퇴사일 YYYY-MM-DD' } — 퇴사 처리(비활성). 데이터·과거기록은 보존.
+        resignedEmails: {}, // { '이메일(소문자)': '퇴사일' } — 관리자 저장 때 resignedMembers·memberEmails 로 새로 만든다(규칙용)
         memberWages: {},
         memberEmails: {},
         memberRoles: {},

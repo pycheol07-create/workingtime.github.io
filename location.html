@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610141524">
+    <link rel="stylesheet" href="css/suit.css?v=202610141838">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -1352,7 +1352,7 @@
             </div>
             <div class="note-box" style="padding:12px 15px; margin-bottom:15px; flex-shrink:0;">
                 <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
-                    <label style="font-size:13px; font-weight:600; color:var(--c-text);">제외할 공급처 선택<span class="info-tip" data-tip-key="2f-supplier">i<span class="info-tip-content"><b>공급처 제외</b><br>체크한 공급처의 상품은 빈칸확보 목록에서 제외됩니다.<br><br>공급처 정보는 업로드한 재고 엑셀의 <b>공급처</b> 컬럼에서 가져옵니다.</span></span></label>
+                    <label style="font-size:13px; font-weight:600; color:var(--c-text);">제외할 공급처 선택<span class="info-tip" data-tip-key="2f-supplier">i<span class="info-tip-content"><b>공급처 제외</b><br>체크한 공급처의 상품은 빈칸확보 목록에서 제외됩니다.<br><br>공급처는 업로드한 재고 엑셀의 <b>공급처코드</b> 열 값으로 표시합니다.<br>(공급처코드 열이 없으면 공급처 열의 코드 값 — 보안상 공급처 이름은 저장하지 않아 코드가 아닌 값은 빈칸입니다)</span></span></label>
                     <span style="font-size:11px; color:var(--c-text-2);">체크한 공급처의 상품은 목록에서 제외</span>
                     <label style="margin-left:auto; font-size:12px; font-weight:600; color:var(--c-text); cursor:pointer; user-select:none;"><input type="checkbox" id="2f-supplier-all" onclick="window.toggle2FSupplierAll(this)" style="vertical-align:middle;"> 전체 선택</label>
                     <button class="btn btn-primary btn-sm" onclick="window.calc2FList()">조회</button>
@@ -1373,7 +1373,7 @@
                             <th style="width:120px; font-size:13px;">상품코드</th>
                             <th style="font-size:13px;">상품명</th>
                             <th style="width:100px; font-size:13px;">옵션</th>
-                            <th style="width:110px; font-size:13px;">공급처</th>
+                            <th style="width:110px; font-size:13px;">공급처코드</th>
                             <th style="width:70px; font-size:13px;">정상재고</th>
                             <th style="width:100px; font-size:13px; cursor:pointer;" onclick="window.sort2FList()">마지막출고.배송일 <span id="2f-sort-icon">▲</span></th>
                             <th style="width:100px; font-size:13px;">현재위치</th>
@@ -1393,8 +1393,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610141524"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610141524"></script>
+    <script type="module" src="js/location.js?v=202610141838"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610141838"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1463,7 +1463,7 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610141524"></script>
-    <script src="js/modal-esc.js?v=202610141524"></script>
+    <script src="js/connection-banner.js?v=202610141838"></script>
+    <script src="js/modal-esc.js?v=202610141838"></script>
 </body>
 </html>

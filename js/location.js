@@ -1,7 +1,10 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610141524';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610141838';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610141524';
+import { escapeHtml as escAttr } from './utils.js?v=202610141838';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610141838';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610141838';
+import { orderKeyMap } from './lib/order-hash.js?v=202610141838';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -519,7 +522,10 @@ function setupRealtimeListenerA() {
             if (conf.sheetUrl && !conf.sheetUrlOrder) window.sheetUrlOrder = conf.sheetUrl;
             // ★ 사용자가 헤더를 드래그해 정한 순서를 그대로 사용 (대분류 강제 고정 해제)
             if (conf.visibleColumns) window.visibleColumns = conf.visibleColumns;
-            if (conf.excelHeaders) window.excelHeaders = conf.excelHeaders.filter(h => h && !h.includes('<') && !h.includes('>') && !h.includes('='));
+            if (conf.excelHeaders) {
+                window.excelHeaders = conf.excelHeaders.filter(h => h && !h.includes('<') && !h.includes('>') && !h.includes('=') && !isDroppedHeader(h));
+                window.__excelHeadersHadDropped = conf.excelHeaders.some(h => isDroppedHeader(h)); // 다음 최신화 때 저장본에서도 빼기
+            }
             
             if (conf.recommendRatios) {
                 let r = conf.recommendRatios;
@@ -576,6 +582,8 @@ function setupRealtimeListenerA() {
                     } else if (!locObj.rawData) {
                         locObj.rawData = {};
                     }
+                    // 보안(2026-10-14): 정리 전 옛 자료에 남은 원가 열·공급처 이름 값은 화면에 쓰지 않는다
+                    locObj.rawData = cleanRaw(locObj.rawData).out;
                     // 비축(2층 창고) 재고: 엑셀 열 이름이 '비축창고재고' 로 바뀌어 stock2f 가 비어 있는 자료 보정.
                     // 기타(비축·SAM) 칸은 같은 수량을 '정상재고' 쪽에 담으므로 건드리지 않는다(이중 계상 방지).
                     if (!Number(locObj.stock2f || 0) && !isEtcLocation(locObj)) {
@@ -1544,12 +1552,15 @@ function __getLastMoveDate(rd) {
     return result;
 }
 
-// 상품(로케이션 묶음)의 공급처명을 찾는다. 재고 엑셀 헤더명이 확실치 않아 유연 매칭.
+// 상품(로케이션 묶음)의 공급처를 찾는다. '공급처코드' 열이 있으면 그 값을 먼저, 없으면 공급처 열 값
+//   (저장 때 cleanRaw 로 코드 모양 값만 남는다). 재고 엑셀 헤더명이 확실치 않아 유연 매칭.
 const SUPPLIER_KEYS = ['공급처', '공급처명', '공급사', '공급업체', '거래처', '거래처명', 'vendor', 'supplier', 'Supplier'];
 function get2FSupplier(locs) {
     for (const loc of locs) {
         const rd = loc.rawData;
         if (!rd) continue;
+        const code = supplierCodeOf(rd);
+        if (code) return code;
         for (const key of SUPPLIER_KEYS) {
             const v = get2FRawVal(rd, key);
             if (v) return String(v).trim();
@@ -4300,6 +4311,11 @@ if (fileInputPerm) {
 const ORDER_PAIRS_COLL = 'OrderPairsChunks';
 const ORDER_STATS_COLL = 'OrderStatsChunks';
 const PROCESSED_ORDERS_COLL = 'ProcessedOrders';
+// 보안(2026-10-14): ProcessedOrders 문서 ID = 주문번호 해시(lib/order-hash.js). 원문 주문번호는 저장·출력하지 않는다.
+// 과도기: 옛 원문 ID 문서가 남아 있는 동안 원문 ID 도 같이 조회해 중복을 막는다(읽기 최대 2배).
+//   이전 순서(앱\보안점검\주문번호_해시이전.py): ① 이 코드 배포 → ② 모든 PC 새로고침 → ③ 주문 업로드가 없는 시간에 --실행
+//   → ④ 며칠 뒤 미리보기로 원문 ID 0 건을 다시 확인한 다음에만 false 로 바꾸고 원문 조회 코드를 지울 것.
+const PROCESSED_ORDERS_CHECK_LEGACY_IDS = true;
 const CHUNK_SIZE_PAIRS = 200;
 const CHUNK_SIZE_STATS = 200;
 
@@ -4320,8 +4336,9 @@ if (fileInputOrders) {
             }
         } catch (err) {
             window.hideLoading();
-            console.error('주문 파일 처리 오류:', err);
-            alert('오류 발생: ' + err.message);
+            // 오류 문구에 주문번호가 섞일 수 있어 코드·이름만 남긴다
+            console.error('주문 파일 처리 오류:', (err && (err.code || err.name)) || 'unknown');
+            alert('오류 발생: ' + ((err && (err.code || err.name)) || '알 수 없는 오류'));
             e.target.value = '';
         } finally {
             e.target.value = '';
@@ -4333,19 +4350,34 @@ if (fileInputOrders) {
 // 기존엔 getDocs(collection) 로 누적된 모든 처리주문(수만 건)을 매 업로드마다 읽어 읽기 폭탄이었음.
 // documentId() in [...] 배치 쿼리는 실제로 존재(중복)하는 문서만 읽으므로,
 // 읽기량이 "누적 전체"가 아니라 "이번 파일과 겹치는 소수"에만 비례한다.
-async function fetchExistingProcessedOrders(orderNos) {
-    const existing = new Set();
+// keyMap: Map(주문번호 원문 → 해시 ID). 돌려주는 값은 이미 처리된 '원문' 집합(메모리에서만 씀).
+async function fetchExistingProcessedOrders(keyMap) {
     const CHUNK = 30;       // Firestore 'in' 최대 30개
     const CONCURRENCY = 10; // 동시 쿼리 수 제한 (과다 병렬 방지)
-    const chunks = [];
-    for (let i = 0; i < orderNos.length; i += CHUNK) chunks.push(orderNos.slice(i, i + CHUNK));
-    for (let i = 0; i < chunks.length; i += CONCURRENCY) {
-        const group = chunks.slice(i, i + CONCURRENCY);
-        const snaps = await Promise.all(group.map(ids =>
-            getDocs(query(collection(db, PROCESSED_ORDERS_COLL), where(documentId(), 'in', ids)))
-        ));
-        snaps.forEach(snap => snap.forEach(d => existing.add(d.id)));
+    const queryIds = async (ids) => {
+        const found = new Set();
+        const chunks = [];
+        for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+        for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+            const group = chunks.slice(i, i + CONCURRENCY);
+            const snaps = await Promise.all(group.map(part =>
+                getDocs(query(collection(db, PROCESSED_ORDERS_COLL), where(documentId(), 'in', part)))
+            ));
+            snaps.forEach(snap => snap.forEach(d => found.add(d.id)));
+        }
+        return found;
+    };
+    const existing = new Set();
+    if (PROCESSED_ORDERS_CHECK_LEGACY_IDS) {
+        // 과도기: 옛 원문 ID 문서를 '먼저' 본다 — 정리 스크립트가 원문 → 해시로 옮기는 중이어도
+        //   (원문을 본 뒤 옮겨졌으면 이어지는 해시 조회가, 옮겨진 뒤면 해시 조회가) 둘 중 하나는 잡는다.
+        // '/' 가 든 값은 문서 ID 가 될 수 없어 예전에도 저장되지 않았다 → 조회에서 뺀다
+        const rawFound = await queryIds([...keyMap.keys()].filter(o => !o.includes('/')));
+        rawFound.forEach(o => existing.add(o));
     }
+    // 원문에서 이미 찾은 주문은 해시 조회에서 뺀다(읽기 비용 유지)
+    const hashFound = await queryIds([...keyMap.entries()].filter(([ono]) => !existing.has(ono)).map(([, key]) => key));
+    keyMap.forEach((key, ono) => { if (hashFound.has(key)) existing.add(ono); });
     return existing;
 }
 
@@ -4374,7 +4406,8 @@ window.processOrderData = async function(rows) {
         // 2. 기존 ProcessedOrders 조회 (중복 업로드 방지)
         // 💰 전체 스캔 대신 이번 파일의 주문번호만 조회 → 읽기 요금 대폭 절감
         window.showLoading('중복 주문 검사 중...');
-        const processedSet = await fetchExistingProcessedOrders(orderNos);
+        const keyMap = await orderKeyMap(orderNos); // 주문번호 원문 → 해시 ID (원문은 메모리에서만)
+        const processedSet = await fetchExistingProcessedOrders(keyMap);
 
         // 3. 신규 주문만 필터링
         const targetOrderNos = orderNos.filter(ono => !processedSet.has(ono));
@@ -4509,13 +4542,13 @@ window.processOrderData = async function(rows) {
         }
         if (bc > 0) await batch.commit();
 
-        // 7. ProcessedOrders 추가 (처리한 주문번호)
+        // 7. ProcessedOrders 추가 (처리한 주문 — 문서 ID 는 해시, 본문은 날짜·시각뿐)
         window.showLoading('처리 이력 저장 중...');
         batch = writeBatch(db);
         bc = 0;
         for (const ono of targetOrderNos) {
             const obj = orderMap[ono];
-            const docRef = doc(db, PROCESSED_ORDERS_COLL, ono);
+            const docRef = doc(db, PROCESSED_ORDERS_COLL, keyMap.get(ono));
             batch.set(docRef, { date: obj.date || latestDate, at: Date.now() }, { merge: true });
             bc++;
             if (bc >= 400) { await batch.commit(); batch = writeBatch(db); bc = 0; }
@@ -4571,8 +4604,10 @@ window.processOrderData = async function(rows) {
         // window.openOrderAnalysisReport();
     } catch (e) {
         window.hideLoading();
-        console.error('processOrderData 오류:', e);
-        alert('주문 데이터 처리 중 오류가 발생했습니다.\n' + e.message);
+        // 오류 문구(문서 경로 등)에 주문번호가 섞일 수 있어 코드·이름만 남긴다
+        const why = (e && (e.code || e.name)) || '알 수 없는 오류';
+        console.error('processOrderData 오류:', why);
+        alert('주문 데이터 처리 중 오류가 발생했습니다.\n' + why);
     }
 };
 
@@ -4819,11 +4854,15 @@ async function updateDatabaseA(rows, mode = 'daily') {
                    !h.toUpperCase().includes('EMPTY') &&
                    !h.includes('<') && !h.includes('>') && !h.includes('=') &&
                    !exclude.includes(h) &&
-                   !exclude.includes(clean);
+                   !exclude.includes(clean) &&
+                   !isCostCol(h); // 보안(2026-10-14): 원가 열은 저장하지 않는다
         });
         
-        const newHeaders = [...new Set([...window.excelHeaders, ...customHeaders])];
-        const hasNewHeader = customHeaders.some(h => !window.excelHeaders.includes(h));
+        const newHeaders = [...new Set([...window.excelHeaders, ...customHeaders])].filter(h => !isDroppedHeader(h));
+        // 원가 열이 빠져 목록이 줄어든 경우에도 다시 쓴다(옛 설정에 남은 원가 머리글 정리)
+        const hasNewHeader = customHeaders.some(h => !window.excelHeaders.includes(h)) || newHeaders.length !== window.excelHeaders.length || !!window.__excelHeadersHadDropped;
+        const _droppedCostHeaders = allHeaders.filter(h => isCostCol(h));
+        let _supplierNamesRemoved = 0;
         
         // ★ 디버그 로그
         console.log('=== [DEBUG] 최신화 ===');
@@ -4833,6 +4872,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
         if (hasNewHeader) {
             await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { excelHeaders: newHeaders }, { merge: true });
             window.excelHeaders = newHeaders;
+            window.__excelHeadersHadDropped = false;
         }
         
         let batch = writeBatch(db); 
@@ -4923,6 +4963,12 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     }
                 }
             });
+            // 보안(2026-10-14): 저장 전 원가 열 삭제·공급처 열은 코드 모양 값만 남김
+            {
+                const _c = cleanRaw(cleanRawData);
+                cleanRawData = _c.out;
+                _supplierNamesRemoved += _c.supplierValuesRemoved;
+            }
 
             const rawLoc = row['로케이션']?.toString().trim();
             if (rawLoc) {
@@ -5194,17 +5240,22 @@ async function updateDatabaseA(rows, mode = 'daily') {
             }, 2000);  // onSnapshot으로 originalData 반영될 시간 확보
         }
         
+        let _secNote = '';
+        if (_droppedCostHeaders.length) _secNote += `\n(보안: 원가 열(${_droppedCostHeaders.join(', ')})은 저장하지 않았습니다)`;
+        if (_supplierNamesRemoved) _secNote += `\n(보안: 공급처 이름 값 ${_supplierNamesRemoved}건을 지웠습니다 — 공급처는 코드만 저장)`;
         if (mode === 'permanent') {
-            alert(`완료! ${updateCount}개 로케이션의 랙 구조(동/위치) 영구 세팅이 완료되었습니다.`);
+            alert(`완료! ${updateCount}개 로케이션의 랙 구조(동/위치) 영구 세팅이 완료되었습니다.` + _secNote);
         } else {
             let msg = `스마트 클린 업데이트 완료!\n과거 유령 재고는 완벽히 비워졌고, 엑셀의 최신 데이터 ${updateCount}건만 정확하게 반영되었습니다.`;
             if(skipCount > 0) msg += `\n(※ 기존 도면에 없거나 2F 로케이션 ${skipCount}건은 3층 시스템에서 무시됨)`;
             if(twoFloorMsgPart) msg += twoFloorMsgPart;
-            alert(msg);
+            alert(msg + _secNote);
             
             // v3.97b: 일일 최신화 완료 후 단종 페어 자동 정리 (비동기, alert 차단 안 함)
             setTimeout(() => { window.cleanupDeprecatedPairs().catch(e => console.error('[cleanup] 오류:', e)); }, 100);
         }
+        // 보안(2026-10-14): 저장하지 않은 열 안내 — 머리글 이름과 건수만(값은 표시하지 않음). 완료 알림 뒤 토스트로도 한 번 더
+        if (_secNote) showToast(_secNote.trim());
         
     } catch (error) { 
         console.error("실패:", error); 
@@ -7775,6 +7826,23 @@ window.showPairRecommendation = function() {
 // 피킹용이 아닌 자리(대분류 '기타' = 비축·SAM·A-1-R 형식 등) 판정 — 대시보드 여러 곳에서 같은 기준을 쓴다.
 window.__isEtcLoc = isEtcLocation;
 
+// '다중 위치 상품': 비축(isEtcLocation) 자리 때문에 2곳 이상이 되는 상품은 기본 제외, '비축포함보기'를 켜면 포함.
+//   카드 숫자·상위 5개·전체 리스트가 같은 기준을 쓴다. 켜고 끈 상태는 이 PC 에 기억(저장 실패 시 이번 화면만).
+const MULTI_LOC_RESERVE_KEY = 'locMultiLocIncludeReserve';
+let multiLocIncludeReserve = false;
+try { multiLocIncludeReserve = localStorage.getItem(MULTI_LOC_RESERVE_KEY) === '1'; } catch (e) { /* 기본값 */ }
+window.__dashSetMultiLocReserve = function (on) {
+    multiLocIncludeReserve = !!on;
+    try { localStorage.setItem(MULTI_LOC_RESERVE_KEY, multiLocIncludeReserve ? '1' : '0'); } catch (e) { /* 이번 화면에만 적용 */ }
+    if (typeof window.renderLocationDashboard === 'function') window.renderLocationDashboard();
+    const modal = document.getElementById('dash-loc-modal');
+    if (modal && modal.style.display === 'flex' && modal.dataset.type === 'multiloc') window.__dashShowLocList('multiloc');
+};
+const multiLocReserveToggle = (id) =>
+    `<label style="font-size:12px; font-weight:normal; color:var(--c-text-2); cursor:pointer; user-select:none; white-space:nowrap;" title="비축·SAM 등 피킹 자리가 아닌 위치 때문에 2곳 이상이 되는 상품도 다중 위치로 셉니다">` +
+    `<input type="checkbox" id="${id}" style="vertical-align:middle;" ${multiLocIncludeReserve ? 'checked' : ''} onchange="window.__dashSetMultiLocReserve(this.checked)"> ` +
+    `<span style="vertical-align:middle;">비축포함보기</span></label>`;
+
 // 마지막출고.배송일(배송일/출고일 중 최신) + 직진/주차별 출고 활동을 함께 고려한 분류 헬퍼.
 // 일반배송 기록만 보면 직진배송으로 나간 물건이 데드로 잘못 잡힘 → 두 데이터를 합산.
 function __dashInferDelivery(code, locs) {
@@ -7953,7 +8021,8 @@ window.renderLocationDashboard = function () {
     });
 
     const uniqueCodes = codeToLocs.size;
-    const multiLocCodes = [...codeToLocs.entries()].filter(([, arr]) => arr.length >= 2);
+    // 기본은 비축 자리를 뺀 개수로 판정('비축포함보기' 켜면 비축 포함) — 모달과 같은 함수·같은 정렬
+    const multiLocCodes = multiLocGroups(codeToLocs, isEtcLocation, multiLocIncludeReserve, new Map(originalData.map(l => [normLocId(l.id), l])));
     const empty = total - used;
     const usageRate = total > 0 ? (used / total * 100) : 0;
 
@@ -8140,15 +8209,15 @@ window.renderLocationDashboard = function () {
                    <div class="ins-desc">일일 최신화 2회 이상 누적 시 계산됩니다.</div>`}
         </div>
         <div class="insight-card">
-            <h4>다중 위치 상품</h4>
+            <h4 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">다중 위치 상품 ${multiLocReserveToggle('dash-multiloc-include-reserve')}</h4>
             <div class="ins-big" ${multiLocCodes.length > 0 ? `style="cursor:pointer; transition: color 0.15s;" onclick="window.__dashShowLocList('multiloc')" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color=''" title="전체 다중 위치 상품 리스트 보기"` : ''}>
                 ${multiLocCodes.length}<span class="kpi-unit"> 종</span>
                 ${multiLocCodes.length > 0 ? `<span style="font-size:11px; color:${TONE.text3}; font-weight:normal; margin-left:4px;">▸</span>` : ''}
             </div>
-            <div class="ins-desc">한 상품코드가 2곳 이상 분산된 상품. 통합하면 빈 슬롯이 늘어납니다. <span style="color:${TONE.text3};">(숫자 클릭: 전체 리스트)</span></div>
+            <div class="ins-desc">한 상품코드가 2곳 이상 분산된 상품${multiLocIncludeReserve ? '(비축 자리 포함)' : '(비축 자리 제외)'}. 통합하면 빈 슬롯이 늘어납니다. <span style="color:${TONE.text3};">(숫자 클릭: 전체 리스트)</span></div>
             <div class="ins-list">
-                ${multiLocCodes.slice(0, 5).map(([c, arr]) =>
-                    `<div><span class="pill">${arr.length}곳</span> ${c}</div>`
+                ${multiLocCodes.slice(0, 5).map(g =>
+                    `<div><span class="pill">${g.count}곳</span> ${escAttr(g.code)}</div>`
                 ).join('') || `<div style="color:${TONE.text3};">없음</div>`}
             </div>
             <div style="margin-top:10px; padding-top:10px; border-top:1px dashed ${TONE.line}; font-size:12px;">
@@ -8437,7 +8506,7 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
     });
 
     // 자리 id 로 실제 로케이션을 찾기 위한 맵 (공백·NBSP·대소문자 흔들림을 흡수)
-    const normLocId = (v) => String(v == null ? '' : v).replace(/[\s\u00A0]+/g, '').toUpperCase();
+    // (normLocId 는 lib/multi-loc.js — 다중 위치 상품과 같은 함수)
     const locById = new Map(originalData.map(l => [normLocId(l.id), l]));
 
     // 비축랙 자리 표시 여부 (체크박스, 기본 꺼짐)
@@ -8463,16 +8532,10 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
         // 현재 위치: 피킹 자리와 비축랙 자리를 나눠 둔다 (기본은 피킹만 표시, 체크하면 비축랙도 함께)
         // ★ 비축랙 자리는 상품 행의 '옵션추가항목1'(예: '비축-002,비축-007,H-3-L')이 정확하다.
         //   비축 칸 문서에는 상품코드가 한 개만 남아(나중 행이 덮어씀) 거꾸로 찾으면 대부분 빠진다.
+        //   → reserveLocIds(lib/multi-loc.js) — '다중 위치 상품'의 비축 자리도 같은 함수로 센다.
         const pickRows = arr.filter(l => !window.__isEtcLoc(l));
         const pickLocs = pickRows.map(l => l.id);
-        const etcSet = new Set();
-        const addEtc = (raw) => {
-            const hit = locById.get(normLocId(raw));          // 실제로 있는 자리만 (오타·폐기·남의 피킹자리 제외)
-            if (hit && window.__isEtcLoc(hit) && !pickLocs.includes(hit.id)) etcSet.add(hit.id);
-        };
-        arr.forEach(l => String((l.rawData || {})['옵션추가항목1'] || '').split(',').forEach(addEtc));
-        arr.filter(l => window.__isEtcLoc(l)).forEach(l => addEtc(l.id));
-        const etcLocs = [...etcSet].sort((a, b) => a.localeCompare(b));
+        const etcLocs = reserveLocIds(arr, locById, window.__isEtcLoc);
         const locsStr = (includeEtc ? [...pickLocs, ...etcLocs] : pickLocs).join(', ');
         const sumStock = (rows) => rows.reduce((a, l) => a + Number(l.stock || 0), 0);
         const totalStock2f = arr.reduce((a, l) => Math.max(a, Number(l.stock2f || 0)), 0);
@@ -8581,6 +8644,7 @@ window.__dashShowLocList = function (type) {
     const thead = document.getElementById('dash-loc-thead');
     const tbody = document.getElementById('dash-loc-tbody');
     if (!modal || !tbody || !thead) return;
+    modal.dataset.type = type; // '비축포함보기' 토글이 열린 다중위치 리스트를 다시 그릴 때 본다
 
     const locs3F = originalData.filter(d => (d.id || '').charAt(0).toUpperCase() !== 'K');
     // 빈 자리(랙 사용률) 리스트는 '기타'(비축/샘플 등) 위치를 제외한 실제 피킹 랙 기준
@@ -8627,21 +8691,18 @@ window.__dashShowLocList = function (type) {
             if (!codeMap.has(c)) codeMap.set(c, []);
             codeMap.get(c).push(l);
         });
-        const rows = [...codeMap.entries()].filter(([, arr]) => arr.length >= 2)
-            .map(([code, arr]) => ({
-                code, name: arr[0].name || '',
-                locs: arr.map(l => l.id).join(', '),
-                count: arr.length,
-                stock: arr.reduce((a, l) => a + Number(l.stock || 0), 0)
-            }))
-            .sort((a, b) => b.count - a.count || b.stock - a.stock);
+        // 대시보드 카드와 같은 기준·정렬 — 기본은 비축 자리를 뺀 개수·위치·재고('비축포함보기' 켜면 포함)
+        const rows = multiLocGroups(codeMap, isEtcLocation, multiLocIncludeReserve, new Map(originalData.map(l => [normLocId(l.id), l])))
+            .map(g => ({ ...g, locs: g.locIds.join(', ') }));
         setTitle(`다중 위치 상품 (${rows.length}종)`);
-        if (metaEl) metaEl.textContent = '한 상품코드가 2곳 이상에 분산된 상품 — 통합 시 빈 슬롯 확보 가능';
+        if (metaEl) metaEl.innerHTML = `<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">`
+            + `<span>한 상품코드가 2곳 이상에 분산된 상품 — 통합 시 빈 슬롯 확보 가능 (${multiLocIncludeReserve ? '비축 자리 포함' : '비축 자리 제외 — 포함하려면 오른쪽 체크'})</span>`
+            + multiLocReserveToggle('dash-loc-multiloc-include-reserve') + `</div>`;
         thead.innerHTML = th([{ t: '상품코드', w: '120px' }, { t: '상품명' }, { t: '분산 위치' }, { t: '칸수', w: '70px' }, { t: '정상재고', w: '90px' }]);
         tbody.innerHTML = rows.length ? rows.map(r => `<tr>
-            <td style="font-family:monospace; font-size:11px; font-weight:600; color:var(--c-accent-deep);">${r.code}</td>
-            <td style="text-align:left; padding-left:8px;">${r.name || '-'}</td>
-            <td style="font-family:monospace; font-size:11px;">${r.locs}</td>
+            <td style="font-family:monospace; font-size:11px; font-weight:600; color:var(--c-accent-deep);">${esc(r.code)}</td>
+            <td style="text-align:left; padding-left:8px;">${esc(r.name) || '-'}</td>
+            <td style="font-family:monospace; font-size:11px;">${esc(r.locs)}${r.reserveCount ? ` <span style="color:var(--c-warn-text); font-size:10px;">+비축 ${r.reserveCount}곳</span>` : ''}</td>
             <td style="font-weight:bold;">${r.count}곳</td>
             <td>${r.stock.toLocaleString()}</td></tr>`).join('')
             : `<tr><td colspan="5" style="padding:30px; text-align:center; color:var(--c-text-3);">다중 위치 상품이 없습니다.</td></tr>`;

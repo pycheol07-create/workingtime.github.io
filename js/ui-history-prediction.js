@@ -3,31 +3,31 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610141524';
+import { predictFutureTrends } from './analysis-logic.js?v=202610141838';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610141524';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610141524';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610141524';
-import * as State from './state.js?v=202610141524';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610141524';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610141524';
+import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610141838';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610141838';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610141838';
+import * as State from './state.js?v=202610141838';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610141838';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610141838';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610141524';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610141838';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610141524';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610141524';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610141838';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610141838';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610141524';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610141524';
-import { taskUph, recentDays } from './task-throughput.js?v=202610141524';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610141838';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610141838';
+import { taskUph, recentDays } from './task-throughput.js?v=202610141838';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610141524';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610141838';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610141524';
-import { D } from './d-chart.js?v=202610141524';
+         excessOffDays } from './lib/backlog-carry.js?v=202610141838';
+import { D } from './d-chart.js?v=202610141838';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -2371,7 +2371,7 @@ const paintExcludeHint = () => {
 };
 
 /** 휴무자 명단 — 이름과 종류를 한 덩어리(칩)로 묶어 줄바꿈이 이름 사이를 끊지 않게 한다.
- *  (예전에는 "이승운(휴직)"이 "이 / 승운 / (휴직)"처럼 글자 단위로 쪼개져 읽을 수 없었다) */
+ *  (예전에는 "홍길동(휴직)"이 "홍 / 길동 / (휴직)"처럼 글자 단위로 쪼개져 읽을 수 없었다) */
 const renderLeaveInfo = (staffInfo) => {
     const el = document.getElementById('sim-on-leave-info');
     if (!el) return;

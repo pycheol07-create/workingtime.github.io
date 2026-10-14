@@ -1,6 +1,7 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610141524';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610141524';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610141838';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610141838';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202610141838';
 
 export function collectConfigFromDOM(currentConfig) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
@@ -19,6 +20,7 @@ export function collectConfigFromDOM(currentConfig) {
         memberRanks: {},
         memberLeaveSettings: {},
         resignedMembers: {}, // 퇴사 처리(비활성): { 이름: 퇴사일 }
+        resignedEmails: {}, // { 이메일(소문자): 퇴사일 } — 저장마다 resignedMembers·memberEmails 로 새로 만든다(이전 값 물려받지 않음)
         systemAccounts: [], 
         dashboardItems: [],
         dashboardCustomItems: {},
@@ -188,10 +190,16 @@ export function collectConfigFromDOM(currentConfig) {
     // 퇴사자 이메일은 이 기본값 부여에서 제외한다.
     // 권한 화면에서 퇴사자를 뿌렸기 때문에, 제외하지 않으면 아래 루프가
     // '목록에 없는 사람'으로 보고 오히려 전체 메뉴 허용을 다시 박아 넣는다.
-    const resignedEmails = new Set();
-    Object.keys(newConfig.resignedMembers || {}).forEach(name => {
-        const em = newConfig.memberEmails?.[name];
-        if (em) resignedEmails.add(String(em).trim().toLowerCase());
+    // 보안(2026-10-14): 규칙이 퇴사자를 이메일로 막을 수 있게 { 이메일: 퇴사일 } 을 함께 저장한다.
+    //   퇴사자 행의 이메일 칸이 비었으면 저장 전 설정(currentConfig.memberEmails)의 이메일로 보충한다.
+    newConfig.resignedEmails = buildResignedEmails(newConfig.resignedMembers, newConfig.memberEmails, currentConfig?.memberEmails, emailCheck);
+    const resignedEmails = new Set(Object.keys(newConfig.resignedEmails));
+    // 보충한 이메일은 아래 emailCheck 루프에 없다 → 이미 역할이 있으면 여기서 같은 강등을 적용한다
+    //   (역할이 없던 이메일에 새 항목을 만들지는 않는다).
+    resignedEmails.forEach(email => {
+        if (emailCheck.has(email) || !(email in newConfig.memberRoles)) return;
+        newConfig.memberRoles[email] = 'user';
+        newConfig.memberMenuAccess[email] = [];
     });
 
     Array.from(emailCheck.keys()).forEach(email => {

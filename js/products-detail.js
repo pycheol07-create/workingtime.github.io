@@ -6,14 +6,14 @@
 // 메모: 전원 편집. 열 때 본 at 과 지금 at 이 다르면 충돌 확인창. 직전 5개 보관(되돌리기).
 // 기본정보 편집: 관리자만(D5). 같은 트랜잭션 헬퍼(버킷 + META rev + 이력, ver 비교).
 import { doc, getDoc, getDocs, collection, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202610141524';
-import { esc, toast, setHead, isLocOld } from './products.js?v=202610141524';
-import { statusPill } from './products-list.js?v=202610141524';
-import { renderCostCard, renderCostHistory } from './products-cost.js?v=202610141524';
-import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202610141524';
-import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610141524';
-import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202610141524';
-import { parseNum } from './lib/product-price.js?v=202610141524';
+import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202610141838';
+import { esc, toast, setHead, isLocOld } from './products.js?v=202610141838';
+import { statusPill } from './products-list.js?v=202610141838';
+import { renderCostCard, renderCostHistory } from './products-cost.js?v=202610141838';
+import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202610141838';
+import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610141838';
+import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202610141838';
+import { parseNum } from './lib/product-price.js?v=202610141838';
 
 const LOCATION_URL = 'location.html';
 
@@ -157,9 +157,10 @@ function renderMemo(el, pid) {
     const n = S.notes.get(pid) || { inspect: '', pack: '', at: 0, by: '', h: [] };
     const loadedAt = n.at || 0;
     el.innerHTML = `<div class="pd-row"><h2 class="pd-h2 pd-grow">앱 메모</h2><span class="pd-sub">${n.at ? `${fmtDateTime(n.at)} · ${esc(n.by)}` : '팀원 누구나 고칠 수 있습니다'}</span></div>
+        <div class="pd-alert warn" data-f="memo-warn" style="margin-top:12px">원가·공급처명·고객 정보(이름·연락처·주문번호)는 적지 마세요 — 팀원 전원이 봅니다.</div>
         <div class="pd-grid2">
-            <label class="pd-field">검수 주의사항<textarea class="pd-in" data-f="inspect" maxlength="2000">${esc(n.inspect)}</textarea></label>
-            <label class="pd-field">포장 메모<textarea class="pd-in" data-f="pack" maxlength="2000">${esc(n.pack)}</textarea></label></div>
+            <label class="pd-field">검수 주의사항<textarea class="pd-in" data-f="inspect" maxlength="2000" placeholder="원가·공급처명은 적지 마세요">${esc(n.inspect)}</textarea></label>
+            <label class="pd-field">포장 메모<textarea class="pd-in" data-f="pack" maxlength="2000" placeholder="원가·공급처명은 적지 마세요">${esc(n.pack)}</textarea></label></div>
         ${(n.h || []).length ? `<details style="margin-top:12px"><summary class="pd-sub" style="cursor:pointer">직전 기록 ${n.h.length}개 (실수로 지웠을 때)</summary>
             <ol class="pd-hist">${n.h.map((x, i) => `<li><div class="top"><span class="pd-sub">${fmtDateTime(x.at)} · ${esc(x.by)}</span><button class="d-btn d-btn-sm" data-h="${i}">이 내용으로 채우기</button></div>
                 <div class="chg">검수: ${esc(x.inspect) || '–'}<br>포장: ${esc(x.pack) || '–'}</div></li>`).join('')}</ol></details>` : ''}
