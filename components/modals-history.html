@@ -353,7 +353,7 @@
                     인력 운영 최적화 및 예측
                 </h3>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-start">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-start">
                     <div class="bg-white dark:bg-gray-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white mb-4">현재 투입 vs 필요 인력 (FTE)</h4>
                         <div class="space-y-4">
@@ -382,16 +382,6 @@
                             <canvas id="chart-staffing-loss"></canvas>
                         </div>
                         <p class="text-center text-[10px] md:text-xs font-bold text-red-500 mt-2">총 누수 시간: <span id="staff-total-loss">0</span>분</p>
-                    </div>
-
-                    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 md:p-6 rounded-2xl flex flex-col justify-between">
-                        <div>
-                            <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2">차월 목표 매출 연동 시뮬레이터</h4>
-                            <p class="text-[10px] md:text-xs text-gray-500 mb-4">다음 달 목표 매출을 입력하면 필요 알바 인원을 예측합니다.</p>
-                            <input id="staffing-sim-input" type="number" placeholder="예: 50000000" class="w-full p-2 rounded text-gray-900 font-bold text-sm bg-white border border-gray-300 focus:outline-none mb-2">
-                        </div>
-                        <button id="staffing-sim-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded transition text-sm">필요 인원 계산하기</button>
-                        <div id="staffing-sim-result" class="text-sm"></div>
                     </div>
                 </div>
 

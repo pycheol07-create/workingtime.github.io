@@ -1,7 +1,7 @@
 // === js/ui-history-reports-productivity.js ===
-import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610141455';
-import { getAsArray } from './ui-history-reports-utils.js?v=202610141455';
-import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202610141455';
+import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610141524';
+import { getAsArray } from './ui-history-reports-utils.js?v=202610141524';
+import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202610141524';
 
 export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
     if (!allHistoryData || allHistoryData.length === 0) return null;
@@ -30,7 +30,7 @@ export const analyzeRevenueBasedStaffing = (revenue, totalStandardMinutesNeeded,
      if (!revenue || revenue <= 0 || !totalStandardMinutesNeeded || totalStandardMinutesNeeded <= 0 || !actualTotalDuration || actualTotalDuration <= 0 || !activeMembersCount || activeMembersCount <= 0) {
         return null;
     }
-    const revenueUnit = appConfig.revenueIncrementUnit || 10000000;
+    const revenueUnit = 10000000; // 매출 1천만원 증가당 필요 인원 (관리자 설정 칸 삭제 2026-10-14 — 고정값)
     const actualMinutesPerPerson = actualTotalDuration / activeMembersCount;
     const minutesPerRevenue = totalStandardMinutesNeeded / revenue;
     const minutesPerUnitIncrease = minutesPerRevenue * revenueUnit;

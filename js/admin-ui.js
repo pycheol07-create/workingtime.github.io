@@ -1,7 +1,7 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610141455';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610141524';
 
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
@@ -36,9 +36,6 @@ export function renderAdminUI(config) {
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) wageInput.value = config.defaultPartTimerWage || 10000;
 
-    const revenueUnitInput = document.getElementById('revenue-increment-unit');
-    if (revenueUnitInput) revenueUnitInput.value = config.revenueIncrementUnit || 10000000;
-    
     const workHoursInput = document.getElementById('standard-monthly-work-hours');
     if (workHoursInput) workHoursInput.value = config.standardMonthlyWorkHours || 209;
 

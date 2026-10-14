@@ -1,6 +1,6 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610141455';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610141455';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610141524';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610141524';
 
 export function collectConfigFromDOM(currentConfig) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
@@ -28,7 +28,6 @@ export function collectConfigFromDOM(currentConfig) {
         quantityTaskTypes: [],
         
         defaultPartTimerWage: 10000,
-        revenueIncrementUnit: 10000000,
         standardMonthlyWorkHours: 209,
 
         fixedMaterialCost: 0,
@@ -253,9 +252,6 @@ export function collectConfigFromDOM(currentConfig) {
 
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
-
-    const revenueUnitInput = document.getElementById('revenue-increment-unit');
-    if (revenueUnitInput) newConfig.revenueIncrementUnit = Number(revenueUnitInput.value) || 10000000;
 
     const workHoursInput = document.getElementById('standard-monthly-work-hours');
     if (workHoursInput) newConfig.standardMonthlyWorkHours = Number(workHoursInput.value) || 209;

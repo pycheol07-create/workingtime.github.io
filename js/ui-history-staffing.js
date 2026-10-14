@@ -1,11 +1,11 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202610141455';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610141455';
-import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610141455';
-import { fetchPlannedData } from './history-data-manager.js?v=202610141455';
-import { getTodayDateString } from './utils.js?v=202610141455';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610141455';
-import { D } from './d-chart.js?v=202610141455';
+import * as State from './state.js?v=202610141524';
+import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610141524';
+import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610141524';
+import { fetchPlannedData } from './history-data-manager.js?v=202610141524';
+import { getTodayDateString } from './utils.js?v=202610141524';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610141524';
+import { D } from './d-chart.js?v=202610141524';
 
 let staffingChartInstance = null;
 
@@ -79,14 +79,12 @@ export function renderStaffingTab(filteredData, appConfig) {
     // 예정 물량·미발 이력(입고일 국내배송에 더해진다)이 실리면 다시 그린다
     Promise.all([fetchPlannedData(), ensureMibalHistory()]).then(() => renderStaffingOutlook()).catch(() => {});
 
-    // 값을 안 지우면 직전 기간 숫자·도넛·시뮬레이터 결과가 그대로 남아 이 기간 값으로 오독된다.
+    // 값을 안 지우면 직전 기간 숫자·도넛이 그대로 남아 이 기간 값으로 오독된다.
     const clearStaffingCard = (message) => {
         ['staff-actual', 'staff-worked', 'staff-required'].forEach(id => setText(id, '— 명 / 일'));
         setText('staff-total-loss', '0');
         const el = document.getElementById('staff-fte-comment');
         if (el) el.innerHTML = message;
-        const sim = document.getElementById('staffing-sim-result');
-        if (sim) sim.innerHTML = '';
         if (staffingChartInstance) { staffingChartInstance.destroy(); staffingChartInstance = null; }
     };
 
@@ -270,49 +268,6 @@ export function renderStaffingTab(filteredData, appConfig) {
                 maintainAspectRatio: false,
                 plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
             }
-        });
-    }
-
-    // ── 차월 목표 매출 → 필요 인원 시뮬레이터 ──
-    // 동작: 목표 매출 ÷ 가정 영업일 22 → 일평균 목표 매출. 현재 일평균 매출 대비
-    // 스케일링 비율(target/현재)을 현재 평균 출근 인원에 곱해 필요 인원 산출.
-    // 추가 알바 = max(0, 필요 인원 − 현재 평균 출근).
-    const simBtn = document.getElementById('staffing-sim-btn');
-    const simInput = document.getElementById('staffing-sim-input');
-    const simResult = document.getElementById('staffing-sim-result');
-    if (simBtn && simInput && simResult) {
-        // 이전 클릭 리스너 제거를 위해 노드 교체 (renderStaffingTab 재호출 시 중복 바인딩 방지)
-        const freshBtn = simBtn.cloneNode(true);
-        simBtn.parentNode.replaceChild(freshBtn, simBtn);
-        freshBtn.addEventListener('click', () => {
-            const target = Number(simInput.value);
-            if (!target || target <= 0) {
-                simResult.innerHTML = '<div class="mt-3 pt-3 border-t border-gray-200 text-amber-700">목표 매출(원)을 입력해주세요.</div>';
-                return;
-            }
-            const totalRev = filteredData.reduce((s, d) => s + (Number(d.management && d.management.revenue) || 0), 0);
-            const revDays = filteredData.filter(d => Number(d.management && d.management.revenue) > 0).length;
-            if (totalRev <= 0 || revDays === 0 || avgActual <= 0) {
-                simResult.innerHTML = '<div class="mt-3 pt-3 border-t border-gray-200 text-amber-700">현재 기간 매출/출근 데이터가 부족해 예측할 수 없습니다.</div>';
-                return;
-            }
-            const dailyRev = totalRev / revDays;
-            const workingDays = 22; // 가정: 월 영업일 22일
-            const targetDailyRev = target / workingDays;
-            const scale = targetDailyRev / dailyRev;
-            const requiredHeadcount = avgActual * scale;
-            const additionalAlba = Math.max(0, requiredHeadcount - avgActual);
-            const KRW = n => Math.round(n).toLocaleString();
-
-            simResult.innerHTML = `
-                <div class="mt-3 pt-3 border-t border-gray-200 text-sm space-y-1">
-                    <div>현재 일평균 매출: <strong>${KRW(dailyRev)}원</strong> <span class="text-[11px] text-gray-500">(${revDays}일 기준)</span></div>
-                    <div>목표 일평균 매출: <strong>${KRW(targetDailyRev)}원</strong> <span class="text-[11px] text-gray-500">(월 22일 가정)</span></div>
-                    <div>스케일링 비율: <strong>${scale.toFixed(2)}배</strong></div>
-                    <div>필요 일평균 인원: <strong>${requiredHeadcount.toFixed(1)}명</strong> <span class="text-[11px] text-gray-500">(현재 ${avgActual.toFixed(1)}명 기준 선형)</span></div>
-                    <div class="pt-1 text-amber-700 font-bold">→ 추가 필요 알바: <strong>${additionalAlba.toFixed(1)}명</strong></div>
-                </div>
-            `;
         });
     }
 }

@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610141455';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610141524';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -296,7 +296,6 @@ function getDefaultConfig() {
         simulationTaskLinks: {
             '직진배송': '직진배송 사전작업' 
         },
-        revenueIncrementUnit: 10000000,
         standardMonthlyWorkHours: 209,
         standardDailyWorkHours: {
              weekday: 8,

@@ -8,13 +8,13 @@
 import {
     doc, getDoc, getDocs, collection, query, where, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610141455';
-import { esc, toast } from './products.js?v=202610141455';
-import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=202610141455';
-import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=202610141455';
-import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=202610141455';
-import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=202610141455';
-import { stripCheckMemo } from './lib/product-ezadmin.js?v=202610141455';
+import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610141524';
+import { esc, toast } from './products.js?v=202610141524';
+import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=202610141524';
+import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=202610141524';
+import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=202610141524';
+import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=202610141524';
+import { stripCheckMemo } from './lib/product-ezadmin.js?v=202610141524';
 
 export const C = { costs: null, ledger: null };
 
