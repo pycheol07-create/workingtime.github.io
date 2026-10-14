@@ -3,15 +3,17 @@
 //
 // 3,768행을 한 번에 그리지 않는다(50행씩). 추가 읽기 없음 — 전부 products-store.js 가 받아 둔 메모리에서.
 // 관리자 열(공급처·기본 단가)은 관리자일 때만 **만든다**(숨김 아님). 원가 값은 products-cost.js 메모리에만 있다.
-import { S, locSummary } from './products-store.js?v=202610141249';
-import { C, costOf } from './products-cost.js?v=202610141249';
-import { esc, toast } from './products.js?v=202610141249';
-import { loadXLSX } from './products-excel.js?v=202610141249';
-import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610141249';
-import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610141249';
+import { S, locSummary } from './products-store.js?v=202610141313';
+import { C, costOf } from './products-cost.js?v=202610141313';
+import { esc, toast } from './products.js?v=202610141313';
+import { loadXLSX } from './products-excel.js?v=202610141313';
+import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610141313';
+import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610141313';
 
 const PAGE = 50;
-const F = { q: '', cat: '', status: '', gone: false, noPrice: false, optDiff: false, noSup: false, sup: '', page: 0 };
+const F = { q: '', cat: '', status: '', gone: false, noPrice: false, optDiff: false, noSup: false, sup: '', page: 0,
+            sort: null,   // { key, dir: 1 | -1 } — 머리글 정렬, null 이면 새로 들어온 순
+            cf: {} };     // 머리글 필터 { 열key: {q} | {excl:Set(해제한 값)} | {min,max,empty} }
 const searchKey = new WeakMap();
 
 const todayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -37,6 +39,8 @@ export function statusPill(p) {
 function filtered() {
     const q = F.q.trim().toLowerCase();
     const out = [];
+    const cols = colDefs();
+    const cf = cols.filter(c => F.cf[c.key]).map(c => [c, F.cf[c.key]]);
     for (const [pid, p] of S.products) {
         if (!F.gone && p.gone) continue;
         if (F.cat && (p.cat || '(없음)') !== F.cat) continue;
@@ -49,10 +53,170 @@ function filtered() {
             if (F.noSup && c && c.sup) continue;
             if (F.sup && (!c || c.sup !== F.sup)) continue;
         }
+        if (cf.length && !cf.every(([col, f]) => passCol(col, f, pid, p))) continue;
         out.push([pid, p]);
     }
-    out.sort((a, b) => (b[1].add || 0) - (a[1].add || 0) || (a[0] < b[0] ? -1 : 1));
+    const sc = F.sort && cols.find(c => c.key === F.sort.key);
+    if (sc) {
+        const dir = F.sort.dir;
+        const val = new Map(out.map(([pid, p]) => [pid, sc.get(pid, p)]));
+        out.sort((a, b) => cmpVals(val.get(a[0]), val.get(b[0]), dir) || (a[0] < b[0] ? -1 : 1));
+    } else {
+        out.sort((a, b) => (b[1].add || 0) - (a[1].add || 0) || (a[0] < b[0] ? -1 : 1));
+    }
     return out;
+}
+
+// ── 머리글 정렬·필터 (2026-10-14) ───────────────────────────────
+// 머리글 글자 = 정렬(오름 → 내림 → 해제), ▾ = 그 열 필터.
+//   text: 글자 포함 · set: 값 목록에서 고르기 · num: 최소~최대 / 빈 값만
+// 원가 열(공급처·단가·원화)은 관리자일 때만 만든다(목록 열과 같은 규칙).
+const NONE = '(없음)';
+const KO = new Intl.Collator('ko', { numeric: true });   // localeCompare(locale) 는 비교마다 collator 를 새로 만들어 느리다
+const numOrNull = (v) => { const n = Number(v); return v != null && v !== '' && Number.isFinite(n) ? n : null; };
+function colDefs() {
+    const cols = [
+        { key: 'code', label: '상품코드', type: 'text', get: (pid, p) => p.code2 || pid, fget: (pid, p) => `${p.code2 || ''} ${pid}` },
+        { key: 'name', label: '상품명', type: 'text', get: (pid, p) => p.name || '' },
+        { key: 'cat', label: '카테고리', type: 'set', get: (pid, p) => p.cat || NONE },
+        { key: 'opt', label: '옵션', type: 'num', r: true, get: (pid, p) => activeOpts(p).length },
+    ];
+    if (S.isAdmin) {
+        const base = (pid) => { const c = costOf(pid); return c && c.base; };
+        cols.push(
+            { key: 'sup', label: '공급처', type: 'set', adm: true, get: (pid) => { const c = costOf(pid); return (c && c.sup) || '(미지정)'; } },
+            { key: 'cny', label: '기본 단가(위안)', type: 'num', r: true, adm: true, get: (pid) => { const b = base(pid); return b ? numOrNull(b.cny) : null; } },
+            { key: 'usd', label: '기본 단가(달러)', type: 'num', r: true, adm: true, get: (pid) => { const b = base(pid); return b ? numOrNull(b.usd) : null; } },
+            { key: 'krw', label: '원가(원)', type: 'num', r: true, adm: true, get: (pid) => { const c = costOf(pid); return c ? numOrNull(c.krw) : null; } },
+        );
+    }
+    cols.push(
+        { key: 'loc', label: '위치', type: 'text', get: (pid, p) => locSummary(p).first || '' },
+        { key: 'qty', label: '자리 수량', type: 'num', r: true, title: '로케이션관리 자리 수량 합(채우기 요약 기준)', get: (pid, p) => { const l = locSummary(p); return l.spots ? l.qty : null; } },
+        { key: 'status', label: '상태', type: 'set', get: (pid, p) => p.gone ? '사라짐' : (p.status || NONE) },
+    );
+    return cols;
+}
+const colByKey = (k) => colDefs().find(c => c.key === k);
+
+/** 한 열 필터를 통과하는가 */
+function passCol(col, f, pid, p) {
+    if (col.type === 'text') return String((col.fget || col.get)(pid, p)).toLowerCase().includes(f.q);
+    if (col.type === 'set') return !f.excl.has(String(col.get(pid, p)));   // 해제한 값만 뺀다(나중에 생긴 값·목록에 안 보인 값은 그대로 보임)
+    const v = col.get(pid, p);
+    if (f.empty) return v == null;
+    if (v == null) return false;
+    if (f.min != null && v < f.min) return false;
+    if (f.max != null && v > f.max) return false;
+    return true;
+}
+
+/** 정렬 비교 — 빈 값은 방향과 상관없이 맨 뒤 */
+function cmpVals(a, b, dir) {
+    const ea = a == null || a === '', eb = b == null || b === '';
+    if (ea || eb) return ea === eb ? 0 : ea ? 1 : -1;
+    if (typeof a === 'number' && typeof b === 'number') return (a - b) * dir;
+    return KO.compare(String(a), String(b)) * dir;
+}
+
+function theadHtml() {
+    return '<tr>' + colDefs().map(c => {
+        const s = F.sort && F.sort.key === c.key ? (F.sort.dir > 0 ? ' ▲' : ' ▼') : '';
+        const on = F.cf[c.key] ? ' is-on' : '';
+        return `<th class="${c.r ? 'r' : ''}"${c.title ? ` title="${esc(c.title)}"` : ''}><span class="pd-th">`
+            + `<button type="button" class="pd-th-sort${s ? ' is-sorted' : ''}" data-sort="${c.key}" title="눌러서 정렬(오름 → 내림 → 해제)">${esc(c.label)}${s}</button>`
+            + `<button type="button" class="pd-th-f${on}" data-filt="${c.key}" aria-label="${esc(c.label)} 필터" title="${esc(c.label)} 필터">▾</button>`
+            + `${c.adm ? '<span class="pd-adm-tag">관리자</span>' : ''}</span></th>`;
+    }).join('') + '</tr>';
+}
+
+/** 열 필터 창 — body 에 하나만 띄운다 */
+let popOff = null;   // 열린 창의 바깥 클릭 리스너 떼기
+function closeColPop() {
+    if (popOff) { popOff(); popOff = null; }
+    document.getElementById('pd-colpop')?.remove();
+}
+function openColPop(th, col, onApply) {
+    closeColPop();
+    const f = F.cf[col.key];
+    const pop = document.createElement('div');
+    pop.id = 'pd-colpop';
+    pop.className = 'pd-colpop';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', `${col.label} 필터`);
+    let body = '';
+    if (col.type === 'text') {
+        body = `<input class="pd-in" data-k="q" placeholder="포함할 글자" value="${esc(f ? f.q : '')}">`;
+    } else if (col.type === 'num') {
+        body = `<div class="pd-colpop-row"><input class="pd-in num" data-k="min" inputmode="decimal" placeholder="최소" value="${f && f.min != null ? f.min : ''}">
+            <span>~</span><input class="pd-in num" data-k="max" inputmode="decimal" placeholder="최대" value="${f && f.max != null ? f.max : ''}"></div>
+            <label class="pd-sub"><input type="checkbox" data-k="empty" ${f && f.empty ? 'checked' : ''}> 빈 값만</label>`;
+    } else {
+        // 값 목록 — 지금 켜진 '단종·사라짐 보기' 기준, 많은 순
+        const cnt = new Map();
+        for (const [pid, p] of S.products) {
+            if (!F.gone && p.gone) continue;
+            const v = String(col.get(pid, p));
+            cnt.set(v, (cnt.get(v) || 0) + 1);
+        }
+        const vals = [...cnt].sort((a, b) => b[1] - a[1] || KO.compare(a[0], b[0]));
+        const LIMIT = 400;
+        body = `<input class="pd-in" data-k="find" placeholder="목록에서 찾기">
+            <div class="pd-colpop-row"><button type="button" class="d-btn d-btn-sm" data-a="all">모두 선택</button><button type="button" class="d-btn d-btn-sm" data-a="none">모두 해제</button></div>
+            <div class="pd-colpop-list">${vals.slice(0, LIMIT).map(([v, n]) =>
+                `<label data-v="${esc(v.toLowerCase())}"><input type="checkbox" value="${esc(v)}" ${!f || !f.excl.has(v) ? 'checked' : ''}> <span>${esc(v)}</span><span class="num pd-inh">${n.toLocaleString()}</span></label>`).join('')}</div>
+            ${vals.length > LIMIT ? `<div class="pd-note">값이 ${vals.length.toLocaleString()}개라 많은 순 ${LIMIT}개만 보입니다 — 찾기로 좁혀 주세요</div>` : ''}`;
+    }
+    pop.innerHTML = `<div class="pd-colpop-title">${esc(col.label)}</div>${body}
+        <div class="pd-colpop-row pd-colpop-foot"><button type="button" class="d-btn d-btn-sm" data-a="clear">지우기</button><button type="button" class="d-btn d-btn-sm d-btn-primary" data-a="apply">적용</button></div>`;
+    document.body.appendChild(pop);
+    const r = th.getBoundingClientRect();
+    const w = pop.offsetWidth;
+    pop.style.left = `${Math.max(8, Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - w - 8))}px`;
+    pop.style.top = `${window.scrollY + r.bottom + 4}px`;
+    const k = (n) => pop.querySelector(`[data-k="${n}"]`);
+    (k('q') || k('find') || k('min'))?.focus();
+
+    const apply = () => {
+        let nf = null;
+        if (col.type === 'text') {
+            const q = k('q').value.trim().toLowerCase();
+            if (q) nf = { q };
+        } else if (col.type === 'num') {
+            const num = (el) => { const t = el.value.trim().replace(/,/g, ''); return t === '' || !isFinite(Number(t)) ? null : Number(t); };
+            const min = num(k('min')), max = num(k('max')), empty = k('empty').checked;
+            if (empty || min != null || max != null) nf = { min, max, empty };
+        } else {
+            // 해제한 값만 기억한다 — 창에 안 보인 값(400개 넘는 목록의 뒤쪽)은 이전 상태를 이어받는다
+            const boxes = [...pop.querySelectorAll('.pd-colpop-list input[type=checkbox]')];
+            const shown = new Set(boxes.map(b => b.value));
+            const excl = new Set(f && f.excl ? [...f.excl].filter(v => !shown.has(v)) : []);
+            boxes.forEach(b => { if (!b.checked) excl.add(b.value); });
+            if (excl.size) nf = { excl };
+        }
+        if (nf) F.cf[col.key] = nf; else delete F.cf[col.key];
+        closeColPop();
+        onApply();
+    };
+    pop.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-a]'); if (!b) return;
+        const a = b.dataset.a;
+        if (a === 'apply') apply();
+        else if (a === 'clear') { delete F.cf[col.key]; closeColPop(); onApply(); }
+        else if (a === 'all' || a === 'none') pop.querySelectorAll('.pd-colpop-list label').forEach(l => { if (l.style.display !== 'none') l.querySelector('input').checked = a === 'all'; });
+    });
+    pop.addEventListener('input', (e) => {
+        if (e.target.dataset.k !== 'find') return;
+        const q = e.target.value.trim().toLowerCase();
+        pop.querySelectorAll('.pd-colpop-list label').forEach(l => { l.style.display = !q || l.dataset.v.includes(q) ? '' : 'none'; });
+    });
+    pop.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') { e.preventDefault(); apply(); }
+        if (e.key === 'Escape') { e.stopPropagation(); closeColPop(); th.querySelector('.pd-th-f')?.focus(); }
+    });
+    const outside = (e) => { if (!pop.contains(e.target) && !th.contains(e.target)) closeColPop(); };
+    const timer = setTimeout(() => document.addEventListener('mousedown', outside, true), 0);
+    popOff = () => { clearTimeout(timer); document.removeEventListener('mousedown', outside, true); };
 }
 
 function summaryHtml() {
@@ -110,6 +274,8 @@ function chipsHtml() {
             <button class="pd-chip ${F.noSup ? 'is-on' : ''}" data-tog="noSup">공급처 미지정</button>
             <select class="pd-select" data-sel="sup" aria-label="공급처"><option value="">공급처 전체</option>${sups.map(s => `<option ${F.sup === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>`;
     }
+    const ncf = Object.keys(F.cf).length;
+    if (ncf || F.sort) h += `<button class="pd-chip is-on" data-act="clearcf" title="머리글 정렬·필터를 모두 해제">머리글 정렬·필터 해제${ncf ? `<span class="num">${ncf}</span>` : ''}</button>`;
     return h;
 }
 
@@ -156,9 +322,7 @@ export function renderList(main) {
                 <span id="pd-count" class="pd-count num"></span>
             </div>
             <div class="pd-scroll"><table class="pd-t" style="min-width:${S.isAdmin ? 1280 : 900}px">
-                <thead><tr><th>상품코드</th><th>상품명</th><th>카테고리</th><th class="r">옵션</th>
-                    ${S.isAdmin ? '<th>공급처<span class="pd-adm-tag">관리자</span></th><th class="r">기본 단가(위안)<span class="pd-adm-tag">관리자</span></th><th class="r">기본 단가(달러)<span class="pd-adm-tag">관리자</span></th><th class="r">원가(원)<span class="pd-adm-tag">관리자</span></th>' : ''}
-                    <th>위치</th><th class="r" title="로케이션관리 자리 수량 합(채우기 요약 기준)">자리 수량</th><th>상태</th></tr></thead>
+                <thead id="pd-thead">${theadHtml()}</thead>
                 <tbody id="pd-tbody"></tbody></table></div>
             <div class="pd-foot"><span>행을 누르면 상세가 열립니다. 위치·수량은 로케이션관리 기준(평일 아침 요약)입니다.</span>
                 <span class="pd-pager"><button class="d-btn d-btn-sm" id="pd-prev">이전</button><span id="pd-pageno" class="num"></span><button class="d-btn d-btn-sm" id="pd-next">다음</button></span></div>
@@ -178,13 +342,32 @@ export function renderList(main) {
     const redo = (chips = true) => {
         rows = filtered(); F.page = 0;
         if (chips) main.querySelector('#pd-chips').innerHTML = chipsHtml();
+        main.querySelector('#pd-thead').innerHTML = theadHtml();
         draw();
     };
+    closeColPop();
+    main.querySelector('#pd-thead').addEventListener('click', (e) => {
+        const sb = e.target.closest('[data-sort]');
+        if (sb) {
+            const k = sb.dataset.sort;
+            F.sort = !F.sort || F.sort.key !== k ? { key: k, dir: 1 } : F.sort.dir > 0 ? { key: k, dir: -1 } : null;
+            redo();
+            return;
+        }
+        const fb = e.target.closest('[data-filt]');
+        if (fb) {
+            if (document.getElementById('pd-colpop')?.getAttribute('aria-label') === `${colByKey(fb.dataset.filt)?.label} 필터`) { closeColPop(); return; }
+            const col = colByKey(fb.dataset.filt);
+            if (col) openColPop(fb.closest('th'), col, () => redo());
+        }
+    });
+    window.addEventListener('hashchange', closeColPop, { once: true });
     draw();
     let t = null;
     main.querySelector('#pd-q').addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { F.q = e.target.value; redo(false); }, 200); });
     main.querySelector('#pd-filters').addEventListener('click', (e) => {
         const b = e.target.closest('button'); if (!b) return;
+        if (b.dataset.act === 'clearcf') { F.cf = {}; F.sort = null; closeColPop(); redo(); return; }
         if (b.dataset.cat !== undefined) { F.cat = b.dataset.cat; redo(); }
         else if (b.dataset.tog) { F[b.dataset.tog] = !F[b.dataset.tog]; redo(); }
     });

@@ -183,3 +183,25 @@ textarea.pd-in { height: 84px; padding: 10px 12px; resize: vertical; line-height
     .pd-modal-box { border-radius: 0; min-height: 100%; }
     .pd-modal-body { padding: 14px; }
 }
+
+/* ── 목록 머리글 정렬·필터 (2026-10-14, js/products-list.js) ── */
+.pd-th { display: inline-flex; align-items: center; gap: 2px; }
+.pd-t th.r .pd-th { justify-content: flex-end; }
+.pd-th-sort { border: 0; background: none; padding: 2px 4px; margin: -2px 0 -2px -4px; font: inherit; font-weight: 600; font-size: 12.5px; color: var(--c-text-2); cursor: pointer; border-radius: var(--r-cell, 6px); white-space: nowrap; }
+.pd-th-sort:hover { color: var(--c-text); background: var(--c-track); }
+.pd-th-sort.is-sorted { color: var(--c-accent-deep); }
+.pd-th-f { border: 0; background: none; width: 20px; height: 20px; padding: 0; font-size: 14px; line-height: 20px; color: var(--c-text-3); cursor: pointer; border-radius: var(--r-cell, 6px); }
+.pd-th-f:hover { background: var(--c-track); color: var(--c-text); }
+.pd-th-f.is-on { background: var(--c-accent-soft); color: var(--c-accent-deep); }
+.pd-th-sort:focus-visible, .pd-th-f:focus-visible { outline: 2px solid var(--c-accent-light); outline-offset: 1px; }
+.pd-colpop { position: absolute; z-index: 60; width: 260px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 12px; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner, 14px); box-shadow: 0 8px 24px rgba(30,40,60,.12); font-size: 13px; color: var(--c-text); }
+.pd-colpop-title { font-weight: 600; font-size: 12.5px; color: var(--c-text-2); margin-bottom: 8px; }
+.pd-colpop .pd-in { width: 100%; box-sizing: border-box; }
+.pd-colpop-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.pd-colpop-row .pd-in { flex: 1; min-width: 0; }
+.pd-colpop-foot { justify-content: flex-end; margin-top: 12px; }
+.pd-colpop-list { max-height: 240px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--c-line-soft); border-radius: var(--r-sm, 10px); padding: 4px 0; }
+.pd-colpop-list label { display: flex; align-items: center; gap: 6px; padding: 4px 10px; cursor: pointer; }
+.pd-colpop-list label:hover { background: var(--c-accent-row); }
+.pd-colpop-list label span:nth-of-type(1) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-colpop .pd-sub { display: flex; align-items: center; gap: 6px; margin-top: 8px; }

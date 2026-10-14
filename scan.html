@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610141249">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610141249">
+    <link rel="stylesheet" href="css/suit.css?v=202610141313">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610141313">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -183,12 +183,12 @@
     <div id="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610141249"></script>
+    <script src="js/location-map.js?v=202610141313"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610141249'; // china-stock 전용 설정(work-tool-e2943)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610141313'; // china-stock 전용 설정(work-tool-e2943)
 
         const SCAN_VERSION = '10.4'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
