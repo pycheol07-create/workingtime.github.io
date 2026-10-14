@@ -1,7 +1,7 @@
 // === js/ui-history-productivity.js ===
-import * as State from './state.js?v=202610141412';
-import { buildMemberHourlyWageMap } from './utils.js?v=202610141412';
-import { D } from './d-chart.js?v=202610141412';
+import * as State from './state.js?v=202610141455';
+import { buildMemberHourlyWageMap } from './utils.js?v=202610141455';
+import { D } from './d-chart.js?v=202610141455';
 
 let productivityChartInstance = null;
 

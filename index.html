@@ -24,11 +24,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610141412">
-    <link rel="stylesheet" href="css/style.css?v=202610141412">
-    <link rel="stylesheet" href="css/dash-d.css?v=202610141412">
-    <link rel="stylesheet" href="css/history-d.css?v=202610141412">
-    <link rel="stylesheet" href="css/form-d.css?v=202610141412">
+    <link rel="stylesheet" href="css/suit.css?v=202610141455">
+    <link rel="stylesheet" href="css/style.css?v=202610141455">
+    <link rel="stylesheet" href="css/dash-d.css?v=202610141455">
+    <link rel="stylesheet" href="css/history-d.css?v=202610141455">
+    <link rel="stylesheet" href="css/form-d.css?v=202610141455">
 </head>
 <body class="overflow-hidden transition-colors duration-200">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -62,9 +62,6 @@
                 </a>
 
                 <div class="d-nav-cat">관리자 메뉴</div>
-                <button id="open-admin-todo-btn" class="d-nav-item w-full flex items-center gap-3" style="display: none;">
-                    <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/></svg></span> 관리자 일정/투두
-                </button>
                 <a href="admin.html" id="admin-link-btn" target="admin_window" class="d-nav-item w-full flex items-center gap-3" style="display: none;">
                     <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 관리자 페이지
                 </a>
@@ -129,7 +126,6 @@
                 <a href="location.html" id="location-link-btn-mobile" target="location_window" class="d-nav-item flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span> 로케이션 관리</a>
 
                 <div class="d-nav-cat">관리자 메뉴</div>
-                <button id="open-admin-todo-btn-mobile" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/></svg></span> 관리자 일정/투두</button>
                 <a href="admin.html" id="admin-link-btn-mobile" target="admin_window" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 관리자 페이지</a>
                 <button id="end-shift-btn-mobile" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></span> 업무 마감</button>
 
@@ -370,9 +366,6 @@
     <div id="modals-container-form-inspection"></div>
     <div id="modals-container-form-total-inspection"></div>
 
-    <div id="modals-container-admin-todo"></div>
-    <div id="modals-container-admin-todo-alert"></div>
-
     <div id="overtime-prompt-modal" class="hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 transition-opacity">
         <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center border border-gray-100 dark:border-gray-700">
             <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">정규 근무 시간 종료</h3>
@@ -500,19 +493,17 @@
                 loadComponent('components/modals-form-quantity.html', 'modals-container-form-quantity'),
                 loadComponent('components/modals-form-team.html', 'modals-container-form-team'),
                 loadComponent('components/modals-form-inspection.html', 'modals-container-form-inspection'),
-                loadComponent('components/modals-form-total-inspection.html', 'modals-container-form-total-inspection'),
-                loadComponent('components/modals-admin-todo.html', 'modals-container-admin-todo'),
-                loadComponent('components/modals-admin-todo-alert.html', 'modals-container-admin-todo-alert')
+                loadComponent('components/modals-form-total-inspection.html', 'modals-container-form-total-inspection')
             ]);
 
             try {
-                await import('./js/app.js?v=202610141412');
+                await import('./js/app.js?v=202610141455');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202610141412').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202610141455').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -594,13 +585,12 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202610141412';
-        import { addNotice, toggleNotice, deleteNotice, editNotice, loadAdminTodos } from './js/admin-todo-logic.js?v=202610141412';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202610141412';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610141412';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610141412';
+        import { appState } from './js/state.js?v=202610141455';
+        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610141455';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202610141455';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610141455';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610141455';
 
-        loadAdminTodos();
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
         // 📐 오늘 진행 띠 (업무 이력은 대부분 로컬 캐시라 추가 조회 부담이 거의 없다)
@@ -760,9 +750,16 @@
                 }
             }
         });
+
+        // 공지 구독은 로그인 뒤 app.js 가 시작한다(notice-logic.js). 새로고침 때는 이 모듈보다
+        // 첫 스냅샷이 먼저 와서 위 'renderNotices' 를 놓칠 수 있다 — 이미 받은 공지를 한 번 그린다.
+        if ((appState.importantNotices || []).length) {
+            renderNoticeWidget(appState);
+            renderNoticeModalList();
+        }
     </script>
-    <script src="js/connection-banner.js?v=202610141412"></script>
-    <script src="js/modal-esc.js?v=202610141412"></script>
-    <script src="js/app-version.js?v=202610141412"></script>
+    <script src="js/connection-banner.js?v=202610141455"></script>
+    <script src="js/modal-esc.js?v=202610141455"></script>
+    <script src="js/app-version.js?v=202610141455"></script>
 </body>
 </html>

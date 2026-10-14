@@ -3,13 +3,6 @@
 
 export const loadingSpinner = document.getElementById('loading-spinner');
 
-// [신규] 관리자 To-Do 관련 요소
-
-// [신규] 관리자 To-Do 알림(팝업) 관련 요소
-export const adminTodoAlertModal = document.getElementById('admin-todo-alert-modal');
-export const adminTodoAlertList = document.getElementById('admin-todo-alert-list');
-export const adminTodoAlertConfirmBtn = document.getElementById('admin-todo-alert-confirm-btn');
-
 // [신규] 검수 리스트(엑셀) 업로드 관련
 export const inspExcelUploadInput = document.getElementById('insp-excel-upload');
 export const inspOpenListWindowBtn = document.getElementById('insp-open-list-window-btn');
@@ -302,9 +295,6 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
         try {
             const mod = {
                 loadingSpinner,
-                adminTodoAlertModal,
-                adminTodoAlertList,
-                adminTodoAlertConfirmBtn,
                 inspExcelUploadInput,
                 inspOpenListWindowBtn,
                 inspDeleteListBtn,

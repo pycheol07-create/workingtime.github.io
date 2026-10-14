@@ -1,24 +1,24 @@
 // === js/app.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610141412';
-import { displayCurrentDate, showToast } from './utils.js?v=202610141412';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610141412';
-import { initializeAppListeners } from './app-listeners.js?v=202610141412';
-import * as DOM from './dom-elements.js?v=202610141412';
-import * as State from './state.js?v=202610141412';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610141412';
-import { checkAdminTodoNotifications } from './admin-todo-logic.js?v=202610141412';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610141455';
+import { displayCurrentDate, showToast } from './utils.js?v=202610141455';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610141455';
+import { initializeAppListeners } from './app-listeners.js?v=202610141455';
+import * as DOM from './dom-elements.js?v=202610141455';
+import * as State from './state.js?v=202610141455';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610141455';
+import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=202610141455';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610141412';
-import { setupNotificationListeners } from './app-notifications.js?v=202610141412';
-import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610141412';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=202610141412';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=202610141412';
-import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610141412';
-import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610141412';
-import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610141412';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610141455';
+import { setupNotificationListeners } from './app-notifications.js?v=202610141455';
+import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610141455';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=202610141455';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=202610141455';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610141455';
+import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610141455';
+import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610141455';
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
@@ -106,12 +106,8 @@ async function startAppAfterLogin(user) {
         // 관리자용 UI
         // 🏁 업무 마감도 관리자 전용이다. 예전엔 숨김 처리가 없어 로그인한 누구나
         //    누를 수 있었다 — 그 한 번이 전 직원 퇴근시각을 확정하고 그날 원본을 지운다.
-        const adminElements = [document.getElementById('admin-link-btn'), DOM.adminLinkBtnMobile, DOM.resetAppBtn, DOM.resetAppBtnMobile, DOM.openHistoryBtn, DOM.openHistoryBtnMobile, document.getElementById('open-admin-todo-btn'), DOM.endShiftBtn, DOM.endShiftBtnMobile];
+        const adminElements = [document.getElementById('admin-link-btn'), DOM.adminLinkBtnMobile, DOM.resetAppBtn, DOM.resetAppBtnMobile, DOM.openHistoryBtn, DOM.openHistoryBtnMobile, DOM.endShiftBtn, DOM.endShiftBtnMobile];
         adminElements.forEach(el => { if (el) el.style.display = (currentUserRole === 'admin') ? 'flex' : 'none'; });
-        
-        if (currentUserRole === 'admin') {
-            setInterval(checkAdminTodoNotifications, 30000);
-        }
 
         // 메인 영역 노출
         document.getElementById('main-content-area')?.classList.remove('hidden');
@@ -158,6 +154,8 @@ async function startAppAfterLogin(user) {
     subscribeEzadmin();
     // 🚚 6. 입고일정 — 시트 Apps Script 가 1시간마다 쓰는 문서를 구독 (로그인해야 읽힌다)
     subscribeIncomingSchedule();
+    // 📢 7. 중요 알림(공지) — 로그인해야 읽힌다
+    subscribeNotices();
 }
 
 async function main() {
@@ -186,8 +184,10 @@ async function main() {
             unsubscribeLeaveSchedule();
             unsubscribeEzadmin();
             unsubscribeIncomingSchedule();
+            unsubscribeNotices();
 
             State.appState.workRecords = [];
+            State.appState.importantNotices = [];
             State.appState.currentUser = null;
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
         }

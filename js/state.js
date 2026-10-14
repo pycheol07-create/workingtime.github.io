@@ -172,10 +172,7 @@ export const appState = {
     lunchResumeExecuted: false,
     
     // 검수 대기 리스트 (서버 동기화용)
-    inspectionList: [],
-
-    // 관리자 To-Do 리스트 상태 추가
-    adminTodos: [] 
+    inspectionList: []
 };
 
 export const allHistoryData = [];

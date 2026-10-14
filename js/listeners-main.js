@@ -1,33 +1,30 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202610141412';
-import * as State from './state.js?v=202610141412';
+import * as DOM from './dom-elements.js?v=202610141455';
+import * as State from './state.js?v=202610141455';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202610141412';
-import { updateDailyData } from './app-data.js?v=202610141412';
+import { render } from './app.js?v=202610141455';
+import { updateDailyData } from './app-data.js?v=202610141455';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610141412';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610141412';
+import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610141455';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610141455';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202610141412';
+} from './ui.js?v=202610141455';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202610141412';
-import { saveProgress, saveDayDataToHistory, previewDayClose } from './history-data-manager.js?v=202610141412';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610141412';
+} from './app-logic.js?v=202610141455';
+import { saveProgress, saveDayDataToHistory, previewDayClose } from './history-data-manager.js?v=202610141455';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610141455';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-// Admin Todo 로직 임포트
-import * as AdminTodoLogic from './admin-todo-logic.js?v=202610141412';
 
 export function setupMainScreenListeners() {
 
@@ -455,78 +452,6 @@ export function setupMainScreenListeners() {
         DOM.analysisMemberSelect.addEventListener('change', (e) => {
             const selectedMember = e.target.value;
             renderPersonalAnalysis(selectedMember, State.appState);
-        });
-    }
-
-    // ======================================================
-    // 관리자 To-Do 리스트 관련 리스너
-    // ======================================================
-    
-    // 1. 버튼 클릭 시 모달 열기
-    const openButtons = ['open-admin-todo-btn', 'open-admin-todo-btn-mobile'];
-    openButtons.forEach(btnId => {
-        const btn = document.getElementById(btnId);
-        if (btn) {
-            btn.addEventListener('click', () => {
-                const modal = document.getElementById('admin-todo-modal');
-                if (modal) {
-                    modal.classList.remove('hidden');
-                    AdminTodoLogic.loadAdminTodos(); 
-                    setTimeout(() => document.getElementById('admin-todo-input')?.focus(), 50);
-                }
-                // 메뉴 닫기
-                if (DOM.menuDropdown) DOM.menuDropdown.classList.add('hidden');
-                if (DOM.navContent) DOM.navContent.classList.add('hidden');
-            });
-        }
-    });
-
-    // 2. 모달 내부 동작 (추가, 삭제, 토글)
-    const todoInput = document.getElementById('admin-todo-input');
-    const todoDateInput = document.getElementById('admin-todo-datetime'); 
-    const todoAddBtn = document.getElementById('admin-todo-add-btn');
-    const todoList = document.getElementById('admin-todo-list');
-
-    if (todoAddBtn && todoInput) {
-        // 추가 버튼 클릭
-        todoAddBtn.addEventListener('click', () => {
-            AdminTodoLogic.addTodo(todoInput.value, todoDateInput ? todoDateInput.value : null);
-            todoInput.value = '';
-            if (todoDateInput) todoDateInput.value = ''; 
-            todoInput.focus();
-        });
-        // 엔터키 입력
-        todoInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                AdminTodoLogic.addTodo(todoInput.value, todoDateInput ? todoDateInput.value : null);
-                todoInput.value = '';
-                if (todoDateInput) todoDateInput.value = '';
-            }
-        });
-    }
-
-    if (todoList) {
-        todoList.addEventListener('click', (e) => {
-            // 삭제 버튼
-            const deleteBtn = e.target.closest('.delete-todo-btn');
-            if (deleteBtn) {
-                AdminTodoLogic.deleteTodo(deleteBtn.dataset.id);
-                return;
-            }
-            // 완료 토글 (아이템 클릭)
-            const itemClick = e.target.closest('.todo-item-click');
-            if (itemClick) {
-                AdminTodoLogic.toggleTodo(itemClick.dataset.id);
-            }
-        });
-    }
-
-    // 알림 모달 '확인했습니다' 버튼 리스너
-    if (DOM.adminTodoAlertConfirmBtn) {
-        DOM.adminTodoAlertConfirmBtn.addEventListener('click', () => {
-            if (DOM.adminTodoAlertModal) {
-                DOM.adminTodoAlertModal.classList.add('hidden');
-            }
         });
     }
 }
