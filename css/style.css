@@ -377,51 +377,11 @@ html.dark .depth-panel {
         gap: 0.75rem !important;
     }
 
-    /* 10. 상단 탭 메뉴 가로 스와이프
-       ⚠️ 부모/자식 모두 min-width:0 + width:100% 강제로 부모 폭(=뷰포트)에 클램프해야
-       내부 콘텐츠가 비로소 오버플로우 → 스크롤됨. 이게 빠지면 컨테이너가 자식 폭만큼
-       부풀어 scrollWidth==clientWidth가 되어 스와이프가 작동하지 않음. */
+    /* 10. 상단 탭 메뉴 가로 스와이프 — 데이터 관리의 옛 메인탭·서브탭·기간 탭 줄 규칙은 지웠다
+       (화면 이동은 좌측 레일 css/page-nav.css, 기간은 기간 바 — UI 2단계 2026-10-16. 대상 요소가 없어 동작 영향 없음) */
 
-    /* 메인 탭 행 wrapper (header 아래 div.px-4.border-b) */
-    #history-modal-content-box > div.px-4.border-b {
-        min-width: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow-x: hidden !important; /* 이중 스크롤 컨테이너 방지 — 내부 #history-main-tabs가 스크롤 */
-    }
-
-    /* 실제 가로 스크롤이 일어나는 탭 컨테이너들 */
-    #history-tabs, #history-main-tabs, #attendance-history-tabs,
-    #report-tabs, #personal-report-tabs, #management-tabs {
-        min-width: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow-x: auto !important;
-        flex-wrap: nowrap !important;
-        -webkit-overflow-scrolling: touch !important;
-        scrollbar-width: none;
-        touch-action: pan-x !important;
-    }
-
-    /* rawdata 서브탭 부모 행도 동일하게 클램프 */
-    #rawdata-panel > div:first-child {
-        min-width: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow-x: auto !important;
-        flex-wrap: nowrap !important;
-        -webkit-overflow-scrolling: touch !important;
-        touch-action: pan-x !important;
-    }
-
-    #history-tabs::-webkit-scrollbar,
-    #history-main-tabs::-webkit-scrollbar,
-    #rawdata-panel > div:first-child::-webkit-scrollbar,
     .flex.border-b::-webkit-scrollbar { display: none; }
 
-    #history-tabs button,
-    #history-main-tabs button,
-    #rawdata-panel > div:first-child button,
     .flex.border-b button {
         flex-shrink: 0 !important;
         white-space: nowrap !important;

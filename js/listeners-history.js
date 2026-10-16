@@ -1,23 +1,23 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202610161224';
-import * as State from './state.js?v=202610161224';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610161224';
+import * as DOM from './dom-elements.js?v=202610161334';
+import * as State from './state.js?v=202610161334';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610161334';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610161224';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610161224';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610161224';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610161224';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610161334';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610161334';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610161334';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610161334';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610161224';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610161224';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610161224';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610161224';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610161334';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610161334';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610161334';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610161334';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610161224';
-import { saveView } from './view-state.js?v=202610161224';
-import { goTo } from './app-shell-bridge.js?v=202610161224';
-import { placeOpenDropdown } from './table-filter.js?v=202610161224';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610161334';
+import { saveView } from './view-state.js?v=202610161334';
+import { goTo } from './app-shell-bridge.js?v=202610161334';
+import { placeOpenDropdown } from './table-filter.js?v=202610161334';
 
 let isHistoryMaximized = false;
 
@@ -27,10 +27,9 @@ export function setupHistoryModalListeners() {
     setupHistoryAttendanceListeners();
     setupHistoryInspectionListeners();
 
-    setupGlobalFilterListeners(); 
+    // ('선택 기간 엑셀 다운로드' 통합 버튼은 2026-10-16 사용자 결정으로 없앴다 — 각 화면 안 엑셀 버튼을 쓴다)
     setupHistoryTabsListeners();  
 
-    const managementTabs = document.getElementById('management-tabs');
     const managementSaveBtn = document.getElementById('management-save-btn');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
 
@@ -161,43 +160,9 @@ export function setupHistoryModalListeners() {
         }
 
         // 1b(2026-10-16): 화면 폭과 상관없이 같은 탭에서 데이터 관리 화면으로 간다(이동 전 저장은 공통 상단바가 기다린다).
-        // 아래 모바일 history-modal 코드는 지금은 타지 않는다 — 삭제는 UI 2단계에서.
+        // 대시보드 안 모바일 데이터 관리 모달 경로는 H0(2026-10-16)에서 지웠다 — index 는 그 모달을 싣지 않는다.
         if (e) e.preventDefault();
         goTo('history.html');
-        return;
-
-        if (DOM.historyModal) {
-            DOM.historyModal.classList.remove('hidden');
-            setHistoryMaximized(true); 
-
-            try { 
-                await loadAndRenderHistoryList(); 
-                
-                // 모바일 환경에서 데이터가 빈 화면으로 뜨는 것을 방지하기 위한 강제 렌더링 트리거
-                const rawdataMainTabBtn = document.querySelector('[data-main-tab="rawdata"]');
-                const dashboardMainTabBtn = document.querySelector('[data-main-tab="dashboard"]');
-                const tabButtons = Array.from(document.querySelectorAll('.history-tab-btn, button'));
-                const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.trim().includes('일별 상세'));
-                
-                if (rawdataMainTabBtn) rawdataMainTabBtn.click();
-                if (dailyTabBtn) dailyTabBtn.click();
-                if (typeof switchHistoryView === 'function') switchHistoryView('daily');
-                
-                setTimeout(() => {
-                    const firstDateItem = document.querySelector('#history-date-list li');
-                    if (firstDateItem) firstDateItem.click();
-                    
-                    setTimeout(() => {
-                        if (dashboardMainTabBtn) dashboardMainTabBtn.click();
-                    }, 100);
-                }, 100);
-
-            } 
-            catch (loadError) { 
-                console.error("이력 데이터 로딩 에러:", loadError);
-                showToast("이력 데이터를 불러오는 중 오류가 발생했습니다.", true); 
-            }
-        }
     };
 
     if (DOM.openHistoryBtn) {
@@ -227,13 +192,74 @@ export function setupHistoryModalListeners() {
         });
     }
 
+    // ⏮⏭ 기간 바(UI 2단계 H3, 2026-10-16) — [일|주|월|년] ‹ 날짜 › . 화면 그리기는 하지 않는다:
+    //    ‹ › 는 트리에서 이웃 기간의 .history-date-btn 을 누르기만 하고, 선택 기준은 계속 트리(.history-date-btn.is-on)다.
+    const periodLabel = document.getElementById('history-period-label');
+    const periodPrev = document.getElementById('history-period-prev');
+    const periodNext = document.getElementById('history-period-next');
+    // 기간 키(YYYY-MM-DD · YYYY-Www · YYYY-MM · YYYY)는 글자 순서 = 시간 순서
+    const periodButtons = () => DOM.historyDateList
+        ? [...DOM.historyDateList.querySelectorAll('.history-date-btn[data-key]')].sort((a, b) => a.dataset.key.localeCompare(b.dataset.key))
+        : [];
+    const syncPeriodBar = () => {
+        if (!periodLabel) return;
+        const list = periodButtons();
+        const cur = DOM.historyDateList && DOM.historyDateList.querySelector('.history-date-btn.is-on');
+        const i = cur ? list.indexOf(cur) : -1;
+        periodLabel.textContent = cur ? ((cur.textContent || '').trim() || cur.dataset.key) : '날짜 선택';
+        if (periodPrev) periodPrev.disabled = !(i > 0);
+        if (periodNext) periodNext.disabled = !(i >= 0 && i < list.length - 1);
+    };
+    const stepPeriod = (dir) => {
+        const list = periodButtons();
+        const cur = DOM.historyDateList && DOM.historyDateList.querySelector('.history-date-btn.is-on');
+        const target = list[list.indexOf(cur) + dir];
+        if (!cur || !target) return;
+        // 접힌 달(아코디언) 안이면 펼쳐서 트리에서도 선택이 보이게
+        const group = target.closest('.accordion-content');
+        if (group && group.classList.contains('hidden')) group.previousElementSibling?.click();
+        target.click();
+        try { target.scrollIntoView({ block: 'nearest' }); } catch (e) { }
+    };
+    if (periodPrev) periodPrev.addEventListener('click', () => stepPeriod(-1));
+    if (periodNext) periodNext.addEventListener('click', () => stepPeriod(1));
+    // 📱 모바일: 날짜를 누르면 예전 '날짜 선택' 토글 바와 같이 날짜 목록을 펼친다(그 버튼은 숨겨 두고 그대로 쓴다)
+    if (periodLabel) periodLabel.addEventListener('click', () => {
+        if (!window.matchMedia('(max-width: 768px)').matches) return;
+        document.getElementById('history-mobile-date-toggle')?.click();
+        const sb = document.getElementById('history-global-sidebar');
+        periodLabel.setAttribute('aria-expanded', String(!!(sb && sb.classList.contains('mobile-open'))));
+    });
+    // 목록을 다시 그리면(단위 변경·저장 후 갱신) 선택이 바뀌기 전에도 버튼 상태를 맞춘다
+    if (DOM.historyDateList && typeof MutationObserver === 'function') {
+        new MutationObserver(syncPeriodBar).observe(DOM.historyDateList, { childList: true });
+    }
+    // 🗂 데스크톱: 왼쪽 날짜 목록 접기(기간 바의 ‹ › 로 계속 움직일 수 있다)
+    const treeToggle = document.getElementById('history-tree-toggle');
+    if (treeToggle) {
+        const TREE_KEY = 'history.treeCollapsed';
+        const setTreeCollapsed = (on) => {
+            document.getElementById('history-global-sidebar')?.classList.toggle('hp-tree-collapsed', on);
+            treeToggle.textContent = on ? '목록 펼치기' : '목록 접기';
+            treeToggle.title = on ? '왼쪽 날짜 목록 펼치기' : '왼쪽 날짜 목록 접기';
+            treeToggle.setAttribute('aria-expanded', String(!on));
+            try { localStorage.setItem(TREE_KEY, on ? '1' : '0'); } catch (e) { }
+        };
+        try { if (localStorage.getItem(TREE_KEY) === '1') setTreeCollapsed(true); } catch (e) { }
+        treeToggle.addEventListener('click', () => {
+            const sb = document.getElementById('history-global-sidebar');
+            setTreeCollapsed(!(sb && sb.classList.contains('hp-tree-collapsed')));
+        });
+    }
+
     if (DOM.historyDateList) {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
             if (!btn) return;
 
-            DOM.historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-100', 'font-bold', 'bg-blue-50', 'text-blue-700', 'dark:bg-blue-900/40', 'dark:text-blue-400'));
-            btn.classList.add('bg-blue-100', 'font-bold');
+            // 선택 표시: is-on(코드가 찾는 이름) + bg-blue-100(색·예전 코드 호환 — css/history-d.css 와 몇몇 화면이 아직 이 이름으로 찾는다)
+            DOM.historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('is-on', 'bg-blue-100', 'font-bold', 'bg-blue-50', 'text-blue-700', 'dark:bg-blue-900/40', 'dark:text-blue-400'));
+            btn.classList.add('is-on', 'bg-blue-100', 'font-bold');
             const dateKey = btn.dataset.key;
             saveView({ dateKey });   // 새로고침해도 이 날짜가 다시 선택되도록
 
@@ -241,12 +267,14 @@ export function setupHistoryModalListeners() {
             // (세분화 변경 시 자동 선택되는 프로그래밍적 클릭 e.isTrusted=false 에서는 열린 상태 유지)
             const mLabel = document.getElementById('history-mobile-date-label');
             if (mLabel) mLabel.textContent = (btn.textContent || '').trim() || '날짜 선택';
+            syncPeriodBar();
             if (e.isTrusted) {
                 const sb = document.getElementById('history-global-sidebar');
                 if (sb && sb.classList.contains('mobile-open')) {
                     sb.classList.remove('mobile-open');
                     const chev = document.getElementById('history-mobile-date-chevron');
                     if (chev) chev.classList.remove('rotate');
+                    if (periodLabel) periodLabel.setAttribute('aria-expanded', 'false');
                 }
             }
 
@@ -281,34 +309,6 @@ export function setupHistoryModalListeners() {
             else if (gran === 'year') renderYearlyHistory(dateKey, filteredData, State.appConfig);
         });
     }
-
-    const handleTabSwitch = (e, tabsContainer) => {
-        const btn = e.target.closest('button[data-view]');
-        if (btn) {
-            State.context.activeFilterDropdown = null;
-            if (tabsContainer) {
-                tabsContainer.querySelectorAll('button').forEach(b => {
-                    b.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-                    b.classList.add('text-gray-500', 'hover:text-gray-700');
-                });
-                btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-                btn.classList.remove('text-gray-500', 'hover:text-gray-700');
-            }
-            if (tabsContainer === DOM.personalReportTabs || tabsContainer === managementTabs) {
-                const viewMode = btn.dataset.view;
-                let listMode = 'day';
-                if(viewMode.includes('weekly')) listMode = 'week';
-                if(viewMode.includes('monthly')) listMode = 'month';
-                if(viewMode.includes('yearly')) listMode = 'year';
-            } else switchHistoryView(btn.dataset.view);
-        }
-    };
-
-    if (DOM.historyTabs) DOM.historyTabs.addEventListener('click', (e) => switchHistoryView(e.target.closest('button[data-view]')?.dataset.view));
-    if (DOM.attendanceHistoryTabs) DOM.attendanceHistoryTabs.addEventListener('click', (e) => { State.context.activeFilterDropdown = null; switchHistoryView(e.target.closest('button[data-view]')?.dataset.view); });
-    if (DOM.reportTabs) DOM.reportTabs.addEventListener('click', (e) => { State.context.reportSortState = {}; State.context.activeFilterDropdown = null; switchHistoryView(e.target.closest('button[data-view]')?.dataset.view); });
-    if (DOM.personalReportTabs) DOM.personalReportTabs.addEventListener('click', (e) => handleTabSwitch(e, DOM.personalReportTabs));
-    if (managementTabs) managementTabs.addEventListener('click', (e) => handleTabSwitch(e, managementTabs));
 
     if (DOM.personalReportMemberSelect) DOM.personalReportMemberSelect.addEventListener('change', (e) => { State.context.personalReportMember = e.target.value; refreshPersonalView(); });
 
@@ -566,7 +566,13 @@ export function setupHistoryModalListeners() {
     if (toggleFullscreenBtn) toggleFullscreenBtn.addEventListener('click', (e) => { e.stopImmediatePropagation(); setHistoryMaximized(!isHistoryMaximized); });
 
     if (window.location.pathname.includes('history.html')) {
-        setTimeout(() => { const dashTab = document.querySelector('.history-main-tab-btn[data-main-tab="dashboard"]'); if (dashTab) dashTab.click(); }, 300);
+        // 첫 화면은 history.html 이 직접 고른다(H1) — 이력을 아직 못 읽었을 때만 예전처럼 요약을 미리 연다.
+        // 날짜 목록이 이미 그려졌으면 첫 화면 단계가 진행 중이거나 끝난 것이라 누르지 않는다(복원한 자리를 덮지 않게).
+        setTimeout(() => {
+            if (document.querySelector('#history-date-list .history-date-btn')) return;
+            const dashTab = document.querySelector('[data-main-tab="dashboard"]');
+            if (dashTab) dashTab.click();
+        }, 300);
     }
 }
 

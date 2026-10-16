@@ -32,7 +32,8 @@
             position: relative !important; z-index: 30 !important;
             display: block !important;
         }
-        #history-granularity-controls { width: 100% !important; }
+        /* 예전 '날짜 선택' 토글 바 — 기간 바의 날짜(#history-period-label)가 대신 연다(H3). 리스너는 그대로 둔다 */
+        #history-mobile-date-toggle { display: none !important; }
         /* 세그먼트(일/주/월/년)+날짜목록 드로어: 기본 숨김, 토글 시 드롭다운으로 펼침 */
         #history-date-drawer { display: none !important; }
         #history-global-sidebar.mobile-open #history-date-drawer {
@@ -109,27 +110,65 @@
             </div>
         </div>
 
-        <div class="px-4 md:px-6 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/50 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pt-2 shrink-0 transition-colors z-20 overflow-x-auto no-scrollbar">
-            <div id="history-main-tabs" class="flex gap-4 md:gap-6 -mb-px overflow-x-auto no-scrollbar w-full md:w-auto">
-                <button data-main-tab="dashboard" class="history-main-tab-btn py-3 md:py-4 font-bold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 transition whitespace-nowrap text-sm md:text-base">종합 인사이트</button>
-                <button data-main-tab="productivity" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">생산성 및 효율성</button>
-                <button data-main-tab="staffing" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">인력 운영 및 적정성</button>
-                <button data-main-tab="prediction" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">실적 예측</button>
-                <button data-main-tab="forecast" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">업무 예상</button>
-                <button data-main-tab="rawdata" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">업무 기록 및 관리</button>
-                <button data-main-tab="milestones" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">운영 마일스톤</button>
-                <button data-main-tab="settlement" class="history-main-tab-btn py-3 md:py-4 font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border-b-2 border-transparent transition whitespace-nowrap text-sm md:text-base">팀 결산 보고</button>
-            </div>
-
-            <div id="global-date-range-controls" class="flex flex-wrap items-center gap-2 md:gap-3 pb-3 w-full md:w-auto justify-end">
-                <button id="global-download-excel-btn" class="hidden md:flex bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 font-bold py-1.5 px-3 rounded-lg text-xs items-center gap-1.5 transition h-[34px]">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    선택 기간 엑셀 다운로드
-                </button>
-            </div>
-        </div>
-
         <div class="flex-grow flex overflow-hidden bg-gray-100/80 dark:bg-gray-900 transition-colors flex-col md:flex-row">
+
+            <!-- 🧭 데이터 관리 화면 이동 — 좌측 레일(데스크톱) / '현재 화면 ▾' 펼침 목록(모바일). 동작은 js/page-nav.js, 모양은 css/page-nav.css.
+                 14개 화면과 기존 메인탭·서브탭 대응은 js/history-sections.js. data-main-tab(·data-sub-tab)은 다른 화면 코드가
+                 querySelector('[data-main-tab="forecast"]').click() 처럼 누르므로 남겨 둔다(UI 2단계 H2, 2026-10-16).
+                 ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). -->
+            <nav id="history-section-nav" class="pn" aria-label="데이터 관리 화면">
+                <button type="button" class="pn-toggle" aria-expanded="false"><span class="pn-toggle-label">현재 화면</span><span class="pn-current">요약</span></button>
+                <button type="button" class="pn-collapse" aria-expanded="true" title="메뉴 접기"></button>
+                <div class="pn-list">
+                    <div class="pn-group">
+                        <div class="pn-group-title">분석</div>
+                        <button type="button" class="pn-item is-on" data-pn-id="insight" data-main-tab="dashboard">요약</button>
+                        <button type="button" class="pn-item" data-pn-id="productivity" data-main-tab="productivity">생산성</button>
+                        <button type="button" class="pn-item" data-pn-id="staffing" data-main-tab="staffing">인력 적정성</button>
+                    </div>
+                    <div class="pn-group">
+                        <div class="pn-group-title">예측·계획</div>
+                        <button type="button" class="pn-item" data-pn-id="forecast" data-main-tab="forecast">업무 예상</button>
+                        <button type="button" class="pn-item" data-pn-id="prediction" data-main-tab="prediction">물량 추세 예측</button>
+                    </div>
+                    <div class="pn-group">
+                        <div class="pn-group-title">기록</div>
+                        <button type="button" class="pn-item" data-pn-id="work" data-main-tab="rawdata" data-sub-tab="work">업무 이력</button>
+                        <button type="button" class="pn-item" data-pn-id="attendance" data-main-tab="rawdata" data-sub-tab="attendance">근태 이력</button>
+                        <button type="button" class="pn-item" data-pn-id="inspection" data-main-tab="rawdata" data-sub-tab="inspection">검수 이력</button>
+                        <button type="button" class="pn-item" data-pn-id="leave" data-main-tab="rawdata" data-sub-tab="leave">연차 관리</button>
+                    </div>
+                    <div class="pn-group">
+                        <div class="pn-group-title">보고</div>
+                        <button type="button" class="pn-item" data-pn-id="report" data-main-tab="rawdata" data-sub-tab="report">업무 리포트</button>
+                        <button type="button" class="pn-item" data-pn-id="personal" data-main-tab="rawdata" data-sub-tab="personal">개인 리포트</button>
+                        <button type="button" class="pn-item" data-pn-id="management" data-main-tab="rawdata" data-sub-tab="management">경영 지표</button>
+                        <button type="button" class="pn-item" data-pn-id="settlement" data-main-tab="settlement">팀 결산</button>
+                        <button type="button" class="pn-item" data-pn-id="milestones" data-main-tab="milestones">운영 마일스톤</button>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- 기간 바 — 본문 위 [일|주|월|년] ‹ 날짜 › … [목록 접기] (UI 2단계 H3). 기간 트리를 쓰지 않는 화면에서는 트리와 함께 숨는다
+                 (js/history-list-controller.js setTreeVisible). 📱 모바일은 레일 ▾ 아래 · 트리 위에 와서 펼친 날짜 목록이 바로 아래에 붙는다. -->
+            <div id="history-period-bar" class="hp-bar">
+                <!-- [일|주|월|년] — 예전엔 트리 위에 있었다. 리스너는 id 로 붙는다(js/listeners-history-tabs.js setupGranularityListeners) -->
+                <div id="history-granularity-controls" class="flex gap-1 shrink-0">
+                    <button data-granularity="day" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">일</button>
+                    <button data-granularity="week" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">주</button>
+                    <button data-granularity="month" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">월</button>
+                    <button data-granularity="year" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">년</button>
+                </div>
+                <!-- ‹ › 는 트리의 이웃 날짜 버튼을 누르기만 한다(선택 기준은 계속 트리). 모바일은 날짜를 누르면 날짜 목록이 펼쳐진다 -->
+                <div class="hp-step">
+                    <button type="button" id="history-period-prev" class="hp-step-btn" title="이전 기간" aria-label="이전 기간" disabled>&lsaquo;</button>
+                    <button type="button" id="history-period-label" class="hp-label" aria-expanded="false" title="날짜 목록">날짜 선택</button>
+                    <button type="button" id="history-period-next" class="hp-step-btn" title="다음 기간" aria-label="다음 기간" disabled>&rsaquo;</button>
+                </div>
+                <div class="hp-spacer"></div>
+                <button type="button" id="history-tree-toggle" class="hp-tree-btn" aria-expanded="true" title="왼쪽 날짜 목록 접기">목록 접기</button>
+            </div>
+
 
             <aside id="history-global-sidebar" class="w-full md:w-[230px] flex flex-col border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/30 flex-shrink-0 transition-colors">
                 <!-- 📱 모바일 전용: 컴팩트 날짜 선택 토글 바 (탭하면 아래 드로어가 열림) -->
@@ -141,12 +180,6 @@
                     <svg id="history-mobile-date-chevron" class="w-4 h-4 text-gray-400 shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
                 <div id="history-date-drawer" class="flex flex-col flex-1 min-h-0">
-                    <div id="history-granularity-controls" class="flex gap-1 p-2 md:p-3 border-b border-gray-200 dark:border-gray-800 shrink-0">
-                        <button data-granularity="day" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">일</button>
-                        <button data-granularity="week" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">주</button>
-                        <button data-granularity="month" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">월</button>
-                        <button data-granularity="year" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">년</button>
-                    </div>
                     <div id="history-date-list-container" class="flex-1 overflow-y-auto">
                         <ul id="history-date-list" class="p-2 md:p-3 space-y-0 md:space-y-1"></ul>
                     </div>
@@ -708,27 +741,11 @@
             </div>
 
             <div id="rawdata-panel" class="flex-1 flex flex-col h-full hidden bg-white dark:bg-gray-900">
-                <div class="px-4 md:px-6 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 flex gap-4 shrink-0 overflow-x-auto no-scrollbar w-full">
-                    <button data-sub-tab="work" class="rawdata-sub-tab-btn py-3 text-sm font-bold text-gray-800 dark:text-gray-200 border-b-2 border-gray-800 dark:border-gray-200 whitespace-nowrap">업무 이력</button>
-                    <button data-sub-tab="attendance" class="rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap">근태 이력</button>
-                    <button data-sub-tab="report" class="rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap">업무 리포트</button>
-                    <button data-sub-tab="personal" class="rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap">개인 리포트</button>
-                    <button data-sub-tab="management" class="rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap">경영 지표</button>
-                    <button data-sub-tab="inspection" class="rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap">검수 이력</button>
-                    <button data-sub-tab="leave" class="rawdata-sub-tab-btn py-3 text-sm font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 border-b-2 border-transparent whitespace-nowrap">연차 관리</button>
-                </div>
-
                 <div class="flex-grow flex flex-col overflow-hidden">
 
                     <div class="flex-1 flex flex-col overflow-hidden relative">
                         <div id="work-history-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto z-10">
                             <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0 gap-3">
-                                <div id="history-tabs" class="hidden gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
-                                    <button data-view="daily" class="history-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 상세</button>
-                                    <button data-view="weekly" class="history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">주별 요약</button>
-                                    <button data-view="monthly" class="history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">월별 요약</button>
-                                    <button data-view="yearly" class="history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">연간 요약</button>
-                                </div>
                                 <button id="history-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 shadow-sm whitespace-nowrap">
                                      엑셀
                                 </button>
@@ -743,12 +760,6 @@
 
                         <div id="attendance-history-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
                             <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0 gap-3">
-                                <div id="attendance-history-tabs" class="hidden gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
-                                    <button data-view="attendance-daily" class="attendance-history-tab-btn pb-2 font-bold text-blue-600 dark:text-blue-400 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 상세</button>
-                                    <button data-view="attendance-weekly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">주별 요약</button>
-                                    <button data-view="attendance-monthly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">월별 요약</button>
-                                    <button data-view="attendance-yearly" class="attendance-history-tab-btn pb-2 font-medium text-gray-500 text-sm border-b-2 border-transparent whitespace-nowrap">연간 요약</button>
-                                </div>
                                 <button id="attendance-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold py-1.5 px-3 rounded-lg text-sm flex items-center gap-1 shadow-sm whitespace-nowrap">
                                      엑셀
                                 </button>
@@ -762,14 +773,6 @@
                         </div>
 
                         <div id="report-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
-                            <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 bg-white dark:bg-gray-800">
-                                <div id="report-tabs" class="hidden gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
-                                    <button data-view="report-daily" class="report-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 리포트</button>
-                                    <button data-view="report-weekly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">주별 리포트</button>
-                                    <button data-view="report-monthly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">월별 리포트</button>
-                                    <button data-view="report-yearly" class="report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">연간 리포트</button>
-                                </div>
-                            </div>
                             <div id="report-view-container" class="p-4 md:p-6 flex-grow space-y-4 md:space-y-6">
                                 <div id="report-daily-view"></div>
                                 <div id="report-weekly-view" class="hidden space-y-6"></div>
@@ -784,12 +787,6 @@
                                     <option value="">직원 선택...</option>
                                 </select>
                                 <div class="h-6 w-px bg-gray-200 hidden md:block"></div>
-                                <div id="personal-report-tabs" class="hidden gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
-                                    <button data-view="personal-daily" class="personal-report-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별</button>
-                                    <button data-view="personal-weekly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">주별</button>
-                                    <button data-view="personal-monthly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">월별</button>
-                                    <button data-view="personal-yearly" class="personal-report-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">연간</button>
-                                </div>
                             </div>
                             <div id="personal-report-view-container" class="p-4 md:p-6 flex-grow">
                                 <div id="personal-report-content" class="space-y-6">
@@ -800,12 +797,6 @@
 
                         <div id="management-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
                             <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 flex justify-between bg-white dark:bg-gray-800 gap-3">
-                                <div id="management-tabs" class="hidden gap-4 overflow-x-auto no-scrollbar w-full md:w-auto">
-                                    <button data-view="management-daily" class="management-tab-btn pb-2 font-bold text-blue-600 border-blue-600 border-b-2 text-sm whitespace-nowrap">일별 입력</button>
-                                    <button data-view="management-weekly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">주별 요약</button>
-                                    <button data-view="management-monthly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">월별 요약</button>
-                                    <button data-view="management-yearly" class="management-tab-btn pb-2 font-medium text-gray-500 border-b-2 border-transparent text-sm whitespace-nowrap">연간 요약</button>
-                                </div>
                                 <button id="management-save-btn" class="bg-blue-600 text-white font-bold py-1.5 md:py-2 px-4 md:px-5 rounded-lg text-sm hidden whitespace-nowrap">저장</button>
                             </div>
                             <div id="management-view-container" class="p-4 md:p-6 flex-grow space-y-4 md:space-y-6"></div>

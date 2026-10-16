@@ -32,11 +32,12 @@
     <!-- 팀 결산 보고 '화면 그대로 PDF' 저장용 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610161224">
-    <link rel="stylesheet" href="css/style.css?v=202610161224">
-    <link rel="stylesheet" href="css/history-d.css?v=202610161224">
-    <link rel="stylesheet" href="css/form-d.css?v=202610161224">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610161224">
+    <link rel="stylesheet" href="css/suit.css?v=202610161334">
+    <link rel="stylesheet" href="css/style.css?v=202610161334">
+    <link rel="stylesheet" href="css/history-d.css?v=202610161334">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610161334">
+    <link rel="stylesheet" href="css/form-d.css?v=202610161334">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161334">
     <style>
         /* 💡 탭 전환 시 hidden 클래스가 충돌하는 문제 방지 */
         .hidden { display: none !important; }
@@ -103,12 +104,24 @@
             flex-direction: column !important;
         }
         
-        /* 본문: 좌측 공용 사이드바 | 우측 콘텐츠 (좌우 배치) */
+        /* 본문: 좌측 레일 | 기간 목록(트리) | [기간 바 / 콘텐츠] (UI 2단계 H2·H3, 2026-10-16)
+           트리·기간 바는 기간을 안 쓰는 화면에서 숨는다(display:none → 그 칸·줄이 0 이 된다).
+           📱 768px 이하는 components/modals-history.html 의 세로 배치(레일 ▾ / 기간 바 / 트리 펼침 / 콘텐츠)를 따른다. */
         #history-modal-content-box > .flex-grow {
             min-height: 0 !important;
             flex: 1 1 auto !important;
-            display: flex !important;
-            flex-direction: row !important;
+        }
+        @media (min-width: 769px) {
+            #history-modal-content-box > .flex-grow {
+                display: grid !important;
+                grid-template-columns: auto auto minmax(0, 1fr);
+                grid-template-rows: auto minmax(0, 1fr);
+                grid-template-areas: "nav tree bar" "nav tree main";
+            }
+            #history-section-nav { grid-area: nav; }
+            #history-period-bar { grid-area: bar; }
+            #history-global-sidebar { grid-area: tree; min-height: 0; }
+            #history-main-content { grid-area: main; }
         }
         #history-global-sidebar {
             flex: 0 0 auto !important;
@@ -190,83 +203,36 @@
             ]);
 
             try {
-                const State = await import('./js/state.js?v=202610161224');
-                try { await import('./js/app.js?v=202610161224'); } catch(e) {} 
+                const State = await import('./js/state.js?v=202610161334');
+                try { await import('./js/app.js?v=202610161334'); } catch(e) {} 
                 
-                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202610161224');
-                const { restoreHistoryView } = await import('./js/view-state.js?v=202610161224');
+                const { loadAndRenderHistoryList } = await import('./js/app-history-logic.js?v=202610161334');
+                const { restoreHistoryView } = await import('./js/view-state.js?v=202610161334');
+                const { showSection } = await import('./js/listeners-history-tabs.js?v=202610161334');
 
-                // 초기 준비(로우데이터 → 일별 → 첫 날짜)를 마친 뒤,
-                // 보고 있던 자리로 되돌린다. 기억된 게 없으면 평소대로 대시보드.
-                const showLastViewOrDashboard = async (dashboardBtn) => {
-                    let restored = false;
-                    try { restored = await restoreHistoryView(); } catch (e) { console.error('화면 복원 실패:', e); }
-                    if (!restored && dashboardBtn) dashboardBtn.click();
+                const revealModal = () => {
+                    const modal = document.getElementById('history-modal');
+                    if (modal) {
+                        modal.classList.remove('hidden');
+                        modal.classList.add('ready-show');
+                    }
                 };
 
-                const triggerInitialUI = () => {
-                    // 💡 [안전장치 추가] 0.3초 뒤 무조건 화면을 표시하여 투명한 상태에 영원히 갇히는 현상 방지
-                    setTimeout(() => {
-                        const modal = document.getElementById('history-modal');
-                        if (modal) {
-                            modal.classList.remove('hidden');
-                            modal.classList.add('ready-show');
-                        }
-                    }, 300);
-
-                    let uiAttempts = 0;
-                    const triggerInterval = setInterval(() => {
-                        uiAttempts++;
-                        
-                        const dashboardMainTabBtn = document.querySelector('[data-main-tab="dashboard"]');
-                        const rawdataMainTabBtn = document.querySelector('[data-main-tab="rawdata"]');
-                        const tabButtons = Array.from(document.querySelectorAll('.history-tab-btn, button'));
-                        const dailyTabBtn = tabButtons.find(btn => btn.textContent && btn.textContent.trim().includes('일별 상세'));
-                        const firstDateItem = document.querySelector('#history-date-list li');
-
-                        if (dashboardMainTabBtn && rawdataMainTabBtn && dailyTabBtn && firstDateItem) {
-                            clearInterval(triggerInterval);
-                            
-                            try {
-                                rawdataMainTabBtn.click();
-                                dailyTabBtn.click();
-                                if (typeof switchHistoryView === 'function') switchHistoryView('daily'); 
-                                
-                                setTimeout(() => {
-                                    if (firstDateItem) firstDateItem.click();
-                                    
-                                    setTimeout(() => {
-                                        showLastViewOrDashboard(dashboardMainTabBtn);
-                                        
-                                        setTimeout(() => {
-                                            const modal = document.getElementById('history-modal');
-                                            if (modal) {
-                                                modal.classList.remove('hidden');
-                                                modal.classList.add('ready-show');
-                                            }
-                                        }, 150);
-                                        
-                                    }, 100);
-                                }, 100);
-                            } catch (e) {
-                                console.error("백그라운드 UI 렌더링 오류:", e);
-                                showLastViewOrDashboard(dashboardMainTabBtn);
-                                setTimeout(() => {
-                                    const modal = document.getElementById('history-modal');
-                                    if (modal) modal.classList.add('ready-show');
-                                }, 150);
-                            }
-                            
-                        } else if (uiAttempts > 50) {
-                            clearInterval(triggerInterval);
-                            const dashboardMainTabBtn = document.querySelector('[data-main-tab="dashboard"]');
-                            showLastViewOrDashboard(dashboardMainTabBtn);
-                            setTimeout(() => {
-                                const modal = document.getElementById('history-modal');
-                                if (modal) modal.classList.add('ready-show');
-                            }, 150);
-                        }
-                    }, 100);
+                // 첫 화면(H1, 2026-10-16): loadAndRenderHistoryList 가 업무 이력·일별·가장 최근 날짜까지 그려 둔 뒤라
+                // 바로 기억해 둔 자리(해시 → sessionStorage, js/view-state.js)로 가고, 없으면 '요약'(종합 인사이트)을 연다.
+                // 예전의 100ms 폴링('업무 기록 및 관리' → 숨은 '일별 상세' 글자 찾기 → 첫 날짜 → 복원)을 직접 호출로 바꿨다.
+                const triggerInitialUI = async () => {
+                    // 💡 [안전장치] 0.3초 뒤 무조건 화면을 표시하여 투명한 상태에 영원히 갇히는 현상 방지
+                    const safety = setTimeout(revealModal, 300);
+                    try {
+                        let restored = false;
+                        try { restored = await restoreHistoryView(); } catch (e) { console.error('화면 복원 실패:', e); }
+                        if (!restored) await showSection('insight');
+                    } catch (e) {
+                        console.error("첫 화면 표시 오류:", e);
+                    }
+                    clearTimeout(safety);
+                    revealModal();
                 };
 
                 // 🔒 데이터 관리는 관리자 전용(대시보드 버튼도 관리자만 보인다 — app.js adminElements).
@@ -353,8 +319,8 @@
 
         initHistoryApp();
     </script>
-    <script src="js/connection-banner.js?v=202610161224"></script>
-    <script src="js/modal-esc.js?v=202610161224"></script>
-    <script type="module" src="js/app-shell.js?v=202610161224"></script>
+    <script src="js/connection-banner.js?v=202610161334"></script>
+    <script src="js/modal-esc.js?v=202610161334"></script>
+    <script type="module" src="js/app-shell.js?v=202610161334"></script>
 </body>
 </html>

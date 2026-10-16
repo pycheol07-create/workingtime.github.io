@@ -73,19 +73,15 @@ export const openHistoryBtn = document.getElementById('open-history-btn');
 export const closeHistoryBtn = document.getElementById('close-history-btn');
 export const historyDateList = document.getElementById('history-date-list');
 export const historyViewContainer = document.getElementById('history-view-container');
-export const historyTabs = document.getElementById('history-tabs');
 export const workHistoryPanel = document.getElementById('work-history-panel');
 export const attendanceHistoryPanel = document.getElementById('attendance-history-panel');
-export const attendanceHistoryTabs = document.getElementById('attendance-history-tabs');
 export const attendanceHistoryViewContainer = document.getElementById('attendance-history-view-container');
 export const trendAnalysisPanel = document.getElementById('trend-analysis-panel');
 
 export const reportPanel = document.getElementById('report-panel');
-export const reportTabs = document.getElementById('report-tabs');
 export const reportViewContainer = document.getElementById('report-view-container');
 
 // 개인 리포트 관련 요소
-export const personalReportTabs = document.getElementById('personal-report-tabs');
 export const personalReportMemberSelect = document.getElementById('personal-report-member-select');
 export const personalReportViewContainer = document.getElementById('personal-report-view-container');
 
@@ -347,16 +343,12 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
                 closeHistoryBtn,
                 historyDateList,
                 historyViewContainer,
-                historyTabs,
                 workHistoryPanel,
                 attendanceHistoryPanel,
-                attendanceHistoryTabs,
                 attendanceHistoryViewContainer,
                 trendAnalysisPanel,
                 reportPanel,
-                reportTabs,
                 reportViewContainer,
-                personalReportTabs,
                 personalReportMemberSelect,
                 personalReportViewContainer,
                 quantityModal,

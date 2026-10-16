@@ -11,8 +11,9 @@
 //   #tab=메인탭&sub=업무기록 서브탭&gran=일주월년&date=날짜&fview=업무 예상 화면. 옛 #forecast · #forecast-today 도 읽는다.
 //   ⚠️ 해시 없이 열면(업무예상알림 봇) 예전과 똑같이 sessionStorage 로만 복원한다.
 
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610161224';
-import * as State from './state.js?v=202610161224';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610161334';
+import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202610161334';
+import * as State from './state.js?v=202610161334';
 
 const KEY = 'viewstate:' + (location.pathname.split('/').pop() || 'index');
 // 대시보드(index)의 모바일 데이터 관리 모달도 saveView 를 부른다 — 해시는 history.html 에서만 쓴다
@@ -96,9 +97,7 @@ async function until(fn, timeout = 3000, step = 60) {
 
 const esc = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/"/g, '\\"');
 
-// 날짜 트리를 쓰지 않는 화면들 — 여기서는 날짜를 복원할 것이 없다
-const TREELESS_SUBS = ['inspection', 'leave'];
-const TREELESS_MAINS = ['milestones', 'settlement', 'forecast'];
+// 날짜 트리를 쓰지 않는 화면들 — 여기서는 날짜를 복원할 것이 없다 (목록은 js/history-sections.js — 물량 추세 예측 포함, H1)
 const isTreeless = (v) => TREELESS_MAINS.includes(v.main) || (v.main === 'rawdata' && TREELESS_SUBS.includes(v.sub));
 
 // 날짜를 고른다.
@@ -113,9 +112,9 @@ async function selectDate(dateKey) {
     for (let i = 0; i < 3; i++) {
         const target = sel();
         if (!target) return false;
-        if (!target.classList.contains('bg-blue-100')) target.click();
+        if (!target.classList.contains('is-on')) target.click();
         await wait(350);
-        if (sel()?.classList.contains('bg-blue-100')) return true;
+        if (sel()?.classList.contains('is-on')) return true;
     }
     return false;
 }
@@ -128,7 +127,8 @@ export async function restoreHistoryView() {
     // 화면이 뜨는 동안 해시가 또 바뀌었으면(사용자가 Ctrl+K 로 고름) 그것이 가장 먼저다.
     const pend = takePending();
     const v = pend || initialView;
-    if (!v || !v.main) {
+    // 14개 화면에 없는 탭(낡은 주소 #tab=work 등)은 복원하지 않는다 → history.html 이 '요약' 을 연다
+    if (!v || !v.main || !sectionIdFor(v.main, v.sub)) {
         unlockViewSaving();
         finishRestore();
         return false;          // history.html 이 대시보드 탭을 누른다(그 클릭이 저장소·주소를 맞춘다)
@@ -148,7 +148,7 @@ export async function restoreHistoryView() {
 function currentView() {
     const c = State.context || {};
     const fb = [...document.querySelectorAll('.forecast-view-btn')].find(b => b.classList.contains('bg-indigo-600'));
-    const db = document.querySelector('.history-date-btn.bg-blue-100');
+    const db = document.querySelector('.history-date-btn.is-on');
     return {
         main: c.activeHistoryView || undefined,
         sub: c.activeMainHistoryTab || undefined,
@@ -168,7 +168,8 @@ function syncToScreen() {
 // — 복원이 사용자가 고른 해시를 덮지 않게.
 let restoreDone = false;
 let pendingHash = null;
-const viewForNav = (h) => viewFromHash(h) || { main: 'dashboard' };   // tab 이 없는 주소(뒤로가기)는 첫 화면(종합 인사이트)
+// tab 이 없거나 모르는 탭인 주소(뒤로가기·낡은 주소)는 첫 화면(요약)
+const viewForNav = (h) => { const v = viewFromHash(h); return v && sectionIdFor(v.main, v.sub) ? v : { main: 'dashboard' }; };
 function takePending() {
     const h = pendingHash; pendingHash = null;
     return h ? viewForNav(h) : null;
@@ -199,16 +200,11 @@ async function applyView(v, { resetGran = false } = {}) {
         await wait(250);
     }
 
-    // 2) 로우데이터 안의 서브탭 (업무기록 / 근태현황 / 경영지표 …)
-    //    날짜보다 먼저 눌러야 한다. 날짜 클릭은 '지금 어느 서브탭인지' 를 보고
-    //    그릴 화면을 정하기 때문에, 순서가 반대면 엉뚱한 화면이 그려진다.
-    if (v.main === 'rawdata' && v.sub) {
-        document.querySelector(`.rawdata-sub-tab-btn[data-sub-tab="${esc(v.sub)}"]`)?.click();
-        await wait(200);
-    }
-
-    // 3) 메인 탭
-    document.querySelector(`[data-main-tab="${esc(v.main)}"]`)?.click();
+    // 2·3) 화면(좌측 레일 항목) — 메인탭과 업무 기록 서브탭을 한 번에 연다(UI 2단계 H2, js/history-sections.js).
+    //    날짜보다 먼저 연다. 날짜 클릭은 '지금 어느 화면인지' 를 보고 그릴 것을 정하기 때문이다.
+    //    #tab=rawdata 처럼 서브탭이 없으면 지금 서브탭(처음이면 업무 이력).
+    const sid = sectionIdFor(v.main, v.sub, State.context && State.context.activeMainHistoryTab);
+    if (sid) document.querySelector(`#history-section-nav .pn-item[data-pn-id="${esc(sid)}"]`)?.click();
     await wait(300);
 
     // 3-1) 업무 예상의 세 화면(오늘 현황 / 계획 / 정확도) — 탭이 열리며 기본 화면을 그린 뒤에 누른다

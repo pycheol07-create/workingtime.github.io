@@ -135,30 +135,33 @@ export const pageFileOf = (href, base) => {
 
 // ── Ctrl+K 빠른 이동(1d)의 화면 안 목적지 ──
 // 부모 화면(파일)이 그 사람 메뉴에 보일 때만 붙는다(buildDestinations). 해시는 js/hash-state.js 형식(탭 이름만).
-// 탭 이름·값은 각 화면 코드 기준: components/modals-history.html(메인탭·업무 예상 3화면·업무 기록 서브탭),
+// 탭 이름·값은 각 화면 코드 기준: 데이터 관리 14개 화면(js/history-sections.js — 이름은 좌측 레일과 같게, 해시는 예전 tab/sub 형식)·업무 예상 3화면,
 // admin.html(.admin-tab-btn data-target 의 section- 뒤), location.html(#tab-btn-*), products.html(#pd-tabs — 기존 해시 그대로),
 // calculator/app.js(tabs id). adminOnly 는 관리자에게만(상품 관리의 원가·공급처 화면).
 const S = (label, hash, keywords = [], extra = {}) => ({ label, hash, keywords, ...extra });
 export const SUB_DESTINATIONS = {
     'history.html': [
-        S('종합 인사이트', 'tab=dashboard', ['인사이트']),
-        S('생산성 및 효율성', 'tab=productivity', ['생산성']),
-        S('인력 운영 및 적정성', 'tab=staffing', ['인력']),
-        S('실적 예측', 'tab=prediction', ['예측']),
+        // 분석
+        S('요약', 'tab=dashboard', ['종합 인사이트', '인사이트']),
+        S('생산성', 'tab=productivity', ['생산성 및 효율성', '효율']),
+        S('인력 적정성', 'tab=staffing', ['인력 운영', '인력']),
+        // 예측·계획
         S('업무 예상', 'tab=forecast', ['예상', '예측']),
         S('업무 예상 · 오늘 현황', 'tab=forecast&fview=today', ['오늘 현황', '진행']),
         S('업무 예상 · 계획', 'tab=forecast&fview=plan', ['계획']),
         S('업무 예상 · 정확도', 'tab=forecast&fview=accuracy', ['정확도']),
-        S('업무 기록 및 관리', 'tab=rawdata', ['로우데이터', '기록']),
-        S('업무 이력', 'tab=rawdata&sub=work', ['업무 기록']),
+        S('물량 추세 예측', 'tab=prediction', ['실적 예측', '예측', '추세']),
+        // 기록
+        S('업무 이력', 'tab=rawdata&sub=work', ['업무 기록', '로우데이터', '기록']),
         S('근태 이력', 'tab=rawdata&sub=attendance', ['근태']),
+        S('검수 이력', 'tab=rawdata&sub=inspection', ['검수']),
+        S('연차 관리', 'tab=rawdata&sub=leave', ['연차']),
+        // 보고
         S('업무 리포트', 'tab=rawdata&sub=report', ['리포트']),
         S('개인 리포트', 'tab=rawdata&sub=personal', ['리포트']),
         S('경영 지표', 'tab=rawdata&sub=management', ['경영']),
-        S('검수 이력', 'tab=rawdata&sub=inspection', ['검수']),
-        S('연차 관리', 'tab=rawdata&sub=leave', ['연차']),
-        S('운영 마일스톤', 'tab=milestones', ['마일스톤']),
-        S('팀 결산 보고', 'tab=settlement', ['결산'])
+        S('팀 결산', 'tab=settlement', ['팀 결산 보고', '결산']),
+        S('운영 마일스톤', 'tab=milestones', ['마일스톤'])
     ],
     'admin.html': [
         S('팀원 관리', 'tab=team'),

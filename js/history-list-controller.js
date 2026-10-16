@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610161224';
-import * as State from './state.js?v=202610161224';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610161224';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610161224';
+import * as DOM from './dom-elements.js?v=202610161334';
+import * as State from './state.js?v=202610161334';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610161334';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610161334';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610161224';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610161224';
-import { renderQuantityModalInputs } from './ui.js?v=202610161224';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610161224';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610161224';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610161334';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610161334';
+import { renderQuantityModalInputs } from './ui.js?v=202610161334';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610161334';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610161334';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -49,16 +49,7 @@ export const loadAndRenderHistoryList = async () => {
     }
 
     // 메인 탭(대시보드·생산성 …) 표시는 건드리지 않는다 — 예전엔 없는 'work' 메인 탭을 켜려다 모든 탭의 선택 표시를 지웠다
-
-    // 하위 탭 스타일 초기화
-    document.querySelectorAll('#history-tabs button[data-view="daily"]').forEach(btn => {
-        btn.classList.add('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-        btn.classList.remove('text-gray-500');
-    });
-    document.querySelectorAll('#history-tabs button:not([data-view="daily"])').forEach(btn => {
-        btn.classList.remove('font-semibold', 'text-blue-600', 'border-blue-600', 'border-b-2');
-        btn.classList.add('text-gray-500');
-    });
+    // (숨은 기간 탭 줄 #history-tabs 등은 H1(2026-10-16)에서 지웠다 — 기간은 좌측 트리·기간 바의 일/주/월/년이 정한다)
 
     // 패널 가시성 초기화
     if (DOM.workHistoryPanel) DOM.workHistoryPanel.classList.remove('hidden');
@@ -382,6 +373,19 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
     }
 };
 
+// 🗂 날짜 트리(좌측 기간 목록)와 본문 위 기간 바를 같이 보이거나 숨긴다 — 숨김 조건은 이 함수 한 곳으로 모은다(H1).
+//    트리를 쓰지 않는 화면(업무 예상·물량 추세 예측·마일스톤·결산·검수·연차)은 js/history-sections.js isTreelessMain.
+export const setTreeVisible = (visible) => {
+    const sidebar = document.getElementById('history-global-sidebar');
+    if (sidebar) {
+        sidebar.style.display = visible ? '' : 'none';
+        // 📱 모바일 규칙(components/modals-history.html)이 display:block !important 라 인라인 none 이 안 먹는다 — 클래스로도 숨긴다
+        sidebar.classList.toggle('hp-tree-hidden', !visible);
+    }
+    const bar = document.getElementById('history-period-bar');
+    if (bar) bar.style.display = visible ? '' : 'none';
+};
+
 // 좌측 사이드바의 일/주/월/년 단위 버튼 활성 상태를 갱신합니다.
 export const updateGranularityButtons = (mode) => {
     const base = 'history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border';
@@ -404,9 +408,8 @@ export const switchHistoryView = async (view, preserveKey = null) => {
     ].map(id => document.getElementById(id));
     allViews.forEach(v => v && v.classList.add('hidden'));
 
-    // 공용 사이드바 노출 (검수/연차/주말 탭에서만 숨기며, 그 처리는 서브탭 핸들러가 담당)
-    const sidebar = document.getElementById('history-global-sidebar');
-    if (sidebar) sidebar.style.display = '';
+    // 공용 사이드바 노출 (검수/연차 탭에서만 숨기며, 그 처리는 서브탭 핸들러가 담당)
+    setTreeVisible(true);
 
     let viewToShow = null;
     let listMode = 'day';
