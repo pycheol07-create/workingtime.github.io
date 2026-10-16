@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610161334">
-    <link rel="stylesheet" href="css/admin-d.css?v=202610161334">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610161334">
+    <link rel="stylesheet" href="css/suit.css?v=202610161426">
+    <link rel="stylesheet" href="css/admin-d.css?v=202610161426">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161426">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -45,25 +45,27 @@
             </button>
         </div>
         <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-            <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 px-2">설정 메뉴</div>
-            
+            <!-- 설정 메뉴 — 그룹 제목 5개(UI 2단계 A1). 버튼 순서만 그룹에 맞췄다 — data-target·해시(#tab=…)는 그대로 -->
+            <div class="admin-nav-group text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wider px-2 mb-2">사람·권한</div>
             <button class="admin-tab-btn active w-full flex items-center gap-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-xl font-semibold transition" data-target="section-team">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.5a4.5 4.5 0 0 1 5 4.5"/></svg></span> 팀원 관리
             </button>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-permission">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span> 권한 관리
             </button>
+            <div class="admin-nav-group text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wider px-2 pt-4 mb-2">메인 화면 구성</div>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-menu">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span> 메뉴 관리
             </button>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-widget">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span> 위젯 관리
             </button>
-            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-task">
-                <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg></span> 업무 등록 관리
-            </button>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-keytask">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l-1 6 4 4H6l4-4z"/><path d="M12 13v8"/></svg></span> 고정 업무
+            </button>
+            <div class="admin-nav-group text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wider px-2 pt-4 mb-2">업무·집계</div>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-task">
+                <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg></span> 업무 등록 관리
             </button>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-quantity">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg></span> 집계/위젯 연동
@@ -71,14 +73,16 @@
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-cost">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5c-.5-1-1.5-1.5-2.5-1.5-1.5 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1 2-2.5 2c-1 0-2-.5-2.5-1.5M12 6.5V8M12 16v1.5"/></svg></span> 원가/손익 분석
             </button>
-            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-setting">
-                <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 기본 설정
-            </button>
+            <div class="admin-nav-group text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wider px-2 pt-4 mb-2">자동화</div>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-automation">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> 자동화 상태
             </button>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-refill">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg></span> 채우기 설정
+            </button>
+            <div class="admin-nav-group text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wider px-2 pt-4 mb-2">기타</div>
+            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-setting">
+                <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 기본 설정
             </button>
             <!-- '메인 화면으로' 링크는 공통 상단바의 홈 버튼으로 옮겼다(2026-10-16) -->
         </nav>
@@ -91,6 +95,10 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                 </button>
                 <h2 class="text-lg font-bold text-gray-800 dark:text-white hidden md:block">시스템 환경 설정</h2>
+                <!-- 📱 모바일: 지금 보는 설정 화면 이름 — 누르면 메뉴 서랍(아래 드로어 스크립트). 이름은 activateTab 이 바꾼다 -->
+                <button id="admin-current-section" type="button" class="md:hidden flex items-center gap-1 min-w-0 text-base font-bold text-gray-800 dark:text-white" title="다른 설정 화면으로">
+                    <span id="admin-current-section-label" class="truncate">팀원 관리</span><span class="text-gray-400 text-sm" aria-hidden="true">▾</span>
+                </button>
             </div>
             <button id="save-all-btn" class="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2 text-sm">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
@@ -100,22 +108,6 @@
 
         <div id="admin-content" class="flex-1 overflow-y-auto p-4 md:p-6 hidden bg-gray-50 dark:bg-gray-900 w-full">
             <div class="w-full h-full"> 
-
-                <div class="hidden mb-6 w-full">
-                    <select id="mobile-tab-select" class="w-full p-3.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold shadow-sm outline-none focus:border-blue-500 transition-colors appearance-none">
-                        <option value="section-team">팀원 관리</option>
-                        <option value="section-permission">권한 관리</option>
-                        <option value="section-menu">대시보드 메뉴 관리</option>
-                        <option value="section-widget">상단 위젯 관리</option>
-                        <option value="section-task">업무 등록 관리</option>
-                        <option value="section-keytask">메인 보드 고정 업무</option>
-                        <option value="section-quantity">처리량 집계 연동</option>
-                        <option value="section-cost">원가 및 손익 설정</option>
-                        <option value="section-setting">기타 기본 설정</option>
-                        <option value="section-automation">자동화 상태</option>
-                        <option value="section-refill">채우기 설정</option>
-                    </select>
-                </div>
 
                 <div class="admin-section block bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors w-full" id="section-team">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 border-b border-gray-100 dark:border-gray-700 gap-4">
@@ -383,13 +375,13 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610161334"></script>
-    <script type="module" src="js/admin-automation.js?v=202610161334"></script>
-    <script type="module" src="js/admin-refill.js?v=202610161334"></script>
+    <script type="module" src="js/admin.js?v=202610161426"></script>
+    <script type="module" src="js/admin-automation.js?v=202610161426"></script>
+    <script type="module" src="js/admin-refill.js?v=202610161426"></script>
 
     <script type="module">
         // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
-        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610161334';
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610161426';
 
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
@@ -400,7 +392,8 @@
             // 사이드바 탭 클릭 처리
             const tabBtns = document.querySelectorAll('.admin-tab-btn');
             const sections = document.querySelectorAll('.admin-section');
-            const mobileSelect = document.getElementById('mobile-tab-select');
+            // '전체 저장'이 다루지 않는 화면 — 자동화 상태(읽기만)·채우기 설정(자기 [저장] 버튼). 여기서는 숨긴다
+            const NO_SAVE_ALL = ['section-automation', 'section-refill'];
 
             function activateTab(targetId) {
                 tabBtns.forEach(t => {
@@ -425,17 +418,17 @@
                         targetSec.classList.add('block');
                     }
                 }
-                
-                if(mobileSelect) mobileSelect.value = targetId;
+
+                const saveAll = document.getElementById('save-all-btn');
+                if (saveAll) saveAll.style.display = NO_SAVE_ALL.includes(targetId) ? 'none' : '';
+                const curLabel = document.getElementById('admin-current-section-label');   // 📱 모바일 머리줄의 지금 화면 이름
+                if (curLabel && activeBtn) curLabel.textContent = activeBtn.textContent.trim();
             }
 
             tabBtns.forEach(btn => {
                 btn.addEventListener('click', () => activateTab(btn.dataset.target));
             });
 
-            if (mobileSelect) {
-                mobileSelect.addEventListener('change', (e) => activateTab(e.target.value));
-            }
 
             // 해시 ↔ 탭. 탭을 바꾸면 해시를 고치고(기록 안 쌓임), 해시로 들어오면 그 탭 버튼을 누른다
             // — 자동화 상태·채우기 설정은 버튼 클릭에 데이터 불러오기가 붙어 있다(js/admin-automation.js·admin-refill.js).
@@ -443,7 +436,6 @@
             const SECTION_PREFIX = 'section-';
             const tabOf = (targetId) => String(targetId || '').startsWith(SECTION_PREFIX) ? targetId.slice(SECTION_PREFIX.length) : '';
             tabBtns.forEach(btn => btn.addEventListener('click', () => writeHash({ tab: tabOf(btn.dataset.target) }, { replace: true })));
-            if (mobileSelect) mobileSelect.addEventListener('change', (e) => writeHash({ tab: tabOf(e.target.value) }, { replace: true }));
             // 해시 이동(뒤로가기·Ctrl+K)에서 tab 이 없으면 첫 탭(팀원 관리)
             const openFromHash = (h, fallback = '') => {
                 const tab = (h && h.tab) || fallback;
@@ -475,6 +467,7 @@
         };
 
         openBtn?.addEventListener('click', openSidebar);
+        document.getElementById('admin-current-section')?.addEventListener('click', openSidebar);
         closeBtn?.addEventListener('click', closeSidebar);
         overlay.addEventListener('click', closeSidebar);
 
@@ -491,8 +484,8 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610161334"></script>
-    <script src="js/modal-esc.js?v=202610161334"></script>
-    <script type="module" src="js/app-shell.js?v=202610161334"></script>
+    <script src="js/connection-banner.js?v=202610161426"></script>
+    <script src="js/modal-esc.js?v=202610161426"></script>
+    <script type="module" src="js/app-shell.js?v=202610161426"></script>
 </body>
 </html>

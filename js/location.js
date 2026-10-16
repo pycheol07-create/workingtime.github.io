@@ -1,13 +1,14 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610161334';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610161426';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610161334';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610161334';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610161334';
-import { orderKeyMap } from './lib/order-hash.js?v=202610161334';
-import { setShellContext } from './app-shell-bridge.js?v=202610161334';
-import { memberNameFor } from './app-shell-data.js?v=202610161334';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610161334';
+import { escapeHtml as escAttr } from './utils.js?v=202610161426';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610161426';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610161426';
+import { orderKeyMap } from './lib/order-hash.js?v=202610161426';
+import { setShellContext } from './app-shell-bridge.js?v=202610161426';
+import { memberNameFor } from './app-shell-data.js?v=202610161426';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610161426';
+import { initPageNav } from './page-nav.js?v=202610161426';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -2978,9 +2979,8 @@ window.__dashGoToList = function(state, pickingOnly) {
     if (vList) vList.style.display = 'block';
     if (vMap) vMap.style.display = 'none';
     if (vDash) vDash.style.display = 'none';
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('tab-btn-list')?.classList.add('active');
-    writeHash({ tab: 'list' }, { replace: true });   // 보던 탭 기억(UI 1단계 1c)
+    // 데이터 리스트 탭 켜짐 + 보던 탭 기억(UI 1단계 1c) — location.html markLocTab
+    if (typeof window.markLocTab === 'function') window.markLocTab('list'); else writeHash({ tab: 'list' }, { replace: true });
     if (typeof window.showFilterResetBtn === 'function') window.showFilterResetBtn();
     if (vList && vList.scrollIntoView) vList.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
@@ -2998,10 +2998,8 @@ window.applyUsageFilter = function(zone, state) {
     if (typeof window.closeAllPopups === 'function') window.closeAllPopups();
     document.getElementById('view-list').style.display = 'block';
     document.getElementById('view-map').style.display = 'none';
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    // 데이터 리스트 탭에 표시(예전엔 첫 버튼=대시보드에 붙던 버그) + 보던 탭 기억(UI 1단계 1c)
-    document.getElementById('tab-btn-list')?.classList.add('active');
-    writeHash({ tab: 'list' }, { replace: true });
+    // 데이터 리스트 탭에 표시(예전엔 첫 버튼=대시보드에 붙던 버그) + 보던 탭 기억(UI 1단계 1c) — location.html markLocTab
+    if (typeof window.markLocTab === 'function') window.markLocTab('list'); else writeHash({ tab: 'list' }, { replace: true });
     window.showFilterResetBtn();
 };
 
@@ -4300,6 +4298,8 @@ const fileInputA = document.getElementById('excel-upload-a');
 if (fileInputA) {
     fileInputA.addEventListener('change', async function(e) {
         const file = e.target.files[0]; if (!file) return;
+        // 머리줄 [오늘 재고 올리기] — 덮어쓰기라 파일을 고른 뒤 한 번 더 묻는다(취소하면 아무것도 쓰지 않는다)
+        if (!confirm('오늘 재고 파일로 기존 로케이션 재고를 덮어씁니다.\n(선지정된 자리는 보호됩니다)\n\n계속할까요?')) { e.target.value = ''; return; }
         window.showLoading('일일 재고/상품 데이터를 최신화 중입니다...');
         try {
             const result = await universalExcelReader(file);
@@ -8305,8 +8305,8 @@ window.renderLocationDashboard = function () {
     const weeklyKeys = Object.keys(weeklyData || {}).length;
     const freshHtml = `
         <div><b>오늘:</b> ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</div>
-        <div><b>ZG&AB 출고 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : `<span style="color:${TONE.riskText};">미업로드</span>`}</div>
-        <div><b>주차별 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : `<span style="color:${TONE.riskText};">미업로드</span>`}</div>
+        <div><b>ZG&AB 출고 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : `<button type="button" class="fresh-upload-link" style="color:${TONE.riskText};" title="눌러서 ZG&AB 출고 데이터 파일 고르기" onclick="event.stopPropagation(); document.getElementById('excel-upload-zikjin')?.click();">미업로드</button>`}</div>
+        <div><b>주차별 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : `<button type="button" class="fresh-upload-link" style="color:${TONE.riskText};" title="눌러서 주차별 데이터 파일 고르기" onclick="event.stopPropagation(); document.getElementById('excel-upload-weekly')?.click();">미업로드</button>`}</div>
         <div><b>입고대기 종 수:</b> ${incomingCodes.length.toLocaleString()}</div>
         <div><b>등록 로케이션:</b> ${originalData.length.toLocaleString()}칸 (3F: ${total.toLocaleString()}, 그 외: ${(originalData.length - total).toLocaleString()})</div>
     `;
@@ -8779,14 +8779,16 @@ window.__dashDownloadBucketExcel = function () {
 };
 
 // ── 보던 탭 복원 (UI 1단계 1c) ── 주소 뒤 #tab=locdash|list|map. 탭 버튼을 누르는 길로 연다
-// (location.html switchView 가 클릭 이벤트(event.currentTarget)를 쓰기 때문에 직접 부르면 오류). 탭을 바꾸면 switchView 가 해시를 고친다.
+// (switchView 는 이제 markLocTab 으로 표시하므로 직접 불러도 되지만, 인라인 onclick 과 같은 길을 쓰려고 버튼 클릭으로 연다). 탭을 바꾸면 해시도 고친다.
 const LOC_TABS = ['locdash', 'list', 'map'];
 // 해시 이동(뒤로가기·Ctrl+K)에서 tab 이 없으면 첫 탭(대시보드) — 처음 열 때는 화면 기본값 그대로
 const openLocTabFromHash = (h, fallback = '') => {
     const t = (h && h.tab) || fallback;
     if (!LOC_TABS.includes(t)) return;
     const btn = document.getElementById('tab-btn-' + t);
-    if (btn && !btn.classList.contains('active')) btn.click();
+    if (btn && !btn.classList.contains('is-on')) btn.click();
 };
+// 탭 세그먼트(js/page-nav.js) — 방향키 이동만 더한다. 클릭은 버튼의 switchView(인라인), 켜짐은 markLocTab.
+initPageNav(document.getElementById('loc-tab-nav'));
 openLocTabFromHash(readHash());
 onHashNav((h) => openLocTabFromHash(h, 'locdash'));

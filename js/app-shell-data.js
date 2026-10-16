@@ -137,7 +137,7 @@ export const pageFileOf = (href, base) => {
 // 부모 화면(파일)이 그 사람 메뉴에 보일 때만 붙는다(buildDestinations). 해시는 js/hash-state.js 형식(탭 이름만).
 // 탭 이름·값은 각 화면 코드 기준: 데이터 관리 14개 화면(js/history-sections.js — 이름은 좌측 레일과 같게, 해시는 예전 tab/sub 형식)·업무 예상 3화면,
 // admin.html(.admin-tab-btn data-target 의 section- 뒤), location.html(#tab-btn-*), products.html(#pd-tabs — 기존 해시 그대로),
-// calculator/app.js(tabs id). adminOnly 는 관리자에게만(상품 관리의 원가·공급처 화면).
+// calculator/app.js(tabs id), china-stock-goods.html(머리줄 모드 세그먼트 #csg-mode-nav — 해시 tab=mibal|location). adminOnly 는 관리자에게만(상품 관리의 원가·공급처 화면).
 const S = (label, hash, keywords = [], extra = {}) => ({ label, hash, keywords, ...extra });
 export const SUB_DESTINATIONS = {
     'history.html': [
@@ -180,6 +180,10 @@ export const SUB_DESTINATIONS = {
         S('로케이션 대시보드', 'tab=locdash', ['대시보드']),
         S('데이터 리스트', 'tab=list', ['리스트']),
         S('도면', 'tab=map', ['지도'])
+    ],
+    'china-stock-goods.html': [
+        S('미발계산', 'tab=mibal', ['미발', '미발계산기']),
+        S('위치지정', 'tab=location', ['위치', '위치지정모드'])
     ],
     'products.html': [
         S('상품 목록', '', ['상품']),

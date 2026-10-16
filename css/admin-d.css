@@ -156,7 +156,8 @@ html.dark #admin-root :where(.bg-blue-600) { background-color: #2F62C9; }
 
 /* ── 사이드바 (dash-d 의 d-side·d-nav-item 값) ── */
 #admin-root #admin-sidebar { background-color: var(--c-surface); border-right-color: var(--c-line); }
-#admin-root #admin-sidebar nav > div:first-child {
+#admin-root #admin-sidebar nav > div:first-child,
+#admin-root #admin-sidebar .admin-nav-group {   /* 그룹 제목(사람·권한 …) */
     font-size: 12px; font-weight: 500; color: var(--c-text-3); text-transform: none; letter-spacing: 0;
 }
 #admin-root #admin-sidebar :is(.admin-tab-btn, nav > a) {

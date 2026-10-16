@@ -267,8 +267,4 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll(`.admin-tab-btn[data-target="${SECTION_ID}"]`).forEach((btn) => {
         btn.addEventListener('click', 시작);
     });
-    const mobileSelect = document.getElementById('mobile-tab-select');
-    if (mobileSelect) {
-        mobileSelect.addEventListener('change', (e) => { if (e.target.value === SECTION_ID) 시작(); });
-    }
 });

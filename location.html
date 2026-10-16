@@ -10,8 +10,9 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610161334">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610161334">
+    <link rel="stylesheet" href="css/suit.css?v=202610161426">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161426">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610161426">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -35,8 +36,8 @@
         
         .controls-header { margin: 0 0 8px 0; padding: 7px 16px; background: var(--c-surface); border-bottom: 1px solid var(--c-line); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
         .ch-left { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1 1 auto; }
-        .ch-left > .ch-brand, .ch-left > .tabs, .ch-left > .btn-clear-filters, .header-actions > * { flex-shrink: 0; }
-        .tab-btn, .btn-main-upload { white-space: nowrap; }
+        .ch-left > .ch-brand, .ch-left > .pn, .ch-left > .btn-clear-filters, .header-actions > * { flex-shrink: 0; }
+        .btn-main-upload { white-space: nowrap; }
         .ch-brand { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
         .ch-mark { font-family: var(--font-brand); font-size: 20px; letter-spacing: 1px; color: var(--c-accent); line-height: 1; }
         .ch-title { font-size: 15px; font-weight: 600; color: var(--c-text); }
@@ -57,12 +58,24 @@
         }
         /* 더 좁으면 라벨을 줄인다: '재고 최신화' → '재고', 'ZG&AB 출고' → '출고' (전체 이름은 title 에 있음) */
         @media (max-width: 960px) { .ch-status .lu-label, .ch-status .zk-label { display: none; } }
-        .tabs { display: flex; gap: 4px; background: var(--c-track); padding: 3px; border-radius: var(--r-pill); width: fit-content; align-items: center; }
-        .tab-btn { height: 34px; padding: 0 16px; border: none; cursor: pointer; border-radius: var(--r-pill); font-family: inherit; font-weight: 500; font-size: 14px; color: var(--c-text-2); background: none; }
-        .tab-btn:hover { color: var(--c-text); }
-        .tab-btn.active { background: var(--c-surface); color: var(--c-accent-deep); font-weight: 600; box-shadow: var(--sh-tab); }
-        /* 1024px 이하: 헤더 간격·탭 여백 축소 (.tab-btn 기본 규칙 뒤에 있어야 이긴다) */
-        @media (max-width: 1024px) { .controls-header, .ch-left { gap: 10px; } .tab-btn { padding: 0 12px; } }
+        /* 탭 3개(대시보드·데이터 리스트·도면)는 공통 세그먼트(css/page-nav.css .pn--seg, UI 2단계 L1). 켜짐은 .is-on — location.html markLocTab */
+        /* 1024px 이하: 헤더 간격·탭 여백 축소 */
+        @media (max-width: 1024px) { .controls-header, .ch-left { gap: 10px; } #loc-tab-nav .pn-item { padding: 6px 12px; } }
+        /* '필터 전체 해제'는 데이터 리스트 탭에서만(필터는 리스트에만 있다) — body[data-loc-tab] 은 markLocTab 이 바꾼다 */
+        body:not([data-loc-tab="list"]) .btn-clear-filters { display: none !important; }
+        /* 처리할 일 버튼(머리줄, 어느 탭에서든) · 매일 하는 일 [오늘 재고 올리기] */
+        .loc-quick { display: flex; gap: 6px; align-items: center; }
+        .loc-quick .btn { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+        /* 좁은 데스크톱: 머리줄 한 줄(높이 유지)을 지키려고 처리할 일은 아이콘만(이름은 title·aria-label), 드롭다운 이름은 줄인다 */
+        @media (min-width: 769px) and (max-width: 1600px) {
+            .loc-quick .lq-text { display: none; }
+            .loc-quick .btn { width: var(--h-ctl-sm); padding: 0; justify-content: center; }
+        }
+        @media (min-width: 769px) and (max-width: 1366px) { .dd-long { display: none; } }
+        .btn-daily-upload { white-space: nowrap; box-sizing: border-box; }   /* label 이라 테두리만큼 커지지 않게(머리줄 높이 유지) */
+        .btn-daily-upload input[type="file"] { display: none; }
+        /* 신선도 카드의 '미업로드' → 그 업로드 파일 고르기 */
+        .fresh-upload-link { appearance: none; border: 0; background: none; padding: 0; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
 
         .usage-container { position: relative; display: inline-block; margin-left: 10px; }
         .btn-usage { height: var(--h-ctl); padding: 0 18px; background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); font-family: inherit; font-weight: 600; cursor: pointer; transition: 0.15s; }
@@ -629,9 +642,9 @@
             /* 헤더: 줄바꿈 허용, 탭은 가로 스크롤 */
             .controls-header { flex-wrap: wrap; gap: 6px; margin: 6px 8px; }
             .controls-header > div:first-child { flex-wrap: wrap; gap: 8px; width: 100%; }
-            .tabs { max-width: 100%; overflow-x: auto; flex-wrap: nowrap; }
-            .tab-btn, .btn-clear-filters { flex-shrink: 0; white-space: nowrap; }
+            .btn-clear-filters { flex-shrink: 0; white-space: nowrap; }
             .header-actions { flex-wrap: wrap; width: 100%; gap: 6px; }
+            .loc-quick { flex-wrap: wrap; }
             .version-badge { display: none; }
 
             /* 높이: 페이지 세로 스크롤 허용. 목록 상자는 고정 높이 유지(가상스크롤이 clientHeight 사용) */
@@ -665,7 +678,7 @@
 </head>
     </style>    
 </head>
-<body onclick="closeAllPopups()" data-shell="location">
+<body onclick="closeAllPopups()" data-shell="location" data-loc-tab="locdash">
     <div id="pre-assign-banner" class="pre-assign-banner">
         <span>선지정 모드: <span id="pre-assign-banner-text" class="banner-item"></span> 지정할 빈칸을 클릭하세요!</span>
         <button onclick="cancelPreAssignMode()">작업 취소</button>
@@ -730,15 +743,17 @@
     <div class="controls-header">
         <div class="ch-left">
         <div class="ch-brand"><span class="ch-mark">GGS</span><span class="ch-title">로케이션 관리</span></div>
-        <div class="tabs">
-            <button class="tab-btn active" id="tab-btn-locdash" onclick="switchView('locdash')">대시보드</button>
-            <button class="tab-btn" id="tab-btn-list" onclick="switchView('list')">데이터 리스트</button>
-            <button class="tab-btn" id="tab-btn-map" onclick="switchView('map')">도면</button>
-
-            <!-- v4.4: 기존 사용률 팝업 영역 제거 (대시보드 탭으로 통합), 단 hidden 컨테이너로 남겨둠 (calculateAndRenderUsage가 usage-popup 엘리먼트를 직접 사용함) -->
-            <div class="usage-container" style="display:none;">
-                <div class="usage-popup" id="usage-popup" onclick="event.stopPropagation()"></div>
-            </div>
+        <!-- 탭 3개 — 공통 세그먼트(js/page-nav.js · css/page-nav.css). 누르면 switchView(인라인), 해시 #tab=locdash|list|map(1c) -->
+        <nav class="pn pn--seg" id="loc-tab-nav" aria-label="화면">
+            <div class="pn-list"><div class="pn-group">
+                <button type="button" class="pn-item is-on" aria-current="page" id="tab-btn-locdash" data-pn-id="locdash" onclick="switchView('locdash')">대시보드</button>
+                <button type="button" class="pn-item" id="tab-btn-list" data-pn-id="list" onclick="switchView('list')">데이터 리스트</button>
+                <button type="button" class="pn-item" id="tab-btn-map" data-pn-id="map" onclick="switchView('map')">도면</button>
+            </div></div>
+        </nav>
+        <!-- v4.4: 기존 사용률 팝업 영역 제거 (대시보드 탭으로 통합), 단 hidden 컨테이너로 남겨둠 (calculateAndRenderUsage가 usage-popup 엘리먼트를 직접 사용함) -->
+        <div class="usage-container" style="display:none;">
+            <div class="usage-popup" id="usage-popup" onclick="event.stopPropagation()"></div>
         </div>
         <button class="btn-clear-filters btn btn-ghost btn-sm" onclick="window.clearAllFilters(event)">필터 전체 해제</button>
         <div class="ch-status">
@@ -750,17 +765,21 @@
         <div class="header-actions">
             <div class="version-badge">Ver 4.4</div>
 
+            <!-- 처리할 일 — 대시보드 '처리할 일' 카드와 같은 동작을 어느 탭에서든 -->
+            <div class="loc-quick" aria-label="처리할 일">
+                <button type="button" class="btn btn-secondary btn-sm" title="변경 추천" aria-label="변경 추천" onclick="event.stopPropagation(); closeAllPopups(); window.openRecommendModal && window.openRecommendModal();"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3"></path></svg><span class="lq-text">변경 추천</span></button>
+                <button type="button" class="btn btn-secondary btn-sm" title="입고대기 선지정 패널" aria-label="입고대기" onclick="toggleIncomingSidebar(event)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"></path><path d="M3 8v8l9 5 9-5V8"></path></svg><span class="lq-text">입고대기</span></button>
+                <button type="button" class="btn btn-secondary btn-sm" title="빈칸확보" aria-label="빈칸확보" onclick="document.getElementById('modal-2f').style.display='flex'; window.calc2FList && window.calc2FList();"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"></rect><rect x="13" y="4" width="7" height="7" rx="1.5"></rect><rect x="4" y="13" width="7" height="7" rx="1.5"></rect><rect x="13" y="13" width="7" height="7" rx="1.5" stroke-dasharray="2 2"></rect></svg><span class="lq-text">빈칸확보</span></button>
+            </div>
+
+            <!-- 매일 하는 일 — 일일 최신화(기존 로케이션 재고를 지우고 덮어씀). 파일을 고르면 확인창을 먼저 띄운다(js/location.js fileInputA) -->
+            <label class="btn btn-primary btn-daily-upload" for="excel-upload-a" onclick="event.stopPropagation()" title="재고관리 시스템에서 받은 일일 재고/상품 엑셀로 로케이션 재고를 최신화합니다. 기존 데이터는 비워지고 덮어씁니다(선지정 자리는 보호). 파일을 고르면 확인창이 먼저 뜹니다.">오늘 재고 올리기<input type="file" id="excel-upload-a" accept=".xls,.xlsx,.csv,.html,.htm,.txt"></label>
+
             <button class="btn btn-secondary" onclick="window.downloadMainExcel()">엑셀 받기</button>
 
             <div class="upload-dropdown">
-                <button class="btn-main-upload" onclick="toggleUploadMenu(event, 'main-tools-menu')">작업 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+                <button class="btn-main-upload" onclick="toggleUploadMenu(event, 'main-tools-menu')" title="분석 데이터 올리기">분석 <span class="dd-long">데이터 </span>올리기 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
                 <div class="upload-menu" id="main-tools-menu" onclick="event.stopPropagation()" style="width: 270px;">
-
-                    <div class="menu-section">기본 데이터</div>
-                    <label for="excel-upload-a">
-                        <span class="menu-risk">로케이션 일일 최신화 (재고 업데이트)<span class="info-tip" data-tip-key="menu-daily" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>일일 최신화</b><br>재고관리 시스템에서 추출한 일일 재고/상품 엑셀 파일을 업로드합니다.<br><br>기존 데이터는 모두 비워지고 엑셀의 최신 재고 정보로 덮어씁니다.<br><br>※ 선지정된 자리는 보호됩니다.</span></span></span>
-                        <input type="file" id="excel-upload-a" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
-                    </label>
 
                     <div class="menu-section">로케이션 변경 추천</div>
 
@@ -776,15 +795,6 @@
                         <span>주문 데이터 업로드 (동선 분석)<span class="info-tip" data-tip-key="menu-orders" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>주문 데이터 업로드</b><br>재고관리 시스템에서 다운로드한 확장주문검색 엑셀 파일을 업로드합니다.<br><br>같은 주문번호로 함께 산 상품 페어를 누적 분석하여, 피킹 작업자의 동선을 줄이는 데 사용됩니다.<br><br>※ 매일 업로드 가능. 누적 통계로 저장됩니다.</span></span></span>
                         <input type="file" id="excel-upload-orders" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
-
-                    <div class="menu-item" onclick="window.openRecommendModal(); closeAllPopups();">
-                        로케이션 변경 리스트 보기<span class="info-tip" data-tip-key="menu-recommend" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>로케이션 변경 리스트</b><br>업로드된 직진배송·에이블리(ZG&AB 출고)/주차별 데이터를 기반으로 계산된 추천 리스트를 확인합니다.<br><br>각 상품별로 최적의 빈 로케이션이 추천되며, 이동 방향(전진/후퇴/수평/신규)도 함께 표시됩니다.<br><br>페어 통계 및 동선 최적화 옵션도 함께 표시됩니다.</span></span>
-                    </div>
-
-                    <div class="menu-section">입고 관리</div>
-                    <div class="menu-item" onclick="toggleIncomingSidebar(event)">
-                        입고대기 선지정 패널 열기<span class="info-tip" data-tip-key="menu-incoming" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>입고대기 선지정 패널</b><br>입고 예정 상품들을 빈 로케이션에 미리 찜(선지정)할 수 있는 사이드바를 엽니다.<br><br>선지정된 자리는 로케이션 변경 추천에서 보호되며, 다른 작업자가 사용할 수 없습니다.</span></span>
-                    </div>
 
                 </div>
             </div>
@@ -1394,8 +1404,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610161334"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610161334"></script>
+    <script type="module" src="js/location.js?v=202610161426"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610161426"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1405,17 +1415,26 @@
             // 로케이션 현황 대시보드 탭
             const locdashView = document.getElementById('view-locdash');
             if (locdashView) locdashView.style.display = view === 'locdash' ? 'block' : 'none';
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            event.currentTarget.classList.add('active');
+            markLocTab(view);
             if (view === 'map' && typeof window.renderMap === 'function') window.renderMap();
             // 로케이션 현황 대시보드 전환 시 렌더링
             if (view === 'locdash' && typeof window.renderLocationDashboard === 'function') {
                 window.renderLocationDashboard();
             }
-            // 보던 탭을 주소 뒤 해시(#tab=list)에 기억한다 — 새로고침·Ctrl+K(UI 1단계 1c). 기록은 안 쌓인다.
-            // (js/hash-state.js 는 모듈이라 js/location.js 가 불러온 뒤 window.HashState 로 쓴다)
+        }
+        // 탭 켜짐 표시 + 지금 탭(body[data-loc-tab] — '필터 전체 해제'는 리스트에서만) + 보던 탭 해시(#tab=list, 1c — 기록은 안 쌓인다).
+        // switchView 와 js/location.js(필터 바로가기 → 리스트) 가 같이 쓴다. 예전엔 클릭 이벤트(event.currentTarget)에 기대었다.
+        // (js/hash-state.js 는 모듈이라 js/location.js 가 불러온 뒤 window.HashState 로 쓴다)
+        function markLocTab(view) {
+            document.querySelectorAll('#loc-tab-nav .pn-item').forEach(b => {
+                const on = b.dataset.pnId === view;
+                b.classList.toggle('is-on', on);
+                if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+            });
+            document.body.dataset.locTab = view;
             if (window.HashState) window.HashState.writeHash({ tab: view }, { replace: true });
         }
+        window.markLocTab = markLocTab;
 
         function toggleFilterPopup(e, id) {
             e.stopPropagation();
@@ -1467,8 +1486,8 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610161334"></script>
-    <script src="js/modal-esc.js?v=202610161334"></script>
-    <script type="module" src="js/app-shell.js?v=202610161334"></script>
+    <script src="js/connection-banner.js?v=202610161426"></script>
+    <script src="js/modal-esc.js?v=202610161426"></script>
+    <script type="module" src="js/app-shell.js?v=202610161426"></script>
 </body>
 </html>

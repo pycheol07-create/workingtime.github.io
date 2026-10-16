@@ -1,8 +1,8 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610161334';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161334';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610161334';
-import { memberNameFor } from './app-shell-data.js?v=202610161334';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610161426';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161426';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610161426';
+import { memberNameFor } from './app-shell-data.js?v=202610161426';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -19,12 +19,12 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610161334';
+} from './admin-ui.js?v=202610161426';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202610161334';
+} from './admin-logic.js?v=202610161426';
 
 let db, auth;
 let appConfig = {};
@@ -37,12 +37,12 @@ let currentModalTarget = null;
 let taskJustAdded = null;
 
 // 저장 안 한 변경 경고(UI 1b, 2026-10-16) — #admin-content 의 입력·선택이 바뀌면 서고, '전체 저장' 성공 때 내린다.
-// '채우기 설정'은 전체 저장 대상이 아니라(자기 [저장] 버튼) 세지 않는다. 모바일 탭 선택 상자도 화면 전환일 뿐이다.
+// '채우기 설정'은 전체 저장 대상이 아니라(자기 [저장] 버튼) 세지 않는다.
 // 행 추가·삭제·끌어 옮기기처럼 입력 이벤트가 없는 변경은 잡지 못한다(입력·선택 변경만).
 // 버튼(행 추가·삭제 등)·끌어 옮기기, #admin-content 밖 선택 모달(업무·위젯 항목 추가)의 고르기·확인도 변경으로 본다.
 let adminDirty = false;
-const ADMIN_DIRTY_SKIP = '#section-refill, #mobile-tab-select';
-const ADMIN_BTN_SKIP = '#save-all-btn, .admin-tab-btn, #mobile-tab-select, #section-refill';
+const ADMIN_DIRTY_SKIP = '#section-refill';
+const ADMIN_BTN_SKIP = '#save-all-btn, .admin-tab-btn, #section-refill';
 const ADMIN_MODAL_PICK = '.task-select-list-btn, .dashboard-item-select-btn, #confirm-add-to-quantity-btn';
 const markAdminDirty = (e) => {
     const t = e && e.target;

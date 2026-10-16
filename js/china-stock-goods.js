@@ -1,11 +1,13 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610161334'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610161426'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610161334';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610161334';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610161426';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610161426';
+import { initPageNav } from './page-nav.js?v=202610161426';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610161426';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -268,6 +270,7 @@ function closeAllMenus() {
     if (typeof closeColumnFilter === 'function') closeColumnFilter(); // [Ver 8.52] 열 필터 팝업도 닫기
     const menu = document.getElementById('main-tools-menu'); if (menu) menu.style.display = 'none';
     const dl = document.getElementById('download-menu'); if (dl) dl.style.display = 'none'; // [Ver 5.9] 다운로드 드롭다운
+    const tools = document.getElementById('tools-menu'); if (tools) tools.style.display = 'none'; // 도구(버전기록·미발예측)
     const popup = document.getElementById('date-dropdown-popup');
     if (popup && popup.style.display === 'block') {
         popup.style.display = 'none';
@@ -2460,7 +2463,11 @@ let locationColumnConfig = null; // [Ver 8.53] 위치지정모드(당일입고) 
 // [Ver 7.0] 미발계산기 열: locCheck(위치확인)는 위치지정모드 전용이므로 미발 열에서 제외
 function getColumns() { const base = (Array.isArray(columnConfig) && columnConfig.length) ? columnConfig : DEFAULT_COLUMNS; return base.filter(k => k !== 'locCheck'); }
 // [Ver 6.8] 보기 모드: 미발계산기(mibal) / 위치지정모드(location)
-let viewMode = localStorage.getItem('csgViewMode') || 'mibal';
+//   주소 뒤 해시(#tab=mibal|location — js/hash-state.js 1c 형식)가 있으면 그것이 먼저다(새로고침·Ctrl+K 빠른 이동이 같은 모드로 온다)
+const HASH_VIEW_MODES = ['mibal', 'location'];
+const hashViewMode = (h) => (h && HASH_VIEW_MODES.includes(h.tab)) ? h.tab : null;
+let viewMode = hashViewMode(readHash()) || localStorage.getItem('csgViewMode') || 'mibal';
+let modeNav = null; // 머리줄 [미발계산 | 위치지정] 세그먼트(js/page-nav.js) — 켜짐 표시만 맡는다
 // [Ver 7.1] 위치지정모드 서브뷰: 당일입고지정(today) / 기존재고지정(existing)
 let locSubView = localStorage.getItem('csgLocSub') || 'today';
 const LOCATION_COLUMNS = ['no', 'code', 'name', 'option', 'location', 'log:옵션추가항목1', 'locCheck']; // [Ver 8.30] 당일입고 기본 열 (미발재고로그의 옵션추가항목1 헤더값 표시)
@@ -2476,6 +2483,8 @@ function applyViewMode() {
     const clr = document.getElementById('btn-date-clear'); // [Ver 7.4] 모드별 초기화 라벨
     if (clr) clr.textContent = viewMode === 'location' ? '위치 초기화' : '미발 초기화';
     refreshClearBtnAccess(viewMode); // 지금은 모두에게 보임(2026-10-16) — 다시 막을 때 이 함수만 고침
+    if (modeNav) modeNav.setActive(viewMode);
+    writeHash({ tab: viewMode }, { replace: true }); // 보던 모드 기억(기록 안 쌓임)
     if (viewMode === 'location') { ensureLocationHistory(); ensureFloor2(); applyLocSub(); } else renderTable();
 }
 function applyLocSub() {
@@ -2504,17 +2513,27 @@ function setLocSubView(s) {
     applyLocSub();
 }
 // [Ver 7.2] 파일 다운로드 메뉴의 '옵션추가항목1 다운로드' — 현재 서브뷰에 맞춰 당일/기존재고 다운로드
-function openModeSelect() { document.getElementById('mode-select-modal').style.display = 'flex'; }
-function closeModeSelect() { document.getElementById('mode-select-modal').style.display = 'none'; }
 function setViewMode(m) {
     persistActiveDates();                       // [Ver 8.10] 현재 모드 출고일 저장 (viewMode 아직 이전값)
     viewMode = (m === 'location') ? 'location' : 'mibal';
     columnFilters = {}; // [Ver 8.52] 모드 전환 시 열 필터 초기화
     localStorage.setItem('csgViewMode', viewMode);
     savedDates = (viewMode === 'location') ? [...savedDatesLoc] : [...savedDatesMibal]; // 새 모드 출고일 로드
-    closeModeSelect();
     applyViewMode();
     refreshDatesUI();                           // 날짜 UI/표를 새 모드 선택으로 갱신
+}
+// 세그먼트·해시에서 모드를 바꿀 때 — 스캔 잠금 중이면 바꾸지 않는다(오버레이가 클릭을 막지만 해시 이동은 못 막는다)
+function requestViewMode(m) {
+    const next = (m === 'location') ? 'location' : 'mibal';
+    if (pageLocked) {
+        if (modeNav) modeNav.setActive(viewMode);
+        writeHash({ tab: viewMode }, { replace: true });
+        showToast('🔒 스캔 잠금 중 — 잠금을 해제한 뒤 모드를 바꾸세요');
+        return;
+    }
+    if (next === viewMode) return;
+    closeAllMenus(); // 출고일 팝업 등을 먼저 닫아 지금 모드의 적용·저장이 끝난 뒤 전환(예전 제목 클릭 흐름과 같은 순서)
+    setViewMode(next);
 }
 function colLabel(key) {
     if (BUILTIN_COLS[key]) return BUILTIN_COLS[key].label;
@@ -2743,7 +2762,7 @@ function openColumnFilter(key, anchorEl) {
 // ---------------------------------------------------------
 const INSTALL_PAGE = new URL('app-install.html', location.href).href;
 
-// [Ver 3.4] 입고앱실행 = 웹 스캐너 페이지 열기 (아이폰/안드로이드 공용, 설치 불필요) — 모바일 게이트에서 사용
+// [Ver 3.4] 입고앱실행 = 웹 스캐너 페이지 열기 (아이폰/안드로이드 공용, 설치 불필요) — PC 머리줄 [스캐너 열기]에서 사용(새 창)
 function openInScannerApp() {
     closeAllMenus();
     window.open(new URL('scan.html', location.href).href, '_blank');
@@ -2950,25 +2969,20 @@ async function loadStockLogFromFirebase() { const snap = await getDocs(collectio
 // 이벤트 바인딩 (체크리스트 기반 완전 복원)
 // ---------------------------------------------------------
 function setupEventListeners() {
-    // 1. #btn-toggle-menu (환경설정 토글)
-    document.getElementById('btn-toggle-menu')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const dl = document.getElementById('download-menu'); if (dl) dl.style.display = 'none';
-        const m = document.getElementById('main-tools-menu');
-        m.style.display = m.style.display === 'block' ? 'none' : 'block';
+    // 1. 머리줄 드롭다운 3개 — 올리기·받기(#btn-toggle-download) / 도구(#btn-toggle-tools) / 설정(#btn-toggle-menu).
+    //    하나를 열면 나머지는 닫는다. 2. 메뉴 내부 클릭은 문서 클릭(메뉴 닫기)으로 전파하지 않는다.
+    const HEAD_MENUS = { 'btn-toggle-download': 'download-menu', 'btn-toggle-tools': 'tools-menu', 'btn-toggle-menu': 'main-tools-menu' };
+    Object.entries(HEAD_MENUS).forEach(([btnId, menuId]) => {
+        document.getElementById(btnId)?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            Object.values(HEAD_MENUS).forEach(id => { if (id !== menuId) { const o = document.getElementById(id); if (o) o.style.display = 'none'; } });
+            const m = document.getElementById(menuId);
+            if (m) m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        });
+        document.getElementById(menuId)?.addEventListener('click', (e) => e.stopPropagation());
     });
-
-    // 2. #main-tools-menu (메뉴 내부 클릭 전파 방지)
-    document.getElementById('main-tools-menu')?.addEventListener('click', (e) => e.stopPropagation());
-
-    // 1-2. [Ver 5.9] #btn-toggle-download (작업 메뉴 = 다운로드 드롭다운)
-    document.getElementById('btn-toggle-download')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const menu = document.getElementById('main-tools-menu'); if (menu) menu.style.display = 'none';
-        const m = document.getElementById('download-menu');
-        m.style.display = m.style.display === 'block' ? 'none' : 'block';
-    });
-    document.getElementById('download-menu')?.addEventListener('click', (e) => e.stopPropagation());
+    // PC 머리줄 [스캐너 열기] — 모바일 게이트의 입고앱 실행과 같은 스캐너(scan.html)를 새 창으로
+    document.getElementById('btn-open-scanner')?.addEventListener('click', () => openInScannerApp());
 
     // 3. document click (메뉴 닫기)
     document.addEventListener('click', () => closeAllMenus());
@@ -3045,11 +3059,10 @@ function setupEventListeners() {
 
     // 10-3. [Ver 8.16] 옵션추가항목1 다운로드는 서브뷰별 인라인 버튼으로 분리 (당일=btn-loc-download-today, 기존=btn-locmove-download)
 
-    // [Ver 6.8→7.1] 모드 선택 (제목 클릭) + 위치지정모드 서브탭(당일/기존) + 당일 다운로드
-    document.getElementById('app-title')?.addEventListener('click', openModeSelect);
-    document.getElementById('btn-mode-close')?.addEventListener('click', closeModeSelect);
-    document.getElementById('mode-select-modal')?.addEventListener('click', (e) => { if (e.target.id === 'mode-select-modal') closeModeSelect(); });
-    document.querySelectorAll('.mode-card').forEach(c => c.addEventListener('click', () => setViewMode(c.dataset.mode)));
+    // [Ver 6.8→7.1] 모드 전환 + 위치지정모드 서브탭(당일/기존) + 당일 다운로드
+    //   모드는 머리줄 세그먼트(UI 2단계 C1 — 예전 '제목 클릭 → 모드 선택 창'을 대신함)와 주소 해시(#tab=…)로 바꾼다. 둘 다 setViewMode 경유.
+    modeNav = initPageNav(document.getElementById('csg-mode-nav'), { onSelect: (id) => requestViewMode(id) });
+    onHashNav((h) => { const m = hashViewMode(h); if (m && m !== viewMode) requestViewMode(m); });
     document.querySelectorAll('.loc-subtab').forEach(b => b.addEventListener('click', () => setLocSubView(b.dataset.sub)));
     document.getElementById('btn-loc-download-today')?.addEventListener('click', () => downloadDayLoc());
     applyViewMode(); // 저장된 모드 초기 적용

@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 미발계산기</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610161334">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610161334">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610161334">
+    <link rel="stylesheet" href="css/suit.css?v=202610161426">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161426">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610161426">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610161426">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -98,9 +99,7 @@
         .rule-drop { border: 2px solid var(--c-accent-light); border-radius: var(--r-inner); background: var(--c-accent-row); transition: background .15s, border-color .15s; }
         .rule-drop.is-over { background: var(--c-accent-soft); border-color: var(--c-accent); }
 
-        /* [Ver 6.8] 보기 모드(미발계산기/위치지정모드) 전환 */
-        #app-title { cursor: pointer; user-select: none; }
-        #app-title:hover { color: var(--c-accent); }
+        /* [Ver 6.8] 보기 모드(미발계산기/위치지정모드) 전환 — 머리줄 세그먼트 #csg-mode-nav(css/page-nav.css, UI 2단계 C1) */
         .loc-only { display: none; }
         body[data-view="location"] .loc-only { display: flex; }
         /* 위치지정모드 서브뷰: 당일입고지정(today) / 기존재고지정(existing) */
@@ -115,8 +114,6 @@
         /* 헤더 메뉴 항목 모드별 표시 (미발 전용 / 위치 전용) */
         body[data-view="location"] .mode-mibal { display: none !important; }
         body[data-view="mibal"] .mode-loc { display: none !important; }
-        .mode-card { border:1px solid var(--c-line); border-radius:var(--r-card); padding:22px 18px; cursor:pointer; text-align:center; transition:.15s; background:var(--c-surface); }
-        .mode-card:hover { border-color:var(--c-accent-mid); box-shadow:var(--sh-pop); transform:translateY(-2px); }
         /* 위치지정모드 서브탭 (JS 가 .is-on 을 토글) */
         .loc-subtab { min-height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--c-text-2); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
         .loc-subtab:hover { color: var(--c-text); }
@@ -166,15 +163,23 @@
 
     <div class="controls-header">
         <div class="header-left">
-            <h2 id="app-title" title="클릭하면 모드 선택 (미발계산기 / 위치지정모드)" style="margin:0; font-size:20px; font-weight:600; color:var(--c-text);"><span id="app-title-label">중국제작 미발계산기</span> <span class="t-3" style="font-size:13px;">▾</span></h2>
+            <h2 id="app-title" style="margin:0; font-size:20px; font-weight:600; color:var(--c-text);"><span id="app-title-label">중국제작 미발계산기</span></h2>
+            <!-- 모드 전환 세그먼트(js/page-nav.js) — 누르면 setViewMode 경유(js/china-stock-goods.js requestViewMode). 주소 해시 #tab=mibal|location -->
+            <nav class="pn" id="csg-mode-nav" aria-label="모드">
+                <div class="pn-list"><div class="pn-group">
+                    <button type="button" class="pn-item" data-pn-id="mibal">미발계산</button>
+                    <button type="button" class="pn-item" data-pn-id="location">위치지정</button>
+                </div></div>
+            </nav>
             <div class="version-badge">Ver 10.4</div>
             <input type="text" id="search-input" class="search-input" placeholder="상품코드/상품명 검색" style="width: 180px;">
         </div>
         <div class="header-actions">
             <button id="btn-scan-lock" class="d-btn d-btn-risk" title="스캔 잠금: 새로고침·업로드·초기화 등 모든 기능을 잠가 작업자 스캔 중 ScanDB를 보호">스캔잠금</button>
+            <button id="btn-open-scanner" class="d-btn" title="입고 스캐너(scan.html)를 새 창으로 엽니다">스캐너 열기</button>
             <button class="mode-mibal d-btn d-btn-primary" id="btn-mibal-send">미발전송</button>
             <div class="upload-dropdown mode-mibal" style="position: relative; display: inline-block;">
-                <button class="btn-main-upload d-btn" id="btn-toggle-download">파일 다운로드 ▼</button>
+                <button class="btn-main-upload d-btn" id="btn-toggle-download">올리기·받기 ▾</button>
                 <div class="upload-menu" id="download-menu" style="display: none; position: absolute; top: 100%; right: 0; z-index: 10001; width: 240px;">
                     <div class="mode-mibal menu-head">업로드</div>
                     <label class="mode-mibal menu-item" style="display: block;">미발재고로그 업로드<input type="file" id="upload-stock-log" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
@@ -186,12 +191,16 @@
                     <button id="btn-inspection-print" class="mode-mibal menu-item" style="display:block;">검수리스트인쇄</button>
                 </div>
             </div>
-            <div class="upload-dropdown" style="position: relative; display: inline-block;">
-                <button class="btn-main-upload d-btn" id="btn-toggle-menu">환경설정 ▼</button>
-                <div class="upload-menu" id="main-tools-menu" style="display: none; position: absolute; top: 100%; right: 0; z-index: 10001; width: 280px;">
-                    <div class="mode-mibal menu-head">도구</div>
+            <div class="upload-dropdown mode-mibal" style="position: relative; display: inline-block;">
+                <button class="btn-main-upload d-btn" id="btn-toggle-tools">도구 ▾</button>
+                <div class="upload-menu" id="tools-menu" style="display: none; position: absolute; top: 100%; right: 0; z-index: 10001; width: 240px;">
                     <div class="menu-item mode-mibal" id="btn-version-history" title="ScanDB 버전 기록 / 롤백 — 미발재고로그 업로드마다 자동 저장, 문제 시 원하는 시점으로 복원" style="display: block;">버전기록 (롤백)</div>
                     <div class="menu-item mode-mibal" id="btn-mibal-predict" style="display: block;">미발예측</div>
+                </div>
+            </div>
+            <div class="upload-dropdown" style="position: relative; display: inline-block;">
+                <button class="btn-main-upload d-btn" id="btn-toggle-menu">설정 ▾</button>
+                <div class="upload-menu" id="main-tools-menu" style="display: none; position: absolute; top: 100%; right: 0; z-index: 10001; width: 280px;">
                     <div class="mode-mibal menu-head">설정</div>
                     <div class="menu-item mode-mibal" id="btn-open-grace" style="display: block;">본사도착 유예 일수</div>
                     <div class="menu-item mode-mibal" id="btn-open-sheet-settings" style="display: block;">CSV 시트 링크 설정</div>
@@ -267,7 +276,7 @@
     <!-- 당일입고지정 안내 + 다운로드 (당일 서브뷰 전용) -->
     <div id="loc-tools-today" class="loc-today-only" style="gap:10px; align-items:center; flex-wrap:wrap; padding:10px 16px; background:var(--c-surface); border-bottom:1px solid var(--c-line);">
         <button id="btn-loc-download-today" class="d-btn d-btn-primary">옵션추가항목1 다운로드</button>
-        <span class="t-2" style="font-size:12px;">※ 위치 지정은 스캐너([입고앱실행])의 '당일 입고분' 모드로. 아래 목록 맨 위 <b>장미색 줄</b>은 비축창고에 들어갔는데 <b>자리 미지정</b>인 상품입니다. 다 지정한 뒤 <b>[옵션추가항목1 다운로드]</b>로 받으세요.</span>
+        <span class="t-2" style="font-size:12px;">※ 위치 지정은 스캐너(위 [스캐너 열기])의 '당일 입고분' 모드로. 아래 목록 맨 위 <b>장미색 줄</b>은 비축창고에 들어갔는데 <b>자리 미지정</b>인 상품입니다. 다 지정한 뒤 <b>[옵션추가항목1 다운로드]</b>로 받으세요.</span>
     </div>
 
     <div class="list-container">
@@ -426,26 +435,6 @@
         </div>
     </div>
 
-    <!-- [Ver 6.8] 모드 선택 (제목 클릭) -->
-    <div id="mode-select-modal" class="modal-overlay">
-        <div class="modal-content" style="width:440px; max-width:92vw;">
-            <h3 style="margin-top:0; text-align:center;">모드 선택</h3>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:10px;">
-                <div class="mode-card" data-mode="mibal">
-                    <div style="font-weight:600; font-size:15px;">미발계산기</div>
-                    <div class="t-3" style="font-size:12px; margin-top:6px; line-height:1.5;">도착·미발·재고·적재량<br>계산 및 파일 다운로드</div>
-                </div>
-                <div class="mode-card" data-mode="location">
-                    <div style="font-weight:600; font-size:15px;">위치지정모드</div>
-                    <div class="t-3" style="font-size:12px; margin-top:6px; line-height:1.5;">상품별 위치 확인<br>옵션추가항목1 업/다운로드</div>
-                </div>
-            </div>
-            <div style="margin-top:18px; text-align:right;">
-                <button id="btn-mode-close" class="d-btn">닫기</button>
-            </div>
-        </div>
-    </div>
-
     <!-- [Ver 8.11] 모바일 접속 시 입고앱 실행 안내 -->
     <div id="mobile-gate" style="display:none; position:fixed; inset:0; z-index:100000; background:var(--c-bg); color:var(--c-text); flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:24px; box-sizing:border-box;">
         <div style="font-size:21px; font-weight:600; margin-bottom:8px;">입고앱(스캐너)을 실행하시겠습니까?</div>
@@ -569,8 +558,8 @@
     <div id="toast"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- ?v= 는 버전 배지와 함께 올려서 브라우저가 옛 JS 캐시를 쓰지 않게 함 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610161334"></script>
-    <script type="module" src="js/china-stock-goods.js?v=202610161334"></script>
-    <script type="module" src="js/app-shell.js?v=202610161334"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610161426"></script>
+    <script type="module" src="js/china-stock-goods.js?v=202610161426"></script>
+    <script type="module" src="js/app-shell.js?v=202610161426"></script>
 </body>
 </html>
