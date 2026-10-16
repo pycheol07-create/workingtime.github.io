@@ -24,11 +24,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610161053">
-    <link rel="stylesheet" href="css/style.css?v=202610161053">
-    <link rel="stylesheet" href="css/dash-d.css?v=202610161053">
-    <link rel="stylesheet" href="css/history-d.css?v=202610161053">
-    <link rel="stylesheet" href="css/form-d.css?v=202610161053">
+    <link rel="stylesheet" href="css/suit.css?v=202610161144">
+    <link rel="stylesheet" href="css/style.css?v=202610161144">
+    <link rel="stylesheet" href="css/dash-d.css?v=202610161144">
+    <link rel="stylesheet" href="css/history-d.css?v=202610161144">
+    <link rel="stylesheet" href="css/form-d.css?v=202610161144">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -57,12 +57,12 @@
                 <button id="open-my-leave-btn" class="d-nav-item w-full flex items-center gap-3">
                     <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> 내 연차관리
                 </button>
-                <a href="location.html" id="location-link-btn" target="location_window" class="d-nav-item w-full flex items-center gap-3">
+                <a href="location.html" id="location-link-btn" class="d-nav-item w-full flex items-center gap-3">
                     <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span> 로케이션 관리
                 </a>
 
                 <div class="d-nav-cat">관리자 메뉴</div>
-                <a href="admin.html" id="admin-link-btn" target="admin_window" class="d-nav-item w-full flex items-center gap-3" style="display: none;">
+                <a href="admin.html" id="admin-link-btn" class="d-nav-item w-full flex items-center gap-3" style="display: none;">
                     <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 관리자 페이지
                 </a>
                 <button id="end-shift-btn" class="d-nav-item w-full flex items-center gap-3" style="display: none;">
@@ -123,10 +123,10 @@
                 <button id="open-history-btn-mobile" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span> 데이터 관리</button>
 
                 <button id="open-my-leave-btn-mobile" class="d-nav-item flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> 내 연차관리</button>
-                <a href="location.html" id="location-link-btn-mobile" target="location_window" class="d-nav-item flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span> 로케이션 관리</a>
+                <a href="location.html" id="location-link-btn-mobile" class="d-nav-item flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span> 로케이션 관리</a>
 
                 <div class="d-nav-cat">관리자 메뉴</div>
-                <a href="admin.html" id="admin-link-btn-mobile" target="admin_window" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 관리자 페이지</a>
+                <a href="admin.html" id="admin-link-btn-mobile" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 관리자 페이지</a>
                 <button id="end-shift-btn-mobile" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></span> 업무 마감</button>
 
                 <button id="logout-btn-mobile" class="hidden d-nav-item d-nav-logout flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></svg></span> 로그아웃</button>
@@ -497,13 +497,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202610161053');
+                await import('./js/app.js?v=202610161144');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202610161053').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202610161144').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -585,11 +585,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202610161053';
-        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610161053';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202610161053';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610161053';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610161053';
+        import { appState } from './js/state.js?v=202610161144';
+        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610161144';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202610161144';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610161144';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610161144';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -758,10 +758,10 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202610161053"></script>
-    <script src="js/modal-esc.js?v=202610161053"></script>
+    <script src="js/connection-banner.js?v=202610161144"></script>
+    <script src="js/modal-esc.js?v=202610161144"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202610161053"></script>
-    <script src="js/app-version.js?v=202610161053"></script>
+    <script type="module" src="js/app-shell.js?v=202610161144"></script>
+    <script src="js/app-version.js?v=202610161144"></script>
 </body>
 </html>

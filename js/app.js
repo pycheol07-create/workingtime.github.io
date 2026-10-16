@@ -1,25 +1,30 @@
 // === js/app.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610161053';
-import { displayCurrentDate, showToast } from './utils.js?v=202610161053';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610161053';
-import { initializeAppListeners } from './app-listeners.js?v=202610161053';
-import * as DOM from './dom-elements.js?v=202610161053';
-import * as State from './state.js?v=202610161053';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610161053';
-import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=202610161053';
+import { waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610161144';
+import { displayCurrentDate, showToast } from './utils.js?v=202610161144';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610161144';
+import { initializeAppListeners } from './app-listeners.js?v=202610161144';
+import * as DOM from './dom-elements.js?v=202610161144';
+import * as State from './state.js?v=202610161144';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610161144';
+import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=202610161144';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610161053';
-import { setupNotificationListeners } from './app-notifications.js?v=202610161053';
-import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610161053';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=202610161053';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=202610161053';
-import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610161053';
-import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610161053';
-import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610161053';
-import { setShellContext, clearShellMenuCache } from './app-shell-bridge.js?v=202610161053';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610161144';
+import { setupNotificationListeners } from './app-notifications.js?v=202610161144';
+import { setupFirebaseListeners, unsubscribeNotifications, whenTodayLoaded } from './app-sync.js?v=202610161144';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=202610161144';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=202610161144';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610161144';
+import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610161144';
+import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610161144';
+import { setShellContext, clearShellMenuCache, onBeforeLeaveSave } from './app-shell-bridge.js?v=202610161144';
+import { parseOpenHash } from './app-shell-data.js?v=202610161144';
+
+// 이 모듈은 대시보드(index)와 데이터 관리(history.html)가 함께 쓴다. 대시보드에서만 할 일은 이것으로 가른다.
+const IS_DASHBOARD = !!(document.body && document.body.dataset.shell === 'index');
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
@@ -119,8 +124,9 @@ async function startAppAfterLogin(user) {
         applyDynamicSidebar(State.appConfig);
 
         // 공통 상단바(js/app-shell.js)에 로그인 상태·메뉴 설정을 넘긴다 — 다른 화면 메뉴는 여기서 채운 캐시를 쓴다.
+        // memberName 은 셸 개인 알림 구독용(데이터 관리 화면) — 셸은 이름을 메모리에만 두고 캐시에 넣지 않는다.
         setShellContext({
-            signedIn: true, uid: user.uid, email: userEmail, role: currentUserRole,
+            signedIn: true, uid: user.uid, email: userEmail, role: currentUserRole, memberName: currentUserName,
             menuConfig: { dashboardMenu: State.appConfig.dashboardMenu, memberMenuAccess: State.appConfig.memberMenuAccess }
         });
 
@@ -165,7 +171,63 @@ async function startAppAfterLogin(user) {
     subscribeNotices();
 }
 
+// ── 다른 화면에서 대시보드의 창을 열어 달라는 주소(#open=quantity|leave|noti) — UI 1단계 1b ──
+// 공통 상단바 메뉴('오늘 처리량 입력'·'내 연차관리')와 알림 종이 index.html#open=… 으로 온다.
+// 기존 버튼을 눌러 여는 것과 같은 길로 연다 — 메뉴 권한으로 사이드바에서 빠진 버튼(연결이 끊긴 버튼)이면 열지 않는다.
+// 봇(업무마감봇·업무예상알림)은 해시 없이 열기 때문에 여기 걸리지 않는다.
+async function handleOpenHash() {
+    if (!IS_DASHBOARD) return;
+    const what = parseOpenHash(location.hash);
+    if (!what) return;
+    // 해시는 먼저 지운다 — 새로고침·뒤로가기로 같은 창이 또 열리지 않게
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) { /* 무시 */ }
+    if (!State.appState.currentUser) return;
+    const pick = (...els) => els.find(el => el && el.isConnected);
+    if (what === 'quantity') {
+        // 오늘 숫자가 들어오기 전에 열면 빈 칸으로 그려져, 그대로 저장하면 다른 사람이 넣은 처리량을 덮는다 — 첫 스냅샷까지 기다린다.
+        const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
+        if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
+        const btn = pick(DOM.openQuantityModalTodayBtn, DOM.openQuantityModalTodayBtnMobile);
+        if (btn) btn.click();
+    } else if (what === 'leave') {
+        const btn = pick(DOM.openMyLeaveBtn, DOM.openMyLeaveBtnMobile);
+        if (btn) btn.click();
+    } else if (what === 'noti') {
+        const modal = document.getElementById('notification-modal');
+        const bell = pick(document.getElementById('notification-bell-btn'), document.getElementById('notification-bell-btn-mobile'));
+        if (modal && modal.classList.contains('hidden') && bell) bell.click();
+    }
+}
+
+// ── 이동 전 저장 — UI 1단계 1b(같은 탭 이동) ──
+// 메뉴로 다른 화면에 가면 이 탭이 닫히는 것과 같다. 1분 자동저장을 기다리지 않고 바뀐 것(dirty)만 바로 쓰고,
+// 아직 서버에 안 간 쓰기(처리량 저장 등 — 오프라인·느린 네트워크)가 다 갈 때까지 기다린다(waitForPendingWrites).
+// 공통 상단바가 이동 전에 기다려 주고(최대 3초 — 넘기면 상단바가 동기 confirm 으로 묻는다), 탭을 숨기거나 닫을 때도 한 번 더 시도한다.
+let leaveSaving = null;
+const saveBeforeLeave = () => {
+    if (!leaveSaving) {
+        leaveSaving = (async () => {
+            if (State.isDataDirty) {
+                try { await autoSaveProgress(); } catch (e) { console.warn('이동 전 저장 실패:', e && e.code); }
+            }
+            if (State.db) await waitForPendingWrites(State.db);
+        })()
+            .catch(e => console.warn('이동 전 저장 확인 실패:', e && e.code))
+            .finally(() => { leaveSaving = null; });
+    }
+    return leaveSaving;
+};
+
 async function main() {
+    onBeforeLeaveSave(saveBeforeLeave);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveBeforeLeave(); });
+    window.addEventListener('pagehide', () => { saveBeforeLeave(); });
+    if (IS_DASHBOARD) {
+        // 뒤로가기로 돌아온 대시보드가 멈춰 있던 화면(bfcache)이면 실시간 구독 상태를 믿을 수 없다 — 새로 연다.
+        window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+        // 대시보드에 있는 채로 #open= 주소가 바뀌어도 연다
+        window.addEventListener('hashchange', () => { handleOpenHash(); });
+    }
     if (DOM.loadingSpinner) DOM.loadingSpinner.style.display = 'block'; 
 
     try {
@@ -183,6 +245,7 @@ async function main() {
         if (user) {
             if (DOM.loginModal) DOM.loginModal.classList.add('hidden');
             await startAppAfterLogin(user);
+            handleOpenHash();
         } else {
             // 로그아웃 초기화
             if (State.unsubscribeToday) State.unsubscribeToday();

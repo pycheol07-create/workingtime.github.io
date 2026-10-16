@@ -3,9 +3,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202610161053';
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610161053';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161053';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202610161144';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610161144';
+import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610161144';
+import { memberNameFor } from './app-shell-data.js?v=202610161144';
 
 let app, db, auth, storage;
 let appConfig = {};
@@ -17,6 +18,20 @@ let currentZoom = window.matchMedia('(max-width: 768px)').matches ? 100 : 80;
 
 let currentUserName = '';
 let isAdmin = false;
+
+// 저장 안 한 편집 경고(UI 1b, 2026-10-16) — 편집 영역(Quill)이 열려 있으면 '편집 중'으로 본다.
+// 저장·취소하면 편집 영역이 닫히므로 따로 내릴 것이 없다.
+const isEditingManual = () => {
+    const area = document.getElementById('manual-edit-area');
+    return !!(area && !area.classList.contains('hidden'));
+};
+window.addEventListener('beforeunload', (e) => {
+    if (!isEditingManual() || leaveAlreadyConfirmed()) return;
+    e.preventDefault();
+    e.returnValue = '';
+});
+// 공통 상단바 메뉴·홈('홈으로' 버튼 포함) — 동기 confirm 만
+onBeforeLeave(() => !isEditingManual() || confirm('작성 중인 매뉴얼이 저장되지 않았습니다.\n저장하지 않고 이 화면을 떠날까요?'));
 
 // ✨ 대분류 Header2(h2), 단계 Header3(h3), 구분선(hr)이 적용된 템플릿
 const MANUAL_TEMPLATE = `
@@ -180,7 +195,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             isAdmin = (appConfig.memberRoles && appConfig.memberRoles[userEmailLower] === 'admin');
             // 공통 상단바 — role 은 memberRoles 에 있을 때만(설정을 못 읽어 기본값이면 셸이 캐시 메뉴를 쓴다)
             const shellRole = appConfig.memberRoles ? appConfig.memberRoles[userEmailLower] : undefined;
+            // memberName 은 셸 개인 알림 구독용 — 메모리에만(캐시·로그에 남기지 않는다)
             setShellContext({ signedIn: true, uid: user.uid, email: userEmailLower, role: shellRole,
+                memberName: memberNameFor(appConfig.memberEmails, userEmailLower) || undefined,
                 menuConfig: shellRole ? { dashboardMenu: appConfig.dashboardMenu, memberMenuAccess: appConfig.memberMenuAccess } : undefined });
 
             const emails = appConfig.memberEmails || {};

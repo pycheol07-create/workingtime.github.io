@@ -1,15 +1,15 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202610161053';
-import { isPersistentLeaveType } from './state.js?v=202610161053';
-import * as DOM from './dom-elements.js?v=202610161053';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610161053';
+import * as State from './state.js?v=202610161144';
+import { isPersistentLeaveType } from './state.js?v=202610161144';
+import * as DOM from './dom-elements.js?v=202610161144';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610161144';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610161053';
-import { renderTodoList } from './inspection-logic.js?v=202610161053';
-import { renderNotificationList } from './app-notifications.js?v=202610161053';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161053';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610161053';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610161144';
+import { renderTodoList } from './inspection-logic.js?v=202610161144';
+import { renderNotificationList } from './app-notifications.js?v=202610161144';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161144';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610161144';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -18,6 +18,13 @@ export let unsubscribeNotifications = null;
 
 // ✨ 핵심 방어막: 초기화 잠금 변수
 let isListenersInitialized = false;
+
+// 오늘 문서·업무기록 첫 스냅샷이 들어왔는지 — 대시보드 #open=quantity(js/app.js)가
+// 숫자를 받기 전에 처리량 창을 열어 빈 값으로 저장하는 일이 없게 기다리는 데 쓴다.
+let todayDocLoaded = false, workRecordsLoaded = false;
+const todayLoadedWaiters = [];
+const flushTodayLoaded = () => { if (todayDocLoaded && workRecordsLoaded) todayLoadedWaiters.splice(0).forEach(r => r()); };
+export const whenTodayLoaded = () => new Promise(r => { todayLoadedWaiters.push(r); flushTodayLoaded(); });
 
 /** 오늘 날짜에 걸리는 '기간형 근태'만 추려 둔다(대시보드 인원 계산이 이 값을 쓴다). */
 function recomputeDateBasedLeaves() {
@@ -112,6 +119,7 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         State.setIsDataDirty(false); 
         renderCallback();
         renderTodoList();
+        todayDocLoaded = true; flushTodayLoaded();
         
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '실시간 연결';
         if (DOM.statusDotEl) DOM.statusDotEl.className = 'd-live-dot';   // 색은 css/dash-d.css
@@ -134,9 +142,13 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
 
         renderCallback();
         if (DOM.connectionStatusEl) DOM.connectionStatusEl.textContent = '실시간 연결';
+        workRecordsLoaded = true; flushTodayLoaded();
     });
 
-    if (State.appState.currentUser) {
+    // 🔔 개인 알림은 알림창(#notification-modal)이 있는 대시보드에서만 여기서 구독한다.
+    //    데이터 관리(history.html)는 공통 상단바(js/app-shell.js → app-shell-noti.js)가 같은 조건으로 구독한다
+    //    — 두 곳에서 구독하면 읽기·토스트가 두 번씩 생긴다(UI 1단계 P2).
+    if (State.appState.currentUser && document.getElementById('notification-modal')) {
         const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
         const d = new Date();
         

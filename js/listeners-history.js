@@ -1,22 +1,23 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202610161053';
-import * as State from './state.js?v=202610161053';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610161053';
+import * as DOM from './dom-elements.js?v=202610161144';
+import * as State from './state.js?v=202610161144';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610161144';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610161053';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610161053';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610161053';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610161053';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610161144';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610161144';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610161144';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610161144';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610161053';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610161053';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610161053';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610161053';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610161144';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610161144';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610161144';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610161144';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610161053';
-import { saveView } from './view-state.js?v=202610161053';
-import { placeOpenDropdown } from './table-filter.js?v=202610161053';
+import { setupGlobalFilterListeners, setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610161144';
+import { saveView } from './view-state.js?v=202610161144';
+import { goTo } from './app-shell-bridge.js?v=202610161144';
+import { placeOpenDropdown } from './table-filter.js?v=202610161144';
 
 let isHistoryMaximized = false;
 
@@ -159,11 +160,11 @@ export function setupHistoryModalListeners() {
             return;
         }
 
-        if (window.innerWidth >= 768) {
-            if (e) e.preventDefault();
-            window.open('history.html', '_blank');
-            return;
-        }
+        // 1b(2026-10-16): 화면 폭과 상관없이 같은 탭에서 데이터 관리 화면으로 간다(이동 전 저장은 공통 상단바가 기다린다).
+        // 아래 모바일 history-modal 코드는 지금은 타지 않는다 — 삭제는 UI 2단계에서.
+        if (e) e.preventDefault();
+        goTo('history.html');
+        return;
 
         if (DOM.historyModal) {
             DOM.historyModal.classList.remove('hidden');

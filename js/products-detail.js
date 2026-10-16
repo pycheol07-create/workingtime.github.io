@@ -6,14 +6,15 @@
 // 메모: 전원 편집. 열 때 본 at 과 지금 at 이 다르면 충돌 확인창. 직전 5개 보관(되돌리기).
 // 기본정보 편집: 관리자만(D5). 같은 트랜잭션 헬퍼(버킷 + META rev + 이력, ver 비교).
 import { doc, getDoc, getDocs, collection, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202610161053';
-import { esc, toast, setHead, isLocOld } from './products.js?v=202610161053';
-import { statusPill } from './products-list.js?v=202610161053';
-import { renderCostCard, renderCostHistory } from './products-cost.js?v=202610161053';
-import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202610161053';
-import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610161053';
-import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202610161053';
-import { parseNum } from './lib/product-price.js?v=202610161053';
+import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202610161144';
+import { esc, toast, setHead, isLocOld } from './products.js?v=202610161144';
+import { statusPill } from './products-list.js?v=202610161144';
+import { renderCostCard, renderCostHistory } from './products-cost.js?v=202610161144';
+import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202610161144';
+import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610161144';
+import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202610161144';
+import { parseNum } from './lib/product-price.js?v=202610161144';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610161144';   // 열기 방식(같은 탭/이름 붙은 창)은 한 곳에서
 
 const LOCATION_URL = 'location.html';
 
@@ -208,10 +209,12 @@ function renderMemo(el, pid) {
 }
 
 // ── 위치·재고 (채우기 요약) ──────────────────────────────────
+// 같은 탭 모드(1b)면 target 없이, 되돌리면 사이드바와 같은 이름 붙은 창
+const locTarget = () => { const t = sidebarLinkTarget(LOCATION_URL); return t ? ` target="${t}"` : ''; };
 function renderLoc(el, p) {
     const at = S.locMeta && S.locMeta.at ? tsMs(S.locMeta.at) : 0;
     const head = `<div class="pd-row"><h2 class="pd-h2 pd-grow">위치 · 재고</h2>${at && isLocOld() ? '<span class="pd-pill warn">오래됨</span>' : ''}</div>`;
-    const link = `<a class="d-btn pd-btn-lg" style="display:block; margin-top:16px; text-decoration:none" href="${LOCATION_URL}" target="location_window">로케이션관리에서 보기</a>`;
+    const link = `<a class="d-btn pd-btn-lg" style="display:block; margin-top:16px; text-decoration:none" href="${LOCATION_URL}"${locTarget()}>로케이션관리에서 보기</a>`;
     if (!S.loc) {
         el.innerHTML = head + `<div class="pd-note" style="margin-top:12px">위치 요약이 아직 없습니다. 실시간 위치는 로케이션관리에서 확인하세요.</div>` + link;
         return;

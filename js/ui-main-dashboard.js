@@ -1,10 +1,10 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610161053';
-import * as State from './state.js?v=202610161053';
-import { getRegularMembersForCount } from './utils.js?v=202610161053';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610161053';
-import { windowTargetFor } from './app-shell-data.js?v=202610161053';   // 창 이름 규칙(공통 상단바와 같은 표)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610161053';
+import { getAllDashboardDefinitions } from './ui.js?v=202610161144';
+import * as State from './state.js?v=202610161144';
+import { getRegularMembersForCount } from './utils.js?v=202610161144';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610161144';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610161144';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610161144';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -594,11 +594,12 @@ const EXTERNAL_LINK_META = [
 // 관리자 페이지의 '권한 관리'도 같은 목록을 봐야 해서(신규 메뉴의 권한을 못 고르던 문제)
 // 양쪽에서 쓰는 공용 모듈로 뺐다.
 
-// 창 이름(target)은 js/app-shell-data.js LINK_WINDOW_TARGETS 한 곳에서 정한다(공통 상단바 메뉴와 같게).
+// 창 이름(target)은 js/app-shell-data.js 한 곳에서 정한다(공통 상단바 메뉴와 같게).
+// 1b(2026-10-16): SHELL_OPEN_MODE 가 'same-tab' 이면 '' — 같은 탭에서 연다.
 const resolveLinkMeta = (link) => {
     if (!link) return null;
     const m = EXTERNAL_LINK_META.find(x => link.includes(x.match));
-    return m ? { ...m, target: windowTargetFor(link) } : null;
+    return m ? { ...m, target: sidebarLinkTarget(link) } : null;
 };
 
 // 사이드바 동적 필터링 및 재배치 (매뉴얼/대시보드 등 별도 창 열기 포함)

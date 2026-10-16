@@ -3,17 +3,27 @@
 
 // 대시보드 사이드바의 '동작' 메뉴(버튼이라 링크가 '#')를 다른 화면에서 누를 때 갈 곳.
 // '업무 마감' 은 넣지 않는다 — 대시보드에서만 한다(menu-catalog.js SHELL_EXCLUDED_ACTIONS).
-// TODO(1b): '오늘 처리량 입력'(index.html#open=quantity)·'내 연차관리'(index.html#open=leave) 는
-//           index 가 #open= 을 읽게 된 뒤 여기에 넣는다. 그 전에는 눌러도 창이 안 떠서 셸 메뉴에서 뺀다.
+// '오늘 처리량 입력'·'내 연차관리' 는 대시보드가 주소 뒤 #open= 을 읽어 그 창을 연다(js/app.js handleOpenHash, 1b).
 export const ACTION_LINKS = {
     '대시보드': 'index.html',
+    '오늘 처리량 입력': 'index.html#open=quantity',
+    '내 연차관리': 'index.html#open=leave',
     '데이터 관리': 'history.html'
+};
+
+// 대시보드가 주소 뒤에서 읽는 #open= 값 → 여는 창. 이 목록에 없는 값은 무시한다.
+export const OPEN_TARGETS = ['quantity', 'leave', 'noti'];
+/** '#open=quantity' → 'quantity'. 형식이 다르거나 목록에 없으면 null. */
+export const parseOpenHash = (hash) => {
+    const m = /^#open=([a-z]+)$/.exec(String(hash || ''));
+    return m && OPEN_TARGETS.includes(m[1]) ? m[1] : null;
 };
 
 // ── 메뉴를 어떻게 여는가 — 한 곳에서 정한다 ──
 // 'named-window' : 대시보드 사이드바와 같다(1a, 열기 방식은 그대로). 페이지마다 이름 붙은 창/새 탭.
-// 'same-tab'     : 1b 에서 같은 탭 이동으로 바꿀 때 이 값만 바꾼다.
-export const SHELL_OPEN_MODE = 'named-window';
+// 'same-tab'     : 같은 탭에서 이동한다(1b, 2026-10-16~). 셸 메뉴·대시보드 사이드바 모두.
+//                  되돌릴 때는 이 값만 'named-window' 로 바꾼다.
+export const SHELL_OPEN_MODE = 'same-tab';
 
 // 링크별 창 이름 — js/ui-main-dashboard.js 사이드바(EXTERNAL_LINK_META)도 이 표를 쓴다. 순서대로 첫 일치.
 export const LINK_WINDOW_TARGETS = [
@@ -42,6 +52,23 @@ export const shellLinkTarget = (rel, mode = SHELL_OPEN_MODE) => {
     if (mode === 'same-tab' || !rel) return null;
     const file = String(rel).split('#')[0].split('?')[0];
     return windowTargetFor(rel) || SHELL_EXTRA_TARGETS[file] || null;
+};
+
+/** 대시보드 사이드바 링크의 target 값 — 'same-tab' 이면 ''(같은 탭), 아니면 이름 붙은 창(없으면 ''). */
+export const sidebarLinkTarget = (link, mode = SHELL_OPEN_MODE) => {
+    if (mode === 'same-tab') return '';
+    return windowTargetFor(link) || '';
+};
+
+/** 로그인 이메일 → 직원 이름(mainConfig.memberEmails 역매핑, 대소문자 무시). 없으면 null.
+ *  공통 상단바 개인 알림 구독에만 쓴다 — 저장·출력하지 않는다. */
+export const memberNameFor = (memberEmails, email) => {
+    const e = String(email || '').trim().toLowerCase();
+    if (!e || !memberEmails || typeof memberEmails !== 'object') return null;
+    for (const [name, v] of Object.entries(memberEmails)) {
+        if (name && typeof v === 'string' && v.trim().toLowerCase() === e) return name;
+    }
+    return null;
 };
 
 // <body data-shell="..."> 값 → 파일과 기본 화면 이름(메뉴에서 못 찾을 때 쓴다).

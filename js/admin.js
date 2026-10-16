@@ -1,7 +1,8 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610161053';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161053';
-import { setShellContext } from './app-shell-bridge.js?v=202610161053';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610161144';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161144';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610161144';
+import { memberNameFor } from './app-shell-data.js?v=202610161144';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -18,12 +19,12 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610161053';
+} from './admin-ui.js?v=202610161144';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202610161053';
+} from './admin-logic.js?v=202610161144';
 
 let db, auth;
 let appConfig = {};
@@ -35,8 +36,46 @@ let draggedItem = null;
 let currentModalTarget = null;
 let taskJustAdded = null;
 
+// 저장 안 한 변경 경고(UI 1b, 2026-10-16) — #admin-content 의 입력·선택이 바뀌면 서고, '전체 저장' 성공 때 내린다.
+// '채우기 설정'은 전체 저장 대상이 아니라(자기 [저장] 버튼) 세지 않는다. 모바일 탭 선택 상자도 화면 전환일 뿐이다.
+// 행 추가·삭제·끌어 옮기기처럼 입력 이벤트가 없는 변경은 잡지 못한다(입력·선택 변경만).
+// 버튼(행 추가·삭제 등)·끌어 옮기기, #admin-content 밖 선택 모달(업무·위젯 항목 추가)의 고르기·확인도 변경으로 본다.
+let adminDirty = false;
+const ADMIN_DIRTY_SKIP = '#section-refill, #mobile-tab-select';
+const ADMIN_BTN_SKIP = '#save-all-btn, .admin-tab-btn, #mobile-tab-select, #section-refill';
+const ADMIN_MODAL_PICK = '.task-select-list-btn, .dashboard-item-select-btn, #confirm-add-to-quantity-btn';
+const markAdminDirty = (e) => {
+    const t = e && e.target;
+    if (t && t.closest && t.closest(ADMIN_DIRTY_SKIP)) return;
+    adminDirty = true;
+};
+const markAdminDirtyByClick = (e) => {
+    const t = e && e.target;
+    if (!t || !t.closest) return;
+    const pick = t.closest(ADMIN_MODAL_PICK);
+    if (pick) { if (!pick.disabled) adminDirty = true; return; }
+    const btn = t.closest('button');
+    const content = document.getElementById('admin-content');
+    if (btn && content && content.contains(btn) && !btn.closest(ADMIN_BTN_SKIP)) adminDirty = true;
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     const adminContent = document.getElementById('admin-content');
+    if (adminContent) {
+        adminContent.addEventListener('input', markAdminDirty);
+        adminContent.addEventListener('change', markAdminDirty);
+        adminContent.addEventListener('drop', markAdminDirty);
+        adminContent.addEventListener('dragend', markAdminDirty);
+    }
+    document.addEventListener('click', markAdminDirtyByClick);   // 모달은 #admin-content 밖이라 문서에서 본다
+    // 새로고침·탭 닫기·주소 이동 때 브라우저 경고. 공통 상단바에서 이미 물었으면(확인 누름) 다시 묻지 않는다.
+    window.addEventListener('beforeunload', (e) => {
+        if (!adminDirty || leaveAlreadyConfirmed()) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
+    // 공통 상단바 메뉴·홈 — 동기 confirm 만(봇이 읽는 페이지 모달을 쓰지 않는다)
+    onBeforeLeave(() => !adminDirty || confirm('저장하지 않은 변경이 있습니다.\n저장하지 않고 이 화면을 떠날까요?'));
 
     try {
         const firebase = initializeFirebase();
@@ -60,7 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const memberRoles = appConfig.memberRoles || {};
                 const currentUserRole = memberRoles[userEmailLower] || 'user';
                 // 공통 상단바 — role 은 memberRoles 에 있을 때만(설정을 못 읽어 기본값이면 메뉴 캐시를 덮지 않게)
+                // memberName 은 셸 개인 알림 구독용 — 메모리에만(캐시·로그에 남기지 않는다)
                 setShellContext({ signedIn: true, uid: user.uid, email: userEmailLower, role: memberRoles[userEmailLower],
+                    memberName: memberNameFor(appConfig.memberEmails, userEmailLower) || undefined,
                     menuConfig: { dashboardMenu: appConfig.dashboardMenu, memberMenuAccess: appConfig.memberMenuAccess } });
 
                 if (currentUserRole === 'admin') {
@@ -307,6 +348,7 @@ async function handleSaveAll() {
         }
 
         appConfig = newConfig;
+        adminDirty = false;   // 저장 안 한 변경 경고 해제
         // 퇴사자는 저장할 때 접근이 전부 해제된다. 말없이 지우면 관리자가 눈치채지 못하므로 알린다.
         const resignedCount = Object.keys(newConfig.resignedMembers || {}).length;
         alert('✅ 모든 변경사항이 성공적으로 저장되었습니다!'
