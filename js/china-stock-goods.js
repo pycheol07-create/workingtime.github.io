@@ -1,11 +1,11 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610161029'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610161053'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610161029';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610161029';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610161053';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610161053';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -238,13 +238,14 @@ function applyAdminUI() {
     setAdminNote('sheet-settings-modal', 'csv-admin-note');
     setAdminNote('mibal-formula-modal', 'mibal-admin-note');
 }
-// '미발 초기화'만 관리자 전용 — '위치 초기화'(위치지정모드)는 직원도 쓴다. 모드 전환 때도 다시 부른다.
-//   viewMode 는 아래쪽 let 이라 모듈 첫 실행 때는 못 읽는다 → 화면 표시값·저장값으로 본다.
+// 초기화 버튼(미발 초기화·위치 초기화)은 직원도 쓴다(2026-10-16 사용자 결정 — 10-14 의 관리자 전용을 되돌림).
+//   함수와 호출부는 남겨 두어 나중에 다시 막을 때 한 곳만 고치면 되게 한다.
 function refreshClearBtnAccess(mode) {
     const clr = document.getElementById('btn-date-clear');
     if (!clr) return;
     const m = mode || (document.body && document.body.dataset.view) || localStorage.getItem('csgViewMode') || 'mibal';
-    const off = (m !== 'location') && !isAdminUser;
+    const off = false; // 모드(m)와 상관없이 모두에게 보인다
+    void m;
     clr.style.display = off ? 'none' : '';
     clr.disabled = off;
 }
@@ -1253,8 +1254,8 @@ async function saveSheetSettings() {
 }
 
 /** 저장 실패 사유를 사람이 읽을 수 있게. 권한 오류가 가장 흔하다(규칙 미게시·로그아웃).
- *  ctx: 'admin' = 관리자 전용 저장(공식·변수·CSV·초기화) → '관리자만 변경 가능'
- *       'dates' = 직원도 쓰는 출고일 저장 → 관리자 문구 대신 로그인 확인 안내 */
+ *  ctx: 'admin' = 관리자 전용 저장(공식·변수·CSV) → '관리자만 변경 가능'
+ *       'dates' = 직원도 쓰는 저장(출고일·미발 초기화) → 관리자 문구 대신 로그인 확인 안내 */
 function saveErrorMessage(e, ctx = 'admin') {
     const code = (e && e.code) || '';
     if (code === 'permission-denied')
@@ -1879,10 +1880,17 @@ async function handleExistingLocUpload(e) {
         const now = Date.now();
         const byShard = {};
         // [Ver 8.91] 양방향: 스캔이 먼저 온 경우(이미 찍힌 새 자리)를 보존하고 시드 base에 병합 (업로드↔스캔 순서 무관)
-        let mergedCnt = 0;
+        let mergedCnt = 0, keptToday = 0;
         entries.forEach(([code, seedLoc]) => {
             const sid = locShardId(code);
             const prev = locationAssignMap[code];
+            // (2026-10-16) 오늘 '당일 입고분'으로 찍어 자리를 정한 상품은 sub·location 을 그대로 둔다 — 덮으면 기존재고지정으로 넘어가던 버그.
+            //   기존 자리(시드)는 base 에만 넣어 둔다(나중에 기존재고 모드로 찍어도 base 가 비지 않게). 지난 날짜의 'today' 지정은 예전처럼 덮는다.
+            if (prev && (prev.sub || '') === 'today' && prev.location && prev.at && new Date(prev.at).toDateString() === new Date().toDateString()) {
+                keptToday++;
+                (byShard[sid] = byShard[sid] || {})[code] = { ...prev, base: seedLoc };
+                return;
+            }
             let newSpots = '';
             if (prev && prev.location) { const b = new Set(locPartsArr(prev.base || '')); newSpots = locPartsArr(prev.location).filter(p => !b.has(p)).join(','); }
             const scanned = !!newSpots; if (scanned) mergedCnt++;
@@ -1891,7 +1899,7 @@ async function handleExistingLocUpload(e) {
         });
         for (const sid in byShard) await setDoc(doc(db, CHINA_COLLECTION, sid), { map: byShard[sid], updatedAt: new Date() }, { merge: true });
         hideLoading();
-        showToast(`✅ 기존재고 위치값 세팅 완료 (${entries.length}건${mergedCnt ? ` · 먼저 찍힌 ${mergedCnt}건 병합` : ''}) — 순서 무관: 스캔이 먼저여도 업로드 시 조립됩니다`);
+        showToast(`✅ 기존재고 위치값 세팅 완료 (${entries.length - keptToday}건${mergedCnt ? ` · 먼저 찍힌 ${mergedCnt}건 병합` : ''}${keptToday ? ` · 당일입고 지정 ${keptToday}건은 그대로 둠` : ''}) — 순서 무관: 스캔이 먼저여도 업로드 시 조립됩니다`);
     } catch (err) { hideLoading(); alert('기존재고 위치값 처리 실패: ' + err.message); }
     e.target.value = '';
 }
@@ -2145,7 +2153,7 @@ async function deleteAllDocs(collName) {
 // [Ver 7.4] 전체 초기화 — 현재 모드의 데이터만 초기화 (미발 ↔ 위치 서로 영향 없음)
 async function clearAllData() {
     if (viewMode === 'location') { await clearLocationData(); return; } // 위치 초기화는 직원도 가능
-    if (adminOnlyBlocked()) return; // 보안(2026-10-14): 미발 초기화(수동편집·미발재고로그·입고이력)는 관리자만
+    // (2026-10-16) 미발 초기화도 직원 사용 — 관리자 검사 제거. 옛 주석: 보안(2026-10-14): 미발 초기화(수동편집·미발재고로그·입고이력)는 관리자만
     if (!confirm("미발계산기 데이터를 초기화할까요?\n(수동편집·미발재고로그·앱 입고이력·비축창고 누적 삭제 / 위치 데이터는 유지)")) return;
     showLoading('🗑️ 미발계산기 초기화 중...');
     try {
@@ -2175,7 +2183,7 @@ async function clearAllData() {
         showToast('✅ 미발계산기 초기화 완료 (비축창고 포함 · 위치 데이터는 유지)');
     } catch (e) {
         hideLoading();
-        alert(isPermissionDenied(e) ? saveErrorMessage(e, 'admin') : '초기화 실패: ' + e.message); // 미발 초기화 = 관리자 전용
+        alert(isPermissionDenied(e) ? saveErrorMessage(e, 'dates') : '초기화 실패: ' + e.message); // 미발 초기화 = 직원도 사용(2026-10-16)
     }
 }
 // [Ver 7.4] 위치 데이터만 초기화 (당일·기존재고 위치 지정 전체 / 미발 데이터는 유지)
@@ -2467,7 +2475,7 @@ function applyViewMode() {
     if (title) title.style.color = viewMode === 'location' ? 'var(--c-accent-deep)' : 'var(--c-text)';
     const clr = document.getElementById('btn-date-clear'); // [Ver 7.4] 모드별 초기화 라벨
     if (clr) clr.textContent = viewMode === 'location' ? '위치 초기화' : '미발 초기화';
-    refreshClearBtnAccess(viewMode); // 미발 모드에서만 관리자 전용
+    refreshClearBtnAccess(viewMode); // 지금은 모두에게 보임(2026-10-16) — 다시 막을 때 이 함수만 고침
     if (viewMode === 'location') { ensureLocationHistory(); ensureFloor2(); applyLocSub(); } else renderTable();
 }
 function applyLocSub() {

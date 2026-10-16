@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610161029">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610161029">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610161029">
+    <link rel="stylesheet" href="css/suit.css?v=202610161053">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610161053">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161053">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -29,11 +29,15 @@
 
         .loc-banner { padding: 12px 15px; font-size: 17px; font-weight: 800; background: var(--c-warn-soft); color: var(--c-warn-text); display: none; }
         .loc-banner.fixed { background: var(--c-ok-soft); color: var(--c-ok-text); }
+        /* (2026-10-16) 기존재고 모드는 헷갈리지 않게 배너·버튼을 다른 색으로 — 당일 입고분을 기존재고로 찍는 실수 방지 */
+        .loc-banner.existing { background: #A0525C; color: #fff; }
+        .qtag-ex { display: inline-block; padding: 0 6px; border-radius: 4px; background: #A0525C; color: #fff; font-weight: 800; font-size: 11px; margin-right: 4px; }
 
         /* [Ver 4.1] 위치 모드 세부 작업 선택 (당일 입고분 / 기존재고) */
         .loc-submode { display: none; gap: 6px; padding: 8px 10px 0; background: var(--c-bg); }
         .loc-submode button { flex: 1; padding: 10px 0; border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); background: var(--c-surface); color: var(--c-text-2); font-size: 14px; font-weight: 700; cursor: pointer; }
         .loc-submode button.active { border-color: #3D756F; background: #3D756F; color: #fff; }
+        .loc-submode button[data-sub="existing"].active { border-color: #A0525C; background: #A0525C; }
 
         /* [Ver 3.9] 탭-투-포커스 표시 링 + 수동 촬영 버튼 */
         .focus-ring { position: fixed; width: 74px; height: 74px; margin: -37px 0 0 -37px; border: 3px solid #fff; border-radius: 10px; z-index: 9; pointer-events: none; box-shadow: 0 0 8px rgba(0,0,0,0.5); animation: focuspulse 0.7s ease-out forwards; }
@@ -184,13 +188,13 @@
     <div id="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610161029"></script>
+    <script src="js/location-map.js?v=202610161053"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610161029'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202610161029';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610161053'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202610161053';   // 공통 상단바(uid 만 — 메뉴는 캐시)
 
         const SCAN_VERSION = '10.4'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -341,7 +345,9 @@
 
         // ---------------- 상태 ----------------
         let mode = localStorage.getItem('scanMode') || 'in';
-        let locSubMode = localStorage.getItem('scanLocSub') || 'today'; // [Ver 4.1] 'today'(당일입고분) | 'existing'(기존재고)
+        // [Ver 4.1] 'today'(당일입고분) | 'existing'(기존재고)
+        // (2026-10-16) 열 때마다 '당일 입고분'으로 시작한다 — 전에 고른 '기존재고'가 남아 당일 입고분이 기존재고로 들어가던 실수 방지
+        let locSubMode = 'today';
         let inboundQueue = JSON.parse(localStorage.getItem('scanInQueue') || '[]');
         let locationQueue = JSON.parse(localStorage.getItem('scanLocQueue') || '[]');
         let fixedLocation = null;
@@ -832,7 +838,7 @@
                 <div class="qitem">
                     <div class="qinfo">
                         <div class="qcode">${it.barcode}</div>
-                        <div class="qsub">${label ? (label === '목록없음' && !it.name ? '<span style="color:var(--c-risk-text);font-weight:800">목록없음</span>' : label) + ' · ' : ''}${it.location} · ${it.time}</div>
+                        <div class="qsub">${mode === 'loc' && it.sub === 'existing' ? '<span class="qtag-ex">기존재고</span>' : ''}${label ? (label === '목록없음' && !it.name ? '<span style="color:var(--c-risk-text);font-weight:800">목록없음</span>' : label) + ' · ' : ''}${it.location} · ${it.time}</div>
                     </div>
                     ${mode === 'in' ? `<div class="qqty">${it.qty}개</div>` : ''}
                     <button class="qdel" data-i="${i}" aria-label="삭제"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block; margin:3.5px 0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
@@ -853,7 +859,8 @@
         function renderLocBanner() {
             const b = $('loc-banner');
             b.style.display = mode === 'loc' ? 'block' : 'none';
-            const subTxt = locSubMode === 'today' ? '당일 입고분' : '기존재고';
+            const subTxt = locSubMode === 'today' ? '당일 입고분' : '⚠ 기존재고 모드';
+            b.classList.toggle('existing', locSubMode === 'existing');
             if (fixedLocation) { b.textContent = `작업 위치: ${fixedLocation}  (${subTxt})`; b.classList.add('fixed'); }
             else { b.textContent = `위치를 먼저 스캔하세요  (${subTxt})`; b.classList.remove('fixed'); }
         }
@@ -991,12 +998,12 @@
         subscribeForceAllow(); // [Ver 8.50] 강제전송 허용목록 실시간 구독
         buildQtySelector();
         $('status-line').textContent = `v${SCAN_VERSION} · 서버: ${serverLabel}`;
-        setLocSubMode(locSubMode); // [Ver 4.1] 저장된 세부 작업 복원
+        setLocSubMode(locSubMode); // [Ver 4.1] 세부 작업 표시 — (2026-10-16) 열 때마다 '당일 입고분'으로 시작
         setMode(mode);
         checkVersion();
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/app-shell.js?v=202610161029"></script>
+    <script type="module" src="js/app-shell.js?v=202610161053"></script>
 </body>
 </html>

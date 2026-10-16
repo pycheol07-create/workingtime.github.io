@@ -1,7 +1,7 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610161029';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610161029';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202610161029';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610161053';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610161053';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202610161053';
 
 export function collectConfigFromDOM(currentConfig) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.

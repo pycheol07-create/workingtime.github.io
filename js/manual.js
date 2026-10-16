@@ -3,9 +3,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202610161029';
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610161029';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161029';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202610161053';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610161053';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161053';
 
 let app, db, auth, storage;
 let appConfig = {};
