@@ -1,6 +1,6 @@
 // [수정됨] 부자재는 원-위안 환율로 직접 변환 후 최종 원가에 합산하도록 분리
 
-const ImportCalculator = ({ exchangeRates, onRateChange }) => {
+const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsReset }) => {
     const formRef = React.useRef(null);
     const { settings } = React.useContext(SettingsContext);
     
@@ -140,20 +140,20 @@ const ImportCalculator = ({ exchangeRates, onRateChange }) => {
                         <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 mb-4">
                             <legend className="sr-only">환율 적용 방식</legend>
                             <label className={`relative flex-1 cursor-pointer py-2 px-2 sm:px-4 text-center text-xs sm:text-sm font-semibold whitespace-nowrap focus-within:ring-2 focus-within:ring-emerald-500 ${exchangeRates.mode === 'fixed' ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                                <input type="radio" name="exchangeRateMode" value="fixed" checked={exchangeRates.mode === 'fixed'} onChange={() => onRateChange('mode', 'fixed')} className="sr-only" />
+                                <input type="radio" name="import-exchangeRateMode" value="fixed" checked={exchangeRates.mode === 'fixed'} onChange={() => onRateChange('mode', 'fixed')} className="sr-only" />
                                 <span>고정환율<span className="hidden sm:inline"> (직접입력)</span></span>
                             </label>
                             <label className={`relative flex-1 cursor-pointer py-2 px-2 sm:px-4 text-center text-xs sm:text-sm font-semibold whitespace-nowrap focus-within:ring-2 focus-within:ring-emerald-500 ${exchangeRates.mode === 'live' ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                                <input type="radio" name="exchangeRateMode" value="live" checked={exchangeRates.mode === 'live'} onChange={() => onRateChange('mode', 'live')} className="sr-only" />
+                                <input type="radio" name="import-exchangeRateMode" value="live" checked={exchangeRates.mode === 'live'} onChange={() => onRateChange('mode', 'live')} className="sr-only" />
                                 <span>실시간환율<span className="hidden sm:inline"> (자동)</span></span>
                             </label>
                         </fieldset>
 
                         <div className="space-y-4">
                             <div>
-                                <InputControl label="관세청 고시환율 (통관비용)" id="imp-rate-customs" name="customs" value={exchangeRates.customs} onChange={(e) => onRateChange('customs', e.target.value)} unit="원/달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} placeholder="고시환율 입력" />
+                                <InputControl label="관세청 고시환율 (통관비용)" id="imp-rate-customs" name="customs" value={exchangeRates.customs} onChange={(e) => onRateChange('customs', e.target.value)} unit="원/달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} placeholder="고시환율 입력" hint={<CustomsFxrtHint info={customsInfo} onReset={onCustomsReset} />} />
                                 <p className="mt-2 text-xs text-gray-500 flex items-center flex-wrap gap-1">
-                                    <span>※ 당일 고시환율을 확인 후 입력하세요. 통관비·창고료 탭과 같은 값입니다.</span>
+                                    <span>{customsInfo && customsInfo.source === 'auto' ? '※ ' : '※ 당일 고시환율을 확인 후 입력하세요. '}통관비·창고료 탭과 같은 값입니다.</span>
                                     <a href="https://unipass.customs.go.kr/csp/index.do" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 underline font-medium">
                                         관세청 UNI-PASS 바로가기 →
                                     </a>
@@ -191,7 +191,7 @@ const ImportCalculator = ({ exchangeRates, onRateChange }) => {
                         </p>
                     </div>
                     <div className="mb-4">
-                        <AppliedRateChip customs={currentRates.customs} usdKrw={currentRates.usdKrw} cnyKrw={currentRates.cnyKrw} state={rateState} />
+                        <AppliedRateChip customs={currentRates.customs} usdKrw={currentRates.usdKrw} cnyKrw={currentRates.cnyKrw} state={rateState} customsSource={customsInfo && customsInfo.source} />
                     </div>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between py-2 border-b border-slate-200">

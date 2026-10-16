@@ -52,16 +52,19 @@ const fmtRateTime = (ms) => {
     const hm = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
     return d.toDateString() === new Date().toDateString() ? hm : `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${hm}`;
 };
-// 접힌 환율 칸의 한 줄 요약 — '적용 환율: 고시 ○ / 송금 ○ (고정|실시간 HH:MM)'
-const rateSummaryText = (customs, usdKrw, st) =>
-    `적용 환율: 고시 ${fmtRate(customs)} / 송금 ${fmtRate(usdKrw)} (${st.liveOk ? `실시간 ${fmtRateTime(st.at)}` : st.wantLive ? '고정값 사용 중' : '고정'})`;
+// 고시환율 출처 — 'auto'(관세청 자동, app.js customsInfo.source) | 그 밖(직접입력)
+const customsSourceText = (customsSource) => (customsSource === 'auto' ? '관세청 자동' : '직접입력');
 
-// 결과 카드의 '적용 환율' 칩 — 고시(직접입력) / 송금(실시간 시각·출처 또는 고정). 실시간 실패·대기 중이면 노란 배지.
-const AppliedRateChip = ({ customs, usdKrw, cnyKrw, state, showRemit = true }) => (
+// 접힌 환율 칸의 한 줄 요약 — '적용 환율: 고시 ○ (관세청 자동|직접입력) / 송금 ○ (고정|실시간 HH:MM)'
+const rateSummaryText = (customs, usdKrw, st, customsSource = 'manual') =>
+    `적용 환율: 고시 ${fmtRate(customs)} (${customsSourceText(customsSource)}) / 송금 ${fmtRate(usdKrw)} (${st.liveOk ? `실시간 ${fmtRateTime(st.at)}` : st.wantLive ? '고정값 사용 중' : '고정'})`;
+
+// 결과 카드의 '적용 환율' 칩 — 고시(관세청 자동|직접입력) / 송금(실시간 시각·출처 또는 고정). 실시간 실패·대기 중이면 노란 배지.
+const AppliedRateChip = ({ customs, usdKrw, cnyKrw, state, showRemit = true, customsSource = 'manual' }) => (
     <div className="flex flex-wrap items-center justify-center gap-2 text-xs" data-k="rate-chip">
         <span className="inline-flex flex-wrap items-center justify-center gap-x-1 px-3 py-1 rounded-full bg-slate-100 text-slate-600">
             <span className="font-semibold">적용 환율</span>
-            <span>· 고시 {fmtRate(customs)} (직접입력)</span>
+            <span>· 고시 {fmtRate(customs)} ({customsSourceText(customsSource)})</span>
             {showRemit && <span>· 송금 {fmtRate(usdKrw)}{cnyKrw !== undefined ? ` / 위안 ${fmtRate(cnyKrw)}` : ''} ({state.liveOk ? `실시간 ${fmtRateTime(state.at)} · ${LIVE_RATE_SOURCE}` : '고정'})</span>}
         </span>
         {showRemit && (state.liveFailed || state.liveLoading) && (
@@ -71,6 +74,25 @@ const AppliedRateChip = ({ customs, usdKrw, cnyKrw, state, showRemit = true }) =
         )}
     </div>
 );
+
+// 고시환율 칸 아래 표시줄 — info = app.js customsInfo(js/lib/customs-fxrt.js customsView). 수입가·통관비 탭 공통.
+//   '관세청 고시(수입) · 10/11~10/17 적용 · 자동' / '직접 입력 · 이번 주 고시 ○ [고시값으로]' / 노란 안내(자동값을 못 쓸 때)
+const CustomsFxrtHint = ({ info, onReset }) => {
+    if (!info) return null;
+    return (
+        <>
+            {info.label && (
+                <div className={`mt-1 flex items-center justify-between gap-2 text-xs ${info.source === 'auto' ? 'text-emerald-700' : 'text-gray-400'}`} data-k="customs-fxrt-hint">
+                    <span className="min-w-0">{info.label}</span>
+                    {info.canReset && onReset && <button type="button" onClick={onReset} className="flex-shrink-0 px-2 py-0.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200" data-k="customs-fxrt-reset">고시값으로</button>}
+                </div>
+            )}
+            {info.notice && (
+                <p role="status" className="mt-1 px-2 py-1 rounded border border-yellow-300 bg-yellow-50 text-xs text-yellow-800" data-k="customs-fxrt-notice">{info.notice}</p>
+            )}
+        </>
+    );
+};
 
 // 고시환율이 빈칸(또는 0)이면 결과 대신 보이는 안내 — 세 탭 공통
 const CustomsRateMissing = ({ where }) => (

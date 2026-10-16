@@ -132,10 +132,14 @@ const ShippingCalculator = () => {
     
     // [수정] settings에서 파레트 목록 가져오기
     const palletOptions = settings.shipping.palletTypes;
+    // 공용 설정의 파레트 목록이 바뀌어 지금 값(처음 'none')이 없으면 첫 옵션으로. 'none'(없음)도 빼지 않는다 —
+    //   목록에 없으면 select 에는 다른 파레트가 보이는데 계산은 '없음'으로 되어 화면과 결과가 어긋난다.
+    const optionNotice = useOptionFix([{ name: 'palletType', label: '파레트 종류', options: palletOptions }], formData, setFormData);
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
             <div ref={formRef} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200">
+                <OptionFixNotice text={optionNotice} />
                 <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">정보 입력</h2>
                 <div className="space-y-6">
                     {inputFields.map(field => (<InputControl key={field.name} {...field} value={formData[field.name]} onChange={handleInputChange} onKeyDown={handleKeyDown} />))}

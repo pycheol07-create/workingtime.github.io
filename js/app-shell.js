@@ -1,5 +1,5 @@
 // === js/app-shell.js ===
-// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202610161856"> 로 붙이면 스스로 돈다.
+// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202610162303"> 로 붙이면 스스로 돈다.
 //   <body data-shell="페이지ID">              → 위쪽에 바를 얹는다(css/app-shell.css 가 본문을 그만큼 내린다)
 //   <body data-shell="index" data-shell-bar="off"> → 바 없이 메뉴 캐시만 채운다(대시보드)
 // 페이지는 js/app-shell-bridge.js 의 setShellContext 로 로그인 상태를 알려 준다.
@@ -14,14 +14,16 @@
 //   메뉴 이름 + 그 화면 안 탭(app-shell-data.js SUB_DESTINATIONS) + 홈. 같은 화면 안 이동은 해시 이동(뒤로가기로 되돌림),
 //   다른 화면은 navigate(이동 전 저장 훅). 팔레트도 섀도 DOM 안, 열 때 만들고 닫을 때 없앤다.
 
-import { visibleMenuFor } from './menu-catalog.js?v=202610161856';
-import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations } from './app-shell-data.js?v=202610161856';
-import { rank } from './hangul-search.js?v=202610161856';
+import { visibleMenuFor } from './menu-catalog.js?v=202610162303';
+import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations } from './app-shell-data.js?v=202610162303';
+import { rank } from './hangul-search.js?v=202610162303';
 
 const BASE = new URL('../', import.meta.url).href;      // 앱 폴더(js/ 의 부모)
 const MENU_CACHE_KEY = 'appShell.menu.v1';              // js/app-shell-bridge.js 와 같은 키
 const LEAVE_HOOK_TIMEOUT = 3000;
-// 개인 알림 — 대시보드는 자체 구현(js/app-sync.js), 스캐너는 별도 앱(scanApp), 계산기는 Firebase 가 없다.
+// 개인 알림 — 대시보드는 자체 구현(js/app-sync.js), 스캐너는 별도 앱(scanApp).
+//   계산기는 Firebase(calculator/firebase-init.js)를 쓰지만 상단바에 uid 만 넘기고 memberName 은 넘기지 않는다(logis-defaults.js)
+//   → 여기서 빼도 알림은 켜지지 않는다. 켜려면 계산기가 memberName 을 찾아 넘겨야 한다(직원 목록 읽기 추가).
 const NOTI_OFF_PAGES = ['index', 'scan', 'calculator'];
 const NOTI_DELAY = 2500;            // 페이지가 첫 화면을 그리고 난 뒤에 구독한다
 const NOTI_LINK = 'index.html#open=noti';
@@ -288,7 +290,7 @@ function start() {
         noti.timer = setTimeout(async () => {
             noti.timer = null;
             try {
-                const { watchNotifications } = await import('./app-shell-noti.js?v=202610161856');
+                const { watchNotifications } = await import('./app-shell-noti.js?v=202610162303');
                 if (noti.name !== want) return;   // 그 사이 로그아웃·다른 사람
                 const unsub = watchNotifications(want, {
                     onCount: (n) => { noti.unread = n; renderBell(); },

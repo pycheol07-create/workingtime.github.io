@@ -2,7 +2,7 @@
 // 예상수량을 입력하면 통관비 계산기 로직을 활용해 CBM/박스수/통관비를 자동 산출
 // 참조: 구글 스프레드시트 '창고료&가산세' 시트
 
-const WarehouseFeeCalculator = ({ exchangeRates }) => {
+const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
     const formRef = React.useRef(null);
     const { settings } = React.useContext(SettingsContext);
 
@@ -54,8 +54,10 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
         settings.warehouse?.dailyInterestRate,
     ]);
 
+    // 상태 키 = data-key(있으면) 또는 name — radio 는 탭끼리 같은 그룹이 되지 않게 DOM name 을 'warehouse-…' 로 따로 쓴다
     const handleInputChange = React.useCallback((e) => {
-        const { name, value } = e.target;
+        const { value } = e.target;
+        const name = e.target.dataset.key || e.target.name;
         setFormData(prev => ({ ...prev, [name]: value }));
     }, []);
 
@@ -217,7 +219,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                         <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60">
                             {modeOptions.map(option => (
                                 <label key={option.value} className={`relative flex-1 cursor-pointer py-2.5 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${calculationMode === option.value ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                                    <input type="radio" name="calculationMode" value={option.value} checked={calculationMode === option.value} onChange={(e) => setCalculationMode(e.target.value)} className="sr-only" />
+                                    <input type="radio" name="warehouse-calculationMode" value={option.value} checked={calculationMode === option.value} onChange={(e) => setCalculationMode(e.target.value)} className="sr-only" />
                                     <span>{option.label}</span>
                                 </label>
                             ))}
@@ -257,7 +259,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                         <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 overflow-x-auto">
                             {tariffOptions.map((option, idx) => (
                                 <label key={idx} className={`relative flex-1 min-w-[60px] cursor-pointer py-2.5 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${String(formData.tariffRate) === String(option.value) ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                                    <input type="radio" name="tariffRate" value={option.value} checked={String(formData.tariffRate) === String(option.value)} onChange={handleInputChange} className="sr-only" />
+                                    <input type="radio" name="warehouse-tariffRate" data-key="tariffRate" value={option.value} checked={String(formData.tariffRate) === String(option.value)} onChange={handleInputChange} className="sr-only" />
                                     <span>{option.label}</span>
                                 </label>
                             ))}
@@ -320,7 +322,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                     <p className="text-base sm:text-lg text-gray-600">추가비용 총 합계</p>
                     <p className="text-3xl sm:text-5xl font-extrabold text-emerald-600 tracking-tight my-2 break-all" data-k="grandTotal">{formatKRW(results.grandTotal)}</p>
                 </div>
-                <AppliedRateChip customs={results.customsRate} state={{}} showRemit={false} />
+                <AppliedRateChip customs={results.customsRate} state={{}} showRemit={false} customsSource={customsSource} />
 
                 <div className="mt-6 space-y-3">
                     <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200">

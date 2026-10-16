@@ -21,17 +21,24 @@ const App = () => {
     }, []);
     
     // [수정됨] 환율 데이터를 하나의 객체로 통합 관리
+    // 관세청 고시환율(customs)은 관세청 자동값이 채운다(2026-10-16, customs-fxrt-doc.js → js/lib/customs-fxrt.js).
+    //   출처 customsOrigin = { by:'auto', start, end } | { by:'manual' } 를 같이 저장한다 — 지난주 자동값은 열 때 비운다.
+    //   첫 사용자 기본값은 빈칸(예전 '1350' 은 실제 고시값처럼 보이는 가짜 값이었다 — 자동값 또는 '고시환율을 입력하세요').
     const [exchangeRates, setExchangeRates] = React.useState(() => {
+        let saved = null;
         try {
-            const saved = localStorage.getItem('appExchangeRatesData');
-            if (saved) return JSON.parse(saved);
+            const s = localStorage.getItem('appExchangeRatesData');
+            if (s) saved = JSON.parse(s);
         } catch(e){}
+        const init = window.CustomsFxrt.initialCustoms(saved, window.CustomsFxrt.kstToday(Date.now()));
+        if (saved && typeof saved === 'object') return { ...saved, customs: init.customs, customsOrigin: init.origin };
         return {
             mode: 'fixed',
-            customs: '1350',
+            customs: '',
             usdKrw: '1350',
             cnyKrw: '190',
-            usdCny: '0.14'
+            usdCny: '0.14',
+            customsOrigin: null
         };
     });
     const [isAdminOpen, setIsAdminOpen] = React.useState(false);
@@ -41,22 +48,65 @@ const App = () => {
         localStorage.setItem('appExchangeRatesData', JSON.stringify(exchangeRates));
     }, [exchangeRates]);
 
+    // 관세청 고시환율 자동값 — 모듈이 먼저 끝났을 수도, 나중에 끝날 수도 있다(지금 값 확인 + 이벤트 구독)
+    const [fxState, setFxState] = React.useState(() => window.__customsFxrt || { status: 'loading', doc: null });
+    React.useEffect(() => {
+        const on = (e) => setFxState((e && e.detail) || window.__customsFxrt);
+        window.addEventListener('customs-fxrt', on);
+        if (window.__customsFxrt) setFxState(window.__customsFxrt);
+        return () => window.removeEventListener('customs-fxrt', on);
+    }, []);
+    // 오늘(한국 날짜) — 1분마다·탭이 다시 보일 때 다시 본다. 문서 이벤트가 안 와도(Firebase 를 못 받아도)
+    //   열어 둔 탭에서 주가 넘어가면 아래 fillAuto 가 지난주 자동값을 비운다(같은 날이면 상태가 안 바뀌어 다시 그리지 않는다).
+    const [today, setToday] = React.useState(() => window.CustomsFxrt.kstToday(Date.now()));
+    React.useEffect(() => {
+        const check = () => setToday(window.CustomsFxrt.kstToday(Date.now()));
+        const onVis = () => { if (document.visibilityState === 'visible') check(); };
+        const t = setInterval(check, 60 * 1000);
+        document.addEventListener('visibilitychange', onVis);
+        return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+    }, []);
+    // 이번 주 값인지는 문서가 올 때·날짜가 바뀔 때 오늘로 판정한다
+    const fx = React.useMemo(() => window.CustomsFxrt.resolveFxrt(fxState.status === 'ok' ? fxState.doc : null, today), [fxState, today]);
+    const customsTouchedRef = React.useRef(false);     // 이번 세션(페이지를 연 뒤)에 사람이 고시환율 칸을 고쳤나 — 고쳤으면 덮지 않는다
+    const fillAuto = React.useCallback((touched) => {
+        setExchangeRates(prev => {
+            const r = window.CustomsFxrt.applyAuto({ customs: prev.customs, origin: prev.customsOrigin, touched }, fx, today);
+            return r.changed ? { ...prev, customs: r.customs, customsOrigin: r.origin } : prev;
+        });
+    }, [fx, today]);
+    React.useEffect(() => { fillAuto(customsTouchedRef.current); }, [fillAuto]);
+    // [고시값으로] — 자동값으로 되돌리고 다시 자동 채움을 받는다
+    const resetCustoms = React.useCallback(() => {
+        customsTouchedRef.current = false;
+        fillAuto(false);
+    }, [fillAuto]);
+
     // 환율 개별 업데이트 핸들러
     const handleRateChange = (field, value) => {
+        if (field === 'customs') {
+            customsTouchedRef.current = true;
+            setExchangeRates(prev => ({ ...prev, customs: value, customsOrigin: { by: 'manual' } }));
+            return;
+        }
         setExchangeRates(prev => ({ ...prev, [field]: value }));
     };
+    // 고시환율 칸 아래 표시줄(자동·직접 입력·[고시값으로]·노란 안내) — 수입가·통관비 탭, 칩 출처는 세 탭
+    const customsInfo = React.useMemo(() => window.CustomsFxrt.customsView(
+        { customs: exchangeRates.customs, origin: exchangeRates.customsOrigin, touched: customsTouchedRef.current }, fx, fxState.status),
+        [exchangeRates.customs, exchangeRates.customsOrigin, fx, fxState.status]);
     
     // short: 휴대폰 탭 이름(한 줄) · title: 넓은 화면 '… 계산기'
     const tabs = React.useMemo(() => [
         {
             id: 'import',
             title: '수입가', short: '수입가',
-            component: <ImportCalculator exchangeRates={exchangeRates} onRateChange={handleRateChange} />
+            component: <ImportCalculator exchangeRates={exchangeRates} onRateChange={handleRateChange} customsInfo={customsInfo} onCustomsReset={resetCustoms} />
         },
         {
             id: 'customs',
             title: '통관비', short: '통관비',
-            component: <CustomsCalculator exchangeRates={exchangeRates} onRateChange={handleRateChange} isActive={activeTabId === 'customs'} />
+            component: <CustomsCalculator exchangeRates={exchangeRates} onRateChange={handleRateChange} isActive={activeTabId === 'customs'} customsInfo={customsInfo} onCustomsReset={resetCustoms} />
         },
         {
             id: 'shipping',
@@ -66,9 +116,9 @@ const App = () => {
         {
             id: 'warehouse',
             title: '창고료&가산세', short: '창고료',
-            component: <WarehouseFeeCalculator exchangeRates={exchangeRates} />
+            component: <WarehouseFeeCalculator exchangeRates={exchangeRates} customsSource={customsInfo.source === 'auto' ? 'auto' : 'manual'} />
         },
-    ], [exchangeRates, activeTabId]);
+    ], [exchangeRates, activeTabId, customsInfo, resetCustoms]);
 
     // --- Swipe Logic ---
     const touchStartX = React.useRef(null); const touchDeltaX = React.useRef(0); const [isSwiping, setIsSwiping] = React.useState(false);

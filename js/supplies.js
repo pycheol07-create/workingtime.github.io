@@ -5,10 +5,11 @@
 //  - 비품은 수십 건 규모라 문서 하나로 관리하는 편이 읽기·쓰기 모두 저렴하다.
 //  - 각 비품은 종류·현재고를 기본으로 하고, 단가/사이즈/발주정보/업체 등 상세를 함께 보관한다.
 
-import { initializeFirebase } from './config.js?v=202610161856';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161856';
-import { memberNameFor } from './app-shell-data.js?v=202610161856';
-import { escapeHtml as esc } from './utils.js?v=202610161856';
+import { initializeFirebase } from './config.js?v=202610162303';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610162303';
+import { memberNameFor } from './app-shell-data.js?v=202610162303';
+import { escapeHtml as esc } from './utils.js?v=202610162303';
+import { kstDateTime } from './lib/kst-time.js?v=202610162303';
 import { doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -772,7 +773,7 @@ function openStockModal(id) {
             const label = l.op === 'in' ? '입고' : (l.op === 'out' ? '사용' : '실사');
             const tone = l.delta > 0 ? 'text-emerald-600' : (l.delta < 0 ? 'text-red-600' : 'text-slate-500');
             return `<div class="text-[11px] text-slate-500 flex justify-between gap-2">
-                <span>${esc(String(l.at).slice(0, 10))} ${label}${l.memo ? ` · ${esc(l.memo)}` : ''}</span>
+                <span>${esc(kstDateTime(l.at))} ${label}${l.memo ? ` · ${esc(l.memo)}` : ''}</span>
                 <span class="${tone} font-bold shrink-0">${l.delta > 0 ? '+' : ''}${fmt(l.delta)} → ${fmt(l.after)}</span>
             </div>`;
         }).join('');

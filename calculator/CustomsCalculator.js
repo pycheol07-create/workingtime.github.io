@@ -2,7 +2,7 @@
 // 2026-10-16 UX: 입력 순서(기준 → 수량·단가·입수·무게 → 관세 → 컨테이너 → 수수료 → 환율(접힘)),
 //   결과 대표 숫자 = 개당 최종 원가, 고시환율 빈칸이면 결과 대신 안내, 휴대폰 하단 요약 바. 계산식은 그대로.
 
-const CustomsCalculator = ({ exchangeRates, onRateChange, isActive }) => {
+const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo, onCustomsReset }) => {
       const formRef = React.useRef(null);
       const resultRef = React.useRef(null);
       const { settings, defaultsStatus, defaultsMeta } = React.useContext(SettingsContext);
@@ -69,8 +69,10 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive }) => {
 
       // 박스기준으로 바꾸며 치워 둔 개당 수수료 { commissionType, commissionValue } — 상품기준으로 돌아오면 되살린다
       const savedCommRef = React.useRef(null);
+      // 상태 키 = data-key(있으면) 또는 name — radio 는 탭끼리 같은 그룹이 되지 않게 DOM name 을 'customs-…' 로 따로 쓴다
       const handleInputChange = React.useCallback((e) => {
-          const { name, value } = e.target;
+          const { value } = e.target;
+          const name = e.target.dataset.key || e.target.name;
           if (name in AVG_FIELDS) touchedRef.current[name] = true;
           if (name === 'commissionValue') savedCommRef.current = null;   // 그사이 값을 직접 고쳤으면 되살리지 않는다(종류만 다시 고른 것은 제외 — 박스기준에선 개당 값 칸이 잠겨 있다)
           setFormData(prev => ({ ...prev, [name]: value }));
@@ -287,7 +289,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive }) => {
                           <legend className="sr-only">계산 기준</legend>
                           {calculationModeOptions.map(option => (
                           <label key={option.value} className={`relative flex-1 cursor-pointer py-2.5 px-2 sm:px-4 text-center text-sm font-semibold whitespace-nowrap focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${calculationMode === option.value ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                              <input type="radio" name="calculationMode" value={option.value} checked={calculationMode === option.value} onChange={handleModeChange} className="sr-only" />
+                              <input type="radio" name="customs-calculationMode" value={option.value} checked={calculationMode === option.value} onChange={handleModeChange} className="sr-only" />
                               <span>{option.label}</span>
                           </label>
                           ))}
@@ -320,7 +322,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive }) => {
                   <fieldset aria-labelledby="cus-tariff-label" className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 overflow-x-auto">
                     {tariffOptions.map((option, idx) => (
                       <label key={idx} className={`relative flex-1 min-w-[60px] cursor-pointer py-2.5 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${String(formData.tariffRate) === String(option.value) ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                        <input type="radio" name="tariffRate" value={option.value} checked={String(formData.tariffRate) === String(option.value)} onChange={handleInputChange} className="sr-only" />
+                        <input type="radio" name="customs-tariffRate" data-key="tariffRate" value={option.value} checked={String(formData.tariffRate) === String(option.value)} onChange={handleInputChange} className="sr-only" />
                         <span>{option.label}</span>
                       </label>
                     ))}
@@ -356,7 +358,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive }) => {
                     <button type="button" onClick={() => setRateOpen(o => !o)} aria-expanded={rateBlockOpen} aria-controls="cus-rate-body" className="w-full flex items-center justify-between gap-2 p-4 text-left">
                         <span className="min-w-0">
                             <span className="block text-sm font-bold text-gray-800">환율 적용 방식</span>
-                            {!rateBlockOpen && <span className="block text-xs text-gray-500 mt-0.5" data-k="rate-summary">{rateSummaryText(currentRates.customs, currentRates.usdKrw, rateState)}</span>}
+                            {!rateBlockOpen && <span className="block text-xs text-gray-500 mt-0.5" data-k="rate-summary">{rateSummaryText(currentRates.customs, currentRates.usdKrw, rateState, customsInfo && customsInfo.source)}</span>}
                         </span>
                         <span className={`flex-shrink-0 transform transition-transform duration-200 ${rateBlockOpen ? 'rotate-180' : ''}`}>{Icons.ChevronDown}</span>
                     </button>
@@ -365,20 +367,20 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive }) => {
                     <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 mb-4">
                         <legend className="sr-only">환율 적용 방식</legend>
                         <label className={segLabel(exchangeRates.mode === 'fixed')}>
-                            <input type="radio" name="exchangeRateMode" value="fixed" checked={exchangeRates.mode === 'fixed'} onChange={() => onRateChange('mode', 'fixed')} className="sr-only" />
+                            <input type="radio" name="customs-exchangeRateMode" value="fixed" checked={exchangeRates.mode === 'fixed'} onChange={() => onRateChange('mode', 'fixed')} className="sr-only" />
                             <span>고정환율<span className="hidden sm:inline"> (직접입력)</span></span>
                         </label>
                         <label className={segLabel(exchangeRates.mode === 'live')}>
-                            <input type="radio" name="exchangeRateMode" value="live" checked={exchangeRates.mode === 'live'} onChange={() => onRateChange('mode', 'live')} className="sr-only" />
+                            <input type="radio" name="customs-exchangeRateMode" value="live" checked={exchangeRates.mode === 'live'} onChange={() => onRateChange('mode', 'live')} className="sr-only" />
                             <span>실시간환율<span className="hidden sm:inline"> (자동)</span></span>
                         </label>
                     </fieldset>
 
                     <div className="space-y-4">
                         <div>
-                            <InputControl label="관세청 고시환율 (세금용)" id="cus-rate-customs" name="customs" value={exchangeRates.customs} onChange={(e) => onRateChange('customs', e.target.value)} unit="원/달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} placeholder="고시환율 입력" />
+                            <InputControl label="관세청 고시환율 (세금용)" id="cus-rate-customs" name="customs" value={exchangeRates.customs} onChange={(e) => onRateChange('customs', e.target.value)} unit="원/달러" icon={<TrendingUpIcon />} onKeyDown={handleKeyDown} placeholder="고시환율 입력" hint={<CustomsFxrtHint info={customsInfo} onReset={onCustomsReset} />} />
                             <p className="mt-2 text-xs text-gray-500 flex items-center flex-wrap gap-1">
-                                <span>※ 당일 고시환율을 확인 후 입력하세요. 수입가·창고료 탭과 같은 값입니다.</span>
+                                <span>{customsInfo && customsInfo.source === 'auto' ? '※ ' : '※ 당일 고시환율을 확인 후 입력하세요. '}수입가·창고료 탭과 같은 값입니다.</span>
                                 <a href="https://unipass.customs.go.kr/csp/index.do" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 underline font-medium">
                                     관세청 UNI-PASS 바로가기 →
                                 </a>
@@ -434,7 +436,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive }) => {
                       )}
                   </div>
                   <div className="mb-4">
-                      <AppliedRateChip customs={currentRates.customs} usdKrw={currentRates.usdKrw} state={rateState} />
+                      <AppliedRateChip customs={currentRates.customs} usdKrw={currentRates.usdKrw} state={rateState} customsSource={customsInfo && customsInfo.source} />
                   </div>
                   <div className="space-y-1 divide-y divide-slate-200">
                     {results.costPerItem > 0 && (
