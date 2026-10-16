@@ -91,38 +91,39 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
     };
 
     const results = React.useMemo(() => {
-        const tariffRateValue = (parseFloat(formData.tariffRate) || 0) / 100;
+        const tariffRateValue = (parseNum(formData.tariffRate) || 0) / 100;
 
         // settings.customs 기본값 활용 (통관비 계산기와 동일한 defaults)
-        const unitPriceUSD = parseFloat(settings.customs?.defaultUnitPrice ?? 10);
-        const quantityPerBox = parseFloat(settings.customs?.defaultQuantityPerBox ?? 50) || 1;
-        const weightPerBox = parseFloat(settings.customs?.defaultWeightPerBox ?? 12);
+        const unitPriceUSD = parseNum(settings.customs?.defaultUnitPrice ?? 10);
+        const quantityPerBox = parseNum(settings.customs?.defaultQuantityPerBox ?? 50) || 1;
+        const weightPerBox = parseNum(settings.customs?.defaultWeightPerBox ?? 12);
 
         // 계산 기준에 따라 수량 결정 (금액 기준일 경우 평균 단가로 역산)
         let quantity = 0;
         if (calculationMode === 'quantity') {
-            quantity = parseFloat(formData.quantity) || 0;
+            quantity = parseNum(formData.quantity) || 0;
         } else {
-            const amountUSD = parseFloat(formData.totalAmountUSD) || 0;
+            const amountUSD = parseNum(formData.totalAmountUSD) || 0;
             quantity = unitPriceUSD > 0 ? amountUSD / unitPriceUSD : 0;
         }
 
         // settings.common 기본값
-        const cbmWeightDivisor = parseFloat(settings.common?.cbmWeightDivisor ?? 250);
-        const oceanFreightPerCbm = parseFloat(settings.common?.oceanFreightPerCbm ?? 110000);
-        const minCbm = parseFloat(settings.common?.minCbm ?? 1.0);
-        const vatRate = parseFloat(settings.common?.vatRate ?? 0.1);
+        const cbmWeightDivisor = parseNum(settings.common?.cbmWeightDivisor ?? 250);
+        const oceanFreightPerCbm = parseNum(settings.common?.oceanFreightPerCbm ?? 110000);
+        const minCbm = parseNum(settings.common?.minCbm ?? 1.0);
+        const vatRate = parseNum(settings.common?.vatRate ?? 0.1);
 
-        // 관세청 고시환율
-        const customsRate = parseFloat(exchangeRates?.customs) || 1350;
+        // 관세청 고시환율 — 빈칸(또는 0)이면 예전엔 1350 으로 계산했다. 지금은 결과 대신 '고시환율을 입력하세요'(customsRateMissing).
+        const customsRate = parseNum(exchangeRates?.customs);
+        const customsRateMissing = !Number.isFinite(customsRate) || customsRate === 0;
 
         // --- 자동 산출: 박스수, CBM, 통관비 ---
         const autoTotalBoxes = quantity > 0 ? Math.ceil(quantity / quantityPerBox) : 0;
         const autoCbm = (autoTotalBoxes * weightPerBox) / cbmWeightDivisor;
 
         // 수동 오버라이드 (실제값 입력 모드)
-        const manualBoxesNum = parseFloat(manualValues.boxes);
-        const manualCbmNum = parseFloat(manualValues.cbm);
+        const manualBoxesNum = parseNum(manualValues.boxes);
+        const manualCbmNum = parseNum(manualValues.cbm);
         const totalBoxes = useManualBoxCbm && Number.isFinite(manualBoxesNum) && manualBoxesNum > 0
             ? manualBoxesNum : autoTotalBoxes;
         const cbm = useManualBoxCbm && Number.isFinite(manualCbmNum) && manualCbmNum > 0
@@ -141,17 +142,17 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
         const customsFee = tariff + vat;  // 통관비 = 관세 + 부가세
 
         // --- 창고료 ---
-        const warehouseRate = parseFloat(formData.warehouseRate) || 0;
-        const freeDays = parseInt(formData.freeDays, 10) || 0;
+        const warehouseRate = parseNum(formData.warehouseRate) || 0;
+        const freeDays = parseIntNum(formData.freeDays) || 0;
         const totalStayDays = daysBetween(formData.arrivalDate, formData.clearanceDate);
         const storageDays = Math.max(0, totalStayDays - freeDays);
         const warehouseFeeTotal = warehouseRate * cbm * storageDays;
         const freeUntil = addDays(formData.arrivalDate, freeDays);
 
         // --- 가산세 ---
-        const surchargeRate = (parseFloat(formData.surchargeRate) || 0) / 100;
-        const paymentDueDays = parseInt(formData.paymentDueDays, 10) || 0;
-        const dailyInterestRate = (parseFloat(formData.dailyInterestRate) || 0) / 100;
+        const surchargeRate = (parseNum(formData.surchargeRate) || 0) / 100;
+        const paymentDueDays = parseIntNum(formData.paymentDueDays) || 0;
+        const dailyInterestRate = (parseNum(formData.dailyInterestRate) || 0) / 100;
         const paymentDueDate = addDays(formData.arrivalDate, paymentDueDays);
         const delayDays = Math.max(0, daysBetween(paymentDueDate, formData.clearanceDate));
         // 지연일수가 0이면 가산세·이자 모두 미부과 (마감기한 내 납부)
@@ -167,6 +168,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
             totalStayDays, storageDays, warehouseFeeTotal, freeUntil,
             paymentDueDate, delayDays, surchargeAmount, lateInterest, surchargeTotal,
             grandTotal,
+            customsRate, customsRateMissing, vatRate,
         };
     }, [formData, calculationMode, useManualBoxCbm, manualValues, settings, exchangeRates]);
 
@@ -181,6 +183,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
     const CurrencyWonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7l4 8 4-8M6 12h12m-12 3h12" /></svg>);
     const CalcIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 14h.01M12 11h.01M15 11h.01M9 11h.01M12 21a9 9 0 110-18 9 9 0 010 18z" /></svg>);
     const PercentIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 16l-4-4m0 0l4-4m-4 4h18m-4 4l4-4m0 0l-4-4m-4 8a2 2 0 11-4 0 2 2 0 014 0zM5 8a2 2 0 100-4 2 2 0 000 4z" /></svg>);
+    const DollarIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 12v-2m-3-4H9m6 0h-3m-3-4h3m0 0V6m0 0h-3" /></svg>);
     const HashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>);
 
     const ResultRow = ({ label, value, isSub, isTotal }) => (
@@ -197,11 +200,16 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
         { label: '상품수량 기준', value: 'quantity' },
         { label: '상품금액 기준', value: 'amount' },
     ];
-    const avgUnitPrice = parseFloat(settings.customs?.defaultUnitPrice ?? 10);
+    const avgUnitPrice = parseNum(settings.customs?.defaultUnitPrice ?? 10);
+    const dateReversed = !!(formData.arrivalDate && formData.clearanceDate && formData.clearanceDate < formData.arrivalDate);
+    const fmtPct = (r) => `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 3 }).format((r || 0) * 100)}%`;
+    // 공용 설정의 관세율 목록에 지금 값(처음 '8')이 없으면 첫 옵션으로
+    const optionNotice = useOptionFix([{ name: 'tariffRate', label: '관세율', options: tariffOptions }], formData, setFormData);
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
             <div ref={formRef} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200">
+                <OptionFixNotice text={optionNotice} />
                 <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">기본 정보 입력</h2>
                 <div className="space-y-6">
                     <div>
@@ -220,7 +228,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                         <InputControl label="상품수량" name="quantity" value={formData.quantity} onChange={handleInputChange} unit="개" icon={<CalcIcon />} onKeyDown={handleKeyDown} placeholder="예: 1000" />
                     ) : (
                         <>
-                            <InputControl label="상품금액" name="totalAmountUSD" value={formData.totalAmountUSD} onChange={handleInputChange} unit="USD" icon={<CurrencyWonIcon />} onKeyDown={handleKeyDown} placeholder="예: 10000" />
+                            <InputControl label="상품금액" name="totalAmountUSD" value={formData.totalAmountUSD} onChange={handleInputChange} unit="USD" icon={<DollarIcon />} onKeyDown={handleKeyDown} placeholder="예: 10000" />
                             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
                                 <span>평균 상품단가 (설정관리 기준)</span>
                                 <span className="font-semibold text-slate-800">{formatUSD(avgUnitPrice)} / 개</span>
@@ -239,8 +247,9 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                         <label className="block text-sm font-medium text-gray-700 mb-2">통관일</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><CalendarIcon /></div>
-                            <input type="date" name="clearanceDate" value={formData.clearanceDate} onChange={handleInputChange} onKeyDown={handleKeyDown} className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 text-gray-900 bg-white" />
+                            <input type="date" name="clearanceDate" value={formData.clearanceDate} onChange={handleInputChange} onKeyDown={handleKeyDown} aria-invalid={dateReversed} className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 text-gray-900 bg-white" />
                         </div>
+                        {dateReversed && <p role="alert" className="mt-1 text-xs font-semibold text-red-600" data-k="date-reversed">통관일이 입항일보다 빠릅니다 — 날짜를 확인하세요(보관일수가 0 으로 계산됩니다).</p>}
                     </div>
 
                     <div>
@@ -256,7 +265,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                     </div>
 
                     <div className="p-3 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-800">
-                        ※ 상품 단가·박스당 수량·박스당 무게·해운비·관세청 고시환율은 설정관리 및 통관비 계산기 값을 자동 사용합니다.
+                        ※ logis 3개월 평균 단가·입수·무게를 사용합니다(설정관리 · 통관비 기본값). 해운비·최소 CBM 은 설정관리, 관세청 고시환율은 수입가·통관비 탭 환율 칸 값을 씁니다.
                     </div>
 
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
@@ -303,16 +312,21 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                 </div>
             </div>
 
+            {results.customsRateMissing ? (
+                <CustomsRateMissing where="수입가·통관비 탭 '환율 적용 방식' 칸의 관세청 고시환율" />
+            ) : (
             <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 w-full animate-fade-in-slide-up">
                 <div className="text-center mb-6">
-                    <p className="text-lg text-gray-600">추가비용 총 합계</p>
-                    <p className="text-5xl font-extrabold text-emerald-600 tracking-tight my-2">{formatKRW(results.grandTotal)}</p>
+                    <p className="text-base sm:text-lg text-gray-600">추가비용 총 합계</p>
+                    <p className="text-3xl sm:text-5xl font-extrabold text-emerald-600 tracking-tight my-2 break-all" data-k="grandTotal">{formatKRW(results.grandTotal)}</p>
                 </div>
+                <AppliedRateChip customs={results.customsRate} state={{}} showRemit={false} />
 
                 <div className="mt-6 space-y-3">
                     <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200">
                         <h3 className="font-bold text-blue-900 mb-2">
                             자동 산출값
+                            <span className="ml-2 text-xs font-semibold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full">LCL 기준</span>
                             {useManualBoxCbm && <span className="ml-2 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">박스/CBM 수동 적용중</span>}
                         </h3>
                         <div className="divide-y divide-blue-100">
@@ -332,7 +346,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                                     : formatCBM(results.cbm)}
                                 isSub />
                             <ResultRow label={`관세 (${formData.tariffRate}%)`} value={formatKRW(results.tariff)} isSub />
-                            <ResultRow label="부가세 (10%)" value={formatKRW(results.vat)} isSub />
+                            <ResultRow label={`부가세 (${fmtPct(results.vatRate)})`} value={formatKRW(results.vat)} isSub />
                             <ResultRow label="통관비 (관세+부가세)" value={formatKRW(results.customsFee)} />
                         </div>
                     </div>
@@ -363,6 +377,7 @@ const WarehouseFeeCalculator = ({ exchangeRates }) => {
                     </div>
                 </div>
             </div>
+            )}
         </div>
     );
 };

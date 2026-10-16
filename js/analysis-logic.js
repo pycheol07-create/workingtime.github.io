@@ -1,9 +1,9 @@
 // === js/analysis-logic.js ===
 // 설명: 순수 계산 및 분석 함수 모음입니다. (시뮬레이션, 병목 분석, 예측 등)
 
-import * as State from './state.js?v=202610161616';
-import { formatDuration, getTodayDateString } from './utils.js?v=202610161616';
-import { channelScope } from './revenue-channels.js?v=202610161616';
+import * as State from './state.js?v=202610161856';
+import { formatDuration, getTodayDateString } from './utils.js?v=202610161856';
+import { channelScope } from './revenue-channels.js?v=202610161856';
 
 /**
  * 누락된 처리량이 있는지 확인하는 함수

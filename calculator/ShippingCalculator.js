@@ -79,9 +79,9 @@ const ShippingCalculator = () => {
         };
         const PALLET_TYPES = settings.shipping.palletTypes;
 
-        const boxLength = parseFloat(formData.boxLength) || 0;
-        const boxWidth = parseFloat(formData.boxWidth) || 0;
-        const boxHeight = parseFloat(formData.boxHeight) || 0;
+        const boxLength = parseNum(formData.boxLength) || 0;
+        const boxWidth = parseNum(formData.boxWidth) || 0;
+        const boxHeight = parseNum(formData.boxHeight) || 0;
         const { palletType } = formData;
 
         if (boxLength <= 0 || boxWidth <= 0 || boxHeight <= 0) return null;

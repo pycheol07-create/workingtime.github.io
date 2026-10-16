@@ -1,9 +1,9 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610161616';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610161856';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js?v=202610161616';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161616';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js?v=202610161856';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161856';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {

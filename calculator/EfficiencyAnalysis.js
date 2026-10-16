@@ -7,6 +7,8 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
     
     const printRef = React.useRef(null);
     const [isGeneratingPdf, setIsGeneratingPdf] = React.useState(false);
+    const [showAllSplit, setShowAllSplit] = React.useState(false);    // 분할 표: 기본은 최적 3개 + 현재(1회)
+    const [showAllBoxes, setShowAllBoxes] = React.useState(false);    // 박스표: 기본은 현재 박스 앞뒤 구간
 
     const handleDownloadPDF = async () => {
         if (!printRef.current) return;
@@ -14,7 +16,13 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
         try {
             setIsGeneratingPdf(true);
             const input = printRef.current;
+            // PDF 에는 [전체 보기]와 상관없이 모든 행을 담는다 — 잠깐 전부 펼쳐 그린 뒤(flushSync) 복제하고 바로 원래대로.
+            // 펼치기·접기 버튼(data-pdf-hide)은 복제본에서 뺀다.
+            const prevShow = { split: showAllSplit, boxes: showAllBoxes };
+            ReactDOM.flushSync(() => { setShowAllSplit(true); setShowAllBoxes(true); });
             const clone = input.cloneNode(true);
+            ReactDOM.flushSync(() => { setShowAllSplit(prevShow.split); setShowAllBoxes(prevShow.boxes); });
+            clone.querySelectorAll('[data-pdf-hide]').forEach(el => el.remove());
             
             Object.assign(clone.style, {
                 position: 'fixed',
@@ -69,20 +77,20 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
         const customsRate = currentRates?.customs || 1;
         const usdKrwRate = currentRates?.usdKrw || 1;
         
-        const tariffRateValue = parseFloat(formData.tariffRate) / 100;
-        const weightPerBox = parseFloat(formData.weightPerBox) || 0;
+        const tariffRateValue = parseNum(formData.tariffRate) / 100;
+        const weightPerBox = parseNum(formData.weightPerBox) || 0;
 
         let currentBoxes, currentProductPriceUSD;
 
         if (calculationMode === 'product') {
-            const unitPrice = parseFloat(formData.unitPrice) || 0;
-            const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
+            const unitPrice = parseNum(formData.unitPrice) || 0;
+            const quantityPerBox = parseNum(formData.quantityPerBox) || 1;
             currentBoxes = Math.ceil(targetQty / quantityPerBox);
             currentProductPriceUSD = targetQty * unitPrice;
         } else { 
             currentBoxes = targetQty;
-            const totalOriginalPrice = parseFloat(formData.totalProductPrice) || 0;
-            const originalBoxes = parseFloat(formData.boxQuantity) || 1;
+            const totalOriginalPrice = parseNum(formData.totalProductPrice) || 0;
+            const originalBoxes = parseNum(formData.boxQuantity) || 1;
             const pricePerBox = totalOriginalPrice / originalBoxes;
             currentProductPriceUSD = currentBoxes * pricePerBox;
         }
@@ -93,7 +101,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
         
         let oceanFreightKRW;
         if (formData.shippingType === 'FCL') {
-             oceanFreightKRW = parseFloat(formData.containerCost) || 0;
+             oceanFreightKRW = parseNum(formData.containerCost) || 0;
         } else {
             oceanFreightKRW = chargeableCbm * oceanFreightPerCbm;
         }
@@ -111,7 +119,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
         const totalProductPriceKRW = currentProductPriceUSD * usdKrwRate;
 
         let commissionAmountKRW = 0;
-        const commissionValueNum = parseFloat(formData.commissionValue) || 0;
+        const commissionValueNum = parseNum(formData.commissionValue) || 0;
         if (formData.commissionType === 'percentage') {
             commissionAmountKRW = totalProductPriceKRW * (commissionValueNum / 100);
         } else if (formData.commissionType === 'perItem' && calculationMode === 'product') {
@@ -137,11 +145,11 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
     };
 
     const generateData = () => {
-        const baseQty = calculationMode === 'product' ? parseFloat(formData.productQuantity) : parseFloat(formData.boxQuantity);
+        const baseQty = calculationMode === 'product' ? parseNum(formData.productQuantity) : parseNum(formData.boxQuantity);
         if (!baseQty) return [];
 
         const data = [];
-        const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
+        const quantityPerBox = parseNum(formData.quantityPerBox) || 1;
         
         const pointsToCheck = new Set();
         for(let i=1; i<=10; i++) pointsToCheck.add(i);
@@ -151,7 +159,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
         pointsToCheck.add(currentBoxCount + 1);
         pointsToCheck.add(currentBoxCount + 5);
         
-        const weightPerBox = parseFloat(formData.weightPerBox) || 0;
+        const weightPerBox = parseNum(formData.weightPerBox) || 0;
         const cbmWeightDivisor = settings.common.cbmWeightDivisor;
         const minCbm = settings.common.minCbm || 1;
         if (weightPerBox > 0) {
@@ -172,7 +180,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
     const analyzeSplitScenarios = (totalBoxes) => {
         if (!totalBoxes || totalBoxes <= 0) return [];
         const scenarios = [];
-        const quantityPerBox = parseFloat(formData.quantityPerBox) || 1;
+        const quantityPerBox = parseNum(formData.quantityPerBox) || 1;
         
         let minShipmentSize = 1;
         if (totalBoxes >= 20) minShipmentSize = 10; 
@@ -209,10 +217,14 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
 
     const data = generateData();
     const currentBoxCount = calculationMode === 'product' 
-        ? Math.ceil(parseFloat(formData.productQuantity)/parseFloat(formData.quantityPerBox)) 
-        : parseFloat(formData.boxQuantity);
+        ? Math.ceil(parseNum(formData.productQuantity)/parseNum(formData.quantityPerBox)) 
+        : parseNum(formData.boxQuantity);
     
     const currentItem = data.find(d => d.boxes === currentBoxCount);
+    // 박스표 — 현재 박스 기준 앞뒤 BOX_WINDOW 줄만 먼저(나머지는 [전체 보기])
+    const BOX_WINDOW = 3;
+    const currentIdx = currentItem ? data.indexOf(currentItem) : -1;
+    const boxHidden = currentIdx >= 0 ? data.length - (Math.min(data.length - 1, currentIdx + BOX_WINDOW) - Math.max(0, currentIdx - BOX_WINDOW) + 1) : 0;
     const splitScenarios = React.useMemo(() => { return analyzeSplitScenarios(currentBoxCount); }, [currentBoxCount, formData, settings, currentRates, calculationMode]);
 
     const formatCurrency = (val) => new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 }).format(val);
@@ -225,6 +237,11 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
 
         const saving = currentScenario.totalScenarioCost - bestScenario.totalScenarioCost;
         const isCurrentBest = bestScenario.splitCount === 1;
+        // 기본: 비용이 낮은 3개 + 현재(1회) 를 먼저. [전체 보기] 면 예전처럼 횟수 순 전체.
+        const topRows = splitScenarios.slice(0, 3);
+        if (!topRows.some(s => s.splitCount === 1)) topRows.push(currentScenario);
+        const splitRows = showAllSplit ? [...splitScenarios].sort((a, b) => a.splitCount - b.splitCount) : topRows;
+        const splitHidden = splitScenarios.length - topRows.length;
 
         return (
             <div className="mb-8">
@@ -238,11 +255,11 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
                         </div>
                     </div>
                 </div>
-                <div className="overflow-hidden border rounded-lg shadow-sm">
+                <div className="overflow-x-auto border rounded-lg shadow-sm">
                     <table className="w-full text-sm text-center border-collapse">
-                        <thead className="bg-gray-100 text-gray-600"><tr><th className="p-2 border-b">횟수</th><th className="p-2 border-b">1회당 물량</th><th className="p-2 border-b">총 통관비용</th><th className="p-2 border-b">비고</th></tr></thead>
+                        <thead className="bg-gray-100 text-gray-600"><tr><th className="p-2 border-b">횟수</th><th className="p-2 border-b">1회당 물량</th><th className="p-2 border-b">부대비용(상품가 제외, 원)</th><th className="p-2 border-b">비고</th></tr></thead>
                         <tbody>
-                            {[...splitScenarios].sort((a,b) => a.splitCount - b.splitCount).map((row, idx) => {
+                            {splitRows.map((row, idx) => {
                                 const isBest = row.splitCount === bestScenario.splitCount;
                                 const diff = row.totalScenarioCost - currentScenario.totalScenarioCost;
                                 return (
@@ -262,6 +279,11 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
                         </tbody>
                     </table>
                 </div>
+                {splitHidden > 0 && (
+                    <button type="button" data-pdf-hide onClick={() => setShowAllSplit(v => !v)} aria-expanded={showAllSplit} className="mt-2 text-sm font-semibold text-emerald-700 hover:text-emerald-600 underline">
+                        {showAllSplit ? '최적 3개만 보기' : `전체 보기 (${splitScenarios.length}개)`}
+                    </button>
+                )}
             </div>
         );
     };
@@ -292,7 +314,7 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
                             {isGeneratingPdf ? (<svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>) : (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>)}
                             PDF 저장
                         </button>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl px-2">&times;</button>
+                        <button onClick={onClose} aria-label="운송 효율 분석 닫기" title="닫기" className="text-gray-400 hover:text-gray-600 text-2xl px-2">&times;</button>
                     </div>
                 </div>
                 
@@ -303,10 +325,11 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
                     <div className="overflow-x-auto border rounded-lg">
                         <table className="w-full text-sm text-center border-collapse">
                             <thead className="bg-gray-100 text-gray-600 sticky top-0">
-                                <tr><th className="p-2 border">박스수</th><th className="p-2 border">총 통관비</th><th className="p-2 border bg-blue-50 text-blue-800">개당 최종원가</th><th className="p-2 border">비고</th></tr>
+                                <tr><th className="p-2 border">박스수</th><th className="p-2 border">부대비용(상품가 제외, 원)</th><th className="p-2 border bg-blue-50 text-blue-800">개당 최종원가(원)</th><th className="p-2 border">비고</th></tr>
                             </thead>
                             <tbody>
                                 {data.map((row, idx) => {
+                                    if (!showAllBoxes && currentIdx >= 0 && (idx < currentIdx - BOX_WINDOW || idx > currentIdx + BOX_WINDOW)) return null;
                                     const isCurrent = row.boxes === currentItem?.boxes;
                                     const isMin = row.boxes === 1;
                                     const minCbmVal = settings.common.minCbm || 1;
@@ -323,6 +346,11 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
                             </tbody>
                         </table>
                     </div>
+                    {boxHidden > 0 && (
+                        <button type="button" data-pdf-hide onClick={() => setShowAllBoxes(v => !v)} aria-expanded={showAllBoxes} className="mt-2 text-sm font-semibold text-emerald-700 hover:text-emerald-600 underline">
+                            {showAllBoxes ? '현재 앞뒤만 보기' : `전체 보기 (${data.length}줄)`}
+                        </button>
+                    )}
                     <div className="mt-4 text-right text-xs text-gray-400">Generated by 비용계산기 | {new Date().toLocaleDateString()}</div>
                 </div>
             </div>

@@ -46,38 +46,64 @@ const App = () => {
         setExchangeRates(prev => ({ ...prev, [field]: value }));
     };
     
+    // short: 휴대폰 탭 이름(한 줄) · title: 넓은 화면 '… 계산기'
     const tabs = React.useMemo(() => [
-        { 
-            id: 'import', 
-            title: '수입가', 
-            component: <ImportCalculator exchangeRates={exchangeRates} onRateChange={handleRateChange} /> 
+        {
+            id: 'import',
+            title: '수입가', short: '수입가',
+            component: <ImportCalculator exchangeRates={exchangeRates} onRateChange={handleRateChange} />
         },
-        { 
-            id: 'customs', 
-            title: '통관비', 
-            component: <CustomsCalculator exchangeRates={exchangeRates} onRateChange={handleRateChange} /> 
+        {
+            id: 'customs',
+            title: '통관비', short: '통관비',
+            component: <CustomsCalculator exchangeRates={exchangeRates} onRateChange={handleRateChange} isActive={activeTabId === 'customs'} />
         },
         {
             id: 'shipping',
-            title: '선적',
+            title: '선적', short: '선적',
             component: <ShippingCalculator />
         },
         {
             id: 'warehouse',
-            title: '창고료&가산세',
+            title: '창고료&가산세', short: '창고료',
             component: <WarehouseFeeCalculator exchangeRates={exchangeRates} />
         },
-    ], [exchangeRates]);
+    ], [exchangeRates, activeTabId]);
 
     // --- Swipe Logic ---
     const touchStartX = React.useRef(null); const touchDeltaX = React.useRef(0); const [isSwiping, setIsSwiping] = React.useState(false);
     const activeTabIndex = React.useMemo(() => tabs.findIndex(tab => tab.id === activeTabId), [tabs, activeTabId]);
-    const handleTouchStart = (e) => { if (['INPUT', 'SELECT', 'BUTTON', 'A'].includes(e.target.tagName) || e.target.closest('[role="button"]')) return; touchStartX.current = e.touches[0].clientX; touchDeltaX.current = 0; setIsSwiping(true); };
+    // 스와이프 예외: 입력·버튼·링크·라벨(세그먼트 선택) 위, 가로 스크롤 영역(관세율 칸·표) 안
+    const handleTouchStart = (e) => { if (['INPUT', 'SELECT', 'BUTTON', 'A', 'LABEL'].includes(e.target.tagName) || e.target.closest('[role="button"], label, .overflow-x-auto')) return; touchStartX.current = e.touches[0].clientX; touchDeltaX.current = 0; setIsSwiping(true); };
     const handleTouchMove = (e) => { if (!isSwiping || touchStartX.current === null) return; touchDeltaX.current = e.touches[0].clientX - touchStartX.current; };
     const handleTouchEnd = () => { if (!isSwiping) return; const swipeThreshold = 50; if (Math.abs(touchDeltaX.current) > swipeThreshold) { if (touchDeltaX.current < 0) { if (activeTabIndex < tabs.length - 1) setActiveTabId(tabs[activeTabIndex + 1].id); } else { if (activeTabIndex > 0) setActiveTabId(tabs[activeTabIndex - 1].id); } } setIsSwiping(false); touchStartX.current = null; touchDeltaX.current = 0; };
     // --- End Swipe Logic ---
 
-    const tabStyles = "flex-1 py-2.5 px-4 text-center text-sm font-semibold rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 transition-colors";
+    const tabStyles = "flex-1 min-w-0 py-2.5 px-2 sm:px-4 text-center text-sm font-semibold whitespace-nowrap rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 transition-colors";
+
+    // 탭마다 제 높이 — 보이는 탭 높이로 main 을 맞춘다(짧은 탭 아래 빈 공간 없음)
+    const panelRefs = React.useRef({});
+    const [panelHeight, setPanelHeight] = React.useState(null);
+    React.useLayoutEffect(() => {
+        const el = panelRefs.current[activeTabId];
+        if (!el) return undefined;
+        const update = () => setPanelHeight(el.offsetHeight);
+        update();
+        if (typeof ResizeObserver === 'undefined') return undefined;
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [activeTabId]);
+
+    // 탭 목록 키보드: ←/→ 로 옆 탭
+    const handleTabKeyDown = (e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        e.preventDefault();
+        const next = (activeTabIndex + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+        setActiveTabId(tabs[next].id);
+        const btn = document.getElementById(`calc-tab-${tabs[next].id}`);
+        if (btn) btn.focus();
+    };
     const activeTabStyles = "bg-white text-emerald-700";
     const inactiveTabStyles = "text-slate-600 hover:text-slate-900";
     
@@ -94,8 +120,8 @@ const App = () => {
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </button>
                     <header className="text-center mb-6"><h1 className="text-2xl sm:text-3xl font-bold text-gray-900">비용 계산기</h1><p className="mt-1 text-sm text-slate-500">수입에 필요한 비용을 간편하게 계산해보세요.</p></header>
-                    <div className="w-full max-w-4xl mx-auto"><div className="flex mb-4 p-1 bg-slate-200/60 rounded-full">{tabs.map(tab => (<button key={tab.id} onClick={() => setActiveTabId(tab.id)} className={`${tabStyles} ${activeTabId === tab.id ? activeTabStyles : inactiveTabStyles}`} aria-selected={activeTabId === tab.id}><span className="sm:hidden">{tab.title}<br />계산기</span><span className="hidden sm:inline">{tab.title} 계산기</span></button>))}</div></div>
-                    <main className="w-full overflow-hidden" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}><div className="flex" style={{ transform: transformValue, transition: isSwiping ? 'none' : 'transform 0.4s cubic-bezier(0.4, 0.2, 1)' }}>{tabs.map(tab => (<div key={tab.id} className="w-full flex-shrink-0">{tab.component}</div>))}</div></main>
+                    <div className="w-full max-w-4xl mx-auto"><div role="tablist" aria-label="계산기 종류" onKeyDown={handleTabKeyDown} className="flex mb-4 p-1 bg-slate-200/60 rounded-full">{tabs.map(tab => (<button key={tab.id} id={`calc-tab-${tab.id}`} role="tab" aria-controls={`calc-panel-${tab.id}`} tabIndex={activeTabId === tab.id ? 0 : -1} onClick={() => setActiveTabId(tab.id)} className={`${tabStyles} ${activeTabId === tab.id ? activeTabStyles : inactiveTabStyles}`} aria-selected={activeTabId === tab.id}><span className="sm:hidden">{tab.short}</span><span className="hidden sm:inline">{tab.title} 계산기</span></button>))}</div></div>
+                    <main className="w-full overflow-hidden" style={{ height: panelHeight ? `${panelHeight}px` : undefined }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}><div className="flex items-start" style={{ transform: transformValue, transition: isSwiping ? 'none' : 'transform 0.4s cubic-bezier(0.4, 0.2, 1)' }}>{tabs.map(tab => (<div key={tab.id} id={`calc-panel-${tab.id}`} role="tabpanel" aria-labelledby={`calc-tab-${tab.id}`} aria-hidden={activeTabId === tab.id ? undefined : true} inert={activeTabId === tab.id ? undefined : ''} ref={el => { panelRefs.current[tab.id] = el; }} className="w-full flex-shrink-0">{tab.component}</div>))}</div></main>
                 </div>
             </div>
         </SettingsProvider>
