@@ -13,14 +13,15 @@
 //    로그인 칸 UI 는 china-stock-gate.js 를 **복사**했다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202610161426';
-import { emulatorEnabled } from './firebase-emulator.js?v=202610161426';
-import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610161426';
-import { renderList, exportCatalog } from './products-list.js?v=202610161426';
-import { renderDetail, renderCatalogLog } from './products-detail.js?v=202610161426';
-import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=202610161426';
-import { openUpload } from './products-excel.js?v=202610161426';
-import { setShellContext } from './app-shell-bridge.js?v=202610161426';
+import { initializeFirebase } from './config.js?v=202610161616';
+import { emulatorEnabled } from './firebase-emulator.js?v=202610161616';
+import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610161616';
+import { renderList, exportCatalog } from './products-list.js?v=202610161616';
+import { renderDetail, renderCatalogLog } from './products-detail.js?v=202610161616';
+import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=202610161616';
+import { openUpload } from './products-excel.js?v=202610161616';
+import { setShellContext } from './app-shell-bridge.js?v=202610161616';
+import { memberNameFor } from './app-shell-data.js?v=202610161616';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -152,6 +153,9 @@ async function checkAdmin(user) {
     const snap = await getDocFromServer(doc(S.db, APP_BASE + '/config/mainConfig'));
     countRead('관리자 확인');
     const roles = (snap.exists() && snap.data().memberRoles) || {};
+    // 공통 상단바 개인 알림(P2) — 같은 문서의 memberEmails 로 이름을 찾아 넘긴다(추가 읽기 없음). 이름은 메모리에만.
+    const memberName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email);
+    if (memberName && auth.currentUser && auth.currentUser.uid === user.uid) setShellContext({ signedIn: true, uid: user.uid, memberName });
     return roles[(user.email || '').toLowerCase()] === 'admin';
 }
 

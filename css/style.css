@@ -3,6 +3,10 @@ body {
     font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
 }
 
+/* 키보드 포커스 표시 — location.html 의 규칙과 같다(UX 개선 11번, d-theme.css 에도 같은 줄).
+   마우스 클릭에는 안 보이고 Tab 으로 왔을 때만 보인다. 개별 화면이 focus:outline-none 등으로 덮으면 그쪽이 이긴다. */
+:focus-visible { outline: 2px solid var(--c-accent, #2F62C9); outline-offset: 2px; }
+
 /* 차트 영역 */
 .chart {
     position: relative;
@@ -180,6 +184,8 @@ body {
 .text-out { opacity: 1; color: #4b5563; padding-left: 1.8rem; }
 .attendance-toggle:has(input:checked) .text-in { opacity: 1; }
 .attendance-toggle:has(input:checked) .text-out { opacity: 0; }
+/* 출퇴근 토글은 체크박스가 sr-only 라 키보드 포커스가 안 보였다 — 스위치 테두리에 표시(UX 개선 11번) */
+.attendance-toggle:has(input:focus-visible) { outline: 2px solid var(--c-accent, #2F62C9); outline-offset: 2px; }
 
 /* 날짜 리스트(이력 조회) 경고 뱃지 */
 .date-has-estimates { position: relative; }
@@ -547,7 +553,7 @@ html.dark .depth-panel {
     display: inline-block; padding: 2px 7px; border-radius: 5px;
     background: var(--bg); color: var(--fg);
     border-left: 3px solid var(--bar);
-    font-size: 10px; font-weight: 700;
+    font-size: 11px; font-weight: 700;   /* 10px → 11px (UX 개선 10번) */
 }
 .dark .cal-legend { background: var(--dbg); color: var(--dfg); }
 

@@ -1,17 +1,58 @@
 // === js/listeners-form-team.js ===
 // 설명: 팀원 선택 및 알바 관리(추가/수정/삭제) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610161426';
-import { generateId, debouncedSaveState, updateDailyData } from './app-data.js?v=202610161426';
-import { markDataAsDirty } from './app-lifecycle.js?v=202610161426';
-import { renderTeamSelectionModalContent } from './ui-modals.js?v=202610161426';
-import { startWorkGroup, addMembersToWorkGroup } from './app-logic.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610161616';
+import { generateId, debouncedSaveState, updateDailyData } from './app-data.js?v=202610161616';
+import { markDataAsDirty } from './app-lifecycle.js?v=202610161616';
+import { renderTeamSelectionModalContent } from './ui-modals.js?v=202610161616';
+import { startWorkGroup, addMembersToWorkGroup, processClockIn } from './app-logic.js?v=202610161616';
 import { collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 헬퍼 변수
+// 헬퍼 변수 (ui-modals.js renderTeamSelectionModalContent 의 selectedClasses 와 같아야 한다)
 const SELECTED_CLASSES = ['bg-blue-600', 'border-blue-600', 'text-white', 'hover:bg-blue-700'];
+
+// 시작 창을 지금 선택 상태 그대로 다시 그리고, 실제로 선택된 칸(고를 수 있는 칸)만 선택 목록에 남긴다.
+// (알바 추가·이름 변경·삭제, 출근하고 시작 뒤에 쓴다 — 예전엔 다시 그리면 화면 선택만 풀리고 목록엔 남았다)
+const rerenderTeamSelect = () => {
+    renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups,
+        { selected: State.context.tempSelectedMembers || [] });
+    const box = document.getElementById('team-select-modal-content');
+    State.context.tempSelectedMembers = box
+        ? Array.from(box.querySelectorAll('.member-select-btn.bg-blue-600')).map(b => b.dataset.memberName)
+        : [];
+};
+
+/**
+ * 업무 시작(또는 인원 추가) 창을 연다 — 업무 시작이면 본인을 미리 선택한다(관리자 포함, UX 개선 2번).
+ * '인원 추가'(groupId 있음)는 미리 선택하지 않는다 — 관리자가 남을 넣는 경우가 많아 본인이 잘못 들어가기 쉽다.
+ * 본인이 고를 수 없는 상태(업무 중·근태·출근 전)면 선택하지 않는다(출근 전이면 본인 칸에 [출근하고 시작]).
+ * @param {string} task
+ * @param {string|null} [groupId]  있으면 '인원 추가'
+ */
+export const openTeamSelectForTask = (task, groupId = null) => {
+    State.context.selectedTaskForStart = task;
+    State.context.selectedGroupForAdd = groupId || null;
+    State.context.tempSelectedMembers = (!groupId && State.appState.currentUser) ? [State.appState.currentUser] : [];
+    rerenderTeamSelect();
+    const titleEl = document.getElementById('team-select-modal-title');
+    if (titleEl) titleEl.textContent = groupId ? `'${task}' 인원 추가` : `'${task}' 업무 시작`;
+    const confirmBtn = document.getElementById('confirm-team-select-btn');
+    if (confirmBtn && !confirmBtn.disabled) confirmBtn.textContent = '선택 완료 및 업무 시작';
+    if (DOM.teamSelectModal) DOM.teamSelectModal.classList.remove('hidden');
+};
+
+// processClockIn 이 쓴 출근이 이 탭의 상태(appState.dailyAttendance)에 들어올 때까지 기다린다(실시간 구독이 넣는다).
+// startWorkGroup 이 appState 로 출근 여부를 보기 때문이다. 최대 limitMs.
+const waitForClockedIn = async (member, limitMs = 5000) => {
+    const until = Date.now() + limitMs;
+    while (Date.now() < until) {
+        if (State.appState.dailyAttendance?.[member]?.status === 'active') return true;
+        await new Promise(r => setTimeout(r, 150));
+    }
+    return State.appState.dailyAttendance?.[member]?.status === 'active';
+};
 const UNSELECTED_CLASSES = ['bg-white', 'border-gray-300', 'text-gray-900', 'hover:bg-blue-50', 'hover:border-blue-300'];
 
 // 헬퍼: 버튼을 선택 상태로 만듦
@@ -37,7 +78,32 @@ export function setupFormTeamListeners() {
     // 2. 팀원 선택 모달 내부 클릭 이벤트 (위임)
     if (DOM.teamSelectModal) {
         DOM.teamSelectModal.addEventListener('click', async (e) => {
-            const target = e.target; 
+            const target = e.target;
+
+            // 0. 본인 [출근하고 시작] — 기존 출근 처리(processClockIn, 출퇴근 토글과 같은 길)로 출근한 뒤
+            //    본인을 선택 목록에 넣고 [선택 완료 및 업무 시작] 을 누른 것과 같이 진행한다. 자동 출근이 아니다.
+            const clockInStartBtn = target.closest('.self-clockin-start-btn');
+            if (clockInStartBtn) {
+                const me = State.appState.currentUser;
+                if (!me || clockInStartBtn.disabled) return;
+                clockInStartBtn.disabled = true;
+                clockInStartBtn.textContent = '출근 처리 중…';
+                const ok = await processClockIn(me);
+                if (!ok) {   // 실패 안내는 processClockIn 이 이미 띄웠다
+                    clockInStartBtn.disabled = false;
+                    clockInStartBtn.textContent = '출근하고 시작';
+                    return;
+                }
+                if (!State.context.tempSelectedMembers.includes(me)) State.context.tempSelectedMembers.push(me);
+                const ready = await waitForClockedIn(me);
+                rerenderTeamSelect();
+                if (!ready || !State.context.tempSelectedMembers.includes(me)) {
+                    showToast('출근은 처리됐습니다. 화면이 갱신되면 [선택 완료 및 업무 시작] 을 눌러 주세요.', true);
+                    return;
+                }
+                document.getElementById('confirm-team-select-btn')?.click();
+                return;
+            }
 
             // A. 개별 팀원 선택 버튼
             const memberButton = target.closest('.member-select-btn');
@@ -123,7 +189,7 @@ export function setupFormTeamListeners() {
                         markDataAsDirty();
                     }
 
-                    renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
+                    rerenderTeamSelect();
                     showToast(`${partTimer.name}님이 삭제되었습니다.`);
                 }
                 return;
@@ -170,7 +236,7 @@ export function setupFormTeamListeners() {
                     markDataAsDirty();
                 }
 
-                renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
+                rerenderTeamSelect();
                 showToast(`'${newName}'이(가) 추가되고 출근 처리되었습니다.`);
                 return;
             }
@@ -292,7 +358,7 @@ export function setupFormTeamListeners() {
                 }
             }
             document.getElementById('edit-part-timer-modal').classList.add('hidden');
-            renderTeamSelectionModalContent(State.context.selectedTaskForStart, State.appState, State.appConfig.teamGroups);
+            rerenderTeamSelect();
         });
     }
 

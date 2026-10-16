@@ -6,7 +6,7 @@
 export const D = {
     accent: '#2F62C9', accentRgb: 'rgb(47, 98, 201)', accentMid: '#7FA1E6', accentLight: '#C4D4F5',
     ok: '#5A9E96', okRgb: 'rgb(90, 158, 150)', warn: '#D2A266', risk: '#C9808A',
-    line: '#E6E8EC', lineStrong: '#D6DAE0', text3: '#8A9099'
+    line: '#E6E8EC', lineStrong: '#D6DAE0', text3: '#69707A'
 };
 
 /** '#RRGGBB' → 'rgba(r, g, b, a)' */

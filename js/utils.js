@@ -116,7 +116,9 @@ export const showConfirm = (message, opts = {}) => {
               </div>
             </div>`;
         const done = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
-        const onKey = (e) => { if (e.key === 'Escape') done(false); else if (e.key === 'Enter') done(true); };
+        // 위험(danger) 확인창은 Enter 로 실행되지 않는다 — 포커스도 [취소] 에 둔다(UX 개선 6번).
+        // (포커스된 버튼에서 Enter 를 누르면 그 버튼의 클릭이 나므로 [취소] 위 Enter 는 취소다)
+        const onKey = (e) => { if (e.key === 'Escape') done(false); else if (e.key === 'Enter' && !danger) done(true); };
         ov.addEventListener('click', (e) => {
             if (e.target === ov) return done(false); // 바깥 클릭=취소
             const b = e.target.closest('[data-act]');
@@ -124,8 +126,8 @@ export const showConfirm = (message, opts = {}) => {
         });
         document.addEventListener('keydown', onKey);
         document.body.appendChild(ov);
-        const okBtn = ov.querySelector('[data-act="ok"]');
-        if (okBtn) okBtn.focus();
+        const firstFocus = ov.querySelector(danger ? '[data-act="cancel"]' : '[data-act="ok"]');
+        if (firstFocus) firstFocus.focus();
     });
 };
 

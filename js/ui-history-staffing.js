@@ -1,11 +1,11 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202610161426';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610161426';
-import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610161426';
-import { fetchPlannedData } from './history-data-manager.js?v=202610161426';
-import { getTodayDateString } from './utils.js?v=202610161426';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610161426';
-import { D } from './d-chart.js?v=202610161426';
+import * as State from './state.js?v=202610161616';
+import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610161616';
+import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610161616';
+import { fetchPlannedData } from './history-data-manager.js?v=202610161616';
+import { getTodayDateString } from './utils.js?v=202610161616';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610161616';
+import { D } from './d-chart.js?v=202610161616';
 
 let staffingChartInstance = null;
 
@@ -303,10 +303,10 @@ const outlookRow = (r, maxNeed, todayStr) => {
                hover:bg-gray-50 dark:hover:bg-gray-900/30 cursor-pointer staffing-outlook-row" data-date="${r.date}"
         title="누르면 업무 예상에서 이 날짜를 자세히 볼 수 있습니다">
         <td class="py-2 px-3 whitespace-nowrap font-medium text-gray-700 dark:text-gray-200">
-            ${fmtDay(r.date)}${r.date === todayStr ? '<span class="ml-1 text-[10px] font-bold text-indigo-500">오늘</span>' : ''}
+            ${fmtDay(r.date)}${r.date === todayStr ? '<span class="ml-1 text-[11px] font-bold text-indigo-500">오늘</span>' : ''}
         </td>
         <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400 whitespace-nowrap">
-            ${r.totalHours.toFixed(1)}<span class="text-[10px] ml-0.5">인시</span>
+            ${r.totalHours.toFixed(1)}<span class="text-[11px] ml-0.5">인시</span>
         </td>
         <td class="py-2 px-3">
             <div class="relative h-4 rounded bg-gray-100 dark:bg-gray-700 overflow-hidden min-w-[90px]">
@@ -316,11 +316,11 @@ const outlookRow = (r, maxNeed, todayStr) => {
         </td>
         <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100 whitespace-nowrap">${r.requiredFTE}명</td>
         <td class="py-2 px-3 text-right tabular-nums text-gray-600 dark:text-gray-300 whitespace-nowrap">
-            ${r.available}명${r.onLeave > 0 ? `<span class="text-[10px] text-gray-400 ml-1">(휴무 ${r.onLeave})</span>` : ''}
+            ${r.available}명${r.onLeave > 0 ? `<span class="text-[11px] text-gray-400 ml-1">(휴무 ${r.onLeave})</span>` : ''}
         </td>
         <td class="py-2 px-3 text-right whitespace-nowrap font-bold ${tone}">${gapText}</td>
         <td class="py-2 px-2 text-center">
-            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${r.hasPlanned
+            <span class="text-[11px] font-bold px-1.5 py-0.5 rounded ${r.hasPlanned
                 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
                 : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'}"
                   title="${r.hasPlanned ? '저장해 둔 예정 물량으로 계산했습니다' : '예정 물량이 없어 실적 기반 자동 추정으로 계산했습니다'}">${r.hasPlanned ? '예정' : '추정'}</span>

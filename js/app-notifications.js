@@ -1,7 +1,7 @@
 // === js/app-notifications.js ===
-import * as State from './state.js?v=202610161426';
+import * as State from './state.js?v=202610161616';
 import { doc, writeBatch, deleteDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from './utils.js?v=202610161426';
+import { showToast } from './utils.js?v=202610161616';
 
 export async function sendNotification(targetMember, message, type = 'info') {
     try {
@@ -29,7 +29,7 @@ export function renderNotificationList() {
     
     list.innerHTML = notis.map(n => `
         <li class="p-3 rounded-lg border ${n.isRead ? 'bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600 text-gray-500 dark:text-gray-400' : 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800 text-gray-800 dark:text-gray-200'} shadow-sm relative pr-8">
-            <div class="text-[10px] font-bold mb-1 opacity-70">${new Date(n.createdAt).toLocaleString('ko-KR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</div>
+            <div class="text-[11px] font-bold mb-1 opacity-70">${new Date(n.createdAt).toLocaleString('ko-KR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</div>
             <div class="text-sm font-medium leading-snug break-words">${n.message}</div>
             <button class="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-bold text-lg delete-single-noti-btn transition" data-id="${n.id}">&times;</button>
         </li>

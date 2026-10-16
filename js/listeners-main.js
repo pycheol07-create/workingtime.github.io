@@ -1,26 +1,26 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202610161426';
-import { updateDailyData } from './app-data.js?v=202610161426';
+import { render } from './app.js?v=202610161616';
+import { updateDailyData } from './app-data.js?v=202610161616';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610161426';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610161426';
+import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610161616';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610161616';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202610161426';
+} from './ui.js?v=202610161616';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202610161426';
-import { saveProgress, saveDayDataToHistory, previewDayClose } from './history-data-manager.js?v=202610161426';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610161426';
+} from './app-logic.js?v=202610161616';
+import { saveProgress, saveDayDataToHistory, previewDayClose } from './history-data-manager.js?v=202610161616';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610161616';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
@@ -31,13 +31,14 @@ export function setupMainScreenListeners() {
     // --- 개인 출퇴근 리스너 ---
     const pcAttendanceCheckbox = document.getElementById('pc-attendance-checkbox');
     if (pcAttendanceCheckbox) {
-        pcAttendanceCheckbox.addEventListener('change', (e) => {
+        pcAttendanceCheckbox.addEventListener('change', async (e) => {
             const currentUser = State.appState.currentUser;
             if (!currentUser) return;
             if (e.target.checked) {
                 processClockIn(currentUser);
             } else {
-                const success = processClockOut(currentUser);
+                // await 필수 — 예전엔 Promise 를 받아 늘 참이라, 업무 중이라 퇴근이 막혀도 스위치가 '퇴근' 으로 남았다
+                const success = await processClockOut(currentUser);
                 if (!success) e.target.checked = true;
             }
         });
@@ -45,13 +46,13 @@ export function setupMainScreenListeners() {
 
     const mobileAttendanceCheckbox = document.getElementById('mobile-attendance-checkbox');
     if (mobileAttendanceCheckbox) {
-        mobileAttendanceCheckbox.addEventListener('change', (e) => {
+        mobileAttendanceCheckbox.addEventListener('change', async (e) => {
             const currentUser = State.appState.currentUser;
             if (!currentUser) return;
             if (e.target.checked) {
                 processClockIn(currentUser);
             } else {
-                 const success = processClockOut(currentUser);
+                const success = await processClockOut(currentUser);   // await 필수 — 위 PC 쪽 주석 참고
                 if (!success) e.target.checked = true;
             }
         });
@@ -204,8 +205,28 @@ export function setupMainScreenListeners() {
                 + `${p.invalid}건은 시작시각이 HH:MM 형식이 아닙니다 — 이대로는 마감할 수 없습니다</span>`);
         }
         줄.push(`· 이미 종료된 기록 ${p.kept}건은 그대로 유지됩니다`);
+        // 처리량 미입력 — 안내만 한다(마감은 막지 않는다, UX 개선 5번). 진행 중 기록은 마감되면 시간이 생기므로 '한 업무' 로 센다.
+        // ⚠️ 업무마감봇이 이 상자의 innerText 를 로그로만 남긴다 — 버튼은 data-act 가 아닌 data-end-shift-qty 로 둔다.
+        const 미입력 = checkMissingQuantities({
+            workRecords: (State.appState.workRecords || []).map(r =>
+                (r && (r.status === 'ongoing' || r.status === 'paused') && !(r.duration > 0)) ? { ...r, duration: 1 } : r),
+            taskQuantities: State.appState.taskQuantities || {},
+            confirmedZeroTasks: State.appState.confirmedZeroTasks || []
+        });
+        if (미입력.length > 0) {
+            const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+            줄.push(`· <span class="text-amber-700">처리량 미입력 <b>${미입력.length}종</b> (${미입력.map(esc).join(', ')})</span>`
+                + ' <button type="button" data-end-shift-qty class="ml-1 font-bold text-blue-700 underline hover:text-blue-900">지금 입력</button>');
+        }
         box.innerHTML = 줄.map(x => `<div>${x}</div>`).join('');
     };
+
+    // 마감 미리보기의 [지금 입력] → 오늘 처리량 입력 창(마감 확인창 위에 뜬다). 저장하면 미리보기를 다시 센다.
+    if (DOM.endShiftPreview) {
+        DOM.endShiftPreview.addEventListener('click', (e) => {
+            if (e.target.closest('[data-end-shift-qty]')) openTodayQuantityModal();
+        });
+    }
 
     const openEndShiftModal = () => {
         const ongoingRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
@@ -318,106 +339,77 @@ export function setupMainScreenListeners() {
     });
 
     // --- 처리량 입력 (메뉴) 리스너 ---
+    // PC 사이드바·휴대폰 메뉴·마감 확인창의 [지금 입력] 이 같은 창을 연다(예전엔 PC/휴대폰 두 벌이 복사돼 있었다).
+    const openTodayQuantityModal = () => {
+        if (!State.auth || !State.auth.currentUser) {
+            showToast('로그인이 필요합니다.', true);
+            if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
+            return;
+        }
+
+        const todayData = {
+            workRecords: State.appState.workRecords || [],
+            taskQuantities: State.appState.taskQuantities || {},
+            confirmedZeroTasks: State.appState.confirmedZeroTasks || []
+        };
+        const missingTasksList = checkMissingQuantities(todayData);
+        // 정렬: 누락 → 오늘 한 업무(진행 중 포함) → 나머지 (ui-modals.js renderQuantityModalInputs)
+        const doneTodayTasks = [...new Set((State.appState.workRecords || []).map(r => r && r.task).filter(Boolean))];
+
+        renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes || [], missingTasksList, State.appState.confirmedZeroTasks || [], doneTodayTasks);
+
+        const title = document.getElementById('quantity-modal-title');
+        if (title) title.textContent = '오늘의 처리량 입력';
+
+        State.context.quantityModalContext.mode = 'today';
+        State.context.quantityModalContext.dateKey = null;
+
+        // false 를 돌려주면 창을 닫지 않는다(listeners-form-quantity.js) — 저장이 안 됐는데 닫히면 입력이 사라진다.
+        State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
+            const saved = await updateDailyData({
+                taskQuantities: newQuantities,
+                confirmedZeroTasks: confirmedZeroTasks
+            }, { requireOnline: true, timeoutMs: 10000 });
+            if (!saved) return false;   // 오류 안내는 updateDailyData 가 한 번 띄웠다
+
+            State.appState.taskQuantities = newQuantities;
+            State.appState.confirmedZeroTasks = confirmedZeroTasks;
+
+            // 오늘 입력은 검증 플래그 없이 저장한다
+            // (isAutoSave=true 로 주어 saveProgress 자체 토스트를 끄고, 결과만 여기서 한 번 알린다)
+            // 처리량 자체는 위 updateDailyData 로 이미 반영됐다 — 확인은 먼저 알린다.
+            showToast('오늘의 처리량을 반영했습니다.');
+            // 마감 확인창에서 [지금 입력] 으로 왔으면 미리보기의 '처리량 미입력' 줄을 새로 센다
+            if (DOM.endShiftConfirmModal && !DOM.endShiftConfirmModal.classList.contains('hidden')) renderEndShiftPreview();
+
+            // ⚠️ await 를 빼면 안 된다. 이 호출이 떠 있는 동안 사용자가 '업무 마감'을 누르면,
+            //    뒤늦게 끝난 이쪽이 마감 전 상태(ongoing)로 이력을 통째 덮어쓴다.
+            //    (workRecords 는 배열이라 merge 가 아니라 교체다)
+            const resToday = await saveProgress(true, false);
+            // 'nothing'(저장할 게 없음)은 정상, 'failed' 만 오류로 안내한다.
+            if (resToday === 'failed') showToast('처리량은 반영됐지만 이력 저장에 실패했습니다. 연결을 확인해 주세요.', true);
+            return true;
+        };
+
+        State.context.quantityModalContext.onCancel = () => {};
+
+        // 다른 모드(데이터 관리의 '수정 저장')가 바꿔 둔 버튼 글자를 되돌린다
+        if (DOM.confirmQuantityBtn && !DOM.confirmQuantityBtn.disabled) DOM.confirmQuantityBtn.textContent = '확인 및 저장';
+
+        const quantityModalEl = document.getElementById('quantity-modal');
+        if (quantityModalEl) quantityModalEl.classList.remove('hidden');
+    };
+
     if (DOM.openQuantityModalTodayBtn) {
         DOM.openQuantityModalTodayBtn.addEventListener('click', () => {
-            if (!State.auth || !State.auth.currentUser) {
-                showToast('로그인이 필요합니다.', true);
-                if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
-                return;
-            }
-
-            const quantityModal = document.getElementById('quantity-modal');
-
-            const todayData = {
-                workRecords: State.appState.workRecords || [],
-                taskQuantities: State.appState.taskQuantities || {},
-                confirmedZeroTasks: State.appState.confirmedZeroTasks || []
-            };
-            const missingTasksList = checkMissingQuantities(todayData);
-
-            renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes || [], missingTasksList, State.appState.confirmedZeroTasks || []);
-
-            const title = document.getElementById('quantity-modal-title');
-            if (title) title.textContent = '오늘의 처리량 입력';
-
-            State.context.quantityModalContext.mode = 'today';
-            State.context.quantityModalContext.dateKey = null;
-
-            State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
-                State.appState.taskQuantities = newQuantities;
-                State.appState.confirmedZeroTasks = confirmedZeroTasks;
-                
-                await updateDailyData({
-                    taskQuantities: newQuantities,
-                    confirmedZeroTasks: confirmedZeroTasks
-                });
-
-                // 오늘 입력은 검증 플래그 없이 저장한다
-                // (isAutoSave=true 로 주어 saveProgress 자체 토스트를 끄고, 결과만 여기서 한 번 알린다)
-                // 처리량 자체는 위 updateDailyData 로 이미 반영됐다 — 확인은 먼저 알린다.
-                showToast('오늘의 처리량을 반영했습니다.');
-
-                // ⚠️ await 를 빼면 안 된다. 이 호출이 떠 있는 동안 사용자가 '업무 마감'을 누르면,
-                //    뒤늦게 끝난 이쪽이 마감 전 상태(ongoing)로 이력을 통째 덮어쓴다.
-                //    (workRecords 는 배열이라 merge 가 아니라 교체다)
-                const resToday = await saveProgress(true, false);
-                // 'nothing'(저장할 게 없음)은 정상, 'failed' 만 오류로 안내한다.
-                if (resToday === 'failed') showToast('처리량은 반영됐지만 이력 저장에 실패했습니다. 연결을 확인해 주세요.', true);
-            };
-
-            State.context.quantityModalContext.onCancel = () => {};
-
-            const quantityModalEl = document.getElementById('quantity-modal');
-            if (quantityModalEl) quantityModalEl.classList.remove('hidden');
+            openTodayQuantityModal();
             if (DOM.menuDropdown) DOM.menuDropdown.classList.add('hidden');
         });
     }
 
     if (DOM.openQuantityModalTodayBtnMobile) {
         DOM.openQuantityModalTodayBtnMobile.addEventListener('click', () => {
-            if (!State.auth || !State.auth.currentUser) {
-                showToast('로그인이 필요합니다.', true);
-                if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
-                return;
-            }
-
-            const quantityModal = document.getElementById('quantity-modal');
-
-            const todayData = {
-                workRecords: State.appState.workRecords || [],
-                taskQuantities: State.appState.taskQuantities || {},
-                confirmedZeroTasks: State.appState.confirmedZeroTasks || []
-            };
-            const missingTasksList = checkMissingQuantities(todayData);
-
-            renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes || [], missingTasksList, State.appState.confirmedZeroTasks || []);
-
-            const title = document.getElementById('quantity-modal-title');
-            if (title) title.textContent = '오늘의 처리량 입력';
-
-            State.context.quantityModalContext.mode = 'today';
-            State.context.quantityModalContext.dateKey = null;
-
-            State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
-                State.appState.taskQuantities = newQuantities;
-                State.appState.confirmedZeroTasks = confirmedZeroTasks;
-
-                await updateDailyData({
-                    taskQuantities: newQuantities,
-                    confirmedZeroTasks: confirmedZeroTasks
-                });
-                
-                showToast('오늘의 처리량을 반영했습니다.');
-
-                // await 필수 — 위 데스크톱 분기의 주석 참조(마감과의 경합).
-                const resToday2 = await saveProgress(true, false);
-                if (resToday2 === 'failed') showToast('처리량은 반영됐지만 이력 저장에 실패했습니다. 연결을 확인해 주세요.', true);
-            };
-
-            State.context.quantityModalContext.onCancel = () => {};
-
-            const quantityModalEl = document.getElementById('quantity-modal');
-            if (quantityModalEl) quantityModalEl.classList.remove('hidden');
+            openTodayQuantityModal();
             if (DOM.navContent) DOM.navContent.classList.add('hidden');
         });
     }

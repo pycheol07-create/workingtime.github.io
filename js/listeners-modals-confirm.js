@@ -1,16 +1,17 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { isPersistentLeaveType } from './state.js?v=202610161426';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161426';
-import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202610161426';
-import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202610161426';
-import { saveLeaveSchedule } from './config.js?v=202610161426';
-import { switchHistoryView } from './app-history-logic.js?v=202610161426';
-import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202610161426';
-import { saveStateToFirestore } from './app-data.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { isPersistentLeaveType } from './state.js?v=202610161616';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161616';
+import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202610161616';
+import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202610161616';
+import { saveLeaveSchedule } from './config.js?v=202610161616';
+import { switchHistoryView } from './app-history-logic.js?v=202610161616';
+import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202610161616';
+import { waitQuantitySave } from './listeners-form-quantity.js?v=202610161616';
+import { saveStateToFirestore } from './app-data.js?v=202610161616';
 
 import {
     doc, deleteDoc, writeBatch, collection, updateDoc, getDoc, getDocs, setDoc, query
@@ -68,6 +69,8 @@ export function setupConfirmationModalListeners() {
                 await deleteWorkRecordDocument(State.context.recordToDeleteId);
                 showToast('업무 기록이 삭제되었습니다.');
             } else if (State.context.deleteMode === 'all-completed') {
+                // ⓘ 이 모드를 켜던 대시보드 '일괄삭제' 버튼(#delete-all-completed-btn)은 연결 없이 남아 있어
+                //    2026-10-16 삭제했다(UX 개선 8번). 지금은 이 모드로 들어오는 곳이 없다 — 처리 코드만 남겨 둔다.
                  const completedIds = (State.appState.workRecords || [])
                     .filter(r => r.status === 'completed')
                     .map(r => r.id);
@@ -317,7 +320,7 @@ export function setupConfirmationModalListeners() {
                             r.startTime < dailyEntry.startTime
                         );
                         if (stale.length > 0) {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202610161426');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202610161616');
                             const r = await forceEndMemberWork(memberName, dailyEntry.startTime);
                             if (r.ended > 0) {
                                 console.warn(`[외출 복귀 보호막] ${memberName}: 외출 전부터 진행 중이던 ${r.ended}건을 ${dailyEntry.startTime}로 정리`, r.summaries);
@@ -386,6 +389,9 @@ export function setupConfirmationModalListeners() {
     // 6. 업무 마감 확인
     if (DOM.confirmEndShiftBtn) {
         DOM.confirmEndShiftBtn.addEventListener('click', async () => {
+            // 처리량 저장(마감 미리보기 [지금 입력] 등)이 떠 있으면 끝날 때까지 기다린다 — 뒤늦게 끝난 저장이
+            // 마감한 이력을 마감 전 상태로 덮지 않게. 저장이 없으면 바로 지나간다(업무마감봇 클릭도 대기 없음).
+            await waitQuantitySave();
             // 🕐 마감 기준시각. 이 값이 퇴근 미기록자 전원의 퇴근시각이 되고,
             //    진행 중 기록이 이 시각으로 마감된다. 되돌릴 수 없다.
             //

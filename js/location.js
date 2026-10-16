@@ -1,14 +1,14 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610161426';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610161616';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610161426';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610161426';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610161426';
-import { orderKeyMap } from './lib/order-hash.js?v=202610161426';
-import { setShellContext } from './app-shell-bridge.js?v=202610161426';
-import { memberNameFor } from './app-shell-data.js?v=202610161426';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610161426';
-import { initPageNav } from './page-nav.js?v=202610161426';
+import { escapeHtml as escAttr } from './utils.js?v=202610161616';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610161616';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610161616';
+import { orderKeyMap } from './lib/order-hash.js?v=202610161616';
+import { setShellContext } from './app-shell-bridge.js?v=202610161616';
+import { memberNameFor } from './app-shell-data.js?v=202610161616';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610161616';
+import { initPageNav } from './page-nav.js?v=202610161616';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -2499,7 +2499,7 @@ window.saveSheetUrl = async () => {
         await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { sheetUrlOrder: urlOrder, sheetUrlBuy: urlBuy }, { merge: true });
         window.sheetUrlOrder = urlOrder;
         window.sheetUrlBuy = urlBuy;
-        alert("구글시트 링크가 안전하게 저장되었습니다.");
+        showToast("구글시트 링크를 저장했습니다.");
         if (typeof window.closeSheetModal === 'function') window.closeSheetModal();
     } catch(e) { console.error("링크 저장 실패:", e); alert("오류가 발생했습니다."); }
 };
@@ -2523,7 +2523,7 @@ async function applyIncomingRows(finalJson, cancelledCodes, sourceMsg) {
     if (finalJson.length > 0) {
         await updateDatabaseB(finalJson, 'IncomingData', null, true);
         window.hideLoading();
-        alert(`입고 대기 상품 연동 완료!\n${sourceMsg}`);
+        showToast(`입고 대기 상품 연동 완료\n${sourceMsg}`);
     } else {
         window.hideLoading();
         alert("입고 대기(수량 1개 이상) 상품이 없거나 데이터를 찾지 못했습니다.");
@@ -2938,7 +2938,7 @@ window.releaseAllCancelledPreAssigns = async function() {
         window.hideLoading();
         document.getElementById('cancelled-preassign-modal').style.display = 'none';
         window._cancelledPreAssignItems = [];
-        alert(`총 ${items.length}건의 선지정이 일괄 해제되었습니다.`);
+        showToast(`선지정 ${items.length}건을 일괄 해제했습니다.`);
     } catch (e) {
         window.hideLoading();
         console.error("일괄 해제 오류:", e);
@@ -2955,7 +2955,7 @@ window.saveCapacity2F = async function() {
         await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { capacity2F: newVal }, { merge: true });
         window.capacity2F = newVal;
         window.calculateAndRenderUsage();
-        alert(`2층 기준 수량이 ${newVal.toLocaleString()}장으로 변경되었습니다.`);
+        showToast(`2층 기준 수량을 ${newVal.toLocaleString()}장으로 바꿨습니다.`);
     } catch(e) { console.error(e); alert("오류가 발생했습니다."); }
 };
 
@@ -2996,10 +2996,16 @@ window.applyUsageFilter = function(zone, state) {
     setupFilterPopups();
     applyFiltersAndSort();
     if (typeof window.closeAllPopups === 'function') window.closeAllPopups();
-    document.getElementById('view-list').style.display = 'block';
-    document.getElementById('view-map').style.display = 'none';
-    // 데이터 리스트 탭에 표시(예전엔 첫 버튼=대시보드에 붙던 버그) + 보던 탭 기억(UI 1단계 1c) — location.html markLocTab
-    if (typeof window.markLocTab === 'function') window.markLocTab('list'); else writeHash({ tab: 'list' }, { replace: true });
+    // 데이터 리스트 탭으로 — 탭 버튼과 같은 길(location.html switchView: 리스트만 보이고 대시보드·도면 숨김 + markLocTab 켜짐·해시).
+    // 예전엔 리스트만 켜고 대시보드(#view-locdash)를 숨기지 않아 두 화면이 겹쳤다.
+    if (typeof window.switchView === 'function') window.switchView('list');
+    else {
+        document.getElementById('view-list').style.display = 'block';
+        document.getElementById('view-map').style.display = 'none';
+        const vDash = document.getElementById('view-locdash');
+        if (vDash) vDash.style.display = 'none';
+        if (typeof window.markLocTab === 'function') window.markLocTab('list'); else writeHash({ tab: 'list' }, { replace: true });
+    }
     window.showFilterResetBtn();
 };
 
@@ -4239,6 +4245,9 @@ const _uploadHeaderGuide = {
     'weekly':    '상품코드(또는 어드민상품코드/대표상품코드 등), 기간배송수량 또는 기간발주수량'
 };
 
+// 오류 안내에 붙일 짧은 코드 — 메시지 원문(문서 경로·주문번호가 섞일 수 있다)은 쓰지 않는다
+function _errCode(e) { return (e && (e.code || e.name)) || 'unknown'; }
+
 function _showUploadDiagnosisAlert(diagnosis, uploadType) {
     const headers = _uploadHeaderGuide[uploadType] || '';
     let msg = '';
@@ -4277,7 +4286,7 @@ if (fileInputZikjin) {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) await updateDatabaseB(result.rows, 'ZikjinData', e.target, false);
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'zikjin'); e.target.value=''; }
-        } catch(err) { window.hideLoading(); alert("오류 발생"); e.target.value=''; }
+        } catch(err) { window.hideLoading(); console.error('직진배송 파일 처리 실패:', _errCode(err)); alert(`직진배송 파일을 읽거나 저장하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); e.target.value=''; }
     });
 }
 
@@ -4290,7 +4299,7 @@ if (fileInputWeekly) {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) await updateDatabaseB(result.rows, 'WeeklyData', e.target, false);
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'weekly'); e.target.value=''; }
-        } catch(err) { window.hideLoading(); alert("오류 발생"); e.target.value=''; }
+        } catch(err) { window.hideLoading(); console.error('주차별 파일 처리 실패:', _errCode(err)); alert(`주차별 파일을 읽거나 저장하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); e.target.value=''; }
     });
 }
 
@@ -4298,18 +4307,21 @@ const fileInputA = document.getElementById('excel-upload-a');
 if (fileInputA) {
     fileInputA.addEventListener('change', async function(e) {
         const file = e.target.files[0]; if (!file) return;
-        // 머리줄 [오늘 재고 올리기] — 덮어쓰기라 파일을 고른 뒤 한 번 더 묻는다(취소하면 아무것도 쓰지 않는다)
-        if (!confirm('오늘 재고 파일로 기존 로케이션 재고를 덮어씁니다.\n(선지정된 자리는 보호됩니다)\n\n계속할까요?')) { e.target.value = ''; return; }
-        window.showLoading('일일 재고/상품 데이터를 최신화 중입니다...');
+        // 머리줄 [오늘 재고 올리기] — 덮어쓰기라 파일을 고른 뒤 한 번 더 묻는다(취소하면 아무것도 쓰지 않는다).
+        // 파일을 먼저 읽어(읽기만, 쓰기 없음) 몇 줄을 덮어쓰는지 확인창에 보여 준다(UX 개선 7번).
+        window.showLoading('오늘 재고 파일을 읽는 중입니다...');
         try {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) {
+                window.hideLoading();
+                if (!confirm(`오늘 재고 파일 「${file.name}」 ${result.rows.length.toLocaleString()}줄로 기존 로케이션 재고를 덮어씁니다.\n(파일에 없는 자리의 재고는 비워집니다 · 선지정된 자리는 보호됩니다)\n\n계속할까요?`)) return;
+                window.showLoading('일일 재고/상품 데이터를 최신화 중입니다...');
                 await updateDatabaseA(result.rows, 'daily');
                 // 🕒 데이터 최신화 시각 기록 (헤더 표시용)
                 try { await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { lastDataUpdate: Date.now() }, { merge: true }); } catch(_) {}
             }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'daily'); }
-        } catch(err) { window.hideLoading(); alert("오류 발생"); }
+        } catch(err) { window.hideLoading(); console.error('오늘 재고 파일 처리 실패:', _errCode(err)); alert(`오늘 재고 파일을 읽거나 반영하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); }
         finally { e.target.value=''; }
     });
 }
@@ -4323,7 +4335,7 @@ if (fileInputPerm) {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) await updateDatabaseA(result.rows, 'permanent');
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'permanent'); }
-        } catch(err) { window.hideLoading(); alert("오류 발생"); }
+        } catch(err) { window.hideLoading(); console.error('도면 파일 처리 실패:', _errCode(err)); alert(`도면(동/위치) 파일을 읽거나 반영하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); }
         finally { e.target.value=''; }
     });
 }
@@ -4606,7 +4618,7 @@ window.processOrderData = async function(rows) {
         msg += `\n누적 페어: ${Object.keys(existingPairs).length.toLocaleString()}개\n`;
         msg += `누적 상품: ${Object.keys(existingStats).length.toLocaleString()}개\n\n`;
         msg += `자세한 리포트는 [페어 분석 리포트 보기]에서 확인하세요.`;
-        alert(msg);
+        showToast(msg);
         
         // 💰 읽기요금 절감: 방금 병합한 메모리 데이터로 페어 캐시를 직접 갱신.
         //    (기존엔 loadOrderPairsCache()가 PAIRS/STATS 전체를 Firestore에서 다시 읽어 급등 원인)
@@ -4772,7 +4784,7 @@ window.resetOrderAnalysis = async function() {
         }
         await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { orderAnalysisMeta: deleteField() }, { merge: true });
         window.hideLoading();
-        alert('누적 데이터가 모두 삭제되었습니다.');
+        showToast('누적 데이터를 모두 삭제했습니다.');
         document.getElementById('order-analysis-modal').style.display = 'none';
         
         // v3.98: 페어 캐시 초기화
@@ -4823,7 +4835,7 @@ async function updateDatabaseB(rows, collectionName, inputElement, silent = fals
             }
         } catch (e) { console.warn('전송 기록 메타 저장 실패:', e); }
 
-        if (!silent) alert(`[${label}] 압축 저장 완료!\n총 ${validRows.length}건이 단 ${chunkCount}번의 쓰기로 반영되었습니다.`);
+        if (!silent) showToast(`[${label}] 저장 완료 — ${validRows.length}건을 ${chunkCount}번의 쓰기로 반영했습니다.`);
         
     } catch (error) { 
         console.error(`${label} 실패:`, error); 
@@ -5265,22 +5277,22 @@ async function updateDatabaseA(rows, mode = 'daily') {
         if (_droppedCostHeaders.length) _secNote += `\n(보안: 원가 열(${_droppedCostHeaders.join(', ')})은 저장하지 않았습니다)`;
         if (_supplierNamesRemoved) _secNote += `\n(보안: 공급처 이름 값 ${_supplierNamesRemoved}건을 지웠습니다 — 공급처는 코드만 저장)`;
         if (mode === 'permanent') {
-            alert(`완료! ${updateCount}개 로케이션의 랙 구조(동/위치) 영구 세팅이 완료되었습니다.` + _secNote);
+            showToast(`완료! ${updateCount}개 로케이션의 랙 구조(동/위치) 영구 세팅이 완료되었습니다.` + _secNote);
         } else {
             let msg = `스마트 클린 업데이트 완료!\n과거 유령 재고는 완벽히 비워졌고, 엑셀의 최신 데이터 ${updateCount}건만 정확하게 반영되었습니다.`;
             if(skipCount > 0) msg += `\n(※ 기존 도면에 없거나 2F 로케이션 ${skipCount}건은 3층 시스템에서 무시됨)`;
             if(twoFloorMsgPart) msg += twoFloorMsgPart;
-            alert(msg + _secNote);
+            showToast(msg + _secNote);
             
             // v3.97b: 일일 최신화 완료 후 단종 페어 자동 정리 (비동기, alert 차단 안 함)
             setTimeout(() => { window.cleanupDeprecatedPairs().catch(e => console.error('[cleanup] 오류:', e)); }, 100);
         }
-        // 보안(2026-10-14): 저장하지 않은 열 안내 — 머리글 이름과 건수만(값은 표시하지 않음). 완료 알림 뒤 토스트로도 한 번 더
-        if (_secNote) showToast(_secNote.trim());
+        // 보안(2026-10-14): 저장하지 않은 열 안내 — 머리글 이름과 건수만(값은 표시하지 않음).
+        //   완료 알림이 토스트가 되면서(UX 개선 7번) 위 완료 토스트에 _secNote 를 함께 넣었다 — 토스트 칸이 하나라 따로 띄우면 덮인다.
         
     } catch (error) { 
         console.error("실패:", error); 
-        alert("업데이트 중 오류가 발생했습니다. (콘솔 확인)"); 
+        alert(`로케이션 데이터를 반영하지 못했습니다. 일부만 반영됐을 수 있습니다.\n인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요(다시 올려도 중복되지 않습니다).\n계속되면 관리자에게 아래 오류 코드를 알려 주세요.\n(오류 코드: ${_errCode(error)})`); 
     } finally { 
         if(document.getElementById('excel-upload-a')) document.getElementById('excel-upload-a').value = ''; 
         if(document.getElementById('excel-upload-permanent')) document.getElementById('excel-upload-permanent').value = ''; 
@@ -5666,9 +5678,15 @@ window.copyLocationToClipboard = async (event, locId) => {
     } catch (error) { alert('예약 처리 오류'); }
 };
 
-function showToast(message) {
+function showToast(message, ms) {
     const toast = document.getElementById("toast");
-    if(toast) { toast.innerText = message; toast.classList.add("show"); setTimeout(() => { toast.classList.remove("show"); }, 1500); }
+    // 기본 1.5초, 긴 문구는 글자 수에 맞춰 최대 6초(성공 alert 를 토스트로 바꾼 문구 — UX 개선 7번)
+    const dur = ms || Math.min(6000, Math.max(1500, String(message || '').length * 45));
+    if(toast) {
+        toast.innerText = message; toast.classList.add("show");
+        clearTimeout(showToast._t);   // 앞 토스트의 타이머가 새 토스트를 일찍 끄지 않게
+        showToast._t = setTimeout(() => { toast.classList.remove("show"); }, dur);
+    }
 }
 
 window.addSingleLocationFromSetting = async () => {
@@ -5680,7 +5698,7 @@ window.addSingleLocationFromSetting = async () => {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists() && docSnap.data()[newId]) return alert(`이미 존재합니다.`);
         await setDoc(docRef, { [newId]: { dong: '', pos: '', code: '', name: '', option: '', stock: '0', reserved: false, reservedAt: 0, assignedAt: 0, reservedBy: '', updatedAt: new Date(), rawData: {} } }, { merge: true });
-        inputObj.value = ''; alert(`추가 완료`); 
+        inputObj.value = ''; showToast(`로케이션 ${newId} 추가 완료`); 
     } catch (error) { console.error(error); }
 };
 
@@ -5688,7 +5706,8 @@ window.deleteSelectedLocations = async () => {
     // 가상 스크롤이라 화면에 그려진 줄만 querySelectorAll 에 잡힌다 → 선택 집합을 쓴다
     const checkedIds = [...VS.checkedIds];
     if (checkedIds.length === 0) return alert("삭제할 대상을 선택하세요.");
-    if (!confirm(`선택한 ${checkedIds.length}개 로케이션을 정말 삭제하시겠습니까?`)) return;
+    const _preview = checkedIds.slice(0, 5).join(', ') + (checkedIds.length > 5 ? ` 외 ${checkedIds.length - 5}개` : '');
+    if (!confirm(`선택한 로케이션 ${checkedIds.length}개를 삭제합니다. 되돌릴 수 없습니다.\n대상: ${_preview}\n(그 자리의 재고·선지정 정보도 함께 지워집니다)\n\n삭제할까요?`)) return;
     try {
         let batch = writeBatch(db); let batchCount = 0;
         for (let i = 0; i < checkedIds.length; i++) {
@@ -5701,7 +5720,7 @@ window.deleteSelectedLocations = async () => {
         if (batchCount > 0) await batch.commit();
         VS.checkedIds.clear();
         updateLocBulkBar();
-        alert(`${checkedIds.length}개 삭제 완료`);
+        showToast(`로케이션 ${checkedIds.length}개 삭제 완료`);
     } catch (error) { console.error(error); alert('삭제 실패: ' + (error && error.message ? error.message : error)); }
 };
 
@@ -5796,7 +5815,7 @@ window.applyLocBulkEdit = async function () {
         window.hideLoading();
         document.getElementById('loc-bulk-modal').style.display = 'none';
         window.clearLocSelection();
-        alert(`${ids.length}개 로케이션을 수정했습니다.`);
+        showToast(`${ids.length}개 로케이션을 수정했습니다.`);
     } catch (e) {
         window.hideLoading();
         console.error('[location] 일괄 수정 실패:', e);

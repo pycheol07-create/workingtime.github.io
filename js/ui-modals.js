@@ -1,9 +1,9 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610161426';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610161616';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js?v=202610161426';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161426';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js?v=202610161616';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161616';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -150,7 +150,10 @@ const calculateLeaveUsage = (memberName) => {
     };
 };
 
-export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = []) => {
+// doneTasks(선택): 오늘 한 업무 — 정렬에만 쓴다. 칸 순서 = 누락 → 오늘 한 업무 → 나머지(각 묶음 안은 원래 순서).
+// 0(또는 값 없음)은 빈칸 + 흐린 placeholder 0 으로 보인다. 빈칸은 저장할 때 0 이다(listeners-form-quantity.js
+// Number('')||0) — '0건 확인' 체크는 '업무는 했는데 실제로 0건' 이라는 뜻이라 빈칸(아직 안 넣음)과 따로 둔다.
+export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTypes = [], missingTasksList = [], confirmedZeroTasks = [], doneTasks = []) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return;
     container.innerHTML = '';
@@ -160,12 +163,17 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
 
     const missingTaskSet = new Set(missingTasksList);
     const confirmedZeroSet = new Set(confirmedZeroTasks);
+    const doneTaskSet = new Set(Array.isArray(doneTasks) ? doneTasks : []);
+    const rank = (t) => (missingTaskSet.has(t) && !confirmedZeroSet.has(t)) ? 0 : (doneTaskSet.has(t) ? 1 : 2);
+    const orderedTasks = quantityTaskTypes.map((t, i) => [t, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
 
-    quantityTaskTypes.forEach(task => {
+    orderedTasks.forEach(task => {
         const div = document.createElement('div');
         const isConfirmed = confirmedZeroSet.has(task);
         const isMissing = missingTaskSet.has(task) && !isConfirmed;
         const warningClass = isMissing ? 'warning-missing-quantity' : '';
+        const rawValue = sourceQuantities[task];
+        const shownValue = (rawValue == null || rawValue === '' || Number(rawValue) === 0) ? '' : rawValue;
 
         div.innerHTML = `
             <div class="flex justify-between items-end mb-1">
@@ -179,8 +187,8 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
                     <label for="modal-confirm-zero-${task}" class="ml-1 text-xs text-gray-500 cursor-pointer select-none">0건 확인</label>
                 </div>
             </div>
-            <input type="number" id="modal-quantity-${task}" data-task="${task}" value="${sourceQuantities[task] || 0}" min="0"
-                   class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition ${warningClass}">
+            <input type="number" inputmode="numeric" id="modal-quantity-${task}" data-task="${task}" value="${shownValue}" placeholder="0" min="0"
+                   class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition ${warningClass}">
         `;
         container.appendChild(div);
     });
@@ -232,10 +240,16 @@ export const renderTaskSelectionModal = (taskGroups = []) => {
     });
 };
 
-export const renderTeamSelectionModalContent = (task, appState, teamGroups = []) => {
+// opts.selected : 처음부터 선택해 둘 이름들(본인 미리 선택·다시 그릴 때 선택 유지 — UX 개선 2번).
+//                 고를 수 없는 칸(업무 중·근태·출근 전)은 선택하지 않는다.
+// 본인(appState.currentUser) 그룹을 맨 앞에, 본인 칸에는 '나' 표시. 본인이 출근 전이면 [출근하고 시작] 버튼
+// (.self-clockin-start-btn — listeners-form-team.js 가 기존 출근 처리 processClockIn 으로 출근한 뒤 시작한다).
+export const renderTeamSelectionModalContent = (task, appState, teamGroups = [], opts = {}) => {
     const titleEl = document.getElementById('team-select-modal-title');
     const container = document.getElementById('team-select-modal-content');
     if (!titleEl || !container) return;
+    const selfName = appState.currentUser || null;
+    const selectedSet = new Set(Array.isArray(opts.selected) ? opts.selected : []);
 
     titleEl.textContent = `'${task || '기타 업무'}' 팀원 선택`;
     container.innerHTML = '';
@@ -263,6 +277,12 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     const baseClasses = "member-select-btn w-full p-2 rounded-lg border-2 text-center transition-all duration-200 min-h-[50px] flex flex-col justify-center";
     const disabledClasses = "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60";
     const unselectedClasses = "bg-white border-gray-300 text-gray-900 hover:bg-blue-50 hover:border-blue-300";
+    // listeners-form-team.js 의 SELECTED_CLASSES 와 같아야 한다(선택 여부를 bg-blue-600 으로 판단)
+    const selectedClasses = "bg-blue-600 border-blue-600 text-white hover:bg-blue-700";
+    // 휴대폰(768px 미만)은 그룹을 세로로 쌓고, PC 는 192px 칸을 가로로 늘어놓는다
+    const groupBoxClasses = 'flex-shrink-0 w-full md:w-48 bg-gray-100 rounded-lg flex flex-col';
+    const selfTag = '<span class="ml-1 align-middle text-[11px] font-bold px-1.5 rounded bg-blue-100 text-blue-700">나</span>';
+    const clockInStartBtn = '<button type="button" class="self-clockin-start-btn w-full mt-1 p-2 rounded-lg border-2 border-blue-600 bg-white text-blue-700 font-bold text-sm hover:bg-blue-50 transition">출근하고 시작</button>';
 
     const orderedTeamGroups = [
         teamGroups.find(g => g.name === '관리'),
@@ -270,10 +290,13 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         teamGroups.find(g => g.name === '담당파트'),
         teamGroups.find(g => g.name === '제작파트'),
     ].filter(Boolean);
+    // 본인 그룹을 맨 앞으로(나머지 순서는 그대로)
+    const selfGroupIdx = selfName ? orderedTeamGroups.findIndex(g => (g.members || []).includes(selfName)) : -1;
+    if (selfGroupIdx > 0) orderedTeamGroups.unshift(...orderedTeamGroups.splice(selfGroupIdx, 1));
 
     orderedTeamGroups.forEach(group => {
         const groupContainer = document.createElement('div');
-        groupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
+        groupContainer.className = groupBoxClasses;
         groupContainer.innerHTML = `
             <div class="flex justify-between items-center p-2 border-b border-gray-200">
                 <h4 class="text-md font-bold text-gray-800">${group.name}</h4>
@@ -296,11 +319,13 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             const isReturned = attendance && attendance.status === 'returned';
 
             const isDisabled = isOngoing || isPaused || isOnLeave || !isClockedIn;
+            const isSelf = member === selfName;
+            const isSelected = !isDisabled && selectedSet.has(member);
 
             const card = document.createElement('button');
             card.type = 'button';
             card.dataset.memberName = member;
-            card.className = `${baseClasses} ${isDisabled ? disabledClasses : unselectedClasses}`;
+            card.className = `${baseClasses} ${isDisabled ? disabledClasses : (isSelected ? selectedClasses : unselectedClasses)}`;
             if (isDisabled) card.disabled = true;
 
             let statusLabel = '';
@@ -310,16 +335,20 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
             else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; }
             else if (!isClockedIn) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; }
             
-            card.innerHTML = `<div class="font-bold">${member}</div>${statusLabel}`;
+            card.innerHTML = `<div class="font-bold">${member}${isSelf ? selfTag : ''}</div>${statusLabel}`;
 
             memberList.appendChild(card);
+            // 본인이 출근 전(근태·업무·퇴근 아님)이면 칸 아래 [출근하고 시작] — 자동 출근이 아니라 한 번 눌러야 한다
+            if (isSelf && !isOngoing && !isPaused && !isOnLeave && !isClockedIn && !isReturned) {
+                memberList.insertAdjacentHTML('beforeend', clockInStartBtn);
+            }
         });
         groupContainer.appendChild(memberList);
         container.appendChild(groupContainer);
     });
 
     const albaGroupContainer = document.createElement('div');
-    albaGroupContainer.className = 'flex-shrink-0 w-48 bg-gray-100 rounded-lg flex flex-col';
+    albaGroupContainer.className = groupBoxClasses;
     albaGroupContainer.innerHTML = `<div class="flex justify-between items-center p-2 border-b border-gray-200">
                                          <h4 class="text-md font-bold text-gray-800">알바</h4>
                                          <div>
@@ -341,6 +370,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const isClockedIn = attendance && attendance.status === 'active';
         const isReturned = attendance && attendance.status === 'returned';
         const isDisabled = isOngoing || isPaused || isOnLeave || !isClockedIn;
+        const isSelected = !isDisabled && selectedSet.has(pt.name);
 
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'relative';
@@ -348,7 +378,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
         const card = document.createElement('button');
         card.type = 'button';
         card.dataset.memberName = pt.name;
-        card.className = `${baseClasses} ${isDisabled ? disabledClasses : unselectedClasses}`;
+        card.className = `${baseClasses} ${isDisabled ? disabledClasses : (isSelected ? selectedClasses : unselectedClasses)}`;
         if (isDisabled) card.disabled = true;
 
         let statusLabel = '';
@@ -378,7 +408,9 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [])
     });
 
     albaGroupContainer.appendChild(albaMemberList);
-    container.appendChild(albaGroupContainer);
+    // 본인이 알바면 알바 그룹을 맨 앞으로
+    if (selfName && (appState.partTimers || []).some(pt => pt.name === selfName)) container.prepend(albaGroupContainer);
+    else container.appendChild(albaGroupContainer);
 };
 
 export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setting') => {
@@ -445,7 +477,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             } else {
                 stats.history.forEach(h => {
                     const idsString = h.ids.join(',');
-                    const mergedBadge = h.isMerged ? '<span class="text-[9px] text-purple-600 bg-purple-50 border border-purple-200 px-1 rounded ml-1">병합됨</span>' : '';
+                    const mergedBadge = h.isMerged ? '<span class="text-[11px] text-purple-600 bg-purple-50 border border-purple-200 px-1 rounded ml-1">병합됨</span>' : '';
                     const editBtnHtml = h.isMerged ? '' : `<button type="button" class="text-xs text-gray-400 hover:text-blue-600 underline transition btn-edit-leave-history" data-id="${h.ids[0]}" data-member="${h.member}">수정</button>`;
 
                     historyListEl.innerHTML += `
@@ -455,7 +487,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
                                     <span class="text-blue-500 mr-1">[${h.nth}차]</span> ${h.startDate} ${h.endDate && h.endDate !== h.startDate ? '~ ' + h.endDate.slice(5) : ''}
                                     ${mergedBadge}
                                 </span>
-                                <span class="text-[10px] text-gray-400">-${h.days}일 차감</span>
+                                <span class="text-[11px] text-gray-400">-${h.days}일 차감</span>
                             </div>
                             <div class="flex items-center gap-2">
                                 ${editBtnHtml}
@@ -506,17 +538,17 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             const days = calculateWorkingDays(item.startDate, endStr);
             const rangeText = (endStr && endStr !== item.startDate) ? `${item.startDate} ~ ${endStr}` : item.startDate;
             const isInProgress = item.startDate <= today && today <= endStr;
-            const progressBadge = isInProgress ? '<span class="text-[9px] text-orange-700 font-bold bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">진행중</span>' : '';
+            const progressBadge = isInProgress ? '<span class="text-[11px] text-orange-700 font-bold bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">진행중</span>' : '';
             const typeStyle  = TYPE_STYLE[item.type] || 'bg-gray-50 text-gray-700 border-gray-200';
             upcomingListEl.innerHTML += `
                 <li class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100 gap-2">
                     <div class="flex items-center gap-2 flex-1 min-w-0">
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${typeStyle}">${item.type}</span>
+                        <span class="text-[11px] font-bold px-2 py-0.5 rounded border shrink-0 ${typeStyle}">${item.type}</span>
                         <span class="text-xs font-medium text-gray-700 truncate">${rangeText}</span>
                         ${progressBadge}
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
-                        <span class="text-[10px] text-gray-400 mr-0.5">${days}일</span>
+                        <span class="text-[11px] text-gray-400 mr-0.5">${days}일</span>
                         <button type="button" class="btn-edit-leave-history text-[11px] font-bold text-blue-600 hover:text-blue-800 px-1.5 py-0.5 rounded hover:bg-blue-50" data-id="${item.id}">수정</button>
                         <button type="button" class="btn-delete-leave-history text-[11px] font-bold text-red-500 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50" data-ids="${item.id}">삭제</button>
                     </div>

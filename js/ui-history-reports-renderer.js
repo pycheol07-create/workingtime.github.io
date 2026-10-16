@@ -1,9 +1,9 @@
 // === js/ui-history-reports-renderer.js ===
 
-import { formatDuration } from './utils.js?v=202610161426';
-import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202610161426';
-import { context, LEAVE_TYPES } from './state.js?v=202610161426';
-import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202610161426';
+import { formatDuration } from './utils.js?v=202610161616';
+import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202610161616';
+import { context, LEAVE_TYPES } from './state.js?v=202610161616';
+import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202610161616';
 
 // 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -15,10 +15,10 @@ const attColsFor = (types) => [...ATT_COLS, ...[...new Set(types)].filter(t => t
 
 // --- 헬퍼: 정렬 아이콘 ---
 const getSortIcon = (currentKey, currentDir, targetKey) => {
-    if (currentKey !== targetKey) return '<span class="text-gray-300 text-[10px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
+    if (currentKey !== targetKey) return '<span class="text-gray-300 text-[11px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
     return currentDir === 'asc' 
-        ? '<span class="text-blue-600 text-[10px] ml-1">▲</span>' 
-        : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
+        ? '<span class="text-blue-600 text-[11px] ml-1">▲</span>' 
+        : '<span class="text-blue-600 text-[11px] ml-1">▼</span>';
 };
 
 // --- 헬퍼: 필터 드롭다운 (여러 값을 동시에 고를 수 있다) ---
@@ -35,12 +35,12 @@ const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
         <div class="relative inline-block ml-1 filter-container">
             <button type="button" class="filter-icon-btn p-1 rounded transition inline-flex items-center gap-0.5 ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" /></svg>
-                ${nSel > 0 ? `<span class="text-[9px] font-bold leading-none">${nSel}</span>` : ''}
+                ${nSel > 0 ? `<span class="text-[11px] font-bold leading-none">${nSel}</span>` : ''}
             </button>
             <div class="filter-dropdown absolute top-full right-0 mt-2 w-60 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left cursor-default">
                 <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
                     <span>필터 조건</span>
-                    ${hasValue ? `<button type="button" class="text-[10px] text-red-500 hover:underline" data-filter-all data-filter-target="${target}" data-filter-key="${key}">지우기</button>` : ''}
+                    ${hasValue ? `<button type="button" class="text-[11px] text-red-500 hover:underline" data-filter-all data-filter-target="${target}" data-filter-key="${key}">지우기</button>` : ''}
                 </div>
                 ${inputHtml}
             </div>
@@ -169,7 +169,7 @@ const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
         // 국내배송은 1건당 평균 1.3개라 건/H 병기
         const isDomestic = task.label === '국내배송';
         const caseSuffix = (isDomestic && task.t > 0)
-            ? `<div class="text-xs text-gray-500 mt-0.5">${(task.t / 1.3).toFixed(1)} <span class="text-[10px] text-gray-400">건/H</span></div>`
+            ? `<div class="text-xs text-gray-500 mt-0.5">${(task.t / 1.3).toFixed(1)} <span class="text-[11px] text-gray-400">건/H</span></div>`
             : '';
         html += `
             <div class="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 shadow-sm relative group">
@@ -690,7 +690,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             if (!isDomestic || val <= 0) return '';
             const cases = val / 1.3;
             const text = digits === 0 ? Math.round(cases).toLocaleString() : cases.toFixed(digits);
-            return ` <span class="text-[10px] text-gray-400 font-normal">(${text} 건)</span>`;
+            return ` <span class="text-[11px] text-gray-400 font-normal">(${text} 건)</span>`;
         };
         const qtyCell = `${d.quantity.toLocaleString()}${caseText(d.quantity, 0)}`;
         const thpCell = `${d.avgThroughput.toFixed(2)}${caseText(d.avgThroughput, 2)}`;

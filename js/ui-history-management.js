@@ -1,14 +1,14 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610161426';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610161426';
-import { appConfig } from './state.js?v=202610161426';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610161616';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610161616';
+import { appConfig } from './state.js?v=202610161616';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,
     revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
-} from './revenue-channels.js?v=202610161426';
-import { D } from './d-chart.js?v=202610161426';
+} from './revenue-channels.js?v=202610161616';
+import { D } from './d-chart.js?v=202610161616';
 // predictFutureTrends import 제거됨
 
 // 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장 / 기타)
@@ -80,7 +80,7 @@ const channelGridHtml = (mgmt, prevMgmt, formatVal, onInputHandler) => {
 
     // 칸을 비우고 저장하면 '변경 없음'으로 처리돼 기존 값이 그대로 남는다.
     // 자동입력이 잘못 넣은 값을 지우려는 사람이 여기서 막히므로 미리 알려 둔다.
-    const clearHint = `<p class="text-[10px] text-gray-400 pt-1">값을 지우려면 칸을 비우지 말고 <b>0</b>을 입력하세요.</p>`;
+    const clearHint = `<p class="text-[11px] text-gray-400 pt-1">값을 지우려면 칸을 비우지 말고 <b>0</b>을 입력하세요.</p>`;
 
     return `<div class="space-y-2">${notes}${header}${rows}${totalRow}${clearHint}</div>`;
 };
@@ -651,7 +651,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                     <div class="text-sm">
                         ${getDiffHtmlForMetric('efficiencyRatio', turnoverRatio, prevTurnoverRatio)}
                     </div>
-                    <p class="text-[10px] text-gray-400 mt-1">* 매출액 ÷ 평균 재고금액</p>
+                    <p class="text-[11px] text-gray-400 mt-1">* 매출액 ÷ 평균 재고금액</p>
                 </div>
             </div>
 

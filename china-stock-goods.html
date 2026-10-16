@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 미발계산기</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610161426">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610161426">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610161426">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610161426">
+    <link rel="stylesheet" href="css/suit.css?v=202610161616">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161616">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610161616">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610161616">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -177,18 +177,18 @@
         <div class="header-actions">
             <button id="btn-scan-lock" class="d-btn d-btn-risk" title="스캔 잠금: 새로고침·업로드·초기화 등 모든 기능을 잠가 작업자 스캔 중 ScanDB를 보호">스캔잠금</button>
             <button id="btn-open-scanner" class="d-btn" title="입고 스캐너(scan.html)를 새 창으로 엽니다">스캐너 열기</button>
+            <!-- 미발재고로그 올리기 — 매일 첫 작업이라 메뉴 안이 아니라 머리줄 주 버튼(UX 개선 9번). 스캔잠금 오버레이(#scan-lock-overlay)가 화면 전체를 덮어 잠금 중엔 못 누른다 -->
+            <label class="mode-mibal d-btn d-btn-primary" id="btn-upload-stock-log" style="display:inline-block;" title="이지어드민 현재고조회 파일(미발재고로그)을 올립니다">미발재고로그 올리기<input type="file" id="upload-stock-log" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
             <button class="mode-mibal d-btn d-btn-primary" id="btn-mibal-send">미발전송</button>
             <div class="upload-dropdown mode-mibal" style="position: relative; display: inline-block;">
-                <button class="btn-main-upload d-btn" id="btn-toggle-download">올리기·받기 ▾</button>
+                <button class="btn-main-upload d-btn" id="btn-toggle-download">받기 ▾</button>
                 <div class="upload-menu" id="download-menu" style="display: none; position: absolute; top: 100%; right: 0; z-index: 10001; width: 240px;">
-                    <div class="mode-mibal menu-head">업로드</div>
-                    <label class="mode-mibal menu-item" style="display: block;">미발재고로그 업로드<input type="file" id="upload-stock-log" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
-                    <div class="mode-mibal menu-head is-sep">파일 다운로드</div>
-                    <button id="btn-excel-download" class="mode-mibal menu-item" style="display:block;">입고용파일다운로드</button>
-                    <button id="btn-mibal-download" class="mode-mibal menu-item" style="display:block;">미발확인파일다운로드</button>
-                    <button id="btn-floor2-download" class="mode-mibal menu-item" style="display:block;">비축창고 엑셀저장</button>
-                    <button id="btn-inspection-download" class="mode-mibal menu-item" style="display:block;">검수리스트파일다운로드</button>
-                    <button id="btn-inspection-print" class="mode-mibal menu-item" style="display:block;">검수리스트인쇄</button>
+                    <div class="mode-mibal menu-head">파일 받기</div>
+                    <button id="btn-excel-download" class="mode-mibal menu-item" style="display:block;">입고용 파일 받기</button>
+                    <button id="btn-mibal-download" class="mode-mibal menu-item" style="display:block;">미발확인 파일 받기</button>
+                    <button id="btn-floor2-download" class="mode-mibal menu-item" style="display:block;">비축창고 엑셀 받기</button>
+                    <button id="btn-inspection-download" class="mode-mibal menu-item" style="display:block;">검수리스트 파일 받기</button>
+                    <button id="btn-inspection-print" class="mode-mibal menu-item" style="display:block;">검수리스트 인쇄</button>
                 </div>
             </div>
             <div class="upload-dropdown mode-mibal" style="position: relative; display: inline-block;">
@@ -212,6 +212,9 @@
                     <div class="menu-item mode-loc" id="btn-open-column-loc" style="display: block;">표 열(헤더) 설정</div>
                     <div class="menu-head is-sep">스캐너</div>
                     <div class="menu-item" id="btn-open-barcode-alias" style="display: block;">오류바코드매칭</div>
+                    <!-- 전체 초기화 — 날짜 바에서 옮겨 왔다(UX 개선 7번, 직원도 사용). 글자는 모드별로 js 가 '미발 초기화'/'위치 초기화' 로 바꾼다 -->
+                    <div class="menu-head is-sep">초기화</div>
+                    <button type="button" id="btn-date-clear" class="menu-item" style="color:var(--c-risk-text);">전체 초기화…</button>
                 </div>
             </div>
         </div>
@@ -258,7 +261,6 @@
         <div class="date-actions">
             <span id="csv-updated-note" style="font-size:11px; color:var(--c-text-3); align-self:center; margin-right:6px; white-space:nowrap;"></span>
             <button id="btn-csv-refresh" class="d-btn" title="오더/사입 시트를 지금 다시 받아옵니다">시트 새로고침</button>
-            <button id="btn-date-clear" class="d-btn d-btn-risk">전체 초기화</button>
         </div>
     </div>
 
@@ -558,8 +560,8 @@
     <div id="toast"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- ?v= 는 버전 배지와 함께 올려서 브라우저가 옛 JS 캐시를 쓰지 않게 함 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610161426"></script>
-    <script type="module" src="js/china-stock-goods.js?v=202610161426"></script>
-    <script type="module" src="js/app-shell.js?v=202610161426"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610161616"></script>
+    <script type="module" src="js/china-stock-goods.js?v=202610161616"></script>
+    <script type="module" src="js/app-shell.js?v=202610161616"></script>
 </body>
 </html>

@@ -1,8 +1,8 @@
 // === js/ui-history-milestones.js ===
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
-import * as State from './state.js?v=202610161426';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610161426';
+import * as State from './state.js?v=202610161616';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610161616';
 import {
     doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -68,8 +68,8 @@ function renderList() {
         if (emptyEl) emptyEl.classList.add('hidden');
         listEl.innerHTML = filtered.map(m => {
             const typeInfo = TYPE_LABELS[m.type] || TYPE_LABELS.memo;
-            const tagHtml = (m.tags || []).map(t => `<span class="inline-block bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-[10px] px-2 py-0.5 rounded-full">${escapeHtml(t)}</span>`).join('');
-            const taskHtml = (m.affectedTasks || []).map(t => `<span class="inline-block bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] px-2 py-0.5 rounded">${escapeHtml(t)}</span>`).join('');
+            const tagHtml = (m.tags || []).map(t => `<span class="inline-block bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-[11px] px-2 py-0.5 rounded-full">${escapeHtml(t)}</span>`).join('');
+            const taskHtml = (m.affectedTasks || []).map(t => `<span class="inline-block bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[11px] px-2 py-0.5 rounded">${escapeHtml(t)}</span>`).join('');
             const descPreview = (m.description || '').slice(0, 100) + ((m.description || '').length > 100 ? '...' : '');
             const previewBar = renderInlinePreview(m, 14);
             return `
@@ -83,7 +83,7 @@ function renderList() {
                             <div class="font-bold text-gray-800 dark:text-gray-100 text-base">${escapeHtml(m.title || '(제목 없음)')}</div>
                             ${descPreview ? `<div class="text-xs text-gray-600 dark:text-gray-400 mt-1">${escapeHtml(descPreview)}</div>` : ''}
                             <div class="flex flex-wrap gap-1 mt-2">${tagHtml}</div>
-                            ${taskHtml ? `<div class="flex flex-wrap gap-1 mt-1"><span class="text-[10px] text-gray-500">영향:</span>${taskHtml}</div>` : ''}
+                            ${taskHtml ? `<div class="flex flex-wrap gap-1 mt-1"><span class="text-[11px] text-gray-500">영향:</span>${taskHtml}</div>` : ''}
                         </div>
                         <div class="flex gap-2 shrink-0">
                             <button data-action="compare" data-id="${m.id}" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm">효과 비교</button>
@@ -116,7 +116,7 @@ function renderInlinePreview(m, windowDays) {
         <div class="mt-3 pt-3 border-t border-dashed border-gray-300 dark:border-gray-600">
             <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
                 <div class="text-[11px] font-bold text-gray-600 dark:text-gray-300">${windowDays}일 전·후 요약</div>
-                <div class="text-[10px] text-gray-500">관측 Before ${summary.before.dayCount}일 / After ${summary.after.dayCount}일</div>
+                <div class="text-[11px] text-gray-500">관측 Before ${summary.before.dayCount}일 / After ${summary.after.dayCount}일</div>
             </div>
             <div class="flex flex-wrap gap-2">${uphChip}${qtyChip}${durChip}</div>
         </div>
@@ -136,7 +136,7 @@ function makeChangeChip(label, beforeVal, afterVal, digits = 1, betterIfHigh = t
     const a = digits === 0 ? Math.round(afterVal).toLocaleString() : afterVal.toFixed(digits);
     return `
         <div class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border ${cls}">
-            <span class="text-[10px] font-bold opacity-80">${label}</span>
+            <span class="text-[11px] font-bold opacity-80">${label}</span>
             <span class="text-[11px] font-mono">${b}${suffix}→${a}${suffix}</span>
             <span class="text-[11px] font-bold">${icon} ${pctText}</span>
         </div>
@@ -227,11 +227,11 @@ export function openEditModal(milestoneId = null, presetData = null) {
             <button type="button" id="milestone-task-select-all" class="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline">전체 선택</button>
             <span class="text-gray-300 dark:text-gray-600">|</span>
             <button type="button" id="milestone-task-clear-all" class="text-[11px] font-bold text-gray-500 hover:underline">전체 해제</button>
-            <span class="text-[10px] text-gray-400 ml-auto">비워두면 '전체 업무' 기준으로 비교됩니다</span>
+            <span class="text-[11px] text-gray-400 ml-auto">비워두면 '전체 업무' 기준으로 비교됩니다</span>
         </div>
         ${groups.map(g => `
             <div class="w-full mb-1.5">
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">${escapeHtml(g.name)}</div>
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">${escapeHtml(g.name)}</div>
                 <div class="flex flex-wrap gap-2">
                     ${g.tasks.map(t => `
                         <label class="inline-flex items-center gap-1.5 cursor-pointer bg-gray-100 dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-blue-900/30 px-3 py-1.5 rounded-full transition">
@@ -443,7 +443,7 @@ function renderCompareResults() {
     // 시간/건수 등 그 자체로 좋고나쁨을 단정하기 어려운 지표 — 중립 색으로 표기
     const neutralStat = (label, bStr, aStr, chg) => `
         <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800">
-            <div class="text-[10px] text-gray-500 font-bold">${label}</div>
+            <div class="text-[11px] text-gray-500 font-bold">${label}</div>
             <div class="text-sm text-gray-700 dark:text-gray-200 font-mono">${bStr} → ${aStr}</div>
             <div class="text-xs text-gray-400">${fmtPct(chg)}</div>
         </div>
@@ -501,17 +501,17 @@ function renderCompareResults() {
 
         <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
             <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800">
-                <div class="text-[10px] text-gray-500 font-bold">전체 UPH (시간당 처리)</div>
+                <div class="text-[11px] text-gray-500 font-bold">전체 UPH (시간당 처리)</div>
                 <div class="text-sm text-gray-600 dark:text-gray-300">${before.uph.toFixed(1)} → ${after.uph.toFixed(1)}</div>
                 <div class="text-base ${colorOf(uphChange)}">${fmtPct(uphChange)} ${arrow(uphChange)}</div>
             </div>
             <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800">
-                <div class="text-[10px] text-gray-500 font-bold">일평균 처리량</div>
+                <div class="text-[11px] text-gray-500 font-bold">일평균 처리량</div>
                 <div class="text-sm text-gray-600 dark:text-gray-300">${Math.round(before.avgQtyPerDay).toLocaleString()} → ${Math.round(after.avgQtyPerDay).toLocaleString()}</div>
                 <div class="text-base ${colorOf(qtyChange)}">${fmtPct(qtyChange)} ${arrow(qtyChange)}</div>
             </div>
             <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800">
-                <div class="text-[10px] text-gray-500 font-bold">일평균 작업시간</div>
+                <div class="text-[11px] text-gray-500 font-bold">일평균 작업시간</div>
                 <div class="text-sm text-gray-600 dark:text-gray-300">${Math.round(before.avgDurationPerDay)}분 → ${Math.round(after.avgDurationPerDay)}분</div>
                 <div class="text-base ${colorOf(durChange, false)}">${fmtPct(durChange)} ${arrow(durChange, false)}</div>
             </div>
@@ -529,7 +529,7 @@ function renderCompareResults() {
                 ${neutralStat('투입 연인원 (인·일)', before.manDays.toLocaleString(), after.manDays.toLocaleString(), pctChange(before.manDays, after.manDays))}
                 ${neutralStat('1인 하루평균 작업시간', before.avgHoursPerManDay.toFixed(1) + 'h', after.avgHoursPerManDay.toFixed(1) + 'h', pctChange(before.avgHoursPerManDay, after.avgHoursPerManDay))}
             </div>
-            <div class="text-[10px] text-gray-400 mt-1.5">※ 총 작업시간 = 영향 업무 기록들의 작업시간 합계 · 투입 연인원 = (해당 업무를 한 사람 × 해당 일수)의 합 · 건수·시간 자체는 물량에 비례하므로 효율은 UPH로 판단하세요.</div>
+            <div class="text-[11px] text-gray-400 mt-1.5">※ 총 작업시간 = 영향 업무 기록들의 작업시간 합계 · 투입 연인원 = (해당 업무를 한 사람 × 해당 일수)의 합 · 건수·시간 자체는 물량에 비례하므로 효율은 UPH로 판단하세요.</div>
         </div>
 
         ${taskRows.length > 0 ? `
@@ -638,7 +638,7 @@ function buildMilestoneAssessment(before, after, w) {
             </ul>
             <div class="text-xs font-bold opacity-80 mb-1">진행 방향 의견</div>
             <div class="text-xs leading-relaxed">${direction}</div>
-            <div class="text-[10px] opacity-60 mt-2">※ 자동 생성된 참고 의견입니다. 물량 특성·인력 변동 등 현장 상황을 함께 고려해 최종 판단하세요.</div>
+            <div class="text-[11px] opacity-60 mt-2">※ 자동 생성된 참고 의견입니다. 물량 특성·인력 변동 등 현장 상황을 함께 고려해 최종 판단하세요.</div>
         </div>
     `;
 }
@@ -752,8 +752,8 @@ export async function renderMilestonesInsightWidget(containerEl) {
             <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 bg-gray-50 dark:bg-gray-800/60 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition" data-milestone-id="${m.id}">
                 <div class="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
                     <div class="flex items-center gap-2 min-w-0">
-                        <span class="inline-block ${typeInfo.color} border text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">${typeInfo.label}</span>
-                        <span class="text-[10px] text-gray-500 font-mono">${m.date || '-'}</span>
+                        <span class="inline-block ${typeInfo.color} border text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">${typeInfo.label}</span>
+                        <span class="text-[11px] text-gray-500 font-mono">${m.date || '-'}</span>
                     </div>
                     ${verdict}
                 </div>

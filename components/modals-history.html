@@ -12,9 +12,8 @@
             background-color: var(--c-bg) !important; z-index: 9999 !important;
         }
         
-        /* 상단 헤더와 탭 영역 크기 고정 (스크롤 시 밀려 올라감 방지) */
+        /* 상단 헤더 크기 고정 (스크롤 시 밀려 올라감 방지) */
         #history-modal-header { flex: 0 0 auto !important; }
-        #history-modal-content-box > div.px-4.border-b { flex: 0 0 auto !important; }
         
         /* 메인 데이터 영역: 남은 공간 모두 차지하되 높이 0px 버그 원천 차단 */
         #history-modal-content-box > .flex-grow {
@@ -219,7 +218,7 @@
 
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <p class="text-xs font-bold text-gray-500 dark:text-gray-400">종합 UPH</p>
-                        <p class="text-xl md:text-2xl font-black tabular-nums text-blue-600 dark:text-blue-400 mt-1" id="kpi-avg-uph">0.0<span class="text-[10px] md:text-sm font-medium text-blue-400 ml-1">개/시</span></p>
+                        <p class="text-xl md:text-2xl font-black tabular-nums text-blue-600 dark:text-blue-400 mt-1" id="kpi-avg-uph">0.0<span class="text-[11px] md:text-sm font-medium text-blue-400 ml-1">개/시</span></p>
                     </div>
                     
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
@@ -255,15 +254,15 @@
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 depth-panel">
                         <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate"><span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style="background:#2F62C9"></span>종합물류</p>
                         <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] text-gray-500">분당</span>
+                            <span class="text-[11px] text-gray-500">분당</span>
                             <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-general">0</span>
                         </div>
                         <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] text-gray-500">시간당</span>
+                            <span class="text-[11px] text-gray-500">시간당</span>
                             <span class="text-lg md:text-xl font-black text-gray-900 dark:text-white" id="prod-uph-general">0</span>
                         </div>
                         <div class="flex justify-between items-end">
-                            <span class="text-[10px] text-gray-500">일당</span>
+                            <span class="text-[11px] text-gray-500">일당</span>
                             <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-general">0</span>
                         </div>
                     </div>
@@ -271,15 +270,15 @@
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 depth-panel">
                         <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate"><span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style="background:#5A9E96"></span>국내배송</p>
                         <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] text-gray-500">분당</span>
+                            <span class="text-[11px] text-gray-500">분당</span>
                             <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-domestic">0</span>
                         </div>
                         <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] text-gray-500">시간당</span>
+                            <span class="text-[11px] text-gray-500">시간당</span>
                             <span class="text-lg md:text-xl font-black text-gray-900 dark:text-white" id="prod-uph-domestic">0</span>
                         </div>
                         <div class="flex justify-between items-end">
-                            <span class="text-[10px] text-gray-500">일당</span>
+                            <span class="text-[11px] text-gray-500">일당</span>
                             <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-domestic">0</span>
                         </div>
                     </div>
@@ -287,15 +286,15 @@
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 depth-panel">
                         <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate"><span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style="background:#D2A266"></span>중국제작</p>
                         <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] text-gray-500">분당</span>
+                            <span class="text-[11px] text-gray-500">분당</span>
                             <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-china">0</span>
                         </div>
                         <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] text-gray-500">시간당</span>
+                            <span class="text-[11px] text-gray-500">시간당</span>
                             <span class="text-lg md:text-xl font-black text-gray-900 dark:text-white" id="prod-uph-china">0</span>
                         </div>
                         <div class="flex justify-between items-end">
-                            <span class="text-[10px] text-gray-500">일당</span>
+                            <span class="text-[11px] text-gray-500">일당</span>
                             <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-china">0</span>
                         </div>
                     </div>
@@ -303,15 +302,15 @@
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 depth-panel">
                         <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate"><span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style="background:#7FA1E6"></span>직진배송</p>
                         <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] text-gray-500">분당</span>
+                            <span class="text-[11px] text-gray-500">분당</span>
                             <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-direct">0</span>
                         </div>
                         <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] text-gray-500">시간당</span>
+                            <span class="text-[11px] text-gray-500">시간당</span>
                             <span class="text-lg md:text-xl font-black text-gray-900 dark:text-white" id="prod-uph-direct">0</span>
                         </div>
                         <div class="flex justify-between items-end">
-                            <span class="text-[10px] text-gray-500">일당</span>
+                            <span class="text-[11px] text-gray-500">일당</span>
                             <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-direct">0</span>
                         </div>
                     </div>
@@ -319,15 +318,15 @@
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 depth-panel">
                         <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate"><span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style="background:#C9808A"></span>에이블리배송</p>
                         <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] text-gray-500">분당</span>
+                            <span class="text-[11px] text-gray-500">분당</span>
                             <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-ably">0</span>
                         </div>
                         <div class="flex justify-between items-end mb-1">
-                            <span class="text-[10px] text-gray-500">시간당</span>
+                            <span class="text-[11px] text-gray-500">시간당</span>
                             <span class="text-lg md:text-xl font-black text-gray-900 dark:text-white" id="prod-uph-ably">0</span>
                         </div>
                         <div class="flex justify-between items-end">
-                            <span class="text-[10px] text-gray-500">일당</span>
+                            <span class="text-[11px] text-gray-500">일당</span>
                             <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-ably">0</span>
                         </div>
                     </div>
@@ -336,7 +335,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 flex-grow shrink-0 min-h-[300px]">
                     <div class="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white mb-2">리소스 투입 대비 효율</h4>
-                        <p class="text-[10px] md:text-xs text-gray-500 mb-4">X축: 투입 시간, Y축: 산출량, 원 크기: 투입 인원</p>
+                        <p class="text-[11px] md:text-xs text-gray-500 mb-4">X축: 투입 시간, Y축: 산출량, 원 크기: 투입 인원</p>
                         <div class="relative w-full h-48 md:h-64">
                             <canvas id="chart-productivity-efficiency"></canvas>
                         </div>
@@ -345,7 +344,7 @@
                         <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white mb-2">비효율 요인 및 손실 비용</h4>
                         <div class="overflow-y-auto h-48 md:h-64 mt-4">
                             <table class="w-full text-xs md:text-sm text-left">
-                                <thead class="text-[10px] md:text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                                <thead class="text-[11px] md:text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50">
                                     <tr><th class="px-2 md:px-4 py-2">요인</th><th class="px-2 md:px-4 py-2 text-right">손실 시간</th><th class="px-2 md:px-4 py-2 text-right">추정 비용</th></tr>
                                 </thead>
                                 <tbody id="prod-coq-table-body" class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -361,7 +360,7 @@
                         <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white">채우기 → 오류 영향 분석</h4>
                         <span id="fill-error-summary" class="text-[11px] md:text-xs text-gray-500 font-medium"></span>
                     </div>
-                    <p class="text-[10px] md:text-xs text-gray-500 mb-4">채우기가 진행된 날을 0일차로 두고, 다음 채우기 전까지 경과일수별 오류업무 투입시간·오류 처리량 추이 (전체 이력 기준, 기간 선택과 무관)</p>
+                    <p class="text-[11px] md:text-xs text-gray-500 mb-4">채우기가 진행된 날을 0일차로 두고, 다음 채우기 전까지 경과일수별 오류업무 투입시간·오류 처리량 추이 (전체 이력 기준, 기간 선택과 무관)</p>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <div class="text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">평균 투입시간</div>
@@ -403,18 +402,18 @@
                                 <span class="text-lg md:text-xl font-bold text-blue-600" id="staff-required">0.0명</span>
                             </div>
                             <div class="pt-2">
-                                <p class="text-[10px] md:text-xs text-center text-gray-400" id="staff-fte-comment">분석 중...</p>
+                                <p class="text-[11px] md:text-xs text-center text-gray-400" id="staff-fte-comment">분석 중...</p>
                             </div>
                         </div>
                     </div>
 
                     <div class="bg-white dark:bg-gray-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white mb-1">근태 손실 시간</h4>
-                        <p class="text-[10px] md:text-xs text-gray-400 dark:text-gray-500 mb-3">재실시간(출근~퇴근) 중 업무 기록이 없는 시간</p>
+                        <p class="text-[11px] md:text-xs text-gray-400 dark:text-gray-500 mb-3">재실시간(출근~퇴근) 중 업무 기록이 없는 시간</p>
                         <div class="flex items-center justify-center h-28 md:h-32">
                             <canvas id="chart-staffing-loss"></canvas>
                         </div>
-                        <p class="text-center text-[10px] md:text-xs font-bold text-red-500 mt-2">총 누수 시간: <span id="staff-total-loss">0</span>분</p>
+                        <p class="text-center text-[11px] md:text-xs font-bold text-red-500 mt-2">총 누수 시간: <span id="staff-total-loss">0</span>분</p>
                     </div>
                 </div>
 
@@ -663,7 +662,7 @@
                                         <input id="sim-staff-fulltime" type="number" min="0" placeholder="0" inputmode="numeric"
                                             class="w-full bg-transparent border-0 p-0 mt-1 text-right text-[20px] leading-tight font-extrabold tabular-nums
                                                    text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600 focus:outline-none focus:ring-0">
-                                        <div class="mt-1 text-right leading-none"><span class="text-[10px] font-medium text-gray-400 dark:text-gray-500">휴무 차감 자동</span></div>
+                                        <div class="mt-1 text-right leading-none"><span class="text-[11px] font-medium text-gray-400 dark:text-gray-500">휴무 차감 자동</span></div>
                                     </div>
                                     <div class="rounded-xl border border-gray-200/70 dark:border-gray-700/70 bg-gray-50/60 dark:bg-gray-900/20 px-3 py-2.5
                                                 transition hover:border-gray-300 dark:hover:border-gray-600
@@ -673,7 +672,7 @@
                                         <input id="sim-staff-parttimer" type="number" min="0" placeholder="0" inputmode="numeric"
                                             class="w-full bg-transparent border-0 p-0 mt-1 text-right text-[20px] leading-tight font-extrabold tabular-nums
                                                    text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600 focus:outline-none focus:ring-0">
-                                        <div class="mt-1 text-right leading-none"><span class="text-[10px] font-medium text-gray-400 dark:text-gray-500">직접 입력</span></div>
+                                        <div class="mt-1 text-right leading-none"><span class="text-[11px] font-medium text-gray-400 dark:text-gray-500">직접 입력</span></div>
                                     </div>
                                     <div class="rounded-xl border border-gray-200/70 dark:border-gray-700/70 bg-gray-50/60 dark:bg-gray-900/20 px-3 py-2.5
                                                 transition hover:border-gray-300 dark:hover:border-gray-600
@@ -683,12 +682,12 @@
                                         <input id="sim-exclude-min" type="number" min="0" step="10" placeholder="0" inputmode="numeric"
                                             class="w-full bg-transparent border-0 p-0 mt-1 text-right text-[20px] leading-tight font-extrabold tabular-nums
                                                    text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600 focus:outline-none focus:ring-0">
-                                        <div class="mt-1 text-right leading-none"><span id="sim-exclude-hint" class="text-[10px] font-medium text-gray-400 dark:text-gray-500">10분 단위</span></div>
+                                        <div class="mt-1 text-right leading-none"><span id="sim-exclude-hint" class="text-[11px] font-medium text-gray-400 dark:text-gray-500">10분 단위</span></div>
                                     </div>
                                     <div class="rounded-xl border border-gray-200/70 dark:border-gray-700/70 bg-gray-50/60 dark:bg-gray-900/20 px-3 py-2.5 flex flex-col justify-center">
                                         <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400">가용 합계</div>
                                         <div class="mt-1 text-right text-[20px] leading-tight font-extrabold tabular-nums text-gray-900 dark:text-white"><span id="sim-staff-total">0</span></div>
-                                        <div class="mt-1 text-right leading-none"><span class="text-[10px] font-medium text-gray-400 dark:text-gray-500">정직원 + 알바</span></div>
+                                        <div class="mt-1 text-right leading-none"><span class="text-[11px] font-medium text-gray-400 dark:text-gray-500">정직원 + 알바</span></div>
                                     </div>
                                 </div>
                                 <!-- 휴무자 명단은 이름이 중간에서 끊기지 않도록 한 줄 전체를 쓴다 -->

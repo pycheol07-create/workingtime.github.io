@@ -1,17 +1,17 @@
 // === js/listeners-history-records.js ===
 // 설명: 이력 보기의 '기록 관리'(상세 내역 수정/삭제/일괄적용) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { showToast } from './utils.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { showToast } from './utils.js?v=202610161616';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=202610161426';
-import { renderHistoryDetail } from './app-history-logic.js?v=202610161426';
-import { renderHistoryRecordsTable, openHistoryRecordManager } from './history-record-table.js?v=202610161426';
-import { generateId } from './app-data.js?v=202610161426';
+} from './history-data-manager.js?v=202610161616';
+import { renderHistoryDetail } from './app-history-logic.js?v=202610161616';
+import { renderHistoryRecordsTable, openHistoryRecordManager } from './history-record-table.js?v=202610161616';
+import { generateId } from './app-data.js?v=202610161616';
 
 export function setupHistoryRecordListeners() {
 
@@ -144,7 +144,7 @@ export function setupHistoryRecordListeners() {
                  
                  renderHistoryRecordsTable(dateKey);
                  // 상세 뷰 갱신
-                 const selectedDateKey = document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key;
+                 const selectedDateKey = document.querySelector('.history-date-btn.is-on')?.dataset.key;
                  if (dateKey === selectedDateKey) {
                      renderHistoryDetail(dateKey);
                  }
@@ -170,7 +170,7 @@ export function setupHistoryRecordListeners() {
                         await deleteHistoryWorkRecord(dateKey, recordId);
                         showToast('기록이 삭제되었습니다.');
                         renderHistoryRecordsTable(dateKey);
-                        const selectedDateKey = document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key;
+                        const selectedDateKey = document.querySelector('.history-date-btn.is-on')?.dataset.key;
                         if (dateKey === selectedDateKey) {
                              renderHistoryDetail(dateKey);
                         }
@@ -206,7 +206,7 @@ export function setupHistoryRecordListeners() {
                         renderHistoryRecordsTable(dateKey); // 테이블 갱신
                         
                         // 백그라운드 뷰 갱신
-                        const selectedDateKey = document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key;
+                        const selectedDateKey = document.querySelector('.history-date-btn.is-on')?.dataset.key;
                         if (dateKey === selectedDateKey) renderHistoryDetail(dateKey);
 
                     } catch (err) {
@@ -260,7 +260,7 @@ export function setupHistoryRecordListeners() {
                     showToast(`총 ${updateCount}건의 기록이 일괄 저장되었습니다.`);
                     
                     renderHistoryRecordsTable(dateKey); // 재렌더링
-                    const selectedDateKey = document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key;
+                    const selectedDateKey = document.querySelector('.history-date-btn.is-on')?.dataset.key;
                     if (dateKey === selectedDateKey) renderHistoryDetail(dateKey);
 
                     // ✅ [수정] 저장 후 팝업 닫지 않음 (주석 처리됨)

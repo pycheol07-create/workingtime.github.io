@@ -1,9 +1,9 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202610161426';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610161426';
-import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610161426';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610161426';
-import { D, alpha } from './d-chart.js?v=202610161426';
+import * as State from './state.js?v=202610161616';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610161616';
+import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610161616';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610161616';
+import { D, alpha } from './d-chart.js?v=202610161616';
 
 let dashboardChartInstance = null;
 
@@ -100,7 +100,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202610161426').then(mod => {
+        import('./ui-history-milestones.js?v=202610161616').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }
@@ -258,7 +258,7 @@ export function renderDashboardTab(filteredData, appConfig) {
 
     // 하이브리드 기준치: 단위에 따라 롤링/전년 동기 선택
     const granularity = State.context?.globalGranularity || 'day';
-    const selectedKey = document.querySelector('.history-date-btn.bg-blue-100')?.dataset.key || null;
+    const selectedKey = document.querySelector('.history-date-btn.is-on')?.dataset.key || null;
     const baseline = getBaselinePeriod(granularity, selectedKey, State.allHistoryData);
     const baselineUph = computeAvgUphFromDays(baseline.data);
     const hasBaseline = baselineUph > 0;

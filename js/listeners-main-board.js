@@ -1,11 +1,12 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { render } from './app.js?v=202610161426';
-import { showToast, formatTimeTo24H } from './utils.js?v=202610161426';
-import { renderTeamSelectionModalContent, renderLeaveTypeModalOptions } from './ui.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { render } from './app.js?v=202610161616';
+import { showToast, formatTimeTo24H } from './utils.js?v=202610161616';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202610161616';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202610161616';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -13,10 +14,10 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202610161426';
+} from './app-logic.js?v=202610161616';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610161426';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202610161426';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610161616';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202610161616';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -311,26 +312,15 @@ export function setupMainBoardListeners() {
             const groupId = card.dataset.groupId;
             const task = card.dataset.task;
             if (action === 'start-task') {
-                State.context.selectedTaskForStart = task;
-                State.context.selectedGroupForAdd = null;
-                State.context.tempSelectedMembers = [];
-                renderTeamSelectionModalContent(task, State.appState, State.appConfig.teamGroups);
-                const titleEl = document.getElementById('team-select-modal-title');
-                if (titleEl) titleEl.textContent = `'${task}' 업무 시작`;
-                if (DOM.teamSelectModal) DOM.teamSelectModal.classList.remove('hidden');
+                // 본인 미리 선택(UX 개선 2번) — listeners-form-team.js
+                openTeamSelectForTask(task);
                 return;
             } else if (action === 'other') {
                 if (DOM.taskSelectModal) DOM.taskSelectModal.classList.remove('hidden');
                 return;
             } else if (groupId && task) {
                 // 💡 [수정됨] 예외 규칙을 삭제하여 모든 업무 카드의 여백 클릭 시 '인원 추가'가 열리도록 통일했습니다.
-                State.context.selectedTaskForStart = task;
-                State.context.selectedGroupForAdd = groupId;
-                State.context.tempSelectedMembers = [];
-                renderTeamSelectionModalContent(task, State.appState, State.appConfig.teamGroups);
-                const titleEl = document.getElementById('team-select-modal-title');
-                if (titleEl) titleEl.textContent = `'${task}' 인원 추가`;
-                if (DOM.teamSelectModal) DOM.teamSelectModal.classList.remove('hidden');
+                openTeamSelectForTask(task, groupId);
                 return;
             }
         }
@@ -342,6 +332,41 @@ export function setupMainBoardListeners() {
 
     const memberBoard = document.getElementById('member-status-board');
     if (memberBoard) memberBoard.addEventListener('click', handleBoardClick);
+
+    // 대시보드 맨 위 '내 업무' 줄 (UX 개선 1·3번) — 그리기는 ui-main-board.js renderMyWorkBar
+    const myWorkBar = document.getElementById('my-work-bar');
+    if (myWorkBar) {
+        myWorkBar.addEventListener('click', async (e) => {
+            const me = State.appState.currentUser;
+            const startChip = e.target.closest('[data-my-start]');
+            if (startChip) {
+                openTeamSelectForTask(startChip.dataset.myStart);
+                return;
+            }
+            const act = e.target.closest('[data-my-act]');
+            if (act) {
+                const kind = act.dataset.myAct;
+                if (kind === 'other-task') {
+                    if (DOM.taskSelectModal) DOM.taskSelectModal.classList.remove('hidden');
+                    return;
+                }
+                if (!me || act.disabled) return;
+                // 출퇴근 토글(listeners-main.js)과 같은 함수 — 두 번 누르기만 막는다
+                act.disabled = true;
+                try {
+                    if (kind === 'clock-in') await processClockIn(me);
+                    else if (kind === 'clock-out') await processClockOut(me);
+                } finally {
+                    act.disabled = false;
+                }
+                return;
+            }
+            // [휴식][재개][종료] — 업무 카드와 같은 data-action 이라 같은 처리기로 보낸다
+            if (e.target.closest('[data-action="pause-individual"], [data-action="resume-individual"], button[data-action="stop-individual"]')) {
+                handleBoardClick(e);
+            }
+        });
+    }
 
     // 하위 호환성 (혹시라도 예전 아이디가 있으면 붙여둠)
     if (DOM.teamStatusBoard) DOM.teamStatusBoard.addEventListener('click', handleBoardClick);

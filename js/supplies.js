@@ -5,10 +5,11 @@
 //  - 비품은 수십 건 규모라 문서 하나로 관리하는 편이 읽기·쓰기 모두 저렴하다.
 //  - 각 비품은 종류·현재고를 기본으로 하고, 단가/사이즈/발주정보/업체 등 상세를 함께 보관한다.
 
-import { initializeFirebase } from './config.js?v=202610161426';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161426';
-import { escapeHtml as esc } from './utils.js?v=202610161426';
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirebase } from './config.js?v=202610161616';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161616';
+import { memberNameFor } from './app-shell-data.js?v=202610161616';
+import { escapeHtml as esc } from './utils.js?v=202610161616';
+import { doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const { db, auth } = initializeFirebase();
@@ -120,6 +121,15 @@ const anyFilterActive = () =>
     COLS.some(c => hasColFilter(c.key)) || !!sortState.key ||
     !!$('filter-category').value || !!$('filter-search').value.trim() || $('filter-low').checked;
 
+// 공통 상단바 개인 알림(P2) — mainConfig 를 한 번 읽어 memberEmails 로 이름을 찾아 넘긴다.
+// 이름은 메모리에만(캐시·로그에 남기지 않는다). 기다리지 않고, 실패해도 화면은 그대로 쓴다.
+function pushShellMemberName(user) {
+    getDoc(doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig')).then((snap) => {
+        const memberName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email);
+        if (memberName && auth.currentUser && auth.currentUser.uid === user.uid) setShellContext({ signedIn: true, uid: user.uid, memberName });
+    }).catch((e) => console.warn('[supplies] 알림용 설정 읽기 실패:', e && e.code));
+}
+
 // ───────── 인증 게이트 ─────────
 onAuthStateChanged(auth, async (user) => {
     setShellContext(user ? { signedIn: true, uid: user.uid } : { signedIn: false });   // 공통 상단바(메뉴는 캐시)
@@ -128,6 +138,7 @@ onAuthStateChanged(auth, async (user) => {
         $('main').classList.add('hidden');
         return;
     }
+    pushShellMemberName(user);
     currentUser = user.email || 'unknown';
     $('auth-gate').classList.add('hidden');
     $('main').classList.remove('hidden');
@@ -136,11 +147,25 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // ───────── 저장소 ─────────
+// 이 문서는 이 화면만 쓰는 게 아니다 — 매일 19:30 서버 예약작업(앱\비품재고연동\연동.py)이 items[].stock 을
+// 이지어드민 값으로 맞추고 이력을 남기며 ezSyncedAt·ezSyncSummary 를 쓴다(바뀐 게 있으면 updatedAt 도).
+// 그래서 (1) 저장은 merge 로 해 ezSyncedAt 등 다른 필드를 지우지 않고, (2) 저장 직전에 서버 문서를 트랜잭션으로
+// 다시 읽어 불러온 뒤 updatedAt 이 바뀌었으면 저장하지 않는다 — 열어 둔 화면이 자동 반영값·이력을 되돌리지 않게.
+// 연동.py 는 바뀐 게 있을 때만 updatedAt 을 바꾸고 ezSyncedAt 은 매일 쓴다 → ezSyncedAt 만 바뀐 것은 충돌로 보지 않는다
+// (표시용 ezSyncedAt·요약은 저장 트랜잭션에서 읽은 값으로 갱신).
+let loadedStamp = { updatedAt: null, ezSyncedAt: null };   // 불러온 시점의 문서 표시
+let ezSync = { at: null, summary: null };                    // 화면 위 '이지어드민 자동 반영' 한 줄
+
+class SuppliesConflict extends Error {}
+
 async function load() {
     try {
         const snap = await getDoc(DOC_REF);
-        if (snap.exists() && Array.isArray(snap.data().items)) {
-            items = snap.data().items;
+        const d = snap.exists() ? snap.data() : {};
+        loadedStamp = { updatedAt: d.updatedAt ?? null, ezSyncedAt: d.ezSyncedAt ?? null };
+        ezSync = { at: d.ezSyncedAt ?? null, summary: d.ezSyncSummary ?? null };
+        if (snap.exists() && Array.isArray(d.items)) {
+            items = d.items;
         } else {
             // 최초 진입 — 기본 비품(택배봉투·포장봉투) 생성
             items = SEED_ITEMS.map(s => ({
@@ -151,21 +176,65 @@ async function load() {
             await persist();
         }
     } catch (e) {
+        if (e && e.handled) return;   // 처음 만들기 저장이 충돌 — persist 가 이미 안내하고 다시 불러왔다
         console.error('비품 데이터 로드 실패:', e);
         alert('비품 데이터를 불러오지 못했습니다: ' + (e.message || e));
     }
 }
 
 async function persist() {
-    await setDoc(DOC_REF, { items, updatedAt: new Date().toISOString(), updatedBy: currentUser });
+    const updatedAt = new Date().toISOString();
+    try {
+        await runTransaction(db, async (tx) => {
+            const snap = await tx.get(DOC_REF);
+            const d = snap.exists() ? snap.data() : {};
+            if ((d.updatedAt ?? null) !== loadedStamp.updatedAt) {
+                throw new SuppliesConflict('changed');
+            }
+            ezSync = { at: d.ezSyncedAt ?? null, summary: d.ezSyncSummary ?? null };
+            // merge — items 는 배열이라 통째로 바뀌지만, ezSyncedAt·ezSyncSummary 같은 다른 필드는 남는다
+            tx.set(DOC_REF, { items, updatedAt, updatedBy: currentUser }, { merge: true });
+        });
+    } catch (e) {
+        if (e instanceof SuppliesConflict) {
+            // 이 화면에서 바꾼 것은 버리고 서버 최신으로 다시 그린다(열린 창은 닫는다)
+            alert('다른 곳에서 비품이 바뀌었습니다 — 새로고침 후 다시 해 주세요.\n(최신 내용으로 다시 불러옵니다. 방금 바꾼 내용은 저장되지 않았습니다)');
+            closeModal('item-modal');
+            closeModal('stock-modal');
+            await load();
+            renderAll();
+            e.handled = true;
+        }
+        throw e;
+    }
+    loadedStamp = { updatedAt, ezSyncedAt: ezSync.at };
+    renderEzSync();
 }
 
 // ───────── 렌더 ─────────
 function renderAll() {
+    renderEzSync();
     renderMainItems();
     renderSummary();
     renderCategoryFilter();
     renderTable();
+}
+
+// '이지어드민 자동 반영: 10/16 19:30 (확인 N·바뀜 M)' — 문서에 ezSyncedAt 이 있을 때만
+function renderEzSync() {
+    const el = $('ez-sync-note');
+    if (!el) return;
+    const d = ezSync.at ? new Date(ezSync.at) : null;
+    if (!d || isNaN(d.getTime())) { el.classList.add('hidden'); el.textContent = ''; return; }
+    const p2 = (n) => String(n).padStart(2, '0');
+    const s = ezSync.summary || {};
+    const parts = [];
+    if (s.checked != null) parts.push(`확인 ${num(s.checked)}`);
+    if (s.changed != null) parts.push(`바뀜 ${num(s.changed)}`);
+    if (num(s.failed) > 0) parts.push(`건너뜀 ${num(s.failed)}`);
+    el.textContent = `이지어드민 자동 반영: ${d.getMonth() + 1}/${d.getDate()} ${p2(d.getHours())}:${p2(d.getMinutes())}`
+        + (parts.length ? ` (${parts.join('·')})` : '');
+    el.classList.remove('hidden');
 }
 
 function renderMainItems() {
@@ -556,7 +625,7 @@ async function saveItem() {
         closeModal('item-modal');
         renderAll();
     } catch (e) {
-        showError('item-modal-error', '저장 실패: ' + (e.message || e));
+        if (!e.handled) showError('item-modal-error', '저장 실패: ' + (e.message || e));   // handled = 충돌 안내·다시 불러오기 끝
     } finally {
         btn.disabled = false;
     }
@@ -572,7 +641,7 @@ async function deleteItem() {
         closeModal('item-modal');
         renderAll();
     } catch (e) {
-        showError('item-modal-error', '삭제 실패: ' + (e.message || e));
+        if (!e.handled) showError('item-modal-error', '삭제 실패: ' + (e.message || e));
     }
 }
 
@@ -736,7 +805,7 @@ async function saveStock() {
         closeModal('stock-modal');
         renderAll();
     } catch (e) {
-        showError('stock-modal-error', '저장 실패: ' + (e.message || e));
+        if (!e.handled) showError('stock-modal-error', '저장 실패: ' + (e.message || e));
     } finally {
         btn.disabled = false;
     }

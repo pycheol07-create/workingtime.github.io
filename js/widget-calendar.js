@@ -8,11 +8,11 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202610161426';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610161426';
-import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610161426';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610161426';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161426';
+import * as State from './state.js?v=202610161616';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610161616';
+import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610161616';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610161616';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161616';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
@@ -549,7 +549,7 @@ function renderDayModalList(dateStr) {
                    <button type="button" data-day-del-kind="${it.kind}" data-day-del-id="${esc(it.id)}"
                        class="text-[11px] px-2 py-1 rounded bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100">삭제</button>
                </div>`
-            : `<span class="text-[10px] text-gray-400 shrink-0">읽기전용</span>`;
+            : `<span class="text-[11px] text-gray-400 shrink-0">읽기전용</span>`;
         return `
         <li class="flex items-start gap-2 py-2 border-b border-gray-100 dark:border-gray-700/50 last:border-0">
             <span class="mt-1.5 w-2 h-2 rounded-full shrink-0" style="background:${it.color}"></span>

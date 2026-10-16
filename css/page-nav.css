@@ -33,7 +33,7 @@
 /* ── 레일(≥6) 공통 항목 모양 ── */
 .pn--rail .pn-group-title {
     padding: 6px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .02em;
-    color: var(--c-text-3, #8A9099);
+    color: var(--c-text-3, #69707A);
 }
 .pn--rail .pn-group + .pn-group { margin-top: 12px; }
 .pn--rail .pn-item {
@@ -55,7 +55,7 @@
     .pn--rail .pn-collapse {
         align-self: flex-end; flex: 0 0 auto; width: 28px; height: 28px; margin: 8px 8px 0;
         border-radius: var(--r-sm, 10px); text-align: center; font-size: 14px; line-height: 28px;
-        color: var(--c-text-3, #8A9099);
+        color: var(--c-text-3, #69707A);
     }
     .pn--rail .pn-collapse:hover { background: var(--c-surface-2, #F7F8FA); color: var(--c-text, #23272E); }
     .pn--rail .pn-collapse::before { content: '\00AB'; }            /* « */
@@ -76,11 +76,11 @@
         display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px;
         font-size: 13px; color: var(--c-text, #23272E);
     }
-    .pn--rail .pn-toggle-label { font-size: 11px; font-weight: 700; color: var(--c-text-3, #8A9099); flex: 0 0 auto; }
+    .pn--rail .pn-toggle-label { font-size: 11px; font-weight: 700; color: var(--c-text-3, #69707A); flex: 0 0 auto; }
     .pn--rail .pn-current { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pn--rail .pn-toggle::after {
         content: ''; margin-left: auto; flex: 0 0 auto; width: 7px; height: 7px;
-        border-right: 2px solid var(--c-text-3, #8A9099); border-bottom: 2px solid var(--c-text-3, #8A9099);
+        border-right: 2px solid var(--c-text-3, #69707A); border-bottom: 2px solid var(--c-text-3, #69707A);
         transform: translateY(-2px) rotate(45deg); transition: transform .15s;
     }
     .pn--rail.is-open .pn-toggle::after { transform: translateY(2px) rotate(225deg); }

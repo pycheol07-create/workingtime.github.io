@@ -44,7 +44,7 @@ export const windowTargetFor = (link) => {
     const m = LINK_WINDOW_TARGETS.find(t => String(link).includes(t.match));
     return m ? m.target : null;
 };
-// 대시보드 PC 사이드바가 '데이터 관리' 를 새 탭으로 연다(js/listeners-history.js window.open(…,'_blank')) — 셸 메뉴도 같게.
+// 'named-window' 로 되돌릴 때만 쓴다 — 예전 대시보드는 '데이터 관리' 를 새 탭으로 열었다(지금은 같은 탭 goTo, js/listeners-history.js).
 const SHELL_EXTRA_TARGETS = { 'history.html': '_blank' };
 
 /** 셸 메뉴 링크의 target — 'same-tab' 이면 null(같은 탭), 아니면 사이드바와 같은 창 이름. */
@@ -164,17 +164,23 @@ export const SUB_DESTINATIONS = {
         S('운영 마일스톤', 'tab=milestones', ['마일스톤'])
     ],
     'admin.html': [
+        // 관리자 좌측 메뉴(admin.html 그룹 5개)와 같은 순서
+        // 사람·권한
         S('팀원 관리', 'tab=team'),
         S('권한 관리', 'tab=permission'),
+        // 메인 화면 구성
         S('메뉴 관리', 'tab=menu'),
         S('위젯 관리', 'tab=widget'),
-        S('업무 등록 관리', 'tab=task'),
         S('고정 업무', 'tab=keytask'),
+        // 업무·집계
+        S('업무 등록 관리', 'tab=task'),
         S('집계/위젯 연동', 'tab=quantity'),
         S('원가/손익 분석', 'tab=cost'),
-        S('기본 설정', 'tab=setting'),
+        // 자동화
         S('자동화 상태', 'tab=automation'),
-        S('채우기 설정', 'tab=refill')
+        S('채우기 설정', 'tab=refill'),
+        // 기타
+        S('기본 설정', 'tab=setting')
     ],
     'location.html': [
         S('로케이션 대시보드', 'tab=locdash', ['대시보드']),

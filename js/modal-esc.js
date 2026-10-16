@@ -11,6 +11,11 @@
     const EXCLUDED_IDS = new Set(['login-modal', 'overtime-prompt-modal']);
     // id 에 close 가 들어 있지만 '닫기'가 아닌 동작 버튼 — ESC 가 누르면 안 된다
     const NOT_CLOSE_BUTTON_IDS = new Set(['btn-close-now']);
+    // 데이터 관리 전체 페이지(history.html, <body data-shell="history">)의 #history-modal 은 모달이 아니라 화면 본체다
+    // — ESC 후보에서 뺀다(예전엔 열린 창이 없을 때 ESC 가 화면을 숨기고 최대화를 풀었다). index 의 모달 동작은 그대로.
+    function isPageBody(el) {
+        return el.id === 'history-modal' && !!document.body && document.body.dataset.shell === 'history';
+    }
 
     function isVisible(el) {
         if (!el || el.classList.contains('hidden')) return false;
@@ -33,6 +38,7 @@
         const visible = candidates.filter(el =>
             el.className &&
             el.className.indexOf('justify-center') !== -1 &&
+            !isPageBody(el) &&
             isVisible(el)
         );
         if (visible.length === 0) return null;

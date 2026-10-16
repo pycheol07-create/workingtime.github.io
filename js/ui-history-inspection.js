@@ -1,7 +1,7 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { getWeekOfYear } from './utils.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { getWeekOfYear } from './utils.js?v=202610161616';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -24,10 +24,10 @@ export const setInspTypeFilter = (val) => { currentInspTypeFilter = val; };
 export const renderInspectionLogTable = (logs, productName) => {};
 
 const getSortIcon = (key) => {
-    if (sortState.key !== key) return '<span class="text-gray-300 text-[10px] ml-1 opacity-50">↕</span>';
+    if (sortState.key !== key) return '<span class="text-gray-300 text-[11px] ml-1 opacity-50">↕</span>';
     return sortState.dir === 'asc' 
-        ? '<span class="text-blue-600 text-[10px] ml-1">▲</span>' 
-        : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
+        ? '<span class="text-blue-600 text-[11px] ml-1">▲</span>' 
+        : '<span class="text-blue-600 text-[11px] ml-1">▼</span>';
 };
 
 const formatDefectSummary = (defectSummary) => {
@@ -198,8 +198,8 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                 : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
             
             const typeBadge = item.inspectionType === 'total' 
-                ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
-                : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
+                ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
+                : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
 
             // ✨ 입고 수량 및 샘플검수 수량 계산 로직 (대기 상태는 무조건 0으로)
             const inboundQty = Number(item.inboundQty || item.qty || 0);
@@ -226,7 +226,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                     <td class="px-4 py-3 text-xs text-gray-600">${item.supplierName || '-'}</td>
                     <td class="px-4 py-3 text-center">
                         <div class="text-xs font-bold text-gray-700">${inboundQty.toLocaleString()}</div>
-                        <div class="text-[10px] ${isCompleted ? 'text-blue-600' : 'text-gray-400'} font-bold">(샘플검수: ${sampleQty.toLocaleString()}개)</div>
+                        <div class="text-[11px] ${isCompleted ? 'text-blue-600' : 'text-gray-400'} font-bold">(샘플검수: ${sampleQty.toLocaleString()}개)</div>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">${item.thickness || '-'}</td>
                     <td class="px-4 py-3 text-center">${statusBadge}</td>
@@ -536,8 +536,8 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                     : `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800">불량</span>`;
 
                 const typeBadge = item.inspectionType === 'total' 
-                    ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
-                    : `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
+                    ? `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
+                    : `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
 
                 let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>` : '';
                 let noteText = item.note || '';
@@ -562,7 +562,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                         <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.inboundDate || '-'}</td>
                         <td class="px-4 py-3 text-center">
                             <div class="text-xs font-bold text-gray-700">${inboundQtyDisplay}</div>
-                            <div class="text-[10px] text-blue-600 font-bold">(샘플검수: ${sampleQtyDisplay}개)</div>
+                            <div class="text-[11px] text-blue-600 font-bold">(샘플검수: ${sampleQtyDisplay}개)</div>
                         </td>
                         <td class="px-4 py-3 text-center">${statusBadge}</td>
                         <td class="px-4 py-3 max-w-[300px] leading-tight">${checklistStr.join('') || '-'}</td>
@@ -847,7 +847,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                                     data-qc-period-value="${selectedPeriod}"
                                     title="해당 기간의 불량 상세 이력 펼치기">
                                     <td class="px-4 py-3 font-medium text-gray-900 break-words max-w-[200px]">
-                                        <span class="inline-block w-4 h-4 text-center rounded-full ${idx < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'} text-[10px] mr-1 leading-4">${idx + 1}</span>
+                                        <span class="inline-block w-4 h-4 text-center rounded-full ${idx < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'} text-[11px] mr-1 leading-4">${idx + 1}</span>
                                         <span class="group-hover:text-indigo-600 group-hover:underline transition-all">${p.name}</span>
                                     </td>
                                     
@@ -861,7 +861,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
 
                                     <td class="px-2 py-3 text-center text-gray-500 border-l group-hover:bg-transparent">
                                         <div class="text-xs font-bold text-gray-700">${p.totalQty.toLocaleString()}개</div>
-                                        <div class="text-[10px] text-blue-600 font-bold">(샘플: ${p.sampleQty.toLocaleString()}개)</div>
+                                        <div class="text-[11px] text-blue-600 font-bold">(샘플: ${p.sampleQty.toLocaleString()}개)</div>
                                     </td>
                                     <td class="px-2 py-3 text-center text-orange-600 group-hover:bg-transparent">${p.defectQty}개</td>
                                     <td class="px-2 py-3 text-center group-hover:bg-transparent">

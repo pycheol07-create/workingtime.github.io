@@ -1,7 +1,7 @@
 // === js/ui-history-productivity.js ===
-import * as State from './state.js?v=202610161426';
-import { buildMemberHourlyWageMap } from './utils.js?v=202610161426';
-import { D } from './d-chart.js?v=202610161426';
+import * as State from './state.js?v=202610161616';
+import { buildMemberHourlyWageMap } from './utils.js?v=202610161616';
+import { D } from './d-chart.js?v=202610161616';
 
 let productivityChartInstance = null;
 
@@ -85,7 +85,7 @@ export function renderProductivityTab(filteredData, appConfig) {
                 const caseText = digits === 0
                     ? Math.round(cases).toLocaleString()
                     : cases.toFixed(digits);
-                html += ` <span class="text-[10px] text-gray-400 font-normal">(${caseText} 건)</span>`;
+                html += ` <span class="text-[11px] text-gray-400 font-normal">(${caseText} 건)</span>`;
             }
             return html;
         };

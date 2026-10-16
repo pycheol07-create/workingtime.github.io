@@ -1,7 +1,7 @@
 // === js/ui-main-analysis.js ===
-import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610161426';
+import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610161616';
 
 export const renderTaskAnalysis = (appState, appConfig) => {
     const analysisContainer = document.getElementById('analysis-task-summary-panel'); 
@@ -87,7 +87,7 @@ export const renderTaskAnalysis = (appState, appConfig) => {
                 <div class="text-right flex flex-col justify-center">
                     <div class="text-sm font-extrabold text-gray-800 dark:text-white">총 ${formatDuration(minutes)}</div>
                     <div class="text-[11px] font-bold text-blue-600 dark:text-blue-400">인당 평균: ${formatDuration(Math.round(actualMinutes))}</div>
-                    <div class="text-[10px] text-gray-500 dark:text-gray-400">${percentage.toFixed(1)}%</div>
+                    <div class="text-[11px] text-gray-500 dark:text-gray-400">${percentage.toFixed(1)}%</div>
                 </div>
             </div>`;
     });
@@ -104,8 +104,8 @@ export const renderTaskAnalysis = (appState, appConfig) => {
                 <div class="chart-center shadow-sm dark:bg-gray-800 flex flex-col justify-center items-center">
                     <span class="text-[11px] font-bold text-gray-400 dark:text-gray-500">총 업무시간</span>
                     <span class="text-lg font-extrabold text-blue-600 dark:text-blue-400 leading-none mb-1">${formatDuration(totalLoggedMinutes)}</span>
-                    <span class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400">인당: ${formatDuration(Math.round(actualTotalMinutes))}</span>
-                    <span class="text-[9px] text-gray-400 mt-1.5 text-center leading-tight">
+                    <span class="text-[11px] font-bold text-indigo-500 dark:text-indigo-400">인당: ${formatDuration(Math.round(actualTotalMinutes))}</span>
+                    <span class="text-[11px] text-gray-400 mt-1.5 text-center leading-tight">
                         휴식 총 ${formatDuration(Math.round(totalBreakMinutes))}<br>
                         (인당 ${formatDuration(Math.round(actualBreakMinutes))})
                     </span>

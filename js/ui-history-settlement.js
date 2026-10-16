@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202610161426';
-import { LEAVE_TYPES } from './state.js?v=202610161426';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610161426';
+import * as State from './state.js?v=202610161616';
+import { LEAVE_TYPES } from './state.js?v=202610161616';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610161616';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610161426';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610161426';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610161616';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610161616';
 
 import {
     calculateReportKPIs,
@@ -19,11 +19,11 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202610161426';
+} from './ui-history-reports-logic.js?v=202610161616';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202610161426';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610161426';
-import { D } from './d-chart.js?v=202610161426';
+import { aggregateManagementData } from './ui-history-management.js?v=202610161616';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610161616';
+import { D } from './d-chart.js?v=202610161616';
 
 // ============================================================
 // 모듈 상태
@@ -634,7 +634,7 @@ const miniStat = (label, value, sub = '') => `
     <div class="bg-gray-50 rounded-lg p-3 text-center">
         <div class="text-[11px] text-gray-500 mb-0.5">${label}</div>
         <div class="text-base font-extrabold text-gray-800">${value}</div>
-        ${sub ? `<div class="text-[10px] text-gray-400 mt-0.5">${sub}</div>` : ''}
+        ${sub ? `<div class="text-[11px] text-gray-400 mt-0.5">${sub}</div>` : ''}
     </div>`;
 
 const progressBar = (pct, colorClass = 'bg-blue-500') => `
@@ -643,10 +643,10 @@ const progressBar = (pct, colorClass = 'bg-blue-500') => `
     </div>`;
 
 const changeBadge = (pct) => {
-    if (pct === null || pct === undefined || !isFinite(pct)) return '<span class="text-[10px] text-gray-400">(신규)</span>';
-    if (Math.abs(pct) < 0.5) return '<span class="text-[10px] text-gray-400">(-)</span>';
+    if (pct === null || pct === undefined || !isFinite(pct)) return '<span class="text-[11px] text-gray-400">(신규)</span>';
+    if (Math.abs(pct) < 0.5) return '<span class="text-[11px] text-gray-400">(-)</span>';
     const up = pct > 0;
-    return `<span class="text-[10px] font-bold ${up ? 'text-blue-600' : 'text-red-500'}">${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}%</span>`;
+    return `<span class="text-[11px] font-bold ${up ? 'text-blue-600' : 'text-red-500'}">${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}%</span>`;
 };
 
 const tableShell = (theadHtml, tbodyHtml, maxH = 'max-h-[420px]') => `
@@ -703,9 +703,9 @@ const sfHead = (id, cols, allRows) => {
             <span class="inline-flex items-center gap-0.5 ${c.align === 'right' ? 'flex-row-reverse' : ''}">
                 <button type="button" data-tf-sort="${c.key}" data-tf-table="${id}"
                         class="inline-flex items-center gap-1 hover:text-blue-600 ${on ? 'text-blue-600' : ''}"
-                        title="클릭해서 정렬 (오름차순 → 내림차순 → 해제)">${label(c)} <span class="text-[9px] ${on ? '' : 'text-gray-300'}">${ic}</span></button>
+                        title="클릭해서 정렬 (오름차순 → 내림차순 → 해제)">${label(c)} <span class="text-[11px] ${on ? '' : 'text-gray-300'}">${ic}</span></button>
                 ${c.filterable ? `<button type="button" data-tf-filter="${c.key}" data-tf-table="${id}"
-                        class="px-1 rounded text-[9px] ${active ? 'text-blue-600 bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-200'}"
+                        class="px-1 rounded text-[11px] ${active ? 'text-blue-600 bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-200'}"
                         title="${c.label} 필터">▼${n > 0 ? `<span class="ml-0.5 font-bold">${n}</span>` : ''}</button>` : ''}
             </span>
         </th>`;
@@ -969,7 +969,7 @@ function renderWorkReportSection(wr, workingDaysCount, totalDaysCount) {
             ${heroStat('활동 인원', wr.memberCount, '명', '', 'text-indigo-700')}
             ${heroStat('수행 업무 종류', wr.taskCount, '종')}
             ${heroStat('총 가동일수', workingDaysCount, '일',
-                `<span class="text-[10px] text-gray-400">기간 ${totalDays}일 중 업무 기록이 있는 날</span>`)}
+                `<span class="text-[11px] text-gray-400">기간 ${totalDays}일 중 업무 기록이 있는 날</span>`)}
         </div>
 
         <div class="mb-5">
@@ -984,7 +984,7 @@ function renderWorkReportSection(wr, workingDaysCount, totalDaysCount) {
                 { key: 'workDays', label: '가동일수', align: 'right', type: 'num', get: t => t.workDays,
                   cell: t => `<span class="font-bold text-gray-800">${t.workDays}</span>`
                            + `<span class="text-gray-400"> / ${workingDaysCount}일</span>`
-                           + `<div class="text-[10px] text-gray-400">${opRate(t.workDays)}%</div>` }
+                           + `<div class="text-[11px] text-gray-400">${opRate(t.workDays)}%</div>` }
             ], wr.taskEntries)}
         </div>
 
@@ -1086,7 +1086,7 @@ function renderInspectionSection(insp) {
 
     const body = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            ${heroStat('총 검수 수량', fmt(insp.productTypeCount), 'SKU', `<span class="text-[10px] text-gray-400">총 수량 ${fmt(insp.totalInspectedQty)}개</span>`, 'text-rose-700')}
+            ${heroStat('총 검수 수량', fmt(insp.productTypeCount), 'SKU', `<span class="text-[11px] text-gray-400">총 수량 ${fmt(insp.totalInspectedQty)}개</span>`, 'text-rose-700')}
             ${heroStat('불량 수량', fmt(insp.totalDefectQty), '개')}
             ${heroStat('수량 기준 불량률', insp.qtyDefectRate.toFixed(1), '%', '', insp.qtyDefectRate >= 5 ? 'text-red-600' : 'text-gray-800')}
             ${heroStat('건수 기준 불량률', insp.countDefectRate.toFixed(1), '%', '', insp.countDefectRate >= 5 ? 'text-red-600' : 'text-gray-800')}
@@ -1139,15 +1139,15 @@ function renderMilestoneSection(ms) {
         if (!s.hasEnoughData) {
             return `<tr>
                 ${td(`<div class="text-[11px] text-gray-400 font-mono">${esc(m.date)}</div>`)}
-                ${td(`<div class="font-bold text-gray-800">${esc(m.title || '-')}</div><div class="text-[10px] text-gray-400">${esc(it.typeInfo.label)}</div>`)}
-                ${td(`<span class="text-[10px] text-gray-400">${esc(affected)}</span>`)}
+                ${td(`<div class="font-bold text-gray-800">${esc(m.title || '-')}</div><div class="text-[11px] text-gray-400">${esc(it.typeInfo.label)}</div>`)}
+                ${td(`<span class="text-[11px] text-gray-400">${esc(affected)}</span>`)}
                 <td class="px-3 py-2 text-center" colspan="4"><span class="text-[11px] text-gray-400">${esc(s.statusLabel)}</span></td>
             </tr>`;
         }
         return `<tr>
             ${td(`<div class="text-[11px] text-gray-500 font-mono">${esc(m.date)}</div>`)}
-            ${td(`<div class="font-bold text-gray-800">${esc(m.title || '-')}</div><div class="text-[10px] text-gray-400">${esc(it.typeInfo.label)}</div>`)}
-            ${td(`<span class="text-[10px] text-gray-500">${esc(affected)}</span>`)}
+            ${td(`<div class="font-bold text-gray-800">${esc(m.title || '-')}</div><div class="text-[11px] text-gray-400">${esc(it.typeInfo.label)}</div>`)}
+            ${td(`<span class="text-[11px] text-gray-500">${esc(affected)}</span>`)}
             ${td(`<span class="text-xs text-gray-600">${s.before.uph.toFixed(1)}→${s.after.uph.toFixed(1)}</span>`, 'right')}
             ${td(changeCell(it.uphPct, true), 'right')}
             ${td(`<span class="text-xs text-gray-600">${fmt(s.before.avgQtyPerDay)}→${fmt(s.after.avgQtyPerDay)}</span>`, 'right')}
@@ -1193,7 +1193,7 @@ function renderMilestoneSection(ms) {
                 return `
                 <div class="rounded-lg border ${clsTone} p-3">
                     <div class="flex items-center justify-between flex-wrap gap-1 mb-1">
-                        <div class="text-xs font-bold text-gray-800">${esc(it.typeInfo.label)} · ${esc(it.milestone.title || '-')} <span class="text-[10px] text-gray-400 font-mono ml-1">${esc(it.milestone.date)}</span></div>
+                        <div class="text-xs font-bold text-gray-800">${esc(it.typeInfo.label)} · ${esc(it.milestone.title || '-')} <span class="text-[11px] text-gray-400 font-mono ml-1">${esc(it.milestone.date)}</span></div>
                         <div class="text-[11px]">${badge}</div>
                     </div>
                     <div class="text-[12px] text-gray-700 leading-relaxed"><b class="text-gray-500">해석:</b> ${it.insight.interp}</div>

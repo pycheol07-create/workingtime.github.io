@@ -1,8 +1,8 @@
-/* === css/history-d.css — 데이터 관리(history.html + index 안 모바일 모달) 전용 D안 (2026-10-13) ===
+/* === css/history-d.css — 데이터 관리(history.html) 전용 D안 (2026-10-13) ===
    - style.css·dash-d.css·d-theme.css 는 건드리지 않고 여기서 덮는다.
    - 모든 규칙은 범위 루트 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) 접두.
      ID 명시도로 Tailwind CDN(뒤에 주입됨)의 .x / .dark .dark\:x / .hover\:x:hover 를 이긴다.
-     index.html 도 이 파일을 부르지만 #dash-root 와 겹치는 규칙이 없어 메인 대시보드에는 닿지 않는다.
+     index.html 은 데이터 관리 모달을 싣지 않으므로 이 파일을 부르지 않는다(UI 2단계 H0 정리, 2026-10-16).
    - 토큰도 :root 가 아니라 범위 루트에 둔다(dash-d.css 의 :root 토큰과 섞이지 않게). 값은 dash-d.css 8-35 사본.
      #settle-pdf-holder(팀 결산 PDF 복제본)는 다크에서도 라이트 토큰 — 흰 종이에 찍힌다.
    - ⚠ display 를 넣지 않는다. .hidden / md:flex / hidden↔flex 토글을 ID 명시도로 이겨 버린다.
@@ -15,7 +15,7 @@
 :is(#history-modal, #modals-container-history-popups, #settle-pdf-holder) {
     --c-bg: #F5F6F8; --c-surface: #FFFFFF; --c-surface-2: #F7F8FA; --c-track: #EEF0F4;
     --c-line: #E6E8EC; --c-line-soft: #F0F2F5; --c-line-strong: #D6DAE0;
-    --c-text: #23272E; --c-text-2: #646B75; --c-text-3: #8A9099; --c-text-4: #CDD2D9;
+    --c-text: #23272E; --c-text-2: #646B75; --c-text-3: #69707A; --c-text-4: #CDD2D9;
     --c-accent: #2F62C9; --c-accent-deep: #1E4699; --c-accent-mid: #7FA1E6; --c-accent-light: #C4D4F5; --c-accent-soft: #EAF0FD; --c-accent-row: #F3F6FD;
     --c-ok: #5A9E96; --c-ok-text: #3D756F; --c-ok-soft: #E5F0EE;
     --c-warn: #D2A266; --c-warn-text: #8A5E28; --c-warn-soft: #F4EADB; --c-warn-bg: #F9F4EC;

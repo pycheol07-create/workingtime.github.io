@@ -1,7 +1,7 @@
 // === js/listeners-history-download.js ===
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { showToast, getTodayDateString } from './utils.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { showToast, getTodayDateString } from './utils.js?v=202610161616';
 
 import {
     downloadHistoryAsExcel,
@@ -14,10 +14,10 @@ import {
     downloadReportExcel,
     downloadPersonalReportExcel,
     downloadInspectionHistory
-} from './history-excel.js?v=202610161426';
+} from './history-excel.js?v=202610161616';
 
 const getSelectedDateKey = () => {
-    const btn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
+    const btn = DOM.historyDateList.querySelector('.history-date-btn.is-on');
     return btn ? btn.dataset.key : null;
 };
 
@@ -101,7 +101,7 @@ export function setupHistoryDownloadListeners() {
     const historyDownloadBtn = document.getElementById('history-download-btn');
     if (historyDownloadBtn) {
         historyDownloadBtn.addEventListener('click', () => {
-             const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
+             const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.is-on');
              if (!selectedListBtn) return showToast('목록에서 날짜를 선택해주세요.', true);
              openDownloadFormatModal('work');
         });
@@ -161,7 +161,7 @@ export function setupHistoryDownloadListeners() {
     const attendanceDownloadBtn = document.getElementById('attendance-download-btn');
     if (attendanceDownloadBtn) {
         attendanceDownloadBtn.addEventListener('click', () => {
-             const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100');
+             const selectedListBtn = DOM.historyDateList.querySelector('.history-date-btn.is-on');
              if (!selectedListBtn) return showToast('목록에서 날짜를 선택해주세요.', true);
              openDownloadFormatModal('attendance');
         });

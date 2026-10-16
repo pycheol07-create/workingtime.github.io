@@ -1,23 +1,23 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610161616';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610161426';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610161426';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610161426';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610161426';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610161616';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610161616';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610161616';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610161616';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610161426';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610161426';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610161426';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610161426';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610161616';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610161616';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610161616';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610161616';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610161426';
-import { saveView } from './view-state.js?v=202610161426';
-import { goTo } from './app-shell-bridge.js?v=202610161426';
-import { placeOpenDropdown } from './table-filter.js?v=202610161426';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610161616';
+import { saveView } from './view-state.js?v=202610161616';
+import { goTo } from './app-shell-bridge.js?v=202610161616';
+import { placeOpenDropdown } from './table-filter.js?v=202610161616';
 
 let isHistoryMaximized = false;
 
@@ -56,7 +56,7 @@ export function setupHistoryModalListeners() {
         }
     };
 
-    const getSelectedDateKey = () => DOM.historyDateList.querySelector('.history-date-btn.bg-blue-100')?.dataset.key || null;
+    const getSelectedDateKey = () => DOM.historyDateList.querySelector('.history-date-btn.is-on')?.dataset.key || null;
 
     const refreshAttendanceView = async () => {
         const dateKey = getSelectedDateKey();
@@ -154,7 +154,6 @@ export function setupHistoryModalListeners() {
     const openHistoryModalLogic = async (e) => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('이력을 보려면 로그인이 필요합니다.', true);
-            if (DOM.historyModal) DOM.historyModal.classList.add('hidden');
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
             return;
         }
@@ -257,7 +256,7 @@ export function setupHistoryModalListeners() {
             const btn = e.target.closest('.history-date-btn');
             if (!btn) return;
 
-            // 선택 표시: is-on(코드가 찾는 이름) + bg-blue-100(색·예전 코드 호환 — css/history-d.css 와 몇몇 화면이 아직 이 이름으로 찾는다)
+            // 선택 표시: is-on(코드가 찾는 이름) + bg-blue-100(색 — css/history-d.css 가 이 이름으로 칠한다. 선택 날짜를 찾는 코드는 모두 .is-on)
             DOM.historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('is-on', 'bg-blue-100', 'font-bold', 'bg-blue-50', 'text-blue-700', 'dark:bg-blue-900/40', 'dark:text-blue-400'));
             btn.classList.add('is-on', 'bg-blue-100', 'font-bold');
             const dateKey = btn.dataset.key;

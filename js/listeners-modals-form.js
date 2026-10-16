@@ -2,16 +2,15 @@
 // 설명: 폼/입력 관련 모달 리스너들을 통합 관리하는 메인 파일입니다.
 // (업무기록, 팀원선택, 근태, 처리량, 검수, 업무선택)
 
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { renderTeamSelectionModalContent } from './ui-modals.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
 
 // 분리된 하위 리스너 모듈 임포트
-import { setupFormRecordListeners } from './listeners-form-record.js?v=202610161426';
-import { setupFormTeamListeners } from './listeners-form-team.js?v=202610161426';
-import { setupFormAttendanceListeners } from './listeners-form-attendance.js?v=202610161426';
-import { setupFormQuantityListeners } from './listeners-form-quantity.js?v=202610161426';
-import { setupFormInspectionListeners } from './listeners-form-inspection.js?v=202610161426';
+import { setupFormRecordListeners } from './listeners-form-record.js?v=202610161616';
+import { setupFormTeamListeners, openTeamSelectForTask } from './listeners-form-team.js?v=202610161616';
+import { setupFormAttendanceListeners } from './listeners-form-attendance.js?v=202610161616';
+import { setupFormQuantityListeners } from './listeners-form-quantity.js?v=202610161616';
+import { setupFormInspectionListeners } from './listeners-form-inspection.js?v=202610161616';
 
 export function setupFormModalListeners() {
     
@@ -29,27 +28,12 @@ export function setupFormModalListeners() {
             const taskButton = e.target.closest('.task-select-btn');
             if (taskButton) {
                 const taskName = taskButton.dataset.task;
-                
-                // 컨텍스트 설정
-                State.context.selectedTaskForStart = taskName;
-                State.context.selectedGroupForAdd = null;
-                State.context.tempSelectedMembers = [];
-                
+
                 // 업무 선택 모달 닫기
                 DOM.taskSelectModal.classList.add('hidden');
 
-                // 팀원 선택 모달 내용 렌더링
-                renderTeamSelectionModalContent(taskName, State.appState, State.appConfig.teamGroups);
-
-                // 모달 제목 및 버튼 텍스트 업데이트
-                const titleEl = document.getElementById('team-select-modal-title');
-                const confirmBtn = document.getElementById('confirm-team-select-btn');
-                
-                if (titleEl) titleEl.textContent = `'${taskName}' 업무 시작`;
-                if (confirmBtn) confirmBtn.textContent = '선택 완료 및 업무 시작';
-
-                // 팀원 선택 모달 열기
-                if (DOM.teamSelectModal) DOM.teamSelectModal.classList.remove('hidden');
+                // 팀원 선택 모달 열기 — 컨텍스트·제목·본인 미리 선택은 openTeamSelectForTask 가 한다(UX 개선 2번)
+                openTeamSelectForTask(taskName);
             }
         });
     }

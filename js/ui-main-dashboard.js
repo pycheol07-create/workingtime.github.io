@@ -1,10 +1,10 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { getRegularMembersForCount } from './utils.js?v=202610161426';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610161426';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610161426';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610161426';
+import { getAllDashboardDefinitions } from './ui.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { getRegularMembersForCount } from './utils.js?v=202610161616';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610161616';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610161616';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610161616';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -438,7 +438,7 @@ const renderDetailListHtml = (key, items) => {
     if (key === 'leave-staff') {
         return '<div class="flex flex-wrap gap-1 py-1">' + items.map(it =>
             `<span class="inline-flex items-center gap-1 d-chip text-[11px] px-1.5 py-0.5">
-                <strong class="font-semibold">${it.member}</strong><span class="text-[10px] t-2">${it.type}</span>
+                <strong class="font-semibold">${it.member}</strong><span class="text-[11px] t-2">${it.type}</span>
              </span>`
         ).join('') + '</div>';
     }
@@ -451,7 +451,7 @@ const renderDetailListHtml = (key, items) => {
         return '<div class="space-y-0.5 py-1">' + items.map(it =>
             `<div class="flex items-center justify-between text-[11px] gap-2 ${it.paused ? 't-warn' : 't-1'}">
                 <span class="font-medium shrink-0">${it.member}</span>
-                <span class="text-[10px] t-2 truncate">${it.task}${it.paused ? ' (휴식)' : ''}</span>
+                <span class="text-[11px] t-2 truncate">${it.task}${it.paused ? ' (휴식)' : ''}</span>
              </div>`
         ).join('') + '</div>';
     }
@@ -459,7 +459,7 @@ const renderDetailListHtml = (key, items) => {
         return '<div class="space-y-0.5 py-1">' + items.map(it =>
             `<div class="flex items-center justify-between text-[11px] gap-2 t-1">
                 <span class="font-medium truncate">${it.task}</span>
-                <span class="text-[10px] t-2 shrink-0">${it.count}명${it.paused > 0 ? ` <span class="t-warn">(${it.paused}명 휴식)</span>` : ''}</span>
+                <span class="text-[11px] t-2 shrink-0">${it.count}명${it.paused > 0 ? ` <span class="t-warn">(${it.paused}명 휴식)</span>` : ''}</span>
              </div>`
         ).join('') + '</div>';
     }
@@ -478,7 +478,7 @@ const buildTooltipHtml = (key) => {
     const items = lastPersonnelDetail && lastPersonnelDetail[key];
     const title = { 'leave-staff': '휴무 인원', 'idle-staff': '대기 인원', 'working-staff': '진행 인력', 'paused-staff': '휴식 인원', 'ongoing-tasks': '진행 업무' }[key] || '';
     const header = `<div class="font-semibold text-white mb-1.5">${title}</div>`;
-    const footer = '<div class="text-[10px] text-gray-400 mt-2">클릭으로 고정</div>';
+    const footer = '<div class="text-[11px] text-gray-400 mt-2">클릭으로 고정</div>';
     if (!items || items.length === 0) {
         return header + '<div class="text-gray-300">해당 인원 없음</div>' + footer;
     }

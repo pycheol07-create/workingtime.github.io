@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610161426';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610161616';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610161616';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610161426';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610161426';
-import { renderQuantityModalInputs } from './ui.js?v=202610161426';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610161426';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610161426';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610161616';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610161616';
+import { renderQuantityModalInputs } from './ui.js?v=202610161616';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610161616';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610161616';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -93,10 +93,10 @@ const buildPlannedGroupHtml = () => {
         const d = new Date(dateStr + 'T00:00:00');
         const wd = isNaN(d.getDay()) ? '' : ` (${days[d.getDay()]})`;
         const rightLabel = hasData
-            ? `<span class="ml-auto text-[10px] text-indigo-500 shrink-0">${count > 0 ? `${count}개 입력` : '0으로 지정'}</span>`
+            ? `<span class="ml-auto text-[11px] text-indigo-500 shrink-0">${count > 0 ? `${count}개 입력` : '0으로 지정'}</span>`
             : (chinaIncoming > 0
-                ? `<span class="ml-auto text-[10px] text-blue-500 shrink-0">입고 ${chinaIncoming.toLocaleString()}</span>`
-                : `<span class="ml-auto text-[10px] text-gray-400 shrink-0">미입력</span>`);
+                ? `<span class="ml-auto text-[11px] text-blue-500 shrink-0">입고 ${chinaIncoming.toLocaleString()}</span>`
+                : `<span class="ml-auto text-[11px] text-gray-400 shrink-0">미입력</span>`);
         return `
             <li>
                 <button data-key="${dateStr}" class="planned-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none flex items-center gap-2 shrink-0 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">

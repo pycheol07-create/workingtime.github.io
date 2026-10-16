@@ -1,9 +1,9 @@
 // === js/ui-history-personal.js ===
 // 설명: '개인 리포트' 탭의 데이터 집계 및 렌더링 로직을 담당합니다.
 
-import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202610161426';
-import { appConfig, context, LEAVE_TYPES, leaveTypeLabel } from './state.js?v=202610161426';
-import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202610161426';
+import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202610161616';
+import { appConfig, context, LEAVE_TYPES, leaveTypeLabel } from './state.js?v=202610161616';
+import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202610161616';
 
 // 급여 차감 기준 근무시간 (가정값 — 회사 규정에 맞게 조정 가능)
 const WORK_END_MIN = 18 * 60;                                   // 종업 18:00
@@ -13,10 +13,10 @@ const _lunchOpts = { lunchStart: LUNCH_START_MIN, lunchEnd: LUNCH_END_MIN };
 
 // --- 헬퍼: 정렬 아이콘 생성 ---
 const getSortIcon = (currentKey, currentDir, targetKey) => {
-    if (currentKey !== targetKey) return '<span class="text-gray-300 text-[10px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
+    if (currentKey !== targetKey) return '<span class="text-gray-300 text-[11px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
     return currentDir === 'asc' 
-        ? '<span class="text-blue-600 text-[10px] ml-1">▲</span>' 
-        : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
+        ? '<span class="text-blue-600 text-[11px] ml-1">▲</span>' 
+        : '<span class="text-blue-600 text-[11px] ml-1">▼</span>';
 };
 
 // --- 헬퍼: 필터 드롭다운 UI 생성 ---
@@ -44,7 +44,7 @@ const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
             <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left cursor-default">
                 <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
                     <span>필터 조건</span>
-                    ${hasValue ? `<button class="text-[10px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input,select'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
+                    ${hasValue ? `<button class="text-[11px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input,select'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
                 </div>
                 ${inputHtml}
             </div>
@@ -357,9 +357,9 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                     <div class="pay-mask text-2xl font-extrabold text-gray-300 tracking-widest">●,●●●,●●●원</div>
                     <div class="pay-real hidden">
                         <div class="text-2xl font-extrabold text-gray-800">${Math.round((stats.salary && stats.salary.estimated != null) ? stats.salary.estimated : stats.totalWageCost).toLocaleString()}원</div>
-                        ${stats.salary && stats.salary.isMonthlySalaried && stats.salary.totalDeduction > 0 ? `<div class="text-[10px] text-red-500 mt-1">근태 차감 −${Math.round(stats.salary.totalDeduction).toLocaleString()}원</div>` : ''}
+                        ${stats.salary && stats.salary.isMonthlySalaried && stats.salary.totalDeduction > 0 ? `<div class="text-[11px] text-red-500 mt-1">근태 차감 −${Math.round(stats.salary.totalDeduction).toLocaleString()}원</div>` : ''}
                     </div>
-                    <div class="pay-eye text-[10px] text-gray-400 mt-1 group-hover:text-blue-500 transition">클릭하여 표시</div>
+                    <div class="pay-eye text-[11px] text-gray-400 mt-1 group-hover:text-blue-500 transition">클릭하여 표시</div>
                 </div>
             </div>
             <div class="bg-white p-4 rounded-xl border border-red-100 shadow-sm text-center">

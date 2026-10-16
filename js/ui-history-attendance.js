@@ -1,8 +1,8 @@
 // === js/ui-history-attendance.js ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear, escapeHtml } from './utils.js?v=202610161426';
-import { context, LEAVE_TYPES, appState, appConfig } from './state.js?v=202610161426';
-import { systemAccountSet } from './attendance-stats.js?v=202610161426';
+import { formatTimeTo24H, formatDuration, getWeekOfYear, escapeHtml } from './utils.js?v=202610161616';
+import { context, LEAVE_TYPES, appState, appConfig } from './state.js?v=202610161616';
+import { systemAccountSet } from './attendance-stats.js?v=202610161616';
 
 // 근태 요약 표의 열 순서. 기존 순서를 유지하되, LEAVE_TYPES에 있는데 여기 없는 종류는
 // 뒤에 자동으로 붙는다 → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -13,10 +13,10 @@ const ATT_COLS = [...ATT_COL_BASE, ...LEAVE_TYPES.filter(t => !ATT_COL_BASE.incl
 const attColsFor = (types) => [...ATT_COLS, ...[...new Set(types)].filter(t => t && !ATT_COLS.includes(t))];
 
 const getSortIcon = (currentKey, currentDir, targetKey) => {
-    if (currentKey !== targetKey) return '<span class="text-gray-300 text-[10px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
+    if (currentKey !== targetKey) return '<span class="text-gray-300 text-[11px] ml-1 opacity-0 group-hover:opacity-50">↕</span>';
     return currentDir === 'asc' 
-        ? '<span class="text-blue-600 text-[10px] ml-1">▲</span>' 
-        : '<span class="text-blue-600 text-[10px] ml-1">▼</span>';
+        ? '<span class="text-blue-600 text-[11px] ml-1">▲</span>' 
+        : '<span class="text-blue-600 text-[11px] ml-1">▼</span>';
 };
 
 const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
@@ -58,7 +58,7 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
             <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left cursor-default">
                 <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
                     <span>필터 조건</span>
-                    ${hasValue ? `<button class="text-[10px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input,select'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
+                    ${hasValue ? `<button class="text-[11px] text-red-500 hover:underline" onclick="const i=this.closest('.filter-dropdown').querySelector('input,select'); i.value=''; i.dispatchEvent(new Event('input', {bubbles:true}));">지우기</button>` : ''}
                 </div>
                 ${inputHtml}
             </div>

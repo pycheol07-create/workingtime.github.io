@@ -1,12 +1,12 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { updateDailyData } from './app-data.js?v=202610161426'; 
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610161426';
+import * as DOM from './dom-elements.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { updateDailyData } from './app-data.js?v=202610161616'; 
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610161616';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { currentImageBase64, clearImageState, setCurrentImageBase64 } from './inspection-media.js?v=202610161426';
+import { currentImageBase64, clearImageState, setCurrentImageBase64 } from './inspection-media.js?v=202610161616';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -255,8 +255,8 @@ export const renderTodoList = () => {
         card.className = `transition cursor-pointer px-3 py-2.5 ${isCompleted ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-blue-50'}`;
 
         const statusBadge = isCompleted
-            ? '<span class="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">완료</span>'
-            : '<span class="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">대기</span>';
+            ? '<span class="text-[11px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">완료</span>'
+            : '<span class="text-[11px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">대기</span>';
         const locationInfo = item.location ? `<span class="text-indigo-600 font-bold bg-indigo-50 px-1 rounded">위치 ${item.location}</span>` : '';
         const sampleInfo = item.sampleLocation ? `<span class="text-red-600 font-bold bg-red-50 px-1 rounded">샘플: ${item.sampleLocation}</span>` : '';
         const dateInfo = item.packingDate ? `<span class="text-gray-500">출고: ${item.packingDate.slice(2)}</span>` : '';
@@ -269,7 +269,7 @@ export const renderTodoList = () => {
             </div>
             <div class="font-medium text-gray-800 text-sm mt-0.5 break-words">${item.name}</div>
             ${item.option ? `<div class="text-[11px] text-gray-500 mt-0.5 break-words">옵션: ${item.option}</div>` : ''}
-            <div class="text-[10px] mt-1 flex flex-wrap gap-1 items-center">${locationInfo}${sampleInfo}${dateInfo}</div>
+            <div class="text-[11px] mt-1 flex flex-wrap gap-1 items-center">${locationInfo}${sampleInfo}${dateInfo}</div>
         `;
 
         card.addEventListener('click', () => { selectTodoItem(idx); });
@@ -879,6 +879,6 @@ export const clearTodayList = () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202610161426';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610161426';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610161426';
+export { handleExcelUpload } from './inspection-excel.js?v=202610161616';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610161616';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610161616';

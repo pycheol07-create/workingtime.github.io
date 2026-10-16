@@ -1,13 +1,15 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610161426'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610161616'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610161426';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610161426';
-import { initPageNav } from './page-nav.js?v=202610161426';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610161426';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610161616';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610161616';
+import { initPageNav } from './page-nav.js?v=202610161616';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610161616';
+import { setShellContext } from './app-shell-bridge.js?v=202610161616';
+import { memberNameFor } from './app-shell-data.js?v=202610161616';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -209,6 +211,9 @@ async function checkChinaAdmin(user) {
     try {
         const snap = await getDocFromServer(doc(db, 'artifacts/team-work-logger-v2/config/mainConfig'));
         const roles = (snap.exists() && snap.data().memberRoles) || {};
+        // 공통 상단바 개인 알림(P2) — 같은 문서의 memberEmails 로 이름을 찾아 넘긴다(추가 읽기 없음). 이름은 메모리에만.
+        const memberName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email);
+        if (memberName && auth.currentUser && auth.currentUser.uid === user.uid) setShellContext({ signedIn: true, uid: user.uid, memberName });
         return roles[user.email.toLowerCase()] === 'admin';
     } catch (e) {
         console.warn('[china-stock] 관리자 확인 실패:', e && e.code);
@@ -478,7 +483,7 @@ async function downloadInspectionList() {
     // [Ver 8.99] 미발재고로그(현재고조회) 로딩 확인 — 없으면 공급처상품명·두께·로케이션이 비어 나옴 + 중복제거도 안 됨
     const missingLog = rows.filter(r => { const s = stockLogData[r.code]; return !s || !(s['로케이션'] || s['공급처상품명']); }).length;
     if (missingLog > rows.length * 0.5) {
-        if (!confirm(`⚠️ 미발재고로그(현재고조회) 데이터가 없어\n공급처상품명·두께·로케이션이 비어 나오고 중복제거도 안 됩니다. (${missingLog}/${rows.length}건)\n\n[파일 다운로드 → 미발재고로그 업로드]를 먼저 하신 뒤 받는 것을 권장합니다.\n그래도 지금 받으시겠습니까?`)) return;
+        if (!confirm(`⚠️ 미발재고로그(현재고조회) 데이터가 없어\n공급처상품명·두께·로케이션이 비어 나오고 중복제거도 안 됩니다. (${missingLog}/${rows.length}건)\n\n머리줄 [미발재고로그 올리기]를 먼저 하신 뒤 받는 것을 권장합니다.\n그래도 지금 받으시겠습니까?`)) return;
     }
     const aoa = [['상품코드', '상품명', '옵션', '수량', '추가항목5', '공급처상품명', '로케이션']];
     let noThick = 0;
@@ -2155,9 +2160,16 @@ async function deleteAllDocs(collName) {
 }
 // [Ver 7.4] 전체 초기화 — 현재 모드의 데이터만 초기화 (미발 ↔ 위치 서로 영향 없음)
 async function clearAllData() {
+    closeAllMenus(); // '설정 ▾' 안에서 눌렀다(UX 개선 7번) — 메뉴를 닫고 확인창만 남긴다
     if (viewMode === 'location') { await clearLocationData(); return; } // 위치 초기화는 직원도 가능
     // (2026-10-16) 미발 초기화도 직원 사용 — 관리자 검사 제거. 옛 주석: 보안(2026-10-14): 미발 초기화(수동편집·미발재고로그·입고이력)는 관리자만
-    if (!confirm("미발계산기 데이터를 초기화할까요?\n(수동편집·미발재고로그·앱 입고이력·비축창고 누적 삭제 / 위치 데이터는 유지)")) return;
+    // 지워지는 것을 건수로 보여 준다(이 화면이 지금 들고 있는 값 기준 — 비축창고는 위치지정모드에서만 받아 오므로 못 세면 '전체').
+    const n = (o) => Object.keys(o || {}).length;
+    const f2 = floor2Subscribed ? `${n(floor2Map).toLocaleString()}개 상품` : '전체';
+    if (!confirm("미발계산기 데이터를 초기화할까요? 되돌릴 수 없습니다(초기화 직전 버전은 '버전기록'에 남습니다).\n\n"
+        + `지워지는 것:\n· 수동편집 ${n(editedCells).toLocaleString()}칸\n· 미발재고로그 ${n(stockLogData).toLocaleString()}개 상품\n`
+        + `· 앱 입고이력 ${n(inboundMap).toLocaleString()}건\n· 비축창고 누적 ${f2}\n· 스캐너 강제전송 허용목록\n\n`
+        + "유지되는 것: 위치 데이터, 출고일 목록(시트에서 다시 받음)")) return;
     showLoading('🗑️ 미발계산기 초기화 중...');
     try {
         await saveScanDBVersion('pre-reset', '미발 초기화 직전 백업'); // [Ver 8.94] 초기화 전 순수 미발 스냅샷 (버전기록은 안 지워짐)
@@ -2191,7 +2203,7 @@ async function clearAllData() {
 }
 // [Ver 7.4] 위치 데이터만 초기화 (당일·기존재고 위치 지정 전체 / 미발 데이터는 유지)
 async function clearLocationData() {
-    if (!confirm("위치 데이터를 초기화할까요?\n(당일·기존재고 위치 지정 전체 삭제 / 미발 데이터는 유지)")) return;
+    if (!confirm(`위치 데이터를 초기화할까요? 되돌릴 수 없습니다.\n\n지워지는 것: 당일·기존재고 위치 지정 ${Object.keys(locationAssignMap || {}).length.toLocaleString()}개 상품(전체)\n유지되는 것: 미발 데이터`)) return;
     showLoading('🗑️ 위치 데이터 초기화 중...');
     try {
         for (let i = 0; i < NUM_LOC_SHARDS; i++) await setDoc(doc(db, CHINA_COLLECTION, 'LOC_SHARD_' + i), { map: {}, updatedAt: new Date() }); // [Ver 8.15] 모든 샤드 비우기

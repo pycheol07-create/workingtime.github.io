@@ -6,7 +6,8 @@
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
         </div>
-        <div id="team-select-modal-content" class="flex-grow p-6 overflow-x-auto flex space-x-4"></div>
+        <!-- 휴대폰(768px 미만)은 그룹을 세로 목록으로, PC 는 가로로 늘어놓는다(그룹 칸 폭은 js/ui-modals.js) -->
+        <div id="team-select-modal-content" class="flex-grow p-4 md:p-6 overflow-auto flex flex-col md:flex-row gap-4"></div>
         <div class="p-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
             <button type="button" id="cancel-team-select-btn" class="bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">취소</button>
             <button type="button" id="confirm-team-select-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">선택 완료 및 업무 시작</button>

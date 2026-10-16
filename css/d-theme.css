@@ -8,7 +8,7 @@
 :root {
     --c-bg: #F5F6F8; --c-surface: #FFFFFF; --c-surface-2: #F7F8FA; --c-track: #EEF0F4;
     --c-line: #E6E8EC; --c-line-soft: #F0F2F5; --c-line-strong: #D6DAE0;
-    --c-text: #23272E; --c-text-2: #646B75; --c-text-3: #8A9099; --c-text-4: #CDD2D9;
+    --c-text: #23272E; --c-text-2: #646B75; --c-text-3: #69707A; --c-text-4: #CDD2D9;
     --c-accent: #2F62C9; --c-accent-deep: #1E4699; --c-accent-mid: #7FA1E6; --c-accent-light: #C4D4F5; --c-accent-soft: #EAF0FD; --c-accent-row: #F3F6FD;
     --c-ok: #5A9E96; --c-ok-text: #3D756F; --c-ok-soft: #E5F0EE;
     --c-warn: #D2A266; --c-warn-text: #8A5E28; --c-warn-soft: #F4EADB; --c-warn-bg: #F9F4EC;
@@ -24,6 +24,9 @@
 }
 
 body { font-family: var(--font-sans); background: var(--c-bg); color: var(--c-text); }
+
+/* 키보드 포커스 표시 — location.html 의 규칙과 같다(UX 개선 11번, style.css 에도 같은 줄). Tab 으로 왔을 때만 보인다. */
+:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
 
 /* ── 글자색·선 (색만) ── */
 .t-1 { color: var(--c-text); }

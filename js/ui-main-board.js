@@ -1,9 +1,10 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { leaveTypeLabel } from './state.js?v=202610161426';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161426';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610161426';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { leaveTypeLabel } from './state.js?v=202610161616';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161616';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610161616';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610161616';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -162,6 +163,80 @@ export const renderAttendanceToggle = (appState) => {
     if (mobileCancelBtn) mobileCancelBtn.classList.toggle('hidden', !isReturned);
 };
 
+// ===== 대시보드 맨 위 '내 업무' 줄 (UX 개선 1·3번, 2026-10-16) =====
+// - 지금 하는 업무의 [휴식/재개][종료] 는 업무 카드와 같은 data-action(pause-/resume-/stop-individual)을 쓴다
+//   → listeners-main-board.js 의 handleBoardClick 이 그대로 처리한다(종료는 기존 확인창).
+// - 최근 업무 칩 [data-my-start] → 나만 선택된 채 업무 시작 창(listeners-main-board.js).
+// - 휴대폰 출근/퇴근 [data-my-act] → 출퇴근 토글과 같은 processClockIn/Out.
+// ⚠️ data-act·role=dialog 를 쓰지 않는다(업무마감봇이 [data-act] 와 div[role=dialog] 를 찾는다).
+const MY_WORK_RECENT_LIMIT = 5;
+const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+export const renderMyWorkBar = (appState) => {
+    const bar = document.getElementById('my-work-bar');
+    if (!bar) return;
+    const me = appState.currentUser || null;
+    const { state, record, leave } = myWorkState(me, appState);
+    if (state === 'none') { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
+
+    const PILL = {
+        before:   ['d-pill-mute', '출근 전'],
+        idle:     ['d-pill-ok', '대기 중'],
+        working:  ['d-pill-accent', '업무 중'],
+        paused:   ['d-pill-warn', '휴식 중'],
+        returned: ['d-pill-mute', '퇴근 완료'],
+        leave:    ['d-pill-mute', `${leaveTypeLabel(leave) || '근태'} 중`],
+    };
+    const [pillCls, pillText] = PILL[state] || PILL.before;
+
+    let taskHtml = '';
+    let actionHtml = '';
+    if (record) {
+        const pausesJson = escHtml(JSON.stringify(record.pauses || []));
+        taskHtml = `<span class="text-sm font-semibold t-1 truncate max-w-[12rem] md:max-w-none" title="${escHtml(record.task)}">${escHtml(record.task)}</span>
+            <span class="text-xs t-2 tabular-nums whitespace-nowrap">${escHtml(formatTimeTo24H(record.startTime))}~
+                <span class="ongoing-duration" data-start-time="${escHtml(record.startTime || '')}" data-status="${state === 'paused' ? 'paused' : 'ongoing'}" data-pauses-json="${pausesJson}"></span></span>`;
+        actionHtml = (state === 'paused'
+            ? `<button type="button" data-action="resume-individual" data-record-id="${escHtml(record.id)}" class="d-btn d-btn-accent">재개</button>`
+            : `<button type="button" data-action="pause-individual" data-record-id="${escHtml(record.id)}" class="d-btn">휴식</button>`)
+            + `<button type="button" data-action="stop-individual" data-record-id="${escHtml(record.id)}" class="d-btn d-btn-risk">종료</button>`;
+    } else if (state === 'before') {
+        // 휴대폰은 출퇴근 스위치가 햄버거 메뉴 안에 있어 여기에 버튼을 둔다(PC 는 사이드바 아래 스위치)
+        actionHtml = `<button type="button" data-my-act="clock-in" class="md:hidden d-btn d-btn-accent">출근</button>`;
+    } else if (state === 'idle') {
+        actionHtml = `<button type="button" data-my-act="clock-out" class="md:hidden d-btn">퇴근</button>`;
+    }
+
+    // 최근 업무 칩 — 지금 시작할 수 있을 때만(출근 전이면 시작 창의 [출근하고 시작] 으로 이어진다)
+    let chipsHtml = '';
+    if (state === 'idle' || state === 'before') {
+        const taskGroups = State.appConfig?.taskGroups || [];
+        const known = new Set([...taskGroups.flatMap(g => (g && g.tasks) || []), ...(State.appConfig?.keyTasks || [])]);
+        const recent = recentTasksFor(me, appState.workRecords || [], State.allHistoryData || [], {
+            limit: MY_WORK_RECENT_LIMIT,
+            today: getTodayDateString(),
+            isValid: known.size ? (t => known.has(t)) : undefined,
+        });
+        const chip = (task) => `<button type="button" data-my-start="${escHtml(task)}" class="d-btn d-btn-sm">${escHtml(task)}</button>`;
+        chipsHtml = `
+            <div class="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5">
+                <span class="text-xs t-2 whitespace-nowrap shrink-0">${recent.length ? '최근 업무' : '업무 시작'}</span>
+                ${recent.map(chip).join('')}
+                <button type="button" data-my-act="other-task" class="d-btn d-btn-sm t-2">+ 다른 업무</button>
+            </div>`;
+    }
+
+    bar.innerHTML = `
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span class="text-[13px] font-semibold t-2 whitespace-nowrap">내 업무</span>
+            <span class="${pillCls} text-xs">${escHtml(pillText)}</span>
+            ${taskHtml}
+            ${actionHtml ? `<div class="ml-auto flex items-center gap-2">${actionHtml}</div>` : ''}
+        </div>
+        ${chipsHtml}`;
+    bar.classList.remove('hidden');
+};
+
 export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], isMobileTaskViewExpanded = false, isMobileMemberViewExpanded = false) => {
 
     const memberToggleBtn = document.getElementById('toggle-all-members-mobile');
@@ -256,7 +331,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 const isRecPaused = rec.status === 'paused';
                 const pauseMin = calcTotalPauseMinutes(rec.pauses);
-                const memberPauseText = pauseMin > 0 ? `<span class="text-[10px] tc-sub ml-1">(휴:${formatDuration(pauseMin)})</span>` : '';
+                const memberPauseText = pauseMin > 0 ? `<span class="text-[11px] tc-sub ml-1">(휴:${formatDuration(pauseMin)})</span>` : '';
 
                 membersHtml += `
                     <div class="flex items-center justify-between p-2 tc-member member-row">
@@ -264,7 +339,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                             <div class="w-2 h-2 shrink-0 rounded-full ${isRecPaused ? 'd-dot-paused' : 'd-dot-on'} mt-1.5"></div>
                             <div class="flex flex-col min-w-0">
                                 <span class="tc-name text-sm truncate" title="${rec.member}">${rec.member}</span>
-                                <span class="text-[10px] tc-sub truncate">
+                                <span class="text-[11px] tc-sub truncate">
                                     (${formatTimeTo24H(rec.startTime)})${memberPauseText}
                                 </span>
                             </div>
@@ -285,7 +360,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const representativeRecord = groupRecords.find(r => r.startTime === earliestStartTime) || groupRecords[0];
             const pausesJson = JSON.stringify(representativeRecord.pauses || []);
             const totalPauseMinutes = calcTotalPauseMinutes(representativeRecord.pauses);
-            const pauseDisplay = totalPauseMinutes > 0 ? `<span class="text-[10px] tc-sub font-normal ml-1">(전체휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
+            const pauseDisplay = totalPauseMinutes > 0 ? `<span class="text-[11px] tc-sub font-normal ml-1">(전체휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
 
             let specialButtonHtml = '';
             if (task === '샘플검수') {
@@ -522,7 +597,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 const displayLabel = getLeaveDisplayLabel(member, leaveInfo);
                 let detailText = leaveInfo.startTime ? formatTimeTo24H(leaveInfo.startTime) + (leaveInfo.endTime ? ` - ${formatTimeTo24H(leaveInfo.endTime)}` : (leaveInfo.type === '외출' ? ' ~' : '')) : (leaveInfo.startDate ? leaveInfo.startDate.substring(5) + (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate ? ` ~ ${leaveInfo.endDate.substring(5)}` : '') : '');
                 
-                card.innerHTML = `<div class="ms-name text-sm mb-0.5">${member}</div><div class="ms-sub text-[11px]">${displayLabel}</div>${detailText ? `<div class="ms-sub2 text-[10px] mt-0.5">${detailText}</div>` : ''}`;
+                card.innerHTML = `<div class="ms-name text-sm mb-0.5">${member}</div><div class="ms-sub text-[11px]">${displayLabel}</div>${detailText ? `<div class="ms-sub2 text-[11px] mt-0.5">${detailText}</div>` : ''}`;
             } else if (isWorking) {
                 card.dataset.action = 'member-toggle-leave';
                 card.className += ' cursor-not-allowed';
@@ -598,7 +673,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
 
                 const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
                 let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? ' ~' : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
-                card.innerHTML = `<div class="ms-name text-sm mb-0.5">${pt.name}</div><div class="ms-sub text-[11px]">${displayLabel}</div>${detailText ? `<div class="ms-sub2 text-[10px] mt-0.5">${detailText}</div>` : ''}`;
+                card.innerHTML = `<div class="ms-name text-sm mb-0.5">${pt.name}</div><div class="ms-sub text-[11px]">${displayLabel}</div>${detailText ? `<div class="ms-sub2 text-[11px] mt-0.5">${detailText}</div>` : ''}`;
             } else if (isAlbaWorking) {
                 card.dataset.action = 'member-toggle-leave';
                 card.className += ' cursor-not-allowed';
@@ -642,6 +717,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     memberStatusBoard.appendChild(allMembersContainer);
 
     renderAttendanceToggle(appState);
+    renderMyWorkBar(appState);
     renderLeaveScheduleWidget();
 };
 
@@ -711,12 +787,12 @@ export const renderLeaveScheduleWidget = () => {
         const chips = g.members.map(m => `
             <span class="flex items-center gap-1.5 w-full min-h-[18px]">
                 <span class="text-xs font-semibold t-1 truncate" title="${esc(m.member)}">${esc(m.member)}</span>
-                <span class="text-[10px] shrink-0 ml-auto ${tone(m.type)}" title="${esc(leaveTypeLabel(m))}">${esc(leaveTypeLabel(m))}</span>
+                <span class="text-[11px] shrink-0 ml-auto ${tone(m.type)}" title="${esc(leaveTypeLabel(m))}">${esc(leaveTypeLabel(m))}</span>
             </span>`).join('');
         // 날짜 그룹 사이를 가로선으로 나눈다(마지막 줄은 제외).
         const divider = (i < groups.length - 1) ? ' border-b d-line' : '';
         return `<div class="flex items-start gap-2 px-2 py-2${divider} ${isToday ? 'd-row-today' : 'd-row-hover'}">
-            <span class="text-[10px] font-semibold tabular-nums whitespace-nowrap ${isToday ? 't-accent' : 't-2'} w-[66px] shrink-0 pt-1">${esc(dLabel(g.start, g.end))}</span>
+            <span class="text-[11px] font-semibold tabular-nums whitespace-nowrap ${isToday ? 't-accent' : 't-2'} w-[66px] shrink-0 pt-1">${esc(dLabel(g.start, g.end))}</span>
             <span class="flex-1 min-w-0 flex flex-col gap-1">${chips}</span>
         </div>`;
     }).join('');
@@ -743,7 +819,7 @@ export const renderCompletedWorkLog = (appState) => {
         item.className = 'px-1 py-3 border-b d-line last:border-b-0 relative group';
         
         const pauseMin = calcTotalPauseMinutes(record.pauses);
-        const pauseText = pauseMin > 0 ? `<span class="text-[10px] t-3 ml-1 font-normal">(휴:${formatDuration(pauseMin)} 포함)</span>` : '';
+        const pauseText = pauseMin > 0 ? `<span class="text-[11px] t-3 ml-1 font-normal">(휴:${formatDuration(pauseMin)} 포함)</span>` : '';
         
         item.innerHTML = `
             <div class="flex justify-between items-center gap-2 mb-1">

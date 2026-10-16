@@ -13,15 +13,17 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610161426'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610161616'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610161426';
+import { explain } from './lib/mibal2-calc.js?v=202610161616';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610161426';
+} from './lib/mibal2-rows.js?v=202610161616';
+import { setShellContext } from './app-shell-bridge.js?v=202610161616';
+import { memberNameFor } from './app-shell-data.js?v=202610161616';
 
 const { db, auth } = initializeFirebase();
 
@@ -754,6 +756,9 @@ function setupEvents() {
 async function checkAdmin(user) {
     const snap = await getDocFromServer(doc(db, BASE + '/config/mainConfig'));
     const roles = (snap.exists() && snap.data().memberRoles) || {};
+    // 공통 상단바 개인 알림(P2) — 같은 문서의 memberEmails 로 이름을 찾아 넘긴다(추가 읽기 없음). 이름은 메모리에만.
+    const memberName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email);
+    if (memberName && auth.currentUser && auth.currentUser.uid === user.uid) setShellContext({ signedIn: true, uid: user.uid, memberName });
     return roles[(user.email || '').toLowerCase()] === 'admin';
 }
 function showAdminBlock(msg) {

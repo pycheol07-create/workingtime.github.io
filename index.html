@@ -24,11 +24,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610161426">
-    <link rel="stylesheet" href="css/style.css?v=202610161426">
-    <link rel="stylesheet" href="css/dash-d.css?v=202610161426">
-    <link rel="stylesheet" href="css/history-d.css?v=202610161426">
-    <link rel="stylesheet" href="css/form-d.css?v=202610161426">
+    <link rel="stylesheet" href="css/suit.css?v=202610161616">
+    <link rel="stylesheet" href="css/style.css?v=202610161616">
+    <link rel="stylesheet" href="css/dash-d.css?v=202610161616">
+    <link rel="stylesheet" href="css/form-d.css?v=202610161616">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -167,13 +166,19 @@
                 </div>
             </header>
 
-            <div id="app-content" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
+            <!-- 휴대폰(768px 미만)은 세로 flex + order 로 '내 업무 → 업무 현황 → 나머지' 순서. PC(md 이상)는 block 이라 order 가 무시된다 -->
+            <div id="app-content" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 md:block md:space-y-8">
+
+                <!-- 내 업무 — 내 상태·지금 업무 [휴식][종료]·최근 업무 칩·(휴대폰) 출근/퇴근. js/ui-main-board.js renderMyWorkBar 가 그린다.
+                     휴대폰은 위에 붙어 있다(sticky — 스크롤 칸의 p-4 만큼 -top-4 로 올려 위 틈을 없앤다). ⚠️ role=dialog·data-act 를 넣지 말 것(업무마감봇 선택자) -->
+                <section id="my-work-bar" aria-label="내 업무"
+                         class="hidden order-1 sticky -top-4 z-[25] md:static d-card px-4 py-3 md:px-6 md:py-4"></section>
 
                 <!-- 오늘 진행 — 업무 예상(계획) 대비 지금까지 쓴 시간. 누르면 데이터관리의 '오늘 현황'으로 -->
                 <div id="today-progress-strip"
-                     class="hidden cursor-pointer d-card is-link px-5 py-4 md:px-7 md:py-5"></div>
+                     class="hidden order-3 cursor-pointer d-card is-link px-5 py-4 md:px-7 md:py-5"></div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                <div class="order-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
 
                     <div class="d-card flex flex-col h-auto md:h-full overflow-hidden">
                         <div id="toggle-personnel" class="p-4 d-card-head flex justify-between items-center shrink-0 cursor-pointer md:cursor-auto group">
@@ -202,29 +207,30 @@
                     </div>
 
                     <div class="d-card flex flex-col relative overflow-hidden h-auto md:h-full">
-                        <div class="p-4 d-card-head flex justify-between items-center shrink-0">
+                        <div class="p-4 d-card-head flex justify-between items-center shrink-0 cursor-pointer md:cursor-auto" data-m-collapse="notice-widget-body">
                             <h3 class="text-[15px] flex items-center gap-2">
                                 주요 일정 및 알림
                             </h3>
+                            <svg data-m-arrow xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 t-3 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                         </div>
-                        <div class="flex-1 overflow-y-auto p-3 space-y-2">
+                        <div id="notice-widget-body" class="hidden md:block flex-1 overflow-y-auto p-3 space-y-2">
                             <!-- 입고일정 (구글 시트 자동) -->
                             <div class="d-box overflow-hidden">
                                 <div class="flex items-center justify-between gap-2 px-3 py-2 d-box-head is-warn">
                                     <h4 class="text-xs font-semibold flex items-center gap-1.5">
-                                        입고일정 <span id="widget-incoming-count" class="text-[10px] d-pill-warn tabular-nums">0</span>
+                                        입고일정 <span id="widget-incoming-count" class="text-[11px] d-pill-warn tabular-nums">0</span>
                                     </h4>
-                                    <span id="widget-incoming-status" class="text-[10px] t-warn"></span>
+                                    <span id="widget-incoming-status" class="text-[11px] t-warn"></span>
                                 </div>
                                 <ul id="widget-incoming-list" class="divide-y d-divide t-1">
-                                    <li class="px-3 py-2 text-[10px] t-3 italic">데이터 불러오는 중...</li>
+                                    <li class="px-3 py-2 text-[11px] t-3 italic">데이터 불러오는 중...</li>
                                 </ul>
                             </div>
                             <!-- 중요 공지사항 -->
                             <div class="d-box overflow-hidden">
                                 <div class="flex items-center justify-between gap-2 px-3 py-2 d-box-head">
                                     <h4 class="text-xs font-semibold flex items-center gap-1.5">
-                                        중요 공지사항 <span id="widget-notice-count" class="text-[10px] d-pill-mute tabular-nums">0</span>
+                                        중요 공지사항 <span id="widget-notice-count" class="text-[11px] d-pill-mute tabular-nums">0</span>
                                     </h4>
                                     <button id="open-notice-modal-btn" class="d-btn d-btn-sm">등록</button>
                                 </div>
@@ -235,7 +241,7 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 lg:grid-flow-row-dense gap-6 lg:gap-8 items-start mt-8">
+                <div class="order-2 grid grid-cols-1 lg:grid-cols-3 lg:grid-flow-row-dense gap-6 lg:gap-8 items-start md:mt-8">
                     
                     <div class="contents">
                         <div class="lg:col-span-2 d-card p-5 md:p-6">
@@ -278,7 +284,6 @@
                             </div>
                             <div class="flex gap-1.5 relative z-10">
                                 <button id="open-manual-add-btn" class="d-btn d-btn-sm">+ 추가</button>
-                                <button id="delete-all-completed-btn" class="hidden md:block d-btn d-btn-sm d-btn-risk">일괄삭제</button>
                             </div>
                         </div>
 
@@ -289,11 +294,12 @@
 
                     <!-- 근태 예정 (우측 컬럼 2행 — 전체 팀원 현황과 같은 행, 최근 완료된 업무 아래) -->
                     <div class="lg:col-span-1 d-card">
-                        <div class="p-4 md:p-5 d-card-head flex items-center gap-2">
+                        <div class="p-4 md:p-5 d-card-head flex items-center gap-2 cursor-pointer md:cursor-auto" data-m-collapse="leave-schedule-widget">
                             <h3 class="text-[15px]">근태 예정</h3>
                             <span class="text-xs font-normal t-3">(당일 포함)</span>
+                            <svg data-m-arrow xmlns="http://www.w3.org/2000/svg" class="ml-auto h-5 w-5 t-3 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                         </div>
-                        <div id="leave-schedule-widget" class="p-3 space-y-1 max-h-[420px] overflow-y-auto">
+                        <div id="leave-schedule-widget" class="hidden md:block p-3 space-y-1 max-h-[420px] overflow-y-auto">
                             <div class="text-xs t-3 italic py-2 text-center">불러오는 중…</div>
                         </div>
                     </div>
@@ -301,11 +307,12 @@
                 </div>
 
                 <!-- 업무 캘린더 (전체 팀원 현황 ↔ 오늘의 업무 분석 사이) -->
-                <div id="work-calendar-widget" class="d-card mt-8 overflow-hidden">
-                    <div class="p-4 md:p-5 d-card-head flex flex-wrap justify-between items-center gap-3">
+                <div id="work-calendar-widget" class="order-3 d-card md:mt-8 overflow-hidden">
+                    <div id="toggle-calendar" data-m-collapse="work-calendar-collapse" class="p-4 md:p-5 d-card-head flex flex-wrap justify-between items-center gap-3 cursor-pointer md:cursor-auto">
                         <h3 class="text-[15px] flex items-center gap-2">
                             업무 캘린더
                             <span class="text-xs font-normal t-3 hidden md:inline">(근태 예정 · 입고일정 연동 · 날짜를 클릭해 등록/수정/삭제)</span>
+                            <svg data-m-arrow xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 t-3 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                         </h3>
                         <div class="flex items-center gap-2 flex-wrap">
                             <button type="button" id="work-calendar-prev" class="d-btn d-btn-sq font-semibold" aria-label="이전 달">‹</button>
@@ -318,24 +325,28 @@
                             </div>
                         </div>
                     </div>
+                    <!-- 휴대폰은 기본 접힘(머리줄을 누르면 펼침 — 아래 data-m-collapse 처리) -->
+                    <div id="work-calendar-collapse" class="hidden md:block">
                     <div id="work-calendar-body" class="p-3 md:p-4"></div>
-                    <div class="px-4 pb-3 flex flex-wrap gap-2 text-[10px] t-3 items-center">
+                    <div class="px-4 pb-3 flex flex-wrap gap-2 text-[11px] t-3 items-center">
                         <span class="cal-legend" style="--bg:#EAF0FD; --fg:#1E4699; --bar:#2F62C9; --dbg:rgba(47,98,201,.22); --dfg:#A9C1F2">업무 일정</span>
                         <span class="cal-legend" style="--bg:#E5F0EE; --fg:#3D756F; --bar:#5A9E96; --dbg:rgba(90,158,150,.22); --dfg:#8CC9C0">근태 예정</span>
                         <span class="cal-legend" style="--bg:#F4E3E5; --fg:#A0525C; --bar:#C9808A; --dbg:rgba(201,128,138,.22); --dfg:#E0A3AB">공휴일</span>
                         <span class="cal-legend" style="--bg:#F4EADB; --fg:#8A5E28; --bar:#D2A266; --dbg:rgba(210,162,102,.22); --dfg:#E2BE8C">입고 예정(읽기전용)</span>
                         <span>· 여러 날 일정은 기간만큼 이어서 표시됩니다</span>
                     </div>
+                    </div>
                 </div>
 
-                <div class="d-card mt-8 overflow-hidden">
+                <div class="order-3 d-card md:mt-8 overflow-hidden">
                     <div id="toggle-analysis" class="p-5 d-card-head is-click flex justify-between items-center cursor-pointer">
                         <h3 class="text-[15px] flex items-center gap-2">
                             오늘의 업무 분석
                         </h3>
-                        <svg id="analysis-arrow" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 t-3 transition-transform transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        <svg id="analysis-arrow" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 t-3 transition-transform transform md:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                     </div>
-                    <div id="analysis-content" class="p-5 md:block">
+                    <!-- 휴대폰은 기본 접힘(listeners-main.js 의 접기 토글이 hidden 을 켜고 끈다) -->
+                    <div id="analysis-content" class="p-5 hidden md:block">
                         <div class="mb-4 border-b d-line">
                             <nav id="analysis-tabs" class="flex space-x-6" aria-label="Tabs">
                                 <button type="button" data-tab-panel="analysis-task-summary-panel" class="analysis-tab-btn pb-3 px-1 border-b-2 font-bold text-sm text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400">업무별 요약</button>
@@ -413,7 +424,7 @@
                            class="px-2 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-xs dark:text-white outline-none focus:border-blue-500">
                     <button type="button" id="clear-notice-date"
                             class="text-[11px] font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 px-1.5 py-1">지우기</button>
-                    <span class="text-[10px] text-gray-400">비워 두면 일정 없는 공지로 등록됩니다</span>
+                    <span class="text-[11px] text-gray-400">비워 두면 일정 없는 공지로 등록됩니다</span>
                 </div>
             </div>
 
@@ -503,13 +514,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202610161426');
+                await import('./js/app.js?v=202610161616');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202610161426').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202610161616').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -572,6 +583,20 @@
 
         setupWidgetToggle('toggle-personnel', 'summary-personnel', 'personnel-arrow');
         setupWidgetToggle('toggle-workload', 'summary-workload', 'workload-arrow');
+
+        // 휴대폰 기본 접힘 카드(일정·알림, 근태 예정, 업무 캘린더): 머리줄 [data-m-collapse="내용 id"] 를 누르면 펼친다.
+        // 머리줄 안의 버튼·입력칸(캘린더 이전/다음 등)은 제 할 일만 하고 접기에는 쓰지 않는다. PC(768px 이상)는 늘 펼침.
+        document.addEventListener('click', function(e) {
+            const head = e.target.closest && e.target.closest('[data-m-collapse]');
+            if (!head || window.innerWidth >= 768) return;
+            if (e.target.closest('button, a, input, select, label, textarea')) return;
+            const body = document.getElementById(head.dataset.mCollapse);
+            if (!body) return;
+            const open = body.classList.toggle('hidden') === false;
+            head.setAttribute('aria-expanded', open ? 'true' : 'false');
+            const arrow = head.querySelector('[data-m-arrow]');
+            if (arrow) arrow.classList.toggle('rotate-180', open);
+        });
         
         document.addEventListener('click', function(e) {
             if (e.target && e.target.id === 'toggle-all-members-mobile') {
@@ -591,11 +616,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202610161426';
-        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610161426';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202610161426';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610161426';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610161426';
+        import { appState } from './js/state.js?v=202610161616';
+        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610161616';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202610161616';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610161616';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610161616';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -764,10 +789,10 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202610161426"></script>
-    <script src="js/modal-esc.js?v=202610161426"></script>
+    <script src="js/connection-banner.js?v=202610161616"></script>
+    <script src="js/modal-esc.js?v=202610161616"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202610161426"></script>
-    <script src="js/app-version.js?v=202610161426"></script>
+    <script type="module" src="js/app-shell.js?v=202610161616"></script>
+    <script src="js/app-version.js?v=202610161616"></script>
 </body>
 </html>

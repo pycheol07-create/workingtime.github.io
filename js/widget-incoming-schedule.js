@@ -1,7 +1,7 @@
 // === js/widget-incoming-schedule.js ===
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
+import { escapeHtml } from './utils.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
 //
 // 구글 시트 「패킹.송금관리」에 붙은 Apps Script 가 **시트를 고칠 때 즉시 + 1시간마다** 4개 열
@@ -284,7 +284,7 @@ function redraw() {
 
     if (!_last) {
         // 로그인 전이거나 첫 응답 전 — 지난번 값이 있으면 그것부터 보여 준다
-        if (!renderFromCache()) listEl.innerHTML = `<li class="px-3 py-2 text-[10px] t-3 italic">불러오는 중...</li>`;
+        if (!renderFromCache()) listEl.innerHTML = `<li class="px-3 py-2 text-[11px] t-3 italic">불러오는 중...</li>`;
         setStatus('불러오는 중...');
         return;
     }
@@ -295,7 +295,7 @@ function redraw() {
             : `시트 연동이 실패했습니다: ${_last.error || '원인 미상'}`;
         if (renderFromCache()) { setStatus('지난 값', why); return; }
         setIncomingCount(0);
-        listEl.innerHTML = `<li class="px-3 py-2 text-[10px] t-risk">${escapeHtml(why)}</li>`;
+        listEl.innerHTML = `<li class="px-3 py-2 text-[11px] t-risk">${escapeHtml(why)}</li>`;
         setStatus('오류', why);
         return;
     }
@@ -413,7 +413,7 @@ function renderItems(items) {
     if (!listEl) return;
     if (items.length === 0) {
         setIncomingCount(0);
-        listEl.innerHTML = `<li class="px-3 py-2 text-[10px] t-3 italic">표시할 입고 예정이 없습니다.</li>`;
+        listEl.innerHTML = `<li class="px-3 py-2 text-[11px] t-3 italic">표시할 입고 예정이 없습니다.</li>`;
         return;
     }
 

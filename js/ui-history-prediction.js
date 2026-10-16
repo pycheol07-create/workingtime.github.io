@@ -3,32 +3,32 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610161426';
+import { predictFutureTrends } from './analysis-logic.js?v=202610161616';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610161426';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610161426';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610161426';
-import * as State from './state.js?v=202610161426';
-import { saveView } from './view-state.js?v=202610161426';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610161426';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610161426';
+import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610161616';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610161616';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610161616';
+import * as State from './state.js?v=202610161616';
+import { saveView } from './view-state.js?v=202610161616';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610161616';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610161616';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610161426';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610161616';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610161426';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610161426';
+         getForecastSnapshotForDate } from './history-data-manager.js?v=202610161616';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610161616';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610161426';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610161426';
-import { taskUph, recentDays } from './task-throughput.js?v=202610161426';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610161616';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610161616';
+import { taskUph, recentDays } from './task-throughput.js?v=202610161616';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610161426';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610161616';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610161426';
-import { D } from './d-chart.js?v=202610161426';
+         excessOffDays } from './lib/backlog-carry.js?v=202610161616';
+import { D } from './d-chart.js?v=202610161616';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -2456,7 +2456,7 @@ const readExcludeMinutes = () => {
 /** 쉬는 날 칩 — 주말/공휴일을 같은 자리에 세운다.
  *  simulateOneDay 결과(r)를 그대로 받는다. 평일이면 빈 문자열. */
 const offDayChip = (r, { pad = 'px-1.5 py-0.5', lead = '' } = {}) => {
-    const cls = `text-[10px] font-bold ${pad} rounded ${lead}`;
+    const cls = `text-[11px] font-bold ${pad} rounded ${lead}`;
     if (r?.holiday) {
         const nm = r.holidayName || '공휴일';
         return ` <span class="${cls} bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"`
@@ -2699,7 +2699,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
             const w = r.totalHours > 0 ? Math.max(2, Math.round(v.hours / r.totalHours * 100)) : 0;
             return `<tr class="border-t border-gray-100 dark:border-gray-700/60 bg-indigo-50/30 dark:bg-indigo-900/10">
                 <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}
-                    <span class="ml-1 text-[10px] font-bold text-indigo-500 dark:text-indigo-300">시간형</span></td>
+                    <span class="ml-1 text-[11px] font-bold text-indigo-500 dark:text-indigo-300">시간형</span></td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">${v.minutes}분</td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">담당 ${v.workers}명</td>
                 <td class="py-2 px-3 text-right">
@@ -2717,9 +2717,9 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
 
         const stat = (label, value, sub, cls) => `
             <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-3">
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">${label}</div>
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">${label}</div>
                 <div class="text-2xl font-black mt-1 ${cls || 'text-gray-900 dark:text-white'}">${value}</div>
-                <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">${sub}</div>
+                <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-1">${sub}</div>
             </div>`;
 
         // ⏱ 시간 결과 — 다 끝내고 남는 시간(+) / 정규 시간을 넘기는 시간(-)
@@ -2743,19 +2743,19 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                     </div>
                     <div class="grid grid-cols-3 gap-2 text-center">
                         <div class="rounded-lg bg-white/70 dark:bg-gray-800/60 py-2">
-                            <div class="text-[10px] font-bold text-gray-400">진행 시 필요 인원</div>
+                            <div class="text-[11px] font-bold text-gray-400">진행 시 필요 인원</div>
                             <div class="text-lg font-black text-amber-700 dark:text-amber-300">${altResult.requiredFTE}명</div>
                         </div>
                         <div class="rounded-lg bg-white/70 dark:bg-gray-800/60 py-2">
-                            <div class="text-[10px] font-bold text-gray-400">진행 시 실 소요시간</div>
+                            <div class="text-[11px] font-bold text-gray-400">진행 시 실 소요시간</div>
                             <div class="text-lg font-black text-amber-700 dark:text-amber-300">${altResult.availableTotal > 0 ? fmtHM(altResult.elapsedHours) : '—'}</div>
                         </div>
                         <div class="rounded-lg bg-white/70 dark:bg-gray-800/60 py-2">
-                            <div class="text-[10px] font-bold text-gray-400">진행 시 과부족</div>
+                            <div class="text-[11px] font-bold text-gray-400">진행 시 과부족</div>
                             <div class="text-lg font-black text-amber-700 dark:text-amber-300">${gapText(altResult.gap)}</div>
                         </div>
                     </div>
-                    <div class="text-[10px] text-amber-700/80 dark:text-amber-300/70">
+                    <div class="text-[11px] text-amber-700/80 dark:text-amber-300/70">
                         진행하기로 정해졌다면 왼쪽 입력칸의 <b>[하는 날]</b> 값을 눌러 넣고 다시 실행하세요.
                     </div>
                 </div>` : '';
@@ -2856,7 +2856,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
 
         const mini = (label, value, cls) => `
             <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-2.5 text-center">
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500">${label}</div>
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500">${label}</div>
                 <div class="text-base font-black mt-0.5 ${cls || 'text-gray-900 dark:text-white'}">${value}</div>
             </div>`;
 
@@ -3230,7 +3230,7 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
                 <div class="flex items-center gap-1.5 flex-wrap">
                     <span class="text-base font-extrabold text-gray-900 dark:text-white">${label}</span>
                     ${offDayChip(r).trim()}
-                    ${simLinked ? '<span class="text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-1.5 py-0.5 rounded" title="아래 상세 시뮬레이션에 입력한 값이 그대로 반영된 결과입니다.">시뮬레이션 반영</span>' : ''}
+                    ${simLinked ? '<span class="text-[11px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-1.5 py-0.5 rounded" title="아래 상세 시뮬레이션에 입력한 값이 그대로 반영된 결과입니다.">시뮬레이션 반영</span>' : ''}
                 </div>
                 <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">${dayLabel(r.date)}</div>
             </div>
@@ -3239,12 +3239,12 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
 
         <div class="flex items-end gap-4 mb-3">
             <div>
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">필요</div>
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">필요</div>
                 <div class="text-3xl font-black leading-none text-gray-900 dark:text-white mt-1">${r.requiredFTE}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
             </div>
             <div class="text-gray-200 dark:text-gray-700 text-2xl font-light leading-none pb-1">/</div>
             <div>
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">가용</div>
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">가용</div>
                 <div class="text-3xl font-black leading-none text-gray-900 dark:text-white mt-1">${staffN}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
             </div>
         </div>
@@ -3255,17 +3255,17 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
 
         <div class="grid grid-cols-3 gap-2 mb-3">
             <div class="rounded-lg bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 px-2 py-1.5">
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500">총 소요시간</div>
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500">총 소요시간</div>
                 <div class="text-[14px] font-extrabold text-gray-800 dark:text-gray-100 mt-0.5 tabular-nums">${fmtHM(r.totalHours)}</div>
             </div>
             <div class="rounded-lg bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 px-2 py-1.5"
                  title="실제로 흘러가는 시간 — 물량 업무는 담당 업무에 묶인 인원(${r.tiedFTE.toFixed(1)}명)을 뺀 ${r.qtyStaff.toFixed(1)}명 기준이고, 담당 업무가 더 오래 걸리면 그 시간을 씁니다">
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500">실 소요시간</div>
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500">실 소요시간</div>
                 <div class="text-[14px] font-extrabold text-indigo-600 dark:text-indigo-300 mt-0.5 tabular-nums">${r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—'}</div>
             </div>
             <div class="rounded-lg bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 px-2 py-1.5"
                  title="업무시간 ${fmtHM(r.netDailyHours)} 안에서 다 끝내고 남는 시간(초과면 −)">
-                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500">${r.slackHours >= 0 ? '남는 시간' : '초과 시간'}</div>
+                <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500">${r.slackHours >= 0 ? '남는 시간' : '초과 시간'}</div>
                 <div class="text-[14px] font-extrabold mt-0.5 tabular-nums ${r.availableTotal <= 0 ? 'text-gray-400' : (r.slackHours >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}">${r.availableTotal > 0 ? fmtHM(Math.abs(r.slackHours)) : '—'}</div>
             </div>
         </div>
@@ -4554,14 +4554,14 @@ const renderAccuracyBody = () => {
                 + (t.offPlanQty > 0 ? ` · ${t.offPlanQty.toLocaleString()}개` : '') + ' — 계획 외 유입으로 집계)');
         }
         return 쪽지.length === 0 ? ''
-            : `<span class="text-[10px] font-normal text-gray-400" title="${escapeHtml(쪽지.join('\n'))}">*</span>`;
+            : `<span class="text-[11px] font-normal text-gray-400" title="${escapeHtml(쪽지.join('\n'))}">*</span>`;
     };
 
     const stat = (label, value, sub, cls) => `
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-3">
-            <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">${label}</div>
+            <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">${label}</div>
             <div class="text-2xl font-black mt-1 ${cls || 'text-gray-900 dark:text-white'}">${value}</div>
-            <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">${sub}</div>
+            <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-1">${sub}</div>
         </div>`;
 
     host.innerHTML = head(`확정한 계획이 있는 ${rows.length}일을 비교했습니다`) + `
@@ -4617,8 +4617,8 @@ const renderAccuracyBody = () => {
                         ${taskRows.map(t => `
                         <tr class="border-t border-gray-100 dark:border-gray-700/60">
                             <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}${t.unplanned
-                                ? ' <span class="text-[10px] font-bold text-violet-500 dark:text-violet-300" title="계획에 없었는데 실제로 진행한 업무입니다">계획 외</span>'
-                                : (t.isTime ? ' <span class="text-[10px] font-bold text-indigo-400 dark:text-indigo-300" title="처리량이 없어 투입시간으로 재는 업무입니다">시간</span>' : '')}</td>
+                                ? ' <span class="text-[11px] font-bold text-violet-500 dark:text-violet-300" title="계획에 없었는데 실제로 진행한 업무입니다">계획 외</span>'
+                                : (t.isTime ? ' <span class="text-[11px] font-bold text-indigo-400 dark:text-indigo-300" title="처리량이 없어 투입시간으로 재는 업무입니다">시간</span>' : '')}</td>
                             <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${(t.isTime || t.unplanned) ? '—' : t.plan.toLocaleString()}${별표(t)}</td>
                             <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100">${t.isTime ? '—' : t.showQty.toLocaleString()}${별표(t)}</td>
                             <td class="py-2 px-3 text-right tabular-nums font-bold ${t.isTime ? 'text-gray-300 dark:text-gray-600' : errTone(t.err)}">${(t.isTime || t.unplanned) ? '—' : pctText(t.err)}</td>
@@ -4663,7 +4663,7 @@ const renderAccuracyBody = () => {
                         ${rows.slice().reverse().map(r => `
                         <tr class="border-t border-gray-100 dark:border-gray-700/60">
                             <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${dayLabel(r.date)}${r.auto
-                                ? ` <span class="text-[10px] text-gray-400 dark:text-gray-500" title="아침에 자동으로 얼린 계획${r.snapAutoAt ? ` (${r.snapAutoAt})` : ''}">자동</span>` : ''}</td>
+                                ? ` <span class="text-[11px] text-gray-400 dark:text-gray-500" title="아침에 자동으로 얼린 계획${r.snapAutoAt ? ` (${r.snapAutoAt})` : ''}">자동</span>` : ''}</td>
                             <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${fmtHM(r.planPlannedHours)}</td>
                             <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100"
                                 title="전체 ${fmtHM(r.actualHours)} = 계획한 업무 ${fmtHM(r.actualPlannedHours)} + 계획 외 ${fmtHM(r.unplannedHours)}${r.untaggedHours > 0 ? ` + 업무명 없는 기록 ${fmtHM(r.untaggedHours)}` : ''}">${fmtHM(r.actualHours)}</td>

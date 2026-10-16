@@ -12,9 +12,10 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202610161426';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161426';
-import { escapeHtml as esc } from './utils.js?v=202610161426';
+import { initializeFirebase } from './config.js?v=202610161616';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161616';
+import { memberNameFor } from './app-shell-data.js?v=202610161616';
+import { escapeHtml as esc } from './utils.js?v=202610161616';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -697,6 +698,15 @@ $('btn-excel').addEventListener('click', () => {
 
 $('btn-close').addEventListener('click', () => goHome());   // '닫기' → '홈으로'(2026-10-16, 같은 탭 이동)
 
+// 공통 상단바 개인 알림(P2) — mainConfig 를 한 번 읽어 memberEmails 로 이름을 찾아 넘긴다.
+// 이름은 메모리에만(캐시·로그에 남기지 않는다). 기다리지 않고, 실패해도 화면은 그대로 쓴다.
+function pushShellMemberName(user) {
+    getDoc(doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig')).then((snap) => {
+        const memberName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email);
+        if (memberName && auth.currentUser && auth.currentUser.uid === user.uid) setShellContext({ signedIn: true, uid: user.uid, memberName });
+    }).catch((e) => console.warn('[worktime] 알림용 설정 읽기 실패:', e && e.code));
+}
+
 // ── 시작 ─────────────────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
     setShellContext(user ? { signedIn: true, uid: user.uid } : { signedIn: false });   // 공통 상단바(메뉴는 캐시)
@@ -705,6 +715,7 @@ onAuthStateChanged(auth, async (user) => {
         $('main').classList.add('hidden');
         return;
     }
+    pushShellMemberName(user);
     currentUser = user.email || user.uid || '';
     $('auth-gate').classList.add('hidden');
     $('main').classList.remove('hidden');
