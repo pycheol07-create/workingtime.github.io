@@ -9,18 +9,18 @@
 //   로그아웃·실패면 SettingsContext.js 가 localStorage 의 마지막 값을 그대로 쓴다.
 // 저장: window.__calcSharedSave(base, local, { confirmedInitial }) → Promise
 //   { mode: 'shared', applied: [{key,label}], conflicts: [{key,label,remote,mine}], initial, settings }
-//   처음 이전(공용 문서 없음)은 쓰지 않고 돌려준다 — 바뀐 칸 없음: { noInitial: true, settings: null }
-//     바뀐 칸 있음·확인 전: { needInitialConfirm: true, applied, settings: null } → 확인받고 confirmedInitial: true 로 다시 부른다
+//   처음 이전(공용 문서 없음)은 확인 전엔 쓰지 않고 돌려준다(바뀐 칸이 없어도 같음)
+//     확인 전: { needInitialConfirm: true, applied, settings: null } → 확인받고 confirmedInitial: true 로 다시 부른다
 //   { mode: 'local', reason }   (로그인 안 됨 — 이 PC 에만)
 //   실패하면 예외(공용에는 아무것도 안 씀).
 //   runTransaction 으로 읽고-비교-쓰기: 그사이 다른 사람이 바꾼 칸은 덮지 않고 conflicts 로 돌려준다.
 // 이름: mainConfig.memberEmails(이름 → 이메일) 역매핑 → systemAccounts → '알 수 없음'. 이메일은 이력에 넣지 않는다.
-import { db, auth } from './firebase-init.js?v=202610162303';
+import { db, auth } from './firebase-init.js?v=202610162321';
 import { doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
     planSave, historyEntries, appendHistory, updateMeta, nameForEmail, labelOf, formatValue
-} from '../js/lib/calc-settings.js?v=202610162303';
+} from '../js/lib/calc-settings.js?v=202610162321';
 
 const DOC_PATH = 'artifacts/team-work-logger-v2/persistent_data/calculatorSettings';
 const CONFIG_PATH = 'artifacts/team-work-logger-v2/config/mainConfig';
@@ -80,11 +80,7 @@ async function save(base, local, opts = {}) {
         const remote = (d.settings && typeof d.settings === 'object') ? d.settings : null;
         const plan = planSave({ remote, base, local });
         const conflicts = plan.conflicts.map(c => ({ ...c, label: labelOf(c.key), remoteText: formatValue(c.remote) }));
-        // 처음 이전: 바뀐 칸이 없으면 만들지 않는다 · 있으면 확인(opts.confirmedInitial)을 받은 뒤에만 쓴다
-        if (plan.initial && !plan.applied.length) {
-            out = { mode: 'shared', applied: [], conflicts: [], initial: false, noInitial: true, settings: null };
-            return;
-        }
+        // 처음 이전: 바뀐 칸이 없어도(이 PC 설정 그대로를 팀 기준으로) 만든다 — 단 확인(opts.confirmedInitial)을 받은 뒤에만 쓴다
         if (plan.initial && !opts.confirmedInitial) {
             out = { mode: 'shared', applied: plan.applied.map(k => ({ key: k, label: labelOf(k) })), conflicts: [],
                     initial: true, needInitialConfirm: true, settings: null };

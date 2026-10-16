@@ -284,7 +284,7 @@ const AdminPage = ({ onClose }) => {
             }
             const lines = [];
             if (res.initial) lines.push('팀 공용 설정을 처음 만들었습니다 — 이 PC 의 설정으로 시작합니다.');
-            lines.push(res.applied.length ? `공용 설정 ${res.applied.length}칸을 저장했습니다.` : '바뀐 공용 설정이 없습니다.');
+            if (res.applied.length || !res.initial) lines.push(res.applied.length ? `공용 설정 ${res.applied.length}칸을 저장했습니다.` : '바뀐 공용 설정이 없습니다.');
             if (res.conflicts.length) {
                 lines.push('', '그사이 다른 사람이 먼저 바꾼 칸은 저장하지 않았습니다(지금 공용 값으로 바뀝니다):');
                 res.conflicts.forEach(c => lines.push(`· ${c.label}: ${c.remoteText}`));
