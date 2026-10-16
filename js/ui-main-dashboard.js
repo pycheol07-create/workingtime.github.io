@@ -1,9 +1,10 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610141838';
-import * as State from './state.js?v=202610141838';
-import { getRegularMembersForCount } from './utils.js?v=202610141838';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610141838';
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610141838';
+import { getAllDashboardDefinitions } from './ui.js?v=202610161029';
+import * as State from './state.js?v=202610161029';
+import { getRegularMembersForCount } from './utils.js?v=202610161029';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610161029';
+import { windowTargetFor } from './app-shell-data.js?v=202610161029';   // 창 이름 규칙(공통 상단바와 같은 표)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610161029';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -577,25 +578,27 @@ const setupPersonnelInteractions = () => {
 const 선아이콘 = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const ICON_LINK = 선아이콘('<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>');
 const EXTERNAL_LINK_META = [
-    { match: 'manual.html',   icon: 선아이콘('<path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/>'), target: '_blank' },          // 업무 매뉴얼
-    { match: 'calculator/',   icon: 선아이콘('<rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 7h6M9 12h1M14 12h1M9 16h1M14 16h1"/>'), target: 'calculator_window' }, // 통합 계산기(통관·수입·배송비·창고비) — 별도 탭
-    { match: 'location.html', icon: 선아이콘('<path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'), target: 'location_window' }, // 로케이션 관리
-    { match: 'supplies.html', icon: 선아이콘('<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/>'), target: 'supplies_window' }, // 비품 관리
-    { match: 'admin.html',    icon: 선아이콘('<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'), target: 'admin_window' },    // 관리자 페이지
-    { match: 'worktime.html', icon: 선아이콘('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), target: 'worktime_window' }, // 출퇴근 기록표
-    { match: 'china-stock-goods.html', icon: 선아이콘('<path d="M4 6h16M4 12h16M4 18h10"/>'), target: 'chinastock_window' }, // 중국제작 미발계산기
-    { match: 'china-mibal2.html', icon: 선아이콘('<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7.5 15h9"/>'), target: 'chinamibal2_window' },     // 미발계산기(신규·시험) — 병행 비교용
-    { match: 'products.html', icon: 선아이콘('<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>'), target: 'products_window' }, // 상품 관리
-    { match: 'scan.html',     icon: 선아이콘('<path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3M8 12h8"/>'), target: 'scan_window' },      // 입고 스캐너(미발계산기 안에서도 열림)
+    { match: 'manual.html',   icon: 선아이콘('<path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/>') },          // 업무 매뉴얼
+    { match: 'calculator/',   icon: 선아이콘('<rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 7h6M9 12h1M14 12h1M9 16h1M14 16h1"/>') }, // 통합 계산기(통관·수입·배송비·창고비) — 별도 탭
+    { match: 'location.html', icon: 선아이콘('<path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>') }, // 로케이션 관리
+    { match: 'supplies.html', icon: 선아이콘('<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/>') }, // 비품 관리
+    { match: 'admin.html',    icon: 선아이콘('<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>') },    // 관리자 페이지
+    { match: 'worktime.html', icon: 선아이콘('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>') }, // 출퇴근 기록표
+    { match: 'china-stock-goods.html', icon: 선아이콘('<path d="M4 6h16M4 12h16M4 18h10"/>') }, // 중국제작 미발계산기
+    { match: 'china-mibal2.html', icon: 선아이콘('<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7.5 15h9"/>') },     // 미발계산기(신규·시험) — 병행 비교용
+    { match: 'products.html', icon: 선아이콘('<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>') }, // 상품 관리
+    { match: 'scan.html',     icon: 선아이콘('<path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3M8 12h8"/>') },      // 입고 스캐너(미발계산기 안에서도 열림)
 ];
 
 // 신규·폐기 메뉴 보정은 js/menu-catalog.js 로 옮겼다.
 // 관리자 페이지의 '권한 관리'도 같은 목록을 봐야 해서(신규 메뉴의 권한을 못 고르던 문제)
 // 양쪽에서 쓰는 공용 모듈로 뺐다.
 
+// 창 이름(target)은 js/app-shell-data.js LINK_WINDOW_TARGETS 한 곳에서 정한다(공통 상단바 메뉴와 같게).
 const resolveLinkMeta = (link) => {
     if (!link) return null;
-    return EXTERNAL_LINK_META.find(m => link.includes(m.match)) || null;
+    const m = EXTERNAL_LINK_META.find(x => link.includes(x.match));
+    return m ? { ...m, target: windowTargetFor(link) } : null;
 };
 
 // 사이드바 동적 필터링 및 재배치 (매뉴얼/대시보드 등 별도 창 열기 포함)

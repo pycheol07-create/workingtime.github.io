@@ -10,20 +10,20 @@
 //   원가는 전용 열(EZ_COST_COLS)·글 단가 해석(diffEzCost). 기본정보 반영 뒤 [원가 단계로 이어서] 로 같은 내용(메모리)을 원가에 쓴다.
 //   새 공급처는 반영 직전 확인 후 대장에 이름 빈칸으로 등록(ensureSuppliers). 설계: 이지어드민상품엑셀_설계.md
 // ⚠️ 원가 값을 console 에 찍지 말 것 — 시간·행 수만.
-import { S, applyLocalProduct } from './products-store.js?v=202610141838';
-import { C, ledgerCodes, loadLedger } from './products-cost.js?v=202610141838';
-import { esc, toast, route, renderBasis } from './products.js?v=202610141838';
-import { costChangeText } from './products-cost.js?v=202610141838';
-import { catalogChangeText } from './products-detail.js?v=202610141838';
-import { writeBucket, writeCatalogSummary, ensureSuppliers } from './products-write.js?v=202610141838';
-import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610141838';
+import { S, applyLocalProduct } from './products-store.js?v=202610161029';
+import { C, ledgerCodes, loadLedger } from './products-cost.js?v=202610161029';
+import { esc, toast, route, renderBasis } from './products.js?v=202610161029';
+import { costChangeText } from './products-cost.js?v=202610161029';
+import { catalogChangeText } from './products-detail.js?v=202610161029';
+import { writeBucket, writeCatalogSummary, ensureSuppliers } from './products-write.js?v=202610161029';
+import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610161029';
 import {
     CATALOG_COLS, COST_COLS, readRows, groupCatalogRows, diffCatalog, diffCost, defaultChecked,
     catalogJson, costJson, bucketSizesAfter, templateAoa, costExportAoa, resultAoa, STATUS_LABEL, BUCKET_LIMIT,
     sheetToAoa, goneSelected
-} from './lib/product-excel-rows.js?v=202610141838';
-import { EZ_COST_COLS, detectEzadmin, ezCatalogGroups, diffEzCost } from './lib/product-ezadmin.js?v=202610141838';
-import { REASON_LABEL } from './lib/product-price-text.js?v=202610141838';
+} from './lib/product-excel-rows.js?v=202610161029';
+import { EZ_COST_COLS, detectEzadmin, ezCatalogGroups, diffEzCost } from './lib/product-ezadmin.js?v=202610161029';
+import { REASON_LABEL } from './lib/product-price-text.js?v=202610161029';
 
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 const PAGE = 50;

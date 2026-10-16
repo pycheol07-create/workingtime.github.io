@@ -2,8 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610141838">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610141838">
+    <link rel="stylesheet" href="css/suit.css?v=202610161029">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610161029">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161029">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -87,7 +88,7 @@
         #update-banner button { margin-left: 10px; padding: 6px 14px; border: none; border-radius: 6px; background: #fff; color: var(--c-warn-text); font-weight: bold; }
     </style>
 </head>
-<body>
+<body data-shell="scan">
     <div id="update-banner"></div>
 
     <div class="tabs" id="tabs">
@@ -183,12 +184,13 @@
     <div id="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610141838"></script>
+    <script src="js/location-map.js?v=202610161029"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610141838'; // china-stock 전용 설정(work-tool-e2943)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610161029'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202610161029';   // 공통 상단바(uid 만 — 메뉴는 캐시)
 
         const SCAN_VERSION = '10.4'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -225,7 +227,7 @@
         // 폰에서도 메인 앱(업무관리)에 한 번 로그인해 두면 그 뒤로는 그대로 열린다.
         if (!serverCfg) {
             const gate = document.createElement('div');
-            gate.style.cssText = `position:fixed; inset:0; z-index:2147483600; background:#F5F6F8; color:#23272E;
+            gate.style.cssText = `position:fixed; inset:var(--as-h,0px) 0 0 0; z-index:2147483600; background:#F5F6F8; color:#23272E;
                 display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
                 font-family:'SUIT','Noto Sans KR',sans-serif; text-align:center; padding:24px;`;
             gate.innerHTML = `<div style="font-size:42px; color:#8A9099;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
@@ -233,6 +235,7 @@
             document.body.appendChild(gate);
             const auth = getAuth(app);
             onAuthStateChanged(auth, (user) => {
+                setShellContext(user ? { signedIn: true, uid: user.uid } : { signedIn: false });
                 if (user) { gate.remove(); return; }
                 // 업무관리에 로그인해 두었어도 세션이 공유되지 않는 경우가 있다
                 // (홈 화면 앱에서 다른 브라우저로 열리거나, 사생활 보호 모드 등).
@@ -994,5 +997,6 @@
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
+    <script type="module" src="js/app-shell.js?v=202610161029"></script>
 </body>
 </html>

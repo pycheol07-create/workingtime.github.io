@@ -94,3 +94,36 @@ export const withBuiltinMenus = (dashboardMenu) => {
     });
     return menu;
 };
+
+// ── 공통 상단바(js/app-shell.js) 메뉴용 ─────────────────────────────
+// 대시보드 사이드바(ui-main-dashboard.js applyDynamicSidebar)와 app.js 의 관리자 버튼 숨김을
+// 합친 결과를 '데이터'로 돌려준다. 사이드바는 버튼을 숨기는 방식이라 그대로 재사용할 수 없어서다.
+// 관리자 전용 — app.js adminElements 가 일반 직원에게서 숨기는 것과 같은 범위.
+export const ADMIN_ONLY_LINKS = ['admin.html', 'history.html'];
+export const ADMIN_ONLY_ACTIONS = ['데이터 관리', '업무 마감'];
+// 셸 메뉴에서는 관리자에게도 넣지 않는다 — 마감은 대시보드에서만(실수 한 번이 그날 원본을 지운다).
+export const SHELL_EXCLUDED_ACTIONS = ['업무 마감'];
+
+// 'calculator/index.html?x#y' → 'calculator/index.html' (앞의 ./ 와 / 도 뗀다)
+const linkPath = (link) => String(link || '').split('#')[0].split('?')[0].replace(/^\.?\//, '');
+
+/** 이 사람에게 보이는 메뉴 그룹 — [{ category, items:[{ name, link }] }] (빈 그룹은 뺀다).
+ *  role === 'admin' 이면 전부, 아니면 memberMenuAccess[소문자 이메일] 에 든 이름만, 그리고 관리자 전용은 뺀다.
+ *  항목은 새 객체로 만든다(원본 설정을 건드리지 않게). */
+export const visibleMenuFor = (appConfig, email, role) => {
+    const cfg = appConfig || {};
+    const isAdmin = role === 'admin';
+    const key = String(email || '').toLowerCase();
+    const allowed = isAdmin ? null : ((cfg.memberMenuAccess || {})[key] || []);
+    return withBuiltinMenus(cfg.dashboardMenu)
+        .map(g => ({
+            category: g.category || '',
+            items: g.items
+                .filter(i => i && i.name)
+                .filter(i => !SHELL_EXCLUDED_ACTIONS.includes(i.name))
+                .filter(i => allowed === null || allowed.includes(i.name))
+                .filter(i => isAdmin || !(ADMIN_ONLY_ACTIONS.includes(i.name) || ADMIN_ONLY_LINKS.includes(linkPath(i.link))))
+                .map(i => ({ name: i.name, link: i.link || '' }))
+        }))
+        .filter(g => g.items.length > 0);
+};

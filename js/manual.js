@@ -3,8 +3,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202610141838';
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610141838';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202610161029';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610161029';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161029';
 
 let app, db, auth, storage;
 let appConfig = {};
@@ -177,6 +178,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const userEmailLower = (user.email || '').toLowerCase();
             
             isAdmin = (appConfig.memberRoles && appConfig.memberRoles[userEmailLower] === 'admin');
+            // 공통 상단바 — role 은 memberRoles 에 있을 때만(설정을 못 읽어 기본값이면 셸이 캐시 메뉴를 쓴다)
+            const shellRole = appConfig.memberRoles ? appConfig.memberRoles[userEmailLower] : undefined;
+            setShellContext({ signedIn: true, uid: user.uid, email: userEmailLower, role: shellRole,
+                menuConfig: shellRole ? { dashboardMenu: appConfig.dashboardMenu, memberMenuAccess: appConfig.memberMenuAccess } : undefined });
 
             const emails = appConfig.memberEmails || {};
             currentUserName = Object.keys(emails).find(name => (emails[name] || '').toLowerCase() === userEmailLower);
@@ -194,6 +199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             loadManuals();
             loadTools();
         } else {
+            setShellContext({ signedIn: false });
             alert("로그인이 필요합니다.");
             window.location.href = 'index.html';
         }
@@ -293,8 +299,9 @@ const applyZoom = () => {
 };
 
 function setupEventListeners() {
+    // '창 닫기' → '홈으로'(2026-10-16): 같은 탭에서 대시보드로 간다(공통 상단바와 같은 이동)
     document.getElementById('btn-close-window').addEventListener('click', () => {
-        window.close(); 
+        goHome();
     });
 
     document.getElementById('manual-search-input').addEventListener('input', renderList);

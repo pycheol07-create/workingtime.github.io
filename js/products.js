@@ -13,13 +13,14 @@
 //    로그인 칸 UI 는 china-stock-gate.js 를 **복사**했다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202610141838';
-import { emulatorEnabled } from './firebase-emulator.js?v=202610141838';
-import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610141838';
-import { renderList, exportCatalog } from './products-list.js?v=202610141838';
-import { renderDetail, renderCatalogLog } from './products-detail.js?v=202610141838';
-import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=202610141838';
-import { openUpload } from './products-excel.js?v=202610141838';
+import { initializeFirebase } from './config.js?v=202610161029';
+import { emulatorEnabled } from './firebase-emulator.js?v=202610161029';
+import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610161029';
+import { renderList, exportCatalog } from './products-list.js?v=202610161029';
+import { renderDetail, renderCatalogLog } from './products-detail.js?v=202610161029';
+import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=202610161029';
+import { openUpload } from './products-excel.js?v=202610161029';
+import { setShellContext } from './app-shell-bridge.js?v=202610161029';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -41,7 +42,8 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp
 
 // ── 로그인 게이트 (china-stock-gate.js 복사) ─────────────────
 const GATE_ID = 'pd-auth-gate';
-const GATE_STYLE = `position:fixed; inset:0; z-index:2147483600; background:var(--c-bg,#F5F6F8);
+// 위쪽은 공통 상단바(--as-h) 자리를 비워 둔다 — 로그인 전에도 홈 버튼이 보이게
+const GATE_STYLE = `position:fixed; inset:var(--as-h,0px) 0 0 0; z-index:2147483600; background:var(--c-bg,#F5F6F8);
     display:flex; overflow-y:auto; -webkit-overflow-scrolling:touch;
     font-family:var(--font-sans,'SUIT','Noto Sans KR','Malgun Gothic',sans-serif); color:var(--c-text,#23272E); text-align:center;`;
 const GATE_INNER = `margin:auto; display:flex; flex-direction:column; align-items:center; gap:10px; padding:24px; width:100%; box-sizing:border-box;`;
@@ -190,7 +192,8 @@ if (!db || !auth || emuBad) {
 } else {
     onAuthStateChanged(auth, (user) => {
         if (startedUid && (!user || user.uid !== startedUid)) { location.reload(); return; }
-        if (!user) { setLoading(false); showLogin(auth); return; }
+        if (!user) { setShellContext({ signedIn: false }); setLoading(false); showLogin(auth); return; }
+        setShellContext({ signedIn: true, uid: user.uid });   // 공통 상단바 — uid 만(메뉴는 대시보드에서 채운 캐시)
         removeGate();
         if (!startedUid) start(user);
     });

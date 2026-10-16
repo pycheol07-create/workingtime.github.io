@@ -26,7 +26,7 @@ body.is-admin .pd-adm { display: inline-block; }
 body.is-admin .d-seg-btn.pd-adm { display: inline-block; }
 
 /* ── 머리 ── */
-.pd-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; padding: 18px 40px; background: var(--c-surface); border-bottom: 1px solid var(--c-line); position: sticky; top: 0; z-index: 20; }
+.pd-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; padding: 18px 40px; background: var(--c-surface); border-bottom: 1px solid var(--c-line); position: sticky; top: var(--as-h, 0px); z-index: 20; }   /* 공통 상단바 아래에 붙는다 */
 .pd-head-title { flex: 1 1 260px; min-width: 0; }
 .pd-head h1 { margin: 0; font-size: 20px; font-weight: 700; color: var(--c-text); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 .pd-head h1 .pd-code { font-size: 15px; font-weight: 600; color: var(--c-accent-deep); margin-left: 6px; }
@@ -209,7 +209,7 @@ textarea.pd-in { height: 84px; padding: 10px 12px; resize: vertical; line-height
 /* ── 목록: 머리글 줄 고정 + 보기 개수 (2026-10-14) ──
    표를 화면 높이에 맞춘 상자 안에서 스크롤하고, 머리글은 그 상자 위에 붙여 둔다.
    (가로 스크롤 상자 .pd-scroll 이 스크롤 기준이라, 페이지 스크롤로는 sticky 가 먹지 않는다) */
-.pd-list-scroll { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); overflow: auto; }
+.pd-list-scroll { max-height: calc(100vh - 150px - var(--as-h, 0px)); max-height: calc(100dvh - 150px - var(--as-h, 0px)); overflow: auto; }
 .pd-list-scroll .pd-t thead th { position: sticky; top: 0; z-index: 3; border-bottom: 0; box-shadow: inset 0 -1px 0 var(--c-line); }
 .pd-pagesize { display: inline-flex; align-items: center; gap: 6px; margin-right: 6px; color: var(--c-text-3); }
 .pd-pagesize .pd-select { height: 30px; }

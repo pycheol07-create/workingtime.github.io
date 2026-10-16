@@ -5,8 +5,9 @@
 //  - 비품은 수십 건 규모라 문서 하나로 관리하는 편이 읽기·쓰기 모두 저렴하다.
 //  - 각 비품은 종류·현재고를 기본으로 하고, 단가/사이즈/발주정보/업체 등 상세를 함께 보관한다.
 
-import { initializeFirebase } from './config.js?v=202610141838';
-import { escapeHtml as esc } from './utils.js?v=202610141838';
+import { initializeFirebase } from './config.js?v=202610161029';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161029';
+import { escapeHtml as esc } from './utils.js?v=202610161029';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -121,6 +122,7 @@ const anyFilterActive = () =>
 
 // ───────── 인증 게이트 ─────────
 onAuthStateChanged(auth, async (user) => {
+    setShellContext(user ? { signedIn: true, uid: user.uid } : { signedIn: false });   // 공통 상단바(메뉴는 캐시)
     if (!user) {
         $('auth-gate').classList.remove('hidden');
         $('main').classList.add('hidden');
@@ -751,7 +753,7 @@ $('btn-save-item').addEventListener('click', saveItem);
 $('btn-delete-item').addEventListener('click', deleteItem);
 $('btn-save-stock').addEventListener('click', saveStock);
 $('btn-refresh').addEventListener('click', async () => { await load(); renderAll(); });
-$('btn-close').addEventListener('click', () => window.close());
+$('btn-close').addEventListener('click', () => goHome());   // '닫기' → '홈으로'(2026-10-16, 같은 탭 이동)
 $('btn-reset-filters').addEventListener('click', resetAllFilters);
 
 ['filter-category', 'filter-search', 'filter-low'].forEach(id => {

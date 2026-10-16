@@ -1,24 +1,25 @@
 // === js/app.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610141838';
-import { displayCurrentDate, showToast } from './utils.js?v=202610141838';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610141838';
-import { initializeAppListeners } from './app-listeners.js?v=202610141838';
-import * as DOM from './dom-elements.js?v=202610141838';
-import * as State from './state.js?v=202610141838';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610141838';
-import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=202610141838';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610161029';
+import { displayCurrentDate, showToast } from './utils.js?v=202610161029';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610161029';
+import { initializeAppListeners } from './app-listeners.js?v=202610161029';
+import * as DOM from './dom-elements.js?v=202610161029';
+import * as State from './state.js?v=202610161029';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610161029';
+import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=202610161029';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610141838';
-import { setupNotificationListeners } from './app-notifications.js?v=202610141838';
-import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610141838';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=202610141838';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=202610141838';
-import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610141838';
-import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610141838';
-import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610141838';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610161029';
+import { setupNotificationListeners } from './app-notifications.js?v=202610161029';
+import { setupFirebaseListeners, unsubscribeNotifications } from './app-sync.js?v=202610161029';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=202610161029';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=202610161029';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610161029';
+import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610161029';
+import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610161029';
+import { setShellContext, clearShellMenuCache } from './app-shell-bridge.js?v=202610161029';
 
 export const normalizeName = (s = '') => s.normalize('NFC').trim().toLowerCase();
 
@@ -117,6 +118,12 @@ async function startAppAfterLogin(user) {
         // ✨ 신규: 관리자 권한 UI가 세팅된 직후, 메뉴 순서를 동적으로 재배치합니다.
         applyDynamicSidebar(State.appConfig);
 
+        // 공통 상단바(js/app-shell.js)에 로그인 상태·메뉴 설정을 넘긴다 — 다른 화면 메뉴는 여기서 채운 캐시를 쓴다.
+        setShellContext({
+            signedIn: true, uid: user.uid, email: userEmail, role: currentUserRole,
+            menuConfig: { dashboardMenu: State.appConfig.dashboardMenu, memberMenuAccess: State.appConfig.memberMenuAccess }
+        });
+
         renderDashboardLayout(State.appConfig);
         renderTaskSelectionModal(State.appConfig.taskGroups);
 
@@ -189,6 +196,8 @@ async function main() {
             State.appState.workRecords = [];
             State.appState.importantNotices = [];
             State.appState.currentUser = null;
+            clearShellMenuCache();          // 다음 사람에게 앞 사람 메뉴가 남지 않게
+            setShellContext({ signedIn: false });
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
         }
     });

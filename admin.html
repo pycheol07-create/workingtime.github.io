@@ -16,8 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610141838">
-    <link rel="stylesheet" href="css/admin-d.css?v=202610141838">
+    <link rel="stylesheet" href="css/suit.css?v=202610161029">
+    <link rel="stylesheet" href="css/admin-d.css?v=202610161029">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161029">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -28,9 +29,11 @@
         @media (hover: none) { .opacity-0.group-hover\:opacity-100 { opacity: 1 !important; } }
         /* 📱 모바일: 주소창 높이를 뺀 실제 화면 높이 */
         @media (max-width: 768px) { body.h-screen { height: 100vh; height: 100dvh; } }
+        /* 📱 모바일 서랍 메뉴는 공통 상단바(css/app-shell.css --as-h) 아래에서 연다 */
+        @media (max-width: 767px) { #admin-sidebar, #admin-sidebar-overlay { top: var(--as-h, 0px); } }
     </style>
 </head>
-<body id="admin-root" class="text-gray-800 dark:text-gray-200 overflow-hidden flex h-screen">
+<body id="admin-root" class="text-gray-800 dark:text-gray-200 overflow-hidden flex h-screen" data-shell="admin">
 
     <div id="admin-sidebar-overlay" class="fixed inset-0 bg-black/40 z-30 hidden md:hidden transition-opacity"></div>
 
@@ -77,12 +80,7 @@
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-refill">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg></span> 채우기 설정
             </button>
-            <div class="pt-6 pb-2">
-                <hr class="border-gray-200 dark:border-gray-700">
-            </div>
-            <a href="index.html" class="w-full flex items-center gap-3 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition">
-                <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg></span> 메인 화면으로
-            </a>
+            <!-- '메인 화면으로' 링크는 공통 상단바의 홈 버튼으로 옮겼다(2026-10-16) -->
         </nav>
     </aside>
 
@@ -92,9 +90,6 @@
                 <button id="admin-sidebar-toggle" class="md:hidden p-2 -ml-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg" aria-label="메뉴 열기">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                 </button>
-                <a href="index.html" class="md:hidden p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg" aria-label="메인 화면으로">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                </a>
                 <h2 class="text-lg font-bold text-gray-800 dark:text-white hidden md:block">시스템 환경 설정</h2>
             </div>
             <button id="save-all-btn" class="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2 text-sm">
@@ -388,9 +383,9 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610141838"></script>
-    <script type="module" src="js/admin-automation.js?v=202610141838"></script>
-    <script type="module" src="js/admin-refill.js?v=202610141838"></script>
+    <script type="module" src="js/admin.js?v=202610161029"></script>
+    <script type="module" src="js/admin-automation.js?v=202610161029"></script>
+    <script type="module" src="js/admin-refill.js?v=202610161029"></script>
 
     <script type="module">
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
@@ -477,7 +472,8 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610141838"></script>
-    <script src="js/modal-esc.js?v=202610141838"></script>
+    <script src="js/connection-banner.js?v=202610161029"></script>
+    <script src="js/modal-esc.js?v=202610161029"></script>
+    <script type="module" src="js/app-shell.js?v=202610161029"></script>
 </body>
 </html>

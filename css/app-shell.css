@@ -1,0 +1,18 @@
+/* === css/app-shell.css — 공통 상단바(js/app-shell.js) 자리 만들기 (2026-10-16) ===
+   바 자체의 모양은 js/app-shell.js 가 섀도 DOM 안에 넣는다. 여기는 페이지 쪽 보정만.
+   --as-bar : 바 높이 · --as-top : 바 위쪽 여백(에뮬레이터 띠) · --as-h : 본문이 비워 둘 높이(둘의 합)
+   페이지 CSS 는 calc(100vh - …  - var(--as-h, 0px)) 처럼 기본값 0 을 붙여 쓴다(바가 없는 화면에서도 맞게).
+   Tailwind 유틸 이름(hidden·fixed 등)은 쓰지 않는다. */
+
+body[data-shell]:not([data-shell-bar="off"]) {
+    --as-bar: 40px;
+    --as-top: 0px;
+    --as-h: calc(var(--as-bar) + var(--as-top));
+    padding-top: var(--as-h) !important;
+    box-sizing: border-box;
+}
+@media (max-width: 767px) {
+    body[data-shell]:not([data-shell-bar="off"]) { --as-bar: 44px; }
+}
+/* 🧪 에뮬레이터 띠(23px, js/firebase-emulator.js 가 body 에 인라인 padding 을 준다)가 있으면 그 아래로 */
+html.as-emu body[data-shell]:not([data-shell-bar="off"]) { --as-top: 23px; }

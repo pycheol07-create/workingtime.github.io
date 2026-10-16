@@ -32,10 +32,11 @@
     <!-- 팀 결산 보고 '화면 그대로 PDF' 저장용 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610141838">
-    <link rel="stylesheet" href="css/style.css?v=202610141838">
-    <link rel="stylesheet" href="css/history-d.css?v=202610141838">
-    <link rel="stylesheet" href="css/form-d.css?v=202610141838">
+    <link rel="stylesheet" href="css/suit.css?v=202610161029">
+    <link rel="stylesheet" href="css/style.css?v=202610161029">
+    <link rel="stylesheet" href="css/history-d.css?v=202610161029">
+    <link rel="stylesheet" href="css/form-d.css?v=202610161029">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161029">
     <style>
         /* 💡 탭 전환 시 hidden 클래스가 충돌하는 문제 방지 */
         .hidden { display: none !important; }
@@ -68,13 +69,13 @@
         /* 💡 화면 깜빡임 방지: 페이드인 효과 */
         #history-modal { 
             position: fixed !important; 
-            inset: 0 !important;
+            inset: var(--as-h, 0px) 0 0 0 !important; /* 공통 상단바(css/app-shell.css --as-h) 아래부터 */
             display: flex !important; 
             flex-direction: column !important;
             background: var(--c-bg) !important; /* 토큰은 css/history-d.css 가 #history-modal 에 둔다 */
             width: 100vw !important; 
-            height: 100vh !important; 
-            height: 100dvh !important; 
+            height: calc(100vh - var(--as-h, 0px)) !important; 
+            height: calc(100dvh - var(--as-h, 0px)) !important; 
             padding: 0 !important; 
             margin: 0 !important;
             z-index: 50 !important; 
@@ -135,9 +136,18 @@
         }
         
         #toggle-history-fullscreen-btn, #close-history-btn, #history-modal-header { display: none !important; }
+
+        /* 📱 components/modals-history.html 의 모바일 규칙(fixed·inset 0·100dvh)은 대시보드 안 모달용이다.
+              이 창에서는 공통 상단바 아래의 #history-modal 안을 꽉 채우게 한다(바닥이 화면 밖으로 밀리지 않게). */
+        @media (max-width: 768px) {
+            body[data-shell] #history-modal-content-box {
+                position: absolute !important; inset: 0 !important;
+                height: auto !important; max-height: none !important;
+            }
+        }
     </style>
 </head>
-<body class="transition-colors duration-200">
+<body class="transition-colors duration-200" data-shell="history">
     <div id="toast-container" class="space-y-2 w-full max-w-xs"></div>
 
     <div id="modals-container-history" class="w-full h-full"></div>
@@ -180,11 +190,11 @@
             ]);
 
             try {
-                const State = await import('./js/state.js?v=202610141838');
-                try { await import('./js/app.js?v=202610141838'); } catch(e) {} 
+                const State = await import('./js/state.js?v=202610161029');
+                try { await import('./js/app.js?v=202610161029'); } catch(e) {} 
                 
-                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202610141838');
-                const { restoreHistoryView } = await import('./js/view-state.js?v=202610141838');
+                const { loadAndRenderHistoryList, switchHistoryView } = await import('./js/app-history-logic.js?v=202610161029');
+                const { restoreHistoryView } = await import('./js/view-state.js?v=202610161029');
 
                 // 초기 준비(로우데이터 → 일별 → 첫 날짜)를 마친 뒤,
                 // 보고 있던 자리로 되돌린다. 기억된 게 없으면 평소대로 대시보드.
@@ -343,7 +353,8 @@
 
         initHistoryApp();
     </script>
-    <script src="js/connection-banner.js?v=202610141838"></script>
-    <script src="js/modal-esc.js?v=202610141838"></script>
+    <script src="js/connection-banner.js?v=202610161029"></script>
+    <script src="js/modal-esc.js?v=202610161029"></script>
+    <script type="module" src="js/app-shell.js?v=202610161029"></script>
 </body>
 </html>

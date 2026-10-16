@@ -12,8 +12,9 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202610141838';
-import { escapeHtml as esc } from './utils.js?v=202610141838';
+import { initializeFirebase } from './config.js?v=202610161029';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610161029';
+import { escapeHtml as esc } from './utils.js?v=202610161029';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -694,10 +695,11 @@ $('btn-excel').addEventListener('click', () => {
     XLSX.writeFile(wb, `출퇴근기록표_${p.name}_${currentYm}.xlsx`);
 });
 
-$('btn-close').addEventListener('click', () => window.close());
+$('btn-close').addEventListener('click', () => goHome());   // '닫기' → '홈으로'(2026-10-16, 같은 탭 이동)
 
 // ── 시작 ─────────────────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
+    setShellContext(user ? { signedIn: true, uid: user.uid } : { signedIn: false });   // 공통 상단바(메뉴는 캐시)
     if (!user) {
         $('auth-gate').classList.remove('hidden');
         $('main').classList.add('hidden');

@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 미발계산기</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610141838">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610141838">
+    <link rel="stylesheet" href="css/suit.css?v=202610161029">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161029">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610161029">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -125,7 +126,7 @@
         @media (max-width: 768px) {
             /* 화면 전체는 세로로 스크롤, 목록 상자는 고정 높이(표 머리글 sticky 유지 — height:auto 로 바꾸지 말 것) */
             body { height: auto; min-height: 100dvh; overflow-y: auto; overflow-x: hidden; }
-            .list-container { flex: none; height: calc(100dvh - 16px); }
+            .list-container { flex: none; height: calc(100dvh - 16px - var(--as-h, 0px)); }
 
             /* 헤더: 줄바꿈 허용, 검색칸은 남는 폭만큼, 버전 표시는 숨김 */
             .controls-header, .header-left, .header-actions { flex-wrap: wrap; }
@@ -157,7 +158,7 @@
         }
     </style>
 </head>
-<body>
+<body data-shell="china-stock-goods">
     <div id="loading-overlay" class="loading-overlay">
         <div class="spinner"></div>
         <div class="loading-text" id="loading-text">데이터 처리 중...</div>
@@ -568,7 +569,8 @@
     <div id="toast"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- ?v= 는 버전 배지와 함께 올려서 브라우저가 옛 JS 캐시를 쓰지 않게 함 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610141838"></script>
-    <script type="module" src="js/china-stock-goods.js?v=202610141838"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610161029"></script>
+    <script type="module" src="js/china-stock-goods.js?v=202610161029"></script>
+    <script type="module" src="js/app-shell.js?v=202610161029"></script>
 </body>
 </html>

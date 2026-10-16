@@ -13,7 +13,8 @@
 // ⚠️ 이건 '화면을 가리는' 장치다. 데이터 자체는 firestore.rules 가 막는다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // ⚠️ china-stock-goods.js 와 '똑같은 주소'로 가져와야 모듈이 한 번만 만들어진다(?v=9.9 포함).
-import { initializeFirebase } from './china-stock-config.js?v=202610141838';
+import { initializeFirebase } from './china-stock-config.js?v=202610161029';
+import { setShellContext } from './app-shell-bridge.js?v=202610161029';
 
 const OVERLAY_ID = 'cs-auth-gate';
 
@@ -37,7 +38,8 @@ const showChecking = () => {
 //    'flex + justify-content:center' 만 쓰면 내용이 그보다 커질 때 위아래가 잘리고,
 //    스크롤도 안 돼서 로그인 버튼을 누를 수가 없다.
 //    → 바깥은 스크롤 되는 상자, 안쪽은 margin:auto 로 가운데 정렬(넘치면 위에서부터 보인다).
-const BASE_STYLE = `position:fixed; inset:0; z-index:2147483600; background:var(--c-bg,#F5F6F8);
+// 위쪽은 공통 상단바(--as-h) 자리를 비워 둔다 — 로그인 전에도 홈 버튼이 보이게
+const BASE_STYLE = `position:fixed; inset:var(--as-h,0px) 0 0 0; z-index:2147483600; background:var(--c-bg,#F5F6F8);
     display:flex; overflow-y:auto; -webkit-overflow-scrolling:touch;
     font-family:var(--font-sans,'SUIT','Noto Sans KR','Malgun Gothic',sans-serif); color:var(--c-text,#23272E); text-align:center;`;
 const INNER_STYLE = `margin:auto; display:flex; flex-direction:column; align-items:center;
@@ -99,6 +101,8 @@ try {
     const { auth } = initializeFirebase();
     if (!auth) throw new Error('auth 없음');
     onAuthStateChanged(auth, (user) => {
+        // 공통 상단바 — uid 만(메뉴는 대시보드에서 채운 캐시). 미발계산기 2종 모두 이것만 쓴다.
+        setShellContext(user ? { signedIn: true, uid: user.uid } : { signedIn: false });
         if (user) removeGate();
         else showLogin(auth);
     });

@@ -1,6 +1,7 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610141838';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610141838';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610161029';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610161029';
+import { setShellContext } from './app-shell-bridge.js?v=202610161029';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -17,12 +18,12 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610141838';
+} from './admin-ui.js?v=202610161029';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202610141838';
+} from './admin-logic.js?v=202610161029';
 
 let db, auth;
 let appConfig = {};
@@ -58,6 +59,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userEmailLower = (user.email || '').toLowerCase();
                 const memberRoles = appConfig.memberRoles || {};
                 const currentUserRole = memberRoles[userEmailLower] || 'user';
+                // 공통 상단바 — role 은 memberRoles 에 있을 때만(설정을 못 읽어 기본값이면 메뉴 캐시를 덮지 않게)
+                setShellContext({ signedIn: true, uid: user.uid, email: userEmailLower, role: memberRoles[userEmailLower],
+                    menuConfig: { dashboardMenu: appConfig.dashboardMenu, memberMenuAccess: appConfig.memberMenuAccess } });
 
                 if (currentUserRole === 'admin') {
                     // 🔒 급여·원가는 관리자 전용 저장소에서 받아 얹는다(mainConfig 에는 없다).
@@ -100,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert(`초기화 중 오류가 발생했습니다: ${e.message}`);
             }
         } else {
+             setShellContext({ signedIn: false });
              if (adminContent) {
                 adminContent.innerHTML = `<div class="flex justify-center items-center h-full mt-20"><div class="text-center bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700"><h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">로그인이 필요합니다</h2><a href="index.html" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">메인 앱으로 이동</a></div></div>`;
                 adminContent.classList.remove('hidden');

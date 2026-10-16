@@ -1,0 +1,38 @@
+// === js/app-shell-bridge.js ===
+// 페이지 → 공통 상단바(js/app-shell.js) 연결 창구. 의존성 없음 — 셸이 안 떠도(실패·미적용) 페이지는 그대로 돈다.
+// ctx = { signedIn, uid?, email?, role?: 'admin'|'user', menuConfig?: { dashboardMenu, memberMenuAccess } }
+//   menuConfig 를 주면 셸이 보이는 메뉴를 계산해 캐시하고, 안 주면(uid 만) 같은 uid 의 캐시를 쓴다.
+
+const MENU_CACHE_KEY = 'appShell.menu.v1';   // js/app-shell.js 와 같은 키
+const HOME = new URL('../index.html', import.meta.url).href;
+
+export const setShellContext = (ctx) => {
+    try {
+        window.__appShellCtx = ctx || { signedIn: false };
+        window.dispatchEvent(new CustomEvent('appshell:context'));
+    } catch (e) { /* 셸 문제로 페이지를 멈추지 않는다 */ }
+};
+
+/** 다른 화면으로 가기 전에 부른다. fn 이 false 를 주면 이동 취소.
+ *  ⚠️ 훅 안에서는 동기 confirm() 만 쓴다 — 페이지 모달(div[role=dialog]·data-act)을 띄우면 업무마감봇·업무예상알림이
+ *     그 창을 자기 확인창으로 읽을 수 있다. Promise 를 돌려도 3초가 지나면 그냥 이동한다. */
+export const onBeforeLeave = (fn) => {
+    if (typeof fn !== 'function') return;
+    (window.__appShellLeaveHooks = window.__appShellLeaveHooks || []).push(fn);
+};
+
+export const goTo = (url) => {
+    if (window.AppShell && typeof window.AppShell.navigate === 'function') return window.AppShell.navigate(url);
+    location.assign(url);
+};
+
+/** 홈 — 셸이 있으면 셸의 goHome(대시보드가 연 창이면 그 창으로 돌아가고 이 창을 닫는다), 없으면 이 탭에서 이동. */
+export const goHome = () => {
+    if (window.AppShell && typeof window.AppShell.goHome === 'function') return window.AppShell.goHome();
+    location.assign(HOME);
+};
+
+/** 로그아웃 때 — 다음 사람에게 앞 사람 메뉴가 보이지 않게 지운다. */
+export const clearShellMenuCache = () => {
+    try { localStorage.removeItem(MENU_CACHE_KEY); } catch (e) { /* 저장소 막힘 */ }
+};

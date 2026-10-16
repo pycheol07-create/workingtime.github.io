@@ -4,17 +4,17 @@ import {
     generateId,
     saveStateToFirestore,
     debouncedSaveState
-} from './app-data.js?v=202610141838';
+} from './app-data.js?v=202610161029';
 
 import {
     appState, db, auth
-} from './state.js?v=202610141838';
+} from './state.js?v=202610161029';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610141838';
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610161029';
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=202610141838';
+import { syncTodayToHistory } from './history-data-manager.js?v=202610161029';
 
 
 const getWorkRecordsCollectionRef = () => {
@@ -685,6 +685,7 @@ export const resumeWorkIndividual = async (recordId) => {
 };
 
 // 점심시간 경계 (app-lifecycle.js의 판정 시각과 일치)
+// ⚠️ 서버 프로그램 앱\점심자동정지\점심.py 가 같은 규칙·같은 서버 표시(lunchPauseExecuted/lunchResumeExecuted)로 예약작업 처리한다 — 규칙을 바꾸면 같이 고칠 것.
 const LUNCH_START_HHMM = '12:30';
 const LUNCH_END_HHMM = '13:30';
 
