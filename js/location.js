@@ -1,12 +1,13 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610161144';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610161224';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610161144';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610161144';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610161144';
-import { orderKeyMap } from './lib/order-hash.js?v=202610161144';
-import { setShellContext } from './app-shell-bridge.js?v=202610161144';
-import { memberNameFor } from './app-shell-data.js?v=202610161144';
+import { escapeHtml as escAttr } from './utils.js?v=202610161224';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610161224';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610161224';
+import { orderKeyMap } from './lib/order-hash.js?v=202610161224';
+import { setShellContext } from './app-shell-bridge.js?v=202610161224';
+import { memberNameFor } from './app-shell-data.js?v=202610161224';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610161224';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -2979,6 +2980,7 @@ window.__dashGoToList = function(state, pickingOnly) {
     if (vDash) vDash.style.display = 'none';
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('tab-btn-list')?.classList.add('active');
+    writeHash({ tab: 'list' }, { replace: true });   // 보던 탭 기억(UI 1단계 1c)
     if (typeof window.showFilterResetBtn === 'function') window.showFilterResetBtn();
     if (vList && vList.scrollIntoView) vList.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
@@ -2997,7 +2999,9 @@ window.applyUsageFilter = function(zone, state) {
     document.getElementById('view-list').style.display = 'block';
     document.getElementById('view-map').style.display = 'none';
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector('.tab-btn')?.classList.add('active');
+    // 데이터 리스트 탭에 표시(예전엔 첫 버튼=대시보드에 붙던 버그) + 보던 탭 기억(UI 1단계 1c)
+    document.getElementById('tab-btn-list')?.classList.add('active');
+    writeHash({ tab: 'list' }, { replace: true });
     window.showFilterResetBtn();
 };
 
@@ -8773,3 +8777,16 @@ window.__dashDownloadBucketExcel = function () {
     const fname = `데드스톡_${bucket}_${scope}_${toDateStr()}.xlsx`;
     XLSX.writeFile(wb, fname);
 };
+
+// ── 보던 탭 복원 (UI 1단계 1c) ── 주소 뒤 #tab=locdash|list|map. 탭 버튼을 누르는 길로 연다
+// (location.html switchView 가 클릭 이벤트(event.currentTarget)를 쓰기 때문에 직접 부르면 오류). 탭을 바꾸면 switchView 가 해시를 고친다.
+const LOC_TABS = ['locdash', 'list', 'map'];
+// 해시 이동(뒤로가기·Ctrl+K)에서 tab 이 없으면 첫 탭(대시보드) — 처음 열 때는 화면 기본값 그대로
+const openLocTabFromHash = (h, fallback = '') => {
+    const t = (h && h.tab) || fallback;
+    if (!LOC_TABS.includes(t)) return;
+    const btn = document.getElementById('tab-btn-' + t);
+    if (btn && !btn.classList.contains('active')) btn.click();
+};
+openLocTabFromHash(readHash());
+onHashNav((h) => openLocTabFromHash(h, 'locdash'));

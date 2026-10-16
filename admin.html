@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610161144">
-    <link rel="stylesheet" href="css/admin-d.css?v=202610161144">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610161144">
+    <link rel="stylesheet" href="css/suit.css?v=202610161224">
+    <link rel="stylesheet" href="css/admin-d.css?v=202610161224">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610161224">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -383,11 +383,14 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610161144"></script>
-    <script type="module" src="js/admin-automation.js?v=202610161144"></script>
-    <script type="module" src="js/admin-refill.js?v=202610161144"></script>
+    <script type="module" src="js/admin.js?v=202610161224"></script>
+    <script type="module" src="js/admin-automation.js?v=202610161224"></script>
+    <script type="module" src="js/admin-refill.js?v=202610161224"></script>
 
     <script type="module">
+        // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610161224';
+
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
         // 누르면 항상 오류가 났다 — 쓰기는 한 건도 일어나지 않았다.
@@ -434,6 +437,22 @@
                 mobileSelect.addEventListener('change', (e) => activateTab(e.target.value));
             }
 
+            // 해시 ↔ 탭. 탭을 바꾸면 해시를 고치고(기록 안 쌓임), 해시로 들어오면 그 탭 버튼을 누른다
+            // — 자동화 상태·채우기 설정은 버튼 클릭에 데이터 불러오기가 붙어 있다(js/admin-automation.js·admin-refill.js).
+            // 이 스크립트가 맨 뒤 모듈이라 이 시점에는 그 리스너들이 이미 붙어 있다.
+            const SECTION_PREFIX = 'section-';
+            const tabOf = (targetId) => String(targetId || '').startsWith(SECTION_PREFIX) ? targetId.slice(SECTION_PREFIX.length) : '';
+            tabBtns.forEach(btn => btn.addEventListener('click', () => writeHash({ tab: tabOf(btn.dataset.target) }, { replace: true })));
+            if (mobileSelect) mobileSelect.addEventListener('change', (e) => writeHash({ tab: tabOf(e.target.value) }, { replace: true }));
+            // 해시 이동(뒤로가기·Ctrl+K)에서 tab 이 없으면 첫 탭(팀원 관리)
+            const openFromHash = (h, fallback = '') => {
+                const tab = (h && h.tab) || fallback;
+                if (!tab) return;
+                const btn = document.querySelector(`.admin-tab-btn[data-target="${SECTION_PREFIX + tab}"]`);
+                if (btn && !btn.classList.contains('active')) btn.click();
+            };
+            openFromHash(readHash());
+            onHashNav((h) => openFromHash(h, 'team'));
         });
     </script>
 
@@ -472,8 +491,8 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610161144"></script>
-    <script src="js/modal-esc.js?v=202610161144"></script>
-    <script type="module" src="js/app-shell.js?v=202610161144"></script>
+    <script src="js/connection-banner.js?v=202610161224"></script>
+    <script src="js/modal-esc.js?v=202610161224"></script>
+    <script type="module" src="js/app-shell.js?v=202610161224"></script>
 </body>
 </html>

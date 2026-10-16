@@ -3,11 +3,11 @@
 //   낮에는 아무도 데이터관리 창을 열지 않는다 — 계획 대비 얼마나 왔는지,
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
-import * as State from './state.js?v=202610161144';
-import { formatHM } from './utils.js?v=202610161144';
-import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory } from './ui-history-prediction.js?v=202610161144';
-import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610161144';
-import { goTo } from './app-shell-bridge.js?v=202610161144';
+import * as State from './state.js?v=202610161224';
+import { formatHM } from './utils.js?v=202610161224';
+import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory } from './ui-history-prediction.js?v=202610161224';
+import { fetchAllHistoryData, fetchPlannedData } from './history-data-manager.js?v=202610161224';
+import { goTo } from './app-shell-bridge.js?v=202610161224';
 
 const EL = 'today-progress-strip';
 let timer = null;
@@ -94,10 +94,10 @@ export const initTodayProgressStrip = async () => {
     const el = document.getElementById(EL);
     if (!el) return;
 
-    // 주소 뒤 #forecast-today 를 보고 데이터관리 창이 그 화면을 바로 연다(view-state.js)
+    // 주소 뒤 해시(#tab=forecast&fview=today)를 보고 데이터관리 창이 그 화면을 바로 연다(view-state.js · hash-state.js)
     // 데이터관리는 관리자 전용(history.html 이 막는다) — 직원에게는 띠를 보기만 하게 한다(2026-10-14).
-    // 1b(2026-10-16): 같은 탭에서 연다(이동 전 저장은 공통 상단바가 기다린다). 해시 형식 통일은 1c.
-    el.addEventListener('click', () => { if (isAdmin()) goTo('history.html#forecast-today'); });
+    // 1b(2026-10-16): 같은 탭에서 연다(이동 전 저장은 공통 상단바가 기다린다). 1c: 해시 형식 통일(옛 #forecast-today 도 계속 읽는다).
+    el.addEventListener('click', () => { if (isAdmin()) goTo('history.html#tab=forecast&fview=today'); });
 
     // 로그인·Firebase 준비가 끝나기 전에 읽으면 실패한다 — 준비될 때까지 기다린다.
     // (대시보드는 로그인 화면이 먼저 뜨는 경우가 있어, 바로 읽으면 permission-denied 가 난다)

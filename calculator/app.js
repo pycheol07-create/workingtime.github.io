@@ -1,7 +1,24 @@
 // [수정됨] 4가지 환율을 모두 관리하도록 상태 구조 변경
 
+// 보던 탭을 주소 뒤 해시(#tab=import|customs|shipping|warehouse)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c).
+// window.HashState 는 ../js/hash-state.js(모듈)가 붙인다. 없으면(불러오기 실패) 예전처럼 '수입가' 로 시작하고 기억하지 않는다.
+const CALC_TAB_IDS = ['import', 'customs', 'shipping', 'warehouse'];
+const calcTabFromHash = () => {
+    const t = window.HashState ? window.HashState.readHash().tab : null;
+    return CALC_TAB_IDS.includes(t) ? t : null;
+};
+
 const App = () => {
-    const [activeTabId, setActiveTabId] = React.useState('import');
+    const [activeTabId, setActiveTabId] = React.useState(() => calcTabFromHash() || 'import');
+
+    // 탭이 바뀌면(버튼·스와이프) 해시를 고친다(기록 안 쌓임). 해시로 들어오면(Ctrl+K·뒤로가기) 그 탭으로.
+    React.useEffect(() => {
+        if (window.HashState) window.HashState.writeHash({ tab: activeTabId }, { replace: true });
+    }, [activeTabId]);
+    React.useEffect(() => {
+        if (!window.HashState) return undefined;
+        return window.HashState.onHashNav(() => setActiveTabId(calcTabFromHash() || 'import'));
+    }, []);
     
     // [수정됨] 환율 데이터를 하나의 객체로 통합 관리
     const [exchangeRates, setExchangeRates] = React.useState(() => {

@@ -1,5 +1,5 @@
 // === js/app-shell.js ===
-// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202610161144"> 로 붙이면 스스로 돈다.
+// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202610161224"> 로 붙이면 스스로 돈다.
 //   <body data-shell="페이지ID">              → 위쪽에 바를 얹는다(css/app-shell.css 가 본문을 그만큼 내린다)
 //   <body data-shell="index" data-shell-bar="off"> → 바 없이 메뉴 캐시만 채운다(대시보드)
 // 페이지는 js/app-shell-bridge.js 의 setShellContext 로 로그인 상태를 알려 준다.
@@ -10,10 +10,13 @@
 // ⚠️ 절대경로('/js/…') 금지 — calculator/ 하위 폴더와 GitHub Pages 하위 경로에서도 맞도록 이 파일 위치 기준으로 계산한다.
 // 1b(2026-10-16): 메뉴·홈은 같은 탭 이동(app-shell-data.js SHELL_OPEN_MODE). 페이지 안 앱 링크도 이동 전 저장 훅을 거친다.
 // P2(2026-10-16): 바에 개인 알림 종(안 읽은 수) + 새 알림 토스트(js/app-shell-noti.js 를 늦게 불러 구독).
-// TODO(1d): Ctrl+K 명령 팔레트·검색 버튼. 그 전까지 Ctrl+K 는 아무 동작에도 묶지 않는다.
+// 1d(2026-10-16): Ctrl+K(⌘K) 빠른 이동 — 바의 [검색] 버튼·대시보드의 [data-shell-search] 버튼도 같다.
+//   메뉴 이름 + 그 화면 안 탭(app-shell-data.js SUB_DESTINATIONS) + 홈. 같은 화면 안 이동은 해시 이동(뒤로가기로 되돌림),
+//   다른 화면은 navigate(이동 전 저장 훅). 팔레트도 섀도 DOM 안, 열 때 만들고 닫을 때 없앤다.
 
-import { visibleMenuFor } from './menu-catalog.js?v=202610161144';
-import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget } from './app-shell-data.js?v=202610161144';
+import { visibleMenuFor } from './menu-catalog.js?v=202610161224';
+import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations } from './app-shell-data.js?v=202610161224';
+import { rank } from './hangul-search.js?v=202610161224';
 
 const BASE = new URL('../', import.meta.url).href;      // 앱 폴더(js/ 의 부모)
 const MENU_CACHE_KEY = 'appShell.menu.v1';              // js/app-shell-bridge.js 와 같은 키
@@ -29,6 +32,8 @@ const ICON_MENU = 선('<path d="M4 6h16M4 12h16M4 18h16"/>');
 const ICON_HOME = 선('<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>');
 const ICON_CLOSE = 선('<path d="M6 6l12 12M18 6L6 18"/>');
 const ICON_BELL = 선('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>');
+const ICON_SEARCH = 선('<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>');
+const PALETTE_MAX = 60;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -119,6 +124,33 @@ a:hover { background: var(--as-accent-soft); }
 a:focus-visible, .btn:focus-visible { outline: 2px solid var(--as-accent); outline-offset: 1px; }
 @media (max-width: 767px) { :host { left: 12px; right: 12px; } }`;
 
+// Ctrl+K 빠른 이동 — 열 때 만들고 닫을 때 없앤다. role=dialog·data-act·id 를 바깥 문서에 만들지 않는다(섀도 안).
+const PALETTE_CSS = `${TOKENS}
+:host { all: initial; position: fixed; inset: 0; z-index: 2147483000; display: block;
+        font-family: var(--as-font); font-size: 14px; line-height: 1.4; color: var(--as-text); }
+* { box-sizing: border-box; }
+.scrim { position: absolute; inset: 0; background: var(--as-scrim); }
+.panel { position: absolute; left: 50%; top: calc(var(--as-top, 0px) + 12vh); transform: translateX(-50%);
+         width: 560px; max-width: calc(100vw - 24px); max-height: 70vh; display: flex; flex-direction: column;
+         background: var(--as-bg); border: 1px solid var(--as-line-strong); border-radius: 14px; box-shadow: var(--as-shadow); overflow: hidden; }
+.search { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--as-line); color: var(--as-text-3); flex: none; }
+input { flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--as-text);
+        font: inherit; font-size: 16px; padding: 8px 2px; }
+input::placeholder { color: var(--as-text-3); }
+kbd { font: inherit; font-size: 11px; color: var(--as-text-3); border: 1px solid var(--as-line-strong); border-radius: 6px; padding: 1px 6px; }
+ul { list-style: none; margin: 0; padding: 6px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+li { display: flex; align-items: baseline; gap: 10px; min-height: 38px; padding: 9px 10px; border-radius: 10px; cursor: pointer; }
+li .l { font-weight: 500; }
+li .p { margin-left: auto; padding-left: 12px; font-size: 12px; color: var(--as-text-3); white-space: nowrap; }
+li:hover { background: var(--as-surface-2); }
+li[aria-selected="true"] { background: var(--as-accent-soft); color: var(--as-accent-deep); }
+li[aria-selected="true"] .l { font-weight: 600; }
+.empty { padding: 14px 12px; color: var(--as-text-3); }
+@media (max-width: 767px) {
+    .panel { top: calc(var(--as-top, 0px) + 8px); max-height: calc(100vh - 16px - var(--as-top, 0px)); }
+    kbd { display: none; }
+}`;
+
 function readCache() {
     try {
         const c = JSON.parse(localStorage.getItem(MENU_CACHE_KEY) || 'null');
@@ -146,14 +178,20 @@ function start() {
     // 개인 알림 상태(P2) — renderBar 가 처음부터 쓰므로 여기서 먼저 만든다
     let toastHost = null, toastTimer = null;
     const noti = { name: null, timer: null, unsub: null, unread: 0 };
+    // 빠른 이동(1d)의 관리자 전용 목적지용 — 컨텍스트의 role, 없으면 같은 uid 캐시의 role
+    let role = noCtxPage ? ((readCache() || {}).role || null) : null;
 
     const applyCtx = (ctx) => {
         if (!ctx) return;
         if (!ctx.signedIn) {
             signedIn = false;
             groups = [];
+            role = null;
         } else {
             signedIn = true;
+            const c0 = readCache();
+            role = (ctx.role === 'admin' || ctx.role === 'user') ? ctx.role
+                : ((c0 && ctx.uid && c0.uid === ctx.uid) ? (c0.role || null) : null);
             // role·메뉴 목록이 없으면(설정을 못 읽었거나 저장된 메뉴가 없는 원본 문서) 계산하지 않고 캐시를 쓴다
             // — 빈 메뉴·다른 메뉴로 캐시를 덮지 않게. (대시보드는 config.js 기본 메뉴까지 합쳐서 넘긴다)
             const mc = ctx.menuConfig;
@@ -175,7 +213,7 @@ function start() {
     let barHost = null, barRoot = null;
     const syncTheme = () => {
         const dark = document.documentElement.classList.contains('dark');
-        [barHost, overlayHost, toastHost].forEach(h => { if (h) { if (dark) h.setAttribute('data-theme', 'dark'); else h.removeAttribute('data-theme'); } });
+        [barHost, overlayHost, toastHost, paletteHost].forEach(h => { if (h) { if (dark) h.setAttribute('data-theme', 'dark'); else h.removeAttribute('data-theme'); } });
     };
 
     function renderBar() {
@@ -197,10 +235,12 @@ function start() {
                 <a class="btn home js-home" href="${esc(absUrl(HOME_FILE, BASE))}" aria-label="홈으로" title="홈(대시보드)">${ICON_HOME}</a>
                 <div class="crumb"><span class="brand">물류팀 업무관리</span><span class="sep">›</span><span class="cur"></span></div>
                 <span class="spacer"></span>
+                <button type="button" class="btn search" aria-label="빠른 이동 (Ctrl+K)" title="빠른 이동 (Ctrl+K)">${ICON_SEARCH}</button>
                 <a class="btn bell" href="${esc(absUrl(NOTI_LINK, BASE))}" aria-label="알림" title="알림(대시보드에서 보기)" hidden>${ICON_BELL}<span class="count" hidden></span></a>
                 <span class="state" hidden>로그인 안 됨</span>
             </div>`;
         barRoot.querySelector('.menu').addEventListener('click', () => openMenu());
+        barRoot.querySelector('.search').addEventListener('click', () => openPalette());
         barRoot.addEventListener('click', interceptLink);
         body.appendChild(barHost);
         renderBar();
@@ -248,7 +288,7 @@ function start() {
         noti.timer = setTimeout(async () => {
             noti.timer = null;
             try {
-                const { watchNotifications } = await import('./app-shell-noti.js?v=202610161144');
+                const { watchNotifications } = await import('./app-shell-noti.js?v=202610161224');
                 if (noti.name !== want) return;   // 그 사이 로그아웃·다른 사람
                 const unsub = watchNotifications(want, {
                     onCount: (n) => { noti.unread = n; renderBell(); },
@@ -289,6 +329,7 @@ function start() {
 
     // ── 메뉴 서랍 (열 때 만들고 닫을 때 없앤다) ──
     let overlayHost = null, prevFocus = null;
+    let paletteHost = null, palettePrev = null;
 
     function deepActive() {
         let a = document.activeElement;
@@ -323,7 +364,9 @@ function start() {
 
     function openMenu() {
         if (overlayHost) return;
-        prevFocus = deepActive();
+        let pf = deepActive();
+        if (paletteHost) { pf = palettePrev; closePalette(false); }   // 팔레트에서 넘어오면 팔레트 열기 전 포커스를 이어받는다
+        prevFocus = pf;
         overlayHost = document.createElement('app-shell-overlay');
         const root = overlayHost.attachShadow({ mode: 'open' });
         root.innerHTML = `<style>${OVERLAY_CSS}</style>
@@ -409,6 +452,7 @@ function start() {
         try {
             if (!(await runLeaveHooks())) return;   // 취소
             closeMenu();
+            closePalette(false);
             hideToast();
             markLeaveConfirmed();
             location.assign(url);
@@ -459,6 +503,7 @@ function start() {
         try {
             if (!(await runLeaveHooks())) return;
             closeMenu();
+            closePalette(false);
             hideToast();
             markLeaveConfirmed();
             if (openerIsDashboard()) {
@@ -474,7 +519,169 @@ function start() {
         }
     }
 
-    window.AppShell = { navigate, goHome, openMenu, closeMenu };
+    // ── 빠른 이동 (Ctrl+K, 1d) ── 열 때 만들고 닫을 때 없앤다. 키는 팔레트 안에서 끝낸다(페이지 키 처리로 새지 않게).
+    let paletteSel = 0, paletteItems = [], pendingEnter = 0;   // pendingEnter: 조합 중 Enter 를 받은 시각(0 = 없음)
+    const PENDING_ENTER_MS = 300;
+    const enterPending = () => pendingEnter > 0 && Date.now() - pendingEnter <= PENDING_ENTER_MS;
+
+    // 로그인 확인 중·로그아웃이면 '홈'만(앞 사람 캐시 메뉴가 보이지 않게). 계산기(확인 없는 화면)는 캐시 메뉴.
+    function paletteDestinations() {
+        const usable = signedIn === true || (noCtxPage && signedIn === null);
+        return buildDestinations(usable ? groups : [], usable ? role : null);
+    }
+
+    function paintSel() {
+        if (!paletteHost) return;
+        const root = paletteHost.shadowRoot;
+        root.querySelectorAll('li[data-i]').forEach(li => li.setAttribute('aria-selected', String(+li.dataset.i === paletteSel)));
+        const input = root.querySelector('input');
+        if (paletteItems.length) input.setAttribute('aria-activedescendant', `as-opt-${paletteSel}`);
+        else input.removeAttribute('aria-activedescendant');
+        const cur = root.querySelector(`li[data-i="${paletteSel}"]`);
+        if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest' });
+    }
+
+    function renderPalette() {
+        if (!paletteHost) return;
+        const root = paletteHost.shadowRoot;
+        paletteItems = rank(root.querySelector('input').value, paletteDestinations()).slice(0, PALETTE_MAX);
+        if (paletteSel >= paletteItems.length) paletteSel = 0;
+        root.querySelector('ul').innerHTML = paletteItems.map((d, i) =>
+            `<li role="option" id="as-opt-${i}" data-i="${i}"><span class="l">${esc(d.label)}</span>${d.parent ? `<span class="p">${esc(d.parent)}</span>` : ''}</li>`).join('');
+        root.querySelector('.empty').hidden = paletteItems.length > 0;
+        paintSel();
+    }
+
+    function moveSel(step) {
+        const n = paletteItems.length;
+        if (!n) return;
+        paletteSel = (paletteSel + step + n) % n;
+        paintSel();
+    }
+
+    function goPalette(d) {
+        if (!d) return;
+        const u = new URL(d.url, BASE);
+        const samePage = pageFileOf(u.href, BASE) === pageFile && u.search === location.search;
+        if (!samePage) {
+            if (d.kind === 'home') goHome(); else navigate(u.href);   // 이동 전 확인·저장 훅을 거친다(통과하면 팔레트도 닫힌다)
+            return;
+        }
+        // 같은 화면 — 해시만 바꾼다(hashchange → 화면이 그 탭으로. 기록이 남아 뒤로가기로 되돌아온다)
+        closePalette();
+        if (u.hash === location.hash) return;
+        if (!u.hash) { if (d.kind === 'sub' && location.hash) location.hash = ''; return; }
+        // 대시보드의 #open=(창 열기)은 기록을 남기지 않는다 — 대시보드가 읽고 바로 해시를 지운다(js/app.js handleOpenHash)
+        if (u.hash.startsWith('#open=')) { location.replace(u.href); return; }
+        location.assign(u.href);
+    }
+
+    const inPalette = (e) => !!paletteHost && e.composedPath().includes(paletteHost);
+
+    function onPaletteKey(e) {
+        if (!paletteHost) return;
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            // 팔레트만 닫는다 — 아래 페이지 모달 ESC(js/modal-esc.js, 문서 캡처)까지 가지 않게
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            closePalette();
+            return;
+        }
+        if (!inPalette(e)) return;
+        e.stopImmediatePropagation();   // 페이지의 키 처리(스캐너 Enter 등)로 새지 않게
+        if (e.isComposing) {
+            // 한글 조합 중 Enter — 조합이 끝난(compositionend) 뒤 맞춘 결과로 간다(300ms 안에 끝나지 않으면 버린다)
+            if (e.key === 'Enter') pendingEnter = Date.now();
+            return;
+        }
+        if (e.keyCode === 229) {
+            // 조합은 끝났는데 IME 가 229 로 보내는 Enter(일부 브라우저) — 바로 간다. 다른 키는 IME 몫
+            if (e.key === 'Enter') { e.preventDefault(); if (!enterPending()) goPalette(paletteItems[paletteSel]); }
+            return;
+        }
+        if (e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); moveSel(-1); }
+        else if (e.key === 'Enter') { e.preventDefault(); if (!enterPending()) goPalette(paletteItems[paletteSel]); }
+        else if (e.key === 'Tab') { e.preventDefault(); }   // 포커스를 입력칸에 둔다
+    }
+    function swallowPaletteKey(e) { if (inPalette(e)) e.stopImmediatePropagation(); }
+
+    function openPalette() {
+        if (paletteHost) {
+            const i = paletteHost.shadowRoot.querySelector('input');
+            if (i) i.focus({ preventScroll: true });
+            return;
+        }
+        let pf = deepActive();
+        if (overlayHost) { pf = prevFocus; prevFocus = null; closeMenu(); }   // 서랍에서 넘어오면 서랍 열기 전 포커스를 이어받는다
+        palettePrev = pf;
+        paletteSel = 0;
+        pendingEnter = 0;
+        paletteHost = document.createElement('app-shell-palette');
+        const root = paletteHost.attachShadow({ mode: 'open' });
+        root.innerHTML = `<style>${PALETTE_CSS}</style>
+            <div class="scrim"></div>
+            <section class="panel" aria-label="빠른 이동">
+                <div class="search">${ICON_SEARCH}<input type="text" role="combobox" aria-expanded="true" aria-controls="as-list" aria-autocomplete="list"
+                     aria-label="이동할 화면 검색" placeholder="화면·탭 이름 (초성도 됩니다: ㄹㅋ)" autocomplete="off" spellcheck="false" enterkeyhint="go"><kbd>Esc</kbd></div>
+                <ul id="as-list" role="listbox" aria-label="이동할 곳"></ul>
+                <div class="empty" hidden>맞는 화면이 없습니다.</div>
+            </section>`;
+        root.querySelector('.scrim').addEventListener('click', () => closePalette());
+        const input = root.querySelector('input');
+        input.addEventListener('input', () => { paletteSel = 0; renderPalette(); });
+        input.addEventListener('compositionend', () => {
+            if (!enterPending()) { pendingEnter = 0; return; }
+            setTimeout(() => {
+                if (!paletteHost || !pendingEnter) return;
+                pendingEnter = 0;
+                renderPalette();
+                goPalette(paletteItems[paletteSel]);
+            }, 30);
+        });
+        root.querySelector('ul').addEventListener('click', (e) => {
+            const li = e.target.closest && e.target.closest('li[data-i]');
+            if (li) goPalette(paletteItems[+li.dataset.i]);
+        });
+        document.body.appendChild(paletteHost);
+        syncTheme();
+        window.addEventListener('keydown', onPaletteKey, true);
+        window.addEventListener('keyup', swallowPaletteKey, true);
+        window.addEventListener('keypress', swallowPaletteKey, true);
+        renderPalette();
+        input.focus({ preventScroll: true });
+    }
+
+    function closePalette(restoreFocus = true) {
+        if (!paletteHost) return;
+        window.removeEventListener('keydown', onPaletteKey, true);
+        window.removeEventListener('keyup', swallowPaletteKey, true);
+        window.removeEventListener('keypress', swallowPaletteKey, true);
+        paletteHost.remove();
+        paletteHost = null;
+        paletteItems = [];
+        pendingEnter = 0;
+        // 이전 포커스로 돌려준다(입고 스캐너의 스캔 입력칸 등)
+        const p = palettePrev; palettePrev = null;
+        if (restoreFocus && p && p.isConnected && typeof p.focus === 'function') { try { p.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } }
+    }
+
+    // Ctrl+K / ⌘K — 한글 입력 상태에서도 되게 e.code(KeyK)로 본다.
+    // 매뉴얼 편집기(.ql-editor)에서는 Quill 의 링크 단축키에 양보하고, 글자 조합 중(isComposing)에도 양보한다.
+    function onShortcut(e) {
+        if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+        if (!(e.code === 'KeyK' || (!e.code && (e.key === 'k' || e.key === 'K')))) return;
+        if (e.isComposing) return;
+        if (e.composedPath().some(n => n && n.classList && n.classList.contains('ql-editor'))) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (paletteHost) closePalette(); else openPalette();
+    }
+    window.addEventListener('keydown', onShortcut, true);
+    // 바가 없는 대시보드의 검색 버튼(index.html — 섀도 밖 일반 버튼, 봇 선택자와 무관한 id)
+    document.querySelectorAll('[data-shell-search]').forEach(btn => btn.addEventListener('click', (e) => { e.preventDefault(); openPalette(); }));
+
+    window.AppShell = { navigate, goHome, openMenu, closeMenu, openPalette, closePalette };
 
     // ── 다크 모드 따라가기 ──
     syncTheme();

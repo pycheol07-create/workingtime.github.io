@@ -133,6 +133,92 @@ export const pageFileOf = (href, base) => {
     return rest;
 };
 
+// ── Ctrl+K 빠른 이동(1d)의 화면 안 목적지 ──
+// 부모 화면(파일)이 그 사람 메뉴에 보일 때만 붙는다(buildDestinations). 해시는 js/hash-state.js 형식(탭 이름만).
+// 탭 이름·값은 각 화면 코드 기준: components/modals-history.html(메인탭·업무 예상 3화면·업무 기록 서브탭),
+// admin.html(.admin-tab-btn data-target 의 section- 뒤), location.html(#tab-btn-*), products.html(#pd-tabs — 기존 해시 그대로),
+// calculator/app.js(tabs id). adminOnly 는 관리자에게만(상품 관리의 원가·공급처 화면).
+const S = (label, hash, keywords = [], extra = {}) => ({ label, hash, keywords, ...extra });
+export const SUB_DESTINATIONS = {
+    'history.html': [
+        S('종합 인사이트', 'tab=dashboard', ['인사이트']),
+        S('생산성 및 효율성', 'tab=productivity', ['생산성']),
+        S('인력 운영 및 적정성', 'tab=staffing', ['인력']),
+        S('실적 예측', 'tab=prediction', ['예측']),
+        S('업무 예상', 'tab=forecast', ['예상', '예측']),
+        S('업무 예상 · 오늘 현황', 'tab=forecast&fview=today', ['오늘 현황', '진행']),
+        S('업무 예상 · 계획', 'tab=forecast&fview=plan', ['계획']),
+        S('업무 예상 · 정확도', 'tab=forecast&fview=accuracy', ['정확도']),
+        S('업무 기록 및 관리', 'tab=rawdata', ['로우데이터', '기록']),
+        S('업무 이력', 'tab=rawdata&sub=work', ['업무 기록']),
+        S('근태 이력', 'tab=rawdata&sub=attendance', ['근태']),
+        S('업무 리포트', 'tab=rawdata&sub=report', ['리포트']),
+        S('개인 리포트', 'tab=rawdata&sub=personal', ['리포트']),
+        S('경영 지표', 'tab=rawdata&sub=management', ['경영']),
+        S('검수 이력', 'tab=rawdata&sub=inspection', ['검수']),
+        S('연차 관리', 'tab=rawdata&sub=leave', ['연차']),
+        S('운영 마일스톤', 'tab=milestones', ['마일스톤']),
+        S('팀 결산 보고', 'tab=settlement', ['결산'])
+    ],
+    'admin.html': [
+        S('팀원 관리', 'tab=team'),
+        S('권한 관리', 'tab=permission'),
+        S('메뉴 관리', 'tab=menu'),
+        S('위젯 관리', 'tab=widget'),
+        S('업무 등록 관리', 'tab=task'),
+        S('고정 업무', 'tab=keytask'),
+        S('집계/위젯 연동', 'tab=quantity'),
+        S('원가/손익 분석', 'tab=cost'),
+        S('기본 설정', 'tab=setting'),
+        S('자동화 상태', 'tab=automation'),
+        S('채우기 설정', 'tab=refill')
+    ],
+    'location.html': [
+        S('로케이션 대시보드', 'tab=locdash', ['대시보드']),
+        S('데이터 리스트', 'tab=list', ['리스트']),
+        S('도면', 'tab=map', ['지도'])
+    ],
+    'products.html': [
+        S('상품 목록', '', ['상품']),
+        S('변경 이력', 'log'),
+        S('공급처 대장', 'sup', [], { adminOnly: true }),
+        S('단가 변경 이력', 'costlog', [], { adminOnly: true })
+    ],
+    'calculator/index.html': [
+        S('수입가 계산기', 'tab=import', ['수입']),
+        S('통관비 계산기', 'tab=customs', ['통관']),
+        S('선적 계산기', 'tab=shipping', ['선적', '배송']),
+        S('창고료&가산세 계산기', 'tab=warehouse', ['창고'])
+    ]
+};
+
+const fileOfRel = (rel) => String(rel || '').split('#')[0].split('?')[0];
+
+/** 빠른 이동 결과 목록 — '홈' + 보이는 메뉴(대시보드·업무 마감 제외) + 그 메뉴 화면의 하위 목적지.
+ *  groups 는 resolveMenuGroups 결과({category, items:[{name, link}]}). role 이 'admin' 이 아니면 adminOnly 를 뺀다.
+ *  돌려주는 url 은 앱 기준 상대경로. */
+export const buildDestinations = (groups, role) => {
+    const out = [{ kind: 'home', label: '홈', parent: '', keywords: ['대시보드', '메인'], url: HOME_FILE }];
+    const parents = new Map();   // 파일 → 메뉴 이름(처음 것)
+    for (const g of (groups || [])) {
+        for (const i of ((g && g.items) || [])) {
+            if (!i || !i.name || !i.link || i.name === '업무 마감') continue;
+            if (i.link === HOME_FILE) continue;   // '대시보드' = 위의 '홈'
+            out.push({ kind: 'menu', label: i.name, parent: g.category || '', keywords: [], url: i.link });
+            const f = fileOfRel(i.link);
+            if (!i.link.includes('#') && !parents.has(f)) parents.set(f, i.name);
+        }
+    }
+    for (const [file, parentName] of parents) {
+        for (const d of (SUB_DESTINATIONS[file] || [])) {
+            if (d.adminOnly && role !== 'admin') continue;
+            out.push({ kind: 'sub', label: d.label, parent: parentName, keywords: d.keywords || [],
+                       url: file + (d.hash ? '#' + d.hash : ''), adminOnly: !!d.adminOnly });
+        }
+    }
+    return out;
+};
+
 /** 화면 이름 — 메뉴에서 이 파일로 가는 첫 항목 이름(동작 메뉴의 #… 은 빼고 비교), 없으면 기본값. */
 export const currentTitle = (pageId, groups, file) => {
     const def = PAGE_DEFAULTS[pageId];
