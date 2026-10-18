@@ -3,7 +3,7 @@
 // (개별 모달 로직은 'listeners-modals-confirm.js', 'listeners-modals-form.js'로 분리됨)
 
 // ✅ [신규] DOM 임포트
-import * as DOM from './dom-elements.js?v=202610162321';
+import * as DOM from './dom-elements.js?v=202610190835';
 
 const OVERLAY_SELECTOR = '.modal-overlay, .fixed.inset-0';
 

@@ -1,8 +1,8 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610162321';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610162321';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610162321';
-import { memberNameFor } from './app-shell-data.js?v=202610162321';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610190835';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610190835';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610190835';
+import { memberNameFor } from './app-shell-data.js?v=202610190835';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -19,12 +19,12 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610162321';
+} from './admin-ui.js?v=202610190835';
 
 import {
     collectConfigFromDOM,
     validateConfig
-} from './admin-logic.js?v=202610162321';
+} from './admin-logic.js?v=202610190835';
 
 let db, auth;
 let appConfig = {};

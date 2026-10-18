@@ -5,11 +5,11 @@
 //  - 비품은 수십 건 규모라 문서 하나로 관리하는 편이 읽기·쓰기 모두 저렴하다.
 //  - 각 비품은 종류·현재고를 기본으로 하고, 단가/사이즈/발주정보/업체 등 상세를 함께 보관한다.
 
-import { initializeFirebase } from './config.js?v=202610162321';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610162321';
-import { memberNameFor } from './app-shell-data.js?v=202610162321';
-import { escapeHtml as esc } from './utils.js?v=202610162321';
-import { kstDateTime } from './lib/kst-time.js?v=202610162321';
+import { initializeFirebase } from './config.js?v=202610190835';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610190835';
+import { memberNameFor } from './app-shell-data.js?v=202610190835';
+import { escapeHtml as esc } from './utils.js?v=202610190835';
+import { kstDateTime } from './lib/kst-time.js?v=202610190835';
 import { doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
