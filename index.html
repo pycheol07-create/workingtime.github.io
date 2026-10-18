@@ -24,10 +24,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610190835">
-    <link rel="stylesheet" href="css/style.css?v=202610190835">
-    <link rel="stylesheet" href="css/dash-d.css?v=202610190835">
-    <link rel="stylesheet" href="css/form-d.css?v=202610190835">
+    <link rel="stylesheet" href="css/suit.css?v=202610190838">
+    <link rel="stylesheet" href="css/style.css?v=202610190838">
+    <link rel="stylesheet" href="css/dash-d.css?v=202610190838">
+    <link rel="stylesheet" href="css/form-d.css?v=202610190838">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -274,7 +274,7 @@
                     </div>
 
                     <div class="contents">
-                        <div class="lg:col-span-1 d-card flex flex-col h-fit md:max-h-[800px]">
+                        <div class="lg:col-span-1 d-card hidden md:flex flex-col h-fit md:max-h-[800px]">
                         <div class="p-4 md:p-5 d-card-head flex justify-between items-center shrink-0">
                             <div id="toggle-completed-log" class="flex items-center gap-2 cursor-pointer md:cursor-auto group flex-1">
                                 <h3 class="text-[15px]">최근 완료된 업무</h3>
@@ -514,13 +514,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202610190835');
+                await import('./js/app.js?v=202610190838');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202610190835').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202610190838').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -616,11 +616,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202610190835';
-        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610190835';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202610190835';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610190835';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610190835';
+        import { appState } from './js/state.js?v=202610190838';
+        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610190838';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202610190838';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610190838';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610190838';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -789,10 +789,10 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202610190835"></script>
-    <script src="js/modal-esc.js?v=202610190835"></script>
+    <script src="js/connection-banner.js?v=202610190838"></script>
+    <script src="js/modal-esc.js?v=202610190838"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202610190835"></script>
-    <script src="js/app-version.js?v=202610190835"></script>
+    <script type="module" src="js/app-shell.js?v=202610190838"></script>
+    <script src="js/app-version.js?v=202610190838"></script>
 </body>
 </html>
