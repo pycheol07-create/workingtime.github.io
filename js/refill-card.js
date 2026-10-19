@@ -7,11 +7,11 @@
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, getDoc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml, getHolidayName } from './utils.js?v=202610191558';
+import { escapeHtml, getHolidayName } from './utils.js?v=202610191604';
 import {
     tsMs, dayKey, lastDays, dayLabel, fmtHM, parseDay, progress, runDay, dayStatus, reqUi, b64ToBytes, fileNameOf, refillStrip, fmtCount
-} from './lib/refill-view.js?v=202610191558';
-import { initFold } from './lib/card-fold.js?v=202610191558';
+} from './lib/refill-view.js?v=202610191604';
+import { initFold } from './lib/card-fold.js?v=202610191604';
 
 const APP = 'artifacts/team-work-logger-v2';
 const META_PATH = `${APP}/integrations/refillLatest`;
@@ -149,9 +149,11 @@ export function initRefillCard({ db, auth, getMemberName }) {
         const sum = day + sp.items.map(it => `<span>${escapeHtml(it.label)} <b>${escapeHtml(it.value)}</b></span>`).join('')
             + (sp.prog ? `<span>완료 <b>${sp.prog.done}/${sp.prog.total}</b></span>` : '') + warnBadge(sp.warns);
         const omitted = d && d.data.fileOmitted;
-        const act = omitted
+        // 접힌 띠에서도 [표 보기]·[엑셀 받기] (펼치지 않아도 바로)
+        const tableBtn = `<button type="button" class="btn btn-secondary btn-sm" data-refill="table"${d ? '' : ' disabled'}>표 보기</button>`;
+        const act = tableBtn + (omitted
             ? '<button type="button" class="btn btn-primary btn-sm" disabled title="파일이 너무 커서 PC 채우기자동화\\출력\\ 사용">엑셀 받기</button>'
-            : `<button type="button" class="btn btn-primary btn-sm" data-refill="download"${d && d.data.file ? '' : ' disabled'}>엑셀 받기</button>`;
+            : `<button type="button" class="btn btn-primary btn-sm" data-refill="download"${d && d.data.file ? '' : ' disabled'}>엑셀 받기</button>`);
         setStrip(sum, act);
     }
 

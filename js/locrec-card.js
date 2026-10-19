@@ -9,13 +9,13 @@
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=202610191558';
+import { escapeHtml } from './utils.js?v=202610191604';
 import {
     dayKey, fmtHM, fmtMDHM, parseRecDay, verdictBadge, metricItems, dataWarnings, dataLine, rowState, dayOptions, defaultDay,
     dayMessage, fileNameOf, tabCounts, stockAtOf, excelRows, EXCEL_COLS, TABS, TAB_LABEL, SHEET_NAME, fmtNum, recStrip,
     stripRows, fileNameAll, tabSummary, canMark, tabMeta, dayLabel, rowLines
-} from './lib/locrec-view.js?v=202610191558';
-import { initFold } from './lib/card-fold.js?v=202610191558';
+} from './lib/locrec-view.js?v=202610191604';
+import { initFold } from './lib/card-fold.js?v=202610191604';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -185,7 +185,9 @@ export function initLocRecCard({ db, auth, getMemberName }) {
         else if (sp.n == null) sum += `<span class="refill-sub">${S.dayErr ? '추천을 읽지 못했습니다' : '불러오는 중…'}</span>`;
         else {
             sum += `<span>${escapeHtml(sp.dayText)} 추천 <b>${sp.n}건</b>${sp.newN ? ` (새로 ${sp.newN})` : ''}</span>`;
-            act = `<button type="button" class="btn btn-primary btn-sm" data-locrec-act="downloadAll" title="${escapeHtml(sp.dayText)} 추천 전체(단독·맞바꾸기·페어, 안 함 제외)"${sp.n ? '' : ' disabled'}>엑셀 받기</button>`;
+            // 접힌 띠에서도 [표 보기]·[엑셀 받기] (펼치지 않아도 바로)
+            act = '<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="table">표 보기</button>'
+                + `<button type="button" class="btn btn-primary btn-sm" data-locrec-act="downloadAll" title="${escapeHtml(sp.dayText)} 추천 전체(단독·맞바꾸기·페어, 안 함 제외)"${sp.n ? '' : ' disabled'}>엑셀 받기</button>`;
         }
         setStrip(sum + warnBadge(sp.warns), act);
     }
