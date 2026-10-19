@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610191604">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610191604">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191604">
+    <link rel="stylesheet" href="css/suit.css?v=202610191612">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610191612">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191612">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -195,15 +195,16 @@
     <div id="undo-toast" role="status" aria-live="polite"><span id="undo-toast-msg"></span><button type="button" id="undo-toast-btn">되돌리기</button></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610191604"></script>
+    <script src="js/location-map.js?v=202610191612"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610191604'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202610191604';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610191612'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202610191612';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { checkProductCode } from './js/lib/product-code.js?v=202610191612';  // 위치지정 상품코드 'S+숫자6자리' 판정
 
-        const SCAN_VERSION = '10.4'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.5'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
@@ -631,8 +632,8 @@
             }
             if (!fixedLocation) { speak('위치를 먼저 찍으세요'); toast('위치 바코드를 먼저 스캔하세요'); resumeScan(); return; }
             const key = resolveCode(raw); // [Ver 8.3] 바코드 → 상품코드 변환
-            // 상품코드는 S550076 · 546881055 · P000DCUU000B 처럼 형태가 여러 가지다.
-            // 'S+6자리'만 허용하면 나머지 상품을 위치지정에서 아예 못 찍는다.
+            // 2026-10-19 사용자 결정: S+6자리 외는 오류 + 강제추가 (아래 addLoc 정의 뒤에서 검사).
+            // 영문·숫자 5자 미만 같은 깨진 값은 예전처럼 강제추가 없이 막는다.
             if (!/^[A-Z0-9]{5,}$/.test(key)) { showAlert('형식 오류\n(올바른 상품 바코드가 아닙니다)\n(' + key + ')'); return; }
             // [Ver 4.1→8.1] ScanDB 조회 (오프라인이면 생략 → 스캔은 허용)
             let name = '', exists = false, dbError = false;
@@ -645,6 +646,8 @@
                 locationQueue.unshift({ barcode: key, location: fixedLocation, name, sub: locSubMode, time: new Date().toTimeString().slice(0, 8) });
                 saveQueues(); renderQueue(); speak('스캔'); resumeScan();
             };
+            // 2026-10-19 사용자 결정: S+6자리 외는 오류 + 강제추가 (등록 상품이어도). [확인] → resumeScan
+            if (!checkProductCode(key).ok) { showAlert('상품코드 형식이 아닙니다 (S+숫자6자리): ' + key, () => addLoc(), '강제추가'); return; }
             if (locSubMode === 'today') {
                 if (!navigator.onLine) { toast('오프라인 · 목록 확인 생략'); }
                 else if (dbError) { showAlert('DB 조회 오류\n(네트워크 확인)\n(' + key + ')', () => addLoc(), '강제추가'); return; } // [Ver 8.56]
@@ -709,7 +712,7 @@
             } else if (/^\d{6}$/.test(key)) {
                 key = 'S' + key;   // 오프라인: 확인할 수 없으므로 'S+6자리' 모양일 때만 붙인다
             }
-            // 형식 검사는 등록된 상품이 아닐 때만 — P코드 등 다른 형식도 있으므로
+            // 깨진 값(기호·5자 미만) 검사는 등록된 상품이 아닐 때만 — S+6자리 형식 검사(강제추가 가능)는 아래에서 따로
             if (!exists && !dbError && !/^[A-Z0-9]{5,}$/.test(key)) {
                 showAlert('형식 오류\n상품코드를 확인해 주세요\n(예: S550076 · 546881055 · P000DCUU000B)'); return;
             }
@@ -718,6 +721,8 @@
                 saveQueues(); renderQueue(); el.value = ''; el.focus();
                 speak('추가'); toast('추가: ' + key);
             };
+            // 2026-10-19 사용자 결정: S+6자리 외는 오류 + 강제추가 (숫자 6자리는 위에서 'S' 를 붙인 뒤라 통과)
+            if (!checkProductCode(key).ok) { showAlert('상품코드 형식이 아닙니다 (S+숫자6자리): ' + key, () => addLoc(), '강제추가'); return; }
             if (locSubMode === 'today') {
                 if (!navigator.onLine) { toast('오프라인 · 목록 확인 생략'); }
                 else if (dbError) { showAlert('DB 조회 오류\n(네트워크 확인)\n(' + key + ')', () => addLoc(), '강제추가'); return; } // [Ver 8.56]
@@ -1038,6 +1043,6 @@
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/app-shell.js?v=202610191604"></script>
+    <script type="module" src="js/app-shell.js?v=202610191612"></script>
 </body>
 </html>
