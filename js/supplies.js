@@ -5,11 +5,11 @@
 //  - 비품은 수십 건 규모라 문서 하나로 관리하는 편이 읽기·쓰기 모두 저렴하다.
 //  - 각 비품은 종류·현재고를 기본으로 하고, 단가/사이즈/발주정보/업체 등 상세를 함께 보관한다.
 
-import { initializeFirebase } from './config.js?v=202610190939';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610190939';
-import { memberNameFor } from './app-shell-data.js?v=202610190939';
-import { escapeHtml as esc } from './utils.js?v=202610190939';
-import { kstDateTime } from './lib/kst-time.js?v=202610190939';
+import { initializeFirebase } from './config.js?v=202610191114';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610191114';
+import { memberNameFor } from './app-shell-data.js?v=202610191114';
+import { escapeHtml as esc } from './utils.js?v=202610191114';
+import { kstDateTime } from './lib/kst-time.js?v=202610191114';
 import { doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -550,7 +550,6 @@ function resetAllFilters() {
 // ───────── 비품 상세 창(왼쪽 상세 폼 + 오른쪽 재고 패널) ─────────
 function openItemModal(id = null) {
     editingId = id;
-    resetModalDrag();   // 열 때마다 가운데에서 시작
     const it = id ? items.find(x => x.id === id) : null;
 
     $('item-modal-title').textContent = it ? '비품 상세' : '비품 추가';
@@ -964,45 +963,3 @@ $('stock-file').addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
     if (file) handleStockFile(file);
 });
-
-// ───────── 창 끌어 옮기기 ─────────
-// 비품 상세 창의 머리줄을 마우스로 끌면 창이 움직인다(transform 만 바꾼다 — 배치·스크롤은 그대로).
-// 휴대폰(768px 미만)·터치에서는 움직이지 않는다(세로 스크롤과 겹치지 않게).
-// 머리줄이 화면 밖으로 완전히 나가지 않게 막는다(× 버튼을 잃지 않게).
-const modalDrag = { x: 0, y: 0, start: null };
-
-function resetModalDrag() {
-    modalDrag.x = 0; modalDrag.y = 0; modalDrag.start = null;
-    $('item-modal-box').style.transform = '';
-}
-
-$('item-modal-head').addEventListener('pointerdown', (e) => {
-    if (e.pointerType !== 'mouse' || e.button !== 0) return;
-    if (window.innerWidth < 768) return;
-    if (e.target.closest('button, a, input, select, textarea')) return;   // × 버튼 등은 그대로 누른다
-    const head = e.currentTarget;
-    const r = head.getBoundingClientRect();
-    modalDrag.start = { px: e.clientX, py: e.clientY, x: modalDrag.x, y: modalDrag.y, left: r.left, top: r.top, w: r.width, h: r.height };
-    head.setPointerCapture(e.pointerId);
-    e.preventDefault();   // 글자 선택 방지
-});
-
-$('item-modal-head').addEventListener('pointermove', (e) => {
-    const s = modalDrag.start;
-    if (!s) return;
-    let dx = e.clientX - s.px, dy = e.clientY - s.py;
-    // 머리줄이 화면 안에 남도록: 위·아래는 머리줄 전체, 좌우는 최소 120px 이 보이게
-    const keep = 120;
-    dx = Math.min(Math.max(dx, keep - (s.left + s.w)), window.innerWidth - keep - s.left);
-    dy = Math.min(Math.max(dy, -s.top), window.innerHeight - s.h - s.top);
-    modalDrag.x = s.x + dx; modalDrag.y = s.y + dy;
-    $('item-modal-box').style.transform = `translate(${modalDrag.x}px, ${modalDrag.y}px)`;
-});
-
-const endModalDrag = (e) => {
-    if (!modalDrag.start) return;
-    modalDrag.start = null;
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (err) { /* 이미 풀림 */ }
-};
-$('item-modal-head').addEventListener('pointerup', endModalDrag);
-$('item-modal-head').addEventListener('pointercancel', endModalDrag);
