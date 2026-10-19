@@ -4,17 +4,31 @@
 // 저장: artifacts/team-work-logger-v2/persistent_data/supplies  (단일 문서 { items: [...] })
 //  - 비품은 수십 건 규모라 문서 하나로 관리하는 편이 읽기·쓰기 모두 저렴하다.
 //  - 각 비품은 종류·현재고를 기본으로 하고, 단가/사이즈/발주정보/업체 등 상세를 함께 보관한다.
+//
+// 사용량 예측(2026-10-19, 서버 앱\비품재고연동\발주알림.py 가 업무일 08:30 계산 — 화면은 표시만):
+//  - integrations/suppliesForecast  읽기만(서버만 씀). items[id] = 상태·소진 예상·권장 발주량·근거
+//  - persistent_data/suppliesOrders 사람이 [발주함]·[입고 확인]·[발주 취소]로 orders.<id> 칸만 고친다(서버는 입고 자동 해제).
+//    supplies 문서와 따로라 persist() 의 updatedAt 충돌 판정과 상관없다.
+//  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름) · orderMinQty · orderPackQty(숫자)
+//  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
 
-import { initializeFirebase } from './config.js?v=202610191114';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610191114';
-import { memberNameFor } from './app-shell-data.js?v=202610191114';
-import { escapeHtml as esc } from './utils.js?v=202610191114';
-import { kstDateTime } from './lib/kst-time.js?v=202610191114';
-import { doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirebase } from './config.js?v=202610191226';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610191226';
+import { memberNameFor } from './app-shell-data.js?v=202610191226';
+import { escapeHtml as esc } from './utils.js?v=202610191226';
+import { kstDateTime } from './lib/kst-time.js?v=202610191226';
+import {
+    effectiveStatus, statusBadge, depleteText, depleteSortValue, recommendText, isStale, parseQty, mdw, basisText,
+    leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion,
+    NOCODE_HINT, DRIVER_OPTIONS
+} from './lib/supplies-forecast-view.js?v=202610191226';
+import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const { db, auth } = initializeFirebase();
 const DOC_REF = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'supplies');
+const FORECAST_REF = doc(db, 'artifacts', 'team-work-logger-v2', 'integrations', 'suppliesForecast');   // 읽기만
+const ORDERS_REF = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'suppliesOrders');
 
 // 처음 열었을 때 자동으로 만들어 두는 기본 비품
 const SEED_ITEMS = [
@@ -28,6 +42,10 @@ let items = [];
 let currentUser = '';
 let editingId = null;
 let stockTargetId = null;   // 상세 창 재고 패널이 보고 있는 비품(새 비품 추가 중이면 null)
+let forecastDoc = null;     // integrations/suppliesForecast (못 읽으면 null — 화면은 그대로)
+let ordersDoc = { orders: {} };   // persistent_data/suppliesOrders
+let ordersOk = false;       // 발주 상태를 읽었나 — 못 읽었으면 [발주함]·[입고 확인]·[발주 취소]를 막는다
+let isAdmin = false;        // 기준 물량 선택 표시용(화면 수준 — 규칙으로는 막지 않는다)
 
 const $ = (id) => document.getElementById(id);
 const num = (v) => Number(v) || 0;
@@ -54,6 +72,17 @@ const leadTimeTextOf = (it) => `${num(it.leadTimeDays)}${LEADTIME_UNITS[leadTime
 // 단위가 섞여 있어도 길이를 비교할 수 있도록 일수로 환산한 값(정렬·범위 필터용).
 const leadTimeDaysEquiv = (it) => num(it.leadTimeDays) * LEADTIME_DAYS[leadTimeUnitOf(it)];
 
+// 사용량 예측 — 서버 결과(forecastDoc)와 사람이 누른 발주(ordersDoc)를 합친 화면 상태
+const fcOf = (it) => (forecastDoc && forecastDoc.items ? forecastDoc.items[it.id] : null) || null;
+const orderOf = (it) => (ordersDoc && ordersDoc.orders ? ordersDoc.orders[it.id] : null) || null;
+const statusOf = (it) => effectiveStatus(it, fcOf(it), orderOf(it));
+function statusBadgeHtml(it) {
+    const k = statusOf(it);
+    const b = statusBadge(k);
+    if (k === 'nocode') return `<span class="text-slate-400" title="${esc(b.title)}">-</span>`;
+    return `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full ${b.cls}"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>`;
+}
+
 // ───────── 목록 컬럼 정의 ─────────
 // 헤더(정렬·필터)와 본문 셀을 한 곳에서 만든다 — 둘이 어긋나지 않도록.
 //   type : 'text' → 값 목록 체크박스 필터 / 'num' → 최소·최대 범위 필터
@@ -71,6 +100,17 @@ const COLS = [
       get: it => num(it.stock),
       cell: it => `<span class="${isLow(it) ? 'text-red-600' : ''}">${fmt(it.stock)}</span>`
                 + ` <span class="text-[11px] font-normal text-slate-400">${esc(it.unit || '개')}</span>` },
+    // 사용량 예측(매일 08:30) — 상태·소진 예상·권장 발주량
+    { key: 'fcStatus', label: '상태', type: 'text', td: 'mid',
+      get: it => statusBadge(statusOf(it)).label,
+      cell: it => statusBadgeHtml(it) },
+    { key: 'fcDeplete', label: '소진예상', type: 'num', td: 'mid text-slate-600',
+      hint: '남은 업무일로 비교합니다(예측이 없으면 99999)',
+      get: it => depleteSortValue(fcOf(it)),
+      cell: it => esc(depleteText(fcOf(it))) },
+    { key: 'fcRecommend', label: '권장발주', type: 'num', td: 'num text-slate-600',
+      get: it => num(fcOf(it)?.recommendQty),
+      cell: it => esc(recommendText(fcOf(it), it.unit || '개')) },
     { key: 'safetyStock', label: '안전재고', type: 'num', td: 'num text-slate-500',
       get: it => num(it.safetyStock),
       cell: it => num(it.safetyStock) > 0 ? fmt(it.safetyStock) : '-' },
@@ -120,7 +160,8 @@ const hasColFilter = (key) =>
     (numFilters[key] && (numFilters[key].min !== '' || numFilters[key].max !== ''));
 const anyFilterActive = () =>
     COLS.some(c => hasColFilter(c.key)) || !!sortState.key ||
-    !!$('filter-category').value || !!$('filter-search').value.trim() || $('filter-low').checked;
+    !!$('filter-category').value || !!$('filter-search').value.trim() || $('filter-low').checked
+    || $('filter-order').checked;
 
 // 공통 상단바 개인 알림(P2) — mainConfig 를 한 번 읽어 memberEmails 로 이름을 찾아 넘긴다.
 // 이름은 메모리에만(캐시·로그에 남기지 않는다). 기다리지 않고, 실패해도 화면은 그대로 쓴다.
@@ -128,6 +169,13 @@ function pushShellMemberName(user) {
     getDoc(doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig')).then((snap) => {
         const memberName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email);
         if (memberName && auth.currentUser && auth.currentUser.uid === user.uid) setShellContext({ signedIn: true, uid: user.uid, memberName });
+        // 같은 문서의 memberRoles 로 관리자 여부(기준 물량 선택 표시용). 이메일은 비교에만 쓴다.
+        const roles = (snap.exists() && snap.data().memberRoles) || {};
+        const admin = roles[String(user.email || '').toLowerCase()] === 'admin';
+        if (admin !== isAdmin && auth.currentUser && auth.currentUser.uid === user.uid) {
+            isAdmin = admin;
+            if (stockTargetId) renderForecastBox();
+        }
     }).catch((e) => console.warn('[supplies] 알림용 설정 읽기 실패:', e && e.code));
 }
 
@@ -167,6 +215,7 @@ async function load() {
         ezSync = { at: d.ezSyncedAt ?? null, summary: d.ezSyncSummary ?? null };
         if (snap.exists() && Array.isArray(d.items)) {
             items = d.items;
+            await loadForecast();
         } else {
             // 최초 진입 — 기본 비품(택배봉투·포장봉투) 생성
             items = SEED_ITEMS.map(s => ({
@@ -180,6 +229,21 @@ async function load() {
         if (e && e.handled) return;   // 처음 만들기 저장이 충돌 — persist 가 이미 안내하고 다시 불러왔다
         console.error('비품 데이터 로드 실패:', e);
         alert('비품 데이터를 불러오지 못했습니다: ' + (e.message || e));
+    }
+}
+
+// 사용량 예측·발주 상태 — 실패해도 화면은 그대로 쓴다(예측 칸만 '예측 전'으로 보인다)
+async function loadForecast() {
+    const [f, o] = await Promise.allSettled([getDoc(FORECAST_REF), getDoc(ORDERS_REF)]);
+    if (f.status === 'fulfilled') forecastDoc = f.value.exists() ? f.value.data() : null;
+    else console.warn('[supplies] 사용량 예측 읽기 실패:', f.reason && f.reason.code);
+    if (o.status === 'fulfilled') {
+        const d = o.value.exists() ? o.value.data() : {};
+        ordersDoc = { ...d, orders: (d && typeof d.orders === 'object' && d.orders) || {} };
+        ordersOk = true;
+    } else {
+        ordersOk = false;
+        console.warn('[supplies] 발주 상태 읽기 실패:', o.reason && o.reason.code);
     }
 }
 
@@ -251,12 +315,18 @@ function renderMainItems() {
     }
     host.innerHTML = mains.map(it => {
         const low = isLow(it);
+        const fk = statusOf(it);
+        const fb = statusBadge(fk);
+        const fc = fcOf(it);
         return `
         <div data-open="${esc(it.id)}" role="button" tabindex="0" aria-label="${esc(it.name)} 상세·재고 열기" title="눌러서 상세·재고 열기"
             class="sup-card cursor-pointer bg-white rounded-xl border ${low ? 'border-red-300 hover:border-red-400' : 'border-slate-200 hover:border-indigo-300'} shadow-sm hover:shadow p-2.5 transition">
             <div class="flex items-center justify-between gap-1">
                 <div class="text-[10px] font-bold text-slate-400 truncate">${esc(it.category || '비품')}</div>
+                <span class="flex items-center gap-1 shrink-0">
+                ${fk !== 'nocode' && fk !== 'pending' ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full ${fb.cls}">${esc(fb.label)}</span>` : ''}
                 ${low ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 shrink-0">부족</span>' : ''}
+                </span>
             </div>
             <div class="text-[13px] font-extrabold text-slate-800 truncate" title="${esc(it.name)}">${esc(it.name)}</div>
             <div class="mt-1.5 flex items-end gap-1">
@@ -266,6 +336,7 @@ function renderMainItems() {
             <div class="text-[10px] text-slate-500 mt-1 leading-tight">
                 ${num(it.safetyStock) > 0 ? `안전 ${fmt(it.safetyStock)}${esc(it.unit || '개')}<br>` : ''}
                 ${num(it.unitPrice) > 0 ? `단가 ${fmt(it.unitPrice)}원` : '단가 미등록'}
+                ${fc && fc.depleteDate ? `<br>소진 ${esc(mdw(fc.depleteDate).replace(/\(.\)$/, ''))}` : ''}
             </div>
         </div>`;
     }).join('');
@@ -274,6 +345,7 @@ function renderMainItems() {
 function renderSummary() {
     const totalValue = items.reduce((s, i) => s + stockValueOf(i), 0);
     const lowCount = items.filter(isLow).length;
+    const orderCount = items.filter(it => statusOf(it) === 'order').length;
     const categories = new Set(items.map(i => i.category || '미분류'));
 
     const card = (label, value, tone = 'text-slate-800') => `
@@ -286,6 +358,7 @@ function renderSummary() {
         card('등록 비품', `${items.length}종`) +
         card('종류', `${categories.size}개`) +
         card('재고 부족', `${lowCount}종`, lowCount > 0 ? 'text-red-600' : 'text-slate-800') +
+        card('발주 필요', `${orderCount}종`, orderCount > 0 ? 'text-red-600' : 'text-slate-800') +
         card('총 재고금액', `${fmt(Math.round(totalValue))}원`);
 }
 
@@ -304,10 +377,12 @@ function visibleItems() {
     const cat = $('filter-category').value;
     const kw = $('filter-search').value.trim().toLowerCase();
     const lowOnly = $('filter-low').checked;
+    const orderOnly = $('filter-order').checked;
 
     const list = items.filter(it => {
         if (cat && (it.category || '미분류') !== cat) return false;
         if (lowOnly && !isLow(it)) return false;
+        if (orderOnly && statusOf(it) !== 'order') return false;
         if (kw) {
             const hay = `${it.name} ${it.category} ${it.vendor} ${it.size} ${it.memo} ${it.ezCode || ''}`.toLowerCase();
             if (!hay.includes(kw)) return false;
@@ -543,6 +618,7 @@ function resetAllFilters() {
     $('filter-category').value = '';
     $('filter-search').value = '';
     $('filter-low').checked = false;
+    $('filter-order').checked = false;
     closeFilterPop();
     renderTable();
 }
@@ -581,6 +657,8 @@ function openItemModal(id = null) {
     $('f-vendor-contact').value = it?.vendorContact || '';
     $('f-ez-code').value = it?.ezCode || '';
     $('f-order-unit').value = withThousands(it?.orderUnit || '');
+    $('f-order-min').value = it && num(it.orderMinQty) > 0 ? fmt(it.orderMinQty) : '';
+    $('f-order-pack').value = it && num(it.orderPackQty) > 0 ? fmt(it.orderPackQty) : '';
     $('f-leadtime').value = it ? (num(it.leadTimeDays) || '') : '';
     $('f-leadtime-unit').value = leadTimeUnitOf(it);
     $('f-last-order').value = it?.lastOrderDate || '';
@@ -597,6 +675,10 @@ async function saveItem() {
 
     const dup = items.find(x => x.name === name && x.id !== editingId);
     if (dup) return showError('item-modal-error', '같은 품명의 비품이 이미 있습니다.');
+    const orderMin = parseQty($('f-order-min').value);
+    const orderPack = parseQty($('f-order-pack').value);
+    if (orderMin === null && $('f-order-min').value.trim() !== '') return showError('item-modal-error', '최소 주문수량은 숫자로 입력해주세요.');
+    if (orderPack === null && $('f-order-pack').value.trim() !== '') return showError('item-modal-error', '주문 묶음은 숫자로 입력해주세요.');
 
     const data = {
         name,
@@ -610,6 +692,8 @@ async function saveItem() {
         vendorContact: $('f-vendor-contact').value.trim(),
         ezCode: $('f-ez-code').value.trim(),
         orderUnit: withThousands($('f-order-unit').value.trim()),
+        orderMinQty: orderMin || 0,
+        orderPackQty: orderPack || 0,
         leadTimeDays: num($('f-leadtime').value),
         leadTimeUnit: $('f-leadtime-unit').value,
         lastOrderDate: $('f-last-order').value,
@@ -798,8 +882,9 @@ function renderStockPanel() {
     $('stock-low-badge').classList.toggle('hidden', !low);
 
     const ez = $('stock-ez-note');
-    ez.textContent = it.ezCode ? `이지어드민 연동 비품(${it.ezCode}) — 매일 19:30 이지어드민 재고로 자동 반영됩니다.` : '';
+    ez.textContent = it.ezCode ? `이지어드민 연동 비품(${it.ezCode}) — 매일 19:30 이지어드민 재고로 자동 반영됩니다 · 매일 08:30 사용량 예측.` : '';
     ez.classList.toggle('hidden', !it.ezCode);
+    renderForecastBox();
 
     updateStockPreview();
 
@@ -874,6 +959,233 @@ async function saveStock() {
     }
 }
 
+// ───────── 사용량 예측 상자(재고 패널 안) ─────────
+// 계산은 서버만 한다 — 여기서는 표시와 [발주함]·[입고 확인]·[발주 취소]·안전재고 [적용]·기준 물량 선택만.
+function renderForecastBox() {
+    const box = $('fc-box');
+    if (!box) return;
+    const it = items.find(x => x.id === stockTargetId);
+    if (!it) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    box.classList.remove('hidden');
+    const unit = it.unit || '개';
+    const fc = fcOf(it);
+    const order = orderOf(it);
+    const b = statusBadge(statusOf(it));
+    const parts = [`<div class="flex items-center justify-between gap-2">
+        <span class="text-xs font-bold text-slate-600">사용량 예측</span>
+        ${b.label !== '-' ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full ${b.cls} shrink-0"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>` : ''}
+    </div>`];
+    const ordered = order && order.status === 'ordered';
+    if (!String(it.ezCode || '').trim() && !ordered) {
+        box.innerHTML = parts.join('') + `<p class="text-[11px] text-slate-500 leading-snug">${esc(NOCODE_HINT)}</p>`;
+        return;
+    }
+    if (!forecastDoc) {
+        parts.push('<p class="text-[11px] text-slate-400 leading-snug">예측이 아직 없습니다 — 매일 08:30 사용량 예측 뒤 표시됩니다.</p>');
+    } else if (isStale(forecastDoc.generatedAt)) {
+        parts.push(`<p class="text-[11px] font-bold text-amber-700">예측 오래됨 — 마지막 예측 ${esc(kstDateTime(forecastDoc.generatedAt))}</p>`);
+    }
+    const row = (k, v, cls = '') => `<div class="flex justify-between gap-2"><span class="text-slate-400 shrink-0">${k}</span><span class="text-right font-bold min-w-0 ${cls}">${v}</span></div>`;
+    if (fc) {
+        const bt = basisText(fc, unit);
+        if (bt) parts.push(`<p class="leading-snug">${esc(bt)}${fc.confidence === 'low' ? ' <span class="text-amber-700 font-bold">(신뢰도 낮음)</span>' : ''}</p>`);
+        if (fc.method) {
+            const lt = leadTimeText(fc);
+            parts.push('<div class="space-y-0.5">'
+                + row('소진 예상', esc(depleteText(fc)))
+                + row('발주 권장일', esc(fc.reorderDate ? mdw(fc.reorderDate) : '-'))
+                + row('리드타임', esc(lt.text), lt.warn ? 'text-amber-700' : '')
+                + row('권장 발주량', esc(recommendText(fc, unit)))
+                + row('기준 재고', esc(`${fmt(fc.stock)}${unit}${fc.stockAt ? ` · ${kstDateTime(fc.stockAt).slice(5)}` : ''}`))
+                + row('예측 시각', esc(forecastDoc && forecastDoc.generatedAt ? kstDateTime(forecastDoc.generatedAt).slice(5) : '-'))
+                + '</div>');
+        }
+        // 리드타임·앱 입력 경고는 위·아래에 따로 보이므로 목록에서 뺀다
+        const notes = (Array.isArray(fc.notes) ? fc.notes : []).filter(n => !/^리드타임 미등록|^앱에서만/.test(String(n)));
+        if (notes.length) parts.push(`<ul class="text-[11px] text-slate-500 list-disc pl-4 space-y-0.5">${notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>`);
+        const warn = appOnlyWarning(fc.appOnlyOutLogs);
+        if (warn) parts.push(`<p class="text-[11px] text-red-600 font-bold leading-snug">${esc(warn)}</p>`);
+        const sug = safetySuggestion(fc, it);
+        if (sug != null) {
+            parts.push(`<div class="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-2 py-1.5">
+                <span class="text-[11px] leading-snug min-w-0">안전재고 제안 <b>${fmt(sug)}${esc(unit)}</b> (사용 변동·리드타임 ${num(fc.leadTime && fc.leadTime.workdays)}업무일 기준)</span>
+                <button type="button" data-fc-safety="${sug}" class="shrink-0 text-[11px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100">적용</button>
+            </div>`);
+        }
+    } else if (forecastDoc) {
+        parts.push('<p class="text-[11px] text-slate-400 leading-snug">이 비품은 아직 예측이 없습니다 — 다음 날 아침 예측부터 표시됩니다.</p>');
+    }
+    if (ordered) {
+        parts.push(`<div class="bg-indigo-50 border border-indigo-100 rounded-lg p-2 space-y-1.5">
+            <div class="text-[11px] font-bold text-indigo-700">${esc(orderSummaryText(order, unit))}</div>
+            <div class="flex gap-1.5">
+                <button type="button" data-fc-receive class="flex-1 text-[11px] font-bold px-2 py-1.5 rounded bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-100">입고 확인</button>
+                <button type="button" data-fc-cancel class="flex-1 text-[11px] font-bold px-2 py-1.5 rounded bg-white border border-slate-300 text-slate-600 hover:bg-red-50 hover:text-red-600">발주 취소</button>
+            </div>
+        </div>`);
+    } else {
+        const q = fc && num(fc.recommendQty) > 0 ? fmt(fc.recommendQty) : '';
+        parts.push(`<div class="flex items-center gap-1.5">
+            <input id="fc-order-qty" type="text" inputmode="numeric" class="inp num min-w-0" style="padding:5px 7px;font-size:12px" placeholder="발주 수량" value="${esc(q)}" aria-label="발주 수량">
+            <span class="text-[11px] text-slate-400 shrink-0">${esc(unit)}</span>
+            <button type="button" data-fc-order class="shrink-0 text-[11px] font-bold px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white">발주함</button>
+        </div>
+        <p class="text-[11px] text-slate-400 leading-snug">[발주함]을 누르면 입고될 때까지 이 비품의 발주 알림을 멈춥니다.</p>`);
+    }
+    if (isAdmin) {
+        const cur = it.forecastDriver || 'auto';
+        parts.push(`<div class="flex items-center gap-1.5">
+            <label for="fc-driver" class="text-[11px] text-slate-400 shrink-0">기준 물량(관리자)</label>
+            <select id="fc-driver" class="inp min-w-0" style="padding:4px 6px;font-size:12px">${DRIVER_OPTIONS.map(([v, l]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
+        </div>`);
+        const pk = packsProgressText(forecastDoc);
+        if (pk) parts.push(`<p class="text-[11px] text-slate-400">${esc(pk)}</p>`);
+    }
+    if (!ordersOk) parts.push('<p class="text-[11px] text-red-600 font-bold leading-snug">발주 상태를 불러오지 못해 발주 버튼을 막았습니다 — [새로고침] 후 다시 해 주세요.</p>');
+    parts.push('<p id="fc-error" class="hidden text-xs text-red-600 font-bold"></p>');
+    parts.push('<p class="text-[11px] text-slate-400 leading-snug">설정 변경(안전재고·리드타임·MOQ·기준 물량)은 내일 아침 예측부터 반영됩니다.</p>');
+    box.innerHTML = parts.join('');
+    if (!ordersOk) box.querySelectorAll('[data-fc-order],[data-fc-receive],[data-fc-cancel],#fc-order-qty').forEach(el => { el.disabled = true; });
+}
+
+class OrderConflict extends Error {}
+
+/** orders.<id> 한 칸만 쓴다(다른 비품의 발주 상태는 건드리지 않는다).
+ *  트랜잭션 안에서 다시 읽어 지금 상태가 expect(없음 = 'none') 중 하나일 때만 쓴다 — 두 화면에서 동시에 누르거나,
+ *  서버가 그 사이 입고(received)로 바꾼 것을 옛 화면이 덮어쓰지 않게. log 도 같은 트랜잭션에서 쓴다.
+ *  makeValue(cur)·makeLog(cur) 는 트랜잭션에서 읽은 현재 값으로 만든다. */
+async function writeOrder(id, expect, makeValue, makeLog) {
+    let fresh = null, value = null;
+    try {
+        await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ORDERS_REF);
+            const d = snap.exists() ? snap.data() : {};
+            const orders = (d && typeof d.orders === 'object' && d.orders) || {};
+            fresh = { ...d, orders };
+            const cur = orders[id] || null;
+            if (!expect.includes(cur && cur.status ? cur.status : 'none')) throw new OrderConflict('changed');
+            value = makeValue(cur);
+            const logEntry = makeLog ? makeLog(cur) : null;
+            if (snap.exists()) {
+                const more = logEntry ? ['log', arrayUnion(logEntry)] : [];
+                tx.update(ORDERS_REF, new FieldPath('orders', id), value, ...more);
+            } else {
+                tx.set(ORDERS_REF, { orders: { [id]: value }, ...(logEntry ? { log: [logEntry] } : {}) });
+            }
+        });
+    } catch (e) {
+        if (e instanceof OrderConflict && fresh) { ordersDoc = fresh; ordersOk = true; }
+        throw e;
+    }
+    ordersDoc = { ...fresh, orders: { ...fresh.orders, [id]: value } };
+    ordersOk = true;
+}
+
+async function runForecastAction(fn) {
+    const box = $('fc-box');
+    box.querySelectorAll('button,select,input').forEach(el => { el.disabled = true; });
+    try {
+        await fn();
+        renderStockPanel();
+        renderAll();
+    } catch (e) {
+        if (e instanceof OrderConflict) {
+            alert('다른 사람이 먼저 이 비품의 발주 상태를 바꿨습니다 — 최신 상태로 다시 그립니다.\n확인하고 필요하면 다시 눌러 주세요.');
+            renderStockPanel();
+            renderAll();
+            showError('fc-error', '다른 사람이 먼저 바꿨습니다. 지금 상태를 확인해 주세요.');
+            return;
+        }
+        renderForecastBox();
+        showError('fc-error', '저장 실패: ' + ((e && (e.code || e.message)) || e));
+    }
+}
+
+function orderTarget() {
+    const it = items.find(x => x.id === stockTargetId);
+    return it ? { it, order: orderOf(it) } : null;
+}
+
+async function forecastOrder() {
+    const t = orderTarget();
+    if (!t) return;
+    const qty = parseQty($('fc-order-qty') && $('fc-order-qty').value);
+    if (!qty) return showError('fc-error', '발주 수량을 입력해주세요.');
+    const d = todayStr();
+    await runForecastAction(() => writeOrder(t.it.id, ['none', 'cancelled', 'received'], () => ({
+        status: 'ordered', orderedDate: d, orderedAt: new Date().toISOString(), qty,
+        expectedDate: expectedDateFor(d, t.it), by: currentUser
+    })));
+}
+
+async function forecastReceive() {
+    const t = orderTarget();
+    if (!t || !t.order) return;
+    if (!confirm('입고된 것으로 표시할까요?\n이지어드민에 입고를 입력했다면 다음 날 아침 자동으로도 확인됩니다.')) return;
+    const d = todayStr();
+    await runForecastAction(() => writeOrder(t.it.id, ['ordered'],
+        (cur) => ({ ...cur, status: 'received', receivedDate: d, receivedBy: currentUser, evidence: 'manual' }),
+        (cur) => ({ itemId: t.it.id, orderedDate: cur.orderedDate || '', receivedDate: d, qty: num(cur.qty) })));
+}
+
+async function forecastCancel() {
+    const t = orderTarget();
+    if (!t || !t.order) return;
+    if (!confirm('발주를 취소할까요? 다음 날 아침부터 발주 알림이 다시 켜집니다.')) return;
+    await runForecastAction(() => writeOrder(t.it.id, ['ordered'],
+        (cur) => ({ ...cur, status: 'cancelled', cancelledAt: new Date().toISOString(), cancelledBy: currentUser })));
+}
+
+/** 비품 칸 하나(안전재고·기준 물량)를 저장 — saveStock 과 같은 충돌 처리(창은 닫지 않는다). */
+async function saveItemFields(patch) {
+    const it = items.find(x => x.id === stockTargetId);
+    if (!it) return;
+    const next = { ...it, ...patch, updatedAt: new Date().toISOString(), updatedBy: currentUser };
+    const idx = items.indexOf(it);
+    items[idx] = next;
+    try {
+        await persist({
+            keepModal: true,
+            conflictMsg: '다른 사람이 먼저 비품을 바꿔 다시 불러왔습니다.\n방금 바꾼 값은 저장되지 않았습니다 — 확인하고 다시 해 주세요.\n(왼쪽 상세에 입력해 둔 내용은 그대로 있습니다)'
+        });
+        if ('safetyStock' in patch) $('f-safety').value = num(next.safetyStock) || '';
+        renderStockPanel();
+        renderAll();
+    } catch (e) {
+        if (e.handled) {
+            const fresh = items.find(x => x.id === stockTargetId);
+            if (!fresh) {
+                alert('이 비품은 다른 곳에서 삭제되었습니다. 창을 닫습니다.');
+                closeModal('item-modal');
+                return;
+            }
+            $('f-stock').value = num(fresh.stock);
+            renderStockPanel();
+            showError('fc-error', '다른 사람이 먼저 바꿔 다시 불러왔습니다. 다시 해 주세요.');
+        } else {
+            const i = items.indexOf(next);
+            if (i >= 0) items[i] = it;
+            renderStockPanel();
+            showError('fc-error', '저장 실패: ' + (e.message || e));
+        }
+    }
+}
+
+$('fc-box').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || btn.disabled) return;
+    if (btn.hasAttribute('data-fc-order')) forecastOrder();
+    else if (btn.hasAttribute('data-fc-receive')) forecastReceive();
+    else if (btn.hasAttribute('data-fc-cancel')) forecastCancel();
+    else if (btn.hasAttribute('data-fc-safety')) saveItemFields({ safetyStock: num(btn.getAttribute('data-fc-safety')) });
+});
+$('fc-box').addEventListener('change', (e) => {
+    if (e.target.id === 'fc-driver') saveItemFields({ forecastDriver: e.target.value });
+});
+$('fc-box').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.id === 'fc-order-qty') { e.preventDefault(); forecastOrder(); }
+});
+
 // ───────── 모달 공통 ─────────
 function openModal(id) { const m = $(id); m.classList.remove('hidden'); m.classList.add('flex'); }
 function closeModal(id) {
@@ -909,7 +1221,7 @@ $('btn-refresh').addEventListener('click', async () => { await load(); renderAll
 $('btn-close').addEventListener('click', () => goHome());   // '닫기' → '홈으로'(2026-10-16, 같은 탭 이동)
 $('btn-reset-filters').addEventListener('click', resetAllFilters);
 
-['filter-category', 'filter-search', 'filter-low'].forEach(id => {
+['filter-category', 'filter-search', 'filter-low', 'filter-order'].forEach(id => {
     $(id).addEventListener('input', renderTable);
     $(id).addEventListener('change', renderTable);
 });

@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610191114">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191114">
+    <link rel="stylesheet" href="css/suit.css?v=202610191226">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191226">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -13,7 +13,7 @@
     <title>비품 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
-    <link rel="stylesheet" href="css/tool-d.css?v=202610191114">
+    <link rel="stylesheet" href="css/tool-d.css?v=202610191226">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         /* 칸마다 최소 폭(th의 min-width)을 두므로 표는 내용 폭을 따르되, 좁을 땐 영역을 꽉 채운다. */
@@ -91,7 +91,7 @@
         <div id="ez-sync-note" class="hidden text-xs text-slate-600 bg-white border border-slate-200 rounded-xl px-4 py-2"></div>
 
         <!-- 요약 -->
-        <section id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></section>
+        <section id="summary" class="grid grid-cols-2 md:grid-cols-5 gap-3"></section>
 
         <!-- 전체 목록 -->
         <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -102,6 +102,9 @@
                     <input id="filter-search" type="search" placeholder="품명·업체 검색" class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 w-44">
                     <label class="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
                         <input type="checkbox" id="filter-low"> 부족분만
+                    </label>
+                    <label class="flex items-center gap-1.5 text-xs text-slate-600 font-bold" title="사용량 예측(매일 08:30)에서 '발주 필요'인 비품만">
+                        <input type="checkbox" id="filter-order"> 발주 필요만
                     </label>
                     <button id="btn-reset-filters" class="hidden text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-red-100 hover:text-red-600 transition">필터 초기화</button>
                 </div>
@@ -201,6 +204,14 @@
                             <label class="lbl">MOQ (최소주문수량)</label>
                             <input id="f-order-unit" class="inp" placeholder="예: 1박스 = 500장 / 최소 10박스">
                         </div>
+                        <!-- 사용량 예측의 권장 발주량에 쓰는 숫자(위 MOQ 문장은 메모로 그대로 둔다) -->
+                        <div>
+                            <label class="lbl">최소 주문수량 · 주문 묶음 (숫자)</label>
+                            <div class="flex gap-1">
+                                <input id="f-order-min" type="text" inputmode="numeric" class="inp num" placeholder="최소 예: 5000" title="최소 주문수량(비품 단위). 권장 발주량의 하한">
+                                <input id="f-order-pack" type="text" inputmode="numeric" class="inp num" placeholder="묶음 예: 500" title="주문 묶음(예: 1박스 = 500 → 500). 권장 발주량을 이 배수로 올림">
+                            </div>
+                        </div>
                         <div>
                             <label class="lbl">리드타임 (입고 소요기간)</label>
                             <div class="flex gap-1">
@@ -253,6 +264,9 @@
                     </div>
                     <p id="stock-ez-note" class="hidden text-[11px] text-slate-400 leading-snug -mt-1"></p>
 
+                    <!-- 사용량 예측(매일 08:30 앱\비품재고연동\발주알림.py) — 내용은 js/supplies.js renderForecastBox 가 그린다 -->
+                    <div id="fc-box" class="hidden bg-white border border-slate-200 rounded-xl p-3 space-y-2 text-[12px] text-slate-600 min-w-0 break-words"></div>
+
                     <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
                         <div class="text-xs font-bold text-slate-600">재고 조정</div>
                         <div class="grid grid-cols-3 gap-1.5 text-xs font-bold">
@@ -291,10 +305,10 @@
         </div>
     </div>
 
-    <script type="module" src="js/supplies.js?v=202610191114"></script>
-    <script type="module" src="js/app-shell.js?v=202610191114"></script>
-    <script src="js/connection-banner.js?v=202610191114"></script>
-    <script src="js/modal-esc.js?v=202610191114"></script>
-    <script type="module" src="js/modal-drag.js?v=202610191114"></script>
+    <script type="module" src="js/supplies.js?v=202610191226"></script>
+    <script type="module" src="js/app-shell.js?v=202610191226"></script>
+    <script src="js/connection-banner.js?v=202610191226"></script>
+    <script src="js/modal-esc.js?v=202610191226"></script>
+    <script type="module" src="js/modal-drag.js?v=202610191226"></script>
 </body>
 </html>
