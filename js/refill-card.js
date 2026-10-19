@@ -6,10 +6,10 @@
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, getDoc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml, getHolidayName } from './utils.js?v=202610191254';
+import { escapeHtml, getHolidayName } from './utils.js?v=202610191431';
 import {
     tsMs, dayKey, lastDays, dayLabel, fmtHM, parseDay, progress, runDay, dayStatus, reqUi, b64ToBytes, fileNameOf
-} from './lib/refill-view.js?v=202610191254';
+} from './lib/refill-view.js?v=202610191431';
 
 const APP = 'artifacts/team-work-logger-v2';
 const META_PATH = `${APP}/integrations/refillLatest`;

@@ -1,15 +1,17 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610191254';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610191431';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610191254';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610191254';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610191254';
-import { orderKeyMap } from './lib/order-hash.js?v=202610191254';
-import { setShellContext } from './app-shell-bridge.js?v=202610191254';
-import { memberNameFor } from './app-shell-data.js?v=202610191254';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610191254';
-import { initPageNav } from './page-nav.js?v=202610191254';
-import { initRefillCard } from './refill-card.js?v=202610191254';
+import { escapeHtml as escAttr } from './utils.js?v=202610191431';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610191431';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610191431';
+import { orderKeyMap } from './lib/order-hash.js?v=202610191431';
+import { setShellContext } from './app-shell-bridge.js?v=202610191431';
+import { memberNameFor } from './app-shell-data.js?v=202610191431';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610191431';
+import { initPageNav } from './page-nav.js?v=202610191431';
+import { initRefillCard } from './refill-card.js?v=202610191431';
+import { initLocRecCard } from './locrec-card.js?v=202610191431';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610191431';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -76,6 +78,8 @@ let appConfig = null;
 // 대시보드 맨 위 '채우기 지시서' 카드 — db·auth 를 넘긴다(Firebase 를 또 초기화하지 않게).
 // 체크·요청에 남는 이름은 memberNameFor(직원 이름)만 — currentUserName 은 이메일 앞부분으로 떨어질 수 있어 쓰지 않는다.
 initRefillCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) });
+// 그 아래 '로케이션 변경 추천' 카드 — 같은 db·auth, 같은 이름 규칙(memberNameFor 만, 이메일 폴백 없음)
+initLocRecCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) });
 window.currentUsageTab = '3F';
 window.capacity2F = 200000;
 
@@ -100,6 +104,9 @@ window.recommendPriorities = {
     dongs: ['★', '1', '2', '3', '4', '5', '6'],
     poses: ['★', '2', '3', '4', '1', '5']
 };
+// [변경 추천] 단독 추천 가드 — js/lib/loc-recommend.js recommendSingle 옵션(서버 로케이션추천은 늘 켠다).
+//   zoneGuard: 새 자리 구역 순위가 지금보다 나쁘면 옮기지 않는다 · excludeTagged: 예약·당일지정·선지정 빈 자리는 추천하지 않는다(입고 추천과 같은 기준)
+const LOC_REC_GUARDS = { zoneGuard: true, excludeTagged: true };
 
 // [2단계] 입고대기 신규 상품 전용 추천 우선순위 (null이면 openSheetModal에서 recommendPriorities를 fallback으로 사용)
 window.incomingRecommendPriorities = null;
@@ -6927,201 +6934,46 @@ window.showSingleRecommendation = function() {
         try {
             window.currentSingleRecommendations = [];
             
-            // ===== 1. 점수 계산 (페어 추천과 동일한 정규화 방식) =====
-            const allCodes = new Set(
-                originalData
-                    .filter(d => d.code && d.code.trim() !== '' && d.code !== d.id)
-                    .filter(d => !(incomingTotalByCode[d.code.trim()] > 0))
-                    .map(d => d.code.trim())
-            );
-            
-            let maxZQty = 0;
-            let maxWQty = 0;
-            let maxTrend = 0;
-            let itemDataList = [];
-            
-            allCodes.forEach(code => {
-                const dm = _getDemandForCode(code); // ZG&AB 출고(직진+에이블리) / 주차별 / 상승세
-                if (dm.zgQty > maxZQty) maxZQty = dm.zgQty; // maxZQty = ZG&AB 출고 최대
-                if (dm.wQty > maxWQty) maxWQty = dm.wQty;
-                if (dm.trendVal > maxTrend) maxTrend = dm.trendVal;
-                itemDataList.push({ code, name: dm.name, zgQty: dm.zgQty, wQty: dm.wQty, trendVal: dm.trendVal });
-            });
+            // ===== 1~6. 계산 — js/lib/loc-recommend.js (서버 로케이션추천과 같은 모듈) =====
+            //   점수(정규화 방식 그대로) → 빈 자리(동 > 위치 > 구역 정렬) → 점수 1위부터 '더 좋은' 첫 빈 자리 배정.
+            //   수요는 화면 자료(_getDemandForCode: ZG&AB 출고·주차별·상승세)를 넣는다. 가드 옵션은 LOC_REC_GUARDS.
+            const scoredItems = scoreItems({ locs: originalData, demand: _getDemandForCode, ratios: window.recommendRatios, incomingTotalByCode });
 
-            const scoredItems = [];
-            itemDataList.forEach(item => {
-                let zScore = maxZQty > 0 ? (item.zgQty / maxZQty) * 100 : 0;
-                let wScore = maxWQty > 0 ? (item.wQty / maxWQty) * 100 : 0;
-                let tScore = maxTrend > 0 ? (item.trendVal / maxTrend) * 100 : 0;
-                let finalScore = (zScore * (window.recommendRatios.zikjin / 100)) + (wScore * (window.recommendRatios.weekly / 100)) + (tScore * (window.recommendRatios.trend / 100));
-                
-                if (finalScore > 0) {
-                    // ★ 피킹용이 메인 — 피킹용에 있으면 기타(T-01 등) 로케이션은 기준에서 제외
-                    const currentLocs = getBaseLocsForCode(item.code).map(d => d.id);
-                    scoredItems.push({
-                        code: item.code,
-                        name: item.name,
-                        score: finalScore,
-                        currentLocs: currentLocs,
-                        // v3.94 결과 양식 복원: 점수 내역(툴팁용)
-                        zContrib: zScore * (window.recommendRatios.zikjin / 100),
-                        wContrib: wScore * (window.recommendRatios.weekly / 100),
-                        tContrib: tScore * (window.recommendRatios.trend / 100),
-                        zgQty: item.zgQty, wQty: item.wQty, trendVal: item.trendVal
-                    });
-                }
-            });
-            scoredItems.sort((a, b) => b.score - a.score);
-            
-            // ===== 2. 빈 자리 준비 =====
-            let emptyLocs = originalData.filter(d => {
-                const hasContent = (d.code && d.code !== d.id && d.code.trim() !== "") || (d.name && d.name.trim() !== "");
-                if (hasContent || d.preAssigned) return false;
-                // ★ 기타(비축·샘플·SAM)는 실제 피킹 랙이 아니므로 이동 추천 대상에서 제외
-                if (isEtcLocObj(d)) return false;
-                const excludeCombos = window.recommendPriorities.excludeCombos || [];
-                if (excludeCombos.length > 0) {
-                    const prefix = (d.id || '').charAt(0).toUpperCase();
-                    const dong = (d.dong || '').toString().trim();
-                    const combo = `${prefix}-${dong}`;
-                    if (excludeCombos.includes(combo)) return false;
-                }
-                return true;
-            });
-            
-            // ===== 3. 헬퍼: 등급/동/위치 순위 =====
-            const getZoneRank = (locId) => {
-                const prefix = (locId || '').charAt(0).toUpperCase();
-                const zones = window.recommendPriorities.zones || {};
-                for (let i = 0; i <= 3; i++) {
-                    if (zones[i] && zones[i].includes(prefix)) return i;
-                }
-                return 99;
-            };
-            const getDongRank = (dong) => {
-                const str = (dong || '').toString().trim();
-                const idx = window.recommendPriorities.dongs.indexOf(str);
-                return idx !== -1 ? idx : 99;
-            };
-            const getPosRank = (pos) => {
-                const str = (pos || '').toString().trim();
-                const idx = window.recommendPriorities.poses.indexOf(str);
-                return idx !== -1 ? idx : 99;
-            };
-            
-            // ===== 4. 빈 자리 정렬: 동 > 위치 > 구역 (사전순) =====
-            emptyLocs.sort((a, b) => {
-                const dRankA = getDongRank(a.dong);
-                const dRankB = getDongRank(b.dong);
-                if (dRankA !== dRankB) return dRankA - dRankB;
-                const pRankA = getPosRank(a.pos);
-                const pRankB = getPosRank(b.pos);
-                if (pRankA !== pRankB) return pRankA - pRankB;
-                return getZoneRank(a.id) - getZoneRank(b.id);
-            });
-            console.log('[v4.1] 단독 추천: 빈 자리 총', emptyLocs.length, '개 / 점수 있는 상품', scoredItems.length, '개');
-            
             // ===== 5. 갯수 제한 =====
             const limitVal = (typeof window._getRecommendLimit === 'function') ? window._getRecommendLimit() : 10;
-            
-            // ===== 6. 점수 1위부터 순서대로 자리 배정 =====
+            // v4.3: 우선순위 모드 ('dong' = 동 이동, 'pos' = 위치 이동)
+            const priorityMode = (typeof window._getRecPriorityMode === 'function') ? window._getRecPriorityMode() : 'dong';
+
+            const single = recommendSingle({
+                locs: originalData, scored: scoredItems, priorities: window.recommendPriorities,
+                mode: priorityMode, limit: limitVal, ...LOC_REC_GUARDS
+            });
+            const emptyLocs = single.ctx.emptyLocs;
+            const rk = single.ctx.rankers;
+            console.log('[v4.1] 단독 추천: 빈 자리 총', emptyLocs.length, '개 / 점수 있는 상품', scoredItems.length, '개');
+
             const tbody = document.getElementById('recommend-single-tbody');
             let html = '';
             let matchCount = 0;
-            let skipNoCurrentLoc = 0;
-            let skipNoBetterSlot = 0;
-            const usedEmptyKeys = new Set();
-            
-            // v4.3: 우선순위 모드 ('dong' = 동 이동, 'pos' = 위치 이동)
-            const priorityMode = (typeof window._getRecPriorityMode === 'function') ? window._getRecPriorityMode() : 'dong';
-            
-            // v4.3: isBetterSlot을 우선순위 모드에 따라 분기
-            //   - 'dong' 모드: 새 자리 동이 현재보다 앞 동이어야만 더 좋은 자리 (같은 동은 제외)
-            //   - 'pos'  모드: 같은 동 내에서 새 위치가 현재보다 앞 위치여야만 더 좋은 자리
-            //                  (동 이동 제외, 같은 위치에서 구역만 변경되는 것도 제외)
-            const isBetterSlot = (slotInfo, currentInfo) => {
-                if (priorityMode === 'pos') {
-                    // 위치 이동 모드: 같은 동 + 더 앞 위치만
-                    if (slotInfo.dongRank !== currentInfo.dongRank) return false; // 동 다르면 제외
-                    return slotInfo.posRank < currentInfo.posRank; // 위치만 비교 (같은 위치/구역만 다른 경우 제외)
-                }
-                // 'dong' 모드 (기본): 더 앞 동만
-                return slotInfo.dongRank < currentInfo.dongRank;
-            };
-            
-            const getLocInfo = (locId) => {
-                const locData = originalData.find(d => d.id === locId);
-                if (!locData) return null;
-                return {
-                    id: locId,
-                    dongRank: getDongRank(locData.dong),
-                    posRank: getPosRank(locData.pos),
-                    zoneRank: getZoneRank(locId),
-                    dong: (locData.dong || '').toString().trim()
-                };
-            };
-            const getEmptyLocInfo = (eLoc) => {
-                return {
-                    id: eLoc.id,
-                    dongRank: getDongRank(eLoc.dong),
-                    posRank: getPosRank(eLoc.pos),
-                    zoneRank: getZoneRank(eLoc.id),
-                    dong: (eLoc.dong || '').toString().trim()
-                };
-            };
-            
-            const getOptionByCode = (code) => {
-                const locData = getBaseLocsForCode(code).find(d => d.option) || getBaseLocsForCode(code)[0];
-                return (locData && locData.option) ? locData.option : '';
-            };
-            
-            for (let i = 0; i < scoredItems.length; i++) {
-                if (limitVal > 0 && matchCount >= limitVal) break;
-                
-                const item = scoredItems[i];
-                
-                const currentLocId = item.currentLocs && item.currentLocs[0];
-                if (!currentLocId) {
-                    skipNoCurrentLoc++;
-                    continue;
-                }
-                const currentInfo = getLocInfo(currentLocId);
-                if (!currentInfo) {
-                    skipNoCurrentLoc++;
-                    continue;
-                }
-                
-                let foundSlot = null;
-                for (let j = 0; j < emptyLocs.length; j++) {
-                    const eLoc = emptyLocs[j];
-                    if (usedEmptyKeys.has(eLoc.id)) continue;
-                    const slotInfo = getEmptyLocInfo(eLoc);
-                    if (isBetterSlot(slotInfo, currentInfo)) {
-                        foundSlot = eLoc;
-                        break;
-                    }
-                }
-                
-                if (!foundSlot) {
-                    skipNoBetterSlot++;
-                    continue;
-                }
-                
-                const option = getOptionByCode(item.code);
+            const skipNoCurrentLoc = single.skipped.noLoc;
+            const skipNoBetterSlot = single.skipped.noBetter;
+
+            single.recs.forEach(rec => {
+                const item = rec.item;
+                const currentInfo = rec.currentInfo;
+                const foundSlot = rec.target;
+                const option = rec.option;
                 const rowBg = matchCount % 2 === 0 ? 'var(--c-surface)' : 'var(--c-surface-2)';
-                
+
                 // v3.94 결과 양식: 이동수량(정상재고-2층재고) + 방향 뱃지 + 점수 툴팁
-                let _ts = 0, _ts2 = 0;
-                // 비축재고는 칸마다 같은 값이 반복 저장돼 있다 → 합이 아니라 대표값
-                originalData.forEach(d => { if (d.code === item.code) { _ts += Number(d.stock || 0); _ts2 = Math.max(_ts2, Number(d.stock2f || 0)); } });
-                const moveQty = _ts - _ts2;
+                const moveQty = rec.moveQty;
                 const moveQtyDisplay = moveQty > 0
                     ? `<span style="color:var(--c-warn-text); font-weight:700; font-size:13px;">${moveQty.toLocaleString()}</span><span style="font-size:9px; color:var(--c-text-3); margin-left:1px;">개</span>`
                     : `<span style="color:var(--c-text-4); font-size:11px;">-</span>`;
                 const _badge = (bg, fg, label) => `<span style="display:inline-block; background:${bg}; color:${fg}; padding:1px 8px; border-radius:var(--r-pill); font-size:10px; font-weight:600; vertical-align:middle;">${label}</span>`;
-                const _slot = getEmptyLocInfo(foundSlot);
+                const _slot = rec.targetInfo;
                 let moveBadge;
-                if (!currentLocId) moveBadge = _badge(TONE.accentSoft, TONE.accentDeep, '신규');
+                if (!rec.currentLocs) moveBadge = _badge(TONE.accentSoft, TONE.accentDeep, '신규');
                 else if (_slot.dongRank < currentInfo.dongRank || (_slot.dongRank === currentInfo.dongRank && _slot.posRank < currentInfo.posRank)) moveBadge = _badge(TONE.okSoft, TONE.okText, '전진');
                 else moveBadge = _badge(TONE.track, TONE.text2, '수평');
                 const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
@@ -7140,34 +6992,37 @@ window.showSingleRecommendation = function() {
                         </td>
                     </tr>
                 `;
-                
-                usedEmptyKeys.add(foundSlot.id);
-                
-                // v4.2-fix1: 페어 추천에서 사용할 정보 추가 저장
-                const slotInfo = getEmptyLocInfo(foundSlot);
+
+                // v4.2-fix1: 페어 추천에서 사용할 정보 추가 저장 (엑셀 5열 + 페어용 필드 — 모양은 예전 그대로)
                 window.currentSingleRecommendations.push({
                     currentLocs: currentInfo.id,
                     targetLoc: foundSlot.id,
                     name: item.name,
                     option: option,
                     code: item.code,
-                    // v4.2-fix1 추가 필드
                     score: item.score,
                     currentInfo: currentInfo,
-                    targetInfo: slotInfo
+                    targetInfo: rec.targetInfo
                 });
-                
+
                 matchCount++;
-            }
-            
-            // v4.2-fix1: 페어 추천에서 사용할 추가 데이터 보관
+            });
+
+            // v4.2-fix1: 페어 추천에서 사용할 추가 데이터 보관 (모양은 예전 그대로 + rankers)
             window._lastSingleRecContext = {
                 emptyLocs: emptyLocs,
-                usedEmptyKeys: new Set(usedEmptyKeys),
-                getZoneRank: getZoneRank,
-                getDongRank: getDongRank,
-                getPosRank: getPosRank,
-                getEmptyLocInfo: getEmptyLocInfo
+                usedEmptyKeys: new Set(single.ctx.usedEmptyKeys),
+                getZoneRank: rk.zoneRank,
+                getDongRank: rk.dongRank,
+                getPosRank: rk.posRank,
+                getEmptyLocInfo: (eLoc) => ({
+                    id: eLoc.id,
+                    dongRank: rk.dongRank(eLoc.dong),
+                    posRank: rk.posRank(eLoc.pos),
+                    zoneRank: rk.zoneRank(eLoc.id),
+                    dong: (eLoc.dong || '').toString().trim()
+                }),
+                rankers: rk
             };
             
             console.log('[v4.1] 단독 추천 종료: 성공', matchCount, '개 / 건너뜀(현재자리없음)', skipNoCurrentLoc, '개 / 건너뜀(이미최적)', skipNoBetterSlot, '개 / 엑셀 데이터', window.currentSingleRecommendations.length, '개');
@@ -7224,41 +7079,21 @@ window.showPairRecommendation = function() {
             
             console.log('[v4.2-fix1] 페어 추천 시작: 단독 추천 결과', singleRecs.length, '개');
             
-            // ===== 2. 페어 데이터 준비 (신뢰 페어만 추출) =====
-            const pairMap = {};
+            // ===== 2. 페어 데이터 준비 (신뢰 페어만 추출: count >= 5, lift >= 2, 상품당 상위 5) — js/lib/loc-recommend.js =====
+            let pairMap = {};
             let pairDataReady = false;
-            
+
             try {
                 if (window._cachedOrderPairs && window._cachedOrderStats && window._cachedOrderMeta) {
-                    const pairs = window._cachedOrderPairs;
-                    const stats = window._cachedOrderStats;
                     const meta = window._cachedOrderMeta;
-                    const N = meta.totalProcessedOrders || 1;
-                    
-                    pairs.forEach(p => {
-                        const cA = (stats[p.codeA] || {}).count || 0;
-                        const cB = (stats[p.codeB] || {}).count || 0;
-                        if (cA === 0 || cB === 0) return;
-                        const lift = (p.count * N) / (cA * cB);
-                        if (p.count < 5 || lift < 2.0) return;
-                        const weight = lift * p.count;
-                        if (!pairMap[p.codeA]) pairMap[p.codeA] = [];
-                        if (!pairMap[p.codeB]) pairMap[p.codeB] = [];
-                        pairMap[p.codeA].push({ partner: p.codeB, weight: weight });
-                        pairMap[p.codeB].push({ partner: p.codeA, weight: weight });
-                    });
-                    
-                    for (const code in pairMap) {
-                        pairMap[code].sort((a, b) => b.weight - a.weight);
-                        pairMap[code] = pairMap[code].slice(0, 5);
-                    }
+                    pairMap = buildPairMap({ pairs: window._cachedOrderPairs, stats: window._cachedOrderStats, N: meta.totalProcessedOrders || 1 });
                     pairDataReady = true;
                     console.log('[v4.2-fix1] 페어 데이터 로드 완료: pairMap 상품 수 =', Object.keys(pairMap).length);
                 }
             } catch (e) {
                 console.warn('[v4.2-fix1] 페어 데이터 캐시 사용 실패:', e);
             }
-            
+
             if (!pairDataReady) {
                 window.hideLoading();
                 const tbody = document.getElementById('recommend-tbody');
@@ -7268,106 +7103,9 @@ window.showPairRecommendation = function() {
                 document.getElementById('recommend-modal').style.display = 'flex';
                 return;
             }
-            
-            // ===== 3. 단독 추천 결과를 빠르게 조회하기 위한 맵 =====
-            const singleByCode = {};
-            singleRecs.forEach((s, idx) => {
-                singleByCode[s.code] = Object.assign({}, s, { singleRank: idx });
-            });
-            
-            // ===== 4. 페어 묶기 (단독 추천 결과 안에서) =====
-            const matchedPairs = []; // [{ baseItem, partnerItem, partnerNewSlot }]
-            const usedCodes = new Set();
-            const usedNewSlots = new Set(); // 페어 재배정으로 사용된 자리 (중복 방지)
-            
-            for (let i = 0; i < singleRecs.length; i++) {
-                const base = singleRecs[i];
-                if (usedCodes.has(base.code)) continue;
-                
-                const partners = pairMap[base.code] || [];
-                if (partners.length === 0) continue;
-                
-                // partner를 weight 높은 순으로 검색 (pairMap이 이미 정렬됨)
-                let foundPartner = null;
-                for (let p = 0; p < partners.length; p++) {
-                    const partnerCode = partners[p].partner;
-                    if (usedCodes.has(partnerCode)) continue;
-                    if (!singleByCode[partnerCode]) continue; // 단독 추천 결과 안에 없으면 제외
-                    foundPartner = singleByCode[partnerCode];
-                    break;
-                }
-                
-                if (!foundPartner) continue;
-                
-                // ===== 5. 자리 재배정: 파트너를 base 근처로 끌어옴 =====
-                // base의 단독 추천 자리 정보
-                const baseTargetInfo = base.targetInfo;
-                if (!baseTargetInfo) continue; // 안전장치
-                
-                const baseDong = baseTargetInfo.dong;
-                const baseZone = (base.targetLoc || '').charAt(0).toUpperCase();
-                const basePosRank = baseTargetInfo.posRank;
-                
-                // 점유된 자리 집합 구성:
-                // - 단독 추천에서 쓰인 모든 자리 (단, 파트너 자신의 자리는 비워짐)
-                // - 이미 페어로 재배정된 자리들
-                // - base 자신의 자리도 점유 중
-                const occupiedKeys = new Set(ctx.usedEmptyKeys);
-                occupiedKeys.delete(foundPartner.targetLoc); // 파트너의 단독 자리는 비워짐
-                usedNewSlots.forEach(k => occupiedKeys.add(k));
-                occupiedKeys.add(base.targetLoc); // base 자신의 자리는 점유 유지
-                
-                // 같은 동의 빈 자리 후보 (점유 안 된 것만)
-                const sameDongSlots = ctx.emptyLocs.filter(eLoc => {
-                    if (occupiedKeys.has(eLoc.id)) return false;
-                    const eDong = (eLoc.dong || '').toString().trim();
-                    return eDong === baseDong;
-                });
-                
-                if (sameDongSlots.length === 0) {
-                    // 근처 빈 자리 없음 → 페어 매칭 포기
-                    continue;
-                }
-                
-                // 우선순위: 같은 동 + 같은 구역 우선, 그 다음 같은 동의 다른 구역
-                const sameZoneInSameDong = sameDongSlots.filter(eLoc => {
-                    return (eLoc.id || '').charAt(0).toUpperCase() === baseZone;
-                });
-                const otherZoneInSameDong = sameDongSlots.filter(eLoc => {
-                    return (eLoc.id || '').charAt(0).toUpperCase() !== baseZone;
-                });
-                
-                // 각 그룹 안에서 위치(pos)가 base와 가까운 순으로 정렬
-                const posDistSort = (a, b) => {
-                    const aDist = Math.abs(ctx.getPosRank(a.pos) - basePosRank);
-                    const bDist = Math.abs(ctx.getPosRank(b.pos) - basePosRank);
-                    return aDist - bDist;
-                };
-                sameZoneInSameDong.sort(posDistSort);
-                otherZoneInSameDong.sort(posDistSort);
-                
-                const candidateOrder = sameZoneInSameDong.concat(otherZoneInSameDong);
-                const partnerNewSlot = candidateOrder[0]; // 가장 가까운 빈 자리
-                
-                if (!partnerNewSlot) continue; // 안전장치
-                
-                // ===== 6. 케이스 A 제외: 자리 변동 없으면 표시 안 함 =====
-                // 파트너의 단독 추천 자리와 새 자리가 같으면 변동 없음 (케이스 A)
-                if (partnerNewSlot.id === foundPartner.targetLoc) {
-                    // 변동 없음 → 페어 추천에서 제외
-                    continue;
-                }
-                
-                matchedPairs.push({
-                    baseItem: base,
-                    partnerItem: foundPartner,
-                    partnerNewSlot: partnerNewSlot
-                });
-                
-                usedCodes.add(base.code);
-                usedCodes.add(foundPartner.code);
-                usedNewSlots.add(partnerNewSlot.id);
-            }
+
+            // ===== 3~6. 페어 묶기·파트너 자리 재배정 — js/lib/loc-recommend.js recommendPairs =====
+            const matchedPairs = recommendPairs({ singleRecs, ctx, pairMap }); // [{ baseItem, partnerItem, partnerNewSlot }]
             
             console.log('[v4.2-fix1] 페어 매칭 완료:', matchedPairs.length, '쌍');
             

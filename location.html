@@ -10,9 +10,9 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610191254">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191254">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610191254">
+    <link rel="stylesheet" href="css/suit.css?v=202610191431">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191431">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610191431">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -669,6 +669,46 @@
         .refill-table tr.refill-done .refill-loc { text-decoration: line-through; }
         .refill-table td.refill-who { white-space: nowrap; font-size: 11.5px; color: var(--c-ok-text); }
         .refill-table td.refill-empty { text-align: center; color: var(--c-text-3); padding: 20px; }
+        /* 로케이션 변경 추천 카드 (js/locrec-card.js) — 채우기 카드 바로 아래, 배치 편집 패널 아님 */
+        .locrec-card { padding: 18px 24px; }
+        .locrec-card .refill-head { margin-bottom: 10px; align-items: center; }
+        .locrec-kpis { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; }
+        .locrec-kpi b { font-weight: 600; font-variant-numeric: tabular-nums; }
+        .locrec-verdict { display: inline-flex; align-items: center; height: 24px; padding: 0 12px; border-radius: var(--r-pill); font-size: 12.5px; font-weight: 700;
+            background: var(--c-track); color: var(--c-text-2); }
+        .locrec-verdict.v-risk { background: var(--c-risk-soft); color: var(--c-risk-text); }
+        .locrec-verdict.v-warn { background: var(--c-warn-soft); color: var(--c-warn-text); }
+        .locrec-verdict.v-ok { background: var(--c-ok-soft); color: var(--c-ok-text); }
+        .locrec-tools { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-top: 4px; }
+        .locrec-skipchk { cursor: pointer; user-select: none; }
+        .locrec-skipchk input { vertical-align: middle; }
+        .locrec-empty { padding: 6px 0; }
+        .locrec-table-wrap { max-height: 520px; overflow: auto; }
+        .locrec-table { width: 100%; min-width: 640px; font-size: 12.5px; }
+        .locrec-table td { text-align: left; vertical-align: top; padding: 6px 8px; }
+        .locrec-table td.locrec-main { min-width: 240px; }
+        .locrec-table td.locrec-rank { width: 40px; text-align: center; font-weight: 700; color: var(--c-accent-deep); }
+        .locrec-table td.locrec-gain { width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+        .locrec-table td.locrec-state { width: 150px; }
+        .locrec-table td.locrec-acts { width: 150px; white-space: nowrap; }
+        .locrec-acts .btn + .btn { margin-left: 4px; }
+        .locrec-code { font-weight: 600; color: var(--c-accent-deep); }
+        .locrec-opt { color: var(--c-text-3); font-size: 11.5px; }
+        .locrec-move { display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap; margin-top: 2px; font-size: 12px; color: var(--c-text-2); }
+        .locrec-arrow { color: var(--c-text-3); margin: 0 4px; }
+        .locrec-to { color: var(--c-ok-text); font-weight: 700; }
+        .locrec-qty { color: var(--c-warn-text); font-weight: 600; }
+        .locrec-daily { color: var(--c-text-3); }
+        .locrec-sep { border-top: 1px dashed var(--c-line); margin: 6px 0; }
+        .locrec-badges { margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
+        .locrec-badge { height: 20px; font-size: 11px; padding: 0 8px; }
+        .locrec-st { display: inline-block; padding: 1px 8px; border-radius: var(--r-pill); font-size: 11.5px; font-weight: 600; background: var(--c-track); color: var(--c-text-2); }
+        .locrec-st.st-ok { background: var(--c-ok-soft); color: var(--c-ok-text); }
+        .locrec-st.st-warn { background: var(--c-warn-soft); color: var(--c-warn-text); }
+        .locrec-st.st-accent { background: var(--c-accent-soft); color: var(--c-accent-deep); }
+        .locrec-st.st-muted { background: var(--c-track); color: var(--c-text-3); }
+        .locrec-who { font-size: 11px; color: var(--c-text-3); margin-top: 3px; }
+        .locrec-table tr.locrec-skipped td { color: var(--c-text-3); }
 
         /* ====== 모바일 전용 (768px 이하) — 데스크톱 화면은 바꾸지 않음 ====== */
         /* 대시보드 칸이 높이 부족으로 눌려 KPI 띠가 2px 로 사라지던 문제(2026-10-13) — 자식은 줄어들지 않게 */
@@ -715,6 +755,11 @@
             .refill-card { padding: 14px 14px; }
             .refill-table td.refill-chk { width: 48px; height: 40px; }
             .refill-chk input { width: 26px; height: 26px; }
+            .locrec-card { padding: 14px 14px; }
+            .locrec-table { min-width: 600px; }
+            .locrec-table td.locrec-state { width: 104px; }
+            .locrec-table td.locrec-acts { width: 128px; }
+            .locrec-acts .btn { min-height: 36px; }
 
             /* 선지정 배너 */
             .pre-assign-banner { left: 8px; right: 8px; transform: none; flex-wrap: wrap; gap: 8px; font-size: 13px; padding: 10px 14px; border-radius: 16px; }
@@ -924,6 +969,15 @@
                     <select id="refill-day" class="ctl-sm" aria-label="지시서 날짜"></select>
                 </div>
                 <div id="refill-body" class="refill-body"><div class="refill-msg">불러오는 중…</div></div>
+            </section>
+
+            <!-- 로케이션 변경 추천 (js/locrec-card.js) — 채우기 카드처럼 배치 편집 패널이 아니다. 늘 채우기 카드 바로 아래 -->
+            <section id="locrec-card" class="dash-panel locrec-card">
+                <div class="dash-panel-head refill-head">
+                    <h3>로케이션 변경 추천 <span class="dash-sub">자동 · 매일 06:40 · 14일치</span></h3>
+                    <select id="locrec-day" class="ctl-sm" aria-label="추천 날짜"></select>
+                </div>
+                <div id="locrec-body" class="refill-body"><div class="refill-msg">불러오는 중…</div></div>
             </section>
 
             <!-- 패널 칸 6개 — 순서·폭·높이는 배치 편집으로 바뀐다. 안쪽 id 칸은 location.js 가 innerHTML 로 다시 그린다 -->
@@ -1287,7 +1341,7 @@
                 <button class="btn btn-secondary btn-sm" onclick="window.show2FRecommendation()">빈칸확보</button>
             </div>
             <div style="font-size:12px; color:var(--c-text-2); margin-bottom:15px; margin-top:-10px;">
-                ※ 선지정으로 찜해둔 자리는 물건이 없더라도 이 추천 목록에서 완벽히 보호(제외)됩니다.
+                ※ 선지정·예약·당일지정 자리는 물건이 없더라도 추천에서 뺍니다. 구역 등급이 지금보다 낮은 자리로는 옮기지 않습니다.
             </div>
             <div id="rec-limit-panel" class="rec-panel">
                 <!-- v4.3: 추천 갯수 (라디오 → 드롭다운) -->
@@ -1480,8 +1534,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610191254"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610191254"></script>
+    <script type="module" src="js/location.js?v=202610191431"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610191431"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1562,9 +1616,9 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610191254"></script>
-    <script src="js/modal-esc.js?v=202610191254"></script>
-    <script type="module" src="js/modal-drag.js?v=202610191254"></script>
-    <script type="module" src="js/app-shell.js?v=202610191254"></script>
+    <script src="js/connection-banner.js?v=202610191431"></script>
+    <script src="js/modal-esc.js?v=202610191431"></script>
+    <script type="module" src="js/modal-drag.js?v=202610191431"></script>
+    <script type="module" src="js/app-shell.js?v=202610191431"></script>
 </body>
 </html>
