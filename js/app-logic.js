@@ -4,17 +4,17 @@ import {
     generateId,
     saveStateToFirestore,
     debouncedSaveState
-} from './app-data.js?v=202610191612';
+} from './app-data.js?v=202610191644';
 
 import {
     appState, db, auth
-} from './state.js?v=202610191612';
+} from './state.js?v=202610191644';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610191612';
-import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610191644';
+import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=202610191612';
+import { syncTodayToHistory } from './history-data-manager.js?v=202610191644';
 
 
 const getWorkRecordsCollectionRef = () => {
@@ -392,9 +392,8 @@ export const finalizeStopGroup = async (groupId, quantity) => {
         }
 
         if (quantity !== null && taskName && Number(quantity) > 0) {
-             await updateDoc(getDailyDocRef(), {
-                [`taskQuantities.${taskName}`]: increment(Number(quantity))
-            });
+             // 업무 이름의 점(예: '상.하차')이 하위 필드로 쪼개지지 않게 FieldPath 로 쓴다(tests/task-qty-fieldpath.test.js)
+             await updateDoc(getDailyDocRef(), new FieldPath('taskQuantities', taskName), increment(Number(quantity)));
         }
 
     } catch (e) {
@@ -448,9 +447,8 @@ export const stopWorkByTask = async (taskName, quantity) => {
         }
 
         if (quantity !== null && Number(quantity) > 0) {
-             await updateDoc(getDailyDocRef(), {
-                [`taskQuantities.${taskName}`]: increment(Number(quantity))
-            });
+             // 업무 이름의 점(예: '상.하차')이 하위 필드로 쪼개지지 않게 FieldPath 로 쓴다(tests/task-qty-fieldpath.test.js)
+             await updateDoc(getDailyDocRef(), new FieldPath('taskQuantities', taskName), increment(Number(quantity)));
         }
         showToast(`'${taskName}' 업무가 모두 종료되었습니다.`);
 
