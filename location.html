@@ -10,9 +10,9 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610191226">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191226">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610191226">
+    <link rel="stylesheet" href="css/suit.css?v=202610191254">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191254">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610191254">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -644,6 +644,32 @@
         /* 좁은 데스크톱: 헤더 한 줄 유지 — 부가 글자부터 숨김 */
         @media (max-width: 1280px) { .ch-title, .version-badge { display: none; } }
 
+        /* 채우기 지시서 카드·표 (js/refill-card.js) — 카드는 배치 편집 패널이 아니라 툴바 바로 아래 고정 */
+        .refill-card { padding: 18px 24px; }
+        .refill-card .refill-head { margin-bottom: 10px; align-items: center; }
+        .refill-body { display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; color: var(--c-text); }
+        .refill-line b { font-weight: 600; font-variant-numeric: tabular-nums; }
+        .refill-sub { font-size: 12px; color: var(--c-text-3); }
+        .refill-msg { font-size: 13.5px; color: var(--c-text-2); }
+        .refill-note { font-size: 12.5px; color: var(--c-accent-deep); }
+        .refill-body .refill-warn { color: var(--c-warn-text); }
+        .refill-prog { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .refill-prog .refill-bar { flex: 1 1 160px; max-width: 360px; margin-top: 0; }
+        .refill-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+        .refill-modal-content { width: 900px; max-width: 96vw; max-height: 92vh; padding: 22px 20px; display: flex; flex-direction: column; }
+        .refill-modal-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+        .refill-table-wrap { flex: 1; min-height: 0; overflow: auto; }
+        .refill-table { width: 100%; min-width: 560px; font-size: 12.5px; }
+        .refill-table td { text-align: left; }
+        .refill-table td.refill-num { text-align: right; font-variant-numeric: tabular-nums; }
+        .refill-table td.refill-chk { text-align: center; width: 44px; padding: 4px; }
+        .refill-chk input { width: 22px; height: 22px; margin: 0; cursor: pointer; vertical-align: middle; }
+        .refill-chk input:disabled { cursor: not-allowed; }
+        .refill-table tr.refill-done td { color: var(--c-text-3); }
+        .refill-table tr.refill-done .refill-loc { text-decoration: line-through; }
+        .refill-table td.refill-who { white-space: nowrap; font-size: 11.5px; color: var(--c-ok-text); }
+        .refill-table td.refill-empty { text-align: center; color: var(--c-text-3); padding: 20px; }
+
         /* ====== 모바일 전용 (768px 이하) — 데스크톱 화면은 바꾸지 않음 ====== */
         /* 대시보드 칸이 높이 부족으로 눌려 KPI 띠가 2px 로 사라지던 문제(2026-10-13) — 자식은 줄어들지 않게 */
         .dash-container > * { flex-shrink: 0; }
@@ -684,6 +710,11 @@
             /* 화면 밖으로 잘리는 팝업 → 화면 고정 시트 */
             .filter-popup, .upload-menu { position: fixed !important; left: 8px !important; right: 8px !important; top: 15dvh !important;
                 width: auto !important; max-height: 70dvh; overflow: auto; }
+
+            /* 채우기 지시서: 카드 여백 축소 · 체크칸은 손가락으로 누르기 쉽게(40px 줄) */
+            .refill-card { padding: 14px 14px; }
+            .refill-table td.refill-chk { width: 48px; height: 40px; }
+            .refill-chk input { width: 26px; height: 26px; }
 
             /* 선지정 배너 */
             .pre-assign-banner { left: 8px; right: 8px; transform: none; flex-wrap: wrap; gap: 8px; font-size: 13px; padding: 10px 14px; border-radius: 16px; }
@@ -886,6 +917,15 @@
                 </div>
             </div>
 
+            <!-- 채우기 지시서 (js/refill-card.js) — 배치 편집 패널이 아니다(저장된 배치에 없는 패널은 맨 아래로 붙는다). 늘 툴바 바로 아래 -->
+            <section id="refill-card" class="dash-panel refill-card">
+                <div class="dash-panel-head refill-head">
+                    <h3>채우기 지시서 <span class="dash-sub">비축 → 피킹 로케이션 · 7일치</span></h3>
+                    <select id="refill-day" class="ctl-sm" aria-label="지시서 날짜"></select>
+                </div>
+                <div id="refill-body" class="refill-body"><div class="refill-msg">불러오는 중…</div></div>
+            </section>
+
             <!-- 패널 칸 6개 — 순서·폭·높이는 배치 편집으로 바뀐다. 안쪽 id 칸은 location.js 가 innerHTML 로 다시 그린다 -->
             <div class="dash-grid" id="dash-grid">
             <!-- KPI 띠 -->
@@ -969,6 +1009,30 @@
         </div>
     </div>
 
+
+    <!-- 채우기 지시서 표 (js/refill-card.js) — 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙는다 -->
+    <div id="refill-modal" class="modal-overlay">
+        <div class="modal-content refill-modal-content">
+            <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                <span id="refill-modal-title">채우기 지시서</span>
+                <button type="button" class="modal-x" data-refill-close aria-label="닫기">×</button>
+            </div>
+            <div class="refill-modal-tools">
+                <div class="seg-tabs" id="refill-tabs" style="margin-bottom:0;">
+                    <button type="button" class="seg-tab active" data-refill-tab="rows">채우기(현장용)</button>
+                    <button type="button" class="seg-tab" data-refill-tab="checks">확인필요</button>
+                </div>
+                <label class="refill-sub" style="cursor:pointer; user-select:none;"><input type="checkbox" id="refill-only-todo" style="vertical-align:middle;"> <span style="vertical-align:middle;">안 한 것만 보기</span></label>
+            </div>
+            <div id="refill-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
+            <div class="table-box refill-table-wrap">
+                <table class="usage-table refill-table">
+                    <thead><tr><th>완료</th><th>피킹로케이션</th><th>비축위치</th><th>채울수량</th><th>비축재고</th><th>누가·언제</th></tr></thead>
+                    <tbody id="refill-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <div id="dash-bucket-modal" class="modal-overlay" onclick="if(event.target.id==='dash-bucket-modal') document.getElementById('dash-bucket-modal').style.display='none'">
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 1200px; max-width: 96vw; max-height: 92vh; padding: 22px 20px; display:flex; flex-direction:column;">
@@ -1416,8 +1480,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610191226"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610191226"></script>
+    <script type="module" src="js/location.js?v=202610191254"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610191254"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1498,9 +1562,9 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610191226"></script>
-    <script src="js/modal-esc.js?v=202610191226"></script>
-    <script type="module" src="js/modal-drag.js?v=202610191226"></script>
-    <script type="module" src="js/app-shell.js?v=202610191226"></script>
+    <script src="js/connection-banner.js?v=202610191254"></script>
+    <script src="js/modal-esc.js?v=202610191254"></script>
+    <script type="module" src="js/modal-drag.js?v=202610191254"></script>
+    <script type="module" src="js/app-shell.js?v=202610191254"></script>
 </body>
 </html>

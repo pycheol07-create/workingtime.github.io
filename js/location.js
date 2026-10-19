@@ -1,14 +1,15 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610191226';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610191254';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610191226';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610191226';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610191226';
-import { orderKeyMap } from './lib/order-hash.js?v=202610191226';
-import { setShellContext } from './app-shell-bridge.js?v=202610191226';
-import { memberNameFor } from './app-shell-data.js?v=202610191226';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610191226';
-import { initPageNav } from './page-nav.js?v=202610191226';
+import { escapeHtml as escAttr } from './utils.js?v=202610191254';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610191254';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610191254';
+import { orderKeyMap } from './lib/order-hash.js?v=202610191254';
+import { setShellContext } from './app-shell-bridge.js?v=202610191254';
+import { memberNameFor } from './app-shell-data.js?v=202610191254';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610191254';
+import { initPageNav } from './page-nav.js?v=202610191254';
+import { initRefillCard } from './refill-card.js?v=202610191254';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -72,6 +73,9 @@ const RESERVE_EXPIRE_MS = Infinity;
 
 let currentUserName = "비로그인 작업자";
 let appConfig = null;
+// 대시보드 맨 위 '채우기 지시서' 카드 — db·auth 를 넘긴다(Firebase 를 또 초기화하지 않게).
+// 체크·요청에 남는 이름은 memberNameFor(직원 이름)만 — currentUserName 은 이메일 앞부분으로 떨어질 수 있어 쓰지 않는다.
+initRefillCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) });
 window.currentUsageTab = '3F';
 window.capacity2F = 200000;
 

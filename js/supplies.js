@@ -9,19 +9,19 @@
 //  - integrations/suppliesForecast  읽기만(서버만 씀). items[id] = 상태·소진 예상·권장 발주량·근거
 //  - persistent_data/suppliesOrders 사람이 [발주함]·[입고 확인]·[발주 취소]로 orders.<id> 칸만 고친다(서버는 입고 자동 해제).
 //    supplies 문서와 따로라 persist() 의 updatedAt 충돌 판정과 상관없다.
-//  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름) · orderMinQty · orderPackQty(숫자)
+//  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름). 권장 발주량의 최소주문·묶음은 기존 MOQ 칸 문장에서 읽는다(서버 예측규칙.MOQ해석)
 //  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
 
-import { initializeFirebase } from './config.js?v=202610191226';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610191226';
-import { memberNameFor } from './app-shell-data.js?v=202610191226';
-import { escapeHtml as esc } from './utils.js?v=202610191226';
-import { kstDateTime } from './lib/kst-time.js?v=202610191226';
+import { initializeFirebase } from './config.js?v=202610191254';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610191254';
+import { memberNameFor } from './app-shell-data.js?v=202610191254';
+import { escapeHtml as esc } from './utils.js?v=202610191254';
+import { kstDateTime } from './lib/kst-time.js?v=202610191254';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion,
     NOCODE_HINT, DRIVER_OPTIONS
-} from './lib/supplies-forecast-view.js?v=202610191226';
+} from './lib/supplies-forecast-view.js?v=202610191254';
 import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -657,8 +657,6 @@ function openItemModal(id = null) {
     $('f-vendor-contact').value = it?.vendorContact || '';
     $('f-ez-code').value = it?.ezCode || '';
     $('f-order-unit').value = withThousands(it?.orderUnit || '');
-    $('f-order-min').value = it && num(it.orderMinQty) > 0 ? fmt(it.orderMinQty) : '';
-    $('f-order-pack').value = it && num(it.orderPackQty) > 0 ? fmt(it.orderPackQty) : '';
     $('f-leadtime').value = it ? (num(it.leadTimeDays) || '') : '';
     $('f-leadtime-unit').value = leadTimeUnitOf(it);
     $('f-last-order').value = it?.lastOrderDate || '';
@@ -675,10 +673,6 @@ async function saveItem() {
 
     const dup = items.find(x => x.name === name && x.id !== editingId);
     if (dup) return showError('item-modal-error', '같은 품명의 비품이 이미 있습니다.');
-    const orderMin = parseQty($('f-order-min').value);
-    const orderPack = parseQty($('f-order-pack').value);
-    if (orderMin === null && $('f-order-min').value.trim() !== '') return showError('item-modal-error', '최소 주문수량은 숫자로 입력해주세요.');
-    if (orderPack === null && $('f-order-pack').value.trim() !== '') return showError('item-modal-error', '주문 묶음은 숫자로 입력해주세요.');
 
     const data = {
         name,
@@ -692,8 +686,6 @@ async function saveItem() {
         vendorContact: $('f-vendor-contact').value.trim(),
         ezCode: $('f-ez-code').value.trim(),
         orderUnit: withThousands($('f-order-unit').value.trim()),
-        orderMinQty: orderMin || 0,
-        orderPackQty: orderPack || 0,
         leadTimeDays: num($('f-leadtime').value),
         leadTimeUnit: $('f-leadtime-unit').value,
         lastOrderDate: $('f-last-order').value,

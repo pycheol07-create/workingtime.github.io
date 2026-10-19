@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610191226">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191226">
+    <link rel="stylesheet" href="css/suit.css?v=202610191254">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191254">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -13,7 +13,7 @@
     <title>비품 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
-    <link rel="stylesheet" href="css/tool-d.css?v=202610191226">
+    <link rel="stylesheet" href="css/tool-d.css?v=202610191254">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         /* 칸마다 최소 폭(th의 min-width)을 두므로 표는 내용 폭을 따르되, 좁을 땐 영역을 꽉 채운다. */
@@ -204,14 +204,6 @@
                             <label class="lbl">MOQ (최소주문수량)</label>
                             <input id="f-order-unit" class="inp" placeholder="예: 1박스 = 500장 / 최소 10박스">
                         </div>
-                        <!-- 사용량 예측의 권장 발주량에 쓰는 숫자(위 MOQ 문장은 메모로 그대로 둔다) -->
-                        <div>
-                            <label class="lbl">최소 주문수량 · 주문 묶음 (숫자)</label>
-                            <div class="flex gap-1">
-                                <input id="f-order-min" type="text" inputmode="numeric" class="inp num" placeholder="최소 예: 5000" title="최소 주문수량(비품 단위). 권장 발주량의 하한">
-                                <input id="f-order-pack" type="text" inputmode="numeric" class="inp num" placeholder="묶음 예: 500" title="주문 묶음(예: 1박스 = 500 → 500). 권장 발주량을 이 배수로 올림">
-                            </div>
-                        </div>
                         <div>
                             <label class="lbl">리드타임 (입고 소요기간)</label>
                             <div class="flex gap-1">
@@ -305,10 +297,10 @@
         </div>
     </div>
 
-    <script type="module" src="js/supplies.js?v=202610191226"></script>
-    <script type="module" src="js/app-shell.js?v=202610191226"></script>
-    <script src="js/connection-banner.js?v=202610191226"></script>
-    <script src="js/modal-esc.js?v=202610191226"></script>
-    <script type="module" src="js/modal-drag.js?v=202610191226"></script>
+    <script type="module" src="js/supplies.js?v=202610191254"></script>
+    <script type="module" src="js/app-shell.js?v=202610191254"></script>
+    <script src="js/connection-banner.js?v=202610191254"></script>
+    <script src="js/modal-esc.js?v=202610191254"></script>
+    <script type="module" src="js/modal-drag.js?v=202610191254"></script>
 </body>
 </html>
