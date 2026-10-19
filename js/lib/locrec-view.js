@@ -12,8 +12,8 @@
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610191548';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610191548';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610191558';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610191558';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -306,4 +306,17 @@ export function tabMeta(tab, items) {
     if (marked) parts.push(`처리함 표시 ${marked}`);
     if (hidden) parts.push(`안 함 ${hidden}(숨김)`);
     return parts.join(' · ');
+}
+
+/**
+ * 표 한 추천의 상품 줄 — 단독은 1줄, 맞바꾸기·페어(code2 있음)는 2줄 [A, B].
+ *   줄 = { code, name, option, from, to, qty, daily }. 표는 줄마다 <tr> 하나(상품·현재·추천·이동수량·일출고), 순위·이득·상태·표시는 rowspan.
+ */
+export function rowLines(r) {
+    if (!r || typeof r !== 'object') return [];
+    const pick = (s) => ({ code: r['code' + s], name: r['name' + s], option: r['option' + s], from: r['from' + s], to: r['to' + s],
+        qty: r['qty' + s] == null ? null : r['qty' + s], daily: r['daily' + s] == null ? null : r['daily' + s] });
+    const lines = [pick('')];
+    if ((r.type === 'swap' || r.type === 'pair') && r.code2) lines.push(pick('2'));
+    return lines;
 }

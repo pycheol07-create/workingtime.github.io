@@ -12,10 +12,10 @@
 //
 // Firebase 초기화는 firebase-init.js 한 곳(공통 상단바 js/app-shell.js 는 Firebase 를 초기화하지 않고,
 // 개인 알림 모듈도 계산기에서는 불러오지 않는다 — NOTI_OFF_PAGES). 로그인 상태는 여기서 상단바에 uid 만 넘긴다(메뉴는 캐시).
-import { db, auth } from './firebase-init.js?v=202610191548';
+import { db, auth } from './firebase-init.js?v=202610191558';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { setShellContext } from '../js/app-shell-bridge.js?v=202610191548';
+import { setShellContext } from '../js/app-shell-bridge.js?v=202610191558';
 
 const DOC_PATH = 'artifacts/team-work-logger-v2/integrations/customsDefaults';
 

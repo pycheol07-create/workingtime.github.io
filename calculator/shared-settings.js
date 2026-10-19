@@ -15,12 +15,12 @@
 //   실패하면 예외(공용에는 아무것도 안 씀).
 //   runTransaction 으로 읽고-비교-쓰기: 그사이 다른 사람이 바꾼 칸은 덮지 않고 conflicts 로 돌려준다.
 // 이름: mainConfig.memberEmails(이름 → 이메일) 역매핑 → systemAccounts → '알 수 없음'. 이메일은 이력에 넣지 않는다.
-import { db, auth } from './firebase-init.js?v=202610191548';
+import { db, auth } from './firebase-init.js?v=202610191558';
 import { doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
     planSave, historyEntries, appendHistory, updateMeta, nameForEmail, labelOf, formatValue
-} from '../js/lib/calc-settings.js?v=202610191548';
+} from '../js/lib/calc-settings.js?v=202610191558';
 
 const DOC_PATH = 'artifacts/team-work-logger-v2/persistent_data/calculatorSettings';
 const CONFIG_PATH = 'artifacts/team-work-logger-v2/config/mainConfig';

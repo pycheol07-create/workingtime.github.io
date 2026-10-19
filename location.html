@@ -10,9 +10,9 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610191548">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191548">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610191548">
+    <link rel="stylesheet" href="css/suit.css?v=202610191558">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191558">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610191558">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -705,9 +705,19 @@
         .locrec-empty { padding: 6px 0; }
         .locrec-modal-content { width: 1000px; }
         .locrec-table-wrap { flex: 1; min-height: 0; overflow: auto; }
-        .locrec-table { width: 100%; min-width: 640px; font-size: 12.5px; }
+        .locrec-table { width: 100%; min-width: 820px; font-size: 12.5px; }
+        .locrec-table th { white-space: nowrap; }
         .locrec-table td { text-align: left; vertical-align: top; padding: 6px 8px; }
-        .locrec-table td.locrec-main { min-width: 240px; }
+        /* 맞바꾸기·페어는 줄(A/B)마다 tr — 줄무늬는 추천 단위(.locrec-alt), 두 줄 사이는 점선 */
+        .usage-table.locrec-table tr:nth-child(even) { background-color: transparent; }
+        .usage-table.locrec-table tr.tone-warn { background-color: var(--c-warn-soft); }
+        .usage-table.locrec-table tr.tone-accent { background-color: var(--c-accent-soft); }
+        .usage-table.locrec-table tr.tone-ok { background-color: var(--c-ok-soft); }
+        .usage-table.locrec-table tr.locrec-alt { background-color: var(--c-surface-2); }
+        .locrec-table tr.locrec-sub > td { border-top: 1px dashed var(--c-line); }
+        .locrec-table td.locrec-prod { min-width: 200px; }
+        .locrec-table td.locrec-loc { width: 96px; white-space: nowrap; }
+        .locrec-table td.locrec-num { width: 56px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .locrec-table td.locrec-rank { width: 40px; text-align: center; font-weight: 700; color: var(--c-accent-deep); }
         .locrec-table td.locrec-gain { width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
         .locrec-table td.locrec-state { width: 150px; }
@@ -715,12 +725,10 @@
         .locrec-acts .btn + .btn { margin-left: 4px; }
         .locrec-code { font-weight: 600; color: var(--c-accent-deep); }
         .locrec-opt { color: var(--c-text-3); font-size: 11.5px; }
-        .locrec-move { display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap; margin-top: 2px; font-size: 12px; color: var(--c-text-2); }
-        .locrec-arrow { color: var(--c-text-3); margin: 0 4px; }
+        .locrec-from { color: var(--c-text-2); }
         .locrec-to { color: var(--c-ok-text); font-weight: 700; }
         .locrec-qty { color: var(--c-warn-text); font-weight: 600; }
         .locrec-daily { color: var(--c-text-3); }
-        .locrec-sep { border-top: 1px dashed var(--c-line); margin: 6px 0; }
         .locrec-badges { margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
         .locrec-badge { height: 20px; font-size: 11px; padding: 0 8px; }
         .locrec-st { display: inline-block; padding: 1px 8px; border-radius: var(--r-pill); font-size: 11.5px; font-weight: 600; background: var(--c-track); color: var(--c-text-2); }
@@ -788,7 +796,9 @@
             #locrec-modal > .refill-modal-content { height: calc(100dvh - 16px); overflow: hidden !important; }
             #locrec-modal .locrec-table-wrap { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
             body:has(#locrec-modal[style*="flex"]) { overflow: hidden; }
-            .locrec-table { min-width: 600px; }
+            .locrec-table { min-width: 760px; }
+            .locrec-table td.locrec-prod { min-width: 170px; }
+            .locrec-table td.locrec-loc { width: 84px; }
             .locrec-table td.locrec-state { width: 104px; }
             .locrec-table td.locrec-acts { width: 128px; }
             .locrec-acts .btn { min-height: 36px; }
@@ -1162,7 +1172,7 @@
             <div id="locrec-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
             <div class="table-box locrec-table-wrap">
                 <table class="usage-table locrec-table">
-                    <thead><tr><th>순위</th><th title="상품 · 현재 → 변경 · 이동수량 · 일평균 출고">상품 · 이동</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th>상태</th><th>표시</th></tr></thead>
+                    <thead><tr><th>순위</th><th title="상품코드 · 상품명(옵션) — 맞바꾸기·페어는 두 줄(A/B)">상품</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th>상태</th><th>표시</th></tr></thead>
                     <tbody id="locrec-tbody"></tbody>
                 </table>
             </div>
@@ -1615,8 +1625,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610191548"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610191548"></script>
+    <script type="module" src="js/location.js?v=202610191558"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610191558"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1697,9 +1707,9 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610191548"></script>
-    <script src="js/modal-esc.js?v=202610191548"></script>
-    <script type="module" src="js/modal-drag.js?v=202610191548"></script>
-    <script type="module" src="js/app-shell.js?v=202610191548"></script>
+    <script src="js/connection-banner.js?v=202610191558"></script>
+    <script src="js/modal-esc.js?v=202610191558"></script>
+    <script type="module" src="js/modal-drag.js?v=202610191558"></script>
+    <script type="module" src="js/app-shell.js?v=202610191558"></script>
 </body>
 </html>

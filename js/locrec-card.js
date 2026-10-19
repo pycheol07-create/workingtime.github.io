@@ -9,13 +9,13 @@
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=202610191548';
+import { escapeHtml } from './utils.js?v=202610191558';
 import {
     dayKey, fmtHM, fmtMDHM, parseRecDay, verdictBadge, metricItems, dataWarnings, dataLine, rowState, dayOptions, defaultDay,
     dayMessage, fileNameOf, tabCounts, stockAtOf, excelRows, EXCEL_COLS, TABS, TAB_LABEL, SHEET_NAME, fmtNum, recStrip,
-    stripRows, fileNameAll, tabSummary, canMark, tabMeta, dayLabel
-} from './lib/locrec-view.js?v=202610191548';
-import { initFold } from './lib/card-fold.js?v=202610191548';
+    stripRows, fileNameAll, tabSummary, canMark, tabMeta, dayLabel, rowLines
+} from './lib/locrec-view.js?v=202610191558';
+import { initFold } from './lib/card-fold.js?v=202610191558';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -118,11 +118,9 @@ export function initLocRecCard({ db, auth, getMemberName }) {
     }
 
     const n0 = (v) => (v == null ? '' : Number(v).toLocaleString('ko-KR'));
-    const locCell = (from, to) => `<span class="locrec-from">${escapeHtml(from || '-')}</span><span class="locrec-arrow">→</span><b class="locrec-to">${escapeHtml(to || '-')}</b>`;
     const nameCell = (name, option) => `${escapeHtml(name || '')}${option ? ` <span class="locrec-opt">(${escapeHtml(option)})</span>` : ''}`;
 
     function rowHtml(r, st, i, editable) {
-        const two = (r.type === 'swap' || r.type === 'pair') && r.code2;
         const busy = S.saving.has(r.recKey) || !editable;   // 지난 날짜는 볼 수만
         const k = escapeHtml(r.recKey);
         const mk = st.mark;
@@ -134,18 +132,27 @@ export function initLocRecCard({ db, auth, getMemberName }) {
               + `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="skip" data-locrec-key="${k}"${busy ? ' disabled' : ''}>안 함</button>`;
         const badges = (r.capWarn ? '<span class="badge badge-warn locrec-badge" title="옮길 자리 적재량보다 수량이 많습니다">적재량 확인</span>' : '')
             + (r.pairNear ? `<span class="badge badge-accent locrec-badge" title="함께 잘 팔리는 상품이 옮길 자리와 같은 동에 있습니다">페어 ${escapeHtml(r.pairNear)}</span>` : '');
-        const line = (code, name, option, from, to, qty, daily) =>
-            `<div class="locrec-item"><span class="locrec-code">${escapeHtml(code)}</span> ${nameCell(name, option)}</div>`
-            + `<div class="locrec-move">${locCell(from, to)}<span class="locrec-qty">${qty == null ? '' : `${n0(qty)}개`}</span>`
-            + `<span class="locrec-daily">${daily == null ? '' : `일 ${fmtNum(daily)}개`}</span></div>`;
-        return `<tr class="locrec-row tone-${st.tone}${st.label === '안 함' ? ' locrec-skipped' : ''}">`
-            + `<td class="locrec-rank">${r.rank == null ? i + 1 : r.rank}</td>`
-            + `<td class="locrec-main">${line(r.code, r.name, r.option, r.from, r.to, r.qty, r.daily)}`
-            + (two ? `<div class="locrec-sep"></div>${line(r.code2, r.name2, r.option2, r.from2, r.to2, r.qty2, r.daily2)}` : '')
-            + (badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
-            + `<td class="locrec-gain">${fmtNum(r.gain)}</td>`
-            + `<td class="locrec-state"><span class="locrec-st st-${st.tone}">${escapeHtml(st.label)}</span>${who}</td>`
-            + `<td class="locrec-acts">${btns}</td></tr>`;
+        // 맞바꾸기·페어는 줄(A/B)마다 <tr> — 상품·현재·추천·이동수량·일출고 칸끼리 짝이 맞게. 순위·이득·상태·표시는 rowspan 으로 하나만.
+        // 줄무늬는 추천 단위(.locrec-alt) — usage-table 의 tr:nth-child(even) 는 줄 단위라 locrec-table 에서 끈다(location.html).
+        const lines = rowLines(r);
+        const span = lines.length > 1 ? ` rowspan="${lines.length}"` : '';
+        const trCls = `locrec-row tone-${st.tone}${st.label === '안 함' ? ' locrec-skipped' : ''}${i % 2 ? ' locrec-alt' : ''}`;
+        return lines.map((l, j) => {
+            const last = j === lines.length - 1;
+            const cells = `<td class="locrec-prod"><span class="locrec-code">${escapeHtml(l.code)}</span> ${nameCell(l.name, l.option)}`
+                + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
+                + `<td class="locrec-loc locrec-from">${escapeHtml(l.from || '-')}</td>`
+                + `<td class="locrec-loc"><b class="locrec-to">${escapeHtml(l.to || '-')}</b></td>`
+                + `<td class="locrec-num locrec-qty">${l.qty == null ? '' : `${n0(l.qty)}개`}</td>`
+                + `<td class="locrec-num locrec-daily">${l.daily == null ? '' : fmtNum(l.daily)}</td>`;
+            if (j > 0) return `<tr class="${trCls} locrec-sub">${cells}</tr>`;
+            return `<tr class="${trCls}">`
+                + `<td class="locrec-rank"${span}>${r.rank == null ? i + 1 : r.rank}</td>`
+                + cells
+                + `<td class="locrec-gain"${span}>${fmtNum(r.gain)}</td>`
+                + `<td class="locrec-state"${span}><span class="locrec-st st-${st.tone}">${escapeHtml(st.label)}</span>${who}</td>`
+                + `<td class="locrec-acts"${span}>${btns}</td></tr>`;
+        }).join('');
     }
 
     function visibleRows(today) {
@@ -259,12 +266,12 @@ export function initLocRecCard({ db, auth, getMemberName }) {
         if (!loaded) {
             mMeta.textContent = '';
             const t = (S.latest && dayMessage(entryOf(S.key))) || S.dayErr || '표 불러오는 중…';
-            mTbody.innerHTML = `<tr><td colspan="5" class="refill-empty">${escapeHtml(t)}</td></tr>`;
+            mTbody.innerHTML = `<tr><td colspan="9" class="refill-empty">${escapeHtml(t)}</td></tr>`;
             return;
         }
         mMeta.textContent = tabMeta(S.tab, all) + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
         if (!rows.length) {
-            mTbody.innerHTML = `<tr><td colspan="5" class="refill-empty">${cnt[S.tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[S.tab]} 추천이 없습니다`}</td></tr>`;
+            mTbody.innerHTML = `<tr><td colspan="9" class="refill-empty">${cnt[S.tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[S.tab]} 추천이 없습니다`}</td></tr>`;
             return;
         }
         mTbody.innerHTML = rows.map((x, i) => rowHtml(x.r, x.st, i, editable)).join('');
