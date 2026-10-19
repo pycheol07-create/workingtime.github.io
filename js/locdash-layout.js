@@ -10,7 +10,7 @@ import {
     PANELS, GRID_COLS, MIN_W, GAP, ROW_UNIT,
     defaultLayout, normalizeLayout, sameLayout, effectiveSpan, rowSpan, snapH, moveItem, placeItems,
     loadLayout, saveLayout, STORAGE_KEY,
-} from './lib/dash-layout.js?v=202610191431';
+} from './lib/dash-layout.js?v=202610191502';
 
 const DRAG_START_PX = 4;      // 이만큼 움직여야 끌기 시작(그냥 누른 것과 구분)
 const AUTO_SCROLL_EDGE = 40;  // 스크롤 상자 위·아래 이 안쪽이면 자동 스크롤
@@ -59,8 +59,10 @@ const updateLabels = () => {
 };
 
 /** 칸 높이 → 줄 수, 상자 폭 → 보이는 칸 수 → 위치(placeItems). 탭이 숨겨져 폭 0 이면 건드리지 않는다(측정값 저장 안 함) */
-/** 옆 칸에 맞춰 늘려도 되는 칸: 높이 고정이 아니고 안쪽이 .dash-panel 상자(늘린 높이를 min-height:100% 로 채움) */
-const isStretchable = (cell, it) => !it.h && !!cell.firstElementChild && cell.firstElementChild.classList.contains('dash-panel');
+/** 옆 칸에 맞춰 늘려도 되는 칸: 높이 고정이 아니고 안쪽이 .dash-panel 상자(늘린 높이를 min-height:100% 로 채움).
+ *  위쪽 띠(.topcard — 채우기 지시서·변경 추천)는 빼다: 접힌 한 줄 띠가 옆 칸 높이만큼 늘어나면 안 된다 */
+const isStretchable = (cell, it) => !it.h && !!cell.firstElementChild && cell.firstElementChild.classList.contains('dash-panel')
+    && !cell.firstElementChild.classList.contains('topcard');
 
 /**
  * 칸의 '내용 높이'. 늘린 칸은 칸 높이가 늘어난 값이라, 안쪽 패널의 자식들 바닥으로 잰다

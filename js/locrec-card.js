@@ -2,28 +2,37 @@
 // 로케이션관리 대시보드 '로케이션 변경 추천' 카드 — 채우기 지시서 카드 바로 아래.
 //   추천은 이 PC 프로그램(업무자동화\앱\로케이션추천)이 매일 06:40 이지어드민 출고 28일로 만들어 Firestore 에 남긴다(14일치).
 //   카드: 판정·지표·자료 상태 · 날짜 선택 · 탭[단독|맞바꾸기|페어] 표 · 행마다 [처리함]/[안 함] · 엑셀 받기(5열, 맞바꾸기·페어는 2행).
+//   카드는 접힌 띠 한 줄(판정 · 추천 n건 · 엑셀 받기 · 펼치기)이 기본, [펼치기]로 아래 전체 내용. 펼침은 js/lib/card-fold.js.
 //   [변경 추천] 모달(업로드 자료 기준, location.js)과는 수요 자료가 달라 결과가 다를 수 있다 — 계산 모듈은 같다(js/lib/loc-recommend.js).
 // 문서 모양·순수 함수는 js/lib/locrec-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=202610191431';
+import { escapeHtml } from './utils.js?v=202610191502';
 import {
     dayKey, fmtHM, fmtMDHM, parseRecDay, verdictBadge, metricItems, dataWarnings, dataLine, rowState, dayOptions, defaultDay,
-    dayMessage, fileNameOf, tabCounts, stockAtOf, excelRows, EXCEL_COLS, TABS, TAB_LABEL, SHEET_NAME, fmtNum
-} from './lib/locrec-view.js?v=202610191431';
+    dayMessage, fileNameOf, tabCounts, stockAtOf, excelRows, EXCEL_COLS, TABS, TAB_LABEL, SHEET_NAME, fmtNum, recStrip,
+    stripRows, fileNameAll
+} from './lib/locrec-view.js?v=202610191502';
+import { initFold } from './lib/card-fold.js?v=202610191502';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
 const DAY_PATH = (key) => `${APP}/integrations/locRec_${key}`;
 const MARKS_PATH = `${APP}/locRecWork/marks`;
 const NO_NAME = '이름 없음';
+/** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
+const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
 
 export function initLocRecCard({ db, auth, getMemberName }) {
     const card = document.getElementById('locrec-card');
     const body = document.getElementById('locrec-body');
     const sel = document.getElementById('locrec-day');
     if (!card || !body || !sel || !db || !auth) return;
+    const strip = document.getElementById('locrec-strip');
+    const stripAct = document.getElementById('locrec-strip-act');
+    const foldBtn = document.getElementById('locrec-fold');
+    const detail = document.getElementById('locrec-detail');
 
     const S = {
         signedIn: false, latest: null, latestErr: '',
@@ -137,10 +146,43 @@ export function initLocRecCard({ db, auth, getMemberName }) {
         return list.map(r => ({ r, st: rowState({ row: r, open: open[r.recKey], mark: S.marks[r.recKey], viewDay: S.key, todayKey: today, nowMs: now }) }));
     }
 
+    // ── 접힌 띠 ── 같은 내용이면 다시 그리지 않는다(누르던 버튼 포커스가 풀리지 않게)
+    let lastStrip = '', lastAct = '';
+    function setStrip(sumHtml, actHtml) {
+        if (strip && lastStrip !== sumHtml) { lastStrip = sumHtml; strip.innerHTML = sumHtml; }
+        if (stripAct && lastAct !== actHtml) { lastAct = actHtml; stripAct.innerHTML = actHtml; }
+    }
+    const warnBadge = (warns) => (warns.length
+        ? `<span class="badge badge-warn topcard-warn" role="note" tabindex="0" title="${escapeHtml(warns.join(' / '))}" aria-label="주의 ${warns.length}건: ${escapeHtml(warns.join(' / '))}">주의 ${warns.length}</span>` : '');
+    function renderStrip(today) {
+        const loaded = S.day && S.day.key === S.key;
+        const sp = recStrip({ latest: S.latest, key: S.key, todayKey: today, parsed: loaded ? S.day.parsed : null,
+                              marks: S.marks, nowMs: Date.now(), extraWarns: S.dayErr ? [S.dayErr] : [] });
+        // 좁은 카드에서는 '판정 '·'(MM/DD까지)' 를 숨긴다(.tc-long) — 전체 문구는 title 에
+        const vm = /^(.*?)( \(.+\))$/.exec(sp.verdict.label);
+        const vMain = vm ? vm[1] : sp.verdict.label, vTail = vm ? vm[2] : '';
+        let sum = `<span class="locrec-verdict v-${sp.verdict.tone}" title="판정 ${escapeHtml(sp.verdict.label)}"><span class="tc-long">판정&nbsp;</span>${escapeHtml(vMain)}`
+            + (vTail ? `<span class="tc-long">&nbsp;${escapeHtml(vTail.trim())}</span>` : '') + '</span>';
+        let act = '';
+        if (sp.msg) sum += `<span class="${sp.tone === 'warn' ? 'refill-warn' : 'refill-sub'}">${escapeHtml(sp.msg)}</span>`;
+        else if (sp.n == null) sum += `<span class="refill-sub">${S.dayErr ? '추천을 읽지 못했습니다' : '불러오는 중…'}</span>`;
+        else {
+            sum += `<span>${escapeHtml(sp.dayText)} 추천 <b>${sp.n}건</b>${sp.newN ? ` (새로 ${sp.newN})` : ''}</span>`;
+            act = `<button type="button" class="btn btn-primary btn-sm" data-locrec-act="downloadAll" title="${escapeHtml(sp.dayText)} 추천 전체(단독·맞바꾸기·페어, 안 함 제외)"${sp.n ? '' : ' disabled'}>엑셀 받기</button>`;
+        }
+        setStrip(sum + warnBadge(sp.warns), act);
+    }
+
     function render() {
-        if (!S.signedIn) { body.innerHTML = '<div class="refill-msg">로그인하면 보입니다.</div>'; return; }
+        if (!S.signedIn) {
+            body.innerHTML = '<div class="refill-msg">로그인하면 보입니다.</div>';
+            setStrip('<span class="refill-sub">로그인하면 보입니다.</span>', '');
+            return;
+        }
         if (S.latest == null) {
-            body.innerHTML = `<div class="refill-msg">${S.latestErr ? '추천 상태를 읽지 못했습니다(' + escapeHtml(S.latestErr) + ')' : '불러오는 중…'}</div>`;
+            const t = S.latestErr ? '추천 상태를 읽지 못했습니다(' + escapeHtml(S.latestErr) + ')' : '불러오는 중…';
+            body.innerHTML = `<div class="refill-msg">${t}</div>`;
+            setStrip(`<span class="${S.latestErr ? 'refill-warn' : 'refill-sub'}">${t}</span>`, '');
             return;
         }
         const today = todayKey();
@@ -190,6 +232,7 @@ export function initLocRecCard({ db, auth, getMemberName }) {
             if (basedAt) parts.push(`<div class="refill-sub">이 추천은 재고 자료 ${escapeHtml(fmtMDHM(basedAt))} 기준</div>`);
         }
         body.innerHTML = parts.join('');
+        renderStrip(today);
     }
 
     // ── 쓰기·엑셀 ──
@@ -208,16 +251,26 @@ export function initLocRecCard({ db, auth, getMemberName }) {
         }
     }
 
-    function download() {
+    function writeXlsx(rows, sheetName, fileName) {
         const X = window.XLSX;
         if (!X || !X.utils) { alert('엑셀 도구를 불러오지 못했습니다. 새로고침 후 다시 해 주세요.'); return; }
-        const rows = visibleRows(todayKey()).filter(x => S.showSkipped || !x.st.hidden).map(x => x.r);
         if (!rows.length) return;
         const ws = X.utils.json_to_sheet(excelRows(rows), { header: EXCEL_COLS });
         ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 25 }, { wch: 15 }];   // 기존 [변경 추천] 엑셀과 같은 폭
         const wb = X.utils.book_new();
-        X.utils.book_append_sheet(wb, ws, SHEET_NAME[S.tab]);
-        X.writeFile(wb, fileNameOf(S.tab, S.key));
+        X.utils.book_append_sheet(wb, ws, sheetName);
+        X.writeFile(wb, fileName);
+    }
+    // 펼친 본문: 지금 탭(안 함도 보기면 그것까지)
+    function download() {
+        const rows = visibleRows(todayKey()).filter(x => S.showSkipped || !x.st.hidden).map(x => x.r);
+        writeXlsx(rows, SHEET_NAME[S.tab], fileNameOf(S.tab, S.key));
+    }
+    // 접힌 띠: 탭과 상관없이 그날 추천 전체(단독 → 맞바꾸기 → 페어, 안 함 제외) — 띠 건수와 같은 목록
+    function downloadAll() {
+        if (!S.day || S.day.key !== S.key) return;
+        const rows = stripRows({ latest: S.latest, key: S.key, todayKey: todayKey(), parsed: S.day.parsed, marks: S.marks, nowMs: Date.now() }).map(x => x.r);
+        writeXlsx(rows, '변경추천', fileNameAll(S.key));
     }
 
     // ── 이벤트 ──
@@ -229,6 +282,7 @@ export function initLocRecCard({ db, auth, getMemberName }) {
         const act = b.getAttribute('data-locrec-act');
         const key = b.getAttribute('data-locrec-key');
         if (act === 'download') download();
+        else if (act === 'downloadAll') downloadAll();
         else if (act === 'done') mark(key, 'done');
         else if (act === 'skip') mark(key, 'skip');
         else if (act === 'undo') mark(key, null);
@@ -243,6 +297,8 @@ export function initLocRecCard({ db, auth, getMemberName }) {
         syncDay();
         render();
     });
+
+    if (foldBtn && detail) initFold({ btn: foldBtn, panel: detail, card, id: 'locrec', name: '변경 추천', storage: getStorage() });
 
     // 자정 넘김·'오래됨' 문구를 위해 10분마다 다시
     setInterval(() => { if (S.signedIn && S.latest) { syncDay(); render(); } }, 10 * 60 * 1000);

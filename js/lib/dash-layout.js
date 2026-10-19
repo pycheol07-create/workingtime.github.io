@@ -3,7 +3,8 @@
 //
 //  배치는 그 PC·브라우저 localStorage 에만 둔다(사람마다 따로). Firestore 에 쓰지 않는다.
 //  저장값은 사람이 손댈 수도, 옛 버전일 수도, 깨졌을 수도 있다 — normalizeLayout 이
-//  무엇이 오든 '쓸 수 있는 배치' 로 정리한다(모르는 패널 버림, 빠진 패널은 기본값으로 끝에).
+//  무엇이 오든 '쓸 수 있는 배치' 로 정리한다(모르는 패널 버림, 빠진 패널은 기본값으로 끝에 —
+//  PANELS[id].place === 'top' 인 패널만 맨 위에. 위쪽 띠 두 개가 생기기 전에 배치를 저장한 사람도 띠가 위에 보이게).
 //
 //  import 0개 — DOM 을 쓰지 않는다. localStorage 는 밖에서 주입받는다(가짜로 시험 가능).
 
@@ -17,8 +18,11 @@ export const ROW_UNIT = 8;         // grid-auto-rows 한 줄 높이(px) — 높�
 export const GAP = 24;             // 칸 사이 간격(px) = --sp-5
 export const NARROW_W = 960;       // 대시보드 상자 폭이 이보다 좁으면 모든 패널을 한 줄(12칸)로
 
-/** 패널 목록. minPx = 이보다 좁아지면 내용이 깨지는 폭 → 보이는 칸 수를 늘려 막는다 */
+/** 패널 목록. minPx = 이보다 좁아지면 내용이 깨지는 폭 → 보이는 칸 수를 늘려 막는다
+ *  place 'top' = 저장된 배치에 없을 때(처음 보는 패널) 맨 위에 넣는다. 없으면 맨 아래(예전 그대로) */
 export const PANELS = {
+    refill:    { label: '채우기 지시서',          minW: MIN_W, minPx: 420, place: 'top' },
+    locrec:    { label: '변경 추천',              minW: MIN_W, minPx: 420, place: 'top' },
     kpi:       { label: 'KPI 띠',               minW: MIN_W, minPx: 480 },
     zone:      { label: '구역별 사용률',         minW: MIN_W, minPx: 420 },
     actions:   { label: '처리할 일',             minW: MIN_W, minPx: 280 },
@@ -27,10 +31,12 @@ export const PANELS = {
     deadstock: { label: '구역·동별 데드스톡 분석', minW: MIN_W, minPx: 520 },
 };
 
-/** 기본 배치 = 지금(배치 편집 전) 화면 모양. h 0 = 내용 높이 그대로 */
+/** 기본 배치 = 지금(배치 편집 전) 화면 모양. h 0 = 내용 높이 그대로. 위쪽 띠 두 개는 반씩 한 줄 */
 export const DEFAULT_LAYOUT = Object.freeze({
     v: LAYOUT_VERSION,
     items: Object.freeze([
+        Object.freeze({ id: 'refill', w: 6, h: 0 }),
+        Object.freeze({ id: 'locrec', w: 6, h: 0 }),
         Object.freeze({ id: 'kpi', w: 12, h: 0 }),
         Object.freeze({ id: 'zone', w: 8, h: 0 }),
         Object.freeze({ id: 'actions', w: 4, h: 0 }),
@@ -82,11 +88,14 @@ export const normalizeLayout = (raw) => {
         const def = defaultItem(id);
         items.push({ id, w: normW(it.w, def.w), h: normH(it.h, def.h) });
     }
-    // 저장값에 없는 패널(새로 생긴 패널 포함)은 기본 설정으로 끝에
+    // 저장값에 없는 패널(새로 생긴 패널 포함)은 기본 설정으로 끝에 — place 'top' 패널은 맨 위에(기본 배치 순서대로)
+    const top = [];
     for (const def of DEFAULT_LAYOUT.items) {
-        if (!seen.has(def.id)) items.push({ ...def });
+        if (seen.has(def.id)) continue;
+        if (PANELS[def.id].place === 'top') top.push({ ...def });
+        else items.push({ ...def });
     }
-    return { v: LAYOUT_VERSION, items };
+    return { v: LAYOUT_VERSION, items: [...top, ...items] };
 };
 
 /** 두 배치가 같은가(순서·폭·높이) */

@@ -10,9 +10,9 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610191431">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191431">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610191431">
+    <link rel="stylesheet" href="css/suit.css?v=202610191502">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191502">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610191502">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -644,9 +644,31 @@
         /* 좁은 데스크톱: 헤더 한 줄 유지 — 부가 글자부터 숨김 */
         @media (max-width: 1280px) { .ch-title, .version-badge { display: none; } }
 
-        /* 채우기 지시서 카드·표 (js/refill-card.js) — 카드는 배치 편집 패널이 아니라 툴바 바로 아래 고정 */
-        .refill-card { padding: 18px 24px; }
-        .refill-card .refill-head { margin-bottom: 10px; align-items: center; }
+        /* 위쪽 띠 두 개(채우기 지시서·변경 추천) — 배치 편집 패널(기본은 맨 위에 반씩 한 줄).
+           접힌 띠 = 버튼 한 줄 높이(요약·엑셀 받기·펼치기), [펼치기]로 띠 아래에 전체 내용. 펼침은 js/lib/card-fold.js 가 기억 */
+        .topcard { padding: 0; container-type: inline-size; }
+        .topcard-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-height: 48px; padding: 8px 12px 8px 18px; box-sizing: border-box; }
+        .topcard .topcard-strip h3 { margin: 0; font-size: 15px; white-space: nowrap; }
+        .topcard-sum { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--c-text-2); }
+        .topcard-sum > * { white-space: nowrap; }
+        .topcard-sum b { color: var(--c-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+        .topcard-sum .refill-warn { color: var(--c-warn-text); }
+        .topcard-act { display: flex; align-items: center; gap: 6px; margin-left: auto; } /* 줄이 바뀌면(휴대폰) 버튼은 오른쪽 */
+        .topcard-act:empty { display: none; }
+        .topcard-fold { flex-shrink: 0; }
+        .badge.topcard-warn { height: 20px; padding: 0 8px; font-size: 11.5px; cursor: help; }
+        .topcard-sum .locrec-verdict { height: 22px; padding: 0 10px; font-size: 12px; }
+        .topcard-detail { border-top: 1px solid var(--c-line-soft); padding: 14px 24px 18px; }
+        .topcard .refill-head { margin-bottom: 10px; align-items: center; }
+        /* 카드 폭이 좁으면(PC 1024~1365 반 폭) 한 줄에 들어가게 — 접기 버튼 글자·판정 꼬리(관찰 기한)는 숨기고 화살표·title 로 */
+        @container (max-width: 640px) {
+            .tc-long { display: none; }
+            .topcard-strip { gap: 6px 8px; padding-left: 14px; padding-right: 10px; }
+            .topcard .topcard-strip h3 { font-size: 14px; }
+            .topcard-sum { gap: 4px 8px; font-size: 12.5px; }
+            .topcard-strip .btn-sm { padding: 0 10px; }
+        }
+        /* 채우기 지시서 카드·표 (js/refill-card.js) */
         .refill-body { display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; color: var(--c-text); }
         .refill-line b { font-weight: 600; font-variant-numeric: tabular-nums; }
         .refill-sub { font-size: 12px; color: var(--c-text-3); }
@@ -669,9 +691,7 @@
         .refill-table tr.refill-done .refill-loc { text-decoration: line-through; }
         .refill-table td.refill-who { white-space: nowrap; font-size: 11.5px; color: var(--c-ok-text); }
         .refill-table td.refill-empty { text-align: center; color: var(--c-text-3); padding: 20px; }
-        /* 로케이션 변경 추천 카드 (js/locrec-card.js) — 채우기 카드 바로 아래, 배치 편집 패널 아님 */
-        .locrec-card { padding: 18px 24px; }
-        .locrec-card .refill-head { margin-bottom: 10px; align-items: center; }
+        /* 로케이션 변경 추천 카드 (js/locrec-card.js) */
         .locrec-kpis { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; }
         .locrec-kpi b { font-weight: 600; font-variant-numeric: tabular-nums; }
         .locrec-verdict { display: inline-flex; align-items: center; height: 24px; padding: 0 12px; border-radius: var(--r-pill); font-size: 12.5px; font-weight: 700;
@@ -752,10 +772,10 @@
                 width: auto !important; max-height: 70dvh; overflow: auto; }
 
             /* 채우기 지시서: 카드 여백 축소 · 체크칸은 손가락으로 누르기 쉽게(40px 줄) */
-            .refill-card { padding: 14px 14px; }
+            .topcard-strip { padding: 8px 10px 8px 14px; }
+            .topcard-detail { padding: 12px 14px 14px; }
             .refill-table td.refill-chk { width: 48px; height: 40px; }
             .refill-chk input { width: 26px; height: 26px; }
-            .locrec-card { padding: 14px 14px; }
             .locrec-table { min-width: 600px; }
             .locrec-table td.locrec-state { width: 104px; }
             .locrec-table td.locrec-acts { width: 128px; }
@@ -962,26 +982,48 @@
                 </div>
             </div>
 
-            <!-- 채우기 지시서 (js/refill-card.js) — 배치 편집 패널이 아니다(저장된 배치에 없는 패널은 맨 아래로 붙는다). 늘 툴바 바로 아래 -->
-            <section id="refill-card" class="dash-panel refill-card">
-                <div class="dash-panel-head refill-head">
-                    <h3>채우기 지시서 <span class="dash-sub">비축 → 피킹 로케이션 · 7일치</span></h3>
-                    <select id="refill-day" class="ctl-sm" aria-label="지시서 날짜"></select>
-                </div>
-                <div id="refill-body" class="refill-body"><div class="refill-msg">불러오는 중…</div></div>
-            </section>
-
-            <!-- 로케이션 변경 추천 (js/locrec-card.js) — 채우기 카드처럼 배치 편집 패널이 아니다. 늘 채우기 카드 바로 아래 -->
-            <section id="locrec-card" class="dash-panel locrec-card">
-                <div class="dash-panel-head refill-head">
-                    <h3>로케이션 변경 추천 <span class="dash-sub">자동 · 매일 06:40 · 14일치</span></h3>
-                    <select id="locrec-day" class="ctl-sm" aria-label="추천 날짜"></select>
-                </div>
-                <div id="locrec-body" class="refill-body"><div class="refill-msg">불러오는 중…</div></div>
-            </section>
-
-            <!-- 패널 칸 6개 — 순서·폭·높이는 배치 편집으로 바뀐다. 안쪽 id 칸은 location.js 가 innerHTML 로 다시 그린다 -->
+            <!-- 패널 칸 8개 — 순서·폭·높이는 배치 편집으로 바뀐다. 안쪽 id 칸은 location.js 가 innerHTML 로 다시 그린다 -->
             <div class="dash-grid" id="dash-grid">
+            <!-- 채우기 지시서 띠 (js/refill-card.js) — 기본은 접힌 한 줄, [펼치기]로 띠 아래에 전체. 배치 편집 패널(새 패널이면 맨 위) -->
+            <section class="dash-cell" data-panel="refill">
+                <div id="refill-card" class="dash-panel refill-card topcard">
+                    <div class="topcard-strip">
+                        <h3>채우기 지시서</h3>
+                        <div id="refill-strip" class="topcard-sum"><span class="refill-sub">불러오는 중…</span></div>
+                        <div id="refill-strip-act" class="topcard-act"></div>
+                        <button type="button" class="btn btn-ghost btn-sm topcard-fold" id="refill-fold" aria-expanded="false" aria-controls="refill-detail" aria-label="채우기 지시서 펼치기"><span class="topcard-fold-txt tc-long">펼치기 </span><span class="topcard-fold-ico">▾</span></button>
+                    </div>
+                    <div id="refill-detail" class="topcard-detail" hidden>
+                        <div class="dash-panel-head refill-head">
+                            <span class="dash-sub">비축 → 피킹 로케이션 · 7일치</span>
+                            <select id="refill-day" class="ctl-sm" aria-label="지시서 날짜"></select>
+                        </div>
+                        <div id="refill-body" class="refill-body"><div class="refill-msg">불러오는 중…</div></div>
+                    </div>
+                </div>
+                <div class="dash-edit-overlay" hidden><span class="badge badge-accent dash-edit-label"></span><span class="dash-edit-handle" title="끌면 폭·높이 조절 · 두 번 누르면 높이 자동"></span></div>
+            </section>
+
+            <!-- 로케이션 변경 추천 띠 (js/locrec-card.js) — 채우기 띠와 같은 방식 -->
+            <section class="dash-cell" data-panel="locrec">
+                <div id="locrec-card" class="dash-panel locrec-card topcard">
+                    <div class="topcard-strip">
+                        <h3>변경 추천</h3>
+                        <div id="locrec-strip" class="topcard-sum"><span class="refill-sub">불러오는 중…</span></div>
+                        <div id="locrec-strip-act" class="topcard-act"></div>
+                        <button type="button" class="btn btn-ghost btn-sm topcard-fold" id="locrec-fold" aria-expanded="false" aria-controls="locrec-detail" aria-label="변경 추천 펼치기"><span class="topcard-fold-txt tc-long">펼치기 </span><span class="topcard-fold-ico">▾</span></button>
+                    </div>
+                    <div id="locrec-detail" class="topcard-detail" hidden>
+                        <div class="dash-panel-head refill-head">
+                            <span class="dash-sub">로케이션 변경 추천 · 자동 · 매일 06:40 · 14일치</span>
+                            <select id="locrec-day" class="ctl-sm" aria-label="추천 날짜"></select>
+                        </div>
+                        <div id="locrec-body" class="refill-body"><div class="refill-msg">불러오는 중…</div></div>
+                    </div>
+                </div>
+                <div class="dash-edit-overlay" hidden><span class="badge badge-accent dash-edit-label"></span><span class="dash-edit-handle" title="끌면 폭·높이 조절 · 두 번 누르면 높이 자동"></span></div>
+            </section>
+
             <!-- KPI 띠 -->
             <section class="dash-cell" data-panel="kpi">
                 <div class="dash-kpi-row" id="dash-kpi-row">
@@ -1534,8 +1576,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610191431"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610191431"></script>
+    <script type="module" src="js/location.js?v=202610191502"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610191502"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1616,9 +1658,9 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610191431"></script>
-    <script src="js/modal-esc.js?v=202610191431"></script>
-    <script type="module" src="js/modal-drag.js?v=202610191431"></script>
-    <script type="module" src="js/app-shell.js?v=202610191431"></script>
+    <script src="js/connection-banner.js?v=202610191502"></script>
+    <script src="js/modal-esc.js?v=202610191502"></script>
+    <script type="module" src="js/modal-drag.js?v=202610191502"></script>
+    <script type="module" src="js/app-shell.js?v=202610191502"></script>
 </body>
 </html>

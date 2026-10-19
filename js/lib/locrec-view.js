@@ -12,8 +12,8 @@
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610191431';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610191431';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610191502';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610191502';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -218,6 +218,47 @@ export function dayMessage(entry) {
 /** 엑셀 파일 이름 */
 export function fileNameOf(tab, key) {
     return `로케이션변경추천리스트_자동_${TAB_LABEL[tab] || '단독'}_${key}.xlsx`;
+}
+
+/**
+ * 접힌 띠 한 줄 요약(js/locrec-card.js) → { verdict:{label,tone}, dayText, n, newN, msg, tone, warns:[] }
+ *   n = 그날 추천 중 숨기지 않은('안 함' 아닌) 행 수(세 탭 합) · newN = 그중 상태 '새로'. parsed 를 아직 못 읽었으면 n·newN null.
+ *   dayText = 오늘이면 '오늘', 아니면 '10/18(일)'(오늘 결과가 없어 최신 날짜를 보여 줄 때).
+ *   msg = 그날 결과가 없을 때 문구(dayMessage). warns = 자료 경고(dataWarnings) + 표 자료 오류 + extraWarns.
+ */
+/**
+ * 그날 추천 전체(단독 → 맞바꾸기 → 페어 순, 탭 안은 순위 순) 중 숨기지 않은('안 함' 아닌) 행 → [{r, st}]
+ * 접힌 띠의 건수와 띠 [엑셀 받기](전체 한 파일)가 같은 목록을 쓴다.
+ */
+export function stripRows({ latest, key, todayKey, parsed, marks, nowMs }) {
+    if (!parsed) return [];
+    const open = (latest && latest.open) || {};
+    const mk = marks || {};
+    const out = [];
+    TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
+        const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs });
+        if (!st.hidden) out.push({ r, st });
+    }));
+    return out;
+}
+
+/** 띠에서 받는 전체 엑셀 이름(탭별 파일과 구분) */
+export function fileNameAll(key) {
+    return `로케이션변경추천리스트_자동_전체_${key}.xlsx`;
+}
+
+export function recStrip({ latest, key, todayKey, parsed, marks, nowMs, extraWarns }) {
+    const e = (latest && latest.days && latest.days[key]) || null;
+    const verdict = verdictBadge(e && e.verdict, latest && latest.observeUntil);
+    const warns = dataWarnings(latest, nowMs);
+    (Array.isArray(extraWarns) ? extraWarns : []).forEach(w => { if (str(w).trim()) warns.push(str(w).trim()); });
+    const dayText = key === todayKey ? '오늘' : (normDay(key) ? dayLabel(key) : '');
+    const msg = dayMessage(e);
+    const base = { verdict, dayText, n: null, newN: null, msg, tone: msg && e && e.status === 'fail' ? 'warn' : '', warns };
+    if (msg || !parsed) return base;
+    if (parsed.error) warns.push(parsed.error);
+    const rows = stripRows({ latest, key, todayKey, parsed, marks, nowMs });
+    return { ...base, n: rows.length, newN: rows.filter(x => x.st.label === '새로').length };
 }
 
 /** 탭 행 수 요약 */

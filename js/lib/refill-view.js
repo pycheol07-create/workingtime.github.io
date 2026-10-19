@@ -176,6 +176,37 @@ export function reqUi({ req, requestMs, nowMs, isToday, isRunDay, todayKey }) {
     return { show: true, enabled: true, label, note: '', tone: '' };
 }
 
+/** 숫자 → '1,234'. 숫자로 못 읽으면 '-' (카드 본문 num() 과 같은 표기) */
+export function fmtCount(v) {
+    return Number.isFinite(+v) ? Number(v).toLocaleString('ko-KR') : '-';
+}
+
+/**
+ * 접힌 띠 한 줄 요약(js/refill-card.js) → { msg, tone, items:[{label, value}], prog:{done,total,pct}|null, warns:[] }
+ *   st = dayStatus 결과 · entry = refillLatest.days[key] · parsed = parseDay 결과(아직 못 읽었으면 null)
+ *   checkMap = refillWork checks · extraWarns = 카드가 따로 아는 경고(문서 못 읽음·다시 만들기 경고 등)
+ *   지시서가 없는 날(휴일·실패·대기)은 msg 한 줄(tone 'warn' = 실패·없음). 경고 문구는 띠에선 배지 하나, 펼치면 본문에.
+ */
+export function refillStrip({ st, entry, parsed, checkMap, extraWarns }) {
+    const warns = (Array.isArray(extraWarns) ? extraWarns : []).filter(w => w && String(w).trim()).map(w => String(w).trim());
+    if (!st || st.status !== 'ok') {
+        const bad = !!st && (st.status === 'fail' || st.status === 'missing');
+        return { msg: st ? String(st.text || '') : '', tone: bad ? 'warn' : '', items: [], prog: null, warns };
+    }
+    const e = entry || {};
+    if (parsed && parsed.error) warns.unshift(parsed.error);
+    return {
+        msg: '', tone: '',
+        items: [
+            { label: '기준', value: fmtHM(e.basedAt) || '-' },
+            { label: '채울 칸', value: fmtCount(e.rows) },
+            { label: '확인필요', value: fmtCount(e.checks) }
+        ],
+        prog: parsed ? progress(parsed.rows, checkMap) : null,
+        warns
+    };
+}
+
 /** base64 → Uint8Array (원본 엑셀 바이트 그대로) */
 export function b64ToBytes(b64) {
     const bin = atob(String(b64 || ''));

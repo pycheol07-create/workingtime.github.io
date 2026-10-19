@@ -1,15 +1,17 @@
 // === js/refill-card.js ===
 // 로케이션관리 대시보드 맨 위 '채우기 지시서' 카드 + 표 창(#refill-modal).
+//   카드는 접힌 띠 한 줄(요약 · 엑셀 받기 · 펼치기)이 기본, [펼치기]로 아래 전체 내용(날짜 선택·진행률·버튼). 펼침은 js/lib/card-fold.js.
 //   지시서는 이 PC 프로그램(업무자동화\앱\채우기자동화)이 매일 08:20 슬랙에 보내면서 같은 것을 Firestore 에도 남긴다(7일치).
 //   카드: 엑셀 받기 · 표 보기 · 행별 완료 체크(오늘 것만) · 지금 기준으로 다시 만들기(앱에만 갱신, 슬랙에는 안 보냄).
 // 문서·순수 함수는 js/lib/refill-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, getDoc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml, getHolidayName } from './utils.js?v=202610191431';
+import { escapeHtml, getHolidayName } from './utils.js?v=202610191502';
 import {
-    tsMs, dayKey, lastDays, dayLabel, fmtHM, parseDay, progress, runDay, dayStatus, reqUi, b64ToBytes, fileNameOf
-} from './lib/refill-view.js?v=202610191431';
+    tsMs, dayKey, lastDays, dayLabel, fmtHM, parseDay, progress, runDay, dayStatus, reqUi, b64ToBytes, fileNameOf, refillStrip, fmtCount
+} from './lib/refill-view.js?v=202610191502';
+import { initFold } from './lib/card-fold.js?v=202610191502';
 
 const APP = 'artifacts/team-work-logger-v2';
 const META_PATH = `${APP}/integrations/refillLatest`;
@@ -19,6 +21,8 @@ const REQUEST_PATH = `${APP}/refillWork/request`;
 const NO_NAME = '이름 없음';
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const SHEETS = { rows: '채우기(현장용)', checks: '확인필요' };
+/** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
+const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
 
 export function initRefillCard({ db, auth, getMemberName }) {
     const card = document.getElementById('refill-card');
@@ -31,6 +35,10 @@ export function initRefillCard({ db, auth, getMemberName }) {
     const mTbody = document.getElementById('refill-tbody');
     const mTodo = document.getElementById('refill-only-todo');
     const mTabs = document.getElementById('refill-tabs');
+    const strip = document.getElementById('refill-strip');
+    const stripAct = document.getElementById('refill-strip-act');
+    const foldBtn = document.getElementById('refill-fold');
+    const detail = document.getElementById('refill-detail');
 
     const S = {
         signedIn: false, meta: null, metaErr: '', request: null,
@@ -122,10 +130,40 @@ export function initRefillCard({ db, auth, getMemberName }) {
     }
     let lastSelHtml = '';
 
+    // ── 접힌 띠 ── 같은 내용이면 다시 그리지 않는다(누르던 버튼 포커스가 1분마다 풀리지 않게)
+    let lastStrip = '', lastAct = '';
+    function setStrip(sumHtml, actHtml) {
+        if (strip && lastStrip !== sumHtml) { lastStrip = sumHtml; strip.innerHTML = sumHtml; }
+        if (stripAct && lastAct !== actHtml) { lastAct = actHtml; stripAct.innerHTML = actHtml; }
+    }
+    const warnBadge = (warns) => (warns.length
+        ? `<span class="badge badge-warn topcard-warn" role="note" tabindex="0" title="${escapeHtml(warns.join(' / '))}" aria-label="주의 ${warns.length}건: ${escapeHtml(warns.join(' / '))}">주의 ${warns.length}</span>` : '');
+    function renderStrip({ st, key, isToday, d, ru }) {
+        const warns = [];
+        if (st.status === 'ok' && !d && S.dayErr) warns.push(S.dayErr);
+        if (st.status === 'ok' && ru.show && ru.note && ru.tone === 'warn') warns.push(ru.note);
+        const sp = refillStrip({ st, entry: entryOf(key), parsed: d ? d.parsed : null, checkMap: S.work.checks, extraWarns: warns });
+        const day = isToday ? '' : `<span>${escapeHtml(dayLabel(key))}</span>`;
+        if (sp.msg) { setStrip(day + `<span class="${sp.tone === 'warn' ? 'refill-warn' : ''}">${escapeHtml(sp.msg)}</span>` + warnBadge(sp.warns), ''); return; }
+        const sum = day + sp.items.map(it => `<span>${escapeHtml(it.label)} <b>${escapeHtml(it.value)}</b></span>`).join('')
+            + (sp.prog ? `<span>완료 <b>${sp.prog.done}/${sp.prog.total}</b></span>` : '') + warnBadge(sp.warns);
+        const omitted = d && d.data.fileOmitted;
+        const act = omitted
+            ? '<button type="button" class="btn btn-primary btn-sm" disabled title="파일이 너무 커서 PC 채우기자동화\\출력\\ 사용">엑셀 받기</button>'
+            : `<button type="button" class="btn btn-primary btn-sm" data-refill="download"${d && d.data.file ? '' : ' disabled'}>엑셀 받기</button>`;
+        setStrip(sum, act);
+    }
+
     function render() {
-        if (!S.signedIn) { body.innerHTML = '<div class="refill-msg">로그인하면 보입니다.</div>'; return; }
+        if (!S.signedIn) {
+            body.innerHTML = '<div class="refill-msg">로그인하면 보입니다.</div>';
+            setStrip('<span class="refill-sub">로그인하면 보입니다.</span>', '');
+            return;
+        }
         if (S.meta == null) {
-            body.innerHTML = `<div class="refill-msg">${S.metaErr ? '지시서 상태를 읽지 못했습니다(' + escapeHtml(S.metaErr) + ')' : '불러오는 중…'}</div>`;
+            const t = S.metaErr ? '지시서 상태를 읽지 못했습니다(' + escapeHtml(S.metaErr) + ')' : '불러오는 중…';
+            body.innerHTML = `<div class="refill-msg">${t}</div>`;
+            setStrip(`<span class="${S.metaErr ? 'refill-warn' : 'refill-sub'}">${t}</span>`, '');
             return;
         }
         const today = todayKey();
@@ -136,9 +174,9 @@ export function initRefillCard({ db, auth, getMemberName }) {
         const ru = reqUi({ req: S.meta.req, requestMs: S.request ? tsMs(S.request.requestedAt) : 0, nowMs: now,
                            isToday, isRunDay: rd.run, todayKey: today });
         const parts = [];
+        const d = st.status === 'ok' && S.day && S.day.key === key ? S.day : null;
         if (st.status === 'ok') {
             const e = entryOf(key) || {};
-            const d = S.day && S.day.key === key ? S.day : null;
             const rows = d ? d.parsed.rows : [], checks = d ? d.parsed.checks : [];
             const pr = progress(rows, S.work.checks), pc = progress(checks, S.work.checks);
             parts.push(`<div class="refill-line">기준 <b>${escapeHtml(fmtHM(e.basedAt) || '-')}</b> · 채울 칸 <b>${num(e.rows)}</b> · 채울 수량 <b>${num(e.fillQty)}</b> · 확인필요 <b>${num(e.checks)}</b></div>`);
@@ -169,9 +207,10 @@ export function initRefillCard({ db, auth, getMemberName }) {
         }
         if (ru.show && ru.note && st.status === 'ok') parts.push(`<div class="refill-note${ru.tone === 'warn' ? ' refill-warn' : ''}">${escapeHtml(ru.note)}</div>`);
         body.innerHTML = parts.join('');
+        renderStrip({ st, key, isToday, d, ru });
     }
 
-    const num = (v) => (Number.isFinite(+v) ? Number(v).toLocaleString('ko-KR') : '-');
+    const num = fmtCount;
     const reqButton = (ru) => (ru.show
         ? `<button type="button" class="btn btn-secondary btn-sm" data-refill="rebuild"${ru.enabled ? '' : ' disabled'}>${escapeHtml(ru.label)}</button>` : '');
 
@@ -289,6 +328,8 @@ export function initRefillCard({ db, auth, getMemberName }) {
     modal.addEventListener('click', (ev) => {
         if (ev.target === modal || ev.target.closest('[data-refill-close]')) modal.style.display = 'none';
     });
+
+    if (foldBtn && detail) initFold({ btn: foldBtn, panel: detail, card, id: 'refill', name: '채우기 지시서', storage: getStorage() });
 
     // 시간에 따라 바뀌는 문구(08:20 대기 → 확인 중, 처리 대기 15분, 자정 넘김)를 1분마다 다시
     setInterval(() => { if (S.signedIn && S.meta) { syncDay(); render(); } }, 60 * 1000);
