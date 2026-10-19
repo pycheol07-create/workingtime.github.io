@@ -1,0 +1,90 @@
+/* === css/refill-modal.css ===
+   채우기 지시서 표 창(#refill-modal, js/refill-table.js) — 대시보드(index.html) 전용.
+   location.html 은 같은 모양을 자기 <style> 로 갖고 있어 이 파일을 불러오지 않는다(원본: location.html 의
+   .modal-overlay · .modal-content · .seg-tab · .usage-table · .btn · '채우기 지시서 카드·표' · 768px 이하 규칙).
+   index 에는 그 공통 클래스가 없으므로 전부 #refill-modal 범위로 복사했다 — 대시보드의 다른 화면에 번지지 않게.
+   색은 css/dash-d.css 토큰(다크 포함)을 쓰고, 없을 때를 위해 대체값을 둔다.
+   z-index 75: index 의 기본 창(z-50~70)보다 위, 연장근무 확인창·토스트(z-200)·알림(z-250) 등 z-80 이상 창보다 아래.
+     연장근무 확인창(5분 뒤 자동 마감)을 이 창이 덮으면 안 된다. location.html 은 자기 <style> 의 10000 그대로. */
+
+#refill-modal {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(30,40,60,0.45); z-index: 75; justify-content: center; align-items: center;
+    font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+}
+#refill-modal .modal-content {
+    background: var(--c-surface, #FFFFFF); border-radius: var(--r-card, 18px); color: var(--c-text, #23272E);
+    box-shadow: var(--sh-pop, 0 8px 24px rgba(30,40,60,.12)); overflow-y: auto;
+}
+#refill-modal .refill-modal-content { width: 900px; max-width: 96vw; max-height: 92vh; padding: 22px 20px; display: flex; flex-direction: column; box-sizing: border-box; }
+#refill-modal .modal-header { font-size: 18px; font-weight: 600; color: var(--c-text, #23272E); }
+#refill-modal .modal-x {
+    margin-left: auto; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-pill, 999px);
+    background: transparent; color: var(--c-text-3, #69707A); font-size: 22px; line-height: 1; cursor: pointer; flex: none;
+}
+#refill-modal .modal-x:hover { background: var(--c-track, #EEF0F4); color: var(--c-text, #23272E); }
+#refill-modal .modal-meta { font-size: 12px; color: var(--c-text-2, #646B75); }
+
+/* 탭 */
+#refill-modal .seg-tabs { display: flex; gap: 4px; padding: 3px; background: var(--c-track, #EEF0F4); border-radius: var(--r-pill, 999px); width: fit-content; flex-shrink: 0; }
+#refill-modal .seg-tab {
+    height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-pill, 999px); background: none;
+    color: var(--c-text-2, #646B75); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+#refill-modal .seg-tab:hover { color: var(--c-text, #23272E); }
+#refill-modal .seg-tab.active { background: var(--c-surface, #FFFFFF); color: var(--c-accent-deep, #1E4699); font-weight: 600; box-shadow: var(--sh-tab, 0 1px 2px rgba(30,40,60,.10)); }
+
+/* 버튼 ([전체 완료]) */
+#refill-modal .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--h-ctl-sm, 32px); padding: 0 14px;
+    border: 1px solid transparent; border-radius: var(--r-pill, 999px); font-family: inherit; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+}
+#refill-modal .btn[hidden] { display: none; }
+#refill-modal .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+#refill-modal .btn-secondary { background: var(--c-surface, #FFFFFF); color: var(--c-text, #23272E); border-color: var(--c-line-strong, #D6DAE0); }
+#refill-modal .btn-secondary:hover { background: var(--c-surface-2, #F7F8FA); }
+
+/* 표 */
+#refill-modal .refill-sub { font-size: 12px; color: var(--c-text-3, #69707A); }
+#refill-modal .refill-modal-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+#refill-modal .table-box { border: 1px solid var(--c-line, #E6E8EC); border-radius: var(--r-inner, 14px); }
+#refill-modal .refill-table-wrap { flex: 1; min-height: 0; overflow: auto; }
+#refill-modal .usage-table { border-collapse: collapse; background: var(--c-surface, #FFFFFF); color: var(--c-text, #23272E); }
+#refill-modal .usage-table th {
+    background: var(--c-surface-2, #F7F8FA); padding: 8px 12px; border: 1px solid var(--c-line, #E6E8EC);
+    font-weight: 600; color: var(--c-text-2, #646B75); text-align: center;
+}
+#refill-modal .usage-table td { padding: 8px 12px; border: 1px solid var(--c-line, #E6E8EC); }
+#refill-modal .usage-table tr:nth-child(even) { background-color: var(--c-surface-2, #F7F8FA); }
+#refill-modal .table-box > .usage-table { border-left: none; border-right: none; border-bottom: none; }
+#refill-modal .table-box thead { position: sticky; top: 0; z-index: 1; }
+#refill-modal .table-box thead th { border-top: none; }
+#refill-modal .refill-table { width: 100%; min-width: 560px; font-size: 12.5px; }
+#refill-modal .refill-table td { text-align: left; }
+#refill-modal .refill-table td.refill-num { text-align: right; font-variant-numeric: tabular-nums; }
+#refill-modal .refill-table td.refill-chk { text-align: center; width: 44px; padding: 4px; }
+#refill-modal .refill-chk input { width: 22px; height: 22px; margin: 0; cursor: pointer; vertical-align: middle; }
+#refill-modal .refill-chk input:disabled { cursor: not-allowed; }
+#refill-modal .refill-table tr.refill-done td { color: var(--c-text-3, #69707A); }
+#refill-modal .refill-table tr.refill-done .refill-loc { text-decoration: line-through; }
+#refill-modal .refill-table td.refill-who { white-space: nowrap; font-size: 11.5px; color: var(--c-ok-text, #3D756F); }
+#refill-modal .refill-table td.refill-empty { text-align: center; color: var(--c-text-3, #69707A); padding: 20px; }
+
+/* 휴대폰: 창은 화면에 고정하고 표 상자 안에서만 가로·세로 스크롤 · 체크칸은 손가락으로 누르기 쉽게(40px 줄) */
+@media (max-width: 768px) {
+    #refill-modal { align-items: flex-start; padding: 8px; box-sizing: border-box; overflow: hidden; overscroll-behavior: contain; }
+    #refill-modal > .refill-modal-content {
+        box-sizing: border-box; width: 100%; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px);
+        height: calc(100dvh - 16px); padding: 16px; overflow: hidden;
+    }
+    #refill-modal .refill-table-wrap { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+    #refill-modal .refill-table td.refill-chk { width: 48px; height: 40px; }
+    #refill-modal .refill-chk input { width: 26px; height: 26px; }
+    body:has(#refill-modal[style*="flex"]) { overflow: hidden; }
+}
+
+/* 대시보드 '채우기' 업무 카드의 진행률 글자(js/ui-main-board.js · js/refill-dash.js) */
+#dash-root .refill-dash-prog { font-variant-numeric: tabular-nums; font-weight: 600; }
+#dash-root .refill-dash-prog[data-tone="ok"] { color: var(--c-ok-text, #3D756F); }
+#dash-root .refill-dash-prog[data-tone="warn"] { color: var(--c-warn-text, #8A5E28); }

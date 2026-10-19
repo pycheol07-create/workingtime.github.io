@@ -10,7 +10,7 @@ import {
     PANELS, GRID_COLS, MIN_W, GAP, ROW_UNIT,
     defaultLayout, normalizeLayout, sameLayout, effectiveSpan, rowSpan, snapH, moveItem, placeItems,
     loadLayout, saveLayout, STORAGE_KEY,
-} from './lib/dash-layout.js?v=202610191708';
+} from './lib/dash-layout.js?v=202610191818';
 
 const DRAG_START_PX = 4;      // 이만큼 움직여야 끌기 시작(그냥 누른 것과 구분)
 const AUTO_SCROLL_EDGE = 40;  // 스크롤 상자 위·아래 이 안쪽이면 자동 스크롤
@@ -92,7 +92,8 @@ const measure = () => {
     const rows = [];
     for (const it of layout.items) {
         const cell = cellOf(it.id);
-        if (!cell) continue;
+        // 권한이 없어 숨긴 칸(js/feature-gate.js — 채우기·변경 추천)은 자리 계산에서 뺀다(빈 칸이 남지 않게)
+        if (!cell || cell.dataset.permHidden === '1') continue;
         const stretch = isStretchable(cell, it);
         const h = contentHeight(cell, stretch);
         rows.push({
@@ -404,6 +405,9 @@ const init = () => {
     }
 
     window.__dashLayoutFinishIfEditing = finishEdit;
+
+    // 권한 판정(js/page-gate.js)이 나오면 숨긴 칸이 생길 수 있다 — 다시 맞춘다
+    window.addEventListener('perm:ready', () => requestAnimationFrame(scheduleMeasure));
 };
 
 init();

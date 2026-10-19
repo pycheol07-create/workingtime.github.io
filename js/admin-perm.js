@@ -4,13 +4,14 @@
 // admin-logic.collectConfigFromDOM 이 getPermModel() 로 권한 칸을 만든다(DOM 을 긁지 않는다).
 // ※ 봇이 읽는 div[role=dialog]·data-act 는 쓰지 않는다(관리자 페이지라 봇이 열지는 않지만 같은 규칙을 지킨다).
 
-import { FEATURES, FEATURE_GROUPS, FEATURE_BY_ID } from './lib/feature-catalog.js?v=202610191708';
-import { roleFeatures, visibleMenuGroups } from './lib/perm.js?v=202610191708';
+import { FEATURES, FEATURE_GROUPS, FEATURE_BY_ID } from './lib/feature-catalog.js?v=202610191818';
+import { roleFeatures, visibleMenuGroups } from './lib/perm.js?v=202610191818';
 import {
     createPermModel, autoAssignedCount, effectiveSet, resolvedOf, setAdmin, setRole, setFeature, resetToRole,
     usersOfRole, holdersOf, adminCount, addRole, renameRole, deleteRole, setRoleFeature, setDefaultRole, setEnforce
-} from './lib/perm-model.js?v=202610191708';
-import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=202610191708';
+} from './lib/perm-model.js?v=202610191818';
+import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=202610191818';
+import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=202610191818';
 
 let model = null;
 let config = null;
@@ -18,6 +19,43 @@ let people = [];          // [{ email, name, type, kind }] — 화면 표시용(
 let tab = 'people';
 let openEmail = null;     // 세부 예외를 펼친 사람
 let previewEmail = null;  // 미리보기를 연 사람
+let hits = null;          // 최근 7일 '막힐 뻔한 입장' — null(읽는 중) | [{ id, n }] | 'error'
+let hitsLoading = false;
+
+/** 페이지 가드 집계(permGateHits/{yyyymmdd}, 기능별 건수만) 최근 7일을 읽는다. 관리자만 읽힌다(규칙).
+ *  관리자 페이지가 이미 띄운 기본 앱을 쓴다(같은 SDK 주소 — 에뮬레이터 연결도 따라간다). */
+async function loadHits() {
+    if (hitsLoading) return;
+    hitsLoading = true;
+    try {
+        // SDK 는 쓸 때 불러온다 — 이 모듈을 node 테스트(admin-logic → admin-ui)가 import 한다
+        const { getApps, getApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+        const { getFirestore, doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        if (!getApps().some(a => a.name === '[DEFAULT]')) throw new Error('no-app');
+        const db = getFirestore(getApp());
+        const snaps = await Promise.all(lastDayKeys(7).map(k => getDoc(doc(db, HIT_COLLECTION, k))));
+        hits = sumHits(snaps.map(sn => (sn.exists() ? sn.data() : null)));
+    } catch (e) {
+        hits = 'error';
+        console.warn('[권한] 입장 집계 읽기 실패:', (e && (e.code || e.message)) || 'unknown');
+    } finally {
+        hitsLoading = false;
+        // 화면 전체를 다시 그리지 않는다 — 입력 중인 칸의 글자·포커스가 사라지지 않게 집계 줄만 바꾼다
+        const el = typeof document !== 'undefined' ? document.getElementById('pm-gate-hits') : null;
+        if (el) el.outerHTML = hitsLine();
+    }
+}
+
+function hitsLine() {
+    const label = (id) => (FEATURE_BY_ID[id] ? FEATURE_BY_ID[id].label : id);
+    let body;
+    if (hits === null) body = '<span class="text-gray-400">읽는 중…</span>';
+    else if (hits === 'error') body = '<span class="text-gray-400">읽지 못함(규칙 게시 전이면 아직 쌓이지 않습니다)</span>';
+    else if (!hits.length) body = '<span class="text-gray-400">없음</span>';
+    else body = hits.map(h => `<span class="inline-block mr-2">${esc(label(h.id))} <b>${h.n}</b></span>`).join('');
+    return `<div id="pm-gate-hits" class="mb-3 text-[11px] text-gray-600 dark:text-gray-300" title="권한이 없는 화면에 들어간 횟수(같은 창·같은 화면은 하루 1회). 이름·이메일은 남기지 않습니다.">
+        <b>최근 7일 막힐 뻔한 입장</b> · ${body}</div>`;
+}
 
 /** 저장 때 쓰는 모델. 화면을 못 그렸으면 null — 그때 저장은 막는다(admin.js). */
 export const getPermModel = () => model;
@@ -61,6 +99,7 @@ export function renderPermissionPanel(cfg) {
     if (openEmail && !model.persons[openEmail]) openEmail = null;
     if (previewEmail && !model.persons[previewEmail]) previewEmail = null;
     draw();
+    loadHits();
 }
 
 // ── 그리기 ──────────────────────────────────────────────
@@ -71,6 +110,9 @@ const DANGER_BADGE = {
     0: ''
 };
 const RULE_TEXT = { yes: '예', partial: '일부', no: '아니오(화면만)' };
+// 데이터 관리(data.*) — 지금은 관리자만 효과(history.html 이 관리자만 들인다)
+const ADMIN_ONLY_TAG = (id) => (isAdminOnlyNow(id)
+    ? `<span class="ml-1 text-[10px] text-gray-400" title="${esc(DATA_ADMIN_ONLY_NOTE)}">(지금은 관리자만 효과)</span>` : '');
 const GRANTABLE = FEATURES.filter(f => f.grantable);
 
 const roleIdsSorted = () => Object.keys(model.roles)
@@ -92,9 +134,9 @@ function draw() {
                 <span class="font-bold">페이지 가드</span>
                 <label class="inline-flex items-center gap-1 cursor-pointer"><input type="radio" name="pm-enforce" value="warn" data-pm-act="enforce" ${model.enforce === 'warn' ? 'checked' : ''}> 경고만</label>
                 <label class="inline-flex items-center gap-1 cursor-pointer"><input type="radio" name="pm-enforce" value="block" data-pm-act="enforce" ${model.enforce === 'block' ? 'checked' : ''}> 막기</label>
-                <span class="text-gray-400" title="페이지 입장 가드가 붙는 단계(5단계)부터 적용됩니다">(가드 적용 전)</span>
             </div>
         </div>
+        ${hitsLine()}
         ${auto > 0 ? `<div id="perm-auto-band" class="mb-4 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-sm text-amber-800 dark:text-amber-200">
             ⚠️ 옛 권한에서 자동 배정됨 <b>${auto}명</b> — 지금 쓸 수 있는 기능 그대로 역할·예외로 옮겼습니다. 확인한 뒤 <b>[전체 저장]</b>을 누르면 새 형식으로 저장됩니다.</div>` : ''}
         ${model.rolesFromPreset ? `<div class="mb-4 p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 text-xs text-blue-800 dark:text-blue-200">
@@ -112,7 +154,7 @@ function featureGrid(isOn, decorate, act, extraAttr) {
             <div class="flex flex-wrap gap-x-4 gap-y-1 flex-1">
             ${feats.map(f => `<label class="inline-flex items-center gap-1.5 cursor-pointer select-none text-xs ${decorate(f).cls}" title="${esc(f.id)}">
                 <input type="checkbox" class="w-4 h-4" data-pm-act="${act}" data-id="${esc(f.id)}" ${extraAttr} ${isOn(f.id) ? 'checked' : ''}>
-                <span>${esc(f.label)}</span>${DANGER_BADGE[f.danger] || ''}${decorate(f).tag}</label>`).join('')}
+                <span>${esc(f.label)}</span>${DANGER_BADGE[f.danger] || ''}${decorate(f).tag}${ADMIN_ONLY_TAG(f.id)}</label>`).join('')}
             </div></div>`;
     }).join('');
 }
@@ -191,7 +233,8 @@ function drawPreview(email) {
         .flatMap(g => g.items.map(i => i.name))
         .filter(n => surface !== 'shell' || !SHELL_EXCLUDED_ACTIONS.includes(n));
     const list = (arr, empty = '없음') => arr.length ? arr.map(x => `<span class="inline-block mr-1.5 mb-1 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700">${esc(x)}</span>`).join('') : `<span class="text-gray-400">${empty}</span>`;
-    const pages = FEATURES.filter(f => f.kind === 'page' && r.set.has(f.id)).map(f => f.label);
+    const pages = FEATURES.filter(f => f.kind === 'page' && r.set.has(f.id))
+        .map(f => f.label + (!r.isAdmin && isAdminOnlyNow(f.id) ? ' (지금은 관리자만 입장)' : ''));
     const danger = FEATURES.filter(f => f.kind !== 'page' && f.danger >= 1 && r.set.has(f.id)).map(f => f.label + (f.danger >= 2 ? ' (!!)' : ''));
     const noRule = FEATURES.filter(f => f.danger >= 1 && f.rule === 'no' && r.set.has(f.id)).map(f => f.label);
     return `<div class="pm-preview mt-3 p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-900/20 text-xs text-gray-700 dark:text-gray-200 space-y-2">
@@ -242,7 +285,7 @@ function drawFeatures() {
     const groupLabel = Object.fromEntries(FEATURE_GROUPS.map(g => [g.id, g.label]));
     const rows = FEATURES.map(f => `<tr class="border-b border-gray-100 dark:border-gray-700">
         <td class="py-1.5 pr-3 font-mono text-[11px] text-gray-500">${esc(f.id)}</td>
-        <td class="py-1.5 pr-3">${esc(f.label)}</td>
+        <td class="py-1.5 pr-3">${esc(f.label)}${ADMIN_ONLY_TAG(f.id)}</td>
         <td class="py-1.5 pr-3">${esc(groupLabel[f.group] || f.group)}</td>
         <td class="py-1.5 pr-3">${f.grantable ? (DANGER_BADGE[f.danger] || '-') : '-'}</td>
         <td class="py-1.5 pr-3">${f.grantable ? esc(RULE_TEXT[f.rule] || f.rule) : '관리자 전용'}</td>
@@ -257,6 +300,8 @@ function drawFeatures() {
 // ── 이벤트 ──────────────────────────────────────────────
 
 const DANGER_MSG = '되돌리기 어려운 기능입니다(덮어쓰기·삭제·마감).\n정말 이 권한을 줄까요?';
+/** data.* 를 일반 직원에게 줄 때 — 막지 않고 안내만(사용자 결정: 데이터 관리는 지금 관리자만). */
+const warnAdminOnlyNow = (id, on) => { if (on && isAdminOnlyNow(id)) alert(DATA_ADMIN_ONLY_NOTE); };
 const confirmDanger = (id, on) => !on || !FEATURE_BY_ID[id] || FEATURE_BY_ID[id].danger < 2 || confirm(DANGER_MSG);
 
 function onClick(e) {
@@ -289,9 +334,11 @@ function onChange(e) {
         setRole(model, email, t.value);
     } else if (act === 'feat') {
         if (!confirmDanger(t.dataset.id, t.checked)) { t.checked = false; return; }
+        warnAdminOnlyNow(t.dataset.id, t.checked);
         setFeature(model, email, t.dataset.id, t.checked);
     } else if (act === 'role-feat') {
         if (!confirmDanger(t.dataset.id, t.checked)) { t.checked = false; return; }
+        warnAdminOnlyNow(t.dataset.id, t.checked);
         setRoleFeature(model, t.dataset.role, t.dataset.id, t.checked);
     } else if (act === 'role-name') {
         renameRole(model, t.dataset.role, t.value);

@@ -1,12 +1,12 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610191708';
-import * as State from './state.js?v=202610191708';
-import { render } from './app.js?v=202610191708';
-import { showToast, formatTimeTo24H } from './utils.js?v=202610191708';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202610191708';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202610191708';
+import * as DOM from './dom-elements.js?v=202610191818';
+import * as State from './state.js?v=202610191818';
+import { render } from './app.js?v=202610191818';
+import { showToast, formatTimeTo24H } from './utils.js?v=202610191818';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202610191818';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202610191818';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -14,10 +14,11 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202610191708';
+} from './app-logic.js?v=202610191818';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610191708';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202610191708';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610191818';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202610191818';
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202610191818';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -130,6 +131,33 @@ export function setupMainBoardListeners() {
         });
     }
 
+    // 채우기 업무를 새로 시작할 때 지시서 창(인원 추가 때는 열지 않음). 오늘 지시서가 없거나 휴일이면 안내만 — js/refill-dash.js
+    //   #confirm-team-select-btn 은 dom-elements.js 에 내보내져 있지 않아(위 DOM.confirmTeamSelectBtn 은 undefined) 문서 위임으로 받는다.
+    //   [출근하고 시작] 이 코드로 누르는 click() 도 여기로 온다. 값은 클릭 순간(시작 처리 전)에 읽는다.
+    //   시작이 실패하면(출근 전·이미 업무 중·충돌) 열지 않는다 — 인원 선택 창이 닫히고 선택한 사람 모두의 '채우기' 진행 기록이
+    //   생긴 것을 짧게 확인한 뒤에만 연다(최대 REFILL_START_WAIT_MS, 넘으면 포기).
+    const REFILL_START_WAIT_MS = 6000, REFILL_START_POLL_MS = 200;
+    document.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!t || !t.closest || !t.closest('#confirm-team-select-btn')) return;
+        const task = State.context.selectedTaskForStart;
+        if (!isRefillTask(task) || !refillAllowed()) return;
+        const members = [...(State.context.tempSelectedMembers || [])];
+        if (State.context.selectedGroupForAdd || !members.length) return;
+        const until = Date.now() + REFILL_START_WAIT_MS;
+        const started = () => {
+            const modal = document.getElementById('team-select-modal');
+            if (!modal || !modal.classList.contains('hidden')) return false;
+            const recs = State.appState.workRecords || [];
+            return members.every(m => recs.some(r => r && r.member === m && r.task === task && r.status === 'ongoing'));
+        };
+        const poll = () => {
+            if (started()) { openRefillFromDash(); return; }
+            if (Date.now() < until) setTimeout(poll, REFILL_START_POLL_MS);
+        };
+        setTimeout(poll, 300);
+    });
+
     // 💡 분리된 두 보드(업무현황, 팀원현황)에 공통으로 적용할 클릭 핸들러
     const handleBoardClick = (e) => {
 
@@ -215,6 +243,14 @@ export function setupMainBoardListeners() {
             renderTodayInspectionList();
             if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
             if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
+            return;
+        }
+
+        // '채우기 지시서' 버튼(채우기 업무 카드) — 카드 클릭(업무 시작·인원 추가)으로 이어지지 않게 막는다
+        const openRefillBtn = e.target.closest('button[data-action="open-refill"]');
+        if (openRefillBtn) {
+            e.stopPropagation();
+            openRefillFromDash();
             return;
         }
 

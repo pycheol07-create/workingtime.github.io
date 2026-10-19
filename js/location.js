@@ -1,18 +1,19 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610191708';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610191818';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610191708';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610191708';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610191708';
-import { orderKeyMap } from './lib/order-hash.js?v=202610191708';
-import { setShellContext } from './app-shell-bridge.js?v=202610191708';
-import { memberNameFor } from './app-shell-data.js?v=202610191708';
-import { menuConfigOf } from './lib/perm.js?v=202610191708';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610191708';
-import { initPageNav } from './page-nav.js?v=202610191708';
-import { initRefillCard } from './refill-card.js?v=202610191708';
-import { initLocRecCard } from './locrec-card.js?v=202610191708';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610191708';
+import { escapeHtml as escAttr } from './utils.js?v=202610191818';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610191818';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610191818';
+import { orderKeyMap } from './lib/order-hash.js?v=202610191818';
+import { setShellContext } from './app-shell-bridge.js?v=202610191818';
+import { memberNameFor } from './app-shell-data.js?v=202610191818';
+import { menuConfigOf } from './lib/perm.js?v=202610191818';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610191818';
+import { initPageNav } from './page-nav.js?v=202610191818';
+import { initRefillCard } from './refill-card.js?v=202610191818';
+import { initLocRecCard } from './locrec-card.js?v=202610191818';
+import { whenPerm } from './feature-gate.js?v=202610191818';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610191818';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -78,9 +79,9 @@ let currentUserName = "비로그인 작업자";
 let appConfig = null;
 // 대시보드 맨 위 '채우기 지시서' 카드 — db·auth 를 넘긴다(Firebase 를 또 초기화하지 않게).
 // 체크·요청에 남는 이름은 memberNameFor(직원 이름)만 — currentUserName 은 이메일 앞부분으로 떨어질 수 있어 쓰지 않는다.
-initRefillCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) });
+whenPerm('location.refill', () => initRefillCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) }));
 // 그 아래 '로케이션 변경 추천' 카드 — 같은 db·auth, 같은 이름 규칙(memberNameFor 만, 이메일 폴백 없음)
-initLocRecCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) });
+whenPerm('location.locrec', () => initLocRecCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) }));
 window.currentUsageTab = '3F';
 window.capacity2F = 200000;
 

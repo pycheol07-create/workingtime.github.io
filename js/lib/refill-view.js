@@ -220,3 +220,23 @@ export function fileNameOf(doc, key) {
     const n = doc && doc.file && typeof doc.file.name === 'string' ? doc.file.name.trim() : '';
     return /^[^\\/:*?"<>|]+\.xlsx$/.test(n) ? n : `채우기지시서_${key}.xlsx`;
 }
+
+/**
+ * 대시보드 '채우기' 업무 카드의 진행률 한 조각(js/refill-dash.js) → { text, tone, open, note }
+ *   st = dayStatus 결과(아직 못 읽었으면 null) · parsed = 오늘 parseDay 결과(아직 못 읽었으면 null) · checkMap = refillWork checks
+ *   open = 지시서 창을 열 수 있는가 · note = 열 수 없을 때 안내 문구(휴일·없음·실패·대기)
+ */
+export function dashProgress({ st, parsed, checkMap, err }) {
+    if (!st) {
+        if (err) return { text: '읽기 실패', tone: 'warn', open: false, note: `채우기 지시서 상태를 읽지 못했습니다(${err}).` };
+        return { text: '불러오는 중…', tone: '', open: false, note: '지시서를 불러오는 중입니다. 잠시 뒤 다시 눌러 주세요.' };
+    }
+    if (st.status !== 'ok') {
+        const short = { rest: '오늘 휴일', pending: '08:20 생성', missing: '지시서 없음', fail: '생성 실패' }[st.status] || '지시서 없음';
+        const tone = st.status === 'fail' || st.status === 'missing' ? 'warn' : '';
+        return { text: short, tone, open: false, note: String(st.text || short) };
+    }
+    if (!parsed) return { text: err ? '읽기 실패' : '불러오는 중…', tone: err ? 'warn' : '', open: true, note: '' };
+    const p = progress(parsed.rows, checkMap);
+    return { text: `${p.done}/${p.total}`, tone: p.total && p.done >= p.total ? 'ok' : '', open: true, note: '' };
+}

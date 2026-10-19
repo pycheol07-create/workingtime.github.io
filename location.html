@@ -10,9 +10,9 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610191708">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191708">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610191708">
+    <link rel="stylesheet" href="css/suit.css?v=202610191818">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191818">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610191818">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -806,6 +806,12 @@
             /* 선지정 배너 */
             .pre-assign-banner { left: 8px; right: 8px; transform: none; flex-wrap: wrap; gap: 8px; font-size: 13px; padding: 10px 14px; border-radius: 16px; }
         }
+
+        /* 권한 개편 5단계 — 위험 버튼은 권한 판정(js/page-gate.js 가 html.perm-ready 를 붙임) 전에는 그리지 않는다.
+           판정 뒤 권한이 없으면 js/location-guard.js 가 display:none + inert. 동적 툴팁 편집 버튼은 html.perm-loc-settings 일 때만. */
+        html:not(.perm-ready) [data-feature] { visibility: hidden !important; }
+        html:not(.perm-loc-settings) .tt-btn-edit,
+        html:not(.perm-loc-settings) .tt-btn-reset { display: none !important; }
     </style>
 </head>
 <body onclick="closeAllPopups()" data-shell="location" data-loc-tab="locdash">
@@ -820,8 +826,8 @@
             <button class="modal-x" onclick="toggleIncomingSidebar()" aria-label="닫기">×</button>
         </div>
         <div class="incoming-actions">
-            <button class="btn btn-secondary btn-sm" onclick="syncIncomingData()">시트 동기화</button>
-            <button class="btn btn-secondary btn-sm" onclick="openSheetModal(event)">설정</button>
+            <button class="btn btn-secondary btn-sm" data-feature="location.incoming" onclick="syncIncomingData()">시트 동기화</button>
+            <button class="btn btn-secondary btn-sm" data-feature="location.settings" onclick="openSheetModal(event)">설정</button>
         </div>
         <!-- [시트 동기화] 가 시트를 새로 읽는 동안(5~10분) 진행 상황 — location.js setSyncStatus -->
         <div id="incoming-sync-status" class="incoming-sync-status"></div>
@@ -858,7 +864,7 @@
             </div>
         <!-- [5단계] 하단 고정: 추천 자리 일괄 적용 버튼 -->
         <div class="incoming-foot">
-            <button class="btn btn-primary" onclick="applyAllRecommendations()">추천 자리 일괄 적용</button>
+            <button class="btn btn-primary" data-feature="location.bulkEdit" onclick="applyAllRecommendations()">추천 자리 일괄 적용</button>
         </div>
     </div>
 
@@ -903,25 +909,25 @@
             </div>
 
             <!-- 매일 하는 일 — 일일 최신화(기존 로케이션 재고를 지우고 덮어씀). 파일을 고르면 확인창을 먼저 띄운다(js/location.js fileInputA) -->
-            <label class="btn btn-primary btn-daily-upload" for="excel-upload-a" onclick="event.stopPropagation()" title="재고관리 시스템에서 받은 일일 재고/상품 엑셀로 로케이션 재고를 최신화합니다. 기존 데이터는 비워지고 덮어씁니다(선지정 자리는 보호). 파일을 고르면 확인창이 먼저 뜹니다.">오늘 재고 올리기<input type="file" id="excel-upload-a" accept=".xls,.xlsx,.csv,.html,.htm,.txt"></label>
+            <label class="btn btn-primary btn-daily-upload" data-feature="location.upload" for="excel-upload-a" onclick="event.stopPropagation()" title="재고관리 시스템에서 받은 일일 재고/상품 엑셀로 로케이션 재고를 최신화합니다. 기존 데이터는 비워지고 덮어씁니다(선지정 자리는 보호). 파일을 고르면 확인창이 먼저 뜹니다.">오늘 재고 올리기<input type="file" id="excel-upload-a" accept=".xls,.xlsx,.csv,.html,.htm,.txt"></label>
 
             <button class="btn btn-secondary" onclick="window.downloadMainExcel()">엑셀 받기</button>
 
-            <div class="upload-dropdown">
+            <div class="upload-dropdown" data-feature="location.dataUpload">
                 <button class="btn-main-upload" onclick="toggleUploadMenu(event, 'main-tools-menu')" title="분석 데이터 올리기">분석 <span class="dd-long">데이터 </span>올리기 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
                 <div class="upload-menu" id="main-tools-menu" onclick="event.stopPropagation()" style="width: 270px;">
 
                     <div class="menu-section">로케이션 변경 추천</div>
 
-                    <label for="excel-upload-zikjin">
+                    <label for="excel-upload-zikjin" data-feature="location.dataUpload">
                         <span>ZG&AB 출고 데이터 업로드<span class="info-tip" data-tip-key="menu-zikjin" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>ZG&AB 출고 데이터</b><br>직진+에이블리 출고를 합친 엑셀 파일(상품코드 + 수량 또는 날짜별 컬럼)을 업로드합니다.<br><br>점수 계산의 <b>'ZG&AB 출고'</b> 항목에 사용됩니다.</span></span></span>
                         <input type="file" id="excel-upload-zikjin" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
-                    <label for="excel-upload-weekly">
+                    <label for="excel-upload-weekly" data-feature="location.dataUpload">
                         <span>주차별 데이터 업로드<span class="info-tip" data-tip-key="menu-weekly" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>주차별 데이터</b><br>주차별 배송/발주 엑셀 파일을 업로드합니다.<br><br>점수 계산의 <b>'주차별'</b> 및 <b>'상승세'</b> 항목에 사용됩니다.</span></span></span>
                         <input type="file" id="excel-upload-weekly" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
-                    <label for="excel-upload-orders">
+                    <label for="excel-upload-orders" data-feature="location.dataUpload">
                         <span>주문 데이터 업로드 (동선 분석)<span class="info-tip" data-tip-key="menu-orders" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>주문 데이터 업로드</b><br>재고관리 시스템에서 다운로드한 확장주문검색 엑셀 파일을 업로드합니다.<br><br>같은 주문번호로 함께 산 상품 페어를 누적 분석하여, 피킹 작업자의 동선을 줄이는 데 사용됩니다.<br><br>※ 매일 업로드 가능. 누적 통계로 저장됩니다.</span></span></span>
                         <input type="file" id="excel-upload-orders" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
@@ -929,7 +935,7 @@
                 </div>
             </div>
 
-            <button class="icon-btn" onclick="openSettingsModal(event)" title="환경설정" aria-label="환경설정"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"></path></svg></button>
+            <button class="icon-btn" data-feature="location.settings|location.bulkEdit|location.upload" onclick="openSettingsModal(event)" title="환경설정" aria-label="환경설정"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"></path></svg></button>
         </div>
     </div>
 
@@ -937,7 +943,7 @@
         <!-- 체크한 줄의 동·위치·대분류를 바로 고치는 막대 (선택이 있을 때만 보임) -->
         <div id="loc-bulk-bar" class="bulk-bar" style="display:none;">
             <span class="bulk-count"><span id="loc-bulk-count">0</span>개 선택됨</span>
-            <button class="btn btn-primary btn-sm" onclick="window.openLocBulkEdit()">동·위치·대분류·칸수 수정</button>
+            <button class="btn btn-primary btn-sm" data-feature="location.bulkEdit" onclick="window.openLocBulkEdit()">동·위치·대분류·칸수 수정</button>
             <button class="btn btn-secondary btn-sm" onclick="window.clearLocSelection()">선택 해제</button>
             <span>※ 상품·재고가 아니라 <b>자리 정보</b>만 바뀝니다. 자리 번호(로케이션)는 바뀌지 않습니다.</span>
         </div>
@@ -1007,7 +1013,7 @@
             <!-- 패널 칸 8개 — 순서·폭·높이는 배치 편집으로 바뀐다. 안쪽 id 칸은 location.js 가 innerHTML 로 다시 그린다 -->
             <div class="dash-grid" id="dash-grid">
             <!-- 채우기 지시서 띠 (js/refill-card.js) — 기본은 접힌 한 줄, [펼치기]로 띠 아래에 전체. 배치 편집 패널(새 패널이면 맨 위) -->
-            <section class="dash-cell" data-panel="refill">
+            <section class="dash-cell" data-panel="refill" data-feature="location.refill">
                 <div id="refill-card" class="dash-panel refill-card topcard">
                     <div class="topcard-strip">
                         <h3>채우기 지시서</h3>
@@ -1027,7 +1033,7 @@
             </section>
 
             <!-- 로케이션 변경 추천 띠 (js/locrec-card.js) — 채우기 띠와 같은 방식 -->
-            <section class="dash-cell" data-panel="locrec">
+            <section class="dash-cell" data-panel="locrec" data-feature="location.locrec">
                 <div id="locrec-card" class="dash-panel locrec-card topcard">
                     <div class="topcard-strip">
                         <h3>변경 추천</h3>
@@ -1288,7 +1294,7 @@
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">시스템 환경설정</div>
 
-            <div class="set-sec">
+            <div class="set-sec" data-feature="location.bulkEdit">
                 <h4>1. 빈 로케이션 추가 / 삭제</h4>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                     <input type="text" id="setting-new-loc" class="action-input" placeholder="예: A-1-001" style="flex:1;" onkeypress="if(event.key === 'Enter') addSingleLocationFromSetting()">
@@ -1300,14 +1306,14 @@
                 </div>
             </div>
 
-            <div class="set-sec">
+            <div class="set-sec" data-feature="location.settings">
                 <h4>2. 화면 표시 헤더(열) 설정</h4>
                 <div style="font-size:11px; color:var(--c-text-3); margin-bottom:8px;">※ 체크한 항목만 리스트 화면에 표시됩니다. (주황색은 엑셀에서 새로 추가된 항목)</div>
                 <div id="setting-headers-container" style="display: flex; flex-wrap: wrap; gap: 10px; max-height: 120px; overflow-y: auto; padding: 12px; border: 1px solid var(--c-line); border-radius: var(--r-sm); background:var(--c-surface-2);">
                 </div>
             </div>
 
-            <div class="set-sec" style="margin-bottom: 10px;">
+            <div class="set-sec" data-feature="location.upload" style="margin-bottom: 10px;">
                 <h4 class="is-risk">3. 구조(동/위치/칸수) 영구 세팅 업로드</h4>
                 <div class="note-box note-warn" style="font-size:11px; margin-bottom:10px; line-height:1.5;">
                     ※ 주의: 이 버튼은 <strong>최초 로케이션/동/위치/칸수 세팅</strong>을 하거나 랙 구조를 아예 변경할 때만 사용하세요. 기존의 동/위치/칸수가 덮어쓰기 됩니다.<br>
@@ -1321,7 +1327,7 @@
 
             <div class="modal-footer">
                 <button class="btn-modal-cancel" onclick="closeSettingsModal()">닫기</button>
-                <button class="btn-modal-save" onclick="saveHeaderSettings()">헤더 설정 저장</button>
+                <button class="btn-modal-save" data-feature="location.settings" onclick="saveHeaderSettings()">헤더 설정 저장</button>
             </div>
         </div>
     </div>
@@ -1417,7 +1423,7 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn-modal-cancel" onclick="closeSheetModal()">취소</button>
-                    <button class="btn-modal-save" onclick="saveIncomingPriorities()">저장</button>
+                    <button class="btn-modal-save" data-feature="location.settings" onclick="saveIncomingPriorities()">저장</button>
                 </div>
             </div>
         </div>
@@ -1428,7 +1434,7 @@
             <div class="modal-header" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
                 로케이션 변경 리스트
                 <button class="btn btn-primary btn-sm" onclick="window.runActiveRecommendation()">계산</button>
-                <button class="btn btn-secondary btn-sm" onclick="window.openRatioModal()">점수반영비율 설정</button>
+                <button class="btn btn-secondary btn-sm" data-feature="location.settings" onclick="window.openRatioModal()">점수반영비율 설정</button>
                 <button class="btn btn-secondary btn-sm" onclick="window.show2FRecommendation()">빈칸확보</button>
             </div>
             <div style="font-size:12px; color:var(--c-text-2); margin-bottom:15px; margin-top:-10px;">
@@ -1530,7 +1536,7 @@
                 </table>
             </div>
             <div class="modal-footer" style="justify-content: space-between; margin-top: 15px;">
-                <button class="btn btn-risk" onclick="window.releaseAllCancelledPreAssigns()">모두 해제</button>
+                <button class="btn btn-risk" data-feature="location.preassign" onclick="window.releaseAllCancelledPreAssigns()">모두 해제</button>
                 <button class="btn btn-secondary" onclick="document.getElementById('cancelled-preassign-modal').style.display='none'">닫기</button>
             </div>
         </div>
@@ -1567,7 +1573,7 @@
             </div>
 
             <div class="modal-footer" style="justify-content: space-between; margin-top: 15px;">
-                <button class="btn btn-risk" onclick="window.resetOrderAnalysis()">분석 데이터 전체 초기화</button>
+                <button class="btn btn-risk" data-feature="location.dataUpload" onclick="window.resetOrderAnalysis()">분석 데이터 전체 초기화</button>
                 <button class="btn btn-secondary" onclick="document.getElementById('order-analysis-modal').style.display='none'">닫기</button>
             </div>
         </div>
@@ -1625,8 +1631,10 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610191708"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610191708"></script>
+    <script type="module" src="js/location.js?v=202610191818"></script>
+    <!-- 권한 개편 5단계: location.js 가 만든 window.* 위험 함수를 바깥에서 감싼다(반드시 location.js 다음) -->
+    <script type="module" src="js/location-guard.js?v=202610191818"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610191818"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1707,9 +1715,10 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610191708"></script>
-    <script src="js/modal-esc.js?v=202610191708"></script>
-    <script type="module" src="js/modal-drag.js?v=202610191708"></script>
-    <script type="module" src="js/app-shell.js?v=202610191708"></script>
+    <script src="js/connection-banner.js?v=202610191818"></script>
+    <script src="js/modal-esc.js?v=202610191818"></script>
+    <script type="module" src="js/modal-drag.js?v=202610191818"></script>
+    <script type="module" src="js/page-gate.js?v=202610191818" data-perm-page="location.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610191818"></script>
 </body>
 </html>
