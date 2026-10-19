@@ -10,9 +10,9 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610191502">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191502">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610191502">
+    <link rel="stylesheet" href="css/suit.css?v=202610191518">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191518">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610191518">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -776,6 +776,11 @@
             .topcard-detail { padding: 12px 14px 14px; }
             .refill-table td.refill-chk { width: 48px; height: 40px; }
             .refill-chk input { width: 26px; height: 26px; }
+            /* 지시서 표 창: 창은 화면에 고정하고 표 상자 안에서만 가로·세로 스크롤(창·페이지가 같이 밀리지 않게) */
+            #refill-modal { overflow: hidden; overscroll-behavior: contain; }
+            #refill-modal > .refill-modal-content { height: calc(100dvh - 16px); overflow: hidden !important; }
+            #refill-modal .refill-table-wrap { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+            body:has(#refill-modal[style*="flex"]) { overflow: hidden; }
             .locrec-table { min-width: 600px; }
             .locrec-table td.locrec-state { width: 104px; }
             .locrec-table td.locrec-acts { width: 128px; }
@@ -1576,8 +1581,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610191502"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610191502"></script>
+    <script type="module" src="js/location.js?v=202610191518"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610191518"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1658,9 +1663,9 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610191502"></script>
-    <script src="js/modal-esc.js?v=202610191502"></script>
-    <script type="module" src="js/modal-drag.js?v=202610191502"></script>
-    <script type="module" src="js/app-shell.js?v=202610191502"></script>
+    <script src="js/connection-banner.js?v=202610191518"></script>
+    <script src="js/modal-esc.js?v=202610191518"></script>
+    <script type="module" src="js/modal-drag.js?v=202610191518"></script>
+    <script type="module" src="js/app-shell.js?v=202610191518"></script>
 </body>
 </html>
