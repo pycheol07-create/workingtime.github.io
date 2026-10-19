@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610190902">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610190902">
+    <link rel="stylesheet" href="css/suit.css?v=202610190921">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610190921">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -13,7 +13,7 @@
     <title>비품 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
-    <link rel="stylesheet" href="css/tool-d.css?v=202610190902">
+    <link rel="stylesheet" href="css/tool-d.css?v=202610190921">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         /* 칸마다 최소 폭(th의 min-width)을 두므로 표는 내용 폭을 따르되, 좁을 땐 영역을 꽉 채운다. */
@@ -137,8 +137,10 @@
                 <h2 id="item-modal-title" class="text-base font-bold">비품 추가</h2>
                 <button type="button" data-close class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
             </div>
-            <div class="md:flex md:items-stretch">
-            <div class="flex-1 min-w-0 flex flex-col">
+            <!-- 배치: 휴대폰 = 상세 → 재고 → 이력 세로 / md~xl = 상세 | (재고 위 · 이력 아래) / xl 이상 = 상세 | 재고 | 이력 세 칸.
+                 새 비품 추가(재고 칸 숨김)면 상세가 md:col-span-full 로 전체 폭을 쓴다(js/supplies.js openItemModal). -->
+            <div id="item-modal-grid" class="md:grid md:grid-cols-[minmax(0,1fr)_320px] md:grid-rows-[auto_1fr] xl:grid-cols-[minmax(0,1fr)_340px_300px] xl:grid-rows-1">
+            <div id="item-detail-cell" class="min-w-0 flex flex-col md:row-span-2 xl:row-span-1">
             <div class="p-6 space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div class="md:col-span-2">
@@ -235,10 +237,9 @@
             </div>
             </div>
 
-            <!-- 재고 패널 — [재고 반영]은 재고만 저장하고 창을 닫지 않는다.
-                 md 이상에서는 안쪽을 absolute 로 띄워 패널 높이 = 왼쪽 상세 높이가 되고, 이력이 남는 높이만큼 스크롤된다. -->
-            <aside id="stock-panel" class="hidden md:relative md:w-[320px] lg:w-[360px] md:shrink-0 md:min-h-[600px] border-t md:border-t-0 md:border-l border-slate-200 bg-slate-50">
-                <div class="p-5 flex flex-col gap-3 md:absolute md:inset-0 md:overflow-y-auto">
+            <!-- 재고 패널 — [재고 반영]은 재고만 저장하고 창을 닫지 않는다. -->
+            <aside id="stock-panel" class="hidden md:col-start-2 md:row-start-1 min-w-0 border-t md:border-t-0 md:border-l border-slate-200 bg-slate-50">
+                <div class="p-5 flex flex-col gap-3">
                     <div class="flex items-start justify-between gap-2">
                         <div>
                             <div class="text-[11px] font-bold text-slate-400">현재고</div>
@@ -275,19 +276,23 @@
                     <button type="button" id="btn-stock-excel" title="현재고조회 엑셀을 올리면 가장 최근 재고로 '실사' 조정을 채워 둡니다"
                         class="w-full text-xs font-bold px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100">엑셀로 재고 맞추기</button>
 
-                    <div class="flex-1 min-h-0 flex flex-col">
-                        <div class="text-[11px] font-bold text-slate-500 mb-1">재고 변동 이력</div>
-                        <div id="stock-log" class="flex-1 min-h-0 max-h-72 md:max-h-none overflow-y-auto space-y-1 bg-white border border-slate-200 rounded-xl p-2"></div>
-                    </div>
+                </div>
+            </aside>
+
+            <!-- 재고 변동 이력 — 별도 칸. md 이상에서는 안쪽을 absolute 로 띄워 칸 높이(상세 높이에 맞춰짐)만큼 스크롤된다. -->
+            <aside id="stock-history-panel" class="hidden md:relative md:col-start-2 md:row-start-2 xl:col-start-3 xl:row-start-1 min-w-0 md:min-h-[220px] border-t xl:border-t-0 md:border-l border-slate-200 bg-slate-50">
+                <div class="p-5 flex flex-col gap-2 md:absolute md:inset-0">
+                    <div class="text-xs font-bold text-slate-600">재고 변동 이력</div>
+                    <div id="stock-log" class="flex-1 min-h-0 max-h-72 md:max-h-none overflow-y-auto space-y-1 bg-white border border-slate-200 rounded-xl p-2"></div>
                 </div>
             </aside>
             </div>
         </div>
     </div>
 
-    <script type="module" src="js/supplies.js?v=202610190902"></script>
-    <script type="module" src="js/app-shell.js?v=202610190902"></script>
-    <script src="js/connection-banner.js?v=202610190902"></script>
-    <script src="js/modal-esc.js?v=202610190902"></script>
+    <script type="module" src="js/supplies.js?v=202610190921"></script>
+    <script type="module" src="js/app-shell.js?v=202610190921"></script>
+    <script src="js/connection-banner.js?v=202610190921"></script>
+    <script src="js/modal-esc.js?v=202610190921"></script>
 </body>
 </html>

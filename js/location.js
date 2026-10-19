@@ -1,14 +1,14 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610190902';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610190921';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610190902';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610190902';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610190902';
-import { orderKeyMap } from './lib/order-hash.js?v=202610190902';
-import { setShellContext } from './app-shell-bridge.js?v=202610190902';
-import { memberNameFor } from './app-shell-data.js?v=202610190902';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610190902';
-import { initPageNav } from './page-nav.js?v=202610190902';
+import { escapeHtml as escAttr } from './utils.js?v=202610190921';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610190921';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610190921';
+import { orderKeyMap } from './lib/order-hash.js?v=202610190921';
+import { setShellContext } from './app-shell-bridge.js?v=202610190921';
+import { memberNameFor } from './app-shell-data.js?v=202610190921';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610190921';
+import { initPageNav } from './page-nav.js?v=202610190921';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나

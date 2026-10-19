@@ -5,11 +5,11 @@
 //  - 비품은 수십 건 규모라 문서 하나로 관리하는 편이 읽기·쓰기 모두 저렴하다.
 //  - 각 비품은 종류·현재고를 기본으로 하고, 단가/사이즈/발주정보/업체 등 상세를 함께 보관한다.
 
-import { initializeFirebase } from './config.js?v=202610190902';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610190902';
-import { memberNameFor } from './app-shell-data.js?v=202610190902';
-import { escapeHtml as esc } from './utils.js?v=202610190902';
-import { kstDateTime } from './lib/kst-time.js?v=202610190902';
+import { initializeFirebase } from './config.js?v=202610190921';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610190921';
+import { memberNameFor } from './app-shell-data.js?v=202610190921';
+import { escapeHtml as esc } from './utils.js?v=202610190921';
+import { kstDateTime } from './lib/kst-time.js?v=202610190921';
 import { doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -560,6 +560,9 @@ function openItemModal(id = null) {
     // 재고 패널은 이미 있는 비품일 때만 — 새 비품은 아직 id 가 없어 재고 이력을 붙일 곳이 없다.
     stockTargetId = it ? it.id : null;
     $('stock-panel').classList.toggle('hidden', !it);
+    $('stock-history-panel').classList.toggle('hidden', !it);
+    $('item-detail-cell').classList.toggle('md:col-span-full', !it);   // 새 비품 추가: 상세가 전체 폭
+    $('item-modal-box').classList.toggle('xl:max-w-7xl', !!it);
     $('item-modal-box').classList.toggle('max-w-5xl', !!it);
     $('item-modal-box').classList.toggle('max-w-2xl', !it);
     if (it) {
