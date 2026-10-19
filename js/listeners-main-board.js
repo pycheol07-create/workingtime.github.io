@@ -1,12 +1,12 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610191818';
-import * as State from './state.js?v=202610191818';
-import { render } from './app.js?v=202610191818';
-import { showToast, formatTimeTo24H } from './utils.js?v=202610191818';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202610191818';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202610191818';
+import * as DOM from './dom-elements.js?v=202610200831';
+import * as State from './state.js?v=202610200831';
+import { render } from './app.js?v=202610200831';
+import { showToast, formatTimeTo24H } from './utils.js?v=202610200831';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202610200831';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202610200831';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -14,11 +14,11 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202610191818';
+} from './app-logic.js?v=202610200831';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610191818';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202610191818';
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202610191818';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610200831';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202610200831';
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202610200831';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -114,37 +114,35 @@ const openMemberActionModal = (memberName) => {
 
 export function setupMainBoardListeners() {
 
-    if (DOM.confirmTeamSelectBtn) {
-        DOM.confirmTeamSelectBtn.addEventListener('click', () => {
-            if (State.context.selectedTaskForStart === '샘플검수') {
-                setTimeout(() => {
-                    initializeInspectionSession();
-                    if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
-                    if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
-                }, 300);
-            } else if (State.context.selectedTaskForStart === '전량검수') {
-                setTimeout(() => {
-                    if (DOM.totalInspModal) DOM.totalInspModal.classList.remove('hidden');
-                    if (DOM.totalInspProductName) DOM.totalInspProductName.focus();
-                }, 300);
-            }
-        });
-    }
-
-    // 채우기 업무를 새로 시작할 때 지시서 창(인원 추가 때는 열지 않음). 오늘 지시서가 없거나 휴일이면 안내만 — js/refill-dash.js
-    //   #confirm-team-select-btn 은 dom-elements.js 에 내보내져 있지 않아(위 DOM.confirmTeamSelectBtn 은 undefined) 문서 위임으로 받는다.
+    // 업무를 새로 시작할 때 그 업무의 창을 연다(인원 추가 때는 열지 않음).
+    //   샘플검수 → 검수 창, 전량검수 → 전량검수 창, 채우기 → 지시서 창(오늘 지시서가 없거나 휴일이면 안내만 — js/refill-dash.js).
+    //   #confirm-team-select-btn 은 dom-elements.js 에 내보내져 있지 않아 문서 위임으로 받는다
+    //   (예전 DOM.confirmTeamSelectBtn 은 undefined 라 검수 창 자동 열기가 동작하지 않았다 — 2026-10-20 수정).
     //   [출근하고 시작] 이 코드로 누르는 click() 도 여기로 온다. 값은 클릭 순간(시작 처리 전)에 읽는다.
-    //   시작이 실패하면(출근 전·이미 업무 중·충돌) 열지 않는다 — 인원 선택 창이 닫히고 선택한 사람 모두의 '채우기' 진행 기록이
-    //   생긴 것을 짧게 확인한 뒤에만 연다(최대 REFILL_START_WAIT_MS, 넘으면 포기).
-    const REFILL_START_WAIT_MS = 6000, REFILL_START_POLL_MS = 200;
+    //   시작이 실패하면(출근 전·이미 업무 중·충돌) 열지 않는다 — 인원 선택 창이 닫히고 선택한 사람 모두의 진행 기록이
+    //   생긴 것을 짧게 확인한 뒤에만 연다(최대 START_WAIT_MS, 넘으면 포기).
+    const START_WAIT_MS = 6000, START_POLL_MS = 200;
+    const openSampleInsp = () => {
+        initializeInspectionSession();
+        if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
+        if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
+    };
+    const openTotalInsp = () => {
+        if (DOM.totalInspModal) DOM.totalInspModal.classList.remove('hidden');
+        if (DOM.totalInspProductName) DOM.totalInspProductName.focus();
+    };
     document.addEventListener('click', (e) => {
         const t = e.target;
         if (!t || !t.closest || !t.closest('#confirm-team-select-btn')) return;
         const task = State.context.selectedTaskForStart;
-        if (!isRefillTask(task) || !refillAllowed()) return;
+        let open = null;
+        if (task === '샘플검수') open = openSampleInsp;
+        else if (task === '전량검수') open = openTotalInsp;
+        else if (isRefillTask(task) && refillAllowed()) open = openRefillFromDash;
+        if (!open) return;
         const members = [...(State.context.tempSelectedMembers || [])];
         if (State.context.selectedGroupForAdd || !members.length) return;
-        const until = Date.now() + REFILL_START_WAIT_MS;
+        const until = Date.now() + START_WAIT_MS;
         const started = () => {
             const modal = document.getElementById('team-select-modal');
             if (!modal || !modal.classList.contains('hidden')) return false;
@@ -152,8 +150,8 @@ export function setupMainBoardListeners() {
             return members.every(m => recs.some(r => r && r.member === m && r.task === task && r.status === 'ongoing'));
         };
         const poll = () => {
-            if (started()) { openRefillFromDash(); return; }
-            if (Date.now() < until) setTimeout(poll, REFILL_START_POLL_MS);
+            if (started()) { open(); return; }
+            if (Date.now() < until) setTimeout(poll, START_POLL_MS);
         };
         setTimeout(poll, 300);
     });

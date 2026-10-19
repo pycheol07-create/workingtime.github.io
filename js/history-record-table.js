@@ -1,9 +1,9 @@
 // === js/history-record-table.js ===
 // 설명: '기록 관리' 모달 내의 테이블 렌더링 및 필터링 로직을 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610191818';
-import * as State from './state.js?v=202610191818';
-import { showToast, formatDuration, calcTotalPauseMinutes } from './utils.js?v=202610191818';
+import * as DOM from './dom-elements.js?v=202610200831';
+import * as State from './state.js?v=202610200831';
+import { showToast, formatDuration, calcTotalPauseMinutes } from './utils.js?v=202610200831';
 
 /**
  * 기록 관리 모달을 엽니다.
