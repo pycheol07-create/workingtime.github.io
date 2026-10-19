@@ -2,26 +2,27 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610191644';
-import { displayCurrentDate, showToast } from './utils.js?v=202610191644';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610191644';
-import { initializeAppListeners } from './app-listeners.js?v=202610191644';
-import * as DOM from './dom-elements.js?v=202610191644';
-import * as State from './state.js?v=202610191644';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610191644';
-import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=202610191644';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610191708';
+import { displayCurrentDate, showToast } from './utils.js?v=202610191708';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610191708';
+import { initializeAppListeners } from './app-listeners.js?v=202610191708';
+import * as DOM from './dom-elements.js?v=202610191708';
+import * as State from './state.js?v=202610191708';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610191708';
+import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=202610191708';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610191644';
-import { setupNotificationListeners } from './app-notifications.js?v=202610191644';
-import { setupFirebaseListeners, unsubscribeNotifications, whenTodayLoaded } from './app-sync.js?v=202610191644';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=202610191644';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=202610191644';
-import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610191644';
-import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610191644';
-import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610191644';
-import { setShellContext, clearShellMenuCache, onBeforeLeaveSave } from './app-shell-bridge.js?v=202610191644';
-import { parseOpenHash } from './app-shell-data.js?v=202610191644';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610191708';
+import { setupNotificationListeners } from './app-notifications.js?v=202610191708';
+import { setupFirebaseListeners, unsubscribeNotifications, whenTodayLoaded } from './app-sync.js?v=202610191708';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=202610191708';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=202610191708';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610191708';
+import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610191708';
+import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610191708';
+import { setShellContext, clearShellMenuCache, onBeforeLeaveSave } from './app-shell-bridge.js?v=202610191708';
+import { parseOpenHash } from './app-shell-data.js?v=202610191708';
+import { resolve as resolvePerm, can, menuConfigOf } from './lib/perm.js?v=202610191708';
 
 // 이 모듈은 대시보드(index)와 데이터 관리(history.html)가 함께 쓴다. 대시보드에서만 할 일은 이것으로 가른다.
 const IS_DASHBOARD = !!(document.body && document.body.dataset.shell === 'index');
@@ -98,6 +99,8 @@ async function startAppAfterLogin(user) {
 
         State.appState.currentUser = currentUserName;
         State.appState.currentUserRole = currentUserRole;
+        // 기능 권한(권한 개편) — 메뉴·업무 마감·이력 수정 문지기가 이 값 하나로 판정한다. 관리자 = 전체.
+        State.appState.perm = resolvePerm(State.appConfig, userEmail, { role: currentUserRole });
 
         // UI 토글 (Admin vs User) - 기존 로직 유지
         if (DOM.userGreeting) {
@@ -109,11 +112,13 @@ async function startAppAfterLogin(user) {
         if (DOM.logoutBtn) DOM.logoutBtn.classList.remove('hidden');
         if (DOM.logoutBtnMobile) DOM.logoutBtnMobile.classList.remove('hidden');
 
-        // 관리자용 UI
-        // 🏁 업무 마감도 관리자 전용이다. 예전엔 숨김 처리가 없어 로그인한 누구나
-        //    누를 수 있었다 — 그 한 번이 전 직원 퇴근시각을 확정하고 그날 원본을 지운다.
-        const adminElements = [document.getElementById('admin-link-btn'), DOM.adminLinkBtnMobile, DOM.resetAppBtn, DOM.resetAppBtnMobile, DOM.openHistoryBtn, DOM.openHistoryBtnMobile, DOM.endShiftBtn, DOM.endShiftBtnMobile];
-        adminElements.forEach(el => { if (el) el.style.display = (currentUserRole === 'admin') ? 'flex' : 'none'; });
+        // 관리자용 UI — 관리자 링크·초기화는 관리자만, 데이터 관리·업무 마감은 기능 권한으로(사이드바와 같은 기준).
+        // 🏁 업무 마감 한 번이 전 직원 퇴근시각을 확정하고 그날 원본을 지운다(관리자 = 전체 기능이라 관리자는 그대로 보인다).
+        // ⚠️ style.display 'flex'|'none' 방식은 바꾸지 않는다 — 업무마감봇이 #end-shift-btn 의 computed display 로 관리자 여부를 본다.
+        const showIf = (els, on) => els.forEach(el => { if (el) el.style.display = on ? 'flex' : 'none'; });
+        showIf([document.getElementById('admin-link-btn'), DOM.adminLinkBtnMobile, DOM.resetAppBtn, DOM.resetAppBtnMobile], currentUserRole === 'admin');
+        showIf([DOM.openHistoryBtn, DOM.openHistoryBtnMobile], can(State.appState.perm, 'data.view'));
+        showIf([DOM.endShiftBtn, DOM.endShiftBtnMobile], can(State.appState.perm, 'dash.endShift'));
 
         // 메인 영역 노출
         document.getElementById('main-content-area')?.classList.remove('hidden');
@@ -127,7 +132,7 @@ async function startAppAfterLogin(user) {
         // memberName 은 셸 개인 알림 구독용(데이터 관리 화면) — 셸은 이름을 메모리에만 두고 캐시에 넣지 않는다.
         setShellContext({
             signedIn: true, uid: user.uid, email: userEmail, role: currentUserRole, memberName: currentUserName,
-            menuConfig: { dashboardMenu: State.appConfig.dashboardMenu, memberMenuAccess: State.appConfig.memberMenuAccess }
+            menuConfig: menuConfigOf(State.appConfig)
         });
 
         renderDashboardLayout(State.appConfig);

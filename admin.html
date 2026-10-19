@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610191644">
-    <link rel="stylesheet" href="css/admin-d.css?v=202610191644">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191644">
+    <link rel="stylesheet" href="css/suit.css?v=202610191708">
+    <link rel="stylesheet" href="css/admin-d.css?v=202610191708">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191708">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -149,11 +149,12 @@
                     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors w-full">
                         <div class="p-6 border-b border-gray-100 dark:border-gray-700 w-full">
                             <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">권한 및 접근 관리</h2>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">사용자별 권한(관리자/일반) 및 일반 사용자의 메뉴별 접근 권한 설정</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">관리자는 전체 기능. 일반 계정은 역할(기능 묶음) + 개인 예외(+/−)로 정합니다</p>
                         </div>
                         <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl w-full">
                             <div class="text-sm text-gray-600 dark:text-gray-300 mb-6 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700 w-full">
-                                <b>안내:</b> 새로 추가한 팀원은 상단의 <b>[전체 저장]</b> 버튼을 누른 후에 아래 목록에 나타납니다.<br>일반 권한인 경우 사이드바에서 허용할 메뉴에만 체크해주세요.
+                                <b>안내:</b> [사람]에서 역할을 고르고, 필요한 사람만 '세부 예외'로 기능을 더하거나 뺍니다. [역할]을 고치면 그 역할을 쓰는 사람 모두에게 적용됩니다.<br>
+                                메뉴·화면은 기능 권한을 따라갑니다. 저장은 상단 <b>[전체 저장]</b> 한 번입니다. '미리보기'로 저장 전에 그 사람이 볼 화면을 확인하세요.
                             </div>
                             <div id="permissions-container" class="space-y-3 w-full"></div>
                         </div>
@@ -375,13 +376,13 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610191644"></script>
-    <script type="module" src="js/admin-automation.js?v=202610191644"></script>
-    <script type="module" src="js/admin-refill.js?v=202610191644"></script>
+    <script type="module" src="js/admin.js?v=202610191708"></script>
+    <script type="module" src="js/admin-automation.js?v=202610191708"></script>
+    <script type="module" src="js/admin-refill.js?v=202610191708"></script>
 
     <script type="module">
         // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
-        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610191644';
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610191708';
 
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
@@ -484,9 +485,9 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610191644"></script>
-    <script src="js/modal-esc.js?v=202610191644"></script>
-    <script type="module" src="js/modal-drag.js?v=202610191644"></script>
-    <script type="module" src="js/app-shell.js?v=202610191644"></script>
+    <script src="js/connection-banner.js?v=202610191708"></script>
+    <script src="js/modal-esc.js?v=202610191708"></script>
+    <script type="module" src="js/modal-drag.js?v=202610191708"></script>
+    <script type="module" src="js/app-shell.js?v=202610191708"></script>
 </body>
 </html>

@@ -1,9 +1,13 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610191644';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610191644';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610191644';
-import { memberNameFor } from './app-shell-data.js?v=202610191644';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610191708';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610191708';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610191708';
+import { memberNameFor } from './app-shell-data.js?v=202610191708';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { menuConfigOf } from './lib/perm.js?v=202610191708';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610191708';
+import { getPermModel } from './admin-perm.js?v=202610191708';
 
 import {
     renderAdminUI,
@@ -19,12 +23,13 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610191644';
+} from './admin-ui.js?v=202610191708';
 
 import {
     collectConfigFromDOM,
-    validateConfig
-} from './admin-logic.js?v=202610191644';
+    validateConfig,
+    detectEmailRenames
+} from './admin-logic.js?v=202610191708';
 
 let db, auth;
 let appConfig = {};
@@ -42,7 +47,7 @@ let taskJustAdded = null;
 // 버튼(행 추가·삭제 등)·끌어 옮기기, #admin-content 밖 선택 모달(업무·위젯 항목 추가)의 고르기·확인도 변경으로 본다.
 let adminDirty = false;
 const ADMIN_DIRTY_SKIP = '#section-refill';
-const ADMIN_BTN_SKIP = '#save-all-btn, .admin-tab-btn, #section-refill';
+const ADMIN_BTN_SKIP = '#save-all-btn, .admin-tab-btn, #section-refill, [data-pm-nodirty]';   // 권한 화면의 탭·펼치기·미리보기는 변경이 아니다
 const ADMIN_MODAL_PICK = '.task-select-list-btn, .dashboard-item-select-btn, #confirm-add-to-quantity-btn';
 const markAdminDirty = (e) => {
     const t = e && e.target;
@@ -102,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // memberName 은 셸 개인 알림 구독용 — 메모리에만(캐시·로그에 남기지 않는다)
                 setShellContext({ signedIn: true, uid: user.uid, email: userEmailLower, role: memberRoles[userEmailLower],
                     memberName: memberNameFor(appConfig.memberEmails, userEmailLower) || undefined,
-                    menuConfig: { dashboardMenu: appConfig.dashboardMenu, memberMenuAccess: appConfig.memberMenuAccess } });
+                    menuConfig: menuConfigOf(appConfig) });
 
                 if (currentUserRole === 'admin') {
                     // 🔒 급여·원가는 관리자 전용 저장소에서 받아 얹는다(mainConfig 에는 없다).
@@ -167,21 +172,8 @@ function setupEventListeners() {
         });
     });
 
-    document.body.addEventListener('change', (e) => {
-        if (e.target.classList.contains('perm-role')) {
-            const listContainer = e.target.closest('.permission-item').querySelector('.perm-menu-list');
-            const checkboxes = listContainer.querySelectorAll('.perm-menu-checkbox');
-            
-            if (e.target.value === 'admin') {
-                listContainer.classList.add('opacity-40', 'pointer-events-none');
-                checkboxes.forEach(cb => cb.disabled = true);
-            } else {
-                listContainer.classList.remove('opacity-40', 'pointer-events-none');
-                checkboxes.forEach(cb => cb.disabled = false);
-            }
-        }
-    });
-    
+    // 권한 관리 화면의 입력은 js/admin-perm.js 가 받는다(권한 개편 — 예전 '메뉴 체크박스' 처리는 지웠다).
+
     document.getElementById('add-menu-category-btn')?.addEventListener('click', () => {
         const container = document.getElementById('menu-categories-container');
         if (!container) return;
@@ -323,8 +315,33 @@ async function handleSaveAll() {
     if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
 
     try {
-        const newConfig = collectConfigFromDOM(appConfig);
+        // 🔐 권한 칸은 권한 화면의 메모리 모델에서 만든다. 모델이 없으면(화면 초기화 실패) 저장하지 않는다 —
+        //    그대로 저장하면 권한 칸이 비거나 옛 값이 섞인다(mainConfig 는 통째 덮어쓰기).
+        const uiModel = getPermModel();
+        if (!uiModel) throw new Error('권한 화면을 불러오지 못해 저장을 막았습니다. 새로고침해 주세요.');
+        // 팀원 탭에서 이메일만 고친 사람은 역할·예외·관리자 지정을 새 이메일로 옮긴다(안 옮기면 '새 팀원' 기본 역할로 떨어진다).
+        const { renames, ambiguous } = detectEmailRenames(appConfig, uiModel);
+        if (ambiguous) {
+            throw new Error('이메일이 바뀐 사람이 있습니다 — 권한 화면에서 확인 후 저장해 주세요.\n'
+                + '(이름과 이메일을 한꺼번에 바꿨거나, 팀원 삭제와 추가를 한 번에 했다면 나눠서 저장해 주세요. 아무것도 저장하지 않았습니다)');
+        }
+        // 로그인한 관리자 본인의 이메일은 바꿔 저장하지 않는다 — 규칙의 '자기 관리자 유지' 검사에 걸리고,
+        //    그 전에 급여·원가(adminPrivate)만 먼저 써지는 일이 없게 여기서(쓰기 전에) 막는다.
+        const myEmail = String((auth && auth.currentUser && auth.currentUser.email) || '').toLowerCase();
+        if (myEmail && renames.some(r => r.from === myEmail)) {
+            throw new Error('자기 이메일은 다른 관리자가 바꿔야 합니다.\n(아무것도 저장하지 않았습니다)');
+        }
+        const permModel = renameEmails(uiModel, renames);
+        const autoCount = autoAssignedCount(permModel);
+        const newConfig = collectConfigFromDOM(appConfig, permModel);
         validateConfig(newConfig);
+        // 저장 전에 기능 집합 검사 — 손대지 않은 사람의 권한이 바뀌거나, 저장될 값이 화면과 다르거나, 옛 이메일 키가 남으면 멈춘다(건수만 알린다).
+        const permCheck = verifyPermSave(permModel, newConfig, renames);
+        if (permCheck.mismatch || permCheck.changed || permCheck.stale) {
+            throw new Error(`[저장 멈춤] 권한 검사에 걸렸습니다 — 저장 값이 화면과 다른 사람 ${permCheck.mismatch}명, `
+                + `손대지 않았는데 권한이 바뀌는 사람 ${permCheck.changed}명, 옛 이메일이 남은 사람 ${permCheck.stale}명.\n`
+                + '아무것도 저장하지 않았습니다. 새로고침 후 다시 해 보고, 계속되면 개발 담당에게 알려 주세요.');
+        }
 
         // 눌러도 열리지 않을 메뉴는 저장 전에 알린다(막지는 않는다 — 만들다 만 상태로 저장할 수도 있다).
         const deadMenus = findDeadMenuItems(newConfig.dashboardMenu);
@@ -341,7 +358,15 @@ async function handleSaveAll() {
             return;
         }
 
-        await saveAppConfig(db, newConfig);
+        // 다른 창이 먼저 저장했으면 덮지 않는다(permRev 비교) — 규칙의 permRev +1 검사가 게시되기 전에도 화면에서 같은 판정을 한다.
+        const serverRev = await readServerPermRev();
+        if (serverRev !== permModel.baseRev) {
+            alert('⚠️ 다른 창에서 먼저 저장했습니다 — 새로고침 후 다시 해 주세요.\n(이 화면에 입력한 내용은 그대로 두었습니다. 저장한 것은 없습니다)');
+            return;
+        }
+
+        // permRev 비교와 mainConfig 쓰기를 한 트랜잭션으로(통째 set 은 그대로) — 위 확인과 저장 사이에 다른 창이 저장해도 덮지 않는다
+        await saveAppConfig(db, newConfig, { expectPermRev: permModel.baseRev });
         if (leaveCleanup && leaveCleanup.updatedLeaveData) {
             await saveLeaveSchedule(db, leaveCleanup.updatedLeaveData);
             notifyLeaveScheduleChanged('admin-cleanup');
@@ -353,17 +378,27 @@ async function handleSaveAll() {
         const resignedCount = Object.keys(newConfig.resignedMembers || {}).length;
         alert('✅ 모든 변경사항이 성공적으로 저장되었습니다!'
             + (leaveCleanup && leaveCleanup.deletedCount ? `\n(연차 내역 ${leaveCleanup.deletedCount}건 정리됨)` : '')
-            + (resignedCount > 0 ? `\n(퇴사자 ${resignedCount}명은 권한 목록에서 제외되고 접근이 해제됩니다)` : ''));
+            + (resignedCount > 0 ? `\n(퇴사자 ${resignedCount}명은 권한 목록에서 제외되고 접근이 해제됩니다)` : '')
+            + (autoCount > 0 ? `\n(옛 권한에서 자동 배정된 ${autoCount}명이 새 권한 형식으로 저장되었습니다)` : ''));
 
         renderAdminUI(appConfig);
         setupAllDragListeners();
 
     } catch (e) {
         console.error("저장 실패:", e);
-        alert(`❌ 저장 실패:\n${e.message}`);
+        // 규칙(permRev +1 검사)이 게시된 뒤 옛 값으로 저장하려 하면 permission-denied 가 난다
+        alert(e && (e.code === 'permission-denied' || e.code === 'perm-rev-conflict')
+            ? '❌ 저장 거부됨 — 다른 창에서 먼저 저장했거나 권한이 없습니다. 새로고침 후 다시 해 주세요.\n(이 화면에 입력한 내용은 그대로 두었습니다)'
+            : `❌ 저장 실패:\n${e.message}`);
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = btnHtml; }
     }
+}
+
+/** 서버의 지금 permRev(없으면 0). 캐시가 아니라 서버에서 읽는다 — 못 읽으면 예외(저장하지 않는다). */
+async function readServerPermRev() {
+    const snap = await getDocFromServer(doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig'));
+    return snap.exists() ? (Number((snap.data() || {}).permRev) || 0) : 0;
 }
 
 function addKeyTask(taskName) {
@@ -478,15 +513,7 @@ function handleDynamicClicks(e) {
         return;
     }
 
-    // ✨ 신규: 전체 체크 / 전체 해제 버튼 로직 추가
-    if (e.target.classList.contains('select-all-menu-btn')) {
-        e.target.closest('.permission-item').querySelectorAll('.perm-menu-checkbox').forEach(cb => cb.checked = true);
-    }
-    else if (e.target.classList.contains('deselect-all-menu-btn')) {
-        e.target.closest('.permission-item').querySelectorAll('.perm-menu-checkbox').forEach(cb => cb.checked = false);
-    }
-
-    else if (e.target.classList.contains('reactivate-member-btn')) {
+    if (e.target.classList.contains('reactivate-member-btn')) {
         // 🚪→✅ 재직 복귀: 퇴사일을 비우고 저장하면 원래 그룹의 재직 팀원으로 돌아감
         const item = e.target.closest('.member-item');
         if (item) {

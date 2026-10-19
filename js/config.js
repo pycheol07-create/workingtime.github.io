@@ -1,8 +1,8 @@
 // === js/config.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610191644';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610191708';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -177,7 +177,9 @@ export const loadAppConfig = async (dbInstance) => {
     }
 };
 
-export const saveAppConfig = async (dbInstance, configData) => {
+/** opts.expectPermRev 를 주면 서버 permRev 가 그 값일 때만 쓴다(트랜잭션 — 다른 창이 먼저 저장했으면 code 'perm-rev-conflict' 예외).
+ *  ⚠️ 급여·원가(adminPrivate)는 그 앞에 따로 쓰므로 이 검사에 묶이지 않는다 — 부르는 쪽이 먼저 permRev 를 확인한다(admin.js). */
+export const saveAppConfig = async (dbInstance, configData, opts = {}) => {
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
     const cleanedConfig = JSON.parse(JSON.stringify(configData));
@@ -203,7 +205,20 @@ export const saveAppConfig = async (dbInstance, configData) => {
                             'Firestore 규칙에 adminPrivate 가 게시됐는지 확인하세요. (' + ((e && e.code) || e) + ')');
         }
     }
-    await setDoc(configDocRef, cleanedConfig);
+    if (opts.expectPermRev === undefined) {
+        await setDoc(configDocRef, cleanedConfig);
+        return;
+    }
+    await runTransaction(dbToUse, async (tx) => {
+        const snap = await tx.get(configDocRef);
+        const rev = snap.exists() ? (Number((snap.data() || {}).permRev) || 0) : 0;
+        if (rev !== opts.expectPermRev) {
+            const err = new Error('다른 창에서 먼저 저장했습니다(permRev ' + rev + ' ≠ ' + opts.expectPermRev + ')');
+            err.code = 'perm-rev-conflict';
+            throw err;
+        }
+        tx.set(configDocRef, cleanedConfig);   // 통째 덮어쓰기(merge 아님) — 예전 저장과 같다
+    });
 };
 
 export const loadLeaveSchedule = async (dbInstance) => {

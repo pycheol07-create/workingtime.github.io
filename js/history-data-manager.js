@@ -1,10 +1,11 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610191644';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610191644';
-import { clampOpenRecords } from './lib/record-close.js?v=202610191644';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610191644';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610191644';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610191644';
+import * as State from './state.js?v=202610191708';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610191708';
+import { clampOpenRecords } from './lib/record-close.js?v=202610191708';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610191708';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610191708';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610191708';
+import { can } from './lib/perm.js?v=202610191708';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -757,11 +758,13 @@ export async function saveDayDataToHistory(shouldReset, endTimeOverride = null, 
     const { closedVia = '앱', confirmDestructive = null } = opts;
     const workRecordsColRef = getWorkRecordsCollectionRef();
 
-    // 🔒 관리자만. 버튼을 숨기는 것(app.js)은 화면일 뿐이라 콘솔에서 그대로 부를 수 있다.
+    // 🔒 업무 마감 권한(dash.endShift)이 있어야 한다 — 관리자(currentUserRole 'admin')는 전체 기능이라 그대로 된다.
+    //    버튼을 숨기는 것(app.js)은 화면일 뿐이라 콘솔에서 그대로 부를 수 있다.
     //    이 한 번이 전 직원 퇴근시각을 확정하고 그날 원본을 지운다.
     //    (Firestore 규칙은 daily_data/history 쓰기를 전원에게 허용하므로 여기가 유일한 문지기다)
-    if (State.appState?.currentUserRole && State.appState.currentUserRole !== 'admin') {
-        showToast('업무 마감은 관리자만 할 수 있습니다.', true);
+    //    권한 값(State.appState.perm)이 아직 없으면 막는다(틀리는 쪽을 '막는 쪽' 으로 둔다).
+    if (!can(State.appState?.perm, 'dash.endShift')) {
+        showToast('업무 마감 권한이 없습니다. 관리자에게 요청하세요.', true);
         return false;
     }
 
@@ -1589,7 +1592,16 @@ export async function refreshRecentHistory(days = RECENT_REFRESH_DAYS) {
     }
 }
 
+// 🔒 이력 기록 추가·수정·삭제 문지기(data.editRecords) — 실수 방지용이다. 규칙은 history 쓰기를 전원에게 허용한다.
+//    권한 값이 없으면 막는다. 막으면 예외를 던진다(부르는 쪽이 '저장됨' 안내를 띄우지 않게).
+const requireEditRecords = () => {
+    if (can(State.appState?.perm, 'data.editRecords')) return;
+    showToast('이력 기록 수정 권한이 없습니다. 관리자에게 요청하세요.', true);
+    throw new Error('이력 기록 수정 권한 없음');
+};
+
 export async function addHistoryWorkRecord(dateKey, newRecordData) {
+    requireEditRecords();
     const todayKey = getTodayDateString();
 
     if (newRecordData.startTime && newRecordData.endTime && !newRecordData.duration) {
@@ -1624,6 +1636,7 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
 }
 
 export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
+    requireEditRecords();
     const todayKey = getTodayDateString();
 
     if (dateKey === todayKey) {
@@ -1697,6 +1710,7 @@ async function updateHistoryDirectly(dateKey, recordId, updateData) {
 }
 
 export async function deleteHistoryWorkRecord(dateKey, recordId) {
+    requireEditRecords();
     const todayKey = getTodayDateString();
 
     if (dateKey === todayKey) {
@@ -1784,9 +1798,10 @@ export async function saveManagementData(dateKey, managementData) {
 export async function updateAttendanceTime(dateKey, member, { inTime, outTime, status }) {
     // 🔒 실수 방지용 문지기다. **보안 경계가 아니다** — Firestore 규칙이 history·daily_data
     //    쓰기를 로그인한 전원에게 허용하므로, 콘솔에서 setDoc 을 직접 부르면 그대로 통과한다.
-    //    (role 이 아직 안 들어왔으면 거부한다. 틀리는 쪽을 '막는 쪽' 으로 둔다)
-    if (State.appState.currentUserRole !== 'admin') {
-        showToast('출퇴근 시각 수정은 관리자만 할 수 있습니다.', true);
+    //    판정은 기능 권한(data.editAttendance) — 관리자는 전체 기능이라 그대로 된다.
+    //    (권한 값이 아직 안 들어왔으면 거부한다. 틀리는 쪽을 '막는 쪽' 으로 둔다)
+    if (!can(State.appState?.perm, 'data.editAttendance')) {
+        showToast('출퇴근 시각 수정 권한이 없습니다. 관리자에게 요청하세요.', true);
         return false;
     }
     if (!State.auth || !State.auth.currentUser) {

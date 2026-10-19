@@ -1,10 +1,11 @@
 // === js/app-shell-bridge.js ===
 // 페이지 → 공통 상단바(js/app-shell.js) 연결 창구. 의존성 없음 — 셸이 안 떠도(실패·미적용) 페이지는 그대로 돈다.
-// ctx = { signedIn, uid?, email?, role?: 'admin'|'user', memberName?, menuConfig?: { dashboardMenu, memberMenuAccess } }
+// ctx = { signedIn, uid?, email?, role?: 'admin'|'user', memberName?, menuConfig?: { dashboardMenu, memberMenuAccess, perm*… } }
+//   menuConfig 는 js/lib/perm.js menuConfigOf(appConfig) 로 만든다(권한 계산에 쓰는 칸만).
 //   menuConfig 를 주면 셸이 보이는 메뉴를 계산해 캐시하고, 안 주면(uid 만) 같은 uid 의 캐시를 쓴다.
 //   memberName 을 주면 셸이 그 이름의 개인 알림을 구독한다(P2). 이름은 메모리에만 — 캐시(localStorage)에 넣지 않는다.
 
-const MENU_CACHE_KEY = 'appShell.menu.v1';   // js/app-shell.js 와 같은 키
+const MENU_CACHE_KEY = 'appShell.menu.v2';   // js/app-shell.js 와 같은 키(v2: 권한 개편 — 옛 기준 메뉴를 버린다)
 const HOME = new URL('../index.html', import.meta.url).href;
 
 export const setShellContext = (ctx) => {

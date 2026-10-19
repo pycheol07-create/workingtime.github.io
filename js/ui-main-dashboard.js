@@ -1,10 +1,10 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610191644';
-import * as State from './state.js?v=202610191644';
-import { getRegularMembersForCount } from './utils.js?v=202610191644';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610191644';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610191644';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610191644';
+import { getAllDashboardDefinitions } from './ui.js?v=202610191708';
+import * as State from './state.js?v=202610191708';
+import { getRegularMembersForCount } from './utils.js?v=202610191708';
+import { visibleMenuFor } from './menu-catalog.js?v=202610191708';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610191708';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610191708';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -612,11 +612,8 @@ export const applyDynamicSidebar = (appConfig) => {
 
     const currentUserEmail = State.auth.currentUser?.email?.toLowerCase() || '';
     const currentUserRole = State.appState.currentUserRole;
-    
-    let allowedMenus = null; 
-    if (currentUserRole !== 'admin') {
-        allowedMenus = appConfig.memberMenuAccess?.[currentUserEmail] || [];
-    }
+    // 보이는 메뉴는 공통 상단바와 같은 함수로 정한다(권한 개편) — 차이는 surface 하나(사이드바는 업무 마감을 권한대로 둔다).
+    const visibleGroups = visibleMenuFor(appConfig, currentUserEmail, currentUserRole, 'sidebar');
 
     const pcElements = {};
     if (pcNav) {
@@ -652,11 +649,8 @@ export const applyDynamicSidebar = (appConfig) => {
         });
     }
 
-    withBuiltinMenus(appConfig.dashboardMenu).forEach((group, index) => {
-        const visibleItems = group.items.filter(item => {
-            if (allowedMenus === null) return true; 
-            return allowedMenus.includes(item.name);
-        });
+    visibleGroups.forEach((group, index) => {
+        const visibleItems = group.items;
 
         if (visibleItems.length === 0) return;
 

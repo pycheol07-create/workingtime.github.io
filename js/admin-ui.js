@@ -1,7 +1,8 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610191644';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610191708';
+import { renderPermissionPanel } from './admin-perm.js?v=202610191708';
 
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
@@ -72,96 +73,11 @@ export function renderAdminUI(config) {
     renderCostAnalysisConfig(config);
 }
 
+// 권한 관리 — [사람] [역할] [기능 목록] 화면과 메모리 모델은 js/admin-perm.js 가 맡는다(권한 개편, 2026-10-19).
+// 예전 화면은 칸이 없는 사람을 '전부 체크'로 그려, 저장 한 번이면 그 사람에게 전 메뉴가 들어갔다(버그) — 새 화면은
+// 실제로 쓸 수 있는 기능(js/lib/perm.js resolve)을 그대로 보여 준다.
 export function renderPermissionsConfig(config) {
-    const container = document.getElementById('permissions-container');
-    if (!container) return;
-    container.innerHTML = '';
-
-    const allUsers = [];
-
-    // 퇴사자는 목록에서 뺀다. 저장 시 admin-logic 이 이 명단을 기준으로
-    // 접근을 전부 해제하므로, 여기서 빼는 것 = 그 사람의 접근 차단이다.
-    const resigned = config.resignedMembers || {};
-    const isResigned = (name) => Boolean(resigned[name]);
-
-    (config.teamGroups || []).forEach(g => {
-        (g.members || []).forEach(m => {
-            if (isResigned(m)) return;
-            const email = config.memberEmails?.[m] || '';
-            if(email) allUsers.push({ name: m, email: email, type: '팀원' });
-        });
-    });
-    
-    (config.systemAccounts || []).forEach(acc => {
-        if(acc.email) allUsers.push({ name: acc.name, email: acc.email, type: '시스템계정' });
-    });
-
-    const uniqueUsers = Array.from(new Map(allUsers.map(item => [item.email.toLowerCase(), item])).values());
-
-    // 저장된 메뉴만 보면 그 뒤에 코드로 추가된 메뉴(중국제작 미발계산기 등)가 빠져
-    // 권한을 아예 선택할 수 없다. 대시보드 사이드바와 같은 목록을 쓴다.
-    const allMenus = [];
-    withBuiltinMenus(config.dashboardMenu || []).forEach(cat => {
-        (cat.items || []).forEach(item => {
-            if (item && item.name && !allMenus.includes(item.name)) allMenus.push(item.name);
-        });
-    });
-
-    uniqueUsers.forEach(user => {
-        const emailLower = user.email.toLowerCase();
-        const role = config.memberRoles?.[emailLower] || 'user';
-        const access = config.memberMenuAccess?.[emailLower] || [];
-        const isUser = role === 'user';
-        
-        const checkboxesHtml = allMenus.map(menuName => {
-            const isNoAccessSet = !config.memberMenuAccess || !config.memberMenuAccess[emailLower];
-            const checked = (isNoAccessSet || access.includes(menuName)) ? 'checked' : '';
-            return `
-                <label class="inline-flex items-center gap-1.5 mr-4 mb-2 cursor-pointer select-none">
-                    <input type="checkbox" value="${menuName}" class="perm-menu-checkbox w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 bg-white dark:bg-gray-800" ${checked} ${!isUser ? 'disabled' : ''}>
-                    <span class="text-xs font-bold text-gray-700 dark:text-gray-300">${menuName}</span>
-                </label>
-            `;
-        }).join('');
-
-        const row = document.createElement('div');
-        row.className = 'permission-item p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col md:flex-row gap-4 md:items-center transition-colors';
-        row.dataset.email = emailLower;
-
-        row.innerHTML = `
-            <div class="w-full md:w-1/4 flex flex-col gap-1 shrink-0">
-                <span class="text-sm font-extrabold text-gray-900 dark:text-white flex items-center gap-1">
-                    ${user.name} 
-                    <span class="text-[10px] font-normal bg-gray-100 dark:bg-gray-700 text-gray-500 px-1.5 py-0.5 rounded">${user.type}</span>
-                </span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">${user.email}</span>
-            </div>
-            <div class="w-full md:w-1/5 shrink-0">
-                <label class="block text-[10px] text-gray-500 dark:text-gray-400 mb-1 font-bold">기본 권한</label>
-                <select class="perm-role w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500 transition-colors">
-                    <option value="user" ${role === 'user' ? 'selected' : ''}>일반</option>
-                    <option value="admin" ${role === 'admin' ? 'selected' : ''}>관리자</option>
-                </select>
-            </div>
-            <div class="w-full flex-1 perm-menu-list p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700 transition-opacity ${isUser ? '' : 'opacity-40 pointer-events-none'}">
-                <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-                    <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400">접근 허용 메뉴 (일반 권한 전용)</div>
-                    <div class="flex gap-2">
-                        <button type="button" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline select-all-menu-btn py-1 px-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">전체 체크</button>
-                        <button type="button" class="text-[10px] font-bold text-gray-600 dark:text-gray-400 hover:underline deselect-all-menu-btn py-1 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">전체 해제</button>
-                    </div>
-                </div>
-                <div class="flex flex-wrap pt-1">
-                    ${checkboxesHtml}
-                </div>
-            </div>
-        `;
-        container.appendChild(row);
-    });
-
-    if (uniqueUsers.length === 0) {
-        container.innerHTML = '<p class="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">이메일이 등록된 계정이 없습니다.</p>';
-    }
+    renderPermissionPanel(config);
 }
 
 // 팀원 1명의 편집 카드 HTML. 활성 팀원(그룹 카드 내부)과 퇴사자 섹션에서 공용으로 사용.

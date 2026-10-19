@@ -1,9 +1,51 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610191644';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610191644';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202610191644';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610191708';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610191708';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202610191708';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610191708';
+import { permFieldsForSave } from './lib/perm-model.js?v=202610191708';
 
-export function collectConfigFromDOM(currentConfig) {
+// 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
+export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',
+    'permDefaultRole', 'permEnforce', 'permRev'];
+
+/** 팀원 탭에서 이메일만 고친 사람을 찾는다(같은 행 = 같은 이름, 시스템 계정은 같은 계정 이름).
+ *  → { renames:[{from,to}], ambiguous }. ambiguous 면 저장을 막는다(admin.js) — 옛 이메일이 사라지면서 모르는 새 이메일이
+ *  생겼는데 이름으로 이을 수 없을 때(이름도 함께 바꿈, 삭제와 추가를 한 번에 함, 이메일 맞바꿈 등).
+ *  그대로 저장하면 새 이메일은 '새 팀원'(기본 역할)이 되고 옛 역할·예외·관리자 지정은 옛 키에 남는다. */
+export function detectEmailRenames(currentConfig, permModel) {
+    const lower = (s) => String(s || '').trim().toLowerCase();
+    const before = {};
+    Object.entries((currentConfig && currentConfig.memberEmails) || {}).forEach(([n, e]) => { if (e) before['m:' + n] = lower(e); });
+    ((currentConfig && currentConfig.systemAccounts) || []).forEach(a => { if (a && a.name && a.email) before['s:' + a.name] = lower(a.email); });
+    const rows = [];
+    const memberRow = (el) => rows.push({ key: 'm:' + (el.querySelector('.member-name')?.value || '').trim(), email: lower(el.querySelector('.member-email')?.value) });
+    document.querySelectorAll('#team-groups-container .team-group-card').forEach(card => card.querySelectorAll('.member-item').forEach(memberRow));
+    document.querySelectorAll('#resigned-members-container .member-item').forEach(memberRow);
+    document.querySelectorAll('#system-accounts-container .system-account-item').forEach(el => rows.push({
+        key: 's:' + (el.querySelector('.sys-name')?.value || '').trim(), email: lower(el.querySelector('.sys-email')?.value) }));
+    const persons = (permModel && permModel.persons) || {};
+    const now = new Set(rows.map(r => r.email).filter(Boolean));
+    const renames = [];
+    let ambiguous = false;
+    for (const r of rows) {
+        const old = before[r.key];
+        if (!old || !r.email || old === r.email || !persons[old]) continue;
+        // 같은 사람이 그룹 두 곳에 있으면 같은 변경 쌍이 여러 번 나온다 — 한 번만 반영한다(애매한 것이 아니다)
+        if (renames.some(x => x.from === old && x.to === r.email)) continue;
+        if (now.has(old) || persons[r.email] || renames.some(x => x.from === old || x.to === r.email)) { ambiguous = true; continue; }
+        renames.push({ from: old, to: r.email });
+    }
+    const moved = new Set(renames.map(x => x.from));
+    const known = new Set(Object.keys((currentConfig && currentConfig.memberRoles) || {}).map(lower));
+    const gone = Object.keys(persons).filter(e => !now.has(e) && !moved.has(e));
+    const added = [...now].filter(e => !persons[e] && !known.has(e) && !renames.some(x => x.to === e));
+    if (gone.length && added.length) ambiguous = true;
+    return { renames, ambiguous };
+}
+
+/** permModel: 권한 화면 모델. 없으면 권한 칸을 저장 전 값 그대로 둔다(메뉴 미리보기용 호출 등) — 이때 저장은 admin.js 가 막는다. */
+export function collectConfigFromDOM(currentConfig, permModel = null) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
     //    saveAppConfig 는 문서를 통째로 덮어쓰므로(merge 아님), 여기서 빠뜨린 키는
     //    관리자 설정을 한 번 저장하는 순간 Firestore에서 사라진다.
@@ -15,8 +57,8 @@ export function collectConfigFromDOM(currentConfig) {
         teamGroups: [],
         memberWages: {},
         memberEmails: {},
-        memberRoles: {},
-        memberMenuAccess: {}, // ✨ 신규 권한 객체
+        memberRoles: {},       // 아래 '권한 칸' 에서 채운다(모델 또는 저장 전 값 사본)
+        memberMenuAccess: {},  // 파생값 — 기능 권한에서 다시 만든다(옛 코드·셸 호환)
         memberRanks: {},
         memberLeaveSettings: {},
         resignedMembers: {}, // 퇴사 처리(비활성): { 이름: 퇴사일 }
@@ -159,34 +201,21 @@ export function collectConfigFromDOM(currentConfig) {
         throw new Error(`이메일 주소 '${duplicateEmailError}'가 중복 할당되었습니다. 모든 팀원 및 시스템 계정의 이메일은 고유해야 합니다.`);
     }
 
-    // ✨ 신규: 새 권한 섹션(permissions-container)에서 권한 및 접근 정보 수집
-    document.querySelectorAll('#permissions-container .permission-item').forEach(item => {
-        const email = item.dataset.email;
-        const role = item.querySelector('.perm-role').value;
-        newConfig.memberRoles[email] = role;
-        
-        if (role === 'user') {
-            const allowed = [];
-            item.querySelectorAll('.perm-menu-checkbox:checked').forEach(cb => {
-                allowed.push(cb.value);
-            });
-            newConfig.memberMenuAccess[email] = allowed;
-        } else {
-            // 관리자는 제한 없음
-            newConfig.memberMenuAccess[email] = [];
-        }
-    });
-
-    // 💡 방금 막 새로 추가되어 권한 섹션에 나타나지 않은 사용자에 대한 기본값(일반, 전체메뉴접근) 부여
-    // 저장된 메뉴만 보면 코드로 추가된 신규 메뉴(중국제작 미발계산기 등)가 빠진 채로
-    // 기본 권한이 박혀, 새 팀원만 그 메뉴를 못 보게 된다. 권한 화면과 같은 목록을 쓴다.
-    const allMenus = [];
-    withBuiltinMenus(newConfig.dashboardMenu).forEach(c => {
-        (c.items || []).forEach(i => {
-            if (i && i.name && !allMenus.includes(i.name)) allMenus.push(i.name);
+    // 🔐 권한 칸 — 권한 화면의 메모리 모델에서 만든다(DOM 을 긁지 않는다). 모델이 없으면 저장 전 값 사본을 둔다.
+    //    메뉴는 권한 화면·사이드바와 같은 목록(코드로 붙는 신규 메뉴 포함)으로 파생값을 만든다.
+    const menuGroups = withBuiltinMenus(newConfig.dashboardMenu);
+    if (permModel) {
+        Object.assign(newConfig, permFieldsForSave(permModel, menuGroups, currentConfig));
+    } else {
+        PERM_SAVE_KEYS.forEach(k => {
+            if (currentConfig && currentConfig[k] !== undefined) newConfig[k] = JSON.parse(JSON.stringify(currentConfig[k]));
         });
-    });
-    
+    }
+    newConfig.permAssign = { ...(newConfig.permAssign || {}) };
+    newConfig.permOverrides = { ...(newConfig.permOverrides || {}) };
+    const dropPerm = (email) => { delete newConfig.permAssign[email]; delete newConfig.permOverrides[email]; };
+    const systemEmails = new Set(newConfig.systemAccounts.map(a => String(a.email || '').toLowerCase()));
+
     // 퇴사자 이메일은 이 기본값 부여에서 제외한다.
     // 권한 화면에서 퇴사자를 뿌렸기 때문에, 제외하지 않으면 아래 루프가
     // '목록에 없는 사람'으로 보고 오히려 전체 메뉴 허용을 다시 박아 넣는다.
@@ -200,22 +229,26 @@ export function collectConfigFromDOM(currentConfig) {
         if (emailCheck.has(email) || !(email in newConfig.memberRoles)) return;
         newConfig.memberRoles[email] = 'user';
         newConfig.memberMenuAccess[email] = [];
+        dropPerm(email);
     });
 
     Array.from(emailCheck.keys()).forEach(email => {
         if (resignedEmails.has(email)) {
-            // 퇴사자: 접근 전부 해제. 퇴사일을 지우면(재입사) 다시 권한을 줄 수 있다.
+            // 퇴사자: 접근 전부 해제(역할·예외도 지운다). 퇴사일을 지우면(재입사) 다시 권한을 줄 수 있다.
             newConfig.memberRoles[email] = 'user';
             newConfig.memberMenuAccess[email] = [];
+            dropPerm(email);
             return;
         }
         if (!newConfig.memberRoles[email]) {
             newConfig.memberRoles[email] = 'user';
-            // 직전까지 퇴사자였던 사람(= 이번에 복귀)은 권한 화면에 행이 없어
-            // 여기로 떨어지는데, 그걸 '신규'로 보고 전체 메뉴를 주면
-            // 퇴사 전보다 권한이 넘치게 된다. 빈 값으로 두고 관리자가 명시적으로 주게 한다.
+            // 새 팀원 = 새 직원 기본 역할(permDefaultRole). 예전엔 전 메뉴(관리자 페이지 이름까지)를 줬다 — 버그.
+            // 직전까지 퇴사자였던 사람(= 이번에 복귀)과 시스템 계정은 역할 없음 — 관리자가 명시적으로 주게 한다
+            // (복귀자를 '신규'로 보고 기본 역할을 주면 퇴사 전보다 권한이 넘칠 수 있다).
             const wasResigned = Boolean((currentConfig?.resignedMembers || {})[emailCheck.get(email)]);
-            newConfig.memberMenuAccess[email] = wasResigned ? [] : allMenus;
+            newConfig.permAssign[email] = (wasResigned || systemEmails.has(email)) ? '' : String(newConfig.permDefaultRole || '');
+            delete newConfig.permOverrides[email];
+            newConfig.memberMenuAccess[email] = menuNamesFor(resolvePerm(newConfig, email).set, menuGroups);
         }
     });
 

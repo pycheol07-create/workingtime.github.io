@@ -7,8 +7,11 @@
 // 저장된 목록을 그대로 써서, 신규 메뉴(중국제작 미발계산기 등)의 권한을 아예
 // 선택할 수 없었다. 두 화면이 같은 목록을 보도록 여기로 모은다.
 //
-// ※ 의존성 없는 순수 모듈로 둘 것. 관리자 페이지(admin-ui.js)가 대시보드 전용
+// ※ 순수 모듈로 둘 것(의존은 js/lib 의 기능 카탈로그·권한 계산뿐). 관리자 페이지(admin-ui.js)가 대시보드 전용
 //    모듈(ui.js/state.js)을 끌어오지 않도록 하기 위함이다.
+
+import { FEATURES } from './lib/feature-catalog.js?v=202610191708';
+import { resolve, visibleMenuGroups } from './lib/perm.js?v=202610191708';
 
 // 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu 에 없으면 자동으로 끼워 넣는다.
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
@@ -95,35 +98,24 @@ export const withBuiltinMenus = (dashboardMenu) => {
     return menu;
 };
 
-// ── 공통 상단바(js/app-shell.js) 메뉴용 ─────────────────────────────
-// 대시보드 사이드바(ui-main-dashboard.js applyDynamicSidebar)와 app.js 의 관리자 버튼 숨김을
-// 합친 결과를 '데이터'로 돌려준다. 사이드바는 버튼을 숨기는 방식이라 그대로 재사용할 수 없어서다.
-// 관리자 전용 — app.js adminElements 가 일반 직원에게서 숨기는 것과 같은 범위.
-export const ADMIN_ONLY_LINKS = ['admin.html', 'history.html'];
-export const ADMIN_ONLY_ACTIONS = ['데이터 관리', '업무 마감'];
+// ── 보이는 메뉴 — 공통 상단바(js/app-shell.js)·대시보드 사이드바(ui-main-dashboard.js)가 같이 쓴다 ──
+// 권한 개편(2026-10-19): 메뉴 이름 목록이 아니라 기능 권한(js/lib/perm.js resolve)으로 거른다. 두 화면의 차이는
+// surface 하나뿐이다 — 셸('shell')은 업무 마감을 빼고, 사이드바('sidebar')는 권한대로 둔다.
+// 관리자 전용 — 값은 기능 카탈로그(legacyAdminOnly·grantable=false)에서 만든다. 예전 값과 같은지는 tests/feature-catalog.test.js 가 지킨다.
+export const ADMIN_ONLY_LINKS = FEATURES.filter(f => f.kind === 'page' && (f.legacyAdminOnly || !f.grantable)).map(f => f.page);
+export const ADMIN_ONLY_ACTIONS = FEATURES.filter(f => (f.legacyAdminOnly || !f.grantable) && f.menu && isActionMenuName(f.menu)).map(f => f.menu);
 // 셸 메뉴에서는 관리자에게도 넣지 않는다 — 마감은 대시보드에서만(실수 한 번이 그날 원본을 지운다).
 export const SHELL_EXCLUDED_ACTIONS = ['업무 마감'];
 
-// 'calculator/index.html?x#y' → 'calculator/index.html' (앞의 ./ 와 / 도 뗀다)
-const linkPath = (link) => String(link || '').split('#')[0].split('?')[0].replace(/^\.?\//, '');
-
 /** 이 사람에게 보이는 메뉴 그룹 — [{ category, items:[{ name, link }] }] (빈 그룹은 뺀다).
- *  role === 'admin' 이면 전부, 아니면 memberMenuAccess[소문자 이메일] 에 든 이름만, 그리고 관리자 전용은 뺀다.
- *  항목은 새 객체로 만든다(원본 설정을 건드리지 않게). */
-export const visibleMenuFor = (appConfig, email, role) => {
+ *  role === 'admin' 이면 전부, 아니면 기능 권한(역할·예외, 없으면 옛 memberMenuAccess 에서 끌어낸 것)에 든 것만.
+ *  surface: 'shell'(기본, 업무 마감 제외) | 'sidebar'. 항목은 새 객체로 만든다(원본 설정을 건드리지 않게). */
+export const visibleMenuFor = (appConfig, email, role, surface = 'shell') => {
     const cfg = appConfig || {};
-    const isAdmin = role === 'admin';
-    const key = String(email || '').toLowerCase();
-    const allowed = isAdmin ? null : ((cfg.memberMenuAccess || {})[key] || []);
-    return withBuiltinMenus(cfg.dashboardMenu)
-        .map(g => ({
-            category: g.category || '',
-            items: g.items
-                .filter(i => i && i.name)
-                .filter(i => !SHELL_EXCLUDED_ACTIONS.includes(i.name))
-                .filter(i => allowed === null || allowed.includes(i.name))
-                .filter(i => isAdmin || !(ADMIN_ONLY_ACTIONS.includes(i.name) || ADMIN_ONLY_LINKS.includes(linkPath(i.link))))
-                .map(i => ({ name: i.name, link: i.link || '' }))
-        }))
+    const key = String(email || '').trim().toLowerCase();
+    const resolved = resolve(cfg, key, { role });
+    const legacyNames = ((cfg.memberMenuAccess || {})[key]) || [];
+    return visibleMenuGroups(withBuiltinMenus(cfg.dashboardMenu), resolved, surface, legacyNames)
+        .map(g => ({ ...g, items: g.items.filter(i => surface !== 'shell' || !SHELL_EXCLUDED_ACTIONS.includes(i.name)) }))
         .filter(g => g.items.length > 0);
 };
