@@ -1,20 +1,21 @@
 // === js/locrec-card.js ===
 // 로케이션관리 대시보드 '로케이션 변경 추천' 카드 — 채우기 지시서 카드 바로 아래.
 //   추천은 이 PC 프로그램(업무자동화\앱\로케이션추천)이 매일 06:40 이지어드민 출고 28일로 만들어 Firestore 에 남긴다(14일치).
-//   카드: 판정·지표·자료 상태 · 날짜 선택 · 탭[단독|맞바꾸기|페어] 표 · 행마다 [처리함]/[안 함] · 엑셀 받기(5열, 맞바꾸기·페어는 2행).
-//   카드는 접힌 띠 한 줄(판정 · 추천 n건 · 엑셀 받기 · 펼치기)이 기본, [펼치기]로 아래 전체 내용. 펼침은 js/lib/card-fold.js.
+//   카드: 판정·지표·자료 상태 · 날짜 선택 · 오늘 추천 수 · [표 보기]·[엑셀 받기](그날 전체). 표는 창(#locrec-modal)에 —
+//   창: 탭[단독|맞바꾸기|페어] 표 · 행마다 [처리함]/[안 함]/되돌리기(처음 보여 주는 날짜만, 지난 날짜는 볼 수만) · 엑셀 받기(지금 탭, 5열, 맞바꾸기·페어는 2행).
+//   카드는 접힌 띠 한 줄(판정 · 추천 n건 · 엑셀 받기 · 펼치기)이 기본, [펼치기]로 아래 요약. 펼침은 js/lib/card-fold.js.
 //   [변경 추천] 모달(업로드 자료 기준, location.js)과는 수요 자료가 달라 결과가 다를 수 있다 — 계산 모듈은 같다(js/lib/loc-recommend.js).
 // 문서 모양·순수 함수는 js/lib/locrec-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=202610191524';
+import { escapeHtml } from './utils.js?v=202610191548';
 import {
     dayKey, fmtHM, fmtMDHM, parseRecDay, verdictBadge, metricItems, dataWarnings, dataLine, rowState, dayOptions, defaultDay,
     dayMessage, fileNameOf, tabCounts, stockAtOf, excelRows, EXCEL_COLS, TABS, TAB_LABEL, SHEET_NAME, fmtNum, recStrip,
-    stripRows, fileNameAll
-} from './lib/locrec-view.js?v=202610191524';
-import { initFold } from './lib/card-fold.js?v=202610191524';
+    stripRows, fileNameAll, tabSummary, canMark, tabMeta, dayLabel
+} from './lib/locrec-view.js?v=202610191548';
+import { initFold } from './lib/card-fold.js?v=202610191548';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -28,7 +29,16 @@ export function initLocRecCard({ db, auth, getMemberName }) {
     const card = document.getElementById('locrec-card');
     const body = document.getElementById('locrec-body');
     const sel = document.getElementById('locrec-day');
-    if (!card || !body || !sel || !db || !auth) return;
+    const modal = document.getElementById('locrec-modal');
+    if (!card || !body || !sel || !modal || !db || !auth) return;
+    const mTitle = document.getElementById('locrec-modal-title');
+    const mMeta = document.getElementById('locrec-modal-meta');
+    const mTabs = document.getElementById('locrec-tabs');
+    const mSkipWrap = document.getElementById('locrec-skip-wrap');
+    const mSkip = document.getElementById('locrec-show-skip');
+    const mSkipTxt = document.getElementById('locrec-skip-txt');
+    const mDl = document.getElementById('locrec-dl-btn');
+    const mTbody = document.getElementById('locrec-tbody');
     const strip = document.getElementById('locrec-strip');
     const stripAct = document.getElementById('locrec-strip-act');
     const foldBtn = document.getElementById('locrec-fold');
@@ -111,9 +121,9 @@ export function initLocRecCard({ db, auth, getMemberName }) {
     const locCell = (from, to) => `<span class="locrec-from">${escapeHtml(from || '-')}</span><span class="locrec-arrow">→</span><b class="locrec-to">${escapeHtml(to || '-')}</b>`;
     const nameCell = (name, option) => `${escapeHtml(name || '')}${option ? ` <span class="locrec-opt">(${escapeHtml(option)})</span>` : ''}`;
 
-    function rowHtml(r, st, i) {
+    function rowHtml(r, st, i, editable) {
         const two = (r.type === 'swap' || r.type === 'pair') && r.code2;
-        const busy = S.saving.has(r.recKey);
+        const busy = S.saving.has(r.recKey) || !editable;   // 지난 날짜는 볼 수만
         const k = escapeHtml(r.recKey);
         const mk = st.mark;
         const who = mk ? `<div class="locrec-who">${escapeHtml(mk.state === 'skip' ? '안 함' : '처리함')} · ${escapeHtml(mk.by || NO_NAME)} ${escapeHtml(fmtHM(mk.at))}</div>` : '';
@@ -210,34 +220,65 @@ export function initLocRecCard({ db, auth, getMemberName }) {
         } else {
             const p = S.day.parsed;
             if (p.error) parts.push(`<div class="refill-msg refill-warn">${escapeHtml(p.error)}</div>`);
-            const cnt = tabCounts(p);
-            const all = visibleRows(today);
-            const hiddenN = all.filter(x => x.st.hidden).length;
-            const rows = all.filter(x => S.showSkipped || !x.st.hidden);
-            parts.push('<div class="locrec-tools">'
-                + '<div class="seg-tabs locrec-tabs" style="margin-bottom:0;">'
-                + TABS.map(t => `<button type="button" class="seg-tab${t === S.tab ? ' active' : ''}" data-locrec-tab="${t}">${TAB_LABEL[t]} ${cnt[t]}</button>`).join('')
-                + '</div>'
-                + `<button type="button" class="btn btn-primary btn-sm" data-locrec-act="download"${rows.length ? '' : ' disabled'}>엑셀 받기</button>`
-                + (hiddenN || S.showSkipped ? `<label class="refill-sub locrec-skipchk"><input type="checkbox" data-locrec-act="showskip"${S.showSkipped ? ' checked' : ''}> 안 함${hiddenN ? ` ${hiddenN}건` : ''}도 보기</label>` : '')
-                + '</div>');
-            if (!rows.length) {
-                parts.push(`<div class="refill-sub locrec-empty">${cnt[S.tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[S.tab]} 추천이 없습니다`}</div>`);
-            } else {
-                parts.push('<div class="table-box locrec-table-wrap"><table class="usage-table locrec-table"><thead><tr>'
-                    + '<th>순위</th><th title="상품 · 현재 → 변경 · 이동수량 · 일평균 출고">상품 · 이동</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th>상태</th><th>표시</th>'
-                    + '</tr></thead><tbody>' + rows.map((x, i) => rowHtml(x.r, x.st, i)).join('') + '</tbody></table></div>');
-            }
+            const sm = tabSummary({ latest: S.latest, key: S.key, todayKey: today, parsed: p, marks: S.marks, nowMs: Date.now() });
+            const dayText = S.key === today ? '오늘' : dayLabel(S.key);
+            parts.push(`<div class="refill-line">${escapeHtml(dayText)} 추천 `
+                + TABS.map(t => `${TAB_LABEL[t]} <b>${sm.counts[t]}</b>`).join(' · ')
+                + (sm.newN ? `, 새로 <b>${sm.newN}</b>` : '')
+                + (sm.hiddenN ? `<span class="refill-sub"> (안 함 ${sm.hiddenN}건 숨김)</span>` : '') + '</div>');
             const basedAt = stockAtOf(S.day.data && S.day.data.basedOn);
             if (basedAt) parts.push(`<div class="refill-sub">이 추천은 재고 자료 ${escapeHtml(fmtMDHM(basedAt))} 기준</div>`);
+            parts.push('<div class="refill-actions">'
+                + '<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="table">표 보기</button>'
+                + `<button type="button" class="btn btn-primary btn-sm" data-locrec-act="downloadAll" title="${escapeHtml(dayText)} 추천 전체(단독·맞바꾸기·페어, 안 함 제외)"${sm.total ? '' : ' disabled'}>엑셀 받기</button>`
+                + '</div>');
         }
         body.innerHTML = parts.join('');
         renderStrip(today);
+        renderModal();
     }
+
+    // ── 표 창 ── 열려 있을 때만 그린다(서버 문서·marks 가 바뀌면 render() 에서 같이 다시)
+    const isOpen = () => modal.style.display === 'flex';
+    function renderModal() {
+        if (!isOpen()) return;
+        const today = todayKey();
+        const loaded = !!(S.signedIn && S.latest && S.day && S.day.key === S.key);
+        const editable = loaded && canMark(S.latest, S.key, today);
+        mTitle.textContent = `변경 추천 ${dayLabel(S.key || today)}`;
+        const cnt = tabCounts(loaded ? S.day.parsed : null);
+        const tabsHtml = TABS.map(t => `<button type="button" class="seg-tab${t === S.tab ? ' active' : ''}" data-locrec-tab="${t}">${TAB_LABEL[t]} ${cnt[t]}</button>`).join('');
+        if (lastTabsHtml !== tabsHtml) { lastTabsHtml = tabsHtml; mTabs.innerHTML = tabsHtml; }
+        const all = loaded ? visibleRows(today) : [];
+        const hiddenN = all.filter(x => x.st.hidden).length;
+        const rows = all.filter(x => S.showSkipped || !x.st.hidden);
+        mSkip.checked = S.showSkipped;
+        mSkipWrap.hidden = !(hiddenN || S.showSkipped);
+        mSkipTxt.textContent = `안 함${hiddenN ? ` ${hiddenN}건` : ''}도 보기`;
+        mDl.disabled = !rows.length;
+        if (!loaded) {
+            mMeta.textContent = '';
+            const t = (S.latest && dayMessage(entryOf(S.key))) || S.dayErr || '표 불러오는 중…';
+            mTbody.innerHTML = `<tr><td colspan="5" class="refill-empty">${escapeHtml(t)}</td></tr>`;
+            return;
+        }
+        mMeta.textContent = tabMeta(S.tab, all) + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
+        if (!rows.length) {
+            mTbody.innerHTML = `<tr><td colspan="5" class="refill-empty">${cnt[S.tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[S.tab]} 추천이 없습니다`}</td></tr>`;
+            return;
+        }
+        mTbody.innerHTML = rows.map((x, i) => rowHtml(x.r, x.st, i, editable)).join('');
+    }
+    let lastTabsHtml = '';
+    function openModal() {
+        modal.style.display = 'flex';
+        renderModal();
+    }
+    const closeModal = () => { modal.style.display = 'none'; };
 
     // ── 쓰기·엑셀 ──
     async function mark(key, state) {
-        if (!key || S.saving.has(key)) return;
+        if (!key || S.saving.has(key) || !canMark(S.latest, S.key, todayKey())) return;   // 지난 날짜는 볼 수만
         S.saving.add(key);
         render();
         try {
@@ -261,12 +302,12 @@ export function initLocRecCard({ db, auth, getMemberName }) {
         X.utils.book_append_sheet(wb, ws, sheetName);
         X.writeFile(wb, fileName);
     }
-    // 펼친 본문: 지금 탭(안 함도 보기면 그것까지)
+    // 표 창: 지금 탭(안 함도 보기면 그것까지)
     function download() {
         const rows = visibleRows(todayKey()).filter(x => S.showSkipped || !x.st.hidden).map(x => x.r);
         writeXlsx(rows, SHEET_NAME[S.tab], fileNameOf(S.tab, S.key));
     }
-    // 접힌 띠: 탭과 상관없이 그날 추천 전체(단독 → 맞바꾸기 → 페어, 안 함 제외) — 띠 건수와 같은 목록
+    // 접힌 띠·펼친 본문: 탭과 상관없이 그날 추천 전체(단독 → 맞바꾸기 → 페어, 안 함 제외) — 띠 건수와 같은 목록
     function downloadAll() {
         if (!S.day || S.day.key !== S.key) return;
         const rows = stripRows({ latest: S.latest, key: S.key, todayKey: todayKey(), parsed: S.day.parsed, marks: S.marks, nowMs: Date.now() }).map(x => x.r);
@@ -275,21 +316,29 @@ export function initLocRecCard({ db, auth, getMemberName }) {
 
     // ── 이벤트 ──
     card.addEventListener('click', (ev) => {
+        const b = ev.target.closest('button[data-locrec-act]');
+        if (!b || b.disabled) return;
+        const act = b.getAttribute('data-locrec-act');
+        if (act === 'downloadAll') downloadAll();
+        else if (act === 'table') openModal();
+    });
+    modal.addEventListener('click', (ev) => {
+        if (ev.target === modal || ev.target.closest('[data-locrec-close]')) { closeModal(); return; }
         const t = ev.target.closest('[data-locrec-tab]');
-        if (t) { S.tab = TABS.includes(t.getAttribute('data-locrec-tab')) ? t.getAttribute('data-locrec-tab') : 'single'; render(); return; }
+        if (t) { S.tab = TABS.includes(t.getAttribute('data-locrec-tab')) ? t.getAttribute('data-locrec-tab') : 'single'; renderModal(); return; }
         const b = ev.target.closest('button[data-locrec-act]');
         if (!b || b.disabled) return;
         const act = b.getAttribute('data-locrec-act');
         const key = b.getAttribute('data-locrec-key');
         if (act === 'download') download();
-        else if (act === 'downloadAll') downloadAll();
         else if (act === 'done') mark(key, 'done');
         else if (act === 'skip') mark(key, 'skip');
         else if (act === 'undo') mark(key, null);
     });
-    card.addEventListener('change', (ev) => {
-        const t = ev.target;
-        if (t && t.matches('input[data-locrec-act="showskip"]')) { S.showSkipped = t.checked; render(); }
+    mSkip.addEventListener('change', () => { S.showSkipped = mSkip.checked; renderModal(); });
+    // ESC — 공통 js/modal-esc.js 는 .fixed.inset-0 오버레이만 닫아서 이 창(.modal-overlay)은 여기서 닫는다
+    document.addEventListener('keydown', (ev) => {
+        if ((ev.key === 'Escape' || ev.key === 'Esc') && isOpen()) { ev.preventDefault(); closeModal(); }
     });
     sel.addEventListener('change', () => {
         S.key = sel.value;
@@ -306,7 +355,7 @@ export function initLocRecCard({ db, auth, getMemberName }) {
     auth.onAuthStateChanged(user => {
         S.signedIn = !!user;
         if (user) start();
-        else { stopAll(); S.latest = null; S.day = null; S.marks = {}; }
+        else { stopAll(); S.latest = null; S.day = null; S.marks = {}; closeModal(); }
         render();
     });
     render();

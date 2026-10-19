@@ -10,9 +10,9 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610191524">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610191524">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610191524">
+    <link rel="stylesheet" href="css/suit.css?v=202610191548">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610191548">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610191548">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -703,7 +703,8 @@
         .locrec-skipchk { cursor: pointer; user-select: none; }
         .locrec-skipchk input { vertical-align: middle; }
         .locrec-empty { padding: 6px 0; }
-        .locrec-table-wrap { max-height: 520px; overflow: auto; }
+        .locrec-modal-content { width: 1000px; }
+        .locrec-table-wrap { flex: 1; min-height: 0; overflow: auto; }
         .locrec-table { width: 100%; min-width: 640px; font-size: 12.5px; }
         .locrec-table td { text-align: left; vertical-align: top; padding: 6px 8px; }
         .locrec-table td.locrec-main { min-width: 240px; }
@@ -729,6 +730,7 @@
         .locrec-st.st-muted { background: var(--c-track); color: var(--c-text-3); }
         .locrec-who { font-size: 11px; color: var(--c-text-3); margin-top: 3px; }
         .locrec-table tr.locrec-skipped td { color: var(--c-text-3); }
+        .locrec-table td.refill-empty { text-align: center; color: var(--c-text-3); padding: 20px; }
 
         /* ====== 모바일 전용 (768px 이하) — 데스크톱 화면은 바꾸지 않음 ====== */
         /* 대시보드 칸이 높이 부족으로 눌려 KPI 띠가 2px 로 사라지던 문제(2026-10-13) — 자식은 줄어들지 않게 */
@@ -781,6 +783,11 @@
             #refill-modal > .refill-modal-content { height: calc(100dvh - 16px); overflow: hidden !important; }
             #refill-modal .refill-table-wrap { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
             body:has(#refill-modal[style*="flex"]) { overflow: hidden; }
+            /* 변경 추천 표 창도 같은 방식 */
+            #locrec-modal { overflow: hidden; overscroll-behavior: contain; }
+            #locrec-modal > .refill-modal-content { height: calc(100dvh - 16px); overflow: hidden !important; }
+            #locrec-modal .locrec-table-wrap { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+            body:has(#locrec-modal[style*="flex"]) { overflow: hidden; }
             .locrec-table { min-width: 600px; }
             .locrec-table td.locrec-state { width: 104px; }
             .locrec-table td.locrec-acts { width: 128px; }
@@ -1020,7 +1027,7 @@
                     </div>
                     <div id="locrec-detail" class="topcard-detail" hidden>
                         <div class="dash-panel-head refill-head">
-                            <span class="dash-sub">로케이션 변경 추천 · 자동 · 매일 06:40 · 14일치</span>
+                            <span class="dash-sub">로케이션 변경 추천 · 자동 · 매일 06:40 · 14일치 · 표는 [표 보기]</span>
                             <select id="locrec-day" class="ctl-sm" aria-label="추천 날짜"></select>
                         </div>
                         <div id="locrec-body" class="refill-body"><div class="refill-msg">불러오는 중…</div></div>
@@ -1133,6 +1140,30 @@
                 <table class="usage-table refill-table">
                     <thead><tr><th>완료</th><th>피킹로케이션</th><th>비축위치</th><th>채울수량</th><th>비축재고</th><th>누가·언제</th></tr></thead>
                     <tbody id="refill-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 로케이션 변경 추천 표 (js/locrec-card.js) — 채우기 표 창과 같은 구조(공통 끌기 js/modal-drag.js · ESC 는 js/locrec-card.js 자체 처리 — modal-esc.js 대상 아님) -->
+    <div id="locrec-modal" class="modal-overlay">
+        <div class="modal-content refill-modal-content locrec-modal-content">
+            <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                <span id="locrec-modal-title">변경 추천</span>
+                <button type="button" class="modal-x" data-locrec-close aria-label="닫기">×</button>
+            </div>
+            <div class="refill-modal-tools">
+                <div class="seg-tabs locrec-tabs" id="locrec-tabs" style="margin-bottom:0;"></div>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <label class="refill-sub locrec-skipchk" id="locrec-skip-wrap" hidden><input type="checkbox" id="locrec-show-skip"> <span id="locrec-skip-txt" style="vertical-align:middle;">안 함도 보기</span></label>
+                    <button type="button" class="btn btn-primary btn-sm" id="locrec-dl-btn" data-locrec-act="download" title="지금 탭(안 함도 보기면 그것까지)">엑셀 받기</button>
+                </div>
+            </div>
+            <div id="locrec-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
+            <div class="table-box locrec-table-wrap">
+                <table class="usage-table locrec-table">
+                    <thead><tr><th>순위</th><th title="상품 · 현재 → 변경 · 이동수량 · 일평균 출고">상품 · 이동</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th>상태</th><th>표시</th></tr></thead>
+                    <tbody id="locrec-tbody"></tbody>
                 </table>
             </div>
         </div>
@@ -1584,8 +1615,8 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610191524"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610191524"></script>
+    <script type="module" src="js/location.js?v=202610191548"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610191548"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1666,9 +1697,9 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610191524"></script>
-    <script src="js/modal-esc.js?v=202610191524"></script>
-    <script type="module" src="js/modal-drag.js?v=202610191524"></script>
-    <script type="module" src="js/app-shell.js?v=202610191524"></script>
+    <script src="js/connection-banner.js?v=202610191548"></script>
+    <script src="js/modal-esc.js?v=202610191548"></script>
+    <script type="module" src="js/modal-drag.js?v=202610191548"></script>
+    <script type="module" src="js/app-shell.js?v=202610191548"></script>
 </body>
 </html>

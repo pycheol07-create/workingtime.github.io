@@ -12,8 +12,8 @@
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610191524';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610191524';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610191548';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610191548';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -265,4 +265,45 @@ export function recStrip({ latest, key, todayKey, parsed, marks, nowMs, extraWar
 export function tabCounts(parsed) {
     const p = parsed || {};
     return Object.fromEntries(TABS.map(t => [t, Array.isArray(p[t]) ? p[t].length : 0]));
+}
+
+/**
+ * 펼친 본문 요약 줄 '단독 n · 맞바꾸기 n · 페어 n, 새로 k' → { counts:{single,swap,pair}, total, newN, hiddenN }
+ *   counts·total·newN 은 숨기지 않은('안 함' 아닌) 행만 — 띠 건수(stripRows)와 같은 기준. hiddenN = 숨긴 행 수(세 탭 합).
+ */
+export function tabSummary({ latest, key, todayKey, parsed, marks, nowMs }) {
+    const counts = Object.fromEntries(TABS.map(t => [t, 0]));
+    if (!parsed) return { counts, total: 0, newN: 0, hiddenN: 0 };
+    const open = (latest && latest.open) || {};
+    const mk = marks || {};
+    let newN = 0, hiddenN = 0;
+    TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
+        const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs });
+        if (st.hidden) { hiddenN++; return; }
+        counts[t]++;
+        if (st.label === '새로') newN++;
+    }));
+    return { counts, total: TABS.reduce((s, t) => s + counts[t], 0), newN, hiddenN };
+}
+
+/** [처리함]/[안 함]/되돌리기를 누를 수 있는 날짜 — 처음 보여 주는 날짜(defaultDay: 오늘, 오늘 결과가 없으면 최신)만. 지난 날짜는 볼 수만 */
+export function canMark(latest, key, todayKey) {
+    return !!key && key === defaultDay(latest, todayKey);
+}
+
+/**
+ * 표 창 메타 줄 — 지금 탭의 [{st}] 목록 → '단독 12행 · 처리됨 2 · 처리함 표시 3 · 안 함 1(숨김)'
+ *   처리됨 = 서버가 위치 변화를 확인 · 처리함 표시 = 직원 표시(위치 미반영 포함) · 안 함 = 숨긴 행.
+ */
+export function tabMeta(tab, items) {
+    const list = Array.isArray(items) ? items : [];
+    const cnt = (f) => list.filter(x => x && x.st && f(x.st)).length;
+    const done = cnt(s => s.label === '처리됨');
+    const marked = cnt(s => s.label === '처리함 표시' || s.label === '표시는 됐지만 위치 미반영');
+    const hidden = cnt(s => s.hidden);
+    const parts = [`${TAB_LABEL[tab] || TAB_LABEL.single} ${list.length}행`];
+    if (done) parts.push(`처리됨 ${done}`);
+    if (marked) parts.push(`처리함 표시 ${marked}`);
+    if (hidden) parts.push(`안 함 ${hidden}(숨김)`);
+    return parts.join(' · ');
 }
