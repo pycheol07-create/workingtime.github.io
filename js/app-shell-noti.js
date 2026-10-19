@@ -7,7 +7,7 @@
 //   - 이름·알림 내용은 로그로 남기지 않는다.
 import { getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, query, where, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { emulatorEnabled } from './firebase-emulator.js?v=202610191518';
+import { emulatorEnabled } from './firebase-emulator.js?v=202610191524';
 
 /**
  * memberName 의 최근 3일 알림(최대 30건)을 구독한다.

@@ -1,7 +1,7 @@
 // === js/history-excel-work.js ===
-import { appConfig, allHistoryData } from './state.js?v=202610191518';
-import { formatTimeTo24H, getWeekOfYear, showToast, buildMemberHourlyWageMap } from './utils.js?v=202610191518';
-import { fitToColumn, appendTotalRow } from './history-excel-utils.js?v=202610191518';
+import { appConfig, allHistoryData } from './state.js?v=202610191524';
+import { formatTimeTo24H, getWeekOfYear, showToast, buildMemberHourlyWageMap } from './utils.js?v=202610191524';
+import { fitToColumn, appendTotalRow } from './history-excel-utils.js?v=202610191524';
 
 export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
     try {

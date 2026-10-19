@@ -7,11 +7,11 @@
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, getDoc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml, getHolidayName } from './utils.js?v=202610191518';
+import { escapeHtml, getHolidayName } from './utils.js?v=202610191524';
 import {
     tsMs, dayKey, lastDays, dayLabel, fmtHM, parseDay, progress, runDay, dayStatus, reqUi, b64ToBytes, fileNameOf, refillStrip, fmtCount
-} from './lib/refill-view.js?v=202610191518';
-import { initFold } from './lib/card-fold.js?v=202610191518';
+} from './lib/refill-view.js?v=202610191524';
+import { initFold } from './lib/card-fold.js?v=202610191524';
 
 const APP = 'artifacts/team-work-logger-v2';
 const META_PATH = `${APP}/integrations/refillLatest`;
@@ -34,6 +34,7 @@ export function initRefillCard({ db, auth, getMemberName }) {
     const mMeta = document.getElementById('refill-modal-meta');
     const mTbody = document.getElementById('refill-tbody');
     const mTodo = document.getElementById('refill-only-todo');
+    const mAll = document.getElementById('refill-all-btn');
     const mTabs = document.getElementById('refill-tabs');
     const strip = document.getElementById('refill-strip');
     const stripAct = document.getElementById('refill-strip-act');
@@ -225,6 +226,11 @@ export function initRefillCard({ db, auth, getMemberName }) {
         const pr = progress(list, S.work.checks);
         mMeta.textContent = `${SHEETS[S.tab]} ${list.length}행 · 완료 ${pr.done}/${pr.total}`
             + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
+        // [전체 완료] / 모두 완료면 [전체 해제] — 오늘 지시서·보고 있는 시트만
+        const allDone = pr.total > 0 && pr.done >= pr.total;
+        mAll.hidden = !(editable && list.length);
+        mAll.textContent = allDone ? '전체 해제' : '전체 완료';
+        mAll.disabled = S.saving.has('*all');
         const todoOnly = mTodo.checked;
         const rows = list.filter(r => !(todoOnly && S.work.checks[r.code] && S.work.checks[r.code].done === true));
         if (!rows.length) {
@@ -260,6 +266,33 @@ export function initRefillCard({ db, auth, getMemberName }) {
             alert(`완료 표시를 저장하지 못했습니다(${(e && e.code) || '오류'}). 다시 눌러 주세요.`);
         } finally {
             S.saving.delete(code);
+            renderModal(); render();
+        }
+    }
+
+    // 보고 있는 시트의 행을 한 번에 완료(또는 모두 완료면 해제) — 문서 하나에 merge 1회(행마다 키라 다른 사람 체크와 섞이지 않음)
+    async function toggleAll() {
+        const key = S.key;
+        const d = S.day && S.day.key === key ? S.day : null;
+        if (key !== todayKey() || !d || S.saving.has('*all')) return;
+        const list = d.parsed[S.tab] || [];
+        const pr = progress(list, S.work.checks);
+        const done = !(pr.total > 0 && pr.done >= pr.total);
+        const targets = list.map(r => r.code).filter(c => c && ((S.work.checks[c] || {}).done === true) !== done);
+        if (!targets.length) return;
+        const msg = done ? `${SHEETS[S.tab]} ${targets.length}행을 모두 완료로 표시할까요?`
+                         : `${SHEETS[S.tab]} ${targets.length}행의 완료 표시를 모두 지울까요?`;
+        if (!confirm(msg)) return;
+        S.saving.add('*all');
+        renderModal();
+        try {
+            const by = nameOf(), at = serverTimestamp(), checks = {};
+            targets.forEach(c => { checks[c] = { done, by, at }; });
+            await setDoc(doc(db, WORK_PATH(key)), { checks }, { merge: true });
+        } catch (e) {
+            alert(`한꺼번에 저장하지 못했습니다(${(e && e.code) || '오류'}). 다시 눌러 주세요.`);
+        } finally {
+            S.saving.delete('*all');
             renderModal(); render();
         }
     }
@@ -320,6 +353,7 @@ export function initRefillCard({ db, auth, getMemberName }) {
         renderModal();
     });
     mTodo.addEventListener('change', renderModal);
+    mAll.addEventListener('click', toggleAll);
     mTbody.addEventListener('change', (ev) => {
         const t = ev.target;
         if (!t || !t.matches('input[type=checkbox][data-refill-code]')) return;
