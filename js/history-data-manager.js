@@ -1,10 +1,10 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610190921';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610190921';
-import { clampOpenRecords } from './lib/record-close.js?v=202610190921';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610190921';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610190921';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610190921';
+import * as State from './state.js?v=202610190939';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610190939';
+import { clampOpenRecords } from './lib/record-close.js?v=202610190939';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610190939';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610190939';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610190939';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
