@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610190838">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610190838">
+    <link rel="stylesheet" href="css/suit.css?v=202610190902">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610190902">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -13,7 +13,7 @@
     <title>비품 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
-    <link rel="stylesheet" href="css/tool-d.css?v=202610190838">
+    <link rel="stylesheet" href="css/tool-d.css?v=202610190902">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         /* 칸마다 최소 폭(th의 min-width)을 두므로 표는 내용 폭을 따르되, 좁을 땐 영역을 꽉 채운다. */
@@ -40,6 +40,14 @@
         .sup-table td { padding: 9px 12px; border-bottom: 1px solid var(--c-line-soft); color: var(--c-text); vertical-align: middle; white-space: nowrap; }
         .sup-table td.wrap { white-space: normal; }
         .sup-table tbody tr:hover td { background: var(--c-accent-row); }
+        /* 행을 누르거나 Tab 으로 가서 Enter/Space 를 누르면 상세 창이 열린다 */
+        .sup-table tbody tr[data-open] { cursor: pointer; }
+        .sup-table tbody tr[data-open]:focus { outline: none; }
+        /* 포커스 표시 — 표 행은 outline 이 브라우저마다 달라 칸마다 안쪽 그림자로 2px 테두리를 그린다 */
+        .sup-table tbody tr[data-open]:focus-visible td { background: var(--c-accent-row); box-shadow: inset 0 2px 0 var(--c-accent), inset 0 -2px 0 var(--c-accent); }
+        .sup-table tbody tr[data-open]:focus-visible td:first-child { box-shadow: inset 2px 0 0 var(--c-accent), inset 0 2px 0 var(--c-accent), inset 0 -2px 0 var(--c-accent); }
+        .sup-table tbody tr[data-open]:focus-visible td:last-child { box-shadow: inset -2px 0 0 var(--c-accent), inset 0 2px 0 var(--c-accent), inset 0 -2px 0 var(--c-accent); }
+        .sup-card[data-open]:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
         .sup-table td.mid { text-align: center; font-variant-numeric: tabular-nums; }
         .lbl { display:block; font-size: 11px; font-weight: 700; color: var(--c-text-2); margin-bottom: 4px; }
@@ -116,16 +124,21 @@
         </div>
     </main>
 
-    <!-- 현재고조회 엑셀 업로드용(목록의 [엑셀] 버튼이 이 입력을 대신 누른다) -->
+    <!-- 현재고조회 엑셀 업로드용(상세 창 재고 패널의 [엑셀로 재고 맞추기]가 이 입력을 대신 누른다) -->
     <input type="file" id="stock-file" class="hidden" accept=".xls,.xlsx,.htm,.html,.csv">
 
-    <!-- 비품 추가/수정 모달 -->
-    <div id="item-modal" class="hidden fixed inset-0 bg-black/50 items-start md:items-center justify-center z-50 p-4 overflow-y-auto">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-8">
+    <!-- 비품 상세 창 — 목록 행·주요 비품 카드를 누르면 열린다.
+         왼쪽 = 상세(수정) 폼, 오른쪽 = 재고 패널(md 이상 나란히, 휴대폰은 아래로 쌓임).
+         새 비품 추가일 때는 재고 패널을 숨기고 폭도 max-w-2xl 로 줄인다(js/supplies.js openItemModal). -->
+    <div id="item-modal" class="hidden fixed inset-0 bg-black/50 items-start justify-center z-50 p-4 overflow-y-auto">
+        <!-- my-auto: 화면에 들어가면 가운데, 창이 더 높으면 위에서부터(제목·× 가 잘리지 않음) -->
+        <div id="item-modal-box" class="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-auto overflow-hidden">
             <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                 <h2 id="item-modal-title" class="text-base font-bold">비품 추가</h2>
                 <button type="button" data-close class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
             </div>
+            <div class="md:flex md:items-stretch">
+            <div class="flex-1 min-w-0 flex flex-col">
             <div class="p-6 space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div class="md:col-span-2">
@@ -213,57 +226,68 @@
 
                 <p id="item-modal-error" class="hidden text-xs text-red-600 font-bold"></p>
             </div>
-            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-between items-center">
+            <div class="mt-auto px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
                 <button type="button" id="btn-delete-item" class="hidden px-3 py-2 text-xs rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold">삭제</button>
                 <div class="flex gap-2 ml-auto">
                     <button type="button" data-close class="px-4 py-2 text-sm rounded-lg bg-white border border-slate-300 hover:bg-slate-100">취소</button>
                     <button type="button" id="btn-save-item" class="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold">저장</button>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- 재고 조정 모달 -->
-    <div id="stock-modal" class="hidden fixed inset-0 bg-black/50 items-start md:items-center justify-center z-50 p-4 overflow-y-auto">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm">
-            <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-                <h2 id="stock-modal-title" class="text-base font-bold">재고 조정</h2>
-                <button type="button" data-close class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
             </div>
-            <div class="p-6 space-y-4">
-                <div class="text-sm text-slate-500">현재고 <b id="stock-current" class="text-slate-800">0</b></div>
-                <div>
-                    <label class="lbl">동작</label>
-                    <div class="grid grid-cols-3 gap-2 text-xs font-bold">
-                        <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer"><input type="radio" name="stock-op" value="in" checked> 입고(+)</label>
-                        <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer"><input type="radio" name="stock-op" value="out"> 사용(−)</label>
-                        <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer"><input type="radio" name="stock-op" value="set"> 실사(=)</label>
+
+            <!-- 재고 패널 — [재고 반영]은 재고만 저장하고 창을 닫지 않는다.
+                 md 이상에서는 안쪽을 absolute 로 띄워 패널 높이 = 왼쪽 상세 높이가 되고, 이력이 남는 높이만큼 스크롤된다. -->
+            <aside id="stock-panel" class="hidden md:relative md:w-[320px] lg:w-[360px] md:shrink-0 md:min-h-[600px] border-t md:border-t-0 md:border-l border-slate-200 bg-slate-50">
+                <div class="p-5 flex flex-col gap-3 md:absolute md:inset-0 md:overflow-y-auto">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <div class="text-[11px] font-bold text-slate-400">현재고</div>
+                            <div class="flex items-end gap-1 mt-0.5">
+                                <span id="stock-current" class="text-3xl font-black leading-none text-slate-800">0</span>
+                                <span id="stock-unit" class="text-sm font-bold text-slate-400">개</span>
+                            </div>
+                        </div>
+                        <span id="stock-low-badge" class="hidden text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 shrink-0">부족</span>
+                    </div>
+                    <p id="stock-ez-note" class="hidden text-[11px] text-slate-400 leading-snug -mt-1"></p>
+
+                    <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
+                        <div class="text-xs font-bold text-slate-600">재고 조정</div>
+                        <div class="grid grid-cols-3 gap-1.5 text-xs font-bold">
+                            <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer bg-white"><input type="radio" name="stock-op" value="in" checked> 입고(+)</label>
+                            <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer bg-white"><input type="radio" name="stock-op" value="out"> 사용(−)</label>
+                            <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer bg-white"><input type="radio" name="stock-op" value="set"> 실사(=)</label>
+                        </div>
+                        <div>
+                            <label class="lbl" for="stock-qty">수량</label>
+                            <input id="stock-qty" type="number" min="0" class="inp num" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="lbl" for="stock-memo">메모 (선택)</label>
+                            <input id="stock-memo" class="inp" placeholder="예: ○○포장 입고분">
+                        </div>
+                        <div class="text-xs text-slate-500">조정 후 예상 재고: <b id="stock-preview" class="text-indigo-600">-</b></div>
+                        <p id="stock-import-note" class="hidden text-[11px] leading-relaxed text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg p-2"></p>
+                        <p id="stock-panel-error" class="hidden text-xs text-red-600 font-bold"></p>
+                        <button type="button" id="btn-save-stock" class="w-full px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold">재고 반영</button>
+                    </div>
+
+                    <button type="button" id="btn-stock-excel" title="현재고조회 엑셀을 올리면 가장 최근 재고로 '실사' 조정을 채워 둡니다"
+                        class="w-full text-xs font-bold px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100">엑셀로 재고 맞추기</button>
+
+                    <div class="flex-1 min-h-0 flex flex-col">
+                        <div class="text-[11px] font-bold text-slate-500 mb-1">재고 변동 이력</div>
+                        <div id="stock-log" class="flex-1 min-h-0 max-h-72 md:max-h-none overflow-y-auto space-y-1 bg-white border border-slate-200 rounded-xl p-2"></div>
                     </div>
                 </div>
-                <div>
-                    <label class="lbl">수량</label>
-                    <input id="stock-qty" type="number" min="0" class="inp num" placeholder="0">
-                </div>
-                <div>
-                    <label class="lbl">메모 (선택)</label>
-                    <input id="stock-memo" class="inp" placeholder="예: ○○포장 입고분">
-                </div>
-                <div class="text-xs text-slate-500">조정 후 예상 재고: <b id="stock-preview" class="text-indigo-600">-</b></div>
-                <p id="stock-import-note" class="hidden text-[11px] leading-relaxed text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg p-2"></p>
-                <p id="stock-modal-error" class="hidden text-xs text-red-600 font-bold"></p>
-
-                <div id="stock-log" class="border-t border-slate-100 pt-3 max-h-40 overflow-y-auto space-y-1"></div>
-            </div>
-            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-2">
-                <button type="button" data-close class="px-4 py-2 text-sm rounded-lg bg-white border border-slate-300 hover:bg-slate-100">취소</button>
-                <button type="button" id="btn-save-stock" class="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold">적용</button>
+            </aside>
             </div>
         </div>
     </div>
 
-    <script type="module" src="js/supplies.js?v=202610190838"></script>
-    <script type="module" src="js/app-shell.js?v=202610190838"></script>
-    <script src="js/connection-banner.js?v=202610190838"></script>
-    <script src="js/modal-esc.js?v=202610190838"></script>
+    <script type="module" src="js/supplies.js?v=202610190902"></script>
+    <script type="module" src="js/app-shell.js?v=202610190902"></script>
+    <script src="js/connection-banner.js?v=202610190902"></script>
+    <script src="js/modal-esc.js?v=202610190902"></script>
 </body>
 </html>

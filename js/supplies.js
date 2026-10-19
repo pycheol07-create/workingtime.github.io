@@ -5,11 +5,11 @@
 //  - 비품은 수십 건 규모라 문서 하나로 관리하는 편이 읽기·쓰기 모두 저렴하다.
 //  - 각 비품은 종류·현재고를 기본으로 하고, 단가/사이즈/발주정보/업체 등 상세를 함께 보관한다.
 
-import { initializeFirebase } from './config.js?v=202610190838';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610190838';
-import { memberNameFor } from './app-shell-data.js?v=202610190838';
-import { escapeHtml as esc } from './utils.js?v=202610190838';
-import { kstDateTime } from './lib/kst-time.js?v=202610190838';
+import { initializeFirebase } from './config.js?v=202610190902';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610190902';
+import { memberNameFor } from './app-shell-data.js?v=202610190902';
+import { escapeHtml as esc } from './utils.js?v=202610190902';
+import { kstDateTime } from './lib/kst-time.js?v=202610190902';
 import { doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -27,7 +27,7 @@ const MAX_LOG = 30; // 비품당 보관하는 재고 변동 이력 개수
 let items = [];
 let currentUser = '';
 let editingId = null;
-let stockTargetId = null;
+let stockTargetId = null;   // 상세 창 재고 패널이 보고 있는 비품(새 비품 추가 중이면 null)
 
 const $ = (id) => document.getElementById(id);
 const num = (v) => Number(v) || 0;
@@ -66,7 +66,7 @@ const COLS = [
       cell: it => esc(it.category || '미분류') },
     { key: 'name', label: '품명', type: 'text', td: 'font-bold',
       get: it => it.name || '',
-      cell: it => `${it.isMain ? '<span class="text-amber-500 mr-1">★</span>' : ''}${esc(it.name)}` },
+      cell: it => `${it.isMain ? '<span class="text-amber-500 mr-1">★</span>' : ''}${esc(it.name)}<span class="sr-only"> — 상세·재고 열기</span>` },
     { key: 'stock', label: '현재고', type: 'num', td: 'num font-bold',
       get: it => num(it.stock),
       cell: it => `<span class="${isLow(it) ? 'text-red-600' : ''}">${fmt(it.stock)}</span>`
@@ -183,7 +183,10 @@ async function load() {
     }
 }
 
-async function persist() {
+// opts.keepModal — 충돌이어도 상세 창을 닫지 않는다(재고 반영 경로: 상세 폼의 저장 안 한 입력을 지키려고).
+//                   이때는 다시 불러오기까지만 하고, 창 안을 서버 값으로 다시 그리는 것은 부른 쪽이 한다.
+// opts.conflictMsg — 충돌 안내문(없으면 기본 문구)
+async function persist(opts = {}) {
     const updatedAt = new Date().toISOString();
     try {
         await runTransaction(db, async (tx) => {
@@ -198,10 +201,10 @@ async function persist() {
         });
     } catch (e) {
         if (e instanceof SuppliesConflict) {
-            // 이 화면에서 바꾼 것은 버리고 서버 최신으로 다시 그린다(열린 창은 닫는다)
-            alert('다른 곳에서 비품이 바뀌었습니다 — 새로고침 후 다시 해 주세요.\n(최신 내용으로 다시 불러옵니다. 방금 바꾼 내용은 저장되지 않았습니다)');
-            closeModal('item-modal');
-            closeModal('stock-modal');
+            // 이 화면에서 바꾼 것은 버리고 서버 최신으로 다시 그린다(keepModal 이 아니면 열린 창은 닫는다)
+            alert(opts.conflictMsg || ('다른 곳에서 비품이 바뀌었습니다 — 최신 내용으로 다시 불러옵니다.\n'
+                + '방금 저장하려던 내용과 창에 입력해 두고 저장하지 않은 수정은 모두 사라졌습니다. 다시 열어 입력해 주세요.'));
+            if (!opts.keepModal) closeModal('item-modal');
             await load();
             renderAll();
             e.handled = true;
@@ -243,13 +246,14 @@ function renderMainItems() {
     const mains = items.filter(i => i.isMain);
     if (mains.length === 0) {
         host.innerHTML = `<div class="col-span-full text-xs text-slate-400 bg-white border border-dashed border-slate-300 rounded-xl p-4 text-center">
-            주요 비품으로 지정된 항목이 없습니다. 비품 수정에서 '주요 비품으로 상단에 고정'을 켜보세요.</div>`;
+            주요 비품으로 지정된 항목이 없습니다. 목록에서 비품을 눌러 '주요 비품으로 상단에 고정'을 켜보세요.</div>`;
         return;
     }
     host.innerHTML = mains.map(it => {
         const low = isLow(it);
         return `
-        <div class="bg-white rounded-xl border ${low ? 'border-red-300' : 'border-slate-200'} shadow-sm p-2.5">
+        <div data-open="${esc(it.id)}" role="button" tabindex="0" aria-label="${esc(it.name)} 상세·재고 열기" title="눌러서 상세·재고 열기"
+            class="sup-card cursor-pointer bg-white rounded-xl border ${low ? 'border-red-300 hover:border-red-400' : 'border-slate-200 hover:border-indigo-300'} shadow-sm hover:shadow p-2.5 transition">
             <div class="flex items-center justify-between gap-1">
                 <div class="text-[10px] font-bold text-slate-400 truncate">${esc(it.category || '비품')}</div>
                 ${low ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 shrink-0">부족</span>' : ''}
@@ -262,10 +266,6 @@ function renderMainItems() {
             <div class="text-[10px] text-slate-500 mt-1 leading-tight">
                 ${num(it.safetyStock) > 0 ? `안전 ${fmt(it.safetyStock)}${esc(it.unit || '개')}<br>` : ''}
                 ${num(it.unitPrice) > 0 ? `단가 ${fmt(it.unitPrice)}원` : '단가 미등록'}
-            </div>
-            <div class="flex gap-1 mt-2">
-                <button data-stock="${esc(it.id)}" class="flex-1 text-[11px] font-bold py-1.5 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100">재고</button>
-                <button data-edit="${esc(it.id)}" class="flex-1 text-[11px] font-bold py-1.5 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200">상세</button>
             </div>
         </div>`;
     }).join('');
@@ -360,7 +360,7 @@ function renderHead() {
                     title="${esc(c.label)} 필터" aria-label="${esc(c.label)} 필터">▼</button>
             </div>
         </th>`;
-    }).join('') + '<th class="text-center" style="min-width:170px">관리</th>';
+    }).join('');
 
     $('btn-reset-filters').classList.toggle('hidden', !anyFilterActive());
 }
@@ -375,15 +375,10 @@ function renderTable() {
     }
 
     // 셀은 COLS의 cell()이 만든다 — 헤더와 순서가 어긋날 수 없다.
+    // 행 전체가 상세 창 여는 버튼이다(누르기 · Tab 후 Enter/Space — 아래 '행·카드 열기' 이벤트).
     body.innerHTML = list.map(it => `
-        <tr>
+        <tr data-open="${esc(it.id)}" tabindex="0">
             ${COLS.map(c => `<td class="${c.td || ''}">${c.cell(it)}</td>`).join('')}
-            <td class="text-center whitespace-nowrap">
-                <button data-stock="${esc(it.id)}" class="text-[11px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100">재고</button>
-                <button data-upload="${esc(it.id)}" title="현재고조회 엑셀을 올려 재고를 맞춥니다"
-                    class="text-[11px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100">엑셀</button>
-                <button data-edit="${esc(it.id)}" class="text-[11px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">수정</button>
-            </td>
         </tr>`).join('');
 }
 
@@ -552,14 +547,25 @@ function resetAllFilters() {
     renderTable();
 }
 
-// ───────── 비품 추가/수정 모달 ─────────
+// ───────── 비품 상세 창(왼쪽 상세 폼 + 오른쪽 재고 패널) ─────────
 function openItemModal(id = null) {
     editingId = id;
     const it = id ? items.find(x => x.id === id) : null;
 
-    $('item-modal-title').textContent = it ? '비품 수정' : '비품 추가';
+    $('item-modal-title').textContent = it ? '비품 상세' : '비품 추가';
+    $('btn-save-item').textContent = it ? '상세 저장' : '추가';
     $('btn-delete-item').classList.toggle('hidden', !it);
     showError('item-modal-error', '');
+
+    // 재고 패널은 이미 있는 비품일 때만 — 새 비품은 아직 id 가 없어 재고 이력을 붙일 곳이 없다.
+    stockTargetId = it ? it.id : null;
+    $('stock-panel').classList.toggle('hidden', !it);
+    $('item-modal-box').classList.toggle('max-w-5xl', !!it);
+    $('item-modal-box').classList.toggle('max-w-2xl', !it);
+    if (it) {
+        resetStockInputs();
+        renderStockPanel();
+    }
 
     $('f-name').value = it?.name || '';
     $('f-category').value = it?.category || '';
@@ -612,21 +618,33 @@ async function saveItem() {
 
     const btn = $('btn-save-item');
     btn.disabled = true;
+    // 저장이 실패하면 메모리를 되돌린다 — 안 그러면 실패한 수정이 다음 저장 때 같이 올라간다.
+    // 원래 객체는 건드리지 않고 사본을 만들어 바꿔 끼운다(이력 배열도 복사 — pushLog 가 unshift 한다).
+    let undo = null;
     try {
         if (editingId) {
             const idx = items.findIndex(x => x.id === editingId);
-            const before = num(items[idx].stock);
-            items[idx] = { ...items[idx], ...data };
+            const prev = items[idx];
+            const before = num(prev.stock);
+            const next = { ...prev, ...data, logs: Array.isArray(prev.logs) ? [...prev.logs] : [] };
             // 수정 화면에서 현재고를 직접 바꾼 경우도 이력에 남긴다.
-            if (before !== data.stock) pushLog(items[idx], 'set', data.stock - before, data.stock, '상세 수정에서 변경');
+            if (before !== data.stock) pushLog(next, 'set', data.stock - before, data.stock, '상세 수정에서 변경');
+            items[idx] = next;
+            undo = () => { const i = items.indexOf(next); if (i >= 0) items[i] = prev; };
         } else {
-            items.push({ id: uid(), logs: [], ...data });
+            const added = { id: uid(), logs: [], ...data };
+            items.push(added);
+            undo = () => { items = items.filter(x => x !== added); };
         }
         await persist();
         closeModal('item-modal');
         renderAll();
     } catch (e) {
-        if (!e.handled) showError('item-modal-error', '저장 실패: ' + (e.message || e));   // handled = 충돌 안내·다시 불러오기 끝
+        // handled = 충돌 안내·다시 불러오기 끝(items 가 이미 서버 값이라 되돌릴 것이 없다)
+        if (!e.handled) {
+            if (undo) undo();
+            showError('item-modal-error', '저장 실패: ' + (e.message || e));
+        }
     } finally {
         btn.disabled = false;
     }
@@ -636,13 +654,14 @@ async function deleteItem() {
     const it = items.find(x => x.id === editingId);
     if (!it) return;
     if (!confirm(`'${it.name}' 비품을 삭제할까요?\n재고 변동 이력도 함께 사라집니다.`)) return;
+    const prevItems = items;   // 저장 실패(충돌 아님) 시 되돌린다
     items = items.filter(x => x.id !== editingId);
     try {
         await persist();
         closeModal('item-modal');
         renderAll();
     } catch (e) {
-        if (!e.handled) showError('item-modal-error', '삭제 실패: ' + (e.message || e));
+        if (!e.handled) { items = prevItems; showError('item-modal-error', '삭제 실패: ' + (e.message || e)); }
     }
 }
 
@@ -703,12 +722,13 @@ function parseStockFile(text) {
 
 async function handleStockFile(file) {
     const it = items.find(x => x.id === pendingUploadId);
-    if (!it) return;
+    // 파일을 고르는 사이 창이 닫혔거나 다른 비품으로 바뀌었으면 채우지 않는다
+    if (!it || it.id !== stockTargetId || $('item-modal').classList.contains('hidden')) return;
     try {
         const { latest, count } = parseStockFile(await readFileText(file));
 
-        // 재고 조정 모달을 '실사(맞춤)'로 미리 채워 두고, 저장은 사용자가 확인 후 누른다.
-        openStockModal(it.id);
+        // 재고 패널의 조정을 '실사(맞춤)'로 미리 채워 두고, 저장은 사용자가 확인 후 [재고 반영]을 누른다.
+        showError('stock-panel-error', '');
         document.querySelector('input[name="stock-op"][value="set"]').checked = true;
         $('stock-qty').value = latest.stock;
         $('stock-memo').value = `현재고조회 업로드${latest.at ? ` · 기준 ${latest.at}` : ''}`;
@@ -718,8 +738,9 @@ async function handleStockFile(file) {
         const note = $('stock-import-note');
         note.textContent = `${file.name} — ${count}건 중 가장 최근 작업(${latest.at || '날짜 없음'}) 기준 재고 `
             + `${fmt(latest.stock)}${it.unit || '개'}. 현재 ${fmt(it.stock)} → ${fmt(latest.stock)} `
-            + `(${diff > 0 ? '+' : ''}${fmt(diff)}). 확인 후 [저장]을 누르세요.`;
+            + `(${diff > 0 ? '+' : ''}${fmt(diff)}). 확인 후 [재고 반영]을 누르세요.`;
         note.classList.remove('hidden');
+        $('btn-save-stock').focus();
     } catch (e) {
         alert(`파일을 읽지 못했습니다.
 
@@ -729,7 +750,7 @@ ${e.message}
     }
 }
 
-// ───────── 재고 조정 모달 ─────────
+// ───────── 재고 패널(상세 창 오른쪽) ─────────
 function pushLog(it, op, delta, after, memo) {
     if (!Array.isArray(it.logs)) it.logs = [];
     it.logs.unshift({
@@ -752,34 +773,44 @@ function updateStockPreview() {
     $('stock-preview').textContent = `${fmt(Math.max(0, after))} ${it.unit || '개'}${after < 0 ? ' (재고 부족)' : ''}`;
 }
 
-function openStockModal(id) {
-    const it = items.find(x => x.id === id);
-    if (!it) return;
-    stockTargetId = id;
-
-    $('stock-modal-title').textContent = `${it.name} — 재고 조정`;
-    $('stock-import-note').classList.add('hidden');
-    $('stock-current').textContent = `${fmt(it.stock)} ${it.unit || '개'}`;
+/** 조정 입력(동작·수량·메모)과 안내·오류를 처음 상태로. 창을 열 때와 [재고 반영] 직후에 쓴다. */
+function resetStockInputs() {
     $('stock-qty').value = '';
     $('stock-memo').value = '';
     document.querySelector('input[name="stock-op"][value="in"]').checked = true;
-    showError('stock-modal-error', '');
+    $('stock-import-note').classList.add('hidden');
+    showError('stock-panel-error', '');
+}
+
+/** 현재고·부족 표시·이지어드민 연동 안내·미리보기·변동 이력을 저장된 값(items)으로 다시 그린다. */
+function renderStockPanel() {
+    const it = items.find(x => x.id === stockTargetId);
+    if (!it) return;
+    const low = isLow(it);
+
+    $('stock-current').textContent = fmt(it.stock);
+    $('stock-current').classList.toggle('text-red-600', low);
+    $('stock-current').classList.toggle('text-slate-800', !low);
+    $('stock-unit').textContent = it.unit || '개';
+    $('stock-low-badge').classList.toggle('hidden', !low);
+
+    const ez = $('stock-ez-note');
+    ez.textContent = it.ezCode ? `이지어드민 연동 비품(${it.ezCode}) — 매일 19:30 이지어드민 재고로 자동 반영됩니다.` : '';
+    ez.classList.toggle('hidden', !it.ezCode);
+
     updateStockPreview();
 
     const logs = Array.isArray(it.logs) ? it.logs : [];
     $('stock-log').innerHTML = logs.length === 0
         ? '<div class="text-[11px] text-slate-400 text-center py-2">재고 변동 이력이 없습니다.</div>'
-        : `<div class="text-[11px] font-bold text-slate-500 mb-1">최근 변동 이력</div>` + logs.map(l => {
+        : logs.map(l => {
             const label = l.op === 'in' ? '입고' : (l.op === 'out' ? '사용' : '실사');
             const tone = l.delta > 0 ? 'text-emerald-600' : (l.delta < 0 ? 'text-red-600' : 'text-slate-500');
-            return `<div class="text-[11px] text-slate-500 flex justify-between gap-2">
-                <span>${esc(kstDateTime(l.at))} ${label}${l.memo ? ` · ${esc(l.memo)}` : ''}</span>
+            return `<div class="text-[11px] text-slate-500 flex justify-between gap-2 py-0.5 border-b border-slate-100 last:border-b-0">
+                <span class="min-w-0 break-words">${esc(kstDateTime(l.at))} ${label}${l.memo ? ` · ${esc(l.memo)}` : ''}</span>
                 <span class="${tone} font-bold shrink-0">${l.delta > 0 ? '+' : ''}${fmt(l.delta)} → ${fmt(l.after)}</span>
             </div>`;
         }).join('');
-
-    openModal('stock-modal');
-    setTimeout(() => $('stock-qty').focus(), 30);
 }
 
 async function saveStock() {
@@ -788,25 +819,53 @@ async function saveStock() {
 
     const qty = num($('stock-qty').value);
     const op = currentStockOp();
-    if (qty <= 0 && op !== 'set') return showError('stock-modal-error', '수량을 입력해주세요.');
+    if (qty <= 0 && op !== 'set') return showError('stock-panel-error', '수량을 입력해주세요.');
 
     const before = num(it.stock);
     const after = op === 'in' ? before + qty : (op === 'out' ? before - qty : qty);
-    if (after < 0) return showError('stock-modal-error', '재고가 0보다 작아질 수 없습니다.');
+    if (after < 0) return showError('stock-panel-error', '재고가 0보다 작아질 수 없습니다.');
 
     const btn = $('btn-save-stock');
     btn.disabled = true;
+    // 사본에 바꿔 끼우고 저장한다 — 실패하면 원래 객체(it)로 되돌려 메모리에 반쯤 반영된 재고·이력이 남지 않게.
+    const next = {
+        ...it, stock: after, updatedAt: new Date().toISOString(), updatedBy: currentUser,
+        logs: Array.isArray(it.logs) ? [...it.logs] : []
+    };
+    // 입고는 발주가 들어온 것으로 보고 최근 발주일을 갱신하지 않는다(발주일은 상세에서 직접 관리).
+    pushLog(next, op, after - before, after, $('stock-memo').value.trim());
+    const idx = items.indexOf(it);
+    items[idx] = next;
     try {
-        it.stock = after;
-        it.updatedAt = new Date().toISOString();
-        it.updatedBy = currentUser;
-        // 입고는 발주가 들어온 것으로 보고 최근 발주일을 갱신하지 않는다(발주일은 상세에서 직접 관리).
-        pushLog(it, op, after - before, after, $('stock-memo').value.trim());
-        await persist();
-        closeModal('stock-modal');
+        await persist({
+            keepModal: true,
+            conflictMsg: '다른 사람이 먼저 비품을 바꿔 재고를 다시 불러왔습니다.\n재고 반영은 저장되지 않았습니다 — 현재고를 확인하고 [재고 반영]을 다시 해 주세요.\n(왼쪽 상세에 입력해 둔 내용은 그대로 있습니다)'
+        });
+        // 창은 닫지 않는다. 왼쪽 상세 폼에서 아직 저장하지 않은 수정은 그대로 두고, 현재고 칸만 새 값으로 맞춘다
+        // — 그래야 나중에 [상세 저장]을 눌러도 옛 재고로 되돌리지 않고, '상세 수정에서 변경' 이력도 잘못 남지 않는다.
+        $('f-stock').value = num(next.stock);
+        resetStockInputs();
+        renderStockPanel();
         renderAll();
     } catch (e) {
-        if (!e.handled) showError('stock-modal-error', '저장 실패: ' + (e.message || e));
+        if (e.handled) {
+            // 충돌 — persist 가 서버 값으로 다시 불러왔다. 창은 열어 둔 채 재고 쪽(패널·현재고 칸)만 서버 값으로.
+            // 조정 수량·메모는 남겨 둬 확인 후 바로 다시 누를 수 있게 한다(미리보기는 새 현재고 기준으로 다시 계산).
+            const fresh = items.find(x => x.id === stockTargetId);
+            if (!fresh) {
+                alert('이 비품은 다른 곳에서 삭제되었습니다. 창을 닫습니다.');
+                closeModal('item-modal');
+                return;
+            }
+            $('f-stock').value = num(fresh.stock);
+            renderStockPanel();
+            showError('stock-panel-error', '다른 사람이 먼저 바꿔 재고를 다시 불러왔습니다. 재고 반영을 다시 해 주세요.');
+        } else {
+            const i = items.indexOf(next);
+            if (i >= 0) items[i] = it;
+            renderStockPanel();
+            showError('stock-panel-error', '저장 실패: ' + (e.message || e));
+        }
     } finally {
         btn.disabled = false;
     }
@@ -814,11 +873,32 @@ async function saveStock() {
 
 // ───────── 모달 공통 ─────────
 function openModal(id) { const m = $(id); m.classList.remove('hidden'); m.classList.add('flex'); }
-function closeModal(id) { const m = $(id); m.classList.add('hidden'); m.classList.remove('flex'); }
+function closeModal(id) {
+    const m = $(id);
+    m.classList.add('hidden'); m.classList.remove('flex');
+    if (id === 'item-modal') restoreOpenerFocus();
+}
+
+// 상세 창을 연 행·카드(data-open). 닫은 뒤 목록이 다시 그려졌을 수 있어 요소가 아니라 id 와 위치로 기억한다.
+let opener = null;   // { id, host: 'items-body' | 'main-items' }
+function rememberOpener(el) {
+    const host = el.closest('#items-body') ? 'items-body' : (el.closest('#main-items') ? 'main-items' : null);
+    opener = host ? { id: el.dataset.open, host } : null;
+}
+function restoreOpenerFocus() {
+    const o = opener;
+    opener = null;
+    if (!o) return;
+    // 저장·삭제 뒤 renderAll 이 같은 흐름에서 다시 그리므로, 그다음 차례에 찾는다
+    setTimeout(() => {
+        const el = $(o.host)?.querySelector(`[data-open="${CSS.escape(o.id)}"]`);
+        if (el) el.focus();
+    }, 0);
+}
 function showError(id, msg) { const el = $(id); el.textContent = msg; el.classList.toggle('hidden', !msg); }
 
 // ───────── 이벤트 ─────────
-$('btn-add-item').addEventListener('click', () => openItemModal(null));
+$('btn-add-item').addEventListener('click', () => { opener = null; openItemModal(null); });
 $('btn-save-item').addEventListener('click', saveItem);
 $('btn-delete-item').addEventListener('click', deleteItem);
 $('btn-save-stock').addEventListener('click', saveStock);
@@ -844,18 +924,36 @@ document.querySelectorAll('[data-close]').forEach(btn => {
     });
 });
 
-// 목록/카드의 [재고]·[수정] 버튼 — 이벤트 위임
+// ───────── 행·카드 열기 — 목록 행 / 주요 비품 카드(data-open)를 누르면 상세 창 ─────────
+// capture 단계에서 본다: 헤더 필터 팝업이 열린 채 행을 누른 것은 '팝업 닫기'로만 쓰이게(창은 열지 않음).
+// 팝업 닫기 자체는 위의 기존 click 리스너가 그대로 한다.
 document.addEventListener('click', (e) => {
-    const stockBtn = e.target.closest('[data-stock]');
-    if (stockBtn) return openStockModal(stockBtn.dataset.stock);
-    const editBtn = e.target.closest('[data-edit]');
-    if (editBtn) return openItemModal(editBtn.dataset.edit);
-    const upBtn = e.target.closest('[data-upload]');
-    if (upBtn) {
-        pendingUploadId = upBtn.dataset.upload;
-        $('stock-file').value = '';   // 같은 파일을 다시 골라도 change가 뜨도록
-        $('stock-file').click();
-    }
+    const row = e.target.closest('[data-open]');
+    if (!row) return;
+    if (document.querySelector('.flt-pop')) return;
+    // 표 글자를 끌어서 고른 경우(복사하려는 것)는 창을 열지 않는다
+    const sel = window.getSelection && window.getSelection();
+    if (sel && !sel.isCollapsed && row.contains(sel.anchorNode)) return;
+    rememberOpener(row);
+    openItemModal(row.dataset.open);
+}, true);
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const row = e.target.closest && e.target.closest('[data-open]');
+    if (!row || row !== e.target) return;   // 행·카드 자체에 포커스가 있을 때만
+    e.preventDefault();                     // Space 로 목록이 스크롤되지 않게
+    closeFilterPop();
+    rememberOpener(row);
+    openItemModal(row.dataset.open);
+});
+
+// 재고 패널의 [엑셀로 재고 맞추기] — 지금 보고 있는 비품에 현재고조회 엑셀을 올린다
+$('btn-stock-excel').addEventListener('click', () => {
+    if (!stockTargetId) return;
+    pendingUploadId = stockTargetId;
+    $('stock-file').value = '';   // 같은 파일을 다시 골라도 change가 뜨도록
+    $('stock-file').click();
 });
 
 $('stock-file').addEventListener('change', (e) => {
