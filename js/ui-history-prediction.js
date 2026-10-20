@@ -3,32 +3,33 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610201653';
+import { predictFutureTrends } from './analysis-logic.js?v=202610210842';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610201653';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610201653';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610201653';
-import * as State from './state.js?v=202610201653';
-import { saveView } from './view-state.js?v=202610201653';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610201653';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610201653';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610210842';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610210842';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610210842';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610210842';
+import * as State from './state.js?v=202610210842';
+import { saveView } from './view-state.js?v=202610210842';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610210842';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610210842';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610201653';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610210842';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610201653';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610201653';
+         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610210842';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610210842';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610201653';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610201653';
-import { taskUph, recentDays } from './task-throughput.js?v=202610201653';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610210842';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610210842';
+import { taskUph, recentDays } from './task-throughput.js?v=202610210842';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610201653';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610210842';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610201653';
-import { D } from './d-chart.js?v=202610201653';
+         excessOffDays } from './lib/backlog-carry.js?v=202610210842';
+import { D } from './d-chart.js?v=202610210842';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -59,7 +60,7 @@ const getIncomingBoxesForDate = (dateStr) => {
 // 시뮬레이션 상수/헬퍼
 // ───────────────────────────────────────────────────────────
 // 모든 업무를 기본 등록으로 둔다('+ 추가 선택' 폐지).
-// 자동값 규칙: ai=국내배송 예측 / incoming=입고일정 / china-linked=중국제작 입고량×검수비율
+// 자동값 규칙: ai=국내배송 예측 / incoming=입고일정 / china-linked=그날 도착 패킹의 샘플검수 장수(없으면 중국제작 입고량×검수비율)
 //              last7=지난 7회 업무량 평균
 // 어느 경우든 '예정 물량'에 수기 입력값이 있으면 그 값이 최우선이다.
 const LEGACY_SIM_TASKS = [
@@ -1696,6 +1697,10 @@ let incomingAllByArrival = null;
 let mibalLoadedDay = '';
 let mibalLoadedAt = 0;
 let mibalLoading = null;
+// 🔍 샘플검수 패킹 목록(integrations/inspPacks — 미발계산기2 수집기가 씀). 미발과 같이 읽는다(2026-10-21).
+//    샘플검수 자동값 = 그날 도착 패킹의 '패킹에서 만들기' 장수. 못 읽거나 그날 패킹이 없으면 예전 비율 계산으로 물러난다.
+let inspPacksList = null;         // null = 아직 못 읽음·오래됨 / [] = 읽었는데 비어 있음
+const INSP_PACKS_STALE_MS = 36 * 60 * 60 * 1000;   // 수집은 매일 07:30 무렵 — 하루 반 넘게 안 바뀌면 멈춘 것으로 본다
 // 📤 직진·에이블리 전송값(ZikjinData) — 미발과 같이 읽는다(규칙: js/lib/ship-transmit.js).
 //    읽기만 한다. 못 읽으면 직전 값을 그대로 둔다.
 //    ⚠️ ZikjinData 에는 마지막 전송일 하루치만 남는다(다음 전송이 지난 날짜 행을 지운다).
@@ -1761,11 +1766,26 @@ export async function ensureMibalHistory() {
     mibalLoading = (async () => {
         try {
             // 세 읽기는 서로 독립이다 — 하나가 실패해도 나머지는 반영한다
-            const [s, inc, zk] = await Promise.all([
+            const [s, inc, zk, ip] = await Promise.all([
                 getDoc(doc(State.db, 'ChinaStockGoods', 'MIBAL_HISTORY')).catch(e => { console.warn('[업무 예상] 미발 이력 읽기 실패:', e); return 'ERR'; }),
                 getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'incomingSchedule')).catch(() => 'ERR'),
-                getDocs(collection(State.db, 'ZikjinData')).catch(() => 'ERR')
+                getDocs(collection(State.db, 'ZikjinData')).catch(() => 'ERR'),
+                getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks')).catch(() => 'ERR')
             ]);
+            // 샘플검수 패킹 목록 — 읽기·해석에 실패하면 직전 값을 그대로 둔다(처음이면 null → 비율 계산)
+            if (ip !== 'ERR') {
+                try {
+                    const parsed = parseInspPacks(ip && ip.exists() ? ip.data() : null);
+                    // 수집기가 멈춰 오래된 목록이면(새 패킹이 빠져 있다) 쓰지 않고 비율 계산으로 물러난다
+                    const stale = !parsed.updatedAtMs || Date.now() - parsed.updatedAtMs > INSP_PACKS_STALE_MS;
+                    if (parsed.ok && !parsed.error && !stale) inspPacksList = parsed.packs;
+                    else if (parsed.ok && !parsed.error && stale) {
+                        inspPacksList = null;
+                        console.warn('[업무 예상] 샘플검수 패킹 목록이 오래돼(36시간 넘음) 비율 계산을 씁니다.');
+                    }
+                    else if (ip && ip.exists()) console.warn('[업무 예상] 샘플검수 패킹 목록:', parsed.error, '— 직전 값을 씁니다.');
+                } catch (e) { console.warn('[업무 예상] 샘플검수 패킹 목록 처리 실패 — 직전 값을 씁니다:', e); }
+            }
             // 전송값 — 읽기·해석에 실패하면 직전 값을 그대로 둔다(isTransmitFresh 가 false 로 남는다)
             if (zk !== 'ERR') {
                 try {
@@ -1825,6 +1845,30 @@ const mibalForDate = (dateStr) => {
         mibalMapCache = { map, today, loadedAt: mibalLoadedAt, at: Date.now() };
     }
     return mibalMapCache.map[dateStr] || null;
+};
+
+// 도착일별 샘플검수 장수 — mibalForDate 와 같은 30초 캐시
+let sampleMapCache = null;
+const samplePacksForDate = (dateStr) => {
+    if (!inspPacksList) return null;
+    if (!sampleMapCache || sampleMapCache.loadedAt !== mibalLoadedAt || Date.now() - sampleMapCache.at > 30 * 1000) {
+        let map = {};
+        try {
+            map = sampleCardsByArrival(inspPacksList, makeArrivalsLookup(incomingAllByArrival || getIncomingDetailsByDateFromCache()));
+        } catch (e) { console.warn('[업무 예상] 샘플검수 장수 계산 실패:', e); }
+        sampleMapCache = { map, loadedAt: mibalLoadedAt, at: Date.now() };
+    }
+    return sampleMapCache.map[dateStr] || null;
+};
+const samplePacksNote = (sp) => `그날 도착 패킹 ${sp.packs.length}개(${sp.packs.join(', ')})의 샘플검수 ${sp.count}장`
+    + `\n(샘플검수 '패킹에서 만들기'와 같은 기준 — 공급처·색상마다 1장)`;
+
+/** 샘플검수 자동값 — 패킹 장수 우선, 없으면 중국제작 × 최근 4주 검수비율. 중국제작이 0 이면 0(입고 없음·밀림). */
+const sampleAutoFor = (dateStr, china, historyData) => {
+    if (!(china > 0)) return { value: 0, source: 'china-linked' };
+    const sp = dateStr >= getTodayDateString() ? samplePacksForDate(dateStr) : null;
+    if (sp && sp.count > 0) return { value: sp.count, source: 'insp-packs', detail: samplePacksNote(sp) };
+    return { value: Math.round(computeSampleRatio(historyData) * china), source: 'china-linked' };
 };
 
 const mibalNote = (m) => `중국 입고 미발수량 +${m.qty.toLocaleString()} 포함 — ${m.lines.join(' · ')}`
@@ -1888,9 +1932,9 @@ const estimatedValueFor = (dateStr, task, historyData) => {
         case 'china-linked': {
             // 샘플검수는 중국제작 입고가 있는 날에만 발생한다.
             // 그 날의 중국제작 수량(예정 물량 > 입고일정)에 최근 검수비율을 곱해 산출.
+            // 2026-10-21: 그날 도착 패킹의 샘플검수 장수(패킹에서 만들기 기준)를 먼저 쓴다 — sampleAutoFor
             const china = getPlanned(dateStr, '중국제작') ?? getIncomingChinaForDate(dateStr);
-            const v = (china > 0) ? Math.round(computeSampleRatio(historyData) * china) : 0;
-            return { value: v, source: 'china-linked' };   // 입고 없는 날은 0(빈칸)
+            return sampleAutoFor(dateStr, china, historyData);   // 입고 없는 날은 0(빈칸)
         }
         case 'incoming-boxes':
             return incomingBoxesValueFor(dateStr, task, historyData, arg);
@@ -1945,6 +1989,8 @@ const SOURCE_BADGE = {
                 tip: '하차분 + 상차분입니다. 하차분은 그날 도착 예정 박스 수,'
                    + ' 상차분은 전 근무일에 직진배송·에이블리배송을 한 물량을 상차 단위로 나눈 값입니다.'
                    + ' 둘 다 없는 날은 0 입니다.' },
+    'insp-packs': { text: '패킹 기준', muted: true,
+                tip: '그날 도착하는 패킹의 품목으로 샘플검수 장수를 셌습니다(샘플검수 「패킹에서 만들기」와 같은 기준 — 공급처·색상마다 1장).' },
     'china-linked': { text: '중국제작 연동', muted: true,
                 tip: '중국제작 입고가 있는 날만 자동 입력됩니다. (그 날 입고량 × 최근 4주 검수비율)' }
 };
@@ -3716,7 +3762,8 @@ const setupSimulationListeners = () => {
         el.focus();
     });
 
-    // 중국제작 수량을 직접 고치면 샘플검수도 그 비율로 다시 계산한다.
+    // 중국제작 수량을 직접 고치면 샘플검수도 다시 계산한다(sampleAutoFor) — 0 이면 0, 그날 패킹이 있으면
+    // 패킹 장수(중국제작 수량과 무관하게 그대로), 없으면 중국제작 × 검수비율.
     // 단, 예정 물량에 샘플검수를 수기로 넣어둔 날은 그 값을 덮지 않는다.
     // 입력칸은 JS가 다시 만들 수 있으므로 목록 컨테이너에 위임해서 듣는다.
     document.getElementById('sim-task-list')?.addEventListener('input', (e) => {
@@ -3729,11 +3776,11 @@ const setupSimulationListeners = () => {
 
         if (untouched('샘플검수')) {
             const sampleTask = SIM_TASKS.find(t => t.id === 'sample');
-            const 새값 = china > 0 ? Math.round(computeSampleRatio(data) * china) : 0;
-            setQty('sample', 새값);
+            const r = sampleAutoFor(dateStr, china, data);
+            setQty('sample', r.value);
             if (sampleTask) {
-                markSourceBadge(sampleTask, 'china-linked');
-                덮어쓴meta(sampleTask.key, 새값, 'china-linked');
+                markSourceBadge(sampleTask, r.source, r.detail || '');
+                덮어쓴meta(sampleTask.key, r.value, r.source);
             }
         }
         // 상.하차처럼 입고 박스에 연동된 업무도 같이 다시 계산한다

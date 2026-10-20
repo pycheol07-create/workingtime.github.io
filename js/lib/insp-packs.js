@@ -233,6 +233,35 @@ export function previewCount(packs) {
     return { total, byPack };
 }
 
+/** 업무 예상 — 도착일별 샘플검수 장수(2026-10-21). '패킹에서 만들기'와 같은 기준(공급처코드::색상 1장, 같은 날 같은 상품명+옵션은 1장).
+ *  도착일 = 본사도착일(ad, 전부 도착) → arrivalOf(패킹일)(입고일정 시트) → 도착예상일(eta). 셋 다 없으면 뺀다.
+ *  입고일정에 같은 패킹일이 여러 날로 나뉘어 있으면(arrivalOf 가 배열) 그 날마다 이 패킹 장수를 다 센다 —
+ *  어느 품목이 어느 날 오는지 알 수 없어 많게 잡는다(예전 비율 계산이 둘째 날에 또 붙던 것보다 낫다).
+ *  일부만 도착한 패킹(partial)은 남은 분량이 언제 오는지 알 수 없어 뺀다.
+ *  @param arrivalOf (YYYY-MM-DD 패킹일) → 도착일 YYYY-MM-DD 또는 그 배열 또는 '' (없으면 생략 가능)
+ *  @returns {{[date:string]: {count:number, packs:string[]}}} */
+export function sampleCardsByArrival(packs, arrivalOf) {
+    const byDate = Object.create(null);
+    (Array.isArray(packs) ? packs : []).forEach(p => {
+        if (!p || p.partial) return;
+        const pd = packingDateOf(p, '');
+        let dates = [];
+        if (str(p.arriveDate)) dates = [str(p.arriveDate)];
+        else {
+            const a = (typeof arrivalOf === 'function' && pd) ? arrivalOf(pd) : '';
+            dates = (Array.isArray(a) ? a : [a]).map(str).filter(Boolean);
+            if (!dates.length && str(p.eta)) dates = [str(p.eta)];
+        }
+        dates.filter(d => DATE_RE.test(d)).forEach(d => { (byDate[d] = byDate[d] || []).push(p); });
+    });
+    const out = {};
+    Object.keys(byDate).forEach(d => {
+        const ps = byDate[d];
+        out[d] = { count: mergeList([], buildCards(ps, null, '')).added, packs: ps.map(p => p.no) };
+    });
+    return out;
+}
+
 /** 이 패킹의 장 가운데 지금 목록에 이미 있는 것(name+option) 개수 */
 export function existingCount(pack, existing) {
     const list = Array.isArray(existing) ? existing : [];

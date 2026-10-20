@@ -183,6 +183,26 @@ export function mibalByArrival(history, { arrivalOf, today, isOffDay } = {}) {
     return out;
 }
 
+/** makeArrivalLookup 과 같은 매칭으로 **모든** 도착일(오름차순 배열)을 돌려주는 함수 — 나눠 오는 패킹용(샘플검수 예측, 2026-10-21).
+ *  @returns {(출고일:string) => string[]} */
+export function makeArrivalsLookup(detailsByDate) {
+    const all = {};
+    Object.keys(detailsByDate || {}).sort().forEach(date => {
+        ((detailsByDate[date] || {}).entries || []).forEach(e => {
+            const m = String(e && e.packDateText || '').match(/^(\d{1,2})\/(\d{1,2})/);
+            if (!m) return;
+            const k = `${Number(m[1])}/${Number(m[2])}`;
+            if (!all[k]) all[k] = [];
+            if (!all[k].includes(date)) all[k].push(date);
+        });
+    });
+    return (출고일) => {
+        const [, mm, dd] = String(출고일 || '').split('-');
+        if (!mm || !dd) return [];
+        return (all[`${Number(mm)}/${Number(dd)}`] || []).slice();
+    };
+}
+
 /** 입고일정의 'M/D일자' 와 출고일(YYYY-MM-DD)을 이어 도착일을 찾는 함수를 만든다.
  *  같은 패킹이 여러 날로 나뉘어 오면 **가장 이른** 도착일을 돌려준다(지난 날짜여도) —
  *  첫 분량이 이미 도착했으면 mibalByArrival 이 '이미 나감' 으로 보고 뺀다(뒤 분량에 또 더하지 않게).
