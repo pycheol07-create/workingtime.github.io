@@ -13,20 +13,20 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610201640'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610201653'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610201640';
-import { sortMark } from './lib/china-stock-view.js?v=202610201640';
+import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610201653';
+import { sortMark } from './lib/china-stock-view.js?v=202610201653';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf, FLAG_INFO, COMPARE_COLS, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610201640';
-import { setShellContext } from './app-shell-bridge.js?v=202610201640';
-import { memberNameFor } from './app-shell-data.js?v=202610201640';
-import { mountBusyBanner } from './busy-banner.js?v=202610201640';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610201640';
+} from './lib/mibal2-rows.js?v=202610201653';
+import { setShellContext } from './app-shell-bridge.js?v=202610201653';
+import { memberNameFor } from './app-shell-data.js?v=202610201653';
+import { mountBusyBanner } from './busy-banner.js?v=202610201653';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610201653';
 
 const { db, auth } = initializeFirebase();
 
@@ -459,8 +459,8 @@ function renderSourceNote() {
     if (os && os.atMs && c.refDate && !sameDay(new Date(os.atMs), c.refDate)) warns.push(c.mode === 'daily' ? '기존 계산기 미발수량 비교값이 그날 것이 아닙니다' : '기존 계산기 미발수량 비교값이 오늘 것이 아닙니다');
     if (os && os.noUpload) warns.push(`최근 버전기록 ${VERSIONS_LIMIT}개 안에 '업로드' 버전이 없어 ${os.kind === 'version' ? `'${os.trigger}' 버전` : '현재 ScanDB'}로 비교합니다 — 스캐너 입고분이 빠져 있을 수 있음`);
     const rs = c.reserveStatus;
-    if (!rs) warns.push((c.mode === 'daily' ? '이 날 사본에는' : '이 수집 자료에는') + ' 비축재고 없음 → 피킹 적재·적재 배정수량·피킹 배정수량을 계산 못 함(확인 필요)');
-    else if (rs.status !== 'ok' || Number(rs.missing) > 0) warns.push(`비축재고 수집 ${rs.status} — 비축 미응답 코드 ${num(rs.missing)}개(그 코드는 비축재고 없음 → 피킹 적재·적재 배정수량·피킹 배정수량을 계산 못 함(확인 필요))`);
+    if (!rs) warns.push((c.mode === 'daily' ? '이 날 사본에는' : '이 수집 자료에는') + ' 비축재고 없음 → 피킹 적재·비축 적재·피킹 배정수량을 계산 못 함(확인 필요)');
+    else if (rs.status !== 'ok' || Number(rs.missing) > 0) warns.push(`비축재고 수집 ${rs.status} — 비축 미응답 코드 ${num(rs.missing)}개(그 코드는 비축재고 없음 → 피킹 적재·비축 적재·피킹 배정수량을 계산 못 함(확인 필요))`);
     box.innerHTML = parts.join(' · ') + (warns.length ? `<br><span class="t-risk">⚠ ${warns.map(esc).join(' / ')}</span>` : '');
 }
 
@@ -797,7 +797,7 @@ function downloadExcel() {
 
 // ── 보기 항목: 간단히(기본) / 전체 — 열·카드 숨김은 CSS(body[data-cols]). 고른 것은 이 브라우저에만 기억 ──
 const COLS_KEY = 'mibal2.cols';
-const colSpan = () => (document.body.dataset.cols === 'simple' ? 10 : 23);   // 간단히에서 보이는 열 수
+const colSpan = () => (document.body.dataset.cols === 'simple' ? 11 : 23);   // 간단히에서 보이는 열 수
 function setCols(mode, save) {
     const simple = mode !== 'full';
     document.body.dataset.cols = simple ? 'simple' : 'full';
