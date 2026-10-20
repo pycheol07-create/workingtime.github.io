@@ -2,11 +2,11 @@
 // 설명: 이력 보기의 '일별 상세' 탭 화면을 렌더링하는 모듈입니다.
 // (수정됨: 현황판과 동일한 기준으로 유효 멤버 필터링 강화, 시스템 계정 제외 및 타입 에러 방어 적용)
 
-import * as State from './state.js?v=202610201053';
+import * as State from './state.js?v=202610201213';
 import {
     formatDuration, isWeekday, calcTotalPauseMinutes, formatTimeTo24H, getTodayDateString, buildMemberHourlyWageMap
-} from './utils.js?v=202610201053';
-import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202610201053';
+} from './utils.js?v=202610201213';
+import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202610201213';
 
 /**
  * 일별 상세 화면 렌더링 (KPI 카드 및 업무별 진행바 등)
@@ -213,7 +213,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
       <div>
         <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
                 data-action="open-history-quantity-modal" data-date-key="${dateKey}">처리량 수정</button>
-        <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2"
+        <button class="bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 font-semibold py-1 px-3 rounded-md text-sm ml-4"
                 data-action="request-history-deletion" data-date-key="${dateKey}">삭제</button>
       </div>
     </div>
@@ -224,7 +224,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
       </div>
       <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${formatDuration(totalSumDuration)}</p></div>
       ${nonWorkHtml}
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${totalQuantity} 개</p></div>
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${Number(totalQuantity).toLocaleString()} 개</p></div>
       <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
     </div>
   `;

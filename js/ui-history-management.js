@@ -1,14 +1,14 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610201053';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610201053';
-import { appConfig } from './state.js?v=202610201053';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610201213';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610201213';
+import { appConfig } from './state.js?v=202610201213';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,
     revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
-} from './revenue-channels.js?v=202610201053';
-import { D } from './d-chart.js?v=202610201053';
+} from './revenue-channels.js?v=202610201213';
+import { D } from './d-chart.js?v=202610201213';
 // predictFutureTrends import 제거됨
 
 // 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장 / 기타)
@@ -322,7 +322,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                     <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mr-2">
                         * 숫자를 입력하면 전일 대비 증감이 자동 계산됩니다.
                     </span>
-                    <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm"
+                    <button class="bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 font-semibold py-1 px-3 rounded-md text-sm ml-4"
                             data-action="request-history-deletion" data-date-key="${dateKey}">
                         삭제
                     </button>

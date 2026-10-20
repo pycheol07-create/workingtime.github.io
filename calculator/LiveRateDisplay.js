@@ -94,12 +94,36 @@ const CustomsFxrtHint = ({ info, onReset }) => {
     );
 };
 
-// 고시환율이 빈칸(또는 0)이면 결과 대신 보이는 안내 — 세 탭 공통
-const CustomsRateMissing = ({ where }) => (
-    <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 flex flex-col items-center justify-center text-center" data-k="customs-rate-missing">
-        <h3 className="text-xl font-semibold text-gray-700">고시환율을 입력하세요</h3>
-        <p className="text-gray-500 mt-2 text-sm">{where || '환율 칸의 관세청 고시환율'}이 비어 있어 계산하지 않았습니다.<br />수입가·통관비·창고료 탭이 같은 값을 씁니다.</p>
+// 환율 칸 빈칸 판정 — ../js/lib/calc-num.js (index.html 의 모듈이 window.CalcNum 에 붙인다). 비어 있는 키 배열.
+const missingRateFields = (rates, keys) => window.CalcNum.missingRateFields(rates, keys);
+// 환율 칸 이름 — 결과 대신 보이는 '환율을 입력하세요' 안내의 목록에 쓴다
+const RATE_FIELD_LABELS = { customs: '관세청 고시환율', usdKrw: '원-달러 환율(송금)', cnyKrw: '원-위안 환율', usdCny: '위안-달러 환율' };
+const rateFieldLabels = (keys) => (keys || []).map(k => RATE_FIELD_LABELS[k] || k);
+
+// 환율 칸이 빈칸(또는 0)이면 결과 대신 보이는 안내 — fields: 비어 있는 칸 이름 목록, where: 그 칸이 있는 곳,
+//   note: 덧붙일 노란 안내(실시간 환율 대기·실패 등). children 을 주면 기본 본문 대신 쓴다.
+const RateMissing = ({ fields, where, note, title = '환율을 입력하세요', dataK = 'rate-missing', children }) => (
+    <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 flex flex-col items-center justify-center text-center" data-k={dataK}>
+        <h3 className="text-xl font-semibold text-gray-700">{title}</h3>
+        {children || (
+            <>
+                {fields && fields.length > 0 && (
+                    <ul className="mt-3 text-sm font-semibold text-gray-700 space-y-0.5" data-k="rate-missing-fields">
+                        {fields.map(f => <li key={f}>· {f}</li>)}
+                    </ul>
+                )}
+                <p className="text-gray-500 mt-2 text-sm">{where || "'환율 적용 방식' 칸"}에서 위 칸이 비어 있어(또는 0) 계산하지 않았습니다.<br />수입가·통관비 탭이 같은 값을 씁니다.</p>
+            </>
+        )}
+        {note && <p role="status" className="mt-3 px-2 py-1 rounded border border-yellow-300 bg-yellow-50 text-xs text-yellow-800" data-k="rate-missing-note">{note}</p>}
     </div>
+);
+
+// 고시환율이 빈칸(또는 0)이면 결과 대신 보이는 안내 — 세 탭 공통(RateMissing 을 감싼 것, 문구는 예전 그대로)
+const CustomsRateMissing = ({ where }) => (
+    <RateMissing title="고시환율을 입력하세요" dataK="customs-rate-missing">
+        <p className="text-gray-500 mt-2 text-sm">{where || '환율 칸의 관세청 고시환율'}이 비어 있어 계산하지 않았습니다.<br />수입가·통관비·창고료 탭이 같은 값을 씁니다.</p>
+    </RateMissing>
 );
 
 // --- NEW COMPONENT: LiveRateDisplay ---

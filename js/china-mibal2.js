@@ -13,17 +13,18 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610201053'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610201213'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610201053';
+import { explain } from './lib/mibal2-calc.js?v=202610201213';
+import { sortMark } from './lib/china-stock-view.js?v=202610201213';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610201053';
-import { setShellContext } from './app-shell-bridge.js?v=202610201053';
-import { memberNameFor } from './app-shell-data.js?v=202610201053';
+} from './lib/mibal2-rows.js?v=202610201213';
+import { setShellContext } from './app-shell-bridge.js?v=202610201213';
+import { memberNameFor } from './app-shell-data.js?v=202610201213';
 
 const { db, auth } = initializeFirebase();
 
@@ -83,6 +84,7 @@ let parseError = '';
 let config = {};               // ChinaStockGoods/CONFIG
 let graceDays = 1;
 let legacyDates = [];          // CONFIG.savedDatesMibal
+let legacyKnown = false;       // CONFIG 를 한 번이라도 읽었는지 — 못 읽었으면 '기존과 다름' 경고를 띄우지 않는다
 let editedCells = {};          // ChinaStockGoods/EDITED_CELLS.cells
 let locIndex = {};             // code → {id, count, etcOnly}
 let oldSnap = null;            // { kind:'version'|'live', atMs, trigger, note, map, noUpload }
@@ -122,11 +124,13 @@ const parseJsonSafe = (s, fallback) => { try { const v = JSON.parse(s); return v
 // ─────────────────────────────────────────────────────────────
 // 읽기 (오늘)
 // ─────────────────────────────────────────────────────────────
-async function loadConfig() {
-    const snap = await getDoc(doc(db, CHINA_COLLECTION, 'CONFIG'));
+async function loadConfig(fromServer = false) {
+    const ref = doc(db, CHINA_COLLECTION, 'CONFIG');
+    const snap = fromServer ? await getDocFromServer(ref) : await getDoc(ref);
     config = snap.exists() ? (snap.data() || {}) : {};
     legacyDates = legacyDatesFrom(config);   // china-stock-goods.js:2825 loadConfig 와 같은 규칙
     graceDays = graceDaysFrom(config);
+    legacyKnown = true;
 }
 async function loadEditedCells() {
     // china-stock-goods.js:2827 loadEditedCells 와 같다
@@ -298,6 +302,22 @@ function applyFilters() {
     });
     renderTable();
     renderSummary();
+    // 정렬 표시 — 지금 정렬 열만 ▲/▼, 머리글마다 aria-sort
+    const absDefault = sortConfig.key === 'diffAbs';   // 기본 정렬 = 차이 절댓값 큰 순 → '차이' 머리글에 표시
+    document.querySelectorAll('.list-table th.sortable').forEach(th => {
+        const isAbs = absDefault && th.dataset.sort === 'diff';
+        const sm = isAbs ? { mark: '(절댓값 큰 순)', aria: 'descending' } : sortMark(th.dataset.sort, sortConfig);
+        if (th.dataset.sort === 'diff') {
+            if (isAbs) th.title = '지금은 기본 정렬 — 차이(신규−기존)의 절댓값이 큰 순입니다. 누르면 차이 값 순으로 정렬합니다';
+            else th.removeAttribute('title');
+        }
+        th.setAttribute('aria-sort', sm.aria);
+        let mk = th.querySelector('.sort-mark');
+        if (sm.mark) {
+            if (!mk) { mk = document.createElement('span'); mk.className = 'sort-mark'; th.appendChild(mk); }
+            mk.textContent = ' ' + sm.mark;
+        } else if (mk) mk.remove();
+    });
 }
 
 function flagsHtml(r) {
@@ -494,12 +514,20 @@ function renderDateTags() {
     }).join('');
     if (isDaily) {
         $('date-src').textContent = !src ? '' : (src === 'own' ? '그날 이 화면에서 고른 출고일' : '그날 기존 계산기 출고일');
+        setDateDiffWarn(false);
         return;
     }
     const same = JSON.stringify([...selectedDates].sort()) === JSON.stringify([...legacyDates].sort());
     $('date-src').textContent = dateSource === 'own'
         ? (same ? '이 화면에서 고른 출고일 (기존과 같음)' : '이 화면에서 고른 출고일 (기존 계산기와 다름)')
         : '기존 계산기와 같은 출고일';
+    setDateDiffWarn(legacyKnown && dateSource === 'own' && !same);   // CONFIG 를 못 읽었으면(기존 출고일 모름) 경고·버튼 숨김
+}
+// 출고일이 기존 계산기와 다르면 #date-src 를 경고색·굵게 + 날짜 바에 '기존 계산기 선택 따르기' 버튼
+function setDateDiffWarn(on) {
+    $('date-src').classList.toggle('t-warn', on);
+    const btn = $('btn-date-legacy-out');
+    if (btn) btn.hidden = !on;
 }
 let popupSnapshot = null;
 async function onDatePopupClosed() {
@@ -514,6 +542,23 @@ async function onDatePopupClosed() {
         } catch (e) { showToast('⚠️ 출고일 선택 저장 실패: ' + (e && e.code || e)); }
     }
     popupSnapshot = null;
+}
+// 기존 계산기 출고일을 따른다 — 팝업 안 #btn-date-legacy · 날짜 바 #btn-date-legacy-out 둘 다 이것을 부른다
+async function followLegacyDates() {
+    const popup = $('date-dropdown-popup');
+    // 기존 계산기가 그사이 출고일을 바꿨을 수 있으니 CONFIG 를 서버에서 다시 읽고 따른다. 못 읽으면 아무것도 안 바꿈
+    try { await loadConfig(true); }
+    catch (e) { showToast('⚠️ 기존 계산기 출고일을 다시 읽지 못해 바꾸지 않았습니다: ' + (e && e.code || e)); return; }
+    selectedDates = legacyDates.map(String);
+    dateSource = 'legacy';
+    popup.style.display = 'none'; popupSnapshot = null;
+    renderDateList();
+    recomputeAndRender();
+    try {
+        if (!isAdminOk) throw new Error('관리자 확인 전');
+        await setDoc(doc(db, SETTINGS_PATH), { useOwnDates: false, updatedAt: serverTimestamp() }, { merge: true });
+        showToast('✅ 기존 계산기 출고일을 따릅니다');
+    } catch (e) { showToast('⚠️ 설정 저장 실패: ' + (e && e.code || e)); }
 }
 function setupDatePopup() {
     const popup = $('date-dropdown-popup');
@@ -537,18 +582,8 @@ function setupDatePopup() {
         selectedDates = [];
         renderDateTags();
     });
-    $('btn-date-legacy').addEventListener('click', async () => {
-        selectedDates = legacyDates.map(String);
-        dateSource = 'legacy';
-        popup.style.display = 'none'; popupSnapshot = null;
-        renderDateList();
-        recomputeAndRender();
-        try {
-            if (!isAdminOk) throw new Error('관리자 확인 전');
-            await setDoc(doc(db, SETTINGS_PATH), { useOwnDates: false, updatedAt: serverTimestamp() }, { merge: true });
-            showToast('✅ 기존 계산기 출고일을 따릅니다');
-        } catch (e) { showToast('⚠️ 설정 저장 실패: ' + (e && e.code || e)); }
-    });
+    $('btn-date-legacy').addEventListener('click', followLegacyDates);
+    $('btn-date-legacy-out').addEventListener('click', followLegacyDates);
 }
 
 // ── 보기 전환: 오늘(실시간) / 날짜별 비교 ───────────────────────

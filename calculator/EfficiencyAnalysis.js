@@ -1,14 +1,23 @@
 // [수정됨] 단일 exchangeRate 대신 currentRates 객체를 받아 다중 환율 처리
 
-const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculationMode }) => {
-    if (!show) return null;
+// 열려 있을 때만 본체를 mount 한다 — 본체 안에서 hook 앞에 return null 을 두면 닫을 때 effect 정리(cleanup)가
+// 돌지 않아 ESC 키 리스너가 남는다. 이름: text/babel 의 맨 위 const 는 페이지 전역이라 겹치지 않게.
+const EfficiencyAnalysis = (props) => (props.show ? <EfficiencyAnalysisModal {...props} /> : null);
 
+const EfficiencyAnalysisModal = ({ onClose, formData, currentRates, calculationMode }) => {
     const { settings } = React.useContext(SettingsContext);
     
     const printRef = React.useRef(null);
     const [isGeneratingPdf, setIsGeneratingPdf] = React.useState(false);
     const [showAllSplit, setShowAllSplit] = React.useState(false);    // 분할 표: 기본은 최적 3개 + 현재(1회)
     const [showAllBoxes, setShowAllBoxes] = React.useState(false);    // 박스표: 기본은 현재 박스 앞뒤 구간
+
+    // ESC 로 닫기(이 페이지는 js/modal-esc.js 를 안 쓴다). 열려 있는 동안만 mount 되므로 그동안만 듣는다.
+    React.useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
 
     const handleDownloadPDF = async () => {
         if (!printRef.current) return;
@@ -74,6 +83,8 @@ const EfficiencyAnalysis = ({ show, onClose, formData, currentRates, calculation
         const { docsFee, coFee, oceanFreightPerCbm, minCbm, cbmWeightDivisor, vatRate } = settings.common;
         
         // [수정] 세금용 환율과 물품대금용 환율을 엄격하게 분리하여 반영
+        // `|| 1` 은 남겨 둔다 — 이 창은 통관비 탭 결과가 있을 때만 여는 버튼으로 열린다. 고시환율·원-달러가 비면
+        //   결과가 null(CustomsCalculator remitMissing·customsRateMissing)이라 버튼이 안 보여 1원 환율로 계산될 일이 없다.
         const customsRate = currentRates?.customs || 1;
         const usdKrwRate = currentRates?.usdKrw || 1;
         

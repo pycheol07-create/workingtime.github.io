@@ -1,5 +1,22 @@
 // [수정됨] 부자재는 원-위안 환율로 직접 변환 후 최종 원가에 합산하도록 분리
 
+// 라디오 묶음(수수료·통관비·포장봉투·라벨). 렌더 밖에 둔다 — 안에서 만들면 다시 그릴 때마다 새 컴포넌트가 되어
+// 라디오가 새로 생기고 포커스가 빠진다(Tab 으로 들어가 화살표로 바꾸면 포커스를 잃었다).
+// 이름: text/babel 의 맨 위 const 는 페이지 전역이라 다른 파일과 겹치지 않게 Import 접두.
+const ImportToggleFieldset = ({ label, name, value, options, onChange }) => (
+    <fieldset className="min-w-0">
+        <legend className="block text-sm font-medium text-gray-700 mb-2">{label}</legend>
+        <div className="flex flex-wrap gap-2 p-1 bg-slate-200/60 rounded-lg">
+            {options.map((option, idx) => (
+                <label key={idx} className={`relative flex-1 min-w-[60px] cursor-pointer py-2.5 px-3 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${ String(value) === String(option.value) ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
+                    <input type="radio" name={name} value={option.value} checked={String(value) === String(option.value)} onChange={onChange} className="sr-only" />
+                    <span>{option.label}</span>
+                </label>
+            ))}
+        </div>
+    </fieldset>
+);
+
 const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsReset }) => {
     const formRef = React.useRef(null);
     const { settings } = React.useContext(SettingsContext);
@@ -60,6 +77,11 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
     }, [exchangeRates, liveRates]);
     const rateState = liveRateState(exchangeRates, liveRates, rateStatus);
     const customsRateMissing = currentRates.customs === 0;     // 빈칸·0 — 결과 대신 '고시환율을 입력하세요'
+    // 송금 환율 빈칸(빈칸·0·음수) — 원-달러·위안-달러는 늘, 원-위안은 부자재(포장비+라벨)가 있을 때만 쓴다.
+    //   예전엔 원-위안이 비면 부자재비가 소리 없이 0원이 됐다. 비면 결과 대신 비어 있는 칸 이름을 안내한다.
+    const subsidiaryInput = (parseNum(formData.packagingBag) || 0) + (parseNum(formData.label) || 0);
+    const remitMissing = missingRateFields(currentRates, subsidiaryInput > 0 ? ['usdKrw', 'cnyKrw', 'usdCny'] : ['usdKrw', 'usdCny']);
+    const remitMissingKey = remitMissing.join(',');
 
     const results = React.useMemo(() => {
         const productCost = parseNum(formData.productCost) || 0;
@@ -68,7 +90,7 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
         const commissionRate = parseNum(formData.commissionRate) || 0;
         const customsFeeRate = parseNum(formData.customsFeeRate) || 0;
 
-        if (productCost === 0 || currentRates.usdCny === 0 || currentRates.usdKrw === 0 || currentRates.customs === 0) return null;
+        if (productCost === 0 || remitMissingKey || currentRates.customs === 0) return null;
 
         const subsidiaryCostCNY = packagingCost + labelCost;
 
@@ -100,27 +122,13 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
             customsFeeKRW, 
             finalImportCost 
         };
-    }, [formData, currentRates]);
+    }, [formData, currentRates, remitMissingKey]);
     
     const CurrencyYenIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 4h4m-5 4h5M5 8h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg>);
     const formatKRW = (value) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value || 0);
     const formatUSD = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
     const formatCNY = (value) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)} ¥`;
     const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
-
-    const ToggleFieldset = ({ label, name, value, options, onChange }) => (
-        <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-            <div className="flex flex-wrap gap-2 p-1 bg-slate-200/60 rounded-lg">
-                {options.map((option, idx) => (
-                    <label key={idx} className={`relative flex-1 min-w-[60px] cursor-pointer py-2.5 px-3 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${ String(value) === String(option.value) ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                        <input type="radio" name={name} value={option.value} checked={String(value) === String(option.value)} onChange={onChange} className="sr-only" />
-                        <span>{option.label}</span>
-                    </label>
-                ))}
-            </div>
-        </div>
-    );
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
@@ -130,10 +138,10 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
                 <div className="space-y-6">
                     <InputControl label="상품원가" name="productCost" value={formData.productCost} onChange={handleInputChange} unit="위안화" icon={<CurrencyYenIcon />} onKeyDown={handleKeyDown} />
                     
-                    <ToggleFieldset label="수수료" name="commissionRate" value={formData.commissionRate} options={settings.import.commissionRates} onChange={handleInputChange} />
-                    <ToggleFieldset label="통관비" name="customsFeeRate" value={formData.customsFeeRate} options={settings.import.customsFeeRates} onChange={handleInputChange} />
-                    <ToggleFieldset label="포장봉투" name="packagingBag" value={formData.packagingBag} options={settings.import.packagingOptions} onChange={handleInputChange} />
-                    <ToggleFieldset label="라벨" name="label" value={formData.label} options={settings.import.labelOptions} onChange={handleInputChange} />
+                    <ImportToggleFieldset label="수수료" name="commissionRate" value={formData.commissionRate} options={settings.import.commissionRates} onChange={handleInputChange} />
+                    <ImportToggleFieldset label="통관비" name="customsFeeRate" value={formData.customsFeeRate} options={settings.import.customsFeeRates} onChange={handleInputChange} />
+                    <ImportToggleFieldset label="포장봉투" name="packagingBag" value={formData.packagingBag} options={settings.import.packagingOptions} onChange={handleInputChange} />
+                    <ImportToggleFieldset label="라벨" name="label" value={formData.label} options={settings.import.labelOptions} onChange={handleInputChange} />
                     
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                         <label className="block text-sm font-bold text-gray-800 mb-3">환율 적용 방식</label>
@@ -224,8 +232,14 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
                         </div>
                     </div>
                 </div>
-            ) : customsRateMissing ? (
+            ) : (customsRateMissing && !remitMissingKey) ? (
                 <CustomsRateMissing where="'환율 적용 방식' 칸의 관세청 고시환율" />
+            ) : (customsRateMissing || remitMissingKey) ? (
+                <RateMissing
+                    fields={rateFieldLabels((customsRateMissing ? ['customs'] : []).concat(remitMissing))}
+                    where="'환율 적용 방식' 칸"
+                    note={(rateState.liveLoading || rateState.liveFailed) ? `${rateState.liveFailed ? '실시간 환율을 받지 못했고' : '실시간 환율을 아직 받는 중이고'}, 대신 쓸 고정값도 비어 있습니다. '고정 환율'로 바꿔 입력하세요.` : null}
+                />
             ) : (
                 <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 flex flex-col items-center justify-center text-center">
                     <svg className="w-20 h-20 text-emerald-200 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>

@@ -126,17 +126,21 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
                   usdCny: 1 / liveRates.cny
               };
           }
+          // 빈칸은 NaN 그대로 둔다 — 예전엔 `|| 1` 로 1원 환율 계산을 했다. 비면 remitMissing 이 결과 대신 안내를 띄운다.
           return {
               customs: customsRateNum,
-              usdKrw: parseNum(exchangeRates.usdKrw) || 1,
-              cnyKrw: parseNum(exchangeRates.cnyKrw) || 1,
-              usdCny: parseNum(exchangeRates.usdCny) || 1
+              usdKrw: parseNum(exchangeRates.usdKrw),
+              cnyKrw: parseNum(exchangeRates.cnyKrw),
+              usdCny: parseNum(exchangeRates.usdCny)
           };
       }, [exchangeRates, liveRates, customsRateNum]);
       const rateState = liveRateState(exchangeRates, liveRates, rateStatus);
+      // 이 탭이 쓰는 송금 환율은 원-달러 하나(물품대금). 비었으면(빈칸·0·음수) 계산하지 않는다.
+      const remitMissing = missingRateFields(currentRates, ['usdKrw']);
+      const remitMissingKey = remitMissing.join(',');
 
       const results = React.useMemo(() => {
-          if (customsRateMissing) return null;
+          if (customsRateMissing || remitMissingKey) return null;
           const DOCS_FEE = settings.common.docsFee;
           const CO_FEE = settings.common.coFee;
           const OCEAN_FREIGHT_RATE_PER_CBM = settings.common.oceanFreightPerCbm;
@@ -211,7 +215,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
             taxableBase: taxableBaseKRW, tariffAmount: tariffAmountKRW, vatAmount: vatAmountKRW, totalTaxes,
             docsFee: DOCS_FEE, coFee: CO_FEE, commissionAmountKRW, totalCost, costPerItem,
           };
-      }, [formData, calculationMode, currentRates, settings, customsRateMissing]);
+      }, [formData, calculationMode, currentRates, settings, customsRateMissing, remitMissingKey]);
 
       // 휴대폰 하단 요약 바 — 결과 카드가 화면에 보이면 숨긴다
       React.useEffect(() => {
@@ -274,7 +278,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
         { name: 'commissionType', label: '수수료', options: commissionTypeOptions },
       ], formData, setFormData);
 
-      const rateBlockOpen = rateOpen || customsRateMissing;     // 고시환율이 비면 펼쳐 둔다
+      const rateBlockOpen = rateOpen || customsRateMissing || !!remitMissingKey;     // 고시환율·원-달러가 비면 펼쳐 둔다
       const segLabel = (on) => `relative flex-1 cursor-pointer py-2 px-2 sm:px-4 text-center text-xs sm:text-sm font-semibold whitespace-nowrap focus-within:ring-2 focus-within:ring-emerald-500 ${on ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`;
       const totalWithGoods = results ? results.totalProductPriceKRW + results.totalCost : 0;   // 총 비용(상품가 포함) — 표시용 합
 
@@ -469,8 +473,14 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
                     </button>
                   </div>
               </div>
-            ) : customsRateMissing ? (
+            ) : (customsRateMissing && !remitMissingKey) ? (
               <CustomsRateMissing where="'환율 적용 방식' 칸의 관세청 고시환율" />
+            ) : (customsRateMissing || remitMissingKey) ? (
+              <RateMissing
+                fields={rateFieldLabels((customsRateMissing ? ['customs'] : []).concat(remitMissing))}
+                where="'환율 적용 방식' 칸"
+                note={(rateState.liveLoading || rateState.liveFailed) ? `${rateState.liveFailed ? '실시간 환율을 받지 못했고' : '실시간 환율을 아직 받는 중이고'}, 대신 쓸 고정값도 비어 있습니다. '고정 환율'로 바꿔 입력하세요.` : null}
+              />
             ) : (
               <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 flex flex-col items-center justify-center text-center">
                   <svg className="w-20 h-20 text-emerald-200 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>

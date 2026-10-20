@@ -1,15 +1,17 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610201053'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610201213'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610201053';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610201053';
-import { initPageNav } from './page-nav.js?v=202610201053';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201053';
-import { setShellContext } from './app-shell-bridge.js?v=202610201053';
-import { memberNameFor } from './app-shell-data.js?v=202610201053';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610201213';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610201213';
+import { mibalSendSummary, mibalSendConfirmText } from './lib/mibal-send.js?v=202610201213';
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610201213';
+import { initPageNav } from './page-nav.js?v=202610201213';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201213';
+import { setShellContext } from './app-shell-bridge.js?v=202610201213';
+import { memberNameFor } from './app-shell-data.js?v=202610201213';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -1285,7 +1287,7 @@ function showCsvCacheNote(at) {
     const p2 = (n) => String(n).padStart(2, '0');
     const fresh = (Date.now() - at) < 60 * 1000;
     el.textContent = fresh ? '방금 갱신' : `오더 ${p2(d.getHours())}:${p2(d.getMinutes())} 기준`;
-    el.title = '오더/사입 시트를 마지막으로 받아온 시각입니다. [🔄 동기화]로 지금 받아올 수 있습니다.';
+    el.title = '오더/사입 시트를 마지막으로 받아온 시각입니다. [시트 새로고침]으로 지금 받아올 수 있습니다.';
 }
 
 // ---------------------------------------------------------
@@ -1783,7 +1785,7 @@ function renderBarcodeAliasList() {
     tb.innerHTML = entries.length
         ? entries.map(([b, v]) => `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(b)}</td><td class="t-accent" style="padding:7px 6px; font-weight:bold;">${escBa(baCode(v))}</td><td class="t-risk" style="padding:7px 6px; text-align:left; word-break:break-all;">${escBa(baMemo(v))}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="ba-edit" data-b="${escBa(b)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:7px;">✏️</span><span class="ba-del" data-b="${escBa(b)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
         : '<tr><td colspan="4" style="padding:22px; color:#999;">등록된 매칭이 없습니다. 파일 업로드 또는 위에서 직접 추가하세요.</td></tr>';
-    tb.querySelectorAll('.ba-del').forEach(x => x.onclick = async () => { delete barcodeAlias[x.dataset.b]; await saveBarcodeAlias(); renderBarcodeAliasList(); });
+    tb.querySelectorAll('.ba-del').forEach(x => x.onclick = async () => { if (!confirm(`[${x.dataset.b}] 매칭을 삭제할까요?`)) return; delete barcodeAlias[x.dataset.b]; await saveBarcodeAlias(); renderBarcodeAliasList(); });
     tb.querySelectorAll('.ba-edit').forEach(x => x.onclick = () => { const b = x.dataset.b, v = barcodeAlias[b]; document.getElementById('ba-barcode').value = b; document.getElementById('ba-code').value = baCode(v); document.getElementById('ba-memo').value = baMemo(v); document.getElementById('ba-barcode').focus(); }); // 클릭 시 입력칸에 로드 → 수정 후 +추가로 덮어씀
 }
 async function addBarcodeAliasManual() {
@@ -2193,6 +2195,7 @@ async function clearAllData() {
         renderTable();
         updateSummary();
         await saveConfig(); // 선택 출고일 비운 상태 저장
+        rememberSavedDates(); // 저장 성공 → 같은 값은 다시 안 씀
         await syncOrderData(true); // [Ver 4.4] 초기화 후 출고일 목록 다시 로드 (빈 화면 방지)
         hideLoading();
         showToast('✅ 미발계산기 초기화 완료 (비축창고 포함 · 위치 데이터는 유지)');
@@ -2577,7 +2580,10 @@ function renderTableHeader(cols) {
         const funnel = canFilter ? `<span class="col-filter${columnFilters[key] ? ' active' : ''}" data-key="${key}" title="필터">▾</span>` : '';
         const sortCls = def.sort ? ' th-sortable' : '';
         const sortData = def.sort ? ` data-sort="${def.sort}"` : '';
-        return `<th class="th-cell${sortCls}"${sortData} style="${w}"><span class="th-label">${colLabel(key)}</span>${funnel}</th>`;
+        const sm = def.sort ? sortMark(def.sort, sortConfig) : { mark: '', aria: 'none' }; // 지금 정렬 열만 ▲/▼
+        const ariaSort = sm.mark ? ` aria-sort="${sm.aria}"` : '';
+        const markHtml = sm.mark ? ` <span class="sort-mark">${sm.mark}</span>` : '';
+        return `<th class="th-cell${sortCls}"${sortData}${ariaSort} style="${w}"><span class="th-label">${colLabel(key)}${markHtml}</span>${funnel}</th>`;
     }).join('');
     tr.querySelectorAll('.th-sortable').forEach(th => th.addEventListener('click', () => sortTable(th.dataset.sort)));
     tr.querySelectorAll('.col-filter').forEach(f => f.addEventListener('click', (e) => { e.stopPropagation(); openColumnFilter(f.dataset.key, f); })); // [Ver 8.52] 필터 팝업
@@ -2586,7 +2592,7 @@ function renderTable() {
     const cols = getActiveColumns();
     renderTableHeader(cols);
     const tbody = document.getElementById('table-body');
-    if (!filteredData.length) { tbody.innerHTML = `<tr><td colspan="${cols.length}" style="text-align:center; padding:50px; color:#888;">출고일을 선택하세요.</td></tr>`; return; }
+    if (!filteredData.length) { tbody.innerHTML = `<tr><td colspan="${cols.length}" style="text-align:center; padding:50px; color:#888;">${emptyTableText({ savedCount: savedDates.length, tableCount: tableData.length, filtersOn: !!(document.getElementById('search-input')?.value || '').trim() || Object.keys(columnFilters).length > 0, locToday: viewMode === 'location' && locSubView === 'today' })}</td></tr>`; return; }
     let html = '';
     filteredData.forEach((row, idx) => {
         const isFromApp = inboundMap[row.code] !== undefined;
@@ -2783,7 +2789,7 @@ function openInScannerApp() {
 // ---------------------------------------------------------
 // [Ver 8.34] 미발전송: 출고일별(패킹) 미발수량 스냅샷 누적 → MIBAL_HISTORY 단일 문서
 //   record 키 "출고일|전송날짜" : {출고일, 입고일, 미발수량, 전송날짜}
-//   평균상승률 = 패킹별 (입고일시점미발 - 출고시점미발)/출고시점미발 의 평균 (화면 계산, 저장 안 함)
+//   평균상승률 = 패킹별 (입고일시점미발 - 입고 전 마지막 전송 미발)/입고 전 마지막 전송 미발 의 평균 (화면 계산, 저장 안 함)
 // ---------------------------------------------------------
 let mibalHistory = {};
 function todayISO() { const d = new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
@@ -2797,7 +2803,7 @@ function computeAvgRise() {
     Object.values(byShip).forEach(recs => {
         recs.sort((a, b) => String(a.전송날짜).localeCompare(String(b.전송날짜)));
         const 입고일 = (recs.find(r => r.입고일) || {}).입고일 || ''; // [Ver 8.54] 여러 전송 중 입고일이 채워진 것 우선 (초기 전송 때 입고일 미확정이면 빈 값이라 옛 코드는 계속 '미정'으로 굳음)
-        const before = recs.find(r => !입고일 || String(r.전송날짜) < 입고일);       // 출고(입고 전) 시점
+        const before = recs.filter(r => !입고일 || String(r.전송날짜) < 입고일).pop(); // [2026-10-20] 입고 전 '가장 최근' 전송(예전엔 첫 전송) — js/lib/mibal-forecast.js lastBefore 와 같게
         const arr = 입고일 ? recs.find(r => String(r.전송날짜) >= 입고일) : null;      // 입고일 시점
         if (!before || !arr) return;
         const a = parseInt(before.미발수량) || 0, b = parseInt(arr.미발수량) || 0;
@@ -2822,7 +2828,7 @@ function buildPredictionRows() {
     Object.keys(byShip).forEach(출고일 => {
         const recs = byShip[출고일].slice().sort((a, b) => String(a.전송날짜).localeCompare(String(b.전송날짜)));
         const 입고일 = (recs.find(r => r.입고일) || {}).입고일 || ''; // [Ver 8.54] 여러 전송 중 입고일이 채워진 것 우선 (초기 전송 때 입고일 미확정이면 빈 값이라 옛 코드는 계속 '미정'으로 굳음)
-        const before = recs.find(r => !입고일 || String(r.전송날짜) < 입고일) || recs[0];
+        const before = recs.filter(r => !입고일 || String(r.전송날짜) < 입고일).pop() || recs[0]; // [2026-10-20] 입고 전 가장 최근 전송
         const 출고미발 = parseInt(before.미발수량) || 0;
         const arrRec = 입고일 ? recs.find(r => String(r.전송날짜) >= 입고일) : null;
         const 입고미발 = arrRec ? (parseInt(arrRec.미발수량) || 0) : null;
@@ -2875,12 +2881,15 @@ async function downloadMibalPredict() {
 async function sendMibal() {
     if (viewMode === 'location') { alert('미발전송은 미발계산기 모드에서 사용하세요.'); return; }
     if (!savedDates.length) { alert('출고일을 하나 이상 선택하세요.'); return; }
-    if (!filteredData.length) { alert('표에 데이터가 없습니다. 출고일을 확인하세요.'); return; }
-    const 미발수량 = filteredData.reduce((s, d) => s + (parseInt(d.shortage) || 0), 0);
+    if (!tableData.length) { alert('표에 데이터가 없습니다. 출고일을 확인하세요.'); return; }
+    // 미발수량은 선택 출고일의 전체 행 합계 — 예전엔 검색·열 필터 뒤 보이는 행만 더했다(js/lib/mibal-send.js)
+    const { total: 미발수량, visible } = mibalSendSummary(tableData, filteredData);
+    const filtersOn = !!(document.getElementById('search-input')?.value || '').trim() || Object.keys(columnFilters).length > 0;
     const 전송날짜 = todayISO();
     // [Ver 8.35] 선택된 출고일마다 동일 미발수량으로 각각 기록 (같은날 여러 출고일 입고 대응, 제한 없음)
     const dupes = savedDates.filter(o => mibalHistory[`${o}|${전송날짜}`]);
-    if (dupes.length && !confirm(`오늘(${전송날짜}) 이미 전송한 출고일 ${dupes.length}건이 있습니다.\n미발수량 ${미발수량}(으)로 덮어쓸까요?`)) return;
+    // 보내기 전에 늘 확인 — 출고일·합계, 필터가 켜졌으면 보이는 합계와의 차이, 같은 날 기록이 있으면 덮어씀(예전 중복 확인을 합침)
+    if (!confirm(mibalSendConfirmText({ dates: savedDates, total: 미발수량, visible, filtersOn, dupes, today: 전송날짜 }))) return;
     const update = {};
     savedDates.forEach(출고일 => {
         const 입고일 = (arrivalByShip[출고일] && arrivalByShip[출고일][0]) || '';
@@ -2956,7 +2965,11 @@ async function checkVersion(publishAppMeta = false) {
 // ---------------------------------------------------------
 // Firebase 설정 로직
 // ---------------------------------------------------------
-async function loadConfig() { const snap = await getDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC)); if (snap.exists()) { const c = snap.data(); csvUrlOrder = c.csvUrlOrder || ''; csvUrlBuy = c.csvUrlBuy || ''; savedDatesMibal = Array.isArray(c.savedDatesMibal) ? c.savedDatesMibal : (Array.isArray(c.savedDates) ? c.savedDates : []); savedDatesLoc = Array.isArray(c.savedDatesLoc) ? c.savedDatesLoc : []; savedDates = (viewMode === 'location') ? [...savedDatesLoc] : [...savedDatesMibal]; mibalFormula = c.mibalFormula || DEFAULT_MIBAL_FORMULA; mibalVars = sanitizeMibalVars(c.mibalVars); MIBAL_COMPUTED_VARS.forEach(v => { if (!mibalVars.includes(v)) mibalVars.push(v); }); /* [Ver 8.25] 도착수량 등 계산변수는 기본공식에 쓰이므로 항상 포함 */ mibalFn = compileMibalFormula(mibalFormula); if (!mibalFn && c.mibalFormula) { console.warn('[china-stock] 저장된 미발 공식이 허용 형식이 아니어서 기본 공식을 씁니다.'); showToast('⚠️ 저장된 미발 공식이 허용 형식이 아니어서 기본 공식으로 계산합니다'); mibalFormula = DEFAULT_MIBAL_FORMULA; } if (!mibalFn) mibalFn = compileMibalFormula(DEFAULT_MIBAL_FORMULA); zoneCapacity = c.zoneCapacity || {}; columnConfig = Array.isArray(c.columnConfig) ? c.columnConfig : null; locationColumnConfig = Array.isArray(c.locationColumnConfig) ? c.locationColumnConfig : null; graceDays = (c.graceDays !== undefined && c.graceDays !== null) ? (parseInt(c.graceDays) || 0) : 1; newLocPosition = (c.newLocPosition === 'front') ? 'front' : 'back'; } }
+// 마지막으로 CONFIG 에 쓴(또는 읽은) 출고일 키 — 목록(미발/위치)마다 따로. 같으면 saveDatesQuiet 가 다시 쓰지 않고, 바뀐 목록만 쓴다.
+//   입고 스캔마다 applyDates 가 불려 열린 탭 수만큼 쓰고, 예전에 연 탭이 옛 출고일로 savedDatesMibal 을 되돌리던 문제(미발수집·mibal2 가 읽는 값)
+let lastSavedMibalKey = null, lastSavedLocKey = null;
+function rememberSavedDates() { const r = datesPatch(savedDatesMibal, savedDatesLoc); lastSavedMibalKey = r.mibalKey; lastSavedLocKey = r.locKey; }
+async function loadConfig() { const snap = await getDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC)); if (snap.exists()) { const c = snap.data(); csvUrlOrder = c.csvUrlOrder || ''; csvUrlBuy = c.csvUrlBuy || ''; savedDatesMibal = Array.isArray(c.savedDatesMibal) ? c.savedDatesMibal : (Array.isArray(c.savedDates) ? c.savedDates : []); savedDatesLoc = Array.isArray(c.savedDatesLoc) ? c.savedDatesLoc : []; savedDates = (viewMode === 'location') ? [...savedDatesLoc] : [...savedDatesMibal]; mibalFormula = c.mibalFormula || DEFAULT_MIBAL_FORMULA; mibalVars = sanitizeMibalVars(c.mibalVars); MIBAL_COMPUTED_VARS.forEach(v => { if (!mibalVars.includes(v)) mibalVars.push(v); }); /* [Ver 8.25] 도착수량 등 계산변수는 기본공식에 쓰이므로 항상 포함 */ mibalFn = compileMibalFormula(mibalFormula); if (!mibalFn && c.mibalFormula) { console.warn('[china-stock] 저장된 미발 공식이 허용 형식이 아니어서 기본 공식을 씁니다.'); showToast('⚠️ 저장된 미발 공식이 허용 형식이 아니어서 기본 공식으로 계산합니다'); mibalFormula = DEFAULT_MIBAL_FORMULA; } if (!mibalFn) mibalFn = compileMibalFormula(DEFAULT_MIBAL_FORMULA); zoneCapacity = c.zoneCapacity || {}; columnConfig = Array.isArray(c.columnConfig) ? c.columnConfig : null; locationColumnConfig = Array.isArray(c.locationColumnConfig) ? c.locationColumnConfig : null; graceDays = (c.graceDays !== undefined && c.graceDays !== null) ? (parseInt(c.graceDays) || 0) : 1; newLocPosition = (c.newLocPosition === 'front') ? 'front' : 'back'; } rememberSavedDates(); /* 읽은 값 = 저장된 값 → 첫 applyDates 가 다시 쓰지 않게 */ }
 // 직원도 쓰는 출고일 선택만 저장한다. CSV 주소(csvUrl*)·공식(mibalFormula)·추가변수(mibalVars)는 관리자 전용 키라
 //   각자의 저장 함수(saveSheetSettings·공식 적용·추가변수)에서만 쓴다 — 여기서 옛 값을 다시 쓰면 관리자 변경을 덮는다.
 async function saveConfig() { persistActiveDates(); await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { savedDatesMibal, savedDatesLoc, updatedAt: new Date() }, { merge: true }); }
@@ -2964,7 +2977,15 @@ async function saveConfig() { persistActiveDates(); await setDoc(doc(db, CHINA_C
 const DATE_SAVE_TOAST_GAP_MS = 10000;
 let lastDateSaveToast = { msg: '', at: 0 };
 function saveDatesQuiet() {
-    saveConfig().catch(e => {
+    persistActiveDates();
+    const { patch, mibalKey, locKey } = datesPatch(savedDatesMibal, savedDatesLoc, { mibalKey: lastSavedMibalKey, locKey: lastSavedLocKey });
+    if (!patch) return; // 출고일이 그대로면 쓰지 않음
+    if ('savedDatesMibal' in patch) lastSavedMibalKey = mibalKey;
+    if ('savedDatesLoc' in patch) lastSavedLocKey = locKey;
+    // 바뀐 목록만 merge 로 쓴다 — 오래 열린 탭이 다른 쪽(미발/위치) 목록을 옛 값으로 되돌리지 않게
+    setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { ...patch, updatedAt: new Date() }, { merge: true }).catch(e => {
+        if ('savedDatesMibal' in patch) lastSavedMibalKey = null; // 실패한 목록만 다음 호출에서 다시 쓴다
+        if ('savedDatesLoc' in patch) lastSavedLocKey = null;
         console.warn('[china-stock] 출고일 저장 실패:', e && e.code);
         const msg = saveErrorMessage(e, 'dates');
         const now = Date.now();

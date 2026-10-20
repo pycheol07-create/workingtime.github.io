@@ -1,17 +1,21 @@
 // === js/listeners-history-records.js ===
 // 설명: 이력 보기의 '기록 관리'(상세 내역 수정/삭제/일괄적용) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610201053';
-import * as State from './state.js?v=202610201053';
-import { showToast } from './utils.js?v=202610201053';
+import * as DOM from './dom-elements.js?v=202610201213';
+import * as State from './state.js?v=202610201213';
+import { showToast } from './utils.js?v=202610201213';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=202610201053';
-import { renderHistoryDetail } from './app-history-logic.js?v=202610201053';
-import { renderHistoryRecordsTable, openHistoryRecordManager } from './history-record-table.js?v=202610201053';
-import { generateId } from './app-data.js?v=202610201053';
+} from './history-data-manager.js?v=202610201213';
+import { renderHistoryDetail } from './app-history-logic.js?v=202610201213';
+import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows } from './history-record-table.js?v=202610201213';
+import { generateId } from './app-data.js?v=202610201213';
+
+const currentRecordsDateKey = () => document.getElementById('history-records-date').textContent;
+// 기존 확인창 끝에 붙이는 문구 — 저장 안 한 수정이 없으면 빈 문자열
+const dirtyNote = (n) => (n > 0 ? ` (저장하지 않은 수정 ${n}건도 사라집니다)` : '');
 
 export function setupHistoryRecordListeners() {
 
@@ -29,18 +33,23 @@ export function setupHistoryRecordListeners() {
     const memberFilterEl = document.getElementById('history-record-filter-member');
     const taskFilterEl = document.getElementById('history-record-filter-task');
 
-    if (memberFilterEl) {
-        memberFilterEl.addEventListener('change', () => {
-            const dateKey = document.getElementById('history-records-date').textContent;
+    //    표를 다시 그리면 저장 안 한 입력이 사라진다 — 바꾸기 전 값을 기억해 두고, 확인창에서 취소하면 되돌린다.
+    [memberFilterEl, taskFilterEl].forEach(selectEl => {
+        if (!selectEl) return;
+        const rememberPrev = () => { selectEl.dataset.prev = selectEl.value; };
+        selectEl.addEventListener('focus', rememberPrev);
+        selectEl.addEventListener('mousedown', rememberPrev);
+        selectEl.addEventListener('change', () => {
+            const dateKey = currentRecordsDateKey();
+            const dirty = countDirtyRecordRows(dateKey);
+            if (dirty > 0 && !confirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 필터를 바꿀까요?`)) {
+                selectEl.value = selectEl.dataset.prev ?? '';
+                return;
+            }
+            selectEl.dataset.prev = selectEl.value;
             renderHistoryRecordsTable(dateKey);
         });
-    }
-    if (taskFilterEl) {
-        taskFilterEl.addEventListener('change', () => {
-            const dateKey = document.getElementById('history-records-date').textContent;
-            renderHistoryRecordsTable(dateKey);
-        });
-    }
+    });
 
     // 3. (기존) 선택된 업무 일괄 시간 수정 적용
     const batchApplyBtn = document.getElementById('history-batch-apply-btn');
@@ -55,7 +64,7 @@ export function setupHistoryRecordListeners() {
             if (!newStart && !newEnd) { showToast('수정할 시작 또는 종료 시간을 입력해주세요.', true); return; }
             if (newStart && newEnd && newStart >= newEnd) { showToast('시작 시간이 종료 시간보다 빨라야 합니다.', true); return; }
 
-            if (!confirm(`선택된 업무(${taskFilterVal})의 모든 기록을 일괄 수정하시겠습니까?`)) return;
+            if (!confirm(`선택된 업무(${taskFilterVal})의 모든 기록을 일괄 수정하시겠습니까?${dirtyNote(countDirtyRecordRows(dateKey))}`)) return;
 
             try {
                 const data = State.allHistoryData.find(d => d.id === dateKey);
@@ -130,6 +139,9 @@ export function setupHistoryRecordListeners() {
 
              if (!member || !task || !startTime || !endTime) { showToast('모든 필드를 입력해주세요.', true); return; }
              if (startTime >= endTime) { showToast('종료 시간은 시작 시간보다 늦어야 합니다.', true); return; }
+             // 추가하면 표를 다시 그린다 — 저장 안 한 수정이 사라진다
+             const dirty = countDirtyRecordRows(dateKey);
+             if (dirty > 0 && !confirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 기록을 추가할까요?`)) return;
 
              try {
                  const newRecord = {
@@ -165,7 +177,7 @@ export function setupHistoryRecordListeners() {
             if (deleteBtn) {
                 const dateKey = deleteBtn.dataset.dateKey;
                 const recordId = deleteBtn.dataset.recordId;
-                if (confirm('정말로 이 기록을 삭제하시겠습니까?')) {
+                if (confirm('정말로 이 기록을 삭제하시겠습니까?' + dirtyNote(countDirtyRecordRows(dateKey)))) {
                     try {
                         await deleteHistoryWorkRecord(dateKey, recordId);
                         showToast('기록이 삭제되었습니다.');
@@ -193,6 +205,8 @@ export function setupHistoryRecordListeners() {
                 const originalRecord = dayData?.workRecords?.find(r => r.id === recordId);
 
                 if (originalRecord) {
+                    const dirty = countDirtyRecordRows(dateKey);
+                    if (dirty > 0 && !confirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 복제할까요?`)) return;
                     try {
                         const newRecord = {
                             ...originalRecord,
@@ -216,6 +230,23 @@ export function setupHistoryRecordListeners() {
                 }
             }
         });
+    }
+
+    // 닫기(× · 하단 [취소 / 닫기] · ESC — modal-esc.js 가 #history-records-close-btn 을 누른다) 전에 저장 안 한 수정 확인.
+    //    캡처 단계에서 막아야 버튼의 인라인 onclick 과 listeners-modals.js 의 공통 닫기가 둘 다 멈춘다.
+    if (DOM.historyRecordsModal) {
+        DOM.historyRecordsModal.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn || btn.id === 'history-record-save-all-btn') return;
+            const isClose = btn.classList.contains('modal-close-btn')
+                || !!btn.closest('.border-t.flex.justify-end');
+            if (!isClose) return;
+            const dirty = countDirtyRecordRows(currentRecordsDateKey());
+            if (dirty > 0 && !confirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 닫을까요?`)) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+        }, true);
     }
 
     // ✅ [신규] 일괄 저장 기능 (DOM 위임: 모달 컨텐츠 박스에 리스너 연결)

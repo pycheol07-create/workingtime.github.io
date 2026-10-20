@@ -1,23 +1,24 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202610201053';
-import * as State from './state.js?v=202610201053';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610201053';
+import * as DOM from './dom-elements.js?v=202610201213';
+import * as State from './state.js?v=202610201213';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610201213';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610201053';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610201053';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610201053';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610201053';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610201213';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610201213';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610201213';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610201213';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610201053';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610201053';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610201053';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610201053';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610201213';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610201213';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610201213';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610201213';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610201053';
-import { saveView } from './view-state.js?v=202610201053';
-import { goTo } from './app-shell-bridge.js?v=202610201053';
-import { placeOpenDropdown } from './table-filter.js?v=202610201053';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610201213';
+import { saveView } from './view-state.js?v=202610201213';
+import { goTo } from './app-shell-bridge.js?v=202610201213';
+import { placeOpenDropdown } from './table-filter.js?v=202610201213';
+import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=202610201213';
 
 let isHistoryMaximized = false;
 
@@ -196,6 +197,8 @@ export function setupHistoryModalListeners() {
     const periodLabel = document.getElementById('history-period-label');
     const periodPrev = document.getElementById('history-period-prev');
     const periodNext = document.getElementById('history-period-next');
+    // 날짜 버튼의 날짜 글자만 — 버튼 안의 '누락' 표시는 라벨에 넣지 않는다
+    const dateBtnLabel = (btn) => ((btn.querySelector('.whitespace-nowrap') || btn).textContent || '').trim();
     // 기간 키(YYYY-MM-DD · YYYY-Www · YYYY-MM · YYYY)는 글자 순서 = 시간 순서
     const periodButtons = () => DOM.historyDateList
         ? [...DOM.historyDateList.querySelectorAll('.history-date-btn[data-key]')].sort((a, b) => a.dataset.key.localeCompare(b.dataset.key))
@@ -205,7 +208,7 @@ export function setupHistoryModalListeners() {
         const list = periodButtons();
         const cur = DOM.historyDateList && DOM.historyDateList.querySelector('.history-date-btn.is-on');
         const i = cur ? list.indexOf(cur) : -1;
-        periodLabel.textContent = cur ? ((cur.textContent || '').trim() || cur.dataset.key) : '날짜 선택';
+        periodLabel.textContent = cur ? (dateBtnLabel(cur) || cur.dataset.key) : '날짜 선택';
         if (periodPrev) periodPrev.disabled = !(i > 0);
         if (periodNext) periodNext.disabled = !(i >= 0 && i < list.length - 1);
     };
@@ -259,13 +262,15 @@ export function setupHistoryModalListeners() {
             // 선택 표시: is-on(코드가 찾는 이름) + bg-blue-100(색 — css/history-d.css 가 이 이름으로 칠한다. 선택 날짜를 찾는 코드는 모두 .is-on)
             DOM.historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('is-on', 'bg-blue-100', 'font-bold', 'bg-blue-50', 'text-blue-700', 'dark:bg-blue-900/40', 'dark:text-blue-400'));
             btn.classList.add('is-on', 'bg-blue-100', 'font-bold');
+            DOM.historyDateList.querySelectorAll('.history-date-btn[aria-current]').forEach(b => b.removeAttribute('aria-current'));
+            btn.setAttribute('aria-current', 'date');
             const dateKey = btn.dataset.key;
             saveView({ dateKey });   // 새로고침해도 이 날짜가 다시 선택되도록
 
             // 📱 모바일: 선택한 날짜를 토글 바 라벨에 반영. 드로어는 실제 사용자 탭일 때만 닫음
             // (세분화 변경 시 자동 선택되는 프로그래밍적 클릭 e.isTrusted=false 에서는 열린 상태 유지)
             const mLabel = document.getElementById('history-mobile-date-label');
-            if (mLabel) mLabel.textContent = (btn.textContent || '').trim() || '날짜 선택';
+            if (mLabel) mLabel.textContent = dateBtnLabel(btn) || '날짜 선택';
             syncPeriodBar();
             if (e.isTrusted) {
                 const sb = document.getElementById('history-global-sidebar');
@@ -575,17 +580,29 @@ export function setupHistoryModalListeners() {
     }
 }
 
+// 확인 문구: '다음을 삭제합니다: **YYYY-MM-DD** · [대상] (n건)' (+ 오늘이면 진행 중 화면 안내).
+// (대상마다 받침이 달라 '…을/를' 을 붙이지 않는 형식으로 쓴다)
+// 날짜·건수는 textContent 로만 넣는다. 대상·건수 계산은 js/lib/history-delete-text.js.
 export const requestHistoryDeletion = (dateKey) => {
     State.context.historyKeyToDelete = dateKey;
     const activeTab = State.context.activeMainHistoryTab || 'work';
-    let targetName = '모든';
-    
-    if (activeTab === 'work' || activeTab === 'report') targetName = '업무 이력(처리량 포함)';
-    else if (activeTab === 'attendance') targetName = '근태 이력';
-    else if (activeTab === 'management') targetName = '경영 지표';
-    else if (activeTab === 'inspection') targetName = '검수 이력';
+    const entry = (State.allHistoryData || []).find(d => d && d.id === dateKey);
+    const summary = deletionSummary(entry, activeTab);
 
     const msgEl = document.querySelector('#delete-history-modal h3');
-    if (msgEl) msgEl.innerHTML = `정말로 이 날짜의 <span class="text-red-600 font-bold">${targetName}</span> 데이터를 삭제하시겠습니까?`;
+    if (msgEl) {
+        msgEl.textContent = '다음을 삭제합니다: ';
+        const dateEl = document.createElement('strong');
+        dateEl.className = 'text-red-600 dark:text-red-400';
+        dateEl.textContent = String(dateKey || '');
+        msgEl.appendChild(dateEl);
+        msgEl.appendChild(document.createTextNode(deletionDetail(summary)));
+        if (dateKey === getTodayDateString()) {
+            const todayEl = document.createElement('span');
+            todayEl.className = 'block mt-2 text-sm font-semibold text-red-600 dark:text-red-400';
+            todayEl.textContent = '진행 중인 오늘 화면 데이터도 지워집니다';
+            msgEl.appendChild(todayEl);
+        }
+    }
     if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.remove('hidden');
 };

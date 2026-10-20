@@ -1,9 +1,9 @@
 // === js/history-record-table.js ===
 // 설명: '기록 관리' 모달 내의 테이블 렌더링 및 필터링 로직을 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610201053';
-import * as State from './state.js?v=202610201053';
-import { showToast, formatDuration, calcTotalPauseMinutes } from './utils.js?v=202610201053';
+import * as DOM from './dom-elements.js?v=202610201213';
+import * as State from './state.js?v=202610201213';
+import { showToast, formatDuration, calcTotalPauseMinutes, escapeHtml } from './utils.js?v=202610201213';
 
 /**
  * 기록 관리 모달을 엽니다.
@@ -31,6 +31,7 @@ export const openHistoryRecordManager = (dateKey) => {
             memberSelect.innerHTML += `<option value="${m}">${m}</option>`;
         });
         memberSelect.value = ''; // Reset
+        memberSelect.dataset.prev = '';
     }
     if (taskSelect) {
         taskSelect.innerHTML = '<option value="">전체</option>';
@@ -38,6 +39,7 @@ export const openHistoryRecordManager = (dateKey) => {
             taskSelect.innerHTML += `<option value="${t}">${t}</option>`;
         });
         taskSelect.value = ''; // Reset
+        taskSelect.dataset.prev = '';
     }
 
     // 일괄 수정 패널 숨김 (기존 로직 유지)
@@ -79,6 +81,24 @@ export const openHistoryRecordManager = (dateKey) => {
 
     if (DOM.historyRecordsModal) DOM.historyRecordsModal.classList.remove('hidden');
 }
+
+/**
+ * 표에서 고치고 아직 저장하지 않은 행 수.
+ * 표를 다시 그리는 동작(필터·삭제·복제·일괄 수정·새 기록 추가)과 닫기 전에 확인창에 쓴다 — [일괄 저장] 은 화면에 남은 행만 읽는다.
+ * 기준은 그릴 때 입력칸에 실제로 들어간 값(tr.dataset.orig*)이다. State 와 비교하면 time 입력이 값을 정리하거나
+ * 오늘 진행 중 기록의 endTime 이 동기화로 바뀔 때 고치지 않은 행도 '수정됨' 으로 셌다.
+ */
+export const countDirtyRecordRows = (dateKey) => {
+    if (!DOM.historyRecordsTableBody) return 0;
+    let count = 0;
+    DOM.historyRecordsTableBody.querySelectorAll('tr.history-record-row').forEach(row => {
+        const task = row.querySelector('.history-record-task')?.value ?? '';
+        const start = row.querySelector('.history-record-start')?.value ?? '';
+        const end = row.querySelector('.history-record-end')?.value ?? '';
+        if (task !== (row.dataset.origTask ?? '') || start !== (row.dataset.origStart ?? '') || end !== (row.dataset.origEnd ?? '')) count++;
+    });
+    return count;
+};
 
 /**
  * 기록 관리 테이블을 렌더링합니다. (필터링 및 일괄수정 UI 연동 포함)
@@ -125,10 +145,11 @@ export const renderHistoryRecordsTable = (dateKey) => {
         tr.dataset.recordId = r.id; // 행에 ID 저장 (일괄 저장 시 식별용)
         
         // 업무 선택 옵션 생성
-        let taskOptions = '';
-        const uniqueTasks = new Set([...allTasks, r.task]); 
+        // value 는 이스케이프(업무명에 " 가 있으면 잘렸다). 업무가 비어 있으면 'undefined' 대신 빈 옵션.
+        let taskOptions = r.task ? '' : '<option value="" selected></option>';
+        const uniqueTasks = new Set(r.task ? [...allTasks, r.task] : allTasks);
         Array.from(uniqueTasks).sort().forEach(t => {
-            taskOptions += `<option value="${t}" ${t === r.task ? 'selected' : ''}>${t}</option>`;
+            taskOptions += `<option value="${escapeHtml(t)}" ${t === r.task ? 'selected' : ''}>${t}</option>`;
         });
 
         // 휴식 시간 계산 및 표시
@@ -169,6 +190,10 @@ export const renderHistoryRecordsTable = (dateKey) => {
             </td>
         `;
         DOM.historyRecordsTableBody.appendChild(tr);
+        // 저장 안 한 수정 판정 기준 — 그린 직후 입력칸의 실제 값 (countDirtyRecordRows)
+        tr.dataset.origTask = tr.querySelector('.history-record-task').value;
+        tr.dataset.origStart = tr.querySelector('.history-record-start').value;
+        tr.dataset.origEnd = tr.querySelector('.history-record-end').value;
     });
     
     if (sorted.length === 0) {

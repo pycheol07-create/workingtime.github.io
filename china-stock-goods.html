@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 미발계산기</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610201053">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610201053">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610201053">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610201053">
+    <link rel="stylesheet" href="css/suit.css?v=202610201213">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610201213">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610201213">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610201213">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -267,7 +267,7 @@
     <div class="summary-bar">
         <div class="summary-card highlight"><span class="label">총 SKU</span><span class="value" id="sum-sku">0</span></div>
         <div class="summary-card highlight"><span class="label">총 도착수량</span><span class="value" id="sum-arrival">0</span></div>
-        <div class="summary-card"><span class="label">총 미발수량</span><span class="value" id="sum-mibal">0</span></div>
+        <div class="summary-card" title="부족수량 열의 합계입니다(미발수량 열 합계가 아님)"><span class="label">총 미발수량</span><span class="value" id="sum-mibal">0</span></div>
     </div>
 
     <!-- [Ver 7.1] 위치지정모드 서브탭: 당일입고지정 / 기존재고지정 -->
@@ -529,7 +529,7 @@
             <h3 style="margin-top:0;">미발 예측 데이터</h3>
             <div id="mp-summary" class="d-note" style="font-size:13px; color:var(--c-text); padding:10px 12px; margin-bottom:10px;"></div>
             <div class="t-3" style="font-size:11px; margin-bottom:8px; line-height:1.5;">
-                · <b>출고미발</b> = 출고 시점(첫 전송) 미발수량 · <b>입고미발</b> = 입고일(도착) 이후 전송 미발수량<br>
+                · <b>출고미발</b> = 입고 전 마지막 전송의 미발수량(2026-10-20부터 — 예전엔 첫 전송) · <b>입고미발</b> = 입고일(도착) 이후 전송 미발수량<br>
                 · <b>상승률</b> = (입고미발 − 출고미발) / 출고미발 · <b>예상미발</b> = 출고미발 × (1 + 평균상승률) — 데이터 없으면 기본 40%<br>
                 · <b>평균상승률</b>은 상승률이 <b>1~100%</b>인 패킹만 평균(이상치 제외, 시트 AVERAGEIFS와 동일). 표의 상승률은 실제값 그대로 표시
             </div>
@@ -560,10 +560,10 @@
     <div id="toast"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- ?v= 는 버전 배지와 함께 올려서 브라우저가 옛 JS 캐시를 쓰지 않게 함 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610201053"></script>
-    <script type="module" src="js/china-stock-goods.js?v=202610201053"></script>
-    <script type="module" src="js/modal-drag.js?v=202610201053"></script>
-    <script type="module" src="js/page-gate.js?v=202610201053" data-perm-page="china.mibal"></script>
-    <script type="module" src="js/app-shell.js?v=202610201053"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610201213"></script>
+    <script type="module" src="js/china-stock-goods.js?v=202610201213"></script>
+    <script type="module" src="js/modal-drag.js?v=202610201213"></script>
+    <script type="module" src="js/page-gate.js?v=202610201213" data-perm-page="china.mibal"></script>
+    <script type="module" src="js/app-shell.js?v=202610201213"></script>
 </body>
 </html>

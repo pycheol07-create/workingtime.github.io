@@ -2,6 +2,7 @@
 // ESC 키로 팝업(모달)을 닫는다. (의존성 없는 단독 스크립트 — 모든 페이지에 포함)
 // 이 앱의 모달은 공통적으로 `fixed inset-0 ... flex items-center justify-center ... hidden`
 // 형태의 오버레이이며, 열림/닫힘은 'hidden' 클래스로 토글된다.
+// 로케이션관리(location.html)의 옛 창은 `.modal-overlay` 이고 style.display('flex'/'none')로 여닫는다 — 이것도 후보.
 // ESC를 누르면 현재 보이는 모달 중 z-index가 가장 높은(맨 위) 것 하나를 닫는다.
 (function () {
     if (typeof document === 'undefined') return;
@@ -11,6 +12,9 @@
     const EXCLUDED_IDS = new Set(['login-modal', 'overtime-prompt-modal']);
     // id 에 close 가 들어 있지만 '닫기'가 아닌 동작 버튼 — ESC 가 누르면 안 된다
     const NOT_CLOSE_BUTTON_IDS = new Set(['btn-close-now']);
+    // ESC 를 스스로(window 캡처) 처리하는 표 창 — js/refill-table.js · js/locrec-table.js.
+    // 대시보드(index)에도 붙으므로 여기서 또 닫으면 ESC 한 번에 창 두 개가 닫힌다. 맨 위면 아무것도 하지 않는다.
+    const SELF_ESC_IDS = new Set(['refill-modal', 'locrec-modal']);
     // 데이터 관리 전체 페이지(history.html, <body data-shell="history">)의 #history-modal 은 모달이 아니라 화면 본체다
     // — ESC 후보에서 뺀다(예전엔 열린 창이 없을 때 ESC 가 화면을 숨기고 최대화를 풀었다). index 의 모달 동작은 그대로.
     function isPageBody(el) {
@@ -29,15 +33,21 @@
         return Number.isNaN(z) ? 0 : z;
     }
 
-    // 중앙 정렬(justify-center) 오버레이만 "모달"로 간주한다.
+    // .fixed.inset-0 은 중앙 정렬(justify-center) 오버레이만 "모달"로 간주한다.
     // (사이드바 딤 오버레이·워터마크 등 fixed inset-0 이지만 모달이 아닌 것 제외)
+    // .modal-overlay 는 정렬을 CSS 로 주므로 클래스만으로 모달로 본다.
+    function isCandidate(el) {
+        if (el.classList.contains('modal-overlay')) return true;
+        return !!el.className && String(el.className).indexOf('justify-center') !== -1;
+    }
+
     function findTopModal() {
-        const candidates = Array.from(document.querySelectorAll('.fixed.inset-0'));
+        const candidates = Array.from(document.querySelectorAll('.fixed.inset-0, .modal-overlay'));
         // 제외 모달도 후보에 넣어 순서를 정한 뒤, 맨 위가 제외 모달이면 ESC 는 아무것도 하지 않는다
         // (빼고 고르면 그 아래 모달이 대신 닫힌다 — 예: 연장근무 팝업 밑의 처리량 입력)
+        // 표 창(SELF_ESC_IDS)도 같은 이유로 후보에 두고, 맨 위면 손대지 않는다(자기 ESC 처리가 닫는다).
         const visible = candidates.filter(el =>
-            el.className &&
-            el.className.indexOf('justify-center') !== -1 &&
+            isCandidate(el) &&
             !isPageBody(el) &&
             isVisible(el)
         );
@@ -51,7 +61,8 @@
             if (pos & Node.DOCUMENT_POSITION_PRECEDING) return -1;
             return 0;
         });
-        return EXCLUDED_IDS.has(visible[0].id) ? null : visible[0];
+        const top = visible[0];
+        return (EXCLUDED_IDS.has(top.id) || SELF_ESC_IDS.has(top.id)) ? null : top;
     }
 
     // 모달 내부의 "닫기" 성격 버튼을 찾는다. (정리 로직이 있는 전용 닫기 핸들러 우선 실행)
@@ -73,6 +84,8 @@
         const btn = findCloseButton(modal);
         if (btn) {
             btn.click(); // 전용 닫기 핸들러 실행 (예: 모달별 리스너 해제·정리)
+        } else if (modal.classList.contains('modal-overlay')) {
+            modal.style.display = 'none'; // 옛 창(.modal-overlay)은 style.display 로 여닫는다
         } else {
             modal.classList.add('hidden'); // 별도 핸들러가 없으면 직접 숨김
         }

@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610201053">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610201053">
+    <link rel="stylesheet" href="css/suit.css?v=202610201213">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610201213">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -13,7 +13,7 @@
     <title>비품 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
-    <link rel="stylesheet" href="css/tool-d.css?v=202610201053">
+    <link rel="stylesheet" href="css/tool-d.css?v=202610201213">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         /* 칸마다 최소 폭(th의 min-width)을 두므로 표는 내용 폭을 따르되, 좁을 땐 영역을 꽉 채운다. */
@@ -39,6 +39,9 @@
         .flt-btn:hover { background: var(--c-accent-soft); }
         .sup-table td { padding: 9px 12px; border-bottom: 1px solid var(--c-line-soft); color: var(--c-text); vertical-align: middle; white-space: nowrap; }
         .sup-table td.wrap { white-space: normal; }
+        /* 부족·발주 필요 행 — hover 규칙과 명시도가 같아 반드시 그 앞에 둔다(마우스를 올리면 hover 색이 이긴다) */
+        .sup-table tbody tr.row-warn td { background: var(--c-risk-row); }
+        .sup-table tbody tr.row-warn td:first-child { box-shadow: inset 3px 0 0 var(--c-risk); }
         .sup-table tbody tr:hover td { background: var(--c-accent-row); }
         /* 행을 누르거나 Tab 으로 가서 Enter/Space 를 누르면 상세 창이 열린다 */
         .sup-table tbody tr[data-open] { cursor: pointer; }
@@ -48,6 +51,11 @@
         .sup-table tbody tr[data-open]:focus-visible td:first-child { box-shadow: inset 2px 0 0 var(--c-accent), inset 0 2px 0 var(--c-accent), inset 0 -2px 0 var(--c-accent); }
         .sup-table tbody tr[data-open]:focus-visible td:last-child { box-shadow: inset -2px 0 0 var(--c-accent), inset 0 2px 0 var(--c-accent), inset 0 -2px 0 var(--c-accent); }
         .sup-card[data-open]:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; }
+        /* 요약 카드 중 필터 버튼(재고 부족·발주 필요) — #tool-root 접두: tool-d.css 의 .border-slate-200 재칠을 이긴다 */
+        #tool-root .sum-btn { cursor: pointer; }
+        #tool-root .sum-btn:hover { border-color: var(--c-line-strong); }
+        #tool-root .sum-btn[aria-pressed="true"] { border-color: var(--c-risk); box-shadow: inset 0 0 0 1px var(--c-risk); }
+        .sum-btn:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
         .sup-table td.mid { text-align: center; font-variant-numeric: tabular-nums; }
         .lbl { display:block; font-size: 11px; font-weight: 700; color: var(--c-text-2); margin-bottom: 4px; }
@@ -141,9 +149,9 @@
                 <h2 id="item-modal-title" class="text-base font-bold">비품 추가</h2>
                 <button type="button" data-close class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
             </div>
-            <!-- 배치: 휴대폰 = 상세 → 재고 → 이력 세로 / md~xl = 상세 | (재고 위 · 이력 아래) / xl 이상 = 상세 | 재고 | 이력 세 칸.
+            <!-- 배치: 휴대폰 = 재고 → 상세 → 이력 세로(재고 패널 order-first) / md~xl = 상세 | (재고 위 · 이력 아래) / xl 이상 = 상세 | 재고 | 이력 세 칸.
                  새 비품 추가(재고 칸 숨김)면 상세가 md:col-span-full 로 전체 폭을 쓴다(js/supplies.js openItemModal). -->
-            <div id="item-modal-grid" class="md:grid md:grid-cols-[minmax(0,1fr)_320px] md:grid-rows-[auto_1fr] xl:grid-cols-[minmax(0,1fr)_340px_300px] xl:grid-rows-1">
+            <div id="item-modal-grid" class="flex flex-col md:grid md:grid-cols-[minmax(0,1fr)_320px] md:grid-rows-[auto_1fr] xl:grid-cols-[minmax(0,1fr)_340px_300px] xl:grid-rows-1">
             <div id="item-detail-cell" class="min-w-0 flex flex-col md:row-span-2 xl:row-span-1">
             <div class="p-6 space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -242,7 +250,7 @@
             </div>
 
             <!-- 재고 패널 — [재고 반영]은 재고만 저장하고 창을 닫지 않는다. -->
-            <aside id="stock-panel" class="hidden md:col-start-2 md:row-start-1 min-w-0 border-t md:border-t-0 md:border-l border-slate-200 bg-slate-50">
+            <aside id="stock-panel" class="hidden order-first md:order-none md:col-start-2 md:row-start-1 min-w-0 border-t md:border-t-0 md:border-l border-slate-200 bg-slate-50">
                 <div class="p-5 flex flex-col gap-3">
                     <div class="flex items-start justify-between gap-2">
                         <div>
@@ -297,11 +305,11 @@
         </div>
     </div>
 
-    <script type="module" src="js/supplies.js?v=202610201053"></script>
-    <script type="module" src="js/page-gate.js?v=202610201053" data-perm-page="supplies.view"></script>
-    <script type="module" src="js/app-shell.js?v=202610201053"></script>
-    <script src="js/connection-banner.js?v=202610201053"></script>
-    <script src="js/modal-esc.js?v=202610201053"></script>
-    <script type="module" src="js/modal-drag.js?v=202610201053"></script>
+    <script type="module" src="js/supplies.js?v=202610201213"></script>
+    <script type="module" src="js/page-gate.js?v=202610201213" data-perm-page="supplies.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610201213"></script>
+    <script src="js/connection-banner.js?v=202610201213"></script>
+    <script src="js/modal-esc.js?v=202610201213"></script>
+    <script type="module" src="js/modal-drag.js?v=202610201213"></script>
 </body>
 </html>

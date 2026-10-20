@@ -12,16 +12,17 @@
 //  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름). 권장 발주량의 최소주문·묶음은 기존 MOQ 칸 문장에서 읽는다(서버 예측규칙.MOQ해석)
 //  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
 
-import { initializeFirebase } from './config.js?v=202610201053';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610201053';
-import { memberNameFor } from './app-shell-data.js?v=202610201053';
-import { escapeHtml as esc } from './utils.js?v=202610201053';
-import { kstDateTime } from './lib/kst-time.js?v=202610201053';
+import { initializeFirebase } from './config.js?v=202610201213';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610201213';
+import { memberNameFor } from './app-shell-data.js?v=202610201213';
+import { escapeHtml as esc } from './utils.js?v=202610201213';
+import { kstDateTime } from './lib/kst-time.js?v=202610201213';
+import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202610201213';
 import {
-    effectiveStatus, statusBadge, depleteText, depleteSortValue, recommendText, isStale, parseQty, mdw, basisText,
+    effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion,
     NOCODE_HINT, DRIVER_OPTIONS
-} from './lib/supplies-forecast-view.js?v=202610201053';
+} from './lib/supplies-forecast-view.js?v=202610201213';
 import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -108,6 +109,16 @@ const COLS = [
       hint: '남은 업무일로 비교합니다(예측이 없으면 99999)',
       get: it => depleteSortValue(fcOf(it)),
       cell: it => esc(depleteText(fcOf(it))) },
+    { key: 'fcReorder', label: '발주권장일', type: 'num', td: 'mid text-slate-600',
+      hint: '오늘부터 남은 날 수로 비교합니다(지났으면 음수, 예측이 없으면 99999)',
+      get: it => reorderSortValue(fcOf(it)),
+      cell: it => {
+          const fc = fcOf(it), n = reorderDaysLeft(fc);
+          // 이미 발주했거나 입고 확인한 비품은 강조하지 않는다(서버 날짜는 발주와 상관없이 계산된다)
+          const done = ['ordered', 'received'].includes(statusOf(it));
+          const cls = n == null || done ? '' : n <= 0 ? 'text-red-600 font-bold' : n <= 7 ? 'text-amber-600 font-bold' : '';
+          return `<span class="${cls}">${esc(reorderText(fc))}</span>`;
+      } },
     { key: 'fcRecommend', label: '권장발주', type: 'num', td: 'num text-slate-600',
       get: it => num(fcOf(it)?.recommendQty),
       cell: it => esc(recommendText(fcOf(it), it.unit || '개')) },
@@ -337,6 +348,7 @@ function renderMainItems() {
                 ${num(it.safetyStock) > 0 ? `안전 ${fmt(it.safetyStock)}${esc(it.unit || '개')}<br>` : ''}
                 ${num(it.unitPrice) > 0 ? `단가 ${fmt(it.unitPrice)}원` : '단가 미등록'}
                 ${fc && fc.depleteDate ? `<br>소진 ${esc(mdw(fc.depleteDate).replace(/\(.\)$/, ''))}` : ''}
+                ${fc && fc.reorderDate ? `<br><span class="${(reorderDaysLeft(fc) ?? 99) <= 0 && !['ordered', 'received'].includes(statusOf(it)) ? 'text-red-600 font-bold' : ''}">발주 ${esc(mdw(fc.reorderDate).replace(/\(.\)$/, ''))}</span>` : ''}
             </div>
         </div>`;
     }).join('');
@@ -354,12 +366,30 @@ function renderSummary() {
             <div class="text-lg font-black ${tone} mt-0.5">${value}</div>
         </div>`;
 
+    // '재고 부족'·'발주 필요' 카드는 누르면 목록의 같은 체크박스(부족분만·발주 필요만)를 켜고 끈다.
+    // 눌림 표시(aria-pressed)는 체크박스를 따라간다 — syncSummaryFilters(renderTable 끝에서도 부른다).
+    const filterCard = (key, label, value, tone) => `
+        <button type="button" data-sum-filter="${key}" aria-pressed="false" class="sum-btn text-left bg-white rounded-xl border border-slate-200 p-3"
+            title="목록을 ${label} 비품만 보기 (다시 누르면 해제)">
+            <div class="text-[11px] font-bold text-slate-400">${label}</div>
+            <div class="text-lg font-black ${tone} mt-0.5">${value}</div>
+        </button>`;
+
     $('summary').innerHTML =
         card('등록 비품', `${items.length}종`) +
         card('종류', `${categories.size}개`) +
-        card('재고 부족', `${lowCount}종`, lowCount > 0 ? 'text-red-600' : 'text-slate-800') +
-        card('발주 필요', `${orderCount}종`, orderCount > 0 ? 'text-red-600' : 'text-slate-800') +
+        filterCard('low', '재고 부족', `${lowCount}종`, lowCount > 0 ? 'text-red-600' : 'text-slate-800') +
+        filterCard('order', '발주 필요', `${orderCount}종`, orderCount > 0 ? 'text-red-600' : 'text-slate-800') +
         card('총 재고금액', `${fmt(Math.round(totalValue))}원`);
+    syncSummaryFilters();
+}
+
+/** 요약 카드(재고 부족·발주 필요)의 눌림 표시를 체크박스 상태와 맞춘다 — 카드·체크박스·[필터 초기화] 어느 쪽으로 바꿔도. */
+function syncSummaryFilters() {
+    [['low', 'filter-low'], ['order', 'filter-order']].forEach(([key, id]) => {
+        const btn = document.querySelector(`#summary [data-sum-filter="${key}"]`);
+        if (btn) btn.setAttribute('aria-pressed', String($(id).checked));
+    });
 }
 
 function renderCategoryFilter() {
@@ -451,10 +481,15 @@ function renderTable() {
 
     // 셀은 COLS의 cell()이 만든다 — 헤더와 순서가 어긋날 수 없다.
     // 행 전체가 상세 창 여는 버튼이다(누르기 · Tab 후 Enter/Space — 아래 '행·카드 열기' 이벤트).
-    body.innerHTML = list.map(it => `
-        <tr data-open="${esc(it.id)}" tabindex="0">
+    // 부족(발주·입고 확인 전) 또는 '발주 필요'인 행은 붉은 바탕 + 왼쪽 띠(row-warn — supplies.html)
+    body.innerHTML = list.map(it => {
+        const warn = (isLow(it) && !['ordered', 'received'].includes(statusOf(it))) || statusOf(it) === 'order';
+        return `
+        <tr data-open="${esc(it.id)}" tabindex="0"${warn ? ' class="row-warn"' : ''}>
             ${COLS.map(c => `<td class="${c.td || ''}">${c.cell(it)}</td>`).join('')}
-        </tr>`).join('');
+        </tr>`;
+    }).join('');
+    syncSummaryFilters();
 }
 
 // ───────── 헤더 필터 팝업 ─────────
@@ -649,6 +684,10 @@ function openItemModal(id = null) {
     $('f-name').value = it?.name || '';
     $('f-category').value = it?.category || '';
     $('f-stock').value = it ? num(it.stock) : '';
+    // 이미 있는 비품의 현재고는 오른쪽 재고 패널(이력이 남는 곳)에서만 바꾼다
+    $('f-stock').readOnly = !!it;
+    $('f-stock').title = it ? '현재고는 재고 패널에서 바꿉니다' : '';
+    $('f-stock').classList.toggle('bg-slate-100', !!it);
     $('f-unit').value = it?.unit || '';
     $('f-safety').value = it ? (num(it.safetyStock) || '') : '';
     $('f-price').value = it ? (num(it.unitPrice) || '') : '';
@@ -662,9 +701,35 @@ function openItemModal(id = null) {
     $('f-last-order').value = it?.lastOrderDate || '';
     $('f-memo').value = it?.memo || '';
     $('f-main').checked = !!it?.isMain;
+    takeItemSnapshot();
 
     openModal('item-modal');
-    setTimeout(() => $('f-name').focus(), 30);
+    // 기존 비품은 재고 조정 수량칸부터(휴대폰에서는 재고 패널이 맨 위), 새 비품은 품명부터
+    setTimeout(() => (it ? $('stock-qty') : $('f-name')).focus(), 30);
+}
+
+// ───────── 상세 창 닫기 확인 — 저장하지 않은 수정이 있으면 묻는다 ─────────
+// 현재고(f-stock)는 뺀다 — 기존 비품은 읽기 전용이고, [재고 반영]이 값을 바꿔 넣는다.
+const ITEM_FORM_IDS = ['f-name', 'f-category', 'f-unit', 'f-safety', 'f-price', 'f-size', 'f-vendor', 'f-vendor-contact',
+    'f-ez-code', 'f-order-unit', 'f-leadtime', 'f-leadtime-unit', 'f-last-order', 'f-memo', 'f-main'];
+let itemSnapshot = {};
+
+function itemFieldValue(id) {
+    const el = $(id);
+    return el.type === 'checkbox' ? el.checked : el.value;
+}
+
+/** 지금 폼 값을 '저장된 상태'로 기억한다. ids 를 주면 그 칸만(다른 칸의 미저장 수정은 그대로 둔다). */
+function takeItemSnapshot(ids = [...ITEM_FORM_IDS, 'f-stock']) {
+    ids.forEach(id => { itemSnapshot[id] = itemFieldValue(id); });
+}
+
+function isItemDirty() {
+    if (ITEM_FORM_IDS.some(id => itemSnapshot[id] !== itemFieldValue(id))) return true;
+    // 새 비품은 현재고 칸에 직접 적는다(기존 비품은 읽기 전용이라 비교하지 않는다)
+    if (!stockTargetId && itemSnapshot['f-stock'] !== itemFieldValue('f-stock')) return true;
+    // 재고 패널에 적어 두고 [재고 반영]을 안 누른 것(새 비품은 패널이 없다)
+    return !!stockTargetId && ($('stock-qty').value !== '' || $('stock-memo').value.trim() !== '');
 }
 
 async function saveItem() {
@@ -704,10 +769,9 @@ async function saveItem() {
         if (editingId) {
             const idx = items.findIndex(x => x.id === editingId);
             const prev = items[idx];
-            const before = num(prev.stock);
+            // 현재고는 상세에서 바꾸지 않는다(읽기 전용) — 재고 패널이 저장한 값을 그대로 둔다.
+            data.stock = num(prev.stock);
             const next = { ...prev, ...data, logs: Array.isArray(prev.logs) ? [...prev.logs] : [] };
-            // 수정 화면에서 현재고를 직접 바꾼 경우도 이력에 남긴다.
-            if (before !== data.stock) pushLog(next, 'set', data.stock - before, data.stock, '상세 수정에서 변경');
             items[idx] = next;
             undo = () => { const i = items.indexOf(next); if (i >= 0) items[i] = prev; };
         } else {
@@ -716,6 +780,7 @@ async function saveItem() {
             undo = () => { items = items.filter(x => x !== added); };
         }
         await persist();
+        takeItemSnapshot();
         closeModal('item-modal');
         renderAll();
     } catch (e) {
@@ -777,12 +842,14 @@ function parseStockFile(text) {
     const iDate = head.findIndex(h => h.includes('작업일') || h.includes('일자') || h.includes('날짜'));
     const iOp = head.findIndex(h => h === '작업' || h.includes('구분'));
     const iQty = head.indexOf('수량');
-    const toNum = (v) => Number(String(v == null ? '' : v).replace(/[^0-9.-]/g, ''));
+    const numText = (v) => String(v == null ? '' : v).replace(/[^0-9.-]/g, '');
+    const toNum = (v) => Number(numText(v));
 
     const entries = [];
     for (let i = hi + 1; i < rows.length; i++) {
         const c = cellsOf(rows[i]);
         if (c.length <= iStock || c[iStock] === '') continue;
+        if (numText(c[iStock]) === '') continue;   // 숫자가 하나도 없는 칸('abc')은 건너뛴다 — 예전엔 Number('') 로 0 이 됐다
         const stock = toNum(c[iStock]);
         if (!Number.isFinite(stock)) continue;
         entries.push({
@@ -897,13 +964,20 @@ async function saveStock() {
     const it = items.find(x => x.id === stockTargetId);
     if (!it) return;
 
-    const qty = num($('stock-qty').value);
+    const raw = $('stock-qty').value;
+    const qty = num(raw);
     const op = currentStockOp();
+    const before = num(it.stock);
+    // 빈칸·숫자 아님은 실사도 막는다(예전엔 빈 실사가 재고 0 으로 저장됐다) — js/lib/supplies-stock-check.js
+    const chk = checkStockAdjust({ op, raw, before });
+    if (chk.error) return showError('stock-panel-error', chk.error);
     if (qty <= 0 && op !== 'set') return showError('stock-panel-error', '수량을 입력해주세요.');
 
-    const before = num(it.stock);
     const after = op === 'in' ? before + qty : (op === 'out' ? before - qty : qty);
     if (after < 0) return showError('stock-panel-error', '재고가 0보다 작아질 수 없습니다.');
+    // 실사 0·큰 변화는 확인을 받는다(앞서 띄운 오류 문구는 지운다 — 취소해도 옛 오류가 남지 않게)
+    showError('stock-panel-error', '');
+    if (chk.confirm && !confirm(chk.confirm)) return;
 
     const btn = $('btn-save-stock');
     btn.disabled = true;
@@ -1140,7 +1214,10 @@ async function saveItemFields(patch) {
             keepModal: true,
             conflictMsg: '다른 사람이 먼저 비품을 바꿔 다시 불러왔습니다.\n방금 바꾼 값은 저장되지 않았습니다 — 확인하고 다시 해 주세요.\n(왼쪽 상세에 입력해 둔 내용은 그대로 있습니다)'
         });
-        if ('safetyStock' in patch) $('f-safety').value = num(next.safetyStock) || '';
+        if ('safetyStock' in patch) {
+            $('f-safety').value = num(next.safetyStock) || '';
+            takeItemSnapshot(['f-safety']);   // 저장된 값 — 닫기 확인에서 '수정'으로 보지 않는다
+        }
         renderStockPanel();
         renderAll();
     } catch (e) {
@@ -1224,10 +1301,22 @@ $('f-order-unit').addEventListener('blur', (e) => { e.target.value = withThousan
 $('stock-qty').addEventListener('input', updateStockPreview);
 document.querySelectorAll('input[name="stock-op"]').forEach(r => r.addEventListener('change', updateStockPreview));
 
+// 요약 카드(재고 부족·발주 필요) — 목록 체크박스를 뒤집는다(눌림 표시는 renderTable 이 맞춘다)
+$('summary').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-sum-filter]');
+    if (!btn) return;
+    const box = $(btn.dataset.sumFilter === 'low' ? 'filter-low' : 'filter-order');
+    box.checked = !box.checked;
+    renderTable();
+});
+
+// ×·[취소]·ESC(js/modal-esc.js 가 × 를 누른다) — 상세 창에 저장 안 한 수정이 있으면 묻는다
 document.querySelectorAll('[data-close]').forEach(btn => {
     btn.addEventListener('click', () => {
         const m = btn.closest('.fixed');
-        if (m) closeModal(m.id);
+        if (!m) return;
+        if (m.id === 'item-modal' && isItemDirty() && !confirm('저장하지 않은 수정이 있습니다. 닫을까요?')) return;
+        closeModal(m.id);
     });
 });
 

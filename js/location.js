@@ -1,19 +1,20 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610201053';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610201213';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610201053';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610201053';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610201053';
-import { orderKeyMap } from './lib/order-hash.js?v=202610201053';
-import { setShellContext } from './app-shell-bridge.js?v=202610201053';
-import { memberNameFor } from './app-shell-data.js?v=202610201053';
-import { menuConfigOf } from './lib/perm.js?v=202610201053';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201053';
-import { initPageNav } from './page-nav.js?v=202610201053';
-import { initRefillCard } from './refill-card.js?v=202610201053';
-import { initLocRecCard } from './locrec-card.js?v=202610201053';
-import { whenPerm } from './feature-gate.js?v=202610201053';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610201053';
+import { escapeHtml as escAttr } from './utils.js?v=202610201213';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610201213';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610201213';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610201213';
+import { orderKeyMap } from './lib/order-hash.js?v=202610201213';
+import { setShellContext } from './app-shell-bridge.js?v=202610201213';
+import { memberNameFor } from './app-shell-data.js?v=202610201213';
+import { menuConfigOf } from './lib/perm.js?v=202610201213';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201213';
+import { initPageNav } from './page-nav.js?v=202610201213';
+import { initRefillCard } from './refill-card.js?v=202610201213';
+import { initLocRecCard } from './locrec-card.js?v=202610201213';
+import { whenPerm } from './feature-gate.js?v=202610201213';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610201213';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -72,6 +73,8 @@ let sortConfig = { key: 'id', direction: 'asc' };
 let filters = { loc: [], code: [], stock: [], stock2f: [], category: [], dong: [], pos: [], reserved: [], preassigned: [] };
 // 헤더 검색창 입력으로 테이블을 부분일치 필터링 (컬럼키 → 검색어)
 let colTextSearch = {};
+// 머리줄 전체 검색(#loc-global-search) — 로케이션·코드·상품명·옵션 부분일치(소문자로 저장)
+let globalSearch = '';
 
 const RESERVE_EXPIRE_MS = Infinity; 
 
@@ -197,8 +200,52 @@ window.hideLoading = function() {
     document.getElementById('loading-overlay').style.display = 'none';
 };
 
+// 실시간 연결 오류 띠 — onSnapshot 이 끊기면(권한 거부·네트워크 등) 화면이 옛 자료인 채로 조용히 멈추지 않게 알린다.
+// 구독(key)별로 기록하고, 그 구독이 다시 자료를 받으면 지운다. 남은 것이 없으면 띠를 없앤다.
+// 위치: 공통 상단바 아래 고정. 권한 안내 띠(js/page-gate.js #perm-gate-banner, warn)가 있으면 그 아래로 내린다.
+const _syncErrors = new Map();   // key → { label, code }
+let _syncErrObserver = null;
+function _placeSyncError(el) {
+    const perm = document.getElementById('perm-gate-banner');
+    const off = perm ? perm.offsetHeight : 0;
+    el.style.top = `calc(var(--as-h, 0px) + ${off}px)`;
+}
+function _renderSyncError() {
+    let el = document.getElementById('loc-sync-error');
+    if (_syncErrors.size === 0) {
+        if (el) el.remove();
+        if (_syncErrObserver) { _syncErrObserver.disconnect(); _syncErrObserver = null; }
+        return;
+    }
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'loc-sync-error';
+        el.setAttribute('role', 'alert');
+        el.style.cssText = `position:fixed; left:0; right:0; z-index:2147483580;
+            padding:6px 12px; text-align:center; box-sizing:border-box;
+            background:var(--c-risk-soft,#FBEAEA); color:var(--c-risk-text,#A33A3A); border-bottom:1px solid var(--c-risk,#D9534F);
+            font:600 12.5px/1.5 var(--font-sans,'SUIT','Noto Sans KR','Malgun Gothic',sans-serif);`;
+        document.body.prepend(el);
+        // 권한 안내 띠가 나중에 생기거나 닫히면 위치를 다시 맞춘다(body 직계 자식만 본다)
+        _syncErrObserver = new MutationObserver(() => _placeSyncError(el));
+        _syncErrObserver.observe(document.body, { childList: true });
+    }
+    const parts = Array.from(_syncErrors.values()).map(v => `${v.label}(${v.code})`);
+    el.textContent = `로케이션 데이터 연결 실패: ${parts.join(', ')} — 화면이 최신이 아닐 수 있습니다. 새로고침해 주세요.`;
+    _placeSyncError(el);
+}
+function showSyncError(key, label, err) {
+    _syncErrors.set(key, { label, code: (err && err.code) || 'unknown' });
+    _renderSyncError();
+}
+function clearSyncError(key) {
+    if (!_syncErrors.delete(key)) return;
+    _renderSyncError();
+}
+
 function setupRealtimeListenerB() {
     onSnapshot(collection(db, 'ZikjinData'), (snapshot) => {
+        clearSyncError('zikjin');
         zikjinData = {};
         let maxAt = 0, rowCount = 0;
         snapshot.forEach(docSnap => {
@@ -232,9 +279,10 @@ function setupRealtimeListenerB() {
 
         updateZikjinInfoDisplay();
         applyFiltersAndSort();
-    }, (error) => console.error("직진배송 오류:", error));
+    }, (error) => { console.error("직진배송 오류:", error); showSyncError('zikjin', 'ZG&AB 출고', error); });
 
     onSnapshot(collection(db, 'WeeklyData'), (snapshot) => {
+        clearSyncError('weekly');
         weeklyData = {};
         snapshot.forEach(docSnap => { 
             let data = docSnap.data();
@@ -249,9 +297,10 @@ function setupRealtimeListenerB() {
             }
         });
         applyFiltersAndSort();
-    }, (error) => console.error("주차별데이터 오류:", error));
+    }, (error) => { console.error("주차별데이터 오류:", error); showSyncError('weekly', '주차별', error); });
 
     onSnapshot(collection(db, 'IncomingData'), (snapshot) => {
+        clearSyncError('incoming');
         incomingData = {};
         incomingTotalByCode = {}; // ★ 합계 초기화
         // ★ v3.53: 오늘 날짜 (YYYY-MM-DD)
@@ -277,7 +326,7 @@ function setupRealtimeListenerB() {
         });
         if(document.getElementById('incoming-sidebar').classList.contains('open')) window.renderIncomingQueue();
         applyFiltersAndSort();
-    }, (error) => console.error("입고예정데이터 오류:", error));
+    }, (error) => { console.error("입고예정데이터 오류:", error); showSyncError('incoming', '입고예정', error); });
 }
 
 // 🕒 마지막 데이터 최신화 시각 표시 (상단 헤더)
@@ -542,6 +591,7 @@ window.openZikjinDetail = function () {
 
 function setupRealtimeListenerA() {
     onSnapshot(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), (docSnap) => {
+        clearSyncError('config');
         if(docSnap.exists()) {
             const conf = docSnap.data();
             updateLastUpdateDisplay(conf.lastDataUpdate);
@@ -593,10 +643,11 @@ function setupRealtimeListenerA() {
             // ★ v3.53: 툴팁 재적용 (페이지 로드/설정 변경 시)
             if (typeof window.applyCustomTooltips === 'function') window.applyCustomTooltips();
         }
-    });
+    }, (error) => { console.error("설정(INFO_CONFIG) 오류:", error); showSyncError('config', '설정', error); });
 
     const qZones = query(collection(db, LOC_COLLECTION), where(documentId(), ">=", "ZONE_"), where(documentId(), "<=", "ZONE_\uf8ff"));
     onSnapshot(qZones, (snapshot) => {
+        clearSyncError('zones');
         document.getElementById('firebase-guide').style.display = 'none';
         
         let tempLocMap = {}; 
@@ -656,7 +707,7 @@ function setupRealtimeListenerA() {
         
         const pop = document.getElementById('usage-popup');
         if (pop && pop.style.display === 'block') window.calculateAndRenderUsage();
-    }, (error) => { console.error("A창고 오류:", error); });
+    }, (error) => { console.error("A창고 오류:", error); showSyncError('zones', 'A창고 로케이션', error); });
 }
 
 window.onload = () => {
@@ -760,6 +811,7 @@ window.openRatioModal = function(e) {
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'ratio-settings-modal';
+        modal.className = 'modal-overlay';   // js/modal-esc.js 가 ESC 후보로 본다(인라인 style 이 우선이라 모양은 그대로)
         modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(30,40,60,0.45); display:none; align-items:center; justify-content:center; z-index:10000;";
         modal.innerHTML = `
             <div style="background:var(--c-surface); color:var(--c-text); padding:24px; border-radius:var(--r-card); width:520px; max-height:90vh; overflow-y:auto; box-shadow: var(--sh-pop);">
@@ -3229,26 +3281,35 @@ function updateLocPopupUI() {
 }
 
 function updateFilterButtonStates() {
+    // 헤더 검색창 검색어(colTextSearch)도 필터다 — 검색어만 남아 있어도 ▼ 를 활성으로 표시
+    const hasText = (key) => !!(colTextSearch[key] || '').trim();
     const btnId = document.getElementById('btn-filter-id');
     if (btnId) {
-        if (filters.loc.length === 0) btnId.classList.remove('active');
+        if (filters.loc.length === 0 && !hasText('id')) btnId.classList.remove('active');
         else btnId.classList.add('active');
     }
-    
+
     ['code', 'dong', 'pos', 'stock', 'stock2f', 'category'].forEach(type => {
         const btn = document.getElementById('btn-filter-' + type);
         if (btn) {
             if (type === 'code') {
-                const active = (filters.code && filters.code.length > 0) || 
-                               (filters.reserved && filters.reserved.includes('only')) || 
-                               (filters.preassigned && filters.preassigned.includes('only'));
+                const active = (filters.code && filters.code.length > 0) ||
+                               (filters.reserved && filters.reserved.includes('only')) ||
+                               (filters.preassigned && filters.preassigned.includes('only')) ||
+                               hasText('code');
                 if (active) btn.classList.add('active'); else btn.classList.remove('active');
             } else {
                 const arr = filters[type];
-                if (!Array.isArray(arr) || arr.length === 0) btn.classList.remove('active');
+                if ((!Array.isArray(arr) || arr.length === 0) && !hasText(type)) btn.classList.remove('active');
                 else btn.classList.add('active');
             }
         }
+    });
+
+    // 상품명·옵션은 목록 필터가 없고 검색창만 있다
+    ['name', 'option'].forEach(type => {
+        const btn = document.getElementById('btn-filter-' + type);
+        if (btn) btn.classList.toggle('active', hasText(type));
     });
 
     // 커스텀 헤더 필터 버튼 활성 상태
@@ -3257,7 +3318,7 @@ function updateFilterButtonStates() {
         const btn = document.getElementById('btn-filter-' + col);
         if (btn) {
             const arr = filters[col];
-            if (!Array.isArray(arr) || arr.length === 0) btn.classList.remove('active');
+            if ((!Array.isArray(arr) || arr.length === 0) && !hasText(col)) btn.classList.remove('active');
             else btn.classList.add('active');
         }
     });
@@ -3599,6 +3660,7 @@ window.toggleDateGroup = function(col, level, keyStr) {
 window._filterSearchQuery = window._filterSearchQuery || {};
 
 // 검색 쿼리 업데이트 및 리스트 재렌더링 트리거
+let _filterSearchTimer = null;
 window.updateFilterSearch = function(popId, query) {
     window._filterSearchQuery[popId] = query || '';
     const pop = document.getElementById(popId);
@@ -3633,10 +3695,12 @@ window.updateFilterSearch = function(popId, query) {
         pop.querySelectorAll('.filter-divider').forEach(d => { d.style.display = ''; });
     }
 
-    // ★ 검색창 입력으로 테이블 본문도 해당 컬럼 부분일치 필터링
+    // ★ 검색창 입력으로 테이블 본문도 해당 컬럼 부분일치 필터링 — 표 다시 그리기만 150ms 모아서(글자마다 전체 필터·정렬을 돌리지 않게)
     const colKey = popId.replace('pop-', '');
     colTextSearch[colKey] = (query || '').trim();
-    applyFiltersAndSort();
+    clearTimeout(_filterSearchTimer);
+    _filterSearchTimer = setTimeout(applyFiltersAndSort, 150);
+    updateFilterButtonStates();   // 검색어만 있어도 ▼ 를 활성으로(보이지 않는 필터가 남지 않게)
 };
 
 // 날짜 필터 평탄화 렌더링 (검색 모드)
@@ -3707,7 +3771,7 @@ window.renderDateFilterFlat = function(popId, query) {
 window.getFilterSearchHtml = function(popId) {
     const curQuery = (window._filterSearchQuery && window._filterSearchQuery[popId]) || '';
     return `<div class="filter-search-wrap" onclick="event.stopPropagation();">
-        <input type="text" class="filter-search-input" placeholder="검색..." value="${curQuery}"
+        <input type="text" class="filter-search-input" placeholder="검색..." value="${escAttr(curQuery)}"
                onkeydown="event.stopPropagation();"
                oninput="event.stopPropagation(); updateFilterSearch('${popId}', this.value);">
         ${curQuery ? `<button type="button" class="filter-search-clear" onclick="event.stopPropagation(); this.previousElementSibling.value=''; updateFilterSearch('${popId}', '');" aria-label="검색어 지우기">×</button>` : ''}
@@ -3767,6 +3831,11 @@ window.clearAllFilters = function(e) {
     // 검색 쿼리도 초기화
     if (window._filterSearchQuery) window._filterSearchQuery = {};
     colTextSearch = {};
+    // 머리줄 전체 검색도 비운다(입력 대기 중인 검색은 취소)
+    clearTimeout(_globalSearchTimer);
+    globalSearch = '';
+    const _gsInput = document.getElementById('loc-global-search');
+    if (_gsInput) _gsInput.value = '';
     
     // 팝업/메뉴 모두 닫기
     if (typeof window.closeAllPopups === 'function') window.closeAllPopups();
@@ -3778,6 +3847,21 @@ window.clearAllFilters = function(e) {
     // 사용자에게 알림
     showToast("모든 필터가 해제되었습니다.");
 };
+
+// 머리줄 전체 검색 — 150ms 모아서 걸고, 리스트가 아닌 탭에서 치면 리스트로 바꾼다(엑셀 받기도 걸러진 목록을 쓴다)
+let _globalSearchTimer = null;
+(function setupGlobalSearch() {
+    const input = document.getElementById('loc-global-search');
+    if (!input) return;
+    input.addEventListener('input', () => {
+        clearTimeout(_globalSearchTimer);
+        _globalSearchTimer = setTimeout(() => {
+            globalSearch = input.value.trim().toLowerCase();
+            if (globalSearch && document.body.dataset.locTab !== 'list' && typeof window.switchView === 'function') window.switchView('list');
+            applyFiltersAndSort();
+        }, 150);
+    });
+})();
 
 function applyFiltersAndSort() {
     let filtered = originalData.filter(item => {
@@ -3854,6 +3938,12 @@ function applyFiltersAndSort() {
                 }
             }
             if (!String(cv).toLowerCase().includes(q)) return false;
+        }
+
+        // ★ 머리줄 전체 검색 (로케이션·코드·상품명·옵션 중 하나라도 부분일치)
+        if (globalSearch) {
+            const hay = [item.id, (item.code !== item.id ? item.code : ''), item.name, item.option].join(' ').toLowerCase();
+            if (!hay.includes(globalSearch)) return false;
         }
         return true;
     });
@@ -4290,6 +4380,16 @@ function _showUploadDiagnosisAlert(diagnosis, uploadType) {
     alert(msg);
 }
 
+// ZG&AB 출고·주차별 업로드 — 기존 데이터를 통째로 바꾸므로 파일을 읽은 뒤 검사하고 한 번 더 묻는다(js/lib/upload-check.js).
+//   상품코드·수량 열이 없으면 안내만 하고 멈춘다(로케이션 열만 있는 파일로 전부 지워지던 문제). 통과하고 [확인]이면 true.
+function _confirmUploadB(file, rows, kind) {
+    const chk = checkUploadB(rows, kind);
+    if (!chk.ok) { _showUploadDiagnosisAlert('no-required-header', kind); return false; }
+    const label = kind === 'zikjin' ? 'ZG&AB 출고' : '주차별';
+    const extra = kind === 'zikjin' ? '\n(출고자동화가 보낸 기록도 지워집니다)' : '';
+    return confirm(`${label} 파일 「${file.name}」 유효 ${chk.valid.toLocaleString()}줄(전체 ${chk.total.toLocaleString()}줄)로 기존 [${label}] 데이터를 모두 바꿉니다.${extra}\n\n계속할까요?`);
+}
+
 const fileInputZikjin = document.getElementById('excel-upload-zikjin');
 if (fileInputZikjin) {
     fileInputZikjin.addEventListener('change', async function(e) {
@@ -4297,7 +4397,12 @@ if (fileInputZikjin) {
         window.showLoading('직진배송 데이터를 분석 중입니다...');
         try {
             const result = await universalExcelReader(file);
-            if(result.rows.length > 0) await updateDatabaseB(result.rows, 'ZikjinData', e.target, false);
+            if(result.rows.length > 0) {
+                window.hideLoading();
+                if (!_confirmUploadB(file, result.rows, 'zikjin')) { e.target.value=''; return; }
+                window.showLoading('ZG&AB 출고 데이터를 저장 중입니다...');
+                await updateDatabaseB(result.rows, 'ZikjinData', e.target, false);
+            }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'zikjin'); e.target.value=''; }
         } catch(err) { window.hideLoading(); console.error('직진배송 파일 처리 실패:', _errCode(err)); alert(`직진배송 파일을 읽거나 저장하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); e.target.value=''; }
     });
@@ -4310,7 +4415,12 @@ if (fileInputWeekly) {
         window.showLoading('주차별 데이터를 분석 중입니다...');
         try {
             const result = await universalExcelReader(file);
-            if(result.rows.length > 0) await updateDatabaseB(result.rows, 'WeeklyData', e.target, false);
+            if(result.rows.length > 0) {
+                window.hideLoading();
+                if (!_confirmUploadB(file, result.rows, 'weekly')) { e.target.value=''; return; }
+                window.showLoading('주차별 데이터를 저장 중입니다...');
+                await updateDatabaseB(result.rows, 'WeeklyData', e.target, false);
+            }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'weekly'); e.target.value=''; }
         } catch(err) { window.hideLoading(); console.error('주차별 파일 처리 실패:', _errCode(err)); alert(`주차별 파일을 읽거나 저장하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); e.target.value=''; }
     });
@@ -4343,10 +4453,19 @@ const fileInputPerm = document.getElementById('excel-upload-permanent');
 if (fileInputPerm) {
     fileInputPerm.addEventListener('change', async function(e) {
         const file = e.target.files[0]; if (!file) return;
-        window.showLoading('도면(동/위치) 영구 데이터를 덮어쓰기 세팅 중입니다...');
+        // 덮어쓰기라 파일을 읽은 뒤 검사하고 한 번 더 묻는다('오늘 재고 올리기'와 같은 방식 · js/lib/upload-check.js)
+        window.showLoading('도면(동/위치) 파일을 읽는 중입니다...');
         try {
             const result = await universalExcelReader(file);
-            if(result.rows.length > 0) await updateDatabaseA(result.rows, 'permanent');
+            if(result.rows.length > 0) {
+                window.hideLoading();
+                const chk = checkPermanent(result.rows);
+                if (!chk.ok) { _showUploadDiagnosisAlert('no-required-header', 'permanent'); return; }
+                const newCnt = newLocIds(result.rows, originalData.map(d => d.id)).length;
+                if (!confirm(`도면 파일 「${file.name}」 ${chk.valid.toLocaleString()}줄로 동/위치/칸수를 덮어씁니다 · 없던 로케이션 ${newCnt.toLocaleString()}개가 새로 생깁니다.\n\n계속할까요?`)) return;
+                window.showLoading('도면(동/위치) 영구 데이터를 덮어쓰기 세팅 중입니다...');
+                await updateDatabaseA(result.rows, 'permanent');
+            }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'permanent'); }
         } catch(err) { window.hideLoading(); console.error('도면 파일 처리 실패:', _errCode(err)); alert(`도면(동/위치) 파일을 읽거나 반영하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); }
         finally { e.target.value=''; }
@@ -4813,30 +4932,42 @@ window.resetOrderAnalysis = async function() {
 async function updateDatabaseB(rows, collectionName, inputElement, silent = false) {
     let label = collectionName === 'ZikjinData' ? 'ZG&AB 출고' : (collectionName === 'WeeklyData' ? '주차별' : '데이터');
     try {
+        // 걸러내기를 지우기보다 먼저 — 상품코드가 있는 줄이 하나도 없으면 기존 데이터를 지우지 않고 멈춘다(2026-10-20)
+        const validRows = rows.filter(row => codeOfRowB(row));
+        if (validRows.length === 0) {
+            const err = new Error('상품코드가 있는 줄이 없어 기존 데이터를 지우지 않았습니다');
+            err.code = 'no-valid-rows';
+            throw err;
+        }
+
         const querySnapshot = await getDocs(collection(db, collectionName));
-        let delBatch = writeBatch(db);
-        querySnapshot.docs.forEach(d => delBatch.delete(d.ref));
-        await delBatch.commit();
-        
-        const validRows = [];
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            let code = (row['상품코드'] || row['어드민상품코드'] || row['대표상품코드'] || row['품목코드'] || row['바코드'] || row['상품번호'])?.toString().trim();
-            if (code) validRows.push(row); 
-        }
 
-        let batch = writeBatch(db); 
         const CHUNK_SIZE = 200;
-        let chunkCount = 0;
+        const chunks = [];
+        for (let i = 0; i < validRows.length; i += CHUNK_SIZE) chunks.push(validRows.slice(i, i + CHUNK_SIZE));
+        const chunkCount = chunks.length;
+        const setChunks = (batch) => chunks.forEach((chunk, n) =>
+            batch.set(doc(db, collectionName, `CHUNK_${n}`), { dataStr: JSON.stringify(chunk), updatedAt: new Date() }));
 
-        for (let i = 0; i < validRows.length; i += CHUNK_SIZE) {
-            const chunk = validRows.slice(i, i + CHUNK_SIZE);
-            const docRef = doc(db, collectionName, `CHUNK_${chunkCount}`);
-            batch.set(docRef, { dataStr: JSON.stringify(chunk), updatedAt: new Date() });
-            chunkCount++;
+        // 지우기·쓰기를 한 batch 로(2026-10-20) — 따로 commit 하면 쓰기가 실패했을 때 0건으로 남는다.
+        //   새로 쓸 CHUNK 문서는 set 이 통째로 덮으므로 지우지 않고, 남는 옛 문서만 지운다.
+        //   batch 는 한 번에 500건까지라, 지울 문서 + 쓸 문서가 500 을 넘으면(현실적으로는 없음 — 청크 1개 = 200줄)
+        //   예전처럼 지우기 → 쓰기를 따로 commit 한다(이때는 쓰기 실패 시 비는 위험이 그대로 남는다).
+        const writeIds = new Set(chunks.map((_, n) => `CHUNK_${n}`));
+        const staleDocs = querySnapshot.docs.filter(d => !writeIds.has(d.id));
+        if (querySnapshot.docs.length + chunkCount <= 500) {
+            const batch = writeBatch(db);
+            staleDocs.forEach(d => batch.delete(d.ref));
+            setChunks(batch);
+            await batch.commit();
+        } else {
+            const delBatch = writeBatch(db);
+            querySnapshot.docs.forEach(d => delBatch.delete(d.ref));
+            await delBatch.commit();
+            const batch = writeBatch(db);
+            setChunks(batch);
+            await batch.commit();
         }
-        
-        if (chunkCount > 0) await batch.commit();
 
         // 📌 전송 기록 메타 저장(언제/얼마나) — 직진·에이블리(ZG&AB)·주차별
         try {
@@ -8052,7 +8183,7 @@ window.renderLocationDashboard = function () {
             <span class="dash-task-ic tone-warn">${taskIcon.box}</span><span class="dash-task-label">입고대기 패널</span><span class="badge badge-warn">${incomingCodes.length}건</span>
         </button>
         <button class="dash-task" onclick="window.openRecommendModal && window.openRecommendModal()">
-            <span class="dash-task-ic tone-accent">${taskIcon.swap}</span><span class="dash-task-label">변경 추천</span>${recCount > 0 ? `<span class="badge badge-accent">${recCount}건</span>` : `<span class="dash-task-go" style="color:${TONE.accentDeep};">열기</span>`}
+            <span class="dash-task-ic tone-accent">${taskIcon.swap}</span><span class="dash-task-label">수동 변경 계산</span>${recCount > 0 ? `<span class="badge badge-accent">${recCount}건</span>` : `<span class="dash-task-go" style="color:${TONE.accentDeep};">열기</span>`}
         </button>
         <button class="dash-task" onclick="document.getElementById('modal-2f').style.display='flex'; window.calc2FList && window.calc2FList();">
             <span class="dash-task-ic tone-ok">${taskIcon.grid}</span><span class="dash-task-label">빈칸확보</span><span class="dash-task-go" style="color:${TONE.okText};">열기</span>

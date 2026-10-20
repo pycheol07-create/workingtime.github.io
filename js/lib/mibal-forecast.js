@@ -33,12 +33,20 @@ function groupByShip(history) {
 /** 여러 전송 중 입고일이 채워진 것 우선 (미발계산기 Ver 8.54 와 같음) */
 const 입고일Of = (recs) => (recs.find(r => r.입고일) || {}).입고일 || '';
 
-/** 평균상승률 — 패킹별 (입고시점미발 − 출고시점미발) / 출고시점미발, 1~100% 만 평균. 없으면 null */
+/** 입고 전 '가장 최근' 전송 (2026-10-20 사용자 결정 — 예전엔 가장 처음 전송).
+ *  출고 다음 날 보낸 첫 기록은 그 뒤 주문이 쌓이기 전 값이라 실제 입고미발보다 훨씬 작다
+ *  (실측 10/11 패킹: 10/12 159 · 10/19 1,233 · 입고 10/20 1,385). recs 는 전송날짜 오름차순. */
+export const lastBefore = (recs, 입고일) => {
+    const pre = recs.filter(r => !입고일 || String(r.전송날짜) < 입고일);
+    return pre.length ? pre[pre.length - 1] : null;
+};
+
+/** 평균상승률 — 패킹별 (입고시점미발 − 입고 전 마지막 전송 미발) / 입고 전 마지막 전송 미발, 1~100% 만 평균. 없으면 null */
 export function computeAvgRise(history) {
     const rates = [];
     Object.values(groupByShip(history)).forEach(recs => {
         const 입고일 = 입고일Of(recs);
-        const before = recs.find(r => !입고일 || String(r.전송날짜) < 입고일);
+        const before = lastBefore(recs, 입고일);
         const arr = 입고일 ? recs.find(r => String(r.전송날짜) >= 입고일) : null;
         if (!before || !arr) return;
         const a = num(before.미발수량), b = num(arr.미발수량);
@@ -55,7 +63,7 @@ export function predictByShip(history) {
     const rate = avg ? avg.avg : DEFAULT_RISE;
     return Object.entries(groupByShip(history)).map(([출고일, recs]) => {
         const 입고일 = 입고일Of(recs);
-        const before = recs.find(r => !입고일 || String(r.전송날짜) < 입고일) || recs[0];
+        const before = lastBefore(recs, 입고일) || recs[0];
         const arrRec = 입고일 ? recs.find(r => String(r.전송날짜) >= 입고일) : null;
         const 출고미발 = num(before.미발수량);
         const 입고미발 = arrRec ? num(arrRec.미발수량) : null;
@@ -94,13 +102,25 @@ export function mibalByArrival(history, { arrivalOf, today, isOffDay } = {}) {
     const rate = avg ? avg.avg : DEFAULT_RISE;
 
     // '미발전송' 은 여러 출고일을 같이 고르면 **합계를 출고일마다 똑같이** 기록한다.
-    // 같은 전송(전송날짜 + 출고미발)에서 나온 출고일들은 한 묶음으로 보고 한 번만 더한다.
-    // 묶음 안에서 도착일이 갈리면 가장 이른 날에, 입고미발이 하나라도 있으면 그 값을 쓴다.
+    // 한 번이라도 같은 전송(전송날짜 + 미발수량)을 나눈 출고일들은 한 묶음으로 보고 한 번만 더한다.
+    // (2026-10-20 — 기준이 '입고 전 마지막 전송'으로 바뀌어, 묶어 보낸 뒤 일부만 다시 보내면
+    //  마지막 전송만으로는 묶음이 갈라져 이중으로 더해진다. 그래서 전송 이력 전체로 잇는다.)
+    // 묶음 안에서 도착일이 갈리면 가장 이른 날에, 입고미발이 있으면 그중 큰 값, 없으면 예상미발 중 큰 값을 쓴다.
+    const parent = {};
+    const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+    const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+    const bySend = {};
+    Object.values(history || {}).forEach(r => {
+        if (!r || !r.출고일) return;
+        if (!(r.출고일 in parent)) parent[r.출고일] = r.출고일;
+        const k = `${r.전송날짜}|${num(r.미발수량)}`;
+        if (bySend[k]) union(bySend[k], r.출고일); else bySend[k] = r.출고일;
+    });
     const groups = new Map();
     predictByShip(history).forEach(p => {
         if (!(p.값 > 0)) return;
         if (today && p.출고일 && dayGap(p.출고일, today) > MAX_SHIP_AGE_DAYS) return;
-        const key = `${p.전송날짜}|${p.출고미발}`;
+        const key = find(p.출고일);
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(p);
     });
@@ -128,13 +148,13 @@ export function mibalByArrival(history, { arrivalOf, today, isOffDay } = {}) {
         }
         if (today && 도착 < today) return;           // 이미 도착(첫 분량 포함) — 미발은 나갔다
         const 입고 = members.filter(p => p.종류 === '입고미발').sort((a, b) => b.값 - a.값)[0];
-        const 대표 = 입고 || members[0];
+        const 대표 = 입고 || members.slice().sort((a, b) => b.값 - a.값)[0];
         const 출고들 = members.map(p => md(p.출고일)).join('·');
         const o = out[도착] || (out[도착] = { qty: 0, lines: [], rate: avg });
         o.qty += 대표.값;
         o.lines.push((입고
             ? `${출고들} 패킹 입고미발 ${대표.값.toLocaleString()}`
-            : `${출고들} 패킹 예상미발 ${대표.값.toLocaleString()} (출고 때 ${대표.출고미발.toLocaleString()} × ${(1 + rate).toFixed(2)})`)
+            : `${출고들} 패킹 예상미발 ${대표.값.toLocaleString()} (입고 전 마지막 전송 ${대표.출고미발.toLocaleString()} × ${(1 + rate).toFixed(2)})`)
             + (넘김 ? ' — 도착일이 쉬는 날이라 다음 근무일로' : ''));
     });
     return out;

@@ -44,3 +44,17 @@ export const formatThousands = (v) => {
     if (!m) return s;
     return m[1] + m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (m[3] || '');
 };
+
+/**
+ * 환율 칸 중 비어 있는 것 — 0·음수·빈칸·글자(NaN)는 '없음'. 예전엔 `|| 1` 로 1원 환율로 계산했다.
+ * rates: { usdKrw: 1350, ... } (숫자 또는 칸 글자 — 글자는 parseNum 규칙), keys: 볼 칸 이름 배열.
+ * 돌려주는 값: 비어 있는 키 배열(순서는 keys 그대로). 빈 배열이면 다 있다.
+ */
+export const missingRateFields = (rates, keys) => {
+    const r = rates || {};
+    return (keys || []).filter((k) => {
+        const raw = r[k];
+        const v = typeof raw === 'string' ? parseNum(raw) : raw;
+        return !(Number.isFinite(v) && v > 0);
+    });
+};

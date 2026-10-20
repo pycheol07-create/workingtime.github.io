@@ -3,32 +3,32 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610201053';
+import { predictFutureTrends } from './analysis-logic.js?v=202610201213';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610201053';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610201053';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610201053';
-import * as State from './state.js?v=202610201053';
-import { saveView } from './view-state.js?v=202610201053';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610201053';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610201053';
+import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610201213';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610201213';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610201213';
+import * as State from './state.js?v=202610201213';
+import { saveView } from './view-state.js?v=202610201213';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610201213';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610201213';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610201053';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610201213';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate } from './history-data-manager.js?v=202610201053';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610201053';
+         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610201213';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610201213';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610201053';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610201053';
-import { taskUph, recentDays } from './task-throughput.js?v=202610201053';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610201213';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610201213';
+import { taskUph, recentDays } from './task-throughput.js?v=202610201213';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610201053';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610201213';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610201053';
-import { D } from './d-chart.js?v=202610201053';
+         excessOffDays } from './lib/backlog-carry.js?v=202610201213';
+import { D } from './d-chart.js?v=202610201213';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -3010,8 +3010,11 @@ window.__forecastForDate = async (dateStr) => {
         //    appConfig 만 보면 휴무자를 아무도 빼지 않은 '가용 인원'이 나갈 수 있다.
         const configKeys = Object.keys(State.appConfig || {}).length;
         const appUser = (State.appState && State.appState.currentUser) || null;
-        if ((State.allHistoryData || []).length === 0 || configKeys === 0 || !appUser) {
-            return { ok: false, reason: 'not-ready',
+        //    이력 조회가 실패했으면(historyLoadFailed — 목록·탭과 같은 판정) 준비 안 됨으로 본다 — 오늘 한 줄만으로
+        //    계산해 슬랙에 보내지 않게. reason 은 not-ready 로 둬야 봇(업무예상알림 수집.py)이 기다리다 실패 알림을 낸다.
+        const historyError = historyLoadFailed();
+        if ((State.allHistoryData || []).length === 0 || configKeys === 0 || !appUser || historyError) {
+            return { ok: false, reason: 'not-ready', historyError,
                      historyRows: (State.allHistoryData || []).length, configKeys, appUser };
         }
 

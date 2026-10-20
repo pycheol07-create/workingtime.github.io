@@ -1,20 +1,21 @@
 // === js/listeners-history-tabs.js ===
-import * as DOM from './dom-elements.js?v=202610201053';
-import * as State from './state.js?v=202610201053';
-import { getWeekOfYear } from './utils.js?v=202610201053';
+import * as DOM from './dom-elements.js?v=202610201213';
+import * as State from './state.js?v=202610201213';
+import { getWeekOfYear } from './utils.js?v=202610201213';
 
-import { renderDashboardTab } from './ui-history-dashboard.js?v=202610201053';
-import { renderProductivityTab } from './ui-history-productivity.js?v=202610201053';
-import { renderStaffingTab } from './ui-history-staffing.js?v=202610201053';
+import { renderDashboardTab } from './ui-history-dashboard.js?v=202610201213';
+import { renderProductivityTab } from './ui-history-productivity.js?v=202610201213';
+import { renderStaffingTab } from './ui-history-staffing.js?v=202610201213';
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202610201053';
-import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202610201053';
-import * as UILeave from './ui-history-leave.js?v=202610201053';
-import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202610201053';
-import { setTreeVisible } from './history-list-controller.js?v=202610201053';
-import { SECTIONS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202610201053';
-import { saveView } from './view-state.js?v=202610201053';
-import { initPageNav } from './page-nav.js?v=202610201053';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202610201213';
+import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202610201213';
+import * as UILeave from './ui-history-leave.js?v=202610201213';
+import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202610201213';
+import { setTreeVisible, showPanelLoadError } from './history-list-controller.js?v=202610201213';
+import { historyLoadFailed } from './history-data-manager.js?v=202610201213';
+import { SECTIONS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202610201213';
+import { saveView } from './view-state.js?v=202610201213';
+import { initPageNav } from './page-nav.js?v=202610201213';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {
@@ -121,6 +122,14 @@ async function activateMainTab(tabName, sub) {
         if (panel) panel.classList.toggle('hidden', tabName !== name);
     }
 
+    // ⛔ 이력 조회 실패 — 업무 예상·물량 추세는 목록(오류 표시)을 숨기므로 패널에 직접 오류를 보인다.
+    //    그대로 그리면 오늘 1행으로 계산한 값이 정상처럼 보인다. [다시 시도]가 성공하면 이 탭을 다시 연다.
+    if ((tabName === 'forecast' || tabName === 'prediction') && historyLoadFailed()) {
+        setTreeVisible(false);
+        showPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));
+        return;
+    }
+
     // 📐 업무 예상 탭: 오늘·내일 자동 예측 + 상세 시뮬레이션 (미래 기준이라 기간 트리 숨김)
     if (tabName === 'forecast') {
         try {
@@ -143,7 +152,7 @@ async function activateMainTab(tabName, sub) {
     // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
     if (tabName === 'milestones') {
         try {
-            const mod = await import('./ui-history-milestones.js?v=202610201053');
+            const mod = await import('./ui-history-milestones.js?v=202610201213');
             mod.subscribeMilestones();
             mod.bindMilestoneListeners();
             // 기간 트리 숨김 (마일스톤은 자체 리스트 사용)
@@ -157,7 +166,7 @@ async function activateMainTab(tabName, sub) {
     // 🧾 팀 결산 보고 탭: 월/분기/년 단위 종합 요약 보고서 (자체 기간 선택 UI 사용)
     if (tabName === 'settlement') {
         try {
-            const mod = await import('./ui-history-settlement.js?v=202610201053');
+            const mod = await import('./ui-history-settlement.js?v=202610201213');
             await mod.initSettlementReport();
             setTreeVisible(false);
         } catch (err) {

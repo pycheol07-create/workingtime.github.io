@@ -119,6 +119,28 @@ export function depleteText(fc) {
 /** 정렬·필터용 남은 업무일 — 없으면 큰 수(맨 뒤로). */
 export const depleteSortValue = (fc) => (fc && fc.depleteDate && fc.workdaysLeft != null ? num(fc.workdaysLeft) : 99999);
 
+/** 오늘(한국시간) 'YYYY-MM-DD'. */
+export const kstToday = (nowMs = Date.now()) => ymdOf(new Date(nowMs + 9 * 3600 * 1000));
+
+/** 발주 권장일까지 남은 달력일(오늘 0 · 지났으면 음수). 없거나 못 읽으면 null. */
+export function reorderDaysLeft(fc, today = kstToday()) {
+    const r = parseYmd(fc && fc.reorderDate), t = parseYmd(today);
+    return r && t ? Math.round((r - t) / 86400000) : null;
+}
+
+/** 발주 권장일 '11/10(화) · 3일 뒤' · '오늘' · '지남'. 없으면 '-'. */
+export function reorderText(fc, today = kstToday()) {
+    const n = reorderDaysLeft(fc, today);
+    if (n == null) return '-';
+    return `${mdw(fc.reorderDate)} · ${n < 0 ? '지남' : n === 0 ? '오늘' : `${n}일 뒤`}`;
+}
+
+/** 정렬·필터용 남은 달력일 — 없으면 큰 수(맨 뒤로). */
+export const reorderSortValue = (fc, today = kstToday()) => {
+    const n = reorderDaysLeft(fc, today);
+    return n == null ? 99999 : n;
+};
+
 /** 권장 발주 '20,000장'. 0·없음이면 '-'. */
 export function recommendText(fc, unit) {
     const q = num(fc && fc.recommendQty);

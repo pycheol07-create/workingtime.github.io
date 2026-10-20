@@ -7,9 +7,9 @@
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다. -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610201053">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610201053">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610201053">
+    <link rel="stylesheet" href="css/suit.css?v=202610201213">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610201213">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610201213">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -47,6 +47,7 @@
         .selected-date-tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 1; min-width: 120px; font-size: 12px; color: var(--c-text-3); }
         .date-tag { display: inline-flex; align-items: center; gap: 5px; background: var(--c-accent-soft); color: var(--c-accent-deep); padding: 1px 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600; border: 0; }
         .date-src { font-size: 11px; color: var(--c-text-3); white-space: nowrap; }
+        .date-src.t-warn { color: var(--c-warn-text); font-weight: 700; } /* 출고일이 기존 계산기와 다름 */
 
         .summary-bar { margin: 0 14px 7px 14px; display: flex; gap: 8px; flex-wrap: wrap; }
         .summary-card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 6px 14px; display: flex; flex-direction: column; align-items: center; min-width: 88px; }
@@ -171,13 +172,14 @@
         </div>
         <div class="selected-date-tags" id="date-tags-container">선택된 출고일 없음</div>
         <span id="date-src" class="date-src"></span>
+        <button id="btn-date-legacy-out" class="d-btn d-btn-sm live-only" hidden>기존 계산기 선택 따르기</button>
     </div>
 
     <div class="summary-bar">
         <div class="summary-card highlight"><span class="label">SKU</span><span class="value" id="sum-sku">0</span></div>
         <div class="summary-card highlight"><span class="label">도착 합</span><span class="value" id="sum-arrival">0</span></div>
         <div class="summary-card newv"><span class="label">신규 미발 합</span><span class="value" id="sum-new">0</span></div>
-        <div class="summary-card"><span class="label">기존 미발 합</span><span class="value" id="sum-old">0</span></div>
+        <div class="summary-card" title="기존 미발계산기의 미발수량(버전기록 또는 현재 ScanDB). 출처는 위 '기존 미발' 줄 참고"><span class="label">기존 미발 합</span><span class="value" id="sum-old">0</span></div>
         <div class="summary-card"><span class="label">차이 합(신규−기존)</span><span class="value" id="sum-diff">0</span></div>
         <div class="summary-card"><span class="label">피킹행 합</span><span class="value" id="sum-pick">0</span></div>
         <div class="summary-card"><span class="label">비축행 합</span><span class="value" id="sum-reserve">0</span></div>
@@ -214,7 +216,7 @@
                     <th class="sortable" data-sort="out">출고예정</th>
                     <th class="sortable" data-sort="remain">남는양</th>
                     <th class="sortable" data-sort="backlog" title="출고예정이 정상재고보다 많은 양. 피킹칸에 다 안 들어가서 미발에 넣지 않는다 — 비축에서 꺼내 바로 출고">밀린주문</th>
-                    <th class="sortable" data-sort="old">기존 미발</th>
+                    <th class="sortable" data-sort="old" title="기존 미발계산기의 미발수량(버전기록 또는 현재 ScanDB). 출처는 위 '기존 미발' 줄 참고">기존 미발</th>
                     <th class="sortable" data-sort="oldNew" title="기존 공식(시트 3조건)에 신규 입력을 넣은 값. 부족수량=max(접수+송장−정상,0), 직진=0">기존공식×신규입력</th>
                     <th class="sortable new-col" data-sort="mibal">신규 미발</th>
                     <th class="sortable" data-sort="diff">차이(신규−기존)</th>
@@ -234,9 +236,9 @@
 
     <div id="toast"></div>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610201053"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610201053"></script>
-    <script type="module" src="js/page-gate.js?v=202610201053" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202610201053"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610201213"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610201213"></script>
+    <script type="module" src="js/page-gate.js?v=202610201213" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202610201213"></script>
 </body>
 </html>

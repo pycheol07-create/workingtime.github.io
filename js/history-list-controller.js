@@ -1,26 +1,116 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610201053';
-import * as State from './state.js?v=202610201053';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610201053';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610201053';
-import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610201053';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610201053';
-import { renderQuantityModalInputs } from './ui.js?v=202610201053';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610201053';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610201053';
+import * as DOM from './dom-elements.js?v=202610201213';
+import * as State from './state.js?v=202610201213';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610201213';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610201213';
+import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory, historyLoadFailed,
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610201213';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610201213';
+import { renderQuantityModalInputs } from './ui.js?v=202610201213';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610201213';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610201213';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
 let renderListQueue = null;
+
+// 이력이 없거나 못 읽었을 때 비우는 화면들
+const HISTORY_VIEW_IDS = [
+    'history-daily-view', 'history-weekly-view', 'history-monthly-view',
+    'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
+    'report-daily-view', 'report-weekly-view', 'report-monthly-view', 'report-yearly-view'
+];
+
+// 판정(historyLoadFailed)은 history-data-manager 의 공용 함수 — 봇 훅·업무 예상 탭과 같은 조건이다.
+
+const LOAD_ERROR_HTML = '<div class="p-4 text-center text-sm text-red-600 dark:text-red-400">'
+    + '<p class="mb-3">이력을 불러오지 못했습니다(인터넷 연결 확인)</p>'
+    + '<button type="button" data-action="retry-history-load" class="px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-semibold">다시 시도</button>'
+    + '</div>';
+
+const bindRetry = (root) => {
+    root.querySelectorAll('[data-action="retry-history-load"]').forEach(btn => {
+        btn.addEventListener('click', () => { btn.disabled = true; retryHistoryLoad(); });
+    });
+};
+
+// [다시 시도] — 처음부터 다시 읽고, 성공하면 실패 전에 열려 있던 화면을 다시 연다.
+//   loadAndRenderHistoryList 는 상태값만 '업무 이력' 으로 바꾸고 보이는 패널은 그대로 두므로
+//   (처음 열린 빈 '요약' 이 남고 날짜를 누르면 숨은 패널에 그려졌다) showSection 으로 패널까지 다시 연다.
+//   showSection 은 listeners-history-tabs.js 에 있고 그쪽이 이 파일을 import 하므로 동적 import(순환 방지).
+let retrying = false;
+export const retryHistoryLoad = async () => {
+    if (retrying) return;
+    retrying = true;
+    const prevMain = State.context.activeHistoryView;
+    const prevSub = State.context.activeMainHistoryTab;
+    try {
+        await loadAndRenderHistoryList();
+        if (historyLoadFailed()) return;   // 또 실패 — 오류 화면은 그대로
+        clearPanelLoadErrors();
+        const { sectionIdFor } = await import('./history-sections.js?v=202610201213');
+        const { showSection } = await import('./listeners-history-tabs.js?v=202610201213');
+        await showSection(sectionIdFor(prevMain, prevSub) || 'insight');
+    } catch (e) {
+        console.error('이력 다시 시도 실패:', e);
+    } finally {
+        retrying = false;
+        // 또 실패했으면 남아 있는 [다시 시도] 버튼(업무 예상·물량 추세 패널 등)을 다시 누를 수 있게
+        document.querySelectorAll('[data-action="retry-history-load"]').forEach(b => { b.disabled = false; });
+    }
+};
+
+// 목록에 오류와 [다시 시도], 각 화면은 비운다.
+const showHistoryLoadError = () => {
+    DOM.historyDateList.innerHTML = '<li>' + LOAD_ERROR_HTML + '</li>';
+    HISTORY_VIEW_IDS.forEach(viewId => {
+        const viewEl = document.getElementById(viewId);
+        if (viewEl) viewEl.innerHTML = '';
+    });
+    bindRetry(DOM.historyDateList);
+};
+
+// 목록을 숨기는 화면(업무 예상·물량 추세 예측)용 — 패널 맨 위에 같은 오류를 두고 나머지 내용은 잠시 숨긴다.
+//   패널 안의 고정 틀(머리글·버튼)을 지우지 않으려고 innerHTML 을 갈지 않는다. 다시 시도가 성공하면 원래대로.
+export const showPanelLoadError = (panel) => {
+    if (!panel) return;
+    let box = panel.querySelector(':scope > [data-history-load-error]');
+    if (!box) {
+        box = document.createElement('div');
+        box.setAttribute('data-history-load-error', '');
+        box.className = 'm-4 rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800';
+        panel.prepend(box);
+    }
+    box.innerHTML = LOAD_ERROR_HTML;
+    Array.from(panel.children).forEach(ch => {
+        if (ch === box || ch.classList.contains('hidden')) return;
+        ch.classList.add('hidden');
+        ch.setAttribute('data-hidden-by-load-error', '');
+    });
+    bindRetry(box);
+};
+
+const clearPanelLoadErrors = () => {
+    document.querySelectorAll('[data-history-load-error]').forEach(el => el.remove());
+    document.querySelectorAll('[data-hidden-by-load-error]').forEach(el => {
+        el.classList.remove('hidden');
+        el.removeAttribute('data-hidden-by-load-error');
+    });
+};
 
 export const loadAndRenderHistoryList = async () => {
     if (!DOM.historyDateList) return;
     DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500 text-sm">이력 로딩 중...</div></li>';
 
     await fetchAllHistoryData();
+    // ⛔ 조회 실패(받아 둔 이력도 없음) — '저장된 이력이 없습니다'로 보이면 안 된다.
+    //    아래 refresh·syncToday·selfHeal 을 돌리면 오늘 한 줄만 끼어들어 정상처럼 보이므로 여기서 멈춘다.
+    if (historyLoadFailed()) {
+        showHistoryLoadError();
+        return;
+    }
     // 🔄 최근 14일은 서버에서 다시 받는다 — 매출·재고 자동입력이 밖에서 쓴 값이 캐시 때문에 안 보이던 문제.
     //    반드시 augmentHistoryWithPersistentLeave 보다 앞(아래 순서 유지). 이유는 함수 주석 참고.
     await refreshRecentHistory();
@@ -36,12 +126,7 @@ export const loadAndRenderHistoryList = async () => {
 
     if (State.allHistoryData.length === 0) {
         DOM.historyDateList.innerHTML = '<li><div class="p-4 text-center text-gray-500 text-sm">저장된 이력이 없습니다.</div></li>';
-        const viewsToClear = [
-            'history-daily-view', 'history-weekly-view', 'history-monthly-view',
-            'history-attendance-daily-view', 'history-attendance-weekly-view', 'history-attendance-monthly-view',
-            'report-daily-view', 'report-weekly-view', 'report-monthly-view', 'report-yearly-view'
-        ];
-        viewsToClear.forEach(viewId => {
+        HISTORY_VIEW_IDS.forEach(viewId => {
             const viewEl = document.getElementById(viewId);
             if (viewEl) viewEl.innerHTML = '';
         });
@@ -99,7 +184,7 @@ const buildPlannedGroupHtml = () => {
                 : `<span class="ml-auto text-[11px] text-gray-400 shrink-0">미입력</span>`);
         return `
             <li>
-                <button data-key="${dateStr}" class="planned-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none flex items-center gap-2 shrink-0 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
+                <button data-key="${dateStr}" class="planned-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 flex items-center gap-2 shrink-0 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
                     <span class="inline-block w-1.5 h-1.5 rounded-full ${hasData ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'} shrink-0"></span>
                     <span class="whitespace-nowrap tracking-tight shrink-0">${dateStr}${wd}</span>
                     ${rightLabel}
@@ -108,7 +193,7 @@ const buildPlannedGroupHtml = () => {
     }).join('');
     return `
         <li class="mb-2">
-            <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors shadow-sm focus:outline-none shrink-0">
+            <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 shrink-0">
                 <div class="flex items-center gap-2 shrink-0">
                     <span class="font-bold text-[14px] text-indigo-700 dark:text-indigo-300 whitespace-nowrap tracking-tight shrink-0">예정 물량 (미래 7일)</span>
                 </div>
@@ -192,6 +277,8 @@ export const openPlannedQuantityModal = async (dateStr) => {
 
 export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = null) => {
     if (!DOM.historyDateList) return;
+    // 첫 조회가 실패한 뒤 탭 전환(showSection) 등이 목록을 다시 그리면 '오늘 한 줄' 목록이 된다 — 오류를 유지한다.
+    if (historyLoadFailed()) { showHistoryLoadError(); return; }
 
     if (isRenderingList) {
         renderListQueue = { mode, selectedKey };
@@ -268,7 +355,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                 // ✨ 수정 포인트: 좁은 영역에서도 폴더명 텍스트가 줄바꿈되거나 잘리지 않도록 (shrink-0, whitespace-nowrap) 강력 적용
                 htmlContent += `
                 <li class="mb-2">
-                    <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm focus:outline-none shrink-0">
+                    <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 shrink-0">
                         <div class="flex items-center gap-2 shrink-0">
                             <span class="font-bold text-[14px] text-gray-700 dark:text-gray-200 whitespace-nowrap tracking-tight shrink-0">${groupName}</span>
                         </div>
@@ -307,11 +394,13 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50';
 
                     // ✨ 수정 포인트: 좁은 영역에서도 날짜와 요일 텍스트가 줄바꿈되거나 잘리지 않도록 (shrink-0, whitespace-nowrap) 강력 적용
+                    // '누락' 글자: 휴대폰은 title 을 볼 수 없어 빨간 점만으로는 이유를 모른다
                     htmlContent += `
                         <li>
-                            <button data-key="${key}" class="history-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none flex items-center gap-2 shrink-0 ${baseClass} ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}>
+                            <button data-key="${key}" class="history-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 flex items-center gap-2 shrink-0 ${baseClass} ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}${isSelected ? ' aria-current="date"' : ''}>
                                 <span class="inline-block w-1.5 h-1.5 rounded-full ${hasWarning ? 'bg-red-500' : (isSelected ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600')} shrink-0"></span>
-                                <span class="whitespace-nowrap tracking-tight shrink-0">${displayKey}</span>
+                                <span class="whitespace-nowrap tracking-tight shrink-0">${displayKey}</span>${hasWarning ? `
+                                <span class="text-[10px] font-bold text-red-600 shrink-0">누락</span>` : ''}
                             </button>
                         </li>`;
                 });
@@ -521,22 +610,4 @@ export const openHistoryQuantityModal = (dateKey) => {
     if (cBtn) cBtn.textContent = '수정 저장';
     if (xBtn) xBtn.textContent = '취소';
     if (DOM.quantityModal) DOM.quantityModal.classList.remove('hidden');
-};
-
-export const requestHistoryDeletion = (dateKey) => {
-    State.context.historyKeyToDelete = dateKey;
-    const activeTab = State.context.activeMainHistoryTab || 'work';
-    let targetName = '모든';
-    
-    if (activeTab === 'work' || activeTab === 'report') targetName = '업무 이력(처리량 포함)';
-    else if (activeTab === 'attendance') targetName = '근태 이력';
-    else if (activeTab === 'management') targetName = '경영 지표';
-    else if (activeTab === 'inspection') targetName = '검수 이력';
-
-    const msgEl = document.querySelector('#delete-history-modal h3');
-    if (msgEl) {
-        msgEl.innerHTML = `정말로 이 날짜의 <span class="text-red-600 font-bold">${targetName}</span> 데이터를 삭제하시겠습니까?`;
-    }
-
-    if (DOM.deleteHistoryModal) DOM.deleteHistoryModal.classList.remove('hidden');
 };

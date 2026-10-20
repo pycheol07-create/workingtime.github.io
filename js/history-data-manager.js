@@ -1,11 +1,11 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610201053';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610201053';
-import { clampOpenRecords } from './lib/record-close.js?v=202610201053';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610201053';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610201053';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610201053';
-import { can } from './lib/perm.js?v=202610201053';
+import * as State from './state.js?v=202610201213';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610201213';
+import { clampOpenRecords } from './lib/record-close.js?v=202610201213';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610201213';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610201213';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610201213';
+import { can } from './lib/perm.js?v=202610201213';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -15,6 +15,19 @@ import {
 let isHistoryCached = false;
 
 let historyFetchPromise = null;
+
+// 7번(2026-10-20): 마지막 이력 조회가 실패했으면 그 오류, 성공하면 null.
+//   실패를 '이력 없음'·'오늘 한 줄' 로 보이지 않게 목록(history-list-controller)과
+//   업무예상 봇 훅(ui-history-prediction __forecastForDate)이 이 값을 본다.
+let historyFetchError = null;
+export const getHistoryFetchError = () => historyFetchError;
+// 이 탭에서 이력을 한 번이라도 받았는지(서버 또는 30분 캐시). 첫 조회가 실패한 뒤에도
+// 다른 경로(syncTodayToHistory)가 오늘 1행을 넣으므로, '비었는가' 만으로는 실패를 알 수 없다.
+export const hasHistoryLoaded = () => isHistoryCached;
+// 공용 판정 — 이력 조회가 실패했고 받아 둔 이력도 없다(있는 건 다른 경로가 넣은 오늘 1행뿐일 수 있다).
+//   목록(history-list-controller)·업무 예상/물량 추세 탭(listeners-history-tabs)·봇 훅(__forecastForDate)이 모두 이것을 본다.
+//   이미 받아 둔 이력이 있는데 강제 새로고침(__recoverDay 등)만 실패한 경우는 실패로 보지 않는다.
+export const historyLoadFailed = () => !!historyFetchError && (State.allHistoryData.length === 0 || !isHistoryCached);
 
 // 이력 캐시 TTL. 과거 이력은 변하지 않으므로 길게 캐싱(읽기 요금 절감).
 // 오늘 데이터는 실시간 동기화(syncTodayToHistory)로 별도 갱신되므로 영향 없음.
@@ -1424,6 +1437,7 @@ export async function fetchAllHistoryData(forceRefresh = false) {
                 State.allHistoryData.length = 0;
                 State.allHistoryData.push(...JSON.parse(cached));
                 isHistoryCached = true;
+                historyFetchError = null;   // 30분 캐시로 정상 적재 — 앞선 실패 표시를 지운다
                 // 🛡️ 오늘 행은 캐시 값이 오래됐을 수 있으므로 실시간 메모리 상태로 덮어써 항상 최신 유지
                 try { syncTodayToHistory(); } catch (e) {}
                 return State.allHistoryData;
@@ -1445,6 +1459,11 @@ export async function fetchAllHistoryData(forceRefresh = false) {
 
             const q = query(historyCollectionRef, where(documentId(), ">=", oneYearAgoStr));
             const querySnapshot = await getDocs(q);
+            // 오프라인이면 getDocs 는 예외 없이 캐시(비었거나 일부) 결과를 돌려준다(metadata.fromCache).
+            // 그대로 쓰면 '오늘 한 줄'·'일부만' 이 정상처럼 보이므로 조회 실패로 본다(아래 catch).
+            if (querySnapshot.metadata && querySnapshot.metadata.fromCache) {
+                throw new Error('이력 조회가 서버에 닿지 못함(오프라인 캐시 결과)');
+            }
             
             const dataMap = new Map();
             querySnapshot.forEach((doc) => {
@@ -1485,6 +1504,7 @@ export async function fetchAllHistoryData(forceRefresh = false) {
             
             isHistoryCached = true; 
             lastServerHistoryFetchAt = Date.now();   // refreshRecentHistory 가 방금 받은 것을 또 받지 않게
+            historyFetchError = null;
             
             // ✨ 성공적으로 가져왔다면 로컬 스토리지에 캐싱 (용량 초과 시 안전하게 스킵)
             try {
@@ -1498,7 +1518,10 @@ export async function fetchAllHistoryData(forceRefresh = false) {
             return State.allHistoryData;
         } catch (error) {
             console.error('Error fetching all history data:', error);
-            State.allHistoryData.length = 0;
+            historyFetchError = error;
+            // 이미 받아 둔 이력이 있으면(강제 새로고침 실패 등) 비우지 않고 그대로 쓴다.
+            // 비어 있을 때만 [] — 목록이 '이력 없음' 대신 오류·[다시 시도]를 보인다.
+            if (State.allHistoryData.length > 0) return State.allHistoryData;
             return [];
         } finally {
             historyFetchPromise = null;

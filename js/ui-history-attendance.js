@@ -1,8 +1,8 @@
 // === js/ui-history-attendance.js ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear, escapeHtml } from './utils.js?v=202610201053';
-import { context, LEAVE_TYPES, appState, appConfig } from './state.js?v=202610201053';
-import { systemAccountSet } from './attendance-stats.js?v=202610201053';
+import { formatTimeTo24H, formatDuration, getWeekOfYear, escapeHtml } from './utils.js?v=202610201213';
+import { context, LEAVE_TYPES, appState, appConfig } from './state.js?v=202610201213';
+import { systemAccountSet } from './attendance-stats.js?v=202610201213';
 
 // 근태 요약 표의 열 순서. 기존 순서를 유지하되, LEAVE_TYPES에 있는데 여기 없는 종류는
 // 뒤에 자동으로 붙는다 → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -158,7 +158,7 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
                         data-action="open-add-attendance-modal" data-date-key="${dateKey}">
                     수동 추가
                 </button>
-                <button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-md text-sm ml-2" 
+                <button class="bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 font-semibold py-1 px-3 rounded-md text-sm ml-4" 
                         data-action="request-history-deletion" data-date-key="${dateKey}">
                     삭제
                 </button>

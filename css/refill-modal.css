@@ -82,6 +82,10 @@
     #refill-modal .refill-table td.refill-chk { width: 48px; height: 40px; }
     #refill-modal .refill-chk input { width: 26px; height: 26px; }
     body:has(#refill-modal[style*="flex"]) { overflow: hidden; }
+    /* 표가 화면 폭에 들어가게 — 최소 폭(560px)을 풀고 '누가·언제'(6번째 열, js/refill-table.js td.refill-who) 를 숨긴다.
+       !important: css/style.css 모바일 규칙 'table { min-width: 500px !important }' 를 이겨야 한다 */
+    #refill-modal .refill-table { min-width: 0 !important; }
+    #refill-modal .refill-table th:nth-child(6), #refill-modal .refill-table td.refill-who { display: none; }
 }
 
 /* 대시보드 '채우기' 업무 카드의 진행률 글자(js/ui-main-board.js · js/refill-dash.js) */

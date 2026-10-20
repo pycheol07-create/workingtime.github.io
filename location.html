@@ -10,9 +10,9 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610201053">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610201053">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610201053">
+    <link rel="stylesheet" href="css/suit.css?v=202610201213">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610201213">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610201213">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -64,6 +64,11 @@
         @media (max-width: 1024px) { .controls-header, .ch-left { gap: 10px; } #loc-tab-nav .pn-item { padding: 6px 12px; } }
         /* '필터 전체 해제'는 데이터 리스트 탭에서만(필터는 리스트에만 있다) — body[data-loc-tab] 은 markLocTab 이 바꾼다 */
         body:not([data-loc-tab="list"]) .btn-clear-filters { display: none !important; }
+        /* 머리줄 전체 검색 — 어느 탭에서든 보인다(치면 리스트로 간다) */
+        .loc-global-search { flex: 0 1 200px; min-width: 120px; height: var(--h-ctl-sm, 32px); padding: 0 12px; box-sizing: border-box;
+            border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); background: var(--c-surface); color: var(--c-text);
+            font-family: inherit; font-size: 13px; }
+        .loc-global-search:focus { outline: none; border-color: var(--c-accent); box-shadow: 0 0 0 2px var(--c-accent-soft); }
         /* 처리할 일 버튼(머리줄, 어느 탭에서든) · 매일 하는 일 [오늘 재고 올리기] */
         .loc-quick { display: flex; gap: 6px; align-items: center; }
         .loc-quick .btn { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
@@ -753,6 +758,7 @@
             .controls-header { flex-wrap: wrap; gap: 6px; margin: 6px 8px; }
             .controls-header > div:first-child { flex-wrap: wrap; gap: 8px; width: 100%; }
             .btn-clear-filters { flex-shrink: 0; white-space: nowrap; }
+            .loc-global-search { flex: 1 1 100%; width: 100%; min-width: 0; }
             .header-actions { flex-wrap: wrap; width: 100%; gap: 6px; }
             .loc-quick { flex-wrap: wrap; }
             .version-badge { display: none; }
@@ -785,6 +791,9 @@
             .topcard-strip { padding: 8px 10px 8px 14px; }
             .topcard-detail { padding: 12px 14px 14px; }
             .refill-table td.refill-chk { width: 48px; height: 40px; }
+            /* 휴대폰: 표가 화면 폭에 들어가게 — 최소 폭을 풀고 '누가·언제'(6번째 열) 를 숨긴다(css/refill-modal.css 와 같은 규칙) */
+            #refill-modal .refill-table { min-width: 0; }
+            #refill-modal .refill-table th:nth-child(6), #refill-modal .refill-table td.refill-who { display: none; }
             .refill-chk input { width: 26px; height: 26px; }
             /* 지시서 표 창: 창은 화면에 고정하고 표 상자 안에서만 가로·세로 스크롤(창·페이지가 같이 밀리지 않게) */
             #refill-modal { overflow: hidden; overscroll-behavior: contain; }
@@ -892,6 +901,8 @@
             <div class="usage-popup" id="usage-popup" onclick="event.stopPropagation()"></div>
         </div>
         <button class="btn-clear-filters btn btn-ghost btn-sm" onclick="window.clearAllFilters(event)">필터 전체 해제</button>
+        <!-- 전체 검색 — 치면 데이터 리스트로 바뀌고 로케이션·코드·상품명·옵션으로 거른다(js/location.js setupGlobalSearch). '필터 전체 해제'가 같이 비운다 -->
+        <input type="search" id="loc-global-search" class="loc-global-search" placeholder="로케이션·코드·상품명" aria-label="로케이션·코드·상품명 검색" autocomplete="off">
         <div class="ch-status">
         <span id="last-data-update" class="ch-stat" title="마지막 데이터 최신화 시각"><span class="dot"></span>재고<span class="lu-label"> 최신화</span> <b>—</b></span>
         <button id="zikjin-update-info" class="ch-zikjin" type="button" onclick="window.openZikjinDetail && window.openZikjinDetail()" title="직진·에이블리(ZG&AB) 출고 전송 기록 — 클릭 시 상세"><span class="dot"></span><span class="zk-label">ZG&AB </span>출고 <b>—</b></button>
@@ -903,7 +914,7 @@
 
             <!-- 처리할 일 — 대시보드 '처리할 일' 카드와 같은 동작을 어느 탭에서든 -->
             <div class="loc-quick" aria-label="처리할 일">
-                <button type="button" class="btn btn-secondary btn-sm" title="변경 추천" aria-label="변경 추천" onclick="event.stopPropagation(); closeAllPopups(); window.openRecommendModal && window.openRecommendModal();"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3"></path></svg><span class="lq-text">변경 추천</span></button>
+                <button type="button" class="btn btn-secondary btn-sm" data-feature="location.locrec" title="변경 추천" aria-label="변경 추천" onclick="event.stopPropagation(); closeAllPopups(); window.openLocRecTable && window.openLocRecTable();"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3"></path></svg><span class="lq-text">변경 추천</span></button>
                 <button type="button" class="btn btn-secondary btn-sm" title="입고대기 선지정 패널" aria-label="입고대기" onclick="toggleIncomingSidebar(event)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"></path><path d="M3 8v8l9 5 9-5V8"></path></svg><span class="lq-text">입고대기</span></button>
                 <button type="button" class="btn btn-secondary btn-sm" title="빈칸확보" aria-label="빈칸확보" onclick="document.getElementById('modal-2f').style.display='flex'; window.calc2FList && window.calc2FList();"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"></rect><rect x="13" y="4" width="7" height="7" rx="1.5"></rect><rect x="4" y="13" width="7" height="7" rx="1.5"></rect><rect x="13" y="13" width="7" height="7" rx="1.5" stroke-dasharray="2 2"></rect></svg><span class="lq-text">빈칸확보</span></button>
             </div>
@@ -917,7 +928,7 @@
                 <button class="btn-main-upload" onclick="toggleUploadMenu(event, 'main-tools-menu')" title="분석 데이터 올리기">분석 <span class="dd-long">데이터 </span>올리기 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
                 <div class="upload-menu" id="main-tools-menu" onclick="event.stopPropagation()" style="width: 270px;">
 
-                    <div class="menu-section">로케이션 변경 추천</div>
+                    <div class="menu-section">수동 변경 계산 자료</div>
 
                     <label for="excel-upload-zikjin" data-feature="location.dataUpload">
                         <span>ZG&AB 출고 데이터 업로드<span class="info-tip" data-tip-key="menu-zikjin" onclick="event.stopPropagation(); event.preventDefault();">i<span class="info-tip-content"><b>ZG&AB 출고 데이터</b><br>직진+에이블리 출고를 합친 엑셀 파일(상품코드 + 수량 또는 날짜별 컬럼)을 업로드합니다.<br><br>점수 계산의 <b>'ZG&AB 출고'</b> 항목에 사용됩니다.</span></span></span>
@@ -1432,7 +1443,7 @@
     <div id="recommend-modal" class="modal-overlay" onclick="closeRecommendModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 1400px; max-width: 98vw; padding: 22px 20px; height: 94vh; max-height: 94vh; box-sizing: border-box; display: flex; flex-direction: column;">
             <div class="modal-header" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
-                로케이션 변경 리스트
+                로케이션 변경 계산 (수동 · 올린 자료 기준)
                 <button class="btn btn-primary btn-sm" onclick="window.runActiveRecommendation()">계산</button>
                 <button class="btn btn-secondary btn-sm" data-feature="location.settings" onclick="window.openRatioModal()">점수반영비율 설정</button>
                 <button class="btn btn-secondary btn-sm" onclick="window.show2FRecommendation()">빈칸확보</button>
@@ -1631,10 +1642,10 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610201053"></script>
+    <script type="module" src="js/location.js?v=202610201213"></script>
     <!-- 권한 개편 5단계: location.js 가 만든 window.* 위험 함수를 바깥에서 감싼다(반드시 location.js 다음) -->
-    <script type="module" src="js/location-guard.js?v=202610201053"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610201053"></script>
+    <script type="module" src="js/location-guard.js?v=202610201213"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610201213"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1671,11 +1682,7 @@
             const isVisible = pop.style.display === 'block';
             closeAllPopups();
             if (!isVisible && pop) {
-                // ★ v3.60: 팝업을 새로 열 때는 검색 쿼리 초기화
-                if (window._filterSearchQuery) window._filterSearchQuery[id] = '';
-                // 검색창이 있으면 값 비우기
-                const input = pop.querySelector('.filter-search-input');
-                if (input) input.value = '';
+                // 검색어는 비우지 않는다 — 표에 걸린 검색 필터(colTextSearch)가 팝업에서 보이도록(2026-10-20)
                 
                 const rect = e.target.getBoundingClientRect();
                 pop.style.display = 'block';
@@ -1715,10 +1722,10 @@
             }
         }
     </script>
-    <script src="js/connection-banner.js?v=202610201053"></script>
-    <script src="js/modal-esc.js?v=202610201053"></script>
-    <script type="module" src="js/modal-drag.js?v=202610201053"></script>
-    <script type="module" src="js/page-gate.js?v=202610201053" data-perm-page="location.view"></script>
-    <script type="module" src="js/app-shell.js?v=202610201053"></script>
+    <script src="js/connection-banner.js?v=202610201213"></script>
+    <script src="js/modal-esc.js?v=202610201213"></script>
+    <script type="module" src="js/modal-drag.js?v=202610201213"></script>
+    <script type="module" src="js/page-gate.js?v=202610201213" data-perm-page="location.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610201213"></script>
 </body>
 </html>
