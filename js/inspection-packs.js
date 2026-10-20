@@ -1,16 +1,17 @@
 // === js/inspection-packs.js ===
 // 샘플검수 '패킹에서 만들기' — 입고예정 패킹을 골라 검수 대기 리스트(daily_data.inspectionList)에 추가한다.
 // 읽기: integrations/inspPacks (미발계산기2 수집기가 씀, 열 때 getDoc 1회 — 구독하지 않는다) · product_history/{상품명}(두께) · 날짜별 이력(샘플위치)
+//       · Locations ZONE_* (샘플위치, [만들기] 때 getDocs 1회 — 이름·옵션·대분류·id 만 꺼내고 rawDataStr 등은 버린다)
 // 쓰기: updateDailyData({inspectionList}) — 엑셀 업로드(js/inspection-excel.js)와 같은 경로. 순수 규칙은 js/lib/insp-packs.js.
 // ⚠️ 이 창은 index.html 에 붙는다 — 업무마감봇 선택자와 겹치지 않게 role="dialog"·data-act·end-shift-* 를 쓰지 않는다. id 는 모두 insp-pack-*.
 // ⚠️ 공급처는 코드만(supplierCode). supplierName 은 빈칸(CLAUDE.md 3절).
-import * as State from './state.js?v=202610201426';
-import { updateDailyData } from './app-data.js?v=202610201426';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610201426';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610201426';
-import { fetchAllHistoryData } from './history-data-manager.js?v=202610201426';
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc } from './lib/insp-packs.js?v=202610201426';
+import * as State from './state.js?v=202610201447';
+import { updateDailyData } from './app-data.js?v=202610201447';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610201447';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610201447';
+import { fetchAllHistoryData } from './history-data-manager.js?v=202610201447';
+import { doc, getDoc, getDocs, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations } from './lib/insp-packs.js?v=202610201447';
 
 const DOC_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks'];
 const PICKER_ID = 'insp-pack-picker';
@@ -186,6 +187,21 @@ async function loadHistoryThickness(names) {
     return out;
 }
 
+/** 로케이션관리 자리 목록 — location.js 와 같은 ZONE_* 문서(자리 id → 자리 map). 공급처 열이 섞인 rawDataStr 는 꺼내지 않는다(CLAUDE.md 3절). */
+async function loadLocationItems() {
+    const snap = await getDocs(query(collection(State.db, 'Locations'), where(documentId(), '>=', 'ZONE_'), where(documentId(), '<=', 'ZONE_\uf8ff')));
+    const items = [];
+    snap.forEach(docSnap => {
+        const zone = docSnap.data() || {};
+        for (const id in zone) {
+            const o = zone[id];
+            if (!o || typeof o !== 'object') continue;
+            items.push({ id, name: o.name, option: o.option, category: o.category });
+        }
+    });
+    return items;
+}
+
 async function makeFromPicked() {
     if (busy) return;
     const packs = selectedPacks();
@@ -198,18 +214,29 @@ async function makeFromPicked() {
         let days = [];
         try { days = await fetchAllHistoryData(); } catch (e) { console.warn('이력 조회 실패(샘플위치·두께 참고 없이 진행):', e); }
         const refs = refsFromDays(days);
+        let locNote = '';
+        try {
+            const loc = samplesFromLocations(await loadLocationItems());
+            refs.sampleByLoc = loc.byKey;
+            refs.sampleByLocColor = loc.byColor;
+            refs.sampleByLocName = loc.byName;
+        } catch (e) {
+            // 권한으로 막히면 조용히 이력만 쓴다. 그 밖의 실패는 한 줄 안내.
+            console.warn('로케이션관리 조회 실패(샘플위치는 지난 검수 기록으로만):', e && e.code ? e.code : e);
+            if (!(e && e.code === 'permission-denied')) locNote = ' · 로케이션관리를 읽지 못해 샘플위치는 지난 검수 기록으로만 채웠습니다';
+        }
         const names = [...new Set(buildCards(packs, null, today).map(c => c.name).filter(Boolean))];
         refs.thickByDoc = await loadHistoryThickness(names);
         const cards = buildCards(packs, refs, today);
         if (cards.length === 0) { showToast('선택한 패킹에 만들 항목이 없습니다.', true); return; }
         const { merged, added, skipped } = mergeList(State.appState.inspectionList || [], cards);
         if (added === 0) {
-            showToast(`0장 추가, 이미 있거나 겹쳐서 빠진 ${skipped}건`);
+            showToast(`0장 추가, 이미 있거나 겹쳐서 빠진 ${skipped}건${locNote}`);
         } else {
             const ok = await updateDailyData({ inspectionList: merged });
             if (ok === false) { showToast('검수 리스트를 저장하지 못했습니다.', true); return; }
             State.appState.inspectionList = merged;
-            showToast(`${added}장 추가, 이미 있거나 겹쳐서 빠진 ${skipped}건 (총 ${merged.length}개)`);
+            showToast(`${added}장 추가, 이미 있거나 겹쳐서 빠진 ${skipped}건 (총 ${merged.length}개)${locNote}`);
         }
         busy = false;
         closePicker();

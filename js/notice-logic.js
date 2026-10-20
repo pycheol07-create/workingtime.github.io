@@ -1,11 +1,11 @@
 // === js/notice-logic.js ===
-import * as State from './state.js?v=202610201426';
-import { showToast } from './utils.js?v=202610201426';
+import * as State from './state.js?v=202610201447';
+import { showToast } from './utils.js?v=202610201447';
 import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202610201426';
+import { initializeFirebase } from './config.js?v=202610201447';
 
 // 🔥 [신규] 멘션 발송을 위해 알림 함수 가져오기
-import { sendNotification } from './app-notifications.js?v=202610201426';
+import { sendNotification } from './app-notifications.js?v=202610201447';
 
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 

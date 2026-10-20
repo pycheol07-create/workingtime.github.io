@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610201426';
-import * as State from './state.js?v=202610201426';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610201426';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610201426';
+import * as DOM from './dom-elements.js?v=202610201447';
+import * as State from './state.js?v=202610201447';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610201447';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610201447';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory, historyLoadFailed,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610201426';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610201426';
-import { renderQuantityModalInputs } from './ui.js?v=202610201426';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610201426';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610201426';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610201447';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610201447';
+import { renderQuantityModalInputs } from './ui.js?v=202610201447';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610201447';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610201447';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -50,8 +50,8 @@ export const retryHistoryLoad = async () => {
         await loadAndRenderHistoryList();
         if (historyLoadFailed()) return;   // 또 실패 — 오류 화면은 그대로
         clearPanelLoadErrors();
-        const { sectionIdFor } = await import('./history-sections.js?v=202610201426');
-        const { showSection } = await import('./listeners-history-tabs.js?v=202610201426');
+        const { sectionIdFor } = await import('./history-sections.js?v=202610201447');
+        const { showSection } = await import('./listeners-history-tabs.js?v=202610201447');
         await showSection(sectionIdFor(prevMain, prevSub) || 'insight');
     } catch (e) {
         console.error('이력 다시 시도 실패:', e);

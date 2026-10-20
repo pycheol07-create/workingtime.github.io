@@ -82,6 +82,18 @@ export function cleanKey(name, option) {
     return cleanName + cleanOption;
 }
 
+/** 로케이션관리 샘플 매칭 키 — '[' ']' 를 지운 뒤 cleanKey. 패킹 옵션은 [블랙-S], 로케이션 옵션은 블랙-S 일 수 있다.
+ *  지난 검수 이력 매칭(sampleByKey)은 cleanKey 그대로. */
+export function locSampleKey(name, option) {
+    const strip = (v) => String(v || '').replace(/\[|\]/g, '');
+    return cleanKey(strip(name), strip(option));
+}
+
+/** 로케이션관리 샘플 '이름+색상' 키 — 샘플은 보통 한 사이즈만 있어 옵션이 정확히 같지 않을 때 쓴다. 색상은 colorOf(촬샘- 제거). */
+export function locColorKey(name, option) {
+    return locSampleKey(name, '') + '::' + colorOf(String(option == null ? '' : option).replace(/촬샘-/g, ''));
+}
+
 /** 패킹일: 출고일(YYYY-MM-DD) → 패킹번호 앞 8자리 → today */
 export function packingDateOf(pack, today) {
     const sd = str(pack && pack.shipDate).slice(0, 10);
@@ -130,6 +142,35 @@ export function refsFromDays(allHistoryData) {
     return refs;
 }
 
+const SAMPLE_NAME_MARK = '(매칭금지-제작샘플)';
+const SAMPLE_OPT_MARK = '촬샘-';
+const SAM_ID_RE = /^SAM/i;
+
+/** 샘플 자리인가 — 이름에 '(매칭금지-제작샘플)' · 옵션에 '촬샘-' · 자리 id 가 SAM 으로 시작(china-stock-goods.js 샘플위치와 같은 기준).
+ *  대분류 '기타' 만으로는 고르지 않는다 — 비축 자리(옵션추가항목1)에 일반 상품이 같은 이름으로 들어 있다. */
+export function isSampleLoc(loc) {
+    if (!loc) return false;
+    return str(loc.name).includes(SAMPLE_NAME_MARK) || str(loc.option).includes(SAMPLE_OPT_MARK) || SAM_ID_RE.test(str(loc.id));
+}
+
+/** 로케이션관리 자리 목록([{id,name,option,category}]) → { byKey, byColor, byName } (각각 Map(키 → 자리 id)).
+ *  byKey = locSampleKey(이름+옵션) · byColor = locColorKey(이름+색상) · byName = locSampleKey(이름). 모두 괄호 무시.
+ *  같은 키가 여러 자리면 정렬해 ', ' 로 잇는다. */
+export function samplesFromLocations(locItems) {
+    const acc = { byKey: new Map(), byColor: new Map(), byName: new Map() };
+    const add = (m, k, id) => { if (!m.has(k)) m.set(k, new Set()); m.get(k).add(id); };
+    (Array.isArray(locItems) ? locItems : []).forEach(loc => {
+        if (!isSampleLoc(loc)) return;
+        const id = str(loc.id), name = str(loc.name);
+        if (!id || !name) return;
+        add(acc.byKey, locSampleKey(name, loc.option), id);
+        add(acc.byColor, locColorKey(name, loc.option), id);
+        add(acc.byName, locSampleKey(name, ''), id);
+    });
+    const join = (m) => { const out = new Map(); m.forEach((ids, k) => out.set(k, [...ids].sort().join(', '))); return out; };
+    return { byKey: join(acc.byKey), byColor: join(acc.byColor), byName: join(acc.byName) };
+}
+
 const getRef = (m, k) => (m && typeof m.get === 'function' && m.has(k)) ? m.get(k) : undefined;
 
 /** 패킹 품목 → 검수 대기 항목. 항목에 undefined 필드를 두지 않는다(Firestore 가 거부). */
@@ -146,7 +187,10 @@ export function buildCards(packs, refs, today) {
             if (seen.has(key)) return;
             seen.add(key);
             const thickness = getRef(r.thickByDoc, name) || getRef(r.thickByName, name) || '';
-            const sampleLocation = getRef(r.sampleByKey, cleanKey(name, option)) || getRef(r.sampleByName, cleanKey(name, '')) || null;
+            // 샘플위치: 로케이션관리(지금 위치) 이름+옵션 → 이름+색상 → 이름 → 지난 검수 cleanKey → 상품명 → null
+            const sampleLocation = getRef(r.sampleByLoc, locSampleKey(name, option)) || getRef(r.sampleByLocColor, locColorKey(name, option))
+                || getRef(r.sampleByLocName, locSampleKey(name, ''))
+                || getRef(r.sampleByKey, cleanKey(name, option)) || getRef(r.sampleByName, cleanKey(name, '')) || null;
             out.push({
                 code, name, option, qty: Number(it.qty) || 0,
                 thickness: String(thickness),
