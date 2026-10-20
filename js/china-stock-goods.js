@@ -1,18 +1,19 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610201447'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610201546'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610201447';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610201447';
-import { mibalSendSummary, mibalSendConfirmText } from './lib/mibal-send.js?v=202610201447';
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610201447';
-import { initPageNav } from './page-nav.js?v=202610201447';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201447';
-import { setShellContext } from './app-shell-bridge.js?v=202610201447';
-import { memberNameFor } from './app-shell-data.js?v=202610201447';
-import { createUploadStatus } from './busy-banner.js?v=202610201447';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610201546';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610201546';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610201546';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610201546'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610201546';
+import { initPageNav } from './page-nav.js?v=202610201546';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201546';
+import { setShellContext } from './app-shell-bridge.js?v=202610201546';
+import { memberNameFor } from './app-shell-data.js?v=202610201546';
+import { createUploadStatus } from './busy-banner.js?v=202610201546';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -2807,22 +2808,10 @@ function todayISO() { const d = new Date(); const p = n => String(n).padStart(2,
 async function loadMibalHistory() {
     try { const s = await getDoc(doc(db, CHINA_COLLECTION, 'MIBAL_HISTORY')); mibalHistory = (s.exists() && s.data().map) ? s.data().map : {}; } catch (e) { mibalHistory = {}; }
 }
+// [2026-10-20] 규칙은 js/lib/mibal-forecast.js 하나로 — 업무 예상(mibalByArrival)과 같은 상승률.
+//   같은 basis(Σ부족 sum / Σmin(부족,도착) min) 쌍만 · 묶음 복제 쌍은 한 번 · min 쌍이 있으면 min 평균. 반환 {avg, n, basis}|null
 function computeAvgRise() {
-    const byShip = {};
-    Object.values(mibalHistory).forEach(r => { if (r && r.출고일) (byShip[r.출고일] = byShip[r.출고일] || []).push(r); });
-    const rates = [];
-    Object.values(byShip).forEach(recs => {
-        recs.sort((a, b) => String(a.전송날짜).localeCompare(String(b.전송날짜)));
-        const 입고일 = (recs.find(r => r.입고일) || {}).입고일 || ''; // [Ver 8.54] 여러 전송 중 입고일이 채워진 것 우선 (초기 전송 때 입고일 미확정이면 빈 값이라 옛 코드는 계속 '미정'으로 굳음)
-        const before = recs.filter(r => !입고일 || String(r.전송날짜) < 입고일).pop(); // [2026-10-20] 입고 전 '가장 최근' 전송(예전엔 첫 전송) — js/lib/mibal-forecast.js lastBefore 와 같게
-        const arr = 입고일 ? recs.find(r => String(r.전송날짜) >= 입고일) : null;      // 입고일 시점
-        if (!before || !arr) return;
-        const a = parseInt(before.미발수량) || 0, b = parseInt(arr.미발수량) || 0;
-        if (a <= 0) return;
-        const rate = (b - a) / a;
-        if (rate >= 0.01 && rate <= 1.00) rates.push(rate); // [Ver 8.37] 시트 AVERAGEIFS(1~100%)와 동일: 이상치 제외
-    });
-    return rates.length ? { avg: rates.reduce((s, x) => s + x, 0) / rates.length, n: rates.length } : null;
+    return computeAvgRiseLib(mibalHistory);
 }
 function renderAvgRise() {
     const el = document.getElementById('avg-rise'); if (!el) return;
@@ -2894,18 +2883,19 @@ async function sendMibal() {
     if (!savedDates.length) { alert('출고일을 하나 이상 선택하세요.'); return; }
     if (!tableData.length) { alert('표에 데이터가 없습니다. 출고일을 확인하세요.'); return; }
     // 미발수량은 선택 출고일의 전체 행 합계 — 예전엔 검색·열 필터 뒤 보이는 행만 더했다(js/lib/mibal-send.js)
-    const { total: 미발수량, visible } = mibalSendSummary(tableData, filteredData);
+    // [2026-10-20] 보낼 값 = Σmin(부족수량, 도착수량)(basis min). rawTotal = Σ부족수량(화면 '총 미발수량' 카드와 같음)
+    const { total: 미발수량, visible, rawTotal } = mibalSendSummary(tableData, filteredData);
     const filtersOn = !!(document.getElementById('search-input')?.value || '').trim() || Object.keys(columnFilters).length > 0;
     const 전송날짜 = todayISO();
     // [Ver 8.35] 선택된 출고일마다 동일 미발수량으로 각각 기록 (같은날 여러 출고일 입고 대응, 제한 없음)
     const dupes = savedDates.filter(o => mibalHistory[`${o}|${전송날짜}`]);
     // 보내기 전에 늘 확인 — 출고일·합계, 필터가 켜졌으면 보이는 합계와의 차이, 같은 날 기록이 있으면 덮어씀(예전 중복 확인을 합침)
-    if (!confirm(mibalSendConfirmText({ dates: savedDates, total: 미발수량, visible, filtersOn, dupes, today: 전송날짜 }))) return;
+    if (!confirm(mibalSendConfirmText({ dates: savedDates, total: 미발수량, visible, rawTotal, filtersOn, dupes, today: 전송날짜 }))) return;
     const update = {};
     savedDates.forEach(출고일 => {
         const 입고일 = (arrivalByShip[출고일] && arrivalByShip[출고일][0]) || '';
         const key = `${출고일}|${전송날짜}`;
-        const rec = { 출고일, 입고일, 미발수량, 전송날짜 };
+        const rec = { 출고일, 입고일, 미발수량, 전송날짜, basis: MIBAL_SEND_BASIS, 부족합: rawTotal };
         mibalHistory[key] = rec; update[key] = rec;
     });
     try {

@@ -7,8 +7,9 @@
 // 채우기자동화\규칙.py 도 isEtcLocObj·pickLocation·buildLocIndex 를 같은 규칙으로 옮겼다 — 바꾸면 그쪽도 바꿀 것(tests\test_JS일치.py 가 비교).
 //
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
+// 계산은 mibal2-calc.js calcPlan(공식 버전 FORMULA_VER — 2026-10-20 v2: 피킹 → 비축 → 입고분, 3층 = 미발 + 피킹 적재).
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcNew, calcOld, reserveCheck, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT } from './mibal2-calc.js?v=202610201447';
+import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202610201546';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
@@ -125,6 +126,32 @@ export function capacitySource(locId, config, ed) {
     return DEFAULT_ZONE_CAPACITY[ch] ? `구역 '${ch}' 기본값` : `구역 '${ch}' 기본값 없음 → 0`;
 }
 
+/** 적재량 출처 짧은 글자(표의 '적재량(출처)' 칸) — capacitySource 와 같은 분기: 개별 | 구역 | ★기본 | 기본 | 없음 */
+export function capacitySourceKind(locId, config, ed) {
+    if (ed && ed.capacity !== undefined && ed.capacity !== '') return '개별';
+    if (!locId) return '없음';
+    const zc = (config && config.zoneCapacity) || {};
+    const ch = zoneKey(locId);
+    if (zc[ch] !== undefined && zc[ch] !== '') return '구역';
+    if (ch === '★') return '★기본';
+    return DEFAULT_ZONE_CAPACITY[ch] ? '기본' : '없음';
+}
+
+// ─────────────────────────────────────────────────────────────
+// 플래그 — 화면·엑셀이 같은 글자를 쓴다
+// ─────────────────────────────────────────────────────────────
+
+/** 플래그 키 → [화면 글자, css 클래스] */
+export const FLAG_INFO = Object.freeze({
+    zeroCapacity: ['적재량0', 'bad'], noStock: ['재고모름', 'bad'], noOrders: ['주문모름', 'bad'],
+    noReserve: ['비축모름', 'bad'], negReserve: ['비축음수', 'bad'], negPick: ['피킹재고음수', 'bad'],
+    unresolved: ['미해결부족', 'warn'], overCap: ['피킹넘침', 'warn'], needRefill: ['보충필요', 'warn'],
+    noLoc: ['로케이션없음', 'bad'], etcLoc: ['기타자리만', 'bad'], multiLoc: ['여러자리', ''],
+    onlyOld: ['기존에만', 'bad'], noOld: ['신규에만', 'warn'], arrDiff: ['도착다름', 'warn']
+});
+/** 하나라도 붙으면 '확인 필요' 행. multiLoc 은 사용자 결정(첫 자리 하나)이라 정보만 */
+export const CHECK_FLAGS = new Set(['noStock', 'noOrders', 'noReserve', 'negReserve', 'negPick', 'zeroCapacity', 'noLoc', 'etcLoc']);
+
 // ─────────────────────────────────────────────────────────────
 // 설정·저장 형식 → 입력 묶음 정규화
 // ─────────────────────────────────────────────────────────────
@@ -178,7 +205,7 @@ export function locFromDaily(obj) {
 
 /**
  * @param {object} b 입력 묶음
- * @param {Object<string,{n,r,i,b}>} b.stockRows  mibal2 rowsJson (정상·접수·송장·비축재고). b 는 10/8 수집기부터, 모르면 키 없음
+ * @param {Object<string,{n,r,i,b}>} b.stockRows  mibal2 rowsJson (총재고·접수·송장·비축재고). b 는 10/8 수집기부터, 모르면 키 없음 → noReserve
  * @param {Object<string,{nm,op,s}>} b.shipItems  mibal2 shipJson.items
  * @param {Object<string,{mibal:number, arr:number|null}>|null} b.oldMap  기존 미발 비교값. null = 비교 자료 없음(플래그도 안 붙임)
  * @param {object} b.zoneConfig   capacityFor 에 넘길 CONFIG({zoneCapacity})
@@ -213,10 +240,8 @@ export function computeRows(b) {
         const locId = locInfo ? locInfo.id : '';
         const ed = edited[code];
         const cap = capacityFor(locId, b.zoneConfig, ed);
-        const input = { 정상: sr ? sr.n : null, 접수: sr ? sr.r : null, 송장: sr ? sr.i : null, 적재량: cap, 도착: a.qty };
-        const res = calcNew(input);
-        // 비축재고(이지어드민 불량창고=비축) — 판단 보조만. calcNew 결과는 그대로
-        const rc = reserveCheck({ 비축: sr ? sr.b : null, 밀린주문: res.밀린주문, 보충필요: res.보충필요, 비축행: res.비축행 });
+        const input = { 총재고: sr ? sr.n : null, 비축: sr ? sr.b : null, 접수: sr ? sr.r : null, 송장: sr ? sr.i : null, 적재량: cap, 도착: a.qty };
+        const res = calcPlan(input);
         // 기존공식 × 신규입력: 부족수량 = max(접수+송장−정상, 0), 직진 = 0
         let oldNew = null, shortage = null;
         if (sr && sr.n !== null && sr.n !== undefined && sr.r !== null && sr.r !== undefined && sr.i !== null && sr.i !== undefined) {
@@ -226,8 +251,9 @@ export function computeRows(b) {
         const o = oldMap ? oldMap[code] : undefined;
         const old = o ? o.mibal : null;
         const oldArr = o && o.arr !== null && o.arr !== undefined ? o.arr : null;
-        const diff = (old !== null && res.미발 !== null) ? res.미발 - old : null;
-        const flags = [...res.flags, ...rc.flags];
+        // 비교 기준 = 3층으로 보낼 양(스캐너 mibalQty 와 같은 뜻)
+        const diff = (old !== null && res.삼층 !== null) ? res.삼층 - old : null;
+        const flags = [...res.flags];
         if (!locInfo) flags.push('noLoc');
         else { if (locInfo.etcOnly) flags.push('etcLoc'); if (locInfo.count > 1) flags.push('multiLoc'); }
         if (oldMap) {
@@ -237,37 +263,73 @@ export function computeRows(b) {
         }
         return {
             code, name: it.nm || '', option: it.op || '', loc: locInfo ? locInfo.id : '미지정', locInfo,
-            cap, arr: a.qty, arrUsed: a.used, arrSkipped: a.skipped,
-            stock: input.정상, recv: input.접수, inv: input.송장,
-            out: res.출고예정, remain: res.남는양, backlog: res.밀린주문, mibal: res.미발, pick: res.피킹행, reserve: res.비축행, refill: res.보충필요,
-            bstock: rc.비축재고, bneed: rc.비축필요, bleft: rc.비축여유, bArrOk: rc.도착포함충분,
+            cap, capSrc: capacitySource(locId, b.zoneConfig, ed), capKind: capacitySourceKind(locId, b.zoneConfig, ed),
+            arr: a.qty, arrUsed: a.used, arrSkipped: a.skipped,
+            stock: sr && sr.n !== undefined ? sr.n : null, bstock: res.비축, pstock: res.피킹재고,
+            recv: sr && sr.r !== undefined ? sr.r : null, inv: sr && sr.i !== undefined ? sr.i : null,
+            out: res.출고예정, short: res.부족, mibal: res.미발, unres: res.미해결, remArr: res.남은도착,
+            pickAfter: res.출고후피킹, resAfter: res.출고후비축, room: res.피킹여유,
+            pick: res.피킹적재, resv: res.비축적재, refill: res.보충, third: res.삼층,
             old, oldArr, oldNew, shortage, diff, diffAbs: diff === null ? -1 : Math.abs(diff),
-            flags, input, res, capSrc: capacitySource(locId, b.zoneConfig, ed)
+            flags, check: flags.some(f => CHECK_FLAGS.has(f)), input, res
         };
     });
 }
 
 /**
- * 요약 카드 숫자 — 모르는 값(null)은 0 으로 더한다. SKU 는 도착>0 행, 보충필요는 보충필요>0 행 수.
- * bstock(비축재고 합)은 모든 행의 비축재고가 모름이면 null(옛 사본). reserveShort·refillShort 는 그 플래그가 붙은 행 수
+ * 요약 카드 숫자 — 모르는 값(null)은 0 으로 더한다. SKU 는 도착>0 행, refill 은 보충>0 행 수, check 는 확인 필요 행 수.
+ * bstock(비축재고 합)은 모든 행의 비축재고가 모름이면 null(옛 사본). thirdUnknown = 3층을 모르는데 도착>0 인 행 수(3층 합에서 빠짐)
  */
 export function summarize(rows) {
-    const sum = (k) => (rows || []).reduce((s, r) => s + (r[k] || 0), 0);
-    const flagCount = (f) => (rows || []).filter(r => (r.flags || []).includes(f)).length;
-    const hasB = (rows || []).some(r => r.bstock !== null && r.bstock !== undefined);
+    const rs = rows || [];
+    const sum = (k) => rs.reduce((s, r) => s + (r[k] || 0), 0);
+    const hasB = rs.some(r => r.bstock !== null && r.bstock !== undefined);
     return {
-        sku: (rows || []).filter(r => r.arr > 0).length,
-        arr: sum('arr'), mibal: sum('mibal'), old: sum('old'), diff: sum('diff'),
-        pick: sum('pick'), reserve: sum('reserve'), backlog: sum('backlog'),
-        refill: (rows || []).filter(r => (r.refill || 0) > 0).length,
+        sku: rs.filter(r => r.arr > 0).length,
+        arr: sum('arr'), mibal: sum('mibal'), unres: sum('unres'), third: sum('third'),
+        pick: sum('pick'), resv: sum('resv'),
+        refill: rs.filter(r => (r.refill || 0) > 0).length,
+        check: rs.filter(r => r.check).length,
+        old: sum('old'), diff: sum('diff'),
         bstock: hasB ? sum('bstock') : null,
-        reserveShort: flagCount('reserveShort'), refillShort: flagCount('refillShort')
+        thirdUnknown: rs.filter(r => (r.third === null || r.third === undefined) && r.arr > 0).length
     };
 }
 
-/** 비교 저장 형식 {code:[기존, 기존공식×신규입력, 신규, 도착, 피킹행, 비축행, 비축재고]} — 상품명·금액은 넣지 않는다. 인덱스 6(비축재고)은 2026-10-08 추가(0~5 불변) */
+/** 비교 저장 형식의 칸 이름 — 저장 문서에 formulaVer·cols 와 함께 남긴다(공식 v1 의 7칸 배열과 뜻이 다르다) */
+export const COMPARE_COLS = Object.freeze(['기존', '3층', '미발', '도착', '피킹적재', '비축적재', '비축', '미해결', '보충', '기존공식x신규입력']);
+
+/** 비교 저장 형식 {code:[COMPARE_COLS 순서]} — 상품명·금액은 넣지 않는다 */
 export function compareRowsOf(rows) {
     const out = {};
-    (rows || []).forEach(r => { out[r.code] = [r.old, r.oldNew, r.mibal, r.arr, r.pick, r.reserve, r.bstock]; });
+    (rows || []).forEach(r => { out[r.code] = [r.old, r.third, r.mibal, r.arr, r.pick, r.resv, r.bstock, r.unres, r.refill, r.oldNew]; });
     return out;
+}
+
+/** 엑셀 열 — 화면 표 순서(상품명/옵션·적재량(출처)는 두 칸으로 나눔) + 확인필요 + 플래그 */
+const EXCEL_COLS = [
+    ['No', (r, i) => i + 1], ['코드', r => r.code], ['상품명', r => r.name], ['옵션', r => r.option],
+    ['피킹로케이션', r => (r.locInfo ? r.loc : '미지정')], ['적재량', r => r.cap], ['적재량출처', r => r.capKind],
+    ['도착', r => r.arr], ['총재고', r => r.stock], ['비축', r => r.bstock], ['피킹재고', r => r.pstock],
+    ['접수', r => r.recv], ['송장', r => r.inv], ['출고예정', r => r.out], ['부족', r => r.short],
+    ['미발(추가 출고)', r => r.mibal], ['미해결부족', r => r.unres], ['피킹 여유', r => r.room],
+    ['3층으로 보낼 양', r => r.third], ['피킹 적재', r => r.pick], ['비축 적재', r => r.resv], ['비축→피킹 보충', r => r.refill],
+    ['기존 미발', r => r.old], ['차이(3층−기존)', r => r.diff],
+    ['확인필요', r => (r.check ? 'Y' : '')],
+    ['플래그', r => (r.flags || []).map(f => (FLAG_INFO[f] ? FLAG_INFO[f][0] : f)).join('·')]
+];
+const NUM_KEYS = new Set(['No', '적재량', '도착', '총재고', '비축', '피킹재고', '접수', '송장', '출고예정', '부족', '미발(추가 출고)', '미해결부족',
+    '피킹 여유', '3층으로 보낼 양', '피킹 적재', '비축 적재', '비축→피킹 보충', '기존 미발', '차이(3층−기존)']);
+
+/** 행 → 엑셀용 2차원 배열(첫 줄 머리글). 숫자 칸의 null·숫자 아님은 빈칸. 상품코드·상품명·옵션·숫자만(공급처·원가·고객정보 없음) */
+export function excelAoaOf(rows) {
+    const aoa = [EXCEL_COLS.map(c => c[0])];
+    (rows || []).forEach((r, i) => {
+        aoa.push(EXCEL_COLS.map(([h, f]) => {
+            const v = f(r, i);
+            if (NUM_KEYS.has(h)) { const n = (v === null || v === undefined || v === '') ? NaN : Number(v); return Number.isFinite(n) ? n : ''; }
+            return v === null || v === undefined ? '' : String(v);
+        }));
+    });
+    return aoa;
 }

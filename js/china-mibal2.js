@@ -13,20 +13,20 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610201447'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610201546'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610201447';
-import { sortMark } from './lib/china-stock-view.js?v=202610201447';
+import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610201546';
+import { sortMark } from './lib/china-stock-view.js?v=202610201546';
 import {
-    listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf,
+    listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf, FLAG_INFO, COMPARE_COLS, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610201447';
-import { setShellContext } from './app-shell-bridge.js?v=202610201447';
-import { memberNameFor } from './app-shell-data.js?v=202610201447';
-import { mountBusyBanner } from './busy-banner.js?v=202610201447';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610201447';
+} from './lib/mibal2-rows.js?v=202610201546';
+import { setShellContext } from './app-shell-bridge.js?v=202610201546';
+import { memberNameFor } from './app-shell-data.js?v=202610201546';
+import { mountBusyBanner } from './busy-banner.js?v=202610201546';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610201546';
 
 const { db, auth } = initializeFirebase();
 
@@ -39,7 +39,7 @@ const LEASE_PATH = BASE + '/integrations/ezadminLease';   // 이지어드민 잠
 const COMPARE_PREFIX = BASE + '/mibal2/compare_';
 const CHINA_COLLECTION = 'ChinaStockGoods';
 
-const DIFF_BIG = 5;                     // |신규−기존| 이 이 값 이상이면 빨강 강조 (사용자 결정 2026-10-07)
+const DIFF_BIG = 5;                     // |3층−기존| 이 이 값 이상이면 빨강 강조 (사용자 결정 2026-10-07)
 const REQUEST_IGNORE_MS = 10 * 60000;   // 수집기 REQUEST_IGNORE_MS 와 같다 — 마지막 성공 후 이 안의 요청은 수집기가 무시한다
 const WORK_HOUR_FROM = 7, WORK_HOUR_TO = 19;   // 수집기 요청확인() 이 도는 시간(월~토)
 const VERSIONS_LIMIT = 30;              // 최근 버전 몇 개 안에서 'upload' 를 찾을지 (china-stock-goods.js:1935 MAX_SCANDB_VERSIONS 와 같은 수). 수집기도 같은 수
@@ -197,12 +197,7 @@ function applyLatest(data) {
 // ─────────────────────────────────────────────────────────────
 // 계산 — 입력 묶음 만들기 (보기마다) → computeRows
 // ─────────────────────────────────────────────────────────────
-const FLAG_LABEL = {
-    zeroCapacity: ['적재량0', 'warn'], backlog: ['밀린주문', 'warn'], noStock: ['재고모름', 'bad'], noOrders: ['주문모름', 'bad'],
-    needRefill: ['보충필요', 'warn'], noLoc: ['로케이션없음', 'bad'], etcLoc: ['기타자리만', 'warn'], multiLoc: ['여러자리', ''],
-    onlyOld: ['기존에만', 'bad'], noOld: ['신규에만', 'warn'], arrDiff: ['도착다름', 'warn'],
-    reserveShort: ['비축부족', 'bad'], refillShort: ['보충부족', 'warn']
-};
+// 플래그 글자·색은 lib/mibal2-rows.js FLAG_INFO 하나로(화면·엑셀이 같은 글자)
 
 /** 수집기 counts 의 비축재고 실행 상태 → { status, missing, calls }. '비축상태' 칸이 없으면 null(10/8 수집기 갱신 전 사본) */
 function reserveStatusOf(counts) {
@@ -291,10 +286,12 @@ function sortKeyVal(r, key) {
 function applyFilters() {
     const q = ($('search-input').value || '').trim().toLowerCase();
     const diffOnly = $('chk-diff-only').checked;
+    const checkOnly = $('chk-check-only').checked;
     viewRows = allRows.filter(r => {
-        // 차이 = 둘 다 있으면 값이 다를 때, 한쪽만 있으면(기존에만·신규에만) 그것도 차이로 본다
-        const hasDiff = r.diff !== null ? r.diff !== 0 : (r.old !== null) !== (r.mibal !== null);
+        // 차이 = 둘 다 있으면 값이 다를 때, 한쪽만 있으면(기존에만·3층 모름) 그것도 차이로 본다
+        const hasDiff = r.diff !== null ? r.diff !== 0 : (r.old !== null) !== (r.third !== null);
         if (diffOnly && !hasDiff) return false;
+        if (checkOnly && !r.check) return false;
         if (!q) return true;
         return r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.option.toLowerCase().includes(q);
     });
@@ -315,8 +312,8 @@ function applyFilters() {
         const isAbs = absDefault && th.dataset.sort === 'diff';
         const sm = isAbs ? { mark: '(절댓값 큰 순)', aria: 'descending' } : sortMark(th.dataset.sort, sortConfig);
         if (th.dataset.sort === 'diff') {
-            if (isAbs) th.title = '지금은 기본 정렬 — 차이(신규−기존)의 절댓값이 큰 순입니다. 누르면 차이 값 순으로 정렬합니다';
-            else th.removeAttribute('title');
+            if (isAbs) th.title = '지금은 기본 정렬 — 차이(3층−기존)의 절댓값이 큰 순입니다. 누르면 차이 값 순으로 정렬합니다';
+            else th.title = '차이 = 3층으로 보낼 양 − 기존 미발';
         }
         th.setAttribute('aria-sort', sm.aria);
         let mk = th.querySelector('.sort-mark');
@@ -328,7 +325,7 @@ function applyFilters() {
 }
 
 function flagsHtml(r) {
-    return r.flags.map(f => { const [t, c] = FLAG_LABEL[f] || [f, '']; return `<span class="flag ${c}">${esc(t)}</span>`; }).join('');
+    return r.flags.map(f => { const [t, c] = FLAG_INFO[f] || [f, '']; return `<span class="flag ${c}">${esc(t)}</span>`; }).join('');
 }
 function oldSourceText(os) {
     if (!os) return '기존 미발 자료 없음';
@@ -349,27 +346,20 @@ function detailHtml(r) {
         : '로케이션관리에 이 코드가 없음 → 미지정';
     const oldTxt = r.old === null
         ? '기존 비교값에 이 코드 없음'
-        : `${num(r.old)} (${oldSourceText(c.oldSource)}${r.oldArr !== null ? ` · 그때 도착 ${num(r.oldArr)}` : ''})`;
+        : `${num(r.old)} — 기존 mibalQty = 스캐너가 3층으로 보내는 양 → 신규 3층과 비교 (${oldSourceText(c.oldSource)}${r.oldArr !== null ? ` · 그때 도착 ${num(r.oldArr)}` : ''})`;
     const oldNewTxt = r.oldNew === null ? '입력 모름 → 계산 안 함'
         : `총재고 ${num(r.stock)} · 적재량 ${num(r.cap)} · 도착 ${num(r.arr)} · 부족수량 max(${num(r.recv)}+${num(r.inv)}−${num(r.stock)},0)=${num(r.shortage)} · 직진 0 → ${num(r.oldNew)}`;
-    // 비축재고 판단(계산엔 안 넣음) — 도착분(비축행)은 판단에서 빼고 참고 문장으로만
-    const bTxt = r.bstock === null || r.bstock === undefined
-        ? '모름 (이 날 수집에 비축재고가 없거나 이 코드 응답 없음) → 판단 안 함'
-        : r.bneed === null || r.bneed === undefined
-            ? `${num(r.bstock)} (이지어드민 불량창고=비축) · 정상재고/주문 모름 → 판단 안 함`
-            : `${num(r.bstock)} (이지어드민 불량창고=비축) · 필요 = 밀린 ${num(r.backlog)} + 보충 ${num(r.refill)} = ${num(r.bneed)} → 여유 ${num(r.bleft)}`
-              // 입고 처리(이지어드민 비축 입고)는 바로 반영된다 — 수집이 입고 뒤면 도착분이 이미 비축에 들어 있어 두 번 세게 되므로 조건부 문장으로만
-              + (r.reserve > 0 && r.bleft < 0 ? ` · (입고 처리 전 수집이라면) 오늘 도착 비축행 ${num(r.reserve)} 을 더하면 ${r.bArrOk ? '충분' : '부족'} — 입고 처리 뒤 수집이면 이미 비축재고에 포함됨` : '');
     return `<div class="formula">${esc(explain(r.input, r.res))}</div>
         <ul>
-            <li><b>정상·접수·송장</b>: 이지어드민 → Apps Script 수집 (${c.okMs ? mdhm(c.okMs) : '시각 모름'} 성공분 · 접수 ${esc(range['접수From'] || '?')}~ · 송장 ${esc(range['송장From'] || '?')}~)
-                — 정상 ${numOr(r.stock)} · 접수 ${numOr(r.recv)} · 송장 ${numOr(r.inv)}</li>
+            <li><b>총재고·비축</b>: 총재고에 비축 포함 · 피킹재고 = 총재고 − 비축
+                — 총재고 ${numOr(r.stock)} · 비축 ${numOr(r.bstock)}${r.bstock === null || r.bstock === undefined ? ' (모름 — 이 날 수집에 비축재고가 없거나 이 코드 응답 없음)' : ''} · 피킹재고 ${numOr(r.pstock)}</li>
+            <li><b>접수·송장</b>: 이지어드민 → Apps Script 수집 (${c.okMs ? mdhm(c.okMs) : '시각 모름'} 성공분 · 접수 ${esc(range['접수From'] || '?')}~ · 송장 ${esc(range['송장From'] || '?')}~)
+                — 접수 ${numOr(r.recv)} · 송장 ${numOr(r.inv)}</li>
             <li><b>도착 ${num(r.arr)}</b>: 오더/사입리스트 출고 기록(shipJson ${esc(c.asOf || '?')}) 중 선택 출고일 · 본사도착 유예 ${num(c.graceDays)}일<br>${used}${skipped}</li>
             <li><b>로케이션</b>: ${loc} (로케이션관리 Locations)</li>
             <li><b>적재량 ${num(r.cap)}</b>: ${esc(r.capSrc)}</li>
             <li><b>기존 미발</b>: ${oldTxt}</li>
             <li><b>기존공식×신규입력</b>: ${oldNewTxt}</li>
-            <li><b>비축재고</b>: ${bTxt}</li>
         </ul>`;
 }
 
@@ -377,44 +367,47 @@ function renderTable() {
     const tb = $('table-body');
     $('row-count').textContent = `${viewRows.length}행 / 전체 ${allRows.length}행`;
     if (viewMode === 'daily') {
-        if (!daily) { tb.innerHTML = `<tr><td colspan="22" class="t-3" style="padding:50px;">날짜를 고르세요.</td></tr>`; return; }
-        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="22" class="t-risk" style="padding:50px;">${esc(daily.msg)}</td></tr>`; return; }
+        if (!daily) { tb.innerHTML = `<tr><td colspan="23" class="t-3" style="padding:50px;">날짜를 고르세요.</td></tr>`; return; }
+        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="23" class="t-risk" style="padding:50px;">${esc(daily.msg)}</td></tr>`; return; }
     } else {
-        if (!latest) { tb.innerHTML = `<tr><td colspan="22" class="t-risk" style="padding:50px;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
-        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="22" class="t-3" style="padding:50px;">출고일을 선택하세요.</td></tr>`; return; }
+        if (!latest) { tb.innerHTML = `<tr><td colspan="23" class="t-risk" style="padding:50px;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
+        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="23" class="t-3" style="padding:50px;">출고일을 선택하세요.</td></tr>`; return; }
     }
-    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="22" class="t-3" style="padding:50px;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
+    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="23" class="t-3" style="padding:50px;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
     let html = '';
     viewRows.forEach((r, i) => {
         const cls = ['data-row'];
         if (r.diff !== null && Math.abs(r.diff) >= DIFF_BIG) cls.push('diff-big');
         else if (r.diff !== null && r.diff !== 0) cls.push('diff-some');
+        if (r.check) cls.push('need-check');
         const diffTxt = r.diff === null ? numOr(null) : (r.diff > 0 ? '+' + num(r.diff) : num(r.diff));
+        const warnNum = (v) => (v > 0 ? `<b class="t-warn">${num(v)}</b>` : numOr(v));
         html += `<tr class="${cls.join(' ')}" data-code="${esc(r.code)}">
             <td>${i + 1}</td>
             <td class="code-cell">${esc(r.code)}</td>
             <td class="name-cell" title="${esc(r.name + (r.option ? ' / ' + r.option : ''))}">${esc(r.name)}${r.option ? ` <span class="t-3">/ ${esc(r.option)}</span>` : ''}</td>
             <td>${r.locInfo ? esc(r.loc) : '<span class="t-risk">미지정</span>'}</td>
-            <td>${num(r.cap)}</td>
+            <td title="${esc(r.capSrc)}">${num(r.cap)}<span class="cap-kind">${esc(r.capKind)}</span></td>
             <td><b>${num(r.arr)}</b></td>
             <td>${numOr(r.stock)}</td>
             <td>${numOr(r.bstock)}</td>
+            <td>${r.pstock < 0 ? `<b class="t-risk">${num(r.pstock)}</b>` : numOr(r.pstock)}</td>
             <td>${numOr(r.recv)}</td>
             <td>${numOr(r.inv)}</td>
             <td>${numOr(r.out)}</td>
-            <td>${numOr(r.remain)}</td>
-            <td>${r.backlog ? `<b class="t-warn">${num(r.backlog)}</b>` : numOr(r.backlog)}</td>
-            <td>${numOr(r.old)}</td>
-            <td>${numOr(r.oldNew)}</td>
+            <td>${numOr(r.short)}</td>
             <td class="new-mibal">${numOr(r.mibal)}</td>
-            <td class="diff-cell">${diffTxt}</td>
+            <td>${warnNum(r.unres)}</td>
+            <td>${numOr(r.room)}</td>
+            <td class="new-mibal">${numOr(r.third)}</td>
             <td>${numOr(r.pick)}</td>
-            <td>${numOr(r.reserve)}</td>
-            <td>${r.refill ? `<b class="t-warn">${num(r.refill)}</b>` : numOr(r.refill)}</td>
-            <td${r.bleft !== null && r.bleft !== undefined ? ` title="비축 ${num(r.bstock)} − (밀린 ${num(r.backlog)} + 보충 ${num(r.refill)})"` : ''}>${r.bleft < 0 ? `<b class="t-risk">${num(r.bleft)}</b>` : numOr(r.bleft)}</td>
+            <td>${numOr(r.resv)}</td>
+            <td>${warnNum(r.refill)}</td>
+            <td>${numOr(r.old)}</td>
+            <td class="diff-cell">${diffTxt}</td>
             <td>${flagsHtml(r)}</td>
         </tr>`;
-        if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="22">${detailHtml(r)}</td></tr>`;
+        if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="23">${detailHtml(r)}</td></tr>`;
     });
     tb.innerHTML = html;
 }
@@ -423,18 +416,17 @@ function renderSummary() {
     const s = summarize(viewRows);
     $('sum-sku').textContent = s.sku;
     $('sum-arrival').textContent = s.arr.toLocaleString();
-    $('sum-new').textContent = s.mibal.toLocaleString();
+    $('sum-mibal').textContent = s.mibal.toLocaleString();
+    $('sum-unres').textContent = s.unres.toLocaleString();
+    $('sum-third').textContent = s.third.toLocaleString();
+    // 비축을 모르는 행은 3층을 계산하지 않아 합에서 빠진다 — 몇 행 빠졌는지 꼭 보인다
+    $('sum-third-note').textContent = s.thirdUnknown > 0 ? `비축모름 ${s.thirdUnknown}행 제외` : '';
+    $('sum-pick').textContent = s.pick.toLocaleString();
+    $('sum-reserve').textContent = s.resv.toLocaleString();
+    $('sum-refill').textContent = s.refill;
+    $('sum-check').textContent = s.check;
     $('sum-old').textContent = s.old.toLocaleString();
     $('sum-diff').textContent = (s.diff > 0 ? '+' : '') + s.diff.toLocaleString();
-    $('sum-pick').textContent = s.pick.toLocaleString();
-    $('sum-reserve').textContent = s.reserve.toLocaleString();
-    $('sum-refill').textContent = s.refill;
-    $('sum-backlog').textContent = (s.backlog || 0).toLocaleString();
-    // 비축재고 — 아는 행이 하나도 없으면(옛 사본) '–'
-    const noB = s.bstock === null;
-    $('sum-bstock').textContent = noB ? '–' : s.bstock.toLocaleString();
-    $('sum-bshort').textContent = noB ? '–' : s.reserveShort;
-    $('sum-brefill').textContent = '보충부족 ' + (noB ? '–' : s.refillShort);
 }
 
 function renderSourceNote() {
@@ -466,8 +458,8 @@ function renderSourceNote() {
     if (os && os.atMs && c.refDate && !sameDay(new Date(os.atMs), c.refDate)) warns.push(c.mode === 'daily' ? '기존 미발 비교값이 그날 것이 아닙니다' : '기존 미발 비교값이 오늘 것이 아닙니다');
     if (os && os.noUpload) warns.push(`최근 버전기록 ${VERSIONS_LIMIT}개 안에 '업로드' 버전이 없어 ${os.kind === 'version' ? `'${os.trigger}' 버전` : '현재 ScanDB'}로 비교합니다 — 스캐너 입고분이 빠져 있을 수 있음`);
     const rs = c.reserveStatus;
-    if (!rs) warns.push(c.mode === 'daily' ? '이 날 사본에는 비축재고 없음(10/8 수집기 갱신 전)' : '이 수집 자료에는 비축재고 없음(10/8 수집기 갱신 전)');
-    else if (rs.status !== 'ok' || Number(rs.missing) > 0) warns.push(`비축재고 수집 ${rs.status} — 비축 미응답 코드 ${num(rs.missing)}개(그 코드는 '–', 판단 안 함)`);
+    if (!rs) warns.push((c.mode === 'daily' ? '이 날 사본에는' : '이 수집 자료에는') + ' 비축재고 없음 → 피킹·비축 적재와 3층을 계산 못 함(확인 필요)');
+    else if (rs.status !== 'ok' || Number(rs.missing) > 0) warns.push(`비축재고 수집 ${rs.status} — 비축 미응답 코드 ${num(rs.missing)}개(그 코드는 비축재고 없음 → 피킹·비축 적재와 3층을 계산 못 함(확인 필요))`);
     box.innerHTML = parts.join(' · ') + (warns.length ? `<br><span class="t-risk">⚠ ${warns.map(esc).join(' / ')}</span>` : '');
 }
 
@@ -778,6 +770,8 @@ async function saveCompare() {
         await setDoc(ref, {
             savedAt: serverTimestamp(),
             rowsJson: JSON.stringify(compareRowsOf(allRows)),
+            formulaVer: FORMULA_VER,                      // 2 = 피킹 → 비축 → 입고분 공식(10/20~). 없으면 옛 7칸(v1)
+            cols: [...COMPARE_COLS],                      // rowsJson 배열 칸 이름
             shipDates: [...selectedDates].map(String).sort(),
             dateSource,                                   // 'legacy'(기존 계산기 출고일) | 'own'(이 화면에서 고름)
             graceDays,
@@ -788,11 +782,25 @@ async function saveCompare() {
     } catch (e) { showToast('⚠️ 저장 실패: ' + (e && e.code || e)); }
 }
 
+// ── 엑셀 받기 (지금 보이는 행 — 검색·필터·정렬 반영. 내 PC 로 다운로드만) ──────────
+function downloadExcel() {
+    const X = window.XLSX;
+    if (!X) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
+    if (!viewRows.length) { showToast('받을 행이 없습니다'); return; }
+    const id = viewMode === 'daily' && daily && daily.ok ? daily.id : ymd();
+    const ws = X.utils.aoa_to_sheet(excelAoaOf(viewRows));
+    const wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, ws, '미발계산');
+    X.writeFile(wb, `미발계산_신규_${id}.xlsx`);
+}
+
 // ── 이벤트 ───────────────────────────────────────────────────
 function setupEvents() {
     setupDatePopup();
     $('search-input').addEventListener('input', applyFilters);
     $('chk-diff-only').addEventListener('change', applyFilters);
+    $('chk-check-only').addEventListener('change', applyFilters);
+    $('btn-excel').addEventListener('click', downloadExcel);
     $('btn-refresh').addEventListener('click', () => requestRefresh(false));
     $('btn-save-compare').addEventListener('click', saveCompare);
     $('btn-view-live').addEventListener('click', () => setView('live'));

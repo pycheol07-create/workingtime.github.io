@@ -7,10 +7,10 @@
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다. -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610201447">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610201447">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610201447">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610201447">
+    <link rel="stylesheet" href="css/suit.css?v=202610201546">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610201546">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610201546">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610201546">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -56,6 +56,7 @@
         .summary-card .value { font-size: 18px; font-weight: 600; color: var(--c-text); font-variant-numeric: tabular-nums; }
         .summary-card.highlight .value { color: var(--c-accent-deep); }
         .summary-card.newv .value { color: var(--c-accent-deep); }
+        .summary-card .sub { font-size: 10.5px; color: var(--c-warn-text); white-space: nowrap; }
 
         .tool-bar { margin: 0 14px 7px 14px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 12.5px; color: var(--c-text-3); }
         .src-note { margin: 0 14px 7px 14px; font-size: 11.5px; color: var(--c-text-2); background: var(--c-surface-2); border: 1px solid var(--c-line); border-radius: var(--r-sm); padding: 6px 10px; line-height: 1.6; }
@@ -63,7 +64,7 @@
 
         /* 표 — 모바일 폭에서도 가로 스크롤 */
         .list-container { overflow: auto; background: var(--c-surface); margin: 0 14px 14px 14px; border-radius: var(--r-card); border: 1px solid var(--c-line); max-height: 72vh; -webkit-overflow-scrolling: touch; }
-        .list-table { width: 100%; border-collapse: collapse; min-width: 1650px; }
+        .list-table { width: 100%; border-collapse: collapse; min-width: 1900px; }
         .list-table th, .list-table td { padding: 5px 8px; text-align: center; border: 1px solid var(--c-line-soft); font-size: 12.5px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .list-table th { background: var(--c-surface-2); color: var(--c-text-2); position: sticky; top: -1px; z-index: 10; font-weight: 600; }
         .list-table th.sortable { cursor: pointer; user-select: none; }
@@ -74,6 +75,8 @@
         .list-table td.new-mibal { font-weight: 700; color: var(--c-accent-deep); background: var(--c-accent-row); }
         .list-table tbody tr.data-row { cursor: pointer; }
         .list-table tbody tr.data-row:hover td { background: var(--c-accent-row); }
+        .list-table tbody tr.need-check td { background: var(--c-warn-bg); } /* 확인 필요(플래그) 행 */
+        .list-table td .cap-kind { font-size: 10.5px; color: var(--c-text-3); margin-left: 3px; }
         .list-table tbody tr.diff-some td.diff-cell { background: var(--c-warn-bg); color: var(--c-warn-text); font-weight: 600; }
         .list-table tbody tr.diff-big td { background: var(--c-risk-row); }
         .list-table tbody tr.diff-big td.diff-cell { color: var(--c-risk-text); font-weight: 700; }
@@ -180,21 +183,25 @@
     <div class="summary-bar">
         <div class="summary-card highlight"><span class="label">SKU</span><span class="value" id="sum-sku">0</span></div>
         <div class="summary-card highlight"><span class="label">도착 합</span><span class="value" id="sum-arrival">0</span></div>
-        <div class="summary-card newv"><span class="label">신규 미발 합</span><span class="value" id="sum-new">0</span></div>
-        <div class="summary-card" title="기존 미발계산기의 미발수량(버전기록 또는 현재 ScanDB). 출처는 위 '기존 미발' 줄 참고"><span class="label">기존 미발 합</span><span class="value" id="sum-old">0</span></div>
-        <div class="summary-card"><span class="label">차이 합(신규−기존)</span><span class="value" id="sum-diff">0</span></div>
-        <div class="summary-card"><span class="label">피킹행 합</span><span class="value" id="sum-pick">0</span></div>
-        <div class="summary-card"><span class="label">비축행 합</span><span class="value" id="sum-reserve">0</span></div>
-        <div class="summary-card"><span class="label">보충필요 SKU</span><span class="value" id="sum-refill">0</span></div>
-        <div class="summary-card"><span class="label">밀린주문 합(미발 제외)</span><span class="value" id="sum-backlog">0</span></div>
-        <div class="summary-card" title="이지어드민 불량창고(=비축창고) 재고 합. 도착분 중 비축으로 가는 '비축행'과 다릅니다"><span class="label">비축재고 합</span><span class="value" id="sum-bstock">–</span></div>
-        <div class="summary-card" title="비축부족: 비축재고 &lt; 밀린주문 · 보충부족: 밀린주문 ≤ 비축재고 &lt; 밀린주문+보충필요"><span class="label">비축부족 SKU</span><span class="value" id="sum-bshort">–</span><span class="label" id="sum-brefill" style="font-weight:normal;">보충부족 –</span></div>
+        <div class="summary-card newv" title="미발 = 그날 입고분 중 지금 재고로 못 내보내 추가로 출고할 양 = min(부족, 도착). 업무 예상 국내배송에 더하는 값"><span class="label">미발 합(추가 출고)</span><span class="value" id="sum-mibal">0</span></div>
+        <div class="summary-card" title="미해결부족 = 부족 − 미발. 입고분으로도 못 내보내는 주문"><span class="label">미해결부족 합</span><span class="value" id="sum-unres">0</span></div>
+        <div class="summary-card newv" title="3층으로 보낼 양 = 미발 + 피킹 적재. 비축을 모르는 행은 계산하지 않아 합에서 빠진다"><span class="label">3층 합</span><span class="value" id="sum-third">0</span><span class="sub" id="sum-third-note"></span></div>
+        <div class="summary-card"><span class="label">피킹 적재 합</span><span class="value" id="sum-pick">0</span></div>
+        <div class="summary-card"><span class="label">비축 적재 합</span><span class="value" id="sum-reserve">0</span></div>
+        <div class="summary-card" title="출고 뒤 피킹칸 여유를 비축에서 채워야 하는 SKU"><span class="label">보충 필요 SKU</span><span class="value" id="sum-refill">0</span></div>
+        <div class="summary-card" title="재고·주문·비축 모름, 비축·피킹재고 음수, 적재량 0, 로케이션 없음·기타자리만 — 숫자를 그대로 믿기 어려운 행"><span class="label">확인 필요 SKU</span><span class="value" id="sum-check">0</span></div>
+        <div class="summary-card" title="기존 미발계산기의 미발수량(스캐너가 3층으로 보내는 양). 출처는 위 '기존 미발' 줄 참고"><span class="label">기존 미발 합(비교)</span><span class="value" id="sum-old">0</span></div>
+        <div class="summary-card"><span class="label">차이 합(3층−기존)</span><span class="value" id="sum-diff">0</span></div>
     </div>
 
     <div class="tool-bar">
         <label style="display:inline-flex; align-items:center; gap:5px; font-weight:600; color:var(--c-text-2); cursor:pointer;">
             <input type="checkbox" id="chk-diff-only" style="width:16px; height:16px;"> 차이 있는 행만 보기
         </label>
+        <label style="display:inline-flex; align-items:center; gap:5px; font-weight:600; color:var(--c-text-2); cursor:pointer;">
+            <input type="checkbox" id="chk-check-only" style="width:16px; height:16px;"> 확인 필요만
+        </label>
+        <button id="btn-excel" class="d-btn d-btn-sm" title="지금 보이는 행(검색·필터·정렬 반영)을 엑셀로 받습니다">엑셀 받기</button>
         <span id="row-count" class="t-3"></span>
         <span class="t-3">· 행을 누르면 계산 근거가 펼쳐집니다 · 열 제목을 누르면 정렬</span>
     </div>
@@ -208,39 +215,42 @@
                     <th style="width:36px;">No</th>
                     <th class="sortable" data-sort="code">코드</th>
                     <th class="sortable" data-sort="name" style="min-width:160px;">상품명 / 옵션</th>
-                    <th class="sortable" data-sort="loc">로케이션</th>
-                    <th class="sortable" data-sort="cap">적재량</th>
-                    <th class="sortable" data-sort="arr">도착</th>
-                    <th class="sortable" data-sort="stock">정상</th>
-                    <th class="sortable" data-sort="bstock" title="비축재고 = 이지어드민 불량창고(=비축창고) 재고(get_stock_info bad=1). 도착분 중 비축으로 가는 '비축행'과 다릅니다. 계산(미발)에는 넣지 않고 판단만 돕습니다">비축재고</th>
+                    <th class="sortable" data-sort="loc">피킹로케이션</th>
+                    <th class="sortable" data-sort="cap" title="적재량 = 대표 피킹자리(첫 자리 하나)의 적재량. 작은 글자 = 출처(개별 수정값 · 구역 설정 · ★기본 · 구역 기본 · 없음)">적재량(출처)</th>
+                    <th class="sortable" data-sort="arr" title="도착 A = 선택한 출고일의 이번 입고 도착수량">도착</th>
+                    <th class="sortable" data-sort="stock" title="총재고 T = 이지어드민 정상재고(bad=0) — 비축 포함">총재고</th>
+                    <th class="sortable" data-sort="bstock" title="비축 B = 이지어드민 불량창고(=비축창고) 재고(bad=1). 음수는 0, 모르면 –">비축</th>
+                    <th class="sortable" data-sort="pstock" title="피킹재고 P = 총재고 − 비축 (음수면 피킹에서 빚진 상태)">피킹재고</th>
                     <th class="sortable" data-sort="recv">접수</th>
                     <th class="sortable" data-sort="inv">송장</th>
-                    <th class="sortable" data-sort="out">출고예정</th>
-                    <th class="sortable" data-sort="remain">남는양</th>
-                    <th class="sortable" data-sort="backlog" title="출고예정이 정상재고보다 많은 양. 피킹칸에 다 안 들어가서 미발에 넣지 않는다 — 비축에서 꺼내 바로 출고">밀린주문</th>
-                    <th class="sortable" data-sort="old" title="기존 미발계산기의 미발수량(버전기록 또는 현재 ScanDB). 출처는 위 '기존 미발' 줄 참고">기존 미발</th>
-                    <th class="sortable" data-sort="oldNew" title="기존 공식(시트 3조건)에 신규 입력을 넣은 값. 부족수량=max(접수+송장−정상,0), 직진=0">기존공식×신규입력</th>
-                    <th class="sortable new-col" data-sort="mibal">신규 미발</th>
-                    <th class="sortable" data-sort="diff">차이(신규−기존)</th>
-                    <th class="sortable new-col" data-sort="pick">피킹행</th>
-                    <th class="sortable new-col" data-sort="reserve">비축행</th>
-                    <th class="sortable new-col" data-sort="refill">보충필요</th>
-                    <th class="sortable" data-sort="bleft" title="비축여유 = 비축재고 − (밀린주문 + 보충필요). 음수면 비축이 모자람(오늘 도착분은 넣지 않음)">비축여유</th>
+                    <th class="sortable" data-sort="out" title="출고예정 D = 접수 + 송장">출고예정</th>
+                    <th class="sortable" data-sort="short" title="부족 S = max(출고예정 − 총재고, 0) — 지금 재고(피킹 → 비축)로 못 내보내는 양">부족</th>
+                    <th class="sortable new-col" data-sort="mibal" title="미발 M = min(부족, 도착) — 이번 입고분으로 추가 출고할 양(업무 예상 국내배송 가산값)">미발(추가 출고)</th>
+                    <th class="sortable" data-sort="unres" title="미해결부족 U = 부족 − 미발 — 입고분으로도 못 냄">미해결부족</th>
+                    <th class="sortable" data-sort="room" title="피킹 여유 F = max(적재량 − 출고 후 피킹, 0), 출고 후 피킹 = max(피킹재고 − 출고예정, 0)">피킹 여유</th>
+                    <th class="sortable new-col" data-sort="third" title="3층으로 보낼 양 = 미발 + 피킹 적재 (스캐너 기존 mibalQty 와 같은 뜻)">3층으로 보낼 양</th>
+                    <th class="sortable new-col" data-sort="pick" title="피킹 적재 = min(남은 도착, 피킹 여유), 남은 도착 = 도착 − 미발">피킹 적재</th>
+                    <th class="sortable new-col" data-sort="resv" title="비축 적재 = 남은 도착 − 피킹 적재">비축 적재</th>
+                    <th class="sortable new-col" data-sort="refill" title="비축→피킹 보충 = min(피킹 여유 − 피킹 적재, 출고 후 비축)">비축→피킹 보충</th>
+                    <th class="sortable" data-sort="old" title="기존 미발계산기의 미발수량(mibalQty = 스캐너가 3층으로 보내는 양). 출처는 위 '기존 미발' 줄 참고">기존 미발</th>
+                    <th class="sortable" data-sort="diff" title="차이 = 3층으로 보낼 양 − 기존 미발">차이(3층−기존)</th>
                     <th>플래그</th>
                 </tr>
             </thead>
             <tbody id="table-body">
-                <tr><td colspan="22" class="t-3" style="text-align:center; padding:50px;">불러오는 중…</td></tr>
+                <tr><td colspan="23" class="t-3" style="text-align:center; padding:50px;">불러오는 중…</td></tr>
             </tbody>
         </table>
     </div>
     </div><!-- /app-main -->
 
     <div id="toast"></div>
+    <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610201447"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610201447"></script>
-    <script type="module" src="js/page-gate.js?v=202610201447" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202610201447"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610201546"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610201546"></script>
+    <script type="module" src="js/page-gate.js?v=202610201546" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202610201546"></script>
 </body>
 </html>

@@ -7,8 +7,10 @@
 //     몫은 작다 — 그래서 미발을 그대로 더한다.
 //
 // 데이터: Firestore ChinaStockGoods/MIBAL_HISTORY 의 map. 미발계산기의 '미발전송' 버튼이 쌓는다.
-//   키 "출고일|전송날짜" → { 출고일(=패킹일), 전송날짜, 입고일(빈 값 가능), 미발수량 }
+//   키 "출고일|전송날짜" → { 출고일(=패킹일), 전송날짜, 입고일(빈 값 가능), 미발수량, basis?, 부족합? }
+//   basis 'min' = 미발수량이 Σmin(부족수량, 도착수량)(2026-10-20~, js/lib/mibal-send.js). basis 없음 = 옛 기록 Σ부족수량('sum').
 // 규칙은 미발계산기(js/china-stock-goods.js computeAvgRise·buildPredictionRows)와 **같게** 둔다 —
+// (computeAvgRise 는 미발계산기가 이 파일 것을 그대로 부른다 — 2026-10-20)
 // 두 화면이 다른 '예상미발' 을 내면 안 된다. 저쪽 규칙을 바꾸면 여기도 바꿀 것.
 //
 // 순수 모듈(import 0). 달력·도착일 조회는 인자로 받는다 — 테스트에서 가짜를 넣는다.
@@ -41,20 +43,39 @@ export const lastBefore = (recs, 입고일) => {
     return pre.length ? pre[pre.length - 1] : null;
 };
 
-/** 평균상승률 — 패킹별 (입고시점미발 − 입고 전 마지막 전송 미발) / 입고 전 마지막 전송 미발, 1~100% 만 평균. 없으면 null */
+/** 기록의 기준 — 'min'(Σmin(부족,도착)) 이 아니면 옛 기록 'sum'(Σ부족) */
+export const basisOf = (r) => (r && r.basis === 'min') ? 'min' : 'sum';
+
+/**
+ * 평균상승률 — 패킹별 (입고시점미발 − 입고 전 마지막 전송 미발) / 입고 전 마지막 전송 미발, 1~100% 만 평균. 없으면 null.
+ * 2026-10-20:
+ *  - 두 기록의 basis 가 같은 쌍만 쓴다(Σ부족 ↔ Σmin 을 섞으면 비율이 뜻을 잃는다).
+ *    min 쌍이 하나라도 있으면 min 평균, 없으면 sum 평균. 반환 basis 에 어느 쪽인지 적는다.
+ *  - 묶어 보낸 출고일들은 같은 (before, arr) 쌍이 출고일마다 복제돼 있다 → 쌍 하나로 한 번만 센다.
+ * @returns {{avg:number, n:number, basis:'min'|'sum'}|null}
+ */
 export function computeAvgRise(history) {
-    const rates = [];
+    const rates = { min: [], sum: [] };
+    const seen = new Set();
     Object.values(groupByShip(history)).forEach(recs => {
         const 입고일 = 입고일Of(recs);
         const before = lastBefore(recs, 입고일);
         const arr = 입고일 ? recs.find(r => String(r.전송날짜) >= 입고일) : null;
         if (!before || !arr) return;
+        const basis = basisOf(before);
+        if (basisOf(arr) !== basis) return;
+        const pairKey = `${basis}|${before.전송날짜}|${num(before.미발수량)}|${arr.전송날짜}|${num(arr.미발수량)}`;
+        if (seen.has(pairKey)) return;
+        seen.add(pairKey);
         const a = num(before.미발수량), b = num(arr.미발수량);
         if (a <= 0) return;
         const rate = (b - a) / a;
-        if (rate >= RISE_MIN && rate <= RISE_MAX) rates.push(rate);
+        if (rate >= RISE_MIN && rate <= RISE_MAX) rates[basis].push(rate);
     });
-    return rates.length ? { avg: rates.reduce((s, x) => s + x, 0) / rates.length, n: rates.length } : null;
+    const basis = rates.min.length ? 'min' : (rates.sum.length ? 'sum' : null);
+    if (!basis) return null;
+    const list = rates[basis];
+    return { avg: list.reduce((s, x) => s + x, 0) / list.length, n: list.length, basis };
 }
 
 /** 출고일(패킹)별 예측 — 입고미발이 있으면 그 값, 없으면 예상미발 = round(출고미발 × (1+평균상승률)) */
@@ -95,7 +116,7 @@ const md = (ds) => { const [, m, d] = String(ds).split('-'); return `${Number(m)
  *        가장 이른 도착이 이미 지났으면(나눠 들어오는 패킹의 첫 분량 등) 미발은 이미 나간 것으로 보고 뺀다.
  * @param opts.today  'YYYY-MM-DD' — 이날 이전 도착분은 뺀다
  * @param opts.isOffDay(date) → bool   도착일이 쉬는 날이면 다음 근무일로 넘긴다(그날 국내배송은 0 이라 사라진다)
- * @returns { [도착일]: { qty, lines: [string], rate: {avg,n}|null } }
+ * @returns { [도착일]: { qty, lines: [string], rate: {avg,n,basis}|null } }
  */
 export function mibalByArrival(history, { arrivalOf, today, isOffDay } = {}) {
     const avg = computeAvgRise(history);
@@ -116,9 +137,10 @@ export function mibalByArrival(history, { arrivalOf, today, isOffDay } = {}) {
         const k = `${r.전송날짜}|${num(r.미발수량)}`;
         if (bySend[k]) union(bySend[k], r.출고일); else bySend[k] = r.출고일;
     });
+    // 값이 0 인 패킹도 묶음에 넣는다(2026-10-20) — 묶기 전에 빼면 그 패킹의 '이미 도착' 판정과
+    // 입고미발(0) 이 사라져, 같은 묶음 다른 패킹의 예상미발이 대신 더해진다. 0 은 대표를 고른 뒤에 거른다.
     const groups = new Map();
     predictByShip(history).forEach(p => {
-        if (!(p.값 > 0)) return;
         if (today && p.출고일 && dayGap(p.출고일, today) > MAX_SHIP_AGE_DAYS) return;
         const key = find(p.출고일);
         if (!groups.has(key)) groups.set(key, []);
@@ -149,6 +171,7 @@ export function mibalByArrival(history, { arrivalOf, today, isOffDay } = {}) {
         if (today && 도착 < today) return;           // 이미 도착(첫 분량 포함) — 미발은 나갔다
         const 입고 = members.filter(p => p.종류 === '입고미발').sort((a, b) => b.값 - a.값)[0];
         const 대표 = 입고 || members.slice().sort((a, b) => b.값 - a.값)[0];
+        if (!(대표.값 > 0)) return;                   // 묶음 대표가 0 이하면 더할 것 없음
         const 출고들 = members.map(p => md(p.출고일)).join('·');
         const o = out[도착] || (out[도착] = { qty: 0, lines: [], rate: avg });
         o.qty += 대표.값;
