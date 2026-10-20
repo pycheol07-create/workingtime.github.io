@@ -4,8 +4,8 @@
 //     모델이 없으면 저장을 막고(admin.js), 모델이 있으면 저장 전에 '손대지 않은 사람의 기능 집합이 그대로인지' 검사한다.
 // ※ 순수 모듈(DOM 없음). 이메일 키는 소문자. 테스트: tests/perm.test.js
 
-import { ALL_FEATURE_IDS, PRESET_ROLES, DEFAULT_ROLE_ID, isFeatureId, FEATURE_BY_ID } from './feature-catalog.js?v=202610201213';
-import { resolve, combine, roleFeatures, overridesOf, bestRole, diffFromRole, menuNamesFor, sameSet, normEmail, featureForMenuItem } from './perm.js?v=202610201213';
+import { ALL_FEATURE_IDS, PRESET_ROLES, DEFAULT_ROLE_ID, isFeatureId, FEATURE_BY_ID } from './feature-catalog.js?v=202610201411';
+import { resolve, combine, roleFeatures, overridesOf, bestRole, diffFromRole, menuNamesFor, sameSet, normEmail, featureForMenuItem } from './perm.js?v=202610201411';
 
 const own = (o, k) => !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k);
 const grantable = (id) => isFeatureId(id) && FEATURE_BY_ID[id].grantable;

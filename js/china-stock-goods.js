@@ -1,17 +1,18 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610201213'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610201411'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610201213';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610201213';
-import { mibalSendSummary, mibalSendConfirmText } from './lib/mibal-send.js?v=202610201213';
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610201213';
-import { initPageNav } from './page-nav.js?v=202610201213';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201213';
-import { setShellContext } from './app-shell-bridge.js?v=202610201213';
-import { memberNameFor } from './app-shell-data.js?v=202610201213';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610201411';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610201411';
+import { mibalSendSummary, mibalSendConfirmText } from './lib/mibal-send.js?v=202610201411';
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610201411';
+import { initPageNav } from './page-nav.js?v=202610201411';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201411';
+import { setShellContext } from './app-shell-bridge.js?v=202610201411';
+import { memberNameFor } from './app-shell-data.js?v=202610201411';
+import { createUploadStatus } from './busy-banner.js?v=202610201411';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -208,6 +209,9 @@ mibalFn = compileMibalFormula(mibalFormula);
 // ---------------------------------------------------------
 const ADMIN_ONLY_MSG = '관리자만 변경 가능합니다.';
 let isAdminUser = false;
+let _myMemberName = '';   // memberNameFor 결과(메모리에만) — 업로드 상태 문서의 by. 이메일은 넣지 않는다
+// 미발재고로그 업로드 상태(설계 C-6, 계약 B 모양) — 구독 없이 시작 전 1회 읽기 + 시작·끝 기록. js/busy-banner.js
+const _stockLogStatus = createUploadStatus({ db, path: 'artifacts/team-work-logger-v2/uploadStatus/stockLog', kind: 'stockLog', getName: () => _myMemberName });
 async function checkChinaAdmin(user) {
     if (!user || !user.email) return false;
     try {
@@ -215,6 +219,7 @@ async function checkChinaAdmin(user) {
         const roles = (snap.exists() && snap.data().memberRoles) || {};
         // 공통 상단바 개인 알림(P2) — 같은 문서의 memberEmails 로 이름을 찾아 넘긴다(추가 읽기 없음). 이름은 메모리에만.
         const memberName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email);
+        _myMemberName = memberName || '';
         if (memberName && auth.currentUser && auth.currentUser.uid === user.uid) setShellContext({ signedIn: true, uid: user.uid, memberName });
         return roles[user.email.toLowerCase()] === 'admin';
     } catch (e) {
@@ -1622,6 +1627,10 @@ function handleStockLogUpload(e) {
             // 보안(2026-10-14): 저장 전 원가 열(원가·옵션추가항목2 등) 삭제, 공급처 열은 코드 모양 값만 남김
             const _clean = cleanRows(rows);
             rows = _clean.rows;
+            // 다른 사람이 미발재고로그를 올리는 중이면 확인(기본 취소). 상태를 못 읽으면 막지 않는다.
+            //   메모리(stockLogData)를 바꾸기 전에 묻는다 — 취소하면 아무것도 바뀌지 않게
+            if (!(await _stockLogStatus.confirmIfUploading('미발재고로그 업로드'))) { hideLoading(); e.target.value = ''; return; }
+            await _stockLogStatus.begin('stockLog', { force: true });   // 이미 '계속'을 골랐으니 남이 진행 중이어도 기록
             stockLogData = {}; 
             rows.forEach(row => { 
                 const code = (row['상품코드'] || '').toString().trim(); 
@@ -1642,9 +1651,11 @@ function handleStockLogUpload(e) {
                 + (_clean.supplierValuesRemoved ? ` · 공급처 이름 값 ${_clean.supplierValuesRemoved}건 지움` : '');
             showToast(`✅ 미발재고 저장 완료 (바코드≠상품코드 ${Object.keys(bcMap).length}건 매핑)${_secNote}`);
             if (tableData.length > 0) applyDates();
+            _stockLogStatus.end(true);   // 자료 저장(StockLog·바코드 매핑) 성공 기준
             await saveScanDBVersionOnUpload(file.name); // [Ver 8.94] 업로드마다 순수 미발 버전 자동 저장
 
         } catch (err) { 
+            _stockLogStatus.end(false);
             hideLoading(); 
             alert('파일 처리 실패: ' + err.message); 
         }

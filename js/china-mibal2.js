@@ -13,18 +13,20 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610201213'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610201411'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610201213';
-import { sortMark } from './lib/china-stock-view.js?v=202610201213';
+import { explain } from './lib/mibal2-calc.js?v=202610201411';
+import { sortMark } from './lib/china-stock-view.js?v=202610201411';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610201213';
-import { setShellContext } from './app-shell-bridge.js?v=202610201213';
-import { memberNameFor } from './app-shell-data.js?v=202610201213';
+} from './lib/mibal2-rows.js?v=202610201411';
+import { setShellContext } from './app-shell-bridge.js?v=202610201411';
+import { memberNameFor } from './app-shell-data.js?v=202610201411';
+import { mountBusyBanner } from './busy-banner.js?v=202610201411';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610201411';
 
 const { db, auth } = initializeFirebase();
 
@@ -33,6 +35,7 @@ const LATEST_PATH = BASE + '/integrations/mibal2Latest';
 const DAILY_PREFIX = BASE + '/integrations/mibal2Daily_';
 const SETTINGS_PATH = BASE + '/mibal2/settings';
 const REQUEST_PATH = BASE + '/mibal2/refreshRequest';
+const LEASE_PATH = BASE + '/integrations/ezadminLease';   // 이지어드민 잠금(계약 A) — 미발수집·채우기가 쓰고 여기는 읽기만
 const COMPARE_PREFIX = BASE + '/mibal2/compare_';
 const CHINA_COLLECTION = 'ChinaStockGoods';
 
@@ -103,6 +106,10 @@ let pending = null;            // 지금 갱신 요청 대기 { atMs, baseRun, b
 let firstServerSeen = false;   // 서버에서 온 첫 mibal2Latest 를 봤는지(자동 요청 판단용)
 let started = false;
 let isAdminOk = false;         // 관리자 확인 통과 전에는 어떤 쓰기도 하지 않는다
+let busyViews = {};            // '갱신 중' 띠 판정 { lease, mibalRequest } — js/busy-banner.js onState
+let busyBannerStop = null;     // 띠 해제 함수(.refresh() 로 다시 그림)
+let busyMsg = '';              // 띠 상태 때문에 refresh-msg 에 넣은 문구(상태가 풀리면 이것만 지운다)
+let resultMsg = '';            // clearPending 안내(완료·실패·거절) — busy 문구가 덮었다가 풀리면 다시 보여 준다
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -645,19 +652,42 @@ function renderStatus() {
         ? `❌ 최근 실행 실패${runMs ? ' (' + mdhm(runMs) + ')' : ''}: ${latest.error || '이유 없음'} — 표는 마지막 성공 자료`
         : '';
 }
+/** 다른 곳에서 이미 갱신 중인가 — 잠금(mibal)이 잡혀 있거나 남의 요청이 처리 대기 중 */
+function busyRefreshing() {
+    const l = busyViews.lease;
+    return !!((l && l.active && l.kind === 'mibal') || busyViews.mibalRequest);
+}
 function renderRefreshUI() {
     const btn = $('btn-refresh');
     const msg = $('refresh-msg');
+    const setBusyMsg = (t) => {
+        if (t) { msg.textContent = t; busyMsg = t; }
+        else if (busyMsg) { if (msg.textContent === busyMsg) msg.textContent = resultMsg; busyMsg = ''; }
+    };
+    const l = busyViews.lease;
+    const q = collectorQuiet(Date.now());
+    const quietNote = q ? ` · ${q.from}~${q.to} 수집기 쉬는 시간(${q.why}) — ${q.to} 뒤 처리` : '';
     if (pending) {
         btn.disabled = true;
         btn.textContent = '⏳ 갱신 중…';
-        msg.textContent = `요청됨 ${hhmm(pending.atMs)} — 최대 약 8분`;
+        msg.textContent = `요청됨 ${hhmm(pending.atMs)} — 최대 약 8분${quietNote}`;
+        busyMsg = '';
+    } else if (busyRefreshing()) {
+        // 남이 요청했거나 수집기가 이미 읽는 중 — 또 요청하지 않게 잠근다(끝나면 띠·버튼이 같이 풀린다)
+        btn.disabled = true;
+        btn.textContent = '⏳ 갱신 중…';
+        setBusyMsg(l && l.active && l.kind === 'mibal'
+            ? `다른 곳에서 갱신 중${l.eta ? ' — ' + l.eta : ''}`
+            : `다른 사람이 ${hhmm(busyViews.mibalRequest.sinceMs)}에 갱신을 요청함 — 처리 대기 중${quietNote}`);
     } else {
         btn.disabled = false;
         btn.textContent = '지금 갱신';
+        // 채우기가 이지어드민을 쓰는 중이면 요청은 받되 끝난 뒤 처리된다(최대 15분) — 막지 않고 안내만
+        setBusyMsg(l && l.active && l.kind === 'refill' ? '채우기가 이지어드민 사용 중 — 요청은 끝난 뒤 처리' : '');
     }
 }
 function clearPending(message) {
+    resultMsg = message || '';
     pending = null;
     try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
     $('refresh-msg').textContent = message || '';
@@ -679,7 +709,7 @@ function refreshBlockReason(now = new Date()) {
     return '';
 }
 async function requestRefresh(isAuto) {
-    if (pending || !isAdminOk) return;
+    if (pending || !isAdminOk || busyRefreshing()) return;
     const block = refreshBlockReason();
     if (block) {
         if (!isAuto) { $('refresh-msg').textContent = block; showToast('ℹ️ ' + block); }
@@ -697,7 +727,9 @@ async function requestRefresh(isAuto) {
     pending = { atMs: Date.now(), baseRun, baseNoteAt };
     try { sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending)); } catch (e) {}
     renderRefreshUI();
-    showToast(isAuto ? '오늘 수집 자료가 없어 갱신을 자동 요청했습니다' : '갱신 요청 — 5분마다 확인하는 수집기가 처리합니다');
+    const q = collectorQuiet(Date.now());
+    showToast((isAuto ? '오늘 수집 자료가 없어 갱신을 자동 요청했습니다' : '갱신 요청 — 5분마다 확인하는 수집기가 처리합니다')
+        + (q ? ` (${q.to} 뒤 처리 — 수집기 쉬는 시간)` : ''));
 }
 /**
  * 수집 결과가 오면 잠금 해제.
@@ -839,6 +871,7 @@ async function start(user) {
         renderDateList();
         if (viewMode === 'live') recomputeAndRender();
         setLoading(false);
+        if (busyBannerStop) busyBannerStop.refresh();   // 요청 대기·'방금 갱신됨'은 latest 로 판정한다
         if (!firstServerSeen && !snap.metadata.fromCache) { firstServerSeen = true; maybeAutoRequest(); }
     }, (err) => {
         setLoading(false);
@@ -847,6 +880,11 @@ async function start(user) {
         $('status-chip').textContent = '● 수집 자료 읽기 실패';
         $('status-err').textContent = String(err && err.code || err);
     });
+    // '갱신 중' 띠 — 이지어드민 잠금 + 갱신 요청 문서. '방금 갱신됨'은 이미 구독 중인 mibal2Latest 로(추가 구독 없음)
+    busyBannerStop = mountBusyBanner({ db, el: $('busy-banner'), sources: [
+        { path: LEASE_PATH, kind: 'lease' },
+        { path: REQUEST_PATH, kind: 'mibalRequest', latest: () => latest }
+    ], extra: (now) => [latestDoneView(latest, now)], onState: (v) => { busyViews = v || {}; renderRefreshUI(); } });
 }
 
 document.body.dataset.view = 'live';

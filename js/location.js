@@ -1,20 +1,22 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610201213';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610201411';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610201213';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610201213';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610201213';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610201213';
-import { orderKeyMap } from './lib/order-hash.js?v=202610201213';
-import { setShellContext } from './app-shell-bridge.js?v=202610201213';
-import { memberNameFor } from './app-shell-data.js?v=202610201213';
-import { menuConfigOf } from './lib/perm.js?v=202610201213';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201213';
-import { initPageNav } from './page-nav.js?v=202610201213';
-import { initRefillCard } from './refill-card.js?v=202610201213';
-import { initLocRecCard } from './locrec-card.js?v=202610201213';
-import { whenPerm } from './feature-gate.js?v=202610201213';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610201213';
+import { escapeHtml as escAttr } from './utils.js?v=202610201411';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610201411';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610201411';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610201411';
+import { orderKeyMap } from './lib/order-hash.js?v=202610201411';
+import { setShellContext } from './app-shell-bridge.js?v=202610201411';
+import { memberNameFor } from './app-shell-data.js?v=202610201411';
+import { menuConfigOf } from './lib/perm.js?v=202610201411';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201411';
+import { initPageNav } from './page-nav.js?v=202610201411';
+import { initRefillCard } from './refill-card.js?v=202610201411';
+import { initLocRecCard } from './locrec-card.js?v=202610201411';
+import { whenPerm } from './feature-gate.js?v=202610201411';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610201411';
+import { uploadBlockText } from './lib/busy-view.js?v=202610201411';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610201411';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -85,6 +87,22 @@ let appConfig = null;
 whenPerm('location.refill', () => initRefillCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) }));
 // 그 아래 '로케이션 변경 추천' 카드 — 같은 db·auth, 같은 이름 규칙(memberNameFor 만, 이메일 폴백 없음)
 whenPerm('location.locrec', () => initLocRecCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) }));
+// '갱신 중·업로드 중' 띠(js/busy-banner.js) — 이지어드민 잠금(미발·채우기 자동화) + 오늘 재고·도면 업로드 상태. 권한과 상관없이 모두에게.
+//   업로드 상태 문서(계약 B)는 올리는 사람이 쓴다(firestore.rules locationStock/** = 업로드 권한). 이름은 memberNameFor 만 — 이메일 폴백 없음.
+//   채우기 다시 만들기는 '오늘 채우기 지시서' 카드가 이미 보여 준다 → 띠는 잠금(refill)으로만. 시트 동기화 요청도 잠금(mibal)으로 자동.
+const BUSY_LEASE_PATH = 'artifacts/team-work-logger-v2/integrations/ezadminLease';
+const UPLOAD_STATUS_PATH = 'artifacts/team-work-logger-v2/locationStock/uploadStatus';
+window.__locBusy = createUploadStatus({ db, path: UPLOAD_STATUS_PATH, kind: 'daily',
+    getName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) || '' });
+let _busyBannerStop = null;
+function _syncBusyBanner(user) {
+    if (user && !_busyBannerStop) {
+        _busyBannerStop = mountBusyBanner({ db, el: document.getElementById('busy-banner'), sources: [
+            { path: BUSY_LEASE_PATH, kind: 'lease' },
+            { path: UPLOAD_STATUS_PATH, kind: 'upload', myRunId: () => (window.__locBusy && window.__locBusy.runId) || '' }
+        ] });
+    } else if (!user && _busyBannerStop) { _busyBannerStop(); _busyBannerStop = null; }
+}
 window.currentUsageTab = '3F';
 window.capacity2F = 200000;
 
@@ -187,6 +205,7 @@ onAuthStateChanged(auth, (user) => {
     if (user) updateCurrentUserName(user);
     else currentUserName = "비로그인 작업자";
     pushShellContext();
+    _syncBusyBanner(user);
 });
 
 window.showLoading = function(text) {
@@ -2506,6 +2525,9 @@ window.applyAllRecommendations = async function() {
             return alert("추천 가능한 자리가 없습니다. (3층 빈칸이 부족할 수 있습니다.)");
         }
         
+        // 누가 오늘 재고·도면을 올리는 중이면 확인(기본 취소) — js/busy-banner.js. 0건 검사 뒤에 묻는다
+        if (window.__locBusy && !(await window.__locBusy.confirmIfUploading('일괄 수정'))) return;
+
         // 4) 사용자 확인
         const msg = `추천 자리 일괄 적용\n\n` +
                     `대상: ${assignments.length}개 상품\n` +
@@ -2962,6 +2984,7 @@ window.releasePreAssign = async function(locId) {
 window.releaseAllCancelledPreAssigns = async function() {
     const items = window._cancelledPreAssignItems || [];
     if (items.length === 0) return;
+    if (window.__locBusy && !(await window.__locBusy.confirmIfUploading('일괄 수정'))) return;   // 업로드 중 확인
     if (!confirm(`총 ${items.length}건의 선지정을 모두 해제하시겠습니까?\n\n해제된 자리는 다시 빈 자리로 돌아갑니다.`)) return;
     
     window.showLoading(`${items.length}건의 선지정을 일괄 해제 중...`);
@@ -4437,9 +4460,18 @@ if (fileInputA) {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) {
                 window.hideLoading();
+                // 다른 사람이 오늘 재고·도면을 올리는 중이면 막는다(같은 자리를 동시에 덮어쓰면 섞인다). 상태를 못 읽으면 막지 않는다.
+                const _other = await window.__locBusy.checkOthers();
+                if (_other) { alert(uploadBlockText(_other)); return; }
                 if (!confirm(`오늘 재고 파일 「${file.name}」 ${result.rows.length.toLocaleString()}줄로 기존 로케이션 재고를 덮어씁니다.\n(파일에 없는 자리의 재고는 비워집니다 · 선지정된 자리는 보호됩니다)\n\n계속할까요?`)) return;
                 window.showLoading('일일 재고/상품 데이터를 최신화 중입니다...');
-                await updateDatabaseA(result.rows, 'daily');
+                // 다른 사람 화면에 '오늘 재고 올리는 중' 띠 — 끝나면 done/failed. 기록 실패는 업로드를 막지 않는다
+                // 시작 기록은 트랜잭션 — 두 사람이 확인창을 동시에 눌러도 한쪽만 통과한다(남은 쪽은 여기서 막힘)
+                const _bg = await window.__locBusy.begin('daily');
+                if (_bg.busy) { window.hideLoading(); alert(uploadBlockText(_bg.busy)); return; }
+                let _upOk = false;
+                try { _upOk = (await updateDatabaseA(result.rows, 'daily')) === true; }
+                finally { window.__locBusy.end(_upOk); }
                 // 🕒 데이터 최신화 시각 기록 (헤더 표시용)
                 try { await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { lastDataUpdate: Date.now() }, { merge: true }); } catch(_) {}
             }
@@ -4459,12 +4491,19 @@ if (fileInputPerm) {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) {
                 window.hideLoading();
+                // 오늘 재고 올리기와 같은 문서·같은 규칙 — 남이 올리는 중이면 막는다
+                const _other = await window.__locBusy.checkOthers();
+                if (_other) { alert(uploadBlockText(_other)); return; }
                 const chk = checkPermanent(result.rows);
                 if (!chk.ok) { _showUploadDiagnosisAlert('no-required-header', 'permanent'); return; }
                 const newCnt = newLocIds(result.rows, originalData.map(d => d.id)).length;
                 if (!confirm(`도면 파일 「${file.name}」 ${chk.valid.toLocaleString()}줄로 동/위치/칸수를 덮어씁니다 · 없던 로케이션 ${newCnt.toLocaleString()}개가 새로 생깁니다.\n\n계속할까요?`)) return;
                 window.showLoading('도면(동/위치) 영구 데이터를 덮어쓰기 세팅 중입니다...');
-                await updateDatabaseA(result.rows, 'permanent');
+                const _bg = await window.__locBusy.begin('permanent');
+                if (_bg.busy) { window.hideLoading(); alert(uploadBlockText(_bg.busy)); return; }
+                let _upOk = false;
+                try { _upOk = (await updateDatabaseA(result.rows, 'permanent')) === true; }
+                finally { window.__locBusy.end(_upOk); }
             }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'permanent'); }
         } catch(err) { window.hideLoading(); console.error('도면 파일 처리 실패:', _errCode(err)); alert(`도면(동/위치) 파일을 읽거나 반영하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); }
@@ -5433,10 +5472,11 @@ async function updateDatabaseA(rows, mode = 'daily') {
         }
         // 보안(2026-10-14): 저장하지 않은 열 안내 — 머리글 이름과 건수만(값은 표시하지 않음).
         //   완료 알림이 토스트가 되면서(UX 개선 7번) 위 완료 토스트에 _secNote 를 함께 넣었다 — 토스트 칸이 하나라 따로 띄우면 덮인다.
-        
+        return true;   // 성공 — 업로드 상태(계약 B) done 판정용
     } catch (error) { 
         console.error("실패:", error); 
         alert(`로케이션 데이터를 반영하지 못했습니다. 일부만 반영됐을 수 있습니다.\n인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요(다시 올려도 중복되지 않습니다).\n계속되면 관리자에게 아래 오류 코드를 알려 주세요.\n(오류 코드: ${_errCode(error)})`); 
+        return false;
     } finally { 
         if(document.getElementById('excel-upload-a')) document.getElementById('excel-upload-a').value = ''; 
         if(document.getElementById('excel-upload-permanent')) document.getElementById('excel-upload-permanent').value = ''; 
@@ -5850,6 +5890,7 @@ window.deleteSelectedLocations = async () => {
     // 가상 스크롤이라 화면에 그려진 줄만 querySelectorAll 에 잡힌다 → 선택 집합을 쓴다
     const checkedIds = [...VS.checkedIds];
     if (checkedIds.length === 0) return alert("삭제할 대상을 선택하세요.");
+    if (window.__locBusy && !(await window.__locBusy.confirmIfUploading('일괄 수정'))) return;   // 업로드 중 확인
     const _preview = checkedIds.slice(0, 5).join(', ') + (checkedIds.length > 5 ? ` 외 ${checkedIds.length - 5}개` : '');
     if (!confirm(`선택한 로케이션 ${checkedIds.length}개를 삭제합니다. 되돌릴 수 없습니다.\n대상: ${_preview}\n(그 자리의 재고·선지정 정보도 함께 지워집니다)\n\n삭제할까요?`)) return;
     try {
@@ -5937,6 +5978,7 @@ window.applyLocBulkEdit = async function () {
         const fixed = ids.filter(id => /^(비축|SAM)/i.test(id));
         if (fixed.length) notes.push(`※ ${fixed.length}개(비축·SAM 번호)는 번호 규칙상 항상 '기타'로 취급됩니다 — 대분류를 바꿔도 화면 집계는 그대로입니다.`);
     }
+    if (window.__locBusy && !(await window.__locBusy.confirmIfUploading('일괄 수정'))) return;   // 업로드 중 확인
     if (!confirm(`${ids.length}개 로케이션을 바꿉니다.\n\n${what}\n${notes.length ? '\n' + notes.join('\n') + '\n' : ''}\n진행할까요?`)) return;
 
     window.showLoading(`${ids.length}개 로케이션 수정 중...`);

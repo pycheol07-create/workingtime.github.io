@@ -1,0 +1,52 @@
+/* === css/busy-banner.css — '갱신 중·업로드 중' 띠(js/busy-banner.js) ===
+   공통 상단바 바로 아래 가운데에 떠 있는 띠. 문서 흐름에 넣지 않는다(position:fixed) —
+   location.html .table-box 높이 계산(100vh - 헤더 - --as-h)을 흔들지 않게.
+   z-index 는 모달(10000)·입고 사이드바(9999)보다 낮게 — 작업창을 가리지 않는다. 로딩 덮개(999999)는 위로 덮는다.
+   토큰은 각 페이지 :root(location.html·css/d-theme.css)를 쓰고, 없을 때를 위해 기본값을 붙인다. */
+.busy-banner {
+    position: fixed;
+    top: calc(var(--as-h, 0px) + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    max-width: min(94vw, 760px);
+    padding: 6px 6px 6px 14px;
+    border-radius: 999px;
+    background: var(--c-warn-soft, #F4EADB);
+    color: var(--c-warn-text, #8A5E28);
+    border: 1px solid var(--c-warn, #D2A266);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .12);
+    font: 600 13px/1.45 var(--font-sans, 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif);
+}
+.busy-banner[hidden] { display: none !important; }
+.busy-banner.busy-banner-done {
+    background: var(--c-ok-soft, #E3F1EA);
+    color: var(--c-ok-text, #2E6B4E);
+    border-color: var(--c-ok, #5BA57F);
+}
+.busy-banner-text { min-width: 0; overflow-wrap: anywhere; }
+.busy-banner-x {
+    flex: none;
+    width: 24px; height: 24px;
+    border: 0; border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font: 700 16px/1 sans-serif;
+    cursor: pointer;
+    opacity: .7;
+}
+.busy-banner-x:hover, .busy-banner-x:focus-visible { opacity: 1; background: rgba(0, 0, 0, .08); }
+.busy-banner-x:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+
+@media (max-width: 767px) {
+    .busy-banner { border-radius: 12px; font-size: 12px; padding: 5px 4px 5px 10px; width: calc(100vw - 16px); }
+}
+
+/* 다크 — html.dark 를 쓰는 페이지에서 */
+html.dark .busy-banner { background: #3A3122; color: #F0D7A8; border-color: #7A6236; box-shadow: 0 4px 14px rgba(0, 0, 0, .5); }
+html.dark .busy-banner.busy-banner-done { background: #1F3329; color: #A8DCC0; border-color: #3C6B52; }
+html.dark .busy-banner-x:hover, html.dark .busy-banner-x:focus-visible { background: rgba(255, 255, 255, .1); }
