@@ -1,19 +1,19 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610200902';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610201048';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610200902';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610200902';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610200902';
-import { orderKeyMap } from './lib/order-hash.js?v=202610200902';
-import { setShellContext } from './app-shell-bridge.js?v=202610200902';
-import { memberNameFor } from './app-shell-data.js?v=202610200902';
-import { menuConfigOf } from './lib/perm.js?v=202610200902';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610200902';
-import { initPageNav } from './page-nav.js?v=202610200902';
-import { initRefillCard } from './refill-card.js?v=202610200902';
-import { initLocRecCard } from './locrec-card.js?v=202610200902';
-import { whenPerm } from './feature-gate.js?v=202610200902';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610200902';
+import { escapeHtml as escAttr } from './utils.js?v=202610201048';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610201048';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610201048';
+import { orderKeyMap } from './lib/order-hash.js?v=202610201048';
+import { setShellContext } from './app-shell-bridge.js?v=202610201048';
+import { memberNameFor } from './app-shell-data.js?v=202610201048';
+import { menuConfigOf } from './lib/perm.js?v=202610201048';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610201048';
+import { initPageNav } from './page-nav.js?v=202610201048';
+import { initRefillCard } from './refill-card.js?v=202610201048';
+import { initLocRecCard } from './locrec-card.js?v=202610201048';
+import { whenPerm } from './feature-gate.js?v=202610201048';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610201048';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나

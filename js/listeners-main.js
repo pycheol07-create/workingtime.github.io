@@ -1,26 +1,26 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202610200902';
-import * as State from './state.js?v=202610200902';
+import * as DOM from './dom-elements.js?v=202610201048';
+import * as State from './state.js?v=202610201048';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202610200902';
-import { updateDailyData } from './app-data.js?v=202610200902';
+import { render } from './app.js?v=202610201048';
+import { updateDailyData } from './app-data.js?v=202610201048';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610200902';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610200902';
+import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610201048';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610201048';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202610200902';
+} from './ui.js?v=202610201048';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202610200902';
-import { saveProgress, saveDayDataToHistory, previewDayClose } from './history-data-manager.js?v=202610200902';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610200902';
+} from './app-logic.js?v=202610201048';
+import { saveProgress, saveDayDataToHistory, previewDayClose } from './history-data-manager.js?v=202610201048';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610201048';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
