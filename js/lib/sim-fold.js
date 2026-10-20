@@ -23,7 +23,8 @@ export const FOLD_OUTLIER_MIN_SAMPLE = 4;   // 표본이 이보다 적으면 판
 
 /** '사람이 정한 값' 으로 보는 출처. 수량형과 시간형의 문자열이 다르다. */
 /** 'transmit'(직진·에이블리 전송값)도 여기 둔다 — 자동 추정이 아니라 실제로 보낸 수량이라 접히면 안 된다. */
-const SAVED_SOURCES = new Set(['planned', 'actual', 'planned-time', 'transmit']);
+/** 'refill'(채우기 지시서 줄 수)도 — 그날 실제로 채울 목록이다(2026-10-21). */
+const SAVED_SOURCES = new Set(['planned', 'actual', 'planned-time', 'transmit', 'refill']);
 
 const 수 = (v) => {
     const n = Number(v);

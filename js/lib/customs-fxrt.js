@@ -11,7 +11,7 @@
 //      사람이 넣은 값·출처 기록이 없는 옛 값은 그대로
 //   4. 빈칸 → 기존 '고시환율을 입력하세요'
 // 출처(origin)는 이 PC 저장값에 같이 둔다: { by: 'auto', start, end } | { by: 'manual' }. 없으면 manual 로 본다.
-import { parseNum } from './calc-num.js?v=202610210842';
+import { parseNum } from './calc-num.js?v=202610210848';
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const LEGACY_DEFAULT = '1350';     // 2026-10-16 전 첫 사용자 기본값(실제 고시값처럼 보이는 가짜 값)

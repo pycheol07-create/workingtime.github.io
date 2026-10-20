@@ -3,33 +3,33 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610210842';
+import { predictFutureTrends } from './analysis-logic.js?v=202610210848';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610210842';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610210842';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610210842';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610210842';
-import * as State from './state.js?v=202610210842';
-import { saveView } from './view-state.js?v=202610210842';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610210842';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610210842';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610210848';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610210848';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610210848';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610210848';
+import * as State from './state.js?v=202610210848';
+import { saveView } from './view-state.js?v=202610210848';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610210848';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610210848';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610210842';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610210848';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610210842';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610210842';
+         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610210848';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610210848';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610210842';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610210842';
-import { taskUph, recentDays } from './task-throughput.js?v=202610210842';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610210848';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610210848';
+import { taskUph, recentDays } from './task-throughput.js?v=202610210848';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610210842';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610210848';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610210842';
-import { D } from './d-chart.js?v=202610210842';
+         excessOffDays } from './lib/backlog-carry.js?v=202610210848';
+import { D } from './d-chart.js?v=202610210848';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1500,6 +1500,11 @@ const autoValueFor = (dateStr, task, historyData) => {
     const transmit = transmitFor(dateStr, task.key, historyData);
     if (transmit) return transmit;
 
+    // 채우기 지시서도 실제로 채울 목록이라 예정 물량보다 앞선다 — 예정 물량 창이 자동값을 통째로 저장해 두어
+    // 그 저장값(전날의 빈도 추정)이 지시서를 가리는 일이 잦다(2026-10-21 리뷰). 창에서는 전송값처럼 읽기 전용.
+    const refill = refillValueFor(dateStr, task.key);
+    if (refill) return refill;
+
     const planned = getPlanned(dateStr, task.key);
     if (planned != null) return { value: planned, source: 'planned' };
 
@@ -1701,6 +1706,9 @@ let mibalLoading = null;
 //    샘플검수 자동값 = 그날 도착 패킹의 '패킹에서 만들기' 장수. 못 읽거나 그날 패킹이 없으면 예전 비율 계산으로 물러난다.
 let inspPacksList = null;         // null = 아직 못 읽음·오래됨 / [] = 읽었는데 비어 있음
 const INSP_PACKS_STALE_MS = 36 * 60 * 60 * 1000;   // 수집은 매일 07:30 무렵 — 하루 반 넘게 안 바뀌면 멈춘 것으로 본다
+// 🧺 채우기 지시서(integrations/refillLatest — 채우기자동화가 매일 08:20 무렵 씀). 미발과 같이 읽는다(2026-10-21).
+//    지시서가 있는 날의 채우기 자동값 = 지시서 행 수(상품옵션 줄 수 — 낱개 수량 아님). 없는 날(내일 등)은 예전 빈도 계산.
+let refillDays = null;            // null = 아직 못 읽음 / { YYYYMMDD: {status, rows, fillQty, …} }
 // 📤 직진·에이블리 전송값(ZikjinData) — 미발과 같이 읽는다(규칙: js/lib/ship-transmit.js).
 //    읽기만 한다. 못 읽으면 직전 값을 그대로 둔다.
 //    ⚠️ ZikjinData 에는 마지막 전송일 하루치만 남는다(다음 전송이 지난 날짜 행을 지운다).
@@ -1766,12 +1774,18 @@ export async function ensureMibalHistory() {
     mibalLoading = (async () => {
         try {
             // 세 읽기는 서로 독립이다 — 하나가 실패해도 나머지는 반영한다
-            const [s, inc, zk, ip] = await Promise.all([
+            const [s, inc, zk, ip, rf] = await Promise.all([
                 getDoc(doc(State.db, 'ChinaStockGoods', 'MIBAL_HISTORY')).catch(e => { console.warn('[업무 예상] 미발 이력 읽기 실패:', e); return 'ERR'; }),
                 getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'incomingSchedule')).catch(() => 'ERR'),
                 getDocs(collection(State.db, 'ZikjinData')).catch(() => 'ERR'),
-                getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks')).catch(() => 'ERR')
+                getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks')).catch(() => 'ERR'),
+                getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'refillLatest')).catch(() => 'ERR')
             ]);
+            // 채우기 지시서 요약 — 못 읽으면 직전 값을 그대로 둔다(처음이면 null → 빈도 계산)
+            if (rf !== 'ERR') {
+                const days = rf && rf.exists() ? (rf.data() || {}).days : null;
+                refillDays = (days && typeof days === 'object') ? days : {};
+            }
             // 샘플검수 패킹 목록 — 읽기·해석에 실패하면 직전 값을 그대로 둔다(처음이면 null → 비율 계산)
             if (ip !== 'ERR') {
                 try {
@@ -1871,6 +1885,19 @@ const sampleAutoFor = (dateStr, china, historyData) => {
     return { value: Math.round(computeSampleRatio(historyData) * china), source: 'china-linked' };
 };
 
+/** 채우기 지시서 행 수 { value, source:'refill', detail } 또는 null(지시서 없음·못 읽음·다른 업무) */
+const refillValueFor = (dateStr, taskKey) => {
+    if (taskKey !== '채우기' || !refillDays || !dateStr) return null;
+    const e = refillDays[String(dateStr).replace(/-/g, '')];
+    if (!e || e.status !== 'ok') return null;
+    const rows = Number(e.rows);
+    if (!Number.isFinite(rows) || rows < 0) return null;
+    const qty = Number(e.fillQty) || 0;
+    return { value: Math.round(rows), source: 'refill',
+             detail: `그날 채우기 지시서 ${Math.round(rows).toLocaleString()}줄(상품옵션별)` + (qty ? ` · 낱개 ${qty.toLocaleString()}개` : '')
+                   + `\n(로케이션관리 '오늘 채우기 지시서' 기준 — 지시서가 바뀌면 10분 안에 따라갑니다)` };
+};
+
 const mibalNote = (m) => `중국 입고 미발수량 +${m.qty.toLocaleString()} 포함 — ${m.lines.join(' · ')}`
     + (m.rate ? `\n(상승률은 지난 입고 ${m.rate.n}건 기준 — 중국제작 부족수량 관리의 '미발전송' 기록)`
               : `\n(상승률 기록이 없어 기본 40% 로 계산 — 중국제작 부족수량 관리에서 입고일에도 '미발전송' 을 누르면 정확해집니다)`);
@@ -1883,6 +1910,10 @@ const EVIDENCE_MODES = new Set(['incoming', 'china-linked', 'incoming-boxes']);
 /** 수기값(실측·예정)을 뺀 순수 자동 추정값만. 예정 물량 입력 화면의 프리필이 쓴다. */
 const estimatedValueFor = (dateStr, task, historyData) => {
     const { mode, arg } = parseAutoMode(task.auto);
+
+    // 🧺 채우기 지시서가 나온 날은 그 행 수(상품옵션 줄 수)를 쓴다 — 실제로 채울 목록이라 빈도 추정보다 정확하다
+    const refill = refillValueFor(dateStr, task.key);
+    if (refill) return refill;
 
     // 🏖 공휴일에는 과거 패턴으로 물량을 깔지 않는다 — 아무도 안 나오는 날에 '필요 5명'이 뜬다.
     //    과거 날짜는 실측을 보여줘야 하므로 오늘 이후에만 적용한다.
@@ -1989,6 +2020,8 @@ const SOURCE_BADGE = {
                 tip: '하차분 + 상차분입니다. 하차분은 그날 도착 예정 박스 수,'
                    + ' 상차분은 전 근무일에 직진배송·에이블리배송을 한 물량을 상차 단위로 나눈 값입니다.'
                    + ' 둘 다 없는 날은 0 입니다.' },
+    refill:   { text: '지시서', muted: true,
+                tip: '그날 채우기 지시서의 줄 수(상품옵션별 개수 — 낱개 수량이 아님)입니다. 지시서는 매일 08:20 무렵 만들어지므로 내일 이후는 예전처럼 빈도로 추정합니다.' },
     'insp-packs': { text: '패킹 기준', muted: true,
                 tip: '그날 도착하는 패킹의 품목으로 샘플검수 장수를 셌습니다(샘플검수 「패킹에서 만들기」와 같은 기준 — 공급처·색상마다 1장).' },
     'china-linked': { text: '중국제작 연동', muted: true,
@@ -2023,7 +2056,7 @@ const paintDayApply = (task, dayValue) => {
 };
 
 /** 접기 사유에 덮이면 안 되는 출처 — 그 자체가 '왜 이 값인지'의 답이다 */
-const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off', 'ai-mibal', 'transmit']);
+const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off', 'ai-mibal', 'transmit', 'refill']);
 
 /** 값의 출처를 항목 아래에 표시 */
 const markSourceBadge = (task, source, detail = '', dayValue = null) => {
@@ -2630,6 +2663,7 @@ const runSimulation = ({ silent = false } = {}) => {
     if (mode === 'single') {
         SIM_TASKS.forEach(t => {
             if (t.auto !== 'cadence') return;
+            if (refillValueFor(baseDate, t.key)) return;   // 지시서가 정한 날(0줄 포함)은 애매하지 않다
             if ((baseInputs.tasks[t.key] || 0) > 0) return;
             // 사람이 직접 0 을 넣었으면 '안 한다'고 정한 것이다 — 빈칸일 때만 애매하다고 본다
             if ((document.getElementById(`sim-qty-${t.id}`)?.value ?? '') !== '' && !baseInputs.tasks[t.key]) {
@@ -3128,6 +3162,7 @@ window.__forecastForDate = async (dateStr) => {
         const maybeTasks = [];
         SIM_TASKS.forEach(t => {
             if (t.auto !== 'cadence') return;
+            if (refillValueFor(date, t.key)) return;   // 지시서가 정한 날(0줄 포함)은 애매하지 않다
             if ((inputs.tasks[t.key] || 0) > 0) return;
             if (todayActualQty(State.allHistoryData, date, t.key) != null) return;
             if ((getPlanned(date, t.key) || 0) > 0) return;
@@ -3251,7 +3286,8 @@ export const getTransmitQuantitiesForDate = (dateStr) => {
     const out = {};
     SIM_TASKS.forEach(t => {
         const v = autoValueFor(dateStr, t, data);
-        if (v && v.source === 'transmit') out[t.key] = { value: v.value, detail: v.detail || '' };
+        // 채우기 지시서(refill)도 같은 취급 — 예정 물량 창에서 읽기 전용으로 보이고 저장값을 바꾸지 않는다
+        if (v && (v.source === 'transmit' || v.source === 'refill')) out[t.key] = { value: v.value, detail: v.detail || '', source: v.source };
     });
     return out;
 };

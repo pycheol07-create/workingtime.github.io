@@ -1,16 +1,16 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610210842';
-import * as State from './state.js?v=202610210842';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610210842';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610210842';
+import * as DOM from './dom-elements.js?v=202610210848';
+import * as State from './state.js?v=202610210848';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610210848';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610210848';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory, historyLoadFailed,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610210842';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610210842';
-import { renderQuantityModalInputs } from './ui.js?v=202610210842';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610210842';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610210842';
+         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings } from './history-data-manager.js?v=202610210848';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610210848';
+import { renderQuantityModalInputs } from './ui.js?v=202610210848';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610210848';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610210848';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -50,8 +50,8 @@ export const retryHistoryLoad = async () => {
         await loadAndRenderHistoryList();
         if (historyLoadFailed()) return;   // 또 실패 — 오류 화면은 그대로
         clearPanelLoadErrors();
-        const { sectionIdFor } = await import('./history-sections.js?v=202610210842');
-        const { showSection } = await import('./listeners-history-tabs.js?v=202610210842');
+        const { sectionIdFor } = await import('./history-sections.js?v=202610210848');
+        const { showSection } = await import('./listeners-history-tabs.js?v=202610210848');
         await showSection(sectionIdFor(prevMain, prevSub) || 'insight');
     } catch (e) {
         console.error('이력 다시 시도 실패:', e);
@@ -239,7 +239,9 @@ export const openPlannedQuantityModal = async (dateStr) => {
         if (zero) zero.disabled = true;
         const note = document.createElement('p');
         note.className = 'mt-1 text-xs font-medium text-sky-700';
-        note.textContent = '전송값 우선 적용(로케이션 전송) — 저장해도 전송값이 우선 적용되고, 이 칸의 기존 저장값(0 제외)은 그대로 둡니다.';
+        note.textContent = v.source === 'refill'
+            ? '채우기 지시서 우선 적용(그날 지시서 줄 수) — 저장해도 지시서 값이 우선 적용되고, 이 칸의 기존 저장값은 그대로 둡니다.'
+            : '전송값 우선 적용(로케이션 전송) — 저장해도 전송값이 우선 적용되고, 이 칸의 기존 저장값(0 제외)은 그대로 둡니다.';
         if (v.detail) note.title = v.detail;
         input.insertAdjacentElement('afterend', note);
     });
