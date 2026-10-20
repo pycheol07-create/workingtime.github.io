@@ -20,7 +20,7 @@ export const BY_MAX = 20;
 
 // 잠금 주인별 문구 · 보통 걸리는 시간(분)
 export const LEASE_LABEL = {
-    mibal: { label: '미발·입고예정 자료 새로 읽는 중', done: '미발·입고예정 자료 새로 읽기 끝남', lo: 4, hi: 6 },
+    mibal: { label: '미발수량·입고예정 자료 새로 읽는 중', done: '미발수량·입고예정 자료 새로 읽기 끝남', lo: 4, hi: 6 },
     refill: { label: '채우기 지시서 만드는 중', done: '채우기 지시서 만들기 끝남', lo: 3, hi: 8 }
 };
 const LEASE_OTHER = { label: '이지어드민 자료 읽는 중', done: '이지어드민 자료 읽기 끝남', lo: 0, hi: 0 };
@@ -128,7 +128,7 @@ export function mibalRequestView(reqAtMs, latest, nowMs) {
     const runAt = latest ? tsMs(latest.lastRunAt) : 0;
     const noteAt = latest ? tsMs(latest.noteAt) : 0;
     if (req > runAt && req > noteAt && nowMs - req < REQUEST_PENDING_MS) {
-        return { active: true, kind: 'mibalRequest', label: '미발·입고예정 새로 읽기 요청 대기 중', sinceMs: req };
+        return { active: true, kind: 'mibalRequest', label: '미발수량·입고예정 새로 읽기 요청 대기 중', sinceMs: req };
     }
     return null;
 }
@@ -158,7 +158,7 @@ export function latestDoneView(latest, nowMs) {
     const runAt = latest ? tsMs(latest.lastRunAt) : 0;
     if (!runAt || nowMs - runAt >= DONE_SHOW_MS || runAt - nowMs >= LEASE_GRACE_MS) return null;
     const ok = latest.ok !== false;
-    return { done: true, kind: 'mibal', label: ok ? '미발·입고예정 자료 갱신됨' : '미발·입고예정 자료 갱신 실패', atMs: runAt, ok };
+    return { done: true, kind: 'mibal', label: ok ? '미발수량·입고예정 자료 갱신됨' : '미발수량·입고예정 자료 갱신 실패', atMs: runAt, ok };
 }
 
 /** 한 항목 → 문구 */

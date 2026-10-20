@@ -176,8 +176,8 @@ export function mibalByArrival(history, { arrivalOf, today, isOffDay } = {}) {
         const o = out[도착] || (out[도착] = { qty: 0, lines: [], rate: avg });
         o.qty += 대표.값;
         o.lines.push((입고
-            ? `${출고들} 패킹 입고미발 ${대표.값.toLocaleString()}`
-            : `${출고들} 패킹 예상미발 ${대표.값.toLocaleString()} (입고 전 마지막 전송 ${대표.출고미발.toLocaleString()} × ${(1 + rate).toFixed(2)})`)
+            ? `${출고들} 패킹 입고 미발수량 ${대표.값.toLocaleString()}`
+            : `${출고들} 패킹 예상 미발수량 ${대표.값.toLocaleString()} (입고 전 마지막 전송 ${대표.출고미발.toLocaleString()} × ${(1 + rate).toFixed(2)})`)
             + (넘김 ? ' — 도착일이 쉬는 날이라 다음 근무일로' : ''));
     });
     return out;

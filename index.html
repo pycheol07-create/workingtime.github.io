@@ -24,12 +24,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610201546">
-    <link rel="stylesheet" href="css/style.css?v=202610201546">
-    <link rel="stylesheet" href="css/dash-d.css?v=202610201546">
-    <link rel="stylesheet" href="css/form-d.css?v=202610201546">
-    <link rel="stylesheet" href="css/refill-modal.css?v=202610201546">
-    <link rel="stylesheet" href="css/locrec-modal.css?v=202610201546">
+    <link rel="stylesheet" href="css/suit.css?v=202610201623">
+    <link rel="stylesheet" href="css/style.css?v=202610201623">
+    <link rel="stylesheet" href="css/dash-d.css?v=202610201623">
+    <link rel="stylesheet" href="css/form-d.css?v=202610201623">
+    <link rel="stylesheet" href="css/refill-modal.css?v=202610201623">
+    <link rel="stylesheet" href="css/locrec-modal.css?v=202610201623">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -168,7 +168,7 @@
                 </div>
             </header>
 
-            <!-- 휴대폰(768px 미만)은 세로 flex + order 로 '내 업무 → 업무 현황 → 나머지' 순서. PC(md 이상)는 block 이라 order 가 무시된다 -->
+            <!-- 휴대폰(768px 미만)은 세로 flex + order 로 '내 업무 → 주요 일정 및 알림 → 업무 현황 → 나머지' 순서. PC(md 이상)는 block 이라 order 가 무시된다 -->
             <div id="app-content" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 md:block md:space-y-8">
 
                 <!-- 내 업무 — 내 상태·지금 업무 [휴식][종료]·최근 업무 칩·(휴대폰) 출근/퇴근. js/ui-main-board.js renderMyWorkBar 가 그린다.
@@ -180,9 +180,11 @@
                 <div id="today-progress-strip"
                      class="hidden order-3 cursor-pointer d-card is-link px-5 py-4 md:px-7 md:py-5 md:!mt-4"></div>
 
-                <div class="order-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 md:!mt-5">
+                <!-- 휴대폰은 이 묶음을 풀어(contents) 카드마다 order 를 준다 — '주요 일정 및 알림'만 위(order-1)로. PC 는 그대로 3칸 grid(md:order-none).
+                     카드가 세로 flex 의 직접 자식이 되므로 shrink-0 — 없으면 overflow-hidden 카드가 2px 로 눌린다 -->
+                <div class="contents md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-6 md:!mt-5">
 
-                    <div class="d-card flex flex-col h-auto md:h-full overflow-hidden">
+                    <div class="order-3 md:order-none shrink-0 d-card flex flex-col h-auto md:h-full overflow-hidden">
                         <div id="toggle-personnel" class="p-4 d-card-head flex justify-between items-center shrink-0 cursor-pointer md:cursor-auto group">
                             <h3 class="text-[15px] flex items-center gap-2">
                                 실시간 인원 현황
@@ -195,7 +197,7 @@
                         </div>
                     </div>
 
-                    <div class="d-card flex flex-col h-auto md:h-full overflow-hidden">
+                    <div class="order-3 md:order-none shrink-0 d-card flex flex-col h-auto md:h-full overflow-hidden">
                         <div id="toggle-workload" class="p-4 d-card-head flex justify-between items-center shrink-0 cursor-pointer md:cursor-auto group">
                             <h3 class="text-[15px] flex items-center gap-2">
                                 오늘 업무 처리량
@@ -208,14 +210,27 @@
                         </div>
                     </div>
 
-                    <div class="d-card flex flex-col relative overflow-hidden h-auto md:h-full">
-                        <div class="p-4 d-card-head flex justify-between items-center shrink-0 cursor-pointer md:cursor-auto" data-m-collapse="notice-widget-body">
+                    <!-- 휴대폰: 위로 올리고(order-1 — 내 업무 바로 아래) 기본 펼침. 접어도 기억하지 않는다(다시 열면 펼쳐져 있다 — 발주 알림 등을 놓치지 않게) -->
+                    <div class="order-1 md:order-none shrink-0 d-card flex flex-col relative overflow-hidden h-auto md:h-full">
+                        <div class="p-4 d-card-head flex justify-between items-center shrink-0 cursor-pointer md:cursor-auto" data-m-collapse="notice-widget-body" aria-expanded="true">
                             <h3 class="text-[15px] flex items-center gap-2">
                                 주요 일정 및 알림
                             </h3>
-                            <svg data-m-arrow xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 t-3 md:hidden transition-transform transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                            <svg data-m-arrow xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 t-3 md:hidden transition-transform transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                         </div>
-                        <div id="notice-widget-body" class="hidden md:block flex-1 overflow-y-auto p-3 space-y-2">
+                        <div id="notice-widget-body" class="md:block flex-1 overflow-y-auto p-3 space-y-2 max-h-[60vh] md:max-h-none">
+                            <!-- 비품 발주 알림 — 발주 권장일 5일 이내(js/supplies-alert-dash.js). 비품 관리 권한(supplies.view)이 있을 때만 보인다. 누르면 비품 관리로.
+                                 hidden 속성도 함께 둔다 — space-y-2 가 [hidden] 만 건너뛰어, 클래스만 숨기면 PC 줄 높이가 8px 는다.
+                                 ⚠️ role=dialog·data-act 를 넣지 말 것(업무마감봇 선택자) -->
+                            <a id="widget-supplies-alert" href="supplies.html" hidden class="hidden block d-box overflow-hidden">
+                                <div class="flex items-center justify-between gap-2 px-3 py-2 d-box-head is-warn">
+                                    <h4 class="text-xs font-semibold flex items-center gap-1.5">
+                                        비품 발주 필요 <span id="widget-supplies-count" class="text-[11px] d-pill-risk tabular-nums">0</span>
+                                    </h4>
+                                    <span class="text-[11px] t-warn">비품 관리 &rarr;</span>
+                                </div>
+                                <ul id="widget-supplies-list" class="divide-y d-divide text-sm"></ul>
+                            </a>
                             <!-- 입고일정 (구글 시트 자동) -->
                             <div class="d-box overflow-hidden">
                                 <div class="flex items-center justify-between gap-2 px-3 py-2 d-box-head is-warn">
@@ -516,13 +531,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202610201546');
+                await import('./js/app.js?v=202610201623');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202610201546').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202610201623').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -586,7 +601,7 @@
         setupWidgetToggle('toggle-personnel', 'summary-personnel', 'personnel-arrow');
         setupWidgetToggle('toggle-workload', 'summary-workload', 'workload-arrow');
 
-        // 휴대폰 기본 접힘 카드(일정·알림, 근태 예정, 업무 캘린더): 머리줄 [data-m-collapse="내용 id"] 를 누르면 펼친다.
+        // 휴대폰 접기 카드(근태 예정·업무 캘린더는 기본 접힘, 주요 일정 및 알림은 기본 펼침): 머리줄 [data-m-collapse="내용 id"] 를 누르면 펼치고 접는다.
         // 머리줄 안의 버튼·입력칸(캘린더 이전/다음 등)은 제 할 일만 하고 접기에는 쓰지 않는다. PC(768px 이상)는 늘 펼침.
         document.addEventListener('click', function(e) {
             const head = e.target.closest && e.target.closest('[data-m-collapse]');
@@ -618,11 +633,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202610201546';
-        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610201546';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202610201546';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610201546';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610201546';
+        import { appState } from './js/state.js?v=202610201623';
+        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610201623';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202610201623';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610201623';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610201623';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -791,11 +806,11 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202610201546"></script>
-    <script src="js/modal-esc.js?v=202610201546"></script>
-    <script type="module" src="js/modal-drag.js?v=202610201546"></script>
+    <script src="js/connection-banner.js?v=202610201623"></script>
+    <script src="js/modal-esc.js?v=202610201623"></script>
+    <script type="module" src="js/modal-drag.js?v=202610201623"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202610201546"></script>
-    <script src="js/app-version.js?v=202610201546"></script>
+    <script type="module" src="js/app-shell.js?v=202610201623"></script>
+    <script src="js/app-version.js?v=202610201623"></script>
 </body>
 </html>

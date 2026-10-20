@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>미발계산기(신규·시험)</title>
+    <title>중국제작 부족수량 관리(신규·시험)</title>
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다. -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610201546">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610201546">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610201546">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610201546">
+    <link rel="stylesheet" href="css/suit.css?v=202610201623">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610201623">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610201623">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610201623">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -140,7 +140,7 @@
     <div id="busy-banner" hidden></div><!-- '갱신 중' 띠 — js/busy-banner.js (position:fixed) -->
     <div class="controls-header">
         <div class="header-left">
-            <h2 class="page-title">미발계산기(신규·시험)</h2>
+            <h2 class="page-title">중국제작 부족수량 관리(신규·시험)</h2>
             <div class="version-badge">비교용</div>
             <input type="text" id="search-input" class="search-input" placeholder="상품코드/상품명 검색" style="width: 180px;">
         </div>
@@ -183,15 +183,15 @@
     <div class="summary-bar">
         <div class="summary-card highlight"><span class="label">SKU</span><span class="value" id="sum-sku">0</span></div>
         <div class="summary-card highlight"><span class="label">도착 합</span><span class="value" id="sum-arrival">0</span></div>
-        <div class="summary-card newv" title="미발 = 그날 입고분 중 지금 재고로 못 내보내 추가로 출고할 양 = min(부족, 도착). 업무 예상 국내배송에 더하는 값"><span class="label">미발 합(추가 출고)</span><span class="value" id="sum-mibal">0</span></div>
-        <div class="summary-card" title="미해결부족 = 부족 − 미발. 입고분으로도 못 내보내는 주문"><span class="label">미해결부족 합</span><span class="value" id="sum-unres">0</span></div>
-        <div class="summary-card newv" title="3층으로 보낼 양 = 미발 + 피킹 적재. 비축을 모르는 행은 계산하지 않아 합에서 빠진다"><span class="label">3층 합</span><span class="value" id="sum-third">0</span><span class="sub" id="sum-third-note"></span></div>
+        <div class="summary-card newv" title="미발수량 = 그날 입고분 중 지금 재고로 못 내보내 추가로 출고할 양 = min(부족수량, 도착). 업무 예상 국내배송에 더하는 값"><span class="label">미발수량 합(추가 출고)</span><span class="value" id="sum-mibal">0</span></div>
+        <div class="summary-card" title="남는 부족수량 = 부족수량 − 미발수량. 입고분으로도 못 내보내는 주문"><span class="label">남는 부족수량 합</span><span class="value" id="sum-unres">0</span></div>
+        <div class="summary-card newv" title="피킹 배정수량 = 미발수량 + 피킹 적재. 비축을 모르는 행은 계산하지 않아 합에서 빠진다"><span class="label">피킹 배정수량 합</span><span class="value" id="sum-third">0</span><span class="sub" id="sum-third-note"></span></div>
         <div class="summary-card"><span class="label">피킹 적재 합</span><span class="value" id="sum-pick">0</span></div>
-        <div class="summary-card"><span class="label">비축 적재 합</span><span class="value" id="sum-reserve">0</span></div>
+        <div class="summary-card"><span class="label">적재 배정수량 합</span><span class="value" id="sum-reserve">0</span></div>
         <div class="summary-card" title="출고 뒤 피킹칸 여유를 비축에서 채워야 하는 SKU"><span class="label">보충 필요 SKU</span><span class="value" id="sum-refill">0</span></div>
         <div class="summary-card" title="재고·주문·비축 모름, 비축·피킹재고 음수, 적재량 0, 로케이션 없음·기타자리만 — 숫자를 그대로 믿기 어려운 행"><span class="label">확인 필요 SKU</span><span class="value" id="sum-check">0</span></div>
-        <div class="summary-card" title="기존 미발계산기의 미발수량(스캐너가 3층으로 보내는 양). 출처는 위 '기존 미발' 줄 참고"><span class="label">기존 미발 합(비교)</span><span class="value" id="sum-old">0</span></div>
-        <div class="summary-card"><span class="label">차이 합(3층−기존)</span><span class="value" id="sum-diff">0</span></div>
+        <div class="summary-card" title="기존 미발계산기의 미발수량(스캐너가 피킹으로 보내는 양). 출처는 위 '기존 계산기 미발수량' 줄 참고"><span class="label">기존 계산기 미발수량 합(비교)</span><span class="value" id="sum-old">0</span></div>
+        <div class="summary-card"><span class="label">차이 합(피킹 배정−기존)</span><span class="value" id="sum-diff">0</span></div>
     </div>
 
     <div class="tool-bar">
@@ -224,16 +224,16 @@
                     <th class="sortable" data-sort="recv">접수</th>
                     <th class="sortable" data-sort="inv">송장</th>
                     <th class="sortable" data-sort="out" title="출고예정 D = 접수 + 송장">출고예정</th>
-                    <th class="sortable" data-sort="short" title="부족 S = max(출고예정 − 총재고, 0) — 지금 재고(피킹 → 비축)로 못 내보내는 양">부족</th>
-                    <th class="sortable new-col" data-sort="mibal" title="미발 M = min(부족, 도착) — 이번 입고분으로 추가 출고할 양(업무 예상 국내배송 가산값)">미발(추가 출고)</th>
-                    <th class="sortable" data-sort="unres" title="미해결부족 U = 부족 − 미발 — 입고분으로도 못 냄">미해결부족</th>
+                    <th class="sortable" data-sort="short" title="부족수량 S = max(출고예정 − 총재고, 0) — 지금 재고(피킹 → 비축)로 못 내보내는 양">부족수량</th>
+                    <th class="sortable new-col" data-sort="mibal" title="미발수량 M = min(부족수량, 도착) — 이번 입고분으로 추가 출고할 양(업무 예상 국내배송 가산값)">미발수량(추가 출고)</th>
+                    <th class="sortable" data-sort="unres" title="남는 부족수량 U = 부족수량 − 미발수량 — 입고분으로도 못 냄">남는 부족수량</th>
                     <th class="sortable" data-sort="room" title="피킹 여유 F = max(적재량 − 출고 후 피킹, 0), 출고 후 피킹 = max(피킹재고 − 출고예정, 0)">피킹 여유</th>
-                    <th class="sortable new-col" data-sort="third" title="3층으로 보낼 양 = 미발 + 피킹 적재 (스캐너 기존 mibalQty 와 같은 뜻)">3층으로 보낼 양</th>
-                    <th class="sortable new-col" data-sort="pick" title="피킹 적재 = min(남은 도착, 피킹 여유), 남은 도착 = 도착 − 미발">피킹 적재</th>
-                    <th class="sortable new-col" data-sort="resv" title="비축 적재 = 남은 도착 − 피킹 적재">비축 적재</th>
+                    <th class="sortable new-col" data-sort="third" title="피킹 배정수량 = 미발수량 + 피킹 적재 (스캐너 기존 mibalQty 와 같은 뜻)">피킹 배정수량</th>
+                    <th class="sortable new-col" data-sort="pick" title="피킹 적재 = min(남은 도착, 피킹 여유), 남은 도착 = 도착 − 미발수량">피킹 적재</th>
+                    <th class="sortable new-col" data-sort="resv" title="적재 배정수량 = 남은 도착 − 피킹 적재">적재 배정수량</th>
                     <th class="sortable new-col" data-sort="refill" title="비축→피킹 보충 = min(피킹 여유 − 피킹 적재, 출고 후 비축)">비축→피킹 보충</th>
-                    <th class="sortable" data-sort="old" title="기존 미발계산기의 미발수량(mibalQty = 스캐너가 3층으로 보내는 양). 출처는 위 '기존 미발' 줄 참고">기존 미발</th>
-                    <th class="sortable" data-sort="diff" title="차이 = 3층으로 보낼 양 − 기존 미발">차이(3층−기존)</th>
+                    <th class="sortable" data-sort="old" title="기존 미발계산기의 미발수량(mibalQty = 스캐너가 피킹으로 보내는 양). 출처는 위 '기존 계산기 미발수량' 줄 참고">기존 계산기 미발수량</th>
+                    <th class="sortable" data-sort="diff" title="차이 = 피킹 배정수량 − 기존 계산기 미발수량">차이(피킹 배정−기존)</th>
                     <th>플래그</th>
                 </tr>
             </thead>
@@ -248,9 +248,9 @@
     <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610201546"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610201546"></script>
-    <script type="module" src="js/page-gate.js?v=202610201546" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202610201546"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610201623"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610201623"></script>
+    <script type="module" src="js/page-gate.js?v=202610201623" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202610201623"></script>
 </body>
 </html>

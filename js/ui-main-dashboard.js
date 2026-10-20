@@ -1,10 +1,11 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610201546';
-import * as State from './state.js?v=202610201546';
-import { getRegularMembersForCount } from './utils.js?v=202610201546';
-import { visibleMenuFor } from './menu-catalog.js?v=202610201546';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610201546';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610201546';
+import { getAllDashboardDefinitions } from './ui.js?v=202610201623';
+import * as State from './state.js?v=202610201623';
+import { getRegularMembersForCount } from './utils.js?v=202610201623';
+import { visibleMenuFor } from './menu-catalog.js?v=202610201623';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610201623';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610201623';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610201623';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -340,6 +341,7 @@ export const updateSummary = (appState, appConfig) => {
 
     updateEzadminDisplay();
     renderNoticeWidget(appState);
+    renderSuppliesAlert();     // 비품 발주 알림 — 받아 둔 값으로만 다시 그린다(날짜가 바뀌면 남은 날이 준다)
 
     // 실시간 인원 현황 상세 펼침 데이터 + 인터랙션
     lastPersonnelDetail = buildPersonnelDetailData(appState, appConfig);

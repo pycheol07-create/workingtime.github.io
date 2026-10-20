@@ -78,8 +78,8 @@ export const PAGE_DEFAULTS = {
     'admin':             { file: 'admin.html',             title: '관리자 페이지' },
     'location':          { file: 'location.html',          title: '로케이션 관리' },
     'products':          { file: 'products.html',          title: '상품 관리' },
-    'china-stock-goods': { file: 'china-stock-goods.html', title: '중국제작 미발계산기' },
-    'china-mibal2':      { file: 'china-mibal2.html',      title: '미발계산기(신규·시험)' },
+    'china-stock-goods': { file: 'china-stock-goods.html', title: '중국제작 부족수량 관리' },
+    'china-mibal2':      { file: 'china-mibal2.html',      title: '중국제작 부족수량 관리(신규·시험)' },
     'scan':              { file: 'scan.html',              title: '입고 스캐너' },
     'manual':            { file: 'manual.html',            title: '업무 매뉴얼 및 도구' },
     'supplies':          { file: 'supplies.html',          title: '비품 관리' },
@@ -188,7 +188,7 @@ export const SUB_DESTINATIONS = {
         S('도면', 'tab=map', ['지도'])
     ],
     'china-stock-goods.html': [
-        S('미발계산', 'tab=mibal', ['미발', '미발계산기']),
+        S('미발계산', 'tab=mibal', ['미발', '미발계산기', '부족수량', '부족수량 관리']),
         S('위치지정', 'tab=location', ['위치', '위치지정모드'])
     ],
     'products.html': [

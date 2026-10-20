@@ -13,6 +13,8 @@
 //   kind      'page'(파일 입장) | 'action'(대시보드 사이드바 동작 버튼) | 'sub'(페이지 안 하위 화면) | 'func'(페이지 안 기능)
 //   page      page: 이 파일 입장 / action·sub·func: 소속 파일
 //   menu      page·action: 메뉴 이름(MENU_TARGETS) — 옛 권한(memberMenuAccess) 변환·action 연결용
+//   menuAliases  page: 예전 기본 메뉴 이름. 저장된 dashboardMenu·memberMenuAccess 의 옛 이름도 같은 기능으로 잇고,
+//             같은 링크의 메뉴는 보이는 이름만 menu 로 바꾼다(menu-catalog.js withBuiltinMenus). 저장 값은 그대로 둔다.
 //   sub       sub: SUB_DESTINATIONS 의 hash 목록
 //   danger    0 | 1 | 2 (2 = 되돌리기 어려움 — 덮어쓰기·삭제·마감)
 //   rule      'yes' | 'partial' | 'no' — Firestore 규칙으로도 막는가(관리 화면 표시용. 규칙은 4·7단계에서 게시)
@@ -23,7 +25,7 @@ export const FEATURE_GROUPS = [
     { id: 'dash',       label: '대시보드' },
     { id: 'data',       label: '데이터 관리' },
     { id: 'location',   label: '로케이션 관리' },
-    { id: 'china',      label: '미발계산기' },
+    { id: 'china',      label: '중국제작 부족수량 관리' },
     { id: 'scan',       label: '입고 스캐너' },
     { id: 'products',   label: '상품 관리' },
     { id: 'supplies',   label: '비품 관리' },
@@ -71,8 +73,10 @@ export const FEATURES = [
     F('location.preassign',  '선지정·해제(모두 해제 포함)',          'location', 'func', 'location.html', { danger: 1, rule: 'partial' }),
 
     // 그 밖의 페이지
-    F('china.mibal',     '중국제작 미발계산기',   'china',      'page', 'china-stock-goods.html', { menu: '중국제작 미발계산기', danger: 1 }),
-    F('china.mibal2',    '미발계산기(신규·시험)', 'china',      'page', 'china-mibal2.html',      { menu: '미발계산기(신규·시험)' }),
+    F('china.mibal',     '중국제작 부족수량 관리',   'china',      'page', 'china-stock-goods.html', { menu: '중국제작 부족수량 관리', danger: 1,
+        menuAliases: ['중국제작 미발계산기'] }),   // 화면 용어 변경 2026-10-20 — 기존 계산기 페이지 안 제목은 그대로
+    F('china.mibal2',    '중국제작 부족수량 관리(신규·시험)', 'china', 'page', 'china-mibal2.html', { menu: '중국제작 부족수량 관리(신규·시험)',
+        menuAliases: ['미발계산기(신규·시험)'] }),
     F('scan.view',       '입고 스캐너',           'scan',       'page', 'scan.html',              { menu: '입고 스캐너', danger: 1 }),
     F('products.view',   '상품 관리',             'products',   'page', 'products.html',          { menu: '상품 관리' }),
     F('supplies.view',   '비품 관리',             'supplies',   'page', 'supplies.html',          { menu: '비품 관리' }),
@@ -91,6 +95,12 @@ export const ACTION_MENU_NAMES = ['대시보드', '오늘 처리량 입력', '�
 export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map(f => [f.id, f]));
 export const ALL_FEATURE_IDS = FEATURES.map(f => f.id);
 export const GRANTABLE_IDS = FEATURES.filter(f => f.grantable).map(f => f.id);
+
+/** 예전 기본 메뉴 이름(menuAliases)이고 같은 페이지로 가는 메뉴면 지금 이름, 아니면 null. page = 링크 경로(linkPath). */
+export const renamedMenuName = (name, page) => {
+    const f = FEATURES.find(x => x.kind === 'page' && x.page === page && Array.isArray(x.menuAliases) && x.menuAliases.includes(name));
+    return f ? f.menu : null;
+};
 
 export const isFeatureId = (id) => Object.prototype.hasOwnProperty.call(FEATURE_BY_ID, id);
 export const featureLabel = (id) => (FEATURE_BY_ID[id] ? FEATURE_BY_ID[id].label : String(id));

@@ -5,13 +5,13 @@
 // 쓰기: updateDailyData({inspectionList}) — 엑셀 업로드(js/inspection-excel.js)와 같은 경로. 순수 규칙은 js/lib/insp-packs.js.
 // ⚠️ 이 창은 index.html 에 붙는다 — 업무마감봇 선택자와 겹치지 않게 role="dialog"·data-act·end-shift-* 를 쓰지 않는다. id 는 모두 insp-pack-*.
 // ⚠️ 공급처는 코드만(supplierCode). supplierName 은 빈칸(CLAUDE.md 3절).
-import * as State from './state.js?v=202610201546';
-import { updateDailyData } from './app-data.js?v=202610201546';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610201546';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610201546';
-import { fetchAllHistoryData } from './history-data-manager.js?v=202610201546';
+import * as State from './state.js?v=202610201623';
+import { updateDailyData } from './app-data.js?v=202610201623';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610201623';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610201623';
+import { fetchAllHistoryData } from './history-data-manager.js?v=202610201623';
 import { doc, getDoc, getDocs, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations } from './lib/insp-packs.js?v=202610201546';
+import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations } from './lib/insp-packs.js?v=202610201623';
 
 const DOC_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks'];
 const PICKER_ID = 'insp-pack-picker';
@@ -101,7 +101,7 @@ function renderNotes() {
     const el = document.getElementById('insp-pack-notes');
     if (!el || !parsed) return;
     const lines = [];
-    lines.push(`기준 시각 ${escapeHtml(fmtMs(parsed.updatedAtMs))} — 최신 패킹은 미발계산기(신규) [지금 갱신] 뒤 반영됩니다.`);
+    lines.push(`기준 시각 ${escapeHtml(fmtMs(parsed.updatedAtMs))} — 최신 패킹은 중국제작 부족수량 관리(신규·시험) [지금 갱신] 뒤 반영됩니다.`);
     const noCode = (parsed.counts.noSup || 0) + (parsed.counts.supNotCode || 0);
     if (noCode > 0) lines.push(`공급처코드 없는 품목 ${noCode}건은 상품명 기준으로 묶습니다.`);
     if (parsed.counts.badShip > 0) lines.push(`출고일을 읽지 못해 빠진 품목 ${parsed.counts.badShip}건이 있습니다.`);

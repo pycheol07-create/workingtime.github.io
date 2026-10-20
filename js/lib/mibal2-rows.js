@@ -9,7 +9,7 @@
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 // 계산은 mibal2-calc.js calcPlan(공식 버전 FORMULA_VER — 2026-10-20 v2: 피킹 → 비축 → 입고분, 3층 = 미발 + 피킹 적재).
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202610201546';
+import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202610201623';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
@@ -145,7 +145,7 @@ export function capacitySourceKind(locId, config, ed) {
 export const FLAG_INFO = Object.freeze({
     zeroCapacity: ['적재량0', 'bad'], noStock: ['재고모름', 'bad'], noOrders: ['주문모름', 'bad'],
     noReserve: ['비축모름', 'bad'], negReserve: ['비축음수', 'bad'], negPick: ['피킹재고음수', 'bad'],
-    unresolved: ['미해결부족', 'warn'], overCap: ['피킹넘침', 'warn'], needRefill: ['보충필요', 'warn'],
+    unresolved: ['남는부족수량', 'warn'], overCap: ['피킹넘침', 'warn'], needRefill: ['보충필요', 'warn'],
     noLoc: ['로케이션없음', 'bad'], etcLoc: ['기타자리만', 'bad'], multiLoc: ['여러자리', ''],
     onlyOld: ['기존에만', 'bad'], noOld: ['신규에만', 'warn'], arrDiff: ['도착다름', 'warn']
 });
@@ -311,15 +311,15 @@ const EXCEL_COLS = [
     ['No', (r, i) => i + 1], ['코드', r => r.code], ['상품명', r => r.name], ['옵션', r => r.option],
     ['피킹로케이션', r => (r.locInfo ? r.loc : '미지정')], ['적재량', r => r.cap], ['적재량출처', r => r.capKind],
     ['도착', r => r.arr], ['총재고', r => r.stock], ['비축', r => r.bstock], ['피킹재고', r => r.pstock],
-    ['접수', r => r.recv], ['송장', r => r.inv], ['출고예정', r => r.out], ['부족', r => r.short],
-    ['미발(추가 출고)', r => r.mibal], ['미해결부족', r => r.unres], ['피킹 여유', r => r.room],
-    ['3층으로 보낼 양', r => r.third], ['피킹 적재', r => r.pick], ['비축 적재', r => r.resv], ['비축→피킹 보충', r => r.refill],
-    ['기존 미발', r => r.old], ['차이(3층−기존)', r => r.diff],
+    ['접수', r => r.recv], ['송장', r => r.inv], ['출고예정', r => r.out], ['부족수량', r => r.short],
+    ['미발수량(추가 출고)', r => r.mibal], ['남는 부족수량', r => r.unres], ['피킹 여유', r => r.room],
+    ['피킹 배정수량', r => r.third], ['피킹 적재', r => r.pick], ['적재 배정수량', r => r.resv], ['비축→피킹 보충', r => r.refill],
+    ['기존 계산기 미발수량', r => r.old], ['차이(피킹 배정−기존)', r => r.diff],
     ['확인필요', r => (r.check ? 'Y' : '')],
     ['플래그', r => (r.flags || []).map(f => (FLAG_INFO[f] ? FLAG_INFO[f][0] : f)).join('·')]
 ];
-const NUM_KEYS = new Set(['No', '적재량', '도착', '총재고', '비축', '피킹재고', '접수', '송장', '출고예정', '부족', '미발(추가 출고)', '미해결부족',
-    '피킹 여유', '3층으로 보낼 양', '피킹 적재', '비축 적재', '비축→피킹 보충', '기존 미발', '차이(3층−기존)']);
+const NUM_KEYS = new Set(['No', '적재량', '도착', '총재고', '비축', '피킹재고', '접수', '송장', '출고예정', '부족수량', '미발수량(추가 출고)', '남는 부족수량',
+    '피킹 여유', '피킹 배정수량', '피킹 적재', '적재 배정수량', '비축→피킹 보충', '기존 계산기 미발수량', '차이(피킹 배정−기존)']);
 
 /** 행 → 엑셀용 2차원 배열(첫 줄 머리글). 숫자 칸의 null·숫자 아님은 빈칸. 상품코드·상품명·옵션·숫자만(공급처·원가·고객정보 없음) */
 export function excelAoaOf(rows) {

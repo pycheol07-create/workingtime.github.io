@@ -13,20 +13,20 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610201546'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610201623'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610201546';
-import { sortMark } from './lib/china-stock-view.js?v=202610201546';
+import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610201623';
+import { sortMark } from './lib/china-stock-view.js?v=202610201623';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf, FLAG_INFO, COMPARE_COLS, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610201546';
-import { setShellContext } from './app-shell-bridge.js?v=202610201546';
-import { memberNameFor } from './app-shell-data.js?v=202610201546';
-import { mountBusyBanner } from './busy-banner.js?v=202610201546';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610201546';
+} from './lib/mibal2-rows.js?v=202610201623';
+import { setShellContext } from './app-shell-bridge.js?v=202610201623';
+import { memberNameFor } from './app-shell-data.js?v=202610201623';
+import { mountBusyBanner } from './busy-banner.js?v=202610201623';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610201623';
 
 const { db, auth } = initializeFirebase();
 
@@ -312,8 +312,8 @@ function applyFilters() {
         const isAbs = absDefault && th.dataset.sort === 'diff';
         const sm = isAbs ? { mark: '(절댓값 큰 순)', aria: 'descending' } : sortMark(th.dataset.sort, sortConfig);
         if (th.dataset.sort === 'diff') {
-            if (isAbs) th.title = '지금은 기본 정렬 — 차이(3층−기존)의 절댓값이 큰 순입니다. 누르면 차이 값 순으로 정렬합니다';
-            else th.title = '차이 = 3층으로 보낼 양 − 기존 미발';
+            if (isAbs) th.title = '지금은 기본 정렬 — 차이(피킹 배정−기존)의 절댓값이 큰 순입니다. 누르면 차이 값 순으로 정렬합니다';
+            else th.title = '차이 = 피킹 배정수량 − 기존 계산기 미발수량';
         }
         th.setAttribute('aria-sort', sm.aria);
         let mk = th.querySelector('.sort-mark');
@@ -328,7 +328,7 @@ function flagsHtml(r) {
     return r.flags.map(f => { const [t, c] = FLAG_INFO[f] || [f, '']; return `<span class="flag ${c}">${esc(t)}</span>`; }).join('');
 }
 function oldSourceText(os) {
-    if (!os) return '기존 미발 자료 없음';
+    if (!os) return '기존 계산기 미발수량 자료 없음';
     return os.kind === 'version'
         ? `버전기록 ${os.atMs ? mdhm(os.atMs) : '?'} (${esc(os.trigger)}${os.note ? ' · ' + esc(os.note) : ''})`
         : `현재 ScanDB ${os.atMs ? mdhm(os.atMs) : ''}`;
@@ -346,7 +346,7 @@ function detailHtml(r) {
         : '로케이션관리에 이 코드가 없음 → 미지정';
     const oldTxt = r.old === null
         ? '기존 비교값에 이 코드 없음'
-        : `${num(r.old)} — 기존 mibalQty = 스캐너가 3층으로 보내는 양 → 신규 3층과 비교 (${oldSourceText(c.oldSource)}${r.oldArr !== null ? ` · 그때 도착 ${num(r.oldArr)}` : ''})`;
+        : `${num(r.old)} — 기존 mibalQty = 스캐너가 피킹으로 보내는 양 → 신규 피킹 배정수량과 비교 (${oldSourceText(c.oldSource)}${r.oldArr !== null ? ` · 그때 도착 ${num(r.oldArr)}` : ''})`;
     const oldNewTxt = r.oldNew === null ? '입력 모름 → 계산 안 함'
         : `총재고 ${num(r.stock)} · 적재량 ${num(r.cap)} · 도착 ${num(r.arr)} · 부족수량 max(${num(r.recv)}+${num(r.inv)}−${num(r.stock)},0)=${num(r.shortage)} · 직진 0 → ${num(r.oldNew)}`;
     return `<div class="formula">${esc(explain(r.input, r.res))}</div>
@@ -358,7 +358,7 @@ function detailHtml(r) {
             <li><b>도착 ${num(r.arr)}</b>: 오더/사입리스트 출고 기록(shipJson ${esc(c.asOf || '?')}) 중 선택 출고일 · 본사도착 유예 ${num(c.graceDays)}일<br>${used}${skipped}</li>
             <li><b>로케이션</b>: ${loc} (로케이션관리 Locations)</li>
             <li><b>적재량 ${num(r.cap)}</b>: ${esc(r.capSrc)}</li>
-            <li><b>기존 미발</b>: ${oldTxt}</li>
+            <li><b>기존 계산기 미발수량</b>: ${oldTxt}</li>
             <li><b>기존공식×신규입력</b>: ${oldNewTxt}</li>
         </ul>`;
 }
@@ -448,18 +448,18 @@ function renderSourceNote() {
     parts.push(`<b>도착</b> 시트 기준일 ${esc(c.asOf || '?')} · 유예 ${num(c.graceDays)}일`);
     parts.push(`<b>적재량</b> 구역 설정 + 개별값 ${num(c.editedCount)}개`);
     parts.push(`<b>로케이션</b> 로케이션관리 ${num(c.locCount)}개 코드`);
-    if (c.oldSource) parts.push(`<b>기존 미발</b> ${oldSourceText(c.oldSource)}${c.oldSource.kind === 'live' ? ' — ⚠ 스캐너 입고분이 이미 빠져 있을 수 있음' : ''}`);
+    if (c.oldSource) parts.push(`<b>기존 계산기 미발수량</b> ${oldSourceText(c.oldSource)}${c.oldSource.kind === 'live' ? ' — ⚠ 스캐너 입고분이 이미 빠져 있을 수 있음' : ''}`);
     const warns = [];
     if (c.parseError) warns.push(c.parseError);
     const keep = parseInt(c.keepArrivedDays) || 0;
     if (keep && c.graceDays > keep) warns.push(`유예 ${c.graceDays}일이 수집 보관 ${keep}일보다 커서 오래 전 도착분은 빠집니다`);
     if (c.shipStaleDays) warns.push(`도착일 없이 출고 ${num(c.shipStaleDays)}일 넘은 기록은 수집에서 빠집니다(기존 화면은 포함)`);
     const os = c.oldSource;
-    if (os && os.atMs && c.refDate && !sameDay(new Date(os.atMs), c.refDate)) warns.push(c.mode === 'daily' ? '기존 미발 비교값이 그날 것이 아닙니다' : '기존 미발 비교값이 오늘 것이 아닙니다');
+    if (os && os.atMs && c.refDate && !sameDay(new Date(os.atMs), c.refDate)) warns.push(c.mode === 'daily' ? '기존 계산기 미발수량 비교값이 그날 것이 아닙니다' : '기존 계산기 미발수량 비교값이 오늘 것이 아닙니다');
     if (os && os.noUpload) warns.push(`최근 버전기록 ${VERSIONS_LIMIT}개 안에 '업로드' 버전이 없어 ${os.kind === 'version' ? `'${os.trigger}' 버전` : '현재 ScanDB'}로 비교합니다 — 스캐너 입고분이 빠져 있을 수 있음`);
     const rs = c.reserveStatus;
-    if (!rs) warns.push((c.mode === 'daily' ? '이 날 사본에는' : '이 수집 자료에는') + ' 비축재고 없음 → 피킹·비축 적재와 3층을 계산 못 함(확인 필요)');
-    else if (rs.status !== 'ok' || Number(rs.missing) > 0) warns.push(`비축재고 수집 ${rs.status} — 비축 미응답 코드 ${num(rs.missing)}개(그 코드는 비축재고 없음 → 피킹·비축 적재와 3층을 계산 못 함(확인 필요))`);
+    if (!rs) warns.push((c.mode === 'daily' ? '이 날 사본에는' : '이 수집 자료에는') + ' 비축재고 없음 → 피킹 적재·적재 배정수량·피킹 배정수량을 계산 못 함(확인 필요)');
+    else if (rs.status !== 'ok' || Number(rs.missing) > 0) warns.push(`비축재고 수집 ${rs.status} — 비축 미응답 코드 ${num(rs.missing)}개(그 코드는 비축재고 없음 → 피킹 적재·적재 배정수량·피킹 배정수량을 계산 못 함(확인 필요))`);
     box.innerHTML = parts.join(' · ') + (warns.length ? `<br><span class="t-risk">⚠ ${warns.map(esc).join(' / ')}</span>` : '');
 }
 
@@ -790,8 +790,8 @@ function downloadExcel() {
     const id = viewMode === 'daily' && daily && daily.ok ? daily.id : ymd();
     const ws = X.utils.aoa_to_sheet(excelAoaOf(viewRows));
     const wb = X.utils.book_new();
-    X.utils.book_append_sheet(wb, ws, '미발계산');
-    X.writeFile(wb, `미발계산_신규_${id}.xlsx`);
+    X.utils.book_append_sheet(wb, ws, '부족수량관리');
+    X.writeFile(wb, `부족수량관리_신규_${id}.xlsx`);
 }
 
 // ── 이벤트 ───────────────────────────────────────────────────
@@ -859,11 +859,11 @@ async function start(user) {
     isAdminOk = true;
     $('admin-block').style.display = 'none';
     $('app-main').style.display = 'block';
-    setLoading(true, '설정·로케이션·기존 미발 불러오는 중...');
+    setLoading(true, '설정·로케이션·기존 계산기 미발수량 불러오는 중...');
     try { const p = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null'); if (p && p.atMs) pending = p; } catch (e) {}
     renderRefreshUI();
     const results = await Promise.allSettled([loadConfig(), loadEditedCells(), loadLocations(), loadOldSnapshot().then(s => { oldSnap = s; }), loadSettings()]);
-    const names = ['CONFIG', 'EDITED_CELLS', 'Locations', '기존 미발', 'settings'];
+    const names = ['CONFIG', 'EDITED_CELLS', 'Locations', '기존 계산기 미발수량', 'settings'];
     const fails = results.map((r, i) => r.status === 'rejected' ? `${names[i]}(${(r.reason && r.reason.code) || r.reason})` : '').filter(Boolean);
     if (fails.length) { console.error('[mibal2] 읽기 실패:', fails); showToast('⚠️ 읽기 실패: ' + fails.join(', ')); }
 

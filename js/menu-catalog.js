@@ -4,24 +4,24 @@
 // 왜 따로 뺐나: 저장된 dashboardMenu(파이어스토어)는 관리자가 마지막으로 저장한 시점의
 // 스냅샷이라, 그 뒤에 코드로 추가된 메뉴가 들어 있지 않다. 대시보드 사이드바는
 // withBuiltinMenus() 로 이를 보정하고 있었지만 관리자 페이지의 '권한 관리'는
-// 저장된 목록을 그대로 써서, 신규 메뉴(중국제작 미발계산기 등)의 권한을 아예
+// 저장된 목록을 그대로 써서, 신규 메뉴(중국제작 부족수량 관리 등)의 권한을 아예
 // 선택할 수 없었다. 두 화면이 같은 목록을 보도록 여기로 모은다.
 //
 // ※ 순수 모듈로 둘 것(의존은 js/lib 의 기능 카탈로그·권한 계산뿐). 관리자 페이지(admin-ui.js)가 대시보드 전용
 //    모듈(ui.js/state.js)을 끌어오지 않도록 하기 위함이다.
 
-import { FEATURES } from './lib/feature-catalog.js?v=202610201546';
-import { resolve, visibleMenuGroups } from './lib/perm.js?v=202610201546';
+import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202610201623';
+import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202610201623';
 
 // 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu 에 없으면 자동으로 끼워 넣는다.
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
 export const BUILTIN_MENU_ITEMS = [
     { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' },
     // 로케이션 관리 바로 아래에 (비품 관리 앞)
-    { name: '중국제작 미발계산기', link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' },
-    // 신규 미발계산기(병행 비교 시험, 2026-10-07) — 위 항목 다음에 처리되므로 '중국제작 미발계산기' 바로 아래(비품 관리 앞)에 붙는다.
+    { name: '중국제작 부족수량 관리', link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' },
+    // 신규 미발계산기(병행 비교 시험, 2026-10-07) — 위 항목 다음에 처리되므로 '중국제작 부족수량 관리' 바로 아래(비품 관리 앞)에 붙는다.
     // 관리자 외에는 memberMenuAccess 에 넣어 주지 않는 한 보이지 않는다(ui-main-dashboard.js applyDynamicSidebar).
-    { name: '미발계산기(신규·시험)', link: 'china-mibal2.html', category: '관리 및 조회', before: '비품 관리' },
+    { name: '중국제작 부족수량 관리(신규·시험)', link: 'china-mibal2.html', category: '관리 및 조회', before: '비품 관리' },
     // before: 이 항목 바로 앞에 끼워 넣는다(없으면 맨 뒤)
     { name: '출퇴근 기록표', link: 'worktime.html', category: '관리자 메뉴', before: '업무 마감' },
     // 상품 관리(2026-10-13) — 기본정보는 전원, 원가·공급처는 관리자만(규칙). 미발계산기 다음(비품 관리 앞)에 붙는다.
@@ -44,8 +44,8 @@ export const MENU_TARGETS = [
     { kind: 'action', name: '내 연차관리',      link: '#',            icon: '🏖️' },
     { kind: 'action', name: '업무 마감',        link: '#',            icon: '🏁' },
     { kind: 'page', name: '로케이션 관리',       link: 'location.html',          icon: '📍' },
-    { kind: 'page', name: '중국제작 미발계산기', link: 'china-stock-goods.html', icon: '🧮' },
-    { kind: 'page', name: '미발계산기(신규·시험)', link: 'china-mibal2.html',    icon: '🧪' },
+    { kind: 'page', name: '중국제작 부족수량 관리', link: 'china-stock-goods.html', icon: '🧮' },
+    { kind: 'page', name: '중국제작 부족수량 관리(신규·시험)', link: 'china-mibal2.html', icon: '🧪' },
     { kind: 'page', name: '비품 관리',           link: 'supplies.html',          icon: '📦' },
     { kind: 'page', name: '상품 관리',           link: 'products.html',          icon: '🏷️' },
     { kind: 'page', name: '출퇴근 기록표',       link: 'worktime.html',          icon: '🕘' },
@@ -69,16 +69,22 @@ export const RETIRED_MENU_ITEMS = ['운영 시뮬레이션',
     '관리자 일정/투두'];                        // 2026-10-14 기능 삭제 (admin-todo-logic.js · modals-admin-todo*.html)
 
 /** 저장된 메뉴에 신규 메뉴를 채우고 폐기된 메뉴를 걷어낸 목록을 돌려준다.
- *  그룹 객체와 items 배열은 새로 만들지만 항목 객체 자체는 원본과 공유한다(읽기 전용으로 쓸 것).
+ *  예전 기본 이름(기능 카탈로그 menuAliases)인 항목은 보이는 이름만 지금 이름으로 바꾼다 — 저장 값은 그대로(2026-10-20).
+ *  그룹 객체와 items 배열은 새로 만들지만 항목 객체 자체는 원본과 공유한다(읽기 전용으로 쓸 것. 이름을 바꾼 항목만 새 객체).
  *  items 가 없는 그룹은 버리지 않고 빈 배열로 정규화한다 — 그룹을 없애면
  *  그게 신규 메뉴의 목적지 카테고리일 때 엉뚱한 그룹 밑으로 붙는다. */
+const renameOldItem = (i) => {
+    if (!i || !i.name) return i;
+    const to = renamedMenuName(i.name, linkPath(i.link));
+    return to ? { ...i, name: to } : i;
+};
 export const withBuiltinMenus = (dashboardMenu) => {
     const menu = (Array.isArray(dashboardMenu) ? dashboardMenu : [])
         .filter(g => g)
         .map(g => ({
             ...g,
             items: Array.isArray(g.items)
-                ? g.items.filter(i => !RETIRED_MENU_ITEMS.includes(i && i.name))
+                ? g.items.filter(i => !RETIRED_MENU_ITEMS.includes(i && i.name)).map(renameOldItem)
                 : []
         }));
     BUILTIN_MENU_ITEMS.forEach(entry => {

@@ -14,7 +14,7 @@
 //   permEnforce      'warn'|'block'                    페이지 가드 모드(5단계)
 //   memberMenuAccess { email: [메뉴 이름] }            파생값(옛 코드 호환)
 
-import { FEATURES, FEATURE_BY_ID, ALL_FEATURE_IDS, ACTION_MENU_NAMES, isFeatureId, childFeaturesOf } from './feature-catalog.js?v=202610201546';
+import { FEATURES, FEATURE_BY_ID, ALL_FEATURE_IDS, ACTION_MENU_NAMES, isFeatureId, childFeaturesOf } from './feature-catalog.js?v=202610201623';
 
 const own = (o, k) => !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k);
 export const normEmail = (email) => String(email || '').trim().toLowerCase();
@@ -28,7 +28,8 @@ export const linkPath = (link) => String(link || '').split('#')[0].split('?')[0]
  *  동작 메뉴(ACTION_MENU_NAMES — 관리자 화면이 이름을 잠근다)는 이름으로 먼저 잇는다(설계 2.3 — 링크가 무엇이든 같은 동작이다).
  *  그 밖은 링크 우선(페이지 메뉴는 이름을 바꿔도 이어진다), 링크로 못 찾으면 이름. */
 const featureByMenuName = (name) => {
-    const f = FEATURES.find(x => x.menu && x.menu === name);
+    // 예전 기본 이름(menuAliases)도 같은 기능 — 이름을 바꾸기 전에 저장된 memberMenuAccess 가 끊기지 않게(2026-10-20)
+    const f = FEATURES.find(x => x.menu && (x.menu === name || (Array.isArray(x.menuAliases) && x.menuAliases.includes(name))));
     return f ? f.id : null;
 };
 export const featureForMenuItem = (item) => {

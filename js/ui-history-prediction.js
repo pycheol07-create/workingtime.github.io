@@ -3,32 +3,32 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610201546';
+import { predictFutureTrends } from './analysis-logic.js?v=202610201623';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610201546';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610201546';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610201546';
-import * as State from './state.js?v=202610201546';
-import { saveView } from './view-state.js?v=202610201546';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610201546';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610201546';
+import { mibalByArrival, makeArrivalLookup } from './lib/mibal-forecast.js?v=202610201623';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610201623';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610201623';
+import * as State from './state.js?v=202610201623';
+import { saveView } from './view-state.js?v=202610201623';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610201623';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610201623';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610201546';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610201623';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610201546';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610201546';
+         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610201623';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610201623';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610201546';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610201546';
-import { taskUph, recentDays } from './task-throughput.js?v=202610201546';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610201623';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610201623';
+import { taskUph, recentDays } from './task-throughput.js?v=202610201623';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610201546';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610201623';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610201546';
-import { D } from './d-chart.js?v=202610201546';
+         excessOffDays } from './lib/backlog-carry.js?v=202610201623';
+import { D } from './d-chart.js?v=202610201623';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1827,9 +1827,9 @@ const mibalForDate = (dateStr) => {
     return mibalMapCache.map[dateStr] || null;
 };
 
-const mibalNote = (m) => `중국 입고 미발 +${m.qty.toLocaleString()} 포함 — ${m.lines.join(' · ')}`
-    + (m.rate ? `\n(상승률은 지난 입고 ${m.rate.n}건 기준 — 미발계산기 '미발전송' 기록)`
-              : `\n(상승률 기록이 없어 기본 40% 로 계산 — 미발계산기에서 입고일에도 '미발전송' 을 누르면 정확해집니다)`);
+const mibalNote = (m) => `중국 입고 미발수량 +${m.qty.toLocaleString()} 포함 — ${m.lines.join(' · ')}`
+    + (m.rate ? `\n(상승률은 지난 입고 ${m.rate.n}건 기준 — 중국제작 부족수량 관리의 '미발전송' 기록)`
+              : `\n(상승률 기록이 없어 기본 40% 로 계산 — 중국제작 부족수량 관리에서 입고일에도 '미발전송' 을 누르면 정확해집니다)`);
 
 /** 📅 '그날의 실제 근거'에서 오는 추정 — 공휴일이어도 값을 지우지 않는다.
  *  입고일정 시트가 "그날 300박스 도착"이라고 말하면, 그날은 사람이 나온다는 뜻이다.
@@ -1872,7 +1872,7 @@ const estimatedValueFor = (dateStr, task, historyData) => {
             const value = aiValue + 미발수;
             if (!보정됨) {
                 if (미발수) return { value, source: 'ai-mibal',
-                                    detail: `AI 예측 ${aiValue.toLocaleString()} + 미발 ${미발수.toLocaleString()}\n${mibalNote(미발)}` };
+                                    detail: `AI 예측 ${aiValue.toLocaleString()} + 미발수량 ${미발수.toLocaleString()}\n${mibalNote(미발)}` };
                 return { value, source: 'ai' };
             }
             const reason = carryReason(info, {
@@ -1918,10 +1918,10 @@ const SOURCE_BADGE = {
                    + ' 보통 주말만큼(월요일)은 이미 요일 평균에 들어 있어서,'
                    + ' 그보다 더 쉰 날수만큼만 올립니다.'
                    + ' 너무 많다 싶으면 칸에 직접 숫자를 넣으세요 — 수기 입력이 항상 우선합니다.' },
-    'ai-mibal': { text: '미발 포함', muted: true,
+    'ai-mibal': { text: '미발수량 포함', muted: true,
                 tip: '국내배송 AI 예측값에, 이날 도착하는 중국 입고분의 미발수량을 더한 값입니다.'
                    + ' 입고일엔 미발 상품을 바로 내보내 국내배송이 그만큼 늘어납니다.'
-                   + ' 미발수량은 미발계산기의 미발전송 기록(출고미발 × 평균상승률)으로 잡습니다.' },
+                   + ' 미발수량은 중국제작 부족수량 관리의 미발전송 기록(출고 때 미발수량 × 평균상승률)으로 잡습니다.' },
     'holiday-off': { text: '공휴일', muted: true,
                 tip: '이 날은 공휴일이라 0 으로 둡니다.'
                    + ' 출근해서 작업한다면 칸에 직접 물량을 넣으세요.' },

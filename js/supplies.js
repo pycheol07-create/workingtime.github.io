@@ -12,17 +12,17 @@
 //  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름). 권장 발주량의 최소주문·묶음은 기존 MOQ 칸 문장에서 읽는다(서버 예측규칙.MOQ해석)
 //  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
 
-import { initializeFirebase } from './config.js?v=202610201546';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610201546';
-import { memberNameFor } from './app-shell-data.js?v=202610201546';
-import { escapeHtml as esc } from './utils.js?v=202610201546';
-import { kstDateTime } from './lib/kst-time.js?v=202610201546';
-import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202610201546';
+import { initializeFirebase } from './config.js?v=202610201623';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610201623';
+import { memberNameFor } from './app-shell-data.js?v=202610201623';
+import { escapeHtml as esc } from './utils.js?v=202610201623';
+import { kstDateTime } from './lib/kst-time.js?v=202610201623';
+import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202610201623';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion,
     NOCODE_HINT, DRIVER_OPTIONS
-} from './lib/supplies-forecast-view.js?v=202610201546';
+} from './lib/supplies-forecast-view.js?v=202610201623';
 import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -74,7 +74,11 @@ const leadTimeTextOf = (it) => `${num(it.leadTimeDays)}${LEADTIME_UNITS[leadTime
 const leadTimeDaysEquiv = (it) => num(it.leadTimeDays) * LEADTIME_DAYS[leadTimeUnitOf(it)];
 
 // 사용량 예측 — 서버 결과(forecastDoc)와 사람이 누른 발주(ordersDoc)를 합친 화면 상태
-const fcOf = (it) => (forecastDoc && forecastDoc.items ? forecastDoc.items[it.id] : null) || null;
+// 서버는 today 를 문서 최상위에만 쓴다 — 비품별로 채워 줘야 오늘 [입고 확인]한 비품이 '입고됨'으로 보인다(대시보드 알림과 같게, 2026-10-20)
+const fcOf = (it) => {
+    const fc = (forecastDoc && forecastDoc.items ? forecastDoc.items[it.id] : null) || null;
+    return fc && !fc.today && forecastDoc.today ? { ...fc, today: forecastDoc.today } : fc;
+};
 const orderOf = (it) => (ordersDoc && ordersDoc.orders ? ordersDoc.orders[it.id] : null) || null;
 const statusOf = (it) => effectiveStatus(it, fcOf(it), orderOf(it));
 function statusBadgeHtml(it) {
