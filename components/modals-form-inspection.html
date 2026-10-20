@@ -52,11 +52,14 @@
             <aside class="flex flex-col min-h-0 lg:sticky lg:top-0 lg:self-start lg:max-h-[calc(95vh-160px)]">
                 <div class="flex flex-col gap-2 bg-gray-50 p-3 rounded-t-lg border border-gray-200 border-b-0">
                     <div class="flex justify-between items-center">
-                        <span class="text-sm font-bold text-gray-700">검수 대기 리스트(엑셀)</span>
+                        <span class="text-sm font-bold text-gray-700">검수 대기 리스트</span>
+                        <div class="flex items-center gap-1.5">
+                        <button id="insp-pack-open-btn" class="bg-white border border-indigo-300 hover:bg-indigo-50 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1" title="입고예정 패킹을 골라 검수 대기 리스트에 추가">패킹에서 만들기</button>
                         <label for="insp-excel-upload" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                             엑셀 업로드
                         </label>
                         <input type="file" id="insp-excel-upload" accept=".xlsx, .xls" class="hidden">
+                        </div>
                     </div>
                     <div class="flex items-center gap-2">
                         <button id="insp-open-list-window-btn" class="text-xs bg-white border border-gray-300 hover:bg-indigo-50 text-indigo-600 font-bold py-1.5 px-2 rounded shadow-sm transition flex items-center gap-1" title="리스트 별도 창으로 열기">

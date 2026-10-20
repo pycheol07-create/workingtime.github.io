@@ -1,7 +1,7 @@
 // === js/listeners-form-inspection.js ===
 // 설명: '검수 매니저(입력)' 모달 내부의 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610201411';
+import * as DOM from './dom-elements.js?v=202610201426';
 import { 
     searchProductHistory, 
     saveInspectionAndNext, 
@@ -12,7 +12,8 @@ import {
     clearTodayList,
     deleteInspectionList,
     openInspectionListWindow
-} from './inspection-logic.js?v=202610201411';
+} from './inspection-logic.js?v=202610201426';
+import { openPackPicker } from './inspection-packs.js?v=202610201426';
 
 export function setupFormInspectionListeners() {
 
@@ -47,6 +48,11 @@ export function setupFormInspectionListeners() {
                 e.target.value = ''; // 초기화
             }
         });
+    }
+    // 4-1. 패킹에서 만들기 (integrations/inspPacks — js/inspection-packs.js)
+    const inspPackOpenBtn = document.getElementById('insp-pack-open-btn');
+    if (inspPackOpenBtn) {
+        inspPackOpenBtn.addEventListener('click', openPackPicker);
     }
     if (DOM.inspOpenListWindowBtn) {
         DOM.inspOpenListWindowBtn.addEventListener('click', openInspectionListWindow);

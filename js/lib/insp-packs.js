@@ -1,0 +1,196 @@
+// === js/lib/insp-packs.js ===
+// 샘플검수 '패킹에서 만들기'(js/inspection-packs.js)의 순수 함수 — import 없음(node --test 대상).
+// 문서는 미발계산기2 수집기(미발수집_apps_script.gs)가 쓴다. 모양:
+//   integrations/inspPacks { schemaVer:1, ok, error, updatedAt, asOf, keepArrivedDays, shipStaleDays,
+//                            counts:{packs, items, noSup, supNotCode, nonStd, dropped, zeroQty, conflicts, badShip},
+//                            badShip = 출고일 값을 읽지 못해 빠진 행 수
+//                            packsJson: '{"20261015-1":{"sd","ad","eta","part","src","it":[[code,name,option,qty,sup],…]},…}' }
+//   sup 은 공급처 '코드'(AA9999 모양 — 수집기가 거른 값을 그대로 씀)만 — 실명은 오지 않고, 만든 항목에도 supplierName 은 빈칸으로 둔다(CLAUDE.md 3절).
+// 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 공급처::색상 1장, 그 묶음의 첫 품목이 대표.
+// 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
+
+export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const SUP_CODE_RE = /^[A-Z]{2}[0-9]{4}$/;   // 수집기와 같은 모양(AA9999). 아니면 웹에서도 버린다(실명이 섞여 와도 저장하지 않게)
+
+const str = (v) => (v == null ? '' : String(v)).trim();
+
+/** Firestore Timestamp·Date·숫자(ms)·ISO 문자열 → ms. 못 읽으면 0. */
+function tsMs(v) {
+    if (v == null) return 0;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+    if (v instanceof Date) return v.getTime() || 0;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (typeof v.seconds === 'number') return v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1e6);
+    if (typeof v === 'string') { const t = Date.parse(v); return Number.isFinite(t) ? t : 0; }
+    return 0;
+}
+
+/** inspPacks 문서 → { packs, updatedAtMs, counts, error, ok }. JSON 이 깨지면 빈 목록 + error. */
+export function parseInspPacks(data) {
+    const counts = {};
+    COUNT_KEYS.forEach(k => { counts[k] = 0; });
+    const out = { packs: [], updatedAtMs: 0, counts, error: '', ok: false };
+    if (!data || typeof data !== 'object') { out.error = '패킹 목록이 아직 없습니다.'; return out; }
+    out.updatedAtMs = tsMs(data.updatedAt);
+    const c = data.counts || {};
+    COUNT_KEYS.forEach(k => { counts[k] = Number(c[k]) || 0; });
+    out.ok = data.ok !== false;
+    if (!out.ok) { out.error = str(data.error) || '수집 실패'; return out; }
+    let obj;
+    try { obj = JSON.parse(data.packsJson || '{}'); } catch (e) { out.error = '패킹 목록을 읽지 못했습니다(형식 오류).'; return out; }
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) { out.error = '패킹 목록을 읽지 못했습니다(형식 오류).'; return out; }
+    Object.keys(obj).forEach(no => {
+        const p = obj[no] || {};
+        const items = (Array.isArray(p.it) ? p.it : []).filter(Array.isArray).map(r => ({
+            code: str(r[0]), name: str(r[1]), option: str(r[2]), qty: Number(r[3]) || 0, supCode: SUP_CODE_RE.test(str(r[4])) ? str(r[4]) : ''
+        }));
+        out.packs.push({
+            no: str(no), shipDate: str(p.sd), arriveDate: str(p.ad), eta: str(p.eta),
+            partial: !!p.part, src: str(p.src), items
+        });
+    });
+    // 미도착 먼저, 그 안에서 출고일 최근 순(같으면 패킹번호 내림차순)
+    out.packs.sort((a, b) => {
+        const da = a.arriveDate ? 1 : 0, dbv = b.arriveDate ? 1 : 0;
+        if (da !== dbv) return da - dbv;
+        if (a.shipDate !== b.shipDate) return a.shipDate < b.shipDate ? 1 : -1;
+        return a.no < b.no ? 1 : a.no > b.no ? -1 : 0;
+    });
+    return out;
+}
+
+/** 옵션 → 색상 키. inspection-excel.js 의 color/keyColor 규칙과 같다. */
+export function colorOf(option) {
+    let color = String(option == null ? '' : option).trim().replace(/\[|\]/g, '').split('-')[0].trim();
+    if (!color) color = 'N/A';
+    return color.replace(/\s/g, '').toLowerCase();
+}
+
+/** 1장 묶음 키 — 공급처코드::색상. 코드가 없으면 상품명으로 묶는다('::색' 하나로 뭉치지 않게). */
+export function cardKey(item) {
+    const sup = str(item && item.supCode);
+    const head = sup ? sup.replace(/\s/g, '').toLowerCase()
+                     : 'nm:' + str(item && item.name).replace(/\s/g, '').toLowerCase();
+    return head + '::' + colorOf(item && item.option);
+}
+
+/** 샘플위치 매칭 키. inspection-excel.js getCleanKey 와 같다. */
+export function cleanKey(name, option) {
+    const cleanName = String(name || '').replace(/\(매칭금지-제작샘플\)/g, '').replace(/\s/g, '').trim().toLowerCase();
+    const cleanOption = String(option || '').replace(/촬샘-/g, '').replace(/\s/g, '').trim().toLowerCase();
+    return cleanName + cleanOption;
+}
+
+/** 패킹일: 출고일(YYYY-MM-DD) → 패킹번호 앞 8자리 → today */
+export function packingDateOf(pack, today) {
+    const sd = str(pack && pack.shipDate).slice(0, 10);
+    if (DATE_RE.test(sd)) return sd;
+    const m = /^(\d{4})(\d{2})(\d{2})/.exec(str(pack && pack.no));
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    return str(today);
+}
+
+/** product_history 문서 → 마지막(date,time 순) 비어 있지 않은 checklist.thickness. 없으면 '' */
+export function thicknessFromHistoryDoc(doc) {
+    const logs = (doc && Array.isArray(doc.logs)) ? doc.logs.slice() : [];
+    logs.sort((a, b) => {
+        const ka = str(a && a.date) + ' ' + str(a && a.time), kb = str(b && b.date) + ' ' + str(b && b.time);
+        return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
+    let t = '';
+    logs.forEach(l => {
+        const v = str(l && l.checklist && l.checklist.thickness);
+        if (v) t = v;
+    });
+    return t;
+}
+
+/** 날짜별 이력(State.allHistoryData: [{id:'YYYY-MM-DD', inspectionList:[…]}]) → 최근 값 참조표 */
+export function refsFromDays(allHistoryData) {
+    const refs = { thickByDoc: new Map(), sampleByKey: new Map(), sampleByName: new Map(), thickByName: new Map() };
+    const days = (Array.isArray(allHistoryData) ? allHistoryData : []).filter(d => d && Array.isArray(d.inspectionList));
+    days.sort((a, b) => (str(a.id) < str(b.id) ? 1 : str(a.id) > str(b.id) ? -1 : 0));
+    days.forEach(d => {
+        d.inspectionList.forEach(it => {
+            if (!it) return;
+            const name = str(it.name);
+            if (!name) return;
+            const sl = str(it.sampleLocation);
+            if (sl) {
+                const k = cleanKey(name, it.option);
+                if (!refs.sampleByKey.has(k)) refs.sampleByKey.set(k, sl);
+                const nk = cleanKey(name, '');
+                if (!refs.sampleByName.has(nk)) refs.sampleByName.set(nk, sl);
+            }
+            const th = str(it.thickness);
+            if (th && !refs.thickByName.has(name)) refs.thickByName.set(name, th);
+        });
+    });
+    return refs;
+}
+
+const getRef = (m, k) => (m && typeof m.get === 'function' && m.has(k)) ? m.get(k) : undefined;
+
+/** 패킹 품목 → 검수 대기 항목. 항목에 undefined 필드를 두지 않는다(Firestore 가 거부). */
+export function buildCards(packs, refs, today) {
+    const r = refs || {};
+    const out = [];
+    (Array.isArray(packs) ? packs : []).forEach(pack => {
+        const seen = new Set();
+        const packingDate = packingDateOf(pack, today);
+        (pack.items || []).forEach(it => {
+            const code = str(it.code), name = str(it.name), option = str(it.option);
+            if (!code && !name) return;
+            const key = cardKey({ supCode: it.supCode, name, option });
+            if (seen.has(key)) return;
+            seen.add(key);
+            const thickness = getRef(r.thickByDoc, name) || getRef(r.thickByName, name) || '';
+            const sampleLocation = getRef(r.sampleByKey, cleanKey(name, option)) || getRef(r.sampleByName, cleanKey(name, '')) || null;
+            out.push({
+                code, name, option, qty: Number(it.qty) || 0,
+                thickness: String(thickness),
+                supplierCode: str(it.supCode),
+                supplierName: '',
+                location: '',
+                sampleLocation,
+                status: '대기',
+                packingDate,
+                packNo: str(pack.no)
+            });
+        });
+    });
+    return out;
+}
+
+const sameItem = (a, b) => a.name === b.name && a.option === b.option;
+
+/** 기존 목록에 name+option 이 같은 항목은 뺀다(엑셀 업로드와 같은 기준). 이번에 넣은 것과도 비교한다(패킹 두 개에 같은 품목). */
+export function mergeList(existing, items) {
+    const merged = Array.isArray(existing) ? existing.slice() : [];
+    let added = 0, skipped = 0;
+    (Array.isArray(items) ? items : []).forEach(it => {
+        if (merged.some(ex => ex && sameItem(ex, it))) { skipped++; return; }
+        merged.push(it);
+        added++;
+    });
+    return { merged, added, skipped };
+}
+
+/** 미리보기 장수 — 참조표 없이 buildCards 를 돌린 길이. { total, byPack: {패킹번호: 장수} } */
+export function previewCount(packs) {
+    const byPack = Object.create(null);
+    let total = 0;
+    (Array.isArray(packs) ? packs : []).forEach(p => {
+        const n = buildCards([p], null, '').length;
+        byPack[p.no] = n;
+        total += n;
+    });
+    return { total, byPack };
+}
+
+/** 이 패킹의 장 가운데 지금 목록에 이미 있는 것(name+option) 개수 */
+export function existingCount(pack, existing) {
+    const list = Array.isArray(existing) ? existing : [];
+    return buildCards([pack], null, '').filter(c => list.some(ex => ex && sameItem(ex, c))).length;
+}

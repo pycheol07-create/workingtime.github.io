@@ -1,7 +1,7 @@
 // === js/history-excel-inspection.js ===
-import { db, allHistoryData } from './state.js?v=202610201411'; 
-import { showToast, getTodayDateString } from './utils.js?v=202610201411';
-import { fitToColumn } from './history-excel-utils.js?v=202610201411';
+import { db, allHistoryData } from './state.js?v=202610201426'; 
+import { showToast, getTodayDateString } from './utils.js?v=202610201426';
+import { fitToColumn } from './history-excel-utils.js?v=202610201426';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; 
 
 const downloadListInspectionHistory = (format = 'xlsx') => {
@@ -21,7 +21,7 @@ const downloadListInspectionHistory = (format = 'xlsx') => {
         allLists.sort((a, b) => b.date.localeCompare(a.date));
         const sheetData = allLists.map(item => ({
             '날짜': item.date, '코드': item.code || '-', '상품명': item.name, '옵션': item.option || '-',
-            '공급처': item.supplierName || '-', '수량': item.qty || 0, '기준 두께': item.thickness || '-', '상태': item.status || '대기'
+            '공급처': item.supplierCode || item.supplierName || '-', '수량': item.qty || 0, '기준 두께': item.thickness || '-', '상태': item.status || '대기'
         }));
         const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: headers });
         fitToColumn(worksheet);
@@ -52,7 +52,7 @@ const downloadProductInspectionHistory = async (format = 'xlsx') => {
         const workbook = XLSX.utils.book_new();
         const sheet1Headers = ['상품명', '코드', '옵션', '공급처 상품명', '총 입고 횟수', '최근 검수일', '최근 불량 요약'];
         const sheet1Data = inspectionData.map(item => ({
-            '상품명': item.id, '코드': item.lastCode || '-', '옵션': item.lastOption || '-', '공급처 상품명': item.lastSupplierName || '-',
+            '상품명': item.id, '코드': item.lastCode || '-', '옵션': item.lastOption || '-', '공급처 상품명': item.lastSupplierCode || item.lastSupplierName || '-',
             '총 입고 횟수': item.totalInbound || 0, '최근 검수일': item.lastInspectionDate || '-', '최근 불량 요약': (item.defectSummary && item.defectSummary.length > 0) ? item.defectSummary[item.defectSummary.length - 1] : '-'
         }));
         const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
@@ -67,7 +67,7 @@ const downloadProductInspectionHistory = async (format = 'xlsx') => {
         const allLogs = inspectionData.flatMap(item => {
             const logs = item.logs || [];
             return logs.map(log => ({
-                '상품명': item.id, '공급처 상품명': log.supplierName || item.lastSupplierName || '-', '일시(날짜)': log.date || '-', '일시(시간)': log.time || '-', '담당': log.inspector || '-', '입고일자/패킹No': log.inboundDate || log.packingNo || '-', '코드': log.code || '-', '옵션': log.option || '-', '수량': log.inboundQty || 0, '상태': log.status || '-', '특이사항': (log.defects?.length > 0 ? `[${log.defects.join(', ')}] ` : '') + (log.note || ''),
+                '상품명': item.id, '공급처 상품명': log.supplierCode || log.supplierName || item.lastSupplierCode || item.lastSupplierName || '-', '일시(날짜)': log.date || '-', '일시(시간)': log.time || '-', '담당': log.inspector || '-', '입고일자/패킹No': log.inboundDate || log.packingNo || '-', '코드': log.code || '-', '옵션': log.option || '-', '수량': log.inboundQty || 0, '상태': log.status || '-', '특이사항': (log.defects?.length > 0 ? `[${log.defects.join(', ')}] ` : '') + (log.note || ''),
                 '두께(실측)': log.checklist?.thickness || '-', '원단 상태': log.checklist?.fabric || '-', '컬러': log.checklist?.color || '-', '뒤틀림': log.checklist?.distortion || '-', '올 풀림': log.checklist?.unraveling || '-', '실밥 마감': log.checklist?.finishing || '-', '지퍼': log.checklist?.zipper || '-', '단추': log.checklist?.button || '-', '안감': log.checklist?.lining || '-', '보풀': log.checklist?.pilling || '-', '이염': log.checklist?.dye || '-'
             }));
         }).sort((a, b) => b['일시(날짜)'].localeCompare(a['일시(날짜)']));
@@ -103,7 +103,7 @@ export const downloadPeriodInspectionAsExcel = (startDate, endDate, format = 'xl
     const headers = ['날짜', '코드', '상품명', '옵션', '공급처', '수량', '기준 두께', '상태'];
     allLists.sort((a, b) => b.date.localeCompare(a.date));
     const sheetData = allLists.map(item => ({
-        '날짜': item.date, '코드': item.code || '-', '상품명': item.name, '옵션': item.option || '-', '공급처': item.supplierName || '-', '수량': item.qty || 0, '기준 두께': item.thickness || '-', '상태': item.status || '대기'
+        '날짜': item.date, '코드': item.code || '-', '상품명': item.name, '옵션': item.option || '-', '공급처': item.supplierCode || item.supplierName || '-', '수량': item.qty || 0, '기준 두께': item.thickness || '-', '상태': item.status || '대기'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: headers });

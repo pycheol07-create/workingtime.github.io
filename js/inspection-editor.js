@@ -1,11 +1,11 @@
 // === js/inspection-editor.js ===
-import * as DOM from './dom-elements.js?v=202610201411';
-import * as State from './state.js?v=202610201411';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610201411';
+import * as DOM from './dom-elements.js?v=202610201426';
+import * as State from './state.js?v=202610201426';
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610201426';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202610201411';
-import { getUniqueInboundCount } from './inspection-logic.js?v=202610201411';
-import { manualImageBase64, clearManualImageState } from './inspection-media.js?v=202610201411';
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202610201426';
+import { getUniqueInboundCount } from './inspection-logic.js?v=202610201426';
+import { manualImageBase64, clearManualImageState } from './inspection-media.js?v=202610201426';
 
 export let currentProductLogs = [];
 
@@ -175,6 +175,7 @@ export const updateInspectionLog = async () => {
         
         if (index === currentProductLogs.length - 1) {
             updates.lastSupplierName = updatedLog.supplierName;
+            updates.lastSupplierCode = updatedLog.supplierCode || '';
             updates.lastCode = updatedLog.code;
             updates.lastOption = updatedLog.option;
         }
@@ -219,10 +220,12 @@ export const deleteInspectionLog = async () => {
         if (currentProductLogs.length > 0) {
             const lastLog = currentProductLogs[currentProductLogs.length - 1];
             updates.lastSupplierName = lastLog.supplierName || '-'; 
+            updates.lastSupplierCode = lastLog.supplierCode || '';
             updates.lastCode = lastLog.code || '-';
             updates.lastOption = lastLog.option || '-';
         } else {
             updates.lastSupplierName = '-';
+            updates.lastSupplierCode = '';
             updates.lastCode = '-';
             updates.lastOption = '-';
             updates.totalInbound = 0; 

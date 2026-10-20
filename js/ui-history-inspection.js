@@ -1,7 +1,7 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610201411';
-import * as State from './state.js?v=202610201411';
-import { getWeekOfYear } from './utils.js?v=202610201411';
+import * as DOM from './dom-elements.js?v=202610201426';
+import * as State from './state.js?v=202610201426';
+import { getWeekOfYear, escapeHtml } from './utils.js?v=202610201426';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -214,16 +214,16 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
 
             return `
                 <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail" 
-                    data-product-name="${item.name}" 
-                    data-product-option="${item.option || '-'}" 
-                    data-product-code="${item.code || '-'}" 
-                    data-target-date="${selectedDate}"
+                    data-product-name="${escapeHtml(item.name)}" 
+                    data-product-option="${escapeHtml(item.option || '-')}" 
+                    data-product-code="${escapeHtml(item.code || '-')}" 
+                    data-target-date="${escapeHtml(selectedDate)}"
                     title="클릭하여 상세 이력 펼치기">
                     <td class="px-4 py-3 text-center">${typeBadge}</td>
-                    <td class="px-4 py-3 text-xs font-mono text-gray-500">${item.code || '-'}</td>
-                    <td class="px-4 py-3 text-sm font-medium text-gray-900">${item.name}</td>
-                    <td class="px-4 py-3 text-xs text-gray-600">${item.option || '-'}</td>
-                    <td class="px-4 py-3 text-xs text-gray-600">${item.supplierName || '-'}</td>
+                    <td class="px-4 py-3 text-xs font-mono text-gray-500">${escapeHtml(item.code || '-')}</td>
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900">${escapeHtml(item.name)}</td>
+                    <td class="px-4 py-3 text-xs text-gray-600">${escapeHtml(item.option || '-')}</td>
+                    <td class="px-4 py-3 text-xs text-gray-600">${escapeHtml(item.supplierCode || item.supplierName || '-')}</td>
                     <td class="px-4 py-3 text-center">
                         <div class="text-xs font-bold text-gray-700">${inboundQty.toLocaleString()}</div>
                         <div class="text-[11px] ${isCompleted ? 'text-blue-600' : 'text-gray-400'} font-bold">(샘플검수: ${sampleQty.toLocaleString()}개)</div>
@@ -297,13 +297,15 @@ export const renderInspectionHistoryTable = (historyData) => {
     let filteredData = historyData.filter(item => {
         const matchId = item.id.toLowerCase().includes(searchTerm);
         let matchLog = false;
-        const matchSupplierName = item.lastSupplierName && item.lastSupplierName.toLowerCase().includes(searchTerm);
+        const matchSupplierName = (item.lastSupplierName && item.lastSupplierName.toLowerCase().includes(searchTerm))
+            || (item.lastSupplierCode && item.lastSupplierCode.toLowerCase().includes(searchTerm));
         
         if (item.logs && item.logs.length > 0) {
             const lastLog = item.logs[item.logs.length - 1];
             if (lastLog.code && lastLog.code.toLowerCase().includes(searchTerm)) matchLog = true;
             if (lastLog.option && lastLog.option.toLowerCase().includes(searchTerm)) matchLog = true;
             if (lastLog.supplierName && lastLog.supplierName.toLowerCase().includes(searchTerm)) matchLog = true;
+            if (lastLog.supplierCode && lastLog.supplierCode.toLowerCase().includes(searchTerm)) matchLog = true;
         }
 
         if (!matchId && !matchSupplierName && !matchLog) return false;
@@ -363,18 +365,18 @@ export const renderInspectionHistoryTable = (historyData) => {
     } else {
         filteredData.forEach(item => {
             let supplierName = '-';
-            if (item.lastSupplierName) supplierName = item.lastSupplierName;
+            if (item.lastSupplierCode || item.lastSupplierName) supplierName = item.lastSupplierCode || item.lastSupplierName;
 
             if (supplierName === '-' && item.logs && item.logs.length > 0) {
                 const lastLog = item.logs[item.logs.length - 1];
-                supplierName = lastLog.supplierName || '-';
+                supplierName = lastLog.supplierCode || lastLog.supplierName || '-';
             }
 
             html += `
-                <tr class="hover:bg-blue-50 transition group cursor-pointer btn-view-detail" data-product-name="${item.id}" title="클릭하여 상세 이력 펼치기">
-                    <td class="px-6 py-4 font-medium text-gray-900">${item.id}</td>
-                    <td class="px-6 py-4 text-xs text-gray-500 truncate max-w-[150px]" title="${supplierName}">
-                        ${supplierName}
+                <tr class="hover:bg-blue-50 transition group cursor-pointer btn-view-detail" data-product-name="${escapeHtml(item.id)}" title="클릭하여 상세 이력 펼치기">
+                    <td class="px-6 py-4 font-medium text-gray-900">${escapeHtml(item.id)}</td>
+                    <td class="px-6 py-4 text-xs text-gray-500 truncate max-w-[150px]" title="${escapeHtml(supplierName)}">
+                        ${escapeHtml(supplierName)}
                     </td>
                     <td class="px-6 py-4 text-center">
                         <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -392,7 +394,7 @@ export const renderInspectionHistoryTable = (historyData) => {
                             상세보기 ▾
                         </button>
                         <button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-3 py-1.5 hover:bg-red-50 transition btn-delete-product opacity-0 group-hover:opacity-100 m-touch-show shadow-sm" 
-                                data-product-name="${item.id}" title="상품 전체 삭제">
+                                data-product-name="${escapeHtml(item.id)}" title="상품 전체 삭제">
                             삭제
                         </button>
                     </td>
