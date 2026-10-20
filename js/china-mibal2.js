@@ -13,20 +13,20 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610201634'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610201640'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610201634';
-import { sortMark } from './lib/china-stock-view.js?v=202610201634';
+import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610201640';
+import { sortMark } from './lib/china-stock-view.js?v=202610201640';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf, FLAG_INFO, COMPARE_COLS, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610201634';
-import { setShellContext } from './app-shell-bridge.js?v=202610201634';
-import { memberNameFor } from './app-shell-data.js?v=202610201634';
-import { mountBusyBanner } from './busy-banner.js?v=202610201634';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610201634';
+} from './lib/mibal2-rows.js?v=202610201640';
+import { setShellContext } from './app-shell-bridge.js?v=202610201640';
+import { memberNameFor } from './app-shell-data.js?v=202610201640';
+import { mountBusyBanner } from './busy-banner.js?v=202610201640';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610201640';
 
 const { db, auth } = initializeFirebase();
 
@@ -367,13 +367,13 @@ function renderTable() {
     const tb = $('table-body');
     $('row-count').textContent = `${viewRows.length}행 / 전체 ${allRows.length}행`;
     if (viewMode === 'daily') {
-        if (!daily) { tb.innerHTML = `<tr><td colspan="23" class="t-3" style="padding:50px;">날짜를 고르세요.</td></tr>`; return; }
-        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="23" class="t-risk" style="padding:50px;">${esc(daily.msg)}</td></tr>`; return; }
+        if (!daily) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">날짜를 고르세요.</td></tr>`; return; }
+        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-risk" style="padding:50px;">${esc(daily.msg)}</td></tr>`; return; }
     } else {
-        if (!latest) { tb.innerHTML = `<tr><td colspan="23" class="t-risk" style="padding:50px;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
-        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="23" class="t-3" style="padding:50px;">출고일을 선택하세요.</td></tr>`; return; }
+        if (!latest) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-risk" style="padding:50px;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
+        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">출고일을 선택하세요.</td></tr>`; return; }
     }
-    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="23" class="t-3" style="padding:50px;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
+    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
     let html = '';
     viewRows.forEach((r, i) => {
         const cls = ['data-row'];
@@ -407,7 +407,7 @@ function renderTable() {
             <td class="diff-cell">${diffTxt}</td>
             <td>${flagsHtml(r)}</td>
         </tr>`;
-        if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="23">${detailHtml(r)}</td></tr>`;
+        if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="${colSpan()}">${detailHtml(r)}</td></tr>`;
     });
     tb.innerHTML = html;
 }
@@ -421,6 +421,7 @@ function renderSummary() {
     $('sum-third').textContent = s.third.toLocaleString();
     // 비축을 모르는 행은 3층을 계산하지 않아 합에서 빠진다 — 몇 행 빠졌는지 꼭 보인다
     $('sum-third-note').textContent = s.thirdUnknown > 0 ? `비축모름 ${s.thirdUnknown}행 제외` : '';
+    $('sum-pick-note').textContent = $('sum-third-note').textContent;   // 간단히 보기에서는 피킹 배정 카드가 숨어 여기에도 보인다
     $('sum-pick').textContent = s.pick.toLocaleString();
     $('sum-reserve').textContent = s.resv.toLocaleString();
     $('sum-refill').textContent = s.refill;
@@ -794,8 +795,29 @@ function downloadExcel() {
     X.writeFile(wb, `부족수량관리_신규_${id}.xlsx`);
 }
 
+// ── 보기 항목: 간단히(기본) / 전체 — 열·카드 숨김은 CSS(body[data-cols]). 고른 것은 이 브라우저에만 기억 ──
+const COLS_KEY = 'mibal2.cols';
+const colSpan = () => (document.body.dataset.cols === 'simple' ? 10 : 23);   // 간단히에서 보이는 열 수
+function setCols(mode, save) {
+    const simple = mode !== 'full';
+    document.body.dataset.cols = simple ? 'simple' : 'full';
+    $('btn-cols-simple').classList.toggle('on', simple);
+    $('btn-cols-full').classList.toggle('on', !simple);
+    if (simple) {
+        $('chk-diff-only').checked = false;                                   // 숨긴 거르기가 남지 않게
+        if (sortConfig.key === 'diffAbs' || sortConfig.key === 'diff') sortConfig = { key: 'mibal', dir: 'desc' };   // 숨긴 '차이' 열 정렬 → 미발수량 큰 순
+    }
+    if (allRows.length) applyFilters();                                       // 칸 수(colspan)·정렬을 새로 반영
+    if (save) { try { localStorage.setItem(COLS_KEY, simple ? 'simple' : 'full'); } catch (e) { /* 기억 못 해도 보기는 바뀐다 */ } }
+}
+
 // ── 이벤트 ───────────────────────────────────────────────────
 function setupEvents() {
+    let savedCols = null;
+    try { savedCols = localStorage.getItem(COLS_KEY); } catch (e) { /* 무시 */ }
+    setCols(savedCols, false);
+    $('btn-cols-simple').addEventListener('click', () => setCols('simple', true));
+    $('btn-cols-full').addEventListener('click', () => setCols('full', true));
     setupDatePopup();
     $('search-input').addEventListener('input', applyFilters);
     $('chk-diff-only').addEventListener('change', applyFilters);

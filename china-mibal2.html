@@ -7,10 +7,10 @@
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다. -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610201634">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610201634">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610201634">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610201634">
+    <link rel="stylesheet" href="css/suit.css?v=202610201640">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610201640">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610201640">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610201640">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -100,6 +100,17 @@
         body[data-view="daily"] .daily-only { display: inline-block !important; }
         body[data-view="daily"] .live-only { display: none !important; }
 
+        /* 보기 항목: 간단히(기본) / 전체 — JS 가 body[data-cols] 를 바꾼다(이 브라우저에 기억).
+           간단히 = No·코드·상품명·피킹로케이션·도착·미발수량·남는 부족수량·피킹 적재·적재 배정수량·플래그 (열 순서 = 아래 thead).
+           숨긴 칸도 행을 누르면 '계산 근거'에 다 나오고, 엑셀 받기는 늘 전체 칸이다. */
+        body[data-cols="simple"] .full-only { display: none !important; }
+        body[data-cols="simple"] .list-table { min-width: 860px; }
+        body[data-cols="simple"] .list-table tr:not(.detail-row) > :is(:nth-child(5), :nth-child(n+7):nth-child(-n+13), :nth-child(16), :nth-child(17), :nth-child(n+20):nth-child(-n+22)) { display: none; }
+        /* 간단히에서는 기존 계산기와의 차이 색(diff-big)을 빼고, 확인 필요(노랑)만 남긴다 */
+        body[data-cols="simple"] .list-table tbody tr.diff-big:not(:hover) td { background: var(--c-surface); }
+        body[data-cols="simple"] .list-table tbody tr.diff-big:not(:hover) td.new-mibal { background: var(--c-accent-row); }
+        body[data-cols="simple"] .list-table tbody tr.diff-big.need-check:not(:hover) td { background: var(--c-warn-bg); }
+
         .admin-block-box { margin: 60px auto; max-width: 420px; text-align: center; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 30px 24px; }
 
         .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(35,39,46,0.55); z-index: 999999; flex-direction: column; justify-content: center; align-items: center; color: white; }
@@ -122,7 +133,7 @@
         }
     </style>
 </head>
-<body data-shell="china-mibal2">
+<body data-shell="china-mibal2" data-cols="simple">
     <div class="trial-banner">시험 중 — 스캐너에는 반영 안 됨 (기존 미발계산기와 나란히 비교하는 용도)</div>
 
     <div id="loading-overlay" class="loading-overlay" style="display:flex;">
@@ -185,17 +196,18 @@
         <div class="summary-card highlight"><span class="label">도착 합</span><span class="value" id="sum-arrival">0</span></div>
         <div class="summary-card newv" title="미발수량 = 그날 입고분 중 지금 재고로 못 내보내 추가로 출고할 양 = min(부족수량, 도착). 업무 예상 국내배송에 더하는 값"><span class="label">미발수량 합(추가 출고)</span><span class="value" id="sum-mibal">0</span></div>
         <div class="summary-card" title="남는 부족수량 = 부족수량 − 미발수량. 입고분으로도 못 내보내는 주문"><span class="label">남는 부족수량 합</span><span class="value" id="sum-unres">0</span></div>
-        <div class="summary-card newv" title="피킹 배정수량 = 미발수량 + 피킹 적재. 비축을 모르는 행은 계산하지 않아 합에서 빠진다"><span class="label">피킹 배정수량 합</span><span class="value" id="sum-third">0</span><span class="sub" id="sum-third-note"></span></div>
-        <div class="summary-card"><span class="label">피킹 적재 합</span><span class="value" id="sum-pick">0</span></div>
+        <div class="summary-card full-only newv" title="피킹 배정수량 = 미발수량 + 피킹 적재. 비축을 모르는 행은 계산하지 않아 합에서 빠진다"><span class="label">피킹 배정수량 합</span><span class="value" id="sum-third">0</span><span class="sub" id="sum-third-note"></span></div>
+        <div class="summary-card"><span class="label">피킹 적재 합</span><span class="value" id="sum-pick">0</span><span class="sub" id="sum-pick-note"></span></div>
         <div class="summary-card"><span class="label">적재 배정수량 합</span><span class="value" id="sum-reserve">0</span></div>
-        <div class="summary-card" title="출고 뒤 피킹칸 여유를 비축에서 채워야 하는 SKU"><span class="label">보충 필요 SKU</span><span class="value" id="sum-refill">0</span></div>
+        <div class="summary-card full-only" title="출고 뒤 피킹칸 여유를 비축에서 채워야 하는 SKU"><span class="label">보충 필요 SKU</span><span class="value" id="sum-refill">0</span></div>
         <div class="summary-card" title="재고·주문·비축 모름, 비축·피킹재고 음수, 적재량 0, 로케이션 없음·기타자리만 — 숫자를 그대로 믿기 어려운 행"><span class="label">확인 필요 SKU</span><span class="value" id="sum-check">0</span></div>
-        <div class="summary-card" title="기존 미발계산기의 미발수량(스캐너가 피킹으로 보내는 양). 출처는 위 '기존 계산기 미발수량' 줄 참고"><span class="label">기존 계산기 미발수량 합(비교)</span><span class="value" id="sum-old">0</span></div>
-        <div class="summary-card"><span class="label">차이 합(피킹 배정−기존)</span><span class="value" id="sum-diff">0</span></div>
+        <div class="summary-card full-only" title="기존 미발계산기의 미발수량(스캐너가 피킹으로 보내는 양). 출처는 위 '기존 계산기 미발수량' 줄 참고"><span class="label">기존 계산기 미발수량 합(비교)</span><span class="value" id="sum-old">0</span></div>
+        <div class="summary-card full-only"><span class="label">차이 합(피킹 배정−기존)</span><span class="value" id="sum-diff">0</span></div>
     </div>
 
     <div class="tool-bar">
-        <label style="display:inline-flex; align-items:center; gap:5px; font-weight:600; color:var(--c-text-2); cursor:pointer;">
+        <span class="view-seg" title="간단히: 도착분을 어디로 보낼지(바로 출고·피킹 적재·적재 배정)만 봅니다. 나머지 칸은 행을 누르면 나오는 계산 근거와 엑셀에 있습니다"><button type="button" id="btn-cols-simple" class="view-btn on">간단히</button><button type="button" id="btn-cols-full" class="view-btn">전체 항목</button></span>
+        <label class="full-only" style="display:inline-flex; align-items:center; gap:5px; font-weight:600; color:var(--c-text-2); cursor:pointer;">
             <input type="checkbox" id="chk-diff-only" style="width:16px; height:16px;"> 차이 있는 행만 보기
         </label>
         <label style="display:inline-flex; align-items:center; gap:5px; font-weight:600; color:var(--c-text-2); cursor:pointer;">
@@ -203,7 +215,7 @@
         </label>
         <button id="btn-excel" class="d-btn d-btn-sm" title="지금 보이는 행(검색·필터·정렬 반영)을 엑셀로 받습니다">엑셀 받기</button>
         <span id="row-count" class="t-3"></span>
-        <span class="t-3">· 행을 누르면 계산 근거가 펼쳐집니다 · 열 제목을 누르면 정렬</span>
+        <span class="t-3">· 행을 누르면 계산 근거(전체 칸)가 펼쳐집니다 · 열 제목을 누르면 정렬</span>
     </div>
 
     <div id="src-note" class="src-note"></div>
@@ -248,9 +260,9 @@
     <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610201634"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610201634"></script>
-    <script type="module" src="js/page-gate.js?v=202610201634" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202610201634"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610201640"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610201640"></script>
+    <script type="module" src="js/page-gate.js?v=202610201640" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202610201640"></script>
 </body>
 </html>
