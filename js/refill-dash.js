@@ -6,12 +6,12 @@
 // 카드는 30초마다 innerHTML 로 다시 그려진다 — 그릴 때는 refillProgressText() 로 마지막 값을 넣고, store 가 바뀌면 [data-refill-progress] 글자만 고친다.
 // ⚠️ Firebase 를 새로 만들지 않는다 — index 의 State.db · State.auth 를 넘긴다. 체크에 남는 이름은 memberNameFor(직원 이름)만.
 // ⚠️ 페이지를 열 때 저절로 창을 열지 않는다(업무마감봇 화면 보호). 창에는 role="dialog" · data-act 를 쓰지 않는다(refill-table.js).
-import * as State from './state.js?v=202610201623';
-import { showToast, getHolidayName } from './utils.js?v=202610201623';
-import { can } from './lib/perm.js?v=202610201623';
-import { REFILL_TASK } from './lib/feature-catalog.js?v=202610201623';
-import { dayKey, dayStatus, dashProgress } from './lib/refill-view.js?v=202610201623';
-import { memberNameFor } from './app-shell-data.js?v=202610201623';
+import * as State from './state.js?v=202610201634';
+import { showToast, getHolidayName } from './utils.js?v=202610201634';
+import { can } from './lib/perm.js?v=202610201634';
+import { REFILL_TASK } from './lib/feature-catalog.js?v=202610201634';
+import { dayKey, dayStatus, dashProgress } from './lib/refill-view.js?v=202610201634';
+import { memberNameFor } from './app-shell-data.js?v=202610201634';
 
 export const isRefillTask = (task) => task === REFILL_TASK;
 export const refillAllowed = () => can(State.appState.perm, 'location.refill');
@@ -41,7 +41,7 @@ function paint() {
 async function load() {
     if (mods) return mods;
     if (!loading) {
-        loading = Promise.all([import('./refill-store.js?v=202610201623'), import('./refill-table.js?v=202610201623')]).then(([s, t]) => {
+        loading = Promise.all([import('./refill-store.js?v=202610201634'), import('./refill-table.js?v=202610201634')]).then(([s, t]) => {
             const store = s.getRefillStore({
                 db: State.db, auth: State.auth, watchRequest: false,
                 getMemberName: () => memberNameFor(State.appConfig && State.appConfig.memberEmails,
