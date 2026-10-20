@@ -1,11 +1,12 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610200831';
-import * as State from './state.js?v=202610200831';
-import { leaveTypeLabel } from './state.js?v=202610200831';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610200831';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610200831';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610200831';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202610200831';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610200902';
+import * as State from './state.js?v=202610200902';
+import { leaveTypeLabel } from './state.js?v=202610200902';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610200902';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610200902';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610200902';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202610200902';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202610200902';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -314,6 +315,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     // '채우기' 업무 카드의 [지시서] 버튼·진행률 — 기능 location.refill 이 있을 때만(js/refill-dash.js)
     const showRefill = refillAllowed() && tasksToRender.some(isRefillTask);
     const refillProgHtml = () => `<span data-refill-progress data-tone="${refillProgressTone()}" class="refill-dash-prog">${refillProgressText()}</span>`;
+    // '로케이션 동선관리' 업무 카드의 [변경추천] 버튼 — 기능 location.locrec 이 있을 때만. 진행률 없음, 누를 때만 표를 읽는다(js/locrec-dash.js)
+    const showLocRec = locRecAllowed() && tasksToRender.some(isLocRecTask);
 
     // 업무 카드 1개 생성 (공통/그외 두 줄에서 공용으로 사용)
     const buildTaskCard = (task) => {
@@ -395,6 +398,15 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                         </button>
                     </div>
                 `;
+            } else if (showLocRec && isLocRecTask(task)) {
+                specialButtonHtml = `
+                    <div class="px-3 pt-3 pb-3 shrink-0 border-b d-line">
+                        <button type="button" data-action="open-locrec" class="w-full d-btn d-btn-accent flex justify-center items-center gap-1" title="로케이션 변경 추천 표 열기">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
+                            변경추천
+                        </button>
+                    </div>
+                `;
             }
 
             card.innerHTML = `
@@ -426,6 +438,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 <p class="text-xs tc-empty-sub mt-2 font-medium">클릭하여 인원 선택</p>
                 ${showRefill && isRefillTask(task)
                     ? `<button type="button" data-action="open-refill" class="mt-3 d-btn d-btn-sm d-btn-accent flex items-center gap-1" title="채우기 지시서 열기">지시서 ${refillProgHtml()}</button>`
+                    : ''}
+                ${showLocRec && isLocRecTask(task)
+                    ? `<button type="button" data-action="open-locrec" class="mt-3 d-btn d-btn-sm d-btn-accent flex items-center gap-1" title="로케이션 변경 추천 표 열기">변경추천</button>`
                     : ''}
             `;
         }
@@ -559,6 +574,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     mountTaskCarousel('other');
     // 채우기 카드가 있을 때만 지시서 구독(없어지면 끊는다 — 문서에 엑셀이 들어 있어 읽기를 아낀다)
     syncRefillDash(showRefill);
+    // 동선관리 카드가 사라졌는데 변경 추천 창이 열려 있으면 닫는다(창이 닫히면 구독도 끊긴다)
+    syncLocRecDash(showLocRec);
 
     const allMembersContainer = document.createElement('div');
     allMembersContainer.id = 'all-members-container';

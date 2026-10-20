@@ -1,0 +1,125 @@
+/* === css/locrec-modal.css ===
+   로케이션 변경 추천 표 창(#locrec-modal, js/locrec-table.js) — 대시보드(index.html) 전용.
+   location.html 은 같은 모양을 자기 <style> 로 갖고 있어 이 파일을 불러오지 않는다(원본: location.html 의
+   .modal-overlay · .modal-content · .seg-tab · .usage-table · .btn · .badge · '로케이션 변경 추천 카드' · 768px 이하 규칙).
+   index 에는 그 공통 클래스가 없으므로 전부 #locrec-modal 범위로 복사했다 — 대시보드의 다른 화면에 번지지 않게(css/refill-modal.css 와 같은 방식).
+   색은 css/dash-d.css 토큰(다크 포함)을 쓰고, 없을 때를 위해 대체값을 둔다.
+   z-index 75: index 의 기본 창(z-50~70)보다 위, 연장근무 확인창·토스트(z-200)·알림(z-250) 등 z-80 이상 창보다 아래.
+     연장근무 확인창(5분 뒤 자동 마감)을 이 창이 덮으면 안 된다. location.html 은 자기 <style> 의 10000 그대로. */
+
+#locrec-modal {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(30,40,60,0.45); z-index: 75; justify-content: center; align-items: center;
+    font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+}
+#locrec-modal .modal-content {
+    background: var(--c-surface, #FFFFFF); border-radius: var(--r-card, 18px); color: var(--c-text, #23272E);
+    box-shadow: var(--sh-pop, 0 8px 24px rgba(30,40,60,.12)); overflow-y: auto;
+}
+#locrec-modal .refill-modal-content { width: 1000px; max-width: 96vw; max-height: 92vh; padding: 22px 20px; display: flex; flex-direction: column; box-sizing: border-box; }
+#locrec-modal .modal-header { font-size: 18px; font-weight: 600; color: var(--c-text, #23272E); }
+#locrec-modal .modal-x {
+    margin-left: auto; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-pill, 999px);
+    background: transparent; color: var(--c-text-3, #69707A); font-size: 22px; line-height: 1; cursor: pointer; flex: none;
+}
+#locrec-modal .modal-x:hover { background: var(--c-track, #EEF0F4); color: var(--c-text, #23272E); }
+#locrec-modal .modal-meta { font-size: 12px; color: var(--c-text-2, #646B75); }
+#locrec-modal .refill-sub { font-size: 12px; color: var(--c-text-3, #69707A); }
+#locrec-modal .refill-modal-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+#locrec-modal .locrec-skipchk { cursor: pointer; user-select: none; }
+#locrec-modal .locrec-skipchk[hidden] { display: none; }
+#locrec-modal .locrec-skipchk input { vertical-align: middle; }
+
+/* 탭 */
+#locrec-modal .seg-tabs { display: flex; gap: 4px; padding: 3px; background: var(--c-track, #EEF0F4); border-radius: var(--r-pill, 999px); width: fit-content; flex-shrink: 0; }
+#locrec-modal .seg-tab {
+    height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-pill, 999px); background: none;
+    color: var(--c-text-2, #646B75); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+#locrec-modal .seg-tab:hover { color: var(--c-text, #23272E); }
+#locrec-modal .seg-tab.active { background: var(--c-surface, #FFFFFF); color: var(--c-accent-deep, #1E4699); font-weight: 600; box-shadow: var(--sh-tab, 0 1px 2px rgba(30,40,60,.10)); }
+
+/* 버튼 ([엑셀 받기] · [처리함] · [안 함] · [되돌리기]) */
+#locrec-modal .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--h-ctl-sm, 32px); padding: 0 14px;
+    border: 1px solid transparent; border-radius: var(--r-pill, 999px); font-family: inherit; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+}
+#locrec-modal .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+#locrec-modal .btn-primary { background: var(--c-accent, #2F62C9); color: #FFFFFF; }
+#locrec-modal .btn-primary:hover { background: var(--c-accent-deep, #1E4699); }
+#locrec-modal .btn-secondary { background: var(--c-surface, #FFFFFF); color: var(--c-text, #23272E); border-color: var(--c-line-strong, #D6DAE0); }
+#locrec-modal .btn-secondary:hover { background: var(--c-surface-2, #F7F8FA); }
+#locrec-modal .btn-ghost { background: transparent; color: var(--c-text-2, #646B75); }
+#locrec-modal .btn-ghost:hover { background: var(--c-track, #EEF0F4); color: var(--c-text, #23272E); }
+
+/* 표시(배지) */
+#locrec-modal .badge {
+    display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border-radius: var(--r-pill, 999px); font-size: 12px; font-weight: 600;
+    white-space: nowrap; font-variant-numeric: tabular-nums; background: var(--c-track, #EEF0F4); color: var(--c-text-2, #646B75);
+}
+#locrec-modal .badge-accent { background: var(--c-accent-soft, #EAF0FD); color: var(--c-accent-deep, #1E4699); }
+#locrec-modal .badge-warn { background: var(--c-warn-soft, #F4EADB); color: var(--c-warn-text, #8A5E28); }
+
+/* 표 */
+#locrec-modal .table-box { border: 1px solid var(--c-line, #E6E8EC); border-radius: var(--r-inner, 14px); }
+#locrec-modal .locrec-table-wrap { flex: 1; min-height: 0; overflow: auto; }
+#locrec-modal .usage-table { border-collapse: collapse; background: var(--c-surface, #FFFFFF); color: var(--c-text, #23272E); }
+#locrec-modal .usage-table th {
+    background: var(--c-surface-2, #F7F8FA); padding: 8px 12px; border: 1px solid var(--c-line, #E6E8EC);
+    font-weight: 600; color: var(--c-text-2, #646B75); text-align: center;
+}
+#locrec-modal .usage-table td { padding: 8px 12px; border: 1px solid var(--c-line, #E6E8EC); }
+#locrec-modal .table-box > .usage-table { border-left: none; border-right: none; border-bottom: none; }
+#locrec-modal .table-box thead { position: sticky; top: 0; z-index: 1; }
+#locrec-modal .table-box thead th { border-top: none; }
+#locrec-modal .locrec-table { width: 100%; min-width: 820px; font-size: 12.5px; }
+#locrec-modal .locrec-table th { white-space: nowrap; }
+#locrec-modal .locrec-table td { text-align: left; vertical-align: top; padding: 6px 8px; }
+/* 맞바꾸기·페어는 줄(A/B)마다 tr — 줄무늬는 추천 단위(.locrec-alt), 두 줄 사이는 점선 */
+#locrec-modal .locrec-table tr.tone-warn { background-color: var(--c-warn-soft, #F4EADB); }
+#locrec-modal .locrec-table tr.tone-accent { background-color: var(--c-accent-soft, #EAF0FD); }
+#locrec-modal .locrec-table tr.tone-ok { background-color: var(--c-ok-soft, #E5F0EE); }
+#locrec-modal .locrec-table tr.locrec-alt { background-color: var(--c-surface-2, #F7F8FA); }
+#locrec-modal .locrec-table tr.locrec-sub > td { border-top: 1px dashed var(--c-line, #E6E8EC); }
+#locrec-modal .locrec-table td.locrec-prod { min-width: 200px; }
+#locrec-modal .locrec-table td.locrec-loc { width: 96px; white-space: nowrap; }
+#locrec-modal .locrec-table td.locrec-num { width: 56px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#locrec-modal .locrec-table td.locrec-rank { width: 40px; text-align: center; font-weight: 700; color: var(--c-accent-deep, #1E4699); }
+#locrec-modal .locrec-table td.locrec-gain { width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+#locrec-modal .locrec-table td.locrec-state { width: 150px; }
+#locrec-modal .locrec-table td.locrec-acts { width: 150px; white-space: nowrap; }
+#locrec-modal .locrec-acts .btn + .btn { margin-left: 4px; }
+#locrec-modal .locrec-code { font-weight: 600; color: var(--c-accent-deep, #1E4699); }
+#locrec-modal .locrec-opt { color: var(--c-text-3, #69707A); font-size: 11.5px; }
+#locrec-modal .locrec-from { color: var(--c-text-2, #646B75); }
+#locrec-modal .locrec-to { color: var(--c-ok-text, #3D756F); font-weight: 700; }
+#locrec-modal .locrec-qty { color: var(--c-warn-text, #8A5E28); font-weight: 600; }
+#locrec-modal .locrec-daily { color: var(--c-text-3, #69707A); }
+#locrec-modal .locrec-badges { margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
+#locrec-modal .locrec-badge { height: 20px; font-size: 11px; padding: 0 8px; }
+#locrec-modal .locrec-st { display: inline-block; padding: 1px 8px; border-radius: var(--r-pill, 999px); font-size: 11.5px; font-weight: 600; background: var(--c-track, #EEF0F4); color: var(--c-text-2, #646B75); }
+#locrec-modal .locrec-st.st-ok { background: var(--c-ok-soft, #E5F0EE); color: var(--c-ok-text, #3D756F); }
+#locrec-modal .locrec-st.st-warn { background: var(--c-warn-soft, #F4EADB); color: var(--c-warn-text, #8A5E28); }
+#locrec-modal .locrec-st.st-accent { background: var(--c-accent-soft, #EAF0FD); color: var(--c-accent-deep, #1E4699); }
+#locrec-modal .locrec-st.st-muted { background: var(--c-track, #EEF0F4); color: var(--c-text-3, #69707A); }
+#locrec-modal .locrec-who { font-size: 11px; color: var(--c-text-3, #69707A); margin-top: 3px; }
+#locrec-modal .locrec-table tr.locrec-skipped td { color: var(--c-text-3, #69707A); }
+#locrec-modal .locrec-table td.refill-empty { text-align: center; color: var(--c-text-3, #69707A); padding: 20px; }
+
+/* 휴대폰: 창은 화면에 고정하고 표 상자 안에서만 가로·세로 스크롤(창·페이지가 같이 밀리지 않게) */
+@media (max-width: 768px) {
+    #locrec-modal { align-items: flex-start; padding: 8px; box-sizing: border-box; overflow: hidden; overscroll-behavior: contain; }
+    #locrec-modal > .refill-modal-content {
+        box-sizing: border-box; width: 100%; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px);
+        height: calc(100dvh - 16px); padding: 16px; overflow: hidden;
+    }
+    #locrec-modal .locrec-table-wrap { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+    #locrec-modal .locrec-table { min-width: 760px; }
+    #locrec-modal .locrec-table td.locrec-prod { min-width: 170px; }
+    #locrec-modal .locrec-table td.locrec-loc { width: 84px; }
+    #locrec-modal .locrec-table td.locrec-state { width: 104px; }
+    #locrec-modal .locrec-table td.locrec-acts { width: 128px; }
+    #locrec-modal .locrec-acts .btn { min-height: 36px; }
+    body:has(#locrec-modal[style*="flex"]) { overflow: hidden; }
+}

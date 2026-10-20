@@ -125,3 +125,5 @@ export const DEFAULT_ROLE_ID = 'basic';
 
 // 대시보드 '채우기' 업무 카드에서 지시서 창을 열 때 쓰는 업무 이름(6단계). 관리자가 업무 이름을 바꾸면 버튼이 사라진다.
 export const REFILL_TASK = '채우기';
+// 대시보드 '로케이션 동선관리' 업무 카드의 [변경추천] 버튼(js/locrec-dash.js) — 같은 방식. 업무를 시작해도 창은 저절로 열지 않는다.
+export const LOCREC_TASK = '로케이션 동선관리';

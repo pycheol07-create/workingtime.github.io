@@ -5,9 +5,10 @@
 //   스타일은 location.html <style> · index 는 css/refill-modal.css(#refill-modal 범위로 같은 모양).
 // ⚠️ role="dialog" · data-act 를 붙이지 않는다 — 업무마감봇이 div[role=dialog] 마지막 것 · [data-act] 로 자기 확인창을 읽는다.
 // 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙는다.
-import { escapeHtml } from './utils.js?v=202610200831';
-import { dayLabel, fmtHM, progress, fmtCount } from './lib/refill-view.js?v=202610200831';
-import { NO_NAME, SHEETS, todayKey } from './refill-store.js?v=202610200831';
+import { escapeHtml } from './utils.js?v=202610200902';
+import { dayLabel, fmtHM, progress, fmtCount } from './lib/refill-view.js?v=202610200902';
+import { NO_NAME, SHEETS, todayKey } from './refill-store.js?v=202610200902';
+import { higherOpenThan } from './modal-above.js?v=202610200902';
 
 const TEMPLATE = `
         <div class="modal-content refill-modal-content">
@@ -53,19 +54,8 @@ export function mountRefillTable({ store }) {
     let tab = 'rows';
 
     const isOpen = () => modal.style.display === 'flex';
-    const zOf = (el) => { const z = parseInt(getComputedStyle(el).zIndex, 10); return Number.isNaN(z) ? 0 : z; };
-    /** 이 창보다 z 가 큰, 화면을 덮는 고정 창이 보이는가(.fixed.inset-0 · .modal-overlay · inline position:fixed 오버레이) */
-    function higherOpen() {
-        const myZ = zOf(modal);
-        return Array.from(document.querySelectorAll('.fixed.inset-0, .modal-overlay, body > div[style*="position:fixed"], body > div[style*="position: fixed"]'))
-            .some(el => {
-                if (el === modal || modal.contains(el) || el.classList.contains('hidden')) return false;
-                const cs = getComputedStyle(el);
-                if (cs.display === 'none' || cs.visibility === 'hidden' || cs.position !== 'fixed') return false;
-                const r = el.getBoundingClientRect();     // 화면을 덮는 창만(띠·토스트 같은 작은 고정 요소는 빼고)
-                return zOf(el) > myZ && r.width >= window.innerWidth * 0.9 && r.height >= window.innerHeight * 0.5;
-            });
-    }
+    /** 이 창보다 z 가 큰, 화면을 덮는 고정 창이 보이는가 — js/modal-above.js(변경 추천 표 창과 같이 씀) */
+    const higherOpen = () => higherOpenThan(modal);
 
     function render() {
         if (!isOpen()) return;

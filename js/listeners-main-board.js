@@ -1,12 +1,12 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610200831';
-import * as State from './state.js?v=202610200831';
-import { render } from './app.js?v=202610200831';
-import { showToast, formatTimeTo24H } from './utils.js?v=202610200831';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202610200831';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202610200831';
+import * as DOM from './dom-elements.js?v=202610200902';
+import * as State from './state.js?v=202610200902';
+import { render } from './app.js?v=202610200902';
+import { showToast, formatTimeTo24H } from './utils.js?v=202610200902';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202610200902';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202610200902';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -14,11 +14,12 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202610200831';
+} from './app-logic.js?v=202610200902';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610200831';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202610200831';
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202610200831';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610200902';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202610200902';
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202610200902';
+import { openLocRecFromDash } from './locrec-dash.js?v=202610200902';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -249,6 +250,14 @@ export function setupMainBoardListeners() {
         if (openRefillBtn) {
             e.stopPropagation();
             openRefillFromDash();
+            return;
+        }
+
+        // '변경추천' 버튼(로케이션 동선관리 업무 카드) — 같은 방식. 업무 시작 때 저절로 열지는 않는다(js/locrec-dash.js)
+        const openLocRecBtn = e.target.closest('button[data-action="open-locrec"]');
+        if (openLocRecBtn) {
+            e.stopPropagation();
+            openLocRecFromDash();
             return;
         }
 
