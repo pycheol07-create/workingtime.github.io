@@ -10,7 +10,7 @@
 // 다시 읽기: window.__reloadCustomsFxrt() · 탭이 다시 보이면(visibilitychange) 조용히 다시 읽는다
 //   (토요일에 연 창을 일요일에 다시 볼 때 새 주 값을 받게).
 // 공통 상단바 로그인 표시(setShellContext)는 logis-defaults.js 가 이미 한다 — 여기서는 부르지 않는다.
-import { db, auth } from './firebase-init.js?v=202610210917';
+import { db, auth } from './firebase-init.js?v=202610210931';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 

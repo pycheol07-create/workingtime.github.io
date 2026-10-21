@@ -10,7 +10,7 @@ import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://w
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll
-} from './lib/locrec-view.js?v=202610210917';
+} from './lib/locrec-view.js?v=202610210931';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;

@@ -7,10 +7,10 @@
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다. -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610210917">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610210917">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610210917">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610210917">
+    <link rel="stylesheet" href="css/suit.css?v=202610210931">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610210931">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610210931">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610210931">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -67,6 +67,7 @@
         .list-table { width: 100%; border-collapse: collapse; min-width: 1900px; }
         .list-table th, .list-table td { padding: 5px 8px; text-align: center; border: 1px solid var(--c-line-soft); font-size: 12.5px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .list-table th { background: var(--c-surface-2); color: var(--c-text-2); position: sticky; top: -1px; z-index: 10; font-weight: 600; }
+        .list-table th:first-child { width: 36px; }   /* No — 열 너비 조절이 인라인 width 를 지우므로 기본 너비는 CSS 에 */
         .list-table th.sortable { cursor: pointer; user-select: none; }
         .list-table th.sortable:hover { color: var(--c-accent-deep); }
         .list-table th.new-col { background: var(--c-accent-row); }
@@ -76,6 +77,16 @@
         .list-table tbody tr.data-row { cursor: pointer; }
         .list-table tbody tr.data-row:hover td { background: var(--c-accent-row); }
         .list-table tbody tr.need-check td { background: var(--c-warn-bg); } /* 확인 필요(플래그) 행 */
+        /* 열 너비 조절(2026-10-21) — 머리글 오른쪽 끝을 끌면 그 열 너비가 바뀐다. 한 번 끌면 표가 고정 너비(table-layout: fixed)가 되고
+           보기(간단히/전체)별로 이 브라우저에 기억한다(js/china-mibal2.js setupColResize). [열 너비 원래대로]로 되돌린다 */
+        .list-table th .col-grip { position: absolute; top: 0; right: 0; width: 7px; height: 100%; cursor: col-resize; touch-action: none; z-index: 1; }
+        @media (pointer: coarse) { .list-table th .col-grip { width: 14px; } }   /* 손가락으로 잡기 쉽게 */
+        .list-table th .col-grip:hover, .list-table th .col-grip.dragging { background: linear-gradient(to right, transparent 3px, var(--c-accent) 3px, var(--c-accent) 5px, transparent 5px); }
+        .list-table.cols-fixed { table-layout: fixed; min-width: 0 !important; }
+        .list-table.cols-fixed th { box-sizing: border-box; }   /* 잰 너비(테두리·여백 포함)를 그대로 width 로 쓴다 */
+        .list-table.cols-fixed th, .list-table.cols-fixed tr:not(.detail-row) > td { overflow: hidden; text-overflow: ellipsis; }
+        .list-table.cols-fixed td.name-cell { max-width: none; }
+        body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
         .list-table td .cap-kind { font-size: 10.5px; color: var(--c-text-3); margin-left: 3px; }
         .list-table tbody tr.diff-some td.diff-cell { background: var(--c-warn-bg); color: var(--c-warn-text); font-weight: 600; }
         .list-table tbody tr.diff-big td { background: var(--c-risk-row); }
@@ -101,11 +112,11 @@
         body[data-view="daily"] .live-only { display: none !important; }
 
         /* 보기 항목: 간단히(기본) / 전체 — JS 가 body[data-cols] 를 바꾼다(이 브라우저에 기억).
-           간단히 = No·코드·상품명·피킹로케이션·적재량·도착·미발수량·남는 부족수량·피킹 적재·비축 적재·플래그 (열 순서 = 아래 thead).
+           간단히 = No·코드·상품명·피킹로케이션·적재량·도착·총재고·미발수량·남는 부족수량·피킹 적재·비축 적재·플래그 (열 순서 = 아래 thead).
            숨긴 칸도 행을 누르면 '계산 근거'에 다 나오고, 엑셀 받기는 늘 전체 칸이다. */
         body[data-cols="simple"] .full-only { display: none !important; }
         body[data-cols="simple"] .list-table { min-width: 860px; }
-        body[data-cols="simple"] .list-table tr:not(.detail-row) > :is(:nth-child(n+7):nth-child(-n+13), :nth-child(16), :nth-child(17), :nth-child(n+20):nth-child(-n+22)) { display: none; }
+        body[data-cols="simple"] .list-table tr:not(.detail-row) > :is(:nth-child(n+8):nth-child(-n+13), :nth-child(16), :nth-child(17), :nth-child(n+20):nth-child(-n+22)) { display: none; }
         /* 간단히에서는 기존 계산기와의 차이 색(diff-big)을 빼고, 확인 필요(노랑)만 남긴다 */
         body[data-cols="simple"] .list-table tbody tr.diff-big:not(:hover) td { background: var(--c-surface); }
         body[data-cols="simple"] .list-table tbody tr.diff-big:not(:hover) td.new-mibal { background: var(--c-accent-row); }
@@ -207,6 +218,7 @@
 
     <div class="tool-bar">
         <span class="view-seg" title="간단히: 도착분을 어디로 보낼지(바로 출고·피킹 적재·비축 적재)만 봅니다. 나머지 칸은 행을 누르면 나오는 계산 근거와 엑셀에 있습니다"><button type="button" id="btn-cols-simple" class="view-btn on">간단히</button><button type="button" id="btn-cols-full" class="view-btn">전체 항목</button></span>
+        <button type="button" id="btn-col-reset" class="d-btn d-btn-sm" style="display:none;" title="끌어서 바꾼 열 너비를 이 보기(간단히/전체)에서 처음대로 되돌립니다">열 너비 원래대로</button>
         <label class="full-only" style="display:inline-flex; align-items:center; gap:5px; font-weight:600; color:var(--c-text-2); cursor:pointer;">
             <input type="checkbox" id="chk-diff-only" style="width:16px; height:16px;"> 차이 있는 행만 보기
         </label>
@@ -224,7 +236,7 @@
         <table class="list-table">
             <thead>
                 <tr>
-                    <th style="width:36px;">No</th>
+                    <th>No</th>
                     <th class="sortable" data-sort="code">코드</th>
                     <th class="sortable" data-sort="name" style="min-width:160px;">상품명 / 옵션</th>
                     <th class="sortable" data-sort="loc">피킹로케이션</th>
@@ -260,9 +272,9 @@
     <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610210917"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610210917"></script>
-    <script type="module" src="js/page-gate.js?v=202610210917" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202610210917"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610210931"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610210931"></script>
+    <script type="module" src="js/page-gate.js?v=202610210931" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202610210931"></script>
 </body>
 </html>

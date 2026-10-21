@@ -13,20 +13,20 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610210917'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610210931'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610210917';
-import { sortMark } from './lib/china-stock-view.js?v=202610210917';
+import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610210931';
+import { sortMark } from './lib/china-stock-view.js?v=202610210931';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf, FLAG_INFO, COMPARE_COLS, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610210917';
-import { setShellContext } from './app-shell-bridge.js?v=202610210917';
-import { memberNameFor } from './app-shell-data.js?v=202610210917';
-import { mountBusyBanner } from './busy-banner.js?v=202610210917';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610210917';
+} from './lib/mibal2-rows.js?v=202610210931';
+import { setShellContext } from './app-shell-bridge.js?v=202610210931';
+import { memberNameFor } from './app-shell-data.js?v=202610210931';
+import { mountBusyBanner } from './busy-banner.js?v=202610210931';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610210931';
 
 const { db, auth } = initializeFirebase();
 
@@ -797,7 +797,7 @@ function downloadExcel() {
 
 // ── 보기 항목: 간단히(기본) / 전체 — 열·카드 숨김은 CSS(body[data-cols]). 고른 것은 이 브라우저에만 기억 ──
 const COLS_KEY = 'mibal2.cols';
-const colSpan = () => (document.body.dataset.cols === 'simple' ? 11 : 23);   // 간단히에서 보이는 열 수
+const colSpan = () => (document.body.dataset.cols === 'simple' ? 12 : 23);   // 간단히에서 보이는 열 수
 function setCols(mode, save) {
     const simple = mode !== 'full';
     document.body.dataset.cols = simple ? 'simple' : 'full';
@@ -808,11 +808,125 @@ function setCols(mode, save) {
         if (sortConfig.key === 'diffAbs' || sortConfig.key === 'diff') sortConfig = { key: 'mibal', dir: 'desc' };   // 숨긴 '차이' 열 정렬 → 미발수량 큰 순
     }
     if (allRows.length) applyFilters();                                       // 칸 수(colspan)·정렬을 새로 반영
+    applyColWidths();                                                         // 보기마다 따로 기억한 열 너비
     if (save) { try { localStorage.setItem(COLS_KEY, simple ? 'simple' : 'full'); } catch (e) { /* 기억 못 해도 보기는 바뀐다 */ } }
+}
+
+// ── 열 너비 조절 — 머리글 오른쪽 끝(.col-grip)을 끌면 그 열 너비가 바뀐다 ──
+// 처음 끌 때 보이는 열 너비를 모두 재서 고정 너비 표(.cols-fixed)로 바꾼다(자동 너비 표는 내용보다 좁게 못 줄인다).
+// 보기(간단히/전체)마다 { 열 이름: px } 로 이 브라우저에 기억 — 열 이름 = th 의 data-sort(No·플래그는 'no'·'flags').
+// 열 번호가 아니라 이름이라 나중에 열을 중간에 넣어도 기억한 너비가 옆 열로 밀리지 않는다.
+const WIDTH_KEY = 'mibal2.colWidths';
+const COL_MIN = 36;
+const DRAG_START_PX = 3;   // 이만큼 움직여야 끌기로 본다(누르기만 하면 아무것도 바꾸지 않는다)
+let justResized = false;   // 끌기를 막 끝낸 직후의 click 이 정렬로 새지 않게
+const isPlainObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+function loadColWidths() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(WIDTH_KEY) || '{}'); } catch (e) { raw = null; }
+    const out = {};
+    if (!isPlainObj(raw)) return out;
+    ['simple', 'full'].forEach(mode => {
+        if (!isPlainObj(raw[mode])) return;
+        const m = {};
+        Object.entries(raw[mode]).forEach(([k, v]) => { if (Number.isFinite(v) && v >= COL_MIN) m[k] = Math.round(v); });
+        if (Object.keys(m).length) out[mode] = m;
+    });
+    return out;
+}
+let colWidths = loadColWidths();
+const headCells = () => [...document.querySelectorAll('.list-table thead th')];
+const colKey = (th, i, all) => th.dataset.sort || (i === 0 ? 'no' : (i === all.length - 1 ? 'flags' : 'c' + i));
+const isShown = (el) => getComputedStyle(el).display !== 'none';
+const curMode = () => (document.body.dataset.cols === 'simple' ? 'simple' : 'full');
+function saveColWidths() { try { localStorage.setItem(WIDTH_KEY, JSON.stringify(colWidths)); } catch (e) { /* 기억 못 해도 지금 화면은 바뀐다 */ } }
+function applyColWidths() {
+    const table = document.querySelector('.list-table');
+    if (!table) return;
+    const saved = colWidths[curMode()];
+    const ths = headCells();
+    table.classList.remove('cols-fixed');
+    table.style.width = '';
+    ths.forEach(th => { th.style.width = ''; });   // 기본 너비는 CSS 에만 둔다(No 36px 포함)
+    const has = !!saved && Object.keys(saved).length > 0;
+    const reset = $('btn-col-reset');
+    if (reset) reset.style.display = has ? '' : 'none';
+    if (!has) return;
+    // 기억에 없는 열(나중에 생긴 열 등)은 지금 자동 너비를 그대로 쓴다
+    const w = ths.map((th, i, all) => (isShown(th) ? (saved[colKey(th, i, all)] || Math.ceil(th.getBoundingClientRect().width)) : 0));
+    ths.forEach((th, i) => { if (w[i]) th.style.width = w[i] + 'px'; });
+    table.style.width = w.reduce((x, y) => x + y, 0) + 'px';
+    table.classList.add('cols-fixed');
+}
+function setupColResize() {
+    const table = document.querySelector('.list-table');
+    headCells().forEach((th, idx, all) => {
+        const key = colKey(th, idx, all);
+        const grip = document.createElement('span');
+        grip.className = 'col-grip';
+        grip.title = '끌어서 열 너비 조절';
+        grip.addEventListener('click', (e) => e.stopPropagation());
+        grip.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const mode = curMode();
+            const startX = e.clientX;
+            let started = false, startW = 0, startT = 0;
+            const begin = () => {
+                started = true;
+                if (!table.classList.contains('cols-fixed')) {
+                    // 처음 끄는 것 — 지금 보이는 열 너비를 다 재서 기억하고 고정 너비로 바꾼다
+                    const snap = {};
+                    headCells().forEach((h, i, a) => { if (isShown(h)) snap[colKey(h, i, a)] = Math.ceil(h.getBoundingClientRect().width); });
+                    colWidths[mode] = snap;
+                    applyColWidths();
+                }
+                startW = th.getBoundingClientRect().width;
+                startT = table.getBoundingClientRect().width;
+                grip.classList.add('dragging');
+                document.body.classList.add('col-resizing');
+            };
+            const move = (ev) => {
+                if (!started) {
+                    if (Math.abs(ev.clientX - startX) < DRAG_START_PX) return;
+                    begin();
+                }
+                const nw = Math.max(COL_MIN, Math.round(startW + ev.clientX - startX));
+                th.style.width = nw + 'px';
+                table.style.width = Math.round(startT + nw - startW) + 'px';
+            };
+            // 창(window)에 건다 — 포인터가 7px 손잡이를 벗어나도, 포커스가 바뀌어도 끌기가 끝까지 정리된다
+            const up = () => {
+                window.removeEventListener('pointermove', move);
+                window.removeEventListener('pointerup', up);
+                window.removeEventListener('pointercancel', up);
+                window.removeEventListener('blur', up);
+                if (!started) return;   // 누르기만 했다 — 아무것도 바꾸지 않는다
+                grip.classList.remove('dragging');
+                document.body.classList.remove('col-resizing');
+                (colWidths[mode] = colWidths[mode] || {})[key] = Math.round(th.getBoundingClientRect().width);
+                saveColWidths();
+                justResized = true;
+                setTimeout(() => { justResized = false; }, 0);
+            };
+            window.addEventListener('pointermove', move);
+            window.addEventListener('pointerup', up);
+            window.addEventListener('pointercancel', up);
+            window.addEventListener('blur', up);
+        });
+        th.appendChild(grip);
+    });
+    $('btn-col-reset').addEventListener('click', () => {
+        delete colWidths[curMode()];
+        saveColWidths();
+        applyColWidths();
+    });
 }
 
 // ── 이벤트 ───────────────────────────────────────────────────
 function setupEvents() {
+    setupColResize();
     let savedCols = null;
     try { savedCols = localStorage.getItem(COLS_KEY); } catch (e) { /* 무시 */ }
     setCols(savedCols, false);
@@ -829,6 +943,7 @@ function setupEvents() {
     $('btn-view-daily').addEventListener('click', () => setView('daily'));
     $('daily-select').addEventListener('change', (e) => loadDaily(e.target.value));
     document.querySelectorAll('.list-table th.sortable').forEach(th => th.addEventListener('click', () => {
+        if (justResized) return;   // 열 너비를 끌다 놓은 click
         const key = th.dataset.sort;
         if (sortConfig.key === key) sortConfig.dir = sortConfig.dir === 'asc' ? 'desc' : 'asc';
         else sortConfig = { key, dir: (key === 'code' || key === 'name' || key === 'loc') ? 'asc' : 'desc' };

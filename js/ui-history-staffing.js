@@ -1,11 +1,11 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202610210917';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610210917';
-import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610210917';
-import { fetchPlannedData } from './history-data-manager.js?v=202610210917';
-import { getTodayDateString } from './utils.js?v=202610210917';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610210917';
-import { D } from './d-chart.js?v=202610210917';
+import * as State from './state.js?v=202610210931';
+import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610210931';
+import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610210931';
+import { fetchPlannedData } from './history-data-manager.js?v=202610210931';
+import { getTodayDateString } from './utils.js?v=202610210931';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610210931';
+import { D } from './d-chart.js?v=202610210931';
 
 let staffingChartInstance = null;
 
