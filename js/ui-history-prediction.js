@@ -3,33 +3,34 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610210848';
+import { predictFutureTrends } from './analysis-logic.js?v=202610210900';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610210848';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610210848';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610210848';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610210848';
-import * as State from './state.js?v=202610210848';
-import { saveView } from './view-state.js?v=202610210848';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610210848';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610210848';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610210900';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610210900';
+import { runDay } from './lib/refill-view.js?v=202610210900';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610210900';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610210900';
+import * as State from './state.js?v=202610210900';
+import { saveView } from './view-state.js?v=202610210900';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610210900';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610210900';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610210848';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610210900';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610210848';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610210848';
+         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610210900';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610210900';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610210848';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610210848';
-import { taskUph, recentDays } from './task-throughput.js?v=202610210848';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610210900';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610210900';
+import { taskUph, recentDays } from './task-throughput.js?v=202610210900';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610210848';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610210900';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610210848';
-import { D } from './d-chart.js?v=202610210848';
+         excessOffDays } from './lib/backlog-carry.js?v=202610210900';
+import { D } from './d-chart.js?v=202610210900';
 
 /** 해당 날짜·작업의 예정 물량(수동 입력값). 없으면 null → 자동 추정값으로 폴백.
  *  0도 '0으로 하기로 한 값'이므로 그대로 인정한다(키가 아예 없을 때만 자동값). */
@@ -1709,6 +1710,7 @@ const INSP_PACKS_STALE_MS = 36 * 60 * 60 * 1000;   // 수집은 매일 07:30 무
 // 🧺 채우기 지시서(integrations/refillLatest — 채우기자동화가 매일 08:20 무렵 씀). 미발과 같이 읽는다(2026-10-21).
 //    지시서가 있는 날의 채우기 자동값 = 지시서 행 수(상품옵션 줄 수 — 낱개 수량 아님). 없는 날(내일 등)은 예전 빈도 계산.
 let refillDays = null;            // null = 아직 못 읽음 / { YYYYMMDD: {status, rows, fillQty, …} }
+let refillSchedule = null;        // refillLatest.schedule — 지시서를 만드는 날인지(runDay) 판정용
 // 📤 직진·에이블리 전송값(ZikjinData) — 미발과 같이 읽는다(규칙: js/lib/ship-transmit.js).
 //    읽기만 한다. 못 읽으면 직전 값을 그대로 둔다.
 //    ⚠️ ZikjinData 에는 마지막 전송일 하루치만 남는다(다음 전송이 지난 날짜 행을 지운다).
@@ -1785,6 +1787,7 @@ export async function ensureMibalHistory() {
             if (rf !== 'ERR') {
                 const days = rf && rf.exists() ? (rf.data() || {}).days : null;
                 refillDays = (days && typeof days === 'object') ? days : {};
+                refillSchedule = rf && rf.exists() ? ((rf.data() || {}).schedule || null) : null;
             }
             // 샘플검수 패킹 목록 — 읽기·해석에 실패하면 직전 값을 그대로 둔다(처음이면 null → 비율 계산)
             if (ip !== 'ERR') {
@@ -4306,6 +4309,19 @@ const buildAutoForecastSnapshot = (dateStr) => {
 /** 오늘 계획 스냅샷이 없으면 조용히 하나 찍는다.
  *  절대 throw 하지 않고, 토스트도 띄우지 않는다(메인 화면 렌더 중에 돈다).
  *  가드 하나라도 걸리면 **찍지 않는다** — 잘못 얼린 스냅샷은 그날이 지나면 되돌릴 수 없다. */
+const REFILL_WAIT_UNTIL_MIN = 8 * 60 + 40;   // 08:40 — 채우기 지시서를 기다리는 한계(정기 08:20)
+let 지시서대기_날짜 = '';
+/** 오늘 채우기 지시서를 기다려야 하나 — 지시서를 만드는 날인데 아직 그날 기록이 없으면 true.
+ *  refillLatest 를 못 읽었으면(null) 만드는 날인지 모르니 기다린다(08:40 한계). */
+const refillPendingToday = (today) => {
+    if (!refillDays) return true;
+    const key = String(today).replace(/-/g, '');
+    const e = refillDays[key];
+    // fail 이어도 한계(08:40)까지는 기다린다 — 그 사이 다시 만들기로 지시서가 나올 수 있다
+    if (e && (e.status === 'ok' || e.status === 'rest')) return false;
+    try { return runDay(key, refillSchedule, getHolidayName).run; } catch (err) { return false; }
+};
+
 const ensureTodayForecastSnapshot = async () => {
     if (autoSnapInFlight) return;
     const today = getTodayDateString();
@@ -4362,6 +4378,17 @@ const ensureTodayForecastSnapshot = async () => {
                 return;
             }
             if (전송실패_횟수 === 4) console.warn('[자동 계획] 직진·에이블리 전송값을 계속 못 읽어 전송값 없이 계획을 얼립니다.');
+        }
+        // ⑤-d 채우기 지시서(08:20 무렵) — 그 전에 얼리면 채우기가 빈도 추정으로 얼려져,
+        //      접속 시각에 따라 비교 기준이 갈린다(2026-10-21 사용자 결정: 지시서가 나온 뒤에 얼린다).
+        //      지시서를 만드는 날이면 그날 기록(성공·휴일)이 생길 때까지 미룬다. 08:40 까지 없으면 지시서 없이 얼린다(2026-10-21 사용자 결정).
+        //      미발 읽기와 같이 10분마다 다시 읽으므로 지시서가 나오고 10분 안에 얼려진다.
+        if (지금분 < REFILL_WAIT_UNTIL_MIN && refillPendingToday(today)) {
+            if (지시서대기_날짜 !== today) {
+                지시서대기_날짜 = today;
+                console.info('[자동 계획] 오늘 채우기 지시서가 아직 없어 계획 얼리기를 미룹니다(나오면 자동으로, 늦어도 08:40).');
+            }
+            return;
         }
         // ⑥ 업무 목록 — 빼면 시간형 업무가 통째로 빠진 스냅샷이 남는다
         ensureSimLists();

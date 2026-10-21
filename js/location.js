@@ -1,22 +1,22 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610210848';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610210900';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610210848';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610210848';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610210848';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610210848';
-import { orderKeyMap } from './lib/order-hash.js?v=202610210848';
-import { setShellContext } from './app-shell-bridge.js?v=202610210848';
-import { memberNameFor } from './app-shell-data.js?v=202610210848';
-import { menuConfigOf } from './lib/perm.js?v=202610210848';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610210848';
-import { initPageNav } from './page-nav.js?v=202610210848';
-import { initRefillCard } from './refill-card.js?v=202610210848';
-import { initLocRecCard } from './locrec-card.js?v=202610210848';
-import { whenPerm } from './feature-gate.js?v=202610210848';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610210848';
-import { uploadBlockText } from './lib/busy-view.js?v=202610210848';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610210848';
+import { escapeHtml as escAttr } from './utils.js?v=202610210900';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610210900';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610210900';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610210900';
+import { orderKeyMap } from './lib/order-hash.js?v=202610210900';
+import { setShellContext } from './app-shell-bridge.js?v=202610210900';
+import { memberNameFor } from './app-shell-data.js?v=202610210900';
+import { menuConfigOf } from './lib/perm.js?v=202610210900';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610210900';
+import { initPageNav } from './page-nav.js?v=202610210900';
+import { initRefillCard } from './refill-card.js?v=202610210900';
+import { initLocRecCard } from './locrec-card.js?v=202610210900';
+import { whenPerm } from './feature-gate.js?v=202610210900';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610210900';
+import { uploadBlockText } from './lib/busy-view.js?v=202610210900';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610210900';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -4516,10 +4516,7 @@ const ORDER_PAIRS_COLL = 'OrderPairsChunks';
 const ORDER_STATS_COLL = 'OrderStatsChunks';
 const PROCESSED_ORDERS_COLL = 'ProcessedOrders';
 // 보안(2026-10-14): ProcessedOrders 문서 ID = 주문번호 해시(lib/order-hash.js). 원문 주문번호는 저장·출력하지 않는다.
-// 과도기: 옛 원문 ID 문서가 남아 있는 동안 원문 ID 도 같이 조회해 중복을 막는다(읽기 최대 2배).
-//   이전 순서(앱\보안점검\주문번호_해시이전.py): ① 이 코드 배포 → ② 모든 PC 새로고침 → ③ 주문 업로드가 없는 시간에 --실행
-//   → ④ 며칠 뒤 미리보기로 원문 ID 0 건을 다시 확인한 다음에만 false 로 바꾸고 원문 조회 코드를 지울 것.
-const PROCESSED_ORDERS_CHECK_LEGACY_IDS = true;
+// 옛 원문 ID 문서는 2026-10-16 해시로 옮겼고(앱\보안점검\주문번호_해시이전.py), 2026-10-21 재확인에서 0 건 → 해시 ID 만 조회한다.
 const CHUNK_SIZE_PAIRS = 200;
 const CHUNK_SIZE_STATS = 200;
 
@@ -4572,15 +4569,7 @@ async function fetchExistingProcessedOrders(keyMap) {
         return found;
     };
     const existing = new Set();
-    if (PROCESSED_ORDERS_CHECK_LEGACY_IDS) {
-        // 과도기: 옛 원문 ID 문서를 '먼저' 본다 — 정리 스크립트가 원문 → 해시로 옮기는 중이어도
-        //   (원문을 본 뒤 옮겨졌으면 이어지는 해시 조회가, 옮겨진 뒤면 해시 조회가) 둘 중 하나는 잡는다.
-        // '/' 가 든 값은 문서 ID 가 될 수 없어 예전에도 저장되지 않았다 → 조회에서 뺀다
-        const rawFound = await queryIds([...keyMap.keys()].filter(o => !o.includes('/')));
-        rawFound.forEach(o => existing.add(o));
-    }
-    // 원문에서 이미 찾은 주문은 해시 조회에서 뺀다(읽기 비용 유지)
-    const hashFound = await queryIds([...keyMap.entries()].filter(([ono]) => !existing.has(ono)).map(([, key]) => key));
+    const hashFound = await queryIds([...keyMap.values()]);
     keyMap.forEach((key, ono) => { if (hashFound.has(key)) existing.add(ono); });
     return existing;
 }
