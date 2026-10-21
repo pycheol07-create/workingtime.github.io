@@ -81,7 +81,7 @@ export const PAGE_DEFAULTS = {
     'china-stock-goods': { file: 'china-stock-goods.html', title: '중국제작 부족수량 관리' },
     'china-mibal2':      { file: 'china-mibal2.html',      title: '중국제작 부족수량 관리(신규·시험)' },
     'scan':              { file: 'scan.html',              title: '입고 스캐너' },
-    'manual':            { file: 'manual.html',            title: '업무 매뉴얼 및 도구' },
+    'manual':            { file: 'manual.html',            title: '업무 매뉴얼' },
     'supplies':          { file: 'supplies.html',          title: '비품 관리' },
     'worktime':          { file: 'worktime.html',          title: '출퇴근 기록표' },
     'calculator':        { file: 'calculator/index.html',  title: '통합 계산기' }

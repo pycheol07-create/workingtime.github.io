@@ -21,8 +21,8 @@
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202610211147';
-import { capacityFor } from './mibal2-calc.js?v=202610211147';
+import { isEtcLocObj } from './mibal2-rows.js?v=202610211215';
+import { capacityFor } from './mibal2-calc.js?v=202610211215';
 
 export { isEtcLocObj };
 

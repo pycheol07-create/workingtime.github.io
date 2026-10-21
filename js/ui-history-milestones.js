@@ -1,8 +1,10 @@
 // === js/ui-history-milestones.js ===
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
-import * as State from './state.js?v=202610211147';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610211147';
+import * as State from './state.js?v=202610211215';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610211215';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610211215';
+import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=202610211215';
 import {
     doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -81,7 +83,7 @@ function renderList() {
         listEl.innerHTML = filtered.map(m => {
             const typeInfo = TYPE_LABELS[m.type] || TYPE_LABELS.memo;
             const tagHtml = (m.tags || []).map(t => `<span class="inline-block bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-[11px] px-2 py-0.5 rounded-full">${escapeHtml(t)}</span>`).join('');
-            const taskHtml = (m.affectedTasks || []).map(t => `<span class="inline-block bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[11px] px-2 py-0.5 rounded">${escapeHtml(t)}</span>`).join('');
+            const taskHtml = milestoneTaskFilter(m.affectedTasks, State.appConfig).map(t => `<span class="inline-block bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[11px] px-2 py-0.5 rounded">${escapeHtml(t)}</span>`).join('');
             const descPreview = (m.description || '').slice(0, 100) + ((m.description || '').length > 100 ? '...' : '');
             const previewBar = renderInlinePreview(m, 14);
             return `
@@ -162,7 +164,7 @@ function computeMilestoneSummary(m, windowDays = 14) {
     const afterStart = m.date;
     const afterEnd = addDaysStr(m.date, windowDays - 1);
 
-    const taskFilter = m.affectedTasks && m.affectedTasks.length > 0 ? m.affectedTasks : [];
+    const taskFilter = milestoneTaskFilter(m.affectedTasks, State.appConfig);   // 🆔 옛 이름 필터도 지금 이름으로(js/lib/milestone-tasks.js)
     const before = computeKpiWindow(beforeStart, beforeEnd, taskFilter);
     const after = computeKpiWindow(afterStart, afterEnd, taskFilter);
 
@@ -233,7 +235,7 @@ export function openEditModal(milestoneId = null, presetData = null) {
     // 영향 받는 업무 체크박스 — 전체 업무 중 그룹별로 선택
     const tasksEl = document.getElementById('milestone-edit-tasks');
     const { groups } = getAllTaskTypes();
-    const checkedSet = new Set(data.affectedTasks || []);
+    const checkedSet = new Set(milestoneTaskFilter(data.affectedTasks, State.appConfig));   // 🆔 옛 이름으로 저장된 것도 지금 이름 칸에 체크 → 저장하면 지금 이름으로
     tasksEl.innerHTML = `
         <div class="flex items-center gap-2 mb-1 w-full">
             <button type="button" id="milestone-task-select-all" class="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline">전체 선택</button>
@@ -325,9 +327,11 @@ async function deleteMilestone(id) {
  * @param {string[]} taskFilter — 빈 배열이면 모든 업무, 채워져 있으면 해당 업무만
  */
 function computeKpiWindow(startDate, endDate, taskFilter = []) {
+    const cfg = State.appConfig;
     const filter = new Set(taskFilter);
     const useFilter = filter.size > 0;
-    const days = (State.allHistoryData || []).filter(d => d.id >= startDate && d.id <= endDate);
+    // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — 별칭 없으면 원본 그대로)
+    const days = aliasHistoryView(State.allHistoryData || [], cfg).filter(d => d.id >= startDate && d.id <= endDate);
 
     let totalDuration = 0; // 분
     let totalQty = 0;
@@ -344,7 +348,7 @@ function computeKpiWindow(startDate, endDate, taskFilter = []) {
         let dayHasData = false;
         records.forEach(r => {
             if (useFilter) {
-                const matched = [...filter].some(t => (r.taskType && r.taskType.includes(t)) || (r.task && r.task.includes(t)));
+                const matched = [...filter].some(t => milestoneTaskMatch(r.taskType, t, cfg) || milestoneTaskMatch(r.task, t, cfg));
                 if (!matched) return;
             }
             totalDuration += (r.duration || 0);
@@ -360,7 +364,7 @@ function computeKpiWindow(startDate, endDate, taskFilter = []) {
         Object.entries(qtyMap).forEach(([k, v]) => {
             const num = Number(v) || 0;
             if (useFilter) {
-                const matched = [...filter].some(t => k.includes(t));
+                const matched = [...filter].some(t => milestoneTaskMatch(k, t, cfg));
                 if (!matched) return;
             }
             totalQty += num;
@@ -432,7 +436,7 @@ function renderCompareResults() {
     const afterStart = m.date;
     const afterEnd = addDaysStr(m.date, w - 1);
 
-    const taskFilter = m.affectedTasks && m.affectedTasks.length > 0 ? m.affectedTasks : [];
+    const taskFilter = milestoneTaskFilter(m.affectedTasks, State.appConfig);   // 🆔 지금 이름으로
     const before = computeKpiWindow(beforeStart, beforeEnd, taskFilter);
     const after = computeKpiWindow(afterStart, afterEnd, taskFilter);
 
@@ -467,8 +471,8 @@ function renderCompareResults() {
     const taskRows = [];
     if (taskFilter.length > 0) {
         taskFilter.forEach(t => {
-            const bAgg = Object.entries(before.perTaskAgg).filter(([k]) => k.includes(t)).reduce((acc, [, v]) => ({ duration: acc.duration + v.duration, qty: acc.qty + v.qty }), { duration: 0, qty: 0 });
-            const aAgg = Object.entries(after.perTaskAgg).filter(([k]) => k.includes(t)).reduce((acc, [, v]) => ({ duration: acc.duration + v.duration, qty: acc.qty + v.qty }), { duration: 0, qty: 0 });
+            const bAgg = Object.entries(before.perTaskAgg).filter(([k]) => milestoneTaskMatch(k, t, State.appConfig)).reduce((acc, [, v]) => ({ duration: acc.duration + v.duration, qty: acc.qty + v.qty }), { duration: 0, qty: 0 });
+            const aAgg = Object.entries(after.perTaskAgg).filter(([k]) => milestoneTaskMatch(k, t, State.appConfig)).reduce((acc, [, v]) => ({ duration: acc.duration + v.duration, qty: acc.qty + v.qty }), { duration: 0, qty: 0 });
             const bUph = bAgg.duration > 0 ? bAgg.qty / (bAgg.duration / 60) : 0;
             const aUph = aAgg.duration > 0 ? aAgg.qty / (aAgg.duration / 60) : 0;
             const bAvg = before.dayCount > 0 ? bAgg.qty / before.dayCount : 0;
@@ -824,7 +828,7 @@ export async function ensureMilestonesLoaded() {
 export function getMilestoneSummariesForPeriod(from, to, windowDays = 14) {
     const inRange = (_milestones || []).filter(m => m.date && m.date >= from && m.date <= to);
     return inRange.map(m => ({
-        milestone: m,
+        milestone: milestoneView(m, State.appConfig),   // 🆔 영향 업무를 지금 이름으로(사본)
         typeInfo: TYPE_LABELS[m.type] || TYPE_LABELS.memo,
         summary: computeMilestoneSummary(m, windowDays)
     }));

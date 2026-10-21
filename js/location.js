@@ -1,22 +1,22 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610211147';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610211215';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610211147';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610211147';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610211147';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610211147';
-import { orderKeyMap } from './lib/order-hash.js?v=202610211147';
-import { setShellContext } from './app-shell-bridge.js?v=202610211147';
-import { memberNameFor } from './app-shell-data.js?v=202610211147';
-import { menuConfigOf } from './lib/perm.js?v=202610211147';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610211147';
-import { initPageNav } from './page-nav.js?v=202610211147';
-import { initRefillCard } from './refill-card.js?v=202610211147';
-import { initLocRecCard } from './locrec-card.js?v=202610211147';
-import { whenPerm } from './feature-gate.js?v=202610211147';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610211147';
-import { uploadBlockText } from './lib/busy-view.js?v=202610211147';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610211147';
+import { escapeHtml as escAttr } from './utils.js?v=202610211215';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610211215';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610211215';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610211215';
+import { orderKeyMap } from './lib/order-hash.js?v=202610211215';
+import { setShellContext } from './app-shell-bridge.js?v=202610211215';
+import { memberNameFor } from './app-shell-data.js?v=202610211215';
+import { menuConfigOf } from './lib/perm.js?v=202610211215';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610211215';
+import { initPageNav } from './page-nav.js?v=202610211215';
+import { initRefillCard } from './refill-card.js?v=202610211215';
+import { initLocRecCard } from './locrec-card.js?v=202610211215';
+import { whenPerm } from './feature-gate.js?v=202610211215';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610211215';
+import { uploadBlockText } from './lib/busy-view.js?v=202610211215';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610211215';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -77,6 +77,8 @@ let filters = { loc: [], code: [], stock: [], stock2f: [], category: [], dong: [
 let colTextSearch = {};
 // 머리줄 전체 검색(#loc-global-search) — 로케이션·코드·상품명·옵션 부분일치(소문자로 저장)
 let globalSearch = '';
+// 머리줄 검색이 상품 관리 링크(?q=)로 들어온 값인가 — 이때만 쉼표를 '여러 개(OR)'로 나눈다. 직접 고치면 일반 검색
+let _globalSearchFromUrl = false;
 
 const RESERVE_EXPIRE_MS = Infinity; 
 
@@ -3875,6 +3877,7 @@ window.clearAllFilters = function(e) {
     // 머리줄 전체 검색도 비운다(입력 대기 중인 검색은 취소)
     clearTimeout(_globalSearchTimer);
     globalSearch = '';
+    _globalSearchFromUrl = false;
     const _gsInput = document.getElementById('loc-global-search');
     if (_gsInput) _gsInput.value = '';
     
@@ -3898,6 +3901,7 @@ let _globalSearchTimer = null;
         clearTimeout(_globalSearchTimer);
         _globalSearchTimer = setTimeout(() => {
             globalSearch = input.value.trim().toLowerCase();
+            _globalSearchFromUrl = false;
             if (globalSearch && document.body.dataset.locTab !== 'list' && typeof window.switchView === 'function') window.switchView('list');
             applyFiltersAndSort();
         }, 150);
@@ -3913,15 +3917,20 @@ function applyUrlSearchOnce() {
     if (!q || !q.trim()) return;
     const input = document.getElementById('loc-global-search');
     if (input) input.value = q.trim();
+    clearTimeout(_globalSearchTimer);   // 그사이 친 글자의 대기 중 검색이 쉼표 나누기를 끄지 않게
     globalSearch = q.trim().toLowerCase();
+    _globalSearchFromUrl = true;
     // 주소에서 ?q 는 지운다 — 남겨 두면 검색을 지운 뒤 새로고침해도 다시 걸린다
     try { history.replaceState(history.state, '', window.location.pathname + window.location.hash); } catch (e) { /* 무시 */ }
     if (document.body.dataset.locTab !== 'list' && typeof window.switchView === 'function') window.switchView('list');
 }
 
 function applyFiltersAndSort() {
-    // 머리줄 검색은 쉼표로 여러 개(하나라도 맞으면) — 상품 관리에서 옵션 코드 여러 개를 넘긴다
-    const gsTerms = globalSearch ? globalSearch.split(',').map(t => t.trim()).filter(Boolean) : [];
+    // 머리줄 검색: 상품 관리 링크(?q=)로 들어온 값만 쉼표로 여러 개(하나라도 맞으면) — 옵션 코드 여러 개를 넘긴다.
+    // 직접 친 검색은 쉼표까지 한 덩어리로 찾는다("블랙,L" 등)
+    const gsTerms = !globalSearch ? []
+        : _globalSearchFromUrl ? globalSearch.split(',').map(t => t.trim()).filter(Boolean)
+        : [globalSearch];
     let filtered = originalData.filter(item => {
         // ★ v3.57: 모든 필터 배열 기반 (OR 조건)
         if (filters.loc.length > 0 && !filters.loc.includes(item.id.charAt(0))) return false;

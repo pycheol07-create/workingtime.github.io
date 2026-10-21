@@ -8,11 +8,11 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202610211147';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610211147';
-import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610211147';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610211147';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211147';
+import * as State from './state.js?v=202610211215';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610211215';
+import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610211215';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610211215';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211215';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
@@ -839,19 +839,24 @@ function bind() {
         // 목록 보기의 [날짜 선택] → 날짜를 골라 그 날짜 팝업 열기
         const pickBtn = e.target.closest('#cal-list-pick');
         if (pickBtn) {
-            // 임시 날짜 입력칸을 버튼 자리에 띄워 달력으로 고르게 한다(고르면·벗어나면 지움)
+            // 임시 날짜 입력칸을 버튼 자리에 띄워 달력으로 고르게 한다(고르면 지움, 벗어나면 잠시 뒤 지움)
             const r = pickBtn.getBoundingClientRect();
             const inp = document.createElement('input');
             inp.type = 'date';
             // 값은 비워 둔다 — 오늘이 미리 들어 있으면 오늘을 골랐을 때 change 가 안 난다
             inp.style.cssText = `position:fixed;left:${r.left}px;top:${r.bottom}px;width:1px;height:1px;opacity:0;border:0;padding:0;`;
-            const cleanup = () => { if (inp.isConnected) inp.remove(); };
+            let blurTimer = null;
+            const cleanup = () => { clearTimeout(blurTimer); if (inp.isConnected) inp.remove(); };
             inp.addEventListener('change', () => {
                 const picked = inp.value;
                 cleanup();
                 if (/^\d{4}-\d{2}-\d{2}$/.test(picked)) openDayModal(picked);
             });
-            inp.addEventListener('blur', cleanup);
+            // 휴대폰은 날짜 선택창이 떠 있는 동안 포커스를 잃는다 — blur 로 지우면 고른 날짜의 change 를 놓친다.
+            // 그래서 blur 로는 지우지 않고, 고르면(change) 지우고, 안 고르면 넉넉한 상한(60초) 뒤나 다음 [날짜 선택] 때 지운다
+            document.querySelectorAll('input[data-cal-pick]').forEach(el => el.remove());
+            inp.setAttribute('data-cal-pick', '');
+            blurTimer = setTimeout(cleanup, 60000);
             document.body.appendChild(inp);
             inp.focus();
             if (typeof inp.showPicker === 'function') {

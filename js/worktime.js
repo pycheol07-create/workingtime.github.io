@@ -12,10 +12,10 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202610211147';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610211147';
-import { memberNameFor } from './app-shell-data.js?v=202610211147';
-import { escapeHtml as esc } from './utils.js?v=202610211147';
+import { initializeFirebase } from './config.js?v=202610211215';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610211215';
+import { memberNameFor } from './app-shell-data.js?v=202610211215';
+import { escapeHtml as esc } from './utils.js?v=202610211215';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -198,13 +198,14 @@ const monthReady = () => {
     toast('기록을 불러오는 중이거나 불러오지 못했습니다. 잠시 후 다시 해 주세요.', true);
     return false;
 };
-/** 예약된 기록 저장이 있으면 기다리지 않고 지금 보낸다(달 이동 전에 — 다른 달 예약에 취소되지 않게). */
-const flushSave = async () => {
+/** 예약된 기록 저장이 있으면 기다리지 않고 지금 보낸다(달 이동 전에 — 다른 달 예약에 취소되지 않게).
+ *  보내기만 하고 응답은 기다리지 않는다(오프라인이면 달 이동이 멈춘다). 달·기록은 예약 때 잡아 두었고, 실패는 runSave 가 토스트. */
+const flushSave = () => {
     if (!pendingSave) return;
     const p = pendingSave;
     pendingSave = null;
     clearTimeout(saveTimer);
-    await runSave(p);
+    runSave(p);
 };
 
 // ── 환율 ─────────────────────────────────────────────────────────
@@ -632,7 +633,7 @@ $('wage-input').addEventListener('blur', (e) => {
 
 // ── 월 이동 ──────────────────────────────────────────────────────
 const goMonth = async (ym) => {
-    await flushSave();
+    flushSave();
     currentYm = ym;
     selected = new Set();
     try {

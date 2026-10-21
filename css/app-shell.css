@@ -16,3 +16,11 @@ body[data-shell]:not([data-shell-bar="off"]) {
 }
 /* 🧪 에뮬레이터 띠(23px, js/firebase-emulator.js 가 body 에 인라인 padding 을 준다)가 있으면 그 아래로 */
 html.as-emu body[data-shell]:not([data-shell-bar="off"]) { --as-top: 23px; }
+
+/* 휴대폰·태블릿: 화면 전체가 좌우로 끌려 흔들리지 않게 고정(2026-10-21 사용자 요청).
+   넘치는 표·띠는 각자 안쪽 스크롤(overflow-x:auto)로 보고, 페이지 자체는 가로로 움직이지 않는다.
+   clip 은 hidden 과 달리 position:sticky 를 깨지 않는다 — 옛 브라우저만 hidden 으로 대신한다. */
+@media (max-width: 1023px), (pointer: coarse) {
+    html, body { max-width: 100%; overflow-x: clip; overscroll-behavior-x: none; }
+    @supports not (overflow: clip) { html, body { overflow-x: hidden; } }
+}

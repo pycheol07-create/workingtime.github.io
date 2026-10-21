@@ -82,7 +82,8 @@ export const FEATURES = [
     F('supplies.view',   '비품 관리',             'supplies',   'page', 'supplies.html',          { menu: '비품 관리' }),
     F('worktime.view',   '출퇴근 기록표',         'worktime',   'page', 'worktime.html',          { menu: '출퇴근 기록표' }),
     F('calculator.view', '통합 계산기',           'calculator', 'page', 'calculator/index.html',  { menu: '통합 계산기' }),
-    F('manual.view',     '업무 매뉴얼 및 도구',   'manual',     'page', 'manual.html',            { menu: '업무 매뉴얼 및 도구' }),
+    F('manual.view',     '업무 매뉴얼',           'manual',     'page', 'manual.html',            { menu: '업무 매뉴얼',
+        menuAliases: ['업무 매뉴얼 및 도구'] }),   // 화면 이름 변경 2026-10-21('도구' 기능 삭제) — 저장된 dashboardMenu·memberMenuAccess 의 옛 이름은 그대로
 
     // 관리자 페이지 — 역할로 나눠 주지 않는다(mainConfig·adminPrivate 규칙이 isAdmin 이다)
     F('admin.view',      '설정·관리',             'admin',      'page', 'admin.html',             { menu: '설정·관리', grantable: false,

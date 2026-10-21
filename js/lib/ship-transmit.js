@@ -7,7 +7,7 @@
 // 데이터: Firestore ZikjinData/CHUNK_n 문서 { dataStr: JSON(행 배열), updatedAt }.
 //   행 { 상품코드, 상품명, 수량, _q: { ZG, ZGF, AB, ABF }, _d: 'YYYYMMDD' }
 //   ZG = 직진 일반 / ZGF = 직진 즉시출고 / AB = 에이블리 일반 / ABF = 에이블리 즉시출고.
-//   (출처: 앱\직진배송자동화\firestore_sync.py merge_rows — 전송할 때마다 오늘(_d) 것만 남기고 덮어쓴다)
+//   (출처: 앱\플랫폼출고자동화\firestore_sync.py merge_rows — 전송할 때마다 오늘(_d) 것만 남기고 덮어쓴다)
 //   _d·_q 가 없는 행(LEGACY, 앱에서 엑셀 직접 업로드)은 쓰지 않는다.
 //   ⚠️ 컬렉션에는 마지막 전송일 하루치만 남는다 — 앱이 읽은 요약을 mergeTransmitByDate 로 쌓아 둔다(localStorage).
 //
