@@ -1,9 +1,10 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610211108';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610211108';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202610211108';
-import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610211108';
-import { permFieldsForSave } from './lib/perm-model.js?v=202610211108';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610211133';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610211133';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202610211133';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610211133';
+import { permFieldsForSave } from './lib/perm-model.js?v=202610211133';
+import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610211133';
 
 // 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
 export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',
@@ -44,8 +45,9 @@ export function detectEmailRenames(currentConfig, permModel) {
     return { renames, ambiguous };
 }
 
-/** permModel: 권한 화면 모델. 없으면 권한 칸을 저장 전 값 그대로 둔다(메뉴 미리보기용 호출 등) — 이때 저장은 admin.js 가 막는다. */
-export function collectConfigFromDOM(currentConfig, permModel = null) {
+/** permModel: 권한 화면 모델. 없으면 권한 칸을 저장 전 값 그대로 둔다(메뉴 미리보기용 호출 등) — 이때 저장은 admin.js 가 막는다.
+ *  taskInfo: 객체를 주면 업무 이름 변경 결과를 채운다 { renames, reused } (저장 확인창용). 반환값은 예전처럼 설정 하나. */
+export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo = null) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
     //    saveAppConfig 는 문서를 통째로 덮어쓰므로(merge 아님), 여기서 빠뜨린 키는
     //    관리자 설정을 한 번 저장하는 순간 Firestore에서 사라진다.
@@ -268,11 +270,9 @@ export function collectConfigFromDOM(currentConfig, permModel = null) {
         }
     });
 
-    document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
-        const nameEl = item.querySelector('.key-task-name');
-        if (nameEl) newConfig.keyTasks.push(nameEl.textContent.trim());
-    });
-
+    // 🆔 업무 id — 업무 줄의 data-task-id 로 taskIdNames 를 만든다. 주요 업무·처리량·원가·위젯 연결 줄도 id 를 달고 있어
+    //    지금 이름으로 읽는다(화면에 옛 이름이 남아 있어도). id 없는 줄만 화면 글자 그대로.
+    const taskRows = [];
     document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
         const groupNameInput = groupCard.querySelector('.task-group-name');
         const groupName = groupNameInput ? groupNameInput.value.trim() : '';
@@ -281,14 +281,46 @@ export function collectConfigFromDOM(currentConfig, permModel = null) {
         const tasks = [];
         groupCard.querySelectorAll('.task-item').forEach(taskItem => {
             const taskNameInput = taskItem.querySelector('.task-name');
-            if (taskNameInput) tasks.push(taskNameInput.value.trim());
+            if (!taskNameInput) return;
+            tasks.push(taskNameInput.value.trim());
+            taskRows.push({ el: taskItem, id: (taskItem.dataset && taskItem.dataset.taskId) || '', name: taskNameInput.value.trim() });
         });
         newConfig.taskGroups.push({ name: groupName, tasks: tasks });
+    });
+    const beforeIds = (currentConfig && currentConfig.taskIdNames) || null;
+    if (beforeIds) {
+        // id 없는 줄(정상이면 없음)은 여기서 붙이고 줄에 적어 둔다 — 미리보기를 여러 번 해도 같은 id
+        const used = new Set([...Object.keys(beforeIds), ...taskRows.map(r => r.id).filter(Boolean)]);
+        taskRows.forEach(r => {
+            if (r.id || !r.name) return;
+            r.id = newTaskId(used);
+            used.add(r.id);
+            if (r.el.dataset) r.el.dataset.taskId = r.id;
+        });
+        newConfig.taskIdNames = collectTaskIds(taskRows, beforeIds).taskIdNames;
+    }
+    const nameById = newConfig.taskIdNames || null;
+    // id 가 있는데 업무 목록에 없는 줄 = 업무 관리에서 지운 업무 → 빼고 모은다(null). id 없는 줄은 화면 글자 그대로(검사가 거른다).
+    const rowTaskName = (el, text) => {
+        const id = el && el.dataset && el.dataset.taskId;
+        if (!id || !nameById) return text;
+        return nameById[id] || null;
+    };
+    // 같은 업무가 두 줄이면 앞 줄만(대소문자·앞뒤 공백 무시)
+    const pushTask = (list, name) => {
+        if (!name) return;
+        const k = name.trim().toLowerCase();
+        if (!list.some(t => t.trim().toLowerCase() === k)) list.push(name);
+    };
+
+    document.querySelectorAll('#key-tasks-container .key-task-item').forEach(item => {
+        const nameEl = item.querySelector('.key-task-name');
+        if (nameEl) pushTask(newConfig.keyTasks, rowTaskName(item, nameEl.textContent.trim()));
     });
 
     document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(item => {
         const nameEl = item.querySelector('.quantity-task-name');
-        if (nameEl) newConfig.quantityTaskTypes.push(nameEl.textContent.trim());
+        if (nameEl) pushTask(newConfig.quantityTaskTypes, rowTaskName(item, nameEl.textContent.trim()));
     });
 
     const wageInput = document.getElementById('default-part-timer-wage');
@@ -307,18 +339,25 @@ export function collectConfigFromDOM(currentConfig, permModel = null) {
     if (directDeliveryCostInput) newConfig.fixedDirectDeliveryCost = Number(directDeliveryCostInput.value) || 0;
 
     document.querySelectorAll('.cost-calc-task-checkbox:checked').forEach(checkbox => {
-        newConfig.costCalcTasks.push(checkbox.value);
+        pushTask(newConfig.costCalcTasks, rowTaskName(checkbox, checkbox.value));
     });
 
+    // 같은 업무의 연결 줄이 둘 이상이면 위젯을 고른 첫 줄만 쓴다(뒤 줄은 무시)
     document.querySelectorAll('#quantity-mapping-container .mapping-row').forEach(row => {
-        const taskName = row.dataset.taskName;
+        const taskName = rowTaskName(row, row.dataset.taskName);
         const select = row.querySelector('.dashboard-mapping-select');
-        if (taskName && select && select.value) {
+        if (taskName && select && select.value && !(taskName in newConfig.quantityToDashboardMap)) {
             newConfig.quantityToDashboardMap[taskName] = select.value;
         }
     });
 
-    return newConfig;
+    // 이름 변경을 나머지 이름 칸(품질비용·예측 설정 등 화면에 없는 칸)에 퍼뜨리고 별칭을 남긴다.
+    //   위에서 id 로 읽은 칸은 이미 새 이름이라 건너뛴다(두 번 바꾸면 A↔B 맞바꾸기가 되돌아간다).
+    if (!beforeIds) return newConfig;
+    const { config, renames, reused } = applyTaskRenames(newConfig, currentConfig,
+        { skip: ['keyTasks', 'quantityTaskTypes', 'costCalcTasks', 'quantityToDashboardMap'] });
+    if (taskInfo) { taskInfo.renames = renames; taskInfo.reused = reused; }
+    return config;
 }
 
 export function validateConfig(newConfig) {
@@ -330,6 +369,11 @@ export function validateConfig(newConfig) {
 
 이대로 저장하면 아무도 설정·관리에 들어올 수 없습니다.
 권한 관리에서 최소 한 명을 '관리자'로 지정해 주세요.`);
+    }
+
+    const taskNameErrors = validateTaskNames(newConfig);
+    if (taskNameErrors.length > 0) {
+        throw new Error("[저장 실패] '업무 관리' 의 업무 이름을 확인해 주세요.\n\n- " + taskNameErrors.join('\n- '));
     }
 
     const allTaskNames = new Set(

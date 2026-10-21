@@ -1,8 +1,9 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610211108';
-import { renderPermissionPanel } from './admin-perm.js?v=202610211108';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610211133';
+import { renderPermissionPanel } from './admin-perm.js?v=202610211133';
+import { taskIdOf, isLockedTaskId } from './lib/task-ids.js?v=202610211133';
 
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
@@ -66,9 +67,9 @@ export function renderAdminUI(config) {
     // (미발계산기·출퇴근 기록표)가 편집기에 안 보여 순서를 바꿀 수 없었다.
     renderDashboardMenu(withBuiltinMenus(config.dashboardMenu || []));
     renderDashboardItemsConfig(config.dashboardItems || [], config);
-    renderKeyTasks(config.keyTasks || []);
-    renderTaskGroups(config.taskGroups || []);
-    renderQuantityTasks(config.quantityTaskTypes || []);
+    renderKeyTasks(config.keyTasks || [], config.taskIdNames);
+    renderTaskGroups(config.taskGroups || [], config.taskIdNames);
+    renderQuantityTasks(config.quantityTaskTypes || [], config.taskIdNames);
     renderQuantityToDashboardMapping(config);
     renderCostAnalysisConfig(config);
 }
@@ -278,6 +279,7 @@ export function renderCostAnalysisConfig(config) {
         });
 
         const savedTasks = new Set(config.costCalcTasks || []);
+        const taskIdNames = config.taskIdNames || {};
 
         if (allTasks.size === 0) {
              container.innerHTML = '<p class="text-xs text-gray-400 dark:text-gray-500 col-span-full text-center py-4">등록된 업무가 없습니다.</p>';
@@ -287,7 +289,7 @@ export function renderCostAnalysisConfig(config) {
                 const div = document.createElement('div');
                 div.className = 'flex items-center p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-500 transition-colors';
                 div.innerHTML = `
-                    <input type="checkbox" id="cost-task-${taskName}" value="${taskName}" class="cost-calc-task-checkbox w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 bg-gray-50 dark:bg-gray-900" ${isChecked}>
+                    <input type="checkbox" id="cost-task-${taskName}" value="${taskName}" data-task-id="${taskIdOf(taskName, taskIdNames)}" class="cost-calc-task-checkbox w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 bg-gray-50 dark:bg-gray-900" ${isChecked}>
                     <label for="cost-task-${taskName}" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer select-none flex-grow">${taskName}</label>
                 `;
                 container.appendChild(div);
@@ -325,7 +327,8 @@ export function renderDashboardItemsConfig(itemIds, fullConfig) {
     });
 }
 
-export function renderKeyTasks(keyTasks) {
+// taskIdNames: 업무 id 표 — 줄마다 data-task-id 를 달아 저장 때 지금 이름으로 읽는다(js/lib/task-ids.js)
+export function renderKeyTasks(keyTasks, taskIdNames = {}) {
     const container = document.getElementById('key-tasks-container');
     if (!container) return;
     container.innerHTML = '';
@@ -334,6 +337,7 @@ export function renderKeyTasks(keyTasks) {
         const taskEl = document.createElement('div');
         taskEl.className = 'flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 key-task-item group transition-colors';
         taskEl.dataset.index = index;
+        taskEl.dataset.taskId = taskIdOf(task, taskIdNames);
         taskEl.innerHTML = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
             <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="key-task-name">${task}</span></span>
@@ -343,7 +347,24 @@ export function renderKeyTasks(keyTasks) {
     });
 }
 
-export function renderTaskGroups(taskGroups) {
+// 업무 줄 하나. 잠긴 업무(프로그램이 이름으로 계산)는 이름 칸을 읽기 전용 + 🔒. '+ 업무 추가'(admin.js)도 이 함수로 만든다.
+export function taskItemHtml(task, taskId, tIndex = '') {
+    const locked = isLockedTaskId(taskId);
+    const lockAttr = locked ? ' readonly title="프로그램이 이 이름으로 계산합니다(이름 변경 불가)"' : '';
+    const lockMark = locked ? '<span class="text-xs" title="프로그램이 이 이름으로 계산합니다(이름 변경 불가)">🔒</span>' : '';
+    return `
+            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group" data-task-id="${taskId || ''}">
+                <div class="flex items-center gap-2 flex-grow">
+                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
+                    <input type="text" value="${task}" class="task-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none"${lockAttr}>
+                    ${lockMark}
+                </div>
+                <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100" data-t-index="${tIndex}">삭제</button>
+            </div>
+        `;
+}
+
+export function renderTaskGroups(taskGroups, taskIdNames = {}) {
     const container = document.getElementById('task-groups-container');
     if (!container) return;
     container.innerHTML = '';
@@ -353,15 +374,7 @@ export function renderTaskGroups(taskGroups) {
         groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 task-group-card transition-colors';
         groupEl.dataset.index = index;
 
-        const tasksHtml = (group.tasks || []).map((task, tIndex) => `
-            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group">
-                <div class="flex items-center gap-2 flex-grow">
-                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
-                    <input type="text" value="${task}" class="task-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none">
-                </div>
-                <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100" data-t-index="${tIndex}">삭제</button>
-            </div>
-        `).join('');
+        const tasksHtml = (group.tasks || []).map((task, tIndex) => taskItemHtml(task, taskIdOf(task, taskIdNames), tIndex)).join('');
 
         groupEl.innerHTML = `
              <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
@@ -382,7 +395,7 @@ export function renderTaskGroups(taskGroups) {
     });
 }
 
-export function renderQuantityTasks(quantityTasks) {
+export function renderQuantityTasks(quantityTasks, taskIdNames = {}) {
     const container = document.getElementById('quantity-tasks-container');
     if (!container) return;
     container.innerHTML = '';
@@ -391,6 +404,7 @@ export function renderQuantityTasks(quantityTasks) {
         const taskEl = document.createElement('div');
         taskEl.className = 'flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 quantity-task-item group transition-colors';
         taskEl.dataset.index = index;
+        taskEl.dataset.taskId = taskIdOf(task, taskIdNames);
         taskEl.innerHTML = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
             <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="quantity-task-name">${task}</span></span>
@@ -430,6 +444,7 @@ export function renderQuantityToDashboardMapping(config) {
         const row = document.createElement('div');
         row.className = 'flex flex-wrap md:flex-nowrap items-center gap-4 mapping-row p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 transition-colors';
         row.dataset.taskName = taskName;
+        row.dataset.taskId = taskIdOf(taskName, config.taskIdNames);
 
         const currentSelection = mapping[taskName] || '';
 

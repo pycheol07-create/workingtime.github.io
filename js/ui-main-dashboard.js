@@ -1,11 +1,12 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610211108';
-import * as State from './state.js?v=202610211108';
-import { getRegularMembersForCount } from './utils.js?v=202610211108';
-import { visibleMenuFor } from './menu-catalog.js?v=202610211108';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610211108';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610211108';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610211108';
+import { getAllDashboardDefinitions } from './ui.js?v=202610211133';
+import * as State from './state.js?v=202610211133';
+import { getRegularMembersForCount } from './utils.js?v=202610211133';
+import { visibleMenuFor } from './menu-catalog.js?v=202610211133';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610211133';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610211133';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610211133';
+import { canonicalTaskName } from './lib/task-ids.js?v=202610211133';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -329,8 +330,14 @@ export const updateSummary = (appState, appConfig) => {
     const quantitiesFromState = appState.taskQuantities || {};
     const taskNameToDashboardIdMap = appConfig.quantityToDashboardMap || {};
     
-    for (const task in quantitiesFromState) {
-        const quantity = quantitiesFromState[task] || 0;
+    // 🆔 업무 이름을 바꾼 날: 옛 이름 키는 지금 이름으로 맞춰 본다. 같은 업무에 지금 이름 값이 있으면 그것, 없으면 옛 이름 값(더하지 않음)
+    const qtyByTask = {};
+    for (const key in quantitiesFromState) {
+        const task = canonicalTaskName(key, appConfig);
+        if (!(task in qtyByTask) || task === key) qtyByTask[task] = quantitiesFromState[key];
+    }
+    for (const task in qtyByTask) {
+        const quantity = qtyByTask[task] || 0;
         const targetDashboardId = taskNameToDashboardIdMap[task];
 
         if (targetDashboardId && elements[targetDashboardId]) {

@@ -1,14 +1,15 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610211108';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211108';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610211108';
-import { memberNameFor } from './app-shell-data.js?v=202610211108';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610211133';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211133';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610211133';
+import { memberNameFor } from './app-shell-data.js?v=202610211133';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610211108';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610211108';
-import { getPermModel } from './admin-perm.js?v=202610211108';
-import { showConfirm } from './utils.js?v=202610211108';
+import { menuConfigOf } from './lib/perm.js?v=202610211133';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610211133';
+import { getPermModel } from './admin-perm.js?v=202610211133';
+import { showConfirm } from './utils.js?v=202610211133';
+import { ensureTaskIds, newTaskId, isLockedTaskId } from './lib/task-ids.js?v=202610211133';
 
 import {
     renderAdminUI,
@@ -16,6 +17,8 @@ import {
     renderQuantityTasks,
     renderDashboardItemsConfig,
     renderQuantityToDashboardMapping,
+    renderCostAnalysisConfig,
+    taskItemHtml,
     populateTaskSelectModal,
     openDashboardItemModal,
     getAllDashboardDefinitions,
@@ -25,13 +28,13 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610211108';
+} from './admin-ui.js?v=202610211133';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610211108';
+} from './admin-logic.js?v=202610211133';
 
 let db, auth;
 let appConfig = {};
@@ -122,6 +125,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     // 메뉴 관리의 '연결할 곳' 목록에 새 html 페이지를 붙인다(배포 때 만든 pages.json).
                     await loadMenuPageList();
+                    // 🆔 업무 id 를 메모리에서만 붙인다(첫 저장 때 기록 — 불러오기만으로는 쓰지 않는다)
+                    appConfig = ensureTaskIds(appConfig);
                     renderAdminUI(appConfig);
                     setupEventListeners();
                     if (adminContent) adminContent.classList.remove('hidden');
@@ -235,7 +240,7 @@ function setupEventListeners() {
             appConfig.dashboardItems.push(itemId);
             
             renderDashboardItemsConfig(appConfig.dashboardItems, appConfig);
-            renderQuantityToDashboardMapping(appConfig);
+            redrawMappingFromScreen();
             
             document.getElementById('select-dashboard-item-modal')?.classList.add('hidden');
         }
@@ -252,7 +257,46 @@ function setupEventListeners() {
     });
 
     document.body.addEventListener('click', handleDynamicClicks);
+    // 🆔 기존 업무 이름을 고치면(칸을 벗어날 때) 같은 업무의 다른 그룹 칸도 맞추고, 주요 업무·처리량·위젯 연결·원가 칸을 새 이름으로 다시 그린다
+    document.getElementById('task-groups-container')?.addEventListener('change', (e) => {
+        const input = e.target.closest && e.target.closest('.task-name');
+        if (!input) return;
+        const id = input.closest('.task-item')?.dataset.taskId;
+        if (id) document.querySelectorAll('#task-groups-container .task-item').forEach(row => {
+            const other = row.querySelector('.task-name');
+            if (row.dataset.taskId === id && other && other !== input) other.value = input.value;
+        });
+        refreshTaskViews();
+    });
     setupAllDragListeners();
+}
+
+// 🆔 지금 화면 기준 설정(미리보기) — 업무 이름 변경이 반영된 이름 칸. 못 만들면(이메일 중복 등) null.
+//    ensureTaskIds 를 다시 부르지 않는다(id 를 새로 만들면 이름 변경을 못 알아본다).
+function previewTaskConfig() {
+    try { return collectConfigFromDOM(appConfig); } catch (e) { lastPreviewError = e; return null; }
+}
+let lastPreviewError = null;
+// 미리보기를 못 만들면 저장 전 설정(appConfig)으로 다시 그리지 않는다 — 이번에 추가·변경한 줄이 사라진다. 알리고 멈춘다.
+function previewOrWarn() {
+    const cfg = previewTaskConfig();
+    if (!cfg) alert('화면 값을 읽지 못해 목록을 다시 그리지 않았습니다(입력한 내용은 그대로 둡니다).\n'
+        + (lastPreviewError && lastPreviewError.message ? lastPreviewError.message + '\n' : '')
+        + '위 문제를 먼저 고친 뒤 다시 해 주세요.');
+    return cfg;
+}
+function redrawMappingFromScreen() {
+    const cfg = previewOrWarn();
+    if (cfg) renderQuantityToDashboardMapping(cfg);
+}
+
+function refreshTaskViews() {
+    const cfg = previewTaskConfig();
+    if (!cfg) return;
+    renderKeyTasks(cfg.keyTasks || [], cfg.taskIdNames);
+    renderQuantityTasks(cfg.quantityTaskTypes || [], cfg.taskIdNames);
+    renderQuantityToDashboardMapping(cfg);
+    renderCostAnalysisConfig(cfg);
 }
 
 // ★ 연차 사용기한(적용 시작일/사용 만료일) 변경 감지 → 새 적용 시작일 이전의 연차/반차 내역을 실제로 삭제
@@ -335,7 +379,8 @@ async function handleSaveAll() {
         }
         const permModel = renameEmails(uiModel, renames);
         const autoCount = autoAssignedCount(permModel);
-        const newConfig = collectConfigFromDOM(appConfig, permModel);
+        const taskInfo = {};
+        const newConfig = collectConfigFromDOM(appConfig, permModel, taskInfo);
         validateConfig(newConfig);
         // 저장 전에 기능 집합 검사 — 손대지 않은 사람의 권한이 바뀌거나, 저장될 값이 화면과 다르거나, 옛 이메일 키가 남으면 멈춘다(건수만 알린다).
         const permCheck = verifyPermSave(permModel, newConfig, renames);
@@ -343,6 +388,11 @@ async function handleSaveAll() {
             throw new Error(`[저장 멈춤] 권한 검사에 걸렸습니다 — 저장 값이 화면과 다른 사람 ${permCheck.mismatch}명, `
                 + `손대지 않았는데 권한이 바뀌는 사람 ${permCheck.changed}명, 옛 이메일이 남은 사람 ${permCheck.stale}명.\n`
                 + '아무것도 저장하지 않았습니다. 새로고침 후 다시 해 보고, 계속되면 개발 담당에게 알려 주세요.');
+        }
+
+        // 🆔 업무 이름 변경은 저장 전에 무엇이 함께 바뀌는지 보여 주고 확인받는다
+        if ((taskInfo.renames && taskInfo.renames.length) || (taskInfo.reused && taskInfo.reused.length)) {
+            if (!(await showConfirm(taskRenameMessage(taskInfo, appConfig), { title: '업무 이름 변경', okText: '바꾸고 저장' }))) return;
         }
 
         // 눌러도 열리지 않을 메뉴는 저장 전에 알린다(막지는 않는다 — 만들다 만 상태로 저장할 수도 있다).
@@ -397,36 +447,65 @@ async function handleSaveAll() {
     }
 }
 
+// 업무 이름 칸 → 확인창에 보일 이름
+const TASK_FIELD_LABELS = {
+    keyTasks: '주요 업무', quantityTaskTypes: '처리량 집계', costCalcTasks: '원가 계산', qualityCostTasks: '품질비용',
+    quantityToDashboardMap: '대시보드 위젯 연결', simulationTaskLinks: '시뮬레이션 연결',
+    forecastBacklogTasks: '예측 이월', staffingBasketTasks: '인원 산정'
+};
+const taskFieldLabel = (f) => TASK_FIELD_LABELS[f] || (f.startsWith('sim') ? '예측 설정(' + f + ')' : f);
+
+function taskRenameMessage(info, beforeCfg) {
+    const lines = [];
+    (info.renames || []).forEach(r => {
+        lines.push(`이름 변경: ${r.from} → ${r.to}`);
+        const labels = [...new Set(r.fields.map(taskFieldLabel))];
+        lines.push(`  함께 바뀌는 설정: ${labels.length ? labels.join(', ') : '없음'}`);
+    });
+    (info.reused || []).forEach(u => {
+        const prev = (beforeCfg.taskIdNames || {})[u.prevId] || '지운 업무';
+        lines.push(`'${u.name}' 은(는) 예전에 다른 업무(지금 '${prev}')의 이름이었습니다 — 옛 기록이 이 업무로 합쳐 보입니다.`);
+    });
+    lines.push('', '과거 기록은 옛 이름으로 남고 통계에서 합쳐 봅니다.',
+        '오늘 진행 중인 업무는 옛 이름으로 마감되니 마감 뒤에 바꾸는 것이 안전합니다.');
+    return lines.join('\n');
+}
+
 /** 서버의 지금 permRev(없으면 0). 캐시가 아니라 서버에서 읽는다 — 못 읽으면 예외(저장하지 않는다). */
 async function readServerPermRev() {
     const snap = await getDocFromServer(doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig'));
     return snap.exists() ? (Number((snap.data() || {}).permRev) || 0) : 0;
 }
 
+// 목록은 지금 화면 기준(미리보기)으로 다시 그린다 — 저장 전 설정(appConfig)으로 그리면 방금 바꾼 업무 이름이 옛 이름으로 돌아간다.
 function addKeyTask(taskName) {
     const nameToAdd = taskName || '새 주요 업무';
-    if (!appConfig.keyTasks) appConfig.keyTasks = [];
+    const cfg = previewOrWarn();
+    if (!cfg) return;
+    const list = (cfg.keyTasks || []).slice();
 
-    if (appConfig.keyTasks.some(t => t.trim().toLowerCase() === nameToAdd.trim().toLowerCase())) {
+    if (list.some(t => t.trim().toLowerCase() === nameToAdd.trim().toLowerCase())) {
         alert("이미 등록된 업무입니다.");
         return;
     }
-    appConfig.keyTasks.push(nameToAdd);
-    renderKeyTasks(appConfig.keyTasks);
+    list.push(nameToAdd);
+    renderKeyTasks(list, cfg.taskIdNames);
 }
 
 function addQuantityTask(taskName) {
     const nameToAdd = taskName || '새 처리량 업무';
-    if (!appConfig.quantityTaskTypes) appConfig.quantityTaskTypes = [];
+    const cfg = previewOrWarn();
+    if (!cfg) return;
+    const list = (cfg.quantityTaskTypes || []).slice();
 
-    if (appConfig.quantityTaskTypes.some(t => t.trim().toLowerCase() === nameToAdd.trim().toLowerCase())) {
+    if (list.some(t => t.trim().toLowerCase() === nameToAdd.trim().toLowerCase())) {
         if (taskJustAdded === taskName) return; 
         alert("이미 등록된 업무입니다.");
         return;
     }
-    appConfig.quantityTaskTypes.push(nameToAdd);
-    renderQuantityTasks(appConfig.quantityTaskTypes);
-    renderQuantityToDashboardMapping(appConfig);
+    list.push(nameToAdd);
+    renderQuantityTasks(list, cfg.taskIdNames);
+    renderQuantityToDashboardMapping({ ...cfg, quantityTaskTypes: list });
 }
 
 function addCustomDashboardItem() {
@@ -448,7 +527,7 @@ function addCustomDashboardItem() {
     appConfig.dashboardItems.push(newId);
 
     renderDashboardItemsConfig(appConfig.dashboardItems, appConfig);
-    renderQuantityToDashboardMapping(appConfig);
+    redrawMappingFromScreen();
 }
 
 function addTeamGroup() {
@@ -546,12 +625,29 @@ function handleDynamicClicks(e) {
         }
     }
     else if (e.target.classList.contains('delete-key-task-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.key-task-item')?.remove(); }
-    else if (e.target.classList.contains('delete-task-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.task-item')?.remove(); }
-    else if (e.target.classList.contains('delete-task-group-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.task-group-card')?.remove(); }
+    else if (e.target.classList.contains('delete-task-btn')) {
+        // 🔒 프로그램이 이름으로 계산하는 업무는 마우스 환경에서도 한 번 더 묻는다
+        const row = e.target.closest('.task-item');
+        if (row && isLockedTaskId(row.dataset.taskId)) {
+            const name = row.querySelector('.task-name')?.value.trim() || '';
+            showConfirm(`'${name}' 은(는) 프로그램이 이 이름으로 계산하는 업무입니다(예측·대시보드 등).\n지우면 그 계산에서 빠집니다. 그래도 삭제할까요?\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
+                { title: '고정 업무 삭제', okText: '삭제', danger: true }).then(ok => ok && row.remove());
+        } else if (touchConfirm(DELETE_CONFIRM_MSG)) row?.remove();
+    }
+    else if (e.target.classList.contains('delete-task-group-btn')) {
+        const card = e.target.closest('.task-group-card');
+        const locked = card ? [...card.querySelectorAll('.task-item')].filter(r => isLockedTaskId(r.dataset.taskId))
+            .map(r => r.querySelector('.task-name')?.value.trim()).filter(Boolean) : [];
+        if (locked.length) {
+            showConfirm(`이 그룹에 프로그램이 이름으로 계산하는 업무가 있습니다: ${locked.join(', ')}\n그룹을 지우면 그 계산에서 빠집니다. 그래도 삭제할까요?\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
+                { title: '그룹 삭제', okText: '삭제', danger: true }).then(ok => ok && card.remove());
+        } else if (touchConfirm(DELETE_CONFIRM_MSG)) card?.remove();
+    }
     else if (e.target.classList.contains('delete-quantity-task-btn')) {
         if (touchConfirm(DELETE_CONFIRM_MSG)) {
             e.target.closest('.quantity-task-item')?.remove();
-            renderQuantityToDashboardMapping({ ...appConfig, quantityTaskTypes: getAllCurrentQuantityTasks() });
+            // 지금 화면 기준으로(업무 이름 변경·고른 위젯 유지)
+            redrawMappingFromScreen();
         }
     }
     else if (e.target.classList.contains('delete-dashboard-item-btn')) {
@@ -628,15 +724,12 @@ function handleDynamicClicks(e) {
     }
     else if (e.target.classList.contains('add-task-btn')) {
         const container = e.target.closest('.task-group-card').querySelector('.tasks-container');
-        const newTaskEl = document.createElement('div');
-        newTaskEl.className = 'flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group';
-        newTaskEl.innerHTML = `
-            <div class="flex items-center gap-2 flex-grow">
-                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
-                <input type="text" value="새 업무" class="task-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none">
-            </div>
-            <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100">삭제</button>
-        `;
+        // 🆔 새 업무 id — 화면의 id·저장된 id·별칭이 가리키는 id 와 겹치지 않게
+        const used = new Set([...Object.keys(appConfig.taskIdNames || {}), ...Object.values(appConfig.taskAliases || {})]);
+        document.querySelectorAll('#task-groups-container .task-item').forEach(r => { if (r.dataset.taskId) used.add(r.dataset.taskId); });
+        const tmp = document.createElement('div');
+        tmp.innerHTML = taskItemHtml('새 업무', newTaskId(used)).trim();
+        const newTaskEl = tmp.firstElementChild;
         container.appendChild(newTaskEl);
         
         const input = newTaskEl.querySelector('.task-name');
@@ -712,7 +805,7 @@ function setupDragDropListeners(containerSelector, itemSelector) {
                 draggedItem = null;
                 container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
                 if (containerSelector === '#dashboard-items-container') {
-                    renderQuantityToDashboardMapping(collectConfigFromDOM(appConfig));
+                    redrawMappingFromScreen();
                 }
             }
         });
