@@ -13,20 +13,20 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610210931'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610211108'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610210931';
-import { sortMark } from './lib/china-stock-view.js?v=202610210931';
+import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610211108';
+import { sortMark } from './lib/china-stock-view.js?v=202610211108';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf, FLAG_INFO, COMPARE_COLS, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610210931';
-import { setShellContext } from './app-shell-bridge.js?v=202610210931';
-import { memberNameFor } from './app-shell-data.js?v=202610210931';
-import { mountBusyBanner } from './busy-banner.js?v=202610210931';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610210931';
+} from './lib/mibal2-rows.js?v=202610211108';
+import { setShellContext } from './app-shell-bridge.js?v=202610211108';
+import { memberNameFor } from './app-shell-data.js?v=202610211108';
+import { mountBusyBanner } from './busy-banner.js?v=202610211108';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610211108';
 
 const { db, auth } = initializeFirebase();
 
@@ -188,9 +188,9 @@ function applyLatest(data) {
     stockRows = {}; ship = { items: {} };
     if (!data) return;
     const r = parseJsonSafe(data.rowsJson || '{}', {});
-    if (r === undefined) parseError = 'rowsJson 해석 실패'; else stockRows = r;
+    if (r === undefined) parseError = '수집 자료(재고) 해석 실패'; else stockRows = r;
     const s = parseJsonSafe(data.shipJson || '{}', {});
-    if (s === undefined) parseError = (parseError ? parseError + ' · ' : '') + 'shipJson 해석 실패';
+    if (s === undefined) parseError = (parseError ? parseError + ' · ' : '') + '수집 자료(출고) 해석 실패';
     else { ship = s; if (!ship.items) ship.items = {}; }
 }
 
@@ -331,7 +331,7 @@ function oldSourceText(os) {
     if (!os) return '기존 계산기 미발수량 자료 없음';
     return os.kind === 'version'
         ? `버전기록 ${os.atMs ? mdhm(os.atMs) : '?'} (${esc(os.trigger)}${os.note ? ' · ' + esc(os.note) : ''})`
-        : `현재 ScanDB ${os.atMs ? mdhm(os.atMs) : ''}`;
+        : `현재 스캔 기록 ${os.atMs ? mdhm(os.atMs) : ''}`;
 }
 
 function detailHtml(r) {
@@ -370,7 +370,7 @@ function renderTable() {
         if (!daily) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">날짜를 고르세요.</td></tr>`; return; }
         if (!daily.ok) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-risk" style="padding:50px;">${esc(daily.msg)}</td></tr>`; return; }
     } else {
-        if (!latest) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-risk" style="padding:50px;">수집 자료(mibal2Latest)가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
+        if (!latest) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-risk" style="padding:50px;">수집 자료가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
         if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">출고일을 선택하세요.</td></tr>`; return; }
     }
     if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
@@ -530,6 +530,7 @@ function setDateDiffWarn(on) {
     if (btn) btn.hidden = !on;
 }
 let popupSnapshot = null;
+let popupBackup = [];   // 팝업을 열 때의 선택 — ESC 로 닫으면 이것으로 되돌린다(저장 안 함)
 async function onDatePopupClosed() {
     const now = JSON.stringify([...selectedDates].sort());
     if (popupSnapshot !== null && now !== popupSnapshot) {
@@ -566,11 +567,21 @@ function setupDatePopup() {
         e.stopPropagation();
         if (viewMode !== 'live') return;
         if (popup.style.display === 'block') { popup.style.display = 'none'; onDatePopupClosed(); }
-        else { popup.style.display = 'block'; popupSnapshot = JSON.stringify([...selectedDates].sort()); }
+        else { popup.style.display = 'block'; popupSnapshot = JSON.stringify([...selectedDates].sort()); popupBackup = [...selectedDates]; }
     });
     popup.addEventListener('click', (e) => e.stopPropagation());
     document.addEventListener('click', () => {
         if (popup.style.display === 'block') { popup.style.display = 'none'; onDatePopupClosed(); }
+    });
+    // ESC = 바꾼 선택을 버리고 닫기(열기 전 선택으로 되돌림, 저장·재계산 없음)
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || popup.style.display !== 'block') return;
+        selectedDates = [...popupBackup];
+        popupSnapshot = null;
+        popup.style.display = 'none';
+        renderDateList();
+        renderDateTags();
+        if (viewMode === 'live') recomputeAndRender();
     });
     $('btn-date-all').addEventListener('click', () => {
         popup.querySelectorAll('.date-check').forEach(c => { c.checked = true; });
@@ -779,7 +790,7 @@ async function saveCompare() {
             oldSource: oldSnap ? { kind: oldSnap.kind, atMs: oldSnap.atMs || 0, trigger: oldSnap.trigger || '' } : null,
             latestOkAtMs: latest ? tsMs(latest.lastOkAt) : 0
         });
-        showToast(`저장 완료 (compare_${id} · ${allRows.length}행)`);
+        showToast(`저장 완료 (${allRows.length}행)`);
     } catch (e) { showToast('⚠️ 저장 실패: ' + (e && e.code || e)); }
 }
 

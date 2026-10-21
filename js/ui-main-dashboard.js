@@ -1,11 +1,11 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610210931';
-import * as State from './state.js?v=202610210931';
-import { getRegularMembersForCount } from './utils.js?v=202610210931';
-import { visibleMenuFor } from './menu-catalog.js?v=202610210931';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610210931';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610210931';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610210931';
+import { getAllDashboardDefinitions } from './ui.js?v=202610211108';
+import * as State from './state.js?v=202610211108';
+import { getRegularMembersForCount } from './utils.js?v=202610211108';
+import { visibleMenuFor } from './menu-catalog.js?v=202610211108';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610211108';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610211108';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610211108';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -335,7 +335,7 @@ export const updateSummary = (appState, appConfig) => {
 
         if (targetDashboardId && elements[targetDashboardId]) {
             const el = elements[targetDashboardId];
-            el.textContent = quantity;
+            el.textContent = (Number(quantity) || 0).toLocaleString();   // 천 단위 쉼표(표시 전용 — 이 글자를 다시 숫자로 읽는 곳 없음)
         }
     }
 

@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 미발계산기</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610210931">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610210931">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610210931">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610210931">
+    <link rel="stylesheet" href="css/suit.css?v=202610211108">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610211108">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610211108">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610211108">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -194,7 +194,7 @@
             <div class="upload-dropdown mode-mibal" style="position: relative; display: inline-block;">
                 <button class="btn-main-upload d-btn" id="btn-toggle-tools">도구 ▾</button>
                 <div class="upload-menu" id="tools-menu" style="display: none; position: absolute; top: 100%; right: 0; z-index: 10001; width: 240px;">
-                    <div class="menu-item mode-mibal" id="btn-version-history" title="ScanDB 버전 기록 / 롤백 — 미발재고로그 업로드마다 자동 저장, 문제 시 원하는 시점으로 복원" style="display: block;">버전기록 (롤백)</div>
+                    <div class="menu-item mode-mibal" id="btn-version-history" title="스캔 기록 버전 / 롤백 — 미발재고로그 업로드마다 자동 저장, 문제 시 원하는 시점으로 복원" style="display: block;">버전기록 (롤백)</div>
                     <div class="menu-item mode-mibal" id="btn-mibal-predict" style="display: block;">미발예측</div>
                 </div>
             </div>
@@ -221,20 +221,20 @@
     </div>
 
     <!-- [Ver 8.92] 스캔 잠금 오버레이: 잠금 중 전체 화면을 덮어 모든 조작 차단 -->
-    <div id="scan-lock-overlay" style="display:none; position:fixed; inset:0; z-index:2147483000; background:rgba(35,39,46,0.72); align-items:center; justify-content:center;">
+    <div id="scan-lock-overlay" data-esc-modal style="display:none; position:fixed; inset:0; z-index:2147483000; background:rgba(35,39,46,0.72); align-items:center; justify-content:center;">
         <div style="background:var(--c-surface); border-radius:var(--r-card); padding:28px 34px; max-width:440px; text-align:center; box-shadow:var(--sh-pop); border:1px solid var(--c-risk);">
             <div class="t-risk" style="font-size:22px; font-weight:700; margin:0 0 6px;">스캔 잠금 중</div>
-            <div class="t-2" style="font-size:14px; line-height:1.7; margin-bottom:10px;">작업자 스캔을 보호하는 중입니다.<br><b>새로고침 · 업로드 · 초기화 · 출고일 변경 등<br>모든 기능이 잠겼습니다.</b><br>스캔DB(ScanDB)는 변경되지 않습니다.</div>
-            <div style="font-size:12px; color:var(--c-risk-text); background:var(--c-risk-soft); border-radius:var(--r-sm); padding:9px 11px; margin-bottom:18px; line-height:1.6;">작업이 끝난 뒤에만 잠금을 해제하세요.<br>해제 후 재계산/새로고침해야 ScanDB가 갱신됩니다.</div>
+            <div class="t-2" style="font-size:14px; line-height:1.7; margin-bottom:10px;">작업자 스캔을 보호하는 중입니다.<br><b>새로고침 · 업로드 · 초기화 · 출고일 변경 등<br>모든 기능이 잠겼습니다.</b><br>스캔 기록은 변경되지 않습니다.</div>
+            <div style="font-size:12px; color:var(--c-risk-text); background:var(--c-risk-soft); border-radius:var(--r-sm); padding:9px 11px; margin-bottom:18px; line-height:1.6;">작업이 끝난 뒤에만 잠금을 해제하세요.<br>해제 후 재계산/새로고침해야 스캔 기록이 갱신됩니다.</div>
             <button id="btn-scan-unlock" class="d-btn d-btn-primary" style="min-height:44px; padding:0 30px; font-size:15px;">잠금 해제</button>
         </div>
     </div>
 
     <!-- [Ver 8.94] ScanDB 버전 기록 / 롤백 모달 -->
-    <div id="version-modal" style="display:none; position:fixed; inset:0; z-index:2147483100; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+    <div id="version-modal" data-esc-modal style="display:none; position:fixed; inset:0; z-index:2147483100; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
         <div style="background:var(--c-surface); border-radius:var(--r-card); width:min(560px,92vw); max-height:82vh; display:flex; flex-direction:column; box-shadow:var(--sh-pop); overflow:hidden;">
             <div style="padding:15px 18px; border-bottom:1px solid var(--c-line-soft); display:flex; align-items:center; gap:8px;">
-                <div style="font-size:18px; font-weight:600; color:var(--c-text); flex:1;">버전 기록 <span class="t-3" style="font-size:12px; font-weight:normal;">(ScanDB · 순수 미발수량)</span></div>
+                <div style="font-size:18px; font-weight:600; color:var(--c-text); flex:1;">버전 기록 <span class="t-3" style="font-size:12px; font-weight:normal;">(스캔 기록 · 순수 미발수량)</span></div>
                 <button id="btn-version-manual" class="d-btn d-btn-primary">현재 저장</button>
                 <button id="btn-version-close" class="d-btn">닫기</button>
             </div>
@@ -267,7 +267,7 @@
     <div class="summary-bar">
         <div class="summary-card highlight"><span class="label">총 SKU</span><span class="value" id="sum-sku">0</span></div>
         <div class="summary-card highlight"><span class="label">총 도착수량</span><span class="value" id="sum-arrival">0</span></div>
-        <div class="summary-card" title="부족수량 열의 합계 — 미발전송은 도착수량을 넘는 몫을 뺀 값을 보냄"><span class="label">총 미발수량</span><span class="value" id="sum-mibal">0</span></div>
+        <div class="summary-card" title="부족수량 열의 합계 — 미발전송은 도착수량을 넘는 몫을 뺀 값을 보냄"><span class="label">총 부족수량</span><span class="value" id="sum-mibal">0</span></div>
     </div>
 
     <!-- [Ver 7.1] 위치지정모드 서브탭: 당일입고지정 / 기존재고지정 -->
@@ -352,7 +352,7 @@
                 <input type="text" id="modal-csv-buy" placeholder="https://docs.google.com/spreadsheets/.../pub?output=csv" style="padding:8px; border:1px solid var(--c-line-strong); border-radius:var(--r-sm);">
             </div>
             <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:8px;">
-                <button id="btn-sheet-cancel" class="d-btn">취소</button>
+                <button id="btn-sheet-cancel" class="d-btn" data-esc-close>취소</button>
                 <button id="btn-sheet-save" class="d-btn d-btn-primary">저장</button>
             </div>
         </div>
@@ -410,7 +410,7 @@
                 </table>
             </div>
             <div style="margin-top:16px; display:flex; justify-content:flex-end; gap:8px;">
-                <button id="btn-zone-cancel" class="d-btn">취소</button>
+                <button id="btn-zone-cancel" class="d-btn" data-esc-close>취소</button>
                 <button id="btn-zone-save" class="d-btn d-btn-primary">저장</button>
             </div>
         </div>
@@ -430,7 +430,7 @@
             <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
                 <button id="btn-column-reset" class="d-btn">기본값 복원</button>
                 <div style="display:flex; gap:8px;">
-                    <button id="btn-column-cancel" class="d-btn">취소</button>
+                    <button id="btn-column-cancel" class="d-btn" data-esc-close>취소</button>
                     <button id="btn-column-save" class="d-btn d-btn-primary">저장</button>
                 </div>
             </div>
@@ -558,12 +558,13 @@
     </div>
 
     <div id="toast"></div>
+    <script src="js/modal-esc.js?v=202610211108"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- ?v= 는 버전 배지와 함께 올려서 브라우저가 옛 JS 캐시를 쓰지 않게 함 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610210931"></script>
-    <script type="module" src="js/china-stock-goods.js?v=202610210931"></script>
-    <script type="module" src="js/modal-drag.js?v=202610210931"></script>
-    <script type="module" src="js/page-gate.js?v=202610210931" data-perm-page="china.mibal"></script>
-    <script type="module" src="js/app-shell.js?v=202610210931"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610211108"></script>
+    <script type="module" src="js/china-stock-goods.js?v=202610211108"></script>
+    <script type="module" src="js/modal-drag.js?v=202610211108"></script>
+    <script type="module" src="js/page-gate.js?v=202610211108" data-perm-page="china.mibal"></script>
+    <script type="module" src="js/app-shell.js?v=202610211108"></script>
 </body>
 </html>

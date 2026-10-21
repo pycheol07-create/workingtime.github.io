@@ -1,13 +1,14 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610210931';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610210931';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610210931';
-import { memberNameFor } from './app-shell-data.js?v=202610210931';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610211108';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211108';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610211108';
+import { memberNameFor } from './app-shell-data.js?v=202610211108';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610210931';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610210931';
-import { getPermModel } from './admin-perm.js?v=202610210931';
+import { menuConfigOf } from './lib/perm.js?v=202610211108';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610211108';
+import { getPermModel } from './admin-perm.js?v=202610211108';
+import { showConfirm } from './utils.js?v=202610211108';
 
 import {
     renderAdminUI,
@@ -20,16 +21,17 @@ import {
     getAllDashboardDefinitions,
     renderDashboardMenu,
     menuItemRowHtml,
+    buildMemberItemHtml,
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610210931';
+} from './admin-ui.js?v=202610211108';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610210931';
+} from './admin-logic.js?v=202610211108';
 
 let db, auth;
 let appConfig = {};
@@ -137,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         alert('⚠️ 급여·원가를 불러오지 못했습니다.\n\n지금 화면의 급여 칸은 실제 값이 아닙니다(0).\n'
                             + '이 상태로 저장하면 전 직원 급여가 0 으로 덮이므로 저장을 잠갔습니다.\n'
-                            + '새로고침해 주세요. 계속되면 관리자 권한(memberRoles)을 확인하세요.');
+                            + '새로고침해 주세요. 계속되면 관리자 화면의 권한 설정을 확인하세요.');
                     }
                 } else {
                     if (adminContent) {
@@ -524,8 +526,25 @@ function handleDynamicClicks(e) {
             e.target.disabled = true;
         }
     }
-    else if (e.target.classList.contains('delete-member-btn')) e.target.closest('.member-item')?.remove();
-    else if (e.target.classList.contains('delete-team-group-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.team-group-card')?.remove(); }
+    else if (e.target.classList.contains('delete-member-btn')) {
+        // 팀원 삭제는 과거 급여 계산까지 빠지므로 항상 확인(퇴사는 퇴사일로)
+        const item = e.target.closest('.member-item');
+        if (item) {
+            const name = item.querySelector('.member-name')?.value.trim() || '(이름 없음)';
+            showConfirm(`'${name}' 팀원을 목록에서 삭제할까요?\n퇴사라면 삭제 대신 '퇴사일'을 넣으세요 — 삭제하면 과거 기록 계산에서 급여까지 빠집니다.\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
+                { title: '팀원 삭제', okText: '삭제', danger: true }).then(ok => ok && item.remove());
+        }
+    }
+    else if (e.target.classList.contains('delete-team-group-btn')) {
+        // 그룹 삭제는 소속 팀원까지 함께 지워지므로 마우스 환경에서도 확인
+        const card = e.target.closest('.team-group-card');
+        if (card) {
+            const gName = card.querySelector('.team-group-name')?.value.trim() || '(이름 없음)';
+            const cnt = card.querySelectorAll('.members-container .member-item').length;
+            showConfirm(`'${gName}' 그룹을 삭제할까요?\n이 그룹의 팀원 ${cnt}명도 함께 목록에서 빠집니다.\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
+                { title: '그룹 삭제', okText: '삭제', danger: true }).then(ok => ok && card.remove());
+        }
+    }
     else if (e.target.classList.contains('delete-key-task-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.key-task-item')?.remove(); }
     else if (e.target.classList.contains('delete-task-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.task-item')?.remove(); }
     else if (e.target.classList.contains('delete-task-group-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.task-group-card')?.remove(); }
@@ -552,7 +571,12 @@ function handleDynamicClicks(e) {
     }
     
     else if (e.target.classList.contains('delete-sys-account-btn')) {
-        e.target.closest('.system-account-item')?.remove();
+        const item = e.target.closest('.system-account-item');
+        if (item) {
+            const alias = item.querySelector('.sys-name')?.value.trim() || '(별칭 없음)';
+            showConfirm(`시스템 계정 '${alias}'을(를) 삭제할까요?\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
+                { title: '시스템 계정 삭제', okText: '삭제', danger: true }).then(ok => ok && item.remove());
+        }
     }
     else if (e.target.closest('#add-system-account-btn')) {
         const container = document.getElementById('system-accounts-container');
@@ -562,11 +586,11 @@ function handleDynamicClicks(e) {
         item.className = 'system-account-item flex flex-wrap md:flex-nowrap items-end gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 transition-colors';
         item.innerHTML = `
             <div class="flex flex-col flex-1 min-w-[150px]">
-                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">계정 이름 (별칭)</label>
+                <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">계정 이름 (별칭)</label>
                 <input type="text" class="sys-name p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="예: 외부 관리자">
             </div>
             <div class="flex flex-col flex-1 min-w-[200px]">
-                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이메일 (로그인 ID)</label>
+                <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">이메일 (로그인 ID)</label>
                 <input type="email" class="sys-email p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="admin@example.com">
             </div>
             <button type="button" class="delete-sys-account-btn w-full md:w-auto text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-4 py-2.5 rounded-md md:h-[38px] transition-colors shadow-sm">삭제</button>
@@ -585,79 +609,21 @@ function handleDynamicClicks(e) {
     }
 
     else if (e.target.classList.contains('add-member-btn')) {
-        const container = e.target.closest('.team-group-card').querySelector('.members-container');
-        const defaultWage = document.getElementById('default-part-timer-wage')?.value || 10000;
-        const newMemberEl = document.createElement('div');
-        newMemberEl.className = 'flex flex-col gap-3 mb-4 p-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30 member-item transition-colors';
-        
+        const card = e.target.closest('.team-group-card');
+        const container = card.querySelector('.members-container');
+        const groupName = card.querySelector('.team-group-name')?.value.trim() || '';
+
         // 로컬 기준 오늘(UTC 로 바꾸면 한국시간 오전 9시 이전에 '어제'가 된다)
         const _n = new Date();
         const today = `${_n.getFullYear()}-${String(_n.getMonth() + 1).padStart(2, '0')}-${String(_n.getDate()).padStart(2, '0')}`;
 
-        newMemberEl.innerHTML = `
-            <div class="flex flex-wrap md:flex-nowrap justify-between items-start gap-4">
-                <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
-                    <div class="flex flex-col">
-                        <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이름</label>
-                        <input type="text" value="새 팀원" class="member-name w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white">
-                    </div>
-
-                    <div class="flex flex-col">
-                        <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">직급</label>
-                        <select class="member-rank w-20 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white">
-                            <option value="사원" selected>사원</option>
-                            <option value="주임">주임</option>
-                            <option value="대리">대리</option>
-                            <option value="과장">과장</option>
-                            <option value="차장">차장</option>
-                            <option value="부장">부장</option>
-                            <option value="이사">이사</option>
-                            <option value="상무">상무</option>
-                            <option value="전무">전무</option>
-                            <option value="사장">사장</option>
-                            <option value="대표">대표</option>
-                        </select>
-                    </div>
-
-                    <div class="flex flex-col">
-                        <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">이메일</label>
-                        <input type="email" value="" class="member-email w-48 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white" placeholder="example@email.com">
-                    </div>
-                    <div class="flex flex-col">
-                        <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">시급</label>
-                        <input type="number" value="${defaultWage}" class="member-wage w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white">
-                    </div>
-                </div>
-                <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-2 rounded-md transition delete-member-btn">삭제</button>
-            </div>
-            
-            <div class="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <span class="text-xs font-bold text-gray-700 dark:text-gray-300 w-full md:w-auto mb-2 md:mb-0">연차 설정</span>
-                <div class="flex flex-col">
-                    <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1">입사일자</label>
-                    <input type="date" value="${today}" class="member-join-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs dark:text-gray-200">
-                </div>
-                <div class="flex flex-col">
-                    <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1">총연차(일)</label>
-                    <input type="number" value="15" class="member-total-leave w-16 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs text-center dark:text-gray-200" min="0">
-                </div>
-                <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
-                <div class="flex flex-col">
-                    <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1 font-bold">적용 시작일</label>
-                    <input type="date" value="${today}" class="member-leave-reset-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-700 dark:text-gray-200">
-                </div>
-                <div class="flex flex-col">
-                    <label class="text-[9px] text-red-500 dark:text-red-400 mb-1 font-bold">사용 만료일</label>
-                    <input type="date" value="" class="member-leave-expiration-date w-32 p-1.5 border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 rounded text-xs text-red-700 dark:text-red-400">
-                </div>
-                <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
-                <div class="flex flex-col">
-                    <label class="text-[9px] text-gray-700 dark:text-gray-300 mb-1 font-bold">퇴사일 (비활성)</label>
-                    <input type="date" value="" class="member-resign-date w-32 p-1.5 border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-800 dark:text-gray-100" title="입력하면 이 날짜 다음날부터 팀 선택·명단·집계에서 제외됩니다. 급여·과거기록은 그대로 보존됩니다.">
-                </div>
-            </div>
-        `;
+        // 기존 행과 같은 함수로 그린다. member-wage 는 월 기본급(저장 후 ÷209 = 시급)이라
+        // 예전처럼 알바 시급을 기본값으로 넣으면 시급이 수십 원이 됐다 → 기본급 0 으로 시작.
+        const newName = '새 팀원';
+        const maps = { memberLeaveSettings: { [newName]: { joinDate: today, totalLeave: 15, leaveResetDate: today } } };
+        const tmp = document.createElement('div');
+        tmp.innerHTML = buildMemberItemHtml(newName, maps, groupName).trim();
+        const newMemberEl = tmp.firstElementChild;
         container.appendChild(newMemberEl);
     }
     else if (e.target.classList.contains('add-task-btn')) {

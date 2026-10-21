@@ -107,6 +107,9 @@ const validateAdminSettings = (s) => {
             const n = num(p[f]);
             if (!(Number.isFinite(n) && n > 0)) errs[`calc-set-pallet-${i}-${f}`] = '0 보다 큰 숫자 — 컨테이너 크기 ÷ 파레트 크기로 계산합니다';
         });
+        // 높이는 0 도 된다(빈칸·글자만 막음)
+        const h = num(p.height);
+        if (!(Number.isFinite(h) && h >= 0)) errs[`calc-set-pallet-${i}-height`] = '파레트 높이는 0 이상 숫자';
     });
     return errs;
 };
@@ -303,6 +306,18 @@ const AdminPage = ({ onClose }) => {
         if (isDirty && !confirm('저장하지 않은 변경이 있습니다. 버리고 닫을까요?')) return;
         onClose();
     };
+    // ESC = [취소] — 리스너는 한 번만 달고 최신 handleCancel 을 ref 로 부른다
+    const cancelRef = React.useRef(null);
+    cancelRef.current = handleCancel;
+    React.useEffect(() => {
+        const onKey = (e) => {
+            if (e.key !== 'Escape') return;
+            e.preventDefault();
+            if (cancelRef.current) cancelRef.current();
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
 
     // 공용 숫자 칸 한 줄('분류.키')
     const numRow = (category, key, label, unit, fallback) => (
@@ -472,9 +487,9 @@ const AdminPage = ({ onClose }) => {
                                     <div className="grid grid-cols-3 gap-2">
                                         <input type="number" id={`calc-set-pallet-${idx}-length`} placeholder="길이" aria-label={`파레트 ${idx + 1}번 길이`} value={Number.isFinite(pallet.length) ? pallet.length : ''} onChange={e => handleArrayChange('shipping', 'palletTypes', idx, 'length', parseNum(e.target.value))} aria-invalid={palletErr(idx, 'length') ? true : undefined} style={palletErr(idx, 'length') ? BAD_INPUT_STYLE : undefined} className="border p-1 text-sm rounded" />
                                         <input type="number" id={`calc-set-pallet-${idx}-width`} placeholder="너비" aria-label={`파레트 ${idx + 1}번 너비`} value={Number.isFinite(pallet.width) ? pallet.width : ''} onChange={e => handleArrayChange('shipping', 'palletTypes', idx, 'width', parseNum(e.target.value))} aria-invalid={palletErr(idx, 'width') ? true : undefined} style={palletErr(idx, 'width') ? BAD_INPUT_STYLE : undefined} className="border p-1 text-sm rounded" />
-                                        <input type="number" placeholder="높이" aria-label={`파레트 ${idx + 1}번 높이`} value={pallet.height} onChange={e => handleArrayChange('shipping', 'palletTypes', idx, 'height', parseNum(e.target.value))} className="border p-1 text-sm rounded" />
+                                        <input type="number" id={`calc-set-pallet-${idx}-height`} placeholder="높이" aria-label={`파레트 ${idx + 1}번 높이`} value={Number.isFinite(pallet.height) ? pallet.height : ''} onChange={e => handleArrayChange('shipping', 'palletTypes', idx, 'height', parseNum(e.target.value))} aria-invalid={palletErr(idx, 'height') ? true : undefined} style={palletErr(idx, 'height') ? BAD_INPUT_STYLE : undefined} className="border p-1 text-sm rounded" />
                                     </div>
-                                    <AdminFieldError id={`calc-set-pallet-${idx}-length`} text={palletErr(idx, 'length') || palletErr(idx, 'width')} />
+                                    <AdminFieldError id={`calc-set-pallet-${idx}-length`} text={palletErr(idx, 'length') || palletErr(idx, 'width') || palletErr(idx, 'height')} />
                                 </div>
                             ))}
                             <button onClick={() => handleAddItem('shipping', 'palletTypes', {label:'새 파레트', value: 'new_pallet', length:1000, width:1000, height:150})} className="w-full py-2 bg-blue-50 text-blue-600 rounded dashed border border-blue-200">+ 파레트 추가</button>

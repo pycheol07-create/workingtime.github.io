@@ -4,17 +4,17 @@ import {
     generateId,
     saveStateToFirestore,
     debouncedSaveState
-} from './app-data.js?v=202610210931';
+} from './app-data.js?v=202610211108';
 
 import {
     appState, db, auth
-} from './state.js?v=202610210931';
+} from './state.js?v=202610211108';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610210931';
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610211108';
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=202610210931';
+import { syncTodayToHistory } from './history-data-manager.js?v=202610211108';
 
 
 const getWorkRecordsCollectionRef = () => {
@@ -117,6 +117,11 @@ export const processClockIn = async (memberName, isAdminAction = false) => {
         showToast(`${memberName}님은 이미 출근(Active) 상태입니다.`, true);
         return false;
     }
+    // 퇴근한 사람을 다시 출근시키면 출근 시각이 지금으로 덮이고 지각이 다시 붙는다 — 퇴근 취소로 돌린다
+    if (appState.dailyAttendance?.[memberName]?.status === 'returned') {
+        showToast(`${memberName}님은 이미 퇴근했습니다. 다시 근무하려면 [퇴근 취소]를 누르세요.`, true);
+        return false;
+    }
 
     try {
         await updateDoc(getDailyDocRef(), {
@@ -177,6 +182,7 @@ export const processClockOut = async (memberName, isAdminAction = false) => {
 };
 
 export const cancelClockOut = async (memberName, isAdminAction = false) => {
+    const prev = appState.dailyAttendance?.[memberName] || {};
     try {
         await updateDoc(getDailyDocRef(), {
             [`dailyAttendance.${memberName}.status`]: 'active',
@@ -184,6 +190,10 @@ export const cancelClockOut = async (memberName, isAdminAction = false) => {
         });
 
         showToast(`${memberName}님의 퇴근이 ${isAdminAction ? '관리자에 의해 ' : ''}취소되었습니다. (다시 근무 상태)`);
+        // 출근 직후 퇴근(= 출근 취소)으로 자동 지각이 지워졌던 경우만 되살린다(중복 검사는 maybeRecordTardy 가 함)
+        if (prev.inTime && prev.outTime && timeDiffMin(prev.inTime, prev.outTime) <= CANCEL_WINDOW_MIN) {
+            await maybeRecordTardy(memberName, prev.inTime);
+        }
         return true;
     } catch (e) {
         console.error("Cancel clock-out error:", e);

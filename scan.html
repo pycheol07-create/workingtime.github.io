@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610210931">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610210931">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610210931">
+    <link rel="stylesheet" href="css/suit.css?v=202610211108">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610211108">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610211108">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -195,14 +195,14 @@
     <div id="undo-toast" role="status" aria-live="polite"><span id="undo-toast-msg"></span><button type="button" id="undo-toast-btn">되돌리기</button></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610210931"></script>
+    <script src="js/location-map.js?v=202610211108"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610210931'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202610210931';   // 공통 상단바(uid 만 — 메뉴는 캐시)
-        import { checkProductCode } from './js/lib/product-code.js?v=202610210931';  // 위치지정 상품코드 'S+숫자6자리' 판정
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610211108'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202610211108';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { checkProductCode } from './js/lib/product-code.js?v=202610211108';  // 위치지정 상품코드 'S+숫자6자리' 판정
 
         const SCAN_VERSION = '10.5'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -478,7 +478,7 @@
             try {
                 if (!fileScanner) fileScanner = new Html5Qrcode('file-reader', { experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
                 const result = await fileScanner.scanFileV2(file, false);
-                if (result && result.decodedText) onScan(result.decodedText);
+                if (result && result.decodedText) { lastInputManual = false; onScan(result.decodedText); }
                 else toast('바코드를 못 찾았어요 (다시 시도)');
             } catch (e) { toast('바코드를 못 찾았어요 (다시 시도)'); }
         }
@@ -530,7 +530,7 @@
         }
         async function registerForceAllow(code) {
             forceAllowSet.add(code); // 로컬 즉시 반영
-            try { await setDoc(doc(db, 'ChinaStockGoods', 'FORCE_ALLOW'), { map: { [code]: true }, updatedAt: serverTimestamp() }, { merge: true }); } catch (e) {}
+            try { await setDoc(doc(db, 'ChinaStockGoods', 'FORCE_ALLOW'), { map: { [code]: true }, updatedAt: serverTimestamp() }, { merge: true }); } catch (e) { toast('강제전송 허용을 공유하지 못했습니다(이 기기에서만 적용)'); }
         }
 
         // ---------------- 입고 모드 ----------------
@@ -617,7 +617,7 @@
             });
             for (let i = 0; i <= 9; i++) {
                 const bo = document.createElement('button'); bo.textContent = i; bo.dataset.d = String(i);
-                bo.onclick = () => { const qty = qtyTens * 10 + i; $('num-display').textContent = String(qty); if (qty > 0) { closeSelect(); addInbound(currentItem, qty, '직접입력'); resumeScan(); } };
+                bo.onclick = () => { const qty = qtyTens * 10 + i; $('num-display').textContent = String(qty); if (qty > 0) { closeSelect(); addInbound(currentItem, qty, '직접입력'); resumeScan(); refocusManual(); } };
                 ones.appendChild(bo);
             }
         }
@@ -658,10 +658,23 @@
 
         // [Ver 8.0] 위치 수동 입력 — 스캔이 안 될 때 위치/상품코드를 직접 입력
         // [Ver 8.71] 입고모드 수동입력: 스캔과 동일하게 onScan으로 넘김 → processInbound → 수량 선택 팝업
+        // 수동입력 칸이 열려 있으면 다음 입력 칸으로 커서를 돌려놓는다(연속 입력용). 닫혀 있으면 아무것도 안 함
+        // 직전 입력이 수동입력일 때만 — 카메라 스캔 뒤에 키보드가 뜨지 않게(lastInputManual 은 수동 제출에서 켜고 여기서 끈다)
+        let lastInputManual = false;
+        function refocusManual() {
+            if (!lastInputManual) return;
+            lastInputManual = false;
+            if (mode === 'in') {
+                if ($('in-manual').style.display === 'block') $('in-manual-code').focus();
+            } else if (mode === 'loc') {
+                if ($('loc-manual').style.display === 'flex') (fixedLocation ? $('manual-code') : $('manual-loc')).focus();
+            }
+        }
         function inManualSubmit() {
             const el = $('in-manual-code'); const v = (el.value || '').trim();
             if (!v) return;
             el.value = '';
+            lastInputManual = true;
             onScan(v.toUpperCase());
         }
         // [Ver 8.73] 위치 직접입력을 위치매핑(LOCATION_MAP) 등록값 형식에 맞춰 정규화
@@ -692,10 +705,12 @@
             }
             fixedLocation = v; renderLocBanner(); el.value = '';
             speak('위치 설정'); toast('위치 설정: ' + v);
+            lastInputManual = true; refocusManual(); // 위치가 정해졌으니 상품코드 칸으로
         }
         async function manualAddProduct() {
             const el = $('manual-code'); let key = resolveCode(el.value); // [Ver 8.3] 바코드 → 상품코드 변환
             if (!key) return;
+            lastInputManual = true; // 오류창을 닫은 뒤 수동입력 칸으로 돌아오게
             if (!fixedLocation) { showAlert('위치를 먼저 설정하세요\n(위 칸에 위치를 입력하거나 위치 바코드를 스캔)'); return; }
             let name = '', exists = false, dbError = false;
             if (navigator.onLine) {
@@ -736,11 +751,17 @@
             if (!inboundQueue.length || sending) return;
             if (!navigator.onLine) { showAlert('오프라인 상태입니다.\n인터넷 연결 후 [전송하기]를 눌러주세요.\n(스캔 내역은 저장되어 있습니다)'); return; }
             sending = true; updateSendBtn('전송 중...'); closeUndo();
+            // 보낼 목록은 시작 순간 고정(전송 중 스캔한 건은 목록에 남는다), 반영된 묶음만 sent 에 모은다
+            // 목록은 최신이 앞(unshift) → 뒤집어 오래된 스캔부터 보낸다(부분 실패 후 재전송해도 배분이 시간순)
+            const items = [...inboundQueue].reverse();
+            const sent = [];
+            let batchFail = false, floorFail = false;
             try {
                 const CHUNK = 200; // 배치당 400 작업 (한도 500 이내)
-                for (let i = 0; i < inboundQueue.length; i += CHUNK) {
+                for (let i = 0; i < items.length; i += CHUNK) {
                     const batch = writeBatch(db);
-                    inboundQueue.slice(i, i + CHUNK).forEach(it => {
+                    const part = items.slice(i, i + CHUNK);
+                    part.forEach(it => {
                         batch.set(doc(db, 'ChinaStockGoods_ScanDB', it.barcode), { arrivalQty: increment(-it.qty), mibalQty: increment(-it.qty) }, { merge: true }); // [Ver 8.48] 미발수량도 입고분만큼 즉시 차감 (표시는 0에서 클램프) / [Ver 8.51] set-merge: 강제전송된 미등록 상품(ScanDB 문서 없음)도 생성되도록
                         batch.set(doc(collection(db, 'ChinaStockGoods_InboundHistory')), {
                             barcode: it.barcode, qty: it.qty, name: it.name, location: it.location,
@@ -748,14 +769,18 @@
                         });
                     });
                     await batch.commit();
+                    sent.push(...part);
                 }
+            } catch (e) { batchFail = true; }
+            // 반영된 건만 비축 배분 — 다시 전송할 때는 남은 건만 보내므로 지금 하지 않으면 빠진다
+            if (sent.length) {
                 // [Ver 8.45] 비축창고: fullauto와 동일 - 스캔 순서대로, 미발 남아있으면 그 스캔 전부 3층, 다 채웠으면 전부 비축(초과분 안 쪼갬)
                 try {
                     let cur = {};
                     const s2 = await getDoc(doc(db, 'ChinaStockGoods', 'FLOOR2_STOCK'));
                     if (s2.exists() && s2.data().map) cur = s2.data().map;
                     const st = {}; // code -> {received, mibal, floor2, name}
-                    [...inboundQueue].reverse().forEach(it => { // unshift(최신 앞) → 스캔 시간순으로 처리
+                    sent.forEach(it => { // sent 는 이미 스캔 시간순
                         const c = it.barcode;
                         if (!st[c]) { const ex = cur[c] || {}; st[c] = { received: parseInt(ex.received) || 0, mibal: (ex.mibal !== undefined && ex.mibal !== null) ? (parseInt(ex.mibal) || 0) : (parseInt(it.mibalQty) || 0), floor2: parseInt(ex.floor2) || 0, name: it.name || ex.name || '' }; }
                         const s = st[c];
@@ -765,10 +790,20 @@
                     const f2 = {};
                     Object.keys(st).forEach(c => { f2[c] = { received: st[c].received, mibal: st[c].mibal, floor2: st[c].floor2, name: st[c].name }; });
                     await setDoc(doc(db, 'ChinaStockGoods', 'FLOOR2_STOCK'), { map: f2, updatedAt: serverTimestamp() }, { merge: true });
-                } catch (e) {}
-                inboundQueue = []; saveQueues(); renderQueue();
+                } catch (e) { floorFail = true; }
+            }
+            // 반영된 건만 목록에서 뺀다(실패한 묶음·전송 중 스캔한 건은 남김)
+            const sentSet = new Set(sent);
+            inboundQueue = inboundQueue.filter(it => !sentSet.has(it));
+            saveQueues(); renderQueue();
+            if (batchFail) {
+                showAlert(`전송 실패 — ${sent.length}건은 반영됨, 남은 ${items.length - sent.length}건만 목록에 남겼습니다.\n(권한 또는 네트워크 오류)`
+                    + (floorFail ? '\n\n반영된 건의 비축(2층) 배분 저장도 실패했습니다. 관리자에게 알려 주세요.' : ''));
+            } else if (floorFail) {
+                showAlert('입고는 반영됐지만 비축(2층) 배분 저장에 실패했습니다.\n다시 전송하지 말고 관리자에게 알려 주세요.');
+            } else {
                 speak('전송 완료'); toast('입고 처리 완료');
-            } catch (e) { showAlert('전송 실패\n(권한 또는 네트워크 오류)'); }
+            }
             sending = false; updateSendBtn();
         }
 
@@ -857,6 +892,8 @@
                 </div>`;
             }).join('');
             el.querySelectorAll('.qdel').forEach(b => b.onclick = () => {
+                // 전송 중에는 지우지 않는다 — 이미 보내는 목록에 들어 있어 지워도 전송된다
+                if (sending) { toast('전송 중에는 삭제할 수 없습니다'); return; }
                 const q = currentQueue(); const i = parseInt(b.dataset.i);
                 const removed = q.splice(i, 1)[0]; saveQueues(); renderQueue();
                 if (removed) offerUndo(mode, i, removed);
@@ -1017,7 +1054,7 @@
         $('btn-send').onclick = () => mode === 'in' ? sendInbound() : sendLocation();
 
         $('sel-cancel').onclick = () => { closeSelect(); resumeScan(); };
-        $('alert-ok').onclick = () => { $('ov-alert').style.display = 'none'; alertForceAction = null; popScanModal(); resumeScan(); };
+        $('alert-ok').onclick = () => { $('ov-alert').style.display = 'none'; alertForceAction = null; popScanModal(); resumeScan(); refocusManual(); };
         $('alert-force').onclick = () => { const act = alertForceAction; alertForceAction = null; $('ov-alert').style.display = 'none'; if (act) act(); }; // [Ver 8.50] 강제전송 → 정상 입고 단계로
 
         $('btn-settings').onclick = () => {
@@ -1043,7 +1080,7 @@
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/page-gate.js?v=202610210931" data-perm-page="scan.view" data-perm-app="scanApp"></script>
-    <script type="module" src="js/app-shell.js?v=202610210931"></script>
+    <script type="module" src="js/page-gate.js?v=202610211108" data-perm-page="scan.view" data-perm-app="scanApp"></script>
+    <script type="module" src="js/app-shell.js?v=202610211108"></script>
 </body>
 </html>

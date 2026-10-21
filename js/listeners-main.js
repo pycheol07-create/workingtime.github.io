@@ -1,30 +1,40 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202610210931';
-import * as State from './state.js?v=202610210931';
+import * as DOM from './dom-elements.js?v=202610211108';
+import * as State from './state.js?v=202610211108';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202610210931';
-import { updateDailyData } from './app-data.js?v=202610210931';
+import { render } from './app.js?v=202610211108';
+import { updateDailyData } from './app-data.js?v=202610211108';
 
-import { calcElapsedMinutes, showToast, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610210931';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610210931';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610211108';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610211108';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202610210931';
+} from './ui.js?v=202610211108';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202610210931';
-import { saveProgress, saveDayDataToHistory, previewDayClose } from './history-data-manager.js?v=202610210931';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610210931';
+} from './app-logic.js?v=202610211108';
+import { saveProgress, saveDayDataToHistory, previewDayClose } from './history-data-manager.js?v=202610211108';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610211108';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// 출퇴근 스위치를 켤 때 — 이미 퇴근한 상태면 새 출근(출근 시각 덮어쓰기·지각 재등록) 대신 퇴근 취소로 돌린다
+const clockInOrUndoClockOut = async (member) => {
+    if (State.appState.dailyAttendance?.[member]?.status === 'returned') {
+        const yes = await showConfirm('퇴근을 취소하고 다시 근무 상태로 돌릴까요? (출근 시각은 그대로)', { title: '퇴근 취소', okText: '다시 근무' });
+        if (!yes) return false;
+        return await cancelClockOut(member);
+    }
+    return await processClockIn(member);
+};
 
 export function setupMainScreenListeners() {
 
@@ -35,7 +45,8 @@ export function setupMainScreenListeners() {
             const currentUser = State.appState.currentUser;
             if (!currentUser) return;
             if (e.target.checked) {
-                processClockIn(currentUser);
+                const ok = await clockInOrUndoClockOut(currentUser);
+                if (!ok) e.target.checked = false;
             } else {
                 // await 필수 — 예전엔 Promise 를 받아 늘 참이라, 업무 중이라 퇴근이 막혀도 스위치가 '퇴근' 으로 남았다
                 const success = await processClockOut(currentUser);
@@ -50,7 +61,8 @@ export function setupMainScreenListeners() {
             const currentUser = State.appState.currentUser;
             if (!currentUser) return;
             if (e.target.checked) {
-                processClockIn(currentUser);
+                const ok = await clockInOrUndoClockOut(currentUser);   // 위 PC 쪽과 같은 길
+                if (!ok) e.target.checked = false;
             } else {
                 const success = await processClockOut(currentUser);   // await 필수 — 위 PC 쪽 주석 참고
                 if (!success) e.target.checked = true;
@@ -423,12 +435,15 @@ export function setupMainScreenListeners() {
             const panelId = button.dataset.tabPanel;
             if (!panelId) return;
 
+            // index.html 의 탭 버튼 클래스와 같은 목록(다크모드 포함)
+            const TAB_ON = ['font-bold', 'text-blue-600', 'dark:text-blue-400', 'border-blue-600', 'dark:border-blue-400'];
+            const TAB_OFF = ['font-medium', 'text-gray-400', 'dark:text-gray-500', 'border-transparent', 'hover:text-gray-700', 'dark:hover:text-gray-300', 'hover:border-gray-300', 'dark:hover:border-gray-600'];
             analysisTabs.querySelectorAll('.analysis-tab-btn').forEach(btn => {
-                btn.classList.remove('text-blue-600', 'border-blue-600');
-                btn.classList.add('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:border-gray-300');
+                btn.classList.remove(...TAB_ON);
+                btn.classList.add(...TAB_OFF);
             });
-            button.classList.add('text-blue-600', 'border-blue-600');
-            button.classList.remove('text-gray-500', 'border-transparent', 'hover:text-gray-700', 'hover:border-gray-300');
+            button.classList.remove(...TAB_OFF);
+            button.classList.add(...TAB_ON);
 
             document.querySelectorAll('.analysis-tab-panel').forEach(panel => {
                 panel.classList.add('hidden');

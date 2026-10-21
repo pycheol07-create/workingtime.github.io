@@ -8,7 +8,7 @@
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="업무관리">
-    <title>관리자 페이지 - 물류팀 시스템</title>
+    <title>설정·관리 - 물류팀 시스템</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = { darkMode: 'class' };
@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610210931">
-    <link rel="stylesheet" href="css/admin-d.css?v=202610210931">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610210931">
+    <link rel="stylesheet" href="css/suit.css?v=202610211108">
+    <link rel="stylesheet" href="css/admin-d.css?v=202610211108">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610211108">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -39,7 +39,7 @@
 
     <aside id="admin-sidebar" class="fixed md:relative inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col z-40 shadow-2xl md:shadow-sm shrink-0 transition-transform duration-300 transform -translate-x-full md:translate-x-0">
         <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
-            <h1 class="text-lg font-bold text-gray-900 dark:text-white tracking-tight">관리자 시스템</h1>
+            <h1 class="text-lg font-bold text-gray-900 dark:text-white tracking-tight">설정·관리</h1>
             <button id="admin-sidebar-close" class="md:hidden p-1 text-gray-500 hover:text-gray-800 dark:hover:text-white" aria-label="메뉴 닫기">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
@@ -376,13 +376,13 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610210931"></script>
-    <script type="module" src="js/admin-automation.js?v=202610210931"></script>
-    <script type="module" src="js/admin-refill.js?v=202610210931"></script>
+    <script type="module" src="js/admin.js?v=202610211108"></script>
+    <script type="module" src="js/admin-automation.js?v=202610211108"></script>
+    <script type="module" src="js/admin-refill.js?v=202610211108"></script>
 
     <script type="module">
         // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
-        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610210931';
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610211108';
 
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
@@ -485,9 +485,9 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610210931"></script>
-    <script src="js/modal-esc.js?v=202610210931"></script>
-    <script type="module" src="js/modal-drag.js?v=202610210931"></script>
-    <script type="module" src="js/app-shell.js?v=202610210931"></script>
+    <script src="js/connection-banner.js?v=202610211108"></script>
+    <script src="js/modal-esc.js?v=202610211108"></script>
+    <script type="module" src="js/modal-drag.js?v=202610211108"></script>
+    <script type="module" src="js/app-shell.js?v=202610211108"></script>
 </body>
 </html>

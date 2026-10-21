@@ -3,11 +3,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202610210931';
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610210931';
-import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610210931';
-import { memberNameFor } from './app-shell-data.js?v=202610210931';
-import { menuConfigOf } from './lib/perm.js?v=202610210931';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202610211108';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610211108';
+import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610211108';
+import { memberNameFor } from './app-shell-data.js?v=202610211108';
+import { menuConfigOf } from './lib/perm.js?v=202610211108';
 
 let app, db, auth, storage;
 let appConfig = {};
@@ -207,15 +207,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             document.getElementById('btn-new-manual').classList.remove('hidden');
 
-            if (isAdmin) document.getElementById('btn-add-tool')?.classList.remove('hidden');
-
             populateCategories();
             populateManagers();
             populateAccessMembers();
             setupEventListeners();
-            setupToolListeners();
             loadManuals();
-            loadTools();
         } else {
             setShellContext({ signedIn: false });
             alert("로그인이 필요합니다.");
@@ -243,7 +239,7 @@ async function uploadInlineImageToStorage(file) {
         quillEditor.setSelection(range.index + 1);
     } catch (e) {
         console.error("본문 이미지 업로드 실패:", e);
-        alert("이미지를 서버에 업로드하는데 실패했습니다.\n- 용량이 너무 큰 이미지이거나 네트워크 연결이 끊겼습니다.\n- 또는 Firebase CORS 권한 설정이 필요합니다.");
+        alert("이미지를 서버에 업로드하는데 실패했습니다.\n- 용량이 너무 큰 이미지이거나 네트워크 연결이 끊겼습니다.\n- 계속되면 관리자에게 알려 주세요.");
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;
@@ -406,163 +402,6 @@ function setupEventListeners() {
         `;
         
         quillEditor.clipboard.dangerouslyPasteHTML(index, stepHtml);
-    });
-}
-
-// ============================================================
-// 🛠️ 업무 도구 (프로그램 다운로드 / 웹 링크) — config/tools 단일 문서에 저장
-// ============================================================
-const TOOLS_REF = () => doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'tools');
-let toolsList = [];
-const escT = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-
-async function loadTools() {
-    try {
-        const snap = await getDoc(TOOLS_REF());
-        toolsList = (snap.exists() && Array.isArray(snap.data().items)) ? snap.data().items : [];
-    } catch (e) { console.warn('도구 로드 실패:', e); toolsList = []; }
-    renderTools();
-}
-
-function renderTools() {
-    const listEl = document.getElementById('tools-list');
-    const countEl = document.getElementById('tools-count');
-    if (!listEl) return;
-    if (countEl) countEl.textContent = toolsList.length ? `(${toolsList.length})` : '';
-    if (toolsList.length === 0) {
-        listEl.innerHTML = `<div class="text-[11px] text-gray-400 py-2 text-center">${isAdmin ? "'+ 도구'로 프로그램/링크를 등록하세요." : '등록된 도구가 없습니다.'}</div>`;
-        return;
-    }
-    listEl.innerHTML = toolsList.map(t => {
-        const isLink = t.type === 'link';
-        const actionLabel = isLink ? '↗ 열기' : '⬇ 다운로드';
-        const icon = isLink ? '<svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>' : '<svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/></svg>';
-        const admin = isAdmin ? `<button data-tool-edit="${escT(t.id)}" class="text-[10px] text-gray-400 hover:text-blue-600 px-1" title="편집"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg></button>` : '';
-        return `
-            <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-2">
-                <span class="text-base shrink-0">${icon}</span>
-                <div class="flex-1 min-w-0">
-                    <div class="text-[13px] font-bold text-gray-800 dark:text-gray-100 truncate">${escT(t.name)}</div>
-                    ${t.desc ? `<div class="text-[10px] text-gray-500 dark:text-gray-400 truncate">${escT(t.desc)}</div>` : ''}
-                </div>
-                <button data-tool-open="${escT(t.id)}" class="text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded shrink-0">${actionLabel}</button>
-                ${admin}
-            </div>`;
-    }).join('');
-}
-
-function openToolModal(id) {
-    const t = id ? toolsList.find(x => x.id === id) : null;
-    document.getElementById('tool-modal-title').textContent = t ? '도구 편집' : '도구 추가';
-    document.getElementById('tool-edit-id').value = t ? t.id : '';
-    document.getElementById('tool-name').value = t ? (t.name || '') : '';
-    document.getElementById('tool-desc').value = t ? (t.desc || '') : '';
-    const type = t ? (t.type || 'download') : 'download';
-    document.querySelectorAll('.tool-type-radio').forEach(r => { r.checked = (r.value === type); });
-    document.getElementById('tool-file').value = '';
-    document.getElementById('tool-link').value = (t && t.type === 'link') ? (t.url || '') : '';
-    document.getElementById('tool-file-current').textContent = (t && t.type === 'download' && t.fileName) ? `현재 파일: ${t.fileName} (새로 올리면 교체)` : '';
-    toggleToolTypeRows();
-    document.getElementById('tool-delete-btn').classList.toggle('hidden', !t);
-    const m = document.getElementById('tool-modal');
-    m.classList.remove('hidden'); m.classList.add('flex');
-}
-function closeToolModal() { const m = document.getElementById('tool-modal'); if (m) { m.classList.add('hidden'); m.classList.remove('flex'); } }
-function toggleToolTypeRows() {
-    const type = document.querySelector('input[name="tool-type"]:checked')?.value || 'download';
-    document.getElementById('tool-file-row').classList.toggle('hidden', type !== 'download');
-    document.getElementById('tool-link-row').classList.toggle('hidden', type !== 'link');
-}
-
-async function saveTool() {
-    if (!isAdmin) return;
-    const id = document.getElementById('tool-edit-id').value || ('tool-' + Date.now());
-    const name = document.getElementById('tool-name').value.trim();
-    const desc = document.getElementById('tool-desc').value.trim();
-    const type = document.querySelector('input[name="tool-type"]:checked')?.value || 'download';
-    if (!name) { alert('도구 이름을 입력하세요.'); return; }
-
-    const saveBtn = document.getElementById('tool-save-btn');
-    const orig = saveBtn.textContent;
-    saveBtn.disabled = true; saveBtn.textContent = '저장 중...';
-    try {
-        const existing = toolsList.find(x => x.id === id) || {};
-        const entry = { id, name, desc, type };
-        if (type === 'link') {
-            const url = document.getElementById('tool-link').value.trim();
-            if (!url) { alert('웹 주소(URL)를 입력하세요.'); return; }
-            entry.url = url;
-        } else {
-            const file = document.getElementById('tool-file').files[0];
-            if (file) {
-                const safe = `${Date.now()}_${(file.name || 'tool').replace(/[^\w.\-]/g, '_')}`;
-                const storageRef = ref(storage, `tools/${safe}`);
-                await uploadBytes(storageRef, file);
-                entry.url = await getDownloadURL(storageRef);
-                entry.fileName = file.name;
-                entry.size = file.size;
-            } else if (existing.url) {
-                entry.url = existing.url; entry.fileName = existing.fileName; entry.size = existing.size;
-            } else {
-                alert('업로드할 파일을 선택하세요.'); return;
-            }
-        }
-        entry.updatedAt = Date.now();
-        const idx = toolsList.findIndex(x => x.id === id);
-        if (idx > -1) toolsList[idx] = entry; else toolsList.push(entry);
-        await setDoc(TOOLS_REF(), { items: toolsList }, { merge: true });
-        renderTools();
-        closeToolModal();
-    } catch (e) {
-        console.error('도구 저장 실패:', e);
-        alert('도구 저장 실패: ' + (e.message || e));
-    } finally { saveBtn.disabled = false; saveBtn.textContent = orig; }
-}
-
-async function deleteTool() {
-    if (!isAdmin) return;
-    const id = document.getElementById('tool-edit-id').value;
-    if (!id) return;
-    if (!confirm('이 도구를 삭제하시겠습니까?')) return;
-    toolsList = toolsList.filter(x => x.id !== id);
-    try {
-        await setDoc(TOOLS_REF(), { items: toolsList }, { merge: true });
-        renderTools(); closeToolModal();
-    } catch (e) { alert('삭제 실패: ' + (e.message || e)); }
-}
-
-function openTool(id) {
-    const t = toolsList.find(x => x.id === id);
-    if (!t || !t.url) { alert('연결된 파일/링크가 없습니다.'); return; }
-    if (t.type === 'link') {
-        window.open(t.url, '_blank', 'noopener');
-    } else {
-        const a = document.createElement('a');
-        a.href = t.url; a.download = t.fileName || t.name || 'tool';
-        a.target = '_blank'; a.rel = 'noopener';
-        document.body.appendChild(a); a.click(); a.remove();
-    }
-}
-
-function setupToolListeners() {
-    document.getElementById('tools-toggle')?.addEventListener('click', () => {
-        const list = document.getElementById('tools-list');
-        const chev = document.getElementById('tools-chevron');
-        const collapsed = list.classList.toggle('hidden');
-        if (chev) chev.textContent = collapsed ? '▶' : '▼';
-    });
-    document.getElementById('btn-add-tool')?.addEventListener('click', () => openToolModal(null));
-    document.getElementById('tool-modal-close')?.addEventListener('click', closeToolModal);
-    document.getElementById('tool-cancel-btn')?.addEventListener('click', closeToolModal);
-    document.getElementById('tool-save-btn')?.addEventListener('click', saveTool);
-    document.getElementById('tool-delete-btn')?.addEventListener('click', deleteTool);
-    document.querySelectorAll('.tool-type-radio').forEach(r => r.addEventListener('change', toggleToolTypeRows));
-    document.getElementById('tool-modal')?.addEventListener('click', (e) => { if (e.target.id === 'tool-modal') closeToolModal(); });
-    document.getElementById('tools-list')?.addEventListener('click', (e) => {
-        const open = e.target.closest('[data-tool-open]');
-        const edit = e.target.closest('[data-tool-edit]');
-        if (open) openTool(open.dataset.toolOpen);
-        else if (edit) openToolModal(edit.dataset.toolEdit);
     });
 }
 
@@ -830,7 +669,7 @@ async function saveManual() {
     } catch (e) {
         console.error("저장 오류:", e);
         if (e.message === "OVERSIZED_CONTENT" || e.code === "resource-exhausted") {
-            alert("저장 실패: 본문 텍스트 용량이 초과되었습니다.\n\n(이미지 업로드가 실패하여 강제로 글자로 변환된 이미지가 남아있을 수 있습니다. 이미지를 지우고 다시 시도하거나 Firebase CORS 설정을 확인해주세요.)");
+            alert("저장 실패: 본문 텍스트 용량이 초과되었습니다.\n\n(이미지 업로드가 실패하여 강제로 글자로 변환된 이미지가 남아있을 수 있습니다. 이미지를 지우고 다시 시도하고, 계속되면 관리자에게 알려 주세요.)");
         } else {
             alert("저장에 실패했습니다. 관리자에게 문의하세요.");
         }

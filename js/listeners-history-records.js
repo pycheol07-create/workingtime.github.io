@@ -1,21 +1,23 @@
 // === js/listeners-history-records.js ===
 // 설명: 이력 보기의 '기록 관리'(상세 내역 수정/삭제/일괄적용) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610210931';
-import * as State from './state.js?v=202610210931';
-import { showToast } from './utils.js?v=202610210931';
+import * as DOM from './dom-elements.js?v=202610211108';
+import * as State from './state.js?v=202610211108';
+import { showToast, showConfirm } from './utils.js?v=202610211108';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=202610210931';
-import { renderHistoryDetail } from './app-history-logic.js?v=202610210931';
-import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows } from './history-record-table.js?v=202610210931';
-import { generateId } from './app-data.js?v=202610210931';
+} from './history-data-manager.js?v=202610211108';
+import { renderHistoryDetail } from './app-history-logic.js?v=202610211108';
+import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=202610211108';
+import { generateId } from './app-data.js?v=202610211108';
 
 const currentRecordsDateKey = () => document.getElementById('history-records-date').textContent;
 // 기존 확인창 끝에 붙이는 문구 — 저장 안 한 수정이 없으면 빈 문자열
 const dirtyNote = (n) => (n > 0 ? ` (저장하지 않은 수정 ${n}건도 사라집니다)` : '');
+// 복제 저장 중 — 끝나기 전 다시 눌러도 한 번만 복제한다
+let duplicating = false;
 
 export function setupHistoryRecordListeners() {
 
@@ -143,7 +145,20 @@ export function setupHistoryRecordListeners() {
              const dirty = countDirtyRecordRows(dateKey);
              if (dirty > 0 && !confirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 기록을 추가할까요?`)) return;
 
+             // 저장이 끝날 때까지 버튼을 잠근다 — 명단 확인창이 떠 있는 동안 다시 눌려도 두 번 저장되지 않게.
+             const btn = DOM.confirmHistoryAddBtn;
+             btn.disabled = true;
              try {
+                 // 오타로 없는 사람 이름이 들어가는 것을 막는다(명단 = 추가 창을 열 때 채운 목록).
+                 const roster = DOM.historyAddMemberDatalist
+                     ? Array.from(DOM.historyAddMemberDatalist.options).map(o => o.value)
+                     : [];
+                 if (!roster.includes(member)) {
+                     const ok = await showConfirm(`'${member}'은(는) 명단에 없는 이름입니다. 그래도 추가할까요?`,
+                         { title: '명단에 없는 이름', okText: '추가' });
+                     if (!ok) return;
+                 }
+
                  const newRecord = {
                      id: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                      member, task, startTime, endTime, 
@@ -163,6 +178,8 @@ export function setupHistoryRecordListeners() {
              } catch (e) {
                  console.error(e);
                  showToast('기록 추가 중 오류가 발생했습니다.', true);
+             } finally {
+                 btn.disabled = false;
              }
         });
     }
@@ -205,8 +222,10 @@ export function setupHistoryRecordListeners() {
                 const originalRecord = dayData?.workRecords?.find(r => r.id === recordId);
 
                 if (originalRecord) {
+                    if (duplicating) return;   // 앞 복제가 끝나기 전 연타 — 같은 기록이 여러 번 생기지 않게
                     const dirty = countDirtyRecordRows(dateKey);
                     if (dirty > 0 && !confirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 복제할까요?`)) return;
+                    duplicating = true;
                     try {
                         const newRecord = {
                             ...originalRecord,
@@ -226,6 +245,8 @@ export function setupHistoryRecordListeners() {
                     } catch (err) {
                         console.error("복제 중 오류:", err);
                         showToast("기록 복제에 실패했습니다.", true);
+                    } finally {
+                        duplicating = false;
                     }
                 }
             }
@@ -253,62 +274,94 @@ export function setupHistoryRecordListeners() {
     if (DOM.historyRecordsModal) {
         DOM.historyRecordsModal.addEventListener('click', async (e) => {
             const saveAllBtn = e.target.closest('#history-record-save-all-btn');
-            if (saveAllBtn) {
-                const dateKey = document.getElementById('history-records-date').textContent;
-                if (!dateKey) return;
+            if (!saveAllBtn) return;
+            const dateKey = document.getElementById('history-records-date').textContent;
+            if (!dateKey) return;
 
-                // 1. 테이블의 모든 행(tr)을 순회하며 변경된 값을 수집
-                const rows = DOM.historyRecordsTableBody.querySelectorAll('tr.history-record-row');
-                const updatePromises = [];
-                let updateCount = 0;
-
-                saveAllBtn.disabled = true;
-                saveAllBtn.textContent = '저장 중...';
-
-                rows.forEach(row => {
-                    const recordId = row.dataset.recordId;
-                    const newTask = row.querySelector('.history-record-task').value;
-                    const newStart = row.querySelector('.history-record-start').value;
-                    const newEnd = row.querySelector('.history-record-end').value;
-
-                    // 유효성 검사 및 업데이트 목록 추가
-                    if (recordId && newTask && newStart && newEnd) {
-                        if (newStart < newEnd) { // 시작 시간이 종료 시간보다 빠른 경우만
-                            updatePromises.push(
-                                updateHistoryWorkRecord(dateKey, recordId, { 
-                                    task: newTask, 
-                                    startTime: newStart, 
-                                    endTime: newEnd 
-                                })
-                            );
-                            updateCount++;
-                        }
-                    }
+            const rows = [...DOM.historyRecordsTableBody.querySelectorAll('tr.history-record-row')];
+            const records = State.allHistoryData.find(d => d.id === dateKey)?.workRecords || [];
+            // 빨간 표시: 행 배경 + 입력칸 테두리
+            const markRow = (row, bad) => {
+                row.classList.toggle('bg-red-50', bad);
+                row.classList.toggle('bg-white', !bad);
+                row.querySelectorAll('select, input').forEach(el => {
+                    el.classList.toggle('ring-2', bad);
+                    el.classList.toggle('ring-red-400', bad);
                 });
+            };
 
-                try {
-                    await Promise.all(updatePromises);
-                    showToast(`총 ${updateCount}건의 기록이 일괄 저장되었습니다.`);
-                    
+            // 1. 바뀐 행만 고르고, 잘못된 행이 하나라도 있으면 아무것도 저장하지 않는다
+            //    (예전엔 잘못된 행을 조용히 빼고 'N건 저장'이라 했고, 안 바뀐 행까지 전부 다시 썼다)
+            const targets = [];
+            const invalid = [];
+            rows.forEach(row => {
+                markRow(row, false);
+                if (!isRecordRowDirty(row)) return;
+                const recordId = row.dataset.recordId;
+                const task = row.querySelector('.history-record-task').value;
+                const start = row.querySelector('.history-record-start').value;
+                const end = row.querySelector('.history-record-end').value;
+                // 진행 중 기록(ongoing·paused)은 종료칸을 건드리지 않았으면 endTime 을 보내지 않고 업무·시작만 검사한다.
+                // 오늘 기록은 동기화(clampOpenRecords)로 종료칸이 현재 시각으로 채워져 그려지므로 빈칸 여부로는 못 가른다.
+                // 종료칸을 일부러 바꿨으면 기존처럼 endTime 을 보낸다.
+                const rec = records.find(r => r.id === recordId);
+                const isOpen = !!rec && (rec.status === 'ongoing' || rec.status === 'paused');
+                const keepOpen = isOpen && end === (row.dataset.origEnd ?? '');
+                const bad = !recordId || !task || !start || (keepOpen ? false : (!end || start >= end));
+                if (bad) { invalid.push(row); markRow(row, true); return; }
+                const updateData = keepOpen ? { task, startTime: start } : { task, startTime: start, endTime: end };
+                targets.push({ row, recordId, updateData, sent: { task, start, end } });
+            });
+
+            if (invalid.length > 0) {
+                showToast(`잘못된 행 ${invalid.length}건(빈 칸 또는 시작≥종료) — 빨간 줄을 고친 뒤 다시 저장하세요.`, true);
+                return;
+            }
+            if (targets.length === 0) {
+                showToast('바뀐 기록이 없습니다.');
+                return;
+            }
+
+            saveAllBtn.disabled = true;
+            saveAllBtn.textContent = '저장 중...';
+
+            // 2. 순서대로 저장 — 같은 날 문서를 여러 번 고치므로 동시에 보내지 않는다
+            let ok = 0;
+            let fail = 0;
+            try {
+                for (const { row, recordId, updateData, sent } of targets) {
+                    try {
+                        await updateHistoryWorkRecord(dateKey, recordId, updateData);
+                        ok++;
+                        // 저장된 행은 기준값을 '실제로 보낸 값'으로(저장 중 사용자가 또 고친 값은 계속 '바뀐 행'으로 남게)
+                        row.dataset.origTask = sent.task;
+                        row.dataset.origStart = sent.start;
+                        row.dataset.origEnd = sent.end;
+                    } catch (err) {
+                        console.error("일괄 저장 오류:", err);
+                        fail++;
+                        markRow(row, true);
+                    }
+                }
+
+                if (fail === 0) {
+                    showToast(`총 ${ok}건의 기록이 일괄 저장되었습니다.`);
                     renderHistoryRecordsTable(dateKey); // 재렌더링
                     const selectedDateKey = document.querySelector('.history-date-btn.is-on')?.dataset.key;
                     if (dateKey === selectedDateKey) renderHistoryDetail(dateKey);
-
-                    // ✅ [수정] 저장 후 팝업 닫지 않음 (주석 처리됨)
-                    // DOM.historyRecordsModal.classList.add('hidden');
-
-                } catch (err) {
-                    console.error("일괄 저장 오류:", err);
-                    showToast("일괄 저장 중 일부 오류가 발생했습니다.", true);
-                } finally {
-                    saveAllBtn.disabled = false;
-                    saveAllBtn.innerHTML = `
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                        </svg>
-                        변경사항 일괄 저장
-                    `;
+                    // 저장 후 팝업은 닫지 않음
+                } else {
+                    // 실패한 행의 입력을 지우지 않도록 표를 다시 그리지 않는다
+                    showToast(`${ok}건 저장, ${fail}건 실패`, true);
                 }
+            } finally {
+                saveAllBtn.disabled = false;
+                saveAllBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                    변경사항 일괄 저장
+                `;
             }
         });
     }

@@ -103,6 +103,8 @@ export const showConfirm = (message, opts = {}) => {
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
     return new Promise((resolve) => {
         const ov = document.createElement('div');
+        // data-esc-modal·data-esc-close — 공용 ESC(js/modal-esc.js)가 아래 창 대신 이 확인창을 맨 위로 보고 [취소]를 누르게
+        ov.setAttribute('data-esc-modal', '');
         ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(30,40,60,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
         // D안: 주 버튼 = 주색 채움, 위험 = 흰 바탕 + 장미 테두리 (다크 미대응 — 인라인 스타일)
         const okStyle = danger ? 'border:1px solid #C9808A;background:#fff;color:#A0525C;' : 'border:1px solid #2F62C9;background:#2F62C9;color:#fff;';
@@ -111,7 +113,7 @@ export const showConfirm = (message, opts = {}) => {
               <div style="padding:20px 20px 8px;font-weight:700;font-size:16px;color:#23272E;">${esc(title)}</div>
               <div style="padding:0 20px 18px;font-size:14px;color:#646B75;line-height:1.55;white-space:pre-line;">${esc(message)}</div>
               <div style="display:flex;gap:8px;padding:12px 16px;background:#F7F8FA;border-top:1px solid #E6E8EC;justify-content:flex-end;">
-                <button data-act="cancel" style="padding:8px 16px;border-radius:999px;border:1px solid #D6DAE0;background:#fff;color:#23272E;font-weight:700;font-size:13px;cursor:pointer;">${esc(cancelText)}</button>
+                <button data-act="cancel" data-esc-close style="padding:8px 16px;border-radius:999px;border:1px solid #D6DAE0;background:#fff;color:#23272E;font-weight:700;font-size:13px;cursor:pointer;">${esc(cancelText)}</button>
                 <button data-act="ok" style="padding:8px 16px;border-radius:999px;${okStyle}font-weight:700;font-size:13px;cursor:pointer;">${esc(okText)}</button>
               </div>
             </div>`;

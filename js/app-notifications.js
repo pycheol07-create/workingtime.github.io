@@ -1,7 +1,7 @@
 // === js/app-notifications.js ===
-import * as State from './state.js?v=202610210931';
+import * as State from './state.js?v=202610211108';
 import { doc, writeBatch, deleteDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from './utils.js?v=202610210931';
+import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=202610211108';
 
 export async function sendNotification(targetMember, message, type = 'info') {
     try {
@@ -13,8 +13,10 @@ export async function sendNotification(targetMember, message, type = 'info') {
             isRead: false,
             createdAt: new Date().toISOString()
         });
+        return true;
     } catch(e) {
         console.error("알림 발송 실패", e);
+        return false;   // 부르는 쪽이 실패한 사람을 셀 수 있게
     }
 }
 
@@ -30,7 +32,7 @@ export function renderNotificationList() {
     list.innerHTML = notis.map(n => `
         <li class="p-3 rounded-lg border ${n.isRead ? 'bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600 text-gray-500 dark:text-gray-400' : 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800 text-gray-800 dark:text-gray-200'} shadow-sm relative pr-8">
             <div class="text-[11px] font-bold mb-1 opacity-70">${new Date(n.createdAt).toLocaleString('ko-KR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</div>
-            <div class="text-sm font-medium leading-snug break-words">${n.message}</div>
+            <div class="text-sm font-medium leading-snug break-words whitespace-pre-line">${escapeHtml(n.message)}</div>
             <button class="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-bold text-lg delete-single-noti-btn transition" data-id="${n.id}">&times;</button>
         </li>
     `).join('');
@@ -112,14 +114,14 @@ export function setupNotificationListeners() {
         if (selectAllCb) selectAllCb.checked = false;
         
         const members = new Set();
-        (State.appConfig?.teamGroups || []).forEach(g => g.members?.forEach(m => members.add(m)));
+        getActiveTeamMembers(State.appConfig).forEach(m => members.add(m));   // 퇴사자(퇴사일 다음 날부터) 제외
         (State.appState?.partTimers || []).forEach(p => members.add(p.name));
         
         Array.from(members).sort().forEach(m => {
             if (m !== State.appState.currentUser) {
                 const label = document.createElement('label');
                 label.className = 'flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-600 p-1.5 rounded-md transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-500';
-                label.innerHTML = `<input type="checkbox" value="${m}" class="msg-target-checkbox w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"> <span class="truncate font-medium">${m}</span>`;
+                label.innerHTML = `<input type="checkbox" value="${escapeHtml(m)}" class="msg-target-checkbox w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"> <span class="truncate font-medium">${escapeHtml(m)}</span>`;
                 if (listContainer) listContainer.appendChild(label);
             }
         });
@@ -162,22 +164,30 @@ export function setupNotificationListeners() {
         const sender = State.appState.currentUser || '관리자';
         const finalMsg = `✉️ [${sender}님의 쪽지]\n${text}`;
 
-        const originalBtnText = sendMsgSubmitBtn.textContent;
+        const originalBtnHtml = sendMsgSubmitBtn.innerHTML;   // 아이콘까지 되돌리려고 innerHTML 로 보관
         sendMsgSubmitBtn.disabled = true;
         sendMsgSubmitBtn.textContent = '전송 중...';
 
         try {
-            // 여러 명에게 병렬로 알림 발송
-            await Promise.all(targets.map(target => sendNotification(target, finalMsg, 'message')));
-            
-            showToast(`${targets.length}명에게 쪽지를 성공적으로 보냈습니다.`);
-            sendMsgModal?.classList.add('hidden');
+            // 여러 명에게 병렬로 알림 발송 — sendNotification 은 실패해도 던지지 않고 false 를 준다
+            const results = await Promise.all(targets.map(target => sendNotification(target, finalMsg, 'message')));
+            const failed = targets.filter((_, i) => !results[i]);
+
+            if (failed.length === 0) {
+                showToast(`${targets.length}명에게 쪽지를 성공적으로 보냈습니다.`);
+                sendMsgModal?.classList.add('hidden');
+            } else {
+                // 실패한 사람만 체크로 남겨 두고 창은 열어 둔다 — 그대로 다시 누르면 재발송
+                showToast(`${targets.length - failed.length}명 성공, ${failed.length}명 실패 — 실패한 사람만 선택해 두었습니다.`, true);
+                selectedCbs.forEach(cb => { if (!failed.includes(cb.value)) cb.checked = false; });
+                if (selectAllCb) selectAllCb.checked = false;
+            }
         } catch (e) {
             showToast('쪽지 발송 중 오류가 발생했습니다.', true);
             console.error(e);
         } finally {
             sendMsgSubmitBtn.disabled = false;
-            sendMsgSubmitBtn.textContent = originalBtnText;
+            sendMsgSubmitBtn.innerHTML = originalBtnHtml;
         }
     });
 }

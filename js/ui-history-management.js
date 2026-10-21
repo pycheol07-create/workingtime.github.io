@@ -1,14 +1,14 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610210931';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610210931';
-import { appConfig } from './state.js?v=202610210931';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610211108';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610211108';
+import { appConfig, context } from './state.js?v=202610211108';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,
     revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
-} from './revenue-channels.js?v=202610210931';
-import { D } from './d-chart.js?v=202610210931';
+} from './revenue-channels.js?v=202610211108';
+import { D } from './d-chart.js?v=202610211108';
 // predictFutureTrends import 제거됨
 
 // 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장 / 기타)
@@ -52,7 +52,7 @@ const channelGridHtml = (mgmt, prevMgmt, formatVal, onInputHandler) => {
                 return `<div>
                     <input type="text" id="mgmt-input-${field}" data-channel="${c.id}" data-metric="${m.key}"
                         class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800"
-                        placeholder="0" value="${formatVal(mgmt[field])}"
+                        placeholder="0" value="${formatVal(mgmt[field])}" inputmode="numeric"
                         oninput="${onInputHandler} ${recalcTotalJs(m.key, m.fieldOf)}">
                     <div class="text-[11px] font-medium text-right mt-0.5">
                         ${getDiffHtmlForMetric(diffKindOf(m), mgmt[field], prevMgmt[field])}
@@ -196,7 +196,7 @@ const generateCostAnalysisHTML = (analysis) => {
         return `
             <div class="mt-8 p-6 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-center text-gray-500">
                 <p class="mb-2"><strong>원가 분석 데이터를 표시할 수 없습니다.</strong></p>
-                <p class="text-xs">관리자 페이지에서 '원가 계산 업무' 및 '고정 비용'을 설정하고,<br>해당 기간의 업무 기록(처리량)이 있어야 분석이 가능합니다.</p>
+                <p class="text-xs">설정·관리에서 '원가 계산 업무' 및 '고정 비용'을 설정하고,<br>해당 기간의 업무 기록(처리량)이 있어야 분석이 가능합니다.</p>
             </div>
         `;
     }
@@ -273,6 +273,41 @@ const generateCostAnalysisHTML = (analysis) => {
 /**
  * 1. 일별 입력 및 조회 화면 렌더링
  */
+/**
+ * 경영지표 입력칸에 저장하지 않은 수정이 있는지.
+ * 기준은 그려질 때의 값(defaultValue) — 저장에 성공하면 listeners-history.js 가 defaultValue 를 맞춘다.
+ * 쉼표는 입력할 때 다시 찍히므로 빼고 비교한다(포맷만 바뀐 것을 수정으로 보지 않게).
+ * 빈 칸은 저장에서 '변경 없음'으로 다뤄지므로 수정으로 세지 않는다.
+ */
+const mgmtInputs = () => Array.from(document.querySelectorAll('input[id^="mgmt-input-"]'));
+export const isManagementDirty = () => {
+    const strip = (s) => String(s || '').replace(/,/g, '').trim();
+    return mgmtInputs().some(el => {
+        const v = strip(el.value);
+        return v !== '' && v !== strip(el.defaultValue);
+    });
+};
+
+/** 지금 보고 있는 화면이 경영지표(업무 기록 > 경영지표)인지. */
+export const isManagementScreen = () =>
+    (context.activeHistoryView || 'rawdata') === 'rawdata' && context.activeMainHistoryTab === 'management';
+
+/**
+ * 경영지표 화면을 다시 그리거나 떠나기 전 확인 — 묻지 않아도 되면 true.
+ * 버리기로 하면 입력칸을 그린 값으로 되돌려 다음 동작에서 또 묻지 않게 한다.
+ * (동기 confirm — 공통 상단바 onBeforeLeave 와 같은 방식)
+ */
+export const confirmDiscardManagementEdits = (message) => {
+    if (!isManagementScreen() || !isManagementDirty()) return true;
+    if (!confirm(message)) return false;
+    mgmtInputs().forEach(el => {
+        el.value = el.defaultValue;
+        // 합계 칸도 되돌린 값으로 다시 계산(oninput 처리기)
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    return true;
+};
+
 export const renderManagementDaily = (dateKey, allHistoryData) => {
     const container = document.getElementById('management-view-container');
     const saveBtn = document.getElementById('management-save-btn');
@@ -297,6 +332,13 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
         return v === '' ? '' : Number(v).toLocaleString();
     };
     const onInputHandler = "this.value = this.value.replace(/[^0-9]/g, '').replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');";
+    // 환율용: 숫자·점만 남기고 두 번째 이후 점은 지움. 콤마는 정수부에만(소수부는 그대로)
+    const onDecimalHandler = "var p = this.value.replace(/[^0-9.]/g, '').split('.'); this.value = p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + (p.length > 1 ? '.' + p.slice(1).join('') : '');";
+    // 환율 표시: 기본 toLocaleString 은 소수 3자리에서 반올림하므로 자리수를 넉넉히
+    const formatRate = (val) => {
+        const v = getValue(val);
+        return v === '' ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
+    };
 
     const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
     (dayData?.partTimers || []).forEach(pt => {
@@ -369,7 +411,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                             <label class="block text-sm font-medium text-gray-700 mb-1">총 재고량 (개)</label>
                             <div class="flex items-center gap-2">
                                 <input type="text" id="mgmt-input-inventoryQty" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${formatVal(mgmt.inventoryQty)}" oninput="${onInputHandler}">
+                                    placeholder="0" value="${formatVal(mgmt.inventoryQty)}" inputmode="numeric" oninput="${onInputHandler}">
                                 <span class="text-sm font-medium w-20 text-right">
                                     ${getDiffHtmlForMetric('quantity', mgmt.inventoryQty, prevMgmt.inventoryQty)}
                                 </span>
@@ -379,7 +421,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                             <label class="block text-sm font-medium text-gray-700 mb-1">재고 금액 (원)</label>
                             <div class="flex items-center gap-2">
                                 <input type="text" id="mgmt-input-inventoryAmt" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right font-bold text-gray-800" 
-                                    placeholder="0" value="${formatVal(mgmt.inventoryAmt)}" oninput="${onInputHandler}">
+                                    placeholder="0" value="${formatVal(mgmt.inventoryAmt)}" inputmode="numeric" oninput="${onInputHandler}">
                                 <span class="text-sm font-medium w-20 text-right">
                                     ${getDiffHtmlForMetric('totalCost', mgmt.inventoryAmt, prevMgmt.inventoryAmt)}
                                 </span>
@@ -405,12 +447,12 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">달러 (1 USD = 원)</label>
                             <input type="text" id="mgmt-input-usdRate" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-right font-bold text-gray-800"
-                                placeholder="0" value="${formatVal(mgmt.usdRate)}" oninput="${onInputHandler}">
+                                placeholder="0" value="${formatRate(mgmt.usdRate)}" inputmode="decimal" oninput="${onDecimalHandler}">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">위안화 (1 CNY = 원)</label>
                             <input type="text" id="mgmt-input-cnyRate" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-right font-bold text-gray-800"
-                                placeholder="0" value="${formatVal(mgmt.cnyRate)}" oninput="${onInputHandler}">
+                                placeholder="0" value="${formatRate(mgmt.cnyRate)}" inputmode="decimal" oninput="${onDecimalHandler}">
                         </div>
                     </div>
                     <div class="text-[11px] text-gray-400 mt-2">매일 오전 9시 그날의 환율이 자동 입력됩니다. 필요 시 직접 수정 후 [저장]하세요.</div>

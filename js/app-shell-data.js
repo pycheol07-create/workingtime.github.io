@@ -75,7 +75,7 @@ export const memberNameFor = (memberEmails, email) => {
 export const PAGE_DEFAULTS = {
     'index':             { file: 'index.html',             title: '대시보드' },
     'history':           { file: 'history.html',           title: '데이터 관리' },
-    'admin':             { file: 'admin.html',             title: '관리자 페이지' },
+    'admin':             { file: 'admin.html',             title: '설정·관리' },
     'location':          { file: 'location.html',          title: '로케이션 관리' },
     'products':          { file: 'products.html',          title: '상품 관리' },
     'china-stock-goods': { file: 'china-stock-goods.html', title: '중국제작 부족수량 관리' },

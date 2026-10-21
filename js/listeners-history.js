@@ -1,26 +1,33 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202610210931';
-import * as State from './state.js?v=202610210931';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610210931';
+import * as DOM from './dom-elements.js?v=202610211108';
+import * as State from './state.js?v=202610211108';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610211108';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610210931';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610210931';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610210931';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610210931';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610211108';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610211108';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610211108';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610211108';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610210931';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610210931';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610210931';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610210931';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610211108';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610211108';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610211108';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610211108';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610210931';
-import { saveView } from './view-state.js?v=202610210931';
-import { goTo } from './app-shell-bridge.js?v=202610210931';
-import { placeOpenDropdown } from './table-filter.js?v=202610210931';
-import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=202610210931';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610211108';
+import { saveView } from './view-state.js?v=202610211108';
+import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610211108';
+import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=202610211108';
+import { isLeaveDirty } from './ui-history-leave.js?v=202610211108';
+import { placeOpenDropdown } from './table-filter.js?v=202610211108';
+import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=202610211108';
 
 let isHistoryMaximized = false;
+
+// 저장하지 않은 입력(경영지표 입력칸 · 연차 대장 총연차)이 화면에 있는지
+const hasUnsavedHistoryInput = () => isManagementDirty() || isLeaveDirty();
+// 경영지표 화면에서 다른 날짜로 갈 때 확인 문구
+const MGMT_DATE_CONFIRM = '저장하지 않은 경영지표 입력이 있습니다. 저장하지 않고 다른 날짜로 갈까요?';
 
 export function setupHistoryModalListeners() {
     setupHistoryDownloadListeners();
@@ -30,6 +37,15 @@ export function setupHistoryModalListeners() {
 
     // ('선택 기간 엑셀 다운로드' 통합 버튼은 2026-10-16 사용자 결정으로 없앴다 — 각 화면 안 엑셀 버튼을 쓴다)
     setupHistoryTabsListeners();  
+
+    // 저장 안 한 경영지표·총연차를 두고 떠날 때 묻는다(manual.js·admin.js 와 같은 방식)
+    window.addEventListener('beforeunload', (e) => {
+        if (!hasUnsavedHistoryInput() || leaveAlreadyConfirmed()) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
+    // 공통 상단바 메뉴·홈 — 동기 confirm 만
+    onBeforeLeave(() => !hasUnsavedHistoryInput() || confirm('저장하지 않은 입력이 있습니다(경영지표/총연차).\n저장하지 않고 이 화면을 떠날까요?'));
 
     const managementSaveBtn = document.getElementById('management-save-btn');
     const predictionDaysSelect = document.getElementById('prediction-days-select');
@@ -217,6 +233,8 @@ export function setupHistoryModalListeners() {
         const cur = DOM.historyDateList && DOM.historyDateList.querySelector('.history-date-btn.is-on');
         const target = list[list.indexOf(cur) + dir];
         if (!cur || !target) return;
+        // target.click() 은 프로그램 클릭이라 날짜 클릭 처리기가 묻지 않는다 — 여기서 먼저 묻는다
+        if (!confirmDiscardManagementEdits(MGMT_DATE_CONFIRM)) return;
         // 접힌 달(아코디언) 안이면 펼쳐서 트리에서도 선택이 보이게
         const group = target.closest('.accordion-content');
         if (group && group.classList.contains('hidden')) group.previousElementSibling?.click();
@@ -258,6 +276,11 @@ export function setupHistoryModalListeners() {
         DOM.historyDateList.addEventListener('click', (e) => {
             const btn = e.target.closest('.history-date-btn');
             if (!btn) return;
+
+            // 다른 날짜로 가면 경영지표 입력칸을 새로 그린다 — 저장 안 한 입력이 있으면 선택 표시를 바꾸기 전에 묻는다.
+            // 사람이 누른 클릭만 묻는다: 목록을 다시 그린 뒤·단위 변경·저장 후 갱신의 프로그램 클릭에서 취소하면
+            // 선택된 날짜가 없는 상태가 된다(기간 바 ‹ › 는 stepPeriod 가 클릭 전에 묻는다).
+            if (e.isTrusted && !confirmDiscardManagementEdits(MGMT_DATE_CONFIRM)) return;
 
             // 선택 표시: is-on(코드가 찾는 이름) + bg-blue-100(색 — css/history-d.css 가 이 이름으로 칠한다. 선택 날짜를 찾는 코드는 모두 .is-on)
             DOM.historyDateList.querySelectorAll('button').forEach(b => b.classList.remove('is-on', 'bg-blue-100', 'font-bold', 'bg-blue-50', 'text-blue-700', 'dark:bg-blue-900/40', 'dark:text-blue-400'));
@@ -393,6 +416,8 @@ export function setupHistoryModalListeners() {
                 }
 
                 await saveManagementData(dateKey, payload);
+                // 저장된 값을 '그린 값' 기준으로 맞춘다 — 다시 그리기 전이라도 미저장 경고가 뜨지 않게
+                document.querySelectorAll('input[id^="mgmt-input-"]').forEach(el => { el.defaultValue = el.value; });
                 showToast('경영 지표가 저장되었습니다.'); refreshManagementView();
             } catch (e) { showToast('저장 중 오류가 발생했습니다.', true); }
             finally { managementSaveBtn.disabled = false; managementSaveBtn.textContent = '저장'; }

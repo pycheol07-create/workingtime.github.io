@@ -6,10 +6,10 @@
 //   스타일은 location.html <style> · index 는 css/locrec-modal.css(#locrec-modal 범위로 같은 모양).
 // ⚠️ role="dialog" · data-act 를 붙이지 않는다 — 업무마감봇이 div[role=dialog] 마지막 것 · [data-act] 로 자기 확인창을 읽는다(버튼은 data-locrec-act).
 // 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙는다.
-import { escapeHtml } from './utils.js?v=202610210931';
-import { fmtHM, tabCounts, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage } from './lib/locrec-view.js?v=202610210931';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610210931';
-import { higherOpenThan } from './modal-above.js?v=202610210931';
+import { escapeHtml } from './utils.js?v=202610211108';
+import { fmtHM, tabCounts, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage } from './lib/locrec-view.js?v=202610211108';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610211108';
+import { higherOpenThan } from './modal-above.js?v=202610211108';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `

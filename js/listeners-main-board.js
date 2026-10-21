@@ -1,12 +1,12 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610210931';
-import * as State from './state.js?v=202610210931';
-import { render } from './app.js?v=202610210931';
-import { showToast, formatTimeTo24H } from './utils.js?v=202610210931';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202610210931';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202610210931';
+import * as DOM from './dom-elements.js?v=202610211108';
+import * as State from './state.js?v=202610211108';
+import { render } from './app.js?v=202610211108';
+import { showToast, formatTimeTo24H } from './utils.js?v=202610211108';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202610211108';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202610211108';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -14,12 +14,12 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202610210931';
+} from './app-logic.js?v=202610211108';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610210931';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202610210931';
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202610210931';
-import { openLocRecFromDash } from './locrec-dash.js?v=202610210931';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610211108';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202610211108';
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202610211108';
+import { openLocRecFromDash } from './locrec-dash.js?v=202610211108';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -420,6 +420,8 @@ export function setupMainBoardListeners() {
         toggleMemberBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             State.context.isMobileMemberViewExpanded = !State.context.isMobileMemberViewExpanded;
+            // ui-main-board.js 가 이 글자('간략히')로도 펼침을 판단하므로 render 전에 맞춘다
+            toggleMemberBtn.textContent = State.context.isMobileMemberViewExpanded ? '간략히' : '전체보기';
             render();
         });
     }

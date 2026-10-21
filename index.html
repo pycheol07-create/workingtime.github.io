@@ -24,12 +24,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610210931">
-    <link rel="stylesheet" href="css/style.css?v=202610210931">
-    <link rel="stylesheet" href="css/dash-d.css?v=202610210931">
-    <link rel="stylesheet" href="css/form-d.css?v=202610210931">
-    <link rel="stylesheet" href="css/refill-modal.css?v=202610210931">
-    <link rel="stylesheet" href="css/locrec-modal.css?v=202610210931">
+    <link rel="stylesheet" href="css/suit.css?v=202610211108">
+    <link rel="stylesheet" href="css/style.css?v=202610211108">
+    <link rel="stylesheet" href="css/dash-d.css?v=202610211108">
+    <link rel="stylesheet" href="css/form-d.css?v=202610211108">
+    <link rel="stylesheet" href="css/refill-modal.css?v=202610211108">
+    <link rel="stylesheet" href="css/locrec-modal.css?v=202610211108">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -64,7 +64,7 @@
 
                 <div class="d-nav-cat">관리자 메뉴</div>
                 <a href="admin.html" id="admin-link-btn" class="d-nav-item w-full flex items-center gap-3" style="display: none;">
-                    <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 관리자 페이지
+                    <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 설정·관리
                 </a>
                 <button id="end-shift-btn" class="d-nav-item w-full flex items-center gap-3" style="display: none;">
                     <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></span> 업무 마감
@@ -131,7 +131,7 @@
                 <a href="location.html" id="location-link-btn-mobile" class="d-nav-item flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span> 로케이션 관리</a>
 
                 <div class="d-nav-cat">관리자 메뉴</div>
-                <a href="admin.html" id="admin-link-btn-mobile" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 관리자 페이지</a>
+                <a href="admin.html" id="admin-link-btn-mobile" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span> 설정·관리</a>
                 <button id="end-shift-btn-mobile" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></span> 업무 마감</button>
 
                 <button id="logout-btn-mobile" class="hidden d-nav-item d-nav-logout flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></svg></span> 로그아웃</button>
@@ -406,15 +406,16 @@
             <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">정규 근무 시간 종료</h3>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 17시 30분이 되었습니다.<br>
-                연장 근무를 계속하시겠습니까?<br><br>
-                <span class="text-red-500 font-bold" id="auto-close-countdown">응답이 없으면 5분 후 자동으로 업무가 마감됩니다.</span>
+                연장 근무를 계속하시겠습니까?<br>
+                <span id="overtime-target-count"></span><br><br>
+                <span class="text-red-500 font-bold" id="auto-close-countdown">응답이 없으면 5분 후 자동으로 업무가 종료됩니다.</span>
             </p>
             <div class="flex gap-2 justify-center mt-4">
                 <button id="btn-continue-overtime" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-bold transition-colors">
                     연장 근무 계속하기
                 </button>
                 <button id="btn-close-now" class="bg-white border border-red-300 text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
-                    지금 마감하기
+                    지금 종료하기
                 </button>
             </div>
         </div>
@@ -531,13 +532,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202610210931');
+                await import('./js/app.js?v=202610211108');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202610210931').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202610211108').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -614,30 +615,14 @@
             const arrow = head.querySelector('[data-m-arrow]');
             if (arrow) arrow.classList.toggle('rotate-180', open);
         });
-        
-        document.addEventListener('click', function(e) {
-            if (e.target && e.target.id === 'toggle-all-members-mobile') {
-                const isExpanded = e.target.textContent === '간략히';
-                e.target.textContent = isExpanded ? '전체보기' : '간략히';
-                document.querySelectorAll('.mobile-member-hidden').forEach(el => {
-                    if (isExpanded) {
-                        el.classList.add('hidden', 'md:flex');
-                        el.classList.remove('flex');
-                    } else {
-                        el.classList.remove('hidden', 'md:flex');
-                        el.classList.add('flex');
-                    }
-                });
-            }
-        });
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202610210931';
-        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610210931';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202610210931';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610210931';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610210931';
+        import { appState } from './js/state.js?v=202610211108';
+        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610211108';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202610211108';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610211108';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610211108';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -655,8 +640,10 @@
         });
 
         document.getElementById('new-notice-input')?.addEventListener('keydown', (e) => {
+            if (e.isComposing || e.keyCode === 229) return;   // 한글 조합 중 Enter — 마지막 글자가 따로 등록되는 것 막기
             if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault(); 
+                e.preventDefault();
+                // 버튼 클릭과 같은 길 — 등록 중(버튼 disabled)이면 click() 이 무시돼 두 번 등록되지 않는다
                 document.getElementById('add-notice-btn').click();
             }
         });
@@ -674,12 +661,19 @@
             if (d) d.value = ''; if (t) t.value = '';
         });
 
-        document.getElementById('add-notice-btn')?.addEventListener('click', () => {
+        document.getElementById('add-notice-btn')?.addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
             const input = document.getElementById('new-notice-input');
-            if (input && input.value) {
-                addNotice(input.value, window.noticeScheduleValue());
-                input.value = '';
-                document.getElementById('clear-notice-date')?.click();
+            if (!input || !input.value || btn.disabled) return;
+            btn.disabled = true;   // 저장 끝날 때까지 두 번 등록 막기
+            try {
+                const ok = await addNotice(input.value, window.noticeScheduleValue());
+                if (ok) {   // 실패하면 입력은 그대로 두어 다시 누를 수 있게
+                    input.value = '';
+                    document.getElementById('clear-notice-date')?.click();
+                }
+            } finally {
+                btn.disabled = false;
             }
         });
 
@@ -806,11 +800,11 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202610210931"></script>
-    <script src="js/modal-esc.js?v=202610210931"></script>
-    <script type="module" src="js/modal-drag.js?v=202610210931"></script>
+    <script src="js/connection-banner.js?v=202610211108"></script>
+    <script src="js/modal-esc.js?v=202610211108"></script>
+    <script type="module" src="js/modal-drag.js?v=202610211108"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202610210931"></script>
-    <script src="js/app-version.js?v=202610210931"></script>
+    <script type="module" src="js/app-shell.js?v=202610211108"></script>
+    <script src="js/app-version.js?v=202610211108"></script>
 </body>
 </html>

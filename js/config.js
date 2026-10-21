@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610210931';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610211108';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -271,7 +271,7 @@ function getDefaultConfig() {
             {
                 category: '관리자 메뉴',
                 items: [
-                    { name: '관리자 페이지', link: 'admin.html' },
+                    { name: '설정·관리', link: 'admin.html' },
                     { name: '업무 마감', link: '#' }
                 ]
             }

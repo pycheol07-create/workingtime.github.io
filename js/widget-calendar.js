@@ -8,11 +8,11 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202610210931';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610210931';
-import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610210931';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610210931';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610210931';
+import * as State from './state.js?v=202610211108';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610211108';
+import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610211108';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610211108';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211108';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
@@ -57,6 +57,7 @@ let viewMode = null;
 const isNarrow = () => window.matchMedia('(max-width: 767px)').matches;
 let userPickedView = false;  // 사용자가 직접 보기를 고르면 화면 폭 변화로 되돌리지 않는다
 let isBound = false;
+let loadFailToastShown = false;  // 일정 로드 실패 안내는 한 번만
 
 const eventsColRef = () => collection(State.db, ...APP_PATH, 'calendarEvents');
 const isAdmin = () => (State.appState?.currentUserRole === 'admin');
@@ -96,6 +97,10 @@ async function loadEvents(monthDate, { force = false } = {}) {
         loadedRange = { from, to };
     } catch (e) {
         console.warn('[calendar] 일정 로드 실패:', e);
+        if (!loadFailToastShown) {
+            loadFailToastShown = true;
+            showToast('업무 캘린더 일정을 불러오지 못했습니다(인터넷 연결 확인)', true);
+        }
     }
 }
 
@@ -832,10 +837,26 @@ function bind() {
         }
 
         // 목록 보기의 [날짜 선택] → 날짜를 골라 그 날짜 팝업 열기
-        if (e.target.closest('#cal-list-pick')) {
-            const picked = prompt('일정을 추가할 날짜를 입력하세요 (YYYY-MM-DD)', getTodayDateString());
-            if (picked && /^\d{4}-\d{2}-\d{2}$/.test(picked)) openDayModal(picked);
-            else if (picked) showToast('날짜 형식이 올바르지 않습니다. (예: 2026-08-01)', true);
+        const pickBtn = e.target.closest('#cal-list-pick');
+        if (pickBtn) {
+            // 임시 날짜 입력칸을 버튼 자리에 띄워 달력으로 고르게 한다(고르면·벗어나면 지움)
+            const r = pickBtn.getBoundingClientRect();
+            const inp = document.createElement('input');
+            inp.type = 'date';
+            // 값은 비워 둔다 — 오늘이 미리 들어 있으면 오늘을 골랐을 때 change 가 안 난다
+            inp.style.cssText = `position:fixed;left:${r.left}px;top:${r.bottom}px;width:1px;height:1px;opacity:0;border:0;padding:0;`;
+            const cleanup = () => { if (inp.isConnected) inp.remove(); };
+            inp.addEventListener('change', () => {
+                const picked = inp.value;
+                cleanup();
+                if (/^\d{4}-\d{2}-\d{2}$/.test(picked)) openDayModal(picked);
+            });
+            inp.addEventListener('blur', cleanup);
+            document.body.appendChild(inp);
+            inp.focus();
+            if (typeof inp.showPicker === 'function') {
+                try { inp.showPicker(); } catch (_) { /* 지원 안 하는 환경 — 포커스만 */ }
+            }
             return;
         }
 

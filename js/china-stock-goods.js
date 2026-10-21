@@ -1,19 +1,19 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610210931'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610211108'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610210931';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610210931';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610210931';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610210931'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610210931';
-import { initPageNav } from './page-nav.js?v=202610210931';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610210931';
-import { setShellContext } from './app-shell-bridge.js?v=202610210931';
-import { memberNameFor } from './app-shell-data.js?v=202610210931';
-import { createUploadStatus } from './busy-banner.js?v=202610210931';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610211108';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610211108';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610211108';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610211108'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610211108';
+import { initPageNav } from './page-nav.js?v=202610211108';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610211108';
+import { setShellContext } from './app-shell-bridge.js?v=202610211108';
+import { memberNameFor } from './app-shell-data.js?v=202610211108';
+import { createUploadStatus } from './busy-banner.js?v=202610211108';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -972,6 +972,7 @@ function openRuleNumpad() {
     if (!pad) {
         pad = document.createElement('div');
         pad.id = 'rule-numpad';
+        pad.setAttribute('data-esc-modal', ''); // ESC 는 밑의 규칙 창이 아니라 키패드만 닫는다(js/modal-esc.js)
         pad.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10050; display:flex; justify-content:center; align-items:center;';
         document.body.appendChild(pad);
     }
@@ -990,7 +991,7 @@ function renderRuleNumpad() {
             <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:7px;">
               ${keys.map(k => `<button type="button" class="np-key" data-k="${k}" style="height:50px; font-size:20px; font-weight:800; border:1px solid ${k === '확인' ? 'var(--c-accent)' : 'var(--c-line-strong)'}; border-radius:var(--r-sm); background:${k === '확인' ? 'var(--c-accent)' : (k === '⌫' ? 'var(--c-surface-2)' : 'var(--c-surface)')}; color:${k === '확인' ? '#fff' : 'var(--c-text)'}; cursor:pointer;">${k}</button>`).join('')}
             </div>
-            <button type="button" id="numpad-cancel" style="width:100%; margin-top:9px; height:42px; border:1px solid var(--c-line-strong); border-radius:var(--r-pill); background:var(--c-surface); color:var(--c-text-2); cursor:pointer; font-weight:bold;">취소</button>
+            <button type="button" id="numpad-cancel" data-esc-close style="width:100%; margin-top:9px; height:42px; border:1px solid var(--c-line-strong); border-radius:var(--r-pill); background:var(--c-surface); color:var(--c-text-2); cursor:pointer; font-weight:bold;">취소</button>
          </div>`;
     pad.onclick = closeRuleNumpad;
     document.getElementById('numpad-card').onclick = e => e.stopPropagation();
@@ -1697,17 +1698,21 @@ async function handleLocationMapUpload(e) {
         hideLoading();
         renderLocationMapList();
         showToast(`✅ 위치 매핑 ${cnt}건 반영 (총 ${Object.keys(locationMapData).length}건) — 스캐너에 즉시 반영`);
-    } catch (err) { hideLoading(); alert('위치 매핑 처리 실패: ' + err.message); }
+    } catch (err) { hideLoading(); alert('위치 매핑 처리 실패: ' + err.message); await loadLocationMapDoc(); renderLocationMapList(); }
     e.target.value = '';
 }
 
 // [Ver 8.62] 위치매핑 관리 모달: LOCATION_MAP(상품코드→스캐너 고정 위치) 조회/추가/수정/삭제
 let locationMapData = {};
+// 불러오기에 성공했을 때만 저장한다(실패한 채 {} 로 저장하면 스캐너 매핑 전체가 지워진다)
+let locationMapOk = false, barcodeAliasOk = false;
 async function loadLocationMapDoc() {
-    try { const s = await getDoc(doc(db, CHINA_COLLECTION, 'LOCATION_MAP')); locationMapData = s.exists() ? unpackMap(s.data()) : {}; } catch (e) { locationMapData = {}; }
+    try { const s = await getDoc(doc(db, CHINA_COLLECTION, 'LOCATION_MAP')); locationMapData = s.exists() ? unpackMap(s.data()) : {}; locationMapOk = true; } catch (e) { locationMapData = {}; locationMapOk = false; }
 }
+// 실패는 던진다 — 부른 쪽이 성공 안내 전에 처리
 async function saveLocationMapDoc() {
-    try { await setDoc(doc(db, CHINA_COLLECTION, 'LOCATION_MAP'), packMap(locationMapData)); } catch (e) { alert('저장 실패: ' + e.message); }
+    if (!locationMapOk) throw new Error('목록을 불러오지 못한 상태라 저장하지 않았습니다. 새로고침 후 다시 해 주세요.');
+    await setDoc(doc(db, CHINA_COLLECTION, 'LOCATION_MAP'), packMap(locationMapData));
 }
 async function openLocationMapModal() {
     closeAllMenus();
@@ -1716,6 +1721,7 @@ async function openLocationMapModal() {
     hideLoading();
     renderLocationMapList();
     document.getElementById('location-map-modal').style.display = 'flex';
+    if (!locationMapOk) alert('목록을 불러오지 못했습니다. 새로고침해 주세요(저장은 막힘).');
 }
 function closeLocationMapModal() { document.getElementById('location-map-modal').style.display = 'none'; }
 function renderLocationMapList() {
@@ -1729,13 +1735,19 @@ function renderLocationMapList() {
     tb.innerHTML = entries.length
         ? entries.map(([c, l]) => `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(c)}</td><td class="t-accent" style="padding:7px 6px; font-weight:bold;">${escBa(l)}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="locmap-edit" data-c="${escBa(c)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:8px;">✏️</span><span class="locmap-del" data-c="${escBa(c)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
         : '<tr><td colspan="3" style="padding:22px; color:#999;">등록된 위치매핑이 없습니다. 파일 업로드 또는 위에서 직접 추가하세요.</td></tr>';
-    tb.querySelectorAll('.locmap-del').forEach(x => x.onclick = async () => { if (confirm(`[${x.dataset.c}] 매핑을 삭제할까요?`)) { delete locationMapData[x.dataset.c]; await saveLocationMapDoc(); renderLocationMapList(); showToast('🗑️ 삭제됨 — 스캐너 즉시 반영'); } });
+    tb.querySelectorAll('.locmap-del').forEach(x => x.onclick = async () => {
+        if (!confirm(`[${x.dataset.c}] 매핑을 삭제할까요?`)) return;
+        delete locationMapData[x.dataset.c];
+        try { await saveLocationMapDoc(); } catch (err) { alert('저장 실패: ' + err.message); await loadLocationMapDoc(); renderLocationMapList(); return; }
+        renderLocationMapList(); showToast('🗑️ 삭제됨 — 스캐너 즉시 반영');
+    });
     tb.querySelectorAll('.locmap-edit').forEach(x => x.onclick = async () => {
         const code = x.dataset.c;
         const nv = prompt(`[${code}] 새 위치값`, locationMapData[code] || '');
         if (nv === null) return;
         locationMapData[code] = nv.trim();
-        await saveLocationMapDoc(); renderLocationMapList(); showToast('✏️ 수정됨 — 스캐너 즉시 반영');
+        try { await saveLocationMapDoc(); } catch (err) { alert('저장 실패: ' + err.message); await loadLocationMapDoc(); renderLocationMapList(); return; }
+        renderLocationMapList(); showToast('✏️ 수정됨 — 스캐너 즉시 반영');
     });
 }
 async function addLocationMapManual() {
@@ -1744,7 +1756,7 @@ async function addLocationMapManual() {
     if (!c || !l) { alert('상품코드와 위치를 모두 입력하세요.'); return; }
     const exists = locationMapData[c] !== undefined;
     locationMapData[c] = l;
-    await saveLocationMapDoc();
+    try { await saveLocationMapDoc(); } catch (err) { alert('저장 실패: ' + err.message); await loadLocationMapDoc(); renderLocationMapList(); return; }
     cEl.value = ''; lEl.value = ''; cEl.focus();
     renderLocationMapList();
     showToast(exists ? '✏️ 기존 상품코드 위치 변경됨 — 스캐너 즉시 반영' : '✅ 위치매핑 추가됨 — 스캐너 즉시 반영');
@@ -1769,21 +1781,22 @@ function escBa(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').rep
 function baCode(v) { return (v && typeof v === 'object') ? (v.code || '') : (v || ''); }
 function baMemo(v) { return (v && typeof v === 'object') ? (v.memo || '') : ''; }
 async function loadBarcodeAlias() {
-    try { const s = await getDoc(doc(db, CHINA_COLLECTION, 'BARCODE_ALIAS')); barcodeAlias = s.exists() ? unpackMap(s.data()) : {}; } catch (e) { barcodeAlias = {}; }
+    try { const s = await getDoc(doc(db, CHINA_COLLECTION, 'BARCODE_ALIAS')); barcodeAlias = s.exists() ? unpackMap(s.data()) : {}; barcodeAliasOk = true; } catch (e) { barcodeAlias = {}; barcodeAliasOk = false; }
 }
+// 실패는 던진다 — 부른 쪽이 성공 안내 전에 처리
 async function saveBarcodeAlias() {
-    try {
-        await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_ALIAS'), packMap(barcodeAlias));
-        // [Ver 8.88] 사유만 담은 작은 문서 → 스캐너가 큰 목록(315KB)과 무관하게 빠르고 확실하게 사유 로드
-        const memoMap = {}; for (const b in barcodeAlias) { const m = baMemo(barcodeAlias[b]); if (m) memoMap[b] = m; }
-        await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_MEMO'), packMap(memoMap));
-    } catch (e) { alert('저장 실패: ' + e.message); }
+    if (!barcodeAliasOk) throw new Error('목록을 불러오지 못한 상태라 저장하지 않았습니다. 새로고침 후 다시 해 주세요.');
+    await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_ALIAS'), packMap(barcodeAlias));
+    // [Ver 8.88] 사유만 담은 작은 문서 → 스캐너가 큰 목록(315KB)과 무관하게 빠르고 확실하게 사유 로드
+    const memoMap = {}; for (const b in barcodeAlias) { const m = baMemo(barcodeAlias[b]); if (m) memoMap[b] = m; }
+    await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_MEMO'), packMap(memoMap));
 }
 async function openBarcodeAliasModal() {
     closeAllMenus();
     await loadBarcodeAlias();
     renderBarcodeAliasList();
     document.getElementById('barcode-alias-modal').style.display = 'flex';
+    if (!barcodeAliasOk) alert('목록을 불러오지 못했습니다. 새로고침해 주세요(저장은 막힘).');
 }
 function closeBarcodeAliasModal() { document.getElementById('barcode-alias-modal').style.display = 'none'; }
 function renderBarcodeAliasList() {
@@ -1797,7 +1810,12 @@ function renderBarcodeAliasList() {
     tb.innerHTML = entries.length
         ? entries.map(([b, v]) => `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(b)}</td><td class="t-accent" style="padding:7px 6px; font-weight:bold;">${escBa(baCode(v))}</td><td class="t-risk" style="padding:7px 6px; text-align:left; word-break:break-all;">${escBa(baMemo(v))}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="ba-edit" data-b="${escBa(b)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:7px;">✏️</span><span class="ba-del" data-b="${escBa(b)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
         : '<tr><td colspan="4" style="padding:22px; color:#999;">등록된 매칭이 없습니다. 파일 업로드 또는 위에서 직접 추가하세요.</td></tr>';
-    tb.querySelectorAll('.ba-del').forEach(x => x.onclick = async () => { if (!confirm(`[${x.dataset.b}] 매칭을 삭제할까요?`)) return; delete barcodeAlias[x.dataset.b]; await saveBarcodeAlias(); renderBarcodeAliasList(); });
+    tb.querySelectorAll('.ba-del').forEach(x => x.onclick = async () => {
+        if (!confirm(`[${x.dataset.b}] 매칭을 삭제할까요?`)) return;
+        delete barcodeAlias[x.dataset.b];
+        try { await saveBarcodeAlias(); } catch (err) { alert('저장 실패: ' + err.message); await loadBarcodeAlias(); renderBarcodeAliasList(); return; }
+        renderBarcodeAliasList();
+    });
     tb.querySelectorAll('.ba-edit').forEach(x => x.onclick = () => { const b = x.dataset.b, v = barcodeAlias[b]; document.getElementById('ba-barcode').value = b; document.getElementById('ba-code').value = baCode(v); document.getElementById('ba-memo').value = baMemo(v); document.getElementById('ba-barcode').focus(); }); // 클릭 시 입력칸에 로드 → 수정 후 +추가로 덮어씀
 }
 async function addBarcodeAliasManual() {
@@ -1805,7 +1823,7 @@ async function addBarcodeAliasManual() {
     const b = (bEl.value || '').trim().toUpperCase(); const c = (cEl.value || '').trim().toUpperCase(); const m = (mEl.value || '').trim();
     if (!b || !c) { alert('바코드와 상품코드를 모두 입력하세요.'); return; }
     barcodeAlias[b] = { code: c, memo: m }; // [Ver 8.83] 사유 포함 저장
-    await saveBarcodeAlias();
+    try { await saveBarcodeAlias(); } catch (err) { alert('저장 실패: ' + err.message); await loadBarcodeAlias(); renderBarcodeAliasList(); return; }
     bEl.value = ''; cEl.value = ''; mEl.value = ''; bEl.focus();
     renderBarcodeAliasList();
     showToast('✅ 매칭 추가됨 — 스캐너 즉시 반영');
@@ -1856,18 +1874,22 @@ async function handleBarcodeAliasUpload(e) {
         if (hi < 0) { hideLoading(); alert('바코드/상품코드 두 열을 찾지 못했습니다.'); e.target.value = ''; return; }
         const bIdx = headers.indexOf('바코드'), cIdx = headers.indexOf('상품코드'), mIdx = headers.indexOf('사유');
         let added = 0;
+        const map = {};
         for (let i = hi + 1; i < rows.length; i++) {
             const b = (rows[i][bIdx] || '').toString().trim().toUpperCase();
             const c = (rows[i][cIdx] || '').toString().trim().toUpperCase();
             const m = mIdx >= 0 ? (rows[i][mIdx] || '').toString().trim() : ''; // [Ver 8.83] 사유(선택)
-            if (b && c) { barcodeAlias[b] = { code: c, memo: m }; added++; }
+            if (b && c) { map[b] = { code: c, memo: m }; added++; }
         }
         if (!added) { hideLoading(); alert('유효한 행이 없습니다.'); e.target.value = ''; return; }
+        // 창을 연 적 없으면 메모리가 비어 있다 — 최신 목록을 읽고 그 위에 병합(위치매핑 업로드와 같은 방식)
+        await loadBarcodeAlias();
+        Object.assign(barcodeAlias, map);
         await saveBarcodeAlias();
         hideLoading();
         renderBarcodeAliasList();
         showToast(`✅ ${added}건 반영 (총 ${Object.keys(barcodeAlias).length}건) — 스캐너 즉시 반영`);
-    } catch (err) { hideLoading(); alert('처리 실패: ' + err.message); }
+    } catch (err) { hideLoading(); alert('처리 실패: ' + err.message); await loadBarcodeAlias(); renderBarcodeAliasList(); }
     e.target.value = '';
 }
 
@@ -2680,10 +2702,10 @@ async function saveColumns() {
 }
 
 function updateSummary() {
-    document.getElementById('sum-sku').textContent = filteredData.length;
-    document.getElementById('sum-arrival').textContent = filteredData.reduce((s,d)=>s+d.arrivalQty,0);
-    // [Ver 8.29] 총 미발수량 카드 = 부족수량 열의 합
-    document.getElementById('sum-mibal').textContent = filteredData.reduce((s,d)=>s+(parseInt(d.shortage)||0),0);
+    document.getElementById('sum-sku').textContent = filteredData.length.toLocaleString();
+    document.getElementById('sum-arrival').textContent = filteredData.reduce((s,d)=>s+d.arrivalQty,0).toLocaleString();
+    // [Ver 8.29] 총 부족수량 카드(옛 이름 '총 미발수량') = 부족수량 열의 합
+    document.getElementById('sum-mibal').textContent = filteredData.reduce((s,d)=>s+(parseInt(d.shortage)||0),0).toLocaleString();
 }
 
 // ---------------------------------------------------------
@@ -3042,7 +3064,7 @@ function setupEventListeners() {
     document.getElementById('ba-barcode')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('ba-code')?.focus(); });
     document.getElementById('ba-code')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('ba-memo')?.focus(); });
     document.getElementById('ba-memo')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') addBarcodeAliasManual(); });
-    document.getElementById('btn-barcode-alias-clear')?.addEventListener('click', async () => { if (Object.keys(barcodeAlias).length && confirm('오류바코드매칭을 전부 삭제할까요? (되돌릴 수 없습니다)')) { barcodeAlias = {}; await saveBarcodeAlias(); renderBarcodeAliasList(); showToast('🗑️ 전체 삭제됨'); } });
+    document.getElementById('btn-barcode-alias-clear')?.addEventListener('click', async () => { if (Object.keys(barcodeAlias).length && confirm('오류바코드매칭을 전부 삭제할까요? (되돌릴 수 없습니다)')) { barcodeAlias = {}; try { await saveBarcodeAlias(); } catch (err) { alert('저장 실패: ' + err.message); await loadBarcodeAlias(); renderBarcodeAliasList(); return; } renderBarcodeAliasList(); showToast('🗑️ 전체 삭제됨'); } });
     // [Ver 8.62] 위치매핑 관리 모달
     document.getElementById('btn-open-location-map')?.addEventListener('click', () => openLocationMapModal());
     document.getElementById('btn-location-map-close')?.addEventListener('click', () => closeLocationMapModal());
@@ -3052,7 +3074,7 @@ function setupEventListeners() {
     document.getElementById('locmap-search')?.addEventListener('input', () => renderLocationMapList());
     document.getElementById('locmap-code')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('locmap-loc')?.focus(); });
     document.getElementById('locmap-loc')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') addLocationMapManual(); });
-    document.getElementById('btn-locmap-clear')?.addEventListener('click', async () => { if (Object.keys(locationMapData).length && confirm('위치매핑을 전부 삭제할까요? (되돌릴 수 없습니다)')) { locationMapData = {}; await saveLocationMapDoc(); renderLocationMapList(); showToast('🗑️ 전체 삭제됨'); } });
+    document.getElementById('btn-locmap-clear')?.addEventListener('click', async () => { if (Object.keys(locationMapData).length && confirm('위치매핑을 전부 삭제할까요? (되돌릴 수 없습니다)')) { locationMapData = {}; try { await saveLocationMapDoc(); } catch (err) { alert('저장 실패: ' + err.message); await loadLocationMapDoc(); renderLocationMapList(); return; } renderLocationMapList(); showToast('🗑️ 전체 삭제됨'); } });
     // 7-3. #upload-existing-loc (기존재고 옵션추가항목1 시드 업로드 - Ver 6.5)
     document.getElementById('upload-existing-loc')?.addEventListener('change', (e) => handleExistingLocUpload(e));
 

@@ -10,7 +10,7 @@ import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://w
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll
-} from './lib/locrec-view.js?v=202610210931';
+} from './lib/locrec-view.js?v=202610211108';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -33,7 +33,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
         authKnown: false, signedIn: false, latest: null, latestErr: '',
         key: '', userPicked: false,
         day: null, dayErr: '', dayLoading: false,       // day = { key, data, parsed }
-        marks: {}, saving: new Set()
+        marks: {}, marksErr: '', saving: new Set()
     };
     let unsubs = [], unsubDay = null, dayKeyWatching = '', unsubAuth = null, timer = null, started = false;
     const listeners = new Set();
@@ -68,8 +68,9 @@ function createLocRecStore({ db, auth, getMemberName }) {
         unsubs.push(onSnapshot(doc(db, MARKS_PATH), snap => {
             const d = snap.exists() ? (snap.data({ serverTimestamps: 'estimate' }) || {}) : {};
             S.marks = (d.marks && typeof d.marks === 'object') ? d.marks : {};
+            S.marksErr = '';
             emit();
-        }, () => { /* 못 읽으면 표시 없이 */ }));
+        }, () => { S.marksErr = '완료 표시를 읽지 못했습니다'; emit(); }));   // 표시 없이 + 주의
     }
 
     function syncDay() {
@@ -105,7 +106,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
             S.authKnown = true;
             S.signedIn = !!user;
             if (user) startSnaps();
-            else { stopSnaps(); S.latest = null; S.day = null; S.marks = {}; }
+            else { stopSnaps(); S.latest = null; S.day = null; S.marks = {}; S.marksErr = ''; }
             emit();
         });
         // 자정 넘김·'오래됨' 문구를 위해 10분마다 다시
@@ -120,7 +121,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
         if (timer) { clearInterval(timer); timer = null; }
         stopSnaps();
         S.authKnown = false; S.signedIn = false; S.latest = null; S.latestErr = ''; S.day = null; S.dayErr = ''; S.dayLoading = false;
-        S.marks = {}; S.key = ''; S.userPicked = false;
+        S.marks = {}; S.marksErr = ''; S.key = ''; S.userPicked = false;
         emit();
     }
 

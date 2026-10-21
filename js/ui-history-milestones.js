@@ -1,8 +1,8 @@
 // === js/ui-history-milestones.js ===
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
-import * as State from './state.js?v=202610210931';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610210931';
+import * as State from './state.js?v=202610211108';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610211108';
 import {
     doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -23,6 +23,7 @@ let _filterType = 'all';
 let _currentCompareWindow = 14;
 let _currentCompareTarget = null; // 비교 모달이 보고 있는 마일스톤
 let _unsubMilestones = null;
+let _loadFailed = false;   // 구독 오류 — 빈 목록('마일스톤 없음')으로 보이지 않게 안내를 띄운다
 
 const colRef = () => collection(State.db, 'artifacts', 'team-work-logger-v2', 'operationMilestones');
 
@@ -32,6 +33,7 @@ const colRef = () => collection(State.db, 'artifacts', 'team-work-logger-v2', 'o
 export function subscribeMilestones() {
     if (_unsubMilestones) return; // 중복 구독 방지
     _unsubMilestones = onSnapshot(colRef(), (snap) => {
+        _loadFailed = false;
         _milestones = [];
         snap.forEach(d => _milestones.push({ id: d.id, ...d.data() }));
         _milestones.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -46,6 +48,10 @@ export function subscribeMilestones() {
         }
     }, (err) => {
         console.error('milestones subscribe failed:', err);
+        // 오류가 나면 구독이 끝난다 — 다음에 다시 구독할 수 있게 비워 둔다
+        _unsubMilestones = null;
+        _loadFailed = true;
+        renderList();
     });
 }
 
@@ -56,6 +62,12 @@ function renderList() {
     const listEl = document.getElementById('milestone-list');
     const emptyEl = document.getElementById('milestone-empty-state');
     if (!listEl) return;
+
+    if (_loadFailed) {
+        if (emptyEl) emptyEl.classList.add('hidden');
+        listEl.innerHTML = '<div class="border border-red-200 bg-red-50 text-red-700 rounded-lg p-4 text-sm font-bold">마일스톤을 불러오지 못했습니다(인터넷 연결 확인). 새로고침해 주세요.</div>';
+        return;
+    }
 
     const filtered = _filterType === 'all'
         ? _milestones

@@ -1,11 +1,11 @@
 // === js/ui-history-leave.js ===
-import * as State from './state.js?v=202610210931';
-import { showToast, isMemberActiveOn } from './utils.js?v=202610210931';
+import * as State from './state.js?v=202610211108';
+import { showToast, isMemberActiveOn } from './utils.js?v=202610211108';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ 엑셀 변환 함수 불러오기
-import { downloadLeaveLedgerExcel } from './history-excel.js?v=202610210931';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610210931';
+import { downloadLeaveLedgerExcel } from './history-excel.js?v=202610211108';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211108';
 
 let currentYear = new Date().getFullYear();
 let fullLeaveConfig = {}; 
@@ -16,19 +16,44 @@ let sortState = { key: 'joinDate', dir: 'asc' };
 // 엑셀 다운로드를 위해 마지막에 렌더링된 연차 데이터 임시 저장용
 let lastRenderedLeaveData = [];
 
+// 연도·정렬 리스너를 붙였는지 — initLeaveManagement 는 탭에 들어올 때마다 불린다
+let bound = false;
+
 export async function initLeaveManagement() {
     const yearSelect = document.getElementById('leave-year-select');
-    
+
+    // 탭에 다시 들어왔는데 저장 안 한 총연차 수정이 있으면 그대로 둔다(다시 그리면 사라진다).
+    if (bound && isLeaveDirty()) return;
+
     // 항상 현재 연도로 초기 세팅
     currentYear = new Date().getFullYear(); 
     
     if (yearSelect) {
-        yearSelect.value = currentYear; // select box 현재 년도로 강제 고정
-        
-        yearSelect.addEventListener('change', (e) => {
-            currentYear = parseInt(e.target.value);
-            renderLeaveSheet();
-        });
+        // 연도 목록: 2024 ~ 올해+1 (해가 바뀌어도 손으로 고칠 필요 없게)
+        yearSelect.innerHTML = '';
+        for (let y = 2024; y <= currentYear + 1; y++) {
+            const o = document.createElement('option');
+            o.value = String(y);
+            o.textContent = `${y}년`;
+            yearSelect.appendChild(o);
+        }
+        yearSelect.value = String(currentYear); // select box 현재 년도로 강제 고정
+    }
+
+    // 탭에 들어올 때마다 불리므로 리스너는 한 번만 붙인다(예전엔 쌓여서 한 번 바꿀 때 여러 번 그렸다).
+    if (!bound) {
+        bound = true;
+        if (yearSelect) {
+            yearSelect.addEventListener('change', (e) => {
+                if (!confirmDiscardLeaveEdits()) {
+                    e.target.value = String(currentYear);
+                    return;
+                }
+                currentYear = parseInt(e.target.value);
+                renderLeaveSheet();
+            });
+        }
+        setupSortListeners();
     }
     
     const saveBtn = document.getElementById('save-leave-settings-btn');
@@ -36,7 +61,10 @@ export async function initLeaveManagement() {
 
     const refreshBtn = document.getElementById('refresh-leave-sheet-btn');
     if (refreshBtn) {
-        refreshBtn.onclick = renderLeaveSheet;
+        refreshBtn.onclick = () => {
+            if (!confirmDiscardLeaveEdits()) return;
+            renderLeaveSheet();
+        };
         
         // ✅ 엑셀 다운로드 버튼 동적 생성 및 추가 (기존에 없을 경우에만)
         if (!document.getElementById('download-leave-sheet-btn')) {
@@ -64,14 +92,35 @@ export async function initLeaveManagement() {
         }
     }
 
-    setupSortListeners();
     await renderLeaveSheet();
 }
+
+/** 저장된 총연차(saveLeaveSettings 와 같은 기준 — 설정 없으면 15). */
+const savedTotalLeave = (member) => {
+    const config = fullLeaveConfig[member] || {};
+    return config.totalLeave !== undefined ? Number(config.totalLeave) : 15;
+};
+
+/** 총연차 칸에 저장하지 않은 수정이 있는지. 숫자로 읽을 수 없는 칸은 저장에서도 빠지므로 세지 않는다. */
+export function isLeaveDirty() {
+    const inputs = document.querySelectorAll('.total-leave-input');
+    for (const input of inputs) {
+        const member = input.dataset.member;
+        const val = parseFloat(input.value);
+        if (member && !isNaN(val) && val !== savedTotalLeave(member)) return true;
+    }
+    return false;
+}
+
+/** 표를 다시 그리기 전 확인 — 수정이 없으면 묻지 않고 true. */
+const confirmDiscardLeaveEdits = () =>
+    !isLeaveDirty() || confirm('저장하지 않은 총연차 수정이 사라집니다. 계속할까요?');
 
 function setupSortListeners() {
     const headers = document.querySelectorAll('#history-leave-panel th[data-sort-key]');
     headers.forEach(th => {
         th.addEventListener('click', () => {
+            if (!confirmDiscardLeaveEdits()) return;
             const key = th.dataset.sortKey;
             
             if (sortState.key === key) {
@@ -435,7 +484,7 @@ async function openLeaveManager(member) {
             renderList();
             
             document.getElementById('lm-cancel-edit-btn').click(); // 폼 초기화
-            renderLeaveSheet(); // 대장화면 새로고침
+            renderLeaveSheetKeepingEdits(); // 대장화면 새로고침(저장 안 한 총연차 입력은 살린다)
         } catch(e) {
             console.error(e);
             alert('저장 중 오류가 발생했습니다.');
@@ -603,29 +652,32 @@ async function fetchLeaveUsage(year) {
     return usage;
 }
 
+/** 표를 다시 그리되, 저장하지 않은 총연차 입력은 다시 그린 칸에 되살린다(연차 '관리' 창 저장 뒤 등). */
+async function renderLeaveSheetKeepingEdits() {
+    const pending = {};
+    document.querySelectorAll('.total-leave-input').forEach(input => {
+        const member = input.dataset.member;
+        const val = parseFloat(input.value);
+        if (member && !isNaN(val) && val !== savedTotalLeave(member)) pending[member] = input.value;
+    });
+    await renderLeaveSheet();
+    document.querySelectorAll('.total-leave-input').forEach(input => {
+        const member = input.dataset.member;
+        if (member && Object.prototype.hasOwnProperty.call(pending, member)) input.value = pending[member];
+    });
+}
+
 async function saveLeaveSettings() {
     const inputs = document.querySelectorAll('.total-leave-input');
-    let hasChange = false;
-    
-    const updates = JSON.parse(JSON.stringify(fullLeaveConfig));
 
+    // 바뀐 사람 — 화면을 열 때 읽은 값과 다른 칸만(isLeaveDirty 와 같은 기준: 설정 없으면 15).
+    // 설정이 없는 사람(화면 15)을 저장할 때마다 15 로 써 넣지 않게 한다.
+    const desired = {};
     inputs.forEach(input => {
         const member = input.dataset.member;
         const val = parseFloat(input.value);
-        if (member && !isNaN(val)) {
-            if (!updates[member]) updates[member] = {};
-            
-            if (updates[member].totalLeave !== val) {
-                updates[member].totalLeave = val;
-                hasChange = true;
-            }
-        }
+        if (member && !isNaN(val) && val !== savedTotalLeave(member)) desired[member] = val;
     });
-
-    if (!hasChange) {
-        showToast("변경 사항이 없습니다.");
-        return;
-    }
 
     const btn = document.getElementById('save-leave-settings-btn');
     const originalText = btn.innerHTML;
@@ -634,12 +686,31 @@ async function saveLeaveSettings() {
 
     try {
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig');
-        
+
+        // 저장 직전 서버 설정을 다시 읽어, 바뀐 사람의 totalLeave 만 보낸다(서버가 이미 같은 값이면 뺀다).
+        // 예전엔 화면을 열 때 받은 설정 전체를 다시 써서, 그 사이 다른 곳에서 바꾼 입사일·기간 등이 옛 값으로 돌아갔다.
+        // (merge 쓰기는 중첩 필드도 합치므로 { 사람: { totalLeave } } 만 보내면 나머지 필드는 그대로다)
+        const snap = await getDoc(docRef);
+        const server = (snap.exists() && snap.data().memberLeaveSettings) || {};
+        const changed = {};
+        Object.entries(desired).forEach(([member, val]) => {
+            if ((server[member] || {}).totalLeave !== val) changed[member] = { totalLeave: val };
+        });
+
+        if (Object.keys(changed).length === 0) {
+            fullLeaveConfig = server;
+            showToast("변경 사항이 없습니다.");
+            await renderLeaveSheet();   // 서버 값으로 다시 그려 미저장 표시(isLeaveDirty)를 푼다
+            return;
+        }
+
         await setDoc(docRef, {
-            memberLeaveSettings: updates
+            memberLeaveSettings: changed
         }, { merge: true });
-        
-        fullLeaveConfig = updates;
+
+        const merged = { ...server };
+        Object.entries(changed).forEach(([member, v]) => { merged[member] = { ...(server[member] || {}), ...v }; });
+        fullLeaveConfig = merged;
         showToast("총 연차 설정이 저장되었습니다.");
         
         await renderLeaveSheet(); 

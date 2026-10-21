@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610210931">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610210931">
+    <link rel="stylesheet" href="css/suit.css?v=202610211108">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610211108">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -13,7 +13,7 @@
     <title>비품 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
-    <link rel="stylesheet" href="css/tool-d.css?v=202610210931">
+    <link rel="stylesheet" href="css/tool-d.css?v=202610211108">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         /* 칸마다 최소 폭(th의 min-width)을 두므로 표는 내용 폭을 따르되, 좁을 땐 영역을 꽉 채운다. */
@@ -26,7 +26,7 @@
         .th-ic { font-size: 10px; color: var(--c-text-4); }
         .th-sort.active { color: var(--c-accent-deep); }
         .th-sort.active .th-ic { color: var(--c-accent); }
-        .th-filter { border: 0; background: none; color: var(--c-text-3); font-size: 9px; cursor: pointer; padding: 4px 3px; border-radius: 4px; line-height: 1; }
+        .th-filter { border: 0; background: none; color: var(--c-text-3); font-size: 11px; cursor: pointer; padding: 4px 3px; border-radius: 4px; line-height: 1; min-width: 24px; min-height: 24px; display: inline-flex; align-items: center; justify-content: center; }
         .th-filter:hover { background: var(--c-track); color: var(--c-text-2); }
         .th-filter.on { color: var(--c-accent); background: var(--c-accent-soft); }
         .flt-pop { position: fixed; z-index: 60; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner); box-shadow: var(--sh-pop); padding: 10px; width: 224px; font-size: 12px; color: var(--c-text); }
@@ -260,7 +260,7 @@
                                 <span id="stock-unit" class="text-sm font-bold text-slate-400">개</span>
                             </div>
                         </div>
-                        <span id="stock-low-badge" class="hidden text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 shrink-0">부족</span>
+                        <span id="stock-low-badge" class="hidden text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 shrink-0">부족</span>
                     </div>
                     <p id="stock-ez-note" class="hidden text-[11px] text-slate-400 leading-snug -mt-1"></p>
 
@@ -305,11 +305,11 @@
         </div>
     </div>
 
-    <script type="module" src="js/supplies.js?v=202610210931"></script>
-    <script type="module" src="js/page-gate.js?v=202610210931" data-perm-page="supplies.view"></script>
-    <script type="module" src="js/app-shell.js?v=202610210931"></script>
-    <script src="js/connection-banner.js?v=202610210931"></script>
-    <script src="js/modal-esc.js?v=202610210931"></script>
-    <script type="module" src="js/modal-drag.js?v=202610210931"></script>
+    <script type="module" src="js/supplies.js?v=202610211108"></script>
+    <script type="module" src="js/page-gate.js?v=202610211108" data-perm-page="supplies.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610211108"></script>
+    <script src="js/connection-banner.js?v=202610211108"></script>
+    <script src="js/modal-esc.js?v=202610211108"></script>
+    <script type="module" src="js/modal-drag.js?v=202610211108"></script>
 </body>
 </html>

@@ -3,13 +3,16 @@
 // 이 앱의 모달은 공통적으로 `fixed inset-0 ... flex items-center justify-center ... hidden`
 // 형태의 오버레이이며, 열림/닫힘은 'hidden' 클래스로 토글된다.
 // 로케이션관리(location.html)의 옛 창은 `.modal-overlay` 이고 style.display('flex'/'none')로 여닫는다 — 이것도 후보.
+// 클래스 규칙에 안 맞는 창은 `data-esc-modal` 을 붙이면 후보가 된다(style.display 로 여닫는 것으로 본다).
+// 창 안의 닫기 버튼 이름이 규칙(id 에 close · ×/닫기 글자)에 안 맞으면 그 버튼에 `data-esc-close` 를 붙인다.
 // ESC를 누르면 현재 보이는 모달 중 z-index가 가장 높은(맨 위) 것 하나를 닫는다.
 (function () {
     if (typeof document === 'undefined') return;
 
     // ESC로 닫지 않을 모달 (로그인 등 — 닫으면 화면이 비어버림)
-    // overtime-prompt-modal: 연장근무 확인 — '지금 마감하기'(되돌릴 수 없음)가 들어 있어 ESC 로 아무것도 하지 않는다
-    const EXCLUDED_IDS = new Set(['login-modal', 'overtime-prompt-modal']);
+    // overtime-prompt-modal: 연장근무 확인 — '지금 종료하기'(되돌릴 수 없음)가 들어 있어 ESC 로 아무것도 하지 않는다
+    // scan-lock-overlay: 미발재고(china-stock-goods) 스캔 잠금 — 잠금 해제는 버튼으로만 한다
+    const EXCLUDED_IDS = new Set(['login-modal', 'overtime-prompt-modal', 'scan-lock-overlay']);
     // id 에 close 가 들어 있지만 '닫기'가 아닌 동작 버튼 — ESC 가 누르면 안 된다
     const NOT_CLOSE_BUTTON_IDS = new Set(['btn-close-now']);
     // ESC 를 스스로(window 캡처) 처리하는 표 창 — js/refill-table.js · js/locrec-table.js.
@@ -38,11 +41,12 @@
     // .modal-overlay 는 정렬을 CSS 로 주므로 클래스만으로 모달로 본다.
     function isCandidate(el) {
         if (el.classList.contains('modal-overlay')) return true;
+        if (el.hasAttribute('data-esc-modal')) return true;
         return !!el.className && String(el.className).indexOf('justify-center') !== -1;
     }
 
     function findTopModal() {
-        const candidates = Array.from(document.querySelectorAll('.fixed.inset-0, .modal-overlay'));
+        const candidates = Array.from(document.querySelectorAll('.fixed.inset-0, .modal-overlay, [data-esc-modal]'));
         // 제외 모달도 후보에 넣어 순서를 정한 뒤, 맨 위가 제외 모달이면 ESC 는 아무것도 하지 않는다
         // (빼고 고르면 그 아래 모달이 대신 닫힌다 — 예: 연장근무 팝업 밑의 처리량 입력)
         // 표 창(SELF_ESC_IDS)도 같은 이유로 후보에 두고, 맨 위면 손대지 않는다(자기 ESC 처리가 닫는다).
@@ -68,6 +72,9 @@
     // 모달 내부의 "닫기" 성격 버튼을 찾는다. (정리 로직이 있는 전용 닫기 핸들러 우선 실행)
     // 취소/삭제 등 다른 동작 버튼은 건드리지 않도록 보수적으로 매칭한다.
     function findCloseButton(modal) {
+        // 0) 페이지가 직접 지정한 닫기 버튼
+        const marked = modal.querySelector('[data-esc-close]');
+        if (marked) return marked;
         // 1) id에 close가 포함된 버튼 (예: close-notice-modal-btn, close-send-msg-btn)
         const byId = Array.from(modal.querySelectorAll('button[id*="close" i]')).find(b => !NOT_CLOSE_BUTTON_IDS.has(b.id));
         if (byId) return byId;
@@ -84,7 +91,7 @@
         const btn = findCloseButton(modal);
         if (btn) {
             btn.click(); // 전용 닫기 핸들러 실행 (예: 모달별 리스너 해제·정리)
-        } else if (modal.classList.contains('modal-overlay')) {
+        } else if (modal.classList.contains('modal-overlay') || modal.hasAttribute('data-esc-modal')) {
             modal.style.display = 'none'; // 옛 창(.modal-overlay)은 style.display 로 여닫는다
         } else {
             modal.classList.add('hidden'); // 별도 핸들러가 없으면 직접 숨김

@@ -1,11 +1,11 @@
 // === js/notice-logic.js ===
-import * as State from './state.js?v=202610210931';
-import { showToast } from './utils.js?v=202610210931';
+import * as State from './state.js?v=202610211108';
+import { showToast, getActiveTeamMembers } from './utils.js?v=202610211108';
 import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202610210931';
+import { initializeFirebase } from './config.js?v=202610211108';
 
 // 🔥 [신규] 멘션 발송을 위해 알림 함수 가져오기
-import { sendNotification } from './app-notifications.js?v=202610210931';
+import { sendNotification } from './app-notifications.js?v=202610211108';
 
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
@@ -46,14 +46,17 @@ export const unsubscribeNotices = () => {
     unsub = null;
 };
 
-export const saveNotices = async () => {
+export const saveNotices = async ({ quiet = false } = {}) => {
     try {
         // merge — 문서의 다른 필드(옛 투두 tasks 등)는 건드리지 않는다
         await setDoc(getNoticeDocRef(), {
             notices: State.appState.importantNotices || []
         }, { merge: true });
+        return true;
     } catch (e) {
         console.error("데이터 저장 오류:", e);
+        if (!quiet) showToast('공지 저장에 실패했습니다.', true);
+        return false;
     }
 };
 
@@ -72,17 +75,20 @@ const processMentions = async (text) => {
         
         // 유효한 대상자인지 확인하기 위해 전체 멤버 세트 구성
         const allMembers = new Set();
-        (State.appConfig?.teamGroups || []).forEach(g => g.members?.forEach(m => allMembers.add(m)));
+        getActiveTeamMembers(State.appConfig).forEach(m => allMembers.add(m));   // 퇴사자 제외
         (State.appState?.partTimers || []).forEach(p => allMembers.add(p.name));
 
         const shortText = text.length > 20 ? text.substring(0, 20) + '...' : text;
 
+        let failed = 0;
         for (const name of uniqueMentions) {
             if (allMembers.has(name) && name !== sender) {
-                // 발송
-                await sendNotification(name, `🔔 중요 알림에서 ${sender}님이 회원님을 멘션했습니다:\n"${shortText}"`, 'mention');
+                // 발송 — 실패해도 던지지 않고 false 를 준다
+                const ok = await sendNotification(name, `🔔 중요 알림에서 ${sender}님이 회원님을 멘션했습니다:\n"${shortText}"`, 'mention');
+                if (!ok) failed++;
             }
         }
+        if (failed > 0) showToast(`멘션 알림 ${failed}명 발송 실패`, true);
     }
 };
 
@@ -116,12 +122,13 @@ export const purgeExpiredNotices = async () => {
     if (removed === 0) return 0;
 
     State.appState.importantNotices = kept;
-    await saveNotices();
+    // 스냅샷마다 도는 자동 정리라 실패해도 토스트는 띄우지 않는다(콘솔만)
+    await saveNotices({ quiet: true });
     return removed;
 };
 
 export const addNotice = async (text, scheduleAt = '') => {
-    if (!text.trim()) { showToast("알림 내용을 입력해주세요.", true); return; }
+    if (!text.trim()) { showToast("알림 내용을 입력해주세요.", true); return false; }
     const newNotice = {
         id: createId(), text: text.trim(), completed: false, createdAt: Date.now()
     };
@@ -129,11 +136,17 @@ export const addNotice = async (text, scheduleAt = '') => {
     if (String(scheduleAt || '').trim()) newNotice.scheduleAt = String(scheduleAt).trim();
     if(!State.appState.importantNotices) State.appState.importantNotices = [];
     State.appState.importantNotices.push(newNotice);
-    
-    await saveNotices();
-    
+
+    if (!(await saveNotices())) {
+        // 저장 실패 — 화면에만 남은 공지를 빼고, 입력칸은 부르는 쪽이 그대로 둔다
+        State.appState.importantNotices = (State.appState.importantNotices || []).filter(n => n.id !== newNotice.id);
+        document.dispatchEvent(new CustomEvent('renderNotices'));
+        return false;
+    }
+
     // 멘션 감지 및 푸시
     await processMentions(text.trim());
+    return true;
 };
 
 export const toggleNotice = async (id) => {
@@ -159,7 +172,7 @@ export const editNotice = async (id, newText, scheduleAt) => {
             if (String(scheduleAt).trim()) notice.scheduleAt = String(scheduleAt).trim();
             else delete notice.scheduleAt;
         }
-        await saveNotices();
+        if (!(await saveNotices())) return false;
 
         // 수정 시에도 새롭게 멘션된 사람이 있다면 푸시
         await processMentions(newText.trim());

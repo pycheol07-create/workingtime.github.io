@@ -6,8 +6,8 @@
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 // 💰 그날 지시서 문서(refillDay_*)에는 엑셀(base64)이 들어 있다 — 날짜나 rev 가 바뀔 때만 getDoc 1회. 매번 구독하지 않는다.
 import { doc, getDoc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getHolidayName } from './utils.js?v=202610210931';
-import { tsMs, dayKey, lastDays, parseDay, progress, runDay, reqUi, b64ToBytes, fileNameOf } from './lib/refill-view.js?v=202610210931';
+import { getHolidayName } from './utils.js?v=202610211108';
+import { tsMs, dayKey, lastDays, parseDay, progress, runDay, reqUi, b64ToBytes, fileNameOf } from './lib/refill-view.js?v=202610211108';
 
 const APP = 'artifacts/team-work-logger-v2';
 const META_PATH = `${APP}/integrations/refillLatest`;
@@ -35,7 +35,7 @@ function createRefillStore({ db, auth, getMemberName, watchRequest = true }) {
         key: '', userPicked: false,            // 선택한 날짜(기본 = 오늘)
         day: null,                             // { key, rev, data, parsed } — 선택 날짜 문서
         dayLoading: '', dayErr: '',
-        work: { key: '', checks: {} },
+        work: { key: '', checks: {}, err: '' },
         saving: new Set()
     };
     let unsubs = [], unsubWork = null, unsubAuth = null, timer = null, started = false;
@@ -55,7 +55,7 @@ function createRefillStore({ db, auth, getMemberName, watchRequest = true }) {
         unsubs.forEach(u => { try { u(); } catch (e) { /* 무시 */ } });
         unsubs = [];
         if (unsubWork) { try { unsubWork(); } catch (e) { /* 무시 */ } unsubWork = null; }
-        S.work = { key: '', checks: {} };
+        S.work = { key: '', checks: {}, err: '' };
     }
 
     function startSnaps() {
@@ -103,13 +103,19 @@ function createRefillStore({ db, auth, getMemberName, watchRequest = true }) {
         if (S.work.key !== S.key) {
             if (unsubWork) { try { unsubWork(); } catch (e) { /* 무시 */ } }
             const key = S.key;
-            S.work = { key, checks: {} };
+            S.work = { key, checks: {}, err: '' };
             unsubWork = onSnapshot(doc(db, WORK_PATH(key)), snap => {
                 if (S.work.key !== key) return;
                 const d = snap.exists() ? (snap.data({ serverTimestamps: 'estimate' }) || {}) : {};
                 S.work.checks = (d.checks && typeof d.checks === 'object') ? d.checks : {};
+                S.work.err = '';
                 emit();
-            }, () => { /* 못 읽으면 체크 없이 */ });
+            }, () => {
+                // 못 읽으면 체크 없이 — 대신 주의 표시
+                if (S.work.key !== key) return;
+                S.work.err = '완료 체크를 읽지 못했습니다 — 새로고침해 보세요';
+                emit();
+            });
         }
     }
 
@@ -201,7 +207,7 @@ function createRefillStore({ db, auth, getMemberName, watchRequest = true }) {
             a.click();
             document.body.removeChild(a);
         } catch (e) {
-            alert('엑셀 파일을 만들지 못했습니다. PC 채우기자동화\\출력\\ 의 파일을 쓰세요.');
+            alert('엑셀 파일을 만들지 못했습니다. 슬랙으로 받은 지시서 엑셀을 쓰세요.');
         } finally {
             if (url) setTimeout(() => URL.revokeObjectURL(url), 10000);
         }
@@ -218,7 +224,7 @@ function createRefillStore({ db, auth, getMemberName, watchRequest = true }) {
         const today = todayKey();
         if (S.key !== today || !S.meta) return;
         if (!reqState(true).enabled) { emit(); return; }
-        if (!confirm('이 PC 프로그램이 지금 재고로 지시서를 새로 만듭니다.\n슬랙에는 다시 보내지 않습니다(앱에서만 바뀝니다). 보통 3~8분 걸립니다.\n\n다시 만들까요?')) return;
+        if (!confirm('사무실 PC 자동화 프로그램이 지금 재고로 지시서를 새로 만듭니다.\n슬랙에는 다시 보내지 않습니다(앱에서만 바뀝니다). 보통 3~8분 걸립니다.\n\n다시 만들까요?')) return;
         try {
             await setDoc(doc(db, REQUEST_PATH), { requestedAt: serverTimestamp(), by: nameOf(), day: today });
         } catch (e) {

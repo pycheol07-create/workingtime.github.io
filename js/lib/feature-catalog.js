@@ -85,7 +85,8 @@ export const FEATURES = [
     F('manual.view',     '업무 매뉴얼 및 도구',   'manual',     'page', 'manual.html',            { menu: '업무 매뉴얼 및 도구' }),
 
     // 관리자 페이지 — 역할로 나눠 주지 않는다(mainConfig·adminPrivate 규칙이 isAdmin 이다)
-    F('admin.view',      '관리자 페이지',         'admin',      'page', 'admin.html',             { menu: '관리자 페이지', grantable: false })
+    F('admin.view',      '설정·관리',             'admin',      'page', 'admin.html',             { menu: '설정·관리', grantable: false,
+        menuAliases: ['관리자 페이지'] })   // 화면 이름 변경 2026-10-21 — 저장된 dashboardMenu·memberMenuAccess 의 옛 이름은 그대로
 ];
 
 // 대시보드 사이드바의 '동작' 메뉴 이름(menu-catalog.js MENU_TARGETS kind 'action' 과 같아야 한다 — 테스트가 지킨다).

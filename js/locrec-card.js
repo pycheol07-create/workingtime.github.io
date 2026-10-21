@@ -9,14 +9,14 @@
 // 문서 모양·순수 함수는 js/lib/locrec-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=202610210931';
+import { escapeHtml } from './utils.js?v=202610211108';
 import {
     fmtMDHM, verdictBadge, metricItems, dataWarnings, dataLine, dayOptions, dayMessage, stockAtOf,
     TABS, TAB_LABEL, recStrip, tabSummary, dayLabel
-} from './lib/locrec-view.js?v=202610210931';
-import { initFold } from './lib/card-fold.js?v=202610210931';
-import { getLocRecStore, todayKey } from './locrec-store.js?v=202610210931';
-import { mountLocRecTable } from './locrec-table.js?v=202610210931';
+} from './lib/locrec-view.js?v=202610211108';
+import { initFold } from './lib/card-fold.js?v=202610211108';
+import { getLocRecStore, todayKey } from './locrec-store.js?v=202610211108';
+import { mountLocRecTable } from './locrec-table.js?v=202610211108';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
@@ -55,7 +55,7 @@ export function initLocRecCard({ db, auth, getMemberName }) {
     function renderStrip(S, today) {
         const loaded = S.day && S.day.key === S.key;
         const sp = recStrip({ latest: S.latest, key: S.key, todayKey: today, parsed: loaded ? S.day.parsed : null,
-                              marks: S.marks, nowMs: Date.now(), extraWarns: S.dayErr ? [S.dayErr] : [] });
+                              marks: S.marks, nowMs: Date.now(), extraWarns: [S.dayErr, S.marksErr].filter(Boolean) });
         // 좁은 카드에서는 '판정 '·'(MM/DD까지)' 를 숨긴다(.tc-long) — 전체 문구는 title 에
         const vm = /^(.*?)( \(.+\))$/.exec(sp.verdict.label);
         const vMain = vm ? vm[1] : sp.verdict.label, vTail = vm ? vm[2] : '';

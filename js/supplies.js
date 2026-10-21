@@ -12,17 +12,17 @@
 //  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름). 권장 발주량의 최소주문·묶음은 기존 MOQ 칸 문장에서 읽는다(서버 예측규칙.MOQ해석)
 //  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
 
-import { initializeFirebase } from './config.js?v=202610210931';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610210931';
-import { memberNameFor } from './app-shell-data.js?v=202610210931';
-import { escapeHtml as esc } from './utils.js?v=202610210931';
-import { kstDateTime } from './lib/kst-time.js?v=202610210931';
-import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202610210931';
+import { initializeFirebase } from './config.js?v=202610211108';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610211108';
+import { memberNameFor } from './app-shell-data.js?v=202610211108';
+import { escapeHtml as esc } from './utils.js?v=202610211108';
+import { kstDateTime } from './lib/kst-time.js?v=202610211108';
+import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202610211108';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion,
     NOCODE_HINT, DRIVER_OPTIONS
-} from './lib/supplies-forecast-view.js?v=202610210931';
+} from './lib/supplies-forecast-view.js?v=202610211108';
 import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -339,8 +339,8 @@ function renderMainItems() {
             <div class="flex items-center justify-between gap-1">
                 <div class="text-[10px] font-bold text-slate-400 truncate">${esc(it.category || '비품')}</div>
                 <span class="flex items-center gap-1 shrink-0">
-                ${fk !== 'nocode' && fk !== 'pending' ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full ${fb.cls}">${esc(fb.label)}</span>` : ''}
-                ${low ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 shrink-0">부족</span>' : ''}
+                ${fk !== 'nocode' && fk !== 'pending' ? `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full ${fb.cls}">${esc(fb.label)}</span>` : ''}
+                ${low ? '<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 shrink-0">부족</span>' : ''}
                 </span>
             </div>
             <div class="text-[13px] font-extrabold text-slate-800 truncate" title="${esc(it.name)}">${esc(it.name)}</div>

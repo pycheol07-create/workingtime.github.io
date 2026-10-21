@@ -1,16 +1,16 @@
 // === js/listeners-history-attendance.js ===
 // 설명: 이력 보기의 '근태 이력' 관리(추가/수정/삭제 요청) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610210931';
-import * as State from './state.js?v=202610210931';
-import { isPersistentLeaveType } from './state.js?v=202610210931';
-import { showToast, getTodayDateString, getCurrentTime } from './utils.js?v=202610210931';
-import { renderAttendanceDailyHistory } from './ui-history.js?v=202610210931';
-import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202610210931';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610210931';
-import { saveLeaveSchedule } from './config.js?v=202610210931';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610210931';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610210931';
+import * as DOM from './dom-elements.js?v=202610211108';
+import * as State from './state.js?v=202610211108';
+import { isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610211108';
+import { showToast, showConfirm, getTodayDateString, getCurrentTime } from './utils.js?v=202610211108';
+import { renderAttendanceDailyHistory } from './ui-history.js?v=202610211108';
+import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202610211108';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610211108';
+import { saveLeaveSchedule } from './config.js?v=202610211108';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211108';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610211108';
 import { doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 수정 모달이 지금 다루고 있는 근태의 '원본'.
@@ -225,7 +225,24 @@ function handleAttendanceListClicks(e) {
         // 실제 삭제 로직은 listeners-modals-confirm.js에서 처리
         State.context.deleteMode = 'attendance';
         State.context.attendanceRecordToDelete = { dateKey, index };
-        
+
+        // 무엇이 지워지는지 확인창에 보여 준다(기간형은 기간 전체가 지워진다).
+        const dayData = State.allHistoryData.find(d => d.id === dateKey);
+        const leaves = Array.isArray(dayData?.onLeaveMembers) ? dayData.onLeaveMembers : [];
+        const rec = isNaN(index) ? null : leaves[index];
+        const msgEl = document.getElementById('delete-confirm-message');
+        if (msgEl) {
+            msgEl.style.whiteSpace = 'pre-line';
+            if (rec) {
+                const detail = isPersistentLeaveType(rec.type)
+                    ? `\n기간 ${rec.startDate || ''}~${rec.endDate || rec.startDate || ''} 전체가 지워집니다.`
+                    : `\n${dateKey} ${rec.startTime || ''}`;
+                msgEl.textContent = `${rec.member}님의 '${leaveTypeLabel(rec)}' 기록을 삭제할까요?${detail}`;
+            } else {
+                msgEl.textContent = '이 근태 기록을 삭제할까요?';
+            }
+        }
+
         if (DOM.deleteConfirmModal) DOM.deleteConfirmModal.classList.remove('hidden');
         return;
     }
@@ -345,12 +362,16 @@ function setupAttendanceModalButtons() {
                 newEntry.startDate = DOM.editAttendanceStartDateInput.value;
                 newEntry.endDate = DOM.editAttendanceEndDateInput.value || newEntry.startDate;
                 if (!newEntry.startDate) { showToast('시작일을 입력해주세요.', true); return; }
+                if (newEntry.endDate < newEntry.startDate) { showToast('종료일이 시작일보다 빠릅니다.', true); return; }
             }
 
             const origin = (editingAttendance && editingAttendance.dateKey === dateKey)
                 ? editingAttendance.record : null;
             if (!origin) { showToast('수정할 항목을 다시 선택해주세요.', true); return; }
 
+            // 저장이 끝날 때까지 버튼을 잠근다(연타로 같은 수정이 두 번 나가지 않게).
+            const btn = DOM.confirmEditAttendanceBtn;
+            btn.disabled = true;
             try {
                 // ① 기간형 근태의 원본은 persistent_data/leaveSchedule 이다.
                 //    그날 문서에만 저장하면 시작일 하루에만 보이므로, 기간형이면 항상 일정에 반영한다.
@@ -421,6 +442,8 @@ function setupAttendanceModalButtons() {
             } catch (e) {
                 console.error("Error updating attendance:", e);
                 showToast('수정 중 오류가 발생했습니다.', true);
+            } finally {
+                btn.disabled = false;
             }
         });
     }
@@ -455,9 +478,24 @@ function setupAttendanceModalButtons() {
                 newEntry.startDate = DOM.addAttendanceStartDateInput.value;
                 newEntry.endDate = DOM.addAttendanceEndDateInput.value || newEntry.startDate;
                 if (!newEntry.startDate) { showToast('시작일을 입력해주세요.', true); return; }
+                if (newEntry.endDate < newEntry.startDate) { showToast('종료일이 시작일보다 빠릅니다.', true); return; }
             }
 
+            // 저장이 끝날 때까지 버튼을 잠근다 — 명단 확인창이 떠 있는 동안 다시 눌려도 두 번 저장되지 않게.
+            const btn = DOM.confirmAddAttendanceBtn;
+            btn.disabled = true;
             try {
+                // 오타로 없는 사람 이름이 들어가는 것을 막는다(명단 = 추가 창을 열 때 채운 목록).
+                const roster = DOM.addAttendanceMemberDatalist
+                    ? Array.from(DOM.addAttendanceMemberDatalist.options).map(o => o.value)
+                    : [];
+                if (!roster.includes(member)) {
+                    const ok = await showConfirm(`'${member}'은(는) 명단에 없는 이름입니다. 그래도 추가할까요?`,
+                        { title: '명단에 없는 이름', okText: '추가' });
+                    if (!ok) return;
+                }
+
+
                 const todayKey = getTodayDateString();
                 let docRef;
                 let isToday = (dateKey === todayKey);
@@ -542,6 +580,8 @@ function setupAttendanceModalButtons() {
             } catch (e) {
                 console.error("Error adding attendance:", e);
                 showToast('추가 중 오류가 발생했습니다.', true);
+            } finally {
+                btn.disabled = false;
             }
         });
     }

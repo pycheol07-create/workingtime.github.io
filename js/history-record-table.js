@@ -1,9 +1,9 @@
 // === js/history-record-table.js ===
 // 설명: '기록 관리' 모달 내의 테이블 렌더링 및 필터링 로직을 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610210931';
-import * as State from './state.js?v=202610210931';
-import { showToast, formatDuration, calcTotalPauseMinutes, escapeHtml } from './utils.js?v=202610210931';
+import * as DOM from './dom-elements.js?v=202610211108';
+import * as State from './state.js?v=202610211108';
+import { showToast, formatDuration, calcTotalPauseMinutes, escapeHtml } from './utils.js?v=202610211108';
 
 /**
  * 기록 관리 모달을 엽니다.
@@ -88,14 +88,19 @@ export const openHistoryRecordManager = (dateKey) => {
  * 기준은 그릴 때 입력칸에 실제로 들어간 값(tr.dataset.orig*)이다. State 와 비교하면 time 입력이 값을 정리하거나
  * 오늘 진행 중 기록의 endTime 이 동기화로 바뀔 때 고치지 않은 행도 '수정됨' 으로 셌다.
  */
+// 한 행이 그릴 때 값(tr.dataset.orig*)과 달라졌는지 — [일괄 저장] 도 이것으로 바뀐 행만 고른다.
+export const isRecordRowDirty = (row) => {
+    const task = row.querySelector('.history-record-task')?.value ?? '';
+    const start = row.querySelector('.history-record-start')?.value ?? '';
+    const end = row.querySelector('.history-record-end')?.value ?? '';
+    return task !== (row.dataset.origTask ?? '') || start !== (row.dataset.origStart ?? '') || end !== (row.dataset.origEnd ?? '');
+};
+
 export const countDirtyRecordRows = (dateKey) => {
     if (!DOM.historyRecordsTableBody) return 0;
     let count = 0;
     DOM.historyRecordsTableBody.querySelectorAll('tr.history-record-row').forEach(row => {
-        const task = row.querySelector('.history-record-task')?.value ?? '';
-        const start = row.querySelector('.history-record-start')?.value ?? '';
-        const end = row.querySelector('.history-record-end')?.value ?? '';
-        if (task !== (row.dataset.origTask ?? '') || start !== (row.dataset.origStart ?? '') || end !== (row.dataset.origEnd ?? '')) count++;
+        if (isRecordRowDirty(row)) count++;
     });
     return count;
 };

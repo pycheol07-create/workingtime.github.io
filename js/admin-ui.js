@@ -1,8 +1,8 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610210931';
-import { renderPermissionPanel } from './admin-perm.js?v=202610210931';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610211108';
+import { renderPermissionPanel } from './admin-perm.js?v=202610211108';
 
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
@@ -82,7 +82,8 @@ export function renderPermissionsConfig(config) {
 
 // 팀원 1명의 편집 카드 HTML. 활성 팀원(그룹 카드 내부)과 퇴사자 섹션에서 공용으로 사용.
 // groupName은 data-group-name으로 심어, 저장 시 퇴사자를 원래 그룹으로 되돌리는 데 사용.
-function buildMemberItemHtml(member, maps, groupName, opts = {}) {
+// '+ 팀원 추가'(admin.js)도 이 함수로 새 행을 만든다 — 칸 모양(기본급 월·÷209 시급)을 한 벌로 유지.
+export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
     const { memberWages = {}, memberEmails = {}, memberRanks = {}, memberLeaveSettings = {}, resignedMembers = {} } = maps;
     const isResigned = !!opts.isResignedSection;
     const memberEmail = memberEmails[member] || '';
@@ -118,24 +119,24 @@ function buildMemberItemHtml(member, maps, groupName, opts = {}) {
                 <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
                 ${groupBadge}
                 <div class="flex flex-col">
-                    <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이름</label>
+                    <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">이름</label>
                     <input type="text" value="${member}" class="member-name w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="이름">
                 </div>
                 <div class="flex flex-col">
-                    <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">직급</label>
+                    <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">직급</label>
                     <select class="member-rank w-20 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500">${rankOptions}</select>
                 </div>
                 <div class="flex flex-col">
-                    <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">이메일</label>
+                    <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1">이메일</label>
                     <input type="email" value="${memberEmail}" class="member-email w-48 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="email">
                 </div>
                 <div class="flex flex-col">
-                    <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">기본급 (월)</label>
+                    <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1">기본급 (월)</label>
                     <input type="number" value="${memberWages[member] || 0}" class="member-wage w-28 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="월 기본급"
                         oninput="const h=this.closest('.flex.flex-col').nextElementSibling && this.closest('.flex.flex-col').nextElementSibling.querySelector('.member-hourly'); if(h) h.value=Math.round((Number(this.value)||0)/209).toLocaleString();">
                 </div>
                 <div class="flex flex-col">
-                    <label class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">시급 (자동 ÷209)</label>
+                    <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1">시급 (자동 ÷209)</label>
                     <input type="text" value="${Math.round((Number(memberWages[member]) || 0) / 209).toLocaleString()}" class="member-hourly w-24 p-2 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 rounded-md text-sm text-gray-500 dark:text-gray-400 outline-none cursor-not-allowed" readonly tabindex="-1" title="기본급 ÷ 209 (자동 계산, 수정 불가)">
                 </div>
             </div>
@@ -145,26 +146,26 @@ function buildMemberItemHtml(member, maps, groupName, opts = {}) {
         <div class="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300 w-full md:w-auto mb-2 md:mb-0">연차 설정</span>
             <div class="flex flex-col">
-                <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1">입사일자</label>
-                <input type="date" value="${joinDate}" class="member-join-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs dark:text-gray-200 outline-none">
+                <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1">입사일자</label>
+                <input type="date" value="${joinDate}" class="member-join-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs dark:text-gray-200 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
             <div class="flex flex-col">
-                <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1">총연차(일)</label>
-                <input type="number" value="${totalLeave}" class="member-total-leave w-16 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs text-center dark:text-gray-200 outline-none" min="0">
-            </div>
-            <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
-            <div class="flex flex-col">
-                <label class="text-[9px] text-gray-500 dark:text-gray-400 mb-1 font-bold">적용 시작일</label>
-                <input type="date" value="${leaveResetDate}" class="member-leave-reset-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-700 dark:text-gray-200 outline-none">
-            </div>
-            <div class="flex flex-col">
-                <label class="text-[9px] text-red-500 dark:text-red-400 mb-1 font-bold">사용 만료일</label>
-                <input type="date" value="${expirationDate}" class="member-leave-expiration-date w-32 p-1.5 border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 rounded text-xs text-red-700 dark:text-red-400 outline-none">
+                <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1">총연차(일)</label>
+                <input type="number" value="${totalLeave}" class="member-total-leave w-16 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs text-center dark:text-gray-200 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" min="0">
             </div>
             <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
             <div class="flex flex-col">
-                <label class="text-[9px] text-gray-700 dark:text-gray-300 mb-1 font-bold">퇴사일 (비활성)</label>
-                <input type="date" value="${resignDate}" class="member-resign-date w-32 p-1.5 border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-800 dark:text-gray-100 outline-none" title="입력하면 이 날짜 다음날부터 팀 선택·명단·집계에서 제외되고, 저장 시 아래 '퇴사자' 섹션으로 이동합니다. 급여·과거기록은 그대로 보존됩니다. 비우면 재직으로 복귀합니다.">
+                <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1 font-bold">적용 시작일</label>
+                <input type="date" value="${leaveResetDate}" class="member-leave-reset-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-700 dark:text-gray-200 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+            </div>
+            <div class="flex flex-col">
+                <label class="text-[11px] text-red-500 dark:text-red-400 mb-1 font-bold">사용 만료일</label>
+                <input type="date" value="${expirationDate}" class="member-leave-expiration-date w-32 p-1.5 border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 rounded text-xs text-red-700 dark:text-red-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+            </div>
+            <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
+            <div class="flex flex-col">
+                <label class="text-[11px] text-gray-700 dark:text-gray-300 mb-1 font-bold">퇴사일 (비활성)</label>
+                <input type="date" value="${resignDate}" class="member-resign-date w-32 p-1.5 border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-800 dark:text-gray-100 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" title="입력하면 이 날짜 다음날부터 팀 선택·명단·집계에서 제외되고, 저장 시 아래 '퇴사자' 섹션으로 이동합니다. 급여·과거기록은 그대로 보존됩니다. 비우면 재직으로 복귀합니다.">
             </div>
         </div>
     </div>
@@ -244,11 +245,11 @@ export function renderSystemAccountsConfig(accounts) {
         item.className = 'system-account-item flex flex-wrap md:flex-nowrap items-end gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 transition-colors';
         item.innerHTML = `
             <div class="flex flex-col flex-1 min-w-[150px]">
-                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">계정 이름 (별칭)</label>
+                <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">계정 이름 (별칭)</label>
                 <input type="text" value="${acc.name || ''}" class="sys-name p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="예: 외부 관리자">
             </div>
             <div class="flex flex-col flex-1 min-w-[200px]">
-                <label class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-1">이메일 (로그인 ID)</label>
+                <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">이메일 (로그인 ID)</label>
                 <input type="email" value="${acc.email || ''}" class="sys-email p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="admin@example.com">
             </div>
             <button type="button" class="delete-sys-account-btn w-full md:w-auto text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-4 py-2.5 rounded-md md:h-[38px] transition-colors shadow-sm">삭제</button>

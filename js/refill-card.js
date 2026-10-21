@@ -7,11 +7,11 @@
 // 문서·순수 함수는 js/lib/refill-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=202610210931';
-import { lastDays, dayLabel, fmtHM, progress, dayStatus, refillStrip, fmtCount } from './lib/refill-view.js?v=202610210931';
-import { initFold } from './lib/card-fold.js?v=202610210931';
-import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=202610210931';
-import { mountRefillTable } from './refill-table.js?v=202610210931';
+import { escapeHtml } from './utils.js?v=202610211108';
+import { lastDays, dayLabel, fmtHM, progress, dayStatus, refillStrip, fmtCount } from './lib/refill-view.js?v=202610211108';
+import { initFold } from './lib/card-fold.js?v=202610211108';
+import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=202610211108';
+import { mountRefillTable } from './refill-table.js?v=202610211108';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
@@ -53,6 +53,7 @@ export function initRefillCard({ db, auth, getMemberName }) {
         const warns = [];
         if (st.status === 'ok' && !d && S.dayErr) warns.push(S.dayErr);
         if (st.status === 'ok' && ru.show && ru.note && ru.tone === 'warn') warns.push(ru.note);
+        if (st.status === 'ok' && S.work.err) warns.push(S.work.err);
         const sp = refillStrip({ st, entry: store.entryOf(key), parsed: d ? d.parsed : null, checkMap: S.work.checks, extraWarns: warns });
         const day = isToday ? '' : `<span>${escapeHtml(dayLabel(key))}</span>`;
         if (sp.msg) { setStrip(day + `<span class="${sp.tone === 'warn' ? 'refill-warn' : ''}">${escapeHtml(sp.msg)}</span>` + warnBadge(sp.warns), ''); return; }
@@ -62,7 +63,7 @@ export function initRefillCard({ db, auth, getMemberName }) {
         // 접힌 띠에서도 [표 보기]·[엑셀 받기] (펼치지 않아도 바로)
         const tableBtn = `<button type="button" class="btn btn-secondary btn-sm" data-refill="table"${d ? '' : ' disabled'}>표 보기</button>`;
         const act = tableBtn + (omitted
-            ? '<button type="button" class="btn btn-primary btn-sm" disabled title="파일이 너무 커서 PC 채우기자동화\\출력\\ 사용">엑셀 받기</button>'
+            ? '<button type="button" class="btn btn-primary btn-sm" disabled title="파일이 너무 커서 앱에서는 못 받음 — 슬랙으로 받은 지시서 엑셀을 쓰세요">엑셀 받기</button>'
             : `<button type="button" class="btn btn-primary btn-sm" data-refill="download"${d && d.data.file ? '' : ' disabled'}>엑셀 받기</button>`);
         setStrip(sum, act);
     }
@@ -109,7 +110,7 @@ export function initRefillCard({ db, auth, getMemberName }) {
             }
             const omitted = d && d.data.fileOmitted;
             parts.push('<div class="refill-actions">'
-                + (omitted ? '<span class="refill-sub">파일이 너무 커서 PC 채우기자동화\\출력\\ 사용</span>'
+                + (omitted ? '<span class="refill-sub">파일이 너무 커서 앱에서는 못 받음 — 슬랙으로 받은 지시서 엑셀을 쓰세요</span>'
                     : `<button type="button" class="btn btn-primary btn-sm" data-refill="download"${d && d.data.file ? '' : ' disabled'}>엑셀 받기</button>`)
                 + `<button type="button" class="btn btn-secondary btn-sm" data-refill="table"${d ? '' : ' disabled'}>표 보기</button>`
                 + reqButton(ru) + '</div>');

@@ -12,10 +12,10 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202610210931';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610210931';
-import { memberNameFor } from './app-shell-data.js?v=202610210931';
-import { escapeHtml as esc } from './utils.js?v=202610210931';
+import { initializeFirebase } from './config.js?v=202610211108';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610211108';
+import { memberNameFor } from './app-shell-data.js?v=202610211108';
+import { escapeHtml as esc } from './utils.js?v=202610211108';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -34,11 +34,16 @@ const DAY_NAME = ['일', '월', '화', '수', '목', '금', '토'];
 
 let people = [];          // [{ id, name, wage, memo, active }]
 let records = {};         // { [personId]: { "01": { in, out, breakMin, memo } } }
+let recordsYm = '';       // records 가 어느 달 것인지(불러오는 중엔 currentYm 과 다를 수 있다)
 let currentYm = '';       // 'YYYY-MM'
 let currentPid = '';
 let currentUser = '';
 let editingPid = null;
 let saveTimer = null;
+// 불러오기에 성공한 것만 저장한다(실패한 채 빈 값으로 저장하면 문서 전체를 덮어쓴다)
+let peopleOk = false;
+const okMonths = new Set();
+let wageTimer = null;     // 시급 저장은 기록 저장과 따로 예약(서로 취소하지 않게)
 let fx = { rate: 0, date: '' };   // 당일 위안 환율 (1 CNY = ? 원)
 let selected = new Set();         // 일괄 처리 대상 날짜 키('01', '02' …)
 
@@ -127,37 +132,79 @@ const toast = (msg, bad = false) => {
     el.classList.remove('hidden');
 };
 
+/** 불러오기 실패 안내 — 토스트는 금방 사라지므로 화면 위에 계속 띄운다(저장은 막혀 있다). */
+const showLoadError = (on) => {
+    let el = $('wt-load-err');
+    if (!on) { if (el) el.remove(); return; }
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'wt-load-err';
+        el.className = 'mx-2 mt-2 lg:mx-4 px-3 py-2 rounded-lg bg-red-50 border border-red-300 text-red-700 text-sm';
+        el.textContent = '기록을 불러오지 못했습니다 — 저장은 막혀 있습니다. 새로고침해 주세요.';
+        $('main').before(el);
+    }
+};
+
 async function loadPeople() {
     const snap = await getDoc(peopleRef());
     people = (snap.exists() ? (snap.data().people || []) : []).map(p => ({
         id: p.id || uid(), name: p.name || '', wage: num(p.wage),
         memo: p.memo || '', active: p.active !== false
     }));
+    peopleOk = true;
 }
 
 async function savePeople() {
+    if (!peopleOk) throw new Error('명부를 불러오지 못한 상태라 저장하지 않았습니다. 새로고침해 주세요.');
     await setDoc(peopleRef(), {
         people, updatedAt: new Date().toISOString(), updatedBy: currentUser
     });
 }
 
 async function loadMonth(ym) {
+    okMonths.delete(ym);
     const snap = await getDoc(monthRef(ym));
+    if (ym !== currentYm) return;   // 그사이 다른 달로 옮겼으면 버린다(옛 달 기록이 새 달에 섞이지 않게)
     records = snap.exists() ? (snap.data().records || {}) : {};
+    recordsYm = ym;
+    okMonths.add(ym);
 }
 
-async function saveMonth() {
-    await setDoc(monthRef(currentYm), {
-        records, updatedAt: new Date().toISOString(), updatedBy: currentUser
+async function saveMonth(ym = recordsYm, recs = records) {
+    if (!okMonths.has(ym)) throw new Error('이 달 기록을 불러오지 못한 상태라 저장하지 않았습니다. 새로고침해 주세요.');
+    await setDoc(monthRef(ym), {
+        records: recs, updatedAt: new Date().toISOString(), updatedBy: currentUser
     });
 }
 
-/** 칸을 고칠 때마다 저장하면 요청이 너무 잦다. 잠깐 모았다가 한 번에 보낸다. */
+/** 칸을 고칠 때마다 저장하면 요청이 너무 잦다. 잠깐 모았다가 한 번에 보낸다.
+ *  달·기록은 예약하는 순간 잡아 둔다(그사이 달을 옮겨도 원래 달에 저장). */
+let pendingSave = null;   // 예약된 저장 { ym, recs } — 달을 옮길 때 바로 보낸다
+const runSave = async (p) => {
+    try { await saveMonth(p.ym, p.recs); } catch (e) { console.error(e); toast('저장 실패: ' + (e.message || e), true); }
+};
 const queueSave = () => {
+    const p = { ym: recordsYm, recs: records };
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(async () => {
-        try { await saveMonth(); } catch (e) { console.error(e); toast('저장 실패: ' + (e.message || e), true); }
+    pendingSave = p;
+    saveTimer = setTimeout(() => {
+        if (pendingSave === p) pendingSave = null;
+        runSave(p);
     }, 700);
+};
+/** 이 달 기록을 불러온 상태인가(불러오는 중·실패면 입력을 받지 않는다 — 다른 달 기록에 섞이지 않게) */
+const monthReady = () => {
+    if (okMonths.has(currentYm) && recordsYm === currentYm) return true;
+    toast('기록을 불러오는 중이거나 불러오지 못했습니다. 잠시 후 다시 해 주세요.', true);
+    return false;
+};
+/** 예약된 기록 저장이 있으면 기다리지 않고 지금 보낸다(달 이동 전에 — 다른 달 예약에 취소되지 않게). */
+const flushSave = async () => {
+    if (!pendingSave) return;
+    const p = pendingSave;
+    pendingSave = null;
+    clearTimeout(saveTimer);
+    await runSave(p);
 };
 
 // ── 환율 ─────────────────────────────────────────────────────────
@@ -205,7 +252,7 @@ function renderTabs() {
     host.innerHTML = list.map(p => {
         const t = monthTotals(p.id);
         return `<button class="p-card ${p.id === currentPid ? 'on' : ''}" data-pid="${esc(p.id)}">
-            <div class="nm truncate">${esc(p.name || '이름없음')}</div>
+            <div class="nm truncate" title="${esc(p.name || '')}">${esc(p.name || '이름없음')}</div>
             <div class="sub">${t.days}일 · ${hoursText(t.workedMin)}</div>
         </button>`;
     }).join('');
@@ -377,6 +424,7 @@ $('sheet-body').addEventListener('input', (e) => {
     const tr = el.closest('tr');
     const day = tr?.dataset.day;
     if (!day) return;
+    if (!monthReady()) return;
 
     if (!records[currentPid]) records[currentPid] = {};
     const rec = records[currentPid][day] || (records[currentPid][day] = {});
@@ -476,6 +524,7 @@ $('sheet-body').addEventListener('change', (e) => {
     if (okBox) {
         const key = okBox.closest('tr')?.dataset.day;
         if (!key || !currentPid) return;
+        if (!monthReady()) { okBox.checked = !okBox.checked; return; }
         if (!setDayOk(currentPid, key, okBox.checked)) { okBox.checked = false; return; }
         renderSheet();
         renderSummary();
@@ -497,6 +546,7 @@ $('btn-bulk-apply').addEventListener('click', async () => {
     const vOut = $('bulk-out').value.trim();
     const vBreak = $('bulk-break').value.replace(/[^0-9]/g, '');
     if (!vIn && !vOut && !vBreak) { toast('넣을 값을 하나 이상 입력해 주세요.', true); return; }
+    if (!monthReady()) return;
 
     if (!records[currentPid]) records[currentPid] = {};
     selected.forEach(key => {
@@ -516,6 +566,7 @@ $('btn-bulk-apply').addEventListener('click', async () => {
 // 선택한 날짜를 한 번에 확인 처리 / 해제
 const bulkOk = async (on) => {
     if (!currentPid || selected.size === 0) return;
+    if (!monthReady()) return;
     let n = 0;
     selected.forEach(key => { if (setDayOk(currentPid, key, on)) n++; });
     if (n === 0) { toast(on ? '확인할 기록이 없습니다.' : '해제할 기록이 없습니다.'); return; }
@@ -528,6 +579,7 @@ $('btn-bulk-unok')?.addEventListener('click', () => bulkOk(false));
 
 $('btn-bulk-clear').addEventListener('click', async () => {
     if (!currentPid || selected.size === 0) return;
+    if (!monthReady()) return;
     const withData = [...selected].filter(dayHasData).length;
     if (withData === 0) { toast('선택한 날에 지울 기록이 없습니다.'); return; }
     if (!confirm(`선택한 ${selected.size}일 중 기록이 있는 ${withData}일을 지웁니다.
@@ -568,9 +620,9 @@ $('wage-input').addEventListener('input', (e) => {
     if (!p) return;
     p.wage = num(e.target.value);
     renderSummary();
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(async () => {
-        try { await savePeople(); } catch (err) { toast('시급 저장 실패', true); }
+    clearTimeout(wageTimer);
+    wageTimer = setTimeout(async () => {
+        try { await savePeople(); } catch (err) { toast('시급 저장 실패: ' + (err.message || err), true); }
     }, 700);
 });
 $('wage-input').addEventListener('blur', (e) => {
@@ -580,13 +632,17 @@ $('wage-input').addEventListener('blur', (e) => {
 
 // ── 월 이동 ──────────────────────────────────────────────────────
 const goMonth = async (ym) => {
+    await flushSave();
     currentYm = ym;
     selected = new Set();
     try {
         await Promise.all([loadMonth(ym), loadRate()]);
     } catch (e) {
-        console.error(e); toast('기록을 불러오지 못했습니다.', true); records = {};
+        console.error(e); toast('기록을 불러오지 못했습니다.', true);
+        if (ym === currentYm) { records = {}; recordsYm = ym; }
     }
+    if (ym !== currentYm) return;   // 그사이 다른 달로 옮겼으면 그쪽이 그린다
+    showLoadError(!peopleOk || !okMonths.has(currentYm));
     renderAll();
 };
 $('btn-prev').addEventListener('click', () => goMonth(shiftYm(currentYm, -1)));
@@ -727,5 +783,6 @@ onAuthStateChanged(auth, async (user) => {
         console.error(e);
         toast('불러오지 못했습니다: ' + (e.message || e), true);
     }
+    showLoadError(!peopleOk || !okMonths.has(currentYm));
     renderAll();
 });

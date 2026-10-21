@@ -6,15 +6,15 @@
 // 메모: 전원 편집. 열 때 본 at 과 지금 at 이 다르면 충돌 확인창. 직전 5개 보관(되돌리기).
 // 기본정보 편집: 관리자만(D5). 같은 트랜잭션 헬퍼(버킷 + META rev + 이력, ver 비교).
 import { doc, getDoc, getDocs, collection, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202610210931';
-import { esc, toast, setHead, isLocOld } from './products.js?v=202610210931';
-import { statusPill } from './products-list.js?v=202610210931';
-import { renderCostCard, renderCostHistory } from './products-cost.js?v=202610210931';
-import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202610210931';
-import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610210931';
-import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202610210931';
-import { parseNum } from './lib/product-price.js?v=202610210931';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610210931';   // 열기 방식(같은 탭/이름 붙은 창)은 한 곳에서
+import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202610211108';
+import { esc, toast, setHead, isLocOld } from './products.js?v=202610211108';
+import { statusPill } from './products-list.js?v=202610211108';
+import { renderCostCard, renderCostHistory } from './products-cost.js?v=202610211108';
+import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202610211108';
+import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610211108';
+import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202610211108';
+import { parseNum } from './lib/product-price.js?v=202610211108';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610211108';   // 열기 방식(같은 탭/이름 붙은 창)은 한 곳에서
 
 const LOCATION_URL = 'location.html';
 
@@ -104,7 +104,7 @@ function renderInfo(info, optsEl, pid, p, rerender, editing = false) {
             return `<tr class="${o[4] ? 'is-gone' : ''}"><td class="num">${esc(o[0])}${gone}</td><td>${esc(o[1])}</td><td class="num pd-inh">${esc(o[2])}</td><td>${esc(o[3])}</td>
                 <td class="num">${L.spots.map(s => esc(s[0])).join(', ') || '<span class="pd-inh">–</span>'}</td><td class="r num">${L.spots.length ? q.toLocaleString() : ''}</td></tr>`;
         }).join('') || '<tr><td colspan="6" class="pd-inh">옵션 없음</td></tr>'}</tbody></table></div>
-        ${editing ? `<div class="pd-actions"><span class="pd-note pd-err" data-f="msg"></span>
+        ${editing ? `<div class="pd-actions" data-info-editing><span class="pd-note pd-err" data-f="msg"></span>
             <button class="d-btn pd-btn-lg" data-act="cancel">취소</button><button class="d-btn d-btn-primary pd-btn-lg" data-act="save">기본정보 저장</button></div>`
         : (S.isAdmin ? '' : '<div class="pd-note" style="margin-top:10px">기본정보는 관리자가 엑셀 업로드·화면 편집으로 고칩니다.</div>')}`;
 
@@ -214,7 +214,11 @@ const locTarget = () => { const t = sidebarLinkTarget(LOCATION_URL); return t ? 
 function renderLoc(el, p) {
     const at = S.locMeta && S.locMeta.at ? tsMs(S.locMeta.at) : 0;
     const head = `<div class="pd-row"><h2 class="pd-h2 pd-grow">위치 · 재고</h2>${at && isLocOld() ? '<span class="pd-pill warn">오래됨</span>' : ''}</div>`;
-    const link = `<a class="d-btn pd-btn-lg" style="display:block; margin-top:16px; text-decoration:none" href="${LOCATION_URL}"${locTarget()}>로케이션관리에서 보기</a>`;
+    // 이 상품의 옵션 코드로 로케이션관리 데이터 리스트를 걸러서 연다(?q=쉼표로 여러 개 — js/location.js applyUrlSearchOnce).
+    // 요약은 아침 기준이라 걸러 넘기지 않는다 — 살아 있는 옵션 전부(코드당 약 10자라 주소 길이 문제 없음)
+    const codes = p.o.filter(o => !o[4]).map(o => String(o[0] || '').trim()).filter(Boolean);
+    const href = codes.length ? `${LOCATION_URL}?q=${encodeURIComponent(codes.join(','))}#tab=list` : LOCATION_URL;
+    const link = `<a class="d-btn pd-btn-lg" style="display:block; margin-top:16px; text-decoration:none" href="${esc(href)}"${locTarget()}>로케이션관리에서 보기</a>`;
     if (!S.loc) {
         el.innerHTML = head + `<div class="pd-note" style="margin-top:12px">위치 요약이 아직 없습니다. 실시간 위치는 로케이션관리에서 확인하세요.</div>` + link;
         return;

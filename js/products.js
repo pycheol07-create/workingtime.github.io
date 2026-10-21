@@ -13,15 +13,15 @@
 //    로그인 칸 UI 는 china-stock-gate.js 를 **복사**했다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202610210931';
-import { emulatorEnabled } from './firebase-emulator.js?v=202610210931';
-import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610210931';
-import { renderList, exportCatalog } from './products-list.js?v=202610210931';
-import { renderDetail, renderCatalogLog } from './products-detail.js?v=202610210931';
-import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=202610210931';
-import { openUpload } from './products-excel.js?v=202610210931';
-import { setShellContext } from './app-shell-bridge.js?v=202610210931';
-import { memberNameFor } from './app-shell-data.js?v=202610210931';
+import { initializeFirebase } from './config.js?v=202610211108';
+import { emulatorEnabled } from './firebase-emulator.js?v=202610211108';
+import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610211108';
+import { renderList, exportCatalog } from './products-list.js?v=202610211108';
+import { renderDetail, renderCatalogLog } from './products-detail.js?v=202610211108';
+import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=202610211108';
+import { openUpload } from './products-excel.js?v=202610211108';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610211108';
+import { memberNameFor } from './app-shell-data.js?v=202610211108';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -114,6 +114,24 @@ export function setHead({ title = '상품 관리', code = '', crumb = '', back =
     document.title = back ? `${title} — 상품 관리` : '상품 관리';
 }
 
+// ── 기본정보 편집 중 이탈 확인 ─────────────────────────────
+// 편집 상태면 products-detail.js 가 액션 영역에 data-info-editing 을 단다.
+const editingInfo = () => !!document.querySelector('#pd-main [data-info-editing]');
+const okLeave = () => {
+    if (!editingInfo()) return true;
+    if (!confirm('편집 중인 기본정보가 저장되지 않았습니다.\n저장하지 않고 넘어갈까요?')) return false;
+    // 버리기로 했으니 표시를 내린다 — 이어지는 hashchange 에서 또 묻지 않게
+    document.querySelectorAll('#pd-main [data-info-editing]').forEach(el => el.removeAttribute('data-info-editing'));
+    return true;
+};
+window.addEventListener('beforeunload', (e) => {
+    if (!editingInfo() || leaveAlreadyConfirmed()) return;
+    e.preventDefault();
+    e.returnValue = '';
+});
+// 공통 상단바 메뉴·홈 — 동기 confirm 만
+onBeforeLeave(okLeave);
+
 // ── 화면 전환 ─────────────────────────────────────────────
 export function route() {
     const h = location.hash.replace(/^#/, '');
@@ -172,16 +190,24 @@ async function start(user) {
     $('pd-app').style.display = 'block';
     $('pd-tabs').addEventListener('click', (e) => {
         const b = e.target.closest('.d-seg-btn'); if (!b) return;
+        if (!okLeave()) return;
         location.hash = b.dataset.tab === 'list' ? '' : b.dataset.tab;
     });
-    $('pd-back').addEventListener('click', () => { if (history.length > 1 && document.referrer.includes('products.html')) history.back(); else location.hash = ''; });
-    $('pd-refresh').addEventListener('click', () => refresh());
+    $('pd-back').addEventListener('click', () => { if (!okLeave()) return; if (history.length > 1 && document.referrer.includes('products.html')) history.back(); else location.hash = ''; });
+    $('pd-refresh').addEventListener('click', () => { if (okLeave()) refresh(); });
     $('pd-export').addEventListener('click', () => exportCatalog());
     if (S.isAdmin) {
         $('pd-up-catalog').addEventListener('click', () => openUpload('catalog'));
         $('pd-up-cost').addEventListener('click', () => openUpload('cost'));
     }
-    window.addEventListener('hashchange', route);
+    // 해시 이동(목록 링크·브라우저 뒤로)도 편집 중이면 묻는다 — 남으면 주소만 되돌린다(pushState 는 hashchange 를 안 낸다).
+    // replaceState 로 되돌리면 [뒤로]를 취소했을 때 목록 기록 칸이 덮여 사라진다 — 새 칸을 쌓는다
+    let shownHash = location.hash;
+    window.addEventListener('hashchange', () => {
+        if (!okLeave()) { history.pushState(null, '', shownHash || location.pathname + location.search); return; }
+        shownHash = location.hash;
+        route();
+    });
     await refresh();
 }
 

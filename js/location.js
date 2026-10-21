@@ -1,22 +1,22 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610210931';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610211108';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610210931';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610210931';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610210931';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610210931';
-import { orderKeyMap } from './lib/order-hash.js?v=202610210931';
-import { setShellContext } from './app-shell-bridge.js?v=202610210931';
-import { memberNameFor } from './app-shell-data.js?v=202610210931';
-import { menuConfigOf } from './lib/perm.js?v=202610210931';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610210931';
-import { initPageNav } from './page-nav.js?v=202610210931';
-import { initRefillCard } from './refill-card.js?v=202610210931';
-import { initLocRecCard } from './locrec-card.js?v=202610210931';
-import { whenPerm } from './feature-gate.js?v=202610210931';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610210931';
-import { uploadBlockText } from './lib/busy-view.js?v=202610210931';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610210931';
+import { escapeHtml as escAttr } from './utils.js?v=202610211108';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610211108';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610211108';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610211108';
+import { orderKeyMap } from './lib/order-hash.js?v=202610211108';
+import { setShellContext } from './app-shell-bridge.js?v=202610211108';
+import { memberNameFor } from './app-shell-data.js?v=202610211108';
+import { menuConfigOf } from './lib/perm.js?v=202610211108';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610211108';
+import { initPageNav } from './page-nav.js?v=202610211108';
+import { initRefillCard } from './refill-card.js?v=202610211108';
+import { initLocRecCard } from './locrec-card.js?v=202610211108';
+import { whenPerm } from './feature-gate.js?v=202610211108';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610211108';
+import { uploadBlockText } from './lib/busy-view.js?v=202610211108';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610211108';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -716,6 +716,7 @@ function setupRealtimeListenerA() {
         });
         
         renderTableHeader(); 
+        applyUrlSearchOnce();
         applyFiltersAndSort(); 
         if(document.getElementById('incoming-sidebar').classList.contains('open')) window.renderIncomingQueue();
         
@@ -2180,9 +2181,9 @@ window.openSheetModal = (e) => {
     if (urlOrder) urlOrder.value = '';
     if (urlBuy) urlBuy.value = '';
 
-    // [1단계] 모달 오픈 시 기본 탭 초기화
+    // [1단계] 모달 오픈 시 기본 탭 초기화 — 시트 링크 칸은 비활성이라 우선순위 탭부터 연다
     if (typeof window.switchIncomingSettingsTab === 'function') {
-        window.switchIncomingSettingsTab('sheet');
+        window.switchIncomingSettingsTab('priority');
     }
     
     // [2단계] 우선순위 탭 UI 데이터 채우기 (incomingRecommendPriorities 우선, 없으면 recommendPriorities를 기본값으로)
@@ -2546,7 +2547,9 @@ window.applyAllRecommendations = async function() {
         const msg = `추천 자리 일괄 적용\n\n` +
                     `대상: ${assignments.length}개 상품\n` +
                     (skipped.length > 0 ? `추천 불가로 제외: ${skipped.length}개\n` : '') +
-                    `\n계속 진행하시겠습니까?`;
+                    `\n` + assignments.slice(0, 8).map(({ item, locId }) => `${item['상품코드']} → ${locId}`).join('\n') +
+                    (assignments.length > 8 ? `\n… 외 ${assignments.length - 8}건` : '') +
+                    `\n\n계속 진행하시겠습니까?`;
         if (!confirm(msg)) return;
         
         // 5) zone 별로 묶어서 Firestore 일괄 저장
@@ -2576,7 +2579,8 @@ window.applyAllRecommendations = async function() {
             savePromises.push(setDoc(doc(db, LOC_COLLECTION, zoneDocId), zoneUpdates[zoneDocId], { merge: true }));
         }
         await Promise.all(savePromises);
-        
+        showToast(`추천 자리 ${assignments.length}건을 선지정했습니다`);
+
         // 6) 사이드바 갱신 (적용된 카드는 자동으로 사라짐)
         // ※ Firestore 실시간 리스너가 originalData를 갱신하므로 일반적으로 자동 갱신되나, 명시적 호출로 안정성 확보
         if (typeof window.renderIncomingQueue === 'function') {
@@ -2584,7 +2588,7 @@ window.applyAllRecommendations = async function() {
         }
     } catch (e) {
         console.error('[applyAllRecommendations] 실패:', e);
-        alert('일괄 적용 중 오류가 발생했습니다: ' + (e && e.message ? e.message : e));
+        alert('일괄 적용 중 오류가 발생했습니다(인터넷 연결 확인). 일부 자리는 저장됐을 수 있으니 목록을 확인하세요.' + (e?.code ? ` (${e.code})` : ''));
     }
 };
 
@@ -3900,7 +3904,24 @@ let _globalSearchTimer = null;
     });
 })();
 
+// 상품 관리 [로케이션관리에서 보기] → location.html?q=코드,코드#tab=list — 첫 데이터가 오면 한 번만 머리줄 검색에 넣는다
+let _urlSearchApplied = false;
+function applyUrlSearchOnce() {
+    if (_urlSearchApplied) return;
+    _urlSearchApplied = true;
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (!q || !q.trim()) return;
+    const input = document.getElementById('loc-global-search');
+    if (input) input.value = q.trim();
+    globalSearch = q.trim().toLowerCase();
+    // 주소에서 ?q 는 지운다 — 남겨 두면 검색을 지운 뒤 새로고침해도 다시 걸린다
+    try { history.replaceState(history.state, '', window.location.pathname + window.location.hash); } catch (e) { /* 무시 */ }
+    if (document.body.dataset.locTab !== 'list' && typeof window.switchView === 'function') window.switchView('list');
+}
+
 function applyFiltersAndSort() {
+    // 머리줄 검색은 쉼표로 여러 개(하나라도 맞으면) — 상품 관리에서 옵션 코드 여러 개를 넘긴다
+    const gsTerms = globalSearch ? globalSearch.split(',').map(t => t.trim()).filter(Boolean) : [];
     let filtered = originalData.filter(item => {
         // ★ v3.57: 모든 필터 배열 기반 (OR 조건)
         if (filters.loc.length > 0 && !filters.loc.includes(item.id.charAt(0))) return false;
@@ -3978,9 +3999,9 @@ function applyFiltersAndSort() {
         }
 
         // ★ 머리줄 전체 검색 (로케이션·코드·상품명·옵션 중 하나라도 부분일치)
-        if (globalSearch) {
+        if (gsTerms.length) {
             const hay = [item.id, (item.code !== item.id ? item.code : ''), item.name, item.option].join(' ').toLowerCase();
-            if (!hay.includes(globalSearch)) return false;
+            if (!gsTerms.some(t => hay.includes(t))) return false;
         }
         return true;
     });
@@ -4023,9 +4044,15 @@ window.handleRowClick = async function(event, locId) {
         if (loc.preAssigned) { 
             if (loc.preAssignedCode === window.selectedPreAssignItem.code) {
                 if (confirm(`이미 '${loc.preAssignedCode}' 상품으로 선지정된 자리입니다.\n지정을 해제(취소)하시겠습니까?`)) {
-                    await setDoc(doc(db, LOC_COLLECTION, zoneDocId), {
-                        [locId]: { preAssigned: false, preAssignedCode: '', preAssignedName: '', preAssignedQty: '', preAssignedAt: 0, codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', updatedAt: new Date() }
-                    }, { merge: true });
+                    try {
+                        await setDoc(doc(db, LOC_COLLECTION, zoneDocId), {
+                            [locId]: { preAssigned: false, preAssignedCode: '', preAssignedName: '', preAssignedQty: '', preAssignedAt: 0, codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', updatedAt: new Date() }
+                        }, { merge: true });
+                    } catch(e) {
+                        console.error(e);
+                        alert('선지정을 해제하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : ''));
+                        return;
+                    }
                     showToast(`[${locId}] 선지정 취소 완료`);
                     window.cancelPreAssignMode();
                     return;
@@ -4049,9 +4076,9 @@ window.handleRowClick = async function(event, locId) {
                     updatedAt: new Date()
                 }
             }, { merge: true });
-            showToast(`[${locId}] 자리에 선지정 락(Lock)이 완료되었습니다!`);
-            window.cancelPreAssignMode(); 
-        } catch(e) { console.error(e); alert("선지정 저장 오류"); }
+            showToast(`[${locId}] 자리에 선지정했습니다`);
+            window.cancelPreAssignMode();
+        } catch(e) { console.error(e); alert('선지정을 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : '')); }
         return;
     }
     
@@ -4063,15 +4090,16 @@ window.handleRowClick = async function(event, locId) {
         if (confirm(`[${locId}] 선지정을 해제하시겠습니까?`)) {
             try {
                 const zoneDocId = getZoneDocId(locId);
-                setDoc(doc(db, LOC_COLLECTION, zoneDocId), { 
-                    [locId]: { 
-                        preAssigned: false, preAssignedCode: '', preAssignedName: '', preAssignedQty: '', preAssignedAt: 0, 
-                        codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', updatedAt: new Date() 
-                    } 
+                await setDoc(doc(db, LOC_COLLECTION, zoneDocId), {
+                    [locId]: {
+                        preAssigned: false, preAssignedCode: '', preAssignedName: '', preAssignedQty: '', preAssignedAt: 0,
+                        codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', updatedAt: new Date()
+                    }
                 }, { merge: true });
                 showToast("선지정이 해제되었습니다.");
-            } catch(e) { 
-                console.error(e); 
+            } catch(e) {
+                console.error(e);
+                alert('선지정을 해제하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : ''));
             }
         }
     }
@@ -4431,7 +4459,7 @@ const fileInputZikjin = document.getElementById('excel-upload-zikjin');
 if (fileInputZikjin) {
     fileInputZikjin.addEventListener('change', async function(e) {
         const file = e.target.files[0]; if (!file) return;
-        window.showLoading('직진배송 데이터를 분석 중입니다...');
+        window.showLoading('플랫폼 출고 파일을 읽는 중입니다...');
         try {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) {
@@ -4441,7 +4469,7 @@ if (fileInputZikjin) {
                 await updateDatabaseB(result.rows, 'ZikjinData', e.target, false);
             }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'zikjin'); e.target.value=''; }
-        } catch(err) { window.hideLoading(); console.error('직진배송 파일 처리 실패:', _errCode(err)); alert(`직진배송 파일을 읽거나 저장하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); e.target.value=''; }
+        } catch(err) { window.hideLoading(); console.error('직진배송 파일 처리 실패:', _errCode(err)); alert(`플랫폼 출고 파일을 읽거나 저장하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); e.target.value=''; }
     });
 }
 
@@ -4707,7 +4735,7 @@ window.processOrderData = async function(rows) {
         }
 
         // 6. 청크 압축 저장 (기존 청크 삭제 후 다시 작성)
-        window.showLoading('Firebase에 청크 압축 저장 중...');
+        window.showLoading('분석 결과 저장 중...');
 
         let batch = writeBatch(db);
         let bc = 0;
@@ -4945,7 +4973,7 @@ window.openOrderAnalysisReport = async function() {
 
 // 누적 데이터 전체 초기화
 window.resetOrderAnalysis = async function() {
-    if (!confirm('함께 팔리는 상품 분석 데이터를 전체 삭제하시겠습니까?\n\n(주문 데이터, 상품 조합, 통계가 모두 초기화됩니다)')) return;
+    if (!confirm('함께 팔리는 상품 조합·통계·처리한 주문 기록이 모두 지워집니다. 되돌릴 수 없습니다. 계속할까요?')) return;
     if (!confirm('OrderPairsChunks, OrderStatsChunks, ProcessedOrders가 모두 삭제됩니다. 계속하시겠습니까?')) return;
     window.showLoading('누적 데이터 삭제 중...');
     try {
@@ -5885,8 +5913,8 @@ window.addSingleLocationFromSetting = async () => {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists() && docSnap.data()[newId]) return alert(`이미 존재합니다.`);
         await setDoc(docRef, { [newId]: { dong: '', pos: '', code: '', name: '', option: '', stock: '0', reserved: false, reservedAt: 0, assignedAt: 0, reservedBy: '', updatedAt: new Date(), rawData: {} } }, { merge: true });
-        inputObj.value = ''; showToast(`로케이션 ${newId} 추가 완료`); 
-    } catch (error) { console.error(error); }
+        inputObj.value = ''; showToast(`로케이션 ${newId} 추가 완료`);
+    } catch (error) { console.error(error); alert('로케이션을 추가하지 못했습니다(인터넷 연결 확인).' + (error?.code ? ` (${error.code})` : '')); }
 };
 
 window.deleteSelectedLocations = async () => {
@@ -6090,7 +6118,7 @@ window.renderIncomingQueue = function() {
         }
         
         html += `
-            <div class="incoming-item" onclick="activatePreAssignMode('${jsArg(code)}', '${jsArg(name)}', '${jsArg(qty)}', '${jsArg(option)}')">
+            <div class="incoming-item" onclick="activatePreAssignMode('${jsArg(code)}', '${jsArg(name)}', '${jsArg(qty)}', '${jsArg(option)}', '${jsArg(rec?.loc?.id || '')}')">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                     <div style="font-weight:600; color:var(--c-accent-deep); font-size:14px;">${code}</div>
                     <span class="badge incoming-src ${src==='제작'?'badge-accent':'badge-warn'}">${src}</span>
@@ -6108,11 +6136,12 @@ window.renderIncomingQueue = function() {
     container.innerHTML = html || '<div style="text-align:center; padding:30px; color:var(--c-text-3);">지정이 필요한 상품이 없습니다.</div>';
 };
 
-window.activatePreAssignMode = function(code, name, qty, option = '') {
+window.activatePreAssignMode = function(code, name, qty, option = '', recId = '') {
     window.isPreAssignMode = true;
     window.selectedPreAssignItem = { code, name, qty, option };
-    document.getElementById('pre-assign-banner-text').innerText = `${code} (${name})`;
+    document.getElementById('pre-assign-banner-text').innerText = `${code} (${name})` + (recId ? ` → 추천 ${recId}` : '');
     document.getElementById('pre-assign-banner').style.display = 'flex';
+    if (document.body.dataset.locTab === 'locdash' && typeof window.switchView === 'function') window.switchView('list');
     if (window.innerWidth < 1100) document.getElementById('incoming-sidebar').classList.remove('open');
 };
 
@@ -6562,7 +6591,7 @@ window.renderMap = function() {
     const tabContainer = document.getElementById('map-zone-tabs');
 
     if (!originalData || originalData.length === 0) {
-        mapBody.innerHTML = '<div style="text-align:center;padding:60px;color:var(--c-text-3);">Firebase에서 데이터를 불러오는 중입니다.<br>잠시 후 자동으로 표시됩니다.</div>';
+        mapBody.innerHTML = '<div style="text-align:center;padding:60px;color:var(--c-text-3);">서버에서 데이터를 불러오는 중입니다.<br>잠시 후 자동으로 표시됩니다.</div>';
         tabContainer.innerHTML = '';
         return;
     }
@@ -6646,11 +6675,11 @@ function renderCorridor(idx) {
         if (!loc) return '';
         const nameText = hasContent(loc) ? (loc.name || loc.code || '') : '';
         const nameColor = hasContent(loc) ? 'var(--c-ok-text)' : 'var(--c-text-3)';
-        const idFontSize = Math.max(7, Math.floor(cellSize / 8));
+        const idFontSize = Math.max(10, Math.floor(cellSize / 8));
         const nameFontSize = Math.max(10, Math.floor(cellSize / 5));
         const maxChars = Math.max(4, Math.floor((cellSize - 6) / (nameFontSize * 0.55)));
         const displayName = nameText.substring(0, maxChars) || '빈칸';
-        return `<div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;">${loc.id}</div>
+        return `<div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${cellSize - 4}px;">${loc.id}</div>
                 <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize - 4}px;text-align:center;line-height:1.3;">${displayName}</div>`;
     }
     function tooltipHtml(loc) {
@@ -6736,7 +6765,7 @@ function renderCorridor(idx) {
         return 'general';
     }
     function simpleGridCells(locs, cs) {
-        const idFontSize = Math.max(7, Math.floor(cs / 8));
+        const idFontSize = Math.max(10, Math.floor(cs / 8));
         const nameFontSize = Math.max(10, Math.floor(cs / 5));
         const maxChars = Math.max(4, Math.floor((cs - 6) / (nameFontSize * 0.55)));
         let h = '';
@@ -6752,7 +6781,7 @@ function renderCorridor(idx) {
                 <div style="width:${cs}px;height:${cs+6}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                     onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
                     onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
-                    <div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;">${loc.id}</div>
+                    <div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${cs-4}px;">${loc.id}</div>
                     <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cs-4}px;text-align:center;line-height:1.3;">${displayName}</div>
                 </div>${tooltipHtml(loc)}</div>`;
         });
@@ -6783,7 +6812,7 @@ function renderCorridor(idx) {
         function starRow(locs) {
             // 필터 ON 시: 매칭 슬롯 0개면 빈 문자열 반환
             if (_mapLegendFilter && !locs.some(l => matchesLegendFilter(l))) return '';
-            const idFontSize = Math.max(7, Math.floor(cellSize / 8));
+            const idFontSize = Math.max(10, Math.floor(cellSize / 8));
             const nameFontSize = Math.max(10, Math.floor(cellSize / 5));
             const maxChars = Math.max(4, Math.floor((cellSize - 6) / (nameFontSize * 0.55)));
             let h = `<div style="padding:8px;display:flex;flex-wrap:wrap;gap:3px;">`;
@@ -6799,7 +6828,7 @@ function renderCorridor(idx) {
                     <div style="width:${cellSize}px;height:${cellSize+6}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                         onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
                         onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
-                        <div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;">${loc.id}</div>
+                        <div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${cellSize-4}px;">${loc.id}</div>
                         <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize-4}px;text-align:center;line-height:1.3;">${displayName}</div>
                     </div>${tooltipHtml(loc)}</div>`;
             });

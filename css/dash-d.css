@@ -291,3 +291,9 @@ html.dark #personnel-hover-tooltip { background: #2A3038; box-shadow: 0 0 0 1px 
     #dash-root .task-board-layout { flex-direction: column; }
     #dash-root .task-quick-list { width: auto; flex: initial; border-left: 0; padding-left: 0; }
 }
+
+/* 휴대폰: 작은 버튼·팀원 행 아이콘 버튼을 손가락으로 누르기 쉬운 크기로 */
+@media (max-width:767px) {
+  #dash-root .d-btn-sm { min-height: 34px; }
+  #dash-root .member-actions > button { width: 34px; height: 34px; }
+}

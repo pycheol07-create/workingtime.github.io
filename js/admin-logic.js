@@ -1,9 +1,9 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610210931';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610210931';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202610210931';
-import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610210931';
-import { permFieldsForSave } from './lib/perm-model.js?v=202610210931';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610211108';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610211108';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202610211108';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610211108';
+import { permFieldsForSave } from './lib/perm-model.js?v=202610211108';
 
 // 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
 export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',
@@ -328,7 +328,7 @@ export function validateConfig(newConfig) {
     if (!Object.values(newConfig.memberRoles || {}).includes('admin')) {
         throw new Error(`[저장 실패] 관리자가 한 명도 없습니다.
 
-이대로 저장하면 아무도 관리자 페이지에 들어올 수 없습니다.
+이대로 저장하면 아무도 설정·관리에 들어올 수 없습니다.
 권한 관리에서 최소 한 명을 '관리자'로 지정해 주세요.`);
     }
 

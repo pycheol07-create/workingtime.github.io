@@ -1,8 +1,8 @@
 // === js/app-lifecycle.js ===
-import * as State from './state.js?v=202610210931';
-import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202610210931';
-import { saveProgress, isDayClosedOnServer } from './history-data-manager.js?v=202610210931';
-import { saveStateToFirestore } from './app-data.js?v=202610210931';
+import * as State from './state.js?v=202610211108';
+import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202610211108';
+import { saveProgress, isDayClosedOnServer } from './history-data-manager.js?v=202610211108';
+import { saveStateToFirestore } from './app-data.js?v=202610211108';
 import { collection, doc, writeBatch, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let localLunchPauseExecuted = false;
@@ -134,12 +134,17 @@ async function autoBackfillMissingFx(todayKey) {
 // ✨ 야근 확인 팝업 및 타이머용 변수 추가
 let localAutoClosePromptExecuted = false;
 let autoCloseTimer = null;
+let autoCloseCountdown = null;   // 17:30 팝업의 남은 시간 표시(1초 간격)
+function stopAutoCloseCountdown() {
+    if (autoCloseCountdown) clearInterval(autoCloseCountdown);
+    autoCloseCountdown = null;
+}
 let overtimeOptOut = false;      // [연장 근무 계속하기]를 누른 날은 강제 마감하지 않는다
 let eodFlushCooldownUntil = 0;   // 종료시각 이후 이력 확정 저장 재시도 쿨다운
 
 // 업무일 종료시각. 이력의 열린 기록 상한도 같은 값을 써야 하므로 단일 출처에서 가져온다
 // (예전엔 두 파일에 따로 박혀 있어, 한쪽만 고치면 조용히 갈라졌다).
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610210931';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610211108';
 
 // 진행/일시정지 기록을 지정 시각으로 마감(Firestore 배치 + 로컬 미러 갱신)
 async function closeRecordsAt(records, endTime, dayKey) {
@@ -256,6 +261,7 @@ export const updateElapsedTimes = async () => {
         localAutoClosePromptExecuted = false;
         if (autoCloseTimer) clearTimeout(autoCloseTimer);
         autoCloseTimer = null;
+        stopAutoCloseCountdown();
         overtimeOptOut = false;
         eodFlushCooldownUntil = 0;
         _fxFetchedDay = null; // 환율 자동입력 가드도 초기화
@@ -320,6 +326,24 @@ export const updateElapsedTimes = async () => {
             const btnContinue = document.getElementById('btn-continue-overtime');
             const btnCloseNow = document.getElementById('btn-close-now');
 
+            // 무엇이 종료되는지 알린다 — 하루 마감([업무 마감])과 헷갈리지 않게
+            const targetEl = document.getElementById('overtime-target-count');
+            if (targetEl) targetEl.textContent = `진행 중·일시정지 업무 ${ongoingRecords.length}건을 ${AUTO_END_TIME}으로 종료합니다. (하루 마감 [업무 마감]과는 별개)`;
+
+            // 남은 시간 표시와 실제 자동 종료 타이머가 같은 deadline 을 쓴다
+            const deadline = Date.now() + 5 * 60 * 1000;
+            const countdownEl = document.getElementById('auto-close-countdown');
+            const renderCountdown = () => {
+                if (!countdownEl) return;
+                const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+                const mm = Math.floor(left / 60);
+                const ss = String(left % 60).padStart(2, '0');
+                countdownEl.textContent = `응답이 없으면 ${mm}:${ss} 뒤 자동 종료됩니다.`;
+            };
+            stopAutoCloseCountdown();
+            renderCountdown();
+            autoCloseCountdown = setInterval(renderCountdown, 1000);
+
             if (modal) modal.classList.remove('hidden');
 
             // 실제 마감: Firestore workRecords 서브컬렉션을 batch.update.
@@ -329,6 +353,7 @@ export const updateElapsedTimes = async () => {
                 // 실행 시점에 다시 필터 — 이미 누가 마감했으면 빈 배치(no-op)
                 const ongoing = (State.appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
                 if (ongoing.length === 0) {
+                    stopAutoCloseCountdown();
                     if (modal) modal.classList.add('hidden');
                     return;
                 }
@@ -348,31 +373,34 @@ export const updateElapsedTimes = async () => {
                         console.error('Auto-close history save error:', e2);
                     }
 
-                    showToast(`${AUTO_END_TIME} 기준으로 ${ongoing.length}개 업무가 자동 마감되었습니다.`, false);
+                    showToast(`${AUTO_END_TIME} 기준으로 ${ongoing.length}개 업무가 자동 종료되었습니다.`, false);
                 } catch (e) {
                     console.error('Auto-close batch error:', e);
-                    showToast('업무 자동 마감 중 오류가 발생했습니다. 콘솔을 확인해주세요.', true);
+                    showToast('업무 자동 종료 중 오류가 발생했습니다. 새로고침 후 진행 중 업무를 확인해 주세요.', true);
                 }
+                stopAutoCloseCountdown();
                 if (modal) modal.classList.add('hidden');
             };
 
-            // 1. 5분(300,000ms) 대기 타이머 시작
-            autoCloseTimer = setTimeout(() => { executeAutoClose(); }, 5 * 60 * 1000);
+            // 1. 5분(300,000ms) 대기 타이머 시작 — 위 deadline 기준
+            autoCloseTimer = setTimeout(() => { executeAutoClose(); }, Math.max(0, deadline - Date.now()));
 
             // 2. [연장 근무 계속하기]
             if (btnContinue) {
                 btnContinue.onclick = () => {
                     clearTimeout(autoCloseTimer);
+                    stopAutoCloseCountdown();
                     overtimeOptOut = true; // 안전망(eodFlush)이 강제 마감하지 않도록
                     if (modal) modal.classList.add('hidden');
-                    showToast('연장 근무가 활성화되었습니다. 퇴근 시 직접 마감해주세요.', false);
+                    showToast('연장 근무가 활성화되었습니다. 퇴근 전에 진행 중 업무를 직접 종료해 주세요.', false);
                 };
             }
 
-            // 3. [지금 마감하기]
+            // 3. [지금 종료하기]
             if (btnCloseNow) {
                 btnCloseNow.onclick = async () => {
                     clearTimeout(autoCloseTimer);
+                    stopAutoCloseCountdown();
                     await executeAutoClose();
                 };
             }
