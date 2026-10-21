@@ -1,22 +1,22 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610210900';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610210917';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610210900';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610210900';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610210900';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610210900';
-import { orderKeyMap } from './lib/order-hash.js?v=202610210900';
-import { setShellContext } from './app-shell-bridge.js?v=202610210900';
-import { memberNameFor } from './app-shell-data.js?v=202610210900';
-import { menuConfigOf } from './lib/perm.js?v=202610210900';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610210900';
-import { initPageNav } from './page-nav.js?v=202610210900';
-import { initRefillCard } from './refill-card.js?v=202610210900';
-import { initLocRecCard } from './locrec-card.js?v=202610210900';
-import { whenPerm } from './feature-gate.js?v=202610210900';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610210900';
-import { uploadBlockText } from './lib/busy-view.js?v=202610210900';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610210900';
+import { escapeHtml as escAttr } from './utils.js?v=202610210917';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610210917';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610210917';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610210917';
+import { orderKeyMap } from './lib/order-hash.js?v=202610210917';
+import { setShellContext } from './app-shell-bridge.js?v=202610210917';
+import { memberNameFor } from './app-shell-data.js?v=202610210917';
+import { menuConfigOf } from './lib/perm.js?v=202610210917';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610210917';
+import { initPageNav } from './page-nav.js?v=202610210917';
+import { initRefillCard } from './refill-card.js?v=202610210917';
+import { initLocRecCard } from './locrec-card.js?v=202610210917';
+import { whenPerm } from './feature-gate.js?v=202610210917';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610210917';
+import { uploadBlockText } from './lib/busy-view.js?v=202610210917';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610210917';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -63,7 +63,7 @@ const LOC_COLLECTION = 'Locations';
 let originalData = []; 
 // 스냅샷에서 받은 자리별 원본 값(보정 전) — 최신화 때 '값이 그대로인 자리'를 건너뛰는 비교용
 let rawLocMap = {};
-let zikjinData = {}; // ZG&AB 출고 (직진+에이블리 합본)
+let zikjinData = {}; // 플랫폼 출고 (직진+에이블리 합본)
 let weeklyData = {}; // 주차별
 let incomingData = {};
 let incomingTotalByCode = {}; // ★ 상품코드별 입고대기 합계 (오더+사입)
@@ -121,7 +121,7 @@ window.currentRecommendations = [];
 // v4.1: 단독 추천용 별도 데이터 변수
 window.currentSingleRecommendations = [];
 
-window.recommendRatios = { zikjin: 60, weekly: 20, trend: 20 }; // zikjin=ZG&AB 출고(직진+에이블리), weekly=주차별, trend=상승세
+window.recommendRatios = { zikjin: 60, weekly: 20, trend: 20 }; // zikjin=플랫폼 출고(직진+에이블리), weekly=주차별, trend=상승세
 window.recommendPriorities = {
     zones: { 0: ['★'], 1: ['A','B','C','D','E','F','G','H','I'], 2: ['Z'], 3: ['L','M','N','O','P','Q','R','S','T'] },
     dongs: ['★', '1', '2', '3', '4', '5', '6'],
@@ -298,7 +298,7 @@ function setupRealtimeListenerB() {
 
         updateZikjinInfoDisplay();
         applyFiltersAndSort();
-    }, (error) => { console.error("직진배송 오류:", error); showSyncError('zikjin', 'ZG&AB 출고', error); });
+    }, (error) => { console.error("직진배송 오류:", error); showSyncError('zikjin', '플랫폼 출고', error); });
 
     onSnapshot(collection(db, 'WeeklyData'), (snapshot) => {
         clearSyncError('weekly');
@@ -359,7 +359,7 @@ function updateLastUpdateDisplay(ts) {
     if (!ts) { el.innerHTML = '<span class="dot"></span>재고<span class="lu-label"> 최신화</span> <b>기록 없음</b>'; return; }
     const d = new Date(ts);
     const p = n => String(n).padStart(2, '0');
-    // 점 색: ZG&AB 출고와 같은 일수 기준 — 오늘 ok / 어제 warn / 2일 이상 risk
+    // 점 색: 플랫폼 출고와 같은 일수 기준 — 오늘 ok / 어제 warn / 2일 이상 risk
     const startOfDay = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
     const daysAgo = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
     const tone = daysAgo <= 0 ? 'ok' : (daysAgo === 1 ? 'warn' : 'risk');
@@ -378,7 +378,7 @@ if (!window.__locHdrToneTimer) {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshHeaderStatusTone(); });
 }
 
-// 📂 직진·에이블리(ZG&AB 출고) 전송 기록 간략 표시 (언제/얼마나 + 상세 링크)
+// 📂 직진·에이블리(플랫폼 출고) 전송 기록 간략 표시 (언제/얼마나 + 상세 링크)
 let _zikjinSourceTotals = { zikjin: 0, ably: 0, unknown: 0 }; // 소스별 출고량 합계
 let _zikjinMeta = null;         // 상세 모달에서 쓰는 '유효' 메타
 let _zikjinConfigMeta = null;   // INFO_CONFIG.zikjinMeta (메타 기능 이후 업로드분)
@@ -405,8 +405,8 @@ function updateZikjinInfoDisplay() {
     const dot = (tone) => `<span class="dot" style="background:var(--c-${tone});"></span>`;
 
     if (!zMeta || !zMeta.at) {
-        el.innerHTML = `${dot('risk')}<span class="zk-label">ZG&AB </span>출고 <b>전송 기록 없음</b>`;
-        el.title = '직진·에이블리(ZG&AB) 출고 데이터가 아직 업로드되지 않았습니다.\n[작업] 메뉴의 [ZG&AB 출고 데이터 업로드]에서 파일을 올려주세요.';
+        el.innerHTML = `${dot('risk')}<span class="zk-label">플랫폼 </span>출고 <b>전송 기록 없음</b>`;
+        el.title = '플랫폼 출고 데이터가 아직 업로드되지 않았습니다.\n[메뉴]의 [플랫폼 출고 데이터 올리기]에서 파일을 올려주세요.';
         setTone('risk');
         return;
     }
@@ -415,7 +415,7 @@ function updateZikjinInfoDisplay() {
     const p = n => String(n).padStart(2, '0');
     const cnt = Number(zMeta.count || 0).toLocaleString();
 
-    // 🔔 최신성 경고 — ZG&AB 출고 데이터는 자동으로 들어오지 않고 '수동 업로드'로만 갱신된다.
+    // 🔔 최신성 경고 — 플랫폼 출고 데이터는 자동으로 들어오지 않고 '수동 업로드'로만 갱신된다.
     //    올리는 걸 잊으면 로케이션 변경 추천이 옛날 출고량으로 계산되므로, 지난 날짜면 눈에 띄게 표시한다.
     const startOfDay = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
     const now = new Date();
@@ -443,8 +443,8 @@ function updateZikjinInfoDisplay() {
         : '';
 
     // 좁은 폭에서는 .zk-extra(직진·에이블리 숫자·상세) → .zk-cnt(건수) 순으로 숨긴다 (location.html 헤더 CSS)
-    el.innerHTML = `${dot(tone)}<span class="zk-label">ZG&AB </span>출고${warn} <b>${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}<span class="zk-cnt"> · ${cnt}건</span></b><span class="zk-extra">${splitTxt} <span style="text-decoration:underline; color:var(--c-text-2);">상세</span></span>`;
-    el.title = `직진·에이블리(ZG&AB) 출고 전송: ${d.toLocaleString('ko-KR')} · ${zMeta.count}건`
+    el.innerHTML = `${dot(tone)}<span class="zk-label">플랫폼 </span>출고${warn} <b>${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}<span class="zk-cnt"> · ${cnt}건</span></b><span class="zk-extra">${splitTxt} <span style="text-decoration:underline; color:var(--c-text-2);">상세</span></span>`;
+    el.title = `플랫폼 출고 전송: ${d.toLocaleString('ko-KR')} · ${zMeta.count}건`
         + ((st.zikjin > 0 || st.ably > 0)
             ? `
 
@@ -452,7 +452,7 @@ function updateZikjinInfoDisplay() {
               + (st.unknown > 0 ? ` / 구분없음 ${st.unknown.toLocaleString()}` : '')
             : '')
         + (daysAgo > 0
-            ? `\n\n오늘 올라온 자료가 아닙니다(${daysAgo}일 지남).\nZG&AB 출고 데이터는 자동 전송되지 않고 수동 업로드로만 갱신됩니다.\n출고 작업을 했다면 [작업] 메뉴의 [ZG&AB 출고 데이터 업로드]에서 파일을 올려주세요.`
+            ? `\n\n오늘 올라온 자료가 아닙니다(${daysAgo}일 지남).\n플랫폼 출고 데이터는 자동 전송되지 않고 수동 업로드로만 갱신됩니다.\n출고 작업을 했다면 [메뉴]의 [플랫폼 출고 데이터 올리기]에서 파일을 올려주세요.`
             : '')
         + `\n\n클릭 시 전송 데이터 상세 보기`;
 }
@@ -469,7 +469,7 @@ function _zikTag(label, qty, fg, bg) {
         border-radius:var(--r-pill); padding:2px 8px;">${label} ${Number(qty || 0).toLocaleString()}</span>`;
 }
 
-// 📂 ZG&AB 출고(직진·에이블리) 전송 데이터 상세 모달
+// 📂 플랫폼 출고 전송 데이터 상세 모달
 window.openZikjinDetail = function () {
     const existing = document.getElementById('zikjin-detail-overlay');
     if (existing) existing.remove();
@@ -525,7 +525,7 @@ window.openZikjinDetail = function () {
       </div>`;
 
     const body = rows.length === 0
-        ? '<div style="padding:36px; text-align:center; color:var(--c-text-3);">전송된 ZG&AB 출고 데이터가 없습니다.</div>'
+        ? '<div style="padding:36px; text-align:center; color:var(--c-text-3);">전송된 플랫폼 출고 데이터가 없습니다.</div>'
         : `<table style="width:100%; border-collapse:collapse; font-size:13px;">
              <thead><tr style="position:sticky; top:0; background:var(--c-track); z-index:1;">
                <th style="text-align:left; padding:8px;">상품코드</th>
@@ -569,7 +569,7 @@ window.openZikjinDetail = function () {
       <div style="background:var(--c-surface); border-radius:var(--r-card); width:100%; max-width:760px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--sh-pop);">
         <div style="padding:14px 18px; border-bottom:1px solid var(--c-line-soft); display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <div style="font-size:16px; font-weight:600; color:var(--c-text);">ZG&AB 출고(직진·에이블리) 전송 데이터</div>
+            <div style="font-size:16px; font-weight:600; color:var(--c-text);">플랫폼 출고 전송 데이터</div>
             <div style="font-size:12px; color:var(--c-text-2); margin-top:2px;">총 ${rows.length.toLocaleString()}개 상품 · 출고량 합계 ${total.toLocaleString()}</div>
             <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
               ${_zikBadge('직진배송', sumZ, cntZ, TONE.accentDeep, TONE.accentSoft)}
@@ -843,7 +843,7 @@ window.openRatioModal = function(e) {
                     <h4 style="margin:0 0 10px 0; color:var(--c-text); font-weight:600;">점수 반영 비율 (총합 100%)</h4>
                     <div style="display:flex; justify-content:space-around; align-items:center; gap:5px;">
                         <label style="display:flex; flex-direction:column; align-items:center; font-size:12px; font-weight:bold;">
-                            ZG&AB 출고
+                            플랫폼 출고
                             <div style="margin-top:5px; display:flex; align-items:center;">
                                 <input type="number" id="mod-ratio-zikjin" style="width:50px; text-align:right; padding:6px; border:1px solid var(--c-line-strong); border-radius:4px; font-weight:bold;">
                                 <span style="margin-left:4px; color:var(--c-text-2);">%</span>
@@ -1153,7 +1153,7 @@ const getBaseLocsForCode = (code) => {
 
 // 에이블리 출고량 계산. '수량/기간배송수량' 총량 컬럼이 있으면 사용하고,
 // 없으면(에이블리 파일이 상품코드 + 날짜별 컬럼만 있는 경우) 날짜별(YYYYMMDD) 컬럼 합계를 출고량으로 사용.
-// 📦 ZG&AB 출고 행의 소스별(직진/에이블리) 수량 분해.
+// 📦 플랫폼 출고 행의 소스별(직진/에이블리) 수량 분해.
 //   출고 자동화 프로그램이 각 행에 _q: { 소스ID: 수량 } 을 남긴다.
 //     ZG  = 직진 일반   / ZGF = 직진 즉시출고
 //     AB  = 에이블리 일반 / ABF = 에이블리 즉시출고
@@ -1179,11 +1179,11 @@ function _ablyQtyFromItem(aItem) {
 }
 
 // 상품코드의 수요 지표 추출 (두 추천 경로 공용):
-//   - zgQty: ZG&AB 출고 = 직진+에이블리 합본 파일(ZikjinData) 의 수량/날짜컬럼합
+//   - zgQty: 플랫폼 출고 = 직진+에이블리 합본 파일(ZikjinData) 의 수량/날짜컬럼합
 //   - wQty : 주차별(WeeklyData '기간배송수량/기간발주수량')
 //   - trendVal: 상승세 = 주차별 날짜별(YYYYMMDD) 컬럼의 최근3 - 이전3
 function _getDemandForCode(code) {
-    const zItem = zikjinData[code] || {}; // ZG&AB 출고 (직진+에이블리 합본 파일 → 직진 슬롯 업로드)
+    const zItem = zikjinData[code] || {}; // 플랫폼 출고 (직진+에이블리 합본 파일 → 직진 슬롯 업로드)
     const wItem = weeklyData[code] || {};
     const zgQty = _ablyQtyFromItem(zItem); // 수량 || 날짜별 컬럼 합계 || 기간배송수량
     const wQty = Number(wItem['기간배송수량'] || wItem['기간발주수량'] || 0);
@@ -1217,8 +1217,8 @@ window.showRecommendation = function() {
         let itemDataList = [];
 
         allCodes.forEach(code => {
-            const dm = _getDemandForCode(code); // ZG&AB 출고(직진+에이블리) / 주차별 / 상승세
-            if (dm.zgQty > maxZQty) maxZQty = dm.zgQty; // maxZQty = ZG&AB 출고 최대
+            const dm = _getDemandForCode(code); // 플랫폼 출고(직진+에이블리) / 주차별 / 상승세
+            if (dm.zgQty > maxZQty) maxZQty = dm.zgQty; // maxZQty = 플랫폼 출고 최대
             if (dm.wQty > maxWQty) maxWQty = dm.wQty;
             if (dm.trendVal > maxTrend) maxTrend = dm.trendVal;
             itemDataList.push({ code, name: dm.name, zgQty: dm.zgQty, wQty: dm.wQty, trendVal: dm.trendVal });
@@ -1517,7 +1517,7 @@ window.showRecommendation = function() {
                 const moveQtyDisplay = moveQty > 0 ? `<span style="color:#e65100; font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:#888;">개</span>` : `<span style="color:#bbb; font-size:12px;">-</span>`;
 
                 // ★ 점수 세부 툴팁 HTML (html += 윗줄에 선언)
-                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 플랫폼 출고:${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: 플랫폼 출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
                 // v3.98: 페어 보정 배지
                 let pairBadgeHtml = '';
@@ -2086,7 +2086,7 @@ window.openSettingsModal = (e) => {
     
     const container = document.getElementById('setting-headers-container');
     
-    let html = '<div style="margin-bottom:15px; font-weight:bold; color:var(--primary);">■ 화면 헤더(컬럼) 설정</div><div style="display:flex; flex-wrap:wrap; gap:5px;">';
+    let html = '<div style="display:flex; flex-wrap:wrap; gap:5px;">';
     
     const stdCols = [
         { id: 'std_dong', label: '동' }, { id: 'std_pos', label: '위치' }, { id: 'std_id', label: '로케이션(ID)' }, { id: 'std_category', label: '대분류' },
@@ -2106,7 +2106,21 @@ window.openSettingsModal = (e) => {
 
     html += `</div>`;
     container.innerHTML = html;
+    // 권한으로 숨지 않은 첫 탭을 연다(feature-gate 가 숨긴 탭은 style.display='none')
+    const tabs = [...document.querySelectorAll('#settings-modal [data-set-tab]')];
+    const first = tabs.find(b => b.style.display !== 'none');
+    window.switchLocSettingsTab(first ? first.dataset.setTab : 'columns');
     document.getElementById('settings-modal').style.display = 'flex';
+};
+
+// 환경설정 탭 전환 — 보이기/숨기기는 .is-on 클래스로만 한다(권한 가림은 feature-gate 가 inline display 로 따로 하므로 서로 덮지 않게)
+window.switchLocSettingsTab = (tab) => {
+    const modal = document.getElementById('settings-modal');
+    if (!modal) return;
+    modal.querySelectorAll('[data-set-tab]').forEach(b => b.classList.toggle('active', b.dataset.setTab === tab));
+    modal.querySelectorAll('[data-set-pane]').forEach(p => p.classList.toggle('is-on', p.dataset.setPane === tab));
+    const save = document.getElementById('btn-save-header-settings');
+    if (save) save.classList.toggle('is-off', tab !== 'columns');   // '열 설정 저장'은 화면 열 탭에서만
 };
 
 window.saveHeaderSettings = async () => {
@@ -4403,12 +4417,12 @@ function _showUploadDiagnosisAlert(diagnosis, uploadType) {
     alert(msg);
 }
 
-// ZG&AB 출고·주차별 업로드 — 기존 데이터를 통째로 바꾸므로 파일을 읽은 뒤 검사하고 한 번 더 묻는다(js/lib/upload-check.js).
+// 플랫폼 출고·주차별 업로드 — 기존 데이터를 통째로 바꾸므로 파일을 읽은 뒤 검사하고 한 번 더 묻는다(js/lib/upload-check.js).
 //   상품코드·수량 열이 없으면 안내만 하고 멈춘다(로케이션 열만 있는 파일로 전부 지워지던 문제). 통과하고 [확인]이면 true.
 function _confirmUploadB(file, rows, kind) {
     const chk = checkUploadB(rows, kind);
     if (!chk.ok) { _showUploadDiagnosisAlert('no-required-header', kind); return false; }
-    const label = kind === 'zikjin' ? 'ZG&AB 출고' : '주차별';
+    const label = kind === 'zikjin' ? '플랫폼 출고' : '주차별';
     const extra = kind === 'zikjin' ? '\n(출고자동화가 보낸 기록도 지워집니다)' : '';
     return confirm(`${label} 파일 「${file.name}」 유효 ${chk.valid.toLocaleString()}줄(전체 ${chk.total.toLocaleString()}줄)로 기존 [${label}] 데이터를 모두 바꿉니다.${extra}\n\n계속할까요?`);
 }
@@ -4423,7 +4437,7 @@ if (fileInputZikjin) {
             if(result.rows.length > 0) {
                 window.hideLoading();
                 if (!_confirmUploadB(file, result.rows, 'zikjin')) { e.target.value=''; return; }
-                window.showLoading('ZG&AB 출고 데이터를 저장 중입니다...');
+                window.showLoading('플랫폼 출고 데이터를 저장 중입니다...');
                 await updateDatabaseB(result.rows, 'ZikjinData', e.target, false);
             }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'zikjin'); e.target.value=''; }
@@ -4958,7 +4972,7 @@ window.resetOrderAnalysis = async function() {
 };
 
 async function updateDatabaseB(rows, collectionName, inputElement, silent = false) {
-    let label = collectionName === 'ZikjinData' ? 'ZG&AB 출고' : (collectionName === 'WeeklyData' ? '주차별' : '데이터');
+    let label = collectionName === 'ZikjinData' ? '플랫폼 출고' : (collectionName === 'WeeklyData' ? '주차별' : '데이터');
     try {
         // 걸러내기를 지우기보다 먼저 — 상품코드가 있는 줄이 하나도 없으면 기존 데이터를 지우지 않고 멈춘다(2026-10-20)
         const validRows = rows.filter(row => codeOfRowB(row));
@@ -4997,7 +5011,7 @@ async function updateDatabaseB(rows, collectionName, inputElement, silent = fals
             await batch.commit();
         }
 
-        // 📌 전송 기록 메타 저장(언제/얼마나) — 직진·에이블리(ZG&AB)·주차별
+        // 📌 전송 기록 메타 저장(언제/얼마나) — 플랫폼 출고·주차별
         try {
             const metaKey = collectionName === 'ZikjinData' ? 'zikjinMeta'
                 : (collectionName === 'WeeklyData' ? 'weeklyMeta' : null);
@@ -7100,7 +7114,7 @@ window.showSingleRecommendation = function() {
             
             // ===== 1~6. 계산 — js/lib/loc-recommend.js (서버 로케이션추천과 같은 모듈) =====
             //   점수(정규화 방식 그대로) → 빈 자리(동 > 위치 > 구역 정렬) → 점수 1위부터 '더 좋은' 첫 빈 자리 배정.
-            //   수요는 화면 자료(_getDemandForCode: ZG&AB 출고·주차별·상승세)를 넣는다. 가드 옵션은 LOC_REC_GUARDS.
+            //   수요는 화면 자료(_getDemandForCode: 플랫폼 출고·주차별·상승세)를 넣는다. 가드 옵션은 LOC_REC_GUARDS.
             const scoredItems = scoreItems({ locs: originalData, demand: _getDemandForCode, ratios: window.recommendRatios, incomingTotalByCode });
 
             // ===== 5. 갯수 제한 =====
@@ -7140,7 +7154,7 @@ window.showSingleRecommendation = function() {
                 if (!rec.currentLocs) moveBadge = _badge(TONE.accentSoft, TONE.accentDeep, '신규');
                 else if (_slot.dongRank < currentInfo.dongRank || (_slot.dongRank === currentInfo.dongRank && _slot.posRank < currentInfo.posRank)) moveBadge = _badge(TONE.okSoft, TONE.okText, '전진');
                 else moveBadge = _badge(TONE.track, TONE.text2, '수평');
-                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• ZG&AB 출고:${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: ZG&AB출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 플랫폼 출고:${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: 플랫폼 출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
                 html += `
                     <tr style="background:${rowBg}; line-height:1.3;">
@@ -8230,7 +8244,7 @@ window.renderLocationDashboard = function () {
     const weeklyKeys = Object.keys(weeklyData || {}).length;
     const freshHtml = `
         <div><b>오늘:</b> ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</div>
-        <div><b>ZG&AB 출고 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : `<button type="button" class="fresh-upload-link" style="color:${TONE.riskText};" title="눌러서 ZG&AB 출고 데이터 파일 고르기" onclick="event.stopPropagation(); document.getElementById('excel-upload-zikjin')?.click();">미업로드</button>`}</div>
+        <div><b>플랫폼 출고 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : `<button type="button" class="fresh-upload-link" style="color:${TONE.riskText};" title="눌러서 플랫폼 출고 데이터 파일 고르기" onclick="event.stopPropagation(); document.getElementById('excel-upload-zikjin')?.click();">미업로드</button>`}</div>
         <div><b>주차별 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : `<button type="button" class="fresh-upload-link" style="color:${TONE.riskText};" title="눌러서 주차별 데이터 파일 고르기" onclick="event.stopPropagation(); document.getElementById('excel-upload-weekly')?.click();">미업로드</button>`}</div>
         <div><b>입고대기 종 수:</b> ${incomingCodes.length.toLocaleString()}</div>
         <div><b>등록 로케이션:</b> ${originalData.length.toLocaleString()}칸 (3F: ${total.toLocaleString()}, 그 외: ${(originalData.length - total).toLocaleString()})</div>

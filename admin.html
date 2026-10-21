@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610210900">
-    <link rel="stylesheet" href="css/admin-d.css?v=202610210900">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610210900">
+    <link rel="stylesheet" href="css/suit.css?v=202610210917">
+    <link rel="stylesheet" href="css/admin-d.css?v=202610210917">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610210917">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -259,7 +259,7 @@
                                 <input type="number" id="fixed-shipping-cost" class="w-full p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white outline-none focus:border-blue-500" placeholder="예: 2050">
                             </div>
                             <div class="bg-gray-50 dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
-                                <label for="fixed-direct-delivery-cost" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">ZG&amp;AB배송 화물비 (1회당)</label>
+                                <label for="fixed-direct-delivery-cost" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">플랫폼 배송 화물비 (1회당)</label>
                                 <input type="number" id="fixed-direct-delivery-cost" class="w-full p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white outline-none focus:border-blue-500" placeholder="예: 50000">
                             </div>
                         </div>
@@ -376,13 +376,13 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610210900"></script>
-    <script type="module" src="js/admin-automation.js?v=202610210900"></script>
-    <script type="module" src="js/admin-refill.js?v=202610210900"></script>
+    <script type="module" src="js/admin.js?v=202610210917"></script>
+    <script type="module" src="js/admin-automation.js?v=202610210917"></script>
+    <script type="module" src="js/admin-refill.js?v=202610210917"></script>
 
     <script type="module">
         // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
-        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610210900';
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610210917';
 
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
@@ -485,9 +485,9 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610210900"></script>
-    <script src="js/modal-esc.js?v=202610210900"></script>
-    <script type="module" src="js/modal-drag.js?v=202610210900"></script>
-    <script type="module" src="js/app-shell.js?v=202610210900"></script>
+    <script src="js/connection-banner.js?v=202610210917"></script>
+    <script src="js/modal-esc.js?v=202610210917"></script>
+    <script type="module" src="js/modal-drag.js?v=202610210917"></script>
+    <script type="module" src="js/app-shell.js?v=202610210917"></script>
 </body>
 </html>

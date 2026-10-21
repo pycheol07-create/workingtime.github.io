@@ -39,14 +39,14 @@ export const TONE_CLASS = {
 
 export const NOCODE_HINT = '이지어드민 코드를 등록하면 다음 날 아침부터 예측됩니다';
 
-export const DRIVER_LABEL = { domestic: '국내배송', zab: '직진·에이블리', zabPacks: '직진·에이블리 봉' };
+export const DRIVER_LABEL = { domestic: '국내배송', zab: '플랫폼 출고', zabPacks: '플랫폼 출고 봉' };
 
 // 기준 물량 선택(관리자) — item.forecastDriver 값
 export const DRIVER_OPTIONS = [
     ['auto', '자동'],
     ['domestic', '국내배송'],
-    ['zab', '직진·에이블리(수량)'],
-    ['zabPacks', '직진·에이블리(봉 건수)'],
+    ['zab', '플랫폼 출고(수량)'],
+    ['zabPacks', '플랫폼 출고(봉 건수)'],
     ['none', '없음(주 평균)']
 ];
 
@@ -161,7 +161,7 @@ function smallNum(v) {
     return String(Math.round(n * 100) / 100);
 }
 
-/** driver 1단위당 '국내배송 1건당 0.82장' · '직진·에이블리 100개당 4.9장' · '직진·에이블리 1봉당 1.5장'. ratio 아니면 ''. */
+/** driver 1단위당 '국내배송 1건당 0.82장' · '플랫폼 출고 100개당 4.9장' · '플랫폼 출고 1봉당 1.5장'. ratio 아니면 ''. */
 export function perDriverText(fc, unit) {
     if (!fc || fc.method !== 'ratio' || fc.perDriver == null) return '';
     const u = unit || '개';

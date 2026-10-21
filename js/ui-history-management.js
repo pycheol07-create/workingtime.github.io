@@ -1,14 +1,14 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610210900';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610210900';
-import { appConfig } from './state.js?v=202610210900';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610210917';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202610210917';
+import { appConfig } from './state.js?v=202610210917';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,
     revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
-} from './revenue-channels.js?v=202610210900';
-import { D } from './d-chart.js?v=202610210900';
+} from './revenue-channels.js?v=202610210917';
+import { D } from './d-chart.js?v=202610210917';
 // predictFutureTrends import 제거됨
 
 // 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장 / 기타)
@@ -250,7 +250,7 @@ const generateCostAnalysisHTML = (analysis) => {
                         </div>
                         
                         <div class="flex justify-between items-center text-purple-700">
-                            <span>ZG&AB배송 화물비 <span class="text-xs">(${costs.directDeliveryCount}회)</span></span>
+                            <span>플랫폼 배송 화물비 <span class="text-xs">(${costs.directDeliveryCount}회)</span></span>
                             <span class="font-semibold">+ ${Math.round(costs.directDelivery).toLocaleString()}원</span>
                         </div>
 

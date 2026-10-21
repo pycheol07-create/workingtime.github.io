@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202610210900';
-import { LEAVE_TYPES } from './state.js?v=202610210900';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610210900';
+import * as State from './state.js?v=202610210917';
+import { LEAVE_TYPES } from './state.js?v=202610210917';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610210917';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610210900';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610210900';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610210917';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610210917';
 
 import {
     calculateReportKPIs,
@@ -19,11 +19,11 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202610210900';
+} from './ui-history-reports-logic.js?v=202610210917';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202610210900';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610210900';
-import { D } from './d-chart.js?v=202610210900';
+import { aggregateManagementData } from './ui-history-management.js?v=202610210917';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610210917';
+import { D } from './d-chart.js?v=202610210917';
 
 // ============================================================
 // 모듈 상태
@@ -1069,7 +1069,7 @@ function renderManagementSection(mg) {
             ${miniStat('인건비', fmt(mg.unitCost.costs.labor) + '원')}
             ${miniStat('자재비', fmt(mg.unitCost.costs.material) + '원')}
             ${miniStat('배송비', fmt(mg.unitCost.costs.shipping) + '원')}
-            ${miniStat('ZG&AB배송', fmt(mg.unitCost.costs.directDelivery) + '원')}
+            ${miniStat('플랫폼 배송', fmt(mg.unitCost.costs.directDelivery) + '원')}
             ${miniStat('개당 원가 합계', fmt(mg.unitCost.costs.total) + '원')}
         </div>
         <div class="grid grid-cols-3 gap-2 text-center">
