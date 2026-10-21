@@ -12,8 +12,8 @@
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610211354';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610211354';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610211427';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610211427';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 

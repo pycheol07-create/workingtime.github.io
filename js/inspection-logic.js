@@ -1,18 +1,18 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202610211354';
-import * as State from './state.js?v=202610211354';
-import { updateDailyData } from './app-data.js?v=202610211354';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202610211354';
+import * as DOM from './dom-elements.js?v=202610211427';
+import * as State from './state.js?v=202610211427';
+import { updateDailyData } from './app-data.js?v=202610211427';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202610211427';
 import { doc, getDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202610211354';
-import { syncInspSegments } from './inspection-segments.js?v=202610211354';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202610211427';
+import { syncInspSegments } from './inspection-segments.js?v=202610211427';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, todoCardHtml, doneCardHtml
-} from './lib/insp-flow.js?v=202610211354';
+} from './lib/insp-flow.js?v=202610211427';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -25,6 +25,7 @@ let todoCollapsed = false;    // 휴대폰 대기 리스트 접힘 — app-sync 
 let openedSnapshot = '';      // 상품을 열었을 때의 입력값(이전 이동 때 '바뀐 내용 버릴까' 확인용)
 let saving = false;
 let selectSeq = 0;           // 상품을 고를 때마다 +1 — 늦게 끝난 앞 상품 불러오기가 지금 상품을 덮지 않게
+let historySeq = 0;          // 이력 조회마다 +1 — 늦게 온 앞 조회 결과가 지금 상품의 이력 칸을 덮지 않게
 
 // js/inspection-editor.js 가 이 이름으로 import 한다
 export const getUniqueInboundCount = uniqueInboundCount;
@@ -41,8 +42,76 @@ const SAVE_LABEL = '저장하고 다음 ▶';
 const EDIT_LABEL = '수정 저장';
 const OFFLINE_MSG = '연결이 끊겨 저장하지 못했습니다(입력은 남아 있습니다)';
 
+const setText = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+};
+/** 'YYYY-MM-DD…' → 'MM-DD'(그 밖의 모양은 그대로). */
+const mmdd = (d) => {
+    const s = String(d || '').trim();
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(5, 10) : (s || '-');
+};
+const stripLabel = (el, label) => (el ? el.textContent.replace(label, '').trim() : '') || '-';
+
+/** 휴대폰 맨 위 줄(#insp-cur-bar)·상품 정보 칸(#insp-info-card) — 보이기는 CSS(휴대폰만), 여기서는 글자와
+ *  #insp-modal-content 의 .insp-has-item(입력칸이 열려 있을 때)만 맞춘다. 값은 칩(#insp-*-display)·리스트 항목에서 읽는다. */
+const updateMobileSummary = () => {
+    const content = document.getElementById('insp-modal-content');
+    if (!content) return;
+    const hasItem = !!(DOM.inspCurrentInputArea && !DOM.inspCurrentInputArea.classList.contains('hidden'));
+    content.classList.toggle('insp-has-item', hasItem);
+    if (!hasItem) content.classList.remove('insp-search-open');
+    const toggle = document.getElementById('insp-search-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', content.classList.contains('insp-search-open') ? 'true' : 'false');
+    if (!hasItem) return;
+
+    const list = currentList();
+    const item = currentTodoIndex >= 0 ? list[currentTodoIndex] : null;
+    setText('insp-cur-name', (DOM.inspReportTitle && DOM.inspReportTitle.textContent.trim()) || '-');
+    const meta = [stripLabel(DOM.inspOptionDisplay, '옵션: ')];
+    if (list.length > 0) {
+        const p = progress(list);
+        meta.push(`${p.done}/${p.total} 진행`);
+    }
+    setText('insp-cur-meta', meta.join(' · '));
+    const editBadge = document.getElementById('insp-cur-edit');
+    if (editBadge) editBadge.classList.toggle('hidden', editingLogIndex === -1);
+
+    const code = item ? (item.code || '') : stripLabel(DOM.inspCodeDisplay, '코드: ');
+    const line1 = [code && code !== '-' ? code : ''];
+    if (item) {
+        if (item.location) line1.push(item.location);
+        if (item.sampleLocation) line1.push(`샘플 ${item.sampleLocation}`);
+        if (item.packingDate) line1.push(`출고 ${mmdd(item.packingDate)}`);
+    }
+    setText('insp-info-line1', line1.filter(Boolean).join(' · ') || '-');
+    setText('insp-info-line2', `공급처 ${item ? (item.supplierCode || item.supplierName || '-') : '-'}`);
+};
+
+/** 휴대폰 이력 한 줄(#insp-report-line). warn 이면 빨간 글자. */
+const setReportLine = (text, warn = false) => {
+    const el = document.getElementById('insp-report-line');
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('text-red-700', warn);
+    el.classList.toggle('text-blue-800', !warn);
+};
+
+/** 🔍 — 휴대폰에서 접어 둔 '상품명 검색' 줄을 펼치기/접기. */
+export const toggleSearchRow = () => {
+    const content = document.getElementById('insp-modal-content');
+    if (!content) return;
+    const open = content.classList.toggle('insp-search-open');
+    updateMobileSummary();
+    if (open) {
+        const row = document.getElementById('insp-search-row');
+        if (row) row.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+};
+
 const setSaveBtnLabel = () => {
     const btn = document.getElementById('insp-save-next-btn');
+    updateMobileSummary();   // 수정 중 배지
     if (!btn) return;
     const editing = editingLogIndex !== -1;
     btn.innerHTML = `<span>${editing ? EDIT_LABEL : SAVE_LABEL}</span>`;
@@ -60,6 +129,7 @@ const updateNavButtons = () => {
     if (saveBtn) saveBtn.disabled = saving || !inputShown || isPhotoBusy();   // 사진을 읽고 줄이는 동안에도 막는다
     const prevBtn = document.getElementById('insp-prev-btn');
     if (prevBtn) prevBtn.disabled = saving || currentTodoIndex < 0 || prevIndex(list, currentTodoIndex) === -1;
+    updateMobileSummary();
 };
 
 /** 대기 리스트 접힘 표시(휴대폰만 CSS 가 숨긴다) + 토글 글자 '3/10 완료 ▾'. */
@@ -234,6 +304,10 @@ export const deleteInspectionList = async () => {
         pendingSave = null;
         hideSaveError();
         resetEditingState();
+        // 입력칸·이력 칸을 닫는다 — updateNavButtons 가 휴대폰 맨 위 줄(.insp-has-item)도 함께 푼다
+        if (DOM.inspHistoryReport) DOM.inspHistoryReport.classList.add('hidden');
+        if (DOM.inspCurrentInputArea) DOM.inspCurrentInputArea.classList.add('hidden');
+        if (DOM.inspAlertBox) DOM.inspAlertBox.classList.add('hidden');
         updateNavButtons();
 
         showToast("검수 리스트가 초기화되었습니다.");
@@ -392,7 +466,8 @@ const fillNewInputs = (item) => {
     if (thickInput) thickInput.value = '';
 };
 
-export const selectTodoItem = async (index) => {
+/** opts.silent — '선택됨' 토스트를 띄우지 않는다(저장 뒤 다음 상품으로 넘어갈 때 '저장됨 → 다음' 토스트와 겹치지 않게). */
+export const selectTodoItem = async (index, opts = {}) => {
     if (saving) return;   // 저장 중에는 다른 상품으로 옮기지 않는다(저장이 끝나며 입력을 지운다)
     const item = currentList()[index];
     if (!item) return;
@@ -431,11 +506,13 @@ export const selectTodoItem = async (index) => {
     todoCollapsed = true;
     updateTodoPanel();
     syncInspSegments();
-    const report = document.getElementById('insp-history-report');
+    // 휴대폰은 상품 정보 칸(#insp-info-card)부터, PC 는 그 칸이 숨어 있으니 이력 칸부터 보이게
+    const infoCard = document.getElementById('insp-info-card');
+    const report = (infoCard && infoCard.offsetParent !== null) ? infoCard : document.getElementById('insp-history-report');
     if (report) report.scrollIntoView({ block: 'start' });
     updateNavButtons();
     openedSnapshot = formSnapshot();
-    showToast(`'${item.name}' 선택됨`);
+    if (!(opts && opts.silent)) showToast(`'${item.name}' 선택됨`);
 };
 window.selectInspectionTodoItem = selectTodoItem;
 
@@ -605,6 +682,9 @@ export const searchProductHistory = async () => {
     if(DOM.inspCurrentInputArea) DOM.inspCurrentInputArea.classList.remove('hidden');
     if(DOM.inspAlertBox) DOM.inspAlertBox.classList.add('hidden');
     if(DOM.inspReportTitle) DOM.inspReportTitle.textContent = targetProductName;
+    setReportLine('이력 불러오는 중…');
+    const contentEl = document.getElementById('insp-modal-content');
+    if (contentEl) contentEl.classList.remove('insp-search-open');   // 휴대폰: 상품을 열면 검색 줄을 접는다
 
     if (editingLogIndex === -1) {
         const selects = document.querySelectorAll('#insp-current-input-area select');
@@ -614,9 +694,11 @@ export const searchProductHistory = async () => {
     updateNavButtons();
     openedSnapshot = formSnapshot();
 
+    const seq = ++historySeq;
     try {
         const docRef = doc(State.db, 'product_history', targetProductName);
         const docSnap = await getDoc(docRef);
+        if (seq !== historySeq) return;   // 그사이 다른 상품을 조회했다 — 이력 칸을 덮지 않는다
 
         if (docSnap.exists()) {
             const data = docSnap.data();
@@ -657,6 +739,12 @@ export const searchProductHistory = async () => {
                 specialIssues = data.defectSummary;
             }
 
+            setReportLine(
+                `총 ${data.totalInbound || 0}회 · 최근 ${mmdd(DOM.inspReportDate ? DOM.inspReportDate.textContent : '')} · `
+                + (specialIssues.length > 0 ? `특이사항 있음 ${specialIssues.length}건` : '특이사항 없음'),
+                specialIssues.length > 0
+            );
+
             if (specialIssues.length > 0) {
                 // 예전 alert 대신 빨간 상자를 굵게 — 건수 + 최근 3건(textContent 로만 넣는다)
                 if (DOM.inspAlertBox) {
@@ -684,6 +772,7 @@ export const searchProductHistory = async () => {
 
         } else {
             if(DOM.inspReportCount) DOM.inspReportCount.textContent = '0 (신규)';
+            setReportLine('최초 입고 상품 · 이력 없음');
 
             const newBadge = document.getElementById('insp-new-product-badge');
             if (newBadge) newBadge.classList.remove('hidden');
@@ -692,6 +781,8 @@ export const searchProductHistory = async () => {
         }
     } catch (e) {
         console.error("Error searching product history:", e);
+        if (seq !== historySeq) return;
+        setReportLine('이력을 불러오지 못했습니다', true);
         showToast("이력 조회 중 오류가 발생했습니다.", true);
     }
 };
@@ -923,17 +1014,21 @@ export const saveInspectionAndNext = async () => {
             });
         }
         renderTodayInspectionList();
-        showToast(wasEditing ? `'${productName}' 검수 기록이 수정되었습니다.` : `'${productName}' 저장 완료!`);
 
         resetInspectionForm(true);
         resetEditingState();
         renderTodoList(outcome.done.changed ? afterList : undefined);
 
         const next = wasEditing ? -1 : nextPendingIndex(afterList, currentTodoIndex);
-        if (next !== -1) {
-            selectTodoItem(next);
+        if (wasEditing) {
+            showToast('수정 저장됨');
         } else {
-            if (!wasEditing) showToast("리스트의 상품을 모두 검수했습니다.");
+            if (typeof navigator !== 'undefined') navigator.vibrate?.(30);   // 지원하는 기기만(아이폰·PC 는 조용히 넘어감)
+            showToast(next !== -1 ? `저장됨 → 다음: ${afterList[next].name}` : '저장됨 · 모두 검수 완료');
+        }
+        if (next !== -1) {
+            selectTodoItem(next, { silent: true });
+        } else {
             if (DOM.inspHistoryReport) DOM.inspHistoryReport.classList.add('hidden');
             if (DOM.inspCurrentInputArea) DOM.inspCurrentInputArea.classList.add('hidden');
             currentTodoIndex = -1;
@@ -1011,6 +1106,6 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202610211354';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610211354';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610211354';
+export { handleExcelUpload } from './inspection-excel.js?v=202610211427';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610211427';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610211427';

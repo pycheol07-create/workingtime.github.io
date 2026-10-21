@@ -297,3 +297,12 @@ html.dark #personnel-hover-tooltip { background: #2A3038; box-shadow: 0 0 0 1px 
   #dash-root .d-btn-sm { min-height: 34px; }
   #dash-root .member-actions > button { width: 34px; height: 34px; }
 }
+
+/* 휴대폰: 대시보드 전체(머리줄·틀)가 위아래·좌우로 끌려 흔들리던 문제(2026-10-21).
+   h-screen(100vh)은 휴대폰 주소창 때문에 보이는 화면보다 커서 문서 자체가 움직였다 — 틀을 화면에 고정하고
+   스크롤은 안쪽 #app-content 만 한다. 안쪽 끝에서 바깥으로 튕김이 번지지 않게 overscroll 도 막는다. */
+@media (max-width:768px) {
+  html:has(> body > #dash-root), body:has(> #dash-root) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  #dash-root { position: fixed; inset: 0; height: auto !important; max-width: 100vw; }
+  #dash-root #app-content { overscroll-behavior: contain; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+}

@@ -33,8 +33,17 @@
                     정밀 검수 매니저 (샘플 검수)
                 </h2>
                 <p class="insp-desc text-xs text-gray-500 mt-1">입고 상품의 스펙과 품질을 상세하게 기록합니다.</p>
+                <!-- 휴대폰 맨 위 줄: 고른 상품 요약. 보이기는 css/style.css(.insp-has-item), 글자는 js/inspection-logic.js updateMobileSummary -->
+                <div id="insp-cur-bar" class="hidden min-w-0">
+                    <div id="insp-cur-name" class="font-bold text-gray-900 truncate">-</div>
+                    <div class="flex items-center gap-1.5 min-w-0 text-xs text-gray-600">
+                        <span id="insp-cur-meta" class="truncate">-</span>
+                        <span id="insp-cur-edit" class="hidden flex-shrink-0 px-1.5 bg-yellow-100 text-yellow-800 border border-yellow-300 rounded font-bold">✏ 수정 중</span>
+                    </div>
+                </div>
             </div>
             <div class="flex items-center gap-3">
+                <button id="insp-search-toggle" type="button" class="hidden text-gray-500 hover:text-indigo-600 transition min-h-[44px] min-w-[44px] items-center justify-center text-lg" title="상품 검색 펼치기" aria-label="상품 검색 펼치기" aria-expanded="false">🔍</button>
                 <button id="insp-fullscreen-btn" class="text-gray-400 hover:text-gray-700 transition p-1 min-h-[44px] min-w-[44px] flex items-center justify-center" title="전체화면">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
@@ -96,9 +105,10 @@
             </aside>
 
             <!-- 우측: 검색 + 상세 입력 + 완료 목록 -->
-            <div class="space-y-6 min-w-0">
+            <div class="insp-right-col space-y-6 min-w-0">
 
-            <div class="flex gap-2 items-end">
+            <!-- 휴대폰: 상품을 고르면 이 줄을 접고 머리의 🔍 로 펼친다(.insp-search-open) -->
+            <div id="insp-search-row" class="flex gap-2 items-end">
                 <div class="flex-grow relative">
                     <label for="insp-product-name" class="block text-sm font-bold text-gray-700 mb-1">상품명 검색</label>
                     <div class="relative">
@@ -110,7 +120,7 @@
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
                         </button>
                     </div>
-                    <div class="mt-1 flex flex-wrap gap-1.5 text-xs text-gray-500">
+                    <div class="insp-chips mt-1 flex flex-wrap gap-1.5 text-xs text-gray-500">
                         <span id="insp-option-display" class="bg-gray-100 px-2 py-0.5 rounded">옵션: -</span>
                         <span id="insp-code-display" class="bg-gray-100 px-2 py-0.5 rounded">코드: -</span>
                         <span id="insp-supplier-display" class="bg-gray-100 px-2 py-0.5 rounded break-all max-w-full">공급처: -</span>
@@ -121,6 +131,12 @@
                 </button>
             </div>
 
+            <!-- 휴대폰 상품 정보 한 칸(위 칩 3개 대신). 칩은 값을 그대로 가지고 있다(전량검수 전환이 읽음) -->
+            <div id="insp-info-card" class="hidden bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-700">
+                <div id="insp-info-line1" class="truncate font-bold">-</div>
+                <div id="insp-info-line2" class="truncate text-gray-500 mt-0.5">-</div>
+            </div>
+
             <div id="insp-scanner-container" class="hidden relative bg-black rounded-lg overflow-hidden mb-4">
                 <div id="reader" class="w-full h-64"></div>
                 <button id="insp-close-scanner-btn" class="absolute top-2 right-2 bg-white/80 hover:bg-white text-gray-800 rounded-full min-h-[44px] min-w-[44px] flex items-center justify-center" title="스캔 닫기">
@@ -129,7 +145,9 @@
             </div>
 
             <div id="insp-history-report" class="hidden bg-blue-50 rounded-lg border border-blue-200 p-4 animate-fade-in">
-                <div class="flex items-start gap-3 mb-2">
+                <!-- 휴대폰: 아래 큰 칸 대신 #insp-report-line 한 줄 -->
+                <p id="insp-report-line" class="hidden text-sm font-bold text-blue-800 truncate">-</p>
+                <div class="insp-report-main flex items-start gap-3 mb-2">
                     <div class="flex-grow">
                         <div class="flex justify-between items-start">
                             <div class="flex items-center gap-2">
@@ -154,9 +172,9 @@
             </div>
 
             <div id="insp-current-input-area" class="hidden pt-2">
-                <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2">금일 입고분 상세 정보</h4>
+                <h4 class="insp-sec-title text-sm font-bold text-gray-800 mb-3 border-b pb-2">금일 입고분 상세 정보</h4>
 
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="insp-inbound-grid grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div>
                         <label for="insp-packing-date" class="block text-xs font-bold text-gray-500 mb-1">출고 일자 (엑셀)</label>
                         <input type="date" id="insp-packing-date" class="w-full p-2 border border-gray-300 rounded-md text-sm bg-gray-100" readonly placeholder="자동 입력됨">
@@ -175,7 +193,7 @@
                     </div>
                 </div>
 
-                <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2 flex justify-between items-center gap-2">
+                <h4 class="insp-sec-title text-sm font-bold text-gray-800 mb-3 border-b pb-2 flex justify-between items-center gap-2">
                     <span>품질 체크리스트</span>
                     <button id="insp-all-normal-btn" type="button" class="bg-green-50 border border-green-300 hover:bg-green-100 text-green-700 text-xs font-bold px-3 rounded shadow-sm transition min-h-[44px]" title="두께를 뺀 10개 항목을 모두 정상 값으로">모두 정상</button>
                 </h4>
