@@ -1,7 +1,7 @@
 // === js/app-notifications.js ===
-import * as State from './state.js?v=202610211427';
+import * as State from './state.js?v=202610211500';
 import { doc, writeBatch, deleteDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=202610211427';
+import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=202610211500';
 
 export async function sendNotification(targetMember, message, type = 'info') {
     try {

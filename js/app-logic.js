@@ -4,17 +4,17 @@ import {
     generateId,
     saveStateToFirestore,
     debouncedSaveState
-} from './app-data.js?v=202610211427';
+} from './app-data.js?v=202610211500';
 
 import {
     appState, db, auth
-} from './state.js?v=202610211427';
+} from './state.js?v=202610211500';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610211427';
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610211500';
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=202610211427';
+import { syncTodayToHistory } from './history-data-manager.js?v=202610211500';
 
 
 const getWorkRecordsCollectionRef = () => {

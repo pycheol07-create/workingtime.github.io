@@ -10,7 +10,7 @@
 import {
     doc, collection, runTransaction, FieldPath, serverTimestamp, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { catalogJson, parseCatalogJson, costJson, parseCostJson } from './lib/product-excel-rows.js?v=202610211427';
+import { catalogJson, parseCatalogJson, costJson, parseCostJson } from './lib/product-excel-rows.js?v=202610211500';
 
 const LOG_MAX = 1000;
 

@@ -2,8 +2,8 @@
 // 페이지 입장 가드(js/page-gate.js)·페이지 안 기능 가림(js/feature-gate.js)이 같이 쓰는 순수 판정(권한 개편 5단계, 2026-10-19).
 // ※ 의존성은 perm.js·feature-catalog.js 뿐 — node --test 로 시험한다(tests/perm-gate.test.js).
 
-import { can } from './perm.js?v=202610211427';
-import { FEATURES, isFeatureId } from './feature-catalog.js?v=202610211427';
+import { can } from './perm.js?v=202610211500';
+import { FEATURES, isFeatureId } from './feature-catalog.js?v=202610211500';
 
 /** mainConfig.permEnforce → 'warn' | 'block'. 모르는 값·없음은 'warn'(막지 않는 쪽 — 설계 4.3 기본값). */
 export const enforceModeOf = (cfg) => ((cfg && cfg.permEnforce === 'block') ? 'block' : 'warn');

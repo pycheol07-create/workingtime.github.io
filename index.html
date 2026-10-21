@@ -24,12 +24,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610211427">
-    <link rel="stylesheet" href="css/style.css?v=202610211427">
-    <link rel="stylesheet" href="css/dash-d.css?v=202610211427">
-    <link rel="stylesheet" href="css/form-d.css?v=202610211427">
-    <link rel="stylesheet" href="css/refill-modal.css?v=202610211427">
-    <link rel="stylesheet" href="css/locrec-modal.css?v=202610211427">
+    <link rel="stylesheet" href="css/suit.css?v=202610211500">
+    <link rel="stylesheet" href="css/style.css?v=202610211500">
+    <link rel="stylesheet" href="css/dash-d.css?v=202610211500">
+    <link rel="stylesheet" href="css/form-d.css?v=202610211500">
+    <link rel="stylesheet" href="css/refill-modal.css?v=202610211500">
+    <link rel="stylesheet" href="css/locrec-modal.css?v=202610211500">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -37,12 +37,12 @@
     <div id="dash-root" class="flex h-screen overflow-hidden w-full transition-colors duration-200">
 
         <aside class="w-60 d-side hidden md:flex flex-col z-20 shrink-0 transition-colors duration-200">
-            <div class="p-4 border-b d-line flex items-center justify-center">
-                <img src="assets/logo.png?v=7" alt="GGS Logistics Team 물류팀" class="w-full max-h-32 object-contain rounded-lg">
+            <div class="px-4 py-2 border-b d-line flex items-center justify-center">
+                <img src="assets/logo.png?v=7" alt="GGS Logistics Team 물류팀" class="w-full max-h-14 object-contain rounded-lg">
             </div>
             
             <!-- 메뉴 아이콘은 선 SVG. 메뉴 이름은 반드시 텍스트 노드로 둔다 — applyDynamicSidebar 가 이름으로 찾는다 -->
-            <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto text-[14px]">
+            <nav class="flex-1 min-h-0 px-4 py-3 space-y-1 overflow-y-auto text-[14px]">
                 <div class="d-nav-cat">메인 업무</div>
                 <button class="d-nav-item is-active w-full flex items-center gap-3">
                     <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg></span> 대시보드
@@ -532,13 +532,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202610211427');
+                await import('./js/app.js?v=202610211500');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202610211427').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202610211500').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -618,11 +618,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202610211427';
-        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610211427';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202610211427';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610211427';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610211427';
+        import { appState } from './js/state.js?v=202610211500';
+        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202610211500';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202610211500';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202610211500';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202610211500';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -800,11 +800,11 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202610211427"></script>
-    <script src="js/modal-esc.js?v=202610211427"></script>
-    <script type="module" src="js/modal-drag.js?v=202610211427"></script>
+    <script src="js/connection-banner.js?v=202610211500"></script>
+    <script src="js/modal-esc.js?v=202610211500"></script>
+    <script type="module" src="js/modal-drag.js?v=202610211500"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202610211427"></script>
-    <script src="js/app-version.js?v=202610211427"></script>
+    <script type="module" src="js/app-shell.js?v=202610211500"></script>
+    <script src="js/app-version.js?v=202610211500"></script>
 </body>
 </html>
