@@ -705,3 +705,58 @@ html.dark .depth-panel {
     html, body { max-width: 100%; overflow-x: clip; overscroll-behavior-x: none; }
     @supports not (overflow: clip) { html, body { overflow-x: hidden; } }
 }
+
+/* ===== 정밀검수 매니저(샘플 검수) — 화면·입력 (2026-10-21) =====
+   빠진 입력 표시는 PC 에서도 보이게 미디어쿼리 밖에 둔다(.insp-missing 은 js/inspection-logic.js 가 붙이고
+   선택 버튼을 누르면 js/inspection-segments.js 가 뗀다). */
+#inspection-manager-modal .insp-missing {
+    outline: 2px solid #ef4444;
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+}
+/* ⋯ 더보기(summary.list-none) — Safari 의 삼각형 표시 숨김 */
+#inspection-manager-modal summary.list-none::-webkit-details-marker { display: none; }
+
+/* 휴대폰: 창을 화면 가득, 설명 줄·전체화면 버튼 숨김, 체크리스트 2열, 대기 리스트 접기.
+   위쪽 441행 블록(겹침 방지)은 그대로 두고 여기서 덧붙인다. */
+@media (max-width: 768px) {
+    #inspection-manager-modal #insp-modal-content {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100vh !important; /* 구형 기기 대비 */
+        height: 100dvh !important;
+        max-height: 100vh !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+    }
+    #inspection-manager-modal #insp-modal-header,
+    #inspection-manager-modal #insp-bottom-bar {
+        border-radius: 0 !important;
+    }
+    #inspection-manager-modal .insp-desc,
+    #inspection-manager-modal #insp-fullscreen-btn {
+        display: none !important;
+    }
+    /* 위 '9. 그리드 세로 정렬'(.grid-cols-2 → 1열 !important)을 이기려고 :not(#_m) 로 ID 명시도를 얹는다 — 지우지 말 것 */
+    #inspection-manager-modal .insp-2col:not(#_m) {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+    /* 대기 리스트 접기 — #insp-todo-panel 에 .insp-todo-collapsed (js/inspection-logic.js 의 toggleTodoCollapsed) */
+    #inspection-manager-modal #insp-todo-toggle {
+        display: inline-flex !important;
+    }
+    #inspection-manager-modal #insp-todo-panel.insp-todo-collapsed .insp-todo-tools,
+    #inspection-manager-modal #insp-todo-panel.insp-todo-collapsed #insp-todo-list-area,
+    #inspection-manager-modal #insp-todo-panel.insp-todo-collapsed #insp-todo-empty-placeholder {
+        display: none !important;
+    }
+    /* 선택 버튼(js/inspection-segments.js) — 손가락 크기 */
+    #inspection-manager-modal .insp-seg-btn {
+        min-height: 44px !important;
+        flex: 1 1 auto;
+    }
+}
+/* 검수 창이 열려 있으면 전역 오프라인 배너(js/connection-banner.js)는 숨긴다 — 창 안의 #insp-conn-band 가 대신 알리고,
+   배너가 아래 바(저장 버튼)를 가리지 않게 */
+body:has(#inspection-manager-modal:not(.hidden)) #global-offline-banner { display: none !important; }

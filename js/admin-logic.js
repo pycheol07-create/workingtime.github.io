@@ -1,10 +1,10 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610211215';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610211215';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202610211215';
-import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610211215';
-import { permFieldsForSave } from './lib/perm-model.js?v=202610211215';
-import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610211215';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610211344';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610211344';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202610211344';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610211344';
+import { permFieldsForSave } from './lib/perm-model.js?v=202610211344';
+import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610211344';
 
 // 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
 export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',

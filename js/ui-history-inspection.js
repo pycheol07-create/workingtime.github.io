@@ -1,7 +1,7 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610211215';
-import * as State from './state.js?v=202610211215';
-import { getWeekOfYear, escapeHtml } from './utils.js?v=202610211215';
+import * as DOM from './dom-elements.js?v=202610211344';
+import * as State from './state.js?v=202610211344';
+import { getWeekOfYear, escapeHtml } from './utils.js?v=202610211344';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -547,10 +547,12 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
 
                 let imageHtml = '<span class="text-gray-300 text-xs">-</span>';
                 if (item.image) {
+                    // 주소는 이스케이프해 속성에만 넣고, 클릭 때는 this.src 를 읽는다(코드 안에 값을 박지 않음).
+                    // Storage 주소(https)는 새 탭으로 열고, 옛 Base64(data:image)는 브라우저가 직접 열지 못하므로 빈 창에 <img> 로 넣는다.
                     imageHtml = `
                         <div class="relative group cursor-pointer inline-block">
-                            <img src="${item.image}" class="h-8 w-8 object-cover rounded border border-gray-300 hover:scale-150 transition-transform z-0 hover:z-10 bg-white" 
-                                 onclick="const w=window.open('','_blank'); w.document.write('<img src=\\'${item.image}\\' style=\\'width:100%\\'/>');">
+                            <img src="${escapeHtml(item.image)}" class="h-8 w-8 object-cover rounded border border-gray-300 hover:scale-150 transition-transform z-0 hover:z-10 bg-white" 
+                                 onclick="const s=this.src; if(/^data:image[/]/i.test(s)){const w=window.open('','_blank'); if(w){const i=w.document.createElement('img'); i.src=s; i.style.width='100%'; w.document.body.appendChild(i);}} else if(/^https?:/i.test(s)){window.open(s,'_blank','noopener');}">
                         </div>`;
                 }
 

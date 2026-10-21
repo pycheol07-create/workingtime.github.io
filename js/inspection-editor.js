@@ -1,13 +1,15 @@
 // === js/inspection-editor.js ===
-import * as DOM from './dom-elements.js?v=202610211215';
-import * as State from './state.js?v=202610211215';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610211215';
+import * as DOM from './dom-elements.js?v=202610211344';
+import * as State from './state.js?v=202610211344';
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610211344';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202610211215';
-import { getUniqueInboundCount } from './inspection-logic.js?v=202610211215';
-import { manualImageBase64, clearManualImageState } from './inspection-media.js?v=202610211215';
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202610211344';
+import { getUniqueInboundCount } from './inspection-logic.js?v=202610211344';
+import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=202610211344';
 
 export let currentProductLogs = [];
+// 수동 사전등록 사진을 올린 결과 — 저장이 실패해 다시 누를 때 같은 사진을 또 올리지 않게
+let manualPhotoUpload = { src: null, url: null };
 
 export const loadAllInspectionHistory = async () => {
     const container = document.getElementById('inspection-history-view-container');
@@ -338,13 +340,27 @@ export const savePreInspectionNote = async () => {
         defects: defectsFound,
         note,
         status,
-        image: manualImageBase64 || null
+        image: null   // 사진은 아래에서 Storage 에 올리고 주소만 넣는다
     };
 
     const btn = document.getElementById('save-pre-insp-btn');
     if(btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
 
     try {
+        if (manualImageBase64) {
+            try {
+                if (manualPhotoUpload.src !== manualImageBase64) {
+                    const url = await uploadInspectionPhoto(dataUrlToBlob(manualImageBase64));
+                    manualPhotoUpload = { src: manualImageBase64, url };
+                }
+                inspectionRecord.image = manualPhotoUpload.url;
+            } catch (upErr) {
+                console.error("수동 검수 사진 업로드 실패:", upErr && upErr.code, upErr);
+                showToast("사진을 올리지 못해 저장하지 않았습니다. 네트워크를 확인하고 다시 저장해 주세요. (사진을 빼고 저장해도 됩니다)", true);
+                return false;
+            }
+        }
+
         const docRef = doc(State.db, 'product_history', productName);
         const docSnap = await getDoc(docRef);
         let existingLogs = [];
@@ -386,6 +402,7 @@ export const savePreInspectionNote = async () => {
         selects.forEach(sel => sel.value = "정상"); 
 
         clearManualImageState();
+        manualPhotoUpload = { src: null, url: null };
 
         const preModal = document.getElementById('pre-register-inspection-modal');
         if (preModal) preModal.classList.add('hidden');

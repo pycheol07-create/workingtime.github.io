@@ -14,12 +14,14 @@
 
 import { connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { connectStorageEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 const FLAG = 'useFirebaseEmulator';
 const HOST = '127.0.0.1';
 const FIRESTORE_PORT = 8080;
 const AUTH_PORT = 9099;
+const STORAGE_PORT = 9199;
 
 const isLocal = () => LOCAL_HOSTS.has(location.hostname);
 
@@ -52,6 +54,26 @@ export const connectEmulatorsIfEnabled = (db, auth) => {
     } catch (e) {
         console.error('[emulator] 연결 실패 — 운영 데이터로 붙습니다. 즉시 창을 닫으세요:', e);
         return false;
+    }
+};
+
+const storageConnected = new WeakSet();
+
+/** Storage 를 에뮬레이터로 돌린다. getStorage() 직후, 첫 업로드보다 먼저 불러야 한다.
+ *  안전장치는 Firestore·Auth 와 같다(localhost + ?emu=1, 배포본에는 tools 가 없음).
+ *  Storage 는 화면마다 처음 쓸 때 만들기 때문에 connectEmulatorsIfEnabled 와 따로 둔다. */
+export const connectStorageEmulatorIfEnabled = (storage) => {
+    if (!storage || storageConnected.has(storage) || !emulatorEnabled()) return false;
+    try {
+        connectStorageEmulator(storage, HOST, STORAGE_PORT);
+        storageConnected.add(storage);
+        console.log(`%c🧪 Storage 에뮬레이터에 연결됨 — ${HOST}:${STORAGE_PORT}`, 'color:#8A6011;font-weight:bold');
+        showBanner();
+        return true;
+    } catch (e) {
+        // 연결에 실패한 채로 올리면 운영 Storage 로 간다 — 여기서 멈춘다.
+        console.error('[emulator] Storage 연결 실패 — 업로드를 막습니다:', e);
+        throw e;
     }
 };
 
