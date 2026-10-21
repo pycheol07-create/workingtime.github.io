@@ -1,5 +1,6 @@
 // === js/ui-history-reports.js ===
-import { getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202610211133';
+import { getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202610211147';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610211147';
 
 import {
     calculateReportKPIs,
@@ -11,11 +12,11 @@ import {
     calculateAdvancedProductivity,
     calculateBenchmarkOEE,
     calculateAverageStaffing
-} from './ui-history-reports-logic.js?v=202610211133';
+} from './ui-history-reports-logic.js?v=202610211147';
 
 import {
     renderGenericReport
-} from './ui-history-reports-renderer.js?v=202610211133';
+} from './ui-history-reports-renderer.js?v=202610211147';
 
 
 const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
@@ -51,6 +52,7 @@ const _calculateAverageActiveMembers = (daysData, appConfig, wageMap) => {
 
 
 export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) => {
+    allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('report-daily-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">일별 리포트 집계 중...</div>';
@@ -122,6 +124,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
 };
 
 export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) => {
+    allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('report-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 리포트 집계 중...</div>';
@@ -194,6 +197,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
 };
 
 export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context) => {
+    allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('report-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 리포트 집계 중...</div>';
@@ -285,6 +289,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
 };
 
 export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) => {
+    allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('report-yearly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">연간 리포트 집계 중...</div>';

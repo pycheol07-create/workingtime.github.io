@@ -1,11 +1,13 @@
 // === js/ui-history-productivity.js ===
-import * as State from './state.js?v=202610211133';
-import { buildMemberHourlyWageMap } from './utils.js?v=202610211133';
-import { D } from './d-chart.js?v=202610211133';
+import * as State from './state.js?v=202610211147';
+import { buildMemberHourlyWageMap } from './utils.js?v=202610211147';
+import { D } from './d-chart.js?v=202610211147';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610211147';
 
 let productivityChartInstance = null;
 
 export function renderProductivityTab(filteredData, appConfig) {
+    filteredData = aliasHistoryView(filteredData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const taskTypes = ['국내배송', '중국제작', '직진배송', '에이블리배송'];
 
     // 각 파트별 유니크 작업자 집계를 위해 Set 객체 추가
@@ -310,7 +312,7 @@ function renderFillErrorSubChart(canvasId, emptyId, series, label, colorHex, uni
 
 function renderFillErrorAnalysis() {
     const summaryEl = document.getElementById('fill-error-summary');
-    const result = computeFillErrorAnalysis(State.allHistoryData);
+    const result = computeFillErrorAnalysis(aliasHistoryView(State.allHistoryData, State.appConfig));   // 🆔 지금 이름으로
 
     if (result.insufficientData) {
         if (fillErrorDurationChartInstance) { fillErrorDurationChartInstance.destroy(); fillErrorDurationChartInstance = null; }

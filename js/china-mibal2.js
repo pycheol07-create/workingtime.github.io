@@ -13,20 +13,20 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610211133'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610211147'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610211133';
-import { sortMark } from './lib/china-stock-view.js?v=202610211133';
+import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610211147';
+import { sortMark } from './lib/china-stock-view.js?v=202610211147';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf, FLAG_INFO, COMPARE_COLS, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610211133';
-import { setShellContext } from './app-shell-bridge.js?v=202610211133';
-import { memberNameFor } from './app-shell-data.js?v=202610211133';
-import { mountBusyBanner } from './busy-banner.js?v=202610211133';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610211133';
+} from './lib/mibal2-rows.js?v=202610211147';
+import { setShellContext } from './app-shell-bridge.js?v=202610211147';
+import { memberNameFor } from './app-shell-data.js?v=202610211147';
+import { mountBusyBanner } from './busy-banner.js?v=202610211147';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610211147';
 
 const { db, auth } = initializeFirebase();
 

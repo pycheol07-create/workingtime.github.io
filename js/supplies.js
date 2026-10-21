@@ -12,17 +12,17 @@
 //  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름). 권장 발주량의 최소주문·묶음은 기존 MOQ 칸 문장에서 읽는다(서버 예측규칙.MOQ해석)
 //  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
 
-import { initializeFirebase } from './config.js?v=202610211133';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610211133';
-import { memberNameFor } from './app-shell-data.js?v=202610211133';
-import { escapeHtml as esc } from './utils.js?v=202610211133';
-import { kstDateTime } from './lib/kst-time.js?v=202610211133';
-import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202610211133';
+import { initializeFirebase } from './config.js?v=202610211147';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610211147';
+import { memberNameFor } from './app-shell-data.js?v=202610211147';
+import { escapeHtml as esc } from './utils.js?v=202610211147';
+import { kstDateTime } from './lib/kst-time.js?v=202610211147';
+import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202610211147';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion,
     NOCODE_HINT, DRIVER_OPTIONS
-} from './lib/supplies-forecast-view.js?v=202610211133';
+} from './lib/supplies-forecast-view.js?v=202610211147';
 import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 

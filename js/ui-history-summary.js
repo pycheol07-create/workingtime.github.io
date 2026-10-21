@@ -1,7 +1,8 @@
 // === ui-history-summary.js ===
 
-import { formatDuration, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202610211133';
-import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202610211133';
+import { formatDuration, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202610211147';
+import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202610211147';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610211147';
 
 const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPeriodDataset = null) => {
     const records = dataset.workRecords || [];
@@ -229,6 +230,7 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
 };
 
 export const renderWeeklyHistory = (selectedWeekKey, allHistoryData, appConfig) => {
+    allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('history-weekly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">주별 데이터 집계 중...</div>';
@@ -288,6 +290,7 @@ export const renderWeeklyHistory = (selectedWeekKey, allHistoryData, appConfig) 
 };
 
 export const renderMonthlyHistory = (selectedMonthKey, allHistoryData, appConfig) => {
+    allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('history-monthly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">월별 데이터 집계 중...</div>';
@@ -343,6 +346,7 @@ export const renderMonthlyHistory = (selectedMonthKey, allHistoryData, appConfig
 };
 
 export const renderYearlyHistory = (selectedYearKey, allHistoryData, appConfig) => {
+    allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('history-yearly-view');
     if (!view) return;
     view.innerHTML = '<div class="text-center text-gray-500">연간 데이터 집계 중...</div>';

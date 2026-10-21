@@ -1,15 +1,15 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610211133';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211133';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610211133';
-import { memberNameFor } from './app-shell-data.js?v=202610211133';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610211147';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211147';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610211147';
+import { memberNameFor } from './app-shell-data.js?v=202610211147';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610211133';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610211133';
-import { getPermModel } from './admin-perm.js?v=202610211133';
-import { showConfirm } from './utils.js?v=202610211133';
-import { ensureTaskIds, newTaskId, isLockedTaskId } from './lib/task-ids.js?v=202610211133';
+import { menuConfigOf } from './lib/perm.js?v=202610211147';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610211147';
+import { getPermModel } from './admin-perm.js?v=202610211147';
+import { showConfirm } from './utils.js?v=202610211147';
+import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610211147';
 
 import {
     renderAdminUI,
@@ -28,13 +28,13 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610211133';
+} from './admin-ui.js?v=202610211147';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610211133';
+} from './admin-logic.js?v=202610211147';
 
 let db, auth;
 let appConfig = {};
@@ -247,10 +247,17 @@ function setupEventListeners() {
     });
 
     document.getElementById('confirm-add-to-quantity-btn')?.addEventListener('click', () => {
-        if (taskJustAdded) addQuantityTask(taskJustAdded);
+        // 화면 값을 못 읽으면(이메일 중복 등) 창·고른 것을 그대로 둔다 — 고친 뒤 다시 [확인]
+        if (taskJustAdded && !applyNewTaskLinks(taskJustAdded, {
+            quantity: !!document.getElementById('new-task-add-quantity')?.checked,
+            key: !!document.getElementById('new-task-add-key')?.checked,
+            widget: document.getElementById('new-task-dashboard-link')?.value || ''
+        })) return;
         document.getElementById('confirm-add-to-quantity-modal')?.classList.add('hidden');
         taskJustAdded = null;
     });
+    // 처리량에 넣지 않으면 위젯 연결도 못 고른다(연결 줄은 처리량 업무에만 있다)
+    document.getElementById('new-task-add-quantity')?.addEventListener('change', syncNewTaskWidgetSelect);
     document.getElementById('cancel-add-to-quantity-btn')?.addEventListener('click', () => {
         document.getElementById('confirm-add-to-quantity-modal')?.classList.add('hidden');
         taskJustAdded = null;
@@ -735,7 +742,8 @@ function handleDynamicClicks(e) {
         const input = newTaskEl.querySelector('.task-name');
         if (input) {
             input.focus();
-            input.addEventListener('blur', handleNewTaskNameBlur, { once: true });
+            // 이름을 정해 칸을 벗어날 때 한 번만 묻는다('새 업무' 그대로면 다음에 벗어날 때 묻는다)
+            input.addEventListener('blur', handleNewTaskNameBlur);
         }
     }
 
@@ -748,16 +756,91 @@ function handleDynamicClicks(e) {
 }
 
 function handleNewTaskNameBlur(e) {
-    const newTaskName = e.target.value.trim();
+    const input = e.target;
+    const newTaskName = input.value.trim();
     if (!newTaskName || newTaskName === '새 업무') return;
+    // 한 줄에 한 번만 — 뒤에 이름을 또 바꿔도 다시 묻지 않는다
+    input.removeEventListener('blur', handleNewTaskNameBlur);
+
+    // 이미 있는 업무 이름(잠금 업무·다른 그룹의 같은 업무·저장된 업무)으로 만든 줄은 그 업무의 설정을 따르므로 묻지 않는다
+    const key = newTaskName.toLowerCase();
+    const sameName = (n) => String(n || '').trim().toLowerCase() === key;
+    if (Object.keys(LOCKED_TASKS).some(sameName)) return;
+    if (Object.values(appConfig.taskIdNames || {}).some(sameName)) return;
+    const row = input.closest('.task-item');
+    if ([...document.querySelectorAll('#task-groups-container .task-item')]
+        .some(r => r !== row && sameName(r.querySelector('.task-name')?.value))) return;
 
     const currentQuantityTasks = getAllCurrentQuantityTasks();
-    if (currentQuantityTasks.some(t => t.toLowerCase() === newTaskName.toLowerCase())) return;
+    if (currentQuantityTasks.some(t => t.toLowerCase() === key)) return;
 
     taskJustAdded = newTaskName;
     const msgEl = document.getElementById('confirm-add-to-quantity-message');
-    if (msgEl) msgEl.textContent = `방금 추가한 '${newTaskName}' 업무를 처리량 집계 목록에도 추가하시겠습니까?`;
+    if (msgEl) msgEl.textContent = `방금 추가한 '${newTaskName}' 업무를 어디에 함께 넣을까요?`;
+    // 고르는 칸은 열 때마다 기본값으로(처리량 예 · 주요 업무 아니요 · 위젯 연동 안 함)
+    const qty = document.getElementById('new-task-add-quantity');
+    if (qty) qty.checked = true;
+    const keyChk = document.getElementById('new-task-add-key');
+    if (keyChk) keyChk.checked = false;
+    fillNewTaskWidgetOptions();
+    syncNewTaskWidgetSelect();
     document.getElementById('confirm-add-to-quantity-modal')?.classList.remove('hidden');
+}
+
+// 위젯 연결 줄(renderQuantityToDashboardMapping)과 같은 출처 — 화면의 위젯 항목 중 수량 항목
+// 다른 업무가 이미 연결한 위젯은 '(사용 중: 업무명)' 으로 보이고 고를 수 없다(지금 화면 기준)
+function fillNewTaskWidgetOptions() {
+    const select = document.getElementById('new-task-dashboard-link');
+    if (!select) return;
+    const defs = getAllDashboardDefinitions(appConfig);
+    // 미리보기를 못 만들면 저장 전 설정(appConfig)으로 대신하지 않는다 — 표시만 생략([확인] 때 previewOrWarn 이 알린다)
+    const preview = previewTaskConfig();
+    const map = (preview && preview.quantityToDashboardMap) || {};
+    const usedBy = {};
+    Object.entries(map).forEach(([task, wid]) => { if (wid && !(wid in usedBy)) usedBy[wid] = task; });
+    select.innerHTML = '';
+    select.add(new Option('-- 연동 안 함 --', ''));
+    document.querySelectorAll('#dashboard-items-container .dashboard-item-name').forEach(span => {
+        const id = span.dataset.id;
+        const def = defs[id];
+        if (!def || !def.isQuantity) return;
+        const title = span.textContent.trim().replace('📦 ', '');
+        const opt = new Option(id in usedBy ? `${title} (사용 중: ${usedBy[id]})` : title, id);
+        opt.disabled = id in usedBy;
+        select.add(opt);
+    });
+    select.value = '';
+}
+
+function syncNewTaskWidgetSelect() {
+    const select = document.getElementById('new-task-dashboard-link');
+    if (!select) return;
+    const on = !!document.getElementById('new-task-add-quantity')?.checked;
+    select.disabled = !on;
+    if (!on) select.value = '';
+}
+
+// 새 업무 연결 창의 [확인] — 지금 화면 기준(미리보기)에 고른 것만 더해 다시 그린다. 저장은 [전체 저장]
+// 화면 값을 못 읽었으면 false(아무것도 넣지 않음), 그 밖엔 true
+function applyNewTaskLinks(taskName, { quantity, key, widget }) {
+    if (!quantity && !key) return true;
+    const cfg = previewOrWarn();
+    if (!cfg) return false;
+    const has = (list, n) => list.some(t => t.trim().toLowerCase() === n.trim().toLowerCase());
+    if (key) {
+        const keyTasks = (cfg.keyTasks || []).slice();
+        if (!has(keyTasks, taskName)) keyTasks.push(taskName);
+        renderKeyTasks(keyTasks, cfg.taskIdNames);
+    }
+    if (quantity) {
+        const qtyTasks = (cfg.quantityTaskTypes || []).slice();
+        if (!has(qtyTasks, taskName)) qtyTasks.push(taskName);
+        const map = { ...(cfg.quantityToDashboardMap || {}) };
+        if (widget) map[taskName] = widget;
+        renderQuantityTasks(qtyTasks, cfg.taskIdNames);
+        renderQuantityToDashboardMapping({ ...cfg, quantityTaskTypes: qtyTasks, quantityToDashboardMap: map });
+    }
+    return true;
 }
 
 function getAllCurrentQuantityTasks() {

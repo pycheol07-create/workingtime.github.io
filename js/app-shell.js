@@ -1,5 +1,5 @@
 // === js/app-shell.js ===
-// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202610211133"> 로 붙이면 스스로 돈다.
+// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202610211147"> 로 붙이면 스스로 돈다.
 //   <body data-shell="페이지ID">              → 위쪽에 바를 얹는다(css/app-shell.css 가 본문을 그만큼 내린다)
 //   <body data-shell="index" data-shell-bar="off"> → 바 없이 메뉴 캐시만 채운다(대시보드)
 // 페이지는 js/app-shell-bridge.js 의 setShellContext 로 로그인 상태를 알려 준다.
@@ -14,9 +14,9 @@
 //   메뉴 이름 + 그 화면 안 탭(app-shell-data.js SUB_DESTINATIONS) + 홈. 같은 화면 안 이동은 해시 이동(뒤로가기로 되돌림),
 //   다른 화면은 navigate(이동 전 저장 훅). 팔레트도 섀도 DOM 안, 열 때 만들고 닫을 때 없앤다.
 
-import { visibleMenuFor } from './menu-catalog.js?v=202610211133';
-import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations } from './app-shell-data.js?v=202610211133';
-import { rank } from './hangul-search.js?v=202610211133';
+import { visibleMenuFor } from './menu-catalog.js?v=202610211147';
+import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations } from './app-shell-data.js?v=202610211147';
+import { rank } from './hangul-search.js?v=202610211147';
 
 const BASE = new URL('../', import.meta.url).href;      // 앱 폴더(js/ 의 부모)
 const MENU_CACHE_KEY = 'appShell.menu.v2';              // js/app-shell-bridge.js 와 같은 키(v2: 권한 개편)
@@ -290,7 +290,7 @@ function start() {
         noti.timer = setTimeout(async () => {
             noti.timer = null;
             try {
-                const { watchNotifications } = await import('./app-shell-noti.js?v=202610211133');
+                const { watchNotifications } = await import('./app-shell-noti.js?v=202610211147');
                 if (noti.name !== want) return;   // 그 사이 로그아웃·다른 사람
                 const unsub = watchNotifications(want, {
                     onCount: (n) => { noti.unread = n; renderBell(); },

@@ -1,9 +1,10 @@
 // === js/ui-history-personal.js ===
 // 설명: '개인 리포트' 탭의 데이터 집계 및 렌더링 로직을 담당합니다.
 
-import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202610211133';
-import { appConfig, context, LEAVE_TYPES, leaveTypeLabel } from './state.js?v=202610211133';
-import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202610211133';
+import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202610211147';
+import { appConfig, context, LEAVE_TYPES, leaveTypeLabel } from './state.js?v=202610211147';
+import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202610211147';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610211147';
 
 // 급여 차감 기준 근무시간 (가정값 — 회사 규정에 맞게 조정 가능)
 const WORK_END_MIN = 18 * 60;                                   // 종업 18:00
@@ -233,6 +234,7 @@ const aggregatePersonalData = (allHistoryData, viewMode, dateKey, memberName) =>
  * 2. 메인 렌더링 함수
  */
 export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, allHistoryData) => {
+    allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const container = document.getElementById(targetId);
     if (!container) return;
 

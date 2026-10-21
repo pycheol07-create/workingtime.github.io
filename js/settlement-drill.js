@@ -9,9 +9,10 @@
 // 창은 얕게 유지한다. 창 안에 또 스크롤·필터를 넣으면
 // 표 상자에 잘리던 문제가 되풀이된다.
 
-import * as State from './state.js?v=202610211133';
-import { escapeHtml as esc } from './utils.js?v=202610211133';
-import { REVENUE_CHANNELS } from './revenue-channels.js?v=202610211133';
+import * as State from './state.js?v=202610211147';
+import { escapeHtml as esc } from './utils.js?v=202610211147';
+import { REVENUE_CHANNELS } from './revenue-channels.js?v=202610211147';
+import { aliasDayView } from './lib/task-alias-view.js?v=202610211147';
 
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString();
 
@@ -88,7 +89,8 @@ const formula = (top, bottom, result) => `
 
 // ── 1) 최고·최저 처리일 → 그날의 업무별 상세 ──────────────────────
 function dayDetailBody(dateId) {
-    const day = (State.allHistoryData || []).find(d => d.id === dateId);
+    // 🆔 정산 보고서 숫자(지금 이름으로 합친 것)와 같은 이름으로 보여 준다
+    const day = aliasDayView((State.allHistoryData || []).find(d => d.id === dateId), State.appConfig);
     if (!day) return emptyRow('그날의 기록을 찾지 못했습니다.');
 
     // 업무별 처리량에, 업무기록에서 뽑은 투입인원·시간을 붙인다

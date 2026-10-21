@@ -1,17 +1,17 @@
 // === js/listeners-history-records.js ===
 // 설명: 이력 보기의 '기록 관리'(상세 내역 수정/삭제/일괄적용) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610211133';
-import * as State from './state.js?v=202610211133';
-import { showToast, showConfirm } from './utils.js?v=202610211133';
+import * as DOM from './dom-elements.js?v=202610211147';
+import * as State from './state.js?v=202610211147';
+import { showToast, showConfirm } from './utils.js?v=202610211147';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=202610211133';
-import { renderHistoryDetail } from './app-history-logic.js?v=202610211133';
-import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=202610211133';
-import { generateId } from './app-data.js?v=202610211133';
+} from './history-data-manager.js?v=202610211147';
+import { renderHistoryDetail } from './app-history-logic.js?v=202610211147';
+import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=202610211147';
+import { generateId } from './app-data.js?v=202610211147';
 
 const currentRecordsDateKey = () => document.getElementById('history-records-date').textContent;
 // 기존 확인창 끝에 붙이는 문구 — 저장 안 한 수정이 없으면 빈 문자열

@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202610211133';
-import { LEAVE_TYPES } from './state.js?v=202610211133';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610211133';
+import * as State from './state.js?v=202610211147';
+import { LEAVE_TYPES } from './state.js?v=202610211147';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202610211147';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610211133';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610211133';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202610211147';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202610211147';
 
 import {
     calculateReportKPIs,
@@ -19,11 +19,12 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202610211133';
+} from './ui-history-reports-logic.js?v=202610211147';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202610211133';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610211133';
-import { D } from './d-chart.js?v=202610211133';
+import { aggregateManagementData } from './ui-history-management.js?v=202610211147';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202610211147';
+import { D } from './d-chart.js?v=202610211147';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610211147';
 
 // ============================================================
 // 모듈 상태
@@ -48,7 +49,7 @@ function getQuarterMonthKeys(year, quarter) {
 }
 
 function getFilteredDaysForPeriod(granularity, year, sub) {
-    const all = State.allHistoryData || [];
+    const all = aliasHistoryView(State.allHistoryData || [], State.appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     if (granularity === 'month') {
         const key = `${year}-${pad2(sub)}`;
         return all.filter(d => typeof d.id === 'string' && d.id.substring(0, 7) === key);
@@ -167,7 +168,7 @@ function computeCoreMetrics(currentDays, previousDays, appConfig) {
     const curProd = calculateAdvancedProductivity(currentDays, curAggr, curThroughputs, appConfig, wageMap);
     const prevProd = calculateAdvancedProductivity(previousDays, prevAggr, prevThroughputs, appConfig, wageMap);
 
-    const benchmarkOEE = calculateBenchmarkOEE(State.allHistoryData, appConfig);
+    const benchmarkOEE = calculateBenchmarkOEE(aliasHistoryView(State.allHistoryData, appConfig), appConfig);   // 🆔 지금 이름으로
     const diagnosis = generateProductivityDiagnosis(curProd, prevProd, benchmarkOEE);
 
     return { wageMap, memberToPartMap, curKPIs, prevKPIs, curAggr, prevAggr, curProd, prevProd, benchmarkOEE, diagnosis };

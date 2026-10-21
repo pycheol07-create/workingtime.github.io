@@ -1,9 +1,10 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202610211133';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610211133';
-import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610211133';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610211133';
-import { D, alpha } from './d-chart.js?v=202610211133';
+import * as State from './state.js?v=202610211147';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610211147';
+import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610211147';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610211147';
+import { D, alpha } from './d-chart.js?v=202610211147';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610211147';
 
 let dashboardChartInstance = null;
 
@@ -97,10 +98,11 @@ const getBaselinePeriod = (granularity, selectedKey, allHistoryData) => {
 };
 
 export function renderDashboardTab(filteredData, appConfig) {
+    filteredData = aliasHistoryView(filteredData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202610211133').then(mod => {
+        import('./ui-history-milestones.js?v=202610211147').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }
@@ -259,7 +261,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 하이브리드 기준치: 단위에 따라 롤링/전년 동기 선택
     const granularity = State.context?.globalGranularity || 'day';
     const selectedKey = document.querySelector('.history-date-btn.is-on')?.dataset.key || null;
-    const baseline = getBaselinePeriod(granularity, selectedKey, State.allHistoryData);
+    const baseline = getBaselinePeriod(granularity, selectedKey, aliasHistoryView(State.allHistoryData, appConfig));
     const baselineUph = computeAvgUphFromDays(baseline.data);
     const hasBaseline = baselineUph > 0;
     // oee = 현재 UPH / 기준 UPH × 100 (100%면 평소 수준)

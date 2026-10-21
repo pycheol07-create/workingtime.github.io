@@ -1,11 +1,12 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202610211133';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610211133';
-import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610211133';
-import { fetchPlannedData } from './history-data-manager.js?v=202610211133';
-import { getTodayDateString } from './utils.js?v=202610211133';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610211133';
-import { D } from './d-chart.js?v=202610211133';
+import * as State from './state.js?v=202610211147';
+import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610211147';
+import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610211147';
+import { fetchPlannedData } from './history-data-manager.js?v=202610211147';
+import { getTodayDateString } from './utils.js?v=202610211147';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610211147';
+import { D } from './d-chart.js?v=202610211147';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610211147';
 
 let staffingChartInstance = null;
 
@@ -28,7 +29,7 @@ const staffingBasketOf = (appConfig) => {
 
 /** 평상시 기준 속도(개/분). 전체 이력에서 뽑으므로 선택 기간과 무관하다 — 순환을 끊는 핵심.
  *  ※ minMinutes 는 mode:'total' 에서 무시되므로(task-throughput.js) 넘기지 않는다. */
-const baselineSpeeds = () => taskSpeedPerMinute(State.allHistoryData, {
+const baselineSpeeds = () => taskSpeedPerMinute(aliasHistoryView(State.allHistoryData, State.appConfig), {   // 🆔 지금 이름으로
     mode: 'total',
     skipDate: getTodayDateString()   // 오늘은 물량이 덜 차 속도가 튄다
 });
@@ -73,6 +74,7 @@ function demandMinutesOf(day, speeds) {
 }
 
 export function renderStaffingTab(filteredData, appConfig) {
+    filteredData = aliasHistoryView(filteredData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     // 앞날 전망은 선택 기간과 무관하다(예정 물량 기반) — 위쪽 분석이 비어도 그린다.
     renderStaffingOutlook();
     // 예정 물량이 아직 안 실렸으면 불러온 뒤 한 번 더 (대부분 캐시라 즉시)
