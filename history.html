@@ -32,12 +32,12 @@
     <!-- 팀 결산 보고 '화면 그대로 PDF' 저장용 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610211500">
-    <link rel="stylesheet" href="css/style.css?v=202610211500">
-    <link rel="stylesheet" href="css/history-d.css?v=202610211500">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610211500">
-    <link rel="stylesheet" href="css/form-d.css?v=202610211500">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610211500">
+    <link rel="stylesheet" href="css/suit.css?v=202610211504">
+    <link rel="stylesheet" href="css/style.css?v=202610211504">
+    <link rel="stylesheet" href="css/history-d.css?v=202610211504">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610211504">
+    <link rel="stylesheet" href="css/form-d.css?v=202610211504">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610211504">
     <style>
         /* 💡 탭 전환 시 hidden 클래스가 충돌하는 문제 방지 */
         .hidden { display: none !important; }
@@ -218,12 +218,12 @@
             ]);
 
             try {
-                const State = await import('./js/state.js?v=202610211500');
-                try { await import('./js/app.js?v=202610211500'); } catch(e) {} 
+                const State = await import('./js/state.js?v=202610211504');
+                try { await import('./js/app.js?v=202610211504'); } catch(e) {} 
                 
-                const { loadAndRenderHistoryList } = await import('./js/app-history-logic.js?v=202610211500');
-                const { restoreHistoryView } = await import('./js/view-state.js?v=202610211500');
-                const { showSection } = await import('./js/listeners-history-tabs.js?v=202610211500');
+                const { loadAndRenderHistoryList } = await import('./js/app-history-logic.js?v=202610211504');
+                const { restoreHistoryView } = await import('./js/view-state.js?v=202610211504');
+                const { showSection } = await import('./js/listeners-history-tabs.js?v=202610211504');
 
                 const revealModal = () => {
                     const modal = document.getElementById('history-modal');
@@ -337,10 +337,10 @@
 
         initHistoryApp();
     </script>
-    <script src="js/connection-banner.js?v=202610211500"></script>
-    <script src="js/modal-esc.js?v=202610211500"></script>
-    <script type="module" src="js/modal-drag.js?v=202610211500"></script>
-    <script type="module" src="js/page-gate.js?v=202610211500" data-perm-page="data.view"></script>
-    <script type="module" src="js/app-shell.js?v=202610211500"></script>
+    <script src="js/connection-banner.js?v=202610211504"></script>
+    <script src="js/modal-esc.js?v=202610211504"></script>
+    <script type="module" src="js/modal-drag.js?v=202610211504"></script>
+    <script type="module" src="js/page-gate.js?v=202610211504" data-perm-page="data.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610211504"></script>
 </body>
 </html>

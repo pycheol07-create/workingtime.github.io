@@ -9,7 +9,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="../css/suit.css?v=202610211500">
+    <link rel="stylesheet" href="../css/suit.css?v=202610211504">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['SUIT', 'Noto Sans KR', 'Malgun Gothic', 'sans-serif'] } } } };</script>
 
@@ -18,15 +18,15 @@
     
     <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
     
-    <link rel="stylesheet" href="style.css?v=202610211500">
-    <link rel="stylesheet" href="calc-d.css?v=202610211500">
+    <link rel="stylesheet" href="style.css?v=202610211504">
+    <link rel="stylesheet" href="calc-d.css?v=202610211504">
     <!-- 공통 상단바 (메뉴는 대시보드에서 채운 캐시. 로그인 상태는 logis-defaults.js 가 uid 만 넘긴다 — data-shell-ctx="none" 이라 확인 전에도 캐시 메뉴를 보인다) -->
-    <link rel="stylesheet" href="../css/app-shell.css?v=202610211500">
-    <script type="module" src="../js/modal-drag.js?v=202610211500"></script>
-    <script type="module" src="../js/page-gate.js?v=202610211500" data-perm-page="calculator.view"></script>
-    <script type="module" src="../js/app-shell.js?v=202610211500"></script>
+    <link rel="stylesheet" href="../css/app-shell.css?v=202610211504">
+    <script type="module" src="../js/modal-drag.js?v=202610211504"></script>
+    <script type="module" src="../js/page-gate.js?v=202610211504" data-perm-page="calculator.view"></script>
+    <script type="module" src="../js/app-shell.js?v=202610211504"></script>
     <!-- 보던 계산기 탭을 주소 뒤 해시(#tab=customs …)에 기억 — app.js 가 window.HashState 로 쓴다(UI 1단계 1c) -->
-    <script type="module" src="../js/hash-state.js?v=202610211500"></script>
+    <script type="module" src="../js/hash-state.js?v=202610211504"></script>
 </head>
 <body id="calc-root" class="bg-slate-100" data-shell="calculator" data-shell-ctx="none">
     <div id="root"></div>
@@ -34,33 +34,33 @@
     <!-- 숫자 칸 공통 파서(쉼표 무시)·천 단위 표시 → window.CalcNum. 모듈은 DOMContentLoaded 전에 실행되고
          Babel 은 DOMContentLoaded 뒤에 아래 스크립트를 돌리므로 계산기 코드가 쓸 때는 이미 붙어 있다(InputControl.js parseNum) -->
     <script type="module">
-        import * as CalcNum from '../js/lib/calc-num.js?v=202610211500';
-        import * as CustomsFxrt from '../js/lib/customs-fxrt.js?v=202610211500';
+        import * as CalcNum from '../js/lib/calc-num.js?v=202610211504';
+        import * as CustomsFxrt from '../js/lib/customs-fxrt.js?v=202610211504';
         window.CalcNum = CalcNum;
         window.CustomsFxrt = CustomsFxrt;   // 관세청 고시환율 자동 채움 판정(app.js) — Firebase 없는 순수 함수라 여기서 붙인다
     </script>
-    <script type="text/babel" src="constants.js?v=202610211500"></script>
+    <script type="text/babel" src="constants.js?v=202610211504"></script>
     <!-- 통관비 기본값(logis 3개월 평균) — Firestore 에서 읽어 SettingsContext.js 에 넘긴다. Firebase 초기화는 firebase-init.js 한 곳 -->
-    <script type="module" src="logis-defaults.js?v=202610211500"></script>
+    <script type="module" src="logis-defaults.js?v=202610211504"></script>
     <!-- 관세청 고시환율(주간, 앱\고시환율 이 매일 2회 씀) — Firestore 에서 읽어 app.js 에 넘긴다 -->
-    <script type="module" src="customs-fxrt-doc.js?v=202610211500"></script>
+    <script type="module" src="customs-fxrt-doc.js?v=202610211504"></script>
     <!-- 팀 공용 설정(Firestore persistent_data/calculatorSettings) — 읽기·저장(트랜잭션)·변경 이력. 통관비 기본값 3개는 제외 -->
-    <script type="module" src="shared-settings.js?v=202610211500"></script>
-    <script type="text/babel" src="SettingsContext.js?v=202610211500"></script>
-    <script type="text/babel" src="AdminPage.js?v=202610211500"></script>
+    <script type="module" src="shared-settings.js?v=202610211504"></script>
+    <script type="text/babel" src="SettingsContext.js?v=202610211504"></script>
+    <script type="text/babel" src="AdminPage.js?v=202610211504"></script>
 
-    <script type="text/babel" src="Icons.js?v=202610211500"></script>
-    <script type="text/babel" src="InputControl.js?v=202610211500"></script>
-    <script type="text/babel" src="LiveRateDisplay.js?v=202610211500"></script>
+    <script type="text/babel" src="Icons.js?v=202610211504"></script>
+    <script type="text/babel" src="InputControl.js?v=202610211504"></script>
+    <script type="text/babel" src="LiveRateDisplay.js?v=202610211504"></script>
     
-    <script type="text/babel" src="EfficiencyAnalysis.js?v=202610211500"></script>
+    <script type="text/babel" src="EfficiencyAnalysis.js?v=202610211504"></script>
 
-    <script type="text/babel" src="CustomsCalculator.js?v=202610211500"></script>
-    <script type="text/babel" src="ImportCalculator.js?v=202610211500"></script>
-    <script type="text/babel" src="ShippingCalculator.js?v=202610211500"></script>
-    <script type="text/babel" src="WarehouseFeeCalculator.js?v=202610211500"></script>
+    <script type="text/babel" src="CustomsCalculator.js?v=202610211504"></script>
+    <script type="text/babel" src="ImportCalculator.js?v=202610211504"></script>
+    <script type="text/babel" src="ShippingCalculator.js?v=202610211504"></script>
+    <script type="text/babel" src="WarehouseFeeCalculator.js?v=202610211504"></script>
     
-    <script type="text/babel" src="app.js?v=202610211500"></script>
+    <script type="text/babel" src="app.js?v=202610211504"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

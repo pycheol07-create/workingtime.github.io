@@ -10,7 +10,7 @@ import {
     PANELS, GRID_COLS, MIN_W, GAP, ROW_UNIT,
     defaultLayout, normalizeLayout, sameLayout, effectiveSpan, rowSpan, snapH, moveItem, placeItems,
     loadLayout, saveLayout, STORAGE_KEY,
-} from './lib/dash-layout.js?v=202610211500';
+} from './lib/dash-layout.js?v=202610211504';
 
 const DRAG_START_PX = 4;      // 이만큼 움직여야 끌기 시작(그냥 누른 것과 구분)
 const AUTO_SCROLL_EDGE = 40;  // 스크롤 상자 위·아래 이 안쪽이면 자동 스크롤

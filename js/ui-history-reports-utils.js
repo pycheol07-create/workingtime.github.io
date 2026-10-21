@@ -1,5 +1,5 @@
 // === js/ui-history-reports-utils.js ===
-import { formatDuration } from './utils.js?v=202610211500';
+import { formatDuration } from './utils.js?v=202610211504';
 
 export const getAsArray = (data) => {
     if (!data) return []; 
