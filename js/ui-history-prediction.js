@@ -3,35 +3,35 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610211344';
+import { predictFutureTrends } from './analysis-logic.js?v=202610211354';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610211344';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610211344';
-import { runDay } from './lib/refill-view.js?v=202610211344';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610211344';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610211344';
-import * as State from './state.js?v=202610211344';
-import { saveView } from './view-state.js?v=202610211344';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610211344';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610211344';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610211354';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610211354';
+import { runDay } from './lib/refill-view.js?v=202610211354';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610211354';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610211354';
+import * as State from './state.js?v=202610211354';
+import { saveView } from './view-state.js?v=202610211354';
+import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610211354';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610211354';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610211344';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610211354';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610211344';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610211344';
+         getForecastSnapshotForDate, historyLoadFailed } from './history-data-manager.js?v=202610211354';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610211354';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610211344';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610211344';
-import { taskUph, recentDays } from './task-throughput.js?v=202610211344';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610211354';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610211354';
+import { taskUph, recentDays } from './task-throughput.js?v=202610211354';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610211344';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610211354';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610211344';
-import { D } from './d-chart.js?v=202610211344';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610211344';
+         excessOffDays } from './lib/backlog-carry.js?v=202610211354';
+import { D } from './d-chart.js?v=202610211354';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610211354';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.

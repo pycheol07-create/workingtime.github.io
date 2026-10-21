@@ -1,18 +1,18 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202610211344';
-import * as State from './state.js?v=202610211344';
-import { updateDailyData } from './app-data.js?v=202610211344';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202610211344';
+import * as DOM from './dom-elements.js?v=202610211354';
+import * as State from './state.js?v=202610211354';
+import { updateDailyData } from './app-data.js?v=202610211354';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202610211354';
 import { doc, getDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202610211344';
-import { syncInspSegments } from './inspection-segments.js?v=202610211344';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202610211354';
+import { syncInspSegments } from './inspection-segments.js?v=202610211354';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, todoCardHtml, doneCardHtml
-} from './lib/insp-flow.js?v=202610211344';
+} from './lib/insp-flow.js?v=202610211354';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -83,6 +83,14 @@ if (typeof document !== 'undefined') {
 export const toggleTodoCollapsed = () => {
     todoCollapsed = !todoCollapsed;
     updateTodoPanel();
+};
+
+/** [☰ 목록] — 대기 리스트를 펼치고 그 자리로 스크롤(다른 상품을 고르려고 위로 올라갈 필요 없게). */
+export const openTodoList = () => {
+    todoCollapsed = false;
+    updateTodoPanel();
+    const panel = document.getElementById('insp-todo-panel');
+    if (panel) panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
 };
 
 const hideSaveError = () => {
@@ -1003,6 +1011,6 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202610211344';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610211344';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610211344';
+export { handleExcelUpload } from './inspection-excel.js?v=202610211354';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610211354';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610211354';

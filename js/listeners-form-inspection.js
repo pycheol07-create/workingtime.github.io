@@ -1,7 +1,7 @@
 // === js/listeners-form-inspection.js ===
 // 설명: '검수 매니저(입력)' 모달 내부의 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610211344';
+import * as DOM from './dom-elements.js?v=202610211354';
 import { 
     searchProductHistory, 
     saveInspectionAndNext, 
@@ -12,14 +12,14 @@ import {
     clearTodayList,
     deleteInspectionList,
     openInspectionListWindow
-} from './inspection-logic.js?v=202610211344';
-import { openPackPicker } from './inspection-packs.js?v=202610211344';
-import { initInspSegments } from './inspection-segments.js?v=202610211344';
+} from './inspection-logic.js?v=202610211354';
+import { openPackPicker } from './inspection-packs.js?v=202610211354';
+import { initInspSegments } from './inspection-segments.js?v=202610211354';
 // 아래 함수들은 다른 작업 묶음에서 들어온다(goPrevInspectionItem·toggleTodoCollapsed — inspection-logic.js,
 // dropNewPhoto — inspection-media.js). 이름으로 import 하면 아직 없을 때 모듈 전체가 깨지므로 namespace 로 받고
 // typeof 로 확인한 뒤 부른다.
-import * as InspLogic from './inspection-logic.js?v=202610211344';
-import * as InspMedia from './inspection-media.js?v=202610211344';
+import * as InspLogic from './inspection-logic.js?v=202610211354';
+import * as InspMedia from './inspection-media.js?v=202610211354';
 
 const callIfFn = (mod, name, ...args) => {
     const fn = mod[name];
@@ -58,6 +58,10 @@ export function setupFormInspectionListeners() {
     const prevBtn = document.getElementById('insp-prev-btn');
     if (prevBtn) {
         prevBtn.addEventListener('click', () => callIfFn(InspLogic, 'goPrevInspectionItem'));
+    }
+    const listBtn = document.getElementById('insp-list-btn');
+    if (listBtn) {
+        listBtn.addEventListener('click', () => callIfFn(InspLogic, 'openTodoList'));
     }
     const retryBtn = document.getElementById('insp-save-retry-btn');
     if (retryBtn) {

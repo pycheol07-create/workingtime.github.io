@@ -751,6 +751,17 @@ html.dark .depth-panel {
     #inspection-manager-modal #insp-todo-panel.insp-todo-collapsed #insp-todo-empty-placeholder {
         display: none !important;
     }
+    /* 창 안 영역이 세로로 눌려 줄어들며 아래 칸 위로 넘쳐 겹치던 문제 — 줄어들지 않게(스크롤은 바깥 영역이 맡는다) */
+    #inspection-manager-modal #insp-modal-content > div.grid > * {
+        flex-shrink: 0 !important;
+        min-height: auto !important;
+    }
+    #inspection-manager-modal #insp-search-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
     /* 선택 버튼(js/inspection-segments.js) — 손가락 크기 */
     #inspection-manager-modal .insp-seg-btn {
         min-height: 44px !important;
