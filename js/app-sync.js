@@ -1,16 +1,16 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202610221732';
-import { isPersistentLeaveType } from './state.js?v=202610221732';
-import * as DOM from './dom-elements.js?v=202610221732';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610221732';
+import * as State from './state.js?v=202610230833';
+import { isPersistentLeaveType } from './state.js?v=202610230833';
+import * as DOM from './dom-elements.js?v=202610230833';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610230833';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610221732';
-import { renderTodoList } from './inspection-logic.js?v=202610221732';
-import { renderNotificationList } from './app-notifications.js?v=202610221732';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221732';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610221732';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202610221732';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610230833';
+import { renderTodoList } from './inspection-logic.js?v=202610230833';
+import { renderNotificationList } from './app-notifications.js?v=202610230833';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610230833';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610230833';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202610230833';
 
 let unsubConfig = null;
 let unsubToday = null;
