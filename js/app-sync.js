@@ -1,15 +1,16 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202610211504';
-import { isPersistentLeaveType } from './state.js?v=202610211504';
-import * as DOM from './dom-elements.js?v=202610211504';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610211504';
+import * as State from './state.js?v=202610221215';
+import { isPersistentLeaveType } from './state.js?v=202610221215';
+import * as DOM from './dom-elements.js?v=202610221215';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610221215';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610211504';
-import { renderTodoList } from './inspection-logic.js?v=202610211504';
-import { renderNotificationList } from './app-notifications.js?v=202610211504';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211504';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610211504';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610221215';
+import { renderTodoList } from './inspection-logic.js?v=202610221215';
+import { renderNotificationList } from './app-notifications.js?v=202610221215';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221215';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610221215';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202610221215';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -18,6 +19,36 @@ export let unsubscribeNotifications = null;
 
 // ✨ 핵심 방어막: 초기화 잠금 변수
 let isListenersInitialized = false;
+
+// 🔔 안 읽은 알림이 있으면 알림창(#notification-modal)을 저절로 연다(2026-10-22).
+//    - 봇(Playwright — navigator.webdriver)에서는 열지 않는다(업무마감봇·업무예상알림 화면 보호).
+//    - 이 탭에서 닫은 알림(js/lib/noti-popup.js — sessionStorage id)은 다시 열지 않는다.
+//    - 다른 창(로그인·처리량 입력·#open= 으로 연 창 등)이 떠 있으면 기다렸다가 닫힌 뒤 한 번만 연다(최대 NOTI_WAIT_MAX).
+const NOTI_WAIT_STEP = 1000;
+const NOTI_WAIT_MAX = 30 * 60 * 1000;
+let notiWaitTimer = null;
+function maybeOpenNotificationModal() {
+    if (isAutomation() || !State.appState.currentUser) return;
+    const modal = document.getElementById('notification-modal');
+    if (!modal || !modal.classList.contains('hidden')) return;          // 없음 · 이미 열림(목록은 스냅샷이 다시 그린다)
+    if (!pickPopup(State.appState.notifications, loadDismissed()).length) return;
+    if (!findOpenModal(document, { except: ['notification-modal'] })) {
+        modal.classList.remove('hidden');
+        renderNotificationList();
+        return;
+    }
+    if (notiWaitTimer) return;                                          // 이미 기다리는 중
+    const until = Date.now() + NOTI_WAIT_MAX;
+    const who = State.appState.currentUser;
+    notiWaitTimer = setInterval(() => {
+        const sameUser = State.appState.currentUser === who;            // 로그아웃·다른 사람 → 앞 사람 목록으로 열지 않는다
+        if (sameUser && findOpenModal(document, { except: ['notification-modal'] }) && Date.now() < until) return;
+        clearInterval(notiWaitTimer);
+        notiWaitTimer = null;
+        if (!sameUser || Date.now() >= until) return;                   // 너무 오래 — 다음 스냅샷 때 다시 본다
+        maybeOpenNotificationModal();                                   // 그 사이 읽음·닫음이 반영된 목록으로 다시 판단
+    }, NOTI_WAIT_STEP);
+}
 
 // 오늘 문서·업무기록 첫 스냅샷이 들어왔는지 — 대시보드 #open=quantity(js/app.js)가
 // 숫자를 받기 전에 처리량 창을 열어 빈 값으로 저장하는 일이 없게 기다리는 데 쓴다.
@@ -42,6 +73,20 @@ let leaveRenderCallback = null;
 
 // markDirtyCallback 은 더 이상 쓰지 않는다(위 근태 구독 주석 참고).
 // app.js 의 호출부를 그대로 두려고 인자는 남겨 둔다.
+/** 로그아웃 때 부른다 — 구독을 모두 풀고 초기화 잠금도 푼다.
+ *  잠금이 남아 있으면 같은 탭에서 다른 사람이 로그인했을 때 구독이 'Bypassing' 되어
+ *  새 사람의 알림이 붙지 않고, 종을 누르면 앞 사람 알림이 보였다(2026-10-22 수정). */
+export function stopFirebaseListeners() {
+    if (unsubConfig) { unsubConfig(); unsubConfig = null; }
+    if (unsubToday) { unsubToday(); unsubToday = null; }
+    if (unsubWorkRecords) { unsubWorkRecords(); unsubWorkRecords = null; }
+    if (unsubscribeNotifications) { unsubscribeNotifications(); unsubscribeNotifications = null; }
+    isListenersInitialized = false;
+    // 다음 사람은 새 스냅샷을 받은 뒤에 '오늘 데이터 도착'으로 본다(앞 세션의 옛 값으로 창이 먼저 열리지 않게)
+    todayDocLoaded = false;
+    workRecordsLoaded = false;
+}
+
 export function setupFirebaseListeners(renderCallback, markDirtyCallback, force = false) {
     // 🚨 라우터 이동이나 토큰 갱신 시 리스너가 중복 재실행되어 데이터를 다시 통째로 다운받는 현상 차단
     if (isListenersInitialized && !force) {
@@ -169,18 +214,12 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
             const notifications = [];
             let unreadCount = 0;
             
+            let freshUnread = false;
             snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added' && !isInitialLoad) {
-                    const data = change.doc.data();
-                    if (!data.isRead) {
-                        showToast(`🔔 새 알림이 도착했습니다.`);
-                        const modal = document.getElementById('notification-modal');
-                        if (modal && modal.classList.contains('hidden')) {
-                            modal.classList.remove('hidden'); 
-                        }
-                    }
-                }
+                if (change.type === 'added' && !isInitialLoad && !change.doc.data().isRead) freshUnread = true;
             });
+            // 봇(업무예상알림이 #toast 글자를 읽는다)에서는 토스트도 띄우지 않는다
+            if (freshUnread && !isAutomation()) showToast(`🔔 새 알림이 도착했습니다.`);
 
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
@@ -198,6 +237,19 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
             
             const modal = document.getElementById('notification-modal');
             if (modal && !modal.classList.contains('hidden')) renderNotificationList();
+            // 첫 스냅샷이든 새 알림이든 안 읽고 안 닫은 게 있으면 연다(자동화 가드·다른 창 대기는 함수 안).
+            // 첫 스냅샷은 오늘 데이터가 들어오고 조금 뒤에 본다 — #open=quantity|leave(js/app.js handleOpenHash)가
+            // 먼저 창을 열게 해서, 그 창이 닫힌 뒤에 알림창이 뜨도록(최대 15초 기다림).
+            else if (!isAutomation()) {
+                if (isInitialLoad) {
+                    // 기다리는 사이 로그아웃·다른 사람으로 바뀌면 앞 사람 목록으로 열지 않는다
+                    const who = State.appState.currentUser;
+                    Promise.race([whenTodayLoaded(), new Promise(r => setTimeout(r, 15000))])
+                        .then(() => setTimeout(() => { if (State.appState.currentUser === who) maybeOpenNotificationModal(); }, 800));
+                } else {
+                    maybeOpenNotificationModal();
+                }
+            }
 
             isInitialLoad = false;
         });

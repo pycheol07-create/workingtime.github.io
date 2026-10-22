@@ -1,15 +1,15 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610211504';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610211504';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610211504';
-import { memberNameFor } from './app-shell-data.js?v=202610211504';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610221215';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221215';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221215';
+import { memberNameFor } from './app-shell-data.js?v=202610221215';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610211504';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610211504';
-import { getPermModel } from './admin-perm.js?v=202610211504';
-import { showConfirm } from './utils.js?v=202610211504';
-import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610211504';
+import { menuConfigOf } from './lib/perm.js?v=202610221215';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610221215';
+import { getPermModel } from './admin-perm.js?v=202610221215';
+import { showConfirm } from './utils.js?v=202610221215';
+import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610221215';
 
 import {
     renderAdminUI,
@@ -28,13 +28,13 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610211504';
+} from './admin-ui.js?v=202610221215';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610211504';
+} from './admin-logic.js?v=202610221215';
 
 let db, auth;
 let appConfig = {};

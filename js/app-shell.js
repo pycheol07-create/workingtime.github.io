@@ -1,22 +1,25 @@
 // === js/app-shell.js ===
-// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202610211504"> 로 붙이면 스스로 돈다.
+// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202610221215"> 로 붙이면 스스로 돈다.
 //   <body data-shell="페이지ID">              → 위쪽에 바를 얹는다(css/app-shell.css 가 본문을 그만큼 내린다)
 //   <body data-shell="index" data-shell-bar="off"> → 바 없이 메뉴 캐시만 채운다(대시보드)
 // 페이지는 js/app-shell-bridge.js 의 setShellContext 로 로그인 상태를 알려 준다.
 //
 // ⚠️ 봇 안전(업무마감봇·업무예상알림이 index/history 를 Playwright 로 연다):
-//    - 그리는 것은 전부 섀도 DOM 안. 바깥 문서에는 사용자 정의 태그(app-shell-bar / app-shell-overlay) 하나씩만 붙는다.
+//    - 그리는 것은 전부 섀도 DOM 안. 바깥 문서에는 사용자 정의 태그(app-shell-bar / app-shell-overlay / app-shell-noti-pop 등) 하나씩만 붙는다.
 //    - div[role=dialog]·[data-act]·봇이 읽는 id 를 쓰지 않는다. 메뉴 서랍은 열 때 만들고 닫을 때 없앤다.
 // ⚠️ 절대경로('/js/…') 금지 — calculator/ 하위 폴더와 GitHub Pages 하위 경로에서도 맞도록 이 파일 위치 기준으로 계산한다.
 // 1b(2026-10-16): 메뉴·홈은 같은 탭 이동(app-shell-data.js SHELL_OPEN_MODE). 페이지 안 앱 링크도 이동 전 저장 훅을 거친다.
 // P2(2026-10-16): 바에 개인 알림 종(안 읽은 수) + 새 알림 토스트(js/app-shell-noti.js 를 늦게 불러 구독).
+//   2026-10-22: 토스트 대신 가운데 알림 팝업 — 안 읽고 이 탭에서 닫지 않은 알림이 있으면 첫 화면에서도 뜬다(js/lib/noti-popup.js).
+//   [확인] = 읽음 표시 · [나중에]/Esc = 이 탭에서 다시 안 띄움 · [알림센터] = 대시보드 알림창. 봇(navigator.webdriver)에서는 띄우지 않는다.
 // 1d(2026-10-16): Ctrl+K(⌘K) 빠른 이동 — 바의 [검색] 버튼·대시보드의 [data-shell-search] 버튼도 같다.
 //   메뉴 이름 + 그 화면 안 탭(app-shell-data.js SUB_DESTINATIONS) + 홈. 같은 화면 안 이동은 해시 이동(뒤로가기로 되돌림),
 //   다른 화면은 navigate(이동 전 저장 훅). 팔레트도 섀도 DOM 안, 열 때 만들고 닫을 때 없앤다.
 
-import { visibleMenuFor } from './menu-catalog.js?v=202610211504';
-import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations } from './app-shell-data.js?v=202610211504';
-import { rank } from './hangul-search.js?v=202610211504';
+import { visibleMenuFor } from './menu-catalog.js?v=202610221215';
+import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations } from './app-shell-data.js?v=202610221215';
+import { rank } from './hangul-search.js?v=202610221215';
+import { isAutomation, loadDismissed, addDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202610221215';
 
 const BASE = new URL('../', import.meta.url).href;      // 앱 폴더(js/ 의 부모)
 const MENU_CACHE_KEY = 'appShell.menu.v2';              // js/app-shell-bridge.js 와 같은 키(v2: 권한 개편)
@@ -27,7 +30,8 @@ const LEAVE_HOOK_TIMEOUT = 3000;
 const NOTI_OFF_PAGES = ['index', 'scan', 'calculator'];
 const NOTI_DELAY = 2500;            // 페이지가 첫 화면을 그리고 난 뒤에 구독한다
 const NOTI_LINK = 'index.html#open=noti';
-const TOAST_MS = 6000;
+const POP_WAIT_STEP = 1000;            // 다른 창이 떠 있으면 1초마다 보고
+const POP_WAIT_MAX = 30 * 60 * 1000;   // 30분 넘게 막히면 그만 기다린다(다음 알림 변경 때 다시 본다)
 
 const 선 = (d) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const ICON_MENU = 선('<path d="M4 6h16M4 12h16M4 18h16"/>');
@@ -110,21 +114,33 @@ nav { position: absolute; top: var(--as-top, 0px); bottom: 0; left: 0; width: 28
 .btn:focus-visible, a:focus-visible { outline: 2px solid var(--as-accent); outline-offset: -2px; }
 .note { margin: 12px 8px 0; font-size: 12px; color: var(--as-text-3); line-height: 1.6; }`;
 
-// 새 알림 토스트 — 보여 줄 때 만들고 사라질 때 없앤다. 알림 내용(이름 등)은 넣지 않는다.
-const TOAST_CSS = `${TOKENS}
-:host { all: initial; position: fixed; right: 16px; top: calc(var(--as-top, 0px) + var(--as-bar, 40px) + 10px); z-index: 2147483000;
-        display: block; font-family: var(--as-font); font-size: 14px; line-height: 1.4; color: var(--as-text); }
+// 안 읽은 알림 팝업 — 띄울 때 만들고 닫을 때 없앤다. role=alertdialog 의 section(섀도 안) — 봇이 찾는 div[role=dialog]·[data-act] 와 겹치지 않게.
+const POP_CSS = `${TOKENS}
+:host { all: initial; position: fixed; inset: 0; z-index: 2147483000; display: block;
+        font-family: var(--as-font); font-size: 14px; line-height: 1.45; color: var(--as-text); }
 * { box-sizing: border-box; }
-.box { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 12px; max-width: calc(100vw - 32px);
-       background: var(--as-bg); border: 1px solid var(--as-line-strong); box-shadow: var(--as-shadow); }
-output { display: block; font-weight: 600; }
-a { color: var(--as-accent-deep); font-weight: 600; text-decoration: none; padding: 6px 8px; border-radius: 8px; white-space: nowrap; }
-a:hover { background: var(--as-accent-soft); }
-.btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0;
-       border-radius: 8px; background: transparent; color: var(--as-text-3); cursor: pointer; }
-.btn:hover { background: var(--as-surface-2); }
-a:focus-visible, .btn:focus-visible { outline: 2px solid var(--as-accent); outline-offset: 1px; }
-@media (max-width: 767px) { :host { left: 12px; right: 12px; } }`;
+.scrim { position: absolute; inset: 0; background: var(--as-scrim); }
+.panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+         width: min(420px, calc(100vw - 24px)); max-height: 80vh; max-height: 80dvh; display: flex; flex-direction: column;
+         background: var(--as-bg); border: 1px solid var(--as-line-strong); border-radius: 14px; box-shadow: var(--as-shadow); overflow: hidden; }
+header { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--as-line); flex: none; color: var(--as-accent); }
+h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--as-text); }
+ul { list-style: none; margin: 0; padding: 10px 12px; overflow-y: auto; flex: 1 1 auto; min-height: 0;
+     -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+li { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--as-line); border-left: 4px solid var(--as-accent); background: var(--as-accent-soft); }
+li + li { margin-top: 8px; }
+time { display: block; margin-bottom: 3px; font-size: 11.5px; font-weight: 600; color: var(--as-text-2); }
+p { margin: 0; font-weight: 500; white-space: pre-line; overflow-wrap: anywhere; }
+.acts { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--as-line); background: var(--as-bg); flex: none; }
+.b { flex: 1 1 0; min-width: 0; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px;
+     border: 1px solid var(--as-line-strong); border-radius: 10px; background: var(--as-bg); color: var(--as-text);
+     font: inherit; font-weight: 600; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.b:hover { background: var(--as-surface-2); }
+.b.ok { background: var(--as-accent); border-color: var(--as-accent); color: #FFFFFF; }
+.b.ok:hover { background: var(--as-accent-deep); border-color: var(--as-accent-deep); }
+:host([data-theme="dark"]) .b.ok { color: #10141A; }
+.b:disabled { opacity: .6; cursor: default; }
+.b:focus-visible { outline: 2px solid var(--as-accent); outline-offset: 2px; }`;
 
 // Ctrl+K 빠른 이동 — 열 때 만들고 닫을 때 없앤다. role=dialog·data-act·id 를 바깥 문서에 만들지 않는다(섀도 안).
 const PALETTE_CSS = `${TOKENS}
@@ -178,8 +194,8 @@ function start() {
     // 로그인 확인이 없는 화면(계산기 — <body data-shell-ctx="none">)은 캐시 메뉴를 그대로 보여 준다
     const noCtxPage = body.dataset.shellCtx === 'none';
     // 개인 알림 상태(P2) — renderBar 가 처음부터 쓰므로 여기서 먼저 만든다
-    let toastHost = null, toastTimer = null;
-    const noti = { name: null, timer: null, unsub: null, unread: 0 };
+    let popHost = null, popPrev = null, popIds = [], popWait = null;
+    const noti = { name: null, timer: null, unsub: null, unread: 0, items: [], markRead: null };
     // 빠른 이동(1d)의 관리자 전용 목적지용 — 컨텍스트의 role, 없으면 같은 uid 캐시의 role
     let role = noCtxPage ? ((readCache() || {}).role || null) : null;
 
@@ -215,7 +231,7 @@ function start() {
     let barHost = null, barRoot = null;
     const syncTheme = () => {
         const dark = document.documentElement.classList.contains('dark');
-        [barHost, overlayHost, toastHost, paletteHost].forEach(h => { if (h) { if (dark) h.setAttribute('data-theme', 'dark'); else h.removeAttribute('data-theme'); } });
+        [barHost, overlayHost, popHost, paletteHost].forEach(h => { if (h) { if (dark) h.setAttribute('data-theme', 'dark'); else h.removeAttribute('data-theme'); } });
     };
 
     function renderBar() {
@@ -276,7 +292,9 @@ function start() {
         if (noti.unsub) { try { noti.unsub(); } catch (e) { /* 무시 */ } noti.unsub = null; }
         noti.name = null;
         noti.unread = 0;
-        hideToast();
+        noti.items = [];
+        noti.markRead = null;
+        closePop(false);
         renderBell();
     }
 
@@ -290,11 +308,12 @@ function start() {
         noti.timer = setTimeout(async () => {
             noti.timer = null;
             try {
-                const { watchNotifications } = await import('./app-shell-noti.js?v=202610211504');
+                const { watchNotifications, markRead } = await import('./app-shell-noti.js?v=202610221215');
                 if (noti.name !== want) return;   // 그 사이 로그아웃·다른 사람
+                noti.markRead = markRead;
+                // 안 읽은 목록은 이 메모리에만 둔다(로그·저장소에 남기지 않는다). 첫 스냅샷·새 알림 모두 팝업을 다시 본다.
                 const unsub = watchNotifications(want, {
-                    onCount: (n) => { noti.unread = n; renderBell(); },
-                    onNew: () => showToast()
+                    onCount: (n, items) => { noti.unread = n; noti.items = Array.isArray(items) ? items : []; renderBell(); refreshPop(); }
                 });
                 if (!unsub) return;
                 if (noti.name !== want) { unsub(); return; }
@@ -306,27 +325,123 @@ function start() {
         }, NOTI_DELAY);
     }
 
-    function hideToast() {
-        if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
-        if (toastHost) { toastHost.remove(); toastHost = null; }
+    // ── 안 읽은 알림 팝업 (2026-10-22) ── 띄울 때 만들고 닫을 때 없앤다. 알림 내용은 화면에만(esc), 로그 X.
+    const popTime = (iso) => {
+        const t = new Date(iso);
+        return Number.isNaN(t.getTime()) ? '' : t.toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+
+    function stopPopWait() {
+        if (popWait) { clearInterval(popWait); popWait = null; }
     }
 
-    function showToast() {
-        hideToast();
-        toastHost = document.createElement('app-shell-toast');
-        const root = toastHost.attachShadow({ mode: 'open' });
-        // role=status 의 output — 봇이 찾는 div[role=dialog]·[data-act]·#toast 와 겹치지 않게
-        root.innerHTML = `<style>${TOAST_CSS}</style>
-            <div class="box">
-                <output role="status">🔔 새 알림이 도착했습니다.</output>
-                <a href="${esc(absUrl(NOTI_LINK, BASE))}">보기</a>
-                <button type="button" class="btn close" aria-label="알림 안내 닫기">${ICON_CLOSE}</button>
-            </div>`;
-        root.querySelector('.close').addEventListener('click', hideToast);
+    // 스냅샷마다 부른다: 띄울 게 있으면 띄우고(다른 창이 떠 있으면 닫힐 때까지 기다림), 떠 있으면 목록만 고친다.
+    function refreshPop() {
+        if (isAutomation() || !noti.name) return;
+        const items = pickPopup(noti.items, loadDismissed());
+        if (popHost) {
+            if (items.length) renderPop(items); else closePop();   // 다른 화면에서 다 읽었다
+            return;
+        }
+        if (!items.length) { stopPopWait(); return; }
+        if (findOpenModal(document)) {
+            if (popWait) return;
+            const until = Date.now() + POP_WAIT_MAX;
+            const who = noti.name;
+            popWait = setInterval(() => {
+                if (noti.name !== who) { stopPopWait(); return; }          // 로그아웃·다른 사람
+                if (findOpenModal(document) && Date.now() < until) return;
+                const timedOut = Date.now() >= until;
+                stopPopWait();
+                if (!timedOut) refreshPop();                                // 그 사이 읽음·닫음이 반영된 목록으로
+            }, POP_WAIT_STEP);
+            return;
+        }
+        stopPopWait();
+        openPop(items);
+    }
+
+    function renderPop(items) {
+        if (!popHost) return;
+        const root = popHost.shadowRoot;
+        popIds = items.map(n => n.id);
+        root.querySelector('h2').textContent = `새 알림 ${items.length}건`;
+        root.querySelector('ul').innerHTML = items.map(n =>
+            `<li><time>${esc(popTime(n.createdAt))}</time><p>${esc(n.message)}</p></li>`).join('');
+    }
+
+    function popLater() {
+        addDismissed(popIds);
+        closePop();
+    }
+
+    async function popConfirm(btn) {
+        const ids = popIds.slice();
+        addDismissed(ids);                 // 읽음 반영이 늦게 와도 다시 뜨지 않게
+        btn.disabled = true;
+        const ok = noti.markRead ? await noti.markRead(ids) : false;
+        if (!ok) console.warn('[app-shell] 알림을 읽음으로 표시하지 못했습니다 — 종 숫자는 그대로 남습니다.');
+        closePop();
+    }
+
+    function onPopKey(e) {
+        if (!popHost || overlayHost || paletteHost) return;   // 서랍·빠른 이동이 위에 있으면 그쪽 키
+        const root = popHost.shadowRoot;
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            // 팝업만 닫는다 — 페이지 모달 ESC(js/modal-esc.js)까지 가지 않게
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            popLater();
+            return;
+        }
+        if (e.key === 'Tab') {
+            // 포커스를 팝업 버튼 안에서만 돈다
+            const els = Array.from(root.querySelectorAll('.b:not([disabled])'));
+            if (!els.length) return;
+            const i = els.indexOf(root.activeElement);
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            els[(i + (e.shiftKey ? -1 : 1) + els.length) % els.length].focus();
+        }
+    }
+
+    function openPop(items) {
+        if (popHost) { renderPop(items); return; }
+        popPrev = deepActive();
+        popHost = document.createElement('app-shell-noti-pop');
+        const root = popHost.attachShadow({ mode: 'open' });
+        root.innerHTML = `<style>${POP_CSS}</style>
+            <div class="scrim"></div>
+            <section class="panel" role="alertdialog" aria-modal="true" aria-labelledby="as-pop-title" aria-describedby="as-pop-list">
+                <header>${ICON_BELL}<h2 id="as-pop-title"></h2></header>
+                <ul id="as-pop-list"></ul>
+                <div class="acts">
+                    <a class="b center" href="${esc(absUrl(NOTI_LINK, BASE))}">알림센터</a>
+                    <button type="button" class="b later">나중에</button>
+                    <button type="button" class="b ok">확인</button>
+                </div>
+            </section>`;
+        renderPop(items);
+        root.querySelector('.scrim').addEventListener('click', popLater);
+        root.querySelector('.later').addEventListener('click', popLater);
+        root.querySelector('.ok').addEventListener('click', (e) => popConfirm(e.currentTarget));
+        root.querySelector('.center').addEventListener('click', () => addDismissed(popIds));   // 대시보드 알림창이 이어받는다
         root.addEventListener('click', interceptLink);
-        document.body.appendChild(toastHost);
+        document.body.appendChild(popHost);
         syncTheme();
-        toastTimer = setTimeout(hideToast, TOAST_MS);
+        window.addEventListener('keydown', onPopKey, true);
+        root.querySelector('.ok').focus({ preventScroll: true });
+    }
+
+    function closePop(restoreFocus = true) {
+        stopPopWait();
+        if (!popHost) return;
+        window.removeEventListener('keydown', onPopKey, true);
+        popHost.remove();
+        popHost = null;
+        popIds = [];
+        const p = popPrev; popPrev = null;
+        if (restoreFocus && p && p.isConnected && typeof p.focus === 'function') { try { p.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } }
     }
 
     // ── 메뉴 서랍 (열 때 만들고 닫을 때 없앤다) ──
@@ -455,7 +570,7 @@ function start() {
             if (!(await runLeaveHooks())) return;   // 취소
             closeMenu();
             closePalette(false);
-            hideToast();
+            closePop(false);
             markLeaveConfirmed();
             location.assign(url);
         } finally {
@@ -471,8 +586,8 @@ function start() {
         if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
         if (!hasHooks()) return;
         const path = e.composedPath();
-        // 셸 자신의 링크(바·서랍·토스트)는 각자 가로챈다
-        if (path.some(n => n && (n === barHost || n === overlayHost || n === toastHost))) return;
+        // 셸 자신의 링크(바·서랍·알림 팝업)는 각자 가로챈다
+        if (path.some(n => n && (n === barHost || n === overlayHost || n === popHost))) return;
         const a = path.find(n => n && n.tagName === 'A' && n.hasAttribute('href'));
         if (!a || a.hasAttribute('download')) return;
         const t = a.getAttribute('target');
@@ -506,7 +621,7 @@ function start() {
             if (!(await runLeaveHooks())) return;
             closeMenu();
             closePalette(false);
-            hideToast();
+            closePop(false);
             markLeaveConfirmed();
             if (openerIsDashboard()) {
                 try { window.opener.focus(); } catch (e) { /* 무시 */ }

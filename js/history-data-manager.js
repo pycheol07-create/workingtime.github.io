@@ -1,11 +1,11 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610211504';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610211504';
-import { clampOpenRecords } from './lib/record-close.js?v=202610211504';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610211504';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610211504';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610211504';
-import { can } from './lib/perm.js?v=202610211504';
+import * as State from './state.js?v=202610221215';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610221215';
+import { clampOpenRecords } from './lib/record-close.js?v=202610221215';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610221215';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610221215';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610221215';
+import { can } from './lib/perm.js?v=202610221215';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
