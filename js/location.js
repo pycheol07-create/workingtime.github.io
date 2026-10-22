@@ -1,22 +1,22 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610221624';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610221642';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610221624';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610221624';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610221624';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610221624';
-import { orderKeyMap } from './lib/order-hash.js?v=202610221624';
-import { setShellContext } from './app-shell-bridge.js?v=202610221624';
-import { memberNameFor } from './app-shell-data.js?v=202610221624';
-import { menuConfigOf } from './lib/perm.js?v=202610221624';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610221624';
-import { initPageNav } from './page-nav.js?v=202610221624';
-import { initRefillCard } from './refill-card.js?v=202610221624';
-import { initLocRecCard } from './locrec-card.js?v=202610221624';
-import { whenPerm } from './feature-gate.js?v=202610221624';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610221624';
-import { uploadBlockText } from './lib/busy-view.js?v=202610221624';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610221624';
+import { escapeHtml as escAttr } from './utils.js?v=202610221642';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610221642';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610221642';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610221642';
+import { orderKeyMap } from './lib/order-hash.js?v=202610221642';
+import { setShellContext } from './app-shell-bridge.js?v=202610221642';
+import { memberNameFor } from './app-shell-data.js?v=202610221642';
+import { menuConfigOf } from './lib/perm.js?v=202610221642';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610221642';
+import { initPageNav } from './page-nav.js?v=202610221642';
+import { initRefillCard } from './refill-card.js?v=202610221642';
+import { initLocRecCard } from './locrec-card.js?v=202610221642';
+import { whenPerm } from './feature-gate.js?v=202610221642';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610221642';
+import { uploadBlockText } from './lib/busy-view.js?v=202610221642';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610221642';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -332,6 +332,11 @@ function setupRealtimeListenerB() {
                 try {
                     let chunk = JSON.parse(data.dataStr);
                     chunk.forEach(row => {
+                        // 시트에서 붙여넣은 코드에 탭·공백이 섞여 오는 일이 있다(예: 탭+S623811) — 글자 비교라
+                        // 이미 배정된 상품이 '배정 전'으로 선지정 목록에 보였다(2026-10-22). 코드 칸은 읽을 때 공백을 걷어낸다.
+                        for (const k of ['상품코드', '어드민상품코드', '대표상품코드', '품목코드', '바코드', '상품번호']) {
+                            if (row[k] != null) row[k] = String(row[k]).replace(/\s+/g, '');
+                        }
                         let code = (row['상품코드'] || row['어드민상품코드'] || row['대표상품코드'] || row['품목코드'] || row['바코드'] || row['상품번호']);
                         if(code) {
                             incomingData[code] = row;
@@ -2492,8 +2497,8 @@ window.applyAllRecommendations = async function() {
         
         const existingLocMap = {};
         originalData.forEach(loc => {
-            if (loc.preAssigned && loc.preAssignedCode) existingLocMap[loc.preAssignedCode] = true;
-            if (loc.code && loc.code !== loc.id) existingLocMap[loc.code] = true;
+            if (loc.preAssigned && loc.preAssignedCode) existingLocMap[String(loc.preAssignedCode).replace(/\s+/g, '')] = true;
+            if (loc.code && loc.code !== loc.id) existingLocMap[String(loc.code).replace(/\s+/g, '')] = true;
         });
         
         const _today = toDateStr();
@@ -2503,7 +2508,7 @@ window.applyAllRecommendations = async function() {
         
         list = list.filter(item => {
             if (filterSource !== 'all' && item.source !== filterSource) return false;
-            if (existingLocMap[item['상품코드']]) return false;
+            if (existingLocMap[(item['상품코드'] || item['어드민상품코드'] || item['대표상품코드'] || item['품목코드'] || item['바코드'] || item['상품번호'])]) return false;   // 목록 키와 같은 코드 칸 순서
             if (!item['표시날짜'] || item['표시날짜'].toString().trim() === '') return false;
             const arrivalDate = (item['도착예상일'] || item['표시날짜'] || '').toString().trim();
             if (arrivalDate && arrivalDate < _today) return false;
@@ -4051,7 +4056,8 @@ window.handleRowClick = async function(event, locId) {
         const zoneDocId = getZoneDocId(locId);
 
         if (loc.preAssigned) { 
-            if (loc.preAssignedCode === window.selectedPreAssignItem.code) {
+            // 공백 무시 비교 — 예전에 탭이 붙은 채 저장된 선지정도 같은 상품으로 본다(2026-10-22)
+            if (String(loc.preAssignedCode || '').replace(/\s+/g, '') === String(window.selectedPreAssignItem.code || '').replace(/\s+/g, '')) {
                 if (confirm(`이미 '${loc.preAssignedCode}' 상품으로 선지정된 자리입니다.\n지정을 해제(취소)하시겠습니까?`)) {
                     try {
                         await setDoc(doc(db, LOC_COLLECTION, zoneDocId), {
@@ -6061,8 +6067,8 @@ window.renderIncomingQueue = function() {
 
     let existingLocMap = {}; 
     originalData.forEach(loc => {
-        if(loc.preAssigned && loc.preAssignedCode) existingLocMap[loc.preAssignedCode] = true;
-        if(loc.code && loc.code !== loc.id) existingLocMap[loc.code] = true;
+        if(loc.preAssigned && loc.preAssignedCode) existingLocMap[String(loc.preAssignedCode).replace(/\s+/g, '')] = true;
+        if(loc.code && loc.code !== loc.id) existingLocMap[String(loc.code).replace(/\s+/g, '')] = true;
     });
 
     let list = [];
@@ -6072,7 +6078,7 @@ window.renderIncomingQueue = function() {
     const _today = toDateStr();
     list = list.filter(item => {
         if(filterSource !== 'all' && item.source !== filterSource) return false;
-        if(existingLocMap[item['상품코드']]) return false; 
+        if(existingLocMap[(item['상품코드'] || item['어드민상품코드'] || item['대표상품코드'] || item['품목코드'] || item['바코드'] || item['상품번호'])]) return false;   // 목록 키와 같은 코드 칸 순서
         
         if(!item['표시날짜'] || item['표시날짜'].toString().trim() === '') return false;
         

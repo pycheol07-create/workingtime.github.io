@@ -1,8 +1,8 @@
 // === js/inspection-excel.js ===
-import * as State from './state.js?v=202610221624';
-import { updateDailyData } from './app-data.js?v=202610221624';
-import { showToast, getTodayDateString } from './utils.js?v=202610221624';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610221624';
+import * as State from './state.js?v=202610221642';
+import { updateDailyData } from './app-data.js?v=202610221642';
+import { showToast, getTodayDateString } from './utils.js?v=202610221642';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610221642';
 
 export const handleExcelUpload = (file) => {
     let packingDate = getTodayDateString();
