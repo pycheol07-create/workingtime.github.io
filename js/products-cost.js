@@ -8,13 +8,14 @@
 import {
     doc, getDoc, getDocs, collection, query, where, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610221432';
-import { esc, toast } from './products.js?v=202610221432';
-import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=202610221432';
-import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=202610221432';
-import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=202610221432';
-import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=202610221432';
-import { stripCheckMemo } from './lib/product-ezadmin.js?v=202610221432';
+import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610221532';
+import { esc, toast } from './products.js?v=202610221532';
+import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=202610221532';
+import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=202610221532';
+import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=202610221532';
+import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=202610221532';
+import { friendlyFirebaseError } from './utils.js?v=202610221532';   // 원시 오류 코드 대신 할 일 한 줄
+import { stripCheckMemo } from './lib/product-ezadmin.js?v=202610221532';
 
 export const C = { costs: null, ledger: null };
 
@@ -183,7 +184,7 @@ export function renderCostCard(container, pid, p, onSaved) {
             console.error('[products] 원가 저장 실패:', e && e.code);
             q('save').disabled = false;
             msg.className = 'pd-note pd-err';
-            msg.textContent = '저장 실패' + (e && e.code ? ` (${e.code})` : '');
+            msg.textContent = '저장 실패 — ' + friendlyFirebaseError(e);
         }
     });
 }
@@ -205,7 +206,7 @@ export async function renderCostHistory(container, pid) {
         container.querySelector('.pd-note').outerHTML = items.length ? `<ol class="pd-hist">${items.join('')}</ol>` : '<div class="pd-note" style="margin-top:12px">이력이 없습니다</div>';
     } catch (e) {
         const prep = e && e.code === 'failed-precondition';
-        container.querySelector('.pd-note').textContent = prep ? '이력 색인 준비 중 — 관리자가 Firestore 색인을 만들면 보입니다' : `이력을 읽지 못했습니다 (${(e && e.code) || '오류'})`;
+        container.querySelector('.pd-note').textContent = prep ? '이력 색인 준비 중 — 관리자가 Firestore 색인을 만들면 보입니다' : `이력을 읽지 못했습니다 — ${friendlyFirebaseError(e)}`;
     }
 }
 
@@ -226,7 +227,7 @@ export async function renderCostLog(main) {
             ? `<div class="pd-scroll" style="margin-top:12px"><table class="pd-t pd-t-sm" style="min-width:760px"><thead><tr><th>시각</th><th>누가</th><th>방식</th><th class="r">품목</th><th>바뀐 것</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`
             : '<div class="pd-note" style="margin-top:12px">이력이 없습니다</div>';
     } catch (e) {
-        main.querySelector('#pd-cl').textContent = `이력을 읽지 못했습니다 (${(e && e.code) || '오류'})`;
+        main.querySelector('#pd-cl').textContent = `이력을 읽지 못했습니다 — ${friendlyFirebaseError(e)}`;
     }
 }
 
@@ -273,7 +274,7 @@ export function renderSuppliers(main) {
             renderSuppliers(main);
         } catch (err) {
             console.error('[products] 공급처 저장 실패:', err && err.code);
-            toast('저장 실패' + (err && err.code ? ` (${err.code})` : ''));
+            toast('저장 실패 — ' + friendlyFirebaseError(err));
             b.disabled = false;
         }
     });

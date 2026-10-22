@@ -296,7 +296,9 @@ const AdminPage = ({ onClose }) => {
             onClose();
         } catch (e) {
             console.warn('공용 설정 저장 실패:', e && e.code ? e.code : e);
-            alert('공용 설정 저장에 실패했습니다 — 아무것도 저장하지 않았습니다.\n잠시 뒤 다시 저장해 보세요.' + (e && e.code ? ` (${e.code})` : ''));
+            // 원시 오류 코드 대신 한국어 이유(shared-settings.js errText 와 같은 말)
+            const why = (e && e.code === 'permission-denied') ? '저장 권한이 없습니다(등록된 직원 계정으로 로그인했는지 확인).' : '네트워크·서버 오류일 수 있습니다.';
+            alert('공용 설정 저장에 실패했습니다 — 아무것도 저장하지 않았습니다.\n' + why + '\n잠시 뒤 다시 저장해 보세요.');
         } finally {
             setSaving(false);
         }

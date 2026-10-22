@@ -1,10 +1,10 @@
 // === js/ui-history-milestones.js ===
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
-import * as State from './state.js?v=202610221432';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610221432';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202610221432';
-import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=202610221432';
+import * as State from './state.js?v=202610221532';
+import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError } from './utils.js?v=202610221532';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610221532';
+import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=202610221532';
 import {
     doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -300,7 +300,7 @@ async function saveMilestone() {
         modal.classList.add('hidden'); modal.classList.remove('flex');
     } catch (e) {
         console.error('milestone save error:', e);
-        showToast('저장 실패: ' + (e.message || e), true);
+        showToast('저장 실패 — ' + friendlyFirebaseError(e), true);
     }
 }
 
@@ -313,7 +313,7 @@ async function deleteMilestone(id) {
         modal.classList.add('hidden'); modal.classList.remove('flex');
     } catch (e) {
         console.error('milestone delete error:', e);
-        showToast('삭제 실패: ' + (e.message || e), true);
+        showToast('삭제 실패 — ' + friendlyFirebaseError(e), true);
     }
 }
 
@@ -720,7 +720,7 @@ export async function renderMilestonesInsightWidget(containerEl) {
             snap.forEach(d => _milestones.push({ id: d.id, ...d.data() }));
             _milestones.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         } catch (e) {
-            containerEl.innerHTML = `<div class="text-xs text-red-500">마일스톤 로드 실패: ${escapeHtml(e.message || e)}</div>`;
+            containerEl.innerHTML = `<div class="text-xs text-red-500">마일스톤을 불러오지 못했습니다 — ${escapeHtml(friendlyFirebaseError(e))}</div>`;
             return;
         }
     }

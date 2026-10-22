@@ -2,13 +2,14 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <script src="js/theme-boot.js?v=202610221532"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 미발계산기</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610221432">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610221432">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610221432">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610221432">
+    <link rel="stylesheet" href="css/suit.css?v=202610221532">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610221532">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610221532">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610221532">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -61,7 +62,7 @@
         .col-filter-pop .cfp-allrow { border-bottom: 1px solid var(--c-line-soft); margin-bottom: 2px; }
         .col-filter-pop .cfp-btns { display: flex; gap: 5px; margin-top: 8px; }
         .col-filter-pop .cfp-btns button { flex: 1; padding: 7px 0; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-text); border-radius: var(--r-pill); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-        .col-filter-pop .cfp-btns button.primary { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+        .col-filter-pop .cfp-btns button.primary { background: var(--c-accent); color: var(--c-on-fill,#fff); border-color: var(--c-accent); }
         .editable-cell { cursor: text; background: var(--c-surface-2); }
         .code-cell { font-weight: 600; color: var(--c-accent-deep); cursor: copy; }
 
@@ -77,6 +78,8 @@
 
         #toast { visibility: hidden; min-width: 250px; background-color: var(--c-text); color: #fff; text-align: center; border-radius: var(--r-inner); padding: 12px; position: fixed; z-index: 10001; left: 50%; bottom: 50px; transform: translateX(-50%); opacity: 0; transition: 0.3s; }
         #toast.show { visibility: visible; opacity: 1; }
+        /* 다크(2026-10-22) — 토큰은 css/d-theme.css html.dark. 토스트는 글자색 토큰을 바탕으로 쓰므로 따로 */
+        html.dark #toast { background-color: #2A3038; color: var(--c-text); border: 1px solid var(--c-line-strong); }
 
         /* 머리줄 메뉴 (다운로드 / 환경설정) — 색만. 표시는 JS 인라인 display */
         .upload-menu { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner); box-shadow: var(--sh-pop); overflow: hidden; }
@@ -175,7 +178,7 @@
             <input type="text" id="search-input" class="search-input" placeholder="상품코드/상품명 검색" style="width: 180px;">
         </div>
         <div class="header-actions">
-            <button id="btn-scan-lock" class="d-btn d-btn-risk" title="스캔 잠금: 새로고침·업로드·초기화 등 모든 기능을 잠가 작업자 스캔 중 ScanDB를 보호">스캔잠금</button>
+            <button id="btn-scan-lock" class="d-btn d-btn-risk" title="스캔 잠금: 새로고침·업로드·초기화 등 모든 기능을 잠가 작업자 스캔 중 스캔 자료를 보호">스캔잠금</button>
             <button id="btn-open-scanner" class="d-btn" title="입고 스캐너(scan.html)를 새 창으로 엽니다">스캐너 열기</button>
             <!-- 미발재고로그 올리기 — 매일 첫 작업이라 메뉴 안이 아니라 머리줄 주 버튼(UX 개선 9번). 스캔잠금 오버레이(#scan-lock-overlay)가 화면 전체를 덮어 잠금 중엔 못 누른다 -->
             <label class="mode-mibal d-btn d-btn-primary" id="btn-upload-stock-log" style="display:inline-block;" title="이지어드민 현재고조회 파일(미발재고로그)을 올립니다">미발재고로그 올리기<input type="file" id="upload-stock-log" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
@@ -194,7 +197,7 @@
             <div class="upload-dropdown mode-mibal" style="position: relative; display: inline-block;">
                 <button class="btn-main-upload d-btn" id="btn-toggle-tools">도구 ▾</button>
                 <div class="upload-menu" id="tools-menu" style="display: none; position: absolute; top: 100%; right: 0; z-index: 10001; width: 240px;">
-                    <div class="menu-item mode-mibal" id="btn-version-history" title="스캔 기록 버전 / 롤백 — 미발재고로그 업로드마다 자동 저장, 문제 시 원하는 시점으로 복원" style="display: block;">버전기록 (롤백)</div>
+                    <div class="menu-item mode-mibal" id="btn-version-history" title="스캔 기록 버전 / 되돌리기 — 미발재고로그 업로드마다 자동 저장, 문제 시 원하는 시점으로 복원" style="display: block;">버전기록 (되돌리기)</div>
                     <div class="menu-item mode-mibal" id="btn-mibal-predict" style="display: block;">미발예측</div>
                 </div>
             </div>
@@ -238,7 +241,7 @@
                 <button id="btn-version-manual" class="d-btn d-btn-primary">현재 저장</button>
                 <button id="btn-version-close" class="d-btn">닫기</button>
             </div>
-            <div style="padding:9px 15px; background:var(--c-warn-bg); font-size:12px; color:var(--c-warn-text); border-bottom:1px solid var(--c-warn-line); line-height:1.55;">미발재고로그 업로드마다 자동 저장 · <b>당일(오늘) 버전만 보관</b>(새 입고일 작업 시작 시 이전 날 자동 정리). <b>롤백하면</b> 그 시점 미발수량으로 복원되고 <b>자동 스캔잠금</b>이 걸립니다.</div>
+            <div style="padding:9px 15px; background:var(--c-warn-bg); font-size:12px; color:var(--c-warn-text); border-bottom:1px solid var(--c-warn-line); line-height:1.55;">미발재고로그 업로드마다 자동 저장 · <b>당일(오늘) 버전만 보관</b>(새 입고일 작업 시작 시 이전 날 자동 정리). <b>되돌리면</b> 그 시점 미발수량으로 복원되고 <b>자동 스캔잠금</b>이 걸립니다.</div>
             <div id="version-list" style="overflow-y:auto; flex:1;"></div>
         </div>
     </div>
@@ -275,10 +278,10 @@
         <button class="loc-subtab" data-sub="today">당일입고지정</button>
         <button class="loc-subtab" data-sub="existing">기존재고지정</button>
     </div>
-    <!-- 당일입고지정 안내 + 다운로드 (당일 서브뷰 전용) -->
+    <!-- 당일입고지정 안내 + 위치값 엑셀 받기 (당일 서브뷰 전용) -->
     <div id="loc-tools-today" class="loc-today-only" style="gap:10px; align-items:center; flex-wrap:wrap; padding:10px 16px; background:var(--c-surface); border-bottom:1px solid var(--c-line);">
-        <button id="btn-loc-download-today" class="d-btn d-btn-primary">옵션추가항목1 다운로드</button>
-        <span class="t-2" style="font-size:12px;">※ 위치 지정은 스캐너(위 [스캐너 열기])의 '당일 입고분' 모드로. 아래 목록 맨 위 <b>장미색 줄</b>은 비축창고에 들어갔는데 <b>자리 미지정</b>인 상품입니다. 다 지정한 뒤 <b>[옵션추가항목1 다운로드]</b>로 받으세요.</span>
+        <button id="btn-loc-download-today" class="d-btn d-btn-primary" title="상품코드 + 위치값(이지어드민 옵션추가항목1 칸) 엑셀 — 이지어드민에 올리는 파일">위치값 엑셀 받기</button>
+        <span class="t-2" style="font-size:12px;">※ 위치 지정은 스캐너(위 [스캐너 열기])의 '당일 입고분' 모드로. 아래 목록 맨 위 <b>장미색 줄</b>은 비축창고에 들어갔는데 <b>자리 미지정</b>인 상품입니다. 다 지정한 뒤 <b>[위치값 엑셀 받기]</b>로 받으세요.</span>
     </div>
 
     <div class="list-container">
@@ -309,15 +312,15 @@
     <!-- [Ver 7.1] 기존재고지정 패널 (인라인) -->
     <div id="existing-panel" class="loc-existing-only" style="padding:14px 16px;">
         <div class="d-note" style="margin-bottom:10px;">
-            <b>스캐너로 전송된 기존재고 상품</b>이 표시됩니다(이미 있던 위치를 다시 찍어도 전송 확인용으로 보임). <b>[기존재고 업로드]</b>로 현재 옵션추가항목1을 세팅 → 스캐너 <b>'기존재고'</b> 모드로 위치 전송 → <b>[옵션추가항목1 다운로드]</b>로 받아 이지어드민에 업로드하세요.<br>
-            다운로드 전에 각 행의 <b>✏️</b>로 위치값을 고치거나 <b>🗑️</b>로 목록에서 제외할 수 있습니다.<br>
-            <span class="d-pill-ok" style="padding:0 6px;">청록</span> = 새로 추가된 자리 · 회색 = 기존 자리 · <span class="d-pill-warn" style="padding:0 6px;">파일에 없던 상품</span> = 시드에 없어 기존 위치 모름(다운로드 시 주의)
+            <b>스캐너로 전송된 기존재고 상품</b>이 표시됩니다(이미 있던 위치를 다시 찍어도 전송 확인용으로 보임). <b>[기존재고 업로드]</b>로 현재 위치값(이지어드민 옵션추가항목1 칸)을 세팅 → 스캐너 <b>'기존재고'</b> 모드로 위치 전송 → <b>[위치값 엑셀 받기]</b>로 받아 이지어드민에 업로드하세요.<br>
+            받기 전에 각 행의 <b>✏️</b>로 위치값을 고치거나 <b>🗑️</b>로 목록에서 제외할 수 있습니다.<br>
+            <span class="d-pill-ok" style="padding:0 6px;">청록</span> = 새로 추가된 자리 · 회색 = 기존 자리 · <span class="d-pill-warn" style="padding:0 6px;">파일에 없던 상품</span> = 시드에 없어 기존 위치 모름(받기 시 주의)
         </div>
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
             <label class="d-btn">기존재고 업로드<input type="file" id="upload-existing-loc" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
-            <button id="btn-locmove-download" class="d-btn d-btn-primary">옵션추가항목1 다운로드</button>
+            <button id="btn-locmove-download" class="d-btn d-btn-primary" title="상품코드 + 위치값(이지어드민 옵션추가항목1 칸) 엑셀 — 이지어드민에 올리는 파일">위치값 엑셀 받기</button>
             <button id="btn-locmove-reset" class="d-btn d-btn-risk">초기화</button>
-            <label style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:bold; color:var(--c-text-2); cursor:pointer; white-space:nowrap;" title="체크하면 다운로드 시 새로 추가된 자리를 기존 위치의 맨앞에 놓습니다 (기본: 맨뒤)"><input type="checkbox" id="chk-newloc-front" style="width:16px; height:16px; cursor:pointer;">새 위치 맨앞으로</label>
+            <label style="display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:bold; color:var(--c-text-2); cursor:pointer; white-space:nowrap;" title="체크하면 받기 시 새로 추가된 자리를 기존 위치의 맨앞에 놓습니다 (기본: 맨뒤)"><input type="checkbox" id="chk-newloc-front" style="width:16px; height:16px; cursor:pointer;">새 위치 맨앞으로</label>
             <input id="lm-search" placeholder="상품코드/위치" style="flex:1; min-width:120px; padding:7px 12px; border:1px solid var(--c-line-strong); border-radius:var(--r-pill); font-size:13px;">
             <span id="lm-count" class="t-3" style="font-size:12px; white-space:nowrap;"></span>
         </div>
@@ -455,7 +458,7 @@
             </div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
                 <label class="d-btn">파일 업로드<input type="file" id="upload-barcode-alias" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
-                <button id="btn-barcode-alias-download" class="d-btn">목록 다운로드</button>
+                <button id="btn-barcode-alias-download" class="d-btn">목록 받기</button>
                 <button id="btn-barcode-alias-clear" class="d-btn d-btn-risk">전체 삭제</button>
             </div>
             <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
@@ -496,7 +499,7 @@
             </div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
                 <label class="d-btn">파일 업로드<input type="file" id="upload-location-map" accept=".xls,.xlsx,.csv,.html" style="display:none;"></label>
-                <button id="btn-locmap-download" class="d-btn">목록 다운로드</button>
+                <button id="btn-locmap-download" class="d-btn">목록 받기</button>
                 <button id="btn-locmap-clear" class="d-btn d-btn-risk">전체 삭제</button>
             </div>
             <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center;">
@@ -534,7 +537,7 @@
                 · <b>평균상승률</b>은 상승률이 <b>1~100%</b>인 패킹만 평균(이상치 제외, 시트 AVERAGEIFS와 동일). 표의 상승률은 실제값 그대로 표시
             </div>
             <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
-                <button id="btn-mp-download" class="d-btn d-btn-sm">다운로드</button>
+                <button id="btn-mp-download" class="d-btn d-btn-sm">받기</button>
                 <input id="mp-search" placeholder="출고일/입고일 검색" style="flex:1; min-width:0; padding:7px 10px; border:1px solid var(--c-line-strong); border-radius:var(--r-sm); font-size:13px;">
             </div>
             <div style="max-height:56vh; overflow:auto; border:1px solid var(--c-line); border-radius:var(--r-sm);">
@@ -558,13 +561,13 @@
     </div>
 
     <div id="toast"></div>
-    <script src="js/modal-esc.js?v=202610221432"></script>
+    <script src="js/modal-esc.js?v=202610221532"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- ?v= 는 버전 배지와 함께 올려서 브라우저가 옛 JS 캐시를 쓰지 않게 함 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610221432"></script>
-    <script type="module" src="js/china-stock-goods.js?v=202610221432"></script>
-    <script type="module" src="js/modal-drag.js?v=202610221432"></script>
-    <script type="module" src="js/page-gate.js?v=202610221432" data-perm-page="china.mibal"></script>
-    <script type="module" src="js/app-shell.js?v=202610221432"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610221532"></script>
+    <script type="module" src="js/china-stock-goods.js?v=202610221532"></script>
+    <script type="module" src="js/modal-drag.js?v=202610221532"></script>
+    <script type="module" src="js/page-gate.js?v=202610221532" data-perm-page="china.mibal"></script>
+    <script type="module" src="js/app-shell.js?v=202610221532"></script>
 </body>
 </html>

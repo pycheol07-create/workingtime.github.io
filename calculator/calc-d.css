@@ -3,7 +3,7 @@
    - 모든 규칙은 범위 루트 #calc-root(index.html 의 body) 접두.
      ID 명시도로 Tailwind CDN(뒤에 주입됨)의 .x / .hover\:x:hover 를 이긴다.
      효율분석 모달(createPortal)·PDF 복제본(document.body 에 붙임)도 body 아래라 같이 칠해진다.
-   - 라이트 전용(다크 없음 — 미발계산기 d-theme.css 와 같은 방침).
+   - 다크(2026-10-22~): html.dark(../js/theme-boot.js) 일 때 아래 html.dark #calc-root 가 토큰을 덮는다. PDF 복제본(.calc-pdf-light)은 밝게.
    - 토큰은 범위 루트에 둔다(값은 history-d.css 사본 — 값을 바꾸면
      location·dash-d·d-theme·history-d·form-d·admin-d·products-d·tool-d·manual-d·calc-d 10곳).
    - ⚠ display 를 넣지 않는다. 탭 sm:hidden / hidden sm:inline, 접힘 영역을 ID 명시도로 이겨 버린다.
@@ -38,6 +38,24 @@
 }
 /* 튐 스크롤에서 html 바탕이 비치지 않게 */
 html:has(> body#calc-root) { background-color: #F5F6F8; }
+/* 다크 — 값은 form-d.css·history-d.css 다크 토큰 사본 */
+html.dark #calc-root {
+    --c-bg: #111418; --c-surface: #1A1E24; --c-surface-2: #20252C; --c-track: #2A3038;
+    --c-line: #2C323A; --c-line-soft: #242A31; --c-line-strong: #3A414B;
+    --c-text: #E6E8EC; --c-text-2: #A9B0BA; --c-text-3: #959DA8;   /* 대시보드 다크(#7D8590)보다 밝게 — 회색 칸 위 4.5:1 */ --c-text-4: #4A515B;
+    --c-accent: #6E95E6; --c-accent-deep: #A9C1F2; --c-accent-mid: #4F73BF; --c-accent-light: rgba(110,149,230,.35);
+    --c-accent-soft: rgba(47,98,201,.22); --c-accent-row: rgba(47,98,201,.12);
+    --c-ok-text: #8CC9C0; --c-ok-soft: rgba(90,158,150,.18);
+    --c-warn-text: #E2BE8C; --c-warn-soft: rgba(210,162,102,.18); --c-warn-bg: rgba(210,162,102,.10);
+    --c-risk-text: #E0A3AB; --c-risk-soft: rgba(201,128,138,.18); --c-risk-row: rgba(201,128,138,.10);
+    --sh-tab: 0 1px 2px rgba(0,0,0,.40); --sh-pop: 0 8px 24px rgba(0,0,0,.50);
+    --c-ok-line: rgba(90,158,150,.35); --c-risk-line: rgba(201,128,138,.35); --c-warn-line: rgba(210,162,102,.35);
+    --c-ink: #2A3038; --c-scrim: rgba(0,0,0,.60);
+    --c-accent-strong: #2F62C9;
+    --c-nav: #C5CAD2;
+    color-scheme: dark;   /* 숫자·날짜·선택 칸 기본 아이콘·스크롤바 */
+}
+html.dark:has(> body#calc-root) { background-color: #111418; }
 
 /* ── 표 숫자 자리 맞춤 ── */
 #calc-root :is(td, th) { font-variant-numeric: tabular-nums; }
@@ -172,3 +190,21 @@ html:has(> body#calc-root) { background-color: #F5F6F8; }
 #calc-root .rounded-t-2xl { border-top-left-radius: var(--r-card); border-top-right-radius: var(--r-card); }
 #calc-root .rounded-xl { border-radius: var(--r-inner); }
 #calc-root button:is(.rounded, .rounded-md, .rounded-lg) { border-radius: var(--r-pill); }
+/* ── 다크 손 규칙 (2026-10-22) ── */
+/* 흰 글자 버튼(bg-emerald-600 text-white) — 다크의 밝은 파랑(--c-accent) 위 흰 글자는 대비 부족 → 진한 파랑 */
+html.dark #calc-root .bg-emerald-600 { background-color: var(--c-accent-strong); }
+html.dark #calc-root .hover\:bg-emerald-700:hover { background-color: #1E4699; }
+/* 효율분석 PDF 복제본(EfficiencyAnalysis.js 가 .calc-pdf-light 를 붙임) — 인쇄물은 다크에서도 밝게 */
+html.dark #calc-root .calc-pdf-light {
+    --c-bg: #F5F6F8; --c-surface: #FFFFFF; --c-surface-2: #F7F8FA; --c-track: #EEF0F4;
+    --c-line: #E6E8EC; --c-line-soft: #F0F2F5; --c-line-strong: #D6DAE0;
+    --c-text: #23272E; --c-text-2: #646B75; --c-text-3: #69707A; --c-text-4: #CDD2D9;
+    --c-accent: #2F62C9; --c-accent-deep: #1E4699; --c-accent-mid: #7FA1E6; --c-accent-light: #C4D4F5; --c-accent-soft: #EAF0FD; --c-accent-row: #F3F6FD;
+    --c-ok-text: #3D756F; --c-ok-soft: #E5F0EE;
+    --c-warn-text: #8A5E28; --c-warn-soft: #F4EADB; --c-warn-bg: #F9F4EC;
+    --c-risk-text: #A0525C; --c-risk-soft: #F4E3E5; --c-risk-row: #FAF4F5;
+    --c-ok-line: #CFE3E0; --c-risk-line: #EBCDD1; --c-warn-line: #EBDDC6;
+    --c-ink: #23272E; --c-scrim: rgba(30,40,60,.45); --c-accent-strong: #1E4699; --c-nav: #3A4049;
+    color: var(--c-text);
+    color-scheme: light;
+}

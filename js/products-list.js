@@ -3,12 +3,12 @@
 //
 // 3,768행을 한 번에 그리지 않는다(50행씩). 추가 읽기 없음 — 전부 products-store.js 가 받아 둔 메모리에서.
 // 관리자 열(공급처·기본 단가)은 관리자일 때만 **만든다**(숨김 아님). 원가 값은 products-cost.js 메모리에만 있다.
-import { S, locSummary } from './products-store.js?v=202610221432';
-import { C, costOf } from './products-cost.js?v=202610221432';
-import { esc, toast } from './products.js?v=202610221432';
-import { loadXLSX } from './products-excel.js?v=202610221432';
-import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610221432';
-import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610221432';
+import { S, locSummary } from './products-store.js?v=202610221532';
+import { C, costOf } from './products-cost.js?v=202610221532';
+import { esc, toast } from './products.js?v=202610221532';
+import { loadXLSX } from './products-excel.js?v=202610221532';
+import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610221532';
+import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610221532';
 
 // 한 쪽에 보이는 상품 수 — 사용자가 고른다(이 브라우저에 기억). 'all' = 전체
 const PAGE_SIZES = [20, 50, 100, 200, 500, 'all'];
@@ -24,6 +24,8 @@ const F = { q: '', cat: '', status: '', gone: false, noPrice: false, optDiff: fa
             cf: {},       // 머리글 필터 { 열key: {q} | {excl:Set(해제한 값)} | {min,max,empty} }
             size: loadPageSize() };   // 한 쪽 상품 수(20·50·…·'all')
 const searchKey = new WeakMap();
+// 상세로 가기 전 목록 스크롤 위치 — 목록으로 돌아오면 그 자리로 되돌린다(한 번 쓰고 비운다)
+let listScrollTop = null;
 
 const todayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
 const activeOpts = (p) => p.o.filter(o => !o[4]);
@@ -374,8 +376,20 @@ export function renderList(main) {
     });
     window.addEventListener('hashchange', closeColPop, { once: true });
     draw();
+    if (listScrollTop !== null) {
+        main.querySelector('.pd-list-scroll').scrollTop = listScrollTop;
+        listScrollTop = null;
+    }
     let t = null;
     main.querySelector('#pd-q').addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { F.q = e.target.value; redo(false); }, 200); });
+    // Enter — 결과가 1건이면 바로 상세를 연다(바코드 스캐너는 코드를 친 뒤 Enter 를 보낸다)
+    main.querySelector('#pd-q').addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || e.isComposing) return;
+        e.preventDefault();
+        clearTimeout(t);
+        if (F.q !== e.target.value) { F.q = e.target.value; redo(false); }   // 200ms 기다리지 않고 바로 거른다
+        if (rows.length === 1) location.hash = 'p=' + encodeURIComponent(rows[0][0]);
+    });
     main.querySelector('#pd-filters').addEventListener('click', (e) => {
         const b = e.target.closest('button'); if (!b) return;
         if (b.dataset.act === 'clearcf') { F.cf = {}; F.sort = null; closeColPop(); redo(); return; }
@@ -404,7 +418,11 @@ export function renderList(main) {
     });
     main.querySelector('#pd-prev').addEventListener('click', () => { F.page--; draw(); main.querySelector('.pd-list-scroll').scrollTop = 0; });
     main.querySelector('#pd-next').addEventListener('click', () => { F.page++; draw(); main.querySelector('.pd-list-scroll').scrollTop = 0; });
-    const open = (tr) => { if (tr) location.hash = 'p=' + encodeURIComponent(tr.dataset.pid); };
+    const open = (tr) => {
+        if (!tr) return;
+        listScrollTop = main.querySelector('.pd-list-scroll').scrollTop;
+        location.hash = 'p=' + encodeURIComponent(tr.dataset.pid);
+    };
     main.querySelector('#pd-tbody').addEventListener('click', (e) => open(e.target.closest('tr[data-pid]')));
     main.querySelector('#pd-tbody').addEventListener('keydown', (e) => { if (e.key === 'Enter') open(e.target.closest('tr[data-pid]')); });
 }

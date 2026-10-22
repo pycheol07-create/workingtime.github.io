@@ -18,6 +18,8 @@
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221532';
+import { writeHash } from './hash-state.js?v=202610221532';
 
 const SECTION_ID = 'section-refill';
 const 문서경로 = ['adminPrivate', 'refillSettings'];
@@ -27,6 +29,11 @@ let 시작됨 = false;
 let db = null;
 let auth = null;
 let 불러옴 = false;
+// 저장 안 한 변경 — 이 탭은 [전체 저장] 대상이 아니라(admin.js adminDirty 가 세지 않음) 따로 센다.
+// 불러온 뒤 칸을 바꾸면 서고, 저장 성공·다시 불러오기 때 내린다. 다른 탭으로 가거나 페이지를 떠날 때 묻는다.
+let 바뀜 = false;
+const 떠남확인글 = '채우기 설정에 저장하지 않은 변경이 있습니다.\n저장하지 않고 떠날까요? (바꾼 값은 버립니다)';
+const 지금보임 = () => { const s = document.getElementById(SECTION_ID); return !!(s && !s.classList.contains('hidden')); };
 
 const $ = (id) => document.getElementById(id);
 const 입력들 = () => [$('refill-enabled'), $('refill-skip-holidays'),
@@ -113,6 +120,7 @@ async function 불러오기() {
             상태('아직 저장된 설정이 없어 기본값을 보여 줍니다(자동화도 이 기본값을 씁니다). [저장] 을 누르면 문서가 생깁니다.', 'warn');
         }
         불러옴 = true;
+        바뀜 = false;
         입력들().forEach((el) => { el.disabled = false; });
     } catch (e) {
         const code = (e && e.code) || '';
@@ -138,6 +146,7 @@ async function 저장() {
             enabled: s.enabled, days: s.days, skipHolidays: s.skipHolidays,
             updatedAt: serverTimestamp(), updatedBy: email,
         }, { merge: true });
+        바뀜 = false;
         상태('저장했습니다 — 다음 지시서부터 적용됩니다.', 'ok');
         메타({ updatedAt: { toMillis: () => Date.now() }, updatedBy: email });
     } catch (e) {
@@ -185,4 +194,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!section) return;
     const btn = $('refill-save-btn');
     if (btn) btn.addEventListener('click', 저장);
+
+    section.addEventListener('change', (e) => {
+        if (불러옴 && e.target && e.target.matches && e.target.matches('input')) 바뀜 = true;
+    });
+    // 다른 설정 탭으로 갈 때 — 탭 버튼의 클릭(admin.html activateTab)보다 먼저(캡처) 묻고, 취소면 탭을 바꾸지 않는다.
+    // 떠나기로 하면 바꾼 값을 버리고 저장된 값을 다시 읽는다(다음에 열었을 때 저장 안 된 값이 남아 보이지 않게).
+    document.addEventListener('click', (e) => {
+        const tab = e.target && e.target.closest && e.target.closest('.admin-tab-btn');
+        if (!tab || tab.dataset.target === SECTION_ID || !바뀜 || !지금보임()) return;
+        if (!confirm(떠남확인글)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            // 뒤로가기·Ctrl+K(해시 이동 → admin.html 이 탭 버튼을 누름)였다면 주소가 이미 바뀌었으니 이 탭으로 되돌린다
+            writeHash({ tab: SECTION_ID.replace(/^section-/, '') }, { replace: true });
+            return;
+        }
+        바뀜 = false;
+        if (db && 불러옴) 불러오기();
+    }, true);
+    // 새로고침·탭 닫기 — 공통 상단바에서 이미 물었으면 다시 묻지 않는다
+    window.addEventListener('beforeunload', (e) => {
+        if (!바뀜 || leaveAlreadyConfirmed()) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
+    // 공통 상단바 메뉴·홈 — 동기 confirm 만(admin.js 의 전체 저장 확인과 따로 묻는다)
+    onBeforeLeave(() => !바뀜 || confirm(떠남확인글));
 });

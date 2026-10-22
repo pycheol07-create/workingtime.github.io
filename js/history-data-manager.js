@@ -1,16 +1,16 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610221432';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610221432';
-import { clampOpenRecords } from './lib/record-close.js?v=202610221432';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610221432';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610221432';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610221432';
-import { can } from './lib/perm.js?v=202610221432';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610221432';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610221432';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610221432';
+import * as State from './state.js?v=202610221532';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610221532';
+import { clampOpenRecords } from './lib/record-close.js?v=202610221532';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610221532';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610221532';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610221532';
+import { can } from './lib/perm.js?v=202610221532';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610221532';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610221532';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610221532';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610221432';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610221532';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -681,7 +681,7 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
 
     } catch (e) {
         console.error('Error in saveProgress: ', e);
-        if (!isAutoSave) showToast(`저장 중 오류가 발생했습니다: ${e.message}`, true);
+        if (!isAutoSave) showToast(`저장하지 못했습니다 — ${friendlyFirebaseError(e)}`, true);
         return 'failed';
     }
 }
@@ -1168,7 +1168,7 @@ export async function peekDailyData(dateKey) {
         return result;
     } catch (e) {
         console.error('peekDailyData error:', e);
-        showToast(`조회 오류: ${e.message}`, true);
+        showToast(`조회하지 못했습니다 — ${friendlyFirebaseError(e)}`, true);
         return null;
     }
 }
@@ -1198,7 +1198,7 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
 
         const hasQuantities = dailyData.taskQuantities && Object.keys(dailyData.taskQuantities).length > 0;
         if (rawRecords.length === 0 && !hasQuantities) {
-            if (!silent) showToast(`${dateKey}: daily_data에 복구할 원본이 없습니다.`, true);
+            if (!silent) showToast(`${dateKey}: 그날 화면 기록(마감 전 원본)에 복구할 내용이 없습니다.`, true);
             return { date: dateKey, records: 0, quantities: 0, hadExisting: histSnap.exists() };
         }
 
@@ -1206,7 +1206,7 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
         const existing = histSnap.exists() ? histSnap.data() : null;
         const existingCount = (existing && existing.workRecords) ? existing.workRecords.length : 0;
         if (existingCount > 0 && !force) {
-            const ok = confirm(`${dateKey} 이력에 이미 업무 ${existingCount}건이 있습니다.\n원본(daily_data) ${rawRecords.length}건으로 덮어쓸까요?`);
+            const ok = confirm(`${dateKey} 이력에 이미 업무 ${existingCount}건이 있습니다.\n그날 화면 기록(마감 전 원본) ${rawRecords.length}건으로 덮어쓸까요?`);
             if (!ok) { if (!silent) showToast('복구를 취소했습니다.'); return { date: dateKey, canceled: true }; }
         }
 
@@ -1335,7 +1335,7 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
 
     } catch (e) {
         console.error('recoverDailyDataToHistory error:', e);
-        if (!silent) showToast(`복구 중 오류: ${e.message}`, true);
+        if (!silent) showToast(`복구하지 못했습니다 — ${friendlyFirebaseError(e)}`, true);
         return null;
     }
 }

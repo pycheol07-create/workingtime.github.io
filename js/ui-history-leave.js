@@ -1,12 +1,12 @@
 // === js/ui-history-leave.js ===
-import * as State from './state.js?v=202610221432';
-import { showToast, isMemberActiveOn } from './utils.js?v=202610221432';
+import * as State from './state.js?v=202610221532';
+import { showToast, isMemberActiveOn, friendlyFirebaseError } from './utils.js?v=202610221532';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ 엑셀 변환 함수 불러오기
-import { downloadLeaveLedgerExcel } from './history-excel.js?v=202610221432';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221432';
-import { updateLeaveSchedule } from './config.js?v=202610221432';
+import { downloadLeaveLedgerExcel } from './history-excel.js?v=202610221532';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221532';
+import { updateLeaveSchedule } from './config.js?v=202610221532';
 
 let currentYear = new Date().getFullYear();
 let fullLeaveConfig = {}; 
@@ -76,7 +76,7 @@ export async function initLeaveManagement() {
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
-                엑셀 다운로드
+                엑셀 받기
             `;
             
             // 새로고침 버튼 부모 요소에 나란히 추가
@@ -352,21 +352,45 @@ async function openLeaveManager(member) {
         document.getElementById('lm-end-date-wrapper').style.display = e.target.value.includes('반차') ? 'none' : 'block';
     };
 
+    // 목록·삭제 확인창에 쓰는 날짜 표기 ('시작 ~ 종료')
+    const leaveDateLabel = (l) => {
+        const targetDate = l.startDate || l.date || (l.startTime ? l.startTime.substring(0, 10) : '');
+        let label = targetDate;
+        if (l.type === '연차' && l.endDate && l.endDate !== targetDate) {
+            label += ` ~ ${l.endDate}`;
+        }
+        return label;
+    };
+
+    // 저장 중에는 등록·수정·삭제 버튼을 잠근다(두 번 눌러 같은 연차가 두 줄 생기지 않게)
+    let saving = false;
+    const setSaving = (on) => {
+        saving = on;
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        modal.querySelectorAll('#lm-save-btn, #lm-cancel-edit-btn, #lm-list-container button').forEach(b => {
+            b.disabled = on;
+            b.classList.toggle('opacity-60', on);
+        });
+        const saveBtn = document.getElementById('lm-save-btn');
+        if (saveBtn) {
+            if (on) { saveBtn.dataset.label = saveBtn.textContent; saveBtn.textContent = '저장 중…'; }
+            else if (saveBtn.dataset.label) { saveBtn.textContent = saveBtn.dataset.label; delete saveBtn.dataset.label; }
+        }
+    };
+
     // 내역 리스트 렌더링 함수
     const renderList = () => {
         const container = document.getElementById('lm-list-container');
+        if (!container) return;   // 저장 중에 창을 닫은 경우
         container.innerHTML = '';
         if(memberLeaves.length === 0) {
             container.innerHTML = '<p class="text-sm text-gray-500 text-center py-6 border border-gray-200 border-dashed rounded bg-gray-50">등록된 내역이 없습니다.</p>';
             return;
         }
         memberLeaves.forEach(l => {
-            const targetDate = l.startDate || l.date || (l.startTime ? l.startTime.substring(0, 10) : '');
-            let label = targetDate;
-            if (l.type === '연차' && l.endDate && l.endDate !== targetDate) {
-                label += ` ~ ${l.endDate}`;
-            }
-            
+            const label = leaveDateLabel(l);
+
             const div = document.createElement('div');
             div.className = "flex justify-between items-center p-3 bg-white border border-gray-200 rounded text-sm shadow-sm";
             div.innerHTML = `
@@ -390,7 +414,7 @@ async function openLeaveManager(member) {
         const btn = e.target;
         const action = btn.dataset.action;
         const id = btn.dataset.id;
-        if(!action || !id) return;
+        if(!action || !id || saving) return;
 
         if(action === 'edit') {
             const l = memberLeaves.find(x => x.id === id);
@@ -406,12 +430,11 @@ async function openLeaveManager(member) {
                 document.getElementById('lm-type').dispatchEvent(new Event('change'));
             }
         } else if(action === 'delete') {
-            if(confirm('이 연차 내역을 삭제하시겠습니까?')) {
-                const idx = memberLeaves.findIndex(x => x.id === id);
-                if(idx > -1) {
-                    memberLeaves.splice(idx, 1);
-                    saveChanges();
-                }
+            const l = memberLeaves.find(x => x.id === id);
+            if(!l) return;
+            if(confirm(`이 연차 내역을 삭제할까요?\n\n${member} · ${l.type} · ${leaveDateLabel(l)}`)) {
+                // 화면 목록은 저장이 성공한 뒤에 바꾼다(실패하면 화면과 서버가 달라지지 않게)
+                saveChanges(memberLeaves.filter(x => x.id !== id));
             }
         }
     });
@@ -430,12 +453,17 @@ async function openLeaveManager(member) {
 
     // 저장(등록/수정) 로직
     document.getElementById('lm-save-btn').onclick = () => {
+        if (saving) return;
         const id = document.getElementById('lm-edit-id').value;
         const type = document.getElementById('lm-type').value;
         const startDate = document.getElementById('lm-start-date').value;
         const endDate = document.getElementById('lm-end-date').value;
 
         if(!startDate) { alert('시작일을 선택하세요.'); return; }
+        if(!type.includes('반차') && endDate && endDate < startDate) {
+            alert('종료일이 시작일보다 앞입니다. 날짜를 확인하세요.');
+            return;
+        }
 
         const record = {
             id: id || `leave-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -446,27 +474,31 @@ async function openLeaveManager(member) {
             endDate: type.includes('반차') ? startDate : (endDate || startDate)
         };
 
+        // 사본에 반영해 저장하고, 성공한 뒤에만 화면 목록(memberLeaves)을 바꾼다
+        let next;
         if(id) {
-            const idx = memberLeaves.findIndex(x => x.id === id);
-            if(idx > -1) memberLeaves[idx] = record;
+            next = memberLeaves.map(x => x.id === id ? record : x);
         } else {
-            memberLeaves.unshift(record); // 새 등록은 리스트 맨 앞에 추가
+            next = [record, ...memberLeaves]; // 새 등록은 리스트 맨 앞에 추가
         }
 
-        saveChanges();
+        saveChanges(next);
     };
 
-    // Firestore에 최종 적용하는 함수
-    const saveChanges = async () => {
+    // Firestore에 최종 적용하는 함수 — nextLeaves: 저장할 이 사람의 연차/반차 목록(사본)
+    const saveChanges = async (nextLeaves) => {
+        if (saving) return;
+        setSaving(true);
         try {
             // 서버 목록(트랜잭션)에서 이 사람의 연차/반차 내역을 모두 지운 뒤 수정된 리스트를 다시 밀어넣는다.
             //   다른 사람·다른 종류 근태는 서버에 있는 그대로 남는다(동시 저장에도 사라지지 않게).
             const r = await updateLeaveSchedule(State.db, list => [
                 ...list.filter(l => !(l.member === member && (l.type?.includes('연차') || l.type?.includes('반차')))),
-                ...memberLeaves
+                ...nextLeaves
             ]);
             const currentAll = r.list;
-            
+            memberLeaves = nextLeaves;   // 저장 성공 — 이제 화면에 반영한다
+
             if(State.persistentLeaveSchedule) {
                 State.persistentLeaveSchedule.onLeaveMembers = currentAll;
             }
@@ -481,12 +513,14 @@ async function openLeaveManager(member) {
                 return dB.localeCompare(dA); 
             });
             renderList();
-            
-            document.getElementById('lm-cancel-edit-btn').click(); // 폼 초기화
+            setSaving(false);   // 잠금을 먼저 푼다 — 잠긴 [취소] 버튼은 click() 이 먹지 않는다
+
+            document.getElementById('lm-cancel-edit-btn')?.click(); // 폼 초기화
             renderLeaveSheetKeepingEdits(); // 대장화면 새로고침(저장 안 한 총연차 입력은 살린다)
         } catch(e) {
             console.error(e);
-            alert('저장 중 오류가 발생했습니다.');
+            setSaving(false);   // 입력칸은 그대로 둔다 — 고쳐서 다시 누르면 된다
+            alert('저장하지 못했습니다 — ' + friendlyFirebaseError(e) + '.');
         }
     };
 }
@@ -715,7 +749,7 @@ async function saveLeaveSettings() {
         await renderLeaveSheet(); 
     } catch (e) {
         console.error("Save settings error:", e);
-        showToast("설정 저장 실패: " + e.message, true);
+        showToast("설정 저장 실패 — " + friendlyFirebaseError(e), true);
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;

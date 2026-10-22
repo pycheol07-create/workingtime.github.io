@@ -1,22 +1,22 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610221432';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610221532';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610221432';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610221432';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610221432';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610221432';
-import { orderKeyMap } from './lib/order-hash.js?v=202610221432';
-import { setShellContext } from './app-shell-bridge.js?v=202610221432';
-import { memberNameFor } from './app-shell-data.js?v=202610221432';
-import { menuConfigOf } from './lib/perm.js?v=202610221432';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610221432';
-import { initPageNav } from './page-nav.js?v=202610221432';
-import { initRefillCard } from './refill-card.js?v=202610221432';
-import { initLocRecCard } from './locrec-card.js?v=202610221432';
-import { whenPerm } from './feature-gate.js?v=202610221432';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610221432';
-import { uploadBlockText } from './lib/busy-view.js?v=202610221432';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610221432';
+import { escapeHtml as escAttr } from './utils.js?v=202610221532';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610221532';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610221532';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610221532';
+import { orderKeyMap } from './lib/order-hash.js?v=202610221532';
+import { setShellContext } from './app-shell-bridge.js?v=202610221532';
+import { memberNameFor } from './app-shell-data.js?v=202610221532';
+import { menuConfigOf } from './lib/perm.js?v=202610221532';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610221532';
+import { initPageNav } from './page-nav.js?v=202610221532';
+import { initRefillCard } from './refill-card.js?v=202610221532';
+import { initLocRecCard } from './locrec-card.js?v=202610221532';
+import { whenPerm } from './feature-gate.js?v=202610221532';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610221532';
+import { uploadBlockText } from './lib/busy-view.js?v=202610221532';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610221532';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -821,7 +821,7 @@ function updateExcludePreview() {
     const preview = document.getElementById('exclude-combos-preview');
     if (!input || !preview) return;
     const combos = input.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-    if (combos.length === 0) { preview.innerHTML = '<span style="font-size:11px; color:#999;">제외 항목 없음</span>'; return; }
+    if (combos.length === 0) { preview.innerHTML = '<span style="font-size:11px; color:var(--c-text-3,#999);">제외 항목 없음</span>'; return; }
     preview.innerHTML = combos.map(c => `<span style="display:inline-block; background:#ff5252; color:white; padding:3px 8px; border-radius:4px; font-size:12px; font-weight:bold;">${c}</span>`).join('');
 }
 
@@ -1011,7 +1011,7 @@ window.saveMasterSettingsModal = async function() {
         
         const recModal = document.getElementById('recommend-modal');
         if (recModal && recModal.style.display === 'flex') window.showPairRecommendation();
-    } catch(e) { console.error(e); alert("설정 저장 중 오류가 발생했습니다."); }
+    } catch(e) { console.error(e); alert('설정을 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : '')); }
 };
 
 const escHtmlLite = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1491,16 +1491,16 @@ window.showRecommendation = function() {
                 let moveBadge = '';
                 let moveText = '';
                 if (currentLocsObjs.length === 0) {
-                    moveBadge = `<span style="display:inline-block; background:#e3f2fd; color:#1565c0; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">신규</span>`;
+                    moveBadge = `<span style="display:inline-block; background:var(--c-accent-soft,#e3f2fd); color:var(--c-accent-deep,#1565c0); padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">신규</span>`;
                     moveText = '신규';
                 } else if (targetScore < bestCurrentScore) {
-                    moveBadge = `<span style="display:inline-block; background:#ffebee; color:#b71c1c; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">전진</span>`;
+                    moveBadge = `<span style="display:inline-block; background:var(--c-risk-soft,#ffebee); color:var(--c-risk-text,#b71c1c); padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">전진</span>`;
                     moveText = '전진';
                 } else if (targetScore > bestCurrentScore) {
-                    moveBadge = `<span style="display:inline-block; background:#eceff1; color:#37474f; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">후퇴</span>`;
+                    moveBadge = `<span style="display:inline-block; background:var(--c-track,#eceff1); color:var(--c-text-2,#37474f); padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">후퇴</span>`;
                     moveText = '후퇴';
                 } else {
-                    moveBadge = `<span style="display:inline-block; background:#f5f5f5; color:#616161; padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">수평</span>`;
+                    moveBadge = `<span style="display:inline-block; background:var(--c-surface-2,#f5f5f5); color:var(--c-text-2,#616161); padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">수평</span>`;
                     moveText = '수평';
                 }
                 
@@ -1516,34 +1516,34 @@ window.showRecommendation = function() {
                 });
 
                 const isEven = displayRank % 2 === 0;
-                const rowBg = isEven ? '#f9fafb' : '#ffffff';
-                const moveQtyDisplay = moveQty > 0 ? `<span style="color:#e65100; font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:#888;">개</span>` : `<span style="color:#bbb; font-size:12px;">-</span>`;
+                const rowBg = isEven ? 'var(--c-surface-2,#f9fafb)' : 'var(--c-surface,#ffffff)';
+                const moveQtyDisplay = moveQty > 0 ? `<span style="color:var(--c-warn-text,#e65100); font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:var(--c-text-3,#888);">개</span>` : `<span style="color:var(--c-text-4,#bbb); font-size:12px;">-</span>`;
 
                 // ★ 점수 세부 툴팁 HTML (html += 윗줄에 선언)
-                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 플랫폼 출고:${item.zContrib.toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${item.wContrib.toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: 플랫폼 출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 플랫폼 출고:${item.zContrib.toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${item.wContrib.toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: 플랫폼 출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
                 // v3.98: 페어 보정 배지
                 let pairBadgeHtml = '';
                 if (matchedPairScore > 0 && pairWeightMax > 0) {
                     const normScore = Math.min(100, (matchedPairScore / pairWeightMax) * 100);
                     const partnerCount = (pairMap[item.code] || []).length;
-                    pairBadgeHtml = `<br><span style="display:inline-block; background:#fff3e0; color:#e65100; padding:3px 7px; border-radius:4px; font-size:10px; font-weight:bold; margin-top:3px; border:1px solid #ffcc80;" title="페어 가중치: ${matchedPairScore.toFixed(2)} (정규화 ${normScore.toFixed(0)}점, 페어 ${partnerCount}개)">페어 ${partnerCount}개와 가까이</span>`;
+                    pairBadgeHtml = `<br><span style="display:inline-block; background:var(--c-warn-soft,#fff3e0); color:var(--c-warn-text,#e65100); padding:3px 7px; border-radius:4px; font-size:10px; font-weight:bold; margin-top:3px; border:1px solid var(--c-warn,#ffcc80);" title="페어 가중치: ${matchedPairScore.toFixed(2)} (정규화 ${normScore.toFixed(0)}점, 페어 ${partnerCount}개)">페어 ${partnerCount}개와 가까이</span>`;
                 }
 
                 html += `
                     <tr style="background:${rowBg};">
                         <td style="color:var(--primary); font-weight:900; font-size:15px; border-left:none; padding:14px 10px;">
                             ${displayRank}위
-                            <br><span style="font-size:11px; color:#e65100; font-weight:bold; display:inline-block; line-height:18px; vertical-align:middle;">${item.score.toFixed(1)}점${scoreTipHtml}</span>
+                            <br><span style="font-size:11px; color:var(--c-warn-text,#e65100); font-weight:bold; display:inline-block; line-height:18px; vertical-align:middle;">${item.score.toFixed(1)}점${scoreTipHtml}</span>
                         </td>
-                        <td style="font-weight:bold; color:#1a237e; font-size:13px; letter-spacing:0.3px;">${item.code}</td>
-                        <td style="text-align:left; font-size:14px; font-weight:bold; color:#212121; padding:14px 12px; line-height:1.5;">${item.name}</td>
+                        <td style="font-weight:bold; color:var(--c-accent-deep,#1a237e); font-size:13px; letter-spacing:0.3px;">${item.code}</td>
+                        <td style="text-align:left; font-size:14px; font-weight:bold; color:var(--c-text,#212121); padding:14px 12px; line-height:1.5;">${item.name}</td>
                         <td style="text-align:center; padding:14px 8px;">${moveQtyDisplay}</td>
-                        <td style="color:#555; font-size:12px; padding:14px 10px;">${item.currentLocs}</td>
-                        <td style="background:#f1f8e9; border-right:none; padding:14px 12px; text-align:center;">
-                            <span style="color:#1b5e20; font-weight:900; font-size:16px;">${eLoc.id}</span><br>
+                        <td style="color:var(--c-text-2,#555); font-size:12px; padding:14px 10px;">${item.currentLocs}</td>
+                        <td style="background:var(--c-ok-soft,#f1f8e9); border-right:none; padding:14px 12px; text-align:center;">
+                            <span style="color:var(--c-ok-text,#1b5e20); font-weight:900; font-size:16px;">${eLoc.id}</span><br>
                             ${moveBadge}${pairBadgeHtml}<br>
-                            <span style="font-size:11px; color:#555; margin-top:3px; display:inline-block;">${eLoc.dong}동 ${eLoc.pos}위치</span>
+                            <span style="font-size:11px; color:var(--c-text-2,#555); margin-top:3px; display:inline-block;">${eLoc.dong}동 ${eLoc.pos}위치</span>
                         </td>
                     </tr>
                 `;
@@ -2104,7 +2104,7 @@ window.openSettingsModal = (e) => {
     window.excelHeaders.forEach(header => {
         const colId = 'cus_' + header;
         const isChecked = window.visibleColumns.includes(colId) ? 'checked' : '';
-        html += `<label style="display:flex; align-items:center; gap:5px; width: 45%; color:#e65100;"><input type="checkbox" class="chk-header" value="${colId}" ${isChecked}> ${header}</label>`;
+        html += `<label style="display:flex; align-items:center; gap:5px; width: 45%; color:var(--c-warn-text,#e65100);"><input type="checkbox" class="chk-header" value="${colId}" ${isChecked}> ${header}</label>`;
     });
 
     html += `</div>`;
@@ -2146,7 +2146,7 @@ window.saveHeaderSettings = async () => {
         renderTableHeader(); 
         applyFiltersAndSort(); 
         showToast("화면 헤더 설정이 저장되었습니다.");
-    } catch(e) { console.error(e); alert("저장 실패"); }
+    } catch(e) { console.error(e); alert('화면 헤더 설정을 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : '')); }
 };
 
 // [1단계] 입고대기 설정 모달 내 탭 전환 함수
@@ -2608,7 +2608,7 @@ window.saveSheetUrl = async () => {
         window.sheetUrlBuy = urlBuy;
         showToast("구글시트 링크를 저장했습니다.");
         if (typeof window.closeSheetModal === 'function') window.closeSheetModal();
-    } catch(e) { console.error("링크 저장 실패:", e); alert("오류가 발생했습니다."); }
+    } catch(e) { console.error("링크 저장 실패:", e); alert('구글시트 링크를 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : '')); }
 };
 
 const cleanKey = (str) => (str || '').toString().replace(/[^a-zA-Z0-9가-힣]/g, '');
@@ -2773,7 +2773,7 @@ window.syncIncomingData = async () => {
         const render = () => {
             const s = Math.floor((Date.now() - startMs) / 1000);
             setSyncStatus(`⏳ 시트를 새로 읽는 중… <b>${Math.floor(s / 60)}분 ${s % 60}초</b> 경과 (보통 5~10분) — 끝나면 자동으로 반영됩니다.<br>` +
-                `<button type="button" onclick="applyIncomingNow()" style="margin-top:4px; padding:3px 8px; font-size:11px; border:1px solid #bbb; border-radius:4px; background:#fff; cursor:pointer;">기다리지 않고 지금 자료(${fmtHM(col.at)} 기준)로 반영</button>`);
+                `<button type="button" onclick="applyIncomingNow()" style="margin-top:4px; padding:3px 8px; font-size:11px; border:1px solid var(--c-line-strong,#bbb); border-radius:4px; background:var(--c-surface,#fff); cursor:pointer;">기다리지 않고 지금 자료(${fmtHM(col.at)} 기준)로 반영</button>`);
             if (Date.now() - startMs > INCOMING_WAIT_MAX_MS) finish(`${INCOMING_WAIT_MAX_MS / 60000}분 안에 새로 읽지 못해 이 기준 자료로 반영했습니다. 잠시 뒤 다시 눌러 보세요.`, false);
         };
         render();
@@ -3120,7 +3120,7 @@ window.applyUsageFilter = function(zone, state) {
 window.calculateAndRenderUsage = function() {
     const popup = document.getElementById('usage-popup');
     if (!popup) return;
-    let html = `<div style="display:flex; gap:10px; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px;"><button onclick="switchUsageTab('3F')" style="flex:1; padding:8px; font-weight:bold; border:none; border-radius:5px; cursor:pointer; background:${window.currentUsageTab === '3F' ? 'var(--primary)' : '#eee'}; color:${window.currentUsageTab === '3F' ? 'white' : '#555'}">3층 로케이션</button><button onclick="switchUsageTab('2F')" style="flex:1; padding:8px; font-weight:bold; border:none; border-radius:5px; cursor:pointer; background:${window.currentUsageTab === '2F' ? 'var(--primary)' : '#eee'}; color:${window.currentUsageTab === '2F' ? 'white' : '#555'}">2층 창고재고</button></div>`;
+    let html = `<div style="display:flex; gap:10px; margin-bottom: 15px; border-bottom: 2px solid var(--c-line,#eee); padding-bottom: 10px;"><button onclick="switchUsageTab('3F')" style="flex:1; padding:8px; font-weight:bold; border:none; border-radius:5px; cursor:pointer; background:${window.currentUsageTab === '3F' ? 'var(--primary)' : 'var(--c-track,#eee)'}; color:${window.currentUsageTab === '3F' ? 'var(--c-on-fill,white)' : 'var(--c-text-2,#555)'}">3층 로케이션</button><button onclick="switchUsageTab('2F')" style="flex:1; padding:8px; font-weight:bold; border:none; border-radius:5px; cursor:pointer; background:${window.currentUsageTab === '2F' ? 'var(--primary)' : 'var(--c-track,#eee)'}; color:${window.currentUsageTab === '2F' ? 'var(--c-on-fill,white)' : 'var(--c-text-2,#555)'}">2층 창고재고</button></div>`;
 
     if (window.currentUsageTab === '3F') {
         // 랙 사용률 통계이므로 '기타'(비축/샘플 등, 실제 피킹 랙이 아님) 위치는 제외
@@ -3167,26 +3167,26 @@ window.calculateAndRenderUsage = function() {
         const usageRate = ((used / total) * 100).toFixed(1);
         
         html += `
-            <div style="display:flex; justify-content: space-around; background: #eef1ff; padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #c5cae9;">
+            <div style="display:flex; justify-content: space-around; background: var(--c-accent-soft,#eef1ff); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--c-accent-light,#c5cae9);">
                 <div style="text-align:center;">
-                    <div style="font-size:11px; color:#555; font-weight:bold;">당일지정수량<span class="info-tip" data-tip-key="usage-today-reserved">i<span class="info-tip-content"><b>오늘 작업 중 예약된 자리</b><br>로케이션 셀을 클릭하면 현재 작업자가 예약(복사+잠금)한 상태가 됩니다.<br><br>자정에 자동으로 초기화됩니다.</span></span></div>
+                    <div style="font-size:11px; color:var(--c-text-2,#555); font-weight:bold;">당일지정수량<span class="info-tip" data-tip-key="usage-today-reserved">i<span class="info-tip-content"><b>오늘 작업 중 예약된 자리</b><br>로케이션 셀을 클릭하면 현재 작업자가 예약(복사+잠금)한 상태가 됩니다.<br><br>자정에 자동으로 초기화됩니다.</span></span></div>
                     <div style="font-size:18px; color:var(--primary); font-weight:900;">${todayReservedCount}</div>
                 </div>
-                <div style="width:1px; background:#ccc;"></div>
+                <div style="width:1px; background:var(--c-line-strong,#ccc);"></div>
                 <div style="text-align:center;">
-                    <div style="font-size:11px; color:#555; font-weight:bold;">선지정수량<span class="info-tip" data-tip-key="usage-pre-assigned">i<span class="info-tip-content"><b>입고 전에 미리 찜해둔 자리</b><br>입고대기 사이드바에서 상품을 클릭하고 빈 자리를 지정하면 선지정됩니다.<br><br>로케이션 변경 추천에서 보호(제외)되며, 자정에 초기화되지 않습니다.</span></span></div>
-                    <div style="font-size:18px; color:#e65100; font-weight:900;">${preAssignedCount}</div>
+                    <div style="font-size:11px; color:var(--c-text-2,#555); font-weight:bold;">선지정수량<span class="info-tip" data-tip-key="usage-pre-assigned">i<span class="info-tip-content"><b>입고 전에 미리 찜해둔 자리</b><br>입고대기 사이드바에서 상품을 클릭하고 빈 자리를 지정하면 선지정됩니다.<br><br>로케이션 변경 추천에서 보호(제외)되며, 자정에 초기화되지 않습니다.</span></span></div>
+                    <div style="font-size:18px; color:var(--c-warn-text,#e65100); font-weight:900;">${preAssignedCount}</div>
                 </div>
             </div>
             <div style="font-size:16px; font-weight:bold; margin-bottom:5px; color:var(--primary); text-align:center;">3층 전체 사용률: ${usageRate}%</div>
-            <div style="font-size:12px; color:#333; text-align:center;">전체 ${total}칸 중 <span style="color:var(--primary); font-weight:bold;">${used}칸 사용</span> / <span style="color:#ff5252; font-weight:bold;">${total - used}칸 빈칸</span></div>
+            <div style="font-size:12px; color:var(--c-text,#333); text-align:center;">전체 ${total}칸 중 <span style="color:var(--primary); font-weight:bold;">${used}칸 사용</span> / <span style="color:var(--c-risk-text,#ff5252); font-weight:bold;">${total - used}칸 빈칸</span></div>
             <div style="text-align:center; margin-top:10px;">
                 <span onclick="toggleUsageDetails()" id="usage-details-btn" style="color:var(--primary); font-size:13px; text-decoration:underline; cursor:pointer; font-weight:bold;">자세히보기 ▼</span>
             </div>
         `;
         
-        let detailHtml = `<div id="usage-details-content" style="display:none; margin-top:15px; border-top:1px solid #eee; padding-top:15px;">`;
-        detailHtml += `<div style="font-size:11px; color:#888; text-align:center; margin-bottom:10px;">※ 숫자를 클릭하면 리스트에 해당 내용만 보입니다.</div>`;
+        let detailHtml = `<div id="usage-details-content" style="display:none; margin-top:15px; border-top:1px solid var(--c-line,#eee); padding-top:15px;">`;
+        detailHtml += `<div style="font-size:11px; color:var(--c-text-3,#888); text-align:center; margin-bottom:10px;">※ 숫자를 클릭하면 리스트에 해당 내용만 보입니다.</div>`;
         
         detailHtml += `<div onclick="document.getElementById('sec-zone-detail').style.display = document.getElementById('sec-zone-detail').style.display==='none'?'block':'none'; this.querySelector('.toggle-icon').textContent = document.getElementById('sec-zone-detail').style.display==='none'?'▶':'▼';" style="font-size:13px; font-weight:bold; margin-bottom:5px; color:var(--primary); cursor:pointer; user-select:none;"><span class="toggle-icon">▶</span> 구역별 사용률</div>`;
         detailHtml += `<div id="sec-zone-detail" style="display:none;">`;
@@ -3194,7 +3194,7 @@ window.calculateAndRenderUsage = function() {
         const zones = Object.keys(zoneStats).sort((a,b) => (a==='★'?-1:(b==='★'?1:a.localeCompare(b))));
         zones.forEach(z => {
             const zTotal = zoneStats[z].total; const zUsed = zoneStats[z].used; const zEmpty = zTotal - zUsed; const zRate = ((zUsed / zTotal) * 100).toFixed(1);
-            detailHtml += `<tr><td><strong>${z}</strong> 구역</td><td>${zTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${jsArg(z)}', 'used')">${zUsed}</td><td style="color:#ff5252; cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${jsArg(z)}', 'empty')">${zEmpty}</td><td>${zRate}%</td></tr>`;
+            detailHtml += `<tr><td><strong>${z}</strong> 구역</td><td>${zTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${jsArg(z)}', 'used')">${zUsed}</td><td style="color:var(--c-risk-text,#ff5252); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${jsArg(z)}', 'empty')">${zEmpty}</td><td>${zRate}%</td></tr>`;
         });
         detailHtml += `</tbody></table></div>`;
 
@@ -3204,7 +3204,7 @@ window.calculateAndRenderUsage = function() {
         const dongs = Object.keys(dongStats).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
         dongs.forEach(d => {
             const dTotal = dongStats[d].total; const dUsed = dongStats[d].used; const dEmpty = dTotal - dUsed; const dRate = ((dUsed / dTotal) * 100).toFixed(1);
-            detailHtml += `<tr><td><strong>${d}</strong> 동</td><td>${dTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'used'); filters.dong=['${d}']; setupFilterPopups(); applyFiltersAndSort();">${dUsed}</td><td style="color:#ff5252; cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'empty'); filters.dong=['${d}']; setupFilterPopups(); applyFiltersAndSort();">${dEmpty}</td><td>${dRate}%</td></tr>`;
+            detailHtml += `<tr><td><strong>${d}</strong> 동</td><td>${dTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'used'); filters.dong=['${d}']; setupFilterPopups(); applyFiltersAndSort();">${dUsed}</td><td style="color:var(--c-risk-text,#ff5252); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'empty'); filters.dong=['${d}']; setupFilterPopups(); applyFiltersAndSort();">${dEmpty}</td><td>${dRate}%</td></tr>`;
         });
         detailHtml += `</tbody></table></div>`;
 
@@ -3214,7 +3214,7 @@ window.calculateAndRenderUsage = function() {
         const poses = Object.keys(posStats).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
         poses.forEach(p => {
             const pTotal = posStats[p].total; const pUsed = posStats[p].used; const pEmpty = pTotal - pUsed; const pRate = ((pUsed / pTotal) * 100).toFixed(1);
-            detailHtml += `<tr><td><strong>${p}</strong> 위치</td><td>${pTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'used'); filters.pos=['${p}']; setupFilterPopups(); applyFiltersAndSort();">${pUsed}</td><td style="color:#ff5252; cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'empty'); filters.pos=['${p}']; setupFilterPopups(); applyFiltersAndSort();">${pEmpty}</td><td>${pRate}%</td></tr>`;
+            detailHtml += `<tr><td><strong>${p}</strong> 위치</td><td>${pTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'used'); filters.pos=['${p}']; setupFilterPopups(); applyFiltersAndSort();">${pUsed}</td><td style="color:var(--c-risk-text,#ff5252); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'empty'); filters.pos=['${p}']; setupFilterPopups(); applyFiltersAndSort();">${pEmpty}</td><td>${pRate}%</td></tr>`;
         });
         detailHtml += `</tbody></table></div>`;
         detailHtml += `</div>`; 
@@ -3261,11 +3261,11 @@ window.calculateAndRenderUsage = function() {
         }
         
         if (sortedDates.length === 0) {
-            predictionHtml = `<tr><th style="background:#eceff1;">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="color:#888; text-align:right;">입고대기 데이터 없음 (시트 동기화 필요)</td></tr>`;
+            predictionHtml = `<tr><th style="background:var(--c-track,#eceff1);">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="color:var(--c-text-3,#888); text-align:right;">입고대기 데이터 없음 (시트 동기화 필요)</td></tr>`;
         } else if (sum2F >= window.capacity2F) {
-            predictionHtml = `<tr><th style="background:#ffebee;">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#d32f2f; text-align:right;">이미 초과 상태입니다! (${(sum2F - window.capacity2F).toLocaleString()}장 초과)</td></tr>`;
+            predictionHtml = `<tr><th style="background:var(--c-risk-soft,#ffebee);">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-risk-text,#d32f2f); text-align:right;">이미 초과 상태입니다! (${(sum2F - window.capacity2F).toLocaleString()}장 초과)</td></tr>`;
         } else if (fullDate) {
-            predictionHtml = `<tr><th style="background:#fff3e0;">만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#e65100; text-align:right;">${fullDate}<br><span style="font-size:11px; color:#888;">현재 ${sum2F.toLocaleString()}장 + 입고예정 누적 → ${cumTotal.toLocaleString()}장 도달</span></td></tr>`;
+            predictionHtml = `<tr><th style="background:var(--c-warn-soft,#fff3e0);">만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-warn-text,#e65100); text-align:right;">${fullDate}<br><span style="font-size:11px; color:var(--c-text-3,#888);">현재 ${sum2F.toLocaleString()}장 + 입고예정 누적 → ${cumTotal.toLocaleString()}장 도달</span></td></tr>`;
         } else {
             const afterAll = sum2F + totalIncoming;
             const remainAfter = window.capacity2F - afterAll;
@@ -3287,13 +3287,13 @@ window.calculateAndRenderUsage = function() {
             }
             
             if (estimatedDate && dailyAvg > 0) {
-                predictionHtml = `<tr><th style="background:#e8f5e9;">만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#2e7d32; text-align:right;">${estimatedDate} (추정)<br><span style="font-size:11px; color:#888;">일평균 입고 ${Math.round(dailyAvg).toLocaleString()}장 기준, 입고예정 후 여유 ${remainAfter.toLocaleString()}장</span></td></tr>`;
+                predictionHtml = `<tr><th style="background:var(--c-ok-soft,#e8f5e9);">만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-ok-text,#2e7d32); text-align:right;">${estimatedDate} (추정)<br><span style="font-size:11px; color:var(--c-text-3,#888);">일평균 입고 ${Math.round(dailyAvg).toLocaleString()}장 기준, 입고예정 후 여유 ${remainAfter.toLocaleString()}장</span></td></tr>`;
             } else {
-                predictionHtml = `<tr><th style="background:#e8f5e9;">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:#2e7d32; text-align:right;">입고예정 전량 입고 후에도 여유 ${remainAfter.toLocaleString()}장<br><span style="font-size:11px; color:#888;">예상 적재: ${afterAll.toLocaleString()} / ${window.capacity2F.toLocaleString()}장</span></td></tr>`;
+                predictionHtml = `<tr><th style="background:var(--c-ok-soft,#e8f5e9);">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-ok-text,#2e7d32); text-align:right;">입고예정 전량 입고 후에도 여유 ${remainAfter.toLocaleString()}장<br><span style="font-size:11px; color:var(--c-text-3,#888);">예상 적재: ${afterAll.toLocaleString()} / ${window.capacity2F.toLocaleString()}장</span></td></tr>`;
             }
         }
         
-        html += `<div style="font-size:15px; font-weight:bold; margin-bottom:15px; color:var(--primary); text-align:center;">2층 전체 창고 사용률: ${rate2F}%</div><table class="usage-table" style="width:100%;"><tr><th style="background:#eef1ff; width: 40%;">총 적재가능수량</th><td style="text-align: right;"><input type="number" id="input-cap-2f" value="${window.capacity2F}" style="width:80px; padding:3px; text-align:right; font-size:13px; font-weight:bold;"> 장 <button onclick="saveCapacity2F()" style="padding:4px 8px; margin-left:5px; font-size:11px; background:var(--primary); color:white; border:none; border-radius:3px; cursor:pointer;">기준변경</button></td></tr><tr><th style="background:#eef1ff;">현재 적재수량</th><td style="font-weight:bold; color:var(--primary); text-align: right;">${sum2F.toLocaleString()} 장</td></tr><tr><th style="background:#eef1ff;">남은 수량</th><td style="font-weight:bold; color:#ff5252; text-align: right;">${remaining2F.toLocaleString()} 장</td></tr>${predictionHtml}</table>`;
+        html += `<div style="font-size:15px; font-weight:bold; margin-bottom:15px; color:var(--primary); text-align:center;">2층 전체 창고 사용률: ${rate2F}%</div><table class="usage-table" style="width:100%;"><tr><th style="background:var(--c-accent-soft,#eef1ff); width: 40%;">총 적재가능수량</th><td style="text-align: right;"><input type="number" id="input-cap-2f" value="${window.capacity2F}" style="width:80px; padding:3px; text-align:right; font-size:13px; font-weight:bold;"> 장 <button onclick="saveCapacity2F()" style="padding:4px 8px; margin-left:5px; font-size:11px; background:var(--primary); color:var(--c-on-fill,white); border:none; border-radius:3px; cursor:pointer;">기준변경</button></td></tr><tr><th style="background:var(--c-accent-soft,#eef1ff);">현재 적재수량</th><td style="font-weight:bold; color:var(--primary); text-align: right;">${sum2F.toLocaleString()} 장</td></tr><tr><th style="background:var(--c-accent-soft,#eef1ff);">남은 수량</th><td style="font-weight:bold; color:var(--c-risk-text,#ff5252); text-align: right;">${remaining2F.toLocaleString()} 장</td></tr>${predictionHtml}</table>`;
     }
     popup.innerHTML = html;
 };
@@ -4974,7 +4974,7 @@ window.openOrderAnalysisReport = async function() {
         document.getElementById('order-analysis-tbody').innerHTML = html;
     } catch (e) {
         console.error('리포트 로드 오류:', e);
-        document.getElementById('order-analysis-summary').innerHTML = `<div style="color:var(--c-risk-text);">로드 실패: ${e.message}</div>`;
+        document.getElementById('order-analysis-summary').innerHTML = `<div style="color:var(--c-risk-text);">로드 실패: ${escAttr(e && e.message || e)}</div>`;
     } finally {
         window.hideLoading();
     }
@@ -4983,7 +4983,11 @@ window.openOrderAnalysisReport = async function() {
 // 누적 데이터 전체 초기화
 window.resetOrderAnalysis = async function() {
     if (!confirm('함께 팔리는 상품 조합·통계·처리한 주문 기록이 모두 지워집니다. 되돌릴 수 없습니다. 계속할까요?')) return;
-    if (!confirm('OrderPairsChunks, OrderStatsChunks, ProcessedOrders가 모두 삭제됩니다. 계속하시겠습니까?')) return;
+    // 지워질 건수 — 이미 불러 둔 요약(_cachedOrderMeta)에 있을 때만 붙인다(여기서 새로 읽지 않음)
+    const _rm = window._cachedOrderMeta || {};
+    const _rmCnt = (label, n, unit) => (Number(n) > 0 ? ` ${label} ${Number(n).toLocaleString()}${unit}` : '');
+    const _rmDetail = [_rmCnt('짝', _rm.totalPairs, '개'), _rmCnt('상품', _rm.totalCodes, '개'), _rmCnt('처리한 주문', _rm.totalProcessedOrders, '건')].filter(Boolean).join(',');
+    if (!confirm(`주문 짝 통계·주문 통계·처리한 주문 기록이 모두 삭제됩니다.${_rmDetail ? `\n(현재 기록:${_rmDetail})` : ''}\n정말 계속하시겠습니까?`)) return;
     window.showLoading('누적 데이터 삭제 중...');
     try {
         const colls = [ORDER_PAIRS_COLL, ORDER_STATS_COLL, PROCESSED_ORDERS_COLL];
@@ -5004,7 +5008,7 @@ window.resetOrderAnalysis = async function() {
         window._cachedOrderMeta = {};
     } catch (e) {
         window.hideLoading(); console.error('초기화 오류:', e);
-        alert('초기화 오류: ' + e.message);
+        alert('누적 데이터를 초기화하지 못했습니다(인터넷 연결 확인). 일부는 지워졌을 수 있으니 다시 시도하세요.' + (e?.code ? ` (${e.code})` : ''));
     }
 };
 
@@ -5899,7 +5903,7 @@ window.copyLocationToClipboard = async (event, locId) => {
             await setDoc(docRef, { [locId]: { reserved: true, reservedAt: now, assignedAt: now, reservedBy: currentUserName, codeTag: '당일지정', codeTagAt: now, updatedAt: new Date() } }, { merge: true });
             navigator.clipboard.writeText(locId).then(() => { showToast(`[${locId}] 복사 및 예약 완료!`); });
         }
-    } catch (error) { alert('예약 처리 오류'); }
+    } catch (error) { console.error(error); alert('자리를 예약하지 못했습니다(인터넷 연결 확인).' + (error?.code ? ` (${error.code})` : '')); }
 };
 
 function showToast(message, ms) {
@@ -5946,7 +5950,7 @@ window.deleteSelectedLocations = async () => {
         VS.checkedIds.clear();
         updateLocBulkBar();
         showToast(`로케이션 ${checkedIds.length}개 삭제 완료`);
-    } catch (error) { console.error(error); alert('삭제 실패: ' + (error && error.message ? error.message : error)); }
+    } catch (error) { console.error(error); alert('로케이션을 삭제하지 못했습니다(인터넷 연결 확인). 일부는 지워졌을 수 있으니 목록을 확인하세요.' + (error?.code ? ` (${error.code})` : '')); }
 };
 
 // ============================================================
@@ -6045,7 +6049,7 @@ window.applyLocBulkEdit = async function () {
     } catch (e) {
         window.hideLoading();
         console.error('[location] 일괄 수정 실패:', e);
-        alert('수정 실패: ' + (e && e.message ? e.message : e));
+        alert('로케이션을 수정하지 못했습니다(인터넷 연결 확인). 일부는 바뀌었을 수 있으니 목록을 확인하세요.' + (e?.code ? ` (${e.code})` : ''));
     }
 };
 
@@ -6429,7 +6433,7 @@ function _ttShowEditor(tip, key, target) {
             _ttEditingLock = false;
             tip.classList.remove('tt-editing');
             _ttRenderTabs(tip, key, target);
-        } catch(err) { console.error(err); alert("저장 실패"); }
+        } catch(err) { console.error(err); alert(`${target === 'desc' ? '설명' : '메뉴얼'}을 저장하지 못했습니다(인터넷 연결 확인).` + (err?.code ? ` (${err.code})` : '')); }
     });
 }
 
@@ -7192,7 +7196,7 @@ window.showSingleRecommendation = function() {
                 if (!rec.currentLocs) moveBadge = _badge(TONE.accentSoft, TONE.accentDeep, '신규');
                 else if (_slot.dongRank < currentInfo.dongRank || (_slot.dongRank === currentInfo.dongRank && _slot.posRank < currentInfo.posRank)) moveBadge = _badge(TONE.okSoft, TONE.okText, '전진');
                 else moveBadge = _badge(TONE.track, TONE.text2, '수평');
-                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 플랫폼 출고:${(item.zContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${(item.wContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:#90a4ae;">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: 플랫폼 출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
+                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 플랫폼 출고:${(item.zContrib||0).toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${(item.wContrib||0).toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: 플랫폼 출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
 
                 html += `
                     <tr style="background:${rowBg}; line-height:1.3;">
@@ -7254,7 +7258,7 @@ window.showSingleRecommendation = function() {
         } catch (err) {
             console.error('[v4.1] showSingleRecommendation 에러:', err);
             window.hideLoading();
-            alert('단독 추천 계산 중 오류가 발생했습니다. 콘솔(F12)을 확인해주세요.');
+            alert('단독 추천 계산 중 오류가 발생했습니다.\n재고 엑셀을 다시 올린 뒤 시도하세요. 계속되면 관리자에게 화면과 시각을 알려 주세요.' + (err?.code ? `\n(오류 코드: ${err.code})` : ''));
         }
     }, 500);
 };
@@ -7286,7 +7290,7 @@ window.showPairRecommendation = function() {
                 window.hideLoading();
                 const tbody = document.getElementById('recommend-tbody');
                 if (tbody) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="padding:40px; text-align:center; color:#666;">먼저 단독 추천을 실행해주세요.<br>(페어 추천은 단독 추천 결과를 기반으로 동작합니다)</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding:40px; text-align:center; color:var(--c-text-2,#666);">먼저 단독 추천을 실행해주세요.<br>(페어 추천은 단독 추천 결과를 기반으로 동작합니다)</td></tr>';
                 }
                 document.getElementById('recommend-modal').style.display = 'flex';
                 console.warn('[v4.2-fix1] 단독 추천 결과 없음 또는 컨텍스트 없음');
@@ -7314,7 +7318,7 @@ window.showPairRecommendation = function() {
                 window.hideLoading();
                 const tbody = document.getElementById('recommend-tbody');
                 if (tbody) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="padding:40px; text-align:center; color:#666;">페어 데이터가 준비되지 않았습니다.<br>(주문 데이터를 업로드하거나 페어 분석을 먼저 실행해주세요)</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding:40px; text-align:center; color:var(--c-text-2,#666);">페어 데이터가 준비되지 않았습니다.<br>(주문 데이터를 업로드하거나 페어 분석을 먼저 실행해주세요)</td></tr>';
                 }
                 document.getElementById('recommend-modal').style.display = 'flex';
                 return;
@@ -7390,7 +7394,7 @@ window.showPairRecommendation = function() {
             console.log('[v4.2-fix1] 페어 추천 종료: 표시', matchedPairs.length, '쌍 / 엑셀 데이터', window.currentRecommendations.length, '개');
             
             if (matchedPairs.length === 0) {
-                html = '<tr><td colspan="5" style="padding:40px; text-align:center; color:#666;">표시할 페어 쌍이 없습니다.<br>(단독 추천 결과 안에 페어로 묶일 상품이 없거나, 근처에 빈 자리가 부족합니다)</td></tr>';
+                html = '<tr><td colspan="5" style="padding:40px; text-align:center; color:var(--c-text-2,#666);">표시할 페어 쌍이 없습니다.<br>(단독 추천 결과 안에 페어로 묶일 상품이 없거나, 근처에 빈 자리가 부족합니다)</td></tr>';
             }
             
             if (tbody) tbody.innerHTML = html;
@@ -7400,7 +7404,7 @@ window.showPairRecommendation = function() {
         } catch (err) {
             console.error('[v4.2-fix1] showPairRecommendation 에러:', err);
             window.hideLoading();
-            alert('페어 추천 계산 중 오류가 발생했습니다. 콘솔(F12)을 확인해주세요.');
+            alert('페어 추천 계산 중 오류가 발생했습니다.\n재고 엑셀을 다시 올린 뒤 시도하세요. 계속되면 관리자에게 화면과 시각을 알려 주세요.' + (err?.code ? `\n(오류 코드: ${err.code})` : ''));
         }
     }, 500);
 };
@@ -7629,17 +7633,17 @@ window.showPairRecommendation = function() {
         
         // 카드 렌더링 헬퍼
         const card = (icon, title, value, sub, color) => {
-            return `<div style="background:white; border:1px solid #e0e0e0; border-radius:8px; padding:12px 16px; min-width:140px; flex:1; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                <div style="font-size:11px; color:#888; font-weight:bold; margin-bottom:4px;">${icon} ${title}</div>
-                <div style="font-size:22px; font-weight:900; color:${color || '#333'};">${value}</div>
-                ${sub ? `<div style="font-size:11px; color:#999; margin-top:3px;">${sub}</div>` : ''}
+            return `<div style="background:var(--c-surface,white); border:1px solid var(--c-line,#e0e0e0); border-radius:8px; padding:12px 16px; min-width:140px; flex:1; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size:11px; color:var(--c-text-3,#888); font-weight:bold; margin-bottom:4px;">${icon} ${title}</div>
+                <div style="font-size:22px; font-weight:900; color:${color || 'var(--c-text,#333)'};">${value}</div>
+                ${sub ? `<div style="font-size:11px; color:var(--c-text-3,#999); margin-top:3px;">${sub}</div>` : ''}
             </div>`;
         };
         
         const formatRate = (rate) => {
             if (rate === null || rate === undefined) return '-';
             const sign = rate > 0 ? '+' : '';
-            const color = rate > 0 ? '#e65100' : (rate < 0 ? '#1976d2' : '#666');
+            const color = rate > 0 ? 'var(--c-warn-text,#e65100)' : (rate < 0 ? 'var(--c-accent-deep,#1976d2)' : 'var(--c-text-2,#666)');
             return `<span style="color:${color};">${sign}${rate.toFixed(1)}%</span>`;
         };
         
@@ -7657,9 +7661,9 @@ window.showPairRecommendation = function() {
         // v4.4 v3: 재고회전율(2F) 삭제 - 3층 + 합산만 표시
         let cardsRow2 = '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px;">';
         if (!turnover.sufficient) {
-            cardsRow2 += `<div style="background:#fff8e1; border:1px solid #ffd54f; border-radius:8px; padding:12px 16px; flex:1; font-size:12px; color:#a36800;">
+            cardsRow2 += `<div style="background:var(--c-warn-soft,#fff8e1); border:1px solid var(--c-warn,#ffd54f); border-radius:8px; padding:12px 16px; flex:1; font-size:12px; color:var(--c-warn-text,#a36800);">
                 ${turnover.message}<br>
-                <span style="font-size:11px; color:#999;">일일 최신화 업로드를 2영업일 이상 반복하면 회전율이 계산됩니다</span>
+                <span style="font-size:11px; color:var(--c-text-3,#999);">일일 최신화 업로드를 2영업일 이상 반복하면 회전율이 계산됩니다</span>
             </div>`;
         } else {
             // v4.4 v2: 날짜+수량을 두 줄로 표시
@@ -7678,7 +7682,7 @@ window.showPairRecommendation = function() {
         const usage3FHtml = window._v44_renderUsage3F();
         const usage2FHtml = window._v44_renderUsage2F();
         
-        const sectionTitle = (text) => `<div style="font-size:14px; font-weight:bold; color:var(--primary); margin:12px 0 8px 0; padding-bottom:4px; border-bottom:2px solid #e0e0e0;">${text}</div>`;
+        const sectionTitle = (text) => `<div style="font-size:14px; font-weight:bold; color:var(--primary); margin:12px 0 8px 0; padding-bottom:4px; border-bottom:2px solid var(--c-line,#e0e0e0);">${text}</div>`;
         
         container.innerHTML = `
             <div style="padding: 8px 12px;">
@@ -7731,7 +7735,7 @@ window.showPairRecommendation = function() {
             }
         } catch (e) {
             console.warn('[v4.4] 3층 사용률 렌더링 실패:', e);
-            html = '<div style="padding:20px; text-align:center; color:#999;">사용률 정보를 불러올 수 없습니다.</div>';
+            html = '<div style="padding:20px; text-align:center; color:var(--c-text-3,#999);">사용률 정보를 불러올 수 없습니다.</div>';
         }
         
         // 원복
@@ -7774,7 +7778,7 @@ window.showPairRecommendation = function() {
             }
         } catch (e) {
             console.warn('[v4.4] 2F 사용률 렌더링 실패:', e);
-            html = '<div style="padding:20px; text-align:center; color:#999;">2F 사용률 정보를 불러올 수 없습니다.</div>';
+            html = '<div style="padding:20px; text-align:center; color:var(--c-text-3,#999);">2F 사용률 정보를 불러올 수 없습니다.</div>';
         }
         
         window.currentUsageTab = prevTab;
@@ -7945,7 +7949,7 @@ window.__dashZdSortBy = function (key) {
 
 // 헤더 화살표 HTML 생성
 function __dashSortArrow(key) {
-    if (__dashZdSort.key !== key) return '<span style="color:#cfd8dc; font-size:10px;">↕</span>';
+    if (__dashZdSort.key !== key) return '<span style="color:var(--c-text-4,#cfd8dc); font-size:10px;">↕</span>';
     return __dashZdSort.dir === 'asc'
         ? '<span style="color:var(--primary); font-size:11px;">▲</span>'
         : '<span style="color:var(--primary); font-size:11px;">▼</span>';

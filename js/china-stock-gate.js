@@ -13,8 +13,8 @@
 // ⚠️ 이건 '화면을 가리는' 장치다. 데이터 자체는 firestore.rules 가 막는다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // ⚠️ china-stock-goods.js 와 '똑같은 주소'로 가져와야 모듈이 한 번만 만들어진다(?v=9.9 포함).
-import { initializeFirebase } from './china-stock-config.js?v=202610221432';
-import { setShellContext } from './app-shell-bridge.js?v=202610221432';
+import { initializeFirebase } from './china-stock-config.js?v=202610221532';
+import { setShellContext } from './app-shell-bridge.js?v=202610221532';
 
 const OVERLAY_ID = 'cs-auth-gate';
 
@@ -67,7 +67,7 @@ const showLogin = (auth) => {
             <input id="cs-pw" type="password" autocomplete="current-password" placeholder="비밀번호"
                    style="padding:11px 12px; border:1px solid var(--c-line-strong,#D6DAE0); border-radius:10px; font-size:15px; font-family:inherit; background:var(--c-surface,#FFFFFF); color:var(--c-text,#23272E);">
             <button type="submit" id="cs-login-btn"
-                    style="padding:12px; border:0; border-radius:999px; background:var(--c-accent,#2F62C9); color:#fff; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer;">로그인</button>
+                    style="padding:12px; border:0; border-radius:999px; background:#2F62C9; color:#fff; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer;">로그인</button>
             <div id="cs-login-err" style="font-size:12px; color:var(--c-risk-text,#A0525C); min-height:16px;"></div>
         </form>
         <a href="index.html" style="font-size:12.5px; color:var(--c-accent-deep,#1E4699);">업무관리 열기</a>`);

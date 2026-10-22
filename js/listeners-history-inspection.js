@@ -1,20 +1,20 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610221432';
-import * as State from './state.js?v=202610221432';
-import { showToast, getTodayDateString } from './utils.js?v=202610221432';
+import * as DOM from './dom-elements.js?v=202610221532';
+import * as State from './state.js?v=202610221532';
+import { showToast, getTodayDateString } from './utils.js?v=202610221532';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202610221432'; 
+} from './ui-history.js?v=202610221532'; 
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202610221432';
+} from './ui-history-inspection.js?v=202610221532';
 
 import {
     loadInspectionLogs,
@@ -26,11 +26,11 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202610221432';
+} from './inspection-logic.js?v=202610221532';
 
 import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-let cachedInspectionData = [];
+let cachedInspectionData = null;   // null = 아직 안 불러옴('불러오는 중'), [] = 불러왔는데 기록 없음
 
 // 검수이력 일자별 보기 → 그 날짜의 '대기' 항목을 오늘 검수 대기 리스트에 불러와 이어서 진행.
 // (검수 매니저는 메인 앱에 있으므로, 여기선 오늘 daily_data의 inspectionList에 머지 저장만 하고

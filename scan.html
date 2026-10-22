@@ -2,14 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610221432">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610221432">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610221432">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <script src="js/theme-boot.js?v=202610221532"></script>
+    <link rel="stylesheet" href="css/suit.css?v=202610221532">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610221532">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610221532">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        /* 화면 확대(두 손가락)는 허용하되, 버튼·카메라 영역을 빠르게 두 번 눌러도 확대되지 않게 (스캔 버튼 오조작 방지) */
+        button, .scan-wrap, .overlay { touch-action: manipulation; }
         body { margin: 0; font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; background: var(--c-bg); color: var(--c-text); display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
 
         .tabs { display: flex; gap: 8px; padding: 10px 12px 6px; background: var(--theme, #2F62C9); align-items: center; }
@@ -84,6 +87,15 @@
         .qty-sel { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
         .qty-sel button { height: 52px; font-size: 22px; font-weight: 800; border: 1px solid var(--c-line); border-radius: var(--r-sm); background: var(--c-surface-2); cursor: pointer; }
         .qty-sel button.sel { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+        /* 미발수량 원탭 입고 버튼 (미발 1~999개일 때만 표시) */
+        .m-btn.mibal { height: 64px; margin: 4px 0 6px; background: var(--c-risk-text); font-size: 22px; }
+        /* 수량 직접 입력 키패드 */
+        .numpad button.np-ok { background: var(--c-accent); color: #fff; border-color: var(--c-accent); font-size: 18px; }
+        .numpad button.np-ok:disabled { background: var(--c-track); color: var(--c-text-3); border-color: var(--c-line); }
+        .num-display:focus { outline: none; box-shadow: 0 0 0 3px var(--c-accent-soft, rgba(47,98,201,.25)); }
+        .qty-mode-btn { width: 100%; min-height: 46px; margin-top: 10px; border: 1px dashed var(--c-line-strong); border-radius: var(--r-sm); background: var(--c-surface); color: var(--c-text-2); font-family: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
+        .set-desc { font-size: 12.5px; color: var(--c-text-2); line-height: 1.5; padding: 6px 0 10px; border-bottom: 1px solid var(--c-line-soft); }
+        .set-row.has-desc { border-bottom: 0; padding-bottom: 0; }
         .set-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--c-line-soft); font-size: 14px; font-weight: bold; gap: 8px; }
         .set-row input[type="text"] { flex: 1; padding: 8px; border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); font-size: 14px; }
         .set-row input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--c-accent); }
@@ -96,6 +108,21 @@
         #undo-toast button { flex-shrink: 0; min-height: 40px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: #fff; color: var(--c-accent-deep); font-family: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
         #update-banner { display: none; position: fixed; top: 0; left: 0; width: 100%; background: var(--c-warn-text); color: #fff; z-index: 300; padding: 12px; text-align: center; font-weight: bold; }
         #update-banner button { margin-left: 10px; padding: 6px 14px; border: none; border-radius: 6px; background: #fff; color: var(--c-warn-text); font-weight: bold; }
+
+        /* ── 다크(2026-10-22) — 토큰은 css/d-theme.css html.dark. 여기는 토큰만으로 안 되는 곳 ──
+           다크 토큰의 파랑·분홍·노랑은 밝아서 그 위 글자는 흰색 대신 어두운 색(#111418). */
+        html.dark .btn-start, html.dark .m-btn, html.dark .qty-sel button.sel, html.dark .numpad button.np-ok { color: #111418; }
+        html.dark .m-btn.outline { color: var(--c-accent); }
+        html.dark .m-btn.gray { color: var(--c-text-2); }
+        html.dark .numpad button.np-ok:disabled { color: var(--c-text-3); }
+        html.dark .numpad button, html.dark .qty-sel button { color: var(--c-text); }
+        html.dark .qitem { background: rgba(26,30,36,.93); }
+        html.dark #toast, html.dark #undo-toast { background: #2A3038; color: var(--c-text); border: 1px solid var(--c-line-strong); }
+        html.dark #undo-toast button { background: var(--c-accent); color: #111418; }
+        html.dark #update-banner { color: #111418; }
+        html.dark #update-banner button { background: #111418; color: var(--c-warn-text); }
+        html.dark #btn-in-manual-code { color: #111418 !important; }   /* 인라인 style 위 */
+        html.dark #loc-manual input, html.dark #in-manual input, html.dark .set-row input[type="text"] { background: var(--c-surface); color: var(--c-text); }
     </style>
 </head>
 <body data-shell="scan">
@@ -160,17 +187,25 @@
 
     <div class="send-bar"><button class="btn-send" id="btn-send" disabled>전송하기 (0)</button></div>
 
-    <!-- 입고 선택 모달 (수량: 십/일 자리 선택, 일의자리 누르면 자동 확정) -->
+    <!-- 입고 선택 모달 (수량: [미발 N개] 원탭 / 빠른 선택(십/일 자리, 일의자리 누르면 자동 확정) / 키패드 직접 입력 1~999) -->
     <div class="overlay" id="ov-select"><div class="modal">
         <div class="m-code" id="sel-code"></div>
         <div class="m-loc" id="sel-loc"></div>
         <div id="sel-memo" style="display:none; background:var(--c-risk-soft); color:var(--c-risk-text); border:2px solid var(--c-risk); border-radius:var(--r-sm); padding:9px 11px; margin:9px 0; font-size:16px; font-weight:800; text-align:center; white-space:pre-line; line-height:1.4;"></div>
-        <div class="m-remain">미발수량: <b id="sel-remain">0</b></div>
-        <div class="num-display" id="num-display" style="margin-top:8px;">0</div>
-        <div class="qty-sel-label">십의 자리 (한 자리 수량이면 건너뛰세요)</div>
-        <div class="qty-sel" id="qty-tens" style="grid-template-columns: repeat(2, 1fr);"></div>
-        <div class="qty-sel-label">일의 자리 (누르면 바로 추가)</div>
-        <div class="qty-sel" id="qty-ones"></div>
+        <button type="button" class="m-btn mibal" id="sel-mibal" style="display:none;"></button>
+        <div class="m-remain" id="sel-remain-row">미발수량: <b id="sel-remain">0</b></div>
+        <div class="num-display" id="num-display" tabindex="-1" style="margin-top:8px;">0</div>
+        <div id="qty-quick">
+            <div class="qty-sel-label">십의 자리 (한 자리 수량이면 건너뛰세요)</div>
+            <div class="qty-sel" id="qty-tens" style="grid-template-columns: repeat(2, 1fr);"></div>
+            <div class="qty-sel-label">일의 자리 (누르면 바로 추가)</div>
+            <div class="qty-sel" id="qty-ones"></div>
+            <button type="button" class="qty-mode-btn" id="qty-to-pad">숫자 직접 입력 (30개 이상)</button>
+        </div>
+        <div id="qty-pad" style="display:none;">
+            <div class="numpad" id="numpad"></div>
+            <button type="button" class="qty-mode-btn" id="qty-to-quick">빠른 선택으로</button>
+        </div>
         <button class="m-btn gray" id="sel-cancel">취소</button>
     </div></div>
 
@@ -187,7 +222,8 @@
     <!-- 설정 모달 -->
     <div class="overlay" id="ov-set"><div class="modal">
         <div style="font-weight:900; font-size:17px; margin-bottom:6px;">설정</div>
-        <div class="set-row"><span>스캔 즉시 수량 입력</span><input type="checkbox" id="set-direct"></div>
+        <div class="set-row has-desc"><label for="set-direct">스캔 즉시 수량 입력</label><input type="checkbox" id="set-direct"></div>
+        <div class="set-desc">켜면 스캔하자마자 수량 팝업이 숫자 키패드 상태로 열려 바로 입력할 수 있습니다. 끄면 빠른 선택(십·일 자리) 화면으로 열립니다.</div>
         <button class="m-btn" id="set-close">저장 후 닫기</button>
     </div></div>
 
@@ -195,16 +231,16 @@
     <div id="undo-toast" role="status" aria-live="polite"><span id="undo-toast-msg"></span><button type="button" id="undo-toast-btn">되돌리기</button></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610221432"></script>
+    <script src="js/location-map.js?v=202610221532"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610221432'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202610221432';   // 공통 상단바(uid 만 — 메뉴는 캐시)
-        import { checkProductCode } from './js/lib/product-code.js?v=202610221432';  // 위치지정 상품코드 'S+숫자6자리' 판정
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610221532'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202610221532';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { checkProductCode } from './js/lib/product-code.js?v=202610221532';  // 위치지정 상품코드 'S+숫자6자리' 판정
 
-        const SCAN_VERSION = '10.5'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.6'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
@@ -239,10 +275,10 @@
         // 폰에서도 메인 앱(업무관리)에 한 번 로그인해 두면 그 뒤로는 그대로 열린다.
         if (!serverCfg) {
             const gate = document.createElement('div');
-            gate.style.cssText = `position:fixed; inset:var(--as-h,0px) 0 0 0; z-index:2147483600; background:#F5F6F8; color:#23272E;
+            gate.style.cssText = `position:fixed; inset:var(--as-h,0px) 0 0 0; z-index:2147483600; background:var(--c-bg,#F5F6F8); color:var(--c-text,#23272E);
                 display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
                 font-family:'SUIT','Noto Sans KR',sans-serif; text-align:center; padding:24px;`;
-            gate.innerHTML = `<div style="font-size:42px; color:#69707A;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+            gate.innerHTML = `<div style="font-size:42px; color:var(--c-text-3,#69707A);"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
                 <div style="font-size:17px; font-weight:800;">로그인 확인 중…</div>`;
             document.body.appendChild(gate);
             const auth = getAuth(app);
@@ -252,18 +288,18 @@
                 // 업무관리에 로그인해 두었어도 세션이 공유되지 않는 경우가 있다
                 // (홈 화면 앱에서 다른 브라우저로 열리거나, 사생활 보호 모드 등).
                 // 그래서 여기서 바로 로그인할 수 있게 한다 — 계정은 업무관리와 같다.
-                gate.innerHTML = `<div style="font-size:40px; color:#69707A;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+                gate.innerHTML = `<div style="font-size:40px; color:var(--c-text-3,#69707A);"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
                     <div style="font-size:17px; font-weight:800;">로그인이 필요합니다</div>
-                    <div style="font-size:12.5px; color:#646B75; line-height:1.7; max-width:320px;">
+                    <div style="font-size:12.5px; color:var(--c-text-2,#646B75); line-height:1.7; max-width:320px;">
                         업무관리와 같은 계정입니다.<br>이 폰에서 한 번 로그인하면 다음부터는 바로 열립니다.</div>
                     <form id="sc-login" style="display:flex; flex-direction:column; gap:8px; width:100%; max-width:300px; margin-top:4px;">
                         <input id="sc-email" type="email" inputmode="email" autocomplete="username" placeholder="이메일"
-                               style="padding:12px; border:1px solid #D6DAE0; border-radius:10px; font-size:16px; background:#fff; color:#23272E;">
+                               style="padding:12px; border:1px solid var(--c-line-strong,#D6DAE0); border-radius:10px; font-size:16px; background:var(--c-surface,#fff); color:var(--c-text,#23272E);">
                         <input id="sc-pw" type="password" autocomplete="current-password" placeholder="비밀번호"
-                               style="padding:12px; border:1px solid #D6DAE0; border-radius:10px; font-size:16px; background:#fff; color:#23272E;">
+                               style="padding:12px; border:1px solid var(--c-line-strong,#D6DAE0); border-radius:10px; font-size:16px; background:var(--c-surface,#fff); color:var(--c-text,#23272E);">
                         <button type="submit" id="sc-login-btn"
                                 style="padding:13px; border:0; border-radius:999px; background:#2F62C9; color:#fff; font-size:16px; font-weight:700;">로그인</button>
-                        <div id="sc-login-err" style="font-size:12px; color:#A0525C; min-height:16px;"></div>
+                        <div id="sc-login-err" style="font-size:12px; color:var(--c-risk-text,#A0525C); min-height:16px;"></div>
                     </form>`;
                 gate.querySelector('#sc-login').addEventListener('submit', async (ev) => {
                     ev.preventDefault();
@@ -595,17 +631,36 @@
             $('sel-code').textContent = item.code;
             $('sel-loc').textContent = item.location;
             $('sel-remain').textContent = item.mibalQty;
+            // [미발 N개] 원탭 입고 — 미발 1~999개일 때만. 버튼이 같은 숫자를 보여 주므로 '미발수량' 줄은 숨긴다
+            const mibal = parseInt(item.mibalQty) || 0;
+            const showMibal = mibal >= 1 && mibal <= QTY_MAX;
+            $('sel-mibal').textContent = `미발 ${mibal}개 입고`;
+            $('sel-mibal').style.display = showMibal ? 'block' : 'none';
+            $('sel-remain-row').style.display = showMibal ? 'none' : 'block';
             qtyTens = 0;
+            padBuf = ''; padOver = false;
             $('num-display').textContent = '0';
             document.querySelectorAll('#qty-tens button').forEach(b => b.classList.remove('sel')); // 십의자리 선택 해제(기본=한 자리)
+            setQtyView(directQty ? 'pad' : 'quick'); // 설정 '스캔 즉시 수량 입력' 이 켜져 있으면 키패드로 연다
             // [Ver 8.83] 오류바코드 사유 표시 (등록된 경우) — 작업자가 처리 판단 (음성/진동은 processInbound에서 처리)
             const memoEl = $('sel-memo');
             if (memoEl) { if (item.aliasMemo) { memoEl.textContent = '오류바코드: ' + item.aliasMemo; memoEl.style.display = 'block'; } else memoEl.style.display = 'none'; }
             if (!item.aliasMemo && (parseInt(item.mibalQty) || 0) > 0) speak('미발'); // [Ver 8.79] 미발수량 있을 때만 '미발' 음성 (사유 있으면 사유 음성 우선)
             $('ov-select').style.display = 'flex';
             pushScanModal(); // [Ver 9.7] 뒤로가기로 팝업만 닫히게
+            if (qtyView === 'pad') focusPad();
         }
         function closeSelect() { $('ov-select').style.display = 'none'; popScanModal(); }
+        const selectOpen = () => $('ov-select').style.display === 'flex';
+
+        // 수량 확정 — 빠른 선택·키패드·[미발 N개] 가 모두 여기로. 1~QTY_MAX 정수만 받는다(0·빈값은 확정 안 함)
+        const QTY_MAX = 999;
+        function confirmQty(qty) {
+            if (!selectOpen() || !currentItem) return; // 두 번 눌림(팝업이 이미 닫힘) 방지
+            if (!Number.isInteger(qty) || qty < 1 || qty > QTY_MAX) return;
+            const item = currentItem;
+            closeSelect(); addInbound(item, qty, '직접입력'); resumeScan(); refocusManual();
+        }
 
         function addInbound(item, qty, dest) {
             if (item.forceAllow) registerForceAllow(item.code); // 강제전송 건은 입고 확정 때만 허용목록에 올린다
@@ -630,9 +685,60 @@
             });
             for (let i = 0; i <= 9; i++) {
                 const bo = document.createElement('button'); bo.textContent = i; bo.dataset.d = String(i);
-                bo.onclick = () => { const qty = qtyTens * 10 + i; $('num-display').textContent = String(qty); if (qty > 0) { closeSelect(); addInbound(currentItem, qty, '직접입력'); resumeScan(); refocusManual(); } };
+                bo.onclick = () => { const qty = qtyTens * 10 + i; $('num-display').textContent = String(qty); if (qty > 0) confirmQty(qty); };
                 ones.appendChild(bo);
             }
+            // 키패드: 1 2 3 / 4 5 6 / 7 8 9 / ← 0 확인
+            const pad = $('numpad');
+            ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'ok'].forEach(k => {
+                const b = document.createElement('button'); b.type = 'button';
+                if (k === 'back') { b.textContent = '←'; b.setAttribute('aria-label', '지우기'); b.onclick = () => padKey('Backspace'); }
+                else if (k === 'ok') { b.textContent = '확인'; b.className = 'np-ok'; b.id = 'np-ok'; b.onclick = () => padKey('Enter'); }
+                else { b.textContent = k; b.onclick = () => padKey(k); }
+                pad.appendChild(b);
+            });
+            $('qty-to-pad').onclick = () => { padBuf = ''; padOver = false; $('num-display').textContent = '0'; setQtyView('pad'); focusPad(); };
+            $('qty-to-quick').onclick = () => { qtyTens = 0; padBuf = ''; padOver = false; $('num-display').textContent = '0'; document.querySelectorAll('#qty-tens button').forEach(b => b.classList.remove('sel')); setQtyView('quick'); };
+            $('sel-mibal').onclick = () => confirmQty(parseInt(currentItem && currentItem.mibalQty) || 0);
+            // 키패드 화면일 때는 실제 키보드(블루투스 키보드·PC)의 숫자·지우기·엔터도 받는다
+            document.addEventListener('keydown', (e) => {
+                if (!selectOpen() || qtyView !== 'pad') return;
+                if (/^[0-9]$/.test(e.key) || e.key === 'Backspace' || e.key === 'Enter') { e.preventDefault(); padKey(e.key); }
+                // 숫자 아닌 글자(바코드 스캐너가 키패드에 영문+숫자를 찍는 경우)는 막는다 — ← 로 지울 때까지 확인 불가
+                else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); padOver = true; renderPad(); }
+            });
+        }
+
+        // 키패드 직접 입력 (1~999). padBuf = 입력 중인 숫자 문자열
+        // padOver = 네 자리 이상을 넣으려 함 → ← 로 지울 때까지 확인 불가(바코드 건이 키패드에 숫자를 쳐도 앞 세 자리로 입고되지 않게)
+        let qtyView = 'quick', padBuf = '', padOver = false;
+        function setQtyView(v) {
+            qtyView = v;
+            $('qty-quick').style.display = v === 'quick' ? 'block' : 'none';
+            $('qty-pad').style.display = v === 'pad' ? 'block' : 'none';
+            if (v !== 'pad') { $('num-display').style.color = ''; $('num-display').style.fontSize = ''; }
+            renderPad();
+        }
+        function focusPad() { try { $('num-display').focus({ preventScroll: true }); } catch (e) {} }
+        function renderPad() {
+            if (qtyView !== 'pad') return;
+            const d = $('num-display');
+            d.textContent = padOver ? `최대 ${QTY_MAX}개 — ← 로 지우세요` : (padBuf || '0');
+            d.style.color = padOver ? 'var(--c-risk-text)' : '';
+            d.style.fontSize = padOver ? '18px' : '';
+            const n = parseInt(padBuf) || 0;
+            $('np-ok').disabled = padOver || !(n >= 1 && n <= QTY_MAX);
+        }
+        function padKey(k) {
+            if (k === 'Backspace') { if (padOver) { padOver = false; padBuf = ''; } else padBuf = padBuf.slice(0, -1); }
+            else if (k === 'Enter') { if (!padOver) confirmQty(parseInt(padBuf) || 0); return; }
+            else if (/^[0-9]$/.test(k)) {
+                if (padOver) return;
+                if (!padBuf && k === '0') return;                   // 앞자리 0 은 받지 않는다
+                if (padBuf.length >= String(QTY_MAX).length) { padOver = true; try { navigator.vibrate(120); } catch (e) {} } // 세 자리(999)까지
+                else padBuf += k;
+            }
+            renderPad();
         }
 
         // ---------------- 위치 모드 ----------------
@@ -1093,7 +1199,7 @@
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/page-gate.js?v=202610221432" data-perm-page="scan.view" data-perm-app="scanApp"></script>
-    <script type="module" src="js/app-shell.js?v=202610221432"></script>
+    <script type="module" src="js/page-gate.js?v=202610221532" data-perm-page="scan.view" data-perm-app="scanApp"></script>
+    <script type="module" src="js/app-shell.js?v=202610221532"></script>
 </body>
 </html>

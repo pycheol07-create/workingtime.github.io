@@ -3,12 +3,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202610221432';
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610221432';
-import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221432';
-import { memberNameFor } from './app-shell-data.js?v=202610221432';
-import { menuConfigOf } from './lib/perm.js?v=202610221432';
-import { escapeHtml } from './utils.js?v=202610221432';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202610221532';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610221532';
+import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221532';
+import { memberNameFor } from './app-shell-data.js?v=202610221532';
+import { menuConfigOf } from './lib/perm.js?v=202610221532';
+import { escapeHtml, friendlyFirebaseError } from './utils.js?v=202610221532';
 
 let app, db, auth, storage;
 let appConfig = {};
@@ -20,6 +20,47 @@ let currentZoom = window.matchMedia('(max-width: 768px)').matches ? 100 : 80;
 
 let currentUserName = '';
 let isAdmin = false;
+let removeExistingFile = false;   // 편집 중 [첨부 빼기] — 저장 때 기존 첨부를 뗀다(저장소 파일은 지우지 않는다)
+
+const myEmailLower = () => String((auth && auth.currentUser && auth.currentUser.email) || '').toLowerCase();
+// 수정·삭제 가능 — firestore.rules manuals 의 update·delete 와 같은 조건(isAdmin() || author.lower() == 내 이메일)
+const canEditManual = (item) => !!item && (isAdmin || (myEmailLower() !== '' && String(item.author || '').toLowerCase() === myEmailLower()));
+const EDIT_DENIED_MSG = '매뉴얼은 작성자·관리자만 수정할 수 있습니다.';
+
+// 열람 가능 — 목록 필터와 같은 기준(주소 #id= 로 바로 열 때도 이 검사를 거친다)
+const canViewManual = (item) => {
+    if (!item) return false;
+    if (isAdmin) return true;
+    if (item.author === (auth.currentUser && auth.currentUser.email)) return true;
+    if (!item.allowedMembers || item.allowedMembers.length === 0) return true;
+    return item.allowedMembers.includes(currentUserName);
+};
+
+// 검색용 본문 글자(태그 제거). DOMParser 문서는 스크립트를 실행하지 않는다. 매뉴얼마다 한 번만 만든다.
+const plainTextOf = (item) => {
+    if (item._plain === undefined) {
+        try { item._plain = new DOMParser().parseFromString(String(item.content || ''), 'text/html').body.textContent || ''; }
+        catch (e) { item._plain = ''; }
+        item._plain = item._plain.replace(/\s+/g, ' ').toLowerCase();
+    }
+    return item._plain;
+};
+
+// 매뉴얼 주소 — manual.html#id=<문서 id>. 열면 고치고(기록 안 쌓임), 지우면 뺀다. 문서 id 모양만 받는다.
+const MANUAL_ID_RE = /^[A-Za-z0-9_.-]{1,80}$/;
+const readManualHash = () => {
+    const m = /^#id=([^&]*)$/.exec(location.hash || '');
+    let id = '';
+    try { id = m ? decodeURIComponent(m[1]) : ''; } catch (e) { id = ''; }
+    return MANUAL_ID_RE.test(id) ? id : '';
+};
+const writeManualHash = (id) => {
+    try {
+        const hash = id && MANUAL_ID_RE.test(id) ? '#id=' + encodeURIComponent(id) : '';
+        if (hash === (location.hash || '')) return;
+        history.replaceState(history.state, '', location.pathname + location.search + hash);
+    } catch (e) { /* 주소를 못 고쳐도 화면은 그대로 */ }
+};
 
 // 저장 안 한 편집 경고(UI 1b, 2026-10-16) — 편집 영역(Quill)이 열려 있으면 '편집 중'으로 본다.
 // 저장·취소하면 편집 영역이 닫히므로 따로 내릴 것이 없다.
@@ -387,7 +428,7 @@ function setupEventListeners() {
     document.getElementById('edit-file-upload').addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             selectedFile = e.target.files[0];
-            document.getElementById('upload-file-name').innerHTML = `<span class="text-indigo-600 font-bold">✓ ${escapeHtml(selectedFile.name)}</span>`;
+            updateFileUI();
         }
     });
 
@@ -395,7 +436,41 @@ function setupEventListeners() {
     document.getElementById('btn-delete-manual').addEventListener('click', deleteManual);
     document.getElementById('btn-edit-manual').addEventListener('click', () => {
         const item = manualList.find(m => m.id === currentEditingId);
-        if (item) openEditor(item);
+        if (!item) return;
+        if (!canEditManual(item)) { alert(EDIT_DENIED_MSG); return; }
+        openEditor(item);
+    });
+
+    // [첨부 빼기] — 방금 고른 파일이 있으면 그것만 취소, 없으면 기존 첨부를 저장 때 뗀다
+    document.getElementById('btn-remove-file')?.addEventListener('click', () => {
+        if (selectedFile) {
+            selectedFile = null;
+            document.getElementById('edit-file-upload').value = '';
+        } else {
+            removeExistingFile = true;
+        }
+        updateFileUI();
+    });
+
+    // 주소의 #id= 가 바뀌면(링크를 붙여 넣기·뒤로가기) 그 매뉴얼을 연다. 편집 중이면 먼저 묻는다.
+    // '#id=' 가 아닌 해시(첨부 '#' 링크·본문 '#목차' 같은 앵커)는 무시한다 — 보던 매뉴얼을 닫는 것은 #id= 가 빠져 해시가 비었을 때만.
+    window.addEventListener('hashchange', (e) => {
+        let prev = '';
+        try { prev = new URL(e.oldURL).hash; } catch (err) { prev = ''; }
+        const nowId = /^#id=/.test(location.hash || '');
+        const idRemoved = /^#id=/.test(prev) && !location.hash;
+        if (!nowId && !idRemoved) return;
+        if (isEditingManual()) {
+            if (!confirm('작성 중인 매뉴얼이 저장되지 않았습니다.\n저장하지 않고 다른 매뉴얼을 열까요?')) {
+                // 남으면 주소만 되돌린다(replaceState 는 hashchange 를 다시 내지 않는다)
+                try { history.replaceState(history.state, '', location.pathname + location.search + prev); } catch (err) {}
+                return;
+            }
+            document.getElementById('manual-edit-area').classList.add('hidden');
+            selectedFile = null;
+        }
+        if (readManualHash()) openManualFromHash();
+        else if (currentEditingId) closeManualView();
     });
 
     document.querySelectorAll('.symbol-btn').forEach(btn => {
@@ -439,6 +514,16 @@ function setupEventListeners() {
     });
 }
 
+let hashOpened = false;
+// 주소의 #id= 매뉴얼을 연다. 없거나 볼 수 없는 매뉴얼이면 주소에서 뺀다(비공개 매뉴얼 여부를 알리지 않는다).
+function openManualFromHash() {
+    const id = readManualHash();
+    if (!id) return;
+    const item = manualList.find(m => m.id === id);
+    if (!canViewManual(item)) { writeManualHash(''); return; }
+    viewManual(id);
+}
+
 async function loadManuals() {
     const listContainer = document.getElementById('manual-list-container');
     listContainer.innerHTML = '<div class="flex justify-center p-5 text-gray-400 text-sm">데이터를 불러오는 중...</div>';
@@ -454,6 +539,8 @@ async function loadManuals() {
         });
 
         renderList();
+        // 처음 불러왔을 때 주소(#id=)의 매뉴얼을 바로 연다(새로고침·공유 링크)
+        if (!hashOpened) { hashOpened = true; openManualFromHash(); }
     } catch (e) {
         console.error("매뉴얼 로드 실패:", e);
         listContainer.innerHTML = '<div class="text-center p-5 text-red-500 text-sm font-bold">데이터를 불러오지 못했습니다. 새로고침 해주세요.</div>';
@@ -480,15 +567,11 @@ function renderList() {
         const titleMatch = (item.title || '').toLowerCase().includes(searchTerm);
         const catMatch = (item.category || '').toLowerCase().includes(searchTerm);
         const managerMatch = (item.manager || '').toLowerCase().includes(searchTerm);
-        return titleMatch || catMatch || managerMatch;
+        if (titleMatch || catMatch || managerMatch) return true;
+        return searchTerm !== '' && plainTextOf(item).includes(searchTerm);   // 본문(태그 뺀 글자)
     });
 
-    filteredList = filteredList.filter(item => {
-        if (isAdmin) return true;
-        if (item.author === auth.currentUser.email) return true;
-        if (!item.allowedMembers || item.allowedMembers.length === 0) return true;
-        return item.allowedMembers.includes(currentUserName);
-    });
+    filteredList = filteredList.filter(canViewManual);
 
     if (filteredList.length === 0) {
         listContainer.innerHTML = `<div class="p-6 text-center text-sm text-gray-400 border border-dashed border-gray-200 dark:border-gray-700 rounded-xl mt-4">접근할 수 있는 검색 결과가 없습니다.</div>`;
@@ -614,16 +697,28 @@ function openEditor(item = null) {
 
     quillEditor.root.innerHTML = item ? sanitizeManualHtml(item.content || '') : MANUAL_TEMPLATE;
     
-    const fileNameDisplay = document.getElementById('upload-file-name');
     document.getElementById('edit-file-upload').value = '';
-    
-    if (item && item.fileUrl) {
-        fileNameDisplay.innerHTML = `<span class="text-blue-600 font-bold">기존 첨부파일: ${escapeHtml(item.fileName || '유지됨')} (선택 시 교체)</span>`;
-    } else {
-        fileNameDisplay.textContent = '선택된 파일 없음';
-    }
+    removeExistingFile = false;
+    updateFileUI();
 
     document.getElementById('manual-edit-area').classList.remove('hidden');
+}
+
+// 편집 창의 첨부 줄 — 새로 고른 파일 / 기존 첨부(유지·빼기) / 없음, [첨부 빼기] 는 뺄 것이 있을 때만
+function updateFileUI() {
+    const el = document.getElementById('upload-file-name');
+    const existing = currentEditingId ? manualList.find(m => m.id === currentEditingId) : null;
+    const hasExisting = !!(existing && existing.fileUrl);
+    if (selectedFile) {
+        el.innerHTML = `<span class="text-indigo-600 font-bold">✓ ${escapeHtml(selectedFile.name)}</span>`;
+    } else if (hasExisting && !removeExistingFile) {
+        el.innerHTML = `<span class="text-blue-600 font-bold">기존 첨부파일: ${escapeHtml(existing.fileName || '유지됨')} (선택 시 교체)</span>`;
+    } else if (hasExisting) {
+        el.innerHTML = '<span class="text-red-600 font-bold">첨부를 뺍니다 (저장하면 적용)</span>';
+    } else {
+        el.textContent = '선택된 파일 없음';
+    }
+    document.getElementById('btn-remove-file')?.classList.toggle('hidden', !(selectedFile || (hasExisting && !removeExistingFile)));
 }
 
 async function saveManual() {
@@ -649,6 +744,13 @@ async function saveManual() {
         }
     }
 
+    // 남의 매뉴얼은 규칙이 거부한다 — 첨부를 올리기 전에 막는다(올린 파일만 남지 않게)
+    const existingItem = currentEditingId ? manualList.find(m => m.id === currentEditingId) : null;
+    if (existingItem && !canEditManual(existingItem)) {
+        alert(`저장할 수 없습니다. ${EDIT_DENIED_MSG}`);
+        return;
+    }
+
     const btn = document.getElementById('btn-save-manual');
     btn.disabled = true;
     btn.textContent = '저장 처리 중...';
@@ -657,8 +759,7 @@ async function saveManual() {
         let fileUrl = null;
         let fileName = null;
 
-        const existingItem = manualList.find(m => m.id === currentEditingId);
-        if (existingItem) {
+        if (existingItem && !removeExistingFile) {
             fileUrl = existingItem.fileUrl;
             fileName = existingItem.fileName;
         }
@@ -684,16 +785,18 @@ async function saveManual() {
             content: content === '<p><br></p>' ? '' : content,
             fileUrl: fileUrl || null,
             fileName: fileName || null,
-            allowedMembers: allowedMembers, 
-            author: auth.currentUser.email,
+            allowedMembers: allowedMembers,
             updatedAt: serverTimestamp()
         };
 
         const manualCol = collection(db, 'artifacts', 'team-work-logger-v2', 'manuals');
-        
+
         if (currentEditingId) {
+            // 수정 — author 는 그대로 둔다(merge). 관리자가 고쳐도 작성자가 계속 고칠 수 있게(규칙은 author 로 판단). 고친 사람은 updatedBy.
+            manualData.updatedBy = auth.currentUser.email;
             await setDoc(doc(manualCol, currentEditingId), manualData, { merge: true });
         } else {
+            manualData.author = auth.currentUser.email;
             manualData.createdAt = serverTimestamp();
             const newDocRef = doc(manualCol, `doc_${Date.now()}`);
             await setDoc(newDocRef, manualData);
@@ -709,8 +812,10 @@ async function saveManual() {
         console.error("저장 오류:", e);
         if (e.message === "OVERSIZED_CONTENT" || e.code === "resource-exhausted") {
             alert("저장 실패: 본문 텍스트 용량이 초과되었습니다.\n\n(이미지 업로드가 실패하여 강제로 글자로 변환된 이미지가 남아있을 수 있습니다. 이미지를 지우고 다시 시도하고, 계속되면 관리자에게 알려 주세요.)");
+        } else if (e && e.code === 'permission-denied') {
+            alert(`저장 권한이 없습니다. ${EDIT_DENIED_MSG}`);
         } else {
-            alert("저장에 실패했습니다. 관리자에게 문의하세요.");
+            alert(`저장에 실패했습니다 — ${friendlyFirebaseError(e)}`);
         }
     } finally {
         btn.disabled = false;
@@ -753,25 +858,50 @@ function viewManual(id) {
         attachArea.classList.remove('hidden');
         document.getElementById('view-file-name').textContent = item.fileName || '첨부된 파일 확인하기';
         // javascript: 같은 주소가 클릭으로 실행되지 않게 http(s) 만 링크로 건다
-        document.getElementById('view-file-link').href = /^https?:\/\//i.test(String(item.fileUrl).trim()) ? item.fileUrl : '#';
+        // http(s) 가 아니면 링크를 아예 뗀다('#' 로 두면 눌렀을 때 주소 해시만 바뀐다)
+        const fileLink = document.getElementById('view-file-link');
+        if (/^https?:\/\//i.test(String(item.fileUrl).trim())) {
+            fileLink.href = item.fileUrl;
+            fileLink.removeAttribute('aria-disabled');
+            fileLink.style.pointerEvents = '';
+        } else {
+            fileLink.removeAttribute('href');
+            fileLink.setAttribute('aria-disabled', 'true');
+            fileLink.style.pointerEvents = 'none';
+        }
     } else {
         attachArea.classList.add('hidden');
     }
 
-    document.getElementById('btn-edit-manual').classList.remove('hidden');
-    document.getElementById('btn-delete-manual').classList.remove('hidden');
+    // 수정·삭제는 작성자·관리자만(규칙과 같은 조건) — 못 하는 사람에게는 버튼을 보이지 않는다
+    const editable = canEditManual(item);
+    document.getElementById('btn-edit-manual').classList.toggle('hidden', !editable);
+    document.getElementById('btn-delete-manual').classList.toggle('hidden', !editable);
+
+    writeManualHash(id);
+}
+
+// 보던 매뉴얼을 닫는다(삭제 뒤 등) — 빈 화면으로 돌리고 주소의 #id= 를 뺀다
+function closeManualView() {
+    document.getElementById('viewer-content').classList.add('hidden');
+    document.getElementById('viewer-empty').classList.remove('hidden');
+    currentEditingId = null;
+    writeManualHash('');
 }
 
 async function deleteManual() {
+    const item = manualList.find(m => m.id === currentEditingId);
+    if (!item) return;
+    if (!canEditManual(item)) { alert(EDIT_DENIED_MSG); return; }
     if (!confirm("이 매뉴얼을 정말로 삭제하시겠습니까?\n(복구할 수 없습니다)")) return;
-    
+
     try {
         await deleteDoc(doc(db, 'artifacts', 'team-work-logger-v2', 'manuals', currentEditingId));
-        document.getElementById('viewer-content').classList.add('hidden');
-        document.getElementById('viewer-empty').classList.remove('hidden');
-        currentEditingId = null;
+        closeManualView();
         await loadManuals();
     } catch(e) {
-        alert("삭제에 실패했습니다.");
+        alert(e && e.code === 'permission-denied'
+            ? `삭제 권한이 없습니다. ${EDIT_DENIED_MSG}`
+            : `삭제에 실패했습니다 — ${friendlyFirebaseError(e)}`);
     }
 }

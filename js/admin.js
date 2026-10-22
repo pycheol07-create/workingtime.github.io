@@ -1,16 +1,16 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610221432';
-import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610221432';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221432';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221432';
-import { memberNameFor } from './app-shell-data.js?v=202610221432';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610221532';
+import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610221532';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221532';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221532';
+import { memberNameFor } from './app-shell-data.js?v=202610221532';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610221432';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610221432';
-import { getPermModel } from './admin-perm.js?v=202610221432';
-import { showConfirm } from './utils.js?v=202610221432';
-import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610221432';
+import { menuConfigOf } from './lib/perm.js?v=202610221532';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610221532';
+import { getPermModel } from './admin-perm.js?v=202610221532';
+import { showConfirm } from './utils.js?v=202610221532';
+import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610221532';
 
 import {
     renderAdminUI,
@@ -28,14 +28,15 @@ import {
     buildMemberItemHtml,
     loadMenuPageList,
     findDeadMenuItems,
-    countNamelessMenuRows
-} from './admin-ui.js?v=202610221432';
+    countNamelessMenuRows,
+    MOVE_BTNS
+} from './admin-ui.js?v=202610221532';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610221432';
+} from './admin-logic.js?v=202610221532';
 
 let db, auth;
 let appConfig = {};
@@ -52,22 +53,40 @@ let taskJustAdded = null;
 // 행 추가·삭제·끌어 옮기기처럼 입력 이벤트가 없는 변경은 잡지 못한다(입력·선택 변경만).
 // 버튼(행 추가·삭제 등)·끌어 옮기기, #admin-content 밖 선택 모달(업무·위젯 항목 추가)의 고르기·확인도 변경으로 본다.
 let adminDirty = false;
+// 변경이 있으면 [전체 저장]에 '저장 안 됨' 표시를 켠다. 자동화·채우기 탭(전체 저장 대상 아님)에서도
+// 변경이 있으면 버튼을 숨기지 않고 '다른 탭에 저장 안 한 변경' 안내를 보인다(admin.html activateTab 이 body.dataset.adminTab 을 바꾼다).
+const NO_SAVE_ALL_TABS = ['section-automation', 'section-refill'];
+function syncSaveAllUI() {
+    const offTab = NO_SAVE_ALL_TABS.includes(document.body.dataset.adminTab || '');
+    const btn = document.getElementById('save-all-btn');
+    if (btn) {
+        btn.style.display = offTab && !adminDirty ? 'none' : '';
+        btn.querySelector('#save-all-dirty')?.classList.toggle('hidden', !adminDirty);
+        btn.title = adminDirty ? '저장하지 않은 변경이 있습니다' : '';
+    }
+    document.getElementById('save-all-note')?.classList.toggle('hidden', !(adminDirty && offTab));
+}
+function setAdminDirty(v) {
+    if (adminDirty === !!v) return;
+    adminDirty = !!v;
+    syncSaveAllUI();
+}
 const ADMIN_DIRTY_SKIP = '#section-refill';
 const ADMIN_BTN_SKIP = '#save-all-btn, .admin-tab-btn, #section-refill, [data-pm-nodirty]';   // 권한 화면의 탭·펼치기·미리보기는 변경이 아니다
 const ADMIN_MODAL_PICK = '.task-select-list-btn, .dashboard-item-select-btn, #confirm-add-to-quantity-btn';
 const markAdminDirty = (e) => {
     const t = e && e.target;
     if (t && t.closest && t.closest(ADMIN_DIRTY_SKIP)) return;
-    adminDirty = true;
+    setAdminDirty(true);
 };
 const markAdminDirtyByClick = (e) => {
     const t = e && e.target;
     if (!t || !t.closest) return;
     const pick = t.closest(ADMIN_MODAL_PICK);
-    if (pick) { if (!pick.disabled) adminDirty = true; return; }
+    if (pick) { if (!pick.disabled) setAdminDirty(true); return; }
     const btn = t.closest('button');
     const content = document.getElementById('admin-content');
-    if (btn && content && content.contains(btn) && !btn.closest(ADMIN_BTN_SKIP)) adminDirty = true;
+    if (btn && content && content.contains(btn) && !btn.closest(ADMIN_BTN_SKIP)) setAdminDirty(true);
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -79,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
         adminContent.addEventListener('dragend', markAdminDirty);
     }
     document.addEventListener('click', markAdminDirtyByClick);   // 모달은 #admin-content 밖이라 문서에서 본다
+    document.addEventListener('admin-tab-changed', syncSaveAllUI);   // admin.html activateTab
     // 새로고침·탭 닫기·주소 이동 때 브라우저 경고. 공통 상단바에서 이미 물었으면(확인 누름) 다시 묻지 않는다.
     window.addEventListener('beforeunload', (e) => {
         if (!adminDirty || leaveAlreadyConfirmed()) return;
@@ -190,7 +210,7 @@ function setupEventListeners() {
         groupEl.innerHTML = `
             <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2"> 
-                   <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>
+                   <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>${MOVE_BTNS}
                    <input type="text" value="새 대분류" class="text-lg font-extrabold text-gray-800 dark:text-white menu-category-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none" placeholder="대분류 이름">
                  </div>
                 <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-menu-category-btn" type="button">대분류 삭제</button>
@@ -236,13 +256,8 @@ function setupEventListeners() {
     document.getElementById('select-dashboard-item-list')?.addEventListener('click', (e) => {
         const button = e.target.closest('.dashboard-item-select-btn');
         if (button && !button.disabled) {
-            const itemId = button.dataset.id;
-            if (!appConfig.dashboardItems) appConfig.dashboardItems = [];
-            appConfig.dashboardItems.push(itemId);
-            
-            renderDashboardItemsConfig(appConfig.dashboardItems, appConfig);
-            redrawMappingFromScreen();
-            
+            // 지금 화면 목록(삭제·순서 변경 반영)에 붙인다 — 저장 전 설정(appConfig)으로 그리면 지운 항목이 되살아나고 순서가 돌아간다
+            if (!appendDashboardItem(button.dataset.id)) return;
             document.getElementById('select-dashboard-item-modal')?.classList.add('hidden');
         }
     });
@@ -290,7 +305,8 @@ function previewOrWarn() {
     const cfg = previewTaskConfig();
     if (!cfg) alert('화면 값을 읽지 못해 목록을 다시 그리지 않았습니다(입력한 내용은 그대로 둡니다).\n'
         + (lastPreviewError && lastPreviewError.message ? lastPreviewError.message + '\n' : '')
-        + '위 문제를 먼저 고친 뒤 다시 해 주세요.');
+        + '위 문제를 먼저 고친 뒤 다시 해 주세요.\n'
+        + '(화면 전체를 한 번에 읽으므로 팀원 관리·권한 관리 등 다른 탭의 오류일 수 있습니다 — 그 탭을 먼저 고쳐 주세요)');
     return cfg;
 }
 function redrawMappingFromScreen() {
@@ -439,7 +455,7 @@ async function handleSaveAll() {
         }
 
         appConfig = newConfig;
-        adminDirty = false;   // 저장 안 한 변경 경고 해제
+        setAdminDirty(false);   // 저장 안 한 변경 경고 해제
         // 퇴사자는 저장할 때 접근이 전부 해제된다. 말없이 지우면 관리자가 눈치채지 못하므로 알린다.
         const resignedCount = Object.keys(newConfig.resignedMembers || {}).length;
         alert('✅ 모든 변경사항이 성공적으로 저장되었습니다!'
@@ -458,6 +474,7 @@ async function handleSaveAll() {
             : `❌ 저장 실패:\n${e.message}`);
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = btnHtml; }
+        syncSaveAllUI();   // innerHTML 을 되돌리면 '저장 안 됨' 표시가 저장 전 모양으로 돌아가므로 다시 맞춘다
     }
 }
 
@@ -522,8 +539,20 @@ function addQuantityTask(taskName) {
     renderQuantityToDashboardMapping({ ...cfg, quantityTaskTypes: list });
 }
 
-function addCustomDashboardItem() {
-    const newTitle = prompt("새로 추가할 수량 항목의 이름을 입력하세요:");
+// 상단 위젯 목록 = 지금 화면 목록(미리보기) + itemId. 화면 값을 못 읽으면 false(아무것도 바꾸지 않음).
+// 항목 이름(정의)은 appConfig 에서 찾는다 — 커스텀 항목 정의는 화면 목록에 있을 때만 저장된다(admin-logic.js).
+function appendDashboardItem(itemId) {
+    const cfg = previewOrWarn();
+    if (!cfg) return false;
+    const list = (cfg.dashboardItems || []).slice();
+    if (!list.includes(itemId)) list.push(itemId);
+    renderDashboardItemsConfig(list, appConfig);
+    redrawMappingFromScreen();
+    return true;
+}
+
+async function addCustomDashboardItem() {
+    const newTitle = await askText('새로 추가할 수량 항목의 이름을 입력하세요.', { title: '커스텀 수량 생성', okText: '추가', placeholder: '항목 이름' });
     if (!newTitle || newTitle.trim() === '') return;
     const trimmedTitle = newTitle.trim();
 
@@ -535,13 +564,44 @@ function addCustomDashboardItem() {
 
     const newId = `custom-${Date.now()}-${Math.random().toString(16).substring(2, 6)}`;
     if (!appConfig.dashboardCustomItems) appConfig.dashboardCustomItems = {};
+    // 그리기에 정의가 필요해 먼저 넣고, 화면 값을 못 읽어 붙이지 못했으면 되돌린다(목록에 없는 정의가 남아 같은 이름을 막지 않게)
     appConfig.dashboardCustomItems[newId] = { title: trimmedTitle, isQuantity: true };
 
-    if (!appConfig.dashboardItems) appConfig.dashboardItems = [];
-    appConfig.dashboardItems.push(newId);
+    if (appendDashboardItem(newId)) setAdminDirty(true);   // 입력창은 #admin-content 밖이라 클릭 감지가 못 잡는다
+    else delete appConfig.dashboardCustomItems[newId];
+}
 
-    renderDashboardItemsConfig(appConfig.dashboardItems, appConfig);
-    redrawMappingFromScreen();
+// 앱 안 한 줄 입력창(prompt 대체) — showConfirm(js/utils.js) 과 같은 모양. Promise<string|null>(취소면 null).
+function askText(message, opts = {}) {
+    const { title = '입력', okText = '확인', cancelText = '취소', placeholder = '', value = '' } = opts;
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    return new Promise((resolve) => {
+        const ov = document.createElement('div');
+        ov.setAttribute('data-esc-modal', '');   // 공용 ESC(js/modal-esc.js)가 [취소]를 누르게
+        ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(30,40,60,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+        ov.innerHTML = `
+            <div role="dialog" aria-modal="true" style="background:#fff;border-radius:18px;max-width:380px;width:100%;box-shadow:0 8px 24px rgba(30,40,60,.12);overflow:hidden;font-family:inherit;">
+              <div style="padding:20px 20px 8px;font-weight:700;font-size:16px;color:#23272E;">${esc(title)}</div>
+              <div style="padding:0 20px 10px;font-size:14px;color:#646B75;line-height:1.55;white-space:pre-line;">${esc(message)}</div>
+              <div style="padding:0 20px 18px;"><input type="text" data-ask-input maxlength="40" placeholder="${esc(placeholder)}" value="${esc(value)}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #D6DAE0;border-radius:8px;font-size:14px;color:#23272E;background:#fff;outline:none;"></div>
+              <div style="display:flex;gap:8px;padding:12px 16px;background:#F7F8FA;border-top:1px solid #E6E8EC;justify-content:flex-end;">
+                <button type="button" data-act="cancel" data-esc-close style="padding:8px 16px;border-radius:999px;border:1px solid #D6DAE0;background:#fff;color:#23272E;font-weight:700;font-size:13px;cursor:pointer;">${esc(cancelText)}</button>
+                <button type="button" data-act="ok" style="padding:8px 16px;border-radius:999px;border:1px solid #2F62C9;background:#2F62C9;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">${esc(okText)}</button>
+              </div>
+            </div>`;
+        const input = ov.querySelector('[data-ask-input]');
+        const done = (val) => { ov.remove(); resolve(val); };
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); done(input.value); }   // 한글 조합 중 Enter 는 무시
+        });
+        ov.addEventListener('click', (e) => {
+            if (e.target === ov) return done(null);   // 바깥 클릭 = 취소
+            const b = e.target.closest('[data-act]');
+            if (b) done(b.dataset.act === 'ok' ? input.value : null);
+        });
+        document.body.appendChild(ov);
+        input.focus();
+    });
 }
 
 function addTeamGroup() {
@@ -553,7 +613,7 @@ function addTeamGroup() {
     groupEl.innerHTML = `
         <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
             <div class="flex items-center gap-2">
-                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
+                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS} 
                 <input type="text" value="새 그룹" class="text-lg font-extrabold text-gray-800 dark:text-white team-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1">
             </div>
             <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-team-group-btn">그룹 삭제</button>
@@ -576,7 +636,7 @@ function addTaskGroup() {
     groupEl.innerHTML = `
          <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
             <div class="flex items-center gap-2"> 
-               <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
+               <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
                <input type="text" value="새 업무 그룹" class="text-lg font-extrabold text-gray-800 dark:text-white task-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1">
              </div>
             <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-task-group-btn">그룹 삭제</button>
@@ -595,7 +655,30 @@ function addTaskGroup() {
 const touchConfirm = (m) => !window.matchMedia('(hover: none)').matches || confirm(m);
 const DELETE_CONFIRM_MSG = '삭제할까요? (전체 저장 전에는 새로고침하면 되돌아갑니다)';
 
+// 📱 ▲▼ 순서 바꾸기(터치 화면용, admin-ui.js MOVE_BTNS) — 끌어 옮기기와 같은 목록 단위(setupAllDragListeners)
+const MOVABLE_ITEMS = ['.member-item', '.team-group-card', '.dashboard-item-config', '.key-task-item',
+    '.task-item', '.task-group-card', '.quantity-task-item', '.menu-item', '.menu-category-card'];
+function handleMoveClick(btn) {
+    const up = btn.classList.contains('move-up-btn');
+    // 버튼에서 가장 가까운 '옮길 줄' — 팀원 줄은 그룹 카드 안에 있으므로 closest 가 팀원 줄을 먼저 찾는다
+    let item = null, sel = '';
+    for (let el = btn.parentElement; el && !item; el = el.parentElement) {
+        sel = MOVABLE_ITEMS.find(s => el.matches(s)) || '';
+        if (sel) item = el;
+    }
+    if (!item) return;
+    let sib = up ? item.previousElementSibling : item.nextElementSibling;
+    while (sib && !sib.matches(sel)) sib = up ? sib.previousElementSibling : sib.nextElementSibling;
+    if (!sib) return;   // 맨 위/맨 아래
+    if (up) sib.before(item); else sib.after(item);
+    btn.focus();
+    if (sel === '.dashboard-item-config') redrawMappingFromScreen();   // 끌어 옮기기(dragend)와 같게 연결 목록 순서를 맞춘다
+}
+
 function handleDynamicClicks(e) {
+    const moveBtn = e.target.closest && e.target.closest('.move-up-btn, .move-down-btn');
+    if (moveBtn) { handleMoveClick(moveBtn); return; }
+
     // 🚪 퇴사자 섹션 접기/펼치기 (기본 접힘)
     const resignedToggle = e.target.closest('#resigned-toggle-btn');
     if (resignedToggle) {
@@ -675,8 +758,12 @@ function handleDynamicClicks(e) {
         if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.menu-item')?.remove();
     }
     else if (e.target.classList.contains('delete-menu-category-btn')) {
-        if(confirm('이 대분류와 포함된 모든 메뉴를 삭제하시겠습니까?')) {
-            e.target.closest('.menu-category-card')?.remove();
+        const card = e.target.closest('.menu-category-card');
+        if (card) {
+            const cName = card.querySelector('.menu-category-name')?.value.trim() || '(이름 없음)';
+            const cnt = card.querySelectorAll('.menu-items-container .menu-item').length;
+            showConfirm(`'${cName}' 대분류를 삭제할까요?\n이 대분류의 하위 메뉴 ${cnt}개도 함께 빠집니다.\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
+                { title: '대분류 삭제', okText: '삭제', danger: true }).then(ok => ok && card.remove());
         }
     }
     

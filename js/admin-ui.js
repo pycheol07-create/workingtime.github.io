@@ -1,9 +1,16 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610221432';
-import { renderPermissionPanel } from './admin-perm.js?v=202610221432';
-import { taskIdOf, isLockedTaskId } from './lib/task-ids.js?v=202610221432';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610221532';
+import { renderPermissionPanel } from './admin-perm.js?v=202610221532';
+import { taskIdOf, isLockedTaskId } from './lib/task-ids.js?v=202610221532';
+
+// 📱 순서 바꾸기 ▲▼ — HTML5 끌어 옮기기는 터치에서 안 되므로, 터치 화면(hover 없음)에서만 보인다(admin.html .move-btns).
+//    누르면 같은 종류의 앞/뒤 줄과 자리를 바꾼다(admin.js handleMoveClick). 마우스 환경은 ☰ 끌기 그대로.
+export const MOVE_BTNS = '<span class="move-btns items-center gap-0.5 shrink-0">'
+    + '<button type="button" class="move-up-btn text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600 rounded px-2 py-1" aria-label="위로" title="위로">▲</button>'
+    + '<button type="button" class="move-down-btn text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600 rounded px-2 py-1" aria-label="아래로" title="아래로">▼</button>'
+    + '</span>';
 
 export const DASHBOARD_ITEM_DEFINITIONS = {
     'total-staff': { title: '총원 (직원/알바)' },
@@ -117,7 +124,7 @@ export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
     <div class="flex flex-col gap-3 mb-4 p-4 rounded-xl border ${cardBg} member-item transition-colors" data-group-name="${groupName}">
         <div class="flex flex-wrap md:flex-nowrap justify-between items-start gap-4">
             <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
+                <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${isResigned ? '' : MOVE_BTNS}
                 ${groupBadge}
                 <div class="flex flex-col">
                     <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">이름</label>
@@ -191,7 +198,7 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
         groupEl.innerHTML = `
             <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2">
-                    <span class="drag-handle mr-2 cursor-move text-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" draggable="true">☰</span> 
+                    <span class="drag-handle mr-2 cursor-move text-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" draggable="true">☰</span>${MOVE_BTNS} 
                     <input type="text" value="${group.name}" class="text-lg font-extrabold text-gray-800 dark:text-white team-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none">
                 </div>
                 <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-team-group-btn">그룹 삭제</button>
@@ -316,12 +323,12 @@ export function renderDashboardItemsConfig(itemIds, fullConfig) {
         itemEl.dataset.index = index;
 
         let itemHtml = `
-            <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
+            <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
             <span class="dashboard-item-name flex-grow font-bold text-sm" data-id="${id}">
                 ${itemDef.title}
             </span>
         `;
-        itemHtml += `<button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-dashboard-item-btn opacity-0 group-hover:opacity-100" data-id="${id}">삭제</button>`;
+        itemHtml += `<button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-dashboard-item-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-id="${id}">삭제</button>`;
         itemEl.innerHTML = itemHtml;
         container.appendChild(itemEl);
     });
@@ -339,9 +346,9 @@ export function renderKeyTasks(keyTasks, taskIdNames = {}) {
         taskEl.dataset.index = index;
         taskEl.dataset.taskId = taskIdOf(task, taskIdNames);
         taskEl.innerHTML = `
-            <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
+            <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS} 
             <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="key-task-name">${task}</span></span>
-            <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-key-task-btn opacity-0 group-hover:opacity-100" data-index="${index}">삭제</button>
+            <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-key-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-index="${index}">삭제</button>
         `;
         container.appendChild(taskEl);
     });
@@ -355,11 +362,11 @@ export function taskItemHtml(task, taskId, tIndex = '') {
     return `
             <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group" data-task-id="${taskId || ''}">
                 <div class="flex items-center gap-2 flex-grow">
-                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
+                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
                     <input type="text" value="${task}" class="task-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none"${lockAttr}>
                     ${lockMark}
                 </div>
-                <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100" data-t-index="${tIndex}">삭제</button>
+                <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-t-index="${tIndex}">삭제</button>
             </div>
         `;
 }
@@ -379,7 +386,7 @@ export function renderTaskGroups(taskGroups, taskIdNames = {}) {
         groupEl.innerHTML = `
              <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2"> 
-                   <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>
+                   <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>${MOVE_BTNS}
                    <input type="text" value="${group.name}" class="text-lg font-extrabold text-gray-800 dark:text-white task-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none">
                  </div>
                 <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-task-group-btn">그룹 삭제</button>
@@ -406,9 +413,9 @@ export function renderQuantityTasks(quantityTasks, taskIdNames = {}) {
         taskEl.dataset.index = index;
         taskEl.dataset.taskId = taskIdOf(task, taskIdNames);
         taskEl.innerHTML = `
-            <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span> 
+            <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS} 
             <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="quantity-task-name">${task}</span></span>
-            <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-quantity-task-btn opacity-0 group-hover:opacity-100" data-index="${index}">삭제</button>
+            <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-quantity-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-index="${index}">삭제</button>
         `;
         container.appendChild(taskEl);
     });
@@ -616,14 +623,14 @@ export function menuItemRowHtml(item = {}) {
     return `
             <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group">
                 <div class="flex items-center gap-3 flex-grow flex-wrap min-w-0">
-                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>
+                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
                     <input type="text" value="${escAttr(item.name)}" ${isAction ? 'readonly title="화면 기능은 이름이 정해져 있습니다(바꾸면 메뉴가 열리지 않습니다)"' : ''} class="menu-item-name flex-grow min-w-[8rem] p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none ${isAction ? 'text-gray-500 dark:text-gray-400 cursor-not-allowed' : ''}" placeholder="메뉴 이름">
                     <select ${isBuiltin ? `disabled title="${escAttr(builtinTitle)}"` : ''} class="menu-item-link w-full sm:w-56 p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 ${isBuiltin ? 'opacity-60 cursor-not-allowed' : ''}">${menuSelectHtml(selected)}</select>
                     <input type="text" value="${escAttr(custom)}" class="menu-item-link-custom ${selected === MENU_CUSTOM ? '' : 'hidden'} w-full sm:w-48 p-1.5 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="https://… 또는 파일명">
                 </div>
                 ${isBuiltin
                     ? `<span class="text-[10px] text-gray-400 dark:text-gray-500 px-2 py-1 whitespace-nowrap" title="${escAttr(builtinTitle)}">기본 메뉴</span>`
-                    : `<button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-menu-item-btn opacity-0 group-hover:opacity-100" type="button">삭제</button>`}
+                    : `<button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-menu-item-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" type="button">삭제</button>`}
             </div>
         `;
 }
@@ -718,7 +725,7 @@ export function renderDashboardMenu(menuConfig) {
         groupEl.innerHTML = `
              <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2"> 
-                   <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>
+                   <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>${MOVE_BTNS}
                    <input type="text" value="${menuGroup.category}" class="text-lg font-extrabold text-gray-800 dark:text-white menu-category-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none" placeholder="대분류 이름">
                  </div>
                 <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-menu-category-btn" type="button">대분류 삭제</button>

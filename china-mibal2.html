@@ -2,15 +2,16 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <script src="js/theme-boot.js?v=202610221532"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 부족수량 관리(신규·시험)</title>
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다. -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610221432">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610221432">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610221432">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610221432">
+    <link rel="stylesheet" href="css/suit.css?v=202610221532">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610221532">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610221532">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610221532">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -130,6 +131,8 @@
 
         #toast { visibility: hidden; min-width: 250px; max-width: 90vw; background-color: var(--c-text); color: #fff; text-align: center; border-radius: var(--r-inner); padding: 12px; position: fixed; z-index: 10001; left: 50%; bottom: 50px; transform: translateX(-50%); opacity: 0; transition: 0.3s; }
         #toast.show { visibility: visible; opacity: 1; }
+        /* 다크(2026-10-22) — 토큰은 css/d-theme.css html.dark. 토스트는 글자색 토큰을 바탕으로 쓰므로 따로 */
+        html.dark #toast { background-color: #2A3038; color: var(--c-text); border: 1px solid var(--c-line-strong); }
 
         /* [모바일] 768px 이하에서만 적용 — 데스크톱 화면은 바뀌지 않는다 */
         @media (max-width: 768px) {
@@ -272,9 +275,9 @@
     <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610221432"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610221432"></script>
-    <script type="module" src="js/page-gate.js?v=202610221432" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202610221432"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610221532"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610221532"></script>
+    <script type="module" src="js/page-gate.js?v=202610221532" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202610221532"></script>
 </body>
 </html>

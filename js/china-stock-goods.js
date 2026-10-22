@@ -1,19 +1,20 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610221432'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610221532'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610221432';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610221432';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610221432';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610221432'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610221432';
-import { initPageNav } from './page-nav.js?v=202610221432';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610221432';
-import { setShellContext } from './app-shell-bridge.js?v=202610221432';
-import { memberNameFor } from './app-shell-data.js?v=202610221432';
-import { createUploadStatus } from './busy-banner.js?v=202610221432';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610221532';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610221532';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610221532';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610221532'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610221532';
+import { initPageNav } from './page-nav.js?v=202610221532';
+import { friendlyFirebaseError } from './utils.js?v=202610221532';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610221532';
+import { setShellContext } from './app-shell-bridge.js?v=202610221532';
+import { memberNameFor } from './app-shell-data.js?v=202610221532';
+import { createUploadStatus } from './busy-banner.js?v=202610221532';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -368,7 +369,7 @@ function renderLocMoveTable() {
 }
 // [Ver 7.7] 기존재고 목록 행 삭제 — 해당 상품의 위치기록 제거(목록/다운로드에서 제외)
 async function deleteLocMoveRow(code) {
-    if (!confirm(`'${code}' 위치 기록을 삭제할까요?\n(이 상품은 목록·다운로드에서 제외됩니다. 되돌릴 수 없습니다)`)) return;
+    if (!confirm(`'${code}' 위치 기록을 삭제할까요?\n(이 상품은 목록·받기에서 제외됩니다. 되돌릴 수 없습니다)`)) return;
     showLoading('🗑️ 삭제 중...');
     try {
         await updateDoc(doc(db, CHINA_COLLECTION, locShardId(code)), { [`map.${code}`]: deleteField() });
@@ -588,7 +589,7 @@ async function downloadLocMove() {
     [orderDataOriginal, orderDataBuy].forEach(rr => (rr || []).forEach(x => { const c = (x['어드민상품코드'] || x['상품코드'] || '').toString().trim(); if (c) orderCodes.add(c); }));
     const isMissing = r => !r.base || !orderCodes.has(r.code);
     const flagged = rows.filter(isMissing).length;
-    if (flagged && !confirm(`⚠️ 오더리스트 또는 기존값에 없던 상품 ${flagged}건이 포함되어 있습니다.\n이 상품들은 기존 옵션추가항목1 없이 '스캔한 자리만' 내보내질 수 있어, 이지어드민의 기존값을 덮어쓸 수 있습니다.\n\n그래도 전체 다운로드할까요?`)) return;
+    if (flagged && !confirm(`⚠️ 오더리스트 또는 기존값에 없던 상품 ${flagged}건이 포함되어 있습니다.\n이 상품들은 기존 옵션추가항목1 없이 '스캔한 자리만' 내보내질 수 있어, 이지어드민의 기존값을 덮어쓸 수 있습니다.\n\n그래도 전체 받을까요?`)) return;
     // [Ver 8.2] 파일에 없던 상품이 있으면 '비고' 열로 별도 표시 (없으면 기존 2열 그대로)
     const hasFlag = flagged > 0;
     const aoa = [hasFlag ? ['상품코드', '옵션추가항목1', '비고'] : ['상품코드', '옵션추가항목1']];
@@ -632,7 +633,7 @@ async function downloadDayLoc() {
     // [Ver 10.2] 검색·열필터로 화면에서 숨겨져 다운로드에서 빠지는 지정분이 있으면 경고 (자리 미지정은 목록 맨 위 빨간 줄로 확인)
     const visible = new Set(filteredData.map(d => d.code));
     const hidden = new Set(tableData.filter(d => isAssignedToday(d.code) && !visible.has(d.code)).map(d => d.code)).size;
-    if (hidden && !confirm(`⚠️ 검색/열필터로 화면에서 숨겨진 지정 상품 ${hidden}건은 다운로드에서 빠집니다.\n(검색·필터를 해제하고 받으면 모두 들어갑니다)\n\n그래도 다운로드할까요?`)) return;
+    if (hidden && !confirm(`⚠️ 검색/열필터로 화면에서 숨겨진 지정 상품 ${hidden}건은 받는 파일에서 빠집니다.\n(검색·필터를 해제하고 받으면 모두 들어갑니다)\n\n그래도 받을까요?`)) return;
     const todayRows = filteredData.filter(r => { const a = locationAssignMap[r.code]; return a && a.location && (a.sub || '') === 'today'; });
     if (!todayRows.length) { alert('당일 입고분으로 위치가 지정된 상품이 없습니다.\n(스캐너 위치모드 "당일 입고분"으로 지정 후 이용하세요)'); return; }
     // [Ver 8.59→10.2] 비축창고 입고파일(FLOOR2)에 없는데 위치가 전송된 상품 → '비고'에 '파일에 없던 상품' (있을 때만 열 추가)
@@ -643,7 +644,7 @@ async function downloadDayLoc() {
     if (!f2Known) alert('비축창고 입고분이 비어 있어 \'파일에 없던 상품\' 판정을 건너뜁니다.\n(위치값 파일에 \'비고\' 열이 들어가지 않습니다)');
     const notInFloor2 = r => f2Known && !((f2[r.code] || 0) > 0);
     const flagged = todayRows.filter(notInFloor2).length;
-    if (flagged && !confirm(`⚠️ 비축창고 입고파일에 없던 상품 ${flagged}건이 포함되어 있습니다.\n(패킹과 다르게 도착했을 수 있음 — 위치값 파일 '비고'에 '파일에 없던 상품'으로 표시됩니다)\n\n그대로 다운로드할까요?`)) return;
+    if (flagged && !confirm(`⚠️ 비축창고 입고파일에 없던 상품 ${flagged}건이 포함되어 있습니다.\n(패킹과 다르게 도착했을 수 있음 — 위치값 파일 '비고'에 '파일에 없던 상품'으로 표시됩니다)\n\n그대로 받을까요?`)) return;
     // ⚠️ 덮어쓰기 경고 — 위의 '비고' 기준과 **다른 집합**이다. 합치면 안 된다.
     //   위험은 '비축에 없는 것'이 아니라 **미발재고로그에 그 상품이 아예 없는 것**에서 온다.
     //   로그에 없으면 아래 existing='' 이 되어 '스캔한 자리 하나만' 내보내고,
@@ -656,7 +657,7 @@ async function downloadDayLoc() {
     //    10.3 이 기준을 FLOOR2 로 바꾸면서 그나마 있던 문구까지 사라졌다. 조건을 다시 잡은 것이다)
     const notInLog = r => !stockLogData[r.code];
     const risky = todayRows.filter(notInLog).length;
-    if (risky && !confirm(`⚠️ 미발재고로그에 없는 상품 ${risky}건이 있습니다.\n기존 옵션추가항목1 을 알 수 없어 '스캔한 자리만' 내보내지므로, 이지어드민에 이미 있던 자리값을 덮어쓸 수 있습니다.\n(미발재고로그를 먼저 업로드하면 기존 자리와 합쳐집니다)\n\n그래도 다운로드할까요?`)) return;
+    if (risky && !confirm(`⚠️ 미발재고로그에 없는 상품 ${risky}건이 있습니다.\n기존 옵션추가항목1 을 알 수 없어 '스캔한 자리만' 내보내지므로, 이지어드민에 이미 있던 자리값을 덮어쓸 수 있습니다.\n(미발재고로그를 먼저 업로드하면 기존 자리와 합쳐집니다)\n\n그래도 받을까요?`)) return;
     const hasFlag = flagged > 0;
     const aoa = [hasFlag ? ['상품코드', '옵션추가항목1', '비고'] : ['상품코드', '옵션추가항목1']];
     todayRows.forEach(r => {
@@ -697,7 +698,7 @@ async function resetLocMove() {
     } catch (e) {
         hideLoading();
         console.error('기존재고 내역 삭제 실패:', e);
-        alert('삭제 중 오류가 발생했습니다. 콘솔을 확인하세요.');
+        alert('기존재고 내역을 삭제하지 못했습니다 — ' + friendlyFirebaseError(e) + '.\n계속되면 관리자에게 화면과 시각을 알려 주세요.');
     }
 }
 
@@ -823,8 +824,8 @@ function buildExampleRows() {
     tb.innerHTML = exampleRows.map((r,i) => `<tr>
         ${cell(i,'s',r.s)}${cell(i,'c',r.c)}${cell(i,'sh',r.sh)}${cell(i,'d',r.d)}
         <td><input type="number" class="exi" data-i="${i}" data-k="want" value="${r.want}" placeholder="?" style="width:56px; padding:3px; background:var(--c-accent-row); font-weight:bold;"></td>
-        <td id="ex-cur-${i}" style="color:#888; font-weight:bold;">-</td>
-        <td><button class="exdel t-risk" data-i="${i}" style="border:none; background:none; cursor:pointer; font-size:14px;">✕</button></td>
+        <td id="ex-cur-${i}" style="color:var(--c-text-3,#888); font-weight:bold;">-</td>
+        <td><button class="exdel t-risk" data-i="${i}" aria-label="이 예시 행 삭제" title="이 예시 행 삭제" style="border:none; background:none; cursor:pointer; font-size:14px;">✕</button></td>
     </tr>`).join('');
     tb.querySelectorAll('input.exi').forEach(inp => inp.oninput = () => {
         const i = +inp.dataset.i, k = inp.dataset.k;
@@ -896,12 +897,12 @@ function ruleSelect(cls, i, options, selected) {
         const label = Array.isArray(o) ? o[0] : o, val = Array.isArray(o) ? o[1] : o;
         return `<option value="${val}" ${val === selected ? 'selected' : ''}>${label}</option>`;
     }).join('');
-    return `<select class="${cls}" data-i="${i}" style="padding:5px; border:1px solid #ccc; border-radius:4px; font-size:12px;">${opts}</select>`;
+    return `<select class="${cls}" data-i="${i}" style="padding:5px; border:1px solid var(--c-line-strong,#ccc); border-radius:4px; font-size:12px;">${opts}</select>`;
 }
 // [Ver 8.19] 자유 입력 필드(자동완성 제안 datalist 연결). 변수/식을 직접 타이핑 가능
 function ruleEscAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 function ruleField(cls, i, value) {
-    return `<input class="rule-fld ${cls}" data-i="${i}" list="rule-expr-list" value="${ruleEscAttr(value)}" spellcheck="false" placeholder="값/식" style="width:132px; padding:5px; border:1px solid #ccc; border-radius:4px; font-size:12px; font-family:monospace;">`;
+    return `<input class="rule-fld ${cls}" data-i="${i}" list="rule-expr-list" value="${ruleEscAttr(value)}" spellcheck="false" placeholder="값/식" style="width:132px; padding:5px; border:1px solid var(--c-line-strong,#ccc); border-radius:4px; font-size:12px; font-family:monospace;">`;
 }
 // [Ver 8.20] 변수 드래그&드롭 / 클릭 삽입 대상이 되는 마지막 포커스 필드
 let lastRuleField = null;
@@ -989,7 +990,7 @@ function renderRuleNumpad() {
             <div style="font-size:12px; color:var(--c-text-2); font-weight:bold; margin-bottom:6px;">숫자 입력 후 [확인]</div>
             <div style="border:2px solid var(--c-accent); border-radius:var(--r-sm); padding:10px 12px; font-size:28px; font-weight:900; text-align:right; min-height:32px; margin-bottom:12px;">${numpadValue || '0'}</div>
             <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:7px;">
-              ${keys.map(k => `<button type="button" class="np-key" data-k="${k}" style="height:50px; font-size:20px; font-weight:800; border:1px solid ${k === '확인' ? 'var(--c-accent)' : 'var(--c-line-strong)'}; border-radius:var(--r-sm); background:${k === '확인' ? 'var(--c-accent)' : (k === '⌫' ? 'var(--c-surface-2)' : 'var(--c-surface)')}; color:${k === '확인' ? '#fff' : 'var(--c-text)'}; cursor:pointer;">${k}</button>`).join('')}
+              ${keys.map(k => `<button type="button" class="np-key" data-k="${k}" style="height:50px; font-size:20px; font-weight:800; border:1px solid ${k === '확인' ? 'var(--c-accent)' : 'var(--c-line-strong)'}; border-radius:var(--r-sm); background:${k === '확인' ? 'var(--c-accent)' : (k === '⌫' ? 'var(--c-surface-2)' : 'var(--c-surface)')}; color:${k === '확인' ? 'var(--c-on-fill,#fff)' : 'var(--c-text)'}; cursor:pointer;">${k}</button>`).join('')}
             </div>
             <button type="button" id="numpad-cancel" data-esc-close style="width:100%; margin-top:9px; height:42px; border:1px solid var(--c-line-strong); border-radius:var(--r-pill); background:var(--c-surface); color:var(--c-text-2); cursor:pointer; font-weight:bold;">취소</button>
          </div>`;
@@ -1020,7 +1021,7 @@ function renderRuleDraft() {
       <div style="display:flex; align-items:center; gap:8px; background:var(--c-surface); border:1px solid var(--c-line); padding:9px 10px; border-radius:var(--r-sm); margin-bottom:6px; font-size:13px;">
         <span class="d-pill-accent" style="padding:2px 9px; font-size:11px; flex:none;">${i + 1}</span>
         <span style="flex:1; line-height:1.55; text-align:left;"><b>만약</b> <span style="color:var(--c-accent-deep); font-weight:bold;">${ruleEscAttr(r.L)} ${ruleTokLabel(r.op)} ${ruleEscAttr(r.R)}</span> <b>이면 → 미발수량 =</b> <span class="t-warn" style="font-weight:bold;">${ruleEscAttr(r.result)}</span></span>
-        <button class="rl-del" data-i="${i}" title="이 조건 삭제" style="border:none; background:none; color:var(--c-risk-text); cursor:pointer; font-size:17px; flex:none;">✕</button>
+        <button class="rl-del" data-i="${i}" title="이 조건 삭제" aria-label="이 조건 삭제" style="border:none; background:none; color:var(--c-risk-text); cursor:pointer; font-size:17px; flex:none;">✕</button>
       </div>`).join('');
     const emptyMsg = ruleRows2.length ? '' : '<div style="color:var(--c-text-3); font-size:12px; padding:6px 2px; text-align:left;">아직 만든 조건이 없어요. 아래에서 식을 만들어 <b>[조건 넣기]</b> 하세요.</div>';
     const elseLine = `
@@ -1200,8 +1201,14 @@ async function openGraceSetting() {
     if (v === null) return;
     const n = parseInt(v);
     if (isNaN(n) || n < 0) { alert('0 이상의 숫자를 입력하세요.'); return; }
+    const prevGrace = graceDays;
     graceDays = n;
-    try { await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { graceDays, updatedAt: new Date() }, { merge: true }); } catch (e) {}
+    try { await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { graceDays, updatedAt: new Date() }, { merge: true }); }
+    catch (e) {
+        graceDays = prevGrace; // 저장 실패 → 이전 값 유지(화면만 바뀌고 저장 안 된 상태를 만들지 않음)
+        alert('본사도착 유예 일수를 저장하지 못했습니다 — ' + friendlyFirebaseError(e) + '.\n이전 값(' + prevGrace + '일)을 그대로 씁니다. 잠시 뒤 다시 시도해 주세요.');
+        return;
+    }
     extractShipDates();                       // 본사도착일 목록 갱신
     if (savedDates.length > 0) applyDates();  // 표/스캐너 재계산
     showToast(`✅ 본사도착 유예 ${n}일 저장됨`);
@@ -1224,12 +1231,12 @@ function buildZoneCapRows() {
     Object.keys(zoneCapacity).forEach(z => zones.add(z));
     const list = [...zones].sort();
     if (!list.length) {
-        tb.innerHTML = '<tr><td colspan="3" style="padding:20px; color:#888;">표시할 구역이 없습니다.<br>출고일 선택 + 재고로그 업로드 후 이용하세요.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="3" style="padding:20px; color:var(--c-text-3,#888);">표시할 구역이 없습니다.<br>출고일 선택 + 재고로그 업로드 후 이용하세요.</td></tr>';
         return;
     }
     tb.innerHTML = list.map(z => `<tr>
-        <td style="font-weight:800; font-size:15px;">${z === '★' ? '★ <span style="font-size:11px; font-weight:400; color:#888;">(별표 구역, ★·★★ 포함)</span>' : z}</td>
-        <td style="color:#888;">${counts[z] || 0}</td>
+        <td style="font-weight:800; font-size:15px;">${z === '★' ? '★ <span style="font-size:11px; font-weight:400; color:var(--c-text-3,#888);">(별표 구역, ★·★★ 포함)</span>' : z}</td>
+        <td style="color:var(--c-text-3,#888);">${counts[z] || 0}</td>
         <td><input type="number" class="zcap" data-z="${z}" value="${getCapacityByLocation(z)}" style="width:74px; padding:6px; text-align:center;"></td>
     </tr>`).join('');
 }
@@ -1733,8 +1740,8 @@ function renderLocationMapList() {
     const total = Object.keys(locationMapData).length;
     const cntEl = document.getElementById('locmap-count'); if (cntEl) cntEl.textContent = `총 ${total}건` + (kw ? ` · 검색 ${entries.length}건` : '');
     tb.innerHTML = entries.length
-        ? entries.map(([c, l]) => `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(c)}</td><td class="t-accent" style="padding:7px 6px; font-weight:bold;">${escBa(l)}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="locmap-edit" data-c="${escBa(c)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:8px;">✏️</span><span class="locmap-del" data-c="${escBa(c)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
-        : '<tr><td colspan="3" style="padding:22px; color:#999;">등록된 위치매핑이 없습니다. 파일 업로드 또는 위에서 직접 추가하세요.</td></tr>';
+        ? entries.map(([c, l]) => `<tr style="border-bottom:1px solid var(--c-line,#eee);"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(c)}</td><td class="t-accent" style="padding:7px 6px; font-weight:bold;">${escBa(l)}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="locmap-edit" data-c="${escBa(c)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:8px;">✏️</span><span class="locmap-del" data-c="${escBa(c)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
+        : '<tr><td colspan="3" style="padding:22px; color:var(--c-text-3,#999);">등록된 위치매핑이 없습니다. 파일 업로드 또는 위에서 직접 추가하세요.</td></tr>';
     tb.querySelectorAll('.locmap-del').forEach(x => x.onclick = async () => {
         if (!confirm(`[${x.dataset.c}] 매핑을 삭제할까요?`)) return;
         delete locationMapData[x.dataset.c];
@@ -1808,8 +1815,8 @@ function renderBarcodeAliasList() {
     const total = Object.keys(barcodeAlias).length;
     const cnt = document.getElementById('ba-count'); if (cnt) cnt.textContent = `총 ${total}건` + (kw ? ` · 검색 ${entries.length}건` : '');
     tb.innerHTML = entries.length
-        ? entries.map(([b, v]) => `<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(b)}</td><td class="t-accent" style="padding:7px 6px; font-weight:bold;">${escBa(baCode(v))}</td><td class="t-risk" style="padding:7px 6px; text-align:left; word-break:break-all;">${escBa(baMemo(v))}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="ba-edit" data-b="${escBa(b)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:7px;">✏️</span><span class="ba-del" data-b="${escBa(b)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
-        : '<tr><td colspan="4" style="padding:22px; color:#999;">등록된 매칭이 없습니다. 파일 업로드 또는 위에서 직접 추가하세요.</td></tr>';
+        ? entries.map(([b, v]) => `<tr style="border-bottom:1px solid var(--c-line,#eee);"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escBa(b)}</td><td class="t-accent" style="padding:7px 6px; font-weight:bold;">${escBa(baCode(v))}</td><td class="t-risk" style="padding:7px 6px; text-align:left; word-break:break-all;">${escBa(baMemo(v))}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="ba-edit" data-b="${escBa(b)}" title="수정" style="cursor:pointer; font-size:15px; margin-right:7px;">✏️</span><span class="ba-del" data-b="${escBa(b)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`).join('')
+        : '<tr><td colspan="4" style="padding:22px; color:var(--c-text-3,#999);">등록된 매칭이 없습니다. 파일 업로드 또는 위에서 직접 추가하세요.</td></tr>';
     tb.querySelectorAll('.ba-del').forEach(x => x.onclick = async () => {
         if (!confirm(`[${x.dataset.b}] 매칭을 삭제할까요?`)) return;
         delete barcodeAlias[x.dataset.b];
@@ -2016,13 +2023,13 @@ function applyScanLockUI() {
     if (btn) {
         if (pageLocked) {
             btn.disabled = false; btn.textContent = '잠금중'; btn.classList.add('is-locked'); btn.classList.remove('is-busy'); btn.style.cursor = 'pointer';
-            btn.title = '스캔 잠금 중 — ScanDB 보호. 오버레이의 [잠금 해제]로 풀 수 있음';
+            btn.title = '스캔 잠금 중 — 스캔 자료 보호. 오버레이의 [잠금 해제]로 풀 수 있음';
         } else if (!scanDataReady) {
             btn.disabled = true; btn.textContent = '로딩 중…'; btn.classList.remove('is-locked'); btn.classList.add('is-busy'); btn.style.cursor = 'not-allowed';
             btn.title = '데이터 로딩 중 — 완료 후 잠글 수 있습니다 (빈/옛 데이터로 잠기는 것 방지)';
         } else {
             btn.disabled = false; btn.textContent = '스캔잠금'; btn.classList.remove('is-locked', 'is-busy'); btn.style.cursor = 'pointer';
-            btn.title = '스캔 잠금: 지금 데이터를 ScanDB에 확정 저장한 뒤, 새로고침·모든 기능을 잠가 작업자 스캔을 보호';
+            btn.title = '스캔 잠금: 지금 데이터를 스캔 자료에 확정 저장한 뒤, 새로고침·모든 기능을 잠가 작업자 스캔을 보호';
         }
     }
     window.removeEventListener('beforeunload', scanLockBeforeUnload);
@@ -2038,7 +2045,7 @@ async function setScanLock(on) {
         clearTimeout(scanDbSyncTimer); // 예약된 자동 동기화 취소 → 여기서 직접 최종 동기화
         if (tableData && tableData.length) {
             if (btn) { btn.disabled = true; btn.textContent = '동기화 중…'; btn.classList.remove('is-locked'); btn.classList.add('is-busy'); btn.style.cursor = 'wait'; }
-            showToast('🔒 잠금 준비 — ScanDB 최종 동기화 중…');
+            showToast('🔒 잠금 준비 — 스캔 자료 최종 동기화 중…');
             try {
                 let waited = 0; while (scanDbSyncing && waited < 15000) { await sleep(200); waited += 200; } // 진행 중인 자동 동기화 완료 대기
                 scanDbSyncing = true;
@@ -2048,16 +2055,16 @@ async function setScanLock(on) {
                 scanDbSyncing = false;
                 console.error('잠금 전 동기화 실패:', e);
                 applyScanLockUI(); // 미잠금 상태로 버튼 복구
-                alert('⚠️ 잠금 실패 — ScanDB 동기화 오류.\n네트워크 확인 후 다시 시도하세요.\n(아직 잠기지 않았습니다)');
+                alert('⚠️ 잠금 실패 — 스캔 자료 동기화 오류.\n네트워크 확인 후 다시 시도하세요.\n(아직 잠기지 않았습니다)');
                 return;
             }
         } else {
-            showToast('ℹ️ 표 데이터 없음 — 기존 ScanDB를 유지한 채 잠급니다');
+            showToast('ℹ️ 표 데이터 없음 — 기존 스캔 자료를 유지한 채 잠급니다');
         }
         pageLocked = true;
         try { localStorage.setItem(SCAN_LOCK_KEY, '1'); } catch (e) {}
         applyScanLockUI();
-        showToast('🔒 스캔 잠금 — ScanDB 확정·보호 중');
+        showToast('🔒 스캔 잠금 — 스캔 자료 확정·보호 중');
     } else {
         pageLocked = false;
         try { localStorage.removeItem(SCAN_LOCK_KEY); } catch (e) {}
@@ -2080,7 +2087,7 @@ function setupScanLock() {
 //   미발재고로그 업로드마다 자동 스냅샷 + 초기화/롤백 직전 백업. 별도 컬렉션이라 미발초기화로도 안 지워짐.
 const SCANDB_VERSIONS_COLL = 'ChinaStockGoods_ScanDB_Versions';
 const MAX_SCANDB_VERSIONS = 30;
-const VER_TRIGGER_LABEL = { upload: '📂 업로드', 'pre-reset': '🗑️ 초기화 직전', 'pre-rollback': '⏪ 롤백 직전', manual: '📌 수동' };
+const VER_TRIGGER_LABEL = { upload: '📂 업로드', 'pre-reset': '🗑️ 초기화 직전', 'pre-rollback': '⏪ 되돌리기 직전', manual: '📌 수동' };
 function fmtVerTime(ms) { const d = new Date(ms || Date.now()); const p = n => String(n).padStart(2, '0'); return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
 function verIsToday(ms) { const d = new Date(ms || 0), n = new Date(); return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate(); } // [Ver 8.96] 당일 보관 판정
 function escHtmlVer(s) { return (s || '').toString().replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -2133,7 +2140,7 @@ async function manualSaveVersion() {
     const note = prompt('이 버전에 남길 메모 (선택):', '수동 저장');
     if (note === null) return;
     const ok = await saveScanDBVersion('manual', note || '수동 저장');
-    if (ok) openVersionModal(); else alert('저장할 ScanDB 데이터가 없습니다.\n(미발재고로그 업로드/계산 후 다시 시도하세요)');
+    if (ok) openVersionModal(); else alert('저장할 스캔 자료가 없습니다.\n(미발재고로그 업로드/계산 후 다시 시도하세요)');
 }
 async function rollbackScanDBVersion(versionId) {
     try {
@@ -2141,9 +2148,9 @@ async function rollbackScanDBVersion(versionId) {
         if (!vSnap.exists()) { alert('버전을 찾을 수 없습니다.'); return; }
         const v = vSnap.data();
         const cnt = v.count || Object.keys(v.data || {}).length;
-        if (!confirm(`이 버전으로 롤백할까요?\n\n저장시각: ${fmtVerTime(v.atMs)}\n상품수: ${cnt}\n총 미발수량: ${v.totalMibal || 0}\n\n→ 현재 ScanDB를 이 상태로 되돌리고, 자동으로 스캔잠금을 겁니다.`)) return;
-        showLoading('⏪ 롤백 중...');
-        await saveScanDBVersion('pre-rollback', '롤백 직전 자동 백업'); // 현재 상태 백업
+        if (!confirm(`이 버전으로 되돌릴까요?\n\n저장시각: ${fmtVerTime(v.atMs)}\n상품수: ${cnt}\n총 미발수량: ${v.totalMibal || 0}\n\n→ 현재 스캔 자료를 이 상태로 되돌리고, 자동으로 스캔잠금을 겁니다.`)) return;
+        showLoading('⏪ 되돌리는 중...');
+        await saveScanDBVersion('pre-rollback', '되돌리기 직전 자동 백업'); // 현재 상태 백업
         const data = v.data || {}; const keep = new Set(Object.keys(data));
         // 1) 스냅샷 먼저 기록(덮어쓰기) — ScanDB가 비는 순간 없음
         let batch = writeBatch(db); let ops = 0;
@@ -2157,27 +2164,27 @@ async function rollbackScanDBVersion(versionId) {
         pageLocked = true; try { localStorage.setItem(SCAN_LOCK_KEY, '1'); } catch (e) {}
         applyScanLockUI();
         hideLoading(); closeVersionModal();
-        showToast(`✅ 롤백 완료 (미발 ${v.totalMibal || 0}) + 스캔잠금`);
-    } catch (e) { hideLoading(); alert('롤백 실패: ' + e.message); }
+        showToast(`✅ 되돌리기 완료 (미발 ${v.totalMibal || 0}) + 스캔잠금`);
+    } catch (e) { hideLoading(); alert('되돌리기 실패: ' + e.message); }
 }
 async function openVersionModal() {
     closeAllMenus(); // [Ver 8.94] 환경설정 드롭다운 닫기
     const modal = document.getElementById('version-modal'); if (!modal) return;
     modal.style.display = 'flex';
     const list = document.getElementById('version-list');
-    list.innerHTML = '<div style="padding:24px; text-align:center; color:#888;">불러오는 중…</div>';
+    list.innerHTML = '<div style="padding:24px; text-align:center; color:var(--c-text-3,#888);">불러오는 중…</div>';
     try {
         const snap = await getDocs(collection(db, SCANDB_VERSIONS_COLL));
         const rows = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.atMs || 0) - (a.atMs || 0));
-        if (!rows.length) { list.innerHTML = '<div style="padding:24px; text-align:center; color:#888;">저장된 버전이 없습니다.<br>미발재고로그를 업로드하면 자동으로 기록됩니다.</div>'; return; }
+        if (!rows.length) { list.innerHTML = '<div style="padding:24px; text-align:center; color:var(--c-text-3,#888);">저장된 버전이 없습니다.<br>미발재고로그를 업로드하면 자동으로 기록됩니다.</div>'; return; }
         list.innerHTML = rows.map(r => {
             const lbl = VER_TRIGGER_LABEL[r.trigger] || r.trigger || '';
-            return `<div style="display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:1px solid #eee;">
+            return `<div style="display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:1px solid var(--c-line,#eee);">
               <div style="flex:1; min-width:0;">
-                <div style="font-weight:bold; color:#333;">${fmtVerTime(r.atMs)} <span style="font-size:11px; color:#777; font-weight:normal;">${lbl}</span></div>
-                <div style="font-size:12px; color:#666;">상품 ${r.count || 0}개 · 총 미발수량 <b class="t-1">${r.totalMibal || 0}</b>${r.note ? ` · <span style="color:#999;">${escHtmlVer(r.note)}</span>` : ''}</div>
+                <div style="font-weight:bold; color:var(--c-text,#333);">${fmtVerTime(r.atMs)} <span style="font-size:11px; color:var(--c-text-3,#777); font-weight:normal;">${lbl}</span></div>
+                <div style="font-size:12px; color:var(--c-text-2,#666);">상품 ${r.count || 0}개 · 총 미발수량 <b class="t-1">${r.totalMibal || 0}</b>${r.note ? ` · <span style="color:var(--c-text-3,#999);">${escHtmlVer(r.note)}</span>` : ''}</div>
               </div>
-              <button data-vid="${r.id}" class="ver-rollback-btn d-btn d-btn-risk">롤백</button>
+              <button data-vid="${r.id}" class="ver-rollback-btn d-btn d-btn-risk">되돌리기</button>
             </div>`;
         }).join('');
         list.querySelectorAll('.ver-rollback-btn').forEach(b => b.addEventListener('click', () => rollbackScanDBVersion(b.dataset.vid)));
@@ -2301,8 +2308,8 @@ function extractShipDates() {
             : (hasShipCol ? `출고일이 채워진 행이 없습니다(또는 도착일+유예가 지났습니다).`
                           : `'1차패킹리스트출고일' 같은 열을 찾지 못했습니다.`);
         checklistContainer.innerHTML =
-            `<div style="font-size:12px; color:#8d6e63; line-height:1.7;">출고 데이터 없음<br>`
-          + `<span style="color:#a1887f;">불러온 행 ${total.toLocaleString()}개 — ${why}</span></div>`;
+            `<div style="font-size:12px; color:var(--c-warn-text,#8d6e63); line-height:1.7;">출고 데이터 없음<br>`
+          + `<span style="color:var(--c-warn-text,#a1887f);">불러온 행 ${total.toLocaleString()}개 — ${why}</span></div>`;
         if (total > 0 && !hasShipCol) console.warn('[china-stock] 첫 행의 열 이름:', Object.keys(sample).join(', '));
         return;
     }
@@ -2551,10 +2558,17 @@ function renderNewLocPosToggle() {
     if (c) c.checked = (newLocPosition === 'front');
 }
 async function setNewLocPosition(pos) {
+    const prevPos = newLocPosition;
     newLocPosition = (pos === 'front') ? 'front' : 'back';
     renderNewLocPosToggle();
-    try { await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { newLocPosition, updatedAt: new Date() }, { merge: true }); } catch (e) {}
-    showToast(`🆕 다운로드 시 새 자리가 기존값 ${newLocPosition === 'front' ? '맨앞' : '맨뒤'}에 놓입니다`);
+    try { await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { newLocPosition, updatedAt: new Date() }, { merge: true }); }
+    catch (e) {
+        newLocPosition = prevPos; // 저장 실패 → 체크박스도 이전 값으로 되돌림
+        renderNewLocPosToggle();
+        alert('새 위치 앞/뒤 설정을 저장하지 못했습니다 — ' + friendlyFirebaseError(e) + '.\n이전 설정(' + (prevPos === 'front' ? '맨앞' : '맨뒤') + ')을 그대로 씁니다. 잠시 뒤 다시 시도해 주세요.');
+        return;
+    }
+    showToast(`🆕 받기 시 새 자리가 기존값 ${newLocPosition === 'front' ? '맨앞' : '맨뒤'}에 놓입니다`);
 }
 function setLocSubView(s) {
     locSubView = (s === 'existing') ? 'existing' : 'today';
@@ -2626,7 +2640,7 @@ function renderTable() {
     const cols = getActiveColumns();
     renderTableHeader(cols);
     const tbody = document.getElementById('table-body');
-    if (!filteredData.length) { tbody.innerHTML = `<tr><td colspan="${cols.length}" style="text-align:center; padding:50px; color:#888;">${emptyTableText({ savedCount: savedDates.length, tableCount: tableData.length, filtersOn: !!(document.getElementById('search-input')?.value || '').trim() || Object.keys(columnFilters).length > 0, locToday: viewMode === 'location' && locSubView === 'today' })}</td></tr>`; return; }
+    if (!filteredData.length) { tbody.innerHTML = `<tr><td colspan="${cols.length}" style="text-align:center; padding:50px; color:var(--c-text-3,#888);">${emptyTableText({ savedCount: savedDates.length, tableCount: tableData.length, filtersOn: !!(document.getElementById('search-input')?.value || '').trim() || Object.keys(columnFilters).length > 0, locToday: viewMode === 'location' && locSubView === 'today' })}</td></tr>`; return; }
     let html = '';
     filteredData.forEach((row, idx) => {
         const isFromApp = inboundMap[row.code] !== undefined;
@@ -2674,9 +2688,9 @@ function renderColumnEditor() {
     box.innerHTML = colEditList.map((key,i) => `
         <div style="display:flex; align-items:center; gap:6px; background:var(--c-surface-2); padding:6px 8px; border-radius:var(--r-sm); margin-bottom:5px; font-size:13px;">
             <span style="flex:1; font-weight:bold;">${colLabel(key)}${key.startsWith('log:') ? ' <span class="t-accent" style="font-size:11px;">(로그)</span>' : ''}</span>
-            <button class="col-up" data-i="${i}" ${i===0?'disabled':''} style="${bs}">↑</button>
-            <button class="col-down" data-i="${i}" ${i===colEditList.length-1?'disabled':''} style="${bs}">↓</button>
-            <button class="col-del t-risk" data-i="${i}" style="${bs}">✕</button>
+            <button class="col-up" data-i="${i}" aria-label="위로" title="위로" ${i===0?'disabled':''} style="${bs}">↑</button>
+            <button class="col-down" data-i="${i}" aria-label="아래로" title="아래로" ${i===colEditList.length-1?'disabled':''} style="${bs}">↓</button>
+            <button class="col-del t-risk" data-i="${i}" aria-label="이 열 빼기" title="이 열 빼기" style="${bs}">✕</button>
         </div>`).join('');
     const sel = document.getElementById('column-add-select');
     const avail = [];
@@ -2789,7 +2803,7 @@ function openColumnFilter(key, anchorEl) {
         const label = v === '' ? '(빈값)' : v;
         const checked = (!cur || cur.has(v)) ? 'checked' : '';
         return `<label class="cfp-item" data-label="${escapeHtml(String(label).toLowerCase())}"><input type="checkbox" class="cfp-cb" data-i="${i}" ${checked}> ${escapeHtml(label)}</label>`;
-    }).join('') || '<div style="padding:8px;color:#888;font-size:12px;">값 없음</div>';
+    }).join('') || '<div style="padding:8px;color:var(--c-text-3,#888);font-size:12px;">값 없음</div>';
     syncAll();
     document.getElementById('cfp-search').addEventListener('input', e => {
         const f = e.target.value.toLowerCase();
@@ -2880,7 +2894,7 @@ function renderMibalPredict() {
     const pct = v => (v === null) ? '–' : `${v >= 0 ? '+' : ''}${Math.round(v * 100)}%`;
     const dev = v => (v === null) ? '<span class="t-3">진행중</span>' : `<span class="${v > 0 ? 't-risk' : (v < 0 ? 't-accent' : 't-1')}" style="font-weight:bold;">${v > 0 ? '+' : ''}${v}</span>`;
     tb.innerHTML = view.length ? view.map(r => `
-        <tr style="border-bottom:1px solid #eee;">
+        <tr style="border-bottom:1px solid var(--c-line,#eee);">
             <td style="padding:7px 6px; font-weight:bold;">${fmtMD(r.출고일)}</td>
             <td style="padding:7px 6px;">${r.입고일 ? fmtMD(r.입고일) : '<span class="t-3">미정</span>'}</td>
             <td style="padding:7px 6px;">${r.출고미발}</td>
@@ -2888,7 +2902,7 @@ function renderMibalPredict() {
             <td class="t-warn" style="padding:7px 6px; font-weight:bold;">${pct(r.상승률)}</td>
             <td class="t-accent" style="padding:7px 6px; font-weight:bold;">${r.예상미발}</td>
             <td style="padding:7px 6px;">${dev(r.예측편차)}</td>
-        </tr>`).join('') : '<tr><td colspan="7" style="padding:22px; color:#999;">전송된 미발 데이터가 없습니다. 미발전송을 눌러 쌓으세요.</td></tr>';
+        </tr>`).join('') : '<tr><td colspan="7" style="padding:22px; color:var(--c-text-3,#999);">전송된 미발 데이터가 없습니다. 미발전송을 눌러 쌓으세요.</td></tr>';
 }
 async function downloadMibalPredict() {
     const { rows } = buildPredictionRows();
@@ -2961,7 +2975,7 @@ function showUpdateBanner(newVer) {
     div.textContent = `🔄 새 버전(Ver ${newVer})이 배포되었습니다. `;
     const btn = document.createElement('button');
     btn.textContent = '지금 새로고침';
-    btn.style.cssText = 'margin-left:10px;padding:6px 16px;border:none;border-radius:999px;background:var(--c-accent);color:#fff;font-weight:bold;cursor:pointer;';
+    btn.style.cssText = 'margin-left:10px;padding:6px 16px;border:none;border-radius:999px;background:var(--c-accent);color:var(--c-on-fill,#fff);font-weight:bold;cursor:pointer;';
     btn.onclick = () => location.reload();
     div.appendChild(btn);
     document.body.appendChild(div);

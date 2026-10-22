@@ -193,6 +193,12 @@ textarea.pd-in { height: 84px; padding: 10px 12px; resize: vertical; line-height
 .pd-th-f { border: 0; background: none; width: 20px; height: 20px; padding: 0; font-size: 14px; line-height: 20px; color: var(--c-text-3); cursor: pointer; border-radius: var(--r-cell, 6px); }
 .pd-th-f:hover { background: var(--c-track); color: var(--c-text); }
 .pd-th-f.is-on { background: var(--c-accent-soft); color: var(--c-accent-deep); }
+/* 터치 화면: ▾ 는 보이는 크기(20px) 그대로 두고 누르는 영역만 44×44 로 넓힌다.
+   왼쪽은 정렬 버튼과 겹치지 않게 조금만, 나머지는 오른쪽(칸 여백)으로 넓힌다. 마우스 화면은 그대로. */
+@media (pointer: coarse) {
+    .pd-th-f { position: relative; }
+    .pd-th-f::before { content: ''; position: absolute; top: -12px; bottom: -12px; left: -4px; right: -20px; }
+}
 .pd-th-sort:focus-visible, .pd-th-f:focus-visible { outline: 2px solid var(--c-accent-light); outline-offset: 1px; }
 .pd-colpop { position: absolute; z-index: 60; width: 260px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 12px; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner, 14px); box-shadow: 0 8px 24px rgba(30,40,60,.12); font-size: 13px; color: var(--c-text); }
 .pd-colpop-title { font-weight: 600; font-size: 12.5px; color: var(--c-text-2); margin-bottom: 8px; }

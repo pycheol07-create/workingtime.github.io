@@ -13,20 +13,21 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610221432'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610221532'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610221432';
-import { sortMark } from './lib/china-stock-view.js?v=202610221432';
+import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610221532';
+import { sortMark } from './lib/china-stock-view.js?v=202610221532';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf, FLAG_INFO, COMPARE_COLS, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610221432';
-import { setShellContext } from './app-shell-bridge.js?v=202610221432';
-import { memberNameFor } from './app-shell-data.js?v=202610221432';
-import { mountBusyBanner } from './busy-banner.js?v=202610221432';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610221432';
+} from './lib/mibal2-rows.js?v=202610221532';
+import { setShellContext } from './app-shell-bridge.js?v=202610221532';
+import { memberNameFor } from './app-shell-data.js?v=202610221532';
+import { mountBusyBanner } from './busy-banner.js?v=202610221532';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610221532';
+import { friendlyFirebaseError } from './utils.js?v=202610221532';
 
 const { db, auth } = initializeFirebase();
 
@@ -116,6 +117,11 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '
 /** 숫자 칸 — 값은 늘 Number() 로 강제해서 넣는다(수집 자료에 글자가 섞여도 HTML 이 되지 않게) */
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? String(n) : '?'; };
 const numOr = (v, dash = '–') => (v === null || v === undefined || v === '') ? `<span class="muted">${dash}</span>` : num(v);
+// 오류 → 직원이 할 수 있는 일 한 줄(원시 Firebase 코드 대신). '관리자 확인 전'은 아래 저장 함수들이 직접 던지는 오류
+function errText(e) {
+    if (e && !e.code && e.message === '관리자 확인 전') return '관리자 확인 전입니다 — 잠시 뒤 다시 시도하세요';
+    return friendlyFirebaseError(e);
+}
 function showToast(msg) {
     const t = $('toast'); if (!t) return;
     t.innerText = msg; t.classList.add('show');
@@ -540,7 +546,7 @@ async function onDatePopupClosed() {
             if (!isAdminOk) throw new Error('관리자 확인 전');
             await setDoc(doc(db, SETTINGS_PATH), { useOwnDates: true, shipDates: selectedDates.map(String), updatedAt: serverTimestamp() }, { merge: true });
             showToast('✅ 출고일 선택 저장 (이 화면 전용 — 기존 계산기에는 영향 없음)');
-        } catch (e) { showToast('⚠️ 출고일 선택 저장 실패: ' + (e && e.code || e)); }
+        } catch (e) { showToast('⚠️ 출고일 선택 저장 실패 — ' + errText(e)); }
     }
     popupSnapshot = null;
 }
@@ -549,7 +555,7 @@ async function followLegacyDates() {
     const popup = $('date-dropdown-popup');
     // 기존 계산기가 그사이 출고일을 바꿨을 수 있으니 CONFIG 를 서버에서 다시 읽고 따른다. 못 읽으면 아무것도 안 바꿈
     try { await loadConfig(true); }
-    catch (e) { showToast('⚠️ 기존 계산기 출고일을 다시 읽지 못해 바꾸지 않았습니다: ' + (e && e.code || e)); return; }
+    catch (e) { showToast('⚠️ 기존 계산기 출고일을 다시 읽지 못해 바꾸지 않았습니다 — ' + errText(e)); return; }
     selectedDates = legacyDates.map(String);
     dateSource = 'legacy';
     popup.style.display = 'none'; popupSnapshot = null;
@@ -559,7 +565,7 @@ async function followLegacyDates() {
         if (!isAdminOk) throw new Error('관리자 확인 전');
         await setDoc(doc(db, SETTINGS_PATH), { useOwnDates: false, updatedAt: serverTimestamp() }, { merge: true });
         showToast('✅ 기존 계산기 출고일을 따릅니다');
-    } catch (e) { showToast('⚠️ 설정 저장 실패: ' + (e && e.code || e)); }
+    } catch (e) { showToast('⚠️ 설정 저장 실패 — ' + errText(e)); }
 }
 function setupDatePopup() {
     const popup = $('date-dropdown-popup');
@@ -630,7 +636,7 @@ async function loadDaily(id) {
         const snap = await getDoc(doc(db, DAILY_PREFIX + id));
         result = buildDaily(id, snap.exists() ? snap.data() : null);
     } catch (e) {
-        result = { id, ok: false, msg: '불러오기 실패: ' + ((e && e.code) || e) };
+        result = { id, ok: false, msg: '불러오기 실패 — ' + errText(e) };
     }
     // 응답 경합: 기다리는 사이 다른 날짜를 골랐으면(더 새 요청이 있거나 선택값이 바뀜) 이 응답은 버린다
     if (my !== dailyReq || $('daily-select').value !== id) return;
@@ -725,7 +731,7 @@ async function requestRefresh(isAuto) {
         // 사용자 정보(이메일 등)는 넣지 않는다 — 요청 시각만(서버 시각).
         await setDoc(doc(db, REQUEST_PATH), { requestedAt: serverTimestamp() });
     } catch (e) {
-        showToast('⚠️ 갱신 요청 실패: ' + (e && e.code || e));
+        showToast('⚠️ 갱신 요청 실패 — ' + errText(e));
         return;
     }
     pending = { atMs: Date.now(), baseRun, baseNoteAt };
@@ -791,7 +797,7 @@ async function saveCompare() {
             latestOkAtMs: latest ? tsMs(latest.lastOkAt) : 0
         });
         showToast(`저장 완료 (${allRows.length}행)`);
-    } catch (e) { showToast('⚠️ 저장 실패: ' + (e && e.code || e)); }
+    } catch (e) { showToast('⚠️ 저장 실패 — ' + errText(e)); }
 }
 
 // ── 엑셀 받기 (지금 보이는 행 — 검색·필터·정렬 반영. 내 PC 로 다운로드만) ──────────
@@ -1034,7 +1040,7 @@ async function start(user) {
         console.error('[mibal2] mibal2Latest 구독 실패:', err);
         $('status-chip').className = 'status-chip red';
         $('status-chip').textContent = '● 수집 자료 읽기 실패';
-        $('status-err').textContent = String(err && err.code || err);
+        $('status-err').textContent = errText(err);
     });
     // '갱신 중' 띠 — 이지어드민 잠금 + 갱신 요청 문서. '방금 갱신됨'은 이미 구독 중인 mibal2Latest 로(추가 구독 없음)
     busyBannerStop = mountBusyBanner({ db, el: $('busy-banner'), sources: [

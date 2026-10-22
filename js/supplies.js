@@ -12,17 +12,17 @@
 //  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름). 권장 발주량의 최소주문·묶음은 기존 MOQ 칸 문장에서 읽는다(서버 예측규칙.MOQ해석)
 //  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
 
-import { initializeFirebase } from './config.js?v=202610221432';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610221432';
-import { memberNameFor } from './app-shell-data.js?v=202610221432';
-import { escapeHtml as esc } from './utils.js?v=202610221432';
-import { kstDateTime } from './lib/kst-time.js?v=202610221432';
-import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202610221432';
+import { initializeFirebase } from './config.js?v=202610221532';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202610221532';
+import { memberNameFor } from './app-shell-data.js?v=202610221532';
+import { escapeHtml as esc } from './utils.js?v=202610221532';
+import { kstDateTime } from './lib/kst-time.js?v=202610221532';
+import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202610221532';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion,
     NOCODE_HINT, DRIVER_OPTIONS
-} from './lib/supplies-forecast-view.js?v=202610221432';
+} from './lib/supplies-forecast-view.js?v=202610221532';
 import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -38,6 +38,7 @@ const SEED_ITEMS = [
 ];
 
 const MAX_LOG = 30; // 비품당 보관하는 재고 변동 이력 개수
+const MAX_PRICE_LOG = 50; // 비품당 보관하는 단가 변경 이력 개수(priceLogs — 최신이 앞)
 
 let items = [];
 let currentUser = '';
@@ -695,6 +696,7 @@ function openItemModal(id = null) {
     $('f-unit').value = it?.unit || '';
     $('f-safety').value = it ? (num(it.safetyStock) || '') : '';
     $('f-price').value = it ? (num(it.unitPrice) || '') : '';
+    renderPriceHistory(it);
     $('f-size').value = it?.size || '';
     $('f-vendor').value = it?.vendor || '';
     $('f-vendor-contact').value = it?.vendorContact || '';
@@ -776,10 +778,18 @@ async function saveItem() {
             // 현재고는 상세에서 바꾸지 않는다(읽기 전용) — 재고 패널이 저장한 값을 그대로 둔다.
             data.stock = num(prev.stock);
             const next = { ...prev, ...data, logs: Array.isArray(prev.logs) ? [...prev.logs] : [] };
+            // 단가가 바뀌면 이력을 남긴다(누가·언제·얼마에서 얼마로). 서버 연동(비품재고연동)은 이 칸을 건드리지 않는다.
+            const prevPrice = num(prev.unitPrice);
+            const priceLogs = Array.isArray(prev.priceLogs) ? [...prev.priceLogs] : [];
+            if (prevPrice !== data.unitPrice) {
+                priceLogs.unshift({ at: data.updatedAt, by: currentUser || '', from: prevPrice, to: data.unitPrice });
+            }
+            next.priceLogs = priceLogs.slice(0, MAX_PRICE_LOG);
             items[idx] = next;
             undo = () => { const i = items.indexOf(next); if (i >= 0) items[i] = prev; };
         } else {
-            const added = { id: uid(), logs: [], ...data };
+            const added = { id: uid(), logs: [], ...data,
+                priceLogs: data.unitPrice > 0 ? [{ at: data.updatedAt, by: currentUser || '', from: 0, to: data.unitPrice }] : [] };
             items.push(added);
             undo = () => { items = items.filter(x => x !== added); };
         }
@@ -901,6 +911,18 @@ ${e.message}
 }
 
 // ───────── 재고 패널(상세 창 오른쪽) ─────────
+/** 상세 창의 '단가 변경 이력'(접힘). 이력이 없으면 숨긴다. */
+function renderPriceHistory(it) {
+    const box = $('price-history'), list = $('price-history-list');
+    if (!box || !list) return;
+    const logs = (it && Array.isArray(it.priceLogs)) ? it.priceLogs : [];
+    box.classList.toggle('hidden', logs.length === 0);
+    box.open = false;
+    list.innerHTML = logs.map(l =>
+        `<li>${esc(kstDateTime(l.at))} · ${esc(l.from ? fmt(l.from) + '원' : '미등록')} → <b>${esc(l.to ? fmt(l.to) + '원' : '미등록')}</b>${l.by ? ` · ${esc(l.by)}` : ''}</li>`
+    ).join('');
+}
+
 function pushLog(it, op, delta, after, memo) {
     if (!Array.isArray(it.logs)) it.logs = [];
     it.logs.unshift({

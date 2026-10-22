@@ -1,7 +1,7 @@
 // === js/listeners-history-download.js ===
-import * as DOM from './dom-elements.js?v=202610221432';
-import * as State from './state.js?v=202610221432';
-import { showToast, getTodayDateString } from './utils.js?v=202610221432';
+import * as DOM from './dom-elements.js?v=202610221532';
+import * as State from './state.js?v=202610221532';
+import { showToast, getTodayDateString } from './utils.js?v=202610221532';
 
 import {
     downloadHistoryAsExcel,
@@ -14,7 +14,7 @@ import {
     downloadReportExcel,
     downloadPersonalReportExcel,
     downloadInspectionHistory
-} from './history-excel.js?v=202610221432';
+} from './history-excel.js?v=202610221532';
 
 const getSelectedDateKey = () => {
     const btn = DOM.historyDateList.querySelector('.history-date-btn.is-on');
@@ -59,14 +59,14 @@ const executeDownload = async (format) => {
         if (gran === 'day') await downloadHistoryAsExcel(key, format);
         else if (gran === 'week') await downloadWeeklyHistoryAsExcel(key, format);
         else if (gran === 'month') await downloadMonthlyHistoryAsExcel(key, format);
-        else return showToast('연간 엑셀은 상단의 "선택 기간 엑셀 다운로드"를 이용해주세요.', true);
+        else return showToast('연간 엑셀은 상단의 "선택 기간 엑셀 받기"를 이용해주세요.', true);
     }
     else if (targetType === 'attendance') {
         const gran = State.context.globalGranularity || 'day';
         const key = getSelectedDateKey();
 
         if (!key) return showToast('날짜를 선택해주세요.', true);
-        if (gran === 'year') return showToast('연간 근태 엑셀은 상단의 "선택 기간 엑셀 다운로드"를 이용해주세요.', true);
+        if (gran === 'year') return showToast('연간 근태 엑셀은 상단의 "선택 기간 엑셀 받기"를 이용해주세요.', true);
 
         const viewMode = gran === 'week' ? 'weekly' : (gran === 'month' ? 'monthly' : 'daily');
         downloadAttendanceExcel(viewMode, key, format);
@@ -107,14 +107,14 @@ export function setupHistoryDownloadListeners() {
         });
     }
 
-    // 🔥 [수정/확장] 2. 기간 엑셀 다운로드 통합 라우터 (상단)
+    // 🔥 [수정/확장] 2. 기간 엑셀 받기 통합 라우터 (상단)
     if (DOM.historyDownloadPeriodExcelBtn) {
         DOM.historyDownloadPeriodExcelBtn.addEventListener('click', () => {
             const startDate = State.context.historyStartDate;
             const endDate = State.context.historyEndDate;
 
             if (!startDate || !endDate) {
-                showToast('엑셀 다운로드를 위해 시작일과 종료일을 모두 설정(조회)해주세요.', true);
+                showToast('엑셀을 받으려면 시작일과 종료일을 모두 설정(조회)해주세요.', true);
                 return;
             }
 

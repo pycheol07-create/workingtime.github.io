@@ -32,6 +32,7 @@ const EfficiencyAnalysisModal = ({ onClose, formData, currentRates, calculationM
             const clone = input.cloneNode(true);
             ReactDOM.flushSync(() => { setShowAllSplit(prevShow.split); setShowAllBoxes(prevShow.boxes); });
             clone.querySelectorAll('[data-pdf-hide]').forEach(el => el.remove());
+            clone.classList.add('calc-pdf-light');   // 다크 화면이어도 PDF 는 밝게(calc-d.css)
             
             Object.assign(clone.style, {
                 position: 'fixed',

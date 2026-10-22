@@ -1,9 +1,9 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610221432';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610221532';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js?v=202610221432';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221432';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202610221532';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221532';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -175,19 +175,21 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
         const rawValue = sourceQuantities[task];
         const shownValue = (rawValue == null || rawValue === '' || Number(rawValue) === 0) ? '' : rawValue;
 
+        // 업무명은 관리자가 넣는 값 — 라벨·id·data 속성 모두 escape(브라우저가 속성값을 되돌려 읽으므로 id·dataset.task 는 원래 이름 그대로)
+        const t = escapeHtml(task);
         div.innerHTML = `
             <div class="flex justify-between items-end mb-1">
-                <label for="modal-quantity-${task}" class="block text-sm font-medium text-gray-700 ${isMissing ? 'text-yellow-700 font-bold' : ''}">
-                    ${task} ${isMissing ? '(누락됨)' : ''}
+                <label for="modal-quantity-${t}" class="block text-sm font-medium text-gray-700 ${isMissing ? 'text-yellow-700 font-bold' : ''}">
+                    ${t} ${isMissing ? '(누락됨)' : ''}
                 </label>
                  <div class="flex items-center">
-                    <input type="checkbox" id="modal-confirm-zero-${task}" data-task="${task}"
+                    <input type="checkbox" id="modal-confirm-zero-${t}" data-task="${t}"
                            class="confirm-zero-checkbox w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 transition"
                            ${isConfirmed ? 'checked' : ''}>
-                    <label for="modal-confirm-zero-${task}" class="ml-1 text-xs text-gray-500 cursor-pointer select-none">0건 확인</label>
+                    <label for="modal-confirm-zero-${t}" class="ml-1 text-xs text-gray-500 cursor-pointer select-none">0건 확인</label>
                 </div>
             </div>
-            <input type="number" inputmode="numeric" id="modal-quantity-${task}" data-task="${task}" value="${shownValue}" placeholder="0" min="0" step="1"
+            <input type="number" inputmode="numeric" id="modal-quantity-${t}" data-task="${t}" value="${escapeHtml(shownValue)}" placeholder="0" min="0" step="1"
                    class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition ${warningClass}">
         `;
         container.appendChild(div);
@@ -228,7 +230,7 @@ export const renderTaskSelectionModal = (taskGroups = []) => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'flex-1';
 
-        let tasksHtml = tasks.map(task => `<button type="button" data-task="${task}" class="task-select-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:ring-2 focus:ring-blue-300">${task}</button>`).join('');
+        let tasksHtml = tasks.map(task => `<button type="button" data-task="${escapeHtml(task)}" class="task-select-btn w-full text-left p-3 rounded-md hover:bg-blue-100 transition focus:ring-2 focus:ring-blue-300">${escapeHtml(task)}</button>`).join('');
 
         groupDiv.innerHTML = `
             <div class="bg-gray-50 rounded-lg border">

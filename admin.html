@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610221432">
-    <link rel="stylesheet" href="css/admin-d.css?v=202610221432">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610221432">
+    <link rel="stylesheet" href="css/suit.css?v=202610221532">
+    <link rel="stylesheet" href="css/admin-d.css?v=202610221532">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610221532">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -27,6 +27,9 @@
         .dark ::-webkit-scrollbar-thumb { background: #475569; }
         /* 📱 터치 화면: hover 로만 보이던 삭제 버튼을 항상 표시 (마우스 환경은 그대로) */
         @media (hover: none) { .opacity-0.group-hover\:opacity-100 { opacity: 1 !important; } }
+        /* 📱 순서 바꾸기 ▲▼(js/admin-ui.js MOVE_BTNS) — 끌어 옮기기가 안 되는 터치 화면에서만 보인다 */
+        .move-btns { display: none; }
+        @media (hover: none) { .move-btns { display: inline-flex; } }
         /* 📱 모바일: 주소창 높이를 뺀 실제 화면 높이 */
         @media (max-width: 768px) { body.h-screen { height: 100vh; height: 100dvh; } }
         /* 📱 모바일 서랍 메뉴는 공통 상단바(css/app-shell.css --as-h) 아래에서 연다 */
@@ -100,10 +103,15 @@
                     <span id="admin-current-section-label" class="truncate">팀원 관리</span><span class="text-gray-400 text-sm" aria-hidden="true">▾</span>
                 </button>
             </div>
-            <button id="save-all-btn" class="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2 text-sm">
+            <!-- '저장 안 됨' 표시·안내는 js/admin.js syncSaveAllUI 가 켠다(입력·버튼 변경 감지) -->
+            <div class="flex items-center gap-2 min-w-0">
+            <span id="save-all-note" class="hidden text-xs leading-tight max-w-[9rem] sm:max-w-none font-bold text-amber-700 dark:text-amber-400 text-right">다른 탭에 저장 안 한 변경이 있습니다</span>
+            <button id="save-all-btn" class="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2 text-sm shrink-0">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
                 전체 저장
+                <span id="save-all-dirty" class="hidden text-[11px] font-bold bg-amber-300 text-gray-900 rounded-full px-2 py-0.5">● 저장 안 됨</span>
             </button>
+            </div>
         </header>
 
         <div id="admin-content" class="flex-1 overflow-y-auto p-4 md:p-6 hidden bg-gray-50 dark:bg-gray-900 w-full">
@@ -391,13 +399,13 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610221432"></script>
-    <script type="module" src="js/admin-automation.js?v=202610221432"></script>
-    <script type="module" src="js/admin-refill.js?v=202610221432"></script>
+    <script type="module" src="js/admin.js?v=202610221532"></script>
+    <script type="module" src="js/admin-automation.js?v=202610221532"></script>
+    <script type="module" src="js/admin-refill.js?v=202610221532"></script>
 
     <script type="module">
         // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
-        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610221432';
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610221532';
 
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
@@ -437,6 +445,9 @@
 
                 const saveAll = document.getElementById('save-all-btn');
                 if (saveAll) saveAll.style.display = NO_SAVE_ALL.includes(targetId) ? 'none' : '';
+                // 저장 안 한 변경이 있으면 js/admin.js 가 이 탭에서도 버튼과 '다른 탭에 저장 안 한 변경' 안내를 다시 보인다
+                document.body.dataset.adminTab = targetId;
+                document.dispatchEvent(new CustomEvent('admin-tab-changed', { detail: { targetId } }));
                 const curLabel = document.getElementById('admin-current-section-label');   // 📱 모바일 머리줄의 지금 화면 이름
                 if (curLabel && activeBtn) curLabel.textContent = activeBtn.textContent.trim();
             }
@@ -500,9 +511,9 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610221432"></script>
-    <script src="js/modal-esc.js?v=202610221432"></script>
-    <script type="module" src="js/modal-drag.js?v=202610221432"></script>
-    <script type="module" src="js/app-shell.js?v=202610221432"></script>
+    <script src="js/connection-banner.js?v=202610221532"></script>
+    <script src="js/modal-esc.js?v=202610221532"></script>
+    <script type="module" src="js/modal-drag.js?v=202610221532"></script>
+    <script type="module" src="js/app-shell.js?v=202610221532"></script>
 </body>
 </html>

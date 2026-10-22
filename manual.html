@@ -17,9 +17,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610221432">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610221432">
-    <link rel="stylesheet" href="css/manual-d.css?v=202610221432">
+    <link rel="stylesheet" href="css/suit.css?v=202610221532">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610221532">
+    <link rel="stylesheet" href="css/manual-d.css?v=202610221532">
     
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
@@ -98,7 +98,7 @@
             </div>
 
             <div>
-                <input type="text" id="manual-search-input" class="w-full p-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 outline-none focus:border-blue-500 transition-colors shadow-inner" placeholder="제목, 파트, 담당자 검색...">
+                <input type="text" id="manual-search-input" class="w-full p-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 outline-none focus:border-blue-500 transition-colors shadow-inner" placeholder="제목, 파트, 담당자, 본문 검색...">
             </div>
             <button id="btn-new-manual" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg transition shadow-sm text-sm hidden">
                 + 새 매뉴얼 작성
@@ -239,6 +239,10 @@
                             <button id="btn-trigger-upload" class="px-3 py-1.5 border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold rounded hover:bg-indigo-100 transition shadow-sm whitespace-nowrap">
                                 파일 찾기
                             </button>
+                            <!-- 고른 파일 취소 / 기존 첨부 빼기(저장하면 적용) — js/manual.js updateFileUI 가 보이고 숨긴다 -->
+                            <button type="button" id="btn-remove-file" class="hidden px-3 py-1.5 border border-red-200 bg-white dark:bg-gray-800 text-red-600 text-xs font-bold rounded hover:bg-red-50 transition shadow-sm whitespace-nowrap">
+                                첨부 빼기
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -268,11 +272,11 @@
         if(mobileDim) mobileDim.addEventListener('click', toggleSidebar);
     </script>
 
-    <script type="module" src="js/manual.js?v=202610221432"></script>
-    <script type="module" src="js/page-gate.js?v=202610221432" data-perm-page="manual.view"></script>
-    <script type="module" src="js/app-shell.js?v=202610221432"></script>
-    <script src="js/connection-banner.js?v=202610221432"></script>
-    <script src="js/modal-esc.js?v=202610221432"></script>
-    <script type="module" src="js/modal-drag.js?v=202610221432"></script>
+    <script type="module" src="js/manual.js?v=202610221532"></script>
+    <script type="module" src="js/page-gate.js?v=202610221532" data-perm-page="manual.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610221532"></script>
+    <script src="js/connection-banner.js?v=202610221532"></script>
+    <script src="js/modal-esc.js?v=202610221532"></script>
+    <script type="module" src="js/modal-drag.js?v=202610221532"></script>
 </body>
 </html>

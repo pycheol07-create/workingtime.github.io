@@ -188,6 +188,19 @@ export const getCurrentTime = () => {
 export const escapeHtml = (s) => String(s == null ? '' : s)
     .replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/** Firebase 오류 → 직원이 할 수 있는 일 한 줄. 원시 코드(permission-denied 등)를 그대로 보여 주지 않는다.
+ *  알 수 없는 오류는 코드만 괄호로 붙인다(관리자에게 알릴 때 쓰도록). */
+export const friendlyFirebaseError = (e) => {
+    const code = String((e && e.code) || '').replace(/^(firestore|auth|storage)\//, '');
+    if (code === 'permission-denied' || code === 'unauthenticated') return '권한이 없습니다 — 관리자에게 문의하세요';
+    if (code === 'unavailable' || /network/i.test(code)) return '인터넷 연결을 확인하세요';
+    if (code === 'deadline-exceeded') return '응답이 늦습니다 — 잠시 뒤 다시 시도하세요';
+    if (code) return `잠시 뒤 다시 시도하세요 (${code})`;
+    // 코드가 없는 오류(프로그램 오류 등)는 원인을 짧게 붙인다 — 같은 실패를 계속 다시 누르지 않고 관리자에게 알릴 수 있게
+    const msg = String((e && e.message) || '').trim().slice(0, 60);
+    return msg ? `처리 중 오류가 났습니다 — 관리자에게 알려 주세요 (${msg})` : '잠시 뒤 다시 시도하세요';
+};
+
 /** 시간(hour) → '2시간 30분'. 음수도 부호를 붙여 그대로 표기한다.
  *  formatDuration 과 달리 공백이 없고 음수를 다룬다(남는 시간/초과 시간 표시용). */
 export const formatHM = (hours) => {

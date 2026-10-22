@@ -3,35 +3,35 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610221432';
+import { predictFutureTrends } from './analysis-logic.js?v=202610221532';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610221432';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610221432';
-import { runDay } from './lib/refill-view.js?v=202610221432';
-import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610221432';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610221432';
-import * as State from './state.js?v=202610221432';
-import { saveView } from './view-state.js?v=202610221432';
-import { getTodayDateString, getRegularMembersForCount, showToast, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610221432';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610221432';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610221532';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610221532';
+import { runDay } from './lib/refill-view.js?v=202610221532';
+import { summarizeTransmitChunks, transmitValueFor, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610221532';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610221532';
+import * as State from './state.js?v=202610221532';
+import { saveView } from './view-state.js?v=202610221532';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610221532';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610221532';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610221432';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610221532';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610221432';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610221432';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610221532';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610221532';
 import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610221432';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610221432';
-import { taskUph, recentDays } from './task-throughput.js?v=202610221432';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610221532';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610221532';
+import { taskUph, recentDays } from './task-throughput.js?v=202610221532';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610221432';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610221532';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610221432';
-import { D } from './d-chart.js?v=202610221432';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610221432';
+         excessOffDays } from './lib/backlog-carry.js?v=202610221532';
+import { D } from './d-chart.js?v=202610221532';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610221532';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -2262,6 +2262,8 @@ const simRowMeta = new Map();
 let simDirtyQty = new Set();
 /** 시간형(분·인원)도 따로 센다 — 예전에는 수량형만 추적했다. */
 let simDirtyTime = new Set();
+/** 계획 작업량에 저장 안 한 손댄 칸이 있는지 — 날짜 변경·화면 떠나기 확인용 */
+export const isSimDirty = () => simDirtyQty.size > 0 || simDirtyTime.size > 0;
 
 /** 코드가 값을 다시 계산해 넣었을 때 접기 판정 재료도 같이 고친다.
  *  안 고치면 접힘 버튼 title 이 화면에 없는 옛 숫자를 보여 주고, outlier 판정도 옛 값으로 내려진다. */
@@ -3635,14 +3637,23 @@ ${list}
 /** '업무 예상' 탭 진입 시 호출: 시뮬레이션 리스너 결합 + 오늘/내일 요약 + 상세 자동값 채움 */
 export const renderForecastTab = () => {
     ensureSimLists(true);        // 등록된 업무 + 최근 실적으로 업무 목록을 확정한다(수량형 → 시간형 순)
-    renderSimTaskInputs();
+    const redrawn = renderSimTaskInputs();   // true 면 입력칸을 새로 그려 타이핑한 값은 이미 사라졌다
     setupSimulationListeners();
 
     const dateEl = document.getElementById('sim-target-date');
     if (dateEl && !dateEl.value) dateEl.value = getTodayDateString();
-    autoFillSimInputs(dateEl?.value);
-    updateSavedInfo(dateEl?.value);
-    simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
+    // 고친 칸을 둔 채 다른 탭에 갔다 같은 대상일로 돌아오면 그대로 둔다(자동값으로 덮지 않는다).
+    //   입력칸을 다시 그렸으면 지킬 값이 없으므로 평소처럼 채운다.
+    const keepEdits = !redrawn && isSimDirty() && !!dateEl && dateEl.dataset.applied === dateEl.value;
+    if (dateEl) dateEl.dataset.applied = dateEl.value;
+    if (keepEdits) {
+        updateSavedInfo(dateEl.value);
+        captureSimOverride();   // 카드도 화면의 고친 값 기준
+    } else {
+        autoFillSimInputs(dateEl?.value);
+        updateSavedInfo(dateEl?.value);
+        simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
+    }
     renderForecastSummary();
     runSimulation({ silent: true });      // 오른쪽 결과칸을 자동값 기준으로 미리 채워 둔다
     // 진행 중인 업무가 있으면 '오늘 현황'으로, 아니면 '계획'으로 연다
@@ -3658,7 +3669,8 @@ export const renderForecastTab = () => {
         //    → 고친 칸만 지키고 나머지는 채운다.
         autoFillSimInputs(d, { preserveDirty: true });
         updateSavedInfo(d);
-        simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
+        // 고친 칸이 남아 있으면 카드도 화면 값 기준, 없으면 자동값 기준
+        if (isSimDirty()) captureSimOverride(); else simOverride = null;
         renderForecastSummary();
         runSimulation({ silent: true });
         if (forecastView === 'today') renderTodayProgress();   // 예정 물량이 실리면 기준선이 달라진다
@@ -3667,7 +3679,13 @@ export const renderForecastTab = () => {
     const rBtn = document.getElementById('forecast-refresh-btn');
     if (rBtn && !rBtn.dataset.bound) {
         rBtn.dataset.bound = 'true';
-        rBtn.addEventListener('click', () => {
+        rBtn.addEventListener('click', async () => {
+            // 고친 칸이 있으면 자동값으로 덮기 전에 묻는다(날짜 변경과 같은 확인)
+            if (isSimDirty()) {
+                const ok = await showConfirm('계획 작업량에 저장하지 않은 입력이 있습니다.\n새로고침하면 고친 값이 자동값으로 바뀝니다. 계속할까요?',
+                    { title: '저장하지 않은 입력', okText: '새로고침', cancelText: '머무르기' });
+                if (!ok) return;
+            }
             const d = document.getElementById('sim-target-date')?.value;
             autoFillSimInputs(d);
             updateSavedInfo(d);
@@ -3690,7 +3708,20 @@ const setupSimulationListeners = () => {
             // 기본값: 오늘 (요약 카드에서 오늘·내일을 함께 보여주므로 상세는 오늘 기준)
             dateEl.value = getTodayDateString();
         }
-        dateEl.addEventListener('change', () => {
+        dateEl.dataset.applied = dateEl.value;   // 마지막으로 화면에 채운 날짜 — 취소하면 여기로 되돌린다
+        dateEl.addEventListener('change', async () => {
+            // 고친 칸이 있는데 날짜를 바꾸면 자동값으로 덮인다 — 먼저 묻는다
+            if (isSimDirty() && dateEl.value !== dateEl.dataset.applied) {
+                const next = dateEl.value;
+                const ok = await showConfirm('계획 작업량에 저장하지 않은 입력이 있습니다.\n다른 날짜로 가면 고친 값이 자동값으로 바뀝니다. 계속할까요?',
+                    { title: '저장하지 않은 입력', okText: '다른 날짜로', cancelText: '머무르기' });
+                if (!ok) {
+                    if (dateEl.dataset.applied) dateEl.value = dateEl.dataset.applied;
+                    return;
+                }
+                dateEl.value = next;
+            }
+            dateEl.dataset.applied = dateEl.value;
             simDirtyQty = new Set();      // 날짜가 바뀌면 '손댄 칸' 기록도 새로 시작한다
             simDirtyTime = new Set();
             autoFillSimInputs(dateEl.value, { resetFoldView: true });

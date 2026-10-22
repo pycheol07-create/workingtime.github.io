@@ -1,7 +1,7 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610221432';
-import * as State from './state.js?v=202610221432';
-import { getWeekOfYear, escapeHtml } from './utils.js?v=202610221432';
+import * as DOM from './dom-elements.js?v=202610221532';
+import * as State from './state.js?v=202610221532';
+import { getWeekOfYear, escapeHtml } from './utils.js?v=202610221532';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -72,7 +72,7 @@ export const renderInspectionLayout = (container) => {
                     </button>
                     <button id="inspection-tab-download-btn" class="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-1.5 px-3 rounded shadow-sm transition flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        다운로드
+                        엑셀 받기
                     </button>
                 </div>
             </div>
@@ -290,6 +290,10 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
 export const renderInspectionHistoryTable = (historyData) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
+    if (historyData == null) {   // 아직 불러오지 않음
+        container.innerHTML = '<div class="text-center py-10 text-gray-500">검수 기록을 불러오는 중입니다...</div>';
+        return;
+    }
 
     const searchInput = DOM.inspectionHistorySearchInput;
     const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
@@ -623,8 +627,13 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
 
-    if (!historyData || historyData.length === 0) {
-        container.innerHTML = '<div class="text-center py-10 text-gray-500">데이터를 로드하는 중이거나 데이터가 없습니다.</div>';
+    // 아직 불러오지 않았으면(null) '불러오는 중', 불러왔는데 비었으면 '기록 없음' — 둘을 섞어 쓰지 않는다
+    if (historyData == null) {
+        container.innerHTML = '<div class="text-center py-10 text-gray-500">검수 기록을 불러오는 중입니다...</div>';
+        return;
+    }
+    if (historyData.length === 0) {
+        container.innerHTML = '<div class="text-center py-10 text-gray-500">이 기간 검수 기록 없음</div>';
         return;
     }
 

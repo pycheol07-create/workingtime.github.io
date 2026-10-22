@@ -1,7 +1,7 @@
 /* === css/d-theme.css — 미발계산기 2종 전용 D안 토큰·부품 (2026-10-13) ===
    - china-stock-goods.html · china-mibal2.html · products.html · china-stock-migrate.html · scan.html(현장 스캐너) 이 불러온다. index.html 은 dash-d.css 를 쓴다.
      여기에 body·button 같은 일반 규칙을 넣으면 위 페이지 전부(현장 스캐너 포함)가 바뀐다.
-   - 토큰은 dash-d.css 8-22 사본(라이트만). 다크 토큰은 넣지 않는다 — 두 페이지는 라이트 전용이고 JS 인라인 색이 남아 있다.
+   - 토큰은 dash-d.css 8-22 사본. 다크 토큰은 html.dark 블록(2026-10-22~). JS 인라인 색은 각 페이지에서 따로 다크를 맞춘다.
    - 클래스 이름은 dash-d.css 와 같다(d-btn·d-pill-*·t-*). 범위 접두어(#dash-root)만 없다.
    - 주의: 여기에는 display 를 넣지 않는다. 모달·메뉴·로딩·모드별 표시는 JS·인라인이 켜고 끈다. */
 
@@ -22,6 +22,25 @@
     /* 옛 이름 호환 (location.html 방식) */
     --primary: var(--c-accent);
 }
+
+/* 다크(2026-10-22 모든 화면 다크 적용) — html.dark 는 <head> 의 js/theme-boot.js(또는 products 인라인)가 붙인다.
+   값은 dash-d.css·products-d.css 의 다크 토큰 사본. html.dark 가 안 붙는 페이지(china-stock-migrate)는 그대로 밝다. */
+html.dark {
+    --c-bg: #111418; --c-surface: #1A1E24; --c-surface-2: #20252C; --c-track: #2A3038;
+    --c-line: #2C323A; --c-line-soft: #242A31; --c-line-strong: #3A414B;
+    --c-text: #E6E8EC; --c-text-2: #A9B0BA; --c-text-3: #959DA8;   /* 대시보드 다크(#7D8590)보다 밝게 — 회색 칸 위 4.5:1 */ --c-text-4: #4A515B;
+    --c-accent: #6E95E6; --c-accent-deep: #A9C1F2; --c-accent-mid: #4F73BF; --c-accent-light: rgba(110,149,230,.35);
+    --c-accent-soft: rgba(47,98,201,.22); --c-accent-row: rgba(47,98,201,.12);
+    --c-ok-text: #8CC9C0; --c-ok-soft: rgba(90,158,150,.18);
+    --c-warn-text: #E2BE8C; --c-warn-soft: rgba(210,162,102,.18); --c-warn-bg: rgba(210,162,102,.10);
+    --c-risk-text: #E0A3AB; --c-risk-soft: rgba(201,128,138,.18); --c-risk-row: rgba(201,128,138,.10);
+    --sh-tab: 0 1px 2px rgba(0,0,0,.40); --sh-pop: 0 8px 24px rgba(0,0,0,.50);
+    --c-nav: #C5CAD2; --c-mute: #242A31; --c-dot-off: #4A515B; --c-warn-line: rgba(210,162,102,.35);
+    --sh-center: 0 8px 24px rgba(0,0,0,.50);
+    --c-on-fill: #111418;   /* 밝아지는 채움(--c-accent 등) 위 글자 — 쓰는 곳은 var(--c-on-fill,#fff) */
+    color-scheme: dark;   /* 입력칸·날짜·스크롤바 기본 모양도 어둡게 */
+}
+html.dark .d-btn-primary { color: #111418; }   /* 밝아진 파랑 위 흰 글자는 대비 부족 */
 
 body { font-family: var(--font-sans); background: var(--c-bg); color: var(--c-text); }
 
