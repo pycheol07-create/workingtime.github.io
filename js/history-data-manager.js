@@ -1,16 +1,16 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610221642';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610221642';
-import { clampOpenRecords } from './lib/record-close.js?v=202610221642';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610221642';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610221642';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610221642';
-import { can } from './lib/perm.js?v=202610221642';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610221642';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610221642';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610221642';
+import * as State from './state.js?v=202610221732';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610221732';
+import { clampOpenRecords } from './lib/record-close.js?v=202610221732';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610221732';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610221732';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610221732';
+import { can } from './lib/perm.js?v=202610221732';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610221732';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610221732';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610221732';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610221642';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610221732';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,

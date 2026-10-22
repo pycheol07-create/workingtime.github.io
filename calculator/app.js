@@ -166,6 +166,8 @@ const App = () => {
             
             <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
                 <div className="w-full max-w-6xl mx-auto flex flex-col h-full relative">
+                    {/* 로그아웃 — 공통 상단바에는 로그아웃이 없다. auth-gate.js 가 로그인 칸을 다시 띄우고 이 화면을 내린다 */}
+                    <button type="button" onClick={() => { if (typeof window.__calcSignOut === 'function') window.__calcSignOut(); }} data-k="calc-logout" className="absolute top-0 left-0 p-2 text-sm font-semibold text-gray-400 hover:text-gray-600" title="로그아웃">로그아웃</button>
                     <button onClick={() => setIsAdminOpen(true)} className="absolute top-0 right-0 p-2 text-gray-400 hover:text-gray-600" title="설정 관리">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </button>
@@ -178,7 +180,20 @@ const App = () => {
     );
 };
 
+// 로그인 게이트(auth-gate.js)가 '통과'(status 'ok')를 알릴 때만 그린다 — 그 전·로그아웃 뒤에는 그리지 않아
+// localStorage 의 설정·입력 기억값이 화면에 나오지 않는다. 모듈이 먼저 끝났을 수도 있어 지금 값 확인 + 이벤트 구독.
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error("Could not find root element to mount to");
-const root = ReactDOM.createRoot(rootElement);
-root.render(<React.StrictMode><App /></React.StrictMode>);
+let calcRoot = null;
+const syncCalcMount = (st) => {
+    const ok = !!st && st.status === 'ok';
+    if (ok && !calcRoot) {
+        calcRoot = ReactDOM.createRoot(rootElement);
+        calcRoot.render(<React.StrictMode><App /></React.StrictMode>);
+    } else if (!ok && calcRoot) {
+        calcRoot.unmount();
+        calcRoot = null;
+    }
+};
+window.addEventListener('calc-auth', (e) => syncCalcMount((e && e.detail) || window.__calcAuth));
+syncCalcMount(window.__calcAuth);

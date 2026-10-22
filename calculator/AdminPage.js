@@ -46,7 +46,7 @@ const SettingsHistory = ({ history, status }) => {
     return (
         <div>
             <h3 className="text-lg font-bold text-gray-800 mt-6 mb-3 border-b pb-2">변경 이력 (최근 {(history || []).length}건)</h3>
-            {status === 'signed-out' && <div className="text-sm text-gray-500 mb-3">로그인하면 팀 공용 설정의 변경 이력을 볼 수 있습니다.</div>}
+            {status === 'signed-out' && <div className="text-sm text-gray-500 mb-3">로그인이 풀려 팀 공용 설정의 변경 이력을 볼 수 없습니다 — 새로고침해 다시 로그인하세요.</div>}
             {status === 'error' && <div className="text-sm text-red-600 mb-3">공용 설정을 읽지 못해 이력을 볼 수 없습니다.</div>}
             <div className="flex items-center gap-2 mb-3">
                 <label className="text-sm text-gray-600" htmlFor="calc-history-filter">설정</label>
@@ -357,8 +357,7 @@ const AdminPage = ({ onClose }) => {
                             {sharedStatus === 'ok' && '팀 공용 설정입니다 — 저장하면 모든 직원의 계산기에 반영되고 변경 이력이 남습니다.'}
                             {sharedStatus === 'empty' && '아직 팀 공용 설정이 없습니다 — 처음 저장하면 이 PC 의 설정으로 공용 설정이 시작됩니다.'}
                             {sharedStatus === 'signed-out' && (
-                                <span>로그인하지 않아 이 PC 의 마지막 설정을 쓰고 있습니다 — 저장해도 이 PC 에만 저장됩니다.{' '}
-                                    <a href="../index.html" className="font-semibold text-emerald-700 underline">로그인하러 가기</a></span>
+                                <span>로그인이 풀려 이 PC 의 마지막 설정을 쓰고 있습니다 — 저장해도 이 PC 에만 저장됩니다. 새로고침해 다시 로그인하세요.</span>
                             )}
                             {sharedStatus === 'error' && <span className="text-red-600">팀 공용 설정을 불러오지 못했습니다({sharedError}) — 지금은 이 PC 의 마지막 설정입니다.</span>}
                         </div>
@@ -431,7 +430,7 @@ const AdminPage = ({ onClose }) => {
                                                         {m.lastOkAt ? ` · 계산일 ${fmtDay(m.lastOkAt)}` : ''}
                                                     </span>
                                                 )}
-                                                {defaultsStatus === 'signed-out' && '로그인하면 최신값 — 지금은 마지막 저장값'}
+                                                {defaultsStatus === 'signed-out' && '로그인이 풀려 마지막 저장값을 씁니다'}
                                                 {defaultsStatus === 'error' && (
                                                     <span className="text-red-600">불러오기 실패: {defaultsError} — 지금은 마지막 저장값</span>
                                                 )}

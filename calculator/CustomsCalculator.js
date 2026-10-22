@@ -91,7 +91,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
         const avg = avgOf(f);
         const src = defaultsStatus === 'ok'
           ? `logis 3개월 평균 ${avg}${m.window ? ` · ${m.window.from} ~ ${m.window.to}` : ''}`
-          : defaultsStatus === 'loading' ? 'logis 3개월 평균 불러오는 중...' : `기본값 ${avg} (마지막 저장값 — 로그인하면 logis 3개월 평균)`;
+          : defaultsStatus === 'loading' ? 'logis 3개월 평균 불러오는 중...' : `기본값 ${avg} (마지막 저장값)`;
         const isAvg = parseNum(formData[f]) === parseNum(avg);
         return (
           <div className="mt-1 flex items-center justify-between gap-2 text-xs text-gray-400" data-k={`avg-hint-${f}`}>
