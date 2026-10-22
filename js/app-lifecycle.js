@@ -1,9 +1,76 @@
 // === js/app-lifecycle.js ===
-import * as State from './state.js?v=202610221215';
-import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202610221215';
-import { saveProgress, isDayClosedOnServer } from './history-data-manager.js?v=202610221215';
-import { saveStateToFirestore } from './app-data.js?v=202610221215';
-import { collection, doc, writeBatch, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import * as State from './state.js?v=202610221432';
+import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202610221432';
+import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=202610221432';
+import { saveStateToFirestore } from './app-data.js?v=202610221432';
+import { collection, doc, writeBatch, getDoc, setDoc, waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getSubscribedDate } from './app-sync.js?v=202610221432';
+import { findOpenModal } from './lib/noti-popup.js?v=202610221432';
+import { emulatorEnabled } from './firebase-emulator.js?v=202610221432';
+
+// 📅 자정을 넘긴 탭(2026-10-22): 구독은 어제 문서(daily_data/{어제})에 붙어 있는데 저장·정리는 '오늘' 경로로 가서
+//    어제 화면의 값이 오늘 문서로 새거나 오늘 잠금을 지우는 일이 생긴다. 날짜가 바뀐 것을 보면
+//    어제 문서에 남은 변경만 저장하고(마감 안 된 날일 때만) 새로고침해 오늘 문서로 다시 붙는다.
+const ROLLOVER_PENDING_WRITES_MAX = 5_000;   // 아직 서버에 안 간 쓰기를 기다리는 최대 시간
+const ROLLOVER_MODAL_WAIT_MAX = 60_000;      // 열린 창(입력 중일 수 있다)이 닫히길 기다리는 최대 시간
+const ROLLOVER_CLOSING_WAIT_MAX = 5 * 60_000; // 업무 마감이 도는 중이면 끝나길 기다리는 최대 시간(그 뒤엔 진행)
+const ROLLOVER_RELOAD_CHECK_MS = 5_000;      // 새로고침을 부르고 이만큼 지나도 그대로면 다음 주기에 다시 시도
+let rolloverStarted = false;
+let rolloverNoticeShown = false;
+let rolloverBlockedCount = 0;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// 새로고침이 막혔을 때(beforeunload 취소 등) 영영 멈추지 않게 — 5초 뒤에도 이 페이지면 한 번 안내하고,
+// 다시 시도는 간격을 늘려 가며(1분 → 2분 → … 최대 10분) 한다. 바로 다시 시도하면 '나가시겠습니까' 창이 몇 초마다 뜬다.
+function reloadForNewDay() {
+    location.reload();
+    setTimeout(() => {
+        if (!rolloverNoticeShown) {
+            rolloverNoticeShown = true;
+            showToast('날짜가 바뀌었습니다 — 새로고침해 주세요.', true);
+        }
+        rolloverBlockedCount++;
+        const wait = Math.min(60_000 * 2 ** (rolloverBlockedCount - 1), 600_000);
+        setTimeout(() => { rolloverStarted = false; }, wait);
+    }, ROLLOVER_RELOAD_CHECK_MS);
+}
+
+async function handleDayRollover(dateKey, { reload = true } = {}) {
+    console.warn(`[rollover] 날짜가 바뀌었습니다(${dateKey} → ${getTodayDateString()}). 남은 변경을 저장하고 새로고침합니다.`);
+    // (0) 업무 마감이 도는 중이면 끝날 때까지(최대 5분) — 마감 도중 새로고침하면 원본 삭제·closedAt 이 반쯤 끝난다
+    const closingUntil = Date.now() + ROLLOVER_CLOSING_WAIT_MAX;
+    if (isClosingInProgress()) console.warn('[rollover] 업무 마감이 진행 중이라 끝나길 기다립니다(최대 5분).');
+    while (isClosingInProgress() && Date.now() < closingUntil) await sleep(1000);
+    // (a) 남은 변경은 어제 문서에 — 마감된 날이거나 서버를 못 읽으면 덮어쓰지 않는다
+    try {
+        if (State.isDataDirty) {
+            const closedState = await isDayClosedOnServer(dateKey);
+            if (closedState === 'open') await saveStateToFirestore({ dateKey });
+            else console.warn(`[rollover] ${dateKey}: 마감 여부 ${closedState} — 남은 변경을 저장하지 않습니다.`);
+        }
+    } catch (e) {
+        console.warn('[rollover] 남은 변경 저장 실패:', e && e.code);
+    }
+    // (b) 대기 중인 쓰기가 서버에 갈 때까지(최대 5초)
+    try {
+        if (State.db) await Promise.race([waitForPendingWrites(State.db), new Promise(r => setTimeout(r, ROLLOVER_PENDING_WRITES_MAX))]);
+    } catch (e) {
+        console.warn('[rollover] 대기 중 쓰기 확인 실패:', e && e.code);
+    }
+    // (c) 열린 창이 있으면 닫힐 때까지(최대 60초)
+    const until = Date.now() + ROLLOVER_MODAL_WAIT_MAX;
+    while (findOpenModal(document) && Date.now() < until) await sleep(1000);
+    // (d) 오늘 문서로 다시 붙는다
+    if (reload) reloadForNewDay();
+    else console.warn('[rollover] reload:false — 새로고침은 건너뜁니다(디버그).');
+}
+// 🧪 에뮬레이터에서만: 자정을 기다리지 않고 위 흐름을 돌려 본다 — __debugRollover() / __debugRollover({ reload: false })
+if (typeof window !== 'undefined' && emulatorEnabled()) {
+    window.__debugRollover = (opts = {}) => {
+        rolloverStarted = true;
+        return handleDayRollover(getSubscribedDate() || getTodayDateString(), opts);
+    };
+}
 
 let localLunchPauseExecuted = false;
 let localLunchResumeExecuted = false;
@@ -126,10 +193,16 @@ async function autoBackfillMissingFx(todayKey) {
     }
 
     if (ok > 0) {
-        try { localStorage.removeItem('historyDataCache'); localStorage.removeItem('historyDataCacheTime'); } catch (_) {}
+        try { clearLocalCache(); } catch (_) {}   // 전체·대시보드(100일) 캐시 키 모두
         showToast(`앱 미실행일 포함 과거 환율 ${ok}일치를 자동 저장했습니다.`, false);
     }
 }
+
+// ⛔ 17:30 연장근무 확인 팝업 + 5분 뒤 자동 종료 + 17:35 안전망의 '17:30 강제 종료'는 끈다
+//    (2026-10-22 사용자 결정 — 하루 마감은 업무마감봇 17:45 가 맡는다).
+//    지금까지는 아래 관리자 판정이 이름으로 memberRoles(이메일 키)를 찾아 늘 false 라 우연히 꺼져 있었다.
+//    그 판정을 고쳐도 이 기능이 갑자기 켜지지 않도록 명시적으로 막아 둔다. 다시 켜려면 true.
+const OVERTIME_AUTO_CLOSE_ENABLED = false;
 
 // ✨ 야근 확인 팝업 및 타이머용 변수 추가
 let localAutoClosePromptExecuted = false;
@@ -144,7 +217,7 @@ let eodFlushCooldownUntil = 0;   // 종료시각 이후 이력 확정 저장 재
 
 // 업무일 종료시각. 이력의 열린 기록 상한도 같은 값을 써야 하므로 단일 출처에서 가져온다
 // (예전엔 두 파일에 따로 박혀 있어, 한쪽만 고치면 조용히 갈라졌다).
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610221215';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610221432';
 
 // 진행/일시정지 기록을 지정 시각으로 마감(Firestore 배치 + 로컬 미러 갱신)
 async function closeRecordsAt(records, endTime, dayKey) {
@@ -229,7 +302,7 @@ async function eodFlushToHistory(todayKey, isAdmin) {
 
     try {
         // 야근을 선택하지 않았는데 아직 안 끝난 기록이 있으면 종료시각 기준으로 마감
-        if (openOnes.length > 0 && isAdmin && !overtimeOptOut) {
+        if (OVERTIME_AUTO_CLOSE_ENABLED && openOnes.length > 0 && isAdmin && !overtimeOptOut) {
             await closeRecordsAt(openOnes, AUTO_END_TIME, todayKey);
         }
 
@@ -251,7 +324,17 @@ export const updateElapsedTimes = async () => {
     
     const todayDate = getTodayDateString();
     const isTodayWeekday = isWeekday(todayDate);
-    
+
+    // 📅 구독 날짜가 오늘과 다르면(자정을 넘긴 탭) 아래 하루 단위 작업을 하지 않고 넘어갈 준비만 한다(한 번만)
+    const subDate = getSubscribedDate();
+    if (subDate && subDate !== todayDate) {
+        if (!rolloverStarted) {
+            rolloverStarted = true;
+            handleDayRollover(subDate).catch(e => { console.warn('[rollover] 실패 — 새로고침합니다:', e); reloadForNewDay(); });
+        }
+        return;
+    }
+
     // 날짜가 바뀌면(자정) 잠금장치 스스로 초기화
     if (lastCheckedDay !== todayDate) {
         localLunchPauseExecuted = false;
@@ -314,7 +397,7 @@ export const updateElapsedTimes = async () => {
     // 5분 윈도우(17:30~17:34)로 백그라운드 탭의 setInterval throttle에 대응.
     // 한 명이 먼저 처리하면 onSnapshot으로 동기화돼 다른 관리자에겐 ongoing.length === 0이 되어
     // 추가 팝업이 뜨지 않음.
-    if (isAdmin && isTodayWeekday && now >= '17:30' && now < '17:35' && !localAutoClosePromptExecuted) {
+    if (OVERTIME_AUTO_CLOSE_ENABLED && isAdmin && isTodayWeekday && now >= '17:30' && now < '17:35' && !localAutoClosePromptExecuted) {
         localAutoClosePromptExecuted = true;
 
         // 진행 중(ongoing) 뿐 아니라 일시정지(paused) 상태도 마감 대상이다.
@@ -446,6 +529,9 @@ export const updateElapsedTimes = async () => {
 };
 
 export const autoSaveProgress = async () => {
+    // 📅 자정을 넘긴 탭은 저장하지 않는다 — 오늘 경로로 쓰면 어제 화면의 값이 오늘 문서로 샌다(handleDayRollover 가 어제 문서에 저장)
+    const subDate = getSubscribedDate();
+    if (subDate && subDate !== getTodayDateString()) return;
     // 변경사항이 무시되는 버그를 고치고, 데이터가 실제로 변했을 때만 안전하게 저장 연동
     if (State.isDataDirty) {
         await saveStateToFirestore();

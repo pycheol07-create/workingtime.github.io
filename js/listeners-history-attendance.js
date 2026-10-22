@@ -1,16 +1,16 @@
 // === js/listeners-history-attendance.js ===
 // 설명: 이력 보기의 '근태 이력' 관리(추가/수정/삭제 요청) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610221215';
-import * as State from './state.js?v=202610221215';
-import { isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610221215';
-import { showToast, showConfirm, getTodayDateString, getCurrentTime } from './utils.js?v=202610221215';
-import { renderAttendanceDailyHistory } from './ui-history.js?v=202610221215';
-import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202610221215';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610221215';
-import { saveLeaveSchedule } from './config.js?v=202610221215';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221215';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610221215';
+import * as DOM from './dom-elements.js?v=202610221432';
+import * as State from './state.js?v=202610221432';
+import { isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610221432';
+import { showToast, showConfirm, getTodayDateString, getCurrentTime } from './utils.js?v=202610221432';
+import { renderAttendanceDailyHistory } from './ui-history.js?v=202610221432';
+import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202610221432';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610221432';
+import { updateLeaveSchedule } from './config.js?v=202610221432';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221432';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610221432';
 import { doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 수정 모달이 지금 다루고 있는 근태의 '원본'.
@@ -77,23 +77,16 @@ const appendToDayDoc = async (dateKey, entry) => {
     return list;
 };
 
-/** leaveSchedule 목록(없으면 만들어서) 돌려주기. */
-const scheduleList = () => {
-    if (!State.persistentLeaveSchedule) State.setPersistentLeaveSchedule({ onLeaveMembers: [] });
-    if (!Array.isArray(State.persistentLeaveSchedule.onLeaveMembers)) {
-        State.persistentLeaveSchedule.onLeaveMembers = [];
+/** 근태 일정 저장 — mutate 를 서버 목록에 트랜잭션으로 적용하고, 성공하면 메모리에 반영한다.
+ *  메모리를 먼저 고치지 않으므로 실패해도 되돌릴 것이 없다(예외는 그대로 던진다).
+ *  mutate 는 재시도 때 여러 번 불리니 동기·순수로 쓴다. */
+const applySchedule = async (mutate) => {
+    const r = await updateLeaveSchedule(State.db, mutate);
+    if (r.changed) {
+        if (!State.persistentLeaveSchedule) State.setPersistentLeaveSchedule({ onLeaveMembers: [] });
+        State.persistentLeaveSchedule.onLeaveMembers = r.list;
     }
-    return State.persistentLeaveSchedule.onLeaveMembers;
-};
-
-/** 근태 일정 저장 — 실패하면 메모리를 원래대로 되돌리고 다시 던진다. */
-const saveScheduleOrRollback = async (backup) => {
-    try {
-        await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
-    } catch (e) {
-        State.persistentLeaveSchedule.onLeaveMembers = backup;
-        throw e;
-    }
+    return r;
 };
 
 /** 수정 내용을 leaveSchedule에 반영한다.
@@ -102,20 +95,19 @@ const saveScheduleOrRollback = async (backup) => {
  *  · 당일형  → 외출·조퇴·지각은 기간 개념이 없으므로 일정에서 뺀다.
  *  반환값: 일정이 실제로 바뀌었는지 여부. */
 const syncScheduleForEdit = async (origin, newEntry, isTimeBased) => {
-    const list = scheduleList();
-    const backup = list.slice();
-    const si = list.findIndex(l => isSameLeave(l, origin));
-
-    if (isTimeBased) {
-        if (si < 0) return false;
-        list.splice(si, 1);
-    } else {
+    // id 는 트랜잭션 밖에서 정한다(재시도 때 같은 id).
+    const fallbackId = origin.id || `leave-${Date.now()}`;
+    const r = await applySchedule(list => {
+        const si = list.findIndex(l => isSameLeave(l, origin));
+        if (isTimeBased) {
+            if (si < 0) return false;
+            return list.filter((_, i) => i !== si);
+        }
         const merged = mergeLeave(si > -1 ? list[si] : {}, newEntry, false);
-        if (!merged.id) merged.id = origin.id || `leave-${Date.now()}`;
-        if (si > -1) list[si] = merged; else list.push(merged);
-    }
-    await saveScheduleOrRollback(backup);
-    return true;
+        if (!merged.id) merged.id = fallbackId;
+        return si > -1 ? list.map((l, i) => (i === si ? merged : l)) : [...list, merged];
+    });
+    return r.changed;
 };
 
 export function setupHistoryAttendanceListeners() {
@@ -503,11 +495,8 @@ function setupAttendanceModalButtons() {
                 // 기간형 근태(연차·출장 등)의 원본은 persistent_data/leaveSchedule 이다.
                 // 그날 문서에만 넣으면 기간을 잡아도 그 하루에만 표시된다.
                 if (!isTimeBased) {
-                    const list = scheduleList();
-                    const backup = list.slice();
-                    list.push({ ...newEntry });
-                    await saveScheduleOrRollback(backup);
-                    notifyLeaveScheduleChanged('attendance-add');
+                    const r = await applySchedule(list => [...list, { ...newEntry }]);
+                    if (r.changed) notifyLeaveScheduleChanged('attendance-add');
                     augmentHistoryWithPersistentLeave(State.allHistoryData, State.persistentLeaveSchedule);
                     clearLocalCache();
 

@@ -2,13 +2,13 @@
 // 검수 사진: 문서에 Base64 를 쌓지 않고 Firebase Storage(inspection/images/날짜/...)에 올려 URL 만 저장한다.
 //   (상품 문서 1MB 한도를 넘으면 그 상품은 저장이 영구히 실패했다)
 //   경로·메타데이터에 상품명·사람 정보를 넣지 않는다 — 경로 모양은 js/lib/insp-flow.js inspPhotoPath.
-import * as DOM from './dom-elements.js?v=202610221215';
-import { showToast, getTodayDateString } from './utils.js?v=202610221215';
-import { searchProductHistory } from './inspection-logic.js?v=202610221215';
+import * as DOM from './dom-elements.js?v=202610221432';
+import { showToast, getTodayDateString } from './utils.js?v=202610221432';
+import { searchProductHistory } from './inspection-logic.js?v=202610221432';
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202610221215';
-import { inspPhotoPath } from './lib/insp-flow.js?v=202610221215';
+import { connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202610221432';
+import { inspPhotoPath } from './lib/insp-flow.js?v=202610221432';
 
 export let html5QrCode = null;
 export let manualImageBase64 = null;
@@ -125,8 +125,43 @@ export const toggleScanner = () => {
     }
 };
 
-const startScanner = () => {
-    if (html5QrCode) return; 
+// 바코드 스캐너 라이브러리는 대시보드에서 처음 스캐너를 열 때 받는다(2026-10-22 — 예전엔 index.html 이 버전 미고정으로 매번 읽음).
+// 버전 고정 + SRI. 올릴 때는 받은 파일로 sha384 를 다시 계산한다. (scan.html 도 같은 2.3.8)
+const QR_LIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js';
+const QR_LIB_SRI = 'sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+';
+let qrLibP = null;
+const loadQrLib = () => {
+    if (window.Html5Qrcode) return Promise.resolve(window.Html5Qrcode);
+    if (qrLibP) return qrLibP;
+    qrLibP = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = QR_LIB_URL;
+        s.integrity = QR_LIB_SRI;
+        s.crossOrigin = 'anonymous';
+        s.referrerPolicy = 'no-referrer';
+        s.onload = () => window.Html5Qrcode ? resolve(window.Html5Qrcode) : reject(new Error('Html5Qrcode 없음'));
+        s.onerror = () => { qrLibP = null; s.remove(); reject(new Error('html5-qrcode 를 불러오지 못함')); };
+        document.head.appendChild(s);
+    });
+    return qrLibP;
+};
+
+let scannerLoading = false;
+const startScanner = async () => {
+    if (html5QrCode || scannerLoading) return;
+    scannerLoading = true;
+    try {
+        await loadQrLib();
+    } catch (e) {
+        console.error(e);
+        showToast("스캐너 도구를 불러오지 못했습니다. 네트워크를 확인한 뒤 다시 눌러 주세요.", true);
+        if (DOM.inspScannerContainer) DOM.inspScannerContainer.classList.add('hidden');
+        return;
+    } finally {
+        scannerLoading = false;
+    }
+    // 받는 사이 스캐너를 닫았으면 켜지 않는다
+    if (html5QrCode || !DOM.inspScannerContainer || DOM.inspScannerContainer.classList.contains('hidden')) return;
     html5QrCode = new Html5Qrcode("reader");
     const config = { fps: 10, qrbox: { width: 250, height: 250 } };
     html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)

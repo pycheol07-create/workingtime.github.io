@@ -1,11 +1,12 @@
 // === js/ui-history-leave.js ===
-import * as State from './state.js?v=202610221215';
-import { showToast, isMemberActiveOn } from './utils.js?v=202610221215';
+import * as State from './state.js?v=202610221432';
+import { showToast, isMemberActiveOn } from './utils.js?v=202610221432';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ 엑셀 변환 함수 불러오기
-import { downloadLeaveLedgerExcel } from './history-excel.js?v=202610221215';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221215';
+import { downloadLeaveLedgerExcel } from './history-excel.js?v=202610221432';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221432';
+import { updateLeaveSchedule } from './config.js?v=202610221432';
 
 let currentYear = new Date().getFullYear();
 let fullLeaveConfig = {}; 
@@ -458,15 +459,13 @@ async function openLeaveManager(member) {
     // Firestore에 최종 적용하는 함수
     const saveChanges = async () => {
         try {
-            const snap = await getDoc(docRef);
-            let currentAll = snap.exists() && snap.data().onLeaveMembers ? snap.data().onLeaveMembers : [];
-
-            // 기존에 있던 이 사람의 연차/반차 내역을 모두 지운 뒤
-            currentAll = currentAll.filter(l => !(l.member === member && (l.type?.includes('연차') || l.type?.includes('반차'))));
-            // 수정된 리스트를 통째로 다시 밀어넣음
-            currentAll.push(...memberLeaves);
-
-            await setDoc(docRef, { onLeaveMembers: currentAll }, { merge: true });
+            // 서버 목록(트랜잭션)에서 이 사람의 연차/반차 내역을 모두 지운 뒤 수정된 리스트를 다시 밀어넣는다.
+            //   다른 사람·다른 종류 근태는 서버에 있는 그대로 남는다(동시 저장에도 사라지지 않게).
+            const r = await updateLeaveSchedule(State.db, list => [
+                ...list.filter(l => !(l.member === member && (l.type?.includes('연차') || l.type?.includes('반차')))),
+                ...memberLeaves
+            ]);
+            const currentAll = r.list;
             
             if(State.persistentLeaveSchedule) {
                 State.persistentLeaveSchedule.onLeaveMembers = currentAll;

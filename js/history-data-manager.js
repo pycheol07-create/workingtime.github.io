@@ -1,11 +1,16 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610221215';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610221215';
-import { clampOpenRecords } from './lib/record-close.js?v=202610221215';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610221215';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610221215';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610221215';
-import { can } from './lib/perm.js?v=202610221215';
+import * as State from './state.js?v=202610221432';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast } from './utils.js?v=202610221432';
+import { clampOpenRecords } from './lib/record-close.js?v=202610221432';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610221432';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610221432';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610221432';
+import { can } from './lib/perm.js?v=202610221432';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610221432';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610221432';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610221432';
+// 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610221432';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -38,7 +43,15 @@ const HISTORY_CACHE_TTL_MS = 30 * 60 * 1000; // 30분
 export const clearLocalCache = () => {
     localStorage.removeItem('historyDataCache');
     localStorage.removeItem('historyDataCacheTime');
+    localStorage.removeItem(DASH_CACHE_KEY);
+    localStorage.removeItem(DASH_CACHE_TIME_KEY);
 };
+
+// 대시보드(오늘 진행 띠)용 최근 100일 캐시 — 전체 이력 캐시(historyDataCache)와 키를 나눈다.
+//   전체 키는 업무예상알림 봇이 history.html 에서 '12개월 전체' 로 읽으므로 100일치를 절대 넣지 않는다.
+const DASH_HISTORY_DAYS = 100;
+const DASH_CACHE_KEY = 'historyDataCacheDash';
+const DASH_CACHE_TIME_KEY = 'historyDataCacheDashTime';
 
 // ============================================================
 // 📅 예정 물량(plannedData) — 미래 날짜별 계획 처리량 (실적 history와 분리)
@@ -767,7 +780,23 @@ export function previewDayClose(records, dailyAttendance, endTime) {
  *    퇴근시각**이 된다. 21시에 버튼을 누르면 전원이 21시 퇴근으로 확정된다.
  *    늦게 누르는 날에도 실제 종료시각으로 마감할 수 있어야 한다.
  */
+// 🔒 마감이 도는 동안 표시 — 자정을 넘긴 탭의 새로고침(js/app-lifecycle.js handleDayRollover)이 마감 도중에 끊지 않게 기다린다
+let closingCount = 0;
+export const isClosingInProgress = () => closingCount > 0;
+
 export async function saveDayDataToHistory(shouldReset, endTimeOverride = null, opts = {}) {
+    closingCount++;
+    try {
+        const result = await saveDayDataToHistoryInner(shouldReset, endTimeOverride, opts);
+        // 마감은 진행 중 기록을 모두 끝내고 원본을 지운다 — 남은 잠금이 곧 정리되게 알린다
+        if (result === true) markLocalWorkEnded();
+        return result;
+    } finally {
+        closingCount--;
+    }
+}
+
+async function saveDayDataToHistoryInner(shouldReset, endTimeOverride = null, opts = {}) {
     const { closedVia = '앱', confirmDestructive = null } = opts;
     const workRecordsColRef = getWorkRecordsCollectionRef();
 
@@ -836,7 +865,8 @@ export async function saveDayDataToHistory(shouldReset, endTimeOverride = null, 
         const dailyDocSnap = await getDocFromServer(dailyDocRef);
         const dailyData = dailyDocSnap.exists() ? dailyDocSnap.data() : {};
 
-        const dailyAttendance = { ...dailyData.dailyAttendance, ...State.appState.dailyAttendance };
+        // 서버 우선(메모리에만 있는 사람은 살림) + 사람마다 복사 — 아래 단계가 이 객체를 직접 바꾼다(lib/attendance-merge.js).
+        const dailyAttendance = mergeAttendanceServerFirst(dailyData.dailyAttendance, State.appState.dailyAttendance);
         const querySnapshot = await getDocsFromServer(workRecordsColRef);
         // 삭제는 '지금 읽어서 이력에 확정한' 문서만 대상으로 한다(아래 초기화 단계).
         finalizedDocIds = querySnapshot.docs.map(d => d.id);
@@ -1471,35 +1501,9 @@ export async function fetchAllHistoryData(forceRefresh = false) {
                 if (docData) dataMap.set(doc.id, { id: doc.id, ...docData });
             });
 
-            const today = getTodayDateString();
-            let minDate = today;
-            if (dataMap.size > 0) {
-                const keys = Array.from(dataMap.keys());
-                keys.sort();
-                minDate = keys[0];
-            }
-
-            const fullHistory = [];
-            const current = new Date(minDate);
-            const end = new Date(today);
-
-            while (current <= end) {
-                // ⓘ current 는 new Date('YYYY-MM-DD') = UTC 자정이라 toISOString 과 짝이 맞는다.
-                //    (로컬 자정으로 만든 날짜였다면 하루 밀렸을 자리 — utils.toDateString 참고)
-                const dateStr = current.toISOString().slice(0, 10);
-                if (dataMap.has(dateStr)) {
-                    fullHistory.push(dataMap.get(dateStr));
-                } else {
-                    fullHistory.push({
-                        id: dateStr, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [],
-                        management: { revenue: 0, orderCount: 0, inventoryQty: 0, inventoryAmt: 0 }, inspectionList: []
-                    });
-                }
-                current.setDate(current.getDate() + 1);
-            }
-
-            fullHistory.sort((a, b) => b.id.localeCompare(a.id));
-            State.allHistoryData.length = 0; 
+            // 가장 이른 문서 날짜 ~ 오늘을 하루씩 채운다(빈 날은 빈 행, 최신순) — lib/history-window.js
+            const fullHistory = fillHistoryDays(dataMap, null, getTodayDateString());
+            State.allHistoryData.length = 0;
             State.allHistoryData.push(...fullHistory); 
             
             isHistoryCached = true; 
@@ -1513,6 +1517,8 @@ export async function fetchAllHistoryData(forceRefresh = false) {
             } catch (e) {
                 console.warn('[history cache] localStorage 저장 실패(용량 초과 가능) — 캐시 없이 진행:', e);
                 try { localStorage.removeItem('historyDataCache'); localStorage.removeItem('historyDataCacheTime'); } catch (_) {}
+                // 전체가 안 들어가면 대시보드용 최근 100일만 한 번 저장해 본다(실패하면 조용히 — 반복하지 않는다).
+                saveDashCache(State.allHistoryData);
             }
 
             return State.allHistoryData;
@@ -1529,6 +1535,102 @@ export async function fetchAllHistoryData(forceRefresh = false) {
     })();
 
     return historyFetchPromise;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 대시보드(오늘 진행 띠)용 이력 — 최근 100일만 (2026-10-22)
+//
+// 띠가 보는 창은 길어야 90일(실적 예측 splitHistoryForPrediction·밀림 비율 BACKLOG_SAMPLE_DAYS)이라
+// 대시보드를 열 때마다 12개월을 읽을 필요가 없다. 순서:
+//   ① 이 탭에 전체 이력이 있으면 그대로  ② 전체 캐시(30분)가 살아 있으면 전체 경로(읽기 0)
+//   ③ 대시보드 캐시(30분)  ④ 서버에서 최근 100일만.
+// ⚠️ 이 경로는 isHistoryCached 를 켜지 않는다 — 같은 탭에서 fetchAllHistoryData 를 부르면 전체를 다시 받는다.
+//    전체 캐시 키(historyDataCache)에는 쓰지 않는다(업무예상알림 봇이 history.html 에서 전체로 읽는다).
+// 반환·부수효과는 fetchAllHistoryData 와 같다: State.allHistoryData 를 같은 모양(빈 날 채움·최신순)으로 바꿔 넣고 그 배열을 돌려준다.
+// ─────────────────────────────────────────────────────────────────────────────
+let dashFetchPromise = null;
+
+const dashRows = (rows, today) => {
+    const cut = cutoffDate(today, DASH_HISTORY_DAYS);
+    return (Array.isArray(rows) ? rows : []).filter(d => d && typeof d.id === 'string' && d.id >= cut);
+};
+
+// 대시보드 캐시 저장 — 한 번만 시도하고, 실패하면 조용히 지운다(용량 초과에서 반복 저장하지 않는다).
+function saveDashCache(rows) {
+    try {
+        localStorage.setItem(DASH_CACHE_KEY, JSON.stringify(dashRows(rows, getTodayDateString())));
+        localStorage.setItem(DASH_CACHE_TIME_KEY, Date.now().toString());
+    } catch (_) {
+        try { localStorage.removeItem(DASH_CACHE_KEY); localStorage.removeItem(DASH_CACHE_TIME_KEY); } catch (__) {}
+    }
+}
+
+const isCacheFresh = (key, timeKey) => {
+    try {
+        const cached = localStorage.getItem(key);
+        const t = localStorage.getItem(timeKey);
+        return !!(cached && t && (Date.now() - parseInt(t) < HISTORY_CACHE_TTL_MS));
+    } catch (_) { return false; }
+};
+
+export async function fetchDashboardHistoryData() {
+    // ① 전체 이력이 이미 있다
+    if (isHistoryCached && State.allHistoryData.length > 0) return State.allHistoryData;
+    // 전체 조회가 진행 중이면 그것을 기다린다(따로 받으면 늦게 끝난 100일이 전체를 덮을 수 있다)
+    if (historyFetchPromise) return historyFetchPromise;
+    // ② 전체 캐시가 살아 있다 — 전체 경로가 읽기 없이 채운다
+    if (isCacheFresh('historyDataCache', 'historyDataCacheTime')) return fetchAllHistoryData();
+    // ③ 대시보드 캐시
+    if (isCacheFresh(DASH_CACHE_KEY, DASH_CACHE_TIME_KEY)) {
+        try {
+            const rows = JSON.parse(localStorage.getItem(DASH_CACHE_KEY));
+            if (Array.isArray(rows)) {
+                State.allHistoryData.length = 0;
+                State.allHistoryData.push(...rows);
+                historyFetchError = null;
+                // 🛡️ 오늘 행은 캐시 값이 오래됐을 수 있으므로 실시간 메모리 상태로 덮어쓴다(전체 캐시 경로와 같다)
+                try { syncTodayToHistory(); } catch (e) {}
+                return State.allHistoryData;
+            }
+        } catch (_) {}
+    }
+    // ④ 서버에서 최근 100일
+    if (dashFetchPromise) return dashFetchPromise;
+    dashFetchPromise = (async () => {
+        const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
+        try {
+            const today = getTodayDateString();
+            const cut = cutoffDate(today, DASH_HISTORY_DAYS);
+            const querySnapshot = await getDocs(query(historyCollectionRef, where(documentId(), ">=", cut)));
+            // 오프라인 캐시 결과는 실패로 본다(fetchAllHistoryData 와 같은 이유)
+            if (querySnapshot.metadata && querySnapshot.metadata.fromCache) {
+                throw new Error('이력 조회가 서버에 닿지 못함(오프라인 캐시 결과)');
+            }
+            // 기다리는 사이 전체 이력이 들어왔으면 그것을 쓴다 — 100일로 덮지 않는다
+            if (isHistoryCached && State.allHistoryData.length > 0) return State.allHistoryData;
+
+            const dataMap = new Map();
+            querySnapshot.forEach((doc) => {
+                const docData = doc.data();
+                if (docData) dataMap.set(doc.id, { id: doc.id, ...docData });
+            });
+            const rows = fillHistoryDays(dataMap, cut, today);
+            State.allHistoryData.length = 0;
+            State.allHistoryData.push(...rows);
+            historyFetchError = null;
+            saveDashCache(rows);
+            return State.allHistoryData;
+        } catch (error) {
+            console.error('Error fetching dashboard history data:', error);
+            if (isHistoryCached && State.allHistoryData.length > 0) return State.allHistoryData;
+            historyFetchError = error;
+            if (State.allHistoryData.length > 0) return State.allHistoryData;
+            return [];
+        } finally {
+            dashFetchPromise = null;
+        }
+    })();
+    return dashFetchPromise;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1623,6 +1725,24 @@ const requireEditRecords = () => {
     throw new Error('이력 기록 수정 권한 없음');
 };
 
+// 지난 날짜 기록 쓰기 뒤 메모리 그날 행의 workRecords 를 **서버에 남은 배열**로 맞춘다(없으면 행을 만들고 정렬).
+//   추가·수정·삭제는 runTransaction 안에서 서버 배열에 lib/history-record-ops.js 를 적용한다 —
+//   메모리 배열을 통째로 쓰면 다른 PC 가 그 사이 넣은 기록을 지운다(merge:true 는 배열을 통째로 바꾼다).
+const putDayRecords = (dateKey, list) => {
+    let dayData = State.allHistoryData.find(d => d.id === dateKey);
+    if (!dayData) {
+        dayData = { id: dateKey, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
+        State.allHistoryData.push(dayData);
+        State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
+    }
+    dayData.workRecords = list;
+};
+
+const serverRecordsOf = (snap) => {
+    const recs = snap.exists() ? snap.data()?.workRecords : null;
+    return Array.isArray(recs) ? recs : [];
+};
+
 export async function addHistoryWorkRecord(dateKey, newRecordData) {
     requireEditRecords();
     const todayKey = getTodayDateString();
@@ -1641,20 +1761,15 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
         return;
     }
 
-    const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-    let dayData = dayIndex > -1 ? State.allHistoryData[dayIndex] : null;
-    
-    if (!dayData) {
-        dayData = { id: dateKey, workRecords: [], taskQuantities: {}, onLeaveMembers: [], partTimers: [] };
-        State.allHistoryData.push(dayData);
-        State.allHistoryData.sort((a, b) => b.id.localeCompare(a.id));
-    }
-
-    if (!dayData.workRecords) dayData.workRecords = [];
-    dayData.workRecords.push(newRecordData);
-
+    // 서버 배열에 더한다(같은 id 가 이미 있으면 쓰지 않음)
     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-    await setDoc(historyDocRef, { workRecords: dayData.workRecords }, { merge: true });
+    const list = await runTransaction(State.db, async (tx) => {
+        const snap = await tx.get(historyDocRef);
+        const res = addRecord(serverRecordsOf(snap), newRecordData);
+        if (res.changed) tx.set(historyDocRef, { workRecords: res.list }, { merge: true });
+        return res.list;
+    });
+    putDayRecords(dateKey, list);
     clearLocalCache();
 }
 
@@ -1693,7 +1808,13 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
         }
         
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey, 'workRecords', recordId);
-        await updateDoc(docRef, updateData);
+        const wasLive = localRecord.status === 'ongoing' || localRecord.status === 'paused';
+        if (wasLive && newStatus === 'completed') {
+            // 진행 중이던 기록을 완료로 — 그 기록의 멤버 잠금도 같은 트랜잭션에서 푼다
+            await writeRecordsReleasingLocks([{ id: recordId, member: localRecord.member, data: updateData }], { dateKey: todayKey });
+        } else {
+            await updateDoc(docRef, updateData);
+        }
         await syncTodayToHistory(); 
         clearLocalCache();
         return;
@@ -1703,32 +1824,27 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
 }
 
 async function updateHistoryDirectly(dateKey, recordId, updateData) {
-    const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-    if (dayIndex === -1) throw new Error("이력 없음");
+    // 서버 배열에서 고친다. 시간 재계산도 트랜잭션 안(서버 원본 기준)에서 하고,
+    // 완료·0분 이하가 되면 같은 트랜잭션에서 뺀다(lib/history-record-ops.js updateRecord).
+    const recompute = (merged, originalRecord, patch) => {
+        if (patch.startTime || patch.endTime || originalRecord.pauses) {
+            const start = patch.startTime || originalRecord.startTime;
+            const end = patch.endTime || originalRecord.endTime;
+            const pauses = patch.pauses || originalRecord.pauses || [];
+            return { ...merged, duration: calcElapsedMinutes(start, end, pauses) };
+        }
+        return merged;
+    };
 
-    const dayData = State.allHistoryData[dayIndex];
-    if (!Array.isArray(dayData.workRecords)) dayData.workRecords = [];
-    const recordIndex = dayData.workRecords.findIndex(r => r.id === recordId);
-    if (recordIndex === -1) throw new Error("기록 없음");
-
-    const originalRecord = dayData.workRecords[recordIndex];
-    const updatedRecord = { ...originalRecord, ...updateData };
-
-    if (updateData.startTime || updateData.endTime || originalRecord.pauses) {
-        const start = updateData.startTime || originalRecord.startTime;
-        const end = updateData.endTime || originalRecord.endTime;
-        const pauses = updateData.pauses || originalRecord.pauses || [];
-        updatedRecord.duration = calcElapsedMinutes(start, end, pauses);
-    }
-
-    if (updatedRecord.status === 'completed' && Math.round(updatedRecord.duration || 0) <= 0) {
-        await deleteHistoryWorkRecord(dateKey, recordId);
-        return;
-    }
-
-    dayData.workRecords[recordIndex] = updatedRecord;
     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-    await setDoc(historyDocRef, { workRecords: dayData.workRecords }, { merge: true });
+    const list = await runTransaction(State.db, async (tx) => {
+        const snap = await tx.get(historyDocRef);
+        if (!snap.exists()) throw new Error("이력 없음");
+        const res = updateRecord(serverRecordsOf(snap), recordId, updateData, recompute);   // 없는 id 면 '기록 없음'
+        tx.set(historyDocRef, { workRecords: res.list }, { merge: true });
+        return res.list;
+    });
+    putDayRecords(dateKey, list);
     clearLocalCache();
 }
 
@@ -1741,26 +1857,31 @@ export async function deleteHistoryWorkRecord(dateKey, recordId) {
         const dailySnap = await getDoc(dailyRecordRef);
         
         if (dailySnap.exists()) {
-            await deleteDoc(dailyRecordRef);
+            const d = dailySnap.data() || {};
+            if (d.status === 'ongoing' || d.status === 'paused') {
+                // 진행 중 기록 삭제 — 그 기록의 멤버 잠금도 같은 트랜잭션에서 푼다
+                await writeRecordsReleasingLocks([{ id: recordId, member: d.member, data: null }], { dateKey: todayKey });
+            } else {
+                await deleteDoc(dailyRecordRef);
+            }
             await syncTodayToHistory();
             clearLocalCache();
             return;
         }
     }
 
-    const dayIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
-    if (dayIndex === -1) throw new Error("해당 날짜의 이력을 찾을 수 없습니다.");
-
-    const dayData = State.allHistoryData[dayIndex];
-    if (!Array.isArray(dayData.workRecords)) dayData.workRecords = [];
-    const newRecords = dayData.workRecords.filter(r => r.id !== recordId);
-
-    if (dayData.workRecords.length === newRecords.length) return;
-
-    dayData.workRecords = newRecords; 
+    // 서버 배열에서 뺀다(없는 id 면 쓰지 않음)
     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-    await setDoc(historyDocRef, { workRecords: newRecords }, { merge: true });
-    clearLocalCache();
+    const res = await runTransaction(State.db, async (tx) => {
+        const snap = await tx.get(historyDocRef);
+        if (!snap.exists()) throw new Error("해당 날짜의 이력을 찾을 수 없습니다.");
+        const r = removeRecord(serverRecordsOf(snap), recordId);
+        if (r.changed) tx.set(historyDocRef, { workRecords: r.list }, { merge: true });
+        return r;
+    });
+    // 메모리 행이 있으면 서버 배열로 맞춘다(없는 날을 삭제 때문에 새로 만들지는 않는다)
+    if (State.allHistoryData.some(d => d.id === dateKey)) putDayRecords(dateKey, res.list);
+    if (res.changed) clearLocalCache();
 }
 
 export async function saveManagementData(dateKey, managementData) {

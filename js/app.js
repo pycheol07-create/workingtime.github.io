@@ -2,28 +2,28 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610221215';
-import { displayCurrentDate, showToast } from './utils.js?v=202610221215';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610221215';
-import { initializeAppListeners } from './app-listeners.js?v=202610221215';
-import * as DOM from './dom-elements.js?v=202610221215';
-import * as State from './state.js?v=202610221215';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610221215';
-import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=202610221215';
+import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610221432';
+import { displayCurrentDate, showToast } from './utils.js?v=202610221432';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=202610221432';
+import { initializeAppListeners } from './app-listeners.js?v=202610221432';
+import * as DOM from './dom-elements.js?v=202610221432';
+import * as State from './state.js?v=202610221432';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=202610221432';
+import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=202610221432';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610221215';
-import { setupNotificationListeners } from './app-notifications.js?v=202610221215';
-import { setupFirebaseListeners, stopFirebaseListeners, whenTodayLoaded } from './app-sync.js?v=202610221215';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=202610221215';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=202610221215';
-import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610221215';
-import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610221215';
-import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610221215';
-import { startSuppliesAlert, stopSuppliesAlert } from './supplies-alert-dash.js?v=202610221215';
-import { setShellContext, clearShellMenuCache, onBeforeLeaveSave } from './app-shell-bridge.js?v=202610221215';
-import { parseOpenHash } from './app-shell-data.js?v=202610221215';
-import { resolve as resolvePerm, can, menuConfigOf } from './lib/perm.js?v=202610221215';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=202610221432';
+import { setupNotificationListeners } from './app-notifications.js?v=202610221432';
+import { setupFirebaseListeners, stopFirebaseListeners, whenTodayLoaded } from './app-sync.js?v=202610221432';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=202610221432';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=202610221432';
+import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=202610221432';
+import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=202610221432';
+import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=202610221432';
+import { startSuppliesAlert, stopSuppliesAlert } from './supplies-alert-dash.js?v=202610221432';
+import { setShellContext, clearShellMenuCache, onBeforeLeaveSave } from './app-shell-bridge.js?v=202610221432';
+import { parseOpenHash } from './app-shell-data.js?v=202610221432';
+import { resolve as resolvePerm, can, menuConfigOf } from './lib/perm.js?v=202610221432';
 
 // 이 모듈은 대시보드(index)와 데이터 관리(history.html)가 함께 쓴다. 대시보드에서만 할 일은 이것으로 가른다.
 const IS_DASHBOARD = !!(document.body && document.body.dataset.shell === 'index');
@@ -151,7 +151,8 @@ async function startAppAfterLogin(user) {
     State.setElapsedTimeTimer(setInterval(updateElapsedTimes, 1000));
 
     if (State.periodicRefreshTimer) clearInterval(State.periodicRefreshTimer);
-    State.setPeriodicRefreshTimer(setInterval(render, 30000));
+    // 숨겨진 탭은 다시 그리지 않는다(보이게 되면 main() 의 visibilitychange 가 바로 그린다)
+    State.setPeriodicRefreshTimer(setInterval(() => { if (!document.hidden) render(); }, 30000));
 
     if (State.autoSaveTimer) clearInterval(State.autoSaveTimer);
     State.setAutoSaveTimer(setInterval(autoSaveProgress, State.AUTO_SAVE_INTERVAL));
@@ -228,7 +229,11 @@ const saveBeforeLeave = () => {
 
 async function main() {
     onBeforeLeaveSave(saveBeforeLeave);
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveBeforeLeave(); });
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') saveBeforeLeave();
+        // 숨겨진 동안 30초 주기 그리기를 건너뛰었으니 보이게 되면 바로 한 번 그린다(로그인해 주기가 돌고 있을 때만)
+        else if (document.visibilityState === 'visible' && State.periodicRefreshTimer) render();
+    });
     window.addEventListener('pagehide', () => { saveBeforeLeave(); });
     if (IS_DASHBOARD) {
         // 뒤로가기로 돌아온 대시보드가 멈춰 있던 화면(bfcache)이면 실시간 구독 상태를 믿을 수 없다 — 새로 연다.

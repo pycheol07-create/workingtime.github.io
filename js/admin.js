@@ -1,15 +1,16 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, saveLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610221215';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221215';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221215';
-import { memberNameFor } from './app-shell-data.js?v=202610221215';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610221432';
+import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610221432';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221432';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221432';
+import { memberNameFor } from './app-shell-data.js?v=202610221432';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610221215';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610221215';
-import { getPermModel } from './admin-perm.js?v=202610221215';
-import { showConfirm } from './utils.js?v=202610221215';
-import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610221215';
+import { menuConfigOf } from './lib/perm.js?v=202610221432';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610221432';
+import { getPermModel } from './admin-perm.js?v=202610221432';
+import { showConfirm } from './utils.js?v=202610221432';
+import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610221432';
 
 import {
     renderAdminUI,
@@ -28,13 +29,13 @@ import {
     loadMenuPageList,
     findDeadMenuItems,
     countNamelessMenuRows
-} from './admin-ui.js?v=202610221215';
+} from './admin-ui.js?v=202610221432';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610221215';
+} from './admin-logic.js?v=202610221432';
 
 let db, auth;
 let appConfig = {};
@@ -349,11 +350,10 @@ async function prepareLeaveCleanup(oldConfig, newConfig) {
     );
     if (!confirmed) return 'cancelled';
 
-    const updatedLeaves = allLeaves.filter(l => !toDelete.includes(l));
-
+    // 저장 때 서버 목록에서 이 식별자들만 뺀다(그 사이 다른 창이 넣은 근태는 남는다).
     return {
         deletedCount: toDelete.length,
-        updatedLeaveData: { ...leaveData, onLeaveMembers: updatedLeaves }
+        deleteKeys: new Set(toDelete.map(leaveKey))
     };
 }
 
@@ -426,9 +426,16 @@ async function handleSaveAll() {
 
         // permRev 비교와 mainConfig 쓰기를 한 트랜잭션으로(통째 set 은 그대로) — 위 확인과 저장 사이에 다른 창이 저장해도 덮지 않는다
         await saveAppConfig(db, newConfig, { expectPermRev: permModel.baseRev });
-        if (leaveCleanup && leaveCleanup.updatedLeaveData) {
-            await saveLeaveSchedule(db, leaveCleanup.updatedLeaveData);
-            notifyLeaveScheduleChanged('admin-cleanup');
+        if (leaveCleanup && leaveCleanup.deleteKeys) {
+            const keys = leaveCleanup.deleteKeys;
+            let removed = 0;
+            const r = await updateLeaveSchedule(db, list => {
+                const next = removeWhere(list, l => keys.has(leaveKey(l)));
+                removed = list.length - next.length;
+                return removed > 0 ? next : false;
+            });
+            leaveCleanup.deletedCount = removed;   // 확인창 뒤 실제로 지운 건수
+            if (r.changed) notifyLeaveScheduleChanged('admin-cleanup');
         }
 
         appConfig = newConfig;

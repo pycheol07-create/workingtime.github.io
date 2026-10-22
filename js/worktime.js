@@ -12,10 +12,10 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202610221215';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202610221215';
-import { memberNameFor } from './app-shell-data.js?v=202610221215';
-import { escapeHtml as esc } from './utils.js?v=202610221215';
+import { initializeFirebase } from './config.js?v=202610221432';
+import { setShellContext, goHome, onBeforeLeaveSave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221432';
+import { memberNameFor } from './app-shell-data.js?v=202610221432';
+import { escapeHtml as esc } from './utils.js?v=202610221432';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -44,6 +44,8 @@ let saveTimer = null;
 let peopleOk = false;
 const okMonths = new Set();
 let wageTimer = null;     // 시급 저장은 기록 저장과 따로 예약(서로 취소하지 않게)
+let pendingWage = false;  // 시급 저장이 예약돼 아직 안 보냈다
+let inflight = 0;         // 보냈지만 응답을 아직 못 받은 저장 수(기록·명부) — 나가기 경고 판단용
 let fx = { rate: 0, date: '' };   // 당일 위안 환율 (1 CNY = ? 원)
 let selected = new Set();         // 일괄 처리 대상 날짜 키('01', '02' …)
 
@@ -156,9 +158,12 @@ async function loadPeople() {
 
 async function savePeople() {
     if (!peopleOk) throw new Error('명부를 불러오지 못한 상태라 저장하지 않았습니다. 새로고침해 주세요.');
-    await setDoc(peopleRef(), {
-        people, updatedAt: new Date().toISOString(), updatedBy: currentUser
-    });
+    inflight++;
+    try {
+        await setDoc(peopleRef(), {
+            people, updatedAt: new Date().toISOString(), updatedBy: currentUser
+        });
+    } finally { inflight--; }
 }
 
 async function loadMonth(ym) {
@@ -181,7 +186,9 @@ async function saveMonth(ym = recordsYm, recs = records) {
  *  달·기록은 예약하는 순간 잡아 둔다(그사이 달을 옮겨도 원래 달에 저장). */
 let pendingSave = null;   // 예약된 저장 { ym, recs } — 달을 옮길 때 바로 보낸다
 const runSave = async (p) => {
+    inflight++;
     try { await saveMonth(p.ym, p.recs); } catch (e) { console.error(e); toast('저장 실패: ' + (e.message || e), true); }
+    finally { inflight--; }
 };
 const queueSave = () => {
     const p = { ym: recordsYm, recs: records };
@@ -199,14 +206,38 @@ const monthReady = () => {
     return false;
 };
 /** 예약된 기록 저장이 있으면 기다리지 않고 지금 보낸다(달 이동 전에 — 다른 달 예약에 취소되지 않게).
- *  보내기만 하고 응답은 기다리지 않는다(오프라인이면 달 이동이 멈춘다). 달·기록은 예약 때 잡아 두었고, 실패는 runSave 가 토스트. */
+ *  달 이동은 응답을 기다리지 않는다(오프라인이면 달 이동이 멈춘다). 달·기록은 예약 때 잡아 두었고, 실패는 runSave 가 토스트.
+ *  보낸 저장의 Promise 를 돌려준다(나가기 전 저장이 기다린다). 보낼 것이 없으면 undefined. */
 const flushSave = () => {
     if (!pendingSave) return;
     const p = pendingSave;
     pendingSave = null;
     clearTimeout(saveTimer);
-    runSave(p);
+    return runSave(p);
 };
+/** 예약된 시급 저장이 있으면 지금 보낸다. 보낼 것이 없으면 undefined. */
+const flushWage = () => {
+    if (!pendingWage) return;
+    pendingWage = false;
+    clearTimeout(wageTimer);
+    return savePeople().catch(err => toast('시급 저장 실패: ' + (err.message || err), true));
+};
+
+// ── 나가기 전 저장(2026-10-22) ──
+// 칸을 고치고 0.7초 안에 메뉴로 옮기거나 탭을 닫으면 예약된 저장이 사라졌다.
+// 공통 상단바 이동: 셸이 이 Promise 를 최대 3초 기다린 뒤 옮긴다.
+onBeforeLeaveSave(() => Promise.all([flushSave(), flushWage()].filter(Boolean)));
+// 탭 닫기·새로고침: 보낼 것이 남았거나 응답을 못 받았으면 지금 보내고 브라우저 경고를 띄운다(셸에서 이미 확인받았으면 묻지 않음)
+window.addEventListener('beforeunload', (e) => {
+    if (!(pendingSave || pendingWage || inflight > 0) || leaveAlreadyConfirmed()) return;
+    flushSave(); flushWage();
+    e.preventDefault();
+    e.returnValue = '';
+});
+// 탭을 숨기면(모바일 홈 버튼·앱 전환) 바로 보낸다 — 그대로 종료될 수 있다
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') { flushSave(); flushWage(); }
+});
 
 // ── 환율 ─────────────────────────────────────────────────────────
 // 앱이 매일 아침 history/{날짜}.management.cnyRate 에 그날 환율을 넣어 둔다.
@@ -622,7 +653,9 @@ $('wage-input').addEventListener('input', (e) => {
     p.wage = num(e.target.value);
     renderSummary();
     clearTimeout(wageTimer);
+    pendingWage = true;
     wageTimer = setTimeout(async () => {
+        pendingWage = false;
         try { await savePeople(); } catch (err) { toast('시급 저장 실패: ' + (err.message || err), true); }
     }, 700);
 });

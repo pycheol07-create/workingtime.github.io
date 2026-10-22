@@ -8,13 +8,15 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202610221215';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610221215';
-import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610221215';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610221215';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221215';
+import * as State from './state.js?v=202610221432';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610221432';
+import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610221432';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610221432';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221432';
+import { updateLeaveSchedule } from './config.js?v=202610221432';
+import { upsertById, removeByIds } from './lib/leave-ops.js?v=202610221432';
 import {
-    collection, doc, setDoc, deleteDoc, getDocs, getDoc,
+    collection, doc, setDoc, deleteDoc, getDocs,
     query, where, documentId
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -133,7 +135,7 @@ async function removeEvent(id) {
 }
 
 // ── 근태(persistent_data/leaveSchedule) 읽기/쓰기 ──
-const leaveDocRef = () => doc(State.db, ...APP_PATH, 'persistent_data', 'leaveSchedule');
+//   쓰기는 config.updateLeaveSchedule(트랜잭션) — 동시에 저장해도 다른 사람 근태가 사라지지 않게.
 
 function leavesForDate(dateStr) {
     return (State.persistentLeaveSchedule?.onLeaveMembers || []).filter(l => {
@@ -144,24 +146,21 @@ function leavesForDate(dateStr) {
 }
 
 async function saveLeaveEntry(entry) {
-    const snap = await getDoc(leaveDocRef());
-    const list = (snap.exists() && Array.isArray(snap.data().onLeaveMembers)) ? snap.data().onLeaveMembers : [];
-    const idx = entry.id ? list.findIndex(l => l.id === entry.id) : -1;
-    if (idx > -1) list[idx] = { ...list[idx], ...entry };
-    else list.push({ ...entry, id: entry.id || `leave-${Date.now()}` });
-
-    await setDoc(leaveDocRef(), { onLeaveMembers: list }, { merge: true });
-    State.persistentLeaveSchedule.onLeaveMembers = list;
-    notifyLeaveScheduleChanged('calendar-save');
+    // id 는 트랜잭션 밖에서 정한다(재시도 때 mutate 가 다시 불려도 같은 id).
+    const withId = { ...entry, id: entry.id || `leave-${Date.now()}` };
+    const r = await updateLeaveSchedule(State.db, list => upsertById(list, withId));
+    if (r.changed) {
+        State.persistentLeaveSchedule.onLeaveMembers = r.list;
+        notifyLeaveScheduleChanged('calendar-save');
+    }
 }
 
 async function removeLeaveEntry(id) {
-    const snap = await getDoc(leaveDocRef());
-    const list = (snap.exists() && Array.isArray(snap.data().onLeaveMembers)) ? snap.data().onLeaveMembers : [];
-    const next = list.filter(l => l.id !== id);
-    await setDoc(leaveDocRef(), { onLeaveMembers: next }, { merge: true });
-    State.persistentLeaveSchedule.onLeaveMembers = next;
-    notifyLeaveScheduleChanged('calendar-delete');
+    const r = await updateLeaveSchedule(State.db, list => removeByIds(list, [id]));
+    if (r.changed) {
+        State.persistentLeaveSchedule.onLeaveMembers = r.list;
+        notifyLeaveScheduleChanged('calendar-delete');
+    }
 }
 
 // ────────────────────────────────────────

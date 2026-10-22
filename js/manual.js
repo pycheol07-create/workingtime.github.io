@@ -3,11 +3,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202610221215';
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610221215';
-import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221215';
-import { memberNameFor } from './app-shell-data.js?v=202610221215';
-import { menuConfigOf } from './lib/perm.js?v=202610221215';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202610221432';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610221432';
+import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221432';
+import { memberNameFor } from './app-shell-data.js?v=202610221432';
+import { menuConfigOf } from './lib/perm.js?v=202610221432';
+import { escapeHtml } from './utils.js?v=202610221432';
 
 let app, db, auth, storage;
 let appConfig = {};
@@ -33,6 +34,39 @@ window.addEventListener('beforeunload', (e) => {
 });
 // 공통 상단바 메뉴·홈('홈으로' 버튼 포함) — 동기 confirm 만
 onBeforeLeave(() => !isEditingManual() || confirm('작성 중인 매뉴얼이 저장되지 않았습니다.\n저장하지 않고 이 화면을 떠날까요?'));
+
+// 매뉴얼 본문 HTML 정화(XSS, 2026-10-22) — manual.html 이 고정 버전 DOMPurify 를 먼저 읽는다.
+// DOMPurify 가 없으면(CDN 실패) 태그를 그대로 실행하지 않고 글자로 보여 준다(fail-closed).
+// iframe 은 Quill 동영상(class ql-video, https, 아래 호스트)만 남긴다.
+let purifyHookAdded = false;
+const VIDEO_HOSTS = new Set(['www.youtube.com', 'youtube.com', 'www.youtube-nocookie.com', 'youtube-nocookie.com', 'player.vimeo.com']);
+const isAllowedVideoSrc = (src) => {
+    try {
+        const u = new URL(src);
+        return u.protocol === 'https:' && VIDEO_HOSTS.has(u.hostname.toLowerCase());
+    } catch (e) { return false; }
+};
+const hasPurify = () => !!(window.DOMPurify && typeof window.DOMPurify.sanitize === 'function');
+function sanitizeManualHtml(html) {
+    if (!hasPurify()) return escapeHtml(html);
+    const P = window.DOMPurify;
+    if (!purifyHookAdded) {
+        P.addHook('uponSanitizeElement', (node, data) => {
+            if (data.tagName !== 'iframe') return;
+            const cls = (node.getAttribute && node.getAttribute('class')) || '';
+            const src = ((node.getAttribute && node.getAttribute('src')) || '').trim();
+            if (!/(^|\s)ql-video(\s|$)/.test(cls) || !isAllowedVideoSrc(src)) {
+                if (node.parentNode) node.parentNode.removeChild(node);
+            }
+        });
+        purifyHookAdded = true;
+    }
+    return P.sanitize(String(html == null ? '' : html), {
+        USE_PROFILES: { html: true },
+        ADD_TAGS: ['iframe'],
+        ADD_ATTR: ['allowfullscreen', 'frameborder', 'target'],
+    });
+}
 
 // ✨ 대분류 Header2(h2), 단계 Header3(h3), 구분선(hr)이 적용된 템플릿
 const MANUAL_TEMPLATE = `
@@ -287,7 +321,7 @@ function populateAccessMembers() {
     groups.forEach(g => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'flex flex-col gap-1 w-full md:w-auto min-w-[120px]';
-        groupDiv.innerHTML = `<span class="text-[10px] font-extrabold text-indigo-500 mb-0.5">${g.name}</span>`;
+        groupDiv.innerHTML = `<span class="text-[10px] font-extrabold text-indigo-500 mb-0.5">${escapeHtml(g.name)}</span>`;
         
         const membersDiv = document.createElement('div');
         membersDiv.className = 'flex flex-wrap gap-2';
@@ -295,7 +329,7 @@ function populateAccessMembers() {
         (g.members || []).forEach(m => {
             const label = document.createElement('label');
             label.className = 'flex items-center gap-1.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1.5 py-1 rounded transition select-none';
-            label.innerHTML = `<input type="checkbox" value="${m}" class="access-member-cb w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"> <span>${m}</span>`;
+            label.innerHTML = `<input type="checkbox" value="${escapeHtml(m)}" class="access-member-cb w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"> <span>${escapeHtml(m)}</span>`;
             membersDiv.appendChild(label);
         });
         groupDiv.appendChild(membersDiv);
@@ -353,7 +387,7 @@ function setupEventListeners() {
     document.getElementById('edit-file-upload').addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             selectedFile = e.target.files[0];
-            document.getElementById('upload-file-name').innerHTML = `<span class="text-indigo-600 font-bold">✓ ${selectedFile.name}</span>`;
+            document.getElementById('upload-file-name').innerHTML = `<span class="text-indigo-600 font-bold">✓ ${escapeHtml(selectedFile.name)}</span>`;
         }
     });
 
@@ -478,7 +512,7 @@ function renderList() {
             <div class="flex items-center gap-2">
                 <span class="d-folder-ico" aria-hidden="true"></span>
                 <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                    ${cat} <span class="text-gray-400 font-normal">(${grouped[cat].length})</span>
+                    ${escapeHtml(cat)} <span class="text-gray-400 font-normal">(${grouped[cat].length})</span>
                 </span>
             </div>
             <svg class="w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -518,13 +552,13 @@ function renderList() {
             div.innerHTML = `
                 ${sideBar}
                 <div class="flex items-center justify-between mb-1 pr-2">
-                    <span class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 px-1.5 py-0.5 rounded font-bold shadow-sm truncate max-w-[150px]">${item.category || '공통 지침'}</span>
+                    <span class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 px-1.5 py-0.5 rounded font-bold shadow-sm truncate max-w-[150px]">${escapeHtml(item.category || '공통 지침')}</span>
                 </div>
                 <div class="text-sm font-extrabold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug break-all pr-3">
-                    ${item.title} ${privateBadge} ${hasFile}
+                    ${escapeHtml(item.title)} ${privateBadge} ${hasFile}
                 </div>
                 <div class="flex items-center justify-between mt-1.5 pr-2">
-                    <span class="text-[10px] text-gray-500 font-medium">담당: ${item.manager || '<span class="text-gray-300">미지정</span>'}</span>
+                    <span class="text-[10px] text-gray-500 font-medium">담당: ${item.manager ? escapeHtml(item.manager) : '<span class="text-gray-300">미지정</span>'}</span>
                     <span class="text-[10px] text-gray-400 font-mono tracking-tighter">수정: ${dateStr}</span>
                 </div>
             `;
@@ -545,6 +579,11 @@ function renderList() {
 }
 
 function openEditor(item = null) {
+    // 정화 모듈을 못 읽었으면 기존 본문이 글자로 바뀐 채 저장될 수 있어 수정을 막는다
+    if (item && !hasPurify()) {
+        alert('보안 모듈을 불러오지 못해 지금은 매뉴얼을 수정할 수 없습니다.\n새로고침 후 다시 시도하고, 계속되면 관리자에게 알려 주세요.');
+        return;
+    }
     currentEditingId = item ? item.id : null;
     selectedFile = null;
 
@@ -573,13 +612,13 @@ function openEditor(item = null) {
         accessContainer.classList.add('hidden');
     }
 
-    quillEditor.root.innerHTML = item ? (item.content || '') : MANUAL_TEMPLATE;
+    quillEditor.root.innerHTML = item ? sanitizeManualHtml(item.content || '') : MANUAL_TEMPLATE;
     
     const fileNameDisplay = document.getElementById('upload-file-name');
     document.getElementById('edit-file-upload').value = '';
     
     if (item && item.fileUrl) {
-        fileNameDisplay.innerHTML = `<span class="text-blue-600 font-bold">기존 첨부파일: ${item.fileName || '유지됨'} (선택 시 교체)</span>`;
+        fileNameDisplay.innerHTML = `<span class="text-blue-600 font-bold">기존 첨부파일: ${escapeHtml(item.fileName || '유지됨')} (선택 시 교체)</span>`;
     } else {
         fileNameDisplay.textContent = '선택된 파일 없음';
     }
@@ -703,17 +742,18 @@ function viewManual(id) {
         accessBadge.classList.add('hidden');
     }
     
-    document.getElementById('view-manager').innerHTML = item.manager ? `<span class="text-indigo-600">${item.manager}</span>` : '<span class="text-gray-300">미지정</span>';
+    document.getElementById('view-manager').innerHTML = item.manager ? `<span class="text-indigo-600">${escapeHtml(item.manager)}</span>` : '<span class="text-gray-300">미지정</span>';
     document.getElementById('view-created-date').textContent = formatDateTime(item.createdAt);
     document.getElementById('view-updated-date').textContent = formatDateTime(item.updatedAt || item.createdAt);
 
-    document.getElementById('view-body').innerHTML = item.content || '';
+    document.getElementById('view-body').innerHTML = sanitizeManualHtml(item.content || '');
 
     const attachArea = document.getElementById('view-attachment');
     if (item.fileUrl) {
         attachArea.classList.remove('hidden');
         document.getElementById('view-file-name').textContent = item.fileName || '첨부된 파일 확인하기';
-        document.getElementById('view-file-link').href = item.fileUrl;
+        // javascript: 같은 주소가 클릭으로 실행되지 않게 http(s) 만 링크로 건다
+        document.getElementById('view-file-link').href = /^https?:\/\//i.test(String(item.fileUrl).trim()) ? item.fileUrl : '#';
     } else {
         attachArea.classList.add('hidden');
     }

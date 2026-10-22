@@ -1,18 +1,18 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202610221215';
-import * as State from './state.js?v=202610221215';
-import { updateDailyData } from './app-data.js?v=202610221215';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202610221215';
+import * as DOM from './dom-elements.js?v=202610221432';
+import * as State from './state.js?v=202610221432';
+import { updateDailyData } from './app-data.js?v=202610221432';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202610221432';
 import { doc, getDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202610221215';
-import { syncInspSegments } from './inspection-segments.js?v=202610221215';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202610221432';
+import { syncInspSegments } from './inspection-segments.js?v=202610221432';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, todoCardHtml, doneCardHtml
-} from './lib/insp-flow.js?v=202610221215';
+} from './lib/insp-flow.js?v=202610221432';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -977,29 +977,22 @@ export const saveInspectionAndNext = async () => {
         const afterList = outcome.done.changed ? outcome.done.list : currentList();
 
         // 지난 날짜 리스트 갱신(기다리지 않음)
+        //   오늘 리스트와 같은 규칙(applyDoneToList — 상품명+옵션+출고일로 한 칸)으로 고치고, 배열은 새로 만들어 바꿔 끼운다.
         for (let i = 0; i < State.allHistoryData.length; i++) {
             const dayData = State.allHistoryData[i];
-            if (dayData.inspectionList && dayData.inspectionList.length > 0) {
-                let dayUpdated = false;
-                dayData.inspectionList.forEach(pastItem => {
-                    const isNameMatch = (pastItem.name === productName || pastItem.code === productName);
-                    if (!wasEditing && isNameMatch && pastItem.status !== '완료') {
-                         pastItem.status = '완료';
-                         pastItem.sampleQty = Number(sampleQty) || 1;
-                         pastItem.inboundQty = Number(inboundQty) || pastItem.qty || 0;
-                         pastItem.qty = Number(inboundQty) || pastItem.qty || 0;
-                         dayUpdated = true;
-                    } else if (wasEditing && isNameMatch && pastItem.packingDate === packingDate) {
-                         pastItem.sampleQty = Number(sampleQty) || 1;
-                         pastItem.inboundQty = Number(inboundQty) || pastItem.qty || 0;
-                         pastItem.qty = Number(inboundQty) || pastItem.qty || 0;
-                         dayUpdated = true;
-                    }
-                });
-                if (dayUpdated) {
-                    const pastDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dayData.id);
-                    updateDoc(pastDocRef, { inspectionList: dayData.inspectionList }).catch(e => console.error("과거 리스트 갱신 실패", e));
-                }
+            if (!Array.isArray(dayData.inspectionList) || dayData.inspectionList.length === 0) continue;
+            const res = applyDoneToList(dayData.inspectionList, {
+                name: currentItem ? currentItem.name : rawName,
+                option: currentItem ? currentItem.option : undefined,
+                packingDate,
+                sampleQty,
+                inboundQty,
+                editing: wasEditing
+            });
+            if (res.changed) {
+                dayData.inspectionList = res.list;
+                const pastDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dayData.id);
+                updateDoc(pastDocRef, { inspectionList: dayData.inspectionList }).catch(e => console.error("과거 리스트 갱신 실패", e));
             }
         }
 
@@ -1106,6 +1099,6 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202610221215';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610221215';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610221215';
+export { handleExcelUpload } from './inspection-excel.js?v=202610221432';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610221432';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610221432';

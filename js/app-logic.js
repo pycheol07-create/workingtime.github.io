@@ -4,17 +4,19 @@ import {
     generateId,
     saveStateToFirestore,
     debouncedSaveState
-} from './app-data.js?v=202610221215';
+} from './app-data.js?v=202610221432';
 
 import {
     appState, db, auth
-} from './state.js?v=202610221215';
+} from './state.js?v=202610221432';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610221215';
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610221432';
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=202610221215';
+import { syncTodayToHistory } from './history-data-manager.js?v=202610221432';
+// 업무를 끝낸 뒤 남은 잠금(activeLocks)을 바로 확인하게 알린다 — 다른 탭은 10분 안전망만 돈다
+import { markLocalWorkEnded } from './app-sync.js?v=202610221432';
 
 
 const getWorkRecordsCollectionRef = () => {
@@ -396,6 +398,7 @@ export const finalizeStopGroup = async (groupId, quantity) => {
         });
 
         await batch.commit();
+        markLocalWorkEnded();
 
         if (removedCount > 0) {
              showToast(`${removedCount}건의 기록이 0분 소요로 인해 자동 삭제되었습니다.`);
@@ -451,6 +454,7 @@ export const stopWorkByTask = async (taskName, quantity) => {
         });
 
         await batch.commit();
+        markLocalWorkEnded();
 
         if (removedCount > 0) {
              showToast(`${removedCount}건의 기록이 0분 소요로 인해 자동 삭제되었습니다.`);
@@ -566,6 +570,7 @@ export const stopWorkIndividual = async (recordId) => {
             if (record.member) {
                 try { await deleteDoc(getActiveLockRef(record.member)); } catch (_) {}
             }
+            markLocalWorkEnded();
         } else {
             showToast('이미 완료되었거나 찾을 수 없는 기록입니다.', true);
         }

@@ -10,7 +10,7 @@
 // ⚠️ 데이터 관리 편집 화면·저장 경로에는 쓰지 않는다 — 사본을 저장하면 과거 기록 이름이 바뀐다.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/task-alias-view.test.js
 
-import { canonicalTaskName } from './task-ids.js?v=202610221215';
+import { canonicalTaskName } from './task-ids.js?v=202610221432';
 
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);

@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610221215';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610221432';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -240,12 +240,26 @@ export const loadLeaveSchedule = async (dbInstance) => {
     }
 };
 
-export const saveLeaveSchedule = async (dbInstance, leaveData) => {
+// 근태 일정(onLeaveMembers) 쓰기는 이 함수 하나로 한다.
+//   예전엔 읽고-고치고-통째로 쓰기라 두 창이 동시에 저장하면 한쪽 근태가 사라졌다.
+//   mutate(draft) 는 동기·순수여야 한다 — 충돌 시 트랜잭션이 여러 번 부른다(토스트·State 변경은 밖에서).
+//   mutate 가 false 를 돌려주면 쓰지 않는다. 배열을 돌려주면 그것을, 아니면 고친 draft 를 쓴다.
+//   돌려주는 값: { changed, list } — list 는 서버에 쓴(또는 읽은) 목록.
+export const updateLeaveSchedule = async (dbInstance, mutate) => {
     const dbToUse = dbInstance || db;
     if (!dbToUse) throw new Error("DB가 초기화되지 않았습니다.");
-    const cleanedLeaveData = JSON.parse(JSON.stringify(leaveData));
     const leaveDocRef = doc(dbToUse, 'artifacts', APP_ID, 'persistent_data', 'leaveSchedule');
-    await setDoc(leaveDocRef, cleanedLeaveData);
+    return runTransaction(dbToUse, async (tx) => {
+        const snap = await tx.get(leaveDocRef);
+        const raw = snap.exists() ? snap.data().onLeaveMembers : null;
+        const cur = Array.isArray(raw) ? raw : [];
+        const draft = JSON.parse(JSON.stringify(cur));
+        const out = mutate(draft);
+        if (out === false) return { changed: false, list: cur };
+        const next = JSON.parse(JSON.stringify(Array.isArray(out) ? out : draft));
+        tx.set(leaveDocRef, { onLeaveMembers: next }, { merge: true });
+        return { changed: true, list: next };
+    });
 };
 
 function getDefaultConfig() {

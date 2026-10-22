@@ -1,9 +1,9 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610221215';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610221432';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js?v=202610221215';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221215';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn } from './utils.js?v=202610221432';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221432';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -187,7 +187,7 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
                     <label for="modal-confirm-zero-${task}" class="ml-1 text-xs text-gray-500 cursor-pointer select-none">0건 확인</label>
                 </div>
             </div>
-            <input type="number" inputmode="numeric" id="modal-quantity-${task}" data-task="${task}" value="${shownValue}" placeholder="0" min="0"
+            <input type="number" inputmode="numeric" id="modal-quantity-${task}" data-task="${task}" value="${shownValue}" placeholder="0" min="0" step="1"
                    class="mt-1 w-full bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 transition ${warningClass}">
         `;
         container.appendChild(div);

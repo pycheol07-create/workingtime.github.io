@@ -1,16 +1,16 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202610221215';
-import { isPersistentLeaveType } from './state.js?v=202610221215';
-import * as DOM from './dom-elements.js?v=202610221215';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610221215';
+import * as State from './state.js?v=202610221432';
+import { isPersistentLeaveType } from './state.js?v=202610221432';
+import * as DOM from './dom-elements.js?v=202610221432';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610221432';
 // ✨ limit가 추가되었습니다.
-import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610221215';
-import { renderTodoList } from './inspection-logic.js?v=202610221215';
-import { renderNotificationList } from './app-notifications.js?v=202610221215';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221215';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610221215';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202610221215';
+import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610221432';
+import { renderTodoList } from './inspection-logic.js?v=202610221432';
+import { renderNotificationList } from './app-notifications.js?v=202610221432';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221432';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610221432';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202610221432';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -20,10 +20,19 @@ export let unsubscribeNotifications = null;
 // ✨ 핵심 방어막: 초기화 잠금 변수
 let isListenersInitialized = false;
 
+// 📅 지금 구독 중인 날짜(daily_data/{날짜}). 자정을 넘긴 탭은 어제 문서를 계속 구독하고 있으므로
+//    오늘 날짜로 정리·잠금 쓰기를 하면 어제 기록으로 오늘 문서를 건드리게 된다 — 이 값과 오늘이 다르면 쓰지 않는다.
+//    (탭은 js/app-lifecycle.js handleDayRollover 가 새로고침한다)
+let subscribedDate = null;
+export const getSubscribedDate = () => subscribedDate;
+const isStaleDay = () => !!subscribedDate && subscribedDate !== getTodayDateString();
+const syncDate = () => subscribedDate || getTodayDateString();   // 구독 전(콘솔 도구 등)에는 오늘
+
 // 🔔 안 읽은 알림이 있으면 알림창(#notification-modal)을 저절로 연다(2026-10-22).
 //    - 봇(Playwright — navigator.webdriver)에서는 열지 않는다(업무마감봇·업무예상알림 화면 보호).
 //    - 이 탭에서 닫은 알림(js/lib/noti-popup.js — sessionStorage id)은 다시 열지 않는다.
 //    - 다른 창(로그인·처리량 입력·#open= 으로 연 창 등)이 떠 있으면 기다렸다가 닫힌 뒤 한 번만 연다(최대 NOTI_WAIT_MAX).
+const NOTI_LIMIT = 200;   // 개인 알림 구독 상한(최근 3일) — js/app-shell-noti.js 와 같은 값
 const NOTI_WAIT_STEP = 1000;
 const NOTI_WAIT_MAX = 30 * 60 * 1000;
 let notiWaitTimer = null;
@@ -82,6 +91,7 @@ export function stopFirebaseListeners() {
     if (unsubWorkRecords) { unsubWorkRecords(); unsubWorkRecords = null; }
     if (unsubscribeNotifications) { unsubscribeNotifications(); unsubscribeNotifications = null; }
     isListenersInitialized = false;
+    subscribedDate = null;
     // 다음 사람은 새 스냅샷을 받은 뒤에 '오늘 데이터 도착'으로 본다(앞 세션의 옛 값으로 창이 먼저 열리지 않게)
     todayDocLoaded = false;
     workRecordsLoaded = false;
@@ -94,6 +104,7 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         return;
     }
     isListenersInitialized = true;
+    subscribedDate = getTodayDateString();
 
     if (unsubConfig) { unsubConfig(); unsubConfig = null; }
     if (unsubToday) { unsubToday(); unsubToday = null; }
@@ -132,8 +143,8 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         }
     });
 
-    const todayDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-    unsubToday = onSnapshot(todayDocRef, (docSnap) => {
+    const todayDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', subscribedDate);
+    unsubToday =onSnapshot(todayDocRef, (docSnap) => {
         const data = docSnap.exists() ? docSnap.data() : {};
         State.appState.taskQuantities = { ...data.taskQuantities };
         State.appState.partTimers = data.partTimers || [];
@@ -152,8 +163,8 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         //    되읽지 않으면 메모리에는 환율만 든 반쪽 객체가 남고, 다른 사람이 넣은
         //    매출·재고·환율이 화면에 안 보인 채로 저장돼 0으로 덮이는 일이 생긴다.
         State.appState.management = data.management || {};
-        const todayKey = getTodayDateString();
-        const ti = (State.allHistoryData || []).findIndex(d => d.id === todayKey);
+        const todayKey = subscribedDate;
+        const ti =(State.allHistoryData || []).findIndex(d => d.id === todayKey);
         if (ti > -1 && data.management) {
             State.allHistoryData[ti].management = {
                 ...(State.allHistoryData[ti].management || {}),
@@ -170,8 +181,8 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         if (DOM.statusDotEl) DOM.statusDotEl.className = 'd-live-dot';   // 색은 css/dash-d.css
     });
     
-    const workRecordsCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
-    unsubWorkRecords = onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
+    const workRecordsCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', subscribedDate, 'workRecords');
+    unsubWorkRecords =onSnapshot(workRecordsCollectionRef, (querySnapshot) => {
         State.appState.workRecords = [];
         querySnapshot.forEach(doc => State.appState.workRecords.push(doc.data()));
         State.appState.workRecords.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
@@ -179,10 +190,8 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         // 🛡️ 무결성 점검: 한 사람이 동시에 2개 이상 ongoing/paused 상태인 경우 감지 및 자동 정리
         try { detectAndCleanupDuplicateOngoing(workRecordsCollectionRef); } catch (e) { console.error('Duplicate check failed:', e); }
 
-        // 🛡️ 마이그레이션: lock doc이 없는 살아있는 레코드에 backfill (1회성, 세션당 1회)
-        try { backfillActiveLocksOnce(workRecordsCollectionRef); } catch (e) { console.error('Lock backfill failed:', e); }
-
-        // 🛡️ stale lock 정리: workRecords에 ongoing/paused가 없는데 lock이 남아있으면 자동 삭제
+        // 🛡️ 잠금 맞추기: 진행 중이 아닌데 남은 잠금은 삭제, 진행 중인데 잠금이 없으면 새로 만든다
+        //    (예전 backfillActiveLocksOnce 의 일도 여기서 한다 — 잠금 전체를 한 번만 읽는다)
         try { reconcileActiveLocksDebounced(); } catch (e) { console.error('Stale lock reconcile failed:', e); }
 
         renderCallback();
@@ -205,12 +214,16 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
             notiColRef, 
             where("targetMember", "==", State.appState.currentUser),
             where("createdAt", ">=", recentDaysAgoStr),
-            limit(30) // ✨ 핵심 방어막: 최근 3일 내의 알림 중 최대 30개까지만 가져와 읽기 폭탄 방지
+            // ✨ 핵심 방어막: 최근 3일 내의 알림 중 최대 NOTI_LIMIT(200)개까지만 — 읽기 폭탄 방지.
+            //    3일 창이라 보통 이보다 훨씬 적다. 예전 30건은 정렬 없이 잘려서 최신 알림이 빠질 수 있었다
+            //    (정렬은 아래에서 클라이언트가 한다 — 색인을 새로 만들지 않으려고 orderBy 를 쓰지 않는다).
+            limit(NOTI_LIMIT)
         );
         
         let isInitialLoad = true;
 
         unsubscribeNotifications = onSnapshot(notiQuery, (snapshot) => {
+            if (snapshot.size >= NOTI_LIMIT) console.warn(`[알림] 최근 3일 알림이 상한(${NOTI_LIMIT}건)에 닿았습니다 — 일부가 빠졌을 수 있습니다.`);
             const notifications = [];
             let unreadCount = 0;
             
@@ -271,6 +284,7 @@ let _dupCleanupLastRun = 0;
 const DUP_CLEANUP_COOLDOWN_MS = 60_000;
 
 function detectAndCleanupDuplicateOngoing(workRecordsColRef) {
+    if (isStaleDay()) return;
     const records = (State.appState.workRecords || []).filter(r =>
         r.status === 'ongoing' || r.status === 'paused'
     );
@@ -305,6 +319,7 @@ function detectAndCleanupDuplicateOngoing(workRecordsColRef) {
 
     _dupCleanupTimer = setTimeout(async () => {
         _dupCleanupTimer = null;
+        if (isStaleDay()) return;
         try {
             await cleanupDuplicateOngoing(workRecordsColRef, dupes);
             _dupCleanupLastRun = Date.now();
@@ -315,8 +330,9 @@ function detectAndCleanupDuplicateOngoing(workRecordsColRef) {
 }
 
 async function cleanupDuplicateOngoing(workRecordsColRef, dupes) {
+    if (isStaleDay()) return;
     const batch = writeBatch(workRecordsColRef.firestore);
-    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
+    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', syncDate(), 'activeLocks');
     const now = getCurrentTime();
     let closedCount = 0;
     const closedSummaries = [];
@@ -397,99 +413,119 @@ function calcDurationMinutes(startHHMM, endHHMM, pauses) {
     return Math.max(0, total);
 }
 
-// 🛡️ 마이그레이션: 살아있는 record에 대응되는 activeLock이 없으면 만들어준다.
-// 세션당 한 번만 실행 (재배포 후 새로고침 시점에 자동 1회).
-let _lockBackfillDone = false;
-async function backfillActiveLocksOnce(workRecordsColRef) {
-    if (_lockBackfillDone) return;
-    const liveRecords = (State.appState.workRecords || []).filter(r =>
-        r.status === 'ongoing' || r.status === 'paused'
-    );
-    if (liveRecords.length === 0) {
-        _lockBackfillDone = true;
-        return;
-    }
-    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
-
-    // 멤버별 최우선 1건만 lock으로 등록 (중복 시 자동 정리가 이어서 처리함)
-    const byMember = new Map();
-    liveRecords.forEach(r => {
-        if (!r.member) return;
-        const prev = byMember.get(r.member);
-        if (!prev || (r.startTime || '') > (prev.startTime || '')) byMember.set(r.member, r);
-    });
-
-    const batch = writeBatch(State.db);
-    let count = 0;
-    byMember.forEach((rec, member) => {
-        batch.set(doc(lockColRef, String(member)), {
-            member,
-            recordId: rec.id,
-            task: rec.task,
-            startTime: rec.startTime,
-            groupId: rec.groupId || null,
-            since: Date.now(),
-            backfilled: true
-        });
-        count++;
-    });
-
-    if (count > 0) {
-        try {
-            await batch.commit();
-            console.log(`[activeLocks backfill] ${count}개 멤버의 진행 중 lock 등록.`);
-        } catch (e) {
-            console.warn('[activeLocks backfill] commit 실패 — 일부 race 방지가 미가동일 수 있음:', e);
-        }
-    }
-    _lockBackfillDone = true;
-}
-
-// 🛡️ Stale lock 정리:
-// workRecords에 ongoing/paused 상태 레코드가 없는데도 activeLock이 남아있으면
-// 그 멤버는 "이미 진행 중" 으로 오인되어 새 업무 시작이 차단됨.
+// 🛡️ 잠금 맞추기(activeLocks ↔ 진행 중 업무기록):
+// - 진행 중(ongoing/paused) 기록이 없는데 잠금이 남아 있으면 그 멤버는 "이미 진행 중" 으로 오인되어
+//   새 업무 시작이 막힌다 → 삭제.
+// - 진행 중인데 잠금이 없으면(옛 버전에서 시작한 기록 등) 동시 시작 차단이 안 걸린다 → 만든다.
+//   (2026-10-22 — 세션당 1회 돌던 backfillActiveLocksOnce 를 여기로 합쳤다. 잠금 전체를 한 번만 읽는다)
 // 디바운스 + 쿨다운으로 read 비용 최소화.
 let _staleLockTimer = null;
 let _staleLockLastRun = 0;
 const STALE_LOCK_COOLDOWN_MS = 30_000;
-// 읽기 절약(2026-10-13): 업무 기록이 바뀔 때마다 잠금 전체를 다시 읽지 않는다.
-// 잠금이 남는 건 '진행 중이던 사람이 빠질 때(종료·삭제)'뿐이므로 그때만 바로 확인하고,
-// 그 밖에는 이 간격마다 한 번만 확인한다(다른 경로로 남은 잠금 대비 안전망).
+// 읽기 절약(2026-10-13, 2026-10-22 수정): 업무 기록이 바뀔 때마다 잠금 전체를 다시 읽지 않는다.
+// 바로 확인하는 건 탭을 연 첫 스냅샷과, 이 탭에서 업무를 끝냈을 때(markLocalWorkEnded)뿐이다.
+// 다른 탭에서 끝낸 업무는 끝낸 탭이 확인하므로, 여기서는 이 간격마다 한 번만 확인한다(안전망).
+// (예전엔 '진행 중이던 사람이 빠지면 즉시' 였는데, 그러면 한 사람이 끝낼 때 열린 탭 전부가 잠금을 읽었다)
 const STALE_LOCK_IDLE_RECHECK_MS = 10 * 60_000;
 let _staleLockPrevAlive = null;
-let _staleLockPending = false;   // 빠진 사람을 봤지만 쿨다운에 걸려 아직 확인 못 함
+let _staleLockPending = false;   // 바로 확인해야 하는데 쿨다운에 걸려 아직 확인 못 함
 
+/** 지금 진행 중인 기록 — 멤버별로 startTime 이 가장 늦은 1건(중복 정리가 살리는 것과 같은 기준). */
+function liveRecordByMember() {
+    const byMember = new Map();
+    (State.appState.workRecords || []).forEach(r => {
+        if (!r.member || (r.status !== 'ongoing' && r.status !== 'paused')) return;
+        const prev = byMember.get(r.member);
+        if (!prev || (r.startTime || '') > (prev.startTime || '')) byMember.set(r.member, r);
+    });
+    return byMember;
+}
+
+const isLive = (r) => !!r && (r.status === 'ongoing' || r.status === 'paused');
+
+// 화면의 업무기록(스냅샷)은 서버보다 늦을 수 있다 — 그걸로 후보만 고르고, 실제 쓰기는 트랜잭션 안에서
+// 서버의 기록·잠금을 다시 읽어 그때도 맞을 때만 한다(다른 탭이 방금 끝낸 사람에게 잠금을 되살리거나
+// 방금 시작한 사람의 잠금을 지우지 않게). 후보는 드물어서 후보당 읽기 1~2건이다.
 async function reconcileActiveLocksNow() {
-    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
+    if (isStaleDay()) return { removed: 0, created: 0 };
+    const day = syncDate();
+    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', day, 'activeLocks');
+    const wrColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', day, 'workRecords');
     const snap = await getDocs(lockColRef);
-    const aliveMembers = new Set(
-        (State.appState.workRecords || [])
-            .filter(r => r.status === 'ongoing' || r.status === 'paused')
-            .map(r => r.member)
-    );
+    if (isStaleDay()) return { removed: 0, created: 0 };
+
+    const live = liveRecordByMember();
+    const lockIds = new Set();
     const stales = [];
     snap.forEach(d => {
-        if (!aliveMembers.has(d.id)) stales.push({ ref: d.ref, id: d.id });
+        lockIds.add(d.id);
+        if (!live.has(d.id)) stales.push({ ref: d.ref, id: d.id, recordId: (d.data() || {}).recordId || null });
     });
-    if (stales.length === 0) return { removed: 0 };
-    const batch = writeBatch(State.db);
-    stales.forEach(s => batch.delete(s.ref));
-    await batch.commit();
-    console.warn(`[stale lock cleanup] ${stales.length}건 정리: ${stales.map(s => s.id).join(', ')}`);
-    showToast(`종료된 멤버 잠금 ${stales.length}건 자동 정리`);
-    return { removed: stales.length, members: stales.map(s => s.id) };
+    const missing = [];
+    live.forEach((rec, member) => { if (rec.id && !lockIds.has(String(member))) missing.push({ member, rec }); });
+    if (stales.length === 0 && missing.length === 0) return { removed: 0, created: 0 };
+
+    const removed = [];
+    for (const s of stales) {
+        try {
+            const ok = await runTransaction(State.db, async (tx) => {
+                const lockSnap = await tx.get(s.ref);
+                if (!lockSnap.exists()) return false;
+                const recordId = (lockSnap.data() || {}).recordId || null;
+                if (recordId !== s.recordId) return false;                 // 그 사이 다른 기록으로 바뀜(새로 시작)
+                if (recordId) {
+                    const recSnap = await tx.get(doc(wrColRef, String(recordId)));
+                    // 서버에선 아직 진행 중이고 담당자도 그대로면 남긴다(담당자를 바꾼 기록이면 원래 사람 잠금은 지운다)
+                    if (recSnap.exists() && isLive(recSnap.data()) && recSnap.data().member === s.id) return false;
+                }
+                // recordId 가 없는 옛 잠금은 화면 판단(진행 중 아님)만으로 지운다 — 예전과 같다
+                tx.delete(s.ref);
+                return true;
+            });
+            if (ok) removed.push(s.id);
+        } catch (e) {
+            console.warn('[stale lock cleanup] 건너뜀:', e && e.code);
+        }
+    }
+    let created = 0;
+    for (const { member, rec } of missing) {
+        const lockRef = doc(lockColRef, String(member));
+        try {
+            const ok = await runTransaction(State.db, async (tx) => {
+                const [recSnap, lockSnap] = await Promise.all([tx.get(doc(wrColRef, String(rec.id))), tx.get(lockRef)]);
+                if (lockSnap.exists() || !recSnap.exists() || !isLive(recSnap.data())) return false;
+                const r = recSnap.data();
+                // 모양은 예전 backfillActiveLocksOnce 와 같다
+                tx.set(lockRef, {
+                    member,
+                    recordId: rec.id,
+                    task: r.task,
+                    startTime: r.startTime,
+                    groupId: r.groupId || null,
+                    since: Date.now(),
+                    backfilled: true
+                });
+                return true;
+            });
+            if (ok) created++;
+        } catch (e) {
+            console.warn('[activeLocks backfill] 건너뜀:', e && e.code);
+        }
+    }
+    if (removed.length) {
+        console.warn(`[stale lock cleanup] ${removed.length}건 정리: ${removed.join(', ')}`);
+        showToast(`종료된 멤버 잠금 ${removed.length}건 자동 정리`);
+    }
+    if (created) console.log(`[activeLocks backfill] ${created}개 멤버의 진행 중 lock 등록.`);
+    return { removed: removed.length, members: removed, created };
 }
 
 function reconcileActiveLocksDebounced() {
-    const alive = new Set(
-        (State.appState.workRecords || [])
-            .filter(r => r.status === 'ongoing' || r.status === 'paused')
-            .map(r => r.member)
-    );
+    const alive = new Set(liveRecordByMember().keys());
     const prev = _staleLockPrevAlive;
     _staleLockPrevAlive = alive;
-    // 처음(prev 없음)이거나 진행 중이던 사람이 빠졌으면 바로 확인 대상, 아니면 10분 안전망만
-    if (!prev || [...prev].some(m => !alive.has(m))) _staleLockPending = true;
+    // 처음(prev 없음)이면 바로 확인 대상, 아니면 10분 안전망만(이 탭에서 끝낸 업무는 markLocalWorkEnded 가 세운다)
+    if (!prev) _staleLockPending = true;
     if (!_staleLockPending && Date.now() - _staleLockLastRun < STALE_LOCK_IDLE_RECHECK_MS) return;
     if (_staleLockTimer) return;
     if (Date.now() - _staleLockLastRun < STALE_LOCK_COOLDOWN_MS) {
@@ -500,6 +536,7 @@ function reconcileActiveLocksDebounced() {
     }
     _staleLockTimer = setTimeout(async () => {
         _staleLockTimer = null;
+        if (isStaleDay()) return;
         try {
             _staleLockPending = false;
             await reconcileActiveLocksNow();
@@ -509,6 +546,46 @@ function reconcileActiveLocksDebounced() {
             console.error('Stale lock reconcile failed:', e);
         }
     }, 5_000);
+}
+
+/** 이 탭에서 업무를 끝냈을 때(종료·강제 종료) 부른다 — 남은 잠금이 없는지 바로(5초 뒤) 확인한다.
+ *  js/app-logic.js 의 종료 함수들과 forceEndMemberWork 가 커밋 성공 뒤에 부른다. */
+export function markLocalWorkEnded() {
+    _staleLockPending = true;
+    try { reconcileActiveLocksDebounced(); } catch (e) { console.error('Stale lock reconcile failed:', e); }
+}
+
+/**
+ * 업무기록을 끝내거나(update) 지우고(data 없음), 그 기록을 가리키는 멤버 잠금을 **같은 트랜잭션에서** 지운다.
+ * 잠금은 lock.recordId 가 이 기록일 때만 지운다(같은 사람이 다른 업무를 진행 중이면 그 잠금은 둔다).
+ * 기록 수정 창·진행 중 기록 삭제처럼 app-logic.js 종료 함수를 거치지 않는 경로가 쓴다 — 예전엔 잠금이 남아
+ * 다음 확인(최대 10분)까지 그 사람이 새 업무를 시작하지 못했다.
+ * @param {{ id: string, member?: string, data?: object|null }[]} ops
+ * @param {{ dateKey?: string }} [opts] 기록 날짜(없으면 구독 중인 날짜, 구독 전이면 오늘)
+ * @returns {Promise<number>} 지운 잠금 수. 실패하면 throw(기록도 안 바뀐다)
+ */
+export async function writeRecordsReleasingLocks(ops, { dateKey } = {}) {
+    const list = (ops || []).filter(o => o && o.id);
+    if (!list.length) return 0;
+    const base = ['artifacts', 'team-work-logger-v2', 'daily_data', dateKey || syncDate()];
+    const ids = new Set(list.map(o => String(o.id)));
+    const members = [...new Set(list.map(o => o.member).filter(Boolean).map(String))];
+    const hadLive = (State.appState.workRecords || []).some(r => ids.has(String(r.id)) && isLive(r));
+    let released = 0;
+    await runTransaction(State.db, async (tx) => {
+        released = 0;
+        const lockRefs = members.map(m => doc(State.db, ...base, 'activeLocks', m));
+        const lockSnaps = await Promise.all(lockRefs.map(r => tx.get(r)));   // 읽기는 쓰기보다 먼저
+        list.forEach(o => {
+            const ref = doc(State.db, ...base, 'workRecords', String(o.id));
+            if (o.data) tx.update(ref, o.data); else tx.delete(ref);
+        });
+        lockSnaps.forEach((ls, i) => {
+            if (ls.exists() && ids.has(String((ls.data() || {}).recordId))) { tx.delete(lockRefs[i]); released++; }
+        });
+    });
+    if (hadLive || released) markLocalWorkEnded();
+    return released;
 }
 
 // 🛡️ 멤버의 ongoing/paused workRecord를 지정 시각(또는 현재 시각)으로 강제 종료.
@@ -559,6 +636,7 @@ export async function forceEndMemberWork(memberName, endHHMM) {
 
     await batch.commit();
     console.warn(`[forceEndMemberWork] ${memberName}: ${targets.length}건 종료 — ${summaries.join(', ')}`);
+    markLocalWorkEnded();
     return { ended: targets.length, summaries };
 }
 

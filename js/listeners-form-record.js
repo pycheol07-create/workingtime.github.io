@@ -1,10 +1,11 @@
 // === js/listeners-form-record.js ===
 // 설명: 업무 기록의 수정(휴식 포함), 수동 추가, 시작 시간 변경 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610221215';
-import * as State from './state.js?v=202610221215';
-import { showToast, formatDuration, calcTotalPauseMinutes, calcElapsedMinutes, getTodayDateString } from './utils.js?v=202610221215';
-import { generateId } from './app-data.js?v=202610221215';
+import * as DOM from './dom-elements.js?v=202610221432';
+import * as State from './state.js?v=202610221432';
+import { showToast, formatDuration, calcTotalPauseMinutes, calcElapsedMinutes, getTodayDateString } from './utils.js?v=202610221432';
+import { generateId } from './app-data.js?v=202610221432';
+import { writeRecordsReleasingLocks } from './app-sync.js?v=202610221432';
 import { doc, updateDoc, deleteDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 휴식 시간 관리 상태 변수 및 렌더링 함수
@@ -139,12 +140,19 @@ export function setupFormRecordListeners() {
                     updates.duration = null;
                 }
 
+                // 진행 중이던 기록을 끝내거나 지우면 그 기록의 멤버 잠금(activeLocks)도 같은 트랜잭션에서 푼다
+                //  — 안 풀면 다음 잠금 확인(최대 10분)까지 그 사람이 새 업무를 시작하지 못한다
+                const wasLive = record.status === 'ongoing' || record.status === 'paused';
+                const lockOwner = record.member;   // 잠금은 원래 사람 이름으로 걸려 있다(이름을 바꿔도)
+
                 // 소요 시간이 0분 이하라면 삭제
                 if (newDuration !== null && Math.round(newDuration) <= 0) {
-                    await deleteDoc(recordRef);
+                    if (wasLive) await writeRecordsReleasingLocks([{ id: recordId, member: lockOwner, data: null }], { dateKey: getTodayDateString() });
+                    else await deleteDoc(recordRef);
                     showToast('수정 후 소요 시간이 0분이 되어 기록이 삭제되었습니다.');
                 } else {
-                    await updateDoc(recordRef, updates);
+                    if (wasLive && updates.status === 'completed') await writeRecordsReleasingLocks([{ id: recordId, member: lockOwner, data: updates }], { dateKey: getTodayDateString() });
+                    else await updateDoc(recordRef, updates);
                     showToast('업무 기록이 수정되었습니다.');
                 }
 

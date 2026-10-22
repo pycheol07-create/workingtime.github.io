@@ -1,6 +1,6 @@
 // === js/app-shell-noti.js ===
 // 공통 상단바(js/app-shell.js)의 개인 알림 구독 (UI 1단계 P2, 2026-10-16). 셸이 로그인 확인 2~3초 뒤 import 한다.
-//   - 조회 조건은 대시보드(js/app-sync.js 개인 알림 구독)와 똑같이 — 같은 색인을 쓰고, 읽기도 최대 30건.
+//   - 조회 조건은 대시보드(js/app-sync.js 개인 알림 구독)와 똑같이 — 같은 색인을 쓰고, 읽기도 최대 NOTI_LIMIT(200)건(3일 창이라 상한이 있다).
 //   - SDK 는 페이지와 같은 버전 주소(10.12.2)로 불러 같은 인스턴스를 쓴다 → 페이지가 이미 붙인 에뮬레이터 연결·캐시 설정을 그대로 따른다.
 //     ⚠️ 페이지의 firebasejs 버전을 올리면 여기 주소도 같이 올릴 것(다르면 getApps() 가 비어 구독하지 않는다 — 조용히 꺼질 뿐 깨지지는 않는다).
 //   - 목록·삭제·쪽지는 대시보드(#notification-modal)가 한다. 여기서는 안 읽은 수·안 읽은 목록(팝업용)·'새 알림 왔음'을 알리고,
@@ -8,9 +8,11 @@
 //   - 이름·알림 내용은 로그로 남기지 않는다(목록은 메모리로만 넘긴다).
 import { getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, query, where, limit, onSnapshot, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { emulatorEnabled } from './firebase-emulator.js?v=202610221215';
+import { emulatorEnabled } from './firebase-emulator.js?v=202610221432';
 
 const NOTI_PATH = ['artifacts', 'team-work-logger-v2', 'notifications'];
+// 최근 3일 알림 상한 — js/app-sync.js 와 같은 값. 예전 30건은 정렬 없이 잘려 최신 알림이 빠질 수 있었다(정렬은 클라이언트).
+const NOTI_LIMIT = 200;
 
 // 페이지가 띄운 Firebase 를 쓸 수 있으면 그 db, 아니면 null.
 //   - 페이지가 Firebase 를 아직(또는 끝내) 띄우지 않았으면 손대지 않는다 — 여기서 기본 앱을 새로 만들지 않는다.
@@ -22,7 +24,7 @@ function pageDb() {
 }
 
 /**
- * memberName 의 최근 3일 알림(최대 30건)을 구독한다.
+ * memberName 의 최근 3일 알림(최대 NOTI_LIMIT 건)을 구독한다.
  * onCount(안 읽은 수, 안 읽은 목록 [{id, message, createdAt}] 최신순, { first }) — 스냅샷마다. first = 처음 스냅샷.
  * onNew() — 처음 스냅샷 이후 새로 들어온 안 읽은 알림이 있을 때.
  * 구독하지 못하면 null, 했으면 해제 함수를 돌려준다.
@@ -37,11 +39,12 @@ export function watchNotifications(memberName, { onCount, onNew } = {}) {
         collection(db, ...NOTI_PATH),
         where('targetMember', '==', memberName),
         where('createdAt', '>=', d.toISOString()),
-        limit(30)
+        limit(NOTI_LIMIT)
     );
 
     let first = true;
     return onSnapshot(q, (snap) => {
+        if (snap.size >= NOTI_LIMIT) console.warn(`[app-shell] 최근 3일 알림이 상한(${NOTI_LIMIT}건)에 닿았습니다 — 일부가 빠졌을 수 있습니다.`);
         const items = [];
         snap.forEach(s => {
             const d = s.data();

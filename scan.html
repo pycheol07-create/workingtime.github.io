@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="css/suit.css?v=202610221215">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610221215">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610221215">
+    <link rel="stylesheet" href="css/suit.css?v=202610221432">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610221432">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610221432">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -195,14 +195,14 @@
     <div id="undo-toast" role="status" aria-live="polite"><span id="undo-toast-msg"></span><button type="button" id="undo-toast-btn">되돌리기</button></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610221215"></script>
+    <script src="js/location-map.js?v=202610221432"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610221215'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202610221215';   // 공통 상단바(uid 만 — 메뉴는 캐시)
-        import { checkProductCode } from './js/lib/product-code.js?v=202610221215';  // 위치지정 상품코드 'S+숫자6자리' 판정
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610221432'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202610221432';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { checkProductCode } from './js/lib/product-code.js?v=202610221432';  // 위치지정 상품코드 'S+숫자6자리' 판정
 
         const SCAN_VERSION = '10.5'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -518,19 +518,30 @@
         }
 
         // [Ver 8.50] 강제전송 허용 상품코드 — 한 사용자가 강제전송하면 FORCE_ALLOW 문서에 기록 → 다른 사용자 스캔 시 미지정 오류 스킵 (실시간 공유)
-        const forceAllowSet = new Set();
+        // (2026-10-22) 허용은 기한제 — map[code] = { at:'YYYY-MM-DD', until:'YYYY-MM-DD' }(기기 날짜, KST 기준).
+        //   등록일 포함 FORCE_ALLOW_DAYS 일 동안만 통과. 옛 값(true)·기한 지난 값은 만료로 보고 다시 오류를 띄운다.
+        //   기간을 바꾸려면 이 상수만 고친다.
+        const FORCE_ALLOW_DAYS = 7;
+        const forceAllowMap = new Map(); // code -> until('YYYY-MM-DD') — 자정을 넘겨 켜 둔 화면도 쓸 때마다 기한을 다시 본다
+        const isForceAllowed = (code) => { const u = forceAllowMap.get(code); return typeof u === 'string' && u >= ymdLocal(new Date()); };
+        function ymdLocal(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+        function forceAllowValid(v, today) { return !!(v && typeof v === 'object' && typeof v.until === 'string' && v.until >= today); }
         function subscribeForceAllow() {
             try {
                 onSnapshot(doc(db, 'ChinaStockGoods', 'FORCE_ALLOW'), (snap) => {
-                    forceAllowSet.clear();
+                    forceAllowMap.clear();
                     const m = (snap.exists() && snap.data().map) ? snap.data().map : {};
-                    Object.keys(m).forEach(c => forceAllowSet.add(c));
+                    const today = ymdLocal(new Date());
+                    Object.keys(m).forEach(c => { if (forceAllowValid(m[c], today)) forceAllowMap.set(c, m[c].until); });
                 }, () => {});
             } catch (e) {}
         }
         async function registerForceAllow(code) {
-            forceAllowSet.add(code); // 로컬 즉시 반영
-            try { await setDoc(doc(db, 'ChinaStockGoods', 'FORCE_ALLOW'), { map: { [code]: true }, updatedAt: serverTimestamp() }, { merge: true }); } catch (e) { toast('강제전송 허용을 공유하지 못했습니다(이 기기에서만 적용)'); }
+            const now = new Date();
+            const until = new Date(now.getFullYear(), now.getMonth(), now.getDate() + FORCE_ALLOW_DAYS - 1);
+            const entry = { at: ymdLocal(now), until: ymdLocal(until) };
+            forceAllowMap.set(code, entry.until); // 로컬 즉시 반영
+            try { await setDoc(doc(db, 'ChinaStockGoods', 'FORCE_ALLOW'), { map: { [code]: entry }, updatedAt: serverTimestamp() }, { merge: true }); } catch (e) { toast('강제전송 허용을 공유하지 못했습니다(이 기기에서만 적용)'); }
         }
 
         // ---------------- 입고 모드 ----------------
@@ -559,18 +570,19 @@
             // [Ver 8.48] 음수 방지(입고 초과분) / d 없을 때(미등록·DB오류 강제전송)는 빈 값으로 진행
             const buildItem = (d) => ({ code: key, name: (d && d.name) || '', location: (d && d.location) || '미지정', arrivalQty: Math.max(parseInt(d && d.arrivalQty) || 0, 0), mibalQty: Math.max(parseInt(d && d.mibalQty) || 0, 0), aliasMemo: memoText });
             const proceedWith = (d) => showSelect(buildItem(d));
-            const forceProceed = (d) => { registerForceAllow(key); proceedWith(d); }; // [Ver 8.51] 강제전송 → 허용목록 등록 후 정상 입고 진행
+            // [Ver 8.51] 강제전송 → 정상 입고 진행. (2026-10-22) 허용목록 등록은 수량을 골라 입고가 확정될 때(addInbound)만 한다 — 팝업만 열고 닫으면 등록 안 됨
+            const forceProceed = (d) => showSelect({ ...buildItem(d), forceAllow: true });
             const memoPfx = memoText ? ('오류바코드: ' + memoText + '\n\n') : ''; // [Ver 8.84] 경고에도 사유 표시
             if (memoText) { speak('오류 바코드 확인'); try { navigator.vibrate([120, 80, 120]); } catch (e) {} }
 
-            if (dbError) { showAlert(memoPfx + 'DB 조회 오류\n(네트워크 확인)\n(' + key + ')', () => forceProceed(null)); return; } // [Ver 8.51] 모든 오류에 강제전송
+            if (dbError) { showAlert(memoPfx + 'DB 조회 오류\n(네트워크 확인)\n(' + key + ')', () => proceedWith(null)); return; } // [Ver 8.51] 모든 오류에 강제전송. (2026-10-22) 조회 실패는 일시 오류라 허용목록에 올리지 않는다
             if (!snap || !snap.exists()) {
-                if (forceAllowSet.has(key)) { proceedWith(null); return; } // [Ver 8.51] 이미 강제전송 허용된 상품 → 오류 없이 진행
+                if (isForceAllowed(key)) { proceedWith(null); return; } // [Ver 8.51] 이미 강제전송 허용된 상품 → 오류 없이 진행
                 showAlert(memoPfx + '등록되지 않은 상품입니다.\n(' + key + ')', () => forceProceed(null)); // [Ver 8.51] 미등록도 강제전송 가능
                 return;
             }
             const d = snap.data();
-            if ((!d.location || d.location === '미지정') && !forceAllowSet.has(key)) { // [Ver 8.49] 로케이션 미지정 오류 (단, [Ver 8.50] 강제전송 등록된 상품은 통과)
+            if ((!d.location || d.location === '미지정') && !isForceAllowed(key)) { // [Ver 8.49] 로케이션 미지정 오류 (단, [Ver 8.50] 강제전송 등록된 상품은 통과)
                 showAlert(memoPfx + '로케이션 미지정 상품입니다.\n(' + key + ')\n위치를 먼저 지정한 뒤 입고해주세요.', () => forceProceed(d));
                 return;
             }
@@ -596,6 +608,7 @@
         function closeSelect() { $('ov-select').style.display = 'none'; popScanModal(); }
 
         function addInbound(item, qty, dest) {
+            if (item.forceAllow) registerForceAllow(item.code); // 강제전송 건은 입고 확정 때만 허용목록에 올린다
             inboundQueue.unshift({ barcode: item.code, qty, name: item.name, location: item.location, dest, mibalQty: item.mibalQty || 0, time: new Date().toTimeString().slice(0, 8) });
             saveQueues(); renderQueue(); speak(qty + '개');
         }
@@ -1080,7 +1093,7 @@
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/page-gate.js?v=202610221215" data-perm-page="scan.view" data-perm-app="scanApp"></script>
-    <script type="module" src="js/app-shell.js?v=202610221215"></script>
+    <script type="module" src="js/page-gate.js?v=202610221432" data-perm-page="scan.view" data-perm-app="scanApp"></script>
+    <script type="module" src="js/app-shell.js?v=202610221432"></script>
 </body>
 </html>

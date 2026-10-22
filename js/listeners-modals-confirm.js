@@ -1,27 +1,41 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610221215';
-import * as State from './state.js?v=202610221215';
-import { isPersistentLeaveType } from './state.js?v=202610221215';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221215';
-import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202610221215';
-import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202610221215';
-import { saveLeaveSchedule } from './config.js?v=202610221215';
-import { switchHistoryView } from './app-history-logic.js?v=202610221215';
-import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202610221215';
-import { waitQuantitySave } from './listeners-form-quantity.js?v=202610221215';
-import { saveStateToFirestore } from './app-data.js?v=202610221215';
+import * as DOM from './dom-elements.js?v=202610221432';
+import * as State from './state.js?v=202610221432';
+import { isPersistentLeaveType } from './state.js?v=202610221432';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610221432';
+import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202610221432';
+import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202610221432';
+import { updateLeaveSchedule } from './config.js?v=202610221432';
+import { removeWhere, removeRecord } from './lib/leave-ops.js?v=202610221432';
+import { switchHistoryView } from './app-history-logic.js?v=202610221432';
+import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202610221432';
+import { waitQuantitySave } from './listeners-form-quantity.js?v=202610221432';
+import { saveStateToFirestore } from './app-data.js?v=202610221432';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610221432';
 
 import {
     doc, deleteDoc, writeBatch, collection, updateDoc, getDoc, getDocs, setDoc, query
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// 진행 중(ongoing/paused) 기록을 지우면 그 기록을 가리키는 멤버 잠금(activeLocks)도 같이 지운다
+//  — 안 지우면 다음 잠금 확인(최대 10분)까지 그 사람이 새 업무를 시작하지 못한다(js/app-sync.js writeRecordsReleasingLocks)
+const liveRecordsOf = (recordIds) => {
+    const ids = new Set((recordIds || []).map(String));
+    return (State.appState.workRecords || []).filter(r => ids.has(String(r.id)) && (r.status === 'ongoing' || r.status === 'paused'));
+};
 
 // 헬퍼: 단일 업무 기록 문서 삭제
 const deleteWorkRecordDocument = async (recordId) => {
     if (!recordId) return;
     try {
         const today = getTodayDateString();
+        const live = liveRecordsOf([recordId]);
+        if (live.length > 0) {
+            await writeRecordsReleasingLocks([{ id: recordId, member: live[0].member, data: null }], { dateKey: today });
+            return;
+        }
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords', recordId);
         await deleteDoc(docRef);
     } catch (e) {
@@ -35,6 +49,12 @@ const deleteWorkRecordDocuments = async (recordIds) => {
     if (!recordIds || recordIds.length === 0) return;
     try {
         const today = getTodayDateString();
+        const live = liveRecordsOf(recordIds);
+        if (live.length > 0) {
+            const memberOf = new Map(live.map(r => [String(r.id), r.member]));
+            await writeRecordsReleasingLocks(recordIds.map(id => ({ id, member: memberOf.get(String(id)), data: null })), { dateKey: today });
+            return;
+        }
         const colRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
         const batch = writeBatch(State.db);
 
@@ -94,21 +114,29 @@ export function setupConfirmationModalListeners() {
                     
                     let deletedFromPersistent = false;
                     if (isPersistentType) {
-                        const pIndex = State.persistentLeaveSchedule.onLeaveMembers.findIndex(p => {
+                        // 같은 판정(id 우선, 없으면 member+startDate+type)을 서버 목록에 트랜잭션으로 적용한다.
+                        const isTarget = (p) => {
+                            if (!p) return false;
                             if (recordToDelete.id && p.id) return p.id === recordToDelete.id;
-                            return p.member === recordToDelete.member && 
-                                   p.startDate === recordToDelete.startDate && 
+                            return p.member === recordToDelete.member &&
+                                   p.startDate === recordToDelete.startDate &&
                                    p.type === recordToDelete.type;
-                        });
-                        
-                        if (pIndex > -1) {
-                            State.persistentLeaveSchedule.onLeaveMembers.splice(pIndex, 1);
-                            try {
-                                await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
+                        };
+                        try {
+                            const r = await updateLeaveSchedule(State.db, list => {
+                                const next = removeWhere(list, isTarget);
+                                return next.length === list.length ? false : next;
+                            });
+                            if (r.changed) {
+                                State.persistentLeaveSchedule.onLeaveMembers = r.list;
                                 deletedFromPersistent = true;
-                            } catch (e) {
-                                console.error("Error deleting from persistent schedule:", e);
                             }
+                        } catch (e) {
+                            // 일정에서 못 지웠으면 그날 문서·화면도 건드리지 않는다(성공 토스트 없음).
+                            //   확인창과 삭제 대상은 그대로 두어 다시 누르면 재시도된다.
+                            console.error("Error deleting from persistent schedule:", e);
+                            showToast('근태 일정 삭제 실패 — 인터넷 연결을 확인하고 다시 시도하세요.', true);
+                            return;
                         }
                     }
 
@@ -157,6 +185,8 @@ export function setupConfirmationModalListeners() {
             else if (State.context.deleteMode === 'leave-record') {
                 // 모달을 통한 근태 기록 삭제 (상세 수정 팝업에서 호출됨)
                 const { memberName, startIdentifier, type, displayType } = State.context.attendanceRecordToDelete;
+                const isLeaveRecordTarget = (r) => !!r && r.member === memberName && (r.startDate || '') === startIdentifier;
+                let leaveRecordToDelete = null;   // 화면 목록에서 찾은 기록 — 서버에서는 id(없으면 내용 첫 1건)로 지운다
                 let dailyChanged = false;
                 let persistentChanged = false;
                 
@@ -168,14 +198,12 @@ export function setupConfirmationModalListeners() {
                         State.appState.dailyOnLeaveMembers.splice(index, 1);
                         dailyChanged = true;
                     }
-                } else { 
-                    const index = State.persistentLeaveSchedule.onLeaveMembers.findIndex(
-                        r => r.member === memberName && (r.startDate || '') === startIdentifier
-                    );
-                    if (index > -1) {
-                        State.persistentLeaveSchedule.onLeaveMembers.splice(index, 1);
-                        persistentChanged = true;
-                    }
+                } else {
+                    // 화면 목록에서 기록을 찾아 두고, 실제 삭제는 저장 때 서버 목록에 적용한다.
+                    //   이름+시작일이 같은 기록이 여럿이면 종류(displayType)까지 맞는 것을 먼저 고른다.
+                    const candidates = State.persistentLeaveSchedule.onLeaveMembers.filter(isLeaveRecordTarget);
+                    leaveRecordToDelete = candidates.find(r => r.type === displayType) || candidates[0] || null;
+                    persistentChanged = !!leaveRecordToDelete;
                 }
 
                 if (dailyChanged || persistentChanged) {
@@ -185,8 +213,14 @@ export function setupConfirmationModalListeners() {
                             await saveStateToFirestore();
                         }
                         if (persistentChanged) {
-                            await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
-                            notifyLeaveScheduleChanged('leave-cancel-2');
+                            const r = await updateLeaveSchedule(State.db, list => {
+                                const next = removeRecord(list, leaveRecordToDelete);
+                                return next.length === list.length ? false : next;
+                            });
+                            if (r.changed) {
+                                State.persistentLeaveSchedule.onLeaveMembers = r.list;
+                                notifyLeaveScheduleChanged('leave-cancel-2');
+                            }
                         }
                         showToast(`${memberName}님의 '${displayType}' 기록이 삭제되었습니다.`);
                     } catch (e) {
@@ -296,6 +330,7 @@ export function setupConfirmationModalListeners() {
             let dailyChanged = false;
             let persistentChanged = false;
             let actionMessage = '취소';
+            let isTodayLeaveOfMember = null;
 
             const dailyEntry = State.appState.dailyOnLeaveMembers.find(entry => 
                 entry.member === memberName && 
@@ -320,7 +355,7 @@ export function setupConfirmationModalListeners() {
                             r.startTime < dailyEntry.startTime
                         );
                         if (stale.length > 0) {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202610221215');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202610221432');
                             const r = await forceEndMemberWork(memberName, dailyEntry.startTime);
                             if (r.ended > 0) {
                                 console.warn(`[외출 복귀 보호막] ${memberName}: 외출 전부터 진행 중이던 ${r.ended}건을 ${dailyEntry.startTime}로 정리`, r.summaries);
@@ -336,21 +371,17 @@ export function setupConfirmationModalListeners() {
                 }
             } else {
                 const today = getTodayDateString();
-                const originalLength = State.persistentLeaveSchedule.onLeaveMembers.length;
-                
-                State.persistentLeaveSchedule.onLeaveMembers = (State.persistentLeaveSchedule.onLeaveMembers || []).filter(entry => {
-                    if (entry.member === memberName) {
+                // 오늘이 기간에 걸린 그 사람 기록 — 화면 목록으로 있는지만 보고, 삭제는 저장 때 서버 목록에 적용한다.
+                isTodayLeaveOfMember = (entry) => {
+                    if (entry && entry.member === memberName) {
                         const endDate = entry.endDate || entry.startDate;
                         if (today >= entry.startDate && today <= (endDate || entry.startDate)) {
-                            return false;
+                            return true;
                         }
                     }
-                    return true;
-                });
-
-                if (State.persistentLeaveSchedule.onLeaveMembers.length !== originalLength) {
-                    persistentChanged = true;
-                }
+                    return false;
+                };
+                persistentChanged = (State.persistentLeaveSchedule.onLeaveMembers || []).some(isTodayLeaveOfMember);
             }
 
             try {
@@ -359,8 +390,14 @@ export function setupConfirmationModalListeners() {
                     await saveStateToFirestore();
                 }
                 if (persistentChanged) {
-                    await saveLeaveSchedule(State.db, State.persistentLeaveSchedule);
-                    notifyLeaveScheduleChanged('leave-cancel');
+                    const r = await updateLeaveSchedule(State.db, list => {
+                        const next = removeWhere(list, isTodayLeaveOfMember);
+                        return next.length === list.length ? false : next;
+                    });
+                    if (r.changed) {
+                        State.persistentLeaveSchedule.onLeaveMembers = r.list;
+                        notifyLeaveScheduleChanged('leave-cancel');
+                    }
                 }
 
                 if (dailyChanged || persistentChanged) {
@@ -472,6 +509,7 @@ export function setupConfirmationModalListeners() {
                 State.appState.partTimers = [];
                 State.appState.dailyOnLeaveMembers = [];
                 State.appState.dailyAttendance = {};
+                markLocalWorkEnded();   // 기록을 다 지웠으니 남은 잠금(activeLocks)도 곧 정리되게
 
                 showToast('오늘 데이터가 모두 초기화되었습니다.');
                 DOM.resetAppModal.classList.add('hidden');

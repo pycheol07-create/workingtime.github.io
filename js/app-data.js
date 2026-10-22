@@ -1,8 +1,8 @@
 // === js/app-data.js ===
-import { getTodayDateString, debounce } from './utils.js?v=202610221215';
-import * as State from './state.js?v=202610221215';
+import { getTodayDateString, debounce } from './utils.js?v=202610221432';
+import * as State from './state.js?v=202610221432';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from './utils.js?v=202610221215';
+import { showToast } from './utils.js?v=202610221432';
 
 export const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -15,6 +15,7 @@ export const generateId = () => `${Date.now()}-${Math.random().toString(36).subs
  * @param {boolean} [opts.requireOnline]  브라우저가 오프라인이면 쓰지 않고 false (쓰기를 대기열에 넣지 않는다)
  * @param {number}  [opts.timeoutMs]      이 시간 안에 서버 확인이 안 오면 false. 쓰기는 대기열에 남아 연결되면 올라갈 수 있다
  *                                        (같은 값을 다시 저장해도 merge 라 문제없다)
+ * @param {string}  [opts.dateKey]        쓸 날짜(YYYY-MM-DD). 없으면 오늘 — 자정을 넘긴 탭이 어제 문서에 마지막 저장을 할 때 쓴다
  */
 export async function updateDailyData(updates, opts = {}) {
     if (!State.auth || !State.auth.currentUser) {
@@ -27,7 +28,7 @@ export async function updateDailyData(updates, opts = {}) {
     }
 
     try {
-        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
+        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', opts.dateKey || getTodayDateString());
         const write = setDoc(docRef, updates, { merge: true });
         if (opts.timeoutMs > 0) {
             write.catch(() => {});   // 시간 초과 뒤 늦게 난 오류가 처리 안 된 거부로 남지 않게
@@ -47,7 +48,8 @@ export async function updateDailyData(updates, opts = {}) {
     }
 }
 
-export async function saveStateToFirestore() {
+/** @param {{ dateKey?: string }} [opts] dateKey 를 주면 그 날짜 문서에 쓴다(없으면 오늘 — js/app-lifecycle.js handleDayRollover) */
+export async function saveStateToFirestore({ dateKey } = {}) {
     // ✨ 핵심 방어막: 데이터에 변경 사항이 없으면(dirty가 아니면) 통신을 차단합니다. (쓰기 요금 방어)
     if (!State.isDataDirty) {
         return; 
@@ -69,7 +71,7 @@ export async function saveStateToFirestore() {
     };
 
     // 저장 완료 후에만 상태 초기화 — 실패했는데 지우면 바뀐 내용이 다음 자동저장에서 빠진다(다음 주기에 다시 시도)
-    const ok = await updateDailyData(updates);
+    const ok = await updateDailyData(updates, dateKey ? { dateKey } : {});
     if (ok) State.setIsDataDirty(false);
 }
 
