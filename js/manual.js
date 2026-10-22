@@ -1,14 +1,15 @@
 // === js/manual.js ===
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy, where, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202610221532';
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610221532';
-import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221532';
-import { memberNameFor } from './app-shell-data.js?v=202610221532';
-import { menuConfigOf } from './lib/perm.js?v=202610221532';
-import { escapeHtml, friendlyFirebaseError } from './utils.js?v=202610221532';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202610221624';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610221624';
+import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610221624';
+import { memberNameFor } from './app-shell-data.js?v=202610221624';
+import { menuConfigOf } from './lib/perm.js?v=202610221624';
+import { escapeHtml, friendlyFirebaseError } from './utils.js?v=202610221624';
+import { checkAttachment, checkInlineImage, accessFieldsFor, backfillPatchFor, canViewManual as canViewManualFor, mergeManualLists } from './lib/manual-access.js?v=202610221624';
 
 let app, db, auth, storage;
 let appConfig = {};
@@ -28,13 +29,8 @@ const canEditManual = (item) => !!item && (isAdmin || (myEmailLower() !== '' && 
 const EDIT_DENIED_MSG = '매뉴얼은 작성자·관리자만 수정할 수 있습니다.';
 
 // 열람 가능 — 목록 필터와 같은 기준(주소 #id= 로 바로 열 때도 이 검사를 거친다)
-const canViewManual = (item) => {
-    if (!item) return false;
-    if (isAdmin) return true;
-    if (item.author === (auth.currentUser && auth.currentUser.email)) return true;
-    if (!item.allowedMembers || item.allowedMembers.length === 0) return true;
-    return item.allowedMembers.includes(currentUserName);
-};
+//   firestore.rules manuals 읽기와 같은 판정(관리자·공개·작성자·지정 이메일) + 옛 문서용 이름 판정(js/lib/manual-access.js)
+const canViewManual = (item) => canViewManualFor(item, { isAdmin, email: myEmailLower(), name: currentUserName });
 
 // 검색용 본문 글자(태그 제거). DOMParser 문서는 스크립트를 실행하지 않는다. 매뉴얼마다 한 번만 만든다.
 const plainTextOf = (item) => {
@@ -181,7 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const imageHandler = () => {
         const input = document.createElement('input');
         input.setAttribute('type', 'file');
-        input.setAttribute('accept', 'image/*');
+        input.setAttribute('accept', 'image/png,image/jpeg,image/gif,image/webp,image/bmp');
         input.click();
 
         input.onchange = async () => {
@@ -296,17 +292,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function uploadInlineImageToStorage(file) {
+    // 형식·크기 검사(storage.rules manuals/images 와 같은 기준) — 어긋나면 올리지 않고 알린다
+    const chk = checkInlineImage(file);
+    if (!chk.ok) { alert(chk.reason); return; }
     const btn = document.getElementById('btn-save-manual');
     const originalText = btn.textContent;
     btn.textContent = '이미지 업로드 중...';
     btn.disabled = true;
 
     try {
-        const ext = file.name ? file.name.split('.').pop() : 'png';
-        const safeName = `manual_inline_${Date.now()}_${Math.floor(Math.random()*1000)}.${ext}`;
+        const safeName = `manual_inline_${Date.now()}_${Math.floor(Math.random()*1000)}.${chk.ext}`;
         const storageRef = ref(storage, `manuals/images/${safeName}`);
 
-        await uploadBytes(storageRef, file);
+        await uploadBytes(storageRef, file, { contentType: chk.contentType });
         const url = await getDownloadURL(storageRef);
 
         const range = quillEditor.getSelection(true); 
@@ -427,6 +425,13 @@ function setupEventListeners() {
 
     document.getElementById('edit-file-upload').addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
+            // 실행 파일·압축 파일·20MB 초과는 고르는 순간 돌려보낸다(저장 때 한 번 더 본다)
+            const chk = checkAttachment(e.target.files[0]);
+            if (!chk.ok) {
+                alert(chk.reason);
+                e.target.value = '';
+                return;
+            }
             selectedFile = e.target.files[0];
             updateFileUI();
         }
@@ -514,6 +519,72 @@ function setupEventListeners() {
     });
 }
 
+// 볼 수 있는 매뉴얼만 받는다(2026-10-22 '지정 인원만 열람' 서버 규칙).
+//   규칙은 필터가 아니어서, 직원이 컬렉션 전체를 요청하면 통째로 거부된다 → 볼 수 있는 조건별로 나눠 받아 합친다:
+//   공개(isPublic) · 내가 작성(author — 원본 이메일로 저장되므로 원본·소문자 둘 다) · 지정(allowedEmails 에 내 이메일).
+//   관리자는 전체. 정렬은 합친 뒤 화면에서(조건 + orderBy 를 섞으면 복합 색인이 필요하다).
+//   새 규칙 게시 전(옛 규칙)에는 전체 요청이 그대로 되므로 먼저 시도하고, 거부되면 나눠 받는다 — 게시 순서와 무관하게 돈다.
+let splitQueryMode = false;
+async function fetchVisibleManuals() {
+    const manualCol = collection(db, 'artifacts', 'team-work-logger-v2', 'manuals');
+    const rows = (snap) => snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (isAdmin || !splitQueryMode) {
+        try {
+            return rows(await getDocs(query(manualCol, orderBy('createdAt', 'desc'))));
+        } catch (e) {
+            if (isAdmin || !e || e.code !== 'permission-denied') throw e;
+            splitQueryMode = true;
+        }
+    }
+    const rawEmail = String((auth.currentUser && auth.currentUser.email) || '');
+    const me = myEmailLower();
+    const qs = [query(manualCol, where('isPublic', '==', true))];
+    if (me) {
+        qs.push(query(manualCol, where('allowedEmails', 'array-contains', me)));
+        qs.push(query(manualCol, where('author', '==', rawEmail)));
+        if (rawEmail !== me) qs.push(query(manualCol, where('author', '==', me)));
+    }
+    // 하나가 실패해도 나머지는 보여 준다 — 전부 실패했을 때만 오류(loadManuals 가 '불러오지 못했습니다')
+    const settled = await Promise.allSettled(qs.map(q => getDocs(q)));
+    const ok = settled.filter(r => r.status === 'fulfilled');
+    settled.forEach((r, i) => { if (r.status === 'rejected') console.warn(`매뉴얼 목록 일부(${i + 1}/${qs.length}) 실패:`, r.reason && r.reason.code); });
+    if (ok.length === 0) throw settled[0].reason;
+    return mergeManualLists(ok.map(r => rows(r.value)));
+}
+
+// 관리자가 매뉴얼 화면을 열면 isPublic·allowedEmails 를 allowedMembers(이름)로 다시 맞추고, author 를 소문자로 맞춘다.
+//   옛 매뉴얼(필드 없음)과 직원 이메일이 바뀐 경우를 고친다. 다른 것과 수정일(updatedAt)은 건드리지 않는다.
+//   트랜잭션으로 서버의 최신 문서를 읽어 계산한다 — 목록을 받은 뒤 누가 지정 인원을 바꿨어도 옛 값으로 덮지 않는다.
+//   설정의 이메일 목록을 못 읽었으면(비어 있으면) 하지 않는다 — 지정 인원이 전부 빠지는 것을 막는다.
+let backfillRunning = false;
+async function backfillAccessFields() {
+    const emails = appConfig.memberEmails;
+    if (backfillRunning || !emails || Object.keys(emails).length === 0) return;
+    backfillRunning = true;
+    let done = 0, failed = 0;
+    try {
+        for (const item of manualList) {
+            if (!backfillPatchFor(item, emails)) continue;   // 받은 목록 기준으로 고칠 것 없으면 읽지 않는다
+            try {
+                const ref_ = doc(db, 'artifacts', 'team-work-logger-v2', 'manuals', item.id);
+                const fix = await runTransaction(db, async (tx) => {
+                    const snap = await tx.get(ref_);
+                    if (!snap.exists()) return null;
+                    const patch = backfillPatchFor(snap.data(), emails);
+                    if (patch) tx.update(ref_, patch);
+                    return { data: { ...snap.data(), ...(patch || {}) }, patched: !!patch };
+                });
+                if (fix) { Object.assign(item, fix.data); if (fix.patched) done++; }
+            } catch (e) {
+                failed++;
+            }
+        }
+        if (done || failed) console.info(`매뉴얼 열람 필드 맞춤: ${done}건 저장, ${failed}건 실패`);
+    } finally {
+        backfillRunning = false;
+    }
+}
+
 let hashOpened = false;
 // 주소의 #id= 매뉴얼을 연다. 없거나 볼 수 없는 매뉴얼이면 주소에서 뺀다(비공개 매뉴얼 여부를 알리지 않는다).
 function openManualFromHash() {
@@ -529,16 +600,10 @@ async function loadManuals() {
     listContainer.innerHTML = '<div class="flex justify-center p-5 text-gray-400 text-sm">데이터를 불러오는 중...</div>';
     
     try {
-        const manualCol = collection(db, 'artifacts', 'team-work-logger-v2', 'manuals');
-        const q = query(manualCol, orderBy('createdAt', 'desc'));
-        const snap = await getDocs(q);
-        
-        manualList = [];
-        snap.forEach(doc => {
-            manualList.push({ id: doc.id, ...doc.data() });
-        });
+        manualList = await fetchVisibleManuals();
 
         renderList();
+        if (isAdmin) backfillAccessFields();   // 기다리지 않는다(실패해도 목록은 그대로)
         // 처음 불러왔을 때 주소(#id=)의 매뉴얼을 바로 연다(새로고침·공유 링크)
         if (!hashOpened) { hashOpened = true; openManualFromHash(); }
     } catch (e) {
@@ -743,6 +808,21 @@ async function saveManual() {
             return; 
         }
     }
+    // 서버 규칙은 이메일로 판정한다 — 이름을 이메일로 바꿔 같이 저장한다(js/lib/manual-access.js)
+    const access = accessFieldsFor(allowedMembers, appConfig.memberEmails);
+    if (!access.isPublic) {
+        const noEmail = allowedMembers.filter(n => accessFieldsFor([n], appConfig.memberEmails).allowedEmails.length === 0);
+        if (noEmail.length > 0 && !confirm(`이메일이 등록되지 않은 인원은 이 매뉴얼을 볼 수 없습니다: ${noEmail.join(', ')}\n(관리자 페이지에서 이메일을 등록한 뒤 다시 저장하면 볼 수 있습니다)\n\n이대로 저장할까요?`)) {
+            return;
+        }
+    }
+
+    // 첨부 형식·크기 — 고를 때 봤지만 한 번 더(storage.rules 와 같은 기준)
+    const fileCheck = selectedFile ? checkAttachment(selectedFile) : null;
+    if (fileCheck && !fileCheck.ok) {
+        alert(fileCheck.reason);
+        return;
+    }
 
     // 남의 매뉴얼은 규칙이 거부한다 — 첨부를 올리기 전에 막는다(올린 파일만 남지 않게)
     const existingItem = currentEditingId ? manualList.find(m => m.id === currentEditingId) : null;
@@ -765,11 +845,10 @@ async function saveManual() {
         }
 
         if (selectedFile) {
-            const ext = selectedFile.name.split('.').pop();
-            const safeName = `manual_${Date.now()}.${ext}`;
+            const safeName = `manual_${Date.now()}.${fileCheck.ext}`;
             const storageRef = ref(storage, `manuals/${safeName}`);
             
-            await uploadBytes(storageRef, selectedFile);
+            await uploadBytes(storageRef, selectedFile, { contentType: fileCheck.contentType });
             fileUrl = await getDownloadURL(storageRef);
             fileName = selectedFile.name;
         }
@@ -786,6 +865,8 @@ async function saveManual() {
             fileUrl: fileUrl || null,
             fileName: fileName || null,
             allowedMembers: allowedMembers,
+            isPublic: access.isPublic,              // 규칙 읽기 판정·목록 쿼리용(firestore.rules manuals)
+            allowedEmails: access.allowedEmails,    // 지정 인원 이메일(소문자)
             updatedAt: serverTimestamp()
         };
 

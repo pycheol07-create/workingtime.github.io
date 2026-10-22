@@ -7,12 +7,17 @@ const ShippingCalculator = () => {
     // [수정] SettingsContext 사용
     const { settings } = React.useContext(SettingsContext);
     
-    const [formData, setFormData] = React.useState({
-        boxLength: '500',
-        boxWidth: '400',
-        boxHeight: '300',
-        palletType: 'none',
-    });
+    const SHIPPING_DEFAULTS = { boxLength: '500', boxWidth: '400', boxHeight: '300', palletType: 'none' };
+    // 입력값 기억(CalcMemory.js) — 파레트가 목록에서 빠졌으면 useOptionFix 가 첫 옵션으로 맞춘다.
+    const MEM_KEYS = Object.keys(SHIPPING_DEFAULTS);
+    const [formData, setFormData] = React.useState(() => ({ ...SHIPPING_DEFAULTS, ...calcMemLoad('shipping', MEM_KEYS) }));
+    React.useEffect(() => {
+        calcMemSave('shipping', calcMemPick(formData, MEM_KEYS), SHIPPING_DEFAULTS);
+    }, [formData]);
+    const resetInputs = () => {
+        calcMemClear('shipping');
+        setFormData({ ...SHIPPING_DEFAULTS });
+    };
 
     const handleInputChange = React.useCallback((e) => {
         const { name, value } = e.target;
@@ -136,11 +141,31 @@ const ShippingCalculator = () => {
     //   목록에 없으면 select 에는 다른 파레트가 보이는데 계산은 '없음'으로 되어 화면과 결과가 어긋난다.
     const optionNotice = useOptionFix([{ name: 'palletType', label: '파레트 종류', options: palletOptions }], formData, setFormData);
 
+    // [결과 복사] 글자 — 입력 → 결과(화면 결과 카드와 같은 항목)
+    const copyText = () => {
+        if (!results) return '';
+        const usePallet = formData.palletType !== 'none' && results.boxesPerPallet !== undefined;
+        const loadText = (pallets) => (usePallet && pallets !== undefined ? `${pallets} 파레트` : 'Loose Loading');
+        const lines = [
+            calcCopyHead('선적 계산'),
+            `박스 크기 (길이×너비×높이): ${calcCopyNum(formData.boxLength)} × ${calcCopyNum(formData.boxWidth)} × ${calcCopyNum(formData.boxHeight)} mm`,
+            `파레트 종류: ${calcCopyOpt(palletOptions, formData.palletType)}`,
+            '',
+        ];
+        if (usePallet) lines.push(`파레트당 적재 가능 수량: ${formatNumber(results.boxesPerPallet)} 박스`);
+        lines.push(`20ft 컨테이너: ${formatNumber(results.boxesIn20ft)} 박스 (${loadText(results.palletsIn20ft)})`);
+        lines.push(`40ft 컨테이너: ${formatNumber(results.boxesIn40ft)} 박스 (${loadText(results.palletsIn40ft)})`);
+        return lines.join('\n');
+    };
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
             <div ref={formRef} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200">
                 <OptionFixNotice text={optionNotice} />
-                <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">정보 입력</h2>
+                <div className="flex items-center justify-between gap-2 mb-6 border-b border-slate-200 pb-4">
+                    <h2 className="text-2xl font-bold text-gray-800">정보 입력</h2>
+                    <CalcResetButton onReset={resetInputs} />
+                </div>
                 <div className="space-y-6">
                     {inputFields.map(field => (<InputControl key={field.name} {...field} value={formData[field.name]} onChange={handleInputChange} onKeyDown={handleKeyDown} />))}
                     <div>
@@ -183,6 +208,9 @@ const ShippingCalculator = () => {
                             </div>
                             <p className="text-3xl font-bold text-emerald-600"><AnimatedNumber value={results.boxesIn40ft} formatter={formatNumber} /><span className="text-base font-medium text-gray-600 ml-1.5">박스</span></p>
                         </div>
+                    </div>
+                    <div className="mt-6 flex justify-end">
+                        <CalcCopyButton getText={copyText} />
                     </div>
                  </div>
             ) : (

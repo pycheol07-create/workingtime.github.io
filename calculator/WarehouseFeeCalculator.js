@@ -14,11 +14,13 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
     };
     const today = toDateStr(new Date());
 
-    const [calculationMode, setCalculationMode] = React.useState('quantity'); // 'quantity' | 'amount'
-    const [useManualBoxCbm, setUseManualBoxCbm] = React.useState(false);
-    const [manualValues, setManualValues] = React.useState({ boxes: '', cbm: '' });
-
-    const [formData, setFormData] = React.useState(() => ({
+    // 입력값 기억(CalcMemory.js) — 상품수량·금액·관세율·날짜·계산 기준·박스/CBM 수동입력만.
+    //   창고료 단가·무료보관일수·가산세율·납부기한·지연이자율은 설정관리 값이 늘 먼저다(아래 효과가 설정으로 덮는다) → 기억하지 않는다.
+    const MEM_KEYS = ['calculationMode', 'quantity', 'totalAmountUSD', 'tariffRate', 'arrivalDate', 'clearanceDate', 'useManualBoxCbm', 'manualBoxes', 'manualCbm'];
+    const memRef = React.useRef(null);
+    if (memRef.current === null) memRef.current = calcMemLoad('warehouse', MEM_KEYS);
+    const mem = memRef.current;
+    const warehouseDefaults = () => ({
         // 상품수량 / 상품금액(USD) & 관세율 (통관비 자동 산출용)
         quantity: '1000',
         totalAmountUSD: '10000',
@@ -34,7 +36,39 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
         surchargeRate: String((settings.warehouse?.surchargeRate ?? 0.03) * 100),
         paymentDueDays: String(settings.warehouse?.paymentDueDays ?? 25),
         dailyInterestRate: String((settings.warehouse?.dailyInterestRate ?? 0.00025) * 100),
-    }));
+    });
+
+    const [calculationMode, setCalculationMode] = React.useState(() => (mem.calculationMode === 'amount' ? 'amount' : 'quantity')); // 'quantity' | 'amount'
+    const [useManualBoxCbm, setUseManualBoxCbm] = React.useState(() => mem.useManualBoxCbm === true);
+    const [manualValues, setManualValues] = React.useState(() => ({ boxes: typeof mem.manualBoxes === 'string' ? mem.manualBoxes : '', cbm: typeof mem.manualCbm === 'string' ? mem.manualCbm : '' }));
+
+    const [formData, setFormData] = React.useState(() => {
+        const next = warehouseDefaults();
+        ['quantity', 'totalAmountUSD', 'tariffRate', 'arrivalDate', 'clearanceDate'].forEach(k => { if (typeof mem[k] === 'string') next[k] = mem[k]; });
+        return next;
+    });
+    const memNow = () => ({
+        calculationMode, quantity: formData.quantity, totalAmountUSD: formData.totalAmountUSD, tariffRate: formData.tariffRate,
+        arrivalDate: formData.arrivalDate, clearanceDate: formData.clearanceDate,
+        useManualBoxCbm, manualBoxes: manualValues.boxes, manualCbm: manualValues.cbm,
+    });
+    // 날짜는 오늘과 다를 때만 기억한다 — 손대지 않은 날짜(오늘)는 다음 날 열면 그날 오늘로.
+    React.useEffect(() => {
+        const cur = memNow();
+        ['arrivalDate', 'clearanceDate'].forEach(k => { if (cur[k] === today) delete cur[k]; });
+        const d = warehouseDefaults();
+        calcMemSave('warehouse', cur, {
+            calculationMode: 'quantity', quantity: d.quantity, totalAmountUSD: d.totalAmountUSD, tariffRate: d.tariffRate,
+            useManualBoxCbm: false, manualBoxes: '', manualCbm: '',
+        });
+    }, [formData, calculationMode, useManualBoxCbm, manualValues]);
+    const resetInputs = () => {
+        calcMemClear('warehouse');
+        setCalculationMode('quantity');
+        setUseManualBoxCbm(false);
+        setManualValues({ boxes: '', cbm: '' });
+        setFormData(warehouseDefaults());
+    };
 
     // 설정관리에서 기본값 변경 시 폼에 반영
     React.useEffect(() => {
@@ -208,11 +242,44 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
     // 공용 설정의 관세율 목록에 지금 값(처음 '8')이 없으면 첫 옵션으로
     const optionNotice = useOptionFix([{ name: 'tariffRate', label: '관세율', options: tariffOptions }], formData, setFormData);
 
+    // [결과 복사] 글자 — 입력 → 결과(화면 결과 카드와 같은 항목)
+    const copyText = () => {
+        if (results.customsRateMissing) return '';
+        const lines = [calcCopyHead('창고료&가산세 계산')];
+        if (calculationMode === 'quantity') lines.push(`계산 기준: 상품수량 / 상품수량: ${calcCopyNum(formData.quantity)} 개`);
+        else lines.push(`계산 기준: 상품금액 / 상품금액: ${calcCopyNum(formData.totalAmountUSD)} USD (평균 단가 ${formatUSD(avgUnitPrice)}/개)`);
+        lines.push(`입항일: ${formData.arrivalDate || '-'} / 통관일: ${formData.clearanceDate || '-'}`);
+        lines.push(`관세율: ${calcCopyOpt(tariffOptions, formData.tariffRate)}`);
+        if (useManualBoxCbm) lines.push(`박스수량·CBM 수동입력: ${formatBoxes(results.totalBoxes)} · ${formatCBM(results.cbm)}`);
+        lines.push(`창고료 단가: ${calcCopyNum(formData.warehouseRate)} 원/CBM/일 · 무료보관일수: ${calcCopyNum(formData.freeDays)} 일`);
+        lines.push(`가산세율: ${calcCopyNum(formData.surchargeRate)}% · 납부마감기한: 입항일+${calcCopyNum(formData.paymentDueDays)}일 · 일 지연이자율: ${calcCopyNum(formData.dailyInterestRate)}%`);
+        lines.push(`적용 환율: 고시 ${fmtRate(results.customsRate)} (${customsSourceText(customsSource)})`);
+        lines.push('');
+        lines.push(`추가비용 총 합계: ${formatKRW(results.grandTotal)}`);
+        lines.push(`[자동 산출값 · LCL 기준${useManualBoxCbm ? ' · 박스/CBM 수동' : ''}]`);
+        if (calculationMode === 'amount') lines.push(`- 상품수량 (금액÷단가): ${formatQty(results.derivedQuantity)}`);
+        lines.push(`- 박스 수량: ${formatBoxes(results.totalBoxes)} · CBM: ${formatCBM(results.cbm)}`);
+        lines.push(`- 관세 (${formData.tariffRate}%): ${formatKRW(results.tariff)}`);
+        lines.push(`- 부가세 (${fmtPct(results.vatRate)}): ${formatKRW(results.vat)}`);
+        lines.push(`- 통관비 (관세+부가세): ${formatKRW(results.customsFee)}`);
+        lines.push('[보세창고료]');
+        lines.push(`- 입항일 → 통관일: ${formatDays(results.totalStayDays)} · 무료보관 만료일: ${results.freeUntil || '-'} · 과금 보관기간: ${formatDays(results.storageDays)}`);
+        lines.push(`- 창고료 총액: ${formatKRW(results.warehouseFeeTotal)}`);
+        lines.push('[통관비 납부지연가산세]');
+        lines.push(`- 납부마감기한: ${results.paymentDueDate || '-'} · 지연일수: ${formatDays(results.delayDays)}`);
+        lines.push(`- 가산세 (${formData.surchargeRate}%): ${formatKRW(results.surchargeAmount)} · 납부지연이자: ${formatKRW(results.lateInterest)}`);
+        lines.push(`- 가산세 총액: ${formatKRW(results.surchargeTotal)}`);
+        return lines.join('\n');
+    };
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
             <div ref={formRef} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200">
                 <OptionFixNotice text={optionNotice} />
-                <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">기본 정보 입력</h2>
+                <div className="flex items-center justify-between gap-2 mb-6 border-b border-slate-200 pb-4">
+                    <h2 className="text-2xl font-bold text-gray-800">기본 정보 입력</h2>
+                    <CalcResetButton onReset={resetInputs} note="창고료·가산세 칸은 설정관리 값으로, 날짜는 오늘로 돌아갑니다." />
+                </div>
                 <div className="space-y-6">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">계산 기준</label>
@@ -377,6 +444,9 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
                         <ResultRow label="총 합계" value={formatKRW(results.grandTotal)} isTotal />
                     </div>
+                </div>
+                <div className="mt-6 flex justify-end">
+                    <CalcCopyButton getText={copyText} />
                 </div>
             </div>
             )}

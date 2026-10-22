@@ -220,3 +220,35 @@ textarea.pd-in { height: 84px; padding: 10px 12px; resize: vertical; line-height
 .pd-pagesize { display: inline-flex; align-items: center; gap: 6px; margin-right: 6px; color: var(--c-text-3); }
 .pd-pagesize .pd-select { height: 30px; }
 @media (max-width: 768px) { .pd-list-scroll { max-height: 70vh; } }
+
+/* ── 목록: 휴대폰 카드 보기 (2026-10-22, js/products-list.js) ──
+   768px 이하에서 JS 가 .pd-list-sec 에 is-cards 를 붙이고 #pd-cards 만 채운다(표는 비움).
+   현장은 '상품 → 위치' 를 찾으므로 코드·이름·위치·수량만 크게. 누르는 영역은 카드 전체(44px 이상). */
+.pd-cards { display: none; }
+.pd-card-only { display: none; }
+.pd-list-sec.is-cards .pd-t { display: none; }
+.pd-list-sec.is-cards .pd-cards { display: flex; flex-direction: column; gap: 8px; padding: 4px 12px 12px; }
+.pd-list-sec.is-cards .pd-card-only { display: inline-block; }
+/* 카드 보기는 상자 높이 제한(70vh)을 풀고 페이지 하나로 스크롤한다 — 이중 스크롤 없음. 위치 기억·복원도 페이지 기준(JS) */
+.pd-list-sec.is-cards .pd-list-scroll { max-height: none; overflow: visible; }
+.pd-pcard { display: flex; flex-direction: column; gap: 6px; width: 100%; min-height: 44px; box-sizing: border-box; padding: 12px 14px; text-align: left; font: inherit; color: var(--c-text); background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner, 14px); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pd-pcard:active { background: var(--c-accent-row); border-color: var(--c-accent-light); }
+.pd-pcard:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.pd-pcard.is-gone { color: var(--c-text-3); }
+.pd-pcard-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; }
+.pd-pcard-code { font-size: 16px; font-weight: 700; color: var(--c-accent-deep); overflow-wrap: anywhere; }
+.pd-pcard-sub { font-size: 12px; color: var(--c-text-3); overflow-wrap: anywhere; }
+.pd-pcard-pills { margin-left: auto; }
+.pd-pcard-pills .pd-pill:last-child { margin-right: 0; }
+.pd-pcard-name { font-size: 14.5px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.pd-pcard-meta { display: flex; gap: 12px; align-items: flex-end; padding-top: 6px; border-top: 1px solid var(--c-line-soft); }
+.pd-pcard-loc { flex: 1 1 auto; min-width: 0; }
+.pd-pcard-qty { flex: none; text-align: right; }
+.pd-pcard-lab { display: block; font-size: 11.5px; color: var(--c-text-3); }
+.pd-pcard-val { display: block; font-size: 20px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.pd-pcard.is-gone .pd-pcard-val, .pd-pcard.is-gone .pd-pcard-code { color: var(--c-text-3); }
+.pd-pcard-more { font-size: 12px; font-weight: 500; margin-left: 6px; }
+@media (max-width: 768px) {
+    .pd-list-sec.is-cards .pd-pager .d-btn { min-height: 44px; padding: 0 16px; }
+    .pd-list-sec.is-cards .pd-select { height: 40px; }
+}

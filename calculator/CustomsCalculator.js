@@ -13,7 +13,30 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
       const avgOf = (f) => String(settings.customs[AVG_FIELDS[f]] ?? AVG_FALLBACK[f]);
       const touchedRef = React.useRef({});
 
-      const [calculationMode, setCalculationMode] = React.useState('product');
+      // 입력값 기억(CalcMemory.js) — 평균 칸(단가·입수·무게)은 사람이 고친 칸만 기억한다(손대지 않은 칸은 늘 logis 평균).
+      //   되살린 평균 칸은 '손댄 칸'으로 표시해 늦게 온 평균값이 덮지 않게 한다([평균으로]로 되돌린다).
+      const MEM_KEYS = ['calculationMode', 'productQuantity', 'boxQuantity', 'totalProductPrice', 'tariffRate', 'shippingType', 'containerCost', 'commissionType', 'commissionValue'];
+      const memRef = React.useRef(null);
+      if (memRef.current === null) {
+        memRef.current = calcMemLoad('customs', MEM_KEYS.concat(Object.keys(AVG_FIELDS)));
+        Object.keys(AVG_FIELDS).forEach(f => { if (typeof memRef.current[f] === 'string') touchedRef.current[f] = true; });
+      }
+      const customsDefaults = () => ({
+        calculationMode: 'product',
+        productQuantity: '1000',
+        unitPrice: avgOf('unitPrice'),
+        quantityPerBox: avgOf('quantityPerBox'),
+        boxQuantity: '',
+        totalProductPrice: '',
+        weightPerBox: avgOf('weightPerBox'),
+        tariffRate: '8',
+        shippingType: 'LCL',
+        containerCost: '',
+        commissionType: 'percentage',
+        commissionValue: '0',
+      });
+
+      const [calculationMode, setCalculationMode] = React.useState(() => (memRef.current.calculationMode === 'box' ? 'box' : 'product'));
       const { liveRates, rateStatus } = useLiveRates();
       const [isTaxesExpanded, setIsTaxesExpanded] = React.useState(false);
       const [isFeesExpanded, setIsFeesExpanded] = React.useState(false);
@@ -23,19 +46,30 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
 
       const [isAnalysisOpen, setIsAnalysisOpen] = React.useState(false);
 
-      const [formData, setFormData] = React.useState(() => ({
-        productQuantity: '1000',
-        unitPrice: String(settings.customs.defaultUnitPrice ?? 10),
-        quantityPerBox: String(settings.customs.defaultQuantityPerBox ?? 50),
-        boxQuantity: '',
-        totalProductPrice: '',
-        weightPerBox: String(settings.customs.defaultWeightPerBox ?? 12),
-        tariffRate: '8',
-        shippingType: 'LCL',
-        containerCost: '',
-        commissionType: 'percentage',
-        commissionValue: '0',
-      }));
+      const [formData, setFormData] = React.useState(() => {
+        const { calculationMode: _m, ...base } = customsDefaults();
+        const { calculationMode: m, ...saved } = memRef.current;
+        const next = { ...base, ...saved };
+        // 박스기준에는 개당 수수료가 없다(handleModeChange 와 같은 규칙)
+        if (m === 'box' && next.commissionType === 'perItem') { next.commissionType = 'percentage'; next.commissionValue = '0'; }
+        return next;
+      });
+      // 기억할 값 = 일반 칸 + 손댄 평균 칸. 기본값과 같으면 저장을 지운다.
+      React.useEffect(() => {
+        const cur = { ...calcMemPick({ ...formData, calculationMode }, MEM_KEYS) };
+        Object.keys(AVG_FIELDS).forEach(f => { if (touchedRef.current[f]) cur[f] = formData[f]; });
+        calcMemSave('customs', cur, calcMemPick(customsDefaults(), MEM_KEYS));
+      }, [formData, calculationMode]);
+      // [입력 초기화] — 평균 칸도 손대지 않은 상태(logis 평균)로. 박스기준에서 치워 둔 개당 수수료도 버린다.
+      const resetInputs = () => {
+        calcMemClear('customs');
+        touchedRef.current = {};
+        savedCommRef.current = null;
+        setCommNotice(null);
+        const { calculationMode: m, ...base } = customsDefaults();
+        setCalculationMode(m);
+        setFormData(base);
+      };
 
       // 기본값(logis 평균)이 바뀌면 입력 필드에 반영합니다 — 사용자가 손댄 칸은 그대로 둡니다([평균으로]로 되돌린다).
       React.useEffect(() => {
@@ -282,6 +316,42 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
       const segLabel = (on) => `relative flex-1 cursor-pointer py-2 px-2 sm:px-4 text-center text-xs sm:text-sm font-semibold whitespace-nowrap focus-within:ring-2 focus-within:ring-emerald-500 ${on ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`;
       const totalWithGoods = results ? results.totalProductPriceKRW + results.totalCost : 0;   // 총 비용(상품가 포함) — 표시용 합
 
+      // [결과 복사] 글자 — 입력 → 적용 환율 → 결과(화면 결과 카드와 같은 항목)
+      const copyText = () => {
+        if (!results) return '';
+        const isProduct = calculationMode === 'product';
+        const lines = [
+          calcCopyHead('통관비 계산'),
+          `계산 기준: ${isProduct ? '상품기준' : '박스기준'} / 운송 형태: ${calcCopyOpt(shippingOptions, formData.shippingType)}`,
+        ];
+        if (isProduct) {
+          lines.push(`상품 수량: ${calcCopyNum(formData.productQuantity)} 개`);
+          lines.push(`상품 단가: ${calcCopyNum(formData.unitPrice)} USD/개`);
+          lines.push(`박스당 수량: ${calcCopyNum(formData.quantityPerBox)} 개/박스`);
+        } else {
+          lines.push(`총 박스 수량: ${calcCopyNum(formData.boxQuantity)} 박스`);
+          lines.push(`총 상품 금액: ${calcCopyNum(formData.totalProductPrice)} USD`);
+        }
+        lines.push(`박스당 무게: ${calcCopyNum(formData.weightPerBox)} kg/박스`);
+        lines.push(`관세: ${calcCopyOpt(tariffOptions, formData.tariffRate)}`);
+        if (formData.shippingType === 'FCL') lines.push(`컨테이너 비용: ${calcCopyNum(formData.containerCost)} 원`);
+        lines.push(`수수료: ${calcCopyNum(formData.commissionValue)} ${formData.commissionType === 'percentage' ? '%' : '원/개'}`);
+        lines.push(rateSummaryText(currentRates.customs, currentRates.usdKrw, rateState, customsInfo && customsInfo.source));
+        lines.push('');
+        if (results.costPerItem > 0) lines.push(`개당 최종 원가: ${formatCurrency(results.costPerItem)}`);
+        lines.push(`총 비용 (상품가 포함): ${formatCurrency(totalWithGoods)}`);
+        lines.push(`- 총 상품가: ${formatCurrency(results.totalProductPriceKRW)} (${formatCurrency(results.totalProductPriceUSD, 'USD')})`);
+        lines.push(`- 통관 부대비용 (상품가 제외): ${formatCurrency(results.totalCost)}`);
+        lines.push(`  · 해운비: ${formatCurrency(results.oceanFreightKRW)}`);
+        if (results.commissionAmountKRW > 0) lines.push(`  · 수수료: ${formatCurrency(results.commissionAmountKRW)}`);
+        lines.push(`  · 관세: ${formatCurrency(results.tariffAmount)}`);
+        lines.push(`  · 부가가치세: ${formatCurrency(results.vatAmount)}`);
+        lines.push(`  · 서류비: ${formatCurrency(results.docsFee)}`);
+        lines.push(`  · CO발급비: ${formatCurrency(results.coFee)}`);
+        lines.push(`박스 ${formatNumber(results.totalBoxes, '박스', 0).trim()} · 총 무게 ${formatNumber(results.totalWeight, 'kg').trim()} · ${formatNumber(results.cbm, 'CBM', 3).trim()}`);
+        return lines.join('\n');
+      };
+
       return (
           <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8 ${results ? 'pb-20 sm:pb-0' : ''}`}>
             <div ref={formRef} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200">
@@ -313,7 +383,10 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
                   </div>
               </div>
 
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">상세 정보 입력</h2>
+              <div className="flex items-center justify-between gap-2 mb-6 border-b border-slate-200 pb-4">
+                  <h2 className="text-2xl font-bold text-gray-800">상세 정보 입력</h2>
+                  <CalcResetButton onReset={resetInputs} note="환율 칸은 그대로 둡니다(수입가 탭과 같은 값)." />
+              </div>
 
               <div className="space-y-6">
                 {(calculationMode === 'product' ? productModeFields : boxModeFields).map(field => (
@@ -464,6 +537,10 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
                         <button type="button" onClick={() => setIsFeesExpanded(!isFeesExpanded)} aria-expanded={isFeesExpanded} aria-controls="cus-fees-detail" className="w-full flex items-center justify-between py-3 pl-4 sm:pl-10 text-left"><span className="flex items-center min-w-0"><span className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-slate-100">{Icons.Fee}</span><span className="ml-4 text-sm font-medium text-gray-600">서류·CO 비용</span></span><span className="flex items-center"><span className="text-sm font-semibold text-gray-700 whitespace-nowrap"><AnimatedNumber value={results.docsFee + results.coFee} formatter={formatCurrency} /></span><span className={`ml-2 transform transition-transform duration-200 ${isFeesExpanded ? 'rotate-180' : ''}`}>{Icons.ChevronDown}</span></span></button>
                         <div id="cus-fees-detail" className={`transition-all duration-300 ease-in-out overflow-hidden ${isFeesExpanded ? 'max-h-40' : 'max-h-0'}`}><ResultItem label="서류비" value={<AnimatedNumber value={results.docsFee} formatter={formatCurrency} />} icon={Icons.DocsFee} isSub={true} /><ResultItem label="CO발급비" value={<AnimatedNumber value={results.coFee} formatter={formatCurrency} />} icon={Icons.CoFee} isSub={true} /></div>
                     </div>
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <CalcCopyButton getText={copyText} />
                   </div>
 
                   <div className="mt-6 pt-6 border-t border-dashed">

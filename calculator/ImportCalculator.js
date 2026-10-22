@@ -24,13 +24,23 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
     const { liveRates, rateStatus } = useLiveRates();     // LiveRateDisplay.js — 탭끼리 한 번만 부른다
 
     // 처음 값은 각 옵션 목록의 첫 값(목록이 비었을 때만 예전 기본값). 목록이 나중에 바뀌면 useOptionFix 가 맞춘다.
-    const [formData, setFormData] = React.useState({
+    const importDefaults = () => ({
         productCost: '10',
         commissionRate: String(settings.import.commissionRates[0]?.value ?? 0.035),
         customsFeeRate: String(settings.import.customsFeeRates[0]?.value ?? 0.22),
         packagingBag: String(settings.import.packagingOptions[0]?.value ?? 0.31),
         label: String(settings.import.labelOptions[0]?.value ?? 0.03),
     });
+    // 입력값 기억(CalcMemory.js) — 지난번 값을 얹는다. 옵션이 목록에서 빠졌으면 useOptionFix 가 첫 옵션으로 맞춘다.
+    const MEM_KEYS = ['productCost', 'commissionRate', 'customsFeeRate', 'packagingBag', 'label'];
+    const [formData, setFormData] = React.useState(() => ({ ...importDefaults(), ...calcMemLoad('import', MEM_KEYS) }));
+    React.useEffect(() => {
+        calcMemSave('import', calcMemPick(formData, MEM_KEYS), calcMemPick(importDefaults(), MEM_KEYS));
+    }, [formData]);
+    const resetInputs = () => {
+        calcMemClear('import');
+        setFormData(importDefaults());
+    };
     const optionNotice = useOptionFix([
         { name: 'commissionRate', label: '수수료', options: settings.import.commissionRates },
         { name: 'customsFeeRate', label: '통관비', options: settings.import.customsFeeRates },
@@ -130,11 +140,38 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
     const formatCNY = (value) => `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)} ¥`;
     const AnimatedNumber = ({ value, formatter }) => <>{formatter(value)}</>;
 
+    // [결과 복사] 글자 — 입력 → 적용 환율 → 결과
+    const copyText = () => {
+        if (!results) return '';
+        const remit = rateState.liveOk ? `실시간 ${fmtRateTime(rateState.at)}` : '고정';
+        return [
+            calcCopyHead('수입가 계산'),
+            `상품원가: ${calcCopyNum(formData.productCost)} 위안`,
+            `수수료: ${calcCopyOpt(settings.import.commissionRates, formData.commissionRate)}`,
+            `통관비: ${calcCopyOpt(settings.import.customsFeeRates, formData.customsFeeRate)}`,
+            `포장봉투: ${calcCopyOpt(settings.import.packagingOptions, formData.packagingBag)}`,
+            `라벨: ${calcCopyOpt(settings.import.labelOptions, formData.label)}`,
+            `적용 환율: 고시 ${fmtRate(currentRates.customs)} (${customsSourceText(customsInfo && customsInfo.source)}) / 원-달러 ${fmtRate(currentRates.usdKrw)} · 원-위안 ${fmtRate(currentRates.cnyKrw)} · 위안-달러 ${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 4 }).format(currentRates.usdCny || 0)} (${remit})`,
+            '',
+            `예상 수입가: ${formatKRW(results.finalImportCost)}`,
+            `- 상품원가 (CNY): ${formatCNY(results.productCostCNY)}`,
+            `- 부자재 (CNY): ${formatCNY(results.subsidiaryCostCNY)}`,
+            `- 상품원가 (USD): ${formatUSD(results.productCostUSD)}`,
+            `- 상품원가 (KRW): ${formatKRW(results.productCostKRW)}`,
+            `- 부자재 (KRW): ${formatKRW(results.subsidiaryCostKRW)}`,
+            `- 수수료 (KRW): ${formatKRW(results.commissionKRW)}`,
+            `- 통관비 (KRW): ${formatKRW(results.customsFeeKRW)}`,
+        ].join('\n');
+    };
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
             <div ref={formRef} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200">
                 <OptionFixNotice text={optionNotice} />
-                <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b border-slate-200 pb-4">정보 입력</h2>
+                <div className="flex items-center justify-between gap-2 mb-6 border-b border-slate-200 pb-4">
+                    <h2 className="text-2xl font-bold text-gray-800">정보 입력</h2>
+                    <CalcResetButton onReset={resetInputs} note="환율 칸은 그대로 둡니다(통관비 탭과 같은 값)." />
+                </div>
                 <div className="space-y-6">
                     <InputControl label="상품원가" name="productCost" value={formData.productCost} onChange={handleInputChange} unit="위안화" icon={<CurrencyYenIcon />} onKeyDown={handleKeyDown} />
                     
@@ -230,6 +267,9 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
                             <span className="text-gray-600">통관비 (KRW) <span className="text-xs text-gray-400 font-normal">고시환율 적용</span></span>
                             <span className="font-semibold text-gray-800"><AnimatedNumber value={results.customsFeeKRW} formatter={formatKRW} /></span>
                         </div>
+                    </div>
+                    <div className="mt-6 flex justify-end">
+                        <CalcCopyButton getText={copyText} />
                     </div>
                 </div>
             ) : (customsRateMissing && !remitMissingKey) ? (

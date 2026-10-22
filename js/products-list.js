@@ -3,12 +3,12 @@
 //
 // 3,768행을 한 번에 그리지 않는다(50행씩). 추가 읽기 없음 — 전부 products-store.js 가 받아 둔 메모리에서.
 // 관리자 열(공급처·기본 단가)은 관리자일 때만 **만든다**(숨김 아님). 원가 값은 products-cost.js 메모리에만 있다.
-import { S, locSummary } from './products-store.js?v=202610221532';
-import { C, costOf } from './products-cost.js?v=202610221532';
-import { esc, toast } from './products.js?v=202610221532';
-import { loadXLSX } from './products-excel.js?v=202610221532';
-import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610221532';
-import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610221532';
+import { S, locSummary } from './products-store.js?v=202610221624';
+import { C, costOf } from './products-cost.js?v=202610221624';
+import { esc, toast } from './products.js?v=202610221624';
+import { loadXLSX } from './products-excel.js?v=202610221624';
+import { catalogExportAoa } from './lib/product-excel-rows.js?v=202610221624';
+import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202610221624';
 
 // 한 쪽에 보이는 상품 수 — 사용자가 고른다(이 브라우저에 기억). 'all' = 전체
 const PAGE_SIZES = [20, 50, 100, 200, 500, 'all'];
@@ -25,7 +25,18 @@ const F = { q: '', cat: '', status: '', gone: false, noPrice: false, optDiff: fa
             size: loadPageSize() };   // 한 쪽 상품 수(20·50·…·'all')
 const searchKey = new WeakMap();
 // 상세로 가기 전 목록 스크롤 위치 — 목록으로 돌아오면 그 자리로 되돌린다(한 번 쓰고 비운다)
+// { cards, y } — 표는 목록 상자(.pd-list-scroll), 카드는 페이지(document.scrollingElement) 기준. 보기가 바뀌었으면 버린다
 let listScrollTop = null;
+
+// 휴대폰(768px 이하)은 표 대신 상품 카드(2026-10-22) — 같은 목록(filtered)·같은 쪽 넘김, 그리는 모양만 다르다.
+// 화면 회전·창 크기 변경 때 지금 떠 있는 목록만 다시 그린다(curDraw).
+const CARD_MQ = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 768px)') : null;
+const isCardView = () => !!(CARD_MQ && CARD_MQ.matches);
+let curDraw = null;
+if (CARD_MQ) {
+    const onMq = () => { if (curDraw) curDraw(); };
+    if (CARD_MQ.addEventListener) CARD_MQ.addEventListener('change', onMq); else CARD_MQ.addListener(onMq);
+}
 
 const todayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
 const activeOpts = (p) => p.o.filter(o => !o[4]);
@@ -285,8 +296,14 @@ function chipsHtml() {
             <button class="pd-chip ${F.noSup ? 'is-on' : ''}" data-tog="noSup">공급처 미지정</button>
             <select class="pd-select" data-sel="sup" aria-label="공급처"><option value="">공급처 전체</option>${sups.map(s => `<option ${F.sup === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>`;
     }
+    // 카드 보기에는 머리글이 없으니 정렬을 고르는 칸(카드 보기에서만 보임). 원가 열은 넣지 않는다
+    const sortVal = F.sort ? `${F.sort.key}:${F.sort.dir}` : '';
+    const sortOpts = CARD_SORTS.map(([v, t]) => `<option value="${v}" ${v === sortVal ? 'selected' : ''}>${t}</option>`).join('');
+    const keepOpt = sortVal && !CARD_SORTS.some(([v]) => v === sortVal) ? `<option value="${esc(sortVal)}" selected>표 머리글 정렬</option>` : '';
+    h += `<select class="pd-select pd-card-only" data-cardsort="1" aria-label="정렬">${sortOpts}${keepOpt}</select>`;
     const ncf = Object.keys(F.cf).length;
-    if (ncf || F.sort) h += `<button class="pd-chip is-on" data-act="clearcf" title="머리글 정렬·필터를 모두 해제">머리글 정렬·필터 해제${ncf ? `<span class="num">${ncf}</span>` : ''}</button>`;
+    const clr = isCardView() ? '정렬·필터 해제' : '머리글 정렬·필터 해제';   // 카드 보기엔 머리글이 없다
+    if (ncf || F.sort) h += `<button class="pd-chip is-on" data-act="clearcf" title="${clr}를 모두 해제">${clr}${ncf ? `<span class="num">${ncf}</span>` : ''}</button>`;
     return h;
 }
 
@@ -317,6 +334,26 @@ function rowHtml(pid, p) {
         <td class="num">${loc}</td><td class="r num">${ls.spots ? ls.qty.toLocaleString() : ''}</td><td>${pills}</td></tr>`;
 }
 
+// 카드 보기 정렬 — 값은 'colDefs key:방향'(F.sort 그대로)
+const CARD_SORTS = [['', '새로 들어온 순'], ['code:1', '상품코드순'], ['name:1', '상품명순'], ['loc:1', '위치순'],
+    ['qty:-1', '수량 많은 순'], ['qty:1', '수량 적은 순'], ['status:1', '상태순']];
+
+/** 휴대폰 카드 — 상품코드·상품명·위치·수량 + 상태 배지만. 원가·공급처 관련(단가 미입력 등)은 넣지 않는다 */
+function cardHtml(pid, p) {
+    const ls = locSummary(p);
+    let pills = statusPill(p);
+    if ((p.add || 0) >= todayStart() && !p.gone) pills += '<span class="pd-pill warn">새 상품</span>';
+    const loc = ls.first
+        ? `${esc(ls.first)}${ls.spots > 1 ? `<span class="pd-inh pd-pcard-more">외 ${ls.spots - 1}곳</span>` : ''}`
+        : `<span class="pd-inh">${S.loc ? '없음' : '–'}</span>`;
+    return `<button type="button" class="pd-pcard${p.gone ? ' is-gone' : ''}" data-pid="${esc(pid)}">
+        <span class="pd-pcard-top"><span class="pd-pcard-code num">${esc(p.code2 || pid)}</span>${p.code2 ? `<span class="pd-pcard-sub num">${esc(pid)}</span>` : ''}<span class="pd-pcard-pills">${pills}</span></span>
+        <span class="pd-pcard-name">${esc(p.name || '')}</span>
+        <span class="pd-pcard-meta"><span class="pd-pcard-loc"><span class="pd-pcard-lab">위치</span><span class="pd-pcard-val num">${loc}</span></span>
+            <span class="pd-pcard-qty"><span class="pd-pcard-lab">수량</span><span class="pd-pcard-val num">${ls.spots ? ls.qty.toLocaleString() : '<span class="pd-inh">–</span>'}</span></span></span>
+    </button>`;
+}
+
 export function renderList(main) {
     if (!S.products.size) {
         main.innerHTML = `<section class="pd-card"><div class="pd-empty">
@@ -326,7 +363,7 @@ export function renderList(main) {
     }
     main.innerHTML = `
         <section class="pd-card pd-summary" aria-label="요약" id="pd-sum">${summaryHtml()}</section>
-        <section class="pd-card" style="overflow:hidden">
+        <section class="pd-card pd-list-sec" style="overflow:hidden">
             <div class="pd-filters" id="pd-filters">
                 <input type="search" id="pd-q" class="pd-search" placeholder="품목코드·상품코드·상품명·바코드" value="${esc(F.q)}" aria-label="검색">
                 <span id="pd-chips" style="display:contents">${chipsHtml()}</span>
@@ -334,18 +371,34 @@ export function renderList(main) {
             </div>
             <div class="pd-scroll pd-list-scroll"><table class="pd-t" style="min-width:${S.isAdmin ? 1280 : 900}px">
                 <thead id="pd-thead">${theadHtml()}</thead>
-                <tbody id="pd-tbody"></tbody></table></div>
-            <div class="pd-foot"><span>행을 누르면 상세가 열립니다. 위치·수량은 로케이션관리 기준(평일 아침 요약)입니다.</span>
+                <tbody id="pd-tbody"></tbody></table><div id="pd-cards" class="pd-cards"></div></div>
+            <div class="pd-foot"><span>상품을 누르면 상세가 열립니다. 위치·수량은 로케이션관리 기준(평일 아침 요약)입니다.</span>
                 <span class="pd-pager"><label class="pd-pagesize">보기 <select class="pd-select" id="pd-size" aria-label="한 쪽에 보일 상품 수">${PAGE_SIZES.map(v => `<option value="${v}" ${String(F.size) === String(v) ? 'selected' : ''}>${v === 'all' ? '전체' : v + '개씩'}</option>`).join('')}</select></label><button class="d-btn d-btn-sm" id="pd-prev">이전</button><span id="pd-pageno" class="num"></span><button class="d-btn d-btn-sm" id="pd-next">다음</button></span></div>
         </section>`;
     let rows = filtered();
+    // 스크롤 대상 — 카드 보기는 상자 높이 제한을 풀고(css) 페이지 하나로 스크롤한다
+    const pageEl = () => document.scrollingElement || document.documentElement;
+    const getScroll = () => isCardView() ? pageEl().scrollTop : main.querySelector('.pd-list-scroll').scrollTop;
+    const toListTop = () => {
+        if (!isCardView()) { main.querySelector('.pd-list-scroll').scrollTop = 0; return; }
+        // 카드: 목록 칸 머리(검색줄)가 공통 상단바 바로 아래 오게 — 이미 그 위에 있으면 그대로
+        const bar = parseFloat(getComputedStyle(main).getPropertyValue('--as-h')) || 0;
+        const top = main.querySelector('.pd-list-sec').getBoundingClientRect().top + pageEl().scrollTop - bar - 8;
+        if (pageEl().scrollTop > top) pageEl().scrollTop = Math.max(0, top);
+    };
     const draw = () => {
         const PAGE = F.size === 'all' ? Math.max(1, rows.length) : F.size;
         const pages = Math.max(1, Math.ceil(rows.length / PAGE));
         F.page = Math.min(F.page, pages - 1);
         const from = F.page * PAGE;
-        main.querySelector('#pd-tbody').innerHTML = rows.slice(from, from + PAGE).map(([pid, p]) => rowHtml(pid, p)).join('')
+        const page = rows.slice(from, from + PAGE);
+        // 보이는 쪽만 그리고 다른 쪽은 비운다(전체 보기에서 DOM 이 두 벌이 되지 않게)
+        const cards = isCardView();
+        main.querySelector('.pd-list-sec').classList.toggle('is-cards', cards);
+        main.querySelector('#pd-tbody').innerHTML = cards ? '' : page.map(([pid, p]) => rowHtml(pid, p)).join('')
             || `<tr><td colspan="${S.isAdmin ? 11 : 7}" class="pd-empty">조건에 맞는 상품이 없습니다</td></tr>`;
+        main.querySelector('#pd-cards').innerHTML = !cards ? '' : page.map(([pid, p]) => cardHtml(pid, p)).join('')
+            || '<div class="pd-empty">조건에 맞는 상품이 없습니다</div>';
         main.querySelector('#pd-count').textContent = rows.length ? `${rows.length.toLocaleString()}개 중 ${from + 1}–${Math.min(from + PAGE, rows.length)}` : '0개';
         main.querySelector('#pd-pageno').textContent = `${F.page + 1} / ${pages}`;
         main.querySelector('#pd-prev').disabled = F.page <= 0;
@@ -356,7 +409,7 @@ export function renderList(main) {
         if (chips) main.querySelector('#pd-chips').innerHTML = chipsHtml();
         main.querySelector('#pd-thead').innerHTML = theadHtml();
         draw();
-        main.querySelector('.pd-list-scroll').scrollTop = 0;   // 새 결과는 맨 위부터
+        toListTop();   // 새 결과는 맨 위부터
     };
     closeColPop();
     main.querySelector('#pd-thead').addEventListener('click', (e) => {
@@ -375,9 +428,24 @@ export function renderList(main) {
         }
     });
     window.addEventListener('hashchange', closeColPop, { once: true });
+    // 표 ↔ 카드 전환(회전·창 크기) — 이 목록이 아직 화면에 있을 때만, 같은 쪽을 다시 그린다
+    let lastCards = isCardView();
+    curDraw = () => {
+        const sc = main.querySelector('.pd-list-scroll');
+        if (!sc || !sc.isConnected) { curDraw = null; return; }
+        if (isCardView() === lastCards) return;
+        lastCards = isCardView();
+        closeColPop();
+        main.querySelector('#pd-chips').innerHTML = chipsHtml();   // 해제 칩 문구·정렬 칸
+        draw();
+        sc.scrollTop = 0;
+    };
     draw();
     if (listScrollTop !== null) {
-        main.querySelector('.pd-list-scroll').scrollTop = listScrollTop;
+        if (listScrollTop.cards === isCardView()) {
+            if (listScrollTop.cards) pageEl().scrollTop = listScrollTop.y;
+            else main.querySelector('.pd-list-scroll').scrollTop = listScrollTop.y;
+        }
         listScrollTop = null;
     }
     let t = null;
@@ -398,6 +466,12 @@ export function renderList(main) {
     });
     main.querySelector('#pd-filters').addEventListener('change', (e) => {
         const s = e.target.closest('select'); if (!s) return;
+        if (s.dataset.cardsort) {
+            const [k, d] = s.value.split(':');
+            F.sort = k ? { key: k, dir: Number(d) > 0 ? 1 : -1 } : null;
+            redo();
+            return;
+        }
         F[s.dataset.sel] = s.value; redo();
     });
     main.querySelector('#pd-sum').addEventListener('click', (e) => {
@@ -414,17 +488,19 @@ export function renderList(main) {
         F.size = v; savePageSize(v);
         F.page = v === 'all' ? 0 : Math.floor(first / v);
         draw();
-        main.querySelector('.pd-list-scroll').scrollTop = 0;
+        toListTop();
     });
-    main.querySelector('#pd-prev').addEventListener('click', () => { F.page--; draw(); main.querySelector('.pd-list-scroll').scrollTop = 0; });
-    main.querySelector('#pd-next').addEventListener('click', () => { F.page++; draw(); main.querySelector('.pd-list-scroll').scrollTop = 0; });
-    const open = (tr) => {
-        if (!tr) return;
-        listScrollTop = main.querySelector('.pd-list-scroll').scrollTop;
-        location.hash = 'p=' + encodeURIComponent(tr.dataset.pid);
+    main.querySelector('#pd-prev').addEventListener('click', () => { F.page--; draw(); toListTop(); });
+    main.querySelector('#pd-next').addEventListener('click', () => { F.page++; draw(); toListTop(); });
+    const open = (el) => {
+        if (!el) return;
+        listScrollTop = { cards: isCardView(), y: getScroll() };
+        location.hash = 'p=' + encodeURIComponent(el.dataset.pid);
     };
     main.querySelector('#pd-tbody').addEventListener('click', (e) => open(e.target.closest('tr[data-pid]')));
     main.querySelector('#pd-tbody').addEventListener('keydown', (e) => { if (e.key === 'Enter') open(e.target.closest('tr[data-pid]')); });
+    // 카드는 <button> 이라 Enter·Space 도 click 으로 온다
+    main.querySelector('#pd-cards').addEventListener('click', (e) => open(e.target.closest('.pd-pcard[data-pid]')));
 }
 
 /** 기본정보 현재 값 엑셀(양식과 같은 열) — 원가는 넣지 않는다 */
