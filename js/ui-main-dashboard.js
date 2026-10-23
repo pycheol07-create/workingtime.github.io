@@ -1,12 +1,15 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610230901';
-import * as State from './state.js?v=202610230901';
-import { getRegularMembersForCount } from './utils.js?v=202610230901';
-import { visibleMenuFor } from './menu-catalog.js?v=202610230901';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610230901';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610230901';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610230901';
-import { canonicalTaskName } from './lib/task-ids.js?v=202610230901';
+import { getAllDashboardDefinitions } from './ui.js?v=202610230956';
+import * as State from './state.js?v=202610230956';
+import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202610230956';
+import { visibleMenuFor } from './menu-catalog.js?v=202610230956';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610230956';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610230956';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610230956';
+import { canonicalTaskName } from './lib/task-ids.js?v=202610230956';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610230956';
+import { minToHhmm } from './forecast-progress.js?v=202610230956';
+import { taskPace, combinePace, expectedRatio, rowsForDashboard } from './lib/task-pace.js?v=202610230956';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -194,7 +197,11 @@ export const renderDashboardLayout = (appConfig) => {
         </div>
         ${HERO_ITEMS.map(h => `<div class="personnel-detail hidden" data-detail-content="${h.key}"></div>`).join('')}
     `;
-    let workloadHtml = '';
+    // 맨 위 '처리량 미입력 N개' — 0개면 숨긴다(paintWorkloadPace 가 채운다). 지난 그림을 그대로 넣어 깜빡이지 않게 한다.
+    let workloadHtml = `
+        <button type="button" id="wl-missing" class="wl-missing${paceMissingLast ? '' : ' hidden'}"${paceMissingLast?.disabled ? ' disabled' : ''}
+                title="${paceMissingLast ? escapeHtml(paceMissingLast.title) : ''}">${paceMissingLast ? paceMissingLast.html : ''}</button>
+    `;
 
     itemIds.forEach(id => {
         const def = allDefinitions[id];
@@ -206,10 +213,14 @@ export const renderDashboardLayout = (appConfig) => {
         const safeTitle = def.title.replace(/<br\s*\/?>/gi, ' ').replace(/ /g, '&nbsp;');
 
         if (isQuantity) {
+            // 숫자 줄 아래에 진행률·종료 예상 칸(wl-pace-*). 안쪽은 paintWorkloadPace 가 갈아끼운다.
             workloadHtml += `
-                <div class="d-kv d-kv-lg overflow-hidden">
-                    <span class="d-kv-label whitespace-nowrap shrink-0 break-keep">${safeTitle}</span>
-                    <span id="${def.valueId}" class="d-kv-val shrink-0">0</span>
+                <div class="d-kv d-kv-lg is-x">
+                    <div class="d-kv-line">
+                        <span class="d-kv-label whitespace-nowrap shrink-0 break-keep">${safeTitle}</span>
+                        <span id="${def.valueId}" class="d-kv-val shrink-0">0</span>
+                    </div>
+                    <div id="wl-pace-${id}" class="wl-pace">${paceHtmlLast[id] || ''}</div>
                 </div>
             `;
         } else if (EXPANDABLE_ITEMS.has(id)) {
@@ -346,6 +357,10 @@ export const updateSummary = (appState, appConfig) => {
         }
     }
 
+    // 진행률·종료 예상·미입력 — 실패해도 위 숫자 줄은 그대로 둔다
+    try { paintWorkloadPace(appState, appConfig, qtyByTask); }
+    catch (e) { console.warn('[처리량 카드] 진행률 그리기 실패:', e); }
+
     updateEzadminDisplay();
     renderNoticeWidget(appState);
     renderSuppliesAlert();     // 비품 발주 알림 — 받아 둔 값으로만 다시 그린다(날짜가 바뀌면 남은 날이 준다)
@@ -354,6 +369,190 @@ export const updateSummary = (appState, appConfig) => {
     lastPersonnelDetail = buildPersonnelDetailData(appState, appConfig);
     paintPersonnelDetailContainers(lastPersonnelDetail);
     setupPersonnelInteractions();
+};
+
+// ───────────────────────────────────────────────────────────
+// 오늘 업무 처리량 — 계획 대비 진행률 · 남은 시간 · 예상 종료 · 처리량 미입력
+//  계산은 js/lib/task-pace.js, 재료(계획·UPH·인원·정시)는 ui-history-prediction.js getTodayTaskPaceInputs.
+//  업무 예상 모듈은 무겁고(대시보드에서는 '오늘 진행' 띠가 이미 싣는다) 이 파일과 import 가 돌고 돌아서,
+//  필요할 때 import() 로 가져온다. updateSummary 는 상태가 바뀔 때마다 불리므로 3초에 한 번만 그린다.
+// ───────────────────────────────────────────────────────────
+const PACE_MIN_GAP_MS = 3000;
+let paceMod = null, paceModLoading = false;
+let paceLastAt = 0, paceTimer = null, paceArgs = null;
+let paceRetryTimer = null, paceRetries = 0;   // 이력이 아직 안 실렸을 때 다시 그려 보기(최대 2분)
+const paceHtmlLast = {};          // 칸 id → 마지막 html (레이아웃을 다시 그려도 같은 그림으로 시작 — 깜빡임 방지)
+let paceMissingLast = null;       // { html, title, disabled } / null = 숨김
+
+const paceFmtMin = (m) => formatHM((Number(m) || 0) / 60);
+
+/** 처리량 입력창을 여는 사이드바 버튼(PC·휴대폰 중 문서에 붙어 있는 것) */
+const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-today-mobile']
+    .map(id => document.getElementById(id)).find(el => el && el.isConnected) || null;
+
+/** '처리량 미입력 N개' → 기존 오늘 처리량 입력창.
+ *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
+const openQuantityFromCard = async () => {
+    try {
+        const { whenTodayLoaded } = await import('./app-sync.js?v=202610230956');
+        const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
+        if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
+    } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
+    const btn = quantityOpener();
+    if (btn) btn.click();
+};
+
+// 카드 칸(#summary-workload)은 레이아웃을 다시 그려도 그대로 남는다 — 클릭은 한 번만 위임해 둔다
+const bindWorkloadClicks = (container) => {
+    if (!container || container.dataset.wlBound) return;
+    container.dataset.wlBound = '1';
+    container.addEventListener('click', (e) => {
+        const b = e.target.closest && e.target.closest('#wl-missing');
+        if (b && !b.disabled) openQuantityFromCard();
+    });
+};
+
+const paceStateText = (p) => {
+    if (p.state === 'done') return p.ended ? '완료' : '계획 달성';
+    if (p.state === 'stopped') return p.remainQty > 0 ? `멈춤 · 남은 ${p.remainQty.toLocaleString()}` : '멈춤 · 처리량 입력 전';
+    if (p.state === 'noPlan') return '오늘 계획 없음';
+    if (p.state === 'noUph') return '기준 속도 없음';
+    if (p.state === 'noWorker') return '진행 인원 없음';
+    if (p.remainQty <= 0) return `계획량 도달(추정) · ${p.working}명 진행`;   // 어림값이 계획에 닿음 — 입력 전이라 완료 아님
+    let s = `남은 ${paceFmtMin(p.remainMin)} · ${p.working}명 진행 · 종료 ${minToHhmm(p.finishMin)}`;
+    if (p.overMin > 0) s += ` <span class="t-risk">(정시 +${paceFmtMin(p.overMin)})</span>`;
+    if (p.cannotMeet) s += ` · <span class="t-risk">정시 마감 어려움</span>`;
+    else if (p.extraWorkers > 0) s += ` · <span class="t-warn">+${p.extraWorkers}명 있으면 정시</span>`;
+    return s;
+};
+
+/** 한 칸의 안쪽 html. 연결 업무가 없거나 재료가 없으면 '' (지금처럼 숫자만). */
+const paceRowHtml = (row, inp, expected, qtyByTask) => {
+    if (row.kind === 'none' || !inp) return '';
+    const paces = row.tasks.map(task => {
+        const t = inp.tasks[task] || { planQty: 0, uph: 0, working: 0, spentHours: 0, activeHours: 0, started: false, ended: false };
+        const p = taskPace({
+            planQty: t.planQty, doneQty: Number(qtyByTask[task]) || 0, uph: t.uph, working: t.working,
+            spentHours: t.spentHours, activeHours: t.activeHours, nowMin: inp.nowMin, baseFinishMin: inp.baseFinishMin,
+            skipLunch: inp.skipLunch, expected, available: inp.available, started: t.started, ended: t.ended
+        });
+        return { ...p, working: t.working, ended: t.ended, task };
+    });
+
+    const src = inp.planSrc === 'snap'
+        ? '<span class="wl-src" title="오늘 얼려 둔 계획 기준">확정</span>'
+        : '<span class="wl-src" title="얼려 둔 계획이 없어 지금 자동 계산한 계획 기준">자동</span>';
+
+    let p, meta, title;
+    if (row.kind === 'single') {
+        p = paces[0];
+        meta = paceStateText(p);
+        title = `${p.task} · 계획 ${p.planQty.toLocaleString()} · 실적 ${p.shownQty.toLocaleString()}`
+              + (p.estimated ? ' (추정: 오늘 쓴 시간 × 기준 속도가 입력된 처리량보다 큼 — 처리량은 업무를 끝낸 뒤 입력합니다)' : '');
+    } else {
+        p = combinePace(paces, expected);
+        meta = p.state === 'noPlan' ? '오늘 계획 없음' : `업무 ${paces.length}개 합계${p.state === 'done' ? ' · 완료' : ''}`;
+        title = paces.map(x => `${x.task} ${x.shownQty.toLocaleString()} / ${x.planQty.toLocaleString()}${x.estimated ? ' (추정)' : ''}`).join('\n');
+    }
+
+    if (p.state === 'noPlan') {
+        return `<div class="wl-meta"><span class="t-3">${meta}</span>${src}</div>`;
+    }
+    const tone = p.tone === 'risk' ? ' is-risk' : p.tone === 'warn' ? ' is-warn' : '';
+    const est = p.estimated ? ' is-est' : '';
+    const pctTone = p.tone === 'risk' ? 't-risk' : p.tone === 'warn' ? 't-warn' : 't-2';
+    return `
+        <div class="wl-bar-line" title="${escapeHtml(title)}">
+            <div class="tp-track wl-track"><div class="tp-bar wl-bar${tone}${est}" style="width:${p.barPct}%"></div></div>
+            <span class="wl-pct ${pctTone}">${p.estimated ? '<span class="wl-est">추정</span>' : ''}${p.pct == null ? '–' : p.pct + '%'}</span>
+        </div>
+        <div class="wl-meta"><span class="t-3">${meta}</span>${src}</div>`;
+};
+
+/** 미입력 줄 그림 — { html, title, disabled } / 0개면 null.
+ *  끝난(시간이 잡힌) 처리량 업무 중 처리량이 0 이고 '0 확정' 도 아닌 것 — 데이터관리·마감 미리보기와 같은 판정. */
+const missingLineOf = (appState, appConfig, qtyByTask) => {
+    const canon = (t) => canonicalTaskName(t, appConfig);
+    const list = checkMissingQuantities({
+        workRecords: (appState.workRecords || []).map(r => (r && r.task) ? { ...r, task: canon(r.task) } : r),
+        taskQuantities: qtyByTask,
+        confirmedZeroTasks: (appState.confirmedZeroTasks || []).map(canon)
+    });
+    if (!list.length) return null;
+    const opener = quantityOpener();
+    return {
+        html: `처리량 미입력 <b>${list.length}개</b>${opener ? '<span class="wl-missing-go">입력하기</span>' : ''}`,
+        title: `끝난 업무 중 처리량이 없는 것: ${list.join(', ')}`,
+        disabled: !opener
+    };
+};
+
+const paintWorkloadPaceNow = () => {
+    const container = document.getElementById('summary-workload');
+    if (!container || !paceArgs) return;
+    const { appState, appConfig, qtyByTask } = paceArgs;
+    bindWorkloadClicks(container);
+
+    // ① 미입력 줄
+    const miss = missingLineOf(appState, appConfig, qtyByTask);
+    paceMissingLast = miss;
+    const mb = document.getElementById('wl-missing');
+    if (mb) {
+        mb.classList.toggle('hidden', !miss);
+        if (miss) {
+            if (mb.innerHTML !== miss.html) mb.innerHTML = miss.html;
+            mb.title = miss.title;
+            mb.disabled = !!miss.disabled;
+        }
+    }
+
+    // ② 업무별 진행 — 재료(업무 예상 모듈)가 아직 없으면 실어 온 뒤 다시 그린다
+    if (!paceMod) {
+        if (!paceModLoading) {
+            paceModLoading = true;
+            import('./ui-history-prediction.js?v=202610230956')
+                .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
+                .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
+                .finally(() => { paceModLoading = false; });
+        }
+        return;
+    }
+    const inp = paceMod.getTodayTaskPaceInputs();
+    const expected = inp ? expectedRatio(inp) : 0;
+    // 재료가 아직 없다(로그인 직후 이력 로딩 중) — 다음 30초 갱신을 기다리지 않고 3초 뒤 다시 본다
+    if (!inp && paceRetries < 40 && !paceRetryTimer) {
+        paceRetries++;
+        paceRetryTimer = setTimeout(() => { paceRetryTimer = null; schedulePace(); }, PACE_MIN_GAP_MS);
+    }
+    if (inp) paceRetries = 0;
+    // 🆔 옛 이름으로 남은 연결도 지금 이름으로 본다(숫자 줄과 같은 규칙)
+    const map = {};
+    Object.entries(appConfig.quantityToDashboardMap || {}).forEach(([task, id]) => { map[canonicalTaskName(task, appConfig)] = id; });
+    rowsForDashboard(appConfig.dashboardItems || [], getAllDashboardDefinitions(appConfig), map).forEach(row => {
+        const el = document.getElementById(`wl-pace-${row.id}`);
+        if (!el) return;
+        const html = paceRowHtml(row, inp, expected, qtyByTask);
+        paceHtmlLast[row.id] = html;
+        if (el.innerHTML !== html) el.innerHTML = html;     // 같은 그림이면 건드리지 않는다(깜빡임 방지)
+    });
+};
+
+const schedulePace = () => {
+    const wait = PACE_MIN_GAP_MS - (Date.now() - paceLastAt);
+    if (wait <= 0) {
+        clearTimeout(paceTimer); paceTimer = null;
+        paceLastAt = Date.now();
+        try { paintWorkloadPaceNow(); } catch (e) { console.warn('[처리량 카드] 진행률 그리기 실패:', e); }
+        return;
+    }
+    if (!paceTimer) paceTimer = setTimeout(() => { paceTimer = null; schedulePace(); }, wait);
+};
+
+/** updateSummary 가 숫자를 채운 직후 부른다. 가장 최근 값으로 3초에 한 번만 그린다. */
+const paintWorkloadPace = (appState, appConfig, qtyByTask) => {
+    if (!document.getElementById('summary-workload')) return;   // 데이터관리 등 카드가 없는 화면
+    paceArgs = { appState, appConfig, qtyByTask };
+    schedulePace();
 };
 
 // ───────────────────────────────────────────────────────────

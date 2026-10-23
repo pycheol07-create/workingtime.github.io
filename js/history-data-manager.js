@@ -1,16 +1,16 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610230901';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610230901';
-import { clampOpenRecords } from './lib/record-close.js?v=202610230901';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610230901';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610230901';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610230901';
-import { can } from './lib/perm.js?v=202610230901';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610230901';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610230901';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610230901';
+import * as State from './state.js?v=202610230956';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610230956';
+import { clampOpenRecords } from './lib/record-close.js?v=202610230956';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610230956';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610230956';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610230956';
+import { can } from './lib/perm.js?v=202610230956';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610230956';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610230956';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610230956';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610230901';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610230956';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -353,6 +353,26 @@ export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZe
         showToast('예정 물량 저장 실패: ' + (e.message || e), true);
         return false;
     }
+}
+
+/** 예정 물량 로컬 사본(State.plannedData + 10분 캐시)에 한 날짜를 넣거나(rec) 뺀다(null).
+ *  데이터관리 화면의 실시간 구독·입력창 자동 저장(js/planned-autosave.js)이 쓴다 — 캐시 키를 여기 한 곳에 둔다. */
+export function putPlannedLocal(dateStr, rec) {
+    if (!dateStr) return;
+    const list = State.plannedData || [];
+    const idx = list.findIndex(d => d.id === dateStr);
+    if (rec) {
+        const r = { ...rec, id: dateStr };
+        if (idx > -1) list[idx] = r;
+        else { list.push(r); list.sort((a, b) => a.id.localeCompare(b.id)); }
+    } else if (idx > -1) {
+        list.splice(idx, 1);
+    }
+    if (list !== State.plannedData) State.setPlannedData(list);
+    try {
+        localStorage.setItem(PLANNED_CACHE_KEY, JSON.stringify(State.plannedData));
+        localStorage.setItem(PLANNED_CACHE_TIME_KEY, Date.now().toString());
+    } catch (_) {}
 }
 
 export const getWorkRecordsCollectionRef = () => {

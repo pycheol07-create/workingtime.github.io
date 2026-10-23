@@ -1,16 +1,18 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610230901';
-import * as State from './state.js?v=202610230901';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610230901';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610230901';
+import * as DOM from './dom-elements.js?v=202610230956';
+import * as State from './state.js?v=202610230956';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610230956';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610230956';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory, historyLoadFailed,
-         fetchPlannedData, getPlannedQuantitiesForDate, savePlannedQuantities, getUpcomingPlannedDateStrings, clearLocalCache } from './history-data-manager.js?v=202610230901';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610230901';
-import { renderQuantityModalInputs } from './ui.js?v=202610230901';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610230901';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610230901';
+         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache } from './history-data-manager.js?v=202610230956';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610230956';
+import { historyDotState } from './lib/history-dot.js?v=202610230956';
+import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=202610230956';
+import { renderQuantityModalInputs } from './ui.js?v=202610230956';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610230956';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610230956';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -50,8 +52,8 @@ export const retryHistoryLoad = async () => {
         await loadAndRenderHistoryList();
         if (historyLoadFailed()) return;   // 또 실패 — 오류 화면은 그대로
         clearPanelLoadErrors();
-        const { sectionIdFor } = await import('./history-sections.js?v=202610230901');
-        const { showSection } = await import('./listeners-history-tabs.js?v=202610230901');
+        const { sectionIdFor } = await import('./history-sections.js?v=202610230956');
+        const { showSection } = await import('./listeners-history-tabs.js?v=202610230956');
         await showSection(sectionIdFor(prevMain, prevSub) || 'insight');
     } catch (e) {
         console.error('이력 다시 시도 실패:', e);
@@ -121,6 +123,9 @@ export const loadAndRenderHistoryList = async () => {
 
     // 📅 예정 물량(미래 7일) 로드 — 목록 상단 '예정' 그룹 + 예측 연동에 사용
     try { await fetchPlannedData(); } catch (e) { console.warn('예정 물량 로드 건너뜀:', e); }
+    // 화면에 있는 동안 실시간 구독 — 다른 PC·탭이 넣은 예정 물량이 10분 캐시를 기다리지 않고 남색 점으로 보인다
+    startPlannedLive(refreshPlannedGroup);
+    watchHistoryClose();
 
     // 🩺 마감 누락 자동 복구: history가 빈 최근 날을 daily_data에서 자동으로 되살림(실패해도 목록 렌더는 계속)
     try { await selfHealRecentHistory(); } catch (e) { console.warn('selfHeal 건너뜀:', e); }
@@ -195,7 +200,7 @@ const buildPlannedGroupHtml = () => {
             </li>`;
     }).join('');
     return `
-        <li class="mb-2">
+        <li class="mb-2 planned-group">
             <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 shrink-0">
                 <div class="flex items-center gap-2 shrink-0">
                     <span class="font-bold text-[14px] text-indigo-700 dark:text-indigo-300 whitespace-nowrap tracking-tight shrink-0">예정 물량 (미래 7일)</span>
@@ -208,11 +213,68 @@ const buildPlannedGroupHtml = () => {
         </li>`;
 };
 
+// 아코디언(묶음 머리글) 열고 닫기
+function onAccordionToggle() {
+    const content = this.nextElementSibling;
+    const icon = this.querySelector('svg');
+    const folderIcon = this.querySelector('.folder-icon');
+
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.classList.add('rotate-180');
+        if(folderIcon) folderIcon.textContent = '📂';
+    } else {
+        content.classList.add('hidden');
+        icon.classList.remove('rotate-180');
+        if(folderIcon) folderIcon.textContent = '📁';
+    }
+}
+
+const bindPlannedButtons = (root) => {
+    root.querySelectorAll('.planned-date-btn').forEach(btn => {
+        btn.addEventListener('click', () => openPlannedQuantityModal(btn.dataset.key));
+    });
+};
+
+// 📅 '예정 물량' 묶음만 다시 그린다 — 실시간 구독·자동 저장 뒤. 목록 전체를 다시 그리지 않으므로
+//    보던 날짜(선택)·스크롤·다른 묶음의 열림 상태가 그대로다. 열림/닫힘은 지금 상태를 이어받는다.
+const refreshPlannedGroup = () => {
+    const list = DOM.historyDateList;
+    const old = list && list.querySelector(':scope > li.planned-group');
+    if (!old) return;
+    const holder = document.createElement('ul');
+    holder.innerHTML = buildPlannedGroupHtml().trim();
+    const fresh = holder.firstElementChild;
+    if (!fresh) return;
+    const wasOpen = !old.querySelector('.accordion-content')?.classList.contains('hidden');
+    if (!wasOpen) {
+        fresh.querySelector('.accordion-content')?.classList.add('hidden');
+        fresh.querySelector('.accordion-toggle svg')?.classList.remove('rotate-180');
+    }
+    if (fresh.innerHTML === old.innerHTML) return;   // 바뀐 것 없음(내 저장의 구독 알림 등)
+    fresh.querySelector('.accordion-toggle')?.addEventListener('click', onAccordionToggle);
+    bindPlannedButtons(fresh);
+    old.replaceWith(fresh);
+};
+
+// 데이터관리가 대시보드 안의 창(#history-modal)으로 열렸다 닫히면 구독을 끝낸다.
+// history.html 에서는 이 창이 화면 본체라 닫히지 않는다 — 그때는 페이지를 떠날 때(pagehide) 끝난다(planned-autosave.js).
+let historyCloseObserver = null;
+const watchHistoryClose = () => {
+    const hm = DOM.historyModal;
+    if (historyCloseObserver || !hm || typeof MutationObserver !== 'function') return;
+    historyCloseObserver = new MutationObserver(() => {
+        if (hm.classList.contains('hidden')) stopPlannedLive();
+    });
+    historyCloseObserver.observe(hm, { attributes: true, attributeFilter: ['class'] });
+};
+
 // 📅 예정 물량 입력 모달 (기존 처리량 모달 재사용, 저장은 plannedData로)
+//    [저장] 없이 고친 칸만 약 1초 뒤 자동 저장한다(js/planned-autosave.js). 아래 버튼은 [닫기] — 남은 저장을 보내고 닫는다.
 export const openPlannedQuantityModal = async (dateStr) => {
     if (!dateStr) return;
-    // 입고일 국내배송에 미발이 더해진다 — 이력을 읽기 전에 채우면 미발 없는 값이 '예정 물량'으로
-    // 저장돼(이 모달은 모든 칸을 저장한다) 그날 미발 가산이 영영 사라진다.
+    // 입고일 국내배송에 미발이 더해진다 — 이력을 읽기 전에 채우면 미발 없는 값이 칸에 깔리고,
+    // 그 칸을 고치면 미발 없는 값 기준으로 저장된다.
     let 미발읽음 = false;
     try { 미발읽음 = await ensureMibalHistory(); } catch (e) {}
     const allTasks = getAllTaskKeys(State.appConfig);
@@ -223,7 +285,7 @@ export const openPlannedQuantityModal = async (dateStr) => {
     const auto = getAutoQuantitiesForDate(dateStr);
     const saved = getPlannedQuantitiesForDate(dateStr);
     // 📤 직진·에이블리 전송값은 저장값보다 앞선다 — 실제 계산에 쓰이는 값을 보여 주되 **표시만** 한다.
-    //    그 칸은 읽기 전용이고, 저장할 때는 원래 저장값을 그대로 다시 싣는다(아래 onConfirm).
+    //    그 칸은 읽기 전용이고 자동 저장하지 않는다 — 원래 저장값은 그대로 남는다.
     let transmit = {};
     try { transmit = getTransmitQuantitiesForDate(dateStr) || {}; } catch (e) { transmit = {}; }
     const transmitVals = Object.fromEntries(Object.entries(transmit).map(([k, v]) => [k, v.value]));
@@ -256,27 +318,50 @@ export const openPlannedQuantityModal = async (dateStr) => {
 
     const hint = document.getElementById('planned-auto-hint');
     if (hint) {
-        hint.textContent = '자동 추정값(국내배송=AI 예측 + 입고일엔 미발수량 · 중국제작=입고일정 · 그 외=지난 7회 업무량 평균)이 미리 채워져 있습니다. 값을 고쳐 저장하면 업무 예상 시뮬레이션에도 그대로 적용됩니다.'
-            + (미발읽음 ? '' : ' 미발수량 이력을 불러오지 못해 국내배송에 미발수량이 빠졌을 수 있습니다 — 중국 입고일이면 저장 전에 국내배송 값을 확인하세요.');
+        hint.textContent = '자동 추정값(국내배송=AI 예측 + 입고일엔 미발수량 · 중국제작=입고일정 · 그 외=지난 7회 업무량 평균)이 미리 채워져 있습니다. 칸에 숫자를 치면 [저장] 없이 그 칸만 바로 저장되고(약 1초 뒤), 업무 예상 시뮬레이션에도 그대로 적용됩니다(자동 추정값을 그대로 다시 쳐도 그 값으로 고정). 0 을 넣으면 그 날 그 업무는 0 으로 저장되고, 칸을 비우면 저장값을 지우고 자동 추정값으로 돌아갑니다.'
+            + (미발읽음 ? '' : ' 미발수량 이력을 불러오지 못해 국내배송에 미발수량이 빠졌을 수 있습니다 — 중국 입고일이면 고치기 전에 국내배송 값을 확인하세요.');
         hint.classList.remove('hidden');
     }
 
     State.context.quantityModalContext.mode = 'planned';
     State.context.quantityModalContext.dateKey = dateStr;
-    State.context.quantityModalContext.onConfirm = async (newQuantities) => {
-        // 📤 전송값 칸은 화면 숫자를 저장하지 않는다 — 원래 저장값을 그대로 싣고, 없으면 키를 뺀다.
-        //    savePlannedQuantities 는 plannedQuantities 를 통째로 바꾸므로 키를 빼면 '저장값 없음' 이 된다
-        //    (원래 없던 키라 지워지는 것은 없다).
-        const toSave = { ...(newQuantities || {}) };
-        Object.keys(transmit).forEach(k => {
-            if (saved && Object.prototype.hasOwnProperty.call(saved, k)) toSave[k] = saved[k];
-            else delete toSave[k];
-        });
-        await savePlannedQuantities(dateStr, toSave);
-        // 좌측 목록의 예정 그룹 갱신
-        try { await renderHistoryDateListByMode(State.context.globalGranularity || 'day', State.context.selectedHistoryDate || null); } catch (_) {}
+    // [닫기] — 남은 자동 저장을 바로 보내고, 실패·숫자 오류면 창을 닫지 않는다(listeners-form-quantity.js 가 false 를 본다).
+    //   📤 전송값 칸은 읽기 전용이라 자동 저장 대상이 아니다 — 그 업무의 기존 저장값은 그대로 남는다.
+    State.context.quantityModalContext.onConfirm = async () => {
+        const r = await flushPlannedAutosave();
+        if (r === 'ok') return true;
+        showToast(r === 'invalid' ? '0 이상 정수만 저장됩니다 — 빨간 칸을 고쳐 주세요.'
+            : r === 'timeout' ? '저장이 늦어지고 있습니다(연결되면 자동 전송) — 확인하려면 [다시 시도]를 눌러 주세요.'
+            : '예정 물량을 저장하지 못했습니다 — [다시 시도]를 눌러 주세요.', true);
+        return false;
     };
     State.context.quantityModalContext.onCancel = () => {};
+
+    const cBtn = document.getElementById('confirm-quantity-btn');
+    const xBtn = document.getElementById('cancel-quantity-btn');
+    if (cBtn && !cBtn.disabled) cBtn.textContent = '닫기';
+    if (xBtn) xBtn.classList.add('hidden');   // 자동 저장이라 '취소'(되돌리기)가 없다 — 다른 모드는 renderQuantityModalInputs 가 다시 보인다
+
+    // 비교 기준 = 저장값만(전송값 칸 제외). 자동 추정값은 기준이 아니다 — 그 값을 그대로 다시 치면 고정 저장된다.
+    const savedBase = {};
+    Object.entries(saved || {}).forEach(([k, v]) => {
+        if (Object.prototype.hasOwnProperty.call(transmit, k)) return;
+        savedBase[k] = v;
+        // 0 으로 저장된 칸은 '0' 으로 보인다(renderQuantityModalInputs 는 0 을 빈칸으로 그린다 — 빈칸은 '저장값 없음' 이라 구별해야 한다)
+        if (Number(v) === 0) {
+            const input = document.getElementById(`modal-quantity-${k}`);
+            if (input && !input.readOnly) input.value = '0';
+        }
+    });
+
+    startPlannedAutosave({
+        dateStr,
+        container: document.getElementById('modal-task-quantity-inputs'),
+        statusEl: document.getElementById('planned-autosave-status'),
+        initial: savedBase,                    // 저장값 — 이것과 달라진 칸만 저장한다
+        skipTasks: Object.keys(transmit),
+        onSaved: refreshPlannedGroup
+    });
 
     const modalEl = document.getElementById('quantity-modal');
     if (modalEl) modalEl.classList.remove('hidden');
@@ -373,15 +458,21 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
 
                 groupItemKeys.forEach(key => {
                     let hasWarning = false;
+                    let hasQty = false;
                     let titleAttr = '';
 
                     if (mode === 'day') {
                         const dayData = filteredData.find(d => d.id === key);
                         if (dayData) {
                             const missingTasksList = checkMissingQuantities(dayData);
-                            hasWarning = missingTasksList.length > 0;
+                            // 점 색은 그 날 이력(서버 데이터) 기준 — 누락(빨강)이 우선, 처리량 입력 완료는 파랑(lib/history-dot.js)
+                            const dot = historyDotState(dayData, missingTasksList);
+                            hasWarning = dot === 'missing';
+                            hasQty = dot === 'done';
                             if (hasWarning) {
                                 titleAttr = ` title="처리량 누락: ${missingTasksList.join(', ')}"`;
+                            } else if (hasQty) {
+                                titleAttr = ' title="처리량 입력됨"';
                             }
                         }
                     }
@@ -395,9 +486,10 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                         displayKey = `${key}${dayStr}`;
                     }
 
+                    // 선택은 배경(is-on · bg-blue-100 — 날짜 클릭 처리 listeners-history.js 와 같은 이름)으로만 보인다. 점 색과 무관
                     const isSelected = key === selectedKey;
-                    const baseClass = isSelected 
-                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold' 
+                    const baseClass = isSelected
+                        ? 'is-on bg-blue-100 font-bold'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50';
 
                     // ✨ 수정 포인트: 좁은 영역에서도 날짜와 요일 텍스트가 줄바꿈되거나 잘리지 않도록 (shrink-0, whitespace-nowrap) 강력 적용
@@ -405,7 +497,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                     htmlContent += `
                         <li>
                             <button data-key="${key}" class="history-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 flex items-center gap-2 shrink-0 ${baseClass} ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}${isSelected ? ' aria-current="date"' : ''}>
-                                <span class="inline-block w-1.5 h-1.5 rounded-full ${hasWarning ? 'bg-red-500' : (isSelected ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600')} shrink-0"></span>
+                                <span class="inline-block w-1.5 h-1.5 rounded-full ${hasWarning ? 'bg-red-500' : (hasQty ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600')} shrink-0"></span>
                                 <span class="whitespace-nowrap tracking-tight shrink-0">${displayKey}</span>${hasWarning ? `
                                 <span class="text-[10px] font-bold text-red-600 shrink-0">누락</span>` : ''}
                             </button>
@@ -421,27 +513,11 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
             // 아코디언 토글 이벤트 부착
             const toggleBtns = DOM.historyDateList.querySelectorAll('.accordion-toggle');
             toggleBtns.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const content = this.nextElementSibling;
-                    const icon = this.querySelector('svg');
-                    const folderIcon = this.querySelector('.folder-icon');
-                    
-                    if (content.classList.contains('hidden')) {
-                        content.classList.remove('hidden');
-                        icon.classList.add('rotate-180');
-                        if(folderIcon) folderIcon.textContent = '📂';
-                    } else {
-                        content.classList.add('hidden');
-                        icon.classList.remove('rotate-180');
-                        if(folderIcon) folderIcon.textContent = '📁';
-                    }
-                });
+                btn.addEventListener('click', onAccordionToggle);
             });
 
             // 📅 예정 물량 날짜 클릭 → 예정 입력 모달
-            DOM.historyDateList.querySelectorAll('.planned-date-btn').forEach(btn => {
-                btn.addEventListener('click', () => openPlannedQuantityModal(btn.dataset.key));
-            });
+            bindPlannedButtons(DOM.historyDateList);
         }
 
         let targetBtn = null;

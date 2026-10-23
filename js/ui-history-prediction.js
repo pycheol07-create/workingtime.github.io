@@ -3,35 +3,35 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610230901';
+import { predictFutureTrends } from './analysis-logic.js?v=202610230956';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610230901';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610230901';
-import { runDay } from './lib/refill-view.js?v=202610230901';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610230901';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610230901';
-import * as State from './state.js?v=202610230901';
-import { saveView } from './view-state.js?v=202610230901';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610230901';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610230901';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610230956';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610230956';
+import { runDay } from './lib/refill-view.js?v=202610230956';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610230956';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610230956';
+import * as State from './state.js?v=202610230956';
+import { saveView } from './view-state.js?v=202610230956';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610230956';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610230956';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610230901';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610230956';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610230901';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610230901';
-import { computeDayProgress, buildProgressRows, projectFinish,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610230901';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610230901';
-import { taskUph, recentDays } from './task-throughput.js?v=202610230901';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610230956';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610230956';
+import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610230956';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610230956';
+import { taskUph, recentDays } from './task-throughput.js?v=202610230956';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610230901';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610230956';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610230901';
-import { D } from './d-chart.js?v=202610230901';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610230901';
+         excessOffDays } from './lib/backlog-carry.js?v=202610230956';
+import { D } from './d-chart.js?v=202610230956';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610230956';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -3632,6 +3632,7 @@ const saveSimQuantities = async () => {
     }
     const ok = await savePlannedQuantities(dateStr, merged,
         { keepZeros: true, timeTasks: mergedTime, excludeMinutes: excl > 0 ? excl : -1 });
+    forgetTodayStatus();
     if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
     if (!ok) return;
 
@@ -3676,6 +3677,7 @@ ${list}
         Object.keys(rest).forEach(k => { if (qtyNow.has(aliasTaskName(k, State.appConfig))) delete rest[k]; });
         Object.keys(restTime).forEach(k => { if (timeNow.has(aliasTaskName(k, State.appConfig))) delete restTime[k]; });
         const ok = await savePlannedQuantities(dateStr, rest, { keepZeros: true, timeTasks: restTime, excludeMinutes: -1 });
+        forgetTodayStatus();
         if (!ok) return;
     }
     // 자동값으로 되돌리는 것이므로 펼침 상태도 기본(접힘)으로 돌린다
@@ -3830,6 +3832,7 @@ const setupSimulationListeners = () => {
         if (btn) { btn.disabled = true; btn.textContent = '확정 중…'; }
         try {
             await saveForecastSnapshot(dateStr, buildForecastSnapshot(dateStr));
+            forgetTodayStatus();
             accuracySnapshots = null;              // 다음에 정확도 화면을 열 때 다시 읽는다
             updateSavedInfo(dateStr);
         } finally {
@@ -3847,6 +3850,7 @@ const setupSimulationListeners = () => {
         if (!dateStr) return;
         if (!confirm(`${dateStr} 계획 확정을 취소할까요?\n\n작업량 저장값과 계산은 그대로이고, 정확도 비교에서만 빠집니다.`)) return;
         await deleteForecastSnapshot(dateStr);
+        forgetTodayStatus();
         accuracySnapshots = null;
         updateSavedInfo(dateStr);
     });
@@ -3869,6 +3873,7 @@ const setupSimulationListeners = () => {
             const d = drop.dataset.date;
             if (!confirm(`${d}의 확정 계획을 지울까요?\n\n그날은 정확도 비교에서 빠집니다. 업무 기록과 실적은 그대로입니다.`)) return;
             if (await deleteForecastSnapshot(d)) {
+                forgetTodayStatus();
                 if (accuracySnapshots) delete accuracySnapshots[d];
                 renderAccuracyBody();
             }
@@ -4091,8 +4096,9 @@ const 점심반영할까 = (records, nowMin, weekend) => {
 const buildTodayPlan = () => {
     const today = getTodayDateString();
     const { inputs, linked } = inputsForSummaryDate(today);
-    const r = simulateOneDay(today, inputs, computeTaskUPHs(이력()), State.appConfig);
-    return { today, inputs, linked, r };
+    const taskUPH = computeTaskUPHs(이력());
+    const r = simulateOneDay(today, inputs, taskUPH, State.appConfig);
+    return { today, inputs, linked, r, taskUPH };
 };
 
 /** 계획 줄 — 시뮬레이션이 아는 업무는 계획이 0이어도 넣는다.
@@ -4114,13 +4120,39 @@ const planRowsOf = (r) => {
     return rows;
 };
 
-/** 오늘 현황 한 덩어리 계산 — 화면과 대시보드 띠가 같은 값을 쓰도록 한 곳에 모은다. */
+/** computeTodayStatus 메모 — 띠(1분)·대시보드 처리량 카드(30초)·오늘 현황 화면이 같은 분에 여러 번 부른다.
+ *  시뮬레이션·UPH 계산이 무거워서, 재료가 그대로면 같은 분 안에서는 한 번만 계산한다.
+ *  키: 날짜·분 + 이력·예정물량·업무기록·설정·시뮬 입력의 참조 + 오늘 스냅샷 유무 + 미발·전송·채우기 자료 참조.
+ *  예정물량·스냅샷을 제자리에서 고치는 저장 함수 뒤에는 forgetTodayStatus() 로 비운다. */
+let todayStatusMemo = null;   // { key: [...], value }
+const forgetTodayStatus = () => { todayStatusMemo = null; };
+const todayStatusKey = (today, nowStr) => [
+    // 이력 배열은 제자리 갱신된다(같은 참조) — 처음 실릴 때를 잡으려고 길이도 넣는다. 과거 날짜 정정은 다음 분에 반영.
+    today, nowStr, State.allHistoryData, (State.allHistoryData || []).length,
+    State.plannedData, (State.plannedData || []).length,
+    !!getForecastSnapshotForDate(today), State.appState?.workRecords, State.appConfig, simOverride,
+    mibalHistory, transmitByDate, refillDays
+];
+const sameKey = (a, b) => !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
+
+/** 오늘 현황 한 덩어리 계산 — 화면과 대시보드 띠가 같은 값을 쓰도록 한 곳에 모은다.
+ *  ⚠️ 돌려준 객체는 메모로 공유된다 — 받는 쪽에서 고치지 말 것. */
 const computeTodayStatus = () => {
+    const memoToday = getTodayDateString();
+    const memoNow = nowTimeString();
+    const key = todayStatusKey(memoToday, memoNow);
+    if (todayStatusMemo && sameKey(todayStatusMemo.key, key)) return todayStatusMemo.value;
+    const value = computeTodayStatusUncached();
+    todayStatusMemo = { key, value };
+    return value;
+};
+
+const computeTodayStatusUncached = () => {
     // 대시보드 띠처럼 '업무 예상' 탭을 거치지 않고 부르는 경로에서는 시간형 업무 목록이 비어 있다.
     // 비워 두면 담당 업무 시간이 계획에서 통째로 빠져 띠와 상세 화면의 숫자가 어긋난다.
     try { ensureSimLists(); } catch (e) {}
 
-    const { today, r, linked } = buildTodayPlan();
+    const { today, r, linked, taskUPH } = buildTodayPlan();
     const nowStr = nowTimeString();
     const nowMin = hhmmToMin(nowStr) ?? 0;
 
@@ -4145,7 +4177,7 @@ const computeTodayStatus = () => {
         skipLunch: 점심반영할까(기록들, nowMin, r.weekend)
     });
 
-    return { today, r, linked, nowStr, nowMin, progress, rows, planHours, spentHours, pct, fin };
+    return { today, r, linked, taskUPH, 기록들, nowStr, nowMin, progress, rows, planHours, spentHours, pct, fin };
 };
 
 /** 대시보드 띠가 쓰는 요약 (계산 결과가 없으면 null) */
@@ -4164,6 +4196,68 @@ export const getTodayProgressSummary = () => {
             diffMin: s.fin.diffMin
         };
     } catch (e) { console.warn('[forecast] 오늘 진행 요약 실패:', e); return null; }
+};
+
+/** 대시보드 '오늘 업무 처리량' 카드의 업무별 진행 재료(js/lib/task-pace.js 가 계산한다).
+ *  정시·점심 반영은 위 띠(getTodayProgressSummary)와 같은 projectFinish 결과를 그대로 쓴다.
+ *  계획 물량은 오늘 얼려 둔 계획(스냅샷)이 있으면 그것('snap'), 없으면 지금 자동값('auto').
+ *  반환: { planSrc, nowMin, startMin, baseFinishMin, skipLunch, available(오늘 가용 인원),
+ *          tasks: { [업무명]: { planQty, uph, working, paused, spentHours, activeHours, started, ended } } } / 자료가 없으면 null
+ *  activeHours = 지금 진행·정지 중인 기록이 쓴 인시(끝난 기록 몫은 입력된 처리량에 이미 들어 있다)
+ *  업무명은 지금 이름(옛 이름 기록은 aliasTaskName 으로 합친다). */
+export const getTodayTaskPaceInputs = () => {
+    try {
+        if (!(이력() || []).length) return null;      // 이력 전 — UPH 가 전부 0 으로 나와 '기준 속도 없음' 만 뜬다
+        const s = computeTodayStatus();
+        const cfg = State.appConfig;
+        const rawSnap = getForecastSnapshotForDate(s.today);
+        const snap = rawSnap ? aliasSnapshot(rawSnap, cfg) : null;
+        const planSrc = snap ? 'snap' : 'auto';
+
+        // 업무 기록을 지금 이름으로 합친다(computeDayProgress 는 기록의 이름 그대로 묶는다)
+        const prog = {};
+        s.progress.byTask.forEach((e, name) => {
+            const k = aliasTaskName(name, cfg);
+            const t = prog[k] || (prog[k] = { working: 0, paused: 0, done: 0, spentMin: 0 });
+            t.working += e.working; t.paused += e.paused; t.done += e.done; t.spentMin += e.spentMin;
+        });
+        const activeMin = {};
+        (s.기록들 || []).forEach(rec => {
+            if (!rec || !rec.task || (rec.status !== 'ongoing' && rec.status !== 'paused')) return;
+            const k = aliasTaskName(rec.task, cfg);
+            activeMin[k] = (activeMin[k] || 0) + spentMinutesOf(rec, s.nowStr);
+        });
+
+        const keys = new Set([...SIM_TASKS.map(t => t.key), ...Object.keys(prog),
+                              ...(snap && snap.tasks ? Object.keys(snap.tasks) : [])]);
+        const tasks = {};
+        keys.forEach(k => {
+            const planQty = snap
+                ? (Number(snap.tasks?.[k]) || 0)
+                : (Number(s.r.taskTimes?.[k]?.qty) || 0);
+            const p = prog[k];
+            tasks[k] = {
+                planQty,
+                uph: Number(s.taskUPH?.[k]) || 0,
+                working: p ? p.working : 0,
+                paused: p ? p.paused : 0,
+                spentHours: p ? p.spentMin / 60 : 0,
+                activeHours: (activeMin[k] || 0) / 60,
+                started: !!p,
+                ended: !!p && p.working === 0 && p.paused === 0
+            };
+        });
+
+        return {
+            planSrc,
+            nowMin: s.nowMin,
+            startMin: s.progress.firstStartMin,
+            baseFinishMin: s.fin.baseFinishMin,
+            skipLunch: !!s.fin.skipLunch,
+            available: Number(s.r.availableTotal) || 0,
+            tasks
+        };
+    } catch (e) { console.warn('[forecast] 업무별 진행 재료 실패:', e); return null; }
 };
 
 /** 늦음/이름 상태에 따른 색 한 벌 */
@@ -4522,6 +4616,7 @@ const ensureTodayForecastSnapshot = async () => {
         if (!snapshot) return;
 
         const res = await saveForecastSnapshotIfAbsent(today, snapshot);
+        forgetTodayStatus();
         // already-exists = 다른 사람·탭이 먼저 찍었다. 성공과 똑같이 '끝난 일'이다.
         if (res?.ok || res?.reason === 'already-exists') {
             자동스냅_표시(today);

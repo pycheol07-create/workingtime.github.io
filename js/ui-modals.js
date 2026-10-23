@@ -1,9 +1,9 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610230901';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610230956';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202610230901';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610230901';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202610230956';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610230956';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -160,6 +160,9 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
 
     // 예정 물량 모드 전용 안내는 기본적으로 숨긴다(예정 모드에서 다시 켬)
     document.getElementById('planned-auto-hint')?.classList.add('hidden');
+    // 예정 물량 모드(자동 저장)가 숨긴 [취소]·저장 상태 줄을 되돌린다 — 예정 모드는 이 함수 뒤에 다시 바꾼다
+    document.getElementById('planned-autosave-status')?.classList.add('hidden');
+    document.getElementById('cancel-quantity-btn')?.classList.remove('hidden');
 
     const missingTaskSet = new Set(missingTasksList);
     const confirmedZeroSet = new Set(confirmedZeroTasks);
