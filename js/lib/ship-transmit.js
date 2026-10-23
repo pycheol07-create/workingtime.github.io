@@ -14,6 +14,7 @@
 // 규칙: 근무일 D 에 사전작업 기록이 있고, 같은 D 의 전송 기록이 있으면
 //       nextWorkingDay(D) 의 직진배송 = ZG+ZGF, 에이블리배송 = AB+ABF (즉시출고 포함).
 //       업무별로 따로 본다 — 한쪽 합이 0 이면 그 업무는 null(기존 예측 그대로).
+//       단 대상일이 오늘이고 전 근무일 전송이 없다는 것이 확실하면 0(transmitNoneFor, 2026-10-23).
 //
 // 순수 모듈(import 0). 달력(nextWorkingDay)·사전작업 판정(hasPrecursorOn)은 인자로 받는다.
 
@@ -155,4 +156,84 @@ export function transmitValueFor({ targetDate, taskKey, byDate, nextWorkingDay, 
     const detail = `${fmtMd(best.d)} 사전작업 기록 + 로케이션 전송${atText ? ' ' + atText : ''}`
                  + ` · 일반 ${normal.toLocaleString()} / 즉시 ${instant.toLocaleString()}`;
     return { value: best.total, source: 'transmit', detail };
+}
+
+/** 대상일(오늘)·업무가 '전 근무일 전송 없음'으로 확실하면 0. 판단할 수 없으면 null(2026-10-23 사용자 결정).
+ *  근거: ZikjinData 에는 마지막 전송일 하루치만 남는다 — 다음 전송이 지난 날짜 행을 지운다.
+ *  그래서 오늘 읽은 결과(localStorage 합본이 아니라 이번 읽기)의 가장 늦은 전송일 L 로 판단한다.
+ *    - L < P(전 근무일)  → P 이후 전송이 한 번도 없었다 = P 전송 없음 → 0
+ *    - L == P 이고 이 업무 소스 합이 0 → 그날 다른 업무만 보냈다 → 0
+ *      (합이 있으면 transmitValueFor 몫 — 사전작업 기록이 없어 null 이 된 경우도 여기서 0 으로 만들지 않는다)
+ *    - P < L < T(쉬는 날 전송) · L == T(오늘 이미 전송 — 어제 행이 지워졌을 수 있다) → 판단 불가
+ *    - 읽은 결과에 출고자동화 행이 없으면(L 없음) 판단 불가
+ *    - P 에 그 업무의 사전작업 기록이 있으면 판단 불가 — 준비는 했는데 전송이 빠진 신호다
+ *  P 는 달력이 아니라 실제 근무 기록으로 정한다(lastWorkedDayBefore) — 회사 자체 휴무·표에 없는 공휴일이 있다.
+ *  읽기 성공·오늘 읽음 여부는 부르는 쪽이 따진다(실패·오래된 자료면 liveByDate 를 넘기지 말 것).
+ *  @param {object} p
+ *  @param {string} p.targetDate  'YYYY-MM-DD'
+ *  @param {string} p.today       'YYYY-MM-DD' — 대상일이 오늘이 아니면 null
+ *  @param {string} p.taskKey     '직진배송' | '에이블리배송'
+ *  @param {object} p.liveByDate  이번 읽기의 summarizeTransmitChunks(...).byDate
+ *  @param {string|null} p.prevDate  전 근무일 P(lastWorkedDayBefore 결과). 없으면 null
+ *  @param {(d:string, taskKey:string)=>boolean} [p.hasPrecursorOn]  P 에 그 업무의 사전작업 기록이 있나(선택)
+ *  @returns {{value:0, source:'transmit-none', detail:string}|null} */
+export function transmitNoneFor({ targetDate, today, taskKey, liveByDate, prevDate, hasPrecursorOn } = {}) {
+    const srcs = TRANSMIT_SOURCES[taskKey];
+    if (!srcs || typeof targetDate !== 'string' || !YMD_RE.test(targetDate)) return null;
+    if (targetDate !== today) return null;
+    if (!liveByDate || typeof liveByDate !== 'object') return null;
+    const p = prevDate;
+    if (typeof p !== 'string' || !YMD_RE.test(p) || !(p < targetDate)) return null;
+    if (typeof hasPrecursorOn === 'function' && hasPrecursorOn(p, taskKey)) return null;
+
+    let latest = null;
+    Object.keys(liveByDate).forEach(d => { if (YMD_RE.test(d) && (!latest || d > latest)) latest = d; });
+    if (!latest) return null;
+
+    let none = false;
+    if (latest < p) none = true;
+    else if (latest === p) {
+        const total = Math.round(srcs.reduce((a, k) => a + num((liveByDate[p] || {})[k]), 0));
+        none = !(total > 0);
+    }
+    if (!none) return null;
+    return { value: 0, source: 'transmit-none', detail: `전 근무일(${fmtMd(p)}) 전송 없음 — 출고 자료 기준` };
+}
+
+/** 대상일 이전에 실제 근무 기록(workRecords 가 있거나 처리량이 하나라도 0 보다 큰)이 있는 가장 늦은 날. 없으면 null.
+ *  @param {string} targetDate  'YYYY-MM-DD'
+ *  @param {Array<{id:string, workRecords?:Array, taskQuantities?:object}>} days  근무 이력 */
+export function lastWorkedDayBefore(targetDate, days) {
+    if (typeof targetDate !== 'string' || !YMD_RE.test(targetDate)) return null;
+    let best = null;
+    (Array.isArray(days) ? days : []).forEach(d => {
+        if (!d || typeof d.id !== 'string' || !YMD_RE.test(d.id) || !(d.id < targetDate)) return;
+        if (best && d.id <= best) return;
+        const worked = (Array.isArray(d.workRecords) && d.workRecords.length > 0)
+            || Object.values(d.taskQuantities || {}).some(v => num(v) > 0);
+        if (worked) best = d.id;
+    });
+    return best;
+}
+
+/** 같은 날 판정 고정 — 그날 처음 내린 '전송 없음' 판정은 그날 안에서 유지한다.
+ *  (저녁에 오늘 전송이 들어와 L == T 가 되면 판단 불가로 바뀌는데, 아침 판정이 맞다)
+ *  @param {object|null} lock  { day, tasks: { 업무: 판정 } } — localStorage 에서 읽은 값이라 믿지 않는다
+ *  @param {string} today
+ *  @param {string} taskKey
+ *  @param {()=>object|null} compute  고정된 판정이 없을 때만 부른다
+ *  @returns {{result: object|null, lock: object, changed: boolean}}  changed = 저장해야 하는가(날짜가 바뀌었거나 새 판정) */
+export function lockedTransmitNone(lock, today, taskKey, compute) {
+    const valid = !!lock && typeof lock === 'object' && lock.day === today
+        && !!lock.tasks && typeof lock.tasks === 'object';
+    const cur = valid ? lock : { day: today, tasks: {} };
+    const held = cur.tasks[taskKey];
+    if (held && held.source === 'transmit-none' && held.value === 0 && typeof held.detail === 'string') {
+        return { result: held, lock: cur, changed: !valid };
+    }
+    const fresh = typeof compute === 'function' ? compute() : null;
+    if (fresh && fresh.source === 'transmit-none') {
+        return { result: fresh, lock: { day: today, tasks: { ...cur.tasks, [taskKey]: fresh } }, changed: true };
+    }
+    return { result: null, lock: cur, changed: !valid };
 }

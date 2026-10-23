@@ -1,10 +1,10 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202610230833';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610230833';
-import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610230833';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610230833';
-import { D, alpha } from './d-chart.js?v=202610230833';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202610230833';
+import * as State from './state.js?v=202610230901';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610230901';
+import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610230901';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610230901';
+import { D, alpha } from './d-chart.js?v=202610230901';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610230901';
 
 let dashboardChartInstance = null;
 
@@ -102,7 +102,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202610230833').then(mod => {
+        import('./ui-history-milestones.js?v=202610230901').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }
