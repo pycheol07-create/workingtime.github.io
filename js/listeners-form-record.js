@@ -1,12 +1,17 @@
 // === js/listeners-form-record.js ===
 // 설명: 업무 기록의 수정(휴식 포함), 수동 추가, 시작 시간 변경 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610231017';
-import * as State from './state.js?v=202610231017';
-import { showToast, formatDuration, calcTotalPauseMinutes, calcElapsedMinutes, getTodayDateString } from './utils.js?v=202610231017';
-import { generateId } from './app-data.js?v=202610231017';
-import { writeRecordsReleasingLocks } from './app-sync.js?v=202610231017';
+import * as DOM from './dom-elements.js?v=202610231049';
+import * as State from './state.js?v=202610231049';
+import { showToast, formatDuration, calcTotalPauseMinutes, calcElapsedMinutes, getTodayDateString, getCurrentTime } from './utils.js?v=202610231049';
+import { generateId } from './app-data.js?v=202610231049';
+import { writeRecordsReleasingLocks } from './app-sync.js?v=202610231049';
 import { doc, updateDoc, deleteDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { checkStartAfterClockIn, clampStartToClockIn, makeEditStamp } from './lib/attendance-guard.js?v=202610231049';
+
+// 오늘 그 사람의 출근시각(없으면 undefined → 검사 생략)
+const todayInTime = (member) => State.appState.dailyAttendance?.[member]?.inTime;
+const editStamp = () => makeEditStamp(getTodayDateString(), getCurrentTime(), State.appState.currentUser);
 
 // 휴식 시간 관리 상태 변수 및 렌더링 함수
 let currentEditingPauses = [];
@@ -115,6 +120,14 @@ export function setupFormRecordListeners() {
                 showToast('시작 시간이 종료 시간보다 늦거나 같을 수 없습니다.', true);
                 return;
             }
+            // 업무 시작이 (바뀐 사람의) 출근시각보다 이르면 막는다 — 관리자 포함.
+            // 시작·사람을 안 바꾸면 검사하지 않는다(배포 전 옛 기록의 종료·휴식만 고치는 경우)
+            const startCheck = (startTime !== record.startTime || member !== record.member)
+                ? checkStartAfterClockIn(startTime, todayInTime(member)) : { ok: true };
+            if (!startCheck.ok) {
+                showToast(`${startCheck.message} 출근시각 이후로 입력하세요.`, true);
+                return;
+            }
 
             try {
                 const recordRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords', recordId);
@@ -125,6 +138,7 @@ export function setupFormRecordListeners() {
                     startTime,
                     pauses: currentEditingPauses // 수정된 휴식 시간 반영
                 };
+                if (startTime !== record.startTime) Object.assign(updates, editStamp());
 
                 let newDuration = null;
 
@@ -194,6 +208,11 @@ export function setupFormRecordListeners() {
                 showToast('소요 시간이 0분이어 기록이 저장되지 않았습니다.', true);
                 return;
             }
+            const manualCheck = checkStartAfterClockIn(startTime, todayInTime(member));
+            if (!manualCheck.ok) {
+                showToast(`${manualCheck.message} 출근시각 이후로 입력하세요.`, true);
+                return;
+            }
 
             try {
                 const recordId = generateId();
@@ -246,9 +265,17 @@ export function setupFormRecordListeners() {
                 const today = getTodayDateString();
                 const workRecordsColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today, 'workRecords');
 
+                let adjustedCount = 0;
                 if (contextType === 'individual') {
+                    // 개별 변경은 출근시각보다 이르면 막는다(모달은 그대로 둔다)
+                    const rec = (State.appState.workRecords || []).find(r => String(r.id) === String(contextId));
+                    const check = checkStartAfterClockIn(newStartTime, todayInTime(rec?.member));
+                    if (!check.ok) {
+                        showToast(`${check.message} 출근시각 이후로 입력하세요.`, true);
+                        return;
+                    }
                     const docRef = doc(workRecordsColRef, contextId);
-                    await updateDoc(docRef, { startTime: newStartTime });
+                    await updateDoc(docRef, { startTime: newStartTime, ...editStamp() });
 
                 } else if (contextType === 'group') {
                     const q = query(workRecordsColRef, where("groupId", "==", contextId), where("status", "in", ["ongoing", "paused"]));
@@ -256,14 +283,20 @@ export function setupFormRecordListeners() {
 
                     if (!querySnapshot.empty) {
                         const batch = writeBatch(State.db);
-                        querySnapshot.forEach(doc => {
-                            batch.update(doc.ref, { startTime: newStartTime });
+                        const stamp = editStamp();
+                        querySnapshot.forEach(snap => {
+                            // 그룹은 막지 않고 각자 출근시각으로 맞춘다
+                            const c = clampStartToClockIn(newStartTime, todayInTime(snap.data().member));
+                            if (c.adjusted) adjustedCount++;
+                            batch.update(snap.ref, { startTime: c.startTime, ...stamp });
                         });
                         await batch.commit();
                     }
                 }
 
-                showToast('시작 시간이 수정되었습니다.');
+                showToast(adjustedCount > 0
+                    ? `시작 시간이 수정되었습니다. ${adjustedCount}명은 출근시각에 맞췄습니다.`
+                    : '시작 시간이 수정되었습니다.');
                 DOM.editStartTimeModal.classList.add('hidden');
 
             } catch (e) {

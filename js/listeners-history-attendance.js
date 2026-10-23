@@ -1,16 +1,17 @@
 // === js/listeners-history-attendance.js ===
 // 설명: 이력 보기의 '근태 이력' 관리(추가/수정/삭제 요청) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610231017';
-import * as State from './state.js?v=202610231017';
-import { isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610231017';
-import { showToast, showConfirm, getTodayDateString, getCurrentTime } from './utils.js?v=202610231017';
-import { renderAttendanceDailyHistory } from './ui-history.js?v=202610231017';
-import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202610231017';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610231017';
-import { updateLeaveSchedule } from './config.js?v=202610231017';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610231017';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610231017';
+import * as DOM from './dom-elements.js?v=202610231049';
+import * as State from './state.js?v=202610231049';
+import { isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610231049';
+import { showToast, showConfirm, getTodayDateString, getCurrentTime } from './utils.js?v=202610231049';
+import { renderAttendanceDailyHistory } from './ui-history.js?v=202610231049';
+import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202610231049';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610231049';
+import { updateLeaveSchedule } from './config.js?v=202610231049';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610231049';
+import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202610231049';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610231049';
 import { doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 수정 모달이 지금 다루고 있는 근태의 '원본'.
@@ -54,6 +55,13 @@ const filteredHistoryForView = () => {
 const dayDocRef = (dateKey) => doc(State.db, 'artifacts', 'team-work-logger-v2',
     (dateKey === getTodayDateString()) ? 'daily_data' : 'history', dateKey);
 
+/** 같은 날 지각·조퇴 2건, 같은 시각 외출 2건을 막는다(오늘 화면 등록과 같은 기준). */
+const dupError = (entry) => {
+    const e = new Error(`${entry.member} 님은 그날 이미 ${entry.type} 기록이 있습니다.`);
+    e.code = 'LEAVE_DUP';
+    return e;
+};
+
 /** 그날 문서에 근태 한 건 덧붙이기(문서가 없으면 만든다). */
 const appendToDayDoc = async (dateKey, entry) => {
     const docRef = dayDocRef(dateKey);
@@ -65,6 +73,7 @@ const appendToDayDoc = async (dateKey, entry) => {
     if (snap && snap.exists()) {
         const raw = snap.data().onLeaveMembers;
         list = Array.isArray(raw) ? raw : (raw ? Object.values(raw) : []);
+        if (findDailyLeaveDup(list, entry)) throw dupError(entry);
         list.push(entry);
         await updateDoc(docRef, { onLeaveMembers: list });
     } else {
@@ -399,7 +408,9 @@ function setupAttendanceModalButtons() {
                     if (target < 0 && index >= 0 && index < currentLeaves.length) target = index;
                     if (target < 0) { showToast('수정할 항목을 찾을 수 없습니다.', true); return; }
 
-                    currentLeaves[target] = mergeLeave(currentLeaves[target], newEntry, isTimeBased);
+                    const merged = mergeLeave(currentLeaves[target], newEntry, isTimeBased);
+                    if (findDailyLeaveDup(currentLeaves.filter((_, i) => i !== target), merged)) throw dupError(merged);
+                    currentLeaves[target] = merged;
                     await updateDoc(docRef, { onLeaveMembers: currentLeaves });
 
                     const dayDataIndex = State.allHistoryData.findIndex(d => d.id === dateKey);
@@ -433,7 +444,7 @@ function setupAttendanceModalButtons() {
 
             } catch (e) {
                 console.error("Error updating attendance:", e);
-                showToast('수정 중 오류가 발생했습니다.', true);
+                showToast(e && e.code === 'LEAVE_DUP' ? e.message : '수정 중 오류가 발생했습니다.', true);
             } finally {
                 btn.disabled = false;
             }
@@ -525,6 +536,7 @@ function setupAttendanceModalButtons() {
                             ? data.onLeaveMembers
                             : Object.values(data.onLeaveMembers);
                     }
+                    if (findDailyLeaveDup(currentLeaves, newEntry)) throw dupError(newEntry);
                     currentLeaves.push(newEntry);
                     await updateDoc(docRef, { onLeaveMembers: currentLeaves });
                 } else {
@@ -568,7 +580,7 @@ function setupAttendanceModalButtons() {
 
             } catch (e) {
                 console.error("Error adding attendance:", e);
-                showToast('추가 중 오류가 발생했습니다.', true);
+                showToast(e && e.code === 'LEAVE_DUP' ? e.message : '추가 중 오류가 발생했습니다.', true);
             } finally {
                 btn.disabled = false;
             }

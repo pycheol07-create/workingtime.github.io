@@ -1,16 +1,19 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610231017';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610231017';
-import { clampOpenRecords } from './lib/record-close.js?v=202610231017';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610231017';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610231017';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610231017';
-import { can } from './lib/perm.js?v=202610231017';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610231017';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610231017';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610231017';
+import * as State from './state.js?v=202610231049';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610231049';
+import { clampOpenRecords } from './lib/record-close.js?v=202610231049';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610231049';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610231049';
+import {
+    checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
+} from './lib/attendance-guard.js?v=202610231049';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610231049';
+import { can } from './lib/perm.js?v=202610231049';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610231049';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610231049';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610231049';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610231017';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610231049';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -1763,6 +1766,18 @@ const serverRecordsOf = (snap) => {
     return Array.isArray(recs) ? recs : [];
 };
 
+// 업무 시작이 그날 출근시각보다 이르면 막는다(관리자 포함). 출근시각이 없으면 검사하지 않는다.
+//   부르는 쪽(listeners-history-records.js)은 e.code 로 이 안내를 그대로 보여 준다.
+const assertStartAfterClockIn = (startTime, inTime) => {
+    const r = checkStartAfterClockIn(startTime, inTime);
+    if (r.ok) return;
+    const err = new Error(`${r.message} 출근시각 이후로 입력하세요.`);
+    err.code = 'START_BEFORE_CLOCKIN';
+    throw err;
+};
+const inTimeOf = (attendance, member) => attendance?.[member]?.inTime;
+const editStampNow = () => makeEditStamp(getTodayDateString(), getCurrentTime(), State.appState.currentUser);
+
 export async function addHistoryWorkRecord(dateKey, newRecordData) {
     requireEditRecords();
     const todayKey = getTodayDateString();
@@ -1774,6 +1789,7 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
     if (newRecordData.status === 'completed' && Math.round(newRecordData.duration || 0) <= 0) return;
 
     if (dateKey === todayKey) {
+        assertStartAfterClockIn(newRecordData.startTime, inTimeOf(State.appState.dailyAttendance, newRecordData.member));
         const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', todayKey, 'workRecords', newRecordData.id);
         await setDoc(docRef, newRecordData);
         await syncTodayToHistory();
@@ -1785,6 +1801,9 @@ export async function addHistoryWorkRecord(dateKey, newRecordData) {
     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
     const list = await runTransaction(State.db, async (tx) => {
         const snap = await tx.get(historyDocRef);
+        // 지난 날은 서버 문서의 그날 출근시각으로 검사한다
+        assertStartAfterClockIn(newRecordData.startTime,
+            inTimeOf(snap.exists() ? snap.data()?.dailyAttendance : null, newRecordData.member));
         const res = addRecord(serverRecordsOf(snap), newRecordData);
         if (res.changed) tx.set(historyDocRef, { workRecords: res.list }, { merge: true });
         return res.list;
@@ -1810,6 +1829,15 @@ export async function updateHistoryWorkRecord(dateKey, recordId, updateData) {
              } catch(e) {}
              throw new Error("기록을 찾을 수 없습니다.");
         }
+
+        // 시작 시각이나 사람이 바뀔 때만 검사한다(이미 저장된 옛 기록의 다른 칸 수정은 막지 않는다)
+        const nextStart = updateData.startTime || localRecord.startTime;
+        const nextMember = updateData.member || localRecord.member;
+        const startChanged = !!updateData.startTime && updateData.startTime !== localRecord.startTime;
+        if (startChanged || nextMember !== localRecord.member) {
+            assertStartAfterClockIn(nextStart, inTimeOf(State.appState.dailyAttendance, nextMember));
+        }
+        if (startChanged) Object.assign(updateData, editStampNow());
 
         let newDuration = localRecord.duration;
         let newStatus = updateData.status || localRecord.status;
@@ -1857,10 +1885,25 @@ async function updateHistoryDirectly(dateKey, recordId, updateData) {
     };
 
     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
+    const stamp = editStampNow();
     const list = await runTransaction(State.db, async (tx) => {
         const snap = await tx.get(historyDocRef);
         if (!snap.exists()) throw new Error("이력 없음");
-        const res = updateRecord(serverRecordsOf(snap), recordId, updateData, recompute);   // 없는 id 면 '기록 없음'
+        const serverRecords = serverRecordsOf(snap);
+        // 출근시각 검사는 서버 원본 기준 — 시작 시각이나 사람이 바뀔 때만
+        const original = serverRecords.find(r => r && r.id === recordId);
+        let patch = updateData;
+        if (original) {
+            const nextStart = updateData.startTime || original.startTime;
+            const nextMember = updateData.member || original.member;
+            const startChanged = !!updateData.startTime && updateData.startTime !== original.startTime;
+            if (startChanged || nextMember !== original.member) {
+                assertStartAfterClockIn(nextStart, inTimeOf(snap.data()?.dailyAttendance, nextMember));
+            }
+            // 트랜잭션은 다시 돌 수 있으므로 updateData 를 고치지 않고 새 객체로
+            if (startChanged) patch = { ...updateData, ...stamp };
+        }
+        const res = updateRecord(serverRecords, recordId, patch, recompute);   // 없는 id 면 '기록 없음'
         tx.set(historyDocRef, { workRecords: res.list }, { merge: true });
         return res.list;
     });
@@ -2005,14 +2048,63 @@ export async function updateAttendanceTime(dateKey, member, { inTime, outTime, s
         //    그 상태에서 마감 안 된 날은 '일일 데이터 복구'(앱 시작 시 자동으로도 돈다)가
         //    daily_data 를 우선해 옛 값을 history 로 되돌려 놓는다 —
         //    사용자는 '저장 실패' 토스트를 봤는데 값은 바뀌었다가 다시 돌아가 있다.
-        const batch = writeBatch(State.db);
-        batch.set(doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey),
-                  조각, { merge: true });
+        // 트랜잭션인 이유: 아래 두 판정을 **서버에 있는 값**으로 해야 한다.
+        //   (A) 출근을 늦게 고칠 때 그보다 이른 업무기록이 있으면 쓰지 않는다.
+        //   (C) 정시로 고치면 그날 그 사람의 지각(자동·수동)을 지운다 — 두 문서 모두.
+        //       '일일 데이터 복구' 가 daily_data 의 onLeaveMembers 를 우선하므로 history 만 지우면 되살아난다.
+        const isToday = dateKey === getTodayDateString();
+        const histRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
         // daily_data 도 같이 고친다 — 마감이 이 문서의 근태를 지우지 않아서,
         // 여기를 안 고치면 복구가 옛 값으로 되돌려 놓는다.
-        batch.set(doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey),
-                  조각, { merge: true });
-        await batch.commit();
+        const dailyRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey);
+        const 결과 = await runTransaction(State.db, async (tx) => {
+            const hSnap = await tx.get(histRef);
+            const dSnap = await tx.get(dailyRef);
+            const h = hSnap.exists() ? (hSnap.data() || {}) : {};
+            const d = dSnap.exists() ? (dSnap.data() || {}) : {};
+            const 기준 = isToday ? d : h;       // 오늘은 daily_data, 지난 날은 history 가 원본
+            const 보조 = isToday ? h : d;
+
+            // (A) 새 출근이 기존보다 늦거나 기존이 없을 때 — 그보다 이른 업무기록이 있으면 막는다.
+            //     오늘 업무기록은 하위 컬렉션이라 메모리(실시간 구독)로 본다.
+            const 기존 = normalizeClock(inTimeOf(기준.dailyAttendance, member) || inTimeOf(보조.dailyAttendance, member));
+            if (!기존 || 들어옴 > 기존) {
+                const 기록들 = isToday ? (State.appState.workRecords || []) : (h.workRecords || []);
+                const 이른 = recordsBeforeClockIn(기록들, member, 들어옴);
+                if (이른.length > 0) return { blocked: 이른 };
+            }
+
+            const 알바목록 = isToday ? (State.appState.partTimers || []) : (h.partTimers || d.partTimers || []);
+            const 알바 = 알바목록.some(p => p && p.name === member);
+            const 정시 = !isTardyClockIn(들어옴, dateKey);
+            // 출근시각을 실제로 고칠 때만 지각을 손댄다(퇴근만 고치면 그대로 둔다)
+            const 출근바뀜 = 들어옴 !== 기존;
+
+            const hPayload = { ...조각 };
+            const dPayload = { ...조각 };
+            let removed = 0;
+            if (출근바뀜 && 정시 && !알바) {
+                const rh = removeTardyOf(h.onLeaveMembers, member);
+                if (rh.removed > 0) { hPayload.onLeaveMembers = rh.list; removed = Math.max(removed, rh.removed); }
+                const rd = removeTardyOf(d.onLeaveMembers, member);
+                if (rd.removed > 0) { dPayload.onLeaveMembers = rd.list; removed = Math.max(removed, rd.removed); }
+            }
+            // 늦게 고쳐 지각 기준을 넘었는데 지각이 없으면 알리기만 한다(자동 추가 안 함)
+            const 지각있음 = [...(h.onLeaveMembers || []), ...(d.onLeaveMembers || [])]
+                .some(e => e && e.member === member && e.type === '지각');
+            const 기준넘김 = !정시 && (!기존 || !isTardyClockIn(기존, dateKey));
+            const tardyMissing = 출근바뀜 && 기준넘김 && !알바 && !지각있음;
+
+            tx.set(histRef, hPayload, { merge: true });
+            tx.set(dailyRef, dPayload, { merge: true });
+            return { blocked: null, removed, tardyMissing, tardyClear: 출근바뀜 && 정시 && !알바 };
+        });
+
+        if (결과.blocked) {
+            const 가장이른 = normalizeClock(결과.blocked[0].startTime) || 결과.blocked[0].startTime;
+            showToast(`업무기록 ${결과.blocked.length}건(가장 이른 ${가장이른})이 새 출근시각보다 이릅니다. 기록을 먼저 고치세요.`, true);
+            return false;
+        }
 
         // 메모리도 **그 키만** 바꾼다. 객체를 통째로 교체하면 다른 인원이 날아간다.
         const idx = State.allHistoryData.findIndex(d => d.id === dateKey);
@@ -2024,6 +2116,8 @@ export async function updateAttendanceTime(dateKey, member, { inTime, outTime, s
         if (idx > -1) {
             const day = State.allHistoryData[idx];
             day.dailyAttendance = { ...(day.dailyAttendance || {}), [member]: 새값 };
+            // 지운 지각을 메모리에서도 뺀다(지각만 — 근태 일정에서 만든 사본 행은 그대로)
+            if (결과.removed > 0) day.onLeaveMembers = removeTardyOf(day.onLeaveMembers, member).list;
 
             // 그 사람이 그날 '인원' 으로 인정되지 않으면 수정해도 집계 숫자가 안 변한다.
             // 조용히 끝나면 '고쳤는데 왜 그대로냐' 가 된다.
@@ -2033,13 +2127,23 @@ export async function updateAttendanceTime(dateKey, member, { inTime, outTime, s
                 }
             } catch (_) { /* 명부 확인은 보조 안내일 뿐이다 */ }
         }
-        if (dateKey === getTodayDateString()) {
+        if (isToday) {
             State.appState.dailyAttendance = { ...(State.appState.dailyAttendance || {}), [member]: 새값 };
+            // 1분 자동저장이 메모리 onLeaveMembers 를 daily_data 에 통째로 merge 한다 —
+            // 메모리를 같이 고치지 않으면 방금 지운 지각을 되살린다.
+            // 서버에서 이미 지워져 removed 가 0 이어도 메모리에 남은 지각은 뺀다.
+            if (결과.tardyClear) {
+                State.appState.dailyOnLeaveMembers = removeTardyOf(State.appState.dailyOnLeaveMembers, member).list;
+            }
         }
 
         clearLocalCache();
-        console.info('[updateAttendanceTime]', { date: dateKey, member, ...새값 });
+        console.info('[updateAttendanceTime]', { date: dateKey, member, ...새값, tardyRemoved: 결과.removed });
         showToast(`${member} 님의 출퇴근 시각을 고쳤습니다.`);
+        if (결과.removed > 0) showToast(`지각 ${결과.removed}건도 지웠습니다.`);
+        if (결과.tardyMissing) {
+            showToast(`지각 기준(${tardyThreshold(dateKey)})보다 늦은 출근인데 지각 기록이 없습니다 — 필요하면 근태에서 추가하세요.`, false);
+        }
         return true;
     } catch (e) {
         console.error('updateAttendanceTime 실패:', e);

@@ -1,23 +1,29 @@
 // === js/listeners-history-records.js ===
 // 설명: 이력 보기의 '기록 관리'(상세 내역 수정/삭제/일괄적용) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610231017';
-import * as State from './state.js?v=202610231017';
-import { showToast, showConfirm } from './utils.js?v=202610231017';
+import * as DOM from './dom-elements.js?v=202610231049';
+import * as State from './state.js?v=202610231049';
+import { showToast, showConfirm } from './utils.js?v=202610231049';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=202610231017';
-import { renderHistoryDetail } from './app-history-logic.js?v=202610231017';
-import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=202610231017';
-import { generateId } from './app-data.js?v=202610231017';
+} from './history-data-manager.js?v=202610231049';
+import { renderHistoryDetail } from './app-history-logic.js?v=202610231049';
+import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=202610231049';
+import { generateId } from './app-data.js?v=202610231049';
+import { checkStartAfterClockIn, clampStartToClockIn } from './lib/attendance-guard.js?v=202610231049';
 
 const currentRecordsDateKey = () => document.getElementById('history-records-date').textContent;
 // 기존 확인창 끝에 붙이는 문구 — 저장 안 한 수정이 없으면 빈 문자열
 const dirtyNote = (n) => (n > 0 ? ` (저장하지 않은 수정 ${n}건도 사라집니다)` : '');
 // 복제 저장 중 — 끝나기 전 다시 눌러도 한 번만 복제한다
 let duplicating = false;
+// 그날 그 사람의 출근시각(이력 메모리). 없으면 undefined → 검사 생략
+const historyInTime = (dateKey, member) =>
+    State.allHistoryData.find(d => d.id === dateKey)?.dailyAttendance?.[member]?.inTime;
+// 저장 함수가 출근시각 검사로 막았으면 그 안내를, 아니면 기본 문구를
+const errMsg = (e, fallback) => (e && e.code === 'START_BEFORE_CLOCKIN' ? e.message : fallback);
 
 export function setupHistoryRecordListeners() {
 
@@ -75,20 +81,51 @@ export function setupHistoryRecordListeners() {
                 
                 if (targets.length === 0) { showToast('수정할 대상이 없습니다.', true); return; }
 
-                const updatePromises = targets.map(r => {
+                // 일괄 수정은 막지 않고 각자 출근시각으로 맞춘다. 맞춘 시작이 종료 이후가 되는 기록이
+                // 하나라도 있으면 아무것도 저장하지 않는다(일부만 바뀌면 되돌리기 어렵다).
+                let adjustedCount = 0;
+                const plans = [];
+                for (const r of targets) {
                     const updateData = {};
-                    if (newStart) updateData.startTime = newStart;
+                    if (newStart) {
+                        const c = clampStartToClockIn(newStart, historyInTime(dateKey, r.member));
+                        if (c.adjusted) adjustedCount++;
+                        updateData.startTime = c.startTime;
+                        const end = newEnd || r.endTime;
+                        if (c.adjusted && end && c.startTime >= end) {
+                            showToast(`${r.member} 님은 출근시각(${c.startTime})에 맞추면 시작이 종료(${end}) 이후가 됩니다. 일괄 수정을 멈췄습니다.`, true);
+                            return;
+                        }
+                    }
                     if (newEnd) updateData.endTime = newEnd;
-                    return updateHistoryWorkRecord(dateKey, r.id, updateData);
-                });
+                    plans.push({ id: r.id, updateData });
+                }
 
-                await Promise.all(updatePromises);
-                showToast(`${targets.length}건의 기록이 일괄 수정되었습니다.`);
+                // 같은 날 문서를 여러 번 고치므로 순서대로 보낸다
+                let saved = 0;
+                try {
+                    for (const p of plans) {
+                        await updateHistoryWorkRecord(dateKey, p.id, p.updateData);
+                        saved++;
+                    }
+                } catch (e) {
+                    // 다른 PC가 출근시각을 바꾼 경우 등 — 몇 건까지 저장됐는지 알려 준다
+                    if (saved > 0) {
+                        renderHistoryRecordsTable(dateKey);
+                        renderHistoryDetail(dateKey);
+                        e.message = `${errMsg(e, '저장 오류')} (${plans.length}건 중 ${saved}건은 이미 저장됨)`;
+                        e.code = 'START_BEFORE_CLOCKIN';
+                    }
+                    throw e;
+                }
+                showToast(adjustedCount > 0
+                    ? `${targets.length}건의 기록이 일괄 수정되었습니다. ${adjustedCount}건은 출근시각에 맞췄습니다.`
+                    : `${targets.length}건의 기록이 일괄 수정되었습니다.`);
                 renderHistoryRecordsTable(dateKey);
                 renderHistoryDetail(dateKey); 
             } catch (e) {
                 console.error(e);
-                showToast('일괄 수정 중 오류가 발생했습니다.', true);
+                showToast(errMsg(e, '일괄 수정 중 오류가 발생했습니다.'), true);
             }
         });
     }
@@ -177,7 +214,7 @@ export function setupHistoryRecordListeners() {
                  }
              } catch (e) {
                  console.error(e);
-                 showToast('기록 추가 중 오류가 발생했습니다.', true);
+                 showToast(errMsg(e, '기록 추가 중 오류가 발생했습니다.'), true);
              } finally {
                  btn.disabled = false;
              }
@@ -244,7 +281,7 @@ export function setupHistoryRecordListeners() {
 
                     } catch (err) {
                         console.error("복제 중 오류:", err);
-                        showToast("기록 복제에 실패했습니다.", true);
+                        showToast(errMsg(err, "기록 복제에 실패했습니다."), true);
                     } finally {
                         duplicating = false;
                     }
@@ -294,6 +331,7 @@ export function setupHistoryRecordListeners() {
             //    (예전엔 잘못된 행을 조용히 빼고 'N건 저장'이라 했고, 안 바뀐 행까지 전부 다시 썼다)
             const targets = [];
             const invalid = [];
+            const early = [];   // 출근시각보다 이른 시작
             rows.forEach(row => {
                 markRow(row, false);
                 if (!isRecordRowDirty(row)) return;
@@ -309,12 +347,21 @@ export function setupHistoryRecordListeners() {
                 const keepOpen = isOpen && end === (row.dataset.origEnd ?? '');
                 const bad = !recordId || !task || !start || (keepOpen ? false : (!end || start >= end));
                 if (bad) { invalid.push(row); markRow(row, true); return; }
+                // 시작을 바꾼 행만 출근시각과 비교한다(저장 함수와 같은 기준)
+                if (rec && start !== rec.startTime
+                    && !checkStartAfterClockIn(start, historyInTime(dateKey, rec.member)).ok) {
+                    early.push(row); markRow(row, true); return;
+                }
                 const updateData = keepOpen ? { task, startTime: start } : { task, startTime: start, endTime: end };
                 targets.push({ row, recordId, updateData, sent: { task, start, end } });
             });
 
             if (invalid.length > 0) {
                 showToast(`잘못된 행 ${invalid.length}건(빈 칸 또는 시작≥종료) — 빨간 줄을 고친 뒤 다시 저장하세요.`, true);
+                return;
+            }
+            if (early.length > 0) {
+                showToast(`출근시각보다 이른 시작 ${early.length}건 — 빨간 줄을 고친 뒤 다시 저장하세요.`, true);
                 return;
             }
             if (targets.length === 0) {

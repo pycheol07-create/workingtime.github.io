@@ -4,19 +4,21 @@ import {
     generateId,
     saveStateToFirestore,
     debouncedSaveState
-} from './app-data.js?v=202610231017';
+} from './app-data.js?v=202610231049';
 
 import {
     appState, db, auth
-} from './state.js?v=202610231017';
+} from './state.js?v=202610231049';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610231017';
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610231049';
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=202610231017';
+import { syncTodayToHistory } from './history-data-manager.js?v=202610231049';
+// 지각 기준·당일 근태 중복 판정 — 출근시각 수정(history-data-manager)·근태 저장과 같은 규칙
+import { tardyThreshold, isTardyClockIn, findDailyLeaveDup } from './lib/attendance-guard.js?v=202610231049';
 // 업무를 끝낸 뒤 남은 잠금(activeLocks)을 바로 확인하게 알린다 — 다른 탭은 10분 안전망만 돈다
-import { markLocalWorkEnded } from './app-sync.js?v=202610231017';
+import { markLocalWorkEnded } from './app-sync.js?v=202610231049';
 
 
 const getWorkRecordsCollectionRef = () => {
@@ -40,17 +42,10 @@ const getActiveLockRef = (member) => doc(getActiveLocksCollectionRef(), String(m
 
 // --- 출퇴근 관련 로직 ---
 
-// 자동 지각 임계 시각(HH:MM). 평일/주말 분기.
-// 필요시 appConfig.tardyThreshold 형태로 외부화 가능.
-const TARDY_THRESHOLD_WEEKDAY = '08:30';
-const TARDY_THRESHOLD_WEEKEND = '12:00';
+// 자동 지각 임계 시각(HH:MM)은 js/lib/attendance-guard.js tardyThreshold — 평일/주말 분기.
+//   출근시각을 정시로 고치면 지각을 지우는 쪽(history-data-manager updateAttendanceTime)도 같은 기준을 쓴다.
 // 출근 후 N분 이내에 퇴근하면 "출근 취소"로 간주해 자동 지각도 함께 제거.
 const CANCEL_WINDOW_MIN = 10;
-
-const getTardyThreshold = (date = new Date()) => {
-    const dow = date.getDay();
-    return (dow === 0 || dow === 6) ? TARDY_THRESHOLD_WEEKEND : TARDY_THRESHOLD_WEEKDAY;
-};
 
 const timeDiffMin = (startHHMM, endHHMM) => {
     if (!startHHMM || !endHHMM) return Infinity;
@@ -63,17 +58,13 @@ const timeDiffMin = (startHHMM, endHHMM) => {
  *  - 알바(partTimers)는 출근 시간이 정직원과 달라 자동 지각 대상에서 제외.
  */
 const maybeRecordTardy = async (memberName, clockInTime) => {
-    const threshold = getTardyThreshold();
-    if (!clockInTime || clockInTime <= threshold) return;
+    const todayKey = getTodayDateString();
+    const threshold = tardyThreshold(todayKey);
+    if (!isTardyClockIn(clockInTime, todayKey)) return;
 
     // 🛡️ 알바는 자동 지각 제외 (출근 시간이 정직원과 다름)
     const isPartTimer = (appState.partTimers || []).some(p => p && p.name === memberName);
     if (isPartTimer) return;
-
-    const dup = (appState.dailyOnLeaveMembers || []).some(
-        e => e && e.member === memberName && e.type === '지각'
-    );
-    if (dup) return;
 
     const entry = {
         id: `auto-tardy-${memberName}-${Date.now()}`,
@@ -82,10 +73,20 @@ const maybeRecordTardy = async (memberName, clockInTime) => {
         startTime: clockInTime,
         auto: true
     };
-    const updated = [...(appState.dailyOnLeaveMembers || []), entry];
+    // 메모리로 먼저 거른다. 최종 판정은 트랜잭션 안에서 서버 목록으로(지각은 하루 1건)
+    if (findDailyLeaveDup(appState.dailyOnLeaveMembers, entry)) return;
     try {
-        await updateDoc(getDailyDocRef(), { onLeaveMembers: updated });
-        appState.dailyOnLeaveMembers = updated;
+        const ref = getDailyDocRef();
+        const res = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            const list = snap.exists() && Array.isArray(snap.data().onLeaveMembers) ? snap.data().onLeaveMembers : [];
+            if (findDailyLeaveDup(list, entry)) return { dup: true };
+            const next = [...list, entry];
+            tx.set(ref, { onLeaveMembers: next }, { merge: true });
+            return { dup: false, next };
+        });
+        if (res.dup) return;
+        appState.dailyOnLeaveMembers = res.next;
         await syncTodayToHistory(); // 이력 캐시 즉시 반영
         showToast(`${threshold} 이후 출근이라 지각이 자동 등록되었습니다.`);
     } catch (e) {
@@ -102,10 +103,28 @@ const maybeRemoveAutoTardyOnCancel = async (memberName) => {
     const gap = timeDiffMin(inTime, getCurrentTime());
     if (gap > CANCEL_WINDOW_MIN) return; // 정상 퇴근 — 지각 유지
 
-    const updated = current.filter((_, i) => i !== idx);
+    const target = current[idx];
+    // 서버 목록에서 같은 자동 지각을 뺀다(id 로, 없으면 사람·종류·auto 첫 건)
+    const isTarget = (e) => !!e && (target.id
+        ? e.id === target.id
+        : (e.member === memberName && e.type === '지각' && e.auto));
     try {
-        await updateDoc(getDailyDocRef(), { onLeaveMembers: updated });
-        appState.dailyOnLeaveMembers = updated;
+        const ref = getDailyDocRef();
+        const res = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            const list = snap.exists() && Array.isArray(snap.data().onLeaveMembers) ? snap.data().onLeaveMembers : [];
+            const i = list.findIndex(isTarget);
+            if (i === -1) return { changed: false, next: list };
+            const next = list.filter((_, j) => j !== i);
+            tx.set(ref, { onLeaveMembers: next }, { merge: true });
+            return { changed: true, next };
+        });
+        if (!res.changed) {
+            // 서버에는 이미 없다 — 메모리에서만 뺀다(1분 자동저장이 되살리지 않게)
+            appState.dailyOnLeaveMembers = (appState.dailyOnLeaveMembers || []).filter(e => !isTarget(e));
+            return;
+        }
+        appState.dailyOnLeaveMembers = res.next;
         await syncTodayToHistory();
         showToast(`출근 취소로 자동 지각 기록도 함께 제거되었습니다.`);
     } catch (e) {

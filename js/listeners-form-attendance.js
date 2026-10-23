@@ -1,16 +1,22 @@
 // === js/listeners-form-attendance.js ===
 // 설명: 근태 설정(연차/외출 등) 및 수정 모달의 폼 로직을 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610231017';
-import * as State from './state.js?v=202610231017';
-import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=202610231017';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610231017';
-import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=202610231017';
-import { saveStateToFirestore } from './app-data.js?v=202610231017';
-import { updateLeaveSchedule } from './config.js?v=202610231017';
-import { removeByIds, removeRecord } from './lib/leave-ops.js?v=202610231017';
-import { renderLeaveTypeModalOptions } from './ui-modals.js?v=202610231017';
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import * as DOM from './dom-elements.js?v=202610231049';
+import * as State from './state.js?v=202610231049';
+import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=202610231049';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610231049';
+import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=202610231049';
+import { saveStateToFirestore } from './app-data.js?v=202610231049';
+import { updateLeaveSchedule } from './config.js?v=202610231049';
+import { removeByIds, removeRecord } from './lib/leave-ops.js?v=202610231049';
+import { renderLeaveTypeModalOptions } from './ui-modals.js?v=202610231049';
+import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202610231049';
+import { doc, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// 당일 근태 중복 안내 — 지각·조퇴는 하루 1건, 외출은 같은 시각만 중복
+const dailyDupMessage = (type) => (type === '외출'
+    ? '같은 시각에 이미 등록된 외출입니다.'
+    : `이미 등록된 ${type}입니다. 하루 한 번만 등록할 수 있습니다.`);
 
 // 헬퍼: 로컬 이력(allHistoryData)에서 특정 연차 ID 제거/업데이트
 const updateLocalHistoryForLeave = (leaveEntry, action = 'add') => {
@@ -247,9 +253,8 @@ export function setupFormAttendanceListeners() {
                 // 🔥 당일 근태(지각, 조퇴, 외출)도 즉각 전송 및 서버 병합
                 try {
                     const todayDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
-                    const snap = await getDoc(todayDocRef);
-                    let currentDailyLeaves = snap.exists() && snap.data().onLeaveMembers ? snap.data().onLeaveMembers : [];
 
+                    // id·시각은 트랜잭션 밖에서 정한다 — 충돌로 다시 돌아도 같은 기록이다
                     const newDailyEntry = {
                         id: `daily-${Date.now()}`,
                         member: memberName,
@@ -257,18 +262,38 @@ export function setupFormAttendanceListeners() {
                         startTime: (type === '외출' || type === '조퇴' || type === '지각') ? getCurrentTime() : null,
                         endTime: null
                     };
-                    
-                    currentDailyLeaves.push(newDailyEntry);
 
-                    // 1. 서버에 안전하게 병합 저장 (await로 1초 딜레이 제거)
-                    await setDoc(todayDocRef, { onLeaveMembers: currentDailyLeaves }, { merge: true });
+                    // 0. 메모리로 먼저 확인(빠른 안내). 최종 판정은 아래 트랜잭션이 서버 값으로 한다.
+                    if (findDailyLeaveDup(State.appState.dailyOnLeaveMembers, newDailyEntry)) {
+                        showToast(dailyDupMessage(type), true);
+                        DOM.confirmLeaveBtn.disabled = false;
+                        DOM.confirmLeaveBtn.textContent = originalBtnText;
+                        return;
+                    }
+
+                    // 1. 서버 목록을 읽고 중복이 아니면 더해 쓴다(두 PC 가 동시에 눌러도 한 건만)
+                    const saved = await runTransaction(State.db, async (tx) => {
+                        const snap = await tx.get(todayDocRef);
+                        const list = snap.exists() && Array.isArray(snap.data().onLeaveMembers) ? snap.data().onLeaveMembers : [];
+                        if (findDailyLeaveDup(list, newDailyEntry)) return { dup: true };
+                        const next = [...list, newDailyEntry];
+                        tx.set(todayDocRef, { onLeaveMembers: next }, { merge: true });
+                        return { dup: false, next };
+                    });
+                    if (saved.dup) {
+                        showToast(dailyDupMessage(type), true);
+                        DOM.confirmLeaveBtn.disabled = false;
+                        DOM.confirmLeaveBtn.textContent = originalBtnText;
+                        return;
+                    }
+                    const currentDailyLeaves = saved.next;
                     State.appState.dailyOnLeaveMembers = currentDailyLeaves;
 
                     // 🛡️ 외출/조퇴 등록 시점에 진행 중 workRecord가 있으면 외출 시작 시각으로 강제 종료.
                     // 종료 누락된 record가 외출 시간까지 끌고 가는 사고 방지.
                     if (type === '외출' || type === '조퇴') {
                         try {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202610231017');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202610231049');
                             const r = await forceEndMemberWork(memberName, newDailyEntry.startTime);
                             if (r.ended > 0) {
                                 console.warn(`[외출/조퇴 자동 종료] ${memberName}: ${r.ended}건`, r.summaries);
@@ -287,6 +312,7 @@ export function setupFormAttendanceListeners() {
                     }
 
                     showToast(`${memberName}님 ${type} 처리 완료.`);
+                    if (DOM.leaveTypeModal) DOM.leaveTypeModal.classList.add('hidden');
                 } catch(err) {
                     console.error("일일 근태 설정 저장 실패:", err);
                     showToast("저장 중 오류가 발생했습니다.", true);
@@ -386,13 +412,19 @@ export function setupFormAttendanceListeners() {
                         showToast('시간 기반 근태는 시작 시간이 필수입니다.', true);
                         return;
                     }
-                    currentDailyLeaves.push({
+                    const editedEntry = {
                         id: `daily-${Date.now()}`,
                         member: memberName,
                         type: newType,
                         startTime: newStartTime,
                         endTime: (newType === '외출') ? newEndTime : null 
-                    });
+                    };
+                    // 원본을 뺀 목록에 같은 날 지각·조퇴(같은 시각 외출)가 이미 있으면 막는다
+                    if (findDailyLeaveDup(currentDailyLeaves, editedEntry)) {
+                        showToast(`${memberName} 님은 오늘 이미 ${newType} 기록이 있습니다.`, true);
+                        return;
+                    }
+                    currentDailyLeaves.push(editedEntry);
                     dailyChanged = true;
                 } else { 
                     if (!newStartDate) {
