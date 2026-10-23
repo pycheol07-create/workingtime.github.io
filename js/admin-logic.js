@@ -1,10 +1,10 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610231049';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610231049';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202610231049';
-import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610231049';
-import { permFieldsForSave } from './lib/perm-model.js?v=202610231049';
-import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610231049';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610231233';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610231233';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202610231233';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610231233';
+import { permFieldsForSave } from './lib/perm-model.js?v=202610231233';
+import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610231233';
 
 // 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
 export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',
@@ -64,7 +64,7 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
         memberRanks: {},
         memberLeaveSettings: {},
         resignedMembers: {}, // 퇴사 처리(비활성): { 이름: 퇴사일 }
-        resignedEmails: {}, // { 이메일(소문자): 퇴사일 } — 저장마다 resignedMembers·memberEmails 로 새로 만든다(이전 값 물려받지 않음)
+        resignedEmails: {}, // { 이메일(소문자): 퇴사일 } — 저장마다 resignedMembers·memberEmails 로 만들고 이전 값을 물려받는다(재직 중이 된 이메일만 뺌, 2026-10-23)
         systemAccounts: [], 
         dashboardItems: [],
         dashboardCustomItems: {},
@@ -223,7 +223,9 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
     // '목록에 없는 사람'으로 보고 오히려 전체 메뉴 허용을 다시 박아 넣는다.
     // 보안(2026-10-14): 규칙이 퇴사자를 이메일로 막을 수 있게 { 이메일: 퇴사일 } 을 함께 저장한다.
     //   퇴사자 행의 이메일 칸이 비었으면 저장 전 설정(currentConfig.memberEmails)의 이메일로 보충한다.
-    newConfig.resignedEmails = buildResignedEmails(newConfig.resignedMembers, newConfig.memberEmails, currentConfig?.memberEmails, emailCheck);
+    //   저장 전 resignedEmails 도 물려받는다(2026-10-23) — 퇴사자 행을 지워도 빠지지 않게. 재직 중이 된 이메일만 뺀다.
+    newConfig.resignedEmails = buildResignedEmails(newConfig.resignedMembers, newConfig.memberEmails, currentConfig?.memberEmails, emailCheck,
+        currentConfig?.resignedEmails);
     const resignedEmails = new Set(Object.keys(newConfig.resignedEmails));
     // 보충한 이메일은 아래 emailCheck 루프에 없다 → 이미 역할이 있으면 여기서 같은 강등을 적용한다
     //   (역할이 없던 이메일에 새 항목을 만들지는 않는다).

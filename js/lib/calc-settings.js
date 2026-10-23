@@ -6,6 +6,8 @@
 //     meta:     {common: {docsFee: {at, by}}, …}                 ← 칸마다 마지막 변경
 //     history:  [{at, by, key, label, before, after}, …]         ← 최근 순, HISTORY_MAX 건
 //     rev, updatedAt, updatedBy }
+// 공개 사본 artifacts/team-work-logger-v2/calcPublic/settings (2026-10-23 외부 열람 — publicMirror)
+//   { settings, rev, updatedAt }   ← 명단 밖 로그인 사용자(guest)가 읽는다. 직원 이름이 든 meta·history·updatedBy 는 넣지 않는다.
 // '칸' = 'common.docsFee' 처럼 분류.키 하나. 옵션 목록(수수료율·관세율·파레트 …)은 목록 전체가 한 칸이다.
 
 export const AUTO_KEYS = ['defaultUnitPrice', 'defaultQuantityPerBox', 'defaultWeightPerBox'];   // customs 안
@@ -188,4 +190,15 @@ export const nameForEmail = (cfg, email) => {
         if (a && a.name) return String(a.name);
     }
     return '알 수 없음';
+};
+
+/** 공개 사본(calcPublic/settings)에 쓸 내용 — settings(공용 부분 사본)·rev·updatedAt 만. 이름이 든 칸(meta·history·updatedBy)은 버린다. */
+//   허용 목록 — 설정의 상위 분류(calculator/constants.js DEFAULT_SETTINGS 의 5개)만 옮긴다. 그 밖의 키(원본 문서를 통째로
+//   넘기는 실수의 meta·history 등)는 버린다. 통관비 기본값 3개(AUTO_KEYS)는 sharedPart 가 이미 뺀다.
+export const PUBLIC_CATEGORIES = ['common', 'import', 'customs', 'warehouse', 'shipping'];
+export const publicMirror = (settings, rev, at) => {
+    const part = sharedPart(settings);
+    const s = {};
+    for (const cat of PUBLIC_CATEGORIES) if (isObj(part[cat])) s[cat] = part[cat];
+    return { settings: s, rev: Number(rev) || 0, updatedAt: typeof at === 'string' ? at : '' };
 };

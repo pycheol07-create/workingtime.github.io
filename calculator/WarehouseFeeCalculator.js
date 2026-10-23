@@ -1,10 +1,14 @@
 // 창고료 & 통관비 납부지연가산세 계산기
 // 예상수량을 입력하면 통관비 계산기 로직을 활용해 CBM/박스수/통관비를 자동 산출
 // 참조: 구글 스프레드시트 '창고료&가산세' 시트
+// 2026-10-23 외부 열람: 명단 밖 사용자(defaultsStatus 'guest')는 logis 평균 단가·입수·무게가 직원 전용이라
+//   그 3칸을 직접 입력한다(입력 기억 대상). 비면 결과 대신 '입력하세요'. 직원 화면은 그대로.
 
 const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
     const formRef = React.useRef(null);
-    const { settings } = React.useContext(SettingsContext);
+    const { settings, defaultsStatus } = React.useContext(SettingsContext);
+    const isGuest = defaultsStatus === 'guest';
+    const GUEST_KEYS = ['guestUnitPrice', 'guestQtyPerBox', 'guestWeightPerBox'];   // guest 직접 입력 3칸
 
     const toDateStr = (d) => {
         const yyyy = d.getFullYear();
@@ -16,9 +20,10 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
 
     // 입력값 기억(CalcMemory.js) — 상품수량·금액·관세율·날짜·계산 기준·박스/CBM 수동입력만.
     //   창고료 단가·무료보관일수·가산세율·납부기한·지연이자율은 설정관리 값이 늘 먼저다(아래 효과가 설정으로 덮는다) → 기억하지 않는다.
+    //   guest 직접 입력 3칸(GUEST_KEYS)도 기억한다(직원은 칸이 없어 늘 빈칸 = 기억 안 함).
     const MEM_KEYS = ['calculationMode', 'quantity', 'totalAmountUSD', 'tariffRate', 'arrivalDate', 'clearanceDate', 'useManualBoxCbm', 'manualBoxes', 'manualCbm'];
     const memRef = React.useRef(null);
-    if (memRef.current === null) memRef.current = calcMemLoad('warehouse', MEM_KEYS);
+    if (memRef.current === null) memRef.current = calcMemLoad('warehouse', MEM_KEYS.concat(GUEST_KEYS));
     const mem = memRef.current;
     const warehouseDefaults = () => ({
         // 상품수량 / 상품금액(USD) & 관세율 (통관비 자동 산출용)
@@ -36,6 +41,11 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
         surchargeRate: String((settings.warehouse?.surchargeRate ?? 0.03) * 100),
         paymentDueDays: String(settings.warehouse?.paymentDueDays ?? 25),
         dailyInterestRate: String((settings.warehouse?.dailyInterestRate ?? 0.00025) * 100),
+
+        // guest 직접 입력(단가 USD/개 · 박스당 수량 · 박스당 무게 kg)
+        guestUnitPrice: '',
+        guestQtyPerBox: '',
+        guestWeightPerBox: '',
     });
 
     const [calculationMode, setCalculationMode] = React.useState(() => (mem.calculationMode === 'amount' ? 'amount' : 'quantity')); // 'quantity' | 'amount'
@@ -44,13 +54,14 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
 
     const [formData, setFormData] = React.useState(() => {
         const next = warehouseDefaults();
-        ['quantity', 'totalAmountUSD', 'tariffRate', 'arrivalDate', 'clearanceDate'].forEach(k => { if (typeof mem[k] === 'string') next[k] = mem[k]; });
+        ['quantity', 'totalAmountUSD', 'tariffRate', 'arrivalDate', 'clearanceDate'].concat(GUEST_KEYS).forEach(k => { if (typeof mem[k] === 'string') next[k] = mem[k]; });
         return next;
     });
     const memNow = () => ({
         calculationMode, quantity: formData.quantity, totalAmountUSD: formData.totalAmountUSD, tariffRate: formData.tariffRate,
         arrivalDate: formData.arrivalDate, clearanceDate: formData.clearanceDate,
         useManualBoxCbm, manualBoxes: manualValues.boxes, manualCbm: manualValues.cbm,
+        guestUnitPrice: formData.guestUnitPrice, guestQtyPerBox: formData.guestQtyPerBox, guestWeightPerBox: formData.guestWeightPerBox,
     });
     // 날짜는 오늘과 다를 때만 기억한다 — 손대지 않은 날짜(오늘)는 다음 날 열면 그날 오늘로.
     React.useEffect(() => {
@@ -60,6 +71,7 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
         calcMemSave('warehouse', cur, {
             calculationMode: 'quantity', quantity: d.quantity, totalAmountUSD: d.totalAmountUSD, tariffRate: d.tariffRate,
             useManualBoxCbm: false, manualBoxes: '', manualCbm: '',
+            guestUnitPrice: '', guestQtyPerBox: '', guestWeightPerBox: '',
         });
     }, [formData, calculationMode, useManualBoxCbm, manualValues]);
     const resetInputs = () => {
@@ -129,10 +141,12 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
     const results = React.useMemo(() => {
         const tariffRateValue = (parseNum(formData.tariffRate) || 0) / 100;
 
-        // settings.customs 기본값 활용 (통관비 계산기와 동일한 defaults)
-        const unitPriceUSD = parseNum(settings.customs?.defaultUnitPrice ?? 10);
-        const quantityPerBox = parseNum(settings.customs?.defaultQuantityPerBox ?? 50) || 1;
-        const weightPerBox = parseNum(settings.customs?.defaultWeightPerBox ?? 12);
+        // settings.customs 기본값 활용 (통관비 계산기와 동일한 defaults). guest 는 직접 입력한 3칸 — 하나라도 비거나 0 이면 계산하지 않는다
+        const guestVals = GUEST_KEYS.map(k => parseNum(formData[k]));
+        const guestInputMissing = isGuest && !guestVals.every(v => Number.isFinite(v) && v > 0);
+        const unitPriceUSD = isGuest ? (guestVals[0] || 0) : parseNum(settings.customs?.defaultUnitPrice ?? 10);
+        const quantityPerBox = (isGuest ? guestVals[1] : parseNum(settings.customs?.defaultQuantityPerBox ?? 50)) || 1;
+        const weightPerBox = isGuest ? (guestVals[2] || 0) : parseNum(settings.customs?.defaultWeightPerBox ?? 12);
 
         // 계산 기준에 따라 수량 결정 (금액 기준일 경우 평균 단가로 역산)
         let quantity = 0;
@@ -204,9 +218,9 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
             totalStayDays, storageDays, warehouseFeeTotal, freeUntil,
             paymentDueDate, delayDays, surchargeAmount, lateInterest, surchargeTotal,
             grandTotal,
-            customsRate, customsRateMissing, vatRate,
+            customsRate, customsRateMissing, vatRate, guestInputMissing,
         };
-    }, [formData, calculationMode, useManualBoxCbm, manualValues, settings, exchangeRates]);
+    }, [formData, calculationMode, useManualBoxCbm, manualValues, settings, exchangeRates, isGuest]);
 
     const formatKRW = (v) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(v || 0);
     const formatDays = (v) => `${new Intl.NumberFormat('ko-KR').format(v || 0)} 일`;
@@ -236,7 +250,7 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
         { label: '상품수량 기준', value: 'quantity' },
         { label: '상품금액 기준', value: 'amount' },
     ];
-    const avgUnitPrice = parseNum(settings.customs?.defaultUnitPrice ?? 10);
+    const avgUnitPrice = isGuest ? (parseNum(formData.guestUnitPrice) || 0) : parseNum(settings.customs?.defaultUnitPrice ?? 10);
     const dateReversed = !!(formData.arrivalDate && formData.clearanceDate && formData.clearanceDate < formData.arrivalDate);
     const fmtPct = (r) => `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 3 }).format((r || 0) * 100)}%`;
     // 공용 설정의 관세율 목록에 지금 값(처음 '8')이 없으면 첫 옵션으로
@@ -244,10 +258,11 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
 
     // [결과 복사] 글자 — 입력 → 결과(화면 결과 카드와 같은 항목)
     const copyText = () => {
-        if (results.customsRateMissing) return '';
+        if (results.customsRateMissing || results.guestInputMissing) return '';
         const lines = [calcCopyHead('창고료&가산세 계산')];
         if (calculationMode === 'quantity') lines.push(`계산 기준: 상품수량 / 상품수량: ${calcCopyNum(formData.quantity)} 개`);
-        else lines.push(`계산 기준: 상품금액 / 상품금액: ${calcCopyNum(formData.totalAmountUSD)} USD (평균 단가 ${formatUSD(avgUnitPrice)}/개)`);
+        else lines.push(`계산 기준: 상품금액 / 상품금액: ${calcCopyNum(formData.totalAmountUSD)} USD (${isGuest ? '단가' : '평균 단가'} ${formatUSD(avgUnitPrice)}/개)`);
+        if (isGuest) lines.push(`단가: ${calcCopyNum(formData.guestUnitPrice)} USD/개 · 박스당 수량: ${calcCopyNum(formData.guestQtyPerBox)} 개 · 박스당 무게: ${calcCopyNum(formData.guestWeightPerBox)} kg (직접 입력)`);
         lines.push(`입항일: ${formData.arrivalDate || '-'} / 통관일: ${formData.clearanceDate || '-'}`);
         lines.push(`관세율: ${calcCopyOpt(tariffOptions, formData.tariffRate)}`);
         if (useManualBoxCbm) lines.push(`박스수량·CBM 수동입력: ${formatBoxes(results.totalBoxes)} · ${formatCBM(results.cbm)}`);
@@ -299,7 +314,7 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
                         <>
                             <InputControl label="상품금액" name="totalAmountUSD" value={formData.totalAmountUSD} onChange={handleInputChange} unit="USD" icon={<DollarIcon />} onKeyDown={handleKeyDown} placeholder="예: 10000" />
                             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
-                                <span>평균 상품단가 (설정관리 기준)</span>
+                                <span>{isGuest ? '상품단가 (아래 직접 입력 값)' : '평균 상품단가 (설정관리 기준)'}</span>
                                 <span className="font-semibold text-slate-800">{formatUSD(avgUnitPrice)} / 개</span>
                             </div>
                         </>
@@ -333,9 +348,20 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
                         </fieldset>
                     </div>
 
-                    <div className="p-3 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-800">
-                        ※ logis 3개월 평균 단가·입수·무게를 사용합니다(설정관리 · 통관비 기본값). 해운비·최소 CBM 은 설정관리, 관세청 고시환율은 수입가·통관비 탭 환율 칸 값을 씁니다.
-                    </div>
+                    {isGuest ? (
+                        <>
+                            <div className="p-3 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-800" data-k="warehouse-guest-note">
+                                ※ 단가·입수·무게는 직원 전용 — 아래 칸에 입력하세요. 해운비·최소 CBM 은 설정관리, 관세청 고시환율은 수입가·통관비 탭 환율 칸 값을 씁니다.
+                            </div>
+                            <InputControl label="상품 단가" name="guestUnitPrice" value={formData.guestUnitPrice} onChange={handleInputChange} unit="USD/개" icon={<DollarIcon />} onKeyDown={handleKeyDown} placeholder="예: 5" />
+                            <InputControl label="박스당 수량" name="guestQtyPerBox" value={formData.guestQtyPerBox} onChange={handleInputChange} unit="개/박스" icon={<HashIcon />} onKeyDown={handleKeyDown} placeholder="예: 50" />
+                            <InputControl label="박스당 무게" name="guestWeightPerBox" value={formData.guestWeightPerBox} onChange={handleInputChange} unit="kg/박스" icon={<CalcIcon />} onKeyDown={handleKeyDown} placeholder="예: 12" />
+                        </>
+                    ) : (
+                        <div className="p-3 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-800">
+                            ※ logis 3개월 평균 단가·입수·무게를 사용합니다(설정관리 · 통관비 기본값). 해운비·최소 CBM 은 설정관리, 관세청 고시환율은 수입가·통관비 탭 환율 칸 값을 씁니다.
+                        </div>
+                    )}
 
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                         <label className="flex items-center justify-between cursor-pointer">
@@ -381,7 +407,11 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
                 </div>
             </div>
 
-            {results.customsRateMissing ? (
+            {results.guestInputMissing ? (
+                <RateMissing title="단가·입수·무게를 입력하세요" dataK="warehouse-guest-missing">
+                    <p className="text-gray-500 mt-2 text-sm">왼쪽 '상품 단가 · 박스당 수량 · 박스당 무게' 칸이 비어 있어(또는 0) 계산하지 않았습니다.<br />이 값은 직원 전용이라 직접 입력합니다.</p>
+                </RateMissing>
+            ) : results.customsRateMissing ? (
                 <CustomsRateMissing where="수입가·통관비 탭 '환율 적용 방식' 칸의 관세청 고시환율" />
             ) : (
             <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 w-full animate-fade-in-slide-up">

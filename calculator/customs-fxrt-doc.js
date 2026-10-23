@@ -1,7 +1,7 @@
 // === calculator/customs-fxrt-doc.js ===
 // 관세청 고시환율(수입, 주간) ← Firestore integrations/customsFxrt (2026-10-16).
 //   값은 앱\고시환율\실행.py 가 매일 2회 쓴다(클라이언트 쓰기는 규칙이 막는다).
-//   로그인한 등록 직원만 읽을 수 있다 — 로그아웃·실패면 app.js 가 이 PC 저장값을 쓴다.
+//   로그인한 사람(퇴사자 제외 — 규칙 isCalcUser)이 읽을 수 있다 — 로그아웃·실패면 app.js 가 이 PC 저장값을 쓴다.
 //
 // 결과는 window.__customsFxrt 에 두고 'customs-fxrt' 이벤트로 알린다.
 //   { status: 'loading' | 'ok' | 'signed-out' | 'error', doc, error }
@@ -10,7 +10,7 @@
 // 다시 읽기: window.__reloadCustomsFxrt() · 탭이 다시 보이면(visibilitychange) 조용히 다시 읽는다
 //   (토요일에 연 창을 일요일에 다시 볼 때 새 주 값을 받게).
 // 공통 상단바 로그인 표시(setShellContext)는 logis-defaults.js 가 이미 한다 — 여기서는 부르지 않는다.
-import { db, auth } from './firebase-init.js?v=202610231049';
+import { db, auth } from './firebase-init.js?v=202610231233';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -53,7 +53,7 @@ async function load(user, quiet = false) {
     } catch (e) {
         if (my !== seq) return;
         console.warn('관세청 고시환율 읽기 실패:', e && e.code ? e.code : e);
-        const msg = (e && e.code === 'permission-denied') ? '읽기 권한 없음(등록된 직원 계정인지 확인)' : '읽기 실패 — 네트워크 확인';
+        const msg = (e && e.code === 'permission-denied') ? '읽기 권한 없음(계정 확인)' : '읽기 실패 — 네트워크 확인';
         publish({ status: 'error', doc: null, error: msg });
     }
 }

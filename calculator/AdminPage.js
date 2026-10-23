@@ -1,5 +1,7 @@
 // [수정됨] 'LCL 최소 CBM' 설정 추가
 // 2026-10-16: 설정 칸은 팀 공용(Firestore) — 저장은 SettingsContext.saveSettings(base, local). 통관비 기본값 3개는 logis 평균 자동값(이 PC).
+// 2026-10-23: 명단 밖 로그인 사용자(guest)는 보기 전용(sharedReadOnly) — [저장] 비활성, 변경 이력 숨김. 계산기 탭의 직접 입력·입력 기억은 그대로.
+//   계산기 권한(calculator.view)이 없는 직원(sharedReadOnlyReason 'perm')도 [저장] 비활성 — 이력은 보인다(직원 데이터).
 
 // 키 순서와 상관없는 JSON (js/lib/calc-settings.js same() 와 같은 규칙)
 const canonJson = (v) => {
@@ -170,7 +172,8 @@ const AdminArrayEditor = ({ title, note, data, onAdd, onChange, onDelete, valueE
 
 const AdminPage = ({ onClose }) => {
     const { settings, defaultsStatus, defaultsMeta, defaultsError, reloadDefaults,
-            sharedStatus, sharedMeta, sharedHistory, sharedError, sharedRev, saveSettings, reloadShared } = React.useContext(SettingsContext);
+            sharedStatus, sharedMeta, sharedHistory, sharedError, sharedRev, sharedReadOnly, sharedReadOnlyReason, saveSettings, reloadShared } = React.useContext(SettingsContext);
+    const hideHistory = sharedReadOnly && sharedReadOnlyReason !== 'perm';   // guest 만 이력을 숨긴다(이름이 들어 있다)
 
     const [localSettings, setLocalSettings] = React.useState(settings);
     // 화면을 열 때의 값 — 저장할 때 '내가 바꾼 칸' 을 가르는 기준(그사이 남이 바꾼 칸은 덮지 않는다)
@@ -259,7 +262,7 @@ const AdminPage = ({ onClose }) => {
     const errorTabs = new Set(errorIds.map(adminTabOfError));
 
     const handleSave = async () => {
-        if (saving) return;
+        if (saving || sharedReadOnly) return;
         if (errorIds.length) {
             setSaveBlocked(true);
             if (!errorTabs.has(activeTab)) setActiveTab(adminTabOfError(errorIds[0]));
@@ -270,6 +273,10 @@ const AdminPage = ({ onClose }) => {
         try {
             const local = numberizeSettings(localSettings);
             let res = await saveSettings(baseSettings, local);
+            if (res.mode === 'readonly') {
+                alert(sharedReadOnlyReason === 'perm' ? '계산기 권한이 없어 저장할 수 없습니다.' : '팀 공용 설정은 직원만 바꿀 수 있습니다 — 저장하지 않았습니다.');
+                return;
+            }
             if (res.mode === 'shared' && res.needInitialConfirm) {
                 // 처음 이전 — 공용 문서가 없어 이 PC 설정 전체가 시작값이 된다
                 if (!confirm('이 PC 설정 전체가 팀 공용 설정의 시작값이 됩니다. 계속할까요?')) return;
@@ -297,7 +304,8 @@ const AdminPage = ({ onClose }) => {
         } catch (e) {
             console.warn('공용 설정 저장 실패:', e && e.code ? e.code : e);
             // 원시 오류 코드 대신 한국어 이유(shared-settings.js errText 와 같은 말)
-            const why = (e && e.code === 'permission-denied') ? '저장 권한이 없습니다(등록된 직원 계정으로 로그인했는지 확인).' : '네트워크·서버 오류일 수 있습니다.';
+            // permission-denied = 규칙이 막음(계산기 권한 calculator.view 없음 — 2026-10-23)
+            const why = (e && e.code === 'permission-denied') ? '계산기 권한이 없어 저장할 수 없습니다(관리자에게 문의).' : '네트워크·서버 오류일 수 있습니다.';
             alert('공용 설정 저장에 실패했습니다 — 아무것도 저장하지 않았습니다.\n' + why + '\n잠시 뒤 다시 저장해 보세요.');
         } finally {
             setSaving(false);
@@ -344,7 +352,7 @@ const AdminPage = ({ onClose }) => {
                     <h2 className="text-xl font-bold text-gray-800">설정 관리</h2>
                     <div className="flex gap-2">
                         <button onClick={handleCancel} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">취소</button>
-                        <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50">{saving ? '저장 중' : '저장'}</button>
+                        <button onClick={handleSave} disabled={saving || sharedReadOnly} title={sharedReadOnly ? '보기 전용' : undefined} className="px-4 py-2 text-sm text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50">{saving ? '저장 중' : '저장'}</button>
                     </div>
                 </div>
 
@@ -354,8 +362,9 @@ const AdminPage = ({ onClose }) => {
                     <div className={`mb-4 p-3 rounded-lg border flex items-center justify-between gap-3 text-sm ${sharedStatus === 'ok' || sharedStatus === 'empty' ? 'bg-slate-50 border-slate-200' : 'bg-yellow-50 border-yellow-300'}`}>
                         <div className="flex-1 min-w-0 text-xs text-gray-600">
                             {sharedStatus === 'loading' && '팀 공용 설정을 불러오는 중...'}
-                            {sharedStatus === 'ok' && '팀 공용 설정입니다 — 저장하면 모든 직원의 계산기에 반영되고 변경 이력이 남습니다.'}
-                            {sharedStatus === 'empty' && '아직 팀 공용 설정이 없습니다 — 처음 저장하면 이 PC 의 설정으로 공용 설정이 시작됩니다.'}
+                            {sharedReadOnly && (sharedStatus === 'ok' || sharedStatus === 'empty') && <span data-k="admin-readonly">{sharedReadOnlyReason === 'perm' ? '계산기 권한이 없어 보기 전용입니다' : '팀 공용 설정은 직원만 바꿀 수 있습니다 — 보기 전용'}</span>}
+                            {!sharedReadOnly && sharedStatus === 'ok' && '팀 공용 설정입니다 — 저장하면 모든 직원의 계산기에 반영되고 변경 이력이 남습니다.'}
+                            {!sharedReadOnly && sharedStatus === 'empty' && '아직 팀 공용 설정이 없습니다 — 처음 저장하면 이 PC 의 설정으로 공용 설정이 시작됩니다.'}
                             {sharedStatus === 'signed-out' && (
                                 <span>로그인이 풀려 이 PC 의 마지막 설정을 쓰고 있습니다 — 저장해도 이 PC 에만 저장됩니다. 새로고침해 다시 로그인하세요.</span>
                             )}
@@ -373,7 +382,7 @@ const AdminPage = ({ onClose }) => {
                     )}
 
                     <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                        {['common', 'import', 'customs', 'shipping', 'warehouse', 'history'].map(tab => (
+                        {['common', 'import', 'customs', 'shipping', 'warehouse', 'history'].filter(tab => !(hideHistory && tab === 'history')).map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${activeTab === tab ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-600'}`}>
                                 {tab === 'common' ? '기본 수수료' : tab === 'import' ? '수입가 옵션' : tab === 'customs' ? '통관비 옵션' : tab === 'shipping' ? '선적 옵션' : tab === 'warehouse' ? '창고료&가산세' : '변경 이력'}
                                 {errorTabs.has(tab) && <span className="ml-1 text-red-600" aria-label="고칠 칸 있음">●</span>}
@@ -381,7 +390,7 @@ const AdminPage = ({ onClose }) => {
                         ))}
                     </div>
 
-                    {activeTab === 'history' && <SettingsHistory history={sharedHistory} status={sharedStatus} />}
+                    {activeTab === 'history' && !hideHistory && <SettingsHistory history={sharedHistory} status={sharedStatus} />}
 
                     {activeTab === 'common' && (
                         <div>
@@ -431,6 +440,7 @@ const AdminPage = ({ onClose }) => {
                                                     </span>
                                                 )}
                                                 {defaultsStatus === 'signed-out' && '로그인이 풀려 마지막 저장값을 씁니다'}
+                                                {defaultsStatus === 'guest' && '직원 전용 값입니다 — 통관비 계산기에서 직접 입력하세요'}
                                                 {defaultsStatus === 'error' && (
                                                     <span className="text-red-600">불러오기 실패: {defaultsError} — 지금은 마지막 저장값</span>
                                                 )}
@@ -455,9 +465,9 @@ const AdminPage = ({ onClose }) => {
                             })()}
 
                             {/* 자동값 3칸 — 읽기 전용(공용 설정이 아니고 여기서 저장하지 않는다) */}
-                            <AdminInputRow id="calc-set-customs-defaultUnitPrice" label="상품 단가" value={localSettings.customs.defaultUnitPrice} readOnly unit="USD/개" />
-                            <AdminInputRow id="calc-set-customs-defaultQuantityPerBox" label="박스당 수량" value={localSettings.customs.defaultQuantityPerBox} readOnly unit="개/박스" />
-                            <AdminInputRow id="calc-set-customs-defaultWeightPerBox" label="박스당 무게" value={localSettings.customs.defaultWeightPerBox} readOnly unit="kg/박스" />
+                            <AdminInputRow id="calc-set-customs-defaultUnitPrice" label="상품 단가" value={defaultsStatus === 'guest' ? '' : (localSettings.customs.defaultUnitPrice ?? '')} readOnly unit="USD/개" />
+                            <AdminInputRow id="calc-set-customs-defaultQuantityPerBox" label="박스당 수량" value={defaultsStatus === 'guest' ? '' : (localSettings.customs.defaultQuantityPerBox ?? '')} readOnly unit="개/박스" />
+                            <AdminInputRow id="calc-set-customs-defaultWeightPerBox" label="박스당 무게" value={defaultsStatus === 'guest' ? '' : (localSettings.customs.defaultWeightPerBox ?? '')} readOnly unit="kg/박스" />
 
                             <AdminSectionTitle title="통관비 계산기 옵션" />
                             {arrayEd('customs', 'tariffRates', '관세율 옵션', 'calc-set-tariff')}

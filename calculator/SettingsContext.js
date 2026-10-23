@@ -4,6 +4,8 @@
 // 로그아웃·실패면 localStorage 의 마지막 저장값을 그대로 씁니다.
 // 그 밖의 설정 칸은 팀 공용(Firestore persistent_data/calculatorSettings)입니다 — calculator/shared-settings.js(모듈)가
 // 읽어 window.__calcShared + 'calc-shared-settings' 이벤트로 넘기고, 저장은 window.__calcSharedSave 로 합니다.
+// 명단 밖 로그인 사용자(guest)는 공개 사본을 보기 전용으로 받습니다(readOnly) — 저장 결과 { mode:'readonly' } 면 설정을 바꾸지 않습니다.
+// 계산기 권한(calculator.view)이 없는 직원도 보기 전용입니다(readOnlyReason 'perm' — 원본·이력은 그대로 봅니다).
 
 const SettingsContext = React.createContext();
 
@@ -62,8 +64,10 @@ const SettingsProvider = ({ children }) => {
         }
     });
 
-    // logis 평균 기본값 상태: 'loading' | 'ok' | 'signed-out' | 'error' (logis-defaults.js 와 같다)
-    const [defaultsStatus, setDefaultsStatus] = React.useState('loading');
+    // logis 평균 기본값 상태: 'loading' | 'ok' | 'signed-out' | 'error' | 'guest' (logis-defaults.js 와 같다)
+    //   'guest' = 명단 밖 사용자 — 평균값은 직원 전용. settings·localStorage 의 값은 그대로 두고 화면(통관·창고료·설정 관리)에서만 가린다.
+    //   첫 화면 깜빡임을 줄이려고 모듈이 이미 알린 상태로 시작한다.
+    const [defaultsStatus, setDefaultsStatus] = React.useState(() => (window.__customsDefaults && window.__customsDefaults.status) || 'loading');
     const [defaultsMeta, setDefaultsMeta] = React.useState(null);
     const [defaultsError, setDefaultsError] = React.useState(null);
 
@@ -103,6 +107,8 @@ const SettingsProvider = ({ children }) => {
     const [sharedHistory, setSharedHistory] = React.useState([]);
     const [sharedError, setSharedError] = React.useState(null);
     const [sharedRev, setSharedRev] = React.useState(0);     // 공용 값이 설정에 얹힐 때마다 +1 (설정 화면이 안 고친 상태면 새로 그린다)
+    const [sharedReadOnly, setSharedReadOnly] = React.useState(false);   // guest·권한 없는 직원 — 팀 공용 설정 보기 전용
+    const [sharedReadOnlyReason, setSharedReadOnlyReason] = React.useState(null);   // 'guest' | 'perm' | null
 
     const applyShared = React.useCallback((st) => {
         if (!st) return;
@@ -110,6 +116,8 @@ const SettingsProvider = ({ children }) => {
         setSharedMeta(st.meta || {});
         setSharedHistory(Array.isArray(st.history) ? st.history : []);
         setSharedError(st.error || null);
+        setSharedReadOnly(!!st.readOnly);
+        setSharedReadOnlyReason(st.readOnlyReason || null);
         if (st.status === 'ok' && st.settings) {
             backupBeforeShared();
             setSettings(prev => applySharedSettings(prev, st.settings));
@@ -134,6 +142,7 @@ const SettingsProvider = ({ children }) => {
             return { mode: 'local', reason: '공용 설정 모듈을 불러오지 못함' };
         }
         const res = await fn(base, local, opts || {});
+        if (res && res.mode === 'readonly') return res;      // guest·권한 없는 직원 — 아무것도 바꾸지 않는다
         if (!res || res.mode !== 'shared') {
             setSettings(local);
             return res || { mode: 'local', reason: '알 수 없음' };
@@ -162,7 +171,7 @@ const SettingsProvider = ({ children }) => {
         <SettingsContext.Provider value={{
             settings, updateSettings,
             defaultsStatus, defaultsMeta, defaultsError, reloadDefaults,
-            sharedStatus, sharedMeta, sharedHistory, sharedError, sharedRev, saveSettings, reloadShared,
+            sharedStatus, sharedMeta, sharedHistory, sharedError, sharedRev, sharedReadOnly, sharedReadOnlyReason, saveSettings, reloadShared,
         }}>
             {children}
         </SettingsContext.Provider>

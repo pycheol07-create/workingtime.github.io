@@ -92,6 +92,12 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
     const subsidiaryInput = (parseNum(formData.packagingBag) || 0) + (parseNum(formData.label) || 0);
     const remitMissing = missingRateFields(currentRates, subsidiaryInput > 0 ? ['usdKrw', 'cnyKrw', 'usdCny'] : ['usdKrw', 'usdCny']);
     const remitMissingKey = remitMissing.join(',');
+    // 환율 칸 — 통관비 탭(CustomsCalculator.js)과 같은 접기: 기본 접힘(접힘 때 적용 환율 한 줄), 고시환율·송금 환율이 비면 펼쳐 둔다.
+    //   펼침 상태는 기억하지 않는다(통관비 탭과 같음 — 다시 열면 접힘).
+    const [rateOpen, setRateOpen] = React.useState(false);
+    const rateBlockOpen = rateOpen || customsRateMissing || !!remitMissingKey;
+    // 빈칸 때문에 펼쳐졌으면 펼침을 고정한다 — 그러지 않으면 빈칸에 첫 글자를 치자마자 접혀 입력이 끊긴다
+    React.useEffect(() => { if (customsRateMissing || remitMissingKey) setRateOpen(true); }, [customsRateMissing, remitMissingKey]);
 
     const results = React.useMemo(() => {
         const productCost = parseNum(formData.productCost) || 0;
@@ -180,8 +186,17 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
                     <ImportToggleFieldset label="포장봉투" name="packagingBag" value={formData.packagingBag} options={settings.import.packagingOptions} onChange={handleInputChange} />
                     <ImportToggleFieldset label="라벨" name="label" value={formData.label} options={settings.import.labelOptions} onChange={handleInputChange} />
                     
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                        <label className="block text-sm font-bold text-gray-800 mb-3">환율 적용 방식</label>
+                    {/* 환율 — 기본 접힘(접힘 때 적용 환율 한 줄). 고시환율·송금 환율이 비면 펼친다(통관비 탭과 같은 모양) */}
+                    <div className="bg-slate-50 rounded-xl border border-slate-200">
+                        <button type="button" onClick={() => setRateOpen(o => !o)} aria-expanded={rateBlockOpen} aria-controls="imp-rate-body" className="w-full flex items-center justify-between gap-2 p-4 text-left">
+                            <span className="min-w-0">
+                                <span className="block text-sm font-bold text-gray-800">환율 적용 방식</span>
+                                {!rateBlockOpen && <span className="block text-xs text-gray-500 mt-0.5" data-k="rate-summary">{rateSummaryText(currentRates.customs, currentRates.usdKrw, rateState, customsInfo && customsInfo.source)}{currentRates.usdCny > 0 ? ` / 위안-달러 ${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 4 }).format(currentRates.usdCny)}` : ''}</span>}
+                            </span>
+                            <span className={`flex-shrink-0 transform transition-transform duration-200 ${rateBlockOpen ? 'rotate-180' : ''}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></span>
+                        </button>
+                        {rateBlockOpen && (
+                        <div id="imp-rate-body" className="px-4 pb-4">
                         <fieldset className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 mb-4">
                             <legend className="sr-only">환율 적용 방식</legend>
                             <label className={`relative flex-1 cursor-pointer py-2 px-2 sm:px-4 text-center text-xs sm:text-sm font-semibold whitespace-nowrap focus-within:ring-2 focus-within:ring-emerald-500 ${exchangeRates.mode === 'fixed' ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
@@ -223,6 +238,8 @@ const ImportCalculator = ({ exchangeRates, onRateChange, customsInfo, onCustomsR
                                 </div>
                             )}
                         </div>
+                        </div>
+                        )}
                     </div>
                 </div>
             </div>

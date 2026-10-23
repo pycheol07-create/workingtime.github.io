@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610231049';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610231233';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -302,7 +302,7 @@ function getDefaultConfig() {
         // teamGroups 안에 있어도 인원 카운트에선 빼고, 멤버 선택 UI 등에는 그대로 노출.
         headcountExcludedMembers: [], // 예) ['공용계정'] — 운영 값은 mainConfig
         resignedMembers: {}, // { '이름': '퇴사일 YYYY-MM-DD' } — 퇴사 처리(비활성). 데이터·과거기록은 보존.
-        resignedEmails: {}, // { '이메일(소문자)': '퇴사일' } — 관리자 저장 때 resignedMembers·memberEmails 로 새로 만든다(규칙용)
+        resignedEmails: {}, // { '이메일(소문자)': '퇴사일' } — 관리자 저장 때 resignedMembers·memberEmails + 이전 값으로 만든다(규칙용)
         memberWages: {},
         memberEmails: {},
         memberRoles: {},

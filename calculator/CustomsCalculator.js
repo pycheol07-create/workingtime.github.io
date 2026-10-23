@@ -10,7 +10,8 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
       // logis 3개월 평균이 들어가는 칸 → settings.customs 키. 사용자가 손댄 칸은 늦게 온 평균값이 덮지 않는다.
       const AVG_FIELDS = { unitPrice: 'defaultUnitPrice', quantityPerBox: 'defaultQuantityPerBox', weightPerBox: 'defaultWeightPerBox' };
       const AVG_FALLBACK = { unitPrice: 10, quantityPerBox: 50, weightPerBox: 12 };
-      const avgOf = (f) => String(settings.customs[AVG_FIELDS[f]] ?? AVG_FALLBACK[f]);
+      // 명단 밖 사용자(guest)는 평균값이 직원 전용이라 빈칸(직접 입력) — 2026-10-23 외부 열람
+      const avgOf = (f) => (defaultsStatus === 'guest' ? '' : String(settings.customs[AVG_FIELDS[f]] ?? AVG_FALLBACK[f]));
       const touchedRef = React.useRef({});
 
       // 입력값 기억(CalcMemory.js) — 평균 칸(단가·입수·무게)은 사람이 고친 칸만 기억한다(손대지 않은 칸은 늘 logis 평균).
@@ -78,7 +79,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
           Object.keys(AVG_FIELDS).forEach(f => { if (!touchedRef.current[f]) next[f] = avgOf(f); });
           return next;
         });
-      }, [settings.customs.defaultUnitPrice, settings.customs.defaultQuantityPerBox, settings.customs.defaultWeightPerBox]);
+      }, [settings.customs.defaultUnitPrice, settings.customs.defaultQuantityPerBox, settings.customs.defaultWeightPerBox, defaultsStatus === 'guest']);
 
       const resetToAvg = (f) => {
         touchedRef.current[f] = false;
@@ -87,6 +88,9 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
 
       // 칸 아래 회색 안내 — 'logis 3개월 평균 값 · 기간' + [평균으로]
       const avgHint = (f) => {
+        if (defaultsStatus === 'guest') {
+          return <div className="mt-1 text-xs text-gray-400" data-k={`avg-hint-${f}`}>기본값은 직원 전용입니다 — 직접 입력하세요</div>;
+        }
         const m = defaultsMeta || {};
         const avg = avgOf(f);
         const src = defaultsStatus === 'ok'
@@ -313,6 +317,8 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
       ], formData, setFormData);
 
       const rateBlockOpen = rateOpen || customsRateMissing || !!remitMissingKey;     // 고시환율·원-달러가 비면 펼쳐 둔다
+      // 빈칸 때문에 펼쳐졌으면 펼침을 고정한다 — 그러지 않으면 빈칸에 첫 글자를 치자마자 접혀 입력이 끊긴다(2026-10-23)
+      React.useEffect(() => { if (customsRateMissing || remitMissingKey) setRateOpen(true); }, [customsRateMissing, remitMissingKey]);
       const segLabel = (on) => `relative flex-1 cursor-pointer py-2 px-2 sm:px-4 text-center text-xs sm:text-sm font-semibold whitespace-nowrap focus-within:ring-2 focus-within:ring-emerald-500 ${on ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`;
       const totalWithGoods = results ? results.totalProductPriceKRW + results.totalCost : 0;   // 총 비용(상품가 포함) — 표시용 합
 
