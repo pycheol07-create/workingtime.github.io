@@ -1,15 +1,15 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610231013';
-import * as State from './state.js?v=202610231013';
-import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202610231013';
-import { visibleMenuFor } from './menu-catalog.js?v=202610231013';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610231013';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610231013';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610231013';
-import { canonicalTaskName } from './lib/task-ids.js?v=202610231013';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610231013';
-import { minToHhmm } from './forecast-progress.js?v=202610231013';
-import { taskPace, combinePace, expectedRatio, rowsForDashboard } from './lib/task-pace.js?v=202610231013';
+import { getAllDashboardDefinitions } from './ui.js?v=202610231017';
+import * as State from './state.js?v=202610231017';
+import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202610231017';
+import { visibleMenuFor } from './menu-catalog.js?v=202610231017';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610231017';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610231017';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610231017';
+import { canonicalTaskName } from './lib/task-ids.js?v=202610231017';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610231017';
+import { minToHhmm } from './forecast-progress.js?v=202610231017';
+import { taskPace, combinePace, expectedRatio, rowsForDashboard } from './lib/task-pace.js?v=202610231017';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -249,7 +249,7 @@ export const renderDashboardLayout = (appConfig) => {
 
     // 계획 0 · 활동 없는 칸을 접어 둔 줄 — 개수는 paintWorkloadPace 가 채운다
     workloadHtml += `
-        <button type="button" id="wl-more" class="wl-more${paceMoreCount ? '' : ' hidden'}">${paceMoreCount ? (wlOpen.more ? `그 외 ${paceMoreCount}개 접기` : `그 외 ${paceMoreCount}개 (계획·활동 없음)`) : ''}</button>
+        <button type="button" id="wl-more" class="wl-more hidden">${paceMoreCount ? (wlOpen.more ? `그 외 ${paceMoreCount}개 접기` : `그 외 ${paceMoreCount}개 (계획·활동 없음)`) : ''}</button>
     `;
 
     // 첫 그림은 빈 칸으로 두고, 아래 updateEzadminDisplay() 가 실제 값을 채운다.
@@ -404,7 +404,7 @@ const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-
  *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
 const openQuantityFromCard = async () => {
     try {
-        const { whenTodayLoaded } = await import('./app-sync.js?v=202610231013');
+        const { whenTodayLoaded } = await import('./app-sync.js?v=202610231017');
         const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
         if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
     } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
@@ -551,7 +551,7 @@ const missingLineOf = (appState, appConfig, qtyByTask) => {
 
 /** 행 class — 레이아웃을 새로 그릴 때도 같은 값을 쓴다(깜빡임 방지) */
 const wlRowClass = (v) => 'wl-row' + (v && v.hasPace ? ' has-pace' : '')
-    + (v && v.idle ? ' is-idle' : '') + (v && v.idle && !wlOpen.more ? ' hidden' : '');
+    + (v && v.idle ? ' is-idle' : '');   // 계획·활동 없는 칸도 접지 않고 늘 보인다(2026-10-23 사용자 요청)
 
 const paintWorkloadPaceNow = () => {
     const container = document.getElementById('summary-workload');
@@ -576,7 +576,7 @@ const paintWorkloadPaceNow = () => {
     if (!paceMod) {
         if (!paceModLoading) {
             paceModLoading = true;
-            import('./ui-history-prediction.js?v=202610231013')
+            import('./ui-history-prediction.js?v=202610231017')
                 .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
                 .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
                 .finally(() => { paceModLoading = false; });
@@ -615,7 +615,7 @@ const paintWorkloadPaceNow = () => {
     paceMoreCount = idleCount;
     const more = document.getElementById('wl-more');
     if (more) {
-        more.classList.toggle('hidden', idleCount === 0);
+        more.classList.add('hidden');   // '그 외 N개' 접기는 쓰지 않는다(전부 기본 표시)
         const txt = wlOpen.more ? `그 외 ${idleCount}개 접기` : `그 외 ${idleCount}개 (계획·활동 없음)`;
         if (more.textContent !== txt) more.textContent = txt;
     }
