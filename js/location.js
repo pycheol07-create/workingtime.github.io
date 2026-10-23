@@ -1,22 +1,22 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610230956';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610231013';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610230956';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610230956';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610230956';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610230956';
-import { orderKeyMap } from './lib/order-hash.js?v=202610230956';
-import { setShellContext } from './app-shell-bridge.js?v=202610230956';
-import { memberNameFor } from './app-shell-data.js?v=202610230956';
-import { menuConfigOf } from './lib/perm.js?v=202610230956';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610230956';
-import { initPageNav } from './page-nav.js?v=202610230956';
-import { initRefillCard } from './refill-card.js?v=202610230956';
-import { initLocRecCard } from './locrec-card.js?v=202610230956';
-import { whenPerm } from './feature-gate.js?v=202610230956';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610230956';
-import { uploadBlockText } from './lib/busy-view.js?v=202610230956';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610230956';
+import { escapeHtml as escAttr } from './utils.js?v=202610231013';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610231013';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610231013';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610231013';
+import { orderKeyMap } from './lib/order-hash.js?v=202610231013';
+import { setShellContext } from './app-shell-bridge.js?v=202610231013';
+import { memberNameFor } from './app-shell-data.js?v=202610231013';
+import { menuConfigOf } from './lib/perm.js?v=202610231013';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610231013';
+import { initPageNav } from './page-nav.js?v=202610231013';
+import { initRefillCard } from './refill-card.js?v=202610231013';
+import { initLocRecCard } from './locrec-card.js?v=202610231013';
+import { whenPerm } from './feature-gate.js?v=202610231013';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610231013';
+import { uploadBlockText } from './lib/busy-view.js?v=202610231013';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610231013';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나

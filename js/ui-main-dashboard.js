@@ -1,15 +1,15 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610230956';
-import * as State from './state.js?v=202610230956';
-import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202610230956';
-import { visibleMenuFor } from './menu-catalog.js?v=202610230956';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610230956';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610230956';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610230956';
-import { canonicalTaskName } from './lib/task-ids.js?v=202610230956';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610230956';
-import { minToHhmm } from './forecast-progress.js?v=202610230956';
-import { taskPace, combinePace, expectedRatio, rowsForDashboard } from './lib/task-pace.js?v=202610230956';
+import { getAllDashboardDefinitions } from './ui.js?v=202610231013';
+import * as State from './state.js?v=202610231013';
+import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202610231013';
+import { visibleMenuFor } from './menu-catalog.js?v=202610231013';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610231013';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610231013';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610231013';
+import { canonicalTaskName } from './lib/task-ids.js?v=202610231013';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610231013';
+import { minToHhmm } from './forecast-progress.js?v=202610231013';
+import { taskPace, combinePace, expectedRatio, rowsForDashboard } from './lib/task-pace.js?v=202610231013';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -213,14 +213,18 @@ export const renderDashboardLayout = (appConfig) => {
         const safeTitle = def.title.replace(/<br\s*\/?>/gi, ' ').replace(/ /g, '&nbsp;');
 
         if (isQuantity) {
-            // 숫자 줄 아래에 진행률·종료 예상 칸(wl-pace-*). 안쪽은 paintWorkloadPace 가 갈아끼운다.
+            // 한 줄: [업무명] [막대 · 실적/계획 · %](wl-pace-*) — 진행 재료가 없으면 지금처럼 숫자(valueId)만.
+            // 숫자 span(valueId)은 updateSummary 가 채운다. 진행 칸이 있으면 CSS 로 숨긴다(has-pace).
+            // 둘째 줄(wl-sub-*)은 경고가 있거나 펼쳤을 때만. 안쪽은 paintWorkloadPace 가 갈아끼운다.
+            const last = paceHtmlLast[id];
             workloadHtml += `
-                <div class="d-kv d-kv-lg is-x">
-                    <div class="d-kv-line">
-                        <span class="d-kv-label whitespace-nowrap shrink-0 break-keep">${safeTitle}</span>
-                        <span id="${def.valueId}" class="d-kv-val shrink-0">0</span>
+                <div id="wl-row-${id}" class="${wlRowClass(last)}" data-wl-row="${id}" title="${last ? escapeHtml(last.title) : ''}">
+                    <div class="wl-line">
+                        <span class="wl-label">${safeTitle}</span>
+                        <span id="wl-pace-${id}" class="wl-pace">${last ? last.line : ''}</span>
+                        <span id="${def.valueId}" class="wl-val">0</span>
                     </div>
-                    <div id="wl-pace-${id}" class="wl-pace">${paceHtmlLast[id] || ''}</div>
+                    <div id="wl-sub-${id}" class="wl-sub">${last ? last.sub : ''}</div>
                 </div>
             `;
         } else if (EXPANDABLE_ITEMS.has(id)) {
@@ -242,6 +246,11 @@ export const renderDashboardLayout = (appConfig) => {
             `;
         }
     });
+
+    // 계획 0 · 활동 없는 칸을 접어 둔 줄 — 개수는 paintWorkloadPace 가 채운다
+    workloadHtml += `
+        <button type="button" id="wl-more" class="wl-more${paceMoreCount ? '' : ' hidden'}">${paceMoreCount ? (wlOpen.more ? `그 외 ${paceMoreCount}개 접기` : `그 외 ${paceMoreCount}개 (계획·활동 없음)`) : ''}</button>
+    `;
 
     // 첫 그림은 빈 칸으로 두고, 아래 updateEzadminDisplay() 가 실제 값을 채운다.
     // (0 을 먼저 그리면 '송장 0건' 처럼 보인다)
@@ -381,8 +390,9 @@ const PACE_MIN_GAP_MS = 3000;
 let paceMod = null, paceModLoading = false;
 let paceLastAt = 0, paceTimer = null, paceArgs = null;
 let paceRetryTimer = null, paceRetries = 0;   // 이력이 아직 안 실렸을 때 다시 그려 보기(최대 2분)
-const paceHtmlLast = {};          // 칸 id → 마지막 html (레이아웃을 다시 그려도 같은 그림으로 시작 — 깜빡임 방지)
+const paceHtmlLast = {};          // 칸 id → 마지막 그림 { line, sub, title, hasPace, idle } (레이아웃을 다시 그려도 같은 그림으로 시작 — 깜빡임 방지)
 let paceMissingLast = null;       // { html, title, disabled } / null = 숨김
+let paceMoreCount = 0;            // '그 외 N개' (계획 0 · 활동 없음으로 접힌 칸 수)
 
 const paceFmtMin = (m) => formatHM((Number(m) || 0) / 60);
 
@@ -394,7 +404,7 @@ const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-
  *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
 const openQuantityFromCard = async () => {
     try {
-        const { whenTodayLoaded } = await import('./app-sync.js?v=202610230956');
+        const { whenTodayLoaded } = await import('./app-sync.js?v=202610231013');
         const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
         if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
     } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
@@ -402,17 +412,44 @@ const openQuantityFromCard = async () => {
     if (btn) btn.click();
 };
 
+// 펼침 상태 — 그 탭에서만 기억(sessionStorage). rows: 펼친 칸 id, more: '그 외 N개' 펼침
+const WL_OPEN_KEY = 'wlCardOpen_v1';
+const wlOpen = (() => {
+    try {
+        const v = JSON.parse(sessionStorage.getItem(WL_OPEN_KEY) || '{}');
+        return { rows: new Set(Array.isArray(v.rows) ? v.rows : []), more: !!v.more };
+    } catch (e) { return { rows: new Set(), more: false }; }
+})();
+const saveWlOpen = () => {
+    try { sessionStorage.setItem(WL_OPEN_KEY, JSON.stringify({ rows: [...wlOpen.rows], more: wlOpen.more })); } catch (e) {}
+};
+
 // 카드 칸(#summary-workload)은 레이아웃을 다시 그려도 그대로 남는다 — 클릭은 한 번만 위임해 둔다
 const bindWorkloadClicks = (container) => {
     if (!container || container.dataset.wlBound) return;
     container.dataset.wlBound = '1';
     container.addEventListener('click', (e) => {
-        const b = e.target.closest && e.target.closest('#wl-missing');
-        if (b && !b.disabled) openQuantityFromCard();
+        const t = e.target;
+        if (!t || !t.closest) return;
+        const b = t.closest('#wl-missing');
+        if (b) { if (!b.disabled) openQuantityFromCard(); return; }
+        if (t.closest('#wl-more')) {
+            wlOpen.more = !wlOpen.more; saveWlOpen();
+            try { paintWorkloadPaceNow(); } catch (err) {}
+            return;
+        }
+        const row = t.closest('.wl-row.has-pace');
+        if (row && row.dataset.wlRow) {
+            const id = row.dataset.wlRow;
+            if (wlOpen.rows.has(id)) wlOpen.rows.delete(id); else wlOpen.rows.add(id);
+            saveWlOpen();
+            try { paintWorkloadPaceNow(); } catch (err) {}
+        }
     });
 };
 
-const paceStateText = (p) => {
+/** 펼쳤을 때·마우스 올렸을 때 보이는 상세 한 줄(글자만) */
+const paceDetailText = (p) => {
     if (p.state === 'done') return p.ended ? '완료' : '계획 달성';
     if (p.state === 'stopped') return p.remainQty > 0 ? `멈춤 · 남은 ${p.remainQty.toLocaleString()}` : '멈춤 · 처리량 입력 전';
     if (p.state === 'noPlan') return '오늘 계획 없음';
@@ -420,53 +457,78 @@ const paceStateText = (p) => {
     if (p.state === 'noWorker') return '진행 인원 없음';
     if (p.remainQty <= 0) return `계획량 도달(추정) · ${p.working}명 진행`;   // 어림값이 계획에 닿음 — 입력 전이라 완료 아님
     let s = `남은 ${paceFmtMin(p.remainMin)} · ${p.working}명 진행 · 종료 ${minToHhmm(p.finishMin)}`;
-    if (p.overMin > 0) s += ` <span class="t-risk">(정시 +${paceFmtMin(p.overMin)})</span>`;
-    if (p.cannotMeet) s += ` · <span class="t-risk">정시 마감 어려움</span>`;
-    else if (p.extraWorkers > 0) s += ` · <span class="t-warn">+${p.extraWorkers}명 있으면 정시</span>`;
+    if (p.overMin > 0) s += ` (정시 +${paceFmtMin(p.overMin)})`;
+    if (p.cannotMeet) s += ' · 정시 마감 어려움';
+    else if (p.extraWorkers > 0) s += ` · +${p.extraWorkers}명 있으면 정시`;
     return s;
 };
 
-/** 한 칸의 안쪽 html. 연결 업무가 없거나 재료가 없으면 '' (지금처럼 숫자만). */
-const paceRowHtml = (row, inp, expected, qtyByTask) => {
-    if (row.kind === 'none' || !inp) return '';
+/** 경고가 있을 때만 접힌 상태에서도 보이는 짧은 둘째 줄 — { text, tone } / 경고 없으면 null */
+const paceWarnShort = (p) => {
+    if (p.state === 'stopped') {
+        return { text: p.remainQty > 0 ? `멈춤 · 남은 ${p.remainQty.toLocaleString()}` : '멈춤 · 입력 전', tone: p.tone === 'risk' ? 't-risk' : 't-warn' };
+    }
+    if (p.overMin > 0 && p.finishMin != null) {
+        const tail = p.cannotMeet ? ' · 마감 어려움' : p.extraWorkers > 0 ? ` · +${p.extraWorkers}명` : '';
+        return { text: `종료 ${minToHhmm(p.finishMin)} (+${paceFmtMin(p.overMin)})${tail}`, tone: p.tone === 'risk' ? 't-risk' : 't-warn' };
+    }
+    if (p.tone === 'warn' || p.tone === 'risk') {
+        return { text: `${paceDetailText(p)} · 예정보다 늦음`, tone: p.tone === 'risk' ? 't-risk' : 't-warn' };
+    }
+    return null;
+};
+
+/** 한 칸의 그림.
+ *  반환 { line(막대·실적/계획·% html), sub(둘째 줄 html), title, hasPace, idle }
+ *  연결 업무가 없거나 재료가 없으면 hasPace=false — 지금처럼 숫자(valueId)만 보인다. */
+const paceRowView = (row, inp, expected, qtyByTask, open) => {
+    const none = { line: '', sub: '', title: '', hasPace: false, idle: false };
+    if (row.kind === 'none' || !inp) return none;
     const paces = row.tasks.map(task => {
         const t = inp.tasks[task] || { planQty: 0, uph: 0, working: 0, spentHours: 0, activeHours: 0, started: false, ended: false };
+        const doneQty = Number(qtyByTask[task]) || 0;
         const p = taskPace({
-            planQty: t.planQty, doneQty: Number(qtyByTask[task]) || 0, uph: t.uph, working: t.working,
+            planQty: t.planQty, doneQty, uph: t.uph, working: t.working,
             spentHours: t.spentHours, activeHours: t.activeHours, nowMin: inp.nowMin, baseFinishMin: inp.baseFinishMin,
             skipLunch: inp.skipLunch, expected, available: inp.available, started: t.started, ended: t.ended
         });
-        return { ...p, working: t.working, ended: t.ended, task };
+        return { ...p, working: t.working, ended: t.ended, task, doneQty };
     });
 
-    const src = inp.planSrc === 'snap'
-        ? '<span class="wl-src" title="오늘 얼려 둔 계획 기준">확정</span>'
-        : '<span class="wl-src" title="얼려 둔 계획이 없어 지금 자동 계산한 계획 기준">자동</span>';
+    // 계획 0 · 오늘 활동 없음 → 숨김 대상('그 외 N개')
+    const idle = paces.every(x => !(x.planQty > 0) && !x.started && !(x.doneQty > 0));
+    const srcText = inp.planSrc === 'snap' ? '확정 계획 기준' : '자동 계획 기준(얼려 둔 계획 없음)';
+    const srcDot = `<span class="wl-src${inp.planSrc === 'snap' ? ' is-snap' : ''}" title="${srcText}"></span>`;
 
-    let p, meta, title;
+    let p, details, warn;
     if (row.kind === 'single') {
         p = paces[0];
-        meta = paceStateText(p);
-        title = `${p.task} · 계획 ${p.planQty.toLocaleString()} · 실적 ${p.shownQty.toLocaleString()}`
-              + (p.estimated ? ' (추정: 오늘 쓴 시간 × 기준 속도가 입력된 처리량보다 큼 — 처리량은 업무를 끝낸 뒤 입력합니다)' : '');
+        details = [paceDetailText(p)];
+        warn = paceWarnShort(p);
     } else {
         p = combinePace(paces, expected);
-        meta = p.state === 'noPlan' ? '오늘 계획 없음' : `업무 ${paces.length}개 합계${p.state === 'done' ? ' · 완료' : ''}`;
-        title = paces.map(x => `${x.task} ${x.shownQty.toLocaleString()} / ${x.planQty.toLocaleString()}${x.estimated ? ' (추정)' : ''}`).join('\n');
+        details = paces.map(x => `${x.task} ${x.shownQty.toLocaleString()}${x.estimated ? '~' : ''} / ${x.planQty.toLocaleString()} · ${paceDetailText(x)}`);
+        const bad = paces.map(paceWarnShort).filter(Boolean);
+        warn = bad.length ? { text: `업무 ${bad.length}개 확인 필요`, tone: bad.some(w => w.tone === 't-risk') ? 't-risk' : 't-warn' } : null;
     }
+    const estNote = p.estimated ? '~ 는 추정: 오늘 쓴 시간 × 기준 속도(처리량은 업무를 끝낸 뒤 입력)' : '';
+    const title = [...details, srcText, estNote].filter(Boolean).join('\n');
 
-    if (p.state === 'noPlan') {
-        return `<div class="wl-meta"><span class="t-3">${meta}</span>${src}</div>`;
-    }
     const tone = p.tone === 'risk' ? ' is-risk' : p.tone === 'warn' ? ' is-warn' : '';
-    const est = p.estimated ? ' is-est' : '';
     const pctTone = p.tone === 'risk' ? 't-risk' : p.tone === 'warn' ? 't-warn' : 't-2';
-    return `
-        <div class="wl-bar-line" title="${escapeHtml(title)}">
-            <div class="tp-track wl-track"><div class="tp-bar wl-bar${tone}${est}" style="width:${p.barPct}%"></div></div>
-            <span class="wl-pct ${pctTone}">${p.estimated ? '<span class="wl-est">추정</span>' : ''}${p.pct == null ? '–' : p.pct + '%'}</span>
-        </div>
-        <div class="wl-meta"><span class="t-3">${meta}</span>${src}</div>`;
+    const plan = p.planQty > 0 ? p.planQty.toLocaleString() : '–';
+    const line = `<span class="tp-track wl-track"><span class="tp-bar wl-bar${tone}${p.estimated ? ' is-est' : ''}" style="width:${p.barPct}%"></span></span>`
+        + `<span class="wl-qty">${p.shownQty.toLocaleString()}${p.estimated ? '<span class="wl-est">~</span>' : ''}<span class="wl-plan">/${plan}</span></span>`
+        + `<span class="wl-pct ${pctTone}">${p.pct == null ? '–' : p.pct + '%'}</span>${srcDot}`;
+
+    let sub = '';
+    if (open) {
+        sub = details.map(d => `<div>${escapeHtml(d)}</div>`).join('')
+            + `<div>${escapeHtml(srcText)}${estNote ? ' · ' + escapeHtml(estNote) : ''}</div>`;
+    } else if (warn) {
+        sub = `<span class="${warn.tone}">${escapeHtml(warn.text)}</span>`;
+    }
+    return { line, sub, title, hasPace: true, idle };
 };
 
 /** 미입력 줄 그림 — { html, title, disabled } / 0개면 null.
@@ -486,6 +548,10 @@ const missingLineOf = (appState, appConfig, qtyByTask) => {
         disabled: !opener
     };
 };
+
+/** 행 class — 레이아웃을 새로 그릴 때도 같은 값을 쓴다(깜빡임 방지) */
+const wlRowClass = (v) => 'wl-row' + (v && v.hasPace ? ' has-pace' : '')
+    + (v && v.idle ? ' is-idle' : '') + (v && v.idle && !wlOpen.more ? ' hidden' : '');
 
 const paintWorkloadPaceNow = () => {
     const container = document.getElementById('summary-workload');
@@ -510,7 +576,7 @@ const paintWorkloadPaceNow = () => {
     if (!paceMod) {
         if (!paceModLoading) {
             paceModLoading = true;
-            import('./ui-history-prediction.js?v=202610230956')
+            import('./ui-history-prediction.js?v=202610231013')
                 .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
                 .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
                 .finally(() => { paceModLoading = false; });
@@ -528,13 +594,31 @@ const paintWorkloadPaceNow = () => {
     // 🆔 옛 이름으로 남은 연결도 지금 이름으로 본다(숫자 줄과 같은 규칙)
     const map = {};
     Object.entries(appConfig.quantityToDashboardMap || {}).forEach(([task, id]) => { map[canonicalTaskName(task, appConfig)] = id; });
+    let idleCount = 0;
     rowsForDashboard(appConfig.dashboardItems || [], getAllDashboardDefinitions(appConfig), map).forEach(row => {
-        const el = document.getElementById(`wl-pace-${row.id}`);
-        if (!el) return;
-        const html = paceRowHtml(row, inp, expected, qtyByTask);
-        paceHtmlLast[row.id] = html;
-        if (el.innerHTML !== html) el.innerHTML = html;     // 같은 그림이면 건드리지 않는다(깜빡임 방지)
+        const rowEl = document.getElementById(`wl-row-${row.id}`);
+        const lineEl = document.getElementById(`wl-pace-${row.id}`);
+        const subEl = document.getElementById(`wl-sub-${row.id}`);
+        if (!rowEl || !lineEl || !subEl) return;
+        const v = paceRowView(row, inp, expected, qtyByTask, wlOpen.rows.has(row.id));
+        paceHtmlLast[row.id] = v;
+        if (v.idle) idleCount++;
+        // 같은 그림이면 건드리지 않는다(깜빡임 방지)
+        const cls = wlRowClass(v);
+        if (rowEl.className !== cls) rowEl.className = cls;
+        if (rowEl.title !== v.title) rowEl.title = v.title;
+        if (lineEl.innerHTML !== v.line) lineEl.innerHTML = v.line;
+        if (subEl.innerHTML !== v.sub) subEl.innerHTML = v.sub;
     });
+
+    // ③ '그 외 N개' — 계획 0 · 활동 없는 칸
+    paceMoreCount = idleCount;
+    const more = document.getElementById('wl-more');
+    if (more) {
+        more.classList.toggle('hidden', idleCount === 0);
+        const txt = wlOpen.more ? `그 외 ${idleCount}개 접기` : `그 외 ${idleCount}개 (계획·활동 없음)`;
+        if (more.textContent !== txt) more.textContent = txt;
+    }
 };
 
 const schedulePace = () => {

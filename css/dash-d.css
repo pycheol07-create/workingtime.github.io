@@ -170,26 +170,38 @@ html body { font-family: var(--font-sans); background: var(--c-bg); color: var(-
 #dash-root .ez-asof.is-warn { color: var(--c-risk-text); font-weight: 600; }
 #dash-root .ez-num { color: var(--c-text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
-/* ── 오늘 업무 처리량: 업무별 진행률·종료 예상(ui-main-dashboard.js paintWorkloadPace) ──
-   #wl-missing 은 hidden 토글이 있어 display 를 넣지 않는다. 막대는 위 tp-track/tp-bar 를 그대로 쓴다. */
-#dash-root .wl-missing { width: 100%; margin: 0 0 6px; padding: 8px 12px; border-radius: var(--r-sm); background: var(--c-warn-bg); color: var(--c-warn-text); font-size: 13px; text-align: left; cursor: pointer; transition: background .15s; }
+/* ── 오늘 업무 처리량: 한 줄 행(ui-main-dashboard.js paintWorkloadPace) ──
+   행 = [업무명] [막대 · 실적/계획 · %] (진행 재료가 없으면 숫자만). 둘째 줄(.wl-sub)은 경고·펼침일 때만.
+   .wl-row · #wl-missing · #wl-more 는 hidden 토글이 있어 display 를 넣지 않는다. 막대는 위 tp-track/tp-bar. */
+#dash-root .wl-missing { width: 100%; margin: 0 0 4px; padding: 4px 10px; border-radius: var(--r-sm); background: var(--c-warn-bg); color: var(--c-warn-text); font-size: 12px; line-height: 20px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: background .15s; }
 #dash-root .wl-missing:hover { background: var(--c-warn-soft); }
 #dash-root .wl-missing:disabled { cursor: default; }
 #dash-root .wl-missing:disabled:hover { background: var(--c-warn-bg); }
 #dash-root .wl-missing b { font-weight: 700; }
 #dash-root .wl-missing-go { margin-left: 8px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
-#dash-root .wl-pace:empty { margin: 0; }
-#dash-root .wl-bar-line { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-#dash-root .wl-track { flex: 1; min-width: 60px; height: 6px; }
+#dash-root .wl-row { padding: 0 2px; border-bottom: 1px solid var(--c-line-soft); }
+#dash-root .wl-row.has-pace { cursor: pointer; }
+#dash-root .wl-row.has-pace:hover { background: var(--c-surface-2); }
+#dash-root .wl-line { display: flex; align-items: center; gap: 8px; min-height: 28px; font-size: 13px; }
+#dash-root .wl-label { flex: 0 1 auto; max-width: 40%; color: var(--c-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#dash-root .wl-pace { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+#dash-root .wl-track { display: block; flex: 1 1 auto; min-width: 24px; height: 4px; }
+#dash-root .wl-bar { display: block; }
 #dash-root .wl-bar.is-warn { background: var(--c-warn); }
 #dash-root .wl-bar.is-risk { background: var(--c-risk); }
 #dash-root .wl-bar.is-est { opacity: .45; }
-#dash-root .wl-pct { flex-shrink: 0; min-width: 40px; text-align: right; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-#dash-root .wl-est { margin-right: 4px; font-size: 11px; font-weight: 500; color: var(--c-text-3); }
-#dash-root .wl-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 3px; font-size: 12px; line-height: 1.45; font-variant-numeric: tabular-nums; }
-#dash-root .wl-meta > span:first-child { min-width: 0; overflow-wrap: anywhere; }
-#dash-root .wl-src { flex-shrink: 0; font-size: 11px; color: var(--c-text-3); white-space: nowrap; }
-@media (max-width: 400px) { #dash-root .wl-meta { font-size: 11.5px; } }
+#dash-root .wl-qty { flex-shrink: 0; font-size: 12px; color: var(--c-text); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#dash-root .wl-est { color: var(--c-text-3); font-weight: 500; }
+#dash-root .wl-plan { color: var(--c-text-3); font-weight: 400; }
+#dash-root .wl-pct { flex-shrink: 0; min-width: 32px; text-align: right; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#dash-root .wl-src { flex-shrink: 0; display: inline-block; width: 6px; height: 6px; border-radius: 3px; border: 1px solid var(--c-text-3); }
+#dash-root .wl-src.is-snap { background: var(--c-text-3); }
+#dash-root .wl-val { flex-shrink: 0; margin-left: auto; font-size: 15px; font-weight: 600; color: var(--c-text); font-variant-numeric: tabular-nums; }
+#dash-root .wl-row.has-pace .wl-val { display: none; }
+#dash-root .wl-sub { padding: 0 0 4px; font-size: 11.5px; line-height: 1.4; color: var(--c-text-3); font-variant-numeric: tabular-nums; }
+#dash-root .wl-sub:empty { display: none; }
+#dash-root .wl-more { width: 100%; padding: 4px 2px; font-size: 12px; text-align: left; color: var(--c-text-3); cursor: pointer; }
+#dash-root .wl-more:hover { color: var(--c-text); }
 
 /* body 에 붙는 툴팁 */
 #personnel-hover-tooltip { background: #23272E; color: #FFFFFF; }
