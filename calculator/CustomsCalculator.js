@@ -305,7 +305,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
         { label: "총 상품 금액", name: "totalProductPrice", unit: "USD", icon: <CurrencyDollarIcon /> },
       ];
 
-      const calculationModeOptions = [{ label: '상품기준', value: 'product' }, { label: '박스기준', value: 'box' }];
+      const calculationModeOptions = [{ label: '박스기준', value: 'box' }, { label: '상품기준', value: 'product' }];   // 박스기준을 앞에(2026-10-26 사용자 요청)
       const shippingOptions = settings.customs.shippingTypes;
       const tariffOptions = settings.customs.tariffRates;
       const commissionTypeOptions = settings.customs.commissionTypes;
