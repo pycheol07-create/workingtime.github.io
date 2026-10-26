@@ -2,8 +2,9 @@
 // '갱신 중·업로드 중' 띠(js/busy-banner.js)의 순수 판정 — Firebase import 없음(node --test 대상: tests/busy-view.test.js).
 // 설계: 잠금_띠_설계.md 계약 A·B (2026-10-20). 띠에는 이메일을 넣지 않는다 — 이름(memberNameFor 결과)만, '@' 가 섞이면 버린다.
 //
-//   계약 A  integrations/ezadminLease   { holder:'mibal'|'refill'|'', job, runId, since, until, last:{holder,job,endAt,ms,calls,ok}, obs }
-//           미발수집(Apps Script)·채우기(Python)가 쓰고 브라우저는 읽기만. until 은 잡은 쪽 시계 기준이라 60초 여유를 둔다.
+//   계약 A  integrations/ezadminLease   { holder:'mibal'|'refill'|'shipqty'|'locrec'|'', job, runId, since, until, last:{holder,job,endAt,ms,calls,ok}, obs }
+//           미발수집(Apps Script)·채우기·처리량자동입력(shipqty)·로케이션추천 재고(locrec, Python)가 쓰고 브라우저는 읽기만.
+//           LEASE_LABEL 에 없는 주인(shipqty 등)은 '이지어드민 자료 읽는 중'으로 보인다. until 은 잡은 쪽 시계 기준이라 60초 여유를 둔다.
 //   계약 B  locationStock/uploadStatus · uploadStatus/stockLog
 //           { schema:1, state:'running'|'done'|'failed', kind, by, runId, since, beatAt(60초마다), endAt }
 //           진행 중 = running && beatAt 3분 안 && since 30분 안. '방금 끝남' = endAt 2분 안.
@@ -21,7 +22,8 @@ export const BY_MAX = 20;
 // 잠금 주인별 문구 · 보통 걸리는 시간(분)
 export const LEASE_LABEL = {
     mibal: { label: '미발수량·입고예정 자료 새로 읽는 중', done: '미발수량·입고예정 자료 새로 읽기 끝남', lo: 4, hi: 6 },
-    refill: { label: '채우기 지시서 만드는 중', done: '채우기 지시서 만들기 끝남', lo: 3, hi: 8 }
+    refill: { label: '채우기 지시서 만드는 중', done: '채우기 지시서 만들기 끝남', lo: 3, hi: 8 },
+    locrec: { label: '로케이션 추천 재고 읽는 중', done: '로케이션 추천 재고 읽기 끝남', lo: 3, hi: 5 }
 };
 const LEASE_OTHER = { label: '이지어드민 자료 읽는 중', done: '이지어드민 자료 읽기 끝남', lo: 0, hi: 0 };
 

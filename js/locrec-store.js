@@ -5,17 +5,22 @@
 //   로케이션관리는 카드를 띄울 때 start() 하고 계속 둔다. 대시보드는 표 창을 열 때 start(), 닫을 때 stop()(상시 구독 없음).
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — 페이지가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-//   쓰기는 locRecWork/marks 한 곳(firestore.rules: hasFeature('location.locrec')).
+//   쓰기는 locRecWork/marks · locRecWork/request 두 곳(firestore.rules: hasFeature('location.locrec')).
+// 다시 만들기: [지금 기준으로 다시 만들기] → locRecWork/request 덮어쓰기 → 이 PC 프로그램(추천.py --요청확인, 5분)이 오늘 문서를 바꾼다(rev +1).
+//   표 창이 열려 있는 동안 오늘 문서 rev 가 바뀌면 바로 바꾸지 않고 pendingDay 에 둔다 — 띠 '새 추천이 도착했습니다' [새로 보기](applyPending).
+//   재고 업로드 자동 감지 문구용으로 Locations/INFO_CONFIG.lastDataUpdate 도 구독한다(로케이션관리는 location.js 가 이미 같은 문서를 구독).
 import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
-    stripRows, fileNameAll
-} from './lib/locrec-view.js?v=202610261518';
+    stripRows, fileNameAll, recReqUi, tsMs
+} from './lib/locrec-view.js?v=202610261714';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
 const DAY_PATH = (key) => `${APP}/integrations/locRec_${key}`;
 const MARKS_PATH = `${APP}/locRecWork/marks`;
+const REQUEST_PATH = `${APP}/locRecWork/request`;
+const INFO_PATH = 'Locations/INFO_CONFIG';
 export const NO_NAME = '이름 없음';
 
 export const todayKey = () => dayKey(Date.now());

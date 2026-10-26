@@ -15,10 +15,15 @@
 //   integrations/locRec_YYYYMMDD    { rowsJson: JSON 문자열 {schema, single:[행], swap:[행], pair:[행]}, metrics, basedOn:{stockDataAt, …}, warn }
 //                                     행 = 로케이션추천\추천실행.mjs(js/lib/loc-recommend.js runRecommend) 출력 행 그대로
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
+//   locRecWork/request              { requestedAt, by, day }   ← [지금 기준으로 다시 만들기](덮어쓰기). 서버 --요청확인 이 5분마다 본다
+//   locRecLatest.req                { state: running|done|failed|rejected|waiting, note, day, count, autoCount, lastReqAt, startedAt, at,
+//                                     source: request|auto, autoStockAt(ms), max, cooldownMin, autoMax }  ← 다시 만들기 상태(서버 다시만들기.py)
+//   다시 만든 locRec_오늘           + rev(1부터) · source · requestedBy · 행 carried:true(이월 — 지금 기준 추천에서 빠졌지만 오늘 손댄 행)
+//                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610261518';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610261518';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610261714';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610261714';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -57,7 +62,8 @@ function cleanRow(r, type) {
         qty: num(r.qty), daily: num(r.daily), gain: num(r.gain), capWarn: r.capWarn === true, pairNear: str(r.pairNear),
         scoreGain: num(r.scoreGain), frontGain: num(r.frontGain),       // 동선 점수 기여도(옛 문서는 null)
         routeOut: r.routeOut === true,                                    // 기타·SAM 자리 상품 줄 — 동선 점수 계산 대상 밖
-        fromSize: str(r.fromSize).trim(), toSize: str(r.toSize).trim()    // 자리 칸수(옛 문서는 '')
+        fromSize: str(r.fromSize).trim(), toSize: str(r.toSize).trim(),   // 자리 칸수(옛 문서는 '')
+        carried: r.carried === true                                       // 다시 만들 때 이월한 행(지금 기준 추천에서 빠짐)
     };
     if (r.code2 != null && str(r.code2)) {
         Object.assign(out, { code2: str(r.code2), name2: str(r.name2), option2: str(r.option2), from2: str(r.from2), to2: str(r.to2),
@@ -362,6 +368,7 @@ export function stripRows({ latest, key, todayKey, parsed, marks, nowMs }) {
     const mk = marks || {};
     const out = [];
     TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
+        if (r.carried) return;                                     // 이월 행은 건수·엑셀에서 뺀다
         const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs });
         if (!st.hidden) out.push({ r, st });
     }));
@@ -453,6 +460,7 @@ export function tabSummary({ latest, key, todayKey, parsed, marks, nowMs }) {
     const mk = marks || {};
     let newN = 0, hiddenN = 0;
     TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
+        if (r.carried) return;                                     // 이월 행은 요약에서 뺀다
         const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs });
         if (st.hidden) { hiddenN++; return; }
         counts[t]++;
@@ -463,12 +471,12 @@ export function tabSummary({ latest, key, todayKey, parsed, marks, nowMs }) {
 
 /**
  * 표 창 [전체 처리함] 대상 — 지금 탭의 [{r, st}] 중 아직 표시가 없고 처리할 수 있는 추천의 recKey.
- *   빼는 것: 숨긴 행(안 함) · 이미 표시한 행 · 서버가 확인한 '처리됨' · '만료' · '자리 바뀜'(옮길 대상이 사라짐).
+ *   빼는 것: 숨긴 행(안 함) · 이미 표시한 행 · 서버가 확인한 '처리됨' · '만료' · '자리 바뀜'(옮길 대상이 사라짐) · 이월 행.
  */
 export function bulkDoneKeys(items) {
     const skip = new Set(['처리됨', '만료', '자리 바뀜']);
     return (Array.isArray(items) ? items : [])
-        .filter(x => x && x.r && x.r.recKey && x.st && !x.st.hidden && !x.st.mark && !skip.has(x.st.label))
+        .filter(x => x && x.r && x.r.recKey && !x.r.carried && x.st && !x.st.hidden && !x.st.mark && !skip.has(x.st.label))
         .map(x => x.r.recKey);
 }
 
@@ -515,4 +523,84 @@ export function rowLines(r) {
     const lines = [pick('')];
     if ((r.type === 'swap' || r.type === 'pair') && r.code2) lines.push(pick('2'));
     return lines;
+}
+
+// ── 다시 만들기 ──────────────────────────────────────────────────────────────
+export const REBUILD_LABEL = '지금 기준으로 다시 만들기';
+export const CARRIED_LABEL = '(지금 기준 추천에서 빠짐)';
+export const REQ_OPEN_H = 7, REQ_CLOSE_H = 19;              // 서버 다시만들기.py OPEN_H·CLOSE_H 와 같게
+export const REQ_PENDING_MS = 15 * 60 * 1000;               // 요청·다시 만들기가 이만큼 그대로면 'PC 가 꺼져 있을 수 있음'
+export const REQ_NOTE_MS = 60 * 60 * 1000;                  // 거절·실패·대기 사유를 보여 주는 시간
+export const AUTO_NOTE = '재고 자료가 새로 올라왔습니다 — 몇 분 안에 자동으로 다시 만듭니다';
+const DEF_REQ = { max: 6, cooldownMin: 15, autoMax: 3 };    // 서버 설정.json rerun 기본값(req 칸이 없을 때)
+
+/**
+ * [지금 기준으로 다시 만들기] 버튼 상태 → { show, enabled, label, note, tone('' | accent | warn) }
+ *   req = locRecLatest.req · requestMs = locRecWork/request 의 requestedAt(ms, 없으면 0) · entry = locRecLatest.days[오늘]
+ *   lastDataMs = Locations/INFO_CONFIG.lastDataUpdate(재고 엑셀 올린 시각) · stockDataMs = locRecLatest.stockDataAt(지금 판의 기준)
+ *   서버 규칙(다시만들기.decide)과 같게: 오늘 · 정기 판(ok|fail) 뒤 · 07~19시 · 하루 max · cooldownMin 간격(직전 실패면 면제).
+ */
+export function recReqUi({ req, requestMs, nowMs, isToday, entry, lastDataMs, stockDataMs, todayKey }) {
+    const label = REBUILD_LABEL;
+    const res = (enabled, note = '', tone = '') => ({ show: true, enabled, label, note, tone });
+    if (!isToday) return { show: false, enabled: false, label, note: '', tone: '' };
+    const status = entry && entry.status;
+    if (status === 'rest') return res(false, '쉬는 날에는 다시 만들지 않습니다');
+    if (status !== 'ok' && status !== 'fail') return res(false, '06:40 정기 추천 뒤에 다시 만들 수 있습니다');
+    const r = req && typeof req === 'object' ? req : {};
+    const sameDay = r.day === todayKey;
+    const lastMs = tsMs(r.lastReqAt), atMs = tsMs(r.at);
+    const intOr = (v, d) => (Number.isInteger(v) ? v : d);
+    const max = intOr(r.max, DEF_REQ.max), autoMax = intOr(r.autoMax, DEF_REQ.autoMax);
+    const cool = intOr(r.cooldownMin, DEF_REQ.cooldownMin) * 60 * 1000;
+    const autoN = sameDay ? intOr(r.autoCount, 0) : 0;
+    const dataMs = tsMs(lastDataMs);
+    const autoPending = dataMs > 0 && dataMs > Math.max(tsMs(stockDataMs), tsMs(r.autoStockAt)) && autoN < autoMax;
+    const withAuto = (o) => (autoPending && o.tone !== 'warn' ? { ...o, note: AUTO_NOTE + (o.note ? ` · ${o.note}` : ''), tone: o.tone || 'accent' } : o);
+    // 1) 다시 만드는 중 — 15분 넘게 그대로면 PC 가 꺼졌을 수 있다(다음 요청 허용)
+    if (r.state === 'running' && sameDay && nowMs - atMs < REQ_PENDING_MS) {
+        return res(false, r.source === 'auto' ? '재고 자료가 새로 올라와 자동으로 다시 만드는 중… (보통 3~6분)' : '다시 만드는 중… (보통 3~6분)', 'accent');
+    }
+    // 2) 아직 처리되지 않은 요청 — 서버가 '대기'(이지어드민 쉬는 시간·재고 올리는 중)로 남겼으면 그 사유
+    const pending = requestMs > 0 && requestMs > lastMs;
+    if (pending && r.state === 'waiting' && sameDay && r.note && nowMs - atMs < REQ_NOTE_MS) {
+        return res(false, `요청함 — ${r.note}`, 'accent');
+    }
+    if (pending && nowMs - requestMs < REQ_PENDING_MS) {
+        return res(false, '요청함 — 처리 대기 중 (이 PC 프로그램이 5분마다 확인)', 'accent');
+    }
+    const k = kstParts(nowMs);
+    if (k.hh < REQ_OPEN_H || k.hh >= REQ_CLOSE_H) return res(false, '07~19시에만 다시 만들 수 있습니다');
+    const count = sameDay ? intOr(r.count, 0) : 0;
+    if (count >= max) return withAuto(res(false, `오늘 다시 만들기 한도(${max}회)를 다 썼습니다`));
+    const started = sameDay ? tsMs(r.startedAt) : 0;
+    if (started && nowMs - started < cool && r.state !== 'failed') {
+        return withAuto(res(false, `${fmtHM(started + cool)} 이후 다시 만들 수 있습니다(${cool / 60000}분 간격)`));
+    }
+    if (pending) return res(true, '요청이 15분 넘게 처리되지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
+    if (r.state === 'running' && sameDay) return res(true, '다시 만들기가 15분 넘게 끝나지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
+    if (sameDay && (r.state === 'rejected' || r.state === 'failed') && r.note && nowMs - atMs < REQ_NOTE_MS) {
+        return res(true, r.state === 'failed' ? `다시 만들지 못했습니다: ${r.note}` : `지난 요청이 처리되지 않았습니다: ${r.note}`, 'warn');
+    }
+    return withAuto(res(true));
+}
+
+/**
+ * 그날 추천 문서 → 기준 줄 { text, head, layout, stock, warn }
+ *   '10:42 다시 만듦 · 배치: 업로드 10/26 10:31 · 재고: 이지어드민 10:40' (정기 판은 '06:40 만듦 · …', 자동은 '자동으로 다시 만듦')
+ *   warn = 재고가 업로드 기준(서버가 이지어드민 재고를 못 받아 대체 — basedOn.stockSource 'upload')이면 true → 노랗게.
+ *   stockSource 가 없는 옛 문서(이지어드민 재고를 쓰기 전)는 '재고: 업로드 …' 로 두고 노랗게 하지 않는다.
+ */
+export function rebuildLine(doc) {
+    const d = doc && typeof doc === 'object' ? doc : {};
+    const b = d.basedOn && typeof d.basedOn === 'object' ? d.basedOn : {};
+    const atMs = tsMs(d.at);
+    const rev = Number.isInteger(d.rev) ? d.rev : 0;
+    const head = atMs ? `${fmtHM(atMs)} ${rev > 0 ? (d.source === 'auto' ? '자동으로 다시 만듦' : '다시 만듦') : '만듦'}` : '';
+    const up = fmtMDHM(stockAtOf(b) || tsMs(d.stockDataAt));
+    const layout = up ? `배치: 업로드 ${up}` : '';
+    const ez = b.stockSource === 'ezadmin' && tsMs(b.ezStockAt);
+    const stock = ez ? `재고: 이지어드민 ${fmtHM(b.ezStockAt)}` : `재고: 업로드 ${up || '시각 없음'}`;
+    const warn = b.stockSource === 'upload';
+    return { text: [head, layout, stock].filter(Boolean).join(' · '), head, layout, stock, warn };
 }

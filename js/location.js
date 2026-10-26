@@ -1,23 +1,23 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610261518';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610261714';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610261518';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610261518';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610261518';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610261518';
-import { orderKeyMap } from './lib/order-hash.js?v=202610261518';
-import { setShellContext } from './app-shell-bridge.js?v=202610261518';
-import { memberNameFor } from './app-shell-data.js?v=202610261518';
-import { menuConfigOf } from './lib/perm.js?v=202610261518';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610261518';
-import { initPageNav } from './page-nav.js?v=202610261518';
-import { initRefillCard } from './refill-card.js?v=202610261518';
-import { initLocRecCard } from './locrec-card.js?v=202610261518';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610261518';
-import { whenPerm } from './feature-gate.js?v=202610261518';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610261518';
-import { uploadBlockText } from './lib/busy-view.js?v=202610261518';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610261518';
+import { escapeHtml as escAttr } from './utils.js?v=202610261714';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610261714';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610261714';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610261714';
+import { orderKeyMap } from './lib/order-hash.js?v=202610261714';
+import { setShellContext } from './app-shell-bridge.js?v=202610261714';
+import { memberNameFor } from './app-shell-data.js?v=202610261714';
+import { menuConfigOf } from './lib/perm.js?v=202610261714';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610261714';
+import { initPageNav } from './page-nav.js?v=202610261714';
+import { initRefillCard } from './refill-card.js?v=202610261714';
+import { initLocRecCard } from './locrec-card.js?v=202610261714';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610261714';
+import { whenPerm } from './feature-gate.js?v=202610261714';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610261714';
+import { uploadBlockText } from './lib/busy-view.js?v=202610261714';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610261714';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -324,6 +324,17 @@ function setupRealtimeListenerB() {
 
     onSnapshot(collection(db, 'IncomingData'), (snapshot) => {
         clearSyncError('incoming');
+        incomingListMeta = { sheetAt: 0, appliedAt: 0 };
+        snapshot.forEach(d => {
+            const v = d.data() || {};
+            if (d.id === INCOMING_META_ID) {
+                incomingListMeta.sheetAt = Number(v.sheetAt) || 0;
+                incomingListMeta.appliedAt = Math.max(incomingListMeta.appliedAt, tsMillis(v.appliedAt));
+            } else if (v.updatedAt) {
+                incomingListMeta.appliedAt = Math.max(incomingListMeta.appliedAt, tsMillis(v.updatedAt));
+            }
+        });
+        if (typeof window.paintIncomingBasis === 'function') window.paintIncomingBasis();
         incomingData = {};
         incomingTotalByCode = {}; // ★ 합계 초기화
         // ★ v3.53: 오늘 날짜 (YYYY-MM-DD)
@@ -2705,6 +2716,11 @@ async function applyCollectorRows(col, extraMsg) {
         col.rows.forEach(r => { if (c[r.source] !== undefined) c[r.source]++; });
         await applyIncomingRows(col.rows, col.cancelled,
             `(제작 ${c['제작']}건, 사입 ${c['사입']}건 · 시트 기준 ${col.at ? fmtHM(col.at) : '시각 모름'})` + (extraMsg ? `\n\n${extraMsg}` : ''));
+        // 목록이 몇 시 시트 자료인지 남긴다(다른 PC 패널에도 보이게) — 실패해도 목록 반영은 이미 끝났다
+        if (col.at) {
+            try { await setDoc(doc(db, 'IncomingData', INCOMING_META_ID), { sheetAt: col.at, appliedAt: serverTimestamp() }); }
+            catch (e) { console.warn('[입고예정] 기준 시각 기록 실패:', e && (e.code || e.message)); }
+        }
     } catch (error) {
         window.hideLoading();
         alert(`반영 실패!\n(${error.message})`);
@@ -2734,6 +2750,43 @@ window.applyIncomingNow = async () => {
     const c2 = (await loadIncomingFromCollector()) || col;
     if (c2) await applyCollectorRows(c2, '새로 읽기를 기다리지 않고 반영했습니다.');
     else alert('시트 자료를 읽지 못했습니다.');
+};
+
+// ── 입고대기 목록 기준 시각 표시(2026-10-26) ──
+//   목록(IncomingData)이 몇 시 시트 자료인지 + 수집기 최신 자료 시각 + 언제 [시트 동기화]가 시트를 새로 읽는지.
+//   새로 읽기 규칙은 syncIncomingData 와 같다: 수집기 자료가 15분(INCOMING_FRESH_MS) 안이면 다시 읽지 않고, 월~토 07~19시에만 읽는다.
+const INCOMING_META_ID = '_meta';   // IncomingData/_meta {sheetAt(ms), appliedAt} — [시트 동기화]가 반영할 때 쓴다(dataStr 이 없어 목록 읽기에서 무시됨)
+let incomingListMeta = { sheetAt: 0, appliedAt: 0 };
+let incomingCollectorAt = 0, incomingCollectorReadAt = 0, incomingBasisTimer = null;
+window.paintIncomingBasis = async (open) => {
+    const el = document.getElementById('incoming-basis');
+    const sidebar = document.getElementById('incoming-sidebar');
+    if (!el || !sidebar) return;
+    const isOpen = open === undefined ? sidebar.classList.contains('open') : open;
+    if (!isOpen) { clearInterval(incomingBasisTimer); incomingBasisTimer = null; return; }
+    if (!incomingBasisTimer) incomingBasisTimer = setInterval(() => window.paintIncomingBasis(), 60 * 1000);
+    // 수집기 최신 시각은 1분에 한 번만 읽는다(문서가 크다)
+    if (Date.now() - incomingCollectorReadAt > 60 * 1000) {
+        incomingCollectorReadAt = Date.now();
+        const col = await loadIncomingFromCollector();
+        if (col) incomingCollectorAt = col.at || 0;
+    }
+    const m = incomingListMeta, now = new Date();
+    const hm = (ms) => fmtHM(ms).split(' ')[1];
+    const list = m.sheetAt ? `시트 <b>${fmtHM(m.sheetAt)}</b> 자료` + (m.appliedAt ? ` (목록 반영 ${hm(m.appliedAt)})` : '')
+        : (m.appliedAt ? `목록 반영 <b>${fmtHM(m.appliedAt)}</b>` : '기록 없음');
+    let line2 = '';
+    const awake = now.getDay() !== 0 && now.getHours() >= 7 && now.getHours() < 19;
+    if (incomingCollectorAt && (!m.sheetAt || incomingCollectorAt > m.sheetAt + 60 * 1000)) {
+        line2 = `<span class="ib-new">시트에 더 새 자료(${fmtHM(incomingCollectorAt)})가 있습니다 — [시트 동기화]를 누르면 바로 반영됩니다</span>`;
+    } else if (!awake) {
+        line2 = '새로 읽기: 월~토 07~19시에만(매일 07:30 자동으로 새로 읽음)';
+    } else if (incomingCollectorAt) {
+        const next = incomingCollectorAt + INCOMING_FRESH_MS;
+        line2 = Date.now() >= next ? '지금 [시트 동기화]를 누르면 시트를 새로 읽습니다(5~10분)'
+            : `새로 읽기: <b>${hm(next)}</b> 이후 가능(그 전에 누르면 ${hm(incomingCollectorAt)} 자료로 바로 반영)`;
+    }
+    el.innerHTML = `목록 기준: ${list}` + (line2 ? `<br>${line2}` : '');
 };
 
 /**
@@ -2902,7 +2955,8 @@ window.syncIncomingData = async () => {
                 rawFactoryDate = row['공장출고예상일'] || '';
                 rawDate = rawFactoryDate;
             } else if (row.source === '사입') {
-                rawArrivalDate = row['검수창고도착일'] || '';
+                // 검수창고도착일이 비면(오더 직후) 출고예상일로 대신한다 — 미발 수집기(gs buildIncoming_)와 같은 규칙(2026-10-26)
+                rawArrivalDate = row['검수창고도착일'] || row['출고예상일'] || '';
                 rawDate = rawArrivalDate;
             }
             

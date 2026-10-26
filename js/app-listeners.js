@@ -1,15 +1,15 @@
 // === js/app-listeners.js ===
 
-import { setupMainScreenListeners } from './listeners-main.js?v=202610261518';
-import { setupHistoryModalListeners } from './listeners-history.js?v=202610261518';
-import { setupGeneralModalListeners } from './listeners-modals.js?v=202610261518';
-import { setupConfirmationModalListeners } from './listeners-modals-confirm.js?v=202610261518';
-import { setupFormModalListeners } from './listeners-modals-form.js?v=202610261518';
-import { setupAuthListeners } from './listeners-auth.js?v=202610261518';
+import { setupMainScreenListeners } from './listeners-main.js?v=202610261714';
+import { setupHistoryModalListeners } from './listeners-history.js?v=202610261714';
+import { setupGeneralModalListeners } from './listeners-modals.js?v=202610261714';
+import { setupConfirmationModalListeners } from './listeners-modals-confirm.js?v=202610261714';
+import { setupFormModalListeners } from './listeners-modals-form.js?v=202610261714';
+import { setupAuthListeners } from './listeners-auth.js?v=202610261714';
 // ✅ [신규] 분리된 메인 현황판 리스너 임포트
-import { setupMainBoardListeners } from './listeners-main-board.js?v=202610261518';
+import { setupMainBoardListeners } from './listeners-main-board.js?v=202610261714';
 // ✅ [신규] 전량 검수 리스너 임포트
-import { setupTotalInspectionListeners } from './listeners-form-total-inspection.js?v=202610261518';
+import { setupTotalInspectionListeners } from './listeners-form-total-inspection.js?v=202610261714';
 
 export function initializeAppListeners() {
     setupMainScreenListeners(); // (출퇴근, 하단 로그, 메뉴 등)
