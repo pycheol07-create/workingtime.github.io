@@ -10,7 +10,7 @@ import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://w
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll
-} from './lib/locrec-view.js?v=202610261401';
+} from './lib/locrec-view.js?v=202610261425';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -157,6 +157,25 @@ function createLocRecStore({ db, auth, getMemberName }) {
         }
     }
 
+    /** 여러 추천에 같은 표시를 한 번에(문서 쓰기 1회) — 표 창 [전체 처리함]. 저장 중인 키는 뺀다 */
+    async function markMany(keys, state) {
+        const list = (Array.isArray(keys) ? keys : []).filter(k => k && !S.saving.has(k));
+        if (!list.length || !canMark(S.latest, S.key, todayKey())) return;
+        list.forEach(k => S.saving.add(k));
+        emit();
+        try {
+            const by = nameOf();
+            const marks = {};
+            list.forEach(k => { marks[k] = state ? { state, by, at: serverTimestamp() } : deleteField(); });
+            await setDoc(doc(db, MARKS_PATH), { marks }, { merge: true });
+        } catch (e) {
+            alert(`표시를 저장하지 못했습니다(${(e && e.code) || '오류'}). 다시 눌러 주세요.`);
+        } finally {
+            list.forEach(k => S.saving.delete(k));
+            emit();
+        }
+    }
+
     function writeXlsx(rows, sheetName, fileName) {
         const X = window.XLSX;
         if (!X || !X.utils) { alert('엑셀 도구를 불러오지 못했습니다. 새로고침 후 다시 해 주세요.'); return; }
@@ -187,6 +206,6 @@ function createLocRecStore({ db, auth, getMemberName }) {
 
     return {
         get: () => S, on, start, stop, setDay, entryOf, loaded, visibleRows,
-        mark, downloadTab, downloadAll, isStarted: () => started
+        mark, markMany, downloadTab, downloadAll, isStarted: () => started
     };
 }

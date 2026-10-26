@@ -6,10 +6,10 @@
 //   스타일은 location.html <style> · index 는 css/locrec-modal.css(#locrec-modal 범위로 같은 모양).
 // ⚠️ role="dialog" · data-act 를 붙이지 않는다 — 업무마감봇이 div[role=dialog] 마지막 것 · [data-act] 로 자기 확인창을 읽는다(버튼은 data-locrec-act).
 // 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙는다.
-import { escapeHtml } from './utils.js?v=202610261401';
-import { fmtHM, tabCounts, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel } from './lib/locrec-view.js?v=202610261401';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610261401';
-import { higherOpenThan } from './modal-above.js?v=202610261401';
+import { escapeHtml } from './utils.js?v=202610261425';
+import { fmtHM, tabCounts, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys } from './lib/locrec-view.js?v=202610261425';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610261425';
+import { higherOpenThan } from './modal-above.js?v=202610261425';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -22,6 +22,7 @@ const TEMPLATE = `
                 <div class="seg-tabs locrec-tabs" id="locrec-tabs" style="margin-bottom:0;"></div>
                 <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                     <label class="refill-sub locrec-skipchk" id="locrec-skip-wrap" hidden><input type="checkbox" id="locrec-show-skip"> <span id="locrec-skip-txt" style="vertical-align:middle;">안 함도 보기</span></label>
+                    <button type="button" class="btn btn-secondary btn-sm" id="locrec-all-btn" data-locrec-act="doneAll" title="지금 탭에서 아직 표시 안 한 추천을 모두 '처리함'으로 표시(안 함·처리됨·만료·자리 바뀜은 제외)" hidden>전체 처리함</button>
                     <button type="button" class="btn btn-primary btn-sm" id="locrec-dl-btn" data-locrec-act="download" title="지금 탭(안 함도 보기면 그것까지)">엑셀 받기</button>
                 </div>
             </div>
@@ -55,7 +56,7 @@ export function mountLocRecTable({ store, sizeOf }) {
     const q = (id) => document.getElementById(id);
     const mTitle = q('locrec-modal-title'), mMeta = q('locrec-modal-meta'), mTabs = q('locrec-tabs');
     const mSkipWrap = q('locrec-skip-wrap'), mSkip = q('locrec-show-skip'), mSkipTxt = q('locrec-skip-txt');
-    const mDl = q('locrec-dl-btn'), mTbody = q('locrec-tbody');
+    const mDl = q('locrec-dl-btn'), mTbody = q('locrec-tbody'), mAll = q('locrec-all-btn');
     let tab = 'single', showSkipped = false, lastTabsHtml = '';
     const closeFns = new Set();
 
@@ -128,6 +129,13 @@ export function mountLocRecTable({ store, sizeOf }) {
         mSkipWrap.hidden = !(hiddenN || showSkipped);
         mSkipTxt.textContent = `안 함${hiddenN ? ` ${hiddenN}건` : ''}도 보기`;
         mDl.disabled = !rows.length;
+        // [전체 처리함] — 처음 보여 주는 날짜에서, 지금 탭에 아직 표시 안 한 추천이 있을 때만
+        const bulk = loaded && editable ? bulkDoneKeys(all) : [];
+        if (mAll) {
+            mAll.hidden = !(loaded && editable);
+            mAll.disabled = !bulk.length;
+            mAll.textContent = bulk.length ? `전체 처리함 (${bulk.length})` : '전체 처리함';
+        }
         if (!loaded) {
             mMeta.textContent = '';
             const t = (S.latest && dayMessage(store.entryOf(S.key)))
@@ -161,6 +169,11 @@ export function mountLocRecTable({ store, sizeOf }) {
         const act = b.getAttribute('data-locrec-act');
         const key = b.getAttribute('data-locrec-key');
         if (act === 'download') store.downloadTab(tab, showSkipped);
+        else if (act === 'doneAll') {
+            const keys = bulkDoneKeys(store.visibleRows(tab));
+            if (keys.length && confirm(`${TAB_LABEL[tab]} 탭의 추천 ${keys.length}건을 모두 '처리함'으로 표시할까요?
+(잘못 눌렀으면 줄마다 [되돌리기]로 지울 수 있습니다)`)) store.markMany(keys, 'done');
+        }
         else if (act === 'done') store.mark(key, 'done');
         else if (act === 'skip') store.mark(key, 'skip');
         else if (act === 'undo') store.mark(key, null);

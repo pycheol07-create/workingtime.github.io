@@ -17,8 +17,8 @@
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610261401';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610261401';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610261425';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610261425';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -459,6 +459,17 @@ export function tabSummary({ latest, key, todayKey, parsed, marks, nowMs }) {
         if (st.label === '새로') newN++;
     }));
     return { counts, total: TABS.reduce((s, t) => s + counts[t], 0), newN, hiddenN };
+}
+
+/**
+ * 표 창 [전체 처리함] 대상 — 지금 탭의 [{r, st}] 중 아직 표시가 없고 처리할 수 있는 추천의 recKey.
+ *   빼는 것: 숨긴 행(안 함) · 이미 표시한 행 · 서버가 확인한 '처리됨' · '만료' · '자리 바뀜'(옮길 대상이 사라짐).
+ */
+export function bulkDoneKeys(items) {
+    const skip = new Set(['처리됨', '만료', '자리 바뀜']);
+    return (Array.isArray(items) ? items : [])
+        .filter(x => x && x.r && x.r.recKey && x.st && !x.st.hidden && !x.st.mark && !skip.has(x.st.label))
+        .map(x => x.r.recKey);
 }
 
 /** [처리함]/[안 함]/되돌리기를 누를 수 있는 날짜 — 처음 보여 주는 날짜(defaultDay: 오늘, 오늘 결과가 없으면 최신)만. 지난 날짜는 볼 수만 */
