@@ -6,19 +6,21 @@
 //   카드는 접힌 띠 한 줄(판정 · 추천 n건 · 엑셀 받기 · 펼치기)이 기본, [펼치기]로 아래 요약. 펼침은 js/lib/card-fold.js.
 //   [변경 추천] 모달(업로드 자료 기준, location.js)과는 수요 자료가 달라 결과가 다를 수 있다 — 계산 모듈은 같다(js/lib/loc-recommend.js).
 //   데이터(구독·처리 표시·엑셀)는 js/locrec-store.js. 같은 표 창을 대시보드 '로케이션 동선관리' 업무 카드에서도 연다(js/locrec-dash.js).
+//   기준 줄 옆 [지금 기준으로 다시 만들기](오늘 날짜일 때) → 이 PC 프로그램이 5분 안에 오늘 추천을 다시 만든다(앱에만, 슬랙 없음).
+//   상태 문구는 js/lib/locrec-view.js recReqUi, 기준 줄은 rebuildLine. 카드 자체가 location.locrec 권한일 때만 생긴다(location.js whenPerm).
 //   동선 점수·앞쪽 자리 출고·추이는 이 카드가 아니라 인사이트 줄 '동선 효율' 카드(js/locrec-route-card.js)에 — 같은 store 를 넘겨 시작한다.
 // 문서 모양·순수 함수는 js/lib/locrec-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=202610261714';
+import { escapeHtml } from './utils.js?v=202610270833';
 import {
-    fmtMDHM, verdictBadge, metricItems, dataWarnings, dataLine, dayOptions, dayMessage, stockAtOf,
-    TABS, TAB_LABEL, recStrip, tabSummary, dayLabel
-} from './lib/locrec-view.js?v=202610261714';
-import { initFold } from './lib/card-fold.js?v=202610261714';
-import { getLocRecStore, todayKey } from './locrec-store.js?v=202610261714';
-import { mountLocRecTable } from './locrec-table.js?v=202610261714';
-import { initRouteCard } from './locrec-route-card.js?v=202610261714';
+    verdictBadge, metricItems, dataWarnings, dataLine, dayOptions, dayMessage,
+    TABS, TAB_LABEL, recStrip, tabSummary, dayLabel, rebuildLine
+} from './lib/locrec-view.js?v=202610270833';
+import { initFold } from './lib/card-fold.js?v=202610270833';
+import { getLocRecStore, todayKey } from './locrec-store.js?v=202610270833';
+import { mountLocRecTable } from './locrec-table.js?v=202610270833';
+import { initRouteCard } from './locrec-route-card.js?v=202610270833';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
@@ -92,6 +94,7 @@ export function initLocRecCard({ db, auth, getMemberName, sizeOf }) {
         renderSelect(S, today);
         const parts = [];
         const e = store.entryOf(S.key);
+        const ru = store.reqState();
         const vb = verdictBadge(e && e.verdict, S.latest.observeUntil);
         // 지난 날짜는 그날 지표(days[k].metrics, 지난주 비교 없음), 최신 날짜는 색인 지표(지난주 비교 포함)
         const mSrc = S.key !== S.latest.latestDay && e && e.metrics ? e.metrics : S.latest.metrics;
@@ -105,8 +108,10 @@ export function initLocRecCard({ db, auth, getMemberName, sizeOf }) {
         dataWarnings(S.latest, Date.now()).forEach(w => parts.push(`<div class="refill-msg refill-warn">${escapeHtml(w)}</div>`));
 
         const msg = dayMessage(e);
+        const made = !!e && (e.status === 'ok' || e.status === 'fail');      // 다시 만들기는 정기 판(성공·실패) 뒤에만
         if (msg) {
             parts.push(`<div class="refill-msg${e && e.status === 'fail' ? ' refill-warn' : ''}">${escapeHtml(msg)}</div>`);
+            if (made && ru.show) parts.push(`<div class="refill-actions">${reqButton(ru)}</div>`);   // 아침 판 실패 — 다시 만들어 볼 수 있다
         } else if (S.dayErr) {
             parts.push(`<div class="refill-msg refill-warn">${escapeHtml(S.dayErr)}</div>`);
         } else if (!S.day || S.day.key !== S.key) {
@@ -120,16 +125,27 @@ export function initLocRecCard({ db, auth, getMemberName, sizeOf }) {
                 + TABS.map(t => `${TAB_LABEL[t]} <b>${sm.counts[t]}</b>`).join(' · ')
                 + (sm.newN ? `, 새로 <b>${sm.newN}</b>` : '')
                 + (sm.hiddenN ? `<span class="refill-sub"> (안 함 ${sm.hiddenN}건 숨김)</span>` : '') + '</div>');
-            const basedAt = stockAtOf(S.day.data && S.day.data.basedOn);
-            if (basedAt) parts.push(`<div class="refill-sub">이 추천은 재고 자료 ${escapeHtml(fmtMDHM(basedAt))} 기준</div>`);
+            // 기준 줄 '10:42 다시 만듦 · 배치: 업로드 MM/DD HH:MM · 재고: 이지어드민 HH:MM' — 재고가 업로드 대체면 노랗게
+            const bl = rebuildLine(S.day.data);
+            if (bl.text) {
+                parts.push('<div class="refill-sub">' + [bl.head, bl.layout].filter(Boolean).map(escapeHtml).join(' · ')
+                    + ((bl.head || bl.layout) ? ' · ' : '')
+                    + (bl.warn ? `<span class="refill-warn" title="이지어드민 재고를 못 받아 업로드한 재고로 계산했습니다">${escapeHtml(bl.stock)}</span>` : escapeHtml(bl.stock))
+                    + '</div>');
+            }
             parts.push('<div class="refill-actions">'
                 + '<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="table">표 보기</button>'
                 + `<button type="button" class="btn btn-primary btn-sm" data-locrec-act="downloadAll" title="${escapeHtml(dayText)} 추천 전체(단독·맞바꾸기·페어, 안 함 제외)"${sm.total ? '' : ' disabled'}>엑셀 받기</button>`
-                + '</div>');
+                + reqButton(ru) + '</div>');
         }
+        // 다시 만들기 상태 문구(요청 대기·만드는 중·거절·실패·재고 새로 올라옴) — 오늘 날짜 · 정기 판 뒤일 때만
+        if (made && ru.show && ru.note) parts.push(`<div class="refill-note${ru.tone === 'warn' ? ' refill-warn' : ''}">${escapeHtml(ru.note)}</div>`);
         body.innerHTML = parts.join('');
         renderStrip(S, today);
     }
+
+    const reqButton = (ru) => (ru.show
+        ? `<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="rebuild"${ru.enabled ? '' : ' disabled'}>${escapeHtml(ru.label)}</button>` : '');
 
     // ── 이벤트 ──
     card.addEventListener('click', (ev) => {
@@ -138,6 +154,7 @@ export function initLocRecCard({ db, auth, getMemberName, sizeOf }) {
         const act = b.getAttribute('data-locrec-act');
         if (act === 'downloadAll') store.downloadAll();
         else if (act === 'table') table.open();
+        else if (act === 'rebuild') store.requestRebuild();
     });
     sel.addEventListener('change', () => store.setDay(sel.value));
 

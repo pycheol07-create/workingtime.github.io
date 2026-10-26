@@ -1,23 +1,24 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610261714';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610270833';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610261714';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610261714';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610261714';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610261714';
-import { orderKeyMap } from './lib/order-hash.js?v=202610261714';
-import { setShellContext } from './app-shell-bridge.js?v=202610261714';
-import { memberNameFor } from './app-shell-data.js?v=202610261714';
-import { menuConfigOf } from './lib/perm.js?v=202610261714';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610261714';
-import { initPageNav } from './page-nav.js?v=202610261714';
-import { initRefillCard } from './refill-card.js?v=202610261714';
-import { initLocRecCard } from './locrec-card.js?v=202610261714';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610261714';
-import { whenPerm } from './feature-gate.js?v=202610261714';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610261714';
-import { uploadBlockText } from './lib/busy-view.js?v=202610261714';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610261714';
+import { escapeHtml as escAttr } from './utils.js?v=202610270833';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610270833';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610270833';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610270833';
+import { orderKeyMap } from './lib/order-hash.js?v=202610270833';
+import { setShellContext } from './app-shell-bridge.js?v=202610270833';
+import { memberNameFor } from './app-shell-data.js?v=202610270833';
+import { menuConfigOf } from './lib/perm.js?v=202610270833';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610270833';
+import { initPageNav } from './page-nav.js?v=202610270833';
+import { initRefillCard } from './refill-card.js?v=202610270833';
+import { initLocRecCard } from './locrec-card.js?v=202610270833';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610270833';
+import { whenPerm } from './feature-gate.js?v=202610270833';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610270833';
+import { uploadBlockText } from './lib/busy-view.js?v=202610270833';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610270833';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610270833';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -2682,10 +2683,10 @@ async function applyIncomingRows(finalJson, cancelledCodes, sourceMsg) {
 // 필요한 열만 읽어 저장해 둔 문서. 아래 옛 경로(syncIncomingData 의 fetchAndParse)와 같은 필드·같은 거르기다
 // (2026-10-07 대조: 576행·476코드·9개 항목 전부 일치). 공개 '웹에 게시' 주소를 쓰지 않는다.
 const INCOMING_SHEET_PATH = 'artifacts/team-work-logger-v2/integrations/incomingSheet';
-const MIBAL2_REQUEST_PATH = 'artifacts/team-work-logger-v2/mibal2/refreshRequest';
-const MIBAL2_LATEST_PATH = 'artifacts/team-work-logger-v2/integrations/mibal2Latest';
-const INCOMING_FRESH_MS = 15 * 60 * 1000;     // 15분 안에 읽은 자료면 새로 읽지 않고 바로 반영
-const INCOMING_WAIT_MAX_MS = 15 * 60 * 1000;  // 새로 읽기를 기다리는 최대 시간(넘으면 있던 자료로 반영)
+// [시트 동기화] 전용 요청 — 수집기가 시트만 읽어 입고예정(incomingSheet)만 쓴다(이지어드민 0회, 2026-10-26).
+//   미발 [지금 갱신] 의 mibal2/refreshRequest 와 따로 둔다(미발 숫자·하루 8회 한도와 무관).
+const INCOMING_REQUEST_PATH = 'artifacts/team-work-logger-v2/mibal2/incomingRequest';
+// 기다림 최대(10분)·새 자료 판정·진행 중 표시는 js/lib/incoming-wait.js
 
 /** 수집기 자료를 읽는다. 쓸 수 없으면 null(→ 옛 경로) */
 async function loadIncomingFromCollector() {
@@ -2698,7 +2699,10 @@ async function loadIncomingFromCollector() {
         if (!Array.isArray(rows)) return null;
         const at = tsMillis(d.updatedAt);
         const cancelled = new Set((Array.isArray(d.cancelledCodes) ? d.cancelledCodes : []).map(c => String(c).trim()).filter(Boolean));
-        return { rows, cancelled, at };
+        // reqHandledAt·reqNote: 수집기가 마지막 [시트 동기화] 요청을 처리한 때와 결과('' 이면 읽음, 아니면 거절·실패 이유)
+        // sheetReadAtMs: 이 자료가 시트 읽기를 시작한 때(ms, 수집기 2026-10-26 이후) — 없으면 0(→ updatedAt 으로 본다)
+        return { rows, cancelled, at, sheetReadAtMs: typeof d.sheetReadAtMs === 'number' ? d.sheetReadAtMs : 0,
+            reqHandledAt: tsMillis(d.reqHandledAt), reqNote: typeof d.reqNote === 'string' ? d.reqNote : '' };
     } catch (e) {
         console.warn('[입고예정] 수집기 자료 읽기 실패 — 옛 시트 경로로:', e && (e.code || e.message));
         return null;
@@ -2714,11 +2718,12 @@ async function applyCollectorRows(col, extraMsg) {
     try {
         const c = { '제작': 0, '사입': 0 };
         col.rows.forEach(r => { if (c[r.source] !== undefined) c[r.source]++; });
+        const sheetAt = incomingReadAt(col);   // 시트 읽기를 시작한 때(없으면 저장 시각) — 저장 시각은 전체 수집이면 4~6분 뒤라 쓰지 않는다
         await applyIncomingRows(col.rows, col.cancelled,
-            `(제작 ${c['제작']}건, 사입 ${c['사입']}건 · 시트 기준 ${col.at ? fmtHM(col.at) : '시각 모름'})` + (extraMsg ? `\n\n${extraMsg}` : ''));
+            `(제작 ${c['제작']}건, 사입 ${c['사입']}건 · 시트 기준 ${sheetAt ? fmtHM(sheetAt) : '시각 모름'})` + (extraMsg ? `\n\n${extraMsg}` : ''));
         // 목록이 몇 시 시트 자료인지 남긴다(다른 PC 패널에도 보이게) — 실패해도 목록 반영은 이미 끝났다
-        if (col.at) {
-            try { await setDoc(doc(db, 'IncomingData', INCOMING_META_ID), { sheetAt: col.at, appliedAt: serverTimestamp() }); }
+        if (sheetAt) {
+            try { await setDoc(doc(db, 'IncomingData', INCOMING_META_ID), { sheetAt, appliedAt: serverTimestamp() }); }
             catch (e) { console.warn('[입고예정] 기준 시각 기록 실패:', e && (e.code || e.message)); }
         }
     } catch (error) {
@@ -2729,35 +2734,28 @@ async function applyCollectorRows(col, extraMsg) {
 }
 
 // ── 새로 읽기를 기다리는 동안의 상태(패널 버튼 아래 한 줄) ──
-let incomingWait = null;   // { unsubs:[], timer, col }
+// incomingGuard: [시트 동기화]를 누른 순간(첫 await 전)부터 반영이 끝날 때까지 다시 누르지 못하게 한다.
+//   기다리기에 들어가면 그 기다림의 finish 가 내린다(finish 는 한 번만 돈다 — 타이머·구독은 자기 것만 끈다).
+const incomingGuard = createRunGuard();
+let incomingWait = null;   // 지금 기다리는 것 { col, finish(kind, msg) } — 패널의 [지금 자료로 반영] 버튼이 쓴다
 function setSyncStatus(html) {
     const el = document.getElementById('incoming-sync-status');
     if (!el) return;
     el.style.display = html ? 'block' : 'none';
     el.innerHTML = html || '';
 }
-function stopIncomingWait() {
-    if (!incomingWait) return;
-    incomingWait.unsubs.forEach(u => { try { u(); } catch (e) { /* 이미 해제 */ } });
-    clearInterval(incomingWait.timer);
-    incomingWait = null;
-    setSyncStatus('');
-}
 /** 기다리지 않고 지금 있는 자료로 반영 */
 window.applyIncomingNow = async () => {
-    const col = incomingWait ? incomingWait.col : null;
-    stopIncomingWait();
-    const c2 = (await loadIncomingFromCollector()) || col;
-    if (c2) await applyCollectorRows(c2, '새로 읽기를 기다리지 않고 반영했습니다.');
-    else alert('시트 자료를 읽지 못했습니다.');
+    if (incomingWait) await incomingWait.finish('latest', '새로 읽기를 기다리지 않고 반영했습니다.');
 };
 
 // ── 입고대기 목록 기준 시각 표시(2026-10-26) ──
 //   목록(IncomingData)이 몇 시 시트 자료인지 + 수집기 최신 자료 시각 + 언제 [시트 동기화]가 시트를 새로 읽는지.
-//   새로 읽기 규칙은 syncIncomingData 와 같다: 수집기 자료가 15분(INCOMING_FRESH_MS) 안이면 다시 읽지 않고, 월~토 07~19시에만 읽는다.
+//   새로 읽기 규칙은 syncIncomingData 와 같다: 누르면 늘 시트를 새로 읽는다(월~토 07~19시, 하루 SHEET_REQ_DAILY_MAX 회).
+//   07~19시 판정은 표시용이라 브라우저 시계로 한다.
 const INCOMING_META_ID = '_meta';   // IncomingData/_meta {sheetAt(ms), appliedAt} — [시트 동기화]가 반영할 때 쓴다(dataStr 이 없어 목록 읽기에서 무시됨)
 let incomingListMeta = { sheetAt: 0, appliedAt: 0 };
-let incomingCollectorAt = 0, incomingCollectorReadAt = 0, incomingBasisTimer = null;
+let incomingCollectorSheetReadAt = 0, incomingCollectorReadAt = 0, incomingBasisTimer = null;   // 수집기 최신 자료의 시트 읽기 시작(ms) · 그걸 읽은 때
 window.paintIncomingBasis = async (open) => {
     const el = document.getElementById('incoming-basis');
     const sidebar = document.getElementById('incoming-sidebar');
@@ -2769,7 +2767,7 @@ window.paintIncomingBasis = async (open) => {
     if (Date.now() - incomingCollectorReadAt > 60 * 1000) {
         incomingCollectorReadAt = Date.now();
         const col = await loadIncomingFromCollector();
-        if (col) incomingCollectorAt = col.at || 0;
+        if (col) incomingCollectorSheetReadAt = incomingReadAt(col);
     }
     const m = incomingListMeta, now = new Date();
     const hm = (ms) => fmtHM(ms).split(' ')[1];
@@ -2777,93 +2775,129 @@ window.paintIncomingBasis = async (open) => {
         : (m.appliedAt ? `목록 반영 <b>${fmtHM(m.appliedAt)}</b>` : '기록 없음');
     let line2 = '';
     const awake = now.getDay() !== 0 && now.getHours() >= 7 && now.getHours() < 19;
-    if (incomingCollectorAt && (!m.sheetAt || incomingCollectorAt > m.sheetAt + 60 * 1000)) {
-        line2 = `<span class="ib-new">시트에 더 새 자료(${fmtHM(incomingCollectorAt)})가 있습니다 — [시트 동기화]를 누르면 바로 반영됩니다</span>`;
-    } else if (!awake) {
-        line2 = '새로 읽기: 월~토 07~19시에만(매일 07:30 자동으로 새로 읽음)';
-    } else if (incomingCollectorAt) {
-        const next = incomingCollectorAt + INCOMING_FRESH_MS;
-        line2 = Date.now() >= next ? '지금 [시트 동기화]를 누르면 시트를 새로 읽습니다(5~10분)'
-            : `새로 읽기: <b>${hm(next)}</b> 이후 가능(그 전에 누르면 ${hm(incomingCollectorAt)} 자료로 바로 반영)`;
+    // m.sheetAt 은 2026-10-26 리뷰 전엔 저장 시각(updatedAt)이었다 — 읽기 시작보다 늦으므로 옛 기록이어도 '더 새 자료'로 잘못 뜨지 않는다
+    const newer = incomingCollectorSheetReadAt && (!m.sheetAt || incomingCollectorSheetReadAt > m.sheetAt + 60 * 1000);
+    if (!awake) {
+        line2 = (newer ? `<span class="ib-new">시트에 더 새 자료(${fmtHM(incomingCollectorSheetReadAt)})가 있습니다 — [시트 동기화]를 누르면 반영됩니다</span><br>` : '') +
+            `새로 읽기: 월~토 07~19시에만, 하루 ${SHEET_REQ_DAILY_MAX}회(매일 07:30 자동으로 새로 읽음)`;
+    } else {
+        line2 = (newer ? `<span class="ib-new">시트에 더 새 자료(${fmtHM(incomingCollectorSheetReadAt)})가 있습니다</span><br>` : '') +
+            `새로 읽기: 지금 [시트 동기화]를 누르면 1~2분(월~토 07~19시, 하루 ${SHEET_REQ_DAILY_MAX}회)`;
     }
     el.innerHTML = `목록 기준: ${list}` + (line2 ? `<br>${line2}` : '');
 };
 
 /**
- * [시트 동기화] — 버튼 하나로:
- *   · 15분 안에 읽은 자료면 바로 반영
- *   · 아니면 수집기에 '지금 새로 읽기' 요청(미발계산기(신규) [지금 갱신]과 같은 요청 문서) → 끝나면 자동 반영
- *     (패널에 진행 표시, 기다리지 않고 반영하는 버튼도 있음)
- *   · 수집기가 쉬는 시간(일요일·07시 전·19시 이후)이거나 요청이 거절·실패·시간초과되면 있던 자료로 반영하고 이유를 알린다
- * 수집기 규칙(업무자동화\앱\미발계산기2\미발수집_apps_script.gs 요청확인): 월~토 07~19시 · 마지막 성공 10분 안이면 무시 ·
- * 수동 요청 하루 8회 · 20분 간격(미발계산기(신규)와 함께 셈).
+ * [시트 동기화] — 버튼 하나로(2026-10-26 리뷰: 바로 반영·같이 기다리기 없앰 — '눌렀는데 바로 끝나고 옛 기준' 을 막는다):
+ *   · 누를 때마다 수집기에 '시트만 새로 읽기' 요청(mibal2/incomingRequest.requestedAt = 서버 시각 — 미발 [지금 갱신]과 따로)
+ *     → 내 요청 뒤에 읽기 시작한 자료가 써지면 자동 반영(패널에 진행 표시, 기다리지 않고 반영하는 버튼도 있음)
+ *     수집기는 마지막 requestedAt 하나만 보므로 처리 전에 여러 사람이 눌러도 한 번 읽기로 합쳐진다.
+ *   · 수집기가 쉬는 시간(일요일·07시 전·19시 이후)이면 요청하지 않고 있던 자료로 반영하고 이유를 알린다
+ *   · 요청이 거절(하루 한도 등)·저장 실패되면 있던 자료로 반영하고 이유를 알린다
+ *   · 10분 안에 새로 읽지 못하면 목록은 그대로 두고 알린다(원하면 그때 있는 자료로 반영)
+ * 요청 시각: 쓴 requestedAt 을 다시 읽어 얻는다(두 번까지). 새 자료 = incomingSheet.sheetReadAtMs ≥ 내 요청 서버 시각
+ *   — 판정은 js/lib/incoming-wait.js(judgeIncomingSnap).
+ * 수집기 규칙(업무자동화\앱\미발계산기2\미발수집_apps_script.gs 요청확인·maybeSheetOnly_): 1분마다 확인 · 월~토 07~19시 ·
+ * 이지어드민은 안 부른다 · 마지막 시트 읽기 시작 1분 안이면 다음 확인 때 · 하루 20회. 결과는 incomingSheet 의
+ * sheetReadAtMs·updatedAt(읽음)·reqHandledAt + reqNote(거절·실패 이유)로 알려 준다. 전체 수집이 돌고 있으면 그 뒤에 처리한다.
+ * 진행 중 표시(incomingGuard)는 첫 await 전에 세운다 — 빨리 두 번 눌러도 요청·기다림은 하나다.
  */
 window.syncIncomingData = async () => {
-    if (incomingWait) return alert('지금 시트를 새로 읽는 중입니다. 끝나면 자동으로 반영됩니다.\n(기다리지 않으려면 패널의 [지금 자료로 반영]을 누르세요)');
+    // syncIncomingRun 이 기다리기에 들어가면(true) 진행 중 표시는 그 기다림의 finish 가 내린다
+    await guardedRun(incomingGuard, syncIncomingRun,
+        () => alert('지금 시트를 새로 읽는 중입니다. 끝나면 자동으로 반영됩니다.\n(기다리지 않으려면 패널의 [지금 자료로 반영]을 누르세요)'));
+};
 
+/**
+ * 기다리기 — 입고예정 문서가 내 요청 뒤에 읽은 자료로 써지면 자동 반영. 타이머·구독은 지역 변수라 이 기다림 것만 끈다.
+ * 구독을 타이머보다 먼저 건다 — 거는 중 예외가 나면 stop() 하고 다시 던진다(guardedRun 이 진행 중 표시를 내린다).
+ * 진행 중 표시는 이 기다림을 세운 begin 번호(guardSeq)일 때만 내린다.
+ */
+function startIncomingWait(col, reqMs, baseHandledAt) {
+    const startMs = Date.now();
+    const guardSeq = incomingGuard.seq;
+    let timer = null, unsub = null, stopped = false;
+    const session = { col };
+    const stop = () => {
+        stopped = true;
+        clearInterval(timer);
+        if (unsub) { try { unsub(); } catch (e) { /* 이미 해제 */ } }
+        if (incomingWait === session) { incomingWait = null; setSyncStatus(''); }
+    };
+    // kind: 'latest'(지금 수집기 자료 다시 읽어 반영) · 'keep'(기다리기 전 자료로 반영) · 'timeout'(반영 안 함, 물어보고)
+    session.finish = once(async (kind, msg) => {
+        stop();
+        try {
+            if (kind === 'timeout') {
+                if (!confirm(`${msg}\n\n지금 있는 자료로라도 반영하려면 [확인]을 누르세요.`)) return;
+                msg = '새로 읽기를 기다리지 못해 지금 있는 자료로 반영했습니다.';
+            }
+            const c2 = kind === 'keep' ? col : ((await loadIncomingFromCollector()) || col);
+            await applyCollectorRows(c2, msg);
+        } finally { incomingGuard.endIf(guardSeq); }
+    });
+    const render = () => {
+        const s = Math.floor((Date.now() - startMs) / 1000);
+        if (Date.now() - startMs > INCOMING_WAIT_MAX_MS) { session.finish('timeout', waitTimeoutText(INCOMING_WAIT_MAX_MS / 60000, Date.now())); return; }
+        setSyncStatus(`⏳ 시트를 새로 읽는 중… <b>${Math.floor(s / 60)}분 ${s % 60}초</b> 경과 (보통 1~2분) — 끝나면 자동으로 반영됩니다.<br>` +
+            `<button type="button" onclick="applyIncomingNow()" style="margin-top:4px; padding:3px 8px; font-size:11px; border:1px solid var(--c-line-strong,#bbb); border-radius:4px; background:var(--c-surface,#fff); cursor:pointer;">기다리지 않고 지금 자료(${fmtHM(incomingReadAt(col))} 기준)로 반영</button>`);
+    };
+    try {
+        incomingWait = session;
+        unsub = onSnapshot(doc(db, INCOMING_SHEET_PATH), snap => {
+            const d = snap.data() || {};
+            // 내 요청 뒤에 시트 읽기를 '시작'한 자료만 새 자료(요청 전에 읽기 시작한 전체 수집의 갱신은 무시하고 계속 기다림)
+            // reqForMs: 그 처리·거절이 어느 요청의 것인지(수집기 새 코드) — 남의 앞 요청 실패를 내 거절로 보지 않게
+            const v = judgeIncomingSnap({
+                updatedAt: tsMillis(d.updatedAt), sheetReadAtMs: d.sheetReadAtMs, ok: d.ok,
+                reqHandledAt: tsMillis(d.reqHandledAt), reqNote: typeof d.reqNote === 'string' ? d.reqNote : '', reqForMs: d.reqForMs
+            }, { reqMs, baseAt: col.at, baseHandledAt });
+            if (v === 'done') session.finish('latest', '');
+            else if (v === 'saveFailed') session.finish('keep', '시트를 새로 읽었지만 입고예정 자료를 저장하지 못해(크기 초과 등) 이 기준 자료로 반영했습니다.');
+            else if (v === 'rejected') {
+                // 거절(하루 한도·이상한 요청 시각)·실패 — 목록 자료는 그대로이므로 지금 있는 자료로
+                session.finish('latest', `새로 읽기 요청이 처리되지 않았습니다: ${d.reqNote}\n그래서 지금 있는 자료로 반영했습니다.`);
+            }
+        }, () => { /* 읽기 오류는 시간초과로 처리 */ });
+        render();
+        if (!stopped) timer = setInterval(render, 1000);
+    } catch (e) {
+        stop();
+        throw e;
+    }
+}
+
+/** [시트 동기화] 본체. 기다리기에 들어갔으면 true(진행 중 표시는 그 기다림이 내린다), 끝났으면 그 밖의 값. */
+async function syncIncomingRun() {
     // 1순위: 수집기 자료
     const col = await loadIncomingFromCollector();
     if (col) {
         const now = new Date();
         const collectorAwake = now.getDay() !== 0 && now.getHours() >= 7 && now.getHours() < 19;
-        if (col.at && Date.now() - col.at < INCOMING_FRESH_MS) return applyCollectorRows(col, '');
         if (!collectorAwake) {
-            return applyCollectorRows(col, '※ 지금은 시트를 새로 읽는 시간이 아니라(월~토 07~19시) 이 기준 자료로 반영했습니다. 매일 07:30 자동으로 새로 읽습니다.');
+            // 쉬는 시간엔 요청하지 않는다
+            await applyCollectorRows(col, '※ 지금은 시트를 새로 읽는 시간이 아니라(월~토 07~19시) 이 기준 자료로 반영했습니다. 매일 07:30 자동으로 새로 읽습니다.');
+            return false;
         }
 
-        // 수집기 상태 확인 → 필요하면 요청
-        let l = {}, reqAt = 0;
-        try {
-            const ls = await getDoc(doc(db, MIBAL2_LATEST_PATH));
-            l = ls.exists() ? ls.data() : {};
-            const rq = await getDoc(doc(db, MIBAL2_REQUEST_PATH));
-            reqAt = rq.exists() ? tsMillis(rq.data().requestedAt) : 0;
-        } catch (e) { /* 못 읽어도 요청은 시도 */ }
-        const okAt = tsMillis(l.lastOkAt), runAt = tsMillis(l.lastRunAt), baseNoteAt = tsMillis(l.noteAt);
-        if (okAt && Date.now() - okAt < 10 * 60 * 1000) return applyCollectorRows(col, '');   // 방금 읽었다(수집기도 무시한다)
-        // 직전 요청이 이미 거절됐으면(요청 뒤에 note) 기다려도 오지 않는다 — 그 이유로 바로 반영
-        if (reqAt && reqAt > runAt && l.note && baseNoteAt >= reqAt && Date.now() - baseNoteAt < 30 * 60 * 1000) {
-            return applyCollectorRows(col, `새로 읽기 요청이 처리되지 않았습니다: ${l.note}\n그래서 이 기준 자료로 반영했습니다.`);
+        // 늘 새로 요청한다 — 처리 안 된 요청이 있어도 수집기는 마지막 requestedAt 하나만 보므로 한 번으로 합쳐진다
+        const reqRef = doc(db, INCOMING_REQUEST_PATH);
+        const baseHandledAt = col.reqHandledAt || 0;
+        try { await setDoc(reqRef, { requestedAt: serverTimestamp() }, { merge: true }); }
+        catch (e) {
+            await applyCollectorRows(col, `새로 읽기를 요청하지 못해(${e.code || e.message}) 이 기준 자료로 반영했습니다.`);
+            return false;
         }
-        const pending = reqAt && reqAt > runAt && baseNoteAt < reqAt && Date.now() - reqAt < 15 * 60 * 1000;
-        let reqMs = pending ? reqAt : Date.now();
-        if (!pending) {
-            try { await setDoc(doc(db, MIBAL2_REQUEST_PATH), { requestedAt: serverTimestamp() }); }
-            catch (e) { return applyCollectorRows(col, `새로 읽기를 요청하지 못해(${e.code || e.message}) 이 기준 자료로 반영했습니다.`); }
+        // 내 요청의 서버 시각 — 다시 읽어 얻는다(실패하면 한 번 더). 그래도 못 얻으면 브라우저 시각 − 1분(requestServerMs 주석)
+        //   그 사이 다른 직원이 또 눌렀으면 그 사람 시각(더 늦음)을 읽게 되는데, 그 요청을 채운 읽기는 내 요청도 채우므로 괜찮다.
+        let back = 0;
+        for (let i = 0; i < 2 && !back; i++) {
+            try { const r2 = await getDoc(reqRef); back = r2.exists() ? tsMillis(r2.data().requestedAt) : 0; }
+            catch (e) { /* 한 번 더 */ }
         }
-
-        // 기다리기 — 입고예정 문서가 새로 써지면 자동 반영
-        const startMs = Date.now();
-        incomingWait = { unsubs: [], timer: null, col };
-        const finish = async (msg, useNew) => {
-            stopIncomingWait();
-            const c2 = useNew ? ((await loadIncomingFromCollector()) || col) : col;
-            await applyCollectorRows(c2, msg);
-        };
-        const render = () => {
-            const s = Math.floor((Date.now() - startMs) / 1000);
-            setSyncStatus(`⏳ 시트를 새로 읽는 중… <b>${Math.floor(s / 60)}분 ${s % 60}초</b> 경과 (보통 5~10분) — 끝나면 자동으로 반영됩니다.<br>` +
-                `<button type="button" onclick="applyIncomingNow()" style="margin-top:4px; padding:3px 8px; font-size:11px; border:1px solid var(--c-line-strong,#bbb); border-radius:4px; background:var(--c-surface,#fff); cursor:pointer;">기다리지 않고 지금 자료(${fmtHM(col.at)} 기준)로 반영</button>`);
-            if (Date.now() - startMs > INCOMING_WAIT_MAX_MS) finish(`${INCOMING_WAIT_MAX_MS / 60000}분 안에 새로 읽지 못해 이 기준 자료로 반영했습니다. 잠시 뒤 다시 눌러 보세요.`, false);
-        };
-        render();
-        incomingWait.timer = setInterval(render, 1000);
-        incomingWait.unsubs.push(onSnapshot(doc(db, INCOMING_SHEET_PATH), snap => {
-            const d = snap.data() || {};
-            if (!incomingWait || tsMillis(d.updatedAt) <= col.at) return;
-            if (d.ok === false) finish('시트를 새로 읽었지만 입고예정 자료를 저장하지 못해(크기 초과 등) 이 기준 자료로 반영했습니다.', false);
-            else finish('', true);
-        }, () => { /* 읽기 오류는 시간초과로 처리 */ }));
-        incomingWait.unsubs.push(onSnapshot(doc(db, MIBAL2_LATEST_PATH), snap => {
-            if (!incomingWait) return;
-            const d = snap.data() || {};
-            if (d.note && tsMillis(d.noteAt) > baseNoteAt) {
-                finish(`새로 읽기 요청이 처리되지 않았습니다: ${d.note}\n그래서 이 기준 자료로 반영했습니다.`, false);
-            } else if (d.ok === false && tsMillis(d.lastRunAt) > reqMs - 60 * 1000) {
-                finish('시트를 새로 읽다가 실패해서 이 기준 자료로 반영했습니다.', false);
-            }
-        }, () => { /* 읽기 오류는 시간초과로 처리 */ }));
-        return;
+        if (!back) console.warn('[입고예정] 요청 서버 시각을 읽지 못해 브라우저 시각 − 1분으로 기다립니다');
+        startIncomingWait(col, requestServerMs(back, Date.now()), baseHandledAt);
+        return true;
     }
 
     // 2순위(전환 기간만): 옛 경로 — '웹에 게시' 시트를 직접 받는다. 시트 웹게시를 끄면 이 경로는 실패한다.
@@ -2987,7 +3021,7 @@ window.syncIncomingData = async () => {
         alert(`연결 실패!\n데이터를 가져오지 못했습니다.\n(${error.message})`); 
         console.error("데이터 동기화 실패:", error);
     }
-};
+}
 
 // ★ v3.96: 오더취소 선지정 모달 표시
 window.showCancelledPreAssignModal = function(items) {

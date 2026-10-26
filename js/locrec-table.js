@@ -6,10 +6,13 @@
 //   스타일은 location.html <style> · index 는 css/locrec-modal.css(#locrec-modal 범위로 같은 모양).
 // ⚠️ role="dialog" · data-act 를 붙이지 않는다 — 업무마감봇이 div[role=dialog] 마지막 것 · [data-act] 로 자기 확인창을 읽는다(버튼은 data-locrec-act).
 // 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙는다.
-import { escapeHtml } from './utils.js?v=202610261714';
-import { fmtHM, tabCounts, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys } from './lib/locrec-view.js?v=202610261714';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610261714';
-import { higherOpenThan } from './modal-above.js?v=202610261714';
+// 다시 만들기: 머리줄 [지금 기준으로 다시 만들기](오늘 날짜일 때) · 창을 보는 중에 새 판이 오면 띠 '새 추천이 도착했습니다' [새로 보기]
+//   (store.setHold — 창이 열려 있으면 store 가 새 판을 pendingDay 에 둔다, 닫으면 바로 바꾼다).
+//   이월 행(carried)은 흐리게 '(지금 기준 추천에서 빠짐)' — [처리함]/[안 함] 없이 되돌리기만.
+import { escapeHtml } from './utils.js?v=202610270833';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL } from './lib/locrec-view.js?v=202610270833';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610270833';
+import { higherOpenThan } from './modal-above.js?v=202610270833';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -22,10 +25,13 @@ const TEMPLATE = `
                 <div class="seg-tabs locrec-tabs" id="locrec-tabs" style="margin-bottom:0;"></div>
                 <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                     <label class="refill-sub locrec-skipchk" id="locrec-skip-wrap" hidden><input type="checkbox" id="locrec-show-skip"> <span id="locrec-skip-txt" style="vertical-align:middle;">안 함도 보기</span></label>
+                    <button type="button" class="btn btn-secondary btn-sm" id="locrec-rebuild-btn" data-locrec-act="rebuild" title="사무실 PC 프로그램이 지금 배치·재고로 오늘 추천을 새로 만듭니다(앱에만, 슬랙 없음)" hidden>지금 기준으로 다시 만들기</button>
                     <button type="button" class="btn btn-secondary btn-sm" id="locrec-all-btn" data-locrec-act="doneAll" title="지금 탭에서 아직 표시 안 한 추천을 모두 '처리함'으로 표시(안 함·처리됨·만료·자리 바뀜은 제외)" hidden>전체 처리함</button>
                     <button type="button" class="btn btn-primary btn-sm" id="locrec-dl-btn" data-locrec-act="download" title="지금 탭(안 함도 보기면 그것까지)">엑셀 받기</button>
                 </div>
             </div>
+            <div id="locrec-new-band" hidden style="margin-bottom:8px; padding:6px 10px; border-radius:6px; background:var(--c-accent-soft, #EEF4FF); font-size:12.5px;"><span id="locrec-new-txt"></span> <button type="button" class="btn btn-primary btn-sm" data-locrec-act="applyNew">새로 보기</button></div>
+            <div id="locrec-req-note" class="refill-sub" hidden style="margin-bottom:8px;"></div>
             <div id="locrec-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
             <div class="table-box locrec-table-wrap">
                 <table class="usage-table locrec-table">
@@ -57,6 +63,7 @@ export function mountLocRecTable({ store, sizeOf }) {
     const mTitle = q('locrec-modal-title'), mMeta = q('locrec-modal-meta'), mTabs = q('locrec-tabs');
     const mSkipWrap = q('locrec-skip-wrap'), mSkip = q('locrec-show-skip'), mSkipTxt = q('locrec-skip-txt');
     const mDl = q('locrec-dl-btn'), mTbody = q('locrec-tbody'), mAll = q('locrec-all-btn');
+    const mRebuild = q('locrec-rebuild-btn'), mBand = q('locrec-new-band'), mBandTxt = q('locrec-new-txt'), mReqNote = q('locrec-req-note');
     let tab = 'single', showSkipped = false, lastTabsHtml = '';
     const closeFns = new Set();
 
@@ -79,7 +86,8 @@ export function mountLocRecTable({ store, sizeOf }) {
         const k = escapeHtml(r.recKey);
         const mk = st.mark;
         const who = mk ? `<div class="locrec-who">${escapeHtml(mk.state === 'skip' ? '안 함' : '처리함')} · ${escapeHtml(mk.by || NO_NAME)} ${escapeHtml(fmtHM(mk.at))}</div>` : '';
-        const btns = st.label === '처리됨' && !mk ? ''                       // 서버가 위치 변화를 확인한 행 — 누를 것이 없다
+        const carried = r.carried === true;                                   // 이월 행 — 지금 기준 추천에서 빠짐
+        const btns = (st.label === '처리됨' || carried) && !mk ? ''         // 서버가 위치 변화를 확인한 행·이월 행 — 누를 것이 없다
             : mk
             ? `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="undo" data-locrec-key="${k}"${busy ? ' disabled' : ''}>되돌리기</button>`
             : `<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="done" data-locrec-key="${k}"${busy ? ' disabled' : ''}>처리함</button>`
@@ -90,7 +98,8 @@ export function mountLocRecTable({ store, sizeOf }) {
         // 줄무늬는 추천 단위(.locrec-alt) — usage-table 의 tr:nth-child(even) 는 줄 단위라 locrec-table 에서 끈다(location.html · css/locrec-modal.css).
         const lines = rowLines(r);
         const span = lines.length > 1 ? ` rowspan="${lines.length}"` : '';
-        const trCls = `locrec-row tone-${st.tone}${st.label === '안 함' ? ' locrec-skipped' : ''}${i % 2 ? ' locrec-alt' : ''}`;
+        const trCls = `locrec-row tone-${st.tone}${st.label === '안 함' ? ' locrec-skipped' : ''}${i % 2 ? ' locrec-alt' : ''}${carried ? ' locrec-carried' : ''}`;
+        const trAttr = carried ? ' style="opacity:.55" title="지금 기준 추천에서 빠진 행 — 오늘 손댄 것이라 남겨 둠"' : '';
         return lines.map((l, j) => {
             const last = j === lines.length - 1;
             const cells = `<td class="locrec-prod"><span class="locrec-code">${escapeHtml(l.code)}</span> ${nameCell(l.name, l.option)}`
@@ -99,13 +108,14 @@ export function mountLocRecTable({ store, sizeOf }) {
                 + `<td class="locrec-loc"><b class="locrec-to">${escapeHtml(locCell(l.to, l.toSize))}</b></td>`
                 + `<td class="locrec-num locrec-qty">${l.qty == null ? '' : `${n0(l.qty)}개`}</td>`
                 + `<td class="locrec-num locrec-daily">${l.daily == null ? '' : fmtNum(l.daily)}</td>`;
-            if (j > 0) return `<tr class="${trCls} locrec-sub">${cells}</tr>`;
-            return `<tr class="${trCls}">`
-                + `<td class="locrec-rank"${span}>${r.rank == null ? i + 1 : r.rank}</td>`
+            if (j > 0) return `<tr class="${trCls} locrec-sub"${trAttr}>${cells}</tr>`;
+            return `<tr class="${trCls}"${trAttr}>`
+                + `<td class="locrec-rank"${span}>${carried ? '' : (r.rank == null ? i + 1 : r.rank)}</td>`     // 이월 행은 순위 없음
                 + cells
                 + `<td class="locrec-gain"${span}>${fmtNum(r.gain)}</td>`
                 + `<td class="locrec-score-gain"${span} title="${scoreTitle(r)}">${escapeHtml(r.routeOut ? ROUTE_OUT_LABEL : fmtGain(r.scoreGain))}</td>`
-                + `<td class="locrec-state"${span}><span class="locrec-st st-${st.tone}">${escapeHtml(st.label)}</span>${who}</td>`
+                + `<td class="locrec-state"${span}><span class="locrec-st st-${st.tone}">${escapeHtml(st.label)}</span>${who}`
+                + (carried ? `<div class="locrec-who">${escapeHtml(CARRIED_LABEL)}</div>` : '') + '</td>'
                 + `<td class="locrec-acts"${span}>${btns}</td></tr>`;
         }).join('');
     }
@@ -119,8 +129,26 @@ export function mountLocRecTable({ store, sizeOf }) {
         const loaded = store.loaded();
         const editable = loaded && canMark(S.latest, S.key, today);
         mTitle.textContent = `변경 추천 ${dayLabel(S.key || today)}`;
-        const cnt = tabCounts(loaded ? S.day.parsed : null);
-        const tabsHtml = TABS.map(t => `<button type="button" class="seg-tab${t === tab ? ' active' : ''}" data-locrec-tab="${t}">${TAB_LABEL[t]} ${cnt[t]}</button>`).join('');
+        // 다시 만들기 버튼·상태 문구(오늘 날짜일 때) · 새 판 도착 띠
+        const ru = store.reqState();
+        if (mRebuild) {
+            mRebuild.hidden = !ru.show;
+            mRebuild.disabled = !ru.enabled;
+            mRebuild.textContent = ru.label;
+        }
+        if (mReqNote) {
+            mReqNote.hidden = !(ru.show && ru.note);
+            mReqNote.textContent = ru.note || '';
+            mReqNote.style.color = ru.tone === 'warn' ? 'var(--c-warn-text, #8A5A00)' : '';
+        }
+        if (mBand) {
+            const pd = S.pendingDay && S.pendingDay.key === S.key ? S.pendingDay : null;
+            mBand.hidden = !pd;
+            if (pd) mBandTxt.textContent = `새 추천이 도착했습니다(${fmtHM(pd.data && pd.data.at) || '방금'}) — 처리함/안 함 표시는 그대로 남습니다`;
+        }
+        const cnt = tabCounts(loaded ? S.day.parsed : null);                 // 이월 빼고(카드·띠 건수와 같은 기준)
+        const cry = tabCarried(loaded ? S.day.parsed : null);
+        const tabsHtml = TABS.map(t => `<button type="button" class="seg-tab${t === tab ? ' active' : ''}" data-locrec-tab="${t}">${TAB_LABEL[t]} ${cnt[t]}${cry[t] ? ` (+이월 ${cry[t]})` : ''}</button>`).join('');
         if (lastTabsHtml !== tabsHtml) { lastTabsHtml = tabsHtml; mTabs.innerHTML = tabsHtml; }
         const all = store.visibleRows(tab);
         const hiddenN = all.filter(x => x.st.hidden).length;
@@ -145,7 +173,7 @@ export function mountLocRecTable({ store, sizeOf }) {
         }
         mMeta.textContent = tabMeta(tab, all) + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
         if (!rows.length) {
-            mTbody.innerHTML = `<tr><td colspan="10" class="refill-empty">${cnt[tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[tab]} 추천이 없습니다`}</td></tr>`;
+            mTbody.innerHTML = `<tr><td colspan="10" class="refill-empty">${cnt[tab] || cry[tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[tab]} 추천이 없습니다`}</td></tr>`;
             return;
         }
         mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable)).join('');
@@ -155,6 +183,7 @@ export function mountLocRecTable({ store, sizeOf }) {
     function close() {
         const was = isOpen();
         modal.style.display = 'none';
+        if (was) store.applyPending();                 // 보던 동안 도착한 새 판은 닫을 때 바로 바꾼다(카드·띠 건수)
         if (was) closeFns.forEach(fn => { try { fn(); } catch (e) { console.warn('[locrec]', e); } });
     }
     /** 창이 닫힐 때 부를 함수(대시보드: 구독 끄기). 돌려준 함수로 해제 */
@@ -169,6 +198,8 @@ export function mountLocRecTable({ store, sizeOf }) {
         const act = b.getAttribute('data-locrec-act');
         const key = b.getAttribute('data-locrec-key');
         if (act === 'download') store.downloadTab(tab, showSkipped);
+        else if (act === 'rebuild') store.requestRebuild();
+        else if (act === 'applyNew') store.applyPending();
         else if (act === 'doneAll') {
             const keys = bulkDoneKeys(store.visibleRows(tab));
             if (keys.length && confirm(`${TAB_LABEL[tab]} 탭의 추천 ${keys.length}건을 모두 '처리함'으로 표시할까요?
@@ -188,6 +219,7 @@ export function mountLocRecTable({ store, sizeOf }) {
     }, true);
 
     store.on(render);
+    store.setHold(isOpen);                             // 열려 있는 동안 새 판은 띠로만 알린다
     mounted = { open, close, isOpen, render, onClose, el: modal };
     return mounted;
 }

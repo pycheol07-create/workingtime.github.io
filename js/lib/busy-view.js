@@ -8,7 +8,9 @@
 //   계약 B  locationStock/uploadStatus · uploadStatus/stockLog
 //           { schema:1, state:'running'|'done'|'failed', kind, by, runId, since, beatAt(60초마다), endAt }
 //           진행 중 = running && beatAt 3분 안 && since 30분 안. '방금 끝남' = endAt 2분 안.
-//   미발 갱신 요청 mibal2/refreshRequest { requestedAt } — 대기 판정은 china-mibal2.js checkPending·location.js syncIncomingData 와 같은 규칙.
+//   미발 갱신 요청 mibal2/refreshRequest { requestedAt } — 대기 판정은 china-mibal2.js checkPending 과 같은 규칙.
+//   (로케이션관리 입고 대기 [시트 동기화]는 2026-10-26 부터 따로 mibal2/incomingRequest '시트만 읽기' 요청을 쓰고
+//    판정은 js/lib/incoming-wait.js — 이 띠에는 나오지 않는다.)
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const MIN = 60 * 1000;
@@ -122,7 +124,7 @@ export function uploadView(st, nowMs, myRunId) {
 
 /**
  * 미발 갱신 요청이 아직 처리 대기 중인가 → null | {active, kind:'mibalRequest', label, sinceMs}
- * 요청 > 마지막 실행 && 요청 > 거절 메모 시각 && 요청 뒤 15분 안 (china-mibal2.js checkPending · location.js syncIncomingData 와 같은 규칙)
+ * 요청 > 마지막 실행 && 요청 > 거절 메모 시각 && 요청 뒤 15분 안 (china-mibal2.js checkPending 과 같은 규칙)
  */
 export function mibalRequestView(reqAtMs, latest, nowMs) {
     const req = tsMs(reqAtMs);

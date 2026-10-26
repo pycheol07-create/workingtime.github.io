@@ -13,7 +13,7 @@ import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://w
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs
-} from './lib/locrec-view.js?v=202610261714';
+} from './lib/locrec-view.js?v=202610270833';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -38,9 +38,12 @@ function createLocRecStore({ db, auth, getMemberName }) {
         authKnown: false, signedIn: false, latest: null, latestErr: '',
         key: '', userPicked: false,
         day: null, dayErr: '', dayLoading: false,       // day = { key, data, parsed }
-        marks: {}, marksErr: '', saving: new Set()
+        marks: {}, marksErr: '', saving: new Set(),
+        request: null, lastDataMs: 0,                   // 다시 만들기 요청 문서 · INFO_CONFIG.lastDataUpdate
+        pendingDay: null                                // 표 창이 열려 있을 때 도착한 새 판 { key, data, parsed }
     };
-    let unsubs = [], unsubDay = null, dayKeyWatching = '', unsubAuth = null, timer = null, started = false;
+    let unsubs = [], unsubDay = null, dayKeyWatching = '', unsubAuth = null, timer = null, reqTimer = null, started = false;
+    let hold = () => false;                             // 표 창이 열려 있는가(locrec-table.js 가 setHold 로 준다)
     const listeners = new Set();
 
     const emit = () => listeners.forEach(fn => { try { fn(S); } catch (e) { console.warn('[locrec]', e); } });
@@ -56,6 +59,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
     function stopDay() {
         if (unsubDay) { try { unsubDay(); } catch (e) { /* 무시 */ } unsubDay = null; }
         dayKeyWatching = '';
+        S.pendingDay = null;
     }
     function stopSnaps() {
         unsubs.forEach(u => { try { u(); } catch (e) { /* 무시 */ } });
@@ -76,6 +80,14 @@ function createLocRecStore({ db, auth, getMemberName }) {
             S.marksErr = '';
             emit();
         }, () => { S.marksErr = '완료 표시를 읽지 못했습니다'; emit(); }));   // 표시 없이 + 주의
+        unsubs.push(onSnapshot(doc(db, REQUEST_PATH), snap => {
+            S.request = snap.exists() ? (snap.data({ serverTimestamps: 'estimate' }) || {}) : null;
+            emit();
+        }, () => { S.request = null; }));
+        unsubs.push(onSnapshot(doc(db, INFO_PATH), snap => {
+            S.lastDataMs = snap.exists() ? tsMs((snap.data() || {}).lastDataUpdate) : 0;
+            emit();
+        }, () => { S.lastDataMs = 0; }));      // 못 읽으면 자동 감지 문구만 없다
     }
 
     function syncDay() {
@@ -89,10 +101,18 @@ function createLocRecStore({ db, auth, getMemberName }) {
         const key = S.key;
         dayKeyWatching = key;
         S.dayLoading = true; S.dayErr = '';
+        S.pendingDay = null;
         unsubDay = onSnapshot(doc(db, DAY_PATH(key)), snap => {
             if (dayKeyWatching !== key) return;
             S.dayLoading = false;
             const data = snap.exists() ? snap.data() : null;
+            // 표 창을 보는 중에 다시 만든 판(rev 다름)이 오면 띠로만 알리고 [새로 보기] 때 바꾼다
+            if (data && S.day && S.day.key === key && hold() && (data.rev || 0) !== (S.day.data.rev || 0)) {
+                S.pendingDay = { key, data, parsed: parseRecDay(data) };
+                emit();
+                return;
+            }
+            S.pendingDay = null;
             S.day = data ? { key, data, parsed: parseRecDay(data) } : null;
             S.dayErr = data ? '' : '추천 문서를 찾지 못했습니다';
             emit();
@@ -116,6 +136,14 @@ function createLocRecStore({ db, auth, getMemberName }) {
         });
         // 자정 넘김·'오래됨' 문구를 위해 10분마다 다시
         timer = setInterval(() => { if (S.signedIn && S.latest) { syncDay(); emit(); } }, 10 * 60 * 1000);
+        // 다시 만들기 문구('PC 가 꺼져 있을 수 있음'·간격 끝)는 시간이 지나면 바뀐다 — 1분마다, 문구가 바뀔 때만 다시 그린다
+        let lastNote = '';
+        reqTimer = setInterval(() => {
+            if (!S.signedIn || !S.latest) return;
+            const u = reqState();
+            const k = `${u.enabled}|${u.note}`;
+            if (k !== lastNote) { lastNote = k; emit(); }
+        }, 60 * 1000);
     }
 
     /** 구독을 모두 끊는다(대시보드에서 표 창을 닫을 때). 다시 start() 하면 처음부터 */
@@ -124,10 +152,47 @@ function createLocRecStore({ db, auth, getMemberName }) {
         started = false;
         if (unsubAuth) { try { unsubAuth(); } catch (e) { /* 무시 */ } unsubAuth = null; }
         if (timer) { clearInterval(timer); timer = null; }
+        if (reqTimer) { clearInterval(reqTimer); reqTimer = null; }
         stopSnaps();
         S.authKnown = false; S.signedIn = false; S.latest = null; S.latestErr = ''; S.day = null; S.dayErr = ''; S.dayLoading = false;
         S.marks = {}; S.marksErr = ''; S.key = ''; S.userPicked = false;
+        S.request = null; S.lastDataMs = 0; S.pendingDay = null;
         emit();
+    }
+
+    /** 표 창이 열려 있는지 알려 줄 함수(열려 있으면 새 판을 pendingDay 에 둔다) */
+    function setHold(fn) { hold = typeof fn === 'function' ? fn : () => false; }
+
+    /** 기다리던 새 판으로 바꾼다(표 창 [새로 보기] · 창을 닫을 때) */
+    function applyPending() {
+        const p = S.pendingDay;
+        if (!p) return;
+        S.pendingDay = null;
+        if (p.key === S.key) S.day = p;
+        emit();
+    }
+
+    /** [지금 기준으로 다시 만들기] 버튼 상태(recReqUi) — 오늘 날짜를 보고 있을 때만 보인다 */
+    function reqState() {
+        const today = todayKey();
+        const L = S.latest || {};
+        return recReqUi({ req: L.req, requestMs: S.request ? tsMs(S.request.requestedAt) : 0, nowMs: Date.now(),
+                          isToday: S.key === today, entry: entryOf(today), lastDataMs: S.lastDataMs,
+                          stockDataMs: L.stockDataAt, todayKey: today });
+    }
+
+    /** 다시 만들기 요청 — 요청 문서를 덮어쓴다(처리는 이 PC 프로그램이 5분마다). 앱에서만 바뀌고 슬랙에는 다시 보내지 않는다 */
+    async function requestRebuild() {
+        const today = todayKey();
+        if (S.key !== today || !S.latest) return;
+        if (!reqState().enabled) { emit(); return; }
+        if (!confirm('사무실 PC 자동화 프로그램이 지금 배치·재고로 오늘 변경 추천을 새로 만듭니다.\n'
+            + '처리함/안 함 표시는 그대로 남고, 슬랙에는 다시 보내지 않습니다. 보통 3~6분 걸립니다.\n\n다시 만들까요?')) return;
+        try {
+            await setDoc(doc(db, REQUEST_PATH), { requestedAt: serverTimestamp(), by: nameOf(), day: today });
+        } catch (e) {
+            alert(`요청하지 못했습니다(${(e && e.code) || '오류'}).`);
+        }
     }
 
     function setDay(key) {
@@ -191,9 +256,9 @@ function createLocRecStore({ db, auth, getMemberName }) {
         X.utils.book_append_sheet(wb, ws, sheetName);
         X.writeFile(wb, fileName);
     }
-    /** 표 창: 지금 탭(안 함도 보기면 그것까지) */
+    /** 표 창: 지금 탭(안 함도 보기면 그것까지). 이월 행(지금 기준 추천에서 빠짐)은 넣지 않는다 */
     function downloadTab(tab, showSkipped) {
-        const rows = visibleRows(tab).filter(x => showSkipped || !x.st.hidden).map(x => x.r);
+        const rows = visibleRows(tab).filter(x => !x.r.carried && (showSkipped || !x.st.hidden)).map(x => x.r);
         writeXlsx(rows, SHEET_NAME[tab], fileNameOf(tab, S.key));
     }
     /** 접힌 띠·펼친 본문: 탭과 상관없이 그날 추천 전체(단독 → 맞바꾸기 → 페어, 안 함 제외) — 띠 건수와 같은 목록 */
@@ -211,6 +276,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
 
     return {
         get: () => S, on, start, stop, setDay, entryOf, loaded, visibleRows,
-        mark, markMany, downloadTab, downloadAll, isStarted: () => started
+        mark, markMany, downloadTab, downloadAll, isStarted: () => started,
+        reqState, requestRebuild, setHold, applyPending
     };
 }

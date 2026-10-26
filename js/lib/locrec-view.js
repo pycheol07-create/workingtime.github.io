@@ -22,8 +22,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610261714';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610261714';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610270833';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610270833';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -410,12 +410,25 @@ export function pickRecDay(latest, targetKey, todayKey) {
     return lastDays(today, DAYS_SHOWN).includes(ld) ? ld : '';
 }
 
+/** 이월 행 중 그날 일한 몫으로 세는 상태(서버 done·progress · 직원 처리함 표시) — recCount */
+const CARRIED_WORK_LABELS = new Set(['처리됨', '진행 중', '처리함 표시', '표시는 됐지만 위치 미반영']);
+
 /**
  * 그날 추천 건수 — 접힌 띠 'N건'(stripRows)과 같은 기준('안 함' 숨김 제외, 세 탭 합). 표 자료가 없거나 깨졌으면 null
+ *   + 이월 행 중 처리됨·진행 중·처리함 표시 — 아침 판에서 이 행들도 셌으므로, 다시 만들기만으로 업무 예상 건수가 줄지 않게.
+ *   (띠·엑셀·탭 숫자에서는 이월 행을 계속 뺀다)
  */
 export function recCount({ latest, key, todayKey, parsed, marks, nowMs }) {
     if (!parsed || parsed.error) return null;
-    return stripRows({ latest, key, todayKey, parsed, marks, nowMs }).length;
+    const open = (latest && latest.open) || {};
+    const mk = marks || {};
+    let carriedN = 0;
+    TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
+        if (!r.carried) return;
+        const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs });
+        if (!st.hidden && CARRIED_WORK_LABELS.has(st.label)) carriedN++;
+    }));
+    return stripRows({ latest, key, todayKey, parsed, marks, nowMs }).length + carriedN;
 }
 
 /**
@@ -443,10 +456,16 @@ export function applyLocRecCount(base, info, targetKey, todayKey) {
     return null;
 }
 
-/** 탭 행 수 요약 */
+/** 탭 행 수 요약(이월 행 제외 — 카드·띠 건수와 같은 기준. 이월은 tabCarried 로 따로) */
 export function tabCounts(parsed) {
     const p = parsed || {};
-    return Object.fromEntries(TABS.map(t => [t, Array.isArray(p[t]) ? p[t].length : 0]));
+    return Object.fromEntries(TABS.map(t => [t, Array.isArray(p[t]) ? p[t].filter(r => !(r && r.carried)).length : 0]));
+}
+
+/** 탭별 이월 행 수 — 표 탭에 '(+이월 N)' 으로 따로 보인다 */
+export function tabCarried(parsed) {
+    const p = parsed || {};
+    return Object.fromEntries(TABS.map(t => [t, Array.isArray(p[t]) ? p[t].filter(r => r && r.carried).length : 0]));
 }
 
 /**
@@ -528,8 +547,10 @@ export function rowLines(r) {
 // ── 다시 만들기 ──────────────────────────────────────────────────────────────
 export const REBUILD_LABEL = '지금 기준으로 다시 만들기';
 export const CARRIED_LABEL = '(지금 기준 추천에서 빠짐)';
-export const REQ_OPEN_H = 7, REQ_CLOSE_H = 19;              // 서버 다시만들기.py OPEN_H·CLOSE_H 와 같게
-export const REQ_PENDING_MS = 15 * 60 * 1000;               // 요청·다시 만들기가 이만큼 그대로면 'PC 가 꺼져 있을 수 있음'
+export const REQ_OPEN_MIN = 7 * 60, REQ_CLOSE_MIN = 18 * 60 + 50;   // 요청 받는 시각 07:00~18:50 — 서버 다시만들기.py REQ_OPEN_MIN·REQ_CLOSE_MIN 과 같게
+export const REQ_HOURS_TEXT = '07:00~18:50';                          // (서버 마지막 확인 18:55 — 마감 직전 요청도 처리된다)
+export const REQ_PENDING_MS = 15 * 60 * 1000;               // 요청이 이만큼 처리되지 않으면 'PC 가 꺼져 있을 수 있음'
+export const REQ_RUNNING_MS = 25 * 60 * 1000;               // 다시 만드는 중이 이만큼 그대로면 멈춘 것 — 서버 다시만들기.py RUNNING_STALE_MS 와 같게
 export const REQ_NOTE_MS = 60 * 60 * 1000;                  // 거절·실패·대기 사유를 보여 주는 시간
 export const AUTO_NOTE = '재고 자료가 새로 올라왔습니다 — 몇 분 안에 자동으로 다시 만듭니다';
 const DEF_REQ = { max: 6, cooldownMin: 15, autoMax: 3 };    // 서버 설정.json rerun 기본값(req 칸이 없을 때)
@@ -538,7 +559,7 @@ const DEF_REQ = { max: 6, cooldownMin: 15, autoMax: 3 };    // 서버 설정.jso
  * [지금 기준으로 다시 만들기] 버튼 상태 → { show, enabled, label, note, tone('' | accent | warn) }
  *   req = locRecLatest.req · requestMs = locRecWork/request 의 requestedAt(ms, 없으면 0) · entry = locRecLatest.days[오늘]
  *   lastDataMs = Locations/INFO_CONFIG.lastDataUpdate(재고 엑셀 올린 시각) · stockDataMs = locRecLatest.stockDataAt(지금 판의 기준)
- *   서버 규칙(다시만들기.decide)과 같게: 오늘 · 정기 판(ok|fail) 뒤 · 07~19시 · 하루 max · cooldownMin 간격(직전 실패면 면제).
+ *   서버 규칙(다시만들기.decide)과 같게: 오늘 · 정기 판(ok|fail) 뒤 · 07:00~18:50 · 하루 max · cooldownMin 간격(직전 실패면 면제).
  */
 export function recReqUi({ req, requestMs, nowMs, isToday, entry, lastDataMs, stockDataMs, todayKey }) {
     const label = REBUILD_LABEL;
@@ -557,8 +578,8 @@ export function recReqUi({ req, requestMs, nowMs, isToday, entry, lastDataMs, st
     const dataMs = tsMs(lastDataMs);
     const autoPending = dataMs > 0 && dataMs > Math.max(tsMs(stockDataMs), tsMs(r.autoStockAt)) && autoN < autoMax;
     const withAuto = (o) => (autoPending && o.tone !== 'warn' ? { ...o, note: AUTO_NOTE + (o.note ? ` · ${o.note}` : ''), tone: o.tone || 'accent' } : o);
-    // 1) 다시 만드는 중 — 15분 넘게 그대로면 PC 가 꺼졌을 수 있다(다음 요청 허용)
-    if (r.state === 'running' && sameDay && nowMs - atMs < REQ_PENDING_MS) {
+    // 1) 다시 만드는 중 — 25분(서버가 멈춘 것으로 보는 시간) 넘게 그대로면 PC 가 꺼졌을 수 있다(다음 요청 허용)
+    if (r.state === 'running' && sameDay && nowMs - atMs < REQ_RUNNING_MS) {
         return res(false, r.source === 'auto' ? '재고 자료가 새로 올라와 자동으로 다시 만드는 중… (보통 3~6분)' : '다시 만드는 중… (보통 3~6분)', 'accent');
     }
     // 2) 아직 처리되지 않은 요청 — 서버가 '대기'(이지어드민 쉬는 시간·재고 올리는 중)로 남겼으면 그 사유
@@ -570,7 +591,13 @@ export function recReqUi({ req, requestMs, nowMs, isToday, entry, lastDataMs, st
         return res(false, '요청함 — 처리 대기 중 (이 PC 프로그램이 5분마다 확인)', 'accent');
     }
     const k = kstParts(nowMs);
-    if (k.hh < REQ_OPEN_H || k.hh >= REQ_CLOSE_H) return res(false, '07~19시에만 다시 만들 수 있습니다');
+    const hm = k.hh * 60 + k.mm;
+    const recentNote = sameDay && (r.state === 'rejected' || r.state === 'failed') && r.note && nowMs - atMs < REQ_NOTE_MS;
+    const lastNote = () => (r.state === 'failed' ? `다시 만들지 못했습니다: ${r.note}` : `지난 요청이 처리되지 않았습니다: ${r.note}`);
+    if (hm < REQ_OPEN_MIN || hm >= REQ_CLOSE_MIN) {
+        // 마감 뒤에도 방금 거절된 사유(예: 서버 '마감 — 내일 다시 요청하세요')는 보여 준다
+        return recentNote ? res(false, lastNote(), 'warn') : res(false, `${REQ_HOURS_TEXT}에만 다시 만들 수 있습니다`);
+    }
     const count = sameDay ? intOr(r.count, 0) : 0;
     if (count >= max) return withAuto(res(false, `오늘 다시 만들기 한도(${max}회)를 다 썼습니다`));
     const started = sameDay ? tsMs(r.startedAt) : 0;
@@ -578,10 +605,8 @@ export function recReqUi({ req, requestMs, nowMs, isToday, entry, lastDataMs, st
         return withAuto(res(false, `${fmtHM(started + cool)} 이후 다시 만들 수 있습니다(${cool / 60000}분 간격)`));
     }
     if (pending) return res(true, '요청이 15분 넘게 처리되지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
-    if (r.state === 'running' && sameDay) return res(true, '다시 만들기가 15분 넘게 끝나지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
-    if (sameDay && (r.state === 'rejected' || r.state === 'failed') && r.note && nowMs - atMs < REQ_NOTE_MS) {
-        return res(true, r.state === 'failed' ? `다시 만들지 못했습니다: ${r.note}` : `지난 요청이 처리되지 않았습니다: ${r.note}`, 'warn');
-    }
+    if (r.state === 'running' && sameDay) return res(true, '다시 만들기가 25분 넘게 끝나지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
+    if (recentNote) return res(true, lastNote(), 'warn');
     return withAuto(res(true));
 }
 
