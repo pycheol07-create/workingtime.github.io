@@ -6,10 +6,10 @@
 //   스타일은 location.html <style> · index 는 css/locrec-modal.css(#locrec-modal 범위로 같은 모양).
 // ⚠️ role="dialog" · data-act 를 붙이지 않는다 — 업무마감봇이 div[role=dialog] 마지막 것 · [data-act] 로 자기 확인창을 읽는다(버튼은 data-locrec-act).
 // 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙는다.
-import { escapeHtml } from './utils.js?v=202610261041';
-import { fmtHM, tabCounts, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP } from './lib/locrec-view.js?v=202610261041';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610261041';
-import { higherOpenThan } from './modal-above.js?v=202610261041';
+import { escapeHtml } from './utils.js?v=202610261114';
+import { fmtHM, tabCounts, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel } from './lib/locrec-view.js?v=202610261114';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610261114';
+import { higherOpenThan } from './modal-above.js?v=202610261114';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -35,9 +35,14 @@ const TEMPLATE = `
         </div>`;
 
 let mounted = null;
+// 옛 문서(행에 칸수 칸 없음) 보충용 — (자리 id) => 칸수 문자열. location.html 은 읽어 둔 Locations 에서 찾아 준다.
+//   대시보드(index)는 Locations 를 읽지 않으므로 없음 → 옛 문서는 괄호 없이 보인다.
+let sizeOfLoc = null;
 
-/** 표 창을 붙인다(한 탭에 한 번). → { open(), close(), isOpen(), render(), onClose(fn), el } */
-export function mountLocRecTable({ store }) {
+/** 표 창을 붙인다(한 탭에 한 번). → { open(), close(), isOpen(), render(), onClose(fn), el }
+ *  sizeOf: 선택 — 행에 칸수(fromSize·toSize)가 없을 때 쓸 (자리 id) => 칸수. */
+export function mountLocRecTable({ store, sizeOf }) {
+    if (typeof sizeOf === 'function') sizeOfLoc = sizeOf;
     if (mounted) return mounted;
     let modal = document.getElementById('locrec-modal');
     if (!modal) {
@@ -60,6 +65,12 @@ export function mountLocRecTable({ store }) {
     const scoreTitle = (r) => (r.routeOut ? escapeHtml(ROUTE_OUT_HELP) : r.scoreGain == null ? '동선 점수 기여도 없음(이전 추천이거나 계산 안 됨)'
         : escapeHtml(`이 줄만 처리하면 동선 점수 ${r.scoreGain >= 0 ? '+' : ''}${r.scoreGain.toFixed(2)}`
             + (r.frontGain == null ? '' : ` · 앞쪽 자리 출고 ${r.frontGain >= 0 ? '+' : ''}${r.frontGain.toFixed(2)}%p`)));
+    // 로케이션 칸 — '★★-003(4)'(칸수 없으면 자리만). 행의 칸수가 우선, 없으면 sizeOfLoc 로 보충(실패해도 괄호 없이)
+    const locCell = (id, size) => {
+        let s = size;
+        if (!s && id && sizeOfLoc) { try { s = sizeOfLoc(id) || ''; } catch (e) { s = ''; } }
+        return locLabel(id, s) || '-';
+    };
     const nameCell = (name, option) => `${escapeHtml(name || '')}${option ? ` <span class="locrec-opt">(${escapeHtml(option)})</span>` : ''}`;
 
     function rowHtml(S, r, st, i, editable) {
@@ -83,8 +94,8 @@ export function mountLocRecTable({ store }) {
             const last = j === lines.length - 1;
             const cells = `<td class="locrec-prod"><span class="locrec-code">${escapeHtml(l.code)}</span> ${nameCell(l.name, l.option)}`
                 + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
-                + `<td class="locrec-loc locrec-from">${escapeHtml(l.from || '-')}</td>`
-                + `<td class="locrec-loc"><b class="locrec-to">${escapeHtml(l.to || '-')}</b></td>`
+                + `<td class="locrec-loc locrec-from">${escapeHtml(locCell(l.from, l.fromSize))}</td>`
+                + `<td class="locrec-loc"><b class="locrec-to">${escapeHtml(locCell(l.to, l.toSize))}</b></td>`
                 + `<td class="locrec-num locrec-qty">${l.qty == null ? '' : `${n0(l.qty)}개`}</td>`
                 + `<td class="locrec-num locrec-daily">${l.daily == null ? '' : fmtNum(l.daily)}</td>`;
             if (j > 0) return `<tr class="${trCls} locrec-sub">${cells}</tr>`;

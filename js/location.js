@@ -1,22 +1,23 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610261041';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610261114';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610261041';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610261041';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610261041';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610261041';
-import { orderKeyMap } from './lib/order-hash.js?v=202610261041';
-import { setShellContext } from './app-shell-bridge.js?v=202610261041';
-import { memberNameFor } from './app-shell-data.js?v=202610261041';
-import { menuConfigOf } from './lib/perm.js?v=202610261041';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610261041';
-import { initPageNav } from './page-nav.js?v=202610261041';
-import { initRefillCard } from './refill-card.js?v=202610261041';
-import { initLocRecCard } from './locrec-card.js?v=202610261041';
-import { whenPerm } from './feature-gate.js?v=202610261041';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610261041';
-import { uploadBlockText } from './lib/busy-view.js?v=202610261041';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs } from './lib/loc-recommend.js?v=202610261041';
+import { escapeHtml as escAttr } from './utils.js?v=202610261114';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610261114';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610261114';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610261114';
+import { orderKeyMap } from './lib/order-hash.js?v=202610261114';
+import { setShellContext } from './app-shell-bridge.js?v=202610261114';
+import { memberNameFor } from './app-shell-data.js?v=202610261114';
+import { menuConfigOf } from './lib/perm.js?v=202610261114';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610261114';
+import { initPageNav } from './page-nav.js?v=202610261114';
+import { initRefillCard } from './refill-card.js?v=202610261114';
+import { initLocRecCard } from './locrec-card.js?v=202610261114';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610261114';
+import { whenPerm } from './feature-gate.js?v=202610261114';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610261114';
+import { uploadBlockText } from './lib/busy-view.js?v=202610261114';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610261114';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -88,7 +89,8 @@ let appConfig = null;
 // 체크·요청에 남는 이름은 memberNameFor(직원 이름)만 — currentUserName 은 이메일 앞부분으로 떨어질 수 있어 쓰지 않는다.
 whenPerm('location.refill', () => initRefillCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) }));
 // 그 아래 '로케이션 변경 추천' 카드 — 같은 db·auth, 같은 이름 규칙(memberNameFor 만, 이메일 폴백 없음)
-whenPerm('location.locrec', () => initLocRecCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) }));
+whenPerm('location.locrec', () => initLocRecCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email),
+    sizeOf: (id) => locAngleSize(originalData.find(d => d.id === id)) }));   // 변경 추천 표: 칸수 칸이 없는 옛 문서 행은 읽어 둔 자리에서 보충
 // '갱신 중·업로드 중' 띠(js/busy-banner.js) — 이지어드민 잠금(미발·채우기 자동화) + 오늘 재고·도면 업로드 상태. 권한과 상관없이 모두에게.
 //   업로드 상태 문서(계약 B)는 올리는 사람이 쓴다(firestore.rules locationStock/** = 업로드 권한). 이름은 memberNameFor 만 — 이메일 폴백 없음.
 //   채우기 다시 만들기는 '오늘 채우기 지시서' 카드가 이미 보여 준다 → 띠는 잠금(refill)으로만. 시트 동기화 요청도 잠금(mibal)으로 자동.
@@ -1024,10 +1026,8 @@ const escHtmlLite = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ 
 // ★ 자리 칸수 = 자리에 저장된 angleSize 만. 업로드 원본(rawData)의 '칸수' 는 쓰지 않는다 —
 //   옵션추가항목1 로 만든 비축 자리도 상품 행의 rawData 를 그대로 받아 남(피킹 자리)의 칸수가 붙기 때문.
 //   채우기자동화 규칙.py pick_label 도 angleSize 만 본다(같은 기준). 숫자 0·false 등 빈 값은 칸수 없음.
-const locAngleSize = (loc) => {
-    const v = loc && loc.angleSize;
-    return v ? String(v).trim() : '';
-};
+//   규칙은 lib/loc-recommend.js angleSizeOf 한 곳 — 변경 추천 행의 fromSize/toSize 도 같은 함수로 만든다.
+const locAngleSize = angleSizeOf;
 
 // ★ 메인 테이블 엑셀 다운로드 (HTML 테이블 .xls 형식)
 window.downloadMainExcel = function() {
@@ -8263,6 +8263,7 @@ window.renderLocationDashboard = function () {
         </div>
     `;
     document.getElementById('dash-insight-row').innerHTML = insightHtml;
+    mountRouteSlot();   // '동선 효율' 카드 칸(변경 추천 권한일 때만, js/locrec-route-card.js) — 위에서 줄을 새로 그려 다시 붙인다
 
     // ---- 처리할 일 ----
     // 색: 입고 warn / 변경추천 accent / 빈칸확보 ok — 아이콘은 선 SVG

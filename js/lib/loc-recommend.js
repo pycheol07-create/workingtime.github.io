@@ -22,8 +22,8 @@
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202610261041';
-import { capacityFor } from './mibal2-calc.js?v=202610261041';
+import { isEtcLocObj } from './mibal2-rows.js?v=202610261114';
+import { capacityFor } from './mibal2-calc.js?v=202610261114';
 
 export { isEtcLocObj };
 
@@ -80,6 +80,15 @@ const optionOf = (locs, code) => {
     const locData = base.find(d => d.option) || base[0];
     return (locData && locData.option) ? locData.option : '';
 };
+
+/**
+ * 자리 칸수 = 자리에 저장된 angleSize 만(빈 값·숫자 0·false 는 ''). 업로드 원본(rawData)의 '칸수' 는 쓰지 않는다.
+ *   location.js 데이터 리스트 엑셀 '로케이션1'(★★-003(4))과 runRecommend 행의 fromSize/toSize 가 같이 쓴다.
+ */
+export function angleSizeOf(loc) {
+    const v = loc && loc.angleSize;
+    return v ? String(v).trim() : '';
+}
 
 /** ms → 그날 한국시간 00:00 의 ms */
 export function kstMidnight(nowMs) {
@@ -901,6 +910,16 @@ export function runRecommend(input) {
     const ranks = demandRanks(daily);
     const incoming = input.incoming || {};
     const warn = [];
+    // 행의 자리 칸수(fromSize·toSize, 2번째 상품은 fromSize2·toSize2) — 칸수가 있는 자리만 칸을 붙인다(옛 행 모양은 그대로)
+    const sizeById = new Map();
+    locs.forEach(d => { if (!sizeById.has(d.id)) sizeById.set(d.id, angleSizeOf(d)); });
+    const withSizes = (row) => {
+        [['from', 'fromSize'], ['to', 'toSize'], ['from2', 'fromSize2'], ['to2', 'toSize2']].forEach(([k, sk]) => {
+            const s = row[k] != null ? sizeById.get(String(row[k])) : '';
+            if (s) row[sk] = s;
+        });
+        return row;
+    };
 
     const scored = scoreItems({ locs, demand: demandIn, ratios: input.ratios, incomingTotalByCode: incoming });
 
@@ -916,7 +935,7 @@ export function runRecommend(input) {
             gain: round(g.gain), dc: g.dc, demandRank: ranks[r.code] || null
         };
         row.recKey = recKeyOf(row);
-        return row;
+        return withSizes(row);
     });
 
     // 2) 맞바꾸기 — 계획에 들 수 있는 단독(이득 >= minGain)이 쓴 코드·자리는 뺀다
@@ -961,7 +980,7 @@ export function runRecommend(input) {
         const near = partnerDongs(s.code).find(p => p.dong === row.toDong);
         if (near) row.pairNear = near.code;
         row.recKey = recKeyOf(row);
-        return row;
+        return withSizes(row);
     });
 
     // 4) 계획
@@ -991,7 +1010,7 @@ export function runRecommend(input) {
                 gain: round(gA.gain + gB.gain), dc: gA.dc, dc2: gB.dc
             };
             row.recKey = recKeyOf(row);
-            return row;
+            return withSizes(row);
         });
     }
 

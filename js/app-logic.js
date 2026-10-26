@@ -4,21 +4,21 @@ import {
     generateId,
     saveStateToFirestore,
     debouncedSaveState
-} from './app-data.js?v=202610261041';
+} from './app-data.js?v=202610261114';
 
 import {
     appState, db, auth
-} from './state.js?v=202610261041';
+} from './state.js?v=202610261114';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610261041';
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202610261114';
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=202610261041';
+import { syncTodayToHistory } from './history-data-manager.js?v=202610261114';
 // 지각 기준·당일 근태 중복 판정 — 출근시각 수정(history-data-manager)·근태 저장과 같은 규칙
-import { tardyThreshold, isTardyClockIn, findDailyLeaveDup } from './lib/attendance-guard.js?v=202610261041';
+import { tardyThreshold, isTardyClockIn, findDailyLeaveDup } from './lib/attendance-guard.js?v=202610261114';
 // 업무를 끝낸 뒤 남은 잠금(activeLocks)을 바로 확인하게 알린다 — 다른 탭은 10분 안전망만 돈다
-import { markLocalWorkEnded } from './app-sync.js?v=202610261041';
+import { markLocalWorkEnded } from './app-sync.js?v=202610261114';
 
 
 const getWorkRecordsCollectionRef = () => {

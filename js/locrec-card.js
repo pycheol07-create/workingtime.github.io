@@ -1,28 +1,29 @@
 // === js/locrec-card.js ===
 // 로케이션관리 대시보드 '로케이션 변경 추천' 카드 — 채우기 지시서 카드 바로 아래.
 //   추천은 이 PC 프로그램(업무자동화\앱\로케이션추천)이 매일 06:40 이지어드민 출고 28일로 만들어 Firestore 에 남긴다(14일치).
-//   카드: 동선 점수·앞쪽 자리 출고(지금 → 모두 적용하면) + 60일 추이(js/lib/locrec-trend.js) · 판정·지표·자료 상태 · 날짜 선택 · 오늘 추천 수 · [표 보기]·[엑셀 받기](그날 전체). 표는 창(#locrec-modal, js/locrec-table.js)에 —
+//   카드: 판정·지표·자료 상태 · 날짜 선택 · 오늘 추천 수 · [표 보기]·[엑셀 받기](그날 전체). 표는 창(#locrec-modal, js/locrec-table.js)에 —
 //   창: 탭[단독|맞바꾸기|페어] 표 · 행마다 [처리함]/[안 함]/되돌리기(처음 보여 주는 날짜만, 지난 날짜는 볼 수만) · 엑셀 받기(지금 탭, 5열, 맞바꾸기·페어는 2행).
 //   카드는 접힌 띠 한 줄(판정 · 추천 n건 · 엑셀 받기 · 펼치기)이 기본, [펼치기]로 아래 요약. 펼침은 js/lib/card-fold.js.
 //   [변경 추천] 모달(업로드 자료 기준, location.js)과는 수요 자료가 달라 결과가 다를 수 있다 — 계산 모듈은 같다(js/lib/loc-recommend.js).
 //   데이터(구독·처리 표시·엑셀)는 js/locrec-store.js. 같은 표 창을 대시보드 '로케이션 동선관리' 업무 카드에서도 연다(js/locrec-dash.js).
+//   동선 점수·앞쪽 자리 출고·추이는 이 카드가 아니라 인사이트 줄 '동선 효율' 카드(js/locrec-route-card.js)에 — 같은 store 를 넘겨 시작한다.
 // 문서 모양·순수 함수는 js/lib/locrec-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=202610261041';
+import { escapeHtml } from './utils.js?v=202610261114';
 import {
     fmtMDHM, verdictBadge, metricItems, dataWarnings, dataLine, dayOptions, dayMessage, stockAtOf,
-    TABS, TAB_LABEL, recStrip, tabSummary, dayLabel, routeItems
-} from './lib/locrec-view.js?v=202610261041';
-import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202610261041';
-import { initFold } from './lib/card-fold.js?v=202610261041';
-import { getLocRecStore, todayKey } from './locrec-store.js?v=202610261041';
-import { mountLocRecTable } from './locrec-table.js?v=202610261041';
+    TABS, TAB_LABEL, recStrip, tabSummary, dayLabel
+} from './lib/locrec-view.js?v=202610261114';
+import { initFold } from './lib/card-fold.js?v=202610261114';
+import { getLocRecStore, todayKey } from './locrec-store.js?v=202610261114';
+import { mountLocRecTable } from './locrec-table.js?v=202610261114';
+import { initRouteCard } from './locrec-route-card.js?v=202610261114';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
 
-export function initLocRecCard({ db, auth, getMemberName }) {
+export function initLocRecCard({ db, auth, getMemberName, sizeOf }) {
     const card = document.getElementById('locrec-card');
     const body = document.getElementById('locrec-body');
     const sel = document.getElementById('locrec-day');
@@ -33,7 +34,7 @@ export function initLocRecCard({ db, auth, getMemberName }) {
     const detail = document.getElementById('locrec-detail');
 
     const store = getLocRecStore({ db, auth, getMemberName });
-    const table = mountLocRecTable({ store });
+    const table = mountLocRecTable({ store, sizeOf });   // sizeOf: 옛 문서 행의 칸수 보충(location.js)
     // 머리줄 [변경 추천] 빠른 버튼(location.html)이 여는 창 — 권한이 있어 이 카드가 시작될 때만 생긴다
     window.openLocRecTable = () => table.open();
 
@@ -95,15 +96,6 @@ export function initLocRecCard({ db, auth, getMemberName }) {
         // 지난 날짜는 그날 지표(days[k].metrics, 지난주 비교 없음), 최신 날짜는 색인 지표(지난주 비교 포함)
         const mSrc = S.key !== S.latest.latestDay && e && e.metrics ? e.metrics : S.latest.metrics;
         const ms = metricItems(mSrc);
-        // 동선 점수 · 앞쪽 자리 출고(지금 → 오늘 추천 모두 적용하면) + 최근 60일 추이. 옛 문서는 '-'
-        parts.push('<div class="locrec-score">' + routeItems(mSrc).map(m =>
-            `<span class="locrec-kpi" title="${escapeHtml(m.title)}">${escapeHtml(m.label)} <b>${escapeHtml(m.value)}</b>${m.prev ? `<span class="refill-sub"> (지난주 ${escapeHtml(m.prev)})</span>` : ''}</span>`).join('')
-            + '</div>');
-        const series = trendSeries(S.latest.days, today, 60);
-        if (trendPoints(series)) {
-            parts.push(`<div class="locrec-trend">${trendSvg(series)}`
-                + '<div class="refill-sub locrec-trend-legend"><span class="lg-now">━ 지금</span> <span class="lg-after">┅ 추천 모두 적용 후</span> · 최근 60일</div></div>');
-        }
         parts.push('<div class="locrec-kpis">'
             + `<span class="locrec-verdict v-${vb.tone}">판정 ${escapeHtml(vb.label)}</span>`
             + ms.map(m => `<span class="locrec-kpi">${escapeHtml(m.label)} <b>${escapeHtml(m.value)}</b>${m.prev ? `<span class="refill-sub"> (지난주 ${escapeHtml(m.prev)})</span>` : ''}</span>`).join('')
@@ -152,6 +144,7 @@ export function initLocRecCard({ db, auth, getMemberName }) {
     if (foldBtn && detail) initFold({ btn: foldBtn, panel: detail, card, id: 'locrec', name: '변경 추천', storage: getStorage() });
 
     store.on(render);
+    initRouteCard({ store });      // 인사이트 줄 '동선 효율' 카드 — 같은 store(구독 한 번)
     store.start();
     render();
 }

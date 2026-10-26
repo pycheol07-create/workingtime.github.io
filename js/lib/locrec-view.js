@@ -16,8 +16,8 @@
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610261041';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610261041';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610261114';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610261114';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -55,11 +55,12 @@ function cleanRow(r, type) {
         code: str(r.code), name: str(r.name), option: str(r.option), from: str(r.from), to: str(r.to),
         qty: num(r.qty), daily: num(r.daily), gain: num(r.gain), capWarn: r.capWarn === true, pairNear: str(r.pairNear),
         scoreGain: num(r.scoreGain), frontGain: num(r.frontGain),       // 동선 점수 기여도(옛 문서는 null)
-        routeOut: r.routeOut === true                                     // 기타·SAM 자리 상품 줄 — 동선 점수 계산 대상 밖
+        routeOut: r.routeOut === true,                                    // 기타·SAM 자리 상품 줄 — 동선 점수 계산 대상 밖
+        fromSize: str(r.fromSize).trim(), toSize: str(r.toSize).trim()    // 자리 칸수(옛 문서는 '')
     };
     if (r.code2 != null && str(r.code2)) {
         Object.assign(out, { code2: str(r.code2), name2: str(r.name2), option2: str(r.option2), from2: str(r.from2), to2: str(r.to2),
-            qty2: num(r.qty2), daily2: num(r.daily2) });
+            qty2: num(r.qty2), daily2: num(r.daily2), fromSize2: str(r.fromSize2).trim(), toSize2: str(r.toSize2).trim() });
     }
     if (!out.recKey) out.recKey = `${out.type}:${out.code}:${out.from}>${out.to}`;
     return out;
@@ -164,6 +165,37 @@ export function routeItems(m) {
         { label: '앞쪽 자리 출고', value: front, prev: '', title: FRONT_HELP }
     ];
 }
+
+/**
+ * 인사이트 줄 '동선 효율' 카드(js/locrec-route-card.js) — 색인 locRecLatest 의 최신 지표(metrics) 하나만 본다.
+ *   → { has, score('77.4'|'-'), after(''|'추천 모두 적용 시 78.6 (+1.2)'), front('57% → 58%'|'57%'|'-'),
+ *       day('10/26(월)'|''), prev(''|'76.8'), scoreTitle, frontTitle }
+ *   has = 동선 점수가 있음(옛 문서·자료 없음이면 false → 카드는 '-' 와 '매일 06:40 계산' 안내).
+ */
+export function routeCardInfo(latest) {
+    const L = latest && typeof latest === 'object' ? latest : {};
+    const x = L.metrics || {};
+    const s0 = num(x.routeScore), s1 = num(x.routeScoreAfter);
+    const f0 = num(x.frontQty), f1 = num(x.frontQtyAfter);
+    const one = (v) => v.toFixed(1);
+    const g = s0 != null && s1 != null ? fmtGain(s1 - s0) : '-';
+    const cov = num(x.routeCoverage), items = num(x.routeItems);
+    const covTxt = cov == null ? '' : ` 계산 대상: 출고의 ${fmtPct(cov)}${items == null ? '' : `(${fmtNum(items)}개 상품)`} — 기타·비축에만 있는 상품은 빠진다.`;
+    const prev = num(x.routeScorePrevWeek);
+    const day = normDay(L.latestDay);
+    return {
+        has: s0 != null,
+        score: s0 == null ? '-' : one(s0),
+        after: s0 != null && s1 != null ? `추천 모두 적용 시 ${one(s1)}${g === '-' ? '' : ` (${g})`}` : '',
+        front: f0 == null ? '-' : fmtPct(f0) + (f1 == null ? '' : ` → ${fmtPct(f1)}`),
+        day: day ? dayLabel(day) : '',
+        prev: prev == null ? '' : one(prev),
+        scoreTitle: ROUTE_CARD_HELP + covTxt,
+        frontTitle: FRONT_HELP
+    };
+}
+const ROUTE_CARD_HELP = '동선 점수: 출고 많은 상품이 앞자리(동·위치 순위)에 있을수록 높다. 100 = 이론상 완벽(인기 순으로 앞자리부터), 0 = 정반대. '
+    + "'추천 모두 적용 시'는 그날 변경 추천을 모두 처리했을 때(안 함 제외).";
 
 /** 재고 자료 기준 시각(ms) — stockDataAt(= lastDataUpdate, 엑셀 올린 시각). 옛 문서는 lastDataUpdate 칸. locUpdatedAt 은 쓰지 않는다 */
 export function stockAtOf(obj) {
@@ -403,12 +435,22 @@ export function tabMeta(tab, items) {
 }
 
 /**
+ * 로케이션 표시 — 칸수가 있으면 '★★-003(4)', 없으면 '★★-003'(데이터 리스트 엑셀 '로케이션1' 과 같은 모양). 자리가 없으면 ''.
+ */
+export function locLabel(id, size) {
+    const i = str(id).trim(), s = str(size).trim();
+    if (!i) return '';
+    return s ? `${i}(${s})` : i;
+}
+
+/**
  * 표 한 추천의 상품 줄 — 단독은 1줄, 맞바꾸기·페어(code2 있음)는 2줄 [A, B].
- *   줄 = { code, name, option, from, to, qty, daily }. 표는 줄마다 <tr> 하나(상품·현재·추천·이동수량·일출고), 순위·이득·상태·표시는 rowspan.
+ *   줄 = { code, name, option, from, to, fromSize, toSize, qty, daily }. 표는 줄마다 <tr> 하나(상품·현재·추천·이동수량·일출고), 순위·이득·상태·표시는 rowspan.
  */
 export function rowLines(r) {
     if (!r || typeof r !== 'object') return [];
     const pick = (s) => ({ code: r['code' + s], name: r['name' + s], option: r['option' + s], from: r['from' + s], to: r['to' + s],
+        fromSize: str(r['fromSize' + s]).trim(), toSize: str(r['toSize' + s]).trim(),
         qty: r['qty' + s] == null ? null : r['qty' + s], daily: r['daily' + s] == null ? null : r['daily' + s] });
     const lines = [pick('')];
     if ((r.type === 'swap' || r.type === 'pair') && r.code2) lines.push(pick('2'));
