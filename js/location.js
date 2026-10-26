@@ -1,23 +1,23 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610261425';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610261448';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610261425';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610261425';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610261425';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610261425';
-import { orderKeyMap } from './lib/order-hash.js?v=202610261425';
-import { setShellContext } from './app-shell-bridge.js?v=202610261425';
-import { memberNameFor } from './app-shell-data.js?v=202610261425';
-import { menuConfigOf } from './lib/perm.js?v=202610261425';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610261425';
-import { initPageNav } from './page-nav.js?v=202610261425';
-import { initRefillCard } from './refill-card.js?v=202610261425';
-import { initLocRecCard } from './locrec-card.js?v=202610261425';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610261425';
-import { whenPerm } from './feature-gate.js?v=202610261425';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610261425';
-import { uploadBlockText } from './lib/busy-view.js?v=202610261425';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610261425';
+import { escapeHtml as escAttr } from './utils.js?v=202610261448';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610261448';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610261448';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610261448';
+import { orderKeyMap } from './lib/order-hash.js?v=202610261448';
+import { setShellContext } from './app-shell-bridge.js?v=202610261448';
+import { memberNameFor } from './app-shell-data.js?v=202610261448';
+import { menuConfigOf } from './lib/perm.js?v=202610261448';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610261448';
+import { initPageNav } from './page-nav.js?v=202610261448';
+import { initRefillCard } from './refill-card.js?v=202610261448';
+import { initLocRecCard } from './locrec-card.js?v=202610261448';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610261448';
+import { whenPerm } from './feature-gate.js?v=202610261448';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610261448';
+import { uploadBlockText } from './lib/busy-view.js?v=202610261448';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610261448';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -483,11 +483,21 @@ window.openZikjinDetail = function () {
     const existing = document.getElementById('zikjin-detail-overlay');
     if (existing) existing.remove();
 
+    // 옵션 — 출고 프로그램은 상품코드·상품명·수량만 보낸다(2026-10-26). 로케이션 자료(오늘 재고 엑셀의 '옵션')에서
+    //   같은 상품코드의 옵션을 찾아 붙이고, 없으면 주차별·입고대기 자료의 '옵션'(데이터 리스트 옵션 칸과 같은 순서).
+    const optByCode = new Map();
+    (originalData || []).forEach(d => {
+        const c = d && d.code ? String(d.code).trim() : '';
+        if (c && d.option && String(d.option).trim() && !optByCode.has(c)) optByCode.set(c, String(d.option).trim());
+    });
+    const optionOf = (code, item) => optByCode.get(String(code).trim())
+        || (item && item['옵션']) || (weeklyData[code] && weeklyData[code]['옵션']) || (incomingData[code] && incomingData[code]['옵션']) || '';
     const rows = Object.entries(zikjinData).map(([code, item]) => {
         const sp = _zikjinSourceSplit(item);
         return {
             code,
             name: (item['상품명'] || item['상품명칭'] || '').toString(),
+            option: String(optionOf(code, item) || ''),
             qty: _ablyQtyFromItem(item),
             zikjin: sp.zikjin,
             ably: sp.ably,
@@ -539,6 +549,7 @@ window.openZikjinDetail = function () {
              <thead><tr style="position:sticky; top:0; background:var(--c-track); z-index:1;">
                <th style="text-align:left; padding:8px;">상품코드</th>
                <th style="text-align:left; padding:8px;">상품명</th>
+               <th style="text-align:left; padding:8px;">옵션</th>
                <th style="text-align:center; padding:8px; width:150px;">구분</th>
                <th style="text-align:right; padding:8px;">출고량</th>
              </tr></thead>
@@ -552,6 +563,7 @@ window.openZikjinDetail = function () {
                return `<tr class="zik-row" data-src="${src}" style="border-bottom:1px solid var(--c-line-soft);">
                  <td style="padding:6px 8px; font-family:monospace;">${esc(r.code)}</td>
                  <td style="padding:6px 8px;">${esc(r.name)}</td>
+                 <td style="padding:6px 8px; color:var(--c-text-2);">${r.option ? esc(r.option) : '<span style="color:var(--c-text-4);">-</span>'}</td>
                  <td style="padding:6px 8px; text-align:center; white-space:nowrap;">${tags.join(' ')}</td>
                  <td style="padding:6px 8px; text-align:right; font-weight:600;">${r.qty.toLocaleString()}</td>
                </tr>`;
@@ -575,7 +587,7 @@ window.openZikjinDetail = function () {
     overlay.style.cssText = 'position:fixed; inset:0; background:rgba(30,40,60,0.45); z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px;';
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     overlay.innerHTML = `
-      <div style="background:var(--c-surface); border-radius:var(--r-card); width:100%; max-width:760px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--sh-pop);">
+      <div style="background:var(--c-surface); border-radius:var(--r-card); width:100%; max-width:900px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--sh-pop);">
         <div style="padding:14px 18px; border-bottom:1px solid var(--c-line-soft); display:flex; justify-content:space-between; align-items:center;">
           <div>
             <div style="font-size:16px; font-weight:600; color:var(--c-text);">플랫폼 출고 전송 데이터</div>

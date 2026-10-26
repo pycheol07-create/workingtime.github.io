@@ -1,19 +1,19 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610261425';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610261425';
-import { clampOpenRecords } from './lib/record-close.js?v=202610261425';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610261425';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610261425';
+import * as State from './state.js?v=202610261448';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610261448';
+import { clampOpenRecords } from './lib/record-close.js?v=202610261448';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610261448';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610261448';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
-} from './lib/attendance-guard.js?v=202610261425';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610261425';
-import { can } from './lib/perm.js?v=202610261425';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610261425';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610261425';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610261425';
+} from './lib/attendance-guard.js?v=202610261448';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610261448';
+import { can } from './lib/perm.js?v=202610261448';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610261448';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610261448';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610261448';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610261425';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610261448';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
