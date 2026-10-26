@@ -87,6 +87,7 @@
 #locrec-modal .locrec-table td.locrec-num { width: 56px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #locrec-modal .locrec-table td.locrec-rank { width: 40px; text-align: center; font-weight: 700; color: var(--c-accent-deep, #1E4699); }
 #locrec-modal .locrec-table td.locrec-gain { width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+#locrec-modal .locrec-table td.locrec-score-gain { width: 52px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--c-ok-text, #3D756F); }
 #locrec-modal .locrec-table td.locrec-state { width: 150px; }
 #locrec-modal .locrec-table td.locrec-acts { width: 150px; white-space: nowrap; }
 #locrec-modal .locrec-acts .btn + .btn { margin-left: 4px; }

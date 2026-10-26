@@ -61,7 +61,7 @@ html.dark:has(> body#calc-root) { background-color: #111418; }
 #calc-root :is(td, th) { font-variant-numeric: tabular-nums; }
 
 /* === remap: generated === */
-/* 범위 파일 14개에서 색 클래스 88종 수집 → 규칙 85개. 손으로 고치지 말 것(tools/d_remap.py 다시 실행). */
+/* 범위 파일 21개에서 색 클래스 95종 수집 → 규칙 92개. 손으로 고치지 말 것(tools/d_remap.py 다시 실행). */
 #calc-root .bg-black { background-color: var(--c-scrim); }
 #calc-root .bg-blue-100 { background-color: var(--c-accent-soft); }
 #calc-root .bg-blue-50 { background-color: var(--c-accent-row); }
@@ -124,25 +124,32 @@ html.dark:has(> body#calc-root) { background-color: #111418; }
 #calc-root .border-blue-100 { border-color: var(--c-accent-soft); }
 #calc-root .border-blue-200 { border-color: var(--c-accent-light); }
 #calc-root .border-emerald-200 { border-color: var(--c-accent-light); }
+#calc-root .border-emerald-500 { border-color: var(--c-accent); }
 #calc-root .border-gray-300 { border-color: var(--c-line); }
 #calc-root .border-green-100 { border-color: var(--c-ok-soft); }
 #calc-root .border-indigo-200 { border-color: var(--c-accent-light); }
+#calc-root .border-red-300 { border-color: var(--c-risk-line); }
 #calc-root .border-slate-200 { border-color: var(--c-line); }
 #calc-root .border-slate-300 { border-color: var(--c-line); }
+#calc-root .border-yellow-300 { border-color: var(--c-warn-line); }
 #calc-root .divide-blue-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--c-accent-soft); }
 #calc-root .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--c-line); }
 #calc-root .focus-within\:ring-emerald-500:focus-within { --tw-ring-color: var(--c-accent-light); }
 #calc-root .hover\:bg-blue-200:hover { background-color: var(--c-accent-soft); }
 #calc-root .hover\:bg-emerald-100:hover { background-color: var(--c-accent-soft); }
+#calc-root .hover\:bg-emerald-50:hover { background-color: var(--c-accent-row); }
 #calc-root .hover\:bg-emerald-700:hover { background-color: var(--c-accent-strong); }
 #calc-root .hover\:bg-gray-100:hover { background-color: var(--c-track); }
+#calc-root .hover\:bg-gray-200:hover { background-color: var(--c-track); }
+#calc-root .hover\:bg-gray-300:hover { background-color: var(--c-line-strong); }
 #calc-root .hover\:bg-gray-50:hover { background-color: var(--c-surface-2); }
-#calc-root .hover\:bg-red-100:hover { background-color: var(--c-risk-soft); }
+#calc-root .hover\:text-emerald-600:hover { color: var(--c-accent-deep); }
 #calc-root .hover\:text-emerald-600\/80:hover { color: var(--c-accent-deep); }
 #calc-root .hover\:text-emerald-700:hover { color: var(--c-accent-deep); }
 #calc-root .hover\:text-gray-600:hover { color: var(--c-text-2); }
 #calc-root .hover\:text-red-600:hover { color: var(--c-risk-text); }
 #calc-root .hover\:text-slate-900:hover { color: var(--c-text); }
+#calc-root .hover\:border-emerald-500:hover { border-color: var(--c-accent); }
 #calc-root .focus\:border-blue-500:focus { border-color: var(--c-accent); }
 #calc-root .focus\:border-emerald-500:focus { border-color: var(--c-accent); }
 #calc-root .focus\:ring-emerald-500:focus { --tw-ring-color: var(--c-accent-light); }

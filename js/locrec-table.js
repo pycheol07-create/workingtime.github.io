@@ -6,10 +6,10 @@
 //   스타일은 location.html <style> · index 는 css/locrec-modal.css(#locrec-modal 범위로 같은 모양).
 // ⚠️ role="dialog" · data-act 를 붙이지 않는다 — 업무마감봇이 div[role=dialog] 마지막 것 · [data-act] 로 자기 확인창을 읽는다(버튼은 data-locrec-act).
 // 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙는다.
-import { escapeHtml } from './utils.js?v=202610260936';
-import { fmtHM, tabCounts, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage } from './lib/locrec-view.js?v=202610260936';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610260936';
-import { higherOpenThan } from './modal-above.js?v=202610260936';
+import { escapeHtml } from './utils.js?v=202610261041';
+import { fmtHM, tabCounts, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP } from './lib/locrec-view.js?v=202610261041';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610261041';
+import { higherOpenThan } from './modal-above.js?v=202610261041';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -28,7 +28,7 @@ const TEMPLATE = `
             <div id="locrec-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
             <div class="table-box locrec-table-wrap">
                 <table class="usage-table locrec-table">
-                    <thead><tr><th>순위</th><th title="상품코드 · 상품명(옵션) — 맞바꾸기·페어는 두 줄(A/B)">상품</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th>상태</th><th>표시</th></tr></thead>
+                    <thead><tr><th>순위</th><th title="상품코드 · 상품명(옵션) — 맞바꾸기·페어는 두 줄(A/B)">상품</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th title="이 줄만 처리하면 동선 점수(0~100)가 오르는 만큼">점수</th><th>상태</th><th>표시</th></tr></thead>
                     <tbody id="locrec-tbody"></tbody>
                 </table>
             </div>
@@ -56,6 +56,10 @@ export function mountLocRecTable({ store }) {
 
     const isOpen = () => modal.style.display === 'flex';
     const n0 = (v) => (v == null ? '' : Number(v).toLocaleString('ko-KR'));
+    // 점수 칸 툴팁 — 이 줄만 처리했을 때 동선 점수·앞쪽 자리 출고 변화(옛 문서는 칸 없음)
+    const scoreTitle = (r) => (r.routeOut ? escapeHtml(ROUTE_OUT_HELP) : r.scoreGain == null ? '동선 점수 기여도 없음(이전 추천이거나 계산 안 됨)'
+        : escapeHtml(`이 줄만 처리하면 동선 점수 ${r.scoreGain >= 0 ? '+' : ''}${r.scoreGain.toFixed(2)}`
+            + (r.frontGain == null ? '' : ` · 앞쪽 자리 출고 ${r.frontGain >= 0 ? '+' : ''}${r.frontGain.toFixed(2)}%p`)));
     const nameCell = (name, option) => `${escapeHtml(name || '')}${option ? ` <span class="locrec-opt">(${escapeHtml(option)})</span>` : ''}`;
 
     function rowHtml(S, r, st, i, editable) {
@@ -88,6 +92,7 @@ export function mountLocRecTable({ store }) {
                 + `<td class="locrec-rank"${span}>${r.rank == null ? i + 1 : r.rank}</td>`
                 + cells
                 + `<td class="locrec-gain"${span}>${fmtNum(r.gain)}</td>`
+                + `<td class="locrec-score-gain"${span} title="${scoreTitle(r)}">${escapeHtml(r.routeOut ? ROUTE_OUT_LABEL : fmtGain(r.scoreGain))}</td>`
                 + `<td class="locrec-state"${span}><span class="locrec-st st-${st.tone}">${escapeHtml(st.label)}</span>${who}</td>`
                 + `<td class="locrec-acts"${span}>${btns}</td></tr>`;
         }).join('');
@@ -116,12 +121,12 @@ export function mountLocRecTable({ store }) {
             mMeta.textContent = '';
             const t = (S.latest && dayMessage(store.entryOf(S.key)))
                 || S.dayErr || (S.latestErr ? `추천 상태를 읽지 못했습니다(${S.latestErr})` : '') || '표 불러오는 중…';
-            mTbody.innerHTML = `<tr><td colspan="9" class="refill-empty">${escapeHtml(t)}</td></tr>`;
+            mTbody.innerHTML = `<tr><td colspan="10" class="refill-empty">${escapeHtml(t)}</td></tr>`;
             return;
         }
         mMeta.textContent = tabMeta(tab, all) + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
         if (!rows.length) {
-            mTbody.innerHTML = `<tr><td colspan="9" class="refill-empty">${cnt[tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[tab]} 추천이 없습니다`}</td></tr>`;
+            mTbody.innerHTML = `<tr><td colspan="10" class="refill-empty">${cnt[tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[tab]} 추천이 없습니다`}</td></tr>`;
             return;
         }
         mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable)).join('');

@@ -16,7 +16,8 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
 
       // 입력값 기억(CalcMemory.js) — 평균 칸(단가·입수·무게)은 사람이 고친 칸만 기억한다(손대지 않은 칸은 늘 logis 평균).
       //   되살린 평균 칸은 '손댄 칸'으로 표시해 늦게 온 평균값이 덮지 않게 한다([평균으로]로 되돌린다).
-      const MEM_KEYS = ['calculationMode', 'productQuantity', 'boxQuantity', 'totalProductPrice', 'tariffRate', 'shippingType', 'containerCost', 'commissionType', 'commissionValue'];
+      // tariffHs: [HS코드로 찾기]로 고른 세율 — JSON 글자 { code, kind, rate, ver }(js/lib/hs-search.js hsMakeSaved). 없으면 ''
+      const MEM_KEYS = ['calculationMode', 'productQuantity', 'boxQuantity', 'totalProductPrice', 'tariffRate', 'tariffHs', 'shippingType', 'containerCost', 'commissionType', 'commissionValue'];
       const memRef = React.useRef(null);
       if (memRef.current === null) {
         memRef.current = calcMemLoad('customs', MEM_KEYS.concat(Object.keys(AVG_FIELDS)));
@@ -31,6 +32,7 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
         totalProductPrice: '',
         weightPerBox: avgOf('weightPerBox'),
         tariffRate: '8',
+        tariffHs: '',
         shippingType: 'LCL',
         containerCost: '',
         commissionType: 'percentage',
@@ -53,8 +55,47 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
         const next = { ...base, ...saved };
         // 박스기준에는 개당 수수료가 없다(handleModeChange 와 같은 규칙)
         if (m === 'box' && next.commissionType === 'perItem') { next.commissionType = 'percentage'; next.commissionValue = '0'; }
+        // 깨진 HS 기억(모양이 틀림·관세 칸과 세율이 다름)은 지운다 — 관세 칸은 그대로(옵션에 없으면 useOptionFix 가 첫 옵션으로)
+        const hs = window.HsSearch.hsParseSaved(next.tariffHs);
+        if (!hs || String(hs.rate) !== String(next.tariffRate)) next.tariffHs = '';
         return next;
       });
+      const hsSaved = React.useMemo(() => window.HsSearch.hsParseSaved(formData.tariffHs), [formData.tariffHs]);
+      React.useEffect(() => {
+        if (formData.tariffHs && !hsSaved) setFormData(prev => ({ ...prev, tariffHs: '' }));
+      }, [formData.tariffHs, hsSaved]);
+      const [hsOpen, setHsOpen] = React.useState(false);            // [HS코드로 찾기] 패널 — 기본 접힘
+      // 고른 HS 세율이 지금 관세율표에서도 같은가(hs-tariff-doc.js checkSaved — 열 때 _meta 1회).
+      //   같은 세율이면 저장 ver 만 새것으로, 바뀌었거나 없어졌으면 관세 칸 아래 경고(칸 값은 그대로 — 사람이 다시 고른다)
+      const [hsWarn, setHsWarn] = React.useState('');
+      const [hsTick, setHsTick] = React.useState(0);
+      React.useEffect(() => {
+        const on = (e) => { if (e.detail && e.detail.status === 'ok') setHsTick(t => t + 1); };   // 패널 자료가 새로 오면 다시 비교
+        window.addEventListener('hs-tariff', on);
+        return () => window.removeEventListener('hs-tariff', on);
+      }, []);
+      React.useEffect(() => {
+        if (!hsSaved || !window.HsTariff) { setHsWarn(''); return undefined; }
+        let alive = true;
+        const savedStr = formData.tariffHs;
+        window.HsTariff.checkSaved(hsSaved).then((r) => {
+          if (!alive) return;
+          if (!r || !r.check) { setHsWarn(''); return; }
+          if (r.check.status === 'unchanged') {
+            setFormData(prev => (prev.tariffHs === savedStr
+              ? { ...prev, tariffHs: window.HsSearch.hsMakeSaved(hsSaved.code, hsSaved.kind, hsSaved.rate, r.version) } : prev));
+            setHsWarn('');
+            return;
+          }
+          setHsWarn(window.HsSearch.hsCheckText(hsSaved, r.check));
+        }).catch(() => { if (alive) setHsWarn(''); });
+        return () => { alive = false; };
+      }, [formData.tariffHs, hsTick]);
+      // 패널에서 세율 버튼 → 관세 칸 = 그 세율('HS n%' 칸), 고른 HS 를 기억하고 패널을 접는다
+      const pickHs = (code, kind, rate, ver) => {
+        setFormData(prev => ({ ...prev, tariffRate: String(rate), tariffHs: window.HsSearch.hsMakeSaved(code, kind, rate, ver) }));
+        setHsOpen(false);
+      };
       // 기억할 값 = 일반 칸 + 손댄 평균 칸. 기본값과 같으면 저장을 지운다.
       React.useEffect(() => {
         const cur = { ...calcMemPick({ ...formData, calculationMode }, MEM_KEYS) };
@@ -113,7 +154,8 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
           const name = e.target.dataset.key || e.target.name;
           if (name in AVG_FIELDS) touchedRef.current[name] = true;
           if (name === 'commissionValue') savedCommRef.current = null;   // 그사이 값을 직접 고쳤으면 되살리지 않는다(종류만 다시 고른 것은 제외 — 박스기준에선 개당 값 칸이 잠겨 있다)
-          setFormData(prev => ({ ...prev, [name]: value }));
+          // 관세 옵션(8% 등)을 직접 고르면 HS 로 고른 세율은 버린다
+          setFormData(prev => (name === 'tariffRate' ? { ...prev, tariffRate: value, tariffHs: '' } : { ...prev, [name]: value }));
       }, []);
       // 박스기준에서는 개당 수수료를 쓸 수 없다(예전엔 칸만 막히고 수수료 0) — % 로 바꾸고 값은 0 으로(결과는 예전과 같다) 안내한다.
       // 바꾸기 전 값은 보관했다가 상품기준으로 돌아오면 되살린다(그사이 수수료를 직접 고쳤으면 그대로 둔다).
@@ -141,7 +183,8 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
             e.preventDefault();
             const form = formRef.current;
             if (!form) return;
-            const focusable = Array.from(form.querySelectorAll('input:not([type="radio"]), select'));
+            // data-enter-skip: Enter 이동에서 빼는 칸([HS코드로 찾기] 검색칸)
+            const focusable = Array.from(form.querySelectorAll('input:not([type="radio"]):not([data-enter-skip]), select'));
             const index = focusable.indexOf(e.target);
             if (index > -1 && index < focusable.length - 1) {
               focusable[index + 1].focus();
@@ -310,8 +353,9 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
       const tariffOptions = settings.customs.tariffRates;
       const commissionTypeOptions = settings.customs.commissionTypes;
       // 공용 설정의 옵션 목록이 바뀌어 지금 값(처음 '8'·'LCL'·'percentage')이 없으면 첫 옵션으로
+      //   HS 로 고른 세율(6.5 등)은 옵션 목록에 없는 게 정상이라 관세는 뺀다 — 빼지 않으면 고르자마자 첫 옵션으로 되돌아간다
       const optionNotice = useOptionFix([
-        { name: 'tariffRate', label: '관세', options: tariffOptions },
+        ...(hsSaved ? [] : [{ name: 'tariffRate', label: '관세', options: tariffOptions }]),
         { name: 'shippingType', label: '운송 형태', options: shippingOptions },
         { name: 'commissionType', label: '수수료', options: commissionTypeOptions },
       ], formData, setFormData);
@@ -339,7 +383,9 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
           lines.push(`총 상품 금액: ${calcCopyNum(formData.totalProductPrice)} USD`);
         }
         lines.push(`박스당 무게: ${calcCopyNum(formData.weightPerBox)} kg/박스`);
-        lines.push(`관세: ${calcCopyOpt(tariffOptions, formData.tariffRate)}`);
+        lines.push(hsSaved
+          ? `관세: ${hsSaved.rate}% (${window.HsSearch.hsRateText(hsSaved)})`
+          : `관세: ${calcCopyOpt(tariffOptions, formData.tariffRate)}`);
         if (formData.shippingType === 'FCL') lines.push(`컨테이너 비용: ${calcCopyNum(formData.containerCost)} 원`);
         lines.push(`수수료: ${calcCopyNum(formData.commissionValue)} ${formData.commissionType === 'percentage' ? '%' : '원/개'}`);
         lines.push(rateSummaryText(currentRates.customs, currentRates.usdKrw, rateState, customsInfo && customsInfo.source));
@@ -403,13 +449,27 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2" id="cus-tariff-label">관세</label>
                   <fieldset aria-labelledby="cus-tariff-label" className="flex rounded-lg shadow-sm p-1 bg-slate-200/60 overflow-x-auto">
-                    {tariffOptions.map((option, idx) => (
-                      <label key={idx} className={`relative flex-1 min-w-[60px] cursor-pointer py-2.5 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${String(formData.tariffRate) === String(option.value) ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
-                        <input type="radio" name="customs-tariffRate" data-key="tariffRate" value={option.value} checked={String(formData.tariffRate) === String(option.value)} onChange={handleInputChange} className="sr-only" />
+                    {tariffOptions.map((option, idx) => {
+                      // HS 로 고른 동안은 같은 숫자의 옵션(8% 등)도 선택으로 보이지 않는다 — 누르면 HS 를 버리고 그 옵션으로
+                      const on = !hsSaved && String(formData.tariffRate) === String(option.value);
+                      return (
+                      <label key={idx} className={`relative flex-1 min-w-[60px] cursor-pointer py-2.5 px-4 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 ${on ? 'bg-white text-emerald-600 shadow-md rounded-md' : 'text-gray-600 hover:text-emerald-600/80'} transition-all duration-300 ease-in-out`}>
+                        <input type="radio" name="customs-tariffRate" data-key="tariffRate" value={option.value} checked={on} onChange={handleInputChange} className="sr-only" />
                         <span>{option.label}</span>
                       </label>
-                    ))}
+                      );
+                    })}
+                    {hsSaved && (
+                      <label className="relative flex-1 min-w-[72px] cursor-pointer py-2.5 px-4 text-center text-sm font-semibold whitespace-nowrap focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-1 bg-white text-emerald-600 shadow-md rounded-md transition-all duration-300 ease-in-out" title={window.HsSearch.hsRateText(hsSaved)} data-k="tariff-hs-option">
+                        <input type="radio" name="customs-tariffRate" value={formData.tariffRate} checked onChange={() => {}} className="sr-only" />
+                        <span>HS {hsSaved.rate}%</span>
+                      </label>
+                    )}
                   </fieldset>
+                  {hsSaved && hsWarn && (
+                    <p role="alert" data-k="hs-warn" className="mt-2 rounded-lg border border-yellow-300 bg-yellow-50 p-2 text-xs font-semibold text-yellow-800">⚠ {hsWarn}</p>
+                  )}
+                  <HsLookupPanel open={hsOpen} onToggle={() => setHsOpen(o => !o)} selected={hsSaved} onPick={pickHs} />
                 </div>
 
                 {/* FCL 이면 관세 바로 아래 — 숨긴 칸으로 두지 않고 그릴 때만 넣는다(Enter 이동이 숨은 칸에 들어가지 않게) */}

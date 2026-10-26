@@ -2,7 +2,11 @@
 // 로케이션관리 대시보드 '로케이션 변경 추천' 카드(js/locrec-card.js)의 순수 함수 — node --test 대상.
 // 문서는 이 PC 프로그램(업무자동화\앱\로케이션추천)이 매일 06:40 쓴다. 모양(설계 로케이션추천_설계.md 1.6절):
 //   integrations/locRecLatest       { schema, latestDay, days:{YYYYMMDD:{status: ok|rest|fail, n, gainSum, verdict}},
-//                                     metrics:{top100Front(0~1), inversions, gainSum, gainSumPrevWeek, top100FrontPrevWeek?, inversionsPrevWeek?},
+//                                     metrics:{top100Front(0~1), inversions, gainSum, gainSumPrevWeek, top100FrontPrevWeek?, inversionsPrevWeek?,
+//                                              routeScore(0~100)?, routeScoreAfter?, frontQty(0~1)?, frontQtyAfter?, routeCoverage?, routeItems?,
+//                                              routeConflicts?, routeScorePrevWeek?}  ← 동선 점수(2026-10-26~, 옛 문서엔 없음)
+//                                     days[k].metrics 에도 routeScore·routeScoreAfter·frontQty·frontQtyAfter(그래프 js/lib/locrec-trend.js)
+//                                     행에는 scoreGain(점수)·frontGain(%p) — 그 줄만 적용했을 때의 차이. 기타 자리 상품 줄은 routeOut: true(기여도 없음)
 //                                     open:{recKey:{type, code, state: open|done|expired|stale|partial, firstDay, lastDay, alertedDay?, doneDay?}},
 //                                     dataState:{daysCollected, pairDays?, lastOutDay, lastOrderDay, warnings:[], stockDataAt, locUpdatedAt}, settings }
 //                                     stockDataAt = INFO_CONFIG.lastDataUpdate(재고 엑셀 올린 시각) — '재고 자료 기준'·오래됨 판단은 이것만.
@@ -12,8 +16,8 @@
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610260936';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610260936';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610261041';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610261041';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -49,7 +53,9 @@ function cleanRow(r, type) {
     const out = {
         type: r.type || type, recKey: str(r.recKey), rank: num(r.rank),
         code: str(r.code), name: str(r.name), option: str(r.option), from: str(r.from), to: str(r.to),
-        qty: num(r.qty), daily: num(r.daily), gain: num(r.gain), capWarn: r.capWarn === true, pairNear: str(r.pairNear)
+        qty: num(r.qty), daily: num(r.daily), gain: num(r.gain), capWarn: r.capWarn === true, pairNear: str(r.pairNear),
+        scoreGain: num(r.scoreGain), frontGain: num(r.frontGain),       // 동선 점수 기여도(옛 문서는 null)
+        routeOut: r.routeOut === true                                     // 기타·SAM 자리 상품 줄 — 동선 점수 계산 대상 밖
     };
     if (r.code2 != null && str(r.code2)) {
         Object.assign(out, { code2: str(r.code2), name2: str(r.name2), option2: str(r.option2), from2: str(r.from2), to2: str(r.to2),
@@ -117,6 +123,45 @@ export function metricItems(m) {
         { label: '좋은 자리 점유율', value: fmtPct(x.top100Front), prev: x.top100FrontPrevWeek != null ? fmtPct(x.top100FrontPrevWeek) : '' },
         { label: '순위 역전', value: x.inversions == null ? '-' : `${fmtNum(x.inversions)}쌍`, prev: x.inversionsPrevWeek != null ? `${fmtNum(x.inversionsPrevWeek)}쌍` : '' },
         { label: '추천 이득', value: fmtNum(x.gainSum), prev: x.gainSumPrevWeek != null ? fmtNum(x.gainSumPrevWeek) : '' }
+    ];
+}
+
+/** 동선 점수 설명(카드 툴팁) */
+export const ROUTE_HELP = '동선 점수: 출고 많은 상품이 앞자리(동·위치 순위)에 있을수록 높다. 100 = 이론상 완벽(인기 순으로 앞자리부터), 0 = 정반대. '
+    + '화살표 뒤는 오늘 추천을 모두 적용했을 때(안 함 제외).';
+export const FRONT_HELP = '앞쪽 자리 출고: 하루 출고량 중 앞쪽 자리(구역마다 앞 20% 칸)에 있는 상품의 몫. 화살표 뒤는 오늘 추천을 모두 적용했을 때.';
+
+/** 표 점수 칸 — 계산 대상 밖 줄의 글자·툴팁 */
+export const ROUTE_OUT_LABEL = '대상 밖';
+export const ROUTE_OUT_HELP = '기타 자리 상품이라 동선 점수 계산 대상 밖(옮기면 다음 날부터 점수에 들어감)';
+
+/** 점수 차이 → '+0.4' · 0.05 미만 '+<0.1' · 없거나 0 '-' · 음수 '-0.3' */
+export function fmtGain(v) {
+    const n = num(v);
+    if (n == null || Math.abs(n) < 0.005) return '-';
+    if (n > 0) return n < 0.05 ? '+<0.1' : `+${n.toFixed(1)}`;
+    return n > -0.05 ? '-<0.1' : n.toFixed(1);
+}
+
+/**
+ * 동선 지표 2개(카드 kpis 앞) → [{label, value, title}]. 옛 문서(칸 없음)면 value '-'.
+ *   '동선 점수 77.4 → 78.6 (+1.2)' · '앞쪽 자리 출고 57% → 58%'
+ */
+export function routeItems(m) {
+    const x = m || {};
+    const s0 = num(x.routeScore), s1 = num(x.routeScoreAfter);
+    const f0 = num(x.frontQty), f1 = num(x.frontQtyAfter);
+    const one = (v) => (v == null ? '-' : v.toFixed(1));
+    let score = one(s0);
+    if (s0 != null && s1 != null) score += ` → ${one(s1)}` + (fmtGain(s1 - s0) === '-' ? '' : ` (${fmtGain(s1 - s0)})`);
+    let front = fmtPct(f0);
+    if (f0 != null && f1 != null) front += ` → ${fmtPct(f1)}`;
+    const cov = num(x.routeCoverage), items = num(x.routeItems);
+    const covTxt = cov == null ? '' : ` 계산 대상: 출고의 ${fmtPct(cov)}${items == null ? '' : `(${fmtNum(items)}개 상품)`} — 기타·비축에만 있는 상품은 빠진다.`;
+    const prev = num(x.routeScorePrevWeek);
+    return [
+        { label: '동선 점수', value: score, prev: prev == null ? '' : one(prev), title: ROUTE_HELP + covTxt },
+        { label: '앞쪽 자리 출고', value: front, prev: '', title: FRONT_HELP }
     ];
 }
 

@@ -4,7 +4,7 @@
 //   option 마다 큰 버튼을 만들어 누르면 select 값을 바꾸고 change 이벤트를 보낸다.
 //   코드가 select 값을 직접 바꾼 뒤에는 syncInspSegments() 로 버튼 표시를 다시 맞춘다.
 
-import { ALL_NORMAL } from './lib/insp-flow.js?v=202610260936';
+import { ALL_NORMAL } from './lib/insp-flow.js?v=202610261041';
 
 const BTN_BASE = 'insp-seg-btn border rounded-lg text-sm font-bold px-3 py-2 min-h-[44px] transition';
 const BTN_ON = ['bg-indigo-600', 'border-indigo-600', 'text-white'];

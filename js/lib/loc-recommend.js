@@ -18,11 +18,12 @@
 //   zoneGuard     새 자리 구역 순위가 지금 자리보다 나쁘면(숫자가 크면) 더 좋은 자리로 보지 않는다
 //   excludeTagged 예약(reserved)·당일지정/선지정(codeTag) 빈 자리를 빼고 추천한다(입고 추천과 같은 기준)
 //   slotCost·recommendSwaps·selectPlan·frontShare·excelRows·normalizeLocs·runRecommend(서버 진입점)
+//   routeMetrics·applyRows·simulateRoute — 동선 점수(0~100)·앞쪽 출고 비율, 오늘 목록을 모두 적용하면, 줄별 기여도(2026-10-26)
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202610260936';
-import { capacityFor } from './mibal2-calc.js?v=202610260936';
+import { isEtcLocObj } from './mibal2-rows.js?v=202610261041';
+import { capacityFor } from './mibal2-calc.js?v=202610261041';
 
 export { isEtcLocObj };
 
@@ -662,6 +663,167 @@ export function frontShare({ locs, daily, priorities, topN = 100, frontPct = 0.2
 }
 
 // ─────────────────────────────────────────────────────────────
+// 동선 점수 · 모두 적용 시뮬레이션
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 동선 점수 계산 준비 — 자리 묶음·대상 상품·Ideal·Worst·앞쪽 영역을 한 번만 구한다(after 와 줄별 기여도도 같은 기준).
+ *   자리 묶음: 피킹 자리 전부(기타·excludeCombos 제외, 같은 id 는 첫 것), 비용 slotCost(loose).
+ *   대상: 일평균 > 0 이고 자리 묶음에 자리가 있는 코드(지금 기준으로 고정 — 적용 뒤 새로 생긴 코드는 세지 않는다).
+ *   수요 내림차순 d · 비용 오름차순 C:  Ideal = Σ d_i·C[i],  Worst = Σ d_i·C[M−i+1].
+ *   앞쪽 영역 = frontByZone(rankedPickSlots, frontK, {pct: frontPct}) — 좋은 자리 점유율(frontShare)과 같은 영역.
+ */
+function routeBase(locs, daily, priorities, rk, { frontPct = 0.2, frontK = 100 } = {}) {
+    const excludeCombos = (priorities && priorities.excludeCombos) || [];
+    const slotIds = new Set();
+    const costOf = new Map();
+    const seen = new Set();
+    locs.forEach(d => {
+        if (seen.has(d.id)) return;
+        seen.add(d.id);
+        if (isEtcLocObj(d)) return;
+        if (excludeCombos.length && excludeCombos.includes(comboOf(d))) return;
+        slotIds.add(d.id);
+        costOf.set(d.id, slotCost(d, rk, 'dong', { loose: true }));
+    });
+    const C = [...costOf.values()].sort((a, b) => a - b);
+    const dOf = (c) => Number((daily || {})[c]) || 0;
+    const total = Object.keys(daily || {}).reduce((s, c) => s + Math.max(0, dOf(c)), 0);
+    const now = codeMinCost(locs, slotIds, costOf);
+    const items = [...now.keys()].filter(c => dOf(c) > 0)
+        .sort((a, b) => (dOf(b) - dOf(a)) || byKeyAsc(a, b)).map(c => ({ code: c, d: dOf(c) }));
+    const M = C.length;
+    let ideal = 0, worst = 0, sumD = 0;
+    items.forEach((it, i) => { ideal += it.d * C[i]; worst += it.d * C[M - 1 - i]; sumD += it.d; });
+    const usePct = frontPct != null;
+    const front = frontByZone(rankedPickSlots(locs, priorities, rk), rk, frontK, usePct ? { pct: Number(frontPct) } : {});
+    return { slotIds, costOf, items, ideal, worst, sumD, total, front, pickCodes: new Set(now.keys()) };
+}
+
+/** 코드 → {cost: 자리 묶음 안 최소 비용, front: 앞쪽 영역 자리가 있나} (같은 id 는 첫 것) */
+function codeMinCost(locs, slotIds, costOf, front) {
+    const m = new Map();
+    const seen = new Set();
+    locs.forEach(d => {
+        if (seen.has(d.id)) return;
+        seen.add(d.id);
+        if (!slotIds.has(d.id) || !hasCode(d)) return;
+        const c = String(d.code).trim();
+        const cost = costOf.get(d.id);
+        const e = m.get(c);
+        const f = !!(front && front.has(d.id));
+        if (!e) m.set(c, { cost, front: f });
+        else { if (cost < e.cost) e.cost = cost; if (f) e.front = true; }
+    });
+    return m;
+}
+
+/** routeBase 기준으로 지금 locs 의 점수 → {score(0~100, 소수 1자리|null), cur, frontQty(0~1|null)} (반올림 전 값 raw 도) */
+function routeEval(base, locs) {
+    const m = codeMinCost(locs, base.slotIds, base.costOf, base.front);
+    let cur = 0, fq = 0;
+    base.items.forEach(it => {
+        const e = m.get(it.code);
+        if (!e) return;                       // 적용 뒤 대상 상품이 자리 묶음에서 빠지는 일은 없다(빈 피킹 자리·맞교환만)
+        cur += it.d * e.cost;
+        if (e.front) fq += it.d;
+    });
+    const den = base.worst - base.ideal;
+    const scoreRaw = den > 0 ? 100 * (base.worst - cur) / den : null;
+    const frontRaw = base.sumD > 0 ? fq / base.sumD : null;
+    return { cur, scoreRaw, frontRaw, score: scoreRaw == null ? null : round(scoreRaw, 1), frontQty: frontRaw == null ? null : round(frontRaw, 4) };
+}
+
+/**
+ * 동선 점수(지금) — 100 = 이론상 완벽(인기 순으로 앞자리), 0 = 정반대. 분모(Worst−Ideal)가 0 이면 null.
+ * @returns {{score, frontQty, coverage, items, cur, ideal, worst}}
+ *   frontQty = 앞쪽 영역 자리를 가진 대상 상품의 일평균 합 / 대상 일평균 합(0~1)
+ *   coverage = 대상 일평균 합 / 전체 일평균 합(0~1) — 기타·SAM 에만 있는 코드 등은 빠진다
+ */
+export function routeMetrics({ locs, daily, priorities, frontPct = 0.2, frontK = 100, rankers }) {
+    const rk = rankers || makeRankers(priorities);
+    const base = routeBase(locs, daily, priorities, rk, { frontPct, frontK });
+    const ev = routeEval(base, locs);
+    return {
+        score: ev.score, frontQty: ev.frontQty,
+        coverage: base.total > 0 ? round(base.sumD / base.total, 4) : null,
+        items: base.items.length, cur: round(ev.cur, 3), ideal: round(base.ideal, 3), worst: round(base.worst, 3)
+    };
+}
+
+/**
+ * 추천 행을 locs 에 적용한 사본 → {locs, applied, conflicts}. 원본은 바꾸지 않는다(바뀐 자리만 얕은 복사, code 만 바꿈).
+ *   single: from 을 비우고 to 에 code.  pair: (from→to, from2→to2) 두 단독.  swap: from·from2 의 code 를 맞바꾼다.
+ *   충돌(from 에 그 코드가 없음 · 단독 목표 자리에 이미 코드가 있음)이면 그 행은 건너뛰고 conflicts 를 센다.
+ */
+export function applyRows(locs, rows) {
+    const out = locs.slice();
+    const idx = new Map();
+    out.forEach((d, i) => { if (!idx.has(d.id)) idx.set(d.id, []); idx.get(d.id).push(i); });
+    const first = (id) => { const l = idx.get(id); return l ? out[l[0]] : null; };
+    const codeAt = (id) => { const d = first(id); return d && hasCode(d) ? String(d.code).trim() : ''; };
+    const setCode = (id, code) => (idx.get(id) || []).forEach(i => { out[i] = { ...out[i], code }; });
+    let applied = 0, conflicts = 0;
+    (rows || []).forEach(r => {
+        if (!r) return;
+        if (r.type === 'swap') {
+            if (!first(r.from) || !first(r.from2) || r.from === r.from2 || codeAt(r.from) !== r.code || codeAt(r.from2) !== r.code2) { conflicts++; return; }
+            setCode(r.from, r.code2); setCode(r.from2, r.code);
+            applied++;
+            return;
+        }
+        const moves = [[r.code, r.from, r.to]];
+        if (r.type === 'pair' && r.code2) moves.push([r.code2, r.from2, r.to2]);
+        const tos = new Set();
+        const ok = moves.every(([c, f, t]) => {
+            if (!first(f) || !first(t) || f === t || tos.has(t)) return false;
+            tos.add(t);
+            return codeAt(f) === c && codeAt(t) === '';
+        });
+        if (!ok) { conflicts++; return; }
+        moves.forEach(([c, f, t]) => { setCode(f, ''); setCode(t, c); });
+        applied++;
+    });
+    return { locs: out, applied, conflicts };
+}
+
+/**
+ * 오늘 목록을 모두 적용하면 — 지금/적용 후 동선 점수·앞쪽 출고 비율 + 줄별 기여도.
+ *   after: rows(단독·맞바꾸기, 순위 순) 중 skipKeys 아닌 것을 차례로 적용(충돌은 건너뛰고 conflicts). 페어는 넣지 않는다.
+ *   기여도(gainRows 각 행): 그 줄만 적용했을 때의 차이 — scoreGain(점수, 소수 2자리) · frontGain(앞쪽 출고 비율, %p 소수 2자리).
+ *   단독·페어로 옮기는 코드가 지금 피킹 자리에 없으면(기타·SAM 에만) 계산 대상 밖 → {scoreGain: null, frontGain: null, routeOut: true}.
+ * @returns {{now, after, coverage, items, conflicts, gains: Map<recKey, {scoreGain, frontGain}>}}
+ */
+export function simulateRoute({ locs, daily, priorities, rows = [], gainRows, skipKeys = [], frontPct = 0.2, frontK = 100, rankers }) {
+    const rk = rankers || makeRankers(priorities);
+    const base = routeBase(locs, daily, priorities, rk, { frontPct, frontK });
+    const now = routeEval(base, locs);
+    const skip = new Set(skipKeys || []);
+    const ap = applyRows(locs, (rows || []).filter(r => r && !skip.has(r.recKey)));
+    const after = routeEval(base, ap.locs);
+    const gains = new Map();
+    (gainRows || rows || []).forEach(r => {
+        if (!r || !r.recKey || gains.has(r.recKey)) return;
+        // 지금 피킹 자리가 없는(기타·SAM 에만 있던) 코드를 옮기는 줄 — 계산 대상 밖이라 기여도 대신 routeOut 표시(옮기면 다음 날부터 점수에 들어간다)
+        const moved = r.type === 'swap' ? [] : [r.code].concat(r.type === 'pair' && r.code2 ? [r.code2] : []);
+        if (moved.some(c => !base.pickCodes.has(String(c || '').trim()))) { gains.set(r.recKey, { scoreGain: null, frontGain: null, routeOut: true }); return; }
+        const one = applyRows(locs, [r]);
+        if (one.applied !== 1) { gains.set(r.recKey, { scoreGain: null, frontGain: null }); return; }
+        const ev = routeEval(base, one.locs);
+        gains.set(r.recKey, {
+            scoreGain: now.scoreRaw == null ? null : round(ev.scoreRaw - now.scoreRaw, 2),
+            frontGain: now.frontRaw == null ? null : round((ev.frontRaw - now.frontRaw) * 100, 2)
+        });
+    });
+    return {
+        now: { score: now.score, frontQty: now.frontQty },
+        after: { score: after.score, frontQty: after.frontQty },
+        coverage: base.total > 0 ? round(base.sumD / base.total, 4) : null,
+        items: base.items.length, conflicts: ap.conflicts, gains
+    };
+}
+
+// ─────────────────────────────────────────────────────────────
 // 행 · 엑셀
 // ─────────────────────────────────────────────────────────────
 
@@ -840,6 +1002,27 @@ export function runRecommend(input) {
     const fs = frontShare({ locs, daily, priorities, topN: S.metricTopN,
         frontPct: usePct ? Number(S.metricFrontPct) : null, frontK: Number(S.metricFrontK) || 100 });
 
+    // 6) 동선 점수 — 오늘 목록(단독·맞바꾸기, 순위 순)을 모두 적용하면. 실패해도 추천은 그대로 낸다(null 칸 + 경고 한 줄)
+    const route = { routeScore: null, routeScoreAfter: null, frontQty: null, frontQtyAfter: null, routeCoverage: null, routeItems: null, routeConflicts: null };
+    try {
+        const applyList = outSingle.concat(outSwap).sort(byRank);
+        const sim = simulateRoute({
+            locs, daily, priorities, rankers: rk, rows: applyList, gainRows: applyList.concat(outPair),
+            skipKeys: Array.isArray(input.skipKeys) ? input.skipKeys : [],
+            frontPct: usePct ? Number(S.metricFrontPct) : null, frontK: Number(S.metricFrontK) || 100
+        });
+        Object.assign(route, {
+            routeScore: sim.now.score, routeScoreAfter: sim.after.score, frontQty: sim.now.frontQty, frontQtyAfter: sim.after.frontQty,
+            routeCoverage: sim.coverage, routeItems: sim.items, routeConflicts: sim.conflicts
+        });
+        outSingle.concat(outSwap, outPair).forEach(r => {
+            const g = sim.gains.get(r.recKey);
+            if (g) { r.scoreGain = g.scoreGain; r.frontGain = g.frontGain; if (g.routeOut) r.routeOut = true; }
+        });
+    } catch (e) {
+        warn.push('동선 점수 계산 실패(' + String((e && e.message) || e).slice(0, 80) + ')');
+    }
+
     return {
         schema: 1,
         single: outSingle,
@@ -852,7 +1035,8 @@ export function runRecommend(input) {
             top100Front: fs.share, topN: fs.topN, counted: fs.counted, inFront: fs.inFront, frontSlots: fs.frontSlots,
             inversions: sw.inversions,
             gainSum: round(plan.rows.reduce((s, r) => s + r.gain, 0)),
-            gainP95: round(p95)
+            gainP95: round(p95),
+            ...route
         },
         counts: {
             locs: locs.length, scored: scored.length, emptySlots: single.ctx.emptyLocs.length,
