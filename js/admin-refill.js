@@ -18,8 +18,8 @@
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610261222';
-import { writeHash } from './hash-state.js?v=202610261222';
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610261228';
+import { writeHash } from './hash-state.js?v=202610261228';
 
 const SECTION_ID = 'section-refill';
 const 문서경로 = ['adminPrivate', 'refillSettings'];
