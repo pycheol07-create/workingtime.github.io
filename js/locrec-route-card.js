@@ -1,16 +1,17 @@
 // === js/locrec-route-card.js ===
 // 로케이션관리 대시보드 인사이트 줄(재고 회전 · 다중 위치 · 데드 스톡 · 빈 자리 동, #dash-insight-row)의 '동선 효율' 카드.
-//   큰 숫자 = 동선 점수(지금) · 추천 모두 적용 시 · 앞쪽 자리 출고(지금 → 적용 시) · 최근 60일 추이(js/lib/locrec-trend.js) · 기준일.
+//   큰 숫자 = 동선 점수(지금) · 추천 모두 적용 시 · 앞쪽 자리 출고(지금 → 적용 시) · 최근 60일 추이(js/lib/locrec-trend.js)
+//   · 구역 × 동 출고 열지도(metrics.routeHeat, 옛 문서면 생략) · 기준일.
 //   값은 integrations/locRecLatest 의 최신 지표 — 서버(업무자동화\앱\로케이션추천)가 매일 06:40 쓴다.
 // 데이터: 변경 추천 카드(js/locrec-card.js)가 쓰는 js/locrec-store.js 싱글턴을 그대로 받는다(같은 문서를 두 번 구독하지 않는다).
 //   그래서 이 카드는 변경 추천과 같은 권한(기능 location.locrec)일 때만 생긴다 — initLocRecCard 가 부른다.
 // 그리는 때가 둘이다: ① store 가 바뀔 때(이 파일) ② location.js 가 인사이트 줄을 innerHTML 로 다시 그린 뒤(mountRouteSlot()).
 //   인사이트 줄이 다시 그려지면 이 카드 칸도 사라지므로 location.js 가 그때마다 mountRouteSlot() 을 부른다.
 // 모양은 인사이트 카드와 같은 클래스(insight-card · ins-big · ins-desc) — 색은 CSS 변수라 라이트·다크를 같이 따라간다.
-import { escapeHtml } from './utils.js?v=202610261114';
-import { routeCardInfo } from './lib/locrec-view.js?v=202610261114';
-import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202610261114';
-import { todayKey } from './locrec-store.js?v=202610261114';
+import { escapeHtml } from './utils.js?v=202610261142';
+import { routeCardInfo, routeHeatView } from './lib/locrec-view.js?v=202610261142';
+import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202610261142';
+import { todayKey } from './locrec-store.js?v=202610261142';
 
 const SLOT_ID = 'dash-route-card';
 const ROW_ID = 'dash-insight-row';
@@ -41,6 +42,20 @@ export function mountRouteSlot() {
     paintRouteCard();
 }
 
+const HEAT_HELP = '피킹 자리 기준 — 상품마다 가장 앞쪽 피킹 자리 1곳에 하루 평균 출고를 더했습니다(기타·비축 자리는 빠짐).';
+
+/** 구역 × 동 열지도(metrics.routeHeat) — 자료가 없거나 모양이 틀리면 '' (옛 문서) */
+function heatHtml(heat) {
+    const v = routeHeatView(heat);
+    if (!v.has) return '';
+    const cols = v.rows[0].cells.length;
+    const body = v.rows.map(r => `<b title="${escapeHtml(`구역 ${r.zone} · 하루 ${Math.round(r.sum).toLocaleString('ko-KR')}개`)}">${escapeHtml(r.zone)}</b>`
+        + r.cells.map(c => `<i class="${c.level == null ? 'hn' : 'h' + c.level}" title="${escapeHtml(c.title)}"></i>`).join('')).join('');
+    const note = `왼쪽 = 앞쪽(좋은) 동 · 진할수록 출고 많음${v.more ? ` · 외 ${v.more}구역` : ''}`;   // 한 줄 — 좁으면 말줄임이라 전문을 title 에도
+    return `<div class="route-heat" title="${escapeHtml(HEAT_HELP)}"><div class="rh-grid" style="--rh-cols:${cols};">${body}</div>`
+        + `<div class="ins-desc rh-note" title="${escapeHtml(note + '\n' + HEAT_HELP)}">${escapeHtml(note)}</div></div>`;
+}
+
 let lastHtml = '';
 function paintRouteCard() {
     const el = document.getElementById(SLOT_ID);
@@ -64,6 +79,7 @@ function paintRouteCard() {
                 + `<div class="ins-desc" title="${escapeHtml(c.frontTitle)}" style="cursor:help;">앞쪽 자리 출고 <b>${escapeHtml(c.front)}</b></div>`
                 + (trendPoints(series) ? `<div class="locrec-trend">${trendSvg(series, { w: 240, h: 64 })}`
                     + '<div class="ins-desc locrec-trend-legend"><span class="lg-now">━ 지금</span> <span class="lg-after">┅ 추천 모두 적용 후</span> · 최근 60일</div></div>' : '')
+                + heatHtml(S.latest.metrics && S.latest.metrics.routeHeat)
                 + `<div class="ins-desc route-day">${c.day ? `${escapeHtml(c.day)} 기준` : ''}${c.prev ? `${c.day ? ' · ' : ''}지난주 ${escapeHtml(c.prev)}` : ''}</div>`;
         }
     }

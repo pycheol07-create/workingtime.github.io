@@ -5,6 +5,7 @@
 //                                     metrics:{top100Front(0~1), inversions, gainSum, gainSumPrevWeek, top100FrontPrevWeek?, inversionsPrevWeek?,
 //                                              routeScore(0~100)?, routeScoreAfter?, frontQty(0~1)?, frontQtyAfter?, routeCoverage?, routeItems?,
 //                                              routeConflicts?, routeScorePrevWeek?}  ← 동선 점수(2026-10-26~, 옛 문서엔 없음)
+//                                              routeHeat?{v, zones, dongs, q(줄 우선 1차원), sum}  ← 구역 × 동 출고 격자(색인에만, routeHeatView)
 //                                     days[k].metrics 에도 routeScore·routeScoreAfter·frontQty·frontQtyAfter(그래프 js/lib/locrec-trend.js)
 //                                     행에는 scoreGain(점수)·frontGain(%p) — 그 줄만 적용했을 때의 차이. 기타 자리 상품 줄은 routeOut: true(기여도 없음)
 //                                     open:{recKey:{type, code, state: open|done|expired|stale|partial, firstDay, lastDay, alertedDay?, doneDay?}},
@@ -16,8 +17,8 @@
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610261114';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610261114';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610261142';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610261142';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -196,6 +197,54 @@ export function routeCardInfo(latest) {
 }
 const ROUTE_CARD_HELP = '동선 점수: 출고 많은 상품이 앞자리(동·위치 순위)에 있을수록 높다. 100 = 이론상 완벽(인기 순으로 앞자리부터), 0 = 정반대. '
     + "'추천 모두 적용 시'는 그날 변경 추천을 모두 처리했을 때(안 함 제외).";
+
+/** 열지도 칸 진하기 — 0 = 출고 0, 그 밖은 r = √(값/최대값) 을 1(≤0.25)·2(≤0.5)·3(≤0.75)·4 로 */
+export function heatLevel(v, max) {
+    const n = num(v), m = num(max);
+    if (n == null || !(n > 0) || !(m > 0)) return 0;
+    const r = Math.sqrt(Math.min(1, n / m));
+    return Math.max(1, Math.min(4, Math.ceil(r * 4)));
+}
+
+/**
+ * 동선 효율 카드 열지도 — 색인 metrics.routeHeat {v, zones, dongs, q(줄 우선 1차원), sum} → 그리기용
+ *   → { has, rows:[{zone, sum, cells:[{dong, q(null = 자리 없음), pct(0~100|null), level(0~4|null), title}]}], more }
+ *   rows 는 구역 순위 순. maxRows 를 넘으면 출고 합이 큰 구역 maxRows 개만 남기고(순서는 그대로) more = 뺀 구역 수.
+ *   title = '구역 A · 3동 · 하루 120개(8%)'. 모양이 틀리거나(옛 문서·길이 안 맞음) 출고가 하나도 없으면 has false.
+ */
+export function routeHeatView(heat, { maxRows = 10 } = {}) {
+    const no = { has: false, rows: [], more: 0 };
+    const h = heat && typeof heat === 'object' ? heat : null;
+    if (!h || !Array.isArray(h.zones) || !Array.isArray(h.dongs) || !Array.isArray(h.q)) return no;
+    const nZ = h.zones.length, nD = h.dongs.length;
+    if (!nZ || !nD || h.q.length !== nZ * nD) return no;
+    if (h.q.some(v => v != null && (typeof v === 'object' || num(v) == null))) return no;
+    const vals = h.q.map(v => (v == null ? null : Math.max(0, num(v))));
+    const max = Math.max(0, ...vals.map(v => v || 0));
+    if (!(max > 0)) return no;
+    const total = num(h.sum) > 0 ? num(h.sum) : vals.reduce((s, v) => s + (v || 0), 0);
+    const qty = (v) => (v >= 10 || Number.isInteger(v) ? Math.round(v).toLocaleString('ko-KR') : v.toFixed(1));
+    const pctTxt = (p) => (p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`);
+    let rows = h.zones.map((z, zi) => {
+        const zone = str(z);
+        const cells = h.dongs.map((dg, di) => {
+            const dong = str(dg);
+            const v = vals[zi * nD + di];
+            const head = `구역 ${zone} · ${dong}동`;
+            if (v == null) return { dong, q: null, pct: null, level: null, title: `${head} · 자리 없음` };
+            const pct = total > 0 ? (v / total) * 100 : 0;
+            return { dong, q: v, pct: Math.round(pct * 10) / 10, level: heatLevel(v, max), title: `${head} · 하루 ${qty(v)}개(${pctTxt(pct)})` };
+        });
+        return { zone, sum: cells.reduce((s, c) => s + (c.q || 0), 0), cells, i: zi };
+    });
+    let more = 0;
+    if (maxRows > 0 && rows.length > maxRows) {
+        const keep = new Set(rows.slice().sort((a, b) => (b.sum - a.sum) || (a.i - b.i)).slice(0, maxRows).map(r => r.i));
+        more = rows.length - keep.size;
+        rows = rows.filter(r => keep.has(r.i));
+    }
+    return { has: true, rows: rows.map(({ zone, sum, cells }) => ({ zone, sum: Math.round(sum * 10) / 10, cells })), more };
+}
 
 /** 재고 자료 기준 시각(ms) — stockDataAt(= lastDataUpdate, 엑셀 올린 시각). 옛 문서는 lastDataUpdate 칸. locUpdatedAt 은 쓰지 않는다 */
 export function stockAtOf(obj) {

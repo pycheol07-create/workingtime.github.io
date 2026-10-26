@@ -1,7 +1,7 @@
 // === js/ui-history-reports-calculations.js ===
-import { isWeekday, getTodayDateString, getRegularMembersForCount } from './utils.js?v=202610261114';
-import { taskSpeedPerMinute } from './task-throughput.js?v=202610261114';
-import { getAsArray } from './ui-history-reports-utils.js?v=202610261114';
+import { isWeekday, getTodayDateString, getRegularMembersForCount } from './utils.js?v=202610261142';
+import { taskSpeedPerMinute } from './task-throughput.js?v=202610261142';
+import { getAsArray } from './ui-history-reports-utils.js?v=202610261142';
 
 export const calculateReportKPIs = (data, appConfig, wageMap) => {
     if (!data) {
