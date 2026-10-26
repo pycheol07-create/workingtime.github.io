@@ -1,12 +1,12 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610261304';
-import * as State from './state.js?v=202610261304';
-import { leaveTypeLabel } from './state.js?v=202610261304';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610261304';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610261304';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610261304';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202610261304';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202610261304';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610261315';
+import * as State from './state.js?v=202610261315';
+import { leaveTypeLabel } from './state.js?v=202610261315';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610261315';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610261315';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610261315';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202610261315';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202610261315';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -339,7 +339,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 const isRecPaused = rec.status === 'paused';
                 const pauseMin = calcTotalPauseMinutes(rec.pauses);
-                const memberPauseText = pauseMin > 0 ? ` <span class="text-[11px] tc-sub inline-block">(휴:${formatDuration(pauseMin)})</span>` : '';
+                const memberPauseText = pauseMin > 0 ? `<span class="text-[11px] tc-sub ml-1">(휴:${formatDuration(pauseMin)})</span>` : '';
 
                 membersHtml += `
                     <div class="flex flex-wrap items-center justify-between gap-y-1 p-2 tc-member member-row">
@@ -347,8 +347,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                             <div class="w-2 h-2 shrink-0 rounded-full ${isRecPaused ? 'd-dot-paused' : 'd-dot-on'} mt-1.5"></div>
                             <div class="flex flex-col min-w-0">
                                 <span class="tc-name text-sm truncate" title="${rec.member}">${rec.member}</span>
-                                <span class="text-[11px] tc-sub leading-snug"><!-- 좁으면 '(시작)' 과 '(휴:…)' 이 두 줄로 — '…' 로 자르지 않는다(2026-10-26) -->
-                                    <span class="whitespace-nowrap">(${formatTimeTo24H(rec.startTime)})</span>${memberPauseText}
+                                <span class="text-[11px] tc-sub truncate"><!-- 한 줄 유지(두 줄로 나누면 카드에 보이는 인원 수가 줄어든다 — 2026-10-26 되돌림) -->
+                                    (${formatTimeTo24H(rec.startTime)})${memberPauseText}
                                 </span>
                             </div>
                         </div>
