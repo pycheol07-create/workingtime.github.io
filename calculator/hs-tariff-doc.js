@@ -12,7 +12,7 @@
 //   missing: _meta 가 없음(아직 안 올림) · denied: 읽기 권한 없음/로그아웃 · error: 그 밖(네트워크·버전 어긋남)
 // 다시 읽기: window.HsTariff.load({ force: true }) ([다시 시도]) · 로그인 계정이 바뀌면 idle 로 되돌린다.
 // 저장값 확인: window.HsTariff.checkSaved(saved) — 계산기를 열 때 _meta 1회(+ ver 가 다르면 류 문서 1개) — 아래 설명.
-import { db, auth } from './firebase-init.js?v=202610261315';
+import { db, auth } from './firebase-init.js?v=202610261339';
 import { doc, getDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 

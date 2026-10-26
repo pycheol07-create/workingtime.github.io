@@ -1,12 +1,12 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610261315';
-import * as State from './state.js?v=202610261315';
-import { leaveTypeLabel } from './state.js?v=202610261315';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610261315';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610261315';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610261315';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202610261315';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202610261315';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610261339';
+import * as State from './state.js?v=202610261339';
+import { leaveTypeLabel } from './state.js?v=202610261339';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610261339';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610261339';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610261339';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202610261339';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202610261339';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -33,7 +33,8 @@ function _cfLayout(rowId) {
     // 가운데 카드 폭 — 휴대폰(화면 폭 768px 이하)만 무대에 맞춤, 데스크톱은 기존 식 그대로.
     //   분기는 화면 기준이어야 한다: 데스크톱에서도 사이드바·그리드 때문에 무대 폭 W 가 480 아래로 자주 내려감(리뷰 2026-10-12)
     //   데스크톱도 무대보다 넓어지면 잘린다(1024px 대에서 260px 하한이 무대 폭을 넘었음) — 무대 폭 - 96 을 넘지 않게 한다.
-    const fit = Math.max(200, W - 96);
+    // 휴대폰은 양옆 여백을 56px 로 줄여 가운데 카드를 넓힌다(2026-10-26) — 좁은 폰에서 인원 이름·시작·휴식이 한 줄에 들어가게.
+    const fit = Math.max(200, W - (window.matchMedia('(max-width: 768px)').matches ? 56 : 96));
     const cw = window.matchMedia('(max-width: 768px)').matches ? fit : Math.min(440, Math.max(260, W * 0.42), fit);
     cards.forEach((card, i) => {
         card.style.width = cw + 'px';
@@ -339,7 +340,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             groupRecords.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).forEach(rec => {
                 const isRecPaused = rec.status === 'paused';
                 const pauseMin = calcTotalPauseMinutes(rec.pauses);
-                const memberPauseText = pauseMin > 0 ? `<span class="text-[11px] tc-sub ml-1">(휴:${formatDuration(pauseMin)})</span>` : '';
+                // 인원 줄 휴식 표시는 짧게 '휴31분'(1시간 넘어도 분으로 — '휴91분') — 좁은 카드에서도 시작 시각과 한 줄에 들어가게(2026-10-26)
+                const memberPauseText = pauseMin > 0 ? `<span class="text-[11px] tc-sub ml-1">휴${Math.round(pauseMin)}분</span>` : '';
 
                 membersHtml += `
                     <div class="flex flex-wrap items-center justify-between gap-y-1 p-2 tc-member member-row">
@@ -348,7 +350,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                             <div class="flex flex-col min-w-0">
                                 <span class="tc-name text-sm truncate" title="${rec.member}">${rec.member}</span>
                                 <span class="text-[11px] tc-sub truncate"><!-- 한 줄 유지(두 줄로 나누면 카드에 보이는 인원 수가 줄어든다 — 2026-10-26 되돌림) -->
-                                    (${formatTimeTo24H(rec.startTime)})${memberPauseText}
+                                    ${formatTimeTo24H(rec.startTime)}${memberPauseText}
                                 </span>
                             </div>
                         </div>

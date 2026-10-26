@@ -7,7 +7,7 @@
 // 표시하는 것은 비품 이름과 남은 날뿐이다(단가·업체는 넣지 않는다).
 // 순수 모듈 — 테스트: tests/supplies-reorder-alert.test.js
 
-import { effectiveStatus, reorderDaysLeft, kstToday } from './supplies-forecast-view.js?v=202610261315';
+import { effectiveStatus, reorderDaysLeft, kstToday } from './supplies-forecast-view.js?v=202610261339';
 
 export const ALERT_WITHIN_DAYS = 5;
 const SKIP = new Set(['ordered', 'received', 'nocode', 'pending']);
