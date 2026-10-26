@@ -1,12 +1,12 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610261142';
-import * as State from './state.js?v=202610261142';
-import { leaveTypeLabel } from './state.js?v=202610261142';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610261142';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610261142';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610261142';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202610261142';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202610261142';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610261222';
+import * as State from './state.js?v=202610261222';
+import { leaveTypeLabel } from './state.js?v=202610261222';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610261222';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610261222';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610261222';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202610261222';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202610261222';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -342,8 +342,8 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 const memberPauseText = pauseMin > 0 ? `<span class="text-[11px] tc-sub ml-1">(휴:${formatDuration(pauseMin)})</span>` : '';
 
                 membersHtml += `
-                    <div class="flex items-center justify-between p-2 tc-member member-row">
-                        <div class="flex items-start gap-2 overflow-hidden flex-1">
+                    <div class="flex flex-wrap items-center justify-between gap-y-1 p-2 tc-member member-row">
+                        <div class="flex items-start gap-2 overflow-hidden flex-1 text-sm" style="min-width:min(100%, calc(${Array.from(String(rec.member || '')).length} * 0.92em + 16px))" title="${rec.member}"><!-- 이름 글자 수만큼은 늘 보이게(카드 폭까지) — 버튼과 한 줄에 안 들어가면 버튼이 아래 줄로(2026-10-26, 모바일에서 '김…' 으로 잘리던 문제) -->
                             <div class="w-2 h-2 shrink-0 rounded-full ${isRecPaused ? 'd-dot-paused' : 'd-dot-on'} mt-1.5"></div>
                             <div class="flex flex-col min-w-0">
                                 <span class="tc-name text-sm truncate" title="${rec.member}">${rec.member}</span>
@@ -352,7 +352,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                                 </span>
                             </div>
                         </div>
-                        <div class="flex gap-1 shrink-0 member-actions ml-2">
+                        <div class="flex gap-0.5 shrink-0 member-actions ml-auto pl-1">
                             ${isRecPaused 
                                 ? `<button data-action="resume-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center d-icobtn accent" title="재개"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25l14.25 6.75-14.25 6.75V5.25z" /></svg></button>`
                                 : `<button data-action="pause-individual" data-record-id="${rec.id}" class="w-7 h-7 flex items-center justify-center d-icobtn warn" title="정지"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg></button>`

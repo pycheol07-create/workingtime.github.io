@@ -11,11 +11,11 @@
 //   ⚠️ 창 안에 role=dialog·data-act 를 붙이지 않는다 — 업무마감봇·업무예상알림이 자기 확인창으로 읽는다.
 // ② 실시간 구독 — 데이터관리 화면에 있는 동안만. 다른 화면의 10분 캐시(fetchPlannedData)는 그대로다.
 
-import * as State from './state.js?v=202610261142';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610261142';
-import { putPlannedLocal } from './history-data-manager.js?v=202610261142';
-import { plannedFieldOp, plannedMergePayload, applyPlannedOps, normPlanned } from './lib/planned-fields.js?v=202610261142';
-import { onBeforeLeaveSave } from './app-shell-bridge.js?v=202610261142';
+import * as State from './state.js?v=202610261222';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610261222';
+import { putPlannedLocal } from './history-data-manager.js?v=202610261222';
+import { plannedFieldOp, plannedMergePayload, applyPlannedOps, normPlanned } from './lib/planned-fields.js?v=202610261222';
+import { onBeforeLeaveSave } from './app-shell-bridge.js?v=202610261222';
 import {
     doc, setDoc, deleteField, collection, query, where, documentId, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
