@@ -7,7 +7,7 @@
 // 저장된 마일스톤은 고치지 않는다 — 편집 화면에서 저장할 때 지금 이름으로 저장된다.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/milestone-tasks.test.js
 
-import { aliasTaskName } from './task-alias-view.js?v=202610261448';
+import { aliasTaskName } from './task-alias-view.js?v=202610261453';
 
 /** 마일스톤 업무 필터 → 지금 이름 목록. 비었거나 배열이 아니면 [].
  *  바뀐 이름이 없으면 원본 배열 그대로(중복 제거도 하지 않음 — 기존 동작 유지), 바뀌었으면 중복 제거한 새 배열. */

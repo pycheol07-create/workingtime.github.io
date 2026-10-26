@@ -1,8 +1,8 @@
 // === js/app-notifications.js ===
-import * as State from './state.js?v=202610261448';
+import * as State from './state.js?v=202610261453';
 import { doc, writeBatch, deleteDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=202610261448';
-import { sortUnreadFirst, addDismissed } from './lib/noti-popup.js?v=202610261448';
+import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=202610261453';
+import { sortUnreadFirst, addDismissed } from './lib/noti-popup.js?v=202610261453';
 
 // 알림창에 지금 보이는 안 읽은 알림 id — 창을 닫을 때(×·배경·종·ESC) '닫은 것'으로 기억해
 // 같은 알림으로 창이 다시 저절로 열리지 않게 한다(js/app-sync.js 자동 열기 · js/lib/noti-popup.js).

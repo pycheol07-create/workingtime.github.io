@@ -11,9 +11,9 @@
 //    기본정보는 직원 전원이 읽는 문서(ProductCatalog)로 들어가기 때문이다. 테스트가 이것을 고정한다.
 //
 // 순수 모듈(DOM/Firebase 의존 없음). ⚠️ 원가 값을 console 에 찍지 말 것.
-import { isValidCode, utf8Length } from './product-bucket.js?v=202610261448';
-import { parseNum, parseDate, normalizePrice, samePrice, cellToText } from './product-price.js?v=202610261448';
-import { REASON_LABEL } from './product-price-text.js?v=202610261448';
+import { isValidCode, utf8Length } from './product-bucket.js?v=202610261453';
+import { parseNum, parseDate, normalizePrice, samePrice, cellToText } from './product-price.js?v=202610261453';
+import { REASON_LABEL } from './product-price-text.js?v=202610261453';
 
 export const HEADER_SCAN_ROWS = 10;
 export const MAX_ROWS = 60000;                 // 이지어드민 상품정보 엑셀(옵션 1행씩) 4만 6천여 행을 한 번에
