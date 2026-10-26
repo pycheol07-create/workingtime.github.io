@@ -10,7 +10,7 @@
 //   recommendSingle     ← 5·6단계(점수 1위부터 빈 자리 배정)
 //   buildPairMap        ← showPairRecommendation 2단계(신뢰 페어)
 //   recommendPairs      ← 3~6단계(단독 결과 안에서 페어 묶기·파트너 재배정)
-//   moveQtyOf           ← 이동수량(정상 합 - 비축 대표값)
+//   moveQtyOf           ← 이동수량(정상 합 - 비축 대표값) · reserveOf = 그 비축 대표값(행 reserve·reserve2, 2026-10-27)
 // 회귀 테스트: tests/loc-recommend.test.js 가 tests/fixtures/loc-recommend-legacy.js(원래 코드 사본)와 결과를 비교한다.
 //   옵션(zoneGuard·excludeTagged)을 끄면 원래 코드와 결과가 같아야 한다.
 //
@@ -23,8 +23,8 @@
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202610270833';
-import { capacityFor } from './mibal2-calc.js?v=202610270833';
+import { isEtcLocObj } from './mibal2-rows.js?v=202610270852';
+import { capacityFor } from './mibal2-calc.js?v=202610270852';
 
 export { isEtcLocObj };
 
@@ -74,6 +74,13 @@ export function moveQtyOf(locs, code) {
     let ts = 0, ts2 = 0;
     locs.forEach(d => { if (d.code === code) { ts += Number(d.stock || 0); ts2 = Math.max(ts2, Number(d.stock2f || 0)); } });
     return ts - ts2;
+}
+
+/** 비축재고 대표값 = 그 코드 자리들의 stock2f 최댓값(moveQtyOf 가 빼는 값과 같다). 결과 행 reserve·reserve2 칸(0 이면 칸 없음). */
+export function reserveOf(locs, code) {
+    let ts2 = 0;
+    locs.forEach(d => { if (d.code === code) ts2 = Math.max(ts2, Number(d.stock2f || 0) || 0); });
+    return ts2;
 }
 
 const optionOf = (locs, code) => {
@@ -971,6 +978,14 @@ export function runRecommend(input) {
         });
         return row;
     };
+    // 행의 비축 수량(reserve, 2번째 상품은 reserve2) — 비축이 있는 상품만 칸을 붙인다(0·없음은 옛 행 모양 그대로)
+    const withReserve = (row) => {
+        [['code', 'reserve'], ['code2', 'reserve2']].forEach(([k, rk]) => {
+            const v = row[k] != null ? reserveOf(locs, row[k]) : 0;
+            if (v > 0) row[rk] = v;
+        });
+        return row;
+    };
 
     const scored = scoreItems({ locs, demand: demandIn, ratios: input.ratios, incomingTotalByCode: incoming });
 
@@ -986,7 +1001,7 @@ export function runRecommend(input) {
             gain: round(g.gain), dc: g.dc, demandRank: ranks[r.code] || null
         };
         row.recKey = recKeyOf(row);
-        return withSizes(row);
+        return withSizes(withReserve(row));
     });
 
     // 2) 맞바꾸기 — 계획에 들 수 있는 단독(이득 >= minGain)이 쓴 코드·자리는 뺀다
@@ -1031,6 +1046,7 @@ export function runRecommend(input) {
         const near = partnerDongs(s.code).find(p => p.dong === row.toDong);
         if (near) row.pairNear = near.code;
         row.recKey = recKeyOf(row);
+        // 맞바꾸기 qty 는 자리 한 곳의 재고(비축을 빼지 않음)라 코드 전체 비축을 붙이면 뜻이 엇갈린다 — 비축 칸 없음
         return withSizes(row);
     });
 
@@ -1061,7 +1077,7 @@ export function runRecommend(input) {
                 gain: round(gA.gain + gB.gain), dc: gA.dc, dc2: gB.dc
             };
             row.recKey = recKeyOf(row);
-            return withSizes(row);
+            return withSizes(withReserve(row));
         });
     }
 

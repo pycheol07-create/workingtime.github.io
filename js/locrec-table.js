@@ -9,10 +9,10 @@
 // 다시 만들기: 머리줄 [지금 기준으로 다시 만들기](오늘 날짜일 때) · 창을 보는 중에 새 판이 오면 띠 '새 추천이 도착했습니다' [새로 보기]
 //   (store.setHold — 창이 열려 있으면 store 가 새 판을 pendingDay 에 둔다, 닫으면 바로 바꾼다).
 //   이월 행(carried)은 흐리게 '(지금 기준 추천에서 빠짐)' — [처리함]/[안 함] 없이 되돌리기만.
-import { escapeHtml } from './utils.js?v=202610270833';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL } from './lib/locrec-view.js?v=202610270833';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610270833';
-import { higherOpenThan } from './modal-above.js?v=202610270833';
+import { escapeHtml } from './utils.js?v=202610270852';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610270852';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610270852';
+import { higherOpenThan } from './modal-above.js?v=202610270852';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -35,7 +35,7 @@ const TEMPLATE = `
             <div id="locrec-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
             <div class="table-box locrec-table-wrap">
                 <table class="usage-table locrec-table">
-                    <thead><tr><th>순위</th><th title="상품코드 · 상품명(옵션) — 맞바꾸기·페어는 두 줄(A/B)">상품</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th title="이 줄만 처리하면 동선 점수(0~100)가 오르는 만큼">점수</th><th>상태</th><th>표시</th></tr></thead>
+                    <thead><tr><th>순위</th><th title="상품코드 · 상품명(옵션) — 맞바꾸기·페어는 두 줄(A/B)">상품</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량(괄호는 비축 수량)">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th title="이 줄만 처리하면 동선 점수(0~100)가 오르는 만큼">점수</th><th>상태</th><th>표시</th></tr></thead>
                     <tbody id="locrec-tbody"></tbody>
                 </table>
             </div>
@@ -68,7 +68,6 @@ export function mountLocRecTable({ store, sizeOf }) {
     const closeFns = new Set();
 
     const isOpen = () => modal.style.display === 'flex';
-    const n0 = (v) => (v == null ? '' : Number(v).toLocaleString('ko-KR'));
     // 점수 칸 툴팁 — 이 줄만 처리했을 때 동선 점수·앞쪽 자리 출고 변화(옛 문서는 칸 없음)
     const scoreTitle = (r) => (r.routeOut ? escapeHtml(ROUTE_OUT_HELP) : r.scoreGain == null ? '동선 점수 기여도 없음(이전 추천이거나 계산 안 됨)'
         : escapeHtml(`이 줄만 처리하면 동선 점수 ${r.scoreGain >= 0 ? '+' : ''}${r.scoreGain.toFixed(2)}`
@@ -78,6 +77,13 @@ export function mountLocRecTable({ store, sizeOf }) {
         let s = size;
         if (!s && id && sizeOfLoc) { try { s = sizeOfLoc(id) || ''; } catch (e) { s = ''; } }
         return locLabel(id, s) || '-';
+    };
+    // 이동수량 칸 — '1개 (비축 29)'(비축 없으면 '1개'). 피킹 수량이 적고 비축이 있으면 아래 작은 글씨 안내
+    const qtyCell = (l) => {
+        const c = qtyCellOf(l);
+        return `<td class="locrec-num locrec-qty" title="${escapeHtml(c.title)}">${escapeHtml(c.text)}`
+            + (c.reserve ? ` <span class="locrec-opt" style="font-weight:400;">(${escapeHtml(c.reserve)})</span>` : '')
+            + (c.hint ? `<div class="locrec-who" style="font-weight:400; white-space:normal;">${escapeHtml(c.hint)}</div>` : '') + '</td>';
     };
     const nameCell = (name, option) => `${escapeHtml(name || '')}${option ? ` <span class="locrec-opt">(${escapeHtml(option)})</span>` : ''}`;
 
@@ -106,7 +112,7 @@ export function mountLocRecTable({ store, sizeOf }) {
                 + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
                 + `<td class="locrec-loc locrec-from">${escapeHtml(locCell(l.from, l.fromSize))}</td>`
                 + `<td class="locrec-loc"><b class="locrec-to">${escapeHtml(locCell(l.to, l.toSize))}</b></td>`
-                + `<td class="locrec-num locrec-qty">${l.qty == null ? '' : `${n0(l.qty)}개`}</td>`
+                + qtyCell(l)
                 + `<td class="locrec-num locrec-daily">${l.daily == null ? '' : fmtNum(l.daily)}</td>`;
             if (j > 0) return `<tr class="${trCls} locrec-sub"${trAttr}>${cells}</tr>`;
             return `<tr class="${trCls}"${trAttr}>`

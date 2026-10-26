@@ -22,8 +22,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610270833';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610270833';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610270852';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610270852';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -63,11 +63,13 @@ function cleanRow(r, type) {
         scoreGain: num(r.scoreGain), frontGain: num(r.frontGain),       // 동선 점수 기여도(옛 문서는 null)
         routeOut: r.routeOut === true,                                    // 기타·SAM 자리 상품 줄 — 동선 점수 계산 대상 밖
         fromSize: str(r.fromSize).trim(), toSize: str(r.toSize).trim(),   // 자리 칸수(옛 문서는 '')
+        reserve: num(r.reserve),                                          // 비축 수량(2026-10-27~, 비축 없거나 옛 문서는 null)
         carried: r.carried === true                                       // 다시 만들 때 이월한 행(지금 기준 추천에서 빠짐)
     };
     if (r.code2 != null && str(r.code2)) {
         Object.assign(out, { code2: str(r.code2), name2: str(r.name2), option2: str(r.option2), from2: str(r.from2), to2: str(r.to2),
-            qty2: num(r.qty2), daily2: num(r.daily2), fromSize2: str(r.fromSize2).trim(), toSize2: str(r.toSize2).trim() });
+            qty2: num(r.qty2), daily2: num(r.daily2), fromSize2: str(r.fromSize2).trim(), toSize2: str(r.toSize2).trim(),
+            reserve2: num(r.reserve2) });
     }
     if (!out.recKey) out.recKey = `${out.type}:${out.code}:${out.from}>${out.to}`;
     return out;
@@ -532,16 +534,34 @@ export function locLabel(id, size) {
 
 /**
  * 표 한 추천의 상품 줄 — 단독은 1줄, 맞바꾸기·페어(code2 있음)는 2줄 [A, B].
- *   줄 = { code, name, option, from, to, fromSize, toSize, qty, daily }. 표는 줄마다 <tr> 하나(상품·현재·추천·이동수량·일출고), 순위·이득·상태·표시는 rowspan.
+ *   줄 = { code, name, option, from, to, fromSize, toSize, qty, daily, reserve }. 표는 줄마다 <tr> 하나(상품·현재·추천·이동수량·일출고), 순위·이득·상태·표시는 rowspan.
  */
 export function rowLines(r) {
     if (!r || typeof r !== 'object') return [];
     const pick = (s) => ({ code: r['code' + s], name: r['name' + s], option: r['option' + s], from: r['from' + s], to: r['to' + s],
         fromSize: str(r['fromSize' + s]).trim(), toSize: str(r['toSize' + s]).trim(),
-        qty: r['qty' + s] == null ? null : r['qty' + s], daily: r['daily' + s] == null ? null : r['daily' + s] });
+        qty: r['qty' + s] == null ? null : r['qty' + s], daily: r['daily' + s] == null ? null : r['daily' + s],
+        reserve: r['reserve' + s] == null ? null : r['reserve' + s] });
     const lines = [pick('')];
     if ((r.type === 'swap' || r.type === 'pair') && r.code2) lines.push(pick('2'));
     return lines;
+}
+
+export const RESERVE_HINT = '비축에서 채워 함께 옮기기';
+export const RESERVE_HINT_MAX = 3;      // 이동수량이 이만큼 이하(또는 일출고 이하)면 안내를 붙인다
+
+/**
+ * 이동수량 칸 — { text: '1개', reserve: '비축 29' | '', hint: '' | RESERVE_HINT, title }.
+ *   비축이 0·없음(옛 문서 포함)이면 지금처럼 '1개'만. 피킹 수량이 적고(≤ 일출고 또는 ≤ 3) 비축이 있으면 짧은 안내.
+ */
+export function qtyCellOf(line) {
+    const l = line || {};
+    const q = num(l.qty), rv = num(l.reserve), d = num(l.daily);
+    const n0 = (v) => v.toLocaleString('ko-KR');                     // 표의 다른 숫자 칸과 같은 모양
+    const text = q == null ? '' : `${n0(q)}개`;
+    if (!(rv > 0)) return { text, reserve: '', hint: '', title: '옮길 수량' };
+    const hint = q != null && q > 0 && (q <= RESERVE_HINT_MAX || (d != null && q <= d)) ? RESERVE_HINT : '';
+    return { text, reserve: `비축 ${n0(rv)}`, hint, title: `옮길 수량(피킹 자리) · 비축 ${n0(rv)}개${hint ? ` — ${hint}` : ''}` };
 }
 
 // ── 다시 만들기 ──────────────────────────────────────────────────────────────
