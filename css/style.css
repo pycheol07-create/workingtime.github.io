@@ -688,6 +688,9 @@ html.dark .depth-panel {
 
     /* 업무현황 커버플로우 좌우 버튼 — 작게, 카드를 덜 가리게 */
     .task-carousel-arrow { width: 32px; height: 32px; opacity: .85; }
+    /* 카드를 넓힌 뒤(2026-10-26) 화살표가 카드 가장자리에 걸치지 않게 바깥 여백 쪽으로 */
+    .task-carousel-arrow.prev { left: -30px; }
+    .task-carousel-arrow.next { right: -30px; }
 
     /* 주소창 높이 변화 대응 (Tailwind CDN 스타일이 뒤에 붙으므로 !important) */
     .h-screen { height: 100vh !important; height: 100dvh !important; }
