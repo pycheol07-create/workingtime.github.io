@@ -12,8 +12,8 @@
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610231233';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610231233';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610260906';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610260906';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -259,6 +259,55 @@ export function recStrip({ latest, key, todayKey, parsed, marks, nowMs, extraWar
     if (parsed.error) warns.push(parsed.error);
     const rows = stripRows({ latest, key, todayKey, parsed, marks, nowMs });
     return { ...base, n: rows.length, newN: rows.filter(x => x.st.label === '새로').length };
+}
+
+/**
+ * 업무 예상 '로케이션 동선관리' 수량에 쓸 추천 날짜(js/ui-history-prediction.js) → 'YYYYMMDD' 또는 ''(쓸 추천 없음)
+ *   대상 날짜 추천이 ok 면 그날. 대상이 오늘 이후(미래·06:40 전 오늘)면 latestDay(ok 이고 최근 DAYS_SHOWN 일 안, 대상보다 앞)를 쓴다.
+ *   지난 날짜는 그날 것만(다른 날 추천을 끌어오지 않는다).
+ */
+export function pickRecDay(latest, targetKey, todayKey) {
+    const days = (latest && latest.days) || {};
+    const t = normDay(targetKey), today = normDay(todayKey);
+    if (!t || !today) return '';
+    if (days[t] && days[t].status === 'ok') return t;
+    if (t < today) return '';
+    const ld = normDay(latest && latest.latestDay);
+    if (!ld || ld > t || !days[ld] || days[ld].status !== 'ok') return '';
+    return lastDays(today, DAYS_SHOWN).includes(ld) ? ld : '';
+}
+
+/**
+ * 그날 추천 건수 — 접힌 띠 'N건'(stripRows)과 같은 기준('안 함' 숨김 제외, 세 탭 합). 표 자료가 없거나 깨졌으면 null
+ */
+export function recCount({ latest, key, todayKey, parsed, marks, nowMs }) {
+    if (!parsed || parsed.error) return null;
+    return stripRows({ latest, key, todayKey, parsed, marks, nowMs }).length;
+}
+
+/**
+ * 업무 예상 '로케이션 동선관리' 값에 추천 건수를 입힌다(js/ui-history-prediction.js locRecValueFor) → 새 결과 또는 null(base 그대로)
+ *   base = 기존 자동 추정 { value, source, detail, dayValue?, prob?, uncertain? } — 하는 날·안 하는 날 판정은 base 그대로 둔다.
+ *   info = { days, latestDay, day, n } (읽은 추천) · null 이면 null.
+ *   하는 날(base.value > 0) → { value: n, source: 'locrec', dayValue: n } (n 이 0 이면 0)
+ *   안 하는 날·애매한 날(값 0, dayValue > 0) → 값·uncertain 그대로, dayValue 만 n
+ *   그 밖(공휴일 holiday-off 등 dayValue 없음)·쓸 추천 날짜가 info.day 와 다름(지난 날짜 등) → null
+ *   ⚠️ 추천은 밀린 목록이라 오늘 이후 하는 날마다 같은 건수가 깔린다 — 주간 합계는 실제보다 클 수 있다(사용자 요구대로 둠).
+ */
+export function applyLocRecCount(base, info, targetKey, todayKey) {
+    if (!base || !info || !Number.isFinite(Number(info.n))) return null;
+    const day = pickRecDay({ days: info.days, latestDay: info.latestDay }, targetKey, todayKey);
+    if (!day || day !== info.day) return null;
+    const n = Math.max(0, Math.round(Number(info.n)));
+    const note = `로케이션 변경 추천 ${n.toLocaleString('ko-KR')}건(${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)} 추천, 안 함 제외) — 하는 날 판정은 지난 기록 빈도`;
+    if ((Number(base.value) || 0) > 0) {
+        return { value: n, source: 'locrec', prob: base.prob, dayValue: n,
+                 detail: note + (base.detail ? `\n\n[하는 날 판정]\n${base.detail}` : '') };
+    }
+    if ((Number(base.dayValue) || 0) > 0) {
+        return { ...base, dayValue: n, detail: (base.detail ? `${base.detail}\n` : '') + `진행한다면 ${note}` };
+    }
+    return null;
 }
 
 /** 탭 행 수 요약 */

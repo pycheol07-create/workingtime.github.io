@@ -3,35 +3,37 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610231233';
+import { predictFutureTrends } from './analysis-logic.js?v=202610260906';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610231233';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610231233';
-import { runDay } from './lib/refill-view.js?v=202610231233';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610231233';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610231233';
-import * as State from './state.js?v=202610231233';
-import { saveView } from './view-state.js?v=202610231233';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610231233';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610231233';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610260906';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610260906';
+import { runDay } from './lib/refill-view.js?v=202610260906';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202610260906';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202610260906';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610260906';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610260906';
+import * as State from './state.js?v=202610260906';
+import { saveView } from './view-state.js?v=202610260906';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610260906';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610260906';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610231233';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610260906';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610231233';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610231233';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610260906';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610260906';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610231233';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610231233';
-import { taskUph, recentDays } from './task-throughput.js?v=202610231233';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610260906';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610260906';
+import { taskUph, recentDays } from './task-throughput.js?v=202610260906';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610231233';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610260906';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610231233';
-import { D } from './d-chart.js?v=202610231233';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610231233';
+         excessOffDays } from './lib/backlog-carry.js?v=202610260906';
+import { D } from './d-chart.js?v=202610260906';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610260906';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -1725,6 +1727,11 @@ const INSP_PACKS_STALE_MS = 36 * 60 * 60 * 1000;   // 수집은 매일 07:30 무
 //    지시서가 있는 날의 채우기 자동값 = 지시서 행 수(상품옵션 줄 수 — 낱개 수량 아님). 없는 날(내일 등)은 예전 빈도 계산.
 let refillDays = null;            // null = 아직 못 읽음 / { YYYYMMDD: {status, rows, fillQty, …} }
 let refillSchedule = null;        // refillLatest.schedule — 지시서를 만드는 날인지(runDay) 판정용
+// 🧭 로케이션 변경 추천(integrations/locRecLatest·locRec_YYYYMMDD + locRecWork/marks — 로케이션추천이 매일 06:40 씀).
+//    미발과 같이 읽는다(2026-10-26). '로케이션 동선관리'를 하는 날(빈도 추정이 0보다 큼)의 수량 = 그날 추천 건수
+//    (로케이션관리 카드 'N건'과 같은 기준 — 안 함 제외). 하는 날·안 하는 날 판정은 예전 그대로.
+//    읽기에 실패하면 직전 값을 그대로 두고(처음이면 null), 읽었는데 쓸 추천이 없으면 null → 예전 추정값 그대로.
+let locRecInfo = null;            // null = 아직 못 읽음·추천 없음 / { days, latestDay, day: 'YYYYMMDD', n }
 // 📤 직진·에이블리 전송값(ZikjinData) — 미발과 같이 읽는다(규칙: js/lib/ship-transmit.js).
 //    읽기만 한다. 못 읽으면 직전 값을 그대로 둔다.
 //    ⚠️ ZikjinData 에는 마지막 전송일 하루치만 남는다(다음 전송이 지난 날짜 행을 지운다).
@@ -1815,6 +1822,28 @@ const transmitNoneForDate = (dateStr, taskKey, historyData) => {
     return r.result;
 };
 
+/** 로케이션 변경 추천 건수 읽기 — locRecLatest·locRecWork/marks 를 읽고, 쓸 날(오늘 ok 면 오늘, 아니면 최신)의 locRec_YYYYMMDD 하나를 더 읽는다.
+ *  @returns {Promise<{days, latestDay, day, n}|null>} 쓸 추천이 없으면 null. 읽기 실패는 throw(부르는 쪽이 직전 값 유지) */
+const loadLocRecInfo = async () => {
+    const base = ['artifacts', 'team-work-logger-v2'];
+    const [ls, ms] = await Promise.all([
+        getDoc(doc(State.db, ...base, 'integrations', 'locRecLatest')),
+        getDoc(doc(State.db, ...base, 'locRecWork', 'marks'))
+    ]);
+    if (!ls.exists()) return null;
+    const latest = ls.data() || {};
+    const today = recDayKey(Date.now());
+    const day = pickRecDay(latest, today, today);
+    if (!day) return null;
+    const ds = await getDoc(doc(State.db, ...base, 'integrations', `locRec_${day}`));
+    if (!ds.exists()) return null;
+    const md = ms.exists() ? (ms.data() || {}) : {};
+    const n = recCount({ latest, key: day, todayKey: today, parsed: parseRecDay(ds.data()),
+                         marks: (md.marks && typeof md.marks === 'object') ? md.marks : {}, nowMs: Date.now() });
+    if (n == null) return null;
+    return { days: latest.days || {}, latestDay: latest.latestDay || '', day, n };
+};
+
 /** 오늘 MIBAL_HISTORY 를 읽었는지(10분마다 다시 읽는다). 읽기 실패해도 throw 하지 않는다.
  *  직진·에이블리 전송값(ZikjinData)도 여기서 같이 읽는다 — 그쪽 성공 여부는 반환값이 아니라 isTransmitFresh() 로 본다.
  *  @returns {Promise<boolean>} 오늘 읽은 값이 있으면 true */
@@ -1827,13 +1856,17 @@ export async function ensureMibalHistory() {
     mibalLoading = (async () => {
         try {
             // 세 읽기는 서로 독립이다 — 하나가 실패해도 나머지는 반영한다
-            const [s, inc, zk, ip, rf] = await Promise.all([
+            const [s, inc, zk, ip, rf, lr] = await Promise.all([
                 getDoc(doc(State.db, 'ChinaStockGoods', 'MIBAL_HISTORY')).catch(e => { console.warn('[업무 예상] 미발 이력 읽기 실패:', e); return 'ERR'; }),
                 getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'incomingSchedule')).catch(() => 'ERR'),
                 getDocs(collection(State.db, 'ZikjinData')).catch(() => 'ERR'),
                 getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks')).catch(() => 'ERR'),
-                getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'refillLatest')).catch(() => 'ERR')
+                getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'refillLatest')).catch(() => 'ERR'),
+                loadLocRecInfo().catch(e => { console.warn('[업무 예상] 로케이션 변경 추천 읽기 실패 — 직전 값을 씁니다:', e); return 'ERR'; })
             ]);
+            // 로케이션 변경 추천 건수 — 읽기 실패면 직전 값을 그대로 둔다(채우기·전송과 같은 규칙).
+            // 정상으로 읽었는데 쓸 추천이 없으면 null(예전 추정값 그대로)
+            if (lr !== 'ERR') locRecInfo = lr;
             // 채우기 지시서 요약 — 못 읽으면 직전 값을 그대로 둔다(처음이면 null → 빈도 계산)
             if (rf !== 'ERR') {
                 const days = rf && rf.exists() ? (rf.data() || {}).days : null;
@@ -1962,8 +1995,22 @@ const mibalNote = (m) => `중국 입고 미발수량 +${m.qty.toLocaleString()} 
  *  나머지(ai·cadence·last7)는 **과거 패턴의 관성**이라 쉬는 날에 깔아 둘 이유가 없다. */
 const EVIDENCE_MODES = new Set(['incoming', 'china-linked', 'incoming-boxes']);
 
-/** 수기값(실측·예정)을 뺀 순수 자동 추정값만. 예정 물량 입력 화면의 프리필이 쓴다. */
+/** 🧭 '로케이션 동선관리' — 하는 날·안 하는 날은 기존 추정(base)대로 두고, 수량만 로케이션 변경 추천 건수로 바꾼다.
+ *  판정 규칙은 js/lib/locrec-view.js applyLocRecCount(테스트 있음). 추천을 못 읽었거나 쓸 날 추천이 없으면 null(base 그대로).
+ *  ⚠️ 추천은 밀린 목록이라 오늘 이후 하는 날마다 같은 건수가 깔린다 — 주간 합계는 실제보다 클 수 있다(사용자 요구대로 둠). */
+const locRecValueFor = (dateStr, task, base) => {
+    if (!task || task.key !== LOCREC_TASK) return null;
+    return applyLocRecCount(base, locRecInfo, dateStr, recDayKey(Date.now()));
+};
+
+/** 수기값(실측·예정)을 뺀 순수 자동 추정값만. 예정 물량 입력 화면의 프리필이 쓴다.
+ *  로케이션 동선관리는 아래 estimatedBaseFor 결과에 변경 추천 건수를 입힌다(locRecValueFor). */
 const estimatedValueFor = (dateStr, task, historyData) => {
+    const base = estimatedBaseFor(dateStr, task, historyData);
+    return locRecValueFor(dateStr, task, base) || base;
+};
+
+const estimatedBaseFor = (dateStr, task, historyData) => {
     const { mode, arg } = parseAutoMode(task.auto);
 
     // 🧺 채우기 지시서가 나온 날은 그 행 수(상품옵션 줄 수)를 쓴다 — 실제로 채울 목록이라 빈도 추정보다 정확하다
@@ -2083,6 +2130,10 @@ const SOURCE_BADGE = {
                    + ' 둘 다 없는 날은 0 입니다.' },
     refill:   { text: '지시서', muted: true,
                 tip: '그날 채우기 지시서의 줄 수(상품옵션별 개수 — 낱개 수량이 아님)입니다. 지시서는 매일 08:20 무렵 만들어지므로 내일 이후는 예전처럼 빈도로 추정합니다.' },
+    locrec:   { text: '변경 추천', muted: true,
+                tip: '로케이션관리 「로케이션 변경 추천」의 그날 건수입니다(단독·맞바꾸기·페어 합, 「안 함」 제외 — 카드의 N건과 같은 기준).'
+                   + ' 하는 날인지는 예전처럼 지난 기록 빈도로 정하고, 하는 날이면 수량만 이 건수로 둡니다.'
+                   + ' 추천은 매일 06:40 무렵 만들어지므로 그 전·내일 이후는 가장 최근 추천을 씁니다.' },
     'insp-packs': { text: '패킹 기준', muted: true,
                 tip: '그날 도착하는 패킹의 품목으로 샘플검수 장수를 셌습니다(샘플검수 「패킹에서 만들기」와 같은 기준 — 공급처·색상마다 1장).' },
     'china-linked': { text: '중국제작 연동', muted: true,
@@ -2117,7 +2168,7 @@ const paintDayApply = (task, dayValue) => {
 };
 
 /** 접기 사유에 덮이면 안 되는 출처 — 그 자체가 '왜 이 값인지'의 답이다 */
-const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off', 'ai-mibal', 'transmit', 'transmit-none', 'refill']);
+const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off', 'ai-mibal', 'transmit', 'transmit-none', 'refill', 'locrec']);
 
 /** 값의 출처를 항목 아래에 표시 */
 const markSourceBadge = (task, source, detail = '', dayValue = null) => {
@@ -2738,7 +2789,9 @@ const runSimulation = ({ silent = false } = {}) => {
             if ((getPlanned(baseDate, t.key) || 0) > 0) return;
             // 기준 속도가 없으면 물량을 넣어도 시간이 0 이라 '진행 시' 결과가 같게 나온다 — 혼란만 준다
             if (!(taskUPH[t.key] > 0)) return;
-            const info = cadenceValueFor(이력(), t.key, baseDate);
+            // 판정은 빈도 그대로, '진행 시' 수량만 칸 아래 '하는 날' 값과 같게(로케이션 동선관리 = 변경 추천 건수)
+            const cad = cadenceValueFor(이력(), t.key, baseDate);
+            const info = locRecValueFor(baseDate, t, cad) || cad;
             if (info.uncertain && info.dayValue > 0) {
                 maybeTasks.push({ key: t.key, label: t.label, qty: info.dayValue, prob: info.prob });
             }
@@ -3230,7 +3283,8 @@ window.__forecastForDate = async (dateStr) => {
             if (todayActualQty(이력(), date, t.key) != null) return;
             if ((getPlanned(date, t.key) || 0) > 0) return;
             if (!(taskUPH[t.key] > 0)) return;   // 기준 속도가 없으면 '진행 시'도 같은 값이라 혼란만 준다
-            const info = cadenceValueFor(이력(), t.key, date);
+            const cad = cadenceValueFor(이력(), t.key, date);
+            const info = (cad && locRecValueFor(date, t, cad)) || cad;   // 수량만 화면 '하는 날' 값과 같게
             if (info && info.uncertain && info.dayValue > 0) {
                 maybeTasks.push({ key: t.key, label: t.label,
                                   qty: Math.round(Number(info.dayValue) || 0),

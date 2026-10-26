@@ -1,26 +1,29 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202610231233';
-import * as State from './state.js?v=202610231233';
+import * as DOM from './dom-elements.js?v=202610260906';
+import * as State from './state.js?v=202610260906';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202610231233';
-import { updateDailyData } from './app-data.js?v=202610231233';
+import { render } from './app.js?v=202610260906';
+import { updateDailyData } from './app-data.js?v=202610260906';
 
-import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610231233';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610231233';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610260906';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610260906';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
+    applyPlannedPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202610231233';
+} from './ui.js?v=202610260906';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202610231233';
-import { saveProgress, saveDayDataToHistory, previewDayClose } from './history-data-manager.js?v=202610231233';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610231233';
+} from './app-logic.js?v=202610260906';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate } from './history-data-manager.js?v=202610260906';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202610260906';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202610260906';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610260906';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
@@ -369,6 +372,10 @@ export function setupMainScreenListeners() {
         const doneTodayTasks = [...new Set((State.appState.workRecords || []).map(r => r && r.task).filter(Boolean))];
 
         renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes || [], missingTasksList, State.appState.confirmedZeroTasks || [], doneTodayTasks);
+        // 오늘 작업 기록이 있는데 처리량이 빈 업무는 미리 저장해 둔 오늘 예정 물량으로 채운다(2026-10-26)
+        const canon = (n) => aliasTaskName(n, State.appConfig);
+        applyPlannedPrefill(plannedPrefill(State.appState.taskQuantities, aliasNameMap(getPlannedQuantitiesForDate(getTodayDateString()), State.appConfig),
+            State.appState.confirmedZeroTasks, doneTasksOf(State.appState.workRecords, State.appConfig.quantityTaskTypes || [], canon), canon));
 
         const title = document.getElementById('quantity-modal-title');
         if (title) title.textContent = '오늘의 처리량 입력';

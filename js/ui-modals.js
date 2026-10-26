@@ -1,9 +1,9 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610231233';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610260906';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202610231233';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610231233';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202610260906';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610260906';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -219,6 +219,48 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
             }
         });
     });
+};
+
+// 오늘 처리량 창 — 비어 있는 업무 칸에 미리 저장해 둔 예정 물량을 채운다(2026-10-26).
+//   어떤 칸을 채울지는 lib/planned-prefill.js. 채운 칸은 호박색 + '예정값' 안내로 구분하고, 칸을 고치거나 0건 확인을 누르면 표시를 뗀다.
+//   [저장]을 누르면 채운 값이 그대로 처리량으로 저장된다(사용자 결정 — 고치고 저장하라고 안내한다).
+//   renderQuantityModalInputs 바로 뒤에 부른다. 돌려주는 값: 채운 칸 수.
+export const applyPlannedPrefill = (fill = {}) => {
+    const container = document.getElementById('modal-task-quantity-inputs');
+    if (!container) return 0;
+    let n = 0;
+    Object.entries(fill || {}).forEach(([task, value]) => {
+        const input = container.querySelector(`#${CSS.escape(`modal-quantity-${task}`)}`);
+        if (!input || input.value !== '') return;
+        input.value = String(value);
+        // 누락 경고(빨강·'(누락됨)')가 호박색을 덮으므로 채운 칸에서는 뗀다 — 값이 들어 있는데 누락이라고 보이지 않게
+        const label = container.querySelector(`label[for="${CSS.escape(`modal-quantity-${task}`)}"]`);
+        input.classList.remove('warning-missing-quantity');
+        if (label) { label.classList.remove('text-yellow-700', 'font-bold'); label.textContent = `${task} (예정값)`; }
+        input.classList.add('planned-prefill', '!bg-amber-50', '!border-amber-300', 'dark:!bg-amber-900/30');
+        const note = document.createElement('p');
+        note.className = 'planned-prefill-note mt-1 text-xs font-medium text-amber-700 dark:text-amber-300';
+        note.textContent = '예정값 — 실제 처리량으로 고쳐서 저장하세요';
+        input.insertAdjacentElement('afterend', note);
+        const ac = new AbortController();   // 칸을 고치거나 0건 확인하면 두 리스너를 함께 뗀다(사람이 친 값을 지우지 않게)
+        const unmark = () => {
+            ac.abort();
+            input.classList.remove('planned-prefill', '!bg-amber-50', '!border-amber-300', 'dark:!bg-amber-900/30');
+            if (label && label.textContent === `${task} (예정값)`) label.textContent = task;
+            note.remove();
+        };
+        input.addEventListener('input', unmark, { signal: ac.signal });
+        container.querySelector(`#${CSS.escape(`modal-confirm-zero-${task}`)}`)
+            ?.addEventListener('change', (e) => { if (e.target.checked) { input.value = ''; unmark(); } }, { signal: ac.signal });
+        n++;
+    });
+    if (n > 0) {
+        const head = document.createElement('p');
+        head.className = 'planned-prefill-note col-span-full mb-1 text-xs text-amber-700 dark:text-amber-300';
+        head.textContent = `처리량이 비어 있는 ${n}개 업무에 예정 물량을 미리 채웠습니다(호박색 칸). 저장하면 그 값이 처리량으로 저장됩니다.`;
+        container.prepend(head);
+    }
+    return n;
 };
 
 export const renderTaskSelectionModal = (taskGroups = []) => {

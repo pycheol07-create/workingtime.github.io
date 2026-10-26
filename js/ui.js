@@ -98,7 +98,7 @@ import {
     renderDashboardLayout,
     updateSummary,
     applyDynamicSidebar // ✨ 신규 임포트
-} from './ui-main.js?v=202610231233';
+} from './ui-main.js?v=202610260906';
 
 export {
     renderTaskAnalysis,
@@ -122,7 +122,7 @@ import {
     renderReportWeekly,
     renderReportMonthly,
     renderReportYearly
-} from './ui-history.js?v=202610231233';
+} from './ui-history.js?v=202610260906';
 
 export {
     renderWeeklyHistory,
@@ -140,14 +140,16 @@ export {
 // --- 3. Modal UI 함수들 가져오기 및 내보내기 ---
 import {
     renderQuantityModalInputs,
+    applyPlannedPrefill,
     renderTaskSelectionModal,
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderManualAddModalDatalists
-} from './ui-modals.js?v=202610231233';
+} from './ui-modals.js?v=202610260906';
 
 export {
     renderQuantityModalInputs,
+    applyPlannedPrefill,
     renderTaskSelectionModal,
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
