@@ -237,7 +237,6 @@ html.dark #personnel-hover-tooltip { background: #2A3038; box-shadow: 0 0 0 1px 
 #dash-root .tc-head { background: transparent; border-bottom: 1px solid var(--c-line-soft); }
 #dash-root .d-card-inner.is-paused .tc-head, #dash-root .d-card-inner.is-paused .d-line { border-color: var(--c-warn-line); }
 #dash-root .tc-title { color: var(--c-text); font-weight: 700; }   /* 업무 이름 — 한 단계 진하게(2026-10-26) */
-#dash-root .tc-head.is-on .tc-title { display: inline-block; background: var(--c-accent-soft); border-radius: var(--r-sm); padding: 1px 8px; margin-left: -8px; }   /* 진행 중이면 업무 이름에만 옅은 파랑(머리 전체 아님) — 정지 카드는 카드 전체가 노란 바탕 */
 #dash-root .tc-time { color: var(--c-text-2); font-weight: 500; }
 #dash-root .tc-head.is-on .ongoing-duration { color: var(--c-accent-deep); font-weight: 600; }
 #dash-root .tc-head.is-paused .ongoing-duration { color: var(--c-warn-text); font-weight: 600; }
