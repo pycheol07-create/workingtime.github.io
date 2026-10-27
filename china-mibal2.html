@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202610271148"></script>
+    <script src="js/theme-boot.js?v=202610271157"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 부족수량 관리(신규·시험)</title>
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다.
          스캐너 연동(시험)은 읽기 전용 — 쓰기 버튼은 disabled(js/china-mibal2-scan.js, tests/mibal2-readonly.test.js). -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610271148">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610271148">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610271148">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610271148">
+    <link rel="stylesheet" href="css/suit.css?v=202610271157">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610271157">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610271157">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610271157">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -114,20 +114,17 @@
         body[data-view="daily"] .live-only { display: none !important; }
 
         /* 보기 항목: 간단히(기본) / 전체 — JS 가 body[data-cols] 를 바꾼다(이 브라우저에 기억).
-           간단히 = No·코드·상품명·피킹로케이션·적재량·도착·입고확인·차이(도착−입고)·총재고·미발수량·남는 부족수량·피킹 적재·비축 적재·플래그 (열 순서 = 아래 thead).
+           간단히 = No·코드·상품명·피킹로케이션·적재량·도착·총재고·미발수량·남는 부족수량·피킹 적재·비축 적재·플래그 (열 순서 = 아래 thead).
            숨긴 칸도 행을 누르면 '계산 근거'에 다 나오고, 엑셀 받기는 늘 전체 칸이다. */
         body[data-cols="simple"] .full-only { display: none !important; }
         body[data-cols="simple"] .list-table { min-width: 860px; }
-        body[data-cols="simple"] .list-table tr:not(.detail-row) > :is(:nth-child(n+10):nth-child(-n+15), :nth-child(18), :nth-child(19), :nth-child(n+22):nth-child(-n+24)) { display: none; }
+        body[data-cols="simple"] .list-table tr:not(.detail-row) > :is(:nth-child(n+8):nth-child(-n+13), :nth-child(16), :nth-child(17), :nth-child(n+20):nth-child(-n+22)) { display: none; }
         /* 간단히에서는 기존 계산기와의 차이 색(diff-big)을 빼고, 확인 필요(노랑)만 남긴다 */
         body[data-cols="simple"] .list-table tbody tr.diff-big:not(:hover) td { background: var(--c-surface); }
         body[data-cols="simple"] .list-table tbody tr.diff-big:not(:hover) td.new-mibal { background: var(--c-accent-row); }
         body[data-cols="simple"] .list-table tbody tr.diff-big.need-check:not(:hover) td { background: var(--c-warn-bg); }
 
-        /* 스캐너 연동(시험 — 읽기 전용) — 입고확인·차이 색은 기존 미발계산기와 같다 */
-        .list-table tbody tr td.conf-bad { background: var(--c-risk-soft); color: var(--c-risk-text); font-weight: 900; }
-        .list-table tbody tr td.conf-scan { color: var(--c-accent-deep); font-weight: 900; }
-        .list-table tbody tr td.in-diff-cell { font-weight: bold; }
+        /* 스캐너 연동(시험 — 읽기 전용) 줄·창 */
         .scan-bar { background: var(--c-surface); border: 1px dashed var(--c-line-strong); border-radius: var(--r-card); padding: 6px 12px; }
         .scan-bar .scan-title { font-weight: 600; color: var(--c-text-2); white-space: nowrap; }
         .scan-bar .scan-sep { color: var(--c-line-strong); }
@@ -279,8 +276,6 @@
                     <th class="sortable" data-sort="loc">피킹로케이션</th>
                     <th class="sortable" data-sort="cap" title="적재량 = 대표 피킹자리(첫 자리 하나)의 적재량. 작은 글자 = 출처(개별 수정값 · 구역 설정 · ★기본 · 구역 기본 · 없음)">적재량(출처)</th>
                     <th class="sortable" data-sort="arr" title="도착 A = 선택한 출고일의 이번 입고 도착수량">도착</th>
-                    <th class="sortable" data-sort="conf" title="입고확인 = 앱 스캔 입고 합(미발 초기화 이후 전체, 출고일 구분 없음) → 없으면 기존 계산기에 손으로 넣은 값. 기존 미발계산기와 같은 규칙 · 오늘(실시간) 보기만">입고확인</th>
-                    <th class="sortable" data-sort="inDiff" title="차이 = 도착 − 입고확인. 양수(빨강) = 부족입고, 음수(파랑) = 과입고, – = 미스캔(입고확인 빈칸). 기존 미발계산기 '차이' 열과 같다">차이(도착−입고)</th>
                     <th class="sortable" data-sort="stock" title="총재고 T = 이지어드민 정상재고(bad=0) — 비축 포함">총재고</th>
                     <th class="sortable" data-sort="bstock" title="비축 B = 이지어드민 불량창고(=비축창고) 재고(bad=1). 음수는 0, 모르면 –">비축</th>
                     <th class="sortable" data-sort="pstock" title="피킹재고 P = 총재고 − 비축 (음수면 피킹에서 빚진 상태)">피킹재고</th>
@@ -301,7 +296,7 @@
                 </tr>
             </thead>
             <tbody id="table-body">
-                <tr><td colspan="25" class="t-3" style="text-align:center; padding:50px;">불러오는 중…</td></tr>
+                <tr><td colspan="23" class="t-3" style="text-align:center; padding:50px;">불러오는 중…</td></tr>
             </tbody>
         </table>
     </div>
@@ -374,9 +369,9 @@
     <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610271148"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610271148"></script>
-    <script type="module" src="js/page-gate.js?v=202610271148" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202610271148"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610271157"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610271157"></script>
+    <script type="module" src="js/page-gate.js?v=202610271157" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202610271157"></script>
 </body>
 </html>
