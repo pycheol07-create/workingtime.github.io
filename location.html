@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202610270952"></script>
+    <script src="js/theme-boot.js?v=202610270959"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -11,10 +11,10 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610270952">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610270952">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610270952">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610270952">
+    <link rel="stylesheet" href="css/suit.css?v=202610270959">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610270959">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610270959">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610270959">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -530,7 +530,15 @@
             overflow-y: auto;
             display: flex; flex-direction: column; gap: 24px;
         }
-        .dash-toolbar { display: flex; justify-content: space-between; align-items: center; }
+        .dash-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        /* 제목 옆 작은 아이콘 버튼(새로고침·배치 편집) — 오른쪽은 [지금 재고로 다시 만들기] 전용 */
+        .dash-title-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+        .dash-title-group h2 { margin-right: 6px; }
+        .dash-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0;
+            border: 0; border-radius: 8px; background: transparent; color: var(--c-text-3); cursor: pointer; }
+        .dash-icon-btn:hover { background: var(--c-fill-2, rgba(0,0,0,.06)); color: var(--c-text); }
+        .dash-icon-btn:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; }
+        .dash-icon-btn svg { width: 17px; height: 17px; }
         .dash-toolbar h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--c-text); }
 
         /* KPI 띠 — 한 상자 안에 칸으로 나눔 */
@@ -565,7 +573,8 @@
         .dash-toolbar-right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
         .dash-toolbar [hidden] { display: none !important; }
         /* 머리줄 [지금 재고로 다시 만들기] 상태 문구(js/rebuild-bar.js) */
-        .rebuild-note { font-size: 12.5px; color: var(--c-text-3); max-width: 560px; text-align: right; }
+        .rebuild-note { font-size: 12.5px; color: var(--c-text-3); max-width: 480px; min-width: 0; text-align: right;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* 한 줄 — 전체 문구는 마우스를 올리면(title) */
         .rebuild-note.is-accent { color: var(--c-accent-deep); }
         .rebuild-note.is-warn { color: var(--c-warn-text); }
         .dash-layout-editbar { display: flex; align-items: center; gap: 8px; }
@@ -1056,11 +1065,14 @@
     <div id="view-locdash" class="content-view active">
         <div class="dash-container">
             <div class="dash-toolbar">
-                <h2>로케이션 현황</h2>
+                <div class="dash-title-group">
+                    <h2>로케이션 현황</h2>
+                    <button type="button" class="dash-refresh dash-icon-btn" title="새로고침" aria-label="새로고침" onclick="window.renderLocationDashboard && window.renderLocationDashboard()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg></button>
+                    <!-- 패널 배치 편집 (js/locdash-layout.js) — 배치는 이 PC·브라우저에만 저장 -->
+                    <button type="button" class="dash-layout-edit dash-icon-btn" id="dash-layout-edit" title="배치 편집(패널 순서·크기)" aria-label="배치 편집"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+                </div>
                 <div class="dash-toolbar-right">
                     <span class="dash-layout-msg" id="dash-layout-msg" hidden></span>
-                    <!-- 패널 배치 편집 (js/locdash-layout.js) — 배치는 이 PC·브라우저에만 저장 -->
-                    <button type="button" class="dash-layout-edit btn btn-secondary btn-sm" id="dash-layout-edit">배치 편집</button>
                     <div class="dash-layout-editbar" id="dash-layout-editbar" hidden>
                         <span class="dash-layout-hint">끌어서 순서 변경 · 오른쪽 아래 모서리로 크기 조절 · 위에서부터 순서대로 채워집니다</span>
                         <button type="button" class="btn btn-ghost btn-sm" id="dash-layout-reset">기본 배치로 되돌리기</button>
@@ -1070,7 +1082,6 @@
                     <!-- 지금 재고로 다시 만들기(js/rebuild-bar.js) — 채우기 지시서·변경 추천을 한 번에(사무실 PC 가 5분 안에). 두 권한 중 하나라도 있으면 보인다 -->
                     <span class="rebuild-note" id="rebuild-note" role="status" hidden></span>
                     <button type="button" class="btn btn-secondary btn-sm" id="rebuild-btn" data-feature="location.refill|location.locrec" hidden disabled>지금 재고로 다시 만들기</button>
-                    <button class="dash-refresh btn btn-secondary btn-sm" onclick="window.renderLocationDashboard && window.renderLocationDashboard()">새로고침</button>
                 </div>
             </div>
 
@@ -1716,10 +1727,10 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610270952"></script>
+    <script type="module" src="js/location.js?v=202610270959"></script>
     <!-- 권한 개편 5단계: location.js 가 만든 window.* 위험 함수를 바깥에서 감싼다(반드시 location.js 다음) -->
-    <script type="module" src="js/location-guard.js?v=202610270952"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610270952"></script>
+    <script type="module" src="js/location-guard.js?v=202610270959"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610270959"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1797,10 +1808,10 @@
             if (typeof window.paintIncomingBasis === 'function') window.paintIncomingBasis(sidebar.classList.contains('open'));
         }
     </script>
-    <script src="js/connection-banner.js?v=202610270952"></script>
-    <script src="js/modal-esc.js?v=202610270952"></script>
-    <script type="module" src="js/modal-drag.js?v=202610270952"></script>
-    <script type="module" src="js/page-gate.js?v=202610270952" data-perm-page="location.view"></script>
-    <script type="module" src="js/app-shell.js?v=202610270952"></script>
+    <script src="js/connection-banner.js?v=202610270959"></script>
+    <script src="js/modal-esc.js?v=202610270959"></script>
+    <script type="module" src="js/modal-drag.js?v=202610270959"></script>
+    <script type="module" src="js/page-gate.js?v=202610270959" data-perm-page="location.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610270959"></script>
 </body>
 </html>

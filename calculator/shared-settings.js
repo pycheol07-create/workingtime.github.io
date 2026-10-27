@@ -28,12 +28,12 @@
 //   같은 트랜잭션에서 공개 사본도 쓴다(읽기 둘을 먼저 하고 그다음 쓰기 — Firestore 트랜잭션 규칙).
 //   rev = 원본 문서의 rev(저장마다 +1, 이 파일이 처음부터 써 온 칸). 사본 rev 는 원본 rev 와 같게 둔다.
 // 이름: mainConfig.memberEmails(이름 → 이메일) 역매핑 → systemAccounts → '알 수 없음'. 이메일은 이력에 넣지 않는다.
-import { db, auth } from './firebase-init.js?v=202610270952';
+import { db, auth } from './firebase-init.js?v=202610270959';
 import { doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
     planSave, historyEntries, appendHistory, updateMeta, nameForEmail, labelOf, formatValue, publicMirror
-} from '../js/lib/calc-settings.js?v=202610270952';
+} from '../js/lib/calc-settings.js?v=202610270959';
 
 const DOC_PATH = 'artifacts/team-work-logger-v2/persistent_data/calculatorSettings';
 const CONFIG_PATH = 'artifacts/team-work-logger-v2/config/mainConfig';
