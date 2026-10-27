@@ -18,13 +18,14 @@
 //   locRecWork/request              { requestedAt, by, day }   ← 머리줄 [지금 재고로 다시 만들기](js/rebuild-bar.js, 덮어쓰기 — 채우기 권한이
 //                                     있으면 refillWork/request 에). 서버는 두 문서 중 늦은 쪽 · 채우기요청(5분)이 추천.py --요청확인 을 부른다
 //   locRecLatest.req                { state: running|done|failed|rejected|waiting, note, day, count, autoCount, lastReqAt, startedAt, at,
-//                                     source: request|auto, autoStockAt(ms), max, cooldownMin, autoMax }  ← 다시 만들기 상태(서버 다시만들기.py)
+//                                     source: request|auto, autoStockAt(ms), max, cooldownMin, autoMax, waitUntil(ms), lastRun }
+//                                     ← 다시 만들기 상태(서버 다시만들기.py). waiting 칸·문구는 채우기 refillLatest.req 와 같다
 //   다시 만든 locRec_오늘           + rev(1부터) · source · requestedBy · 행 carried:true(이월 — 지금 기준 추천에서 빠졌지만 오늘 손댄 행)
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610270959';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610270959';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202610271037';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610271037';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -581,53 +582,62 @@ const DEF_REQ = { max: 6, cooldownMin: 15, autoMax: 3 };    // 서버 설정.jso
  *   req = locRecLatest.req · requestMs = locRecWork/request 의 requestedAt(ms, 없으면 0) · entry = locRecLatest.days[오늘]
  *   lastDataMs = Locations/INFO_CONFIG.lastDataUpdate(재고 엑셀 올린 시각) · stockDataMs = locRecLatest.stockDataAt(지금 판의 기준)
  *   서버 규칙(다시만들기.decide)과 같게: 오늘 · 정기 판(ok|fail) 뒤 · 07:00~18:50 · 하루 max · cooldownMin 간격(직전 실패면 면제).
+ *   phase·stage·startedMs·waitUntil·doneMs 는 refill-view.js reqUi 와 같은 뜻(머리줄 진행 띠용).
  */
 export function recReqUi({ req, requestMs, nowMs, isToday, entry, lastDataMs, stockDataMs, todayKey }) {
     const label = REBUILD_LABEL;
-    const res = (enabled, note = '', tone = '') => ({ show: true, enabled, label, note, tone });
-    if (!isToday) return { show: false, enabled: false, label, note: '', tone: '' };
+    const r = req && typeof req === 'object' ? req : {};
+    const sameDay = r.day === todayKey;
+    const atMs = tsMs(r.at);
+    const doneMs = sameDay ? tsMs(r.doneAt) : 0;          // 실제 다시 만들기 완료 시각(서버) — 없으면 완료 표시 안 함
+    const res = (enabled, note = '', tone = '', extra = {}) => ({ show: true, enabled, label, note, tone, phase: '', doneMs, ...extra });
+    if (!isToday) return { show: false, enabled: false, label, note: '', tone: '', phase: '', doneMs: 0 };
     const status = entry && entry.status;
     if (status === 'rest') return res(false, '쉬는 날에는 다시 만들지 않습니다');
     if (status !== 'ok' && status !== 'fail') return res(false, '06:40 정기 추천 뒤에 다시 만들 수 있습니다');
-    const r = req && typeof req === 'object' ? req : {};
-    const sameDay = r.day === todayKey;
-    const lastMs = tsMs(r.lastReqAt), atMs = tsMs(r.at);
+    const lastMs = tsMs(r.lastReqAt);
     const intOr = (v, d) => (Number.isInteger(v) ? v : d);
     const max = intOr(r.max, DEF_REQ.max), autoMax = intOr(r.autoMax, DEF_REQ.autoMax);
     const cool = intOr(r.cooldownMin, DEF_REQ.cooldownMin) * 60 * 1000;
     const autoN = sameDay ? intOr(r.autoCount, 0) : 0;
     const dataMs = tsMs(lastDataMs);
     const autoPending = dataMs > 0 && dataMs > Math.max(tsMs(stockDataMs), tsMs(r.autoStockAt)) && autoN < autoMax;
-    const withAuto = (o) => (autoPending && o.tone !== 'warn' ? { ...o, note: AUTO_NOTE + (o.note ? ` · ${o.note}` : ''), tone: o.tone || 'accent' } : o);
+    const withAuto = (o) => (autoPending && o.tone !== 'warn'
+        ? { ...o, note: AUTO_NOTE + (o.note ? ` · ${o.note}` : ''), tone: o.tone || 'accent', phase: o.phase || 'pending' } : o);
     // 1) 다시 만드는 중 — 25분(서버가 멈춘 것으로 보는 시간) 넘게 그대로면 PC 가 꺼졌을 수 있다(다음 요청 허용)
     if (r.state === 'running' && sameDay && nowMs - atMs < REQ_RUNNING_MS) {
-        return res(false, r.source === 'auto' ? '재고 자료가 새로 올라와 자동으로 다시 만드는 중… (보통 3~6분)' : '다시 만드는 중… (보통 3~6분)', 'accent');
+        return res(false, r.source === 'auto' ? '재고 자료가 새로 올라와 자동으로 다시 만드는 중… (보통 3~6분)' : '다시 만드는 중… (보통 3~6분)', 'accent',
+            { phase: 'running', stage: typeof r.stage === 'string' ? r.stage : '', startedMs: tsMs(r.startedAt) || atMs });
     }
-    // 2) 아직 처리되지 않은 요청 — 서버가 '대기'(이지어드민 쉬는 시간·재고 올리는 중)로 남겼으면 그 사유
+    // 2) 대기 — 서버가 남긴 사유, 서버 상태가 아직 없으면 화면이 계산(쉬는 시간·올린 직후) — refill-view.js waitInfo
     const pending = requestMs > 0 && requestMs > lastMs;
-    if (pending && r.state === 'waiting' && sameDay && r.note && nowMs - atMs < REQ_NOTE_MS) {
-        return res(false, `요청함 — ${r.note}`, 'accent');
-    }
+    const count = sameDay ? intOr(r.count, 0) : 0;
+    const started = sameDay ? tsMs(r.startedAt) : 0;
+    const failedLast = r.state === 'failed' || r.lastRun === 'failed';
+    const cooling = !!started && nowMs - started < cool && !failedLast;
+    const w = waitInfo({ r, sameDay, nowMs, pending, autoPending, dataMs, cooling, reqOk: count < max });
+    if (w) return res(false, `대기 중 — ${w.note}`, '', { phase: 'waiting', waitUntil: w.until });
     if (pending && nowMs - requestMs < REQ_PENDING_MS) {
-        return res(false, '요청함 — 처리 대기 중 (이 PC 프로그램이 5분마다 확인)', 'accent');
+        return res(false, '요청함 — 처리 대기 중 (이 PC 프로그램이 5분마다 확인)', 'accent', { phase: 'pending' });
     }
     const k = kstParts(nowMs);
     const hm = k.hh * 60 + k.mm;
     const recentNote = sameDay && (r.state === 'rejected' || r.state === 'failed') && r.note && nowMs - atMs < REQ_NOTE_MS;
-    const lastNote = () => (r.state === 'failed' ? `다시 만들지 못했습니다: ${r.note}` : `지난 요청이 처리되지 않았습니다: ${r.note}`);
+    const lastNote = () => res(true, r.state === 'failed' ? `다시 만들지 못했습니다: ${r.note}` : `지난 요청이 처리되지 않았습니다: ${r.note}`,
+        'warn', { phase: r.state });
     if (hm < REQ_OPEN_MIN || hm >= REQ_CLOSE_MIN) {
         // 마감 뒤에도 방금 거절된 사유(예: 서버 '마감 — 내일 다시 요청하세요')는 보여 준다
-        return recentNote ? res(false, lastNote(), 'warn') : res(false, `${REQ_HOURS_TEXT}에만 다시 만들 수 있습니다`);
+        return recentNote ? { ...lastNote(), enabled: false } : res(false, `${REQ_HOURS_TEXT}에만 다시 만들 수 있습니다`);
     }
-    const count = sameDay ? intOr(r.count, 0) : 0;
     if (count >= max) return withAuto(res(false, `오늘 다시 만들기 한도(${max}회)를 다 썼습니다`));
-    const started = sameDay ? tsMs(r.startedAt) : 0;
-    if (started && nowMs - started < cool && r.state !== 'failed') {
+    if (cooling) {
         return withAuto(res(false, `${fmtHM(started + cool)} 이후 다시 만들 수 있습니다(${cool / 60000}분 간격)`));
     }
-    if (pending) return res(true, '요청이 15분 넘게 처리되지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
-    if (r.state === 'running' && sameDay) return res(true, '다시 만들기가 25분 넘게 끝나지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
-    if (recentNote) return res(true, lastNote(), 'warn');
+    if (pending) return res(true, '요청이 15분 넘게 처리되지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn', { phase: 'stale' });
+    if (r.state === 'running' && sameDay) {
+        return res(true, '다시 만들기가 25분 넘게 끝나지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn', { phase: 'stale' });
+    }
+    if (recentNote) return lastNote();
     return withAuto(res(true));
 }
 

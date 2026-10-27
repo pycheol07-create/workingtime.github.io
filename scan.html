@@ -2,10 +2,10 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202610270959"></script>
-    <link rel="stylesheet" href="css/suit.css?v=202610270959">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610270959">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610270959">
+    <script src="js/theme-boot.js?v=202610271037"></script>
+    <link rel="stylesheet" href="css/suit.css?v=202610271037">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610271037">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610271037">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -231,14 +231,14 @@
     <div id="undo-toast" role="status" aria-live="polite"><span id="undo-toast-msg"></span><button type="button" id="undo-toast-btn">되돌리기</button></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610270959"></script>
+    <script src="js/location-map.js?v=202610271037"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610270959'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202610270959';   // 공통 상단바(uid 만 — 메뉴는 캐시)
-        import { checkProductCode } from './js/lib/product-code.js?v=202610270959';  // 위치지정 상품코드 'S+숫자6자리' 판정
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610271037'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202610271037';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { checkProductCode } from './js/lib/product-code.js?v=202610271037';  // 위치지정 상품코드 'S+숫자6자리' 판정
 
         const SCAN_VERSION = '10.6'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -1199,7 +1199,7 @@
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/page-gate.js?v=202610270959" data-perm-page="scan.view" data-perm-app="scanApp"></script>
-    <script type="module" src="js/app-shell.js?v=202610270959"></script>
+    <script type="module" src="js/page-gate.js?v=202610271037" data-perm-page="scan.view" data-perm-app="scanApp"></script>
+    <script type="module" src="js/app-shell.js?v=202610271037"></script>
 </body>
 </html>

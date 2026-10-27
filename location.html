@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202610270959"></script>
+    <script src="js/theme-boot.js?v=202610271037"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -11,10 +11,10 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610270959">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610270959">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610270959">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610270959">
+    <link rel="stylesheet" href="css/suit.css?v=202610271037">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610271037">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610271037">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610271037">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -577,6 +577,20 @@
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* 한 줄 — 전체 문구는 마우스를 올리면(title) */
         .rebuild-note.is-accent { color: var(--c-accent-deep); }
         .rebuild-note.is-warn { color: var(--c-warn-text); }
+        .rebuild-note > span:last-child { font-variant-numeric: tabular-nums; }
+        /* 머리줄 바로 아래 얇은 진행 막대(js/rebuild-bar.js) — 진행률을 모르는 작업이라 움직이는 막대, 대기는 회색 정지.
+           자리를 차지하지 않게 머리줄 아래 여백(.dash-container gap)에 띄운다 */
+        .dash-toolbar { position: relative; }
+        .rebuild-progress { position: absolute; left: 0; right: 0; bottom: -13px; height: 3px; border-radius: 2px;
+            background: var(--c-track); overflow: hidden; pointer-events: none; }
+        .rebuild-progress > span { position: absolute; top: 0; bottom: 0; left: 0; width: 28%; border-radius: inherit; background: var(--c-accent); }
+        .rebuild-progress.is-run > span { animation: rebuild-slide 1.6s ease-in-out infinite; }
+        .rebuild-progress.is-wait > span { width: 100%; background: var(--c-text-4); }
+        .rebuild-progress.is-done > span { width: 100%; }
+        @keyframes rebuild-slide { 0% { left: -28%; } 100% { left: 100%; } }
+        @media (prefers-reduced-motion: reduce) {
+            .rebuild-progress.is-run > span { animation: none; width: 100%; opacity: .55; }   /* 움직이지 않고 문구(단계·경과)만 바뀐다 */
+        }
         .dash-layout-editbar { display: flex; align-items: center; gap: 8px; }
         .dash-layout-hint { font-size: 12.5px; color: var(--c-text-3); }
         .dash-layout-msg { font-size: 12.5px; color: var(--c-warn-text); }
@@ -1083,6 +1097,8 @@
                     <span class="rebuild-note" id="rebuild-note" role="status" hidden></span>
                     <button type="button" class="btn btn-secondary btn-sm" id="rebuild-btn" data-feature="location.refill|location.locrec" hidden disabled>지금 재고로 다시 만들기</button>
                 </div>
+                <!-- 다시 만들기 진행 막대(js/rebuild-bar.js) — 진행 중엔 움직이고, 대기는 회색 정지, 완료는 1분 -->
+                <div class="rebuild-progress" id="rebuild-progress" role="progressbar" aria-label="" hidden><span></span></div>
             </div>
 
             <!-- 패널 칸 8개 — 순서·폭·높이는 배치 편집으로 바뀐다. 안쪽 id 칸은 location.js 가 innerHTML 로 다시 그린다 -->
@@ -1727,10 +1743,10 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610270959"></script>
+    <script type="module" src="js/location.js?v=202610271037"></script>
     <!-- 권한 개편 5단계: location.js 가 만든 window.* 위험 함수를 바깥에서 감싼다(반드시 location.js 다음) -->
-    <script type="module" src="js/location-guard.js?v=202610270959"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610270959"></script>
+    <script type="module" src="js/location-guard.js?v=202610271037"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610271037"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1808,10 +1824,10 @@
             if (typeof window.paintIncomingBasis === 'function') window.paintIncomingBasis(sidebar.classList.contains('open'));
         }
     </script>
-    <script src="js/connection-banner.js?v=202610270959"></script>
-    <script src="js/modal-esc.js?v=202610270959"></script>
-    <script type="module" src="js/modal-drag.js?v=202610270959"></script>
-    <script type="module" src="js/page-gate.js?v=202610270959" data-perm-page="location.view"></script>
-    <script type="module" src="js/app-shell.js?v=202610270959"></script>
+    <script src="js/connection-banner.js?v=202610271037"></script>
+    <script src="js/modal-esc.js?v=202610271037"></script>
+    <script type="module" src="js/modal-drag.js?v=202610271037"></script>
+    <script type="module" src="js/page-gate.js?v=202610271037" data-perm-page="location.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610271037"></script>
 </body>
 </html>

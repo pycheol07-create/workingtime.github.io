@@ -4,7 +4,16 @@
 //   사무실 PC 예약작업 채우기요청(채우기.py --요청확인, 5분)이 이지어드민 재고를 한 번 받아 채우기 → 변경 추천 순으로 만든다.
 //   요청은 가진 권한 쪽 문서 하나에 쓴다(requestPathOf) — 서버(두 앱의 앱기록.read_request)는 두 문서 중 늦은 쪽을 요청으로 본다.
 //   각 쪽 상태는 refill-view.js reqUi · locrec-view.js recReqUi 가 정하고, 여기서는 합치기만 한다.
+//   머리줄은 상태 하나(진행 / 대기 / 경고 / 완료 / 안내)만 문구로 보이고, 두 쪽 세부 문구는 툴팁(title)에 둔다(2026-10-27).
+//   진행: '다시 만드는 중 · 재고 받는 중 (1/3)' + 경과(tick) — 단계는 채우기 req.stage(서버 요청판정.py STAGES),
+//         채우기가 끝났는데 변경 추천만 만드는 중이면 '변경 추천 만드는 중'. 진행 막대는 움직이는 막대(진행률 모름).
+//   대기: '대기 중 — 이지어드민 쉬는 시간이라 10:15 이후 처리' — 막대는 회색 정지.
+//   완료: 끝난 뒤 DONE_FLASH_MS 동안 '완료 — 채우기 N칸 · 변경 추천 N건 (HH:MM)'.
 
+import { STAGES, fmtHM } from './refill-view.js?v=202610271037';
+
+export { STAGES };
+export const DONE_FLASH_MS = 60 * 1000;      // 완료 문구를 보여 주는 시간
 export const REBUILD_LABEL = '지금 재고로 다시 만들기';
 export const PART_LABEL = { refill: '채우기', locrec: '변경 추천' };
 export const REFILL_REQUEST = 'refillWork/request';
@@ -22,30 +31,88 @@ export function requestPathOf({ canRefill, canLocrec }) {
     return '';
 }
 
+/** 경과 ms → '2분 10초' · '45초'(음수·없음은 '') */
+export function fmtDur(ms) {
+    if (!Number.isFinite(ms) || ms < 0) return '';
+    const sec = Math.floor(ms / 1000);
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return m ? `${m}분 ${s}초` : `${s}초`;
+}
+
+/** 색인 문서 → 완료 문구에 넣을 숫자. refill = refillLatest.days[오늘].rows(채울 칸), locrec = locRecLatest.days[오늘].n 합(추천 건수) */
+export function doneCounts({ refillEntry, locrecEntry } = {}) {
+    const num = (v) => (Number.isFinite(v) ? v : null);
+    const r = refillEntry && refillEntry.status === 'ok' ? num(refillEntry.rows) : null;
+    let l = null;
+    if (locrecEntry && locrecEntry.status === 'ok') {
+        const n = locrecEntry.n;
+        if (Number.isFinite(n)) l = n;
+        else if (n && typeof n === 'object') l = ['single', 'swap', 'pair'].reduce((a, k) => a + (Number.isFinite(n[k]) ? n[k] : 0), 0);
+    }
+    return { refillRows: r, locrecN: l };
+}
+
 /**
- * 두 쪽 상태 → 머리줄 버튼 { show, enabled, label, note, tone('' | accent | warn) }
+ * 두 쪽 상태 → 머리줄 { show, enabled, label, note, tick, title, tone('' | accent | warn), kind, bar }
  *   refill / locrec = reqUi · recReqUi 결과(못 읽었으면 null) · canRefill / canLocrec = 권한
- *   보임: 권한이 하나라도 있으면. 켬: 권한 있는 쪽 중 하나라도 다시 만들 수 있으면.
- *   문구: 권한 있는 쪽 중 문구가 있는 것만 '채우기: … · 변경 추천: …'. 못 읽은 쪽은 '불러오는 중…'.
- *   tone: 하나라도 warn 이면 warn, 아니면 accent 가 있으면 accent.
+ *   nowMs = 지금 · counts = doneCounts 결과(완료 문구)
+ *   kind: running | waiting | warn | done | info | ''  ·  bar: run(움직이는 막대) | wait(회색 정지) | done | ''
+ *   note = 요약 한 줄(진행이면 단계까지) · tick = 진행 경과('2분 10초', 진행일 때만) · title = 두 쪽 세부 문구(줄바꿈)
+ *   보임: 권한이 하나라도 있으면. 켬: 권한 있는 쪽 중 하나라도 다시 만들 수 있고, 진행·대기 중이 아닐 때.
+ *   우선순위: 진행 > 대기 > 경고(실패·멈춤·PC 꺼짐) > 완료(DONE_FLASH_MS 안) > 안내(첫 문구 — 두 쪽이면 '채우기: …').
  */
-export function combinedReqUi({ refill, locrec, canRefill, canLocrec }) {
+export function combinedReqUi({ refill, locrec, canRefill, canLocrec, nowMs = Date.now(), counts = {} }) {
     const label = REBUILD_LABEL;
-    if (!canRefill && !canLocrec) return { show: false, enabled: false, label, note: '', tone: '' };
+    const out = (o) => ({ show: true, enabled: false, label, note: '', tick: '', title: '', tone: '', kind: '', bar: '', ...o });
+    if (!canRefill && !canLocrec) return { ...out({}), show: false };
     const parts = [];
     if (canRefill) parts.push(['refill', refill]);
     if (canLocrec) parts.push(['locrec', locrec]);
-    const enabled = parts.some(([, u]) => !!(u && u.show && u.enabled));
-    const notes = [];
-    let warn = false, accent = false;
+    const both = parts.length > 1;
+    const lines = [];
     for (const [k, u] of parts) {
-        if (!u) { notes.push(`${PART_LABEL[k]}: 불러오는 중…`); continue; }
-        if (!u.show) continue;
-        if (u.tone === 'warn') warn = true;
-        else if (u.tone === 'accent') accent = true;
-        if (u.note) notes.push(`${PART_LABEL[k]}: ${u.note}`);
+        if (!u) lines.push(`${PART_LABEL[k]}: 불러오는 중…`);
+        else if (u.show && u.note) lines.push(`${PART_LABEL[k]}: ${u.note}`);
     }
-    return { show: true, enabled, label, note: notes.join(' · '), tone: warn ? 'warn' : (accent ? 'accent' : '') };
+    const title = lines.join('\n');
+    const shown = parts.filter(([, u]) => u && u.show);
+    const enabled = shown.some(([, u]) => u.enabled);
+    const pick = (fn) => shown.find(([, u]) => fn(u));
+
+    // 1) 진행 — 채우기 단계가 있으면 그것(n/3), 변경 추천만 만드는 중이면 그 단계
+    const run = pick(u => u.phase === 'running');
+    if (run) {
+        const [k, u] = run;
+        let step = '';
+        const i = STAGES.indexOf(u.stage);
+        if (k === 'refill' && i >= 0) step = `${u.stage} (${i + 1}/${STAGES.length})`;
+        else if (k === 'locrec') step = STAGES[2];
+        const tick = u.startedMs ? fmtDur(Math.max(0, nowMs - u.startedMs)) : '';
+        return out({ note: ['다시 만드는 중', step].filter(Boolean).join(' · '), tick, title, tone: 'accent', kind: 'running', bar: 'run' });
+    }
+    // 2) 대기 — 막대는 회색 정지
+    const wait = pick(u => u.phase === 'waiting');
+    if (wait) return out({ note: wait[1].note, title, kind: 'waiting', bar: 'wait' });
+    // 3) 경고 — 실패·멈춤·PC 꺼짐·읽기 실패
+    const warn = pick(u => u.tone === 'warn' && u.note);
+    if (warn) return out({ enabled, note: both ? `${PART_LABEL[warn[0]]}: ${warn[1].note}` : warn[1].note, title, tone: 'warn', kind: 'warn' });
+    // 4) 완료 — 끝난 뒤 잠깐
+    const doneMs = shown.reduce((m, [, u]) => Math.max(m, u.doneMs || 0), 0);
+    if (doneMs && nowMs >= doneMs - 60 * 1000 && nowMs - doneMs < DONE_FLASH_MS) {
+        const seg = [];
+        if (canRefill && Number.isFinite(counts.refillRows)) seg.push(`채우기 ${counts.refillRows.toLocaleString('ko-KR')}칸`);
+        if (canLocrec && Number.isFinite(counts.locrecN)) seg.push(`변경 추천 ${counts.locrecN.toLocaleString('ko-KR')}건`);
+        return out({ enabled, note: `완료${seg.length ? ' — ' + seg.join(' · ') : ''} (${fmtHM(doneMs)})`, title, tone: 'accent', kind: 'done', bar: 'done' });
+    }
+    // 5) 안내 — 강조(accent) 문구가 먼저, 없으면 첫 문구
+    const missing = parts.find(([, u]) => !u);
+    const info = pick(u => u.note && u.tone === 'accent') || pick(u => u.note);
+    if (info) {
+        return out({ enabled, note: both ? `${PART_LABEL[info[0]]}: ${info[1].note}` : info[1].note, title,
+                     tone: info[1].tone === 'accent' ? 'accent' : '', kind: 'info' });
+    }
+    if (missing) return out({ enabled, note: `${PART_LABEL[missing[0]]}: 불러오는 중…`, title, kind: 'info' });
+    return out({ enabled, title });
 }
 
 /** 확인창 문구 — 다시 만들어질 쪽만 적는다 */

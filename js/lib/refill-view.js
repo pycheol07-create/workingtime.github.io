@@ -8,7 +8,9 @@
 //                                                                                (js/rebuild-bar.js). 변경 추천 권한만 있으면 locRecWork/request 에.
 //                                                                                서버는 두 문서 중 늦은 쪽을 요청으로 본다
 //   refillLatest.req               { state: running|done|failed|rejected|waiting, note, day, count, autoCount, lastReqAt, startedAt, at,
-//                                    source: request|auto, autoStockAt(ms), dataAt(ms), max, cooldownMin, autoMax }  ← 서버 요청판정.py
+//                                    source: request|auto, autoStockAt(ms), dataAt(ms), max, cooldownMin, autoMax,
+//                                    waitUntil(ms, waiting 의 처리 예정 시각), stage·stageAt(running 단계 — STAGES), lastRun(done|failed) }
+//                                    ← 서버 요청판정.py. waiting 의 note 는 '대기 중 — ' 뒤에 그대로 보인다
 // 날짜 키는 한국시간(KST) — toISOString 은 UTC 라 09시 전에 하루 밀린다(location.js toDateStr 주석 사례).
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -27,8 +29,71 @@ export const DEFAULT_REQ_MAX = 6, DEFAULT_COOLDOWN_MIN = 15, DEFAULT_AUTO_MAX = 
 export const REBUILD_LABEL = '지금 재고로 다시 만들기';
 export const AUTO_NOTE = '재고 자료가 새로 올라왔습니다 — 몇 분 안에 자동으로 다시 만듭니다';
 export const COLS = ['피킹로케이션', '비축위치', '채울수량', '비축재고', '상품코드'];
+// 다시 만들기 실행 단계(req.stage) — 서버 채우기자동화\요청판정.py STAGES 와 같은 글자(시험이 고정)
+export const STAGES = ['재고 받는 중', '채우기 지시서 만드는 중', '변경 추천 만드는 중'];
+// 이지어드민 쉬는 시간 — 서버 로케이션추천\설정.json ezStock.quiet · 요청판정.py QUIET_DEFAULT 와 같은 값(시험이 고정).
+// 서버가 대기 상태를 아직 안 썼을 때 화면이 예정 시각을 계산하는 데만 쓴다(판정은 서버)
+export const QUIET = [['07:20', '07:50'], ['08:10', '08:50'], ['09:25', '09:40'], ['09:55', '10:15'], ['17:15', '17:45']];
+export const FETCH_SPAN_MIN = 10;                        // 재고 받기 한 번의 한도(분) — 요청판정.py FETCH_SPAN_SEC
+export const AUTO_SETTLE_MIN = 3;                        // 재고를 올린 뒤 이만큼 기다린다 — 요청판정.py AUTO_SETTLE_MIN
 
 const p2 = (n) => String(n).padStart(2, '0');
+const hmMin = (s) => { const [h, m] = String(s).split(':'); return (+h) * 60 + (+m); };
+
+/** nowMs 부터 spanMin 동안 쉬는 시간대에 안 걸리는 가장 이른 시각(ms). 지금 안 걸리면 0.
+ *  끝 시각은 포함하지 않고, 이어진 쉬는 시간대는 끝까지 넘긴다 — 서버 요청판정.quiet_resume 과 같은 규칙 */
+export function quietResume(nowMs, quiet = QUIET, spanMin = FETCH_SPAN_MIN) {
+    const now = tsMs(nowMs);
+    if (!now) return 0;
+    const day0 = keyMs(dayKey(now));                      // 그날 KST 00:00
+    const hits = (curMin) => (quiet || []).filter(([a, b]) => (spanMin > 0
+        ? curMin < hmMin(b) && curMin + spanMin > hmMin(a)
+        : hmMin(a) <= curMin && curMin < hmMin(b))).map(([, b]) => hmMin(b));
+    let cur = (now - day0) / 60000;
+    let moved = false;
+    for (let i = 0; i <= (quiet || []).length; i++) {
+        const h = hits(cur);
+        if (!h.length) break;
+        cur = Math.max(...h);
+        moved = true;
+    }
+    return moved ? day0 + cur * 60000 : 0;
+}
+
+/** 대기 사유 문구 — 서버(요청판정.py wait_quiet·wait_settle)와 같은 모양 */
+export const waitQuietNote = (ms) => `이지어드민 쉬는 시간이라 ${fmtHM(ms)} 이후 처리`;
+export const waitSettleNote = (ms) => `재고를 올린 직후라 ${fmtHM(ms)} 이후 처리`;
+
+/**
+ * 지금 '대기 중' 인가 → { note, until(ms, 모르면 0), from: 'server' | 'screen' } 또는 null
+ *   r = 색인 req · pending = 처리 안 된 요청이 있음 · autoPending = 처리 안 된 재고 업로드가 있음(자동 대상)
+ *   cooling = 간격(15분) 안 — 서버는 이때 대기가 아니라 '간격'으로 미루거나 거절하므로 화면도 대기로 계산하지 않는다
+ *   reqOk = 요청이 한도 안(넘으면 서버가 바로 거절 — 대기로 계산하지 않는다)
+ *   1) 서버가 쓴 waiting(같은 날 · 그 대상(요청/자동)이 아직 남아 있음 · 예정 시각 전, 예정 시각이 없으면 쓴 지 1시간 안)
+ *      예정 시각이 지난 대기는 무시한다(지난 사유가 남지 않게 — 그 뒤는 아래 규칙·간격 문구로)
+ *   2) 서버 상태가 아직 없으면 화면이 계산 — 쉬는 시간(재고 받기 10분이 걸려도) · 자동은 올린 직후 3분
+ */
+export function waitInfo({ r, sameDay, nowMs, pending, autoPending, dataMs = 0, cooling = false, reqOk = true }) {
+    const q = r || {};
+    if (q.state === 'waiting' && sameDay && q.note) {
+        const forReq = q.source !== 'auto';
+        if (forReq ? pending : (autoPending && !pending)) {
+            const until = tsMs(q.waitUntil);
+            const fresh = until ? nowMs < until : nowMs - tsMs(q.at) < REQ_NOTE_MS;
+            if (fresh) return { note: String(q.note), until, from: 'server' };
+        }
+    }
+    const k = kstParts(nowMs);
+    const hm = k.hh * 60 + k.mm;
+    if (hm < REQ_OPEN_MIN || hm >= REQ_CLOSE_H * 60) return null;
+    const reqWait = pending && reqOk && !cooling;
+    if (!reqWait && !(autoPending && !pending && !cooling)) return null;
+    const qr = quietResume(nowMs);
+    if (qr) return { note: waitQuietNote(qr), until: qr, from: 'screen' };
+    const settle = tsMs(dataMs) + AUTO_SETTLE_MIN * 60 * 1000;
+    if (!pending && autoPending && nowMs < settle) return { note: waitSettleNote(settle), until: settle, from: 'screen' };
+    return null;
+}
 
 /** Firestore Timestamp·Date·숫자(ms)·ISO 문자열 → ms. 못 읽으면 0. */
 export function tsMs(v) {
@@ -151,52 +216,62 @@ export function dayStatus({ meta, key, todayKey, nowMs, holidayName }) {
  *  req = refillLatest.req · requestMs = 요청 문서 두 곳(refillWork/request·locRecWork/request) 중 늦은 requestedAt(ms, 없으면 0)
  *  board = 오늘 정기 지시서(08:20)가 있는가(days[오늘].status 'ok') · lastDataMs = INFO_CONFIG.lastDataUpdate(재고 엑셀 올린 시각)
  *  basedAtMs = 오늘 판의 basedAt. 서버 규칙(채우기자동화\요청판정.decide)과 같게: 오늘 · 근무일 · 정기 판 뒤 · 07:00~18:50 ·
- *  하루 max · cooldownMin 간격(직전 실패면 면제). 자동(재고 업로드)은 하루 autoMax. */
+ *  하루 max · cooldownMin 간격(직전 실패면 면제). 자동(재고 업로드)은 하루 autoMax.
+ *  머리줄 진행 띠(js/lib/rebuild-view.js combinedReqUi)용으로 더 돌려준다:
+ *    phase = running | waiting | pending | stale | failed | rejected | ''  · stage(서버 단계 글자) · startedMs(시작 시각)
+ *    waitUntil(대기 예정 시각 ms, 모르면 0) · doneMs(같은 날 req.doneAt — 실제 다시 만들기가 끝난 서버 시각, 완료 잠깐 표시용, 없으면 0) */
 export function reqUi({ req, requestMs, nowMs, isToday, isRunDay, todayKey, board = true, lastDataMs = 0, basedAtMs = 0 }) {
     const label = REBUILD_LABEL;
-    const res = (enabled, note = '', tone = '') => ({ show: true, enabled, label, note, tone });
-    if (!isToday) return { show: false, enabled: false, label, note: '', tone: '' };
+    const r = req || {};
+    const sameDay = r.day === todayKey;
+    const atMs = tsMs(r.at);
+    const doneMs = sameDay ? tsMs(r.doneAt) : 0;          // 실제 다시 만들기 완료 시각(서버) — 없으면 완료 표시 안 함
+    const res = (enabled, note = '', tone = '', extra = {}) => ({ show: true, enabled, label, note, tone, phase: '', doneMs, ...extra });
+    if (!isToday) return { show: false, enabled: false, label, note: '', tone: '', phase: '', doneMs: 0 };
     if (!isRunDay) return res(false, '쉬는 날에는 다시 만들지 않습니다');
     if (!board) return res(false, '08:20 정기 지시서 뒤에 다시 만들 수 있습니다');
-    const r = req || {};
-    const lastMs = tsMs(r.lastReqAt), atMs = tsMs(r.at);
-    const sameDay = r.day === todayKey;
+    const lastMs = tsMs(r.lastReqAt);
     const intOr = (v, d) => (Number.isInteger(v) ? v : d);
     const max = intOr(r.max, DEFAULT_REQ_MAX), autoMax = intOr(r.autoMax, DEFAULT_AUTO_MAX);
     const cool = intOr(r.cooldownMin, DEFAULT_COOLDOWN_MIN) * 60 * 1000;
     const autoN = sameDay ? intOr(r.autoCount, 0) : 0;
     const dataMs = tsMs(lastDataMs);
     const autoPending = dataMs > 0 && dataMs > Math.max(tsMs(basedAtMs), tsMs(r.dataAt), tsMs(r.autoStockAt)) && autoN < autoMax;
-    const withAuto = (o) => (autoPending && o.tone !== 'warn' ? { ...o, note: AUTO_NOTE + (o.note ? ` · ${o.note}` : ''), tone: o.tone || 'accent' } : o);
+    const withAuto = (o) => (autoPending && o.tone !== 'warn'
+        ? { ...o, note: AUTO_NOTE + (o.note ? ` · ${o.note}` : ''), tone: o.tone || 'accent', phase: o.phase || 'pending' } : o);
     // 1) 처리 중 — 예약작업 한도(25분) 넘게 그대로면 PC 가 꺼졌을 수 있다(다음 요청 허용)
     if (r.state === 'running' && sameDay && nowMs - atMs < REQ_RUNNING_MS) {
-        return res(false, r.source === 'auto' ? '재고 자료가 새로 올라와 자동으로 다시 만드는 중… (보통 3~8분)' : '다시 만드는 중… (보통 3~8분)', 'accent');
+        return res(false, r.source === 'auto' ? '재고 자료가 새로 올라와 자동으로 다시 만드는 중… (보통 3~8분)' : '다시 만드는 중… (보통 3~8분)', 'accent',
+            { phase: 'running', stage: typeof r.stage === 'string' ? r.stage : '', startedMs: tsMs(r.startedAt) || atMs });
     }
-    // 2) 아직 처리되지 않은 요청 — 서버가 '대기'(이지어드민 쉬는 시간·재고 올리는 중)로 남겼으면 그 사유
+    // 2) 대기 — 서버가 남긴 사유(쉬는 시간·올리는 중·올린 직후·이지어드민 잠금 …), 서버 상태가 아직 없으면 화면이 계산(쉬는 시간·올린 직후)
     const pending = requestMs > 0 && requestMs > lastMs;
-    if (pending && r.state === 'waiting' && sameDay && r.note && nowMs - atMs < REQ_NOTE_MS) {
-        return res(false, `요청함 — ${r.note}`, 'accent');
-    }
+    const started = sameDay ? tsMs(r.startedAt) : 0;
+    const failedLast = r.state === 'failed' || r.lastRun === 'failed';
+    const cooling = !!started && nowMs - started < cool && !failedLast;
+    const w = waitInfo({ r, sameDay, nowMs, pending, autoPending, dataMs, cooling,
+                         reqOk: !(sameDay && intOr(r.count, 0) >= max) });
+    if (w) return res(false, `대기 중 — ${w.note}`, '', { phase: 'waiting', waitUntil: w.until });
     if (pending && nowMs - requestMs < PENDING_MAX_MS) {
-        return res(false, '요청함 — 처리 대기 중 (이 PC 프로그램이 5분마다 확인)', 'accent');
+        return res(false, '요청함 — 처리 대기 중 (이 PC 프로그램이 5분마다 확인)', 'accent', { phase: 'pending' });
     }
     const k = kstParts(nowMs);
     const hm = k.hh * 60 + k.mm;
     const recentNote = sameDay && (r.state === 'rejected' || r.state === 'failed') && r.note && nowMs - atMs < REQ_NOTE_MS;
-    const lastNote = () => (r.state === 'failed' ? `다시 만들지 못했습니다: ${r.note}` : `지난 요청이 처리되지 않았습니다: ${r.note}`);
+    const lastNote = () => res(true, r.state === 'failed' ? `다시 만들지 못했습니다: ${r.note}` : `지난 요청이 처리되지 않았습니다: ${r.note}`,
+        'warn', { phase: r.state });
     if (hm < REQ_OPEN_MIN || hm >= REQ_CLOSE_MIN) {
-        return recentNote ? res(false, lastNote(), 'warn') : res(false, `${REQ_HOURS_TEXT}에만 다시 만들 수 있습니다`);
+        return recentNote ? { ...lastNote(), enabled: false } : res(false, `${REQ_HOURS_TEXT}에만 다시 만들 수 있습니다`);
     }
     if (sameDay && intOr(r.count, 0) >= max) return withAuto(res(false, `오늘 다시 만들기 한도(${max}회)를 다 썼습니다`));
-    const started = sameDay ? tsMs(r.startedAt) : 0;
-    if (started && nowMs - started < cool && r.state !== 'failed') {
+    if (cooling) {
         return withAuto(res(false, `${fmtHM(started + cool)} 이후 다시 만들 수 있습니다(${cool / 60000}분 간격)`));
     }
-    if (pending) return res(true, '요청이 15분 넘게 처리되지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
+    if (pending) return res(true, '요청이 15분 넘게 처리되지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn', { phase: 'stale' });
     if (r.state === 'running' && sameDay) {
-        return res(true, '다시 만들기가 25분 넘게 끝나지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
+        return res(true, '다시 만들기가 25분 넘게 끝나지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn', { phase: 'stale' });
     }
-    if (recentNote) return res(true, lastNote(), 'warn');
+    if (recentNote) return lastNote();
     return withAuto(res(true));
 }
 

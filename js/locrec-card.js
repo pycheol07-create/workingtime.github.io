@@ -12,15 +12,15 @@
 // 문서 모양·순수 함수는 js/lib/locrec-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=202610270959';
+import { escapeHtml } from './utils.js?v=202610271037';
 import {
     verdictBadge, metricItems, dataWarnings, dataLine, dayOptions, dayMessage,
     TABS, TAB_LABEL, recStrip, tabSummary, dayLabel, rebuildLine
-} from './lib/locrec-view.js?v=202610270959';
-import { initFold } from './lib/card-fold.js?v=202610270959';
-import { getLocRecStore, todayKey } from './locrec-store.js?v=202610270959';
-import { mountLocRecTable } from './locrec-table.js?v=202610270959';
-import { initRouteCard } from './locrec-route-card.js?v=202610270959';
+} from './lib/locrec-view.js?v=202610271037';
+import { initFold } from './lib/card-fold.js?v=202610271037';
+import { getLocRecStore, todayKey } from './locrec-store.js?v=202610271037';
+import { mountLocRecTable } from './locrec-table.js?v=202610271037';
+import { initRouteCard } from './locrec-route-card.js?v=202610271037';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
@@ -74,7 +74,11 @@ export function initLocRecCard({ db, auth, getMemberName, sizeOf }) {
             act = '<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="table">표 보기</button>'
                 + `<button type="button" class="btn btn-primary btn-sm" data-locrec-act="downloadAll" title="${escapeHtml(sp.dayText)} 추천 전체(단독·맞바꾸기·페어, 안 함 제외)"${sp.n ? '' : ' disabled'}>엑셀 받기</button>`;
         }
-        setStrip(sum + warnBadge(sp.warns), act);
+        // 머리줄 [지금 재고로 다시 만들기]가 진행 중이면 띠에도 작은 표시(단계·경과는 머리줄에)
+        const ru = store.reqState();
+        const busy = ru && ru.phase === 'running'
+            ? '<span class="badge badge-accent" role="status" title="지금 재고로 다시 만드는 중입니다 — 끝나면 이 카드가 새 추천으로 바뀝니다">다시 만드는 중</span>' : '';
+        setStrip(sum + busy + warnBadge(sp.warns), act);
     }
 
     function render() {

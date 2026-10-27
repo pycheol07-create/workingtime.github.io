@@ -5,15 +5,18 @@
 //   요청은 가진 권한 쪽 문서 하나에 쓴다 — 채우기 권한(location.refill)이 있으면 refillWork/request, 없으면 locRecWork/request
 //   (firestore.rules: refillWork = location.refill · locRecWork = location.locrec). 서버는 두 문서 중 늦은 쪽을 요청으로 본다.
 //   버튼은 두 권한 중 하나라도 있으면 보이고, 권한 있는 쪽 중 하나라도 다시 만들 수 있으면 켜진다(js/lib/rebuild-view.js).
+// 상태는 하나만 보인다(진행 / 대기 / 경고 / 완료 / 안내 — js/lib/rebuild-view.js combinedReqUi), 두 쪽 세부 문구는 툴팁.
+//   진행 중이면 머리줄 바로 아래 얇은 막대(#rebuild-progress)가 움직이고(prefers-reduced-motion 이면 정지) 경과 시간을 1초마다,
+//   대기면 회색 정지 막대, 끝나면 1분 동안 '완료 — 채우기 N칸 · 변경 추천 N건 (HH:MM)'. 진행·대기 중엔 버튼을 끈다.
 // 구독은 가볍게 — 색인 문서(refillLatest · locRecLatest, 권한 있는 쪽만) · 요청 문서 2개 · Locations/INFO_CONFIG.
 //   카드 store(refill-store·locrec-store)는 쓰지 않는다(그날 지시서·추천 문서까지 읽게 되므로).
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다.
 // ⚠️ 요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getHolidayName } from './utils.js?v=202610270959';
-import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=202610270959';
-import { recReqUi } from './lib/locrec-view.js?v=202610270959';
-import { combinedReqUi, confirmText, requestPathOf, laterMs, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=202610270959';
+import { getHolidayName } from './utils.js?v=202610271037';
+import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=202610271037';
+import { recReqUi } from './lib/locrec-view.js?v=202610271037';
+import { combinedReqUi, confirmText, requestPathOf, laterMs, doneCounts, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=202610271037';
 
 const APP = 'artifacts/team-work-logger-v2';
 const REFILL_LATEST = `${APP}/integrations/refillLatest`;
@@ -30,7 +33,16 @@ export function initRebuildBar({ db, auth, getMemberName }) {
     if (mounted) return mounted;
     const btn = document.getElementById('rebuild-btn');
     const noteEl = document.getElementById('rebuild-note');
+    const barEl = document.getElementById('rebuild-progress');
     if (!btn || !db || !auth) return null;
+    // 문구 = 요약(읽어 줌) + 경과(1초마다 바뀜 — 화면 읽기 프로그램이 매초 읽지 않게 aria-hidden)
+    let noteMain = null, noteTick = null;
+    if (noteEl) {
+        noteEl.textContent = '';
+        noteMain = noteEl.appendChild(document.createElement('span'));
+        noteTick = noteEl.appendChild(document.createElement('span'));
+        noteTick.setAttribute('aria-hidden', 'true');
+    }
 
     const S = { signedIn: false, perms: { canRefill: false, canLocrec: false },
                 refill: null, locrec: null, refillReq: null, locrecReq: null, lastDataMs: 0 };
@@ -89,25 +101,42 @@ export function initRebuildBar({ db, auth, getMemberName }) {
                                 stockDataMs: S.locrec.stockDataAt, todayKey: today });
         }
         const args = { refill, locrec, ...S.perms };
-        return { args, ui: combinedReqUi(args), today };
+        const counts = doneCounts({ refillEntry: S.refill && S.refill !== READ_ERR && S.refill.days ? S.refill.days[today] : null,
+                                    locrecEntry: S.locrec && S.locrec !== READ_ERR && S.locrec.days ? S.locrec.days[today] : null });
+        return { args, ui: combinedReqUi({ ...args, nowMs: now, counts }), today };
     }
 
-    let lastKey = '';
+    const EMPTY = { show: false, enabled: false, label: '', note: '', tick: '', title: '', tone: '', kind: '', bar: '' };
+    const BAR_LABEL = { run: '다시 만드는 중', wait: '대기 중', done: '완료' };
+    let lastKey = '', lastKind = '';
     function render() {
-        const { ui } = S.signedIn ? state() : { ui: { show: false, enabled: false, label: '', note: '', tone: '' } };
-        const k = `${ui.show}|${ui.enabled && !busy}|${ui.label}|${ui.note}|${ui.tone}`;
+        const { ui } = S.signedIn ? state() : { ui: EMPTY };
+        lastKind = ui.show ? ui.kind : '';
+        const k = `${ui.show}|${ui.enabled && !busy}|${ui.label}|${ui.note}|${ui.tick}|${ui.title}|${ui.tone}|${ui.bar}`;
         if (k === lastKey) return;                 // 같으면 다시 그리지 않는다(누르던 포커스가 1분마다 풀리지 않게)
         lastKey = k;
         btn.hidden = !ui.show;
         btn.disabled = !ui.enabled || busy;
         if (ui.label) btn.textContent = ui.label;
-        btn.title = '사무실 PC 프로그램이 지금 이지어드민 재고로 채우기 지시서와 변경 추천을 새로 만듭니다(앱에만, 슬랙 없음)';
+        btn.title = ui.kind === 'running' ? '지금 다시 만드는 중입니다 — 끝나면 다시 누를 수 있습니다'
+            : ui.kind === 'waiting' ? '대기 중입니다 — 사무실 PC 프로그램이 예정 시각에 자동으로 처리합니다'
+            : '사무실 PC 프로그램이 지금 이지어드민 재고로 채우기 지시서와 변경 추천을 새로 만듭니다(앱에만, 슬랙 없음)';
         if (noteEl) {
             noteEl.hidden = !(ui.show && ui.note);
-            noteEl.textContent = ui.note || '';
-            noteEl.title = ui.note || '';   // 한 줄로 잘려 보일 때 전체 문구
+            noteMain.textContent = ui.note || '';
+            noteTick.textContent = ui.tick ? ` · ${ui.tick}` : '';
+            noteEl.title = ui.title || ui.note || '';   // 두 쪽 세부 문구(한 줄로 잘려 보일 때도 전체)
             noteEl.classList.toggle('is-warn', ui.tone === 'warn');
             noteEl.classList.toggle('is-accent', ui.tone === 'accent');
+        }
+        if (barEl) {
+            const bar = ui.show ? ui.bar : '';
+            barEl.hidden = !bar;
+            barEl.classList.toggle('is-run', bar === 'run');
+            barEl.classList.toggle('is-wait', bar === 'wait');
+            barEl.classList.toggle('is-done', bar === 'done');
+            barEl.setAttribute('aria-label', BAR_LABEL[bar] || '');
+            barEl.title = bar ? (ui.note || '') : '';
         }
     }
 
@@ -134,6 +163,8 @@ export function initRebuildBar({ db, auth, getMemberName }) {
     });
     // 시간에 따라 바뀌는 문구(처리 대기 15분·간격 끝·18:50 마감·자정)를 1분마다
     setInterval(() => { if (S.signedIn) render(); }, 60 * 1000);
+    // 진행 중 경과 시간 · 완료 문구(1분 뒤 사라짐)는 1초마다 — 그 두 상태일 때만 다시 계산한다
+    setInterval(() => { if (S.signedIn && (lastKind === 'running' || lastKind === 'done')) render(); }, 1000);
 
     function setPerms({ canRefill, canLocrec }) {
         S.perms = { canRefill: !!canRefill, canLocrec: !!canLocrec };
