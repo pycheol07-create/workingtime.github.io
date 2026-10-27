@@ -41,11 +41,27 @@ export const legacyFirebaseConfig = {
 const APP_ID = 'team-work-logger-v2';
 let app, db, auth;
 
+// 탭 공유 기록(persistentMultipleTabManager)은 localStorage 에 쓴다. 메인 화면의 전체 이력 캐시(historyDataCache)가
+// 사이트 한도(약 500만 글자)를 거의 다 채우면 그 쓰기가 실패해 Firestore 가 멈춘다(2026-10-27 '권한을 확인하는 중' 무한 대기).
+// 이력 캐시는 다시 받으면 되는 사본이므로, 상한(history-data-manager.js HISTORY_CACHE_MAX_CHARS 와 같은 값)을 넘으면 지운다.
+const HISTORY_CACHE_MAX_CHARS = 2000000;
+function freeLocalStorageForTabs() {
+    try {
+        const v = localStorage.getItem('historyDataCache');
+        if (v && v.length > HISTORY_CACHE_MAX_CHARS) {
+            localStorage.removeItem('historyDataCache');
+            localStorage.removeItem('historyDataCacheTime');
+            console.warn('[china-stock] 큰 이력 캐시를 지웠습니다(저장공간 확보):', v.length);
+        }
+    } catch (e) { /* 저장소를 못 쓰면 Firestore 가 메모리 캐시로 넘어간다 */ }
+}
+
 export const initializeFirebase = () => {
     // 여러 번 불러도 앱을 다시 만들지 않는다(게이트와 본 화면이 각각 호출한다)
     if (app && db) return { app, db, auth };
     try {
         app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+        freeLocalStorageForTabs();
         // 오프라인 캐시(IndexedDB) 사용 → 새로고침 시 서버 전체 재읽기 최소화(읽기 요금 절감)
         try {
             db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });

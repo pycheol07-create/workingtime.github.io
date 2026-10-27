@@ -1,19 +1,19 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610271324';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610271324';
-import { clampOpenRecords } from './lib/record-close.js?v=202610271324';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610271324';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610271324';
+import * as State from './state.js?v=202610271552';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610271552';
+import { clampOpenRecords } from './lib/record-close.js?v=202610271552';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610271552';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610271552';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
-} from './lib/attendance-guard.js?v=202610271324';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610271324';
-import { can } from './lib/perm.js?v=202610271324';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610271324';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610271324';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610271324';
+} from './lib/attendance-guard.js?v=202610271552';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610271552';
+import { can } from './lib/perm.js?v=202610271552';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610271552';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610271552';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610271552';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610271324';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610271552';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -55,6 +55,10 @@ export const clearLocalCache = () => {
 const DASH_HISTORY_DAYS = 100;
 const DASH_CACHE_KEY = 'historyDataCacheDash';
 const DASH_CACHE_TIME_KEY = 'historyDataCacheDashTime';
+// 전체 이력 캐시 상한(글자 수). localStorage 는 사이트(모든 화면) 합쳐 약 500만 글자뿐인데, 전체 이력이 거의 다 채우면
+// 같은 사이트의 Firestore 탭 공유 기록(중국제작 부족수량 관리·스캐너, persistentMultipleTabManager)이 저장 실패로
+// 'INTERNAL ASSERTION FAILED' 를 내고 모든 읽기가 멈춘다(2026-10-27 '권한을 확인하는 중' 무한 대기). 넘으면 전체는 저장하지 않는다.
+const HISTORY_CACHE_MAX_CHARS = 2000000;
 
 // ============================================================
 // 📅 예정 물량(plannedData) — 미래 날짜별 계획 처리량 (실적 history와 분리)
@@ -1485,7 +1489,8 @@ export async function fetchAllHistoryData(forceRefresh = false) {
         const cached = localStorage.getItem('historyDataCache');
         const cacheTime = localStorage.getItem('historyDataCacheTime');
         const now = Date.now();
-        if (cached && cacheTime && (now - parseInt(cacheTime) < HISTORY_CACHE_TTL_MS)) {
+        if (cached && cached.length > HISTORY_CACHE_MAX_CHARS) clearFullHistoryCache();   // 상한 전에 저장된 큰 캐시 — 쓰지 않고 지운다
+        else if (cached && cacheTime && (now - parseInt(cacheTime) < HISTORY_CACHE_TTL_MS)) {
             try {
                 State.allHistoryData.length = 0;
                 State.allHistoryData.push(...JSON.parse(cached));
@@ -1535,7 +1540,9 @@ export async function fetchAllHistoryData(forceRefresh = false) {
             
             // ✨ 성공적으로 가져왔다면 로컬 스토리지에 캐싱 (용량 초과 시 안전하게 스킵)
             try {
-                localStorage.setItem('historyDataCache', JSON.stringify(State.allHistoryData));
+                const json = JSON.stringify(State.allHistoryData);
+                if (json.length > HISTORY_CACHE_MAX_CHARS) throw new Error(`이력 캐시가 상한(${HISTORY_CACHE_MAX_CHARS}자)을 넘음: ${json.length}자`);
+                localStorage.setItem('historyDataCache', json);
                 localStorage.setItem('historyDataCacheTime', Date.now().toString());
             } catch (e) {
                 console.warn('[history cache] localStorage 저장 실패(용량 초과 가능) — 캐시 없이 진행:', e);
@@ -1578,6 +1585,10 @@ const dashRows = (rows, today) => {
     return (Array.isArray(rows) ? rows : []).filter(d => d && typeof d.id === 'string' && d.id >= cut);
 };
 
+function clearFullHistoryCache() {
+    try { localStorage.removeItem('historyDataCache'); localStorage.removeItem('historyDataCacheTime'); } catch (_) {}
+}
+
 // 대시보드 캐시 저장 — 한 번만 시도하고, 실패하면 조용히 지운다(용량 초과에서 반복 저장하지 않는다).
 function saveDashCache(rows) {
     try {
@@ -1592,6 +1603,7 @@ const isCacheFresh = (key, timeKey) => {
     try {
         const cached = localStorage.getItem(key);
         const t = localStorage.getItem(timeKey);
+        if (key === 'historyDataCache' && cached && cached.length > HISTORY_CACHE_MAX_CHARS) { clearFullHistoryCache(); return false; }   // 상한 전에 저장된 큰 캐시
         return !!(cached && t && (Date.now() - parseInt(t) < HISTORY_CACHE_TTL_MS));
     } catch (_) { return false; }
 };
@@ -1732,7 +1744,9 @@ export async function refreshRecentHistory(days = RECENT_REFRESH_DAYS) {
                     && day.onLeaveMembers.some(e => e && e.__fromSchedule))
                     ? { ...day, onLeaveMembers: day.onLeaveMembers.filter(e => !(e && e.__fromSchedule)) }
                     : day);
-                localStorage.setItem('historyDataCache', JSON.stringify(clean));
+                const json = JSON.stringify(clean);
+                if (json.length > HISTORY_CACHE_MAX_CHARS) clearFullHistoryCache();   // 커졌으면 옛 전체 캐시도 남기지 않는다
+                else localStorage.setItem('historyDataCache', json);
             } catch (_) {}
         }
     } catch (e) {

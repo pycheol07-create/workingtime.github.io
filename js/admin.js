@@ -1,16 +1,16 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610271324';
-import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610271324';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610271324';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610271324';
-import { memberNameFor } from './app-shell-data.js?v=202610271324';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610271552';
+import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610271552';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610271552';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610271552';
+import { memberNameFor } from './app-shell-data.js?v=202610271552';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610271324';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610271324';
-import { getPermModel } from './admin-perm.js?v=202610271324';
-import { showConfirm } from './utils.js?v=202610271324';
-import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610271324';
+import { menuConfigOf } from './lib/perm.js?v=202610271552';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610271552';
+import { getPermModel } from './admin-perm.js?v=202610271552';
+import { showConfirm } from './utils.js?v=202610271552';
+import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610271552';
 
 import {
     renderAdminUI,
@@ -30,13 +30,13 @@ import {
     findDeadMenuItems,
     countNamelessMenuRows,
     MOVE_BTNS
-} from './admin-ui.js?v=202610271324';
+} from './admin-ui.js?v=202610271552';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610271324';
+} from './admin-logic.js?v=202610271552';
 
 let db, auth;
 let appConfig = {};
