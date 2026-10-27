@@ -5,8 +5,8 @@
 //   ① [data-feature] 정적 버튼 숨김  ② window.* 위험 함수 감싸기  ③ 업로드 input change 캡처 차단  ④ 툴팁 편집 버튼 캡처 차단
 //   ⑤ 열 머리 끌기(dragstart) 캡처 차단
 // 연결표: js/lib/location-guard-map.js. 판정: js/page-gate.js 의 window.__perm.
-import { onPerm, applyFeatureVisibility, guardFunctions, guardFileInputs, guardClicks, guardDrags, canFeature } from './feature-gate.js?v=202610271046';
-import { GUARDED_FUNCTIONS, QUIET_FUNCTIONS, GUARDED_FILE_INPUTS, GUARDED_CLICKS, GUARDED_DRAGS, HTML_FLAGS } from './lib/location-guard-map.js?v=202610271046';
+import { onPerm, applyFeatureVisibility, guardFunctions, guardFileInputs, guardClicks, guardDrags, canFeature } from './feature-gate.js?v=202610271047';
+import { GUARDED_FUNCTIONS, QUIET_FUNCTIONS, GUARDED_FILE_INPUTS, GUARDED_CLICKS, GUARDED_DRAGS, HTML_FLAGS } from './lib/location-guard-map.js?v=202610271047';
 
 guardFunctions(GUARDED_FUNCTIONS, { quiet: QUIET_FUNCTIONS });
 guardFileInputs(GUARDED_FILE_INPUTS);

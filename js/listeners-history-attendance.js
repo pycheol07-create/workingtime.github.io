@@ -1,17 +1,17 @@
 // === js/listeners-history-attendance.js ===
 // 설명: 이력 보기의 '근태 이력' 관리(추가/수정/삭제 요청) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610271046';
-import * as State from './state.js?v=202610271046';
-import { isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610271046';
-import { showToast, showConfirm, getTodayDateString, getCurrentTime } from './utils.js?v=202610271046';
-import { renderAttendanceDailyHistory } from './ui-history.js?v=202610271046';
-import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202610271046';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610271046';
-import { updateLeaveSchedule } from './config.js?v=202610271046';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610271046';
-import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202610271046';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610271046';
+import * as DOM from './dom-elements.js?v=202610271047';
+import * as State from './state.js?v=202610271047';
+import { isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202610271047';
+import { showToast, showConfirm, getTodayDateString, getCurrentTime } from './utils.js?v=202610271047';
+import { renderAttendanceDailyHistory } from './ui-history.js?v=202610271047';
+import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202610271047';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610271047';
+import { updateLeaveSchedule } from './config.js?v=202610271047';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610271047';
+import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202610271047';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610271047';
 import { doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 수정 모달이 지금 다루고 있는 근태의 '원본'.

@@ -9,7 +9,7 @@
 //   그래서 자동 추정값을 그대로 다시 치면 그 값으로 고정 저장된다.
 // 숫자 검사는 처리량 칸과 같다(lib/qty-input.js parseQtyInput — 0 이상 정수만).
 
-import { parseQtyInput } from './qty-input.js?v=202610271046';
+import { parseQtyInput } from './qty-input.js?v=202610271047';
 
 /** 저장값 정리 — 0 이상 숫자는 그 값, 없음·음수·숫자 아님은 null(= 키 없음). */
 export const normPlanned = (v) => {
