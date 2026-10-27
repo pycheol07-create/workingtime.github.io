@@ -1,20 +1,20 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202610271137';
-import * as State from './state.js?v=202610271137';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610271137';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610271137';
+import * as DOM from './dom-elements.js?v=202610271148';
+import * as State from './state.js?v=202610271148';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202610271148';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202610271148';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory, historyLoadFailed,
-         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache } from './history-data-manager.js?v=202610271137';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610271137';
-import { historyDotState } from './lib/history-dot.js?v=202610271137';
-import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=202610271137';
-import { renderQuantityModalInputs, applyPlannedPrefill } from './ui.js?v=202610271137';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202610271137';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202610271137';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610271137';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610271137';
+         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache } from './history-data-manager.js?v=202610271148';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610271148';
+import { historyDotState } from './lib/history-dot.js?v=202610271148';
+import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=202610271148';
+import { renderQuantityModalInputs, applyPlannedPrefill } from './ui.js?v=202610271148';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202610271148';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202610271148';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202610271148';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202610271148';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -54,8 +54,8 @@ export const retryHistoryLoad = async () => {
         await loadAndRenderHistoryList();
         if (historyLoadFailed()) return;   // 또 실패 — 오류 화면은 그대로
         clearPanelLoadErrors();
-        const { sectionIdFor } = await import('./history-sections.js?v=202610271137');
-        const { showSection } = await import('./listeners-history-tabs.js?v=202610271137');
+        const { sectionIdFor } = await import('./history-sections.js?v=202610271148');
+        const { showSection } = await import('./listeners-history-tabs.js?v=202610271148');
         await showSection(sectionIdFor(prevMain, prevSub) || 'insight');
     } catch (e) {
         console.error('이력 다시 시도 실패:', e);

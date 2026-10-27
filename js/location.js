@@ -1,25 +1,25 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610271137';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610271148';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610271137';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610271137';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610271137';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610271137';
-import { orderKeyMap } from './lib/order-hash.js?v=202610271137';
-import { setShellContext } from './app-shell-bridge.js?v=202610271137';
-import { memberNameFor } from './app-shell-data.js?v=202610271137';
-import { menuConfigOf } from './lib/perm.js?v=202610271137';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610271137';
-import { initPageNav } from './page-nav.js?v=202610271137';
-import { initRefillCard } from './refill-card.js?v=202610271137';
-import { initLocRecCard } from './locrec-card.js?v=202610271137';
-import { initRebuildBar } from './rebuild-bar.js?v=202610271137';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610271137';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610271137';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610271137';
-import { uploadBlockText } from './lib/busy-view.js?v=202610271137';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610271137';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610271137';
+import { escapeHtml as escAttr } from './utils.js?v=202610271148';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610271148';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610271148';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610271148';
+import { orderKeyMap } from './lib/order-hash.js?v=202610271148';
+import { setShellContext } from './app-shell-bridge.js?v=202610271148';
+import { memberNameFor } from './app-shell-data.js?v=202610271148';
+import { menuConfigOf } from './lib/perm.js?v=202610271148';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610271148';
+import { initPageNav } from './page-nav.js?v=202610271148';
+import { initRefillCard } from './refill-card.js?v=202610271148';
+import { initLocRecCard } from './locrec-card.js?v=202610271148';
+import { initRebuildBar } from './rebuild-bar.js?v=202610271148';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610271148';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610271148';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610271148';
+import { uploadBlockText } from './lib/busy-view.js?v=202610271148';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610271148';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610271148';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -6164,12 +6164,9 @@ window.applyLocBulkEdit = async function () {
     }
 };
 
-window.renderIncomingQueue = function() {
-    const container = document.getElementById('incoming-list');
-    if(!container) return;
-    const filterSource = document.getElementById('filter-source')?.value || 'all';
-    const sortType = document.getElementById('sort-incoming')?.value || 'qty-desc';
-
+// 입고대기 패널에 보일 목록 = 로케이션 지정이 필요한 입고 예정 상품(아직 자리·선지정 없음, 날짜 있음, 도착예상일이 오늘 이후).
+//   패널(renderIncomingQueue)과 대시보드 '입고 대기' 카드가 같은 기준을 쓴다. filterSource: 'all' | 제작 | 사입
+function incomingNeedLocList(filterSource = 'all') {
     let existingLocMap = {}; 
     originalData.forEach(loc => {
         if(loc.preAssigned && loc.preAssignedCode) existingLocMap[String(loc.preAssignedCode).replace(/\s+/g, '')] = true;
@@ -6192,6 +6189,16 @@ window.renderIncomingQueue = function() {
         
         return true;
     });
+    return list;
+}
+
+window.renderIncomingQueue = function() {
+    const container = document.getElementById('incoming-list');
+    if(!container) return;
+    const filterSource = document.getElementById('filter-source')?.value || 'all';
+    const sortType = document.getElementById('sort-incoming')?.value || 'qty-desc';
+
+    let list = incomingNeedLocList(filterSource);
 
     // 추천 자리 미리 배정 (일괄 적용과 동일 순서: 출고예상일 빠른 순 → 미입고수량 많은 순)
     // → 표시 정렬과 무관하게 상품마다 서로 다른 자리, 그리고 실제 일괄적용 결과와 일치
@@ -8147,6 +8154,9 @@ window.renderLocationDashboard = function () {
     // 입고대기
     const incomingCodes = Object.keys(incomingTotalByCode || {}).filter(c => (incomingTotalByCode[c] || 0) > 0);
     const incomingQtyTotal = incomingCodes.reduce((a, c) => a + (incomingTotalByCode[c] || 0), 0);
+    // 로케이션 지정이 필요한 입고 예정(패널 목록과 같은 기준) — 카드를 누르면 패널이 열린다 · 숫자는 위 '입고 대기 N종'과 같게 수량 > 0 인 코드만
+    let needLocN = 0;
+    try { needLocN = new Set(incomingNeedLocList('all').map(it => String(it['상품코드'] || '').trim()).filter(c => c && (incomingTotalByCode[c] || 0) > 0)).size; } catch (e) { console.warn('[location] 지정 필요 수 계산 실패:', e && e.message); }
 
     // 마지막배송일 분포 (정상재고 있는 상품만, 상품코드 기준)
     const todayMs = new Date().setHours(0, 0, 0, 0);
@@ -8262,10 +8272,11 @@ window.renderLocationDashboard = function () {
             <div class="kpi-value"><span style="color:${TONE.riskText};">${preAssigned}</span> <span class="kpi-unit">/</span> <span style="color:${TONE.accentDeep};">${todayReserved}</span></div>
             <div class="kpi-sub">미입고 찜 ${preAssigned}건, 오늘 작업 ${todayReserved}건 · <span class="kpi-link" style="color:${TONE.accentDeep};">목록 보기</span></div>
         </div>
-        <div class="dash-kpi-card kpi-incoming">
+        <div class="dash-kpi-card kpi-incoming${needLocN > 0 ? ' kpi-click' : ''}"${needLocN > 0 ? ` onclick="window.__dashOpenIncoming()" title="클릭: 입고대기 패널을 열어 로케이션 지정"` : ''}>
             <div class="kpi-title">입고 대기</div>
             <div class="kpi-value">${incomingCodes.length}<span class="kpi-unit"> 종</span></div>
             <div class="kpi-sub">총 ${incomingQtyTotal.toLocaleString()} 개 미입고</div>
+            ${needLocN > 0 ? `<div class="kpi-sub" style="margin-top:4px;"><span style="color:${TONE.warnText};font-weight:700;">로케이션 지정 필요 ${needLocN.toLocaleString()}종</span> · <span class="kpi-link" style="color:${TONE.accentDeep};">바로 지정</span></div>` : ''}
         </div>
     `;
     document.getElementById('dash-kpi-row').innerHTML = kpiHtml;
@@ -8751,6 +8762,16 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
 // ============================================================
 // 📍 KPI 카드 클릭 → 상세 리스트 모달 (빈자리 / 선지정·당일지정 / 다중위치)
 // ============================================================
+// 대시보드 '입고 대기' 카드 → 입고대기 패널 열기(이미 열려 있으면 닫지 않고 목록만 새로)
+window.__dashOpenIncoming = function () {
+    const sb = document.getElementById('incoming-sidebar');
+    if (!sb) return;
+    const fs = document.getElementById('filter-source');   // 카드 숫자는 전체 기준 — 출처 필터를 풀어 같은 목록을 보인다
+    if (fs && fs.value !== 'all') fs.value = 'all';
+    if (sb.classList.contains('open')) { if (typeof window.renderIncomingQueue === 'function') window.renderIncomingQueue(); return; }
+    if (typeof window.toggleIncomingSidebar === 'function') window.toggleIncomingSidebar();
+};
+
 window.__dashShowLocList = function (type) {
     const modal = document.getElementById('dash-loc-modal');
     const titleEl = document.getElementById('dash-loc-title');

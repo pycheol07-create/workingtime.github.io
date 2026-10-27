@@ -9,7 +9,7 @@
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 // 계산은 mibal2-calc.js calcPlan(공식 버전 FORMULA_VER — 2026-10-20 v2: 피킹 → 비축 → 입고분, 3층 = 미발 + 피킹 적재).
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202610271137';
+import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202610271148';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
@@ -147,7 +147,9 @@ export const FLAG_INFO = Object.freeze({
     noReserve: ['비축모름', 'bad'], negReserve: ['비축음수', 'bad'], negPick: ['피킹재고음수', 'bad'],
     unresolved: ['남는부족수량', 'warn'], overCap: ['피킹넘침', 'warn'], needRefill: ['보충필요', 'warn'],
     noLoc: ['로케이션없음', 'bad'], etcLoc: ['기타자리만', 'bad'], multiLoc: ['여러자리', ''],
-    onlyOld: ['기존에만', 'bad'], noOld: ['신규에만', 'warn'], arrDiff: ['도착다름', 'warn']
+    onlyOld: ['기존에만', 'bad'], noOld: ['신규에만', 'warn'], arrDiff: ['도착다름', 'warn'],
+    // 스캐너 연동(시험): 표에 없는데 앱 스캔 입고가 있는 코드(china-mibal2.js 가 오늘 보기에서만 덧붙인다). '미등록' 인지는 모른다
+    outsideIn: ['선택 출고일 밖 입고', 'warn']
 });
 /** 하나라도 붙으면 '확인 필요' 행. multiLoc 은 사용자 결정(첫 자리 하나)이라 정보만 */
 export const CHECK_FLAGS = new Set(['noStock', 'noOrders', 'noReserve', 'negReserve', 'negPick', 'zeroCapacity', 'noLoc', 'etcLoc']);
@@ -321,13 +323,30 @@ const EXCEL_COLS = [
 const NUM_KEYS = new Set(['No', '적재량', '도착', '총재고', '비축', '피킹재고', '접수', '송장', '출고예정', '부족수량', '미발수량(추가 출고)', '남는 부족수량',
     '피킹 여유', '피킹 배정수량', '피킹 적재', '비축 적재', '비축→피킹 보충', '기존 계산기 미발수량', '차이(피킹 배정−기존)']);
 
+/**
+ * 스캐너 연동(시험) 열 — 행에 입고확인 정보(confSrc)가 붙어 있을 때만(오늘 보기) '차이(피킹 배정−기존)' 뒤에 넣는다.
+ * 입고확인 = 앱 스캔 합 또는 수동값(숫자면 숫자, 아니면 글자 그대로), 차이 = 도착 − 입고확인(미스캔이면 빈칸).
+ */
+const CONF_COLS = [
+    ['입고확인', r => { const v = r.conf; if (v === null || v === undefined || String(v).trim() === '') return ''; const n = Number(v); return Number.isFinite(n) ? n : String(v); }],
+    ['차이(도착−입고확인)', r => r.inDiff]
+];
+const CONF_NUM_KEYS = new Set(['차이(도착−입고확인)']);
+const hasConf = (rows) => (rows || []).some(r => r && r.confSrc !== undefined);
+
 /** 행 → 엑셀용 2차원 배열(첫 줄 머리글). 숫자 칸의 null·숫자 아님은 빈칸. 상품코드·상품명·옵션·숫자만(공급처·원가·고객정보 없음) */
 export function excelAoaOf(rows) {
-    const aoa = [EXCEL_COLS.map(c => c[0])];
+    let cols = EXCEL_COLS;
+    if (hasConf(rows)) {
+        const at = EXCEL_COLS.findIndex(c => c[0] === '차이(피킹 배정−기존)') + 1;
+        cols = [...EXCEL_COLS.slice(0, at), ...CONF_COLS, ...EXCEL_COLS.slice(at)];
+    }
+    const aoa = [cols.map(c => c[0])];
     (rows || []).forEach((r, i) => {
-        aoa.push(EXCEL_COLS.map(([h, f]) => {
+        aoa.push(cols.map(([h, f]) => {
             const v = f(r, i);
-            if (NUM_KEYS.has(h)) { const n = (v === null || v === undefined || v === '') ? NaN : Number(v); return Number.isFinite(n) ? n : ''; }
+            if (NUM_KEYS.has(h) || CONF_NUM_KEYS.has(h)) { const n = (v === null || v === undefined || v === '') ? NaN : Number(v); return Number.isFinite(n) ? n : ''; }
+            if (h === '입고확인') return v;   // 숫자면 숫자, 수동 글자면 글자 그대로(CONF_COLS 에서 정함)
             return v === null || v === undefined ? '' : String(v);
         }));
     });
