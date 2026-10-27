@@ -4,17 +4,28 @@
 //   integrations/refillLatest      { days: {YYYYMMDD: {status, rev, source, basedAt, rows, fillQty, checks, reason}}, schedule, req }
 //   integrations/refillDay_YYYYMMDD { rowsJson, file:{name, b64, bytes, sha}, fileOmitted, slack, source, basedAt, requestedBy }
 //   refillWork/YYYYMMDD            { checks: {상품코드: {done, by, at}} }       ← 직원이 쓴다
-//   refillWork/request             { requestedAt, by, day }                    ← 직원이 쓴다(덮어쓰기)
+//   refillWork/request             { requestedAt, by, day }                    ← 직원이 쓴다(덮어쓰기) — 머리줄 [지금 재고로 다시 만들기]
+//                                                                                (js/rebuild-bar.js). 변경 추천 권한만 있으면 locRecWork/request 에.
+//                                                                                서버는 두 문서 중 늦은 쪽을 요청으로 본다
+//   refillLatest.req               { state: running|done|failed|rejected|waiting, note, day, count, autoCount, lastReqAt, startedAt, at,
+//                                    source: request|auto, autoStockAt(ms), dataAt(ms), max, cooldownMin, autoMax }  ← 서버 요청판정.py
 // 날짜 키는 한국시간(KST) — toISOString 은 UTC 라 09시 전에 하루 밀린다(location.js toDateStr 주석 사례).
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEKDAYS = '월화수목금토일';                 // 0=월 … 6=일 (프로그램 settings.days 와 같은 번호)
 export const DEFAULT_SCHEDULE = { enabled: true, days: [0, 1, 2, 3, 4], skipHolidays: true };
-export const REQ_OPEN_H = 7, REQ_CLOSE_H = 19;          // 다시 만들기 받는 시간(프로그램 REQ_OPEN·REQ_CLOSE 와 같게)
+export const REQ_OPEN_H = 7, REQ_CLOSE_H = 19;          // 프로그램 확인이 도는 시간(채우기요청 07:00~19:00)
+// 요청 받는 시각 07:00~18:50(요청 시각 기준) — 서버 채우기자동화\요청판정.py REQ_OPEN_MIN·REQ_CLOSE_MIN, 변경 추천 locrec-view.js 와 같게
+export const REQ_OPEN_MIN = 7 * 60, REQ_CLOSE_MIN = 18 * 60 + 50;
+export const REQ_HOURS_TEXT = '07:00~18:50';
 export const REGULAR_DONE_H = 9;                         // 정기 지시서(08:20)가 이 시각까지 없으면 '확인 중'
 export const PENDING_MAX_MS = 15 * 60 * 1000;            // 요청이 이만큼 처리 안 되면 'PC 가 꺼져 있을 수 있음'
-export const DEFAULT_REQ_MAX = 6, DEFAULT_COOLDOWN_MIN = 15;
+export const REQ_RUNNING_MS = 25 * 60 * 1000;            // 다시 만드는 중이 이만큼 그대로면 멈춘 것(예약작업 채우기요청 한도 25분)
+export const REQ_NOTE_MS = 60 * 60 * 1000;               // 거절·실패·대기 사유를 보여 주는 시간
+export const DEFAULT_REQ_MAX = 6, DEFAULT_COOLDOWN_MIN = 15, DEFAULT_AUTO_MAX = 3;
+export const REBUILD_LABEL = '지금 재고로 다시 만들기';
+export const AUTO_NOTE = '재고 자료가 새로 올라왔습니다 — 몇 분 안에 자동으로 다시 만듭니다';
 export const COLS = ['피킹로케이션', '비축위치', '채울수량', '비축재고', '상품코드'];
 
 const p2 = (n) => String(n).padStart(2, '0');
@@ -135,45 +146,58 @@ export function dayStatus({ meta, key, todayKey, nowMs, holidayName }) {
     return { status: 'missing', text: '아직 지시서가 없습니다 — 담당자 확인 중' };
 }
 
-/** [지금 기준으로 다시 만들기] 버튼 상태 → {show, enabled, label, note, tone}
- *  req = refillLatest.req, requestMs = refillWork/request 의 requestedAt(ms, 없으면 0) */
-export function reqUi({ req, requestMs, nowMs, isToday, isRunDay, todayKey }) {
-    const label = '지금 기준으로 다시 만들기';
+/** [지금 재고로 다시 만들기] 상태 → {show, enabled, label, note, tone('' | accent | warn)}
+ *  버튼은 대시보드 머리줄 하나(js/rebuild-bar.js — 채우기·변경 추천을 합쳐 combinedReqUi). 채우기 카드는 note 만 보여 준다.
+ *  req = refillLatest.req · requestMs = 요청 문서 두 곳(refillWork/request·locRecWork/request) 중 늦은 requestedAt(ms, 없으면 0)
+ *  board = 오늘 정기 지시서(08:20)가 있는가(days[오늘].status 'ok') · lastDataMs = INFO_CONFIG.lastDataUpdate(재고 엑셀 올린 시각)
+ *  basedAtMs = 오늘 판의 basedAt. 서버 규칙(채우기자동화\요청판정.decide)과 같게: 오늘 · 근무일 · 정기 판 뒤 · 07:00~18:50 ·
+ *  하루 max · cooldownMin 간격(직전 실패면 면제). 자동(재고 업로드)은 하루 autoMax. */
+export function reqUi({ req, requestMs, nowMs, isToday, isRunDay, todayKey, board = true, lastDataMs = 0, basedAtMs = 0 }) {
+    const label = REBUILD_LABEL;
+    const res = (enabled, note = '', tone = '') => ({ show: true, enabled, label, note, tone });
     if (!isToday) return { show: false, enabled: false, label, note: '', tone: '' };
-    if (!isRunDay) return { show: true, enabled: false, label, note: '쉬는 날에는 다시 만들지 않습니다', tone: '' };
+    if (!isRunDay) return res(false, '쉬는 날에는 다시 만들지 않습니다');
+    if (!board) return res(false, '08:20 정기 지시서 뒤에 다시 만들 수 있습니다');
     const r = req || {};
     const lastMs = tsMs(r.lastReqAt), atMs = tsMs(r.at);
     const sameDay = r.day === todayKey;
-    const max = Number.isInteger(r.max) ? r.max : DEFAULT_REQ_MAX;
-    const cool = (Number.isInteger(r.cooldownMin) ? r.cooldownMin : DEFAULT_COOLDOWN_MIN) * 60 * 1000;
-    // 1) 처리 중 — 15분 넘게 그대로면 PC 가 꺼졌을 수 있다(다음 요청 허용)
-    if (r.state === 'running' && sameDay) {
-        if (nowMs - atMs < PENDING_MAX_MS) return { show: true, enabled: false, label, note: '다시 만드는 중… (보통 3~8분)', tone: 'accent' };
+    const intOr = (v, d) => (Number.isInteger(v) ? v : d);
+    const max = intOr(r.max, DEFAULT_REQ_MAX), autoMax = intOr(r.autoMax, DEFAULT_AUTO_MAX);
+    const cool = intOr(r.cooldownMin, DEFAULT_COOLDOWN_MIN) * 60 * 1000;
+    const autoN = sameDay ? intOr(r.autoCount, 0) : 0;
+    const dataMs = tsMs(lastDataMs);
+    const autoPending = dataMs > 0 && dataMs > Math.max(tsMs(basedAtMs), tsMs(r.dataAt), tsMs(r.autoStockAt)) && autoN < autoMax;
+    const withAuto = (o) => (autoPending && o.tone !== 'warn' ? { ...o, note: AUTO_NOTE + (o.note ? ` · ${o.note}` : ''), tone: o.tone || 'accent' } : o);
+    // 1) 처리 중 — 예약작업 한도(25분) 넘게 그대로면 PC 가 꺼졌을 수 있다(다음 요청 허용)
+    if (r.state === 'running' && sameDay && nowMs - atMs < REQ_RUNNING_MS) {
+        return res(false, r.source === 'auto' ? '재고 자료가 새로 올라와 자동으로 다시 만드는 중… (보통 3~8분)' : '다시 만드는 중… (보통 3~8분)', 'accent');
     }
-    // 2) 아직 처리되지 않은 요청
+    // 2) 아직 처리되지 않은 요청 — 서버가 '대기'(이지어드민 쉬는 시간·재고 올리는 중)로 남겼으면 그 사유
     const pending = requestMs > 0 && requestMs > lastMs;
+    if (pending && r.state === 'waiting' && sameDay && r.note && nowMs - atMs < REQ_NOTE_MS) {
+        return res(false, `요청함 — ${r.note}`, 'accent');
+    }
     if (pending && nowMs - requestMs < PENDING_MAX_MS) {
-        return { show: true, enabled: false, label, note: '요청함 — 처리 대기 중 (이 PC 프로그램이 5분마다 확인)', tone: 'accent' };
+        return res(false, '요청함 — 처리 대기 중 (이 PC 프로그램이 5분마다 확인)', 'accent');
     }
     const k = kstParts(nowMs);
-    if (k.hh < REQ_OPEN_H || k.hh >= REQ_CLOSE_H) {
-        return { show: true, enabled: false, label, note: '07~19시에만 다시 만들 수 있습니다', tone: '' };
+    const hm = k.hh * 60 + k.mm;
+    const recentNote = sameDay && (r.state === 'rejected' || r.state === 'failed') && r.note && nowMs - atMs < REQ_NOTE_MS;
+    const lastNote = () => (r.state === 'failed' ? `다시 만들지 못했습니다: ${r.note}` : `지난 요청이 처리되지 않았습니다: ${r.note}`);
+    if (hm < REQ_OPEN_MIN || hm >= REQ_CLOSE_MIN) {
+        return recentNote ? res(false, lastNote(), 'warn') : res(false, `${REQ_HOURS_TEXT}에만 다시 만들 수 있습니다`);
     }
-    if (sameDay && Number.isInteger(r.count) && r.count >= max) {
-        return { show: true, enabled: false, label, note: `오늘 다시 만들기 한도(${max}회)를 다 썼습니다`, tone: '' };
-    }
+    if (sameDay && intOr(r.count, 0) >= max) return withAuto(res(false, `오늘 다시 만들기 한도(${max}회)를 다 썼습니다`));
     const started = sameDay ? tsMs(r.startedAt) : 0;
     if (started && nowMs - started < cool && r.state !== 'failed') {
-        return { show: true, enabled: false, label, note: `${fmtHM(started + cool)} 이후 다시 만들 수 있습니다(${cool / 60000}분 간격)`, tone: '' };
+        return withAuto(res(false, `${fmtHM(started + cool)} 이후 다시 만들 수 있습니다(${cool / 60000}분 간격)`));
     }
-    if (pending) return { show: true, enabled: true, label, note: '요청이 15분 넘게 처리되지 않았습니다 — PC 가 꺼져 있을 수 있습니다', tone: 'warn' };
+    if (pending) return res(true, '요청이 15분 넘게 처리되지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
     if (r.state === 'running' && sameDay) {
-        return { show: true, enabled: true, label, note: '다시 만들기가 15분 넘게 끝나지 않았습니다 — PC 가 꺼져 있을 수 있습니다', tone: 'warn' };
+        return res(true, '다시 만들기가 25분 넘게 끝나지 않았습니다 — PC 가 꺼져 있을 수 있습니다', 'warn');
     }
-    if (sameDay && (r.state === 'rejected' || r.state === 'failed') && r.note && nowMs - atMs < 60 * 60 * 1000) {
-        return { show: true, enabled: true, label, note: `지난 요청이 처리되지 않았습니다: ${r.note}`, tone: 'warn' };
-    }
-    return { show: true, enabled: true, label, note: '', tone: '' };
+    if (recentNote) return res(true, lastNote(), 'warn');
+    return withAuto(res(true));
 }
 
 /** 숫자 → '1,234'. 숫자로 못 읽으면 '-' (카드 본문 num() 과 같은 표기) */

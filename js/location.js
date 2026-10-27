@@ -1,24 +1,25 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610270852';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610270952';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610270852';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610270852';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610270852';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610270852';
-import { orderKeyMap } from './lib/order-hash.js?v=202610270852';
-import { setShellContext } from './app-shell-bridge.js?v=202610270852';
-import { memberNameFor } from './app-shell-data.js?v=202610270852';
-import { menuConfigOf } from './lib/perm.js?v=202610270852';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610270852';
-import { initPageNav } from './page-nav.js?v=202610270852';
-import { initRefillCard } from './refill-card.js?v=202610270852';
-import { initLocRecCard } from './locrec-card.js?v=202610270852';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610270852';
-import { whenPerm } from './feature-gate.js?v=202610270852';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610270852';
-import { uploadBlockText } from './lib/busy-view.js?v=202610270852';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610270852';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610270852';
+import { escapeHtml as escAttr } from './utils.js?v=202610270952';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610270952';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610270952';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610270952';
+import { orderKeyMap } from './lib/order-hash.js?v=202610270952';
+import { setShellContext } from './app-shell-bridge.js?v=202610270952';
+import { memberNameFor } from './app-shell-data.js?v=202610270952';
+import { menuConfigOf } from './lib/perm.js?v=202610270952';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610270952';
+import { initPageNav } from './page-nav.js?v=202610270952';
+import { initRefillCard } from './refill-card.js?v=202610270952';
+import { initLocRecCard } from './locrec-card.js?v=202610270952';
+import { initRebuildBar } from './rebuild-bar.js?v=202610270952';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610270952';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610270952';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610270952';
+import { uploadBlockText } from './lib/busy-view.js?v=202610270952';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610270952';
+import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610270952';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -92,6 +93,10 @@ whenPerm('location.refill', () => initRefillCard({ db, auth, getMemberName: () =
 // 그 아래 '로케이션 변경 추천' 카드 — 같은 db·auth, 같은 이름 규칙(memberNameFor 만, 이메일 폴백 없음)
 whenPerm('location.locrec', () => initLocRecCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email),
     sizeOf: (id) => locAngleSize(originalData.find(d => d.id === id)) }));   // 변경 추천 표: 칸수 칸이 없는 옛 문서 행은 읽어 둔 자리에서 보충
+// 대시보드 머리줄 [지금 재고로 다시 만들기](js/rebuild-bar.js) — 채우기·변경 추천을 한 번에. 두 권한 중 하나라도 있으면 시작(구독),
+//   요청은 가진 권한 쪽 문서 하나에. 권한 판정이 나올 때마다(로그인 바뀜 포함) 다시 알려 준다. 이름 규칙은 카드와 같다(memberNameFor 만).
+const _rebuildBar = initRebuildBar({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) });
+if (_rebuildBar) onPerm(() => _rebuildBar.setPerms({ canRefill: canFeature('location.refill'), canLocrec: canFeature('location.locrec') }));
 // '갱신 중·업로드 중' 띠(js/busy-banner.js) — 이지어드민 잠금(미발·채우기 자동화) + 오늘 재고·도면 업로드 상태. 권한과 상관없이 모두에게.
 //   업로드 상태 문서(계약 B)는 올리는 사람이 쓴다(firestore.rules locationStock/** = 업로드 권한). 이름은 memberNameFor 만 — 이메일 폴백 없음.
 //   채우기 다시 만들기는 '오늘 채우기 지시서' 카드가 이미 보여 준다 → 띠는 잠금(refill)으로만. 시트 동기화 요청도 잠금(mibal)으로 자동.

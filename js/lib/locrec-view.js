@@ -15,15 +15,16 @@
 //   integrations/locRec_YYYYMMDD    { rowsJson: JSON 문자열 {schema, single:[행], swap:[행], pair:[행]}, metrics, basedOn:{stockDataAt, …}, warn }
 //                                     행 = 로케이션추천\추천실행.mjs(js/lib/loc-recommend.js runRecommend) 출력 행 그대로
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
-//   locRecWork/request              { requestedAt, by, day }   ← [지금 기준으로 다시 만들기](덮어쓰기). 서버 --요청확인 이 5분마다 본다
+//   locRecWork/request              { requestedAt, by, day }   ← 머리줄 [지금 재고로 다시 만들기](js/rebuild-bar.js, 덮어쓰기 — 채우기 권한이
+//                                     있으면 refillWork/request 에). 서버는 두 문서 중 늦은 쪽 · 채우기요청(5분)이 추천.py --요청확인 을 부른다
 //   locRecLatest.req                { state: running|done|failed|rejected|waiting, note, day, count, autoCount, lastReqAt, startedAt, at,
 //                                     source: request|auto, autoStockAt(ms), max, cooldownMin, autoMax }  ← 다시 만들기 상태(서버 다시만들기.py)
 //   다시 만든 locRec_오늘           + rev(1부터) · source · requestedBy · 행 carried:true(이월 — 지금 기준 추천에서 빠졌지만 오늘 손댄 행)
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610270852';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610270852';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts } from './refill-view.js?v=202610270952';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610270952';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 

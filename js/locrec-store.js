@@ -5,21 +5,24 @@
 //   로케이션관리는 카드를 띄울 때 start() 하고 계속 둔다. 대시보드는 표 창을 열 때 start(), 닫을 때 stop()(상시 구독 없음).
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — 페이지가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-//   쓰기는 locRecWork/marks · locRecWork/request 두 곳(firestore.rules: hasFeature('location.locrec')).
-// 다시 만들기: [지금 기준으로 다시 만들기] → locRecWork/request 덮어쓰기 → 이 PC 프로그램(추천.py --요청확인, 5분)이 오늘 문서를 바꾼다(rev +1).
+//   쓰기는 locRecWork/marks 한 곳(firestore.rules: hasFeature('location.locrec')). 다시 만들기 요청 쓰기는 js/rebuild-bar.js.
+// 다시 만들기: 대시보드 머리줄 [지금 재고로 다시 만들기](js/rebuild-bar.js) → 권한 쪽 요청 문서 덮어쓰기 → 이 PC 예약작업 채우기요청
+//   (채우기.py --요청확인, 5분)이 채우기 지시서 뒤에 추천.py --요청확인 을 불러 오늘 문서를 바꾼다(rev +1). 여기서는 상태만 읽는다.
 //   표 창이 열려 있는 동안 오늘 문서 rev 가 바뀌면 바로 바꾸지 않고 pendingDay 에 둔다 — 띠 '새 추천이 도착했습니다' [새로 보기](applyPending).
 //   재고 업로드 자동 감지 문구용으로 Locations/INFO_CONFIG.lastDataUpdate 도 구독한다(로케이션관리는 location.js 가 이미 같은 문서를 구독).
 import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs
-} from './lib/locrec-view.js?v=202610270852';
+} from './lib/locrec-view.js?v=202610270952';
+import { laterMs } from './lib/rebuild-view.js?v=202610270952';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
 const DAY_PATH = (key) => `${APP}/integrations/locRec_${key}`;
 const MARKS_PATH = `${APP}/locRecWork/marks`;
 const REQUEST_PATH = `${APP}/locRecWork/request`;
+const REFILL_REQUEST_PATH = `${APP}/refillWork/request`;    // 채우기 권한이 있는 사람의 요청 — 서버는 두 문서 중 늦은 쪽을 본다
 const INFO_PATH = 'Locations/INFO_CONFIG';
 export const NO_NAME = '이름 없음';
 
@@ -39,7 +42,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
         key: '', userPicked: false,
         day: null, dayErr: '', dayLoading: false,       // day = { key, data, parsed }
         marks: {}, marksErr: '', saving: new Set(),
-        request: null, lastDataMs: 0,                   // 다시 만들기 요청 문서 · INFO_CONFIG.lastDataUpdate
+        request: null, refillRequest: null, lastDataMs: 0,   // 다시 만들기 요청 문서 2곳 · INFO_CONFIG.lastDataUpdate
         pendingDay: null                                // 표 창이 열려 있을 때 도착한 새 판 { key, data, parsed }
     };
     let unsubs = [], unsubDay = null, dayKeyWatching = '', unsubAuth = null, timer = null, reqTimer = null, started = false;
@@ -84,6 +87,10 @@ function createLocRecStore({ db, auth, getMemberName }) {
             S.request = snap.exists() ? (snap.data({ serverTimestamps: 'estimate' }) || {}) : null;
             emit();
         }, () => { S.request = null; }));
+        unsubs.push(onSnapshot(doc(db, REFILL_REQUEST_PATH), snap => {
+            S.refillRequest = snap.exists() ? (snap.data({ serverTimestamps: 'estimate' }) || {}) : null;
+            emit();
+        }, () => { S.refillRequest = null; }));
         unsubs.push(onSnapshot(doc(db, INFO_PATH), snap => {
             S.lastDataMs = snap.exists() ? tsMs((snap.data() || {}).lastDataUpdate) : 0;
             emit();
@@ -156,7 +163,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
         stopSnaps();
         S.authKnown = false; S.signedIn = false; S.latest = null; S.latestErr = ''; S.day = null; S.dayErr = ''; S.dayLoading = false;
         S.marks = {}; S.marksErr = ''; S.key = ''; S.userPicked = false;
-        S.request = null; S.lastDataMs = 0; S.pendingDay = null;
+        S.request = null; S.refillRequest = null; S.lastDataMs = 0; S.pendingDay = null;
         emit();
     }
 
@@ -172,27 +179,15 @@ function createLocRecStore({ db, auth, getMemberName }) {
         emit();
     }
 
-    /** [지금 기준으로 다시 만들기] 버튼 상태(recReqUi) — 오늘 날짜를 보고 있을 때만 보인다 */
+    /** 다시 만들기 상태(recReqUi) — 오늘 날짜를 보고 있을 때만. 카드·표 창은 문구(note)만 보여 준다 —
+     *  버튼은 대시보드 머리줄 하나(js/rebuild-bar.js). 요청 시각은 두 문서(locRecWork/request · refillWork/request) 중 늦은 쪽 */
     function reqState() {
         const today = todayKey();
         const L = S.latest || {};
-        return recReqUi({ req: L.req, requestMs: S.request ? tsMs(S.request.requestedAt) : 0, nowMs: Date.now(),
+        const requestMs = laterMs(tsMs(S.request && S.request.requestedAt), tsMs(S.refillRequest && S.refillRequest.requestedAt));
+        return recReqUi({ req: L.req, requestMs, nowMs: Date.now(),
                           isToday: S.key === today, entry: entryOf(today), lastDataMs: S.lastDataMs,
                           stockDataMs: L.stockDataAt, todayKey: today });
-    }
-
-    /** 다시 만들기 요청 — 요청 문서를 덮어쓴다(처리는 이 PC 프로그램이 5분마다). 앱에서만 바뀌고 슬랙에는 다시 보내지 않는다 */
-    async function requestRebuild() {
-        const today = todayKey();
-        if (S.key !== today || !S.latest) return;
-        if (!reqState().enabled) { emit(); return; }
-        if (!confirm('사무실 PC 자동화 프로그램이 지금 배치·재고로 오늘 변경 추천을 새로 만듭니다.\n'
-            + '처리함/안 함 표시는 그대로 남고, 슬랙에는 다시 보내지 않습니다. 보통 3~6분 걸립니다.\n\n다시 만들까요?')) return;
-        try {
-            await setDoc(doc(db, REQUEST_PATH), { requestedAt: serverTimestamp(), by: nameOf(), day: today });
-        } catch (e) {
-            alert(`요청하지 못했습니다(${(e && e.code) || '오류'}).`);
-        }
     }
 
     function setDay(key) {
@@ -277,6 +272,6 @@ function createLocRecStore({ db, auth, getMemberName }) {
     return {
         get: () => S, on, start, stop, setDay, entryOf, loaded, visibleRows,
         mark, markMany, downloadTab, downloadAll, isStarted: () => started,
-        reqState, requestRebuild, setHold, applyPending
+        reqState, setHold, applyPending
     };
 }

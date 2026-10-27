@@ -2,16 +2,17 @@
 // 로케이션관리 대시보드 맨 위 '채우기 지시서' 카드(띠·본문). 데이터는 js/refill-store.js, 표 창은 js/refill-table.js.
 //   카드는 접힌 띠 한 줄(요약 · 엑셀 받기 · 펼치기)이 기본, [펼치기]로 아래 전체 내용(날짜 선택·진행률·버튼). 펼침은 js/lib/card-fold.js.
 //   지시서는 이 PC 프로그램(업무자동화\앱\채우기자동화)이 매일 08:20 슬랙에 보내면서 같은 것을 Firestore 에도 남긴다(7일치).
-//   카드: 엑셀 받기 · 표 보기 · 행별 완료 체크(오늘 것만) · 지금 기준으로 다시 만들기(앱에만 갱신, 슬랙에는 안 보냄).
+//   카드: 엑셀 받기 · 표 보기 · 행별 완료 체크(오늘 것만) · 다시 만들기 상태 문구.
+//   다시 만들기 버튼은 대시보드 머리줄 [지금 재고로 다시 만들기] 하나(js/rebuild-bar.js — 변경 추천과 같이, 앱에만 갱신·슬랙 없음).
 //   같은 지시서를 대시보드 '채우기' 업무 카드에서도 연다(js/refill-dash.js).
 // 문서·순수 함수는 js/lib/refill-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=202610270852';
-import { lastDays, dayLabel, fmtHM, progress, dayStatus, refillStrip, fmtCount } from './lib/refill-view.js?v=202610270852';
-import { initFold } from './lib/card-fold.js?v=202610270852';
-import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=202610270852';
-import { mountRefillTable } from './refill-table.js?v=202610270852';
+import { escapeHtml } from './utils.js?v=202610270952';
+import { lastDays, dayLabel, fmtHM, progress, dayStatus, refillStrip, fmtCount } from './lib/refill-view.js?v=202610270952';
+import { initFold } from './lib/card-fold.js?v=202610270952';
+import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=202610270952';
+import { mountRefillTable } from './refill-table.js?v=202610270952';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
@@ -93,10 +94,11 @@ export function initRefillCard({ db, auth, getMemberName }) {
             const rows = d ? d.parsed.rows : [], checks = d ? d.parsed.checks : [];
             const pr = progress(rows, S.work.checks), pc = progress(checks, S.work.checks);
             parts.push(`<div class="refill-line">기준 <b>${escapeHtml(fmtHM(e.basedAt) || '-')}</b> · 채울 칸 <b>${num(e.rows)}</b> · 채울 수량 <b>${num(e.fillQty)}</b> · 확인필요 <b>${num(e.checks)}</b></div>`);
-            if (e.source === 'request') {
+            if (e.source === 'request' || e.source === 'auto') {
                 const sl = d && d.data.slack;
                 const slackTxt = sl && sl.at ? `슬랙에는 ${escapeHtml(fmtHM(sl.at))} 판` : '슬랙에는 보내지 않음';
-                parts.push(`<div class="refill-sub">앱에서 다시 만듦 ${escapeHtml(fmtHM(e.basedAt))} · ${slackTxt}</div>`);
+                const how = e.source === 'auto' ? '재고 업로드로 자동으로 다시 만듦' : '앱에서 다시 만듦';
+                parts.push(`<div class="refill-sub">${how} ${escapeHtml(fmtHM(e.basedAt))} · ${slackTxt}</div>`);
             }
             if (d) {
                 parts.push(`<div class="refill-prog"><span>완료 <b>${pr.done}/${pr.total}</b> (${pr.pct}%)</span>`
@@ -113,10 +115,10 @@ export function initRefillCard({ db, auth, getMemberName }) {
                 + (omitted ? '<span class="refill-sub">파일이 너무 커서 앱에서는 못 받음 — 슬랙으로 받은 지시서 엑셀을 쓰세요</span>'
                     : `<button type="button" class="btn btn-primary btn-sm" data-refill="download"${d && d.data.file ? '' : ' disabled'}>엑셀 받기</button>`)
                 + `<button type="button" class="btn btn-secondary btn-sm" data-refill="table"${d ? '' : ' disabled'}>표 보기</button>`
-                + reqButton(ru) + '</div>');
+                + '</div>');
         } else {
             parts.push(`<div class="refill-msg${st.status === 'fail' || st.status === 'missing' ? ' refill-warn' : ''}">${escapeHtml(st.text)}</div>`);
-            // 다시 만들기는 그날 정기 지시서가 있어야 받는다(프로그램 --요청확인 이 정기 발송 기록 없으면 거절) — 버튼을 두지 않는다
+            // 다시 만들기는 그날 정기 지시서가 있어야 받는다(프로그램 --요청확인 이 정기 발송 기록 없으면 거절) — 문구도 두지 않는다
         }
         if (ru.show && ru.note && st.status === 'ok') parts.push(`<div class="refill-note${ru.tone === 'warn' ? ' refill-warn' : ''}">${escapeHtml(ru.note)}</div>`);
         body.innerHTML = parts.join('');
@@ -124,8 +126,6 @@ export function initRefillCard({ db, auth, getMemberName }) {
     }
 
     const num = fmtCount;
-    const reqButton = (ru) => (ru.show
-        ? `<button type="button" class="btn btn-secondary btn-sm" data-refill="rebuild"${ru.enabled ? '' : ' disabled'}>${escapeHtml(ru.label)}</button>` : '');
 
     // ── 이벤트 ──
     card.addEventListener('click', (ev) => {
@@ -134,7 +134,6 @@ export function initRefillCard({ db, auth, getMemberName }) {
         const act = b.getAttribute('data-refill');
         if (act === 'download') store.download();
         else if (act === 'table') table.open();
-        else if (act === 'rebuild') store.rebuild();
     });
     sel.addEventListener('change', () => store.setDay(sel.value));
 
