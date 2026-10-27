@@ -2,14 +2,14 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202610271047"></script>
+    <script src="js/theme-boot.js?v=202610271137"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 미발계산기</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610271047">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610271047">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610271047">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610271047">
+    <link rel="stylesheet" href="css/suit.css?v=202610271137">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610271137">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610271137">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610271137">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -199,6 +199,8 @@
                 <div class="upload-menu" id="tools-menu" style="display: none; position: absolute; top: 100%; right: 0; z-index: 10001; width: 240px;">
                     <div class="menu-item mode-mibal" id="btn-version-history" title="스캔 기록 버전 / 되돌리기 — 미발재고로그 업로드마다 자동 저장, 문제 시 원하는 시점으로 복원" style="display: block;">버전기록 (되돌리기)</div>
                     <div class="menu-item mode-mibal" id="btn-mibal-predict" style="display: block;">미발예측</div>
+                    <div class="menu-item mode-mibal" id="btn-inbound-diff-record" title="선택한 출고일의 도착수량 − 입고확인(차이)을 기록합니다. 미발 초기화 직전에도 자동으로 저장됩니다." style="display: block;">입고 오차 기록</div>
+                    <div class="menu-item mode-mibal" id="btn-inbound-diff-stats" title="저장된 입고 오차 기록으로 패킹별·월별·상품코드·공급처 코드 통계를 봅니다" style="display: block;">입고 오차 통계</div>
                 </div>
             </div>
             <div class="upload-dropdown" style="position: relative; display: inline-block;">
@@ -560,14 +562,55 @@
         </div>
     </div>
 
+    <!-- [2026-10-27] 입고 오차 통계 모달 (모양은 미발예측과 같다) -->
+    <div id="inbound-diff-modal" class="modal-overlay">
+        <div class="modal-content" style="width:980px; max-width:96vw; max-height:90vh; overflow-y:auto;">
+            <h3 style="margin-top:0;">입고 오차 통계</h3>
+            <div id="idf-summary" class="d-note" style="font-size:13px; color:var(--c-text); padding:10px 12px; margin-bottom:10px;"></div>
+            <div class="t-3" style="font-size:11px; margin-bottom:8px; line-height:1.5;">
+                · <b>차이</b> = 도착수량 − 입고확인 (양수 = 부족입고, 음수 = 과입고) · <b>오차율</b> = Σ|차이| / Σ도착<br>
+                · <b>미스캔</b> = 입고확인 빈칸 — 기본은 오차에서 빼고 따로 셉니다('미스캔 포함'을 켜면 도착수량만큼 부족으로 셉니다)<br>
+                · 여러 출고일을 함께 기록한 경우, 한 출고일에만 있는 상품은 그 출고일로, 두 출고일 이상에 걸친 상품은 <b>묶음</b> 줄로 셉니다
+            </div>
+            <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center; flex-wrap:wrap; font-size:12px;">
+                <label>출고일 <input type="date" id="idf-from" style="padding:5px 6px; border:1px solid var(--c-line-strong); border-radius:var(--r-sm);"></label>
+                <span>~</span>
+                <input type="date" id="idf-to" aria-label="출고일 끝" style="padding:5px 6px; border:1px solid var(--c-line-strong); border-radius:var(--r-sm);">
+                <select id="idf-kind" aria-label="오차 종류" style="padding:5px 6px; border:1px solid var(--c-line-strong); border-radius:var(--r-sm);">
+                    <option value="all">전체</option>
+                    <option value="short">부족입고만</option>
+                    <option value="over">과입고만</option>
+                </select>
+                <label><input type="checkbox" id="idf-noscan"> 미스캔 포함</label>
+                <span style="flex:1;"></span>
+                <button id="btn-idf-download" class="d-btn d-btn-sm">엑셀 받기</button>
+            </div>
+            <div id="idf-tabs" style="display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap;">
+                <button class="d-btn d-btn-sm idf-tab" data-tab="ship">패킹별</button>
+                <button class="d-btn d-btn-sm idf-tab" data-tab="month">월별 추이</button>
+                <button class="d-btn d-btn-sm idf-tab" data-tab="code">상품코드 순위</button>
+                <button class="d-btn d-btn-sm idf-tab" data-tab="supplier">공급처 코드 순위</button>
+            </div>
+            <div style="max-height:52vh; overflow:auto; border:1px solid var(--c-line); border-radius:var(--r-sm);">
+                <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center; white-space:nowrap;">
+                    <thead id="idf-thead"></thead>
+                    <tbody id="idf-tbody"></tbody>
+                </table>
+            </div>
+            <div style="margin-top:16px; text-align:right; border-top:1px solid var(--c-line-soft); padding-top:12px;">
+                <button id="btn-inbound-diff-close" class="d-btn">닫기</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast"></div>
-    <script src="js/modal-esc.js?v=202610271047"></script>
+    <script src="js/modal-esc.js?v=202610271137"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- ?v= 는 버전 배지와 함께 올려서 브라우저가 옛 JS 캐시를 쓰지 않게 함 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610271047"></script>
-    <script type="module" src="js/china-stock-goods.js?v=202610271047"></script>
-    <script type="module" src="js/modal-drag.js?v=202610271047"></script>
-    <script type="module" src="js/page-gate.js?v=202610271047" data-perm-page="china.mibal"></script>
-    <script type="module" src="js/app-shell.js?v=202610271047"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610271137"></script>
+    <script type="module" src="js/china-stock-goods.js?v=202610271137"></script>
+    <script type="module" src="js/modal-drag.js?v=202610271137"></script>
+    <script type="module" src="js/page-gate.js?v=202610271137" data-perm-page="china.mibal"></script>
+    <script type="module" src="js/app-shell.js?v=202610271137"></script>
 </body>
 </html>

@@ -20,11 +20,12 @@
 //   slotCost·recommendSwaps·selectPlan·frontShare·excelRows·normalizeLocs·runRecommend(서버 진입점)
 //   routeMetrics·applyRows·simulateRoute — 동선 점수(0~100)·앞쪽 출고 비율, 오늘 목록을 모두 적용하면, 줄별 기여도(2026-10-26)
 //   routeHeat — 구역 × 동 출고 격자(동선 효율 카드 열지도, metrics.routeHeat)
+//   lowStockCodes — 재고 적은 상품 빼기(settings.lowStockOn, 기본 꺼짐 — 꺼져 있으면 출력이 예전과 같다. 2026-10-27)
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202610271047';
-import { capacityFor } from './mibal2-calc.js?v=202610271047';
+import { isEtcLocObj } from './mibal2-rows.js?v=202610271137';
+import { capacityFor } from './mibal2-calc.js?v=202610271137';
 
 export { isEtcLocObj };
 
@@ -525,6 +526,34 @@ export function demandRanks(daily) {
 }
 
 /**
+ * 재고 적은 상품 — 추천(단독·페어·맞바꾸기 H)에서 뺄 코드(runRecommend 의 lowStockOn 이 켜졌을 때만 쓴다).
+ *   재고 = 그 코드 모든 자리 stock 합(정상 전체, 기타 자리 포함). cover = 재고 / daily(며칠 버티나).
+ *   빼는 조건: 입고대기 <= 0 이고 (재고 <= maxStock 또는 (daily > 0 이고 cover < minCoverDays)).
+ *   reason 은 재고 조건이 먼저 — 'stock' | 'cover'. cover 는 daily 가 0 이면 null.
+ * @returns {Map<string, {reason: string, stock: number, daily: number, cover: number|null}>}
+ */
+export function lowStockCodes({ locs, daily, incoming, maxStock = 5, minCoverDays = 7 }) {
+    const stockOf = new Map();
+    (locs || []).forEach(d => {
+        if (!hasCode(d)) return;
+        const c = String(d.code).trim();
+        stockOf.set(c, (stockOf.get(c) || 0) + (Number(d.stock) || 0));
+    });
+    const inc = incoming || {};
+    const out = new Map();
+    stockOf.forEach((stock, code) => {
+        if (Number(inc[code]) > 0) return;
+        const dly = Number((daily || {})[code]) || 0;
+        const cover = dly > 0 ? stock / dly : null;
+        let reason = null;
+        if (stock <= maxStock) reason = 'stock';
+        else if (cover != null && cover < minCoverDays) reason = 'cover';
+        if (reason) out.set(code, { reason, stock, daily: dly, cover: cover == null ? null : round(cover, 2) });
+    });
+    return out;
+}
+
+/**
  * 맞바꾸기 — 뒤에 있는 인기 상품(H)과 앞에 있는 비인기 상품(L)의 자리를 바꾼다.
  *   앞쪽 영역: 구역 등급마다 비용 순 상위 frontK 칸, K 번째와 비용이 같은 칸 포함(frontByZone)
  *   H: 점수 상위 topM 안 · 지금 자리가 자기 등급의 앞쪽 영역 밖 · 일평균 >= minDaily
@@ -938,8 +967,11 @@ export const SERVER_DEFAULTS = Object.freeze({
     swapTopM: 200, swapFrontK: 200, swapRatio: 3, swapMinDaily: 1,
     maxRows: 15, weeklyMoves: 20, minGain: 0.5,
     metricTopN: 100, metricFrontPct: 0.2,          // 지표용 앞쪽 영역 = 등급마다 상위 20% 칸 (하위 호환: metricFrontPct 를 null 로 주면 metricFrontK 칸, 없으면 100)
-    pairMinCount: 5, pairMinLift: 2, pairTopK: 5, pairMinRecent: 2
+    pairMinCount: 5, pairMinLift: 2, pairTopK: 5, pairMinRecent: 2,
+    lowStockOn: false, lowStockMax: 5, lowCoverDays: 7   // 재고 적은 상품 빼기(lowStockCodes). 꺼져 있으면 출력 settings 에도 안 붙인다
 });
+const LOW_STOCK_KEYS = ['lowStockOn', 'lowStockMax', 'lowCoverDays'];
+const LOW_STOCK_LIST_MAX = 300;
 
 const DEFAULT_PRIORITIES = {
     zones: { 0: ['★'], 1: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'], 2: ['Z'], 3: ['L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'] },
@@ -987,7 +1019,26 @@ export function runRecommend(input) {
         return row;
     };
 
-    const scored = scoreItems({ locs, demand: demandIn, ratios: input.ratios, incomingTotalByCode: incoming });
+    const scoredAll = scoreItems({ locs, demand: demandIn, ratios: input.ratios, incomingTotalByCode: incoming });
+    // 0) 재고 적은 상품 빼기(lowStockOn 일 때만) — 단독·페어·맞바꾸기 H 는 scored 에서 오므로 같이 빠진다.
+    //    맞바꾸기 L(앞 자리에서 뒤로 가는 상품)은 자리 목록에서 고르므로 빼지 않는다
+    const lowOn = S.lowStockOn === true;
+    let scored = scoredAll;
+    let low = null;
+    if (lowOn) {
+        const lsArgs = { locs, daily, maxStock: Number(S.lowStockMax), minCoverDays: Number(S.lowCoverDays) };
+        const lowMap = lowStockCodes({ ...lsArgs, incoming });
+        scored = scoredAll.filter(it => !lowMap.has(it.code));
+        const removed = scoredAll.filter(it => lowMap.has(it.code)).map(it => ({ code: it.code, ...lowMap.get(it.code) }));
+        // 입고대기 때문에 빠지지 않은 수 — 입고대기를 빼고 판정하면 걸리는, 출고 수요가 있는 입고대기 상품
+        const hasDemand = (c) => { const v = demandIn[c] || {}; return Number(v.zgQty) > 0 || Number(v.wQty) > 0 || Number(v.trendVal) > 0; };
+        let incSpared = 0;
+        lowStockCodes({ ...lsArgs, incoming: {} }).forEach((v, c) => { if (Number(incoming[c]) > 0 && hasDemand(c)) incSpared++; });
+        low = {
+            counts: { stock: removed.filter(x => x.reason === 'stock').length, cover: removed.filter(x => x.reason === 'cover').length, incoming: incSpared },
+            list: removed.slice(0, LOW_STOCK_LIST_MAX)
+        };
+    }
 
     // 1) 단독
     const single = recommendSingle({ locs, scored, priorities, mode: S.mode, limit: S.singleLimit, zoneGuard: S.zoneGuard, excludeTagged: S.excludeTagged });
@@ -1118,7 +1169,9 @@ export function runRecommend(input) {
         }
     }
 
-    return {
+    // 꺼져 있으면 출력 모양을 예전 그대로 — settings 에 lowStock 칸 없음, counts.lowStock·lowStock 목록 없음
+    const outSettings = lowOn ? S : Object.fromEntries(Object.entries(S).filter(([k]) => !LOW_STOCK_KEYS.includes(k)));
+    const out = {
         schema: 1,
         single: outSingle,
         swap: outSwap,
@@ -1134,12 +1187,17 @@ export function runRecommend(input) {
             ...route
         },
         counts: {
-            locs: locs.length, scored: scored.length, emptySlots: single.ctx.emptyLocs.length,
+            locs: locs.length, scored: scoredAll.length, emptySlots: single.ctx.emptyLocs.length,
             singleAll: singleRows.length, singleSkipped: single.skipped,
             swapAll: swapRows.length, swap: sw.counts, lowGain: plan.dropped.lowGain,
             pairMapCodes: pairMap ? Object.keys(pairMap).length : 0
         },
-        settings: S,
+        settings: outSettings,
         warn
     };
+    if (low) {
+        out.counts.lowStock = low.counts;     // {stock, cover, incoming}
+        out.lowStock = low.list;              // [{code, reason, stock, daily, cover}] — 코드·숫자만, 300개까지
+    }
+    return out;
 }

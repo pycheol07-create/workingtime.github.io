@@ -10,10 +10,10 @@
 //   · 창을 보는 중에 새 판이 오면 띠 '새 추천이 도착했습니다' [새로 보기]
 //   (store.setHold — 창이 열려 있으면 store 가 새 판을 pendingDay 에 둔다, 닫으면 바로 바꾼다).
 //   이월 행(carried)은 흐리게 '(지금 기준 추천에서 빠짐)' — [처리함]/[안 함] 없이 되돌리기만.
-import { escapeHtml } from './utils.js?v=202610271047';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610271047';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610271047';
-import { higherOpenThan } from './modal-above.js?v=202610271047';
+import { escapeHtml } from './utils.js?v=202610271137';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610271137';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610271137';
+import { higherOpenThan } from './modal-above.js?v=202610271137';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `

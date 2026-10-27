@@ -1,20 +1,21 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610271047'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610271137'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610271047';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610271047';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610271047';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610271047'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610271047';
-import { initPageNav } from './page-nav.js?v=202610271047';
-import { friendlyFirebaseError } from './utils.js?v=202610271047';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610271047';
-import { setShellContext } from './app-shell-bridge.js?v=202610271047';
-import { memberNameFor } from './app-shell-data.js?v=202610271047';
-import { createUploadStatus } from './busy-banner.js?v=202610271047';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610271137';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610271137';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610271137';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610271137'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610271137';
+import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202610271137'; // 입고 오차(2026-10-27)
+import { initPageNav } from './page-nav.js?v=202610271137';
+import { friendlyFirebaseError } from './utils.js?v=202610271137';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610271137';
+import { setShellContext } from './app-shell-bridge.js?v=202610271137';
+import { memberNameFor } from './app-shell-data.js?v=202610271137';
+import { createUploadStatus } from './busy-banner.js?v=202610271137';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -2209,13 +2210,27 @@ async function clearAllData() {
     // 지워지는 것을 건수로 보여 준다(이 화면이 지금 들고 있는 값 기준 — 비축창고는 위치지정모드에서만 받아 오므로 못 세면 '전체').
     const n = (o) => Object.keys(o || {}).length;
     const f2 = floor2Subscribed ? `${n(floor2Map).toLocaleString()}개 상품` : '전체';
+    // [2026-10-27] 초기화 직전 입고 오차 자동 기록 — 앱 스캔 입고가 0이면 저장하지 않는다. 확인창에 오차 품목 수·수량을 보여 준다
+    let diffRec = null, diffLine;
+    if (!savedDates.length) diffLine = '입고 오차 기록: 선택한 출고일이 없어 저장하지 않습니다.';
+    else {
+        try { diffRec = buildInboundDiffNow('pre-reset'); } catch (e) { diffRec = null; }
+        if (!diffRec) diffLine = '입고 오차 기록: 출고일 형식이 맞지 않아 저장하지 않습니다.';
+        else if (!shouldAutoSave(diffRec)) { diffLine = '입고 오차 기록: 앱 스캔 입고가 없어 저장하지 않습니다.'; diffRec = null; }
+        else diffLine = `입고 오차 기록(초기화 직전 자동 저장 · 출고일 ${diffRec.ships.map(fmtMD).join(', ')}):\n  ${diffSummaryText(diffRec)}`;
+    }
     if (!confirm("미발계산기 데이터를 초기화할까요? 되돌릴 수 없습니다(초기화 직전 버전은 '버전기록'에 남습니다).\n\n"
         + `지워지는 것:\n· 수동편집 ${n(editedCells).toLocaleString()}칸\n· 미발재고로그 ${n(stockLogData).toLocaleString()}개 상품\n`
         + `· 앱 입고이력 ${n(inboundMap).toLocaleString()}건\n· 비축창고 누적 ${f2}\n· 스캐너 강제전송 허용목록\n\n`
-        + "유지되는 것: 위치 데이터, 출고일 목록(시트에서 다시 받음)")) return;
+        + "유지되는 것: 위치 데이터, 출고일 목록(시트에서 다시 받음)\n\n" + diffLine)) return;
     showLoading('🗑️ 미발계산기 초기화 중...');
     try {
         await saveScanDBVersion('pre-reset', '미발 초기화 직전 백업'); // [Ver 8.94] 초기화 전 순수 미발 스냅샷 (버전기록은 안 지워짐)
+        let diffNote = ''; // [2026-10-27] 입고 오차 기록 — 실패해도 초기화는 계속한다(토스트만)
+        if (diffRec) {
+            try { const r = await writeInboundDiff(diffRec); diffNote = r.ok ? ' · 입고 오차 기록됨' : ' · 입고 오차 기록 안 함'; }
+            catch (e) { console.error('입고 오차 기록 실패:', e && (e.code || e.message)); diffNote = ' · ⚠️ 입고 오차 기록 실패'; showToast('⚠️ 입고 오차 기록 실패 — 초기화는 계속합니다'); }
+        }
         await deleteDoc(doc(db, CHINA_COLLECTION, 'EDITED_CELLS'));
         await deleteAllDocs(CHINA_COLLECTION + '_StockLog');
         await deleteAllDocs('ChinaStockGoods_InboundHistory');
@@ -2239,7 +2254,7 @@ async function clearAllData() {
         rememberSavedDates(); // 저장 성공 → 같은 값은 다시 안 씀
         await syncOrderData(true); // [Ver 4.4] 초기화 후 출고일 목록 다시 로드 (빈 화면 방지)
         hideLoading();
-        showToast('✅ 미발계산기 초기화 완료 (비축창고 포함 · 위치 데이터는 유지)');
+        showToast('✅ 미발계산기 초기화 완료 (비축창고 포함 · 위치 데이터는 유지)' + diffNote);
     } catch (e) {
         hideLoading();
         alert(isPermissionDenied(e) ? saveErrorMessage(e, 'dates') : '초기화 실패: ' + e.message); // 미발 초기화 = 직원도 사용(2026-10-16)
@@ -2393,17 +2408,18 @@ function applyDates(opts) {
     const match = (rows) => {
         rows.forEach(row => {
             const code = (row['어드민상품코드'] || row['상품코드'] || '').toString().trim(); if (!code) return;
-            let matched = false, totalQty = 0;
+            let matched = false, totalQty = 0; const perShip = {}; // [2026-10-27] 출고일별 수량(입고 오차 기록 byShip)
             for (let idx = 0; idx < oCols.length; idx++) {
                 const ship = normalizeDate(row[oCols[idx]]);
                 if (!ship || ship.length < 10) continue;   // [Ver 8.28] 출고일 없음 → 제외
                 const arr = normalizeDate(row[dCols[idx]]);
                 if (arr && arr.length >= 10 && !withinGrace(arr)) continue; // 도착일+유예 지남 → 제외
-                if (savedDates.includes(ship)) { matched = true; totalQty += (parseInt(row[qCols[idx]]) || 0); }
+                if (savedDates.includes(ship)) { matched = true; const q = (parseInt(row[qCols[idx]]) || 0); totalQty += q; perShip[ship] = (perShip[ship] || 0) + q; }
             }
             if (matched) {
-                if (!resultMap[code]) resultMap[code] = { code, name: getProductName(row), option: row['옵션']||'', arrivalQty: 0, bigoY: row['비고']||'' };
+                if (!resultMap[code]) resultMap[code] = { code, name: getProductName(row), option: row['옵션']||'', arrivalQty: 0, bigoY: row['비고']||'', byShip: {} };
                 resultMap[code].arrivalQty += totalQty;
+                for (const s in perShip) resultMap[code].byShip[s] = (resultMap[code].byShip[s] || 0) + perShip[s];
             }
         });
     };
@@ -2423,16 +2439,18 @@ function applyDates(opts) {
         const _short = parseInt(shortageVal) || 0;            // 부족수량
         const _direct = parseInt(directShipVal) || 0;         // 직진배송수량
         const mibalQty = evalMibal(totalStock, capacity, _short, _direct, { ...log, 도착수량: item.arrivalQty }); // [Ver 8.17] 도착수량 변수 주입
+        const confirmed = inboundMap[item.code] || ed.confirmed || '';
         return {
             code: item.code, name: item.name, option: item.option, arrivalQty: item.arrivalQty,
             mibalQty, totalStock,
             location: loc, capacity,
-            confirmed: inboundMap[item.code] || ed.confirmed || '', 
+            confirmed, confSrc: confSrcOf(item.code, confirmed), byShip: item.byShip || {},
             shortage: shortageVal, directShip: directShipVal, memo: item.bigoY || ed.memo || ''
         };
     }).filter(d => d.arrivalQty > 0);
     appendUnregisteredInbound(); // [Ver 8.52] 오더리스트에 없는데 강제전송된 입고분도 표에 추가
     appendUnregisteredLocation(); // [Ver 8.56] 위치지정 당일입고 강제추가분도 표에 추가
+    tableData.forEach(setRowDiff); // [2026-10-27] '차이' 열(도착 − 입고확인)
     applyFilters(); // [Ver 8.52] 검색어/열필터 유지하며 렌더 (기존 filteredData=[...tableData]+renderTable+updateSummary 대체)
     // [Ver 2.8] 표 갱신 시 앱용 스캔DB 자동 동기화
     // (앱 입고 이벤트로 인한 갱신은 앱이 이미 차감했으므로 skipSync로 생략)
@@ -2452,7 +2470,7 @@ function appendUnregisteredInbound() {
         if (inTable.has(code) || orderCodes.has(code)) return; // 표에 있거나 오더리스트에 있으면 미등록 아님
         const log = stockLogData[code] || {};
         const loc = (log['로케이션'] || '').split('/')[0].trim() || '미지정';
-        tableData.push({ code, name: log['상품명'] || '', option: '', arrivalQty: 0, mibalQty: 0, totalStock: parseInt(log['정상재고']) || 0, location: loc, capacity: getCapacityByLocation(loc), confirmed: qty, shortage: '', directShip: '', memo: '미등록', unregistered: true });
+        tableData.push({ code, name: log['상품명'] || '', option: '', arrivalQty: 0, mibalQty: 0, totalStock: parseInt(log['정상재고']) || 0, location: loc, capacity: getCapacityByLocation(loc), confirmed: qty, confSrc: 'scan', shortage: '', directShip: '', memo: '미등록', unregistered: true });
     });
 }
 
@@ -2497,7 +2515,7 @@ function recomputeRow(code) {
 // ---------------------------------------------------------
 // [Ver 5.5] 표 열(헤더) 구성 - 순서 변경 + 재고로그 필드 열 추가
 // ---------------------------------------------------------
-const DEFAULT_COLUMNS = ['no','code','name','option','arrivalQty','mibalQty','totalStock','location','capacity','confirmed','shortage','directShip','memo'];
+const DEFAULT_COLUMNS = ['no','code','name','option','arrivalQty','mibalQty','totalStock','location','capacity','confirmed','diff','shortage','directShip','memo'];
 const BUILTIN_COLS = {
     no:        { label:'No', width:'40px' },
     code:      { label:'상품코드', sort:'code', code:true, width:'100px' },
@@ -2509,6 +2527,7 @@ const BUILTIN_COLS = {
     location:  { label:'로케이션', width:'110px' },
     capacity:  { label:'적재량', edit:'capacity', width:'60px' },
     confirmed: { label:'입고확인', edit:'confirmed', width:'70px' },
+    diff:      { label:'차이', sort:'diff', width:'55px' },   // [2026-10-27] 도착 − 입고확인 (양수 부족입고 빨강 · 음수 과입고 파랑 · 미스캔 '–')
     shortage:  { label:'부족수량', edit:'shortage', width:'70px' },
     directShip:{ label:'직진배송', edit:'directShip', width:'75px' },
     memo:      { label:'비고', edit:'memo' },
@@ -2517,7 +2536,9 @@ const BUILTIN_COLS = {
 let columnConfig = null; // null = 기본 순서, 아니면 열 key 배열
 let locationColumnConfig = null; // [Ver 8.53] 위치지정모드(당일입고) 열 설정 (미발과 별도)
 // [Ver 7.0] 미발계산기 열: locCheck(위치확인)는 위치지정모드 전용이므로 미발 열에서 제외
-function getColumns() { const base = (Array.isArray(columnConfig) && columnConfig.length) ? columnConfig : DEFAULT_COLUMNS; return base.filter(k => k !== 'locCheck'); }
+function getColumns() { const base = (Array.isArray(columnConfig) && columnConfig.length) ? withDiffCol(columnConfig) : DEFAULT_COLUMNS; return base.filter(k => k !== 'locCheck'); }
+// [2026-10-27] 저장된 열 설정에 '차이'가 없으면 입고확인 바로 뒤에 화면에서만 넣는다(CONFIG 에 다시 쓰지 않음 — 열 설정을 저장하면 그때 같이 저장된다)
+function withDiffCol(cols) { if (cols.includes('diff')) return cols; const i = cols.indexOf('confirmed'); return i < 0 ? cols : [...cols.slice(0, i + 1), 'diff', ...cols.slice(i + 1)]; }
 // [Ver 6.8] 보기 모드: 미발계산기(mibal) / 위치지정모드(location)
 //   주소 뒤 해시(#tab=mibal|location — js/hash-state.js 1c 형식)가 있으면 그것이 먼저다(새로고침·Ctrl+K 빠른 이동이 같은 모드로 온다)
 const HASH_VIEW_MODES = ['mibal', 'location'];
@@ -2610,6 +2631,7 @@ function colValue(key, row, idx) {
         const news = (a && a.location && (a.sub || '') === 'today') ? renderNewLocOnly(a.location, a.base) : '';
         return news || '<span class="t-risk" style="font-weight:bold;">⚠️ 미지정</span>';
     }
+    if (key === 'diff') return diffCellView(row).text;
     if (BUILTIN_COLS[key]) return (row[key] !== undefined && row[key] !== null) ? row[key] : '';
     if (key.startsWith('log:')) { const log = stockLogData[row.code] || {}; const v = log[key.slice(4)]; return (v !== undefined && v !== null) ? v : ''; }
     return '';
@@ -2657,6 +2679,9 @@ function renderTable() {
                     else if (isFromApp) style += 'color:var(--c-accent-deep); font-weight:900;';
                 }
                 tds += `<td class="editable-cell" contenteditable="true" data-code="${row.code}" data-field="${def.edit}" style="${style}"${extra}>${val}</td>`;
+            } else if (key === 'diff') {
+                const dv = diffCellView(row);
+                tds += `<td class="diff-cell ${dv.cls}" data-code="${row.code}" title="${dv.title}" style="font-weight:bold;">${dv.text}</td>`;
             } else if (def.code) {
                 tds += `<td class="code-cell" data-code="${row.code}">${val}</td>`;
             } else {
@@ -2695,7 +2720,7 @@ function renderColumnEditor() {
     const sel = document.getElementById('column-add-select');
     const avail = [];
     // [Ver 8.53] locCheck(추가위치)는 위치지정모드에서만 추가 가능
-    Object.keys(BUILTIN_COLS).forEach(k => { if (colEditList.includes(k)) return; if (k === 'locCheck' && viewMode !== 'location') return; avail.push([k, colLabel(k)]); });
+    Object.keys(BUILTIN_COLS).forEach(k => { if (colEditList.includes(k)) return; if (k === 'locCheck' && viewMode !== 'location') return; if (k === 'diff' && viewMode === 'location') return; avail.push([k, colLabel(k)]); });
     logFieldKeys().forEach(f => { const k = 'log:' + f; if (!colEditList.includes(k)) avail.push([k, f + ' (로그)']); });
     sel.innerHTML = avail.length ? avail.map(([k,l]) => `<option value="${k}">${l}</option>`).join('') : '<option value="">추가할 열 없음</option>';
     box.querySelectorAll('.col-up').forEach(b => b.onclick = () => { const i=+b.dataset.i; if(i>0){ [colEditList[i-1],colEditList[i]]=[colEditList[i],colEditList[i-1]]; renderColumnEditor(); } });
@@ -2729,9 +2754,27 @@ let columnFilters = {}; // 열key -> 허용값 Set (없으면 필터 없음)
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 // [Ver 8.90] 입고확인 ≠ 도착수량 판정 (빈칸=0 포함) — 색상/필터 공용
 function confirmedMismatch(row) { return (parseInt(row.confirmed) || 0) !== (parseInt(row.arrivalQty) || 0); }
+// [2026-10-27] 입고 오차 '차이' 열 — 계산은 js/lib/inbound-diff.js diffOf. 입고확인이 앱 스캔(scan)·수동(manual)·빈칸(none=미스캔)
+function confSrcOf(code, confirmed) { return String(confirmed == null ? '' : confirmed).trim() === '' ? 'none' : (inboundMap[code] ? 'scan' : 'manual'); }
+function setRowDiff(row) { const r = diffOf(row); row.confSrc = r.src; row.diff = r.src === 'none' ? null : r.d; return row; }
+function diffCellView(row) {
+    if (row.diff === null || row.diff === undefined) return { cls: 't-3', title: '입고확인 빈칸(또는 숫자 아님) — 미스캔', text: '–' };
+    if (row.diff > 0) return { cls: 't-risk', title: `부족입고 ${row.diff}`, text: String(row.diff) };
+    if (row.diff < 0) return { cls: 't-accent', title: `과입고 ${-row.diff}`, text: String(row.diff) };
+    return { cls: '', title: '도착 = 입고확인', text: '0' };
+}
+// 입고확인 칸을 손으로 고치면 그 줄의 차이만 다시 그린다(앱 스캔 값이 있는 줄은 표시값이 스캔 합 그대로라 건드리지 않음)
+function refreshDiffCell(code, value) {
+    const row = tableData.find(d => d.code === code);
+    if (!row || inboundMap[code]) return;
+    row.confirmed = value; setRowDiff(row);
+    const dv = diffCellView(row);
+    document.querySelectorAll('#table-body td.diff-cell').forEach(td => { if (td.dataset.code === code) { td.className = 'diff-cell ' + dv.cls; td.title = dv.title; td.textContent = dv.text; } });
+}
 function filterValueOf(row, key) {
     if (key === 'no' || key === 'locCheck') return '';
     if (key === 'confirmed') return confirmedMismatch(row) ? '🔴 불일치(빨강)' : '✅ 일치'; // [Ver 8.90] 입고확인은 색상(일치/불일치)으로 필터
+    if (key === 'diff') return (row.diff === null || row.diff === undefined) ? '– 미스캔' : (row.diff > 0 ? '🔴 부족입고' : (row.diff < 0 ? '🔵 과입고' : '✅ 0')); // [2026-10-27]
     if (key.startsWith('log:')) { const log = stockLogData[row.code] || {}; const v = log[key.slice(4)]; return (v === undefined || v === null) ? '' : String(v); }
     const v = row[key];
     return (v === undefined || v === null) ? '' : String(v);
@@ -2740,6 +2783,7 @@ function sortComparator() {
     const key = sortConfig.key, dir = sortConfig.direction;
     return (a, b) => {
         let va = a[key], vb = b[key];
+        if (key === 'diff' && (va == null || vb == null)) return (va == null) === (vb == null) ? 0 : (va == null ? 1 : -1); // [2026-10-27] 미스캔은 정렬 방향과 상관없이 맨 아래
         if (typeof va === 'number' && typeof vb === 'number') return dir === 'asc' ? va - vb : vb - va;
         return dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     };
@@ -2913,6 +2957,158 @@ async function downloadMibalPredict() {
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'worksheet');
     const wbout = XLSX.write(wb, { bookType: 'biff8', type: 'array' });
     await downloadToDesktop('미발예측데이터.xls', new Blob([wbout], { type: 'application/vnd.ms-excel' }));
+}
+
+// ---------------------------------------------------------
+// [2026-10-27] 패킹 대비 입고 오차 기록·통계 — 계산은 js/lib/inbound-diff.js
+//   ChinaStockGoods_InboundDiff/{shipKey} — 출고일(여럿이면 정렬해 '+' 로 이은 묶음 1건)마다 한 문서, 다시 저장하면 덮어쓴다(rev+1·prev).
+//   미발 초기화 직전 자동 저장(앱 스캔 입고 0 이면 안 함) + 도구 메뉴 [입고 오차 기록] 수동 저장.
+//   공급처는 코드 모양(AA9999)만 저장. 기록자 = 멤버 이름(_myMemberName) — 이메일은 넣지 않는다.
+//   ⚠️ 서버 규칙(firestore.rules 'ChinaStockGoods_InboundDiff')을 게시하기 전에는 저장·읽기가 permission-denied 로 막힌다.
+// ---------------------------------------------------------
+const INBOUND_DIFF_COLL = CHINA_COLLECTION + '_InboundDiff';
+const INBOUND_DIFF_DENIED = '입고 오차 기록 권한이 없습니다(서버 규칙 게시 전이거나 등록 직원이 아닙니다).';
+function buildInboundDiffNow(trigger) {
+    return buildDiffRecord({
+        rows: tableData, dates: savedDates, arrivalByShip,
+        supplierOf: (c) => (stockLogData[c] || {})['공급처'],
+        by: _myMemberName, now: new Date(), trigger,
+    });
+}
+/** 저장 — 같은 출고일 문서가 있으면 rev+1. 입고합이 줄면 확인(취소하면 저장 안 함). 실패는 throw. → { ok, rev?, shrunk? } */
+async function writeInboundDiff(rec) {
+    const ref = doc(db, INBOUND_DIFF_COLL, rec.shipKey);
+    const snap = await getDoc(ref);
+    const old = snap.exists() ? snap.data() : null;
+    const { rec: merged, confDropped } = mergeRev(old, rec);
+    if (confDropped && !confirm(`이미 저장된 입고 오차 기록(${rec.ships.map(fmtMD).join(', ')})보다 입고합이 줄었습니다 `
+        + `(${(parseInt(old.totals.conf) || 0).toLocaleString()} → ${rec.totals.conf.toLocaleString()}).\n\n덮어쓸까요? [취소]를 누르면 이번 기록은 저장하지 않습니다.`)) return { ok: false };
+    const fit = shrinkIfLarge(merged);
+    if (!fit.ok) throw new Error(`기록이 너무 큽니다(${Math.round(fit.size / 1024)}KB).`);
+    await setDoc(ref, fit.rec);
+    idfCache = { key: '', recs: [] }; // 통계 다시 읽기
+    return { ok: true, rev: merged.rev, shrunk: fit.shrunk };
+}
+async function recordInboundDiffManual() {
+    closeAllMenus();
+    if (viewMode === 'location') { alert('입고 오차 기록은 미발계산기 모드에서 사용하세요.'); return; }
+    if (!savedDates.length) { alert('출고일을 하나 이상 선택하세요.'); return; }
+    let rec;
+    try { rec = buildInboundDiffNow('manual'); } catch (e) { alert('입고 오차를 기록할 수 없습니다 — ' + e.message); return; }
+    if (!rec.rows.length) { alert('기록할 상품이 없습니다(선택한 출고일에 도착수량이 있는 상품이 없습니다).'); return; }
+    // 앱 스캔 입고가 0인 기록은 저장하지 않는다 — 스캔 전·초기화 뒤에 누르면 진짜 기록을 가리게 된다(리뷰 반영)
+    if (!shouldAutoSave(rec)) { alert('선택한 출고일에 앱 스캔 입고가 없어 기록하지 않습니다.\n(스캔 전이거나 미발 초기화 뒤일 수 있습니다 — 스캔 입고가 있는 상태에서 기록하세요)'); return; }
+    // 다른 기록(출고일 조합이 다른 문서)과 출고일이 겹치면 어느 기록을 대체하는지 보여 준다
+    let over = [];
+    try { over = overlapping(await fetchInboundDiffRange(rec.ships[0], rec.ships[rec.ships.length - 1]), rec); }
+    catch (e) { if (isPermissionDenied(e)) { alert(INBOUND_DIFF_DENIED); return; } console.warn('입고 오차 겹침 확인 실패:', e && (e.code || e.message)); }
+    if (over.length && !confirm('출고일이 겹치는 다른 입고 오차 기록이 있습니다.\n\n'
+        + over.map(o => `· ${o.ships.map(fmtMD).join('+')} 기록 (겹침 ${o.common.map(fmtMD).join(', ')} · ${o.hasScan ? '스캔 있음' : '스캔 없음'} · ${fmtVerTime(o.savedAtMs)} 저장)`).join('\n')
+        + '\n\n이번 기록을 저장하면 통계에서 겹치는 출고일은 이번 기록으로 대체됩니다(위 기록은 지워지지 않고 통계에서 빠집니다).\n계속할까요?')) return;
+    const t = rec.totals;
+    if (!confirm(`선택한 출고일(${rec.ships.map(fmtMD).join(', ')})의 입고 오차를 기록할까요?\n\n`
+        + `${t.n.toLocaleString()}품목 · 도착 ${t.arr.toLocaleString()} · 입고 ${t.conf.toLocaleString()}\n${diffSummaryText(rec)}\n\n`
+        + (rec.ships.length > 1 ? '여러 출고일을 함께 골랐으므로 묶음 1건으로 저장합니다.\n' : '')
+        + '같은 출고일 기록이 있으면 덮어씁니다.')) return;
+    showLoading('📝 입고 오차 기록 중...');
+    try {
+        const r = await writeInboundDiff(rec);
+        hideLoading();
+        if (r.ok) showToast(`📝 입고 오차 기록 저장${r.rev > 1 ? ` (${r.rev}번째 저장 — 덮어씀)` : ''}${r.shrunk ? ' · 상품명 빼고 저장(크기)' : ''}`);
+    } catch (e) {
+        hideLoading();
+        alert(isPermissionDenied(e) ? INBOUND_DIFF_DENIED : '입고 오차 기록 실패 — ' + friendlyFirebaseError(e));
+    }
+}
+
+let idfTab = 'ship';
+let idfCache = { key: '', recs: [] };
+let idfRecs = [];
+function idfOpts() {
+    return {
+        from: document.getElementById('idf-from')?.value || '',
+        to: document.getElementById('idf-to')?.value || '',
+        kind: document.getElementById('idf-kind')?.value || 'all',
+        includeNoScan: !!document.getElementById('idf-noscan')?.checked,
+    };
+}
+let idfReqSeq = 0; // 기간을 빠르게 바꿀 때 늦게 온 옛 응답이 화면을 덮지 않게 — 마지막 요청만 반영
+/** 문서 ID 범위로 읽는다(lib queryRange: 시작 30일 앞 · 끝 to+'~' 로 끝 날짜로 시작하는 묶음까지). 줄 단위 거르기는 lib 가 한다 */
+async function fetchInboundDiffRange(from, to) {
+    const { start, end } = queryRange(from, to);
+    const cons = [];
+    if (start) cons.push(where(documentId(), '>=', start));
+    if (end) cons.push(where(documentId(), '<=', end));
+    const snap = await getDocs(query(collection(db, INBOUND_DIFF_COLL), ...cons));
+    return snap.docs.map(d => d.data());
+}
+async function loadInboundDiffs(from, to) {
+    const key = from + '|' + to;
+    if (idfCache.key === key) return idfCache.recs;
+    const recs = await fetchInboundDiffRange(from, to);
+    idfCache = { key, recs };
+    return recs;
+}
+function idfData(tab, recs, o) {
+    if (tab === 'month') return monthlyTrend(recs, o);
+    if (tab === 'code') return topCodes(recs, o);
+    if (tab === 'supplier') return bySupplier(recs, o);
+    return summarizeByShip(recs, o);
+}
+async function openInboundDiffModal() {
+    closeAllMenus();
+    const f = document.getElementById('idf-from'), t = document.getElementById('idf-to');
+    if (f && !f.value) f.value = shiftIso(todayISO(), -90);   // 기본 90일
+    if (t && !t.value) t.value = todayISO();
+    idfCache = { key: '', recs: [] }; // 열 때마다 새로 읽는다
+    document.getElementById('inbound-diff-modal').style.display = 'flex';
+    await refreshInboundDiffStats();
+}
+function closeInboundDiffModal() { document.getElementById('inbound-diff-modal').style.display = 'none'; }
+async function refreshInboundDiffStats() {
+    const o = idfOpts();
+    const tb = document.getElementById('idf-tbody');
+    const seq = ++idfReqSeq;
+    if (tb) tb.innerHTML = '<tr><td style="padding:22px; color:var(--c-text-3,#999);">불러오는 중...</td></tr>';
+    let recs;
+    try { recs = await loadInboundDiffs(o.from, o.to); }
+    catch (e) {
+        if (seq !== idfReqSeq) return;
+        idfRecs = [];
+        if (tb) tb.innerHTML = `<tr><td style="padding:22px;" class="t-risk">${escapeHtml(isPermissionDenied(e) ? INBOUND_DIFF_DENIED : '불러오지 못했습니다 — ' + friendlyFirebaseError(e))}</td></tr>`;
+        return;
+    }
+    if (seq !== idfReqSeq) return; // 그사이 더 새 요청이 있었다
+    idfRecs = recs;
+    renderInboundDiffStats();
+}
+function renderInboundDiffStats() {
+    const o = idfOpts();
+    document.querySelectorAll('#idf-tabs .idf-tab').forEach(b => b.classList.toggle('d-btn-primary', b.dataset.tab === idfTab));
+    const g = overallSummary(summarizeByShip(idfRecs, o));
+    const sumEl = document.getElementById('idf-summary');
+    if (sumEl) sumEl.innerHTML = `패킹 <b>${g.packs.toLocaleString()}건</b>${g.bundles ? ` (+ 묶음 줄 ${g.bundles.toLocaleString()})` : ''} · 도착 <b>${g.arr.toLocaleString()}</b> · 입고 <b>${g.conf.toLocaleString()}</b>`
+        + ` · 오차 <b>${g.errN.toLocaleString()}품목</b> (부족 <b class="t-risk">${g.short.toLocaleString()}</b> · 과입고 <b class="t-accent">${g.over.toLocaleString()}</b>)`
+        + ` · 오차율 <b>${g.rate === null ? '–' : (Math.round(g.rate * 1000) / 10).toFixed(1) + '%'}</b>`
+        + ` · 미스캔 <b>${g.noScanN.toLocaleString()}품목 ${g.noScanQ.toLocaleString()}장</b>${o.includeNoScan ? ' (오차·오차율에 포함)' : ' (오차·오차율에서 뺌)'}`;
+    const aoa = statsAoa(idfTab, idfData(idfTab, idfRecs, o));
+    const head = aoa[0] || [], rows = aoa.slice(1);
+    const th = document.getElementById('idf-thead');
+    if (th) th.innerHTML = '<tr>' + head.map(h => `<th class="d-th">${escapeHtml(h)}</th>`).join('') + '</tr>';
+    const tb = document.getElementById('idf-tbody'); if (!tb) return;
+    const cls = (h, v) => (h === '부족' && v > 0) ? ' class="t-risk"' : ((h === '과입고' && v > 0) ? ' class="t-accent"' : '');
+    tb.innerHTML = rows.length ? rows.map(r => '<tr style="border-bottom:1px solid var(--c-line,#eee);">'
+        + r.map((v, i) => `<td${cls(head[i], v)} style="padding:6px 6px;">${escapeHtml(v === null || v === undefined ? '' : v)}</td>`).join('') + '</tr>').join('')
+        : `<tr><td colspan="${head.length || 1}" style="padding:22px; color:var(--c-text-3,#999);">기간 안에 기록이 없습니다. 미발 초기화 때 자동으로 쌓이고, 도구 ▾ [입고 오차 기록]으로도 저장할 수 있습니다.</td></tr>`;
+}
+async function downloadInboundDiffStats() {
+    const o = idfOpts();
+    const aoa = statsAoa(idfTab, idfData(idfTab, idfRecs, o));
+    if (aoa.length <= 1) { alert('내려받을 데이터가 없습니다.'); return; }
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'worksheet');
+    const wbout = XLSX.write(wb, { bookType: 'biff8', type: 'array' });
+    await downloadToDesktop(`입고오차_${(STATS_TAB_LABEL[idfTab] || idfTab).replace(/\s+/g, '')}_${o.from || '처음'}_${o.to || '끝'}.xls`, new Blob([wbout], { type: 'application/vnd.ms-excel' }));
 }
 async function sendMibal() {
     if (viewMode === 'location') { alert('미발전송은 미발계산기 모드에서 사용하세요.'); return; }
@@ -3150,6 +3346,7 @@ function setupEventListeners() {
             clearTimeout(saveTimeout); saveTimeout = setTimeout(() => { saveEditedCells(); showToast('💾 자동 저장됨'); }, 1000);
             // [Ver 5.4] 미발수량에 영향 주는 값(적재량/부족수량/직진배송)은 즉시 재계산
             if (['capacity','shortage','directShip'].includes(field)) recomputeRow(code);
+            if (field === 'confirmed') refreshDiffCell(code, value); // [2026-10-27] 차이 열
         }
     });
 
@@ -3255,6 +3452,15 @@ function setupEventListeners() {
     document.getElementById('mibal-predict-modal')?.addEventListener('click', (e) => { if (e.target.id === 'mibal-predict-modal') closeMibalPredictModal(); });
     document.getElementById('mp-search')?.addEventListener('input', () => renderMibalPredict());
     document.getElementById('btn-mp-download')?.addEventListener('click', () => downloadMibalPredict());
+    // [2026-10-27] 입고 오차 기록·통계
+    document.getElementById('btn-inbound-diff-record')?.addEventListener('click', () => recordInboundDiffManual());
+    document.getElementById('btn-inbound-diff-stats')?.addEventListener('click', () => openInboundDiffModal());
+    document.getElementById('btn-inbound-diff-close')?.addEventListener('click', () => closeInboundDiffModal());
+    document.getElementById('inbound-diff-modal')?.addEventListener('click', (e) => { if (e.target.id === 'inbound-diff-modal') closeInboundDiffModal(); });
+    ['idf-from', 'idf-to'].forEach(id => document.getElementById(id)?.addEventListener('change', () => refreshInboundDiffStats()));
+    ['idf-kind', 'idf-noscan'].forEach(id => document.getElementById(id)?.addEventListener('change', () => renderInboundDiffStats()));
+    document.getElementById('idf-tabs')?.addEventListener('click', (e) => { const b = e.target.closest('.idf-tab'); if (b) { idfTab = b.dataset.tab; renderInboundDiffStats(); } });
+    document.getElementById('btn-idf-download')?.addEventListener('click', () => downloadInboundDiffStats());
 
     // ========= 바인딩 체크리스트 =========
     // 1. #btn-toggle-menu [OK]
