@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202610271228"></script>
+    <script src="js/theme-boot.js?v=202610271252"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -11,10 +11,10 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610271228">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610271228">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610271228">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610271228">
+    <link rel="stylesheet" href="css/suit.css?v=202610271252">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610271252">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610271252">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610271252">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -114,6 +114,32 @@
         /* 환경설정 탭 — 고른 탭의 내용만 보인다(js/location.js switchLocSettingsTab) */
         #settings-modal [data-set-pane]:not(.is-on) { display: none; }
         #settings-modal .btn-modal-save.is-off { display: none; }
+        #settings-modal .modal-content { width: 560px; max-width: 96vw; }
+        /* 환경설정 '추천·채우기' 탭(js/locset-panel.js) */
+        .lrs-block { margin-bottom: 22px; }
+        .lrs-sub { margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: var(--c-text); }
+        .lrs-note { font-size: 12px; color: var(--c-text-2); margin-bottom: 8px; line-height: 1.5; }
+        .lrs-muted { font-size: 11px; font-weight: 400; color: var(--c-text-3); }
+        .lrs-fold { border: 1px solid var(--c-line); border-radius: var(--r-sm); padding: 8px 12px; margin-bottom: 6px; background: var(--c-surface-2); }
+        .lrs-fold > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--c-text); }
+        .lrs-fields { display: flex; flex-direction: column; gap: 10px; }
+        .lrs-field { display: grid; grid-template-columns: 120px 110px; align-items: center; gap: 4px 10px; font-size: 13px; color: var(--c-text); }
+        .lrs-field .action-input { width: 110px; }
+        .lrs-help { grid-column: 1 / -1; font-size: 11px; line-height: 1.5; color: var(--c-text-3); }
+        .lrs-server { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 12px; }
+        .lrs-server dt { color: var(--c-text-2); }
+        .lrs-server dd { margin: 0; color: var(--c-text); }
+        .lrs-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+        .lrs-status { font-size: 12px; margin-top: 8px; color: var(--c-text-2); }
+        .lrs-status[data-tone="ok"] { color: var(--c-ok-text); }
+        .lrs-status[data-tone="warn"] { color: var(--c-warn-text); }
+        .lrs-status[data-tone="error"] { color: var(--c-risk-text); }
+        .lrs-check { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 6px 0; color: var(--c-text); }
+        .lrs-days { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; margin: 8px 0; color: var(--c-text); }
+        .lrs-days label { display: inline-flex; align-items: center; gap: 4px; }
+        .lrs-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+        .lrs-chip { display: inline-block; background: var(--c-risk); color: var(--c-on-fill, #FFFFFF); padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+        .lrs-guide ul { margin: 0 0 6px; padding-left: 18px; font-size: 12px; line-height: 1.6; color: var(--c-text-2); }
         .loc-set-tabs { flex-wrap: wrap; max-width: 100%; }
         .loc-main-menu .menu-foot { display: block; padding: 8px 18px; text-align: right; background: var(--c-surface-2); border-top: 1px solid var(--c-line-soft); color: var(--c-text-3); font-size: 12px; }
         .btn-daily-upload { white-space: nowrap; box-sizing: border-box; }   /* label 이라 테두리만큼 커지지 않게(머리줄 높이 유지) */
@@ -356,9 +382,6 @@
         .set-sec h4 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--c-text); padding-bottom: 6px; border-bottom: 1px solid var(--c-line); }
         .set-sec h4.is-risk { color: var(--c-risk-text); }
         .ctl-sm { height: 28px; padding: 0 10px; font-size: 12px; border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); background: var(--c-surface); color: var(--c-text); cursor: pointer; }
-        .rec-panel { background: var(--c-surface-2); border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 8px 14px; margin-bottom: 10px; font-size: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 16px; color: var(--c-text-2); flex-shrink: 0; }
-        .rec-panel label { display: flex; align-items: center; gap: 6px; }
-        .rec-panel .rec-label { font-weight: 600; color: var(--c-text); }
         .risk-input { width: 100%; padding: 10px 14px; border: 1.5px solid var(--c-risk); border-radius: var(--r-sm); font-size: 14px; background: var(--c-risk-row); color: var(--c-text); box-sizing: border-box; }
         .zik-chip { font-size: 11px; font-weight: 600; height: 26px; padding: 0 12px; border-radius: var(--r-pill); cursor: pointer; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-text-2); }
         .zik-chip.on { background: var(--c-accent); border-color: var(--c-accent); color: var(--c-on-fill,#FFFFFF); }
@@ -847,10 +870,6 @@
             .modal-overlay { align-items: flex-start !important; overflow-y: auto; padding: 8px; box-sizing: border-box; }
             .modal-overlay > .modal-content { box-sizing: border-box !important; width: 100% !important;
                 max-width: calc(100vw - 16px) !important; max-height: calc(100dvh - 16px) !important; padding: 16px !important; overflow-y: auto; }
-            /* 추천 알고리즘 설정 모달(location.js 가 만들고 인라인으로 align-items:center 지정) */
-            #ratio-settings-modal { align-items: flex-start !important; padding: 8px; box-sizing: border-box; overflow-y: auto; }
-            #ratio-settings-modal > div { box-sizing: border-box; width: 100% !important; max-width: calc(100vw - 16px);
-                max-height: calc(100dvh - 16px) !important; padding: 16px !important; }
 
             /* 화면 밖으로 잘리는 팝업 → 화면 고정 시트 */
             .filter-popup, .upload-menu { position: fixed !important; left: 8px !important; right: 8px !important; top: 15dvh !important;
@@ -1012,8 +1031,8 @@
                         <input type="file" id="excel-upload-orders" accept=".xls,.xlsx,.csv,.html,.htm,.txt">
                     </label>
 
-                    <div class="menu-section" data-feature="location.settings|location.bulkEdit|location.upload">설정</div>
-                    <button type="button" class="menu-item" data-feature="location.settings|location.bulkEdit|location.upload" onclick="openSettingsModal(event)">환경설정</button>
+                    <div class="menu-section" data-feature="location.settings|location.bulkEdit|location.upload|location.locrec|location.refill">설정</div>
+                    <button type="button" class="menu-item" data-feature="location.settings|location.bulkEdit|location.upload|location.locrec|location.refill" onclick="openSettingsModal(event)">환경설정</button>
 
                     <div class="menu-foot">Ver 4.4</div>
                 </div>
@@ -1391,7 +1410,7 @@
             <div class="seg-tabs loc-set-tabs" style="margin-bottom:15px;">
                 <button type="button" class="seg-tab" data-set-tab="columns" data-feature="location.settings" onclick="window.switchLocSettingsTab('columns')">화면 열</button>
                 <button type="button" class="seg-tab" data-set-tab="locs" data-feature="location.bulkEdit" onclick="window.switchLocSettingsTab('locs')">로케이션 추가·삭제</button>
-                <button type="button" class="seg-tab" data-set-tab="recommend" data-feature="location.settings" onclick="window.switchLocSettingsTab('recommend')">추천·입고</button>
+                <button type="button" class="seg-tab" data-set-tab="recommend" data-feature="location.settings|location.locrec|location.refill" onclick="window.switchLocSettingsTab('recommend')">추천·채우기</button>
                 <button type="button" class="seg-tab" data-set-tab="structure" data-feature="location.upload" onclick="window.switchLocSettingsTab('structure')">구조 세팅</button>
             </div>
 
@@ -1414,13 +1433,76 @@
                 </div>
             </div>
 
-            <div class="set-sec" data-set-pane="recommend" data-feature="location.settings">
-                <h4>추천·입고 설정</h4>
-                <div style="font-size:11px; color:var(--c-text-3); margin-bottom:10px;">※ 버튼을 누르면 해당 설정 창이 열립니다.</div>
-                <div style="display:flex; flex-direction:column; gap:8px;">
-                    <button type="button" class="btn btn-secondary" style="justify-content:flex-start;" onclick="closeSettingsModal(); window.openRatioModal && window.openRatioModal(event);">점수 반영 비율 · 추천 알고리즘 (수동 변경 계산)</button>
-                    <button type="button" class="btn btn-secondary" style="justify-content:flex-start;" onclick="closeSettingsModal(); if (window.openSheetModal) { window.openSheetModal(event); window.switchIncomingSettingsTab && window.switchIncomingSettingsTab('priority'); }">입고대기 추천 우선순위</button>
-                </div>
+            <!-- 추천·채우기(2026-10-27) — 변경 추천 설정 · 채우기 설정 · 계산 방식 안내. 읽기·저장: js/locset-panel.js
+                 추천 양·동선 기준 저장은 location.settings, 채우기 설정 저장은 관리자(adminPrivate). 서버 값은 읽기 전용. -->
+            <div class="set-sec" data-set-pane="recommend" data-feature="location.settings|location.locrec|location.refill">
+                <section id="lrs-locrec" class="lrs-block">
+                    <h4>변경 추천 설정</h4>
+                    <details class="lrs-fold">
+                        <summary>동선 기준 — 구역 순위 · 동/위치 순서 · 제외 구역</summary>
+                        <div class="lrs-note">입고대기 추천 자리도 이 기준을 씁니다.</div>
+                        <div class="lrs-sub">구역(알파벳) 순위 <span class="lrs-muted">— 알파벳 조각을 끌어 순위 칸에 놓으세요</span></div>
+                        <div class="puzzle-container">
+                            <div class="puzzle-row"><div class="puzzle-label pz-r0">0순위</div><div class="puzzle-drop-area" id="lrs-pz-0" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                            <div class="puzzle-row"><div class="puzzle-label pz-r1">1순위</div><div class="puzzle-drop-area" id="lrs-pz-1" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                            <div class="puzzle-row"><div class="puzzle-label pz-r2">2순위</div><div class="puzzle-drop-area" id="lrs-pz-2" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                            <div class="puzzle-row"><div class="puzzle-label pz-r3">3순위</div><div class="puzzle-drop-area" id="lrs-pz-3" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                            <div class="puzzle-row" style="margin-top:5px;"><div class="puzzle-label pz-none">미지정<br>(후순위)</div><div class="puzzle-drop-area pz-none-area" id="lrs-pz-none" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                        </div>
+                        <div class="lrs-sub">동 순서 <span class="lrs-muted">— 블록을 좌우로 끌어 맞추세요(왼쪽이 먼저)</span></div>
+                        <div class="sort-container" id="lrs-sort-dongs" ondragover="handleSortDragOver(event)"></div>
+                        <div class="lrs-sub">위치 순서</div>
+                        <div class="sort-container" id="lrs-sort-poses" ondragover="handleSortDragOver(event)"></div>
+                        <div class="lrs-sub">추천 제외 구역 <span class="lrs-muted">— 구역+동 조합, 쉼표로 구분 (예: Z-1, A-3, ★-2)</span></div>
+                        <input type="text" id="lrs-exclude-input" class="risk-input" placeholder="예: Z-1, A-3, ★-2">
+                        <div id="lrs-exclude-preview" class="lrs-chips"></div>
+                    </details>
+
+                    <div class="lrs-sub">추천 양</div>
+                    <div class="lrs-fields">
+                        <label class="lrs-field"><span>하루 추천 행 수</span><input type="number" id="lrs-maxRows" class="action-input" inputmode="numeric" disabled><small id="lrs-maxRows-help" class="lrs-help"></small></label>
+                        <label class="lrs-field"><span>주간 이동 수</span><input type="number" id="lrs-weeklyMoves" class="action-input" inputmode="numeric" disabled><small id="lrs-weeklyMoves-help" class="lrs-help"></small></label>
+                        <label class="lrs-field"><span>최소 이득</span><input type="number" id="lrs-minGain" class="action-input" inputmode="decimal" disabled><small id="lrs-minGain-help" class="lrs-help"></small></label>
+                    </div>
+
+                    <div class="lrs-sub">서버가 정하는 값 <span class="lrs-muted">— 여기서 바꾸지 않습니다(담당자가 서버 설정 파일로)</span></div>
+                    <dl id="lrs-server" class="lrs-server"></dl>
+
+                    <div class="lrs-actions">
+                        <button type="button" class="btn-modal-save" id="lrs-save-btn" data-feature="location.settings">변경 추천 설정 저장</button>
+                    </div>
+                    <div id="lrs-status" class="lrs-status" role="status">탭을 열면 불러옵니다.</div>
+                </section>
+
+                <section id="lrs-refill" class="lrs-block">
+                    <h4>채우기 설정</h4>
+                    <div class="lrs-note">비축창고 → 피킹 로케이션 채우기 지시서(매일 아침 슬랙 발송)를 보낼지·언제 보낼지 정합니다. 관리자만 바꿀 수 있습니다.</div>
+                    <label class="lrs-check"><input type="checkbox" id="refill-enabled" disabled> 지시서 보내기 <span class="lrs-muted">— 끄면 자동화가 '쉼'으로 끝나고 슬랙에 보내지 않습니다</span></label>
+                    <div class="lrs-days">
+                        <span>보내는 요일</span>
+                        <label><input type="checkbox" class="refill-day" value="0" disabled> 월</label>
+                        <label><input type="checkbox" class="refill-day" value="1" disabled> 화</label>
+                        <label><input type="checkbox" class="refill-day" value="2" disabled> 수</label>
+                        <label><input type="checkbox" class="refill-day" value="3" disabled> 목</label>
+                        <label><input type="checkbox" class="refill-day" value="4" disabled> 금</label>
+                        <label><input type="checkbox" class="refill-day" value="5" disabled> 토</label>
+                        <label><input type="checkbox" class="refill-day" value="6" disabled> 일</label>
+                    </div>
+                    <label class="lrs-check"><input type="checkbox" id="refill-skip-holidays" disabled> 공휴일 제외 <span class="lrs-muted">(달력과 같은 공휴일 표)</span></label>
+                    <div class="lrs-actions">
+                        <button type="button" class="btn-modal-save" id="refill-save-btn" hidden disabled>채우기 설정 저장</button>
+                        <span id="refill-meta" class="lrs-muted"></span>
+                    </div>
+                    <div id="refill-status" class="lrs-status" role="status"></div>
+                </section>
+
+                <details class="lrs-fold lrs-guide">
+                    <summary>계산 방식 안내 — 채우기 · 변경 추천</summary>
+                    <div class="lrs-sub">채우기 지시서</div>
+                    <ul id="lrs-guide-refill"></ul>
+                    <div class="lrs-sub">변경 추천</div>
+                    <ul id="lrs-guide-locrec"></ul>
+                </details>
             </div>
 
             <div class="set-sec" data-set-pane="structure" data-feature="location.upload" style="margin-bottom: 10px;">
@@ -1447,13 +1529,7 @@
         <div class="modal-content" onclick="event.stopPropagation()" style="width: 540px; max-height: 90vh; overflow-y: auto;">
             <div class="modal-header">입고대기 설정</div>
 
-            <!-- 탭 헤더 -->
-            <div class="seg-tabs" style="margin-bottom:15px;">
-                <button id="incoming-tab-btn-sheet" class="seg-tab active" type="button" onclick="window.switchIncomingSettingsTab('sheet')">시트 링크</button>
-                <button id="incoming-tab-btn-priority" class="seg-tab" type="button" onclick="window.switchIncomingSettingsTab('priority')">입고 추천 우선순위</button>
-            </div>
-
-            <!-- 탭 1: 시트 링크 -->
+            <!-- 시트 링크 (입고 추천 우선순위 탭은 2026-10-27 없앰 — 입고대기 추천 자리는 환경설정 '추천·채우기' 동선 기준을 쓴다) -->
             <div id="incoming-tab-content-sheet" style="display:block;">
                 <div class="modal-body">
                     <!-- 2026-10-07 비활성: [시트 동기화]가 수집기(Apps Script) 자료를 읽도록 바뀌어 링크 입력이 필요 없다.
@@ -1476,143 +1552,6 @@
                     <button class="btn-modal-cancel" onclick="closeSheetModal()">닫기</button>
                     <button class="btn-modal-save" disabled style="opacity:0.4; cursor:not-allowed;" title="사용하지 않는 설정입니다">저장</button>
                 </div>
-            </div>
-
-            <!-- 탭 2: 입고 추천 우선순위 (1단계: UI만, 저장 기능은 2단계에서 추가) -->
-            <div id="incoming-tab-content-priority" style="display:none;">
-                <div class="modal-body">
-                    <div class="note-box note-warn" style="font-size:11px; padding:8px 12px; margin-bottom:15px; line-height:1.5;">
-                        ※ 신규 입고 상품(주문 데이터에 페어 기록이 없는 상품)에 적용되는 추천 우선순위입니다.<br>
-                        ※ 기존 환경설정의 추천 우선순위와는 별개로 동작합니다.
-                    </div>
-
-                    <div style="margin-bottom:15px;">
-                        <div class="section-toggle" onclick="toggleSection('incoming-sec-zone', 'incoming-icon-zone')">
-                            <span>구역(알파벳) 우선순위 배치</span>
-                            <span id="incoming-icon-zone">▼</span>
-                        </div>
-                        <div id="incoming-sec-zone" class="section-content">
-                            <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 마우스로 알파벳 조각을 끌어서 원하는 순위 칸에 놓으세요.</p>
-                            <div class="puzzle-container">
-                                <div class="puzzle-row"><div class="puzzle-label pz-r0">0순위</div><div class="puzzle-drop-area" id="incoming-pz-0" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                                <div class="puzzle-row"><div class="puzzle-label pz-r1">1순위</div><div class="puzzle-drop-area" id="incoming-pz-1" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                                <div class="puzzle-row"><div class="puzzle-label pz-r2">2순위</div><div class="puzzle-drop-area" id="incoming-pz-2" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                                <div class="puzzle-row"><div class="puzzle-label pz-r3">3순위</div><div class="puzzle-drop-area" id="incoming-pz-3" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                                <div class="puzzle-row" style="margin-top:5px;"><div class="puzzle-label pz-none">미지정<br>(후순위)</div><div class="puzzle-drop-area pz-none-area" id="incoming-pz-none" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="margin-bottom:15px;">
-                        <div class="section-toggle" onclick="toggleSection('incoming-sec-dongpos', 'incoming-icon-dongpos')">
-                            <span>동 / 위치 우선순위 줄세우기</span>
-                            <span id="incoming-icon-dongpos">▼</span>
-                        </div>
-                        <div id="incoming-sec-dongpos" class="section-content">
-                            <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 마우스로 블록을 잡고 좌우로 끌어서 순서를 맞춰주세요. (왼쪽이 1순위)</p>
-
-                            <div style="font-size:13px; font-weight:600; margin-bottom:5px; color:var(--c-accent-deep);">▶ 동 우선순위</div>
-                            <div class="sort-container" id="incoming-sort-dongs" ondragover="handleSortDragOver(event)"></div>
-
-                            <div style="font-size:13px; font-weight:600; margin-top:15px; margin-bottom:5px; color:var(--c-accent-deep);">▶ 위치 우선순위</div>
-                            <div class="sort-container" id="incoming-sort-poses" ondragover="handleSortDragOver(event)"></div>
-                        </div>
-                    </div>
-
-                    <div style="margin-bottom:10px;">
-                        <div class="section-toggle" onclick="toggleSection('incoming-sec-exclude', 'incoming-icon-exclude')">
-                            <span>추천 제외 구역 설정</span>
-                            <span id="incoming-icon-exclude">▼</span>
-                        </div>
-                        <div id="incoming-sec-exclude" class="section-content">
-                            <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 구역+동 조합을 입력하면 해당 조합의 로케이션이 추천에서 제외됩니다.<br>예시: Z-1, A-3, ★-2 (쉼표로 구분)</p>
-                            <input type="text" id="incoming-exclude-combos-input" class="risk-input" placeholder="예: Z-1, A-3, ★-2">
-                            <div id="incoming-exclude-combos-preview" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-modal-cancel" onclick="closeSheetModal()">취소</button>
-                    <button class="btn-modal-save" data-feature="location.settings" onclick="saveIncomingPriorities()">저장</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="recommend-modal" class="modal-overlay" onclick="closeRecommendModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()" style="width: 1400px; max-width: 98vw; padding: 22px 20px; height: 94vh; max-height: 94vh; box-sizing: border-box; display: flex; flex-direction: column;">
-            <div class="modal-header" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
-                로케이션 변경 계산 (수동 · 올린 자료 기준)
-                <button class="btn btn-primary btn-sm" onclick="window.runActiveRecommendation()">계산</button>
-                <button class="btn btn-secondary btn-sm" data-feature="location.settings" onclick="window.openRatioModal()">점수반영비율 설정</button>
-                <button class="btn btn-secondary btn-sm" onclick="window.show2FRecommendation()">빈칸확보</button>
-            </div>
-            <div style="font-size:12px; color:var(--c-text-2); margin-bottom:15px; margin-top:-10px;">
-                ※ 선지정·예약·당일지정 자리는 물건이 없더라도 추천에서 뺍니다. 구역 등급이 지금보다 낮은 자리로는 옮기지 않습니다.
-            </div>
-            <div id="rec-limit-panel" class="rec-panel">
-                <!-- v4.3: 추천 갯수 (라디오 → 드롭다운) -->
-                <label>
-                    <span class="rec-label">추천 갯수</span>
-                    <select id="rec-limit-select" class="ctl-sm">
-                        <option value="10" selected>10개</option>
-                        <option value="20">20개</option>
-                        <option value="50">50개</option>
-                        <option value="100">100개</option>
-                        <option value="custom">사용자지정</option>
-                    </select>
-                    <span id="rec-limit-custom-display" style="display:none; color:var(--c-accent-deep); font-weight:600;">(<span id="rec-limit-custom-num">0</span>개)</span>
-                    <!-- v4.4 v3: 사용자지정 값 변경 버튼 (사용자지정 선택 시에만 표시) -->
-                    <button id="rec-limit-edit-btn" type="button" class="ctl-sm" style="display:none; font-weight:600;" title="사용자지정 값 변경">변경</button>
-                </label>
-                <!-- v4.3: 우선순위 선택 (단독 추천 전용) -->
-                <label>
-                    <span class="rec-label">우선순위</span>
-                    <select id="rec-priority-mode" class="ctl-sm">
-                        <option value="dong" selected>동 이동</option>
-                        <option value="pos">위치 이동</option>
-                    </select>
-                </label>
-            </div>
-            <div id="rec-tab-header" class="seg-tabs" style="margin-bottom:10px;">
-                <button id="rec-tab-btn-single" class="seg-tab active" onclick="window.switchRecTab('single')">단독 추천</button>
-                <button id="rec-tab-btn-pair" class="seg-tab" onclick="window.switchRecTab('pair')">페어 추천</button>
-            </div>
-
-            <div id="rec-tab-single" class="modal-body table-box" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0;">
-                <table class="usage-table" style="width:100%;">
-                    <thead>
-                        <tr>
-                            <th style="width: 92px; font-size:12px;">순위(점수)</th>
-                            <th style="width: 110px; font-size:12px;">상품코드</th>
-                            <th style="font-size:12px;">상품명 (옵션)</th>
-                            <th style="width: 78px; background:var(--c-warn-bg); color:var(--c-warn-text); font-size:12px;">이동수량</th>
-                            <th style="width: 130px; font-size:12px;">현재 위치</th>
-                            <th style="width: 260px; background:var(--c-ok-soft); color:var(--c-ok-text); font-size:12px;">추천 로케이션 (방향)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="recommend-single-tbody"></tbody>
-                </table>
-            </div>
-
-            <div id="rec-tab-pair" class="modal-body table-box" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0; display:none;">
-                <table class="usage-table" style="width:100%;">
-                    <thead>
-                        <tr>
-                            <th style="width: 60px; font-size:13px;">순위</th>
-                            <th style="font-size:13px;">상품 A</th>
-                            <th style="width: 160px; background:var(--c-ok-soft); color:var(--c-ok-text); font-size:13px;">A 추천 자리</th>
-                            <th style="font-size:13px;">상품 B</th>
-                            <th style="width: 160px; background:var(--c-ok-soft); color:var(--c-ok-text); font-size:13px;">B 추천 자리</th>
-                        </tr>
-                    </thead>
-                    <tbody id="recommend-tbody"></tbody>
-                </table>
-            </div>
-
-            <div class="modal-footer" style="justify-content: space-between; margin-top: 15px; flex-shrink: 0;">
-                <button class="btn btn-secondary" onclick="downloadRecommendationExcel()">엑셀 다운로드</button>
-                <button class="btn btn-secondary" onclick="closeRecommendModal()">닫기</button>
             </div>
 
         </div>
@@ -1741,10 +1680,10 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610271228"></script>
+    <script type="module" src="js/location.js?v=202610271252"></script>
     <!-- 권한 개편 5단계: location.js 가 만든 window.* 위험 함수를 바깥에서 감싼다(반드시 location.js 다음) -->
-    <script type="module" src="js/location-guard.js?v=202610271228"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610271228"></script>
+    <script type="module" src="js/location-guard.js?v=202610271252"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610271252"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1808,7 +1747,6 @@
         document.querySelectorAll('.filter-popup').forEach(p => { p.addEventListener('click', function(e) { e.stopPropagation(); }); });
 
         window.closeSheetModal = function(e) { if (!e || e.target.id === 'sheet-modal') document.getElementById('sheet-modal').style.display = 'none'; }
-        window.closeRecommendModal = function(e) { if (!e || e.target.id === 'recommend-modal') document.getElementById('recommend-modal').style.display = 'none'; }
         window.closeSettingsModal = function(e) { if (!e || e.target.id === 'settings-modal') document.getElementById('settings-modal').style.display = 'none'; }
         
         window.toggleIncomingSidebar = function(e) {
@@ -1822,10 +1760,10 @@
             if (typeof window.paintIncomingBasis === 'function') window.paintIncomingBasis(sidebar.classList.contains('open'));
         }
     </script>
-    <script src="js/connection-banner.js?v=202610271228"></script>
-    <script src="js/modal-esc.js?v=202610271228"></script>
-    <script type="module" src="js/modal-drag.js?v=202610271228"></script>
-    <script type="module" src="js/page-gate.js?v=202610271228" data-perm-page="location.view"></script>
-    <script type="module" src="js/app-shell.js?v=202610271228"></script>
+    <script src="js/connection-banner.js?v=202610271252"></script>
+    <script src="js/modal-esc.js?v=202610271252"></script>
+    <script type="module" src="js/modal-drag.js?v=202610271252"></script>
+    <script type="module" src="js/page-gate.js?v=202610271252" data-perm-page="location.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610271252"></script>
 </body>
 </html>

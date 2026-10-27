@@ -1,16 +1,16 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610271228';
-import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610271228';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610271228';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610271228';
-import { memberNameFor } from './app-shell-data.js?v=202610271228';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610271252';
+import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610271252';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610271252';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610271252';
+import { memberNameFor } from './app-shell-data.js?v=202610271252';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610271228';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610271228';
-import { getPermModel } from './admin-perm.js?v=202610271228';
-import { showConfirm } from './utils.js?v=202610271228';
-import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610271228';
+import { menuConfigOf } from './lib/perm.js?v=202610271252';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610271252';
+import { getPermModel } from './admin-perm.js?v=202610271252';
+import { showConfirm } from './utils.js?v=202610271252';
+import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610271252';
 
 import {
     renderAdminUI,
@@ -30,13 +30,13 @@ import {
     findDeadMenuItems,
     countNamelessMenuRows,
     MOVE_BTNS
-} from './admin-ui.js?v=202610271228';
+} from './admin-ui.js?v=202610271252';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610271228';
+} from './admin-logic.js?v=202610271252';
 
 let db, auth;
 let appConfig = {};
@@ -49,13 +49,12 @@ let currentModalTarget = null;
 let taskJustAdded = null;
 
 // 저장 안 한 변경 경고(UI 1b, 2026-10-16) — #admin-content 의 입력·선택이 바뀌면 서고, '전체 저장' 성공 때 내린다.
-// '채우기 설정'은 전체 저장 대상이 아니라(자기 [저장] 버튼) 세지 않는다.
 // 행 추가·삭제·끌어 옮기기처럼 입력 이벤트가 없는 변경은 잡지 못한다(입력·선택 변경만).
 // 버튼(행 추가·삭제 등)·끌어 옮기기, #admin-content 밖 선택 모달(업무·위젯 항목 추가)의 고르기·확인도 변경으로 본다.
 let adminDirty = false;
-// 변경이 있으면 [전체 저장]에 '저장 안 됨' 표시를 켠다. 자동화·채우기 탭(전체 저장 대상 아님)에서도
+// 변경이 있으면 [전체 저장]에 '저장 안 됨' 표시를 켠다. 자동화 탭(전체 저장 대상 아님)에서도
 // 변경이 있으면 버튼을 숨기지 않고 '다른 탭에 저장 안 한 변경' 안내를 보인다(admin.html activateTab 이 body.dataset.adminTab 을 바꾼다).
-const NO_SAVE_ALL_TABS = ['section-automation', 'section-refill'];
+const NO_SAVE_ALL_TABS = ['section-automation'];   // 채우기 설정 탭은 2026-10-27 로케이션관리 환경설정으로 옮겼다
 function syncSaveAllUI() {
     const offTab = NO_SAVE_ALL_TABS.includes(document.body.dataset.adminTab || '');
     const btn = document.getElementById('save-all-btn');
@@ -71,12 +70,9 @@ function setAdminDirty(v) {
     adminDirty = !!v;
     syncSaveAllUI();
 }
-const ADMIN_DIRTY_SKIP = '#section-refill';
-const ADMIN_BTN_SKIP = '#save-all-btn, .admin-tab-btn, #section-refill, [data-pm-nodirty]';   // 권한 화면의 탭·펼치기·미리보기는 변경이 아니다
+const ADMIN_BTN_SKIP = '#save-all-btn, .admin-tab-btn, [data-pm-nodirty]';   // 권한 화면의 탭·펼치기·미리보기는 변경이 아니다
 const ADMIN_MODAL_PICK = '.task-select-list-btn, .dashboard-item-select-btn, #confirm-add-to-quantity-btn';
-const markAdminDirty = (e) => {
-    const t = e && e.target;
-    if (t && t.closest && t.closest(ADMIN_DIRTY_SKIP)) return;
+const markAdminDirty = () => {
     setAdminDirty(true);
 };
 const markAdminDirtyByClick = (e) => {

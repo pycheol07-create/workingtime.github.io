@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610271228">
-    <link rel="stylesheet" href="css/admin-d.css?v=202610271228">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610271228">
+    <link rel="stylesheet" href="css/suit.css?v=202610271252">
+    <link rel="stylesheet" href="css/admin-d.css?v=202610271252">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610271252">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -79,9 +79,6 @@
             <div class="admin-nav-group text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wider px-2 pt-4 mb-2">자동화</div>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-automation">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> 자동화 상태
-            </button>
-            <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-refill">
-                <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg></span> 채우기 설정
             </button>
             <div class="admin-nav-group text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wider px-2 pt-4 mb-2">기타</div>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-setting">
@@ -311,41 +308,6 @@
                     </div>
                 </div>
 
-                <!-- '전체 저장' 대상 아님: 이 탭의 [저장] 버튼만 adminPrivate/refillSettings 에 쓴다(js/admin-refill.js).
-                     앱\채우기자동화(채우기 지시서)가 매일 아침 이 값을 읽는다. -->
-                <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors w-full" id="section-refill">
-                    <div class="p-6 border-b border-gray-100 dark:border-gray-700 w-full">
-                        <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">채우기 설정</h2>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">비축창고 → 피킹 로케이션 채우기 지시서(매일 아침 슬랙 발송)를 보낼지·언제 보낼지 정합니다. 대상은 주문(접수+송장)이 피킹재고(정상 − 비축)보다 많은 상품이고, 밀린 주문은 반드시 채우고 적재량까지 채웁니다(비축재고 안에서).</p>
-                    </div>
-                    <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[400px] w-full">
-                        <div id="refill-status" class="text-sm mb-4 text-gray-500 dark:text-gray-400">탭을 열면 불러옵니다.</div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
-                                <label class="inline-flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300"><input type="checkbox" id="refill-enabled" class="w-4 h-4" disabled> 지시서 보내기</label>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">끄면 자동화가 '쉼' 으로 끝나고 슬랙에 보내지 않습니다.</p>
-                            </div>
-                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
-                                <span class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">보내는 요일</span>
-                                <div class="flex flex-wrap gap-3">
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="0" disabled> 월</label>
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="1" disabled> 화</label>
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="2" disabled> 수</label>
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="3" disabled> 목</label>
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="4" disabled> 금</label>
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="5" disabled> 토</label>
-                                    <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" class="refill-day w-4 h-4" value="6" disabled> 일</label>
-                                </div>
-                                <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mt-3"><input type="checkbox" id="refill-skip-holidays" class="w-4 h-4" disabled> 공휴일 제외 (달력과 같은 공휴일 표)</label>
-                            </div>
-                        </div>
-                        <div class="mt-6 flex flex-wrap items-center gap-3">
-                            <button type="button" id="refill-save-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors text-sm disabled:opacity-50" disabled>저장</button>
-                            <span id="refill-meta" class="text-xs text-gray-500 dark:text-gray-400"></span>
-                        </div>
-                    </div>
-                </div>
-
             </div>
         </div>
     </main>
@@ -399,13 +361,12 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610271228"></script>
-    <script type="module" src="js/admin-automation.js?v=202610271228"></script>
-    <script type="module" src="js/admin-refill.js?v=202610271228"></script>
+    <script type="module" src="js/admin.js?v=202610271252"></script>
+    <script type="module" src="js/admin-automation.js?v=202610271252"></script>
 
     <script type="module">
         // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
-        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610271228';
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610271252';
 
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
@@ -416,8 +377,9 @@
             // 사이드바 탭 클릭 처리
             const tabBtns = document.querySelectorAll('.admin-tab-btn');
             const sections = document.querySelectorAll('.admin-section');
-            // '전체 저장'이 다루지 않는 화면 — 자동화 상태(읽기만)·채우기 설정(자기 [저장] 버튼). 여기서는 숨긴다
-            const NO_SAVE_ALL = ['section-automation', 'section-refill'];
+            // '전체 저장'이 다루지 않는 화면 — 자동화 상태(읽기만). 여기서는 숨긴다
+            // (채우기 설정은 2026-10-27 로케이션관리 환경설정 '추천·채우기' 탭으로 옮겼다 — js/locset-panel.js)
+            const NO_SAVE_ALL = ['section-automation'];
 
             function activateTab(targetId) {
                 tabBtns.forEach(t => {
@@ -458,7 +420,7 @@
 
 
             // 해시 ↔ 탭. 탭을 바꾸면 해시를 고치고(기록 안 쌓임), 해시로 들어오면 그 탭 버튼을 누른다
-            // — 자동화 상태·채우기 설정은 버튼 클릭에 데이터 불러오기가 붙어 있다(js/admin-automation.js·admin-refill.js).
+            // — 자동화 상태는 버튼 클릭에 데이터 불러오기가 붙어 있다(js/admin-automation.js).
             // 이 스크립트가 맨 뒤 모듈이라 이 시점에는 그 리스너들이 이미 붙어 있다.
             const SECTION_PREFIX = 'section-';
             const tabOf = (targetId) => String(targetId || '').startsWith(SECTION_PREFIX) ? targetId.slice(SECTION_PREFIX.length) : '';
@@ -511,9 +473,9 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610271228"></script>
-    <script src="js/modal-esc.js?v=202610271228"></script>
-    <script type="module" src="js/modal-drag.js?v=202610271228"></script>
-    <script type="module" src="js/app-shell.js?v=202610271228"></script>
+    <script src="js/connection-banner.js?v=202610271252"></script>
+    <script src="js/modal-esc.js?v=202610271252"></script>
+    <script type="module" src="js/modal-drag.js?v=202610271252"></script>
+    <script type="module" src="js/app-shell.js?v=202610271252"></script>
 </body>
 </html>

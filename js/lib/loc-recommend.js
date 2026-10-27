@@ -1,14 +1,14 @@
 // === js/lib/loc-recommend.js ===
-// 로케이션 변경 추천 계산 — 화면(location.js 의 [변경 추천] 모달)과 서버(업무자동화\앱\로케이션추천, node 로 실행)가 같이 쓴다.
+// 로케이션 변경 추천 계산 — 서버(업무자동화\앱\로케이션추천, node 로 실행)가 쓴다. 화면의 수동 변경 계산 창은 2026-10-27 없앴다(화면은 SERVER_DEFAULTS 만 읽는다).
 // 순수 ESM: DOM·window·Firebase 를 쓰지 않는다. import 는 ./mibal2-rows.js·./mibal2-calc.js 만.
 //
-// 무엇이 어디서 왔나 (location.js 원래 줄 — 2026-10-19 기준):
-//   makeRankers         ← showSingleRecommendation 의 getZoneRank·getDongRank·getPosRank
+// 무엇이 어디서 왔나 (옛 location.js 수동 계산 — 사본은 tests/fixtures/loc-recommend-legacy.js):
+//   makeRankers         ← 옛 단독 추천의 getZoneRank·getDongRank·getPosRank
 //   baseLocsForCode     ← getBaseLocsForCode
-//   scoreItems          ← showSingleRecommendation 1단계(점수). 수요(zgQty·wQty·trendVal)는 밖에서 넣는다(화면·서버가 다름)
+//   scoreItems          ← 옛 단독 추천 1단계(점수). 수요(zgQty·wQty·trendVal)는 밖에서 넣는다(화면·서버가 다름)
 //   emptySlots          ← 2단계(빈 자리) + 4단계(정렬: 동 > 위치 > 구역)
 //   recommendSingle     ← 5·6단계(점수 1위부터 빈 자리 배정)
-//   buildPairMap        ← showPairRecommendation 2단계(신뢰 페어)
+//   buildPairMap        ← 옛 페어 추천 2단계(신뢰 페어)
 //   recommendPairs      ← 3~6단계(단독 결과 안에서 페어 묶기·파트너 재배정)
 //   moveQtyOf           ← 이동수량(정상 합 - 비축 대표값) · reserveOf = 그 비축 대표값(행 reserve·reserve2, 2026-10-27)
 // 회귀 테스트: tests/loc-recommend.test.js 가 tests/fixtures/loc-recommend-legacy.js(원래 코드 사본)와 결과를 비교한다.
@@ -24,8 +24,8 @@
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202610271228';
-import { capacityFor } from './mibal2-calc.js?v=202610271228';
+import { isEtcLocObj } from './mibal2-rows.js?v=202610271252';
+import { capacityFor } from './mibal2-calc.js?v=202610271252';
 
 export { isEtcLocObj };
 

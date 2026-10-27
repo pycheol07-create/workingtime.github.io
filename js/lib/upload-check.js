@@ -2,7 +2,7 @@
 // 로케이션관리 엑셀 업로드 — 덮어쓰기 전에 파일이 쓸 만한지 검사한다. 2026-10-20
 //   ZG&AB 출고(ZikjinData)·주차별(WeeklyData)은 업로드하면 기존 데이터를 통째로 지우고 새로 쓴다.
 //   로케이션 열만 있는 파일(=상품코드가 없음)을 올리면 전부 지워지고 0건이 남던 문제를 막는다.
-//   열 규칙은 location.js 와 같다 — 코드: updateDatabaseB·setupRealtimeListenerB, 수량: _ablyQtyFromItem·_getDemandForCode.
+//   열 규칙은 location.js 와 같다 — 코드: updateDatabaseB·setupRealtimeListenerB, 수량: _ablyQtyFromItem(옛 수동 변경 계산의 _getDemandForCode 는 2026-10-27 없앰).
 //   행(row)은 smartParseToJSON 결과 — 머리글은 공백이 빠져 있고, 빈 칸은 키가 없다.
 // 순수 모듈(DOM/Firebase 의존 없음).
 

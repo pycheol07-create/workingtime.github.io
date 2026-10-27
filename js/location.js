@@ -1,25 +1,26 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610271228';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610271252';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610271228';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610271228';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610271228';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610271228';
-import { orderKeyMap } from './lib/order-hash.js?v=202610271228';
-import { setShellContext } from './app-shell-bridge.js?v=202610271228';
-import { memberNameFor } from './app-shell-data.js?v=202610271228';
-import { menuConfigOf } from './lib/perm.js?v=202610271228';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610271228';
-import { initPageNav } from './page-nav.js?v=202610271228';
-import { initRefillCard } from './refill-card.js?v=202610271228';
-import { initLocRecCard } from './locrec-card.js?v=202610271228';
-import { initRebuildBar } from './rebuild-bar.js?v=202610271228';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610271228';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610271228';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610271228';
-import { uploadBlockText } from './lib/busy-view.js?v=202610271228';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610271228';
-import { scoreItems, recommendSingle, buildPairMap, recommendPairs, angleSizeOf } from './lib/loc-recommend.js?v=202610271228';
+import { escapeHtml as escAttr } from './utils.js?v=202610271252';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610271252';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610271252';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610271252';
+import { orderKeyMap } from './lib/order-hash.js?v=202610271252';
+import { setShellContext } from './app-shell-bridge.js?v=202610271252';
+import { memberNameFor } from './app-shell-data.js?v=202610271252';
+import { menuConfigOf } from './lib/perm.js?v=202610271252';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610271252';
+import { initPageNav } from './page-nav.js?v=202610271252';
+import { initRefillCard } from './refill-card.js?v=202610271252';
+import { initLocRecCard } from './locrec-card.js?v=202610271252';
+import { initRebuildBar } from './rebuild-bar.js?v=202610271252';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610271252';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610271252';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610271252';
+import { uploadBlockText } from './lib/busy-view.js?v=202610271252';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610271252';
+import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610271252';
+import { initLocSetPanel } from './locset-panel.js?v=202610271252';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -127,23 +128,13 @@ window.excelHeaders = [];
 window.isPreAssignMode = false;
 window.selectedPreAssignItem = null;
 
-window.currentRecommendations = [];
-// v4.1: 단독 추천용 별도 데이터 변수
-window.currentSingleRecommendations = [];
-
-window.recommendRatios = { zikjin: 60, weekly: 20, trend: 20 }; // zikjin=플랫폼 출고(직진+에이블리), weekly=주차별, trend=상승세
+// 동선 기준(구역·동·위치 순서·제외 구역) — 입고대기 추천 자리(calcIncomingRecommend)가 쓴다. 서버 로케이션추천도 같은 값을 읽는다.
+// 편집·저장은 환경설정 '추천·채우기' 탭(js/locset-panel.js). 수동 변경 계산 창·점수 비율 칸은 2026-10-27 없앴다(비율은 서버 설정.json).
 window.recommendPriorities = {
     zones: { 0: ['★'], 1: ['A','B','C','D','E','F','G','H','I'], 2: ['Z'], 3: ['L','M','N','O','P','Q','R','S','T'] },
     dongs: ['★', '1', '2', '3', '4', '5', '6'],
     poses: ['★', '2', '3', '4', '1', '5']
 };
-// [변경 추천] 단독 추천 가드 — js/lib/loc-recommend.js recommendSingle 옵션(서버 로케이션추천은 늘 켠다).
-//   zoneGuard: 새 자리 구역 순위가 지금보다 나쁘면 옮기지 않는다 · excludeTagged: 예약·당일지정·선지정 빈 자리는 추천하지 않는다(입고 추천과 같은 기준)
-const LOC_REC_GUARDS = { zoneGuard: true, excludeTagged: true };
-
-// [2단계] 입고대기 신규 상품 전용 추천 우선순위 (null이면 openSheetModal에서 recommendPriorities를 fallback으로 사용)
-window.incomingRecommendPriorities = null;
-
 const getZoneDocId = (locId) => {
     if (!locId) return 'ZONE_ETC';
     const clean = locId.toString().trim().toUpperCase();
@@ -666,10 +657,6 @@ function setupRealtimeListenerA() {
                 window.__excelHeadersHadDropped = conf.excelHeaders.some(h => isDroppedHeader(h)); // 다음 최신화 때 저장본에서도 빼기
             }
             
-            if (conf.recommendRatios) {
-                let r = conf.recommendRatios;
-                if ((r.zikjin + r.weekly + r.trend) === 100) window.recommendRatios = r;
-            }
             if (conf.recommendPriorities) {
                 window.recommendPriorities = conf.recommendPriorities;
                 // v4.1: 기존 설정에 ★이 없으면 자동으로 1순위에 추가 (호환성 보강)
@@ -678,16 +665,6 @@ function setupRealtimeListenerA() {
                 }
                 if (Array.isArray(window.recommendPriorities.poses) && !window.recommendPriorities.poses.includes('★')) {
                     window.recommendPriorities.poses = ['★', ...window.recommendPriorities.poses];
-                }
-            }
-            // [2단계] 입고대기 신규 상품용 우선순위 로드
-            if (conf.incomingRecommendPriorities) {
-                window.incomingRecommendPriorities = conf.incomingRecommendPriorities;
-                if (Array.isArray(window.incomingRecommendPriorities.dongs) && !window.incomingRecommendPriorities.dongs.includes('★')) {
-                    window.incomingRecommendPriorities.dongs = ['★', ...window.incomingRecommendPriorities.dongs];
-                }
-                if (Array.isArray(window.incomingRecommendPriorities.poses) && !window.incomingRecommendPriorities.poses.includes('★')) {
-                    window.incomingRecommendPriorities.poses = ['★', ...window.incomingRecommendPriorities.poses];
                 }
             }
             // ★ v3.53: 사용자 정의 툴팁 로드
@@ -852,204 +829,6 @@ window.toggleUsageDetails = function() {
     }
 };
 
-function updateExcludePreview() {
-    const input = document.getElementById('exclude-combos-input');
-    const preview = document.getElementById('exclude-combos-preview');
-    if (!input || !preview) return;
-    const combos = input.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-    if (combos.length === 0) { preview.innerHTML = '<span style="font-size:11px; color:var(--c-text-3,#999);">제외 항목 없음</span>'; return; }
-    preview.innerHTML = combos.map(c => `<span style="display:inline-block; background:#ff5252; color:white; padding:3px 8px; border-radius:4px; font-size:12px; font-weight:bold;">${c}</span>`).join('');
-}
-
-window.openRatioModal = function(e) {
-    if(e) e.stopPropagation();
-    if (typeof window.closeAllPopups === 'function') window.closeAllPopups();
-    
-    let modal = document.getElementById('ratio-settings-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'ratio-settings-modal';
-        modal.className = 'modal-overlay';   // js/modal-esc.js 가 ESC 후보로 본다(인라인 style 이 우선이라 모양은 그대로)
-        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(30,40,60,0.45); display:none; align-items:center; justify-content:center; z-index:10000;";
-        modal.innerHTML = `
-            <div style="background:var(--c-surface); color:var(--c-text); padding:24px; border-radius:var(--r-card); width:520px; max-height:90vh; overflow-y:auto; box-shadow: var(--sh-pop);">
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--c-line); padding-bottom:10px; margin-bottom:15px;">
-                    <h2 style="margin:0; color:var(--c-text); font-size:18px; font-weight:600;">추천 알고리즘 설정</h2>
-                    <button class="modal-x" onclick="document.getElementById('ratio-settings-modal').style.display='none'" aria-label="닫기">×</button>
-                </div>
-
-                <div style="background:var(--c-surface-2); border:1px solid var(--c-line); border-radius:var(--r-inner); padding:15px; margin-bottom:15px;">
-                    <h4 style="margin:0 0 10px 0; color:var(--c-text); font-weight:600;">점수 반영 비율 (총합 100%)</h4>
-                    <div style="display:flex; justify-content:space-around; align-items:center; gap:5px;">
-                        <label style="display:flex; flex-direction:column; align-items:center; font-size:12px; font-weight:bold;">
-                            플랫폼 출고
-                            <div style="margin-top:5px; display:flex; align-items:center;">
-                                <input type="number" id="mod-ratio-zikjin" style="width:50px; text-align:right; padding:6px; border:1px solid var(--c-line-strong); border-radius:4px; font-weight:bold;">
-                                <span style="margin-left:4px; color:var(--c-text-2);">%</span>
-                            </div>
-                        </label>
-                        <span style="font-size:20px; color:var(--c-text-3); margin-top:15px;">+</span>
-                        <label style="display:flex; flex-direction:column; align-items:center; font-size:12px; font-weight:bold;">
-                            주차별
-                            <div style="margin-top:5px; display:flex; align-items:center;">
-                                <input type="number" id="mod-ratio-weekly" style="width:50px; text-align:right; padding:6px; border:1px solid var(--c-line-strong); border-radius:4px; font-weight:bold;">
-                                <span style="margin-left:4px; color:var(--c-text-2);">%</span>
-                            </div>
-                        </label>
-                        <span style="font-size:20px; color:var(--c-text-3); margin-top:15px;">+</span>
-                        <label style="display:flex; flex-direction:column; align-items:center; font-size:12px; font-weight:bold;">
-                            상승세
-                            <div style="margin-top:5px; display:flex; align-items:center;">
-                                <input type="number" id="mod-ratio-trend" style="width:50px; text-align:right; padding:6px; border:1px solid var(--c-line-strong); border-radius:4px; font-weight:bold;">
-                                <span style="margin-left:4px; color:var(--c-text-2);">%</span>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-
-                <div style="margin-bottom:10px;">
-                    <div class="section-toggle" onclick="toggleSection('sec-zone', 'icon-zone')">
-                        <span>구역(알파벳) 우선순위 배치</span>
-                        <span id="icon-zone">▼</span>
-                    </div>
-                    <div id="sec-zone" class="section-content">
-                        <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 마우스로 알파벳 조각을 끌어서 원하는 순위 칸에 놓으세요.</p>
-                        <div class="puzzle-container">
-                            <div class="puzzle-row"><div class="puzzle-label pz-r0">0순위</div><div class="puzzle-drop-area" id="pz-0" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row"><div class="puzzle-label pz-r1">1순위</div><div class="puzzle-drop-area" id="pz-1" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row"><div class="puzzle-label pz-r2">2순위</div><div class="puzzle-drop-area" id="pz-2" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row"><div class="puzzle-label pz-r3">3순위</div><div class="puzzle-drop-area" id="pz-3" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row" style="margin-top:5px;"><div class="puzzle-label pz-none">미지정<br>(후순위)</div><div class="puzzle-drop-area pz-none-area" id="pz-none" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="margin-bottom:20px;">
-                    <div class="section-toggle" onclick="toggleSection('sec-dongpos', 'icon-dongpos')">
-                        <span>동 / 위치 우선순위 줄세우기</span>
-                        <span id="icon-dongpos">▼</span>
-                    </div>
-                    <div id="sec-dongpos" class="section-content">
-                        <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 마우스로 블록을 잡고 좌우로 끌어서 순서를 맞춰주세요. (왼쪽이 1순위)</p>
-                        
-                        <div style="font-size:13px; font-weight:600; margin-bottom:5px; color:var(--c-accent-deep);">▶ 동 우선순위</div>
-                        <div class="sort-container" id="sort-dongs" ondragover="handleSortDragOver(event)"></div>
-
-                        <div style="font-size:13px; font-weight:600; margin-top:15px; margin-bottom:5px; color:var(--c-accent-deep);">▶ 위치 우선순위</div>
-                        <div class="sort-container" id="sort-poses" ondragover="handleSortDragOver(event)"></div>
-                    </div>
-                </div>
-
-                <div style="margin-bottom:20px;">
-                    <div class="section-toggle" onclick="toggleSection('sec-exclude', 'icon-exclude')">
-                        <span>추천 제외 구역 설정</span>
-                        <span id="icon-exclude">▼</span>
-                    </div>
-                    <div id="sec-exclude" class="section-content">
-                        <p style="margin:0 0 10px 0; font-size:11px; color:var(--c-text-2);">※ 구역+동 조합을 입력하면 해당 조합의 로케이션이 추천에서 제외됩니다.<br>예시: Z-1, A-3, ★-2 (쉼표로 구분)</p>
-                        <input type="text" id="exclude-combos-input" class="risk-input" placeholder="예: Z-1, A-3, ★-2">
-                        <div id="exclude-combos-preview" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;"></div>
-                    </div>
-                </div>
-                
-                <div style="display:flex; justify-content:center;">
-                    <button class="btn btn-primary" onclick="saveMasterSettingsModal()" style="width:100%;">변경사항 저장 및 즉시 재계산</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        
-        // ★ 제외 조합 입력 시 프리뷰 업데이트
-        document.getElementById('exclude-combos-input').addEventListener('input', updateExcludePreview);
-    }
-    
-    document.getElementById('mod-ratio-zikjin').value = window.recommendRatios.zikjin;
-    document.getElementById('mod-ratio-weekly').value = window.recommendRatios.weekly;
-    document.getElementById('mod-ratio-trend').value = window.recommendRatios.trend;
-    
-    const allAlphabets = ['★', 'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
-    const priZones = window.recommendPriorities.zones || {0:[], 1:[], 2:[], 3:[]};
-    for(let i=0; i<=3; i++) document.getElementById(`pz-${i}`).innerHTML = '';
-    document.getElementById('pz-none').innerHTML = '';
-
-    allAlphabets.forEach(alpha => {
-        let placedRank = -1;
-        for(let i=0; i<=3; i++) { if(priZones[i] && priZones[i].includes(alpha)) { placedRank = i; break; } }
-        
-        const block = document.createElement('div');
-        block.className = 'puzzle-block';
-        block.innerText = alpha;
-        block.draggable = true;
-        block.ondragstart = window.handleDragStart;
-        block.ondragend = window.handleDragEnd;
-
-        if(placedRank !== -1) document.getElementById(`pz-${placedRank}`).appendChild(block);
-        else document.getElementById('pz-none').appendChild(block);
-    });
-
-    const renderSortBlocks = (containerId, items, defaultItems) => {
-        const container = document.getElementById(containerId);
-        container.innerHTML = '';
-        let finalItems = [...new Set([...items, ...defaultItems])]; 
-        finalItems.forEach(item => {
-            const block = document.createElement('div');
-            block.className = 'puzzle-sort-block';
-            block.innerText = item;
-            block.draggable = true;
-            block.ondragstart = window.handleDragStart;
-            block.ondragend = window.handleDragEnd;
-            container.appendChild(block);
-        });
-    };
-
-    renderSortBlocks('sort-dongs', window.recommendPriorities.dongs || [], ['★','1','2','3','4','5','6']);
-    renderSortBlocks('sort-poses', window.recommendPriorities.poses || [], ['★','1','2','3','4','5']);
-
-    // ★ 제외 조합 입력창 로드
-    const excludeCombos = window.recommendPriorities.excludeCombos || [];
-    document.getElementById('exclude-combos-input').value = excludeCombos.join(', ');
-    updateExcludePreview();
-    
-    modal.style.display = 'flex';
-};
-
-window.saveMasterSettingsModal = async function() {
-    const z = Number(document.getElementById('mod-ratio-zikjin').value) || 0;
-    const w = Number(document.getElementById('mod-ratio-weekly').value) || 0;
-    const t = Number(document.getElementById('mod-ratio-trend').value) || 0;
-    if (z + w + t !== 100) return alert(`점수 반영 비율의 합계가 100%가 되어야 합니다.\n(현재 합계: ${z + w + t}%)`);
-    
-    let newZones = {};
-    for(let i=0; i<=3; i++){
-        const blocks = document.getElementById(`pz-${i}`).querySelectorAll('.puzzle-block');
-        newZones[i] = Array.from(blocks).map(b => b.innerText.trim());
-    }
-
-    const newDongs = Array.from(document.getElementById('sort-dongs').querySelectorAll('.puzzle-sort-block')).map(b => b.innerText.trim());
-    const newPoses = Array.from(document.getElementById('sort-poses').querySelectorAll('.puzzle-sort-block')).map(b => b.innerText.trim());
-
-    // ★ 제외 조합 수집
-    const excludeCombos = document.getElementById('exclude-combos-input').value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-
-    const newPriorities = { zones: newZones, dongs: newDongs, poses: newPoses, excludeCombos };
-
-    try {
-        await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { 
-            recommendRatios: { zikjin: z, weekly: w, trend: t },
-            recommendPriorities: newPriorities
-        }, { merge: true });
-        
-        window.recommendRatios = { zikjin: z, weekly: w, trend: t };
-        window.recommendPriorities = newPriorities;
-        
-        document.getElementById('ratio-settings-modal').style.display = 'none';
-        showToast("마스터 설정이 저장되었습니다.");
-        
-        const recModal = document.getElementById('recommend-modal');
-        if (recModal && recModal.style.display === 'flex') window.showPairRecommendation();
-    } catch(e) { console.error(e); alert('설정을 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : '')); }
-};
-
 const escHtmlLite = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ★ 자리 칸수 = 자리에 저장된 angleSize 만. 업로드 원본(rawData)의 '칸수' 는 쓰지 않는다 —
@@ -1171,23 +950,6 @@ ${dataRows}
     URL.revokeObjectURL(url);
 };
 
-window.openRecommendModal = function() {
-    document.getElementById('recommend-modal').style.display = 'flex';
-    if (typeof window._initRecLimitUI === 'function') window._initRecLimitUI(); // v3.97e
-};
-
-
-// ★ 피킹용/기타 구분 — 기타(비축·샘플·SAM 등)는 실제 피킹 랙이 아님.
-//   한 상품이 피킹용과 기타 두 군데에 있으면 '피킹용이 메인'이므로 피킹용만 기준으로 삼는다.
-//   (피킹용에 전혀 없고 기타에만 있는 상품은 기타를 기준으로 폴백)
-//   ※ 페어추천(showRecommendation)·단독추천(showSingleRecommendation) 양쪽에서 공용으로 사용.
-const isEtcLocObj = (d) => String(d.category || '피킹용').trim() === '기타' || /^SAM/i.test(String(d.id || '').trim());
-const getBaseLocsForCode = (code) => {
-    const all = originalData.filter(d => d.code === code);
-    const picking = all.filter(d => !isEtcLocObj(d));
-    return picking.length > 0 ? picking : all;
-};
-
 // 에이블리 출고량 계산. '수량/기간배송수량' 총량 컬럼이 있으면 사용하고,
 // 없으면(에이블리 파일이 상품코드 + 날짜별 컬럼만 있는 경우) 날짜별(YYYYMMDD) 컬럼 합계를 출고량으로 사용.
 // 📦 플랫폼 출고 행의 소스별(직진/에이블리) 수량 분해.
@@ -1215,452 +977,10 @@ function _ablyQtyFromItem(aItem) {
     return sum;
 }
 
-// 상품코드의 수요 지표 추출 (두 추천 경로 공용):
-//   - zgQty: 플랫폼 출고 = 직진+에이블리 합본 파일(ZikjinData) 의 수량/날짜컬럼합
-//   - wQty : 주차별(WeeklyData '기간배송수량/기간발주수량')
-//   - trendVal: 상승세 = 주차별 날짜별(YYYYMMDD) 컬럼의 최근3 - 이전3
-function _getDemandForCode(code) {
-    const zItem = zikjinData[code] || {}; // 플랫폼 출고 (직진+에이블리 합본 파일 → 직진 슬롯 업로드)
-    const wItem = weeklyData[code] || {};
-    const zgQty = _ablyQtyFromItem(zItem); // 수량 || 날짜별 컬럼 합계 || 기간배송수량
-    const wQty = Number(wItem['기간배송수량'] || wItem['기간발주수량'] || 0);
-    let trendVal = 0;
-    const dates = Object.keys(wItem).filter(k => /^20\d{6}$/.test(k)).sort();
-    if (dates.length >= 6) {
-        const recent3 = dates.slice(-3).reduce((s, d) => s + Number(wItem[d] || 0), 0);
-        const prev3 = dates.slice(-6, -3).reduce((s, d) => s + Number(wItem[d] || 0), 0);
-        trendVal = Math.max(0, recent3 - prev3);
-    }
-    const locItem = getBaseLocsForCode(code)[0];
-    const name = (locItem && locItem.name) || zItem['상품명'] || wItem['상품명'] || '알 수 없음';
-    return { name, zgQty, wQty, trendVal };
-}
-
-window.showRecommendation = function() {
-    window.showLoading("우선순위 알고리즘을 분석하여 최적의 로케이션을 매칭 중입니다...");
-
-    setTimeout(() => {
-        window.currentRecommendations = [];
-
-        // ★ 로케이션에 실제 존재하는 상품코드만 대상
-        // ★ v3.53: 입고대기 남은 상품 제외 (곧 입고되므로 자리 이동 보류)
-        const allCodes = new Set(
-            originalData
-                .filter(d => d.code && d.code.trim() !== '' && d.code !== d.id)
-                .filter(d => !(incomingTotalByCode[d.code.trim()] > 0))
-                .map(d => d.code.trim())
-        );
-        let maxZQty = 0; let maxWQty = 0; let maxTrend = 0;
-        let itemDataList = [];
-
-        allCodes.forEach(code => {
-            const dm = _getDemandForCode(code); // 플랫폼 출고(직진+에이블리) / 주차별 / 상승세
-            if (dm.zgQty > maxZQty) maxZQty = dm.zgQty; // maxZQty = 플랫폼 출고 최대
-            if (dm.wQty > maxWQty) maxWQty = dm.wQty;
-            if (dm.trendVal > maxTrend) maxTrend = dm.trendVal;
-            itemDataList.push({ code, name: dm.name, zgQty: dm.zgQty, wQty: dm.wQty, trendVal: dm.trendVal });
-        });
-
-        let scoredItems = [];
-        itemDataList.forEach(item => {
-            let zScore = maxZQty > 0 ? (item.zgQty / maxZQty) * 100 : 0;
-            let wScore = maxWQty > 0 ? (item.wQty / maxWQty) * 100 : 0;
-            let tScore = maxTrend > 0 ? (item.trendVal / maxTrend) * 100 : 0;
-            let finalScore = (zScore * (window.recommendRatios.zikjin / 100)) + (wScore * (window.recommendRatios.weekly / 100)) + (tScore * (window.recommendRatios.trend / 100));
-
-            if (finalScore > 0) {
-                let currentLocs = getBaseLocsForCode(item.code).map(d => d.id).join(', ');
-                if (!currentLocs) currentLocs = '신규배치 (없음)';
-                // ★ 점수 내역 세부 저장 (툴팁용)
-                const zContrib = zScore * (window.recommendRatios.zikjin / 100);
-                const wContrib = wScore * (window.recommendRatios.weekly / 100);
-                const tContrib = tScore * (window.recommendRatios.trend / 100);
-                scoredItems.push({
-                    code: item.code, name: item.name, score: finalScore, currentLocs,
-                    zgQty: item.zgQty, wQty: item.wQty, trendVal: item.trendVal,
-                    zContrib, wContrib, tContrib
-                });
-            }
-        });
-        scoredItems.sort((a, b) => b.score - a.score);
-
-        let emptyLocs = originalData.filter(d => {
-            const hasContent = (d.code && d.code !== d.id && d.code.trim() !== "") || (d.name && d.name.trim() !== "");
-            if (hasContent || d.preAssigned) return false;
-            // ★ 기타(비축·샘플·SAM)는 실제 피킹 랙이 아니므로 이동 추천 대상에서 제외
-            if (isEtcLocObj(d)) return false;
-            // ★ 구역+동 조합 제외
-            const excludeCombos = window.recommendPriorities.excludeCombos || [];
-            if (excludeCombos.length > 0) {
-                const prefix = (d.id || '').charAt(0).toUpperCase();
-                const dong = (d.dong || '').toString().trim();
-                const combo = `${prefix}-${dong}`;
-                if (excludeCombos.includes(combo)) return false;
-            }
-            return true;
-        });
-
-        const getZoneRank = (locId) => {
-            const prefix = (locId || '').charAt(0).toUpperCase();
-            const zones = window.recommendPriorities.zones || {};
-            for(let i=0; i<=3; i++) {
-                if(zones[i] && zones[i].includes(prefix)) return i;
-            }
-            return 99; 
-        };
-        const getDongRank = (dong) => {
-            const str = (dong || '').toString().trim();
-            const idx = window.recommendPriorities.dongs.indexOf(str);
-            return idx !== -1 ? idx : 99;
-        };
-        const getPosRank = (pos) => {
-            const str = (pos || '').toString().trim();
-            const idx = window.recommendPriorities.poses.indexOf(str);
-            return idx !== -1 ? idx : 99;
-        };
-
-        emptyLocs.sort((a, b) => {
-            let zRankA = getZoneRank(a.id); let zRankB = getZoneRank(b.id);
-            if (zRankA !== zRankB) return zRankA - zRankB;
-            let dRankA = getDongRank(a.dong); let dRankB = getDongRank(b.dong);
-            if (dRankA !== dRankB) return dRankA - dRankB;
-            let pRankA = getPosRank(a.pos); let pRankB = getPosRank(b.pos);
-            if (pRankA !== pRankB) return pRankA - pRankB;
-            return a.id.localeCompare(b.id); 
-        });
-
-        // ===== v3.98: 페어 동선 보정 데이터 준비 =====
-        const pairMap = {};      
-        const codeToLocs = {};   
-        let pairDataReady = false;
-        let pairWeightMax = 0;   
-        
-        const includePairOfPair = document.getElementById('rec-include-pair-of-pair')?.checked || false;
-        
-        try {
-            if (window._cachedOrderPairs && window._cachedOrderStats && window._cachedOrderMeta) {
-                const pairs = window._cachedOrderPairs;
-                const stats = window._cachedOrderStats;
-                const meta = window._cachedOrderMeta;
-                const N = meta.totalProcessedOrders || 1;
-                
-                pairs.forEach(p => {
-                    const cA = (stats[p.codeA] || {}).count || 0;
-                    const cB = (stats[p.codeB] || {}).count || 0;
-                    if (cA === 0 || cB === 0) return;
-                    const lift = (p.count * N) / (cA * cB);
-                    if (p.count < 5 || lift < 2.0) return;
-                    const weight = lift * p.count;
-                    if (weight > pairWeightMax) pairWeightMax = weight;
-                    if (!pairMap[p.codeA]) pairMap[p.codeA] = [];
-                    if (!pairMap[p.codeB]) pairMap[p.codeB] = [];
-                    pairMap[p.codeA].push({ partner: p.codeB, weight });
-                    pairMap[p.codeB].push({ partner: p.codeA, weight });
-                });
-                
-                for (const code in pairMap) {
-                    pairMap[code].sort((a, b) => b.weight - a.weight);
-                    pairMap[code] = pairMap[code].slice(0, 5);
-                }
-                
-                originalData.forEach(d => {
-                    if (d.code && d.code !== d.id && d.code.trim() !== '') {
-                        if (!codeToLocs[d.code]) codeToLocs[d.code] = [];
-                        codeToLocs[d.code].push(d.id);
-                    }
-                });
-                pairDataReady = true;
-            }
-        } catch (e) {
-            console.warn('[v3.98] 페어 데이터 캐시 사용 실패, 페어 보정 비활성화:', e);
-        }
-        
-        const calcPairScore = (code, eLoc) => {
-            if (!pairDataReady) return 0;
-            const directPairs = pairMap[code] || [];
-            if (directPairs.length === 0) return 0;
-            
-            let targetPairs = directPairs.slice();
-            if (includePairOfPair) {
-                const seen = new Set([code, ...directPairs.map(p => p.partner)]);
-                for (const dp of directPairs) {
-                    const subPairs = pairMap[dp.partner] || [];
-                    for (const sp of subPairs) {
-                        if (seen.has(sp.partner)) continue;
-                        seen.add(sp.partner);
-                        targetPairs.push({ partner: sp.partner, weight: sp.weight * 0.5 });
-                    }
-                }
-            }
-            
-            const eZone = (eLoc.id || '').charAt(0).toUpperCase();
-            const eDong = (eLoc.dong || '').toString().trim();
-            const ePos = (eLoc.pos || '').toString().trim();
-            
-            let totalScore = 0;
-            for (const tp of targetPairs) {
-                const partnerLocs = codeToLocs[tp.partner] || [];
-                if (partnerLocs.length === 0) continue;
-                
-                let bestCoeff = 0;
-                for (const pLocId of partnerLocs) {
-                    const pLoc = originalData.find(d => d.id === pLocId);
-                    if (!pLoc) continue;
-                    const pZone = (pLoc.id || '').charAt(0).toUpperCase();
-                    const pDong = (pLoc.dong || '').toString().trim();
-                    const pPos = (pLoc.pos || '').toString().trim();
-                    
-                    let coeff = 0;
-                    if (eZone === pZone && eDong === pDong) {
-                        const ePosNum = parseInt(ePos, 10);
-                        const pPosNum = parseInt(pPos, 10);
-                        if (!isNaN(ePosNum) && !isNaN(pPosNum)) {
-                            const diff = Math.abs(ePosNum - pPosNum);
-                            if (diff === 0) coeff = 1.0;
-                            else if (diff === 1) coeff = 0.9;
-                            else if (diff === 2) coeff = 0.8;
-                            else coeff = 0.7;
-                        } else {
-                            coeff = 0.7;
-                        }
-                    }
-                    if (coeff > bestCoeff) bestCoeff = coeff;
-                }
-                totalScore += tp.weight * bestCoeff;
-            }
-            return totalScore;
-        };
-
-        const tbody = document.getElementById('recommend-tbody');
-        let html = ''; 
-        let matchCount = 0;
-        let usedEmptyIndices = new Set();
-        let displayRank = 1;
-
-        // v3.97e: 사용자 지정 추천 갯수 가져오기
-        const limitVal = (typeof window._getRecommendLimit === 'function') ? window._getRecommendLimit() : 10;
-
-        for (let i = 0; i < scoredItems.length; i++) {
-            // v3.97e: 사용자 지정 갯수 도달 시 종료
-            if (limitVal > 0 && matchCount >= limitVal) break;
-            
-            let item = scoredItems[i];
-            
-            // ★ 피킹용이 메인 — 피킹용에 있으면 기타 로케이션은 기준에서 제외
-            let currentLocsObjs = getBaseLocsForCode(item.code);
-            let currentDongsList = currentLocsObjs.map(d => (d.dong || '').toString().trim());
-
-            let candidateIndices = [];
-            for (let j = 0; j < emptyLocs.length; j++) {
-                if (usedEmptyIndices.has(j)) continue;
-                const eLoc = emptyLocs[j];
-                const targetDong = (eLoc.dong || '').toString().trim();
-                if (currentDongsList.includes(targetDong)) continue;
-                
-                const pairScore = calcPairScore(item.code, eLoc);
-                candidateIndices.push({ j, pairScore, originalIdx: j });
-            }
-            
-            candidateIndices.sort((a, b) => {
-                if (b.pairScore !== a.pairScore) return b.pairScore - a.pairScore;
-                return a.originalIdx - b.originalIdx;
-            });
-            
-            let matched = false;
-            for (const cand of candidateIndices) {
-                const j = cand.j;
-                if (usedEmptyIndices.has(j)) continue;
-                
-                let eLoc = emptyLocs[j];
-                let targetDong = (eLoc.dong || '').toString().trim();
-
-                if (currentDongsList.includes(targetDong)) {
-                    continue; 
-                }
-
-                usedEmptyIndices.add(j);
-                matched = true;
-                const matchedPairScore = cand.pairScore;
-                // ===== v3.98 페어 보정 끝, 기존 매칭 로직 진입 =====
-                
-                let totalStock = 0;
-                let totalStock2f = 0;
-                let itemOption = '';
-                
-                currentLocsObjs.forEach(d => {
-                    totalStock += Number(d.stock || 0);
-                    // 비축재고는 같은 상품의 모든 칸에 같은 값이 반복 저장돼 있다 → 더하지 말고 대표값 하나
-                    totalStock2f = Math.max(totalStock2f, Number(d.stock2f || 0));
-                    if (d.option && !itemOption) itemOption = d.option; 
-                });
-                
-                if (!itemOption || itemOption.trim() === '') {
-                    let fallbackOption = '';
-                    if (zikjinData[item.code] && zikjinData[item.code]['옵션']) fallbackOption = zikjinData[item.code]['옵션'];
-                    else if (weeklyData[item.code] && weeklyData[item.code]['옵션']) fallbackOption = weeklyData[item.code]['옵션'];
-                    else if (incomingData[item.code] && incomingData[item.code]['옵션']) fallbackOption = incomingData[item.code]['옵션'];
-                    
-                    itemOption = fallbackOption;
-                }
-
-                let moveQty = totalStock - totalStock2f;
-                
-                // ✨ [방향 지시등 로직] 우선순위 점수 비교 계산
-                let bestCurrentScore = 999999;
-                if (currentLocsObjs.length > 0) {
-                    currentLocsObjs.forEach(loc => {
-                        let z = getZoneRank(loc.id);
-                        let d = getDongRank(loc.dong);
-                        let p = getPosRank(loc.pos);
-                        let score = (z * 10000) + (d * 100) + p;
-                        if (score < bestCurrentScore) bestCurrentScore = score;
-                    });
-                }
-
-                let targetZ = getZoneRank(eLoc.id);
-                let targetD = getDongRank(eLoc.dong);
-                let targetP = getPosRank(eLoc.pos);
-                let targetScore = (targetZ * 10000) + (targetD * 100) + targetP;
-
-                let moveBadge = '';
-                let moveText = '';
-                if (currentLocsObjs.length === 0) {
-                    moveBadge = `<span style="display:inline-block; background:var(--c-accent-soft,#e3f2fd); color:var(--c-accent-deep,#1565c0); padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">신규</span>`;
-                    moveText = '신규';
-                } else if (targetScore < bestCurrentScore) {
-                    moveBadge = `<span style="display:inline-block; background:var(--c-risk-soft,#ffebee); color:var(--c-risk-text,#b71c1c); padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">전진</span>`;
-                    moveText = '전진';
-                } else if (targetScore > bestCurrentScore) {
-                    moveBadge = `<span style="display:inline-block; background:var(--c-track,#eceff1); color:var(--c-text-2,#37474f); padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">후퇴</span>`;
-                    moveText = '후퇴';
-                } else {
-                    moveBadge = `<span style="display:inline-block; background:var(--c-surface-2,#f5f5f5); color:var(--c-text-2,#616161); padding:4px 9px; border-radius:5px; font-size:12px; font-weight:bold; margin-top:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">수평</span>`;
-                    moveText = '수평';
-                }
-                
-                window.currentRecommendations.push({
-                    moveQty: moveQty,
-                    currentLocs: item.currentLocs,
-                    targetLoc: eLoc.id,
-                    name: item.name,
-                    option: itemOption,
-                    code: item.code,
-                    moveDirection: moveText, // 엑셀용
-                    pairScore: matchedPairScore || 0 // v3.98: 페어 점수
-                });
-
-                const isEven = displayRank % 2 === 0;
-                const rowBg = isEven ? 'var(--c-surface-2,#f9fafb)' : 'var(--c-surface,#ffffff)';
-                const moveQtyDisplay = moveQty > 0 ? `<span style="color:var(--c-warn-text,#e65100); font-weight:900; font-size:15px;">${moveQty.toLocaleString()}</span><br><span style="font-size:10px; color:var(--c-text-3,#888);">개</span>` : `<span style="color:var(--c-text-4,#bbb); font-size:12px;">-</span>`;
-
-                // ★ 점수 세부 툴팁 HTML (html += 윗줄에 선언)
-                const scoreTipHtml = `<span class="info-tip" data-tip-key="dyn-rec-score-${item.code}" style="margin-left:3px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 플랫폼 출고:${item.zContrib.toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${item.wContrib.toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${item.tContrib.toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: 플랫폼 출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
-
-                // v3.98: 페어 보정 배지
-                let pairBadgeHtml = '';
-                if (matchedPairScore > 0 && pairWeightMax > 0) {
-                    const normScore = Math.min(100, (matchedPairScore / pairWeightMax) * 100);
-                    const partnerCount = (pairMap[item.code] || []).length;
-                    pairBadgeHtml = `<br><span style="display:inline-block; background:var(--c-warn-soft,#fff3e0); color:var(--c-warn-text,#e65100); padding:3px 7px; border-radius:4px; font-size:10px; font-weight:bold; margin-top:3px; border:1px solid var(--c-warn,#ffcc80);" title="페어 가중치: ${matchedPairScore.toFixed(2)} (정규화 ${normScore.toFixed(0)}점, 페어 ${partnerCount}개)">페어 ${partnerCount}개와 가까이</span>`;
-                }
-
-                html += `
-                    <tr style="background:${rowBg};">
-                        <td style="color:var(--primary); font-weight:900; font-size:15px; border-left:none; padding:14px 10px;">
-                            ${displayRank}위
-                            <br><span style="font-size:11px; color:var(--c-warn-text,#e65100); font-weight:bold; display:inline-block; line-height:18px; vertical-align:middle;">${item.score.toFixed(1)}점${scoreTipHtml}</span>
-                        </td>
-                        <td style="font-weight:bold; color:var(--c-accent-deep,#1a237e); font-size:13px; letter-spacing:0.3px;">${item.code}</td>
-                        <td style="text-align:left; font-size:14px; font-weight:bold; color:var(--c-text,#212121); padding:14px 12px; line-height:1.5;">${item.name}</td>
-                        <td style="text-align:center; padding:14px 8px;">${moveQtyDisplay}</td>
-                        <td style="color:var(--c-text-2,#555); font-size:12px; padding:14px 10px;">${item.currentLocs}</td>
-                        <td style="background:var(--c-ok-soft,#f1f8e9); border-right:none; padding:14px 12px; text-align:center;">
-                            <span style="color:var(--c-ok-text,#1b5e20); font-weight:900; font-size:16px;">${eLoc.id}</span><br>
-                            ${moveBadge}${pairBadgeHtml}<br>
-                            <span style="font-size:11px; color:var(--c-text-2,#555); margin-top:3px; display:inline-block;">${eLoc.dong}동 ${eLoc.pos}위치</span>
-                        </td>
-                    </tr>
-                `;
-                displayRank++;
-                matchCount++;
-                break; 
-            }
-        }
-
-        if (matchCount === 0) {
-            html += '<tr><td colspan="6" style="padding:40px;">데이터가 부족하거나 추천할 빈 로케이션이 없습니다.<br>(또는 이미 모든 상품이 최적의 동에 배치되어 있습니다)</td></tr>';
-        }
-
-        tbody.innerHTML = html;
-        window.hideLoading();
-        document.getElementById('recommend-modal').style.display = 'flex';
-
-    }, 500); 
-};
-
-window.downloadRecommendationExcel = function() {
-    // v4.1: 활성 탭에 따라 다른 데이터 사용
-    const singleTab = document.getElementById('rec-tab-single');
-    const singleActive = singleTab && singleTab.style.display !== 'none';
-    
-    let sourceData = null;
-    let sheetName = '';
-    let fileSuffix = '';
-    
-    if (singleActive) {
-        sourceData = window.currentSingleRecommendations;
-        sheetName = '단독추천';
-        fileSuffix = '단독';
-    } else {
-        sourceData = window.currentRecommendations;
-        sheetName = '페어추천';
-        fileSuffix = '페어';
-    }
-    
-    if (!sourceData || sourceData.length === 0) {
-        alert("다운로드할 추천 데이터가 없습니다.");
-        return;
-    }
-    
-    const excelData = sourceData.map(item => {
-        return {
-            "현재로케이션": item.currentLocs,
-            "변경로케이션": item.targetLoc,
-            "상품명": item.name,
-            "옵션": item.option,
-            "상품코드": item.code
-        };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    
-    // v4.1: ws['!cols']를 실제 5개 컬럼에 맞게 정리
-    ws['!cols'] = [
-        { wch: 20 }, // 현재로케이션
-        { wch: 15 }, // 변경로케이션
-        { wch: 40 }, // 상품명
-        { wch: 25 }, // 옵션
-        { wch: 15 }  // 상품코드
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    
-    const today = new Date();
-    const dateString = today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
-    
-    XLSX.writeFile(wb, `로케이션변경추천리스트_${fileSuffix}_${dateString}.xlsx`);
-};
-
 // ========================================
 // ★ 빈칸확보 기능 (구 2F 이동 추천) — 현재고 0 · 입고대기 0 상품, 공급처 제외 지원
 // ========================================
 window.current2FList = [];
-
-window.show2FRecommendation = function() {
-    document.getElementById('modal-2f').style.display = 'flex';
-    window.calc2FList(); // 열자마자 기준(현재고0·입고대기0)으로 조회
-};
 
 window.toggle2FCheckAll = function(source) {
     document.querySelectorAll('.check-2f-item').forEach(cb => cb.checked = source.checked);
@@ -2159,6 +1479,9 @@ window.switchLocSettingsTab = (tab) => {
     const save = document.getElementById('btn-save-header-settings');
     if (save) save.classList.toggle('is-off', tab !== 'columns');   // '열 설정 저장'은 화면 열 탭에서만
 };
+// '추천·채우기' 탭 — 위 switchLocSettingsTab·closeSettingsModal(location.html)을 감싸 저장 안 한 변경을 묻는다. window.saveLocRecSettings 를 만든다
+// (location-guard.js 가 이 파일 다음에 감싸므로 여기서 바로 부른다)
+initLocSetPanel({ db, auth });
 
 window.saveHeaderSettings = async () => {
     const checkboxes = document.querySelectorAll('.chk-header:checked');
@@ -2183,29 +1506,6 @@ window.saveHeaderSettings = async () => {
     } catch(e) { console.error(e); alert('화면 헤더 설정을 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : '')); }
 };
 
-// [1단계] 입고대기 설정 모달 내 탭 전환 함수
-window.switchIncomingSettingsTab = function(tab) {
-    const tabBtnSheet = document.getElementById('incoming-tab-btn-sheet');
-    const tabBtnPriority = document.getElementById('incoming-tab-btn-priority');
-    const contentSheet = document.getElementById('incoming-tab-content-sheet');
-    const contentPriority = document.getElementById('incoming-tab-content-priority');
-    if (!tabBtnSheet || !tabBtnPriority || !contentSheet || !contentPriority) return;
-    
-    if (tab === 'sheet') {
-        contentSheet.style.display = 'block';
-        contentPriority.style.display = 'none';
-        tabBtnSheet.classList.add('active');
-        tabBtnPriority.classList.remove('active');
-    } else if (tab === 'priority') {
-        contentSheet.style.display = 'none';
-        contentPriority.style.display = 'block';
-        tabBtnSheet.classList.remove('active');
-        tabBtnPriority.classList.add('active');
-                
-        // 2단계에서 우선순위 UI 렌더링 함수 호출 예정
-    }
-};
-
 window.openSheetModal = (e) => {
     if (e) e.stopPropagation();
     if (typeof window.closeAllPopups === 'function') window.closeAllPopups();
@@ -2217,131 +1517,14 @@ window.openSheetModal = (e) => {
     if (urlOrder) urlOrder.value = '';
     if (urlBuy) urlBuy.value = '';
 
-    // [1단계] 모달 오픈 시 기본 탭 초기화 — 시트 링크 칸은 비활성이라 우선순위 탭부터 연다
-    if (typeof window.switchIncomingSettingsTab === 'function') {
-        window.switchIncomingSettingsTab('priority');
-    }
-    
-    // [2단계] 우선순위 탭 UI 데이터 채우기 (incomingRecommendPriorities 우선, 없으면 recommendPriorities를 기본값으로)
-    try {
-        const source = window.incomingRecommendPriorities || window.recommendPriorities || { zones:{0:[],1:[],2:[],3:[]}, dongs:[], poses:[], excludeCombos:[] };
-        
-        // 구역 퍼즐 채우기
-        const allAlphabets = ['★', 'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
-        const priZones = source.zones || {0:[], 1:[], 2:[], 3:[]};
-        for(let i=0; i<=3; i++) {
-            const el = document.getElementById(`incoming-pz-${i}`);
-            if (el) el.innerHTML = '';
-        }
-        const noneEl = document.getElementById('incoming-pz-none');
-        if (noneEl) noneEl.innerHTML = '';
-        allAlphabets.forEach(alpha => {
-            let placedRank = -1;
-            for(let i=0; i<=3; i++) { 
-                if(priZones[i] && priZones[i].includes(alpha)) { placedRank = i; break; } 
-            }
-            const block = document.createElement('div');
-            block.className = 'puzzle-block';
-            block.innerText = alpha;
-            block.draggable = true;
-            block.ondragstart = window.handleDragStart;
-            block.ondragend = window.handleDragEnd;
-            const target = placedRank !== -1 
-                ? document.getElementById(`incoming-pz-${placedRank}`)
-                : document.getElementById('incoming-pz-none');
-            if (target) target.appendChild(block);
-        });
-        
-        // 동/위치 정렬 블록 채우기
-        const renderIncomingSortBlocks = (containerId, items, defaultItems) => {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            container.innerHTML = '';
-            const finalItems = [...new Set([...items, ...defaultItems])];
-            finalItems.forEach(item => {
-                const block = document.createElement('div');
-                block.className = 'puzzle-sort-block';
-                block.innerText = item;
-                block.draggable = true;
-                block.ondragstart = window.handleDragStart;
-                block.ondragend = window.handleDragEnd;
-                container.appendChild(block);
-            });
-        };
-        renderIncomingSortBlocks('incoming-sort-dongs', source.dongs || [], ['★','1','2','3','4','5','6']);
-        renderIncomingSortBlocks('incoming-sort-poses', source.poses || [], ['★','2','3','4','1','5']);
-        
-        // 제외 조합 입력값 채우기
-        const excludeInput = document.getElementById('incoming-exclude-combos-input');
-        if (excludeInput) {
-            const excludeCombos = source.excludeCombos || [];
-            excludeInput.value = excludeCombos.join(', ');
-        }
-    } catch (err) {
-        console.warn('[입고대기 우선순위 탭 초기화 실패]', err);
-    }
-
     const modal = document.getElementById('sheet-modal');
     if (modal) modal.style.display = 'flex';
 };
 
-// [2단계] 입고대기 신규 상품용 우선순위 저장
-window.saveIncomingPriorities = async function() {
-    try {
-        // 1) 구역 퍼즐 수집
-        const newZones = {};
-        for(let i=0; i<=3; i++){
-            const pz = document.getElementById(`incoming-pz-${i}`);
-            if (!pz) { 
-                console.warn(`[saveIncomingPriorities] incoming-pz-${i} 엘리먼트 없음`); 
-                return alert("우선순위 UI를 찾을 수 없습니다. 페이지를 새로고침 해주세요.");
-            }
-            const blocks = pz.querySelectorAll('.puzzle-block');
-            newZones[i] = Array.from(blocks).map(b => b.innerText.trim());
-        }
-        
-        // 2) 동/위치 정렬 블록 수집
-        const dongsEl = document.getElementById('incoming-sort-dongs');
-        const posesEl = document.getElementById('incoming-sort-poses');
-        if (!dongsEl || !posesEl) {
-            return alert("동/위치 우선순위 UI를 찾을 수 없습니다. 페이지를 새로고침 해주세요.");
-        }
-        const newDongs = Array.from(dongsEl.querySelectorAll('.puzzle-sort-block')).map(b => b.innerText.trim());
-        const newPoses = Array.from(posesEl.querySelectorAll('.puzzle-sort-block')).map(b => b.innerText.trim());
-        
-        // 3) 제외 조합 수집
-        const excludeEl = document.getElementById('incoming-exclude-combos-input');
-        const excludeCombos = excludeEl 
-            ? excludeEl.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
-            : [];
-        
-        // 4) 데이터 객체 구성 (recommendPriorities와 동일한 스키마)
-        const newPriorities = { zones: newZones, dongs: newDongs, poses: newPoses, excludeCombos };
-        
-        // 5) Firestore 저장 + 메모리 동기화
-        await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { 
-            incomingRecommendPriorities: newPriorities
-        }, { merge: true });
-        
-        window.incomingRecommendPriorities = newPriorities;
-        
-        if (typeof showToast === 'function') {
-            showToast("입고 추천 우선순위가 저장되었습니다.");
-        } else {
-            alert("입고 추천 우선순위가 저장되었습니다.");
-        }
-        
-        if (typeof window.closeSheetModal === 'function') window.closeSheetModal();
-    } catch(e) {
-        console.error("[saveIncomingPriorities] 저장 실패:", e);
-        alert("입고 추천 우선순위 저장 중 오류가 발생했습니다.");
-    }
-};
-
 // [3단계] 입고대기 상품용 추천 자리 계산 함수
 // 반환값: { case: 'A'|'B', loc: <originalData 원소>, score: number, partnerCount: number } 또는 null
-// - Case A: 주문 데이터의 신뢰 페어(count≥5, lift≥2.0) 발견 → 페어 위치 점수 최고 빈칸
-// - Case B: 신뢰 페어 0개(또는 모든 partner가 시스템에 미배치) → incomingRecommendPriorities 기준 1순위 빈칸
+// - Case A: 주문 데이터의 신뢰 페어(count ≥ SERVER_DEFAULTS.pairMinCount, lift ≥ pairMinLift — 서버 설정.json pair 와 같음) 발견 → 페어 위치 점수 최고 빈칸
+// - Case B: 신뢰 페어 0개(또는 모든 partner가 시스템에 미배치) → 동선 기준(recommendPriorities) 1순위 빈칸
 // - 빈칸 없거나 입력 오류 → null
 // [5단계] 두 번째 인자 excludeLocIds (Set): 이 자리 ID들은 빈칸 후보에서 제외 (일괄적용 충돌 처리)
 window.calcIncomingRecommend = function(code, excludeLocIds) {
@@ -2349,8 +1532,8 @@ window.calcIncomingRecommend = function(code, excludeLocIds) {
     if (!code || typeof code !== 'string') return null;
     if (!Array.isArray(originalData) || originalData.length === 0) return null;
     
-    // 우선순위 선택 (incomingRecommendPriorities 우선, 없으면 recommendPriorities를 fallback)
-    const priorities = window.incomingRecommendPriorities || window.recommendPriorities || {
+    // 동선 기준 — 환경설정 '추천·채우기' 탭의 recommendPriorities(변경 추천과 같은 값). 입고 전용 우선순위는 2026-10-27 없앴다(저장돼 있어도 읽지 않는다)
+    const priorities = window.recommendPriorities || {
         zones: { 0: [], 1: [], 2: [], 3: [] },
         dongs: [],
         poses: [],
@@ -2410,7 +1593,7 @@ window.calcIncomingRecommend = function(code, excludeLocIds) {
                 if (cA === 0 || cB === 0) continue;
                 
                 const lift = (p.count * N) / (cA * cB);
-                if (p.count < 5 || lift < 2.0) continue;
+                if (p.count < SERVER_DEFAULTS.pairMinCount || lift < SERVER_DEFAULTS.pairMinLift) continue;
                 
                 trustedPartners.push({ partner, weight: lift * p.count });
             }
@@ -5926,7 +5109,7 @@ window.cleanupDeprecatedPairs = async function() {
     }
 };
 
-// ===== v3.98: 페어 데이터 캐시 로드 (showRecommendation에서 사용) =====
+// ===== v3.98: 페어 데이터 캐시 로드 (입고대기 추천 Case A 에서 사용) =====
 window.loadOrderPairsCache = async function() {
     try {
         const pairsSnap = await getDocs(collection(db, ORDER_PAIRS_COLL));
@@ -7096,436 +6279,6 @@ function renderCorridor(idx) {
         </div>
     `;
 }
-// ===== v4.3: 추천 갯수 드롭다운 + 우선순위 선택 UI =====
-// 변경: 라디오 → 드롭다운, 사용자지정은 prompt() 1회성 (저장 안 함)
-//      우선순위 선택 추가 (동 이동 / 위치 이동)
-(function setupRecLimitUI() {
-    // v4.3: 사용자지정 값은 메모리에만 저장 (localStorage 사용 안 함, 1회성)
-    let _customLimitValue = null; // 마지막 사용자지정 값 (페이지 세션 동안 유지)
-    let _lastNonCustomMode = '10'; // prompt 취소 시 되돌아갈 직전 값
-    
-    window._getRecommendLimit = function() {
-        const select = document.getElementById('rec-limit-select');
-        if (!select) return 10;
-        const mode = select.value;
-        if (mode === 'custom') {
-            if (_customLimitValue && _customLimitValue >= 1) return _customLimitValue;
-            return 10;
-        }
-        return parseInt(mode, 10) || 10;
-    };
-    
-    // v4.3: 단독 추천 우선순위 모드 ('dong' = 동 이동, 'pos' = 위치 이동)
-    window._getRecPriorityMode = function() {
-        const select = document.getElementById('rec-priority-mode');
-        if (!select) return 'dong';
-        return select.value || 'dong';
-    };
-    
-    window._initRecLimitUI = function() {
-        const select = document.getElementById('rec-limit-select');
-        const prioritySelect = document.getElementById('rec-priority-mode');
-        const editBtn = document.getElementById('rec-limit-edit-btn');
-        if (!select) return;
-        
-        const panel = document.getElementById('rec-limit-panel');
-        if (panel && !panel.dataset.bound) {
-            panel.dataset.bound = '1';
-            
-            // 추천 갯수 드롭다운 change 이벤트
-            select.addEventListener('change', () => {
-                if (select.value === 'custom') {
-                    _promptCustomLimit(select);
-                } else {
-                    // 일반 옵션 선택: 직전 값 기록 후 재계산
-                    _lastNonCustomMode = select.value;
-                    updateCustomDisplay();
-                    triggerRecalcIfNeeded();
-                }
-            });
-            
-            // v4.4 v3: 사용자지정 값 변경 버튼 (사용자지정 선택 시에만 표시됨)
-            // 사용자지정으로 N개 적용 후 다른 N개로 바꿀 때 사용
-            if (editBtn) {
-                editBtn.addEventListener('click', () => {
-                    _promptCustomLimit(select);
-                });
-            }
-        }
-        
-        // 우선순위 드롭다운 change 이벤트
-        if (prioritySelect && !prioritySelect.dataset.bound) {
-            prioritySelect.dataset.bound = '1';
-            prioritySelect.addEventListener('change', () => {
-                triggerRecalcIfNeeded();
-            });
-        }
-        
-        updateCustomDisplay();
-    };
-    
-    // v4.4 v3: 사용자지정 prompt 로직을 별도 함수로 분리
-    function _promptCustomLimit(select) {
-        const promptDefault = _customLimitValue ? String(_customLimitValue) : '';
-        const input = window.prompt('추천 갯수를 입력하세요 (1 이상)', promptDefault);
-        
-        if (input === null) {
-            // 취소: select.value가 'custom'이 아니면 직전 값으로 되돌림
-            // (변경 버튼에서 호출된 경우엔 이미 'custom' 상태이므로 그대로 유지)
-            if (select.value !== 'custom') {
-                select.value = _lastNonCustomMode;
-            }
-            updateCustomDisplay();
-            return; // 재계산 안 함
-        }
-        
-        const num = parseInt(input.trim(), 10);
-        if (isNaN(num) || num < 1) {
-            alert('올바른 숫자를 입력하세요 (1 이상)');
-            if (select.value !== 'custom') {
-                select.value = _lastNonCustomMode;
-            }
-            updateCustomDisplay();
-            return;
-        }
-        
-        _customLimitValue = num;
-        // select.value는 'custom'으로 유지 (이미 그렇거나, 변경 버튼 경유)
-        updateCustomDisplay();
-        triggerRecalcIfNeeded();
-    }
-    
-    function updateCustomDisplay() {
-        const select = document.getElementById('rec-limit-select');
-        const display = document.getElementById('rec-limit-custom-display');
-        const numSpan = document.getElementById('rec-limit-custom-num');
-        const editBtn = document.getElementById('rec-limit-edit-btn');
-        if (!select || !display || !numSpan) return;
-        if (select.value === 'custom' && _customLimitValue) {
-            display.style.display = 'inline';
-            numSpan.textContent = String(_customLimitValue);
-            // v4.4 v3: 사용자지정 선택 시 변경 버튼 표시
-            if (editBtn) editBtn.style.display = 'inline-block';
-        } else {
-            display.style.display = 'none';
-            // v4.4 v3: 사용자지정 아닐 때 변경 버튼 숨김
-            if (editBtn) editBtn.style.display = 'none';
-        }
-    }
-    
-    function triggerRecalcIfNeeded() {
-        // v4.1: 활성 탭 기준으로 재계산
-        const pairTbody = document.getElementById('recommend-tbody');
-        const singleTbody = document.getElementById('recommend-single-tbody');
-        const pairTab = document.getElementById('rec-tab-pair');
-        const singleTab = document.getElementById('rec-tab-single');
-        
-        // 어떤 탭이 활성화되어 있고 결과가 있는지 확인
-        const singleActive = singleTab && singleTab.style.display !== 'none';
-        const pairActive = pairTab && pairTab.style.display !== 'none';
-        
-        if (singleActive && singleTbody && singleTbody.children.length > 0 && typeof window.showSingleRecommendation === 'function') {
-            window.showSingleRecommendation();
-        } else if (pairActive && pairTbody && pairTbody.children.length > 0 && typeof window.showPairRecommendation === 'function') {
-            window.showPairRecommendation();
-        }
-    }
-})();
-
-// ===== v4.1: 단독 추천 기능 =====
-window.switchRecTab = function(tabName) {
-    const singleTab = document.getElementById('rec-tab-single');
-    const pairTab = document.getElementById('rec-tab-pair');
-    const singleBtn = document.getElementById('rec-tab-btn-single');
-    const pairBtn = document.getElementById('rec-tab-btn-pair');
-    if (!singleTab || !pairTab || !singleBtn || !pairBtn) return;
-    
-    if (tabName === 'single') {
-        singleTab.style.display = '';
-        pairTab.style.display = 'none';
-        singleBtn.classList.add('active');
-        pairBtn.classList.remove('active');
-    } else if (tabName === 'pair') {
-        singleTab.style.display = 'none';
-        pairTab.style.display = '';
-        singleBtn.classList.remove('active');
-        pairBtn.classList.add('active');
-    }
-};
-
-window.runActiveRecommendation = function() {
-    // 활성 탭에 맞는 계산 실행
-    const singleTab = document.getElementById('rec-tab-single');
-    const singleActive = singleTab && singleTab.style.display !== 'none';
-    if (singleActive) {
-        window.showSingleRecommendation();
-    } else {
-        window.showPairRecommendation();
-    }
-};
-
-// 1. [v4.2-fix1] showSingleRecommendation 함수 수정 부분
-window.showSingleRecommendation = function() {
-    window.showLoading("단독 추천을 계산 중입니다...");
-    
-    setTimeout(() => {
-        try {
-            window.currentSingleRecommendations = [];
-            
-            // ===== 1~6. 계산 — js/lib/loc-recommend.js (서버 로케이션추천과 같은 모듈) =====
-            //   점수(정규화 방식 그대로) → 빈 자리(동 > 위치 > 구역 정렬) → 점수 1위부터 '더 좋은' 첫 빈 자리 배정.
-            //   수요는 화면 자료(_getDemandForCode: 플랫폼 출고·주차별·상승세)를 넣는다. 가드 옵션은 LOC_REC_GUARDS.
-            const scoredItems = scoreItems({ locs: originalData, demand: _getDemandForCode, ratios: window.recommendRatios, incomingTotalByCode });
-
-            // ===== 5. 갯수 제한 =====
-            const limitVal = (typeof window._getRecommendLimit === 'function') ? window._getRecommendLimit() : 10;
-            // v4.3: 우선순위 모드 ('dong' = 동 이동, 'pos' = 위치 이동)
-            const priorityMode = (typeof window._getRecPriorityMode === 'function') ? window._getRecPriorityMode() : 'dong';
-
-            const single = recommendSingle({
-                locs: originalData, scored: scoredItems, priorities: window.recommendPriorities,
-                mode: priorityMode, limit: limitVal, ...LOC_REC_GUARDS
-            });
-            const emptyLocs = single.ctx.emptyLocs;
-            const rk = single.ctx.rankers;
-            console.log('[v4.1] 단독 추천: 빈 자리 총', emptyLocs.length, '개 / 점수 있는 상품', scoredItems.length, '개');
-
-            const tbody = document.getElementById('recommend-single-tbody');
-            let html = '';
-            let matchCount = 0;
-            const skipNoCurrentLoc = single.skipped.noLoc;
-            const skipNoBetterSlot = single.skipped.noBetter;
-
-            single.recs.forEach(rec => {
-                const item = rec.item;
-                const currentInfo = rec.currentInfo;
-                const foundSlot = rec.target;
-                const option = rec.option;
-                const rowBg = matchCount % 2 === 0 ? 'var(--c-surface)' : 'var(--c-surface-2)';
-
-                // v3.94 결과 양식: 이동수량(정상재고-2층재고) + 방향 뱃지 + 점수 툴팁
-                const moveQty = rec.moveQty;
-                const moveQtyDisplay = moveQty > 0
-                    ? `<span style="color:var(--c-warn-text); font-weight:700; font-size:13px;">${moveQty.toLocaleString()}</span><span style="font-size:9px; color:var(--c-text-3); margin-left:1px;">개</span>`
-                    : `<span style="color:var(--c-text-4); font-size:11px;">-</span>`;
-                const _badge = (bg, fg, label) => `<span style="display:inline-block; background:${bg}; color:${fg}; padding:1px 8px; border-radius:var(--r-pill); font-size:10px; font-weight:600; vertical-align:middle;">${label}</span>`;
-                const _slot = rec.targetInfo;
-                let moveBadge;
-                if (!rec.currentLocs) moveBadge = _badge(TONE.accentSoft, TONE.accentDeep, '신규');
-                else if (_slot.dongRank < currentInfo.dongRank || (_slot.dongRank === currentInfo.dongRank && _slot.posRank < currentInfo.posRank)) moveBadge = _badge(TONE.okSoft, TONE.okText, '전진');
-                else moveBadge = _badge(TONE.track, TONE.text2, '수평');
-                const scoreTip = `<span class="info-tip" data-tip-key="sr-score-${item.code}" style="margin-left:2px;">i<span class="info-tip-content"><b>${item.code}</b> 점수 내역<br>━━━━━━━━━━━━━<br>• 플랫폼 출고:${(item.zContrib||0).toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(출고 ${Number(item.zgQty||0).toLocaleString()})</span><br>• 주차별:${(item.wContrib||0).toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(원수량 ${Number(item.wQty||0).toLocaleString()})</span><br>• 상승세: ${(item.tContrib||0).toFixed(1)}점 <span style="color:var(--c-text-3,#90a4ae);">(증가분 ${Number(item.trendVal||0).toLocaleString()})</span><br>━━━━━━━━━━━━━<br><b>합계: ${item.score.toFixed(1)}점</b><br><br>반영 비율: 플랫폼 출고 ${window.recommendRatios.zikjin}% / 주차별 ${window.recommendRatios.weekly}% / 상승세 ${window.recommendRatios.trend}%</span></span>`;
-
-                html += `
-                    <tr style="background:${rowBg}; line-height:1.3;">
-                        <td style="color:var(--c-accent-deep); font-weight:700; font-size:12px; padding:5px 8px; white-space:nowrap;">${matchCount + 1}위 <span style="font-size:10px; color:var(--c-text-3); font-weight:600;">(${item.score.toFixed(1)}${scoreTip})</span></td>
-                        <td style="font-weight:600; color:var(--c-accent-deep); font-size:11px; padding:5px 8px; white-space:nowrap;">${item.code}</td>
-                        <td style="text-align:left; font-size:12px; font-weight:600; color:var(--c-text); padding:5px 10px;">${item.name}${option ? `<span style="color:var(--c-text-3); font-size:10px; margin-left:6px;">(${option})</span>` : ''}</td>
-                        <td style="text-align:center; padding:5px 6px; white-space:nowrap;">${moveQtyDisplay}</td>
-                        <td style="color:var(--c-text-2); font-size:11px; padding:5px 8px; white-space:nowrap;">${currentInfo.id} <span style="color:var(--c-text-3);">${currentInfo.dong}동</span></td>
-                        <td style="background:var(--c-ok-soft); padding:5px 10px; text-align:center; white-space:nowrap;">
-                            <span style="color:var(--c-ok-text); font-weight:700; font-size:13px;">${foundSlot.id}</span>
-                            <span style="font-size:10px; color:var(--c-text-3); margin-left:4px;">${(foundSlot.dong || '').toString().trim()}동·${(foundSlot.pos || '').toString().trim()}위치</span>
-                            <span style="margin-left:6px;">${moveBadge}</span>
-                        </td>
-                    </tr>
-                `;
-
-                // v4.2-fix1: 페어 추천에서 사용할 정보 추가 저장 (엑셀 5열 + 페어용 필드 — 모양은 예전 그대로)
-                window.currentSingleRecommendations.push({
-                    currentLocs: currentInfo.id,
-                    targetLoc: foundSlot.id,
-                    name: item.name,
-                    option: option,
-                    code: item.code,
-                    score: item.score,
-                    currentInfo: currentInfo,
-                    targetInfo: rec.targetInfo
-                });
-
-                matchCount++;
-            });
-
-            // v4.2-fix1: 페어 추천에서 사용할 추가 데이터 보관 (모양은 예전 그대로 + rankers)
-            window._lastSingleRecContext = {
-                emptyLocs: emptyLocs,
-                usedEmptyKeys: new Set(single.ctx.usedEmptyKeys),
-                getZoneRank: rk.zoneRank,
-                getDongRank: rk.dongRank,
-                getPosRank: rk.posRank,
-                getEmptyLocInfo: (eLoc) => ({
-                    id: eLoc.id,
-                    dongRank: rk.dongRank(eLoc.dong),
-                    posRank: rk.posRank(eLoc.pos),
-                    zoneRank: rk.zoneRank(eLoc.id),
-                    dong: (eLoc.dong || '').toString().trim()
-                }),
-                rankers: rk
-            };
-            
-            console.log('[v4.1] 단독 추천 종료: 성공', matchCount, '개 / 건너뜀(현재자리없음)', skipNoCurrentLoc, '개 / 건너뜀(이미최적)', skipNoBetterSlot, '개 / 엑셀 데이터', window.currentSingleRecommendations.length, '개');
-            
-            if (matchCount === 0) {
-                html += '<tr><td colspan="6" style="padding:40px; text-align:center; color:var(--c-text-3);">표시할 추천이 없습니다.<br>(모든 상품이 이미 최적 자리에 있거나, 더 좋은 빈 자리가 없습니다)</td></tr>';
-            }
-            
-            tbody.innerHTML = html;
-            window.hideLoading();
-            document.getElementById('recommend-modal').style.display = 'flex';
-            
-        } catch (err) {
-            console.error('[v4.1] showSingleRecommendation 에러:', err);
-            window.hideLoading();
-            alert('단독 추천 계산 중 오류가 발생했습니다.\n재고 엑셀을 다시 올린 뒤 시도하세요. 계속되면 관리자에게 화면과 시각을 알려 주세요.' + (err?.code ? `\n(오류 코드: ${err.code})` : ''));
-        }
-    }, 500);
-};
-
-// ===== v4.2-fix1: 페어 추천 (단독 추천 기반, 자리 재배정 포함) =====
-// 알고리즘:
-//   1. 단독 추천 결과(currentSingleRecommendations)와 컨텍스트(_lastSingleRecContext) 사용
-//   2. 단독 추천이 없으면 안내 메시지 후 종료
-//   3. 페어 데이터 로드 (lift >= 2.0, count >= 5, 상위 5개 partner)
-//   4. 단독 추천 결과를 1위부터 순회하며 페어 묶기 (weight 높은 partner 우선)
-//   5. 자리 재배정:
-//      - 더 위 순위 상품(base) = 단독 추천 자리 그대로 유지
-//      - 파트너 = base 근처(같은 동, 같은 구역 우선)로 끌어옴
-//      - 파트너의 원래 단독 자리는 비워짐 (페어 탭 표시 전용)
-//      - 근처 빈 자리 없으면 페어 매칭 포기
-//   6. 자리 변동 없는 페어(케이스 A) = 표시 안 함
-window.showPairRecommendation = function() {
-    window.showLoading("페어 추천을 계산 중입니다...");
-    
-    setTimeout(() => {
-        try {
-            window.currentRecommendations = [];
-            
-            // ===== 1. 단독 추천 결과 확인 =====
-            const singleRecs = window.currentSingleRecommendations || [];
-            const ctx = window._lastSingleRecContext || null;
-            
-            if (singleRecs.length === 0 || !ctx) {
-                window.hideLoading();
-                const tbody = document.getElementById('recommend-tbody');
-                if (tbody) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="padding:40px; text-align:center; color:var(--c-text-2,#666);">먼저 단독 추천을 실행해주세요.<br>(페어 추천은 단독 추천 결과를 기반으로 동작합니다)</td></tr>';
-                }
-                document.getElementById('recommend-modal').style.display = 'flex';
-                console.warn('[v4.2-fix1] 단독 추천 결과 없음 또는 컨텍스트 없음');
-                return;
-            }
-            
-            console.log('[v4.2-fix1] 페어 추천 시작: 단독 추천 결과', singleRecs.length, '개');
-            
-            // ===== 2. 페어 데이터 준비 (신뢰 페어만 추출: count >= 5, lift >= 2, 상품당 상위 5) — js/lib/loc-recommend.js =====
-            let pairMap = {};
-            let pairDataReady = false;
-
-            try {
-                if (window._cachedOrderPairs && window._cachedOrderStats && window._cachedOrderMeta) {
-                    const meta = window._cachedOrderMeta;
-                    pairMap = buildPairMap({ pairs: window._cachedOrderPairs, stats: window._cachedOrderStats, N: meta.totalProcessedOrders || 1 });
-                    pairDataReady = true;
-                    console.log('[v4.2-fix1] 페어 데이터 로드 완료: pairMap 상품 수 =', Object.keys(pairMap).length);
-                }
-            } catch (e) {
-                console.warn('[v4.2-fix1] 페어 데이터 캐시 사용 실패:', e);
-            }
-
-            if (!pairDataReady) {
-                window.hideLoading();
-                const tbody = document.getElementById('recommend-tbody');
-                if (tbody) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="padding:40px; text-align:center; color:var(--c-text-2,#666);">페어 데이터가 준비되지 않았습니다.<br>(주문 데이터를 업로드하거나 페어 분석을 먼저 실행해주세요)</td></tr>';
-                }
-                document.getElementById('recommend-modal').style.display = 'flex';
-                return;
-            }
-
-            // ===== 3~6. 페어 묶기·파트너 자리 재배정 — js/lib/loc-recommend.js recommendPairs =====
-            const matchedPairs = recommendPairs({ singleRecs, ctx, pairMap }); // [{ baseItem, partnerItem, partnerNewSlot }]
-            
-            console.log('[v4.2-fix1] 페어 매칭 완료:', matchedPairs.length, '쌍');
-            
-            // ===== 7. 화면 출력 =====
-            const tbody = document.getElementById('recommend-tbody');
-            let html = '';
-            
-            for (let i = 0; i < matchedPairs.length; i++) {
-                const mp = matchedPairs[i];
-                const itemA = mp.baseItem;       // 더 위 순위, 자리 유지
-                const itemB = mp.partnerItem;     // 파트너, 자리 재배정됨
-                
-                // A는 단독 추천 자리 그대로, B는 새로 재배정된 자리
-                const slotA_id = itemA.targetLoc;
-                const slotA_dong = (itemA.targetInfo && itemA.targetInfo.dong) || '';
-                const slotB_id = mp.partnerNewSlot.id;
-                const slotB_dong = (mp.partnerNewSlot.dong || '').toString().trim();
-                
-                const aCurrentLoc = itemA.currentLocs || '-';
-                const bCurrentLoc = itemB.currentLocs || '-';
-                const rowBg = i % 2 === 0 ? 'var(--c-surface)' : 'var(--c-surface-2)';
-                
-                html += `
-                    <tr style="background:${rowBg};">
-                        <td style="text-align:center; color:var(--c-accent-deep); font-weight:700; font-size:13px; padding:5px 6px;">${i + 1}</td>
-                        <td style="padding:5px 8px; font-size:12px; line-height:1.35;">
-                            <span style="font-weight:600; color:var(--c-accent-deep);">${itemA.code}</span>
-                            <span style="color:var(--c-text);"> · ${itemA.name}</span>
-                            ${itemA.option ? `<span style="color:var(--c-text-3); font-size:11px;"> (${itemA.option})</span>` : ''}
-                            <span style="color:var(--c-text-3); font-size:11px;"> · 현재 ${aCurrentLoc}</span>
-                        </td>
-                        <td style="text-align:center; padding:5px 6px; background:var(--c-ok-soft); white-space:nowrap;">
-                            <span style="font-weight:600; color:var(--c-ok-text); font-size:12px;">${slotA_id}</span>
-                            <span style="font-size:10px; color:var(--c-text-3);"> ${slotA_dong}동</span>
-                        </td>
-                        <td style="padding:5px 8px; font-size:12px; line-height:1.35;">
-                            <span style="font-weight:600; color:var(--c-accent-deep);">${itemB.code}</span>
-                            <span style="color:var(--c-text);"> · ${itemB.name}</span>
-                            ${itemB.option ? `<span style="color:var(--c-text-3); font-size:11px;"> (${itemB.option})</span>` : ''}
-                            <span style="color:var(--c-text-3); font-size:11px;"> · 현재 ${bCurrentLoc}</span>
-                        </td>
-                        <td style="text-align:center; padding:5px 6px; background:var(--c-ok-soft); white-space:nowrap;">
-                            <span style="font-weight:600; color:var(--c-ok-text); font-size:12px;">${slotB_id}</span>
-                            <span style="font-size:10px; color:var(--c-text-3);"> ${slotB_dong}동</span>
-                        </td>
-                    </tr>
-                `;
-                
-                // 엑셀 데이터 저장
-                window.currentRecommendations.push({
-                    currentLocs: aCurrentLoc,
-                    targetLoc: slotA_id,
-                    name: itemA.name,
-                    option: itemA.option,
-                    code: itemA.code
-                });
-                window.currentRecommendations.push({
-                    currentLocs: bCurrentLoc,
-                    targetLoc: slotB_id,
-                    name: itemB.name,
-                    option: itemB.option,
-                    code: itemB.code
-                });
-            }
-            
-            console.log('[v4.2-fix1] 페어 추천 종료: 표시', matchedPairs.length, '쌍 / 엑셀 데이터', window.currentRecommendations.length, '개');
-            
-            if (matchedPairs.length === 0) {
-                html = '<tr><td colspan="5" style="padding:40px; text-align:center; color:var(--c-text-2,#666);">표시할 페어 쌍이 없습니다.<br>(단독 추천 결과 안에 페어로 묶일 상품이 없거나, 근처에 빈 자리가 부족합니다)</td></tr>';
-            }
-            
-            if (tbody) tbody.innerHTML = html;
-            window.hideLoading();
-            document.getElementById('recommend-modal').style.display = 'flex';
-            
-        } catch (err) {
-            console.error('[v4.2-fix1] showPairRecommendation 에러:', err);
-            window.hideLoading();
-            alert('페어 추천 계산 중 오류가 발생했습니다.\n재고 엑셀을 다시 올린 뒤 시도하세요. 계속되면 관리자에게 화면과 시각을 알려 주세요.' + (err?.code ? `\n(오류 코드: ${err.code})` : ''));
-        }
-    }, 500);
-};
 // ====================================================================
 // ===== v4.4: 종합 대시보드 + 전일 재고 스냅샷 (메인 시스템 연동) =====
 // ====================================================================
@@ -8217,9 +6970,6 @@ window.renderLocationDashboard = function () {
         .sort((a, b) => b.rate - a.rate)
         .slice(0, 3);
 
-    // 추천 건수 (계산된 경우만 표시 — 없으면 '계산 필요')
-    const recCount = Array.isArray(window.currentRecommendations) ? window.currentRecommendations.length : 0;
-
     // ---- 재고 회전율 (v4.4 스냅샷 기반: 전일 대비 재고 증감률) ----
     const __turnover = (typeof window._v44_calculateTurnover === 'function')
         ? window._v44_calculateTurnover() : { sufficient: false };
@@ -8391,9 +7141,6 @@ window.renderLocationDashboard = function () {
     const actionsHtml = `
         <button class="dash-task" onclick="window.toggleIncomingSidebar()">
             <span class="dash-task-ic tone-warn">${taskIcon.box}</span><span class="dash-task-label">입고대기 패널</span><span class="badge badge-warn">${incomingCodes.length}건</span>
-        </button>
-        <button class="dash-task" onclick="window.openRecommendModal && window.openRecommendModal()">
-            <span class="dash-task-ic tone-accent">${taskIcon.swap}</span><span class="dash-task-label">수동 변경 계산</span>${recCount > 0 ? `<span class="badge badge-accent">${recCount}건</span>` : `<span class="dash-task-go" style="color:${TONE.accentDeep};">열기</span>`}
         </button>
         <button class="dash-task" onclick="document.getElementById('modal-2f').style.display='flex'; window.calc2FList && window.calc2FList();">
             <span class="dash-task-ic tone-ok">${taskIcon.grid}</span><span class="dash-task-label">빈칸확보</span><span class="dash-task-go" style="color:${TONE.okText};">열기</span>

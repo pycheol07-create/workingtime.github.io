@@ -69,7 +69,7 @@ export const FEATURES = [
     F('location.dataUpload', '직진·주간·주문 분석 업로드, 분석 초기화', 'location', 'func', 'location.html', { danger: 2, rule: 'yes' }),
     F('location.incoming',   '입고 시트 동기화·반영',               'location', 'func', 'location.html', { danger: 1, rule: 'yes' }),
     F('location.bulkEdit',   '일괄 수정·개별 추가·선택 삭제',         'location', 'func', 'location.html', { danger: 2, rule: 'yes' }),
-    F('location.settings',   '환경설정(추천 비율·우선순위·열·툴팁·시트 주소·2층 용량)', 'location', 'func', 'location.html', { danger: 1, rule: 'yes' }),
+    F('location.settings',   '환경설정(추천·채우기 설정·열·툴팁·시트 주소·2층 용량)', 'location', 'func', 'location.html', { danger: 1, rule: 'yes' }),
     F('location.preassign',  '선지정·해제(모두 해제 포함)',          'location', 'func', 'location.html', { danger: 1, rule: 'partial' }),
 
     // 그 밖의 페이지

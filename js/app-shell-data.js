@@ -178,7 +178,6 @@ export const SUB_DESTINATIONS = {
         S('원가/손익 분석', 'tab=cost'),
         // 자동화
         S('자동화 상태', 'tab=automation'),
-        S('채우기 설정', 'tab=refill'),
         // 기타
         S('기본 설정', 'tab=setting')
     ],

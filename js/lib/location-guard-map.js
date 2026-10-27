@@ -1,6 +1,7 @@
 // === js/lib/location-guard-map.js ===
 // 로케이션 관리(location.html·js/location.js) 위험 기능 → 기능 id 연결표 (권한 개편 5단계, 2026-10-19 — 설계 4.4).
-// js/location-guard.js 가 이 표대로 감싸고, tests/perm-gate.test.js 가 이름이 location.js·location.html 에 실제로 있는지 지킨다.
+// js/location-guard.js 가 이 표대로 감싸고, tests/perm-gate.test.js 가 이름이 location.js(또는 location.js 가 부르는 js/locset-panel.js)·
+// location.html 에 실제로 있는지 지킨다.
 // ⚠️ location.js 에서 아래 함수 이름을 바꾸면 여기도 같이 고칠 것(안 고치면 감싸기가 조용히 꺼진다 — 테스트가 잡는다).
 
 // window.* 함수 — 권한이 없으면 안내만 하고 원래 함수를 부르지 않는다
@@ -20,9 +21,8 @@ export const GUARDED_FUNCTIONS = {
     applyIncomingNow: 'location.incoming',
     // 환경설정(INFO_CONFIG 공용 설정 쓰기)
     saveSheetUrl: 'location.settings',
-    saveMasterSettingsModal: 'location.settings',
     saveHeaderSettings: 'location.settings',
-    saveIncomingPriorities: 'location.settings',
+    saveLocRecSettings: 'location.settings',        // 환경설정 '추천·채우기' — INFO_CONFIG.locRecSettings·recommendPriorities (js/locset-panel.js)
     saveCapacity2F: 'location.settings',
     // 선지정 해제
     releasePreAssign: 'location.preassign',
