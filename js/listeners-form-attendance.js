@@ -1,16 +1,16 @@
 // === js/listeners-form-attendance.js ===
 // 설명: 근태 설정(연차/외출 등) 및 수정 모달의 폼 로직을 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610271552';
-import * as State from './state.js?v=202610271552';
-import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=202610271552';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610271552';
-import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=202610271552';
-import { saveStateToFirestore } from './app-data.js?v=202610271552';
-import { updateLeaveSchedule } from './config.js?v=202610271552';
-import { removeByIds, removeRecord } from './lib/leave-ops.js?v=202610271552';
-import { renderLeaveTypeModalOptions } from './ui-modals.js?v=202610271552';
-import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202610271552';
+import * as DOM from './dom-elements.js?v=202610271556';
+import * as State from './state.js?v=202610271556';
+import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=202610271556';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610271556';
+import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=202610271556';
+import { saveStateToFirestore } from './app-data.js?v=202610271556';
+import { updateLeaveSchedule } from './config.js?v=202610271556';
+import { removeByIds, removeRecord } from './lib/leave-ops.js?v=202610271556';
+import { renderLeaveTypeModalOptions } from './ui-modals.js?v=202610271556';
+import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202610271556';
 import { doc, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 당일 근태 중복 안내 — 지각·조퇴는 하루 1건, 외출은 같은 시각만 중복
@@ -293,7 +293,7 @@ export function setupFormAttendanceListeners() {
                     // 종료 누락된 record가 외출 시간까지 끌고 가는 사고 방지.
                     if (type === '외출' || type === '조퇴') {
                         try {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202610271552');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202610271556');
                             const r = await forceEndMemberWork(memberName, newDailyEntry.startTime);
                             if (r.ended > 0) {
                                 console.warn(`[외출/조퇴 자동 종료] ${memberName}: ${r.ended}건`, r.summaries);

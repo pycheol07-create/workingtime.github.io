@@ -19,23 +19,23 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610271552'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610271556'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610271552';
-import { sortMark } from './lib/china-stock-view.js?v=202610271552';
+import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610271556';
+import { sortMark } from './lib/china-stock-view.js?v=202610271556';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf, FLAG_INFO, COMPARE_COLS, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
     oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610271552';
-import { setShellContext } from './app-shell-bridge.js?v=202610271552';
-import { memberNameFor } from './app-shell-data.js?v=202610271552';
-import { mountBusyBanner } from './busy-banner.js?v=202610271552';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610271552';
-import { friendlyFirebaseError } from './utils.js?v=202610271552';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610271552';
-import { setupScanTools } from './china-mibal2-scan.js?v=202610271552';
+} from './lib/mibal2-rows.js?v=202610271556';
+import { setShellContext } from './app-shell-bridge.js?v=202610271556';
+import { memberNameFor } from './app-shell-data.js?v=202610271556';
+import { mountBusyBanner } from './busy-banner.js?v=202610271556';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610271556';
+import { friendlyFirebaseError } from './utils.js?v=202610271556';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610271556';
+import { setupScanTools } from './china-mibal2-scan.js?v=202610271556';
 
 const { db, auth } = initializeFirebase();
 
@@ -991,7 +991,15 @@ function setupEvents() {
  * 이메일은 판정에만 쓰고 저장·출력하지 않는다.
  */
 async function checkAccess(user) {
-    const snap = await getDocFromServer(doc(db, BASE + '/config/mainConfig'));
+    // 15초 안에 못 읽으면 실패로 본다(Firestore 가 내부 오류로 멈추면 영영 안 끝난다 — page-gate.js READ_TIMEOUT_MS 와 같은 값)
+    let timer;
+    const read = getDocFromServer(doc(db, BASE + '/config/mainConfig'));
+    // 시간 초과 오류에 원래 읽기를 붙여 둔다 — 망이 느렸을 뿐이면 start 가 늦게라도 이어 간다
+    const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error('timeout'), { code: 'timeout', read })), 15000); });
+    const snap = await Promise.race([read, timeout]).finally(() => clearTimeout(timer));
+    return accessFromSnap(snap, user);
+}
+function accessFromSnap(snap, user) {
     // 공통 상단바 개인 알림(P2) — 같은 문서의 memberEmails 로 이름을 찾아 넘긴다(추가 읽기 없음). 이름은 메모리에만.
     const memberName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email);
     if (memberName && auth.currentUser && auth.currentUser.uid === user.uid) setShellContext({ signedIn: true, uid: user.uid, memberName });
@@ -1014,10 +1022,21 @@ async function start(user) {
         if (!(await checkAccess(user))) { showAdminBlock(MIBAL2_DENIED_MSG); return; }
     } catch (e) {
         console.error('[mibal2] 권한 확인 실패:', e && e.code);
+        if (e && e.code === 'timeout' && e.read) {
+            showAdminBlock('권한 확인이 늦어지고 있습니다(15초 넘음). 잠시 기다리거나 새로고침해 보세요.');
+            e.read.then((snap) => {
+                if (!accessFromSnap(snap, user)) { showAdminBlock(MIBAL2_DENIED_MSG); return; }
+                startAfterAccess();
+            }, (e2) => showAdminBlock(e2 && e2.code === 'permission-denied' ? MIBAL2_DENIED_MSG : '권한을 확인하지 못해 화면을 열지 않았습니다(네트워크 오류). 새로고침해 보세요.'));
+            return;
+        }
         // 명단 밖·퇴사자는 규칙상 mainConfig 를 못 읽는다(permission-denied) → '권한 없음'. 그 밖(네트워크 등)은 '확인 실패'
         showAdminBlock(e && e.code === 'permission-denied' ? MIBAL2_DENIED_MSG : '권한을 확인하지 못해 화면을 열지 않았습니다(네트워크 오류). 새로고침해 보세요.');
         return;
     }
+    startAfterAccess();
+}
+async function startAfterAccess() {
     isAccessOk = true;
     $('admin-block').style.display = 'none';
     $('app-main').style.display = 'block';

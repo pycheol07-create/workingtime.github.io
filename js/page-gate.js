@@ -2,7 +2,7 @@
 // 🔒 페이지 입장 가드 (권한 개편 5단계, 2026-10-19 — 설계 4.3)
 //
 // 쓰는 법 — 각 페이지에 한 줄, 공통 상단바(app-shell.js) 스크립트 바로 앞에:
-//   <script type="module" src="js/page-gate.js?v=202610271552" data-perm-page="location.view"></script>
+//   <script type="module" src="js/page-gate.js?v=202610271556" data-perm-page="location.view"></script>
 //   이름 붙은 Firebase 앱을 쓰는 페이지(scan.html)는 data-perm-app="scanApp" 을 더한다.
 //   ⚠️ 주소 뒤 ?f=… 로 넘기지 않는다 — 배포.py 가 내부 .js 주소의 ? 뒤를 ?v=빌드번호 로 갈아 끼워 값이 사라진다.
 //   data-perm-page 가 없으면 주소(파일 이름)로 기능을 찾는다(js/lib/perm-gate.js pageFeatureFromPath).
@@ -27,10 +27,10 @@
 import { getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { resolve, can } from './lib/perm.js?v=202610271552';
-import { featureLabel, isFeatureId } from './lib/feature-catalog.js?v=202610271552';
+import { resolve, can } from './lib/perm.js?v=202610271556';
+import { featureLabel, isFeatureId } from './lib/feature-catalog.js?v=202610271556';
 import { enforceModeOf, gateDecision, pageFeatureFromPath, hitDayKey, HIT_KEY_RE, HIT_COLLECTION,
-    isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE } from './lib/perm-gate.js?v=202610271552';
+    isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE } from './lib/perm-gate.js?v=202610271556';
 
 const APP_ID = 'team-work-logger-v2';
 const MAIN_PROJECT = 'work-tool-e2943';     // 다른 서버를 고른 스캐너(scan.html QR 설정)는 가드하지 않는다
@@ -38,6 +38,9 @@ const OVERLAY_ID = 'perm-gate';
 const BANNER_ID = 'perm-gate-banner';
 const MODE_KEY = 'permGate.mode';           // 마지막으로 읽은 집행 모드('warn'|'block') — 값만, 사람 정보 없음
 const WAIT_APP_MS = 10000;
+// 설정 읽기가 이 시간 안에 안 끝나면 '확인 실패'로 본다. Firestore 가 내부 오류로 멈추면 getDoc 이 영영 안 끝나
+// '권한을 확인하는 중…' 이 무한히 남았다(2026-10-27, 저장공간 가득 → INTERNAL ASSERTION). 이때 [다시 시도]는 새로고침.
+const READ_TIMEOUT_MS = 15000;
 const HOME = new URL('../index.html', import.meta.url).href;
 
 const tag = document.querySelector('script[data-perm-page]');
@@ -171,23 +174,36 @@ async function check(db, user) {
         return;
     }
     if (!document.getElementById(BANNER_ID)) showChecking();
-    let cfg = null, failed = false;
+    let cfg = null, failed = false, timedOut = false;
+    const read = getDoc(doc(db, 'artifacts', APP_ID, 'config', 'mainConfig'));
     try {
-        const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'config', 'mainConfig'));
+        let timer;
+        const timeout = new Promise((_, reject) => { timer = setTimeout(() => { timedOut = true; reject(new Error('timeout')); }, READ_TIMEOUT_MS); });
+        const snap = await Promise.race([read, timeout]).finally(() => clearTimeout(timer));
         cfg = snap.exists() ? snap.data() : {};
     } catch (e) {
         // 명단 밖·퇴사자는 규칙상 mainConfig 를 못 읽는다 → '권한 없음'으로 본다. 그 밖(네트워크 등)은 '확인 실패'.
-        if (e && e.code === 'permission-denied') cfg = null;
+        if (!timedOut && e && e.code === 'permission-denied') cfg = null;
         else failed = true;
-        console.warn('[권한] 설정 읽기 실패:', (e && e.code) || 'unknown');
+        console.warn('[권한] 설정 읽기 실패:', timedOut ? 'timeout' : ((e && e.code) || 'unknown'));
     }
     if (my !== seq) return;
 
     if (failed) {
         publish(null);
-        showFailed(() => check(db, user));
+        // 시간 초과면 같은 Firestore 로 다시 읽어도 또 멈출 수 있어 새로고침으로 다시 시작한다
+        showFailed(timedOut ? () => location.reload() : () => check(db, user));
+        // 망이 느렸을 뿐이면 늦게라도 온 결과로 정상 판정을 이어 간다(실패 띠·가림막을 바꾼다)
+        if (timedOut) read.then(
+            (snap) => { if (my === seq) applyConfig(db, user, snap.exists() ? snap.data() : {}); },
+            (e) => { if (my === seq && e && e.code === 'permission-denied') applyConfig(db, user, null); });
         return;
     }
+    applyConfig(db, user, cfg);
+}
+
+/** 설정(cfg, 못 읽으면 null)으로 판정해 화면에 반영한다. */
+function applyConfig(db, user, cfg) {
     const mode = cfg ? enforceModeOf(cfg) : readMode();
     if (cfg) saveMode(mode);
     const resolved = cfg ? resolve(cfg, user.email) : resolve({}, user.email);
