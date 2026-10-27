@@ -4,7 +4,7 @@
 //         서버(로케이션추천\추천.py)가 2026-10-26 부터 남긴다 — 그 전 날짜는 빈 칸(선이 끊긴다). 색인 days 는 60일 보관.
 //   그림: 실선 = 지금, 점선 = 적용 후. 실패·기록 없는 날·옛 날짜는 null → 선을 끊는다. 쉬는 날(rest)은 끊지 않고 건너 잇는다.
 //   색은 CSS 변수(라이트·다크 같이 따라감) — style 속성에 var(--…, 대체값) 으로 쓴다. 글자는 모두 escape.
-import { lastDays, dayLabel } from './refill-view.js?v=202610271037';
+import { lastDays, dayLabel } from './refill-view.js?v=202610271046';
 
 const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 /** SVG 글자·속성용 escape(테스트에서도 쓴다) */

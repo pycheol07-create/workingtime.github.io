@@ -8,15 +8,17 @@
 // 상태는 하나만 보인다(진행 / 대기 / 경고 / 완료 / 안내 — js/lib/rebuild-view.js combinedReqUi), 두 쪽 세부 문구는 툴팁.
 //   진행 중이면 머리줄 바로 아래 얇은 막대(#rebuild-progress)가 움직이고(prefers-reduced-motion 이면 정지) 경과 시간을 1초마다,
 //   대기면 회색 정지 막대, 끝나면 1분 동안 '완료 — 채우기 N칸 · 변경 추천 N건 (HH:MM)'. 진행·대기 중엔 버튼을 끈다.
-// 구독은 가볍게 — 색인 문서(refillLatest · locRecLatest, 권한 있는 쪽만) · 요청 문서 2개 · Locations/INFO_CONFIG.
+// 구독은 가볍게 — 색인 문서(refillLatest · locRecLatest) · 요청 문서 2개 · Locations/INFO_CONFIG.
+//   권한과 상관없이 로그인하면 모두 구독한다(2026-10-27) — 진행·대기·완료는 누구에게나 보인다(등록 직원은 artifacts/** 읽기).
+//   권한 없는 쪽을 못 읽으면 조용히 뺀다('읽지 못했습니다' 경고는 권한 있는 쪽만).
 //   카드 store(refill-store·locrec-store)는 쓰지 않는다(그날 지시서·추천 문서까지 읽게 되므로).
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다.
 // ⚠️ 요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getHolidayName } from './utils.js?v=202610271037';
-import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=202610271037';
-import { recReqUi } from './lib/locrec-view.js?v=202610271037';
-import { combinedReqUi, confirmText, requestPathOf, laterMs, doneCounts, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=202610271037';
+import { getHolidayName } from './utils.js?v=202610271046';
+import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=202610271046';
+import { recReqUi } from './lib/locrec-view.js?v=202610271046';
+import { combinedReqUi, confirmText, requestPathOf, laterMs, doneCounts, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=202610271046';
 
 const APP = 'artifacts/team-work-logger-v2';
 const REFILL_LATEST = `${APP}/integrations/refillLatest`;
@@ -65,16 +67,15 @@ export function initRebuildBar({ db, auth, getMemberName }) {
             () => { onErr(); render(); }));
     }
 
-    // 로그인·권한이 바뀔 때만 다시 구독한다
+    // 로그인이 바뀔 때만 다시 구독한다(권한과 상관없이 두 쪽 모두)
     function syncSnaps() {
-        const { canRefill, canLocrec } = S.perms;
-        const key = S.signedIn && (canRefill || canLocrec) ? `${canRefill ? 'r' : ''}${canLocrec ? 'l' : ''}` : '';
+        const key = S.signedIn ? 'all' : '';
         if (key === snapKey) return;
         stopSnaps();
         if (!key) return;
         snapKey = key;
-        if (canRefill) watch(REFILL_LATEST, s => { S.refill = s.exists() ? (s.data() || {}) : {}; }, () => { S.refill = READ_ERR; });
-        if (canLocrec) watch(LOCREC_LATEST, s => { S.locrec = s.exists() ? (s.data() || {}) : {}; }, () => { S.locrec = READ_ERR; });
+        watch(REFILL_LATEST, s => { S.refill = s.exists() ? (s.data() || {}) : {}; }, () => { S.refill = READ_ERR; });
+        watch(LOCREC_LATEST, s => { S.locrec = s.exists() ? (s.data() || {}) : {}; }, () => { S.locrec = READ_ERR; });
         const reqOf = (s) => (s.exists() ? (s.data({ serverTimestamps: 'estimate' }) || {}) : null);
         watch(`${APP}/${REFILL_REQUEST}`, s => { S.refillReq = reqOf(s); }, () => { S.refillReq = null; });
         watch(`${APP}/${LOCREC_REQUEST}`, s => { S.locrecReq = reqOf(s); }, () => { S.locrecReq = null; });
@@ -87,14 +88,15 @@ export function initRebuildBar({ db, auth, getMemberName }) {
         const requestMs = laterMs(tsMs(S.refillReq && S.refillReq.requestedAt), tsMs(S.locrecReq && S.locrecReq.requestedAt));
         let refill = null, locrec = null;
         const errUi = { show: true, enabled: false, label: '', note: '상태를 읽지 못했습니다 — 새로고침해 보세요', tone: 'warn' };
-        if (S.refill === READ_ERR) refill = errUi;
+        // 못 읽은 쪽 — 권한 있으면 경고, 없으면 조용히 뺀다(null)
+        if (S.refill === READ_ERR) refill = S.perms.canRefill ? errUi : null;
         else if (S.refill) {
             const e = (S.refill.days && S.refill.days[today]) || null;
             refill = reqUi({ req: S.refill.req, requestMs, nowMs: now, isToday: true, todayKey: today,
                              isRunDay: runDay(today, S.refill.schedule, holidayName).run,
                              board: !!(e && e.status === 'ok'), lastDataMs: S.lastDataMs, basedAtMs: e && e.basedAt });
         }
-        if (S.locrec === READ_ERR) locrec = errUi;
+        if (S.locrec === READ_ERR) locrec = S.perms.canLocrec ? errUi : null;
         else if (S.locrec) {
             locrec = recReqUi({ req: S.locrec.req, requestMs, nowMs: now, isToday: true,
                                 entry: (S.locrec.days && S.locrec.days[today]) || null, lastDataMs: S.lastDataMs,
@@ -106,16 +108,16 @@ export function initRebuildBar({ db, auth, getMemberName }) {
         return { args, ui: combinedReqUi({ ...args, nowMs: now, counts }), today };
     }
 
-    const EMPTY = { show: false, enabled: false, label: '', note: '', tick: '', title: '', tone: '', kind: '', bar: '' };
+    const EMPTY = { show: false, btn: false, enabled: false, label: '', note: '', tick: '', title: '', tone: '', kind: '', bar: '' };
     const BAR_LABEL = { run: '다시 만드는 중', wait: '대기 중', done: '완료' };
     let lastKey = '', lastKind = '';
     function render() {
         const { ui } = S.signedIn ? state() : { ui: EMPTY };
         lastKind = ui.show ? ui.kind : '';
-        const k = `${ui.show}|${ui.enabled && !busy}|${ui.label}|${ui.note}|${ui.tick}|${ui.title}|${ui.tone}|${ui.bar}`;
+        const k = `${ui.show}|${ui.btn}|${ui.enabled && !busy}|${ui.label}|${ui.note}|${ui.tick}|${ui.title}|${ui.tone}|${ui.bar}`;
         if (k === lastKey) return;                 // 같으면 다시 그리지 않는다(누르던 포커스가 1분마다 풀리지 않게)
         lastKey = k;
-        btn.hidden = !ui.show;
+        btn.hidden = !(ui.show && ui.btn);         // 버튼은 권한이 있는 사람만 — 문구·막대는 진행·대기·완료면 누구나
         btn.disabled = !ui.enabled || busy;
         if (ui.label) btn.textContent = ui.label;
         btn.title = ui.kind === 'running' ? '지금 다시 만드는 중입니다 — 끝나면 다시 누를 수 있습니다'
@@ -168,6 +170,8 @@ export function initRebuildBar({ db, auth, getMemberName }) {
 
     function setPerms({ canRefill, canLocrec }) {
         S.perms = { canRefill: !!canRefill, canLocrec: !!canLocrec };
+        // 읽기에 실패해 끝난 구독이 있으면(명단에 늦게 들어온 경우 등) 권한 판정이 다시 올 때 새로 구독한다
+        if (S.refill === READ_ERR || S.locrec === READ_ERR) snapKey = '';
         syncSnaps();
         lastKey = ''; render();
     }

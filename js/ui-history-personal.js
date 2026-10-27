@@ -1,10 +1,10 @@
 // === js/ui-history-personal.js ===
 // 설명: '개인 리포트' 탭의 데이터 집계 및 렌더링 로직을 담당합니다.
 
-import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202610271037';
-import { appConfig, context, LEAVE_TYPES, leaveTypeLabel } from './state.js?v=202610271037';
-import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202610271037';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202610271037';
+import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202610271046';
+import { appConfig, context, LEAVE_TYPES, leaveTypeLabel } from './state.js?v=202610271046';
+import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202610271046';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610271046';
 
 // 급여 차감 기준 근무시간 (가정값 — 회사 규정에 맞게 조정 가능)
 const WORK_END_MIN = 18 * 60;                                   // 종업 18:00

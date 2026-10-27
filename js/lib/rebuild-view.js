@@ -9,8 +9,9 @@
 //         채우기가 끝났는데 변경 추천만 만드는 중이면 '변경 추천 만드는 중'. 진행 막대는 움직이는 막대(진행률 모름).
 //   대기: '대기 중 — 이지어드민 쉬는 시간이라 10:15 이후 처리' — 막대는 회색 정지.
 //   완료: 끝난 뒤 DONE_FLASH_MS 동안 '완료 — 채우기 N칸 · 변경 추천 N건 (HH:MM)'.
+//   진행·대기·완료는 권한 없는 직원에게도 보인다(2026-10-27). 버튼·경고·안내는 권한이 있는 사람만.
 
-import { STAGES, fmtHM } from './refill-view.js?v=202610271037';
+import { STAGES, fmtHM } from './refill-view.js?v=202610271046';
 
 export { STAGES };
 export const DONE_FLASH_MS = 60 * 1000;      // 완료 문구를 보여 주는 시간
@@ -53,34 +54,40 @@ export function doneCounts({ refillEntry, locrecEntry } = {}) {
 }
 
 /**
- * 두 쪽 상태 → 머리줄 { show, enabled, label, note, tick, title, tone('' | accent | warn), kind, bar }
+ * 두 쪽 상태 → 머리줄 { show, btn, enabled, label, note, tick, title, tone('' | accent | warn), kind, bar }
  *   refill / locrec = reqUi · recReqUi 결과(못 읽었으면 null) · canRefill / canLocrec = 권한
  *   nowMs = 지금 · counts = doneCounts 결과(완료 문구)
  *   kind: running | waiting | warn | done | info | ''  ·  bar: run(움직이는 막대) | wait(회색 정지) | done | ''
  *   note = 요약 한 줄(진행이면 단계까지) · tick = 진행 경과('2분 10초', 진행일 때만) · title = 두 쪽 세부 문구(줄바꿈)
- *   보임: 권한이 하나라도 있으면. 켬: 권한 있는 쪽 중 하나라도 다시 만들 수 있고, 진행·대기 중이 아닐 때.
+ *   진행·대기·완료는 권한과 상관없이 두 쪽(읽은 쪽)을 모두 보고 누구에게나 보인다(2026-10-27 — 누른 사람 화면에만 보이던 것).
+ *   버튼(btn)·경고·안내는 권한이 하나라도 있을 때만, 경고·안내·켬은 권한 있는 쪽만 본다.
+ *   show = 문구·막대를 그릴지 — 권한이 없으면 진행·대기·완료일 때만 true. 버튼은 show && btn 일 때 보인다.
+ *   켬: 권한 있는 쪽 중 하나라도 다시 만들 수 있고, 진행·대기 중이 아닐 때.
  *   우선순위: 진행 > 대기 > 경고(실패·멈춤·PC 꺼짐) > 완료(DONE_FLASH_MS 안) > 안내(첫 문구 — 두 쪽이면 '채우기: …').
  */
 export function combinedReqUi({ refill, locrec, canRefill, canLocrec, nowMs = Date.now(), counts = {} }) {
     const label = REBUILD_LABEL;
-    const out = (o) => ({ show: true, enabled: false, label, note: '', tick: '', title: '', tone: '', kind: '', bar: '', ...o });
-    if (!canRefill && !canLocrec) return { ...out({}), show: false };
-    const parts = [];
-    if (canRefill) parts.push(['refill', refill]);
-    if (canLocrec) parts.push(['locrec', locrec]);
+    const btn = !!(canRefill || canLocrec);
+    const out = (o) => ({ show: true, btn, enabled: false, label, note: '', tick: '', title: '', tone: '', kind: '', bar: '', ...o });
+    const all = [['refill', refill], ['locrec', locrec]];
+    const parts = all.filter(([k]) => (k === 'refill' ? canRefill : canLocrec));      // 권한 있는 쪽
     const both = parts.length > 1;
+    const isStatus = (u) => u.phase === 'running' || u.phase === 'waiting';
     const lines = [];
-    for (const [k, u] of parts) {
-        if (!u) lines.push(`${PART_LABEL[k]}: 불러오는 중…`);
-        else if (u.show && u.note) lines.push(`${PART_LABEL[k]}: ${u.note}`);
+    for (const [k, u] of all) {
+        const mine = parts.some(([p]) => p === k);
+        if (mine && !u) lines.push(`${PART_LABEL[k]}: 불러오는 중…`);
+        else if (u && u.show && u.note && (mine || isStatus(u))) lines.push(`${PART_LABEL[k]}: ${u.note}`);
     }
     const title = lines.join('\n');
-    const shown = parts.filter(([, u]) => u && u.show);
+    const seen = all.filter(([, u]) => u && u.show);                                   // 상태(진행·대기·완료)는 두 쪽 모두
+    const shown = parts.filter(([, u]) => u && u.show);                                // 켬·경고·안내는 권한 있는 쪽만
     const enabled = shown.some(([, u]) => u.enabled);
+    const pickSeen = (fn) => seen.find(([, u]) => fn(u));
     const pick = (fn) => shown.find(([, u]) => fn(u));
 
     // 1) 진행 — 채우기 단계가 있으면 그것(n/3), 변경 추천만 만드는 중이면 그 단계
-    const run = pick(u => u.phase === 'running');
+    const run = pickSeen(u => u.phase === 'running');
     if (run) {
         const [k, u] = run;
         let step = '';
@@ -91,19 +98,21 @@ export function combinedReqUi({ refill, locrec, canRefill, canLocrec, nowMs = Da
         return out({ note: ['다시 만드는 중', step].filter(Boolean).join(' · '), tick, title, tone: 'accent', kind: 'running', bar: 'run' });
     }
     // 2) 대기 — 막대는 회색 정지
-    const wait = pick(u => u.phase === 'waiting');
+    const wait = pickSeen(u => u.phase === 'waiting');
     if (wait) return out({ note: wait[1].note, title, kind: 'waiting', bar: 'wait' });
-    // 3) 경고 — 실패·멈춤·PC 꺼짐·읽기 실패
+    // 3) 경고 — 실패·멈춤·PC 꺼짐·읽기 실패(권한 있는 쪽만, 권한 있는 사람에게만)
     const warn = pick(u => u.tone === 'warn' && u.note);
     if (warn) return out({ enabled, note: both ? `${PART_LABEL[warn[0]]}: ${warn[1].note}` : warn[1].note, title, tone: 'warn', kind: 'warn' });
-    // 4) 완료 — 끝난 뒤 잠깐
-    const doneMs = shown.reduce((m, [, u]) => Math.max(m, u.doneMs || 0), 0);
+    // 4) 완료 — 끝난 뒤 잠깐. 숫자는 읽은 쪽 모두(못 읽은 쪽은 뺀다)
+    const doneMs = seen.reduce((m, [, u]) => Math.max(m, u.doneMs || 0), 0);
     if (doneMs && nowMs >= doneMs - 60 * 1000 && nowMs - doneMs < DONE_FLASH_MS) {
         const seg = [];
-        if (canRefill && Number.isFinite(counts.refillRows)) seg.push(`채우기 ${counts.refillRows.toLocaleString('ko-KR')}칸`);
-        if (canLocrec && Number.isFinite(counts.locrecN)) seg.push(`변경 추천 ${counts.locrecN.toLocaleString('ko-KR')}건`);
+        if (refill && Number.isFinite(counts.refillRows)) seg.push(`채우기 ${counts.refillRows.toLocaleString('ko-KR')}칸`);
+        if (locrec && Number.isFinite(counts.locrecN)) seg.push(`변경 추천 ${counts.locrecN.toLocaleString('ko-KR')}건`);
         return out({ enabled, note: `완료${seg.length ? ' — ' + seg.join(' · ') : ''} (${fmtHM(doneMs)})`, title, tone: 'accent', kind: 'done', bar: 'done' });
     }
+    // 권한이 없으면 평소(경고·안내)에는 아무것도 보이지 않는다
+    if (!btn) return { ...out({}), show: false };
     // 5) 안내 — 강조(accent) 문구가 먼저, 없으면 첫 문구
     const missing = parts.find(([, u]) => !u);
     const info = pick(u => u.note && u.tone === 'accent') || pick(u => u.note);
