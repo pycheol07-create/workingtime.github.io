@@ -8,10 +8,10 @@
 // 그리는 때가 둘이다: ① store 가 바뀔 때(이 파일) ② location.js 가 인사이트 줄을 innerHTML 로 다시 그린 뒤(mountRouteSlot()).
 //   인사이트 줄이 다시 그려지면 이 카드 칸도 사라지므로 location.js 가 그때마다 mountRouteSlot() 을 부른다.
 // 모양은 인사이트 카드와 같은 클래스(insight-card · ins-big · ins-desc) — 색은 CSS 변수라 라이트·다크를 같이 따라간다.
-import { escapeHtml } from './utils.js?v=202610271303';
-import { routeCardInfo, routeHeatView } from './lib/locrec-view.js?v=202610271303';
-import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202610271303';
-import { todayKey } from './locrec-store.js?v=202610271303';
+import { escapeHtml } from './utils.js?v=202610271324';
+import { routeCardInfo, routeHeatView } from './lib/locrec-view.js?v=202610271324';
+import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202610271324';
+import { todayKey } from './locrec-store.js?v=202610271324';
 
 const SLOT_ID = 'dash-route-card';
 const ROW_ID = 'dash-insight-row';
@@ -74,13 +74,13 @@ function paintRouteCard() {
             inner = '<div class="ins-big">-</div><div class="ins-desc">매일 06:40 계산합니다(아직 동선 점수가 없습니다).</div>';
         } else {
             const series = trendSeries(S.latest.days, todayKey(), 60);
-            inner = `<div class="ins-big" title="${escapeHtml(c.scoreTitle)}" style="cursor:help;">${escapeHtml(c.score)}<span class="kpi-unit"> 점</span></div>`
+            inner = `<div class="route-split"><div class="route-main"><div class="ins-big" title="${escapeHtml(c.scoreTitle)}" style="cursor:help;">${escapeHtml(c.score)}<span class="kpi-unit"> 점</span></div>`
                 + (c.after ? `<div class="ins-desc route-after">${escapeHtml(c.after)}</div>` : '')
                 + `<div class="ins-desc" title="${escapeHtml(c.frontTitle)}" style="cursor:help;">앞쪽 자리 출고 <b>${escapeHtml(c.front)}</b></div>`
                 + (trendPoints(series) ? `<div class="locrec-trend">${trendSvg(series, { w: 240, h: 64 })}`
                     + '<div class="ins-desc locrec-trend-legend"><span class="lg-now">━ 지금</span> <span class="lg-after">┅ 추천 모두 적용 후</span> · 최근 60일</div></div>' : '')
-                + heatHtml(S.latest.metrics && S.latest.metrics.routeHeat)
-                + `<div class="ins-desc route-day">${c.day ? `${escapeHtml(c.day)} 기준` : ''}${c.prev ? `${c.day ? ' · ' : ''}지난주 ${escapeHtml(c.prev)}` : ''}</div>`;
+                + `<div class="ins-desc route-day">${c.day ? `${escapeHtml(c.day)} 기준` : ''}${c.prev ? `${c.day ? ' · ' : ''}지난주 ${escapeHtml(c.prev)}` : ''}</div></div>`
+                + `<div class="route-side">${heatHtml(S.latest.metrics && S.latest.metrics.routeHeat)}</div></div>`;   // 오른쪽 = 열지도
         }
     }
     const html = `<h4 title="출고 많은 상품이 앞자리에 있을수록 높습니다(100 = 이론상 완벽)">동선 효율</h4>${inner}`;
