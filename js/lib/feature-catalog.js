@@ -4,7 +4,7 @@
 //
 // 메뉴와의 관계(설계 2.3 A안): 메뉴 표(js/menu-catalog.js MENU_TARGETS)·하위 목적지(js/app-shell-data.js SUB_DESTINATIONS)는
 //   그대로 두고, 여기서 menu·page·sub 로 **참조**한다. 1:1 인지는 tests/feature-catalog.test.js 가 지킨다.
-// ※ 의존성 없는 순수 모듈. 관리자 페이지·대시보드·셸·(다음 단계) 페이지 가드가 같이 쓴다.
+// ※ 순수 모듈(의존은 같은 lib 의 상수 파일 mibal2-mode.js 하나). 관리자 페이지·대시보드·셸·(다음 단계) 페이지 가드가 같이 쓴다.
 //
 // 항목 형식
 //   id        바뀌지 않는 키
@@ -20,6 +20,8 @@
 //   rule      'yes' | 'partial' | 'no' — Firestore 규칙으로도 막는가(관리 화면 표시용. 규칙은 4·7단계에서 게시)
 //   grantable false = 관리자 전용(역할·예외로 줘도 무시)
 //   legacyAdminOnly  옛 ADMIN_ONLY_* 범위 — 옛 권한을 끌어올 때 일반 직원에게 주지 않는다(예전에도 화면이 막고 있었다)
+
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202610281554';
 
 export const FEATURE_GROUPS = [
     { id: 'dash',       label: '대시보드' },
@@ -75,8 +77,9 @@ export const FEATURES = [
     // 그 밖의 페이지
     F('china.mibal',     '중국제작 부족수량 관리',   'china',      'page', 'china-stock-goods.html', { menu: '중국제작 부족수량 관리', danger: 1,
         menuAliases: ['중국제작 미발계산기'] }),   // 화면 용어 변경 2026-10-20 — 기존 계산기 페이지 안 제목은 그대로
-    F('china.mibal2',    '중국제작 부족수량 관리(신규·시험)', 'china', 'page', 'china-mibal2.html', { menu: '중국제작 부족수량 관리(신규·시험)',
-        menuAliases: ['미발계산기(신규·시험)'] }),
+    // 신규 단독 운영(live, js/lib/mibal2-mode.js) 때는 이름에서 '시험' 을 뺀다 — 예전 이름은 menuAliases 로 그대로 잇는다
+    F('china.mibal2',    MIBAL2_MENU_NAME, 'china', 'page', 'china-mibal2.html', { menu: MIBAL2_MENU_NAME,
+        menuAliases: MIBAL2_LIVE ? ['미발계산기(신규·시험)', MIBAL2_TRIAL_MENU_NAME] : ['미발계산기(신규·시험)'] }),
     F('scan.view',       '입고 스캐너',           'scan',       'page', 'scan.html',              { menu: '입고 스캐너', danger: 1 }),
     F('products.view',   '상품 관리',             'products',   'page', 'products.html',          { menu: '상품 관리' }),
     F('supplies.view',   '비품 관리',             'supplies',   'page', 'supplies.html',          { menu: '비품 관리' }),

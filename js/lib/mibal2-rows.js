@@ -9,7 +9,7 @@
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 // 계산은 mibal2-calc.js calcPlan(공식 버전 FORMULA_VER — 2026-10-20 v2: 피킹 → 비축 → 입고분, 3층 = 미발 + 피킹 적재).
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202610281343';
+import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202610281554';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
@@ -172,6 +172,16 @@ export function legacyDatesFrom(cfg) {
 export function selectedDatesFrom(cfg, settings) {
     if (settings && settings.useOwnDates && Array.isArray(settings.shipDates)) return { dates: settings.shipDates.map(String), source: 'own' };
     return { dates: legacyDatesFrom(cfg), source: 'legacy' };
+}
+/**
+ * 단독 운영(live, js/lib/mibal2-mode.js) 때 출고일 — 기존 계산기(CONFIG.savedDatesMibal)는 보지 않는다.
+ * 이 화면에서 고른 출고일(settings.shipDates), 없으면 작업(settings.batch — 마지막으로 스캐너에 반영한 출고일), 그것도 없으면 [].
+ */
+export function liveDatesFrom(settings) {
+    const s = settings || {};
+    if (Array.isArray(s.shipDates)) return { dates: s.shipDates.map(String), source: 'own' };
+    if (s.batch && Array.isArray(s.batch.ships)) return { dates: s.batch.ships.map(String), source: 'own' };
+    return { dates: [], source: 'own' };
 }
 /** ScanDB_Versions.data / ScanDB 문서들 {code:{mibalQty, arrivalQty}} → {code:{mibal, arr}} (parseInt||0) */
 export function oldMapFromScan(map) {

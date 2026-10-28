@@ -60,7 +60,7 @@ export function totalsOf(rows) {
  * 지금 표(미발계산기 모드 tableData)로 기록 문서를 만든다.
  *   rows: tableData — { code, name, option, arrivalQty, confirmed, confSrc, byShip, unregistered, unregisteredLoc }
  *   dates: 체크한 출고일들 · arrivalByShip: 출고일 → 본사도착일[] · supplierOf(code) → 공급처 값(코드 모양만 남김)
- *   by: 기록자 이름 · now: Date · trigger: 'pre-reset' | 'manual'
+ *   by: 기록자 이름 · now: Date · trigger: 'pre-reset' | 'manual' | 'close'(신규 부족수량관리 [작업 마감] — 2026-10-28)
  * 출고일 모양이 틀리면 Error. 도착 0 이면서 미등록이 아닌 줄(위치지정용 덧붙인 줄 등)은 뺀다.
  */
 export function buildDiffRecord({ rows, dates, arrivalByShip, supplierOf, by, now, trigger } = {}) {
@@ -87,7 +87,7 @@ export function buildDiffRecord({ rows, dates, arrivalByShip, supplierOf, by, no
     return {
         shipKey, ships, arrivals: [...arrSet].sort(),
         savedAt: t, savedAtMs: t.getTime(),
-        by: String(by || ''), trigger: trigger === 'pre-reset' ? 'pre-reset' : 'manual',
+        by: String(by || ''), trigger: (trigger === 'pre-reset' || trigger === 'close') ? trigger : 'manual',
         rev: 1, totals: totalsOf(out), rows: out,
     };
 }

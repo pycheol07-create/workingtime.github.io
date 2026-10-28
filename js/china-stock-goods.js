@@ -1,21 +1,21 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610281343'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610281554'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610281343';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610281343';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610281343';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610281343'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610281343';
-import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202610281343'; // 입고 오차(2026-10-27)
-import { initPageNav } from './page-nav.js?v=202610281343';
-import { friendlyFirebaseError } from './utils.js?v=202610281343';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610281343';
-import { setShellContext } from './app-shell-bridge.js?v=202610281343';
-import { memberNameFor } from './app-shell-data.js?v=202610281343';
-import { createUploadStatus } from './busy-banner.js?v=202610281343';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610281554';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610281554';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610281554';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610281554'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610281554';
+import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202610281554'; // 입고 오차(2026-10-27)
+import { initPageNav } from './page-nav.js?v=202610281554';
+import { friendlyFirebaseError } from './utils.js?v=202610281554';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610281554';
+import { setShellContext } from './app-shell-bridge.js?v=202610281554';
+import { memberNameFor } from './app-shell-data.js?v=202610281554';
+import { createUploadStatus } from './busy-banner.js?v=202610281554';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -370,6 +370,7 @@ function renderLocMoveTable() {
 }
 // [Ver 7.7] 기존재고 목록 행 삭제 — 해당 상품의 위치기록 제거(목록/다운로드에서 제외)
 async function deleteLocMoveRow(code) {
+    if (retiredSync()) return;   // [2026-10-28] 은퇴면 쓰지 않음(기다리지 않는 확인 — 저장 순서 보장)
     if (!confirm(`'${code}' 위치 기록을 삭제할까요?\n(이 상품은 목록·받기에서 제외됩니다. 되돌릴 수 없습니다)`)) return;
     showLoading('🗑️ 삭제 중...');
     try {
@@ -397,6 +398,7 @@ function startEditLocMoveRow(code, tr) {
     actTd.querySelector('.lm-cancel').onclick = () => renderLocMoveTable();
 }
 async function saveEditLocMoveRow(code, raw) {
+    if (retiredSync()) return;   // [2026-10-28] 은퇴면 쓰지 않음(기다리지 않는 확인 — 저장 순서 보장)
     const v = locationAssignMap[code]; if (!v) return;
     const norm = (raw || '').split(',').map(x => x.trim()).filter(Boolean).join(','); // 비우면 삭제, base(기준값)는 유지
     showLoading('💾 저장 중...');
@@ -679,6 +681,7 @@ async function downloadDayLoc() {
 }
 // [Ver 6.3] 기존재고 이동 내역만 초기화 (당일입고 위치확인은 유지 — Firebase 누적 방지)
 async function resetLocMove() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     const cnt = Object.values(locationAssignMap).filter(v => (v.sub || '') === 'existing').length;
     if (!cnt) { alert('초기화할 기존재고 내역이 없습니다.'); return; }
     if (!confirm(`기존재고 위치 이동 내역 ${cnt}건을 삭제할까요?\n(당일입고 위치확인은 유지됩니다. 되돌릴 수 없습니다.)`)) return;
@@ -738,6 +741,7 @@ function closeMibalFormulaModal() {
 
 // 공통: 규칙(수식) 검증 → Firebase 저장 → 표 즉시 재계산
 async function applyAndSaveFormula(expr, okMsg) {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     if (adminOnlyBlocked()) return;
     if (!expr || !compileMibalFormula(expr)) { alert('규칙이 올바르지 않습니다. 다시 확인해 주세요.'); return; }
     const prevFormula = mibalFormula;
@@ -800,6 +804,7 @@ function removeMibalVar(h) {
     saveMibalVars();
 }
 async function saveMibalVars() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     mibalFn = compileMibalFormula(mibalFormula); // 변수 목록 변경 → 재컴파일(인자 수 반영)
     try { await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { mibalVars, updatedAt: new Date() }, { merge: true }); } catch (e) { if (isPermissionDenied(e)) showToast('❌ ' + ADMIN_ONLY_MSG); }
     if (formulaMode === 'builder') renderRuleRows(); // 조립모드 드롭다운 갱신
@@ -1197,6 +1202,7 @@ function applyFromBuilder() { applyAndSaveFormula(buildRuleFormula(), '✔ 규�
 // ---------------------------------------------------------
 // [Ver 8.4] 출고일 유예 일수 설정 (실입고 표시돼도 출고일+N일까지 목록/표/스캐너 유지)
 async function openGraceSetting() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     closeAllMenus();
     const v = prompt('본사도착 유예 일수\n\n"본사도착일 + 이 일수" 까지는 목록·표·스캐너(입고앱)에\n그대로 남겨서 입고작업을 할 수 있게 합니다.\n\n예) 1 = 본사도착 다음날까지 유지 / 3 = 3일까지 유지', String(graceDays));
     if (v === null) return;
@@ -1242,6 +1248,7 @@ function buildZoneCapRows() {
     </tr>`).join('');
 }
 async function saveZoneCap() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     document.querySelectorAll('.zcap').forEach(inp => {
         const z = inp.dataset.z, v = inp.value.trim();
         if (v === '') delete zoneCapacity[z];
@@ -1256,6 +1263,7 @@ async function saveZoneCap() {
 }
 
 async function saveSheetSettings() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     if (adminOnlyBlocked()) return;
     const newOrder = document.getElementById('modal-csv-order').value.trim();
     const newBuy = document.getElementById('modal-csv-buy').value.trim();
@@ -1566,6 +1574,7 @@ function parseCsvBody(textData) {
 //  - loadStockLogFromFirebase()가 동일한 dataStr 구조를 읽어 복원함
 // ---------------------------------------------------------
 async function saveChunkedData(rows, collectionSuffix, onProgress) {
+    if (retiredSync()) throw new Error('이 화면은 더 이상 쓰지 않습니다');   // [2026-10-28] 은퇴면 쓰지 않음(기다리지 않는 확인 — 저장 순서 보장)
     const collectionName = CHINA_COLLECTION + '_' + collectionSuffix;
 
     // 1. 기존 문서 전체 삭제 → '다음 업로드 전까지 최신 1개'만 유지
@@ -1599,6 +1608,7 @@ function handleStockLogUpload(e) {
     
     const reader = new FileReader();
     reader.onload = async function(evt) {
+        if (await guardRetiredHeavy()) { hideLoading(); e.target.value = ''; return; }   // [2026-10-28] 은퇴한 화면은 쓰지 않음
         try {
             const text = evt.target.result;
             let rows = [];
@@ -1677,6 +1687,7 @@ function handleStockLogUpload(e) {
 // [Ver 5.8] 위치 매핑 업로드 → Firebase(LOCATION_MAP) 저장 (하드코딩 대체, 코딩 없이 변경)
 //  - 파일: 상품코드 열 + 위치 열(로케이션/옵션/옵션추가항목1/위치 등) → {상품코드: 위치}
 async function handleLocationMapUpload(e) {
+    if (await guardRetiredHeavy()) { e.target.value = ''; return; }   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     const file = e.target.files[0]; if (!file) return;
     showLoading('📍 위치 매핑 처리 중...');
     try {
@@ -1719,6 +1730,7 @@ async function loadLocationMapDoc() {
 }
 // 실패는 던진다 — 부른 쪽이 성공 안내 전에 처리
 async function saveLocationMapDoc() {
+    if (retiredSync()) throw new Error('이 화면은 더 이상 쓰지 않습니다');   // [2026-10-28] 은퇴면 쓰지 않음(기다리지 않는 확인 — 저장 순서 보장)
     if (!locationMapOk) throw new Error('목록을 불러오지 못한 상태라 저장하지 않았습니다. 새로고침 후 다시 해 주세요.');
     await setDoc(doc(db, CHINA_COLLECTION, 'LOCATION_MAP'), packMap(locationMapData));
 }
@@ -1793,6 +1805,7 @@ async function loadBarcodeAlias() {
 }
 // 실패는 던진다 — 부른 쪽이 성공 안내 전에 처리
 async function saveBarcodeAlias() {
+    if (retiredSync()) throw new Error('이 화면은 더 이상 쓰지 않습니다');   // [2026-10-28] 은퇴면 쓰지 않음(기다리지 않는 확인 — 저장 순서 보장)
     if (!barcodeAliasOk) throw new Error('목록을 불러오지 못한 상태라 저장하지 않았습니다. 새로고침 후 다시 해 주세요.');
     await setDoc(doc(db, CHINA_COLLECTION, 'BARCODE_ALIAS'), packMap(barcodeAlias));
     // [Ver 8.88] 사유만 담은 작은 문서 → 스캐너가 큰 목록(315KB)과 무관하게 빠르고 확실하게 사유 로드
@@ -1870,6 +1883,7 @@ async function downloadBarcodeAlias() {
     await downloadToDesktop('오류바코드매칭.xls', new Blob([wbout], { type: 'application/vnd.ms-excel' }));
 }
 async function handleBarcodeAliasUpload(e) {
+    if (await guardRetiredHeavy()) { e.target.value = ''; return; }   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     const file = e.target.files[0]; if (!file) return;
     showLoading('📂 오류바코드 매칭 처리 중...');
     try {
@@ -1908,6 +1922,7 @@ function normLocList(s) {
     return (s || '').toString().split(',').map(x => x.trim()).filter(Boolean).join(',');
 }
 async function handleExistingLocUpload(e) {
+    if (await guardRetiredHeavy()) { e.target.value = ''; return; }   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     const file = e.target.files[0]; if (!file) return;
     showLoading('📥 기존재고 위치값 처리 중...');
     try {
@@ -1959,8 +1974,57 @@ async function handleExistingLocUpload(e) {
 // [Ver 2.8] 스캔DB 동기화 공용 코어
 //  - 도착수량은 (도착예정 - 이미 입고된 수량)으로 차감해 업로드
 //    → 자동 동기화가 여러 번 돌아도 앱에서 처리한 입고 차감분이 유지됨
+// [2026-10-28] 신규 부족수량관리 단독 운영(live) 대비 안전장치 — 기존 화면이 은퇴하면(china-stock-version.json oldRetired:true)
+//   모든 쓰기 직전에 버전 파일을 다시 읽어 막고 신규 화면으로 넘긴다(넘기지 못하면 화면 전체를 가림).
+//   버전 번호만 다른 것(새 배포)은 막지 않는다 — 지금처럼 배너만. 파일을 못 읽거나 5초 안에 안 오면 지금처럼 진행.
+//   신규 화면은 기존 화면으로 되돌려 보내지 않는다(무한 이동 없음).
+let _retiredGoing = false;
+function goNewScreen() {
+    if (_retiredGoing) return;
+    _retiredGoing = true;
+    window.removeEventListener('beforeunload', scanLockBeforeUnload);   // 스캔 잠금 확인창 때문에 이동이 막히지 않게
+    const ov = document.createElement('div');
+    ov.id = 'retired-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:var(--c-bg,#F5F6F8);display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-weight:600;';
+    ov.innerHTML = '<div>이 화면은 더 이상 쓰지 않습니다 — 신규 부족수량관리로 이동합니다.<br><a href="china-mibal2.html">신규 화면 열기</a></div>';
+    document.body.appendChild(ov);
+    try { location.replace('china-mibal2.html' + location.search); } catch (e) { /* 이동 못 해도 가림막은 남는다 */ }
+}
+/** 은퇴했으면 넘기고 true(버전 파일을 다시 읽음). 동기화(syncScanDBCore)·무거운 단발 동작이 부른다 */
+async function guardRetired() {
+    if (_retiredGoing) return true;
+    const info = await fetchVersionInfo();
+    if (info && info.oldRetired === true) { goNewScreen(); return true; }
+    return false;
+}
+/** 무거운 단발 동작(초기화·되돌리기·업로드·미발전송 등) 첫머리 — 확인하는 동안 '확인 중' 표시, 그사이 다시 누르면 막음 */
+let _guardBusy = false;
+async function guardRetiredHeavy() {
+    if (_retiredGoing) return true;
+    if (_guardBusy) { showToast('⏳ 처리 중입니다 — 잠시 기다려 주세요'); return true; }
+    _guardBusy = true;
+    const ov = document.getElementById('loading-overlay');
+    const wasShown = !!ov && ov.style.display === 'flex';
+    if (!wasShown) showLoading('확인 중…');
+    try { return await guardRetired(); }
+    finally { _guardBusy = false; if (!wasShown && !_retiredGoing) hideLoading(); }
+}
+/** 자주·연달아 불리는 조용한 저장(출고일·새 위치 앞/뒤·셀·위치매핑·오류바코드 등) — 기다리지 않는다(부른 순서대로 저장되게).
+ *  열 때·10분마다·창 복귀 때 checkVersion 이 은퇴를 보면 _retiredGoing 이 켜진다. 여기서도 30초에 한 번 뒤에서 확인을 건다 */
+let _bgRetiredCheckAt = 0;
+function retiredSync() {
+    if (_retiredGoing) return true;
+    const now = Date.now();
+    if (now - _bgRetiredCheckAt > 30000) { _bgRetiredCheckAt = now; guardRetired().catch(() => {}); }
+    return false;
+}
 async function syncScanDBCore() {
     const SCAN_DB_COLL = 'ChinaStockGoods_ScanDB';
+    if (await guardRetired()) {
+        const err = new Error('이 화면은 더 이상 쓰지 않습니다 — 신규 부족수량관리로 이동합니다.');
+        err.retired = true;
+        throw err;
+    }
     const existing = await getDocs(collection(db, SCAN_DB_COLL));
     if (existing.size > 0) {
         const delBatch = writeBatch(db);
@@ -2050,13 +2114,15 @@ async function setScanLock(on) {
             try {
                 let waited = 0; while (scanDbSyncing && waited < 15000) { await sleep(200); waited += 200; } // 진행 중인 자동 동기화 완료 대기
                 scanDbSyncing = true;
-                await syncScanDBCore();
-                scanDbSyncing = false;
+                try { await syncScanDBCore(); } finally { scanDbSyncing = false; }
             } catch (e) {
                 scanDbSyncing = false;
                 console.error('잠금 전 동기화 실패:', e);
                 applyScanLockUI(); // 미잠금 상태로 버튼 복구
-                alert('⚠️ 잠금 실패 — 스캔 자료 동기화 오류.\n네트워크 확인 후 다시 시도하세요.\n(아직 잠기지 않았습니다)');
+                if (e && e.retired) return;   // 은퇴 — 신규 화면으로 넘어가는 중(가림막)
+                alert(isPermissionDenied(e)
+                    ? '⚠️ 잠금 실패 — 스캔 자료를 쓸 권한이 없습니다(로그인 상태 확인).\n(아직 잠기지 않았습니다)'
+                    : '⚠️ 잠금 실패 — 스캔 자료 동기화 오류.\n네트워크 확인 후 다시 시도하세요.\n(아직 잠기지 않았습니다)');
                 return;
             }
         } else {
@@ -2094,6 +2160,7 @@ function verIsToday(ms) { const d = new Date(ms || 0), n = new Date(); return d.
 function escHtmlVer(s) { return (s || '').toString().replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 async function saveScanDBVersion(trigger, note) {
+    if (retiredSync()) return false;   // [2026-10-28] 은퇴면 쓰지 않음(기다리지 않는 확인 — 저장 순서 보장)
     try {
         const snap = await getDocs(collection(db, 'ChinaStockGoods_ScanDB'));
         if (snap.empty) return false; // 빈 ScanDB는 저장 안 함
@@ -2138,12 +2205,14 @@ async function saveScanDBVersionOnUpload(fileName) {
     await saveScanDBVersion('upload', '미발재고로그 업로드' + (fileName ? ` (${fileName})` : ''));
 }
 async function manualSaveVersion() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     const note = prompt('이 버전에 남길 메모 (선택):', '수동 저장');
     if (note === null) return;
     const ok = await saveScanDBVersion('manual', note || '수동 저장');
     if (ok) openVersionModal(); else alert('저장할 스캔 자료가 없습니다.\n(미발재고로그 업로드/계산 후 다시 시도하세요)');
 }
 async function rollbackScanDBVersion(versionId) {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     try {
         const vSnap = await getDoc(doc(db, SCANDB_VERSIONS_COLL, versionId));
         if (!vSnap.exists()) { alert('버전을 찾을 수 없습니다.'); return; }
@@ -2195,6 +2264,7 @@ function closeVersionModal() { const m = document.getElementById('version-modal'
 
 // [Ver 7.4] 컬렉션 전체 삭제 (배치 한도 500 회피 위해 400씩 청크)
 async function deleteAllDocs(collName) {
+    if (retiredSync()) throw new Error('이 화면은 더 이상 쓰지 않습니다');   // [2026-10-28] 은퇴면 쓰지 않음(기다리지 않는 확인 — 저장 순서 보장)
     const snap = await getDocs(collection(db, collName));
     for (let i = 0; i < snap.docs.length; i += 400) {
         const b = writeBatch(db);
@@ -2204,6 +2274,7 @@ async function deleteAllDocs(collName) {
 }
 // [Ver 7.4] 전체 초기화 — 현재 모드의 데이터만 초기화 (미발 ↔ 위치 서로 영향 없음)
 async function clearAllData() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     closeAllMenus(); // '설정 ▾' 안에서 눌렀다(UX 개선 7번) — 메뉴를 닫고 확인창만 남긴다
     if (viewMode === 'location') { await clearLocationData(); return; } // 위치 초기화는 직원도 가능
     // (2026-10-16) 미발 초기화도 직원 사용 — 관리자 검사 제거. 옛 주석: 보안(2026-10-14): 미발 초기화(수동편집·미발재고로그·입고이력)는 관리자만
@@ -2262,6 +2333,7 @@ async function clearAllData() {
 }
 // [Ver 7.4] 위치 데이터만 초기화 (당일·기존재고 위치 지정 전체 / 미발 데이터는 유지)
 async function clearLocationData() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     if (!confirm(`위치 데이터를 초기화할까요? 되돌릴 수 없습니다.\n\n지워지는 것: 당일·기존재고 위치 지정 ${Object.keys(locationAssignMap || {}).length.toLocaleString()}개 상품(전체)\n유지되는 것: 미발 데이터`)) return;
     showLoading('🗑️ 위치 데이터 초기화 중...');
     try {
@@ -2579,6 +2651,7 @@ function renderNewLocPosToggle() {
     if (c) c.checked = (newLocPosition === 'front');
 }
 async function setNewLocPosition(pos) {
+    if (retiredSync()) return;   // [2026-10-28] 은퇴면 쓰지 않음(기다리지 않는 확인 — 저장 순서 보장)
     const prevPos = newLocPosition;
     newLocPosition = (pos === 'front') ? 'front' : 'back';
     renderNewLocPosToggle();
@@ -2730,6 +2803,7 @@ function renderColumnEditor() {
 function addColumnFromSelect() { const v = document.getElementById('column-add-select').value; if (v && !colEditList.includes(v)) { colEditList.push(v); renderColumnEditor(); } }
 function resetColumns() { colEditList = viewMode === 'location' ? [...LOCATION_COLUMNS] : [...DEFAULT_COLUMNS]; renderColumnEditor(); } // [Ver 8.53] 모드별 기본값
 async function saveColumns() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     if (!colEditList.length) { alert('열이 하나도 없습니다.'); return; }
     const payload = { updatedAt: new Date() };
     if (viewMode === 'location') { locationColumnConfig = [...colEditList]; payload.locationColumnConfig = locationColumnConfig; } // [Ver 8.53] 위치모드 열은 별도 저장
@@ -2977,6 +3051,7 @@ function buildInboundDiffNow(trigger) {
 }
 /** 저장 — 같은 출고일 문서가 있으면 rev+1. 입고합이 줄면 확인(취소하면 저장 안 함). 실패는 throw. → { ok, rev?, shrunk? } */
 async function writeInboundDiff(rec) {
+    if (retiredSync()) return { ok: false };   // [2026-10-28] 은퇴면 쓰지 않음(기다리지 않는 확인 — 저장 순서 보장)
     const ref = doc(db, INBOUND_DIFF_COLL, rec.shipKey);
     const snap = await getDoc(ref);
     const old = snap.exists() ? snap.data() : null;
@@ -2990,6 +3065,7 @@ async function writeInboundDiff(rec) {
     return { ok: true, rev: merged.rev, shrunk: fit.shrunk };
 }
 async function recordInboundDiffManual() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     closeAllMenus();
     if (viewMode === 'location') { alert('입고 오차 기록은 미발계산기 모드에서 사용하세요.'); return; }
     if (!savedDates.length) { alert('출고일을 하나 이상 선택하세요.'); return; }
@@ -3111,6 +3187,7 @@ async function downloadInboundDiffStats() {
     await downloadToDesktop(`입고오차_${(STATS_TAB_LABEL[idfTab] || idfTab).replace(/\s+/g, '')}_${o.from || '처음'}_${o.to || '끝'}.xls`, new Blob([wbout], { type: 'application/vnd.ms-excel' }));
 }
 async function sendMibal() {
+    if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     if (viewMode === 'location') { alert('미발전송은 미발계산기 모드에서 사용하세요.'); return; }
     if (!savedDates.length) { alert('출고일을 하나 이상 선택하세요.'); return; }
     if (!tableData.length) { alert('표에 데이터가 없습니다. 출고일을 확인하세요.'); return; }
@@ -3157,10 +3234,13 @@ const WEB_VERSION = '10.7';
 let lastVersionCheck = 0;
 
 async function fetchVersionInfo() {
+    const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 5000) : null;   // [2026-10-28] 5초 안에 안 오면 못 읽은 것으로(쓰기를 막지 않음)
     try {
-        const res = await fetch(new URL('china-stock-version.json', location.href).href + '?_=' + Date.now(), { cache: 'no-store' }); // [Ver 9.8] china-stock 전용 버전파일. [Ver 8.47] ?_=시각으로 CDN(Fastly) 캐시 우회 — no-store만으로는 max-age=600 CDN 캐시를 못 뚫어 배너가 최대 10분 지연/누락됨
+        const res = await fetch(new URL('china-stock-version.json', location.href).href + '?_=' + Date.now(), { cache: 'no-store', signal: ctl ? ctl.signal : undefined }); // [Ver 9.8] china-stock 전용 버전파일. [Ver 8.47] ?_=시각으로 CDN(Fastly) 캐시 우회 — no-store만으로는 max-age=600 CDN 캐시를 못 뚫어 배너가 최대 10분 지연/누락됨
         return await res.json();
     } catch (e) { return null; }
+    finally { if (timer) clearTimeout(timer); }
 }
 
 function showUpdateBanner(newVer) {
@@ -3183,6 +3263,8 @@ async function checkVersion(publishAppMeta = false) {
     lastVersionCheck = now;
     const info = await fetchVersionInfo();
     if (!info) return;
+    // [2026-10-28] 신규 부족수량관리 단독 운영(live) 뒤 — 열 때·10분마다·창 복귀 때 기존 화면이 은퇴했으면 신규 화면으로 넘긴다
+    if (info.oldRetired === true) { goNewScreen(); return; }
     if (info.web && info.web !== WEB_VERSION) showUpdateBanner(info.web);
     if (publishAppMeta && info.app) {
         try {
@@ -3205,7 +3287,7 @@ function rememberSavedDates() { const r = datesPatch(savedDatesMibal, savedDates
 async function loadConfig() { const snap = await getDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC)); if (snap.exists()) { const c = snap.data(); csvUrlOrder = c.csvUrlOrder || ''; csvUrlBuy = c.csvUrlBuy || ''; savedDatesMibal = Array.isArray(c.savedDatesMibal) ? c.savedDatesMibal : (Array.isArray(c.savedDates) ? c.savedDates : []); savedDatesLoc = Array.isArray(c.savedDatesLoc) ? c.savedDatesLoc : []; savedDates = (viewMode === 'location') ? [...savedDatesLoc] : [...savedDatesMibal]; mibalFormula = c.mibalFormula || DEFAULT_MIBAL_FORMULA; mibalVars = sanitizeMibalVars(c.mibalVars); MIBAL_COMPUTED_VARS.forEach(v => { if (!mibalVars.includes(v)) mibalVars.push(v); }); /* [Ver 8.25] 도착수량 등 계산변수는 기본공식에 쓰이므로 항상 포함 */ mibalFn = compileMibalFormula(mibalFormula); if (!mibalFn && c.mibalFormula) { console.warn('[china-stock] 저장된 미발 공식이 허용 형식이 아니어서 기본 공식을 씁니다.'); showToast('⚠️ 저장된 미발 공식이 허용 형식이 아니어서 기본 공식으로 계산합니다'); mibalFormula = DEFAULT_MIBAL_FORMULA; } if (!mibalFn) mibalFn = compileMibalFormula(DEFAULT_MIBAL_FORMULA); zoneCapacity = c.zoneCapacity || {}; columnConfig = Array.isArray(c.columnConfig) ? c.columnConfig : null; locationColumnConfig = Array.isArray(c.locationColumnConfig) ? c.locationColumnConfig : null; graceDays = (c.graceDays !== undefined && c.graceDays !== null) ? (parseInt(c.graceDays) || 0) : 1; newLocPosition = (c.newLocPosition === 'front') ? 'front' : 'back'; } rememberSavedDates(); /* 읽은 값 = 저장된 값 → 첫 applyDates 가 다시 쓰지 않게 */ }
 // 직원도 쓰는 출고일 선택만 저장한다. CSV 주소(csvUrl*)·공식(mibalFormula)·추가변수(mibalVars)는 관리자 전용 키라
 //   각자의 저장 함수(saveSheetSettings·공식 적용·추가변수)에서만 쓴다 — 여기서 옛 값을 다시 쓰면 관리자 변경을 덮는다.
-async function saveConfig() { persistActiveDates(); await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { savedDatesMibal, savedDatesLoc, updatedAt: new Date() }, { merge: true }); }
+async function saveConfig() { if (retiredSync()) return; persistActiveDates(); await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { savedDatesMibal, savedDatesLoc, updatedAt: new Date() }, { merge: true }); }
 // 화면 흐름을 막지 않고 저장 — 실패하면 이유를 토스트로 알린다(같은 문구가 짧은 시간에 반복되면 한 번만)
 const DATE_SAVE_TOAST_GAP_MS = 10000;
 let lastDateSaveToast = { msg: '', at: 0 };
@@ -3216,6 +3298,7 @@ function saveDatesQuiet() {
     if ('savedDatesMibal' in patch) lastSavedMibalKey = mibalKey;
     if ('savedDatesLoc' in patch) lastSavedLocKey = locKey;
     // 바뀐 목록만 merge 로 쓴다 — 오래 열린 탭이 다른 쪽(미발/위치) 목록을 옛 값으로 되돌리지 않게
+    if (retiredSync()) return;   // [2026-10-28] 은퇴면 안 씀 — 기다리지 않는 확인(빠르게 연달아 불려도 부른 순서대로 저장)
     setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { ...patch, updatedAt: new Date() }, { merge: true }).catch(e => {
         if ('savedDatesMibal' in patch) lastSavedMibalKey = null; // 실패한 목록만 다음 호출에서 다시 쓴다
         if ('savedDatesLoc' in patch) lastSavedLocKey = null;
@@ -3228,7 +3311,7 @@ function saveDatesQuiet() {
     });
 }
 async function loadEditedCells() { const snap = await getDoc(doc(db, CHINA_COLLECTION, 'EDITED_CELLS')); if (snap.exists()) editedCells = snap.data().cells || {}; }
-async function saveEditedCells() { await setDoc(doc(db, CHINA_COLLECTION, 'EDITED_CELLS'), { cells: editedCells }); }
+async function saveEditedCells() { if (retiredSync()) return; await setDoc(doc(db, CHINA_COLLECTION, 'EDITED_CELLS'), { cells: editedCells }); }
 async function loadStockLogFromFirebase() { const snap = await getDocs(collection(db, CHINA_COLLECTION + '_StockLog')); snap.forEach(d => { if(d.data().dataStr) cleanRows(JSON.parse(d.data().dataStr)).rows.forEach(r => { const c = (r['상품코드']||'').trim(); if(c) stockLogData[c] = r; }); }); }
 
 // ---------------------------------------------------------

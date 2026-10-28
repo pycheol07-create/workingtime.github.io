@@ -9,6 +9,7 @@
 // 데이터: Firestore ChinaStockGoods/MIBAL_HISTORY 의 map. 미발계산기의 '미발전송' 버튼이 쌓는다.
 //   키 "출고일|전송날짜" → { 출고일(=패킹일), 전송날짜, 입고일(빈 값 가능), 미발수량, basis?, 부족합? }
 //   basis 'min' = 미발수량이 Σmin(부족수량, 도착수량)(2026-10-20~, js/lib/mibal-send.js). basis 없음 = 옛 기록 Σ부족수량('sum').
+//   basis 'v2' = 신규 부족수량관리(js/china-mibal2-live.js)가 화면을 열 때·작업 마감 때 남기는 패킹별 미발수량(2026-10-28, js/lib/mibal2-live.js).
 // 규칙은 미발계산기(js/china-stock-goods.js computeAvgRise·buildPredictionRows)와 **같게** 둔다 —
 // (computeAvgRise 는 미발계산기가 이 파일 것을 그대로 부른다 — 2026-10-20)
 // 두 화면이 다른 '예상미발' 을 내면 안 된다. 저쪽 규칙을 바꾸면 여기도 바꿀 것.
@@ -43,8 +44,11 @@ export const lastBefore = (recs, 입고일) => {
     return pre.length ? pre[pre.length - 1] : null;
 };
 
-/** 기록의 기준 — 'min'(Σmin(부족,도착)) 이 아니면 옛 기록 'sum'(Σ부족) */
-export const basisOf = (r) => (r && r.basis === 'min') ? 'min' : 'sum';
+/** 기록의 기준 — 'v2'(신규 부족수량관리 자동 기록, 2026-10-28) · 'min'(Σmin(부족,도착)) · 그 밖은 옛 기록 'sum'(Σ부족) */
+export const basisOf = (r) => (r && r.basis === 'v2') ? 'v2' : ((r && r.basis === 'min') ? 'min' : 'sum');
+
+/** v2 상승률 표본이 이만큼 모이면 v2 만 쓴다(그 전에는 v2 를 섞지 않고 min → sum). 2026-10-28 사용자 결정 */
+export const V2_MIN_SAMPLES = 3;
 
 /**
  * 평균상승률 — 패킹별 (입고시점미발 − 입고 전 마지막 전송 미발) / 입고 전 마지막 전송 미발, 1~100% 만 평균. 없으면 null.
@@ -52,10 +56,10 @@ export const basisOf = (r) => (r && r.basis === 'min') ? 'min' : 'sum';
  *  - 두 기록의 basis 가 같은 쌍만 쓴다(Σ부족 ↔ Σmin 을 섞으면 비율이 뜻을 잃는다).
  *    min 쌍이 하나라도 있으면 min 평균, 없으면 sum 평균. 반환 basis 에 어느 쪽인지 적는다.
  *  - 묶어 보낸 출고일들은 같은 (before, arr) 쌍이 출고일마다 복제돼 있다 → 쌍 하나로 한 번만 센다.
- * @returns {{avg:number, n:number, basis:'min'|'sum'}|null}
+ * @returns {{avg:number, n:number, basis:'v2'|'min'|'sum'}|null}
  */
 export function computeAvgRise(history) {
-    const rates = { min: [], sum: [] };
+    const rates = { v2: [], min: [], sum: [] };
     const seen = new Set();
     Object.values(groupByShip(history)).forEach(recs => {
         const 입고일 = 입고일Of(recs);
@@ -64,7 +68,10 @@ export function computeAvgRise(history) {
         if (!before || !arr) return;
         const basis = basisOf(before);
         if (basisOf(arr) !== basis) return;
-        const pairKey = `${basis}|${before.전송날짜}|${num(before.미발수량)}|${arr.전송날짜}|${num(arr.미발수량)}`;
+        // v2 는 묶음 키(grp)로 같은 묶음만 한 번 센다 — 값이 우연히 같은 다른 패킹(예: 둘 다 0)을 한 쌍으로 치지 않게
+        const pairKey = basis === 'v2'
+            ? `v2|${before.grp || before.출고일}|${before.전송날짜}|${arr.전송날짜}`
+            : `${basis}|${before.전송날짜}|${num(before.미발수량)}|${arr.전송날짜}|${num(arr.미발수량)}`;
         if (seen.has(pairKey)) return;
         seen.add(pairKey);
         const a = num(before.미발수량), b = num(arr.미발수량);
@@ -72,7 +79,8 @@ export function computeAvgRise(history) {
         const rate = (b - a) / a;
         if (rate >= RISE_MIN && rate <= RISE_MAX) rates[basis].push(rate);
     });
-    const basis = rates.min.length ? 'min' : (rates.sum.length ? 'sum' : null);
+    // v2(신규 화면 자동 기록)는 표본이 V2_MIN_SAMPLES 이상일 때만, 기존 표본과 섞지 않고 쓴다
+    const basis = rates.v2.length >= V2_MIN_SAMPLES ? 'v2' : (rates.min.length ? 'min' : (rates.sum.length ? 'sum' : null));
     if (!basis) return null;
     const list = rates[basis];
     return { avg: list.reduce((s, x) => s + x, 0) / list.length, n: list.length, basis };
@@ -134,7 +142,9 @@ export function mibalByArrival(history, { arrivalOf, today, isOffDay } = {}) {
     Object.values(history || {}).forEach(r => {
         if (!r || !r.출고일) return;
         if (!(r.출고일 in parent)) parent[r.출고일] = r.출고일;
-        const k = `${r.전송날짜}|${num(r.미발수량)}`;
+        // v2(신규 화면 자동 기록, 2026-10-28)는 값이 아니라 기록에 넣은 묶음 키(grp = 같은 도착일 묶음의 출고일 '+' 잇기)로만 묶는다.
+        //   값으로 묶으면 다른 패킹의 미발이 우연히 같을 때(특히 0) 한 묶음이 되어 한쪽이 빠진다. 옛 기록(min·sum)은 예전 그대로.
+        const k = basisOf(r) === 'v2' ? `v2|${r.전송날짜}|${r.grp || r.출고일}` : `${r.전송날짜}|${num(r.미발수량)}`;
         if (bySend[k]) union(bySend[k], r.출고일); else bySend[k] = r.출고일;
     });
     // 값이 0 인 패킹도 묶음에 넣는다(2026-10-20) — 묶기 전에 빼면 그 패킹의 '이미 도착' 판정과

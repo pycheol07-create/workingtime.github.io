@@ -12,8 +12,8 @@
 //    · 설정값은 js/config.js 와 같은 프로젝트지만, 이 화면들은 관리자 config 로직을
 //      쓰지 않으므로 파일은 그대로 분리해 둔다(서로 영향 없이 고칠 수 있게).
 import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // ==========================================
 // 메인 앱과 동일한 프로젝트 (로케이션·업무관리 데이터가 있는 곳)
@@ -56,8 +56,35 @@ function freeLocalStorageForTabs() {
     } catch (e) { /* 저장소를 못 쓰면 Firestore 가 메모리 캐시로 넘어간다 */ }
 }
 
+// 🧪 로컬 에뮬레이터(개발·검증 전용, 2026-10-28) — js/firebase-emulator.js 와 같은 규칙·같은 표시(sessionStorage 'useFirebaseEmulator').
+//   주소가 localhost/127.0.0.1 이고 ?emu=1 로 켠 탭에서만 붙는다. 운영 주소(GitHub Pages)에서는 어떤 경우에도 false.
+//   firebase-emulator.js 를 import 하지 않는 것은 그 파일이 Storage SDK 까지 불러오기 때문(이 화면들은 Storage 를 안 쓴다).
+const EMU_HOSTS = new Set(['localhost', '127.0.0.1']);
+let emulatorFailed = false;
+function emulatorWanted() {
+    try {
+        if (!EMU_HOSTS.has(location.hostname)) return false;
+        const q = new URLSearchParams(location.search).get('emu');
+        if (q === '1') sessionStorage.setItem('useFirebaseEmulator', '1');
+        if (q === '0') sessionStorage.removeItem('useFirebaseEmulator');
+        return sessionStorage.getItem('useFirebaseEmulator') === '1';
+    } catch (e) { return false; }
+}
+function showEmulatorBanner() {
+    const paint = () => {
+        if (document.getElementById('emulator-banner')) return;
+        const el = document.createElement('div');
+        el.id = 'emulator-banner';
+        el.textContent = '🧪 로컬 에뮬레이터 — 여기 데이터는 실제가 아닙니다 (?emu=0 으로 해제)';
+        el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#8A6011;color:#fff;font:600 12px/1.9 system-ui,sans-serif;text-align:center;pointer-events:none';
+        document.body.appendChild(el);
+    };
+    if (document.body) paint(); else document.addEventListener('DOMContentLoaded', paint, { once: true });
+}
+
 export const initializeFirebase = () => {
     // 여러 번 불러도 앱을 다시 만들지 않는다(게이트와 본 화면이 각각 호출한다)
+    if (emulatorFailed) return {};
     if (app && db) return { app, db, auth };
     try {
         app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -70,6 +97,15 @@ export const initializeFirebase = () => {
             db = getFirestore(app);
         }
         auth = getAuth(app);
+        if (emulatorWanted()) {
+            // 연결에 실패하면 운영으로 붙지 않게 여기서 멈춘다(아래 catch → 빈 객체, 다음 호출도 빈 객체)
+            try {
+                connectFirestoreEmulator(db, '127.0.0.1', 8080);
+                connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+            } catch (e) { emulatorFailed = true; db = null; auth = null; throw e; }
+            console.log('%c🧪 에뮬레이터에 연결됨 (china-stock)', 'color:#8A6011;font-weight:bold');
+            showEmulatorBanner();
+        }
         console.log('Firebase initialized (china-stock → work-tool-e2943).');
         return { app, db, auth };
     } catch (error) {

@@ -16,10 +16,10 @@
 //   [입고 오차 기록]은 꺼진 단추)
 // 엑셀은 내 PC 로 내려받기만 한다(신규 화면과 같은 XLSX.writeFile .xlsx). 파일 이름은 '시험_' 으로 시작 — 이지어드민 업로드용이 아니다.
 import { getDocs, onSnapshot, doc, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202610281343';
-import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202610281343';
-import { locAssignFullOf } from './lib/loc-mode.js?v=202610281343';
-import { friendlyFirebaseError } from './utils.js?v=202610281343';
+import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202610281554';
+import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202610281554';
+import { locAssignFullOf } from './lib/loc-mode.js?v=202610281554';
+import { friendlyFirebaseError } from './utils.js?v=202610281554';
 
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const INBOUND_COLL = CHINA_COLLECTION + '_InboundHistory';
@@ -115,6 +115,7 @@ export function ensureScanStore(db) {
  */
 export function setupScanTools(opts) {
     const { db, showToast, setLoading, getLiveRows, getInboundMap } = opts;
+    const live = !!opts.live;   // 단독 운영 — 안내 문구만 바뀐다(이 파일은 그래도 읽기만)
 
     // ── 입고 오차 통계 (읽기 전용 — 기존 화면 openInboundDiffModal 과 같은 표. 기록은 기존 미발계산기가 남긴다) ──
     let idfTab = 'ship';
@@ -171,7 +172,7 @@ export function setupScanTools(opts) {
         const cls = (h, v) => (h === '부족' && v > 0) ? ' class="t-risk"' : ((h === '과입고' && v > 0) ? ' class="t-accent"' : '');
         $('idf-tbody').innerHTML = rows.length ? rows.map(r => '<tr style="border-bottom:1px solid var(--c-line);">'
             + r.map((v, i) => `<td${cls(head[i], v)} style="padding:6px 6px;">${esc(v === null || v === undefined ? '' : v)}</td>`).join('') + '</tr>').join('')
-            : `<tr><td colspan="${head.length || 1}" class="t-3" style="padding:22px;">기간 안에 기록이 없습니다. 기록은 기존 미발계산기에서 쌓입니다(이 화면은 읽기만 합니다).</td></tr>`;
+            : `<tr><td colspan="${head.length || 1}" class="t-3" style="padding:22px;">${live ? '기간 안에 기록이 없습니다. [작업 마감] 때 자동으로 쌓이고, [입고 오차 기록]으로도 남길 수 있습니다.' : '기간 안에 기록이 없습니다. 기록은 기존 미발계산기에서 쌓입니다(이 화면은 읽기만 합니다).'}</td></tr>`;
     }
     function downloadStats() {
         const X = window.XLSX;

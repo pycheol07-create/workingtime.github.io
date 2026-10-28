@@ -13,10 +13,13 @@
 // 기존 화면과 다른 점(패널 안내에도 적음): 출고일과 무관하게 보인다 · 상품명은 신규 표 → 비축 이름 → 미발재고로그 순 ·
 //   기존재고 '비고' 는 기준값 없음만으로 판정 · 받기 직전에 비축창고를 다시 읽지 않는다(구독 값 그대로) · 열 설정은 기본 열 고정.
 // 엑셀은 내 PC 로 내려받기만 한다. 파일 이름은 '시험_' 으로 시작(형식은 기존과 같은 .xls biff8 — 이지어드민 업로드는 기존 화면에서).
+// 단독 운영(live, js/lib/mibal2-mode.js) 때만: opts.live = { loadSource } 를 받아 미발재고로그 대신 로케이션관리(Locations) 자료의
+//   옵션추가항목1 을 쓴다(js/china-mibal2-live-loc.js — 오래된 자료면 받기를 막음). 파일 이름에 '시험_' 을 붙이지 않는다.
+//   쓰기 버튼(올리기·초기화·비우기·앞/뒤)은 그 모듈이 켠다 — 이 파일은 live 여도 쓰지 않는다.
 import { getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { ensureScanStore } from './china-mibal2-scan.js?v=202610281343';
-import { stockLogPick, todayLocRows, existingLocRows, dayLocAoa, locMoveAoa, locPartsArr, newLocPositionOf } from './lib/loc-mode.js?v=202610281343';
-import { friendlyFirebaseError } from './utils.js?v=202610281343';
+import { ensureScanStore } from './china-mibal2-scan.js?v=202610281554';
+import { stockLogPick, todayLocRows, existingLocRows, dayLocAoa, locMoveAoa, locPartsArr, newLocPositionOf } from './lib/loc-mode.js?v=202610281554';
+import { friendlyFirebaseError } from './utils.js?v=202610281554';
 
 const STOCKLOG_COLL = 'ChinaStockGoods_StockLog';
 const RENDER_CAP = 300;   // 기존재고 표시 상한(기존 LM_RENDER_CAP 과 같다). 엑셀은 전체
@@ -39,6 +42,9 @@ const NUM_LOC_SHARDS = 8;   // china-mibal2-scan.js·china-stock-goods.js NUM_LO
 
 export function setupLocMode(opts) {
     const { db, showToast, isActive, getConfig, getNewRows, getShipItems, getLocations } = opts;
+    const live = opts.live || null;     // 단독 운영 때만 { loadSource() → {map, reason, note} }
+    const SRC = live ? '로케이션관리 자료' : '미발재고로그';
+    let sourceNote = '';                // live: 원천 자료 날짜 안내
     let store = null;
     let sub = 'today';                  // 'today'(당일입고지정) | 'existing'(기존재고지정) — 기억하지 않는다
     let stockLog = {};                  // code → { name, option, loc, opt1 }
@@ -48,6 +54,22 @@ export function setupLocMode(opts) {
 
     async function loadStockLog() {
         stockLogState = 'loading';
+        if (live) {
+            try {
+                const r = await live.loadSource();
+                stockLog = r.map || {};
+                stockLogBad = 0;
+                sourceNote = r.note || '';
+                stockLogState = r.reason ? 'fail' : 'ok';
+                stockLogErr = r.reason || '';
+            } catch (e) {
+                stockLogState = 'fail';
+                stockLogErr = friendlyFirebaseError(e);
+                console.warn('[mibal2-loc] 로케이션관리 자료 읽기 실패:', e && e.code);
+            }
+            refresh();
+            return;
+        }
         try {
             const snap = await getDocs(collection(db, STOCKLOG_COLL));
             const next = {};
@@ -106,12 +128,12 @@ export function setupLocMode(opts) {
         const warn = [];
         if (store.floor2Err) warn.push('비축창고 자료를 읽지 못함 — ' + store.floor2Err);
         if (store.shardErr) warn.push('앱 지정 위치를 읽지 못함 — ' + store.shardErr);
-        if (stockLogState === 'loading') warn.push('미발재고로그 불러오는 중…');
-        if (stockLogState === 'fail') warn.push('미발재고로그를 읽지 못함 — ' + stockLogErr + ' (위치값 엑셀 받기를 막았습니다)');
+        if (stockLogState === 'loading') warn.push(SRC + ' 불러오는 중…');
+        if (stockLogState === 'fail') warn.push((live ? SRC + ' — ' : '미발재고로그를 읽지 못함 — ') + stockLogErr + ' (위치값 엑셀 받기를 막았습니다)');
         $('btn-loc-download').disabled = !canDownload();
         $('btn-loc-download').title = !canDownload()
-            ? (stockLogState !== 'ok' && ready() && !store.shardErr && !store.floor2Err ? '미발재고로그를 아직 받지 못했습니다' : '비축창고·앱 지정 위치를 아직 다 받지 못했습니다')
-            : '받기 직전에 미발재고로그를 다시 읽습니다';
+            ? (stockLogState !== 'ok' && ready() && !store.shardErr && !store.floor2Err ? SRC + '를 아직 받지 못했습니다' : '비축창고·앱 지정 위치를 아직 다 받지 못했습니다')
+            : '받기 직전에 ' + SRC + '를 다시 읽습니다';
         if (!ready()) {
             $('loc-summary').innerHTML = warn.length ? `<span class="t-risk">⚠ ${warn.map(esc).join(' / ')}</span>` : '불러오는 중…';
             $('loc-thead').innerHTML = '';
@@ -126,6 +148,7 @@ export function setupLocMode(opts) {
         const assigned = rows.filter(r => r.assigned).length;
         $('loc-summary').innerHTML = `당일입고지정 <b>${rows.length.toLocaleString()}개 상품</b> (비축 입고분 + 오늘 지정) · 자리 지정됨 <b>${assigned.toLocaleString()}</b>`
             + (miss ? ` · 비축됐는데 자리 미지정 <b class="t-risk">${miss.toLocaleString()}</b> (맨 위)` : '')
+            + (live && sourceNote && stockLogState === 'ok' ? ` · <span class="t-3">${esc(sourceNote)}</span>` : '')
             + (warn.length ? `<br><span class="t-risk">⚠ ${warn.map(esc).join(' / ')}</span>` : '');
         $('loc-thead').innerHTML = '<tr><th>No</th><th>상품코드</th><th>상품명</th><th>옵션명</th><th>로케이션</th><th>옵션추가항목1</th><th>추가위치</th></tr>';
         $('loc-tbody').innerHTML = rows.length ? rows.map((r, i) => `<tr${r.missing ? ' class="loc-miss"' : ''}>
@@ -161,7 +184,7 @@ export function setupLocMode(opts) {
         const wb = X.utils.book_new();
         X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(aoa), 'worksheet');
         X.writeFile(wb, name, { bookType: 'biff8' });
-        showToast(TEST_TOAST);
+        showToast(live ? '✅ 위치값 엑셀을 받았습니다' : TEST_TOAST);
     }
     function downloadToday() {
         const shown = todayLocRows(todayArgs(true));
@@ -171,14 +194,14 @@ export function setupLocMode(opts) {
         if (!r.count) { alert('당일 입고분으로 위치가 지정된 상품이 없습니다.\n(스캐너 위치모드 "당일 입고분"으로 지정 후 이용하세요)'); return; }
         if (!r.f2Known) alert('비축창고 입고분이 비어 있어 \'파일에 없던 상품\' 판정을 건너뜁니다.\n(위치값 파일에 \'비고\' 열이 들어가지 않습니다)');
         if (r.flagged && !confirm(`⚠️ 비축창고 입고파일에 없던 상품 ${r.flagged}건이 포함되어 있습니다.\n(패킹과 다르게 도착했을 수 있음 — 위치값 파일 '비고'에 '파일에 없던 상품'으로 표시됩니다)\n\n그대로 받을까요?`)) return;
-        if (r.risky && !confirm(`⚠️ 미발재고로그에 없는 상품 ${r.risky}건이 있습니다.\n기존 옵션추가항목1 을 알 수 없어 '스캔한 자리만' 들어가므로, 이지어드민에 이미 있던 자리값을 덮어쓸 수 있습니다.\n\n그래도 받을까요?`)) return;
-        writeXls(r.aoa, `시험_위치값_${ymd()}.xls`);
+        if (r.risky && !confirm(`⚠️ ${SRC}에 없는 상품 ${r.risky}건이 있습니다.\n기존 옵션추가항목1 을 알 수 없어 '스캔한 자리만' 들어가므로, 이지어드민에 이미 있던 자리값을 덮어쓸 수 있습니다.\n\n그래도 받을까요?`)) return;
+        writeXls(r.aoa, live ? `위치값_${ymd()}.xls` : `시험_위치값_${ymd()}.xls`);
     }
     function downloadExisting() {
         const r = locMoveAoa({ rows: existingLocRows({ assign: store.assign(), search: search() }), pos: pos() });
         if (!r.count) { alert('새로 추가된 위치가 없습니다.\n(기존재고 업로드 후 스캐너 "기존재고" 모드로 새 자리를 지정하세요)'); return; }
         if (r.flagged && !confirm(`⚠️ 기존값(업로드 파일)에 없던 상품 ${r.flagged}건이 포함되어 있습니다.\n이 상품들은 기존 옵션추가항목1 없이 '스캔한 자리만' 들어가, 이지어드민의 기존값을 덮어쓸 수 있습니다.\n\n그래도 전체 받을까요?`)) return;
-        writeXls(r.aoa, `시험_기존재고_위치값_${ymd()}.xls`);
+        writeXls(r.aoa, live ? `기존재고_위치값_${ymd()}.xls` : `시험_기존재고_위치값_${ymd()}.xls`);
     }
     let downloading = false;
     async function download() {
@@ -187,7 +210,7 @@ export function setupLocMode(opts) {
         downloading = true;
         $('btn-loc-download').disabled = true;
         try { await loadStockLog(); } finally { downloading = false; render(); }
-        if (!canDownload()) { showToast('⚠️ 미발재고로그를 다시 읽지 못해 받지 않았습니다'); return; }
+        if (!canDownload()) { showToast('⚠️ ' + SRC + '를 다시 읽지 못해(또는 오래된 자료라) 받지 않았습니다'); return; }
         if (sub === 'today') downloadToday(); else downloadExisting();
     }
 

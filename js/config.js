@@ -2,7 +2,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610281343';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610281554';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610281554';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -278,7 +279,7 @@ function getDefaultConfig() {
                 items: [
                     { name: '내 연차관리', link: '#' },
                     { name: '로케이션 관리', link: 'location.html' },
-                    { name: '중국제작 부족수량 관리', link: 'china-stock-goods.html' },
+                    MIBAL2_LIVE ? { name: MIBAL2_MENU_NAME, link: 'china-mibal2.html' } : { name: '중국제작 부족수량 관리', link: 'china-stock-goods.html' },
                     { name: '비품 관리', link: 'supplies.html' }
                 ]
             },

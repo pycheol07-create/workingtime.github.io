@@ -10,18 +10,19 @@
 // ※ 순수 모듈로 둘 것(의존은 js/lib 의 기능 카탈로그·권한 계산뿐). 관리자 페이지(admin-ui.js)가 대시보드 전용
 //    모듈(ui.js/state.js)을 끌어오지 않도록 하기 위함이다.
 
-import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202610281343';
-import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202610281343';
+import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202610281554';
+import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202610281554';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610281554';
 
 // 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu 에 없으면 자동으로 끼워 넣는다.
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
 export const BUILTIN_MENU_ITEMS = [
     { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' },
-    // 로케이션 관리 바로 아래에 (비품 관리 앞)
-    { name: '중국제작 부족수량 관리', link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' },
+    // 로케이션 관리 바로 아래에 (비품 관리 앞) — 신규 단독 운영(live, js/lib/mibal2-mode.js) 때는 넣지 않는다(아래 RETIRED_MENU_LINKS 로 걷어냄)
+    ...(MIBAL2_LIVE ? [] : [{ name: '중국제작 부족수량 관리', link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' }]),
     // 신규 미발계산기(병행 비교 시험, 2026-10-07) — 위 항목 다음에 처리되므로 '중국제작 부족수량 관리' 바로 아래(비품 관리 앞)에 붙는다.
-    // 관리자 외에는 memberMenuAccess 에 넣어 주지 않는 한 보이지 않는다(ui-main-dashboard.js applyDynamicSidebar).
-    { name: '중국제작 부족수량 관리(신규·시험)', link: 'china-mibal2.html', category: '관리 및 조회', before: '비품 관리' },
+    // 관리자 외에는 memberMenuAccess 에 넣어 주지 않는 한 보이지 않는다(ui-main-dashboard.js applyDynamicSidebar). live 면 이름에서 '시험' 을 뺀다.
+    { name: MIBAL2_MENU_NAME, link: 'china-mibal2.html', category: '관리 및 조회', before: '비품 관리' },
     // before: 이 항목 바로 앞에 끼워 넣는다(없으면 맨 뒤)
     { name: '출퇴근 기록표', link: 'worktime.html', category: '관리자 메뉴', before: '업무 마감' },
     // 상품 관리(2026-10-13) — 기본정보는 전원, 원가·공급처는 관리자만(규칙). 미발계산기 다음(비품 관리 앞)에 붙는다.
@@ -44,8 +45,8 @@ export const MENU_TARGETS = [
     { kind: 'action', name: '내 연차관리',      link: '#',            icon: '🏖️' },
     { kind: 'action', name: '업무 마감',        link: '#',            icon: '🏁' },
     { kind: 'page', name: '로케이션 관리',       link: 'location.html',          icon: '📍' },
-    { kind: 'page', name: '중국제작 부족수량 관리', link: 'china-stock-goods.html', icon: '🧮' },
-    { kind: 'page', name: '중국제작 부족수량 관리(신규·시험)', link: 'china-mibal2.html', icon: '🧪' },
+    { kind: 'page', name: '중국제작 부족수량 관리', link: 'china-stock-goods.html', icon: '🧮' },   // live 뒤에도 고르기 목록에는 남김(기능 카탈로그 1:1 — 메뉴에서는 RETIRED_MENU_LINKS 로 걷어냄)
+    { kind: 'page', name: MIBAL2_MENU_NAME, link: 'china-mibal2.html', icon: MIBAL2_LIVE ? '🧮' : '🧪' },
     { kind: 'page', name: '비품 관리',           link: 'supplies.html',          icon: '📦' },
     { kind: 'page', name: '상품 관리',           link: 'products.html',          icon: '🏷️' },
     { kind: 'page', name: '출퇴근 기록표',       link: 'worktime.html',          icon: '🕘' },
@@ -68,6 +69,10 @@ export const RETIRED_MENU_ITEMS = ['운영 시뮬레이션',
     '주말 근무 신청',                           // 2026-10-14 기능 삭제 (weekend-*.js · modals-weekend.html)
     '관리자 일정/투두'];                        // 2026-10-14 기능 삭제 (admin-todo-logic.js · modals-admin-todo*.html)
 
+// 없어진 화면(링크 기준) — 신규 부족수량관리 단독 운영(live) 때 기존 화면 메뉴를 걷어낸다(이름을 바꿔 저장한 메뉴도). 지금(시험)은 비어 있다.
+export const RETIRED_MENU_LINKS = MIBAL2_LIVE ? ['china-stock-goods.html'] : [];
+const retiredLink = (i) => !!(i && i.link) && RETIRED_MENU_LINKS.includes(linkPath(i.link));
+
 /** 저장된 메뉴에 신규 메뉴를 채우고 폐기된 메뉴를 걷어낸 목록을 돌려준다.
  *  예전 기본 이름(기능 카탈로그 menuAliases)인 항목은 보이는 이름만 지금 이름으로 바꾼다 — 저장 값은 그대로(2026-10-20).
  *  그룹 객체와 items 배열은 새로 만들지만 항목 객체 자체는 원본과 공유한다(읽기 전용으로 쓸 것. 이름을 바꾼 항목만 새 객체).
@@ -84,7 +89,7 @@ export const withBuiltinMenus = (dashboardMenu) => {
         .map(g => ({
             ...g,
             items: Array.isArray(g.items)
-                ? g.items.filter(i => !RETIRED_MENU_ITEMS.includes(i && i.name)).map(renameOldItem)
+                ? g.items.filter(i => !RETIRED_MENU_ITEMS.includes(i && i.name) && !retiredLink(i)).map(renameOldItem)
                 : []
         }));
     BUILTIN_MENU_ITEMS.forEach(entry => {

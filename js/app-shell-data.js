@@ -1,5 +1,6 @@
 // === js/app-shell-data.js ===
-// 공통 상단바(js/app-shell.js)가 쓰는 고정 데이터와 경로 계산. 의존성 없는 순수 모듈(테스트: tests/app-shell.test.js).
+// 공통 상단바(js/app-shell.js)가 쓰는 고정 데이터와 경로 계산. 순수 모듈(의존은 lib 상수 mibal2-mode.js 하나, 테스트: tests/app-shell.test.js).
+import { MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610281554';
 
 // 대시보드 사이드바의 '동작' 메뉴(버튼이라 링크가 '#')를 다른 화면에서 누를 때 갈 곳.
 // '업무 마감' 은 넣지 않는다 — 대시보드에서만 한다(menu-catalog.js SHELL_EXCLUDED_ACTIONS).
@@ -79,7 +80,7 @@ export const PAGE_DEFAULTS = {
     'location':          { file: 'location.html',          title: '로케이션 관리' },
     'products':          { file: 'products.html',          title: '상품 관리' },
     'china-stock-goods': { file: 'china-stock-goods.html', title: '중국제작 부족수량 관리' },
-    'china-mibal2':      { file: 'china-mibal2.html',      title: '중국제작 부족수량 관리(신규·시험)' },
+    'china-mibal2':      { file: 'china-mibal2.html',      title: MIBAL2_MENU_NAME },
     'scan':              { file: 'scan.html',              title: '입고 스캐너' },
     'manual':            { file: 'manual.html',            title: '업무 매뉴얼' },
     'supplies':          { file: 'supplies.html',          title: '비품 관리' },
