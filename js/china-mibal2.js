@@ -20,23 +20,23 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610280933'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610281021'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610280933';
-import { sortMark } from './lib/china-stock-view.js?v=202610280933';
+import { explain } from './lib/mibal2-calc.js?v=202610281021';
+import { sortMark } from './lib/china-stock-view.js?v=202610281021';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202610280933';
-import { setShellContext } from './app-shell-bridge.js?v=202610280933';
-import { memberNameFor } from './app-shell-data.js?v=202610280933';
-import { mountBusyBanner } from './busy-banner.js?v=202610280933';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610280933';
-import { friendlyFirebaseError } from './utils.js?v=202610280933';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610280933';
-import { setupScanTools } from './china-mibal2-scan.js?v=202610280933';
-import { setupLocMode } from './china-mibal2-loc.js?v=202610280933';
+} from './lib/mibal2-rows.js?v=202610281021';
+import { setShellContext } from './app-shell-bridge.js?v=202610281021';
+import { memberNameFor } from './app-shell-data.js?v=202610281021';
+import { mountBusyBanner } from './busy-banner.js?v=202610281021';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610281021';
+import { friendlyFirebaseError } from './utils.js?v=202610281021';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610281021';
+import { setupScanTools } from './china-mibal2-scan.js?v=202610281021';
+import { setupLocMode } from './china-mibal2-loc.js?v=202610281021';
 
 const { db, auth } = initializeFirebase();
 
@@ -944,7 +944,9 @@ async function startAfterAccess() {
         db, showToast,
         isActive: () => viewMode === 'loc',
         getConfig: () => config,
-        getNewRows: () => allRows
+        getNewRows: () => allRows,
+        getShipItems: () => ship.items || {},
+        getLocations: () => { const m = {}; Object.keys(locIndex).forEach(c => { const v = locIndex[c]; if (v && v.id) m[c] = v.id; }); return m; }
     });
     if (viewMode === 'loc') locTools.enter();
     // '갱신 중' 띠 — 이지어드민 잠금 + 갱신 요청 문서. '방금 갱신됨'은 이미 구독 중인 mibal2Latest 로(추가 구독 없음)

@@ -14,9 +14,9 @@
 //   기존재고 '비고' 는 기준값 없음만으로 판정 · 받기 직전에 비축창고를 다시 읽지 않는다(구독 값 그대로) · 열 설정은 기본 열 고정.
 // 엑셀은 내 PC 로 내려받기만 한다. 파일 이름은 '시험_' 으로 시작(형식은 기존과 같은 .xls biff8 — 이지어드민 업로드는 기존 화면에서).
 import { getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { ensureScanStore } from './china-mibal2-scan.js?v=202610280933';
-import { stockLogPick, todayLocRows, existingLocRows, dayLocAoa, locMoveAoa, locPartsArr, newLocPositionOf } from './lib/loc-mode.js?v=202610280933';
-import { friendlyFirebaseError } from './utils.js?v=202610280933';
+import { ensureScanStore } from './china-mibal2-scan.js?v=202610281021';
+import { stockLogPick, todayLocRows, existingLocRows, dayLocAoa, locMoveAoa, locPartsArr, newLocPositionOf } from './lib/loc-mode.js?v=202610281021';
+import { friendlyFirebaseError } from './utils.js?v=202610281021';
 
 const STOCKLOG_COLL = 'ChinaStockGoods_StockLog';
 const RENDER_CAP = 300;   // 기존재고 표시 상한(기존 LM_RENDER_CAP 과 같다). 엑셀은 전체
@@ -31,13 +31,14 @@ const fmtAt = (ms) => { if (!ms) return ''; const d = new Date(ms); return `${pa
 /**
  * 위치지정 보기 연결. opts:
  *   db, showToast(msg), isActive() → 지금 위치지정 보기인가,
- *   getConfig() → ChinaStockGoods/CONFIG(이미 읽은 것), getNewRows() → 신규 표 행(상품명·옵션 출처)
+ *   getConfig() → ChinaStockGoods/CONFIG(이미 읽은 것), getNewRows() → 신규 표 행(상품명·옵션 출처),
+ *   getShipItems() → 수집기 출고 기록 {code:{nm,op}}(상품명·옵션 보조), getLocations() → {code: 앱 대표 로케이션}(로케이션 보조)
  * 반환: { enter() — 보기에 들어올 때(처음이면 구독·1회 읽기 시작), refresh() — 다시 그리기 }
  */
 const NUM_LOC_SHARDS = 8;   // china-mibal2-scan.js·china-stock-goods.js NUM_LOC_SHARDS 와 같다
 
 export function setupLocMode(opts) {
-    const { db, showToast, isActive, getConfig, getNewRows } = opts;
+    const { db, showToast, isActive, getConfig, getNewRows, getShipItems, getLocations } = opts;
     let store = null;
     let sub = 'today';                  // 'today'(당일입고지정) | 'existing'(기존재고지정) — 기억하지 않는다
     let stockLog = {};                  // code → { name, option, loc, opt1 }
@@ -93,7 +94,8 @@ export function setupLocMode(opts) {
     }
     function todayArgs(withSearch) {
         const { names, options } = newRowMaps();
-        return { assign: store.assign(), floor2: store.floor2.map, floor2Names: store.floor2.names, names, options, stockLog, search: withSearch ? search() : '' };
+        return { assign: store.assign(), floor2: store.floor2.map, floor2Names: store.floor2.names, names, options, stockLog,
+            shipItems: (getShipItems && getShipItems()) || {}, locations: (getLocations && getLocations()) || {}, search: withSearch ? search() : '' };
     }
 
     // ── 그리기 ──
@@ -128,7 +130,7 @@ export function setupLocMode(opts) {
         $('loc-thead').innerHTML = '<tr><th>No</th><th>상품코드</th><th>상품명</th><th>옵션명</th><th>로케이션</th><th>옵션추가항목1</th><th>추가위치</th></tr>';
         $('loc-tbody').innerHTML = rows.length ? rows.map((r, i) => `<tr${r.missing ? ' class="loc-miss"' : ''}>
                 <td>${i + 1}</td><td class="code-cell">${esc(r.code)}</td><td class="name-cell">${esc(r.name)}</td><td>${esc(r.option)}</td>
-                <td>${esc(r.location)}</td><td>${esc(r.opt1)}</td>
+                <td>${r.locFromApp ? `<span class="t-3" title="미발재고로그에 없는 상품 — 앱 로케이션관리 자리(이지어드민 값 아님)">${esc(r.location)} (앱)</span>` : esc(r.location)}</td><td>${esc(r.opt1)}</td>
                 <td>${r.newLocs.length ? r.newLocs.map(p => `<span class="loc-new">${esc(p)}</span>`).join(', ') : '<span class="t-risk" style="font-weight:600;">⚠️ 미지정</span>'}</td></tr>`).join('')
             : `<tr><td colspan="7" class="t-3" style="padding:40px;">${search() ? '검색에 맞는 상품이 없습니다.' : '비축창고 입고분도, 오늘 위치가 지정된 상품도 없습니다.'}</td></tr>`;
     }

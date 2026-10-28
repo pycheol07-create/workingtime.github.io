@@ -91,15 +91,18 @@ export function stockLogPick(rows) {
 /**
  * 당일입고지정 목록.
  *   목록 = 비축 입고분(floor2 > 0) ∪ 오늘 지정(isAssignedToday). 출고일과 무관.
- *   상품명 = names(신규 표) → 비축 이름 → 미발재고로그 · 옵션 = options(신규 표) → 미발재고로그
- *   로케이션 = 미발재고로그 '로케이션' 의 '/' 앞 · 옵션추가항목1 = 미발재고로그 값 · 추가위치 = 오늘 지정 중 새 자리
+ *   상품명 = names(신규 표) → 비축 이름 → 미발재고로그 → shipItems(수집기 출고 기록 nm) · 옵션 = options(신규 표) → 미발재고로그 → shipItems op
+ *   로케이션 = 미발재고로그 '로케이션' 의 '/' 앞 → 없으면 locations(앱 로케이션관리 대표 자리)
+ *   옵션추가항목1 = 미발재고로그 값 · 추가위치 = 오늘 지정 중 새 자리
+ *   (미발재고로그는 그날 업로드분 — 부족 상품만 들어 있어, 비축에 들어간 다른 상품은 이름·로케이션이 비었다. 2026-10-28)
  *   검색 = 코드·상품명(대문자 포함). 정렬 = 코드 순, 그다음 '비축됐는데 자리 미지정' 줄을 맨 위로(그룹 안 순서 유지).
- * @param {{assign:Object, floor2:Object<string,number>, floor2Names?:Object, names?:Object, options?:Object, stockLog?:Object, search?:string}} o
- * @returns {Array<{code,name,option,location,opt1,newLocs:string[],assigned:boolean,floor2:number,missing:boolean}>}
+ * @param {{assign:Object, floor2:Object<string,number>, floor2Names?:Object, names?:Object, options?:Object, stockLog?:Object, shipItems?:Object<string,{nm,op}>, locations?:Object<string,string>, search?:string}} o
+ * @returns {Array<{code,name,option,location,locFromApp:boolean,opt1,newLocs:string[],assigned:boolean,floor2:number,missing:boolean}>}
  */
 export function todayLocRows(o) {
     const assign = o.assign || {}, floor2 = o.floor2 || {}, f2n = o.floor2Names || {};
     const names = o.names || {}, options = o.options || {}, log = o.stockLog || {};
+    const ship = o.shipItems || {}, locs = o.locations || {};
     const codes = new Set();
     Object.keys(floor2).forEach(c => { if ((floor2[c] || 0) > 0) codes.add(c); });
     Object.keys(assign).forEach(c => { if (isAssignedToday(assign[c])) codes.add(c); });
@@ -107,13 +110,16 @@ export function todayLocRows(o) {
     let rows = [...codes].map(code => {
         const a = assign[code];
         const l = log[code] || {};
+        const s = ship[code] || {};
+        const logLoc = String(l.loc || '').split('/')[0].trim();
         const assigned = isAssignedToday(a);
         const q = floor2[code] || 0;
         return {
             code,
-            name: names[code] || f2n[code] || l.name || '',
-            option: options[code] || l.option || '',
-            location: String(l.loc || '').split('/')[0].trim(),
+            name: names[code] || f2n[code] || l.name || s.nm || '',
+            option: options[code] || l.option || s.op || '',
+            location: logLoc || locs[code] || '',
+            locFromApp: !logLoc && !!locs[code],   // 이지어드민 값이 아니라 앱 로케이션관리 대표 자리 — 화면에 '(앱)' 표시
             opt1: l.opt1 || '',
             newLocs: assigned ? newLocParts(a.location, a.base) : [],
             assigned, floor2: q, missing: q > 0 && !assigned
