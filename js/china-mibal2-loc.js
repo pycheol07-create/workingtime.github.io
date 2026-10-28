@@ -14,9 +14,9 @@
 //   기존재고 '비고' 는 기준값 없음만으로 판정 · 받기 직전에 비축창고를 다시 읽지 않는다(구독 값 그대로) · 열 설정은 기본 열 고정.
 // 엑셀은 내 PC 로 내려받기만 한다. 파일 이름은 '시험_' 으로 시작(형식은 기존과 같은 .xls biff8 — 이지어드민 업로드는 기존 화면에서).
 import { getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { ensureScanStore } from './china-mibal2-scan.js?v=202610281021';
-import { stockLogPick, todayLocRows, existingLocRows, dayLocAoa, locMoveAoa, locPartsArr, newLocPositionOf } from './lib/loc-mode.js?v=202610281021';
-import { friendlyFirebaseError } from './utils.js?v=202610281021';
+import { ensureScanStore } from './china-mibal2-scan.js?v=202610281042';
+import { stockLogPick, todayLocRows, existingLocRows, dayLocAoa, locMoveAoa, locPartsArr, newLocPositionOf } from './lib/loc-mode.js?v=202610281042';
+import { friendlyFirebaseError } from './utils.js?v=202610281042';
 
 const STOCKLOG_COLL = 'ChinaStockGoods_StockLog';
 const RENDER_CAP = 300;   // 기존재고 표시 상한(기존 LM_RENDER_CAP 과 같다). 엑셀은 전체

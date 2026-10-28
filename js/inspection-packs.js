@@ -5,13 +5,13 @@
 // 쓰기: updateDailyData({inspectionList}) — 엑셀 업로드(js/inspection-excel.js)와 같은 경로. 순수 규칙은 js/lib/insp-packs.js.
 // ⚠️ 이 창은 index.html 에 붙는다 — 업무마감봇 선택자와 겹치지 않게 role="dialog"·data-act·end-shift-* 를 쓰지 않는다. id 는 모두 insp-pack-*.
 // ⚠️ 공급처는 코드만(supplierCode). supplierName 은 빈칸(CLAUDE.md 3절).
-import * as State from './state.js?v=202610281021';
-import { updateDailyData } from './app-data.js?v=202610281021';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610281021';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610281021';
-import { fetchAllHistoryData } from './history-data-manager.js?v=202610281021';
+import * as State from './state.js?v=202610281042';
+import { updateDailyData } from './app-data.js?v=202610281042';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610281042';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610281042';
+import { fetchAllHistoryData } from './history-data-manager.js?v=202610281042';
 import { doc, getDoc, getDocs, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations } from './lib/insp-packs.js?v=202610281021';
+import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations } from './lib/insp-packs.js?v=202610281042';
 
 const DOC_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks'];
 const PICKER_ID = 'insp-pack-picker';

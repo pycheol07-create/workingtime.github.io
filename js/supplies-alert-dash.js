@@ -8,12 +8,12 @@
 // 🔒 메모리에는 판정에 필요한 칸만 둔다(이름·코드·예측 날짜·발주 상태). 단가·업체·이력은 담지 않고 화면에도 쓰지 않는다.
 // ⚠️ 새 요소에 role="dialog" · data-act 를 쓰지 않는다(업무마감봇 화면 보호).
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as State from './state.js?v=202610281021';
-import { can } from './lib/perm.js?v=202610281021';
-import { escapeHtml } from './utils.js?v=202610281021';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610281021';
-import { mdw } from './lib/supplies-forecast-view.js?v=202610281021';
-import { reorderAlerts, alertDayLabel, alertSummaryText } from './lib/supplies-reorder-alert.js?v=202610281021';
+import * as State from './state.js?v=202610281042';
+import { can } from './lib/perm.js?v=202610281042';
+import { escapeHtml } from './utils.js?v=202610281042';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610281042';
+import { mdw } from './lib/supplies-forecast-view.js?v=202610281042';
+import { reorderAlerts, alertDayLabel, alertSummaryText } from './lib/supplies-reorder-alert.js?v=202610281042';
 
 const BASE = ['artifacts', 'team-work-logger-v2'];
 const SOURCES = {

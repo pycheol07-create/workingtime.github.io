@@ -1,26 +1,26 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610281021';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610281042';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610281021';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610281021';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610281021';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610281021';
-import { orderKeyMap } from './lib/order-hash.js?v=202610281021';
-import { setShellContext } from './app-shell-bridge.js?v=202610281021';
-import { memberNameFor } from './app-shell-data.js?v=202610281021';
-import { menuConfigOf } from './lib/perm.js?v=202610281021';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610281021';
-import { initPageNav } from './page-nav.js?v=202610281021';
-import { initRefillCard } from './refill-card.js?v=202610281021';
-import { initLocRecCard } from './locrec-card.js?v=202610281021';
-import { initRebuildBar } from './rebuild-bar.js?v=202610281021';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610281021';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610281021';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610281021';
-import { uploadBlockText } from './lib/busy-view.js?v=202610281021';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610281021';
-import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610281021';
-import { initLocSetPanel } from './locset-panel.js?v=202610281021';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202610281042';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610281042';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610281042';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610281042';
+import { orderKeyMap } from './lib/order-hash.js?v=202610281042';
+import { setShellContext } from './app-shell-bridge.js?v=202610281042';
+import { memberNameFor } from './app-shell-data.js?v=202610281042';
+import { menuConfigOf } from './lib/perm.js?v=202610281042';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610281042';
+import { initPageNav } from './page-nav.js?v=202610281042';
+import { initRefillCard } from './refill-card.js?v=202610281042';
+import { initLocRecCard } from './locrec-card.js?v=202610281042';
+import { initRebuildBar } from './rebuild-bar.js?v=202610281042';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610281042';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610281042';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610281042';
+import { uploadBlockText } from './lib/busy-view.js?v=202610281042';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610281042';
+import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610281042';
+import { initLocSetPanel } from './locset-panel.js?v=202610281042';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나

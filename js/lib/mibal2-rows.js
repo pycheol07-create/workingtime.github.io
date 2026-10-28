@@ -9,7 +9,7 @@
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 // 계산은 mibal2-calc.js calcPlan(공식 버전 FORMULA_VER — 2026-10-20 v2: 피킹 → 비축 → 입고분, 3층 = 미발 + 피킹 적재).
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202610281021';
+import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202610281042';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
@@ -231,7 +231,8 @@ export function computeRows(b) {
         const a = arrivalFor(items[code], sel, g, now);
         if (a.qty > 0) codes.set(code, a);   // china-stock-goods.js:2270 .filter(d => d.arrivalQty > 0)
     });
-    if (oldMap) Object.keys(oldMap).forEach(code => { if (!codes.has(code)) codes.set(code, arrivalFor(items[code], sel, g, now)); });
+    // 기존 계산기에만 있는 코드(도착 0)는 행으로 붙이지 않는다 — 출고일을 안 고르면 표가 비어야 한다(2026-10-28 사용자 결정).
+    // 기존 미발 비교값(old·차이)은 고른 출고일에 도착한 행에만 붙는다.
 
     return [...codes.entries()].map(([code, a]) => {
         const it = items[code] || {};

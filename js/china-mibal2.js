@@ -20,23 +20,23 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610281021'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610281042'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610281021';
-import { sortMark } from './lib/china-stock-view.js?v=202610281021';
+import { explain } from './lib/mibal2-calc.js?v=202610281042';
+import { sortMark } from './lib/china-stock-view.js?v=202610281042';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202610281021';
-import { setShellContext } from './app-shell-bridge.js?v=202610281021';
-import { memberNameFor } from './app-shell-data.js?v=202610281021';
-import { mountBusyBanner } from './busy-banner.js?v=202610281021';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610281021';
-import { friendlyFirebaseError } from './utils.js?v=202610281021';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610281021';
-import { setupScanTools } from './china-mibal2-scan.js?v=202610281021';
-import { setupLocMode } from './china-mibal2-loc.js?v=202610281021';
+} from './lib/mibal2-rows.js?v=202610281042';
+import { setShellContext } from './app-shell-bridge.js?v=202610281042';
+import { memberNameFor } from './app-shell-data.js?v=202610281042';
+import { mountBusyBanner } from './busy-banner.js?v=202610281042';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610281042';
+import { friendlyFirebaseError } from './utils.js?v=202610281042';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610281042';
+import { setupScanTools } from './china-mibal2-scan.js?v=202610281042';
+import { setupLocMode } from './china-mibal2-loc.js?v=202610281042';
 
 const { db, auth } = initializeFirebase();
 
@@ -252,7 +252,7 @@ function applyFilters() {
     const diffOnly = $('chk-diff-only').checked;
     const checkOnly = $('chk-check-only').checked;
     viewRows = allRows.filter(r => {
-        // 차이 = 둘 다 있으면 값이 다를 때, 한쪽만 있으면(기존에만·3층 모름) 그것도 차이로 본다
+        // 차이 = 둘 다 있으면 값이 다를 때, 한쪽만 있으면(기존 값 없음·3층 모름) 그것도 차이로 본다. 기존에만 있는 상품은 행이 없다(10/28)
         const hasDiff = r.diff !== null ? r.diff !== 0 : (r.old !== null) !== (r.third !== null);
         if (diffOnly && !hasDiff) return false;
         if (checkOnly && !r.check) return false;
