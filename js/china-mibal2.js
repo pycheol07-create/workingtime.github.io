@@ -8,11 +8,12 @@
 // 읽기: integrations/mibal2Latest (Apps Script 가 씀) · ChinaStockGoods/CONFIG · ChinaStockGoods/EDITED_CELLS ·
 //       Locations(ZONE_*) · ChinaStockGoods_ScanDB_Versions(없으면 ChinaStockGoods_ScanDB) · mibal2/settings ·
 //       config/mainConfig(입장 판정만 — 관리자 또는 'china.mibal2' 권한, js/lib/mibal2-access.js)
-//       + 스캐너 연동(시험 — 읽기 전용, js/china-mibal2-scan.js): [비축창고 보기] FLOOR2_STOCK·LOC_SHARD_0~7 구독 ·
-//         [스캐너 값 미리보기 엑셀] ChinaStockGoods_InboundHistory·ChinaStockGoods_ScanDB 누를 때 1회 읽기
+//       + 스캐너 연동(시험 — 읽기 전용, js/china-mibal2-scan.js): ChinaStockGoods_InboundHistory 구독(입고확인 — 부족수량 보기에
+//         처음 들어갈 때 한 번, 미리보기 엑셀도 이 값을 같이 씀) · [비축창고 보기] FLOOR2_STOCK·LOC_SHARD_0~7 구독 ·
+//         [입고 오차 통계] ChinaStockGoods_InboundDiff 기간 읽기 · [스캐너 값 미리보기 엑셀] ChinaStockGoods_ScanDB 누를 때 1회 읽기
 //       + 위치지정(시험 — 보기·엑셀 받기만, js/china-mibal2-loc.js): 그 보기에 처음 들어갈 때 비축창고·위치 구독(위와 공유)과
 //         미발재고로그 1회 읽기. 이 파일은 그 자료를 직접 읽지 않는다. 보기 선택은 이 브라우저에만 기억(localStorage mibal2.view)
-//       표에 입고확인·차이(도착−입고) 열은 두지 않는다 — 기존 부족수량관리(china-stock-goods)의 기능(2026-10-27 사용자 결정)
+//       표의 입고확인·차이(도착−입고) 열·'선택 출고일 밖 입고' 행 — 2026-10-27 에 뺐다가 2026-10-28 다시 넣음(사용자 결정: 기능은 다 넣고 쓰기는 꺼 둠)
 // 쓰기: artifacts/team-work-logger-v2/mibal2/{settings, refreshRequest} 2종만. 그 외 쓰기 0건.
 //       운영 스캐너 자료(ScanDB·InboundHistory·FLOOR2_STOCK·FORCE_ALLOW·ScanDB_Versions·LOC_SHARD·InboundDiff)에는 쓰지 않는다
 //       — 그 쓰기 버튼은 화면에서 disabled('시험 모드 — 꺼짐'). tests/mibal2-readonly.test.js 가 소스를 검사한다.
@@ -20,23 +21,25 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610281101'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610281122'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610281101';
-import { sortMark } from './lib/china-stock-view.js?v=202610281101';
+import { explain } from './lib/mibal2-calc.js?v=202610281122';
+import { sortMark } from './lib/china-stock-view.js?v=202610281122';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202610281101';
-import { setShellContext } from './app-shell-bridge.js?v=202610281101';
-import { memberNameFor } from './app-shell-data.js?v=202610281101';
-import { mountBusyBanner } from './busy-banner.js?v=202610281101';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610281101';
-import { friendlyFirebaseError } from './utils.js?v=202610281101';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610281101';
-import { setupScanTools } from './china-mibal2-scan.js?v=202610281101';
-import { setupLocMode } from './china-mibal2-loc.js?v=202610281101';
+} from './lib/mibal2-rows.js?v=202610281122';
+import { setShellContext } from './app-shell-bridge.js?v=202610281122';
+import { memberNameFor } from './app-shell-data.js?v=202610281122';
+import { mountBusyBanner } from './busy-banner.js?v=202610281122';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610281122';
+import { friendlyFirebaseError } from './utils.js?v=202610281122';
+import { diffOf } from './lib/inbound-diff.js?v=202610281122';
+import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202610281122';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610281122';
+import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202610281122';
+import { setupLocMode } from './china-mibal2-loc.js?v=202610281122';
 
 const { db, auth } = initializeFirebase();
 
@@ -112,6 +115,11 @@ let pending = null;            // 지금 갱신 요청 대기 { atMs, baseRun, b
 let firstServerSeen = false;   // 서버에서 온 첫 mibal2Latest 를 봤는지(자동 요청 판단용)
 let started = false;
 let isAccessOk = false;        // 입장 판정(관리자 또는 china.mibal2 권한) 통과 전에는 어떤 쓰기도 하지 않는다
+// 스캐너 연동(시험 — 읽기 전용)
+let inboundMap = {};           // ChinaStockGoods_InboundHistory barcode 별 qty 합(미발 초기화 이후 전체)
+let inboundKnown = false;      // 입고이력을 한 번이라도 받았는지
+let inboundErr = '';           // 입고이력 구독 실패 문구
+let inboundStarted = false;    // 입고이력 구독을 걸었는지(한 번만 — 부족수량 보기에 처음 들어갈 때)
 let busyViews = {};            // '갱신 중' 띠 판정 { lease, mibalRequest } — js/busy-banner.js onState
 let busyBannerStop = null;     // 띠 해제 함수(.refresh() 로 다시 그림)
 let busyMsg = '';              // 띠 상태 때문에 refresh-msg 에 넣은 문구(상태가 풀리면 이것만 지운다)
@@ -245,6 +253,7 @@ function liveCtx() {
 function sortKeyVal(r, key) {
     if (key === 'name') return (r.name + ' ' + r.option).toLowerCase();
     if (key === 'code' || key === 'loc') return String(r[key] || '');
+    if (key === 'conf') { const n = parseInt(r.conf); return isNaN(n) ? null : n; }   // 빈칸·수동 글자 → 모름(아래로)
     return r[key];
 }
 function applyFilters() {
@@ -299,6 +308,11 @@ function oldSourceText(os) {
 }
 
 function detailHtml(r) {
+    if (r.outside) {
+        return `<ul><li><b>선택 출고일 밖 입고</b>: 선택한 출고일의 도착 목록에 없는 코드인데 앱 스캔 입고가 ${num(r.conf)} 있습니다.
+            다른 출고일 상품이거나 오더리스트에 없는 상품일 수 있습니다 — 신규 수집 자료에는 최근 출고 코드만 있어 구별하지 못합니다(기존 계산기 판정과 다를 수 있음).
+            계산·스캐너 미리보기에서는 뺍니다.</li></ul>`;
+    }
     const c = ctx || {};
     const range = c.range || {};
     const fmtEntry = (e) => `${esc(e[0])} 출고 ${e[1] ? '→ ' + esc(e[1]) + ' 본사도착' : '(도착일 없음)'} · ${num(parseInt(e[2]) || 0)}장`;
@@ -324,7 +338,19 @@ function detailHtml(r) {
             <li><b>적재량 ${num(r.cap)}</b>: ${esc(r.capSrc)}</li>
             <li><b>기존 계산기 미발수량</b>: ${oldTxt}</li>
             <li><b>기존공식×신규입력</b>: ${oldNewTxt}</li>
+            ${confDetailHtml(r)}
         </ul>`;
+}
+
+/** 계산 근거의 입고확인 줄 — 출고일별 도착(byShip)과 함께 */
+function confDetailHtml(r) {
+    if (r.confSrc === undefined) return '';
+    const srcTxt = r.confSrc === 'scan' ? '앱 스캔 입고 합(미발 초기화 이후 전체 — 출고일 구분 없음)'
+        : r.confSrc === 'manual' ? '기존 계산기에 손으로 넣은 값(EDITED_CELLS)' : '빈칸 = 미스캔';
+    const bs = Object.entries(byShipOf(r.arrUsed)).sort((a, b) => a[0].localeCompare(b[0])).map(([d, q]) => `${esc(d)} ${num(q)}`).join(' · ');
+    const dTxt = r.inDiff === null || r.inDiff === undefined ? '–(미스캔)' : (r.inDiff > 0 ? `${num(r.inDiff)} (부족입고)` : r.inDiff < 0 ? `${num(r.inDiff)} (과입고)` : '0');
+    const cv = String(r.conf == null ? '' : r.conf);
+    return `<li><b>입고확인</b>: ${cv.trim() === '' ? '<span class="muted">빈칸</span>' : esc(cv)} — ${srcTxt} · 차이(도착−입고확인) ${dTxt}${bs ? ` · 출고일별 도착 ${bs}` : ''}</li>`;
 }
 
 function renderTable() {
@@ -346,8 +372,10 @@ function renderTable() {
             <td class="code-cell">${esc(r.code)}</td>
             <td class="name-cell" title="${esc(r.name + (r.option ? ' / ' + r.option : ''))}">${esc(r.name)}${r.option ? ` <span class="t-3">/ ${esc(r.option)}</span>` : ''}</td>
             <td>${r.locInfo ? esc(r.loc) : '<span class="t-risk">미지정</span>'}</td>
-            <td title="${esc(r.capSrc)}">${num(r.cap)}<span class="cap-kind">${esc(r.capKind)}</span></td>
+            ${r.cap === null ? `<td>${numOr(null)}</td>` : `<td title="${esc(r.capSrc)}">${num(r.cap)}<span class="cap-kind">${esc(r.capKind)}</span></td>`}
             <td><b>${num(r.arr)}</b></td>
+            ${confCellHtml(r)}
+            ${inDiffCellHtml(r)}
             <td>${numOr(r.stock)}</td>
             <td>${numOr(r.bstock)}</td>
             <td>${r.pstock < 0 ? `<b class="t-risk">${num(r.pstock)}</b>` : numOr(r.pstock)}</td>
@@ -397,9 +425,15 @@ function renderSourceNote() {
     parts.push(`<b>도착</b> 시트 기준일 ${esc(c.asOf || '?')} · 유예 ${num(c.graceDays)}일`);
     parts.push(`<b>적재량</b> 구역 설정 + 개별값 ${num(c.editedCount)}개`);
     parts.push(`<b>로케이션</b> 로케이션관리 ${num(c.locCount)}개 코드`);
+    {
+        const codes = Object.keys(inboundMap).filter(k => inboundMap[k]);
+        const total = codes.reduce((x, k) => x + (inboundMap[k] || 0), 0);
+        parts.push(`<b>입고확인</b> ${inboundErr ? '읽기 실패' : inboundKnown ? `앱 스캔 ${num(codes.length)}개 코드 · ${num(total)}장(미발 초기화 이후 전체)` : '불러오는 중'} + 기존 계산기 수동값`);
+    }
     if (c.oldSource) parts.push(`<b>기존 계산기 미발수량</b> ${oldSourceText(c.oldSource)}${c.oldSource.kind === 'live' ? ' — ⚠ 스캐너 입고분이 이미 빠져 있을 수 있음' : ''}`);
     const warns = [];
     if (c.parseError) warns.push(c.parseError);
+    if (inboundErr) warns.push(`앱 입고이력을 읽지 못해 입고확인에 스캔분이 빠졌습니다 — ${inboundErr}`);
     const keep = parseInt(c.keepArrivedDays) || 0;
     if (keep && c.graceDays > keep) warns.push(`유예 ${c.graceDays}일이 수집 보관 ${keep}일보다 커서 오래 전 도착분은 빠집니다`);
     if (c.shipStaleDays) warns.push(`도착일 없이 출고 ${num(c.shipStaleDays)}일 넘은 기록은 수집에서 빠집니다(기존 화면은 포함)`);
@@ -412,10 +446,78 @@ function renderSourceNote() {
     box.innerHTML = parts.join(' · ') + (warns.length ? `<br><span class="t-risk">⚠ ${warns.map(esc).join(' / ')}</span>` : '');
 }
 
+// ── 스캐너 연동(시험 — 읽기 전용): 입고확인·차이(도착 − 입고확인) ──
+// 입고확인 = 기존 계산기와 같은 규칙(lib/scan-link.js confirmedOf) — 앱 스캔 합(미발 초기화 이후 전체) → 수동값(EDITED_CELLS).
+// 차이·색은 기존 화면 diffCellView 와 같다(lib/inbound-diff.js diffOf).
+function withScanLink(rows) {
+    rows.forEach(r => {
+        const c = confirmedOf(r.code, inboundMap, editedCells);
+        const d = diffOf({ arrivalQty: r.arr, confirmed: c.confirmed, confSrc: c.confSrc });
+        r.conf = c.confirmed;
+        r.confSrc = d.src;                                  // 기존 setRowDiff 처럼 diffOf 결과(숫자 아닌 수동값 → none)
+        r.inDiff = d.src === 'none' ? null : d.d;
+    });
+    // 표에 없는데 앱 스캔 입고가 있는 코드 — 신규 스냅샷에는 최근 출고 코드만 있어 '미등록' 인지는 모른다
+    //   표에 아는 행이 하나도 없으면(출고일 미선택·수집 자료 없음·구독 순서) 붙이지 않는다 — 스캔 전부가 '출고일 밖'으로 보이고 '출고일을 선택하세요' 안내가 사라진다
+    if (!rows.length) return rows;
+    outsideInboundOf(inboundMap, rows.map(r => r.code)).forEach(({ code, qty }) => rows.push(outsideRow(code, qty)));
+    return rows;
+}
+/** '선택 출고일 밖 입고' 행 — 계산 칸은 모두 모름(–). 스캐너 미리보기에서는 뺀다(r.outside) */
+function outsideRow(code, qty) {
+    const it = (ship.items || {})[code] || {};
+    const li = locIndex[code] || null;
+    const d = diffOf({ arrivalQty: 0, confirmed: qty, confSrc: 'scan' });
+    return {
+        code, name: it.nm || '', option: it.op || '', loc: li ? li.id : '미지정', locInfo: li,
+        cap: null, capSrc: '', capKind: '', arr: 0, arrUsed: [], arrSkipped: [],
+        stock: null, bstock: null, pstock: null, recv: null, inv: null, out: null, short: null, mibal: null, unres: null,
+        remArr: null, pickAfter: null, resAfter: null, room: null, pick: null, resv: null, refill: null, third: null,
+        old: null, oldArr: null, oldNew: null, shortage: null, diff: null, diffAbs: -1,
+        flags: ['outsideIn'], check: false, input: null, res: null,
+        outside: true, conf: qty, confSrc: d.src, inDiff: d.src === 'none' ? null : d.d
+    };
+}
+/** 입고확인 칸 — 기존 화면과 같은 색: 도착과 다르면(빈칸=0 포함) 빨강, 같고 앱 스캔이면 파랑 */
+function confCellHtml(r) {
+    if (r.confSrc === undefined) return `<td>${numOr(null)}</td>`;
+    const mismatch = (parseInt(r.conf) || 0) !== (parseInt(r.arr) || 0);
+    const fromApp = inboundMap[r.code] !== undefined;
+    const cls = mismatch ? 'conf-bad' : (fromApp ? 'conf-scan' : '');
+    const title = mismatch ? '입고확인 ≠ 도착수량 — 수량 확인 필요' : (fromApp ? '앱 스캔 입고 합(미발 초기화 이후)' : (r.confSrc === 'manual' ? '기존 계산기 입고확인 수동값' : ''));
+    const v = r.conf === null || r.conf === undefined ? '' : String(r.conf);
+    return `<td class="${cls}" title="${esc(title)}">${esc(v)}</td>`;
+}
+/** 차이(도착 − 입고확인) 칸 — 기존 화면 diffCellView 와 같다: 양수 빨강(부족입고) · 음수 파랑(과입고) · 미스캔 '–' */
+function inDiffCellHtml(r) {
+    if (r.confSrc === undefined) return `<td>${numOr(null)}</td>`;
+    const v = r.inDiff;
+    if (v === null || v === undefined) return `<td class="in-diff-cell t-3" title="입고확인 빈칸(또는 숫자 아님) — 미스캔">–</td>`;
+    if (v > 0) return `<td class="in-diff-cell t-risk" title="부족입고 ${num(v)}">${num(v)}</td>`;
+    if (v < 0) return `<td class="in-diff-cell t-accent" title="과입고 ${num(-v)}">${num(v)}</td>`;
+    return `<td class="in-diff-cell" title="도착 = 입고확인">0</td>`;
+}
+/** 입고이력 구독 — 부족수량 보기에 처음 들어갈 때 한 번만(위치지정 보기만 여는 사람은 읽지 않는다). 입장 판정 뒤에만 */
+function ensureInbound() {
+    if (inboundStarted || !isAccessOk || viewMode !== 'live') return;
+    inboundStarted = true;
+    subscribeInbound(db, (m) => {
+        inboundMap = m; inboundKnown = true; inboundErr = '';
+        recomputeAndRender();
+    }, (err) => {
+        console.error('[mibal2] 입고이력 구독 실패:', err && err.code);
+        inboundErr = errText(err);
+        // 오류로 구독이 끝났다 — 옛 값을 '받은 값'으로 쓰지 않게 되돌리고(미리보기는 새로 1회 읽음), 다음 보기 전환 때 다시 건다
+        inboundKnown = false;
+        inboundStarted = false;
+        renderSourceNote();
+    });
+}
+
 /** 지금 보기 기준으로 다시 계산·그리기 */
 function recomputeAndRender() {
     ctx = liveCtx();
-    allRows = computeRows(liveBundle());
+    allRows = withScanLink(computeRows(liveBundle()));
     renderDateTags();
     applyFilters();
     renderSourceNote();
@@ -432,6 +534,7 @@ function setView(mode, save) {
     $('date-dropdown-popup').style.display = 'none'; popupSnapshot = null;
     // 위치지정 보기에 처음 들어갈 때만 구독·1회 읽기를 시작한다(입장 판정 전이면 판정 뒤 startAfterAccess 가 부른다)
     if (viewMode === 'loc' && locTools) locTools.enter();
+    ensureInbound();   // 부족수량 보기면 입고이력 구독(처음 한 번)
     if (save) { try { localStorage.setItem(VIEW_KEY, viewMode); } catch (e) { /* 기억 못 해도 보기는 바뀐다 */ } }
 }
 
@@ -468,8 +571,10 @@ function renderDateTags() {
         return `<span class="date-tag">${fmtMD(d)} 출고${arr}${x ? '' : ' (유예 지남/없음)'}</span>`;
     }).join('');
     const same = JSON.stringify([...selectedDates].sort()) === JSON.stringify([...legacyDates].sort());
+    // 입고확인은 출고일과 상관없이 미발 초기화 이후 스캔 전체 — 따로 고른 출고일이면 그 점을 덧붙인다
+    const confNote = ' · 입고확인은 출고일 구분 없이 미발 초기화 이후 스캔 전체';
     $('date-src').textContent = dateSource === 'own'
-        ? (same ? '이 화면에서 고른 출고일 (기존과 같음)' : '이 화면에서 고른 출고일 (기존 계산기와 다름)')
+        ? (same ? '이 화면에서 고른 출고일 (기존과 같음)' : '이 화면에서 고른 출고일 (기존 계산기와 다름)' + confNote)
         : '기존 계산기와 같은 출고일';
     setDateDiffWarn(legacyKnown && dateSource === 'own' && !same);   // CONFIG 를 못 읽었으면(기존 출고일 모름) 경고·버튼 숨김
 }
@@ -680,6 +785,8 @@ function downloadExcel() {
     const X = window.XLSX;
     if (!X) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
     if (!viewRows.length) { showToast('받을 행이 없습니다'); return; }
+    // 입고이력을 아직 못 받았거나 읽기 실패면 입고확인·차이에 스캔분이 빠져 있다 — 받기 전에 알린다
+    if ((!inboundKnown || inboundErr) && !confirm('⚠️ 앱 스캔 입고 기록을 아직 받지 못했습니다(또는 읽기 실패).\n엑셀의 입고확인·차이 칸에 스캔분이 빠져 있습니다.\n\n그래도 받을까요?')) return;
     const id = ymd();
     const ws = X.utils.aoa_to_sheet(excelAoaOf(viewRows));
     const wb = X.utils.book_new();
@@ -689,7 +796,7 @@ function downloadExcel() {
 
 // ── 보기 항목: 간단히(기본) / 전체 — 열·카드 숨김은 CSS(body[data-cols]). 고른 것은 이 브라우저에만 기억 ──
 const COLS_KEY = 'mibal2.cols';
-const colSpan = () => (document.body.dataset.cols === 'simple' ? 12 : 23);   // 간단히에서 보이는 열 수
+const colSpan = () => (document.body.dataset.cols === 'simple' ? 14 : 25);   // 간단히에서 보이는 열 수
 function setCols(mode, save) {
     const simple = mode !== 'full';
     document.body.dataset.cols = simple ? 'simple' : 'full';
@@ -934,10 +1041,12 @@ async function startAfterAccess() {
         $('status-chip').textContent = '● 수집 자료 읽기 실패';
         $('status-err').textContent = errText(err);
     });
-    // 스캐너 연동(시험 — 읽기 전용): 켜진 버튼 2개(비축창고 보기·스캐너 값 미리보기 엑셀). 입고이력은 미리보기를 누를 때만 읽는다
+    // 스캐너 연동(시험 — 읽기 전용): 입고이력 구독(부족수량 보기일 때 한 번) + 켜진 버튼 3개(입고 오차 통계·비축창고 보기·스캐너 값 미리보기 엑셀)
+    ensureInbound();
     setupScanTools({
         db, showToast, setLoading,
-        getLiveRows: () => allRows
+        getLiveRows: () => allRows,
+        getInboundMap: () => (inboundKnown ? inboundMap : null)   // 아직 못 받았으면(또는 실패) 미리보기가 한 번 읽는다
     });
     // 위치지정(시험 — 보기·엑셀 받기만). 기억한 보기가 위치지정이면 여기서 들어간다(그때 처음 구독)
     locTools = setupLocMode({

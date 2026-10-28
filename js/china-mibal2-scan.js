@@ -3,38 +3,57 @@
 //
 // ⚠️ 읽기만 한다. 운영 스캐너 자료(ScanDB·InboundHistory·FLOOR2_STOCK·FORCE_ALLOW·ScanDB_Versions·LOC_SHARD·InboundDiff)에는
 //    한 건도 쓰지 않는다 — firestore 쓰기 함수를 import 하지 않는다(tests/mibal2-readonly.test.js 가 소스를 검사).
-//    쓰기 버튼(스캐너DB 반영·스캔잠금·버전·미발 초기화)은 HTML 에서 disabled — 여기서 이벤트도 걸지 않는다.
+//    쓰기 버튼(스캐너DB 반영·스캔잠금·버전·미발 초기화·입고 오차 기록)은 HTML 에서 disabled — 여기서 이벤트도 걸지 않는다.
 // 읽기(경로·이름은 js/china-stock-goods.js 와 같다 — 그 파일은 import 하지 않는다):
 //   · ChinaStockGoods/FLOOR2_STOCK · LOC_SHARD_0~7 구독 — [비축창고 보기]를 열거나 '위치지정(시험)' 보기에 처음 들어갈 때부터.
 //     구독은 한 벌(ensureScanStore)을 두 곳이 같이 쓴다 — 페이지를 열기만 해서는 읽지 않는다.
 //     LOC_SHARD 는 위치지정 표에 쓰는 칸만 남긴다(작업자 이름 대신 스캐너 전송분인지만 — js/lib/loc-mode.js locAssignFullOf)
-//   · ChinaStockGoods_InboundHistory·ChinaStockGoods_ScanDB 1회 읽기 — [스캐너 값 미리보기 엑셀]을 누를 때만(구독 안 함.
-//     입고이력은 barcode·qty 만 씀 — 앱 스캔 입고분을 빼서 넣을 값을 만든다)
-//   표의 입고확인·차이 열과 입고 오차 통계·기록은 두지 않는다(기존 부족수량관리의 기능 — 2026-10-27·28 사용자 결정)
+//   · ChinaStockGoods_InboundHistory 구독(barcode·qty 만 씀) — subscribeInbound, 표 '입고확인'(china-mibal2.js 가 부족수량 보기에
+//     처음 들어갈 때 한 번 건다). [스캐너 값 미리보기 엑셀]도 이 값을 같이 쓰고, 아직 못 받았으면 그때 한 번 읽는다
+//   · ChinaStockGoods_InboundDiff 기간 읽기 — [입고 오차 통계]를 열 때(읽기만 — 기록은 기존 미발계산기가 남긴다)
+//   · ChinaStockGoods_ScanDB 1회 읽기 — [스캐너 값 미리보기 엑셀]을 누를 때(비교용)
+//   표의 입고확인·차이 열(2026-10-27)과 입고 오차 통계(2026-10-28)는 뺐다가 2026-10-28 다시 넣었다(사용자 결정: 기능은 다 넣고 쓰기는 꺼 둠 —
+//   [입고 오차 기록]은 꺼진 단추)
 // 엑셀은 내 PC 로 내려받기만 한다(신규 화면과 같은 XLSX.writeFile .xlsx). 파일 이름은 '시험_' 으로 시작 — 이지어드민 업로드용이 아니다.
-import { getDocs, onSnapshot, doc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202610281101';
-import { locAssignFullOf } from './lib/loc-mode.js?v=202610281101';
-import { friendlyFirebaseError } from './utils.js?v=202610281101';
+import { getDocs, onSnapshot, doc, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202610281122';
+import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202610281122';
+import { locAssignFullOf } from './lib/loc-mode.js?v=202610281122';
+import { friendlyFirebaseError } from './utils.js?v=202610281122';
 
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const INBOUND_COLL = CHINA_COLLECTION + '_InboundHistory';
 const SCANDB_COLL = CHINA_COLLECTION + '_ScanDB';
+const INBOUND_DIFF_COLL = CHINA_COLLECTION + '_InboundDiff';
 const FLOOR2_DOC = 'FLOOR2_STOCK';
 const NUM_LOC_SHARDS = 8;   // china-stock-goods.js NUM_LOC_SHARDS 와 같다
+// 기존 화면(china-stock-goods.js INBOUND_DIFF_DENIED)과 같은 문구 — 규칙 게시 전이면 읽기도 막힌다
+const INBOUND_DIFF_DENIED = '입고 오차 기록 권한이 없습니다(서버 규칙 게시 전이거나 등록 직원이 아닙니다).';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const isPermissionDenied = (e) => !!e && (e.code === 'permission-denied' || /permission/i.test(String(e.message || '')));
 const pad2 = (n) => String(n).padStart(2, '0');
 const todayISO = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const ymd = (d = new Date()) => todayISO(d).replace(/-/g, '');
 
+/** 입고이력 문서 → barcode·qty 만(작업자 등 다른 칸은 보지 않는다) */
+const inboundPick = (d) => { const x = d.data() || {}; return { barcode: x.barcode, qty: x.qty }; };
+
 /**
- * 입고이력 1회 읽기 → { barcode: qty 합 }. 문서에서 barcode·qty 만 꺼낸다(작업자 등 다른 칸은 보지 않는다).
+ * 입고이력 구독. onChange(inboundMap) · onError(err). → 구독 해제 함수.
+ * china-mibal2.js 가 한 번만 건다(표 입고확인). 미리보기 엑셀은 opts.getInboundMap 으로 이 값을 같이 쓴다.
  */
+export function subscribeInbound(db, onChange, onError) {
+    return onSnapshot(query(collection(db, INBOUND_COLL)),
+        (snap) => onChange(inboundMapOf(snap.docs.map(inboundPick))),
+        (err) => { if (onError) onError(err); });
+}
+
+/** 입고이력 1회 읽기 → { barcode: qty 합 } — 구독 값을 아직 못 받았을 때만(미리보기 엑셀) */
 async function readInboundMap(db) {
     const snap = await getDocs(collection(db, INBOUND_COLL));
-    return inboundMapOf(snap.docs.map(d => { const x = d.data() || {}; return { barcode: x.barcode, qty: x.qty }; }));
+    return inboundMapOf(snap.docs.map(inboundPick));
 }
 
 /**
@@ -91,10 +110,85 @@ export function ensureScanStore(db) {
 /**
  * 버튼·창 연결. opts:
  *   db, showToast(msg), setLoading(on, text),
- *   getLiveRows() → 오늘(실시간) 보기의 행
+ *   getLiveRows() → 오늘(실시간) 보기의 행,
+ *   getInboundMap() → 구독으로 받은 입고이력 합(아직 못 받았으면 null — 그때는 미리보기가 한 번 읽는다)
  */
 export function setupScanTools(opts) {
-    const { db, showToast, setLoading, getLiveRows } = opts;
+    const { db, showToast, setLoading, getLiveRows, getInboundMap } = opts;
+
+    // ── 입고 오차 통계 (읽기 전용 — 기존 화면 openInboundDiffModal 과 같은 표. 기록은 기존 미발계산기가 남긴다) ──
+    let idfTab = 'ship';
+    let idfRecs = [];
+    let idfReqSeq = 0;
+    const idfOpts = () => ({
+        from: $('idf-from').value || '', to: $('idf-to').value || '',
+        kind: $('idf-kind').value || 'all', includeNoScan: !!$('idf-noscan').checked
+    });
+    const idfData = (tab, recs, o) => {
+        if (tab === 'month') return monthlyTrend(recs, o);
+        if (tab === 'code') return topCodes(recs, o);
+        if (tab === 'supplier') return bySupplier(recs, o);
+        return summarizeByShip(recs, o);
+    };
+    async function fetchInboundDiffRange(from, to) {
+        const { start, end } = queryRange(from, to);
+        const cons = [];
+        if (start) cons.push(where(documentId(), '>=', start));
+        if (end) cons.push(where(documentId(), '<=', end));
+        const snap = await getDocs(query(collection(db, INBOUND_DIFF_COLL), ...cons));
+        return snap.docs.map(d => d.data());
+    }
+    async function refreshStats() {
+        const o = idfOpts();
+        const tb = $('idf-tbody');
+        const seq = ++idfReqSeq;
+        tb.innerHTML = '<tr><td class="t-3" style="padding:22px;">불러오는 중...</td></tr>';
+        let recs;
+        try { recs = await fetchInboundDiffRange(o.from, o.to); }
+        catch (e) {
+            if (seq !== idfReqSeq) return;
+            idfRecs = [];
+            $('idf-summary').textContent = '';
+            tb.innerHTML = `<tr><td style="padding:22px;" class="t-risk">${esc(isPermissionDenied(e) ? INBOUND_DIFF_DENIED : '불러오지 못했습니다 — ' + friendlyFirebaseError(e))}</td></tr>`;
+            return;
+        }
+        if (seq !== idfReqSeq) return;   // 그사이 더 새 요청이 있었다
+        idfRecs = recs;
+        renderStats();
+    }
+    function renderStats() {
+        const o = idfOpts();
+        document.querySelectorAll('#idf-tabs .idf-tab').forEach(b => b.classList.toggle('d-btn-primary', b.dataset.tab === idfTab));
+        const g = overallSummary(summarizeByShip(idfRecs, o));
+        const n = (v) => Number(v || 0).toLocaleString();
+        $('idf-summary').innerHTML = `패킹 <b>${n(g.packs)}건</b>${g.bundles ? ` (+ 묶음 줄 ${n(g.bundles)})` : ''} · 도착 <b>${n(g.arr)}</b> · 입고 <b>${n(g.conf)}</b>`
+            + ` · 오차 <b>${n(g.errN)}품목</b> (부족 <b class="t-risk">${n(g.short)}</b> · 과입고 <b class="t-accent">${n(g.over)}</b>)`
+            + ` · 오차율 <b>${g.rate === null ? '–' : esc((Math.round(g.rate * 1000) / 10).toFixed(1)) + '%'}</b>`
+            + ` · 미스캔 <b>${n(g.noScanN)}품목 ${n(g.noScanQ)}장</b>${o.includeNoScan ? ' (오차·오차율에 포함)' : ' (오차·오차율에서 뺌)'}`;
+        const aoa = statsAoa(idfTab, idfData(idfTab, idfRecs, o));
+        const head = aoa[0] || [], rows = aoa.slice(1);
+        $('idf-thead').innerHTML = '<tr>' + head.map(h => `<th class="d-th">${esc(h)}</th>`).join('') + '</tr>';
+        const cls = (h, v) => (h === '부족' && v > 0) ? ' class="t-risk"' : ((h === '과입고' && v > 0) ? ' class="t-accent"' : '');
+        $('idf-tbody').innerHTML = rows.length ? rows.map(r => '<tr style="border-bottom:1px solid var(--c-line);">'
+            + r.map((v, i) => `<td${cls(head[i], v)} style="padding:6px 6px;">${esc(v === null || v === undefined ? '' : v)}</td>`).join('') + '</tr>').join('')
+            : `<tr><td colspan="${head.length || 1}" class="t-3" style="padding:22px;">기간 안에 기록이 없습니다. 기록은 기존 미발계산기에서 쌓입니다(이 화면은 읽기만 합니다).</td></tr>`;
+    }
+    function downloadStats() {
+        const X = window.XLSX;
+        if (!X) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
+        const o = idfOpts();
+        const aoa = statsAoa(idfTab, idfData(idfTab, idfRecs, o));
+        if (aoa.length <= 1) { showToast('내려받을 데이터가 없습니다'); return; }
+        const wb = X.utils.book_new();
+        X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(aoa), 'worksheet');
+        X.writeFile(wb, `시험_입고오차_${(STATS_TAB_LABEL[idfTab] || idfTab).replace(/\s+/g, '')}_${o.from || '처음'}_${o.to || '끝'}.xlsx`);
+    }
+    async function openStats() {
+        if (!$('idf-from').value) $('idf-from').value = shiftIso(todayISO(), -90);   // 기본 90일
+        if (!$('idf-to').value) $('idf-to').value = todayISO();
+        $('inbound-diff-modal').style.display = 'flex';
+        await refreshStats();   // 열 때마다 새로 읽는다
+    }
 
     // ── 비축창고 보기 (FLOOR2_STOCK + 앱 지정 위치 LOC_SHARD — ensureScanStore 구독 공유) ──
     let store = null;
@@ -156,7 +250,8 @@ export function setupScanTools(opts) {
         let preview;
         let scanDb = {};
         try {
-            preview = scanDbPreviewOf(rows, await readInboundMap(db));
+            const im = (getInboundMap && getInboundMap()) || await readInboundMap(db);   // 구독 값 우선(중복 읽기 안 함)
+            preview = scanDbPreviewOf(rows, im);
             const snap = await getDocs(collection(db, SCANDB_COLL));
             snap.forEach(d => { const v = d.data() || {}; scanDb[d.id] = { arrivalQty: v.arrivalQty, mibalQty: v.mibalQty, location: v.location, name: v.name }; });
         } catch (e) {
@@ -172,7 +267,7 @@ export function setupScanTools(opts) {
             ['시험용 미리보기 — 스캐너DB 에는 아무것도 쓰지 않았습니다. 이지어드민 업로드용 파일이 아닙니다.'],
             ['신규 arrivalQty = max(도착 − 앱 스캔 입고, 0) · 신규 mibalQty = max(피킹 배정수량 − 앱 스캔 입고, 0) (비축 모름이면 빈칸)'],
             ['신규 location = 로케이션관리(Locations) 대표 피킹자리 · ScanDB location = 기존 계산기(미발재고로그 로케이션)'],
-            ['대상 = 선택 출고일에 도착이 있는 코드 + 지금 ScanDB 에 있는 코드'],
+            ['대상 = 선택 출고일에 도착이 있는 코드(선택 출고일 밖 입고 행은 뺌) + 지금 ScanDB 에 있는 코드'],
             [`만든 때 ${new Date().toLocaleString()} · 코드 ${aoa.length - 1}개 · 다른 칸 있음 ${diffN}개`]
         ];
         const wb = X.utils.book_new();
@@ -181,15 +276,22 @@ export function setupScanTools(opts) {
         X.writeFile(wb, `시험_스캐너미리보기_${ymd()}.xlsx`);
     }
 
-    // ── 이벤트 (켜진 버튼 2개 + 창 안 버튼만. 꺼진 버튼에는 아무것도 걸지 않는다) ──
+    // ── 이벤트 (켜진 버튼 3개 + 창 안 버튼만. 꺼진 버튼에는 아무것도 걸지 않는다) ──
+    $('btn-scan-stats').addEventListener('click', openStats);
     $('btn-scan-floor2').addEventListener('click', openFloor2);
     $('btn-scan-preview').addEventListener('click', downloadPreview);
     const close = (id) => { $(id).style.display = 'none'; };
+    $('btn-inbound-diff-close').addEventListener('click', () => close('inbound-diff-modal'));
+    $('inbound-diff-modal').addEventListener('click', (e) => { if (e.target.id === 'inbound-diff-modal') close('inbound-diff-modal'); });
+    ['idf-from', 'idf-to'].forEach(id => $(id).addEventListener('change', refreshStats));
+    ['idf-kind', 'idf-noscan'].forEach(id => $(id).addEventListener('change', renderStats));
+    $('idf-tabs').addEventListener('click', (e) => { const b = e.target.closest('.idf-tab'); if (b) { idfTab = b.dataset.tab; renderStats(); } });
+    $('btn-idf-download').addEventListener('click', downloadStats);
     $('btn-floor2-close').addEventListener('click', () => close('floor2-modal'));
     $('floor2-modal').addEventListener('click', (e) => { if (e.target.id === 'floor2-modal') close('floor2-modal'); });
     $('btn-f2-download').addEventListener('click', downloadFloor2);
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
-        if ($('floor2-modal').style.display === 'flex') close('floor2-modal');
+        ['inbound-diff-modal', 'floor2-modal'].forEach(id => { if ($(id).style.display === 'flex') close(id); });
     });
 }
