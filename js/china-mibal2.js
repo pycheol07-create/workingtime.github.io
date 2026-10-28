@@ -1,58 +1,56 @@
 // === js/china-mibal2.js ===
 // 신규 미발계산기(시험) — 기존 '중국제작 미발계산기'와 나란히 비교하는 화면. 설계: 업무자동화\앱\미발계산기2\설계.md
 //
-// 보기 두 가지 — 계산은 둘 다 js/lib/mibal2-rows.js computeRows(입력 묶음 → 행) 하나로 한다.
+// 계산은 js/lib/mibal2-rows.js computeRows(입력 묶음 → 행) 하나로 한다.
 //   · 오늘(실시간): integrations/mibal2Latest + 지금의 CONFIG·EDITED_CELLS·Locations·기존 미발
-//   · 날짜별 비교: integrations/mibal2Daily_YYYYMMDD — 수집기가 그날 첫 성공 때 기존 쪽 입력까지 함께 저장한 사본(읽기 전용)
+//   날짜별 비교(수집기 사본 mibal2Daily_*·수동 저장 compare_*)는 2026-10-28 사용자 결정으로 없앴다(이미 쌓인 문서는 그대로 둠)
 //
-// 읽기: integrations/mibal2Latest·mibal2Daily_* (Apps Script 가 씀) · ChinaStockGoods/CONFIG · ChinaStockGoods/EDITED_CELLS ·
+// 읽기: integrations/mibal2Latest (Apps Script 가 씀) · ChinaStockGoods/CONFIG · ChinaStockGoods/EDITED_CELLS ·
 //       Locations(ZONE_*) · ChinaStockGoods_ScanDB_Versions(없으면 ChinaStockGoods_ScanDB) · mibal2/settings ·
 //       config/mainConfig(입장 판정만 — 관리자 또는 'china.mibal2' 권한, js/lib/mibal2-access.js)
 //       + 스캐너 연동(시험 — 읽기 전용, js/china-mibal2-scan.js): [비축창고 보기] FLOOR2_STOCK·LOC_SHARD_0~7 구독 ·
-//         [입고 오차 통계] ChinaStockGoods_InboundDiff 기간 읽기 ·
 //         [스캐너 값 미리보기 엑셀] ChinaStockGoods_InboundHistory·ChinaStockGoods_ScanDB 누를 때 1회 읽기
+//       + 위치지정(시험 — 보기·엑셀 받기만, js/china-mibal2-loc.js): 그 보기에 처음 들어갈 때 비축창고·위치 구독(위와 공유)과
+//         미발재고로그 1회 읽기. 이 파일은 그 자료를 직접 읽지 않는다. 보기 선택은 이 브라우저에만 기억(localStorage mibal2.view)
 //       표에 입고확인·차이(도착−입고) 열은 두지 않는다 — 기존 부족수량관리(china-stock-goods)의 기능(2026-10-27 사용자 결정)
-// 쓰기: artifacts/team-work-logger-v2/mibal2/{settings, refreshRequest, compare_YYYYMMDD} 3종만. 그 외 쓰기 0건.
+// 쓰기: artifacts/team-work-logger-v2/mibal2/{settings, refreshRequest} 2종만. 그 외 쓰기 0건.
 //       운영 스캐너 자료(ScanDB·InboundHistory·FLOOR2_STOCK·FORCE_ALLOW·ScanDB_Versions·LOC_SHARD·InboundDiff)에는 쓰지 않는다
 //       — 그 쓰기 버튼은 화면에서 disabled('시험 모드 — 꺼짐'). tests/mibal2-readonly.test.js 가 소스를 검사한다.
 //       이메일 등 사용자 정보는 어디에도 저장하지 않는다.
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610271556'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610280933'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain, FORMULA_VER } from './lib/mibal2-calc.js?v=202610271556';
-import { sortMark } from './lib/china-stock-view.js?v=202610271556';
+import { explain } from './lib/mibal2-calc.js?v=202610280933';
+import { sortMark } from './lib/china-stock-view.js?v=202610280933';
 import {
-    listShipDates, buildLocIndex, computeRows, summarize, compareRowsOf, FLAG_INFO, COMPARE_COLS, excelAoaOf,
-    graceDaysFrom, legacyDatesFrom, selectedDatesFrom,
-    oldMapFromScan, oldMapFromDaily, editedFromDaily, locFromDaily
-} from './lib/mibal2-rows.js?v=202610271556';
-import { setShellContext } from './app-shell-bridge.js?v=202610271556';
-import { memberNameFor } from './app-shell-data.js?v=202610271556';
-import { mountBusyBanner } from './busy-banner.js?v=202610271556';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610271556';
-import { friendlyFirebaseError } from './utils.js?v=202610271556';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610271556';
-import { setupScanTools } from './china-mibal2-scan.js?v=202610271556';
+    listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
+    graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
+} from './lib/mibal2-rows.js?v=202610280933';
+import { setShellContext } from './app-shell-bridge.js?v=202610280933';
+import { memberNameFor } from './app-shell-data.js?v=202610280933';
+import { mountBusyBanner } from './busy-banner.js?v=202610280933';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610280933';
+import { friendlyFirebaseError } from './utils.js?v=202610280933';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610280933';
+import { setupScanTools } from './china-mibal2-scan.js?v=202610280933';
+import { setupLocMode } from './china-mibal2-loc.js?v=202610280933';
 
 const { db, auth } = initializeFirebase();
 
 const BASE = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = BASE + '/integrations/mibal2Latest';
-const DAILY_PREFIX = BASE + '/integrations/mibal2Daily_';
 const SETTINGS_PATH = BASE + '/mibal2/settings';
 const REQUEST_PATH = BASE + '/mibal2/refreshRequest';
 const LEASE_PATH = BASE + '/integrations/ezadminLease';   // 이지어드민 잠금(계약 A) — 미발수집·채우기가 쓰고 여기는 읽기만
-const COMPARE_PREFIX = BASE + '/mibal2/compare_';
 const CHINA_COLLECTION = 'ChinaStockGoods';
 
 const DIFF_BIG = 5;                     // |3층−기존| 이 이 값 이상이면 빨강 강조 (사용자 결정 2026-10-07)
 const REQUEST_IGNORE_MS = 10 * 60000;   // 수집기 REQUEST_IGNORE_MS 와 같다 — 마지막 성공 후 이 안의 요청은 수집기가 무시한다
 const WORK_HOUR_FROM = 7, WORK_HOUR_TO = 19;   // 수집기 요청확인() 이 도는 시간(월~토)
-const VERSIONS_LIMIT = 30;              // 최근 버전 몇 개 안에서 'upload' 를 찾을지 (china-stock-goods.js:1935 MAX_SCANDB_VERSIONS 와 같은 수). 수집기도 같은 수
-const DAILY_DAYS = 30;                  // 날짜별 비교 목록 — 오늘부터 며칠 전까지
+const VERSIONS_LIMIT = 30;              // 최근 버전 몇 개 안에서 'upload' 를 찾을지 (china-stock-goods.js:1935 MAX_SCANDB_VERSIONS 와 같은 수)
 const REFRESH_TIMEOUT_MS = 15 * 60000;  // 요청 후 이만큼 지나도 소식이 없으면 잠금을 푼다
 const PENDING_KEY = 'mibal2_refresh_pending';
 const AUTO_KEY = 'mibal2_auto_requested';
@@ -103,10 +101,9 @@ let oldSnap = null;            // { kind:'version'|'live', atMs, trigger, note, 
 let settings = null;           // mibal2/settings
 let selectedDates = [];
 let dateSource = 'legacy';     // 'legacy' | 'own'
-// 보기
-let viewMode = 'live';         // 'live' | 'daily'
-let daily = null;              // 날짜별 보기 상태 { id, ok, msg, ctx, rows, dates, dateInfo, dateSource }
 let ctx = null;                // 지금 보기의 근거 표시용 정보(detail·안내줄)
+let viewMode = 'live';         // 'live'(부족수량 오늘) | 'loc'(위치지정 시험)
+let locTools = null;           // setupLocMode 반환 { enter, refresh } — 입장 판정 뒤에 만든다
 let allRows = [];
 let viewRows = [];
 let sortConfig = { key: 'diffAbs', dir: 'desc' };
@@ -242,53 +239,6 @@ function liveCtx() {
     };
 }
 
-/**
- * 날짜별 보기 — Daily 문서 하나 → { ok, msg, ctx, rows, dates, dateInfo, dateSource }.
- * oldJson·cfgJson·editedJson·locJson 이 하나라도 없으면 비교 자료 없음(수집기 업데이트 전 날, 크기 초과·읽기 실패한 날).
- */
-function buildDaily(id, data) {
-    if (!data) return { id, ok: false, msg: '이 날은 수집 사본이 없습니다(수집이 성공하지 않은 날).' };
-    const rows = parseJsonSafe(data.rowsJson || '{}', {});
-    const sh = parseJsonSafe(data.shipJson || '{}', {});
-    if (rows === undefined || sh === undefined) return { id, ok: false, msg: '이 날 사본의 rowsJson/shipJson 을 해석하지 못했습니다.' };
-    const has = ['oldJson', 'cfgJson', 'editedJson', 'locJson'].every(k => typeof data[k] === 'string');
-    if (!has) {
-        // 사유 — 수집기 writeDaily_ 의 compareStatus
-        const st = data.compareStatus || '';
-        const why = st === '기존 업로드 대기'
-            ? '기존 미발계산기에 그날 미발재고로그가 올라오기 전에 찍힌 사본입니다. 업로드되면 수집기가 5분 안에 다시 찍습니다(월~토 07~19시).'
-            : st === '크기 초과' ? (data.compareError || '비교 입력을 넣으면 문서 크기 한도를 넘어 빠졌습니다.')
-            : st === '비교 입력 실패' ? `비교 입력을 읽지 못했습니다 — ${data.compareError || '이유 없음'} (수집기가 하루 3번까지 다시 시도)`
-            : (data.compareError || '수집기가 비교 입력을 저장하기 전 날짜입니다.');
-        return { id, ok: false, msg: '이 날은 비교 자료 없음 — ' + why, okMs: tsMs(data.lastOkAt) };
-    }
-    const old = parseJsonSafe(data.oldJson, {}), cfg = parseJsonSafe(data.cfgJson, {}), ed = parseJsonSafe(data.editedJson, {}), loc = parseJsonSafe(data.locJson, {});
-    if ([old, cfg, ed, loc].some(v => v === undefined)) return { id, ok: false, msg: '이 날은 비교 자료 없음 — 저장된 비교 입력을 해석하지 못했습니다.' };
-    // 유예 판정 기준일 = 그날 수집 시각(없으면 그날 정오). 오늘 날짜로 판정하면 지난날의 도착분이 다 빠진다.
-    const okMs = tsMs(data.lastOkAt);
-    const refDate = okMs ? new Date(okMs) : new Date(+id.slice(0, 4), +id.slice(4, 6) - 1, +id.slice(6, 8), 12);
-    const sel = selectedDatesFrom(cfg, { useOwnDates: cfg.useOwnDates, shipDates: cfg.shipDates });
-    const g = graceDaysFrom(cfg);
-    const items = (sh && sh.items) || {};
-    const bundle = {
-        stockRows: rows, shipItems: items, oldMap: oldMapFromDaily(old),
-        zoneConfig: { zoneCapacity: cfg.zoneCapacity || {} }, edited: editedFromDaily(ed), loc: locFromDaily(loc),
-        selectedDates: sel.dates, graceDays: g, now: refDate
-    };
-    const os = data.oldSource || null;
-    const dctx = {
-        mode: 'daily', okMs, range: data.range || {}, asOf: sh.asOf || '', keepArrivedDays: sh.keepArrivedDays, shipStaleDays: sh.shipStaleDays,
-        graceDays: g, parseError: '', editedCount: Object.keys(ed).length, locCount: Object.keys(loc).length,
-        oldSource: os ? { kind: os.kind, atMs: Number(os.atMs) || 0, trigger: os.trigger || '', note: '', noUpload: !!os.noUpload } : null,
-        compareAtMs: tsMs(data.compareAt), compareStatus: data.compareStatus || '',
-        reserveStatus: reserveStatusOf(data.counts),
-        refDate
-    };
-    const dateInfo = {};
-    listShipDates(items, g, refDate).forEach(x => { dateInfo[x.date] = x; });
-    return { id, ok: true, msg: '', ctx: dctx, rows: computeRows(bundle), dates: sel.dates, dateInfo, dateSource: sel.source };
-}
-
 // ─────────────────────────────────────────────────────────────
 // 화면
 // ─────────────────────────────────────────────────────────────
@@ -356,7 +306,7 @@ function detailHtml(r) {
     const skipped = r.arrSkipped.length ? `<br><span class="t-risk">유예 지나 제외: ${r.arrSkipped.map(fmtEntry).join(' / ')}</span>` : '';
     const li = r.locInfo;
     const loc = li
-        ? `${esc(li.id)}${li.count > 1 ? ` (이 코드 자리 ${num(li.count)}곳 중 ${li.etcOnly ? '기타 자리' : '피킹용'} 첫 자리)` : ''}${li.count === null ? ' (그날 수집 사본의 대표 자리)' : ''}`
+        ? `${esc(li.id)}${li.count > 1 ? ` (이 코드 자리 ${num(li.count)}곳 중 ${li.etcOnly ? '기타 자리' : '피킹용'} 첫 자리)` : ''}`
         : '로케이션관리에 이 코드가 없음 → 미지정';
     const oldTxt = r.old === null
         ? '기존 비교값에 이 코드 없음'
@@ -380,13 +330,8 @@ function detailHtml(r) {
 function renderTable() {
     const tb = $('table-body');
     $('row-count').textContent = `${viewRows.length}행 / 전체 ${allRows.length}행`;
-    if (viewMode === 'daily') {
-        if (!daily) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">날짜를 고르세요.</td></tr>`; return; }
-        if (!daily.ok) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-risk" style="padding:50px;">${esc(daily.msg)}</td></tr>`; return; }
-    } else {
-        if (!latest) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-risk" style="padding:50px;">수집 자료가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
-        if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">출고일을 선택하세요.</td></tr>`; return; }
-    }
+    if (!latest) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-risk" style="padding:50px;">수집 자료가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
+    if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">출고일을 선택하세요.</td></tr>`; return; }
     if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
     let html = '';
     viewRows.forEach((r, i) => {
@@ -446,19 +391,8 @@ function renderSummary() {
 
 function renderSourceNote() {
     const box = $('src-note');
-    if (viewMode === 'daily' && (!daily || !daily.ok)) {
-        box.innerHTML = daily
-            ? `<b class="t-accent">${esc(daily.id)}</b>${daily.okMs ? ` · 수집 ${mdhm(daily.okMs)}` : ''}<br><span class="t-risk">${esc(daily.msg)}</span>`
-            : '';
-        return;
-    }
     const c = ctx || {};
     const parts = [];
-    if (c.mode === 'daily') {
-        parts.push(`<b class="t-accent">${esc(daily.id)} 수집 사본 (읽기 전용)</b>`);
-        // 비교 기준 시점 = 수집기가 비교 입력을 읽은 시각(기존 업로드 뒤). 기존 미발 버전 시각은 아래 '기존 미발' 에 나온다
-        parts.push(`<b>비교 기준</b> ${c.compareAtMs ? mdhm(c.compareAtMs) : '시각 모름'}${c.compareStatus && c.compareStatus !== 'ok' ? ' · ' + esc(c.compareStatus) : ''}`);
-    }
     parts.push(`<b>정상·접수·송장</b> ${c.okMs ? mdhm(c.okMs) + ' 수집' : '수집 없음'}`);
     parts.push(`<b>도착</b> 시트 기준일 ${esc(c.asOf || '?')} · 유예 ${num(c.graceDays)}일`);
     parts.push(`<b>적재량</b> 구역 설정 + 개별값 ${num(c.editedCount)}개`);
@@ -470,26 +404,35 @@ function renderSourceNote() {
     if (keep && c.graceDays > keep) warns.push(`유예 ${c.graceDays}일이 수집 보관 ${keep}일보다 커서 오래 전 도착분은 빠집니다`);
     if (c.shipStaleDays) warns.push(`도착일 없이 출고 ${num(c.shipStaleDays)}일 넘은 기록은 수집에서 빠집니다(기존 화면은 포함)`);
     const os = c.oldSource;
-    if (os && os.atMs && c.refDate && !sameDay(new Date(os.atMs), c.refDate)) warns.push(c.mode === 'daily' ? '기존 계산기 미발수량 비교값이 그날 것이 아닙니다' : '기존 계산기 미발수량 비교값이 오늘 것이 아닙니다');
+    if (os && os.atMs && c.refDate && !sameDay(new Date(os.atMs), c.refDate)) warns.push('기존 계산기 미발수량 비교값이 오늘 것이 아닙니다');
     if (os && os.noUpload) warns.push(`최근 버전기록 ${VERSIONS_LIMIT}개 안에 '업로드' 버전이 없어 ${os.kind === 'version' ? `'${os.trigger}' 버전` : '현재 ScanDB'}로 비교합니다 — 스캐너 입고분이 빠져 있을 수 있음`);
     const rs = c.reserveStatus;
-    if (!rs) warns.push((c.mode === 'daily' ? '이 날 사본에는' : '이 수집 자료에는') + ' 비축재고 없음 → 피킹 적재·비축 적재·피킹 배정수량을 계산 못 함(확인 필요)');
+    if (!rs) warns.push('이 수집 자료에는 비축재고 없음 → 피킹 적재·비축 적재·피킹 배정수량을 계산 못 함(확인 필요)');
     else if (rs.status !== 'ok' || Number(rs.missing) > 0) warns.push(`비축재고 수집 ${rs.status} — 비축 미응답 코드 ${num(rs.missing)}개(그 코드는 비축재고 없음 → 피킹 적재·비축 적재·피킹 배정수량을 계산 못 함(확인 필요))`);
     box.innerHTML = parts.join(' · ') + (warns.length ? `<br><span class="t-risk">⚠ ${warns.map(esc).join(' / ')}</span>` : '');
 }
 
 /** 지금 보기 기준으로 다시 계산·그리기 */
 function recomputeAndRender() {
-    if (viewMode === 'live') {
-        ctx = liveCtx();
-        allRows = computeRows(liveBundle());
-    } else {
-        ctx = daily && daily.ok ? daily.ctx : null;
-        allRows = daily && daily.ok ? daily.rows : [];
-    }
+    ctx = liveCtx();
+    allRows = computeRows(liveBundle());
     renderDateTags();
     applyFilters();
     renderSourceNote();
+    if (locTools) locTools.refresh();   // 위치지정 보기의 상품명·옵션 출처가 이 표라서
+}
+
+// ── 보기 전환: 부족수량(오늘) / 위치지정(시험) ──────────────────────
+const VIEW_KEY = 'mibal2.view';
+function setView(mode, save) {
+    viewMode = mode === 'loc' ? 'loc' : 'live';
+    document.body.dataset.view = viewMode;
+    $('btn-view-live').classList.toggle('on', viewMode === 'live');
+    $('btn-view-loc').classList.toggle('on', viewMode === 'loc');
+    $('date-dropdown-popup').style.display = 'none'; popupSnapshot = null;
+    // 위치지정 보기에 처음 들어갈 때만 구독·1회 읽기를 시작한다(입장 판정 전이면 판정 뒤 startAfterAccess 가 부른다)
+    if (viewMode === 'loc' && locTools) locTools.enter();
+    if (save) { try { localStorage.setItem(VIEW_KEY, viewMode); } catch (e) { /* 기억 못 해도 보기는 바뀐다 */ } }
 }
 
 // ── 출고일 선택 ──────────────────────────────────────────────
@@ -515,10 +458,8 @@ function renderDateList() {
 }
 function renderDateTags() {
     const box = $('date-tags-container');
-    const isDaily = viewMode === 'daily';
-    const dates = isDaily ? (daily && daily.ok ? daily.dates : []) : selectedDates;
-    const info = isDaily ? (daily && daily.ok ? daily.dateInfo : {}) : dateInfo;
-    const src = isDaily ? (daily && daily.ok ? daily.dateSource : '') : dateSource;
+    const dates = selectedDates;
+    const info = dateInfo;
     $('btn-date-dropdown').textContent = selectedDates.length ? `▼ ${selectedDates.length}개 선택됨` : '▼ 출고일 선택';
     if (!dates.length) box.innerHTML = '선택된 출고일 없음';
     else box.innerHTML = [...dates].sort((a, b) => b.localeCompare(a)).map(d => {
@@ -526,11 +467,6 @@ function renderDateTags() {
         const arr = x && x.arrivals.length ? ' → ' + x.arrivals.map(fmtMD).join(',') : '';
         return `<span class="date-tag">${fmtMD(d)} 출고${arr}${x ? '' : ' (유예 지남/없음)'}</span>`;
     }).join('');
-    if (isDaily) {
-        $('date-src').textContent = !src ? '' : (src === 'own' ? '그날 이 화면에서 고른 출고일' : '그날 기존 계산기 출고일');
-        setDateDiffWarn(false);
-        return;
-    }
     const same = JSON.stringify([...selectedDates].sort()) === JSON.stringify([...legacyDates].sort());
     $('date-src').textContent = dateSource === 'own'
         ? (same ? '이 화면에서 고른 출고일 (기존과 같음)' : '이 화면에서 고른 출고일 (기존 계산기와 다름)')
@@ -579,7 +515,6 @@ function setupDatePopup() {
     const popup = $('date-dropdown-popup');
     $('btn-date-dropdown').addEventListener('click', (e) => {
         e.stopPropagation();
-        if (viewMode !== 'live') return;
         if (popup.style.display === 'block') { popup.style.display = 'none'; onDatePopupClosed(); }
         else { popup.style.display = 'block'; popupSnapshot = JSON.stringify([...selectedDates].sort()); popupBackup = [...selectedDates]; }
     });
@@ -595,7 +530,7 @@ function setupDatePopup() {
         popup.style.display = 'none';
         renderDateList();
         renderDateTags();
-        if (viewMode === 'live') recomputeAndRender();
+        recomputeAndRender();
     });
     $('btn-date-all').addEventListener('click', () => {
         popup.querySelectorAll('.date-check').forEach(c => { c.checked = true; });
@@ -609,49 +544,6 @@ function setupDatePopup() {
     });
     $('btn-date-legacy').addEventListener('click', followLegacyDates);
     $('btn-date-legacy-out').addEventListener('click', followLegacyDates);
-}
-
-// ── 보기 전환: 오늘(실시간) / 날짜별 비교 ───────────────────────
-function fillDailySelect() {
-    const sel = $('daily-select');
-    if (sel.options.length) return;
-    const wd = ['일', '월', '화', '수', '목', '금', '토'];
-    let html = '<option value="">날짜 선택…</option>';
-    for (let i = 0; i < DAILY_DAYS; i++) {
-        const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - i);
-        html += `<option value="${ymd(d)}">${d.getMonth() + 1}/${d.getDate()}(${wd[d.getDay()]})${i === 0 ? ' 오늘' : ''}</option>`;
-    }
-    sel.innerHTML = html;
-}
-function setView(mode) {
-    viewMode = mode;
-    document.body.dataset.view = mode;
-    $('btn-view-live').classList.toggle('on', mode === 'live');
-    $('btn-view-daily').classList.toggle('on', mode === 'daily');
-    $('date-dropdown-popup').style.display = 'none'; popupSnapshot = null;
-    expanded = new Set();
-    if (mode === 'daily') fillDailySelect();
-    recomputeAndRender();
-}
-/** Daily 문서 한 건만 읽는다(목록은 날짜로 만들고, 고른 날만 읽음 — 사본이 커서 30개를 한꺼번에 읽지 않는다) */
-let dailyReq = 0;   // 날짜별 읽기 요청 번호 — 늦게 온 옛 응답이 화면을 덮지 않게
-async function loadDaily(id) {
-    const my = ++dailyReq;
-    if (!id) { daily = null; setLoading(false); recomputeAndRender(); return; }
-    setLoading(true, `${id} 수집 사본 불러오는 중...`);
-    let result;
-    try {
-        const snap = await getDoc(doc(db, DAILY_PREFIX + id));
-        result = buildDaily(id, snap.exists() ? snap.data() : null);
-    } catch (e) {
-        result = { id, ok: false, msg: '불러오기 실패 — ' + errText(e) };
-    }
-    // 응답 경합: 기다리는 사이 다른 날짜를 골랐으면(더 새 요청이 있거나 선택값이 바뀜) 이 응답은 버린다
-    if (my !== dailyReq || $('daily-select').value !== id) return;
-    setLoading(false);
-    daily = result;
-    expanded = new Set();
-    if (viewMode === 'daily') recomputeAndRender();
 }
 
 // ── 갱신 상태 · 지금 갱신 ─────────────────────────────────────
@@ -783,37 +675,12 @@ function maybeAutoRequest() {
     requestRefresh(true);
 }
 
-// ── 지금 상태로 한 번 더 저장 (날짜별 사본은 수집기가 자동으로 남긴다) ──────────
-async function saveCompare() {
-    if (!isAccessOk || viewMode !== 'live') return;
-    if (!allRows.length) { showToast('저장할 행이 없습니다'); return; }
-    const id = ymd();
-    const ref = doc(db, COMPARE_PREFIX + id);
-    try {
-        const ex = await getDoc(ref);
-        if (ex.exists() && !confirm(`오늘(${id}) 수동 저장본이 이미 있습니다. 지금 화면으로 덮어쓸까요?`)) return;
-        // 상품명·금액은 넣지 않는다 — 코드별 숫자만. 어떤 조건으로 비교했는지도 함께(사용자 정보는 넣지 않는다)
-        await setDoc(ref, {
-            savedAt: serverTimestamp(),
-            rowsJson: JSON.stringify(compareRowsOf(allRows)),
-            formulaVer: FORMULA_VER,                      // 2 = 피킹 → 비축 → 입고분 공식(10/20~). 없으면 옛 7칸(v1)
-            cols: [...COMPARE_COLS],                      // rowsJson 배열 칸 이름
-            shipDates: [...selectedDates].map(String).sort(),
-            dateSource,                                   // 'legacy'(기존 계산기 출고일) | 'own'(이 화면에서 고름)
-            graceDays,
-            oldSource: oldSnap ? { kind: oldSnap.kind, atMs: oldSnap.atMs || 0, trigger: oldSnap.trigger || '' } : null,
-            latestOkAtMs: latest ? tsMs(latest.lastOkAt) : 0
-        });
-        showToast(`저장 완료 (${allRows.length}행)`);
-    } catch (e) { showToast('⚠️ 저장 실패 — ' + errText(e)); }
-}
-
 // ── 엑셀 받기 (지금 보이는 행 — 검색·필터·정렬 반영. 내 PC 로 다운로드만) ──────────
 function downloadExcel() {
     const X = window.XLSX;
     if (!X) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
     if (!viewRows.length) { showToast('받을 행이 없습니다'); return; }
-    const id = viewMode === 'daily' && daily && daily.ok ? daily.id : ymd();
+    const id = ymd();
     const ws = X.utils.aoa_to_sheet(excelAoaOf(viewRows));
     const wb = X.utils.book_new();
     X.utils.book_append_sheet(wb, ws, '부족수량관리');
@@ -963,10 +830,8 @@ function setupEvents() {
     $('chk-check-only').addEventListener('change', applyFilters);
     $('btn-excel').addEventListener('click', downloadExcel);
     $('btn-refresh').addEventListener('click', () => requestRefresh(false));
-    $('btn-save-compare').addEventListener('click', saveCompare);
-    $('btn-view-live').addEventListener('click', () => setView('live'));
-    $('btn-view-daily').addEventListener('click', () => setView('daily'));
-    $('daily-select').addEventListener('change', (e) => loadDaily(e.target.value));
+    $('btn-view-live').addEventListener('click', () => setView('live', true));
+    $('btn-view-loc').addEventListener('click', () => setView('loc', true));
     document.querySelectorAll('.list-table th.sortable').forEach(th => th.addEventListener('click', () => {
         if (justResized) return;   // 열 너비를 끌다 놓은 click
         const key = th.dataset.sort;
@@ -1058,7 +923,7 @@ async function startAfterAccess() {
         renderStatus();
         checkPending();
         renderDateList();
-        if (viewMode === 'live') recomputeAndRender();
+        recomputeAndRender();
         setLoading(false);
         if (busyBannerStop) busyBannerStop.refresh();   // 요청 대기·'방금 갱신됨'은 latest 로 판정한다
         if (!firstServerSeen && !snap.metadata.fromCache) { firstServerSeen = true; maybeAutoRequest(); }
@@ -1069,11 +934,19 @@ async function startAfterAccess() {
         $('status-chip').textContent = '● 수집 자료 읽기 실패';
         $('status-err').textContent = errText(err);
     });
-    // 스캐너 연동(시험 — 읽기 전용): 켜진 버튼 3개(입고 오차 통계·비축창고 보기·스캐너 값 미리보기 엑셀). 입고이력은 미리보기를 누를 때만 읽는다
+    // 스캐너 연동(시험 — 읽기 전용): 켜진 버튼 2개(비축창고 보기·스캐너 값 미리보기 엑셀). 입고이력은 미리보기를 누를 때만 읽는다
     setupScanTools({
         db, showToast, setLoading,
-        getLiveRows: () => (viewMode === 'live' ? allRows : null)
+        getLiveRows: () => allRows
     });
+    // 위치지정(시험 — 보기·엑셀 받기만). 기억한 보기가 위치지정이면 여기서 들어간다(그때 처음 구독)
+    locTools = setupLocMode({
+        db, showToast,
+        isActive: () => viewMode === 'loc',
+        getConfig: () => config,
+        getNewRows: () => allRows
+    });
+    if (viewMode === 'loc') locTools.enter();
     // '갱신 중' 띠 — 이지어드민 잠금 + 갱신 요청 문서. '방금 갱신됨'은 이미 구독 중인 mibal2Latest 로(추가 구독 없음)
     busyBannerStop = mountBusyBanner({ db, el: $('busy-banner'), sources: [
         { path: LEASE_PATH, kind: 'lease' },
@@ -1081,7 +954,11 @@ async function startAfterAccess() {
     ], extra: (now) => [latestDoneView(latest, now)], onState: (v) => { busyViews = v || {}; renderRefreshUI(); } });
 }
 
-document.body.dataset.view = 'live';
 setupEvents();
+{
+    let savedView = null;
+    try { savedView = localStorage.getItem(VIEW_KEY); } catch (e) { /* 무시 */ }
+    setView(savedView, false);
+}
 if (auth) onAuthStateChanged(auth, (user) => { if (user) start(user); });
 else { setLoading(false); $('status-err').textContent = 'Firebase 초기화 실패 — 새로고침해 보세요'; }

@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202610271556"></script>
+    <script src="js/theme-boot.js?v=202610280933"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 부족수량 관리(신규·시험)</title>
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다.
-         스캐너 연동(시험)은 읽기 전용 — 쓰기 버튼은 disabled(js/china-mibal2-scan.js, tests/mibal2-readonly.test.js). -->
+         스캐너 연동(시험)·위치지정(시험)은 읽기 전용 — 쓰기 버튼은 disabled(js/china-mibal2-scan.js, js/china-mibal2-loc.js, tests/mibal2-readonly.test.js). -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610271556">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610271556">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610271556">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610271556">
+    <link rel="stylesheet" href="css/suit.css?v=202610280933">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610280933">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610280933">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610280933">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -101,17 +101,16 @@
         .flag.bad  { background: var(--c-risk-soft); color: var(--c-risk-text); }
         .muted { color: var(--c-text-4); }
 
-        /* 보기 전환: 오늘(실시간) / 날짜별 비교(읽기 전용) — JS 가 .on 을 토글한다 */
+        /* 보기 전환: 부족수량(오늘) / 위치지정(시험) — JS 가 body[data-view] 와 .on 을 바꾼다(이 브라우저에 기억 mibal2.view) */
         .view-bar { margin: 0 14px 7px 14px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12.5px; }
+        .loc-only { display: none !important; }
+        body[data-view="loc"] .loc-only { display: block !important; }
+        body[data-view="loc"] .live-only { display: none !important; }
+        /* 보기 항목 단추 묶음 — JS 가 .on 을 토글한다 */
         .view-seg { background: var(--c-track); border-radius: var(--r-pill); padding: 3px; white-space: nowrap; }
         .view-btn { min-height: 30px; padding: 0 14px; border: 0; background: transparent; color: var(--c-text-2); border-radius: var(--r-pill); font-family: inherit; font-weight: 500; cursor: pointer; font-size: 13px; }
         .view-btn:hover { color: var(--c-text); }
         .view-btn.on { background: var(--c-surface); color: var(--c-accent-deep); font-weight: 600; box-shadow: var(--sh-tab); }
-        .daily-select { padding: 0 10px; height: 32px; border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); background: var(--c-surface); color: var(--c-text); font-family: inherit; font-size: 13px; }
-        .daily-note { color: var(--c-text-2); }
-        .daily-only { display: none !important; }
-        body[data-view="daily"] .daily-only { display: inline-block !important; }
-        body[data-view="daily"] .live-only { display: none !important; }
 
         /* 보기 항목: 간단히(기본) / 전체 — JS 가 body[data-cols] 를 바꾼다(이 브라우저에 기억).
            간단히 = No·코드·상품명·피킹로케이션·적재량·도착·총재고·미발수량·남는 부족수량·피킹 적재·비축 적재·플래그 (열 순서 = 아래 thead).
@@ -128,6 +127,18 @@
         .scan-bar { background: var(--c-surface); border: 1px dashed var(--c-line-strong); border-radius: var(--r-card); padding: 6px 12px; }
         .scan-bar .scan-title { font-weight: 600; color: var(--c-text-2); white-space: nowrap; }
         .scan-bar .scan-sep { color: var(--c-line-strong); }
+        /* 위치지정(시험) 패널 — js/china-mibal2-loc.js. 표는 .list-table 과 따로(간단히 보기 열 숨김 규칙이 걸리지 않게) */
+        .loc-panel .tool-bar { margin-left: 0; margin-right: 0; }
+        .loc-panel { margin: 0 14px; }
+        .loc-table { width: 100%; border-collapse: collapse; }
+        .loc-table th, .loc-table td { padding: 5px 8px; text-align: center; border: 1px solid var(--c-line-soft); font-size: 12.5px; line-height: 1.35; white-space: nowrap; }
+        .loc-table th { background: var(--c-surface-2); color: var(--c-text-2); position: sticky; top: -1px; z-index: 10; font-weight: 600; }
+        .loc-table td.code-cell { font-weight: 600; color: var(--c-accent-deep); }
+        .loc-table td.name-cell { text-align: left; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+        .loc-table tr.loc-miss td { background: var(--c-risk-row); }   /* 비축됐는데 자리 미지정 */
+        .loc-table tr.loc-warn td { background: var(--c-warn-bg); }   /* 기존재고 — 파일에 없던 상품 */
+        .loc-new { display: inline-block; padding: 0 6px; border-radius: var(--r-pill); background: var(--c-ok-soft); color: var(--c-ok-text); font-weight: 600; }
+        .loc-container { overflow: auto; background: var(--c-surface); margin: 0 0 14px 0; border-radius: var(--r-card); border: 1px solid var(--c-line); max-height: 68vh; -webkit-overflow-scrolling: touch; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(35,39,46,0.45); z-index: 10000; justify-content: center; align-items: center; }
         .modal-content { background: var(--c-surface); color: var(--c-text); padding: 25px; border-radius: var(--r-card); width: 450px; box-shadow: var(--sh-pop); }
         .modal-content h3 { font-size: 17px; font-weight: 600; color: var(--c-text); }
@@ -183,12 +194,11 @@
         <div class="header-left">
             <h2 class="page-title">중국제작 부족수량 관리(신규·시험)</h2>
             <div class="version-badge">비교용</div>
-            <input type="text" id="search-input" class="search-input" placeholder="상품코드/상품명 검색" style="width: 180px;">
+            <input type="text" id="search-input" class="search-input live-only" placeholder="상품코드/상품명 검색" style="width: 180px;">
         </div>
         <div class="header-actions">
             <span id="status-chip" class="status-chip gray">● 수집 자료 확인 중…</span>
             <button id="btn-refresh" class="d-btn d-btn-primary live-only">지금 갱신</button>
-            <button id="btn-save-compare" class="d-btn live-only" title="날짜별 사본은 수집기가 기존 미발재고로그 업로드 뒤 자동으로 남깁니다. 이 버튼은 지금 화면 상태를 한 번 더 남깁니다(mibal2/compare_오늘).">지금 상태로 한 번 더 저장</button>
         </div>
     </div>
     <div class="tool-bar" style="margin-top:-2px;">
@@ -198,12 +208,38 @@
     </div>
 
     <div class="view-bar">
-        <span class="view-seg"><button id="btn-view-live" class="view-btn on">오늘(실시간)</button><button id="btn-view-daily" class="view-btn">날짜별 비교</button></span>
-        <select id="daily-select" class="daily-only daily-select"></select>
-        <span class="daily-only daily-note">수집기가 그날 기존 미발재고로그 업로드 뒤 자동으로 남긴 사본으로 계산합니다 (읽기 전용)</span>
+        <span class="view-seg"><button type="button" id="btn-view-live" class="view-btn on">부족수량(오늘)</button><button type="button" id="btn-view-loc" class="view-btn">위치지정(시험)</button></span>
     </div>
 
-    <div class="date-bar">
+    <!-- 위치지정 (시험 — 보기·엑셀 받기만): js/china-mibal2-loc.js. 꺼진 단추 3개·체크박스는 기존 화면의 쓰기 기능 자리 — 이벤트를 걸지 않는다 -->
+    <div id="loc-panel" class="loc-panel loc-only">
+        <div class="d-note" style="margin-bottom:7px;">
+            <b>시험 — 보기와 엑셀 받기만 됩니다.</b> 자리 수정·삭제·위치 초기화·엑셀 올리기는 기존 부족수량관리(위치지정모드)에서 하세요.<br>
+            기존 화면과 다른 점: 출고일과 상관없이 비축 입고분과 오늘 지정한 상품이 모두 보입니다 · 상품명은 이 화면 표 → 비축창고 → 미발재고로그 순으로 씁니다 ·
+            기존재고의 '파일에 없던 상품'은 기존 위치값이 없는 것만 봅니다(오더리스트는 보지 않음) · 엑셀은 받기 직전에 비축창고를 새로 읽지 않고 화면 값 그대로 씁니다 · 열 설정은 기본 열 그대로입니다.
+        </div>
+        <div class="tool-bar">
+            <span class="view-seg"><button type="button" class="view-btn loc-subtab on" data-sub="today">당일입고지정</button><button type="button" class="view-btn loc-subtab" data-sub="existing">기존재고지정</button></span>
+            <input type="text" id="loc-search" class="search-input" placeholder="상품코드/상품명/위치 검색" style="width: 200px;">
+            <button type="button" id="btn-loc-download" class="d-btn d-btn-sm" disabled title="비축창고·앱 지정 위치를 아직 받지 못했습니다">시험 위치값 엑셀 받기</button>
+            <span class="scan-sep">|</span>
+            <button type="button" id="btn-loc-off-upload" class="d-btn d-btn-sm" disabled title="시험 모드 — 꺼짐(운영 스캐너 보호)">기존재고 엑셀 올리기</button>
+            <button type="button" id="btn-loc-off-reset" class="d-btn d-btn-sm" disabled title="시험 모드 — 꺼짐(운영 스캐너 보호)">위치 초기화</button>
+            <button type="button" id="btn-loc-off-clear" class="d-btn d-btn-sm" disabled title="시험 모드 — 꺼짐(운영 스캐너 보호)">기존재고 목록 비우기</button>
+            <label class="t-3" style="display:inline-flex; align-items:center; gap:5px;" title="기존 화면에서 정한 값을 보여 주기만 합니다(시험 모드 — 꺼짐)">
+                <input type="checkbox" id="chk-loc-front" disabled> 새 위치를 맨앞에 (받는 엑셀에 적용)
+            </label>
+        </div>
+        <div id="loc-summary" class="src-note" style="margin-left:0; margin-right:0;"></div>
+        <div class="loc-container">
+            <table class="loc-table">
+                <thead id="loc-thead"></thead>
+                <tbody id="loc-tbody"><tr><td class="t-3" style="padding:40px;">불러오는 중…</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="date-bar live-only">
         <label class="date-bar-label">출고일<span class="live-only"> 선택</span>:</label>
         <div class="live-only" style="position: relative;">
             <button class="btn-date-dropdown" id="btn-date-dropdown">▼ 출고일 선택</button>
@@ -221,7 +257,7 @@
         <button id="btn-date-legacy-out" class="d-btn d-btn-sm live-only" hidden>기존 계산기 선택 따르기</button>
     </div>
 
-    <div class="summary-bar">
+    <div class="summary-bar live-only">
         <div class="summary-card highlight"><span class="label">SKU</span><span class="value" id="sum-sku">0</span></div>
         <div class="summary-card highlight"><span class="label">도착 합</span><span class="value" id="sum-arrival">0</span></div>
         <div class="summary-card newv" title="미발수량 = 그날 입고분 중 지금 재고로 못 내보내 추가로 출고할 양 = min(부족수량, 도착). 업무 예상 국내배송에 더하는 값"><span class="label">미발수량 합(추가 출고)</span><span class="value" id="sum-mibal">0</span></div>
@@ -235,7 +271,7 @@
         <div class="summary-card full-only"><span class="label">차이 합(피킹 배정−기존)</span><span class="value" id="sum-diff">0</span></div>
     </div>
 
-    <div class="tool-bar">
+    <div class="tool-bar live-only">
         <span class="view-seg" title="간단히: 도착분을 어디로 보낼지(바로 출고·피킹 적재·비축 적재)만 봅니다. 나머지 칸은 행을 누르면 나오는 계산 근거와 엑셀에 있습니다"><button type="button" id="btn-cols-simple" class="view-btn on">간단히</button><button type="button" id="btn-cols-full" class="view-btn">전체 항목</button></span>
         <button type="button" id="btn-col-reset" class="d-btn d-btn-sm" style="display:none;" title="끌어서 바꾼 열 너비를 이 보기(간단히/전체)에서 처음대로 되돌립니다">열 너비 원래대로</button>
         <label class="full-only" style="display:inline-flex; align-items:center; gap:5px; font-weight:600; color:var(--c-text-2); cursor:pointer;">
@@ -249,10 +285,9 @@
         <span class="t-3">· 행을 누르면 계산 근거(전체 칸)가 펼쳐집니다 · 열 제목을 누르면 정렬</span>
     </div>
 
-    <!-- 스캐너 연동 (시험 — 읽기 전용): 켜진 버튼 3개는 읽기·내 PC 엑셀만. 꺼진 버튼 5개는 기존 화면의 쓰기 기능 자리 — 이벤트를 걸지 않는다 -->
-    <div class="tool-bar scan-bar">
+    <!-- 스캐너 연동 (시험 — 읽기 전용): 켜진 버튼 2개는 읽기·내 PC 엑셀만. 꺼진 버튼 4개는 기존 화면의 쓰기 기능 자리 — 이벤트를 걸지 않는다 -->
+    <div class="tool-bar scan-bar live-only">
         <span class="scan-title">스캐너 연동 (시험 — 읽기 전용)</span>
-        <button type="button" id="btn-scan-stats" class="d-btn d-btn-sm" title="기존 미발계산기가 남긴 입고 오차 기록(ChinaStockGoods_InboundDiff)을 읽어 통계를 봅니다">입고 오차 통계</button>
         <button type="button" id="btn-scan-floor2" class="d-btn d-btn-sm" title="스캐너가 쌓은 비축창고 입고분(FLOOR2_STOCK)과 앱 지정 위치를 봅니다">비축창고 보기</button>
         <button type="button" id="btn-scan-preview" class="d-btn d-btn-sm live-only" title="신규 계산이면 스캐너DB 에 들어갈 값과 지금 스캐너DB 값을 나란히 엑셀로 받습니다(스캐너DB 에는 쓰지 않음)">스캐너 값 미리보기 엑셀</button>
         <span class="scan-sep">|</span>
@@ -260,13 +295,12 @@
         <button type="button" id="btn-scan-off-lock" class="d-btn d-btn-sm" disabled title="시험 모드 — 꺼짐(운영 스캐너 보호)">스캔잠금</button>
         <button type="button" id="btn-scan-off-version" class="d-btn d-btn-sm" disabled title="시험 모드 — 꺼짐(운영 스캐너 보호)">버전 저장/되돌리기</button>
         <button type="button" id="btn-scan-off-reset" class="d-btn d-btn-sm" disabled title="시험 모드 — 꺼짐(운영 스캐너 보호)">미발 초기화</button>
-        <button type="button" id="btn-scan-off-diffrec" class="d-btn d-btn-sm" disabled title="시험 모드 — 꺼짐(운영 스캐너 보호)">입고 오차 기록</button>
         <span class="t-3">· 꺼진 버튼은 기존 미발계산기에서 쓰세요</span>
     </div>
 
-    <div id="src-note" class="src-note"></div>
+    <div id="src-note" class="src-note live-only"></div>
 
-    <div class="list-container">
+    <div class="list-container live-only">
         <table class="list-table">
             <thead>
                 <tr>
@@ -302,46 +336,6 @@
     </div>
     </div><!-- /app-main -->
 
-    <!-- 입고 오차 통계 (읽기 전용) — china-stock-goods.html inbound-diff-modal 과 같은 표. 기록은 기존 미발계산기가 남긴다 -->
-    <div id="inbound-diff-modal" class="modal-overlay">
-        <div class="modal-content" style="width:980px; max-width:96vw; max-height:90vh; overflow-y:auto;">
-            <h3 style="margin-top:0;">입고 오차 통계 <span class="t-3" style="font-size:12px; font-weight:500;">(시험 — 읽기 전용)</span></h3>
-            <div id="idf-summary" class="d-note" style="font-size:13px; color:var(--c-text); padding:10px 12px; margin-bottom:10px;"></div>
-            <div class="t-3" style="font-size:11px; margin-bottom:8px; line-height:1.5;">
-                · <b>차이</b> = 도착수량 − 입고확인 (양수 = 부족입고, 음수 = 과입고) · <b>오차율</b> = Σ|차이| / Σ도착<br>
-                · <b>미스캔</b> = 입고확인 빈칸 — 기본은 오차에서 빼고 따로 셉니다('미스캔 포함'을 켜면 도착수량만큼 부족으로 셉니다)<br>
-                · 여러 출고일을 함께 기록한 경우, 한 출고일에만 있는 상품은 그 출고일로, 두 출고일 이상에 걸친 상품은 <b>묶음</b> 줄로 셉니다
-            </div>
-            <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center; flex-wrap:wrap; font-size:12px;">
-                <label>출고일 <input type="date" id="idf-from" style="padding:5px 6px; border:1px solid var(--c-line-strong); border-radius:var(--r-sm);"></label>
-                <span>~</span>
-                <input type="date" id="idf-to" aria-label="출고일 끝" style="padding:5px 6px; border:1px solid var(--c-line-strong); border-radius:var(--r-sm);">
-                <select id="idf-kind" aria-label="오차 종류" style="padding:5px 6px; border:1px solid var(--c-line-strong); border-radius:var(--r-sm);">
-                    <option value="all">전체</option>
-                    <option value="short">부족입고만</option>
-                    <option value="over">과입고만</option>
-                </select>
-                <label><input type="checkbox" id="idf-noscan"> 미스캔 포함</label>
-                <span style="flex:1;"></span>
-                <button type="button" id="btn-idf-download" class="d-btn d-btn-sm">엑셀 받기</button>
-            </div>
-            <div id="idf-tabs" style="display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap;">
-                <button type="button" class="d-btn d-btn-sm idf-tab" data-tab="ship">패킹별</button>
-                <button type="button" class="d-btn d-btn-sm idf-tab" data-tab="month">월별 추이</button>
-                <button type="button" class="d-btn d-btn-sm idf-tab" data-tab="code">상품코드 순위</button>
-                <button type="button" class="d-btn d-btn-sm idf-tab" data-tab="supplier">공급처 코드 순위</button>
-            </div>
-            <div style="max-height:52vh; overflow:auto; border:1px solid var(--c-line); border-radius:var(--r-sm);">
-                <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center; white-space:nowrap;">
-                    <thead id="idf-thead"></thead>
-                    <tbody id="idf-tbody"></tbody>
-                </table>
-            </div>
-            <div style="margin-top:16px; text-align:right; border-top:1px solid var(--c-line-soft); padding-top:12px;">
-                <button type="button" id="btn-inbound-diff-close" class="d-btn">닫기</button>
-            </div>
-        </div>
-    </div>
 
     <!-- 비축창고 보기 (읽기 전용) — FLOOR2_STOCK + 앱 지정 위치(LOC_SHARD) -->
     <div id="floor2-modal" class="modal-overlay">
@@ -369,9 +363,9 @@
     <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202610271556"></script>
-    <script type="module" src="js/china-mibal2.js?v=202610271556"></script>
-    <script type="module" src="js/page-gate.js?v=202610271556" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202610271556"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202610280933"></script>
+    <script type="module" src="js/china-mibal2.js?v=202610280933"></script>
+    <script type="module" src="js/page-gate.js?v=202610280933" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202610280933"></script>
 </body>
 </html>
