@@ -1,8 +1,10 @@
 // === js/lib/refill-view.js ===
 // 로케이션관리 대시보드 '채우기 지시서' 카드(js/refill-card.js)의 순수 함수 — import 없음(node --test 대상).
 // 문서 모양은 업무자동화\앱\채우기자동화\앱기록.py 머리말(설계: 채우기앱연동_설계.md 2절).
-//   integrations/refillLatest      { days: {YYYYMMDD: {status, rev, source, basedAt, rows, fillQty, checks, reason}}, schedule, req }
+//   integrations/refillLatest      { days: {YYYYMMDD: {status, rev, source, basedAt, rows, fillQty, checks, fixed, added, reason}}, schedule, req }
 //   integrations/refillDay_YYYYMMDD { rowsJson, file:{name, b64, bytes, sha}, fileOmitted, slack, source, basedAt, requestedBy }
+//                                    rowsJson cols 끝 '고정'(1 = 오늘 완료라 이전 판 값 그대로 둔 줄) · '추가'('HH:MM' = 다시 만든 판에 처음 들어온 시각)
+//                                    — 2026-10-28 서버 채우기자동화\고정.py. 옛 5열 판은 두 칸이 없다(fixed false · added '')
 //   refillWork/YYYYMMDD            { checks: {상품코드: {done, by, at}} }       ← 직원이 쓴다
 //   refillWork/request             { requestedAt, by, day }                    ← 직원이 쓴다(덮어쓰기) — 머리줄 [지금 재고로 다시 만들기]
 //                                                                                (js/rebuild-bar.js). 변경 추천 권한만 있으면 locRecWork/request 에.
@@ -28,7 +30,7 @@ export const REQ_NOTE_MS = 60 * 60 * 1000;               // 거절·실패·대�
 export const DEFAULT_REQ_MAX = 6, DEFAULT_COOLDOWN_MIN = 15, DEFAULT_AUTO_MAX = 3;
 export const REBUILD_LABEL = '지금 재고로 다시 만들기';
 export const AUTO_NOTE = '재고 자료가 새로 올라왔습니다 — 몇 분 안에 자동으로 다시 만듭니다';
-export const COLS = ['피킹로케이션', '비축위치', '채울수량', '비축재고', '상품코드'];
+export const COLS = ['피킹로케이션', '비축위치', '채울수량', '비축재고', '상품코드', '고정', '추가'];
 // 다시 만들기 실행 단계(req.stage) — 서버 채우기자동화\요청판정.py STAGES 와 같은 글자(시험이 고정)
 export const STAGES = ['재고 받는 중', '채우기 지시서 만드는 중', '변경 추천 만드는 중'];
 // 이지어드민 쉬는 시간 — 서버 로케이션추천\설정.json ezStock.quiet · 요청판정.py QUIET_DEFAULT 와 같은 값(시험이 고정).
@@ -145,7 +147,8 @@ export function fmtHM(v) {
     return `${p2(k.hh)}:${p2(k.mm)}`;
 }
 
-/** 지시서 문서 → { rows, checks, error }. 행 = {loc, reserve, qty, stock, code}. rowsJson 이 깨지면 빈 표 + error */
+/** 지시서 문서 → { rows, checks, error }. 행 = {loc, reserve, qty, stock, code, fixed, added}. rowsJson 이 깨지면 빈 표 + error
+ *  fixed = 오늘 완료라 이전 판 값을 그대로 둔 줄(고정) · added = 다시 만든 판에 처음 들어온 시각 'HH:MM'(없으면 '') */
 export function parseDay(doc) {
     const empty = (error) => ({ rows: [], checks: [], error });
     if (!doc || typeof doc.rowsJson !== 'string') return empty(doc ? '표 자료가 없습니다' : '');
@@ -154,11 +157,14 @@ export function parseDay(doc) {
     if (!d || typeof d !== 'object') return empty('표 자료가 깨졌습니다');
     const cols = Array.isArray(d.cols) ? d.cols : COLS;
     const at = (name) => cols.indexOf(name);
-    const idx = { loc: at('피킹로케이션'), reserve: at('비축위치'), qty: at('채울수량'), stock: at('비축재고'), code: at('상품코드') };
+    const idx = { loc: at('피킹로케이션'), reserve: at('비축위치'), qty: at('채울수량'), stock: at('비축재고'), code: at('상품코드'),
+                  fixed: at('고정'), added: at('추가') };
     if (idx.code < 0) return empty('표 자료에 상품코드 열이 없습니다');
     const conv = (arr) => (Array.isArray(arr) ? arr : []).filter(Array.isArray).map(r => ({
         loc: r[idx.loc] ?? '', reserve: r[idx.reserve] ?? '', qty: idx.qty >= 0 ? (r[idx.qty] ?? null) : null,
-        stock: idx.stock >= 0 ? (r[idx.stock] ?? null) : null, code: String(r[idx.code] ?? '')
+        stock: idx.stock >= 0 ? (r[idx.stock] ?? null) : null, code: String(r[idx.code] ?? ''),
+        fixed: idx.fixed >= 0 ? !!r[idx.fixed] : false,
+        added: idx.added >= 0 && typeof r[idx.added] === 'string' ? r[idx.added] : ''
     })).filter(r => r.code);
     return { rows: conv(d.rows), checks: conv(d.checks), error: '' };
 }
@@ -274,6 +280,10 @@ export function reqUi({ req, requestMs, nowMs, isToday, isRunDay, todayKey, boar
     if (recentNote) return lastNote();
     return withAuto(res(true));
 }
+
+/** 표 창 행 안내 — 오늘 완료로 고정한 줄(r.fixed)이 지금도 완료 체크(done)일 때만. 체크를 풀면 안내도 없앤다 */
+export const FIXED_NOTE = '완료 — 처음 수량 그대로';
+export const fixedNote = (r, done) => (r && r.fixed && done === true ? FIXED_NOTE : '');
 
 /** 숫자 → '1,234'. 숫자로 못 읽으면 '-' (카드 본문 num() 과 같은 표기) */
 export function fmtCount(v) {

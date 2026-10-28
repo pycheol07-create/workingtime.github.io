@@ -1,21 +1,21 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202610281122'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202610281229'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202610281122';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610281122';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610281122';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610281122'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610281122';
-import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202610281122'; // 입고 오차(2026-10-27)
-import { initPageNav } from './page-nav.js?v=202610281122';
-import { friendlyFirebaseError } from './utils.js?v=202610281122';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610281122';
-import { setShellContext } from './app-shell-bridge.js?v=202610281122';
-import { memberNameFor } from './app-shell-data.js?v=202610281122';
-import { createUploadStatus } from './busy-banner.js?v=202610281122';
+import { cleanRows } from './lib/sensitive-cols.js?v=202610281229';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202610281229';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202610281229';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202610281229'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202610281229';
+import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202610281229'; // 입고 오차(2026-10-27)
+import { initPageNav } from './page-nav.js?v=202610281229';
+import { friendlyFirebaseError } from './utils.js?v=202610281229';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610281229';
+import { setShellContext } from './app-shell-bridge.js?v=202610281229';
+import { memberNameFor } from './app-shell-data.js?v=202610281229';
+import { createUploadStatus } from './busy-banner.js?v=202610281229';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';

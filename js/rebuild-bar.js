@@ -15,10 +15,10 @@
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다.
 // ⚠️ 요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getHolidayName } from './utils.js?v=202610281122';
-import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=202610281122';
-import { recReqUi } from './lib/locrec-view.js?v=202610281122';
-import { combinedReqUi, confirmText, requestPathOf, laterMs, doneCounts, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=202610281122';
+import { getHolidayName } from './utils.js?v=202610281229';
+import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=202610281229';
+import { recReqUi } from './lib/locrec-view.js?v=202610281229';
+import { combinedReqUi, confirmText, requestPathOf, laterMs, doneCounts, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=202610281229';
 
 const APP = 'artifacts/team-work-logger-v2';
 const REFILL_LATEST = `${APP}/integrations/refillLatest`;

@@ -21,11 +21,12 @@
 //                                     source: request|auto, autoStockAt(ms), max, cooldownMin, autoMax, waitUntil(ms), lastRun }
 //                                     ← 다시 만들기 상태(서버 다시만들기.py). waiting 칸·문구는 채우기 refillLatest.req 와 같다
 //   다시 만든 locRec_오늘           + rev(1부터) · source · requestedBy · 행 carried:true(이월 — 지금 기준 추천에서 빠졌지만 오늘 손댄 행)
+//                                     · 행 addedAt:'HH:MM'(다시 만든 판에 처음 들어온 시각 — 표 배지 '추가 HH:MM', 2026-10-28 다시만들기.carry_rows)
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202610281122';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610281122';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202610281229';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610281229';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -66,7 +67,8 @@ function cleanRow(r, type) {
         routeOut: r.routeOut === true,                                    // 기타·SAM 자리 상품 줄 — 동선 점수 계산 대상 밖
         fromSize: str(r.fromSize).trim(), toSize: str(r.toSize).trim(),   // 자리 칸수(옛 문서는 '')
         reserve: num(r.reserve),                                          // 비축 수량(2026-10-27~, 비축 없거나 옛 문서는 null)
-        carried: r.carried === true                                       // 다시 만들 때 이월한 행(지금 기준 추천에서 빠짐)
+        carried: r.carried === true,                                      // 다시 만들 때 이월한 행(지금 기준 추천에서 빠짐)
+        addedAt: /^\d{2}:\d{2}$/.test(str(r.addedAt)) ? str(r.addedAt) : ''   // 다시 만든 판에 처음 들어온 시각(없으면 '')
     };
     if (r.code2 != null && str(r.code2)) {
         Object.assign(out, { code2: str(r.code2), name2: str(r.name2), option2: str(r.option2), from2: str(r.from2), to2: str(r.to2),

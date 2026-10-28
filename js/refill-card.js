@@ -8,11 +8,11 @@
 // 문서·순수 함수는 js/lib/refill-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=202610281122';
-import { lastDays, dayLabel, fmtHM, progress, dayStatus, refillStrip, fmtCount } from './lib/refill-view.js?v=202610281122';
-import { initFold } from './lib/card-fold.js?v=202610281122';
-import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=202610281122';
-import { mountRefillTable } from './refill-table.js?v=202610281122';
+import { escapeHtml } from './utils.js?v=202610281229';
+import { lastDays, dayLabel, fmtHM, progress, dayStatus, refillStrip, fmtCount } from './lib/refill-view.js?v=202610281229';
+import { initFold } from './lib/card-fold.js?v=202610281229';
+import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=202610281229';
+import { mountRefillTable } from './refill-table.js?v=202610281229';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
@@ -96,7 +96,10 @@ export function initRefillCard({ db, auth, getMemberName }) {
             const e = store.entryOf(key) || {};
             const rows = d ? d.parsed.rows : [], checks = d ? d.parsed.checks : [];
             const pr = progress(rows, S.work.checks), pc = progress(checks, S.work.checks);
-            parts.push(`<div class="refill-line">기준 <b>${escapeHtml(fmtHM(e.basedAt) || '-')}</b> · 채울 칸 <b>${num(e.rows)}</b> · 채울 수량 <b>${num(e.fillQty)}</b> · 확인필요 <b>${num(e.checks)}</b></div>`);
+            // 다시 만든 판: 오늘 완료라 고정한 줄 · 이번 판에 새로 들어온 줄(값 있을 때만 — 서버 채우기자동화\고정.py)
+            const fx = [[e.fixed, '고정'], [e.added, '새로']].filter(([v]) => Number.isFinite(+v) && +v > 0)
+                .map(([v, label]) => ` · ${label} <b>${num(v)}</b>`).join('');
+            parts.push(`<div class="refill-line">기준 <b>${escapeHtml(fmtHM(e.basedAt) || '-')}</b> · 채울 칸 <b>${num(e.rows)}</b> · 채울 수량 <b>${num(e.fillQty)}</b> · 확인필요 <b>${num(e.checks)}</b>${fx}</div>`);
             if (e.source === 'request' || e.source === 'auto') {
                 const sl = d && d.data.slack;
                 const slackTxt = sl && sl.at ? `슬랙에는 ${escapeHtml(fmtHM(sl.at))} 판` : '슬랙에는 보내지 않음';

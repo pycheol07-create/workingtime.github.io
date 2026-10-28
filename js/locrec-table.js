@@ -10,10 +10,10 @@
 //   · 창을 보는 중에 새 판이 오면 띠 '새 추천이 도착했습니다' [새로 보기]
 //   (store.setHold — 창이 열려 있으면 store 가 새 판을 pendingDay 에 둔다, 닫으면 바로 바꾼다).
 //   이월 행(carried)은 흐리게 '(지금 기준 추천에서 빠짐)' — [처리함]/[안 함] 없이 되돌리기만.
-import { escapeHtml } from './utils.js?v=202610281122';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610281122';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610281122';
-import { higherOpenThan } from './modal-above.js?v=202610281122';
+import { escapeHtml } from './utils.js?v=202610281229';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610281229';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610281229';
+import { higherOpenThan } from './modal-above.js?v=202610281229';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -99,7 +99,9 @@ export function mountLocRecTable({ store, sizeOf }) {
             : `<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="done" data-locrec-key="${k}"${busy ? ' disabled' : ''}>처리함</button>`
               + `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="skip" data-locrec-key="${k}"${busy ? ' disabled' : ''}>안 함</button>`;
         const badges = (r.capWarn ? '<span class="badge badge-warn locrec-badge" title="옮길 자리 적재량보다 수량이 많습니다">적재량 확인</span>' : '')
-            + (r.pairNear ? `<span class="badge badge-accent locrec-badge" title="함께 잘 팔리는 상품이 옮길 자리와 같은 동에 있습니다">페어 ${escapeHtml(r.pairNear)}</span>` : '');
+            + (r.pairNear ? `<span class="badge badge-accent locrec-badge" title="함께 잘 팔리는 상품이 옮길 자리와 같은 동에 있습니다">페어 ${escapeHtml(r.pairNear)}</span>` : '')
+            // 다시 만든 판에 처음 들어온 행 — 상태 '새로'(오늘 처음 나온 추천)와 헷갈리지 않게 '추가'
+            + (r.addedAt ? `<span class="badge badge-accent locrec-badge" title="다시 만든 판(${escapeHtml(r.addedAt)})에 새로 들어온 추천">추가 ${escapeHtml(r.addedAt)}</span>` : '');
         // 맞바꾸기·페어는 줄(A/B)마다 <tr> — 상품·현재·추천·이동수량·일출고 칸끼리 짝이 맞게. 순위·이득·상태·표시는 rowspan 으로 하나만.
         // 줄무늬는 추천 단위(.locrec-alt) — usage-table 의 tr:nth-child(even) 는 줄 단위라 locrec-table 에서 끈다(location.html · css/locrec-modal.css).
         const lines = rowLines(r);

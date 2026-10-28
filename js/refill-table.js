@@ -5,10 +5,10 @@
 //   스타일은 location.html <style> · index 는 css/refill-modal.css(#refill-modal 범위로 같은 모양).
 // ⚠️ role="dialog" · data-act 를 붙이지 않는다 — 업무마감봇이 div[role=dialog] 마지막 것 · [data-act] 로 자기 확인창을 읽는다.
 // 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙는다.
-import { escapeHtml } from './utils.js?v=202610281122';
-import { dayLabel, fmtHM, progress, fmtCount } from './lib/refill-view.js?v=202610281122';
-import { NO_NAME, SHEETS, todayKey } from './refill-store.js?v=202610281122';
-import { higherOpenThan } from './modal-above.js?v=202610281122';
+import { escapeHtml } from './utils.js?v=202610281229';
+import { dayLabel, fmtHM, progress, fmtCount, fixedNote } from './lib/refill-view.js?v=202610281229';
+import { NO_NAME, SHEETS, todayKey } from './refill-store.js?v=202610281229';
+import { higherOpenThan } from './modal-above.js?v=202610281229';
 
 const TEMPLATE = `
         <div class="modal-content refill-modal-content">
@@ -86,10 +86,14 @@ export function mountRefillTable({ store }) {
             const done = c.done === true;
             const who = done ? `${escapeHtml(c.by || NO_NAME)} ${escapeHtml(fmtHM(c.at))}` : '';
             const busy = S.saving.has(r.code);
+            // 다시 만든 판: 새로 들어온 줄 배지 · 오늘 완료라 고정한 줄 안내(체크 동작은 그대로)
+            const added = r.added ? ` <span class="badge badge-accent" title="다시 만든 판(${escapeHtml(r.added)})에 새로 들어온 줄">새로 ${escapeHtml(r.added)}</span>` : '';
+            const note = fixedNote(r, done);
+            const fixed = note ? `<div class="refill-sub" style="font-size:11px;">${escapeHtml(note)}</div>` : '';
             return `<tr class="${done ? 'refill-done' : ''}">`
                 + `<td class="refill-chk"><input type="checkbox" data-refill-code="${escapeHtml(r.code)}" aria-label="완료 ${escapeHtml(r.loc)}"`
                 + `${done ? ' checked' : ''}${editable && !busy ? '' : ' disabled'}></td>`
-                + `<td class="refill-loc">${escapeHtml(r.loc)}</td><td>${escapeHtml(r.reserve)}</td>`
+                + `<td class="refill-loc">${escapeHtml(r.loc)}${added}${fixed}</td><td>${escapeHtml(r.reserve)}</td>`
                 + `<td class="refill-num">${r.qty == null ? '' : fmtCount(r.qty)}</td><td class="refill-num">${r.stock == null ? '' : fmtCount(r.stock)}</td>`
                 + `<td class="refill-who">${who}</td></tr>`;
         }).join('');

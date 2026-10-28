@@ -2,10 +2,10 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202610281122"></script>
-    <link rel="stylesheet" href="css/suit.css?v=202610281122">
-    <link rel="stylesheet" href="css/d-theme.css?v=202610281122">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610281122">
+    <script src="js/theme-boot.js?v=202610281229"></script>
+    <link rel="stylesheet" href="css/suit.css?v=202610281229">
+    <link rel="stylesheet" href="css/d-theme.css?v=202610281229">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610281229">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -194,6 +194,7 @@
         <div id="sel-memo" style="display:none; background:var(--c-risk-soft); color:var(--c-risk-text); border:2px solid var(--c-risk); border-radius:var(--r-sm); padding:9px 11px; margin:9px 0; font-size:16px; font-weight:800; text-align:center; white-space:pre-line; line-height:1.4;"></div>
         <button type="button" class="m-btn mibal" id="sel-mibal" style="display:none;"></button>
         <div class="m-remain" id="sel-remain-row">미발수량: <b id="sel-remain">0</b></div>
+        <div id="sel-holdnote" style="display:none; text-align:center; font-size:12px; color:var(--c-text-3);">다른 작업자 확인 못 함 — 미발 숫자가 클 수 있음</div>
         <div class="num-display" id="num-display" tabindex="-1" style="margin-top:8px;">0</div>
         <div id="qty-quick">
             <div class="qty-sel-label">십의 자리 (한 자리 수량이면 건너뛰세요)</div>
@@ -231,16 +232,18 @@
     <div id="undo-toast" role="status" aria-live="polite"><span id="undo-toast-msg"></span><button type="button" id="undo-toast-btn">되돌리기</button></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202610281122"></script>
+    <script src="js/location-map.js?v=202610281229"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202610281122'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202610281122';   // 공통 상단바(uid 만 — 메뉴는 캐시)
-        import { checkProductCode } from './js/lib/product-code.js?v=202610281122';  // 위치지정 상품코드 'S+숫자6자리' 판정
+        import { firebaseConfig } from './js/china-stock-config.js?v=202610281229'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202610281229';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { checkProductCode } from './js/lib/product-code.js?v=202610281229';  // 위치지정 상품코드 'S+숫자6자리' 판정
+        import { availOf, planTake, staleHoldIds, floor2Step, isSplitItem, newHoldId, pendingExpired, HOLD_PENDING_MAX_MS } from './js/lib/scan-hold.js?v=202610281229'; // [Ver 10.7] 미발 동시 스캔 방지
+        import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=202610281229'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
 
-        const SCAN_VERSION = '10.6'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.7'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
@@ -268,6 +271,8 @@
         const serverLabel = serverCfg ? (serverCfg.label || serverCfg.projectId) : (firebaseConfig.projectId + ' (기본)');
         const app = initializeApp(activeCfg, 'scanApp');
         const db = getFirestore(app);
+        // 🧪 기본 서버일 때만, 첫 읽기·쓰기보다 먼저. 운영(GitHub Pages)에서는 hostname 검사에 걸려 아무 일도 하지 않는다.
+        if (!serverCfg) connectEmulatorsIfEnabled(db, getAuth(app));
 
         // ── 🔒 로그인 확인 ─────────────────────────────────────────────
         // 기본 서버(메인 프로젝트)를 쓸 때만 확인한다. QR/URL로 다른 서버를 지정한 경우는
@@ -284,7 +289,7 @@
             const auth = getAuth(app);
             onAuthStateChanged(auth, (user) => {
                 setShellContext(user ? { signedIn: true, uid: user.uid } : { signedIn: false });
-                if (user) { gate.remove(); return; }
+                if (user) { gate.remove(); resolvePendingHolds().finally(() => retryReleases()); return; } // [Ver 10.7] 로그인 뒤 미발 확인·해제 정리
                 // 업무관리에 로그인해 두었어도 세션이 공유되지 않는 경우가 있다
                 // (홈 화면 앱에서 다른 브라우저로 열리거나, 사생활 보호 모드 등).
                 // 그래서 여기서 바로 로그인할 수 있게 한다 — 계정은 업무관리와 같다.
@@ -519,7 +524,7 @@
             } catch (e) { toast('바코드를 못 찾았어요 (다시 시도)'); }
         }
         function pauseScan() { try { scanner.pause(true); } catch (e) {} }
-        function resumeScan(delay = 700) { setTimeout(() => { try { scanner.resume(); } catch (e) {} processing = false; }, delay); }
+        function resumeScan(delay = 700) { setTimeout(() => { try { scanner.resume(); } catch (e) {} processing = false; flushLateWarn(); }, delay); }
 
         // [Ver 9.7] 폰 뒤로가기 버튼: 스캔 팝업(수량/알림)이 열려 있으면 페이지 이탈 대신 팝업만 닫기
         let scanModalPushed = false;
@@ -590,21 +595,32 @@
             //    숫자만 입력한 경우에만, 그것도 못 찾았을 때만 'S'를 붙여 한 번 더 찾는다.
             //    (예전에는 숫자면 무조건 S를 붙여, 숫자 바코드를 쓰는 P코드 상품 등을 못 찾았다)
             let snap = null, dbError = false;
+            // [Ver 10.7] 다른 기기가 '잡아 둔' 미발(hold/now)도 같이 읽는다 — 못 읽으면 ScanDB 값 그대로 + 작은 표시
+            let holdData = null, holdOk = false;
+            const readHold = (k) => getDoc(holdRef(k)).then(h => { holdData = h.exists() ? h.data() : null; holdOk = true; }, () => { holdData = null; holdOk = false; });
             try {
+                let hp = readHold(key);
                 snap = await getDoc(doc(db, 'ChinaStockGoods_ScanDB', key));
                 if (!snap.exists() && /^[0-9]+$/.test(key)) {
                     const alt = 'S' + key;
                     const s2 = await getDoc(doc(db, 'ChinaStockGoods_ScanDB', alt));
-                    if (s2.exists()) { key = alt; snap = s2; }
+                    if (s2.exists()) { key = alt; snap = s2; hp = hp.then(() => readHold(alt)); }
                     // 둘 다 없을 때: 'S+6자리'(예: 550076) 모양일 때만 S 를 붙여 안내한다.
                     // 546881055 처럼 숫자 자체가 상품코드인 경우도 있어, 함부로 바꾸면 엉뚱한 코드로 등록된다.
                     else if (/^[0-9]{6}$/.test(key)) { key = alt; snap = s2; }
                 }
+                await hp;
             } catch (e) { dbError = true; }
 
             const memoText = aliasMemo(code) || aliasMemo(key); // [Ver 8.89] 원래 스캔값 또는 최종코드로 사유 조회
             // [Ver 8.48] 음수 방지(입고 초과분) / d 없을 때(미등록·DB오류 강제전송)는 빈 값으로 진행
-            const buildItem = (d) => ({ code: key, name: (d && d.name) || '', location: (d && d.location) || '미지정', arrivalQty: Math.max(parseInt(d && d.arrivalQty) || 0, 0), mibalQty: Math.max(parseInt(d && d.mibalQty) || 0, 0), aliasMemo: memoText });
+            // [Ver 10.7] mibalQty = 보여 줄 남은 미발(ScanDB − 다른 스캔이 잡아 둔 몫), mibalRaw = ScanDB 값(옛 비축 배분 식의 기준)
+            const buildItem = (d) => {
+                const raw = Math.max(parseInt(d && d.mibalQty) || 0, 0);
+                const shown = (d && holdOk) ? availOf(d.mibalQty, holdData, Date.now()) : raw;
+                return { code: key, name: (d && d.name) || '', location: (d && d.location) || '미지정', arrivalQty: Math.max(parseInt(d && d.arrivalQty) || 0, 0),
+                    mibalQty: shown, mibalRaw: raw, holdUnknown: !!d && !holdOk && raw > 0, noScanDb: !d, aliasMemo: memoText };
+            };
             const proceedWith = (d) => showSelect(buildItem(d));
             // [Ver 8.51] 강제전송 → 정상 입고 진행. (2026-10-22) 허용목록 등록은 수량을 골라 입고가 확정될 때(addInbound)만 한다 — 팝업만 열고 닫으면 등록 안 됨
             const forceProceed = (d) => showSelect({ ...buildItem(d), forceAllow: true });
@@ -637,6 +653,7 @@
             $('sel-mibal').textContent = `미발 ${mibal}개 입고`;
             $('sel-mibal').style.display = showMibal ? 'block' : 'none';
             $('sel-remain-row').style.display = showMibal ? 'none' : 'block';
+            $('sel-holdnote').style.display = item.holdUnknown ? 'block' : 'none'; // [Ver 10.7] 잡아 둔 몫을 못 읽음
             qtyTens = 0;
             padBuf = ''; padOver = false;
             $('num-display').textContent = '0';
@@ -655,17 +672,236 @@
 
         // 수량 확정 — 빠른 선택·키패드·[미발 N개] 가 모두 여기로. 1~QTY_MAX 정수만 받는다(0·빈값은 확정 안 함)
         const QTY_MAX = 999;
-        function confirmQty(qty) {
+        // [Ver 10.7] 확정 순간 서버에서 미발 몫을 먼저 잡는다(takeHold). 결과 또는 HOLD_WAIT_MS 까지 스캔을 멈춘 채 기다린다.
+        //   중간에 무슨 오류가 나도(기기 저장 공간 부족 등) 스캔은 반드시 다시 켠다 — 경고창을 띄운 경우만 그 [확인]이 켠다.
+        async function confirmQty(qty) {
             if (!selectOpen() || !currentItem) return; // 두 번 눌림(팝업이 이미 닫힘) 방지
             if (!Number.isInteger(qty) || qty < 1 || qty > QTY_MAX) return;
             const item = currentItem;
-            closeSelect(); addInbound(item, qty, '직접입력'); resumeScan(); refocusManual();
+            closeSelect();
+            let alerted = false;
+            const saveFailMsg = '목록을 이 기기에 저장하지 못했습니다(저장 공간 부족 등).\n새로고침하면 사라질 수 있으니 지금 [전송하기]로 보내 주세요.\n(' + item.code + ' · ' + qty + '개)';
+            try {
+                const entry = addInbound(item, qty, '직접입력');
+                // 트랜잭션보다 먼저 저장 — 그 사이 새로고침돼도 시작 정리(resolvePendingHolds)가 맞춘다.
+                //   저장에 실패해도 항목은 목록(메모리)에 있어 미발 확인·전송은 그대로 한다.
+                const saved = persist();
+                const p = startHold(entry, item);
+                if (p) {
+                    const done = await Promise.race([p.then(() => true, () => true), sleep(HOLD_WAIT_MS).then(() => false)]);
+                    const msg = freshWarns.get(entry.id); freshWarns.delete(entry.id);
+                    if (msg) { showAlert(saved ? msg : msg + '\n\n' + saveFailMsg); alerted = true; return; } // [확인] → 스캔 재개
+                    if (!done) lateIds.add(entry.id); // 늦게 오면 holdDone 이 갱신·경고
+                }
+                if (!saved) { showAlert(saveFailMsg); alerted = true; return; }
+                speak(qty + '개');
+            } catch (e) {
+                console.warn('[scan] 수량 확정 처리 오류', e);
+                try { showAlert('입고 목록 처리 중 오류 — 목록을 확인해 주세요.\n(' + item.code + ' · ' + qty + '개)'); alerted = true; } catch (e2) {}
+            } finally {
+                if (!alerted) { resumeScan(); refocusManual(); }
+            }
         }
 
         function addInbound(item, qty, dest) {
             if (item.forceAllow) registerForceAllow(item.code); // 강제전송 건은 입고 확정 때만 허용목록에 올린다
-            inboundQueue.unshift({ barcode: item.code, qty, name: item.name, location: item.location, dest, mibalQty: item.mibalQty || 0, time: new Date().toTimeString().slice(0, 8) });
-            saveQueues(); renderQueue(); speak(qty + '개');
+            // [Ver 10.7] id·mibalShown·mibalTaken·hold 추가. mibalQty 는 예전 뜻(ScanDB 미발) 그대로 — 옛 비축 배분 식의 기준
+            const entry = { id: newHoldId(), barcode: item.code, qty, name: item.name, location: item.location, dest,
+                mibalQty: (item.mibalRaw !== undefined ? item.mibalRaw : item.mibalQty) || 0, mibalShown: parseInt(item.mibalQty) || 0,
+                hold: 'pending', holdStart: Date.now(), time: new Date().toTimeString().slice(0, 8) };
+            inboundQueue.unshift(entry);   // 저장(persist)은 부르는 쪽(confirmQty)이 한다
+            return entry;
+        }
+
+        // ---------------- [Ver 10.7] 미발 '잡아 둠'(hold) ----------------
+        // ChinaStockGoods_ScanDB/{code}/hold/now = { h: { [항목ID]: { q, at } } } — 설명은 js/lib/scan-hold.js
+        // 확정 뒤 미발 확인(트랜잭션)을 기다리는 최대 시간. 운영 영향: 평소엔 0.5초 안에 끝나 체감이 거의 없다.
+        //   망이 느리면 확정 한 건마다 스캔이 최대 2.5초 멈춘다(그동안 다음 바코드를 못 찍음). 넘기면 기다리지 않고 스캔을 켜고,
+        //   결과가 늦게 오면 경고만 다음 스캔 사이에 띄운다. 늘리면 경고를 놓칠 일이 줄지만 느린 망에서 작업이 더 자주 끊긴다.
+        const HOLD_WAIT_MS = 2500;
+        const holdRef = (code) => doc(db, 'ChinaStockGoods_ScanDB', code, 'hold', 'now');
+        const holdPending = new Map();   // 항목ID → 진행 중인 트랜잭션 Promise
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        const findEntry = (id) => inboundQueue.find(it => it && it.id === id) || null;
+        // 목록 저장·그리기 — 수량 확정·미발 확인 쪽에서 부른다. 저장 공간 부족 등으로 실패해도 예외를 밖으로 던지지 않는다(스캔이 멈추지 않게).
+        //   저장했으면 true.
+        let persistWarned = false;
+        function persist() {
+            let ok = true;
+            try { saveQueues(); persistWarned = false; }
+            catch (e) { ok = false; console.warn('[scan] 목록 저장 실패', e); if (!persistWarned) { persistWarned = true; toast('기기에 목록 저장 실패 — 지금 [전송하기]로 보내 주세요'); } }
+            try { renderQueue(); } catch (e) { console.warn('[scan] 목록 표시 실패', e); }
+            return ok;
+        }
+
+        // 트랜잭션 한 번. ScanDB 가 없으면(웹 동기화로 지웠다 다시 쓰는 중) 1.5초 뒤 한 번 더, 그래도 없으면 none
+        async function takeHold(code, id, shown, qty) {
+            const sRef = doc(db, 'ChinaStockGoods_ScanDB', code), hRef = holdRef(code);
+            for (let attempt = 0; attempt < 2; attempt++) {
+                const r = await runTransaction(db, async (tx) => {
+                    const s = await tx.get(sRef);
+                    const h = await tx.get(hRef);
+                    if (!s.exists()) return { missing: true };
+                    const now = Date.now();
+                    const hd = h.exists() ? h.data() : null;
+                    const avail = availOf(s.data().mibalQty, hd, now);
+                    const plan = planTake({ shown, avail, qty });
+                    const upd = {};
+                    staleHoldIds(hd, now).forEach(x => { upd[x] = deleteField(); }); // 만료된 남의 몫은 같이 지운다
+                    if (plan.take > 0) upd[id] = { q: plan.take, at: now };
+                    if (Object.keys(upd).length) tx.set(hRef, { h: upd }, { merge: true });
+                    return { ...plan, avail };
+                });
+                if (!r.missing) return r;
+                if (attempt === 0) await sleep(1500);
+            }
+            return { take: 0, warn: false, othersTook: 0, avail: 0, none: true };
+        }
+
+        // 조회 미발 0 / 오프라인이면 트랜잭션 없이 정한다(null 반환). 그 외 Promise(끝나면 항목 갱신, 거부하지 않음).
+        //   ScanDB 자료 없이 들어온 건(미등록·조회 오류 강제전송)은 몫을 모르므로 mibalTaken 을 두지 않는다 → 옛 비축 배분 식
+        //   HOLD_PENDING_MAX_MS(15초) 넘게 안 끝나면 '확인 불가'로 내려 전송할 수 있게 한다(expirePending).
+        function startHold(entry, item) {
+            try {
+                if (!entry.mibalShown) { if (!(item && item.noScanDb)) entry.mibalTaken = 0; entry.hold = 'none'; persist(); return null; }
+                if (!navigator.onLine) {
+                    entry.hold = 'offline'; persist();
+                    toast('오프라인 — 다른 작업자와 겹칠 수 있음');
+                    return null;
+                }
+                const id = entry.id, code = entry.barcode, qty = entry.qty;
+                const p = takeHold(code, id, entry.mibalShown, qty).then(
+                    (r) => holdDone(id, r, null),
+                    (e) => holdDone(id, null, e)
+                ).finally(() => holdPending.delete(id));
+                holdPending.set(id, p);
+                setTimeout(() => expirePending(false), HOLD_PENDING_MAX_MS + 200);
+                return p;
+            } catch (e) {
+                console.warn('[scan] 미발 확인 시작 오류', e);
+                return null;   // 확인 중으로 남은 건은 전송 때 expirePending 이 '확인 불가'로 내린다
+            }
+        }
+
+        // '확인 중'이 15초 넘은 항목 → '확인 불가'(hold 'offline', 옛 비축 배분 식). includeIdle = 새로고침 등으로 진행 중 트랜잭션이 없는 건도.
+        //   진행 중이던 트랜잭션이 나중에 끝나면 결과를 쓰지 않고, 그때 써진 몫은 바로 푼다(holdDone → timedOut).
+        const timedOut = new Map();   // 항목ID → 상품코드
+        function expirePending(includeIdle) {
+            const now = Date.now(); let n = 0;
+            for (const it of inboundQueue) {
+                if (!it || !it.id || !pendingExpired(it, now)) continue;
+                const live = holdPending.has(it.id);
+                if (!live && !includeIdle) continue;
+                it.hold = 'offline'; it.holdWhy = 'timeout'; delete it.mibalTaken;
+                if (live) timedOut.set(it.id, it.barcode);
+                n++;
+            }
+            if (n) { persist(); toast(`미발 확인이 늦어 ${n}건은 확인 없이 보냅니다 — 다른 작업자와 겹칠 수 있음`); }
+            return n;
+        }
+
+        function warnText(code, qty, r) {
+            return `다른 작업자가 방금 ${r.othersTook}개를 피킹용으로 뺐습니다 — 남은 미발 ${r.avail}개\n(${code} · 이번 ${qty}개: 피킹 ${r.take} · 비축 ${qty - r.take})`;
+        }
+        function noticeText(code, qty, r) {
+            return `${code}: 다른 작업자가 ${r.othersTook}개를 먼저 잡음 — 이번 ${qty}개는 모두 피킹`;
+        }
+
+        // 트랜잭션 결과를 큐 항목에 적는다. 같은 객체가 아니어도(새로고침·되돌리기) id 로 찾는다.
+        // 이번 수량을 다 피킹으로 못 잡았을 때(warn)만 경고창 — HOLD_WAIT_MS 안에 왔으면 confirmQty 가, 늦게 왔으면 여기서(스캔 중이면 다음 재개 때) 띄운다.
+        // 남이 일부 가져갔지만 다 잡았으면(notice) 토스트만. 예외는 밖으로 던지지 않는다.
+        const lateWarns = [], lateIds = new Set(), freshWarns = new Map();
+        function holdDone(id, r, err) {
+            try {
+                const late = lateIds.delete(id);
+                if (timedOut.has(id)) {   // 15초 넘어 '확인 불가'로 내린 건 — 결과는 쓰지 않고, 늦게 써진 몫은 바로 푼다(고아 hold 방지)
+                    const code = timedOut.get(id); timedOut.delete(id);
+                    // 오류로 와도 실제로는 커밋됐을 수 있다(응답 유실) — 지울 값이 없으면 아무 일도 없으니 늘 푼다
+                    if (err || (r && r.take > 0)) { markRelease(code, id, true); releaseHold(code, id, true); }
+                    return;
+                }
+                const it = findEntry(id) || deletedEntries.get(id);
+                if (!it) return;
+                if (err || !r || r.none) {
+                    // 서버 확인 실패 · ScanDB 문서 없음(웹 동기화 중 등) → 몫을 모름 → 옛 방식으로 전송
+                    it.hold = 'offline'; it.holdWhy = r && r.none ? 'nodb' : 'error'; delete it.mibalTaken;
+                    if (findEntry(id)) toast(`${it.barcode} 미발 확인 ${r && r.none ? '불가(상품 자료 없음)' : '실패'} — 다른 작업자와 겹칠 수 있음`);
+                } else {
+                    it.mibalTaken = r.take;
+                    it.hold = r.take > 0 ? 'ok' : 'none';
+                    if (r.warn) {
+                        const msg = warnText(it.barcode, it.qty, r);
+                        if (late) { if (findEntry(id)) showLateWarn(msg); }
+                        else freshWarns.set(id, msg);
+                    } else if (r.notice && findEntry(id)) toast(noticeText(it.barcode, it.qty, r));
+                }
+                if (findEntry(id)) persist();
+            } catch (e) { console.warn('[scan] 미발 확인 결과 처리 오류', e); }
+        }
+        function showLateWarn(msg) {
+            if (!processing) { processing = true; pauseScan(); showAlert(msg); }
+            else lateWarns.push(msg);
+        }
+        function flushLateWarn() {
+            if (processing || !lateWarns.length) return;
+            processing = true; pauseScan(); showAlert(lateWarns.shift());
+        }
+
+        // 삭제 확정된 항목의 몫을 푼다. 실패하면 scanHoldRelease 에 남겨 시작·online 때 다시.
+        const RELEASE_KEY = 'scanHoldRelease';
+        const deletedEntries = new Map();   // 지웠지만 아직 트랜잭션이 끝나지 않았을 수 있는 항목
+        function loadReleaseList() { try { const a = JSON.parse(localStorage.getItem(RELEASE_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+        function saveReleaseList(a) { if (a.length) localStorage.setItem(RELEASE_KEY, JSON.stringify(a)); else localStorage.removeItem(RELEASE_KEY); }
+        // force = 큐에 그 항목이 있어도 푼다(15초 넘어 '확인 불가'로 내린 뒤 늦게 써진 몫)
+        function markRelease(code, id, force) {
+            try {
+                const a = loadReleaseList(); const x = a.find(y => y && y.id === id);
+                if (!x) a.push(force ? { code, id, force: true } : { code, id }); else if (force) x.force = true;
+                saveReleaseList(a);
+            } catch (e) { console.warn('[scan] 해제 목록 저장 실패', e); }
+        }
+        function unmarkRelease(id) { saveReleaseList(loadReleaseList().filter(x => x.id !== id)); }
+        async function releaseHold(code, id, force) {
+            const p = holdPending.get(id);
+            if (p) { try { await p; } catch (e) {} }   // 진행 중이면 끝난 뒤에 푼다(늦게 써지는 몫이 남지 않게)
+            deletedEntries.delete(id);
+            if (!force && findEntry(id)) { unmarkRelease(id); return true; }   // 그새 되돌렸다
+            try {
+                await updateDoc(holdRef(code), { ['h.' + id]: deleteField() });
+            } catch (e) {
+                if (!(e && e.code === 'not-found')) return false;   // 문서 없음 = 풀 것 없음
+            }
+            unmarkRelease(id);
+            return true;
+        }
+        let releasing = false;
+        async function retryReleases() {
+            if (releasing || !navigator.onLine) return;
+            releasing = true;
+            try {
+                for (const x of loadReleaseList()) {
+                    if (!x || !x.id || !x.code) { unmarkRelease(x && x.id); continue; }
+                    if (!x.force && (findEntry(x.id) || deletedEntries.has(x.id))) continue;   // 큐에 있거나 되돌리기 대기 중
+                    await releaseHold(x.code, x.id, !!x.force);
+                }
+            } finally { releasing = false; }
+        }
+
+        // 시작 정리: 트랜잭션 결과를 모른 채 남은 pending 항목 — hold 에 내 몫이 있으면 ok, 없으면 오프라인(옛 방식)
+        async function resolvePendingHolds() {
+            const pend = inboundQueue.filter(it => it && it.id && it.hold === 'pending' && !holdPending.has(it.id));
+            if (!pend.length || !navigator.onLine) return;
+            const codes = [...new Set(pend.map(it => it.barcode))];
+            await Promise.all(codes.map(async (code) => {
+                let hd;
+                try { const s = await getDoc(holdRef(code)); hd = s.exists() ? (s.data() || {}) : {}; } catch (e) { return; } // 못 읽으면 다음 online 때
+                pend.filter(it => it.barcode === code).forEach(it => {
+                    const mine = hd.h && hd.h[it.id];
+                    if (mine && (parseInt(mine.q) || 0) > 0) { it.hold = 'ok'; it.mibalTaken = parseInt(mine.q) || 0; }
+                    else { it.hold = 'offline'; it.holdWhy = 'unknown'; delete it.mibalTaken; }
+                });
+            }));
+            persist();
         }
 
         // [Ver 8.69] 스캔 팝업에 십/일 자리 선택 표시 (일의자리 누르면 자동 확정 → 큐 추가)
@@ -870,58 +1106,80 @@
             if (!inboundQueue.length || sending) return;
             if (!navigator.onLine) { showAlert('오프라인 상태입니다.\n인터넷 연결 후 [전송하기]를 눌러주세요.\n(스캔 내역은 저장되어 있습니다)'); return; }
             sending = true; updateSendBtn('전송 중...'); closeUndo();
+            // [Ver 10.7] 진행 중인 미발 확인(트랜잭션)을 최대 3초 기다린다. 그래도 확인 중인 건은 이번 전송에서 빼고 목록에 남긴다
+            //   (몫이 서버에 늦게 써진 뒤라면 아무도 못 푸는 hold 가 남는다). 새로고침 뒤 남은 확인 중 건은 hold 문서를 읽어 맞춘다.
+            //   15초 넘게 확인 중인 건은 '확인 불가'로 내려 이번에 옛 방식으로 보낸다(늦게 써진 몫은 holdDone 이 풀고, batch 도 h.{id} 를 지운다).
+            if (holdPending.size) await Promise.race([Promise.allSettled([...holdPending.values()]), sleep(3000)]);
+            await resolvePendingHolds();
+            expirePending(true);
             // 보낼 목록은 시작 순간 고정(전송 중 스캔한 건은 목록에 남는다), 반영된 묶음만 sent 에 모은다
             // 목록은 최신이 앞(unshift) → 뒤집어 오래된 스캔부터 보낸다(부분 실패 후 재전송해도 배분이 시간순)
-            const items = [...inboundQueue].reverse();
+            const all = [...inboundQueue].reverse();
+            const items = all.filter(it => !(it && it.hold === 'pending'));
+            const held = all.length - items.length;
+            if (!items.length) { sending = false; updateSendBtn(); toast(`미발 확인 중인 ${held}건 — 잠시 뒤 다시 [전송하기]`); return; }
+            // [Ver 10.7] 비축(2층) 배분은 같은 batch 안에서 increment 로 쓴다(예전: 따로 읽고 통째로 덮어써 두 기기가 겹치면 한쪽이 사라짐).
+            //   옛 식(쪼갬 아닌 항목 — 오프라인·옛 형식)은 현재 mibal·received 가 필요해 읽기만 한다. 못 읽으면 쪼갬 항목만 있을 때만 진행.
+            let cur = null;
+            try { const s2 = await getDoc(doc(db, 'ChinaStockGoods', 'FLOOR2_STOCK')); cur = (s2.exists() && s2.data().map) ? s2.data().map : {}; } catch (e) { cur = null; }
+            if (cur === null && items.some(it => !isSplitItem(it))) {
+                sending = false; updateSendBtn();
+                showAlert('비축(2층) 현황을 불러오지 못해 전송하지 않았습니다.\n네트워크 확인 후 다시 [전송하기]를 눌러 주세요.\n(스캔 내역은 그대로 있습니다)');
+                return;
+            }
             const sent = [];
-            let batchFail = false, floorFail = false;
+            const st = {}; // code -> {received, mibal, floor2, name, writeMibal, writeName} — 이번 전송 안에서 시간순으로 이어서 계산
+            let batchFail = false;
             try {
-                const CHUNK = 200; // 배치당 400 작업 (한도 500 이내)
+                const CHUNK = 150; // 건당 3작업(ScanDB·입고이력·hold) + 비축 1 = 451 (한도 500 이내)
                 for (let i = 0; i < items.length; i += CHUNK) {
                     const batch = writeBatch(db);
                     const part = items.slice(i, i + CHUNK);
+                    const f2 = {}; // code -> {received, floor2} 이번 묶음 증가분
                     part.forEach(it => {
                         batch.set(doc(db, 'ChinaStockGoods_ScanDB', it.barcode), { arrivalQty: increment(-it.qty), mibalQty: increment(-it.qty) }, { merge: true }); // [Ver 8.48] 미발수량도 입고분만큼 즉시 차감 (표시는 0에서 클램프) / [Ver 8.51] set-merge: 강제전송된 미등록 상품(ScanDB 문서 없음)도 생성되도록
                         batch.set(doc(collection(db, 'ChinaStockGoods_InboundHistory')), {
                             barcode: it.barcode, qty: it.qty, name: it.name, location: it.location,
                             dest: it.dest, timestamp: serverTimestamp(), worker: 'Scanner_Web'
                         });
+                        // [Ver 10.7] 잡아 둔 몫은 같은 batch 에서 푼다(ScanDB 는 qty 전체를 빼므로 이중 차감 없음). 옛 형식(id 없음)은 hold 없음
+                        if (it.id) batch.set(holdRef(it.barcode), { h: { [it.id]: deleteField() } }, { merge: true });
+                        const c = it.barcode;
+                        if (!st[c]) {
+                            const ex = (cur && cur[c]) || {};
+                            const hasMibal = ex.mibal !== undefined && ex.mibal !== null;
+                            st[c] = { received: parseInt(ex.received) || 0, mibal: hasMibal ? (parseInt(ex.mibal) || 0) : (parseInt(it.mibalQty) || 0), floor2: parseInt(ex.floor2) || 0,
+                                name: it.name || ex.name || '', writeMibal: cur !== null && !hasMibal, writeName: true };
+                        }
+                        const s = st[c];
+                        // [Ver 8.45→10.7] 쪼갬 항목: 3층 = 잡은 몫, 비축 = 나머지 / 옛 항목: 미발 남으면 그 스캔 전부 3층, 다 찼으면 전부 비축
+                        const r = floor2Step(s, it, isSplitItem(it));
+                        s.received = r.state.received; s.floor2 = r.state.floor2;
+                        const g = f2[c] || (f2[c] = { received: 0, floor2: 0 });
+                        g.received += it.qty; g.floor2 += r.floor2Add;
                     });
+                    const map = {};
+                    Object.keys(f2).forEach(c => {
+                        const s = st[c];
+                        const e = { received: increment(f2[c].received), floor2: increment(f2[c].floor2) };
+                        if (s.writeMibal) e.mibal = s.mibal;                        // 기준 미발이 없을 때만 한 번(예전과 같은 값)
+                        if (s.writeName && (s.name || cur !== null)) e.name = s.name; // 웹은 floor2·name 만 읽는다
+                        map[c] = e;
+                    });
+                    batch.set(doc(db, 'ChinaStockGoods', 'FLOOR2_STOCK'), { map, updatedAt: serverTimestamp() }, { merge: true });
                     await batch.commit();
+                    Object.keys(f2).forEach(c => { st[c].writeMibal = false; st[c].writeName = false; });
                     sent.push(...part);
                 }
             } catch (e) { batchFail = true; }
-            // 반영된 건만 비축 배분 — 다시 전송할 때는 남은 건만 보내므로 지금 하지 않으면 빠진다
-            if (sent.length) {
-                // [Ver 8.45] 비축창고: fullauto와 동일 - 스캔 순서대로, 미발 남아있으면 그 스캔 전부 3층, 다 채웠으면 전부 비축(초과분 안 쪼갬)
-                try {
-                    let cur = {};
-                    const s2 = await getDoc(doc(db, 'ChinaStockGoods', 'FLOOR2_STOCK'));
-                    if (s2.exists() && s2.data().map) cur = s2.data().map;
-                    const st = {}; // code -> {received, mibal, floor2, name}
-                    sent.forEach(it => { // sent 는 이미 스캔 시간순
-                        const c = it.barcode;
-                        if (!st[c]) { const ex = cur[c] || {}; st[c] = { received: parseInt(ex.received) || 0, mibal: (ex.mibal !== undefined && ex.mibal !== null) ? (parseInt(ex.mibal) || 0) : (parseInt(it.mibalQty) || 0), floor2: parseInt(ex.floor2) || 0, name: it.name || ex.name || '' }; }
-                        const s = st[c];
-                        if (s.mibal - s.received > 0) { /* 아직 미발 남음 → 이번 스캔 전부 3층 */ } else { s.floor2 += it.qty; /* 미발 다 채움 → 전부 비축 */ }
-                        s.received += it.qty;
-                    });
-                    const f2 = {};
-                    Object.keys(st).forEach(c => { f2[c] = { received: st[c].received, mibal: st[c].mibal, floor2: st[c].floor2, name: st[c].name }; });
-                    await setDoc(doc(db, 'ChinaStockGoods', 'FLOOR2_STOCK'), { map: f2, updatedAt: serverTimestamp() }, { merge: true });
-                } catch (e) { floorFail = true; }
-            }
-            // 반영된 건만 목록에서 뺀다(실패한 묶음·전송 중 스캔한 건은 남김)
+            // 반영된 건만 목록에서 뺀다(실패한 묶음·확인 중인 건·전송 중 스캔한 건은 남김)
             const sentSet = new Set(sent);
             inboundQueue = inboundQueue.filter(it => !sentSet.has(it));
             saveQueues(); renderQueue();
             if (batchFail) {
-                showAlert(`전송 실패 — ${sent.length}건은 반영됨, 남은 ${items.length - sent.length}건만 목록에 남겼습니다.\n(권한 또는 네트워크 오류)`
-                    + (floorFail ? '\n\n반영된 건의 비축(2층) 배분 저장도 실패했습니다. 관리자에게 알려 주세요.' : ''));
-            } else if (floorFail) {
-                showAlert('입고는 반영됐지만 비축(2층) 배분 저장에 실패했습니다.\n다시 전송하지 말고 관리자에게 알려 주세요.');
+                showAlert(`전송 실패 — ${sent.length}건은 반영됨, 남은 ${items.length - sent.length}건만 목록에 남겼습니다.\n(권한 또는 네트워크 오류)`);
             } else {
-                speak('전송 완료'); toast('입고 처리 완료');
+                speak('전송 완료'); toast(held ? `입고 처리 완료 — 미발 확인 중 ${held}건은 목록에 남김` : '입고 처리 완료');
             }
             sending = false; updateSendBtn();
         }
@@ -1000,11 +1258,14 @@
             el.innerHTML = q.map((it, i) => {
                 // [Ver 4.0] 위치 모드: 당일 입고분은 상품명, ScanDB에 없으면 표시 / [Ver 8.56] 당일입고 강제추가분은 '목록없음'으로 구분
                 const label = it.name ? it.name : (mode === 'loc' ? (it.sub === 'today' ? '목록없음' : '기존재고') : '');
+                // [Ver 10.7] 미발 몫 확인 상태 — 오프라인·확인 불가(옛 방식으로 전송) / 확인 중
+                const holdTag = mode !== 'in' ? '' : (it.hold === 'offline' ? `<span class="qhold" style="color:var(--c-risk-text);font-weight:800">${it.holdWhy ? '확인 불가' : '오프라인'}</span> · `
+                    : (it.hold === 'pending' ? '<span class="qhold" style="color:var(--c-text-3)">확인 중</span> · ' : ''));
                 return `
                 <div class="qitem">
                     <div class="qinfo">
                         <div class="qcode">${it.barcode}</div>
-                        <div class="qsub">${mode === 'loc' && it.sub === 'existing' ? '<span class="qtag-ex">기존재고</span>' : ''}${label ? (label === '목록없음' && !it.name ? '<span style="color:var(--c-risk-text);font-weight:800">목록없음</span>' : label) + ' · ' : ''}${it.location} · ${it.time}</div>
+                        <div class="qsub">${holdTag}${mode === 'loc' && it.sub === 'existing' ? '<span class="qtag-ex">기존재고</span>' : ''}${label ? (label === '목록없음' && !it.name ? '<span style="color:var(--c-risk-text);font-weight:800">목록없음</span>' : label) + ' · ' : ''}${it.location} · ${it.time}</div>
                     </div>
                     ${mode === 'in' ? `<div class="qqty">${it.qty}개</div>` : ''}
                     <button class="qdel" data-i="${i}" aria-label="삭제"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block; margin:3.5px 0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
@@ -1014,7 +1275,10 @@
                 // 전송 중에는 지우지 않는다 — 이미 보내는 목록에 들어 있어 지워도 전송된다
                 if (sending) { toast('전송 중에는 삭제할 수 없습니다'); return; }
                 const q = currentQueue(); const i = parseInt(b.dataset.i);
-                const removed = q.splice(i, 1)[0]; saveQueues(); renderQueue();
+                const removed = q.splice(i, 1)[0];
+                // [Ver 10.7] 잡아 둔 미발은 바로 풀지 않는다(되돌릴 수 있게) — 되돌리기가 끝날 때 푼다. 그 전에 꺼져도 시작 때 풀리게 먼저 적어 둔다
+                if (removed && mode === 'in' && removed.id) { deletedEntries.set(removed.id, removed); markRelease(removed.barcode, removed.id); }
+                saveQueues(); renderQueue();
                 if (removed) offerUndo(mode, i, removed);
             });
             updateSendBtn();
@@ -1023,25 +1287,34 @@
         // 목록에서 지운 1건을 5초 동안 되돌릴 수 있다(UX 개선 12번). 저장 방식(localStorage 의 scanInQueue/scanLocQueue)은 그대로 —
         // 지울 때 바로 저장하고, 되돌리면 같은 목록·같은 자리에 다시 넣어 저장한다. 또 지우면 앞의 되돌리기는 끝난다(마지막 1건만).
         let undoTimer = null;
+        let undoPending = null;   // [Ver 10.7] 되돌리기를 기다리는 1건 { which, item } — 끝나면 잡아 둔 미발을 푼다
+        function finishUndo() {
+            const u = undoPending; undoPending = null;
+            if (u && u.which === 'in' && u.item && u.item.id) releaseHold(u.item.barcode, u.item.id);
+        }
         function offerUndo(which, index, item) {
             const box = $('undo-toast'); if (!box) return;
             clearTimeout(undoTimer);
+            finishUndo();   // 앞의 되돌리기는 끝 — 그 건의 몫을 푼다
+            undoPending = { which, item };
             $('undo-toast-msg').textContent = `${item.barcode || '1건'} 삭제됨`;
             box.classList.add('show');
             $('undo-toast-btn').onclick = () => {
                 // 전송 중에는 되돌리지 않는다 — 보내는 중인 목록에 끼워 넣으면 보낸 것/안 보낸 것이 섞인다
                 if (sending) { toast('전송 중에는 되돌릴 수 없습니다'); return; }
                 clearTimeout(undoTimer); box.classList.remove('show');
+                undoPending = null;
+                if (which === 'in' && item.id) { deletedEntries.delete(item.id); unmarkRelease(item.id); } // 되돌리면 할 일 없음(몫은 그대로)
                 // 전송하면 목록 배열이 새로 만들어지므로(inboundQueue = []) 되돌릴 때 그때의 배열을 다시 찾는다
                 const queue = which === 'in' ? inboundQueue : locationQueue;
                 queue.splice(Math.min(index, queue.length), 0, item); saveQueues(); renderQueue();
                 toast('되돌렸습니다');
             };
-            undoTimer = setTimeout(() => { box.classList.remove('show'); $('undo-toast-btn').onclick = null; }, 5000);
+            undoTimer = setTimeout(() => { box.classList.remove('show'); $('undo-toast-btn').onclick = null; finishUndo(); }, 5000);
         }
 
         // 전송을 시작하면 되돌리기 토스트를 닫는다(앞에서 지운 1건은 그대로 삭제 확정)
-        function closeUndo() { clearTimeout(undoTimer); const box = $('undo-toast'); if (box) box.classList.remove('show'); const ub = $('undo-toast-btn'); if (ub) ub.onclick = null; }
+        function closeUndo() { clearTimeout(undoTimer); const box = $('undo-toast'); if (box) box.classList.remove('show'); const ub = $('undo-toast-btn'); if (ub) ub.onclick = null; finishUndo(); }
 
         function updateSendBtn(text) {
             const btn = $('btn-send');
@@ -1156,6 +1429,7 @@
         // [Ver 8.1] 오프라인 감지 표시
         function updateNet() { const b = $('offline-bar'); if (b) b.style.display = navigator.onLine ? 'none' : 'block'; }
         window.addEventListener('online', updateNet);
+        window.addEventListener('online', () => { resolvePendingHolds(); retryReleases(); }); // [Ver 10.7] 미뤄 둔 미발 확인·해제
         window.addEventListener('offline', updateNet);
         updateNet();
         $('reader').addEventListener('click', (e) => {
@@ -1196,10 +1470,12 @@
         setLocSubMode(locSubMode); // [Ver 4.1] 세부 작업 표시 — (2026-10-16) 열 때마다 '당일 입고분'으로 시작
         setMode(mode);
         checkVersion();
+        // [Ver 10.7] 시작 정리 — 결과를 모른 채 남은 미발 확인(pending)을 맞추고, 못 푼 몫을 다시 푼다. 로그인 전이면 실패 → online·다음 시작 때
+        resolvePendingHolds().finally(() => retryReleases());
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/page-gate.js?v=202610281122" data-perm-page="scan.view" data-perm-app="scanApp"></script>
-    <script type="module" src="js/app-shell.js?v=202610281122"></script>
+    <script type="module" src="js/page-gate.js?v=202610281229" data-perm-page="scan.view" data-perm-app="scanApp"></script>
+    <script type="module" src="js/app-shell.js?v=202610281229"></script>
 </body>
 </html>
