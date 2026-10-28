@@ -20,23 +20,23 @@
 //
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다.
 //    도착수량 규칙(applyDates·withinGrace)은 그 파일을 읽고 lib/mibal2-rows.js 에 같게 옮겼다.
-import { initializeFirebase } from './china-stock-config.js?v=202610281042'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610281101'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610281042';
-import { sortMark } from './lib/china-stock-view.js?v=202610281042';
+import { explain } from './lib/mibal2-calc.js?v=202610281101';
+import { sortMark } from './lib/china-stock-view.js?v=202610281101';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202610281042';
-import { setShellContext } from './app-shell-bridge.js?v=202610281042';
-import { memberNameFor } from './app-shell-data.js?v=202610281042';
-import { mountBusyBanner } from './busy-banner.js?v=202610281042';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610281042';
-import { friendlyFirebaseError } from './utils.js?v=202610281042';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610281042';
-import { setupScanTools } from './china-mibal2-scan.js?v=202610281042';
-import { setupLocMode } from './china-mibal2-loc.js?v=202610281042';
+} from './lib/mibal2-rows.js?v=202610281101';
+import { setShellContext } from './app-shell-bridge.js?v=202610281101';
+import { memberNameFor } from './app-shell-data.js?v=202610281101';
+import { mountBusyBanner } from './busy-banner.js?v=202610281101';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610281101';
+import { friendlyFirebaseError } from './utils.js?v=202610281101';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610281101';
+import { setupScanTools } from './china-mibal2-scan.js?v=202610281101';
+import { setupLocMode } from './china-mibal2-loc.js?v=202610281101';
 
 const { db, auth } = initializeFirebase();
 

@@ -1,29 +1,29 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202610281042';
-import * as State from './state.js?v=202610281042';
+import * as DOM from './dom-elements.js?v=202610281101';
+import * as State from './state.js?v=202610281101';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202610281042';
-import { updateDailyData } from './app-data.js?v=202610281042';
+import { render } from './app.js?v=202610281101';
+import { updateDailyData } from './app-data.js?v=202610281101';
 
-import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610281042';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610281042';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610281101';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610281101';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     applyPlannedPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202610281042';
+} from './ui.js?v=202610281101';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202610281042';
-import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate } from './history-data-manager.js?v=202610281042';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202610281042';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202610281042';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610281042';
+} from './app-logic.js?v=202610281101';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate } from './history-data-manager.js?v=202610281101';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202610281101';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202610281101';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610281101';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 

@@ -13,9 +13,9 @@
 //   표의 입고확인·차이 열과 입고 오차 통계·기록은 두지 않는다(기존 부족수량관리의 기능 — 2026-10-27·28 사용자 결정)
 // 엑셀은 내 PC 로 내려받기만 한다(신규 화면과 같은 XLSX.writeFile .xlsx). 파일 이름은 '시험_' 으로 시작 — 이지어드민 업로드용이 아니다.
 import { getDocs, onSnapshot, doc, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202610281042';
-import { locAssignFullOf } from './lib/loc-mode.js?v=202610281042';
-import { friendlyFirebaseError } from './utils.js?v=202610281042';
+import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202610281101';
+import { locAssignFullOf } from './lib/loc-mode.js?v=202610281101';
+import { friendlyFirebaseError } from './utils.js?v=202610281101';
 
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const INBOUND_COLL = CHINA_COLLECTION + '_InboundHistory';
