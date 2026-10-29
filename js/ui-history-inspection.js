@@ -1,8 +1,8 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610291637';
-import * as State from './state.js?v=202610291637';
-import { getWeekOfYear, escapeHtml } from './utils.js?v=202610291637';
-import { dayInspItems } from './lib/insp-day.js?v=202610291637';
+import * as DOM from './dom-elements.js?v=202610291646';
+import * as State from './state.js?v=202610291646';
+import { getWeekOfYear, escapeHtml } from './utils.js?v=202610291646';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202610291646';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -163,6 +163,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
         filteredDateList.forEach(d => {
             const isSelected = d.date === selectedDate;
             const activeClass = isSelected ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-transparent hover:bg-gray-50 text-gray-600';
+            const packs = packDatesLabel(d.data);   // 이 날 검수한 리스트가 몇일자 패킹인지
             
             dateListHtml += `
                 <button class="w-full text-left px-4 py-3 border-l-4 transition-all ${activeClass} group btn-select-insp-date" data-date="${d.date}">
@@ -170,6 +171,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                         <span class="font-semibold text-sm">${d.date}</span>
                         <span class="text-xs bg-white border border-gray-200 px-2 py-0.5 rounded-full text-gray-500 group-hover:border-gray-300">${d.count}건</span>
                     </div>
+                    ${packs ? `<div class="text-[11px] text-gray-500 mt-0.5">패킹 ${escapeHtml(packs)}</div>` : ''}
                 </button>
             `;
         });
@@ -243,6 +245,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-3">
                         <h4 class="font-bold text-gray-700 text-sm">${selectedDate} 검수 리스트 상세</h4>
+                        ${packDatesLabel(filteredSelectedData, 6) ? `<span class="text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded">패킹 ${escapeHtml(packDatesLabel(filteredSelectedData, 6))}</span>` : ''}
                         <span class="text-[11px] font-medium bg-white border border-gray-200 shadow-sm px-2.5 py-1 rounded text-gray-600">
                             총 입고: <strong class="text-gray-900">${totalInboundQty.toLocaleString()}</strong>개 <span class="mx-1 text-gray-300">|</span> 
                             총 샘플검수: <strong class="text-blue-600">${totalSampleQty.toLocaleString()}</strong>개

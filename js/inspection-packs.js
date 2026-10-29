@@ -6,17 +6,22 @@
 // 쓰기: updateDailyData({inspectionList}) — 엑셀 업로드(js/inspection-excel.js)와 같은 경로. 순수 규칙은 js/lib/insp-packs.js.
 // ⚠️ 이 창은 index.html 에 붙는다 — 업무마감봇 선택자와 겹치지 않게 role="dialog"·data-act·end-shift-* 를 쓰지 않는다. id 는 모두 insp-pack-*.
 // ⚠️ 공급처는 코드만(supplierCode). supplierName 은 빈칸(CLAUDE.md 3절).
-import * as State from './state.js?v=202610291637';
-import { updateDailyData } from './app-data.js?v=202610291637';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610291637';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610291637';
-import { opt1Of } from './lib/mibal2-live.js?v=202610291637';   // 자리의 '옵션추가항목1'만(rawDataStr 의 다른 칸 — 공급처 등 — 은 돌려주지 않는다)
-import { fetchAllHistoryData } from './history-data-manager.js?v=202610291637';
+import * as State from './state.js?v=202610291646';
+import { updateDailyData } from './app-data.js?v=202610291646';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610291646';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610291646';
+import { opt1Of } from './lib/mibal2-live.js?v=202610291646';   // 자리의 '옵션추가항목1'만(rawDataStr 의 다른 칸 — 공급처 등 — 은 돌려주지 않는다)
+import { fetchAllHistoryData } from './history-data-manager.js?v=202610291646';
 import { doc, getDoc, getDocs, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations, locsByCode } from './lib/insp-packs.js?v=202610291637';
+import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations, locsByCode, inspectedKeysFromHistory, packInspected } from './lib/insp-packs.js?v=202610291646';
 
 const DOC_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks'];
 const PICKER_ID = 'insp-pack-picker';
+let inspectedKeys = null;   // 이미 검수한 키(Set) — null 이면 아직 읽는 중
+let inspectedErr = false;
+let inspectedAt = 0;        // 읽은 시각 — 5분 안에 다시 열면 다시 읽지 않는다(product_history 전체 읽기)
+let inspectedSeq = 0;       // 창을 빨리 닫았다 열 때 늦게 끝난 앞 읽기가 새 결과를 덮지 않게
+const INSPECTED_TTL_MS = 5 * 60 * 1000;
 const HIST_CONCURRENCY = 8;
 
 let parsed = null;            // parseInspPacks 결과(창을 열 때마다 새로 읽음)
@@ -127,6 +132,12 @@ function renderRows() {
         const part = p.partial ? ' <span class="text-amber-600">일부 도착</span>' : '';
         const already = existingCount(p, existing);
         const alreadyTxt = already > 0 ? `<span class="text-amber-700">목록에 이미 ${already}건</span>` : '';
+        // 이미 검수한 패킹인가 — 상품별 검수 기록(product_history)의 같은 상품·색상·패킹일
+        const ins = packInspected(p, inspectedKeys, '');
+        const insTxt = !ins ? (inspectedErr ? '' : '<span class="text-gray-300">검수 확인 중</span>')
+            : ins.total > 0 && ins.done === ins.total ? '<span class="text-green-700 font-bold bg-green-50 px-1 rounded">검수 완료</span>'
+            : ins.done > 0 ? `<span class="text-amber-700 font-bold bg-amber-50 px-1 rounded">검수 ${ins.done}/${ins.total}장</span>`
+            : '<span class="text-gray-400">미검수</span>';
         return `
             <tr class="border-b last:border-0 hover:bg-indigo-50 ${p.arriveDate ? 'text-gray-400' : ''}">
                 <td class="px-2 py-2 text-center"><input type="checkbox" class="insp-pack-check w-4 h-4" value="${escapeHtml(p.no)}" ${picked.has(p.no) ? 'checked' : ''}></td>
@@ -135,6 +146,7 @@ function renderRows() {
                 <td class="px-2 py-2">${escapeHtml(arrive)}${part}</td>
                 <td class="px-2 py-2 text-right">${p.items.length}</td>
                 <td class="px-2 py-2 text-right font-bold">${pc.byPack[p.no] || 0}</td>
+                <td class="px-2 py-2 text-xs whitespace-nowrap">${insTxt}</td>
                 <td class="px-2 py-2 text-xs">${alreadyTxt}</td>
             </tr>`;
     }).join('');
@@ -142,16 +154,38 @@ function renderRows() {
         <table class="w-full text-sm text-gray-700">
             <thead class="text-xs text-gray-500 bg-gray-50">
                 <tr><th class="px-2 py-1.5"></th><th class="px-2 py-1.5 text-left">패킹번호</th><th class="px-2 py-1.5 text-left">출고일</th>
-                    <th class="px-2 py-1.5 text-left">도착</th><th class="px-2 py-1.5 text-right">품목</th><th class="px-2 py-1.5 text-right">장수</th><th class="px-2 py-1.5"></th></tr>
+                    <th class="px-2 py-1.5 text-left">도착</th><th class="px-2 py-1.5 text-right">품목</th><th class="px-2 py-1.5 text-right">장수</th><th class="px-2 py-1.5 text-left">검수</th><th class="px-2 py-1.5"></th></tr>
             </thead>
             <tbody>${rows}</tbody>
         </table>`;
+}
+
+/** 상품별 검수 기록 전체 → 검수한 키 Set. 패킹 목록과 따로 읽고, 다 읽으면 줄을 다시 그린다(목록 표시는 기다리지 않는다) */
+async function loadInspectedKeys() {
+    if (inspectedKeys && Date.now() - inspectedAt < INSPECTED_TTL_MS) return;
+    const seq = ++inspectedSeq;
+    inspectedKeys = null;
+    inspectedErr = false;
+    try {
+        const snap = await getDocs(collection(State.db, 'product_history'));
+        if (seq !== inspectedSeq) return;
+        const docs = [];
+        snap.forEach(d => { const x = d.data() || {}; docs.push({ id: d.id, logs: x.logs }); });
+        inspectedKeys = inspectedKeysFromHistory(docs);
+        inspectedAt = Date.now();
+    } catch (e) {
+        if (seq !== inspectedSeq) return;
+        console.warn('검수 기록 읽기 실패(검수 표시 없이 진행):', e && e.code ? e.code : e);
+        inspectedErr = true;
+    }
+    if (document.getElementById(PICKER_ID)) renderRows();
 }
 
 export async function openPackPicker() {
     if (document.getElementById(PICKER_ID)) return;
     picked.clear();
     parsed = null;
+    loadInspectedKeys();
     ensureShell();
     renderSummary();
     try {

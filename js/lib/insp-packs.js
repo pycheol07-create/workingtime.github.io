@@ -9,8 +9,8 @@
 // 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 공급처::색상 1장, 그 묶음의 첫 품목이 대표.
 // 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
 
-import { dayInspItems } from './insp-day.js?v=202610291637';
-import { reserveLocIds, normLocId } from './multi-loc.js?v=202610291637';
+import { dayInspItems } from './insp-day.js?v=202610291646';
+import { reserveLocIds, normLocId } from './multi-loc.js?v=202610291646';
 
 export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -95,6 +95,37 @@ export function locSampleKey(name, option) {
 /** 로케이션관리 샘플 '이름+색상' 키 — 샘플은 보통 한 사이즈만 있어 옵션이 정확히 같지 않을 때 쓴다. 색상은 colorOf(촬샘- 제거). */
 export function locColorKey(name, option) {
     return locSampleKey(name, '') + '::' + colorOf(String(option == null ? '' : option).replace(/촬샘-/g, ''));
+}
+
+/** 이미 검수했나 비교 키 — 상품명(product_history 문서 id 처럼 '/'→'-')+색상+패킹일. 사이즈는 보지 않는다(카드 1장 = 색상, 검수는 한 사이즈만 하므로) */
+export function inspectedKey(name, option, packingDate) {
+    return locColorKey(String(name == null ? '' : name).replace(/\//g, '-'), option) + '|' + str(packingDate).slice(0, 10);
+}
+
+/** product_history 문서들 [{id(상품명), logs:[{option, packingDate, date}]}] → 검수한 키 Set(inspectedKey). 사전등록 기록은 뺀다 */
+export function inspectedKeysFromHistory(docs) {
+    const out = new Set();
+    (Array.isArray(docs) ? docs : []).forEach(d => {
+        const name = str(d && d.id);
+        if (!name) return;
+        (Array.isArray(d.logs) ? d.logs : []).forEach(l => {
+            if (!l || !str(l.packingDate) || str(l.date).includes('사전등록')) return;
+            out.add(inspectedKey(name, l.option, l.packingDate));
+        });
+    });
+    return out;
+}
+
+/** 패킹 하나 → { done: 이미 검수한 장수, total: 장수 } — 카드(buildCards) 기준. keys 가 없으면 null(아직 모름).
+ *  패킹일은 카드 값(출고일 우선)과 패킹번호 앞 8자리 둘 다 본다 — 엑셀 업로드로 검수한 옛 기록은 패킹일을 파일 이름(패킹번호 날짜)에서 가져왔다. */
+export function packInspected(pack, keys, today) {
+    if (!(keys instanceof Set)) return null;
+    const cards = buildCards([pack], null, today || '');
+    const m = /^(\d{4})(\d{2})(\d{2})/.exec(str(pack && pack.no));
+    const noDay = m ? `${m[1]}-${m[2]}-${m[3]}` : '';
+    const hit = (c) => keys.has(inspectedKey(c.name, c.option, c.packingDate))
+        || (noDay && noDay !== c.packingDate && keys.has(inspectedKey(c.name, c.option, noDay)));
+    return { done: cards.filter(hit).length, total: cards.length };
 }
 
 /** 패킹일: 출고일(YYYY-MM-DD) → 패킹번호 앞 8자리 → today */

@@ -34,6 +34,17 @@ export function moveDoneItems(day, { requireAllDone = false } = {}) {
     return { list: [], done, moved };
 }
 
+/** 검수 항목들의 패킹일(packingDate) → '10/24' · '10/24, 10/26' · 4개 넘으면 '10/20, 10/22, 10/24 외 2'. 없으면 '' (일자별 보기 표시용) */
+export function packDatesLabel(items, max = 3) {
+    const days = [...new Set((Array.isArray(items) ? items : [])
+        .map(it => s(it && it.packingDate).slice(0, 10))
+        .filter(v => /^\d{4}-\d{2}-\d{2}$/.test(v)))].sort();
+    if (!days.length) return '';
+    const md = (v) => `${v.slice(5, 7)}/${v.slice(8, 10)}`;
+    const head = days.slice(0, max).map(md).join(', ');
+    return days.length > max ? `${head} 외 ${days.length - max}` : head;
+}
+
 /** 하루 행(daily_data 또는 history) → 그날 검수 항목 전부(대기 + 완료 + 비운 완료).
  *  옛 탭이 리스트를 되살려 두 칸에 같은 항목이 있으면 리스트 쪽만 남긴다(일자별 보기·엑셀에 두 번 나오지 않게). */
 export function dayInspItems(day) {
