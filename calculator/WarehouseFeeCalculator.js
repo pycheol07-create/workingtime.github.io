@@ -359,7 +359,7 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
                         </>
                     ) : (
                         <div className="p-3 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-800">
-                            ※ logis 3개월 평균 단가·입수·무게를 사용합니다(설정관리 · 통관비 기본값). 해운비·최소 CBM 은 설정관리, 관세청 고시환율은 수입가·통관비 탭 환율 칸 값을 씁니다.
+                            ※ logis 최근 패킹 평균 단가·입수·무게를 사용합니다(설정관리 · 통관비 기본값). 해운비·최소 CBM 은 설정관리, 관세청 고시환율은 수입가·통관비 탭 환율 칸 값을 씁니다.
                         </div>
                     )}
 

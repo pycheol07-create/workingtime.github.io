@@ -422,14 +422,16 @@ const AdminPage = ({ onClose }) => {
                             <AdminSectionTitle title="통관비 계산기 기본값" />
 
                             {(() => {
-                                // logis 3개월 평균 상태 (값은 앱\통관비기본값\실행.py 가 15일마다 계산)
+                                // logis 평균 상태 (값은 앱\통관비기본값\실행.py 가 매일 08:10 계산 — 최근 패킹 20건, 2026-10-29~. 옛 문서는 3개월·15일 주기)
                                 const m = defaultsMeta || {};
+                                const recent = !!(m.window && m.window.basis === 'recent');
                                 const fmtDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-                                const stale = defaultsStatus === 'ok' && m.lastOkAt && (Date.now() - m.lastOkAt) > 20 * 86400000;
+                                const staleDays = recent ? 4 : 20;   // 매일 계산이면 연휴 3일까지는 정상
+                                const stale = defaultsStatus === 'ok' && m.lastOkAt && (Date.now() - m.lastOkAt) > staleDays * 86400000;
                                 return (
                                     <div className={`mb-4 p-3 rounded-lg border flex items-center justify-between gap-3 text-sm ${stale ? 'bg-yellow-50 border-yellow-300' : 'bg-slate-50 border-slate-200'}`}>
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-medium text-gray-800">logis 3개월 평균 (자동)</div>
+                                            <div className="font-medium text-gray-800">{recent ? `logis 최근 패킹 ${m.window.count || ''}건 평균 (자동)` : 'logis 3개월 평균 (자동)'}</div>
                                             <div className="text-xs text-gray-500 mt-0.5">
                                                 {defaultsStatus === 'loading' && '불러오는 중...'}
                                                 {defaultsStatus === 'ok' && (
@@ -449,7 +451,7 @@ const AdminPage = ({ onClose }) => {
                                                 <div className="text-xs text-red-600 mt-0.5">최근 자동 계산 실패: {m.error} — 지난 값을 계속 씁니다</div>
                                             )}
                                             {stale && (
-                                                <div className="text-xs text-yellow-800 mt-0.5">계산일이 20일 넘게 지났습니다 — 자동 계산(매일 08:10, 15일 주기)이 멈췄는지 확인하세요</div>
+                                                <div className="text-xs text-yellow-800 mt-0.5">계산일이 {staleDays}일 넘게 지났습니다 — 자동 계산(매일 08:10)이 멈췄는지 확인하세요</div>
                                             )}
                                             <div className="text-xs text-gray-400 mt-0.5">자동으로 계산되는 값이라 여기서는 고칠 수 없습니다 — 통관비 계산기 화면에서 그때그때 바꿔 쓰세요.</div>
                                         </div>

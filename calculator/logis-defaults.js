@@ -1,8 +1,9 @@
 // === calculator/logis-defaults.js ===
 // 통관비 옵션 기본값(상품 단가·박스당 수량·박스당 무게) ← Firestore integrations/customsDefaults (2026-10-16).
-//   값은 앱\통관비기본값\실행.py 가 logis 최근 90일 평균으로 15일마다 쓴다(클라이언트 쓰기는 규칙이 막는다).
+//   값은 앱\통관비기본값\실행.py 가 logis 가장 최근 패킹 20건 평균으로 매일 08:10 쓴다(2026-10-29~, 그 전엔 90일·15일).
+//   window = {from, to, days, basis: 'recent', count} — basis 가 없으면 옛 90일 문서. 클라이언트 쓰기는 규칙이 막는다.
 //   등록 직원만 읽을 수 있다 — 로그아웃·실패면 SettingsContext.js 가 localStorage 의 마지막 저장값을 쓴다.
-//   명단 밖 로그인 사용자(guest, 2026-10-23 외부 열람)에게는 열지 않는다(90일 평균 수입 단가 — 사용자 결정).
+//   명단 밖 로그인 사용자(guest, 2026-10-23 외부 열람)에게는 열지 않는다(평균 수입 단가 — 사용자 결정).
 //     window.__calcAuth.role === 'guest' 면 읽지 않고, 읽기가 permission-denied 여도 오류로 보이지 않고 status 'guest' 를 알린다
 //     → settings·localStorage 의 값은 그대로 두고 화면(통관·창고료 탭·설정 관리)이 status 'guest' 를 보고 빈칸·직접 입력으로 가린다.
 //
@@ -15,10 +16,10 @@
 //
 // Firebase 초기화는 firebase-init.js 한 곳(공통 상단바 js/app-shell.js 는 Firebase 를 초기화하지 않고,
 // 개인 알림 모듈도 계산기에서는 불러오지 않는다 — NOTI_OFF_PAGES). 로그인 상태는 여기서 상단바에 uid 만 넘긴다(메뉴는 캐시).
-import { db, auth } from './firebase-init.js?v=202610291646';
+import { db, auth } from './firebase-init.js?v=202610291723';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { setShellContext } from '../js/app-shell-bridge.js?v=202610291646';
+import { setShellContext } from '../js/app-shell-bridge.js?v=202610291723';
 
 const DOC_PATH = 'artifacts/team-work-logger-v2/integrations/customsDefaults';
 

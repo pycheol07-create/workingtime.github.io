@@ -1,5 +1,5 @@
 // 설정 상태를 전역으로 관리하는 Context입니다.
-// 통관비 옵션의 상품단가/박스당수량/박스당무게는 logis 3개월 평균(Firestore integrations/customsDefaults)을
+// 통관비 옵션의 상품단가/박스당수량/박스당무게는 logis 최근 패킹 20건 평균(Firestore integrations/customsDefaults, 2026-10-29~)을
 // calculator/logis-defaults.js(모듈)가 읽어 window.__customsDefaults + 'customs-defaults' 이벤트로 넘겨 줍니다.
 // 로그아웃·실패면 localStorage 의 마지막 저장값을 그대로 씁니다.
 // 그 밖의 설정 칸은 팀 공용(Firestore persistent_data/calculatorSettings)입니다 — calculator/shared-settings.js(모듈)가
