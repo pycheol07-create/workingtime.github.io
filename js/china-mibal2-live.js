@@ -19,11 +19,11 @@
 import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writeBatch, collection, query, orderBy, limit, where, documentId, serverTimestamp, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
-    hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf } from './lib/mibal2-live.js?v=202610291119';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202610291119';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202610291119';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202610291119';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202610291119';
+    hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf } from './lib/mibal2-live.js?v=202610291126';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202610291126';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202610291126';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202610291126';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202610291126';
 
 const CHINA = 'ChinaStockGoods';
 const SCANDB = CHINA + '_ScanDB';

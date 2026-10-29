@@ -82,7 +82,7 @@
 #locrec-modal .locrec-table tr.tone-ok { background-color: var(--c-ok-soft, #E5F0EE); }
 #locrec-modal .locrec-table tr.locrec-alt { background-color: var(--c-surface-2, #F7F8FA); }
 #locrec-modal .locrec-table tr.locrec-sub > td { border-top: 1px dashed var(--c-line, #E6E8EC); }
-#locrec-modal .locrec-table td.locrec-prod { min-width: 200px; }
+#locrec-modal .locrec-table td.locrec-prod { min-width: 150px; }
 #locrec-modal .locrec-table td.locrec-loc { width: 96px; white-space: nowrap; }
 #locrec-modal .locrec-table td.locrec-num { width: 56px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #locrec-modal .locrec-table td.locrec-rank { width: 40px; text-align: center; font-weight: 700; color: var(--c-accent-deep, #1E4699); }
@@ -93,7 +93,7 @@
 #locrec-modal .locrec-acts .btn + .btn { margin-left: 4px; }
 #locrec-modal .locrec-code { font-weight: 600; color: var(--c-accent-deep, #1E4699); text-decoration: none; }
 #locrec-modal .locrec-code:hover { text-decoration: underline; }
-#locrec-modal .locrec-name { margin-top: 1px; }
+#locrec-modal .locrec-table td.locrec-pcode { white-space: nowrap; }
 #locrec-modal .locrec-opt { color: var(--c-text-3, #69707A); font-size: 11.5px; }
 #locrec-modal .locrec-from { color: var(--c-text-2, #646B75); }
 #locrec-modal .locrec-to { color: var(--c-ok-text, #3D756F); font-weight: 700; }
@@ -119,7 +119,7 @@
     }
     #locrec-modal .locrec-table-wrap { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
     #locrec-modal .locrec-table { min-width: 760px; }
-    #locrec-modal .locrec-table td.locrec-prod { min-width: 170px; }
+    #locrec-modal .locrec-table td.locrec-prod { min-width: 120px; }
     #locrec-modal .locrec-table td.locrec-loc { width: 84px; }
     #locrec-modal .locrec-table td.locrec-state { width: 104px; }
     #locrec-modal .locrec-table td.locrec-acts { width: 128px; }

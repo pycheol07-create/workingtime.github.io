@@ -12,11 +12,11 @@
 //   이월 행(carried)은 흐리게 '(지금 기준 추천에서 빠짐)' — [처리함]/[안 함] 없이 되돌리기만.
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202610291119';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610291119';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610291119';
-import { higherOpenThan } from './modal-above.js?v=202610291119';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202610291119';
+import { escapeHtml } from './utils.js?v=202610291126';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610291126';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610291126';
+import { higherOpenThan } from './modal-above.js?v=202610291126';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202610291126';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -38,7 +38,7 @@ const TEMPLATE = `
             <div id="locrec-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
             <div class="table-box locrec-table-wrap">
                 <table class="usage-table locrec-table">
-                    <thead><tr><th>순위</th><th title="상품코드 · 상품명(옵션) — 맞바꾸기·페어는 두 줄(A/B)">상품</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량(괄호는 비축 수량)">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th title="이 줄만 처리하면 동선 점수(0~100)가 오르는 만큼">점수</th><th>상태</th><th>표시</th></tr></thead>
+                    <thead><tr><th>순위</th><th title="누르면 데이터 리스트에서 그 상품 보기 — 맞바꾸기·페어는 두 줄(A/B)">상품코드</th><th title="상품명(옵션)">상품</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량(괄호는 비축 수량)">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th title="이 줄만 처리하면 동선 점수(0~100)가 오르는 만큼">점수</th><th>상태</th><th>표시</th></tr></thead>
                     <tbody id="locrec-tbody"></tbody>
                 </table>
             </div>
@@ -114,9 +114,9 @@ export function mountLocRecTable({ store, sizeOf }) {
         const trAttr = carried ? ' style="opacity:.55" title="지금 기준 추천에서 빠진 행 — 오늘 손댄 것이라 남겨 둠"' : '';
         return lines.map((l, j) => {
             const last = j === lines.length - 1;
-            // 상품코드(누르면 데이터 리스트에서 그 상품 검색) / 상품명(옵션) 두 줄
-            const cells = `<td class="locrec-prod"><a class="locrec-code" href="location.html?q=${encodeURIComponent(l.code || '')}#tab=list" data-locrec-code="${escapeHtml(l.code)}" title="데이터 리스트에서 이 상품 보기">${escapeHtml(l.code)}</a>`
-                + `<div class="locrec-name">${nameCell(l.name, l.option)}</div>`
+            // 상품코드 칸(누르면 데이터 리스트에서 그 상품 검색) · 상품 칸(상품명(옵션) + 배지)
+            const cells = `<td class="locrec-pcode"><a class="locrec-code" href="location.html?q=${encodeURIComponent(l.code || '')}#tab=list" data-locrec-code="${escapeHtml(l.code)}" title="데이터 리스트에서 이 상품 보기">${escapeHtml(l.code)}</a></td>`
+                + `<td class="locrec-prod">${nameCell(l.name, l.option)}`
                 + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
                 + `<td class="locrec-loc locrec-from">${escapeHtml(locCell(l.from, l.fromSize))}</td>`
                 + `<td class="locrec-loc"><b class="locrec-to">${escapeHtml(locCell(l.to, l.toSize))}</b></td>`
@@ -178,12 +178,12 @@ export function mountLocRecTable({ store, sizeOf }) {
             mMeta.textContent = '';
             const t = (S.latest && dayMessage(store.entryOf(S.key)))
                 || S.dayErr || (S.latestErr ? `추천 상태를 읽지 못했습니다(${S.latestErr})` : '') || '표 불러오는 중…';
-            mTbody.innerHTML = `<tr><td colspan="10" class="refill-empty">${escapeHtml(t)}</td></tr>`;
+            mTbody.innerHTML = `<tr><td colspan="11" class="refill-empty">${escapeHtml(t)}</td></tr>`;
             return;
         }
         mMeta.textContent = tabMeta(tab, all) + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
         if (!rows.length) {
-            mTbody.innerHTML = `<tr><td colspan="10" class="refill-empty">${cnt[tab] || cry[tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[tab]} 추천이 없습니다`}</td></tr>`;
+            mTbody.innerHTML = `<tr><td colspan="11" class="refill-empty">${cnt[tab] || cry[tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[tab]} 추천이 없습니다`}</td></tr>`;
             return;
         }
         mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable)).join('');
