@@ -5,7 +5,7 @@
 //   서버 앱\로케이션추천\입력.py apply_app_settings 가 다음 추천(06:40 또는 [지금 재고로 다시 만들기])부터 쓴다.
 //   칸마다 앱 값(범위 안) → 서버 설정.json → loc-recommend.js SERVER_DEFAULTS 순.
 // ⚠️ LIMITS 는 서버 입력.APP_LIMITS 와 같아야 한다(서버 tests\test_입력.py 가 node 로 이 파일을 읽어 비교) — 한쪽만 바꾸지 말 것.
-// 하루 출고 기준·재고 빼기·판정 기준·점수 비율은 서버 설정.json 이 정한다 — 화면은 integrations/locRecLatest.settings 를 읽기만 한다
+// 하루 출고 기준·재고 빼기·판정 기준·점수 비율·자리 고르는 순서(orderBy, 2026-10-29~ daily)는 서버 설정.json 이 정한다 — 화면은 integrations/locRecLatest.settings 를 읽기만 한다
 //   (모양: 서버 입력.latest_settings).
 
 export const LIMITS = Object.freeze({
@@ -79,7 +79,8 @@ export function serverRows(s) {
             : '끔' });
     }
     const r = s.ratios && typeof s.ratios === 'object' ? s.ratios : null;
-    if (r) out.push({ label: '점수 반영 비율', value: `플랫폼 출고 ${num(r.zikjin) ?? '?'}% · 주차별 ${num(r.weekly) ?? '?'}% · 상승세 ${num(r.trend) ?? '?'}%` });
+    if (s.orderBy === 'daily') out.push({ label: '자리 고르는 순서', value: '하루 출고 많은 순(플랫폼·국내 구분 없이)' });
+    else if (r) out.push({ label: '점수 반영 비율', value: `플랫폼 출고 ${num(r.zikjin) ?? '?'}% · 주차별 ${num(r.weekly) ?? '?'}% · 상승세 ${num(r.trend) ?? '?'}%` });
     const p = s.pair && typeof s.pair === 'object' ? s.pair : null;
     if (p) out.push({ label: '페어 기준', value: `같이 주문된 횟수 ${num(p.minCount) ?? '?'}번 이상 · 같이 나갈 가능성(lift) ${num(p.minLift) ?? '?'}배 이상` });
     const v = s.verdict && typeof s.verdict === 'object' ? s.verdict : null;
@@ -124,7 +125,9 @@ export function guideLines(s) {
         lo.enabled === true
             ? `재고 적은 상품 빼기(켬): 재고 ${q(lo.maxStock)}개 이하이거나 ${q(lo.minCoverDays)}일 안에 다 나갈 상품은 앞으로 옮기지 않습니다(입고대기가 있으면 뺌 안 함).`
             : '재고 적은 상품 빼기: 꺼져 있습니다.',
-        `상품 순서를 정할 때 점수 반영 비율(플랫폼 출고 ${q(r.zikjin)}% · 주차별 ${q(r.weekly)}% · 상승세 ${q(r.trend)}%)을 씁니다.`,
+        S.orderBy === 'daily'
+            ? '빈 자리는 하루 출고가 많은 상품부터 먼저 고릅니다(어디로 출고되는지는 구분하지 않음).'
+            : `상품 순서를 정할 때 점수 반영 비율(플랫폼 출고 ${q(r.zikjin)}% · 주차별 ${q(r.weekly)}% · 상승세 ${q(r.trend)}%)을 씁니다.`,
         '구역 등급이 지금보다 낮은 자리로는 옮기지 않고, 예약·당일지정·선지정 빈 자리는 추천하지 않습니다.'
     ];
     return { refill, locrec };

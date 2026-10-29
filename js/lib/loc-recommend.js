@@ -22,11 +22,13 @@
 //   routeHeat — 구역 × 동 출고 격자(동선 효율 카드 열지도, metrics.routeHeat)
 //   lowStockCodes — 재고 적은 상품 빼기(settings.lowStockOn, 기본 꺼짐 — 꺼져 있으면 출력이 예전과 같다. 2026-10-27)
 //   sizeFits      — 칸 일치: 지금 자리에 칸수가 있으면 같은 칸수 자리로만(단독·페어 sizeMatch 옵션, 맞바꾸기는 늘. runRecommend 는 늘 켬. 2026-10-29)
+//   라인 거리     — settings.routeModel 'line'(+ lineWeight, 기본 0.5)일 때만: 출발점 거리 = 동순위 + lineWeight·라인순번(A=0…),
+//                   비용 = 출발점거리·P + 위치순위. 단독은 출발점 거리로 비교, 페어는 lineGap <= 1. settings.lineLayout 으로 라인 순서·먼 자리 지정. 칸이 없으면 예전과 같다(2026-10-29, 꺼진 채 — tools/route-compare.mjs 로 비교)
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202610291126';
-import { capacityFor } from './mibal2-calc.js?v=202610291126';
+import { isEtcLocObj } from './mibal2-rows.js?v=202610291402';
+import { capacityFor } from './mibal2-calc.js?v=202610291402';
 
 export { isEtcLocObj };
 
@@ -38,8 +40,50 @@ const RANK_NONE = 99;
 // 기본 헬퍼
 // ─────────────────────────────────────────────────────────────
 
-/** 구역·동·위치 순위 함수. 설정에 없으면 99. P = 위치 개수(자리 비용 계산용). */
-export function makeRankers(priorities) {
+/** 라인 순번 — 자리 id 첫 글자가 A~Z 면 글자 순번(A=0, B=1 …, 실제로 있는 라인인지와 무관), 아니면(★ 등) 0. */
+export function lineIdxOf(locId) {
+    const c = (locId || '').charAt(0).toUpperCase();
+    return /^[A-Z]$/.test(c) ? c.charCodeAt(0) - 65 : 0;
+}
+const isLineZone = (locId) => /^[A-Z]$/.test((locId || '').charAt(0).toUpperCase());
+
+/**
+ * 자리 id → 라인 정보 {line: 라인 자리인가, idx: 라인 순번, far: 먼 자리인가, key: 라인 이름}.
+ *   layout 없음: A~Z 글자 순번(lineIdxOf), 그 밖(★ 등)은 라인 아님(idx 0).
+ *   layout {order: [접두어…], far: [접두어…]}: order 에서 가장 긴 접두어가 맞으면 그 순번, 아니면 far 접두어가 맞으면 먼 자리,
+ *   둘 다 아니면(★·K 등) 라인 아님(idx 0 — 출발점 거리 = 동순위만). 접두어 비교는 대문자로.
+ */
+function lineResolver(layout) {
+    if (!layout) {
+        return (id) => {
+            const line = isLineZone(id);
+            return { line, idx: line ? lineIdxOf(id) : 0, far: false, key: (id || '').charAt(0).toUpperCase() };
+        };
+    }
+    const up = (x) => String(x == null ? '' : x).toUpperCase();
+    const order = layout.order.map((p, i) => ({ p: up(p), i })).filter(x => x.p).sort((a, b) => b.p.length - a.p.length || a.i - b.i);
+    const far = (Array.isArray(layout.far) ? layout.far : []).map(up).filter(Boolean);
+    return (id) => {
+        const s = up(id);
+        const hit = order.find(x => s.startsWith(x.p));
+        if (hit) return { line: true, idx: hit.i, far: false, key: hit.p };
+        const f = far.find(p => s.startsWith(p));
+        if (f) return { line: false, idx: 0, far: true, key: f + '(먼)' };
+        return { line: false, idx: 0, far: false, key: s.charAt(0) };
+    };
+}
+
+/**
+ * 구역·동·위치 순위 함수. 설정에 없으면 99. P = 위치 개수(자리 비용 계산용).
+ * opt.routeModel 'line'(2026-10-29, 기본 꺼짐) — 라인 거리 모델: 출발점 거리 = 동순위 + lineWeight·라인순번.
+ *   나란히 놓인 라인은 옆 라인 한 칸 = 같은 라인 동 lineWeight 칸(기본 0.5). 라인이 아닌 구역(★ 등)은 라인 거리 0.
+ *   opt.lineLayout {order, far}: 라인 순서를 자리 id 접두어로 정한다(예 order ['Z-1-','A',…,'I'], far ['Z-']).
+ *     far 자리 = 별도 공간 = 가장 먼 자리: 출발점 거리 farDist = 동 개수 + lineWeight·(라인 수 − 1) + 1(모든 라인 자리보다 멀다).
+ *     어떤 상품도 far 자리로 옮기지 않는다(단독 빈 자리·페어 빈 자리·맞바꾸기 모두 제외).
+ *   lineLayout 없으면 A~Z 글자 순번. routeModel 이 없거나 'dong' 이면 line=false — 모든 계산이 예전과 같다.
+ */
+export function makeRankers(priorities, opt) {
+    const { routeModel, lineWeight, lineLayout } = opt || {};
     const pr = priorities || {};
     const zoneRank = (locId) => {
         const prefix = (locId || '').charAt(0).toUpperCase();
@@ -61,7 +105,48 @@ export function makeRankers(priorities) {
     };
     const P = Math.max(1, (pr.poses || []).length);
     const nDongs = (pr.dongs || []).length;
-    return { zoneRank, dongRank, posRank, P, nDongs };
+    const rk = { zoneRank, dongRank, posRank, P, nDongs };
+    if (routeModel === 'line') {
+        // 숫자·숫자 글자만 읽는다 — '', false, true, [] 는 기본 0.5
+        const lw = typeof lineWeight === 'number' || (typeof lineWeight === 'string' && lineWeight.trim() !== '') ? Number(lineWeight) : NaN;
+        rk.line = true;
+        rk.lw = Number.isFinite(lw) && lw >= 0 ? lw : 0.5;
+        const layout = lineLayout && Array.isArray(lineLayout.order) && lineLayout.order.length ? lineLayout : null;
+        rk.layout = layout;
+        rk.lineOf = lineResolver(layout);
+        rk.lineIdx = (id) => rk.lineOf(id).idx;
+        rk.isFar = (slot) => !!(slot && rk.lineOf(slot.id).far);
+        rk.farDist = nDongs + rk.lw * Math.max(0, layout ? layout.order.length - 1 : 25) + 1;
+        // 출발점 거리(동 단위, 순위 그대로 — 설정 없는 동은 99 라 맨 뒤). 먼 자리는 farDist 고정
+        rk.startDist = (slot) => {
+            const li = rk.lineOf(slot && slot.id);
+            return li.far ? rk.farDist : dongRank(slot && slot.dong) + rk.lw * li.idx;
+        };
+    }
+    return rk;
+}
+
+/**
+ * 라인 모델에서 두 자리 사이 거리(동 단위) = |Δ동순위| + lineWeight·|Δ라인순번|. 페어 파트너 자리 고르기용.
+ *   라인이 아닌 구역(★ 등)이 끼면 둘 다 라인 아님 + 같은 구역 글자일 때만 라인 거리 0, 아니면 Infinity. 먼 자리(far)가 끼면 Infinity.
+ *   동순위가 한쪽이라도 99(설정 없음)면 같은 동 문자열일 때만 Δ동 0, 아니면 Infinity.
+ */
+export function lineGap(a, b, rk) {
+    const za = (a.id || '').charAt(0).toUpperCase(), zb = (b.id || '').charAt(0).toUpperCase();
+    const lineOf = rk.lineOf || lineResolver(null);
+    const la = lineOf(a.id), lb = lineOf(b.id);
+    if (la.far || lb.far) return Infinity;              // 먼 자리는 페어 자리로 쓰지 않는다
+    let dl;
+    if (la.line && lb.line) dl = rk.lw * Math.abs(la.idx - lb.idx);
+    else if (!la.line && !lb.line && za === zb) dl = 0;
+    else return Infinity;
+    const da = rk.dongRank(a.dong), db = rk.dongRank(b.dong);
+    let dd;
+    if (da === RANK_NONE || db === RANK_NONE) {
+        if ((a.dong || '').toString().trim() !== (b.dong || '').toString().trim()) return Infinity;
+        dd = 0;
+    } else dd = Math.abs(da - db);
+    return dd + dl;
 }
 
 /** 피킹용 자리가 있으면 피킹용만, 없으면 전체(기타·SAM). */
@@ -210,6 +295,37 @@ export function scoreItems({ locs, demand, ratios, incomingTotalByCode }) {
     return scoredItems;
 }
 
+/**
+ * 하루 출고 순서(settings.orderBy 'daily' — 2026-10-29~ 운영, 서버 설정.json node.orderBy. 고치면 06:40 추천이 바로 바뀐다) — scoreItems 대신. 점수 = 하루 출고(서버 basis, 지금 ew).
+ *   자리·입고대기 조건은 scoreItems 와 같고, 대상 기준만 하루 출고 > 0(scoreItems 는 zg·w·trend 점수 > 0). 같은 값은 코드 순 → 결정적.
+ *   켜면 행의 score 칸은 0~100 점수가 아니라 하루 출고량이다(운영에 켤 때 화면 표시도 같이 볼 것).
+ *   채널(플랫폼·국내) 구분과 점수 반영 비율을 쓰지 않는다.
+ */
+export function scoreByDaily({ locs, daily, demand, incomingTotalByCode }) {
+    const inc = incomingTotalByCode || {};
+    const dmIn = demand || {};
+    const codes = new Set(
+        locs
+            .filter(d => d.code && d.code.trim() !== '' && d.code !== d.id)
+            .filter(d => !(inc[d.code.trim()] > 0))
+            .map(d => d.code.trim())
+    );
+    const out = [];
+    codes.forEach(code => {
+        const v = Number((daily || {})[code]) || 0;
+        if (!(v > 0)) return;
+        const locItem = baseLocsForCode(locs, code)[0];
+        const dm = dmIn[code] || {};
+        out.push({
+            code, name: (locItem && locItem.name) || dm.name || '알 수 없음', score: v,
+            currentLocs: baseLocsForCode(locs, code).map(d => d.id),
+            zgQty: Number(dm.zgQty) || 0, wQty: Number(dm.wQty) || 0, trendVal: Number(dm.trendVal) || 0
+        });
+    });
+    out.sort((a, b) => (b.score - a.score) || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
+    return out;
+}
+
 const isTagged = (d) => !!d.reserved || !!(d.codeTag && String(d.codeTag).trim() !== '');
 const comboOf = (d) => `${(d.id || '').charAt(0).toUpperCase()}-${(d.dong || '').toString().trim()}`;
 
@@ -229,6 +345,12 @@ export function emptySlots(locs, priorities, { excludeTagged = false, rankers } 
         if (excludeCombos.length > 0 && excludeCombos.includes(comboOf(d))) return false;
         return true;
     });
+    if (rk.line) {
+        // 라인 모델: 비용(출발점 거리·P + 위치순위, 순위 99 는 그대로라 맨 뒤) → 구역 순. 같으면 원래 순서(안정 정렬)
+        const costL = (d) => rk.startDist(d) * rk.P + rk.posRank(d.pos);
+        emptyLocs.sort((a, b) => (costL(a) - costL(b)) || (rk.zoneRank(a.id) - rk.zoneRank(b.id)));
+        return emptyLocs;
+    }
     emptyLocs.sort((a, b) => {
         const dRankA = rk.dongRank(a.dong);
         const dRankB = rk.dongRank(b.dong);
@@ -249,8 +371,8 @@ export function emptySlots(locs, priorities, { excludeTagged = false, rankers } 
  * @returns {{recs: Array, ctx: {emptyLocs, usedEmptyKeys: Set, rankers, locById}, skipped: {noLoc, noBetter}}}
  *   recs[i] = {code, name, option, score, currentLocs(지금 자리 id), targetLoc, currentInfo, targetInfo, target(빈 자리 객체), item(점수 행), moveQty}
  */
-export function recommendSingle({ locs, scored, priorities, mode = 'dong', limit = 10, zoneGuard = false, excludeTagged = false, sizeMatch = false }) {
-    const rk = makeRankers(priorities);
+export function recommendSingle({ locs, scored, priorities, mode = 'dong', limit = 10, zoneGuard = false, excludeTagged = false, sizeMatch = false, rankers }) {
+    const rk = rankers || makeRankers(priorities);
     const emptyLocs = emptySlots(locs, priorities, { excludeTagged, rankers: rk });
     const limitVal = Number(limit) || 0;
 
@@ -263,26 +385,32 @@ export function recommendSingle({ locs, scored, priorities, mode = 'dong', limit
             if (slotInfo.dongRank !== currentInfo.dongRank) return false;
             return slotInfo.posRank < currentInfo.posRank;
         }
+        if (rk.line) return !slotInfo.far && slotInfo.dist < currentInfo.dist;   // 라인 모델: 출발점 거리가 더 가까워야 · 먼 자리로는 안 보냄
         return slotInfo.dongRank < currentInfo.dongRank;
+    };
+    // 라인 모델일 때만 dist(출발점 거리) 칸을 붙인다 — 꺼져 있으면 정보 모양이 예전 그대로
+    const withDist = (info, slot) => {
+        if (rk.line) { info.dist = rk.startDist(slot); if (rk.isFar(slot)) info.far = true; }
+        return info;
     };
     const getLocInfo = (locId) => {
         const locData = byId.get(locId);
         if (!locData) return null;
-        return {
+        return withDist({
             id: locId,
             dongRank: rk.dongRank(locData.dong),
             posRank: rk.posRank(locData.pos),
             zoneRank: rk.zoneRank(locId),
             dong: (locData.dong || '').toString().trim()
-        };
+        }, { id: locId, dong: locData.dong });
     };
-    const getEmptyLocInfo = (eLoc) => ({
+    const getEmptyLocInfo = (eLoc) => withDist({
         id: eLoc.id,
         dongRank: rk.dongRank(eLoc.dong),
         posRank: rk.posRank(eLoc.pos),
         zoneRank: rk.zoneRank(eLoc.id),
         dong: (eLoc.dong || '').toString().trim()
-    });
+    }, eLoc);
     const slotInfos = emptyLocs.map(getEmptyLocInfo);
 
     const recs = [];
@@ -416,6 +544,28 @@ export function recommendPairs({ singleRecs, ctx, pairMap, sizeMatch = false }) 
         occupiedKeys.add(base.targetLoc);
 
         const partnerFrom = locById.get(foundPartner.currentLocs);
+        const lrk = ctx.rankers && ctx.rankers.line ? ctx.rankers : null;
+        if (lrk) {
+            // 라인 모델: base 자리와 거리(lineGap) <= 1 인 빈 자리(같은 동 옆 2라인까지 · 같은 라인 앞뒤 1동), 거리 → 위치순위 차 → id
+            const baseSlot = base.target || { id: base.targetLoc, dong: baseDong };
+            const near = [];
+            ctx.emptyLocs.forEach(eLoc => {
+                if (occupiedKeys.has(eLoc.id)) return;
+                if (sizeMatch && !sizeFits(partnerFrom, eLoc)) return;
+                const g = lineGap(baseSlot, eLoc, lrk);
+                if (!(g <= 1 + 1e-9)) return;
+                near.push({ eLoc, g, pd: Math.abs(posRankOf(eLoc.pos) - basePosRank) });
+            });
+            near.sort((a, b) => (a.g - b.g) || (a.pd - b.pd) || byKeyAsc(a.eLoc.id, b.eLoc.id));
+            const pick = near[0] && near[0].eLoc;
+            if (!pick) continue;
+            if (pick.id === foundPartner.targetLoc) continue;   // 자리 변동 없음(케이스 A)
+            matchedPairs.push({ baseItem: base, partnerItem: foundPartner, partnerNewSlot: pick });
+            usedCodes.add(base.code);
+            usedCodes.add(foundPartner.code);
+            usedNewSlots.add(pick.id);
+            continue;
+        }
         const sameDongSlots = ctx.emptyLocs.filter(eLoc => {
             if (occupiedKeys.has(eLoc.id)) return false;
             if (sizeMatch && !sizeFits(partnerFrom, eLoc)) return false;
@@ -476,7 +626,13 @@ export function slotCost(slot, rankers, mode = 'dong', { loose = false } = {}) {
     if (!loose && (d === RANK_NONE || p === RANK_NONE || z === RANK_NONE)) return null;
     if (d === RANK_NONE) d = rankers.nDongs;
     if (p === RANK_NONE) p = rankers.P;
-    return mode === 'pos' ? p : d * rankers.P + p;
+    if (mode === 'pos') return p;
+    // 라인 모델: (동순위 + lineWeight·라인순번)·P + 위치순위 — 소수가 나올 수 있다
+    if (rankers.line) {
+        const li = rankers.lineOf(slot.id);
+        return (li.far ? rankers.farDist : d + rankers.lw * li.idx) * rankers.P + p;
+    }
+    return d * rankers.P + p;
 }
 
 const hasCode = (d) => !!(d.code && d.code !== d.id && String(d.code).trim() !== '');
@@ -591,9 +747,9 @@ export function lowStockCodes({ locs, daily, incoming, maxStock = 5, minCoverDay
  */
 export function recommendSwaps({
     locs, scored, daily, priorities, incomingTotalByCode, excludeCodes, excludeLocIds,
-    topM = 200, frontK, ratio = 3, minDaily = 1, capacityConfig, editedCells
+    topM = 200, frontK, ratio = 3, minDaily = 1, capacityConfig, editedCells, rankers
 }) {
-    const rk = makeRankers(priorities);
+    const rk = rankers || makeRankers(priorities);
     const P = rk.P;
     const dOf = (c) => Number((daily || {})[c]) || 0;
     const inc = incomingTotalByCode || {};
@@ -608,7 +764,8 @@ export function recommendSwaps({
 
     const counts = { H: 0, L: 0, multiLoc: 0, candidates: 0 };
     const multiSeen = new Set();
-    const okSlot = (d) => !d.preAssigned && !isTagged(d) && !exL.has(d.id) && costOf.has(d.id);
+    // 라인 모델의 먼 자리(far)는 맞바꾸기 양쪽 모두에서 뺀다 — 어떤 상품도 그리로 보내지 않는다
+    const okSlot = (d) => !d.preAssigned && !isTagged(d) && !exL.has(d.id) && costOf.has(d.id) && !(rk.isFar && rk.isFar(d));
     // 코드 하나 → 그 코드의 유일한 피킹 자리(조건 안 맞으면 null)
     const soleSlot = (code) => {
         if (exC.has(code) || inc[code] > 0) return null;
@@ -716,8 +873,8 @@ export function selectPlan({ singles = [], swaps = [], maxRows = 15, weeklyMoves
  *   맞바꾸기의 앞쪽 영역(swapFrontK 칸)과는 따로 잡는다.
  * @returns {{share: number|null, topN: number, counted: number, inFront: number}}
  */
-export function frontShare({ locs, daily, priorities, topN = 100, frontPct = 0.2, frontK = 100 }) {
-    const rk = makeRankers(priorities);
+export function frontShare({ locs, daily, priorities, topN = 100, frontPct = 0.2, frontK = 100, rankers }) {
+    const rk = rankers || makeRankers(priorities);
     const front = frontByZone(rankedPickSlots(locs, priorities, rk), rk, frontK, { pct: frontPct == null ? undefined : frontPct });
     const ranks = demandRanks(daily);
     const top = Object.keys(ranks).filter(c => ranks[c] <= topN);
@@ -1015,7 +1172,8 @@ export function runRecommend(input) {
     const S = { ...SERVER_DEFAULTS, ...(input.settings || {}) };
     const nowMs = Number(input.nowMs) || Date.now();
     const priorities = { ...DEFAULT_PRIORITIES, ...(input.priorities || {}) };
-    const rk = makeRankers(priorities);
+    // 라인 거리 모델(settings.routeModel 'line' · lineWeight, 2026-10-29) — 칸이 없으면 예전과 같다. 서버 입력에는 넣지 않는다(비교 도구용)
+    const rk = makeRankers(priorities, { routeModel: S.routeModel, lineWeight: S.lineWeight, lineLayout: S.lineLayout });
     const locs = normalizeLocs(input.locs, nowMs);
     const demandIn = input.demand || {};
     const daily = {};
@@ -1042,7 +1200,10 @@ export function runRecommend(input) {
         return row;
     };
 
-    const scoredAll = scoreItems({ locs, demand: demandIn, ratios: input.ratios, incomingTotalByCode: incoming });
+    // 자리 고르는 순서 — 기본은 점수 반영 비율(scoreItems). settings.orderBy 'daily' 면 하루 출고 순서(2026-10-29~ 운영 설정 설정.json node.orderBy)
+    const scoredAll = S.orderBy === 'daily'
+        ? scoreByDaily({ locs, daily, demand: demandIn, incomingTotalByCode: incoming })
+        : scoreItems({ locs, demand: demandIn, ratios: input.ratios, incomingTotalByCode: incoming });
     // 0) 재고 적은 상품 빼기(lowStockOn 일 때만) — 단독·페어·맞바꾸기 H 는 scored 에서 오므로 같이 빠진다.
     //    맞바꾸기 L(앞 자리에서 뒤로 가는 상품)은 자리 목록에서 고르므로 빼지 않는다
     const lowOn = S.lowStockOn === true;
@@ -1054,7 +1215,9 @@ export function runRecommend(input) {
         scored = scoredAll.filter(it => !lowMap.has(it.code));
         const removed = scoredAll.filter(it => lowMap.has(it.code)).map(it => ({ code: it.code, ...lowMap.get(it.code) }));
         // 입고대기 때문에 빠지지 않은 수 — 입고대기를 빼고 판정하면 걸리는, 출고 수요가 있는 입고대기 상품
-        const hasDemand = (c) => { const v = demandIn[c] || {}; return Number(v.zgQty) > 0 || Number(v.wQty) > 0 || Number(v.trendVal) > 0; };
+        const hasDemand = S.orderBy === 'daily'
+            ? (c) => daily[c] > 0
+            : (c) => { const v = demandIn[c] || {}; return Number(v.zgQty) > 0 || Number(v.wQty) > 0 || Number(v.trendVal) > 0; };
         let incSpared = 0;
         lowStockCodes({ ...lsArgs, incoming: {} }).forEach((v, c) => { if (Number(incoming[c]) > 0 && hasDemand(c)) incSpared++; });
         low = {
@@ -1065,7 +1228,7 @@ export function runRecommend(input) {
 
     // 1) 단독
     //    칸 일치(sizeMatch)는 설정이 아니라 늘 켠다 — 지금 자리에 칸수가 있으면 같은 칸수 자리로만(2026-10-29 사용자 요청)
-    const single = recommendSingle({ locs, scored, priorities, mode: S.mode, limit: S.singleLimit, zoneGuard: S.zoneGuard, excludeTagged: S.excludeTagged, sizeMatch: true });
+    const single = recommendSingle({ locs, scored, priorities, mode: S.mode, limit: S.singleLimit, zoneGuard: S.zoneGuard, excludeTagged: S.excludeTagged, sizeMatch: true, rankers: rk });
     const singleRows = single.recs.map(r => {
         const g = singleGain(r, daily, rk, locs);
         const row = {
@@ -1085,7 +1248,7 @@ export function runRecommend(input) {
         locs, scored, daily, priorities, incomingTotalByCode: incoming,
         excludeCodes: usable.map(r => r.code), excludeLocIds: usable.flatMap(r => [r.from, r.to]),
         topM: S.swapTopM, frontK: S.swapFrontK, ratio: S.swapRatio, minDaily: S.swapMinDaily,
-        capacityConfig: input.capacity || undefined, editedCells: input.editedCells || undefined
+        capacityConfig: input.capacity || undefined, editedCells: input.editedCells || undefined, rankers: rk
     });
     const nameOf = (code) => { const b = baseLocsForCode(locs, code)[0]; return (b && b.name) || (demandIn[code] && demandIn[code].name) || ''; };
 
@@ -1160,7 +1323,7 @@ export function runRecommend(input) {
     const allGains = singleRows.map(r => r.gain).concat(swapRows.map(r => r.gain)).filter(g => g > 0).sort((a, b) => a - b);
     const p95 = allGains.length ? allGains[Math.min(allGains.length - 1, Math.floor(allGains.length * 0.95))] : 0;
     const usePct = S.metricFrontPct != null;   // 기본 0.2 — 옛 K 칸 방식은 metricFrontPct: null 로 끄고 metricFrontK 를 줄 때만
-    const fs = frontShare({ locs, daily, priorities, topN: S.metricTopN,
+    const fs = frontShare({ locs, daily, priorities, rankers: rk, topN: S.metricTopN,
         frontPct: usePct ? Number(S.metricFrontPct) : null, frontK: Number(S.metricFrontK) || 100 });
 
     // 6) 동선 점수 — 오늘 목록(단독·맞바꾸기, 순위 순)을 모두 적용하면. 실패해도 추천은 그대로 낸다(null 칸 + 경고 한 줄)

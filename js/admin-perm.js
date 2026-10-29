@@ -4,14 +4,14 @@
 // admin-logic.collectConfigFromDOM 이 getPermModel() 로 권한 칸을 만든다(DOM 을 긁지 않는다).
 // ※ 봇이 읽는 div[role=dialog]·data-act 는 쓰지 않는다(관리자 페이지라 봇이 열지는 않지만 같은 규칙을 지킨다).
 
-import { FEATURES, FEATURE_GROUPS, FEATURE_BY_ID } from './lib/feature-catalog.js?v=202610291126';
-import { roleFeatures, visibleMenuGroups } from './lib/perm.js?v=202610291126';
+import { FEATURES, FEATURE_GROUPS, FEATURE_BY_ID } from './lib/feature-catalog.js?v=202610291402';
+import { roleFeatures, visibleMenuGroups } from './lib/perm.js?v=202610291402';
 import {
     createPermModel, autoAssignedCount, effectiveSet, resolvedOf, setAdmin, setRole, setFeature, resetToRole,
     usersOfRole, holdersOf, adminCount, addRole, renameRole, deleteRole, setRoleFeature, setDefaultRole, setEnforce
-} from './lib/perm-model.js?v=202610291126';
-import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=202610291126';
-import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=202610291126';
+} from './lib/perm-model.js?v=202610291402';
+import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=202610291402';
+import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=202610291402';
 
 let model = null;
 let config = null;
