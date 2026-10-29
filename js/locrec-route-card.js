@@ -8,10 +8,11 @@
 // 그리는 때가 둘이다: ① store 가 바뀔 때(이 파일) ② location.js 가 인사이트 줄을 innerHTML 로 다시 그린 뒤(mountRouteSlot()).
 //   인사이트 줄이 다시 그려지면 이 카드 칸도 사라지므로 location.js 가 그때마다 mountRouteSlot() 을 부른다.
 // 모양은 인사이트 카드와 같은 클래스(insight-card · ins-big · ins-desc) — 색은 CSS 변수라 라이트·다크를 같이 따라간다.
-import { escapeHtml } from './utils.js?v=202610291402';
-import { routeCardInfo, routeHeatView } from './lib/locrec-view.js?v=202610291402';
-import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202610291402';
-import { todayKey } from './locrec-store.js?v=202610291402';
+import { escapeHtml } from './utils.js?v=202610291532';
+import { routeCardInfo, routeHeatView, HEAT_HELP } from './lib/locrec-view.js?v=202610291532';
+import { openRouteDetail } from './locrec-route-modal.js?v=202610291532';
+import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202610291532';
+import { todayKey } from './locrec-store.js?v=202610291532';
 
 const SLOT_ID = 'dash-route-card';
 const ROW_ID = 'dash-insight-row';
@@ -22,6 +23,12 @@ export function initRouteCard({ store: s }) {
     if (store || !s) return;
     store = s;
     store.on(paintRouteCard);
+    // 카드를 누르면 상세 창(js/locrec-route-modal.js) — 인사이트 줄은 innerHTML 로 다시 그려지므로 document 에 한 번만 위임
+    const hit = (e) => e.target && e.target.closest && e.target.closest(`#${SLOT_ID}.is-clickable`);
+    document.addEventListener('click', (e) => { if (hit(e) && !e.target.closest('a,button')) openRouteDetail(store); });
+    document.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && hit(e) && e.target.id === SLOT_ID) { e.preventDefault(); openRouteDetail(store); }
+    });
     mountRouteSlot();
 }
 
@@ -41,8 +48,6 @@ export function mountRouteSlot() {
     }
     paintRouteCard();
 }
-
-const HEAT_HELP = '피킹 자리 기준 — 상품마다 가장 앞쪽 피킹 자리 1곳에 하루 평균 출고를 더했습니다(기타·비축 자리는 빠짐).';
 
 /** 구역 × 동 열지도(metrics.routeHeat) — 자료가 없거나 모양이 틀리면 '' (옛 문서) */
 function heatHtml(heat) {
@@ -83,7 +88,10 @@ function paintRouteCard() {
                 + `<div class="route-side">${heatHtml(S.latest.metrics && S.latest.metrics.routeHeat)}</div></div>`;   // 오른쪽 = 열지도
         }
     }
-    const html = `<h4 title="출고 많은 상품이 앞자리에 있을수록 높습니다(100 = 이론상 완벽)">동선 효율</h4>${inner}`;
+    const clickable = !!(S.signedIn && S.latest != null && routeCardInfo(S.latest).has);
+    el.classList.toggle('is-clickable', clickable);     // 클래스·tabindex 는 카드 요소에 — 아래 innerHTML 비교와 섞이지 않게
+    if (clickable) el.tabIndex = 0; else el.removeAttribute('tabindex');
+    const html = `<h4 title="출고 많은 상품이 앞자리에 있을수록 높습니다(100 = 이론상 완벽)${clickable ? ' — 누르면 자세히' : ''}">동선 효율${clickable ? '<span class="route-more">자세히 ›</span>' : ''}</h4>${inner}`;
     if (html === lastHtml && el.innerHTML) return;     // 같으면 다시 그리지 않는다
     lastHtml = html;
     el.innerHTML = html;

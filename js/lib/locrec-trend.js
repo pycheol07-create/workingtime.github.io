@@ -4,7 +4,7 @@
 //         서버(로케이션추천\추천.py)가 2026-10-26 부터 남긴다 — 그 전 날짜는 빈 칸(선이 끊긴다). 색인 days 는 60일 보관.
 //   그림: 실선 = 지금, 점선 = 적용 후. 실패·기록 없는 날·옛 날짜는 null → 선을 끊는다. 쉬는 날(rest)은 끊지 않고 건너 잇는다.
 //   색은 CSS 변수(라이트·다크 같이 따라감) — style 속성에 var(--…, 대체값) 으로 쓴다. 글자는 모두 escape.
-import { lastDays, dayLabel } from './refill-view.js?v=202610291402';
+import { lastDays, dayLabel } from './refill-view.js?v=202610291532';
 
 const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 /** SVG 글자·속성용 escape(테스트에서도 쓴다) */
@@ -84,4 +84,18 @@ export function trendSvg(series, { w = 320, h = 72 } = {}) {
         + (now.d ? `<path d="${now.d}" style="fill:none;stroke:${C_NOW};stroke-width:1.8" vector-effect="non-scaling-stroke"/>` : '')
         + after.dots.map(p => dot(p, C_AFTER)).join('') + now.dots.map(p => dot(p, C_NOW)).join('')
         + '</svg>';
+}
+
+/**
+ * 상세 창 날짜별 표 — trendSeries 결과 → 최근 날짜 먼저 [{key, label, now, after, diff, rest}].
+ *   값이 없는 날은 뺀다(쉬는 날은 rest: true 로 남긴다). diff = 소수 1자리로 반올림한 after - now(표에 보이는 두 값의 차이, 둘 다 있을 때), 없으면 null.
+ */
+export function trendRows(series) {
+    return (Array.isArray(series) ? series : [])
+        .filter(p => p && (p.now != null || p.after != null || p.rest))
+        .map(p => ({
+            key: p.key, label: dayLabel(p.key), now: p.now, after: p.after, rest: !!p.rest && p.now == null && p.after == null,
+            diff: p.now != null && p.after != null ? Math.round((Math.round(p.after * 10) - Math.round(p.now * 10))) / 10 : null
+        }))
+        .reverse();
 }

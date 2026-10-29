@@ -19,9 +19,9 @@
 // 원문 문자열은 textContent 로만 넣는다.
 
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610291402';
-import { canFeature, currentPerm } from './feature-gate.js?v=202610291402';
-import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202610291402';
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610291532';
+import { canFeature, currentPerm } from './feature-gate.js?v=202610291532';
+import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202610291532';
 
 const PANE = 'recommend';
 const INFO_PATH = ['Locations', 'INFO_CONFIG'];

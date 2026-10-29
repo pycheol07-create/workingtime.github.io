@@ -29,8 +29,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202610291402';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610291402';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202610291532';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610291532';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -211,7 +211,7 @@ export function routeCardInfo(latest) {
         frontTitle: FRONT_HELP
     };
 }
-const ROUTE_CARD_HELP = '동선 점수: 출고 많은 상품이 앞자리(동·위치 순위)에 있을수록 높다. 100 = 이론상 완벽(인기 순으로 앞자리부터), 0 = 정반대. '
+export const ROUTE_CARD_HELP = '동선 점수: 출고 많은 상품이 앞자리(동·위치 순위)에 있을수록 높다. 100 = 이론상 완벽(인기 순으로 앞자리부터), 0 = 정반대. '
     + "'추천 모두 적용 시'는 그날 변경 추천을 모두 처리했을 때(안 함 제외).";
 
 /** 열지도 칸 진하기 — 0 = 출고 0, 그 밖은 r = √(값/최대값) 을 1(≤0.25)·2(≤0.5)·3(≤0.75)·4 로 */
@@ -260,6 +260,61 @@ export function routeHeatView(heat, { maxRows = 10 } = {}) {
         rows = rows.filter(r => keep.has(r.i));
     }
     return { has: true, rows: rows.map(({ zone, sum, cells }) => ({ zone, sum: Math.round(sum * 10) / 10, cells })), more };
+}
+
+/** 열지도 설명(카드 title·상세 창) */
+export const HEAT_HELP = '피킹 자리 기준 — 상품마다 가장 앞쪽 피킹 자리 1곳에 하루 평균 출고를 더했습니다(기타·비축 자리는 빠짐).';
+
+/**
+ * 동선 효율 상세 창(js/locrec-route-modal.js) 머리 숫자 — routeCardInfo 와 같은 문서(locRecLatest)를 본다.
+ *   → { has, score, after(''|'78.6'), gain(''|'+1.2'), front, prev(''|'76.8'), prevDiff(''|'+0.6'),
+ *       coverage(''|'93%'), items(''|'1,234'), day('10/26(월)'|'') }
+ */
+export function routeDetailHead(latest) {
+    const L = latest && typeof latest === 'object' ? latest : {};
+    const x = L.metrics || {};
+    const s0 = num(x.routeScore), s1 = num(x.routeScoreAfter), prev = num(x.routeScorePrevWeek);
+    const f0 = num(x.frontQty), f1 = num(x.frontQtyAfter);
+    const cov = num(x.routeCoverage), items = num(x.routeItems);
+    const g = s0 != null && s1 != null ? fmtGain(s1 - s0) : '-';
+    const pd = s0 != null && prev != null ? fmtGain(s0 - prev) : '-';
+    const day = normDay(L.latestDay);
+    return {
+        has: s0 != null,
+        score: s0 == null ? '-' : s0.toFixed(1),
+        after: s1 == null ? '' : s1.toFixed(1),
+        gain: g === '-' ? '' : g,
+        front: f0 == null ? '-' : fmtPct(f0) + (f1 == null ? '' : ` → ${fmtPct(f1)}`),
+        prev: prev == null ? '' : prev.toFixed(1),
+        prevDiff: pd === '-' ? '' : pd,
+        coverage: cov == null ? '' : fmtPct(cov),
+        items: items == null ? '' : Math.round(items).toLocaleString('ko-KR'),
+        day: day ? dayLabel(day) : ''
+    };
+}
+
+/**
+ * 동선 효율 상세 창 열지도 — routeHeatView 를 자르지 않고(maxRows 0) 숫자·합계를 더한다.
+ *   → { has, total, totalTxt, rows:[{zone, sum, sumTxt, pct, cells:[{…routeHeatView 칸, text('' = 자리 없음)}]}],
+ *       dongs:[{dong, sum, sumTxt, pct}] }
+ *   비율 분모 total = routeHeatView 와 같다(heat.sum, 없으면 칸 합) — 카드 title 의 % 와 맞는다. 자리 없는 칸(null)은 합에서 빠진다.
+ */
+export function routeHeatDetail(heat) {
+    const v = routeHeatView(heat, { maxRows: 0 });
+    if (!v.has) return { has: false, total: 0, totalTxt: '', rows: [], dongs: [] };
+    const qty = (n) => (n >= 10 || Number.isInteger(n) ? Math.round(n).toLocaleString('ko-KR') : n.toFixed(1));
+    const cellSum = v.rows.reduce((s, r) => s + r.cells.reduce((t, c) => t + (c.q || 0), 0), 0);
+    const total = num(heat.sum) > 0 ? num(heat.sum) : cellSum;
+    const pct = (n) => (total > 0 ? Math.round((n / total) * 1000) / 10 : 0);
+    const rows = v.rows.map(r => ({
+        zone: r.zone, sum: r.sum, sumTxt: qty(r.sum), pct: pct(r.sum),
+        cells: r.cells.map(c => ({ ...c, text: c.q == null ? '' : c.q > 0 ? qty(c.q) : '0' }))
+    }));
+    const dongs = (v.rows[0] ? v.rows[0].cells : []).map((c, di) => {
+        const sum = Math.round(v.rows.reduce((s, r) => s + (r.cells[di].q || 0), 0) * 10) / 10;
+        return { dong: c.dong, sum, sumTxt: qty(sum), pct: pct(sum) };
+    });
+    return { has: true, total, totalTxt: qty(total), rows, dongs };
 }
 
 /** 재고 자료 기준 시각(ms) — stockDataAt(= lastDataUpdate, 엑셀 올린 시각). 옛 문서는 lastDataUpdate 칸. locUpdatedAt 은 쓰지 않는다 */

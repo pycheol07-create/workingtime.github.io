@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202610291402"></script>
+    <script src="js/theme-boot.js?v=202610291532"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -11,10 +11,10 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202610291402">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610291402">
-    <link rel="stylesheet" href="css/page-nav.css?v=202610291402">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202610291402">
+    <link rel="stylesheet" href="css/suit.css?v=202610291532">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610291532">
+    <link rel="stylesheet" href="css/page-nav.css?v=202610291532">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202610291532">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -680,6 +680,46 @@
         .route-heat i.h2 { background: var(--heat-2); }
         .route-heat i.h3 { background: var(--heat-3); }
         .route-heat i.h4 { background: var(--heat-4); }
+        /* 동선 효율 카드 → 상세 창(js/locrec-route-modal.js) */
+        .route-card.is-clickable { cursor: pointer; transition: border-color .15s; }
+        .route-card.is-clickable:hover { border-color: var(--c-accent); }
+        .route-card.is-clickable:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+        .route-card .route-more { float: right; font-size: 12px; font-weight: 500; color: var(--c-accent); }
+        .modal-content.route-detail { width: 1100px; max-width: 96vw; max-height: 92vh; padding: 22px 24px; }
+        .route-detail .rd-h { margin: 22px 0 10px; font-size: 14px; font-weight: 600; color: var(--c-text); }
+        .route-detail .rd-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+        .route-detail .rd-kpi { background: var(--c-surface-2); border: 1px solid var(--c-line); border-radius: var(--r-sm); padding: 12px 14px; }
+        .route-detail .rd-kpi-label { font-size: 12px; color: var(--c-text-2); }
+        .route-detail .rd-kpi-value { font-size: 22px; font-weight: 600; color: var(--c-text); font-variant-numeric: tabular-nums; margin-top: 2px; }
+        .route-detail .rd-kpi-sub { font-size: 11.5px; color: var(--c-text-3); min-height: 16px; }
+        .route-detail .rd-trend { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+        .route-detail .rd-trend-chart svg { width: 100%; height: auto; }
+        .route-detail .rd-trend-chart .locrec-trend-legend { font-size: 12px; }
+        .route-detail .rd-trend-table { max-height: 240px; overflow-y: auto; }
+        .route-detail .rd-trend-table table { width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
+        .route-detail .rd-trend-table th, .route-detail .rd-trend-table td { padding: 4px 8px; }
+        .route-detail .rd-trend-table thead th { position: sticky; top: 0; }
+        .route-detail tr.rd-rest td { color: var(--c-text-3); }
+        .route-detail .rd-heat { max-height: 420px; overflow: auto; margin: 0; }
+        .route-detail .rd-heat table { border-collapse: separate; border-spacing: 2px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+        .route-detail .rd-heat th { font-weight: 600; color: var(--c-text-2); padding: 3px 8px; background: var(--c-surface); white-space: nowrap; }
+        .route-detail .rd-heat thead th { position: sticky; top: 0; z-index: 1; }
+        .route-detail .rd-heat td { min-width: 44px; height: 24px; text-align: center; border-radius: 3px; color: var(--c-text); }
+        .route-detail .rd-heat td.h0 { box-shadow: inset 0 0 0 1px var(--heat-0); color: var(--c-text-3); }
+        .route-detail .rd-heat td.h1 { background: var(--heat-1); }
+        .route-detail .rd-heat td.h2 { background: var(--heat-2); }
+        .route-detail .rd-heat td.h3 { background: var(--heat-3); color: var(--c-on-fill, #fff); }
+        .route-detail .rd-heat td.h4 { background: var(--heat-4); color: var(--c-on-fill, #fff); }
+        html.dark .route-detail .rd-heat td.h3, html.dark .route-detail .rd-heat td.h4 { color: var(--c-text); }
+        html.dark .route-detail .rd-heat td.h4 { color: #11161F; }
+        .route-detail .rd-heat td.hx { background: repeating-linear-gradient(45deg, transparent 0 3px, var(--c-line) 3px 4px); }
+        .route-detail .rd-heat td.rd-sum { background: var(--c-surface-2); font-weight: 600; padding: 0 8px; white-space: nowrap; }
+        .route-detail .rd-heat td.rd-sum span { font-weight: 400; color: var(--c-text-3); }
+        .route-detail .rd-how { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--c-text-2); line-height: 1.7; }
+        @media (max-width: 900px) {
+            .route-detail .rd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .route-detail .rd-trend { grid-template-columns: 1fr; }
+        }
         .insight-card .route-heat .rh-note { font-size: 10.5px; line-height: 13px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         /* 칸 수는 화면 폭이 아니라 인사이트 패널 폭 기준(배치 편집으로 폭이 바뀐다) */
         .dash-cell[data-panel="insights"] { container-type: inline-size; }
@@ -1696,10 +1736,10 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202610291402"></script>
+    <script type="module" src="js/location.js?v=202610291532"></script>
     <!-- 권한 개편 5단계: location.js 가 만든 window.* 위험 함수를 바깥에서 감싼다(반드시 location.js 다음) -->
-    <script type="module" src="js/location-guard.js?v=202610291402"></script>
-    <script type="module" src="js/locdash-layout.js?v=202610291402"></script>
+    <script type="module" src="js/location-guard.js?v=202610291532"></script>
+    <script type="module" src="js/locdash-layout.js?v=202610291532"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1776,10 +1816,10 @@
             if (typeof window.paintIncomingBasis === 'function') window.paintIncomingBasis(sidebar.classList.contains('open'));
         }
     </script>
-    <script src="js/connection-banner.js?v=202610291402"></script>
-    <script src="js/modal-esc.js?v=202610291402"></script>
-    <script type="module" src="js/modal-drag.js?v=202610291402"></script>
-    <script type="module" src="js/page-gate.js?v=202610291402" data-perm-page="location.view"></script>
-    <script type="module" src="js/app-shell.js?v=202610291402"></script>
+    <script src="js/connection-banner.js?v=202610291532"></script>
+    <script src="js/modal-esc.js?v=202610291532"></script>
+    <script type="module" src="js/modal-drag.js?v=202610291532"></script>
+    <script type="module" src="js/page-gate.js?v=202610291532" data-perm-page="location.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610291532"></script>
 </body>
 </html>
