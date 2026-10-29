@@ -12,11 +12,11 @@
 //   이월 행(carried)은 흐리게 '(지금 기준 추천에서 빠짐)' — [처리함]/[안 함] 없이 되돌리기만.
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202610291113';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610291113';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610291113';
-import { higherOpenThan } from './modal-above.js?v=202610291113';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202610291113';
+import { escapeHtml } from './utils.js?v=202610291119';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610291119';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610291119';
+import { higherOpenThan } from './modal-above.js?v=202610291119';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202610291119';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -114,7 +114,9 @@ export function mountLocRecTable({ store, sizeOf }) {
         const trAttr = carried ? ' style="opacity:.55" title="지금 기준 추천에서 빠진 행 — 오늘 손댄 것이라 남겨 둠"' : '';
         return lines.map((l, j) => {
             const last = j === lines.length - 1;
-            const cells = `<td class="locrec-prod"><span class="locrec-code">${escapeHtml(l.code)}</span> ${nameCell(l.name, l.option)}`
+            // 상품코드(누르면 데이터 리스트에서 그 상품 검색) / 상품명(옵션) 두 줄
+            const cells = `<td class="locrec-prod"><a class="locrec-code" href="location.html?q=${encodeURIComponent(l.code || '')}#tab=list" data-locrec-code="${escapeHtml(l.code)}" title="데이터 리스트에서 이 상품 보기">${escapeHtml(l.code)}</a>`
+                + `<div class="locrec-name">${nameCell(l.name, l.option)}</div>`
                 + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
                 + `<td class="locrec-loc locrec-from">${escapeHtml(locCell(l.from, l.fromSize))}</td>`
                 + `<td class="locrec-loc"><b class="locrec-to">${escapeHtml(locCell(l.to, l.toSize))}</b></td>`
@@ -199,6 +201,15 @@ export function mountLocRecTable({ store, sizeOf }) {
 
     modal.addEventListener('click', (ev) => {
         if (ev.target === modal || ev.target.closest('[data-locrec-close]')) { close(); return; }
+        // 상품코드 — 로케이션관리(window.locSearchCode 있음)에서는 창을 닫고 데이터 리스트를 그 코드로 검색,
+        //   대시보드(index)에서는 링크 그대로 location.html?q=코드 로 이동
+        const c = ev.target.closest('a[data-locrec-code]');
+        if (c) {
+            if (typeof window.locSearchCode === 'function' && !(ev.ctrlKey || ev.metaKey || ev.shiftKey)) {
+                ev.preventDefault(); close(); window.locSearchCode(c.getAttribute('data-locrec-code'));
+            }
+            return;
+        }
         const t = ev.target.closest('[data-locrec-tab]');
         if (t) { tab = TABS.includes(t.getAttribute('data-locrec-tab')) ? t.getAttribute('data-locrec-tab') : 'single'; render(); return; }
         const b = ev.target.closest('button[data-locrec-act]');

@@ -1,29 +1,29 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610291113';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610291119';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610291113';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610291113';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610291113';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610291113';
-import { orderKeyMap } from './lib/order-hash.js?v=202610291113';
-import { setShellContext } from './app-shell-bridge.js?v=202610291113';
-import { memberNameFor } from './app-shell-data.js?v=202610291113';
-import { menuConfigOf } from './lib/perm.js?v=202610291113';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610291113';
-import { initPageNav } from './page-nav.js?v=202610291113';
-import { initRefillCard } from './refill-card.js?v=202610291113';
-import { initLocRecCard } from './locrec-card.js?v=202610291113';
-import { initRebuildBar } from './rebuild-bar.js?v=202610291113';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610291113';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610291113';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610291113';
-import { uploadBlockText } from './lib/busy-view.js?v=202610291113';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610291113';
-import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610291113';
-import { initLocSetPanel } from './locset-panel.js?v=202610291113';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202610291119';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610291119';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610291119';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610291119';
+import { orderKeyMap } from './lib/order-hash.js?v=202610291119';
+import { setShellContext } from './app-shell-bridge.js?v=202610291119';
+import { memberNameFor } from './app-shell-data.js?v=202610291119';
+import { menuConfigOf } from './lib/perm.js?v=202610291119';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610291119';
+import { initPageNav } from './page-nav.js?v=202610291119';
+import { initRefillCard } from './refill-card.js?v=202610291119';
+import { initLocRecCard } from './locrec-card.js?v=202610291119';
+import { initRebuildBar } from './rebuild-bar.js?v=202610291119';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610291119';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610291119';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610291119';
+import { uploadBlockText } from './lib/busy-view.js?v=202610291119';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610291119';
+import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610291119';
+import { initLocSetPanel } from './locset-panel.js?v=202610291119';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText } from './lib/locrec-apply.js?v=202610291113';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202610291113';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText } from './lib/locrec-apply.js?v=202610291119';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202610291119';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -3199,6 +3199,21 @@ let _globalSearchTimer = null;
         }, 150);
     });
 })();
+
+// 변경 추천 표의 상품코드 클릭 → 데이터 리스트를 그 코드로 머리줄 검색(js/locrec-table.js)
+window.locSearchCode = function(code) {
+    const v = String(code || '').trim();
+    if (!v) return;
+    const input = document.getElementById('loc-global-search');
+    if (input) input.value = v;
+    clearTimeout(_globalSearchTimer);
+    globalSearch = v.toLowerCase();
+    _globalSearchFromUrl = false;
+    if (document.body.dataset.locTab !== 'list' && typeof window.switchView === 'function') window.switchView('list');
+    applyFiltersAndSort();
+    const box = document.getElementById('view-list');
+    if (box && box.scrollIntoView) box.scrollIntoView({ block: 'start' });
+};
 
 // 상품 관리 [로케이션관리에서 보기] → location.html?q=코드,코드#tab=list — 첫 데이터가 오면 한 번만 머리줄 검색에 넣는다
 let _urlSearchApplied = false;
