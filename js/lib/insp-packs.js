@@ -9,8 +9,8 @@
 // 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 공급처::색상 1장, 그 묶음의 첫 품목이 대표.
 // 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
 
-import { dayInspItems } from './insp-day.js?v=202610291628';
-import { reserveLocIds, normLocId } from './multi-loc.js?v=202610291628';
+import { dayInspItems } from './insp-day.js?v=202610291637';
+import { reserveLocIds, normLocId } from './multi-loc.js?v=202610291637';
 
 export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -210,13 +210,6 @@ export function buildCards(packs, refs, today) {
     (Array.isArray(packs) ? packs : []).forEach(pack => {
         const seen = new Set();
         const packingDate = packingDateOf(pack, today);
-        // 카드 1장 = 공급처::색상 — 로케이션은 그 묶음에 든 모든 상품코드(사이즈별)의 자리를 모은다
-        const codesByKey = new Map();
-        (pack.items || []).forEach(it => {
-            const k = cardKey({ supCode: it.supCode, name: str(it.name), option: str(it.option) });
-            if (!codesByKey.has(k)) codesByKey.set(k, []);
-            if (str(it.code)) codesByKey.get(k).push(str(it.code));
-        });
         (pack.items || []).forEach(it => {
             const code = str(it.code), name = str(it.name), option = str(it.option);
             if (!code && !name) return;
@@ -228,22 +221,16 @@ export function buildCards(packs, refs, today) {
             const sampleLocation = getRef(r.sampleByLoc, locSampleKey(name, option)) || getRef(r.sampleByLocColor, locColorKey(name, option))
                 || getRef(r.sampleByLocName, locSampleKey(name, ''))
                 || getRef(r.sampleByKey, cleanKey(name, option)) || getRef(r.sampleByName, cleanKey(name, '')) || null;
-            // 로케이션(로케이션관리 지금 위치): 피킹은 카드에 늘 보이고, 비축은 '새창으로 보기'에서만(js/lib/insp-flow.js todoCardHtml)
-            const pickSet = new Set(), resSet = new Set();
-            (codesByKey.get(key) || []).forEach(c => {
-                const l = getRef(r.locByCode, c);
-                if (!l) return;
-                l.pick.forEach(x => pickSet.add(x));
-                l.reserve.forEach(x => resSet.add(x));
-            });
-            const byId = (a, b) => a.localeCompare(b);
+            // 로케이션(로케이션관리 지금 위치) = 이 카드의 상품코드(SKU) 하나의 자리만(같은 색 다른 사이즈 자리는 넣지 않는다).
+            //   피킹은 카드에 늘 보이고, 비축은 '새창으로 보기'에서만(js/lib/insp-flow.js todoCardHtml)
+            const loc = (code && getRef(r.locByCode, code)) || { pick: [], reserve: [] };
             out.push({
                 code, name, option, qty: Number(it.qty) || 0,
                 thickness: String(thickness),
                 supplierCode: str(it.supCode),
                 supplierName: '',
-                location: [...pickSet].sort(byId).join(', '),
-                reserveLocation: [...resSet].sort(byId).join(', '),
+                location: loc.pick.join(', '),
+                reserveLocation: loc.reserve.join(', '),
                 sampleLocation,
                 status: '대기',
                 packingDate,

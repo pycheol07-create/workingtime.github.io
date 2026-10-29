@@ -10,9 +10,9 @@
 // ※ 순수 모듈로 둘 것(의존은 js/lib 의 기능 카탈로그·권한 계산뿐). 관리자 페이지(admin-ui.js)가 대시보드 전용
 //    모듈(ui.js/state.js)을 끌어오지 않도록 하기 위함이다.
 
-import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202610291628';
-import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202610291628';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610291628';
+import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202610291637';
+import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202610291637';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610291637';
 
 // 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu 에 없으면 자동으로 끼워 넣는다.
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)

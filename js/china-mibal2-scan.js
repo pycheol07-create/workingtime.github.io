@@ -16,10 +16,10 @@
 //   [입고 오차 기록]은 꺼진 단추)
 // 엑셀은 내 PC 로 내려받기만 한다(신규 화면과 같은 XLSX.writeFile .xlsx). 파일 이름은 '시험_' 으로 시작 — 이지어드민 업로드용이 아니다.
 import { getDocs, onSnapshot, doc, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202610291628';
-import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202610291628';
-import { locAssignFullOf } from './lib/loc-mode.js?v=202610291628';
-import { friendlyFirebaseError } from './utils.js?v=202610291628';
+import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202610291637';
+import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202610291637';
+import { locAssignFullOf } from './lib/loc-mode.js?v=202610291637';
+import { friendlyFirebaseError } from './utils.js?v=202610291637';
 
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const INBOUND_COLL = CHINA_COLLECTION + '_InboundHistory';
