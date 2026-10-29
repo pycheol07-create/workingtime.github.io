@@ -10,10 +10,13 @@
 //   · 창을 보는 중에 새 판이 오면 띠 '새 추천이 도착했습니다' [새로 보기]
 //   (store.setHold — 창이 열려 있으면 store 가 새 판을 pendingDay 에 둔다, 닫으면 바로 바꾼다).
 //   이월 행(carried)은 흐리게 '(지금 기준 추천에서 빠짐)' — [처리함]/[안 함] 없이 되돌리기만.
-import { escapeHtml } from './utils.js?v=202610281554';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610281554';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610281554';
-import { higherOpenThan } from './modal-above.js?v=202610281554';
+// 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
+//   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
+import { escapeHtml } from './utils.js?v=202610291113';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610291113';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202610291113';
+import { higherOpenThan } from './modal-above.js?v=202610291113';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202610291113';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -26,7 +29,7 @@ const TEMPLATE = `
                 <div class="seg-tabs locrec-tabs" id="locrec-tabs" style="margin-bottom:0;"></div>
                 <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                     <label class="refill-sub locrec-skipchk" id="locrec-skip-wrap" hidden><input type="checkbox" id="locrec-show-skip"> <span id="locrec-skip-txt" style="vertical-align:middle;">안 함도 보기</span></label>
-                    <button type="button" class="btn btn-secondary btn-sm" id="locrec-all-btn" data-locrec-act="doneAll" title="지금 탭에서 아직 표시 안 한 추천을 모두 '처리함'으로 표시(안 함·처리됨·만료·자리 바뀜은 제외)" hidden>전체 처리함</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="locrec-all-btn" data-locrec-act="doneAll" title="지금 탭에서 아직 표시 안 한 추천을 모두 '처리함'으로 표시하고 데이터 리스트 자리도 추천대로 옮김(안 함·처리됨·만료·자리 바뀜은 제외)" hidden>전체 처리함</button>
                     <button type="button" class="btn btn-primary btn-sm" id="locrec-dl-btn" data-locrec-act="download" title="지금 탭(안 함도 보기면 그것까지)">엑셀 받기</button>
                 </div>
             </div>
@@ -88,15 +91,16 @@ export function mountLocRecTable({ store, sizeOf }) {
     const nameCell = (name, option) => `${escapeHtml(name || '')}${option ? ` <span class="locrec-opt">(${escapeHtml(option)})</span>` : ''}`;
 
     function rowHtml(S, r, st, i, editable) {
-        const busy = S.saving.has(r.recKey) || !editable;   // 지난 날짜는 볼 수만
+        const busy = S.saving.has(r.recKey) || !!S.applying || !editable;   // 지난 날짜는 볼 수만 · 전체 반영 중에는 잠금
         const k = escapeHtml(r.recKey);
         const mk = st.mark;
-        const who = mk ? `<div class="locrec-who">${escapeHtml(mk.state === 'skip' ? '안 함' : '처리함')} · ${escapeHtml(mk.by || NO_NAME)} ${escapeHtml(fmtHM(mk.at))}</div>` : '';
+        const who = mk ? `<div class="locrec-who">${escapeHtml(mk.state === 'skip' ? '안 함' : '처리함')} · ${escapeHtml(mk.by || NO_NAME)} ${escapeHtml(fmtHM(mk.at))}`
+            + (mk.state === 'done' && mk.applied ? ' · 표에 반영' : '') + '</div>' : '';
         const carried = r.carried === true;                                   // 이월 행 — 지금 기준 추천에서 빠짐
         const btns = (st.label === '처리됨' || carried) && !mk ? ''         // 서버가 위치 변화를 확인한 행·이월 행 — 누를 것이 없다
             : mk
             ? `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="undo" data-locrec-key="${k}"${busy ? ' disabled' : ''}>되돌리기</button>`
-            : `<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="done" data-locrec-key="${k}"${busy ? ' disabled' : ''}>처리함</button>`
+            : `<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="done" data-locrec-key="${k}"${busy ? ' disabled' : ''} title="처리함으로 표시하고 데이터 리스트 자리도 추천대로 옮깁니다">처리함</button>`
               + `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="skip" data-locrec-key="${k}"${busy ? ' disabled' : ''}>안 함</button>`;
         const badges = (r.capWarn ? '<span class="badge badge-warn locrec-badge" title="옮길 자리 적재량보다 수량이 많습니다">적재량 확인</span>' : '')
             + (r.pairNear ? `<span class="badge badge-accent locrec-badge" title="함께 잘 팔리는 상품이 옮길 자리와 같은 동에 있습니다">페어 ${escapeHtml(r.pairNear)}</span>` : '')
@@ -164,8 +168,9 @@ export function mountLocRecTable({ store, sizeOf }) {
         const bulk = loaded && editable ? bulkDoneKeys(all) : [];
         if (mAll) {
             mAll.hidden = !(loaded && editable);
-            mAll.disabled = !bulk.length;
-            mAll.textContent = bulk.length ? `전체 처리함 (${bulk.length})` : '전체 처리함';
+            mAll.disabled = !bulk.length || !!S.applying;
+            mAll.textContent = S.applying ? `반영 중 ${S.applying.i}/${S.applying.n}`
+                : bulk.length ? `전체 처리함 (${bulk.length})` : '전체 처리함';
         }
         if (!loaded) {
             mMeta.textContent = '';
@@ -205,11 +210,24 @@ export function mountLocRecTable({ store, sizeOf }) {
         else if (act === 'doneAll') {
             const keys = bulkDoneKeys(store.visibleRows(tab));
             if (keys.length && confirm(`${TAB_LABEL[tab]} 탭의 추천 ${keys.length}건을 모두 '처리함'으로 표시할까요?
-(잘못 눌렀으면 줄마다 [되돌리기]로 지울 수 있습니다)`)) store.markMany(keys, 'done');
+데이터 리스트도 바뀝니다 — 상품을 추천한 자리로 옮깁니다(한 건씩 차례로).
+(오늘 안에는 줄마다 [되돌리기]로 자리까지 되돌릴 수 있습니다)`)) store.markMany(keys, 'done');
         }
-        else if (act === 'done') store.mark(key, 'done');
+        else if (act === 'done') {
+            const r = store.get().day && TABS.flatMap(t => (store.get().day.parsed[t] || [])).find(x => x.recKey === key);
+            const what = r ? rowLines(r).map(l => `${l.code} ${l.from}→${l.to}`).join(', ') : '';
+            if (confirm(`'처리함'으로 표시하고 데이터 리스트도 추천대로 바꿉니다.${what ? `
+${what}` : ''}
+(오늘 안에는 [되돌리기]로 되돌릴 수 있습니다)
+
+계속할까요?`)) store.mark(key, 'done');
+        }
         else if (act === 'skip') store.mark(key, 'skip');
-        else if (act === 'undo') store.mark(key, null);
+        else if (act === 'undo') {
+            // 반영 기록이 있으면 데이터 리스트 자리도 되돌린다 — [처리함]과 같은 모양으로 묻는다(표시만이면 묻지 않음)
+            const mk = store.get().marks[key];
+            if (!(mk && mk.applied) || confirm(undoConfirmText(mk.applied))) store.mark(key, null);
+        }
     });
     mSkip.addEventListener('change', () => { showSkipped = mSkip.checked; render(); });
     // ESC — 공통 js/modal-esc.js 는 .fixed.inset-0 오버레이만 닫아서 이 창(.modal-overlay)은 여기서 닫는다(열려 있을 때만).

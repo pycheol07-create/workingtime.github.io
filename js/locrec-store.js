@@ -10,12 +10,18 @@
 //   (채우기.py --요청확인, 5분)이 채우기 지시서 뒤에 추천.py --요청확인 을 불러 오늘 문서를 바꾼다(rev +1). 여기서는 상태만 읽는다.
 //   표 창이 열려 있는 동안 오늘 문서 rev 가 바뀌면 바로 바꾸지 않고 pendingDay 에 둔다 — 띠 '새 추천이 도착했습니다' [새로 보기](applyPending).
 //   재고 업로드 자동 감지 문구용으로 Locations/INFO_CONFIG.lastDataUpdate 도 구독한다(로케이션관리는 location.js 가 이미 같은 문서를 구독).
-import { doc, onSnapshot, setDoc, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// 데이터 리스트 반영(2026-10-29): [처리함] = 추천대로 Locations ZONE_* 상품 칸을 옮기고 marks 를 한 트랜잭션에(둘 다 쓰이거나 둘 다 안 쓰임).
+//   [되돌리기] = 반영한 그날 + 그 사이 안 바뀌었으면 자리까지 원복. 계획(판정)은 js/lib/locrec-apply.js, 여기는 읽기·쓰기·확인창만.
+//   ZONE 문서는 트랜잭션 안에서 직접 읽는다(대시보드는 Locations 를 구독하지 않는다). 업로드 중(locationStock/uploadStatus)이면 막는다.
+//   ⚠️ 로그·alert 에는 상품코드·자리 id·e.code 만 — 상품명·rawDataStr 를 넣지 않는다.
+import { doc, onSnapshot, setDoc, serverTimestamp, deleteField, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
-    stripRows, fileNameAll, recReqUi, tsMs
-} from './lib/locrec-view.js?v=202610281554';
-import { laterMs } from './lib/rebuild-view.js?v=202610281554';
+    stripRows, fileNameAll, recReqUi, tsMs, TABS
+} from './lib/locrec-view.js?v=202610291113';
+import { laterMs } from './lib/rebuild-view.js?v=202610291113';
+import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText } from './lib/locrec-apply.js?v=202610291113';
+import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202610291113';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -23,7 +29,9 @@ const DAY_PATH = (key) => `${APP}/integrations/locRec_${key}`;
 const MARKS_PATH = `${APP}/locRecWork/marks`;
 const REQUEST_PATH = `${APP}/locRecWork/request`;
 const REFILL_REQUEST_PATH = `${APP}/refillWork/request`;    // 채우기 권한이 있는 사람의 요청 — 서버는 두 문서 중 늦은 쪽을 본다
-const INFO_PATH = 'Locations/INFO_CONFIG';
+const INFO_PATH = 'Locations/INFO_CONFIG';               // lastDataUpdate = 오늘 재고 올린 시각(ms, location.js Date.now())
+const LOC_COLLECTION = 'Locations';
+const UPLOAD_STATUS_PATH = `${APP}/locationStock/uploadStatus`;   // 오늘 재고·도면 업로드 상태(js/busy-banner.js 계약 B)
 export const NO_NAME = '이름 없음';
 
 export const todayKey = () => dayKey(Date.now());
@@ -42,6 +50,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
         key: '', userPicked: false,
         day: null, dayErr: '', dayLoading: false,       // day = { key, data, parsed }
         marks: {}, marksErr: '', saving: new Set(),
+        applying: null,                                 // [전체 처리함] 진행 { i, n } — 표 창 버튼 '반영 중 i/n'
         request: null, refillRequest: null, lastDataMs: 0,   // 다시 만들기 요청 문서 2곳 · INFO_CONFIG.lastDataUpdate
         pendingDay: null                                // 표 창이 열려 있을 때 도착한 새 판 { key, data, parsed }
     };
@@ -206,39 +215,208 @@ function createLocRecStore({ db, auth, getMemberName }) {
         return list.map(r => ({ r, st: rowState({ row: r, open: open[r.recKey], mark: S.marks[r.recKey], viewDay: S.key, todayKey: today, nowMs: now }) }));
     }
 
-    /** 처리 표시(state = 'done' | 'skip', null 이면 지우기). 처음 보여 주는 날짜만 — 지난 날짜는 볼 수만 */
-    async function mark(key, state) {
-        if (!key || S.saving.has(key) || !canMark(S.latest, S.key, todayKey())) return;
+    const errCode = (e) => (e && e.code) || '오류';
+
+    /** 선택 날짜 문서에서 recKey 로 행 찾기(탭 상관없이) */
+    function rowOf(key) {
+        if (!loaded()) return null;
+        for (const t of TABS) {
+            const r = (S.day.parsed[t] || []).find(x => x.recKey === key);
+            if (r) return r;
+        }
+        return null;
+    }
+
+    /** 표시만 쓰기(데이터 리스트는 안 건드림) — 문서 쓰기 1회. state null 이면 지우기.
+     *  done·skip 은 applied 를 지운다(merge 라 옛 반영 기록이 남지 않게). 실패하면 alert 후 false */
+    async function writeMarks(keys, state) {
+        const list = keys.filter(k => k && !S.saving.has(k));
+        if (!list.length) return false;
+        list.forEach(k => S.saving.add(k));
+        emit();
+        try {
+            const by = nameOf();
+            const marks = {};
+            list.forEach(k => { marks[k] = state ? { state, by, at: serverTimestamp(), applied: deleteField() } : deleteField(); });
+            await setDoc(doc(db, MARKS_PATH), { marks }, { merge: true });
+            return true;
+        } catch (e) {
+            alert(`표시를 저장하지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`);
+            return false;
+        } finally {
+            list.forEach(k => S.saving.delete(k));
+            emit();
+        }
+    }
+
+    /** 트랜잭션 안: 업로드 중이면 막기 문구, 아니면 null */
+    async function uploadBusy(tx) {
+        const up = await tx.get(doc(db, UPLOAD_STATUS_PATH));
+        const v = uploadView(up.exists() ? up.data() : null, Date.now(), '');
+        return v && v.active ? uploadBlockText(v) : null;
+    }
+    async function readZones(tx, ids) {
+        const docs = {};
+        for (const id of ids) {
+            const s = await tx.get(doc(db, LOC_COLLECTION, id));
+            docs[id] = s.exists() ? (s.data() || {}) : null;
+        }
+        return docs;
+    }
+
+    /** 한 추천을 데이터 리스트에 반영 + 처리함 표시(한 트랜잭션).
+     *  → {status:'applied'|'already'|'marked'|'fail'|'blocked', fail?, text?}. 권한·네트워크 오류는 throw(아무것도 안 쓰임) */
+    function txApply(row, by) {
+        const ids = docIdsForRow(row);
+        const key = row.recKey;
+        return runTransaction(db, async (tx) => {
+            const blocked = await uploadBusy(tx);
+            const mk = await tx.get(doc(db, MARKS_PATH));
+            const docs = await readZones(tx, ids);
+            if (blocked) return { status: 'blocked', text: blocked };
+            const cur = mk.exists() ? (((mk.data() || {}).marks) || {})[key] : null;
+            // 다른 사람이 막 처리함 — 반영 기록(applied)을 덮어쓰지 않는다
+            if (cur && cur.state === 'done') return { status: 'marked' };
+            const del = deleteField();
+            const plan = planApply(row, docs, Date.now(), { del });
+            if (!plan.ok) return { status: 'fail', fail: { ...plan, code: plan.code || row.code } };
+            Object.entries(plan.writes).forEach(([docId, locs]) => tx.set(doc(db, LOC_COLLECTION, docId), locs, { merge: true }));
+            tx.set(doc(db, MARKS_PATH), { marks: { [key]: { state: 'done', by, at: serverTimestamp(), applied: plan.applied || del } } }, { merge: true });
+            return { status: plan.allSkipped ? 'already' : 'applied' };
+        });
+    }
+
+    /** [처리함] 한 줄 — 반영 못 하면 '표시만 할까요?' */
+    async function applyMark(key, row) {
+        S.saving.add(key);
+        emit();
+        let r = null;
+        try {
+            r = await txApply(row, nameOf());
+        } catch (e) {
+            alert(`데이터 리스트에 반영하지 못했습니다(${errCode(e)}). 아무것도 바뀌지 않았습니다 — 다시 눌러 주세요.`);
+            return;
+        } finally {
+            S.saving.delete(key);
+            emit();
+        }
+        if (r.status === 'blocked') { alert(r.text); return; }
+        if (r.status === 'fail' && confirm(applyFailText(r.fail))) await writeMarks([key], 'done');
+    }
+
+    /** [되돌리기] — 반영 기록이 있으면 자리까지 원복(한 트랜잭션). 못 하면 '표시만 지울까요?'(clearMark).
+     *  반영 뒤 오늘 재고를 올렸으면(INFO_CONFIG.lastDataUpdate > applied.at) 엑셀이 이동을 인정했을 수 있어 자리는 되돌리지 않는다 */
+    async function undoMark(key) {
+        S.saving.add(key);
+        emit();
+        let r = null;
+        try {
+            r = await runTransaction(db, async (tx) => {
+                const blocked = await uploadBusy(tx);
+                const mk = await tx.get(doc(db, MARKS_PATH));
+                const cur = mk.exists() ? (((mk.data() || {}).marks) || {})[key] : null;
+                const applied = cur && cur.applied;
+                const info = applied ? await tx.get(doc(db, INFO_PATH)) : null;
+                const docs = applied ? await readZones(tx, docIdsForApplied(applied)) : {};
+                if (blocked) return { status: 'blocked', text: blocked };
+                if (!cur) return { status: 'gone' };                       // 다른 사람이 이미 지움
+                const del = deleteField();
+                if (!applied) { tx.set(doc(db, MARKS_PATH), { marks: { [key]: del } }, { merge: true }); return { status: 'cleared' }; }
+                const lastDataMs = info && info.exists() ? tsMs((info.data() || {}).lastDataUpdate) : 0;
+                const plan = planUndo(applied, docs, Date.now(), { del, recKey: key, lastDataMs });
+                if (!plan.ok) return { status: 'fail', fail: plan };
+                Object.entries(plan.writes).forEach(([docId, locs]) => tx.set(doc(db, LOC_COLLECTION, docId), locs, { merge: true }));
+                tx.set(doc(db, MARKS_PATH), { marks: { [key]: del } }, { merge: true });
+                return { status: 'undone' };
+            });
+        } catch (e) {
+            alert(`되돌리지 못했습니다(${errCode(e)}). 아무것도 바뀌지 않았습니다 — 다시 눌러 주세요.`);
+            return;
+        } finally {
+            S.saving.delete(key);
+            emit();
+        }
+        if (r.status === 'blocked') { alert(r.text); return; }
+        if (r.status === 'fail' && confirm(undoFailText(r.fail))) await clearMark(key);
+    }
+
+    /** 되돌리기 못 한 표시 지우기 — 그 추천이 쓴 자리 locRecMove 만 지우고(상품 칸은 그대로) marks 도 지운다(한 트랜잭션).
+     *  그래야 데이터 리스트 배지('엑셀 다름')·다음 업로드 경고가 남지 않는다 */
+    async function clearMark(key) {
         S.saving.add(key);
         emit();
         try {
-            const val = state ? { state, by: nameOf(), at: serverTimestamp() } : deleteField();
-            await setDoc(doc(db, MARKS_PATH), { marks: { [key]: val } }, { merge: true });
+            const r = await runTransaction(db, async (tx) => {
+                const blocked = await uploadBusy(tx);
+                const mk = await tx.get(doc(db, MARKS_PATH));
+                const cur = mk.exists() ? (((mk.data() || {}).marks) || {})[key] : null;
+                const applied = cur && cur.applied;
+                const docs = applied ? await readZones(tx, docIdsForApplied(applied)) : {};
+                if (blocked) return { status: 'blocked', text: blocked };
+                if (!cur) return { status: 'gone' };
+                const del = deleteField();
+                const writes = applied ? planClearMoves(applied, docs, key, { del }) : {};
+                Object.entries(writes).forEach(([docId, locs]) => tx.set(doc(db, LOC_COLLECTION, docId), locs, { merge: true }));
+                tx.set(doc(db, MARKS_PATH), { marks: { [key]: del } }, { merge: true });
+                return { status: 'cleared' };
+            });
+            if (r.status === 'blocked') alert(r.text);
         } catch (e) {
-            alert(`표시를 저장하지 못했습니다(${(e && e.code) || '오류'}). 다시 눌러 주세요.`);
+            alert(`표시를 지우지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`);
         } finally {
             S.saving.delete(key);
             emit();
         }
     }
 
-    /** 여러 추천에 같은 표시를 한 번에(문서 쓰기 1회) — 표 창 [전체 처리함]. 저장 중인 키는 뺀다 */
+    /** 처리 표시(state = 'done' | 'skip', null 이면 지우기). 처음 보여 주는 날짜만 — 지난 날짜는 볼 수만.
+     *  'done' 은 데이터 리스트에 반영(applyMark), 반영 기록이 있는 표시를 지우면 자리도 되돌린다(undoMark). '안 함'은 표시만 */
+    async function mark(key, state) {
+        if (!key || S.saving.has(key) || S.applying || !canMark(S.latest, S.key, todayKey())) return;
+        if (state === 'done') {
+            const row = rowOf(key);
+            if (row) return applyMark(key, row);
+        } else if (!state && S.marks[key] && S.marks[key].applied) {
+            return undoMark(key);
+        }
+        await writeMarks([key], state || null);
+    }
+
+    /** 여러 추천에 같은 표시 — 표 창 [전체 처리함]. 저장 중인 키는 뺀다.
+     *  'done' 은 추천마다 트랜잭션 1개씩 차례로(S.applying 진행), 끝에 못 한 건을 모아 '표시만 할까요?' 한 번.
+     *  권한·네트워크 오류·업로드 중이면 거기서 멈춘다(이미 반영한 건은 그대로). 그 밖의 상태는 표시만 1회 쓰기 */
     async function markMany(keys, state) {
         const list = (Array.isArray(keys) ? keys : []).filter(k => k && !S.saving.has(k));
-        if (!list.length || !canMark(S.latest, S.key, todayKey())) return;
+        if (!list.length || S.applying || !canMark(S.latest, S.key, todayKey())) return;
+        if (state !== 'done') { await writeMarks(list, state || null); return; }
+        const by = nameOf();
+        const fails = [];
+        let ok = 0, done = 0, stopText = '';      // ok = 실제로 자리를 옮긴 건, done = 이미 처리됨(남이 표시·이미 그 자리)
         list.forEach(k => S.saving.add(k));
+        S.applying = { i: 0, n: list.length };
         emit();
         try {
-            const by = nameOf();
-            const marks = {};
-            list.forEach(k => { marks[k] = state ? { state, by, at: serverTimestamp() } : deleteField(); });
-            await setDoc(doc(db, MARKS_PATH), { marks }, { merge: true });
-        } catch (e) {
-            alert(`표시를 저장하지 못했습니다(${(e && e.code) || '오류'}). 다시 눌러 주세요.`);
+            for (let i = 0; i < list.length; i++) {
+                const key = list[i];
+                S.applying = { i: i + 1, n: list.length };
+                emit();
+                const row = rowOf(key);
+                if (!row) { fails.push({ key, reason: 'badRow', code: '' }); continue; }
+                let r;
+                try { r = await txApply(row, by); }
+                catch (e) { stopText = `${ok}건 반영한 뒤 멈췄습니다(${errCode(e)}). 남은 추천은 다시 눌러 주세요.`; break; }
+                if (r.status === 'blocked') { stopText = `${ok}건 반영한 뒤 멈췄습니다.\n${r.text}`; break; }
+                if (r.status === 'fail') fails.push({ key, ...r.fail });
+                else if (r.status === 'applied') ok++;
+                else done++;
+            }
         } finally {
             list.forEach(k => S.saving.delete(k));
+            S.applying = null;
             emit();
         }
+        if (stopText) alert(stopText);
+        if (fails.length && confirm(bulkSummaryText(ok, fails, undefined, done))) await writeMarks(fails.map(f => f.key), 'done');
     }
 
     function writeXlsx(rows, sheetName, fileName) {

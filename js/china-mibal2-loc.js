@@ -17,9 +17,9 @@
 //   옵션추가항목1 을 쓴다(js/china-mibal2-live-loc.js — 오래된 자료면 받기를 막음). 파일 이름에 '시험_' 을 붙이지 않는다.
 //   쓰기 버튼(올리기·초기화·비우기·앞/뒤)은 그 모듈이 켠다 — 이 파일은 live 여도 쓰지 않는다.
 import { getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { ensureScanStore } from './china-mibal2-scan.js?v=202610281554';
-import { stockLogPick, todayLocRows, existingLocRows, dayLocAoa, locMoveAoa, locPartsArr, newLocPositionOf } from './lib/loc-mode.js?v=202610281554';
-import { friendlyFirebaseError } from './utils.js?v=202610281554';
+import { ensureScanStore } from './china-mibal2-scan.js?v=202610291113';
+import { stockLogPick, todayLocRows, existingLocRows, dayLocAoa, locMoveAoa, locPartsArr, newLocPositionOf } from './lib/loc-mode.js?v=202610291113';
+import { friendlyFirebaseError } from './utils.js?v=202610291113';
 
 const STOCKLOG_COLL = 'ChinaStockGoods_StockLog';
 const RENDER_CAP = 300;   // 기존재고 표시 상한(기존 LM_RENDER_CAP 과 같다). 엑셀은 전체

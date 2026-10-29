@@ -1,26 +1,29 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610281554';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610291113';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610281554';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610281554';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610281554';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610281554';
-import { orderKeyMap } from './lib/order-hash.js?v=202610281554';
-import { setShellContext } from './app-shell-bridge.js?v=202610281554';
-import { memberNameFor } from './app-shell-data.js?v=202610281554';
-import { menuConfigOf } from './lib/perm.js?v=202610281554';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610281554';
-import { initPageNav } from './page-nav.js?v=202610281554';
-import { initRefillCard } from './refill-card.js?v=202610281554';
-import { initLocRecCard } from './locrec-card.js?v=202610281554';
-import { initRebuildBar } from './rebuild-bar.js?v=202610281554';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610281554';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610281554';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610281554';
-import { uploadBlockText } from './lib/busy-view.js?v=202610281554';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610281554';
-import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610281554';
-import { initLocSetPanel } from './locset-panel.js?v=202610281554';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202610291113';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610291113';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610291113';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610291113';
+import { orderKeyMap } from './lib/order-hash.js?v=202610291113';
+import { setShellContext } from './app-shell-bridge.js?v=202610291113';
+import { memberNameFor } from './app-shell-data.js?v=202610291113';
+import { menuConfigOf } from './lib/perm.js?v=202610291113';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610291113';
+import { initPageNav } from './page-nav.js?v=202610291113';
+import { initRefillCard } from './refill-card.js?v=202610291113';
+import { initLocRecCard } from './locrec-card.js?v=202610291113';
+import { initRebuildBar } from './rebuild-bar.js?v=202610291113';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610291113';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610291113';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610291113';
+import { uploadBlockText } from './lib/busy-view.js?v=202610291113';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610291113';
+import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610291113';
+import { initLocSetPanel } from './locset-panel.js?v=202610291113';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+// 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText } from './lib/locrec-apply.js?v=202610291113';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202610291113';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -135,12 +138,8 @@ window.recommendPriorities = {
     dongs: ['★', '1', '2', '3', '4', '5', '6'],
     poses: ['★', '2', '3', '4', '1', '5']
 };
-const getZoneDocId = (locId) => {
-    if (!locId) return 'ZONE_ETC';
-    const clean = locId.toString().trim().toUpperCase();
-    const prefix = clean.length >= 6 ? clean.substring(0, 6) : clean;
-    return 'ZONE_' + prefix;
-};
+// 자리 id → ZONE 문서 id. 식은 js/lib/locrec-apply.js zoneDocIdOf 한 곳(변경 추천 [처리함] 반영도 같은 문서를 쓴다)
+const getZoneDocId = (locId) => zoneDocIdOf(locId);
 
 const injectPuzzleStyle = () => {
     if(document.getElementById('puzzle-style')) return;
@@ -3473,6 +3472,7 @@ function renderVisibleRows() {
     
     let html = '';
     if (topPad > 0) html += `<tr style="height:${topPad}px;"><td colspan="20"></td></tr>`;
+    const _todayKst = kstDayKey(Date.now());     // 변경 추천 하루 표시(locRecMove)는 오늘(KST)만
     
     for (let i = startIdx; i < endIdx; i++) {
         const loc = VS.data[i];
@@ -3486,6 +3486,13 @@ function renderVisibleRows() {
         } else if (loc.codeTag === '선지정') {
             rowClass = 'row-pre';
             codeTagHtml = `<span class="badge badge-risk list-tag">선지정</span>`;
+        }
+        // 변경 추천 [처리함]으로 오늘 옮긴 자리 — 들어온 자리 '추천변경', 비운 자리 흐린 '→새자리', 엑셀이 되돌렸으면 경고색
+        const _mv = moveBadge(loc, _todayKst);
+        if (_mv) {
+            codeTagHtml += _mv.kind === 'out'
+                ? `<span class="list-move-out" title="${escHtmlLite(_mv.title)}">${escHtmlLite(_mv.text)}</span>`
+                : `<span class="badge ${_mv.kind === 'in' ? 'badge-ok' : 'badge-warn'} list-tag" title="${escHtmlLite(_mv.title)}">${escHtmlLite(_mv.text)}</span>`;
         }
 
         let isChecked = VS.checkedIds.has(loc.id) ? 'checked' : '';
@@ -3808,6 +3815,9 @@ if (fileInputA) {
                 // 다른 사람이 오늘 재고·도면을 올리는 중이면 막는다(같은 자리를 동시에 덮어쓰면 섞인다). 상태를 못 읽으면 막지 않는다.
                 const _other = await window.__locBusy.checkOthers();
                 if (_other) { alert(uploadBlockText(_other)); return; }
+                // 오늘 변경 추천 [처리함]으로 옮긴 자리가 이 엑셀에서는 옛 자리면 먼저 알린다(계속하면 엑셀이 이긴다)
+                const _mvConf = uploadMoveConflicts(result.rows, originalData, kstDayKey(Date.now()));
+                if (_mvConf.length && !confirm(uploadConflictText(_mvConf))) return;
                 if (!confirm(`오늘 재고 파일 「${file.name}」 ${result.rows.length.toLocaleString()}줄로 기존 로케이션 재고를 덮어씁니다.\n(파일에 없는 자리의 재고는 비워집니다 · 선지정된 자리는 보호됩니다)\n\n계속할까요?`)) return;
                 window.showLoading('일일 재고/상품 데이터를 최신화 중입니다...');
                 // 다른 사람 화면에 '오늘 재고 올리는 중' 띠 — 끝나면 done/failed. 기록 실패는 업로드를 막지 않는다
@@ -5976,6 +5986,14 @@ function renderCorridor(idx) {
         if (_mapLegendFilter === 'empty') return !hasContent(loc) && !loc.preAssigned && !loc.reserved;
         return true;
     }
+    // 변경 추천 [처리함]으로 오늘 옮긴 자리 — 작은 '↻'(cellStyle 은 그대로), 툴팁 한 줄
+    const _todayKst = kstDayKey(Date.now());
+    function moveMarkHtml(loc) {
+        const mv = moveBadge(loc, _todayKst);
+        if (!mv) return '';
+        const cls = mv.kind === 'mismatch' ? ' warn' : mv.kind === 'out' ? ' out' : '';
+        return `<span class="map-move-mark${cls}" title="${escHtmlLite(mv.title)}">↻</span>`;
+    }
     function cellStyle(loc) {
         if (!loc) return 'background:var(--c-bg); border:1px dashed var(--c-line);';
         let s;
@@ -5994,7 +6012,7 @@ function renderCorridor(idx) {
         const maxChars = Math.max(4, Math.floor((cellSize - 6) / (nameFontSize * 0.55)));
         const displayName = nameText.substring(0, maxChars) || '빈칸';
         return `<div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${cellSize - 4}px;">${loc.id}</div>
-                <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize - 4}px;text-align:center;line-height:1.3;">${displayName}</div>`;
+                <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize - 4}px;text-align:center;line-height:1.3;">${displayName}</div>${moveMarkHtml(loc)}`;
     }
     function tooltipHtml(loc) {
         if (!loc) return '';
@@ -6010,6 +6028,7 @@ function renderCorridor(idx) {
             <div>${status}</div>
             ${hasContent(loc) ? `<div><b>상품명</b>: ${loc.name || '-'}</div>${loc.option ? `<div><b>옵션</b>: ${loc.option}</div>` : ''}<div><b>재고</b>: ${loc.stock || '0'}개</div>` : ''}
             ${isPreAssigned ? `<div style="color:var(--c-risk-text);"><b style="color:inherit;">선지정코드</b>: ${loc.preAssignedCode || '-'}</div>` : ''}
+            ${(() => { const mv = moveBadge(loc, _todayKst); return mv ? `<div>↻ ${escHtmlLite(mv.title)}</div>` : ''; })()}
         </div>`;
     }
     function getCell(locs, pos, num) {
@@ -6096,7 +6115,7 @@ function renderCorridor(idx) {
                     onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
                     onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
                     <div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${cs-4}px;">${loc.id}</div>
-                    <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cs-4}px;text-align:center;line-height:1.3;">${displayName}</div>
+                    <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cs-4}px;text-align:center;line-height:1.3;">${displayName}</div>${moveMarkHtml(loc)}
                 </div>${tooltipHtml(loc)}</div>`;
         });
         return h;
@@ -6143,7 +6162,7 @@ function renderCorridor(idx) {
                         onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
                         onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
                         <div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${cellSize-4}px;">${loc.id}</div>
-                        <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize-4}px;text-align:center;line-height:1.3;">${displayName}</div>
+                        <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize-4}px;text-align:center;line-height:1.3;">${displayName}</div>${moveMarkHtml(loc)}
                     </div>${tooltipHtml(loc)}</div>`;
             });
             h += '</div>';

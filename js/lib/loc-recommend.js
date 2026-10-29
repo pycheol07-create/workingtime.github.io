@@ -21,11 +21,12 @@
 //   routeMetrics·applyRows·simulateRoute — 동선 점수(0~100)·앞쪽 출고 비율, 오늘 목록을 모두 적용하면, 줄별 기여도(2026-10-26)
 //   routeHeat — 구역 × 동 출고 격자(동선 효율 카드 열지도, metrics.routeHeat)
 //   lowStockCodes — 재고 적은 상품 빼기(settings.lowStockOn, 기본 꺼짐 — 꺼져 있으면 출력이 예전과 같다. 2026-10-27)
+//   sizeFits      — 칸 일치: 지금 자리에 칸수가 있으면 같은 칸수 자리로만(단독·페어 sizeMatch 옵션, 맞바꾸기는 늘. runRecommend 는 늘 켬. 2026-10-29)
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202610281554';
-import { capacityFor } from './mibal2-calc.js?v=202610281554';
+import { isEtcLocObj } from './mibal2-rows.js?v=202610291113';
+import { capacityFor } from './mibal2-calc.js?v=202610291113';
 
 export { isEtcLocObj };
 
@@ -97,6 +98,21 @@ const optionOf = (locs, code) => {
 export function angleSizeOf(loc) {
     const v = loc && loc.angleSize;
     return v ? String(v).trim() : '';
+}
+
+/** 칸수 비교용 값 — angleSizeOf 값을 숫자 모양이면 숫자로('04' → '4'), 아니면 그대로. */
+const sizeKey = (loc) => {
+    const s = angleSizeOf(loc);
+    return /^\d+$/.test(s) ? String(Number(s)) : s;
+};
+
+/**
+ * 칸 일치(2026-10-29) — 상품이 from 자리에서 to 자리로 옮겨 갈 수 있나.
+ *   from 에 칸수가 있으면 to 칸수가 정확히 같아야 한다(to 칸수가 비어 있어도 안 됨). from 에 칸수가 없으면 제약 없음.
+ */
+export function sizeFits(fromLoc, toLoc) {
+    const a = sizeKey(fromLoc);
+    return !a || a === sizeKey(toLoc);
 }
 
 /** ms → 그날 한국시간 00:00 의 ms */
@@ -229,10 +245,11 @@ export function emptySlots(locs, priorities, { excludeTagged = false, rankers } 
  * 단독 추천 — 점수 1위부터, 정렬된 빈 자리 중 '더 좋은' 첫 자리를 배정한다.
  *   mode 'dong': 새 자리 동이 더 앞이어야 한다 / 'pos': 같은 동 안에서 위치가 더 앞이어야 한다.
  *   zoneGuard: 위 조건에 더해 새 자리 구역 순위 <= 지금 구역 순위.
- * @returns {{recs: Array, ctx: {emptyLocs, usedEmptyKeys: Set, rankers}, skipped: {noLoc, noBetter}}}
+ *   sizeMatch: 지금 자리에 칸수가 있으면 같은 칸수 빈 자리만(sizeFits). 맞는 자리가 없으면 그 상품은 noBetter 로 건너뛴다.
+ * @returns {{recs: Array, ctx: {emptyLocs, usedEmptyKeys: Set, rankers, locById}, skipped: {noLoc, noBetter}}}
  *   recs[i] = {code, name, option, score, currentLocs(지금 자리 id), targetLoc, currentInfo, targetInfo, target(빈 자리 객체), item(점수 행), moveQty}
  */
-export function recommendSingle({ locs, scored, priorities, mode = 'dong', limit = 10, zoneGuard = false, excludeTagged = false }) {
+export function recommendSingle({ locs, scored, priorities, mode = 'dong', limit = 10, zoneGuard = false, excludeTagged = false, sizeMatch = false }) {
     const rk = makeRankers(priorities);
     const emptyLocs = emptySlots(locs, priorities, { excludeTagged, rankers: rk });
     const limitVal = Number(limit) || 0;
@@ -281,9 +298,11 @@ export function recommendSingle({ locs, scored, priorities, mode = 'dong', limit
         const currentInfo = getLocInfo(currentLocId);
         if (!currentInfo) { skipNoCurrentLoc++; continue; }
 
+        const curLoc = byId.get(currentLocId);
         let found = -1;
         for (let j = 0; j < emptyLocs.length; j++) {
             if (usedEmptyKeys.has(emptyLocs[j].id)) continue;
+            if (sizeMatch && !sizeFits(curLoc, emptyLocs[j])) continue;
             if (isBetterSlot(slotInfos[j], currentInfo)) { found = j; break; }
         }
         if (found < 0) { skipNoBetterSlot++; continue; }
@@ -307,7 +326,7 @@ export function recommendSingle({ locs, scored, priorities, mode = 'dong', limit
 
     return {
         recs,
-        ctx: { emptyLocs, usedEmptyKeys: new Set(usedEmptyKeys), rankers: rk },
+        ctx: { emptyLocs, usedEmptyKeys: new Set(usedEmptyKeys), rankers: rk, locById: byId },
         skipped: { noLoc: skipNoCurrentLoc, noBetter: skipNoBetterSlot }
     };
 }
@@ -350,11 +369,14 @@ export function buildPairMap({ pairs, stats, N, minCount = 5, minLift = 2, topK 
 /**
  * 페어 추천 — 단독 추천 결과 안에서 묶는다. 위 순위(base)는 단독 자리 그대로, 파트너는 base 와 같은 동
  * (같은 구역 우선, 위치가 가까운 순)의 빈 자리로 다시 배정한다. 파트너 자리가 단독 자리와 같으면 내지 않는다.
- * @param {{singleRecs: Array, ctx: {emptyLocs, usedEmptyKeys, rankers?, getPosRank?}, pairMap: Object}} a
+ * sizeMatch: 파트너 지금 자리(ctx.locById 에서 찾음)에 칸수가 있으면 같은 칸수 빈 자리만(sizeFits). base 는 단독 자리 그대로라
+ *   단독을 sizeMatch 로 만들었으면 이미 맞다.
+ * @param {{singleRecs: Array, ctx: {emptyLocs, usedEmptyKeys, rankers?, getPosRank?, locById?}, pairMap: Object, sizeMatch?: boolean}} a
  * @returns {Array<{baseItem, partnerItem, partnerNewSlot}>}
  */
-export function recommendPairs({ singleRecs, ctx, pairMap }) {
+export function recommendPairs({ singleRecs, ctx, pairMap, sizeMatch = false }) {
     const posRankOf = (ctx.rankers && ctx.rankers.posRank) || ctx.getPosRank;
+    const locById = ctx.locById || new Map();
     const singleByCode = {};
     singleRecs.forEach((s, idx) => {
         singleByCode[s.code] = Object.assign({}, s, { singleRank: idx });
@@ -393,8 +415,10 @@ export function recommendPairs({ singleRecs, ctx, pairMap }) {
         usedNewSlots.forEach(k => occupiedKeys.add(k));
         occupiedKeys.add(base.targetLoc);
 
+        const partnerFrom = locById.get(foundPartner.currentLocs);
         const sameDongSlots = ctx.emptyLocs.filter(eLoc => {
             if (occupiedKeys.has(eLoc.id)) return false;
+            if (sizeMatch && !sizeFits(partnerFrom, eLoc)) return false;
             const eDong = (eLoc.dong || '').toString().trim();
             return eDong === baseDong;
         });
@@ -560,7 +584,7 @@ export function lowStockCodes({ locs, daily, incoming, maxStock = 5, minCoverDay
  *   L: H 와 같은 등급의 앞쪽 영역 안 · d(L) <= d(H)/ratio
  *   둘 다: 피킹 자리 1곳뿐(다중 자리 제외) · 기타/SAM·선지정·예약·당일지정·제외 조합 자리 아님 · 입고대기 없음 ·
  *          excludeCodes/excludeLocIds(이번 계획 단독 추천이 쓴 코드·자리) 아님
- *   맞음: 구역 등급 같음 · 칸수(angleSize) 둘 다 있으면 같음 · 비용 차 >= P(1동 이상 앞)
+ *   맞음: 구역 등급 같음 · 칸수(angleSize) 한쪽이라도 있으면 둘이 같음(sizeFits 양방향, 2026-10-29) · 비용 차 >= P(1동 이상 앞)
  *   이득 = (d(H) - d(L)) · (c(H) - c(L)) / P.  적재량(capacityFor)보다 H 자리 수량이 많으면 capWarn(빼지는 않음).
  *   배정: 이득 내림차순 → H 코드 → L 코드 순으로 정렬해 앞에서부터 코드·자리가 안 겹치는 것만(탐욕).
  * @returns {{swaps: Array, inversions: number, counts: object, front: Set<string>}}
@@ -613,15 +637,14 @@ export function recommendSwaps({
     });
     counts.H = H.length; counts.L = L.length;
 
-    const angle = (d) => (d.angleSize ? String(d.angleSize).trim() : '');
     const cand = [];
     H.forEach(h => {
         L.forEach(l => {
             if (h.code === l.code) return;
             if (l.d > h.d / ratio) return;
             if (h.z !== l.z) return;
-            const ah = angle(h.slot), al = angle(l.slot);
-            if (ah && al && ah !== al) return;
+            // 칸 일치 — H 는 L 자리로, L 은 H 자리로 간다(양쪽 다 sizeFits = 한쪽이라도 칸수가 있으면 둘이 같아야)
+            if (!sizeFits(h.slot, l.slot) || !sizeFits(l.slot, h.slot)) return;
             const dc = h.c - l.c;
             if (dc < P) return;
             cand.push({ h, l, dc, gain: (h.d - l.d) * dc / P });
@@ -1041,7 +1064,8 @@ export function runRecommend(input) {
     }
 
     // 1) 단독
-    const single = recommendSingle({ locs, scored, priorities, mode: S.mode, limit: S.singleLimit, zoneGuard: S.zoneGuard, excludeTagged: S.excludeTagged });
+    //    칸 일치(sizeMatch)는 설정이 아니라 늘 켠다 — 지금 자리에 칸수가 있으면 같은 칸수 자리로만(2026-10-29 사용자 요청)
+    const single = recommendSingle({ locs, scored, priorities, mode: S.mode, limit: S.singleLimit, zoneGuard: S.zoneGuard, excludeTagged: S.excludeTagged, sizeMatch: true });
     const singleRows = single.recs.map(r => {
         const g = singleGain(r, daily, rk, locs);
         const row = {
@@ -1114,7 +1138,7 @@ export function runRecommend(input) {
     let outPair = [];
     if (pairMap) {
         const pickedRecs = single.recs.filter(r => picked.has(recKeyOf({ type: 'single', code: r.code, from: r.currentLocs, to: r.targetLoc })));
-        const matched = recommendPairs({ singleRecs: pickedRecs, ctx: single.ctx, pairMap });
+        const matched = recommendPairs({ singleRecs: pickedRecs, ctx: single.ctx, pairMap, sizeMatch: true });
         outPair = matched.map((mp, i) => {
             const a = mp.baseItem, b = mp.partnerItem, ns = mp.partnerNewSlot;
             const gA = singleGain(a, daily, rk, locs);

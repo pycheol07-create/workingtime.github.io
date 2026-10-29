@@ -21,7 +21,7 @@
 //   grantable false = 관리자 전용(역할·예외로 줘도 무시)
 //   legacyAdminOnly  옛 ADMIN_ONLY_* 범위 — 옛 권한을 끌어올 때 일반 직원에게 주지 않는다(예전에도 화면이 막고 있었다)
 
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202610281554';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202610291113';
 
 export const FEATURE_GROUPS = [
     { id: 'dash',       label: '대시보드' },
@@ -66,7 +66,7 @@ export const FEATURES = [
     // 로케이션 관리
     F('location.view',       '로케이션 관리 입장',  'location', 'page', 'location.html', { menu: '로케이션 관리' }),
     F('location.refill',     '채우기 지시서(보기·체크·다시 만들기)', 'location', 'func', 'location.html', { danger: 1, rule: 'yes' }),
-    F('location.locrec',     '변경 추천(보기·처리 표시)',           'location', 'func', 'location.html', { danger: 1, rule: 'yes' }),
+    F('location.locrec',     '변경 추천(보기·처리 표시·데이터 리스트 반영)', 'location', 'func', 'location.html', { danger: 1, rule: 'yes' }),
     F('location.upload',     '오늘 재고·영구 데이터 업로드',         'location', 'func', 'location.html', { danger: 2, rule: 'yes' }),
     F('location.dataUpload', '직진·주간·주문 분석 업로드, 분석 초기화', 'location', 'func', 'location.html', { danger: 2, rule: 'yes' }),
     F('location.incoming',   '입고 시트 동기화·반영',               'location', 'func', 'location.html', { danger: 1, rule: 'yes' }),

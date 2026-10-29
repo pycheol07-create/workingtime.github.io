@@ -14,7 +14,11 @@
 //                                     locUpdatedAt(Locations 문서 갱신 시각)은 참고용이라 카드에서 쓰지 않는다.
 //   integrations/locRec_YYYYMMDD    { rowsJson: JSON 문자열 {schema, single:[행], swap:[행], pair:[행]}, metrics, basedOn:{stockDataAt, …}, warn }
 //                                     행 = 로케이션추천\추천실행.mjs(js/lib/loc-recommend.js runRecommend) 출력 행 그대로
-//   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at}} }   ← 직원이 쓴다
+//   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at, applied?}} }   ← 직원이 쓴다
+//                                     applied = {v:1, at(ms), day:'YYYYMMDD'(KST), moves:[{code, src, dst}], skipped:[{code, src, dst}]}
+//                                     ← [처리함]이 데이터 리스트(Locations) 상품 칸을 옮겼을 때만(2026-10-29, js/lib/locrec-apply.js · js/locrec-store.js).
+//                                       코드·자리 id 만. 없으면 '표시만'(옛 표시·반영 못 해 표시만 한 것). 서버 저장소.load_marks 는 state·at 만 읽는다.
+//                                     옮긴 자리에는 Locations 자리 맵 안 locRecMove{day, at, role:in|out, code, peer, recKey} — 화면은 그날(KST)만 보인다.
 //   locRecWork/request              { requestedAt, by, day }   ← 머리줄 [지금 재고로 다시 만들기](js/rebuild-bar.js, 덮어쓰기 — 채우기 권한이
 //                                     있으면 refillWork/request 에). 서버는 두 문서 중 늦은 쪽 · 채우기요청(5분)이 추천.py --요청확인 을 부른다
 //   locRecLatest.req                { state: running|done|failed|rejected|waiting, note, day, count, autoCount, lastReqAt, startedAt, at,
@@ -25,8 +29,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202610281554';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610281554';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202610291113';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610291113';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
