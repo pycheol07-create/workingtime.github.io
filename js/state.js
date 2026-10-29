@@ -172,7 +172,9 @@ export const appState = {
     lunchResumeExecuted: false,
     
     // 검수 대기 리스트 (서버 동기화용)
-    inspectionList: []
+    inspectionList: [],
+    // 매니저에서 비운 완료 검수(같은 날 일자별 보기용, js/lib/insp-day.js)
+    inspectionDone: []
 };
 
 export const allHistoryData = [];

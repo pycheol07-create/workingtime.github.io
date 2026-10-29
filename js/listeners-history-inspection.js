@@ -1,20 +1,21 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610291532';
-import * as State from './state.js?v=202610291532';
-import { showToast, getTodayDateString } from './utils.js?v=202610291532';
+import * as DOM from './dom-elements.js?v=202610291628';
+import * as State from './state.js?v=202610291628';
+import { showToast, getTodayDateString } from './utils.js?v=202610291628';
+import { dayInspItems } from './lib/insp-day.js?v=202610291628';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202610291532'; 
+} from './ui-history.js?v=202610291628'; 
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202610291532';
+} from './ui-history-inspection.js?v=202610291628';
 
 import {
     loadInspectionLogs,
@@ -26,7 +27,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202610291532';
+} from './inspection-logic.js?v=202610291628';
 
 import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -92,11 +93,12 @@ export const fetchAndRenderInspectionHistory = async () => {
     } else if (viewMode === 'list') {
         const dateList = [];
         State.allHistoryData.forEach(day => {
-            if (day.inspectionList && day.inspectionList.length > 0) {
+            const items = dayInspItems(day);   // 매니저에서 비운 완료(inspectionDone)도 그날 기록
+            if (items.length > 0) {
                 dateList.push({
                     date: day.id,
-                    count: day.inspectionList.length,
-                    data: day.inspectionList
+                    count: items.length,
+                    data: items
                 });
             }
         });

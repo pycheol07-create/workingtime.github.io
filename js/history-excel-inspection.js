@@ -1,16 +1,15 @@
 // === js/history-excel-inspection.js ===
-import { db, allHistoryData } from './state.js?v=202610291532'; 
-import { showToast, getTodayDateString } from './utils.js?v=202610291532';
-import { fitToColumn } from './history-excel-utils.js?v=202610291532';
+import { db, allHistoryData } from './state.js?v=202610291628'; 
+import { showToast, getTodayDateString } from './utils.js?v=202610291628';
+import { fitToColumn } from './history-excel-utils.js?v=202610291628';
+import { dayInspItems } from './lib/insp-day.js?v=202610291628';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; 
 
 const downloadListInspectionHistory = (format = 'xlsx') => {
     showToast('입고 리스트 데이터를 준비 중입니다...');
     const allLists = [];
     allHistoryData.forEach(day => {
-        if (day.inspectionList && day.inspectionList.length > 0) {
-            day.inspectionList.forEach(item => { allLists.push({ date: day.id, ...item }); });
-        }
+        dayInspItems(day).forEach(item => { allLists.push({ date: day.id, ...item }); });
     });
 
     if (allLists.length === 0) return showToast('다운로드할 입고 리스트 데이터가 없습니다.', true);
@@ -92,9 +91,7 @@ export const downloadPeriodInspectionAsExcel = (startDate, endDate, format = 'xl
     if (!startDate || !endDate) return showToast('기간을 선택해주세요.', true);
     const allLists = [];
     allHistoryData.filter(d => d.id >= startDate && d.id <= endDate).forEach(day => {
-        if (day.inspectionList && day.inspectionList.length > 0) {
-            day.inspectionList.forEach(item => { allLists.push({ date: day.id, ...item }); });
-        }
+        dayInspItems(day).forEach(item => { allLists.push({ date: day.id, ...item }); });
     });
 
     if (allLists.length === 0) return showToast('선택한 기간에 검수 리스트 데이터가 없습니다.', true);

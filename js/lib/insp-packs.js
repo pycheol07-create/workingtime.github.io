@@ -1,5 +1,5 @@
 // === js/lib/insp-packs.js ===
-// 샘플검수 '패킹에서 만들기'(js/inspection-packs.js)의 순수 함수 — import 없음(node --test 대상).
+// 샘플검수 '패킹에서 만들기'(js/inspection-packs.js)의 순수 함수 — import 는 같은 lib 의 insp-day.js·multi-loc.js 만(node --test 대상).
 // 문서는 미발계산기2 수집기(미발수집_apps_script.gs)가 쓴다. 모양:
 //   integrations/inspPacks { schemaVer:1, ok, error, updatedAt, asOf, keepArrivedDays, shipStaleDays,
 //                            counts:{packs, items, noSup, supNotCode, nonStd, dropped, zeroQty, conflicts, badShip},
@@ -8,6 +8,9 @@
 //   sup 은 공급처 '코드'(AA9999 모양 — 수집기가 거른 값을 그대로 씀)만 — 실명은 오지 않고, 만든 항목에도 supplierName 은 빈칸으로 둔다(CLAUDE.md 3절).
 // 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 공급처::색상 1장, 그 묶음의 첫 품목이 대표.
 // 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
+
+import { dayInspItems } from './insp-day.js?v=202610291628';
+import { reserveLocIds, normLocId } from './multi-loc.js?v=202610291628';
 
 export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -121,10 +124,10 @@ export function thicknessFromHistoryDoc(doc) {
 /** 날짜별 이력(State.allHistoryData: [{id:'YYYY-MM-DD', inspectionList:[…]}]) → 최근 값 참조표 */
 export function refsFromDays(allHistoryData) {
     const refs = { thickByDoc: new Map(), sampleByKey: new Map(), sampleByName: new Map(), thickByName: new Map() };
-    const days = (Array.isArray(allHistoryData) ? allHistoryData : []).filter(d => d && Array.isArray(d.inspectionList));
+    const days = (Array.isArray(allHistoryData) ? allHistoryData : []).filter(d => d && dayInspItems(d).length > 0);
     days.sort((a, b) => (str(a.id) < str(b.id) ? 1 : str(a.id) > str(b.id) ? -1 : 0));
     days.forEach(d => {
-        d.inspectionList.forEach(it => {
+        dayInspItems(d).forEach(it => {
             if (!it) return;
             const name = str(it.name);
             if (!name) return;
@@ -171,6 +174,33 @@ export function samplesFromLocations(locItems) {
     return { byKey: join(acc.byKey), byColor: join(acc.byColor), byName: join(acc.byName) };
 }
 
+/** 피킹용이 아닌 자리(비축·SAM·대분류 '기타') — js/location.js isEtcLocation 과 같은 기준 */
+export function isReserveLoc(loc) {
+    const id = str(loc && loc.id);
+    return str(loc && loc.category || '피킹용') === '기타' || /^비축/.test(id) || /^SAM/i.test(id);
+}
+
+/** 로케이션관리 자리 목록([{id, code, category, opt1}]) → Map(상품코드 → {pick: 자리 id[], reserve: 자리 id[]}).
+ *  pick = 그 코드가 든 피킹 자리. reserve = 다중 위치 화면과 같은 출처(reserveLocIds — 상품 행 옵션추가항목1 + 그 코드가 든 비축 칸).
+ *  opt1 은 옵션추가항목1 값 하나만 받는다(엑셀 행 전체 rawData 는 공급처 열이 섞여 받지 않는다). */
+export function locsByCode(locItems) {
+    const all = (Array.isArray(locItems) ? locItems : []).filter(l => l && str(l.id));
+    const locById = new Map(all.map(l => [normLocId(l.id), l]));
+    const rowsByCode = new Map();
+    all.forEach(l => {
+        const code = str(l.code);
+        if (!code || code === str(l.id)) return;            // 코드 칸에 자리 id 가 든 것은 빈 자리
+        if (!rowsByCode.has(code)) rowsByCode.set(code, []);
+        rowsByCode.get(code).push({ id: str(l.id), category: l.category, rawData: { 옵션추가항목1: str(l.opt1) } });
+    });
+    const out = new Map();
+    rowsByCode.forEach((rows, code) => {
+        const pick = [...new Set(rows.filter(l => !isReserveLoc(l)).map(l => l.id))].sort((a, b) => a.localeCompare(b));
+        out.set(code, { pick, reserve: reserveLocIds(rows, locById, isReserveLoc) });
+    });
+    return out;
+}
+
 const getRef = (m, k) => (m && typeof m.get === 'function' && m.has(k)) ? m.get(k) : undefined;
 
 /** 패킹 품목 → 검수 대기 항목. 항목에 undefined 필드를 두지 않는다(Firestore 가 거부). */
@@ -180,6 +210,13 @@ export function buildCards(packs, refs, today) {
     (Array.isArray(packs) ? packs : []).forEach(pack => {
         const seen = new Set();
         const packingDate = packingDateOf(pack, today);
+        // 카드 1장 = 공급처::색상 — 로케이션은 그 묶음에 든 모든 상품코드(사이즈별)의 자리를 모은다
+        const codesByKey = new Map();
+        (pack.items || []).forEach(it => {
+            const k = cardKey({ supCode: it.supCode, name: str(it.name), option: str(it.option) });
+            if (!codesByKey.has(k)) codesByKey.set(k, []);
+            if (str(it.code)) codesByKey.get(k).push(str(it.code));
+        });
         (pack.items || []).forEach(it => {
             const code = str(it.code), name = str(it.name), option = str(it.option);
             if (!code && !name) return;
@@ -191,12 +228,22 @@ export function buildCards(packs, refs, today) {
             const sampleLocation = getRef(r.sampleByLoc, locSampleKey(name, option)) || getRef(r.sampleByLocColor, locColorKey(name, option))
                 || getRef(r.sampleByLocName, locSampleKey(name, ''))
                 || getRef(r.sampleByKey, cleanKey(name, option)) || getRef(r.sampleByName, cleanKey(name, '')) || null;
+            // 로케이션(로케이션관리 지금 위치): 피킹은 카드에 늘 보이고, 비축은 '새창으로 보기'에서만(js/lib/insp-flow.js todoCardHtml)
+            const pickSet = new Set(), resSet = new Set();
+            (codesByKey.get(key) || []).forEach(c => {
+                const l = getRef(r.locByCode, c);
+                if (!l) return;
+                l.pick.forEach(x => pickSet.add(x));
+                l.reserve.forEach(x => resSet.add(x));
+            });
+            const byId = (a, b) => a.localeCompare(b);
             out.push({
                 code, name, option, qty: Number(it.qty) || 0,
                 thickness: String(thickness),
                 supplierCode: str(it.supCode),
                 supplierName: '',
-                location: '',
+                location: [...pickSet].sort(byId).join(', '),
+                reserveLocation: [...resSet].sort(byId).join(', '),
                 sampleLocation,
                 status: '대기',
                 packingDate,

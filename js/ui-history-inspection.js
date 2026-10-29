@@ -1,7 +1,8 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610291532';
-import * as State from './state.js?v=202610291532';
-import { getWeekOfYear, escapeHtml } from './utils.js?v=202610291532';
+import * as DOM from './dom-elements.js?v=202610291628';
+import * as State from './state.js?v=202610291628';
+import { getWeekOfYear, escapeHtml } from './utils.js?v=202610291628';
+import { dayInspItems } from './lib/insp-day.js?v=202610291628';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -143,10 +144,13 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
 
         if (needsDbUpdate) {
             try {
-                const originalDayData = dateList.find(d => d.date === selectedDate)?.data;
-                if (originalDayData) {
+                // 화면 목록은 inspectionList + inspectionDone 을 합친 것 — 칸을 나눠 그대로 쓴다(합친 목록을 inspectionList 에 쓰면 두 번 나온다)
+                const day = (State.allHistoryData || []).find(d => d.id === selectedDate);
+                if (day && dayInspItems(day).length > 0) {
                     const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', selectedDate);
-                    await updateDoc(historyDocRef, { inspectionList: originalDayData });
+                    const upd = { inspectionList: day.inspectionList || [] };
+                    if (Array.isArray(day.inspectionDone) && day.inspectionDone.length) upd.inspectionDone = day.inspectionDone;
+                    await updateDoc(historyDocRef, upd);
                 }
             } catch(e) { console.error("Silent DB update failed", e); }
         }

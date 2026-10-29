@@ -1,27 +1,27 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202610291532';
-import * as State from './state.js?v=202610291532';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610291532';
+import * as DOM from './dom-elements.js?v=202610291628';
+import * as State from './state.js?v=202610291628';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202610291628';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610291532';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610291532';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610291532';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610291532';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202610291628';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202610291628';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202610291628';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202610291628';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610291532';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610291532';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610291532';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610291532';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202610291628';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202610291628';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202610291628';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202610291628';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610291532';
-import { saveView } from './view-state.js?v=202610291532';
-import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610291532';
-import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=202610291532';
-import { isLeaveDirty } from './ui-history-leave.js?v=202610291532';
-import { isSimDirty } from './ui-history-prediction.js?v=202610291532';
-import { placeOpenDropdown } from './table-filter.js?v=202610291532';
-import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=202610291532';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202610291628';
+import { saveView } from './view-state.js?v=202610291628';
+import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610291628';
+import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=202610291628';
+import { isLeaveDirty } from './ui-history-leave.js?v=202610291628';
+import { isSimDirty } from './ui-history-prediction.js?v=202610291628';
+import { placeOpenDropdown } from './table-filter.js?v=202610291628';
+import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=202610291628';
 
 let isHistoryMaximized = false;
 
@@ -455,7 +455,7 @@ export function setupHistoryModalListeners() {
                 if (activeTab === 'work' || activeTab === 'report') { updates.workRecords = deleteField(); updates.taskQuantities = deleteField(); updates.partTimers = deleteField(); updates.confirmedZeroTasks = deleteField(); } 
                 else if (activeTab === 'attendance') { updates.onLeaveMembers = deleteField(); } 
                 else if (activeTab === 'management') { updates.management = deleteField(); } 
-                else if (activeTab === 'inspection') { updates.inspectionList = deleteField(); } 
+                else if (activeTab === 'inspection') { updates.inspectionList = deleteField(); updates.inspectionDone = deleteField(); } 
                 else { showToast('삭제할 대상 탭이 명확하지 않습니다.', true); return; }
 
                 try {
@@ -464,7 +464,7 @@ export function setupHistoryModalListeners() {
                         await updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey), updates);
                         if (activeTab === 'work' || activeTab === 'report') { State.appState.workRecords = []; State.appState.taskQuantities = {}; State.appState.partTimers = []; State.appState.confirmedZeroTasks = []; } 
                         else if (activeTab === 'attendance') { State.appState.dailyOnLeaveMembers = []; } 
-                        else if (activeTab === 'inspection') { State.appState.inspectionList = []; }
+                        else if (activeTab === 'inspection') { State.appState.inspectionList = []; State.appState.inspectionDone = []; }
                     }
                     showToast(`${dateKey}의 데이터가 삭제되었습니다.`);
                     await loadAndRenderHistoryList();

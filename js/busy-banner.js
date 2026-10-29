@@ -15,7 +15,7 @@
 // ⚠️ 띠는 role="status" — role="dialog"·data-act 는 쓰지 않는다(업무마감봇·업무예상알림 선택자). index.html 에는 넣지 않는다.
 // ⚠️ 띠·문서에 이메일을 넣지 않는다. 이름은 memberNameFor 결과만(busy-view.js cleanBy 가 '@' 섞인 값을 버린다).
 import { doc, onSnapshot, getDocFromServer, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { leaseView, uploadView, mibalRequestView, bannerText, bannerKey, cleanBy, fmtHM, BY_MAX } from './lib/busy-view.js?v=202610291532';
+import { leaseView, uploadView, mibalRequestView, bannerText, bannerKey, cleanBy, fmtHM, BY_MAX } from './lib/busy-view.js?v=202610291628';
 
 const RECHECK_MS = 30 * 1000;
 const BEAT_MS = 60 * 1000;

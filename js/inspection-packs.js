@@ -1,17 +1,19 @@
 // === js/inspection-packs.js ===
 // 샘플검수 '패킹에서 만들기' — 입고예정 패킹을 골라 검수 대기 리스트(daily_data.inspectionList)에 추가한다.
 // 읽기: integrations/inspPacks (미발계산기2 수집기가 씀, 열 때 getDoc 1회 — 구독하지 않는다) · product_history/{상품명}(두께) · 날짜별 이력(샘플위치)
-//       · Locations ZONE_* (샘플위치, [만들기] 때 getDocs 1회 — 이름·옵션·대분류·id 만 꺼내고 rawDataStr 등은 버린다)
+//       · Locations ZONE_* (샘플위치·피킹/비축 로케이션, [만들기] 때 getDocs 1회 — 이름·옵션·대분류·id·상품코드와
+//         rawDataStr 안의 '옵션추가항목1'(비축 위치) 하나만 꺼내고 나머지는 버린다)
 // 쓰기: updateDailyData({inspectionList}) — 엑셀 업로드(js/inspection-excel.js)와 같은 경로. 순수 규칙은 js/lib/insp-packs.js.
 // ⚠️ 이 창은 index.html 에 붙는다 — 업무마감봇 선택자와 겹치지 않게 role="dialog"·data-act·end-shift-* 를 쓰지 않는다. id 는 모두 insp-pack-*.
 // ⚠️ 공급처는 코드만(supplierCode). supplierName 은 빈칸(CLAUDE.md 3절).
-import * as State from './state.js?v=202610291532';
-import { updateDailyData } from './app-data.js?v=202610291532';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610291532';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610291532';
-import { fetchAllHistoryData } from './history-data-manager.js?v=202610291532';
+import * as State from './state.js?v=202610291628';
+import { updateDailyData } from './app-data.js?v=202610291628';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202610291628';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202610291628';
+import { opt1Of } from './lib/mibal2-live.js?v=202610291628';   // 자리의 '옵션추가항목1'만(rawDataStr 의 다른 칸 — 공급처 등 — 은 돌려주지 않는다)
+import { fetchAllHistoryData } from './history-data-manager.js?v=202610291628';
 import { doc, getDoc, getDocs, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations } from './lib/insp-packs.js?v=202610291532';
+import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations, locsByCode } from './lib/insp-packs.js?v=202610291628';
 
 const DOC_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks'];
 const PICKER_ID = 'insp-pack-picker';
@@ -196,7 +198,7 @@ async function loadLocationItems() {
         for (const id in zone) {
             const o = zone[id];
             if (!o || typeof o !== 'object') continue;
-            items.push({ id, name: o.name, option: o.option, category: o.category });
+            items.push({ id, name: o.name, option: o.option, category: o.category, code: o.code, opt1: opt1Of(o) });
         }
     });
     return items;
@@ -216,14 +218,16 @@ async function makeFromPicked() {
         const refs = refsFromDays(days);
         let locNote = '';
         try {
-            const loc = samplesFromLocations(await loadLocationItems());
+            const locItems = await loadLocationItems();
+            const loc = samplesFromLocations(locItems);
+            refs.locByCode = locsByCode(locItems);
             refs.sampleByLoc = loc.byKey;
             refs.sampleByLocColor = loc.byColor;
             refs.sampleByLocName = loc.byName;
         } catch (e) {
             // 권한으로 막히면 조용히 이력만 쓴다. 그 밖의 실패는 한 줄 안내.
             console.warn('로케이션관리 조회 실패(샘플위치는 지난 검수 기록으로만):', e && e.code ? e.code : e);
-            if (!(e && e.code === 'permission-denied')) locNote = ' · 로케이션관리를 읽지 못해 샘플위치는 지난 검수 기록으로만 채웠습니다';
+            if (!(e && e.code === 'permission-denied')) locNote = ' · 로케이션관리를 읽지 못해 로케이션은 비우고 샘플위치는 지난 검수 기록으로만 채웠습니다';
         }
         const names = [...new Set(buildCards(packs, null, today).map(c => c.name).filter(Boolean))];
         refs.thickByDoc = await loadHistoryThickness(names);

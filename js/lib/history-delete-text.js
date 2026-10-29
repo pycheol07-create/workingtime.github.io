@@ -46,7 +46,7 @@ export function deletionSummary(entry, tab) {
         return { target: TARGETS[t], countText: `지표 ${cells}칸` };
     }
     // inspection
-    return { target: TARGETS[t], countText: `검수 ${asList(day.inspectionList).filter(Boolean).length}건` };
+    return { target: TARGETS[t], countText: `검수 ${asList(day.inspectionList).concat(asList(day.inspectionDone)).filter(Boolean).length}건` };
 }
 
 /** 확인 문구에서 날짜 뒤에 붙는 부분: ' · 대상 (건수)'. 건수가 없으면 ' · 대상'. */

@@ -1,18 +1,19 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202610291532';
-import * as State from './state.js?v=202610291532';
-import { updateDailyData } from './app-data.js?v=202610291532';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202610291532';
-import { doc, getDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import * as DOM from './dom-elements.js?v=202610291628';
+import * as State from './state.js?v=202610291628';
+import { updateDailyData } from './app-data.js?v=202610291628';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202610291628';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202610291532';
-import { syncInspSegments } from './inspection-segments.js?v=202610291532';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202610291628';
+import { syncInspSegments } from './inspection-segments.js?v=202610291628';
+import { moveDoneItems } from './lib/insp-day.js?v=202610291628';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, todoCardHtml, doneCardHtml
-} from './lib/insp-flow.js?v=202610291532';
+} from './lib/insp-flow.js?v=202610291628';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -263,10 +264,10 @@ export const initializeInspectionSession = async () => {
     if (list.length > 0) {
         const isAllCompleted = list.every(item => item.status === '완료');
         if (isAllCompleted) {
-            State.appState.inspectionList = [];
-            await updateDailyData({ inspectionList: [] });
+            // 매니저 리스트는 비우되 완료 항목은 같은 날 inspectionDone 으로 옮긴다 — 검수이력 일자별 보기에서 사라지지 않게(2026-10-29)
+            const res = await moveDoneToday({ requireAllDone: true });
+            if (res) showToast("이전 검수 리스트가 모두 완료되어 비웠습니다(검수이력 일자별 보기에는 남습니다).");
             renderTodoList();
-            showToast("이전 검수 리스트가 모두 완료되어 초기화되었습니다.");
         } else {
             renderTodoList();
         }
@@ -275,6 +276,36 @@ export const initializeInspectionSession = async () => {
     }
     updateNavButtons();
 };
+
+/**
+ * 오늘 매니저 리스트를 비우고 완료 항목은 inspectionDone 으로 — 서버 값 기준 트랜잭션(js/lib/insp-day.js moveDoneItems).
+ *   두 탭이 동시에 해도 한 번만 옮겨진다. daily_data 와 history 를 같이 쓴다 — 이력 쪽은 자동저장(saveProgress)이
+ *   inspectionDone 을 싣지 않으므로(옛 탭이 메모리 값으로 되살리지 않게) 여기서만 쓴다.
+ * @returns {Promise<{done: Array, moved: number}|null>} 옮길 것 없음·조건 안 맞음 null, 실패 null(+ 콘솔)
+ */
+async function moveDoneToday({ requireAllDone }) {
+    const day = getTodayDateString();
+    const dailyRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', day);
+    const histRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', day);
+    try {
+        const res = await runTransaction(State.db, async (tx) => {
+            const snap = await tx.get(dailyRef);
+            const r = moveDoneItems(snap.exists() ? snap.data() : {}, { requireAllDone });
+            if (!r) return null;
+            tx.set(dailyRef, { inspectionList: [], inspectionDone: r.done }, { merge: true });
+            tx.set(histRef, { inspectionList: [], inspectionDone: r.done }, { merge: true });
+            return r;
+        });
+        if (res) {
+            State.appState.inspectionList = [];
+            State.appState.inspectionDone = res.done;
+        }
+        return res;
+    } catch (e) {
+        console.error('검수 리스트 비우기 실패:', e && e.code ? e.code : e);
+        return null;
+    }
+}
 
 export const deleteInspectionList = async () => {
     const list = State.appState.inspectionList || [];
@@ -285,8 +316,15 @@ export const deleteInspectionList = async () => {
     const ok = await showConfirm("현재 검수 대기 리스트를 모두 삭제하시겠습니까?\n(검수 완료된 이력 데이터는 유지됩니다)", { title: '대기 리스트 삭제', okText: '삭제', danger: true });
     if (!ok) return;
     try {
-        await updateDailyData({ inspectionList: [] });
-        State.appState.inspectionList = [];
+        // 완료 항목은 inspectionDone 으로 옮기고 대기만 지운다(일자별 보기에서 완료 기록이 사라지지 않게)
+        const res = await moveDoneToday({ requireAllDone: false });
+        if (!res) {
+            // 서버 리스트가 이미 비었으면 화면만 맞춘다. 실패면 알린다
+            const snap = await getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString()));
+            const srv = snap.exists() && Array.isArray(snap.data().inspectionList) ? snap.data().inspectionList : [];
+            if (srv.length > 0) { showToast("리스트 삭제 중 오류가 발생했습니다.", true); return; }
+            State.appState.inspectionList = [];
+        }
         renderTodoList();
 
         if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = '';
@@ -327,13 +365,18 @@ export const deleteHistoryInspectionList = async (dateKey) => {
         const dayData = State.allHistoryData.find(d => d.id === dateKey);
         if (dayData) {
             dayData.inspectionList = [];
+            dayData.inspectionDone = [];
         }
+        const empty = { inspectionList: [], inspectionDone: [] };
         if (dateKey === todayKey) {
             State.appState.inspectionList = [];
-            await updateDailyData({ inspectionList: [] });
+            State.appState.inspectionDone = [];
+            await updateDailyData(empty);
+            // 자동저장은 빈 inspectionDone 을 이력에 싣지 않는다 — 지운 것이 되살아나지 않게 이력도 직접 비운다
+            await setDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey), empty, { merge: true });
         } else {
             const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
-            await updateDoc(docRef, { inspectionList: [] });
+            await updateDoc(docRef, empty);
         }
         showToast(`${dateKey} 리스트가 삭제되었습니다.`);
         return true;
@@ -382,7 +425,7 @@ export const openInspectionListWindow = () => {
     modal.id = 'dynamic-inspection-list-modal';
     modal.className = 'fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-[200] p-2';
 
-    const cardsHtml = list.map((item, idx) => todoCardHtml(item, idx)).join('');
+    const cardsHtml = list.map((item, idx) => todoCardHtml(item, idx, { showReserve: true })).join('');   // 새창에서만 비축 로케이션
 
     modal.innerHTML = `
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden animate-fade-in-up">
@@ -1099,6 +1142,6 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202610291532';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610291532';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610291532';
+export { handleExcelUpload } from './inspection-excel.js?v=202610291628';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610291628';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610291628';

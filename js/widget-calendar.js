@@ -8,13 +8,13 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202610291532';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610291532';
-import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610291532';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610291532';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610291532';
-import { updateLeaveSchedule } from './config.js?v=202610291532';
-import { upsertById, removeByIds } from './lib/leave-ops.js?v=202610291532';
+import * as State from './state.js?v=202610291628';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202610291628';
+import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202610291628';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202610291628';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610291628';
+import { updateLeaveSchedule } from './config.js?v=202610291628';
+import { upsertById, removeByIds } from './lib/leave-ops.js?v=202610291628';
 import {
     collection, doc, setDoc, deleteDoc, getDocs,
     query, where, documentId

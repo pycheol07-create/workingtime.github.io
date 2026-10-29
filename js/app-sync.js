@@ -1,16 +1,16 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202610291532';
-import { isPersistentLeaveType } from './state.js?v=202610291532';
-import * as DOM from './dom-elements.js?v=202610291532';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610291532';
+import * as State from './state.js?v=202610291628';
+import { isPersistentLeaveType } from './state.js?v=202610291628';
+import * as DOM from './dom-elements.js?v=202610291628';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610291628';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610291532';
-import { renderTodoList } from './inspection-logic.js?v=202610291532';
-import { renderNotificationList } from './app-notifications.js?v=202610291532';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610291532';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610291532';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202610291532';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610291628';
+import { renderTodoList } from './inspection-logic.js?v=202610291628';
+import { renderNotificationList } from './app-notifications.js?v=202610291628';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610291628';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610291628';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202610291628';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -154,6 +154,7 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         State.appState.lunchResumeExecuted = data.lunchResumeExecuted ?? false;
         
         State.appState.inspectionList = data.inspectionList || []; 
+        State.appState.inspectionDone = data.inspectionDone || [];
         State.appState.dailyOnLeaveMembers = data.onLeaveMembers || [];
         // ⚠️ 이 값을 되읽지 않으면 메모리에는 늘 빈 배열이 남는다.
         //    그 상태로 1분 자동저장이 돌면 '0으로 확인' 표시가 통째로 지워진다.

@@ -1,19 +1,19 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610291532';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610291532';
-import { clampOpenRecords } from './lib/record-close.js?v=202610291532';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610291532';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610291532';
+import * as State from './state.js?v=202610291628';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610291628';
+import { clampOpenRecords } from './lib/record-close.js?v=202610291628';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610291628';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610291628';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
-} from './lib/attendance-guard.js?v=202610291532';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610291532';
-import { can } from './lib/perm.js?v=202610291532';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610291532';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610291532';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610291532';
+} from './lib/attendance-guard.js?v=202610291628';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610291628';
+import { can } from './lib/perm.js?v=202610291628';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610291628';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610291628';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610291628';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610291532';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610291628';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -430,6 +430,8 @@ export const syncTodayToHistory = async () => {
             //    반드시 합쳐야 한다(라이브 값이 우선).
             management: { ...(existingHistory?.management || {}), ...(State.appState.management || {}) },
             inspectionList: State.appState.inspectionList || (existingHistory?.inspectionList || []),
+            // 매니저에서 비운 완료 검수 — 메모리가 비어 있으면 이력 값을 지킨다(일자별 보기에서 사라지지 않게)
+            inspectionDone: State.appState.inspectionDone?.length ? State.appState.inspectionDone : (existingHistory?.inspectionDone || []),
             isQuantityVerified: State.appState.isQuantityVerified || (existingHistory?.isQuantityVerified || false)
         };
 
@@ -492,7 +494,8 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             // 베이스는 아래에서 읽는 serverHistory.management 로 교체된다(메모리 캐시는 얼어붙어 있어,
             // 그걸 베이스로 쓰면 내 탭이 켜진 뒤 남이 고친 매출·재고가 옛 값으로 되돌아간다).
             management: { ...(State.appState.management || {}) },
-            inspectionList: State.appState.inspectionList || []
+            inspectionList: State.appState.inspectionList || [],
+            // inspectionDone 은 싣지 않는다 — 매니저 비우기·삭제가 이력에 직접 쓴다(옛 탭의 메모리 값이 되살리지 않게)
             // isQuantityVerified 는 여기 두지 않는다 — decideHistoryMerge 에
             // State 값을 직접 넘기고, 그쪽이 서버 값과 OR 한다.
         };
@@ -1310,6 +1313,7 @@ export async function recoverDailyDataToHistory(dateKey, { force = false, silent
                 : keep(dailyData.dailyAttendance || {}, existing && existing.dailyAttendance, emptyObj),
             management: keep(dailyData.management || {}, existing && existing.management, emptyObj),
             inspectionList: keep(dailyData.inspectionList || [], existing && existing.inspectionList, emptyArr),
+            inspectionDone: keep(dailyData.inspectionDone || [], existing && existing.inspectionDone, emptyArr),
             isQuantityVerified: !!(dailyData.isQuantityVerified || (existing && existing.isQuantityVerified)),
             savedAt: getCurrentTime(),
             recoveredAt: new Date().toISOString(),

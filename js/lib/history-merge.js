@@ -20,6 +20,9 @@
 //   ④ `isQuantityVerified` 는 인자·라이브·서버의 OR 이다. 절대 후퇴하지 않는다.
 //   ⑤ `memRecords` 는 **서버에 실제로 남는 배열과 같아야 한다.** 어긋나면 다른 함수들이
 //      메모리 배열을 통째로 서버에 써서 방금 지킨 기록을 날린다.
+//   ⑥ `inspectionDone`(매니저에서 비운 완료 검수, 2026-10-29)은 화면 쪽이 비어 있으면 **키를 뺀다**(마감 여부와 상관없이).
+//      옛 탭·아직 못 받은 탭이 빈 배열로 덮어 일자별 검수 기록을 지우지 않게. 지금 saveProgress 는 이 칸을 넘기지 않는다 —
+//      매니저 비우기·삭제(js/inspection-logic.js)가 daily_data 와 history 에 직접 쓴다. 이 규칙은 넘기게 되더라도 지우지 않게 하는 안전망.
 
 const 빈객체 = (v) => !v || Object.keys(v).length === 0;
 const 빈배열 = (v) => !Array.isArray(v) || v.length === 0;
@@ -98,6 +101,7 @@ export function decideHistoryMerge({ dateStr, liveRecords, serverHistory, live,
         // (메모리 캐시를 베이스로 쓰면 내 탭이 켜진 뒤 남이 고친 매출·재고가 옛 값으로 되돌아간다)
         management: { ...(서버.management || {}), ...(화면.management || {}) },
         inspectionList: 지키기(화면.inspectionList || [], 서버.inspectionList, 빈배열),
+        ...(빈배열(화면.inspectionDone) ? {} : { inspectionDone: 화면.inspectionDone }),
         // ④ 서버값을 항상 OR 에 넣는다 — 검증을 찍은 뒤 다른 탭이 저장하면 false 로 후퇴했다.
         isQuantityVerified: !!(isQuantityVerifiedArg || 화면.isQuantityVerified
             || 서버.isQuantityVerified),
@@ -111,7 +115,8 @@ export function decideHistoryMerge({ dateStr, liveRecords, serverHistory, live,
     // 마감 안전망은 재시도해야 하고, 화면은 오류로 안내하면 안 되어 따로 구분한다.
     const nothingToSave = 기록.length === 0
         && 빈객체(화면.taskQuantities)
-        && 빈배열(화면.inspectionList);
+        && 빈배열(화면.inspectionList)
+        && 빈배열(화면.inspectionDone);
 
     return {
         patch, memRecords,
