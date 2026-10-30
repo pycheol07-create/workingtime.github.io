@@ -9,8 +9,8 @@
 // 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 공급처::색상 1장, 그 묶음의 첫 품목이 대표.
 // 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
 
-import { dayInspItems } from './insp-day.js?v=202610301315';
-import { reserveLocIds, normLocId } from './multi-loc.js?v=202610301315';
+import { dayInspItems } from './insp-day.js?v=202610301348';
+import { reserveLocIds, normLocId } from './multi-loc.js?v=202610301348';
 
 export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

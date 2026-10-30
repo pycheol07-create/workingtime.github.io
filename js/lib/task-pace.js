@@ -13,7 +13,7 @@
 //
 //  import 는 같은 lib 의 calc.js 뿐 — DOM·State·Firebase 를 쓰지 않는다(node 테스트: tests/task-pace.test.js).
 
-import { addWorkMinutes, minutesOverlap, LUNCH_START_MIN, LUNCH_END_MIN } from './calc.js?v=202610301315';
+import { addWorkMinutes, minutesOverlap, LUNCH_START_MIN, LUNCH_END_MIN } from './calc.js?v=202610301348';
 
 /** 경과율 − 진행률 (%p) 이 이 값 미만이면 순조, 이상이면 주의, RISK 초과면 늦음 */
 export const PACE_WARN_GAP = 10;
@@ -55,6 +55,15 @@ export function toneForOver(overMin) {
 
 /** 정시까지 남은 작업시간이 이보다 짧으면 '+N명' 대신 '정시 마감 어려움' */
 export const MIN_LEFT_FOR_EXTRA_MIN = 30;
+
+/** 진행률에 쓸 '처리한 양' — 칸 값이 오늘 아침 자동 입력값 그대로면 0(아직 처리한 양이 아니라 처리할 양이다).
+ *  사람이 고쳤거나(값이 다름) 자동 입력값이 없으면 칸 값 그대로. 반환 { done, autoPending } */
+export function paceDoneQty(qty, morningAuto) {
+    const q = Math.max(0, num(qty));
+    const auto = morningAuto == null ? null : Number(morningAuto);
+    if (auto != null && Number.isFinite(auto) && q > 0 && q === auto) return { done: 0, autoPending: true };
+    return { done: q, autoPending: false };
+}
 
 /** 업무 하나의 진행 상태.
  *  입력: planQty(계획 물량) · doneQty(입력된 처리량) · uph(1인 시간당 처리량) · working(지금 진행 인원)
