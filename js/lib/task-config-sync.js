@@ -7,7 +7,7 @@
 //   예전 '처리량 → 위젯 연결'(quantityToDashboardMap)은 불러올 때 migrateDashboardTaskItems 로 이 모양으로 옮기고(메모리),
 //   관리자 저장 때 옛 버전 탭용 사본(withTaskWidgetCompat)만 같이 쓴다. 사본 삭제는 업무 id 7단계.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/task-config-sync.test.js
-import { TASK_NAME_ARRAY_FIELDS, TASK_NAME_MAP_FIELDS, canonicalTaskName, taskIdOf, taskNameOf, taskNamesOf } from './task-ids.js?v=202610301749';
+import { TASK_NAME_ARRAY_FIELDS, TASK_NAME_MAP_FIELDS, canonicalTaskName, taskIdOf, taskNameOf, taskNamesOf } from './task-ids.js?v=202610301817';
 
 /** 업무 수량 위젯 id 앞머리 — DOM id·querySelector 에 쓰이므로 콜론 대신 하이픈 */
 export const TASK_WIDGET_PREFIX = 'task-';

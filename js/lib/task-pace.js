@@ -13,7 +13,7 @@
 //
 //  import 는 같은 lib 의 calc.js 뿐 — DOM·State·Firebase 를 쓰지 않는다(node 테스트: tests/task-pace.test.js).
 
-import { addWorkMinutes, minutesOverlap, LUNCH_START_MIN, LUNCH_END_MIN } from './calc.js?v=202610301749';
+import { addWorkMinutes, minutesOverlap, LUNCH_START_MIN, LUNCH_END_MIN } from './calc.js?v=202610301817';
 
 /** 경과율 − 진행률 (%p) 이 이 값 미만이면 순조, 이상이면 주의, RISK 초과면 늦음 */
 export const PACE_WARN_GAP = 10;

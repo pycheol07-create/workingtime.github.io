@@ -6,9 +6,12 @@
 // 계산에서 빼는 쪽(스냅샷·실적 지우기)은 forecast-accuracy.js excludeTasksForAccuracy.
 // '관리자 개별업무'는 시간 대신 인원만 정한다(계획 화면, 날짜별 plannedAdminWorkers) — 그만큼 가용 인원에서 뺀다.
 
+import { TASK } from './task-ids.js?v=202610301817';
+
 const 이름 = (v) => String(v == null ? '' : v).trim();
 
-export const ADMIN_TASK = '관리자 개별업무';
+/** 관리자 개별업무의 업무 id — 지금 이름은 부르는 쪽이 taskNameOf(ADMIN_TASK_ID, cfg) 로 얻는다(업무 id 2단계) */
+export const ADMIN_TASK_ID = TASK.admin;
 export const DEFAULT_ADMIN_WORKERS = 1;
 
 /** 관리자 인원 입력값 → 정수 0~20. 비었거나 잘못되면 null */

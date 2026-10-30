@@ -1,12 +1,13 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202610301749';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610301749';
-import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610301749';
-import { fetchPlannedData } from './history-data-manager.js?v=202610301749';
-import { getTodayDateString } from './utils.js?v=202610301749';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610301749';
-import { D } from './d-chart.js?v=202610301749';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202610301749';
+import * as State from './state.js?v=202610301817';
+import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202610301817';
+import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202610301817';
+import { fetchPlannedData } from './history-data-manager.js?v=202610301817';
+import { getTodayDateString } from './utils.js?v=202610301817';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202610301817';
+import { D } from './d-chart.js?v=202610301817';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610301817';
+import { TASK, tName } from './task-names.js?v=202610301817';
 
 let staffingChartInstance = null;
 
@@ -16,14 +17,15 @@ let staffingChartInstance = null;
 //    예전엔 이 목록의 물량만 수요로 잡았는데, 분모(작업시간)에는 검수·교환반품·재작업이
 //    전부 들어가 있어 필요 인원이 구조적으로 낮게 나왔다. 지금은 모든 업무를 순회한다.
 //    이 목록은 해설 문구에서 '출고성 업무'를 구분해 보여 주는 용도로만 남는다.
-const DEFAULT_STAFFING_TASKS = [
-    '국내배송', '중국제작', '직진배송', '에이블리배송', '해외배송', '택배포장', '티니', '채우기'
+// 🆔 시스템 업무는 업무 id 로 적고 쓸 때 지금 이름으로(tName). 해외배송·택배포장·티니는 고정 id 가 없는 일반 업무라 이름 그대로.
+const DEFAULT_STAFFING_TASKS = () => [
+    tName(TASK.domestic), tName(TASK.china), tName(TASK.direct), tName(TASK.ably), '해외배송', '택배포장', '티니', tName(TASK.fill)
 ];
 
 /** 해설 문구용 출고성 업무 목록. 설정에 목록이 있으면 그걸 쓰고, 없으면 기본값. */
 const staffingBasketOf = (appConfig) => {
     const custom = appConfig && appConfig.staffingBasketTasks;
-    const list = (Array.isArray(custom) && custom.length > 0) ? custom : DEFAULT_STAFFING_TASKS;
+    const list = (Array.isArray(custom) && custom.length > 0) ? custom : DEFAULT_STAFFING_TASKS();
     return new Set(list.map(t => String(t).trim()).filter(Boolean));
 };
 

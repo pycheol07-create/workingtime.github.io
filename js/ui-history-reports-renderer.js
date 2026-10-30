@@ -1,9 +1,10 @@
 // === js/ui-history-reports-renderer.js ===
 
-import { formatDuration } from './utils.js?v=202610301749';
-import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202610301749';
-import { context, LEAVE_TYPES } from './state.js?v=202610301749';
-import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202610301749';
+import { formatDuration } from './utils.js?v=202610301817';
+import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202610301817';
+import { context, LEAVE_TYPES } from './state.js?v=202610301817';
+import { TASK, tName, isT } from './task-names.js?v=202610301817';
+import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202610301817';
 
 // 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -115,12 +116,11 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
 
 // ✅ [신규] 인당 생산성 지표 카드 렌더러 (설명 툴팁 아이콘 추가)
 const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
-    const getTaskProd = (aggr, taskName) => {
+    // 🆔 keys: 앞에서부터 처음 있는 업무 칸을 쓴다(업무 이름은 tName — 이름을 바꿔도 같은 업무)
+    const getTaskProd = (aggr, keys) => {
         if (!aggr || !aggr.taskSummary) return 0;
-        let task = aggr.taskSummary[taskName];
-        if (!task && taskName === '중국제작(입고)') {
-            task = aggr.taskSummary['중국제작입고'] || aggr.taskSummary['중국제작'];
-        }
+        let task = null;
+        for (const k of keys) { task = aggr.taskSummary[k]; if (task) break; }
         if (task && task.duration > 0) {
             // 인당 시간당 생산성 (총 개수 / 총 시간 * 60)
             return (task.quantity / task.duration) * 60;
@@ -131,11 +131,14 @@ const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
     const tOverall = tMetrics.kpis.totalDuration > 0 ? (tMetrics.kpis.totalQuantity / tMetrics.kpis.totalDuration) * 60 : 0;
     const pOverall = pMetrics?.kpis?.totalDuration > 0 ? (pMetrics.kpis.totalQuantity / pMetrics.kpis.totalDuration) * 60 : 0;
 
+    const domestic = tName(TASK.domestic), china = tName(TASK.china), direct = tName(TASK.direct);
+    // 중국제작: 예전 기록 이름('중국제작(입고)'·'중국제작입고')이 있으면 먼저, 없으면 지금 이름
+    const chinaKeys = [...new Set([`${china}(입고)`, '중국제작(입고)', '중국제작입고', china])];
     const tasks = [
         { label: '종합 (전체)', t: tOverall, p: pOverall },
-        { label: '국내배송', t: getTaskProd(tMetrics.aggr, '국내배송'), p: getTaskProd(pMetrics?.aggr, '국내배송') },
-        { label: '중국제작(입고)', t: getTaskProd(tMetrics.aggr, '중국제작(입고)'), p: getTaskProd(pMetrics?.aggr, '중국제작(입고)') },
-        { label: '직진배송', t: getTaskProd(tMetrics.aggr, '직진배송'), p: getTaskProd(pMetrics?.aggr, '직진배송') }
+        { label: domestic, domestic: true, t: getTaskProd(tMetrics.aggr, [domestic]), p: getTaskProd(pMetrics?.aggr, [domestic]) },
+        { label: `${china}(입고)`, t: getTaskProd(tMetrics.aggr, chinaKeys), p: getTaskProd(pMetrics?.aggr, chinaKeys) },
+        { label: direct, t: getTaskProd(tMetrics.aggr, [direct]), p: getTaskProd(pMetrics?.aggr, [direct]) }
     ];
 
     // 💡 계산식 및 의미를 설명하는 툴팁 HTML 정의
@@ -167,7 +170,7 @@ const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
 
     tasks.forEach(task => {
         // 국내배송은 1건당 평균 1.3개라 건/H 병기
-        const isDomestic = task.label === '국내배송';
+        const isDomestic = !!task.domestic;
         const caseSuffix = (isDomestic && task.t > 0)
             ? `<div class="text-xs text-gray-500 mt-0.5">${(task.t / 1.3).toFixed(1)} <span class="text-[11px] text-gray-400">건/H</span></div>`
             : '';
@@ -685,7 +688,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
         const avgDailyStaff = d.avgDailyStaff || 0;
 
         // 국내배송: 1건당 평균 1.3개 → 처리량/처리속도에 건수 병기
-        const isDomestic = d.taskName === '국내배송';
+        const isDomestic = isT(d.taskName, TASK.domestic);
         const caseText = (val, digits) => {
             if (!isDomestic || val <= 0) return '';
             const cases = val / 1.3;

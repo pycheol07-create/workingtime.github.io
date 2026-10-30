@@ -15,7 +15,9 @@
 // ⚠️ 채널 구분 이전에 입력된 과거 데이터는 revenue / orderCount 총액만 존재한다.
 //    이 경우 채널별 값은 0이고 총액만 유효하므로, 총액을 쓰는 화면은 그대로 동작한다.
 
-// taskKey = 그 채널의 배송량(물량)에 해당하는 업무.
+import { TASK, tName, tQty } from './task-names.js?v=202610301817';
+
+// taskId = 그 채널의 배송량(물량)에 해당하는 업무의 고정 id(업무 id 2단계 — 이름은 설정에서 tName 으로).
 //   실적 예측에서 채널 하나를 고르면 매출·주문건·배송량이 모두 그 채널 기준으로만
 //   계산되도록 세 값을 한 묶음으로 정의해 둔다.
 //   (예: 일반배송 = 국내배송 업무량 + 카페24 매출/주문건)
@@ -25,22 +27,22 @@
 //   → 주문 건수는 세 채널 모두 유효하지만(각각 수집·관리),
 //     배송량(장)을 건수로 환산해 병기하는 것은 직접배송인 일반배송(카페24)에서만 의미가 있다.
 // hasDelivery = 우리가 배송하는 채널인지. 생략하면 true.
-//   '기타'는 우리가 배송하지 않아 대응하는 업무(taskKey)가 아예 없다.
+//   '기타'는 우리가 배송하지 않아 대응하는 업무(taskId)가 아예 없다.
 //   fulfillment 로는 표현할 수 없다 — false 로 두면 배송량 0을 건수로 환산해 보여주고,
 //   true 로 두면 풀필먼트 안내문이 잘못 뜬다. 그래서 축을 따로 둔다.
 export const REVENUE_CHANNELS = [
     { id: 'cafe24',  label: '일반배송(카페24)', shortLabel: '일반배송', color: '#4f46e5',
-      field: 'revenueCafe24',  orderField: 'orderCountCafe24',  taskKey: '국내배송',     fulfillment: false },
+      field: 'revenueCafe24',  orderField: 'orderCountCafe24',  taskId: TASK.domestic, fulfillment: false },
     { id: 'direct',  label: '직진배송',         shortLabel: '직진배송', color: '#a855f7',
-      field: 'revenueDirect',  orderField: 'orderCountDirect',  taskKey: '직진배송',     fulfillment: true },
+      field: 'revenueDirect',  orderField: 'orderCountDirect',  taskId: TASK.direct,   fulfillment: true },
     { id: 'arrival', label: '도착보장',         shortLabel: '도착보장', color: '#0ea5e9',
-      field: 'revenueArrival', orderField: 'orderCountArrival', taskKey: '에이블리배송', fulfillment: true },
+      field: 'revenueArrival', orderField: 'orderCountArrival', taskId: TASK.ably,     fulfillment: true },
     { id: 'etc',     label: '기타',             shortLabel: '기타',     color: '#f59e0b',
-      field: 'revenueEtc',     orderField: 'orderCountEtc',     taskKey: null,           fulfillment: false, hasDelivery: false }
+      field: 'revenueEtc',     orderField: 'orderCountEtc',     taskId: null,          fulfillment: false, hasDelivery: false }
 ];
 
 /** 우리가 배송하는 채널만. 배송량 합계·출처 표기는 반드시 이 목록을 쓴다.
- *  (전체를 쓰면 taskKey 가 null 인 '기타'가 섞여 화면에 'null' 이 찍힌다) */
+ *  (전체를 쓰면 taskId 가 null 인 '기타'가 섞여 화면에 'null' 이 찍힌다) */
 export const DELIVERY_CHANNELS = REVENUE_CHANNELS.filter(c => c.hasDelivery !== false);
 
 export const channelById = (id) => REVENUE_CHANNELS.find(c => c.id === id) || null;
@@ -110,7 +112,9 @@ export const applyChannelPatch = (mgmt = {}, patch = {}) => {
 };
 
 /** 실적 예측 스코프 — id가 없으면(=전체) 총계/전 채널 물량 합으로 계산한다.
- *  하루치 데이터(day)를 받아 매출·주문건수·배송량을 같은 채널 기준으로 뽑아준다. */
+ *  하루치 데이터(day)를 받아 매출·주문건수·배송량을 같은 채널 기준으로 뽑아준다.
+ *  배송량은 tQty — 원본 이력(옛 이름 칸)을 받아도 그 업무 값을 찾는다(지금 이름 칸 우선, 더하지 않음).
+ *  출처 글자(deliverySource)는 부를 때의 지금 이름이다. */
 export const channelScope = (id) => {
     const c = channelById(id);
     if (!c) {
@@ -118,9 +122,9 @@ export const channelScope = (id) => {
             id: 'all', label: '전체', color: '#2563eb',
             revenueOf: (d) => revenueTotalOf(d?.management),
             orderCountOf: (d) => orderCountTotalOf(d?.management),
-            deliveryOf: (d) => DELIVERY_CHANNELS.reduce((s, ch) => s + (Number(d?.taskQuantities?.[ch.taskKey]) || 0), 0),
+            deliveryOf: (d) => DELIVERY_CHANNELS.reduce((s, ch) => s + (Number(tQty(d?.taskQuantities, ch.taskId)) || 0), 0),
             deliveryLabel: '전체 배송량',
-            deliverySource: DELIVERY_CHANNELS.map(ch => ch.taskKey).join(' + '),
+            deliverySource: DELIVERY_CHANNELS.map(ch => tName(ch.taskId)).join(' + '),
             // 전체는 직접배송(카페24)과 풀필먼트 채널이 섞여 있어 배송량↔주문건수 대응이 성립하지 않는다.
             // → 주문건수는 합계로 보여주되, 배송량은 장수로만 표기한다.
             fulfillment: true,
@@ -135,9 +139,9 @@ export const channelScope = (id) => {
         id: c.id, label: c.label, color: c.color,
         revenueOf: (d) => Number(d?.management?.[c.field]) || 0,
         orderCountOf: (d) => Number(d?.management?.[c.orderField]) || 0,
-        deliveryOf: (d) => (hasDelivery ? (Number(d?.taskQuantities?.[c.taskKey]) || 0) : 0),
+        deliveryOf: (d) => (hasDelivery ? (Number(tQty(d?.taskQuantities, c.taskId)) || 0) : 0),
         deliveryLabel: hasDelivery ? `${c.shortLabel} 배송량` : '배송량 없음',
-        deliverySource: hasDelivery ? c.taskKey : '해당 없음',
+        deliverySource: hasDelivery ? tName(c.taskId) : '해당 없음',
         fulfillment: !!c.fulfillment,
         // 풀필먼트 채널은 그날 보낸 장수와 그날 잡히는 주문건수가 서로 다른 시점의 값이라
         // 배송량을 건수로 환산해 병기하면 안 된다. 주문건수는 별도 지표로 그대로 보여준다.

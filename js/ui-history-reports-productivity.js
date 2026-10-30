@@ -1,7 +1,8 @@
 // === js/ui-history-reports-productivity.js ===
-import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610301749';
-import { getAsArray } from './ui-history-reports-utils.js?v=202610301749';
-import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202610301749';
+import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610301817';
+import { getAsArray } from './ui-history-reports-utils.js?v=202610301817';
+import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202610301817';
+import { TASK, isT } from './task-names.js?v=202610301817';
 
 export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
     if (!allHistoryData || allHistoryData.length === 0) return null;
@@ -92,7 +93,7 @@ export const analyzeUnitCost = (data, appConfig, wageMap, totalRevenue = 0) => {
 
     const perItemLaborCost = maxTaskQuantity > 0 ? (targetLaborCost / maxTaskQuantity) : 0;
 
-    const directDeliveryRecords = records.filter(r => r.task === '직진배송');
+    const directDeliveryRecords = records.filter(r => isT(r.task, TASK.direct));
     const uniqueDates = new Set();
     
     directDeliveryRecords.forEach(r => {

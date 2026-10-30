@@ -2,13 +2,13 @@
 // 검수 사진: 문서에 Base64 를 쌓지 않고 Firebase Storage(inspection/images/날짜/...)에 올려 URL 만 저장한다.
 //   (상품 문서 1MB 한도를 넘으면 그 상품은 저장이 영구히 실패했다)
 //   경로·메타데이터에 상품명·사람 정보를 넣지 않는다 — 경로 모양은 js/lib/insp-flow.js inspPhotoPath.
-import * as DOM from './dom-elements.js?v=202610301749';
-import { showToast, getTodayDateString } from './utils.js?v=202610301749';
-import { searchProductHistory } from './inspection-logic.js?v=202610301749';
+import * as DOM from './dom-elements.js?v=202610301817';
+import { showToast, getTodayDateString } from './utils.js?v=202610301817';
+import { searchProductHistory } from './inspection-logic.js?v=202610301817';
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202610301749';
-import { inspPhotoPath } from './lib/insp-flow.js?v=202610301749';
+import { connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202610301817';
+import { inspPhotoPath } from './lib/insp-flow.js?v=202610301817';
 
 export let html5QrCode = null;
 export let manualImageBase64 = null;

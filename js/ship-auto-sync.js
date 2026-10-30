@@ -8,9 +8,9 @@
 // 문서: integrations/shipTransmit.applied[YYYY-MM-DD][업무 id] = { name, value, phase, action, … }(자동화 스크립트만 쓴다, 직원 읽기)
 // 이름·값만 읽는다. 구독은 한 번, 로그아웃 때 unsubscribeShipAuto 로 푼다(js/app.js).
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as State from './state.js?v=202610301749';
-import { getTodayDateString } from './utils.js?v=202610301749';
-import { canonicalTaskName } from './lib/task-ids.js?v=202610301749';
+import * as State from './state.js?v=202610301817';
+import { getTodayDateString } from './utils.js?v=202610301817';
+import { canonicalTaskName } from './lib/task-ids.js?v=202610301817';
 
 const AUTO_UNTIL_MIN = 17 * 60 + 40;   // 처리량자동입력 저녁 창 끝(설정.json windows.저녁) — 이 뒤엔 칸 값을 실적으로 본다
 

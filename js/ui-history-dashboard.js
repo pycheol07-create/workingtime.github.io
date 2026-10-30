@@ -1,10 +1,11 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202610301749';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610301749';
-import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610301749';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610301749';
-import { D, alpha } from './d-chart.js?v=202610301749';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202610301749';
+import * as State from './state.js?v=202610301817';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202610301817';
+import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202610301817';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202610301817';
+import { D, alpha } from './d-chart.js?v=202610301817';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610301817';
+import { TASK, tName, isTLike } from './task-names.js?v=202610301817';
 
 let dashboardChartInstance = null;
 
@@ -102,7 +103,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202610301749').then(mod => {
+        import('./ui-history-milestones.js?v=202610301817').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }
@@ -153,11 +154,12 @@ export function renderDashboardTab(filteredData, appConfig) {
     const timeTrendData = [];
     const actualTimeTrendData = []; 
     
-    const taskTypes = ['국내배송', '중국제작', '직진배송'];
+    // 🆔 파트는 업무 id 로 묶는다(이름은 그릴 때 tName). 부분일치는 isTLike — 그 업무이거나 이름에 기본 이름이 들어 있으면.
+    const taskTypes = [TASK.domestic, TASK.china, TASK.direct];
     const partSummary = {
-        '국내배송': { duration: 0, qty: 0 },
-        '중국제작': { duration: 0, qty: 0 },
-        '직진배송': { duration: 0, qty: 0 }
+        [TASK.domestic]: { duration: 0, qty: 0 },
+        [TASK.china]: { duration: 0, qty: 0 },
+        [TASK.direct]: { duration: 0, qty: 0 }
     };
 
     const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
@@ -189,7 +191,7 @@ export function renderDashboardTab(filteredData, appConfig) {
                 uniqueMembers.add(r.member);
             }
             
-            const matchedType = taskTypes.find(t => (r.taskType && r.taskType.includes(t)) || (r.task && r.task.includes(t)));
+            const matchedType = taskTypes.find(t => isTLike(r.taskType, t) || isTLike(r.task, t));
             if (matchedType) partSummary[matchedType].duration += (r.duration || 0);
             
             aggregatedWorkRecords.push({ ...r, date: day.id });
@@ -208,7 +210,7 @@ export function renderDashboardTab(filteredData, appConfig) {
             const numQty = Number(qty) || 0;
             dayQty += numQty;
             
-            const matchedType = taskTypes.find(t => taskKey.includes(t));
+            const matchedType = taskTypes.find(t => isTLike(taskKey, t));
             if (matchedType) partSummary[matchedType].qty += numQty;
             
             aggregatedQuantities[taskKey] = (aggregatedQuantities[taskKey] || 0) + numQty;
@@ -311,7 +313,7 @@ export function renderDashboardTab(filteredData, appConfig) {
         const pUph = pHours > 0 ? (partSummary[type].qty / pHours) : Infinity;
         if(pHours > 0 && pUph < lowestUph) {
             lowestUph = pUph;
-            lowestPart = type;
+            lowestPart = tName(type);
         }
     });
 

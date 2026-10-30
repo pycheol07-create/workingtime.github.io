@@ -1,22 +1,34 @@
 // === js/ui-history-productivity.js ===
-import * as State from './state.js?v=202610301749';
-import { buildMemberHourlyWageMap } from './utils.js?v=202610301749';
-import { D } from './d-chart.js?v=202610301749';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202610301749';
+import * as State from './state.js?v=202610301817';
+import { buildMemberHourlyWageMap } from './utils.js?v=202610301817';
+import { D } from './d-chart.js?v=202610301817';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610301817';
+import { TASK, tName, isT, tQty, isTLike } from './task-names.js?v=202610301817';
 
 let productivityChartInstance = null;
 
+/** 🆔 정적 HTML(components/modals-history.html)의 업무 이름 제목 — data-task-title="<업무 id>" 를 지금 이름으로.
+ *  HTML 에는 기본 이름이 적혀 있고, 이름이 같으면 건드리지 않는다(깜빡임 없음). */
+const paintTaskTitles = () => {
+    document.querySelectorAll('[data-task-title]').forEach(el => {
+        const n = tName(el.dataset.taskTitle);
+        if (n && el.textContent !== n) el.textContent = n;
+    });
+};
+
 export function renderProductivityTab(filteredData, appConfig) {
+    paintTaskTitles();
     filteredData = aliasHistoryView(filteredData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
-    const taskTypes = ['국내배송', '중국제작', '직진배송', '에이블리배송'];
+    // 🆔 파트는 업무 id 로 묶는다(이름은 그릴 때 tName). 부분일치는 isTLike — 그 업무이거나 이름에 기본 이름이 들어 있으면.
+    const taskTypes = [TASK.domestic, TASK.china, TASK.direct, TASK.ably];
 
     // 각 파트별 유니크 작업자 집계를 위해 Set 객체 추가
     const summary = {
         '종합': { duration: 0, qty: 0, members: new Set() },
-        '국내배송': { duration: 0, qty: 0, members: new Set() },
-        '중국제작': { duration: 0, qty: 0, members: new Set() },
-        '직진배송': { duration: 0, qty: 0, members: new Set() },
-        '에이블리배송': { duration: 0, qty: 0, members: new Set() }
+        [TASK.domestic]: { duration: 0, qty: 0, members: new Set() },
+        [TASK.china]: { duration: 0, qty: 0, members: new Set() },
+        [TASK.direct]: { duration: 0, qty: 0, members: new Set() },
+        [TASK.ably]: { duration: 0, qty: 0, members: new Set() }
     };
 
     const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
@@ -30,7 +42,7 @@ export function renderProductivityTab(filteredData, appConfig) {
         (day.workRecords || []).forEach(r => {
             dayTotalWork += (r.duration || 0);
             
-            const matchedType = taskTypes.find(t => (r.taskType && r.taskType.includes(t)) || (r.task && r.task.includes(t)));
+            const matchedType = taskTypes.find(t => isTLike(r.taskType, t) || isTLike(r.task, t));
             if (matchedType) {
                 summary[matchedType].duration += (r.duration || 0);
                 if (r.member) summary[matchedType].members.add(r.member);
@@ -41,7 +53,7 @@ export function renderProductivityTab(filteredData, appConfig) {
 
         Object.entries(day.taskQuantities || {}).forEach(([taskKey, qty]) => {
             const numQty = Number(qty) || 0;
-            const matchedType = taskTypes.find(t => taskKey.includes(t));
+            const matchedType = taskTypes.find(t => isTLike(taskKey, t));
             if (matchedType) {
                 summary[matchedType].qty += numQty;
             }
@@ -98,23 +110,23 @@ export function renderProductivityTab(filteredData, appConfig) {
     };
 
     setProductivityText('general',  summary['종합']);
-    setProductivityText('domestic', summary['국내배송'], true); // 건수 병기
-    setProductivityText('china',    summary['중국제작']);
-    setProductivityText('direct',   summary['직진배송']);
-    setProductivityText('ably',     summary['에이블리배송']);
+    setProductivityText('domestic', summary[TASK.domestic], true); // 건수 병기
+    setProductivityText('china',    summary[TASK.china]);
+    setProductivityText('direct',   summary[TASK.direct]);
+    setProductivityText('ably',     summary[TASK.ably]);
 
     const ctx = document.getElementById('chart-productivity-efficiency');
     if (ctx) {
         if (productivityChartInstance) productivityChartInstance.destroy();
 
-        const colors = { '국내배송': D.ok, '중국제작': D.warn, '직진배송': D.accentMid, '에이블리배송': D.risk };
+        const colors = { [TASK.domestic]: D.ok, [TASK.china]: D.warn, [TASK.direct]: D.accentMid, [TASK.ably]: D.risk };
         const datasets = taskTypes.map(type => {
             const hours = summary[type].duration / 60;
             // 실제 평균 소요시간 계산
             const actualHours = summary[type].members.size > 0 ? hours / summary[type].members.size : 0;
             
             return {
-                label: type,
+                label: tName(type),
                 data: [{ 
                     x: parseFloat(hours.toFixed(1)), 
                     y: summary[type].qty, 
@@ -191,14 +203,14 @@ function computeFillErrorAnalysis(allHistoryData) {
         .filter(d => d && typeof d.id === 'string')
         .sort((a, b) => a.id.localeCompare(b.id));
 
-    const errorRecordsOf = (day) => (day.workRecords || []).filter(r => r.task === '오류' && (Number(r.duration) || 0) > 0);
+    const errorRecordsOf = (day) => (day.workRecords || []).filter(r => isT(r.task, TASK.error) && (Number(r.duration) || 0) > 0);
     const errorDurationOf = (day) => errorRecordsOf(day).reduce((s, r) => s + (Number(r.duration) || 0), 0);
     // 오류 처리량은 업무기록(시간)이 아니라 그날 입력된 '오류' 처리 수량을 본다
-    const errorQuantityOf = (day) => Number(day.taskQuantities?.['오류']) || 0;
+    const errorQuantityOf = (day) => Number(tQty(day.taskQuantities, TASK.error)) || 0;
 
     const fillHappenedOn = (day) => {
-        if ((Number(day.taskQuantities?.['채우기']) || 0) > 0) return true;
-        return (day.workRecords || []).some(r => r.task === '채우기' && (Number(r.duration) || 0) > 0);
+        if ((Number(tQty(day.taskQuantities, TASK.fill)) || 0) > 0) return true;
+        return (day.workRecords || []).some(r => isT(r.task, TASK.fill) && (Number(r.duration) || 0) > 0);
     };
 
     const fillEventIndices = [];

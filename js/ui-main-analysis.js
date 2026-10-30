@@ -1,8 +1,8 @@
 // === js/ui-main-analysis.js ===
-import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610301749';
-import * as State from './state.js?v=202610301749';
-import { systemIdOfName } from './lib/task-ids.js?v=202610301749';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610301749';
+import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610301817';
+import * as State from './state.js?v=202610301817';
+import { systemIdOfName } from './lib/task-ids.js?v=202610301817';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610301817';
 
 export const renderTaskAnalysis = (appState, appConfig) => {
     const analysisContainer = document.getElementById('analysis-task-summary-panel'); 

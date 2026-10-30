@@ -10,7 +10,9 @@
 //    평범한 월요일에는 **아무것도 하지 않는다**(factor = 1.0). 요일평균이 이미 그 2일치를
 //    담고 있기 때문이다. 그 요일이 '보통 갖는 휴일 간격'(baseline)을 **초과한 날수**에만 배수를 건다.
 //
-//  import 0개 — DOM·State·Firebase 를 쓰지 않는다. 달력(isOff)은 밖에서 주입받는다.
+//  DOM·State·Firebase 를 쓰지 않는다(업무 id 표 task-ids.js 만 import). 달력(isOff)은 밖에서 주입받는다.
+
+import { TASK, taskNameOf } from './task-ids.js?v=202610301817';
 
 /** 요일별 '보통 갖는 직전 휴일 수'. 요일평균에 이미 들어 있는 몫이다.
  *  일=1(토만 쉼), 월=2(토·일), 화~토=0. 0=일요일 … 6=토요일 */
@@ -153,13 +155,15 @@ export function backlogFactor(dateStr, isOff, carry, { max = MAX_BACKLOG_FACTOR,
  *  - 직진배송·에이블리배송 : 다음날 '상.하차'가 전 근무일 출고량을 재료로 쓴다.
  *                            여기를 올리면 같은 밀림이 두 번 센다(전파 검증이 먼저다).
  *  - 중국제작·샘플검수·상.하차 : 입고일정 시트의 실제 도착일이 근거다. 곱하면 거짓이 된다.
+ *  업무 id 2단계(2026-10-30): 기본값은 업무 id 로 적고, 쓸 때 설정(cfg)의 지금 이름으로 바꾼다.
  */
-export const DEFAULT_BACKLOG_TASKS = ['국내배송', '채우기'];
+export const DEFAULT_BACKLOG_TASKS = [TASK.domestic, TASK.fill];
 
 /** 설정값(업무명 배열)을 Set 으로. 배열이 아니면 기본값으로 물러난다.
+ *  기본값(fallback 을 안 주면 DEFAULT_BACKLOG_TASKS)은 업무 id → cfg 의 지금 이름으로 바꾼다(cfg 없으면 기본 이름).
  *  ⚠️ 빈 배열 []는 '전부 끄기'다 — 기본값으로 되돌리지 않는다. */
-export function resolveBacklogTasks(cfgList, { fallback = DEFAULT_BACKLOG_TASKS, onBadConfig = null } = {}) {
-    let list = fallback;
+export function resolveBacklogTasks(cfgList, { fallback = null, onBadConfig = null, cfg = null } = {}) {
+    let list = fallback || DEFAULT_BACKLOG_TASKS.map(id => taskNameOf(id, cfg));
     if (cfgList != null) {
         if (Array.isArray(cfgList)) list = cfgList;
         else if (typeof onBadConfig === 'function') onBadConfig(cfgList);

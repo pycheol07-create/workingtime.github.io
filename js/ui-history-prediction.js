@@ -3,41 +3,45 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610301749';
+import { predictFutureTrends } from './analysis-logic.js?v=202610301817';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610301749';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610301749';
-import { runDay } from './lib/refill-view.js?v=202610301749';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202610301749';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202610301749';
-import { isT } from './task-names.js?v=202610301749';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610301749';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610301749';
-import * as State from './state.js?v=202610301749';
-import { saveView } from './view-state.js?v=202610301749';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610301749';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610301749';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610301817';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610301817';
+import { runDay } from './lib/refill-view.js?v=202610301817';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202610301817';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202610301817';
+import { TASK, tName, isT, tQty } from './task-names.js?v=202610301817';
+import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202610301817';
+import { LEGACY_SIM_TASKS, legacySimTasksOf, namesOf, timeTaskExcludeOf, DEFAULT_SIM_ALWAYS_TASKS, DEFAULT_SIM_ZERO_TASKS,
+         DEFAULT_FORECAST_EXCLUDED_TASKS, DEFAULT_LOADOUT_SOURCES, defaultAutoModeOf, defaultTimeTaskDepsOf,
+         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202610301817';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610301817';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610301817';
+import * as State from './state.js?v=202610301817';
+import { saveView } from './view-state.js?v=202610301817';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610301817';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610301817';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610301749';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610301817';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610301749';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202610301749';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610301817';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202610301817';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610301749';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610301749';
-import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202610301749';
-import { taskUph, recentDays } from './task-throughput.js?v=202610301749';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610301817';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610301817';
+import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202610301817';
+import { taskUph, recentDays } from './task-throughput.js?v=202610301817';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610301749';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610301817';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610301749';
-import { D } from './d-chart.js?v=202610301749';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610301749';
-import { withCorrected, correctSnapRange, NOTE_CALC_FAILED } from './lib/forecast-correct-snap.js?v=202610301749';
+         excessOffDays } from './lib/backlog-carry.js?v=202610301817';
+import { D } from './d-chart.js?v=202610301817';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610301817';
+import { withCorrected, correctSnapRange, NOTE_CALC_FAILED } from './lib/forecast-correct-snap.js?v=202610301817';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -78,21 +82,10 @@ const getIncomingBoxesForDate = (dateStr) => {
 // 자동값 규칙: ai=국내배송 예측 / incoming=입고일정 / china-linked=그날 도착 패킹의 샘플검수 장수(없으면 중국제작 입고량×검수비율)
 //              last7=지난 7회 업무량 평균
 // 어느 경우든 '예정 물량'에 수기 입력값이 있으면 그 값이 최우선이다.
-const LEGACY_SIM_TASKS = [
-    { id: 'domestic', key: '국내배송', label: '국내배송', auto: 'ai' },
-    { id: 'china',    key: '중국제작', label: '중국제작', auto: 'incoming' },
-    { id: 'sample',   key: '샘플검수', label: '샘플검수', auto: 'china-linked' },
-    { id: 'direct',   key: '직진배송', label: '직진배송', auto: 'cadence' },
-    { id: 'ably',     key: '에이블리배송', label: '에이블리배송', auto: 'cadence' },
-    // 채우기도 빈도형으로 본다 — 요일 하나로는 안 잡히지만(월·화·수 중심),
-    // '마지막 진행 후 며칠째'를 함께 보면 잡힌다(어제 했으면 75%, 이틀 쉬면 10%, 사흘 쉬면 86%).
-    { id: 'fill',     key: '채우기',   label: '채우기',   auto: 'cadence' },
-    // 아래 넷도 매일 하는 업무가 아니다 — 빈도형으로 본다(표본이 모자라면 안에서 지난 7회 평균으로 물러난다)
-    { id: 'return',   key: '교환반품', label: '교환반품', auto: 'cadence' },
-    { id: 'full',     key: '전량검수', label: '전량검수', auto: 'cadence' },
-    { id: 'other',    key: '국내기타', label: '국내기타', auto: 'cadence' },
-    { id: 'localprod',key: '국내제작', label: '국내제작', auto: 'cadence' }
-];
+// 🆔 업무 id 2단계(2026-10-30): 기존 10개(LEGACY_SIM_TASKS)·기본값 표는 업무 id 로 js/lib/forecast-task-ids.js 에 있고,
+//    key·label(지금 이름)은 설정에서 얻는다. id 는 화면 칸(sim-qty-<id>)용 짧은 이름이라 그대로 둔다.
+/** 기존 10개 — key·label 은 지금 설정의 업무 이름 */
+const legacySimTasks = () => legacySimTasksOf(State.appConfig);
 // 입력 칸을 성격별로 묶어 보여준다(10개를 한 덩어리로 늘어놓으면 읽기 어렵다).
 const BASE_SIM_GROUPS = [
     { label: '출고',      ids: ['domestic', 'direct', 'ably'] },
@@ -104,7 +97,7 @@ const BASE_SIM_GROUPS = [
 // 목록에 없으면 계획 칸이 아예 안 생기고 나중에 전부 '계획 외'로 찍히므로,
 // 관리자에 등록돼 있고 최근에 실제로 물량이 잡힌 업무는 자동으로 뒤에 붙인다.
 // ⚠️ 저장 키는 id 가 아니라 업무명(key)이다 — 기존 10개의 key 를 바꾸면 저장된 계획이 깨진다.
-let SIM_TASKS = LEGACY_SIM_TASKS.slice();
+let SIM_TASKS = legacySimTasks();
 let SIM_GROUPS = BASE_SIM_GROUPS.map(g => ({ ...g, ids: g.ids.slice() }));
 
 // ⏳ '시간으로 잡는 업무' — 처리량(개수)이 없고 얼마나 오래 붙어 있었나로만 남는 업무.
@@ -118,7 +111,8 @@ const TIME_TASK_MIN_AVG_MIN = 3;      // 근무일 1일 평균 3분 미만이면
 const TIME_TASK_MIN_DAYS = 3;         // 한 번 크게 한 일회성 업무를 거른다(진행일 3일 이상)
 const TIME_TASK_RARE_RATIO = 0.3;     // 진행일이 근무일의 30% 미만이면 '가끔 하는 업무'로 따로 묶는다
 // 근태로 이미 가용 인원에서 빠지는 항목 · 시뮬레이션 대상이 아닌 항목
-const TIME_TASK_EXCLUDE = new Set(['매장근무', '출장', '연차', '휴직', '결근', '교육']);
+// 🆔 업무(매장근무·교육)는 id 로 지금 이름을 얻고, 근태 글자(출장·연차·휴직·결근)는 업무가 아니라 그대로 둔다(forecast-task-ids.js).
+const timeTaskExclude = () => timeTaskExcludeOf(State.appConfig);
 // 🙋 기본 0명으로 두는 업무 — 목록에는 두되, 자동 추정은 0명·0분으로 잡는다.
 //    매일 하는 일이 아니거나 그날 붙을 사람이 정해져 있어서, 평균으로 미리 깔아 두면
 //    계획 시간만 부풀린다. 필요한 날에 인원을 올리면 '1인 기준 시간 × 인원'으로 살아난다.
@@ -129,7 +123,7 @@ const TIME_TASK_EXCLUDE = new Set(['매장근무', '출장', '연차', '휴직',
 // 📌 늘 보여야 하는 주요 업무 — 자동값 그대로여도 접지 않는다.
 //    매일 눈으로 확인하는 숫자라, 접히면 '고칠 것이 없다' 가 아니라 '안 보인다' 로 느껴진다.
 //    관리자 설정 simAlwaysShowTasks 로 덮을 수 있다.
-const DEFAULT_SIM_ALWAYS_TASKS = ['국내배송', '직진배송', '에이블리배송', '중국제작'];
+//    기본값(DEFAULT_SIM_ALWAYS_TASKS)은 업무 id — 쓸 때 지금 이름으로.
 let warnedAlwaysCfg = false;
 const simAlwaysTasks = () => {
     const cfg = State.appConfig?.simAlwaysShowTasks;
@@ -139,37 +133,37 @@ const simAlwaysTasks = () => {
             console.warn('simAlwaysShowTasks 는 업무명 배열이어야 합니다. 기본값을 씁니다:', cfg);
         }
     }
-    const list = Array.isArray(cfg) ? cfg : DEFAULT_SIM_ALWAYS_TASKS;
+    const list = Array.isArray(cfg) ? cfg : namesOf(DEFAULT_SIM_ALWAYS_TASKS, State.appConfig);
     return new Set(list.map(k => String(k == null ? '' : k).trim()).filter(Boolean));
 };
 
-const DEFAULT_SIM_ZERO_TASKS = ['청소', '앵글정리'];
+// 기본값(DEFAULT_SIM_ZERO_TASKS — 청소·앵글정리)은 업무 id — 쓸 때 지금 이름으로.
 let warnedZeroCfg = false;
 const simZeroTasks = () => {
     const cfg = State.appConfig?.simTimeTasksZero;
     if (cfg != null && !Array.isArray(cfg)) {
         if (!warnedZeroCfg) { warnedZeroCfg = true; console.warn('simTimeTasksZero 는 업무명 배열이어야 합니다. 기본값을 씁니다:', cfg); }
     }
-    const list = Array.isArray(cfg) ? cfg : DEFAULT_SIM_ZERO_TASKS;
+    const list = Array.isArray(cfg) ? cfg : namesOf(DEFAULT_SIM_ZERO_TASKS, State.appConfig);
     // 업무명은 저장할 때 trim 되므로 설정값도 같이 다듬는다(끝 공백 하나로 조용히 안 맞는 걸 막는다)
     return new Set(list.map(k => String(k == null ? '' : k).trim()).filter(Boolean));
 };
 
 // 🚫 업무 예상(계획·정확도)에서 아예 빼는 업무 — 관리자 개인 업무처럼 물량으로 예측할 대상이 아닌 것.
 //    설정 forecastExcludedTasks. 옛 이름으로 적혀 있어도 지금 이름으로 맞춘다.
-const DEFAULT_FORECAST_EXCLUDED_TASKS = ['관리자 개별업무'];
+//    기본값(DEFAULT_FORECAST_EXCLUDED_TASKS — 관리자 개별업무)은 업무 id — 쓸 때 지금 이름으로.
 let warnedExclTaskCfg = false;
 const forecastExcludedTasks = () => {
     const cfg = State.appConfig?.forecastExcludedTasks;
     if (cfg != null && !Array.isArray(cfg)) {
         if (!warnedExclTaskCfg) { warnedExclTaskCfg = true; console.warn('forecastExcludedTasks 는 업무명 배열이어야 합니다. 기본값을 씁니다:', cfg); }
     }
-    const list = Array.isArray(cfg) ? cfg : DEFAULT_FORECAST_EXCLUDED_TASKS;
+    const list = Array.isArray(cfg) ? cfg : namesOf(DEFAULT_FORECAST_EXCLUDED_TASKS, State.appConfig);
     return new Set(list.map(k => String(k == null ? '' : k).trim()).filter(Boolean)
         .map(k => aliasTaskName(k, State.appConfig)));
 };
 // '관리자 개별업무'(지금 이름) — 계획 화면에서 시간 대신 인원만 정하는 줄. 제외 업무에 없으면 인원도 안 뺀다.
-const adminTaskKey = () => aliasTaskName(ADMIN_TASK, State.appConfig);
+const adminTaskKey = () => aliasTaskName(tName(ADMIN_TASK_ID), State.appConfig);
 const adminTaskOn = () => forecastExcludedTasks().has(adminTaskKey());
 
 // ───────────────────────────────────────────────────────────
@@ -203,7 +197,8 @@ const refreshHistorySig = () => {
     historySigValue = `${n}:${h}:${today}`;
     return historySigValue;
 };
-const LEGACY_SIM_KEYS = new Set(LEGACY_SIM_TASKS.map(t => t.key));
+/** 기존 10개의 지금 이름 */
+const legacySimKeys = () => new Set(legacySimTasks().map(t => t.key));
 
 /** 업무명 → DOM/맵에 쓸 id. 한글은 살리고 나머지 기호는 뗀다('상.하차' → 'k상하차').
  *  ⚠️ 이 id 는 getElementById 로만 쓸 것 — querySelector('#...') 는 한글 id 에서 깨진다. */
@@ -238,14 +233,13 @@ const recentQtyTotals = (historyData) => {
  *  기본은 'cadence'(빈도형)인데, 입고 박스 수처럼 확실한 근거가 있으면 그것을 쓴다.
  *  'incoming-boxes:중국제작' 처럼 콜론 뒤에 '어느 입고에 연동할지'를 함께 적는다
  *  — 연동 업무명을 코드에 숨겨 두면, 다른 업무를 이 모드로 지정했을 때 엉뚱한 입고에 붙는다.
- *  설정값 simAutoModes({업무명: 모드}) 로 바꿀 수 있다. */
-const DEFAULT_SIM_AUTO_MODES = { '상.하차': 'incoming-boxes:중국제작' };
+ *  설정값 simAutoModes({업무명: 모드}) 로 바꿀 수 있다.
+ *  🆔 기본값(상.하차 → 'incoming-boxes:<중국제작 지금 이름>')은 업무 id 로 적는다 — forecast-task-ids.js defaultAutoModeOf. */
 const AUTO_MODES = new Set(['ai', 'incoming', 'china-linked', 'incoming-boxes', 'cadence', 'last7']);
-/** 📦 '다음날 상차'를 만드는 출고 업무 — 설정값 simLoadoutSources 로 바꿀 수 있다. */
-const DEFAULT_LOADOUT_SOURCES = ['직진배송', '에이블리배송'];
+/** 📦 '다음날 상차'를 만드는 출고 업무 — 설정값 simLoadoutSources 로 바꿀 수 있다. 기본값(직진·에이블리)은 업무 id. */
 const loadoutSourceTasks = () => {
     const cfg = State.appConfig?.simLoadoutSources;
-    const list = Array.isArray(cfg) ? cfg : DEFAULT_LOADOUT_SOURCES;
+    const list = Array.isArray(cfg) ? cfg : namesOf(DEFAULT_LOADOUT_SOURCES, State.appConfig);
     return list.map(k => String(k == null ? '' : k).trim()).filter(Boolean);
 };
 let warnedAutoMode = false;
@@ -270,19 +264,21 @@ const autoModeFor = (taskKey) => {
     const key = String(taskKey == null ? '' : taskKey).trim();
     const cfg = State.appConfig?.simAutoModes;
     if (cfg && typeof cfg === 'object' && typeof cfg[key] === 'string') return cfg[key];
-    return DEFAULT_SIM_AUTO_MODES[key] || 'cadence';
+    return defaultAutoModeOf(key, State.appConfig) || 'cadence';
 };
 
 /** 기존 10개 + (관리자에 '처리량 업무'로 등록됐고 최근 물량이 잡힌 업무).
  *  등록만 되고 최근 실적이 없는 업무는 넣지 않는다 — 빈 칸만 늘면 더 읽기 어렵다. */
 const buildSimTasks = (historyData, appConfig) => {
-    const list = LEGACY_SIM_TASKS.slice();
+    const list = legacySimTasks();
     const used = new Set(LEGACY_SIM_TASKS.map(t => t.id));
+    const legacyKeys = new Set(list.map(t => t.key));
+    const timeExclude = timeTaskExclude();
     const totals = recentQtyTotals(historyData);
     const registered = new Set(appConfig?.quantityTaskTypes || []);
     const excluded = forecastExcludedTasks();
     getAllTaskKeys(appConfig).forEach(key => {
-        if (LEGACY_SIM_KEYS.has(key) || TIME_TASK_EXCLUDE.has(key) || excluded.has(key)) return;
+        if (legacyKeys.has(key) || timeExclude.has(key) || excluded.has(key)) return;
         if (!registered.has(key)) return;
         if (!((totals.get(key) || 0) > 0)) return;
         // 새 업무의 기본 추정은 'cadence' — 안 하는 날은 0으로 잡혀 화면에서 접힌다.
@@ -302,15 +298,19 @@ const ensureSimTasks = () => {
     const data = 이력();
     // auto 모드가 설정 의존값이 됐으므로 시그니처·비교에 모두 넣는다.
     // (id 목록만 비교하면 '상.하차를 cadence로 되돌리기' 같은 설정 변경이 새로고침 전까지 안 먹는다)
+    // 🆔 업무 이름(taskIdNames·taskAliases)도 넣는다 — 빠지면 이름을 바꿔도 새로고침 전까지 옛 이름(key)으로 계산한다.
     const sig = [(cfg?.quantityTaskTypes || []).join('|'),
                  JSON.stringify(cfg?.simAutoModes || null),
                  [...forecastExcludedTasks()].join('|'),
+                 JSON.stringify(cfg?.taskIdNames || null),
+                 JSON.stringify(cfg?.taskAliases || null),
                  refreshHistorySig()].join('#');
     if (sig === simTasksSig) return false;
     simTasksSig = sig;
 
     const next = buildSimTasks(data, cfg);
-    const shape = (arr) => arr.map(t => `${t.id}:${t.auto}`).join('|');
+    // key 도 비교한다 — 기존 10개는 이름이 바뀌어도 id·auto 가 같다
+    const shape = (arr) => arr.map(t => `${t.id}:${t.key}:${t.auto}`).join('|');
     if (shape(next) === shape(SIM_TASKS)) return false;
     SIM_TASKS = next;
 
@@ -339,6 +339,7 @@ const buildTimeTaskList = (historyData, appConfig, windowDays = 56) => {
     const qtyKeys = new Set(SIM_TASKS.map(t => t.key));
     // 업무 예상 제외 업무는 수기 목록에 있어도 뺀다(정확도 쪽도 같은 기준으로 지운다)
     const excluded = forecastExcludedTasks();
+    const timeExclude = timeTaskExclude();
 
     const used = new Set();
     const toEntry = (key, rare = false) => ({ id: safeTaskId(key, used), key, label: key, rare });
@@ -360,7 +361,7 @@ const buildTimeTaskList = (historyData, appConfig, windowDays = 56) => {
         const seen = new Set();
         (d.workRecords || []).forEach(r => {
             const key = r && r.task;
-            if (!key || qtyKeys.has(key) || TIME_TASK_EXCLUDE.has(key) || excluded.has(key)) return;
+            if (!key || qtyKeys.has(key) || timeExclude.has(key) || excluded.has(key)) return;
             const cur = agg.get(key) || { minutes: 0, days: 0 };
             cur.minutes += Number(r.duration) || 0;
             if (!seen.has(key)) { cur.days += 1; seen.add(key); }
@@ -408,7 +409,8 @@ const ensureSimLists = (force = false) => {
     const sig = [
         historySigValue,
         Array.isArray(cfg?.simTimeTasks) ? cfg.simTimeTasks.join('|') : '',
-        [...forecastExcludedTasks()].join('|')
+        [...forecastExcludedTasks()].join('|'),
+        [...timeTaskExclude()].join('|')
         // ※ simTimeTasksZero 는 여기 넣지 않는다 — 목록 구성(buildTimeTaskList)에는 쓰이지 않고,
         //    값은 autoTimeValueFor 가 매번 State.appConfig 에서 직접 읽으므로 화면 간 차이가 없다.
     ].join('#');
@@ -600,8 +602,9 @@ const computeTaskUPHs = (historyData) => {
             if (r?.task && m > 0) minutes[r.task] = (minutes[r.task] || 0) + m;
         });
     });
+    const legacyKeys = legacySimKeys();
     Object.keys(uph).forEach(k => {
-        if (LEGACY_SIM_KEYS.has(k)) return;
+        if (legacyKeys.has(k)) return;
         if ((minutes[k] || 0) < UPH_MIN_MINUTES_NEW) uph[k] = 0;
     });
     return uph;
@@ -615,10 +618,10 @@ const computeSampleRatio = (historyData) => {
     const recent = (historyData || []).filter(d => typeof d.id === 'string' && d.id >= cutoffStr);
     let chinaSum = 0, sampleSum = 0;
     recent.forEach(d => {
-        const china = Number(d.taskQuantities?.['중국제작']) || 0;
+        const china = Number(tQty(d.taskQuantities, TASK.china)) || 0;
         if (china > 0) {
             chinaSum += china;
-            sampleSum += Number(d.taskQuantities?.['샘플검수']) || 0;
+            sampleSum += Number(tQty(d.taskQuantities, TASK.sample)) || 0;
         }
     });
     return chinaSum > 0 ? sampleSum / chinaSum : 0;
@@ -678,29 +681,21 @@ const computeTimeTaskStats = (historyData, taskKey, windowDays = 28, dayFilter =
 /** 🔗 물량 업무와 묶인 담당 업무 — 그 물량이 있는 날에만 생긴다.
  *  (중국제작 입고가 없으면 '중국제작(담당)'도 없고, 직진·에이블리 출고가 없으면 사전작업도 없다)
  *  관리자 설정 simTimeTaskDeps 로 덮어쓸 수 있고, 없으면 업무명에 물량 업무명이 들어간 경우를 자동으로 잇는다.
+ *  🆔 기본값(중국제작(담당) → 중국제작, 직진배송 사전작업 → 직진·에이블리)은 업무 id 로 적는다 — forecast-task-ids.js defaultTimeTaskDepsOf.
  */
-const DEFAULT_TIME_TASK_DEPS = {
-    '중국제작(담당)': ['중국제작'],
-    '직진배송 사전작업': ['직진배송', '에이블리배송']
-};
-
 const timeTaskDeps = (taskKey) => {
     const cfg = State.appConfig?.simTimeTaskDeps;
     if (cfg && Array.isArray(cfg[taskKey])) return cfg[taskKey];
-    if (DEFAULT_TIME_TASK_DEPS[taskKey]) return DEFAULT_TIME_TASK_DEPS[taskKey];
-    // 이름에 물량 업무명이 들어 있으면 그 업무와 묶는다 (예: 'OO 사전작업', 'OO(담당)')
-    // ⚠️ 기존 10개로만 판단한다. 목록 전체를 대상으로 하면 새로 편입된 업무에 우연히 이름이
-    //    걸려, 그 업무 물량이 0인 날 시간이 통째로 사라진다(조용히 틀리는 유형).
-    const hit = LEGACY_SIM_TASKS.find(t => taskKey !== t.key && taskKey.includes(t.key));
-    return hit ? [hit.key] : [];
+    // 기본 표에 없으면 이름에 물량 업무명이 들어 있는 경우를 잇는다 (예: 'OO 사전작업', 'OO(담당)')
+    // ⚠️ 기존 10개로만, 기본 이름 기준으로만 판단한다(defaultTimeTaskDepsOf 주석).
+    return defaultTimeTaskDepsOf(taskKey, State.appConfig);
 };
 
 /** 🔁 '전날 준비 → 다음 근무일 출고' 인 담당 업무.
  *  직진배송 사전작업은 그날 나갈 물건이 아니라 '다음 근무일에 나갈 물건'을 준비한다.
  *  (실측 최근 40근무일: 다음날 물량 기준이 정밀 94%/재현 100%, 같은날 기준은 79%/87%.
  *   같은날 기준으로만 보면 준비만 하고 출고가 없는 날의 시간이 통째로 빠진다 — 최근 18%)
- *  관리자 설정 simTimeTaskDepsNextDay(업무명 배열)로 바꿀 수 있다. */
-const DEFAULT_TIME_TASK_DEPS_NEXTDAY = ['직진배송 사전작업'];
+ *  관리자 설정 simTimeTaskDepsNextDay(업무명 배열)로 바꿀 수 있다. 기본값(직진배송 사전작업)은 업무 id. */
 let warnedNextDayCfg = false;
 const isNextDayDep = (taskKey) => {
     const cfg = State.appConfig?.simTimeTaskDepsNextDay;
@@ -708,20 +703,18 @@ const isNextDayDep = (taskKey) => {
         // 형식이 어긋난 설정은 조용히 기본값으로 되돌아간다 — 바꿨다고 오해하지 않도록 알린다
         if (!warnedNextDayCfg) { warnedNextDayCfg = true; console.warn('simTimeTaskDepsNextDay 는 업무명 배열이어야 합니다. 기본값을 씁니다:', cfg); }
     }
-    const list = Array.isArray(cfg) ? cfg : DEFAULT_TIME_TASK_DEPS_NEXTDAY;
-    return list.includes(taskKey);
+    if (Array.isArray(cfg)) return cfg.includes(taskKey);
+    return isDefaultNextDayDep(taskKey, State.appConfig);
 };
 
 /** 🔁 선행 업무 → 다음 근무일에 생기는 물량 업무 (위 관계의 반대 방향).
  *  전 근무일에 사전작업을 했으면 그날 출고가 나간다 — 특히 '사전작업만 하고 출고가 없던 날'
- *  다음은 실측 4/4로 반드시 나갔다. 관리자 설정 simPrecursorTasks 로 덮어쓸 수 있다. */
-const DEFAULT_SIM_PRECURSORS = {
-    '직진배송': ['직진배송 사전작업'],
-    '에이블리배송': ['직진배송 사전작업']
-};
+ *  다음은 실측 4/4로 반드시 나갔다. 관리자 설정 simPrecursorTasks 로 덮어쓸 수 있다.
+ *  🆔 기본값(직진·에이블리 ← 직진배송 사전작업)은 업무 id 로 적는다 — 쓸 때 지금 이름 키·값으로(설정값은 이름 그대로 덮는다). */
 const precursorMap = () => {
+    const def = defaultPrecursorMapOf(State.appConfig);
     const cfg = State.appConfig?.simPrecursorTasks;
-    return (cfg && typeof cfg === 'object') ? { ...DEFAULT_SIM_PRECURSORS, ...cfg } : DEFAULT_SIM_PRECURSORS;
+    return (cfg && typeof cfg === 'object') ? { ...def, ...cfg } : def;
 };
 const precursorTasks = (taskKey) => {
     const v = precursorMap()[taskKey];
@@ -1215,7 +1208,7 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
           // ⚠️ 비율은 국내배송 실적에서 구한 **팀 공통값**이다. 이 업무 자체로 재면
           //    '월·화·수 중심' 같은 요일 편성이 밀림으로 오인돼 과대 추정된다(표본도 모자라다).
           //    화면에 '이 업무를 비교해 구했다'로 읽히면 안 되므로 출처를 밝힌다.
-          + `\n${carrySourceNote(밀림.learned, { fromTask: '국내배송' })}\n`
+          + `\n${carrySourceNote(밀림.learned, { fromTask: tName(TASK.domestic) })}\n`
         : '';
     const detail = `${밀림글}${planNote} (이 날 진행 확률 ${Math.round(p * 100)}%)
 ${why}`;
@@ -1344,6 +1337,7 @@ const carryFallback = () => {
 let warnedBacklogShape = false, warnedBacklogDrop = '';
 const backlogTaskSet = () => {
     const set = resolveBacklogTasks(State.appConfig?.forecastBacklogTasks, {
+        cfg: State.appConfig,   // 기본값(업무 id)을 지금 이름으로
         onBadConfig: (v) => {
             if (warnedBacklogShape) return;
             warnedBacklogShape = true;
@@ -1429,9 +1423,10 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
     const diff = Math.round((xD - tD) / 86400000);
 
     // 과거: 실측값 그대로
+    const domesticKey = tName(TASK.domestic);
     if (diff < 0) {
         const day = (historyData || []).find(d => d.id === dateStr);
-        return Number(day?.taskQuantities?.['국내배송']) || 0;
+        return Number(tQty(day?.taskQuantities, TASK.domestic)) || 0;
     }
     if (diff > 30) return 0; // 너무 먼 미래는 신뢰도 낮음
 
@@ -1439,7 +1434,7 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
     const bump = (v) => {
         const q = Math.round(Number(v) || 0);
         if (q <= 0) return q;
-        if (!backlogTaskSet().has('국내배송')) return q;
+        if (!backlogTaskSet().has(domesticKey)) return q;
         return carriedQty(q, backlogInfoFor(historyData, dateStr).factor);
     };
 
@@ -1451,18 +1446,18 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
         // 오늘: 이미 입력된 실측이 있으면 그 값, 없으면 실적 예측의 '오늘 예측값'.
         // (예전엔 실측만 봐서, 물량 입력 전인 오전에는 항상 0 → 칸이 비어 있었다)
         const day = (historyData || []).find(d => d.id === dateStr);
-        const actual = Number(day?.taskQuantities?.['국내배송']) || 0;
+        const actual = Number(tQty(day?.taskQuantities, TASK.domestic)) || 0;
         if (actual > 0) return actual;
         const todayPred = result?.prediction?.today?.predictedDel;
         if (todayPred > 0) return bump(todayPred);
-        return bump(computeLast7Avg(historyData, '국내배송'));
+        return bump(computeLast7Avg(historyData, domesticKey));
     }
 
     const predicted = result?.prediction?.delivery?.[diff - 1];
     if (predicted > 0) return bump(predicted);
 
     // 예측 불가(이력 7일 미만 등) → 최근 실적 평균으로라도 채운다
-    return bump(computeLast7Avg(historyData, '국내배송'));
+    return bump(computeLast7Avg(historyData, domesticKey));
 };
 
 /** 가용 인원 = 전체 정직원 − 해당일 휴무자(persistentLeave + 그날 onLeaveMembers) − 관리자 인원
@@ -1656,8 +1651,8 @@ const qtyZeroConfirmed = (dayRec, taskKey) => {
 /** 📦 상.하차 예상 = 하차분(입고 박스) + 상차분(전 근무일 출고량).
  *  inQtyOverride: 화면에서 입고 수량을 직접 고친 경우 그 값(선적 지연으로 0 으로 고치는 등).
  */
-const incomingBoxesValueFor = (dateStr, task, historyData, incomingKey = '중국제작', inQtyOverride = null) => {
-    const inKey = incomingKey || '중국제작';
+const incomingBoxesValueFor = (dateStr, task, historyData, incomingKey = null, inQtyOverride = null) => {
+    const inKey = incomingKey || tName(TASK.china);
     const shipKeys = loadoutSourceTasks();
     const { perShip, perBox } = loadUnloadRatios(historyData, task.key, inKey, shipKeys);
 
@@ -1816,7 +1811,7 @@ const hasPrecursorRecordOn = (historyData, dateStr, taskKey) => {
 const transmitFor = (dateStr, taskKey, historyData) => {
     if (!transmitByDate) return null;
     return transmitValueFor({
-        targetDate: dateStr, taskKey, byDate: transmitByDate, nextWorkingDay,
+        targetDate: dateStr, taskId: transmitTaskIdOf(taskKey, State.appConfig), taskKey, byDate: transmitByDate, nextWorkingDay,
         hasPrecursorOn: (d, k) => hasPrecursorRecordOn(historyData, d, k)
     });
 };
@@ -1846,7 +1841,7 @@ const transmitNoneForDate = (dateStr, taskKey, historyData) => {
     const r = lockedTransmitNone(readTransmitNoneLock(), today, taskKey, () => {
         if (!isTransmitFresh() || !transmitLive || transmitLive.day !== today) return null;
         return transmitNoneFor({
-            targetDate: dateStr, today, taskKey, liveByDate: transmitLive.byDate,
+            targetDate: dateStr, today, taskId: transmitTaskIdOf(taskKey, State.appConfig), taskKey, liveByDate: transmitLive.byDate,
             prevDate: lastWorkedDayBefore(dateStr, historyData),
             hasPrecursorOn: (d, k) => hasPrecursorRecordOn(historyData, d, k)
         });
@@ -2008,7 +2003,7 @@ const sampleAutoFor = (dateStr, china, historyData) => {
 
 /** 채우기 지시서 행 수 { value, source:'refill', detail } 또는 null(지시서 없음·못 읽음·다른 업무) */
 const refillValueFor = (dateStr, taskKey) => {
-    if (taskKey !== '채우기' || !refillDays || !dateStr) return null;
+    if (!isT(taskKey, TASK.fill) || !refillDays || !dateStr) return null;
     const e = refillDays[String(dateStr).replace(/-/g, '')];
     if (!e || e.status !== 'ok') return null;
     const rows = Number(e.rows);
@@ -2073,10 +2068,10 @@ const estimatedBaseFor = (dateStr, task, historyData) => {
             // getAIPredictedDomestic 은 과거(실측)와 오늘 실측에는 배수를 곱하지 않는다 —
             // 같은 조건을 여기서도 똑같이 따져야 '연휴 밀림'이라 써 놓고 값은 그대로인 일이 없다.
             const 오늘실측 = dateStr === getTodayDateString()
-                ? (Number((historyData || []).find(d => d.id === dateStr)?.taskQuantities?.['국내배송']) || 0)
+                ? (Number(tQty((historyData || []).find(d => d.id === dateStr)?.taskQuantities, TASK.domestic)) || 0)
                 : 0;
             const 보정됨 = dateStr >= getTodayDateString() && 오늘실측 <= 0 && info.factor > 1
-                        && aiValue > 0 && backlogTaskSet().has('국내배송');
+                        && aiValue > 0 && backlogTaskSet().has(tName(TASK.domestic));
             // 📦 그날 중국 입고분이 도착하면 미발수량을 더한다 — 연휴 배수는 AI 몫에만(이미 곱해져 있다),
             //    미발은 그 뒤에 더하기만 한다. 과거·오늘 실측이 있는 날은 더하지 않는다(실측이 이미 담고 있다).
             const 미발 = (dateStr >= getTodayDateString() && 오늘실측 <= 0) ? mibalForDate(dateStr) : null;
@@ -2101,7 +2096,7 @@ const estimatedBaseFor = (dateStr, task, historyData) => {
             // 샘플검수는 중국제작 입고가 있는 날에만 발생한다.
             // 그 날의 중국제작 수량(예정 물량 > 입고일정)에 최근 검수비율을 곱해 산출.
             // 2026-10-21: 그날 도착 패킹의 샘플검수 장수(패킹에서 만들기 기준)를 먼저 쓴다 — sampleAutoFor
-            const china = getPlanned(dateStr, '중국제작') ?? getIncomingChinaForDate(dateStr);
+            const china = getPlanned(dateStr, tName(TASK.china)) ?? getIncomingChinaForDate(dateStr);
             return sampleAutoFor(dateStr, china, historyData);   // 입고 없는 날은 0(빈칸)
         }
         case 'incoming-boxes':
@@ -2241,7 +2236,7 @@ const renderSimTaskInputs = () => {
     const host = document.getElementById('sim-task-list');
     if (!host) return false;
     const sig = timeTaskSig(SIM_TIME_TASKS);
-    const qtySig = SIM_TASKS.map(t => t.id).join('|');
+    const qtySig = SIM_TASKS.map(t => `${t.id}:${t.key}`).join('|');   // key 포함 — 기존 10개는 id 가 고정이라 이름만 바뀌면 다시 그리지 않았다
     const refKeys = [...forecastExcludedTasks()];
     const adminKey = adminTaskOn() ? adminTaskKey() : '';
     const refSig = refKeys.join('|') + '#' + adminKey;
@@ -3348,6 +3343,13 @@ window.__forecastForDate = async (dateStr) => {
                    || activeTimeTasks().find(x => x.key === key);
             return (t && t.label) || key;
         };
+        // 🆔 업무 id(hookVersion 2 에서 추가) — 이름이 바뀌어도 알림이 업무를 알아보게. 시스템 업무는 고정 id(k_…),
+        //    그 밖은 설정의 업무 id(t_…), 모르면 null. 기존 칸(key·label 등)은 그대로 둔다.
+        const taskIdOfKey = (key) => {
+            const t = SIM_TASKS.find(x => x.key === key);
+            if (t && t.taskId) return t.taskId;
+            return systemIdOfName(key, State.appConfig) || taskIdOf(key, State.appConfig?.taskIdNames) || null;
+        };
 
         // 물량 0 만 뺀다. UPH 실적이 없어 hours=0 인 업무는 남긴다 —
         // 빼면 물량이 소리 없이 사라져 필요 인원을 낮게 보게 된다(알림이 '시간 미정'으로 찍는다).
@@ -3355,13 +3357,13 @@ window.__forecastForDate = async (dateStr) => {
             .filter(([, v]) => (Number(v && v.qty) || 0) > 0)
             .map(([key, v]) => ({ key, label: labelOf(key),
                                   qty: Math.round(Number(v.qty) || 0),
-                                  uph: n(v.uph), hours: n(v.hours) }));
+                                  uph: n(v.uph), hours: n(v.hours), taskId: taskIdOfKey(key) }));
         const timeTasks = Object.entries(r.timeTaskTimes || {})
             .filter(([, v]) => (Number(v && v.hours) || 0) > 0)
             .map(([key, v]) => ({ key, label: labelOf(key),
                                   minutes: Math.round(Number(v.minutes) || 0),
                                   workers: Math.round(Number(v.workers) || 0),
-                                  hours: n(v.hours) }));
+                                  hours: n(v.hours), taskId: taskIdOfKey(key) }));
 
         const leave = (inputs.staffInfo && inputs.staffInfo.onLeaveList) || [];
 
@@ -3382,7 +3384,7 @@ window.__forecastForDate = async (dateStr) => {
             if (info && info.uncertain && info.dayValue > 0) {
                 maybeTasks.push({ key: t.key, label: t.label,
                                   qty: Math.round(Number(info.dayValue) || 0),
-                                  prob: n(info.prob) });
+                                  prob: n(info.prob), taskId: taskIdOfKey(t.key) });
             }
         });
         let maybeAlt = null;
@@ -3415,7 +3417,8 @@ window.__forecastForDate = async (dateStr) => {
         const droppedPlannedKeys = Object.keys(plannedView).filter(k => !qtyKeys.has(k));
 
         return {
-            ok: true, hookVersion: 1,
+            // hookVersion 2(2026-10-30): tasks·timeTasks·maybeTasks 에 taskId 추가 — 나머지 칸·모양은 1 과 같다
+            ok: true, hookVersion: 2,
             date, todayDate: getTodayDateString(), weekend: !!r.weekend,
             holiday: !!r.holiday, holidayName: r.holidayName || '',
             // ⚠️ factor 는 '그 날짜의 달력 계산'일 뿐이다. 예정물량을 수기로 넣어 두면
@@ -3522,7 +3525,7 @@ const GAP_TONE = (g) => g > 1
 const forecastCardHtml = (label, r, inputs, simLinked = false) => {
     const gap = r.gap;
     const tone = GAP_TONE(gap);
-    const china = inputs.tasks['중국제작'] || 0;
+    const china = inputs.tasks[tName(TASK.china)] || 0;
     const staffN = Math.round(inputs.staffInfo ? inputs.staffInfo.available : r.availableTotal);
     // 필요 대비 가용을 막대로 — 숫자만 보는 것보다 한눈에 들어온다.
     const pct = r.requiredFTE > 0 ? Math.min(100, Math.round(staffN / r.requiredFTE * 100)) : 100;
@@ -4113,7 +4116,7 @@ const setupSimulationListeners = () => {
         const data = 이력();
         const untouched = (key) => todayActualQty(data, dateStr, key) == null && getPlanned(dateStr, key) == null;
 
-        if (untouched('샘플검수')) {
+        if (untouched(tName(TASK.sample))) {
             const sampleTask = SIM_TASKS.find(t => t.id === 'sample');
             const r = sampleAutoFor(dateStr, china, data);
             setQty('sample', r.value);
@@ -4127,7 +4130,8 @@ const setupSimulationListeners = () => {
         SIM_TASKS.forEach(t => {
             const { mode, arg } = parseAutoMode(t.auto);
             if (mode !== 'incoming-boxes') return;
-            if ((arg || '중국제작') !== '중국제작') return;   // 이 입력칸은 중국제작이다
+            const chinaKey = tName(TASK.china);
+            if ((arg || chinaKey) !== chinaKey) return;   // 이 입력칸은 중국제작이다
             if (!untouched(t.key)) return;
             const v = incomingBoxesValueFor(dateStr, t, data, arg, china);
             setQty(t.id, v.value);

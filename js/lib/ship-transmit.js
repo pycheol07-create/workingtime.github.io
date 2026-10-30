@@ -16,15 +16,20 @@
 //       업무별로 따로 본다 — 한쪽 합이 0 이면 그 업무는 null(기존 예측 그대로).
 //       단 대상일이 오늘이고 전 근무일 전송이 없다는 것이 확실하면 0(transmitNoneFor, 2026-10-23).
 //
-// 순수 모듈(import 0). 달력(nextWorkingDay)·사전작업 판정(hasPrecursorOn)은 인자로 받는다.
+// 순수 모듈(업무 id 표 task-ids.js 만 import). 달력(nextWorkingDay)·사전작업 판정(hasPrecursorOn)은 인자로 받는다.
+// 업무 id 2단계(2026-10-30): 소스 표는 업무 이름이 아니라 고정 id(TASK.direct·TASK.ably)로 찾는다 — 부르는 쪽이 taskId 를 넘긴다.
+//   taskKey(지금 이름)는 hasPrecursorOn 콜백에 그대로 넘길 뿐이다.
 
-/** 업무 → 그 업무로 합칠 전송 소스 */
+import { TASK } from './task-ids.js?v=202610301817';
+
+/** 업무 id → 그 업무로 합칠 전송 소스 */
 export const TRANSMIT_SOURCES = {
-    '직진배송': ['ZG', 'ZGF'],
-    '에이블리배송': ['AB', 'ABF']
+    [TASK.direct]: ['ZG', 'ZGF'],
+    [TASK.ably]: ['AB', 'ABF']
 };
 const ALL_SOURCES = ['ZG', 'ZGF', 'AB', 'ABF'];
-const NORMAL_SOURCE = { '직진배송': 'ZG', '에이블리배송': 'AB' };   // 설명 문구의 '일반' 몫
+const NORMAL_SOURCE = { [TASK.direct]: 'ZG', [TASK.ably]: 'AB' };   // 설명 문구의 '일반' 몫
+const sourcesOf = (taskId) => Object.prototype.hasOwnProperty.call(TRANSMIT_SOURCES, taskId) ? TRANSMIT_SOURCES[taskId] : null;
 
 const D_RE = /^(\d{4})(\d{2})(\d{2})$/;
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
@@ -124,14 +129,15 @@ const fmtAt = (ms) => {
 /** 대상일·업무의 전송값. 없으면 null.
  *  @param {object} p
  *  @param {string} p.targetDate  'YYYY-MM-DD'
- *  @param {string} p.taskKey     '직진배송' | '에이블리배송' (그 밖은 null)
+ *  @param {string} p.taskId      업무 id — TASK.direct | TASK.ably (그 밖은 null)
+ *  @param {string} [p.taskKey]   업무 지금 이름 — hasPrecursorOn 에 그대로 넘긴다
  *  @param {object} p.byDate      summarizeTransmitRows 결과
  *  @param {(d:string)=>string} p.nextWorkingDay  D 다음의 첫 근무일
  *  @param {(d:string, taskKey:string)=>boolean} p.hasPrecursorOn  D 에 그 업무의 사전작업 기록이 있나
  *  @returns {{value:number, source:'transmit', detail:string}|null}
  *  같은 대상일로 이어지는 D 가 여럿이면(예: 금요일·토요일 → 월요일) 가장 늦은 D 를 쓴다. */
-export function transmitValueFor({ targetDate, taskKey, byDate, nextWorkingDay, hasPrecursorOn } = {}) {
-    const srcs = TRANSMIT_SOURCES[taskKey];
+export function transmitValueFor({ targetDate, taskId, taskKey, byDate, nextWorkingDay, hasPrecursorOn } = {}) {
+    const srcs = sourcesOf(taskId);
     if (!srcs || !byDate || typeof byDate !== 'object' || typeof targetDate !== 'string') return null;
     if (typeof nextWorkingDay !== 'function' || typeof hasPrecursorOn !== 'function') return null;
 
@@ -149,7 +155,7 @@ export function transmitValueFor({ targetDate, taskKey, byDate, nextWorkingDay, 
     });
     if (!best) return null;
 
-    const normalKey = NORMAL_SOURCE[taskKey];
+    const normalKey = NORMAL_SOURCE[taskId];
     const normal = Math.round(num(best.s[normalKey]));
     const instant = Math.round(srcs.filter(k => k !== normalKey).reduce((a, k) => a + num(best.s[k]), 0));
     const atText = fmtAt(best.s.at);
@@ -172,13 +178,14 @@ export function transmitValueFor({ targetDate, taskKey, byDate, nextWorkingDay, 
  *  @param {object} p
  *  @param {string} p.targetDate  'YYYY-MM-DD'
  *  @param {string} p.today       'YYYY-MM-DD' — 대상일이 오늘이 아니면 null
- *  @param {string} p.taskKey     '직진배송' | '에이블리배송'
+ *  @param {string} p.taskId      업무 id — TASK.direct | TASK.ably
+ *  @param {string} [p.taskKey]   업무 지금 이름 — hasPrecursorOn 에 그대로 넘긴다
  *  @param {object} p.liveByDate  이번 읽기의 summarizeTransmitChunks(...).byDate
  *  @param {string|null} p.prevDate  전 근무일 P(lastWorkedDayBefore 결과). 없으면 null
  *  @param {(d:string, taskKey:string)=>boolean} [p.hasPrecursorOn]  P 에 그 업무의 사전작업 기록이 있나(선택)
  *  @returns {{value:0, source:'transmit-none', detail:string}|null} */
-export function transmitNoneFor({ targetDate, today, taskKey, liveByDate, prevDate, hasPrecursorOn } = {}) {
-    const srcs = TRANSMIT_SOURCES[taskKey];
+export function transmitNoneFor({ targetDate, today, taskId, taskKey, liveByDate, prevDate, hasPrecursorOn } = {}) {
+    const srcs = sourcesOf(taskId);
     if (!srcs || typeof targetDate !== 'string' || !YMD_RE.test(targetDate)) return null;
     if (targetDate !== today) return null;
     if (!liveByDate || typeof liveByDate !== 'object') return null;
