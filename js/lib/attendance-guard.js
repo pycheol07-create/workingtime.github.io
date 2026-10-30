@@ -8,7 +8,7 @@
 //   다섯 곳에서 쓰인다. 규칙을 한 곳에 두지 않으면 한쪽만 고쳐진다.
 //   DOM·Firebase 는 import 하지 않는다(tests/attendance-guard.test.js 가 node 로 돌린다).
 
-import { normalizeClock } from './clock-in-out.js?v=202610301130';
+import { normalizeClock } from './clock-in-out.js?v=202610301140';
 
 const 분으로 = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 

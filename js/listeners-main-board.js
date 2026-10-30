@@ -1,12 +1,12 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610301130';
-import * as State from './state.js?v=202610301130';
-import { render } from './app.js?v=202610301130';
-import { showToast, formatTimeTo24H } from './utils.js?v=202610301130';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202610301130';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202610301130';
+import * as DOM from './dom-elements.js?v=202610301140';
+import * as State from './state.js?v=202610301140';
+import { render } from './app.js?v=202610301140';
+import { showToast, formatTimeTo24H } from './utils.js?v=202610301140';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202610301140';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202610301140';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -14,12 +14,12 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202610301130';
+} from './app-logic.js?v=202610301140';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610301130';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202610301130';
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202610301130';
-import { openLocRecFromDash } from './locrec-dash.js?v=202610301130';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202610301140';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202610301140';
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202610301140';
+import { openLocRecFromDash } from './locrec-dash.js?v=202610301140';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {

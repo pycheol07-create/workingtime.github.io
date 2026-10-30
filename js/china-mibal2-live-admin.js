@@ -8,7 +8,7 @@
 //   ChinaStockGoods/EDITED_CELLS  cells.{code}.capacity        ← 기존 셀 편집(적재량) — 그 칸 하나만 merge/지움(다른 사람이 고친 칸을 덮지 않게)
 // 불러오기에 실패한 목록은 저장하지 않는다(빈 목록으로 덮어 스캐너 매핑이 지워지는 것을 막음 — 기존과 같다).
 import { doc, getDoc, setDoc, updateDoc, deleteField, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { zoneKey, capacityFor } from './lib/mibal2-calc.js?v=202610301130';
+import { zoneKey, capacityFor } from './lib/mibal2-calc.js?v=202610301140';
 
 const CHINA = 'ChinaStockGoods';
 const ADMIN_ONLY = '관리자만 바꿀 수 있습니다';

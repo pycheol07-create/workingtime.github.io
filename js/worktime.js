@@ -12,10 +12,10 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202610301130';
-import { setShellContext, goHome, onBeforeLeaveSave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610301130';
-import { memberNameFor } from './app-shell-data.js?v=202610301130';
-import { escapeHtml as esc } from './utils.js?v=202610301130';
+import { initializeFirebase } from './config.js?v=202610301140';
+import { setShellContext, goHome, onBeforeLeaveSave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610301140';
+import { memberNameFor } from './app-shell-data.js?v=202610301140';
+import { escapeHtml as esc } from './utils.js?v=202610301140';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -790,10 +790,13 @@ $('btn-excel').addEventListener('click', () => {
 // 엑셀과 같은 내용을 A4 세로 한 장으로(그 달 모든 날 + 합계·시급·금액·환율). 화면을 캡처하지 않고 인쇄용 표를 따로 그린다.
 // 결산 PDF(js/ui-history-settlement.js)에서 겪은 함정을 그대로 피한다 — 이 화면도 body 가 h-screen·overflow-hidden 이다.
 //   · 임시 상자는 문서 흐름 안 · body 맨 앞(fixed/absolute 거나 화면 아래로 밀리면 높이 0·어긋난 캡처)
-//   · 캡처하는 동안 body·html 의 overflow 를 풀고, 캡처 폭·높이를 픽셀로 고정(좁은 창에서 오른쪽 열이 잘리지 않게)
+//   · 캡처하는 동안 body·html 의 overflow 를 푼다
+//   · 표 폭은 A4 인쇄 폭(190mm = 96dpi 에서 718px)에 맞춘다 — html2pdf 가 그 폭의 상자에 넣어 가운데 정렬하므로,
+//     더 넓으면 오른쪽이 잘린다. html2canvas 의 windowWidth 는 건드리지 않는다(실제 창 폭과 다르면 가운데 정렬 위치가
+//     어긋나 넓은 화면에서 왼쪽이 통째로 잘렸다 — 2026-10-30 실제 사고). 폭·높이(width/height)만 상자 크기로 준다
 //   · pagebreak.avoid 는 이 방식에서 듣지 않으므로 넘치면 글자·여백을 줄여 한 장에 맞춘다
-const PDF_W = 760;                       // A4 세로 인쇄 폭 190mm ↔ 760px (4px/mm)
-const PDF_PAGE_H = Math.floor(277 * 4);  // 인쇄 높이 277mm(여백 10mm×2 제외)
+const PDF_W = 718;                                // A4 세로 인쇄 폭 190mm ↔ 718px (96dpi, html2pdf 의 기준)
+const PDF_PAGE_H = Math.floor(PDF_W * 277 / 190);  // 인쇄 높이 277mm(여백 10mm×2 제외) — 같은 비율
 $('btn-pdf').addEventListener('click', async () => {
     const p = personById(currentPid);
     if (!p) { toast('인원을 먼저 등록해 주세요.', true); return; }
@@ -866,7 +869,7 @@ $('btn-pdf').addEventListener('click', async () => {
             filename: `출퇴근기록표_${p.name}_${currentYm}.pdf`.replace(/[\\/:*?"<>|]/g, ''),
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0,
-                           width: capW, height: capH, windowWidth: capW, windowHeight: capH },
+                           width: capW, height: capH },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: [] }
         }).save();

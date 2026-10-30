@@ -10,7 +10,7 @@
 //   locSourceOf · locFreshMsOf · locStaleReason   위치값 엑셀의 옵션추가항목1 원천(로케이션관리 Locations)
 //   barcodeMapOfAoa  [바코드 매핑 올리기] 엑셀 → BARCODE_MAP(바코드 → 상품코드)
 // 공급처 이름·원가는 다루지 않는다. Locations rawData 는 '옵션추가항목1' 칸 하나만 꺼낸다.
-import { scanDbPreviewOf, byShipOf } from './scan-link.js?v=202610301130';
+import { scanDbPreviewOf, byShipOf } from './scan-link.js?v=202610301140';
 
 export const ARCHIVE_COLL = 'ChinaStockGoods_Archive';
 export const RECENT_SCAN_MIN = 10;          // 마지막 스캔 입고가 이 안이면 [스캐너에 반영] 전에 확인창
