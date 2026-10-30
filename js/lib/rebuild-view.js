@@ -11,7 +11,7 @@
 //   완료: 끝난 뒤 DONE_FLASH_MS 동안 '완료 — 채우기 N칸 · 변경 추천 N건 (HH:MM)'.
 //   진행·대기·완료는 권한 없는 직원에게도 보인다(2026-10-27). 버튼·경고·안내는 권한이 있는 사람만.
 
-import { STAGES, fmtHM } from './refill-view.js?v=202610301032';
+import { STAGES, fmtHM } from './refill-view.js?v=202610301130';
 
 export { STAGES };
 export const DONE_FLASH_MS = 60 * 1000;      // 완료 문구를 보여 주는 시간

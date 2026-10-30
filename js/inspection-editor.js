@@ -1,11 +1,11 @@
 // === js/inspection-editor.js ===
-import * as DOM from './dom-elements.js?v=202610301032';
-import * as State from './state.js?v=202610301032';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610301032';
+import * as DOM from './dom-elements.js?v=202610301130';
+import * as State from './state.js?v=202610301130';
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202610301130';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202610301032';
-import { getUniqueInboundCount } from './inspection-logic.js?v=202610301032';
-import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=202610301032';
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202610301130';
+import { getUniqueInboundCount } from './inspection-logic.js?v=202610301130';
+import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=202610301130';
 
 export let currentProductLogs = [];
 // 수동 사전등록 사진을 올린 결과 — 저장이 실패해 다시 누를 때 같은 사진을 또 올리지 않게

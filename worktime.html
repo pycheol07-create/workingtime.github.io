@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202610301032"></script>
-    <link rel="stylesheet" href="css/suit.css?v=202610301032">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610301032">
+    <script src="js/theme-boot.js?v=202610301130"></script>
+    <link rel="stylesheet" href="css/suit.css?v=202610301130">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610301130">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -14,7 +14,7 @@
     <title>출퇴근 기록표</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
-    <link rel="stylesheet" href="css/tool-d.css?v=202610301032">
+    <link rel="stylesheet" href="css/tool-d.css?v=202610301130">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         .ws-table { border-collapse: collapse; width: 100%; min-width: 700px; font-size: 13px; }
@@ -95,6 +95,7 @@
         <div class="flex items-center gap-1.5 lg:gap-2">
             <button id="btn-add-person" class="text-xs font-bold px-2.5 py-1.5 lg:px-3 lg:py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition" title="인원 등록"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="inline-block align-[-4px]" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="hidden sm:inline"> 인원 등록</span></button>
             <button id="btn-excel" class="text-xs font-bold px-2.5 py-1.5 lg:px-3 lg:py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition" title="엑셀"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block align-[-4px]" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span class="hidden sm:inline"> 엑셀</span></button>
+            <button id="btn-pdf" class="text-xs font-bold px-2.5 py-1.5 lg:px-3 lg:py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition disabled:opacity-60" title="PDF"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block align-[-4px]" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span class="hidden sm:inline"> PDF</span></button>
             <button id="btn-close" class="text-xs font-bold px-2.5 py-1.5 lg:px-3 lg:py-2 rounded-lg bg-slate-100 hover:bg-red-100 hover:text-red-600 text-slate-700 transition" title="홈(대시보드)으로">홈으로</button>
         </div>
     </header>
@@ -265,10 +266,12 @@
     <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg z-[60]"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="js/modal-esc.js?v=202610301032"></script>
-    <script type="module" src="js/worktime.js?v=202610301032"></script>
-    <script type="module" src="js/modal-drag.js?v=202610301032"></script>
-    <script type="module" src="js/page-gate.js?v=202610301032" data-perm-page="worktime.view"></script>
-    <script type="module" src="js/app-shell.js?v=202610301032"></script>
+    <!-- PDF 저장(js/worktime.js btn-pdf) — 결산 보고 PDF(history.html)와 같은 라이브러리·버전 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="js/modal-esc.js?v=202610301130"></script>
+    <script type="module" src="js/worktime.js?v=202610301130"></script>
+    <script type="module" src="js/modal-drag.js?v=202610301130"></script>
+    <script type="module" src="js/page-gate.js?v=202610301130" data-perm-page="worktime.view"></script>
+    <script type="module" src="js/app-shell.js?v=202610301130"></script>
 </body>
 </html>

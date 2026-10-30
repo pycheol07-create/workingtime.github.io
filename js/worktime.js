@@ -12,10 +12,10 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202610301032';
-import { setShellContext, goHome, onBeforeLeaveSave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610301032';
-import { memberNameFor } from './app-shell-data.js?v=202610301032';
-import { escapeHtml as esc } from './utils.js?v=202610301032';
+import { initializeFirebase } from './config.js?v=202610301130';
+import { setShellContext, goHome, onBeforeLeaveSave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610301130';
+import { memberNameFor } from './app-shell-data.js?v=202610301130';
+import { escapeHtml as esc } from './utils.js?v=202610301130';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -784,6 +784,101 @@ $('btn-excel').addEventListener('click', () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, currentYm);
     XLSX.writeFile(wb, `출퇴근기록표_${p.name}_${currentYm}.xlsx`);
+});
+
+// ── PDF ──────────────────────────────────────────────────────────
+// 엑셀과 같은 내용을 A4 세로 한 장으로(그 달 모든 날 + 합계·시급·금액·환율). 화면을 캡처하지 않고 인쇄용 표를 따로 그린다.
+// 결산 PDF(js/ui-history-settlement.js)에서 겪은 함정을 그대로 피한다 — 이 화면도 body 가 h-screen·overflow-hidden 이다.
+//   · 임시 상자는 문서 흐름 안 · body 맨 앞(fixed/absolute 거나 화면 아래로 밀리면 높이 0·어긋난 캡처)
+//   · 캡처하는 동안 body·html 의 overflow 를 풀고, 캡처 폭·높이를 픽셀로 고정(좁은 창에서 오른쪽 열이 잘리지 않게)
+//   · pagebreak.avoid 는 이 방식에서 듣지 않으므로 넘치면 글자·여백을 줄여 한 장에 맞춘다
+const PDF_W = 760;                       // A4 세로 인쇄 폭 190mm ↔ 760px (4px/mm)
+const PDF_PAGE_H = Math.floor(277 * 4);  // 인쇄 높이 277mm(여백 10mm×2 제외)
+$('btn-pdf').addEventListener('click', async () => {
+    const p = personById(currentPid);
+    if (!p) { toast('인원을 먼저 등록해 주세요.', true); return; }
+    if (typeof html2pdf === 'undefined') { toast('PDF 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 해 주세요.', true); return; }
+    const btn = $('btn-pdf');
+    btn.disabled = true;
+    let wrap = null;
+    const prevBody = document.body.style.overflow, prevHtml = document.documentElement.style.overflow;
+    try {
+        const rec = records[p.id] || {};
+        const n = daysInMonth(currentYm);
+        const [y, m] = currentYm.split('-');
+        const td = 'border:1px solid #CBD5E1;padding:var(--pad) 6px;';
+        let body = '';
+        for (let d = 1; d <= n; d++) {
+            const key = pad2(d), r = rec[key] || {}, c = calcDay(r);
+            const wd = weekdayOf(currentYm, d);
+            const bg = wd === 0 || wd === 6 ? 'background:#F1F5F9;color:#64748B;' : '';
+            body += `<tr style="${bg}">`
+                + `<td style="${td}text-align:center;">${Number(m)}/${d}</td>`
+                + `<td style="${td}text-align:center;">${DAY_NAME[wd]}</td>`
+                + `<td style="${td}text-align:center;">${esc(r.in || '')}</td>`
+                + `<td style="${td}text-align:center;">${esc(r.out || '')}</td>`
+                + `<td style="${td}text-align:right;">${c ? c.breakMin + '분' : ''}</td>`
+                + `<td style="${td}text-align:right;">${c ? esc(hoursText(c.worked)) : ''}</td>`
+                + `<td style="${td}text-align:right;">${c ? fmt(Math.floor(hoursDecimal(c.worked) * num(p.wage))) : ''}</td>`
+                + `<td style="${td}text-align:center;">${c ? (r.ok ? '확인' : '미확인') : ''}</td>`
+                + `<td style="${td}word-break:break-all;">${esc(r.memo || '')}</td></tr>`;
+        }
+        const { workedMin, days } = monthTotals(p.id);
+        const pay = Math.floor(hoursDecimal(workedMin) * num(p.wage));
+        const th = `${td}background:#E2E8F0;font-weight:700;text-align:center;`;
+        const sumRow = (label, value) => `<tr><td style="${td}background:#F8FAFC;font-weight:700;width:40%;">${label}</td><td style="${td}text-align:right;">${value}</td></tr>`;
+        const cols = [['날짜', 9], ['요일', 6], ['출근', 9], ['퇴근', 9], ['휴게', 8], ['근무시간', 10], ['금액(원)', 12], ['확인', 8], ['메모', 29]];
+        wrap = document.createElement('div');
+        wrap.style.cssText = 'height:0;overflow:hidden;';
+        const holder = document.createElement('div');
+        holder.style.cssText = `width:${PDF_W}px;box-sizing:border-box;background:#fff;color:#0F172A;padding:12px 16px;`
+            + 'font-family:"Pretendard","Malgun Gothic",sans-serif;font-size:11px;line-height:1.35;--pad:3px;';
+        holder.innerHTML = `<div style="font-size:17px;font-weight:800;margin-bottom:2px;">출퇴근 기록표 — ${esc(p.name)}</div>`
+            + `<div style="color:#475569;margin-bottom:8px;">${Number(y)}년 ${Number(m)}월 · 출력 ${esc(new Date().toLocaleDateString('ko-KR'))}</div>`
+            + `<table style="width:100%;table-layout:fixed;border-collapse:collapse;"><colgroup>${cols.map(([, w]) => `<col style="width:${w}%">`).join('')}</colgroup>`
+            + `<thead><tr>${cols.map(([h]) => `<th style="${th}">${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`
+            + `<table style="width:55%;border-collapse:collapse;margin-top:10px;margin-left:auto;">`
+            + sumRow('근무일', `${days}일`)
+            + sumRow('근무시간 합계', esc(hoursText(workedMin)))
+            + sumRow('시급', `${fmt(p.wage)}원`)
+            + sumRow('금액', `${fmt(pay)}원`)
+            + (fx.rate > 0 ? sumRow(`환율(${esc(fx.date)})`, `1위안 = ${esc(fx.rate)}원`) + sumRow('금액(위안)', `${(pay / fx.rate).toFixed(2)} 위안`) : '')
+            + `</table><div style="color:#64748B;margin-top:6px;font-size:10px;">연장·야간·주휴수당 미포함 · 위안화는 당일 환율로 총액 환산</div>`;
+        wrap.appendChild(holder);
+        document.body.insertBefore(wrap, document.body.firstChild);
+        document.body.style.overflow = 'visible';
+        document.documentElement.style.overflow = 'visible';
+
+        // 한 장에 안 들어가면(메모가 길게 접힌 날이 많을 때) 글자·줄 여백을 조금씩 줄인다
+        for (let i = 0; i < 6 && holder.scrollHeight > PDF_PAGE_H; i++) {
+            holder.style.fontSize = `${10.5 - i * 0.5}px`;
+            holder.style.setProperty('--pad', `${Math.max(0, 2 - i * 0.5)}px`);
+        }
+        // 그래도 넘치면 표를 넓힌다 — 메모 줄바꿈이 줄고, PDF 는 폭에 맞춰 줄여 넣으므로 세로/가로 비율이 A4 안에 들면 한 장이 된다
+        for (let w = PDF_W; w < 1600 && holder.scrollHeight / holder.scrollWidth > PDF_PAGE_H / PDF_W; ) {
+            w += 120;
+            holder.style.width = `${w}px`;
+        }
+        const capW = Math.ceil(holder.scrollWidth), capH = Math.ceil(holder.scrollHeight);
+        if (capH < 50) throw new Error('내용 높이를 계산하지 못했습니다');
+        await html2pdf().from(holder).set({
+            margin: [10, 10, 10, 10],
+            filename: `출퇴근기록표_${p.name}_${currentYm}.pdf`.replace(/[\\/:*?"<>|]/g, ''),
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0,
+                           width: capW, height: capH, windowWidth: capW, windowHeight: capH },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: [] }
+        }).save();
+    } catch (e) {
+        console.error('출퇴근 기록표 PDF 저장 실패:', e && e.message ? e.message : e);
+        toast('PDF 저장 중 오류가 발생했습니다.', true);
+    } finally {
+        document.body.style.overflow = prevBody;
+        document.documentElement.style.overflow = prevHtml;
+        if (wrap) wrap.remove();
+        btn.disabled = false;
+    }
 });
 
 $('btn-close').addEventListener('click', () => goHome());   // '닫기' → '홈으로'(2026-10-16, 같은 탭 이동)
