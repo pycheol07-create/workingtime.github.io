@@ -1,10 +1,10 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610301817';
-import { renderPermissionPanel } from './admin-perm.js?v=202610301817';
-import { taskIdOf, isLockedTaskId } from './lib/task-ids.js?v=202610301817';
-import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202610301817';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610301845';
+import { renderPermissionPanel } from './admin-perm.js?v=202610301845';
+import { taskIdOf, isSystemTaskId } from './lib/task-ids.js?v=202610301845';
+import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202610301845';
 
 // 📱 순서 바꾸기 ▲▼ — HTML5 끌어 옮기기는 터치에서 안 되므로, 터치 화면(hover 없음)에서만 보인다(admin.html .move-btns).
 //    누르면 같은 종류의 앞/뒤 줄과 자리를 바꾼다(admin.js handleMoveClick). 마우스 환경은 ☰ 끌기 그대로.
@@ -368,19 +368,20 @@ export function renderKeyTasks(keyTasks, taskIdNames = {}) {
     });
 }
 
-// 업무 줄 하나. 잠긴 업무(프로그램이 이름으로 계산)는 이름 칸을 읽기 전용 + 🔒. '+ 업무 추가'(admin.js)도 이 함수로 만든다.
+// 업무 줄 하나. 시스템 업무(프로그램 기능이 고정 id 로 찾는 업무)는 '⚙ 기능 연결됨' 배지 — 이름은 바꿀 수 있다(업무 id 2단계 7, 2026-10-30).
+// '+ 업무 추가'(admin.js)도 이 함수로 만든다.
 // dup: 같은 업무가 여러 그룹(또는 한 그룹에 두 번)에 있으면 '중복' 배지 — 배지는 늘 그리고 숨김만 바꾼다(markDuplicateTaskRows)
 export function taskItemHtml(task, taskId, tIndex = '', dup = false) {
-    const locked = isLockedTaskId(taskId);
-    const lockAttr = locked ? ' readonly title="프로그램이 이 이름으로 계산합니다(이름 변경 불가)"' : '';
-    const lockMark = locked ? '<span class="text-xs" title="프로그램이 이 이름으로 계산합니다(이름 변경 불가)">🔒</span>' : '';
+    const sysMark = isSystemTaskId(taskId)
+        ? '<span class="task-system-badge shrink-0 text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded px-1.5 py-0.5" title="프로그램 기능(업무 예상·대시보드 등)에 연결된 업무 — 이름을 바꿔도 따라갑니다">⚙ 기능 연결됨</span>'
+        : '';
     const dupMark = `<span class="task-dup-badge${dup ? '' : ' hidden'} shrink-0 text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded px-1.5 py-0.5" title="같은 업무가 여러 그룹에 있습니다 — 하나만 남기세요">중복</span>`;
     return `
             <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group" data-task-id="${taskId || ''}">
                 <div class="flex items-center gap-2 flex-grow">
                     <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
-                    <input type="text" value="${task}" class="task-name flex-grow min-w-0 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none"${lockAttr}>
-                    ${lockMark}${dupMark}
+                    <input type="text" value="${task}" class="task-name flex-grow min-w-0 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none">
+                    ${sysMark}${dupMark}
                     <span class="task-usage flex flex-wrap justify-end gap-0.5 shrink-0"></span>
                 </div>
                 <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-t-index="${tIndex}">삭제</button>

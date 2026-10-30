@@ -1,17 +1,17 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610301817';
-import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610301817';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610301817';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610301817';
-import { memberNameFor } from './app-shell-data.js?v=202610301817';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610301845';
+import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610301845';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610301845';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610301845';
+import { memberNameFor } from './app-shell-data.js?v=202610301845';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610301817';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610301817';
-import { getPermModel } from './admin-perm.js?v=202610301817';
-import { showConfirm } from './utils.js?v=202610301817';
-import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS, taskIdOf } from './lib/task-ids.js?v=202610301817';
-import { planTaskWidget, widgetTaskChoices, duplicateTasks, migrateDashboardTaskItems, taskWidgetId } from './lib/task-config-sync.js?v=202610301817';
+import { menuConfigOf } from './lib/perm.js?v=202610301845';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610301845';
+import { getPermModel } from './admin-perm.js?v=202610301845';
+import { showConfirm } from './utils.js?v=202610301845';
+import { ensureTaskIds, newTaskId, isSystemTaskId, SYSTEM_TASKS, taskIdOf } from './lib/task-ids.js?v=202610301845';
+import { planTaskWidget, widgetTaskChoices, duplicateTasks, migrateDashboardTaskItems, taskWidgetId } from './lib/task-config-sync.js?v=202610301845';
 
 import {
     renderAdminUI,
@@ -33,13 +33,13 @@ import {
     findDeadMenuItems,
     countNamelessMenuRows,
     MOVE_BTNS
-} from './admin-ui.js?v=202610301817';
+} from './admin-ui.js?v=202610301845';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610301817';
+} from './admin-logic.js?v=202610301845';
 
 let db, auth;
 let appConfig = {};
@@ -521,8 +521,10 @@ function taskRenameMessage(info, beforeCfg) {
         lines.push(`  함께 바뀌는 설정: ${labels.length ? labels.join(', ') : '없음'}`);
     });
     (info.reused || []).forEach(u => {
-        const prev = (beforeCfg.taskIdNames || {})[u.prevId] || '지운 업무';
-        lines.push(`'${u.name}' 은(는) 예전에 다른 업무(지금 '${prev}')의 이름이었습니다 — 옛 기록이 이 업무로 합쳐 보입니다.`);
+        const prev = (beforeCfg.taskIdNames || {})[u.prevId];
+        lines.push(prev
+            ? `'${u.name}' 은(는) 예전에 다른 업무(지금 '${prev}')의 이름이었습니다 — 그 이름의 옛 기록이 이 업무로 합쳐 보이고(이력·통계·업무 예상 계산), '${prev}' 에서는 빠집니다.`
+            : `'${u.name}' 은(는) 예전에 지운 업무의 이름이었습니다 — 그 이름의 옛 기록이 이 업무로 합쳐 보입니다(이력·통계·업무 예상 계산).`);
     });
     (info.taken || []).forEach(t => {
         lines.push(`'${t.name}' 은(는) 이번에 지운 업무의 이름이었습니다 — 그 업무의 숨은 설정(품질비용·예측 등)이 같은 이름의 업무로 이어집니다.`);
@@ -729,23 +731,23 @@ function handleDynamicClicks(e) {
     }
     else if (e.target.classList.contains('delete-key-task-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.key-task-item')?.remove(); }
     else if (e.target.classList.contains('delete-task-btn')) {
-        // 🔒 프로그램이 이름으로 계산하는 업무는 마우스 환경에서도 한 번 더 묻는다
+        // ⚙ 프로그램 기능에 연결된 업무(시스템 업무)는 마우스 환경에서도 한 번 더 묻는다
         // 지운 뒤 주요 업무·처리량·위젯 연결·원가 칸을 지금 화면 기준으로 다시 그린다(지운 업무가 바로 빠진다)
         const row = e.target.closest('.task-item');
         const removeRow = () => { row.remove(); refreshTaskViews(); };
-        if (row && isLockedTaskId(row.dataset.taskId)) {
+        if (row && isSystemTaskId(row.dataset.taskId)) {
             const name = row.querySelector('.task-name')?.value.trim() || '';
-            showConfirm(`'${name}' 은(는) 프로그램이 이 이름으로 계산하는 업무입니다(예측·대시보드 등).\n지우면 그 계산에서 빠집니다. 그래도 삭제할까요?\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
-                { title: '고정 업무 삭제', okText: '삭제', danger: true }).then(ok => ok && removeRow());
+            showConfirm(`'${name}' 은(는) 프로그램 기능에 연결된 업무입니다(업무 예상·대시보드 등).\n지우면 그 기능에서 빠집니다. 그래도 삭제할까요?\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
+                { title: '기능 연결 업무 삭제', okText: '삭제', danger: true }).then(ok => ok && removeRow());
         } else if (row && touchConfirm(DELETE_CONFIRM_MSG)) removeRow();
     }
     else if (e.target.classList.contains('delete-task-group-btn')) {
         const card = e.target.closest('.task-group-card');
-        const locked = card ? [...card.querySelectorAll('.task-item')].filter(r => isLockedTaskId(r.dataset.taskId))
+        const locked = card ? [...card.querySelectorAll('.task-item')].filter(r => isSystemTaskId(r.dataset.taskId))
             .map(r => r.querySelector('.task-name')?.value.trim()).filter(Boolean) : [];
         const removeCard = () => { card.remove(); refreshTaskViews(); };
         if (locked.length) {
-            showConfirm(`이 그룹에 프로그램이 이름으로 계산하는 업무가 있습니다: ${locked.join(', ')}\n그룹을 지우면 그 계산에서 빠집니다. 그래도 삭제할까요?\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
+            showConfirm(`이 그룹에 프로그램 기능에 연결된 업무가 있습니다(업무 예상·대시보드 등): ${locked.join(', ')}\n그룹을 지우면 그 기능에서 빠집니다. 그래도 삭제할까요?\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
                 { title: '그룹 삭제', okText: '삭제', danger: true }).then(ok => ok && removeCard());
         } else if (card && touchConfirm(DELETE_CONFIRM_MSG)) removeCard();
     }
@@ -871,10 +873,10 @@ function handleNewTaskNameBlur(e) {
     // 한 줄에 한 번만 — 뒤에 이름을 또 바꿔도 다시 묻지 않는다
     input.removeEventListener('blur', handleNewTaskNameBlur);
 
-    // 이미 있는 업무 이름(잠금 업무·다른 그룹의 같은 업무·저장된 업무)으로 만든 줄은 그 업무의 설정을 따르므로 묻지 않는다
+    // 이미 있는 업무 이름(시스템 업무 기본 이름·다른 그룹의 같은 업무·저장된 업무)으로 만든 줄은 그 업무의 설정을 따르므로 묻지 않는다
     const key = newTaskName.toLowerCase();
     const sameName = (n) => String(n || '').trim().toLowerCase() === key;
-    if (Object.keys(LOCKED_TASKS).some(sameName)) return;
+    if (Object.keys(SYSTEM_TASKS).some(sameName)) return;
     // 저장된 업무 이름이라도 화면에서 지운 업무면(다시 만드는 경우) 고정 업무·처리량·위젯 연결이 이미 빠졌으니 다시 묻는다 — 아래 화면 줄 검사만 본다
     const row = input.closest('.task-item');
     if ([...document.querySelectorAll('#task-groups-container .task-item')]

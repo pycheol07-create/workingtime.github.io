@@ -6,7 +6,7 @@
 // ⚠️ 관리자 설정값(simTimeTaskDeps·simAutoModes 등 이름 칸)은 여기서 다루지 않는다 — 부르는 쪽이 설정을 먼저 보고, 없을 때만 이 기본값.
 // ※ 순수 모듈(DOM·Firebase 없음).
 
-import { TASK, SYSTEM_TASKS, taskNameOf, isTask } from './task-ids.js?v=202610301817';
+import { TASK, SYSTEM_TASKS, taskNameOf, isTask } from './task-ids.js?v=202610301845';
 
 /** 업무 예상의 기존 10개. id 는 화면 칸(sim-qty-<id>)용 짧은 이름, taskId 는 업무 id.
  *  자동값 규칙: ai=국내배송 예측 / incoming=입고일정 / china-linked=그날 도착 패킹의 샘플검수 장수(없으면 중국제작 입고량×검수비율)

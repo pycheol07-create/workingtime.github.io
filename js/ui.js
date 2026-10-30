@@ -1,5 +1,5 @@
 // === ui.js (파일 분리 후 인덱스 역할) ===
-import { taskWidgetDefs, taskIdOfWidget } from './lib/task-config-sync.js?v=202610301817';
+import { taskWidgetDefs, taskIdOfWidget } from './lib/task-config-sync.js?v=202610301845';
 
 // ✅ [유지] 앱 전역에서 사용하는 차트 인스턴스 (app.js에서 사용)
 let trendCharts = {};
@@ -107,7 +107,7 @@ import {
     renderDashboardLayout,
     updateSummary,
     applyDynamicSidebar // ✨ 신규 임포트
-} from './ui-main.js?v=202610301817';
+} from './ui-main.js?v=202610301845';
 
 export {
     renderTaskAnalysis,
@@ -131,7 +131,7 @@ import {
     renderReportWeekly,
     renderReportMonthly,
     renderReportYearly
-} from './ui-history.js?v=202610301817';
+} from './ui-history.js?v=202610301845';
 
 export {
     renderWeeklyHistory,
@@ -154,7 +154,7 @@ import {
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderManualAddModalDatalists
-} from './ui-modals.js?v=202610301817';
+} from './ui-modals.js?v=202610301845';
 
 export {
     renderQuantityModalInputs,

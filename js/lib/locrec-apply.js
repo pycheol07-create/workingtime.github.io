@@ -12,10 +12,10 @@
 // ⚠️ 돌려주는 실패 정보·문구에는 상품코드·자리 id 만 — 상품명·rawDataStr·공급처 값을 넣지 않는다(로그·alert 로 나간다).
 // import 는 같은 lib 의 sensitive-cols.js(cleanRaw)·multi-loc.js(normLocId)·refill-view.js(dayKey·fmtHM, KST)·loc-recommend.js(isEtcLocObj·kstMidnight) 만.
 
-import { cleanRaw } from './sensitive-cols.js?v=202610301817';
-import { normLocId } from './multi-loc.js?v=202610301817';
-import { dayKey, fmtHM, tsMs } from './refill-view.js?v=202610301817';
-import { isEtcLocObj, kstMidnight } from './loc-recommend.js?v=202610301817';
+import { cleanRaw } from './sensitive-cols.js?v=202610301845';
+import { normLocId } from './multi-loc.js?v=202610301845';
+import { dayKey, fmtHM, tsMs } from './refill-view.js?v=202610301845';
+import { isEtcLocObj, kstMidnight } from './loc-recommend.js?v=202610301845';
 
 export const PRODUCT_FIELDS = ['code', 'name', 'option', 'stock', 'stock2f', 'rawDataStr'];
 export const EMPTY_PRODUCT = Object.freeze({ code: '', name: '', option: '', stock: '0', stock2f: '0', rawDataStr: '{}' });

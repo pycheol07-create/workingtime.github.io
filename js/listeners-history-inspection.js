@@ -1,21 +1,22 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202610301817';
-import * as State from './state.js?v=202610301817';
-import { showToast, getTodayDateString } from './utils.js?v=202610301817';
-import { dayInspItems } from './lib/insp-day.js?v=202610301817';
+import * as DOM from './dom-elements.js?v=202610301845';
+import * as State from './state.js?v=202610301845';
+import { showToast, getTodayDateString } from './utils.js?v=202610301845';
+import { dayInspItems } from './lib/insp-day.js?v=202610301845';
+import { TASK, tName } from './task-names.js?v=202610301845';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202610301817'; 
+} from './ui-history.js?v=202610301845'; 
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202610301817';
+} from './ui-history-inspection.js?v=202610301845';
 
 import {
     loadInspectionLogs,
@@ -27,7 +28,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202610301817';
+} from './inspection-logic.js?v=202610301845';
 
 import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -53,7 +54,7 @@ async function resumeInspectionFromDate(date) {
         const merged = [...current, ...toAdd];
         await setDoc(todayRef, { inspectionList: merged }, { merge: true });
         if (State.appState) State.appState.inspectionList = merged;
-        showToast(`검수 대기 리스트에 ${toAdd.length}건을 불러왔습니다. 메인 화면 '샘플검수'에서 이어서 진행하세요.`);
+        showToast(`검수 대기 리스트에 ${toAdd.length}건을 불러왔습니다. 메인 화면 '${tName(TASK.sample)}'에서 이어서 진행하세요.`);
     } catch (err) {
         console.error('이어서 검수 불러오기 실패:', err);
         showToast('이어서 검수 불러오기에 실패했습니다.', true);

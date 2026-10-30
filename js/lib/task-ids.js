@@ -6,13 +6,15 @@
 //   저장 때 id 기준으로 다시 만든 사본이 된다. 과거 기록(이름 키)은 그대로 두고 canonicalTaskName 으로 합쳐 본다.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/task-ids.test.js
 
-/** 프로그램이 이 이름으로 계산하는 업무 — 이름 변경 잠금, id 고정.
- *  ui-history-prediction.js LEGACY_SIM_TASKS 의 key 를 모두 포함해야 한다(테스트가 확인).
+/** 시스템 업무(프로그램 기능이 쓰는 업무) 기본 이름 → 고정 id.
+ *  ui-history-prediction.js LEGACY_SIM_TASKS 의 taskId 를 모두 포함해야 한다(테스트가 확인).
  *  그 밖에 코드가 이름으로 계산하는 것: 오류(ui-history-productivity.js 채우기·오류 분석),
  *  중국제작(담당)(예측 DEFAULT_TIME_TASK_DEPS), 청소·앵글정리(예측 DEFAULT_SIM_ZERO_TASKS),
  *  매장근무·교육(예측 TIME_TASK_EXCLUDE), 로케이션 동선관리(feature-catalog.js LOCREC_TASK — 대시보드 [변경추천]·업무 예상),
  *  관리자 개별업무(예측 제외·인원 줄 — 업무 id 2단계에서 추가, 2026-10-30).
- *  업무 id 2단계(2026-10-30): 코드는 이름 대신 TASK.xxx(id) → taskNameOf 로 지금 이름을 얻는다. 잠금은 7단계에서 푼다. */
+ *  업무 id 2단계(2026-10-30): 코드는 이름 대신 TASK.xxx(id) → taskNameOf 로 지금 이름을 얻는다.
+ *  7단계(2026-10-30): 이름 잠금을 풀었다 — 이름을 바꿔도 id 로 따라간다. 여기 이름은 '처음 기본 이름'(id 저장 전 설정·새로 만든 줄의 id 판정)이다.
+ *  코드에서 이 이름 글자로 업무를 찾지 않는다(tests/task-name-literals.test.js). */
 export const SYSTEM_TASKS = Object.freeze({
     '국내배송': 'k_domestic',
     '중국제작': 'k_china',
@@ -35,8 +37,6 @@ export const SYSTEM_TASKS = Object.freeze({
     '로케이션 동선관리': 'k_locroute',
     '관리자 개별업무': 'k_admin'
 });
-/** 옛 이름 — 7단계(잠금 해제)까지 유지 */
-export const LOCKED_TASKS = SYSTEM_TASKS;
 
 /** 코드에서 쓰는 시스템 업무 id. 이름은 taskNameOf(TASK.xxx, cfg) 로 얻는다. */
 export const TASK = Object.freeze({
@@ -45,7 +45,7 @@ export const TASK = Object.freeze({
     loadunload: 'k_loadunload', directPrep: 'k_direct_prep', error: 'k_error', chinaOwner: 'k_china_owner',
     cleaning: 'k_cleaning', angle: 'k_angle', store: 'k_store', training: 'k_training', locroute: 'k_locroute', admin: 'k_admin'
 });
-const LOCKED_BY_ID = Object.freeze(Object.fromEntries(Object.entries(LOCKED_TASKS).map(([n, id]) => [id, n])));
+const SYSTEM_BY_ID = Object.freeze(Object.fromEntries(Object.entries(SYSTEM_TASKS).map(([n, id]) => [id, n])));
 
 /** 업무 이름이 들어가는 설정 칸. 없는 칸은 만들지 않는다. */
 export const TASK_NAME_ARRAY_FIELDS = ['keyTasks', 'quantityTaskTypes', 'costCalcTasks', 'qualityCostTasks',
@@ -58,8 +58,8 @@ const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 const ID_CHARS = '0123456789abcdefghijklmnopqrstuvwxyz';
 
-/** 잠긴 업무의 id 인가 */
-export const isLockedTaskId = (id) => Object.prototype.hasOwnProperty.call(LOCKED_BY_ID, id);
+/** 시스템 업무(고정 id)인가 */
+export const isSystemTaskId = (id) => Object.prototype.hasOwnProperty.call(SYSTEM_BY_ID, id);
 
 /** 새 일반 업무 id — 't_' + base36 8글자. used(Set·배열) 와 겹치지 않게. */
 export function newTaskId(used, rand = Math.random) {
@@ -94,7 +94,7 @@ export function taskIdOf(name, taskIdNames) {
 }
 
 /** 불러온 설정에 id 를 붙인 사본(메모리 전용 — 첫 저장 때 기록된다. 여기서 쓰지 않는다).
- *  taskIdNames 없는 이름에 id 부여(잠긴 이름은 고정 id), taskGroups 에 없는 항목은 뺀다.
+ *  taskIdNames 없는 이름에 id 부여(시스템 업무 기본 이름은 고정 id), taskGroups 에 없는 항목은 뺀다.
  *  같은 이름이 여러 그룹에 있으면 같은 id. */
 export function ensureTaskIds(cfg, rand = Math.random) {
     const c = cfg || {};
@@ -109,15 +109,15 @@ export function ensureTaskIds(cfg, rand = Math.random) {
     const used = new Set([...Object.keys(old), ...Object.values(isObj(c.taskAliases) ? c.taskAliases : {})]);
     for (const n of names) {
         if (Object.values(out).includes(n)) continue;
-        const locked = LOCKED_TASKS[n];
+        const locked = SYSTEM_TASKS[n];
         const id = (locked && !(locked in out)) ? locked : newTaskId(used, rand);
         used.add(id);
         out[id] = n;
     }
-    // 나중에 잠금 목록에 넣은 이름이 일반 id 로 저장돼 있으면 고정 id 로 옮긴다(별칭도 따라감) — 안 옮기면 검사가 저장을 막는다
+    // 나중에 시스템 업무 목록에 넣은 이름이 일반 id 로 저장돼 있으면(그 고정 id 가 아직 없을 때만) 고정 id 로 옮긴다(별칭도 따라감)
     let aliases = c.taskAliases;
     for (const [id, n] of Object.entries(out)) {
-        const locked = LOCKED_TASKS[n];
+        const locked = SYSTEM_TASKS[n];
         if (!locked || locked === id || locked in out) continue;
         delete out[id];
         out[locked] = n;
@@ -130,7 +130,7 @@ export function ensureTaskIds(cfg, rand = Math.random) {
 
 /** 관리자 화면의 업무 줄들 [{id, name}] → { taskIdNames, rowIds }.
  *  이미 아는 id(before 에 있음)는 그 줄의 이름으로, 새 줄은 같은 이름의 업무가 있으면 그 id(두 그룹에 같은 업무),
- *  잠긴 이름이면 고정 id, 아니면 줄의 id 를 쓴다. 같은 id 의 줄이 이름이 다르면 앞 줄 이름을 쓴다(검사가 거부). */
+ *  시스템 업무 기본 이름이고 그 고정 id 가 아직 없으면 고정 id, 아니면 줄의 id 를 쓴다. 같은 id 의 줄이 이름이 다르면 앞 줄 이름을 쓴다(검사가 거부). */
 export function collectTaskIds(rows, beforeIdNames) {
     const before = isObj(beforeIdNames) ? beforeIdNames : {};
     const out = {};
@@ -147,7 +147,7 @@ export function collectTaskIds(rows, beforeIdNames) {
         if (!name || rowIds[i]) return;
         let id = byName.get(name);
         if (!id) {
-            const locked = LOCKED_TASKS[name];
+            const locked = SYSTEM_TASKS[name];
             id = (locked && !(locked in out)) ? locked : r.id;
         }
         if (!id) return;
@@ -199,7 +199,7 @@ export function taskNameOf(id, cfg) {
     if (v !== undefined) return v;
     const ids = isObj(ctx.ids) ? ctx.ids : {};
     if (Object.prototype.hasOwnProperty.call(ids, id) && ids[id]) v = ids[id];
-    else if (isLockedTaskId(id)) v = canonIn(ctx, LOCKED_BY_ID[id]);
+    else if (isSystemTaskId(id)) v = canonIn(ctx, SYSTEM_BY_ID[id]);
     else v = '';
     ctx.byId.set(id, v);
     return v;
@@ -217,12 +217,13 @@ export function isTask(name, id, cfg) {
 /** 이름 → 시스템 업무 id(색 표 등). 시스템 업무가 아니면 '' */
 export function systemIdOfName(name, cfg) {
     if (name == null || name === '') return '';
-    for (const id of Object.keys(LOCKED_BY_ID)) if (isTask(name, id, cfg)) return id;
+    for (const id of Object.keys(SYSTEM_BY_ID)) if (isTask(name, id, cfg)) return id;
     return '';
 }
 
 /** 이름 검사 → 오류 문구 배열(비면 통과). 빈 이름, 서로 다른 업무가 같은 이름(대소문자·공백 무시),
- *  잠긴 업무 이름 변경, 같은 업무(두 그룹)인데 이름이 다른 줄을 거부한다. */
+ *  같은 업무(두 그룹)인데 이름이 다른 줄을 거부한다.
+ *  시스템 업무 이름 바꾸기·다른 업무가 옛 시스템 이름 쓰기는 막지 않는다(7단계) — 후자는 applyTaskRenames 의 reused 로 저장 확인창이 알린다. */
 export function validateTaskNames(cfg) {
     const c = cfg || {};
     const errors = [];
@@ -237,13 +238,15 @@ export function validateTaskNames(cfg) {
         if (!k) continue;
         if (seen.has(k)) errors.push(`'${n}' 이름이 서로 다른 업무에 겹칩니다(대소문자·앞뒤 공백 무시).`);
         else seen.set(k, id);
-        if (isLockedTaskId(id) && n !== LOCKED_BY_ID[id]) {
-            errors.push(`'${LOCKED_BY_ID[id]}' 은(는) 프로그램이 이 이름으로 계산하는 업무라 이름을 바꿀 수 없습니다('${n}').`);
-        }
-        // 고정 이름은 고정 id 만 쓸 수 있다(고정 업무를 지우고 다른 업무 이름을 그 이름으로 바꾸는 우회 차단)
-        const lockedName = Object.keys(LOCKED_TASKS).find(ln => norm(ln) === k);
-        if (lockedName && LOCKED_TASKS[lockedName] !== id) {
-            errors.push(`'${n}' 은(는) 프로그램이 계산에 쓰는 고정 업무 이름이라 다른 업무의 이름으로 쓸 수 없습니다.`);
+    }
+    // 프로그램 기능 업무(SYSTEM_TASKS)의 처음 기본 이름은 그 업무가 살아 있는 동안 다른 업무가 쓸 수 없다.
+    //   이름을 바꾼 뒤에도 옛 기록·앱 밖 프로그램(처리량 자동 입력 등)은 기본 이름을 그 업무의 옛 이름으로 본다 —
+    //   다른 업무가 가져가면 처리량 자동 입력이 멈추고, 이력·예측의 옛 기록이 엉뚱한 업무로 합쳐진다(2026-10-30 리뷰).
+    for (const [name, sysId] of Object.entries(SYSTEM_TASKS)) {
+        if (!(sysId in ids)) continue;                     // 지운 기능 업무의 이름은 다시 써도 된다(그 업무로 되살아난다)
+        const holder = seen.get(norm(name));
+        if (holder && holder !== sysId) {
+            errors.push(`'${name}' 은(는) 프로그램 기능 업무(지금 이름 '${ids[sysId]}')의 처음 이름이라 다른 업무에 쓸 수 없습니다. 다른 이름을 정해 주세요.`);
         }
     }
     const values = new Set(Object.values(ids));

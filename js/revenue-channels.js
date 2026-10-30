@@ -15,7 +15,7 @@
 // ⚠️ 채널 구분 이전에 입력된 과거 데이터는 revenue / orderCount 총액만 존재한다.
 //    이 경우 채널별 값은 0이고 총액만 유효하므로, 총액을 쓰는 화면은 그대로 동작한다.
 
-import { TASK, tName, tQty } from './task-names.js?v=202610301817';
+import { TASK, tName, tQty } from './task-names.js?v=202610301845';
 
 // taskId = 그 채널의 배송량(물량)에 해당하는 업무의 고정 id(업무 id 2단계 — 이름은 설정에서 tName 으로).
 //   실적 예측에서 채널 하나를 고르면 매출·주문건·배송량이 모두 그 채널 기준으로만

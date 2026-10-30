@@ -6,7 +6,7 @@
 // 계산에서 빼는 쪽(스냅샷·실적 지우기)은 forecast-accuracy.js excludeTasksForAccuracy.
 // '관리자 개별업무'는 시간 대신 인원만 정한다(계획 화면, 날짜별 plannedAdminWorkers) — 그만큼 가용 인원에서 뺀다.
 
-import { TASK } from './task-ids.js?v=202610301817';
+import { TASK } from './task-ids.js?v=202610301845';
 
 const 이름 = (v) => String(v == null ? '' : v).trim();
 

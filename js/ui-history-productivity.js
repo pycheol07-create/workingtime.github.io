@@ -1,9 +1,9 @@
 // === js/ui-history-productivity.js ===
-import * as State from './state.js?v=202610301817';
-import { buildMemberHourlyWageMap } from './utils.js?v=202610301817';
-import { D } from './d-chart.js?v=202610301817';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202610301817';
-import { TASK, tName, isT, tQty, isTLike } from './task-names.js?v=202610301817';
+import * as State from './state.js?v=202610301845';
+import { buildMemberHourlyWageMap } from './utils.js?v=202610301845';
+import { D } from './d-chart.js?v=202610301845';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610301845';
+import { TASK, tName, isT, tQty, isTLike } from './task-names.js?v=202610301845';
 
 let productivityChartInstance = null;
 
@@ -341,7 +341,7 @@ function renderFillErrorAnalysis() {
         return `${label} r=${r.toFixed(2)}(${trend})`;
     };
     if (summaryEl) {
-        summaryEl.textContent = `채우기 ${result.fillEventCount}회 · 평균 주기 ${result.avgIntervalLength.toFixed(1)}일 · ${corrText(result.duration.correlation, '투입시간')} · ${corrText(result.quantity.correlation, '처리량')}`;
+        summaryEl.textContent = `${tName(TASK.fill)} ${result.fillEventCount}회 · 평균 주기 ${result.avgIntervalLength.toFixed(1)}일 · ${corrText(result.duration.correlation, '투입시간')} · ${corrText(result.quantity.correlation, '처리량')}`;
     }
 
     fillErrorDurationChartInstance = renderFillErrorSubChart(

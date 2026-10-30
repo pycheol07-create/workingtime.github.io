@@ -20,7 +20,7 @@
 // 업무 id 2단계(2026-10-30): 소스 표는 업무 이름이 아니라 고정 id(TASK.direct·TASK.ably)로 찾는다 — 부르는 쪽이 taskId 를 넘긴다.
 //   taskKey(지금 이름)는 hasPrecursorOn 콜백에 그대로 넘길 뿐이다.
 
-import { TASK } from './task-ids.js?v=202610301817';
+import { TASK } from './task-ids.js?v=202610301845';
 
 /** 업무 id → 그 업무로 합칠 전송 소스 */
 export const TRANSMIT_SOURCES = {

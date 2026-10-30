@@ -12,7 +12,7 @@
 //
 //  DOM·State·Firebase 를 쓰지 않는다(업무 id 표 task-ids.js 만 import). 달력(isOff)은 밖에서 주입받는다.
 
-import { TASK, taskNameOf } from './task-ids.js?v=202610301817';
+import { TASK, taskNameOf } from './task-ids.js?v=202610301845';
 
 /** 요일별 '보통 갖는 직전 휴일 수'. 요일평균에 이미 들어 있는 몫이다.
  *  일=1(토만 쉼), 월=2(토·일), 화~토=0. 0=일요일 … 6=토요일 */
