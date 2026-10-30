@@ -3,38 +3,39 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610300907';
+import { predictFutureTrends } from './analysis-logic.js?v=202610301016';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610300907';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610300907';
-import { runDay } from './lib/refill-view.js?v=202610300907';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202610300907';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202610300907';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610300907';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610300907';
-import * as State from './state.js?v=202610300907';
-import { saveView } from './view-state.js?v=202610300907';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610300907';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610300907';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610301016';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610301016';
+import { runDay } from './lib/refill-view.js?v=202610301016';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202610301016';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202610301016';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610301016';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610301016';
+import * as State from './state.js?v=202610301016';
+import { saveView } from './view-state.js?v=202610301016';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610301016';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610301016';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610300907';
-import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610301016';
+import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610300907';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202610300907';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610301016';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202610301016';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610300907';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610300907';
-import { splitForecastExcludedStaff, buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202610300907';
-import { taskUph, recentDays } from './task-throughput.js?v=202610300907';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610301016';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610301016';
+import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK, DEFAULT_ADMIN_WORKERS,
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202610301016';
+import { taskUph, recentDays } from './task-throughput.js?v=202610301016';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610300907';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610301016';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610300907';
-import { D } from './d-chart.js?v=202610300907';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610300907';
+         excessOffDays } from './lib/backlog-carry.js?v=202610301016';
+import { D } from './d-chart.js?v=202610301016';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610301016';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -165,6 +166,9 @@ const forecastExcludedTasks = () => {
     return new Set(list.map(k => String(k == null ? '' : k).trim()).filter(Boolean)
         .map(k => aliasTaskName(k, State.appConfig)));
 };
+// '관리자 개별업무'(지금 이름) — 계획 화면에서 시간 대신 인원만 정하는 줄. 제외 업무에 없으면 인원도 안 뺀다.
+const adminTaskKey = () => aliasTaskName(ADMIN_TASK, State.appConfig);
+const adminTaskOn = () => forecastExcludedTasks().has(adminTaskKey());
 
 // ───────────────────────────────────────────────────────────
 // 수량형 업무 목록 자동 구성
@@ -1459,11 +1463,12 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
     return bump(computeLast7Avg(historyData, '국내배송'));
 };
 
-/** 가용 인원 = 전체 정직원 − 해당일 휴무자(persistentLeave + 그날 onLeaveMembers)
+/** 가용 인원 = 전체 정직원 − 해당일 휴무자(persistentLeave + 그날 onLeaveMembers) − 관리자 인원
  *  - 중복 멤버 제거(Set)
  *  - 프로그램 전용 ID 등 인원 산정 제외 명단(headcountExcludedMembers) 빼고 계산
+ *  - 관리자 인원: opts.adminWorkers → 그날 저장값 → 기본 1명 (제외 업무에 '관리자 개별업무'가 없으면 0)
  */
-const computeAvailableStaff = (dateStr, appConfig, persistentLeave, historyData) => {
+const computeAvailableStaff = (dateStr, appConfig, persistentLeave, historyData, { adminWorkers } = {}) => {
     // 대상일 기준 재직 인원만 (그 날짜 이전에 퇴사 예정인 사람은 총원에서 제외)
     const regular = getRegularMembersForCount(appConfig, dateStr); // Set
     const onLeave = new Map();
@@ -1483,19 +1488,19 @@ const computeAvailableStaff = (dateStr, appConfig, persistentLeave, historyData)
         });
     }
 
-    // 업무 예상 인원에서 뺄 사람(forecastExcludedMembers) — 총원·가용 양쪽에서 뺀다.
-    // excludedCount 는 그날 출근하는 제외 인원만(휴무면 '관리자 투입 검토' 대상이 아니다).
-    // getRegularMembersForCount 는 다른 화면(근태·대시보드)도 쓰므로 여기서만 거른다.
-    const exclMembers = Array.isArray(appConfig?.forecastExcludedMembers) ? appConfig.forecastExcludedMembers : [];
-    const { staff: allStaff, excludedCount } = splitForecastExcludedStaff(regular, exclMembers, onLeave);
-
     // 휴무 명단 중 정직원 카운트 대상에 들어있는 사람만 유효
     const onLeaveList = Array.from(onLeave.entries())
-        .filter(([m]) => allStaff.has(m))
+        .filter(([m]) => regular.has(m))
         .map(([m, t]) => ({ member: m, type: t }));
-    let available = 0;
-    allStaff.forEach(m => { if (!onLeave.has(m)) available++; });
-    return { available, total: allStaff.size, onLeaveList, excludedCount };
+    let present = 0;
+    regular.forEach(m => { if (!onLeave.has(m)) present++; });
+
+    // 관리자 개별업무 인원 — 누구인지는 정하지 않고 숫자만 출근 인원에서 뺀다.
+    // excludedCount 는 실제로 뺀 인원(출근 인원보다 많이 적으면 출근 인원까지만).
+    const n = !adminTaskOn() ? 0
+        : (normalizeAdminWorkers(adminWorkers) ?? getPlannedAdminWorkersForDate(dateStr) ?? DEFAULT_ADMIN_WORKERS);
+    const { available, excludedCount } = applyAdminWorkers(present, n);
+    return { available, total: regular.size, onLeaveList, excludedCount, adminWorkers: n };
 };
 
 // ───────────────────────────────────────────────────────────
@@ -2236,7 +2241,8 @@ const renderSimTaskInputs = () => {
     const sig = timeTaskSig(SIM_TIME_TASKS);
     const qtySig = SIM_TASKS.map(t => t.id).join('|');
     const refKeys = [...forecastExcludedTasks()];
-    const refSig = refKeys.join('|');
+    const adminKey = adminTaskOn() ? adminTaskKey() : '';
+    const refSig = refKeys.join('|') + '#' + adminKey;
     // 이미 지금 목록대로 그려져 있으면 옛 세대가 아니다
     if (host.dataset.built === 'true' && host.dataset.timeSig === sig && host.dataset.qtySig === qtySig
         && host.dataset.refSig === refSig) {
@@ -2317,10 +2323,18 @@ const renderSimTaskInputs = () => {
     // 한 칸이 ~394px 뿐이라, 1열에서 없앤 잘림이 그 구간으로 그대로 옮겨간다.
     // 🚫 계산 제외 업무 — 줄은 남기되 입력칸 없이 최근 4주 실적만 참고로 보여 준다.
     //    pred-sim-row·sim-row-* 를 쓰지 않는다 — 접기·읽기(readSimInputs)·저장·스냅샷에 끼지 않게.
+    //    관리자 개별업무 줄만 인원 칸(sim-admin-workers)이 있다 — 시간은 계산에서 빼고 인원만 정직원 가용에서 뺀다.
+    //    sim-workers-* id 를 쓰지 않는다(시간형 인원 칸 정규식·readSimInputs 와 겹치지 않게).
+    const adminInput = `
+            <label class="shrink-0 text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap"
+                   title="관리자 개별업무를 하는 인원 — 이 인원만큼 정직원 가용에서 뺍니다. 관리자 인원을 바꾸면 정직원 가용 칸이 다시 계산됩니다">관리자
+                <input id="sim-admin-workers" type="number" min="0" max="20" step="1" value="${DEFAULT_ADMIN_WORKERS}" inputmode="numeric"
+                       class="w-8 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
+                              text-[12px] font-bold text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-0">명</label>`;
     const refRow = (key) => `
-        <div data-ref-key="${escapeHtml(key)}" class="flex items-center gap-2.5 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0 opacity-60"
-             title="업무 예상 계산 제외 — 입력·합계·필요 인원·확정 계획에 넣지 않습니다">
-            <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-500 dark:text-gray-400">${escapeHtml(key)}</span>
+        <div data-ref-key="${escapeHtml(key)}" class="flex items-center gap-2.5 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0${key === adminKey ? '' : ' opacity-60'}"
+             title="${key === adminKey ? '시간은 업무 예상 계산에서 빼고, 인원만 정직원 가용에서 뺍니다' : '업무 예상 계산 제외 — 입력·합계·필요 인원·확정 계획에 넣지 않습니다'}">
+            <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-500 dark:text-gray-400">${escapeHtml(key)}</span>${key === adminKey ? adminInput : ''}
             <span data-ref-text class="shrink-0 text-right text-[11px] text-gray-400 dark:text-gray-500 truncate">—</span>
             <span class="w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] font-semibold rounded-md bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">계산 제외</span>
         </div>`;
@@ -2423,8 +2437,10 @@ const simRowMeta = new Map();
 let simDirtyQty = new Set();
 /** 시간형(분·인원)도 따로 센다 — 예전에는 수량형만 추적했다. */
 let simDirtyTime = new Set();
+/** 관리자 개별업무 인원 칸(sim-admin-workers)을 손댔는가 — 손댔을 때만 저장한다 */
+let simDirtyAdmin = false;
 /** 계획 작업량에 저장 안 한 손댄 칸이 있는지 — 날짜 변경·화면 떠나기 확인용 */
-export const isSimDirty = () => simDirtyQty.size > 0 || simDirtyTime.size > 0;
+export const isSimDirty = () => simDirtyQty.size > 0 || simDirtyTime.size > 0 || simDirtyAdmin;
 
 /** 코드가 값을 다시 계산해 넣었을 때 접기 판정 재료도 같이 고친다.
  *  안 고치면 접힘 버튼 title 이 화면에 없는 옛 숫자를 보여 주고, outlier 판정도 옛 값으로 내려진다. */
@@ -2590,8 +2606,13 @@ const autoFillSimInputs = (dateStr, opts = {}) => {
         });
     });
 
-    // 가용 인원
-    const staffInfo = computeAvailableStaff(dateStr, config, State.persistentLeaveSchedule, data);
+    // 가용 인원 — 관리자 인원 칸은 손댄 값(preserveDirty) › 그날 저장값 › 기본 1명
+    const adminEl = document.getElementById('sim-admin-workers');
+    const keepAdmin = !!(preserveDirty && simDirtyAdmin && adminEl);
+    const staffInfo = computeAvailableStaff(dateStr, config, State.persistentLeaveSchedule, data,
+        keepAdmin ? { adminWorkers: adminEl.value } : {});
+    if (adminEl && !keepAdmin) adminEl.value = staffInfo.adminWorkers;
+    if (adminEl) adminEl.dataset.applied = String(staffInfo.excludedCount);   // 정직원 칸에서 지금 빼 둔 인원(바뀐 만큼만 반영하는 기준)
     const elStaff = document.getElementById('sim-staff-fulltime');
     if (elStaff) elStaff.value = staffInfo.available;
     // 이 날짜에 저장해 둔 업무 제외시간이 있으면 그 값으로 (없으면 비운다)
@@ -2611,7 +2632,7 @@ const autoFillSimInputs = (dateStr, opts = {}) => {
     //    재채움까지 네 경로가 여기서 한 번에 막힌다.
     //    ⚠️ 그래서 이 함수 안에서는 setQty/setTimeInputs 같은 '코드가 값을 넣는' 경로만
     //       써야 한다(그 함수들은 input 이벤트를 발생시키지 않아 dirty 를 오염시키지 않는다).
-    if (!preserveDirty) { simDirtyQty = new Set(); simDirtyTime = new Set(); }
+    if (!preserveDirty) { simDirtyQty = new Set(); simDirtyTime = new Set(); simDirtyAdmin = false; }
     applyEmptyRowFolding();
 };
 
@@ -2630,7 +2651,7 @@ const paintExcludeHint = () => {
 const renderLeaveInfo = (staffInfo) => {
     const el = document.getElementById('sim-on-leave-info');
     if (!el) return;
-    // 업무 예상 인원에서 뺀 관리자는 이름 없이 수만 보인다
+    // 업무 예상 인원에서 뺀 관리자 인원(관리자 개별업무 줄의 인원 칸) — 실제로 뺀 수만 보인다
     const excl = staffInfo.excludedCount > 0
         ? ` <span class="text-gray-400 dark:text-gray-500">· 관리자 ${staffInfo.excludedCount}명 제외</span>` : '';
     const tail = `<span class="whitespace-nowrap">총 ${staffInfo.total}명 중 <strong class="text-gray-700 dark:text-gray-200">${staffInfo.available}명 가용</strong>${excl}</span>`;
@@ -2700,7 +2721,9 @@ const readSimInputs = () => {
     });
     const staffFulltime = Number(document.getElementById('sim-staff-fulltime')?.value) || 0;
     const staffPart = Number(document.getElementById('sim-staff-parttimer')?.value) || 0;
-    return { tasks, timeTasks, staffFulltime, staffPart, excludeMinutes: readExcludeMinutes() };
+    // 관리자 개별업무 인원 — 칸이 없거나(제외 업무에 없음) 잘못된 값이면 null(= 저장값·기본값)
+    const adminWorkers = normalizeAdminWorkers(document.getElementById('sim-admin-workers')?.value);
+    return { tasks, timeTasks, staffFulltime, staffPart, excludeMinutes: readExcludeMinutes(), adminWorkers };
 };
 
 /** ⏱ 업무 제외시간 — 그날 업무 외의 일(회의·행사·정리 등)로 빠지는 시간(1인 기준, 10분 단위) */
@@ -2892,7 +2915,8 @@ const runSimulation = ({ silent = false } = {}) => {
 
     // 업무 예상 인원에서 뺀 관리자 수 — 부족할 때 '관리자 투입 검토' 안내에만 쓴다
     const excludedCount = mode === 'single'
-        ? computeAvailableStaff(baseDate, cfg, State.persistentLeaveSchedule, 이력()).excludedCount : 0;
+        ? computeAvailableStaff(baseDate, cfg, State.persistentLeaveSchedule, 이력(),
+            { adminWorkers: baseInputs.adminWorkers }).excludedCount : 0;
     renderSimResult(results, taskUPH, mode, { maybeTasks, altResult, excludedCount });
 };
 
@@ -3430,8 +3454,10 @@ window.__forecastForDate = async (dateStr) => {
             transmitRaw,
             plannedTimeRaw: getPlannedTimeTasksForDate(date) || {},
             plannedExcludeRaw: getPlannedExcludeMinutesForDate(date),
+            // 그날 저장한 관리자 개별업무 인원(저장 안 했으면 null = 기본값). 알림 지문 근거
+            plannedAdminRaw: getPlannedAdminWorkersForDate(date),
             onLeave: leave.length,
-            // 가용 인원에서 뺀 관리자 중 그날 출근하는 수 — 부족일에 '관리자 투입 검토' 한 줄을 붙이는 근거(이름은 내지 않는다)
+            // 가용 인원에서 실제로 뺀 관리자 인원 — 부족일에 '관리자 투입 검토' 한 줄을 붙이는 근거
             excludedCount: Number(inputs.staffInfo && inputs.staffInfo.excludedCount) || 0,
             onLeaveNames: leave.map(e => (e && e.member) || '').filter(Boolean),
             // 로그인 판정용. appUser 는 미등록·퇴사 관문을 통과한 뒤에만 채워진다
@@ -3558,13 +3584,13 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
 
 /** 🔗 상세 시뮬레이션에서 지금 입력해 둔 값. 대상일이 오늘/내일이면 위 요약 카드도 이 값으로 계산한다.
  *  (상세에서 숫자를 바꿨는데 상단 카드가 자동값 그대로면 두 숫자가 어긋나 보인다) */
-let simOverride = null;   // { date, tasks, staffFulltime, staffPart, excludeMinutes }
+let simOverride = null;   // { date, tasks, staffFulltime, staffPart, excludeMinutes, adminWorkers }
 
 const captureSimOverride = () => {
     const dateStr = document.getElementById('sim-target-date')?.value;
     if (!dateStr) { simOverride = null; return; }
-    const { tasks, timeTasks, staffFulltime, staffPart, excludeMinutes } = readSimInputs();
-    simOverride = { date: dateStr, tasks, timeTasks, staffFulltime, staffPart, excludeMinutes };
+    const { tasks, timeTasks, staffFulltime, staffPart, excludeMinutes, adminWorkers } = readSimInputs();
+    simOverride = { date: dateStr, tasks, timeTasks, staffFulltime, staffPart, excludeMinutes, adminWorkers };
 };
 
 /** 요약 카드 한 장에 쓸 입력값 — 시뮬레이션 대상일과 같은 날이면 그 입력을 그대로 쓴다. */
@@ -3573,7 +3599,8 @@ const inputsForSummaryDate = (dateStr) => {
     if (!simOverride || simOverride.date !== dateStr) {
         return { inputs: computeAutoInputsForDate(dateStr, excl || 0), linked: false };
     }
-    const staffInfo = computeAvailableStaff(dateStr, State.appConfig, State.persistentLeaveSchedule, 이력());
+    const staffInfo = computeAvailableStaff(dateStr, State.appConfig, State.persistentLeaveSchedule, 이력(),
+        { adminWorkers: simOverride.adminWorkers });
     const total = Math.round(simOverride.staffFulltime + simOverride.staffPart);
     return {
         inputs: {
@@ -3634,13 +3661,17 @@ const savedSimEntries = (dateStr) => {
     const extra = (ex != null && ex > 0)
         ? [{ task: { label: '업무 제외시간' }, value: ex, kind: 'time' }]
         : [];
+    const adm = getPlannedAdminWorkersForDate(dateStr);
+    if (adm != null) extra.push({ task: { label: '관리자 인원' }, value: adm, kind: 'count' });
     return [...qty, ...time, ...extra];
 };
 
-/** 저장 목록 한 줄 표기 — 시간형은 '분'으로 */
+/** 저장 목록 한 줄 표기 — 시간형은 '분', 인원은 '명'으로 */
 const savedEntryText = (e) => e.kind === 'time'
     ? `${escapeHtml(e.task.label)} ${e.value}분`
-    : `${escapeHtml(e.task.label)} ${e.value > 0 ? e.value.toLocaleString() : '0'}`;
+    : e.kind === 'count'
+        ? `${escapeHtml(e.task.label)} ${e.value}명`
+        : `${escapeHtml(e.task.label)} ${e.value > 0 ? e.value.toLocaleString() : '0'}`;
 
 const updateSavedInfo = (dateStr) => {
     const el = document.getElementById('sim-saved-info');
@@ -3738,6 +3769,17 @@ const saveSimQuantities = async () => {
     SIM_TASKS.forEach(t => 같은업무키(mergedTime, t.key).forEach(k => { delete mergedTime[k]; }));
 
     const excl = readExcludeMinutes();
+    // 관리자 인원 — 손댔을 때만 저장한다(기본 1명이면 -1 = 저장값 지우기). 안 손댔으면 null = 그대로
+    let adminArg = null;
+    if (simDirtyAdmin) {
+        const raw = document.getElementById('sim-admin-workers')?.value ?? '';
+        const n = normalizeAdminWorkers(raw);
+        // 비웠거나 범위 밖이면 저장값을 건드리지 않는다(빈 칸으로 저장값이 조용히 지워지지 않게) — 안내만
+        if (n == null) 알림.push(`관리자 인원은 0~20명으로 적어 주세요 — 이번 저장에서는 바꾸지 않았습니다`);
+        else adminArg = n === DEFAULT_ADMIN_WORKERS ? -1 : n;
+    }
+    const adminNow = getPlannedAdminWorkersForDate(dateStr);
+    const adminAfter = adminArg == null ? adminNow : (adminArg === -1 ? null : adminArg);
     // 바뀐 것이 없으면 서버에 쓰지 않는다. '실패' 가 아니라 '저장할 것이 없음' 이다.
     // ⚠️ dirty 집합의 크기가 아니라 **결과를 비교**한다. 고친 칸이 전부 걸러진 경우
     //    (기본 0명 업무를 원래대로 되돌린 것뿐인 경우)에 '저장되었습니다' 가 뜨면서
@@ -3746,7 +3788,8 @@ const saveSimQuantities = async () => {
     const 바뀐것없음 =
         같나(merged, getPlannedQuantitiesForDate(dateStr) || {})
         && 같나(mergedTime, getPlannedTimeTasksForDate(dateStr) || {})
-        && excl === (getPlannedExcludeMinutesForDate(dateStr) ?? 0);
+        && excl === (getPlannedExcludeMinutesForDate(dateStr) ?? 0)
+        && adminAfter === adminNow;
     if (바뀐것없음) {
         if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
         showToast(알림.length > 0
@@ -3754,10 +3797,11 @@ const saveSimQuantities = async () => {
             : '고친 칸이 없습니다 — 저장할 내용이 없습니다.');
         simDirtyQty = new Set();
         simDirtyTime = new Set();
+        simDirtyAdmin = false;
         return;
     }
     const ok = await savePlannedQuantities(dateStr, merged,
-        { keepZeros: true, timeTasks: mergedTime, excludeMinutes: excl > 0 ? excl : -1 });
+        { keepZeros: true, timeTasks: mergedTime, excludeMinutes: excl > 0 ? excl : -1, adminWorkers: adminArg });
     forgetTodayStatus();
     if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
     if (!ok) return;
@@ -3770,6 +3814,7 @@ const saveSimQuantities = async () => {
 
     simDirtyQty = new Set();          // 저장 완료 — 다시 자동값 기준으로 본다
     simDirtyTime = new Set();
+    simDirtyAdmin = false;
     autoFillSimInputs(dateStr);       // 배지를 '예정물량'으로 갱신
     updateSavedInfo(dateStr);
     simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
@@ -3782,6 +3827,7 @@ const handleAutoFillClick = async () => {
     if (!dateStr) return;
     simDirtyQty = new Set();          // 자동값으로 되돌리므로 '손댄 칸'도 없어진다
     simDirtyTime = new Set();
+    simDirtyAdmin = false;
     const entries = savedSimEntries(dateStr);
     if (entries.length > 0) {
         const list = entries.map(e => ` · ${savedEntryText(e)}`).join('\n');
@@ -3802,7 +3848,7 @@ ${list}
         const timeNow = new Set([...SIM_TIME_TASKS, ...SIM_TASKS].map(t => t.key));
         Object.keys(rest).forEach(k => { if (qtyNow.has(aliasTaskName(k, State.appConfig))) delete rest[k]; });
         Object.keys(restTime).forEach(k => { if (timeNow.has(aliasTaskName(k, State.appConfig))) delete restTime[k]; });
-        const ok = await savePlannedQuantities(dateStr, rest, { keepZeros: true, timeTasks: restTime, excludeMinutes: -1 });
+        const ok = await savePlannedQuantities(dateStr, rest, { keepZeros: true, timeTasks: restTime, excludeMinutes: -1, adminWorkers: -1 });
         forgetTodayStatus();
         if (!ok) return;
     }
@@ -3903,6 +3949,7 @@ const setupSimulationListeners = () => {
             dateEl.dataset.applied = dateEl.value;
             simDirtyQty = new Set();      // 날짜가 바뀌면 '손댄 칸' 기록도 새로 시작한다
             simDirtyTime = new Set();
+            simDirtyAdmin = false;        // 관리자 인원도 — 이전 날 값이 따라가지 않게 그날 저장값·기본값으로
             autoFillSimInputs(dateEl.value, { resetFoldView: true });
             updateSavedInfo(dateEl.value);
             simOverride = null;   // 자동값으로 다시 채웠으므로 카드도 자동값 기준
@@ -4152,6 +4199,29 @@ const setupSimulationListeners = () => {
         }
     });
 
+    // 👤 관리자 개별업무 인원 — 바꾸면 정직원 가용 칸을 **바뀐 만큼만** 고친다(사람이 고쳐 둔 정직원 수를 덮지 않게).
+    //    빼 둔 인원은 칸의 data-applied 에 둔다(autoFillSimInputs 가 채울 때 같이 갱신). 출근 인원보다 많이 빼지 않는다.
+    document.getElementById('sim-task-list')?.addEventListener('input', (e) => {
+        if (e.target?.id !== 'sim-admin-workers') return;
+        const dateStr = document.getElementById('sim-target-date')?.value;
+        if (!dateStr) return;
+        simDirtyAdmin = true;
+        const n = normalizeAdminWorkers(e.target.value);
+        if (n == null) return;   // 비웠거나 범위 밖 — 고치는 중일 수 있어 가용 칸은 그대로 둔다
+        const staffInfo = computeAvailableStaff(dateStr, State.appConfig, State.persistentLeaveSchedule, 이력(),
+            { adminWorkers: n });
+        const elStaff = document.getElementById('sim-staff-fulltime');
+        if (elStaff) {
+            const prev = Number(e.target.dataset.applied) || 0;
+            const cur = Math.max(0, Number(elStaff.value) || 0);
+            const next = Math.max(0, cur - (staffInfo.excludedCount - prev));
+            e.target.dataset.applied = String(prev + (cur - next));
+            elStaff.value = next;
+        }
+        renderLeaveInfo(staffInfo);
+        paintStaffTotal();
+    });
+
     document.getElementById('sim-reset-btn')?.addEventListener('click', () => {
         // 모든 수량/인원 입력 초기화 (업무 목록은 항상 기본 등록이므로 숨기지 않음)
         // ※ 저장해 둔 수기 값은 지우지 않는다(그건 '자동값' 버튼의 역할).
@@ -4160,6 +4230,7 @@ const setupSimulationListeners = () => {
         //    이 집합이 유일한 판단축이라 오염되면 그대로 사고가 된다).
         simDirtyQty = new Set();
         simDirtyTime = new Set();
+        simDirtyAdmin = false;
         // 접기 판정 재료도 버린다. 안 버리면 비워진 화면을 초기화 **전** 값으로 판정해,
         // 접힘 버튼 title 이 화면에 없는 숫자를 보여 준다.
         simRowMeta.clear();
@@ -4632,6 +4703,7 @@ const buildAutoForecastSnapshot = (dateStr) => {
         tasks: inputs.tasks, timeTasks: inputs.timeTasks, uph,
         staffFulltime: inputs.staffFulltime, staffPart: inputs.staffPart,
         excludeMinutes: inputs.excludeMinutes,
+        adminWorkers: inputs.staffInfo?.adminWorkers ?? 0,   // 가용에서 뺀 관리자 개별업무 인원
         availableTotal: r.availableTotal, requiredFTE: r.requiredFTE,
         totalHours: Number(r.totalHours.toFixed(3)),
         qtyHours: Number(r.qtyHours.toFixed(3)),
@@ -4844,9 +4916,10 @@ let renderAccuracyView = () => {};
 
 /** 지금 계획 화면의 값 그대로를 스냅샷으로 만든다(확정 버튼용) */
 const buildForecastSnapshot = (dateStr) => {
-    const { tasks, timeTasks, staffFulltime, staffPart, excludeMinutes } = readSimInputs();
+    const { tasks, timeTasks, staffFulltime, staffPart, excludeMinutes, adminWorkers } = readSimInputs();
     const taskUPH = computeTaskUPHs(이력());
-    const staffInfo = computeAvailableStaff(dateStr, State.appConfig, State.persistentLeaveSchedule, 이력());
+    const staffInfo = computeAvailableStaff(dateStr, State.appConfig, State.persistentLeaveSchedule, 이력(),
+        { adminWorkers });
     const inputs = {
         tasks, timeTasks, staffFulltime, staffPart, excludeMinutes,
         staffInfo: { ...staffInfo, available: Math.round(staffFulltime + staffPart) }
@@ -4860,6 +4933,7 @@ const buildForecastSnapshot = (dateStr) => {
     return {
         tasks, timeTasks, uph,
         staffFulltime, staffPart, excludeMinutes,
+        adminWorkers: staffInfo.adminWorkers,   // 가용에서 뺀 관리자 개별업무 인원
         availableTotal: r.availableTotal, requiredFTE: r.requiredFTE,
         totalHours: Number(r.totalHours.toFixed(3)),
         qtyHours: Number(r.qtyHours.toFixed(3)),

@@ -1,19 +1,21 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610300907';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610300907';
-import { clampOpenRecords } from './lib/record-close.js?v=202610300907';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610300907';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610300907';
+import * as State from './state.js?v=202610301016';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610301016';
+import { clampOpenRecords } from './lib/record-close.js?v=202610301016';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610301016';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610301016';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
-} from './lib/attendance-guard.js?v=202610300907';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610300907';
-import { can } from './lib/perm.js?v=202610300907';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610300907';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610300907';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610300907';
+} from './lib/attendance-guard.js?v=202610301016';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610301016';
+import { can } from './lib/perm.js?v=202610301016';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610301016';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610301016';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610301016';
+import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202610301016';
+import { buildPlannedDoc } from './lib/planned-fields.js?v=202610301016';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610300907';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610301016';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -126,6 +128,12 @@ export function getPlannedExcludeMinutesForDate(dateStr) {
     const rec = (State.plannedData || []).find(d => d.id === dateStr);
     const v = Number(rec?.plannedExcludeMinutes);
     return Number.isFinite(v) && v >= 0 ? Math.round(v) : null;
+}
+
+// 특정 날짜의 '관리자 개별업무' 인원(가용 인원에서 뺀다). 저장한 적 없으면 null(= 기본값)
+export function getPlannedAdminWorkersForDate(dateStr) {
+    const rec = (State.plannedData || []).find(d => d.id === dateStr);
+    return normalizeAdminWorkers(rec?.plannedAdminWorkers);
 }
 
 // 특정 날짜의 '시간으로 잡는 업무' 계획 (없으면 {})
@@ -273,7 +281,8 @@ export async function fetchForecastSnapshots(fromDate, toDate) {
 //  timeTasks: '시간으로 잡는 업무'({ 업무명: {minutes, workers} }). 넘기지 않으면 기존 값을 그대로 둔다
 //    (예정 물량 모달은 물량만 다루므로, 그 저장이 담당업무 시간을 지우면 안 된다).
 //  excludeMinutes: 업무 제외시간(분). null이면 기존 값 유지, -1이면 지운다
-export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZeros = false, timeTasks = null, excludeMinutes = null } = {}) {
+//  adminWorkers: 관리자 개별업무 인원. null이면 기존 값 유지, -1이면 지운다(기본값과 같아도 저장 안 함)
+export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZeros = false, timeTasks = null, excludeMinutes = null, adminWorkers = null } = {}) {
     if (!State.auth || !State.auth.currentUser) { showToast('로그인이 필요합니다.', true); return false; }
     if (!dateStr) return false;
 
@@ -295,8 +304,8 @@ export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZe
         });
         return out;
     };
-    // let — 아래에서 서버 값이 더 최신이면 그걸로 바꾼다
-    let cleanTime = 시간형_정리(timeTasks || getPlannedTimeTasksForDate(dateStr));
+    // 아래에서 서버 값이 더 최신이면 그걸로 바뀐다(buildPlannedDoc)
+    const cleanTime = 시간형_정리(timeTasks || getPlannedTimeTasksForDate(dateStr));
 
     // 제외시간: 넘기지 않으면(null) 기존 값 유지, -1이면 삭제
     let cleanExclude = getPlannedExcludeMinutesForDate(dateStr);
@@ -305,45 +314,39 @@ export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZe
         cleanExclude = (Number.isFinite(n) && n >= 0) ? n : null;
     }
 
+    // 관리자 인원: 같은 방식(null 유지, -1 삭제). 기본값과 같으면 칸을 두지 않는다
+    const 관리자_정리 = (v) => { const n = normalizeAdminWorkers(v); return n === DEFAULT_ADMIN_WORKERS ? null : n; };
+    let cleanAdmin = getPlannedAdminWorkersForDate(dateStr);
+    if (adminWorkers != null) cleanAdmin = 관리자_정리(adminWorkers);
+
     try {
-        const payload = {
-            plannedQuantities: clean,
-            plannedTimeTasks: cleanTime,
-            updatedAt: getCurrentTime(),
-            updatedBy: State.appState?.currentUser || 'unknown'
-        };
-        if (cleanExclude != null) payload.plannedExcludeMinutes = cleanExclude;
         // 문서를 통째로 바꾸므로, 따로 저장해 둔 계획 스냅샷은 그대로 옮겨 싣는다.
         // ⚠️ 로컬 캐시(10분 TTL)만 보면 안 된다 — 다른 PC·탭이 그 사이 찍은 스냅샷이
         //    캐시에 없어서 이 저장으로 조용히 사라진다. 자동 스냅샷이 매일 생기므로
         //    예전(수동 확정일만)보다 사고 확률이 훨씬 높다. 서버에서 한 번 더 읽는다.
-        let keepSnapshot = getForecastSnapshotForDate(dateStr);
+        // 이 저장이 넘기지 않은 항목(시간형·제외시간·관리자 인원)도 같은 이유로 서버 값이 정본이다.
+        // (A PC 가 시간형 계획을 저장한 직후 B PC 가 물량만 저장하면, B 의 10분 캐시에
+        //  그 시간형이 없어서 문서 교체로 사라진다 — 스냅샷과 완전히 같은 유형의 사고)
+        // ⚠️ 쓸 내용(payload)은 반드시 서버 값을 합친 **뒤에** 만든다 — 먼저 만들면 합친 값이
+        //    화면 캐시에만 들어가고 Firestore 에는 옛 캐시값이 써진다(2026-10-30 실제 버그).
+        let 서버값 = null;
         try {
             const 서버 = await getDocFromServer(doc(plannedColRef(), dateStr));
-            const d = 서버.exists() ? (서버.data() || {}) : {};
-            if (d.forecastSnapshot) keepSnapshot = d.forecastSnapshot;
-            // 이 저장이 넘기지 않은 항목도 같은 이유로 서버 값이 더 최신일 수 있다.
-            // (A PC 가 시간형 계획을 저장한 직후 B PC 가 물량만 저장하면, B 의 10분 캐시에
-            //  그 시간형이 없어서 문서 교체로 사라진다 — 스냅샷과 완전히 같은 유형의 사고)
-            // 서버 문서를 읽었다면 그게 정본이다 — 키가 **없는 것**도 '비어 있음'으로 본다.
-            // (키가 있을 때만 반영하면, 다른 PC 가 방금 지운 값이 내 10분 캐시에서 되살아난다)
-            if (서버.exists()) {
-                if (timeTasks == null) cleanTime = 시간형_정리(d.plannedTimeTasks);
-                if (excludeMinutes == null) {
-                    const ex = Number(d.plannedExcludeMinutes);
-                    cleanExclude = Number.isFinite(ex) && ex >= 0 ? Math.round(ex) : null;
-                }
-            }
+            if (서버.exists()) 서버값 = 서버.data() || {};
         } catch (e) {
             // 서버를 못 읽었으면 캐시값으로 간다(없는 것보다 낫다)
             console.warn('예정 물량 서버 확인 실패, 캐시값 사용:', e);
         }
-        if (keepSnapshot) payload.forecastSnapshot = keepSnapshot;
+        const fields = buildPlannedDoc(
+            { quantities: clean, timeTasks: cleanTime, excludeMinutes: cleanExclude, adminWorkers: cleanAdmin,
+              snapshot: getForecastSnapshotForDate(dateStr) },
+            서버값,
+            { timeTasks: timeTasks != null, excludeMinutes: excludeMinutes != null, adminWorkers: adminWorkers != null },
+            { time: 시간형_정리, admin: 관리자_정리 });
+        const payload = { ...fields, updatedAt: getCurrentTime(), updatedBy: State.appState?.currentUser || 'unknown' };
         await setDoc(doc(plannedColRef(), dateStr), payload);
 
-        const rec = { id: dateStr, plannedQuantities: clean, plannedTimeTasks: cleanTime };
-        if (cleanExclude != null) rec.plannedExcludeMinutes = cleanExclude;
-        if (keepSnapshot) rec.forecastSnapshot = keepSnapshot;
+        const rec = { id: dateStr, ...fields };
         const idx = (State.plannedData || []).findIndex(d => d.id === dateStr);
         if (idx > -1) State.plannedData[idx] = rec;
         else { State.plannedData.push(rec); State.plannedData.sort((a, b) => a.id.localeCompare(b.id)); }

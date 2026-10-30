@@ -1,31 +1,36 @@
 // === js/lib/forecast-exclude.js ===
-// 업무 예상에서 '계산 제외'로 둔 업무·사람 처리 (순수 함수 · DOM·Firebase 미의존)
+// 업무 예상에서 '계산 제외'로 둔 업무·관리자 인원 처리 (순수 함수 · DOM·Firebase 미의존)
 //
-// 설정 forecastExcludedTasks(업무)·forecastExcludedMembers(사람)은 예상 계산에는 넣지 않지만
+// 설정 forecastExcludedTasks(업무)는 예상 계산에는 넣지 않지만
 // 화면에서 지우지는 않는다 — 실제로 쓴 시간·참고값은 '계산 제외' 표시로 따로 보여 준다.
 // 계산에서 빼는 쪽(스냅샷·실적 지우기)은 forecast-accuracy.js excludeTasksForAccuracy.
+// '관리자 개별업무'는 시간 대신 인원만 정한다(계획 화면, 날짜별 plannedAdminWorkers) — 그만큼 가용 인원에서 뺀다.
 
 const 이름 = (v) => String(v == null ? '' : v).trim();
 
+export const ADMIN_TASK = '관리자 개별업무';
+export const DEFAULT_ADMIN_WORKERS = 1;
+
+/** 관리자 인원 입력값 → 정수 0~20. 비었거나 잘못되면 null */
+export function normalizeAdminWorkers(v) {
+    if (v == null || (typeof v === 'string' && v.trim() === '')) return null;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 0 || n > 20) return null;
+    return n;
+}
+
 /**
- * 가용 인원에서 제외할 사람을 뺀다.
- * excludedCount 는 **재직 중이고 그날 휴무가 아닌** 제외 인원만 센다 —
- * 휴무인 관리자를 '투입 검토' 대상으로 안내하면 안 되므로.
+ * 가용 인원에서 관리자 인원 n 명을 뺀다.
+ * excludedCount 는 실제로 뺀 인원 — 가용보다 많이 적어도 가용까지만 센다.
  *
- * @param {Set<string>} allStaff 그날 재직 인원(원본은 바꾸지 않는다)
- * @param {Iterable<string>} excludedNames 설정 forecastExcludedMembers
- * @param {{has(name):boolean}} onLeave 그날 휴무 명단(Map·Set)
- * @returns {{ staff: Set<string>, excludedCount: number }}
+ * @param {number} available 그날 출근 인원(휴무 뺀 것)
+ * @param {number} n 관리자 인원
+ * @returns {{ available: number, excludedCount: number }}
  */
-export function splitForecastExcludedStaff(allStaff, excludedNames, onLeave) {
-    const staff = new Set(allStaff || []);
-    const excl = new Set();
-    [...(excludedNames || [])].map(이름).filter(Boolean).forEach(m => {
-        if (staff.delete(m)) excl.add(m);
-    });
-    let excludedCount = 0;
-    excl.forEach(m => { if (!(onLeave && onLeave.has(m))) excludedCount++; });
-    return { staff, excludedCount };
+export function applyAdminWorkers(available, n) {
+    const a = Math.max(0, Number(available) || 0);
+    const k = Math.max(0, Number(n) || 0);
+    return { available: Math.max(0, a - k), excludedCount: Math.min(k, a) };
 }
 
 /**

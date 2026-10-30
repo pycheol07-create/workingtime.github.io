@@ -14,7 +14,7 @@
 //   permEnforce      'warn'|'block'                    페이지 가드 모드(5단계)
 //   memberMenuAccess { email: [메뉴 이름] }            파생값(옛 코드 호환)
 
-import { FEATURES, FEATURE_BY_ID, ALL_FEATURE_IDS, ACTION_MENU_NAMES, isFeatureId, childFeaturesOf } from './feature-catalog.js?v=202610300907';
+import { FEATURES, FEATURE_BY_ID, ALL_FEATURE_IDS, ACTION_MENU_NAMES, isFeatureId, childFeaturesOf } from './feature-catalog.js?v=202610301016';
 
 const own = (o, k) => !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k);
 export const normEmail = (email) => String(email || '').trim().toLowerCase();

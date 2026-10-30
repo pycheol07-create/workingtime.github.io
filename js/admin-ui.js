@@ -1,9 +1,9 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610300907';
-import { renderPermissionPanel } from './admin-perm.js?v=202610300907';
-import { taskIdOf, isLockedTaskId } from './lib/task-ids.js?v=202610300907';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610301016';
+import { renderPermissionPanel } from './admin-perm.js?v=202610301016';
+import { taskIdOf, isLockedTaskId } from './lib/task-ids.js?v=202610301016';
 
 // 📱 순서 바꾸기 ▲▼ — HTML5 끌어 옮기기는 터치에서 안 되므로, 터치 화면(hover 없음)에서만 보인다(admin.html .move-btns).
 //    누르면 같은 종류의 앞/뒤 줄과 자리를 바꾼다(admin.js handleMoveClick). 마우스 환경은 ☰ 끌기 그대로.
@@ -55,8 +55,7 @@ export function renderAdminUI(config) {
         config.memberRoles || {},
         config.memberLeaveSettings || {},
         config.memberRanks || {},
-        config.resignedMembers || {},
-        config.forecastExcludedMembers || []
+        config.resignedMembers || {}
     );
 
     renderResignedMembers(
@@ -66,8 +65,7 @@ export function renderAdminUI(config) {
         config.memberRoles || {},
         config.memberLeaveSettings || {},
         config.memberRanks || {},
-        config.resignedMembers || {},
-        config.forecastExcludedMembers || []
+        config.resignedMembers || {}
     );
 
     renderSystemAccountsConfig(config.systemAccounts || []);
@@ -94,7 +92,7 @@ export function renderPermissionsConfig(config) {
 // groupName은 data-group-name으로 심어, 저장 시 퇴사자를 원래 그룹으로 되돌리는 데 사용.
 // '+ 팀원 추가'(admin.js)도 이 함수로 새 행을 만든다 — 칸 모양(기본급 월·÷209 시급)을 한 벌로 유지.
 export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
-    const { memberWages = {}, memberEmails = {}, memberRanks = {}, memberLeaveSettings = {}, resignedMembers = {}, forecastExcludedMembers = [] } = maps;
+    const { memberWages = {}, memberEmails = {}, memberRanks = {}, memberLeaveSettings = {}, resignedMembers = {} } = maps;
     const isResigned = !!opts.isResignedSection;
     const memberEmail = memberEmails[member] || '';
     const currentRank = memberRanks[member] || '사원';
@@ -104,8 +102,6 @@ export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
     const leaveResetDate = settings.leaveResetDate || '';
     const expirationDate = settings.expirationDate || '';
     const resignDate = resignedMembers[member] || '';
-    // 업무 예상 가용 인원에서 뺄 사람(관리자) — 부족할 때만 투입을 검토한다
-    const forecastExcl = Array.isArray(forecastExcludedMembers) && forecastExcludedMembers.includes(member);
     const ranks = ['사원','주임','대리','과장','차장','부장','이사','상무','전무','사장','대표'];
     const rankOptions = ranks.map(r => `<option value="${r}" ${currentRank === r ? 'selected' : ''}>${r}</option>`).join('');
 
@@ -179,21 +175,16 @@ export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
                 <label class="text-[11px] text-gray-700 dark:text-gray-300 mb-1 font-bold">퇴사일 (비활성)</label>
                 <input type="date" value="${resignDate}" class="member-resign-date w-32 p-1.5 border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-800 dark:text-gray-100 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" title="입력하면 이 날짜 다음날부터 팀 선택·명단·집계에서 제외되고, 저장 시 아래 '퇴사자' 섹션으로 이동합니다. 급여·과거기록은 그대로 보존됩니다. 비우면 재직으로 복귀합니다.">
             </div>
-            <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
-            <label class="inline-flex items-center gap-1.5 text-[11px] font-bold text-gray-700 dark:text-gray-300 cursor-pointer" title="체크하면 업무 예상의 가용 인원에서 빠집니다. 인원이 부족한 날에만 '관리자 투입 검토'로 안내합니다.">
-                <input type="checkbox" class="member-forecast-excl w-4 h-4 accent-blue-600" ${forecastExcl ? 'checked' : ''}>
-                업무 예상 인원에서 제외(관리자)
-            </label>
         </div>
     </div>
     `;
 }
 
-export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}, resignedMembers = {}, forecastExcludedMembers = []) {
+export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}, resignedMembers = {}) {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
     container.innerHTML = '';
-    const maps = { memberWages, memberEmails, memberRanks, memberLeaveSettings, resignedMembers, forecastExcludedMembers };
+    const maps = { memberWages, memberEmails, memberRanks, memberLeaveSettings, resignedMembers };
 
     teamGroups.forEach((group, index) => {
         const groupEl = document.createElement('div');
@@ -223,13 +214,13 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
 }
 
 // 🚪 퇴사자 별도 섹션 렌더. teamGroups 전체에서 resignedMembers에 있는 사람만 원 그룹과 함께 표시.
-export function renderResignedMembers(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}, resignedMembers = {}, forecastExcludedMembers = []) {
+export function renderResignedMembers(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}, resignedMembers = {}) {
     const section = document.getElementById('resigned-members-section');
     const container = document.getElementById('resigned-members-container');
     const countEl = document.getElementById('resigned-count');
     if (!container) return;
     container.innerHTML = '';
-    const maps = { memberWages, memberEmails, memberRanks, memberLeaveSettings, resignedMembers, forecastExcludedMembers };
+    const maps = { memberWages, memberEmails, memberRanks, memberLeaveSettings, resignedMembers };
 
     const rows = [];
     (teamGroups || []).forEach(group => {

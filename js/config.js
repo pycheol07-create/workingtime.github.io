@@ -2,8 +2,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610300907';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610300907';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610301016';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610301016';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -304,8 +304,6 @@ function getDefaultConfig() {
         headcountExcludedMembers: [], // 예) ['공용계정'] — 운영 값은 mainConfig
         // 업무 예상(계획·정확도)에서 뺄 업무 — 관리자 개인 업무는 물량으로 예측할 대상이 아니다
         forecastExcludedTasks: ['관리자 개별업무'],
-        // 업무 예상 가용 인원에서 뺄 사람(관리자 화면 팀원 카드 체크). 부족할 때 투입을 검토할 사람
-        forecastExcludedMembers: [],
         resignedMembers: {}, // { '이름': '퇴사일 YYYY-MM-DD' } — 퇴사 처리(비활성). 데이터·과거기록은 보존.
         resignedEmails: {}, // { '이메일(소문자)': '퇴사일' } — 관리자 저장 때 resignedMembers·memberEmails + 이전 값으로 만든다(규칙용)
         memberWages: {},
