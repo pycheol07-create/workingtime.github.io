@@ -3,37 +3,38 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610291723';
+import { predictFutureTrends } from './analysis-logic.js?v=202610300907';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610291723';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610291723';
-import { runDay } from './lib/refill-view.js?v=202610291723';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202610291723';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202610291723';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610291723';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610291723';
-import * as State from './state.js?v=202610291723';
-import { saveView } from './view-state.js?v=202610291723';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610291723';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610291723';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610300907';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610300907';
+import { runDay } from './lib/refill-view.js?v=202610300907';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202610300907';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202610300907';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610300907';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610300907';
+import * as State from './state.js?v=202610300907';
+import { saveView } from './view-state.js?v=202610300907';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610300907';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610300907';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610291723';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610300907';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610291723';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask } from './forecast-accuracy.js?v=202610291723';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610300907';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202610300907';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610291723';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610291723';
-import { taskUph, recentDays } from './task-throughput.js?v=202610291723';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610300907';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610300907';
+import { splitForecastExcludedStaff, buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202610300907';
+import { taskUph, recentDays } from './task-throughput.js?v=202610300907';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610291723';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610300907';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610291723';
-import { D } from './d-chart.js?v=202610291723';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610291723';
+         excessOffDays } from './lib/backlog-carry.js?v=202610300907';
+import { D } from './d-chart.js?v=202610300907';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610300907';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -151,6 +152,20 @@ const simZeroTasks = () => {
     return new Set(list.map(k => String(k == null ? '' : k).trim()).filter(Boolean));
 };
 
+// 🚫 업무 예상(계획·정확도)에서 아예 빼는 업무 — 관리자 개인 업무처럼 물량으로 예측할 대상이 아닌 것.
+//    설정 forecastExcludedTasks. 옛 이름으로 적혀 있어도 지금 이름으로 맞춘다.
+const DEFAULT_FORECAST_EXCLUDED_TASKS = ['관리자 개별업무'];
+let warnedExclTaskCfg = false;
+const forecastExcludedTasks = () => {
+    const cfg = State.appConfig?.forecastExcludedTasks;
+    if (cfg != null && !Array.isArray(cfg)) {
+        if (!warnedExclTaskCfg) { warnedExclTaskCfg = true; console.warn('forecastExcludedTasks 는 업무명 배열이어야 합니다. 기본값을 씁니다:', cfg); }
+    }
+    const list = Array.isArray(cfg) ? cfg : DEFAULT_FORECAST_EXCLUDED_TASKS;
+    return new Set(list.map(k => String(k == null ? '' : k).trim()).filter(Boolean)
+        .map(k => aliasTaskName(k, State.appConfig)));
+};
+
 // ───────────────────────────────────────────────────────────
 // 수량형 업무 목록 자동 구성
 // ───────────────────────────────────────────────────────────
@@ -259,8 +274,9 @@ const buildSimTasks = (historyData, appConfig) => {
     const used = new Set(LEGACY_SIM_TASKS.map(t => t.id));
     const totals = recentQtyTotals(historyData);
     const registered = new Set(appConfig?.quantityTaskTypes || []);
+    const excluded = forecastExcludedTasks();
     getAllTaskKeys(appConfig).forEach(key => {
-        if (LEGACY_SIM_KEYS.has(key) || TIME_TASK_EXCLUDE.has(key)) return;
+        if (LEGACY_SIM_KEYS.has(key) || TIME_TASK_EXCLUDE.has(key) || excluded.has(key)) return;
         if (!registered.has(key)) return;
         if (!((totals.get(key) || 0) > 0)) return;
         // 새 업무의 기본 추정은 'cadence' — 안 하는 날은 0으로 잡혀 화면에서 접힌다.
@@ -282,6 +298,7 @@ const ensureSimTasks = () => {
     // (id 목록만 비교하면 '상.하차를 cadence로 되돌리기' 같은 설정 변경이 새로고침 전까지 안 먹는다)
     const sig = [(cfg?.quantityTaskTypes || []).join('|'),
                  JSON.stringify(cfg?.simAutoModes || null),
+                 [...forecastExcludedTasks()].join('|'),
                  refreshHistorySig()].join('#');
     if (sig === simTasksSig) return false;
     simTasksSig = sig;
@@ -314,11 +331,13 @@ const buildTimeTaskList = (historyData, appConfig, windowDays = 56) => {
     // (quantityTaskTypes 전체를 빼면, 등록만 돼 있고 물량 기록이 없어 수량형에도 못 들어간 업무가
     //  양쪽에서 모두 빠져 계획 시간이 통째로 사라진다)
     const qtyKeys = new Set(SIM_TASKS.map(t => t.key));
+    // 업무 예상 제외 업무는 수기 목록에 있어도 뺀다(정확도 쪽도 같은 기준으로 지운다)
+    const excluded = forecastExcludedTasks();
 
     const used = new Set();
     const toEntry = (key, rare = false) => ({ id: safeTaskId(key, used), key, label: key, rare });
     if (Array.isArray(manual) && manual.length > 0) {
-        return manual.filter(k => k && !qtyKeys.has(k)).slice(0, TIME_TASK_MAX).map(k => toEntry(k));
+        return manual.filter(k => k && !qtyKeys.has(k) && !excluded.has(k)).slice(0, TIME_TASK_MAX).map(k => toEntry(k));
     }
 
     const today = getTodayDateString();
@@ -335,7 +354,7 @@ const buildTimeTaskList = (historyData, appConfig, windowDays = 56) => {
         const seen = new Set();
         (d.workRecords || []).forEach(r => {
             const key = r && r.task;
-            if (!key || qtyKeys.has(key) || TIME_TASK_EXCLUDE.has(key)) return;
+            if (!key || qtyKeys.has(key) || TIME_TASK_EXCLUDE.has(key) || excluded.has(key)) return;
             const cur = agg.get(key) || { minutes: 0, days: 0 };
             cur.minutes += Number(r.duration) || 0;
             if (!seen.has(key)) { cur.days += 1; seen.add(key); }
@@ -382,7 +401,8 @@ const ensureSimLists = (force = false) => {
     const cfg = State.appConfig;
     const sig = [
         historySigValue,
-        Array.isArray(cfg?.simTimeTasks) ? cfg.simTimeTasks.join('|') : ''
+        Array.isArray(cfg?.simTimeTasks) ? cfg.simTimeTasks.join('|') : '',
+        [...forecastExcludedTasks()].join('|')
         // ※ simTimeTasksZero 는 여기 넣지 않는다 — 목록 구성(buildTimeTaskList)에는 쓰이지 않고,
         //    값은 autoTimeValueFor 가 매번 State.appConfig 에서 직접 읽으므로 화면 간 차이가 없다.
     ].join('#');
@@ -1445,7 +1465,7 @@ const getAIPredictedDomestic = (historyData, dateStr) => {
  */
 const computeAvailableStaff = (dateStr, appConfig, persistentLeave, historyData) => {
     // 대상일 기준 재직 인원만 (그 날짜 이전에 퇴사 예정인 사람은 총원에서 제외)
-    const allStaff = getRegularMembersForCount(appConfig, dateStr); // Set
+    const regular = getRegularMembersForCount(appConfig, dateStr); // Set
     const onLeave = new Map();
 
     (persistentLeave?.onLeaveMembers || []).forEach(e => {
@@ -1463,13 +1483,19 @@ const computeAvailableStaff = (dateStr, appConfig, persistentLeave, historyData)
         });
     }
 
+    // 업무 예상 인원에서 뺄 사람(forecastExcludedMembers) — 총원·가용 양쪽에서 뺀다.
+    // excludedCount 는 그날 출근하는 제외 인원만(휴무면 '관리자 투입 검토' 대상이 아니다).
+    // getRegularMembersForCount 는 다른 화면(근태·대시보드)도 쓰므로 여기서만 거른다.
+    const exclMembers = Array.isArray(appConfig?.forecastExcludedMembers) ? appConfig.forecastExcludedMembers : [];
+    const { staff: allStaff, excludedCount } = splitForecastExcludedStaff(regular, exclMembers, onLeave);
+
     // 휴무 명단 중 정직원 카운트 대상에 들어있는 사람만 유효
     const onLeaveList = Array.from(onLeave.entries())
         .filter(([m]) => allStaff.has(m))
         .map(([m, t]) => ({ member: m, type: t }));
     let available = 0;
     allStaff.forEach(m => { if (!onLeave.has(m)) available++; });
-    return { available, total: allStaff.size, onLeaveList };
+    return { available, total: allStaff.size, onLeaveList, excludedCount };
 };
 
 // ───────────────────────────────────────────────────────────
@@ -2209,14 +2235,18 @@ const renderSimTaskInputs = () => {
     if (!host) return false;
     const sig = timeTaskSig(SIM_TIME_TASKS);
     const qtySig = SIM_TASKS.map(t => t.id).join('|');
+    const refKeys = [...forecastExcludedTasks()];
+    const refSig = refKeys.join('|');
     // 이미 지금 목록대로 그려져 있으면 옛 세대가 아니다
-    if (host.dataset.built === 'true' && host.dataset.timeSig === sig && host.dataset.qtySig === qtySig) {
+    if (host.dataset.built === 'true' && host.dataset.timeSig === sig && host.dataset.qtySig === qtySig
+        && host.dataset.refSig === refSig) {
         simInputsStale = false;
         return false;
     }
     host.dataset.built = 'true';
     host.dataset.timeSig = sig;
     host.dataset.qtySig = qtySig;
+    host.dataset.refSig = refSig;
     simInputsStale = false;
 
     const ROW = `flex items-center gap-2.5 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0
@@ -2285,9 +2315,39 @@ const renderSimTaskInputs = () => {
     // 0px 까지 눌려 잘렸다(실측: 직진배송·관리자 개별업무 등 6개). 아주 넓을 때만 2열로 둔다.
     // 2열은 **아주 넓을 때만**. 1536px(2xl)에서 켜면 바깥 레이아웃(1.35fr) 때문에
     // 한 칸이 ~394px 뿐이라, 1열에서 없앤 잘림이 그 구간으로 그대로 옮겨간다.
+    // 🚫 계산 제외 업무 — 줄은 남기되 입력칸 없이 최근 4주 실적만 참고로 보여 준다.
+    //    pred-sim-row·sim-row-* 를 쓰지 않는다 — 접기·읽기(readSimInputs)·저장·스냅샷에 끼지 않게.
+    const refRow = (key) => `
+        <div data-ref-key="${escapeHtml(key)}" class="flex items-center gap-2.5 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0 opacity-60"
+             title="업무 예상 계산 제외 — 입력·합계·필요 인원·확정 계획에 넣지 않습니다">
+            <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-500 dark:text-gray-400">${escapeHtml(key)}</span>
+            <span data-ref-text class="shrink-0 text-right text-[11px] text-gray-400 dark:text-gray-500 truncate">—</span>
+            <span class="w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] font-semibold rounded-md bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">계산 제외</span>
+        </div>`;
+    const refBlock = refKeys.length > 0
+        ? block('참고 · 계산 제외', '업무 예상에 넣지 않는 업무 — 최근 4주 실적', refKeys.map(refRow).join(''))
+        : '';
+
     host.className = 'grid grid-cols-1 min-[1800px]:grid-cols-2 gap-3 items-start';
-    host.innerHTML = qtyBlocks + timeBlock;
+    host.innerHTML = qtyBlocks + timeBlock + refBlock;
+    paintSimRefRows();
     return true;
+};
+
+/** 계산 제외 참고 줄의 숫자 — 최근 4주 실적(시간형 통계와 같은 함수). 이력이 바뀌면 autoFillSimInputs 가 다시 칠한다. */
+const paintSimRefRows = () => {
+    const host = document.getElementById('sim-task-list');
+    if (!host) return;
+    const data = 이력();
+    host.querySelectorAll('[data-ref-key]').forEach(el => {
+        const key = el.getAttribute('data-ref-key');
+        const out = el.querySelector('[data-ref-text]');
+        if (!out) return;
+        const st = computeTimeTaskStats(data, key, 28);
+        out.textContent = (!st || !(st.hitDays > 0))
+            ? '최근 4주 기록 없음'
+            : `${st.sampleDays}일 중 ${st.hitDays}일 · 하루 평균 팀 합계 ${st.teamMinutes}분 · 평균 ${st.workers}명`;
+    });
 };
 
 // 🧮 담당 업무의 '1인 기준 시간(분)'. 인원을 바꾸면 이 값 × 인원으로 총 투입시간을 다시 잡는다.
@@ -2490,6 +2550,7 @@ const autoFillSimInputs = (dateStr, opts = {}) => {
     //    업무 id 는 그대로인데 auto 모드만 바뀌면 ensureSimLists 는 true 지만 DOM 은 그대로다.
     //    그때까지 preserveDirty 를 끄면, 멀쩡히 살아 있는 사용자의 입력을 자동값으로 덮는다.
     if (ensureSimLists(true) && renderSimTaskInputs()) preserveDirty = false;
+    paintSimRefRows();   // 계산 제외 참고 줄 — 입력칸이 아니라 다시 그려도 지킬 값이 없다
 
     // 접기 판정에 쓸 재료를 같이 모은다. 여기서 모아야 화면에 실제로 들어간 값과 같다
     //  — 나중에 따로 계산하면 화면 숫자와 판정이 어긋난다.
@@ -2569,7 +2630,10 @@ const paintExcludeHint = () => {
 const renderLeaveInfo = (staffInfo) => {
     const el = document.getElementById('sim-on-leave-info');
     if (!el) return;
-    const tail = `<span class="whitespace-nowrap">총 ${staffInfo.total}명 중 <strong class="text-gray-700 dark:text-gray-200">${staffInfo.available}명 가용</strong></span>`;
+    // 업무 예상 인원에서 뺀 관리자는 이름 없이 수만 보인다
+    const excl = staffInfo.excludedCount > 0
+        ? ` <span class="text-gray-400 dark:text-gray-500">· 관리자 ${staffInfo.excludedCount}명 제외</span>` : '';
+    const tail = `<span class="whitespace-nowrap">총 ${staffInfo.total}명 중 <strong class="text-gray-700 dark:text-gray-200">${staffInfo.available}명 가용</strong>${excl}</span>`;
 
     if (!staffInfo.onLeaveList || staffInfo.onLeaveList.length === 0) {
         el.innerHTML = `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -2826,7 +2890,10 @@ const runSimulation = ({ silent = false } = {}) => {
         altResult = simulateOneDay(baseDate, { ...baseInputs, tasks: altTasks }, taskUPH, cfg);
     }
 
-    renderSimResult(results, taskUPH, mode, { maybeTasks, altResult });
+    // 업무 예상 인원에서 뺀 관리자 수 — 부족할 때 '관리자 투입 검토' 안내에만 쓴다
+    const excludedCount = mode === 'single'
+        ? computeAvailableStaff(baseDate, cfg, State.persistentLeaveSchedule, 이력()).excludedCount : 0;
+    renderSimResult(results, taskUPH, mode, { maybeTasks, altResult, excludedCount });
 };
 
 // ───────────────────────────────────────────────────────────
@@ -2927,7 +2994,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
 
         // 🔀 진행이 애매한 업무 — '안 할 때(위 숫자)'와 '할 때'를 나란히 보여준다.
         //    실측: 그날 하는지 맞히는 정확도는 2/3 정도라, 한쪽만 보여주면 어느 쪽이든 틀린 계획이 된다.
-        const { maybeTasks = [], altResult = null } = scenario;
+        const { maybeTasks = [], altResult = null, excludedCount = 0 } = scenario;
         const maybePanel = (maybeTasks.length > 0 && altResult) ? `
                 <div class="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/15 p-3 space-y-2">
                     <div class="text-[11px] font-extrabold text-amber-800 dark:text-amber-300">
@@ -2984,6 +3051,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                         ${r.excludeMinutes > 0 ? ` · 제외 ${fmtMin(r.excludeMinutes)} 반영` : ''}
                     </span>
                 </div>
+                ${(r.gap < -1 && excludedCount > 0) ? `<p class="-mt-2 text-[11px] font-bold text-rose-600 dark:text-rose-400">부족분은 관리자 투입 검토</p>` : ''}
 
                 <details class="group">
                     <summary class="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none inline-flex items-center gap-1
@@ -3363,6 +3431,8 @@ window.__forecastForDate = async (dateStr) => {
             plannedTimeRaw: getPlannedTimeTasksForDate(date) || {},
             plannedExcludeRaw: getPlannedExcludeMinutesForDate(date),
             onLeave: leave.length,
+            // 가용 인원에서 뺀 관리자 중 그날 출근하는 수 — 부족일에 '관리자 투입 검토' 한 줄을 붙이는 근거(이름은 내지 않는다)
+            excludedCount: Number(inputs.staffInfo && inputs.staffInfo.excludedCount) || 0,
             onLeaveNames: leave.map(e => (e && e.member) || '').filter(Boolean),
             // 로그인 판정용. appUser 는 미등록·퇴사 관문을 통과한 뒤에만 채워진다
             // (State.auth.currentUser 는 그 관문 '전에' 이미 true 라서 판정에 쓸 수 없다).
@@ -3442,6 +3512,8 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
             </div>
             <span class="text-[11px] font-extrabold px-2.5 py-1 rounded-full shrink-0 ${tone.chip}">${gapText(gap)}</span>
         </div>
+        ${(gap < -1 && (inputs.staffInfo?.excludedCount || 0) > 0)
+            ? `<p class="-mt-3 mb-3 text-right text-[11px] font-bold text-rose-600 dark:text-rose-400">부족분은 관리자 투입 검토</p>` : ''}
 
         <div class="flex items-end gap-4 mb-3">
             <div>
@@ -4210,8 +4282,15 @@ const computeTodayStatusUncached = () => {
     const nowStr = nowTimeString();
     const nowMin = hhmmToMin(nowStr) ?? 0;
 
-    const 기록들 = todayWorkRecords();
+    // 업무 예상 제외 업무는 계획에 없으니 진행률·계획 합계에서는 뺀다(안 빼면 '계획 외' 로 계획 시간에 더해진다).
+    // 대신 화면(업무별 진행·대시보드 처리량 카드)에는 '계산 제외'로 남긴다 — 전체 기록은 기록들전체·progressAll.
+    const excluded = forecastExcludedTasks();
+    const canon = (name) => aliasTaskName(name, State.appConfig);
+    const 기록들전체 = todayWorkRecords();
+    const 기록들 = 기록들전체.filter(rec => !(rec?.task && excluded.has(canon(rec.task))));
     const progress = computeDayProgress(기록들, nowStr);
+    const progressAll = 기록들 === 기록들전체 || 기록들.length === 기록들전체.length
+        ? progress : computeDayProgress(기록들전체, nowStr);
     const rows = buildProgressRows(planRowsOf(r), progress);
 
     // 계획이 0 인 업무(오늘은 안 하는 것으로 본 빈도형 업무 등)를 실제로 하고 있으면,
@@ -4221,6 +4300,8 @@ const computeTodayStatusUncached = () => {
     const planHours = r.totalHours + unplannedHours;
     const spentHours = progress.totalSpentMin / 60;
     const pct = planHours > 0 ? Math.round(spentHours / planHours * 100) : 0;
+    // 계산 제외 줄은 위 합계를 낸 뒤 맨 아래에 붙인다
+    rows.push(...buildExcludedProgressRows(progressAll, excluded, canon));
 
     const fin = projectFinish({
         planHours, spentHours,
@@ -4231,7 +4312,8 @@ const computeTodayStatusUncached = () => {
         skipLunch: 점심반영할까(기록들, nowMin, r.weekend)
     });
 
-    return { today, r, linked, taskUPH, 기록들, nowStr, nowMin, progress, rows, planHours, spentHours, pct, fin };
+    return { today, r, linked, taskUPH, 기록들, 기록들전체, nowStr, nowMin, progress, progressAll, excluded,
+             rows, planHours, spentHours, pct, fin };
 };
 
 /** 대시보드 띠가 쓰는 요약 (계산 결과가 없으면 null) */
@@ -4270,13 +4352,14 @@ export const getTodayTaskPaceInputs = () => {
 
         // 업무 기록을 지금 이름으로 합친다(computeDayProgress 는 기록의 이름 그대로 묶는다)
         const prog = {};
-        s.progress.byTask.forEach((e, name) => {
+        // 제외 업무도 카드에는 예전처럼 보인다 — 전체 기록(progressAll)으로 모으고 excluded 로 표시한다
+        s.progressAll.byTask.forEach((e, name) => {
             const k = aliasTaskName(name, cfg);
             const t = prog[k] || (prog[k] = { working: 0, paused: 0, done: 0, spentMin: 0 });
             t.working += e.working; t.paused += e.paused; t.done += e.done; t.spentMin += e.spentMin;
         });
         const activeMin = {};
-        (s.기록들 || []).forEach(rec => {
+        (s.기록들전체 || []).forEach(rec => {
             if (!rec || !rec.task || (rec.status !== 'ongoing' && rec.status !== 'paused')) return;
             const k = aliasTaskName(rec.task, cfg);
             activeMin[k] = (activeMin[k] || 0) + spentMinutesOf(rec, s.nowStr);
@@ -4286,7 +4369,8 @@ export const getTodayTaskPaceInputs = () => {
                               ...(snap && snap.tasks ? Object.keys(snap.tasks) : [])]);
         const tasks = {};
         keys.forEach(k => {
-            const planQty = snap
+            // 제외 업무는 계획량 0 — 설정 전에 확정된 옛 계획에 들어 있어도 카드 진행률·합계에 더하지 않는다(noPlan)
+            const planQty = (s.excluded && s.excluded.has(k)) ? 0 : snap
                 ? (Number(snap.tasks?.[k]) || 0)
                 : (Number(s.r.taskTimes?.[k]?.qty) || 0);
             const p = prog[k];
@@ -4298,7 +4382,8 @@ export const getTodayTaskPaceInputs = () => {
                 spentHours: p ? p.spentMin / 60 : 0,
                 activeHours: (activeMin[k] || 0) / 60,
                 started: !!p,
-                ended: !!p && p.working === 0 && p.paused === 0
+                ended: !!p && p.working === 0 && p.paused === 0,
+                excluded: s.excluded.has(k)     // 업무 예상 계산 제외(계획 0 — 표시만)
             };
         });
 
@@ -4330,6 +4415,7 @@ const STATUS_CHIP = {
 };
 
 const statusLabel = (row) => {
+    if (row.excluded) return row.working > 0 ? `계산 제외 · ${row.working}명` : '계산 제외';
     if (row.extra) return row.working > 0 ? `계획 외 · ${row.working}명` : '계획 외';
     if (row.noBaseline) {
         if (row.working > 0) return `기준 없음 · ${row.working}명 진행 중`;
@@ -4350,15 +4436,16 @@ const progressRowHtml = (row) => {
         : (row.noBaseline ? 0 : (row.spentHours > 0 ? 100 : 0));
     const over = row.planHours > 0 && row.spentHours > row.planHours;
     const chip = STATUS_CHIP[row.status] || STATUS_CHIP.ended;
-    const barColor = row.extra ? 'bg-violet-400'
+    const barColor = row.excluded ? 'bg-gray-300 dark:bg-gray-600'
+                   : row.extra ? 'bg-violet-400'
                    : over ? 'bg-rose-500'
                    : row.status === 'working' ? 'bg-indigo-500'
                    : row.status === 'ended' ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600';
     const planText = row.planHours > 0 ? fmtHM(row.planHours) : '—';
     const memberTip = row.members.length ? `\n지금: ${row.members.join(', ')}` : '';
     return `
-        <div class="flex items-center gap-2 md:gap-3 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0"
-             title="계획 ${planText} · 소진 ${fmtHM(row.spentHours)}${escapeHtml(memberTip)}">
+        <div class="flex items-center gap-2 md:gap-3 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0${row.excluded ? ' opacity-60' : ''}"
+             title="${row.excluded ? '업무 예상 계산 제외 — 진행률·계획 합계에 넣지 않습니다 · ' : ''}계획 ${planText} · 소진 ${fmtHM(row.spentHours)}${escapeHtml(memberTip)}">
             <span class="w-20 md:w-32 shrink-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200">${escapeHtml(row.label)}</span>
             <div class="flex-1 min-w-0 h-2.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                 <div class="h-full rounded-full ${barColor} transition-all" style="width:${pct}%"></div>
@@ -4366,7 +4453,7 @@ const progressRowHtml = (row) => {
             <span class="w-[96px] md:w-[112px] shrink-0 text-right text-[12px] font-bold tabular-nums ${over ? 'text-rose-600 dark:text-rose-400' : 'text-gray-600 dark:text-gray-300'}">
                 ${fmtHM(row.spentHours)} <span class="font-medium text-gray-400 dark:text-gray-500">/ ${planText}</span>
             </span>
-            <span class="w-[72px] md:w-[92px] shrink-0 text-center text-[11px] font-bold rounded-md py-0.5 ${row.extra ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : chip.cls}">${statusLabel(row)}</span>
+            <span class="w-[72px] md:w-[92px] shrink-0 text-center text-[11px] font-bold rounded-md py-0.5 ${row.excluded ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' : row.extra ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : chip.cls}">${statusLabel(row)}</span>
         </div>`;
 };
 
@@ -4389,7 +4476,7 @@ const renderTodayProgress = () => {
         return;
     }
 
-    if (!s.progress.hasRecords) {
+    if (!s.progressAll.hasRecords) {
         host.innerHTML = `
             <section class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30 p-10 text-center">
                 <p class="text-sm font-bold text-gray-600 dark:text-gray-300">아직 시작된 업무가 없습니다</p>
@@ -4873,7 +4960,15 @@ const renderAccuracyBody = () => {
     const days = recentClosedDays(accuracyDays);
     const snaps = accuracySnapshots || {};
     // 🆔 스냅샷의 업무 이름(tasks·timeTasks·uph)도 지금 이름으로 맞춰 본다 — 이력 쪽(이력())과 같은 이름이어야 비교된다
-    const rows = days.map(d => (snaps[d.id] ? accuracyRowOf(d, aliasSnapshot(snaps[d.id], State.appConfig)) : null)).filter(Boolean);
+    // 🚫 업무 예상 제외 업무는 옛 스냅샷·실적에서도 같이 지운다(순서: 별칭 → 제외 — 제외 목록은 지금 이름)
+    const excluded = forecastExcludedTasks();
+    // 계산 제외 업무의 실제 시간 — 업무별 표 맨 아래 참고 줄로만(요약·합계·오차에는 넣지 않는다)
+    const excludedActual = excludedActualByTask(days.filter(d => snaps[d.id]), excluded);
+    const rows = days.map(d => {
+        if (!snaps[d.id]) return null;
+        const { snap, day } = excludeTasksForAccuracy(aliasSnapshot(snaps[d.id], State.appConfig), d, excluded);   // d 는 이력() 이라 이미 지금 이름
+        return accuracyRowOf(day, snap);
+    }).filter(Boolean);
 
     if (rows.length === 0) {
         host.innerHTML = head('아직 비교할 자료가 없습니다')
@@ -5000,6 +5095,19 @@ const renderAccuracyBody = () => {
                             <td class="py-2 px-3 text-right tabular-nums font-bold ${errTone(t.hourErr)}">${pctText(t.hourErr)}${별표(t)}</td>
                             <td class="py-2 px-3 text-right tabular-nums ${t.uphErr != null && Math.abs(t.uphErr) > 0.15 ? 'font-bold ' + errTone(t.uphErr) : 'text-gray-600 dark:text-gray-300'}">${t.realUPH != null ? t.realUPH.toFixed(1) : '—'}</td>
                             <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-500"${t.nowUPH > 0 ? ` title="지금 기준 UPH ${t.nowUPH.toFixed(1)}"` : ''}>${t.planUPH > 0 ? t.planUPH.toFixed(1) : '—'}</td>
+                        </tr>`).join('')}
+                        ${excludedActual.map(e => `
+                        <tr class="border-t border-gray-100 dark:border-gray-700/60 opacity-60"
+                            title="업무 예상 계산 제외 업무 — 실제 시간만 참고로 보여 주고 요약·합계·오차에는 넣지 않습니다">
+                            <td class="py-2 px-3 font-medium text-gray-500 dark:text-gray-400">${escapeHtml(e.key)} <span class="text-[11px] font-bold text-gray-400 dark:text-gray-500">계산 제외</span></td>
+                            <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
+                            <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
+                            <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
+                            <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-500 dark:text-gray-400" title="${e.days}일 합계">${fmtHM(e.hours)}</td>
+                            <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
+                            <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
+                            <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
                         </tr>`).join('')}
                     </tbody>
                 </table>

@@ -1,10 +1,10 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610291723';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610291723';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202610291723';
-import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610291723';
-import { permFieldsForSave } from './lib/perm-model.js?v=202610291723';
-import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610291723';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610300907';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610300907';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202610300907';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610300907';
+import { permFieldsForSave } from './lib/perm-model.js?v=202610300907';
+import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610300907';
 
 // 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
 export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',
@@ -64,6 +64,7 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
         memberRanks: {},
         memberLeaveSettings: {},
         resignedMembers: {}, // 퇴사 처리(비활성): { 이름: 퇴사일 }
+        forecastExcludedMembers: [], // 업무 예상 가용 인원에서 뺄 사람 — 팀원 카드 체크로 채운다
         resignedEmails: {}, // { 이메일(소문자): 퇴사일 } — 저장마다 resignedMembers·memberEmails 로 만들고 이전 값을 물려받는다(재직 중이 된 이메일만 뺌, 2026-10-23)
         systemAccounts: [], 
         dashboardItems: [],
@@ -130,6 +131,7 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
             newConfig.memberRanks[memberName] = memberRank;
             // 퇴사일이 입력된 팀원만 퇴사 명단에 기록(데이터는 그대로 보존, 화면에서만 비활성)
             if (resignDate) newConfig.resignedMembers[memberName] = resignDate;
+            if (memberItem.querySelector('.member-forecast-excl')?.checked) newConfig.forecastExcludedMembers.push(memberName);
 
             newConfig.memberLeaveSettings[memberName] = {
                 joinDate: joinDate,
@@ -183,6 +185,7 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
         }
 
         if (resignDate) newConfig.resignedMembers[memberName] = resignDate;
+        if (memberItem.querySelector('.member-forecast-excl')?.checked) newConfig.forecastExcludedMembers.push(memberName);
     });
 
     document.querySelectorAll('#system-accounts-container .system-account-item').forEach(item => {

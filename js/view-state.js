@@ -11,9 +11,9 @@
 //   #tab=메인탭&sub=업무기록 서브탭&gran=일주월년&date=날짜&fview=업무 예상 화면. 옛 #forecast · #forecast-today 도 읽는다.
 //   ⚠️ 해시 없이 열면(업무예상알림 봇) 예전과 똑같이 sessionStorage 로만 복원한다.
 
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610291723';
-import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202610291723';
-import * as State from './state.js?v=202610291723';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610300907';
+import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202610300907';
+import * as State from './state.js?v=202610300907';
 
 const KEY = 'viewstate:' + (location.pathname.split('/').pop() || 'index');
 // 대시보드(index)의 모바일 데이터 관리 모달도 saveView 를 부른다 — 해시는 history.html 에서만 쓴다

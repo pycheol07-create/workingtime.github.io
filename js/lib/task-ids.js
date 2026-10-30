@@ -36,7 +36,7 @@ const LOCKED_BY_ID = Object.freeze(Object.fromEntries(Object.entries(LOCKED_TASK
 /** 업무 이름이 들어가는 설정 칸. 없는 칸은 만들지 않는다. */
 export const TASK_NAME_ARRAY_FIELDS = ['keyTasks', 'quantityTaskTypes', 'costCalcTasks', 'qualityCostTasks',
     'simAlwaysShowTasks', 'simTimeTasksZero', 'simLoadoutSources', 'simTimeTasks', 'simTimeTaskDepsNextDay',
-    'forecastBacklogTasks', 'staffingBasketTasks'];
+    'forecastBacklogTasks', 'staffingBasketTasks', 'forecastExcludedTasks'];
 export const TASK_NAME_MAP_FIELDS = ['quantityToDashboardMap', 'simAutoModes', 'simulationTaskLinks',
     'simTimeTaskDeps', 'simPrecursorTasks'];
 

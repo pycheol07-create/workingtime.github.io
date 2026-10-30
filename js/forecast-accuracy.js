@@ -279,3 +279,57 @@ export function summarizeAccuracyRows(rows) {
         missedHoursTotal: list.reduce((a, r) => a + 양수(r.missed?.planHours), 0)
     };
 }
+
+/**
+ * 업무 예상에서 빼기로 한 업무(설정 forecastExcludedTasks)를 스냅샷·실적 양쪽에서 지운다.
+ *
+ * 왜 여기서 하나
+ *   옛 스냅샷에는 그 업무가 계획으로 얼어 있다. 계획 쪽만 빼거나 실적 쪽만 빼면
+ *   '계획 외 유입'·'미착수'로 거짓 오차가 남으므로, 정확도 계산 직전에 같은 기준으로 둘 다 지운다.
+ *   스냅샷 업무 이름은 지금 이름이어야 한다(aliasSnapshot 다음에 부른다).
+ *
+ * @param {object} snap  확정 스냅샷
+ * @param {object} day   { id, workRecords[], taskQuantities{} }
+ * @param {Iterable<string>} names 뺄 업무 이름
+ * @returns {{snap, day}} 새 객체(원본 불변). names 가 비면 원본 그대로.
+ */
+export function excludeTasksForAccuracy(snap, day, names) {
+    const drop = new Set([...(names || [])].map(k => String(k == null ? '' : k).trim()).filter(Boolean));
+    if (drop.size === 0) return { snap, day };
+
+    let s = snap;
+    if (snap) {
+        const tasks = { ...(snap.tasks || {}) };
+        const timeTasks = { ...(snap.timeTasks || {}) };
+        const uph = { ...(snap.uph || {}) };
+        let qtyCut = 0, timeCut = 0;
+        drop.forEach(k => {
+            const inQty = Object.prototype.hasOwnProperty.call(tasks, k);
+            if (inQty) {
+                const u = 양수(uph[k]);
+                if (u > 0) qtyCut += 양수(tasks[k]) / u;
+            }
+            // 수량형에도 남은 잔재 스냅샷은 totalHours 를 수량형으로 셌다(계획시간맵과 같은 규칙)
+            if (!inQty && Object.prototype.hasOwnProperty.call(timeTasks, k)) {
+                const v = timeTasks[k];
+                if (Math.round(양수(v?.workers)) > 0) timeCut += 양수(v?.minutes) / 60;
+            }
+            delete tasks[k]; delete timeTasks[k]; delete uph[k];
+        });
+        s = { ...snap, tasks, timeTasks, uph };
+        const 깎기 = (v, cut) => Math.max(0, 수(v) - cut);
+        if (snap.totalHours != null) s.totalHours = 깎기(snap.totalHours, qtyCut + timeCut);
+        if (snap.qtyHours != null) s.qtyHours = 깎기(snap.qtyHours, qtyCut);
+        if (snap.timeHours != null) s.timeHours = 깎기(snap.timeHours, timeCut);
+    }
+
+    let d = day;
+    if (day) {
+        const taskQuantities = { ...(day.taskQuantities || {}) };
+        drop.forEach(k => { delete taskQuantities[k]; });
+        d = { ...day,
+              workRecords: (day.workRecords || []).filter(r => !drop.has(String(r?.task == null ? '' : r.task).trim())),
+              taskQuantities };
+    }
+    return { snap: s, day: d };
+}

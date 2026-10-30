@@ -2,7 +2,7 @@
 // 🔒 페이지 입장 가드 (권한 개편 5단계, 2026-10-19 — 설계 4.3)
 //
 // 쓰는 법 — 각 페이지에 한 줄, 공통 상단바(app-shell.js) 스크립트 바로 앞에:
-//   <script type="module" src="js/page-gate.js?v=202610291723" data-perm-page="location.view"></script>
+//   <script type="module" src="js/page-gate.js?v=202610300907" data-perm-page="location.view"></script>
 //   이름 붙은 Firebase 앱을 쓰는 페이지(scan.html)는 data-perm-app="scanApp" 을 더한다.
 //   ⚠️ 주소 뒤 ?f=… 로 넘기지 않는다 — 배포.py 가 내부 .js 주소의 ? 뒤를 ?v=빌드번호 로 갈아 끼워 값이 사라진다.
 //   data-perm-page 가 없으면 주소(파일 이름)로 기능을 찾는다(js/lib/perm-gate.js pageFeatureFromPath).
@@ -27,10 +27,10 @@
 import { getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { resolve, can } from './lib/perm.js?v=202610291723';
-import { featureLabel, isFeatureId } from './lib/feature-catalog.js?v=202610291723';
+import { resolve, can } from './lib/perm.js?v=202610300907';
+import { featureLabel, isFeatureId } from './lib/feature-catalog.js?v=202610300907';
 import { enforceModeOf, gateDecision, pageFeatureFromPath, hitDayKey, HIT_KEY_RE, HIT_COLLECTION,
-    isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE } from './lib/perm-gate.js?v=202610291723';
+    isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE } from './lib/perm-gate.js?v=202610300907';
 
 const APP_ID = 'team-work-logger-v2';
 const MAIN_PROJECT = 'work-tool-e2943';     // 다른 서버를 고른 스캐너(scan.html QR 설정)는 가드하지 않는다

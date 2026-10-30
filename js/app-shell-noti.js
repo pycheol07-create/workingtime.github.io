@@ -8,7 +8,7 @@
 //   - 이름·알림 내용은 로그로 남기지 않는다(목록은 메모리로만 넘긴다).
 import { getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, query, where, limit, onSnapshot, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { emulatorEnabled } from './firebase-emulator.js?v=202610291723';
+import { emulatorEnabled } from './firebase-emulator.js?v=202610300907';
 
 const NOTI_PATH = ['artifacts', 'team-work-logger-v2', 'notifications'];
 // 최근 3일 알림 상한 — js/app-sync.js 와 같은 값. 예전 30건은 정렬 없이 잘려 최신 알림이 빠질 수 있었다(정렬은 클라이언트).

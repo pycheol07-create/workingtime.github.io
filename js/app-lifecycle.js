@@ -1,12 +1,12 @@
 // === js/app-lifecycle.js ===
-import * as State from './state.js?v=202610291723';
-import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202610291723';
-import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=202610291723';
-import { saveStateToFirestore } from './app-data.js?v=202610291723';
+import * as State from './state.js?v=202610300907';
+import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202610300907';
+import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=202610300907';
+import { saveStateToFirestore } from './app-data.js?v=202610300907';
 import { collection, doc, writeBatch, getDoc, setDoc, waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getSubscribedDate } from './app-sync.js?v=202610291723';
-import { findOpenModal } from './lib/noti-popup.js?v=202610291723';
-import { emulatorEnabled } from './firebase-emulator.js?v=202610291723';
+import { getSubscribedDate } from './app-sync.js?v=202610300907';
+import { findOpenModal } from './lib/noti-popup.js?v=202610300907';
+import { emulatorEnabled } from './firebase-emulator.js?v=202610300907';
 
 // 📅 자정을 넘긴 탭(2026-10-22): 구독은 어제 문서(daily_data/{어제})에 붙어 있는데 저장·정리는 '오늘' 경로로 가서
 //    어제 화면의 값이 오늘 문서로 새거나 오늘 잠금을 지우는 일이 생긴다. 날짜가 바뀐 것을 보면
@@ -217,7 +217,7 @@ let eodFlushCooldownUntil = 0;   // 종료시각 이후 이력 확정 저장 재
 
 // 업무일 종료시각. 이력의 열린 기록 상한도 같은 값을 써야 하므로 단일 출처에서 가져온다
 // (예전엔 두 파일에 따로 박혀 있어, 한쪽만 고치면 조용히 갈라졌다).
-import { AUTO_END_TIME } from './lib/record-close.js?v=202610291723';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202610300907';
 
 // 진행/일시정지 기록을 지정 시각으로 마감(Firestore 배치 + 로컬 미러 갱신)
 async function closeRecordsAt(records, endTime, dayKey) {

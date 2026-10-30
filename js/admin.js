@@ -1,16 +1,16 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610291723';
-import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610291723';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610291723';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610291723';
-import { memberNameFor } from './app-shell-data.js?v=202610291723';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610300907';
+import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610300907';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610300907';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610300907';
+import { memberNameFor } from './app-shell-data.js?v=202610300907';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610291723';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610291723';
-import { getPermModel } from './admin-perm.js?v=202610291723';
-import { showConfirm } from './utils.js?v=202610291723';
-import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610291723';
+import { menuConfigOf } from './lib/perm.js?v=202610300907';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610300907';
+import { getPermModel } from './admin-perm.js?v=202610300907';
+import { showConfirm } from './utils.js?v=202610300907';
+import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610300907';
 
 import {
     renderAdminUI,
@@ -30,13 +30,13 @@ import {
     findDeadMenuItems,
     countNamelessMenuRows,
     MOVE_BTNS
-} from './admin-ui.js?v=202610291723';
+} from './admin-ui.js?v=202610300907';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610291723';
+} from './admin-logic.js?v=202610300907';
 
 let db, auth;
 let appConfig = {};
@@ -478,7 +478,7 @@ async function handleSaveAll() {
 const TASK_FIELD_LABELS = {
     keyTasks: '주요 업무', quantityTaskTypes: '처리량 집계', costCalcTasks: '원가 계산', qualityCostTasks: '품질비용',
     quantityToDashboardMap: '대시보드 위젯 연결', simulationTaskLinks: '시뮬레이션 연결',
-    forecastBacklogTasks: '예측 이월', staffingBasketTasks: '인원 산정'
+    forecastBacklogTasks: '예측 이월', staffingBasketTasks: '인원 산정', forecastExcludedTasks: '업무 예상 제외'
 };
 const taskFieldLabel = (f) => TASK_FIELD_LABELS[f] || (f.startsWith('sim') ? '예측 설정(' + f + ')' : f);
 

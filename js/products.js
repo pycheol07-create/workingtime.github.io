@@ -13,15 +13,15 @@
 //    로그인 칸 UI 는 china-stock-gate.js 를 **복사**했다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202610291723';
-import { emulatorEnabled } from './firebase-emulator.js?v=202610291723';
-import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610291723';
-import { renderList, exportCatalog } from './products-list.js?v=202610291723';
-import { renderDetail, renderCatalogLog } from './products-detail.js?v=202610291723';
-import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=202610291723';
-import { openUpload } from './products-excel.js?v=202610291723';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610291723';
-import { memberNameFor } from './app-shell-data.js?v=202610291723';
+import { initializeFirebase } from './config.js?v=202610300907';
+import { emulatorEnabled } from './firebase-emulator.js?v=202610300907';
+import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=202610300907';
+import { renderList, exportCatalog } from './products-list.js?v=202610300907';
+import { renderDetail, renderCatalogLog } from './products-detail.js?v=202610300907';
+import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=202610300907';
+import { openUpload } from './products-excel.js?v=202610300907';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610300907';
+import { memberNameFor } from './app-shell-data.js?v=202610300907';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
