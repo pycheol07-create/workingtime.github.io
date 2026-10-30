@@ -9,8 +9,8 @@
 import {
     doc, getDoc, getDocs, collection, query, where, Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { catalogBucketIds, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610301221';
-import { parseCatalogJson } from './lib/product-excel-rows.js?v=202610301221';
+import { catalogBucketIds, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202610301315';
+import { parseCatalogJson } from './lib/product-excel-rows.js?v=202610301315';
 
 const IDB_NAME = 'ggsing-products';
 const IDB_VER = 1;

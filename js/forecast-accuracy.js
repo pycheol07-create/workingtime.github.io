@@ -63,6 +63,10 @@ const 계획시간맵 = (snap) => {
     return { planHoursByTask: out, noBaselineKeys: noBaseline.sort() };
 };
 
+/** 계획시간맵 공개판 — 보정 계획(js/lib/forecast-correct.js)이 같은 규칙으로 업무별 계획 시간을 내려고 쓴다.
+ *  반환 모양 그대로: { planHoursByTask, noBaselineKeys } */
+export const planHoursByTaskOf = (snap) => 계획시간맵(snap);
+
 /** 업무별 실제 투입시간(시간). duration 이 쓰레기면 무시한다.
  *  ⚠️ actualHours 는 **업무명이 없는 기록의 시간도 포함**한다 — 종전 수식(spentMin 합계)과
  *     똑같은 값이어야 '전체 오차'가 옛 날짜에서 흔들리지 않는다.

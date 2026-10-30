@@ -1,22 +1,22 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610301221';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610301221';
-import { clampOpenRecords } from './lib/record-close.js?v=202610301221';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610301221';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610301221';
+import * as State from './state.js?v=202610301315';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610301315';
+import { clampOpenRecords } from './lib/record-close.js?v=202610301315';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610301315';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610301315';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
-} from './lib/attendance-guard.js?v=202610301221';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610301221';
-import { can } from './lib/perm.js?v=202610301221';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610301221';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610301221';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610301221';
-import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202610301221';
-import { buildPlannedDoc } from './lib/planned-fields.js?v=202610301221';
-import { sameTaskKeys } from './lib/task-alias-view.js?v=202610301221';
+} from './lib/attendance-guard.js?v=202610301315';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610301315';
+import { can } from './lib/perm.js?v=202610301315';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610301315';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610301315';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610301315';
+import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202610301315';
+import { buildPlannedDoc } from './lib/planned-fields.js?v=202610301315';
+import { sameTaskKeys } from './lib/task-alias-view.js?v=202610301315';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610301221';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610301315';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -252,10 +252,14 @@ export async function deleteForecastSnapshot(dateStr) {
     }
 }
 
-/** 지난 날짜의 계획 스냅샷을 한 번에 읽는다(정확도 화면 전용).
- *  fetchPlannedData 는 '오늘 이후'만 담으므로 과거는 여기서 따로 가져온다. */
-export async function fetchForecastSnapshots(fromDate, toDate) {
-    if (!State.auth || !State.auth.currentUser) return {};
+/** 지난 날짜의 계획 스냅샷을 한 번에 읽는다(정확도 화면 · 보정 계획 2단계).
+ *  fetchPlannedData 는 '오늘 이후'만 담으므로 과거는 여기서 따로 가져온다.
+ *  strict: 못 읽으면(로그인 전·읽기 실패) {} 대신 던진다 — '스냅샷 없음'과 '못 읽음'을 가려야 하는 쪽(보정 계획)용. */
+export async function fetchForecastSnapshots(fromDate, toDate, { strict = false } = {}) {
+    if (!State.auth || !State.auth.currentUser) {
+        if (strict) throw new Error('로그인 전이라 스냅샷을 읽지 못했습니다');
+        return {};
+    }
     if (!fromDate || !toDate) return {};
     try {
         const q = query(plannedColRef(),
@@ -270,6 +274,7 @@ export async function fetchForecastSnapshots(fromDate, toDate) {
         return out;
     } catch (e) {
         console.error('fetchForecastSnapshots failed:', e);
+        if (strict) throw e;
         return {};
     }
 }
