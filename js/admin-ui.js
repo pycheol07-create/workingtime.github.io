@@ -1,9 +1,10 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610301348';
-import { renderPermissionPanel } from './admin-perm.js?v=202610301348';
-import { taskIdOf, isLockedTaskId } from './lib/task-ids.js?v=202610301348';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610301657';
+import { renderPermissionPanel } from './admin-perm.js?v=202610301657';
+import { taskIdOf, isLockedTaskId } from './lib/task-ids.js?v=202610301657';
+import { duplicateTasks } from './lib/task-config-sync.js?v=202610301657';
 
 // 📱 순서 바꾸기 ▲▼ — HTML5 끌어 옮기기는 터치에서 안 되므로, 터치 화면(hover 없음)에서만 보인다(admin.html .move-btns).
 //    누르면 같은 종류의 앞/뒤 줄과 자리를 바꾼다(admin.js handleMoveClick). 마우스 환경은 ☰ 끌기 그대로.
@@ -44,9 +45,6 @@ export function getAllTaskNamesFromDOM() {
 export function renderAdminUI(config) {
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) wageInput.value = config.defaultPartTimerWage || 10000;
-
-    const workHoursInput = document.getElementById('standard-monthly-work-hours');
-    if (workHoursInput) workHoursInput.value = config.standardMonthlyWorkHours || 209;
 
     renderTeamGroups(
         config.teamGroups || [],
@@ -355,16 +353,18 @@ export function renderKeyTasks(keyTasks, taskIdNames = {}) {
 }
 
 // 업무 줄 하나. 잠긴 업무(프로그램이 이름으로 계산)는 이름 칸을 읽기 전용 + 🔒. '+ 업무 추가'(admin.js)도 이 함수로 만든다.
-export function taskItemHtml(task, taskId, tIndex = '') {
+// dup: 같은 업무가 여러 그룹(또는 한 그룹에 두 번)에 있으면 '중복' 배지 — 배지는 늘 그리고 숨김만 바꾼다(markDuplicateTaskRows)
+export function taskItemHtml(task, taskId, tIndex = '', dup = false) {
     const locked = isLockedTaskId(taskId);
     const lockAttr = locked ? ' readonly title="프로그램이 이 이름으로 계산합니다(이름 변경 불가)"' : '';
     const lockMark = locked ? '<span class="text-xs" title="프로그램이 이 이름으로 계산합니다(이름 변경 불가)">🔒</span>' : '';
+    const dupMark = `<span class="task-dup-badge${dup ? '' : ' hidden'} shrink-0 text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded px-1.5 py-0.5" title="같은 업무가 여러 그룹에 있습니다 — 하나만 남기세요">중복</span>`;
     return `
             <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group" data-task-id="${taskId || ''}">
                 <div class="flex items-center gap-2 flex-grow">
                     <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
                     <input type="text" value="${task}" class="task-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none"${lockAttr}>
-                    ${lockMark}
+                    ${lockMark}${dupMark}
                 </div>
                 <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-t-index="${tIndex}">삭제</button>
             </div>
@@ -375,13 +375,15 @@ export function renderTaskGroups(taskGroups, taskIdNames = {}) {
     const container = document.getElementById('task-groups-container');
     if (!container) return;
     container.innerHTML = '';
+    const dupNames = new Set(duplicateTasks(taskGroups).map(d => d.name));
 
     (taskGroups || []).forEach((group, index) => {
         const groupEl = document.createElement('div');
         groupEl.className = 'p-5 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 task-group-card transition-colors';
         groupEl.dataset.index = index;
 
-        const tasksHtml = (group.tasks || []).map((task, tIndex) => taskItemHtml(task, taskIdOf(task, taskIdNames), tIndex)).join('');
+        const tasksHtml = (group.tasks || []).map((task, tIndex) => taskItemHtml(task, taskIdOf(task, taskIdNames), tIndex,
+            dupNames.has(String(task == null ? '' : task).trim()))).join('');
 
         groupEl.innerHTML = `
              <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
@@ -399,6 +401,20 @@ export function renderTaskGroups(taskGroups, taskIdNames = {}) {
             </div>
         `;
         container.appendChild(groupEl);
+    });
+}
+
+// 화면의 업무 줄을 taskGroups 모양으로 읽어 '중복' 배지를 다시 맞춘다(업무 이름 변경·줄 삭제 뒤 — admin.js refreshTaskViews)
+export function markDuplicateTaskRows() {
+    const cards = [...document.querySelectorAll('#task-groups-container .task-group-card')];
+    const groups = cards.map(card => ({
+        name: card.querySelector('.task-group-name')?.value || '',
+        tasks: [...card.querySelectorAll('.task-item .task-name')].map(input => input.value)
+    }));
+    const dupNames = new Set(duplicateTasks(groups).map(d => d.name));
+    document.querySelectorAll('#task-groups-container .task-item').forEach(row => {
+        const name = (row.querySelector('.task-name')?.value || '').trim();
+        row.querySelector('.task-dup-badge')?.classList.toggle('hidden', !dupNames.has(name));
     });
 }
 
@@ -471,8 +487,10 @@ export function renderQuantityToDashboardMapping(config) {
     });
 }
 
-export function populateTaskSelectModal(targetType) {
+// opts.linked: 'widget' 일 때 [{ name, linkedTitle }](js/lib/task-config-sync.js widgetTaskChoices) — 이미 위젯에 연결된 업무는 흐리게·못 고름
+export function populateTaskSelectModal(targetType, opts = {}) {
     const allTasks = getAllTaskNamesFromDOM();
+    const linkedOf = new Map((opts.linked || []).filter(c => c && c.linkedTitle).map(c => [c.name, c.linkedTitle]));
     const listContainer = document.getElementById('select-task-list');
     const modalTitle = document.getElementById('select-task-modal-title');
 
@@ -484,6 +502,8 @@ export function populateTaskSelectModal(targetType) {
         modalTitle.textContent = "메인 보드에 고정할 업무 선택";
     } else if (targetType === 'quantity') {
         modalTitle.textContent = "처리량을 입력받을 업무 선택";
+    } else if (targetType === 'widget') {
+        modalTitle.textContent = "위젯에 수량을 보일 업무 선택";
     }
 
     if (allTasks.length === 0) {
@@ -497,6 +517,12 @@ export function populateTaskSelectModal(targetType) {
         button.className = 'task-select-list-btn w-full text-left p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-500 transition-colors font-bold text-gray-700 dark:text-gray-200 text-sm';
         button.textContent = taskName;
         button.dataset.taskName = taskName;
+        const linkedTitle = linkedOf.get(taskName);
+        if (linkedTitle) {
+            button.disabled = true;
+            button.textContent = `${taskName} (연결됨: ${linkedTitle})`;
+            button.classList.add('opacity-50', 'cursor-not-allowed');
+        }
         listContainer.appendChild(button);
     });
 }

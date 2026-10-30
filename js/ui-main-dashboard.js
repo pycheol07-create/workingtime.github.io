@@ -1,16 +1,16 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610301348';
-import * as State from './state.js?v=202610301348';
-import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202610301348';
-import { visibleMenuFor } from './menu-catalog.js?v=202610301348';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610301348';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610301348';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610301348';
-import { canonicalTaskName } from './lib/task-ids.js?v=202610301348';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610301348';
-import { minToHhmm } from './forecast-progress.js?v=202610301348';
-import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202610301348';
-import { subscribeShipAuto, morningAutoToday } from './ship-auto-sync.js?v=202610301348';
+import { getAllDashboardDefinitions } from './ui.js?v=202610301657';
+import * as State from './state.js?v=202610301657';
+import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202610301657';
+import { visibleMenuFor } from './menu-catalog.js?v=202610301657';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610301657';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610301657';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610301657';
+import { canonicalTaskName } from './lib/task-ids.js?v=202610301657';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610301657';
+import { minToHhmm } from './forecast-progress.js?v=202610301657';
+import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202610301657';
+import { subscribeShipAuto, morningAutoToday } from './ship-auto-sync.js?v=202610301657';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -140,7 +140,7 @@ export const updateEzadminDisplay = () => {
         if (deliveryEl) { deliveryEl.textContent = '–'; deliveryEl.classList.add('opacity-50'); }
         if (라벨El) {
             라벨El.textContent = v.라벨;
-            라벨El.className = 'ez-asof is-warn mt-1.5';
+            라벨El.className = 'ez-asof is-warn ml-auto min-w-0 truncate';
             라벨El.title = [v.사유, '앱 폴더의 이지어드민연동/로그 를 확인하세요.']
                 .filter(Boolean).join('\n');
         }
@@ -152,7 +152,7 @@ export const updateEzadminDisplay = () => {
         if (deliveryEl) deliveryEl.textContent = '–';
         if (라벨El) {
             라벨El.textContent = '연동 대기 중';
-            라벨El.className = 'ez-asof mt-1.5';
+            라벨El.className = 'ez-asof ml-auto min-w-0 truncate';
         }
         return;
     }
@@ -168,10 +168,10 @@ export const updateEzadminDisplay = () => {
 
     if (라벨El) {
         라벨El.textContent = v.라벨;
-        라벨El.className = 'ez-asof mt-1.5' + (v.흐림 ? ' is-warn' : '');
+        라벨El.className = 'ez-asof ml-auto min-w-0 truncate' + (v.흐림 ? ' is-warn' : '');
         const 도움 = [v.사유, '숫자는 마지막으로 읽은 값입니다.',
                      '앱 폴더의 이지어드민연동/로그 를 확인하세요.'].filter(Boolean);
-        라벨El.title = v.흐림 ? 도움.join('\n') : '';
+        라벨El.title = v.흐림 ? 도움.join('\n') : v.라벨;   // 한 줄이라 좁으면 잘린다 — 마우스를 올리면 전체
     }
 };
 
@@ -257,13 +257,11 @@ export const renderDashboardLayout = (appConfig) => {
     // (0 을 먼저 그리면 '송장 0건' 처럼 보인다)
 
     workloadHtml += `
-        <div class="d-sub px-4 py-3" style="margin-top:16px;"><!-- 업무 칸과 띄우기 — 부모의 space-y-0.5 가 mt-3 을 덮어써서 style 로 준다(2026-10-26) -->
-            <div class="text-[13px] font-semibold t-1">이지어드민 연동</div>
-            <div class="flex flex-wrap gap-x-6 gap-y-1 mt-2 text-sm">
-                <span class="whitespace-nowrap"><span class="t-2">송장</span> <span id="ezadmin-invoice-count" class="ez-num">–</span></span>
-                <span class="whitespace-nowrap"><span class="t-2">배송</span> <span id="ezadmin-delivery-count" class="ez-num">–</span></span>
-            </div>
-            <div id="ezadmin-asof" class="ez-asof mt-1.5"></div>
+        <div class="d-sub px-3 py-2 flex items-baseline gap-x-3 text-sm min-w-0" style="margin-top:12px;"><!-- 업무 칸과 띄우기 — 부모의 space-y-0.5 가 mt-3 을 덮어써서 style 로 준다(2026-10-26) · 한 줄로 줄임(2026-10-30) -->
+            <span class="text-[13px] font-semibold t-1 whitespace-nowrap">이지어드민</span>
+            <span class="whitespace-nowrap"><span class="t-2">송장</span> <span id="ezadmin-invoice-count" class="ez-num">–</span></span>
+            <span class="whitespace-nowrap"><span class="t-2">배송</span> <span id="ezadmin-delivery-count" class="ez-num">–</span></span>
+            <span id="ezadmin-asof" class="ez-asof ml-auto min-w-0 truncate"></span>
         </div>
     `;
 
@@ -405,7 +403,7 @@ const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-
  *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
 const openQuantityFromCard = async () => {
     try {
-        const { whenTodayLoaded } = await import('./app-sync.js?v=202610301348');
+        const { whenTodayLoaded } = await import('./app-sync.js?v=202610301657');
         const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
         if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
     } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
@@ -591,7 +589,7 @@ const paintWorkloadPaceNow = () => {
     if (!paceMod) {
         if (!paceModLoading) {
             paceModLoading = true;
-            import('./ui-history-prediction.js?v=202610301348')
+            import('./ui-history-prediction.js?v=202610301657')
                 .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
                 .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
                 .finally(() => { paceModLoading = false; });

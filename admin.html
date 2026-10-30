@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610301348">
-    <link rel="stylesheet" href="css/admin-d.css?v=202610301348">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610301348">
+    <link rel="stylesheet" href="css/suit.css?v=202610301657">
+    <link rel="stylesheet" href="css/admin-d.css?v=202610301657">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610301657">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -187,7 +187,7 @@
                     <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[400px] w-full">
                         <div class="flex gap-2 mb-4 w-full">
                             <button id="add-dashboard-item-btn" class="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition">+ 기존 항목 추가</button>
-                            <button id="add-custom-dashboard-item-btn" class="text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-bold px-4 py-2 rounded-lg transition">+ 커스텀 수량 생성</button>
+                            <button id="add-custom-dashboard-item-btn" class="text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-bold px-4 py-2 rounded-lg transition" title="등록된 업무를 골라 그 업무의 수량 위젯을 만듭니다(처리량 집계·위젯 연결도 함께)">+ 업무 수량 위젯 추가</button>
                         </div>
                         <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
                             <div id="dashboard-items-container" class="space-y-2 w-full"></div>
@@ -280,17 +280,13 @@
                 <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors w-full" id="section-setting">
                     <div class="p-6 border-b border-gray-100 dark:border-gray-700 w-full">
                         <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">기타 기본 설정</h2>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">알바 기본 시급 및 1인당 월 표준 근무 시간</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">알바 기본 시급</p>
                     </div>
                     <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[400px] w-full">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
                             <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
                                 <label for="default-part-timer-wage" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">알바 기본 시급 (원)</label>
                                 <input type="number" id="default-part-timer-wage" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white bg-gray-50 dark:bg-gray-900 outline-none focus:border-blue-500">
-                            </div>
-                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
-                                <label for="standard-monthly-work-hours" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">1인당 월 표준 근무 (시간)</label>
-                                <input type="number" id="standard-monthly-work-hours" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white bg-gray-50 dark:bg-gray-900 outline-none focus:border-blue-500">
                             </div>
                         </div>
                     </div>
@@ -361,12 +357,12 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610301348"></script>
-    <script type="module" src="js/admin-automation.js?v=202610301348"></script>
+    <script type="module" src="js/admin.js?v=202610301657"></script>
+    <script type="module" src="js/admin-automation.js?v=202610301657"></script>
 
     <script type="module">
         // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
-        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610301348';
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610301657';
 
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
@@ -473,9 +469,9 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610301348"></script>
-    <script src="js/modal-esc.js?v=202610301348"></script>
-    <script type="module" src="js/modal-drag.js?v=202610301348"></script>
-    <script type="module" src="js/app-shell.js?v=202610301348"></script>
+    <script src="js/connection-banner.js?v=202610301657"></script>
+    <script src="js/modal-esc.js?v=202610301657"></script>
+    <script type="module" src="js/modal-drag.js?v=202610301657"></script>
+    <script type="module" src="js/app-shell.js?v=202610301657"></script>
 </body>
 </html>

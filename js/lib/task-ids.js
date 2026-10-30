@@ -10,7 +10,7 @@
  *  ui-history-prediction.js LEGACY_SIM_TASKS 의 key 를 모두 포함해야 한다(테스트가 확인).
  *  그 밖에 코드가 이름으로 계산하는 것: 오류(ui-history-productivity.js 채우기·오류 분석),
  *  중국제작(담당)(예측 DEFAULT_TIME_TASK_DEPS), 청소·앵글정리(예측 DEFAULT_SIM_ZERO_TASKS),
- *  매장근무·교육(예측 TIME_TASK_EXCLUDE). */
+ *  매장근무·교육(예측 TIME_TASK_EXCLUDE), 로케이션 동선관리(feature-catalog.js LOCREC_TASK — 대시보드 [변경추천]·업무 예상). */
 export const LOCKED_TASKS = Object.freeze({
     '국내배송': 'k_domestic',
     '중국제작': 'k_china',
@@ -29,7 +29,8 @@ export const LOCKED_TASKS = Object.freeze({
     '청소': 'k_cleaning',
     '앵글정리': 'k_angle',
     '매장근무': 'k_store',
-    '교육': 'k_training'
+    '교육': 'k_training',
+    '로케이션 동선관리': 'k_locroute'
 });
 const LOCKED_BY_ID = Object.freeze(Object.fromEntries(Object.entries(LOCKED_TASKS).map(([n, id]) => [id, n])));
 

@@ -2,8 +2,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610301348';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610301348';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610301657';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610301657';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -98,6 +98,8 @@ export const loadAppConfig = async (dbInstance) => {
             }
             mergedConfig.dashboardMenu = loadedMenu;
 
+            // 옛 '검수' → 샘플검수·전량검수 이전. 업무 이름을 정확히 '검수' 로 새로 만들면 불러올 때 둘로 나뉜다(여기·아래 업무 그룹 두 곳).
+            // 예전에 있던 '교환반품' 강제 삽입(주요 업무·처리량·담당 그룹)은 없앴다(2026-10-30) — 지워도 다시 생겨 업무 관리에서 지울 수 없었다.
             let loadedQtyTasks = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
             if (loadedQtyTasks.includes('검수')) {
                 loadedQtyTasks = loadedQtyTasks.filter(t => t !== '검수');
@@ -105,17 +107,6 @@ export const loadAppConfig = async (dbInstance) => {
                 if (!loadedQtyTasks.includes('전량검수')) loadedQtyTasks.push('전량검수');
             }
             mergedConfig.quantityTaskTypes = loadedQtyTasks;
-
-            if (!mergedConfig.keyTasks.includes('교환반품')) {
-                const idx = mergedConfig.keyTasks.indexOf('상.하차');
-                if (idx !== -1) mergedConfig.keyTasks.splice(idx + 1, 0, '교환반품');
-                else mergedConfig.keyTasks.push('교환반품');
-            }
-            if (!mergedConfig.quantityTaskTypes.includes('교환반품')) {
-                const idx = mergedConfig.quantityTaskTypes.indexOf('상.하차');
-                if (idx !== -1) mergedConfig.quantityTaskTypes.splice(idx + 1, 0, '교환반품');
-                else mergedConfig.quantityTaskTypes.push('교환반품');
-            }
 
             mergedConfig.qualityCostTasks = loadedData.qualityCostTasks || defaultData.qualityCostTasks;
             mergedConfig.systemAccounts = loadedData.systemAccounts || defaultData.systemAccounts;
@@ -128,11 +119,6 @@ export const loadAppConfig = async (dbInstance) => {
                         if (!group.tasks.includes('샘플검수')) group.tasks.push('샘플검수');
                         if (!group.tasks.includes('전량검수')) group.tasks.push('전량검수');
                     }
-                    if (group.name === '담당' && !group.tasks.includes('교환반품')) {
-                        const idx = group.tasks.indexOf('상.하차');
-                        if (idx !== -1) group.tasks.splice(idx + 1, 0, '교환반품');
-                        else group.tasks.push('교환반품');
-                    }
                     return group;
                 });
             } else if (typeof loadedData.taskGroups === 'object' && loadedData.taskGroups !== null && !Array.isArray(loadedData.taskGroups)) {
@@ -142,11 +128,6 @@ export const loadAppConfig = async (dbInstance) => {
                         parsedTasks = parsedTasks.filter(t => t !== '검수');
                         if (!parsedTasks.includes('샘플검수')) parsedTasks.push('샘플검수');
                         if (!parsedTasks.includes('전량검수')) parsedTasks.push('전량검수');
-                    }
-                    if (groupName === '담당' && !parsedTasks.includes('교환반품')) {
-                        const idx = parsedTasks.indexOf('상.하차');
-                        if (idx !== -1) parsedTasks.splice(idx + 1, 0, '교환반품');
-                        else parsedTasks.push('교환반품');
                     }
                     return { name: groupName, tasks: parsedTasks };
                 });
@@ -330,7 +311,6 @@ function getDefaultConfig() {
         simulationTaskLinks: {
             '직진배송': '직진배송 사전작업' 
         },
-        standardMonthlyWorkHours: 209,
         standardDailyWorkHours: {
              weekday: 8,
              weekend: 4

@@ -1,10 +1,11 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610301348';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610301348';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202610301348';
-import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610301348';
-import { permFieldsForSave } from './lib/perm-model.js?v=202610301348';
-import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610301348';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610301657';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610301657';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202610301657';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610301657';
+import { permFieldsForSave } from './lib/perm-model.js?v=202610301657';
+import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610301657';
+import { deletedTasks, purgeDeletedTasks, followWidgetTitles, takenDeletedNames } from './lib/task-config-sync.js?v=202610301657';
 
 // 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
 export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',
@@ -46,7 +47,8 @@ export function detectEmailRenames(currentConfig, permModel) {
 }
 
 /** permModel: 권한 화면 모델. 없으면 권한 칸을 저장 전 값 그대로 둔다(메뉴 미리보기용 호출 등) — 이때 저장은 admin.js 가 막는다.
- *  taskInfo: 객체를 주면 업무 이름 변경 결과를 채운다 { renames, reused } (저장 확인창용). 반환값은 예전처럼 설정 하나. */
+ *  taskInfo: 객체를 주면 업무 이름 변경·삭제 결과를 채운다 { renames, reused, deleted, purged } (저장 확인창용 —
+ *  deleted·purged 는 js/lib/task-config-sync.js deletedTasks·purgeDeletedTasks 결과). 반환값은 예전처럼 설정 하나. */
 export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo = null) {
     // ⚠️ 아래 목록에 없는 설정도 그대로 보존해야 한다.
     //    saveAppConfig 는 문서를 통째로 덮어쓰므로(merge 아님), 여기서 빠뜨린 키는
@@ -74,7 +76,6 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
         quantityTaskTypes: [],
         
         defaultPartTimerWage: 10000,
-        standardMonthlyWorkHours: 209,
 
         fixedMaterialCost: 0,
         fixedShippingCost: 0,
@@ -107,8 +108,8 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
 
     document.querySelectorAll('#team-groups-container .team-group-card').forEach(groupCard => {
         const groupNameInput = groupCard.querySelector('.team-group-name');
+        // 이름이 빈 그룹도 건너뛰지 않는다(name:'') — 건너뛰면 미리보기에서 팀원이 통째로 사라진다. 저장은 validateConfig 가 막는다.
         const groupName = groupNameInput ? groupNameInput.value.trim() : '';
-        if (!groupName) return;
 
         const newGroup = { name: groupName, members: [] };
 
@@ -278,9 +279,9 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
     const taskRows = [];
     document.querySelectorAll('#task-groups-container .task-group-card').forEach(groupCard => {
         const groupNameInput = groupCard.querySelector('.task-group-name');
+        // 이름이 빈 그룹도 넣는다(name:'') — 건너뛰면 그 그룹 업무 id 가 통째로 사라져 '지운 업무'로 정리된다. 저장은 validateConfig 가 막는다.
         const groupName = groupNameInput ? groupNameInput.value.trim() : '';
-        if (!groupName) return;
-        
+
         const tasks = [];
         groupCard.querySelectorAll('.task-item').forEach(taskItem => {
             const taskNameInput = taskItem.querySelector('.task-name');
@@ -329,9 +330,6 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) newConfig.defaultPartTimerWage = Number(wageInput.value) || 10000;
 
-    const workHoursInput = document.getElementById('standard-monthly-work-hours');
-    if (workHoursInput) newConfig.standardMonthlyWorkHours = Number(workHoursInput.value) || 209;
-
     const materialCostInput = document.getElementById('fixed-material-cost');
     if (materialCostInput) newConfig.fixedMaterialCost = Number(materialCostInput.value) || 0;
 
@@ -354,16 +352,27 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
         }
     });
 
-    // 이름 변경을 나머지 이름 칸(품질비용·예측 설정 등 화면에 없는 칸)에 퍼뜨리고 별칭을 남긴다.
-    //   위에서 id 로 읽은 칸은 이미 새 이름이라 건너뛴다(두 번 바꾸면 A↔B 맞바꾸기가 되돌아간다).
+    // 지운 업무를 화면에 없는 칸(품질비용·예측 설정 등)과 그 업무에만 연결된 커스텀 위젯에서 뺀 뒤,
+    // 이름 변경을 나머지 이름 칸에 퍼뜨리고 별칭을 남긴다.
+    //   위에서 id 로 읽은 칸은 이미 지금 이름이라 건너뛴다(두 번 바꾸면 A↔B 맞바꾸기가 되돌아간다).
+    //   정리를 이름 변경보다 먼저 — 같은 저장에서 X 'P' 삭제 + Y→'P' 이름 변경이면 Y 의 설정이 남아야 한다.
+    //   업무 예상 제외(forecastExcludedTasks)는 정리하지 않는다 — 과거 정확도 숫자 보존.
     if (!beforeIds) return newConfig;
-    const { config, renames, reused } = applyTaskRenames(newConfig, currentConfig,
-        { skip: ['keyTasks', 'quantityTaskTypes', 'costCalcTasks', 'quantityToDashboardMap'] });
-    if (taskInfo) { taskInfo.renames = renames; taskInfo.reused = reused; }
+    const skip = ['keyTasks', 'quantityTaskTypes', 'costCalcTasks', 'quantityToDashboardMap'];
+    const deleted = deletedTasks(currentConfig, newConfig);
+    const purged = purgeDeletedTasks(newConfig, currentConfig, deleted, { skip: ['forecastExcludedTasks'], already: skip });
+    const { config, renames, reused } = applyTaskRenames(purged.config, currentConfig, { skip });
+    config.dashboardCustomItems = followWidgetTitles(config.dashboardCustomItems, renames);
+    if (taskInfo) Object.assign(taskInfo, { renames, reused, deleted, purged, taken: takenDeletedNames(currentConfig, newConfig) });
     return config;
 }
 
 export function validateConfig(newConfig) {
+    // 이름이 빈 그룹 — 모을 때는 남겨 두고(업무 id·팀원 유실 방지) 저장만 막는다
+    const blankTeam = (newConfig.teamGroups || []).filter(g => !String(g.name || '').trim()).length;
+    const blankTask = (newConfig.taskGroups || []).filter(g => !String(g.name || '').trim()).length;
+    if (blankTeam || blankTask) throw new Error(`[저장 실패] 이름이 빈 그룹이 있습니다 — 팀 그룹 ${blankTeam}개, 업무 그룹 ${blankTask}개. 이름을 넣거나 그룹을 지운 뒤 저장해 주세요.`);
+
     // 관리자가 한 명도 안 남으면 아무도 관리자 페이지에 들어갈 수 없게 된다.
     // (마지막 관리자가 자기 퇴사일을 입력하고 저장하는 경우 등)
     // Firestore 콘솔을 직접 고치는 것 외엔 되돌릴 수 없으므로 저장 자체를 막는다.

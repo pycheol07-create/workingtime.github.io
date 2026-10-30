@@ -1,16 +1,17 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610301348';
-import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610301348';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610301348';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610301348';
-import { memberNameFor } from './app-shell-data.js?v=202610301348';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610301657';
+import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610301657';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610301657';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610301657';
+import { memberNameFor } from './app-shell-data.js?v=202610301657';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610301348';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610301348';
-import { getPermModel } from './admin-perm.js?v=202610301348';
-import { showConfirm } from './utils.js?v=202610301348';
-import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610301348';
+import { menuConfigOf } from './lib/perm.js?v=202610301657';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610301657';
+import { getPermModel } from './admin-perm.js?v=202610301657';
+import { showConfirm } from './utils.js?v=202610301657';
+import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610301657';
+import { planTaskWidget, widgetTaskChoices, duplicateTasks } from './lib/task-config-sync.js?v=202610301657';
 
 import {
     renderAdminUI,
@@ -20,6 +21,8 @@ import {
     renderQuantityToDashboardMapping,
     renderCostAnalysisConfig,
     taskItemHtml,
+    markDuplicateTaskRows,
+    getAllTaskNamesFromDOM,
     populateTaskSelectModal,
     openDashboardItemModal,
     getAllDashboardDefinitions,
@@ -30,13 +33,13 @@ import {
     findDeadMenuItems,
     countNamelessMenuRows,
     MOVE_BTNS
-} from './admin-ui.js?v=202610301348';
+} from './admin-ui.js?v=202610301657';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610301348';
+} from './admin-logic.js?v=202610301657';
 
 let db, auth;
 let appConfig = {};
@@ -224,7 +227,16 @@ function setupEventListeners() {
     document.getElementById('add-team-group-btn')?.addEventListener('click', addTeamGroup);
     document.getElementById('add-task-group-btn')?.addEventListener('click', addTaskGroup);
     document.getElementById('add-dashboard-item-btn')?.addEventListener('click', () => openDashboardItemModal(appConfig));
-    document.getElementById('add-custom-dashboard-item-btn')?.addEventListener('click', addCustomDashboardItem);
+    // 업무 수량 위젯 — 위젯 이름을 직접 치지 않고 등록된 업무에서 고른다(이미 위젯에 연결된 업무는 흐리게).
+    //   화면 값을 못 읽으면(미리보기 실패) 창을 열지 않는다.
+    document.getElementById('add-custom-dashboard-item-btn')?.addEventListener('click', () => {
+        const cfg = previewOrWarn();
+        if (!cfg) return;
+        const linked = widgetTaskChoices(getAllTaskNamesFromDOM(), cfg.quantityToDashboardMap || {}, getAllDashboardDefinitions(appConfig));
+        currentModalTarget = 'widget';
+        populateTaskSelectModal('widget', { linked });
+        document.getElementById('select-task-modal')?.classList.remove('hidden');
+    });
 
     document.getElementById('add-key-task-btn')?.addEventListener('click', () => {
         currentModalTarget = 'key';
@@ -239,11 +251,12 @@ function setupEventListeners() {
 
     document.getElementById('select-task-list')?.addEventListener('click', (e) => {
         const button = e.target.closest('.task-select-list-btn');
-        if (button) {
+        if (button && !button.disabled) {
             const taskName = button.dataset.taskName;
             if (currentModalTarget === 'key') addKeyTask(taskName);
             else if (currentModalTarget === 'quantity') addQuantityTask(taskName);
-            
+            else if (currentModalTarget === 'widget') addTaskWidget(taskName);
+
             document.getElementById('select-task-modal')?.classList.add('hidden');
             currentModalTarget = null;
         }
@@ -311,10 +324,13 @@ function redrawMappingFromScreen() {
 }
 
 function refreshTaskViews() {
+    markDuplicateTaskRows();   // 화면 줄만 보므로 미리보기 실패와 상관없이 맞춘다
     const cfg = previewTaskConfig();
     if (!cfg) return;
     renderKeyTasks(cfg.keyTasks || [], cfg.taskIdNames);
     renderQuantityTasks(cfg.quantityTaskTypes || [], cfg.taskIdNames);
+    // 상단 위젯 목록도 미리보기로 — 지운 업무에만 연결된 커스텀 위젯이 바로 빠진다(연결 선택지가 이 목록을 읽으므로 먼저)
+    renderDashboardItemsConfig(cfg.dashboardItems || [], appConfig);
     renderQuantityToDashboardMapping(cfg);
     renderCostAnalysisConfig(cfg);
 }
@@ -401,6 +417,16 @@ async function handleSaveAll() {
         const taskInfo = {};
         const newConfig = collectConfigFromDOM(appConfig, permModel, taskInfo);
         validateConfig(newConfig);
+        // 같은 업무가 여러 그룹에 있으면 알린다(막지는 않는다 — 일부러 두 그룹에 둔 경우도 있다)
+        const dups = duplicateTasks(newConfig.taskGroups);
+        if (dups.length) {
+            const groupText = (gs) => {
+                const uniq = [...new Set(gs.map(g => g || '(이름 없음)'))];
+                return uniq.length === 1 ? `${uniq[0]} 그룹에 ${gs.length}번 있음` : `${uniq.join('·')} ${uniq.length}개 그룹에 있음`;
+            };
+            const msg = dups.map(d => `${d.name} — ${groupText(d.groups)}`).join('\n') + '\n\n그래도 저장할까요?';
+            if (!(await showConfirm(msg, { title: '같은 업무가 여러 곳에 있음', okText: '그대로 저장' }))) return;
+        }
         // 저장 전에 기능 집합 검사 — 손대지 않은 사람의 권한이 바뀌거나, 저장될 값이 화면과 다르거나, 옛 이메일 키가 남으면 멈춘다(건수만 알린다).
         const permCheck = verifyPermSave(permModel, newConfig, renames);
         if (permCheck.mismatch || permCheck.changed || permCheck.stale) {
@@ -409,9 +435,10 @@ async function handleSaveAll() {
                 + '아무것도 저장하지 않았습니다. 새로고침 후 다시 해 보고, 계속되면 개발 담당에게 알려 주세요.');
         }
 
-        // 🆔 업무 이름 변경은 저장 전에 무엇이 함께 바뀌는지 보여 주고 확인받는다
-        if ((taskInfo.renames && taskInfo.renames.length) || (taskInfo.reused && taskInfo.reused.length)) {
-            if (!(await showConfirm(taskRenameMessage(taskInfo, appConfig), { title: '업무 이름 변경', okText: '바꾸고 저장' }))) return;
+        // 🆔 업무 이름 변경·삭제는 저장 전에 무엇이 함께 바뀌거나 빠지는지 보여 주고 확인받는다
+        if ((taskInfo.renames && taskInfo.renames.length) || (taskInfo.reused && taskInfo.reused.length)
+            || (taskInfo.deleted && taskInfo.deleted.length) || (taskInfo.taken && taskInfo.taken.length)) {
+            if (!(await showConfirm(taskRenameMessage(taskInfo, appConfig), { title: '업무 변경 확인', okText: '저장' }))) return;
         }
 
         // 눌러도 열리지 않을 메뉴는 저장 전에 알린다(막지는 않는다 — 만들다 만 상태로 저장할 수도 있다).
@@ -493,8 +520,27 @@ function taskRenameMessage(info, beforeCfg) {
         const prev = (beforeCfg.taskIdNames || {})[u.prevId] || '지운 업무';
         lines.push(`'${u.name}' 은(는) 예전에 다른 업무(지금 '${prev}')의 이름이었습니다 — 옛 기록이 이 업무로 합쳐 보입니다.`);
     });
-    lines.push('', '과거 기록은 옛 이름으로 남고 통계에서 합쳐 봅니다.',
-        '오늘 진행 중인 업무는 옛 이름으로 마감되니 마감 뒤에 바꾸는 것이 안전합니다.');
+    (info.taken || []).forEach(t => {
+        lines.push(`'${t.name}' 은(는) 이번에 지운 업무의 이름이었습니다 — 그 업무의 숨은 설정(품질비용·예측 등)이 같은 이름의 업무로 이어집니다.`);
+    });
+    // 삭제 — 함께 빠지는 설정(화면에 없는 칸 포함)·위젯, 비게 되어 그대로 둔 칸
+    const purged = info.purged || {};
+    const purgedFields = purged.fields || {};
+    (info.deleted || []).forEach(d => {
+        const labels = [...new Set((purgedFields[d.name] || []).map(taskFieldLabel))];
+        lines.push(`삭제: ${d.name} — 함께 빠지는 설정: ${labels.length ? labels.join(', ') : '없음'}`);
+    });
+    (purged.removedWidgets || []).forEach(w => lines.push(`위젯 항목 '${w.title}' 삭제`));
+    if ((purged.keptEmpty || []).length) {
+        lines.push(`비게 되어 그대로 둔 칸: ${[...new Set(purged.keptEmpty.map(taskFieldLabel))].join(', ')}`);
+    }
+    if (Object.values(purgedFields).some(fs => fs.includes('qualityCostTasks'))) {
+        lines.push('과거 보고서의 품질비용에서도 빠집니다.');
+    }
+    if ((info.renames || []).length || (info.reused || []).length) {
+        lines.push('', '과거 기록은 옛 이름으로 남고 통계에서 합쳐 봅니다.',
+            '오늘 진행 중인 업무는 옛 이름으로 마감되니 마감 뒤에 바꾸는 것이 안전합니다.');
+    }
     return lines.join('\n');
 }
 
@@ -547,57 +593,30 @@ function appendDashboardItem(itemId) {
     return true;
 }
 
-async function addCustomDashboardItem() {
-    const newTitle = await askText('새로 추가할 수량 항목의 이름을 입력하세요.', { title: '커스텀 수량 생성', okText: '추가', placeholder: '항목 이름' });
-    if (!newTitle || newTitle.trim() === '') return;
-    const trimmedTitle = newTitle.trim();
-
-    const allDefinitions = getAllDashboardDefinitions(appConfig);
-    if (Object.values(allDefinitions).some(def => def.title.toLowerCase() === trimmedTitle.toLowerCase())) {
-        alert("이미 같은 이름의 항목이 존재합니다.");
-        return;
+// 업무 수량 위젯 추가 — 고른 업무를 처리량 집계에 넣고(없으면), 같은 이름의 빈 수량 위젯(예: 기본 '중국제작')이 있으면 그것에,
+// 없으면 새 커스텀 위젯을 만들어 연결한다. 지금 화면 기준(미리보기)으로 다시 그린다. 저장은 [전체 저장]
+function addTaskWidget(taskName) {
+    const cfg = previewOrWarn();
+    if (!cfg) return;
+    const plan = planTaskWidget({
+        dashboardItems: cfg.dashboardItems || [],
+        defs: getAllDashboardDefinitions(appConfig),
+        quantityTaskTypes: cfg.quantityTaskTypes || [],
+        map: cfg.quantityToDashboardMap || {}
+    }, taskName, () => `custom-${Date.now()}-${Math.random().toString(16).substring(2, 6)}`);
+    if (plan.error) { alert(plan.error); return; }
+    // 위젯 정의는 appConfig 에 둔다 — 그리기·저장(admin-logic.js)이 화면 목록의 id 를 appConfig 정의로 찾는다
+    if (plan.newDef) {
+        if (!appConfig.dashboardCustomItems) appConfig.dashboardCustomItems = {};
+        appConfig.dashboardCustomItems[plan.id] = plan.newDef;
     }
-
-    const newId = `custom-${Date.now()}-${Math.random().toString(16).substring(2, 6)}`;
-    if (!appConfig.dashboardCustomItems) appConfig.dashboardCustomItems = {};
-    // 그리기에 정의가 필요해 먼저 넣고, 화면 값을 못 읽어 붙이지 못했으면 되돌린다(목록에 없는 정의가 남아 같은 이름을 막지 않게)
-    appConfig.dashboardCustomItems[newId] = { title: trimmedTitle, isQuantity: true };
-
-    if (appendDashboardItem(newId)) setAdminDirty(true);   // 입력창은 #admin-content 밖이라 클릭 감지가 못 잡는다
-    else delete appConfig.dashboardCustomItems[newId];
-}
-
-// 앱 안 한 줄 입력창(prompt 대체) — showConfirm(js/utils.js) 과 같은 모양. Promise<string|null>(취소면 null).
-function askText(message, opts = {}) {
-    const { title = '입력', okText = '확인', cancelText = '취소', placeholder = '', value = '' } = opts;
-    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    return new Promise((resolve) => {
-        const ov = document.createElement('div');
-        ov.setAttribute('data-esc-modal', '');   // 공용 ESC(js/modal-esc.js)가 [취소]를 누르게
-        ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(30,40,60,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
-        ov.innerHTML = `
-            <div role="dialog" aria-modal="true" style="background:#fff;border-radius:18px;max-width:380px;width:100%;box-shadow:0 8px 24px rgba(30,40,60,.12);overflow:hidden;font-family:inherit;">
-              <div style="padding:20px 20px 8px;font-weight:700;font-size:16px;color:#23272E;">${esc(title)}</div>
-              <div style="padding:0 20px 10px;font-size:14px;color:#646B75;line-height:1.55;white-space:pre-line;">${esc(message)}</div>
-              <div style="padding:0 20px 18px;"><input type="text" data-ask-input maxlength="40" placeholder="${esc(placeholder)}" value="${esc(value)}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #D6DAE0;border-radius:8px;font-size:14px;color:#23272E;background:#fff;outline:none;"></div>
-              <div style="display:flex;gap:8px;padding:12px 16px;background:#F7F8FA;border-top:1px solid #E6E8EC;justify-content:flex-end;">
-                <button type="button" data-act="cancel" data-esc-close style="padding:8px 16px;border-radius:999px;border:1px solid #D6DAE0;background:#fff;color:#23272E;font-weight:700;font-size:13px;cursor:pointer;">${esc(cancelText)}</button>
-                <button type="button" data-act="ok" style="padding:8px 16px;border-radius:999px;border:1px solid #2F62C9;background:#2F62C9;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">${esc(okText)}</button>
-              </div>
-            </div>`;
-        const input = ov.querySelector('[data-ask-input]');
-        const done = (val) => { ov.remove(); resolve(val); };
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); done(input.value); }   // 한글 조합 중 Enter 는 무시
-        });
-        ov.addEventListener('click', (e) => {
-            if (e.target === ov) return done(null);   // 바깥 클릭 = 취소
-            const b = e.target.closest('[data-act]');
-            if (b) done(b.dataset.act === 'ok' ? input.value : null);
-        });
-        document.body.appendChild(ov);
-        input.focus();
-    });
+    renderDashboardItemsConfig(plan.dashboardItems, appConfig);
+    renderQuantityTasks(plan.quantityTaskTypes, cfg.taskIdNames);
+    // 연결 줄의 위젯 선택지는 정의가 있어야 나온다 — 미리보기(cfg)에는 방금 만든 정의가 없으므로 appConfig 정의를 얹는다
+    renderQuantityToDashboardMapping({ ...cfg,
+        dashboardCustomItems: { ...(appConfig.dashboardCustomItems || {}), ...(cfg.dashboardCustomItems || {}) },
+        quantityTaskTypes: plan.quantityTaskTypes, quantityToDashboardMap: plan.map });
+    setAdminDirty(true);
 }
 
 function addTeamGroup() {
@@ -720,21 +739,24 @@ function handleDynamicClicks(e) {
     else if (e.target.classList.contains('delete-key-task-btn')) { if (touchConfirm(DELETE_CONFIRM_MSG)) e.target.closest('.key-task-item')?.remove(); }
     else if (e.target.classList.contains('delete-task-btn')) {
         // 🔒 프로그램이 이름으로 계산하는 업무는 마우스 환경에서도 한 번 더 묻는다
+        // 지운 뒤 주요 업무·처리량·위젯 연결·원가 칸을 지금 화면 기준으로 다시 그린다(지운 업무가 바로 빠진다)
         const row = e.target.closest('.task-item');
+        const removeRow = () => { row.remove(); refreshTaskViews(); };
         if (row && isLockedTaskId(row.dataset.taskId)) {
             const name = row.querySelector('.task-name')?.value.trim() || '';
             showConfirm(`'${name}' 은(는) 프로그램이 이 이름으로 계산하는 업무입니다(예측·대시보드 등).\n지우면 그 계산에서 빠집니다. 그래도 삭제할까요?\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
-                { title: '고정 업무 삭제', okText: '삭제', danger: true }).then(ok => ok && row.remove());
-        } else if (touchConfirm(DELETE_CONFIRM_MSG)) row?.remove();
+                { title: '고정 업무 삭제', okText: '삭제', danger: true }).then(ok => ok && removeRow());
+        } else if (row && touchConfirm(DELETE_CONFIRM_MSG)) removeRow();
     }
     else if (e.target.classList.contains('delete-task-group-btn')) {
         const card = e.target.closest('.task-group-card');
         const locked = card ? [...card.querySelectorAll('.task-item')].filter(r => isLockedTaskId(r.dataset.taskId))
             .map(r => r.querySelector('.task-name')?.value.trim()).filter(Boolean) : [];
+        const removeCard = () => { card.remove(); refreshTaskViews(); };
         if (locked.length) {
             showConfirm(`이 그룹에 프로그램이 이름으로 계산하는 업무가 있습니다: ${locked.join(', ')}\n그룹을 지우면 그 계산에서 빠집니다. 그래도 삭제할까요?\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
-                { title: '그룹 삭제', okText: '삭제', danger: true }).then(ok => ok && card.remove());
-        } else if (touchConfirm(DELETE_CONFIRM_MSG)) card?.remove();
+                { title: '그룹 삭제', okText: '삭제', danger: true }).then(ok => ok && removeCard());
+        } else if (card && touchConfirm(DELETE_CONFIRM_MSG)) removeCard();
     }
     else if (e.target.classList.contains('delete-quantity-task-btn')) {
         if (touchConfirm(DELETE_CONFIRM_MSG)) {
@@ -856,7 +878,7 @@ function handleNewTaskNameBlur(e) {
     const key = newTaskName.toLowerCase();
     const sameName = (n) => String(n || '').trim().toLowerCase() === key;
     if (Object.keys(LOCKED_TASKS).some(sameName)) return;
-    if (Object.values(appConfig.taskIdNames || {}).some(sameName)) return;
+    // 저장된 업무 이름이라도 화면에서 지운 업무면(다시 만드는 경우) 고정 업무·처리량·위젯 연결이 이미 빠졌으니 다시 묻는다 — 아래 화면 줄 검사만 본다
     const row = input.closest('.task-item');
     if ([...document.querySelectorAll('#task-groups-container .task-item')]
         .some(r => r !== row && sameName(r.querySelector('.task-name')?.value))) return;
