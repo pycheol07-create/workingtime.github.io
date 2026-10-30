@@ -1,10 +1,10 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610301725';
-import { renderPermissionPanel } from './admin-perm.js?v=202610301725';
-import { taskIdOf, isLockedTaskId } from './lib/task-ids.js?v=202610301725';
-import { duplicateTasks } from './lib/task-config-sync.js?v=202610301725';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202610301749';
+import { renderPermissionPanel } from './admin-perm.js?v=202610301749';
+import { taskIdOf, isLockedTaskId } from './lib/task-ids.js?v=202610301749';
+import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202610301749';
 
 // 📱 순서 바꾸기 ▲▼ — HTML5 끌어 옮기기는 터치에서 안 되므로, 터치 화면(hover 없음)에서만 보인다(admin.html .move-btns).
 //    누르면 같은 종류의 앞/뒤 줄과 자리를 바꾼다(admin.js handleMoveClick). 마우스 환경은 ☰ 끌기 그대로.
@@ -26,10 +26,14 @@ export const DASHBOARD_ITEM_DEFINITIONS = {
     'direct-delivery': { title: '직진배송', isQuantity: true }
 };
 
+// 업무 수량 위젯(task-<업무id>)은 taskIdNames 로 만든다(제목 = 지금 업무 이름). dashboardCustomItems 의 task- 항목은 옛 버전 탭용 사본이라 쓰지 않는다.
 export function getAllDashboardDefinitions(config) {
+    const customs = {};
+    Object.entries(config.dashboardCustomItems || {}).forEach(([id, def]) => { if (!taskIdOfWidget(id)) customs[id] = def; });
     return {
         ...DASHBOARD_ITEM_DEFINITIONS,
-        ...(config.dashboardCustomItems || {})
+        ...customs,
+        ...taskWidgetDefs(config)
     };
 }
 
@@ -75,8 +79,8 @@ export function renderAdminUI(config) {
     renderKeyTasks(config.keyTasks || [], config.taskIdNames);
     renderTaskGroups(config.taskGroups || [], config.taskIdNames);
     renderQuantityTasks(config.quantityTaskTypes || [], config.taskIdNames);
-    renderQuantityToDashboardMapping(config);
     renderCostAnalysisConfig(config);
+    markTaskUsage(config);
 }
 
 // 권한 관리 — [사람] [역할] [기능 목록] 화면과 메모리 모델은 js/admin-perm.js 가 맡는다(권한 개편, 2026-10-19).
@@ -308,6 +312,8 @@ export function renderDashboardItemsConfig(itemIds, fullConfig) {
     if (!container) return;
     container.innerHTML = '';
     const allDefinitions = getAllDashboardDefinitions(fullConfig);
+    // 옮기기 전 옛 수량 위젯이 아직 업무와 이어져 있나(처리량 → 위젯 연결) — 없으면 숫자가 안 나온다
+    const oldLinked = new Set(Object.values(fullConfig.quantityToDashboardMap || {}).filter(Boolean));
 
     itemIds.forEach((id, index) => {
         const itemDef = allDefinitions[id];
@@ -316,20 +322,30 @@ export function renderDashboardItemsConfig(itemIds, fullConfig) {
         const itemEl = document.createElement('div');
         const isQuantity = itemDef.isQuantity === true;
         const bgClass = isQuantity ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-400' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300';
-        
+
         itemEl.className = `flex items-center gap-3 p-3 rounded-lg border ${bgClass} dashboard-item-config group transition-colors`;
         itemEl.dataset.index = index;
+
+        // 업무 수량 위젯 = '처리량 연동' 배지(인원·시간 항목과 구분), 업무가 없는 옛 수량 위젯 = 경고 배지
+        let badge = '';
+        if (itemDef.taskId) {
+            badge = '<span class="shrink-0 text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-white dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700 rounded px-1.5 py-0.5" title="이 업무의 처리량이 자동으로 표시됩니다">처리량 연동</span>';
+        } else if (isQuantity && !oldLinked.has(id)) {
+            badge = '<span class="shrink-0 text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded px-1.5 py-0.5" title="연결된 업무가 없습니다 — 지우고 [+ 업무 수량 위젯 추가]로 다시 넣으세요">업무 없음 — 숫자가 안 나옵니다</span>';
+        }
 
         let itemHtml = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
             <span class="dashboard-item-name flex-grow font-bold text-sm" data-id="${id}">
                 ${itemDef.title}
             </span>
+            ${badge}
         `;
         itemHtml += `<button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-dashboard-item-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-id="${id}">삭제</button>`;
         itemEl.innerHTML = itemHtml;
         container.appendChild(itemEl);
     });
+    markQuantityWidgetBadges();
 }
 
 // taskIdNames: 업무 id 표 — 줄마다 data-task-id 를 달아 저장 때 지금 이름으로 읽는다(js/lib/task-ids.js)
@@ -363,8 +379,9 @@ export function taskItemHtml(task, taskId, tIndex = '', dup = false) {
             <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group" data-task-id="${taskId || ''}">
                 <div class="flex items-center gap-2 flex-grow">
                     <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
-                    <input type="text" value="${task}" class="task-name flex-grow p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none"${lockAttr}>
+                    <input type="text" value="${task}" class="task-name flex-grow min-w-0 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none"${lockAttr}>
                     ${lockMark}${dupMark}
+                    <span class="task-usage flex flex-wrap justify-end gap-0.5 shrink-0"></span>
                 </div>
                 <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-t-index="${tIndex}">삭제</button>
             </div>
@@ -404,6 +421,32 @@ export function renderTaskGroups(taskGroups, taskIdNames = {}) {
     });
 }
 
+// 업무 줄마다 이 업무가 쓰이는 곳 — [고정] [처리량] [위젯] [원가] 작은 회색 칩(해당하는 것만).
+// cfg: 지금 화면 기준 설정(미리보기) 또는 불러온 설정. 이름은 대소문자·앞뒤 공백 무시, 위젯은 업무 id(task-<id>)로 본다.
+const USAGE_CHIPS = [
+    ['keyTasks', '고정', '메인 보드 고정 업무'],
+    ['quantityTaskTypes', '처리량', '처리량 입력 업무'],
+    ['widget', '위젯', '상단 위젯(업무 수량)'],
+    ['costCalcTasks', '원가', '원가(인건비) 계산']
+];
+export function markTaskUsage(cfg) {
+    if (!cfg) return;
+    const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
+    const sets = {};
+    ['keyTasks', 'quantityTaskTypes', 'costCalcTasks'].forEach(f => { sets[f] = new Set((cfg[f] || []).map(norm)); });
+    const widgets = new Set(cfg.dashboardItems || []);
+    document.querySelectorAll('#task-groups-container .task-item').forEach(row => {
+        const box = row.querySelector('.task-usage');
+        if (!box) return;
+        const name = norm(row.querySelector('.task-name')?.value);
+        const id = row.dataset.taskId || '';
+        const on = (f) => f === 'widget' ? (!!id && widgets.has(taskWidgetId(id))) : (!!name && sets[f].has(name));
+        const html = USAGE_CHIPS.filter(([f]) => on(f)).map(([, label, title]) =>
+            `<span class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded px-1 py-0.5" title="${title}">${label}</span>`).join('');
+        if (box.innerHTML !== html) box.innerHTML = html;
+    });
+}
+
 // 화면의 업무 줄을 taskGroups 모양으로 읽어 '중복' 배지를 다시 맞춘다(업무 이름 변경·줄 삭제 뒤 — admin.js refreshTaskViews)
 export function markDuplicateTaskRows() {
     const cards = [...document.querySelectorAll('#task-groups-container .task-group-card')];
@@ -431,66 +474,27 @@ export function renderQuantityTasks(quantityTasks, taskIdNames = {}) {
         taskEl.innerHTML = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS} 
             <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="quantity-task-name">${task}</span></span>
+            <span class="quantity-widget-badge hidden shrink-0 text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded px-1.5 py-0.5" title="상단 위젯에 이 업무의 처리량이 보입니다">위젯 표시 중</span>
             <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-quantity-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-index="${index}">삭제</button>
         `;
         container.appendChild(taskEl);
     });
+    markQuantityWidgetBadges();
 }
 
-export function renderQuantityToDashboardMapping(config) {
-    const container = document.getElementById('quantity-mapping-container');
-    if (!container) return;
-    container.innerHTML = '';
-
-    const mapping = config.quantityToDashboardMap || {};
-    const quantityTasks = config.quantityTaskTypes || [];
-    const allDefinitions = getAllDashboardDefinitions(config);
-
-    const dashboardOptions = [];
-    dashboardOptions.push(`<option value="">-- 연동 안 함 --</option>`);
-
-    document.querySelectorAll('#dashboard-items-container .dashboard-item-name').forEach(itemSpan => {
-        const id = itemSpan.dataset.id;
-        const def = allDefinitions[id];
-        if (def && def.isQuantity) {
-            const title = itemSpan.textContent.trim().replace('📦 ', '');
-            dashboardOptions.push(`<option value="${id}">${title}</option>`);
-        }
-    });
-
-    if (quantityTasks.length === 0) {
-        container.innerHTML = `<p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">'처리량 집계 업무'에 항목을 먼저 추가해주세요.</p>`;
-        return;
-    }
-
-    quantityTasks.forEach(taskName => {
-        const row = document.createElement('div');
-        row.className = 'flex flex-wrap md:flex-nowrap items-center gap-4 mapping-row p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 transition-colors';
-        row.dataset.taskName = taskName;
-        row.dataset.taskId = taskIdOf(taskName, config.taskIdNames);
-
-        const currentSelection = mapping[taskName] || '';
-
-        row.innerHTML = `
-            <label class="w-full md:w-1/3 font-extrabold text-sm text-gray-700 dark:text-gray-200 break-all">${taskName}</label>
-            <span class="hidden md:inline text-gray-400">→</span>
-            <select class="dashboard-mapping-select flex-grow p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-semibold outline-none transition-colors w-full md:w-auto">
-                ${dashboardOptions.join('')}
-            </select>
-        `;
-
-        const select = row.querySelector('.dashboard-mapping-select');
-        if (select) {
-            select.value = currentSelection;
-        }
-        container.appendChild(row);
+// 처리량 입력 업무 줄의 '위젯 표시 중' 배지 — 지금 화면의 상단 위젯 목록에 그 업무 위젯(task-<id>)이 있으면 켠다
+export function markQuantityWidgetBadges() {
+    const widgets = new Set([...document.querySelectorAll('#dashboard-items-container .dashboard-item-name')].map(s => s.dataset.id));
+    document.querySelectorAll('#quantity-tasks-container .quantity-task-item').forEach(row => {
+        const id = row.dataset.taskId || '';
+        row.querySelector('.quantity-widget-badge')?.classList.toggle('hidden', !(id && widgets.has(taskWidgetId(id))));
     });
 }
 
-// opts.linked: 'widget' 일 때 [{ name, linkedTitle }](js/lib/task-config-sync.js widgetTaskChoices) — 이미 위젯에 연결된 업무는 흐리게·못 고름
+// opts.inWidget: 'widget' 일 때 [{ name, inWidget }](js/lib/task-config-sync.js widgetTaskChoices) — 이미 위젯에 있는 업무는 흐리게·못 고름
 export function populateTaskSelectModal(targetType, opts = {}) {
     const allTasks = getAllTaskNamesFromDOM();
-    const linkedOf = new Map((opts.linked || []).filter(c => c && c.linkedTitle).map(c => [c.name, c.linkedTitle]));
+    const inWidget = new Set((opts.inWidget || []).filter(c => c && c.inWidget).map(c => c.name));
     const listContainer = document.getElementById('select-task-list');
     const modalTitle = document.getElementById('select-task-modal-title');
 
@@ -503,7 +507,7 @@ export function populateTaskSelectModal(targetType, opts = {}) {
     } else if (targetType === 'quantity') {
         modalTitle.textContent = "처리량을 입력받을 업무 선택";
     } else if (targetType === 'widget') {
-        modalTitle.textContent = "위젯에 수량을 보일 업무 선택";
+        modalTitle.textContent = "상단 위젯에 처리량을 보일 업무 선택";
     }
 
     if (allTasks.length === 0) {
@@ -517,10 +521,9 @@ export function populateTaskSelectModal(targetType, opts = {}) {
         button.className = 'task-select-list-btn w-full text-left p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-500 transition-colors font-bold text-gray-700 dark:text-gray-200 text-sm';
         button.textContent = taskName;
         button.dataset.taskName = taskName;
-        const linkedTitle = linkedOf.get(taskName);
-        if (linkedTitle) {
+        if (inWidget.has(taskName)) {
             button.disabled = true;
-            button.textContent = `${taskName} (연결됨: ${linkedTitle})`;
+            button.textContent = `${taskName} (이미 위젯에 있음)`;
             button.classList.add('opacity-50', 'cursor-not-allowed');
         }
         listContainer.appendChild(button);
@@ -540,7 +543,9 @@ export function openDashboardItemModal(fullConfig) {
     const allDefinitions = getAllDashboardDefinitions(fullConfig);
     let hasItemsToAdd = false;
 
-    Object.keys(allDefinitions).sort((a, b) => allDefinitions[a].title.localeCompare(allDefinitions[b].title)).forEach(id => {
+    // 인원·시간 항목만 — 수량 항목(기본 국내송장·중국제작·직진배송, 옛 커스텀, 업무 수량 위젯)은 [+ 업무 수량 위젯 추가]로 넣는다(정의는 남긴다)
+    Object.keys(allDefinitions).filter(id => allDefinitions[id].isQuantity !== true)
+        .sort((a, b) => allDefinitions[a].title.localeCompare(allDefinitions[b].title)).forEach(id => {
         const itemDef = allDefinitions[id];
         const isAlreadyAdded = currentItemIds.has(id);
 

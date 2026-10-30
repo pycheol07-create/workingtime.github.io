@@ -1,16 +1,17 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202610301725';
-import { isPersistentLeaveType } from './state.js?v=202610301725';
-import * as DOM from './dom-elements.js?v=202610301725';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610301725';
+import * as State from './state.js?v=202610301749';
+import { isPersistentLeaveType } from './state.js?v=202610301749';
+import * as DOM from './dom-elements.js?v=202610301749';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202610301749';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610301725';
-import { renderTodoList } from './inspection-logic.js?v=202610301725';
-import { renderNotificationList } from './app-notifications.js?v=202610301725';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610301725';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610301725';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202610301725';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202610301749';
+import { renderTodoList } from './inspection-logic.js?v=202610301749';
+import { renderNotificationList } from './app-notifications.js?v=202610301749';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610301749';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202610301749';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202610301749';
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202610301749';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -135,7 +136,8 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
             const mergedConfig = { ...State.appConfig, ...loadedConfig };
             
             if (Array.isArray(loadedConfig.taskGroups)) mergedConfig.taskGroups = loadedConfig.taskGroups;
-            State.setAppConfig(mergedConfig); 
+            // 저장본이 옛 '처리량 → 위젯 연결' 모양이면 loadAppConfig 와 같이 업무 수량 위젯으로(메모리에서만) — 안 하면 위젯 줄 id 가 오락가락한다
+            State.setAppConfig(migrateDashboardTaskItems(mergedConfig));
 
             renderDashboardLayout(State.appConfig);
             renderTaskSelectionModal(State.appConfig.taskGroups);

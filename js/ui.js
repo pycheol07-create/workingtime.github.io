@@ -1,4 +1,5 @@
 // === ui.js (파일 분리 후 인덱스 역할) ===
+import { taskWidgetDefs, taskIdOfWidget } from './lib/task-config-sync.js?v=202610301749';
 
 // ✅ [유지] 앱 전역에서 사용하는 차트 인스턴스 (app.js에서 사용)
 let trendCharts = {};
@@ -19,10 +20,13 @@ export const DASHBOARD_ITEM_DEFINITIONS = {
 };
 
 // ✅ [유지] 공유 헬퍼 (getAllDashboardDefinitions)
+// 업무 수량 위젯(task-<업무id>)은 저장된 정의 없이 taskIdNames 로 만든다 — 제목 = 지금 업무 이름(이름을 바꾸면 따라감).
+// dashboardCustomItems 의 task- 항목은 옛 버전 탭용 사본이라 여기서는 쓰지 않는다(js/lib/task-config-sync.js).
 export function getAllDashboardDefinitions(config) {
     const customDefinitions = {};
     if (config.dashboardCustomItems) {
         for (const id in config.dashboardCustomItems) {
+            if (taskIdOfWidget(id)) continue;
             const item = config.dashboardCustomItems[id];
             customDefinitions[id] = {
                 title: item.title,
@@ -31,9 +35,13 @@ export function getAllDashboardDefinitions(config) {
             };
         }
     }
+    const taskDefinitions = {};
+    const taskDefs = taskWidgetDefs(config);
+    for (const id in taskDefs) taskDefinitions[id] = { ...taskDefs[id], valueId: `summary-${id}` };
     return {
         ...DASHBOARD_ITEM_DEFINITIONS,
-        ...customDefinitions
+        ...customDefinitions,
+        ...taskDefinitions
     };
 }
 
@@ -99,7 +107,7 @@ import {
     renderDashboardLayout,
     updateSummary,
     applyDynamicSidebar // ✨ 신규 임포트
-} from './ui-main.js?v=202610301725';
+} from './ui-main.js?v=202610301749';
 
 export {
     renderTaskAnalysis,
@@ -123,7 +131,7 @@ import {
     renderReportWeekly,
     renderReportMonthly,
     renderReportYearly
-} from './ui-history.js?v=202610301725';
+} from './ui-history.js?v=202610301749';
 
 export {
     renderWeeklyHistory,
@@ -146,7 +154,7 @@ import {
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderManualAddModalDatalists
-} from './ui-modals.js?v=202610301725';
+} from './ui-modals.js?v=202610301749';
 
 export {
     renderQuantityModalInputs,

@@ -13,7 +13,7 @@
 //
 //  import 는 같은 lib 의 calc.js 뿐 — DOM·State·Firebase 를 쓰지 않는다(node 테스트: tests/task-pace.test.js).
 
-import { addWorkMinutes, minutesOverlap, LUNCH_START_MIN, LUNCH_END_MIN } from './calc.js?v=202610301725';
+import { addWorkMinutes, minutesOverlap, LUNCH_START_MIN, LUNCH_END_MIN } from './calc.js?v=202610301749';
 
 /** 경과율 − 진행률 (%p) 이 이 값 미만이면 순조, 이상이면 주의, RISK 초과면 늦음 */
 export const PACE_WARN_GAP = 10;
@@ -154,7 +154,8 @@ export function combinePace(paces, expected) {
 }
 
 /** 대시보드 처리량 칸 → 연결된 업무 목록.
- *  map: { 업무명: 칸id } (호출하는 쪽에서 업무명을 지금 이름으로 맞춰 넘긴다)
+ *  업무 수량 위젯(정의에 taskId·taskName — js/lib/task-config-sync.js taskWidgetDefs)은 그 업무 하나('single').
+ *  quantityToDashboardMap(선택): 옮기기 전 옛 위젯용 { 업무명: 칸id } (호출하는 쪽에서 업무명을 지금 이름으로 맞춰 넘긴다)
  *  반환: [{ id, valueId, tasks: [업무명…], kind: 'none' | 'single' | 'group' }] — 처리량 칸만, itemIds 순서대로 */
 export function rowsForDashboard(itemIds, defs, quantityToDashboardMap) {
     const byId = {};
@@ -166,7 +167,7 @@ export function rowsForDashboard(itemIds, defs, quantityToDashboardMap) {
     (itemIds || []).forEach(id => {
         const def = defs && defs[id];
         if (!def || def.isQuantity !== true) return;
-        const tasks = [...new Set(byId[id] || [])];
+        const tasks = def.taskId ? (def.taskName ? [def.taskName] : []) : [...new Set(byId[id] || [])];
         rows.push({
             id, valueId: def.valueId, tasks,
             kind: tasks.length === 0 ? 'none' : tasks.length === 1 ? 'single' : 'group'

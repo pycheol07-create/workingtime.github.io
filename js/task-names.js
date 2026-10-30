@@ -2,9 +2,9 @@
 // 화면 파일용 시스템 업무 이름 — 코드에 업무 이름을 적지 않고 고정 id(TASK.xxx)로 지금 이름을 얻는다(업무 id 2단계, 2026-10-30).
 // 왜: 설정·관리에서 업무 이름을 바꾸면 코드 속 '샘플검수' 같은 글자 비교가 조용히 안 맞게 된다.
 // lib(순수 모듈)는 cfg 를 인자로 받는 task-ids.js · task-alias-view.js 를 직접 쓰고, js/ 화면 파일은 이것(State.appConfig 묶음)을 쓴다.
-import * as State from './state.js?v=202610301725';
-import { TASK, taskNameOf, isTask } from './lib/task-ids.js?v=202610301725';
-import { taskQtyOf } from './lib/task-alias-view.js?v=202610301725';
+import * as State from './state.js?v=202610301749';
+import { TASK, taskNameOf, isTask } from './lib/task-ids.js?v=202610301749';
+import { taskQtyOf } from './lib/task-alias-view.js?v=202610301749';
 
 export { TASK };
 

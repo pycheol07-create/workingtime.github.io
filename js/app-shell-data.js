@@ -1,6 +1,6 @@
 // === js/app-shell-data.js ===
 // 공통 상단바(js/app-shell.js)가 쓰는 고정 데이터와 경로 계산. 순수 모듈(의존은 lib 상수 mibal2-mode.js 하나, 테스트: tests/app-shell.test.js).
-import { MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610301725';
+import { MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610301749';
 
 // 대시보드 사이드바의 '동작' 메뉴(버튼이라 링크가 '#')를 다른 화면에서 누를 때 갈 곳.
 // '업무 마감' 은 넣지 않는다 — 대시보드에서만 한다(menu-catalog.js SHELL_EXCLUDED_ACTIONS).
@@ -175,7 +175,7 @@ export const SUB_DESTINATIONS = {
         S('고정 업무', 'tab=keytask'),
         // 업무·집계
         S('업무 등록 관리', 'tab=task'),
-        S('집계/위젯 연동', 'tab=quantity'),
+        S('처리량 입력 업무', 'tab=quantity', ['집계/위젯 연동']),
         S('원가/손익 분석', 'tab=cost'),
         // 자동화
         S('자동화 상태', 'tab=automation'),

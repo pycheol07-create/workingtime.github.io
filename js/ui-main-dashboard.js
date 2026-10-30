@@ -1,16 +1,16 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202610301725';
-import * as State from './state.js?v=202610301725';
-import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202610301725';
-import { visibleMenuFor } from './menu-catalog.js?v=202610301725';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202610301725';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610301725';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610301725';
-import { canonicalTaskName } from './lib/task-ids.js?v=202610301725';
-import { checkMissingQuantities } from './analysis-logic.js?v=202610301725';
-import { minToHhmm } from './forecast-progress.js?v=202610301725';
-import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202610301725';
-import { subscribeShipAuto, morningAutoToday } from './ship-auto-sync.js?v=202610301725';
+import { getAllDashboardDefinitions } from './ui.js?v=202610301749';
+import * as State from './state.js?v=202610301749';
+import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202610301749';
+import { visibleMenuFor } from './menu-catalog.js?v=202610301749';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202610301749';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202610301749';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202610301749';
+import { canonicalTaskName } from './lib/task-ids.js?v=202610301749';
+import { checkMissingQuantities } from './analysis-logic.js?v=202610301749';
+import { minToHhmm } from './forecast-progress.js?v=202610301749';
+import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202610301749';
+import { subscribeShipAuto, morningAutoToday } from './ship-auto-sync.js?v=202610301749';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -355,11 +355,18 @@ export const updateSummary = (appState, appConfig) => {
         const task = canonicalTaskName(key, appConfig);
         if (!(task in qtyByTask) || task === key) qtyByTask[task] = quantitiesFromState[key];
     }
+    // 업무 수량 위젯(task-<업무id>) — 그 업무의 처리량(위 규칙으로 맞춘 지금 이름 칸). 값이 없으면 0.
+    for (const id in elements) {
+        const def = allDefinitions[id];
+        if (!def || !def.taskId || !elements[id]) continue;
+        elements[id].textContent = (Number(qtyByTask[def.taskName]) || 0).toLocaleString();
+    }
+    // 옮기기 전 옛 위젯(처리량 → 위젯 연결) — 업무 수량 위젯을 가리키는 연결(옛 버전 탭용 사본)은 위에서 그렸다
     for (const task in qtyByTask) {
         const quantity = qtyByTask[task] || 0;
         const targetDashboardId = taskNameToDashboardIdMap[task];
 
-        if (targetDashboardId && elements[targetDashboardId]) {
+        if (targetDashboardId && elements[targetDashboardId] && !(allDefinitions[targetDashboardId] || {}).taskId) {
             const el = elements[targetDashboardId];
             el.textContent = (Number(quantity) || 0).toLocaleString();   // 천 단위 쉼표(표시 전용 — 이 글자를 다시 숫자로 읽는 곳 없음)
         }
@@ -403,7 +410,7 @@ const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-
  *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
 const openQuantityFromCard = async () => {
     try {
-        const { whenTodayLoaded } = await import('./app-sync.js?v=202610301725');
+        const { whenTodayLoaded } = await import('./app-sync.js?v=202610301749');
         const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
         if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
     } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
@@ -589,7 +596,7 @@ const paintWorkloadPaceNow = () => {
     if (!paceMod) {
         if (!paceModLoading) {
             paceModLoading = true;
-            import('./ui-history-prediction.js?v=202610301725')
+            import('./ui-history-prediction.js?v=202610301749')
                 .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
                 .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
                 .finally(() => { paceModLoading = false; });
@@ -604,6 +611,7 @@ const paintWorkloadPaceNow = () => {
         paceRetryTimer = setTimeout(() => { paceRetryTimer = null; schedulePace(); }, PACE_MIN_GAP_MS);
     }
     if (inp) paceRetries = 0;
+    // 업무 수량 위젯(task-)은 정의의 업무 하나. 옮기기 전 옛 위젯만 연결표를 본다 —
     // 🆔 옛 이름으로 남은 연결도 지금 이름으로 본다(숫자 줄과 같은 규칙)
     const map = {};
     Object.entries(appConfig.quantityToDashboardMap || {}).forEach(([task, id]) => { map[canonicalTaskName(task, appConfig)] = id; });

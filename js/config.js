@@ -2,9 +2,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610301725';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610301725';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
-import { TASK, taskNameOf } from './lib/task-ids.js?v=202610301725';   // 업무 id 2단계 — 옛 '검수' 이전에 두 업무의 지금 이름
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610301749';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610301749';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
+import { TASK, taskNameOf } from './lib/task-ids.js?v=202610301749';   // 업무 id 2단계 — 옛 '검수' 이전에 두 업무의 지금 이름
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202610301749';   // 옛 '처리량 → 위젯 연결' → 업무 수량 위젯(task-<id>), 메모리에서만
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -152,8 +153,9 @@ export const loadAppConfig = async (dbInstance) => {
             // 🚨 최악의 쓰기(Write) 폭탄 원인 제거 완료!
             // 기존에는 JSON.stringify 문자열 비교 때문에 키 순서만 달라도 접속할 때마다 무한히 DB를 덮어썼습니다.
             // 이제 로컬에서만 병합(Merge)해서 사용하므로 접속만으로는 절대 요금이 발생하지 않습니다.
-            
-            return mergedConfig;
+
+            // 상단 수량 위젯을 업무 수량 위젯(task-<업무id>)으로 — 메모리에서만(관리자 '전체 저장' 때 기록, 업무 id 추가 1b)
+            return migrateDashboardTaskItems(mergedConfig);
         } else {
             const defaultData = getDefaultConfig();
             await setDoc(configDocRef, defaultData);
@@ -301,7 +303,7 @@ function getDefaultConfig() {
         dashboardItems: [
             'total-staff', 'leave-staff', 'active-staff', 'working-staff', 'idle-staff',
             'ongoing-tasks', 'total-work-time',
-            'domestic-invoice', 'china-production', 'direct-delivery'
+            'task-k_domestic', 'task-k_china', 'task-k_direct'   // 업무 수량 위젯(업무 id 추가 1b) — 제목·숫자는 그 업무
         ],
         dashboardQuantities: { 'domestic-invoice': 0, 'china-production': 0, 'direct-delivery': 0 },
         dashboardCustomItems: {},

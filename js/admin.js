@@ -1,31 +1,31 @@
 // === js/admin.js ===
-import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610301725';
-import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610301725';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610301725';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610301725';
-import { memberNameFor } from './app-shell-data.js?v=202610301725';
+import { initializeFirebase, loadAppConfig, saveAppConfig, loadLeaveSchedule, updateLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=202610301749';
+import { leaveKey, removeWhere } from './lib/leave-ops.js?v=202610301749';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610301749';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202610301749';
+import { memberNameFor } from './app-shell-data.js?v=202610301749';
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { menuConfigOf } from './lib/perm.js?v=202610301725';
-import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610301725';
-import { getPermModel } from './admin-perm.js?v=202610301725';
-import { showConfirm } from './utils.js?v=202610301725';
-import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS } from './lib/task-ids.js?v=202610301725';
-import { planTaskWidget, widgetTaskChoices, duplicateTasks } from './lib/task-config-sync.js?v=202610301725';
+import { menuConfigOf } from './lib/perm.js?v=202610301749';
+import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=202610301749';
+import { getPermModel } from './admin-perm.js?v=202610301749';
+import { showConfirm } from './utils.js?v=202610301749';
+import { ensureTaskIds, newTaskId, isLockedTaskId, LOCKED_TASKS, taskIdOf } from './lib/task-ids.js?v=202610301749';
+import { planTaskWidget, widgetTaskChoices, duplicateTasks, migrateDashboardTaskItems, taskWidgetId } from './lib/task-config-sync.js?v=202610301749';
 
 import {
     renderAdminUI,
     renderKeyTasks,
     renderQuantityTasks,
     renderDashboardItemsConfig,
-    renderQuantityToDashboardMapping,
     renderCostAnalysisConfig,
     taskItemHtml,
     markDuplicateTaskRows,
+    markTaskUsage,
+    markQuantityWidgetBadges,
     getAllTaskNamesFromDOM,
     populateTaskSelectModal,
     openDashboardItemModal,
-    getAllDashboardDefinitions,
     renderDashboardMenu,
     menuItemRowHtml,
     buildMemberItemHtml,
@@ -33,13 +33,13 @@ import {
     findDeadMenuItems,
     countNamelessMenuRows,
     MOVE_BTNS
-} from './admin-ui.js?v=202610301725';
+} from './admin-ui.js?v=202610301749';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=202610301725';
+} from './admin-logic.js?v=202610301749';
 
 let db, auth;
 let appConfig = {};
@@ -146,7 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 메뉴 관리의 '연결할 곳' 목록에 새 html 페이지를 붙인다(배포 때 만든 pages.json).
                     await loadMenuPageList();
                     // 🆔 업무 id 를 메모리에서만 붙인다(첫 저장 때 기록 — 불러오기만으로는 쓰지 않는다)
-                    appConfig = ensureTaskIds(appConfig);
+                    //    상단 수량 위젯도 업무 수량 위젯(task-<id>)으로 옮긴다(id 가 있어야 하므로 그 다음, 첫 저장 때 기록)
+                    appConfig = migrateDashboardTaskItems(ensureTaskIds(appConfig));
                     renderAdminUI(appConfig);
                     setupEventListeners();
                     if (adminContent) adminContent.classList.remove('hidden');
@@ -227,14 +228,14 @@ function setupEventListeners() {
     document.getElementById('add-team-group-btn')?.addEventListener('click', addTeamGroup);
     document.getElementById('add-task-group-btn')?.addEventListener('click', addTaskGroup);
     document.getElementById('add-dashboard-item-btn')?.addEventListener('click', () => openDashboardItemModal(appConfig));
-    // 업무 수량 위젯 — 위젯 이름을 직접 치지 않고 등록된 업무에서 고른다(이미 위젯에 연결된 업무는 흐리게).
+    // 업무 수량 위젯 — 위젯 이름을 직접 치지 않고 등록된 업무에서 고른다(이미 위젯에 있는 업무는 흐리게).
     //   화면 값을 못 읽으면(미리보기 실패) 창을 열지 않는다.
     document.getElementById('add-custom-dashboard-item-btn')?.addEventListener('click', () => {
         const cfg = previewOrWarn();
         if (!cfg) return;
-        const linked = widgetTaskChoices(getAllTaskNamesFromDOM(), cfg.quantityToDashboardMap || {}, getAllDashboardDefinitions(appConfig));
+        const inWidget = widgetTaskChoices(getAllTaskNamesFromDOM(), cfg.taskIdNames, cfg.dashboardItems);
         currentModalTarget = 'widget';
-        populateTaskSelectModal('widget', { linked });
+        populateTaskSelectModal('widget', { inWidget });
         document.getElementById('select-task-modal')?.classList.remove('hidden');
     });
 
@@ -276,12 +277,12 @@ function setupEventListeners() {
         if (taskJustAdded && !applyNewTaskLinks(taskJustAdded, {
             quantity: !!document.getElementById('new-task-add-quantity')?.checked,
             key: !!document.getElementById('new-task-add-key')?.checked,
-            widget: document.getElementById('new-task-dashboard-link')?.value || ''
+            widget: !!document.getElementById('new-task-add-widget')?.checked
         })) return;
         document.getElementById('confirm-add-to-quantity-modal')?.classList.add('hidden');
         taskJustAdded = null;
     });
-    // 처리량에 넣지 않으면 위젯 연결도 못 고른다(연결 줄은 처리량 업무에만 있다)
+    // 처리량에 넣지 않으면 상단 위젯에도 못 넣는다(위젯 숫자 = 그 업무 처리량)
     document.getElementById('new-task-add-quantity')?.addEventListener('change', syncNewTaskWidgetSelect);
     document.getElementById('cancel-add-to-quantity-btn')?.addEventListener('click', () => {
         document.getElementById('confirm-add-to-quantity-modal')?.classList.add('hidden');
@@ -289,7 +290,14 @@ function setupEventListeners() {
     });
 
     document.body.addEventListener('click', handleDynamicClicks);
-    // 🆔 기존 업무 이름을 고치면(칸을 벗어날 때) 같은 업무의 다른 그룹 칸도 맞추고, 주요 업무·처리량·위젯 연결·원가 칸을 새 이름으로 다시 그린다
+    // 업무 등록 관리 탭을 열 때 업무 줄의 '쓰이는 곳' 칩을 지금 화면 기준으로 맞춘다(다른 탭에서 고정·처리량·위젯·원가를 바꿨을 수 있다).
+    //   미리보기를 못 만들면(다른 탭 입력 오류) 알리지 않고 그대로 둔다 — 탭만 옮겨도 경고창이 뜨지 않게.
+    document.addEventListener('admin-tab-changed', (e) => {
+        if (!e.detail || e.detail.targetId !== 'section-task') return;
+        const cfg = previewTaskConfig();
+        if (cfg) markTaskUsage(cfg);
+    });
+    // 🆔 기존 업무 이름을 고치면(칸을 벗어날 때) 같은 업무의 다른 그룹 칸도 맞추고, 주요 업무·처리량·위젯·원가 칸을 새 이름으로 다시 그린다
     document.getElementById('task-groups-container')?.addEventListener('change', (e) => {
         const input = e.target.closest && e.target.closest('.task-name');
         if (!input) return;
@@ -318,21 +326,17 @@ function previewOrWarn() {
         + '(화면 전체를 한 번에 읽으므로 팀원 관리·권한 관리 등 다른 탭의 오류일 수 있습니다 — 그 탭을 먼저 고쳐 주세요)');
     return cfg;
 }
-function redrawMappingFromScreen() {
-    const cfg = previewOrWarn();
-    if (cfg) renderQuantityToDashboardMapping(cfg);
-}
-
 function refreshTaskViews() {
     markDuplicateTaskRows();   // 화면 줄만 보므로 미리보기 실패와 상관없이 맞춘다
     const cfg = previewTaskConfig();
     if (!cfg) return;
     renderKeyTasks(cfg.keyTasks || [], cfg.taskIdNames);
-    renderQuantityTasks(cfg.quantityTaskTypes || [], cfg.taskIdNames);
-    // 상단 위젯 목록도 미리보기로 — 지운 업무에만 연결된 커스텀 위젯이 바로 빠진다(연결 선택지가 이 목록을 읽으므로 먼저)
-    renderDashboardItemsConfig(cfg.dashboardItems || [], appConfig);
-    renderQuantityToDashboardMapping(cfg);
+    // 상단 위젯 목록도 미리보기로 — 지운 업무의 위젯이 바로 빠지고, 업무 수량 위젯 제목이 새 이름을 따른다.
+    //   정의는 미리보기 설정(cfg)에서 — 저장 전 설정(appConfig)에는 이번에 만든 업무의 id 가 없다
+    renderDashboardItemsConfig(cfg.dashboardItems || [], cfg);
+    renderQuantityTasks(cfg.quantityTaskTypes || [], cfg.taskIdNames);   // 위젯 배지가 위젯 목록을 읽으므로 그 다음
     renderCostAnalysisConfig(cfg);
+    markTaskUsage(cfg);
 }
 
 // ★ 연차 사용기한(적용 시작일/사용 만료일) 변경 감지 → 새 적용 시작일 이전의 연차/반차 내역을 실제로 삭제
@@ -578,44 +582,32 @@ function addQuantityTask(taskName) {
     }
     list.push(nameToAdd);
     renderQuantityTasks(list, cfg.taskIdNames);
-    renderQuantityToDashboardMapping({ ...cfg, quantityTaskTypes: list });
 }
 
 // 상단 위젯 목록 = 지금 화면 목록(미리보기) + itemId. 화면 값을 못 읽으면 false(아무것도 바꾸지 않음).
-// 항목 이름(정의)은 appConfig 에서 찾는다 — 커스텀 항목 정의는 화면 목록에 있을 때만 저장된다(admin-logic.js).
+// [+ 인원·시간 항목 추가] 는 기본 인원·시간 항목만 고르므로 정의는 미리보기(cfg)에도 있다.
 function appendDashboardItem(itemId) {
     const cfg = previewOrWarn();
     if (!cfg) return false;
     const list = (cfg.dashboardItems || []).slice();
     if (!list.includes(itemId)) list.push(itemId);
-    renderDashboardItemsConfig(list, appConfig);
-    redrawMappingFromScreen();
+    renderDashboardItemsConfig(list, cfg);
     return true;
 }
 
-// 업무 수량 위젯 추가 — 고른 업무를 처리량 집계에 넣고(없으면), 같은 이름의 빈 수량 위젯(예: 기본 '중국제작')이 있으면 그것에,
-// 없으면 새 커스텀 위젯을 만들어 연결한다. 지금 화면 기준(미리보기)으로 다시 그린다. 저장은 [전체 저장]
+// 업무 수량 위젯 추가 — 상단 위젯 목록 끝에 task-<업무id> 를 넣고, 처리량 입력 업무에 없으면 같이 넣는다(규칙 ①).
+// 숫자는 그 업무 처리량이 자동으로 보인다(연결 설정 없음). 지금 화면 기준(미리보기)으로 다시 그린다. 저장은 [전체 저장]
 function addTaskWidget(taskName) {
     const cfg = previewOrWarn();
     if (!cfg) return;
     const plan = planTaskWidget({
         dashboardItems: cfg.dashboardItems || [],
-        defs: getAllDashboardDefinitions(appConfig),
         quantityTaskTypes: cfg.quantityTaskTypes || [],
-        map: cfg.quantityToDashboardMap || {}
-    }, taskName, () => `custom-${Date.now()}-${Math.random().toString(16).substring(2, 6)}`);
+        taskIdNames: cfg.taskIdNames || {}
+    }, taskIdOf(taskName, cfg.taskIdNames));
     if (plan.error) { alert(plan.error); return; }
-    // 위젯 정의는 appConfig 에 둔다 — 그리기·저장(admin-logic.js)이 화면 목록의 id 를 appConfig 정의로 찾는다
-    if (plan.newDef) {
-        if (!appConfig.dashboardCustomItems) appConfig.dashboardCustomItems = {};
-        appConfig.dashboardCustomItems[plan.id] = plan.newDef;
-    }
-    renderDashboardItemsConfig(plan.dashboardItems, appConfig);
+    renderDashboardItemsConfig(plan.dashboardItems, cfg);
     renderQuantityTasks(plan.quantityTaskTypes, cfg.taskIdNames);
-    // 연결 줄의 위젯 선택지는 정의가 있어야 나온다 — 미리보기(cfg)에는 방금 만든 정의가 없으므로 appConfig 정의를 얹는다
-    renderQuantityToDashboardMapping({ ...cfg,
-        dashboardCustomItems: { ...(appConfig.dashboardCustomItems || {}), ...(cfg.dashboardCustomItems || {}) },
-        quantityTaskTypes: plan.quantityTaskTypes, quantityToDashboardMap: plan.map });
     setAdminDirty(true);
 }
 
@@ -687,7 +679,6 @@ function handleMoveClick(btn) {
     if (!sib) return;   // 맨 위/맨 아래
     if (up) sib.before(item); else sib.after(item);
     btn.focus();
-    if (sel === '.dashboard-item-config') redrawMappingFromScreen();   // 끌어 옮기기(dragend)와 같게 연결 목록 순서를 맞춘다
 }
 
 function handleDynamicClicks(e) {
@@ -759,16 +750,22 @@ function handleDynamicClicks(e) {
         } else if (card && touchConfirm(DELETE_CONFIRM_MSG)) removeCard();
     }
     else if (e.target.classList.contains('delete-quantity-task-btn')) {
-        if (touchConfirm(DELETE_CONFIRM_MSG)) {
-            e.target.closest('.quantity-task-item')?.remove();
-            // 지금 화면 기준으로(업무 이름 변경·고른 위젯 유지)
-            redrawMappingFromScreen();
-        }
+        // 규칙 ②: 상단 위젯에 있는 업무를 처리량 입력 업무에서 빼면 그 위젯 줄도 같이 뺀다(위젯 숫자 = 처리량) — 마우스 환경에서도 묻는다
+        const row = e.target.closest('.quantity-task-item');
+        const tid = row && row.dataset.taskId;
+        const widgetRow = tid ? [...document.querySelectorAll('#dashboard-items-container .dashboard-item-name')]
+            .find(s => s.dataset.id === taskWidgetId(tid))?.closest('.dashboard-item-config') : null;
+        const removeRows = () => { row?.remove(); widgetRow?.remove(); markQuantityWidgetBadges(); };
+        if (widgetRow) {
+            const name = row.querySelector('.quantity-task-name')?.textContent.trim() || '';
+            showConfirm(`'${name}' 을(를) 처리량 입력 업무에서 빼면 상단 위젯에서도 빠집니다. 뺄까요?\n(전체 저장 전에는 새로고침하면 되돌아갑니다)`,
+                { title: '처리량 입력 업무 빼기', okText: '빼기', danger: true }).then(ok => ok && removeRows());
+        } else if (touchConfirm(DELETE_CONFIRM_MSG)) removeRows();
     }
     else if (e.target.classList.contains('delete-dashboard-item-btn')) {
         if (touchConfirm(DELETE_CONFIRM_MSG)) {
             e.target.closest('.dashboard-item-config')?.remove();
-            setTimeout(() => renderQuantityToDashboardMapping(collectConfigFromDOM(appConfig)), 0);
+            markQuantityWidgetBadges();   // 처리량 입력 업무 줄의 '위젯 표시 중' 배지
         }
     }
     
@@ -889,47 +886,25 @@ function handleNewTaskNameBlur(e) {
     taskJustAdded = newTaskName;
     const msgEl = document.getElementById('confirm-add-to-quantity-message');
     if (msgEl) msgEl.textContent = `방금 추가한 '${newTaskName}' 업무를 어디에 함께 넣을까요?`;
-    // 고르는 칸은 열 때마다 기본값으로(처리량 예 · 주요 업무 아니요 · 위젯 연동 안 함)
+    // 고르는 칸은 열 때마다 기본값으로(처리량 예 · 상단 위젯 아니요 · 주요 업무 아니요)
     const qty = document.getElementById('new-task-add-quantity');
     if (qty) qty.checked = true;
     const keyChk = document.getElementById('new-task-add-key');
     if (keyChk) keyChk.checked = false;
-    fillNewTaskWidgetOptions();
+    const widgetChk = document.getElementById('new-task-add-widget');
+    if (widgetChk) widgetChk.checked = false;
     syncNewTaskWidgetSelect();
     document.getElementById('confirm-add-to-quantity-modal')?.classList.remove('hidden');
 }
 
-// 위젯 연결 줄(renderQuantityToDashboardMapping)과 같은 출처 — 화면의 위젯 항목 중 수량 항목
-// 다른 업무가 이미 연결한 위젯은 '(사용 중: 업무명)' 으로 보이고 고를 수 없다(지금 화면 기준)
-function fillNewTaskWidgetOptions() {
-    const select = document.getElementById('new-task-dashboard-link');
-    if (!select) return;
-    const defs = getAllDashboardDefinitions(appConfig);
-    // 미리보기를 못 만들면 저장 전 설정(appConfig)으로 대신하지 않는다 — 표시만 생략([확인] 때 previewOrWarn 이 알린다)
-    const preview = previewTaskConfig();
-    const map = (preview && preview.quantityToDashboardMap) || {};
-    const usedBy = {};
-    Object.entries(map).forEach(([task, wid]) => { if (wid && !(wid in usedBy)) usedBy[wid] = task; });
-    select.innerHTML = '';
-    select.add(new Option('-- 연동 안 함 --', ''));
-    document.querySelectorAll('#dashboard-items-container .dashboard-item-name').forEach(span => {
-        const id = span.dataset.id;
-        const def = defs[id];
-        if (!def || !def.isQuantity) return;
-        const title = span.textContent.trim().replace('📦 ', '');
-        const opt = new Option(id in usedBy ? `${title} (사용 중: ${usedBy[id]})` : title, id);
-        opt.disabled = id in usedBy;
-        select.add(opt);
-    });
-    select.value = '';
-}
-
+// 처리량에 넣지 않으면 '상단 위젯에도 표시' 를 끄고 막는다
 function syncNewTaskWidgetSelect() {
-    const select = document.getElementById('new-task-dashboard-link');
-    if (!select) return;
+    const chk = document.getElementById('new-task-add-widget');
+    if (!chk) return;
     const on = !!document.getElementById('new-task-add-quantity')?.checked;
-    select.disabled = !on;
-    if (!on) select.value = '';
+    chk.disabled = !on;
+    if (!on) chk.checked = false;
+    chk.closest('label')?.classList.toggle('opacity-50', !on);
 }
 
 // 새 업무 연결 창의 [확인] — 지금 화면 기준(미리보기)에 고른 것만 더해 다시 그린다. 저장은 [전체 저장]
@@ -945,13 +920,19 @@ function applyNewTaskLinks(taskName, { quantity, key, widget }) {
         renderKeyTasks(keyTasks, cfg.taskIdNames);
     }
     if (quantity) {
-        const qtyTasks = (cfg.quantityTaskTypes || []).slice();
+        let qtyTasks = (cfg.quantityTaskTypes || []).slice();
         if (!has(qtyTasks, taskName)) qtyTasks.push(taskName);
-        const map = { ...(cfg.quantityToDashboardMap || {}) };
-        if (widget) map[taskName] = widget;
+        if (widget) {
+            // 업무 수량 위젯 — 숫자는 이 업무 처리량이 자동으로(연결 설정 없음)
+            const plan = planTaskWidget({ dashboardItems: cfg.dashboardItems || [], quantityTaskTypes: qtyTasks,
+                taskIdNames: cfg.taskIdNames || {} }, taskIdOf(taskName, cfg.taskIdNames));
+            if (plan.error) alert(plan.error);
+            else { qtyTasks = plan.quantityTaskTypes; renderDashboardItemsConfig(plan.dashboardItems, cfg); }
+        }
         renderQuantityTasks(qtyTasks, cfg.taskIdNames);
-        renderQuantityToDashboardMapping({ ...cfg, quantityTaskTypes: qtyTasks, quantityToDashboardMap: map });
     }
+    const after = previewTaskConfig();   // 이 창은 업무 등록 관리 탭에서 뜬다 — 방금 넣은 곳을 칩으로
+    if (after) markTaskUsage(after);
     return true;
 }
 
@@ -999,9 +980,6 @@ function setupDragDropListeners(containerSelector, itemSelector) {
                 draggedItem.classList.remove('dragging');
                 draggedItem = null;
                 container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-                if (containerSelector === '#dashboard-items-container') {
-                    redrawMappingFromScreen();
-                }
             }
         });
 

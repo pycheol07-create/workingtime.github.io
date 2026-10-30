@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202610301725">
-    <link rel="stylesheet" href="css/admin-d.css?v=202610301725">
-    <link rel="stylesheet" href="css/app-shell.css?v=202610301725">
+    <link rel="stylesheet" href="css/suit.css?v=202610301749">
+    <link rel="stylesheet" href="css/admin-d.css?v=202610301749">
+    <link rel="stylesheet" href="css/app-shell.css?v=202610301749">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -71,7 +71,7 @@
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg></span> 업무 등록 관리
             </button>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-quantity">
-                <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg></span> 집계/위젯 연동
+                <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg></span> 처리량 입력 업무
             </button>
             <button class="admin-tab-btn w-full flex items-center gap-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition" data-target="section-cost">
                 <span class="w-[18px] h-[18px] shrink-0"><svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5c-.5-1-1.5-1.5-2.5-1.5-1.5 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1 2-2.5 2c-1 0-2-.5-2.5-1.5M12 6.5V8M12 16v1.5"/></svg></span> 원가/손익 분석
@@ -183,11 +183,12 @@
                     <div class="p-6 border-b border-gray-100 dark:border-gray-700 w-full">
                         <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">상단 위젯 항목 관리</h2>
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">메인 화면 상단 위젯에 표시될 항목 및 순서</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">업무 수량 위젯은 업무 등록 관리의 업무를 고르면 처리량이 자동으로 연결됩니다.</p>
                     </div>
                     <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[400px] w-full">
-                        <div class="flex gap-2 mb-4 w-full">
-                            <button id="add-dashboard-item-btn" class="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition">+ 기존 항목 추가</button>
-                            <button id="add-custom-dashboard-item-btn" class="text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-bold px-4 py-2 rounded-lg transition" title="등록된 업무를 골라 그 업무의 수량 위젯을 만듭니다(처리량 집계·위젯 연결도 함께)">+ 업무 수량 위젯 추가</button>
+                        <div class="flex flex-wrap gap-2 mb-4 w-full">
+                            <button id="add-dashboard-item-btn" class="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition">+ 인원·시간 항목 추가</button>
+                            <button id="add-custom-dashboard-item-btn" class="text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-bold px-4 py-2 rounded-lg transition" title="등록된 업무를 골라 그 업무의 처리량을 상단 위젯에 보입니다(처리량 입력 업무에도 함께 들어갑니다)">+ 업무 수량 위젯 추가</button>
                         </div>
                         <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
                             <div id="dashboard-items-container" class="space-y-2 w-full"></div>
@@ -200,6 +201,7 @@
                         <div>
                             <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">업무 등록 관리</h2>
                             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">시스템에 사용되는 모든 업무 정의</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">업무는 여기서만 만들고 지웁니다. 다른 탭에서는 여기 있는 업무를 고르기만 합니다.</p>
                         </div>
                         <button id="add-task-group-btn" class="w-full sm:w-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-bold px-5 py-2.5 rounded-lg transition">+ 새 업무 그룹 추가</button>
                     </div>
@@ -225,24 +227,18 @@
 
                 <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors w-full" id="section-quantity">
                     <div class="p-6 border-b border-gray-100 dark:border-gray-700 w-full">
-                        <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">처리량 집계 및 위젯 연동</h2>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">입력된 수량을 어느 위젯에 보여줄지 연결합니다</p>
+                        <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">처리량 입력 업무</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">여기 있는 업무는 처리량 입력 창에 나옵니다. 상단 위젯에 넣은 업무는 자동으로 여기 포함됩니다.</p>
                     </div>
+                    <!-- '입력된 수량을 위젯에 연결' 구역은 없앴다(업무 id 추가 1b) — 상단 위젯의 업무 수량 위젯이 그 업무 처리량을 바로 보인다 -->
                     <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl space-y-8 min-h-[500px] w-full">
                         <div class="w-full">
                             <div class="flex justify-between items-center mb-4 w-full">
-                                <h3 class="text-base font-bold text-gray-700 dark:text-gray-300">1. 수량을 입력받을 업무 목록</h3>
+                                <h3 class="text-base font-bold text-gray-700 dark:text-gray-300">업무 목록</h3>
                                 <button id="add-quantity-task-btn" class="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold px-4 py-2 rounded-lg transition">+ 업무 불러오기</button>
                             </div>
                             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
                                 <div id="quantity-tasks-container" class="space-y-2 w-full"></div>
-                            </div>
-                        </div>
-                        <hr class="border-gray-200 dark:border-gray-700 w-full">
-                        <div class="w-full">
-                            <h3 class="text-base font-bold text-gray-700 dark:text-gray-300 mb-4">2. 입력된 수량을 위젯에 연결</h3>
-                            <div class="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
-                                <div id="quantity-mapping-container" class="space-y-4 w-full"></div>
                             </div>
                         </div>
                     </div>
@@ -324,16 +320,16 @@
             <div class="p-6 text-center mt-4">
                 <h3 class="mb-2 text-lg font-bold text-gray-900 dark:text-white">새 업무 연결</h3>
                 <p id="confirm-add-to-quantity-message" class="mb-4 text-sm text-gray-500 dark:text-gray-400">이 업무를 어디에 함께 넣을까요?</p>
-                <!-- 새 업무를 처리량·위젯 연결·주요 업무에 한 번에 넣는다(업무 id 2단계). 저장은 [전체 저장] -->
+                <!-- 새 업무를 처리량·상단 위젯·주요 업무에 한 번에 넣는다(업무 id 2단계·추가 1b). 저장은 [전체 저장] -->
                 <div class="mb-6 space-y-3 text-left">
                     <label class="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-200 cursor-pointer">
                         <input type="checkbox" id="new-task-add-quantity" class="w-4 h-4 shrink-0" checked>
-                        <span>처리량 집계 목록에 추가</span>
+                        <span>처리량 입력 업무에 추가</span>
                     </label>
-                    <div class="pl-6">
-                        <label for="new-task-dashboard-link" class="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">대시보드 숫자 칸 연결</label>
-                        <select id="new-task-dashboard-link" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-semibold outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"></select>
-                    </div>
+                    <label class="flex items-center gap-2 pl-6 text-sm font-bold text-gray-700 dark:text-gray-200 cursor-pointer transition-opacity">
+                        <input type="checkbox" id="new-task-add-widget" class="w-4 h-4 shrink-0">
+                        <span>상단 위젯에도 표시 <span class="text-[11px] font-semibold text-gray-500 dark:text-gray-400">(처리량 자동 연결)</span></span>
+                    </label>
                     <label class="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-200 cursor-pointer">
                         <input type="checkbox" id="new-task-add-key" class="w-4 h-4 shrink-0">
                         <span>주요 업무(메인 보드 고정)에도 추가</span>
@@ -357,12 +353,12 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202610301725"></script>
-    <script type="module" src="js/admin-automation.js?v=202610301725"></script>
+    <script type="module" src="js/admin.js?v=202610301749"></script>
+    <script type="module" src="js/admin-automation.js?v=202610301749"></script>
 
     <script type="module">
         // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
-        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610301725';
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202610301749';
 
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
@@ -469,9 +465,9 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202610301725"></script>
-    <script src="js/modal-esc.js?v=202610301725"></script>
-    <script type="module" src="js/modal-drag.js?v=202610301725"></script>
-    <script type="module" src="js/app-shell.js?v=202610301725"></script>
+    <script src="js/connection-banner.js?v=202610301749"></script>
+    <script src="js/modal-esc.js?v=202610301749"></script>
+    <script type="module" src="js/modal-drag.js?v=202610301749"></script>
+    <script type="module" src="js/app-shell.js?v=202610301749"></script>
 </body>
 </html>

@@ -26,27 +26,27 @@
 //   live 일 때만 js/china-mibal2-live.js 를 동적 import 한다(스캐너에 반영·작업 마감·보관·입고오차·미발이력·위치 쓰기·관리 창).
 //   이 파일에는 그 쓰기가 없다. live 면 출고일은 기존 계산기(CONFIG.savedDatesMibal)를 보지 않고 mibal2/settings 만 쓴다.
 //   false(지금)면 아래 동작은 예전과 같다 — tests/mibal2-readonly.test.js 가 본다.
-import { initializeFirebase } from './china-stock-config.js?v=202610301725'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202610301749'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202610301725';
-import { sortMark } from './lib/china-stock-view.js?v=202610301725';
+import { explain } from './lib/mibal2-calc.js?v=202610301749';
+import { sortMark } from './lib/china-stock-view.js?v=202610301749';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202610301725';
-import { setShellContext } from './app-shell-bridge.js?v=202610301725';
-import { memberNameFor } from './app-shell-data.js?v=202610301725';
-import { mountBusyBanner } from './busy-banner.js?v=202610301725';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610301725';
-import { friendlyFirebaseError } from './utils.js?v=202610301725';
-import { diffOf } from './lib/inbound-diff.js?v=202610301725';
-import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202610301725';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610301725';
-import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202610301725';
-import { setupLocMode } from './china-mibal2-loc.js?v=202610301725';
-import { isMibal2Live } from './lib/mibal2-mode.js?v=202610301725';
-import { liveDatesFrom } from './lib/mibal2-rows.js?v=202610301725';
+} from './lib/mibal2-rows.js?v=202610301749';
+import { setShellContext } from './app-shell-bridge.js?v=202610301749';
+import { memberNameFor } from './app-shell-data.js?v=202610301749';
+import { mountBusyBanner } from './busy-banner.js?v=202610301749';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202610301749';
+import { friendlyFirebaseError } from './utils.js?v=202610301749';
+import { diffOf } from './lib/inbound-diff.js?v=202610301749';
+import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202610301749';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202610301749';
+import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202610301749';
+import { setupLocMode } from './china-mibal2-loc.js?v=202610301749';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202610301749';
+import { liveDatesFrom } from './lib/mibal2-rows.js?v=202610301749';
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -1039,7 +1039,7 @@ async function start(user) {
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=202610301725');
+        const mod = await import('./china-mibal2-live.js?v=202610301749');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,

@@ -1,11 +1,12 @@
 // === js/admin-logic.js ===
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610301725';
-import { withBuiltinMenus } from './menu-catalog.js?v=202610301725';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202610301725';
-import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610301725';
-import { permFieldsForSave } from './lib/perm-model.js?v=202610301725';
-import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610301725';
-import { deletedTasks, purgeDeletedTasks, followWidgetTitles, takenDeletedNames } from './lib/task-config-sync.js?v=202610301725';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202610301749';
+import { withBuiltinMenus } from './menu-catalog.js?v=202610301749';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202610301749';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202610301749';
+import { permFieldsForSave } from './lib/perm-model.js?v=202610301749';
+import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202610301749';
+import { deletedTasks, purgeDeletedTasks, followWidgetTitles, takenDeletedNames, taskIdOfWidget, migrateDashboardTaskItems,
+    withTaskWidgetCompat } from './lib/task-config-sync.js?v=202610301749';
 
 // 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
 export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',
@@ -343,28 +344,29 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
         pushTask(newConfig.costCalcTasks, rowTaskName(checkbox, checkbox.value));
     });
 
-    // 같은 업무의 연결 줄이 둘 이상이면 위젯을 고른 첫 줄만 쓴다(뒤 줄은 무시)
-    document.querySelectorAll('#quantity-mapping-container .mapping-row').forEach(row => {
-        const taskName = rowTaskName(row, row.dataset.taskName);
-        const select = row.querySelector('.dashboard-mapping-select');
-        if (taskName && select && select.value && !(taskName in newConfig.quantityToDashboardMap)) {
-            newConfig.quantityToDashboardMap[taskName] = select.value;
-        }
+    // 처리량 → 위젯 연결 화면은 없앴다(업무 id 추가 1b) — 업무 수량 위젯(task-<id>)은 연결표 없이 그 업무 처리량을 보인다.
+    //   업무 수량 위젯으로 못 옮긴 옛 수량 위젯의 연결만(목록에 남아 있는 것) 저장 전 값에서 이어 받는다.
+    //   업무 수량 위젯을 가리키는 연결(옛 버전 탭용 사본)은 아래 withTaskWidgetCompat 이 지금 목록으로 다시 만든다.
+    const listedWidgets = new Set(newConfig.dashboardItems);
+    Object.entries((currentConfig && currentConfig.quantityToDashboardMap) || {}).forEach(([t, w]) => {
+        if (t && typeof w === 'string' && w && !taskIdOfWidget(w) && listedWidgets.has(w)) newConfig.quantityToDashboardMap[t] = w;
     });
 
-    // 지운 업무를 화면에 없는 칸(품질비용·예측 설정 등)과 그 업무에만 연결된 커스텀 위젯에서 뺀 뒤,
+    // 지운 업무를 화면에 없는 칸(품질비용·예측 설정 등)과 그 업무의 위젯에서 뺀 뒤,
     // 이름 변경을 나머지 이름 칸에 퍼뜨리고 별칭을 남긴다.
     //   위에서 id 로 읽은 칸은 이미 지금 이름이라 건너뛴다(두 번 바꾸면 A↔B 맞바꾸기가 되돌아간다).
     //   정리를 이름 변경보다 먼저 — 같은 저장에서 X 'P' 삭제 + Y→'P' 이름 변경이면 Y 의 설정이 남아야 한다.
     //   업무 예상 제외(forecastExcludedTasks)는 정리하지 않는다 — 과거 정확도 숫자 보존.
     if (!beforeIds) return newConfig;
-    const skip = ['keyTasks', 'quantityTaskTypes', 'costCalcTasks', 'quantityToDashboardMap'];
+    const skip = ['keyTasks', 'quantityTaskTypes', 'costCalcTasks'];
     const deleted = deletedTasks(currentConfig, newConfig);
     const purged = purgeDeletedTasks(newConfig, currentConfig, deleted, { skip: ['forecastExcludedTasks'], already: skip });
     const { config, renames, reused } = applyTaskRenames(purged.config, currentConfig, { skip });
     config.dashboardCustomItems = followWidgetTitles(config.dashboardCustomItems, renames);
+    // 남은 옛 연결 위젯을 업무 수량 위젯으로·지운 업무 위젯 빼기·위젯 업무는 처리량 입력 업무에도(규칙 ①), 그리고 옛 버전 탭용 사본
+    const out = withTaskWidgetCompat(migrateDashboardTaskItems(config));
     if (taskInfo) Object.assign(taskInfo, { renames, reused, deleted, purged, taken: takenDeletedNames(currentConfig, newConfig) });
-    return config;
+    return out;
 }
 
 export function validateConfig(newConfig) {
