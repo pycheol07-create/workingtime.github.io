@@ -4,7 +4,7 @@
 // 여기서는 업무를 지웠을 때 화면에 없는 칸(예측 설정 등)과 그 업무에만 연결돼 있던 커스텀 위젯을 같이 정리하고,
 // 위젯 추가 창·중복 표시에 쓰는 계산을 한다. 이름 변경은 js/lib/task-ids.js applyTaskRenames 가 맡는다.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/task-config-sync.test.js
-import { TASK_NAME_ARRAY_FIELDS, TASK_NAME_MAP_FIELDS } from './task-ids.js?v=202610301657';
+import { TASK_NAME_ARRAY_FIELDS, TASK_NAME_MAP_FIELDS } from './task-ids.js?v=202610301725';
 
 const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);

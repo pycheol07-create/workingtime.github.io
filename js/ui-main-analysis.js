@@ -1,7 +1,8 @@
 // === js/ui-main-analysis.js ===
-import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610301657';
-import * as State from './state.js?v=202610301657';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610301657';
+import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H } from './utils.js?v=202610301725';
+import * as State from './state.js?v=202610301725';
+import { systemIdOfName } from './lib/task-ids.js?v=202610301725';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610301725';
 
 export const renderTaskAnalysis = (appState, appConfig) => {
     const analysisContainer = document.getElementById('analysis-task-summary-panel'); 
@@ -58,7 +59,8 @@ export const renderTaskAnalysis = (appState, appConfig) => {
         });
     });
 
-    const taskColorsHex = {'채우기':'#3b82f6','국내배송':'#10b981','중국제작':'#8b5cf6','직진배송':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','앵글정리':'#eab308','아이롱':'#6366f1','강성':'#ec4899','상.하차':'#6b7280','2층업무':'#78716c','오류':'#f43f5e','재고찾는시간':'#a855f7','샘플검수':'#14b8a6', '전량검수':'#9333ea', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', '매장근무': '#34d399', '출장': '#6b7280'};
+    // 시스템 업무는 고정 id 키 — 업무 이름을 바꿔도 색이 따라간다(업무 id 2단계)
+    const taskColorsHex = {'k_fill':'#3b82f6','k_domestic':'#10b981','k_china':'#8b5cf6','k_direct':'#22c55e','티니':'#ef4444','택배포장':'#f97316','해외배송':'#06b6d4','재고조사':'#d946ef','k_angle':'#eab308','아이롱':'#6366f1','강성':'#ec4899','k_loadunload':'#6b7280','2층업무':'#78716c','k_error':'#f43f5e','재고찾는시간':'#a855f7','k_sample':'#14b8a6', 'k_full':'#9333ea', '개인담당업무': '#1d4ed8', '상품재작업': '#f59e0b', 'k_store': '#34d399', '출장': '#6b7280'};
     
     // duration 기준으로 내림차순 정렬
     const sortedTasks = Object.entries(taskAnalysis).sort(([, a], [, b]) => b.duration - a.duration);
@@ -71,7 +73,7 @@ export const renderTaskAnalysis = (appState, appConfig) => {
         const minutes = data.duration;
         const actualMinutes = data.members.size > 0 ? minutes / data.members.size : 0;
         const percentage = totalLoggedMinutes > 0 ? (minutes / totalLoggedMinutes) * 100 : 0;
-        const color = taskColorsHex[task] || '#6b7280';
+        const color = taskColorsHex[systemIdOfName(task, State.appConfig) || task] || '#6b7280';
         
         if (percentage > 0) {
             gradientParts.push(`${color} ${cumulativePercentage}% ${cumulativePercentage + percentage}%`);

@@ -10,8 +10,10 @@
  *  ui-history-prediction.js LEGACY_SIM_TASKS 의 key 를 모두 포함해야 한다(테스트가 확인).
  *  그 밖에 코드가 이름으로 계산하는 것: 오류(ui-history-productivity.js 채우기·오류 분석),
  *  중국제작(담당)(예측 DEFAULT_TIME_TASK_DEPS), 청소·앵글정리(예측 DEFAULT_SIM_ZERO_TASKS),
- *  매장근무·교육(예측 TIME_TASK_EXCLUDE), 로케이션 동선관리(feature-catalog.js LOCREC_TASK — 대시보드 [변경추천]·업무 예상). */
-export const LOCKED_TASKS = Object.freeze({
+ *  매장근무·교육(예측 TIME_TASK_EXCLUDE), 로케이션 동선관리(feature-catalog.js LOCREC_TASK — 대시보드 [변경추천]·업무 예상),
+ *  관리자 개별업무(예측 제외·인원 줄 — 업무 id 2단계에서 추가, 2026-10-30).
+ *  업무 id 2단계(2026-10-30): 코드는 이름 대신 TASK.xxx(id) → taskNameOf 로 지금 이름을 얻는다. 잠금은 7단계에서 푼다. */
+export const SYSTEM_TASKS = Object.freeze({
     '국내배송': 'k_domestic',
     '중국제작': 'k_china',
     '샘플검수': 'k_sample',
@@ -30,7 +32,18 @@ export const LOCKED_TASKS = Object.freeze({
     '앵글정리': 'k_angle',
     '매장근무': 'k_store',
     '교육': 'k_training',
-    '로케이션 동선관리': 'k_locroute'
+    '로케이션 동선관리': 'k_locroute',
+    '관리자 개별업무': 'k_admin'
+});
+/** 옛 이름 — 7단계(잠금 해제)까지 유지 */
+export const LOCKED_TASKS = SYSTEM_TASKS;
+
+/** 코드에서 쓰는 시스템 업무 id. 이름은 taskNameOf(TASK.xxx, cfg) 로 얻는다. */
+export const TASK = Object.freeze({
+    domestic: 'k_domestic', china: 'k_china', sample: 'k_sample', direct: 'k_direct',
+    ably: 'k_ably', fill: 'k_fill', return: 'k_return', full: 'k_full', other: 'k_other', localprod: 'k_localprod',
+    loadunload: 'k_loadunload', directPrep: 'k_direct_prep', error: 'k_error', chinaOwner: 'k_china_owner',
+    cleaning: 'k_cleaning', angle: 'k_angle', store: 'k_store', training: 'k_training', locroute: 'k_locroute', admin: 'k_admin'
 });
 const LOCKED_BY_ID = Object.freeze(Object.fromEntries(Object.entries(LOCKED_TASKS).map(([n, id]) => [id, n])));
 
@@ -160,6 +173,52 @@ export function canonicalTaskName(name, cfg) {
     if (id && ids[id]) return ids[id];
     const cur = taskIdOf(n, ids);
     return cur ? ids[cur] : name;
+}
+
+// ── 시스템 업무 id → 지금 이름(업무 id 2단계) ─────────────────────────
+// 설정 객체(taskIdNames·taskAliases 참조)마다 한 번 만든 표를 이어 쓴다(task-alias-view.js ctxOf 방식) — 업무 예상이 수백 번 부른다.
+let nameCtx = null;   // { ids, aliases, byId: Map, canon: Map }
+function nameCtxOf(cfg) {
+    const ids = cfg ? cfg.taskIdNames : undefined;
+    const aliases = cfg ? cfg.taskAliases : undefined;
+    if (nameCtx && nameCtx.ids === ids && nameCtx.aliases === aliases) return nameCtx;
+    nameCtx = { ids, aliases, c: { taskIdNames: ids, taskAliases: aliases }, byId: new Map(), canon: new Map() };
+    return nameCtx;
+}
+const canonIn = (ctx, name) => {
+    let v = ctx.canon.get(name);
+    if (v === undefined) { v = canonicalTaskName(name, ctx.c); ctx.canon.set(name, v); }
+    return v;
+};
+
+/** 시스템 업무 id → 지금 이름. taskIdNames 에 있으면 그 이름, 없으면(id 저장 전·옛 설정) 기본 이름을 별칭 규칙으로 맞춘 것.
+ *  모르는 id 면 ''. */
+export function taskNameOf(id, cfg) {
+    const ctx = nameCtxOf(cfg);
+    let v = ctx.byId.get(id);
+    if (v !== undefined) return v;
+    const ids = isObj(ctx.ids) ? ctx.ids : {};
+    if (Object.prototype.hasOwnProperty.call(ids, id) && ids[id]) v = ids[id];
+    else if (isLockedTaskId(id)) v = canonIn(ctx, LOCKED_BY_ID[id]);
+    else v = '';
+    ctx.byId.set(id, v);
+    return v;
+}
+
+/** 이름(옛 이름·별칭 포함)이 그 시스템 업무인가 */
+export function isTask(name, id, cfg) {
+    if (name == null || name === '') return false;
+    const want = taskNameOf(id, cfg);
+    if (!want) return false;
+    if (name === want) return true;
+    return canonIn(nameCtxOf(cfg), name) === want;
+}
+
+/** 이름 → 시스템 업무 id(색 표 등). 시스템 업무가 아니면 '' */
+export function systemIdOfName(name, cfg) {
+    if (name == null || name === '') return '';
+    for (const id of Object.keys(LOCKED_BY_ID)) if (isTask(name, id, cfg)) return id;
+    return '';
 }
 
 /** 이름 검사 → 오류 문구 배열(비면 통과). 빈 이름, 서로 다른 업무가 같은 이름(대소문자·공백 무시),

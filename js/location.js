@@ -1,29 +1,29 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610301657';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610301725';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610301657';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610301657';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610301657';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610301657';
-import { orderKeyMap } from './lib/order-hash.js?v=202610301657';
-import { setShellContext } from './app-shell-bridge.js?v=202610301657';
-import { memberNameFor } from './app-shell-data.js?v=202610301657';
-import { menuConfigOf } from './lib/perm.js?v=202610301657';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610301657';
-import { initPageNav } from './page-nav.js?v=202610301657';
-import { initRefillCard } from './refill-card.js?v=202610301657';
-import { initLocRecCard } from './locrec-card.js?v=202610301657';
-import { initRebuildBar } from './rebuild-bar.js?v=202610301657';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610301657';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610301657';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610301657';
-import { uploadBlockText } from './lib/busy-view.js?v=202610301657';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610301657';
-import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610301657';
-import { initLocSetPanel } from './locset-panel.js?v=202610301657';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202610301725';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610301725';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610301725';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610301725';
+import { orderKeyMap } from './lib/order-hash.js?v=202610301725';
+import { setShellContext } from './app-shell-bridge.js?v=202610301725';
+import { memberNameFor } from './app-shell-data.js?v=202610301725';
+import { menuConfigOf } from './lib/perm.js?v=202610301725';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610301725';
+import { initPageNav } from './page-nav.js?v=202610301725';
+import { initRefillCard } from './refill-card.js?v=202610301725';
+import { initLocRecCard } from './locrec-card.js?v=202610301725';
+import { initRebuildBar } from './rebuild-bar.js?v=202610301725';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610301725';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610301725';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610301725';
+import { uploadBlockText } from './lib/busy-view.js?v=202610301725';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610301725';
+import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610301725';
+import { initLocSetPanel } from './locset-panel.js?v=202610301725';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText } from './lib/locrec-apply.js?v=202610301657';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202610301657';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText } from './lib/locrec-apply.js?v=202610301725';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202610301725';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나

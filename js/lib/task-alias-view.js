@@ -10,7 +10,7 @@
 // ⚠️ 데이터 관리 편집 화면·저장 경로에는 쓰지 않는다 — 사본을 저장하면 과거 기록 이름이 바뀐다.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/task-alias-view.test.js
 
-import { canonicalTaskName } from './task-ids.js?v=202610301657';
+import { canonicalTaskName, taskNameOf } from './task-ids.js?v=202610301725';
 
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -245,4 +245,17 @@ export function sameTaskKeys(obj, key, cfg) {
 export function aliasTaskName(name, cfg) {
     const ctx = ctxOf(cfg);
     return ctx && typeof name === 'string' ? ctx.canon(name) : name;
+}
+
+/** 이름 키 맵에서 시스템 업무(id)의 값 — 지금 이름 칸이 있으면 그 값, 없으면 먼저 나온 옛 이름 칸 값(더하지 않음, mapNameKeys 규칙).
+ *  없으면 undefined(map[이름] 과 같다). 업무 id 2단계. */
+export function taskQtyOf(map, id, cfg) {
+    if (!isObj(map)) return undefined;
+    const name = taskNameOf(id, cfg);
+    if (!name) return undefined;
+    if (hasOwn(map, name)) return map[name];
+    const ctx = ctxOf(cfg);
+    if (!ctx) return undefined;
+    for (const [k, v] of Object.entries(map)) if (ctx.canon(k) === name) return v;
+    return undefined;
 }

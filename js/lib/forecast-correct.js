@@ -33,7 +33,7 @@
 //  숫자는 소수 3자리. 결과에는 업무 이름·숫자만 있다(직원 이름·기록자 없음).
 //  import 는 ../forecast-accuracy.js 하나 — DOM·State·Firebase 를 쓰지 않는다(node 테스트: tests/forecast-correct.test.js).
 
-import { planHoursByTaskOf } from '../forecast-accuracy.js?v=202610301657';
+import { planHoursByTaskOf } from '../forecast-accuracy.js?v=202610301725';
 
 export const DEFAULTS = Object.freeze({
     K: 5,                   // 편향 당김 — 표본 n 일에 '배율 1' 을 K 일치 섞는다

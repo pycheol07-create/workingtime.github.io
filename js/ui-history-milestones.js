@@ -1,10 +1,11 @@
 // === js/ui-history-milestones.js ===
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
-import * as State from './state.js?v=202610301657';
-import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError } from './utils.js?v=202610301657';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202610301657';
-import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=202610301657';
+import * as State from './state.js?v=202610301725';
+import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError } from './utils.js?v=202610301725';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202610301725';
+import { TASK, tName } from './task-names.js?v=202610301725';
+import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=202610301725';
 import {
     doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -843,6 +844,6 @@ window.suggestMilestoneFromRecommendation = function (extra = {}) {
         title: extra.title || '로케이션 변경 적용',
         description: extra.description || `로케이션 변경 추천 리스트를 적용했습니다. (${extra.count || 0}건)`,
         tags: ['로케이션', '동선최적화'],
-        affectedTasks: ['국내배송', '직진배송', '채우기']
+        affectedTasks: [tName(TASK.domestic), tName(TASK.direct), tName(TASK.fill)]
     });
 };

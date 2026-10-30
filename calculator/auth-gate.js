@@ -31,12 +31,12 @@
 // 비밀번호 재설정은 두지 않는다(관리자에게 문의).
 // ⚠️ 화면 가림만 한다. 데이터는 firestore.rules 가 지킨다. 이름·이메일은 화면·로그에 남기지 않는다.
 // ⚠️ role="dialog"·data-act 를 쓰지 않는다(page-gate.js 와 같은 이유 — 봇이 그 선택자로 확인창을 찾는다).
-import { db, auth } from './firebase-init.js?v=202610301657';
+import { db, auth } from './firebase-init.js?v=202610301725';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut,
     GoogleAuthProvider, signInWithPopup, getRedirectResult } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { calcAccess, calcPermDecision } from '../js/lib/calc-member.js?v=202610301657';
-import { clearShellMenuCache } from '../js/app-shell-bridge.js?v=202610301657';
+import { calcAccess, calcPermDecision } from '../js/lib/calc-member.js?v=202610301725';
+import { clearShellMenuCache } from '../js/app-shell-bridge.js?v=202610301725';
 
 const CONFIG_PATH = 'artifacts/team-work-logger-v2/config/mainConfig';
 const PUBLIC_PATH = 'artifacts/team-work-logger-v2/calcPublic/settings';   // 공개 사본 — 명단 밖이면 이걸로 '퇴사자 아님' 을 확인

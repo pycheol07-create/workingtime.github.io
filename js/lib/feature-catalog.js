@@ -21,7 +21,8 @@
 //   grantable false = 관리자 전용(역할·예외로 줘도 무시)
 //   legacyAdminOnly  옛 ADMIN_ONLY_* 범위 — 옛 권한을 끌어올 때 일반 직원에게 주지 않는다(예전에도 화면이 막고 있었다)
 
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202610301657';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202610301725';
+import { TASK } from './task-ids.js?v=202610301725';
 
 export const FEATURE_GROUPS = [
     { id: 'dash',       label: '대시보드' },
@@ -138,7 +139,8 @@ export const PRESET_ROLES = {
 };
 export const DEFAULT_ROLE_ID = 'basic';
 
-// 대시보드 '채우기' 업무 카드에서 지시서 창을 열 때 쓰는 업무 이름(6단계). 관리자가 업무 이름을 바꾸면 버튼이 사라진다.
-export const REFILL_TASK = '채우기';
+// 대시보드 '채우기' 업무 카드에서 지시서 창을 열 때 쓰는 업무(6단계). 업무 id 2단계(2026-10-30)부터 이름이 아니라 고정 id —
+// 비교는 isTask(이름, REFILL_TASK, 설정)(js/task-names.js isT)로 해서 업무 이름을 바꿔도 버튼이 따라간다.
+export const REFILL_TASK = TASK.fill;
 // 대시보드 '로케이션 동선관리' 업무 카드의 [변경추천] 버튼(js/locrec-dash.js) — 같은 방식. 업무를 시작해도 창은 저절로 열지 않는다.
-export const LOCREC_TASK = '로케이션 동선관리';
+export const LOCREC_TASK = TASK.locroute;

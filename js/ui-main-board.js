@@ -1,12 +1,13 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610301657';
-import * as State from './state.js?v=202610301657';
-import { leaveTypeLabel } from './state.js?v=202610301657';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610301657';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610301657';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610301657';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202610301657';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202610301657';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202610301725';
+import * as State from './state.js?v=202610301725';
+import { leaveTypeLabel } from './state.js?v=202610301725';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202610301725';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202610301725';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202610301725';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202610301725';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202610301725';
+import { TASK, tName, isT } from './task-names.js?v=202610301725';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -269,7 +270,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     );
     const onLeaveMemberNames = new Set(onLeaveStatusMap.keys());
 
-    const baseTasks = keyTasks.length > 0 ? keyTasks : ['국내배송', '중국제작', '직진배송', '채우기', '개인담당업무'];
+    const baseTasks = keyTasks.length > 0 ? keyTasks : [tName(TASK.domestic), tName(TASK.china), tName(TASK.direct), tName(TASK.fill), '개인담당업무'];
 
     const ongoingRecords = (appState.workRecords || []).filter(r =>
         (r.status === 'ongoing' || r.status === 'paused') && !onLeaveMemberNames.has(r.member)
@@ -374,7 +375,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
             const pauseDisplay = totalPauseMinutes > 0 ? `<span class="text-[11px] tc-sub font-normal ml-1">(전체휴식: ${formatDuration(totalPauseMinutes)})</span>` : '';
 
             let specialButtonHtml = '';
-            if (task === '샘플검수') {
+            if (isT(task, TASK.sample)) {
                 specialButtonHtml = `
                     <div class="px-3 pt-3 pb-3 shrink-0 border-b d-line">
                         <button data-action="open-inspection" class="w-full d-btn d-btn-accent flex justify-center items-center gap-1">
@@ -383,7 +384,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                         </button>
                     </div>
                 `;
-            } else if (task === '전량검수') {
+            } else if (isT(task, TASK.full)) {
                 specialButtonHtml = `
                     <div class="px-3 pt-3 pb-3 shrink-0 border-b d-line">
                         <button data-action="open-total-inspection" class="w-full d-btn d-btn-accent flex justify-center items-center gap-1">

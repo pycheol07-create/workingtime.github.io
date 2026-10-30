@@ -1,19 +1,20 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202610301657';
-import * as State from './state.js?v=202610301657';
-import { updateDailyData } from './app-data.js?v=202610301657';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202610301657';
+import * as DOM from './dom-elements.js?v=202610301725';
+import * as State from './state.js?v=202610301725';
+import { updateDailyData } from './app-data.js?v=202610301725';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202610301725';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202610301657';
-import { syncInspSegments } from './inspection-segments.js?v=202610301657';
-import { moveDoneItems } from './lib/insp-day.js?v=202610301657';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202610301725';
+import { syncInspSegments } from './inspection-segments.js?v=202610301725';
+import { moveDoneItems } from './lib/insp-day.js?v=202610301725';
+import { TASK, tName } from './task-names.js?v=202610301725';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, todoCardHtml, doneCardHtml
-} from './lib/insp-flow.js?v=202610301657';
+} from './lib/insp-flow.js?v=202610301725';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -1004,7 +1005,7 @@ export const saveInspectionAndNext = async () => {
                 editing: wasEditing
             });
             const dailyUpdates = {};
-            if (r.qtyDelta !== 0) dailyUpdates.taskQuantities = { '샘플검수': increment(r.qtyDelta) };
+            if (r.qtyDelta !== 0) dailyUpdates.taskQuantities = { [tName(TASK.sample)]: increment(r.qtyDelta) };   // 지금 이름 칸(업무 id 2단계)
             if (done.changed) dailyUpdates.inspectionList = done.list;
             if (Object.keys(dailyUpdates).length > 0) tx.set(dailyRef, dailyUpdates, { merge: true });
 
@@ -1142,6 +1143,6 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202610301657';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610301657';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610301657';
+export { handleExcelUpload } from './inspection-excel.js?v=202610301725';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202610301725';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202610301725';

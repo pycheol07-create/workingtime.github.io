@@ -64,26 +64,27 @@ export const taskCardStyles = {
         buttonHoverOn: 'hover:bg-yellow-700'
     }
 };
+// 시스템 업무는 고정 id 키(업무 id 2단계) — 찾을 때 systemIdOfName(이름, 설정) || 이름. 지금 이 표를 읽는 곳은 없다.
 export const taskTitleColors = {
-    '국내배송': 'text-green-700',
-    '중국제작': 'text-purple-700',
-    '직진배송': 'text-emerald-700',
-    '채우기': 'text-sky-700',
+    'k_domestic': 'text-green-700',
+    'k_china': 'text-purple-700',
+    'k_direct': 'text-emerald-700',
+    'k_fill': 'text-sky-700',
     '개인담당업무': 'text-indigo-700',
     '티니': 'text-red-700',
     '택배포장': 'text-orange-700',
     '해외배송': 'text-cyan-700',
     '재고조사': 'text-fuchsia-700',
-    '앵글정리': 'text-amber-700',
+    'k_angle': 'text-amber-700',
     '상품재작업': 'text-yellow-800',
-    '상.하차': 'text-stone-700',
+    'k_loadunload': 'text-stone-700',
     '검수': 'text-teal-700',
     '아이롱': 'text-violet-700',
-    '오류': 'text-rose-700',
+    'k_error': 'text-rose-700',
     '강성': 'text-pink-700',
     '2층업무': 'text-neutral-700',
     '재고찾는시간': 'text-lime-700',
-    '매장근무': 'text-blue-700',
+    'k_store': 'text-blue-700',
     '출장': 'text-gray-700',
     'default': 'text-blue-700'
 };
@@ -98,7 +99,7 @@ import {
     renderDashboardLayout,
     updateSummary,
     applyDynamicSidebar // ✨ 신규 임포트
-} from './ui-main.js?v=202610301657';
+} from './ui-main.js?v=202610301725';
 
 export {
     renderTaskAnalysis,
@@ -122,7 +123,7 @@ import {
     renderReportWeekly,
     renderReportMonthly,
     renderReportYearly
-} from './ui-history.js?v=202610301657';
+} from './ui-history.js?v=202610301725';
 
 export {
     renderWeeklyHistory,
@@ -145,7 +146,7 @@ import {
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderManualAddModalDatalists
-} from './ui-modals.js?v=202610301657';
+} from './ui-modals.js?v=202610301725';
 
 export {
     renderQuantityModalInputs,

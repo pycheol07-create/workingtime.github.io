@@ -1,10 +1,11 @@
 // === js/total-inspection-logic.js ===
 // 설명: 전량 검수(누적 데이터) 관리 및 샘플 검수 연동 로직
 
-import * as DOM from './dom-elements.js?v=202610301657';
-import * as State from './state.js?v=202610301657';
-import { showToast, getTodayDateString } from './utils.js?v=202610301657';
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import * as DOM from './dom-elements.js?v=202610301725';
+import * as State from './state.js?v=202610301725';
+import { showToast, getTodayDateString } from './utils.js?v=202610301725';
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc, increment, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { TASK, tName } from './task-names.js?v=202610301725';
 
 // 현재 조회된 상품의 누적 상태를 저장할 변수
 let currentTotalInspData = null;
@@ -182,11 +183,11 @@ export async function saveTotalInspection() {
         // ✨ 3. 신규: 당일 전량검수 처리량 자동 누적
         try {
             const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-            await updateDoc(dailyDocRef, {
-                [`taskQuantities.전량검수`]: increment(todayTotal)
-            });
+            // 지금 이름 칸에 — 업무 이름의 점(예: '상.하차')이 하위 필드로 쪼개지지 않게 FieldPath 로 쓴다(tests/task-qty-fieldpath.test.js)
+            const fullTask = tName(TASK.full);
+            await updateDoc(dailyDocRef, new FieldPath('taskQuantities', fullTask), increment(todayTotal));
             if (!State.appState.taskQuantities) State.appState.taskQuantities = {};
-            State.appState.taskQuantities['전량검수'] = (State.appState.taskQuantities['전량검수'] || 0) + todayTotal;
+            State.appState.taskQuantities[fullTask] = (State.appState.taskQuantities[fullTask] || 0) + todayTotal;
         } catch(err) {
             console.warn("전량검수 처리량 누적 실패:", err);
         }

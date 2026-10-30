@@ -2,8 +2,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610301657';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610301657';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202610301725';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202610301725';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
+import { TASK, taskNameOf } from './lib/task-ids.js?v=202610301725';   // 업무 id 2단계 — 옛 '검수' 이전에 두 업무의 지금 이름
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -100,11 +101,16 @@ export const loadAppConfig = async (dbInstance) => {
 
             // 옛 '검수' → 샘플검수·전량검수 이전. 업무 이름을 정확히 '검수' 로 새로 만들면 불러올 때 둘로 나뉜다(여기·아래 업무 그룹 두 곳).
             // 예전에 있던 '교환반품' 강제 삽입(주요 업무·처리량·담당 그룹)은 없앴다(2026-10-30) — 지워도 다시 생겨 업무 관리에서 지울 수 없었다.
+            // 업무 id 2단계(2026-10-30): 지금 '검수' 라는 업무가 있으면(taskIdNames) 옮기지 않고, 넣는 이름은 두 업무의 지금 이름.
+            const loadedIdNames = (loadedData.taskIdNames && typeof loadedData.taskIdNames === 'object') ? loadedData.taskIdNames : {};
+            const migrateInsp = !Object.values(loadedIdNames).includes('검수');
+            const sampleName = taskNameOf(TASK.sample, loadedData);
+            const fullName = taskNameOf(TASK.full, loadedData);
             let loadedQtyTasks = loadedData.quantityTaskTypes || defaultData.quantityTaskTypes;
-            if (loadedQtyTasks.includes('검수')) {
+            if (migrateInsp && loadedQtyTasks.includes('검수')) {
                 loadedQtyTasks = loadedQtyTasks.filter(t => t !== '검수');
-                if (!loadedQtyTasks.includes('샘플검수')) loadedQtyTasks.push('샘플검수');
-                if (!loadedQtyTasks.includes('전량검수')) loadedQtyTasks.push('전량검수');
+                if (!loadedQtyTasks.includes(sampleName)) loadedQtyTasks.push(sampleName);
+                if (!loadedQtyTasks.includes(fullName)) loadedQtyTasks.push(fullName);
             }
             mergedConfig.quantityTaskTypes = loadedQtyTasks;
 
@@ -114,20 +120,20 @@ export const loadAppConfig = async (dbInstance) => {
 
             if (Array.isArray(loadedData.taskGroups)) {
                 mergedConfig.taskGroups = loadedData.taskGroups.map(group => {
-                    if (group.tasks && group.tasks.includes('검수')) {
+                    if (migrateInsp && group.tasks && group.tasks.includes('검수')) {
                         group.tasks = group.tasks.filter(t => t !== '검수');
-                        if (!group.tasks.includes('샘플검수')) group.tasks.push('샘플검수');
-                        if (!group.tasks.includes('전량검수')) group.tasks.push('전량검수');
+                        if (!group.tasks.includes(sampleName)) group.tasks.push(sampleName);
+                        if (!group.tasks.includes(fullName)) group.tasks.push(fullName);
                     }
                     return group;
                 });
             } else if (typeof loadedData.taskGroups === 'object' && loadedData.taskGroups !== null && !Array.isArray(loadedData.taskGroups)) {
                 mergedConfig.taskGroups = Object.entries(loadedData.taskGroups).map(([groupName, tasks]) => {
                     let parsedTasks = Array.isArray(tasks) ? tasks : [];
-                    if (parsedTasks.includes('검수')) {
+                    if (migrateInsp && parsedTasks.includes('검수')) {
                         parsedTasks = parsedTasks.filter(t => t !== '검수');
-                        if (!parsedTasks.includes('샘플검수')) parsedTasks.push('샘플검수');
-                        if (!parsedTasks.includes('전량검수')) parsedTasks.push('전량검수');
+                        if (!parsedTasks.includes(sampleName)) parsedTasks.push(sampleName);
+                        if (!parsedTasks.includes(fullName)) parsedTasks.push(fullName);
                     }
                     return { name: groupName, tasks: parsedTasks };
                 });
