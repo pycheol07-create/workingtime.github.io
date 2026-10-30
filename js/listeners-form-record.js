@@ -1,13 +1,13 @@
 // === js/listeners-form-record.js ===
 // 설명: 업무 기록의 수정(휴식 포함), 수동 추가, 시작 시간 변경 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202610301140';
-import * as State from './state.js?v=202610301140';
-import { showToast, formatDuration, calcTotalPauseMinutes, calcElapsedMinutes, getTodayDateString, getCurrentTime } from './utils.js?v=202610301140';
-import { generateId } from './app-data.js?v=202610301140';
-import { writeRecordsReleasingLocks } from './app-sync.js?v=202610301140';
+import * as DOM from './dom-elements.js?v=202610301221';
+import * as State from './state.js?v=202610301221';
+import { showToast, formatDuration, calcTotalPauseMinutes, calcElapsedMinutes, getTodayDateString, getCurrentTime } from './utils.js?v=202610301221';
+import { generateId } from './app-data.js?v=202610301221';
+import { writeRecordsReleasingLocks } from './app-sync.js?v=202610301221';
 import { doc, updateDoc, deleteDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkStartAfterClockIn, clampStartToClockIn, makeEditStamp } from './lib/attendance-guard.js?v=202610301140';
+import { checkStartAfterClockIn, clampStartToClockIn, makeEditStamp } from './lib/attendance-guard.js?v=202610301221';
 
 // 오늘 그 사람의 출근시각(없으면 undefined → 검사 생략)
 const todayInTime = (member) => State.appState.dailyAttendance?.[member]?.inTime;

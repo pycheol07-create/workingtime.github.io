@@ -1,21 +1,22 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202610301140';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610301140';
-import { clampOpenRecords } from './lib/record-close.js?v=202610301140';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202610301140';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610301140';
+import * as State from './state.js?v=202610301221';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202610301221';
+import { clampOpenRecords } from './lib/record-close.js?v=202610301221';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202610301221';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202610301221';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
-} from './lib/attendance-guard.js?v=202610301140';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610301140';
-import { can } from './lib/perm.js?v=202610301140';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610301140';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610301140';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610301140';
-import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202610301140';
-import { buildPlannedDoc } from './lib/planned-fields.js?v=202610301140';
+} from './lib/attendance-guard.js?v=202610301221';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202610301221';
+import { can } from './lib/perm.js?v=202610301221';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202610301221';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202610301221';
+import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202610301221';
+import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202610301221';
+import { buildPlannedDoc } from './lib/planned-fields.js?v=202610301221';
+import { sameTaskKeys } from './lib/task-alias-view.js?v=202610301221';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610301140';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202610301221';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -282,7 +283,11 @@ export async function fetchForecastSnapshots(fromDate, toDate) {
 //    (예정 물량 모달은 물량만 다루므로, 그 저장이 담당업무 시간을 지우면 안 된다).
 //  excludeMinutes: 업무 제외시간(분). null이면 기존 값 유지, -1이면 지운다
 //  adminWorkers: 관리자 개별업무 인원. null이면 기존 값 유지, -1이면 지운다(기본값과 같아도 저장 안 함)
-export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZeros = false, timeTasks = null, excludeMinutes = null, adminWorkers = null } = {}) {
+//  qtyOps / timeOps: '고친 칸만' 저장(2026-10-30) — { 업무: 값 } 은 그 값으로, { 업무: null } 은 그 업무 키(+옛 이름 키)를 지운다.
+//    하나라도 넘기면 서버 최신 문서를 트랜잭션으로 읽어 **그 위에** 고친 칸만 얹는다(plannedQuantities·timeTasks 인자는 안 씀).
+//    예전처럼 물량 전체 맵(10분 캐시 + 고친 칸)을 넘기면 다른 PC 가 방금 저장한 값이 이 PC 의 옛 캐시값으로 덮였다.
+//    서버를 못 읽으면 캐시로 쓰지 않고 저장 실패로 끝낸다.
+export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZeros = false, timeTasks = null, excludeMinutes = null, adminWorkers = null, qtyOps = null, timeOps = null } = {}) {
     if (!State.auth || !State.auth.currentUser) { showToast('로그인이 필요합니다.', true); return false; }
     if (!dateStr) return false;
 
@@ -319,32 +324,61 @@ export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZe
     let cleanAdmin = getPlannedAdminWorkersForDate(dateStr);
     if (adminWorkers != null) cleanAdmin = 관리자_정리(adminWorkers);
 
+    // 고친 칸 정리 — 물량은 0 이상 숫자(0 유지), 시간형은 위 시간형_정리. null 은 '지우기' 그대로
+    const 고친칸 = (qtyOps || timeOps) ? { quantities: {}, timeTasks: {} } : null;
+    if (고친칸) {
+        Object.entries(qtyOps || {}).forEach(([k, v]) => {
+            if (v === null) { 고친칸.quantities[k] = null; return; }
+            const n = Number(v);
+            if (Number.isFinite(n) && n >= 0) 고친칸.quantities[k] = n;
+        });
+        Object.entries(timeOps || {}).forEach(([k, v]) => {
+            if (v === null) { 고친칸.timeTasks[k] = null; return; }
+            const e = 시간형_정리({ [k]: v })[k];
+            if (e) 고친칸.timeTasks[k] = e;
+        });
+    }
+    const 서버정리 = { time: 시간형_정리, admin: 관리자_정리,
+                      sameKeys: (obj, k) => sameTaskKeys(obj, k, State.appConfig) };
+    const 넘긴것 = { timeTasks: timeTasks != null, excludeMinutes: excludeMinutes != null, adminWorkers: adminWorkers != null };
+    const 로컬값 = () => ({ quantities: clean, timeTasks: cleanTime, excludeMinutes: cleanExclude, adminWorkers: cleanAdmin,
+                         snapshot: getForecastSnapshotForDate(dateStr) });
+
     try {
-        // 문서를 통째로 바꾸므로, 따로 저장해 둔 계획 스냅샷은 그대로 옮겨 싣는다.
-        // ⚠️ 로컬 캐시(10분 TTL)만 보면 안 된다 — 다른 PC·탭이 그 사이 찍은 스냅샷이
-        //    캐시에 없어서 이 저장으로 조용히 사라진다. 자동 스냅샷이 매일 생기므로
-        //    예전(수동 확정일만)보다 사고 확률이 훨씬 높다. 서버에서 한 번 더 읽는다.
-        // 이 저장이 넘기지 않은 항목(시간형·제외시간·관리자 인원)도 같은 이유로 서버 값이 정본이다.
-        // (A PC 가 시간형 계획을 저장한 직후 B PC 가 물량만 저장하면, B 의 10분 캐시에
-        //  그 시간형이 없어서 문서 교체로 사라진다 — 스냅샷과 완전히 같은 유형의 사고)
-        // ⚠️ 쓸 내용(payload)은 반드시 서버 값을 합친 **뒤에** 만든다 — 먼저 만들면 합친 값이
-        //    화면 캐시에만 들어가고 Firestore 에는 옛 캐시값이 써진다(2026-10-30 실제 버그).
-        let 서버값 = null;
-        try {
-            const 서버 = await getDocFromServer(doc(plannedColRef(), dateStr));
-            if (서버.exists()) 서버값 = 서버.data() || {};
-        } catch (e) {
-            // 서버를 못 읽었으면 캐시값으로 간다(없는 것보다 낫다)
-            console.warn('예정 물량 서버 확인 실패, 캐시값 사용:', e);
+        let fields;
+        if (고친칸) {
+            // 읽기와 쓰기 사이에 다른 PC 가 저장하면 Firestore 가 콜백을 다시 돌린다 — 콜백 안에서는 계산·쓰기만.
+            // 토스트·로컬 사본 갱신은 끝난 뒤 한 번(아래).
+            const ref = doc(plannedColRef(), dateStr);
+            await runTransaction(State.db, async (tx) => {
+                const 서버 = await tx.get(ref);
+                const 서버값 = 서버.exists() ? (서버.data() || {}) : null;
+                const 이번 = buildPlannedDoc(로컬값(), 서버값, 넘긴것, 서버정리, 고친칸);
+                tx.set(ref, { ...이번, updatedAt: getCurrentTime(), updatedBy: State.appState?.currentUser || 'unknown' });
+                fields = 이번;
+            });
+        } else {
+            // 문서를 통째로 바꾸므로, 따로 저장해 둔 계획 스냅샷은 그대로 옮겨 싣는다.
+            // ⚠️ 로컬 캐시(10분 TTL)만 보면 안 된다 — 다른 PC·탭이 그 사이 찍은 스냅샷이
+            //    캐시에 없어서 이 저장으로 조용히 사라진다. 자동 스냅샷이 매일 생기므로
+            //    예전(수동 확정일만)보다 사고 확률이 훨씬 높다. 서버에서 한 번 더 읽는다.
+            // 이 저장이 넘기지 않은 항목(시간형·제외시간·관리자 인원)도 같은 이유로 서버 값이 정본이다.
+            // (A PC 가 시간형 계획을 저장한 직후 B PC 가 물량만 저장하면, B 의 10분 캐시에
+            //  그 시간형이 없어서 문서 교체로 사라진다 — 스냅샷과 완전히 같은 유형의 사고)
+            // ⚠️ 쓸 내용(payload)은 반드시 서버 값을 합친 **뒤에** 만든다 — 먼저 만들면 합친 값이
+            //    화면 캐시에만 들어가고 Firestore 에는 옛 캐시값이 써진다(2026-10-30 실제 버그).
+            let 서버값 = null;
+            try {
+                const 서버 = await getDocFromServer(doc(plannedColRef(), dateStr));
+                if (서버.exists()) 서버값 = 서버.data() || {};
+            } catch (e) {
+                // 서버를 못 읽었으면 캐시값으로 간다(없는 것보다 낫다)
+                console.warn('예정 물량 서버 확인 실패, 캐시값 사용:', e);
+            }
+            fields = buildPlannedDoc(로컬값(), 서버값, 넘긴것, 서버정리);
+            const payload = { ...fields, updatedAt: getCurrentTime(), updatedBy: State.appState?.currentUser || 'unknown' };
+            await setDoc(doc(plannedColRef(), dateStr), payload);
         }
-        const fields = buildPlannedDoc(
-            { quantities: clean, timeTasks: cleanTime, excludeMinutes: cleanExclude, adminWorkers: cleanAdmin,
-              snapshot: getForecastSnapshotForDate(dateStr) },
-            서버값,
-            { timeTasks: timeTasks != null, excludeMinutes: excludeMinutes != null, adminWorkers: adminWorkers != null },
-            { time: 시간형_정리, admin: 관리자_정리 });
-        const payload = { ...fields, updatedAt: getCurrentTime(), updatedBy: State.appState?.currentUser || 'unknown' };
-        await setDoc(doc(plannedColRef(), dateStr), payload);
 
         const rec = { id: dateStr, ...fields };
         const idx = (State.plannedData || []).findIndex(d => d.id === dateStr);
@@ -359,8 +393,12 @@ export async function savePlannedQuantities(dateStr, plannedQuantities, { keepZe
         showToast(`${dateStr} 예정 물량이 저장되었습니다.`);
         return true;
     } catch (e) {
-        console.error('savePlannedQuantities failed:', e);
-        showToast('예정 물량 저장 실패: ' + (e.message || e), true);
+        console.error('savePlannedQuantities failed:', e && (e.code || e.message));
+        // 서버를 못 읽으면(오프라인 등) 이 PC 의 옛 값으로 대신 쓰지 않는다 — 다시 누르게 안내(입력값은 화면에 남아 있다)
+        const 오프라인 = e && (e.code === 'unavailable' || e.code === 'deadline-exceeded' || /offline/i.test(String(e.message || '')));
+        showToast(오프라인
+            ? '서버에 연결되지 않아 저장하지 못했습니다. 연결된 뒤 다시 [작업량 저장]을 눌러 주세요.'
+            : '예정 물량 저장 실패: ' + (e.message || e), true);
         return false;
     }
 }

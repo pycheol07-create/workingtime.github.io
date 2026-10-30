@@ -3,39 +3,39 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202610301140';
+import { predictFutureTrends } from './analysis-logic.js?v=202610301221';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610301140';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610301140';
-import { runDay } from './lib/refill-view.js?v=202610301140';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202610301140';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202610301140';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610301140';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610301140';
-import * as State from './state.js?v=202610301140';
-import { saveView } from './view-state.js?v=202610301140';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610301140';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610301140';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202610301221';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202610301221';
+import { runDay } from './lib/refill-view.js?v=202610301221';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202610301221';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202610301221';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202610301221';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202610301221';
+import * as State from './state.js?v=202610301221';
+import { saveView } from './view-state.js?v=202610301221';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202610301221';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202610301221';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610301140';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202610301221';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610301140';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202610301140';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202610301221';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202610301221';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610301140';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202610301140';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202610301221';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202610301221';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202610301140';
-import { taskUph, recentDays } from './task-throughput.js?v=202610301140';
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202610301221';
+import { taskUph, recentDays } from './task-throughput.js?v=202610301221';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202610301140';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202610301221';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202610301140';
-import { D } from './d-chart.js?v=202610301140';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610301140';
+         excessOffDays } from './lib/backlog-carry.js?v=202610301221';
+import { D } from './d-chart.js?v=202610301221';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202610301221';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -3713,6 +3713,11 @@ const saveSimQuantities = async () => {
     const { tasks, timeTasks } = readSimInputs();
     // 이 화면에 없는 업무(예: 해외배송)의 예정 물량은 건드리지 않는다
     const merged = { ...(getPlannedQuantitiesForDate(dateStr) || {}) };
+    // 🔑 서버에는 고친 칸만 보낸다(qtyOps·timeOps) — 서버 최신 문서 위에 얹는다(savePlannedQuantities).
+    //   merged·mergedTime(캐시 + 고친 칸)은 '바뀐 것 없음' 비교에만 쓴다. 전체 맵을 보내면
+    //   다른 PC 가 방금 저장한 값이 이 PC 의 10분 캐시값으로 덮인다(2026-10-30).
+    const qtyOps = {};
+    const timeOps = {};
     // 0과 빈칸(=0)도 '그렇게 하기로 한 값'으로 그대로 저장한다.
     // 실측으로 채워진 값도 그대로 저장한다 — 실측이 예정 물량보다 우선이라,
     // 나중에 실적이 더 쌓이면 그 값이 자동으로 앞선다(저장값에 갇히지 않는다).
@@ -3731,6 +3736,7 @@ const saveSimQuantities = async () => {
         const hasInput = Object.prototype.hasOwnProperty.call(tasks, t.key);
         if (!shouldSaveQty({ hasInput, dirty: simDirtyQty.has(t.key) })) return;
         merged[t.key] = Math.max(0, Math.round(Number(tasks[t.key]) || 0));
+        qtyOps[t.key] = merged[t.key];
     });
 
     const btn = document.getElementById('sim-save-btn');
@@ -3756,6 +3762,8 @@ const saveSimQuantities = async () => {
             //    되돌렸는데 다음 진입에서 옛 값이 되살아나고, 탈출구가 '🔄 자동값'(그 날
             //    저장값 전체 삭제)뿐이게 된다. 거름과 되돌림은 다른 동작이다.
             const 지울키 = dirty ? 같은업무키(mergedTime, t.key) : [];
+            // 서버에 다른 PC 가 저장한 값이 있을 수 있으므로 되돌린 칸은 캐시와 상관없이 지운다(옛 이름 키도 함께)
+            if (dirty) timeOps[t.key] = null;
             if (지울키.length > 0) {
                 지울키.forEach(k => { delete mergedTime[k]; });
                 알림.push(`${t.label}: 저장해 둔 값을 지우고 기본값(0명)으로 되돌렸습니다`);
@@ -3764,11 +3772,20 @@ const saveSimQuantities = async () => {
         }
         if (changed) 알림.push(`${t.label}: 분이 0 이라 '오늘 안 함'(0명)으로 저장했습니다`);
         mergedTime[t.key] = { minutes: mm, workers: ww };
+        timeOps[t.key] = { minutes: mm, workers: ww };
     });
+    // 사람이 고친 칸에서 나온 op 수 — 아래 잔재 정리(null)는 세지 않는다
+    const 고친칸 = Object.keys(qtyOps).length + Object.keys(timeOps).length;
     // 수량형으로 옮겨간 업무가 시간형 잔재로 남으면 나중에 되살아나 시간이 두 번 더해진다
-    SIM_TASKS.forEach(t => 같은업무키(mergedTime, t.key).forEach(k => { delete mergedTime[k]; }));
+    SIM_TASKS.forEach(t => {
+        같은업무키(mergedTime, t.key).forEach(k => { delete mergedTime[k]; });
+        if (!timeOps[t.key]) timeOps[t.key] = null;
+    });
 
     const excl = readExcludeMinutes();
+    const exclNow = getPlannedExcludeMinutesForDate(dateStr) ?? 0;
+    // 제외시간도 고쳤을 때만 보낸다 — 캐시와 같으면 null(= 서버 값 그대로)
+    const exclArg = excl === exclNow ? null : (excl > 0 ? excl : -1);
     // 관리자 인원 — 손댔을 때만 저장한다(기본 1명이면 -1 = 저장값 지우기). 안 손댔으면 null = 그대로
     let adminArg = null;
     if (simDirtyAdmin) {
@@ -3785,10 +3802,11 @@ const saveSimQuantities = async () => {
     //    (기본 0명 업무를 원래대로 되돌린 것뿐인 경우)에 '저장되었습니다' 가 뜨면서
     //    변화 없는 문서를 서버에 쓰던 문제가 있었다.
     const 같나 = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-    const 바뀐것없음 =
-        같나(merged, getPlannedQuantitiesForDate(dateStr) || {})
+    // 고친 칸이 하나라도 있으면 보낸다 — 캐시와 같아 보여도 서버에는 다른 PC 값이 있을 수 있다(그걸 덮는 게 사람의 뜻)
+    const 바뀐것없음 = 고친칸 === 0
+        && 같나(merged, getPlannedQuantitiesForDate(dateStr) || {})
         && 같나(mergedTime, getPlannedTimeTasksForDate(dateStr) || {})
-        && excl === (getPlannedExcludeMinutesForDate(dateStr) ?? 0)
+        && excl === exclNow
         && adminAfter === adminNow;
     if (바뀐것없음) {
         if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
@@ -3800,8 +3818,8 @@ const saveSimQuantities = async () => {
         simDirtyAdmin = false;
         return;
     }
-    const ok = await savePlannedQuantities(dateStr, merged,
-        { keepZeros: true, timeTasks: mergedTime, excludeMinutes: excl > 0 ? excl : -1, adminWorkers: adminArg });
+    const ok = await savePlannedQuantities(dateStr, null,
+        { keepZeros: true, qtyOps, timeOps, excludeMinutes: exclArg, adminWorkers: adminArg });
     forgetTodayStatus();
     if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
     if (!ok) return;
@@ -3835,20 +3853,18 @@ const handleAutoFillClick = async () => {
 
 ${list}
 
+다른 PC 에서 저장한 값도 함께 지워질 수 있습니다.
 삭제한 값은 되돌릴 수 없습니다. 계속할까요?`;
         if (!confirm(msg)) return;
-        const rest = { ...(getPlannedQuantitiesForDate(dateStr) || {}) };
-        SIM_TASKS.forEach(t => delete rest[t.key]);
-        const restTime = { ...(getPlannedTimeTasksForDate(dateStr) || {}) };
-        SIM_TIME_TASKS.forEach(t => delete restTime[t.key]);
-        // 수량형으로 옮겨간 업무의 시간형 잔재는 지운다(남겨 두면 나중에 되살아나 이중 계산된다)
-        SIM_TASKS.forEach(t => delete restTime[t.key]);
-        // 🆔 옛 이름으로 저장된 같은 업무 값도 지운다 — 남기면 getPlanned 가 지금 이름으로 읽어 자동값으로 안 돌아간다
-        const qtyNow = new Set(SIM_TASKS.map(t => t.key));
-        const timeNow = new Set([...SIM_TIME_TASKS, ...SIM_TASKS].map(t => t.key));
-        Object.keys(rest).forEach(k => { if (qtyNow.has(aliasTaskName(k, State.appConfig))) delete rest[k]; });
-        Object.keys(restTime).forEach(k => { if (timeNow.has(aliasTaskName(k, State.appConfig))) delete restTime[k]; });
-        const ok = await savePlannedQuantities(dateStr, rest, { keepZeros: true, timeTasks: restTime, excludeMinutes: -1, adminWorkers: -1 });
+        // 지울 업무만 보낸다(null = 지우기) — 이 화면에 없는 업무(예: 해외배송)는 서버 값 그대로 남는다.
+        // 수량형으로 옮겨간 업무의 시간형 잔재도 지운다(남겨 두면 나중에 되살아나 이중 계산된다).
+        // 🆔 옛 이름으로 저장된 같은 업무 값은 savePlannedQuantities 가 서버 문서에서 같이 지운다(sameTaskKeys)
+        //    — 남기면 getPlanned 가 지금 이름으로 읽어 자동값으로 안 돌아간다
+        const qtyOps = {};
+        SIM_TASKS.forEach(t => { qtyOps[t.key] = null; });
+        const timeOps = {};
+        [...SIM_TIME_TASKS, ...SIM_TASKS].forEach(t => { timeOps[t.key] = null; });
+        const ok = await savePlannedQuantities(dateStr, null, { keepZeros: true, qtyOps, timeOps, excludeMinutes: -1, adminWorkers: -1 });
         forgetTodayStatus();
         if (!ok) return;
     }
