@@ -1,29 +1,29 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202610301016';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202610301032';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202610301016';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610301016';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610301016';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610301016';
-import { orderKeyMap } from './lib/order-hash.js?v=202610301016';
-import { setShellContext } from './app-shell-bridge.js?v=202610301016';
-import { memberNameFor } from './app-shell-data.js?v=202610301016';
-import { menuConfigOf } from './lib/perm.js?v=202610301016';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610301016';
-import { initPageNav } from './page-nav.js?v=202610301016';
-import { initRefillCard } from './refill-card.js?v=202610301016';
-import { initLocRecCard } from './locrec-card.js?v=202610301016';
-import { initRebuildBar } from './rebuild-bar.js?v=202610301016';
-import { mountRouteSlot } from './locrec-route-card.js?v=202610301016';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610301016';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610301016';
-import { uploadBlockText } from './lib/busy-view.js?v=202610301016';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610301016';
-import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610301016';
-import { initLocSetPanel } from './locset-panel.js?v=202610301016';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202610301032';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202610301032';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202610301032';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202610301032';
+import { orderKeyMap } from './lib/order-hash.js?v=202610301032';
+import { setShellContext } from './app-shell-bridge.js?v=202610301032';
+import { memberNameFor } from './app-shell-data.js?v=202610301032';
+import { menuConfigOf } from './lib/perm.js?v=202610301032';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202610301032';
+import { initPageNav } from './page-nav.js?v=202610301032';
+import { initRefillCard } from './refill-card.js?v=202610301032';
+import { initLocRecCard } from './locrec-card.js?v=202610301032';
+import { initRebuildBar } from './rebuild-bar.js?v=202610301032';
+import { mountRouteSlot } from './locrec-route-card.js?v=202610301032';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202610301032';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202610301032';
+import { uploadBlockText } from './lib/busy-view.js?v=202610301032';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202610301032';
+import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202610301032';
+import { initLocSetPanel } from './locset-panel.js?v=202610301032';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText } from './lib/locrec-apply.js?v=202610301016';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202610301016';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText } from './lib/locrec-apply.js?v=202610301032';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202610301032';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -3512,7 +3512,7 @@ function renderVisibleRows() {
 
         let isChecked = VS.checkedIds.has(loc.id) ? 'checked' : '';
         html += `<tr onclick="handleRowClick(event, '${jsArg(loc.id)}')" class="${rowClass}">`;
-        html += `<td onclick="event.stopPropagation()"><input type="checkbox" class="loc-check" value="${loc.id}" ${isChecked} onchange="window.vsCheckChanged(this)"></td>`;
+        html += `<td class="checkbox-cell" onclick="event.stopPropagation()"><input type="checkbox" class="loc-check" value="${loc.id}" ${isChecked} onchange="window.vsCheckChanged(this)"></td>`;
         window.visibleColumns.forEach(col => {
             if (col === 'std_dong') html += `<td style="color:var(--c-text-2);">${loc.dong || ''}</td>`;
             else if (col === 'std_pos') html += `<td style="color:var(--c-text-2);">${loc.pos || ''}</td>`;

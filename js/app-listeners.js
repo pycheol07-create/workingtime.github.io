@@ -1,15 +1,15 @@
 // === js/app-listeners.js ===
 
-import { setupMainScreenListeners } from './listeners-main.js?v=202610301016';
-import { setupHistoryModalListeners } from './listeners-history.js?v=202610301016';
-import { setupGeneralModalListeners } from './listeners-modals.js?v=202610301016';
-import { setupConfirmationModalListeners } from './listeners-modals-confirm.js?v=202610301016';
-import { setupFormModalListeners } from './listeners-modals-form.js?v=202610301016';
-import { setupAuthListeners } from './listeners-auth.js?v=202610301016';
+import { setupMainScreenListeners } from './listeners-main.js?v=202610301032';
+import { setupHistoryModalListeners } from './listeners-history.js?v=202610301032';
+import { setupGeneralModalListeners } from './listeners-modals.js?v=202610301032';
+import { setupConfirmationModalListeners } from './listeners-modals-confirm.js?v=202610301032';
+import { setupFormModalListeners } from './listeners-modals-form.js?v=202610301032';
+import { setupAuthListeners } from './listeners-auth.js?v=202610301032';
 // ✅ [신규] 분리된 메인 현황판 리스너 임포트
-import { setupMainBoardListeners } from './listeners-main-board.js?v=202610301016';
+import { setupMainBoardListeners } from './listeners-main-board.js?v=202610301032';
 // ✅ [신규] 전량 검수 리스너 임포트
-import { setupTotalInspectionListeners } from './listeners-form-total-inspection.js?v=202610301016';
+import { setupTotalInspectionListeners } from './listeners-form-total-inspection.js?v=202610301032';
 
 export function initializeAppListeners() {
     setupMainScreenListeners(); // (출퇴근, 하단 로그, 메뉴 등)
