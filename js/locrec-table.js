@@ -14,11 +14,11 @@
 //   같은 상품을 오늘 다른 추천으로 옮긴 줄(st.other)은 '○○(으)로 처리 · 이름 HH:MM' + 그 추천의 [되돌리기].
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202611031005';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611031005';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611031005';
-import { higherOpenThan } from './modal-above.js?v=202611031005';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611031005';
+import { escapeHtml } from './utils.js?v=202611031006';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611031006';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611031006';
+import { higherOpenThan } from './modal-above.js?v=202611031006';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611031006';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -99,18 +99,17 @@ export function mountLocRecTable({ store, sizeOf }) {
         const k = escapeHtml(r.recKey);
         const mk = st.mark;
         const ot = st.other || null;                                         // 같은 상품을 오늘 다른 추천으로 옮김
-        const who = mk ? `<div class="locrec-who">${escapeHtml(mk.state === 'skip' ? '안 함' : '처리함')} · ${escapeHtml(mk.by || NO_NAME)} ${escapeHtml(fmtHM(mk.at))}`
-            + (mk.state === 'done' && mk.applied ? ' · 표에 반영' : '') + '</div>'
-            : ot ? `<div class="locrec-who">${escapeHtml(`처리함 · ${ot.by || NO_NAME} ${fmtHM(ot.at)} · 표에 반영`)}</div>` : '';
+        // 누가·언제·자리 겹침 사유는 상태 표시에 마우스를 올릴 때만(title) — 칸 안 설명 줄은 뺐다(2026-11-03 사용자 요청)
+        const whoText = mk ? `${mk.state === 'skip' ? '안 함' : '처리함'} · ${mk.by || NO_NAME} ${fmtHM(mk.at)}${mk.state === 'done' && mk.applied ? ' · 표에 반영' : ''}`
+            : ot ? `처리함 · ${ot.by || NO_NAME} ${fmtHM(ot.at)} · 표에 반영` : '';
         // 다른 추천으로 이미 옮긴 줄은 이 판의 추천 자리 대신 실제로 옮긴 자리(현재→처리한 자리)를 보여 준다 — 추천과 처리가 달라 헷갈리지 않게(2026-11-03)
         const stLabel = ot && !mk ? '처리함 표시' : st.label;
         const carried = r.carried === true;                                   // 이월 행 — 지금 기준 추천에서 빠짐
         const otBusy = S.saving.has(ot && ot.recKey) || !!S.applying || !editable;
         const tk = st.taken || null;                                         // 옮길 자리에 오늘 다른 상품을 넣음 — 처리 불가
-        // 자리 겹침 — 안내를 띄우되 [처리함]은 남긴다(최종 판정은 저장 트랜잭션이 지금 자리 상태로 한다: 엑셀로 자리가 다시 비었으면 통과)
-        const takenNote = tk && !mk
-            ? `<div class="locrec-who" style="color:var(--c-warn-text,#b45309); white-space:normal;">${escapeHtml(`${tk.dst} 에 오늘 ${tk.code} 를 넣었습니다 — 머리줄 [지금 재고로 다시 만들기]를 누르면 새 자리로 추천합니다`)}</div>`
-            : '';
+        // 자리 겹침 — [처리함]은 남긴다(최종 판정은 저장 트랜잭션이 지금 자리 상태로 한다: 엑셀로 자리가 다시 비었으면 통과)
+        const stTitle = tk && !mk ? `${tk.dst} 에 오늘 ${tk.code} 를 넣었습니다 — 머리줄 [지금 재고로 다시 만들기]를 누르면 새 자리로 추천합니다`
+            : carried ? CARRIED_LABEL : whoText;
         const btns = ot && !mk
             ? `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="undo" data-locrec-key="${escapeHtml(ot.recKey)}"${otBusy ? ' disabled' : ''} title="오늘 ${escapeHtml(ot.code)} 를 옮긴 추천을 되돌립니다">되돌리기</button>`
             : (st.label === '처리됨' || carried) && !mk ? ''         // 서버가 위치 변화를 확인한 행·이월 행 — 누를 것이 없다
@@ -137,8 +136,7 @@ export function mountLocRecTable({ store, sizeOf }) {
             const toTitle = moved && ot.dst !== l.to ? ` title="${escapeHtml(`처리한 자리 — 나중에 다시 만든 추천은 ${l.to}`)}"` : '';
             const cells = `<td class="locrec-pcode"><a class="locrec-code" href="location.html?q=${encodeURIComponent(l.code || '')}#tab=list" data-locrec-code="${escapeHtml(l.code)}" title="데이터 리스트에서 이 상품 보기">${escapeHtml(l.code)}</a></td>`
                 + `<td class="locrec-prod">${nameCell(l.name, l.option)}`
-                + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '')
-                + (last ? takenNote : '') + '</td>'                              // 자리 겹침 안내는 상품 칸 아래(버튼 칸에 두면 칸이 넓어져 상태 칸이 찌그러진다)
+                + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
                 + `<td class="locrec-loc locrec-from">${escapeHtml(fromTxt)}</td>`
                 + `<td class="locrec-loc"${toTitle}><b class="locrec-to">${escapeHtml(toTxt)}</b></td>`
                 + qtyCell(l)
@@ -149,8 +147,7 @@ export function mountLocRecTable({ store, sizeOf }) {
                 + cells
                 + `<td class="locrec-gain"${span}>${fmtNum(r.gain)}</td>`
                 + `<td class="locrec-score-gain"${span} title="${scoreTitle(r)}">${escapeHtml(r.routeOut ? ROUTE_OUT_LABEL : fmtGain(r.scoreGain))}</td>`
-                + `<td class="locrec-state"${span}><span class="locrec-st st-${ot && !mk ? 'ok' : st.tone}">${escapeHtml(stLabel)}</span>${who}`
-                + (carried ? `<div class="locrec-who">${escapeHtml(CARRIED_LABEL)}</div>` : '') + '</td>'
+                + `<td class="locrec-state"${span}><span class="locrec-st st-${ot && !mk ? 'ok' : st.tone}"${stTitle ? ` title="${escapeHtml(stTitle)}"` : ''}>${escapeHtml(stLabel)}</span></td>`
                 + `<td class="locrec-acts"${span}>${btns}</td></tr>`;
         }).join('');
     }
