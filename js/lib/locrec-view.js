@@ -31,8 +31,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611031406';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611031406';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611031508';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611031508';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -146,10 +146,25 @@ export function metricItems(m) {
     ];
 }
 
+/**
+ * 동선 기준 방식 — 지표를 계산한 판의 metrics.priorityMode('cards' = 구역-동 카드 순서, 그 밖 = 옛 구역 순위·동·위치).
+ *   2026-11-03 전 기록·카드 칸이 없을 때는 칸이 없다 → 'legacy'.
+ */
+export const routeMode = (m) => (m && m.priorityMode === 'cards' ? 'cards' : 'legacy');
+/** 앞자리 기준 문구 */
+const rankText = (mode) => (mode === 'cards' ? '구역-동 카드 순서·위치 순위' : '구역·동·위치 순위');
+/** 앞쪽 자리 범위 문구 */
+export const frontAreaText = (mode) => (mode === 'cards' ? '순위가 있는 칸 전체 중 앞 20% 칸' : '구역마다 앞 20% 칸');
+/** 지난주와 동선 기준 방식이 달라 비교하지 않을 때(서버 metrics.prevWeekModeDiff) */
+export const PREV_MODE_DIFF = '기준 바뀜';
+export const PREV_MODE_DIFF_HELP = '동선 기준(카드 순서 / 옛 구역 순위)이 지난주와 달라 점수를 비교하지 않습니다.';
+
 /** 동선 점수 설명(카드 툴팁) */
-export const ROUTE_HELP = '동선 점수: 출고 많은 상품이 앞자리(동·위치 순위)에 있을수록 높다. 100 = 이론상 완벽(인기 순으로 앞자리부터), 0 = 정반대. '
+export const routeHelp = (mode) => `동선 점수: 출고 많은 상품이 앞자리(${rankText(mode)})에 있을수록 높다. 100 = 이론상 완벽(인기 순으로 앞자리부터), 0 = 정반대. `
     + '화살표 뒤는 오늘 추천을 모두 적용했을 때(안 함 제외).';
-export const FRONT_HELP = '앞쪽 자리 출고: 하루 출고량 중 앞쪽 자리(구역마다 앞 20% 칸)에 있는 상품의 몫. 화살표 뒤는 오늘 추천을 모두 적용했을 때.';
+export const frontHelp = (mode) => `앞쪽 자리 출고: 하루 출고량 중 앞쪽 자리(${frontAreaText(mode)})에 있는 상품의 몫. 화살표 뒤는 오늘 추천을 모두 적용했을 때.`;
+export const ROUTE_HELP = routeHelp('legacy');
+export const FRONT_HELP = frontHelp('legacy');
 
 /** 표 점수 칸 — 계산 대상 밖 줄의 글자·툴팁 */
 export const ROUTE_OUT_LABEL = '대상 밖';
@@ -179,9 +194,10 @@ export function routeItems(m) {
     const cov = num(x.routeCoverage), items = num(x.routeItems);
     const covTxt = cov == null ? '' : ` 계산 대상: 출고의 ${fmtPct(cov)}${items == null ? '' : `(${fmtNum(items)}개 상품)`} — 기타·비축에만 있는 상품은 빠진다.`;
     const prev = num(x.routeScorePrevWeek);
+    const mode = routeMode(x);
     return [
-        { label: '동선 점수', value: score, prev: prev == null ? '' : one(prev), title: ROUTE_HELP + covTxt },
-        { label: '앞쪽 자리 출고', value: front, prev: '', title: FRONT_HELP }
+        { label: '동선 점수', value: score, prev: x.prevWeekModeDiff ? PREV_MODE_DIFF : prev == null ? '' : one(prev), title: routeHelp(mode) + covTxt },
+        { label: '앞쪽 자리 출고', value: front, prev: '', title: frontHelp(mode) }
     ];
 }
 
@@ -208,13 +224,15 @@ export function routeCardInfo(latest) {
         after: s0 != null && s1 != null ? `추천 모두 적용 시 ${one(s1)}${g === '-' ? '' : ` (${g})`}` : '',
         front: f0 == null ? '-' : fmtPct(f0) + (f1 == null ? '' : ` → ${fmtPct(f1)}`),
         day: day ? dayLabel(day) : '',
-        prev: prev == null ? '' : one(prev),
-        scoreTitle: ROUTE_CARD_HELP + covTxt,
-        frontTitle: FRONT_HELP
+        prev: x.prevWeekModeDiff ? PREV_MODE_DIFF : prev == null ? '' : one(prev),
+        prevTitle: x.prevWeekModeDiff ? PREV_MODE_DIFF_HELP : '',
+        scoreTitle: routeCardHelp(routeMode(x)) + covTxt,
+        frontTitle: frontHelp(routeMode(x))
     };
 }
-export const ROUTE_CARD_HELP = '동선 점수: 출고 많은 상품이 앞자리(동·위치 순위)에 있을수록 높다. 100 = 이론상 완벽(인기 순으로 앞자리부터), 0 = 정반대. '
+export const routeCardHelp = (mode) => `동선 점수: 출고 많은 상품이 앞자리(${rankText(mode)})에 있을수록 높다. 100 = 이론상 완벽(인기 순으로 앞자리부터), 0 = 정반대. `
     + "'추천 모두 적용 시'는 그날 변경 추천을 모두 처리했을 때(안 함 제외).";
+export const ROUTE_CARD_HELP = routeCardHelp('legacy');
 
 /** 열지도 칸 진하기 — 0 = 출고 0, 그 밖은 r = √(값/최대값) 을 1(≤0.25)·2(≤0.5)·3(≤0.75)·4 로 */
 export function heatLevel(v, max) {
@@ -287,8 +305,10 @@ export function routeDetailHead(latest) {
         after: s1 == null ? '' : s1.toFixed(1),
         gain: g === '-' ? '' : g,
         front: f0 == null ? '-' : fmtPct(f0) + (f1 == null ? '' : ` → ${fmtPct(f1)}`),
-        prev: prev == null ? '' : prev.toFixed(1),
-        prevDiff: pd === '-' ? '' : pd,
+        prev: x.prevWeekModeDiff ? PREV_MODE_DIFF : prev == null ? '' : prev.toFixed(1),
+        prevDiff: x.prevWeekModeDiff ? '' : pd === '-' ? '' : pd,
+        prevModeDiff: !!x.prevWeekModeDiff,
+        mode: routeMode(x),
         coverage: cov == null ? '' : fmtPct(cov),
         items: items == null ? '' : Math.round(items).toLocaleString('ko-KR'),
         day: day ? dayLabel(day) : ''

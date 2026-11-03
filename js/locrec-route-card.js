@@ -8,11 +8,11 @@
 // 그리는 때가 둘이다: ① store 가 바뀔 때(이 파일) ② location.js 가 인사이트 줄을 innerHTML 로 다시 그린 뒤(mountRouteSlot()).
 //   인사이트 줄이 다시 그려지면 이 카드 칸도 사라지므로 location.js 가 그때마다 mountRouteSlot() 을 부른다.
 // 모양은 인사이트 카드와 같은 클래스(insight-card · ins-big · ins-desc) — 색은 CSS 변수라 라이트·다크를 같이 따라간다.
-import { escapeHtml } from './utils.js?v=202611031406';
-import { routeCardInfo, routeHeatView, HEAT_HELP } from './lib/locrec-view.js?v=202611031406';
-import { openRouteDetail } from './locrec-route-modal.js?v=202611031406';
-import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202611031406';
-import { todayKey } from './locrec-store.js?v=202611031406';
+import { escapeHtml } from './utils.js?v=202611031508';
+import { routeCardInfo, routeHeatView, HEAT_HELP } from './lib/locrec-view.js?v=202611031508';
+import { openRouteDetail } from './locrec-route-modal.js?v=202611031508';
+import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202611031508';
+import { todayKey } from './locrec-store.js?v=202611031508';
 
 const SLOT_ID = 'dash-route-card';
 const ROW_ID = 'dash-insight-row';
@@ -84,7 +84,7 @@ function paintRouteCard() {
                 + `<div class="ins-desc" title="${escapeHtml(c.frontTitle)}" style="cursor:help;">앞쪽 자리 출고 <b>${escapeHtml(c.front)}</b></div>`
                 + (trendPoints(series) ? `<div class="locrec-trend">${trendSvg(series, { w: 240, h: 64 })}`
                     + '<div class="ins-desc locrec-trend-legend"><span class="lg-now">━ 지금</span> <span class="lg-after">┅ 추천 모두 적용 후</span> · 최근 60일</div></div>' : '')
-                + `<div class="ins-desc route-day">${c.day ? `${escapeHtml(c.day)} 기준` : ''}${c.prev ? `${c.day ? ' · ' : ''}지난주 ${escapeHtml(c.prev)}` : ''}</div></div>`
+                + `<div class="ins-desc route-day">${c.day ? `${escapeHtml(c.day)} 기준` : ''}${c.prev ? `${c.day ? ' · ' : ''}<span${c.prevTitle ? ` title="${escapeHtml(c.prevTitle)}" style="cursor:help;"` : ''}>지난주 ${escapeHtml(c.prev)}</span>` : ''}</div></div>`
                 + `<div class="route-side">${heatHtml(S.latest.metrics && S.latest.metrics.routeHeat)}</div></div>`;   // 오른쪽 = 열지도
         }
     }

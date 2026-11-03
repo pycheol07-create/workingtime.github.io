@@ -4,22 +4,32 @@
 //         서버(로케이션추천\추천.py)가 2026-10-26 부터 남긴다 — 그 전 날짜는 빈 칸(선이 끊긴다). 색인 days 는 60일 보관.
 //   그림: 실선 = 지금, 점선 = 적용 후. 실패·기록 없는 날·옛 날짜는 null → 선을 끊는다. 쉬는 날(rest)은 끊지 않고 건너 잇는다.
 //   색은 CSS 변수(라이트·다크 같이 따라감) — style 속성에 var(--…, 대체값) 으로 쓴다. 글자는 모두 escape.
-import { lastDays, dayLabel } from './refill-view.js?v=202611031406';
+import { lastDays, dayLabel } from './refill-view.js?v=202611031508';
 
 const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 /** SVG 글자·속성용 escape(테스트에서도 쓴다) */
 export const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /**
- * 최근 n 일(오래된 날 → 오늘) → [{key, now, after, rest}] — 값이 없는 날은 null.
+ * 최근 n 일(오래된 날 → 오늘) → [{key, now, after, rest, pm, modeChange}] — 값이 없는 날은 null.
  *   status 가 ok 가 아니면(쉬는 날·실패) 값이 있어도 null. 쉬는 날(rest)은 rest: true — 선을 끊지 않고 건너 잇는다.
+ *   pm = 그날 동선 기준 방식(metrics.pm 'cards', 없으면 'legacy' — 2026-11-03 전 기록). 값이 있는 앞 날과 pm 이 다르면
+ *   modeChange: true — 점수 기준이 달라 그 날에서 선을 끊고 세로 점선을 긋는다.
  */
 export function trendSeries(days, todayKey, n = 60) {
     const d = days || {};
+    let lastPm = null;
     return lastDays(todayKey, n).reverse().map(key => {
         const e = d[key];
         const m = e && e.status === 'ok' && e.metrics ? e.metrics : null;
-        return { key, now: m ? num(m.routeScore) : null, after: m ? num(m.routeScoreAfter) : null, rest: !!(e && e.status === 'rest') };
+        const p = { key, now: m ? num(m.routeScore) : null, after: m ? num(m.routeScoreAfter) : null, rest: !!(e && e.status === 'rest'),
+            pm: null, modeChange: false };
+        if (m && (p.now != null || p.after != null)) {
+            p.pm = m.pm === 'cards' ? 'cards' : 'legacy';
+            p.modeChange = lastPm != null && p.pm !== lastPm;
+            lastPm = p.pm;
+        }
+        return p;
     });
 }
 
@@ -64,12 +74,21 @@ export function trendSvg(series, { w = 320, h = 72 } = {}) {
     const n = list.length;
     const x = (i) => padL + (n > 1 ? (iw * i) / (n - 1) : iw / 2);
     const y = (v) => padT + ih * (1 - (v - lo) / (hi - lo));
-    const line = (k) => pathOf(list.map((p, i) => (p && p[k] != null ? [x(i), y(p[k])] : p && p.rest ? 'skip' : null)));
+    // 기준이 바뀐 날(modeChange)은 앞에 null 을 끼워 선을 끊는다
+    const line = (k) => pathOf(list.flatMap((p, i) => {
+        const pt = p && p[k] != null ? [x(i), y(p[k])] : p && p.rest ? 'skip' : null;
+        return p && p.modeChange ? [null, pt] : [pt];
+    }));
+    const C_MARK = 'var(--c-text-3, #69707A)';
+    const marks = list.map((p, i) => (p && p.modeChange
+        ? `<line x1="${x(i).toFixed(1)}" y1="${padT}" x2="${x(i).toFixed(1)}" y2="${padT + ih}" style="stroke:${C_MARK};stroke-width:1;stroke-dasharray:2 2"><title>${esc(dayLabel(p.key) + ' 동선 기준 바뀜 — 앞뒤 점수는 기준이 달라 비교하지 않습니다')}</title></line>`
+        : '')).join('');
     const now = line('now'), after = line('after');
     const C_NOW = 'var(--c-accent, #2F62C9)', C_AFTER = 'var(--c-ok-text, #3D756F)', C_AXIS = 'var(--c-line, #E6E8EC)', C_TXT = 'var(--c-text-3, #69707A)';
     const first = list[0], last = list[n - 1];
     const lastVal = [...list].reverse().find(p => p && p.now != null);
-    const title = `동선 점수 추이(최근 ${n}일) — 실선: 지금, 점선: 추천 모두 적용 후`
+    const changed = list.some(p => p && p.modeChange);
+    const title = `동선 점수 추이(최근 ${n}일) — 실선: 지금, 점선: 추천 모두 적용 후${changed ? ', 세로 점선: 동선 기준 바뀜' : ''}`
         + (lastVal ? ` · 최근 ${dayLabel(lastVal.key)} ${lastVal.now.toFixed(1)}${lastVal.after != null ? ` → ${lastVal.after.toFixed(1)}` : ''}` : '');
     const dot = (p, c) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2" style="fill:${c}"/>`;
     return `<svg class="locrec-trend-svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(title)}">`
@@ -80,6 +99,7 @@ export function trendSvg(series, { w = 320, h = 72 } = {}) {
         + `<text x="${padL - 4}" y="${padT + ih}" text-anchor="end" style="fill:${C_TXT};font-size:9px">${esc(lo)}</text>`
         + `<text x="${padL}" y="${h - 3}" style="fill:${C_TXT};font-size:9px">${esc(first ? dayLabel(first.key) : '')}</text>`
         + `<text x="${w - padR}" y="${h - 3}" text-anchor="end" style="fill:${C_TXT};font-size:9px">${esc(last ? dayLabel(last.key) : '')}</text>`
+        + marks
         + (after.d ? `<path d="${after.d}" style="fill:none;stroke:${C_AFTER};stroke-width:1.5;stroke-dasharray:4 3" vector-effect="non-scaling-stroke"/>` : '')
         + (now.d ? `<path d="${now.d}" style="fill:none;stroke:${C_NOW};stroke-width:1.8" vector-effect="non-scaling-stroke"/>` : '')
         + after.dots.map(p => dot(p, C_AFTER)).join('') + now.dots.map(p => dot(p, C_NOW)).join('')
@@ -95,6 +115,7 @@ export function trendRows(series) {
         .filter(p => p && (p.now != null || p.after != null || p.rest))
         .map(p => ({
             key: p.key, label: dayLabel(p.key), now: p.now, after: p.after, rest: !!p.rest && p.now == null && p.after == null,
+            modeChange: !!p.modeChange,
             diff: p.now != null && p.after != null ? Math.round((Math.round(p.after * 10) - Math.round(p.now * 10))) / 10 : null
         }))
         .reverse();
