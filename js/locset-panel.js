@@ -25,14 +25,14 @@
 // 원문 문자열은 textContent 로만 넣는다.
 
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611031219';
-import { canFeature, currentPerm } from './feature-gate.js?v=202611031219';
-import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611031219';
-import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611031219';
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611031222';
+import { canFeature, currentPerm } from './feature-gate.js?v=202611031222';
+import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611031222';
+import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611031222';
 import {
     cardLabel, parseExcludeText, boardFrom, applyCards, whereIs, excludedCards, placeCard, cardMoves, moveCard,
     toggleExclude, addRow, deleteRow, moveRow, setExclude, setU, boardSignature, boardToSave
-} from './lib/loc-card-board.js?v=202611031219';
+} from './lib/loc-card-board.js?v=202611031222';
 
 const PANE = 'recommend';
 const INFO_PATH = ['Locations', 'INFO_CONFIG'];
@@ -281,7 +281,7 @@ function 제외미리보기() {
     }));
 }
 
-const 자동정렬이름 = { distance: '④ 출발점 거리 순', 'dong-first': '② 동 우선', 'line-first': '③ 라인 우선', 'dong-group': '① 지금과 같게' };
+const 자동정렬이름 = { distance: '④ 출발점 거리 순', 'dong-first': '② 동 우선', 'line-first': '③ 라인 우선', 'dong-group': '① 기존 설정' };
 
 // 지금 보드가 어느 자동 정렬과 같은지 — 같은 버튼을 채워 표시(줄·동 1칸 값·제외까지 같을 때). 하나도 아니면 '직접 조정함'
 function 자동정렬표시() {

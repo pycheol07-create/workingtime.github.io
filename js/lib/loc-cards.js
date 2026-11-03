@@ -163,7 +163,7 @@ const DEFAULT_DONGS = ['★', '1', '2', '3', '4', '5', '6'];
 
 /**
  * 자동 정렬 — 카드 이름 목록 → {v, order, level, rowsPerDong}.
- *   'dong-group' ① 지금과 같게 = legacyToCards(priorities) (U=1)
+ *   'dong-group' ① 기존 설정 = legacyToCards(priorities) (U=1)
  *   'dong-first' ② 동 우선: ★, A-1 … I-1, A-2 … (라인 배치 순서), 먼 자리(Z) 뒤 — 카드마다 한 줄, U = 한 동에 든 라인 카드 수(최대)
  *   'line-first' ③ 라인 우선: ★, A-1 … A-4, B-1 … — 카드마다 한 줄, 먼 자리 뒤, U=1
  *   'distance'   ④ 출발점 거리 순(기본·추천): 거리 = 동순번 + 0.5·라인순번, 같은 거리 = 같은 줄, 먼 자리는 맨 뒤 한 줄, U=2
