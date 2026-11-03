@@ -14,11 +14,11 @@
 //   같은 상품을 오늘 다른 추천으로 옮긴 줄(st.other)은 '○○(으)로 처리 · 이름 HH:MM' + 그 추천의 [되돌리기].
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202611030941';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611030941';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611030941';
-import { higherOpenThan } from './modal-above.js?v=202611030941';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611030941';
+import { escapeHtml } from './utils.js?v=202611030948';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611030948';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611030948';
+import { higherOpenThan } from './modal-above.js?v=202611030948';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611030948';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -101,7 +101,9 @@ export function mountLocRecTable({ store, sizeOf }) {
         const ot = st.other || null;                                         // 같은 상품을 오늘 다른 추천으로 옮김
         const who = mk ? `<div class="locrec-who">${escapeHtml(mk.state === 'skip' ? '안 함' : '처리함')} · ${escapeHtml(mk.by || NO_NAME)} ${escapeHtml(fmtHM(mk.at))}`
             + (mk.state === 'done' && mk.applied ? ' · 표에 반영' : '') + '</div>'
-            : ot ? `<div class="locrec-who">${escapeHtml(`${ot.dst}(으)로 처리 · ${ot.by || NO_NAME} ${fmtHM(ot.at)}`)}</div>` : '';
+            : ot ? `<div class="locrec-who">${escapeHtml(`처리함 · ${ot.by || NO_NAME} ${fmtHM(ot.at)} · 표에 반영`)}</div>` : '';
+        // 다른 추천으로 이미 옮긴 줄은 이 판의 추천 자리 대신 실제로 옮긴 자리(현재→처리한 자리)를 보여 준다 — 추천과 처리가 달라 헷갈리지 않게(2026-11-03)
+        const stLabel = ot && !mk ? '처리함 표시' : st.label;
         const carried = r.carried === true;                                   // 이월 행 — 지금 기준 추천에서 빠짐
         const otBusy = S.saving.has(ot && ot.recKey) || !!S.applying || !editable;
         const btns = ot && !mk
@@ -119,16 +121,20 @@ export function mountLocRecTable({ store, sizeOf }) {
         // 줄무늬는 추천 단위(.locrec-alt) — usage-table 의 tr:nth-child(even) 는 줄 단위라 locrec-table 에서 끈다(location.html · css/locrec-modal.css).
         const lines = rowLines(r);
         const span = lines.length > 1 ? ` rowspan="${lines.length}"` : '';
-        const trCls = `locrec-row tone-${st.tone}${st.label === '안 함' ? ' locrec-skipped' : ''}${i % 2 ? ' locrec-alt' : ''}${carried ? ' locrec-carried' : ''}`;
+        const trCls = `locrec-row tone-${ot && !mk ? 'ok' : st.tone}${st.label === '안 함' ? ' locrec-skipped' : ''}${i % 2 ? ' locrec-alt' : ''}${carried ? ' locrec-carried' : ''}`;
         const trAttr = carried ? ' style="opacity:.55" title="지금 기준 추천에서 빠진 행 — 오늘 손댄 것이라 남겨 둠"' : '';
         return lines.map((l, j) => {
             const last = j === lines.length - 1;
             // 상품코드 칸(누르면 데이터 리스트에서 그 상품 검색) · 상품 칸(상품명(옵션) + 배지)
+            const moved = ot && !mk && l.code === ot.code;
+            const fromTxt = moved ? locCell(ot.src || l.from, ot.src === l.from ? l.fromSize : '') : locCell(l.from, l.fromSize);
+            const toTxt = moved ? locCell(ot.dst, '') : locCell(l.to, l.toSize);
+            const toTitle = moved && ot.dst !== l.to ? ` title="${escapeHtml(`처리한 자리 — 나중에 다시 만든 추천은 ${l.to}`)}"` : '';
             const cells = `<td class="locrec-pcode"><a class="locrec-code" href="location.html?q=${encodeURIComponent(l.code || '')}#tab=list" data-locrec-code="${escapeHtml(l.code)}" title="데이터 리스트에서 이 상품 보기">${escapeHtml(l.code)}</a></td>`
                 + `<td class="locrec-prod">${nameCell(l.name, l.option)}`
                 + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
-                + `<td class="locrec-loc locrec-from">${escapeHtml(locCell(l.from, l.fromSize))}</td>`
-                + `<td class="locrec-loc"><b class="locrec-to">${escapeHtml(locCell(l.to, l.toSize))}</b></td>`
+                + `<td class="locrec-loc locrec-from">${escapeHtml(fromTxt)}</td>`
+                + `<td class="locrec-loc"${toTitle}><b class="locrec-to">${escapeHtml(toTxt)}</b></td>`
                 + qtyCell(l)
                 + `<td class="locrec-num locrec-daily">${l.daily == null ? '' : fmtNum(l.daily)}</td>`;
             if (j > 0) return `<tr class="${trCls} locrec-sub"${trAttr}>${cells}</tr>`;
@@ -137,7 +143,7 @@ export function mountLocRecTable({ store, sizeOf }) {
                 + cells
                 + `<td class="locrec-gain"${span}>${fmtNum(r.gain)}</td>`
                 + `<td class="locrec-score-gain"${span} title="${scoreTitle(r)}">${escapeHtml(r.routeOut ? ROUTE_OUT_LABEL : fmtGain(r.scoreGain))}</td>`
-                + `<td class="locrec-state"${span}><span class="locrec-st st-${st.tone}">${escapeHtml(st.label)}</span>${who}`
+                + `<td class="locrec-state"${span}><span class="locrec-st st-${ot && !mk ? 'ok' : st.tone}">${escapeHtml(stLabel)}</span>${who}`
                 + (carried ? `<div class="locrec-who">${escapeHtml(CARRIED_LABEL)}</div>` : '') + '</td>'
                 + `<td class="locrec-acts"${span}>${btns}</td></tr>`;
         }).join('');
