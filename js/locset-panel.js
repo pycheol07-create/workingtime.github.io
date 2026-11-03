@@ -14,7 +14,7 @@
 //      서버 앱\로케이션추천 이 다음 추천(06:40 또는 [지금 재고로 다시 만들기])부터 쓴다. 규칙: INFO_CONFIG 새 키는 location.settings(규칙 변경 없음).
 //      저장하는 사람 이메일은 넣지 않는다(INFO_CONFIG 는 직원 누구나 읽는다).
 //    · 서버가 정하는 값(하루 출고 기준·재고 빼기·판정 기준·점수 비율·페어 기준)은 integrations/locRecLatest.settings 를 읽기 전용으로.
-// ② 채우기 설정 — adminPrivate/refillSettings { enabled, days(0=월…6=일), skipHolidays, updatedAt, updatedBy(이메일 소문자) }.
+// ② 채우기 설정 — adminPrivate/refillSettings { enabled, days(0=월…6=일), skipHolidays, salesRule(false = ① 주문 부족만, 없으면 ①+②), updatedAt, updatedBy(이메일 소문자) }.
 //    adminPrivate 는 관리자만 읽고 쓴다. 관리자가 아니면 integrations/refillLatest.schedule('마지막 지시서 기준' 사본)을 잠근 채 보여 준다.
 //    앱\채우기자동화\채우기.py 가 매일 아침 이 문서를 읽는다(규칙.py parse_settings).
 //    ⚠️ 이름·범위를 바꾸면 채우기자동화\규칙.py parse_settings 도 바꿀 것(값이 이상하면 그쪽은 기본값을 쓴다).
@@ -25,21 +25,21 @@
 // 원문 문자열은 textContent 로만 넣는다.
 
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611031222';
-import { canFeature, currentPerm } from './feature-gate.js?v=202611031222';
-import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611031222';
-import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611031222';
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611031343';
+import { canFeature, currentPerm } from './feature-gate.js?v=202611031343';
+import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611031343';
+import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611031343';
 import {
     cardLabel, parseExcludeText, boardFrom, applyCards, whereIs, excludedCards, placeCard, cardMoves, moveCard,
     toggleExclude, addRow, deleteRow, moveRow, setExclude, setU, boardSignature, boardToSave
-} from './lib/loc-card-board.js?v=202611031222';
+} from './lib/loc-card-board.js?v=202611031343';
 
 const PANE = 'recommend';
 const INFO_PATH = ['Locations', 'INFO_CONFIG'];
 const LATEST_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'locRecLatest'];
 const REFILL_LATEST_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'refillLatest'];
 const REFILL_PATH = ['adminPrivate', 'refillSettings'];
-const 채우기기본값 = Object.freeze({ enabled: true, days: [0, 1, 2, 3, 4], skipHolidays: true });
+const 채우기기본값 = Object.freeze({ enabled: true, days: [0, 1, 2, 3, 4], skipHolidays: true, salesRule: true });
 const 기본우선순위 = Object.freeze({
     zones: { 0: ['★'], 1: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'], 2: ['Z'], 3: ['L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'] },
     dongs: ['★', '1', '2', '3', '4', '5', '6'], poses: ['★', '2', '3', '4', '1', '5'], excludeCombos: []
@@ -601,17 +601,22 @@ function 정리(d) {
     const 이상 = [];
     if (typeof d.enabled === 'boolean') 값.enabled = d.enabled; else 이상.push('사용');
     if (typeof d.skipHolidays === 'boolean') 값.skipHolidays = d.skipHolidays; else 이상.push('공휴일 제외');
+    // salesRule: 칸이 없으면(옛 문서) ①+② — 문제 아님
+    if ('salesRule' in d) { if (typeof d.salesRule === 'boolean') 값.salesRule = d.salesRule; else 이상.push('계산 방식'); }
     if (Array.isArray(d.days) && d.days.length > 0 && d.days.every((x) => 정수(x, 0, 6))) {
         값.days = [...new Set(d.days)].sort((a, b) => a - b);
     } else 이상.push('요일');
     return { 값, 이상 };
 }
 
-const 채우기입력들 = () => [$('refill-enabled'), $('refill-skip-holidays'), ...document.querySelectorAll('.refill-day')].filter(Boolean);
+const 채우기입력들 = () => [$('refill-enabled'), $('refill-skip-holidays'), $('refill-sales-on'), $('refill-sales-off'),
+    ...document.querySelectorAll('.refill-day')].filter(Boolean);
 
 function 채우기화면에(s, 고침) {
     $('refill-enabled').checked = !!s.enabled;
     $('refill-skip-holidays').checked = !!s.skipHolidays;
+    $('refill-sales-on').checked = s.salesRule !== false;
+    $('refill-sales-off').checked = s.salesRule === false;
     document.querySelectorAll('.refill-day').forEach((cb) => { cb.checked = s.days.includes(Number(cb.value)); });
     채우기입력들().forEach((el) => { el.disabled = !고침; });
     const btn = $('refill-save-btn');
@@ -623,6 +628,7 @@ function 채우기화면에서() {
         enabled: $('refill-enabled').checked,
         days: [...document.querySelectorAll('.refill-day')].filter((cb) => cb.checked).map((cb) => Number(cb.value)).sort((a, b) => a - b),
         skipHolidays: $('refill-skip-holidays').checked,
+        salesRule: !$('refill-sales-off').checked,
     };
 }
 
@@ -697,7 +703,7 @@ async function 채우기저장() {
     try {
         const email = String((auth && auth.currentUser && auth.currentUser.email) || '').toLowerCase();
         await setDoc(doc(db, ...REFILL_PATH), {
-            enabled: s.enabled, days: s.days, skipHolidays: s.skipHolidays,
+            enabled: s.enabled, days: s.days, skipHolidays: s.skipHolidays, salesRule: s.salesRule,
             updatedAt: serverTimestamp(), updatedBy: email,
         }, { merge: true });
         채우기바뀜 = false;
