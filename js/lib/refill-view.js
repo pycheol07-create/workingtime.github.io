@@ -27,7 +27,7 @@ export const REGULAR_DONE_H = 9;                         // 정기 지시서(08:
 export const PENDING_MAX_MS = 15 * 60 * 1000;            // 요청이 이만큼 처리 안 되면 'PC 가 꺼져 있을 수 있음'
 export const REQ_RUNNING_MS = 25 * 60 * 1000;            // 다시 만드는 중이 이만큼 그대로면 멈춘 것(예약작업 채우기요청 한도 25분)
 export const REQ_NOTE_MS = 60 * 60 * 1000;               // 거절·실패·대기 사유를 보여 주는 시간
-export const DEFAULT_REQ_MAX = 6, DEFAULT_COOLDOWN_MIN = 15, DEFAULT_AUTO_MAX = 3;
+export const DEFAULT_REQ_MAX = 6, DEFAULT_COOLDOWN_MIN = 15, DEFAULT_AUTO_MAX = 2;   // 서버 요청판정.AUTO_MAX 와 같게(2026-11-04 3 → 2)
 export const REBUILD_LABEL = '지금 재고로 다시 만들기';
 export const AUTO_NOTE = '재고 자료가 새로 올라왔습니다 — 몇 분 안에 자동으로 다시 만듭니다';
 export const COLS = ['피킹로케이션', '비축위치', '채울수량', '비축재고', '상품코드', '고정', '추가'];

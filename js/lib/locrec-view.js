@@ -31,8 +31,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611040841';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611040841';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611040849';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611040849';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -726,7 +726,7 @@ export const REQ_PENDING_MS = 15 * 60 * 1000;               // 요청이 이만�
 export const REQ_RUNNING_MS = 25 * 60 * 1000;               // 다시 만드는 중이 이만큼 그대로면 멈춘 것 — 서버 다시만들기.py RUNNING_STALE_MS 와 같게
 export const REQ_NOTE_MS = 60 * 60 * 1000;                  // 거절·실패·대기 사유를 보여 주는 시간
 export const AUTO_NOTE = '재고 자료가 새로 올라왔습니다 — 몇 분 안에 자동으로 다시 만듭니다';
-const DEF_REQ = { max: 6, cooldownMin: 15, autoMax: 3 };    // 서버 설정.json rerun 기본값(req 칸이 없을 때)
+const DEF_REQ = { max: 6, cooldownMin: 15, autoMax: 2 };    // 서버 설정.json rerun 기본값(req 칸이 없을 때)
 
 /**
  * [지금 기준으로 다시 만들기] 버튼 상태 → { show, enabled, label, note, tone('' | accent | warn) }
