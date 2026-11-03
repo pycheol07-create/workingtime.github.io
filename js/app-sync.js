@@ -1,17 +1,18 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202611031508';
-import { isPersistentLeaveType } from './state.js?v=202611031508';
-import * as DOM from './dom-elements.js?v=202611031508';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611031508';
+import * as State from './state.js?v=202611031737';
+import { isPersistentLeaveType } from './state.js?v=202611031737';
+import * as DOM from './dom-elements.js?v=202611031737';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611031737';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611031508';
-import { renderTodoList } from './inspection-logic.js?v=202611031508';
-import { renderNotificationList } from './app-notifications.js?v=202611031508';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611031508';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611031508';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611031508';
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611031508';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611031737';
+import { renderTodoList } from './inspection-logic.js?v=202611031737';
+import { renderNotificationList } from './app-notifications.js?v=202611031737';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611031737';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611031737';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611031737';
+import { desktopNotify } from './desktop-noti.js?v=202611031737';
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611031737';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -232,7 +233,10 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
             
             let freshUnread = false;
             snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added' && !isInitialLoad && !change.doc.data().isRead) freshUnread = true;
+                if (change.type === 'added' && !isInitialLoad && !change.doc.data().isRead) {
+                    freshUnread = true;
+                    desktopNotify({ id: change.doc.id, ...change.doc.data() });   // 일정 알림은 Windows 알림으로도(화면이 안 보일 때)
+                }
             });
             // 봇(업무예상알림이 #toast 글자를 읽는다)에서는 토스트도 띄우지 않는다
             if (freshUnread && !isAutomation()) showToast(`🔔 새 알림이 도착했습니다.`);

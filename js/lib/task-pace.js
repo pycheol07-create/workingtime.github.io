@@ -5,7 +5,7 @@
 //    처리량은 업무를 **끝낼 때 한꺼번에** 들어온다(app-logic.js). 진행 중에는 입력된 물량이 0 이라
 //    물량만 보면 하루 종일 0% 다. 그래서 실적 = max(입력된 처리량, 오늘 쓴 전체 인시 × 기준 속도(UPH)) 로 보고,
 //    어림값이 이겨서 그 값을 보여 주면(진행 중이든 끝났든) estimated=true 로 표시한다.
-//    '완료'는 입력된 처리량이 계획 이상일 때만 — 끝났는데 입력 전이면 확정이 아니므로 '멈춤'이다.
+//    '완료'는 입력된 처리량이 계획 이상일 때만 — 끝났는데 입력 전이면 확정이 아니므로 '종료 · 처리량 입력 전'이다(화면 문구, 2026-11-03 '멈춤'에서 바꿈).
 //    (입력 + 진행 중 몫을 더하지 않는 이유: 처리량을 팀 누계로 넣는 경우 진행 중 몫이 두 번 더해진다)
 //
 //  점심(12:30~13:30)은 '오늘 진행' 띠(forecast-progress.js projectFinish)와 같은 규칙으로 건너뛴다 —
@@ -13,7 +13,7 @@
 //
 //  import 는 같은 lib 의 calc.js 뿐 — DOM·State·Firebase 를 쓰지 않는다(node 테스트: tests/task-pace.test.js).
 
-import { addWorkMinutes, minutesOverlap, LUNCH_START_MIN, LUNCH_END_MIN } from './calc.js?v=202611031508';
+import { addWorkMinutes, minutesOverlap, LUNCH_START_MIN, LUNCH_END_MIN } from './calc.js?v=202611031737';
 
 /** 경과율 − 진행률 (%p) 이 이 값 미만이면 순조, 이상이면 주의, RISK 초과면 늦음 */
 export const PACE_WARN_GAP = 10;

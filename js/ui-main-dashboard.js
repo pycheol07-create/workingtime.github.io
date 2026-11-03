@@ -1,16 +1,16 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202611031508';
-import * as State from './state.js?v=202611031508';
-import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202611031508';
-import { visibleMenuFor } from './menu-catalog.js?v=202611031508';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202611031508';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202611031508';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202611031508';
-import { canonicalTaskName } from './lib/task-ids.js?v=202611031508';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611031508';
-import { minToHhmm } from './forecast-progress.js?v=202611031508';
-import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202611031508';
-import { subscribeShipAuto, morningAutoToday } from './ship-auto-sync.js?v=202611031508';
+import { getAllDashboardDefinitions } from './ui.js?v=202611031737';
+import * as State from './state.js?v=202611031737';
+import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202611031737';
+import { visibleMenuFor } from './menu-catalog.js?v=202611031737';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202611031737';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202611031737';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202611031737';
+import { canonicalTaskName } from './lib/task-ids.js?v=202611031737';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611031737';
+import { minToHhmm } from './forecast-progress.js?v=202611031737';
+import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202611031737';
+import { subscribeShipAuto, morningAutoToday } from './ship-auto-sync.js?v=202611031737';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -410,7 +410,7 @@ const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-
  *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
 const openQuantityFromCard = async () => {
     try {
-        const { whenTodayLoaded } = await import('./app-sync.js?v=202611031508');
+        const { whenTodayLoaded } = await import('./app-sync.js?v=202611031737');
         const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
         if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
     } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
@@ -457,7 +457,7 @@ const bindWorkloadClicks = (container) => {
 /** 펼쳤을 때·마우스 올렸을 때 보이는 상세 한 줄(글자만) */
 const paceDetailText = (p) => {
     if (p.state === 'done') return p.ended ? '완료' : '계획 달성';
-    if (p.state === 'stopped') return p.remainQty > 0 ? `멈춤 · 남은 ${p.remainQty.toLocaleString()}` : '멈춤 · 처리량 입력 전';
+    if (p.state === 'stopped') return p.remainQty > 0 ? `종료 · 남은 ${p.remainQty.toLocaleString()}` : '종료 · 처리량 입력 전';
     if (p.state === 'noPlan') return '오늘 계획 없음';
     if (p.state === 'noUph') return '기준 속도 없음';
     if (p.state === 'noWorker') return '진행 인원 없음';
@@ -472,7 +472,7 @@ const paceDetailText = (p) => {
 /** 경고가 있을 때만 접힌 상태에서도 보이는 짧은 둘째 줄 — { text, tone } / 경고 없으면 null */
 const paceWarnShort = (p) => {
     if (p.state === 'stopped') {
-        return { text: p.remainQty > 0 ? `멈춤 · 남은 ${p.remainQty.toLocaleString()}` : '멈춤 · 입력 전', tone: p.tone === 'risk' ? 't-risk' : 't-warn' };
+        return { text: p.remainQty > 0 ? `종료 · 남은 ${p.remainQty.toLocaleString()}` : '종료 · 처리량 입력 전', tone: p.tone === 'risk' ? 't-risk' : 't-warn' };
     }
     if (p.overMin > 0 && p.finishMin != null) {
         const tail = p.cannotMeet ? ' · 마감 어려움' : p.extraWorkers > 0 ? ` · +${p.extraWorkers}명` : '';
@@ -596,7 +596,7 @@ const paintWorkloadPaceNow = () => {
     if (!paceMod) {
         if (!paceModLoading) {
             paceModLoading = true;
-            import('./ui-history-prediction.js?v=202611031508')
+            import('./ui-history-prediction.js?v=202611031737')
                 .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
                 .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
                 .finally(() => { paceModLoading = false; });

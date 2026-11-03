@@ -8,13 +8,18 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202611031508';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202611031508';
-import { showToast, getTodayDateString, getRegularMembersForCount, escapeHtml as esc, getHolidayName } from './utils.js?v=202611031508';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611031508';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611031508';
-import { updateLeaveSchedule } from './config.js?v=202611031508';
-import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611031508';
+import * as State from './state.js?v=202611031737';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202611031737';
+import { showToast, getTodayDateString, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611031737';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611031737';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611031737';
+import { updateLeaveSchedule } from './config.js?v=202611031737';
+import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611031737';
+import {
+    REL_OPTIONS, MAX_REMINDERS, relOption, computeAt, buildReminders, buildRemindTo, eventOverAt,
+    reminderSummary, shortAt, nowKst, newId
+} from './lib/cal-reminder.js?v=202611031737';
+import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611031737';
 import {
     collection, doc, setDoc, deleteDoc, getDocs,
     query, where, documentId
@@ -116,8 +121,16 @@ async function saveEvent(ev) {
         time: ev.time || '',
         memo: ev.memo || '',
         updatedBy: State.appState?.currentUser || 'unknown',
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        // 미리 알림(js/lib/cal-reminder.js) — uid 는 시작일이 바뀌어 문서 ID 가 바뀌어도 그대로 넘긴다
+        uid: ev.uid || newId('e')
     };
+    if (ev.reminders && ev.reminders.length) {
+        payload.reminders = ev.reminders;
+        payload.remindTo = ev.remindTo;
+        payload.remindHours = ev.remindHours;     // 서버(앱\캘린더알림)가 '지금 근처 몇 시간'만 이 칸으로 조회한다
+        payload.remindLastAt = ev.remindLastAt;
+    }
     // 시작일이 바뀌면 문서 ID(날짜 프리픽스)도 바뀌어야 하므로 새로 만들고 옛 문서를 지운다.
     const idPrefix = id.split('__')[0];
     if (ev.id && idPrefix !== ev.date) {
@@ -223,7 +236,8 @@ function allRanges() {
             sub: `${t.label}${ev.memo ? ' · ' + ev.memo : ''}`,
             start: ev.date,
             end: (ev.endDate && ev.endDate >= ev.date) ? ev.endDate : ev.date,
-            editable: true
+            editable: true,
+            bell: reminderSummary(ev)   // 미리 알림이 걸려 있으면 '알림 2개 · 팀 전체' — 팝업·목록에 🔔
         });
     });
 
@@ -417,8 +431,8 @@ function renderListView(root, today) {
             const multi = r.start !== r.end;
             const rangeTxt = multi ? ` (${mdLabel(r.start)}~${mdLabel(r.end)})` : '';
             return `<span class="cal-listchip" data-cal-item-kind="${r.kind}" data-cal-item-id="${esc(r.id)}"
-                style="--bg:${t.bg}; --fg:${t.fg}; --bar:${t.bar}; --dbg:${t.darkBg}; --dfg:${t.darkFg}">
-                ${esc(r.label)}${rangeTxt}
+                style="--bg:${t.bg}; --fg:${t.fg}; --bar:${t.bar}; --dbg:${t.darkBg}; --dfg:${t.darkFg}"${r.bell ? ` title="${esc(r.bell)}"` : ''}>
+                ${r.bell ? '🔔 ' : ''}${esc(r.label)}${rangeTxt}
             </span>`;
         }).join('');
 
@@ -559,6 +573,7 @@ function renderDayModalList(dateStr) {
             <span class="mt-1.5 w-2 h-2 rounded-full shrink-0" style="background:${it.color}"></span>
             <div class="min-w-0 flex-1">
                 <div class="text-[13px] font-bold text-gray-800 dark:text-gray-100 break-words">${esc(it.label)}</div>
+                ${it.bell ? `<div class="text-[11px] text-blue-600 dark:text-blue-400 break-words">🔔 ${esc(it.bell)}</div>` : ''}
                 <div class="text-[11px] text-gray-500 dark:text-gray-400 break-words">
                     ${esc(it.sub)}${it.span ? ` <span class="text-gray-400">(${esc(it.span)})</span>` : ''}
                 </div>
@@ -602,6 +617,24 @@ function ensureModal() {
                     <div>
                         <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">메모 (선택)</label>
                         <input type="text" id="cal-f-memo" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                    </div>
+                    <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-400">🔔 미리 알림 (선택)</span>
+                            <button type="button" id="cal-rem-add" class="text-[11px] px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold hover:bg-blue-100">＋ 알림 추가</button>
+                        </div>
+                        <div id="cal-rem-rows" class="space-y-1.5"></div>
+                        <div id="cal-rem-who" class="hidden space-y-1.5">
+                            <div class="text-[11px] font-bold text-gray-600 dark:text-gray-400">받는 사람</div>
+                            <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700 dark:text-gray-200">
+                                <label class="inline-flex items-center gap-1"><input type="radio" name="cal-rem-to" value="me" checked> <span id="cal-rem-me-label">나만</span></label>
+                                <label class="inline-flex items-center gap-1"><input type="radio" name="cal-rem-to" value="team"> 팀 전체</label>
+                                <label class="inline-flex items-center gap-1"><input type="radio" name="cal-rem-to" value="pick"> 사람 지정</label>
+                            </div>
+                            <div id="cal-rem-pick" class="hidden max-h-28 overflow-y-auto grid grid-cols-3 gap-1 text-xs text-gray-700 dark:text-gray-200 p-2 rounded bg-gray-50 dark:bg-gray-900/40"></div>
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">정한 시각에 앱 알림(종)과 슬랙 '물류팀-업무관리앱' 채널로 갑니다. 슬랙에는 제목·시각만 나가고 메모·받는 사람 이름은 나가지 않습니다.</p>
+                            <p id="cal-rem-desk" class="text-[11px] text-gray-500 dark:text-gray-400 leading-snug"></p>
+                        </div>
                     </div>
                 </div>
 
@@ -653,6 +686,33 @@ function ensureModal() {
     };
     if (typeSel) typeSel.addEventListener('change', toggleOther);
 
+    // 미리 알림 — 줄 추가·빼기, 보기·시각·받는 사람이 바뀌면 미리보기 다시 계산
+    document.getElementById('cal-rem-add').addEventListener('click', () => {
+        if (document.querySelectorAll('#cal-rem-rows .cal-rem-row').length >= MAX_REMINDERS) return;
+        const time = document.getElementById('cal-f-time').value;
+        const date = document.getElementById('cal-f-start').value;
+        addRemRow({ rel: time ? 'B30' : 'D0@09:00', at: date ? `${date} 09:00` : '' });
+        refreshRemUi();
+    });
+    document.getElementById('cal-rem-rows').addEventListener('click', (e) => {
+        const del = e.target.closest('.cal-rem-del');
+        if (!del) return;
+        del.closest('.cal-rem-row')?.remove();
+        refreshRemUi();
+    });
+    document.getElementById('cal-rem-rows').addEventListener('change', (e) => {
+        const row = e.target.closest('.cal-rem-row');
+        const abs = row?.querySelector('.cal-rem-abs');
+        // 직접 지정으로 바꾸면 일정 날짜 09:00 을 먼저 넣어 둔다
+        if (e.target.classList.contains('cal-rem-rel') && e.target.value === 'ABS' && abs && !abs.value) {
+            const date = document.getElementById('cal-f-start').value;
+            if (date) abs.value = `${date}T09:00`;
+        }
+        refreshRemUi();
+    });
+    ['cal-f-time', 'cal-f-start', 'cal-f-end'].forEach(id => document.getElementById(id).addEventListener('input', refreshRemUi));
+    document.querySelectorAll('input[name="cal-rem-to"]').forEach(r => r.addEventListener('change', refreshRemUi));
+
     document.getElementById('cal-modal-close').addEventListener('click', closeModal);
     document.getElementById('cal-modal-cancel').addEventListener('click', closeModal);
     document.getElementById('cal-modal-save').addEventListener('click', submitModal);
@@ -660,11 +720,128 @@ function ensureModal() {
 
 let modalMode = 'event';   // 'event' | 'leave'
 let editingId = null;
+let editingUid = null;     // 일정 고유값(미리 알림 발송 기록 키) — 수정 때 그대로 넘긴다
+let remPrev = [];          // 열 때 저장돼 있던 reminders — 이미 지난 옛 줄은 그대로 둔다
+let remPrevTo = null;      // 열 때 저장돼 있던 remindTo
+
+// ── 미리 알림 줄 ──
+function remRowHtml(row) {
+    const opts = REL_OPTIONS.map(o => `<option value="${o.rel}">${o.label}</option>`).join('');
+    return `<div class="cal-rem-row flex flex-wrap items-center gap-1.5" data-rid="${esc(row.rid || '')}">
+        <select class="cal-rem-rel flex-1 min-w-[8rem] p-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white">${opts}</select>
+        <input type="datetime-local" class="cal-rem-abs hidden p-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white">
+        <span class="cal-rem-at text-[11px] text-gray-500 dark:text-gray-400"></span>
+        <button type="button" class="cal-rem-del text-gray-400 hover:text-red-500 text-base leading-none px-1" title="알림 빼기">&times;</button>
+    </div>`;
+}
+
+function addRemRow(row) {
+    const host = document.getElementById('cal-rem-rows');
+    if (!host) return;
+    host.insertAdjacentHTML('beforeend', remRowHtml(row));
+    const el = host.lastElementChild;
+    el.querySelector('.cal-rem-rel').value = row.rel;
+    if (row.rel === 'ABS') el.querySelector('.cal-rem-abs').value = String(row.at || '').replace(' ', 'T');
+}
+
+function readRemRows() {
+    return [...document.querySelectorAll('#cal-rem-rows .cal-rem-row')].map(el => ({
+        rid: el.dataset.rid || '',
+        rel: el.querySelector('.cal-rem-rel').value,
+        abs: el.querySelector('.cal-rem-abs').value
+    }));
+}
+
+/** 줄마다 계산된 시각 미리보기·시간 필요한 보기 막기·받는 사람 구역 표시 */
+function refreshRemUi() {
+    const date = document.getElementById('cal-f-start')?.value || '';
+    const time = document.getElementById('cal-f-time')?.value || '';
+    const now = nowKst();
+    const prevAt = new Map(remPrev.map(r => [r.rid, r.at]));
+    const rows = [...document.querySelectorAll('#cal-rem-rows .cal-rem-row')];
+    rows.forEach(el => {
+        const sel = el.querySelector('.cal-rem-rel');
+        [...sel.options].forEach(o => { o.disabled = !!relOption(o.value)?.needTime && !time && o.value !== sel.value; });
+        const abs = el.querySelector('.cal-rem-abs');
+        abs.classList.toggle('hidden', sel.value !== 'ABS');
+        const at = sel.value === 'ABS' ? String(abs.value || '').replace('T', ' ') : computeAt(sel.value, date, time);
+        const out = el.querySelector('.cal-rem-at');
+        out.classList.remove('text-red-600', 'text-gray-400');
+        if (!at) {
+            out.textContent = sel.value === 'ABS' ? '' : '시간 필요';
+            if (sel.value !== 'ABS') out.classList.add('text-red-600');
+        } else if (at > eventOverAt({ date, endDate: document.getElementById('cal-f-end')?.value || date, time })
+                   && !(el.dataset.rid && prevAt.get(el.dataset.rid) === at)) {
+            out.textContent = `${shortAt(at)} · 일정 ${time ? '시작' : '끝난'} 뒤`;
+            out.classList.add('text-red-600');
+        } else if (at <= now) {
+            const kept = el.dataset.rid && prevAt.get(el.dataset.rid) === at;
+            out.textContent = kept ? `${shortAt(at)} · 지남` : `${shortAt(at)} · 이미 지난 시각`;
+            out.classList.add(kept ? 'text-gray-400' : 'text-red-600');
+        } else {
+            out.textContent = sel.value === 'ABS' ? '' : `→ ${shortAt(at)}`;
+        }
+    });
+    document.getElementById('cal-rem-who')?.classList.toggle('hidden', rows.length === 0);
+    const addBtn = document.getElementById('cal-rem-add');
+    if (addBtn) addBtn.disabled = rows.length >= MAX_REMINDERS;
+    const mode = document.querySelector('input[name="cal-rem-to"]:checked')?.value || 'me';
+    document.getElementById('cal-rem-pick')?.classList.toggle('hidden', mode !== 'pick');
+    const desk = document.getElementById('cal-rem-desk');
+    if (desk) {
+        const p = desktopNotifyPermission();
+        desk.textContent = p === 'granted' ? '이 PC 에서는 앱이 뒤에 있을 때 Windows 알림으로도 뜹니다.'
+            : p === 'denied' ? 'Windows 알림이 막혀 있습니다(브라우저 주소창 왼쪽 자물쇠 → 알림 허용으로 바꿀 수 있습니다).'
+            : p === 'default' ? '저장할 때 Windows 알림 허용을 물으면 [허용]을 누르면 앱이 뒤에 있어도 알림이 뜹니다.'
+            : '';
+    }
+}
+
+/** 모달을 열 때 알림 구역 채우기 */
+function fillRemSection(existing) {
+    remPrev = Array.isArray(existing?.reminders) ? existing.reminders : [];
+    remPrevTo = existing?.remindTo || null;
+    const host = document.getElementById('cal-rem-rows');
+    if (host) host.innerHTML = '';
+    remPrev.forEach(r => addRemRow(r));
+
+    const me = State.appState?.currentUser || '';
+    const mode = remPrevTo?.mode || 'me';
+    const meName = mode === 'me' && remPrevTo?.names?.[0] ? remPrevTo.names[0] : me;
+    const meLabel = document.getElementById('cal-rem-me-label');
+    if (meLabel) meLabel.textContent = meName ? `나만 (${meName})` : '나만';
+    document.querySelectorAll('input[name="cal-rem-to"]').forEach(r => { r.checked = r.value === mode; });
+
+    const picked = new Set(mode === 'pick' ? (remPrevTo?.names || []) : []);
+    const names = [...new Set([...getActiveTeamMembers(State.appConfig), ...picked])].sort((a, b) => a.localeCompare(b, 'ko'));
+    const pick = document.getElementById('cal-rem-pick');
+    if (pick) pick.innerHTML = names.map(n => `<label class="inline-flex items-center gap-1 truncate">
+        <input type="checkbox" class="cal-rem-name" value="${esc(n)}" ${picked.has(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('');
+    refreshRemUi();
+}
+
+/** 저장할 알림 칸 — { reminders, remindTo, remindLastAt } 또는 { error } */
+function collectReminders(startDate, endDate, time) {
+    const r = buildReminders(readRemRows(), { date: startDate, endDate, time }, remPrev);
+    if (r.errors.length) return { error: r.errors[0] };
+    if (!r.reminders.length) return { reminders: [] };
+    const mode = document.querySelector('input[name="cal-rem-to"]:checked')?.value || 'me';
+    const picked = [...document.querySelectorAll('#cal-rem-pick .cal-rem-name:checked')].map(x => x.value);
+    let remindTo;
+    // '나만'을 그대로 두면 처음 등록한 사람을 유지한다(다른 사람이 고쳐도 받는 사람이 바뀌지 않게)
+    if (mode === 'me' && remPrevTo?.mode === 'me' && remPrevTo.names?.length) remindTo = { mode: 'me', names: remPrevTo.names };
+    else remindTo = buildRemindTo(mode, picked, State.appState?.currentUser || '');
+    if (!remindTo.names.length && remindTo.mode !== 'team') {
+        return { error: mode === 'pick' ? '알림 받을 사람을 한 명 이상 고르세요.' : '로그인한 사용자를 알 수 없어 알림을 걸 수 없습니다.' };
+    }
+    return { reminders: r.reminders, remindTo, remindLastAt: r.remindLastAt, remindHours: r.remindHours };
+}
 
 function closeModal() {
     const m = document.getElementById('cal-event-modal');
     if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
     editingId = null;
+    editingUid = null;
 }
 
 function showModalError(msg) {
@@ -695,6 +872,8 @@ function openModal(mode, dateStr, existing = null) {
         document.getElementById('cal-f-memo').value = existing?.memo || '';
         start.value = existing?.date || dateStr;
         end.value = existing?.endDate || existing?.date || dateStr;
+        editingUid = existing?.uid || null;
+        fillRemSection(existing);
     } else {
         const sel = document.getElementById('cal-f-member');
         const members = Array.from(getRegularMembersForCount(State.appConfig, dateStr) || []).sort();
@@ -727,14 +906,21 @@ async function submitModal() {
     if (modalMode === 'event') {
         const title = document.getElementById('cal-f-title').value.trim();
         if (!title) return showModalError('제목을 입력해주세요.');
+        const time = document.getElementById('cal-f-time').value;
+        const rem = collectReminders(startDate, endDate, time);
+        if (rem.error) return showModalError(rem.error);
+        // 알림을 걸면 Windows 알림 허용을 묻는다(클릭 처리 안이어야 브라우저가 묻는다). 결과는 기다리지 않는다.
+        if (rem.reminders.length) askDesktopNotifyPermission();
         payload = {
             id: editingId,
+            uid: editingUid,
             date: startDate,
             endDate,
             title,
             type: document.getElementById('cal-f-type').value,
-            time: document.getElementById('cal-f-time').value,
-            memo: document.getElementById('cal-f-memo').value.trim()
+            time,
+            memo: document.getElementById('cal-f-memo').value.trim(),
+            ...rem
         };
     } else {
         const member = document.getElementById('cal-f-member').value;

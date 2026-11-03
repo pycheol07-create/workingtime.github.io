@@ -8,7 +8,8 @@
 //   - 이름·알림 내용은 로그로 남기지 않는다(목록은 메모리로만 넘긴다).
 import { getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, query, where, limit, onSnapshot, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { emulatorEnabled } from './firebase-emulator.js?v=202611031508';
+import { emulatorEnabled } from './firebase-emulator.js?v=202611031737';
+import { desktopNotify } from './desktop-noti.js?v=202611031737';
 
 const NOTI_PATH = ['artifacts', 'team-work-logger-v2', 'notifications'];
 // 최근 3일 알림 상한 — js/app-sync.js 와 같은 값. 예전 30건은 정렬 없이 잘려 최신 알림이 빠질 수 있었다(정렬은 클라이언트).
@@ -54,7 +55,12 @@ export function watchNotifications(memberName, { onCount, onNew } = {}) {
         let fresh = false;
         const wasFirst = first;
         if (!first) {
-            snap.docChanges().forEach(ch => { if (ch.type === 'added' && !ch.doc.data().isRead) fresh = true; });
+            snap.docChanges().forEach(ch => {
+                if (ch.type === 'added' && !ch.doc.data().isRead) {
+                    fresh = true;
+                    desktopNotify({ id: ch.doc.id, ...ch.doc.data() });   // 일정 알림은 Windows 알림으로도(화면이 안 보일 때)
+                }
+            });
         }
         first = false;
         try { if (onCount) onCount(items.length, items, { first: wasFirst }); } catch (e) { /* 화면 갱신 실패로 구독을 멈추지 않는다 */ }
