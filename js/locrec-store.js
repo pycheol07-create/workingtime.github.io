@@ -8,7 +8,9 @@
 //   쓰기는 locRecWork/marks 한 곳(firestore.rules: hasFeature('location.locrec')). 다시 만들기 요청 쓰기는 js/rebuild-bar.js.
 // 다시 만들기: 대시보드 머리줄 [지금 재고로 다시 만들기](js/rebuild-bar.js) → 권한 쪽 요청 문서 덮어쓰기 → 이 PC 예약작업 채우기요청
 //   (채우기.py --요청확인, 5분)이 채우기 지시서 뒤에 추천.py --요청확인 을 불러 오늘 문서를 바꾼다(rev +1). 여기서는 상태만 읽는다.
-//   표 창이 열려 있는 동안 오늘 문서 rev 가 바뀌면 바로 바꾸지 않고 pendingDay 에 둔다 — 띠 '새 추천이 도착했습니다' [새로 보기](applyPending).
+//   표 창이 열려 있는 동안 오늘 문서 판(dayVer — 서버 at, 없으면 rev)이 바뀌면 바로 바꾸지 않고 pendingDay 에 둔다
+//   — 띠 '새 추천이 도착했습니다' [새로 보기](applyPending). 기다리는 동안 [처리함]·[안 함]·[전체 처리함]은 막고(PENDING_TEXT),
+//   [처리함] 트랜잭션도 날짜 문서를 다시 읽어 보던 판(dayVer)과 다르면 쓰지 않는다(2026-11-03 옛 판으로 처리한 사건).
 //   재고 업로드 자동 감지 문구용으로 Locations/INFO_CONFIG.lastDataUpdate 도 구독한다(로케이션관리는 location.js 가 이미 같은 문서를 구독).
 // 데이터 리스트 반영(2026-10-29): [처리함] = 추천대로 Locations ZONE_* 상품 칸을 옮기고 marks 를 한 트랜잭션에(둘 다 쓰이거나 둘 다 안 쓰임).
 //   [되돌리기] = 반영한 그날 + 그 사이 안 바뀌었으면 자리까지 원복. 계획(판정)은 js/lib/locrec-apply.js, 여기는 읽기·쓰기·확인창만.
@@ -17,11 +19,11 @@
 import { doc, onSnapshot, setDoc, serverTimestamp, deleteField, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
-    stripRows, fileNameAll, recReqUi, tsMs, TABS
-} from './lib/locrec-view.js?v=202610301845';
-import { laterMs } from './lib/rebuild-view.js?v=202610301845';
-import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText } from './lib/locrec-apply.js?v=202610301845';
-import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202610301845';
+    stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT
+} from './lib/locrec-view.js?v=202611030941';
+import { laterMs } from './lib/rebuild-view.js?v=202611030941';
+import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText } from './lib/locrec-apply.js?v=202611030941';
+import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611030941';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -44,7 +46,7 @@ export function getLocRecStore(opts) {
     return single;
 }
 
-function createLocRecStore({ db, auth, getMemberName }) {
+function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
     const S = {
         authKnown: false, signedIn: false, latest: null, latestErr: '',
         key: '', userPicked: false,
@@ -122,8 +124,8 @@ function createLocRecStore({ db, auth, getMemberName }) {
             if (dayKeyWatching !== key) return;
             S.dayLoading = false;
             const data = snap.exists() ? snap.data() : null;
-            // 표 창을 보는 중에 다시 만든 판(rev 다름)이 오면 띠로만 알리고 [새로 보기] 때 바꾼다
-            if (data && S.day && S.day.key === key && hold() && (data.rev || 0) !== (S.day.data.rev || 0)) {
+            // 표 창을 보는 중에 다시 만든 판(dayVer 다름)이 오면 띠로만 알리고 [새로 보기] 때 바꾼다
+            if (data && S.day && S.day.key === key && hold() && dayVer(data) !== dayVer(S.day.data)) {
                 S.pendingDay = { key, data, parsed: parseRecDay(data) };
                 emit();
                 return;
@@ -212,10 +214,14 @@ function createLocRecStore({ db, auth, getMemberName }) {
         const list = S.day.parsed[tab] || [];
         const open = (S.latest && S.latest.open) || {};
         const today = todayKey(), now = Date.now();
-        return list.map(r => ({ r, st: rowState({ row: r, open: open[r.recKey], mark: S.marks[r.recKey], viewDay: S.key, todayKey: today, nowMs: now }) }));
+        const moved = movedToday(S.marks, today);
+        // 이월 행은 moved 없이(지금처럼 — recCount 와 같은 기준)
+        return list.map(r => ({ r, st: rowState({ row: r, open: open[r.recKey], mark: S.marks[r.recKey], viewDay: S.key, todayKey: today, nowMs: now, moved: r.carried ? null : moved }) }));
     }
 
     const errCode = (e) => (e && e.code) || '오류';
+    /** 보던 날짜에 새 판이 도착해 기다리는 중인가(표 창 띠 — [새로 보기] 전에는 처리 표시를 막는다) */
+    const pendingNow = () => !!(S.pendingDay && S.pendingDay.key === S.key);
 
     /** 선택 날짜 문서에서 recKey 로 행 찾기(탭 상관없이) */
     function rowOf(key) {
@@ -232,6 +238,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
     async function writeMarks(keys, state) {
         const list = keys.filter(k => k && !S.saving.has(k));
         if (!list.length) return false;
+        if (state && pendingNow()) { alert(PENDING_TEXT); return false; }   // 표시 지우기(되돌리기)는 막지 않는다
         list.forEach(k => S.saving.add(k));
         emit();
         try {
@@ -265,15 +272,19 @@ function createLocRecStore({ db, auth, getMemberName }) {
     }
 
     /** 한 추천을 데이터 리스트에 반영 + 처리함 표시(한 트랜잭션).
-     *  → {status:'applied'|'already'|'marked'|'fail'|'blocked', fail?, text?}. 권한·네트워크 오류는 throw(아무것도 안 쓰임) */
-    function txApply(row, by) {
+     *  ver = 화면이 보던 판(dayVer) — 날짜 문서를 다시 읽어 판이 바뀌었으면(없어졌으면) 쓰지 않고 'stale'.
+     *  → {status:'applied'|'already'|'marked'|'fail'|'blocked'|'stale', fail?, text?}. 권한·네트워크 오류는 throw(아무것도 안 쓰임) */
+    function txApply(row, by, ver) {
         const ids = docIdsForRow(row);
         const key = row.recKey;
+        const dayPath = DAY_PATH(S.key);
         return runTransaction(db, async (tx) => {
             const blocked = await uploadBusy(tx);
             const mk = await tx.get(doc(db, MARKS_PATH));
+            const dd = await tx.get(doc(db, dayPath));
             const docs = await readZones(tx, ids);
             if (blocked) return { status: 'blocked', text: blocked };
+            if (!dd.exists() || dayVer(dd.data() || {}) !== ver) return { status: 'stale' };
             const cur = mk.exists() ? (((mk.data() || {}).marks) || {})[key] : null;
             // 다른 사람이 막 처리함 — 반영 기록(applied)을 덮어쓰지 않는다
             if (cur && cur.state === 'done') return { status: 'marked' };
@@ -292,7 +303,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
         emit();
         let r = null;
         try {
-            r = await txApply(row, nameOf());
+            r = await txApply(row, nameOf(), dayVer(S.day && S.day.data));
         } catch (e) {
             alert(`데이터 리스트에 반영하지 못했습니다(${errCode(e)}). 아무것도 바뀌지 않았습니다 — 다시 눌러 주세요.`);
             return;
@@ -301,7 +312,10 @@ function createLocRecStore({ db, auth, getMemberName }) {
             emit();
         }
         if (r.status === 'blocked') { alert(r.text); return; }
-        if (r.status === 'fail' && confirm(applyFailText(r.fail))) await writeMarks([key], 'done');
+        if (r.status === 'stale') { alert(PENDING_TEXT); return; }
+        if (r.status !== 'fail') return;
+        if (!markOnlyOk(r.fail)) { alert(`데이터 리스트에 반영하지 못했습니다(${reasonText(r.fail)}).`); return; }
+        if (confirm(applyFailText(r.fail))) await writeMarks([key], 'done');
     }
 
     /** [되돌리기] — 반영 기록이 있으면 자리까지 원복(한 트랜잭션). 못 하면 '표시만 지울까요?'(clearMark).
@@ -373,6 +387,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
      *  'done' 은 데이터 리스트에 반영(applyMark), 반영 기록이 있는 표시를 지우면 자리도 되돌린다(undoMark). '안 함'은 표시만 */
     async function mark(key, state) {
         if (!key || S.saving.has(key) || S.applying || !canMark(S.latest, S.key, todayKey())) return;
+        if ((state === 'done' || state === 'skip') && pendingNow()) { alert(PENDING_TEXT); return; }
         if (state === 'done') {
             const row = rowOf(key);
             if (row) return applyMark(key, row);
@@ -388,8 +403,10 @@ function createLocRecStore({ db, auth, getMemberName }) {
     async function markMany(keys, state) {
         const list = (Array.isArray(keys) ? keys : []).filter(k => k && !S.saving.has(k));
         if (!list.length || S.applying || !canMark(S.latest, S.key, todayKey())) return;
+        if (state && pendingNow()) { alert(PENDING_TEXT); return; }
         if (state !== 'done') { await writeMarks(list, state || null); return; }
         const by = nameOf();
+        const ver = dayVer(S.day && S.day.data);      // 시작 때 보던 판 — 도중에 새 판이 오면 거기서 멈춘다
         const fails = [];
         let ok = 0, done = 0, stopText = '';      // ok = 실제로 자리를 옮긴 건, done = 이미 처리됨(남이 표시·이미 그 자리)
         list.forEach(k => S.saving.add(k));
@@ -403,9 +420,10 @@ function createLocRecStore({ db, auth, getMemberName }) {
                 const row = rowOf(key);
                 if (!row) { fails.push({ key, reason: 'badRow', code: '' }); continue; }
                 let r;
-                try { r = await txApply(row, by); }
+                try { r = await txApply(row, by, ver); }
                 catch (e) { stopText = `${ok}건 반영한 뒤 멈췄습니다(${errCode(e)}). 남은 추천은 다시 눌러 주세요.`; break; }
                 if (r.status === 'blocked') { stopText = `${ok}건 반영한 뒤 멈췄습니다.\n${r.text}`; break; }
+                if (r.status === 'stale') { stopText = `${ok}건 반영한 뒤 멈췄습니다.\n${PENDING_TEXT}`; break; }
                 if (r.status === 'fail') fails.push({ key, ...r.fail });
                 else if (r.status === 'applied') ok++;
                 else done++;
@@ -416,14 +434,21 @@ function createLocRecStore({ db, auth, getMemberName }) {
             emit();
         }
         if (stopText) alert(stopText);
-        if (fails.length && confirm(bulkSummaryText(ok, fails, undefined, done))) await writeMarks(fails.map(f => f.key), 'done');
+        if (!fails.length) return;
+        // 새 판이 와서 멈췄으면 '표시만 할까요?' 를 묻지 않는다(묻고 나서 writeMarks 가 막혀 말과 결과가 어긋난다)
+        if (pendingNow()) { alert(bulkSummaryText(ok, fails, undefined, done, 0)); return; }
+        // 표시만 할 수 있는 건(markOnlyOk)만 묻는다 — 오늘 다른 상품을 넣은 자리(dstMovedToday)는 요약에만
+        const markable = fails.filter(markOnlyOk);
+        const text = bulkSummaryText(ok, fails, undefined, done, markable.length);
+        if (!markable.length) { alert(text); return; }
+        if (confirm(text)) await writeMarks(markable.map(f => f.key), 'done');
     }
 
     function writeXlsx(rows, sheetName, fileName) {
         const X = window.XLSX;
         if (!X || !X.utils) { alert('엑셀 도구를 불러오지 못했습니다. 새로고침 후 다시 해 주세요.'); return; }
         if (!rows.length) return;
-        const ws = X.utils.json_to_sheet(excelRows(rows), { header: EXCEL_COLS });
+        const ws = X.utils.json_to_sheet(excelRows(rows, { sizeOf }), { header: EXCEL_COLS });   // 로케이션(칸수) — sizeOf 는 옛 문서 행 보충(location.js)
         ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 25 }, { wch: 15 }];   // 기존 [변경 추천] 엑셀과 같은 폭
         const wb = X.utils.book_new();
         X.utils.book_append_sheet(wb, ws, sheetName);
@@ -431,7 +456,7 @@ function createLocRecStore({ db, auth, getMemberName }) {
     }
     /** 표 창: 지금 탭(안 함도 보기면 그것까지). 이월 행(지금 기준 추천에서 빠짐)은 넣지 않는다 */
     function downloadTab(tab, showSkipped) {
-        const rows = visibleRows(tab).filter(x => !x.r.carried && (showSkipped || !x.st.hidden)).map(x => x.r);
+        const rows = visibleRows(tab).filter(x => !x.r.carried && (showSkipped || !x.st.hidden) && !x.st.other).map(x => x.r);
         writeXlsx(rows, SHEET_NAME[tab], fileNameOf(tab, S.key));
     }
     /** 접힌 띠·펼친 본문: 탭과 상관없이 그날 추천 전체(단독 → 맞바꾸기 → 페어, 안 함 제외) — 띠 건수와 같은 목록 */

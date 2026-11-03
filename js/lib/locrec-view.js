@@ -19,6 +19,8 @@
 //                                     ← [처리함]이 데이터 리스트(Locations) 상품 칸을 옮겼을 때만(2026-10-29, js/lib/locrec-apply.js · js/locrec-store.js).
 //                                       코드·자리 id 만. 없으면 '표시만'(옛 표시·반영 못 해 표시만 한 것). 서버 저장소.load_marks 는 state·at 만 읽는다.
 //                                     옮긴 자리에는 Locations 자리 맵 안 locRecMove{day, at, role:in|out, code, peer, recKey} — 화면은 그날(KST)만 보인다.
+//                                     movedToday(marks) = 오늘 applied 로 옮긴 상품코드 → 그 추천. 다른 추천(옛 판 등)으로 오늘 옮긴 상품의
+//                                     줄은 '오늘 처리함(다른 자리로)'(rowState other) — 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(2026-11-03).
 //   locRecWork/request              { requestedAt, by, day }   ← 머리줄 [지금 재고로 다시 만들기](js/rebuild-bar.js, 덮어쓰기 — 채우기 권한이
 //                                     있으면 refillWork/request 에). 서버는 두 문서 중 늦은 쪽 · 채우기요청(5분)이 추천.py --요청확인 을 부른다
 //   locRecLatest.req                { state: running|done|failed|rejected|waiting, note, day, count, autoCount, lastReqAt, startedAt, at,
@@ -29,8 +31,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202610301845';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202610301845';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611030941';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611030941';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -344,6 +346,45 @@ export function dataLine(latest) {
     return parts.join(' · ');
 }
 
+/** 새 판이 도착해 표 창이 기다리는 동안 [처리함]·[안 함]·[전체 처리함]을 막을 때 문구 */
+export const PENDING_TEXT = '새 추천이 도착했습니다 — [새로 보기] 후 처리해 주세요';
+/** 같은 상품을 오늘 다른 추천(옛 판 등)으로 이미 옮긴 줄의 상태 */
+export const OTHER_MOVED_LABEL = '오늘 처리함(다른 자리로)';
+
+/**
+ * 판 식별자 — 날짜 문서를 쓴 서버 시각(at) 우선, 없으면 rev. 문서가 없으면 ''.
+ *   정기 판은 rev 칸이 없고(0) 같은 날 정기를 다시 돌리면 rev 가 0 으로 돌아가므로 rev 만으로는 판을 못 가른다.
+ */
+export function dayVer(data) {
+    if (!data || typeof data !== 'object') return '';
+    const at = tsMs(data.at);
+    return at ? `at:${at}` : `rev:${Number(data.rev) || 0}`;
+}
+
+/**
+ * 오늘(KST) 데이터 리스트에 반영한 이동 → Map<상품코드, {recKey, src, dst, by, at}>.
+ *   state 'done' 이고 applied.day === todayKey 인 표시만(안 함·표시만(applied 없음)·지난 날 반영은 뺀다). 맞바꾸기·페어는 코드 2개.
+ */
+export function movedToday(marks, todayKey) {
+    const out = new Map();
+    const seenAt = new Map();
+    if (!todayKey) return out;
+    Object.entries(marks || {}).forEach(([recKey, m]) => {
+        if (!m || m.state !== 'done' || !m.applied || typeof m.applied !== 'object') return;
+        if (str(m.applied.day) !== str(todayKey) || !Array.isArray(m.applied.moves)) return;
+        m.applied.moves.forEach(x => {
+            const code = str(x && x.code).trim();
+            if (!code) return;
+            // 같은 상품을 오늘 두 번 옮겼으면 가장 늦게 반영한 것(지금 자리) — applied.at(ms)
+            const t = Number(m.applied.at) || 0;
+            if (out.has(code) && (seenAt.get(code) || 0) >= t) return;
+            seenAt.set(code, t);
+            out.set(code, { recKey, code, src: str(x.src), dst: str(x.dst), by: m.by, at: m.at });
+        });
+    });
+    return out;
+}
+
 /**
  * 행 상태 — 서버 판정이 우선, 그다음 직원 표시.
  *   '안 함' 숨김: 서버 open[recKey] 가 state 'skip' 이고 skipUntil(YYYYMMDD) 이 오늘 이후면 숨김(서버 기준).
@@ -351,9 +392,11 @@ export function dataLine(latest) {
  *     · open.firstDay 가 mark 를 누른 날(KST)보다 뒤 — 지났다가 새로 다시 나온 추천
  *     · skip 표시인데 서버 skipUntil 이 지남 — 서버 숨김 기간 끝
  *   서버가 아직 반영 안 한 skip(방금 누름)은 바로 숨긴다(누른 지 30일 안).
- * @returns {{label, tone, hidden, mark}}  tone: ok|warn|accent|muted|none · mark: 이 행에 유효한 표시(없으면 null)
+ *   moved(movedToday): 오늘 날짜를 볼 때, 이 행에 표시가 없고 행의 상품(code·code2)을 오늘 다른 추천으로 옮겼으면
+ *     OTHER_MOVED_LABEL + other {recKey, code, dst, by, at} — 서버 '처리됨'·'안 함' 다음, '진행 중'·'자리 바뀜' 보다 앞.
+ * @returns {{label, tone, hidden, mark, other?}}  tone: ok|warn|accent|muted|none · mark: 이 행에 유효한 표시(없으면 null)
  */
-export function rowState({ row, open, mark, viewDay, todayKey, nowMs }) {
+export function rowState({ row, open, mark, viewDay, todayKey, nowMs, moved }) {
     const o = open || null;
     const today = todayKey || dayKey(nowMs);
     let m = mark && (mark.state === 'done' || mark.state === 'skip') ? mark : null;
@@ -368,6 +411,13 @@ export function rowState({ row, open, mark, viewDay, todayKey, nowMs }) {
     if (m && m.state === 'skip') {
         const live = !tsMs(m.at) || markAgeDays <= SKIP_HIDE_DAYS;
         return { label: '안 함', tone: 'muted', hidden: live, mark: m };
+    }
+    if (!m && moved && moved.size && row && viewDay && viewDay === today) {
+        const hit = [row.code, row.code2].map(c => (c ? moved.get(str(c)) : null)).find(x => x && x.recKey !== row.recKey);
+        if (hit) {
+            return { label: OTHER_MOVED_LABEL, tone: 'muted', hidden: false, mark: null,
+                     other: { recKey: hit.recKey, code: hit.code, dst: hit.dst, by: hit.by, at: hit.at } };
+        }
     }
     if (o && (o.state === 'partial' || o.state === 'progress')) return { label: '진행 중', tone: 'warn', hidden: false, mark: m };
     if (m && m.state === 'done') {
@@ -426,16 +476,18 @@ export function fileNameOf(tab, key) {
 /**
  * 그날 추천 전체(단독 → 맞바꾸기 → 페어 순, 탭 안은 순위 순) 중 숨기지 않은('안 함' 아닌) 행 → [{r, st}]
  * 접힌 띠의 건수와 띠 [엑셀 받기](전체 한 파일)가 같은 목록을 쓴다.
+ * 오늘 다른 추천으로 이미 옮긴 상품의 줄(rowState other)도 뺀다.
  */
 export function stripRows({ latest, key, todayKey, parsed, marks, nowMs }) {
     if (!parsed) return [];
     const open = (latest && latest.open) || {};
     const mk = marks || {};
+    const moved = movedToday(mk, todayKey || dayKey(nowMs));
     const out = [];
     TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
         if (r.carried) return;                                     // 이월 행은 건수·엑셀에서 뺀다
-        const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs });
-        if (!st.hidden) out.push({ r, st });
+        const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs, moved });
+        if (!st.hidden && !st.other) out.push({ r, st });
     }));
     return out;
 }
@@ -482,15 +534,18 @@ const CARRIED_WORK_LABELS = new Set(['처리됨', '진행 중', '처리함 표�
  * 그날 추천 건수 — 접힌 띠 'N건'(stripRows)과 같은 기준('안 함' 숨김 제외, 세 탭 합). 표 자료가 없거나 깨졌으면 null
  *   + 이월 행 중 처리됨·진행 중·처리함 표시 — 아침 판에서 이 행들도 셌으므로, 다시 만들기만으로 업무 예상 건수가 줄지 않게.
  *   (띠·엑셀·탭 숫자에서는 이월 행을 계속 뺀다)
+ *   + 이월 아닌 줄 중 '오늘 처리함(다른 자리로)'(rowState other) — 띠에서는 빠지지만 그 상품은 오늘 일한 몫이라 같은 취지로 센다.
  */
 export function recCount({ latest, key, todayKey, parsed, marks, nowMs }) {
     if (!parsed || parsed.error) return null;
     const open = (latest && latest.open) || {};
     const mk = marks || {};
+    const moved = movedToday(mk, todayKey || dayKey(nowMs));
     let carriedN = 0;
     TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
-        if (!r.carried) return;
-        const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs });
+        // 이월 행은 moved 없이(지금처럼) — 진행 중 이월 행이 '다른 자리로' 로 바뀌어 빠지지 않게
+        const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs, moved: r.carried ? null : moved });
+        if (!r.carried) { if (st.other) carriedN++; return; }
         if (!st.hidden && CARRIED_WORK_LABELS.has(st.label)) carriedN++;
     }));
     return stripRows({ latest, key, todayKey, parsed, marks, nowMs }).length + carriedN;
@@ -542,10 +597,12 @@ export function tabSummary({ latest, key, todayKey, parsed, marks, nowMs }) {
     if (!parsed) return { counts, total: 0, newN: 0, hiddenN: 0 };
     const open = (latest && latest.open) || {};
     const mk = marks || {};
+    const moved = movedToday(mk, todayKey || dayKey(nowMs));
     let newN = 0, hiddenN = 0;
     TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
         if (r.carried) return;                                     // 이월 행은 요약에서 뺀다
-        const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs });
+        const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs, moved });
+        if (st.other) return;                                      // 오늘 다른 추천으로 옮긴 상품 — 띠 건수와 같게 뺀다
         if (st.hidden) { hiddenN++; return; }
         counts[t]++;
         if (st.label === '새로') newN++;
@@ -555,10 +612,11 @@ export function tabSummary({ latest, key, todayKey, parsed, marks, nowMs }) {
 
 /**
  * 표 창 [전체 처리함] 대상 — 지금 탭의 [{r, st}] 중 아직 표시가 없고 처리할 수 있는 추천의 recKey.
- *   빼는 것: 숨긴 행(안 함) · 이미 표시한 행 · 서버가 확인한 '처리됨' · '만료' · '자리 바뀜'(옮길 대상이 사라짐) · 이월 행.
+ *   빼는 것: 숨긴 행(안 함) · 이미 표시한 행 · 서버가 확인한 '처리됨' · '만료' · '자리 바뀜'(옮길 대상이 사라짐) · 이월 행
+ *   · 오늘 다른 추천으로 이미 옮긴 상품(OTHER_MOVED_LABEL).
  */
 export function bulkDoneKeys(items) {
-    const skip = new Set(['처리됨', '만료', '자리 바뀜']);
+    const skip = new Set(['처리됨', '만료', '자리 바뀜', OTHER_MOVED_LABEL]);
     return (Array.isArray(items) ? items : [])
         .filter(x => x && x.r && x.r.recKey && !x.r.carried && x.st && !x.st.hidden && !x.st.mark && !skip.has(x.st.label))
         .map(x => x.r.recKey);
@@ -571,13 +629,13 @@ export function canMark(latest, key, todayKey) {
 
 /**
  * 표 창 메타 줄 — 지금 탭의 [{st}] 목록 → '단독 12행 · 처리됨 2 · 처리함 표시 3 · 안 함 1(숨김)'
- *   처리됨 = 서버가 위치 변화를 확인 · 처리함 표시 = 직원 표시(위치 미반영 포함) · 안 함 = 숨긴 행.
+ *   처리됨 = 서버가 위치 변화를 확인 · 처리함 표시 = 직원 표시(위치 미반영·오늘 다른 자리로 처리함 포함) · 안 함 = 숨긴 행.
  */
 export function tabMeta(tab, items) {
     const list = Array.isArray(items) ? items : [];
     const cnt = (f) => list.filter(x => x && x.st && f(x.st)).length;
     const done = cnt(s => s.label === '처리됨');
-    const marked = cnt(s => s.label === '처리함 표시' || s.label === '표시는 됐지만 위치 미반영');
+    const marked = cnt(s => s.label === '처리함 표시' || s.label === '표시는 됐지만 위치 미반영' || s.label === OTHER_MOVED_LABEL);
     const hidden = cnt(s => s.hidden);
     const parts = [`${TAB_LABEL[tab] || TAB_LABEL.single} ${list.length}행`];
     if (done) parts.push(`처리됨 ${done}`);

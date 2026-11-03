@@ -27,8 +27,8 @@
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202610301845';
-import { capacityFor } from './mibal2-calc.js?v=202610301845';
+import { isEtcLocObj } from './mibal2-rows.js?v=202611030941';
+import { capacityFor } from './mibal2-calc.js?v=202611030941';
 
 export { isEtcLocObj };
 
@@ -1122,18 +1122,30 @@ export function recKeyOf(row) {
 /**
  * 결과 행 → 엑셀 5열 행 [{현재로케이션, 변경로케이션, 상품명, 옵션, 상품코드}].
  *   단독 1행 · 맞바꾸기 2행(A: from→to, B: from2→to2) · 페어 2행(A, B).
- *   행 모양: {type, code, name, option, from, to, code2?, name2?, option2?, from2?, to2?}
+ *   행 모양: {type, code, name, option, from, to, code2?, name2?, option2?, from2?, to2?, fromSize?, toSize?, fromSize2?, toSize2?}
+ *   로케이션 칸은 화면 표와 같이 칸수를 괄호로 붙인다 — '★★-003(4)'(칸수 없으면 자리만, 2026-11-03 사용자 요청).
+ *   칸수는 행의 fromSize·toSize(2번째 상품은 …2)가 우선, 없으면 opts.sizeOf(자리 id) 로 보충(옛 문서 행).
  */
-export function excelRows(rows) {
+export function excelRows(rows, opts = {}) {
     const out = [];
+    const sizeOf = typeof opts.sizeOf === 'function' ? opts.sizeOf : null;
+    const loc = (id, size) => {
+        const s0 = id == null ? '' : String(id);
+        if (!s0) return '';
+        let s = size == null ? '' : String(size).trim();
+        if (!s && sizeOf) { try { s = String(sizeOf(s0) || '').trim(); } catch (e) { s = ''; } }
+        return s ? `${s0}(${s})` : s0;
+    };
     const one = (from, to, name, option, code) => ({
-        '현재로케이션': from == null ? '' : from, '변경로케이션': to == null ? '' : to,
+        '현재로케이션': from, '변경로케이션': to,
         '상품명': name == null ? '' : name, '옵션': option == null ? '' : option, '상품코드': code == null ? '' : code
     });
     (rows || []).forEach(r => {
         if (!r) return;
-        out.push(one(r.from, r.to, r.name, r.option, r.code));
-        if ((r.type === 'swap' || r.type === 'pair') && r.code2) out.push(one(r.from2, r.to2, r.name2, r.option2, r.code2));
+        out.push(one(loc(r.from, r.fromSize), loc(r.to, r.toSize), r.name, r.option, r.code));
+        if ((r.type === 'swap' || r.type === 'pair') && r.code2) {
+            out.push(one(loc(r.from2, r.fromSize2), loc(r.to2, r.toSize2), r.name2, r.option2, r.code2));
+        }
     });
     return out;
 }

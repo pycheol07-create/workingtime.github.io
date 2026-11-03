@@ -10,13 +10,15 @@
 //   · 창을 보는 중에 새 판이 오면 띠 '새 추천이 도착했습니다' [새로 보기]
 //   (store.setHold — 창이 열려 있으면 store 가 새 판을 pendingDay 에 둔다, 닫으면 바로 바꾼다).
 //   이월 행(carried)은 흐리게 '(지금 기준 추천에서 빠짐)' — [처리함]/[안 함] 없이 되돌리기만.
+//   새 판을 기다리는 동안([새로 보기] 전)은 [처리함]·[안 함]·[전체 처리함]을 잠근다([되돌리기]는 그대로).
+//   같은 상품을 오늘 다른 추천으로 옮긴 줄(st.other)은 '○○(으)로 처리 · 이름 HH:MM' + 그 추천의 [되돌리기].
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202610301845';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf } from './lib/locrec-view.js?v=202610301845';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202610301845';
-import { higherOpenThan } from './modal-above.js?v=202610301845';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202610301845';
+import { escapeHtml } from './utils.js?v=202611030941';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611030941';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611030941';
+import { higherOpenThan } from './modal-above.js?v=202611030941';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611030941';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -67,6 +69,7 @@ export function mountLocRecTable({ store, sizeOf }) {
     const mSkipWrap = q('locrec-skip-wrap'), mSkip = q('locrec-show-skip'), mSkipTxt = q('locrec-skip-txt');
     const mDl = q('locrec-dl-btn'), mTbody = q('locrec-tbody'), mAll = q('locrec-all-btn');
     const mBand = q('locrec-new-band'), mBandTxt = q('locrec-new-txt'), mReqNote = q('locrec-req-note');
+    const ALL_TITLE = mAll ? mAll.title : '';            // [전체 처리함] 원래 툴팁(새 판 대기 중에는 PENDING_TEXT)
     let tab = 'single', showSkipped = false, lastTabsHtml = '';
     const closeFns = new Set();
 
@@ -90,18 +93,24 @@ export function mountLocRecTable({ store, sizeOf }) {
     };
     const nameCell = (name, option) => `${escapeHtml(name || '')}${option ? ` <span class="locrec-opt">(${escapeHtml(option)})</span>` : ''}`;
 
-    function rowHtml(S, r, st, i, editable) {
+    function rowHtml(S, r, st, i, editable, pending) {
         const busy = S.saving.has(r.recKey) || !!S.applying || !editable;   // 지난 날짜는 볼 수만 · 전체 반영 중에는 잠금
+        const busyMark = busy || pending;                                   // 새 판 대기 중 — [처리함]/[안 함]만 잠금(되돌리기는 된다)
         const k = escapeHtml(r.recKey);
         const mk = st.mark;
+        const ot = st.other || null;                                         // 같은 상품을 오늘 다른 추천으로 옮김
         const who = mk ? `<div class="locrec-who">${escapeHtml(mk.state === 'skip' ? '안 함' : '처리함')} · ${escapeHtml(mk.by || NO_NAME)} ${escapeHtml(fmtHM(mk.at))}`
-            + (mk.state === 'done' && mk.applied ? ' · 표에 반영' : '') + '</div>' : '';
+            + (mk.state === 'done' && mk.applied ? ' · 표에 반영' : '') + '</div>'
+            : ot ? `<div class="locrec-who">${escapeHtml(`${ot.dst}(으)로 처리 · ${ot.by || NO_NAME} ${fmtHM(ot.at)}`)}</div>` : '';
         const carried = r.carried === true;                                   // 이월 행 — 지금 기준 추천에서 빠짐
-        const btns = (st.label === '처리됨' || carried) && !mk ? ''         // 서버가 위치 변화를 확인한 행·이월 행 — 누를 것이 없다
+        const otBusy = S.saving.has(ot && ot.recKey) || !!S.applying || !editable;
+        const btns = ot && !mk
+            ? `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="undo" data-locrec-key="${escapeHtml(ot.recKey)}"${otBusy ? ' disabled' : ''} title="오늘 ${escapeHtml(ot.code)} 를 옮긴 추천을 되돌립니다">되돌리기</button>`
+            : (st.label === '처리됨' || carried) && !mk ? ''         // 서버가 위치 변화를 확인한 행·이월 행 — 누를 것이 없다
             : mk
             ? `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="undo" data-locrec-key="${k}"${busy ? ' disabled' : ''}>되돌리기</button>`
-            : `<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="done" data-locrec-key="${k}"${busy ? ' disabled' : ''} title="처리함으로 표시하고 데이터 리스트 자리도 추천대로 옮깁니다">처리함</button>`
-              + `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="skip" data-locrec-key="${k}"${busy ? ' disabled' : ''}>안 함</button>`;
+            : `<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="done" data-locrec-key="${k}"${busyMark ? ' disabled' : ''} title="${pending ? escapeHtml(PENDING_TEXT) : '처리함으로 표시하고 데이터 리스트 자리도 추천대로 옮깁니다'}">처리함</button>`
+              + `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="skip" data-locrec-key="${k}"${busyMark ? ' disabled' : ''}${pending ? ` title="${escapeHtml(PENDING_TEXT)}"` : ''}>안 함</button>`;
         const badges = (r.capWarn ? '<span class="badge badge-warn locrec-badge" title="옮길 자리 적재량보다 수량이 많습니다">적재량 확인</span>' : '')
             + (r.pairNear ? `<span class="badge badge-accent locrec-badge" title="함께 잘 팔리는 상품이 옮길 자리와 같은 동에 있습니다">페어 ${escapeHtml(r.pairNear)}</span>` : '')
             // 다시 만든 판에 처음 들어온 행 — 상태 '새로'(오늘 처음 나온 추천)와 헷갈리지 않게 '추가'
@@ -150,10 +159,11 @@ export function mountLocRecTable({ store, sizeOf }) {
             mReqNote.textContent = ru.note || '';
             mReqNote.style.color = ru.tone === 'warn' ? 'var(--c-warn-text, #8A5A00)' : '';
         }
+        // 새 판이 기다리는 중이면 [새로 보기] 전에는 처리 표시를 막는다(옛 판으로 자리를 옮기지 않게)
+        const pd = S.pendingDay && S.pendingDay.key === S.key ? S.pendingDay : null;
         if (mBand) {
-            const pd = S.pendingDay && S.pendingDay.key === S.key ? S.pendingDay : null;
             mBand.hidden = !pd;
-            if (pd) mBandTxt.textContent = `새 추천이 도착했습니다(${fmtHM(pd.data && pd.data.at) || '방금'}) — 처리함/안 함 표시는 그대로 남습니다`;
+            if (pd) mBandTxt.textContent = `새 추천이 도착했습니다(${fmtHM(pd.data && pd.data.at) || '방금'}) — [새로 보기] 후 처리해 주세요`;
         }
         const cnt = tabCounts(loaded ? S.day.parsed : null);                 // 이월 빼고(카드·띠 건수와 같은 기준)
         const cry = tabCarried(loaded ? S.day.parsed : null);
@@ -170,7 +180,9 @@ export function mountLocRecTable({ store, sizeOf }) {
         const bulk = loaded && editable ? bulkDoneKeys(all) : [];
         if (mAll) {
             mAll.hidden = !(loaded && editable);
-            mAll.disabled = !bulk.length || !!S.applying;
+            mAll.disabled = !bulk.length || !!S.applying || !!pd;
+            if (pd) mAll.title = PENDING_TEXT;
+            else if (mAll.title === PENDING_TEXT) mAll.title = ALL_TITLE;
             mAll.textContent = S.applying ? `반영 중 ${S.applying.i}/${S.applying.n}`
                 : bulk.length ? `전체 처리함 (${bulk.length})` : '전체 처리함';
         }
@@ -186,7 +198,7 @@ export function mountLocRecTable({ store, sizeOf }) {
             mTbody.innerHTML = `<tr><td colspan="11" class="refill-empty">${cnt[tab] || cry[tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[tab]} 추천이 없습니다`}</td></tr>`;
             return;
         }
-        mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable)).join('');
+        mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable, !!pd)).join('');
     }
 
     function open() { modal.style.display = 'flex'; render(); }

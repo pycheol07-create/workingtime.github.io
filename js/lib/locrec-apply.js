@@ -12,10 +12,10 @@
 // ⚠️ 돌려주는 실패 정보·문구에는 상품코드·자리 id 만 — 상품명·rawDataStr·공급처 값을 넣지 않는다(로그·alert 로 나간다).
 // import 는 같은 lib 의 sensitive-cols.js(cleanRaw)·multi-loc.js(normLocId)·refill-view.js(dayKey·fmtHM, KST)·loc-recommend.js(isEtcLocObj·kstMidnight) 만.
 
-import { cleanRaw } from './sensitive-cols.js?v=202610301845';
-import { normLocId } from './multi-loc.js?v=202610301845';
-import { dayKey, fmtHM, tsMs } from './refill-view.js?v=202610301845';
-import { isEtcLocObj, kstMidnight } from './loc-recommend.js?v=202610301845';
+import { cleanRaw } from './sensitive-cols.js?v=202611030941';
+import { normLocId } from './multi-loc.js?v=202611030941';
+import { dayKey, fmtHM, tsMs } from './refill-view.js?v=202611030941';
+import { isEtcLocObj, kstMidnight } from './loc-recommend.js?v=202611030941';
 
 export const PRODUCT_FIELDS = ['code', 'name', 'option', 'stock', 'stock2f', 'rawDataStr'];
 export const EMPTY_PRODUCT = Object.freeze({ code: '', name: '', option: '', stock: '0', stock2f: '0', rawDataStr: '{}' });
@@ -55,6 +55,17 @@ export function tagToday(slot, nowMs) {
     if (!slot || !str(slot.codeTag).trim()) return false;
     const at = Number(slot.codeTagAt) || 0;
     return !(at && at < kstMidnight(nowMs));
+}
+
+/** 지정된 빈 자리 — 상품은 아직 없지만 선지정·당일지정(오늘 유효한 codeTag — 당일지정은 예약과 함께 codeTag 를 남긴다)·선지정 표시(preAssigned)가 걸렸거나,
+ *  오늘 변경 추천 [처리함]으로 상품이 들어오기로 한 자리(locRecMove role 'in'). 데이터 리스트 '빈칸' 엑셀에서 뺀다(2026-11-03 사용자 요청 —
+ *  빈칸으로 내보내면 다른 상품을 또 넣는다). 상품이 있는 자리는 false(빈칸이 아니므로 이 판정과 무관). */
+export function isDesignatedEmpty(slot, id, nowMs, todayKey) {
+    if (!isEmptySlot(slot, id)) return false;
+    if (tagToday(slot, nowMs)) return true;
+    if (slot.preAssigned === true) return true;     // reserved 만 남은 칸은 하루 지나도 남을 수 있어 보지 않는다(당일지정은 codeTag 로)
+    const m = slot.locRecMove;
+    return !!(m && typeof m === 'object' && m.role === 'in' && todayKey && str(m.day) === str(todayKey));
 }
 
 /** 추천 행 → 이동 목록 [{code, src, dst}] — 모양이 틀리면 null.
@@ -188,6 +199,12 @@ export function planApply(row, docs, nowMs, opts = {}) {
         if (isEtcSlot(s, sId)) return fail('srcEtc', { loc: sId, code: x.code });
         if (s.preAssigned) return fail('srcPre', { loc: sId, code: x.code });
         const d = x.dst.slot, dId = x.dst.id;
+        // 오늘 변경 추천으로 다른 상품을 넣은 자리 — 옛 판으로 처리한 뒤 새 판의 같은 자리 추천(표시만 하면 안 됨)
+        const lm = d && d.locRecMove;
+        if (!isSwap && lm && typeof lm === 'object' && lm.role === 'in' && str(lm.day) === dayKey(nowMs)
+            && codeAt(d, dId) && str(lm.code) === codeAt(d, dId)) {
+            return fail('dstMovedToday', { loc: dId, code: x.code, other: codeAt(d, dId) });
+        }
         if (!isSwap && !isEmptySlot(d, dId)) return fail('dstUsed', { loc: dId, code: x.code, other: codeAt(d, dId) });
         if (d.preAssigned) return fail('dstPre', { loc: dId, code: x.code });
         if (d.reserved) return fail('dstReserved', { loc: dId, code: x.code });
@@ -288,6 +305,7 @@ const REASON = {
     srcEtc: (f) => `현재 자리 ${f.loc} 가 기타·비축 자리`,
     srcPre: (f) => `현재 자리 ${f.loc} 가 선지정`,
     dstUsed: (f) => `옮길 자리 ${f.loc} 가 사용 중${f.other ? `(${f.other})` : ''}`,
+    dstMovedToday: (f) => `옮길 자리 ${f.loc} 는 오늘 변경 추천으로 ${f.other} 를 넣은 자리 — [지금 재고로 다시 만들기] 뒤 다시 보세요`,
     dstPre: (f) => `옮길 자리 ${f.loc} 가 선지정`,
     dstReserved: (f) => `옮길 자리 ${f.loc} 가 예약 중`,
     dstTag: (f) => `옮길 자리 ${f.loc} 에 오늘 지정 표시`,
@@ -304,6 +322,12 @@ export function reasonText(f) {
     return fn ? fn(f) : '알 수 없는 이유';
 }
 
+/** 반영 못 한 건을 '처리함 표시만' 해도 되는가 — 오늘 변경 추천으로 다른 상품을 넣은 자리(dstMovedToday)는 표시만 하면
+ *  그 추천이 처리된 것처럼 보여 묻지 않는다(다시 만든 뒤 다시 보게) */
+export function markOnlyOk(f) {
+    return !!f && f.reason !== 'dstMovedToday';
+}
+
 /** 한 줄 실패 확인 문구 */
 export function applyFailText(f) {
     return `데이터 리스트에 반영하지 못했습니다(${reasonText(f)}).\n처리함 표시만 할까요?`;
@@ -313,14 +337,17 @@ export function undoFailText(f) {
     if (f && f.reason === 'otherDay') return '반영한 날이 지나 데이터 리스트 자리는 되돌리지 않습니다.\n처리함 표시만 지울까요?';
     return `데이터 리스트가 이미 바뀌어 자리는 되돌리지 않습니다(${reasonText(f)}).\n처리함 표시만 지울까요?`;
 }
-/** [전체 처리함] 끝 요약 — okN = 실제로 자리를 옮긴 건, doneN = 이미 처리됨(다른 사람이 표시·이미 그 자리), fails: [{code, reason…}] */
-export function bulkSummaryText(okN, fails, max = LIST_MAX, doneN = 0) {
+/** [전체 처리함] 끝 요약 — okN = 실제로 자리를 옮긴 건, doneN = 이미 처리됨(다른 사람이 표시·이미 그 자리), fails: [{code, reason…}]
+ *  markN = 그중 '처리함 표시만' 할 수 있는 건(markOnlyOk) — 생략하면 fails 에서 센다. 0 이면 묻지 않고 요약만 */
+export function bulkSummaryText(okN, fails, max = LIST_MAX, doneN = 0, markN) {
     const list = fails || [];
+    const mN = markN == null ? list.filter(markOnlyOk).length : markN;
     const head = `${okN}건 데이터 리스트에 반영${doneN ? `, 이미 처리됨 ${doneN}건` : ''}, ${list.length}건 못 함.`;
     if (!list.length) return head;
     const lines = list.slice(0, max).map(f => `· ${f.code || ''} — ${reasonText(f)}`);
     if (list.length > max) lines.push(`… 외 ${list.length - max}건`);
-    return `${head}\n${lines.join('\n')}\n\n못 한 ${list.length}건도 처리함 표시만 할까요?`;
+    if (!mN) return `${head}\n${lines.join('\n')}`;
+    return `${head}\n${lines.join('\n')}\n\n못 한 ${mN}건도 처리함 표시만 할까요?`;
 }
 
 /** 하루 표시 — 데이터 리스트 배지·도면 표시용. null | {kind:'in'|'out'|'mismatch', text, title} */
