@@ -15,10 +15,10 @@
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다.
 // ⚠️ 요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getHolidayName } from './utils.js?v=202611031006';
-import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=202611031006';
-import { recReqUi } from './lib/locrec-view.js?v=202611031006';
-import { combinedReqUi, confirmText, requestPathOf, laterMs, doneCounts, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=202611031006';
+import { getHolidayName } from './utils.js?v=202611031028';
+import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=202611031028';
+import { recReqUi } from './lib/locrec-view.js?v=202611031028';
+import { combinedReqUi, confirmText, requestPathOf, laterMs, doneCounts, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=202611031028';
 
 const APP = 'artifacts/team-work-logger-v2';
 const REFILL_LATEST = `${APP}/integrations/refillLatest`;
@@ -105,7 +105,7 @@ export function initRebuildBar({ db, auth, getMemberName }) {
         const args = { refill, locrec, ...S.perms };
         const counts = doneCounts({ refillEntry: S.refill && S.refill !== READ_ERR && S.refill.days ? S.refill.days[today] : null,
                                     locrecEntry: S.locrec && S.locrec !== READ_ERR && S.locrec.days ? S.locrec.days[today] : null });
-        return { args, ui: combinedReqUi({ ...args, nowMs: now, counts }), today };
+        return { args, ui: combinedReqUi({ ...args, requestMs, lastDataMs: S.lastDataMs, nowMs: now, counts }), today };
     }
 
     const EMPTY = { show: false, btn: false, enabled: false, label: '', note: '', tick: '', title: '', tone: '', kind: '', bar: '' };
@@ -121,7 +121,7 @@ export function initRebuildBar({ db, auth, getMemberName }) {
         btn.disabled = !ui.enabled || busy;
         if (ui.label) btn.textContent = ui.label;
         btn.title = ui.kind === 'running' ? '지금 다시 만드는 중입니다 — 끝나면 다시 누를 수 있습니다'
-            : ui.kind === 'waiting' ? '대기 중입니다 — 사무실 PC 프로그램이 예정 시각에 자동으로 처리합니다'
+            : ui.kind === 'waiting' ? '대기 중입니다 — 사무실 PC 프로그램이 예정 시각에 자동으로 처리합니다(쉬는 시간에는 변경 추천만 먼저)'
             : '사무실 PC 프로그램이 지금 이지어드민 재고로 채우기 지시서와 변경 추천을 새로 만듭니다(앱에만, 슬랙 없음)';
         if (noteEl) {
             noteEl.hidden = !(ui.show && ui.note);
@@ -147,7 +147,7 @@ export function initRebuildBar({ db, auth, getMemberName }) {
         const { args, ui, today } = state();
         const path = requestPathOf(S.perms);
         if (!ui.enabled || !path) { render(); return; }
-        if (!confirm(confirmText(args))) return;
+        if (!confirm(confirmText({ ...args, nowMs: Date.now() }))) return;
         busy = true; render();
         try {
             await setDoc(doc(db, `${APP}/${path}`), { requestedAt: serverTimestamp(), by: nameOf(), day: today });

@@ -8,10 +8,11 @@
 //   진행: '다시 만드는 중 · 재고 받는 중 (1/3)' + 경과(tick) — 단계는 채우기 req.stage(서버 요청판정.py STAGES),
 //         채우기가 끝났는데 변경 추천만 만드는 중이면 '변경 추천 만드는 중'. 진행 막대는 움직이는 막대(진행률 모름).
 //   대기: '대기 중 — 이지어드민 쉬는 시간이라 10:15 이후 처리' — 막대는 회색 정지.
+//         쉬는 시간에는 변경 추천만 먼저(업로드 재고로) 만든다 — '변경 추천은 다시 만듦(10:03) · 채우기는 10:15 이후'(2026-11-03).
 //   완료: 끝난 뒤 DONE_FLASH_MS 동안 '완료 — 채우기 N칸 · 변경 추천 N건 (HH:MM)'.
 //   진행·대기·완료는 권한 없는 직원에게도 보인다(2026-10-27). 버튼·경고·안내는 권한이 있는 사람만.
 
-import { STAGES, fmtHM } from './refill-view.js?v=202611031006';
+import { STAGES, fmtHM, quietResume } from './refill-view.js?v=202611031028';
 
 export { STAGES };
 export const DONE_FLASH_MS = 60 * 1000;      // 완료 문구를 보여 주는 시간
@@ -56,7 +57,10 @@ export function doneCounts({ refillEntry, locrecEntry } = {}) {
 /**
  * 두 쪽 상태 → 머리줄 { show, btn, enabled, label, note, tick, title, tone('' | accent | warn), kind, bar }
  *   refill / locrec = reqUi · recReqUi 결과(못 읽었으면 null) · canRefill / canLocrec = 권한
- *   nowMs = 지금 · counts = doneCounts 결과(완료 문구)
+ *   nowMs = 지금 · counts = doneCounts 결과(완료 문구) · requestMs·lastDataMs = 요청(늦은 쪽)·재고 업로드 시각(ms)
+ *   채우기만 대기(쉬는 시간 등)이고 변경 추천은 먼저 만들 때: 진행이면 '… · 채우기는 10:15 이후',
+ *   변경 추천이 요청 대기(pending)면 '변경 추천은 곧 다시 만듦 · 채우기는 …', 이 요청·업로드 뒤에 끝났으면
+ *   '변경 추천은 다시 만듦(10:03) · 채우기는 …'(대기 막대). 그 밖은 채우기 대기 문구 그대로.
  *   kind: running | waiting | warn | done | info | ''  ·  bar: run(움직이는 막대) | wait(회색 정지) | done | ''
  *   note = 요약 한 줄(진행이면 단계까지) · tick = 진행 경과('2분 10초', 진행일 때만) · title = 두 쪽 세부 문구(줄바꿈)
  *   진행·대기·완료는 권한과 상관없이 두 쪽(읽은 쪽)을 모두 보고 누구에게나 보인다(2026-10-27 — 누른 사람 화면에만 보이던 것).
@@ -65,7 +69,7 @@ export function doneCounts({ refillEntry, locrecEntry } = {}) {
  *   켬: 권한 있는 쪽 중 하나라도 다시 만들 수 있고, 진행·대기 중이 아닐 때.
  *   우선순위: 진행 > 대기 > 경고(실패·멈춤·PC 꺼짐) > 완료(DONE_FLASH_MS 안) > 안내(첫 문구 — 두 쪽이면 '채우기: …').
  */
-export function combinedReqUi({ refill, locrec, canRefill, canLocrec, nowMs = Date.now(), counts = {} }) {
+export function combinedReqUi({ refill, locrec, canRefill, canLocrec, nowMs = Date.now(), counts = {}, requestMs = 0, lastDataMs = 0 }) {
     const label = REBUILD_LABEL;
     const btn = !!(canRefill || canLocrec);
     const out = (o) => ({ show: true, btn, enabled: false, label, note: '', tick: '', title: '', tone: '', kind: '', bar: '', ...o });
@@ -85,6 +89,8 @@ export function combinedReqUi({ refill, locrec, canRefill, canLocrec, nowMs = Da
     const enabled = shown.some(([, u]) => u.enabled);
     const pickSeen = (fn) => seen.find(([, u]) => fn(u));
     const pick = (fn) => shown.find(([, u]) => fn(u));
+    const rw = !!(refill && refill.show && refill.phase === 'waiting');        // 채우기만 대기(쉬는 시간 등)
+    const later = rw && refill.waitUntil ? `${fmtHM(refill.waitUntil)} 이후` : '대기 중';
 
     // 1) 진행 — 채우기 단계가 있으면 그것(n/3), 변경 추천만 만드는 중이면 그 단계
     const run = pickSeen(u => u.phase === 'running');
@@ -95,7 +101,18 @@ export function combinedReqUi({ refill, locrec, canRefill, canLocrec, nowMs = Da
         if (k === 'refill' && i >= 0) step = `${u.stage} (${i + 1}/${STAGES.length})`;
         else if (k === 'locrec') step = STAGES[2];
         const tick = u.startedMs ? fmtDur(Math.max(0, nowMs - u.startedMs)) : '';
-        return out({ note: ['다시 만드는 중', step].filter(Boolean).join(' · '), tick, title, tone: 'accent', kind: 'running', bar: 'run' });
+        const tail = k === 'locrec' && rw ? `채우기는 ${later}` : '';
+        return out({ note: ['다시 만드는 중', step, tail].filter(Boolean).join(' · '), tick, title, tone: 'accent', kind: 'running', bar: 'run' });
+    }
+    // 2-1) 채우기만 대기 — 변경 추천은 먼저(쉬는 시간에도 업로드 재고로) 만든다
+    if (rw && locrec && locrec.show) {
+        const ref = laterMs(requestMs, lastDataMs);
+        if (locrec.phase === 'pending' && locrec.reqOk !== false) {
+            return out({ note: `변경 추천은 곧 다시 만듦 · 채우기는 ${later}`, title, kind: 'waiting', bar: 'wait' });
+        }
+        if (ref > 0 && locrec.doneMs && locrec.doneMs >= ref) {
+            return out({ note: `변경 추천은 다시 만듦(${fmtHM(locrec.doneMs)}) · 채우기는 ${later}`, title, kind: 'waiting', bar: 'wait' });
+        }
     }
     // 2) 대기 — 막대는 회색 정지
     const wait = pickSeen(u => u.phase === 'waiting');
@@ -124,13 +141,20 @@ export function combinedReqUi({ refill, locrec, canRefill, canLocrec, nowMs = Da
     return out({ enabled, title });
 }
 
-/** 확인창 문구 — 다시 만들어질 쪽만 적는다 */
-export function confirmText({ refill, locrec, canRefill, canLocrec }) {
+/** 확인창 문구 — 다시 만들어질 쪽만 적는다. nowMs 가 이지어드민 쉬는 시간이면 첫 줄을 쉬는 시간 안내로 */
+export function confirmText({ refill, locrec, canRefill, canLocrec, nowMs = 0 }) {
     const on = [];
     if (canRefill && refill && refill.enabled) on.push('채우기 지시서');
     if (canLocrec && locrec && locrec.enabled) on.push('변경 추천');
     const list = on.length ? on : ['채우기 지시서', '변경 추천'];
     const what = list.join('와 ') + (list[list.length - 1] === '변경 추천' ? '을' : '를');
-    return `사무실 PC 자동화 프로그램이 지금 이지어드민 재고로 ${what} 새로 만듭니다.\n`
+    const qr = quietResume(nowMs);
+    // 쉬는 시간 안내도 실제로 다시 만들어질 쪽(list)만 — 한도에 걸린 쪽을 '만든다'고 쓰지 않게
+    const qparts = [];
+    if (list.includes('변경 추천')) qparts.push('변경 추천은 업로드 재고로 바로');
+    if (list.includes('채우기 지시서')) qparts.push(`채우기 지시서는 ${fmtHM(qr)} 이후`);
+    const head = qr ? `지금은 이지어드민 쉬는 시간이라 ${qparts.join(', ')} 새로 만듭니다.\n`
+        : `사무실 PC 자동화 프로그램이 지금 이지어드민 재고로 ${what} 새로 만듭니다.\n`;
+    return head
         + '처리함/완료 표시는 그대로 남고, 슬랙에는 다시 보내지 않습니다(앱에서만 바뀝니다). 보통 5~10분 걸립니다.\n\n다시 만들까요?';
 }

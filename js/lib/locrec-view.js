@@ -31,8 +31,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611031006';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611031006';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611031028';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611031028';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -740,16 +740,18 @@ export function recReqUi({ req, requestMs, nowMs, isToday, entry, lastDataMs, st
         return res(false, r.source === 'auto' ? '재고 자료가 새로 올라와 자동으로 다시 만드는 중… (보통 3~6분)' : '다시 만드는 중… (보통 3~6분)', 'accent',
             { phase: 'running', stage: typeof r.stage === 'string' ? r.stage : '', startedMs: tsMs(r.startedAt) || atMs });
     }
-    // 2) 대기 — 서버가 남긴 사유, 서버 상태가 아직 없으면 화면이 계산(쉬는 시간·올린 직후) — refill-view.js waitInfo
+    // 2) 대기 — 서버가 남긴 사유, 서버 상태가 아직 없으면 화면이 계산(올린 직후) — refill-view.js waitInfo
+    //    쉬는 시간은 화면이 계산하지 않는다(quiet: false) — 서버가 채우기경유로 쉬는 시간에도 업로드 재고로 바로 만든다
     const pending = requestMs > 0 && requestMs > lastMs;
     const count = sameDay ? intOr(r.count, 0) : 0;
     const started = sameDay ? tsMs(r.startedAt) : 0;
     const failedLast = r.state === 'failed' || r.lastRun === 'failed';
     const cooling = !!started && nowMs - started < cool && !failedLast;
-    const w = waitInfo({ r, sameDay, nowMs, pending, autoPending, dataMs, cooling, reqOk: count < max });
+    const w = waitInfo({ r, sameDay, nowMs, pending, autoPending, dataMs, cooling, reqOk: count < max, quiet: false });
     if (w) return res(false, `대기 중 — ${w.note}`, '', { phase: 'waiting', waitUntil: w.until });
     if (pending && nowMs - requestMs < REQ_PENDING_MS) {
-        return res(false, '요청함 — 처리 대기 중 (이 PC 프로그램이 5분마다 확인)', 'accent', { phase: 'pending' });
+        // reqOk: 한도 안인가 — 머리줄 '변경 추천은 곧 다시 만듦'은 한도 안일 때만(rebuild-view.js 2-1)
+        return res(false, '요청함 — 처리 대기 중 (이 PC 프로그램이 5분마다 확인)', 'accent', { phase: 'pending', reqOk: count < max });
     }
     const k = kstParts(nowMs);
     const hm = k.hh * 60 + k.mm;

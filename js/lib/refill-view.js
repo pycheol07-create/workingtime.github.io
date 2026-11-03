@@ -74,8 +74,10 @@ export const waitSettleNote = (ms) => `재고를 올린 직후라 ${fmtHM(ms)} �
  *   1) 서버가 쓴 waiting(같은 날 · 그 대상(요청/자동)이 아직 남아 있음 · 예정 시각 전, 예정 시각이 없으면 쓴 지 1시간 안)
  *      예정 시각이 지난 대기는 무시한다(지난 사유가 남지 않게 — 그 뒤는 아래 규칙·간격 문구로)
  *   2) 서버 상태가 아직 없으면 화면이 계산 — 쉬는 시간(재고 받기 10분이 걸려도) · 자동은 올린 직후 3분
+ *   quiet = false 면 2)의 쉬는 시간 계산을 건너뛴다(서버가 쓴 waiting 은 그대로) — 변경 추천은 채우기경유로
+ *   쉬는 시간에도 기다리지 않고 업로드 재고로 바로 만든다(locrec-view.js recReqUi, 2026-11-03)
  */
-export function waitInfo({ r, sameDay, nowMs, pending, autoPending, dataMs = 0, cooling = false, reqOk = true }) {
+export function waitInfo({ r, sameDay, nowMs, pending, autoPending, dataMs = 0, cooling = false, reqOk = true, quiet = true }) {
     const q = r || {};
     if (q.state === 'waiting' && sameDay && q.note) {
         const forReq = q.source !== 'auto';
@@ -90,7 +92,7 @@ export function waitInfo({ r, sameDay, nowMs, pending, autoPending, dataMs = 0, 
     if (hm < REQ_OPEN_MIN || hm >= REQ_CLOSE_H * 60) return null;
     const reqWait = pending && reqOk && !cooling;
     if (!reqWait && !(autoPending && !pending && !cooling)) return null;
-    const qr = quietResume(nowMs);
+    const qr = quiet ? quietResume(nowMs) : 0;
     if (qr) return { note: waitQuietNote(qr), until: qr, from: 'screen' };
     const settle = tsMs(dataMs) + AUTO_SETTLE_MIN * 60 * 1000;
     if (!pending && autoPending && nowMs < settle) return { note: waitSettleNote(settle), until: settle, from: 'screen' };
