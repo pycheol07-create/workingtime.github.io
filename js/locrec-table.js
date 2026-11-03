@@ -14,11 +14,11 @@
 //   같은 상품을 오늘 다른 추천으로 옮긴 줄(st.other)은 '○○(으)로 처리 · 이름 HH:MM' + 그 추천의 [되돌리기].
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202611031001';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611031001';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611031001';
-import { higherOpenThan } from './modal-above.js?v=202611031001';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611031001';
+import { escapeHtml } from './utils.js?v=202611031005';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611031005';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611031005';
+import { higherOpenThan } from './modal-above.js?v=202611031005';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611031005';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -109,7 +109,7 @@ export function mountLocRecTable({ store, sizeOf }) {
         const tk = st.taken || null;                                         // 옮길 자리에 오늘 다른 상품을 넣음 — 처리 불가
         // 자리 겹침 — 안내를 띄우되 [처리함]은 남긴다(최종 판정은 저장 트랜잭션이 지금 자리 상태로 한다: 엑셀로 자리가 다시 비었으면 통과)
         const takenNote = tk && !mk
-            ? `<div class="locrec-who" style="color:var(--c-warn-text,#b45309)">${escapeHtml(`${tk.dst} 에 오늘 ${tk.code} 를 넣었습니다 — 머리줄 [지금 재고로 다시 만들기]를 누르면 새 자리로 추천합니다`)}</div>`
+            ? `<div class="locrec-who" style="color:var(--c-warn-text,#b45309); white-space:normal;">${escapeHtml(`${tk.dst} 에 오늘 ${tk.code} 를 넣었습니다 — 머리줄 [지금 재고로 다시 만들기]를 누르면 새 자리로 추천합니다`)}</div>`
             : '';
         const btns = ot && !mk
             ? `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="undo" data-locrec-key="${escapeHtml(ot.recKey)}"${otBusy ? ' disabled' : ''} title="오늘 ${escapeHtml(ot.code)} 를 옮긴 추천을 되돌립니다">되돌리기</button>`
@@ -117,8 +117,7 @@ export function mountLocRecTable({ store, sizeOf }) {
             : mk
             ? `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="undo" data-locrec-key="${k}"${busy ? ' disabled' : ''}>되돌리기</button>`
             : `<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="done" data-locrec-key="${k}"${busyMark ? ' disabled' : ''} title="${pending ? escapeHtml(PENDING_TEXT) : '처리함으로 표시하고 데이터 리스트 자리도 추천대로 옮깁니다'}">처리함</button>`
-              + `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="skip" data-locrec-key="${k}"${busyMark ? ' disabled' : ''}${pending ? ` title="${escapeHtml(PENDING_TEXT)}"` : ''}>안 함</button>`
-              + takenNote;
+              + `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="skip" data-locrec-key="${k}"${busyMark ? ' disabled' : ''}${pending ? ` title="${escapeHtml(PENDING_TEXT)}"` : ''}>안 함</button>`;
         const badges = (r.capWarn ? '<span class="badge badge-warn locrec-badge" title="옮길 자리 적재량보다 수량이 많습니다">적재량 확인</span>' : '')
             + (r.pairNear ? `<span class="badge badge-accent locrec-badge" title="함께 잘 팔리는 상품이 옮길 자리와 같은 동에 있습니다">페어 ${escapeHtml(r.pairNear)}</span>` : '')
             // 다시 만든 판에 처음 들어온 행 — 상태 '새로'(오늘 처음 나온 추천)와 헷갈리지 않게 '추가'
@@ -138,7 +137,8 @@ export function mountLocRecTable({ store, sizeOf }) {
             const toTitle = moved && ot.dst !== l.to ? ` title="${escapeHtml(`처리한 자리 — 나중에 다시 만든 추천은 ${l.to}`)}"` : '';
             const cells = `<td class="locrec-pcode"><a class="locrec-code" href="location.html?q=${encodeURIComponent(l.code || '')}#tab=list" data-locrec-code="${escapeHtml(l.code)}" title="데이터 리스트에서 이 상품 보기">${escapeHtml(l.code)}</a></td>`
                 + `<td class="locrec-prod">${nameCell(l.name, l.option)}`
-                + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
+                + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '')
+                + (last ? takenNote : '') + '</td>'                              // 자리 겹침 안내는 상품 칸 아래(버튼 칸에 두면 칸이 넓어져 상태 칸이 찌그러진다)
                 + `<td class="locrec-loc locrec-from">${escapeHtml(fromTxt)}</td>`
                 + `<td class="locrec-loc"${toTitle}><b class="locrec-to">${escapeHtml(toTxt)}</b></td>`
                 + qtyCell(l)
