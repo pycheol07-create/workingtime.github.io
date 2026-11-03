@@ -31,8 +31,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611030948';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611030948';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611030959';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611030959';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -350,6 +350,8 @@ export function dataLine(latest) {
 export const PENDING_TEXT = '새 추천이 도착했습니다 — [새로 보기] 후 처리해 주세요';
 /** 같은 상품을 오늘 다른 추천(옛 판 등)으로 이미 옮긴 줄의 상태 */
 export const OTHER_MOVED_LABEL = '오늘 처리함(다른 자리로)';
+/** 옮길 자리에 오늘 다른 상품을 [처리함]으로 넣은 줄 — 처리할 수 없다(다시 만들면 새 자리로). 2026-11-03 두 상품이 같은 자리로 겹친 사고 */
+export const DST_TAKEN_LABEL = '자리 겹침';
 
 /**
  * 판 식별자 — 날짜 문서를 쓴 서버 시각(at) 우선, 없으면 rev. 문서가 없으면 ''.
@@ -417,6 +419,16 @@ export function rowState({ row, open, mark, viewDay, todayKey, nowMs, moved }) {
         if (hit) {
             return { label: OTHER_MOVED_LABEL, tone: 'muted', hidden: false, mark: null,
                      other: { recKey: hit.recKey, code: hit.code, dst: hit.dst, by: hit.by, at: hit.at } };
+        }
+        // 옮길 자리(단독·페어의 to·to2 — 맞바꾸기는 서로의 자리라 제외)에 오늘 다른 상품을 넣었으면 '자리 겹침'
+        if (row.type !== 'swap') {
+            const mine = new Set([row.code, row.code2].filter(Boolean).map(c => str(c)));
+            const dsts = [row.to, row.type === 'pair' ? row.to2 : null].filter(Boolean).map(d => str(d).trim());
+            for (const x of moved.values()) {
+                if (!mine.has(x.code) && dsts.includes(str(x.dst).trim())) {
+                    return { label: DST_TAKEN_LABEL, tone: 'warn', hidden: false, mark: null, taken: { dst: x.dst, code: x.code } };
+                }
+            }
         }
     }
     if (o && (o.state === 'partial' || o.state === 'progress')) return { label: '진행 중', tone: 'warn', hidden: false, mark: m };
@@ -487,7 +499,7 @@ export function stripRows({ latest, key, todayKey, parsed, marks, nowMs }) {
     TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
         if (r.carried) return;                                     // 이월 행은 건수·엑셀에서 뺀다
         const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs, moved });
-        if (!st.hidden && !st.other) out.push({ r, st });
+        if (!st.hidden && !st.other && !st.taken) out.push({ r, st });
     }));
     return out;
 }
@@ -545,7 +557,7 @@ export function recCount({ latest, key, todayKey, parsed, marks, nowMs }) {
     TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
         // 이월 행은 moved 없이(지금처럼) — 진행 중 이월 행이 '다른 자리로' 로 바뀌어 빠지지 않게
         const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs, moved: r.carried ? null : moved });
-        if (!r.carried) { if (st.other) carriedN++; return; }
+        if (!r.carried) { if (st.other || st.taken) carriedN++; return; }   // 자리 겹침도 옮길 일 하나(다시 만들면 새 자리) — 업무 예상 건수 유지
         if (!st.hidden && CARRIED_WORK_LABELS.has(st.label)) carriedN++;
     }));
     return stripRows({ latest, key, todayKey, parsed, marks, nowMs }).length + carriedN;
@@ -602,7 +614,7 @@ export function tabSummary({ latest, key, todayKey, parsed, marks, nowMs }) {
     TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
         if (r.carried) return;                                     // 이월 행은 요약에서 뺀다
         const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs, moved });
-        if (st.other) return;                                      // 오늘 다른 추천으로 옮긴 상품 — 띠 건수와 같게 뺀다
+        if (st.other || st.taken) return;                          // 오늘 다른 추천으로 옮긴 상품·자리 겹침 — 띠 건수와 같게 뺀다
         if (st.hidden) { hiddenN++; return; }
         counts[t]++;
         if (st.label === '새로') newN++;
@@ -616,7 +628,7 @@ export function tabSummary({ latest, key, todayKey, parsed, marks, nowMs }) {
  *   · 오늘 다른 추천으로 이미 옮긴 상품(OTHER_MOVED_LABEL).
  */
 export function bulkDoneKeys(items) {
-    const skip = new Set(['처리됨', '만료', '자리 바뀜', OTHER_MOVED_LABEL]);
+    const skip = new Set(['처리됨', '만료', '자리 바뀜', OTHER_MOVED_LABEL, DST_TAKEN_LABEL]);
     return (Array.isArray(items) ? items : [])
         .filter(x => x && x.r && x.r.recKey && !x.r.carried && x.st && !x.st.hidden && !x.st.mark && !skip.has(x.st.label))
         .map(x => x.r.recKey);

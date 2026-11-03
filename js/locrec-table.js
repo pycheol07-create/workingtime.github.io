@@ -14,11 +14,11 @@
 //   같은 상품을 오늘 다른 추천으로 옮긴 줄(st.other)은 '○○(으)로 처리 · 이름 HH:MM' + 그 추천의 [되돌리기].
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202611030948';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611030948';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611030948';
-import { higherOpenThan } from './modal-above.js?v=202611030948';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611030948';
+import { escapeHtml } from './utils.js?v=202611030959';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611030959';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611030959';
+import { higherOpenThan } from './modal-above.js?v=202611030959';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611030959';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -106,7 +106,10 @@ export function mountLocRecTable({ store, sizeOf }) {
         const stLabel = ot && !mk ? '처리함 표시' : st.label;
         const carried = r.carried === true;                                   // 이월 행 — 지금 기준 추천에서 빠짐
         const otBusy = S.saving.has(ot && ot.recKey) || !!S.applying || !editable;
-        const btns = ot && !mk
+        const tk = st.taken || null;                                         // 옮길 자리에 오늘 다른 상품을 넣음 — 처리 불가
+        const btns = tk && !mk
+            ? `<div class="locrec-who" style="color:var(--c-warn-text,#b45309)">${escapeHtml(`${tk.dst} 에 오늘 ${tk.code} 를 넣었습니다 — 머리줄 [지금 재고로 다시 만들기]를 누르면 새 자리로 추천합니다`)}</div>`
+            : ot && !mk
             ? `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="undo" data-locrec-key="${escapeHtml(ot.recKey)}"${otBusy ? ' disabled' : ''} title="오늘 ${escapeHtml(ot.code)} 를 옮긴 추천을 되돌립니다">되돌리기</button>`
             : (st.label === '처리됨' || carried) && !mk ? ''         // 서버가 위치 변화를 확인한 행·이월 행 — 누를 것이 없다
             : mk

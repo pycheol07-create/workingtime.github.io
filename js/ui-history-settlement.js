@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202611030948';
-import { LEAVE_TYPES } from './state.js?v=202611030948';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202611030948';
+import * as State from './state.js?v=202611030959';
+import { LEAVE_TYPES } from './state.js?v=202611030959';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202611030959';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611030948';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611030948';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611030959';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611030959';
 
 import {
     calculateReportKPIs,
@@ -19,12 +19,12 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202611030948';
+} from './ui-history-reports-logic.js?v=202611030959';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202611030948';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611030948';
-import { D } from './d-chart.js?v=202611030948';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611030948';
+import { aggregateManagementData } from './ui-history-management.js?v=202611030959';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611030959';
+import { D } from './d-chart.js?v=202611030959';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611030959';
 
 // ============================================================
 // 모듈 상태
