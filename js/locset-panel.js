@@ -25,14 +25,14 @@
 // 원문 문자열은 textContent 로만 넣는다.
 
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611031140';
-import { canFeature, currentPerm } from './feature-gate.js?v=202611031140';
-import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611031140';
-import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611031140';
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611031219';
+import { canFeature, currentPerm } from './feature-gate.js?v=202611031219';
+import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611031219';
+import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611031219';
 import {
     cardLabel, parseExcludeText, boardFrom, applyCards, whereIs, excludedCards, placeCard, cardMoves, moveCard,
     toggleExclude, addRow, deleteRow, moveRow, setExclude, setU, boardSignature, boardToSave
-} from './lib/loc-card-board.js?v=202611031140';
+} from './lib/loc-card-board.js?v=202611031219';
 
 const PANE = 'recommend';
 const INFO_PATH = ['Locations', 'INFO_CONFIG'];
@@ -246,6 +246,7 @@ function 보드그리기() {
     const add = $('lrs-card-addrow');
     if (add) add.disabled = !고침;
     document.querySelectorAll('#lrs-card-auto [data-auto]').forEach(b => { b.disabled = !고침; });
+    자동정렬표시();
     const u = $('lrs-card-u');
     if (u) { if (document.activeElement !== u) u.value = String(보드.U); u.disabled = !고침; }
     const ex = $('lrs-exclude-input');
@@ -281,6 +282,29 @@ function 제외미리보기() {
 }
 
 const 자동정렬이름 = { distance: '④ 출발점 거리 순', 'dong-first': '② 동 우선', 'line-first': '③ 라인 우선', 'dong-group': '① 지금과 같게' };
+
+// 지금 보드가 어느 자동 정렬과 같은지 — 같은 버튼을 채워 표시(줄·동 1칸 값·제외까지 같을 때). 하나도 아니면 '직접 조정함'
+function 자동정렬표시() {
+    const now = $('lrs-card-auto-now');
+    const combos = Object.keys(칸수 || {});
+    let hit = '';
+    if (보드 && combos.length) {
+        const mine = boardSignature(보드, []);
+        for (const preset of Object.keys(자동정렬이름)) {
+            try {
+                const cards = autoSort(combos, preset, { priorities: { ...(기준우선순위 || {}), excludeCombos: 보드.exclude }, layout: CARD_LAYOUT });
+                if (boardSignature(applyCards(보드, cards), []) === mine) { hit = preset; break; }
+            } catch (e) { /* 이 정렬은 못 만듦 — 표시만 건너뜀 */ }
+        }
+    }
+    document.querySelectorAll('#lrs-card-auto [data-auto]').forEach(b => {
+        const on = b.dataset.auto === hit;
+        b.classList.toggle('btn-primary', on);
+        b.classList.toggle('btn-secondary', !on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    if (now) now.textContent = !보드 || !combos.length ? '' : hit ? `지금 배치: ${자동정렬이름[hit]}` : '지금 배치: 직접 조정함';
+}
 
 function 자동정렬(preset) {
     if (!canSettings() || !보드) return;
