@@ -1,9 +1,15 @@
 // === js/locset-panel.js ===
 // 로케이션관리 환경설정 '추천·채우기' 탭 (2026-10-27 — 옛 '추천·입고' 탭 + 관리자 페이지 '채우기 설정' 탭(옛 js/admin-refill.js)을 합침).
-// location.js 가 initLocSetPanel({ db, auth }) 로 부른다(Firebase 를 여기서 초기화하지 않는다 — 두 번 만들면 duplicate-app).
+// location.js 가 initLocSetPanel({ db, auth, combosOf }) 로 부른다(Firebase 를 여기서 초기화하지 않는다 — 두 번 만들면 duplicate-app).
+//   combosOf() = 지금 로케이션 자료의 피킹 자리(기타 아님) 카드 이름('A-1' 조합) → 칸 수.
 //
 // ① 변경 추천 설정 — [변경 추천 설정 저장] = window.saveLocRecSettings (js/lib/location-guard-map.js 가 location.settings 로 감싼다)
-//    · 동선 기준: Locations/INFO_CONFIG.recommendPriorities (구역 순위·동/위치 순서·제외 구역). 화면 입고대기 추천 자리도 이 기준을 쓴다.
+//    · 동선 기준: Locations/INFO_CONFIG.recommendPriorities. 화면 입고대기 추천 자리도 이 기준을 쓴다.
+//      2026-11-03 '구역-동 카드' 순서 화면 — 저장 { poses, excludeCombos, cards{v,order,level,rowsPerDong} } (merge).
+//      zones·dongs 는 쓰지 않는다 — 카드 저장 전 옛 방식 값이 그대로 남아 [옛 방식으로] 되돌리기의 값이 된다.
+//      화면 상태 ↔ 저장 모양·'바뀜' 서명은 js/lib/loc-card-board.js, 검사·사본·자동 정렬은 js/lib/loc-cards.js.
+//      카드 칸이 없으면(옛 방식) 지금 설정을 legacyToCards 로 보여 주고, 그대로 저장하면 카드 방식으로 바뀐다(확인창).
+//      [옛 방식으로] = window.resetLocCardOrder — cards 칸만 deleteField(location.settings 로 감쌈). 남은 zones·dongs·poses·제외로 계산.
 //    · 추천 양: Locations/INFO_CONFIG.locRecSettings { maxRows, weeklyMoves, minGain, updatedAt } — 범위는 js/lib/locrec-settings.js LIMITS.
 //      서버 앱\로케이션추천 이 다음 추천(06:40 또는 [지금 재고로 다시 만들기])부터 쓴다. 규칙: INFO_CONFIG 새 키는 location.settings(규칙 변경 없음).
 //      저장하는 사람 이메일은 넣지 않는다(INFO_CONFIG 는 직원 누구나 읽는다).
@@ -18,10 +24,15 @@
 // 탭을 열 때마다 읽는다(getDoc). 저장 안 한 변경은 ①·② 를 따로 센다 — 다른 탭으로 가거나 창을 닫거나 페이지를 떠날 때 묻는다.
 // 원문 문자열은 textContent 로만 넣는다.
 
-import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611031028';
-import { canFeature, currentPerm } from './feature-gate.js?v=202611031028';
-import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611031028';
+import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611031129';
+import { canFeature, currentPerm } from './feature-gate.js?v=202611031129';
+import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611031129';
+import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611031129';
+import {
+    cardLabel, parseExcludeText, boardFrom, applyCards, whereIs, excludedCards, placeCard, cardMoves, moveCard,
+    toggleExclude, addRow, deleteRow, moveRow, setExclude, setU, boardSignature, boardToSave
+} from './lib/loc-card-board.js?v=202611031129';
 
 const PANE = 'recommend';
 const INFO_PATH = ['Locations', 'INFO_CONFIG'];
@@ -29,7 +40,6 @@ const LATEST_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'locRec
 const REFILL_LATEST_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'refillLatest'];
 const REFILL_PATH = ['adminPrivate', 'refillSettings'];
 const 채우기기본값 = Object.freeze({ enabled: true, days: [0, 1, 2, 3, 4], skipHolidays: true });
-const ALPHABETS = ['★', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 const 기본우선순위 = Object.freeze({
     zones: { 0: ['★'], 1: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'], 2: ['Z'], 3: ['L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'] },
     dongs: ['★', '1', '2', '3', '4', '5', '6'], poses: ['★', '2', '3', '4', '1', '5'], excludeCombos: []
@@ -48,6 +58,19 @@ let 채우기불러옴 = false;
 let 채우기관리자 = false;    // 지금 채우기 칸이 관리자 문서(adminPrivate)를 보여 주는가
 let 읽는중 = 0;             // 탭을 빠르게 다시 열면 늦게 온 옛 응답을 버린다
 let 서버값 = null;          // locRecLatest.settings
+let combosOf = null;        // location.js 가 넘긴 () => { 카드 이름: 칸 수 }
+// 동선 기준 카드 화면 상태
+let 보드 = null;            // js/lib/loc-card-board.js 보드
+let 칸수 = {};              // 카드 이름 → 칸 수(탭을 열 때 읽음)
+let 보드원본 = null;       // 불러온 때 보드 — 제외만 바꿨는지 가린다
+let 옛칸있음 = true;       // 문서에 zones·dongs 가 있는가(없으면 저장 때 기본값을 같이 넣는다 — 서버 옛 방식 계산이 비지 않게)
+let 보드기준위치 = [];     // 불러온 때 위치 순서 — 옛 방식에서 카드를 건드렸는지(위치만 바꾼 것과 구분)
+let 저장방식 = 'legacy';    // 저장값 기준 지금 계산 방식 'cards' | 'legacy'
+let 카드오류 = [];          // 저장된 cards 칸이 검사에 걸린 이유(있으면 서버도 옛 방식)
+let 기준우선순위 = null;    // 불러온 recommendPriorities(자동 정렬 ①·거리 순의 동 순서용)
+let 보드기준 = '';          // 불러온(또는 저장한) 때 서명
+let 고른카드 = null;
+let 끄는카드 = null;
 
 function 상태(id, 글, 종류 = 'info') {
     const box = $(id);
@@ -65,7 +88,9 @@ const 지금보임 = () => {
     return !!(m && p && m.style.display !== 'none' && m.style.display !== '' && p.classList.contains('is-on'));
 };
 
-// ── ① 동선 기준(구역 퍼즐·동/위치 줄세우기·제외 구역) — 끌기는 location.js 의 handleDrag*·handleDrop 을 쓴다 ──
+// ── ① 동선 기준(구역-동 카드 순서·위치 순서·제외) ──
+// 카드 끌기는 여기서 처리한다(카드 글자에 칸 수가 붙어 location.js handleDrop 의 글자 찾기가 맞지 않음).
+// 위치 순서 줄세우기만 location.js 의 handleDragStart·handleSortDragOver 를 쓴다.
 function 블록(text, cls, 끌기) {
     const b = document.createElement('div');
     b.className = cls;
@@ -75,45 +100,178 @@ function 블록(text, cls, 끌기) {
     return b;
 }
 
-function 우선순위그리기(p) {
-    const src = p && typeof p === 'object' ? p : 기본우선순위;
-    const zones = src.zones || {};
-    const 끌기 = canSettings();
-    for (let i = 0; i <= 3; i++) { const el = $(`lrs-pz-${i}`); if (el) el.replaceChildren(); }
-    const none = $('lrs-pz-none');
-    if (none) none.replaceChildren();
-    ALPHABETS.forEach(a => {
-        let rank = -1;
-        for (let i = 0; i <= 3; i++) { if (Array.isArray(zones[i]) && zones[i].includes(a)) { rank = i; break; } }
-        const target = rank >= 0 ? $(`lrs-pz-${rank}`) : none;
-        if (target) target.appendChild(블록(a, 'puzzle-block', 끌기));
-    });
-    const 줄 = (id, items, defaults) => {
-        const box = $(id);
-        if (!box) return;
-        box.replaceChildren();
-        // 저장된 순서에 ★ 가 없으면 맨 앞에(예전 화면·서버 입력.priorities_of 와 같게) — 기본값과 합치며 ★ 가 꼴찌로 가지 않게
-        let saved = Array.isArray(items) ? items.map(String) : [];
-        if (saved.length && !saved.includes('★')) saved = ['★', ...saved];
-        [...new Set([...saved, ...defaults])]
-            .forEach(x => box.appendChild(블록(x, 'puzzle-sort-block', 끌기)));
-    };
-    줄('lrs-sort-dongs', src.dongs, ['★', '1', '2', '3', '4', '5', '6']);
-    줄('lrs-sort-poses', src.poses, ['★', '1', '2', '3', '4', '5']);
-    const ex = $('lrs-exclude-input');
-    if (ex) { ex.value = (Array.isArray(src.excludeCombos) ? src.excludeCombos : []).join(', '); ex.disabled = !끌기; }
-    제외미리보기();
+const 자료있음 = () => Object.keys(칸수).length > 0;
+
+function 칸수읽기() {
+    try {
+        const c = typeof combosOf === 'function' ? combosOf() : null;
+        return c && typeof c === 'object' ? c : {};
+    } catch (e) {
+        console.warn('[추천·채우기] 로케이션 카드 칸 수 읽기 실패:', e);
+        return {};
+    }
 }
 
-function 제외목록() {
+function 위치줄그리기(poses) {
+    const box = $('lrs-sort-poses');
+    if (!box) return;
+    box.replaceChildren();
+    // 저장된 순서에 ★ 가 없으면 맨 앞에(예전 화면·서버 입력.priorities_of 와 같게) — 기본값과 합치며 ★ 가 꼴찌로 가지 않게
+    let saved = Array.isArray(poses) ? poses.map(String) : [];
+    if (saved.length && !saved.includes('★')) saved = ['★', ...saved];
+    [...new Set([...saved, '★', '1', '2', '3', '4', '5'])]
+        .forEach(x => box.appendChild(블록(x, 'puzzle-sort-block', canSettings())));
+}
+
+const 위치읽기 = () => [...(($('lrs-sort-poses') && $('lrs-sort-poses').querySelectorAll('.puzzle-sort-block')) || [])].map(b => b.textContent.trim());
+
+function 우선순위그리기(p) {
+    const src = p && typeof p === 'object' ? p : 기본우선순위;
+    기준우선순위 = src;
+    옛칸있음 = !!(p && typeof p === 'object' && p.zones && typeof p.zones === 'object' && Array.isArray(p.dongs) && p.dongs.length);
+    칸수 = 칸수읽기();
+    const r = boardFrom(src, 칸수);
+    보드 = r.board;
+    저장방식 = r.mode;
+    카드오류 = r.errors;
+    고른카드 = null;
+    위치줄그리기(src.poses);
+    보드그리기();
+}
+
+function 방식표시() {
+    const box = $('lrs-card-mode');
+    if (box) {
+        let 글, 톤;
+        if (저장방식 === 'cards') {
+            글 = '지금: 카드 순서 — 변경 추천·입고대기 추천이 아래 카드 순서로 계산합니다.'; 톤 = 'ok';
+        } else if (카드오류.length) {
+            글 = `지금: 옛 방식 — 저장된 카드 순서에 문제가 있어(${카드오류.join(', ')}) 구역 순위·동 순서로 계산 중입니다. `
+                + '아래는 그 옛 설정을 카드로 바꿔 보여 준 것입니다. 고쳐 저장하면 카드 순서 방식으로 바뀝니다.'; 톤 = 'warn';
+        } else {
+            글 = '지금: 옛 방식(구역 순위·동 순서) — 아래는 지금 설정을 카드로 바꿔 보여 준 것입니다. 이대로 저장하면 카드 순서 방식으로 바뀝니다.'; 톤 = 'info';
+        }
+        if (!자료있음()) { 글 += ' 로케이션 자료를 아직 읽지 못해 칸 수를 모릅니다 — 잠시 뒤 탭을 다시 열어 주세요.'; 톤 = 'warn'; }
+        box.dataset.tone = 톤;
+        box.textContent = 글;
+    }
+    const back = $('lrs-card-legacy-btn');
+    if (back) back.hidden = !(canSettings() && (저장방식 === 'cards' || 카드오류.length > 0));
+}
+
+function 카드(name, where) {
+    const 고침 = canSettings();
+    const b = document.createElement('div');
+    b.className = 'puzzle-block lrs-card';
+    b.dataset.card = name;
+    b.draggable = 고침;
+    if (!고침) b.classList.add('is-locked');
+    if (where === 'ex') b.classList.add('is-ex');
+    if (name === 고른카드) b.classList.add('is-picked');
+    const t = document.createElement('span');
+    t.textContent = cardLabel(name);
+    const n = document.createElement('span');
+    n.className = 'lrs-card-n';
+    const cnt = 칸수[name];
+    if (cnt != null) n.textContent = `· ${cnt}칸`;
+    else if (자료있음()) {
+        b.classList.add('is-missing');
+        n.textContent = '· 자리 없음';
+        b.title = '지금 로케이션 자료에 이 구역-동 자리가 없습니다(저장된 순서에만 있음)';
+    }
+    b.append(t, n);
+    return b;
+}
+
+function 줄그리기(row, i, last) {
+    const 고침 = canSettings();
+    const wrap = document.createElement('div');
+    wrap.className = 'puzzle-row lrs-card-row';
+    const label = document.createElement('div');
+    label.className = `puzzle-label ${i === 0 ? 'pz-r0' : 'pz-r1'}`;
+    label.textContent = `${i + 1}순위`;
+    const area = document.createElement('div');
+    area.className = 'puzzle-drop-area';
+    area.dataset.drop = 'row';
+    area.dataset.row = String(i);
+    row.forEach(name => area.appendChild(카드(name, 'row')));
+    const tools = document.createElement('div');
+    tools.className = 'lrs-row-tools';
+    const 버튼 = (txt, act, title, off) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = txt;
+        btn.title = title;
+        btn.dataset.rowact = act;
+        btn.dataset.row = String(i);
+        btn.disabled = !고침 || off;
+        return btn;
+    };
+    tools.append(버튼('▲', 'up', '이 줄을 위로', i === 0), 버튼('▼', 'down', '이 줄을 아래로', i === last), 버튼('줄 삭제', 'del', '줄을 지우고 카드는 미지정으로', false));
+    wrap.append(label, area, tools);
+    return wrap;
+}
+
+function 고른카드그리기() {
+    const bar = $('lrs-card-pick');
+    if (!bar) return;
+    if (고른카드 && !whereIs(보드, 고른카드)) 고른카드 = null;
+    if (!고른카드 || !canSettings()) { bar.hidden = true; return; }
+    const m = cardMoves(보드, 고른카드);
+    $('lrs-card-pick-name').textContent = cardLabel(고른카드);
+    bar.querySelector('[data-pick="up"]').disabled = !m.up;
+    bar.querySelector('[data-pick="down"]').disabled = !m.down;
+    bar.querySelector('[data-pick="ex"]').textContent = m.exclude === 'remove' ? '제외 풀기' : '제외';
+    bar.hidden = false;
+}
+
+function 보드그리기() {
+    if (!보드) return;
+    const 고침 = canSettings();
+    const rowsBox = $('lrs-card-rows');
+    if (rowsBox) rowsBox.replaceChildren(...보드.rows.map((r, i) => 줄그리기(r, i, 보드.rows.length - 1)));
+    const none = $('lrs-card-none');
+    if (none) none.replaceChildren(...보드.unassigned.map(n => 카드(n, 'none')));
+    const exBox = $('lrs-card-ex');
+    if (exBox) exBox.replaceChildren(...excludedCards(보드).map(n => 카드(n, 'ex')));
+    const warn = $('lrs-card-none-warn');
+    if (warn) {
+        const k = 보드.unassigned.length;
+        warn.hidden = k === 0;
+        if (k) {
+            const 보기 = 보드.unassigned.slice(0, 8).map(cardLabel).join(', ') + (k > 8 ? ' …' : '');
+            warn.textContent = `미지정 카드 ${k}장(${보기}) — 변경 추천은 이 자리들로 옮기지 않고, 거기 있는 상품은 순위 있는 자리로 옮기는 추천 대상이 됩니다. 저장은 됩니다.`;
+        }
+    }
+    const add = $('lrs-card-addrow');
+    if (add) add.disabled = !고침;
+    document.querySelectorAll('#lrs-card-auto [data-auto]').forEach(b => { b.disabled = !고침; });
+    const u = $('lrs-card-u');
+    if (u) { if (document.activeElement !== u) u.value = String(보드.U); u.disabled = !고침; }
     const ex = $('lrs-exclude-input');
-    return ex ? ex.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : [];
+    if (ex) { if (document.activeElement !== ex) ex.value = 보드.exclude.join(', '); ex.disabled = !고침; }
+    제외미리보기();
+    고른카드그리기();
+    방식표시();
+}
+
+// 보드를 바꾼 뒤 — 다시 그리고, 불러온(또는 저장한) 때와 서명이 다르면 '바뀜'
+function 보드바꿈(next) {
+    if (!next || next === 보드) { 고른카드그리기(); return; }
+    보드 = next;
+    보드그리기();
+    바뀜확인();
+}
+
+function 바뀜확인() {
+    if (추천불러옴 && 보드 && boardSignature(보드, 위치읽기()) !== 보드기준) 추천바뀜 = true;
 }
 
 function 제외미리보기() {
     const box = $('lrs-exclude-preview');
     if (!box) return;
-    const list = 제외목록();
+    const ex = $('lrs-exclude-input');
+    const list = parseExcludeText(ex ? ex.value : '');
     box.replaceChildren(...(list.length ? list : ['제외 항목 없음']).map(t => {
         const s = document.createElement('span');
         s.className = list.length ? 'lrs-chip' : 'lrs-muted';
@@ -122,14 +280,107 @@ function 제외미리보기() {
     }));
 }
 
-function 우선순위읽기() {
-    const zones = {};
-    for (let i = 0; i <= 3; i++) {
-        const el = $(`lrs-pz-${i}`);
-        zones[i] = el ? [...el.querySelectorAll('.puzzle-block')].map(b => b.textContent.trim()) : [];
+const 자동정렬이름 = { distance: '④ 출발점 거리 순', 'dong-first': '② 동 우선', 'line-first': '③ 라인 우선', 'dong-group': '① 지금과 같게' };
+
+function 자동정렬(preset) {
+    if (!canSettings() || !보드) return;
+    const combos = Object.keys(칸수);
+    if (!combos.length) { 상태('lrs-status', '로케이션 자료를 아직 읽지 못해 자동 정렬을 할 수 없습니다 — 잠시 뒤 탭을 다시 열어 주세요.', 'error'); return; }
+    if (!confirm(`자동 정렬(${자동정렬이름[preset] || preset})로 카드 줄을 다시 짭니다.\n`
+        + '지금 줄 배치와 \'동 1칸 = 줄\' 값이 바뀝니다(제외 칸은 그대로).\n저장하기 전이면 탭을 다시 열어 저장된 배치로 돌아갈 수 있습니다.\n계속할까요?')) return;
+    try {
+        const cards = autoSort(combos, preset, { priorities: { ...(기준우선순위 || {}), excludeCombos: 보드.exclude }, layout: CARD_LAYOUT });
+        고른카드 = null;
+        보드바꿈(applyCards(보드, cards));
+        상태('lrs-status', `자동 정렬(${자동정렬이름[preset] || preset})로 바꿨습니다 — 저장해야 반영됩니다.`, 'info');
+    } catch (e) {
+        console.warn('[추천·채우기] 자동 정렬 실패:', e);
+        상태('lrs-status', '자동 정렬을 하지 못했습니다.', 'error');
     }
-    const 줄 = (id) => [...(($(id) && $(id).querySelectorAll('.puzzle-sort-block')) || [])].map(b => b.textContent.trim());
-    return { zones, dongs: 줄('lrs-sort-dongs'), poses: 줄('lrs-sort-poses'), excludeCombos: 제외목록() };
+}
+
+// 카드 끌기·누르기·줄 버튼 — 보드 상자 하나에 위임
+function 카드이벤트걸기() {
+    const board = $('lrs-card-board');
+    if (board) {
+        const 칸 = (e) => (e.target && e.target.closest ? e.target.closest('[data-drop]') : null);
+        board.addEventListener('dragstart', (e) => {
+            const c = e.target && e.target.closest ? e.target.closest('.lrs-card') : null;
+            if (!c || !canSettings()) return;
+            끄는카드 = c.dataset.card;
+            c.classList.add('dragging');
+            try { e.dataTransfer.setData('text/plain', 끄는카드); e.dataTransfer.effectAllowed = 'move'; } catch (_) { /* 일부 브라우저 */ }
+        });
+        board.addEventListener('dragend', (e) => {
+            const c = e.target && e.target.closest ? e.target.closest('.lrs-card') : null;
+            if (c) c.classList.remove('dragging');
+            board.querySelectorAll('.dragover').forEach(x => x.classList.remove('dragover'));
+            끄는카드 = null;
+        });
+        board.addEventListener('dragover', (e) => {
+            const a = 칸(e);
+            if (!a || !끄는카드) return;
+            e.preventDefault();
+            a.classList.add('dragover');
+            try { e.dataTransfer.dropEffect = 'move'; } catch (_) { /* 무시 */ }
+        });
+        board.addEventListener('dragleave', (e) => {
+            const a = 칸(e);
+            if (a && !(e.relatedTarget && a.contains(e.relatedTarget))) a.classList.remove('dragover');
+        });
+        board.addEventListener('drop', (e) => {
+            const a = 칸(e);
+            if (!a || !끄는카드) return;
+            e.preventDefault();
+            a.classList.remove('dragover');
+            const name = 끄는카드;
+            끄는카드 = null;
+            const d = a.dataset.drop;
+            보드바꿈(placeCard(보드, name, d === 'row' ? { row: Number(a.dataset.row) } : d));
+        });
+        board.addEventListener('click', (e) => {
+            if (!canSettings() || !보드) return;
+            const t = e.target;
+            const act = t && t.closest ? t.closest('[data-rowact]') : null;
+            if (act) {
+                const i = Number(act.dataset.row);
+                const a = act.dataset.rowact;
+                보드바꿈(a === 'del' ? deleteRow(보드, i) : moveRow(보드, i, a));
+                return;
+            }
+            const c = t && t.closest ? t.closest('.lrs-card') : null;
+            if (!c) return;
+            고른카드 = 고른카드 === c.dataset.card ? null : c.dataset.card;
+            보드그리기();
+        });
+    }
+    const add = $('lrs-card-addrow');
+    if (add) add.addEventListener('click', () => { if (canSettings() && 보드) 보드바꿈(addRow(보드)); });
+    const pick = $('lrs-card-pick');
+    if (pick) pick.addEventListener('click', (e) => {
+        const b = e.target && e.target.closest ? e.target.closest('[data-pick]') : null;
+        if (!b || !보드 || !canSettings()) return;
+        const a = b.dataset.pick;
+        if (a === 'close') { 고른카드 = null; 보드그리기(); return; }
+        if (!고른카드) return;
+        if (a === 'ex') 보드바꿈(toggleExclude(보드, 고른카드));
+        else 보드바꿈(moveCard(보드, 고른카드, a));
+    });
+    const auto = $('lrs-card-auto');
+    if (auto) auto.addEventListener('click', (e) => {
+        const b = e.target && e.target.closest ? e.target.closest('[data-auto]') : null;
+        if (b) 자동정렬(b.dataset.auto);
+    });
+    const u = $('lrs-card-u');
+    if (u) u.addEventListener('input', () => {
+        if (!보드) return;
+        보드 = setU(보드, u.value.trim() === '' ? NaN : Number(u.value));
+        바뀜확인();
+    });
+    const ex = $('lrs-exclude-input');
+    if (ex) ex.addEventListener('change', () => { if (보드) 보드바꿈(setExclude(보드, parseExcludeText(ex.value))); });
+    const back = $('lrs-card-legacy-btn');
+    if (back) back.addEventListener('click', () => window.resetLocCardOrder());   // 감싼(권한 확인) 함수를 부른다
 }
 
 // ── ① 추천 양 ──
@@ -188,10 +439,6 @@ function 저장버튼(켬) {
     if (btn) btn.disabled = !켬;
 }
 
-// 동선 기준 블록 순서 서명 — 끌었다 제자리에 놓으면 같으므로 변경으로 치지 않는다
-let 끌기기준 = '';
-const 끌기서명 = () => { const p = 우선순위읽기(); return JSON.stringify([p.zones, p.dongs, p.poses]); };
-
 async function 추천불러오기(n) {
     상태('lrs-status', '불러오는 중…');
     추천불러옴 = false;
@@ -213,7 +460,9 @@ async function 추천불러오기(n) {
     const { value, errors } = normalize(saved || fb || {}, fb);
     추천양그리기(value);
     우선순위그리기(conf.recommendPriorities || window.recommendPriorities);
-    끌기기준 = 끌기서명();
+    보드기준 = boardSignature(보드, 위치읽기());   // 불러온 때 서명 — 끌었다 제자리에 놓으면 같으므로 변경으로 치지 않는다
+    보드기준위치 = 위치읽기();
+    보드원본 = 보드;
     추천불러옴 = true;
     추천바뀜 = false;
     저장버튼(true);
@@ -230,7 +479,28 @@ window.saveLocRecSettings = async function () {
     }
     const { value, errors, ok } = normalize(추천양읽기());
     if (!ok) { 상태('lrs-status', errors.map(e => e.text).join(' / '), 'error'); return; }
-    const pr = 우선순위읽기();
+    // 동선 기준 카드 — 고급 입력칸에 쓰고 바로 누른 제외 목록도 반영(change 가 늦을 때)
+    const exIn = $('lrs-exclude-input');
+    if (exIn && 보드) 보드 = setExclude(보드, parseExcludeText(exIn.value));
+    // 옛 방식인데 카드를 건드리지 않았으면(추천 양·위치 순서만 바꿈) 카드 방식으로 켜지 않는다 — 옛 칸(poses)만 저장.
+    //   이때는 카드 검사도 하지 않는다(자리 자료를 아직 못 읽어 카드가 비어 있어도 추천 양은 저장되게)
+    //   제외 입력칸만 바꾼 경우도 옛 방식 그대로 두고 excludeCombos 를 같이 저장한다(예전 화면처럼)
+    const exNow = exIn ? parseExcludeText(exIn.value) : null;
+    const sigNow = 보드 ? boardSignature(보드, 보드기준위치) : '';
+    const exOnly = 저장방식 !== 'cards' && !!보드 && !!보드원본 && !!exNow && sigNow !== 보드기준
+        && boardSignature(setExclude(보드원본, exNow), 보드기준위치) === sigNow;
+    const legacyKeep = 저장방식 !== 'cards' && (!보드 || sigNow === 보드기준 || exOnly);
+    const sv = legacyKeep ? { ok: true, value: null, unassigned: 0 }
+        : 보드 ? boardToSave(보드, { poses: 위치읽기() }) : { ok: false, errors: ['카드 화면이 준비되지 않았습니다'] };
+    if (!sv.ok) { 보드그리기(); 상태('lrs-status', `동선 기준 카드를 저장할 수 없습니다: ${sv.errors.join(' / ')}`, 'error'); return; }
+    if (!legacyKeep && 저장방식 !== 'cards' && !confirm('동선 기준이 카드 순서 방식으로 바뀝니다.\n'
+        + '다음 추천부터 구역 순위·동 순서 대신 카드 순서로 계산합니다(변경 추천 지표가 이날부터 예전과 이어지지 않을 수 있습니다).\n'
+        + '되돌리기: [옛 방식으로]\n저장할까요?')) {
+        상태('lrs-status', '저장하지 않았습니다.');
+        return;
+    }
+    const pr = legacyKeep ? { poses: 위치읽기(), ...(exOnly ? { excludeCombos: exNow } : {}) } : { ...sv.value };
+    if (!옛칸있음) { pr.zones = 기본우선순위.zones; pr.dongs = 기본우선순위.dongs; }   // 문서에 옛 칸이 없을 때만(되돌리기·옛 방식 계산용)
     const btn = $('lrs-save-btn');
     if (btn) btn.disabled = true;
     상태('lrs-status', '저장 중…');
@@ -239,11 +509,21 @@ window.saveLocRecSettings = async function () {
             locRecSettings: { ...value, updatedAt: serverTimestamp() },
             recommendPriorities: pr
         }, { merge: true });
-        window.recommendPriorities = pr;     // 화면 입고대기 추천(calcIncomingRecommend)이 바로 쓰게(구독도 곧 같은 값을 준다)
+        // 화면 입고대기 추천(calcIncomingRecommend)이 바로 쓰게(구독도 곧 같은 값을 준다). zones·dongs 는 문서에 남은 값 그대로
+        window.recommendPriorities = { ...(window.recommendPriorities || {}), ...pr };
         추천바뀜 = false;
-        끌기기준 = 끌기서명();
+        if (!legacyKeep) { 저장방식 = 'cards'; 카드오류 = []; }
+        기준우선순위 = { ...(기준우선순위 || {}), ...pr };
+        보드기준 = boardSignature(보드, 위치읽기());
+        보드기준위치 = 위치읽기();
+        보드원본 = 보드;
+        옛칸있음 = true;
         추천양그리기(value);
-        상태('lrs-status', '저장했습니다 — 다음 추천(06:40 또는 [지금 재고로 다시 만들기])부터 반영됩니다. 동선 기준은 입고대기 추천 자리에 바로 반영됩니다.', 'ok');
+        보드그리기();
+        상태('lrs-status', (legacyKeep ? '저장했습니다 — 동선 기준은 지금처럼 옛 방식입니다(카드 순서로 바꾸려면 카드를 정리하고 저장). '
+            : '저장했습니다 — 다음 추천부터 카드 순서로 계산합니다(되돌리기: [옛 방식으로]). ')
+            + '추천 양은 다음 추천(06:40 또는 [지금 재고로 다시 만들기])부터, 입고대기 추천 자리에는 바로 반영됩니다.'
+            + (sv.unassigned ? ` 미지정 카드 ${sv.unassigned}장은 그 자리로 추천하지 않습니다.` : ''), 'ok');
     } catch (e) {
         const code = (e && e.code) || '';
         console.warn('[추천·채우기] 변경 추천 설정 저장 실패:', code || e);
@@ -252,6 +532,39 @@ window.saveLocRecSettings = async function () {
             : `저장하지 못했습니다 (${code || '알 수 없는 오류'}).`, 'error');
     } finally {
         if (btn) btn.disabled = false;
+    }
+};
+
+// [옛 방식으로] — recommendPriorities.cards 칸만 지운다. 남은 zones·dongs(카드 저장 때 건드리지 않은 옛 값)로 계산한다.
+// 권한: js/lib/location-guard-map.js 가 location.settings 로 감싼다.
+window.resetLocCardOrder = async function () {
+    if (!db || !추천불러옴) {
+        상태('lrs-status', '설정을 불러오지 못해 되돌릴 수 없습니다 — 새로고침해 보세요.', 'error');
+        return;
+    }
+    if (!confirm('동선 기준을 옛 방식(구역 순위·동 순서)으로 되돌릴까요?\n'
+        + '카드 순서를 지우고, 카드 방식으로 바꾸기 전의 구역 순위·동 순서(위치 순서·제외는 지금 값)로 다음 추천부터 계산합니다.'
+        + (추천바뀜 ? '\n저장하지 않은 변경(추천 양 포함)은 버립니다.' : ''))) return;
+    const back = $('lrs-card-legacy-btn');
+    if (back) back.disabled = true;
+    상태('lrs-status', '되돌리는 중…');
+    try {
+        await updateDoc(doc(db, ...INFO_PATH), { 'recommendPriorities.cards': deleteField() });
+        if (window.recommendPriorities && typeof window.recommendPriorities === 'object') {
+            const { cards, ...rest } = window.recommendPriorities;   // 구독이 곧 같은 값을 주지만 입고대기 추천이 바로 옛 방식으로
+            window.recommendPriorities = rest;
+        }
+        추천바뀜 = false;
+        await 추천불러오기(읽는중);
+        상태('lrs-status', '옛 방식으로 되돌렸습니다 — 다음 추천부터 구역 순위·동 순서로 계산합니다. 아래 카드는 그 설정을 카드로 바꿔 보여 준 것입니다(저장하면 다시 카드 순서 방식).', 'ok');
+    } catch (e) {
+        const code = (e && e.code) || '';
+        console.warn('[추천·채우기] 옛 방식 되돌리기 실패:', code || e);
+        상태('lrs-status', code === 'permission-denied'
+            ? '권한이 없습니다(로케이션 설정 권한이 필요합니다).'
+            : `되돌리지 못했습니다 (${code || '알 수 없는 오류'}).`, 'error');
+    } finally {
+        if (back) back.disabled = false;
     }
 };
 
@@ -388,9 +701,10 @@ function 불러오기() {
 
 function 버림() { 추천바뀜 = false; 채우기바뀜 = false; }
 
-export function initLocSetPanel({ db: _db, auth: _auth }) {
+export function initLocSetPanel({ db: _db, auth: _auth, combosOf: _combosOf }) {
     db = _db;
     auth = _auth;
+    combosOf = _combosOf || null;
     const pane = document.querySelector(`#settings-modal [data-set-pane="${PANE}"]`);
     if (!pane || !db) return;
 
@@ -428,10 +742,9 @@ export function initLocSetPanel({ db: _db, auth: _auth }) {
             if (e.target && e.target.id === 'lrs-exclude-input') 제외미리보기();
             추천바뀜 = true;
         }));
-        // 끌기 — 놓은 뒤 순서가 불러온(또는 저장한) 때와 달라졌을 때만 변경으로 친다
-        ['drop', 'dragend'].forEach(ev => sec1.addEventListener(ev, () => {
-            if (추천불러옴 && 끌기서명() !== 끌기기준) 추천바뀜 = true;
-        }));
+        // 위치 순서 끌기 — 놓은 뒤 서명이 불러온(또는 저장한) 때와 달라졌을 때만 변경으로 친다(카드는 보드바꿈이 센다)
+        ['drop', 'dragend'].forEach(ev => sec1.addEventListener(ev, () => 바뀜확인()));
+        카드이벤트걸기();
     }
     const sec2 = $('lrs-refill');
     if (sec2) sec2.addEventListener('change', (e) => {

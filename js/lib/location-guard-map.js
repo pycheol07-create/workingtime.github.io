@@ -23,6 +23,7 @@ export const GUARDED_FUNCTIONS = {
     saveSheetUrl: 'location.settings',
     saveHeaderSettings: 'location.settings',
     saveLocRecSettings: 'location.settings',        // 환경설정 '추천·채우기' — INFO_CONFIG.locRecSettings·recommendPriorities (js/locset-panel.js)
+    resetLocCardOrder: 'location.settings',         // 같은 탭 [옛 방식으로] — recommendPriorities.cards 지우기 (js/locset-panel.js)
     saveCapacity2F: 'location.settings',
     // 선지정 해제
     releasePreAssign: 'location.preassign',

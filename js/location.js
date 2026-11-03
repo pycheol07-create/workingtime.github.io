@@ -1,29 +1,30 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611031028';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611031129';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611031028';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611031028';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611031028';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611031028';
-import { orderKeyMap } from './lib/order-hash.js?v=202611031028';
-import { setShellContext } from './app-shell-bridge.js?v=202611031028';
-import { memberNameFor } from './app-shell-data.js?v=202611031028';
-import { menuConfigOf } from './lib/perm.js?v=202611031028';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611031028';
-import { initPageNav } from './page-nav.js?v=202611031028';
-import { initRefillCard } from './refill-card.js?v=202611031028';
-import { initLocRecCard } from './locrec-card.js?v=202611031028';
-import { initRebuildBar } from './rebuild-bar.js?v=202611031028';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611031028';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611031028';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611031028';
-import { uploadBlockText } from './lib/busy-view.js?v=202611031028';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611031028';
-import { angleSizeOf, SERVER_DEFAULTS } from './lib/loc-recommend.js?v=202611031028';
-import { initLocSetPanel } from './locset-panel.js?v=202611031028';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611031129';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611031129';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611031129';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611031129';
+import { orderKeyMap } from './lib/order-hash.js?v=202611031129';
+import { setShellContext } from './app-shell-bridge.js?v=202611031129';
+import { memberNameFor } from './app-shell-data.js?v=202611031129';
+import { menuConfigOf } from './lib/perm.js?v=202611031129';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611031129';
+import { initPageNav } from './page-nav.js?v=202611031129';
+import { initRefillCard } from './refill-card.js?v=202611031129';
+import { initLocRecCard } from './locrec-card.js?v=202611031129';
+import { initRebuildBar } from './rebuild-bar.js?v=202611031129';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611031129';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611031129';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611031129';
+import { uploadBlockText } from './lib/busy-view.js?v=202611031129';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611031129';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611031129';
+import { comboOf } from './lib/loc-cards.js?v=202611031129';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611031129';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611031028';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611031028';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611031129';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611031129';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -1487,7 +1488,17 @@ window.switchLocSettingsTab = (tab) => {
 };
 // '추천·채우기' 탭 — 위 switchLocSettingsTab·closeSettingsModal(location.html)을 감싸 저장 안 한 변경을 묻는다. window.saveLocRecSettings 를 만든다
 // (location-guard.js 가 이 파일 다음에 감싸므로 여기서 바로 부른다)
-initLocSetPanel({ db, auth });
+// 동선 기준 카드 목록 = 지금 자료의 피킹 자리(기타 아님) 조합별 칸 수 — 서버 로케이션추천과 같은 isEtcLocObj·comboOf
+const locCardCounts = () => {
+    const out = {};
+    (originalData || []).forEach(d => {
+        if (!d || !d.id || isEtcLocObj(d)) return;
+        const c = comboOf(d);
+        out[c] = (out[c] || 0) + 1;
+    });
+    return out;
+};
+initLocSetPanel({ db, auth, combosOf: locCardCounts });
 
 window.saveHeaderSettings = async () => {
     const checkboxes = document.querySelectorAll('.chk-header:checked');
@@ -1569,12 +1580,7 @@ window.calcIncomingRecommend = function(code, excludeLocIds) {
         const targetDong = (d.dong || '').toString().trim();
         if (currentDongsSet.has(targetDong)) return false;
         
-        if (excludeCombos.length > 0) {
-            const prefix = (d.id || '').charAt(0).toUpperCase();
-            const dong = (d.dong || '').toString().trim();
-            const combo = `${prefix}-${dong}`;
-            if (excludeCombos.includes(combo)) return false;
-        }
+        if (excludeCombos.length > 0 && excludeCombos.includes(comboOf(d))) return false;
         return true;
     });
     
@@ -1670,6 +1676,20 @@ window.calcIncomingRecommend = function(code, excludeLocIds) {
     }
     
     // Case B: 신뢰 페어 없거나 점수 0 → 우선순위 기반 1순위 빈칸 선택
+    // 카드 모드(recommendPriorities.cards 가 검사를 통과할 때만 — lib makeRankers 와 같은 판정): 줄 → 위치 → id.
+    //   미지정 카드(줄 99) 자리로는 보내지 않는다(서버 변경 추천과 같게) — 남는 자리가 없으면 null.
+    if (priorities.cards != null) {
+        const rk = makeRankers({ ...priorities,
+            dongs: Array.isArray(priorities.dongs) ? priorities.dongs : [],
+            poses: Array.isArray(priorities.poses) ? priorities.poses : [] });
+        if (rk.cards) {
+            const ranked = emptyLocs.filter(d => rk.rowOf(d) !== 99).sort((a, b) =>
+                (rk.rowOf(a) - rk.rowOf(b)) || (rk.posRank(a.pos) - rk.posRank(b.pos)) || (a.id || '').localeCompare(b.id || ''));
+            if (!ranked.length) return null;
+            return { case: 'B', loc: ranked[0], score: 0, partnerCount: 0 };
+        }
+        // 검사에 걸리면 아래 옛 방식(서버도 옛 방식 + 경고)
+    }
     const getZoneRank = (locId) => {
         const prefix = (locId || '').charAt(0).toUpperCase();
         const zones = priorities.zones || {};

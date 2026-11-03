@@ -1,6 +1,6 @@
 // === js/lib/loc-recommend.js ===
 // 로케이션 변경 추천 계산 — 서버(업무자동화\앱\로케이션추천, node 로 실행)가 쓴다. 화면의 수동 변경 계산 창은 2026-10-27 없앴다(화면은 SERVER_DEFAULTS 만 읽는다).
-// 순수 ESM: DOM·window·Firebase 를 쓰지 않는다. import 는 ./mibal2-rows.js·./mibal2-calc.js 만.
+// 순수 ESM: DOM·window·Firebase 를 쓰지 않는다. import 는 ./mibal2-rows.js·./mibal2-calc.js·./loc-cards.js 만.
 //
 // 무엇이 어디서 왔나 (옛 location.js 수동 계산 — 사본은 tests/fixtures/loc-recommend-legacy.js):
 //   makeRankers         ← 옛 단독 추천의 getZoneRank·getDongRank·getPosRank
@@ -24,11 +24,16 @@
 //   sizeFits      — 칸 일치: 지금 자리에 칸수가 있으면 같은 칸수 자리로만(단독·페어 sizeMatch 옵션, 맞바꾸기는 늘. runRecommend 는 늘 켬. 2026-10-29)
 //   라인 거리     — settings.routeModel 'line'(+ lineWeight, 기본 0.5)일 때만: 출발점 거리 = 동순위 + lineWeight·라인순번(A=0…),
 //                   비용 = 출발점거리·P + 위치순위. 단독은 출발점 거리로 비교, 페어는 lineGap <= 1. settings.lineLayout 으로 라인 순서·먼 자리 지정. 칸이 없으면 예전과 같다(2026-10-29, 꺼진 채 — tools/route-compare.mjs 로 비교)
+//   카드 모드     — priorities.cards(구역-동 카드 순서, ./loc-cards.js parseCards)가 맞을 때만(2026-11-03, 화면 저장 전엔 꺼진 채):
+//                   비용 = (줄·P + 위치순위) / rowsPerDong, 단독은 줄이 더 앞이어야, 구역 등급은 '순위 있는 글자 0 / 나머지 99' 하나로 합친다.
+//                   routeModel 'line' 은 무시(경고). cards 칸이 없으면 모든 계산·출력이 예전과 바이트 단위로 같다. 검사에 걸리면 옛 방식 + 경고 한 줄.
+//                   서버 판정(로케이션추천\판정.py Where)이 같은 비용식을 따로 갖고 있다(계약 시험 tests\test_카드.py).
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202611031028';
-import { capacityFor } from './mibal2-calc.js?v=202611031028';
+import { isEtcLocObj } from './mibal2-rows.js?v=202611031129';
+import { capacityFor } from './mibal2-calc.js?v=202611031129';
+import { parseCards, comboOf } from './loc-cards.js?v=202611031129';
 
 export { isEtcLocObj };
 
@@ -106,6 +111,24 @@ export function makeRankers(priorities, opt) {
     const P = Math.max(1, (pr.poses || []).length);
     const nDongs = (pr.dongs || []).length;
     const rk = { zoneRank, dongRank, posRank, P, nDongs };
+    // 카드 모드(priorities.cards 가 맞을 때만) — 구역 등급은 순위 있는 글자 0 / 나머지 99, 비용은 줄(rowOf) 기준. 라인 모델은 쓰지 않는다
+    if (pr.cards != null) {
+        const pc = parseCards(pr);
+        if (!pc.ok) {
+            rk.cardErrors = pc.errors;
+        } else {
+            rk.cards = true;
+            rk.rowOf = pc.rowOf;
+            rk.U = pc.U;
+            rk.nRows = pc.nRows;
+            rk.dongOrder = pc.dongOrder;
+            rk.zoneOrder = pc.zoneOrder;
+            const ex = Array.isArray(pr.excludeCombos) ? pr.excludeCombos : [];
+            rk.isExcluded = (slot) => ex.includes(comboOf(slot || {}));
+            rk.zoneRank = (locId) => (pc.letterRow((locId || '').charAt(0).toUpperCase()) === RANK_NONE ? RANK_NONE : 0);
+            return rk;
+        }
+    }
     if (routeModel === 'line') {
         // 숫자·숫자 글자만 읽는다 — '', false, true, [] 는 기본 0.5
         const lw = typeof lineWeight === 'number' || (typeof lineWeight === 'string' && lineWeight.trim() !== '') ? Number(lineWeight) : NaN;
@@ -327,7 +350,7 @@ export function scoreByDaily({ locs, daily, demand, incomingTotalByCode }) {
 }
 
 const isTagged = (d) => !!d.reserved || !!(d.codeTag && String(d.codeTag).trim() !== '');
-const comboOf = (d) => `${(d.id || '').charAt(0).toUpperCase()}-${(d.dong || '').toString().trim()}`;
+// comboOf(자리 → 'A-1' 조합 이름)는 ./loc-cards.js 에 있다(카드 이름과 같은 규칙)
 
 /**
  * 빈 자리(상품·상품명 없음, 선지정 아님, 기타 아님, 제외 조합 아님) → 동 > 위치 > 구역 순 정렬.
@@ -345,6 +368,11 @@ export function emptySlots(locs, priorities, { excludeTagged = false, rankers } 
         if (excludeCombos.length > 0 && excludeCombos.includes(comboOf(d))) return false;
         return true;
     });
+    if (rk.cards) {
+        // 카드 모드: 줄 → 위치 순(순위 99 는 그대로라 맨 뒤). 같으면 원래 순서(안정 정렬)
+        emptyLocs.sort((a, b) => (rk.rowOf(a) - rk.rowOf(b)) || (rk.posRank(a.pos) - rk.posRank(b.pos)));
+        return emptyLocs;
+    }
     if (rk.line) {
         // 라인 모델: 비용(출발점 거리·P + 위치순위, 순위 99 는 그대로라 맨 뒤) → 구역 순. 같으면 원래 순서(안정 정렬)
         const costL = (d) => rk.startDist(d) * rk.P + rk.posRank(d.pos);
@@ -381,6 +409,13 @@ export function recommendSingle({ locs, scored, priorities, mode = 'dong', limit
 
     const isBetterSlot = (slotInfo, currentInfo) => {
         if (zoneGuard && slotInfo.zoneRank > currentInfo.zoneRank) return false;
+        if (rk.cards) {
+            // 카드 모드: 'dong' = 줄이 더 앞이어야 / 'pos' = 같은 줄 안에서 위치가 더 앞이어야.
+            // 제외 카드(excludeCombos) 자리에 있는 상품은 줄이 없어 옮기지 않는다(동선 점수 계산에서도 빠지는 자리)
+            if (currentInfo.excl) return false;
+            if (mode === 'pos') return slotInfo.row !== RANK_NONE && slotInfo.row === currentInfo.row && slotInfo.posRank < currentInfo.posRank;   // 미지정(99)끼리는 같은 줄이 아니다
+            return slotInfo.row < currentInfo.row;
+        }
         if (mode === 'pos') {
             if (slotInfo.dongRank !== currentInfo.dongRank) return false;
             return slotInfo.posRank < currentInfo.posRank;
@@ -388,8 +423,9 @@ export function recommendSingle({ locs, scored, priorities, mode = 'dong', limit
         if (rk.line) return !slotInfo.far && slotInfo.dist < currentInfo.dist;   // 라인 모델: 출발점 거리가 더 가까워야 · 먼 자리로는 안 보냄
         return slotInfo.dongRank < currentInfo.dongRank;
     };
-    // 라인 모델일 때만 dist(출발점 거리) 칸을 붙인다 — 꺼져 있으면 정보 모양이 예전 그대로
+    // 라인 모델일 때만 dist(출발점 거리), 카드 모드일 때만 row(줄) 칸을 붙인다 — 둘 다 꺼져 있으면 정보 모양이 예전 그대로
     const withDist = (info, slot) => {
+        if (rk.cards) { info.row = rk.rowOf(slot); if (rk.isExcluded(slot)) info.excl = true; }
         if (rk.line) { info.dist = rk.startDist(slot); if (rk.isFar(slot)) info.far = true; }
         return info;
     };
@@ -499,6 +535,7 @@ export function buildPairMap({ pairs, stats, N, minCount = 5, minLift = 2, topK 
  * (같은 구역 우선, 위치가 가까운 순)의 빈 자리로 다시 배정한다. 파트너 자리가 단독 자리와 같으면 내지 않는다.
  * sizeMatch: 파트너 지금 자리(ctx.locById 에서 찾음)에 칸수가 있으면 같은 칸수 빈 자리만(sizeFits). base 는 단독 자리 그대로라
  *   단독을 sizeMatch 로 만들었으면 이미 맞다.
+ * 카드 모드(ctx.rankers.cards)면 미지정 카드(줄 99) 빈 자리는 파트너 자리로 쓰지 않는다. 그 밖의 페어 규칙은 같다.
  * @param {{singleRecs: Array, ctx: {emptyLocs, usedEmptyKeys, rankers?, getPosRank?, locById?}, pairMap: Object, sizeMatch?: boolean}} a
  * @returns {Array<{baseItem, partnerItem, partnerNewSlot}>}
  */
@@ -566,9 +603,11 @@ export function recommendPairs({ singleRecs, ctx, pairMap, sizeMatch = false }) 
             usedNewSlots.add(pick.id);
             continue;
         }
+        const crk = ctx.rankers && ctx.rankers.cards ? ctx.rankers : null;
         const sameDongSlots = ctx.emptyLocs.filter(eLoc => {
             if (occupiedKeys.has(eLoc.id)) return false;
             if (sizeMatch && !sizeFits(partnerFrom, eLoc)) return false;
+            if (crk && crk.rowOf(eLoc) === RANK_NONE) return false;   // 카드 모드: 미지정 카드 자리로는 안 보낸다
             const eDong = (eLoc.dong || '').toString().trim();
             return eDong === baseDong;
         });
@@ -613,13 +652,23 @@ export function pairExcelItems(matchedPairs) {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 자리 비용 c = 동순위·P + 위치순위 (P = 위치 개수). 작을수록 앞자리.
+ * 자리 비용 c = 동순위·P + 위치순위 (P = 위치 개수). 작을수록 앞자리. 카드 모드는 (줄·P + 위치순위) / rowsPerDong(줄 99 면 null).
  *   mode 'pos' 면 위치순위만(같은 동끼리 비교할 때).
  *   동·위치·구역 중 하나라도 설정에 없으면(99) null — 스왑 대상에서 뺀다.
  *   loose: 99 대신 '맨 뒤 다음 칸'(동 개수·위치 개수)으로 계산해 숫자를 돌려준다(단독 이득 계산용).
  */
 export function slotCost(slot, rankers, mode = 'dong', { loose = false } = {}) {
     if (!slot) return null;
+    if (rankers.cards) {
+        // 카드 모드: (줄·P + 위치순위) / rowsPerDong — 동 1칸 = 줄 U개라 이득·문턱(P = 1동) 단위가 그대로다
+        let r = rankers.rowOf(slot);
+        let pc = rankers.posRank(slot.pos);
+        if (!loose && (r === RANK_NONE || pc === RANK_NONE)) return null;
+        if (r === RANK_NONE) r = rankers.nRows;
+        if (pc === RANK_NONE) pc = rankers.P;
+        if (mode === 'pos') return pc;
+        return (r * rankers.P + pc) / rankers.U;
+    }
     let d = rankers.dongRank(slot.dong);
     let p = rankers.posRank(slot.pos);
     const z = rankers.zoneRank(slot.id);
@@ -924,7 +973,7 @@ function routeBase(locs, daily, priorities, rk, { frontPct = 0.2, frontK = 100 }
     const usePct = frontPct != null;
     const front = frontByZone(rankedPickSlots(locs, priorities, rk), rk, frontK, usePct ? { pct: Number(frontPct) } : {});
     return { slotIds, costOf, items, ideal, worst, sumD, total, front, pickCodes: new Set(now.keys()),
-        dongs: ((priorities && priorities.dongs) || []).slice() };
+        dongs: rk.cards ? rk.dongOrder.slice() : ((priorities && priorities.dongs) || []).slice() };
 }
 
 /** 코드 → {cost: 자리 묶음 안 최소 비용, front: 앞쪽 영역 자리가 있나, id: 최소 비용 자리(같으면 먼저 본 것)} (같은 id 는 첫 것) */
@@ -949,6 +998,7 @@ function codeMinCost(locs, slotIds, costOf, front) {
  * 구역 × 동 출고 격자(동선 효율 카드 열지도) — routeEval 과 같은 기준: 대상 상품마다 최소 비용 자리 1곳에 일평균 d 를 더한다.
  *   zones = 자리 묶음에 있는 구역 글자(구역 순위 → 글자 순). 순위 밖(99) 구역·설정에 있는 동 자리가 하나도 없는 구역은 뺀다
  *           (기타·SAM·제외 조합은 자리 묶음에 없다).
+ *   카드 모드: zones = 순위 있는 카드 글자(가장 앞 줄 → 글자순), dongs = 카드 순서에서 처음 나온 동 순서(rk.dongOrder).
  *   dongs = priorities.dongs 순서. q = 줄 우선 1차원(길이 zones×dongs, 소수 1자리) — 그 구역에 없는 동은 null, 있는데 출고 0 이면 0.
  *           0 보다 크지만 반올림하면 0 인 값은 0.1.
  *   ⚠️ 배열 안 배열을 쓰지 않는다 — Firestore 가 받지 않는다(400).
@@ -972,7 +1022,10 @@ export function routeHeat(base, locs, rk) {
         zr.set(z, r);
         has.add(z + '|' + di);
     });
-    const zones = [...zr.keys()].sort((a, b) => (zr.get(a) - zr.get(b)) || byKeyAsc(a, b));
+    // 카드 모드: 구역 등급이 하나(0)라 순서는 그 글자 카드의 가장 앞 줄 → 글자순(rk.zoneOrder)
+    const zones = rk.cards
+        ? [...zr.keys()].sort((a, b) => (rk.zoneOrder.indexOf(a) - rk.zoneOrder.indexOf(b)) || byKeyAsc(a, b))
+        : [...zr.keys()].sort((a, b) => (zr.get(a) - zr.get(b)) || byKeyAsc(a, b));
     const zIdx = new Map(zones.map((z, i) => [z, i]));
     const nD = dongs.length;
     const raw = new Array(zones.length * nD).fill(0);
@@ -1193,6 +1246,27 @@ export function runRecommend(input) {
     const ranks = demandRanks(daily);
     const incoming = input.incoming || {};
     const warn = [];
+    // 카드 순서(priorities.cards) — 칸이 없으면 경고도 출력 칸도 없다(예전 그대로)
+    if (rk.cardErrors) warn.push('카드 순서 무시(' + rk.cardErrors.join(', ') + ') — 옛 방식으로 계산');
+    if (rk.cards) {
+        if (S.routeModel === 'line') warn.push('카드 순서가 있어 라인 모델(routeModel) 무시');
+        // 순서 없는(미지정) 자리 묶음 — 그 자리로는 안 보내고 거기 상품은 밖으로. 조합·칸 수만
+        const ex = priorities.excludeCombos || [];
+        const cnt = new Map();
+        const seenId = new Set();
+        locs.forEach(d => {
+            if (seenId.has(d.id)) return;
+            seenId.add(d.id);
+            if (isEtcLocObj(d)) return;
+            const cb = comboOf(d);
+            if (ex.includes(cb) || rk.rowOf(d) !== RANK_NONE) return;
+            cnt.set(cb, (cnt.get(cb) || 0) + 1);
+        });
+        if (cnt.size) {
+            const list = [...cnt.entries()].sort((a, b) => (b[1] - a[1]) || byKeyAsc(a[0], b[0]));
+            warn.push('순서 없는 자리 묶음 ' + list.slice(0, 10).map(([k, v]) => `${k} ${v}칸`).join(', ') + (list.length > 10 ? ` 외 ${list.length - 10}개` : ''));
+        }
+    }
     // 행의 자리 칸수(fromSize·toSize, 2번째 상품은 fromSize2·toSize2) — 칸수가 있는 자리만 칸을 붙인다(옛 행 모양은 그대로)
     const sizeById = new Map();
     locs.forEach(d => { if (!sizeById.has(d.id)) sizeById.set(d.id, angleSizeOf(d)); });
@@ -1369,7 +1443,12 @@ export function runRecommend(input) {
     }
 
     // 꺼져 있으면 출력 모양을 예전 그대로 — settings 에 lowStock 칸 없음, counts.lowStock·lowStock 목록 없음
-    const outSettings = lowOn ? S : Object.fromEntries(Object.entries(S).filter(([k]) => !LOW_STOCK_KEYS.includes(k)));
+    const outSettings = lowOn ? { ...S } : Object.fromEntries(Object.entries(S).filter(([k]) => !LOW_STOCK_KEYS.includes(k)));
+    // 카드 칸이 있을 때만 — 어느 방식으로 계산했나(검사에 걸리면 legacy). 칸이 없으면 출력 모양 그대로
+    if (priorities.cards != null) {
+        outSettings.priorityMode = rk.cards ? 'cards' : 'legacy';
+        if (rk.cards) outSettings.cardRowsPerDong = rk.U;
+    }
     const out = {
         schema: 1,
         single: outSingle,

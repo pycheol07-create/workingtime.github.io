@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611031028"></script>
+    <script src="js/theme-boot.js?v=202611031129"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -11,10 +11,10 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611031028">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611031028">
-    <link rel="stylesheet" href="css/page-nav.css?v=202611031028">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202611031028">
+    <link rel="stylesheet" href="css/suit.css?v=202611031129">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611031129">
+    <link rel="stylesheet" href="css/page-nav.css?v=202611031129">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202611031129">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -140,6 +140,34 @@
         .lrs-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
         .lrs-chip { display: inline-block; background: var(--c-risk); color: var(--c-on-fill, #FFFFFF); padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
         .lrs-guide ul { margin: 0 0 6px; padding-left: 18px; font-size: 12px; line-height: 1.6; color: var(--c-text-2); }
+        /* 동선 기준 '구역-동 카드'(js/locset-panel.js) — 줄·칸 모양은 퍼즐(js/location.js injectPuzzleStyle)을 그대로 쓴다 */
+        #lrs-locrec [hidden] { display: none !important; }
+        .lrs-card-mode { font-size: 12px; line-height: 1.5; padding: 6px 10px; border-radius: var(--r-sm); margin: 8px 0 4px; background: var(--c-track); color: var(--c-text-2); }
+        .lrs-card-mode[data-tone="ok"] { background: var(--c-ok-soft); color: var(--c-ok-text); }
+        .lrs-card-mode[data-tone="warn"] { background: var(--c-warn-soft); color: var(--c-warn-text); }
+        .lrs-card-auto { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+        .lrs-card-rows { display: flex; flex-direction: column; gap: 6px; }
+        .lrs-card-row { flex-wrap: wrap; }
+        .lrs-card-row .puzzle-drop-area { min-width: 0; }
+        .lrs-row-tools { display: flex; flex-direction: column; gap: 3px; justify-content: center; }
+        .lrs-row-tools button { min-width: 30px; height: 22px; padding: 0 6px; font-size: 12px; line-height: 1; border: 1px solid var(--c-line-strong); border-radius: var(--r-cell); background: var(--c-surface); color: var(--c-text-2); cursor: pointer; }
+        .lrs-row-tools button:disabled { opacity: 0.35; cursor: default; }
+        .lrs-card-tools { display: flex; justify-content: flex-start; }
+        .puzzle-label.pz-ex { background: var(--c-risk-soft); color: var(--c-risk-text); }
+        .puzzle-block.lrs-card { width: auto; min-width: 28px; padding: 0 8px; font-size: 12.5px; gap: 4px; white-space: nowrap; }
+        .lrs-card .lrs-card-n { font-weight: 400; font-size: 11px; color: var(--c-text-3); }
+        .lrs-card.is-missing { opacity: 0.55; border-style: dashed; color: var(--c-text-3); }
+        .lrs-card.is-picked { border-color: var(--c-accent); background: var(--c-accent-row); box-shadow: 0 0 0 2px var(--c-accent-soft); }
+        .lrs-card.is-ex { border-color: var(--c-risk-line); color: var(--c-risk-text); }
+        .lrs-card.is-locked { cursor: default; }
+        .lrs-card-warn { font-size: 12px; line-height: 1.5; padding: 6px 10px; border-radius: var(--r-sm); background: var(--c-warn-soft); color: var(--c-warn-text); }
+        .lrs-card-pick { position: sticky; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--c-accent-soft); border-radius: var(--r-sm); background: var(--c-surface); box-shadow: var(--sh-tab); font-size: 12.5px; color: var(--c-text); }
+        .lrs-adv { margin-top: 10px; }
+        @media (max-width: 600px) {
+            .lrs-card-row .puzzle-label { width: 52px; font-size: 11px; }
+            .lrs-row-tools { flex-direction: row; flex-basis: 100%; justify-content: flex-end; }
+            .puzzle-block.lrs-card { height: 32px; }
+        }
         .loc-set-tabs { flex-wrap: wrap; max-width: 100%; }
         .loc-main-menu .menu-foot { display: block; padding: 8px 18px; text-align: right; background: var(--c-surface-2); border-top: 1px solid var(--c-line-soft); color: var(--c-text-3); font-size: 12px; }
         .btn-daily-upload { white-space: nowrap; box-sizing: border-box; }   /* label 이라 테두리만큼 커지지 않게(머리줄 높이 유지) */
@@ -1497,23 +1525,44 @@
                 <section id="lrs-locrec" class="lrs-block">
                     <h4>변경 추천 설정</h4>
                     <details class="lrs-fold">
-                        <summary>동선 기준 — 구역 순위 · 동/위치 순서 · 제외 구역</summary>
+                        <summary>동선 기준 — 구역-동 카드 순서 · 위치 순서 · 제외</summary>
                         <div class="lrs-note">입고대기 추천 자리도 이 기준을 씁니다.</div>
-                        <div class="lrs-sub">구역(알파벳) 순위 <span class="lrs-muted">— 알파벳 조각을 끌어 순위 칸에 놓으세요</span></div>
-                        <div class="puzzle-container">
-                            <div class="puzzle-row"><div class="puzzle-label pz-r0">0순위</div><div class="puzzle-drop-area" id="lrs-pz-0" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row"><div class="puzzle-label pz-r1">1순위</div><div class="puzzle-drop-area" id="lrs-pz-1" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row"><div class="puzzle-label pz-r2">2순위</div><div class="puzzle-drop-area" id="lrs-pz-2" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row"><div class="puzzle-label pz-r3">3순위</div><div class="puzzle-drop-area" id="lrs-pz-3" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
-                            <div class="puzzle-row" style="margin-top:5px;"><div class="puzzle-label pz-none">미지정<br>(후순위)</div><div class="puzzle-drop-area pz-none-area" id="lrs-pz-none" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, this)"></div></div>
+                        <!-- 구역-동 카드(2026-11-03) — 그리기·끌기·저장 모양은 js/locset-panel.js + js/lib/loc-card-board.js -->
+                        <div id="lrs-card-mode" class="lrs-card-mode" data-tone="info"></div>
+                        <div class="lrs-sub">구역-동 카드 순서 <span class="lrs-muted">— 위 줄일수록 먼저 채웁니다. 같은 줄 = 같은 순위. 카드를 끌어 놓거나, 눌러 고른 뒤 버튼으로 옮기세요</span></div>
+                        <div class="lrs-card-auto" id="lrs-card-auto">
+                            <span class="lrs-muted">자동 정렬</span>
+                            <button type="button" class="btn btn-secondary btn-sm" data-auto="distance">④ 출발점 거리 순(추천)</button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-auto="dong-first">② 동 우선</button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-auto="line-first">③ 라인 우선</button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-auto="dong-group">① 지금과 같게</button>
                         </div>
-                        <div class="lrs-sub">동 순서 <span class="lrs-muted">— 블록을 좌우로 끌어 맞추세요(왼쪽이 먼저)</span></div>
-                        <div class="sort-container" id="lrs-sort-dongs" ondragover="handleSortDragOver(event)"></div>
-                        <div class="lrs-sub">위치 순서</div>
+                        <div class="puzzle-container lrs-card-board" id="lrs-card-board">
+                            <div id="lrs-card-rows" class="lrs-card-rows"></div>
+                            <div class="lrs-card-tools"><button type="button" class="btn btn-secondary btn-sm" id="lrs-card-addrow">+ 줄 추가</button></div>
+                            <div class="puzzle-row lrs-card-row"><div class="puzzle-label pz-none">미지정</div><div class="puzzle-drop-area pz-none-area" id="lrs-card-none" data-drop="none"></div></div>
+                            <div id="lrs-card-none-warn" class="lrs-card-warn" hidden></div>
+                            <div class="puzzle-row lrs-card-row"><div class="puzzle-label pz-ex">제외</div><div class="puzzle-drop-area pz-none-area" id="lrs-card-ex" data-drop="ex"></div></div>
+                        </div>
+                        <div id="lrs-card-pick" class="lrs-card-pick" hidden>
+                            <span>고른 카드 <b id="lrs-card-pick-name"></b></span>
+                            <button type="button" class="btn btn-secondary btn-sm" data-pick="up">↑ 윗줄로</button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-pick="down">↓ 아랫줄로</button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-pick="ex">제외</button>
+                            <button type="button" class="btn btn-ghost btn-sm" data-pick="close">닫기</button>
+                        </div>
+                        <div class="lrs-sub">위치 순서 <span class="lrs-muted">— 블록을 좌우로 끌어 맞추세요(왼쪽이 먼저)</span></div>
                         <div class="sort-container" id="lrs-sort-poses" ondragover="handleSortDragOver(event)"></div>
-                        <div class="lrs-sub">추천 제외 구역 <span class="lrs-muted">— 구역+동 조합, 쉼표로 구분 (예: Z-1, A-3, ★-2)</span></div>
-                        <input type="text" id="lrs-exclude-input" class="risk-input" placeholder="예: Z-1, A-3, ★-2">
-                        <div id="lrs-exclude-preview" class="lrs-chips"></div>
+                        <details class="lrs-fold lrs-adv">
+                            <summary>고급</summary>
+                            <label class="lrs-field"><span>동 1칸 = 줄</span><input type="number" id="lrs-card-u" class="action-input" inputmode="decimal" min="0.5" max="20" step="0.5"><small class="lrs-help">줄 몇 개를 동 한 칸만큼으로 볼지(이득·문턱 단위). 자동 정렬이 채웁니다 — 보통은 그대로 두세요. 0.5~20</small></label>
+                            <div class="lrs-sub">추천 제외 구역 <span class="lrs-muted">— 구역+동 조합, 쉼표로 구분 (예: Z-1, A-3, ★-2). 지금 자료에 없는 조합도 미리 넣을 수 있습니다</span></div>
+                            <input type="text" id="lrs-exclude-input" class="risk-input" placeholder="예: Z-1, A-3, ★-2">
+                            <div id="lrs-exclude-preview" class="lrs-chips"></div>
+                        </details>
+                        <div class="lrs-actions">
+                            <button type="button" class="btn btn-secondary btn-sm" id="lrs-card-legacy-btn" data-feature="location.settings" hidden>옛 방식으로</button>
+                        </div>
                     </details>
 
                     <div class="lrs-sub">추천 양</div>
@@ -1738,10 +1787,10 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202611031028"></script>
+    <script type="module" src="js/location.js?v=202611031129"></script>
     <!-- 권한 개편 5단계: location.js 가 만든 window.* 위험 함수를 바깥에서 감싼다(반드시 location.js 다음) -->
-    <script type="module" src="js/location-guard.js?v=202611031028"></script>
-    <script type="module" src="js/locdash-layout.js?v=202611031028"></script>
+    <script type="module" src="js/location-guard.js?v=202611031129"></script>
+    <script type="module" src="js/locdash-layout.js?v=202611031129"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1818,10 +1867,10 @@
             if (typeof window.paintIncomingBasis === 'function') window.paintIncomingBasis(sidebar.classList.contains('open'));
         }
     </script>
-    <script src="js/connection-banner.js?v=202611031028"></script>
-    <script src="js/modal-esc.js?v=202611031028"></script>
-    <script type="module" src="js/modal-drag.js?v=202611031028"></script>
-    <script type="module" src="js/page-gate.js?v=202611031028" data-perm-page="location.view"></script>
-    <script type="module" src="js/app-shell.js?v=202611031028"></script>
+    <script src="js/connection-banner.js?v=202611031129"></script>
+    <script src="js/modal-esc.js?v=202611031129"></script>
+    <script type="module" src="js/modal-drag.js?v=202611031129"></script>
+    <script type="module" src="js/page-gate.js?v=202611031129" data-perm-page="location.view"></script>
+    <script type="module" src="js/app-shell.js?v=202611031129"></script>
 </body>
 </html>
