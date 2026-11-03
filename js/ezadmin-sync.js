@@ -14,12 +14,13 @@
 //      그래서 타이머로 주기적으로 '다시 판정' 한다.
 
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as State from './state.js?v=202611031737';
+import * as State from './state.js?v=202611040841';
 
 const 문서경로 = ['artifacts', 'team-work-logger-v2', 'integrations', 'ezadmin'];
 
-export const 신선_분 = 3;      // 이 안이면 라벨 없이 숫자만 (평소 화면을 깔끔하게)
-export const STALE_분 = 10;    // 이 이상이면 흐리게 + 빨강
+export const 신선_분 = 10;     // 이 안이면 라벨 없이 숫자만 (평소 화면을 깔끔하게)
+export const STALE_분 = 15;    // 이 이상이면 흐리게 + 빨강 — 수집기는 5분마다 읽고 그대로면 약 10분에 한 번 쓴다
+                               //   (이지어드민연동\설정.json 주기_초 300 · 하트비트_분 9, 2026-11-04 Firestore 과금 줄이기)
 
 let unsub = null;
 let 재판정타이머 = null;

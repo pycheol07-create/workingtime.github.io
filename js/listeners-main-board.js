@@ -1,12 +1,12 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611031737';
-import * as State from './state.js?v=202611031737';
-import { render } from './app.js?v=202611031737';
-import { showToast, formatTimeTo24H } from './utils.js?v=202611031737';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202611031737';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202611031737';
+import * as DOM from './dom-elements.js?v=202611040841';
+import * as State from './state.js?v=202611040841';
+import { render } from './app.js?v=202611040841';
+import { showToast, formatTimeTo24H } from './utils.js?v=202611040841';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202611040841';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202611040841';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -14,13 +14,13 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202611031737';
+} from './app-logic.js?v=202611040841';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611031737';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202611031737';
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611031737';
-import { openLocRecFromDash } from './locrec-dash.js?v=202611031737';
-import { TASK, isT } from './task-names.js?v=202611031737';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611040841';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202611040841';
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611040841';
+import { openLocRecFromDash } from './locrec-dash.js?v=202611040841';
+import { TASK, isT } from './task-names.js?v=202611040841';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
