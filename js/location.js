@@ -1,30 +1,30 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611040849';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611040907';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611040849';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611040849';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611040849';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611040849';
-import { orderKeyMap } from './lib/order-hash.js?v=202611040849';
-import { setShellContext } from './app-shell-bridge.js?v=202611040849';
-import { memberNameFor } from './app-shell-data.js?v=202611040849';
-import { menuConfigOf } from './lib/perm.js?v=202611040849';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611040849';
-import { initPageNav } from './page-nav.js?v=202611040849';
-import { initRefillCard } from './refill-card.js?v=202611040849';
-import { initLocRecCard } from './locrec-card.js?v=202611040849';
-import { initRebuildBar } from './rebuild-bar.js?v=202611040849';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611040849';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611040849';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611040849';
-import { uploadBlockText } from './lib/busy-view.js?v=202611040849';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611040849';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611040849';
-import { comboOf } from './lib/loc-cards.js?v=202611040849';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611040849';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611040907';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611040907';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611040907';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611040907';
+import { orderKeyMap } from './lib/order-hash.js?v=202611040907';
+import { setShellContext } from './app-shell-bridge.js?v=202611040907';
+import { memberNameFor } from './app-shell-data.js?v=202611040907';
+import { menuConfigOf } from './lib/perm.js?v=202611040907';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611040907';
+import { initPageNav } from './page-nav.js?v=202611040907';
+import { initRefillCard } from './refill-card.js?v=202611040907';
+import { initLocRecCard } from './locrec-card.js?v=202611040907';
+import { initRebuildBar } from './rebuild-bar.js?v=202611040907';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611040907';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611040907';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611040907';
+import { uploadBlockText } from './lib/busy-view.js?v=202611040907';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611040907';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611040907';
+import { comboOf } from './lib/loc-cards.js?v=202611040907';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611040907';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611040849';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611040849';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611040907';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611040907';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -749,10 +749,8 @@ window.onload = () => {
     injectPuzzleStyle();
     setupRealtimeListenerA();
     setupRealtimeListenerB();
-    // v4.0a-fix4: 페이지 로드 시 페어 캐시 자동 로드 (페어 쌍 추천에 필수)
-    if (typeof window.loadOrderPairsCache === 'function') {
-        window.loadOrderPairsCache();
-    }
+    // 페어 캐시(OrderPairs·OrderStats 약 68문서)는 화면을 열 때 읽지 않는다(2026-11-04 Firestore 읽기 줄이기).
+    //   쓰는 곳(입고대기 추천·일괄 적용·주문 분석 리포트)이 처음 필요할 때 window.ensureOrderPairsCache() 로 한 번 읽는다.
     // v4.4 종합 대시보드 UI는 제거됐으나, 대시보드의 '재고 회전율' 지표를 위해
     // 재고 스냅샷 파이프라인(load/snapshot)은 유지한다.
     if (typeof window._v44_init === 'function') {
@@ -1730,6 +1728,10 @@ window.calcIncomingRecommend = function(code, excludeLocIds) {
 // - Firestore 저장 패턴은 기존 단일 선지정과 동일 (preAssigned, preAssignedCode 등)
 window.applyAllRecommendations = async function() {
     try {
+        await window.ensureOrderPairsCache();   // 추천 계산에 페어 캐시가 필요하다(화면을 열 때 읽지 않으므로)
+        if (!Array.isArray(window._cachedOrderPairs)) {
+            return alert("추천 자리에 쓸 주문 자료를 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.");
+        }
         // 1) 현재 입고대기 목록 (renderIncomingQueue와 같은 필터 적용)
         const filterSource = document.getElementById('filter-source')?.value || 'all';
         
@@ -4215,7 +4217,8 @@ window.openOrderAnalysisReport = async function() {
 
         let pairs = [];
         let stats = {};
-        // 💰 읽기요금 절감: 캐시가 있으면 재사용(창 열기·업로드·정리 때 이미 로드됨). 없을 때만 전체 스캔.
+        // 💰 읽기요금 절감: 페어 캐시를 한 번 읽어 입고대기 추천과 같이 쓴다(ensure). 실패했거나 비었으면 아래에서 직접 읽는다.
+        await window.ensureOrderPairsCache();
         if (Array.isArray(window._cachedOrderPairs) && window._cachedOrderPairs.length > 0
             && window._cachedOrderStats && Object.keys(window._cachedOrderStats).length > 0) {
             pairs = window._cachedOrderPairs;
@@ -5152,9 +5155,10 @@ window.cleanupDeprecatedPairs = async function() {
         console.log(`[cleanup] 완료: 단종 ${deprecatedSet.size}건 정리, 페어 ${deletedPairCount}개 삭제, 통계 ${deletedStatCount}개 삭제.`);
         console.log(`[cleanup] 상세 로그: DeprecatedLog/${logDocId}`);
         
-        // v3.98: 페어 캐시 갱신
-        if (typeof window.loadOrderPairsCache === 'function') {
-            window.loadOrderPairsCache();
+        // v3.98: 페어 캐시 갱신 — 이미 읽어 둔 경우만(안 읽었으면 나중에 필요할 때 ensure 가 정리된 최신본을 읽는다)
+        if (Array.isArray(window._cachedOrderPairs) && typeof window.ensureOrderPairsCache === 'function') {
+            window._cachedOrderPairs = undefined;
+            window.ensureOrderPairsCache();
         }
     } catch (e) {
         console.error('[cleanup] 단종 정리 중 오류:', e);
@@ -5162,6 +5166,17 @@ window.cleanupDeprecatedPairs = async function() {
 };
 
 // ===== v3.98: 페어 데이터 캐시 로드 (입고대기 추천 Case A 에서 사용) =====
+// 페어 캐시가 없으면 한 번만 읽는다(동시에 여러 곳이 불러도 읽기는 한 번). 이미 있으면 바로 끝난다.
+let _orderPairsLoading = null;
+window.ensureOrderPairsCache = function() {
+    if (Array.isArray(window._cachedOrderPairs) && window._cachedOrderStats && window._cachedOrderMeta) return Promise.resolve();
+    if (!_orderPairsLoading) {
+        window._orderPairsFailed = false;
+        _orderPairsLoading = window.loadOrderPairsCache().finally(() => { _orderPairsLoading = null; });
+    }
+    return _orderPairsLoading;
+};
+
 window.loadOrderPairsCache = async function() {
     try {
         const pairsSnap = await getDocs(collection(db, ORDER_PAIRS_COLL));
@@ -5197,10 +5212,13 @@ window.loadOrderPairsCache = async function() {
         
         console.log(`[v3.98] 페어 캐시 로드 완료: ${pairs.length}개 페어, ${Object.keys(stats).length}개 상품`);
     } catch (e) {
+        // 실패면 비워 두지 않는다 — 빈 캐시를 '읽음'으로 보면 그 세션 내내 페어 없이 추천한다(2026-11-04).
+        //   쓰는 곳(renderIncomingQueue·applyAllRecommendations)이 실패를 알리고, 다시 열거나 [다시 시도] 때 다시 읽는다.
         console.warn('[v3.98] 페어 캐시 로드 실패:', e);
-        window._cachedOrderPairs = [];
-        window._cachedOrderStats = {};
-        window._cachedOrderMeta = {};
+        window._cachedOrderPairs = undefined;
+        window._cachedOrderStats = undefined;
+        window._cachedOrderMeta = undefined;
+        window._orderPairsFailed = true;
     }
 };
 
@@ -5430,6 +5448,20 @@ function incomingNeedLocList(filterSource = 'all') {
 window.renderIncomingQueue = function() {
     const container = document.getElementById('incoming-list');
     if(!container) return;
+    // 추천 자리는 페어 캐시(같이 주문되는 상품)를 쓴다 — 아직 안 읽었으면 읽은 뒤 다시 그린다(없는 채로 계산하면 추천이 달라진다)
+    if (!(Array.isArray(window._cachedOrderPairs) && window._cachedOrderStats && window._cachedOrderMeta)) {
+        if (window._orderPairsFailed) {   // 읽기 실패 — 저절로 다시 읽지 않는다(반복 방지). 버튼으로 다시 시도
+            container.innerHTML = '<div style="padding:24px; text-align:center; color:var(--c-risk, #c0392b);">추천 자리에 쓸 주문 자료를 불러오지 못했습니다.<br>'
+                + '<button type="button" class="d-btn" style="margin-top:8px;" onclick="window._orderPairsFailed=false; window.renderIncomingQueue()">다시 시도</button></div>';
+            return;
+        }
+        container.innerHTML = '<div style="padding:24px; text-align:center; color:var(--c-text-2);">추천 자리 계산 준비 중…</div>';
+        window.ensureOrderPairsCache().then(() => {
+            const sb = document.getElementById('incoming-sidebar');
+            if (sb && sb.classList.contains('open')) window.renderIncomingQueue();
+        });
+        return;
+    }
     const filterSource = document.getElementById('filter-source')?.value || 'all';
     const sortType = document.getElementById('sort-incoming')?.value || 'qty-desc';
 

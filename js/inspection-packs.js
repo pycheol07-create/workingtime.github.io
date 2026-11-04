@@ -6,14 +6,14 @@
 // 쓰기: updateDailyData({inspectionList}) — 엑셀 업로드(js/inspection-excel.js)와 같은 경로. 순수 규칙은 js/lib/insp-packs.js.
 // ⚠️ 이 창은 index.html 에 붙는다 — 업무마감봇 선택자와 겹치지 않게 role="dialog"·data-act·end-shift-* 를 쓰지 않는다. id 는 모두 insp-pack-*.
 // ⚠️ 공급처는 코드만(supplierCode). supplierName 은 빈칸(CLAUDE.md 3절).
-import * as State from './state.js?v=202611040849';
-import { updateDailyData } from './app-data.js?v=202611040849';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611040849';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202611040849';
-import { opt1Of } from './lib/mibal2-live.js?v=202611040849';   // 자리의 '옵션추가항목1'만(rawDataStr 의 다른 칸 — 공급처 등 — 은 돌려주지 않는다)
-import { fetchAllHistoryData } from './history-data-manager.js?v=202611040849';
+import * as State from './state.js?v=202611040907';
+import { updateDailyData } from './app-data.js?v=202611040907';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611040907';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202611040907';
+import { opt1Of } from './lib/mibal2-live.js?v=202611040907';   // 자리의 '옵션추가항목1'만(rawDataStr 의 다른 칸 — 공급처 등 — 은 돌려주지 않는다)
+import { fetchAllHistoryData } from './history-data-manager.js?v=202611040907';
 import { doc, getDoc, getDocs, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations, locsByCode, inspectedKeysFromHistory, packInspected } from './lib/insp-packs.js?v=202611040849';
+import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations, locsByCode, inspectedKeysFromHistory, packInspected } from './lib/insp-packs.js?v=202611040907';
 
 const DOC_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks'];
 const PICKER_ID = 'insp-pack-picker';
@@ -22,6 +22,8 @@ let inspectedErr = false;
 let inspectedAt = 0;        // 읽은 시각 — 5분 안에 다시 열면 다시 읽지 않는다(product_history 전체 읽기)
 let inspectedSeq = 0;       // 창을 빨리 닫았다 열 때 늦게 끝난 앞 읽기가 새 결과를 덮지 않게
 const INSPECTED_TTL_MS = 5 * 60 * 1000;
+// 검수를 저장하면(js/inspection-logic.js saveInspectionAndNext) 다음에 열 때 검수 기록을 새로 읽는다
+document.addEventListener('product-history-changed', () => { inspectedAt = 0; });
 const HIST_CONCURRENCY = 8;
 
 let parsed = null;            // parseInspPacks 결과(창을 열 때마다 새로 읽음)

@@ -1,22 +1,22 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611040849';
-import * as State from './state.js?v=202611040849';
-import { showToast, getTodayDateString } from './utils.js?v=202611040849';
-import { dayInspItems } from './lib/insp-day.js?v=202611040849';
-import { TASK, tName } from './task-names.js?v=202611040849';
+import * as DOM from './dom-elements.js?v=202611040907';
+import * as State from './state.js?v=202611040907';
+import { showToast, getTodayDateString } from './utils.js?v=202611040907';
+import { dayInspItems } from './lib/insp-day.js?v=202611040907';
+import { TASK, tName } from './task-names.js?v=202611040907';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202611040849'; 
+} from './ui-history.js?v=202611040907'; 
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202611040849';
+} from './ui-history-inspection.js?v=202611040907';
 
 import {
     loadInspectionLogs,
@@ -28,11 +28,14 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202611040849';
+} from './inspection-logic.js?v=202611040907';
 
 import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let cachedInspectionData = null;   // null = 아직 안 불러옴('불러오는 중'), [] = 불러왔는데 기록 없음
+// 이 화면(같은 탭)에서 검수를 저장하면 다음 보기 전환 때 새로 읽는다(js/inspection-logic.js 가 보냄).
+//   다른 PC·다른 탭에서 저장한 것은 탭에 다시 들어오거나 [새로고침] 때 보인다.
+document.addEventListener('product-history-changed', () => { cachedInspectionData = null; });
 
 // 검수이력 일자별 보기 → 그 날짜의 '대기' 항목을 오늘 검수 대기 리스트에 불러와 이어서 진행.
 // (검수 매니저는 메인 앱에 있으므로, 여기선 오늘 daily_data의 inspectionList에 머지 저장만 하고
@@ -61,7 +64,10 @@ async function resumeInspectionFromDate(date) {
     }
 }
 
-export const fetchAndRenderInspectionHistory = async () => {
+// reuse: 이미 읽은 상품별 검수 기록(cachedInspectionData)으로 다시 그리기만 — 유형 필터·보기 전환·날짜 선택 때
+//   (2026-11-04 Firestore 읽기 줄이기: 전엔 바꿀 때마다 product_history 전체를 다시 읽었다).
+//   탭 진입·새로고침·저장/삭제 뒤에는 지금처럼 새로 읽는다(reuse 없이 부른다).
+export const fetchAndRenderInspectionHistory = async ({ reuse = false } = {}) => {
     const container = DOM.inspectionHistoryViewContainer;
     if (!container) return;
 
@@ -74,13 +80,15 @@ export const fetchAndRenderInspectionHistory = async () => {
 
     if (viewMode === 'product' || viewMode === 'qc') {
         try {
-            const colRef = collection(State.db, 'product_history');
-            const snapshot = await getDocs(colRef);
+            if (!(reuse && Array.isArray(cachedInspectionData))) {
+                const colRef = collection(State.db, 'product_history');
+                const snapshot = await getDocs(colRef);
 
-            cachedInspectionData = []; 
-            snapshot.forEach(doc => {
-                cachedInspectionData.push({ id: doc.id, ...doc.data() });
-            });
+                cachedInspectionData = [];
+                snapshot.forEach(doc => {
+                    cachedInspectionData.push({ id: doc.id, ...doc.data() });
+                });
+            }
             
             if (viewMode === 'product') {
                 renderInspectionHistoryTable(cachedInspectionData);
@@ -155,7 +163,7 @@ export function setupHistoryInspectionListeners() {
             // ⭐ [신규] 상단 검수 유형 필터 (전체/샘플/전량) 선택 시 다시 렌더링
             if (e.target.id === 'insp-type-filter') {
                 setInspTypeFilter(e.target.value);
-                fetchAndRenderInspectionHistory();
+                fetchAndRenderInspectionHistory({ reuse: true });
                 return;
             }
             if (e.target.id === 'qc-period-type') {
@@ -250,7 +258,7 @@ export function setupHistoryInspectionListeners() {
                 if (State.context.inspectionViewMode !== mode) {
                     State.context.inspectionViewMode = mode;
                     State.context.selectedInspectionDate = null; 
-                    fetchAndRenderInspectionHistory(); 
+                    fetchAndRenderInspectionHistory({ reuse: true }); 
                 }
                 return;
             }
@@ -260,7 +268,7 @@ export function setupHistoryInspectionListeners() {
                 const date = dateBtn.dataset.date;
                 if (State.context.selectedInspectionDate !== date) {
                     State.context.selectedInspectionDate = date;
-                    fetchAndRenderInspectionHistory(); 
+                    fetchAndRenderInspectionHistory({ reuse: true }); 
                 }
                 return;
             }

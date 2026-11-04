@@ -1,20 +1,20 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202611040849';
-import * as State from './state.js?v=202611040849';
-import { updateDailyData } from './app-data.js?v=202611040849';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611040849';
+import * as DOM from './dom-elements.js?v=202611040907';
+import * as State from './state.js?v=202611040907';
+import { updateDailyData } from './app-data.js?v=202611040907';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611040907';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611040849';
-import { syncInspSegments } from './inspection-segments.js?v=202611040849';
-import { moveDoneItems } from './lib/insp-day.js?v=202611040849';
-import { TASK, tName } from './task-names.js?v=202611040849';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611040907';
+import { syncInspSegments } from './inspection-segments.js?v=202611040907';
+import { moveDoneItems } from './lib/insp-day.js?v=202611040907';
+import { TASK, tName } from './task-names.js?v=202611040907';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, todoCardHtml, doneCardHtml
-} from './lib/insp-flow.js?v=202611040849';
+} from './lib/insp-flow.js?v=202611040907';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -1014,6 +1014,8 @@ export const saveInspectionAndNext = async () => {
 
         // ── 여기부터는 저장이 끝난 뒤에만 ──
         pendingSave = null;
+        // 샘플검수 [패킹에서 만들기]의 '검수함' 표시가 5분 캐시 때문에 늦게 붙지 않게(js/inspection-packs.js 가 듣는다)
+        document.dispatchEvent(new CustomEvent('product-history-changed'));
         hideSaveError();
 
         // 처리량·대기 리스트의 State 는 실시간 구독(js/app-sync.js)이 서버 값으로 바꾼다 — 여기서 더하면 이중으로 세고
@@ -1143,6 +1145,6 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202611040849';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611040849';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611040849';
+export { handleExcelUpload } from './inspection-excel.js?v=202611040907';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611040907';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611040907';
