@@ -5,9 +5,9 @@
 //   - 허용은 일정에 알림을 걸고 [저장]을 누를 때 묻는다(js/widget-calendar.js) — 브라우저는 클릭 때만 물을 수 있다.
 //   - 같은 알림 id 는 tag 로 묶여 창(탭)이 여러 개여도 한 번만 보인다.
 //   - 알림 구독 두 곳(js/app-sync.js 대시보드 · js/app-shell-noti.js 다른 화면)이 새 알림마다 부른다.
-import { isAutomation } from './lib/noti-popup.js?v=202611041632';
+import { isAutomation } from './lib/noti-popup.js?v=202611041643';
 
-const TYPES = new Set(['calendar']);
+const TYPES = new Set(['calendar', 'notice']);   // notice: 중요 공지 알림(2026-11-04)
 
 export function desktopNotifySupported() {
     return typeof window !== 'undefined' && 'Notification' in window;
@@ -31,8 +31,9 @@ export function desktopNotify(noti) {
         if (!noti || !TYPES.has(noti.type) || isAutomation()) return;
         if (desktopNotifyPermission() !== 'granted') return;
         if (document.visibilityState === 'visible' && document.hasFocus()) return;
-        const n = new Notification('업무 일정 알림', {
-            body: String(noti.message || '').replace(/^🗓️\s*/, ''),
+        const isNotice = noti.type === 'notice';
+        const n = new Notification(isNotice ? '중요 공지' : '업무 일정 알림', {
+            body: String(noti.message || '').replace(/^🗓️\s*/, '').replace(/^📢 중요 공지[^\n]*\n/, ''),
             tag: `noti-${noti.id || ''}`
         });
         n.onclick = () => { try { window.focus(); n.close(); } catch (e) { /* 무시 */ } };

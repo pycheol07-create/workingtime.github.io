@@ -1,11 +1,11 @@
 // === js/notice-logic.js ===
-import * as State from './state.js?v=202611041632';
-import { showToast, getActiveTeamMembers } from './utils.js?v=202611041632';
+import * as State from './state.js?v=202611041643';
+import { showToast, getActiveTeamMembers } from './utils.js?v=202611041643';
 import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611041632';
+import { initializeFirebase } from './config.js?v=202611041643';
 
 // 🔥 [신규] 멘션 발송을 위해 알림 함수 가져오기
-import { sendNotification } from './app-notifications.js?v=202611041632';
+import { sendNotification } from './app-notifications.js?v=202611041643';
 
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
@@ -64,8 +64,38 @@ export const saveNotices = async ({ quiet = false } = {}) => {
 // 2. 중요 알림(Notice) 전용 로직
 // ==========================================
 
+/** 알림 받을 수 있는 사람(퇴사자 제외 직원 + 알바) — 멘션·공지 알림이 같이 쓴다 */
+export const noticeMemberNames = () => {
+    const all = new Set();
+    getActiveTeamMembers(State.appConfig).forEach(m => all.add(m));
+    (State.appState?.partTimers || []).forEach(p => p && p.name && all.add(p.name));
+    return [...all].sort((a, b) => a.localeCompare(b, 'ko'));
+};
+
+/** 공지 알림(2026-11-04) — notify = { mode: 'none'|'all'|'pick', names: [] }. 쓴 사람 자신은 빼고 보낸다.
+ *  보낸 사람 이름 목록을 돌려준다(멘션 알림을 같은 사람에게 또 보내지 않게). */
+const sendNoticeAlerts = async (text, scheduleAt, notify) => {
+    const mode = notify && notify.mode;
+    if (mode !== 'all' && mode !== 'pick') return [];
+    const sender = State.appState.currentUser || '관리자';
+    const valid = new Set(noticeMemberNames());
+    const targets = (mode === 'all' ? [...valid] : (notify.names || []).filter(n => valid.has(n))).filter(n => n !== sender);
+    if (!targets.length) { showToast('공지는 등록했지만 알림 받을 사람이 없어 알림은 보내지 않았습니다.', true); return []; }
+    const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const head = lines[0] || '';
+    const rest = lines.slice(1).join(' ');
+    const when = scheduleAt && typeof window !== 'undefined' && window.formatNoticeSchedule ? `\n📅 ${window.formatNoticeSchedule(scheduleAt)}` : '';
+    const msg = `📢 중요 공지 (${sender})\n${head}${rest ? '\n' + (rest.length > 80 ? rest.slice(0, 80) + '…' : rest) : ''}${when}`;
+    const results = await Promise.all(targets.map(n => sendNotification(n, msg, 'notice')));
+    const failed = results.filter(ok => !ok).length;
+    if (failed > 0) showToast(`공지 알림 ${failed}명 발송 실패`, true);
+    else showToast(`공지 알림을 ${targets.length}명에게 보냈습니다.`);
+    return targets.filter((_, i) => results[i]);
+};
+
 // 🔥 [신규] 텍스트 내에서 '@이름' 멘션을 찾아 알림을 발송하는 헬퍼 함수
-const processMentions = async (text) => {
+//   skip: 이미 공지 알림을 받은 사람(같은 글로 두 번 알리지 않게)
+const processMentions = async (text, skip = []) => {
     const sender = State.appState.currentUser || '관리자';
     const mentionRegex = /@([가-힣a-zA-Z0-9]+)/g;
     const matches = [...text.matchAll(mentionRegex)];
@@ -82,7 +112,7 @@ const processMentions = async (text) => {
 
         let failed = 0;
         for (const name of uniqueMentions) {
-            if (allMembers.has(name) && name !== sender) {
+            if (allMembers.has(name) && name !== sender && !skip.includes(name)) {
                 // 발송 — 실패해도 던지지 않고 false 를 준다
                 const ok = await sendNotification(name, `🔔 중요 알림에서 ${sender}님이 회원님을 멘션했습니다:\n"${shortText}"`, 'mention');
                 if (!ok) failed++;
@@ -127,7 +157,7 @@ export const purgeExpiredNotices = async () => {
     return removed;
 };
 
-export const addNotice = async (text, scheduleAt = '') => {
+export const addNotice = async (text, scheduleAt = '', notify = null) => {
     if (!text.trim()) { showToast("알림 내용을 입력해주세요.", true); return false; }
     const newNotice = {
         id: createId(), text: text.trim(), completed: false, createdAt: Date.now()
@@ -144,8 +174,9 @@ export const addNotice = async (text, scheduleAt = '') => {
         return false;
     }
 
-    // 멘션 감지 및 푸시
-    await processMentions(text.trim());
+    // 공지 알림(전체·사람 지정) → 멘션 알림(이미 받은 사람 빼고)
+    const alerted = await sendNoticeAlerts(text.trim(), newNotice.scheduleAt || '', notify);
+    await processMentions(text.trim(), alerted);
     return true;
 };
 

@@ -24,12 +24,12 @@
          동기로 window.XLSX 를 찾으므로 지연 로드 대신 defer 만. -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611041632">
-    <link rel="stylesheet" href="css/style.css?v=202611041632">
-    <link rel="stylesheet" href="css/dash-d.css?v=202611041632">
-    <link rel="stylesheet" href="css/form-d.css?v=202611041632">
-    <link rel="stylesheet" href="css/refill-modal.css?v=202611041632">
-    <link rel="stylesheet" href="css/locrec-modal.css?v=202611041632">
+    <link rel="stylesheet" href="css/suit.css?v=202611041643">
+    <link rel="stylesheet" href="css/style.css?v=202611041643">
+    <link rel="stylesheet" href="css/dash-d.css?v=202611041643">
+    <link rel="stylesheet" href="css/form-d.css?v=202611041643">
+    <link rel="stylesheet" href="css/refill-modal.css?v=202611041643">
+    <link rel="stylesheet" href="css/locrec-modal.css?v=202611041643">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -444,6 +444,17 @@
                             class="text-[11px] font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 px-1.5 py-1">지우기</button>
                     <span class="text-[11px] text-gray-400">비워 두면 일정 없는 공지로 등록됩니다</span>
                 </div>
+                <!-- 알림 보내기(선택) — 등록할 때 앱 알림(종)으로 같이 보낸다 -->
+                <div class="mt-2">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">알림</span>
+                        <label class="inline-flex items-center gap-1 text-xs text-gray-700 dark:text-gray-200"><input type="radio" name="new-notice-notify" value="none" checked> 안 보냄</label>
+                        <label class="inline-flex items-center gap-1 text-xs text-gray-700 dark:text-gray-200"><input type="radio" name="new-notice-notify" value="all"> 전체</label>
+                        <label class="inline-flex items-center gap-1 text-xs text-gray-700 dark:text-gray-200"><input type="radio" name="new-notice-notify" value="pick"> 사람 지정</label>
+                        <span id="new-notice-notify-count" class="text-[11px] text-gray-400"></span>
+                    </div>
+                    <div id="new-notice-pick" class="hidden mt-1.5 max-h-28 overflow-y-auto grid grid-cols-3 sm:grid-cols-4 gap-1 text-xs text-gray-700 dark:text-gray-200 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"></div>
+                </div>
             </div>
 
             <div class="flex-1 overflow-y-auto p-5">
@@ -532,13 +543,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202611041632');
+                await import('./js/app.js?v=202611041643');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202611041632').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202611041643').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -618,11 +629,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202611041632';
-        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202611041632';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202611041632';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202611041632';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202611041632';
+        import { appState } from './js/state.js?v=202611041643';
+        import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=202611041643';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202611041643';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202611041643';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202611041643';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -655,6 +666,45 @@
             return d ? `${d}T${t || '00:00'}` : '';
         };
 
+        // 공지 알림 받는 사람 — '사람 지정'을 고르면 직원 목록을 펼친다(쓴 사람 자신은 받지 않는다)
+        const noticeNotifyMode = () => document.querySelector('input[name="new-notice-notify"]:checked')?.value || 'none';
+        const noticeEsc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const refreshNoticeNotify = () => {
+            const mode = noticeNotifyMode();
+            const pick = document.getElementById('new-notice-pick');
+            if (pick) {
+                pick.classList.toggle('hidden', mode !== 'pick');
+                // 펼칠 때마다 지금 명단으로 다시 만든다(오늘 알바·설정이 늦게 와도 맞게). 체크한 이름은 유지, 쓴 사람 자신은 빼고
+                if (mode === 'pick' && pick.dataset.built !== 'now') {
+                    const keep = new Set([...pick.querySelectorAll('.new-notice-pick-name:checked')].map(x => x.value));
+                    const me = appState.currentUser || '';
+                    const names = noticeMemberNames().filter(n => n !== me);
+                    pick.innerHTML = names.length
+                        ? names.map(n => `<label class="inline-flex items-center gap-1 truncate"><input type="checkbox" class="new-notice-pick-name" value="${noticeEsc(n)}" ${keep.has(n) ? 'checked' : ''}> ${noticeEsc(n)}</label>`).join('')
+                        : '<span class="col-span-3 text-gray-400">직원 목록이 없습니다.</span>';
+                    pick.dataset.built = 'now';
+                }
+            }
+            const cnt = document.getElementById('new-notice-notify-count');
+            if (cnt) {
+                const me = appState.currentUser || '';
+                const n = mode === 'all' ? noticeMemberNames().filter(x => x !== me).length
+                    : mode === 'pick' ? [...document.querySelectorAll('#new-notice-pick .new-notice-pick-name:checked')].filter(x => x.value !== me).length : 0;
+                cnt.textContent = mode === 'none' ? '' : `→ ${n}명에게 앱 알림(종)`;
+            }
+        };
+        const resetNoticeNotify = () => {
+            const pick = document.getElementById('new-notice-pick');
+            if (pick) { pick.innerHTML = ''; delete pick.dataset.built; }   // 다음에 펼칠 때 명단을 새로
+            document.querySelectorAll('input[name="new-notice-notify"]').forEach(r => { r.checked = r.value === 'none'; });
+            document.querySelectorAll('#new-notice-pick .new-notice-pick-name').forEach(c => { c.checked = false; });
+            refreshNoticeNotify();
+        };
+        document.querySelectorAll('input[name="new-notice-notify"]').forEach(r => r.addEventListener('change', refreshNoticeNotify));
+        // 창을 열 때마다 알림은 '안 보냄'으로 — 지난번에 고른 '전체'가 남아 뜻하지 않게 보내지 않게
+        document.getElementById('open-notice-modal-btn')?.addEventListener('click', () => resetNoticeNotify());
+        document.getElementById('new-notice-pick')?.addEventListener('change', refreshNoticeNotify);
+
         document.getElementById('clear-notice-date')?.addEventListener('click', () => {
             const d = document.getElementById('new-notice-date');
             const t = document.getElementById('new-notice-time');
@@ -667,10 +717,14 @@
             if (!input || !input.value || btn.disabled) return;
             btn.disabled = true;   // 저장 끝날 때까지 두 번 등록 막기
             try {
-                const ok = await addNotice(input.value, window.noticeScheduleValue());
+                const mode = noticeNotifyMode();
+                const names = mode === 'pick' ? [...document.querySelectorAll('#new-notice-pick .new-notice-pick-name:checked')].map(x => x.value) : [];
+                if (mode === 'pick' && !names.length) { alert('알림 받을 사람을 한 명 이상 고르거나 [안 보냄]을 고르세요.'); return; }
+                const ok = await addNotice(input.value, window.noticeScheduleValue(), { mode, names });
                 if (ok) {   // 실패하면 입력은 그대로 두어 다시 누를 수 있게
                     input.value = '';
                     document.getElementById('clear-notice-date')?.click();
+                    resetNoticeNotify();
                 }
             } finally {
                 btn.disabled = false;
@@ -800,11 +854,11 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202611041632"></script>
-    <script src="js/modal-esc.js?v=202611041632"></script>
-    <script type="module" src="js/modal-drag.js?v=202611041632"></script>
+    <script src="js/connection-banner.js?v=202611041643"></script>
+    <script src="js/modal-esc.js?v=202611041643"></script>
+    <script type="module" src="js/modal-drag.js?v=202611041643"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202611041632"></script>
-    <script src="js/app-version.js?v=202611041632"></script>
+    <script type="module" src="js/app-shell.js?v=202611041643"></script>
+    <script src="js/app-version.js?v=202611041643"></script>
 </body>
 </html>

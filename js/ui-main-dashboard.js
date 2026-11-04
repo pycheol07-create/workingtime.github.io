@@ -1,16 +1,16 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202611041632';
-import * as State from './state.js?v=202611041632';
-import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202611041632';
-import { visibleMenuFor } from './menu-catalog.js?v=202611041632';
-import { sidebarLinkTarget, menuLabel, menuNameOfLabel } from './app-shell-data.js?v=202611041632';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202611041632';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202611041632';
-import { canonicalTaskName } from './lib/task-ids.js?v=202611041632';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611041632';
-import { minToHhmm } from './forecast-progress.js?v=202611041632';
-import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202611041632';
-import { subscribeShipAuto, morningAutoToday } from './ship-auto-sync.js?v=202611041632';
+import { getAllDashboardDefinitions } from './ui.js?v=202611041643';
+import * as State from './state.js?v=202611041643';
+import { getRegularMembersForCount, formatHM, escapeHtml, showToast } from './utils.js?v=202611041643';
+import { visibleMenuFor } from './menu-catalog.js?v=202611041643';
+import { sidebarLinkTarget, menuLabel, menuNameOfLabel } from './app-shell-data.js?v=202611041643';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202611041643';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202611041643';
+import { canonicalTaskName } from './lib/task-ids.js?v=202611041643';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611041643';
+import { minToHhmm } from './forecast-progress.js?v=202611041643';
+import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202611041643';
+import { subscribeShipAuto, morningAutoToday } from './ship-auto-sync.js?v=202611041643';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -72,21 +72,37 @@ export const renderNoticeWidget = (appState) => {
 
     let html = '';
     ordered.forEach(notice => {
-        // 완료한 공지는 취소선 + 흐림 (예전 ✅/📌 아이콘은 D안에서 뺐다)
-        const textClass = notice.completed ? 'line-through t-3' : 't-1 font-medium';
-
-        const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
-
-        const mentionStyle = '<span class="inline-block d-mention align-baseline leading-tight">@$1</span>';
-        const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, mentionStyle);
+        // 공지 한 건 = 왼쪽 색 띠 + 첫 줄(제목, 굵게) + 나머지 줄(본문, 작게) + 아래 일정·등록일 (2026-11-04 — 예전엔 한 덩어리로 나열)
+        //   띠 색: 오늘 일정 = 장미, 7일 안 = 파랑, 그 밖·일정 없음 = 옅은 파랑, 지난 일정·완료 = 회색
+        const done = !!notice.completed;
+        const lines = String(notice.text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        const title = noticeMention(noticeEsc(lines[0] || ''));
+        const body = lines.slice(1).map(l => noticeMention(noticeEsc(l))).join('<br>');
 
         const sched = noticeScheduleLabel(notice.scheduleAt);
-        const schedHtml = sched ? `<span class="block mt-1 text-xs font-semibold ${sched.tone}">${sched.text}</span>` : '';
+        const bar = done ? 'var(--c-line-strong)'
+            : !sched ? 'var(--c-accent-mid)'
+            : sched.tone === 't-risk' ? 'var(--c-risk)'
+            : sched.tone === 't-3' ? 'var(--c-line-strong)'
+            : sched.tone === 't-1' ? 'var(--c-accent)' : 'var(--c-accent-mid)';
+        const schedHtml = sched ? `<span class="text-[11px] font-semibold ${done ? 't-3' : sched.tone}">📅 ${sched.text}</span>` : '';
+        const created = noticeMd(notice.createdAt) ? `<span class="text-[11px] t-3">등록 ${noticeMd(notice.createdAt)}</span>` : '';
+        const meta = (schedHtml || created || done)
+            ? `<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">${schedHtml}${done ? '<span class="text-[11px] t-3">완료</span>' : ''}${created}</div>` : '';
 
-        html += `<li class="${textClass} list-none flex items-start gap-2 px-3 py-2"><span class="leading-snug break-words flex-1">${highlightedText}${schedHtml}</span></li>`;
+        html += `<li class="list-none px-3 py-2.5 ${done ? 'opacity-60' : ''}">
+            <div class="pl-2.5 border-l-[3px] rounded-sm" style="border-color:${bar}">
+                <div class="text-[13px] leading-snug break-words ${done ? 'line-through t-3' : 't-1 font-semibold'}">${title}</div>
+                ${body ? `<div class="mt-0.5 text-xs leading-relaxed break-words ${done ? 't-3' : 't-2'}">${body}</div>` : ''}
+                ${meta}
+            </div>
+        </li>`;
     });
     memoList.innerHTML = html;
 };
+const noticeEsc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const noticeMention = (t) => t.replace(/@([가-힣a-zA-Z0-9]+)/g, '<span class="inline-block d-mention align-baseline leading-tight">@$1</span>');
+const noticeMd = (ms) => { if (!ms) return ''; const d = new Date(Number(ms)); return isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()}`; };
 
 /** 지금 무엇을 보여 줄지 고른다.
  *
@@ -410,7 +426,7 @@ const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-
  *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
 const openQuantityFromCard = async () => {
     try {
-        const { whenTodayLoaded } = await import('./app-sync.js?v=202611041632');
+        const { whenTodayLoaded } = await import('./app-sync.js?v=202611041643');
         const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
         if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
     } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
@@ -596,7 +612,7 @@ const paintWorkloadPaceNow = () => {
     if (!paceMod) {
         if (!paceModLoading) {
             paceModLoading = true;
-            import('./ui-history-prediction.js?v=202611041632')
+            import('./ui-history-prediction.js?v=202611041643')
                 .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
                 .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
                 .finally(() => { paceModLoading = false; });
