@@ -174,7 +174,8 @@ export const appState = {
     // 검수 대기 리스트 (서버 동기화용)
     inspectionList: [],
     // 매니저에서 비운 완료 검수(같은 날 일자별 보기용, js/lib/insp-day.js)
-    inspectionDone: []
+    inspectionDone: [],
+    inspPicked: {}            // 샘플 피킹 체크 { pickKey: {at, by} } — daily_data.inspPicked
 };
 
 export const allHistoryData = [];

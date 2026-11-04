@@ -2,7 +2,7 @@
 // 샘플검수 창의 순수 함수 — DOM·Firestore 없음(node --test 대상).
 // 판정·저장 규칙은 js/inspection-logic.js 의 saveInspectionAndNext 를 그대로 옮겼다(동작을 바꾸지 않는 것이 원칙).
 // 화면 카드 HTML 은 모든 값을 escapeHtml 로 통과시킨다.
-import { escapeHtml } from '../utils.js?v=202611041047';
+import { escapeHtml } from '../utils.js?v=202611041106';
 
 /** 체크리스트 키 — 화면(components/modals-form-inspection.html) 순서. 두께(thickness)는 판정에서 빠진다. */
 export const CHECK_KEYS = ['fabric', 'color', 'distortion', 'unraveling', 'finishing', 'zipper', 'button', 'lining', 'pilling', 'dye'];
@@ -202,6 +202,47 @@ export function applyDoneToList(list, { index, name, option, packingDate, sample
 
 /** 대기 리스트 카드 한 장. 원본 renderTodoList 와 같은 정보 + data-index(클릭 위임용, 원본 리스트 창과 같은 속성). */
 /** opts.showReserve — 비축 로케이션도 보인다('새창으로 보기' 창만. 한 상품에 여러 곳이라 기본 리스트에서는 뺀다) */
+// ── 샘플 피킹 체크(새창으로 보기, 2026-11-04) ─────────────────────────────
+//   daily_data/{오늘}.inspPicked = { <pickKey>: { at, by } } — 리스트(inspectionList)와 따로 저장해 검수 저장과 덮어쓰지 않는다.
+
+/** 피킹 체크 키 — 상품명|옵션|출고일의 짧은 해시(맵 키에 특수문자가 안 들어가게). 같은 리스트 항목이면 늘 같다. */
+export function pickKey(item) {
+    const it = item || {};
+    const s = `${str(it.name)}|${str(it.option)}|${str(it.packingDate)}`;
+    let h1 = 0x811c9dc5, h2 = 0x01000193;
+    for (let i = 0; i < s.length; i++) {
+        const c = s.charCodeAt(i);
+        h1 = Math.imul(h1 ^ c, 16777619) >>> 0;
+        h2 = Math.imul(h2 ^ c, 2246822519) >>> 0;
+    }
+    return 'p' + h1.toString(36) + h2.toString(36);
+}
+
+/** 가져왔나 — picked = inspPicked 맵 */
+export const isPicked = (item, picked) => !!(picked && typeof picked === 'object' && picked[pickKey(item)]);
+
+/** { done, total } — 리스트 전체 기준 */
+export function pickProgress(list, picked) {
+    const l = Array.isArray(list) ? list : [];
+    return { done: l.filter(it => isPicked(it, picked)).length, total: l.length };
+}
+
+/** 새창 카드 순서 — [{item, idx}] (idx = 원래 리스트 위치, 선택은 이걸로).
+ *  byLoc: 첫 피킹 위치 문자열 자연 정렬(위치 없는 것은 뒤, 같으면 원래 순서) · onlyUnpicked: 안 가져온 것만 */
+export function windowOrder(list, picked, { byLoc = false, onlyUnpicked = false } = {}) {
+    let rows = (Array.isArray(list) ? list : []).map((item, idx) => ({ item, idx }));
+    if (onlyUnpicked) rows = rows.filter(r => !isPicked(r.item, picked));
+    if (byLoc) {
+        const locOf = (it) => str(it && it.location).split(',')[0].trim();
+        rows.sort((a, b) => {
+            const la = locOf(a.item), lb = locOf(b.item);
+            if (!la !== !lb) return la ? -1 : 1;
+            return la.localeCompare(lb, 'ko', { numeric: true }) || a.idx - b.idx;
+        });
+    }
+    return rows;
+}
+
 export function todoCardHtml(item, idx, opts = {}) {
     const it = item || {};
     const isCompleted = it.status === DONE;
@@ -212,15 +253,22 @@ export function todoCardHtml(item, idx, opts = {}) {
     const reserveInfo = opts.showReserve && it.reserveLocation ? `<span class="text-amber-800 font-bold bg-amber-50 px-1 rounded">비축 ${escapeHtml(it.reserveLocation)}</span>` : '';
     const sampleInfo = it.sampleLocation ? `<span class="text-red-700 font-bold bg-red-50 px-1 rounded">샘플: ${escapeHtml(it.sampleLocation)}</span>` : '';
     const dateInfo = it.packingDate ? `<span class="text-gray-600 font-medium">출고: ${escapeHtml(String(it.packingDate).slice(2))}</span>` : '';
-    const cls = `transition cursor-pointer px-3 py-2.5 min-h-[44px] ${isCompleted ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-blue-50'}`;
-    return `<div class="${cls}" data-index="${escapeHtml(idx)}" data-status="${isCompleted ? 'done' : 'todo'}" role="button" tabindex="0">
+    const cls = `transition cursor-pointer px-3 py-2.5 min-h-[44px] ${isCompleted ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-blue-50'}${opts.pickable ? ' flex items-stretch gap-2' : ''}`;
+    // 피킹 체크 버튼(새창 — opts.pickable). 누르면 체크만 하고 상세로 가지 않는다(js/inspection-logic.js bindCardDelegation 이 data-pick-toggle 은 건너뜀)
+    const pickBtn = opts.pickable
+        ? `<button type="button" data-pick-toggle="${escapeHtml(idx)}" aria-pressed="${opts.picked ? 'true' : 'false'}" title="${opts.picked ? '가져옴 — 누르면 해제' : '샘플을 가져왔으면 누르세요'}"
+                style="${opts.picked ? 'background-color:var(--c-ok-strong);border-color:var(--c-ok-strong);color:#fff;' : ''}"
+                class="shrink-0 self-center w-16 min-h-[52px] rounded-lg border-2 flex flex-col items-center justify-center text-[11px] font-bold transition ${opts.picked ? '' : 'bg-white border-gray-300 text-gray-500'}">
+                <span class="text-xl leading-none">${opts.picked ? '☑' : '☐'}</span>가져옴</button>`
+        : '';
+    return `<div class="${cls}" data-index="${escapeHtml(idx)}" data-status="${isCompleted ? 'done' : 'todo'}" role="button" tabindex="0">${opts.pickable ? '<div class="min-w-0 flex-1">' : ''}
             <div class="flex items-center gap-2">
                 <span class="font-mono font-medium text-[11px] text-gray-600 whitespace-nowrap">${escapeHtml(it.code)}</span>
                 ${statusBadge}
             </div>
             <div class="font-bold text-gray-900 text-sm mt-0.5 break-words">${escapeHtml(it.name)}</div>
             ${it.option ? `<div class="text-[11px] font-medium text-gray-600 mt-0.5 break-words">옵션: ${escapeHtml(it.option)}</div>` : ''}
-            <div class="text-[12px] mt-1 flex flex-wrap gap-1 items-center">${locationInfo}${reserveInfo}${sampleInfo}${dateInfo}</div>
+            <div class="text-[12px] mt-1 flex flex-wrap gap-1 items-center">${locationInfo}${reserveInfo}${sampleInfo}${dateInfo}</div>${opts.pickable ? `</div>${pickBtn}` : ''}
         </div>`;
 }
 

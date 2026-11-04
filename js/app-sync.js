@@ -1,18 +1,18 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202611041047';
-import { isPersistentLeaveType } from './state.js?v=202611041047';
-import * as DOM from './dom-elements.js?v=202611041047';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611041047';
+import * as State from './state.js?v=202611041106';
+import { isPersistentLeaveType } from './state.js?v=202611041106';
+import * as DOM from './dom-elements.js?v=202611041106';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611041106';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611041047';
-import { renderTodoList } from './inspection-logic.js?v=202611041047';
-import { renderNotificationList } from './app-notifications.js?v=202611041047';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611041047';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611041047';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611041047';
-import { desktopNotify } from './desktop-noti.js?v=202611041047';
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611041047';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611041106';
+import { renderTodoList } from './inspection-logic.js?v=202611041106';
+import { renderNotificationList } from './app-notifications.js?v=202611041106';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611041106';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611041106';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611041106';
+import { desktopNotify } from './desktop-noti.js?v=202611041106';
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611041106';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -158,6 +158,7 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         
         State.appState.inspectionList = data.inspectionList || []; 
         State.appState.inspectionDone = data.inspectionDone || [];
+        State.appState.inspPicked = data.inspPicked || {};   // 샘플 피킹 체크(새창 [가져옴], 모든 기기 공유)
         State.appState.dailyOnLeaveMembers = data.onLeaveMembers || [];
         // ⚠️ 이 값을 되읽지 않으면 메모리에는 늘 빈 배열이 남는다.
         //    그 상태로 1분 자동저장이 돌면 '0으로 확인' 표시가 통째로 지워진다.
