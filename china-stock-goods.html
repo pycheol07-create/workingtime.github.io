@@ -2,14 +2,14 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611041309"></script>
+    <script src="js/theme-boot.js?v=202611041337"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 미발계산기</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611041309">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611041309">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611041309">
-    <link rel="stylesheet" href="css/page-nav.css?v=202611041309">
+    <link rel="stylesheet" href="css/suit.css?v=202611041337">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611041337">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611041337">
+    <link rel="stylesheet" href="css/page-nav.css?v=202611041337">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -366,7 +366,14 @@
     <div id="mibal-formula-modal" class="modal-overlay">
         <div class="modal-content" style="width:540px; max-width:94vw; max-height:90vh; overflow-y:auto;">
             <h3 style="margin-top:0;">미발수량 규칙 설정</h3>
-            <div class="d-note" style="padding:8px 12px; margin-bottom:12px; font-size:12px; line-height:1.5;">빈 칸 넘침 규칙(2026-11-04): 아래 공식 결과 뒤에 늘 적용합니다 — 총재고가 적재량의 10% 이하이고 칸을 넘는 양이 적재량의 50% 이하이면 도착 전부를 미발(3층)로 보냅니다(비축으로 안 나눔). 값을 올리기만 합니다. 아래 예시 표의 '지금 결과'에는 도착수량이 없어 이 규칙이 나타나지 않습니다.</div>
+            <div class="d-note" style="padding:8px 12px; margin-bottom:12px; font-size:12px; line-height:1.5;">
+                <div style="font-weight:600; margin-bottom:4px;">빈 칸 넘침 규칙 <span class="t-3" style="font-weight:400;">(관리자만 · 신규 부족수량 화면·스캐너 분배에도 같이 적용)</span></div>
+                아래 공식 결과 뒤에 늘 적용합니다 — 피킹칸 재고가 적재량의
+                <input type="number" id="ef-pick-pct" min="0" max="100" step="1" style="width:56px; padding:2px 4px;">% 이하이고, 칸을 넘는 양이 적재량의
+                <input type="number" id="ef-over-pct" min="0" max="100" step="1" style="width:56px; padding:2px 4px;">% 이하이면 도착 전부를 미발(3층)로 보냅니다(비축으로 안 나눔). 값을 올리기만 하고, 둘 중 하나를 0 으로 두면 규칙이 꺼집니다.
+                <button type="button" id="btn-save-empty-fill" class="d-btn d-btn-sm" style="margin-left:4px;">비율 저장</button>
+                <div class="t-3" style="margin-top:4px;">기본값 10% · 50%. 아래 예시 표의 '지금 결과'에는 도착수량이 없어 이 규칙이 나타나지 않습니다.</div>
+            </div>
 
             <!-- [Ver 7.5] 규칙 변수(재고로그 헤더) 관리 -->
             <div class="d-note" style="padding:10px 12px; margin-bottom:14px;">
@@ -605,13 +612,13 @@
     </div>
 
     <div id="toast"></div>
-    <script src="js/modal-esc.js?v=202611041309"></script>
+    <script src="js/modal-esc.js?v=202611041337"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- ?v= 는 버전 배지와 함께 올려서 브라우저가 옛 JS 캐시를 쓰지 않게 함 -->
-    <script type="module" src="js/china-stock-gate.js?v=202611041309"></script>
-    <script type="module" src="js/china-stock-goods.js?v=202611041309"></script>
-    <script type="module" src="js/modal-drag.js?v=202611041309"></script>
-    <script type="module" src="js/page-gate.js?v=202611041309" data-perm-page="china.mibal"></script>
-    <script type="module" src="js/app-shell.js?v=202611041309"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202611041337"></script>
+    <script type="module" src="js/china-stock-goods.js?v=202611041337"></script>
+    <script type="module" src="js/modal-drag.js?v=202611041337"></script>
+    <script type="module" src="js/page-gate.js?v=202611041337" data-perm-page="china.mibal"></script>
+    <script type="module" src="js/app-shell.js?v=202611041337"></script>
 </body>
 </html>

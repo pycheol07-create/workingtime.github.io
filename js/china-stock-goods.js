@@ -1,26 +1,27 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202611041309'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202611041337'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202611041309';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611041309';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611041309';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611041309'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611041309';
-import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611041309'; // 입고 오차(2026-10-27)
-import { initPageNav } from './page-nav.js?v=202611041309';
-import { emptyFillOk } from './lib/mibal2-calc.js?v=202611041309'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
-import { confirmedOf } from './lib/scan-link.js?v=202611041309'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
-import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611041309'; // 입고확인 수동 수정(2026-11-04)
-import { readServerInboundMany, writeInboundFix } from './inbound-fix-write.js?v=202611041309';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611041309';
-import { friendlyFirebaseError } from './utils.js?v=202611041309';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611041309';
-import { setShellContext } from './app-shell-bridge.js?v=202611041309';
-import { memberNameFor } from './app-shell-data.js?v=202611041309';
-import { createUploadStatus } from './busy-banner.js?v=202611041309';
+import { cleanRows } from './lib/sensitive-cols.js?v=202611041337';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611041337';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611041337';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611041337'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611041337';
+import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611041337'; // 입고 오차(2026-10-27)
+import { initPageNav } from './page-nav.js?v=202611041337';
+import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611041337'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
+let emptyFill = emptyFillOf(null);   // CONFIG.emptyFill(관리자가 [미발수량 공식 설정]에서 바꿈) — 없으면 기본 10%/50%
+import { confirmedOf } from './lib/scan-link.js?v=202611041337'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611041337'; // 입고확인 수동 수정(2026-11-04)
+import { readServerInboundMany, writeInboundFix } from './inbound-fix-write.js?v=202611041337';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611041337';
+import { friendlyFirebaseError } from './utils.js?v=202611041337';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611041337';
+import { setShellContext } from './app-shell-bridge.js?v=202611041337';
+import { memberNameFor } from './app-shell-data.js?v=202611041337';
+import { createUploadStatus } from './busy-banner.js?v=202611041337';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -218,7 +219,7 @@ function evalMibal(총재고, 적재량, 부족수량, 직진배송, log) {
     //   총재고가 적재량의 10% 이하(거의 빈 칸)이고 칸을 넘는 양이 적재량의 50% 이하면 도착 전부를 3층(미발)으로 — 비축으로 나누지 않는다.
     //   값을 올리기만 한다(공식이 더 많이 보내면 그대로).
     const 도착 = toNum((log || {})['도착수량']);
-    if (도착 > 0 && emptyFillOk(총재고, 적재량, 도착 + 총재고 - 적재량)) v = Math.max(v, Math.round(도착));
+    if (도착 > 0 && emptyFillOk(총재고, 적재량, 도착 + 총재고 - 적재량, emptyFill)) v = Math.max(v, Math.round(도착));
     return v < 0 ? 0 : v;
 }
 mibalFn = compileMibalFormula(mibalFormula);
@@ -267,6 +268,7 @@ function setAdminNote(containerId, noteId) {
 }
 function applyAdminUI() {
     const off = !isAdminUser;
+    fillEmptyFillInputs();   // 빈 칸 넘침 비율 칸 — 관리자 판정이 늦게 끝나도 열린 창에 반영
     ['modal-csv-order', 'modal-csv-buy', 'btn-sheet-save', 'mibal-var-select', 'btn-mibal-var-add', 'btn-builder-apply']
         .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = off; });
     document.querySelectorAll('.mibal-var-del').forEach(x => { x.style.display = off ? 'none' : ''; });
@@ -752,7 +754,40 @@ function openMibalFormulaModal() {
     formulaMode = 'builder';
     renderRuleRows();
     applyAdminUI();
+    fillEmptyFillInputs();
     document.getElementById('mibal-formula-modal').style.display = 'flex';
+}
+// 빈 칸 넘침 규칙 비율 — [미발수량 공식 설정] 창(관리자만). CONFIG.emptyFill = {pickPct, overPct} (신규 계산기도 같은 값을 읽는다)
+function fillEmptyFillInputs() {
+    const a = document.getElementById('ef-pick-pct'), b = document.getElementById('ef-over-pct');
+    if (a) { a.value = emptyFill.pickPct; a.disabled = !isAdminUser; }
+    if (b) { b.value = emptyFill.overPct; b.disabled = !isAdminUser; }
+    const btn = document.getElementById('btn-save-empty-fill');
+    if (btn) btn.style.display = isAdminUser ? '' : 'none';
+}
+async function saveEmptyFill() {
+    if (await guardRetiredHeavy()) return;
+    if (adminOnlyBlocked()) return;
+    const read = (id) => {
+        const t = String(document.getElementById(id)?.value ?? '').trim();
+        if (t === '') return null;                                   // 빈 칸은 0 으로 보지 않는다
+        const n = Number(t);
+        return Number.isInteger(n) && n >= 0 && n <= 100 ? n : null;
+    };
+    const pickPct = read('ef-pick-pct'), overPct = read('ef-over-pct');
+    if (pickPct === null || overPct === null) { alert('비율은 0~100 사이 정수로 넣어 주세요(빈 칸 안 됨).'); return; }
+    if ((pickPct === 0 || overPct === 0) && !confirm('0 으로 저장하면 빈 칸 넘침 규칙이 꺼집니다(모든 화면·스캐너 분배). 저장할까요?')) return;
+    const prev = emptyFill;
+    emptyFill = { pickPct, overPct };
+    try {
+        await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { emptyFill, updatedAt: new Date() }, { merge: true });
+        showToast(`✅ 빈 칸 넘침 규칙 저장됨 — 빈 칸 ${pickPct}% 이하 · 넘침 ${overPct}% 이하 (다른 PC 의 부족수량 화면은 창으로 돌아오면 다시 읽습니다)`);
+        if (savedDates.length > 0) applyDates();
+    } catch (e) {
+        emptyFill = prev;
+        if (isPermissionDenied(e)) { alert(ADMIN_ONLY_MSG); return; }
+        alert('저장 실패: ' + e.message);
+    }
 }
 function closeMibalFormulaModal() {
     document.getElementById('mibal-formula-modal').style.display = 'none';
@@ -3389,10 +3424,23 @@ function showUpdateBanner(newVer) {
     document.body.appendChild(div);
 }
 
+// 다른 PC 에서 관리자가 바꾼 빈 칸 넘침 비율을 다시 읽는다(옛 비율로 스캐너 자료를 다시 쓰지 않게). 바뀌었으면 표를 다시 계산
+async function refreshEmptyFill() {
+    try {
+        const snap = await getDocFromServer(doc(db, CHINA_COLLECTION, CONFIG_DOC));
+        const next = emptyFillOf(snap.exists() ? snap.data() : null);
+        if (next.pickPct === emptyFill.pickPct && next.overPct === emptyFill.overPct) return;
+        emptyFill = next;
+        if (document.getElementById('mibal-formula-modal')?.style.display === 'flex') fillEmptyFillInputs();
+        if (savedDates.length > 0) applyDates({ skipSync: true });
+        showToast(`빈 칸 넘침 규칙이 바뀌어 다시 계산했습니다 — 빈 칸 ${next.pickPct}% · 넘침 ${next.overPct}%`);
+    } catch (e) { /* 읽기 실패는 다음 확인 때 */ }
+}
 async function checkVersion(publishAppMeta = false) {
     const now = Date.now();
     if (now - lastVersionCheck < 60000) return; // 최소 1분 간격
     lastVersionCheck = now;
+    refreshEmptyFill();
     const info = await fetchVersionInfo();
     if (!info) return;
     // [2026-10-28] 신규 부족수량관리 단독 운영(live) 뒤 — 열 때·10분마다·창 복귀 때 기존 화면이 은퇴했으면 신규 화면으로 넘긴다
@@ -3416,7 +3464,7 @@ async function checkVersion(publishAppMeta = false) {
 //   입고 스캔마다 applyDates 가 불려 열린 탭 수만큼 쓰고, 예전에 연 탭이 옛 출고일로 savedDatesMibal 을 되돌리던 문제(미발수집·mibal2 가 읽는 값)
 let lastSavedMibalKey = null, lastSavedLocKey = null;
 function rememberSavedDates() { const r = datesPatch(savedDatesMibal, savedDatesLoc); lastSavedMibalKey = r.mibalKey; lastSavedLocKey = r.locKey; }
-async function loadConfig() { const snap = await getDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC)); if (snap.exists()) { const c = snap.data(); csvUrlOrder = c.csvUrlOrder || ''; csvUrlBuy = c.csvUrlBuy || ''; savedDatesMibal = Array.isArray(c.savedDatesMibal) ? c.savedDatesMibal : (Array.isArray(c.savedDates) ? c.savedDates : []); savedDatesLoc = Array.isArray(c.savedDatesLoc) ? c.savedDatesLoc : []; savedDates = (viewMode === 'location') ? [...savedDatesLoc] : [...savedDatesMibal]; mibalFormula = c.mibalFormula || DEFAULT_MIBAL_FORMULA; mibalVars = sanitizeMibalVars(c.mibalVars); MIBAL_COMPUTED_VARS.forEach(v => { if (!mibalVars.includes(v)) mibalVars.push(v); }); /* [Ver 8.25] 도착수량 등 계산변수는 기본공식에 쓰이므로 항상 포함 */ mibalFn = compileMibalFormula(mibalFormula); if (!mibalFn && c.mibalFormula) { console.warn('[china-stock] 저장된 미발 공식이 허용 형식이 아니어서 기본 공식을 씁니다.'); showToast('⚠️ 저장된 미발 공식이 허용 형식이 아니어서 기본 공식으로 계산합니다'); mibalFormula = DEFAULT_MIBAL_FORMULA; } if (!mibalFn) mibalFn = compileMibalFormula(DEFAULT_MIBAL_FORMULA); zoneCapacity = c.zoneCapacity || {}; columnConfig = Array.isArray(c.columnConfig) ? c.columnConfig : null; locationColumnConfig = Array.isArray(c.locationColumnConfig) ? c.locationColumnConfig : null; graceDays = (c.graceDays !== undefined && c.graceDays !== null) ? (parseInt(c.graceDays) || 0) : 1; newLocPosition = (c.newLocPosition === 'front') ? 'front' : 'back'; } rememberSavedDates(); /* 읽은 값 = 저장된 값 → 첫 applyDates 가 다시 쓰지 않게 */ }
+async function loadConfig() { const snap = await getDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC)); if (snap.exists()) { const c = snap.data(); csvUrlOrder = c.csvUrlOrder || ''; csvUrlBuy = c.csvUrlBuy || ''; savedDatesMibal = Array.isArray(c.savedDatesMibal) ? c.savedDatesMibal : (Array.isArray(c.savedDates) ? c.savedDates : []); savedDatesLoc = Array.isArray(c.savedDatesLoc) ? c.savedDatesLoc : []; savedDates = (viewMode === 'location') ? [...savedDatesLoc] : [...savedDatesMibal]; mibalFormula = c.mibalFormula || DEFAULT_MIBAL_FORMULA; mibalVars = sanitizeMibalVars(c.mibalVars); MIBAL_COMPUTED_VARS.forEach(v => { if (!mibalVars.includes(v)) mibalVars.push(v); }); /* [Ver 8.25] 도착수량 등 계산변수는 기본공식에 쓰이므로 항상 포함 */ mibalFn = compileMibalFormula(mibalFormula); if (!mibalFn && c.mibalFormula) { console.warn('[china-stock] 저장된 미발 공식이 허용 형식이 아니어서 기본 공식을 씁니다.'); showToast('⚠️ 저장된 미발 공식이 허용 형식이 아니어서 기본 공식으로 계산합니다'); mibalFormula = DEFAULT_MIBAL_FORMULA; } if (!mibalFn) mibalFn = compileMibalFormula(DEFAULT_MIBAL_FORMULA); zoneCapacity = c.zoneCapacity || {}; emptyFill = emptyFillOf(c); columnConfig = Array.isArray(c.columnConfig) ? c.columnConfig : null; locationColumnConfig = Array.isArray(c.locationColumnConfig) ? c.locationColumnConfig : null; graceDays = (c.graceDays !== undefined && c.graceDays !== null) ? (parseInt(c.graceDays) || 0) : 1; newLocPosition = (c.newLocPosition === 'front') ? 'front' : 'back'; } rememberSavedDates(); /* 읽은 값 = 저장된 값 → 첫 applyDates 가 다시 쓰지 않게 */ }
 // 직원도 쓰는 출고일 선택만 저장한다. CSV 주소(csvUrl*)·공식(mibalFormula)·추가변수(mibalVars)는 관리자 전용 키라
 //   각자의 저장 함수(saveSheetSettings·공식 적용·추가변수)에서만 쓴다 — 여기서 옛 값을 다시 쓰면 관리자 변경을 덮는다.
 async function saveConfig() { if (retiredSync()) return; persistActiveDates(); await setDoc(doc(db, CHINA_COLLECTION, CONFIG_DOC), { savedDatesMibal, savedDatesLoc, updatedAt: new Date() }, { merge: true }); }
@@ -3595,6 +3643,7 @@ function setupEventListeners() {
 
     // [Ver 5.1] 미발수량 규칙 설정 모달 (예시 / 규칙 조립 / 직접 입력)
     document.getElementById('btn-open-mibal-formula')?.addEventListener('click', () => openMibalFormulaModal());
+    document.getElementById('btn-save-empty-fill')?.addEventListener('click', () => saveEmptyFill());
     document.getElementById('btn-mibal-cancel')?.addEventListener('click', () => closeMibalFormulaModal());
     // 예시 모드
     document.getElementById('btn-ex-add')?.addEventListener('click', () => { exampleRows.push({ s:0, c:20, sh:0, d:0, want:'' }); buildExampleRows(); });

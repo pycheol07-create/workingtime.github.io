@@ -9,7 +9,7 @@
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 // 계산은 mibal2-calc.js calcPlan(공식 버전 FORMULA_VER — 2026-10-20 v2: 피킹 → 비축 → 입고분, 3층 = 미발 + 피킹 적재).
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202611041309';
+import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER, emptyFillOf } from './mibal2-calc.js?v=202611041337';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
@@ -238,6 +238,7 @@ export function computeRows(b) {
     const oldMap = b.oldMap || null;
     const g = b.graceDays;
 
+    const ef = emptyFillOf(b.zoneConfig);   // 빈 칸 넘침 규칙 비율(CONFIG.emptyFill — 기존 계산기와 같은 값)
     const codes = new Map();   // code → arrival 결과
     Object.keys(items).forEach(code => {
         const a = arrivalFor(items[code], sel, g, now);
@@ -253,13 +254,13 @@ export function computeRows(b) {
         const locId = locInfo ? locInfo.id : '';
         const ed = edited[code];
         const cap = capacityFor(locId, b.zoneConfig, ed);
-        const input = { 총재고: sr ? sr.n : null, 비축: sr ? sr.b : null, 접수: sr ? sr.r : null, 송장: sr ? sr.i : null, 적재량: cap, 도착: a.qty };
+        const input = { 총재고: sr ? sr.n : null, 비축: sr ? sr.b : null, 접수: sr ? sr.r : null, 송장: sr ? sr.i : null, 적재량: cap, 도착: a.qty, 빈칸설정: ef };
         const res = calcPlan(input);
         // 기존공식 × 신규입력: 부족수량 = max(접수+송장−정상, 0), 직진 = 0
         let oldNew = null, shortage = null;
         if (sr && sr.n !== null && sr.n !== undefined && sr.r !== null && sr.r !== undefined && sr.i !== null && sr.i !== undefined) {
             shortage = Math.max((parseInt(sr.r) || 0) + (parseInt(sr.i) || 0) - (parseInt(sr.n) || 0), 0);
-            oldNew = calcOld({ 총재고: sr.n, 적재량: cap, 도착: a.qty, 부족수량: shortage, 직진: 0 });
+            oldNew = calcOld({ 총재고: sr.n, 적재량: cap, 도착: a.qty, 부족수량: shortage, 직진: 0, 빈칸설정: ef });
         }
         const o = oldMap ? oldMap[code] : undefined;
         const old = o ? o.mibal : null;
