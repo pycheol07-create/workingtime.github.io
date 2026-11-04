@@ -3,45 +3,46 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202611041643';
+import { predictFutureTrends } from './analysis-logic.js?v=202611041745';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611041643';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611041643';
-import { runDay } from './lib/refill-view.js?v=202611041643';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611041643';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611041643';
-import { TASK, tName, isT, tQty } from './task-names.js?v=202611041643';
-import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611041643';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611041745';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611041745';
+import { runDay } from './lib/refill-view.js?v=202611041745';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611041745';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611041745';
+import { TASK, tName, isT, tQty } from './task-names.js?v=202611041745';
+import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611041745';
 import { LEGACY_SIM_TASKS, legacySimTasksOf, namesOf, timeTaskExcludeOf, DEFAULT_SIM_ALWAYS_TASKS, DEFAULT_SIM_ZERO_TASKS,
          DEFAULT_FORECAST_EXCLUDED_TASKS, DEFAULT_LOADOUT_SOURCES, defaultAutoModeOf, defaultTimeTaskDepsOf,
-         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611041643';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate } from './lib/ship-transmit.js?v=202611041643';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611041643';
-import * as State from './state.js?v=202611041643';
-import { saveView } from './view-state.js?v=202611041643';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611041643';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611041643';
+         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611041745';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611041745';
+import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611041745';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611041745';
+import * as State from './state.js?v=202611041745';
+import { saveView } from './view-state.js?v=202611041745';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611041745';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611041745';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611041643';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611041745';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611041643';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611041643';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611041745';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611041745';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611041643';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202611041643';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611041745';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202611041745';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611041643';
-import { taskUph, recentDays } from './task-throughput.js?v=202611041643';
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611041745';
+import { taskUph, recentDays } from './task-throughput.js?v=202611041745';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202611041643';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202611041745';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202611041643';
-import { D } from './d-chart.js?v=202611041643';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611041643';
-import { withCorrected, correctSnapRange, NOTE_CALC_FAILED } from './lib/forecast-correct-snap.js?v=202611041643';
+         excessOffDays } from './lib/backlog-carry.js?v=202611041745';
+import { D } from './d-chart.js?v=202611041745';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611041745';
+import { withCorrected, correctSnapRange, NOTE_CALC_FAILED } from './lib/forecast-correct-snap.js?v=202611041745';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -988,6 +989,10 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
             if ((Number(days[i].taskQuantities?.[taskKey]) || 0) > 0) precursor[st].hit++;
         }
     }
+    // 🚫 '사전작업 없음 → 다음날 출고 없음' 판정용 — 최근 '사전작업 없는 다음날' 중 출고한 날(js/lib/cadence-gate.js).
+    //    전 근무일이 '다 적힌 날'(dayLooksRecorded — 대상일 판정과 같은 기준)일 때만 센다.
+    const noneNext = noneNextStats(preKeys.length > 0
+        ? noneNextObs(days, { taskKey, preKeys, outKeys: precursorOutputs(preKeys), today }) : []);
 
     // 주당 진행 횟수 — 주간 총량(= 며칠에 몰아넣을지)의 기준
     const perWeek = {};
@@ -1001,33 +1006,45 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
     const weeklyCount = weekCounts.length ? weekCounts[Math.floor(weekCounts.length / 2)] : 0;
 
     return {
-        taskKey, precursor,
+        taskKey, precursor, noneNext,
         days, hits, avgQty, dayQty, dayQtyClean, overallP, byWd, hitDates, hitIdx, hazard, weeklyCount,
         lastDate: hitDates[hitDates.length - 1] || null,
         medianGap, regular, sampleDays: days.length
     };
 };
 
-/** 하루의 선행 업무 상태 — 'ready' | 'with' | 'none' */
-const precursorStateOfDay = (day, preKeys, outKeys) => {
-    // 소요시간을 안 적은 날도 '한 날'이다 — 기록이 있는지만 본다
-    const done = (day?.workRecords || []).some(r => r && preKeys.includes(r.task));
-    if (!done) return 'none';
-    let out = 0;
-    outKeys.forEach(k => { out += Number(day?.taskQuantities?.[k]) || 0; });
-    return out > 0 ? 'with' : 'ready';
-};
+/** 하루의 선행 업무 상태 — 'ready' | 'with' | 'none' (소요시간을 안 적은 날도 '한 날' — 규칙은 js/lib/cadence-gate.js) */
+const precursorStateOfDay = precursorStateOfDayLib;
 
 /** 그 날 기록이 대개 다 적혔는가 — '오늘'은 아직 입력 중일 수 있어서,
  *  사전작업 기록이 없다는 것만으로 '안 했다'고 단정하기 전에 확인한다.
  *  최근 근무일 기록 건수 중앙값의 절반을 넘으면 다 적힌 날로 본다. */
-const dayLooksRecorded = (day, c) => {
-    const n = (day?.workRecords || []).length;
-    if (n === 0) return false;
-    const counts = (c?.days || []).filter(d => d.id < day.id).slice(-10)
-        .map(d => (d.workRecords || []).length).sort((a, b) => a - b);
-    if (counts.length < 3) return false;
-    return n >= counts[Math.floor(counts.length / 2)] * 0.5;
+const dayLooksRecorded = (day, c) => looksRecorded(day, c?.days);   // 규칙은 js/lib/cadence-gate.js
+
+/** 대상일의 '전 근무일' 기록 — 창 안의 날짜는 학습과 같은 정의(이력상 직전 기록일)를 쓴다.
+ *  두 정의가 갈리면(예: 토요일 근무 기록) 배운 것과 다른 날을 보고 조용히 틀린다. 기록이 없으면 undefined. */
+const precursorPrevDay = (c, dateStr) => {
+    const i = c.days.findIndex(d => d.id === dateStr);
+    return (i > 0) ? c.days[i - 1] : c.days.find(d => d.id === prevWorkingDay(dateStr));
+};
+
+/** 🚫 '전 근무일 사전작업 없음 → 출고 없음' 판정(규칙은 js/lib/cadence-gate.js). { off, reason, prevId }.
+ *  저장해 둔 예정 시간으로 낸 'none'(기록 없는 미래 날짜)에는 걸지 않는다 — '기록이 다 적힌 날'이 아니다. */
+const precursorGateFor = (c, dateStr, pre = precursorStateFor(c, dateStr)) => {
+    const prev = (pre === 'none') ? precursorPrevDay(c, dateStr) : null;
+    let transmitted = false;
+    if (prev && transmitByDate) {
+        // 전 근무일 ~ 대상일 전날(사이 쉬는 날 포함)에 이 업무 전송이 하나라도 있으면 막지 않는다(ship-transmit.js 의 '판단 불가' 구간)
+        const srcs = TRANSMIT_SOURCES[transmitTaskIdOf(c.taskKey, State.appConfig)] || [];
+        transmitted = Object.keys(transmitByDate).some(d => d >= prev.id && d < dateStr
+            && srcs.reduce((a, k) => a + (Number(transmitByDate[d]?.[k]) || 0), 0) > 0);
+    }
+    // 전 근무일이 '오늘'이면 아직 기록 중이다 — 하루 일이 거의 끝난 17:30 이후에만 판정한다(오후 중간에 내일 출고를 0 으로 단정하지 않게)
+    const prevIsToday = !!prev && prev.id >= getTodayDateString();
+    const lateEnough = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() >= 17 * 60 + 30; })();
+    const g = precursorOffGate({ pre, prevRecorded: !!prev && (!prevIsToday || lateEnough) && dayLooksRecorded(prev, c),
+                                 noneStats: c.noneNext, transmittedOnPrev: transmitted });
+    return { ...g, prevId: prev?.id || null };
 };
 
 /** 대상일의 선행 업무 상태 — 전 근무일 기록(또는 저장해 둔 예정 시간)으로 판단.
@@ -1039,10 +1056,7 @@ const precursorStateFor = (c, dateStr) => {
     const outKeys = precursorOutputs(preKeys);
     const today = getTodayDateString();
 
-    // 창 안의 날짜는 학습과 같은 정의(이력상 직전 기록일)를 쓴다.
-    // 두 정의가 갈리면(예: 토요일 근무 기록) 배운 것과 다른 날을 보고 조용히 틀린다.
-    const i = c.days.findIndex(d => d.id === dateStr);
-    const prev = (i > 0) ? c.days[i - 1] : c.days.find(d => d.id === prevWorkingDay(dateStr));
+    const prev = precursorPrevDay(c, dateStr);
     if (prev) {
         const st = precursorStateOfDay(prev, preKeys, outKeys);
         // 오늘은 아직 안 끝난 날일 수 있다 — 기록이 덜 쌓였으면 '안 했다'로 단정하지 않는다.
@@ -1146,7 +1160,11 @@ const cadenceProbFor = (c, dateStr) => {
             p = Math.max(p, 0.95);
         }
     }
-    return { p: Math.max(0, Math.min(1, p)), raw: p, pre, sure };
+    // 🚫 그 반대쪽 — 다 적힌 전 근무일에 사전작업이 없었으면 출고 없음(반례가 쌓이면 저절로 꺼진다)
+    const gate = (pre === 'none') ? precursorGateFor(c, dateStr, pre) : null;
+    const sureOff = !!gate?.off;
+    if (sureOff) p = 0;
+    return { p: Math.max(0, Math.min(1, p)), raw: p, pre, sure, sureOff };
 };
 
 /** 위 분석을 바탕으로 대상일의 예상 물량을 낸다.
@@ -1191,6 +1209,11 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
         with:  '전 근무일에 사전작업 있었음',
         none:  '전 근무일에 사전작업 없었음'
     };
+    // 🚫 '사전작업 없음 → 출고 없음' — 맨 앞에 근거(최근 관찰 중 반례 수)를 쓴다
+    const offNote = pr.sureOff
+        ? `전 근무일 사전작업 없음 → 출고 없음 (최근 '사전작업 없는 다음날' ${c.noneNext.total}번 중 출고 ${c.noneNext.hit}번)`
+          + '\n출고한다면 칸에 직접 물량을 넣으세요.\n'
+        : '';
     const why = [
         `최근 근무일 ${c.sampleDays}일 중 ${c.hits}일 진행` + (c.weeklyCount > 0 ? ` (주 ${c.weeklyCount}회꼴)` : ''),
         (w && w.total >= 3) ? `${WD_NAME[wd]}요일은 ${w.hit}/${w.total}회` : null,
@@ -1213,6 +1236,9 @@ const cadenceValueFor = (historyData, taskKey, dateStr) => {
     const detail = `${밀림글}${planNote} (이 날 진행 확률 ${Math.round(p * 100)}%)
 ${why}`;
 
+    if (pr.sureOff) {
+        return { value: 0, source: 'cadence-off', prob: 0, dayValue: dayQty, detail: offNote + detail };
+    }
     if (picked) {
         return { value: dayQty, source: 밀림배수 > 1 ? 'cadence-carry' : 'cadence-on',
                  prob: p, dayValue: dayQty, detail };
@@ -1257,7 +1283,8 @@ const cadenceWeekPlan = (historyData, taskKey, dates, fixedInfo = null) => {
     const sureOn = sure.slice(0, sureLimit);
     const on = new Set(sureOn.map(x => x.date));
     const slots = Math.max(0, remain - sureOn.length);
-    open.filter(x => !x.sure).slice(0, slots).forEach(x => on.add(x.date));
+    // 🚫 '사전작업 없음 → 출고 없음' 날은 배정하지 않는다. 배정 횟수(quota)는 원래 후보로 세므로 남은 날로 옮겨 간다.
+    open.filter(x => !x.sure && !x.sureOff).slice(0, slots).forEach(x => on.add(x.date));
 
     const out = {};
     dates.forEach(d => { out[d] = on.has(d) ? c.dayQty : 0; });
@@ -1302,7 +1329,11 @@ const weekPlanFor = (historyData, taskKey, dateStr) => {
 
     // 전 근무일의 사전작업 상태도 키에 넣는다 — 그 값이 바뀌면 배치가 달라진다
     const c0 = analyzeCadence(historyData, taskKey);
-    const preKey = c0 ? dates.map(d => (precursorStateFor(c0, d) || '-')[0]).join('') : '';
+    // '출고 없음' 판정(전송값·기록 다 적힘 여부로 바뀐다)도 같이 넣는다
+    const preKey = c0 ? dates.map(d => {
+        const st = precursorStateFor(c0, d);
+        return (st || '-')[0] + (st === 'none' && precursorGateFor(c0, d, st).off ? '!' : '');
+    }).join('') : '';
     const memoKey = `${historySigValue}#${taskKey}#${wk}#${fixedKey}#${preKey}`;
     if (weekPlanMemo.has(memoKey)) return weekPlanMemo.get(memoKey);
     if (weekPlanMemo.size > 400) weekPlanMemo.clear();
@@ -2143,6 +2174,8 @@ const SOURCE_BADGE = {
                    + ' 요일 성향·마지막 진행일로 가장 유력한 날에 배정했습니다. 실제로 안 한다면 0으로 고치세요.' },
     'cadence-off':   { text: '안 하는 날', muted: true,
                 tip: '이번 주 배정에서 빠졌고 진행 가능성도 낮은 날입니다.'
+                   + ' 전 근무일에 사전작업을 안 한 날의 직진배송·에이블리배송도 여기에 들어갑니다'
+                   + '(그날 전송값이 있었거나, 사전작업 없이 출고한 날이 최근에 2번 이상이면 적용하지 않음).'
                    + ' 진행한다면 옆의 [하는 날] 값을 눌러 넣으세요.' },
     'cadence-carry': { text: '연휴 밀림', muted: true,
                 tip: '쉬는 동안 밀린 몫을 더해 "하는 날" 물량을 올렸습니다.'

@@ -17,6 +17,12 @@
 //       fVol = Σ실제물량 / Σ계획물량 (수량형만, 같은 방식). 시간형은 null.
 //       sources[k] 가 '물량을 자료로 정한' 출처(FIXED_SOURCES)면 물량은 이미 맞다고 보고 속도 몫만 쓴다:
 //         배율 = clamp(f / fVol). 그 밖에는 배율 = f.   h = base × 배율.
+//    ③-2 가끔 하는 계획 업무 kind 'prob'(fromPlan) — 기본 계획 시간 > 0 이라도 출처가 FIXED_SOURCES 가 아니고
+//       W 안에서 한 날 비율 < freqMax(0.25) 면 편향 대신 '확률 × 하는 날 평균'으로 넣는다(2026-11-04 사용자 결정, 개선 C).
+//       빈도 추정이 '하는 날'로 고른 날에 하루치를 통째로 넣는 것을, 실제로 할 확률만큼으로 줄인다.
+//       p = 한 날 / W 일수. target 과 같은 요일 표본(W 안)이 dowMin 일 이상이면 요일별 p 를 전체 p 쪽으로 dowPull 일치 당긴다.
+//       h = p × 하는 날 평균 시간(최근 recentHits 회). 한 날이 없으면 h = 0(zeroPlanKeys 로 '계획에 있던 업무'는 유지).
+//       freqMax 0 이면 이 단계를 끈다(v1 과 같은 결과).
 //    ② 확률 kind 'prob' — 기본 계획 시간 0(시간형 0명 포함)·제외 아님·W 안에서 minHits(4)일 이상 한 업무.
 //       p = 그 업무가 '계획에 없던 날'(스냅샷 기준, 정확도와 같은 '계획에 올라 있음' 판정) 중 실제로 한 날 비율.
 //         target 과 같은 요일 표본이 dowMin(3)일 이상이면 요일별 p 를 쓰되 전체 p 쪽으로 dowPull(2)일치 당긴다.
@@ -33,7 +39,7 @@
 //  숫자는 소수 3자리. 결과에는 업무 이름·숫자만 있다(직원 이름·기록자 없음).
 //  import 는 ../forecast-accuracy.js 하나 — DOM·State·Firebase 를 쓰지 않는다(node 테스트: tests/forecast-correct.test.js).
 
-import { planHoursByTaskOf } from '../forecast-accuracy.js?v=202611041643';
+import { planHoursByTaskOf } from '../forecast-accuracy.js?v=202611041745';
 
 export const DEFAULTS = Object.freeze({
     K: 5,                   // 편향 당김 — 표본 n 일에 '배율 1' 을 K 일치 섞는다
@@ -47,11 +53,15 @@ export const DEFAULTS = Object.freeze({
     dowMin: 3,              // 같은 요일 표본이 이만큼 이상이면 요일별 p
     dowPull: 2,             // 요일 p 를 전체 p 쪽으로 당기는 날 수
     recentHits: 10,         // 하는 날 평균 시간 — 최근 이만큼
-    reserveCapRatio: 0.1    // 여유 상한 = 기본 총시간 × 이 비율
+    reserveCapRatio: 0.1,   // 여유 상한 = 기본 총시간 × 이 비율
+    // 계획 업무라도 W 안에서 한 날 비율이 이보다 작으면 '확률 × 하는 날 평균'(0 = 끔).
+    // 2026-11-04 과거 20근무일 시뮬레이션: 0.2·0.25 가 가장 좋고(계획 적중 19.3 → 17.8%, 총량 19.4 → 18.0%),
+    // 0.3 부터 채우기·중국제작이 확률로 넘어가며 나빠졌다(0.35: 20.5% / 20.7%). 옛 스냅샷엔 출처(sources)가 없어 그 둘을 고정 출처로 못 가린 영향이 있다.
+    freqMax: 0.25
 });
 
 /** 물량을 자료(전송·채우기 지시서·예정 입력·밀림 배수)로 정한 출처 — 물량 편향은 빼고 속도만 보정한다. */
-export const FIXED_SOURCES = Object.freeze(['transmit', 'transmit-none', 'refill', 'planned', 'ai-carry', 'cadence-carry']);
+export const FIXED_SOURCES = Object.freeze(['transmit', 'transmit-none', 'refill', 'planned', 'planned-time', 'ai-carry', 'cadence-carry']);
 
 const 수 = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const 양수 = (v) => { const n = 수(v); return n > 0 ? n : 0; };
@@ -100,8 +110,9 @@ const 당김 = (n, raw, o) => {
  *   sources   { 업무: 출처 } (선택) — FIXED_SOURCES 면 속도 몫만 보정
  *   excluded  Set<업무> — 결과·계산에서 뺀다(넘겨받은 자료에 남아 있어도)
  *   opts      DEFAULTS 일부 덮어쓰기
- * @returns {{ v:1, totalHours, reserveHours, byTask:Array, params, notes:string[] }}
- *   byTask: { k, kind:'plan'|'prob', base, f, fVol, n, p, h } — plan 은 p=null, prob 은 f·fVol=null
+ * @returns {{ v:2, totalHours, reserveHours, byTask:Array, zeroPlanKeys:string[], params, notes:string[] }}
+ *   byTask: { k, kind:'plan'|'prob', base, f, fVol, n, p, h } — plan 은 p=null, prob 은 f·fVol=null.
+ *           가끔 하는 계획 업무(③-2)는 kind 'prob' + fromPlan: true, base = 기본 계획 시간.
  */
 export function correctPlan(input) {
     const inp = input || {};
@@ -137,10 +148,43 @@ export function correctPlan(input) {
         : Object.values(basePlan).reduce((a, h) => a + 양수(h), 0);
     const byTask = [];
 
+    // 업무별로 W 안에서 한 날(실제 시간 > 0)
+    const hitDays = new Map();   // k → [id…] 최신순
+    W.forEach(d => {
+        Object.entries(시간.get(d.id)).forEach(([k, h]) => {
+            if (!(h > 0)) return;
+            if (!hitDays.has(k)) hitDays.set(k, []);
+            hitDays.get(k).push(d.id);
+        });
+    });
+
+    const wd = target ? 요일(target) : null;
+    /** 하는 날 평균 시간 — 최근 recentHits 회. 한 날이 없으면 0 */
+    const 하는날평균 = (k) => {
+        const recent = (hitDays.get(k) || []).slice(0, o.recentHits);
+        return { n: recent.length,
+                 avg: recent.length ? recent.reduce((a, id) => a + 양수(시간.get(id)[k]), 0) / recent.length : 0 };
+    };
+
     // ③ 편향 — 기본 계획 시간 > 0 인 업무
     const planKeys = Object.keys(basePlan).filter(k => 양수(basePlan[k]) > 0 && !excluded.has(k)).sort();
     const biasW = W.slice(0, o.biasDays);
     planKeys.forEach(k => {
+        const fixed = FIXED_SOURCES.includes(sources[k]);
+        // ③-2 가끔 하는 계획 업무 — 편향 대신 '확률 × 하는 날 평균'
+        const hitN = (hitDays.get(k) || []).length;
+        if (!fixed && W.length > 0 && hitN / W.length < o.freqMax) {
+            const pAll = hitN / W.length;
+            const hits = new Set(hitDays.get(k) || []);
+            const same = W.filter(d => 요일(d.id) === wd);
+            const p = same.length >= o.dowMin
+                ? (same.filter(d => hits.has(d.id)).length + o.dowPull * pAll) / (same.length + o.dowPull)
+                : pAll;
+            const { n, avg } = 하는날평균(k);
+            byTask.push({ k, kind: 'prob', fromPlan: true, base: r3(basePlan[k]), f: null, fVol: null, n,
+                          p: r3(p), h: r3(p * avg) });
+            return;
+        }
         let n = 0, sumPlanH = 0, sumActH = 0, nVol = 0, sumPlanQ = 0, sumActQ = 0;
         biasW.forEach(d => {
             const ph = 계획시간(d.id);
@@ -158,27 +202,15 @@ export function correctPlan(input) {
         const f = 당김(n, sumPlanH > 0 ? sumActH / sumPlanH : null, o);
         const isQty = 양수(base.tasks?.[k]) > 0;
         const fVol = isQty ? 당김(nVol, sumPlanQ > 0 ? sumActQ / sumPlanQ : null, o) : null;
-        const fixed = FIXED_SOURCES.includes(sources[k]);
         const m = (fixed && fVol != null && fVol > 0) ? clamp(f / fVol, o.clampMin, o.clampMax) : f;
         byTask.push({ k, kind: 'plan', base: r3(basePlan[k]), f: r3(f), fVol: r3(fVol), n,
                       p: null, h: r3(basePlan[k] * m), ...(fixed ? { speedOnly: true } : {}) });
-    });
-
-    // 업무별로 W 안에서 한 날(실제 시간 > 0)
-    const hitDays = new Map();   // k → [id…] 최신순
-    W.forEach(d => {
-        Object.entries(시간.get(d.id)).forEach(([k, h]) => {
-            if (!(h > 0)) return;
-            if (!hitDays.has(k)) hitDays.set(k, []);
-            hitDays.get(k).push(d.id);
-        });
     });
 
     // ② 확률 — 기본 계획에 없는(계획 시간 0) 반복 업무
     const planSet = new Set(planKeys);
     const snapDays = W.filter(d => snapOf(d.id));
     const 스냅샷부족 = snapDays.length < o.minSnapDays;
-    const wd = target ? 요일(target) : null;
     const probKeys = [...hitDays.keys()]
         .filter(k => !planSet.has(k) && !excluded.has(k) && hitDays.get(k).length >= o.minHits).sort();
     let 대체수 = 0;
@@ -199,9 +231,8 @@ export function correctPlan(input) {
                 p = pAll;
             }
         }
-        const recent = hitDays.get(k).slice(0, o.recentHits);
-        const avg = recent.reduce((a, id) => a + 양수(시간.get(id)[k]), 0) / recent.length;
-        byTask.push({ k, kind: 'prob', base: 0, f: null, fVol: null, n: recent.length, p: r3(p), h: r3(p * avg) });
+        const { n, avg } = 하는날평균(k);
+        byTask.push({ k, kind: 'prob', base: 0, f: null, fVol: null, n, p: r3(p), h: r3(p * avg) });
     });
     if (대체수 > 0) {
         notes.push(스냅샷부족
@@ -225,10 +256,11 @@ export function correctPlan(input) {
     const totalHours = byTask.reduce((a, t) => a + 양수(t.h), 0);
     // 기본 계획에 올라 있지만 계획 시간이 0 인 업무(시간형 0명·기준 UPH 없음) — 보정 쪽에서도 '계획에 있던 업무'로 남겨야
     // 그 업무의 실적이 기본은 계획 업무, 보정은 계획 외로 갈려 비교가 기우는 일이 없다(toAccuracySnap 이 씀)
-    const inByTask = new Set(byTask.map(t => t.k));
+    // 가끔 하는 계획 업무(③-2)가 h 0 이 되면 timeTasks 에서 빠지므로 여기로 넘겨 '계획에 있던 업무'로 남긴다
+    const inByTask = new Set(byTask.filter(t => !t.fromPlan || 양수(t.h) > 0).map(t => t.k));
     const zeroPlanKeys = [...계획된키(base)].filter(k => !inByTask.has(k) && !excluded.has(k)).sort();
     return {
-        v: 1,
+        v: 2,
         totalHours: r3(totalHours),
         reserveHours: r3(reserveHours),
         byTask,
