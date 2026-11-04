@@ -8,7 +8,7 @@
 //   다섯 곳에서 쓰인다. 규칙을 한 곳에 두지 않으면 한쪽만 고쳐진다.
 //   DOM·Firebase 는 import 하지 않는다(tests/attendance-guard.test.js 가 node 로 돌린다).
 
-import { normalizeClock } from './clock-in-out.js?v=202611050815';
+import { normalizeClock } from './clock-in-out.js?v=202611050851';
 
 const 분으로 = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 
@@ -105,4 +105,44 @@ export function findDailyLeaveDup(list, { member, type, startTime } = {}) {
 /** 수정 표시 — {editedAt:'YYYY-MM-DD HH:MM', editedBy} */
 export function makeEditStamp(dateStr, timeStr, who) {
     return { editedAt: `${dateStr} ${timeStr}`, editedBy: who || '' };
+}
+
+// ── 출근 취소(2026-11-05) ──
+// 잘못 누른 출근을 '출근 안 한 상태' 로 되돌린다. 저장은 app-logic.js cancelClockIn(트랜잭션)이 하고,
+// 여기서는 '해도 되는가' 만 판정한다(서버 값으로 다시 부른다).
+export const CLOCK_IN_CANCEL_SELF_MIN = 30;   // 본인은 출근 후 이 시간(분) 안에만. 관리자는 제한 없음
+
+const 분값 = (hhmm) => { const t = normalizeClock(hhmm); if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+/** 그 사람의 '자동 지각' 만 뺀다(수동 지각·외출·조퇴는 그대로). 입력은 바꾸지 않는다. */
+export function removeAutoTardyOf(list, member) {
+    const src = Array.isArray(list) ? list : [];
+    const next = src.filter(e => !(e && e.member === member && e.type === '지각' && e.auto));
+    return { list: next, removed: src.length - next.length };
+}
+
+/**
+ * 출근 취소를 해도 되는지.
+ * @param {{attendance?:{inTime?:string,status?:string}, leaves?:any[], member:string, isAdmin?:boolean, now:string,
+ *          closed?:boolean, hasRecords?:boolean, hasLock?:boolean}} p
+ * @returns {{ok:true} | {ok:false, reason:string, message:string}}
+ */
+export function checkClockInCancel(p) {
+    const { attendance, leaves, member, isAdmin, now, closed, hasRecords, hasLock } = p || {};
+    const no = (reason, message) => ({ ok: false, reason, message });
+    if (closed) return no('closed', '오늘은 이미 업무 마감이 됐습니다. 출퇴근은 이력(근태 기록)에서 고치세요.');
+    const st = attendance && attendance.status;
+    if (!attendance || (st !== 'active' && st !== 'returned')) return no('not-clocked-in', `${member}님은 오늘 출근 기록이 없습니다.`);
+    if (hasLock) return no('working', `${member}님은 지금 업무 중(또는 휴식 중)입니다. 업무를 먼저 종료하세요.`);
+    if (hasRecords) return no('has-records', `${member}님은 오늘 업무 기록이 있어 출근을 취소할 수 없습니다. 퇴근 처리하거나 업무 기록을 먼저 지우세요.`);
+    const other = (Array.isArray(leaves) ? leaves : []).filter(e => e && e.member === member && !(e.type === '지각' && e.auto));
+    if (other.length) return no('has-leave', `${member}님은 오늘 근태(${[...new Set(other.map(e => e.type))].join('·')})가 있습니다. 근태를 먼저 취소하세요.`);
+    if (!isAdmin) {
+        const a = 분값(attendance.inTime), b = 분값(now);
+        // 음수(출근 시각이 지금보다 늦게 찍힘 — 다른 PC 시계·시각 수정)도 막는다
+        if (a == null || b == null || b - a < 0 || b - a > CLOCK_IN_CANCEL_SELF_MIN) {
+            return no('too-late', `출근 후 ${CLOCK_IN_CANCEL_SELF_MIN}분이 지나 본인은 취소할 수 없습니다. 관리자에게 요청하세요.`);
+        }
+    }
+    return { ok: true };
 }

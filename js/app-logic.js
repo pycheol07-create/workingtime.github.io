@@ -4,21 +4,21 @@ import {
     generateId,
     saveStateToFirestore,
     debouncedSaveState
-} from './app-data.js?v=202611050815';
+} from './app-data.js?v=202611050851';
 
 import {
     appState, db, auth
-} from './state.js?v=202611050815';
+} from './state.js?v=202611050851';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202611050815';
-import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, increment, deleteDoc, runTransaction, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=202611050851';
+import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, getDocsFromServer, limit, increment, deleteDoc, deleteField, runTransaction, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=202611050815';
+import { syncTodayToHistory } from './history-data-manager.js?v=202611050851';
 // 지각 기준·당일 근태 중복 판정 — 출근시각 수정(history-data-manager)·근태 저장과 같은 규칙
-import { tardyThreshold, isTardyClockIn, findDailyLeaveDup } from './lib/attendance-guard.js?v=202611050815';
+import { tardyThreshold, isTardyClockIn, findDailyLeaveDup, checkClockInCancel, removeAutoTardyOf } from './lib/attendance-guard.js?v=202611050851';
 // 업무를 끝낸 뒤 남은 잠금(activeLocks)을 바로 확인하게 알린다 — 다른 탭은 10분 안전망만 돈다
-import { markLocalWorkEnded } from './app-sync.js?v=202611050815';
+import { markLocalWorkEnded } from './app-sync.js?v=202611050851';
 
 
 const getWorkRecordsCollectionRef = () => {
@@ -219,6 +219,83 @@ export const cancelClockOut = async (memberName, isAdminAction = false) => {
     } catch (e) {
         console.error("Cancel clock-out error:", e);
         showToast("퇴근 취소 중 오류가 발생했습니다.", true);
+        return false;
+    }
+};
+
+/** 출근 취소(2026-11-05) — 잘못 누른 출근을 '출근 전' 으로 되돌린다(퇴근한 뒤여도).
+ *  · daily_data·history(오늘) 두 문서에서 그 사람의 근태 키를 지우고, 자동 지각도 같이 지운다 — 한 트랜잭션.
+ *    history 에 남기면 '일일 데이터 복구' 가 그 값을 되살린다(updateAttendanceTime 과 같은 이유).
+ *  · 막는 경우(판정은 lib/attendance-guard.js checkClockInCancel, 서버 값으로):
+ *    오늘 이미 마감 · 업무 중(activeLocks) · 오늘 업무 기록 있음(서버 조회) · 외출·조퇴·수동 지각 있음 ·
+ *    본인은 출근 30분 지나면(관리자는 제한 없음).
+ *  · 남는 위험(다른 탭이 이 변경을 스냅샷으로 받기 전에 쓰는 경우 — 막으려면 쓰기 직전 서버 비교가 필요해 범위 밖):
+ *    ① 메모리가 뒤처진 탭의 마감 — attendance-merge(메모리에만 있는 사람 살림)가 출근을 되살린다.
+ *    ② 그 탭의 1분 자동저장(app-data saveStateToFirestore)이 메모리 onLeaveMembers 를 통째로 써 자동 지각을 되살린다.
+ *    ③ 그 탭의 saveProgress(마감 전)가 이력 근태를 메모리 값으로 merge 해 이력에 출근을 되살린다.
+ *  · 날짜는 시작 때 한 번 정해 모든 문서에 쓴다(자정 넘김 때 문서가 섞이지 않게). */
+export const cancelClockIn = async (memberName, isAdminAction = false) => {
+    const now = getCurrentTime();
+    const todayKey = getTodayDateString();
+    const isAdmin = appState.currentUserRole === 'admin';
+    // 메모리로 먼저 빠르게 거른다(최종 판정은 트랜잭션 안에서 서버 값으로)
+    const pre = checkClockInCancel({
+        member: memberName, attendance: appState.dailyAttendance?.[memberName], leaves: appState.dailyOnLeaveMembers,
+        isAdmin, now, hasRecords: (appState.workRecords || []).some(r => r && r.member === memberName),
+    });
+    if (!pre.ok) { showToast(pre.message, true); return false; }
+
+    try {
+        // 다른 PC 에서 방금 시작한 업무도 보이게 서버에서 읽는다(트랜잭션은 쿼리를 못 읽는다)
+        const base = ['artifacts', 'team-work-logger-v2'];
+        const recCol = collection(db, ...base, 'daily_data', todayKey, 'workRecords');
+        const recSnap = await getDocsFromServer(query(recCol, where('member', '==', memberName), limit(1)));
+        const dailyRef = doc(db, ...base, 'daily_data', todayKey);
+        const histRef = doc(db, ...base, 'history', todayKey);
+        const lockRef = doc(db, ...base, 'daily_data', todayKey, 'activeLocks', String(memberName));
+        const path = new FieldPath('dailyAttendance', memberName);   // 점이 든 문자열 키를 쓰지 않는다
+        const res = await runTransaction(db, async (tx) => {
+            const dSnap = await tx.get(dailyRef);
+            const hSnap = await tx.get(histRef);
+            const lSnap = await tx.get(lockRef);
+            const d = dSnap.exists() ? (dSnap.data() || {}) : {};
+            const h = hSnap.exists() ? (hSnap.data() || {}) : {};
+            const chk = checkClockInCancel({
+                member: memberName, attendance: d.dailyAttendance?.[memberName], leaves: d.onLeaveMembers,
+                isAdmin, now, closed: !!h.closedAt, hasRecords: !recSnap.empty, hasLock: lSnap.exists(),
+            });
+            if (!chk.ok) return chk;
+            const rd = removeAutoTardyOf(d.onLeaveMembers, memberName);
+            if (rd.removed > 0) tx.update(dailyRef, path, deleteField(), 'onLeaveMembers', rd.list);
+            else tx.update(dailyRef, path, deleteField());
+            let hRemoved = 0;
+            if (hSnap.exists()) {   // 없으면 쓰지 않는다(빈 이력 문서를 만들지 않게)
+                const args = [];
+                if (h.dailyAttendance && Object.prototype.hasOwnProperty.call(h.dailyAttendance, memberName)) args.push(path, deleteField());
+                const rh = removeAutoTardyOf(h.onLeaveMembers, memberName);
+                if (rh.removed > 0) { args.push('onLeaveMembers', rh.list); hRemoved = rh.removed; }
+                if (args.length) tx.update(histRef, ...args);
+            }
+            return { ok: true, prev: d.dailyAttendance[memberName], removed: Math.max(rd.removed, hRemoved) };
+        });
+        if (!res.ok) {
+            const dayMoved = res.reason === 'not-clocked-in' && getTodayDateString() !== todayKey;
+            showToast(dayMoved ? '날짜가 바뀌었습니다. 화면을 새로고침한 뒤 다시 확인하세요.' : res.message, true);
+            return false;
+        }
+
+        // 메모리도 그 키만 뺀다 — 1분 자동저장이 메모리 onLeaveMembers 를 다시 쓰므로 지각도 같이
+        const nextAtt = { ...(appState.dailyAttendance || {}) };
+        delete nextAtt[memberName];
+        appState.dailyAttendance = nextAtt;
+        appState.dailyOnLeaveMembers = removeAutoTardyOf(appState.dailyOnLeaveMembers, memberName).list;
+        await syncTodayToHistory();
+        console.info('[cancelClockIn]', { date: todayKey, member: memberName, inTime: res.prev?.inTime || null, by: appState.currentUser || null, tardyRemoved: res.removed });
+        showToast(`${memberName}님의 출근이 ${isAdminAction ? '관리자에 의해 ' : ''}취소되었습니다.${res.removed > 0 ? ' (자동 지각도 지움)' : ''}`);
+        return true;
+    } catch (e) {
+        console.error('Cancel clock-in error:', e);
+        showToast('출근 취소 중 오류가 발생했습니다(인터넷 연결 확인).', true);
         return false;
     }
 };

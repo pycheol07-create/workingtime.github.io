@@ -1,26 +1,26 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611050815';
-import * as State from './state.js?v=202611050815';
-import { render } from './app.js?v=202611050815';
-import { showToast, formatTimeTo24H } from './utils.js?v=202611050815';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202611050815';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202611050815';
+import * as DOM from './dom-elements.js?v=202611050851';
+import * as State from './state.js?v=202611050851';
+import { render } from './app.js?v=202611050851';
+import { showToast, formatTimeTo24H, showConfirm } from './utils.js?v=202611050851';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202611050851';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202611050851';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
-    processClockIn, processClockOut, cancelClockOut,
+    processClockIn, processClockOut, cancelClockOut, cancelClockIn,
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202611050815';
+} from './app-logic.js?v=202611050851';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611050815';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202611050815';
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611050815';
-import { openLocRecFromDash } from './locrec-dash.js?v=202611050815';
-import { TASK, isT } from './task-names.js?v=202611050815';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611050851';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202611050851';
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611050851';
+import { openLocRecFromDash } from './locrec-dash.js?v=202611050851';
+import { TASK, isT } from './task-names.js?v=202611050851';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -95,6 +95,9 @@ const openMemberActionModal = (memberName) => {
     if (DOM.adminClockInBtn) DOM.adminClockInBtn.classList.toggle('hidden', isOnLeave || status === 'active' || status === 'returned');
     if (DOM.adminClockOutBtn) DOM.adminClockOutBtn.classList.toggle('hidden', isOnLeave || status !== 'active');
     if (DOM.adminCancelClockOutBtn) DOM.adminCancelClockOutBtn.classList.toggle('hidden', isOnLeave || status !== 'returned');
+    // 출근 취소: 출근(또는 퇴근)했고 업무 중이 아닐 때. 막는 조건은 cancelClockIn 이 다시 본다
+    const cancelInBtn = document.getElementById('admin-cancel-clock-in-btn');
+    if (cancelInBtn) cancelInBtn.classList.toggle('hidden', isOnLeave || !!ongoingRecord || !!pausedRecord || (status !== 'active' && status !== 'returned'));
     
     // 2. 근태 취소(복귀) 버튼: 근태 중일 때만 표시 (빨간 버튼)
     if (DOM.adminCancelLeaveBtn) {
@@ -459,6 +462,21 @@ export function setupMainBoardListeners() {
         });
     }
     
+    const cancelInBtn = document.getElementById('admin-cancel-clock-in-btn');
+    if (cancelInBtn) {
+        cancelInBtn.addEventListener('click', async () => {
+            const member = State.context.memberToAction;
+            if (!member) return;
+            const inTime = State.appState.dailyAttendance?.[member]?.inTime;
+            const yes = await showConfirm(`${member}님의 오늘 출근(${formatTimeTo24H(inTime) || '-'})을 취소할까요?\n'출근 전' 상태로 돌아가고, 자동 지각이 있으면 같이 지워집니다.`,
+                { title: '출근 취소', okText: '출근 취소', danger: true });
+            if (!yes) return;
+            const isSelf = member === State.appState.currentUser;
+            const ok = await cancelClockIn(member, !isSelf);
+            if (ok && DOM.memberActionModal) DOM.memberActionModal.classList.add('hidden');
+        });
+    }
+
     // [설정] 버튼 클릭 시 -> 근태 설정(입력) 모달로 이동
     if (DOM.openLeaveModalBtn) {
         DOM.openLeaveModalBtn.addEventListener('click', () => {

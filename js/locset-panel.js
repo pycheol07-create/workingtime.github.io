@@ -25,14 +25,14 @@
 // 원문 문자열은 textContent 로만 넣는다.
 
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611050815';
-import { canFeature, currentPerm } from './feature-gate.js?v=202611050815';
-import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611050815';
-import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611050815';
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611050851';
+import { canFeature, currentPerm } from './feature-gate.js?v=202611050851';
+import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611050851';
+import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611050851';
 import {
     cardLabel, parseExcludeText, boardFrom, applyCards, whereIs, excludedCards, placeCard, cardMoves, moveCard,
     toggleExclude, addRow, deleteRow, moveRow, setExclude, setU, boardSignature, boardToSave
-} from './lib/loc-card-board.js?v=202611050815';
+} from './lib/loc-card-board.js?v=202611050851';
 
 const PANE = 'recommend';
 const INFO_PATH = ['Locations', 'INFO_CONFIG'];
