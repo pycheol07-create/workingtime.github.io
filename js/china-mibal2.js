@@ -28,29 +28,29 @@
 //   live 일 때만 js/china-mibal2-live.js 를 동적 import 한다(스캐너에 반영·작업 마감·보관·입고오차·미발이력·위치 쓰기·관리 창).
 //   이 파일에는 그 쓰기가 없다. live 면 출고일은 기존 계산기(CONFIG.savedDatesMibal)를 보지 않고 mibal2/settings 만 쓴다.
 //   false(지금)면 아래 동작은 예전과 같다 — tests/mibal2-readonly.test.js 가 본다.
-import { initializeFirebase } from './china-stock-config.js?v=202611041337'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202611041356'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202611041337';
-import { sortMark } from './lib/china-stock-view.js?v=202611041337';
+import { explain } from './lib/mibal2-calc.js?v=202611041356';
+import { sortMark } from './lib/china-stock-view.js?v=202611041356';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202611041337';
-import { setShellContext } from './app-shell-bridge.js?v=202611041337';
-import { memberNameFor } from './app-shell-data.js?v=202611041337';
-import { mountBusyBanner } from './busy-banner.js?v=202611041337';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611041337';
-import { friendlyFirebaseError } from './utils.js?v=202611041337';
-import { diffOf } from './lib/inbound-diff.js?v=202611041337';
-import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611041337';
-import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611041337';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611041337';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611041337';
-import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611041337';
-import { setupLocMode } from './china-mibal2-loc.js?v=202611041337';
-import { isMibal2Live } from './lib/mibal2-mode.js?v=202611041337';
-import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611041337';
+} from './lib/mibal2-rows.js?v=202611041356';
+import { setShellContext } from './app-shell-bridge.js?v=202611041356';
+import { memberNameFor } from './app-shell-data.js?v=202611041356';
+import { mountBusyBanner } from './busy-banner.js?v=202611041356';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611041356';
+import { friendlyFirebaseError } from './utils.js?v=202611041356';
+import { diffOf } from './lib/inbound-diff.js?v=202611041356';
+import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611041356';
+import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611041356';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611041356';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611041356';
+import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611041356';
+import { setupLocMode } from './china-mibal2-loc.js?v=202611041356';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202611041356';
+import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611041356';
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -372,7 +372,7 @@ function confDetailHtml(r) {
     const srcTxt = r.confSrc === 'scan' ? '앱 스캔 입고 합(미발 초기화 이후 전체 — 출고일 구분 없음)'
         : r.confSrc === 'manual' ? '기존 계산기에 손으로 넣은 값(EDITED_CELLS)' : '빈칸 = 미스캔';
     const bs = Object.entries(byShipOf(r.arrUsed)).sort((a, b) => a[0].localeCompare(b[0])).map(([d, q]) => `${esc(d)} ${num(q)}`).join(' · ');
-    const dTxt = r.inDiff === null || r.inDiff === undefined ? '–(미스캔)' : (r.inDiff > 0 ? `${num(r.inDiff)} (부족입고)` : r.inDiff < 0 ? `${num(r.inDiff)} (과입고)` : '0');
+    const dTxt = r.inDiff === null || r.inDiff === undefined ? '–' : r.noScan && r.inDiff > 0 ? `${num(r.inDiff)} (스캔 없음 — 전부 부족입고)` : (r.inDiff > 0 ? `${num(r.inDiff)} (부족입고)` : r.inDiff < 0 ? `${num(r.inDiff)} (과입고)` : '0');
     const cv = String(r.conf == null ? '' : r.conf);
     return `<li><b>입고확인</b>: ${cv.trim() === '' ? '<span class="muted">빈칸</span>' : esc(cv)} — ${srcTxt} · 차이(도착−입고확인) ${dTxt}${bs ? ` · 출고일별 도착 ${bs}` : ''}</li>`;
 }
@@ -484,7 +484,8 @@ function withScanLink(rows, im = inboundMap) {
         const d = diffOf({ arrivalQty: r.arr, confirmed: c.confirmed, confSrc: c.confSrc });
         r.conf = c.confirmed;
         r.confSrc = d.src;                                  // 기존 setRowDiff 처럼 diffOf 결과(숫자 아닌 수동값 → none)
-        r.inDiff = d.src === 'none' ? null : d.d;
+        r.inDiff = d.d;                      // 입고확인이 없으면 입고 0 으로 보고 차이 = 도착(2026-11-04 — 예전엔 '–')
+        r.noScan = d.src === 'none';
     });
     // 표에 없는데 앱 스캔 입고가 있는 코드 — 신규 스냅샷에는 최근 출고 코드만 있어 '미등록' 인지는 모른다
     //   표에 아는 행이 하나도 없으면(출고일 미선택·수집 자료 없음·구독 순서) 붙이지 않는다 — 스캔 전부가 '출고일 밖'으로 보이고 '출고일을 선택하세요' 안내가 사라진다
@@ -505,7 +506,7 @@ function outsideRow(code, qty) {
         remArr: null, pickAfter: null, resAfter: null, room: null, pick: null, resv: null, refill: null, third: null,
         old: null, oldArr: null, oldNew: null, shortage: null, diff: null, diffAbs: -1,
         flags: ['outsideIn'], check: false, input: null, res: null,
-        outside: true, conf: qty, confSrc: d.src, inDiff: d.src === 'none' ? null : d.d
+        outside: true, conf: qty, confSrc: d.src, inDiff: d.d, noScan: d.src === 'none'
     };
 }
 /** 입고확인 칸 — 기존 화면과 같은 색: 도착과 다르면(빈칸=0 포함) 빨강, 같고 앱 스캔이면 파랑(서버 값 기준).
@@ -585,7 +586,7 @@ async function saveConfirmedBatch() {
         setLoading(true, `입고이력·스캐너 값 확인 중... (${codes.length}건)`);
         let mod, srvBy;
         try {
-            mod = await import('./inbound-fix-write.js?v=202611041337');
+            mod = await import('./inbound-fix-write.js?v=202611041356');
             srvBy = await mod.readServerInboundMany(db, codes, 5);
         } finally { setLoading(false); }
         // 옛 수동값만 보이던 칸(시험 화면 — 입고이력에 키 없음): 같은 값이어도 기록해 입고확인을 그 값으로 고정
@@ -632,7 +633,8 @@ async function saveConfirmedBatch() {
 function inDiffCellHtml(r) {
     if (r.confSrc === undefined) return `<td>${numOr(null)}</td>`;
     const v = r.inDiff;
-    if (v === null || v === undefined) return `<td class="in-diff-cell t-3" title="입고확인 빈칸(또는 숫자 아님) — 미스캔">–</td>`;
+    if (v === null || v === undefined) return `<td class="in-diff-cell t-3" title="도착·입고확인을 모름">–</td>`;
+    if (r.noScan && v > 0) return `<td class="in-diff-cell t-risk" title="입고확인 없음(스캔 0건) — 도착 ${num(v)} 전부 부족입고">${num(v)}</td>`;
     if (v > 0) return `<td class="in-diff-cell t-risk" title="부족입고 ${num(v)}">${num(v)}</td>`;
     if (v < 0) return `<td class="in-diff-cell t-accent" title="과입고 ${num(-v)}">${num(v)}</td>`;
     return `<td class="in-diff-cell" title="도착 = 입고확인">0</td>`;
@@ -1177,7 +1179,7 @@ async function start(user) {
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=202611041337');
+        const mod = await import('./china-mibal2-live.js?v=202611041356');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,

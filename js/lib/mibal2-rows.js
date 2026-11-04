@@ -9,7 +9,7 @@
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 // 계산은 mibal2-calc.js calcPlan(공식 버전 FORMULA_VER — 2026-10-20 v2: 피킹 → 비축 → 입고분, 3층 = 미발 + 피킹 적재).
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER, emptyFillOf } from './mibal2-calc.js?v=202611041337';
+import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER, emptyFillOf } from './mibal2-calc.js?v=202611041356';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
@@ -337,7 +337,7 @@ const NUM_KEYS = new Set(['No', '적재량', '도착', '총재고', '비축', '�
 
 /**
  * 스캐너 연동(시험) 열 — 행에 입고확인 정보(confSrc)가 붙어 있을 때만 '차이(피킹 배정−기존)' 뒤에 넣는다.
- * 입고확인 = 앱 스캔 합 또는 수동값(숫자면 숫자, 아니면 글자 그대로), 차이 = 도착 − 입고확인(미스캔이면 빈칸).
+ * 입고확인 = 앱 스캔 합 또는 수동값(숫자면 숫자, 아니면 글자 그대로), 차이 = 도착 − 입고확인(스캔 0건이면 입고 0 으로 보고 도착 그대로 — 그때 입고확인 칸은 빈칸이라 구분된다, 2026-11-04).
  */
 const CONF_COLS = [
     ['입고확인', r => { const v = r.conf; if (v === null || v === undefined || String(v).trim() === '') return ''; const n = Number(v); return Number.isFinite(n) ? n : String(v); }],

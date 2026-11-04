@@ -1,27 +1,27 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202611041337'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202611041356'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202611041337';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611041337';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611041337';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611041337'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611041337';
-import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611041337'; // 입고 오차(2026-10-27)
-import { initPageNav } from './page-nav.js?v=202611041337';
-import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611041337'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { cleanRows } from './lib/sensitive-cols.js?v=202611041356';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611041356';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611041356';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611041356'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611041356';
+import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611041356'; // 입고 오차(2026-10-27)
+import { initPageNav } from './page-nav.js?v=202611041356';
+import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611041356'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
 let emptyFill = emptyFillOf(null);   // CONFIG.emptyFill(관리자가 [미발수량 공식 설정]에서 바꿈) — 없으면 기본 10%/50%
-import { confirmedOf } from './lib/scan-link.js?v=202611041337'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
-import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611041337'; // 입고확인 수동 수정(2026-11-04)
-import { readServerInboundMany, writeInboundFix } from './inbound-fix-write.js?v=202611041337';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611041337';
-import { friendlyFirebaseError } from './utils.js?v=202611041337';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611041337';
-import { setShellContext } from './app-shell-bridge.js?v=202611041337';
-import { memberNameFor } from './app-shell-data.js?v=202611041337';
-import { createUploadStatus } from './busy-banner.js?v=202611041337';
+import { confirmedOf } from './lib/scan-link.js?v=202611041356'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611041356'; // 입고확인 수동 수정(2026-11-04)
+import { readServerInboundMany, writeInboundFix } from './inbound-fix-write.js?v=202611041356';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611041356';
+import { friendlyFirebaseError } from './utils.js?v=202611041356';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611041356';
+import { setShellContext } from './app-shell-bridge.js?v=202611041356';
+import { memberNameFor } from './app-shell-data.js?v=202611041356';
+import { createUploadStatus } from './busy-banner.js?v=202611041356';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -2899,9 +2899,11 @@ function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp
 function confirmedMismatch(row) { return (parseInt(row.confirmed) || 0) !== (parseInt(row.arrivalQty) || 0); }
 // [2026-10-27] 입고 오차 '차이' 열 — 계산은 js/lib/inbound-diff.js diffOf. 입고확인이 앱 스캔(scan)·수동(manual)·빈칸(none=미스캔)
 function confSrcOf(code, confirmed) { return String(confirmed == null ? '' : confirmed).trim() === '' ? 'none' : (inboundMap[code] !== undefined ? 'scan' : 'manual'); } // [2026-11-04] 합 0 도 scan
-function setRowDiff(row) { const r = diffOf(row); row.confSrc = r.src; row.diff = r.src === 'none' ? null : r.d; return row; }
+// 입고확인이 없으면(스캔 0건) 입고 0 으로 보고 차이 = 도착(부족입고, 2026-11-04 사용자 결정 — 예전엔 '–'). noScan 으로 '스캔 없음'은 따로 알린다
+function setRowDiff(row) { const r = diffOf(row); row.confSrc = r.src; row.diff = r.d; row.noScan = r.src === 'none'; return row; }
 function diffCellView(row) {
-    if (row.diff === null || row.diff === undefined) return { cls: 't-3', title: '입고확인 빈칸(또는 숫자 아님) — 미스캔', text: '–' };
+    if (row.diff === null || row.diff === undefined) return { cls: 't-3', title: '도착·입고확인을 모름', text: '–' };
+    if (row.noScan && row.diff > 0) return { cls: 't-risk', title: `입고확인 없음(스캔 0건) — 도착 ${row.diff} 전부 부족입고`, text: String(row.diff) };
     if (row.diff > 0) return { cls: 't-risk', title: `부족입고 ${row.diff}`, text: String(row.diff) };
     if (row.diff < 0) return { cls: 't-accent', title: `과입고 ${-row.diff}`, text: String(row.diff) };
     return { cls: '', title: '도착 = 입고확인', text: '0' };
@@ -3015,7 +3017,7 @@ async function saveConfirmedBatch() {
 function filterValueOf(row, key) {
     if (key === 'no' || key === 'locCheck') return '';
     if (key === 'confirmed') return confirmedMismatch(row) ? '🔴 불일치(빨강)' : '✅ 일치'; // [Ver 8.90] 입고확인은 색상(일치/불일치)으로 필터
-    if (key === 'diff') return (row.diff === null || row.diff === undefined) ? '– 미스캔' : (row.diff > 0 ? '🔴 부족입고' : (row.diff < 0 ? '🔵 과입고' : '✅ 0')); // [2026-10-27]
+    if (key === 'diff') return (row.diff === null || row.diff === undefined) ? '– 모름' : (row.noScan && row.diff > 0) ? '🔴 부족입고(스캔 없음)' : (row.diff > 0 ? '🔴 부족입고' : (row.diff < 0 ? '🔵 과입고' : '✅ 0')); // [2026-10-27·11-04]
     if (key.startsWith('log:')) { const log = stockLogData[row.code] || {}; const v = log[key.slice(4)]; return (v === undefined || v === null) ? '' : String(v); }
     const v = row[key];
     return (v === undefined || v === null) ? '' : String(v);
