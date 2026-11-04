@@ -5,7 +5,7 @@
 // 기존 미발계산기(js/china-stock-goods.js)의 스캐너 쪽 규칙을 같게 옮겼다 — 그 파일은 import 하지 않는다
 // (로드만 해도 ScanDB 를 지우고 다시 쓴다). 기존 쪽을 바꾸면 여기도 바꿀 것.
 //   · inboundMapOf      ← china-stock-goods.js loadInboundHistory (barcode 별 qty 합)
-//   · confirmedOf       ← applyDates 의 confirmed = inboundMap[code] || ed.confirmed || '' + confSrcOf
+//   · confirmedOf       ← applyDates 의 confirmed(입고이력에 키가 있으면 그 합, 없으면 ed.confirmed) + confSrcOf
 //   · scanDbPreviewOf   ← syncScanDBCore (arrivalQty·mibalQty 에서 입고분을 빼고 0 아래는 0)
 //   · outsideInboundOf  ← appendUnregisteredInbound (표 밖 스캔 입고분)
 //   · floor2MapOf       ← loadFloor2 (floor2 > 0 만)
@@ -29,14 +29,16 @@ export function inboundMapOf(docs) {
 
 /**
  * 입고확인 값과 출처. edited = EDITED_CELLS.cells 모양 {code:{confirmed}}.
- *   confirmed = inboundMap[code] || edited[code].confirmed || ''   (스캔 합이 0 이면 수동값으로 넘어간다 — 기존과 같다)
- *   confSrc   = 빈칸 'none' · 스캔 합이 있으면 'scan' · 아니면 'manual'
+ *   inboundMap 에 키가 있으면 그 합(0·음수 포함 — 입고확인 수동 수정 fix__ 문서가 더해진 값), 없으면 edited[code].confirmed, 그것도 없으면 ''.
+ *   (2026-11-04 전에는 합이 0 이면 수동값으로 넘어갔다 — 수정으로 0 을 만든 상품이 옛 수동값으로 돌아가지 않게 바꿈. 기존 화면도 같다)
+ *   confSrc   = 빈칸 'none' · 입고이력에 키가 있으면 'scan' · 아니면 'manual'
  */
 export function confirmedOf(code, inboundMap, edited) {
     const im = inboundMap || {};
     const ed = (edited && edited[code]) || {};
-    const confirmed = im[code] || ed.confirmed || '';
-    const confSrc = String(confirmed == null ? '' : confirmed).trim() === '' ? 'none' : (im[code] ? 'scan' : 'manual');
+    const has = im[code] !== undefined;
+    const confirmed = has ? im[code] : (ed.confirmed || '');
+    const confSrc = String(confirmed == null ? '' : confirmed).trim() === '' ? 'none' : (has ? 'scan' : 'manual');
     return { confirmed, confSrc };
 }
 
@@ -70,10 +72,11 @@ export function scanDbPreviewOf(rows, inboundMap) {
  * 표에 없는데 앱 스캔 입고가 있는 코드 → [{ code, qty }] (코드 오름차순).
  * 신규 수집 자료에는 최근 출고 코드만 있어 '미등록'(오더리스트에 없음)인지는 가릴 수 없다 — '선택 출고일 밖 입고' 로만 본다.
  */
-export function outsideInboundOf(inboundMap, rowCodes) {
+export function outsideInboundOf(inboundMap, rowCodes, keep) {
+    // keep = { code: … } — 합이 0 이어도 남길 코드(입고확인 수정 문서가 있는 상품 — 되돌릴 칸이 있게, 2026-11-04)
     const inTable = new Set(rowCodes || []);
     return Object.keys(inboundMap || {})
-        .filter(code => inboundMap[code] && !inTable.has(code))
+        .filter(code => (inboundMap[code] || (keep && keep[code])) && !inTable.has(code))
         .sort()
         .map(code => ({ code, qty: inboundMap[code] }));
 }

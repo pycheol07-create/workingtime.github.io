@@ -19,11 +19,12 @@
 import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writeBatch, collection, query, orderBy, limit, where, documentId, serverTimestamp, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
-    hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf } from './lib/mibal2-live.js?v=202611041159';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611041159';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611041159';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611041159';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611041159';
+    hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf } from './lib/mibal2-live.js?v=202611041225';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611041225';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611041225';
+import { inboundSig } from './lib/inbound-fix.js?v=202611041225';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611041225';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611041225';
 
 const CHINA = 'ChinaStockGoods';
 const SCANDB = CHINA + '_ScanDB';
@@ -149,7 +150,8 @@ export function startLive(ctx) {
             return false;
         }
     }
-    const sameInbound = (a, b) => a.docs.length === b.docs.length && a.lastMs === b.lastMs
+    // sig = 상품별 합 서명 — 입고확인 수정(fix__ 문서)은 문서 수·id·timestamp 가 그대로라 합으로 본다(2026-11-04)
+    const sameInbound = (a, b) => a.docs.length === b.docs.length && a.lastMs === b.lastMs && a.sig === b.sig
         && a.docs.every((d, i) => d.id === b.docs[i].id);
     function renderBatchNote() {
         const el = $('live-batch-note'); if (!el) return;
@@ -168,7 +170,8 @@ export function startLive(ctx) {
         const snap = await getDocsFromServer(query(collection(db, INBOUND), limit(100000)));
         let last = 0;
         const list = snap.docs.map(d => { const x = d.data() || {}; last = Math.max(last, tsMs(x.timestamp)); return { barcode: x.barcode, qty: x.qty }; });
-        return { map: inboundMapOf(list), docs: snap.docs, lastMs: last };
+        const map = inboundMapOf(list);
+        return { map, docs: snap.docs, lastMs: last, sig: inboundSig(map) };
     }
     async function readScanDb() {
         const snap = await getDocsFromServer(collection(db, SCANDB));
