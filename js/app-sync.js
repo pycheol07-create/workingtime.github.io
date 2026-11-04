@@ -1,18 +1,18 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202611041127';
-import { isPersistentLeaveType } from './state.js?v=202611041127';
-import * as DOM from './dom-elements.js?v=202611041127';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611041127';
+import * as State from './state.js?v=202611041134';
+import { isPersistentLeaveType } from './state.js?v=202611041134';
+import * as DOM from './dom-elements.js?v=202611041134';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611041134';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611041127';
-import { renderTodoList } from './inspection-logic.js?v=202611041127';
-import { renderNotificationList } from './app-notifications.js?v=202611041127';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611041127';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611041127';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611041127';
-import { desktopNotify } from './desktop-noti.js?v=202611041127';
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611041127';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611041134';
+import { renderTodoList } from './inspection-logic.js?v=202611041134';
+import { renderNotificationList } from './app-notifications.js?v=202611041134';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611041134';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611041134';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611041134';
+import { desktopNotify } from './desktop-noti.js?v=202611041134';
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611041134';
 
 let unsubConfig = null;
 let unsubToday = null;

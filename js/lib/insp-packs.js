@@ -9,12 +9,13 @@
 // 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 공급처::색상 1장, 그 묶음의 첫 품목이 대표.
 // 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
 
-import { dayInspItems } from './insp-day.js?v=202611041127';
-import { reserveLocIds, normLocId } from './multi-loc.js?v=202611041127';
+import { dayInspItems } from './insp-day.js?v=202611041134';
+import { reserveLocIds, normLocId } from './multi-loc.js?v=202611041134';
 
 export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const SUP_CODE_RE = /^[A-Z]{2}[0-9]{4}$/;   // 수집기와 같은 모양(AA9999). 아니면 웹에서도 버린다(실명이 섞여 와도 저장하지 않게)
+const SRC_VALUES = ['제작', '사입', '혼합'];   // 상품별 출처(it 6번째 칸)로 받는 값
 
 const str = (v) => (v == null ? '' : String(v)).trim();
 
@@ -46,7 +47,8 @@ export function parseInspPacks(data) {
     Object.keys(obj).forEach(no => {
         const p = obj[no] || {};
         const items = (Array.isArray(p.it) ? p.it : []).filter(Array.isArray).map(r => ({
-            code: str(r[0]), name: str(r[1]), option: str(r[2]), qty: Number(r[3]) || 0, supCode: SUP_CODE_RE.test(str(r[4])) ? str(r[4]) : ''
+            code: str(r[0]), name: str(r[1]), option: str(r[2]), qty: Number(r[3]) || 0, supCode: SUP_CODE_RE.test(str(r[4])) ? str(r[4]) : '',
+            src: SRC_VALUES.includes(str(r[5])) ? str(r[5]) : ''   // 혼합 패킹의 상품별 출처(수집기 2026-11-04~). 없으면 패킹 src
         }));
         out.packs.push({
             no: str(no), shipDate: str(p.sd), arriveDate: str(p.ad), eta: str(p.eta),
@@ -253,15 +255,19 @@ export function buildCards(packs, refs, today) {
     const r = refs || {};
     const out = [];
     (Array.isArray(packs) ? packs : []).forEach(pack => {
-        const seen = new Set();
+        const seen = new Map();   // 카드 키 → 카드(같은 공급처+색상은 1장 — 출처가 다른 상품이 합쳐지면 '혼합')
         const packingDate = packingDateOf(pack, today);
         (pack.items || []).forEach(it => {
             const code = str(it.code), name = str(it.name), option = str(it.option);
             if (!code && !name) return;
             if (isExcludedInspItem(name)) return;
             const key = cardKey({ supCode: it.supCode, name, option });
-            if (seen.has(key)) return;
-            seen.add(key);
+            const itSrc = str(it.src) || str(pack.src);
+            if (seen.has(key)) {
+                const c = seen.get(key);
+                if (c.source !== itSrc) c.source = '혼합';
+                return;
+            }
             const thickness = getRef(r.thickByDoc, name) || getRef(r.thickByName, name) || '';
             // 샘플위치: 로케이션관리(지금 위치) 이름+옵션 → 이름+색상 → 이름 → 지난 검수 cleanKey → 상품명 → null
             const sampleLocation = getRef(r.sampleByLoc, locSampleKey(name, option)) || getRef(r.sampleByLocColor, locColorKey(name, option))
@@ -281,8 +287,9 @@ export function buildCards(packs, refs, today) {
                 status: '대기',
                 packingDate,
                 packNo: str(pack.no),
-                source: str(pack.src)          // 제작|사입|혼합 — 패킹 단위(미발 수집기 inspPacks src)
+                source: itSrc   // 제작|사입|혼합 — 혼합 패킹은 상품별, 아니면 패킹 단위(미발 수집기 inspPacks)
             });
+            seen.set(key, out[out.length - 1]);
         });
     });
     // 제작 먼저(혼합 → 사입 → 모름), 같은 구분 안에서는 패킹 순서 그대로 — 새로 만든 리스트도 이 순서로 쌓인다
