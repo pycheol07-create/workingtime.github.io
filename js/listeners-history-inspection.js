@@ -1,22 +1,22 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611041106';
-import * as State from './state.js?v=202611041106';
-import { showToast, getTodayDateString } from './utils.js?v=202611041106';
-import { dayInspItems } from './lib/insp-day.js?v=202611041106';
-import { TASK, tName } from './task-names.js?v=202611041106';
+import * as DOM from './dom-elements.js?v=202611041127';
+import * as State from './state.js?v=202611041127';
+import { showToast, getTodayDateString } from './utils.js?v=202611041127';
+import { dayInspItems } from './lib/insp-day.js?v=202611041127';
+import { TASK, tName } from './task-names.js?v=202611041127';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202611041106'; 
+} from './ui-history.js?v=202611041127'; 
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202611041106';
+} from './ui-history-inspection.js?v=202611041127';
 
 import {
     loadInspectionLogs,
@@ -28,7 +28,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202611041106';
+} from './inspection-logic.js?v=202611041127';
 
 import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 

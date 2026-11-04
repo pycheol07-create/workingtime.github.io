@@ -1,20 +1,20 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202611041106';
-import * as State from './state.js?v=202611041106';
-import { updateDailyData } from './app-data.js?v=202611041106';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611041106';
+import * as DOM from './dom-elements.js?v=202611041127';
+import * as State from './state.js?v=202611041127';
+import { updateDailyData } from './app-data.js?v=202611041127';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611041127';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611041106';
-import { syncInspSegments } from './inspection-segments.js?v=202611041106';
-import { moveDoneItems } from './lib/insp-day.js?v=202611041106';
-import { TASK, tName } from './task-names.js?v=202611041106';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611041127';
+import { syncInspSegments } from './inspection-segments.js?v=202611041127';
+import { moveDoneItems } from './lib/insp-day.js?v=202611041127';
+import { TASK, tName } from './task-names.js?v=202611041127';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, todoCardHtml, doneCardHtml, pickKey, isPicked, pickProgress, windowOrder
-} from './lib/insp-flow.js?v=202611041106';
+} from './lib/insp-flow.js?v=202611041127';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -444,15 +444,17 @@ export const openInspectionListWindow = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>
-            <div class="px-3 py-2 bg-white border-b border-gray-200 flex flex-wrap gap-2 shrink-0">
-                <button type="button" id="dyn-only-unpicked" class="px-3 min-h-[40px] rounded-lg border text-sm font-bold"></button>
+            <div class="px-3 py-2 bg-white border-b border-gray-200 flex flex-wrap items-center gap-2 shrink-0">
+                <button type="button" id="dyn-tab-todo" data-pick-tab="todo" class="px-4 min-h-[40px] rounded-lg border text-sm font-bold"></button>
+                <button type="button" id="dyn-tab-done" data-pick-tab="done" class="px-4 min-h-[40px] rounded-lg border text-sm font-bold"></button>
+                <span class="flex-1"></span>
                 <button type="button" id="dyn-sort-loc" class="px-3 min-h-[40px] rounded-lg border text-sm font-bold"></button>
             </div>
             <div id="dynamic-insp-list-scroll" class="flex-grow overflow-y-auto bg-gray-50 p-2">
                 <div id="dynamic-insp-list-cards" class="divide-y divide-gray-100 bg-white border border-gray-200 rounded-lg"></div>
             </div>
             <div class="p-3 bg-gray-100 text-center border-t border-gray-200 text-xs text-gray-500 shrink-0">
-                항목을 누르면 입력창에 자동 선택됩니다 · 샘플을 가져왔으면 오른쪽 [가져옴]을 누르세요(모든 기기에 같이 보입니다)
+                항목을 누르면 입력창에 자동 선택됩니다 · 샘플을 가져왔으면 오른쪽 [가져옴]을 누르세요 → '피킹됨'으로 옮겨집니다(모든 기기에 같이 보입니다)
             </div>
         </div>
     `;
@@ -465,76 +467,109 @@ export const openInspectionListWindow = () => {
         const btn = e.target.closest('[data-pick-toggle]');
         if (!btn || !cards.contains(btn)) return;
         e.preventDefault();
+        if (Date.now() < pickLockUntil) return;     // 바로 앞 누름으로 카드가 빠지며 올라온 카드를 같이 누르지 않게
+        pickLockUntil = Date.now() + 450;
         togglePicked(parseInt(btn.dataset.pickToggle, 10));
     });
     bindCardDelegation(cards, (index) => {
         selectTodoItem(index);
         modal.remove();
     });
-    modal.querySelector('#dyn-only-unpicked').addEventListener('click', () => { winOpt.onlyUnpicked = !winOpt.onlyUnpicked; saveWinOpt(); renderListWindow(); });
-    modal.querySelector('#dyn-sort-loc').addEventListener('click', () => { winOpt.byLoc = !winOpt.byLoc; saveWinOpt(); renderListWindow(); });
+    modal.querySelectorAll('[data-pick-tab]').forEach(b => b.addEventListener('click', () => {
+        if (winTab === b.dataset.pickTab) return;
+        winTab = b.dataset.pickTab;
+        renderListWindow();
+    }));
+    modal.querySelector('#dyn-sort-loc').addEventListener('click', () => { winOpt.byLoc = !winOpt.byLoc; saveWinOpt(); renderListWindow({ keepScroll: true }); });
+    winTab = 'todo';          // 열 때는 늘 '피킹 전'
     renderListWindow();
+    loadPackSources();        // 예전에 만든 리스트(구분 칸 없음)는 패킹 목록에서 제작/사입을 찾아 붙인다(1번 읽기)
 };
 
 // ── 새창 피킹 체크(2026-11-04) ─────────────────────────────────────────────
 //   저장: daily_data/{오늘}.inspPicked = { pickKey: { at, by } } (리스트와 따로 — 검수 저장·1분 자동저장과 덮어쓰지 않는다)
-//   [안 가져온 것만]: 다른 기기·내 체크로 가져옴이 된 카드는 바로 빼지 않고 흐리게 둔다(손가락 밑에서 카드가 사라져 다른 카드가 눌리지 않게).
-//   버튼을 다시 누르거나 창을 다시 열면 그때 뺀다.
+//   탭 두 개: '피킹 전'(기본) / '피킹됨'. [가져옴]을 누르면 바로 '피킹됨'으로 옮겨진다(해제하면 '피킹 전'으로).
+//   다른 기기에서 바뀐 카드는 바로 빼지 않고 흐리게 둔다(손가락 밑에서 카드가 사라져 다른 카드가 눌리지 않게) — 탭을 바꾸거나 내가 누르면 정리.
+//   순서: 늘 제작 → 혼합 → 사입 → 모름, 그 안에서 [위치순 정렬]이면 피킹 위치순(js/lib/insp-flow.js windowOrder).
 const WIN_OPT_KEY = 'inspWinOpt';
 const winOpt = (() => {
-    try { return { byLoc: false, onlyUnpicked: false, ...JSON.parse(localStorage.getItem(WIN_OPT_KEY) || '{}') }; }
-    catch (e) { return { byLoc: false, onlyUnpicked: false }; }
+    try { return { byLoc: !!JSON.parse(localStorage.getItem(WIN_OPT_KEY) || '{}').byLoc }; }
+    catch (e) { return { byLoc: false }; }
 })();
-const saveWinOpt = () => { try { localStorage.setItem(WIN_OPT_KEY, JSON.stringify({ byLoc: winOpt.byLoc, onlyUnpicked: winOpt.onlyUnpicked })); } catch (e) { /* 무시 */ } };
-let winShown = null;   // [안 가져온 것만] 일 때 지금 보이는 카드 키 — 외부 변경으로 다시 그릴 때 이 목록은 유지(흐리게)
+const saveWinOpt = () => { try { localStorage.setItem(WIN_OPT_KEY, JSON.stringify({ byLoc: winOpt.byLoc })); } catch (e) { /* 무시 */ } };
+let winTab = 'todo';      // 'todo' 피킹 전 | 'done' 피킹됨
+let winShown = null;      // 지금 탭에 보이는 카드 키 — 다른 기기 변경으로 다시 그릴 때 이 목록은 유지(흐리게)
+let packSrc = null;       // 패킹번호 → 제작|사입|혼합 (예전 리스트 보충용, 한 번 읽음 — 실패하면 다음에 열 때 다시)
+let packSrcLoading = false;
+let pickLockUntil = 0;    // [가져옴]을 누른 직후 잠깐 다음 누름을 무시(카드가 빠지며 아래 카드가 올라와 같이 눌리지 않게)
 
 const pickedMap = () => (State.appState.inspPicked && typeof State.appState.inspPicked === 'object') ? State.appState.inspPicked : {};
 
-/** 새창 카드 그리기. keep=true 면(구독으로 다시 그림) [안 가져온 것만] 목록을 줄이지 않고 스크롤도 그대로 */
-function renderListWindow({ keep = false } = {}) {
+/** 구분 칸이 없는 예전 항목에 패킹 목록(integrations/inspPacks)의 제작/사입을 붙인다 — 리스트 항목은 바꾸지 않고 화면용 사본만 */
+async function loadPackSources() {
+    if (packSrc || packSrcLoading || !currentList().some(it => it && !it.source && it.packNo)) return;
+    packSrcLoading = true;
+    renderListWindow();
+    try {
+        const snap = await getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks'));
+        const obj = JSON.parse((snap.exists() && snap.data().packsJson) || '{}');
+        const m = {};
+        Object.keys(obj || {}).forEach(no => { const v = obj[no] && obj[no].src; if (v) m[no] = String(v); });
+        packSrc = m;
+    } catch (e) {
+        packSrc = null;        // 다음에 창을 열 때 다시 시도
+        console.warn('[샘플검수] 패킹 구분 읽기 실패 — 구분 표시 없이 보입니다');
+    }
+    packSrcLoading = false;
+    renderListWindow();
+}
+const withSource = (list) => list.map(it => (it && !it.source && it.packNo && packSrc && packSrc[it.packNo]) ? { ...it, source: packSrc[it.packNo] } : it);
+
+/** 새창 카드 그리기.
+ *  keep=true(실시간 구독으로 다시 그림): 지금 탭에 보이던 카드는 남기고(다른 탭으로 갈 것은 흐리게), 새로 이 탭에 들어올 것만 더한다. 스크롤 유지.
+ *  keepScroll=true(내가 누름): 목록은 새로 정리하되 스크롤은 그대로. */
+function renderListWindow({ keep = false, keepScroll = false } = {}) {
     const cards = document.getElementById('dynamic-insp-list-cards');
     if (!cards) return;
-    const list = currentList();
+    const list = withSource(currentList());
     const picked = pickedMap();
-    let rows = windowOrder(list, picked, { byLoc: winOpt.byLoc, onlyUnpicked: false });
-    if (winOpt.onlyUnpicked) {
-        if (!(keep && winShown)) winShown = new Set();
-        // 안 가져온 항목은 늘 보인다(새로 들어온 항목·다른 기기에서 해제한 항목 포함). 이미 보이던 항목은 가져옴이 돼도 흐리게 남긴다
-        rows.forEach(r => { if (!isPicked(r.item, picked)) winShown.add(pickKey(r.item)); });
-        rows = rows.filter(r => winShown.has(pickKey(r.item)));
-    } else {
-        winShown = null;
-    }
+    const inTab = (it) => (winTab === 'done') === isPicked(it, picked);
+    let rows = windowOrder(list, picked, { byLoc: winOpt.byLoc });
+    if (!(keep && winShown)) winShown = new Set();
+    rows.forEach(r => { if (inTab(r.item)) winShown.add(pickKey(r.item)); });
+    rows = rows.filter(r => winShown.has(pickKey(r.item)));
+    if (!keep) winShown = new Set(rows.filter(r => inTab(r.item)).map(r => pickKey(r.item)));
     const scroll = document.getElementById('dynamic-insp-list-scroll');
     const top = scroll ? scroll.scrollTop : 0;
+    if (packSrcLoading) {
+        cards.innerHTML = '<div class="py-10 text-center text-sm text-gray-500">제작/사입 구분을 불러오는 중…</div>';
+        return;
+    }
+    const empty = !list.length ? '리스트가 비었습니다.'
+        : winTab === 'todo' ? '남은 샘플이 없습니다 — 모두 가져왔습니다.' : '아직 가져온 샘플이 없습니다.';
     cards.innerHTML = rows.length
         ? rows.map(r => {
             const on = isPicked(r.item, picked);
             const html = todoCardHtml(r.item, r.idx, { showReserve: true, pickable: true, picked: on });
-            return (winOpt.onlyUnpicked && on) ? `<div class="opacity-40">${html}</div>` : html;
+            return inTab(r.item) ? html : `<div class="opacity-40">${html}</div>`;
         }).join('')
-        : `<div class="py-10 text-center text-sm text-gray-500">${(winOpt.onlyUnpicked && list.length) ? '남은 샘플이 없습니다 — 모두 가져왔습니다.' : '리스트가 비었습니다.'}</div>`;
-    if (scroll && keep) scroll.scrollTop = top;
+        : `<div class="py-10 text-center text-sm text-gray-500">${empty}</div>`;
+    if (scroll) scroll.scrollTop = (keep || keepScroll) ? top : 0;
     const doneBadge = document.getElementById('dyn-done-progress');
     if (doneBadge) doneBadge.textContent = progress(list).text;
     const pp = pickProgress(list, picked);
     const prog = document.getElementById('dyn-pick-progress');
     if (prog) prog.textContent = `피킹 ${pp.done}/${pp.total}`;
     // 켜짐 색은 토큰으로 직접(css/form-d.css 가 초록 채움 버튼을 테두리로 바꾼다)
-    const paint = (b, on) => { b.style.cssText = on ? 'background-color:var(--c-ok-strong);border-color:var(--c-ok-strong);color:#fff;' : ''; b.className = `px-3 min-h-[40px] rounded-lg border text-sm font-bold ${on ? '' : 'bg-white border-gray-300 text-gray-700'}`; };
-    const b1 = document.getElementById('dyn-only-unpicked');
-    if (b1) {
-        b1.textContent = winOpt.onlyUnpicked ? '✓ 안 가져온 것만' : '안 가져온 것만';
-        paint(b1, winOpt.onlyUnpicked);
-    }
+    const paint = (b, on, pad) => { if (!b) return; b.style.cssText = on ? 'background-color:var(--c-ok-strong);border-color:var(--c-ok-strong);color:#fff;' : ''; b.className = `${pad} min-h-[40px] rounded-lg border text-sm font-bold ${on ? '' : 'bg-white border-gray-300 text-gray-700'}`; };
+    const tTodo = document.getElementById('dyn-tab-todo'), tDone = document.getElementById('dyn-tab-done');
+    if (tTodo) { tTodo.textContent = `피킹 전 ${pp.total - pp.done}`; paint(tTodo, winTab === 'todo', 'px-4'); tTodo.setAttribute('aria-pressed', winTab === 'todo' ? 'true' : 'false'); }
+    if (tDone) { tDone.textContent = `피킹됨 ${pp.done}`; paint(tDone, winTab === 'done', 'px-4'); tDone.setAttribute('aria-pressed', winTab === 'done' ? 'true' : 'false'); }
     const b2 = document.getElementById('dyn-sort-loc');
-    if (b2) {
-        b2.textContent = winOpt.byLoc ? '✓ 위치순' : '위치순 정렬';
-        paint(b2, winOpt.byLoc);
-    }
+    if (b2) { b2.textContent = winOpt.byLoc ? '✓ 위치순' : '위치순 정렬'; paint(b2, winOpt.byLoc, 'px-3'); }
 }
 
-/** [가져옴] 누름 — 켜기/끄기. 화면은 먼저 바꾸고, 저장이 실패하면 되돌린다. */
+/** [가져옴] 누름 — 켜기/끄기. 화면은 먼저 바꾸고(그 카드는 바로 다른 탭으로), 저장이 실패하면 되돌린다. */
 async function togglePicked(index) {
     const item = currentList()[index];
     if (!item) return;
@@ -545,7 +580,7 @@ async function togglePicked(index) {
     if (on) map[k] = { at: new Date().toISOString(), by: State.appState.currentUser || '' };
     else delete map[k];
     State.appState.inspPicked = map;
-    renderListWindow({ keep: true });
+    renderListWindow({ keepScroll: true });
     try {
         const ok = await updateDailyData({ inspPicked: { [k]: on ? map[k] : deleteField() } }, { requireOnline: true });
         if (ok === false) throw new Error('저장 안 됨');
@@ -553,7 +588,7 @@ async function togglePicked(index) {
         const now = { ...pickedMap() };          // 그사이 다른 기기 체크가 들어왔을 수 있다 — 이 키만 되돌린다
         if (before) now[k] = before; else delete now[k];
         State.appState.inspPicked = now;
-        renderListWindow({ keep: true });
+        renderListWindow({ keepScroll: true });
         showToast('가져옴 표시를 저장하지 못했습니다. 연결을 확인하고 다시 눌러 주세요.', true);
     }
 }
@@ -1245,6 +1280,6 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202611041106';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611041106';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611041106';
+export { handleExcelUpload } from './inspection-excel.js?v=202611041127';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611041127';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611041127';

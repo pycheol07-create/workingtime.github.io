@@ -2,7 +2,7 @@
 // 샘플검수 창의 순수 함수 — DOM·Firestore 없음(node --test 대상).
 // 판정·저장 규칙은 js/inspection-logic.js 의 saveInspectionAndNext 를 그대로 옮겼다(동작을 바꾸지 않는 것이 원칙).
 // 화면 카드 HTML 은 모든 값을 escapeHtml 로 통과시킨다.
-import { escapeHtml } from '../utils.js?v=202611041106';
+import { escapeHtml } from '../utils.js?v=202611041127';
 
 /** 체크리스트 키 — 화면(components/modals-form-inspection.html) 순서. 두께(thickness)는 판정에서 빠진다. */
 export const CHECK_KEYS = ['fabric', 'color', 'distortion', 'unraveling', 'finishing', 'zipper', 'button', 'lining', 'pilling', 'dye'];
@@ -227,19 +227,29 @@ export function pickProgress(list, picked) {
     return { done: l.filter(it => isPicked(it, picked)).length, total: l.length };
 }
 
+/** 제작/사입 구분(패킹 목록 src — 패킹 단위) → 정렬 순위. 제작 먼저, 혼합, 사입, 모름(엑셀 업로드 등) 순 */
+const SOURCE_RANK = { '제작': 0, '혼합': 1, '사입': 2 };
+export const sourceRank = (src) => (Object.prototype.hasOwnProperty.call(SOURCE_RANK, str(src)) ? SOURCE_RANK[str(src)] : 3);
+
 /** 새창 카드 순서 — [{item, idx}] (idx = 원래 리스트 위치, 선택은 이걸로).
- *  byLoc: 첫 피킹 위치 문자열 자연 정렬(위치 없는 것은 뒤, 같으면 원래 순서) · onlyUnpicked: 안 가져온 것만 */
-export function windowOrder(list, picked, { byLoc = false, onlyUnpicked = false } = {}) {
+ *  늘 제작 → 혼합 → 사입 → 모름 순. 그 안에서 byLoc 이면 첫 피킹 위치 자연 정렬(위치 없는 것은 뒤), 아니면 원래 순서.
+ *  tab: 'todo'(피킹 전) | 'done'(피킹됨) | 없음(전부) */
+export function windowOrder(list, picked, { byLoc = false, tab = null, onlyUnpicked = false } = {}) {
     let rows = (Array.isArray(list) ? list : []).map((item, idx) => ({ item, idx }));
-    if (onlyUnpicked) rows = rows.filter(r => !isPicked(r.item, picked));
-    if (byLoc) {
-        const locOf = (it) => str(it && it.location).split(',')[0].trim();
-        rows.sort((a, b) => {
+    if (onlyUnpicked || tab === 'todo') rows = rows.filter(r => !isPicked(r.item, picked));
+    else if (tab === 'done') rows = rows.filter(r => isPicked(r.item, picked));
+    const locOf = (it) => str(it && it.location).split(',')[0].trim();
+    rows.sort((a, b) => {
+        const sr = sourceRank(a.item && a.item.source) - sourceRank(b.item && b.item.source);
+        if (sr) return sr;
+        if (byLoc) {
             const la = locOf(a.item), lb = locOf(b.item);
             if (!la !== !lb) return la ? -1 : 1;
-            return la.localeCompare(lb, 'ko', { numeric: true }) || a.idx - b.idx;
-        });
-    }
+            const c = la.localeCompare(lb, 'ko', { numeric: true });
+            if (c) return c;
+        }
+        return a.idx - b.idx;
+    });
     return rows;
 }
 
@@ -249,6 +259,11 @@ export function todoCardHtml(item, idx, opts = {}) {
     const statusBadge = isCompleted
         ? '<span class="text-[11px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">완료</span>'
         : '<span class="text-[11px] font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">대기</span>';
+    // 제작/사입 구분(패킹 목록 src). 모르면(엑셀 업로드 등) 표시 안 함
+    const SRC_CLS = { '제작': 'text-indigo-700 bg-indigo-50', '사입': 'text-amber-800 bg-amber-50', '혼합': 'text-gray-700 bg-gray-100' };
+    const srcBadge = Object.prototype.hasOwnProperty.call(SRC_CLS, str(it.source))
+        ? `<span class="text-[11px] font-bold ${SRC_CLS[str(it.source)]} px-1.5 py-0.5 rounded-full whitespace-nowrap">${escapeHtml(it.source)}</span>`
+        : '';
     const locationInfo = it.location ? `<span class="text-indigo-700 font-bold bg-indigo-50 px-1 rounded">위치 ${escapeHtml(it.location)}</span>` : '';
     const reserveInfo = opts.showReserve && it.reserveLocation ? `<span class="text-amber-800 font-bold bg-amber-50 px-1 rounded">비축 ${escapeHtml(it.reserveLocation)}</span>` : '';
     const sampleInfo = it.sampleLocation ? `<span class="text-red-700 font-bold bg-red-50 px-1 rounded">샘플: ${escapeHtml(it.sampleLocation)}</span>` : '';
@@ -264,7 +279,7 @@ export function todoCardHtml(item, idx, opts = {}) {
     return `<div class="${cls}" data-index="${escapeHtml(idx)}" data-status="${isCompleted ? 'done' : 'todo'}" role="button" tabindex="0">${opts.pickable ? '<div class="min-w-0 flex-1">' : ''}
             <div class="flex items-center gap-2">
                 <span class="font-mono font-medium text-[11px] text-gray-600 whitespace-nowrap">${escapeHtml(it.code)}</span>
-                ${statusBadge}
+                ${srcBadge}${statusBadge}
             </div>
             <div class="font-bold text-gray-900 text-sm mt-0.5 break-words">${escapeHtml(it.name)}</div>
             ${it.option ? `<div class="text-[11px] font-medium text-gray-600 mt-0.5 break-words">옵션: ${escapeHtml(it.option)}</div>` : ''}

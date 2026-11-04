@@ -9,8 +9,8 @@
 // 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 공급처::색상 1장, 그 묶음의 첫 품목이 대표.
 // 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
 
-import { dayInspItems } from './insp-day.js?v=202611041106';
-import { reserveLocIds, normLocId } from './multi-loc.js?v=202611041106';
+import { dayInspItems } from './insp-day.js?v=202611041127';
+import { reserveLocIds, normLocId } from './multi-loc.js?v=202611041127';
 
 export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -280,11 +280,15 @@ export function buildCards(packs, refs, today) {
                 sampleLocation,
                 status: '대기',
                 packingDate,
-                packNo: str(pack.no)
+                packNo: str(pack.no),
+                source: str(pack.src)          // 제작|사입|혼합 — 패킹 단위(미발 수집기 inspPacks src)
             });
         });
     });
-    return out;
+    // 제작 먼저(혼합 → 사입 → 모름), 같은 구분 안에서는 패킹 순서 그대로 — 새로 만든 리스트도 이 순서로 쌓인다
+    const RANK = { '제작': 0, '혼합': 1, '사입': 2 };
+    const rank = (s) => (Object.prototype.hasOwnProperty.call(RANK, s) ? RANK[s] : 3);
+    return out.map((c, i) => ({ c, i })).sort((a, b) => rank(a.c.source) - rank(b.c.source) || a.i - b.i).map(x => x.c);
 }
 
 const sameItem = (a, b) => a.name === b.name && a.option === b.option;
