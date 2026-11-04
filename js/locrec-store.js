@@ -20,10 +20,10 @@ import { doc, onSnapshot, setDoc, serverTimestamp, deleteField, runTransaction }
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT
-} from './lib/locrec-view.js?v=202611041551';
-import { laterMs } from './lib/rebuild-view.js?v=202611041551';
-import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText } from './lib/locrec-apply.js?v=202611041551';
-import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611041551';
+} from './lib/locrec-view.js?v=202611041603';
+import { laterMs } from './lib/rebuild-view.js?v=202611041603';
+import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText } from './lib/locrec-apply.js?v=202611041603';
+import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611041603';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;

@@ -1,23 +1,23 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611041551';
-import * as State from './state.js?v=202611041551';
-import { showToast, getTodayDateString } from './utils.js?v=202611041551';
-import { dayInspItems } from './lib/insp-day.js?v=202611041551';
-import { TASK, tName } from './task-names.js?v=202611041551';
+import * as DOM from './dom-elements.js?v=202611041603';
+import * as State from './state.js?v=202611041603';
+import { showToast, getTodayDateString } from './utils.js?v=202611041603';
+import { dayInspItems } from './lib/insp-day.js?v=202611041603';
+import { TASK, tName } from './task-names.js?v=202611041603';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202611041551'; 
-import { clearInspResultCache, seedInspResultCache } from './ui-history-inspection.js?v=202611041551';   // 정상여부 캐시
+} from './ui-history.js?v=202611041603'; 
+import { clearInspResultCache, seedInspResultCache } from './ui-history-inspection.js?v=202611041603';   // 정상여부 캐시
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202611041551';
+} from './ui-history-inspection.js?v=202611041603';
 
 import {
     loadInspectionLogs,
@@ -29,7 +29,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202611041551';
+} from './inspection-logic.js?v=202611041603';
 
 import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 

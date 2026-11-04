@@ -1,8 +1,8 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611041551';
-import * as State from './state.js?v=202611041551';
-import { getWeekOfYear, escapeHtml } from './utils.js?v=202611041551';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611041551';
+import * as DOM from './dom-elements.js?v=202611041603';
+import * as State from './state.js?v=202611041603';
+import { getWeekOfYear, escapeHtml } from './utils.js?v=202611041603';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611041603';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -85,6 +85,31 @@ function resultBadge(item, isCompleted, date) {
     const txt = defects.join(', ') || (log.note ? String(log.note) : '');
     return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700" title="${escapeHtml(txt || '불량')}">불량</span>`
         + (txt ? `<div class="text-[11px] text-red-600 mt-0.5 truncate max-w-[140px] mx-auto" title="${escapeHtml(txt)}">${escapeHtml(txt)}</div>` : '');
+}
+
+// 제작/사입 구분 — 리스트 항목의 source(패킹에서 만든 리스트). 없고 packNo 만 있는 예전 항목은 패킹 목록(integrations/inspPacks)의 src 로(1번 읽고 기억)
+let packSrcMap = null, packSrcLoading = null;   // packSrcLoading = 읽는 중인 Promise(겹친 렌더도 같은 읽기를 기다린다)
+async function loadPackSrc(items) {
+    if (packSrcMap || !State.db || !items.some(it => it && !it.source && it.packNo)) return;
+    if (!packSrcLoading) {
+        packSrcLoading = (async () => {
+            try {
+                const snap = await getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks'));
+                const obj = JSON.parse((snap.exists() && snap.data().packsJson) || '{}');
+                const m = {};
+                Object.keys(obj || {}).forEach(no => { const v = obj[no] && obj[no].src; if (v) m[no] = String(v); });
+                packSrcMap = m;
+            } catch (e) { console.warn('패킹 구분 읽기 실패 — 구분 없이 보입니다'); }
+            finally { packSrcLoading = null; }   // 실패면 packSrcMap 이 비어 있어 다음 렌더에서 다시 읽는다
+        })();
+    }
+    await packSrcLoading;
+}
+const SRC_BADGE_CLS = { '제작': 'bg-indigo-50 text-indigo-700 border-indigo-200', '사입': 'bg-amber-50 text-amber-800 border-amber-200', '혼합': 'bg-gray-50 text-gray-700 border-gray-200' };
+function sourceBadge(item) {
+    const src = String(item.source || (item.packNo && packSrcMap && packSrcMap[item.packNo]) || '');
+    if (!Object.prototype.hasOwnProperty.call(SRC_BADGE_CLS, src)) return '<span class="text-gray-300 text-xs">-</span>';
+    return `<span class="inline-flex items-center px-1.5 py-0.5 rounded-full border text-[11px] font-bold whitespace-nowrap ${SRC_BADGE_CLS[src]}">${src}</span>`;
 }
 
 // 빈 함수 내보내기 (이전 에러 해결용)
@@ -183,7 +208,10 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
     if (State.db && filteredSelectedData.length > 0) {
         let needsDbUpdate = false;
         // 완료 상품의 이력을 한 번에 읽어 둔다(정상여부 표시 + 아래 샘플 수량 맞추기가 같이 쓴다)
-        await loadHistLogs(filteredSelectedData.filter(it => it.status === '완료').map(it => it.name));
+        await Promise.all([
+            loadHistLogs(filteredSelectedData.filter(it => it.status === '완료').map(it => it.name)),
+            loadPackSrc(filteredSelectedData),
+        ]);
         filteredSelectedData.forEach((item) => {
             if (item.status === '완료' && item.inspectionType !== 'total') {
                 if (item.sampleQty === undefined || item.sampleQty === 1 || item.sampleQty === 0) {
@@ -257,8 +285,8 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
         const rows = filteredSelectedData.map((item, idx) => {
             const isCompleted = item.status === '완료';
             const statusBadge = isCompleted 
-                ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">완료</span>`
-                : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
+                ? `<span class="text-xs text-gray-500">✓ 완료</span>`   // 상태는 글자만 — 옆 '정상여부' 칸(색 배지)과 헷갈리지 않게
+                : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border border-dashed border-gray-300 text-gray-400">대기</span>`;
             
             const typeBadge = item.inspectionType === 'total' 
                 ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
@@ -283,6 +311,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                     data-target-date="${escapeHtml(selectedDate)}"
                     title="클릭하여 상세 이력 펼치기">
                     <td class="px-4 py-3 text-center">${typeBadge}</td>
+                    <td class="px-2 py-3 text-center">${sourceBadge(item)}</td>
                     <td class="px-4 py-3 text-xs font-mono text-gray-500">${escapeHtml(item.code || '-')}</td>
                     <td class="px-4 py-3 text-sm font-medium text-gray-900">${escapeHtml(item.name)}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${escapeHtml(item.option || '-')}</td>
@@ -291,7 +320,6 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                         <div class="text-xs font-bold text-gray-700">${inboundQty.toLocaleString()}</div>
                         <div class="text-[11px] ${isCompleted ? 'text-blue-600' : 'text-gray-400'} font-bold">(샘플검수: ${sampleQty.toLocaleString()}개)</div>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-500">${item.thickness || '-'}</td>
                     <td class="px-4 py-3 text-center">${statusBadge}</td>
                     <td class="px-3 py-3 text-center">${resultBadge(item, isCompleted, selectedDate)}</td>
                 </tr>
@@ -322,13 +350,13 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                         <thead class="bg-white text-[11px] uppercase text-gray-500 sticky top-0 z-10 shadow-sm outline outline-1 outline-gray-200">
                             <tr>
                                 <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[6%]">유형</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[12%]">코드</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[19%]">상품명</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[13%]">옵션</th>
+                                <th class="px-2 py-2 font-bold bg-gray-50 text-center w-[6%]">구분</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[11%]">코드</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[20%]">상품명</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[14%]">옵션</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 w-[11%]">공급처</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[12%]">수량 (입고/샘플검수)</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[8%]">기준</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[7%]">상태</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[8%]">상태</th>
                                 <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[12%]">정상여부</th>
                             </tr>
                         </thead>

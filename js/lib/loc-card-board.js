@@ -9,7 +9,7 @@
 //   함수는 보드를 고치지 않고 새 보드를 돌려준다.
 // 검사는 ./loc-cards.js parseCards 그대로 쓴다. 저장 때 zones·dongs 는 건드리지 않는다(boardToSave).
 
-import { parseCards, legacyToCards } from './loc-cards.js?v=202611041551';
+import { parseCards, legacyToCards } from './loc-cards.js?v=202611041603';
 
 // 카드 이름 규칙 — loc-cards.js 의 CARD_RE·CARD_MAX 와 같다(그쪽은 내보내지 않음)
 const CARD_RE = /^.-[^,]*$/;
