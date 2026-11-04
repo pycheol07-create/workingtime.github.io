@@ -1,8 +1,8 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611041603';
-import * as State from './state.js?v=202611041603';
-import { getWeekOfYear, escapeHtml } from './utils.js?v=202611041603';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611041603';
+import * as DOM from './dom-elements.js?v=202611041606';
+import * as State from './state.js?v=202611041606';
+import { getWeekOfYear, escapeHtml } from './utils.js?v=202611041606';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611041606';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -285,8 +285,8 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
         const rows = filteredSelectedData.map((item, idx) => {
             const isCompleted = item.status === '완료';
             const statusBadge = isCompleted 
-                ? `<span class="text-xs text-gray-500">✓ 완료</span>`   // 상태는 글자만 — 옆 '정상여부' 칸(색 배지)과 헷갈리지 않게
-                : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border border-dashed border-gray-300 text-gray-400">대기</span>`;
+                ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800">완료</span>`   // 하늘색 — 옆 '정상여부'(초록·빨강)와 다른 색
+                : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
             
             const typeBadge = item.inspectionType === 'total' 
                 ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
