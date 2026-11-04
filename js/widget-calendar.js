@@ -8,18 +8,18 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202611041625';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202611041625';
-import { showToast, getTodayDateString, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611041625';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611041625';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611041625';
-import { updateLeaveSchedule } from './config.js?v=202611041625';
-import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611041625';
+import * as State from './state.js?v=202611041632';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202611041632';
+import { showToast, getTodayDateString, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611041632';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611041632';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611041632';
+import { updateLeaveSchedule } from './config.js?v=202611041632';
+import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611041632';
 import {
     REL_OPTIONS, MAX_REMINDERS, relOption, computeAt, buildReminders, buildRemindTo, eventOverAt,
     reminderSummary, shortAt, nowKst, newId
-} from './lib/cal-reminder.js?v=202611041625';
-import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611041625';
+} from './lib/cal-reminder.js?v=202611041632';
+import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611041632';
 import {
     collection, doc, setDoc, deleteDoc, getDocs,
     query, where, documentId
@@ -120,6 +120,7 @@ async function saveEvent(ev) {
         type: ev.type || 'general',
         time: ev.time || '',
         memo: ev.memo || '',
+        members: Array.isArray(ev.members) ? ev.members : [],   // 담당 직원(선택, 2026-11-04) — 표시용. 알림 받는 사람(remindTo)과는 따로
         updatedBy: State.appState?.currentUser || 'unknown',
         updatedAt: new Date().toISOString(),
         // 미리 알림(js/lib/cal-reminder.js) — uid 는 시작일이 바뀌어 문서 ID 가 바뀌어도 그대로 넘긴다
@@ -233,7 +234,7 @@ function allRanges() {
         out.push({
             kind: 'event', id: ev.id, color: t.color,
             label: `${ev.time ? ev.time + ' ' : ''}${ev.title}`,
-            sub: `${t.label}${ev.memo ? ' · ' + ev.memo : ''}`,
+            sub: `${t.label}${membersOf(ev).length ? ' · 담당 ' + membersOf(ev).join(', ') : ''}${ev.memo ? ' · ' + ev.memo : ''}`,
             start: ev.date,
             end: (ev.endDate && ev.endDate >= ev.date) ? ev.endDate : ev.date,
             editable: true,
@@ -274,6 +275,11 @@ function allRanges() {
         (dayDiff(b.start, b.end) - dayDiff(a.start, a.end)) ||
         ((KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9))
     );
+}
+
+/** 일정의 담당 직원 이름 목록(없으면 []) */
+function membersOf(ev) {
+    return Array.isArray(ev && ev.members) ? ev.members.filter(n => typeof n === 'string' && n.trim()) : [];
 }
 
 const dayDiff = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
@@ -584,6 +590,93 @@ function renderDayModalList(dateStr) {
 }
 
 // ────────────────────────────────────────
+// 일정 보기 팝업 — 바·칩을 누르면 먼저 내용만 보여 주고 [수정]을 눌러야 고친다(2026-11-04)
+// ────────────────────────────────────────
+function ensureViewModal() {
+    if (document.getElementById('cal-view-modal')) return;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+    <div id="cal-view-modal" class="fixed inset-0 bg-gray-900/70 hidden items-center justify-center z-[69] p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col">
+            <div class="p-4 md:p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-start gap-2">
+                <div class="min-w-0 flex items-start gap-2">
+                    <span id="cal-view-dot" class="mt-1.5 w-2.5 h-2.5 rounded-full shrink-0"></span>
+                    <h3 id="cal-view-title" class="text-base font-bold text-gray-900 dark:text-white break-words"></h3>
+                </div>
+                <button type="button" id="cal-view-close" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+            <dl id="cal-view-body" class="p-4 md:p-5 overflow-y-auto flex-1 grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-2 text-sm"></dl>
+            <div class="p-4 bg-gray-50 dark:bg-gray-900/40 rounded-b-2xl flex justify-end gap-2">
+                <button type="button" id="cal-view-del" class="hidden px-3 py-2 text-xs font-bold rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100">삭제</button>
+                <button type="button" id="cal-view-edit" class="hidden px-4 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white">수정</button>
+                <button type="button" id="cal-view-ok" class="px-4 py-2 text-xs font-bold rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200">닫기</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(wrap.firstElementChild);
+    document.getElementById('cal-view-close').addEventListener('click', closeViewModal);
+    document.getElementById('cal-view-ok').addEventListener('click', closeViewModal);
+    document.getElementById('cal-view-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'cal-view-modal') closeViewModal();
+    });
+}
+function closeViewModal() {
+    const m = document.getElementById('cal-view-modal');
+    if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+}
+// 저장 시각(ISO, UTC) → 이 PC 시각 'YYYY-MM-DD HH:MM'. 못 읽으면 ''
+const localStamp = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : `${ymd(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const fullDate = (ds) => { const d = new Date(ds + 'T00:00:00'); return `${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]})`; };
+const rangeText = (a, b) => (b && b > a ? `${fullDate(a)} ~ ${fullDate(b)}` : fullDate(a));   // 끝이 시작보다 이르면(옛 자료) 하루로
+function findEvent(id) {
+    let hit = null;
+    eventsByDate.forEach(list => { const x = list.find(e => e.id === id); if (x) hit = x; });
+    return hit;
+}
+/** 보기 팝업 열기 — kind 'event' | 'leave'. 못 찾으면 false */
+function openViewModal(kind, id) {
+    const row = (label, value, cls = '') => value
+        ? `<dt class="text-xs font-bold text-gray-500 dark:text-gray-400 pt-0.5">${label}</dt><dd class="text-gray-800 dark:text-gray-100 break-words ${cls}">${value}</dd>`
+        : '';
+    let title = '', color = '', body = '';
+    if (kind === 'event') {
+        const ev = findEvent(id);
+        if (!ev) return false;
+        const t = typeOf(ev.type);
+        const members = membersOf(ev);
+        title = ev.title; color = t.color;
+        body = row('분류', esc(t.label))
+            + row('날짜', esc(rangeText(ev.date, ev.endDate)))
+            + row('시간', esc(ev.time || ''))
+            + row('담당', members.length ? members.map(n => `<span class="inline-block px-2 py-0.5 mr-1 mb-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold">${esc(n)}</span>`).join('') : '<span class="text-gray-400 text-xs">지정 안 함</span>')
+            + row('메모', esc(ev.memo || ''), 'whitespace-pre-wrap')
+            + row('알림', reminderSummary(ev) ? '🔔 ' + esc(reminderSummary(ev)) : '')
+            + row('수정', ev.updatedBy ? esc(`${ev.updatedBy}${ev.updatedAt ? ' · ' + localStamp(ev.updatedAt) : ''}`) : '', 'text-xs text-gray-500');
+    } else if (kind === 'leave') {
+        const l = (State.persistentLeaveSchedule?.onLeaveMembers || []).find(x => x.id === id);
+        if (!l) return false;
+        title = `${l.member} ${leaveTypeLabel(l)}`; color = LEAVE_COLOR;
+        body = row('대상자', esc(l.member)) + row('근태', esc(leaveTypeLabel(l))) + row('날짜', esc(rangeText(l.startDate, l.endDate)));
+    } else return false;
+
+    ensureViewModal();
+    document.getElementById('cal-view-title').textContent = title;
+    document.getElementById('cal-view-dot').style.background = color;
+    document.getElementById('cal-view-body').innerHTML = body;
+    const admin = isAdmin();
+    ['cal-view-edit', 'cal-view-del'].forEach(bid => {
+        const b = document.getElementById(bid);
+        b.classList.toggle('hidden', !admin);
+        b.dataset.kind = kind;
+        b.dataset.id = id;
+    });
+    const m = document.getElementById('cal-view-modal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+    return true;
+}
+
+// ────────────────────────────────────────
 // 등록/수정 모달
 // ────────────────────────────────────────
 function ensureModal() {
@@ -617,6 +710,13 @@ function ensureModal() {
                     <div>
                         <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">메모 (선택)</label>
                         <input type="text" id="cal-f-memo" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block text-xs font-bold text-gray-600 dark:text-gray-400">담당 직원 (선택)</label>
+                            <span id="cal-f-members-count" class="text-[11px] text-gray-500 dark:text-gray-400"></span>
+                        </div>
+                        <div id="cal-f-members" class="max-h-28 overflow-y-auto grid grid-cols-3 gap-1 text-xs text-gray-700 dark:text-gray-200 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40"></div>
                     </div>
                     <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
                         <div class="flex items-center justify-between">
@@ -713,6 +813,7 @@ function ensureModal() {
     ['cal-f-time', 'cal-f-start', 'cal-f-end'].forEach(id => document.getElementById(id).addEventListener('input', refreshRemUi));
     document.querySelectorAll('input[name="cal-rem-to"]').forEach(r => r.addEventListener('change', refreshRemUi));
 
+    document.getElementById('cal-f-members').addEventListener('change', refreshMembersCount);
     document.getElementById('cal-modal-close').addEventListener('click', closeModal);
     document.getElementById('cal-modal-cancel').addEventListener('click', closeModal);
     document.getElementById('cal-modal-save').addEventListener('click', submitModal);
@@ -797,6 +898,26 @@ function refreshRemUi() {
     }
 }
 
+/** 담당 직원 칸 채우기 — 지금 직원 + 저장돼 있던 이름(퇴사 등으로 목록에 없어도 지워지지 않게) */
+function fillMembersSection(existing) {
+    const saved = membersOf(existing);
+    const picked = new Set(saved);
+    const names = [...new Set([...getActiveTeamMembers(State.appConfig), ...saved])].sort((a, b) => a.localeCompare(b, 'ko'));
+    const host = document.getElementById('cal-f-members');
+    if (host) host.innerHTML = names.length
+        ? names.map(n => `<label class="inline-flex items-center gap-1 truncate">
+            <input type="checkbox" class="cal-member-name" value="${esc(n)}" ${picked.has(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('')
+        : '<span class="col-span-3 text-gray-400">직원 목록이 없습니다.</span>';
+    refreshMembersCount();
+}
+function readMembers() {
+    return [...document.querySelectorAll('#cal-f-members .cal-member-name:checked')].map(x => x.value);
+}
+function refreshMembersCount() {
+    const el = document.getElementById('cal-f-members-count');
+    if (el) { const n = readMembers().length; el.textContent = n ? `${n}명 선택` : '없음'; }
+}
+
 /** 모달을 열 때 알림 구역 채우기 */
 function fillRemSection(existing) {
     remPrev = Array.isArray(existing?.reminders) ? existing.reminders : [];
@@ -873,6 +994,7 @@ function openModal(mode, dateStr, existing = null) {
         start.value = existing?.date || dateStr;
         end.value = existing?.endDate || existing?.date || dateStr;
         editingUid = existing?.uid || null;
+        fillMembersSection(existing);
         fillRemSection(existing);
     } else {
         const sel = document.getElementById('cal-f-member');
@@ -920,6 +1042,7 @@ async function submitModal() {
             type: document.getElementById('cal-f-type').value,
             time,
             memo: document.getElementById('cal-f-memo').value.trim(),
+            members: readMembers(),
             ...rem
         };
     } else {
@@ -977,11 +1100,7 @@ function bind() {
     // 항목(일정/근태) 편집 — 날짜칸 안의 줄, 또는 날짜 팝업의 [수정] 버튼에서 공통으로 쓴다.
     const editItem = (kind, id) => {
         if (kind === 'event') {
-            let target = null;
-            eventsByDate.forEach(list => {
-                const hit = list.find(x => x.id === id);
-                if (hit) target = hit;
-            });
+            const target = findEvent(id);
             if (target) openModal('event', target.date, target);
             return;
         }
@@ -991,24 +1110,27 @@ function bind() {
         }
     };
 
+    // 지웠으면 true(취소·실패면 false) — 보기 팝업은 지운 뒤에만 닫는다
     const deleteItem = async (kind, id) => {
         if (kind === 'event') {
-            if (!confirm('이 일정을 삭제할까요?')) return;
+            if (!confirm('이 일정을 삭제할까요?')) return false;
             try {
                 await removeEvent(id);
                 renderCalendar();
                 showToast('일정이 삭제되었습니다.');
-            } catch (err) { showToast('삭제 실패: ' + (err.message || err), true); }
-            return;
+                return true;
+            } catch (err) { showToast('삭제 실패: ' + (err.message || err), true); return false; }
         }
         if (kind === 'leave') {
-            if (!confirm('이 근태 예정을 삭제할까요?')) return;
+            if (!confirm('이 근태 예정을 삭제할까요?')) return false;
             try {
                 await removeLeaveEntry(id);
                 renderCalendar();
                 showToast('근태 예정이 삭제되었습니다.');
-            } catch (err) { showToast('삭제 실패: ' + (err.message || err), true); }
+                return true;
+            } catch (err) { showToast('삭제 실패: ' + (err.message || err), true); return false; }
         }
+        return false;
     };
 
     host.addEventListener('click', async (e) => {
@@ -1077,7 +1199,7 @@ function bind() {
             return;
         }
 
-        // 기간 바 / 목록 칩 클릭 → 그 항목 바로 수정 (입고는 읽기전용이라 날짜 팝업으로)
+        // 기간 바 / 목록 칩 클릭 → 먼저 보기 팝업(고치려면 [수정]) — 입고·공휴일은 읽기전용이라 날짜 팝업으로
         const itemEl = e.target.closest('[data-cal-item-id]');
         if (itemEl) {
             e.stopPropagation();
@@ -1086,8 +1208,7 @@ function bind() {
             selectedDate = itemEl.dataset.calItemStart
                 || (cellEl ? cellEl.dataset.calDate : getTodayDateString());
             if (kind === 'incoming' || kind === 'holiday') { openDayModal(selectedDate); return; }   // 읽기전용
-            if (!requireAdmin()) return;
-            editItem(kind, itemEl.dataset.calItemId);
+            if (!openViewModal(kind, itemEl.dataset.calItemId)) openDayModal(selectedDate);
             return;
         }
 
@@ -1110,6 +1231,21 @@ function bind() {
 
     // 날짜 관리 팝업의 [수정]/[삭제] — 팝업은 body 직속이라 별도 위임
     document.addEventListener('click', async (e) => {
+        // 보기 팝업의 [수정]/[삭제]
+        const vEdit = e.target.closest('#cal-view-edit');
+        if (vEdit) {
+            if (!requireAdmin()) return;
+            closeViewModal();
+            editItem(vEdit.dataset.kind, vEdit.dataset.id);
+            return;
+        }
+        const vDel = e.target.closest('#cal-view-del');
+        if (vDel) {
+            if (!requireAdmin()) return;
+            const { kind, id } = vDel.dataset;
+            if (await deleteItem(kind, id)) closeViewModal();
+            return;
+        }
         const ed = e.target.closest('[data-day-edit-id]');
         if (ed) {
             if (!requireAdmin()) return;
