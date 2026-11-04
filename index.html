@@ -24,12 +24,12 @@
          동기로 window.XLSX 를 찾으므로 지연 로드 대신 defer 만. -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611041616">
-    <link rel="stylesheet" href="css/style.css?v=202611041616">
-    <link rel="stylesheet" href="css/dash-d.css?v=202611041616">
-    <link rel="stylesheet" href="css/form-d.css?v=202611041616">
-    <link rel="stylesheet" href="css/refill-modal.css?v=202611041616">
-    <link rel="stylesheet" href="css/locrec-modal.css?v=202611041616">
+    <link rel="stylesheet" href="css/suit.css?v=202611041625">
+    <link rel="stylesheet" href="css/style.css?v=202611041625">
+    <link rel="stylesheet" href="css/dash-d.css?v=202611041625">
+    <link rel="stylesheet" href="css/form-d.css?v=202611041625">
+    <link rel="stylesheet" href="css/refill-modal.css?v=202611041625">
+    <link rel="stylesheet" href="css/locrec-modal.css?v=202611041625">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -56,7 +56,7 @@
 
                 <div class="d-nav-cat">관리 및 조회</div>
                 <button id="open-my-leave-btn" class="d-nav-item w-full flex items-center gap-3">
-                    <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> 내 연차관리
+                    <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> 내 연차·근태관리
                 </button>
                 <a href="location.html" id="location-link-btn" class="d-nav-item w-full flex items-center gap-3">
                     <span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span> 로케이션 관리
@@ -127,7 +127,7 @@
                 <button id="open-quantity-modal-today-mobile" class="d-nav-item flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span> 오늘 처리량 입력</button>
                 <button id="open-history-btn-mobile" class="d-nav-item flex items-center gap-2" style="display: none;"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span> 데이터 관리</button>
 
-                <button id="open-my-leave-btn-mobile" class="d-nav-item flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> 내 연차관리</button>
+                <button id="open-my-leave-btn-mobile" class="d-nav-item flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> 내 연차·근태관리</button>
                 <a href="location.html" id="location-link-btn-mobile" class="d-nav-item flex items-center gap-2"><span class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span> 로케이션 관리</a>
 
                 <div class="d-nav-cat">관리자 메뉴</div>
@@ -532,13 +532,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202611041616');
+                await import('./js/app.js?v=202611041625');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202611041616').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202611041625').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -618,11 +618,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202611041616';
-        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202611041616';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202611041616';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202611041616';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202611041616';
+        import { appState } from './js/state.js?v=202611041625';
+        import { addNotice, toggleNotice, deleteNotice, editNotice } from './js/notice-logic.js?v=202611041625';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202611041625';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202611041625';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202611041625';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -800,11 +800,11 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202611041616"></script>
-    <script src="js/modal-esc.js?v=202611041616"></script>
-    <script type="module" src="js/modal-drag.js?v=202611041616"></script>
+    <script src="js/connection-banner.js?v=202611041625"></script>
+    <script src="js/modal-esc.js?v=202611041625"></script>
+    <script type="module" src="js/modal-drag.js?v=202611041625"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202611041616"></script>
-    <script src="js/app-version.js?v=202611041616"></script>
+    <script type="module" src="js/app-shell.js?v=202611041625"></script>
+    <script src="js/app-version.js?v=202611041625"></script>
 </body>
 </html>

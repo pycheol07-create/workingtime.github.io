@@ -1,6 +1,13 @@
 // === js/app-shell-data.js ===
 // 공통 상단바(js/app-shell.js)가 쓰는 고정 데이터와 경로 계산. 순수 모듈(의존은 lib 상수 mibal2-mode.js 하나, 테스트: tests/app-shell.test.js).
-import { MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611041616';
+import { MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611041625';
+
+// 메뉴의 '보이는 이름'만 바꾼 것(2026-11-04). 저장값·권한·연결(ACTION_MENU_NAMES·memberMenuAccess·dashboardMenu)은 왼쪽 옛 이름 그대로다.
+//   사이드바(js/ui-main-dashboard.js)·공통 상단바 메뉴·검색에서 보일 때만 오른쪽 이름으로 쓴다.
+export const MENU_LABELS = Object.freeze({ '내 연차관리': '내 연차·근태관리' });
+export const menuLabel = (name) => (Object.prototype.hasOwnProperty.call(MENU_LABELS, name) ? MENU_LABELS[name] : name);
+/** 화면 글자 → 저장 이름(사이드바가 고정 버튼 글자로 메뉴를 찾을 때). 모르는 글자는 그대로 */
+export const menuNameOfLabel = (label) => Object.keys(MENU_LABELS).find(k => MENU_LABELS[k] === label) || label;
 
 // 대시보드 사이드바의 '동작' 메뉴(버튼이라 링크가 '#')를 다른 화면에서 누를 때 갈 곳.
 // '업무 마감' 은 넣지 않는다 — 대시보드에서만 한다(menu-catalog.js SHELL_EXCLUDED_ACTIONS).
@@ -217,7 +224,7 @@ export const buildDestinations = (groups, role) => {
         for (const i of ((g && g.items) || [])) {
             if (!i || !i.name || !i.link || i.name === '업무 마감') continue;
             if (i.link === HOME_FILE) continue;   // '대시보드' = 위의 '홈'
-            out.push({ kind: 'menu', label: i.name, parent: g.category || '', keywords: [], url: i.link });
+            out.push({ kind: 'menu', label: menuLabel(i.name), parent: g.category || '', keywords: menuLabel(i.name) !== i.name ? [i.name] : [], url: i.link });
             const f = fileOfRel(i.link);
             if (!i.link.includes('#') && !parents.has(f)) parents.set(f, i.name);
         }

@@ -1,10 +1,11 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202611041616';
-import { renderPermissionPanel } from './admin-perm.js?v=202611041616';
-import { taskIdOf, isSystemTaskId } from './lib/task-ids.js?v=202611041616';
-import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202611041616';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202611041625';
+import { menuLabel } from './app-shell-data.js?v=202611041625';   // 보이는 이름만 바꾼 메뉴(예: 내 연차관리 → 내 연차·근태관리)
+import { renderPermissionPanel } from './admin-perm.js?v=202611041625';
+import { taskIdOf, isSystemTaskId } from './lib/task-ids.js?v=202611041625';
+import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202611041625';
 
 // 📱 순서 바꾸기 ▲▼ — HTML5 끌어 옮기기는 터치에서 안 되므로, 터치 화면(hover 없음)에서만 보인다(admin.html .move-btns).
 //    누르면 같은 종류의 앞/뒤 줄과 자리를 바꾼다(admin.js handleMoveClick). 마우스 환경은 ☰ 끌기 그대로.
@@ -656,7 +657,7 @@ export function menuItemRowHtml(item = {}) {
             <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-500 transition-colors menu-item group">
                 <div class="flex items-center gap-3 flex-grow flex-wrap min-w-0">
                     <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
-                    <input type="text" value="${escAttr(item.name)}" ${isAction ? 'readonly title="화면 기능은 이름이 정해져 있습니다(바꾸면 메뉴가 열리지 않습니다)"' : ''} class="menu-item-name flex-grow min-w-[8rem] p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none ${isAction ? 'text-gray-500 dark:text-gray-400 cursor-not-allowed' : ''}" placeholder="메뉴 이름">
+                    <input type="text" value="${escAttr(item.name)}" ${isAction ? 'readonly title="화면 기능은 이름이 정해져 있습니다(바꾸면 메뉴가 열리지 않습니다)"' : ''} class="menu-item-name flex-grow min-w-[8rem] p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none ${isAction ? 'text-gray-500 dark:text-gray-400 cursor-not-allowed' : ''}" placeholder="메뉴 이름">${isAction && menuLabel(item.name) !== item.name ? `<span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap" title="저장 이름은 그대로이고 메뉴에는 이 이름으로 보입니다">화면에는 '${escAttr(menuLabel(item.name))}'</span>` : ''}
                     <select ${isBuiltin ? `disabled title="${escAttr(builtinTitle)}"` : ''} class="menu-item-link w-full sm:w-56 p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 ${isBuiltin ? 'opacity-60 cursor-not-allowed' : ''}">${menuSelectHtml(selected)}</select>
                     <input type="text" value="${escAttr(custom)}" class="menu-item-link-custom ${selected === MENU_CUSTOM ? '' : 'hidden'} w-full sm:w-48 p-1.5 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-blue-500 text-xs text-gray-500 dark:text-gray-400 outline-none" placeholder="https://… 또는 파일명">
                 </div>

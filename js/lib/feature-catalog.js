@@ -21,8 +21,8 @@
 //   grantable false = 관리자 전용(역할·예외로 줘도 무시)
 //   legacyAdminOnly  옛 ADMIN_ONLY_* 범위 — 옛 권한을 끌어올 때 일반 직원에게 주지 않는다(예전에도 화면이 막고 있었다)
 
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202611041616';
-import { TASK } from './task-ids.js?v=202611041616';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202611041625';
+import { TASK } from './task-ids.js?v=202611041625';
 
 export const FEATURE_GROUPS = [
     { id: 'dash',       label: '대시보드' },
@@ -48,7 +48,7 @@ export const FEATURES = [
     // 대시보드 — index.html 입장 자체는 막지 않는다(로그인 화면이 여기 있다). dash.view 는 사이드바 '대시보드' 항목이다.
     F('dash.view',     '대시보드',            'dash', 'page',   'index.html', { menu: '대시보드' }),
     F('dash.quantity', '오늘 처리량 입력',    'dash', 'action', 'index.html', { menu: '오늘 처리량 입력', danger: 1 }),
-    F('dash.leave',    '내 연차관리',         'dash', 'action', 'index.html', { menu: '내 연차관리' }),
+    F('dash.leave',    '내 연차·근태관리',    'dash', 'action', 'index.html', { menu: '내 연차관리' }),   // 보이는 이름 2026-11-04 — menu(저장 이름)는 그대로
     F('dash.endShift', '업무 마감',           'dash', 'action', 'index.html', { menu: '업무 마감', danger: 2, legacyAdminOnly: true }),
 
     // 데이터 관리(history.html) — 옛 권한에서는 관리자 전용이었다(app.js 가 버튼을 숨겼다)

@@ -1,13 +1,13 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202611041616';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202611041616';
-import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202611041616';
-import { fetchPlannedData } from './history-data-manager.js?v=202611041616';
-import { getTodayDateString } from './utils.js?v=202611041616';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202611041616';
-import { D } from './d-chart.js?v=202611041616';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611041616';
-import { TASK, tName } from './task-names.js?v=202611041616';
+import * as State from './state.js?v=202611041625';
+import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202611041625';
+import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202611041625';
+import { fetchPlannedData } from './history-data-manager.js?v=202611041625';
+import { getTodayDateString } from './utils.js?v=202611041625';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202611041625';
+import { D } from './d-chart.js?v=202611041625';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611041625';
+import { TASK, tName } from './task-names.js?v=202611041625';
 
 let staffingChartInstance = null;
 
