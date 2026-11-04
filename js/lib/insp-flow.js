@@ -2,7 +2,7 @@
 // 샘플검수 창의 순수 함수 — DOM·Firestore 없음(node --test 대상).
 // 판정·저장 규칙은 js/inspection-logic.js 의 saveInspectionAndNext 를 그대로 옮겼다(동작을 바꾸지 않는 것이 원칙).
 // 화면 카드 HTML 은 모든 값을 escapeHtml 로 통과시킨다.
-import { escapeHtml } from '../utils.js?v=202611041606';
+import { escapeHtml } from '../utils.js?v=202611041616';
 
 /** 체크리스트 키 — 화면(components/modals-form-inspection.html) 순서. 두께(thickness)는 판정에서 빠진다. */
 export const CHECK_KEYS = ['fabric', 'color', 'distortion', 'unraveling', 'finishing', 'zipper', 'button', 'lining', 'pilling', 'dye'];
@@ -231,21 +231,37 @@ export function pickProgress(list, picked) {
 const SOURCE_RANK = { '제작': 0, '혼합': 1, '사입': 2 };
 export const sourceRank = (src) => (Object.prototype.hasOwnProperty.call(SOURCE_RANK, str(src)) ? SOURCE_RANK[str(src)] : 3);
 
+/** 새창 정렬 기준(2026-11-04) — 값 → [보기 이름, 항목 → 비교 글자]. 빈 글자는 늘 뒤로. '' = 리스트 순서 */
+const noDash = (v) => { const s = str(v).trim(); return s === '-' ? '' : s; };
+const firstOf = (v) => noDash(str(v).split(',')[0]);
+export const WINDOW_SORTS = Object.freeze({
+    '':       ['리스트 순서', null],
+    loc:      ['로케이션순', (it) => firstOf(it.location)],
+    reserve:  ['비축 위치순', (it) => firstOf(it.reserveLocation)],
+    name:     ['상품명순', (it) => [str(it.name).trim(), noDash(it.option)].filter(Boolean).join(' ')],
+    code:     ['상품코드순', (it) => noDash(it.code)],
+    date:     ['출고일순', (it) => noDash(it.packingDate)],
+    supplier: ['공급처순', (it) => noDash(it.supplierCode || it.supplierName)]   // 엑셀 리스트는 공급처 코드가 없다(정렬에만 씀),
+});
+export const windowSortOf = (v) => (Object.prototype.hasOwnProperty.call(WINDOW_SORTS, str(v)) ? str(v) : '');
+
 /** 새창 카드 순서 — [{item, idx}] (idx = 원래 리스트 위치, 선택은 이걸로).
- *  늘 제작 → 혼합 → 사입 → 모름 순. 그 안에서 byLoc 이면 첫 피킹 위치 자연 정렬(위치 없는 것은 뒤), 아니면 원래 순서.
- *  tab: 'todo'(피킹 전) | 'done'(피킹됨) | 없음(전부) */
-export function windowOrder(list, picked, { byLoc = false, tab = null, onlyUnpicked = false } = {}) {
+ *  groupSource(기본 켬)면 먼저 제작 → 혼합 → 사입 → 모름 순으로 묶는다. 그 안에서 sortBy(WINDOW_SORTS) 자연 정렬(빈 값은 뒤), 같으면 원래 순서.
+ *  byLoc 은 예전 이름(= sortBy 'loc'). tab: 'todo'(피킹 전) | 'done'(피킹됨) | 없음(전부) */
+export function windowOrder(list, picked, { byLoc = false, sortBy, groupSource = true, tab = null, onlyUnpicked = false } = {}) {
     let rows = (Array.isArray(list) ? list : []).map((item, idx) => ({ item, idx }));
     if (onlyUnpicked || tab === 'todo') rows = rows.filter(r => !isPicked(r.item, picked));
     else if (tab === 'done') rows = rows.filter(r => isPicked(r.item, picked));
-    const locOf = (it) => str(it && it.location).split(',')[0].trim();
+    const key = WINDOW_SORTS[windowSortOf(sortBy === undefined ? (byLoc ? 'loc' : '') : sortBy)][1];
     rows.sort((a, b) => {
-        const sr = sourceRank(a.item && a.item.source) - sourceRank(b.item && b.item.source);
-        if (sr) return sr;
-        if (byLoc) {
-            const la = locOf(a.item), lb = locOf(b.item);
-            if (!la !== !lb) return la ? -1 : 1;
-            const c = la.localeCompare(lb, 'ko', { numeric: true });
+        if (groupSource) {
+            const sr = sourceRank(a.item && a.item.source) - sourceRank(b.item && b.item.source);
+            if (sr) return sr;
+        }
+        if (key) {
+            const ka = key(a.item || {}), kb = key(b.item || {});
+            if (!ka !== !kb) return ka ? -1 : 1;
+            const c = ka.localeCompare(kb, 'ko', { numeric: true });
             if (c) return c;
         }
         return a.idx - b.idx;

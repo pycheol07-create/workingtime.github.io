@@ -1,20 +1,20 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202611041606';
-import * as State from './state.js?v=202611041606';
-import { updateDailyData } from './app-data.js?v=202611041606';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611041606';
+import * as DOM from './dom-elements.js?v=202611041616';
+import * as State from './state.js?v=202611041616';
+import { updateDailyData } from './app-data.js?v=202611041616';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611041616';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611041606';
-import { syncInspSegments } from './inspection-segments.js?v=202611041606';
-import { moveDoneItems } from './lib/insp-day.js?v=202611041606';
-import { TASK, tName } from './task-names.js?v=202611041606';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611041616';
+import { syncInspSegments } from './inspection-segments.js?v=202611041616';
+import { moveDoneItems } from './lib/insp-day.js?v=202611041616';
+import { TASK, tName } from './task-names.js?v=202611041616';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
-    applyDoneToList, todoCardHtml, doneCardHtml, pickKey, isPicked, pickProgress, windowOrder
-} from './lib/insp-flow.js?v=202611041606';
+    applyDoneToList, todoCardHtml, doneCardHtml, pickKey, isPicked, pickProgress, windowOrder, WINDOW_SORTS, windowSortOf
+} from './lib/insp-flow.js?v=202611041616';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -448,7 +448,12 @@ export const openInspectionListWindow = () => {
                 <button type="button" id="dyn-tab-todo" data-pick-tab="todo" class="px-4 min-h-[40px] rounded-lg border text-sm font-bold"></button>
                 <button type="button" id="dyn-tab-done" data-pick-tab="done" class="px-4 min-h-[40px] rounded-lg border text-sm font-bold"></button>
                 <span class="flex-1"></span>
-                <button type="button" id="dyn-sort-loc" class="px-3 min-h-[40px] rounded-lg border text-sm font-bold"></button>
+                <button type="button" id="dyn-group-src" class="px-3 min-h-[40px] rounded-lg border text-sm font-bold" title="켜면 제작 → 혼합 → 사입 순으로 묶은 뒤 정렬"></button>
+                <label class="flex items-center gap-1 text-sm font-bold text-gray-600">정렬
+                    <select id="dyn-sort-by" class="min-h-[40px] rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-700 px-2">
+                        ${Object.entries(WINDOW_SORTS).map(([v, [label]]) => `<option value="${v}">${label}</option>`).join('')}
+                    </select>
+                </label>
             </div>
             <div id="dynamic-insp-list-scroll" class="flex-grow overflow-y-auto bg-gray-50 p-2">
                 <div id="dynamic-insp-list-cards" class="divide-y divide-gray-100 bg-white border border-gray-200 rounded-lg"></div>
@@ -480,7 +485,10 @@ export const openInspectionListWindow = () => {
         winTab = b.dataset.pickTab;
         renderListWindow();
     }));
-    modal.querySelector('#dyn-sort-loc').addEventListener('click', () => { winOpt.byLoc = !winOpt.byLoc; saveWinOpt(); renderListWindow({ keepScroll: true }); });
+    const sortSel = modal.querySelector('#dyn-sort-by');
+    sortSel.value = winOpt.sortBy;
+    sortSel.addEventListener('change', () => { winOpt.sortBy = windowSortOf(sortSel.value); saveWinOpt(); renderListWindow(); });
+    modal.querySelector('#dyn-group-src').addEventListener('click', () => { winOpt.groupSource = !winOpt.groupSource; saveWinOpt(); renderListWindow(); });
     winTab = 'todo';          // 열 때는 늘 '피킹 전'
     renderListWindow();
     loadPackSources();        // 예전에 만든 리스트(구분 칸 없음)는 패킹 목록에서 제작/사입을 찾아 붙인다(1번 읽기)
@@ -490,13 +498,16 @@ export const openInspectionListWindow = () => {
 //   저장: daily_data/{오늘}.inspPicked = { pickKey: { at, by } } (리스트와 따로 — 검수 저장·1분 자동저장과 덮어쓰지 않는다)
 //   탭 두 개: '피킹 전'(기본) / '피킹됨'. [가져옴]을 누르면 바로 '피킹됨'으로 옮겨진다(해제하면 '피킹 전'으로).
 //   다른 기기에서 바뀐 카드는 바로 빼지 않고 흐리게 둔다(손가락 밑에서 카드가 사라져 다른 카드가 눌리지 않게) — 탭을 바꾸거나 내가 누르면 정리.
-//   순서: 늘 제작 → 혼합 → 사입 → 모름, 그 안에서 [위치순 정렬]이면 피킹 위치순(js/lib/insp-flow.js windowOrder).
+//   순서: [제작 먼저](기본 켬)면 제작 → 혼합 → 사입 → 모름으로 묶고, 그 안에서 [정렬] 기준(로케이션·상품명·코드·출고일·공급처…, js/lib/insp-flow.js WINDOW_SORTS).
+//   기기마다 기억(localStorage). 예전 저장값 byLoc:true 는 로케이션순으로 읽는다.
 const WIN_OPT_KEY = 'inspWinOpt';
 const winOpt = (() => {
-    try { return { byLoc: !!JSON.parse(localStorage.getItem(WIN_OPT_KEY) || '{}').byLoc }; }
-    catch (e) { return { byLoc: false }; }
+    try {
+        const o = JSON.parse(localStorage.getItem(WIN_OPT_KEY) || '{}') || {};
+        return { sortBy: windowSortOf(o.sortBy !== undefined ? o.sortBy : (o.byLoc ? 'loc' : '')), groupSource: o.groupSource !== false };
+    } catch (e) { return { sortBy: '', groupSource: true }; }
 })();
-const saveWinOpt = () => { try { localStorage.setItem(WIN_OPT_KEY, JSON.stringify({ byLoc: winOpt.byLoc })); } catch (e) { /* 무시 */ } };
+const saveWinOpt = () => { try { localStorage.setItem(WIN_OPT_KEY, JSON.stringify({ sortBy: winOpt.sortBy, groupSource: winOpt.groupSource })); } catch (e) { /* 무시 */ } };
 let winTab = 'todo';      // 'todo' 피킹 전 | 'done' 피킹됨
 let winShown = null;      // 지금 탭에 보이는 카드 키 — 다른 기기 변경으로 다시 그릴 때 이 목록은 유지(흐리게)
 let packSrc = null;       // 패킹번호 → 제작|사입|혼합 (예전 리스트 보충용, 한 번 읽음 — 실패하면 다음에 열 때 다시)
@@ -534,7 +545,7 @@ function renderListWindow({ keep = false, keepScroll = false } = {}) {
     const list = withSource(currentList());
     const picked = pickedMap();
     const inTab = (it) => (winTab === 'done') === isPicked(it, picked);
-    let rows = windowOrder(list, picked, { byLoc: winOpt.byLoc });
+    let rows = windowOrder(list, picked, { sortBy: winOpt.sortBy, groupSource: winOpt.groupSource });
     if (!(keep && winShown)) winShown = new Set();
     rows.forEach(r => { if (inTab(r.item)) winShown.add(pickKey(r.item)); });
     rows = rows.filter(r => winShown.has(pickKey(r.item)));
@@ -565,8 +576,10 @@ function renderListWindow({ keep = false, keepScroll = false } = {}) {
     const tTodo = document.getElementById('dyn-tab-todo'), tDone = document.getElementById('dyn-tab-done');
     if (tTodo) { tTodo.textContent = `피킹 전 ${pp.total - pp.done}`; paint(tTodo, winTab === 'todo', 'px-4'); tTodo.setAttribute('aria-pressed', winTab === 'todo' ? 'true' : 'false'); }
     if (tDone) { tDone.textContent = `피킹됨 ${pp.done}`; paint(tDone, winTab === 'done', 'px-4'); tDone.setAttribute('aria-pressed', winTab === 'done' ? 'true' : 'false'); }
-    const b2 = document.getElementById('dyn-sort-loc');
-    if (b2) { b2.textContent = winOpt.byLoc ? '✓ 위치순' : '위치순 정렬'; paint(b2, winOpt.byLoc, 'px-3'); }
+    const b2 = document.getElementById('dyn-group-src');
+    if (b2) { b2.textContent = winOpt.groupSource ? '✓ 제작 먼저' : '제작 먼저'; paint(b2, winOpt.groupSource, 'px-3'); b2.setAttribute('aria-pressed', winOpt.groupSource ? 'true' : 'false'); }
+    const sel = document.getElementById('dyn-sort-by');
+    if (sel && sel.value !== winOpt.sortBy) sel.value = winOpt.sortBy;
 }
 
 /** [가져옴] 누름 — 켜기/끄기. 화면은 먼저 바꾸고(그 카드는 바로 다른 탭으로), 저장이 실패하면 되돌린다. */
@@ -1280,6 +1293,6 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202611041606';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611041606';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611041606';
+export { handleExcelUpload } from './inspection-excel.js?v=202611041616';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611041616';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611041616';
