@@ -1,8 +1,9 @@
 // === js/inspection-excel.js ===
-import * as State from './state.js?v=202611041028';
-import { updateDailyData } from './app-data.js?v=202611041028';
-import { showToast, getTodayDateString } from './utils.js?v=202611041028';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202611041028';
+import * as State from './state.js?v=202611041044';
+import { updateDailyData } from './app-data.js?v=202611041044';
+import { showToast, getTodayDateString } from './utils.js?v=202611041044';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202611041044';
+import { isExcludedInspItem } from './lib/insp-packs.js?v=202611041044';
 
 export const handleExcelUpload = (file) => {
     let packingDate = getTodayDateString();
@@ -71,7 +72,7 @@ export const handleExcelUpload = (file) => {
                         const supplierName = String(row[5] || '').trim();
                         const location = String(row[6] || '').trim();
                         
-                        if (code || name) {
+                        if ((code || name) && !isExcludedInspItem(name)) {   // 벨트 단품은 샘플검수 리스트에 넣지 않는다(패킹에서 만들기와 같은 규칙)
                             let color = option.replace(/\[|\]/g, '').split('-')[0].trim();
                             if (!color) color = 'N/A';
                             const keyColor = color.replace(/\s/g, '').toLowerCase();

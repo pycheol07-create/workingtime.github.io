@@ -2,7 +2,7 @@
 // 샘플검수 창의 순수 함수 — DOM·Firestore 없음(node --test 대상).
 // 판정·저장 규칙은 js/inspection-logic.js 의 saveInspectionAndNext 를 그대로 옮겼다(동작을 바꾸지 않는 것이 원칙).
 // 화면 카드 HTML 은 모든 값을 escapeHtml 로 통과시킨다.
-import { escapeHtml } from '../utils.js?v=202611041028';
+import { escapeHtml } from '../utils.js?v=202611041044';
 
 /** 체크리스트 키 — 화면(components/modals-form-inspection.html) 순서. 두께(thickness)는 판정에서 빠진다. */
 export const CHECK_KEYS = ['fabric', 'color', 'distortion', 'unraveling', 'finishing', 'zipper', 'button', 'lining', 'pilling', 'dye'];
@@ -211,15 +211,15 @@ export function todoCardHtml(item, idx, opts = {}) {
     const locationInfo = it.location ? `<span class="text-indigo-700 font-bold bg-indigo-50 px-1 rounded">위치 ${escapeHtml(it.location)}</span>` : '';
     const reserveInfo = opts.showReserve && it.reserveLocation ? `<span class="text-amber-800 font-bold bg-amber-50 px-1 rounded">비축 ${escapeHtml(it.reserveLocation)}</span>` : '';
     const sampleInfo = it.sampleLocation ? `<span class="text-red-700 font-bold bg-red-50 px-1 rounded">샘플: ${escapeHtml(it.sampleLocation)}</span>` : '';
-    const dateInfo = it.packingDate ? `<span class="text-gray-600">출고: ${escapeHtml(String(it.packingDate).slice(2))}</span>` : '';
+    const dateInfo = it.packingDate ? `<span class="text-gray-600 font-medium">출고: ${escapeHtml(String(it.packingDate).slice(2))}</span>` : '';
     const cls = `transition cursor-pointer px-3 py-2.5 min-h-[44px] ${isCompleted ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-blue-50'}`;
     return `<div class="${cls}" data-index="${escapeHtml(idx)}" data-status="${isCompleted ? 'done' : 'todo'}" role="button" tabindex="0">
             <div class="flex items-center gap-2">
-                <span class="font-mono text-[11px] text-gray-600 whitespace-nowrap">${escapeHtml(it.code)}</span>
+                <span class="font-mono font-medium text-[11px] text-gray-600 whitespace-nowrap">${escapeHtml(it.code)}</span>
                 ${statusBadge}
             </div>
-            <div class="font-semibold text-gray-900 text-sm mt-0.5 break-words">${escapeHtml(it.name)}</div>
-            ${it.option ? `<div class="text-[11px] text-gray-600 mt-0.5 break-words">옵션: ${escapeHtml(it.option)}</div>` : ''}
+            <div class="font-bold text-gray-900 text-sm mt-0.5 break-words">${escapeHtml(it.name)}</div>
+            ${it.option ? `<div class="text-[11px] font-medium text-gray-600 mt-0.5 break-words">옵션: ${escapeHtml(it.option)}</div>` : ''}
             <div class="text-[11px] mt-1 flex flex-wrap gap-1 items-center">${locationInfo}${reserveInfo}${sampleInfo}${dateInfo}</div>
         </div>`;
 }

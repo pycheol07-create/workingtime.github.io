@@ -1,10 +1,10 @@
 // === js/ui-history-reports-renderer.js ===
 
-import { formatDuration } from './utils.js?v=202611041028';
-import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202611041028';
-import { context, LEAVE_TYPES } from './state.js?v=202611041028';
-import { TASK, tName, isT } from './task-names.js?v=202611041028';
-import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202611041028';
+import { formatDuration } from './utils.js?v=202611041044';
+import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202611041044';
+import { context, LEAVE_TYPES } from './state.js?v=202611041044';
+import { TASK, tName, isT } from './task-names.js?v=202611041044';
+import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202611041044';
 
 // 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 표에서 누락되지 않는다.

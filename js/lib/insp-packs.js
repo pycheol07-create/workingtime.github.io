@@ -9,8 +9,8 @@
 // 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 공급처::색상 1장, 그 묶음의 첫 품목이 대표.
 // 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
 
-import { dayInspItems } from './insp-day.js?v=202611041028';
-import { reserveLocIds, normLocId } from './multi-loc.js?v=202611041028';
+import { dayInspItems } from './insp-day.js?v=202611041044';
+import { reserveLocIds, normLocId } from './multi-loc.js?v=202611041044';
 
 export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -234,6 +234,20 @@ export function locsByCode(locItems) {
 
 const getRef = (m, k) => (m && typeof m.get === 'function' && m.has(k)) ? m.get(k) : undefined;
 
+/** 샘플검수 리스트에서 빼는 상품 — 벨트 단품(2026-11-04 사용자 요청).
+ *  상품명 끝의 [..]·(..) 꼬리를 떼고 '벨트'로 끝나면 뺀다('가죽 벨트 [SET]'·'벨트(2color)' 도 뺌).
+ *  '… 벨트 미디 스커트' 처럼 중간에 든 것, '원피스+벨트'·'코트 & 벨트'·'셔츠/벨트' 처럼 본품에 끼운 세트는 그대로 둔다.
+ *  패킹에서 만들기(buildCards — 미리보기·검수함 표시·업무 예상 장수도 같이)와 엑셀 업로드(js/inspection-excel.js)가 같이 쓴다. */
+export function isExcludedInspItem(name) {
+    let n = str(name);
+    while (/[\])]$/.test(n)) {                         // 끝 괄호 꼬리 떼기(여러 개면 모두)
+        const m = n.match(/\s*[\[(][^\[\]()]*[\])]$/);
+        if (!m) break;
+        n = n.slice(0, m.index).trim();
+    }
+    return /벨트$/.test(n) && !/[+&/]\s*벨트$/.test(n);
+}
+
 /** 패킹 품목 → 검수 대기 항목. 항목에 undefined 필드를 두지 않는다(Firestore 가 거부). */
 export function buildCards(packs, refs, today) {
     const r = refs || {};
@@ -244,6 +258,7 @@ export function buildCards(packs, refs, today) {
         (pack.items || []).forEach(it => {
             const code = str(it.code), name = str(it.name), option = str(it.option);
             if (!code && !name) return;
+            if (isExcludedInspItem(name)) return;
             const key = cardKey({ supCode: it.supCode, name, option });
             if (seen.has(key)) return;
             seen.add(key);
