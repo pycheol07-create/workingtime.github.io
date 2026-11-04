@@ -1,22 +1,23 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611041356';
-import * as State from './state.js?v=202611041356';
-import { showToast, getTodayDateString } from './utils.js?v=202611041356';
-import { dayInspItems } from './lib/insp-day.js?v=202611041356';
-import { TASK, tName } from './task-names.js?v=202611041356';
+import * as DOM from './dom-elements.js?v=202611041551';
+import * as State from './state.js?v=202611041551';
+import { showToast, getTodayDateString } from './utils.js?v=202611041551';
+import { dayInspItems } from './lib/insp-day.js?v=202611041551';
+import { TASK, tName } from './task-names.js?v=202611041551';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202611041356'; 
+} from './ui-history.js?v=202611041551'; 
+import { clearInspResultCache, seedInspResultCache } from './ui-history-inspection.js?v=202611041551';   // 정상여부 캐시
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202611041356';
+} from './ui-history-inspection.js?v=202611041551';
 
 import {
     loadInspectionLogs,
@@ -28,7 +29,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202611041356';
+} from './inspection-logic.js?v=202611041551';
 
 import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -77,6 +78,7 @@ export const fetchAndRenderInspectionHistory = async ({ reuse = false } = {}) =>
     contentArea.innerHTML = '<div class="text-center text-gray-500 py-10 flex flex-col items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>데이터를 불러오는 중입니다...</div>';
 
     const viewMode = State.context.inspectionViewMode || 'product';
+    if (!reuse) clearInspResultCache();   // 탭 진입·새로고침 때는 정상여부도 새로 읽는다
 
     if (viewMode === 'product' || viewMode === 'qc') {
         try {
@@ -88,6 +90,7 @@ export const fetchAndRenderInspectionHistory = async ({ reuse = false } = {}) =>
                 snapshot.forEach(doc => {
                     cachedInspectionData.push({ id: doc.id, ...doc.data() });
                 });
+                seedInspResultCache(cachedInspectionData);   // 일자별 보기 정상여부가 같은 문서를 또 읽지 않게
             }
             
             if (viewMode === 'product') {

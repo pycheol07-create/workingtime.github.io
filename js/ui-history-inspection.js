@@ -1,8 +1,8 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611041356';
-import * as State from './state.js?v=202611041356';
-import { getWeekOfYear, escapeHtml } from './utils.js?v=202611041356';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611041356';
+import * as DOM from './dom-elements.js?v=202611041551';
+import * as State from './state.js?v=202611041551';
+import { getWeekOfYear, escapeHtml } from './utils.js?v=202611041551';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611041551';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -20,6 +20,72 @@ export const setSortState = (key) => {
 // 검수 유형 필터 상태 (all / sample / total)
 export let currentInspTypeFilter = 'all';
 export const setInspTypeFilter = (val) => { currentInspTypeFilter = val; };
+
+// 일자별 보기의 검수 결과(정상/불량) — 리스트 항목에는 결과가 없고 상품 이력(product_history)에만 있다.
+//   선택한 날짜의 완료 상품만 한 번 읽고 기억한다(이름 → logs, 사진 제외). 저장·수정(product-history-changed)·탭 새로 읽기 때 비운다.
+//   키 = 문서 id(저장할 때처럼 상품명의 '/' 를 '-' 로 — inspection-logic.js). 상품별 보기에서 이미 전체를 읽었으면 그걸 쓴다(seed).
+const histLogsCache = new Map();
+const histDocId = (name) => String(name ?? '').replace(/\//g, '-');
+const stripImages = (logs) => (Array.isArray(logs) ? logs : []).map(({ image, ...rest }) => rest);
+export const clearInspResultCache = () => histLogsCache.clear();
+export const seedInspResultCache = (rows) => {   // rows = product_history 전체({id, logs, …})
+    (rows || []).forEach(r => { if (r && r.id) histLogsCache.set(r.id, stripImages(r.logs)); });
+};
+document.addEventListener('product-history-changed', clearInspResultCache);
+
+async function loadHistLogs(names) {
+    const need = [...new Set(names.map(histDocId))].filter(id => id && !histLogsCache.has(id));
+    if (!State.db || need.length === 0) return;
+    await Promise.all(need.map(async (id) => {
+        try {
+            const snap = await getDoc(doc(State.db, 'product_history', id));
+            histLogsCache.set(id, stripImages(snap.exists() ? snap.data().logs : []));
+        } catch (e) { console.warn('검수 결과 읽기 실패', e); }   // 캐시에 안 넣음 → 다음에 다시 시도
+    }));
+}
+
+// 그 날짜·패킹일·옵션(·둘 다 있으면 코드)이 맞는 마지막 기록 — 같은 상품의 다른 색상 결과를 잡지 않게 옵션을 꼭 본다(lib/insp-flow.js findLogForItem 과 같은 생각)
+const optKey = (v) => { const s = String(v ?? '').trim(); return s === '-' ? '' : s; };
+const codeKey = (v) => { const s = String(v ?? '').trim(); return s === '-' ? '' : s; };
+function dayLogOf(item, date) {
+    const logs = histLogsCache.get(histDocId(item.name));
+    if (!logs) return undefined;   // 아직 못 읽음
+    const ic = codeKey(item.code);
+    const hits = logs.filter(l => {
+        if (!l || l.date !== date) return false;
+        if (item.packingDate && l.packingDate !== item.packingDate) return false;
+        if (l.option !== undefined && optKey(l.option) !== optKey(item.option)) return false;   // 옵션 칸이 없는 옛 기록은 옵션을 안 본다
+        const lc = codeKey(l.code);
+        return !(ic && lc && ic !== lc);
+    });
+    return hits.length ? hits[hits.length - 1] : null;
+}
+
+// 상품별 보기·QC 통계와 같은 불량 판정(status·defects·체크리스트 값)
+const RESULT_NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음', '통과', '-', ''];
+function logDefects(log) {
+    const out = Array.isArray(log.defects) ? log.defects.filter(Boolean).map(String) : [];
+    let bad = log.status === '불량' || out.length > 0;
+    if (log.checklist) {
+        Object.entries(log.checklist).forEach(([key, val]) => {
+            if (key === 'thickness' || !val) return;
+            if (!RESULT_NORMAL_VALUES.includes(String(val).trim())) bad = true;
+        });
+    }
+    return { bad, defects: out };
+}
+
+function resultBadge(item, isCompleted, date) {
+    if (!isCompleted) return '<span class="text-gray-300 text-xs">-</span>';
+    const log = dayLogOf(item, date);
+    if (log === undefined) return '<span class="text-gray-300 text-xs" title="불러오지 못함">?</span>';
+    if (log === null) return '<span class="text-gray-400 text-[11px]" title="이 날짜의 검수 기록을 찾지 못함">기록 없음</span>';
+    const { bad, defects } = logDefects(log);
+    if (!bad) return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800">정상</span>';
+    const txt = defects.join(', ') || (log.note ? String(log.note) : '');
+    return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700" title="${escapeHtml(txt || '불량')}">불량</span>`
+        + (txt ? `<div class="text-[11px] text-red-600 mt-0.5 truncate max-w-[140px] mx-auto" title="${escapeHtml(txt)}">${escapeHtml(txt)}</div>` : '');
+}
 
 // 빈 함수 내보내기 (이전 에러 해결용)
 export const renderInspectionLogTable = (logs, productName) => {};
@@ -116,31 +182,22 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
 
     if (State.db && filteredSelectedData.length > 0) {
         let needsDbUpdate = false;
-        await Promise.all(filteredSelectedData.map(async (item) => {
+        // 완료 상품의 이력을 한 번에 읽어 둔다(정상여부 표시 + 아래 샘플 수량 맞추기가 같이 쓴다)
+        await loadHistLogs(filteredSelectedData.filter(it => it.status === '완료').map(it => it.name));
+        filteredSelectedData.forEach((item) => {
             if (item.status === '완료' && item.inspectionType !== 'total') {
                 if (item.sampleQty === undefined || item.sampleQty === 1 || item.sampleQty === 0) {
-                    try {
-                        const docRef = doc(State.db, 'product_history', item.name);
-                        const snap = await getDoc(docRef);
-                        if (snap.exists()) {
-                            const logs = snap.data().logs || [];
-                            const targetLog = logs.find(l => 
-                                l.date === selectedDate && 
-                                (item.packingDate ? l.packingDate === item.packingDate : true) &&
-                                (item.code && item.code !== '-' ? l.code === item.code : true)
-                            );
-                            if (targetLog && targetLog.sampleQty !== undefined) {
-                                const trueQty = Number(targetLog.sampleQty);
-                                if (item.sampleQty !== trueQty) {
-                                    item.sampleQty = trueQty;
-                                    needsDbUpdate = true;
-                                }
-                            }
+                    const targetLog = dayLogOf(item, selectedDate);   // 정상여부와 같은 기록(마지막)
+                    if (targetLog && targetLog.sampleQty !== undefined) {
+                        const trueQty = Number(targetLog.sampleQty);
+                        if (item.sampleQty !== trueQty) {
+                            item.sampleQty = trueQty;
+                            needsDbUpdate = true;
                         }
-                    } catch(e) { console.warn("Auto-sync error", e); }
+                    }
                 }
             }
-        }));
+        });
 
         if (needsDbUpdate) {
             try {
@@ -166,10 +223,10 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
             const packs = packDatesLabel(d.data);   // 이 날 검수한 리스트가 몇일자 패킹인지
             
             dateListHtml += `
-                <button class="w-full text-left px-4 py-3 border-l-4 transition-all ${activeClass} group btn-select-insp-date" data-date="${d.date}">
+                <button class="w-full text-left px-2.5 py-2.5 border-l-4 transition-all ${activeClass} group btn-select-insp-date" data-date="${d.date}">
                     <div class="flex justify-between items-center">
                         <span class="font-semibold text-sm">${d.date}</span>
-                        <span class="text-xs bg-white border border-gray-200 px-2 py-0.5 rounded-full text-gray-500 group-hover:border-gray-300">${d.count}건</span>
+                        <span class="text-[11px] bg-white border border-gray-200 px-1.5 py-0.5 rounded-full text-gray-500 group-hover:border-gray-300">${d.count}건</span>
                     </div>
                     ${packs ? `<div class="text-[11px] text-gray-500 mt-0.5">패킹 ${escapeHtml(packs)}</div>` : ''}
                 </button>
@@ -236,6 +293,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-500">${item.thickness || '-'}</td>
                     <td class="px-4 py-3 text-center">${statusBadge}</td>
+                    <td class="px-3 py-3 text-center">${resultBadge(item, isCompleted, selectedDate)}</td>
                 </tr>
             `;
         }).join('');
@@ -265,12 +323,13 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                             <tr>
                                 <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[6%]">유형</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 w-[12%]">코드</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[20%]">상품명</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[15%]">옵션</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[15%]">공급처</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[19%]">상품명</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[13%]">옵션</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[11%]">공급처</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[12%]">수량 (입고/샘플검수)</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[10%]">기준</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[10%]">상태</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[8%]">기준</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[7%]">상태</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[12%]">정상여부</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-100">
@@ -284,7 +343,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
 
     container.innerHTML = `
         <div class="absolute inset-0 flex border border-gray-200 rounded-lg overflow-hidden bg-white insp-list-loaded">
-            <div class="w-1/4 min-w-[180px] border-r border-gray-200 bg-gray-50 overflow-y-auto custom-scrollbar shrink-0">
+            <div class="w-40 border-r border-gray-200 bg-gray-50 overflow-y-auto custom-scrollbar shrink-0">
                 ${dateListHtml}
             </div>
             <div class="flex-1 overflow-hidden bg-white relative">
