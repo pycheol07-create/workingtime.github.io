@@ -9,7 +9,7 @@
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 // 계산은 mibal2-calc.js calcPlan(공식 버전 FORMULA_VER — 2026-10-20 v2: 피킹 → 비축 → 입고분, 3층 = 미발 + 피킹 적재).
 // ⚠️ js/china-stock-goods.js 는 import 하지 않는다 — 로드만 해도 ScanDB 를 지우고 다시 쓴다. 규칙만 같게 옮긴다.
-import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202611041134';
+import { calcPlan, calcOld, capacityFor, zoneKey, DEFAULT_ZONE_CAPACITY, STAR_ZONE_DEFAULT, FORMULA_VER } from './mibal2-calc.js?v=202611041159';
 
 // ─────────────────────────────────────────────────────────────
 // 도착수량 · 출고일 목록
@@ -147,7 +147,7 @@ export const FLAG_INFO = Object.freeze({
     noReserve: ['비축모름', 'bad'], negReserve: ['비축음수', 'bad'], negPick: ['피킹재고음수', 'bad'],
     unresolved: ['남는부족수량', 'warn'], overCap: ['피킹넘침', 'warn'], needRefill: ['보충필요', 'warn'],
     noLoc: ['로케이션없음', 'bad'], etcLoc: ['기타자리만', 'bad'], multiLoc: ['여러자리', ''],
-    onlyOld: ['기존에만', 'bad'], noOld: ['신규에만', 'warn'], arrDiff: ['도착다름', 'warn'],
+    onlyOld: ['기존에만', 'bad'], noOld: ['신규에만', 'warn'], arrDiff: ['도착다름', 'warn'], emptyFill: ['빈칸채움', ''],
     // 스캐너 연동(시험): 표에 없는데 앱 스캔 입고가 있는 코드(china-mibal2.js 가 오늘 보기에서만 덧붙인다). '미등록' 인지는 모른다
     outsideIn: ['선택 출고일 밖 입고', 'warn']
 });

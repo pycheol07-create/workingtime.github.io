@@ -23,7 +23,18 @@
 // 순수 모듈(import 0, DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
 
 /** 계산 공식 버전 — 1 = 2026-10-07~20 「필요 = 적재량 − 남는양」, 2 = 2026-10-20~ 피킹 → 비축 → 입고분 순서 */
-export const FORMULA_VER = 2;
+export const FORMULA_VER = 3;   // v3(2026-11-04): 빈 칸 넘침 규칙(EMPTY_FILL) — 피킹칸이 거의 비었고 넘는 양이 적으면 비축으로 안 나눔
+
+/** 빈 칸 넘침 규칙(2026-11-04 사용자 결정) — 상품마다 크기가 달라 적재량보다 조금 더 들어가는 일이 많다.
+ *  피킹칸 재고가 적재량의 pickPct% 이하(거의 빈 칸)이고, 칸을 넘는 양이 적재량의 overPct% 이하이면
+ *  비축으로 나누지 않고 도착을 전부 피킹(3층)으로 보낸다. 신규(calcPlan)·기존(calcOld·china-stock-goods.js evalMibal) 같이 쓴다. */
+export const EMPTY_FILL = Object.freeze({ pickPct: 10, overPct: 50 });
+/** 정수 비교(소수 경계가 흔들리지 않게): pick = 피킹칸 재고, cap = 적재량, over = 칸을 넘는 양 */
+export function emptyFillOk(pick, cap, over) {
+    const p = Number(pick), c = Number(cap), o = Number(over);
+    if (!(c > 0) || !Number.isFinite(p) || !Number.isFinite(o) || o <= 0) return false;
+    return p * 100 <= c * EMPTY_FILL.pickPct && o * 100 <= c * EMPTY_FILL.overPct;
+}
 
 /** '모름'을 허용하는 수량: null/undefined/''/숫자 아님 → null, 그 외 정수로 내림 */
 function intOrNull(v) {
@@ -95,9 +106,11 @@ export function calcPlan({ 총재고, 비축, 접수, 송장, 적재량, 도착 
     const B1 = Math.max(B - Math.max(D - P, 0), 0);
     const F = Math.max(C - P1, 0);
     if (P1 > C) flags.push('overCap');
-    const pick = Math.min(R, F);
-    const resv = R - pick;
-    const refill = Math.min(F - pick, B1);
+    let pick = Math.min(R, F);
+    let resv = R - pick;
+    // 빈 칸 넘침 규칙 — 출고 후 피킹칸이 거의 비었고 비축으로 갈 양이 적으면 전부 피킹으로(EMPTY_FILL)
+    if (emptyFillOk(P1, C, resv)) { pick = R; resv = 0; flags.push('emptyFill'); }
+    const refill = Math.max(Math.min(F - pick, B1), 0);
     if (refill > 0) flags.push('needRefill');
     Object.assign(out, {
         비축: B, 피킹재고: P, 출고후피킹: P1, 출고후비축: B1, 피킹여유: F,
@@ -120,9 +133,11 @@ export function calcOld({ 총재고, 적재량, 도착, 부족수량, 직진 } =
     const a = Number.isFinite(Number(도착)) ? Number(도착) : 0;
     const short = legacyInt(부족수량);
     const direct = legacyInt(직진);
-    const v = s === 0 ? cap
+    let v = s === 0 ? cap
         : (a + s <= cap ? a
             : (short + direct > s ? short + direct - s : 0));
+    // 빈 칸 넘침 규칙(china-stock-goods.js evalMibal 과 같다) — 총재고(비축 포함이라 보수적) 기준
+    if (emptyFillOk(s, cap, a + s - cap)) v = Math.max(v, a);
     const r = Math.round(v);
     return r < 0 ? 0 : r;
 }
@@ -234,7 +249,8 @@ export function explain(input, result) {
     s += ` / 남은 도착 ${r.남은도착}`;
     if (r.삼층 === null || r.삼층 === undefined) return s + ' / 비축 모름 → 피킹 적재·비축 적재·피킹 배정수량은 계산 안 함(확인 필요)';
     s += ` / 피킹재고 = ${fmt(T)}−${r.비축} = ${fmt(r.피킹재고)} → 출고 후 피킹 ${r.출고후피킹} · 출고 후 비축 ${r.출고후비축}`
-        + ` / 피킹 여유 = max(${C}−${r.출고후피킹},0) = ${r.피킹여유} → 피킹 적재 ${r.피킹적재} · 비축 적재 ${r.비축적재}`;
+        + ` / 피킹 여유 = max(${C}−${r.출고후피킹},0) = ${r.피킹여유} → 피킹 적재 ${r.피킹적재} · 비축 적재 ${r.비축적재}`
+        + ((r.flags || []).includes('emptyFill') ? ` (칸이 거의 비었고 넘는 양이 적재량의 ${EMPTY_FILL.overPct}% 이하라 비축으로 나누지 않고 피킹에 다 넣음)` : '');
     if (r.보충 > 0) s += ` / 비축→피킹 보충 ${r.보충}`;
     s += ` / 피킹 배정수량 = ${r.미발}+${r.피킹적재} = ${r.삼층}`;
     return s;
