@@ -8,18 +8,18 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202611041745';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202611041745';
-import { showToast, getTodayDateString, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611041745';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611041745';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611041745';
-import { updateLeaveSchedule } from './config.js?v=202611041745';
-import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611041745';
+import * as State from './state.js?v=202611050815';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202611050815';
+import { showToast, getTodayDateString, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611050815';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611050815';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611050815';
+import { updateLeaveSchedule } from './config.js?v=202611050815';
+import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611050815';
 import {
     REL_OPTIONS, MAX_REMINDERS, relOption, computeAt, buildReminders, buildRemindTo, eventOverAt,
     reminderSummary, shortAt, nowKst, newId
-} from './lib/cal-reminder.js?v=202611041745';
-import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611041745';
+} from './lib/cal-reminder.js?v=202611050815';
+import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611050815';
 import {
     collection, doc, setDoc, deleteDoc, getDocs,
     query, where, documentId
@@ -684,12 +684,12 @@ function ensureModal() {
     const wrap = document.createElement('div');
     wrap.innerHTML = `
     <div id="cal-event-modal" class="fixed inset-0 bg-gray-900/70 hidden items-center justify-center z-[70] p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md">
-            <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] flex flex-col">
+            <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
                 <h3 id="cal-modal-title" class="text-lg font-bold text-gray-900 dark:text-white">일정 등록</h3>
                 <button type="button" id="cal-modal-close" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
             </div>
-            <div class="p-5 space-y-3">
+            <div class="p-5 space-y-3 overflow-y-auto overscroll-contain flex-1 min-h-0">
                 <div id="cal-form-event" class="space-y-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">제목</label>
@@ -770,7 +770,7 @@ function ensureModal() {
                 </div>
                 <p id="cal-modal-error" class="hidden text-xs text-red-600 font-bold"></p>
             </div>
-            <div class="p-4 bg-gray-50 dark:bg-gray-900/40 rounded-b-2xl flex justify-end gap-2">
+            <div class="p-4 bg-gray-50 dark:bg-gray-900/40 rounded-b-2xl flex justify-end gap-2 shrink-0">
                 <button type="button" id="cal-modal-cancel" class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-bold">취소</button>
                 <button type="button" id="cal-modal-save" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold">저장</button>
             </div>
