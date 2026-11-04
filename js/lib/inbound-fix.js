@@ -29,7 +29,7 @@ export function isFixId(id) { return String(id == null ? '' : id).startsWith(FIX
  * barcode 가 비면 건너뛴다(기존과 같이 trim 하지 않음).
  */
 export function inboundSplitOf(docs) {
-    const map = {}, scan = {}, fix = {};
+    const map = {}, scan = {}, fix = {}, probe = {};
     (docs || []).forEach(d => {
         const x = d || {};
         const code = x.barcode;
@@ -43,9 +43,10 @@ export function inboundSplitOf(docs) {
             if (Array.isArray(x.log)) f.log = x.log;
         } else {
             scan[code] = (scan[code] || 0) + qty;
+            if (!probe[code] && x.id) probe[code] = String(x.id);   // 스캔 문서 id 하나 — 대기 항목에 적어 두고 [저장] 때 아직 있는지 본다
         }
     });
-    return { map, scan, fix };
+    return { map, scan, fix, probe };
 }
 
 /** 입고확인 합 서명(같은 합이면 같은 글자) — live '확인창 사이에 바뀌었나' 비교용. 0 합 키도 넣는다 */
@@ -185,6 +186,171 @@ export function fixConfirmText(o = {}) {
     }
     lines.push('· 비축창고 수량은 바뀌지 않습니다.');
     lines.push('· 스캐너에 아직 안 보낸 입고는 빠진 값입니다(보낸 뒤에는 그만큼 더해집니다).');
-    if (o.trial) lines.push('', '⚠ 시험 화면이지만 이 수정은 운영 자료(입고이력·스캐너 남은 도착)에 바로 기록되고 기존 부족수량 관리 화면에도 똑같이 보입니다.');
+    if (o.trial) lines.push('', TRIAL_WARN);
     return lines.join('\n');
+}
+
+const TRIAL_WARN = '⚠ 시험 화면이지만 이 수정은 운영 자료(입고이력·스캐너 남은 도착)에 바로 기록되고 기존 부족수량 관리 화면에도 똑같이 보입니다.';
+
+// ── 여러 칸 고친 뒤 한 번에 [저장] (2026-11-04 사용자 요청) ──────────────────────────
+// 대기 값 pending = { code: { after(정수), shown(칸에 보이던 서버 값 글자), at(ms), reason?(지난 저장 때 못 쓴 이유) } }
+// 표 자료와 따로 둔다 — 칸을 그릴 때 대기 값을 덧칠한다. 일치색·차이 칸은 서버 값 기준 그대로.
+
+/**
+ * 칸에서 나갈 때 대기 값 넣기. text = 칸 글자, shown = 서버 값으로 보이던 글자.
+ *   같은 값(shown 과 같음)·빈칸 → 대기에서 뺌(removed) · 글자·음수·소수 → error(대기 그대로)
+ * → { pending(새 객체), error?, removed? }
+ */
+export function pendingSet(pending, code, text, shown, at, base) {
+    const p = { ...(pending || {}) };
+    const s = String(text == null ? '' : text).replace(/,/g, '').trim();
+    const sh = String(shown == null ? '' : shown).trim();
+    if (s === '' || s === sh) { const had = code in p; delete p[code]; return { pending: p, removed: had }; }
+    const chk = planFix({ before: -1, after: s });   // 검사만(before 는 쓰지 않는 값)
+    if (chk && chk.error) return { pending: pending || {}, error: chk.error };
+    const a = parseInt(s, 10);
+    if (p[code] && p[code].after === a) return { pending: pending || {} };   // 같은 값 — 처음 고칠 때의 원래 값·기준·지난 이유 그대로
+    // base = 고칠 때 본 입고이력 기준 { probe(스캔 문서 id 하나 — 없으면 ''), rev(수정 문서 rev) } — [저장] 때 비워졌는지 본다(batchRowsOf)
+    const b = base || {};
+    p[code] = { after: a, shown: sh, at: Number(at) || 0, probe: String(b.probe || ''), rev: int0(b.rev) };
+    return { pending: p };
+}
+
+/**
+ * 대기 항목이 고친 뒤 입고이력이 비워졌는지(미발 초기화·작업 마감 — 다른 탭·다른 PC 포함).
+ *   probe 가 있으면 서버 스캔 문서 id 목록(srv.scanIds)에 아직 있어야 하고, 없으면(스캔 없던 상품) 수정 문서 rev 가 줄면 비워진 것
+ */
+export function pendingReset(pd, srv) {
+    const x = pd || {}, s = srv || {};
+    if (x.probe) return !(Array.isArray(s.scanIds) && s.scanIds.includes(x.probe));
+    return int0(s.rev) < int0(x.rev);
+}
+
+/**
+ * 대기 + 서버에서 새로 읽은 값 → 저장할 줄.
+ *   srvByCode = { code: readServerInbound 결과 } · legacy = { code: 옛 수동값 글자 }(입고이력에 키가 없던 칸)
+ *   → { rows: [{ code, before, after, delta, shown, warn, legacy, srv }], same: [code], reset: [code] }
+ *   warn = 칸에 보이던 값 ≠ 지금 서버 합(그사이 스캔 등) · same = 서버 합이 이미 대기 값과 같음('이미 같음' — 대기에서 뺀다)
+ *   reset = 고친 뒤 입고이력이 비워짐(pendingReset — 미발 초기화·작업 마감, 다른 탭·PC 포함) → 기록하지 않고 대기에서 뺀다
+ *   옛 수동값은 서버에 이 상품 기록이 하나도 없을 때만 같은 값이어도 기록한다(planFix legacy)
+ */
+export function batchRowsOf(pending, srvByCode, legacy) {
+    const rows = [], same = [], reset = [];
+    Object.keys(pending || {}).sort().forEach(code => {
+        const pd = pending[code] || {};
+        const srv = (srvByCode || {})[code];
+        if (!srv) return;
+        if (pendingReset(pd, srv)) { reset.push(code); return; }
+        const lg = legacy && legacy[code] ? String(legacy[code]) : '';
+        const useLegacy = !!lg && int0(srv.sum) === 0 && !srv.rev && !srv.scan;
+        const plan = planFix({ before: srv.sum, after: pd.after, legacy: useLegacy });
+        if (!plan) { same.push(code); return; }
+        if (plan.error) return;
+        const shown = String(pd.shown == null ? '' : pd.shown);
+        rows.push({ code, before: plan.before, after: plan.after, delta: plan.delta, shown,
+            warn: !useLegacy && shown !== String(plan.before), legacy: useLegacy ? lg : '', srv });
+    });
+    return { rows, same, reset };
+}
+
+/**
+ * 묶음 저장 확인창. rows = batchRowsOf 의 rows(+ maybeOff: 스캐너 남은 도착이 0 이하라 정확하지 않을 수 있음)
+ *   o = { rows, same(이미 같음 수), reset(비워져 뺀 수), trial, live, max(보여 줄 줄 수, 기본 15) }
+ *   살펴볼 줄(⚠ 그사이 바뀜·옛 수동값·남은 도착 0 이하)을 먼저 보여 준다 — '외 n건' 에 숨지 않게
+ */
+export function batchConfirmText(o = {}) {
+    const rows = o.rows || [];
+    const max = o.max || 15;
+    const n = (v) => Number(v || 0).toLocaleString();
+    const sign = (v) => (v > 0 ? '+' : '') + n(v);
+    const flagged = (r) => !!(r.warn || r.legacy || r.maybeOff);
+    const ordered = rows.filter(flagged).concat(rows.filter(r => !flagged(r)));
+    const warnN = rows.filter(r => r.warn).length;
+    const lines = [`입고확인 ${n(rows.length)}건을 기록할까요?`];
+    if (warnN) lines.push(`⚠ 그사이 바뀐 상품 ${n(warnN)}건 — 화면에 보이던 값과 지금 값이 다릅니다(아래 ⚠ 줄)`);
+    lines.push('');
+    ordered.slice(0, max).forEach(r => {
+        let t = `· [${r.code}] ${n(r.before)} → ${n(r.after)} (${sign(r.delta)})`;
+        if (r.legacy) t += ` — 기존 수동값 ${r.legacy} 은 스캐너에 반영되지 않았던 값(입고이력 0 기준)`;
+        else if (r.warn) t += ` — ⚠ 화면 ${r.shown === '' ? '빈칸' : r.shown} → 지금 ${n(r.before)}`;
+        if (r.maybeOff) t += ' — 스캐너 남은 도착 0 이하';
+        lines.push(t);
+    });
+    if (ordered.length > max) lines.push(`  … 외 ${n(ordered.length - max)}건`);
+    if (o.same) lines.push(`· 이미 같은 값 ${n(o.same)}건은 대기에서 뺍니다.`);
+    if (o.reset) lines.push(`· ⚠ 고친 뒤 입고이력이 비워진(미발 초기화·작업 마감) ${n(o.reset)}건은 기록하지 않고 대기에서 뺍니다.`);
+    lines.push('');
+    const withSd = rows.filter(r => r.srv && r.srv.scanDb).length;
+    if (withSd) lines.push(`· 스캐너 남은 도착도 함께 맞춥니다(${n(withSd)}건). 스캐너 자료에 없는 ${n(rows.length - withSd)}건은 입고이력만 고칩니다.`);
+    else lines.push('· 스캐너 자료에 없는 상품이라 입고이력만 고칩니다.');
+    const off = rows.filter(r => r.maybeOff).length;
+    if (off) lines.push(o.live
+        ? `  ⚠ 스캐너 남은 도착이 0 이하인 ${n(off)}건은 정확하지 않을 수 있습니다 — [스캐너에 반영]을 다시 누르면 맞춰집니다.`
+        : `  ⚠ 스캐너 남은 도착이 0 이하인 ${n(off)}건은 정확하지 않을 수 있습니다 — 기존 화면을 열면 맞춰집니다.`);
+    lines.push('· 비축창고 수량은 바뀌지 않습니다.');
+    lines.push('· 스캐너에 아직 안 보낸 입고는 빠진 값입니다(보낸 뒤에는 그만큼 더해집니다).');
+    lines.push('· 건마다 따로 기록합니다 — 그사이 바뀐 상품은 기록하지 않고 대기에 남깁니다.');
+    if (o.trial) lines.push('', TRIAL_WARN);
+    return lines.join('\n');
+}
+
+/**
+ * 건마다 차례로 기록. writeFn(item) → { ok, conflict? }(writeInboundFix 결과) · onProgress(done, total)
+ * 한 건이 실패(충돌·오류)해도 나머지는 계속한다.
+ * → { ok: [code], failed: { code: 'rev'|'reset'|'scan'|'error' }, results: { code: 결과 } }
+ */
+export async function runBatch(items, writeFn, onProgress) {
+    const list = items || [];
+    const ok = [], failed = {}, results = {};
+    for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        try {
+            const res = await writeFn(it);
+            results[it.code] = res;
+            if (res && res.ok) ok.push(it.code);
+            else failed[it.code] = (res && res.conflict) || 'error';
+        } catch (e) {
+            failed[it.code] = 'error';
+            results[it.code] = { ok: false, error: e };
+        }
+        if (onProgress) { try { onProgress(i + 1, list.length); } catch (e) { /* 표시 실패는 무시 */ } }
+    }
+    return { ok, failed, results };
+}
+
+/** 실패 이유 → 칸 툴팁·결과에 붙일 짧은 말 */
+export function failReasonText(reason) {
+    return reason === 'rev' ? '그사이 다른 사람이 고침'
+        : reason === 'reset' ? '그사이 입고이력이 비워짐'
+        : reason === 'scan' ? '그사이 스캔·반영이 있었음'
+        : '기록 오류';
+}
+
+/** 대기 남은 줄에 실패 이유 붙이기 · 성공한 줄·이미 같은 줄·입고이력이 비워진 줄(reset — 지난 작업 기준이라 새 작업에 쓰면 안 됨)은 뺀다 → 새 pending */
+export function pendingAfterBatch(pending, { ok, failed, same } = {}) {
+    const p = { ...(pending || {}) };
+    (ok || []).forEach(c => { delete p[c]; });
+    (same || []).forEach(c => { delete p[c]; });
+    Object.keys(failed || {}).forEach(c => {
+        if (failed[c] === 'reset') delete p[c];
+        else if (p[c]) p[c] = { ...p[c], reason: failed[c] };
+    });
+    return p;
+}
+
+/** 실패 목록 줄(알림용) — reset 은 대기에서 뺐다고 적는다 */
+export function failLinesOf(failed, max = 15) {
+    const codes = Object.keys(failed || {});
+    const lines = codes.slice(0, max).map(c => `· [${c}] ${failReasonText(failed[c])}${failed[c] === 'reset' ? ' — 대기에서 뺐습니다' : ''}`);
+    if (codes.length > max) lines.push(`… 외 ${codes.length - max}건`);
+    return lines.join('\n');
+}
+
+/** 결과 한 줄 — '저장 n건 · 다시 확인 m건 · 이미 같음 k건'(0 건 항목은 뺌, 다 0 이면 '바뀐 것 없음') */
+export function batchResultText({ saved, failed, same } = {}) {
+    const parts = [];
+    if (saved) parts.push(`저장 ${saved}건`);
+    if (failed) parts.push(`다시 확인 ${failed}건`);
+    if (same) parts.push(`이미 같음 ${same}건`);
+    return parts.length ? parts.join(' · ') : '바뀐 것 없음';
 }

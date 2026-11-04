@@ -1,20 +1,20 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202611041225';
-import * as State from './state.js?v=202611041225';
-import { updateDailyData } from './app-data.js?v=202611041225';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611041225';
+import * as DOM from './dom-elements.js?v=202611041309';
+import * as State from './state.js?v=202611041309';
+import { updateDailyData } from './app-data.js?v=202611041309';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611041309';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611041225';
-import { syncInspSegments } from './inspection-segments.js?v=202611041225';
-import { moveDoneItems } from './lib/insp-day.js?v=202611041225';
-import { TASK, tName } from './task-names.js?v=202611041225';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611041309';
+import { syncInspSegments } from './inspection-segments.js?v=202611041309';
+import { moveDoneItems } from './lib/insp-day.js?v=202611041309';
+import { TASK, tName } from './task-names.js?v=202611041309';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, todoCardHtml, doneCardHtml, pickKey, isPicked, pickProgress, windowOrder
-} from './lib/insp-flow.js?v=202611041225';
+} from './lib/insp-flow.js?v=202611041309';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -1280,6 +1280,6 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202611041225';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611041225';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611041225';
+export { handleExcelUpload } from './inspection-excel.js?v=202611041309';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611041309';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611041309';

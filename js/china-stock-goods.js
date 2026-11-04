@@ -1,25 +1,26 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202611041225'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202611041309'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202611041225';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611041225';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611041225';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611041225'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611041225';
-import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611041225'; // 입고 오차(2026-10-27)
-import { initPageNav } from './page-nav.js?v=202611041225';
-import { emptyFillOk } from './lib/mibal2-calc.js?v=202611041225'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
-import { confirmedOf } from './lib/scan-link.js?v=202611041225'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
-import { inboundSplitOf, planFix, fixTipOf, fixConfirmText, scanDbPairOf, fixConflictText } from './lib/inbound-fix.js?v=202611041225'; // 입고확인 수동 수정(2026-11-04)
-import { readServerInbound, writeInboundFix } from './inbound-fix-write.js?v=202611041225';
-import { friendlyFirebaseError } from './utils.js?v=202611041225';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611041225';
-import { setShellContext } from './app-shell-bridge.js?v=202611041225';
-import { memberNameFor } from './app-shell-data.js?v=202611041225';
-import { createUploadStatus } from './busy-banner.js?v=202611041225';
+import { cleanRows } from './lib/sensitive-cols.js?v=202611041309';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611041309';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611041309';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611041309'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611041309';
+import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611041309'; // 입고 오차(2026-10-27)
+import { initPageNav } from './page-nav.js?v=202611041309';
+import { emptyFillOk } from './lib/mibal2-calc.js?v=202611041309'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { confirmedOf } from './lib/scan-link.js?v=202611041309'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611041309'; // 입고확인 수동 수정(2026-11-04)
+import { readServerInboundMany, writeInboundFix } from './inbound-fix-write.js?v=202611041309';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611041309';
+import { friendlyFirebaseError } from './utils.js?v=202611041309';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611041309';
+import { setShellContext } from './app-shell-bridge.js?v=202611041309';
+import { memberNameFor } from './app-shell-data.js?v=202611041309';
+import { createUploadStatus } from './busy-banner.js?v=202611041309';
 
 const { db, auth } = initializeFirebase();
 const CHINA_COLLECTION = 'ChinaStockGoods';
@@ -38,6 +39,13 @@ let editedCells = {};
 let inboundMap = {}; 
 let fixMap = {};      // [2026-11-04] 입고확인 수동 수정(입고이력 fix__ 문서) { code: {qty, rev, log} }
 let scanOnlyMap = {}; // 스캔 문서만의 합(툴팁용)
+let scanProbeMap = {}; // 상품별 스캔 문서 id 하나 — 입고확인 대기 항목에 적어 [저장] 때 입고이력이 비워졌는지 본다
+// [2026-11-04] 입고확인 수정 대기(여러 칸 고친 뒤 [저장]) — saveConfirmedBatch 위 설명 참고
+let _fixBusy = false;
+let pendingFix = {};        // { code: { after, shown, at, reason? } } — 표 자료와 따로(그릴 때 덧칠)
+let fixBar = null;
+let _fixProgress = null;    // 저장 중 { done, total }
+let _renderDeferred = false;
 let sortConfig = { key: '', direction: 'asc' };
 let csvUrlOrder = '';
 let csvUrlBuy = '';
@@ -1332,7 +1340,7 @@ function loadInboundHistory() {
     onSnapshot(q, (snapshot) => {
         // [2026-11-04] 합 = 스캔 + 입고확인 수정(fix__ 문서, 음수 포함) — js/lib/inbound-fix.js inboundSplitOf
         const sp = inboundSplitOf(snapshot.docs.map(d => { const x = d.data() || {}; return { id: d.id, barcode: x.barcode, qty: x.qty, rev: x.rev, log: x.log }; }));
-        inboundMap = sp.map; fixMap = sp.fix; scanOnlyMap = sp.scan;
+        inboundMap = sp.map; fixMap = sp.fix; scanOnlyMap = sp.scan; scanProbeMap = sp.probe;
         if (tableData.length > 0) applyDates({ skipSync: true });
     });
 }
@@ -1990,6 +1998,7 @@ function goNewScreen() {
     if (_retiredGoing) return;
     _retiredGoing = true;
     window.removeEventListener('beforeunload', scanLockBeforeUnload);   // 스캔 잠금 확인창 때문에 이동이 막히지 않게
+    if (fixBar) fixBar.disarm();   // 입고확인 수정 대기 확인창도 끈다
     const ov = document.createElement('div');
     ov.id = 'retired-overlay';
     ov.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:var(--c-bg,#F5F6F8);display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-weight:600;';
@@ -2300,7 +2309,8 @@ async function clearAllData() {
     if (!confirm("미발계산기 데이터를 초기화할까요? 되돌릴 수 없습니다(초기화 직전 버전은 '버전기록'에 남습니다).\n\n"
         + `지워지는 것:\n· 수동편집 ${n(editedCells).toLocaleString()}칸\n· 미발재고로그 ${n(stockLogData).toLocaleString()}개 상품\n`
         + `· 앱 입고이력 ${n(inboundMap).toLocaleString()}건\n· 비축창고 누적 ${f2}\n· 스캐너 강제전송 허용목록\n\n`
-        + "유지되는 것: 위치 데이터, 출고일 목록(시트에서 다시 받음)\n\n" + diffLine)) return;
+        + "유지되는 것: 위치 데이터, 출고일 목록(시트에서 다시 받음)\n\n" + diffLine
+        + (Object.keys(pendingFix).length ? `\n\n⚠ 저장 안 한 입고확인 ${Object.keys(pendingFix).length}건도 버립니다.` : ''))) return;
     showLoading('🗑️ 미발계산기 초기화 중...');
     try {
         await saveScanDBVersion('pre-reset', '미발 초기화 직전 백업'); // [Ver 8.94] 초기화 전 순수 미발 스냅샷 (버전기록은 안 지워짐)
@@ -2319,6 +2329,7 @@ async function clearAllData() {
         stockLogData = {};
         editedCells = {};
         inboundMap = {};
+        pendingFix = {}; // [2026-11-04] 저장 안 한 입고확인 대기도 버린다(지난 작업 기준이라 새 작업에 쓰면 안 됨)
         tableData = [];
         filteredData = [];
         columnFilters = {}; // [Ver 8.52] 열 필터도 초기화
@@ -2739,6 +2750,10 @@ function renderTableHeader(cols) {
     tr.querySelectorAll('.col-filter').forEach(f => f.addEventListener('click', (e) => { e.stopPropagation(); openColumnFilter(f.dataset.key, f); })); // [Ver 8.52] 필터 팝업
 }
 function renderTable() {
+    // [2026-11-04] 고칠 수 있는 칸에 커서가 있으면 다시 그리기를 미룬다(구독 때문에 입력 중 글자가 날아가지 않게) — 칸을 나갈 때 한 번 그린다
+    if (editingCellActive()) { _renderDeferred = true; return; }
+    _renderDeferred = false;
+    if (fixBar || Object.keys(pendingFix).length) updateFixBar();   // 막대(대기 건수·표에 없는 건수) — 빈 표로 일찍 끝나도 맞춘다
     const cols = getActiveColumns();
     renderTableHeader(cols);
     const tbody = document.getElementById('table-body');
@@ -2753,6 +2768,7 @@ function renderTable() {
             if (def.edit) {
                 let style = key === 'capacity' ? 'background:var(--c-accent-row);' : '';
                 let extra = '';
+                let cellVal = val;
                 if (key === 'confirmed') {
                     // [Ver 8.90] 입고확인 ≠ 도착수량(빈칸=0 포함) → 빨강 통일. 일치 시 앱스캔이면 파랑.
                     const tips = [];
@@ -2760,9 +2776,16 @@ function renderTable() {
                     else if (isFromApp) style += 'color:var(--c-accent-deep); font-weight:900;';
                     // [2026-11-04] 손으로 고친 적 있으면 점선 테두리 + 스캔·수정 내역
                     if (fixMap[row.code]) { style += 'outline:2px dashed var(--c-accent); outline-offset:-3px;'; tips.push(fixTipOf(scanOnlyMap[row.code] || 0, fixMap[row.code])); }
+                    // [2026-11-04] 저장 대기 값은 덧칠(노랑) — 일치색·차이 칸은 서버 값 기준 그대로
+                    const pd = pendingFix[row.code];
+                    if (pd) {
+                        cellVal = pd.after;
+                        style += 'background:var(--c-warn-bg); box-shadow:inset 0 0 0 2px var(--c-warn,#e0a800);';
+                        tips.unshift(`저장 대기 — 원래 값 ${String(val) === '' ? '빈칸' : val}` + (pd.reason ? ` · 지난 [저장] 때 기록 안 됨: ${failReasonText(pd.reason)}` : ''));
+                    }
                     if (tips.length) extra = ` title="${escapeHtml(tips.join('\n'))}"`;
                 }
-                tds += `<td class="editable-cell" contenteditable="true" data-code="${row.code}" data-field="${def.edit}" style="${style}"${extra}>${val}</td>`;
+                tds += `<td class="editable-cell" contenteditable="true" data-code="${row.code}" data-field="${def.edit}" style="${style}"${extra}>${cellVal}</td>`;
             } else if (key === 'diff') {
                 const dv = diffCellView(row);
                 tds += `<td class="diff-cell ${dv.cls}" data-code="${row.code}" title="${dv.title}" style="font-weight:bold;">${dv.text}</td>`;
@@ -2848,56 +2871,110 @@ function diffCellView(row) {
     if (row.diff < 0) return { cls: 't-accent', title: `과입고 ${-row.diff}`, text: String(row.diff) };
     return { cls: '', title: '도착 = 입고확인', text: '0' };
 }
-// [2026-11-04] 입고확인 수동 수정 — 칸을 고치면 EDITED_CELLS 가 아니라 입고이력 수정 문서(fix__)와 스캐너 남은 도착(ScanDB, 문서가 있을 때만)에
-//   기록한다(js/inbound-fix-write.js). 스캔된 상품도 고칠 수 있다. 비축창고·hold 는 건드리지 않는다.
-//   취소·실패·충돌이면 칸을 원래 값으로. 표는 입고이력 구독이 다시 그린다.
-let _fixBusy = false;
-async function handleConfirmedEdit(code, text, td) {
+// [2026-11-04] 입고확인 수동 수정 — 여러 칸을 고친 뒤 화면 아래 막대의 [저장]으로 한 번에 기록한다(사용자 요청).
+//   칸을 나가면 대기(pendingFix)에만 넣는다. [저장] 때 서버 값을 새로 읽어 확인창을 띄우고, 건마다 입고이력 수정 문서(fix__)와
+//   스캐너 남은 도착(ScanDB, 문서가 있을 때만)에 기록한다(js/inbound-fix-write.js — 건마다 트랜잭션). EDITED_CELLS 에는 쓰지 않는다.
+//   그사이 바뀐 상품은 기록하지 않고 이유를 붙여 대기에 남긴다(다시 [저장]). [취소]는 대기를 모두 버린다. 비축창고·hold 는 건드리지 않는다.
+function editingCellActive() {
+    const a = document.activeElement;
+    return !!(a && a.classList && a.classList.contains('editable-cell') && a.closest && a.closest('#table-body'));
+}
+/** 칸을 나간 뒤 — 미뤄 둔 다시 그리기를 한 번(다음 칸으로 옮겨 갔으면 또 미룬다) */
+function flushDeferredRender() {
+    if (!_renderDeferred) return;   // 미뤄 둔 그리기가 있을 때만 — 그리기는 지금 클릭이 끝난 뒤(첫 클릭이 사라지지 않게)
+    afterClick(() => { if (_renderDeferred && !editingCellActive()) renderTable(); });
+}
+function updateFixBar() {
+    if (!fixBar) fixBar = createFixBar({ onSave: () => saveConfirmedBatch(), onCancel: cancelConfirmedBatch });
+    const codes = Object.keys(pendingFix);
+    const shownCodes = new Set(filteredData.map(d => d.code));
+    fixBar.update({ count: codes.length, outside: codes.filter(c => !shownCodes.has(c)).length, progress: _fixProgress });
+}
+function confirmedShown(code) {
     const row = tableData.find(d => d.code === code);
-    const shown = row ? String(row.confirmed == null ? '' : row.confirmed) : '';
-    const restore = () => { if (td && td.isConnected) td.textContent = shown; };
-    if (!row || text === shown.trim()) return;   // 바꾸지 않고 칸을 나감
-    if (_fixBusy) { showToast('⏳ 입고확인 기록 중입니다 — 잠시 기다려 주세요'); restore(); return; }
-    // 옛 수동값(EDITED_CELLS.confirmed)만 보이던 칸 — 스캐너에 반영되지 않았던 값. 차이는 입고이력 합(0) 기준
-    const ed = editedCells[code] || {};
-    const legacy = (inboundMap[code] === undefined && String(ed.confirmed == null ? '' : ed.confirmed).trim() !== '') ? String(ed.confirmed).trim() : '';
-    const first = planFix({ before: inboundMap[code] || 0, after: text, legacy: !!legacy });
-    if (first && first.error) { if (!first.silent) alert(first.error); restore(); return; }
-    if (!first) { restore(); return; }
-    if (await guardRetiredHeavy()) { restore(); return; }
+    return row ? String(row.confirmed == null ? '' : row.confirmed) : '';
+}
+/** 입고확인 칸을 나갈 때 — 대기에 넣기(같은 값·빈칸이면 대기에서 뺌, 글자면 알림 후 되돌림) */
+function onConfirmedCellOut(code, text, td) {
+    const shown = confirmedShown(code);
+    const cur = pendingFix[code];
+    const back = () => { if (td && td.isConnected) td.textContent = cur ? String(cur.after) : shown; };
+    if (_fixBusy) { back(); showToast('⏳ 입고확인 기록 중입니다 — 끝난 뒤 고쳐 주세요'); return; }
+    // 고칠 때 본 입고이력 기준(스캔 문서 하나·수정 rev) — [저장] 때 그사이 비워졌는지 본다
+    const r = pendingSet(pendingFix, code, text, shown, Date.now(), { probe: scanProbeMap[code] || '', rev: fixMap[code] ? fixMap[code].rev : 0 });
+    if (r.error) { alert(r.error); back(); return; }
+    const nx = r.pending[code];
+    const changed = (cur ? cur.after : null) !== (nx ? nx.after : null);
+    pendingFix = r.pending;
+    if (!changed) { if (td && td.isConnected && !nx) td.textContent = shown; return; }   // 값이 그대로면 다시 그리지 않는다
+    if (td && td.isConnected) {
+        if (nx) { td.style.backgroundColor = 'var(--c-warn-bg)'; td.style.boxShadow = 'inset 0 0 0 2px var(--c-warn,#e0a800)'; }
+        else { td.textContent = shown; td.style.boxShadow = ''; }
+    }
+    _renderDeferred = true;   // 덧칠·툴팁을 맞추려고 칸을 다 나가면(클릭이 끝난 뒤) 한 번 다시 그린다
+    updateFixBar();
+    const n = Object.keys(pendingFix).length;
+    showToast(nx ? `✏️ 입고확인 대기 ${n}건 — 아래 [저장]을 눌러야 기록됩니다` : `↩ 입고확인 원래 값으로(대기 ${n}건)`);
+}
+function cancelConfirmedBatch() {
+    if (_fixBusy) return;
+    const n = Object.keys(pendingFix).length;
+    if (n && !confirm(`입고확인 수정 대기 ${n}건을 버릴까요? (기록하지 않습니다)`)) return;
+    pendingFix = {};
+    renderTable(); updateFixBar();
+}
+async function saveConfirmedBatch() {
+    const codes = Object.keys(pendingFix);
+    if (!codes.length || _fixBusy) return;
+    if (await guardRetiredHeavy()) return;
     _fixBusy = true;
     try {
-        showLoading('입고이력·스캐너 값 확인 중...');
-        let srv;
-        try { srv = await readServerInbound(db, code); } finally { hideLoading(); }
-        const plan = planFix({ before: srv.sum, after: text, legacy: !!legacy && srv.sum === 0 && !srv.rev && !srv.scan });
-        if (!plan || plan.error) { showToast('지금 값과 같습니다 — 고칠 것이 없습니다'); restore(); return; }
+        showLoading(`입고이력·스캐너 값 확인 중... (${codes.length}건)`);
+        let srvBy;
+        try { srvBy = await readServerInboundMany(db, codes, 5); } finally { hideLoading(); }
+        // 옛 수동값(EDITED_CELLS.confirmed)만 보이던 칸 — 스캐너에 반영되지 않았던 값. 차이는 입고이력 합(0) 기준
+        const legacy = {};
+        codes.forEach(c => { const ed = editedCells[c] || {}; const v = String(ed.confirmed == null ? '' : ed.confirmed).trim(); if (inboundMap[c] === undefined && v !== '') legacy[c] = v; });
+        const { rows, same, reset } = batchRowsOf(pendingFix, srvBy, legacy);
+        const resetFailed = Object.fromEntries(reset.map(c => [c, 'reset']));   // 고친 뒤 입고이력이 비워짐(다른 탭·PC 의 초기화 포함) → 대기에서 뺌
         // 스캐너 칸을 만든 기준(도착·미발) — 스캔 잠금 중이면 ScanDB 가 지금 표로 만든 값이 아닐 수 있어 모름. 미등록·위치 행은 ScanDB 대상 아님
-        const base = (pageLocked || row.unregistered || row.unregisteredLoc) ? null : { arr: parseInt(row.arrivalQty) || 0, mibal: parseInt(row.mibalQty) || 0 };
-        let sdView = null;
-        if (srv.scanDb) {
-            const nx = scanDbPairOf({ cur: srv.scanDb, base, before: plan.before, after: plan.after });
-            sdView = { curArr: srv.scanDb.arrivalQty, newArr: nx.arrivalQty, curMibal: srv.scanDb.mibalQty, newMibal: nx.mibalQty, maybeOff: !base && srv.scanDb.arrivalQty <= 0 };
+        const bases = {};
+        rows.forEach(r => {
+            const row = tableData.find(d => d.code === r.code);
+            bases[r.code] = (!row || pageLocked || row.unregistered || row.unregisteredLoc) ? null : { arr: parseInt(row.arrivalQty) || 0, mibal: parseInt(row.mibalQty) || 0 };
+            r.maybeOff = !!r.srv.scanDb && !bases[r.code] && r.srv.scanDb.arrivalQty <= 0;
+        });
+        if (!rows.length) {
+            pendingFix = pendingAfterBatch(pendingFix, { same, failed: resetFailed });
+            const m0 = batchResultText({ failed: reset.length, same: same.length });
+            if (reset.length) alert(`${m0}\n\n${failLinesOf(resetFailed)}`); else showToast(m0);
+            return;
         }
-        const msg = fixConfirmText({ code, before: plan.before, after: plan.after, screen: shown, scanQty: srv.scan, fixQty: srv.fixQty,
-            trial: false, live: false, legacyManual: legacy, scanDb: sdView });
-        if (!confirm(msg)) { restore(); return; }
-        showLoading('입고확인 기록 중...');
-        let res;
-        try { res = await writeInboundFix(db, { code, before: plan.before, after: plan.after, seen: srv, base, by: _myMemberName, note: '기존 화면' }); }
-        finally { hideLoading(); }
-        if (!res.ok) { restore(); alert(fixConflictText(res.conflict)); return; }
-        if (legacy && editedCells[code]) {
-            delete editedCells[code].confirmed;
+        if (!confirm(batchConfirmText({ rows, same: same.length, reset: reset.length, trial: false, live: false }))) return;
+        _fixProgress = { done: 0, total: rows.length }; updateFixBar();
+        const out = await runBatch(rows,
+            (r) => writeInboundFix(db, { code: r.code, before: r.before, after: r.after, seen: r.srv, base: bases[r.code], by: _myMemberName, note: '기존 화면' }),
+            (done, total) => { _fixProgress = { done, total }; updateFixBar(); });
+        const failed = { ...resetFailed, ...out.failed };
+        pendingFix = pendingAfterBatch(pendingFix, { ok: out.ok, failed, same });
+        // 옛 수동값은 마지막에 한 번만 지운다
+        const legacyDone = out.ok.filter(c => legacy[c] && editedCells[c]);
+        if (legacyDone.length) {
+            legacyDone.forEach(c => { delete editedCells[c].confirmed; });
             try { await saveEditedCells(); } catch (e) { console.warn('[china-stock] 옛 입고확인 수동값 지우기 실패:', e && e.code); }
         }
-        showToast(`✅ [${code}] 입고확인 ${plan.before.toLocaleString()} → ${plan.after.toLocaleString()} 기록${res.scanDb ? ' · 스캐너 남은 도착 맞춤' : ''}`);
+        const failCodes = Object.keys(failed);
+        const msg = batchResultText({ saved: out.ok.length, failed: failCodes.length, same: same.length });
+        if (failCodes.length) {
+            alert(`${msg}\n\n다시 확인할 상품은 노란 칸으로 남겼습니다(입고이력이 비워진 상품은 대기에서 뺐습니다). 값을 확인한 뒤 [저장]을 다시 누르세요.\n`
+                + failLinesOf(failed));
+        } else showToast('✅ 입고확인 ' + msg);
     } catch (e) {
-        restore();
-        console.error('[china-stock] 입고확인 수정 실패:', e && e.code);
-        alert('입고확인을 기록하지 못했습니다 — ' + friendlyFirebaseError(e));
+        console.error('[china-stock] 입고확인 저장 실패:', e && e.code);
+        alert('입고확인을 기록하지 못했습니다(아무것도 쓰지 않았거나 일부만 썼습니다 — 노란 칸이 남은 상품을 확인하세요) — ' + friendlyFirebaseError(e));
     } finally {
-        _fixBusy = false;
+        _fixBusy = false; _fixProgress = null;
+        renderTable(); updateFixBar();
     }
 }
 function filterValueOf(row, key) {
@@ -3480,12 +3557,18 @@ function setupEventListeners() {
     document.getElementById('table-body')?.addEventListener('focusout', (e) => { 
         if (e.target.classList.contains('editable-cell')) {
             const code = e.target.dataset.code; const field = e.target.dataset.field; const value = e.target.textContent.trim();
-            if (field === 'confirmed') { handleConfirmedEdit(code, value, e.target); return; } // [2026-11-04] 입고확인은 입고이력·스캐너에 기록(EDITED_CELLS 아님)
+            // [2026-11-04] 입고확인은 대기에만 — 아래 막대 [저장]으로 입고이력·스캐너에 기록(EDITED_CELLS 아님)
+            if (field === 'confirmed') { onConfirmedCellOut(code, value, e.target); flushDeferredRender(); return; }
             if (!editedCells[code]) editedCells[code] = {}; editedCells[code][field] = value;
             clearTimeout(saveTimeout); saveTimeout = setTimeout(() => { saveEditedCells(); showToast('💾 자동 저장됨'); }, 1000);
             // [Ver 5.4] 미발수량에 영향 주는 값(적재량/부족수량/직진배송)은 즉시 재계산
             if (['capacity','shortage','directShip'].includes(field)) recomputeRow(code);
+            flushDeferredRender();
         }
+    });
+    // [2026-11-04] 입고확인 칸에서 Enter = 칸 나가기(줄바꿈 대신)
+    document.getElementById('table-body')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('editable-cell') && e.target.dataset.field === 'confirmed') { e.preventDefault(); e.target.blur(); }
     });
 
     // 14. #table-body click (코드 복사)

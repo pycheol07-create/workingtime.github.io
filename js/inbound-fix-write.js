@@ -13,7 +13,7 @@
 // 계산은 js/lib/inbound-fix.js(순수 함수). 기록자 = 직원 이름(이메일 아님).
 import { doc, collection, query, where, getDocsFromServer, getDocFromServer, runTransaction, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { fixIdOf, isFixId, inboundSplitOf, scanDbPairOf, nextFixDoc } from './lib/inbound-fix.js?v=202611041225';
+import { fixIdOf, isFixId, inboundSplitOf, scanDbPairOf, nextFixDoc } from './lib/inbound-fix.js?v=202611041309';
 
 const INBOUND = 'ChinaStockGoods_InboundHistory';
 const SCANDB = 'ChinaStockGoods_ScanDB';
@@ -22,8 +22,9 @@ const sdOf = (data) => ({ arrivalQty: parseInt(data.arrivalQty) || 0, mibalQty: 
 
 /**
  * 서버에서 이 상품의 입고이력·스캐너 자료를 새로 읽는다(확인창에 보여 줄 값 + 기록 때 바뀌었는지 볼 값).
- * → { sum, scan, fixQty, rev, probeId, scanDb: {arrivalQty, mibalQty} | null }
+ * → { sum, scan, fixQty, rev, probeId, scanIds, scanDb: {arrivalQty, mibalQty} | null }
  *   probeId = 스캔 문서 id 하나(없으면 '') — 기록 때 이것이 없어졌으면 입고이력이 비워진 것
+ *   scanIds = 스캔 문서 id 전부 — 대기 항목의 probe(고칠 때 본 스캔 문서)가 아직 있는지 본다(lib pendingReset)
  */
 export async function readServerInbound(db, code) {
     const [snap, sd] = await Promise.all([
@@ -32,16 +33,34 @@ export async function readServerInbound(db, code) {
     ]);
     const sp = inboundSplitOf(snap.docs.map(d => { const x = d.data() || {}; return { id: d.id, barcode: x.barcode, qty: x.qty, rev: x.rev }; }));
     const f = sp.fix[code];
-    const probe = snap.docs.find(d => !isFixId(d.id));
+    const scanIds = snap.docs.filter(d => !isFixId(d.id)).map(d => d.id);
     return {
         sum: sp.map[code] || 0, scan: sp.scan[code] || 0, fixQty: f ? f.qty : 0, rev: f ? f.rev : 0,
-        probeId: probe ? probe.id : '',
+        probeId: scanIds[0] || '', scanIds,
         scanDb: sd.exists() ? sdOf(sd.data() || {}) : null
     };
 }
 
 /**
- * 입고확인 수정 기록. base = ScanDB 칸을 만든 기준 { arr, mibal }(모르면 null).
+ * 여러 상품을 서버에서 새로 읽는다(묶음 저장 확인창용) — 동시에 limit 개씩. 하나라도 못 읽으면 오류(아무것도 쓰지 않게).
+ * → { code: readServerInbound 결과 }
+ */
+export async function readServerInboundMany(db, codes, limit = 5) {
+    const list = [...new Set(codes || [])];
+    const out = {};
+    let next = 0;
+    const worker = async () => {
+        while (next < list.length) {
+            const code = list[next++];
+            out[code] = await readServerInbound(db, code);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, list.length)) }, worker));
+    return out;
+}
+
+/**
+ * 입고확인 수정 기록(한 상품 — 묶음 저장은 이것을 건마다 차례로 부른다). base = ScanDB 칸을 만든 기준 { arr, mibal }(모르면 null).
  * seen = readServerInbound 결과(rev·probeId·scanDb 를 기록 때 다시 견준다).
  * → { ok: true, rev, scanDb: {arrivalQty, mibalQty} | null } | { ok: false, conflict: 'rev'|'reset'|'scan', rev }
  */

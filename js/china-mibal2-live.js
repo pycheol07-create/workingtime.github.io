@@ -19,12 +19,12 @@
 import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writeBatch, collection, query, orderBy, limit, where, documentId, serverTimestamp, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
-    hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf } from './lib/mibal2-live.js?v=202611041225';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611041225';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611041225';
-import { inboundSig } from './lib/inbound-fix.js?v=202611041225';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611041225';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611041225';
+    hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf } from './lib/mibal2-live.js?v=202611041309';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611041309';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611041309';
+import { inboundSig } from './lib/inbound-fix.js?v=202611041309';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611041309';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611041309';
 
 const CHINA = 'ChinaStockGoods';
 const SCANDB = CHINA + '_ScanDB';
@@ -395,7 +395,8 @@ export function startLive(ctx) {
                 : `보관함에 저장${partialOf ? `(지난번 마감 ${partialOf} 뒤 추가분)` : ''}: 상품 ${n(t.codes)}개 · 도착 ${n(t.arr)} · 입고 ${n(t.conf)} · 비축 ${n(t.floor2)}\n${diffLine}\n\n`)
             + `비우는 것: 앱 입고이력 ${n(ih.docs.length)}건 · 비축창고 누적 ${n(Object.keys(f2).length)}개 상품 · 스캐너 강제전송 허용목록\n`
             + '유지되는 것: 스캐너 자료(다음 [스캐너에 반영] 때 바뀜) · 위치 데이터 · 적재량 개별값'
-            + (differ ? '\n\n⚠ 지금 고른 출고일이 작업 출고일과 다릅니다 — 작업 출고일로 마감합니다.' : ''))) return;
+            + (differ ? '\n\n⚠ 지금 고른 출고일이 작업 출고일과 다릅니다 — 작업 출고일로 마감합니다.' : '')
+            + (ctx.pendingFixCount && ctx.pendingFixCount() ? `\n\n⚠ 저장 안 한 입고확인 ${n(ctx.pendingFixCount())}건도 버립니다.` : ''))) return;
         // 확인창이 떠 있는 동안 스캔이 들어왔으면 보관할 자료가 낡았다 — 아무것도 쓰지 않고 멈춘다
         setLoading(true, '입고이력·비축창고 다시 확인 중...');
         const [ih2, f2b] = await Promise.all([readInbound(), readF2()]);
@@ -429,6 +430,7 @@ export function startLive(ctx) {
         } catch (e) { console.error('미발 기록 실패:', e && e.code); notes.push('⚠️ 입고 미발 기록 실패'); }
         setLoading(true, '입고이력 비우는 중...');
         await commitOps(ih.docs.map(d => (bt) => bt.delete(d.ref)));   // 읽은 문서만 지운다(그 뒤 들어온 스캔은 남음)
+        if (ctx.clearPendingFix) ctx.clearPendingFix();   // 입고확인 저장 대기도 버린다(2026-11-04)
         // 비축창고·허용목록은 통째로 비우므로, 그 직전에 새 스캔이 없는지 한 번 더 본다
         const [ih3, f2c] = await Promise.all([readInbound(), readF2()]);
         if (ih3.docs.length || JSON.stringify(f2) !== JSON.stringify(f2c)) {

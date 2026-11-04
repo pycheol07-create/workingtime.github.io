@@ -16,11 +16,11 @@
 //   [입고 오차 기록]은 꺼진 단추)
 // 엑셀은 내 PC 로 내려받기만 한다(신규 화면과 같은 XLSX.writeFile .xlsx). 파일 이름은 '시험_' 으로 시작 — 이지어드민 업로드용이 아니다.
 import { getDocs, onSnapshot, doc, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202611041225';
-import { inboundSplitOf } from './lib/inbound-fix.js?v=202611041225';
-import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202611041225';
-import { locAssignFullOf } from './lib/loc-mode.js?v=202611041225';
-import { friendlyFirebaseError } from './utils.js?v=202611041225';
+import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202611041309';
+import { inboundSplitOf } from './lib/inbound-fix.js?v=202611041309';
+import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202611041309';
+import { locAssignFullOf } from './lib/loc-mode.js?v=202611041309';
+import { friendlyFirebaseError } from './utils.js?v=202611041309';
 
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const INBOUND_COLL = CHINA_COLLECTION + '_InboundHistory';
@@ -46,14 +46,14 @@ const inboundPick = (d) => {
 };
 
 /**
- * 입고이력 구독. onChange(inboundMap, fixMap) · onError(err). → 구독 해제 함수.
+ * 입고이력 구독. onChange(inboundMap, fixMap, scanMap, probeMap) · onError(err). → 구독 해제 함수.
  *   inboundMap = barcode 별 qty 합(스캔 + 입고확인 수정) · fixMap = { code: {qty, rev, log} } (js/lib/inbound-fix.js inboundSplitOf)
  * china-mibal2.js 가 한 번만 건다(표 입고확인). 미리보기 엑셀은 opts.getInboundMap 으로 이 값을 같이 쓴다.
  * 이 파일은 쓰지 않는다 — 수정 기록은 js/inbound-fix-write.js(china-mibal2.js 가 칸을 누를 때만 불러옴).
  */
 export function subscribeInbound(db, onChange, onError) {
     return onSnapshot(query(collection(db, INBOUND_COLL)),
-        (snap) => { const sp = inboundSplitOf(snap.docs.map(inboundPick)); onChange(sp.map, sp.fix, sp.scan); },
+        (snap) => { const sp = inboundSplitOf(snap.docs.map(inboundPick)); onChange(sp.map, sp.fix, sp.scan, sp.probe); },
         (err) => { if (onError) onError(err); });
 }
 
