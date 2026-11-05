@@ -19,17 +19,17 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611051201';
+import { initializeFirebase } from './config.js?v=202611051206';
 import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611051201';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611051201';
-import { memberNameFor } from './app-shell-data.js?v=202611051201';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611051206';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611051206';
+import { memberNameFor } from './app-shell-data.js?v=202611051206';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
     tardyPrefill, printFitLevel, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
     checkAttach, attachPath, attachMeta, fmtBytes, ATTACH_MAX, ATTACH_ACCEPT, attachTypeOf,
-    approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes } from './lib/approval-logic.js?v=202611051201';
-import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611051201';
+    approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes } from './lib/approval-logic.js?v=202611051206';
+import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611051206';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -435,6 +435,10 @@ async function renderView(main, id) {
         const ln = approversOf(d);
         const apErr = checkApprovers(ln, S.email);
         if (apErr.length) { toast(`${apErr[0]} — [수정] 에서 결재자를 고른 뒤 제출하세요`, 4500); return; }
+        // 반려 뒤 결재자의 직책이 바뀌었거나 퇴사했으면 규칙이 막는다 — '권한 없음' 대신 무엇을 고칠지 알려 준다
+        const candEmails = new Set(approverCandidates(S.cfg, S.name, S.email).map(c => c.email));
+        const gone = ln.filter(a => !candEmails.has(lower(a.email)));
+        if (gone.length) { toast(`${gone.map(a => a.name).join('·')} 님은 지금 결재자로 지정할 수 없습니다(직책·퇴사 변경) — [수정] 에서 결재자를 다시 고르세요`, 5500); return; }
         const errs = validateValues(d.form, d.values, d.attachments);
         if (errs.length) { toast('빈 필수 칸이 있습니다 — [수정] 에서 채워 주세요', 4000); return; }
         if (!confirm(`이 기안서를 제출할까요?\n결재 순서: ${ln.map(a => a.name).join(' → ')}\n제출하면 1차 결재자(${ln[0].name})에게 알림이 갑니다.`)) return;

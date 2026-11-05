@@ -12,19 +12,19 @@
 //   옛 그리기 함수(renderDashboardTab·renderProductivityTab·renderStaffingTab)와 *Old 계산은 비교 도구(tools/ops-metrics-compare.mjs)가 써서 남겨 둔다 — 여기선 부르지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다.
 
-import * as State from './state.js?v=202611051201';
-import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611051201';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611051201';
-import { saveView } from './view-state.js?v=202611051201';
-import { currentPerm, onPerm } from './feature-gate.js?v=202611051201';
-import { can } from './lib/perm.js?v=202611051201';
-import { showToast } from './utils.js?v=202611051201';
+import * as State from './state.js?v=202611051206';
+import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611051206';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611051206';
+import { saveView } from './view-state.js?v=202611051206';
+import { currentPerm, onPerm } from './feature-gate.js?v=202611051206';
+import { can } from './lib/perm.js?v=202611051206';
+import { showToast } from './utils.js?v=202611051206';
 import {
     OPS_MAIN, allowedTabs, pickTab, tabOf, canSettle, canDetail, canOwner, canTaskTable, settlePresetOf
-} from './lib/ops-report-route.js?v=202611051201';
+} from './lib/ops-report-route.js?v=202611051206';
 import {
     renderOpsTab, renderDetailTables, invalidateOpsModel, destroyOpsCharts, openTaskDetail, closeTaskDetail
-} from './ui-ops-view.js?v=202611051201';
+} from './ui-ops-view.js?v=202611051206';
 
 const TAB_PANEL = {
     summary: 'ops-summary-panel', productivity: 'ops-productivity-panel', staffing: 'ops-staffing-panel', cost: 'ops-cost-panel'
@@ -237,7 +237,7 @@ async function openSettlement(preset) {
     saveOps('cost', true);
     const panel = $('settlement-panel');
     try {
-        settleMod = await import('./ui-history-settlement.js?v=202611051201');
+        settleMod = await import('./ui-history-settlement.js?v=202611051206');
         clearPanelLoadError(panel);   // 앞서 실패해 띄운 오류 상자
         // downloads:false = 결산 화면 머리 줄의 [엑셀][PDF] 를 그리지 않음(받기는 위 줄의 [PDF 받기][엑셀 받기])
         await settleMod.initSettlementReport({ downloads: false });
@@ -270,7 +270,7 @@ function applySettlePreset(panel, p) {
 async function downloadSettle(kind, btn) {
     if (!canSettle(canNow)) return;
     try {
-        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=202611051201');
+        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=202611051206');
         if (typeof settleMod.downloadSettlement === 'function') {
             const done = await settleMod.downloadSettlement(kind, btn);
             if (done === false) showToast('먼저 보고서를 만들어 주세요.');
