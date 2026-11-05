@@ -13,7 +13,7 @@
 //   채용 제안: 지난달 실제 · 이번 달(지금까지) · 다음 달 예측 모두 부족 ≥ 0.8명(3달 연속) + 월간 신뢰도 '보통' 이상. 시작 역산일 = 다음 달 첫날 − (채용 + 교육 주) × 7, 지났으면 '채용 늦음'.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-budget.test.js — 숫자는 가짜.
 
-import { fillMix } from './plan-week.js?v=202611051451';
+import { fillMix } from './plan-week.js?v=202611051510';
 
 export const COST_DEFAULTS = Object.freeze({
     tempHourly: null,          // 알바 시급 — 사람이 넣는다(없으면 알바 금액 null)
@@ -247,6 +247,47 @@ export function buildBudget(p = {}) {
         unitCostBase: base && base.unit ? round(base.unit.total) : null, unitCostTarget: cost.unitCostTarget,
         means, hire, risks, scenarios, actions,
         missing: [cost.tempHourly == null && fill.tempPeople > 0 ? '알바 시급' : '', avgHourly == null ? '정직원 시급표' : '', cost.regularMonthlyBase == null ? '정규 1인 월비용' : '', revenue == null ? '매출(경영 지표)' : ''].filter(Boolean)
+    };
+}
+
+/**
+ * 연간 예산(관리자만, 확장-3) — 달마다 정규(월급 합 1배) + 부족 시간 × 메우는 시간당 비용(알바 시급, 없으면 연장), 매출 = 평소 하루 × 업무일 × 월 지수 × 성장.
+ *   Y7: 인건비 증가율(내년 합 ÷ 최근 12개월 월급 기준 인건비) − 물량 증가율 > 10%p → 생산성 목표 과제.
+ * @param {object} p { canMoney, plan(buildYearPlan), monthlyBases, avgHourly, cost, base(costBaseOf), salaryLabor12(최근 12개월 월급 기준 인건비) }
+ */
+export function buildYearBudget(p = {}) {
+    if (!p.canMoney) return { locked: true };
+    const plan = p.plan || {};
+    const cost = p.cost || costSettingsOf(null);
+    const base = p.base || null;
+    const reg = (p.monthlyBases || []).reduce((a, b) => a + num(b), 0);
+    const avgHourly = fin(p.avgHourly);
+    const fillHourly = cost.tempHourly != null ? cost.tempHourly : (avgHourly != null ? avgHourly * num(cost.overtimePremium) : null);
+    const growth = num(plan.meta && plan.meta.growthUsed) || 1;
+    const months = (plan.months || []).map(m => {
+        if (m.reqFTE == null) return { month: m.month, labor: null, revenue: null, ratio: null };
+        const shortH = Math.max(0, num(m.reqFTE) - num(m.supplyFTE)) * num(m.hoursPerPerson || 8) * num(m.workdays);
+        const fillCost = shortH > 0 ? (fillHourly != null ? shortH * fillHourly : null) : 0;
+        const labor = fillCost == null ? null : reg + fillCost;
+        const revenue = base && base.revenuePerDay != null ? base.revenuePerDay * num(m.workdays) * (m.index != null ? m.index : 1) * growth : null;
+        return { month: m.month, labor: round(labor), revenue: round(revenue), ratio: labor != null && revenue > 0 ? labor / revenue : null, shortHours: Math.round(shortH) };
+    });
+    const sum = (k) => (months.every(m => m[k] != null) && months.length ? months.reduce((a, m) => a + m[k], 0) : null);
+    const labor = sum('labor'), revenue = sum('revenue');
+    const actions = [];
+    const prev = fin(p.salaryLabor12);
+    let laborGrowth = null;
+    if (labor != null && prev > 0) {
+        laborGrowth = labor / prev - 1;
+        const qtyGrowth = growth - 1;
+        if ((laborGrowth - qtyGrowth) * 100 > 10) actions.push({ rule: 'Y7', title: `인건비가 물량보다 ${Math.round((laborGrowth - qtyGrowth) * 100)}%p 더 늘 것으로 보입니다 — 생산성(UPH) 목표를 세워 보세요` });
+    }
+    return {
+        locked: false, horizon: 'year', months,
+        labor: { total: labor, regular: round(reg * 12), overtime: null, temp: labor != null ? round(labor - reg * 12) : null },
+        revenue, ratio: labor != null && revenue > 0 ? labor / revenue : null, unitCost: null, laborGrowth,
+        scenarios: [], means: [], hire: null, risks: [], actions,
+        missing: [avgHourly == null && cost.tempHourly == null ? '알바 시급·정직원 시급표' : '', revenue == null ? '매출(경영 지표)' : ''].filter(Boolean)
     };
 }
 

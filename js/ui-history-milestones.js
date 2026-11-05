@@ -1,11 +1,11 @@
 // === js/ui-history-milestones.js ===
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
-import * as State from './state.js?v=202611051451';
-import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError } from './utils.js?v=202611051451';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051451';
-import { TASK, tName } from './task-names.js?v=202611051451';
-import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=202611051451';
+import * as State from './state.js?v=202611051510';
+import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError } from './utils.js?v=202611051510';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051510';
+import { TASK, tName } from './task-names.js?v=202611051510';
+import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=202611051510';
 import {
     doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -27,6 +27,8 @@ let _currentCompareWindow = 14;
 let _currentCompareTarget = null; // 비교 모달이 보고 있는 마일스톤
 let _unsubMilestones = null;
 let _loadFailed = false;   // 구독 오류 — 빈 목록('마일스톤 없음')으로 보이지 않게 안내를 띄운다
+// 📋 운영 계획 개선 로드맵(확장-3) — [실행]으로 연 새 마일스톤에 붙일 과제 key(planTaskKey). 새 등록일 때만 저장 칸에 덧붙인다.
+let _presetPlanKey = null;
 
 const colRef = () => collection(State.db, 'artifacts', 'team-work-logger-v2', 'operationMilestones');
 
@@ -224,6 +226,7 @@ export function openEditModal(milestoneId = null, presetData = null) {
     if (!modal) return;
     const existing = milestoneId ? _milestones.find(m => m.id === milestoneId) : null;
     const data = existing || presetData || {};
+    _presetPlanKey = (!existing && presetData && presetData.planTaskKey) ? String(presetData.planTaskKey).slice(0, 120) : null;
 
     document.getElementById('milestone-edit-id').value = milestoneId || '';
     document.getElementById('milestone-edit-title').textContent = existing ? '마일스톤 수정' : '새 마일스톤 등록';
@@ -291,12 +294,15 @@ async function saveMilestone() {
     if (!id) {
         payload.createdAt = serverTimestamp();
         payload.createdBy = payload.updatedBy;
+        if (_presetPlanKey) payload.planTaskKey = _presetPlanKey;   // 운영 계획 로드맵 과제와 잇는 칸(이름·금액 없음)
     }
 
     try {
         const newId = id || `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         await setDoc(doc(colRef(), newId), payload, { merge: !!id });
         showToast(id ? '마일스톤이 수정되었습니다.' : '마일스톤이 등록되었습니다.');
+        _presetPlanKey = null;
+        try { document.dispatchEvent(new CustomEvent('milestone-saved')); } catch (e) { /* 알림 실패는 무시 */ }
         const modal = document.getElementById('milestone-edit-modal');
         modal.classList.add('hidden'); modal.classList.remove('flex');
     } catch (e) {
@@ -833,6 +839,11 @@ export function getMilestoneSummariesForPeriod(from, to, windowDays = 14) {
         typeInfo: TYPE_LABELS[m.type] || TYPE_LABELS.memo,
         summary: computeMilestoneSummary(m, windowDays)
     }));
+}
+
+/** 📋 운영 계획 로드맵(확장-3) — 캐시된 마일스톤의 날짜·과제 key 만(사본, 이름·설명 없음). 먼저 ensureMilestonesLoaded 또는 subscribeMilestones. */
+export function getMilestonePlanLinks() {
+    return (_milestones || []).filter(m => m && m.planTaskKey).map(m => ({ date: m.date, planTaskKey: m.planTaskKey }));
 }
 
 // 외부에서 자동 등록 트리거 (예: 로케이션 추천 엑셀 다운로드 후)

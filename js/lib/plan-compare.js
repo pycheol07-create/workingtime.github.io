@@ -10,7 +10,7 @@
 // actions·risks 10 — 규칙이 항목 칸을 하나씩 보는데 20개면 규칙 계산 한도에 걸린다(firestore.rules OpsPlan, 에뮬레이터 실측). 과제·리스크는 점수 순 앞 10개.
 export const CONFIRM_LIMITS = Object.freeze({ actions: 10, risks: 10, days: 31, basis: 10, done: 40, text: 300 });
 export const DOC_KEYS = Object.freeze(['v', 'horizon', 'periodKey', 'version', 'confirmedAt', 'confirmedBy', 'basis', 'targets',
-    'days', 'fillTotals', 'actions', 'risks', 'agenda', 'done', 'doneAt', 'doneBy', 'assignCounts']);
+    'days', 'fillTotals', 'actions', 'risks', 'agenda', 'done', 'doneAt', 'doneBy', 'assignCounts', 'months']);
 /** 배치 초안 합계(업무별 인일·인시) 상한 — 업무 이름 키, 값은 {n, h} 만(이름 없음) */
 export const ASSIGN_LIMIT = 40;
 
@@ -23,6 +23,7 @@ const numOr0 = (v) => fin(v) || 0;
 export function planDocId(horizon, periodKey) {
     if (horizon === 'week' && /^\d{4}-\d{2}-\d{2}$/.test(periodKey || '')) return `week_${periodKey}`;
     if (horizon === 'month' && /^\d{4}-\d{2}$/.test(periodKey || '')) return `month_${periodKey}`;
+    if (horizon === 'year' && /^\d{4}$/.test(periodKey || '')) return `year_${periodKey}`;   // 확장-3
     return null;
 }
 
@@ -55,7 +56,9 @@ export function confirmDocOf(plan, { horizon, periodKey, targets = {}, assignCou
         risks: (p.risks || []).slice(0, L.risks).map(r => ({ id: str(r.key, 80), title: str(r.title, 120), score: numOr0(r.score) })),
         agenda,
         done: {},
-        ...(assignCounts ? { assignCounts: cleanAssignCounts(assignCounts) } : {})
+        ...(assignCounts ? { assignCounts: cleanAssignCounts(assignCounts) } : {}),
+        // 연간(확장-3) — 달 12개(수만): 지수·필요·공급·차이
+        ...(horizon === 'year' ? { months: (p.months || []).slice(0, 12).map(m => ({ month: str(m.month, 7), index: fin(m.index), reqFTE: fin(m.reqFTE), supplyFTE: fin(m.supplyFTE), gap: fin(m.gap) })) } : {})
     };
 }
 

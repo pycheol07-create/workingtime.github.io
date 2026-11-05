@@ -5,16 +5,16 @@
 // ⚠️ 금액·직원 이름을 콘솔에 찍지 않는다. 이름은 시급 평균·합계를 낼 때만 메모리에서 쓰고 결과에 담지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자) — 겹침 창은 section.
 
-import * as State from './state.js?v=202611051451';
-import { getRegularMembersForCount, showToast } from './utils.js?v=202611051451';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051451';
-import { buildOpsModel } from './lib/ops-view-model.js?v=202611051451';
-import { periodDaysOf } from './lib/ops-metrics.js?v=202611051451';
-import { addDaysStr, planSettingsOf } from './lib/plan-week.js?v=202611051451';
-import { buildBudget, costSettingsOf, costBaseOf, suggestRegularBase, salaryBasisLabor, partTimerCostOf, SALARY_HOURS } from './lib/plan-budget.js?v=202611051451';
-import { saveCostAndSettings } from './ops-plan-store.js?v=202611051451';
-import { esc, n0, n1, card, kpi, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611051451';
-import { higherOpenThan } from './modal-above.js?v=202611051451';
+import * as State from './state.js?v=202611051510';
+import { getRegularMembersForCount, showToast } from './utils.js?v=202611051510';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051510';
+import { buildOpsModel } from './lib/ops-view-model.js?v=202611051510';
+import { periodDaysOf } from './lib/ops-metrics.js?v=202611051510';
+import { addDaysStr, planSettingsOf } from './lib/plan-week.js?v=202611051510';
+import { buildBudget, buildYearBudget, costSettingsOf, costBaseOf, suggestRegularBase, salaryBasisLabor, partTimerCostOf, SALARY_HOURS } from './lib/plan-budget.js?v=202611051510';
+import { saveCostAndSettings } from './ops-plan-store.js?v=202611051510';
+import { esc, n0, n1, card, kpi, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611051510';
+import { higherOpenThan } from './modal-above.js?v=202611051510';
 
 const $ = (id) => document.getElementById(id);
 export const isAdminNow = () => !!(State.appState && State.appState.currentUserRole === 'admin');
@@ -42,7 +42,10 @@ function costModel(today) {
         const g = m && m.staffing ? m.staffing.gap : null;
         return g == null ? 0 : Math.max(0, -g);
     });
-    mCache = { today, all, len: all.length, cfg, model, base, laborRatio, pastShortFte };
+    // 최근 12개월 월급 기준 인건비(연간 Y7 — 인건비 증가율)
+    const days12 = view.filter(d => d && typeof d.id === 'string' && d.id >= addDaysStr(today, -365) && d.id < today);
+    const salaryLabor12 = days12.length ? salaryBasisLabor({ monthlyBases: wagesOf(addDaysStr(today, -1)).bases, calendarDays: 365, partTimerCost: partTimerCostOf(days12) }) : null;
+    mCache = { today, all, len: all.length, cfg, model, base, laborRatio, pastShortFte, salaryLabor12 };
     return mCache;
 }
 
@@ -69,6 +72,34 @@ export function computeBudget(horizon, plan, { today, cfgPlan, costDoc }) {
     b.baseLaborRatio = cm.laborRatio;
     b.suggestRegular = w.suggest;
     return b;
+}
+
+/** 연간 예산(관리자만) — 아니면 locked */
+export function computeYearBudget(plan, { today, costDoc }) {
+    if (!isAdminNow()) return { locked: true };
+    const cm = costModel(today);
+    const w = wagesOf(today);
+    const b = buildYearBudget({ canMoney: true, plan, monthlyBases: w.bases, avgHourly: w.avgHourly, cost: costSettingsOf(costDoc), base: cm.base, salaryLabor12: cm.salaryLabor12 });
+    b.baseLaborRatio = cm.laborRatio;
+    b.suggestRegular = w.suggest;
+    return b;
+}
+
+/** 연간 비용·예산(관리자만) — 달별 인건비·매출·인건비율 */
+export function yearBudgetHtml(b) {
+    if (!b || b.locked) return '';
+    const miss = b.missing.length ? `<p class="opv-notes">비어 있는 값: ${b.missing.map(esc).join(' · ')} — 시급은 [비용·설정]·관리자 설정, 매출은 경영 지표에서.</p>` : '';
+    const rows = b.months.map(m => `<tr><td>${esc(m.month)}</td><td class="r">${won(m.labor)}</td><td class="r">${won(m.revenue)}</td><td class="r">${pct1(m.ratio)}</td></tr>`).join('');
+    const acts = b.actions.length ? `<ul class="opv-diag opp-gap">${b.actions.map(a => `<li><span class="opv-dot is-warn"></span><span>${esc(a.title)} <span class="opv-note">${esc(a.rule)}</span></span></li>`).join('')}</ul>` : '';
+    return `<div id="ops-plan-budget">${card('비용·예산(연간)', `${miss}<div class="opv-kpis">
+            ${kpi('인건비(연간 어림)', ok(b.labor.total) ? n0(b.labor.total) : '—', '원', `정규 ${won(b.labor.regular)} · 부족 메우기 ${won(b.labor.temp)}`)}
+            ${kpi('매출(연간 어림)', ok(b.revenue) ? n0(b.revenue) : '—', '원')}
+            ${kpi('인건비율', ok(b.ratio) ? n1(b.ratio * 100) : '—', '%', `최근 8주 ${ok(b.baseLaborRatio) ? n1(b.baseLaborRatio) + '%' : '—'}`)}
+            ${kpi('인건비 증가율', ok(b.laborGrowth) ? n1(b.laborGrowth * 100) : '—', '%', '내년 ÷ 최근 12개월(월급 기준)')}
+        </div>
+        <div class="opv-table-wrap opp-gap"><table class="opv-table"><thead><tr><th>달</th><th class="r">인건비</th><th class="r">매출</th><th class="r">인건비율</th></tr></thead><tbody>${rows}</tbody></table></div>
+        ${acts}<p class="opv-note">관리자만 보이는 칸입니다. 부족 메우기 = 부족 시간 × 알바 시급(없으면 연장 시급). 확정하면 관리자 전용 예산 문서에만 저장됩니다.</p>`,
+    '<button type="button" id="ops-plan-cost-open" class="opv-btn opp-noprint">비용·설정</button>')}</div>`;
 }
 
 // ── 그리기(관리자만 부른다) ───────────────────────────────────────

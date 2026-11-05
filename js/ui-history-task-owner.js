@@ -4,15 +4,15 @@
 // 계산은 js/lib/task-owner.js(순수). 이 파일은 그리기만 한다.
 // 읽기만 한다 — 메모리의 최근 12개월 이력(State.allHistoryData)만 쓰고 Firestore 를 따로 읽지 않는다.
 // ⚠️ 콘솔·로그에 직원 이름을 찍지 않는다. role="dialog"·data-act 를 쓰지 않는다(업무마감봇 선택자).
-import * as State from './state.js?v=202611051451';
-import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611051451';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051451';
-import { TASK, tName } from './task-names.js?v=202611051451';
-import { D, alpha } from './d-chart.js?v=202611051451';
+import * as State from './state.js?v=202611051510';
+import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611051510';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051510';
+import { TASK, tName } from './task-names.js?v=202611051510';
+import { D, alpha } from './d-chart.js?v=202611051510';
 import {
     ownerByPeriod, detectOwnerChanges, ownerLine, compareAround, taskDays, taskListOf, pctChange,
     CAP_MINUTES, MIN_SOLO_DAYS, MIN_COMPARE_DAYS
-} from './lib/task-owner.js?v=202611051451';
+} from './lib/task-owner.js?v=202611051510';
 
 const DEFAULTS = { week: { hold: 2, n: 4 }, month: { hold: 2, n: 2 } };
 const HOLD_CHOICES = [1, 2, 3, 4];
