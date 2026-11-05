@@ -9,10 +9,10 @@
 // 창은 얕게 유지한다. 창 안에 또 스크롤·필터를 넣으면
 // 표 상자에 잘리던 문제가 되풀이된다.
 
-import * as State from './state.js?v=202611051510';
-import { escapeHtml as esc } from './utils.js?v=202611051510';
-import { REVENUE_CHANNELS } from './revenue-channels.js?v=202611051510';
-import { aliasDayView } from './lib/task-alias-view.js?v=202611051510';
+import * as State from './state.js?v=202611051513';
+import { escapeHtml as esc } from './utils.js?v=202611051513';
+import { REVENUE_CHANNELS } from './revenue-channels.js?v=202611051513';
+import { aliasDayView } from './lib/task-alias-view.js?v=202611051513';
 
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString();
 

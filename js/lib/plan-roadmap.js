@@ -8,8 +8,8 @@
 //   금액·직원 이름 없음(업무명·원인만).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-year.test.js
 
-import { taskDays, uphOf, MIN_COMPARE_DAYS, addDays } from './task-owner.js?v=202611051510';
-import { periodMetrics } from './ops-metrics.js?v=202611051510';
+import { taskDays, uphOf, MIN_COMPARE_DAYS, addDays } from './task-owner.js?v=202611051513';
+import { periodMetrics } from './ops-metrics.js?v=202611051513';
 
 export const ROADMAP_LEVELS = Object.freeze({ perQuarter: 3, window: 14, minDays: MIN_COMPARE_DAYS, topTasks: 3 });
 /** 회복 비율 — 손실 시간 중 과제로 줄일 수 있다고 보는 몫(어림, 템플릿 고정) */
@@ -92,6 +92,12 @@ export function buildRoadmap(model, { from, quarters = 4 } = {}) {
 function kpiValue(kpi, days, cfg) {
     if (!days.length) return null;
     if (kpi.name === 'UPH') return uphOf(taskDays(days, kpi.task), kpi.task);
+    if (kpi.code === 'stdHours' || kpi.code === 'estimated') {
+        // 퇴근 기록 없음·출근 추정 일수 — 운영 리포트 모델과 같은 계산(ops-metrics staffing)
+        const st = periodMetrics(days, cfg || {}).staffing;
+        return kpi.code === 'stdHours' ? st.stdHourDays : st.estimatedDays;
+    }
+    if (kpi.code && kpi.code !== 'capped' && kpi.code !== 'missingQty') return null;   // 모르는 기록 지표 — 판단 보류
     if (kpi.code) {
         const q = new Set((cfg && cfg.quantityTaskTypes) || []);
         let n = 0;
@@ -123,7 +129,8 @@ export function effectOf(milestone, allDays, kpi, { cfg = null, window = ROADMAP
     const b = kpiValue(kpi, before, cfg), a = kpiValue(kpi, after, cfg);
     if (b == null || a == null) return { status: 'hold', reason: 'kpi' };
     const pct = b !== 0 ? ((a - b) / Math.abs(b)) * 100 : (a === 0 ? 0 : null);
-    const better = pct == null ? null : (kpi.lowerBetter ? pct < 0 : pct > 0);
+    // 변화 없음(0%)은 좋아짐·나빠짐 어느 쪽도 아니다(null — 화면은 회색)
+    const better = pct == null || pct === 0 ? null : (kpi.lowerBetter ? pct < 0 : pct > 0);
     return { status: 'ok', before: r1(b), after: r1(a), pct: pct == null ? null : r1(pct), better };
 }
 

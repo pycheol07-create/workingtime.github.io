@@ -5,9 +5,9 @@
 //   시뮬레이터: 슬라이더 3개(인원·물량·속도) — 금액(인건비·인건비율)은 관리자만(money.canMoney), 아니면 칸 자체가 없다.
 // 금액·직원 이름 없음(로드맵은 업무명·원인만). ⚠️ role=dialog·data-act 금지.
 
-import { esc, n1, card, ok, signed1 } from './ui-ops-plan-parts.js?v=202611051510';
-import { CAUSE_LABEL } from './lib/plan-roadmap.js?v=202611051510';
-import { simulate, SIM_RANGE } from './lib/plan-sim.js?v=202611051510';
+import { esc, n1, card, ok, signed1 } from './ui-ops-plan-parts.js?v=202611051513';
+import { CAUSE_LABEL } from './lib/plan-roadmap.js?v=202611051513';
+import { simulate, SIM_RANGE } from './lib/plan-sim.js?v=202611051513';
 
 const won = (v) => (ok(v) ? `${Math.round(v).toLocaleString()}원` : '—');
 
@@ -18,7 +18,7 @@ export function roadmapHtml(rm, { isAdmin = false, loading = false } = {}) {
         if (it.status !== 'running') return loading ? '<span class="opv-note">확인 중…</span>' : '<span class="opv-chip">계획</span>';
         const e = it.effect || {};
         const eff = e.status === 'ok'
-            ? `효과 <b class="${e.better ? 'opv-up' : 'opv-down'}">${e.pct == null ? '—' : `${e.pct > 0 ? '+' : ''}${n1(e.pct)}%`}</b> <span class="opv-note">(${n1(e.before)} → ${n1(e.after)})</span>`
+            ? `효과 <b class="${e.better === true ? 'opv-up' : e.better === false ? 'opv-down' : 'opv-flat'}">${e.pct == null ? '—' : `${e.pct > 0 ? '+' : ''}${n1(e.pct)}%`}</b> <span class="opv-note">(${n1(e.before)} → ${n1(e.after)})</span>`
             : '<span class="opv-note">효과 판단 보류(전후 14일 표본 부족)</span>';
         return `<span class="opv-chip is-ok">실행됨 ${esc(it.startedAt)}</span> ${eff}`;
     };

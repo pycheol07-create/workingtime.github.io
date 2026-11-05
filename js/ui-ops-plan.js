@@ -16,31 +16,31 @@
 // 금액·직원 이름 없음 — 휴무는 '수'만 받는다. 콘솔에도 이름·금액·문서 본문을 찍지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자).
 
-import * as State from './state.js?v=202611051510';
-import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611051510';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051510';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051510';
-import { taskNameOf } from './lib/task-ids.js?v=202611051510';
-import { buildWeekPlan } from './lib/plan-build.js?v=202611051510';
-import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051510';
-import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611051510';
-import { planDocId, confirmDocOf, planVsActual } from './lib/plan-compare.js?v=202611051510';
-import { getStaffingOutlook, ensureMibalHistory, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611051510';
-import { fetchPlannedData } from './history-data-manager.js?v=202611051510';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051510';
-import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611051510';
-import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611051510';
-import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611051510';
-import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611051510';
-import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=202611051510';
-import { namesLeak } from './lib/plan-skills.js?v=202611051510';
-import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=202611051510';
-import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=202611051510';
-import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=202611051510';
-import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=202611051510';
-import { simRowsOf } from './lib/plan-sim.js?v=202611051510';
-import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=202611051510';
-import { COST_DOC } from './ops-plan-store.js?v=202611051510';
+import * as State from './state.js?v=202611051513';
+import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611051513';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051513';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051513';
+import { taskNameOf } from './lib/task-ids.js?v=202611051513';
+import { buildWeekPlan } from './lib/plan-build.js?v=202611051513';
+import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051513';
+import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611051513';
+import { planDocId, confirmDocOf, planVsActual } from './lib/plan-compare.js?v=202611051513';
+import { getStaffingOutlook, ensureMibalHistory, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611051513';
+import { fetchPlannedData } from './history-data-manager.js?v=202611051513';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051513';
+import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611051513';
+import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611051513';
+import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611051513';
+import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611051513';
+import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=202611051513';
+import { namesLeak } from './lib/plan-skills.js?v=202611051513';
+import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=202611051513';
+import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=202611051513';
+import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=202611051513';
+import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=202611051513';
+import { simRowsOf } from './lib/plan-sim.js?v=202611051513';
+import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=202611051513';
+import { COST_DOC } from './ops-plan-store.js?v=202611051513';
 
 const $ = (id) => document.getElementById(id);
 const isAdmin = () => !!(State.appState && State.appState.currentUserRole === 'admin');
@@ -147,7 +147,12 @@ function want(id) {
     if (!id || peekPlanDoc(id) !== undefined || docErr.has(id)) return;
     docErr.set(id, 'loading');
     // 계획 기준(settings)이 오면 다시 계산, 나머지는 다시 그리기만
-    loadPlanDoc(id).then(() => { docErr.delete(id); if (id === 'settings') renderOpsPlan(); else repaint(); })
+    //   비용 설정이 오면 연간(성수기 준비 주 = 채용 + 교육 주)을 다시 계산
+    loadPlanDoc(id).then(() => {
+        docErr.delete(id);
+        if (id === 'admin:' + COST_DOC && cache) cache.year = null;
+        if (id === 'settings' || id === 'admin:' + COST_DOC) renderOpsPlan(); else repaint();
+    })
         .catch(err => { docErr.set(id, (err && err.code) || 'error'); console.warn('운영 계획 문서 읽기 실패:', id, err && err.code); repaint(); });
 }
 const docOf = (id) => { const v = peekPlanDoc(id); return v === undefined ? null : v; };
@@ -554,7 +559,7 @@ function bindOnce() {
 function ensureMilestones() {
     if (msMod || ensureMilestones.busy) return;
     ensureMilestones.busy = true;
-    import('./ui-history-milestones.js?v=202611051510').then(mod => {
+    import('./ui-history-milestones.js?v=202611051513').then(mod => {
         msMod = mod;
         try { mod.subscribeMilestones(); mod.bindMilestoneListeners(); } catch (e) { /* 마일스톤 화면 칸이 없어도 계획은 그린다 */ }
         return mod.ensureMilestonesLoaded();
@@ -586,7 +591,9 @@ function simBaseOf(p, models, budget, costDoc) {
         money = {
             canMoney: true, laborBase: budget.labor ? budget.labor.total : null, revenueBase: budget.revenue,
             perPersonCost: monthly != null ? monthly * factor : 0,
-            fillHourly: paid.length ? Math.min(...paid) : (cs.tempHourly != null ? cs.tempHourly : 0)
+            // 연간은 연간 예산과 같은 대체값(알바 시급 → 없으면 연장 시급), 주·월은 비교표의 싼 유료 수단
+            fillHourly: horizon === 'year' && budget.fillHourly != null ? budget.fillHourly
+                : paid.length ? Math.min(...paid) : (cs.tempHourly != null ? cs.tempHourly : 0)
         };
     }
     return { rows, oee, money };

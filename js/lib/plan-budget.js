@@ -13,7 +13,7 @@
 //   채용 제안: 지난달 실제 · 이번 달(지금까지) · 다음 달 예측 모두 부족 ≥ 0.8명(3달 연속) + 월간 신뢰도 '보통' 이상. 시작 역산일 = 다음 달 첫날 − (채용 + 교육 주) × 7, 지났으면 '채용 늦음'.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-budget.test.js — 숫자는 가짜.
 
-import { fillMix } from './plan-week.js?v=202611051510';
+import { fillMix } from './plan-week.js?v=202611051513';
 
 export const COST_DEFAULTS = Object.freeze({
     tempHourly: null,          // 알바 시급 — 사람이 넣는다(없으면 알바 금액 null)
@@ -283,7 +283,7 @@ export function buildYearBudget(p = {}) {
         if ((laborGrowth - qtyGrowth) * 100 > 10) actions.push({ rule: 'Y7', title: `인건비가 물량보다 ${Math.round((laborGrowth - qtyGrowth) * 100)}%p 더 늘 것으로 보입니다 — 생산성(UPH) 목표를 세워 보세요` });
     }
     return {
-        locked: false, horizon: 'year', months,
+        locked: false, horizon: 'year', months, fillHourly,   // 부족 메우기 시간당(알바 시급, 없으면 연장 시급) — 시뮬레이터가 같은 값을 쓴다
         labor: { total: labor, regular: round(reg * 12), overtime: null, temp: labor != null ? round(labor - reg * 12) : null },
         revenue, ratio: labor != null && revenue > 0 ? labor / revenue : null, unitCost: null, laborGrowth,
         scenarios: [], means: [], hire: null, risks: [], actions,

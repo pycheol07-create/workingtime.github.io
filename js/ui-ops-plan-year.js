@@ -4,14 +4,14 @@
 //   성수기 준비 기간 = 관리자 비용 설정(채용 + 교육 주)이 있으면 그것, 없으면 6주.
 //   금액 없음(연간 인건비·매출은 js/ui-ops-plan-budget.js — 관리자만). ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611051510';
-import { getRegularMembersForCount } from './utils.js?v=202611051510';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051510';
-import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611051510';
-import { buildYearPlan } from './lib/plan-year.js?v=202611051510';
-import { addDaysStr } from './lib/plan-week.js?v=202611051510';
-import { availableStaffOf } from './ui-history-prediction.js?v=202611051510';
-import { esc, n1, card } from './ui-ops-plan-parts.js?v=202611051510';
+import * as State from './state.js?v=202611051513';
+import { getRegularMembersForCount } from './utils.js?v=202611051513';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051513';
+import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611051513';
+import { buildYearPlan } from './lib/plan-year.js?v=202611051513';
+import { addDaysStr } from './lib/plan-week.js?v=202611051513';
+import { availableStaffOf } from './ui-history-prediction.js?v=202611051513';
+import { esc, n1, card } from './ui-ops-plan-parts.js?v=202611051513';
 
 /** 작년(최근 12개월) 달별 하루 휴무 비율 { 1..12: 0~1 } — 수만 */
 function leaveRates(today) {
