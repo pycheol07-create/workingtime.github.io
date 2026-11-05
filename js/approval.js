@@ -2,7 +2,7 @@
 // 기안서(approval.html) 진입점 — 로그인 게이트 · 관리자 판정 · 목록·작성·보기·결재·인쇄·양식 관리. 2026-11-05.
 // 설계: 기안서 architect 확정안(2026-11-05). 순수 계산은 js/lib/approval-logic.js, 알림은 js/lib/approval-noti.js.
 //
-// 화면(해시): #              목록(직원 = 내 기안, 관리자 = 전체 — 기본 거르기 '결재 대기')
+// 화면(해시): #              목록 — [내 기안] [결재할 문서](지정 결재자·관리자) [전체](관리자). 행마다 [보기][수정][회수][삭제]
 //             #new           양식 고르기        #new=<formId>  새로 작성
 //             #d=<id>        보기(A4 미리보기·결재·인쇄)        #e=<id>  고치기(작성자, 임시저장·반려 건)
 //             #forms         양식 관리(관리자)  #forms=<formId> 양식 편집
@@ -11,17 +11,22 @@
 // 근태사유서 '발생일' → 그날 내 지각 기록을 **읽기만** 해서 빈 칸에 넣는다(daily_data/오늘 · history/지난 날). 근태 쓰기 경로 없음.
 // ⚠️ role="dialog"·data-act 를 쓰지 않는다(업무마감봇·업무예상알림이 그 선택자로 확인창을 찾는다). 반려 의견은 화면 안 칸에서 받는다.
 // 이름·이메일·기안 내용은 콘솔에 남기지 않는다(오류 코드만).
+// 2026-11-05 추가: 결재자 지정(관리자 또는 직책 파트장·부팀장·팀장 — 제출 때 필수, 알림은 지정 결재자에게만), 관리자 대신 결재(대결),
+//   파일 첨부(칸 종류 file — Storage approvals/{문서id}/…, storage.rules). 첨부는 getBlob(로그인 요청)으로만 연다 — 공개 토큰 주소(getDownloadURL)는 쓰지 않는다.
+//   운영 버킷에서 getBlob 이 되려면 CORS 설정이 필요하다(tools/storage-cors.json, 적용 방법은 storage.rules approvals 주석).
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611051014';
-import { emulatorEnabled } from './firebase-emulator.js?v=202611051014';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611051014';
-import { memberNameFor } from './app-shell-data.js?v=202611051014';
+import { initializeFirebase } from './config.js?v=202611051017';
+import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611051017';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611051017';
+import { memberNameFor } from './app-shell-data.js?v=202611051017';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
-    validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision, adminNamesOf,
-    tardyPrefill, printFitLevel, stampTime, sortDocs, docTitle, newFormId, lower } from './lib/approval-logic.js?v=202611051014';
-import { sendApprovalNoti, MSG_TO_ADMIN, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611051014';
+    validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
+    tardyPrefill, printFitLevel, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
+    checkAttach, attachPath, attachMeta, fmtBytes, ATTACH_MAX, ATTACH_ACCEPT, attachTypeOf } from './lib/approval-logic.js?v=202611051017';
+import { sendApprovalNoti, MSG_TO_ADMIN, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611051017';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -29,7 +34,15 @@ const DOCS = 'ApprovalDocs', FORMS = 'ApprovalForms';
 const ADMIN_LIST_LIMIT = 200;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const tsMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : (t instanceof Date ? t.getTime() : 0));
-const S = { db: null, auth: null, email: '', name: null, nameIssue: '', printHtml: null, isAdmin: false, cfg: {}, forms: [], docs: [], filter: null, scope: 'all', dirty: false, formsDenied: false };
+const S = { app: null, db: null, auth: null, storage: null, email: '', name: null, nameIssue: '', printHtml: null, isAdmin: false, cfg: {}, forms: [], docs: [],
+    filter: null, scope: null, dirty: false, formsDenied: false };
+// Storage — 처음 쓸 때 만든다(에뮬레이터면 첫 업로드 전에 붙인다. 연결 실패면 던져서 운영으로 안 올린다)
+const storage = () => {
+    if (!S.storage) { const st = getStorage(S.app); connectStorageEmulatorIfEnabled(st); S.storage = st; }
+    return S.storage;
+};
+const isAssigned = (d) => !!d.approverEmail && d.approverEmail === S.email;
+const canDecideList = (d) => d.status !== 'draft' && (S.isAdmin || isAssigned(d));
 
 let toastTimer = null;
 function toast(msg, ms = 2800) {
@@ -113,8 +126,15 @@ async function loadForms() {
 async function loadDocs() {
     const col = collection(S.db, DOCS);
     if (!S.isAdmin) {
-        const snap = await getDocs(query(col, where('authorEmail', '==', S.email)));
-        S.docs = sortDocs(snap.docs.map(toDoc));
+        // 내 기안 + 나를 결재자로 지정한 문서(규칙: 지정 결재자는 읽기 가능) — id 로 합친다
+        const [mine, todo] = await Promise.all([
+            getDocs(query(col, where('authorEmail', '==', S.email))),
+            // 결재자는 제출 이후 문서만 읽는다(규칙) — 상태 조건이 없으면 쿼리 전체가 거부된다. 등호 + in 이라 복합 색인 없이 된다
+            getDocs(query(col, where('approverEmail', '==', S.email), where('status', 'in', ['submitted', 'approved', 'rejected'])))
+        ]);
+        const m = new Map();
+        [...mine.docs, ...todo.docs].forEach(sn => m.set(sn.id, toDoc(sn)));
+        S.docs = sortDocs([...m.values()]);
         return;
     }
     // 관리자: 최근 바뀐 200건 + 결재 대기 전부(오래 묵은 결재 대기가 200건 밖으로 밀려 빠지지 않게) — id 로 합친다
@@ -194,36 +214,70 @@ const pill = (status) => {
     const cls = { draft: 'd-pill-mute', submitted: 'd-pill-warn', approved: 'd-pill-ok', rejected: 'd-pill-risk' }[status] || 'd-pill-mute';
     return `<span class="${cls}">${esc(STATUS[status] || status)}</span>`;
 };
+// 작성자 버튼 — 되면 누를 수 있고, 안 되면 흐리게(is-off) + 툴팁(까닭). disabled 를 쓰지 않는다 — 눌렀을 때 까닭을 띄우려고(터치 화면은 툴팁이 없다).
+// 다른 사람 문서에는 [보기]만.
+function ownBtns(d, big = false) {
+    const cls = big ? 'd-btn ap-big' : 'd-btn d-btn-sm';
+    const b = (act, label, extra = '') => {
+        const why = whyNot(d, S.email, S.isAdmin, act);
+        return `<button class="${cls} ${extra}${why ? ' is-off' : ''}" data-row-act="${act}" data-id="${esc(d.id)}"${why ? ` title="${esc(why)}" aria-disabled="true"` : ''}>${label}</button>`;
+    };
+    return b('edit', '수정') + b('withdraw', '회수') + b('delete', '삭제', 'd-btn-risk');
+}
+function bindRowActs(root) {
+    root.querySelectorAll('[data-row-act]').forEach(btn => btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (btn.classList.contains('is-off')) { toast(btn.title, 4500); return; }
+        const d = findDoc(btn.dataset.id); if (!d) return;
+        const act = btn.dataset.rowAct;
+        if (act === 'view') location.hash = 'd=' + encodeURIComponent(d.id);
+        else if (act === 'edit') location.hash = 'e=' + encodeURIComponent(d.id);
+        else if (act === 'withdraw') { if (confirm('결재 전 기안서를 회수할까요?\n임시저장으로 돌아가 고칠 수 있습니다.')) authorWrite(d.id, 'withdraw'); }
+        else if (act === 'delete') deleteDraft(d);
+    }));
+    root.querySelectorAll('.ap-row-btns').forEach(cell => cell.addEventListener('click', (e) => e.stopPropagation()));   // 버튼 사이 빈칸을 눌러도 행 열기 안 함
+}
 function renderList(main) {
     setHead({ tab: 'list' });
-    if (S.filter == null) S.filter = S.isAdmin ? 'submitted' : 'all';
     const mine = S.docs.filter(d => d.authorEmail === S.email);
-    const base = S.isAdmin && S.scope === 'all' ? S.docs : mine;
+    const todo = S.docs.filter(canDecideList);
+    const waiting = todo.filter(d => d.status === 'submitted').length;
+    if (S.scope == null) { S.scope = waiting ? 'todo' : 'mine'; S.filter = waiting ? 'submitted' : 'all'; }
+    if (S.scope === 'all' && !S.isAdmin) S.scope = 'mine';
+    const showTodo = S.isAdmin || todo.length > 0 || approverCandidates(S.cfg, '', '').some(c => c.email === S.email);
+    const base = S.scope === 'all' ? S.docs : S.scope === 'todo' ? todo : mine;
     const count = (st) => base.filter(d => st === 'all' || d.status === st).length;
     const rows = base.filter(d => S.filter === 'all' || d.status === S.filter);
     const chip = (st, label) => `<button class="pd-chip${S.filter === st ? ' is-on' : ''}" data-filter="${st}">${esc(label)}<span class="num">${count(st)}</span></button>`;
+    const seg = (sc, label, n) => `<button class="d-seg-btn${S.scope === sc ? ' is-on' : ''}" data-scope="${sc}">${label}${n ? ` <span class="d-pill-warn ap-seg-n">${n}</span>` : ''}</button>`;
     const nameWarn = !S.name ? `<div class="pd-alert warn" style="margin:0 24px 14px;">${esc(nameWarnText())}</div>` : '';
+    const showAuthor = S.scope !== 'mine';
     main.innerHTML = `
         <section class="pd-card">
             <div class="ap-pills">
-                ${S.isAdmin ? `<div class="d-seg" style="display:inline-flex;"><button class="d-seg-btn${S.scope === 'all' ? ' is-on' : ''}" data-scope="all">전체</button><button class="d-seg-btn${S.scope === 'mine' ? ' is-on' : ''}" data-scope="mine">내 기안</button></div><span class="pd-sep"></span>` : ''}
-                ${chip('all', '전체')}${chip('submitted', '결재 대기')}${chip('draft', '임시저장')}${chip('rejected', '반려')}${chip('approved', '승인')}
+                <div class="d-seg" style="display:inline-flex;">${seg('mine', '내 기안')}${showTodo ? seg('todo', '결재할 문서', waiting) : ''}${S.isAdmin ? seg('all', '전체') : ''}</div><span class="pd-sep"></span>
+                ${chip('all', '전체')}${chip('submitted', '결재 대기')}${S.scope === 'mine' || S.scope === 'all' ? chip('draft', '임시저장') : ''}${chip('rejected', '반려')}${chip('approved', '승인')}
             </div>
             ${nameWarn}
             ${rows.length ? `<div class="pd-scroll"><table class="pd-t ap-t">
-                <thead><tr><th>상태</th><th>종류·제목</th>${S.isAdmin ? '<th>작성자</th>' : ''}<th>제출</th><th>최근 변경</th></tr></thead>
+                <thead><tr><th>상태</th><th>종류·제목</th>${showAuthor ? '<th>작성자</th>' : ''}<th>결재자</th><th>제출</th><th>최근 변경</th><th></th></tr></thead>
                 <tbody>${rows.map(d => `<tr class="pd-click" data-id="${esc(d.id)}">
                     <td>${pill(d.status)}</td>
-                    <td class="ap-title-cell">${esc(docTitle(d))}</td>
-                    ${S.isAdmin ? `<td>${esc(d.authorName)}${d.authorEmail === S.email ? '<span class="d-pill-accent ap-self">본인 기안</span>' : ''}</td>` : ''}
-                    <td class="num">${esc(dayText(tsMs(d.submittedAt)))}</td>
-                    <td class="num">${esc(stampTime(d._ms))}</td></tr>`).join('')}</tbody></table></div>`
-            : `<div class="ap-list-empty">${base.length ? '이 상태의 기안서가 없습니다.' : '아직 작성한 기안서가 없습니다.<br>위의 [새 기안] 으로 시작하세요.'}</div>`}
+                    <td class="ap-title-cell">${esc(docTitle(d))}${(d.attachments || []).length ? ` <span class="pd-mute" title="첨부 ${d.attachments.length}개">📎${d.attachments.length}</span>` : ''}</td>
+                    ${showAuthor ? `<td data-label="작성자">${esc(d.authorName)}${d.authorEmail === S.email ? '<span class="d-pill-accent ap-self">본인 기안</span>' : ''}</td>` : ''}
+                    <td data-label="결재자">${esc(d.approverName || '-')}${isAssigned(d) ? '<span class="d-pill-accent ap-self">나</span>' : ''}</td>
+                    <td class="num" data-label="제출">${esc(dayText(tsMs(d.submittedAt)))}</td>
+                    <td class="num" data-label="최근 변경">${esc(stampTime(d._ms))}</td>
+                    <td class="ap-row-btns"><button class="d-btn d-btn-sm" data-row-act="view" data-id="${esc(d.id)}">보기</button>${d.authorEmail === S.email ? ownBtns(d) : ''}${actionsFor(d, S.email, S.isAdmin).includes('approve') ? `<button class="d-btn d-btn-sm d-btn-primary" data-row-act="view" data-id="${esc(d.id)}">${isAssigned(d) || !d.approverEmail ? '결재' : '대결'}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+            : `<div class="ap-list-empty">${base.length ? '이 상태의 기안서가 없습니다.' : S.scope === 'todo' ? '결재할 기안서가 없습니다.' : '아직 작성한 기안서가 없습니다.<br>위의 [새 기안] 으로 시작하세요.'}</div>`}
             ${S.isAdmin && S.docs.length >= ADMIN_LIST_LIMIT ? `<div class="pd-note" style="padding:0 24px 16px;">최근 ${ADMIN_LIST_LIMIT}건과 결재 대기 전부가 보입니다.</div>` : ''}
         </section>`;
     main.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => { S.filter = b.dataset.filter; renderList(main); }));
-    main.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => { S.scope = b.dataset.scope; renderList(main); }));
+    main.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
+        S.scope = b.dataset.scope; S.filter = S.scope === 'todo' ? 'submitted' : 'all'; renderList(main);
+    }));
     main.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => { location.hash = 'd=' + encodeURIComponent(tr.dataset.id); }));
+    bindRowActs(main);
 }
 
 function renderPick(main) {
@@ -243,7 +297,7 @@ function stampHtml(st) {
     if (!st || !st.name) return '';
     return `<span class="ap-stamp"><span class="ap-stamp-ring">${esc(st.name)}</span><span class="ap-stamp-at">${esc(stampTime(tsMs(st.at)))}</span></span>`;
 }
-/** meta: { authorName, createdMs, submittedMs, status, authorStamp, approverStamp } */
+/** meta: { authorName, createdMs, submittedMs, status, authorStamp, approverStamp, approverName, proxy, attachments } */
 function sheetHtml(form, values, meta = {}) {
     const v = values || {};
     const fit = printFitLevel(form, v);
@@ -254,18 +308,25 @@ function sheetHtml(form, values, meta = {}) {
         <div class="ap-sheet-top">
             <div style="flex:1;"><h2>${esc(form.title)}</h2>${st}</div>
             ${boxes.length ? `<table class="ap-boxes"><tr>${boxes.map(b => `<th>${esc(b.label)}</th>`).join('')}</tr>
-                <tr>${boxes.map(b => `<td>${b.role === 'author' ? stampHtml(meta.authorStamp) : b.role === 'approver' ? stampHtml(meta.approverStamp) : ''}</td>`).join('')}</tr></table>` : ''}
+                <tr>${boxes.map(b => `<td>${b.role === 'author' ? stampHtml(meta.authorStamp) : b.role === 'approver' ? stampHtml(meta.approverStamp) + (meta.proxy && meta.approverStamp ? '<span class="ap-proxy">대결</span>' : '') : ''}</td>`).join('')}</tr></table>` : ''}
         </div>
-        <table class="ap-info"><tr><th>성명</th><td>${esc(meta.authorName || '')}</td><th>작성일</th><td class="num">${esc(dayText(meta.createdMs))}</td></tr></table>
+        <table class="ap-info"><tr><th>성명</th><td>${esc(meta.authorName || '')}</td><th>작성일</th><td class="num">${esc(dayText(meta.createdMs))}</td></tr>
+            <tr><th>결재자</th><td colspan="3">${esc(meta.approverName || '')}${meta.proxy && meta.approverStamp ? ` <span class="ap-proxy-note">(대결 ${esc(meta.approverStamp.name || '')})</span>` : ''}</td></tr></table>
         ${form.intro ? `<div class="ap-intro">${esc(form.intro)}</div>` : ''}
-        <table class="ap-body">${form.fields.map(f => `<tr><th>${esc(f.label)}</th><td class="${f.type === 'textarea' ? 'is-long' : ''}">${esc(v[f.key] || '')}</td></tr>`).join('')}</table>
+        <table class="ap-body">${form.fields.map(f => `<tr><th>${esc(f.label)}</th><td class="${f.type === 'textarea' ? 'is-long' : ''}">${f.type === 'file' ? esc(attachText(meta.attachments, f.key)) : esc(v[f.key] || '')}</td></tr>`).join('')}</table>
         ${form.pledge ? `<div class="ap-pledge">${esc(form.pledge)}</div>` : ''}
         <div class="ap-sign"><span class="num">${esc(dateMs ? kstDay(dateMs).replace(/^(\d+)-(\d+)-(\d+)$/, (m, y, mo, d) => `${y}년 ${Number(mo)}월 ${Number(d)}일`) : '')}</span><br>
             작성자&nbsp;&nbsp;${esc(meta.authorName || '')}</div>
     </div>`;
 }
 const metaOf = (d) => ({ authorName: d.authorName, createdMs: tsMs(d.createdAt), submittedMs: tsMs(d.submittedAt), status: d.status,
-    authorStamp: d.authorStamp, approverStamp: d.approverStamp });
+    authorStamp: d.authorStamp, approverStamp: d.approverStamp, approverName: d.approverName || '', proxy: !!(d.decision && d.decision.proxy),
+    attachments: d.attachments || [] });
+// 인쇄의 파일 칸 — '첨부 2개: a.pdf, b.jpg'
+const attachText = (list, key) => {
+    const a = (list || []).filter(x => x && x.key === key);
+    return a.length ? `첨부 ${a.length}개: ${a.map(x => x.name).join(', ')}` : '';
+};
 
 // 인쇄할 종이를 #print-root 에 넣고 body.ap-print 를 켠다(css 가 그때만 나머지를 숨긴다). 보기 화면이 아니면(printHtml 없음) 화면 그대로 인쇄.
 function fillPrintRoot(html) {
@@ -295,62 +356,130 @@ async function renderView(main, id) {
     S.printHtml = sheetHtml(d.form, d.values, metaOf(d));
     const acts = actionsFor(d, S.email, S.isAdmin);
     const selfDoc = d.authorEmail === S.email;
+    const proxyNow = acts.includes('approve') && !!d.approverEmail && !isAssigned(d);   // 관리자가 지정 결재자 대신
     const dec = d.decision;
-    const btn = (act, label, cls = '') => acts.includes(act) ? `<button class="d-btn ${cls}" data-act-btn="${act}">${label}</button>` : '';
-    main.innerHTML = `<div class="ap-view">
-        <section class="pd-card pd-card-pad"><div class="ap-sheet-wrap" id="ap-sheet-box">${sheetHtml(d.form, d.values, metaOf(d))}</div></section>
+    const atts = d.attachments || [];
+    main.innerHTML = `
+        <section class="pd-card ap-toolbar">
+            <div class="pd-row">${pill(d.status)}${selfDoc && (S.isAdmin || isAssigned(d)) ? '<span class="d-pill-accent">본인 기안</span>' : ''}
+                <span class="pd-note">결재자 ${esc(d.approverName || '(지정 안 함)')}</span><span class="pd-grow"></span><span class="pd-note num">${esc(stampTime(d._ms))}</span></div>
+            <div class="ap-actions ap-actions-big">
+                ${selfDoc ? ownBtns(d, true) : ''}
+                ${acts.includes('submit') ? `<button class="d-btn ap-big d-btn-primary" data-act-btn="submit">${d.status === 'rejected' || d.decision ? '재제출' : '제출'}</button>` : ''}
+                ${acts.includes('print') ? '<button class="d-btn ap-big" data-act-btn="print">인쇄 / PDF</button>' : ''}
+            </div>
+            ${d.status === 'submitted' && selfDoc ? '<div class="pd-note">결재 전에는 [회수] 해서 고칠 수 있습니다.</div>' : ''}
+        </section>
+        <div class="ap-view">
+        <section class="pd-card pd-card-pad"><div class="ap-sheet-wrap" id="ap-sheet-box">${S.printHtml}</div></section>
         <aside class="ap-side">
-            <section class="pd-card pd-card-pad">
-                <div class="pd-row">${pill(d.status)}${S.isAdmin && selfDoc ? '<span class="d-pill-accent">본인 기안</span>' : ''}<span class="pd-grow"></span><span class="pd-note num">${esc(stampTime(d._ms))}</span></div>
-                <div class="ap-actions" style="margin-top:14px;">
-                    ${btn('edit', '고치기')}${btn('submit', d.status === 'rejected' ? '재제출' : '제출', 'd-btn-primary')}${btn('withdraw', '회수')}${btn('delete', '삭제', 'd-btn-risk')}
-                    ${btn('print', '인쇄 / PDF')}
-                </div>
-                ${d.status === 'approved' ? '<div class="pd-note" style="margin-top:10px;">승인된 기안서는 고칠 수 없습니다.</div>' : ''}
-                ${d.status === 'submitted' && selfDoc ? '<div class="pd-note" style="margin-top:10px;">결재 전에는 [회수] 해서 고칠 수 있습니다.</div>' : ''}
-            </section>
             ${acts.includes('approve') ? `<section class="pd-card pd-card-pad">
                 <h3 class="pd-h3">결재</h3>
+                ${proxyNow ? `<div class="pd-alert warn" style="margin-top:10px;">지정 결재자는 ${esc(d.approverName)} 입니다. 관리자로서 <b>대신 결재(대결)</b> 하면 인쇄에 '대결' 로 남습니다.</div>` : ''}
                 ${selfDoc ? '<div class="pd-alert info" style="margin-top:10px;">본인이 쓴 기안서입니다. 본인 결재도 기록에 남습니다.</div>' : ''}
                 ${!S.name ? `<div class="pd-alert warn" style="margin-top:10px;">${esc(nameWarnText())}</div>` : ''}
                 <label class="pd-field" style="margin-top:12px;"><span>결재 의견 <small>(반려는 필수, ${COMMENT_MAX}자까지)</small></span>
                     <textarea id="ap-comment" class="pd-in" maxlength="${COMMENT_MAX}"></textarea></label>
                 <div class="ap-actions" style="margin-top:12px;">
-                    <button class="d-btn d-btn-primary" data-decide="approve" ${S.name ? '' : 'disabled'}>승인</button>
-                    <button class="d-btn d-btn-risk" data-decide="reject" ${S.name ? '' : 'disabled'}>반려</button>
+                    <button class="d-btn d-btn-primary" data-decide="approve" ${S.name ? '' : 'disabled'}>${proxyNow ? '대결 승인' : '승인'}</button>
+                    <button class="d-btn d-btn-risk" data-decide="reject" ${S.name ? '' : 'disabled'}>${proxyNow ? '대결 반려' : '반려'}</button>
                 </div>
             </section>` : ''}
+            ${atts.length ? `<section class="pd-card pd-card-pad"><h3 class="pd-h3">첨부 ${atts.length}개</h3>${attachListHtml(atts, false)}</section>` : ''}
             ${dec ? `<section class="pd-card pd-card-pad">
                 <h3 class="pd-h3">${d.status === 'approved' ? '승인 의견' : '최근 결재 의견'}</h3>
-                <div class="pd-note" style="margin-top:4px;">${esc(dec.byName || '')} · ${esc(stampTime(tsMs(dec.at)))}${d.status !== 'approved' && d.status !== 'rejected' ? ' (반려 뒤 다시 냄)' : ''}</div>
+                <div class="pd-note" style="margin-top:4px;">${esc(dec.byName || '')}${dec.proxy ? ' (대결)' : ''} · ${esc(stampTime(tsMs(dec.at)))}${d.status !== 'approved' && d.status !== 'rejected' ? ' (반려 뒤 다시 냄)' : ''}</div>
                 <div class="ap-decision">${esc(dec.comment || '(의견 없음)')}</div>
             </section>` : ''}
             ${(d.history || []).length ? `<section class="pd-card pd-card-pad"><h3 class="pd-h3">처리 이력</h3>
                 <ul class="ap-hist">${d.history.map(x => `<li><span>${esc(ACT_LABEL[x.act] || x.act)}</span><span class="num pd-mute">${esc(stampTime(tsMs(x.at)))}</span></li>`).join('')}</ul></section>` : ''}
         </aside></div>`;
     const on = (act, fn) => main.querySelector(`[data-act-btn="${act}"]`)?.addEventListener('click', fn);
-    on('edit', () => { location.hash = 'e=' + encodeURIComponent(d.id); });
+    bindRowActs(main);
+    bindAttachOpen(main, d);
     on('print', () => printSheet(S.printHtml));
     on('submit', () => {
-        const errs = validateValues(d.form, d.values);
-        if (errs.length) { toast('빈 필수 칸이 있습니다 — [고치기] 에서 채워 주세요', 4000); return; }
-        if (!confirm('이 기안서를 제출할까요?\n제출하면 관리자에게 알림이 갑니다.')) return;
+        if (!d.approverEmail) { toast('결재자를 고르지 않았습니다 — [수정] 에서 결재자를 고른 뒤 제출하세요', 4500); return; }
+        const errs = validateValues(d.form, d.values, d.attachments);
+        if (errs.length) { toast('빈 필수 칸이 있습니다 — [수정] 에서 채워 주세요', 4000); return; }
+        if (!confirm(`이 기안서를 ${d.approverName} 님께 제출할까요?\n제출하면 결재자에게 알림이 갑니다.`)) return;
         authorWrite(d.id, 'submit');   // 값은 트랜잭션 안에서 읽은 서버 값(화면의 옛 값으로 덮지 않게)
-    });
-    on('withdraw', () => { if (confirm('결재 전 기안서를 회수할까요?\n임시저장으로 돌아가 고칠 수 있습니다.')) authorWrite(d.id, 'withdraw'); });
-    on('delete', async () => {
-        if (!confirm('이 임시저장 기안서를 지울까요? 되돌릴 수 없습니다.')) return;
-        try { await deleteDoc(doc(S.db, DOCS, d.id)); S.docs = S.docs.filter(x => x.id !== d.id); toast('지웠습니다'); location.hash = ''; }
-        catch (e) { console.error('[approval] 삭제 실패:', e && e.code); toast('지우지 못했습니다 — ' + errText(e), 5000); }
     });
     main.querySelectorAll('[data-decide]').forEach(b => b.addEventListener('click', () => decide(d.id, b.dataset.decide, $('ap-comment').value)));
 }
 
+// 임시저장 삭제 — 첨부 파일을 먼저 지운다(문서를 먼저 지우면 Storage 규칙이 문서를 못 읽어 파일을 못 지운다)
+async function deleteDraft(d) {
+    if (!confirm('이 임시저장 기안서를 지울까요? 첨부 파일도 함께 지워지고 되돌릴 수 없습니다.')) return;
+    setLoading(true, '지우는 중…');
+    try {
+        for (const a of (d.attachments || [])) {
+            try { await deleteObject(sRef(storage(), a.path)); }
+            catch (e) { if (!(e && e.code === 'storage/object-not-found')) throw e; }
+        }
+        await deleteDoc(doc(S.db, DOCS, d.id));
+        S.docs = S.docs.filter(x => x.id !== d.id);
+        toast('지웠습니다');
+        if (location.hash) location.hash = ''; else route();
+    } catch (e) {
+        console.error('[approval] 삭제 실패:', e && e.code);
+        toast('지우지 못했습니다 — ' + errText(e), 5000);
+    } finally {
+        setLoading(false);
+    }
+}
+
+// ── 첨부 ─────────────────────────────────────────────────
+function attachListHtml(atts, editable) {
+    return `<ul class="ap-att">${atts.map(a => `<li><span class="ap-att-name" title="${esc(a.name)}">${esc(a.name)}</span><span class="pd-mute num">${esc(fmtBytes(a.size))}</span>
+        <button class="d-btn d-btn-sm" data-att-open="${esc(a.path)}">열기</button><button class="d-btn d-btn-sm" data-att-save="${esc(a.path)}">받기</button>${editable ? `<button class="d-btn d-btn-sm d-btn-risk" data-att-del="${esc(a.path)}">삭제</button>` : ''}</li>`).join('')}</ul>`;
+}
+// 열기·받기 — 로그인한 요청(getBlob, 규칙 적용)으로만 받는다. 공개 토큰 주소(getDownloadURL)는 쓰지 않는다.
+// ⚠️ 보여 줄 형식은 문서 메타(a.type)가 아니라 저장 경로 확장자로 ATTACH_TYPES 에서 정한다(attachTypeOf) —
+//    메타를 믿으면 text/html 등으로 바꿔 같은 출처에서 스크립트가 돌 수 있다. 표에 없으면 octet-stream(받기만).
+async function attachBlobUrl(a) {
+    const blob = await getBlob(sRef(storage(), a.path));
+    const type = attachTypeOf(a.path);
+    const url = URL.createObjectURL(new Blob([blob], { type }));
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return { url, viewable: type !== 'application/octet-stream' };
+}
+const attachErr = (e) => {
+    console.error('[approval] 첨부 열기 실패:', e && e.code);
+    toast(e && e.code === 'storage/unauthorized' ? '이 첨부를 볼 권한이 없습니다' : '파일을 열 수 없습니다(관리자에게 문의)', 5000);
+};
+const saveBlob = (url, name) => {
+    const link = document.createElement('a');
+    link.href = url; link.download = name || 'file'; link.rel = 'noopener';
+    document.body.appendChild(link); link.click(); link.remove();
+};
+function bindAttachOpen(root, d) {
+    root.querySelectorAll('[data-att-save]').forEach(b => b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const a = (d.attachments || []).find(x => x.path === b.dataset.attSave); if (!a) return;
+        try { saveBlob((await attachBlobUrl(a)).url, a.name); } catch (err) { attachErr(err); }
+    }));
+    root.querySelectorAll('[data-att-open]').forEach(b => b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const a = (d.attachments || []).find(x => x.path === b.dataset.attOpen); if (!a) return;
+        const viewable = attachTypeOf(a.path) !== 'application/octet-stream';
+        const w = viewable ? window.open('', '_blank') : null;   // 클릭 순간에 열어 둔다(기다린 뒤 열면 팝업 차단)
+        if (w) { try { w.opener = null; } catch (x) { /* 무시 */ } }
+        try {
+            const r = await attachBlobUrl(a);
+            if (w) w.location.href = r.url; else saveBlob(r.url, a.name);
+        } catch (err) {
+            if (w) w.close();
+            attachErr(err);
+        }
+    }));
+}
+
 // 작성자 쓰기(제출·재제출·회수·임시저장) — 서버 문서를 다시 읽고 상태를 확인한 뒤 고친다(관리자 결재와 겹치지 않게)
-async function authorWrite(id, kind, values) {
+async function authorWrite(id, kind, values, approver) {
     const me = { email: S.email, name: S.name };
-    const opt = { ts: serverTimestamp(), at: new Date() };
-    let submitted = false;
+    const opt = { ts: serverTimestamp(), at: new Date(), approver };
+    let submitted = null;
     setLoading(true, '저장 중…');
     try {
         await runTransaction(S.db, async (tx) => {
@@ -362,19 +491,19 @@ async function authorWrite(id, kind, values) {
             if (kind === 'save') patch = buildSave(cur, values, opt);
             else if (kind === 'submit') {
                 const v = values === undefined ? (cur.values || {}) : values;
-                const errs = validateValues(cur.form, v);
+                const errs = validateValues(cur.form, v, cur.attachments);
                 if (errs.length) throw new Error(errs[0]);
                 patch = buildSubmit(cur, me, v, opt);
             }
             else if (kind === 'withdraw') patch = buildWithdraw(cur, me, opt);
             else throw new Error('알 수 없는 동작');
             tx.update(ref, patch);
-            submitted = kind === 'submit';
+            submitted = kind === 'submit' ? (patch.approverName || null) : null;
         });
         S.dirty = false;
         await fetchDoc(id).catch(() => null);
         toast({ save: '임시저장했습니다', submit: '제출했습니다', withdraw: '회수했습니다 — 임시저장으로 돌아갔습니다' }[kind]);
-        if (submitted) await notifyAdmins();
+        if (submitted) await notifyApprover(submitted);
         if (location.hash === '#d=' + encodeURIComponent(id)) route(); else location.hash = 'd=' + encodeURIComponent(id);
     } catch (e) {
         console.error('[approval] 저장 실패:', e && e.code);
@@ -384,17 +513,20 @@ async function authorWrite(id, kind, values) {
     }
 }
 
-async function notifyAdmins() {
-    const names = adminNamesOf(S.cfg, S.name);
-    if (!names.length) return;
-    const r = await sendApprovalNoti(S.db, { collection, addDoc }, names, MSG_TO_ADMIN);
-    if (r.failed) toast(`제출은 됐지만 관리자 알림 ${r.failed}건을 못 보냈습니다`, 5000);
+// 제출 알림 — 지정 결재자 한 사람에게만(문구는 내용 없는 것 그대로)
+async function notifyApprover(name) {
+    if (!name || name === S.name) return;
+    const r = await sendApprovalNoti(S.db, { collection, addDoc }, [name], MSG_TO_ADMIN);
+    if (r.failed) toast('제출은 됐지만 결재자 알림을 못 보냈습니다', 5000);
 }
 
-// 관리자 결재 — 트랜잭션으로 '결재 대기' 를 다시 확인
+// 결재(지정 결재자·관리자 대결) — 트랜잭션으로 '결재 대기' 를 다시 확인
 async function decide(id, act, comment) {
     if (act === 'reject' && !String(comment || '').trim()) { toast('반려 의견을 입력하세요'); $('ap-comment')?.focus(); return; }
-    if (!confirm(act === 'approve' ? '승인할까요? 승인하면 고칠 수 없습니다.' : '반려할까요? 작성자가 고쳐서 다시 낼 수 있습니다.')) return;
+    const cd = findDoc(id);
+    const proxy = !!(cd && cd.approverEmail && cd.approverEmail !== S.email);
+    if (!confirm((proxy ? `지정 결재자(${cd.approverName}) 대신 결재(대결)합니다.\n` : '')
+        + (act === 'approve' ? '승인할까요? 승인하면 고칠 수 없습니다.' : '반려할까요? 작성자가 고쳐서 다시 낼 수 있습니다.'))) return;
     const me = { email: S.email, name: S.name };
     let doneDoc = null;
     setLoading(true, '결재 중…');
@@ -426,6 +558,7 @@ async function decide(id, act, comment) {
 // ── 작성·고치기 ───────────────────────────────────────────
 function fieldInput(f, val) {
     const id = 'ap-f-' + f.key;
+    if (f.type === 'file') return `<div class="ap-file" data-file-key="${esc(f.key)}"></div>`;
     const common = `id="${id}" class="pd-in" data-key="${esc(f.key)}"`;
     if (f.type === 'textarea') return `<textarea ${common} maxlength="${f.max}">${esc(val)}</textarea>`;
     if (f.type === 'select') return `<select ${common}><option value="">(고르세요)</option>${(f.options || []).map(o => `<option${o === val ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
@@ -449,13 +582,23 @@ async function renderEditor(main, { id, formId }) {
     const vals = { ...(d ? d.values : {}) };
     setHead({ title: d ? `${form.title} 고치기` : `${form.title} 작성`, back: true });
     const dec = d && d.decision;
+    const cands = approverCandidates(S.cfg, S.name, S.email);
+    const curAp = d && d.approverEmail ? d.approverEmail : (cands.length === 1 ? cands[0].email : '');
+    const apOpts = cands.map(c => `<option value="${esc(c.email)}"${c.email === curAp ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
+    // 저장된 결재자가 지금 후보에 없으면(직책 바뀜 등) 고르게 한다
+    const apGone = d && d.approverEmail && !cands.some(c => c.email === d.approverEmail);
     main.innerHTML = `<section class="pd-card pd-card-pad">
         ${dec && d.status === 'rejected' ? `<div class="pd-alert risk"><b>반려 의견</b> (${esc(dec.byName || '')} · ${esc(stampTime(tsMs(dec.at)))})<div class="ap-decision">${esc(dec.comment)}</div></div>` : ''}
         ${dec && d.status === 'draft' ? `<div class="pd-alert warn"><b>지난 반려 의견</b><div class="ap-decision">${esc(dec.comment)}</div></div>` : ''}
         ${!S.name ? `<div class="pd-alert warn" style="margin-top:10px;">${esc(nameWarnText())}</div>` : ''}
         <div class="pd-row" style="margin-top:12px;"><h2 class="pd-h2">${esc(form.title)}</h2><span class="pd-grow"></span><span class="pd-note">성명 ${esc(S.name || '-')}</span></div>
         ${form.intro ? `<div class="pd-note" style="margin-top:6px; white-space:pre-wrap;">${esc(form.intro)}</div>` : ''}
-        <div class="ap-form">${form.fields.map(f => `<label class="pd-field"><span>${esc(f.label)}${f.required ? '<b>*</b>' : ''}</span>${fieldInput(f, vals[f.key] || '')}
+        <div class="ap-form">
+            <label class="pd-field"><span>결재자<b>*</b> <small>(관리자 또는 파트장·부팀장·팀장 — 제출하면 이 사람에게 알림이 갑니다)</small></span>
+                <select id="ap-approver" class="pd-in"><option value="">(결재자를 고르세요)</option>${apOpts}</select>
+                ${apGone ? `<span class="ap-hint pd-warn">저장된 결재자(${esc(d.approverName)})는 지금 결재할 수 없는 사람입니다 — 다시 고르세요.</span>` : ''}
+                ${!cands.length ? '<span class="ap-hint pd-warn">고를 수 있는 결재자가 없습니다(관리자·파트장·부팀장·팀장). 관리자에게 문의하세요.</span>' : ''}</label>
+            ${form.fields.map(f => `<label class="pd-field"><span>${esc(f.label)}${f.required ? '<b>*</b>' : ''}</span>${fieldInput(f, vals[f.key] || '')}
             ${f.prefill === 'day' ? '<span class="ap-hint" id="ap-prefill-hint"></span>' : ''}</label>`).join('')}</div>
         ${form.pledge ? `<div class="pd-note" style="margin-top:14px; white-space:pre-wrap;">${esc(form.pledge)}</div>` : ''}
         <div id="ap-errs"></div>
@@ -473,39 +616,124 @@ async function renderEditor(main, { id, formId }) {
         main.querySelectorAll('[data-key]').forEach(el => { out[el.dataset.key] = el.value; });
         return out;
     };
-    main.querySelectorAll('[data-key]').forEach(el => el.addEventListener('input', () => { S.dirty = true; }));
-    main.querySelectorAll('[data-key]').forEach(el => el.addEventListener('change', () => { S.dirty = true; }));
+    const readApprover = () => {
+        const em = $('ap-approver').value;
+        const c = cands.find(x => x.email === em);
+        return c ? { name: c.name, email: c.email } : null;
+    };
+    main.querySelectorAll('[data-key], #ap-approver').forEach(el => el.addEventListener('input', () => { S.dirty = true; }));
+    main.querySelectorAll('[data-key], #ap-approver').forEach(el => el.addEventListener('change', () => { S.dirty = true; }));
     // 근태사유서: 발생일 → 그날 내 지각(읽기만)을 빈 칸에
     const dayField = form.fields.find(f => f.prefill === 'day');
     if (dayField && S.name) $('ap-f-' + dayField.key)?.addEventListener('change', (e) => prefillTardy(form, e.target.value));
+    // 파일 칸 — 문서가 있어야 올릴 수 있다(Storage 규칙이 문서의 작성자·상태를 본다). 새 문서는 고르는 순간 임시저장부터 한다.
+    const drawFiles = () => main.querySelectorAll('[data-file-key]').forEach(box => {
+        const key = box.dataset.fileKey;
+        const all = (d && d.attachments) || [];
+        const mineHere = all.filter(a => a.key === key);
+        box.innerHTML = `${mineHere.length ? attachListHtml(mineHere, true) : '<div class="pd-note">붙인 파일이 없습니다.</div>'}
+            <div class="pd-row" style="margin-top:6px;"><label class="d-btn d-btn-sm ap-file-pick${all.length >= ATTACH_MAX || !S.name ? ' is-off' : ''}">파일 붙이기
+                <input type="file" accept="${ATTACH_ACCEPT}" multiple ${all.length >= ATTACH_MAX || !S.name ? 'disabled' : ''} hidden></label>
+                <span class="pd-note">이미지·PDF·엑셀·워드·한글, 파일당 10MB, 기안서 하나에 ${ATTACH_MAX}개까지 (${all.length}/${ATTACH_MAX})${d ? '' : ' — 고르면 먼저 임시저장됩니다'}</span></div>`;
+        box.querySelector('input[type=file]').addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; addFiles(key, fs); });
+        box.querySelectorAll('[data-att-del]').forEach(b => b.addEventListener('click', (e) => { e.preventDefault(); removeFile(b.dataset.attDel); }));
+        if (d) bindAttachOpen(box, d);
+    });
+    // 첨부 칸만 바꾸는 쓰기 — 반려 건이면 임시저장으로 돌아간다(규칙: 작성자 쓰기는 draft 로만, 저장과 같음)
+    const writeAtts = (mutate) => runTransaction(S.db, async (tx) => {
+        const r = doc(S.db, DOCS, d.id);
+        const sn = await tx.get(r);
+        if (!sn.exists()) throw new Error('기안서가 없습니다.');
+        const cur = sn.data();
+        if (!['draft', 'rejected'].includes(cur.status)) throw new Error('지금 상태에서는 첨부를 바꿀 수 없습니다.');
+        const next = mutate(cur.attachments || []);
+        tx.update(r, { attachments: next, updatedAt: serverTimestamp(), status: 'draft', submittedAt: null, authorStamp: null });
+        return next;
+    });
+    const addFiles = async (key, files) => {
+        if (!files.length) return;
+        setLoading(true, '파일 올리는 중…');
+        try {
+            if (!d) {   // 새 문서 — 지금 칸 그대로 임시저장부터(결재자 칸도)
+                const data = buildCreate(form, { email: S.email, name: S.name }, cleanValues(form, read()), { ts: serverTimestamp(), at: new Date(), approver: readApprover() });
+                const r = await addDoc(collection(S.db, DOCS), data);
+                d = await fetchDoc(r.id);
+                history.replaceState(null, '', '#e=' + encodeURIComponent(r.id));   // 주소만 바꾼다(다시 그리면 입력 중인 칸이 사라진다)
+                setHead({ title: `${form.title} 고치기`, back: true });
+                toast('임시저장했습니다 — 파일을 올립니다');
+            }
+            for (const f of files) {
+                const ck = checkAttach(f, (d.attachments || []).length);
+                if (!ck.ok) { toast(`${f.name}: ${ck.reason}`, 5000); continue; }
+                const path = attachPath(d.id, ck.ext);
+                await uploadBytes(sRef(storage(), path), f, { contentType: ck.contentType });
+                try {
+                    await writeAtts(list => { if (list.length >= ATTACH_MAX) throw new Error(`첨부는 ${ATTACH_MAX}개까지입니다.`); return [...list, attachMeta(key, f, path, ck.contentType)]; });
+                } catch (e) {
+                    await deleteObject(sRef(storage(), path)).catch(() => null);   // 문서에 못 적었으면 올린 파일을 치운다
+                    throw e;
+                }
+                d = await fetchDoc(d.id);
+            }
+        } catch (e) {
+            console.error('[approval] 첨부 실패:', e && e.code);
+            toast('파일을 붙이지 못했습니다 — ' + errText(e), 6000);
+        } finally {
+            setLoading(false);
+            drawFiles();
+        }
+    };
+    const removeFile = async (path) => {
+        const a = ((d && d.attachments) || []).find(x => x.path === path);
+        if (!a || !confirm(`'${a.name}' 첨부를 지울까요?`)) return;
+        setLoading(true, '지우는 중…');
+        try {
+            await writeAtts(list => list.filter(x => x.path !== path));
+            await deleteObject(sRef(storage(), path)).catch(e => {
+                if (e && e.code === 'storage/object-not-found') return;
+                console.error('[approval] 파일 지우기 실패:', e && e.code);
+                toast('목록에서는 뺐지만 저장된 파일을 지우지 못했습니다 — 관리자에게 알려 주세요', 6000);
+            });
+            d = await fetchDoc(d.id);
+        } catch (e) {
+            console.error('[approval] 첨부 삭제 실패:', e && e.code);
+            toast('지우지 못했습니다 — ' + errText(e), 5000);
+        } finally {
+            setLoading(false);
+            drawFiles();
+        }
+    };
+    drawFiles();
     $('ap-preview').addEventListener('click', () => {
         const meta = d ? metaOf(d) : { authorName: S.name, createdMs: Date.now(), status: 'draft' };
-        $('ap-prev-box').innerHTML = sheetHtml(form, cleanValues(form, read()), { ...meta, authorStamp: null, approverStamp: null, status: 'draft' });
+        const ap = readApprover();
+        $('ap-prev-box').innerHTML = sheetHtml(form, cleanValues(form, read()), { ...meta, authorStamp: null, approverStamp: null, status: 'draft', approverName: ap ? ap.name : '', proxy: false });
         $('ap-prev-box').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     $('ap-cancel').addEventListener('click', () => { if (!okLeave()) return; location.hash = d ? 'd=' + encodeURIComponent(d.id) : ''; });
     const go = async (submit) => {
         const values = cleanValues(form, read());
+        const approver = readApprover();
         $('ap-errs').innerHTML = '';
         if (submit) {
-            const errs = validateValues(form, values);
+            const errs = [...(approver ? [] : ['결재자를 고르세요.']), ...validateValues(form, values, d ? d.attachments : [])];
             if (errs.length) {
                 $('ap-errs').innerHTML = `<div class="pd-alert risk" style="margin-top:14px;"><ul class="ap-errs">${errs.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
                 $('ap-errs').scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
             }
-            if (!confirm('제출할까요? 제출하면 관리자에게 알림이 가고, 결재 전까지는 회수할 수 있습니다.')) return;
+            if (!confirm(`${approver.name} 님께 제출할까요? 제출하면 결재자에게 알림이 가고, 결재 전까지는 회수할 수 있습니다.`)) return;
         }
-        if (d) return authorWrite(d.id, submit ? 'submit' : 'save', values);
+        if (d) return authorWrite(d.id, submit ? 'submit' : 'save', values, approver || { name: '', email: '' });
         setLoading(true, '저장 중…');
         try {
-            const data = buildCreate(form, { email: S.email, name: S.name }, values, { submit, ts: serverTimestamp(), at: new Date() });
-            const ref = await addDoc(collection(S.db, DOCS), data);
+            const data = buildCreate(form, { email: S.email, name: S.name }, values, { submit, ts: serverTimestamp(), at: new Date(), approver });
+            const r = await addDoc(collection(S.db, DOCS), data);
             S.dirty = false;
-            await fetchDoc(ref.id).catch(() => null);
+            await fetchDoc(r.id).catch(() => null);
             toast(submit ? '제출했습니다' : '임시저장했습니다');
-            if (submit) await notifyAdmins();
-            location.hash = 'd=' + encodeURIComponent(ref.id);
+            if (submit) await notifyApprover(approver.name);
+            location.hash = 'd=' + encodeURIComponent(r.id);
         } catch (e) {
             console.error('[approval] 만들기 실패:', e && e.code);
             toast('저장하지 못했습니다 — ' + errText(e), 6000);
@@ -563,7 +791,7 @@ function renderFormsList(main) {
 }
 
 let copyDraft = null;   // [복사해서 새 양식] — 저장 전까지 메모리에만
-const TYPE_LABEL = { text: '한 줄', textarea: '여러 줄', date: '날짜', time: '시각', select: '고르기' };
+const TYPE_LABEL = { text: '한 줄', textarea: '여러 줄', date: '날짜', time: '시각', select: '고르기', file: '파일 첨부' };
 const ROLE_LABEL = { author: '기안자 도장', approver: '결재자 도장', blank: '빈 칸' };
 function renderFormEditor(main, formId) {
     const base = (copyDraft && copyDraft.id === formId) ? copyDraft : S.forms.find(f => f.id === formId);
@@ -674,7 +902,8 @@ function renderFormEditor(main, formId) {
 async function checkUser(user) {
     const snap = await getDocFromServer(doc(S.db, APP_BASE + '/config/mainConfig'));
     const c = snap.exists() ? snap.data() : {};
-    S.cfg = { memberRoles: c.memberRoles || {}, memberEmails: c.memberEmails || {}, resignedEmails: c.resignedEmails || {} };   // 알림 받을 관리자 계산에 쓰는 칸만
+    // 결재자 후보 계산에 쓰는 칸만(js/lib/approval-logic.js approverCandidates — 규칙 apApproverOk 와 같은 조건)
+    S.cfg = { memberRoles: c.memberRoles || {}, memberEmails: c.memberEmails || {}, resignedEmails: c.resignedEmails || {}, memberPositions: c.memberPositions || {} };
     const found = memberNameFor(c.memberEmails, user.email);   // 공통 상단바 알림용(공백 무시)
     // 도장 이름은 규칙(memberEmails[이름].lower() == 내 이메일)과 같게 — 앞뒤 공백이 있으면 규칙이 막으므로 여기서도 쓰지 않고 안내한다
     S.name = found && String(c.memberEmails[found]).toLowerCase() === String(user.email || '').toLowerCase() ? found : null;
@@ -714,8 +943,8 @@ async function start(user) {
     await refresh();
 }
 
-const { db, auth } = initializeFirebase();
-S.db = db; S.auth = auth;
+const { app, db, auth } = initializeFirebase();
+S.app = app; S.db = db; S.auth = auth;
 // 🧪 ?emu=1 인데 에뮬레이터 연결이 안 됐으면(띠가 없으면) 운영으로 붙을 위험 — 멈춘다
 const emuBad = emulatorEnabled() && !document.getElementById('emulator-banner');
 if (!db || !auth || emuBad) {

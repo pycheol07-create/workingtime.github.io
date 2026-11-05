@@ -1,13 +1,13 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202611051014';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202611051014';
-import { buildMemberHourlyWageMap } from './utils.js?v=202611051014';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202611051014';
-import { D, alpha } from './d-chart.js?v=202611051014';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051014';
-import { TASK, tName, isTLike } from './task-names.js?v=202611051014';
-import { attendedMembers } from './attendance-stats.js?v=202611051014';
-import { wageMapOf, partSummary as opsPartSummary, unitCost as opsUnitCost, rollingBaselineOf } from './lib/ops-metrics.js?v=202611051014';
+import * as State from './state.js?v=202611051017';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202611051017';
+import { buildMemberHourlyWageMap } from './utils.js?v=202611051017';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202611051017';
+import { D, alpha } from './d-chart.js?v=202611051017';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051017';
+import { TASK, tName, isTLike } from './task-names.js?v=202611051017';
+import { attendedMembers } from './attendance-stats.js?v=202611051017';
+import { wageMapOf, partSummary as opsPartSummary, unitCost as opsUnitCost, rollingBaselineOf } from './lib/ops-metrics.js?v=202611051017';
 
 let dashboardChartInstance = null;
 
@@ -275,7 +275,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202611051014').then(mod => {
+        import('./ui-history-milestones.js?v=202611051017').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }

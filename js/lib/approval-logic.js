@@ -8,8 +8,12 @@
 // ⚠️ build* 가 돌려주는 칸 = firestore.rules ApprovalDocs 의 hasOnly 목록(AUTHOR_KEYS·ADMIN_KEYS·CREATE_KEYS)과 같아야 한다.
 //    한쪽만 바꾸면 저장이 규칙에 막힌다. history 는 배열이라 serverTimestamp 를 못 넣는다 → at 은 브라우저 시각(참고용).
 //    공식 시각은 submittedAt·authorStamp.at·decision.at(서버 시각, 규칙이 request.time 과 같은지 본다).
+// 2026-11-05 추가: 결재자 지정(approverName·approverEmail — 관리자 또는 직책 파트장·부팀장·팀장, 본인 제외), 대신 결재(관리자, decision.proxy),
+//   첨부(칸 종류 'file' — Storage approvals/{문서id}/…, 문서에는 attachments 메타만: key·name·size·path·type, 문서당 5개·10MB).
 
-export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select'];
+import { positionOf } from './member-title.js?v=202611051017';
+
+export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select', 'file'];
 export const BOX_ROLES = ['author', 'approver', 'blank'];
 export const PREFILLS = ['day', 'tardyTime', 'tardyKind'];   // 근태사유서: 발생일 → 그날 지각 기록(읽기만)을 빈 칸에
 export const KEY_RE = /^[a-z0-9_]{1,20}$/;
@@ -18,16 +22,31 @@ export const MAX_BOXES = 3;
 export const MAX_OPTIONS = 20;
 export const HISTORY_MAX = 30;
 export const COMMENT_MAX = 500;
-const DEFAULT_MAX = { text: 200, textarea: 2000, date: 10, time: 5, select: 40 };
+const DEFAULT_MAX = { text: 200, textarea: 2000, date: 10, time: 5, select: 40, file: 5 };   // file 은 글자 수가 아니라 파일 개수
 
 export const STATUS = { draft: '임시저장', submitted: '결재 대기', approved: '승인', rejected: '반려' };
 export const STATUS_ORDER = ['submitted', 'draft', 'rejected', 'approved'];
 
 // 규칙(firestore.rules ApprovalDocs)과 같은 목록
 export const CREATE_KEYS = ['v', 'formId', 'form', 'authorEmail', 'authorName', 'status', 'values', 'createdAt', 'updatedAt',
-    'submittedAt', 'authorStamp', 'decision', 'approverStamp', 'history'];
-export const AUTHOR_KEYS = ['values', 'status', 'updatedAt', 'submittedAt', 'authorStamp', 'history'];
-export const ADMIN_KEYS = ['status', 'decision', 'approverStamp', 'updatedAt', 'history'];
+    'submittedAt', 'authorStamp', 'decision', 'approverStamp', 'history', 'approverName', 'approverEmail', 'attachments'];
+export const AUTHOR_KEYS = ['values', 'status', 'updatedAt', 'submittedAt', 'authorStamp', 'history', 'approverName', 'approverEmail', 'attachments'];
+export const ADMIN_KEYS = ['status', 'decision', 'approverStamp', 'updatedAt', 'history'];   // 지정 결재자·관리자(대결) 같음
+
+// 결재자 후보 직책(js/lib/member-title.js POSITIONS 중) — 규칙 apApproverOk 와 같은 목록
+export const APPROVER_POSITIONS = ['파트장', '부팀장', '팀장'];
+
+// 첨부 — storage.rules approvals/ 와 같은 값. 확장자로 contentType 을 정한다(브라우저 값은 믿지 않음)
+export const ATTACH_MAX = 5;
+export const ATTACH_MAX_BYTES = 10 * 1024 * 1024;
+export const ATTACH_TYPES = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+    pdf: 'application/pdf',
+    xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', csv: 'text/csv',
+    doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    hwp: 'application/x-hwp', hwpx: 'application/hwp+zip'
+};
+export const ATTACH_ACCEPT = Object.keys(ATTACH_TYPES).map(e => '.' + e).join(',');
 
 const BOXES_DEFAULT = [{ label: '기안', role: 'author' }, { label: '결재', role: 'approver' }];
 const fd = (key, label, type, extra = {}) => ({ key, label, type, required: false, ...extra });
@@ -41,8 +60,8 @@ export const DEFAULT_FORMS = [
             fd('kind', '구분', 'select', { required: true, options: ['지각', '조퇴', '외출', '결근', '기타'], prefill: 'tardyKind' }),
             fd('time', '발생 시각', 'time', { prefill: 'tardyTime' }),
             fd('reason', '사유', 'textarea', { required: true }),
-            fd('proof', '증빙', 'text'),
-            fd('prevent', '재발 방지', 'textarea')
+            fd('prevent', '재발 방지', 'textarea'),
+            fd('proof', '증빙', 'file')   // 2026-11-05 파일 첨부로(사진·PDF 등)
         ],
         boxes: BOXES_DEFAULT
     },
@@ -162,17 +181,23 @@ export function cleanValues(form, values) {
     const v = values && typeof values === 'object' ? values : {};
     const out = {};
     ((form && form.fields) || []).forEach(f => {
+        if (f.type === 'file') return;   // 파일은 attachments 에(값 칸 없음)
         const raw = v[f.key] == null ? '' : String(v[f.key]);
         out[f.key] = (f.type === 'textarea' ? raw.replace(/\r\n?/g, '\n').trim() : raw.replace(/\s+/g, ' ').trim()).slice(0, f.max || DEFAULT_MAX[f.type] || 200);
     });
     return out;
 }
 
-/** 제출 전 입력 검사 — 오류 문장 목록. (임시저장은 검사하지 않는다) */
-export function validateValues(form, values) {
+/** 제출 전 입력 검사 — 오류 문장 목록. (임시저장은 검사하지 않는다) attachments = 문서 첨부(파일 칸 필수 검사용) */
+export function validateValues(form, values, attachments) {
     const err = [];
     const v = values && typeof values === 'object' ? values : {};
+    const att = Array.isArray(attachments) ? attachments : [];
     ((form && form.fields) || []).forEach(f => {
+        if (f.type === 'file') {
+            if (f.required && !att.some(a => a && a.key === f.key)) err.push(`'${f.label}' 파일을 붙이세요.`);
+            return;
+        }
         const s = v[f.key] == null ? '' : String(v[f.key]).trim();
         const max = f.max || DEFAULT_MAX[f.type] || 200;
         if (!s) { if (f.required) err.push(`'${f.label}' 을(를) 입력하세요.`); return; }
@@ -189,15 +214,32 @@ export function validateValues(form, values) {
 export function actionsFor(d, email, isAdmin) {
     if (!d) return [];
     const mine = !!email && lower(d.authorEmail) === lower(email);
+    const assigned = !!email && !!d.approverEmail && lower(d.approverEmail) === lower(email);   // 지정 결재자
     const out = [];
     // 삭제는 한 번도 제출 안 한 임시저장만 — 회수·반려를 거친 문서(이력·결재 의견 있음)는 기록이라 못 지운다(규칙과 같음)
     const fresh = !(Array.isArray(d.history) && d.history.length) && !d.decision;
     if (mine && d.status === 'draft') out.push('edit', 'submit', ...(fresh ? ['delete'] : []));
     if (mine && d.status === 'rejected') out.push('edit', 'submit');
     if (mine && d.status === 'submitted') out.push('withdraw');
-    if (isAdmin && d.status === 'submitted') out.push('approve', 'reject');
-    if (mine || isAdmin) out.push('print');
+    if ((isAdmin || assigned) && d.status === 'submitted') out.push('approve', 'reject');
+    if (mine || isAdmin || (assigned && d.status !== 'draft')) out.push('print');
     return out;
+}
+
+/** 작성자 버튼(edit·withdraw·delete)이 안 되는 까닭 — 툴팁용 문장. 되면 ''. */
+export function whyNot(d, email, isAdmin, act) {
+    if (!d) return '';
+    if (actionsFor(d, email, isAdmin).includes(act)) return '';
+    const mine = !!email && lower(d.authorEmail) === lower(email);
+    if (!mine) return '본인이 쓴 기안서만 고치거나 지울 수 있습니다.';
+    const st = d.status;
+    if (act === 'edit') return st === 'submitted' ? '결재 대기 중에는 고칠 수 없습니다 — [회수] 한 뒤 고치세요.' : '승인된 기안서는 고칠 수 없습니다.';
+    if (act === 'withdraw') return st === 'draft' ? '아직 제출하지 않은 기안서입니다.'
+        : st === 'rejected' ? '반려된 기안서는 회수 없이 바로 [수정] 할 수 있습니다.' : '승인된 기안서는 회수할 수 없습니다.';
+    if (act === 'delete') return st === 'submitted' ? '결재 대기 중인 기안서는 지울 수 없습니다 — [회수] 할 수 있습니다.'
+        : st === 'approved' ? '승인된 기안서는 지울 수 없습니다.'
+        : '한 번이라도 제출한 기안서는 지울 수 없습니다 — 회수 후 수정하세요.';
+    return '';
 }
 
 /** 이력에 한 줄 더한다. HISTORY_MAX 를 넘으면 오류(규칙도 막는다). */
@@ -211,12 +253,21 @@ export function nextHistory(list, entry) {
 const ME = (me) => ({ email: lower(me && me.email), name: str(me && me.name, 40) });
 const needName = (m) => { if (!m.name) throw new Error('직원 명단에 이 계정 이름이 없어 도장을 찍을 수 없습니다. 관리자에게 문의하세요.'); };
 
-/** 새 문서 전체. submit=true 면 바로 제출(기안 도장). ts = serverTimestamp(), at = 브라우저 시각(이력용). */
-export function buildCreate(form, me, values, { submit = false, ts, at } = {}) {
+const AP = (a) => ({ approverName: str(a && a.name, 40), approverEmail: lower(a && a.email) });
+const needApprover = (ap, m) => {
+    if (!ap.approverName || !ap.approverEmail) throw new Error('결재자를 고르세요.');
+    if (ap.approverEmail === m.email) throw new Error('본인을 결재자로 지정할 수 없습니다.');
+};
+
+/** 새 문서 전체. submit=true 면 바로 제출(기안 도장·결재자 필수). ts = serverTimestamp(), at = 브라우저 시각(이력용). approver = {name, email} */
+export function buildCreate(form, me, values, { submit = false, ts, at, approver } = {}) {
     const m = ME(me);
     needName(m);
+    const ap = AP(approver);
+    if (submit) needApprover(ap, m);
     const f = normalizeForm(form, form && form.id);
     return {
+        ...ap, attachments: [],
         v: 1, formId: f.id, form: f, authorEmail: m.email, authorName: m.name,
         status: submit ? 'submitted' : 'draft',
         values: cleanValues(f, values),
@@ -229,18 +280,22 @@ export function buildCreate(form, me, values, { submit = false, ts, at } = {}) {
 }
 
 /** 임시저장(draft·rejected → draft). 반려 건을 임시저장하면 '임시저장' 으로 돌아간다(반려 의견 decision 은 남는다). 이력은 늘리지 않는다. */
-export function buildSave(d, values, { ts } = {}) {
+export function buildSave(d, values, { ts, approver } = {}) {
     if (!d || !['draft', 'rejected'].includes(d.status)) throw new Error('지금 상태에서는 고칠 수 없습니다.');
-    return { values: cleanValues(d.form, values), status: 'draft', updatedAt: ts, submittedAt: null, authorStamp: null };
+    return { values: cleanValues(d.form, values), status: 'draft', updatedAt: ts, submittedAt: null, authorStamp: null,
+        ...(approver ? AP(approver) : {}) };
 }
 
 /** 제출·재제출(draft·rejected → submitted). 예전에 결재(반려)를 받은 문서면 'resubmit'. */
-export function buildSubmit(d, me, values, { ts, at } = {}) {
+export function buildSubmit(d, me, values, { ts, at, approver } = {}) {
     if (!d || !['draft', 'rejected'].includes(d.status)) throw new Error('지금 상태에서는 제출할 수 없습니다.');
     const m = ME(me);
     needName(m);
+    const ap = AP(approver || { name: d.approverName, email: d.approverEmail });
+    needApprover(ap, m);
     const act = (d.status === 'rejected' || d.decision) ? 'resubmit' : 'submit';
     return {
+        ...ap,
         values: cleanValues(d.form, values), status: 'submitted', updatedAt: ts, submittedAt: ts,
         authorStamp: { name: m.name, at: ts },
         history: nextHistory(d.history, { act, at, by: m.email })
@@ -254,7 +309,8 @@ export function buildWithdraw(d, me, { ts, at } = {}) {
     return { status: 'draft', updatedAt: ts, submittedAt: null, authorStamp: null, history: nextHistory(d.history, { act: 'withdraw', at, by: m.email }) };
 }
 
-/** 승인·반려(submitted → approved|rejected). 반려는 의견 1~500자 필수, 승인 의견은 선택. */
+/** 승인·반려(submitted → approved|rejected). 반려는 의견 1~500자 필수, 승인 의견은 선택.
+ *  proxy = 지정 결재자가 있는데 다른 사람(관리자)이 결재 — 인쇄에 '대결'. 지정이 없던 옛 문서는 false. */
 export function buildDecision(d, me, act, comment, { ts, at } = {}) {
     if (!d || d.status !== 'submitted') throw new Error('결재 대기 중인 문서가 아닙니다.');
     if (act !== 'approve' && act !== 'reject') throw new Error('알 수 없는 결재 동작');
@@ -265,7 +321,7 @@ export function buildDecision(d, me, act, comment, { ts, at } = {}) {
     if (c.length > COMMENT_MAX) throw new Error(`의견은 ${COMMENT_MAX}자까지입니다.`);
     return {
         status: act === 'approve' ? 'approved' : 'rejected',
-        decision: { by: m.email, byName: m.name, at: ts, comment: c },
+        decision: { by: m.email, byName: m.name, at: ts, comment: c, proxy: !!d.approverEmail && lower(d.approverEmail) !== m.email },
         approverStamp: act === 'approve' ? { name: m.name, at: ts } : null,
         updatedAt: ts,
         history: nextHistory(d.history, { act, at, by: m.email })
@@ -338,3 +394,48 @@ export function newFormId(existingIds, base = 'form') {
     for (let i = 1; i < 1000; i++) { const id = `${base}_${i}`.slice(0, 20); if (!used.has(id)) return id; }
     return `${base}_${Date.now() % 100000}`.slice(0, 20);
 }
+
+/** 결재자 후보 — 관리자(memberRoles admin) 또는 직책 파트장·부팀장·팀장, 재직, 본인 제외.
+ *  이메일 칸에 앞뒤 빈칸이 있으면 규칙(memberEmails[이름].lower() == 결재자 이메일)이 막으므로 뺀다. → [{name, email, label}] */
+export function approverCandidates(cfg, selfName, selfEmail) {
+    const c = cfg || {};
+    const roles = c.memberRoles || {}, resigned = c.resignedEmails || {};
+    const me = lower(selfEmail);
+    const rank = (r, p) => APPROVER_POSITIONS.indexOf(p) + 1;   // 팀장 3 · 부팀장 2 · 파트장 1 · 관리자(직책 없음) 0
+    const out = [];
+    Object.entries(c.memberEmails || {}).forEach(([name, raw]) => {
+        if (!name || typeof raw !== 'string' || raw !== raw.trim() || name === selfName) return;
+        const em = raw.toLowerCase();
+        if (!em || em === me || !Object.prototype.hasOwnProperty.call(roles, em) || Object.prototype.hasOwnProperty.call(resigned, em)) return;
+        const p = positionOf(c, name);
+        const isAdmin = roles[em] === 'admin';
+        if (!isAdmin && !APPROVER_POSITIONS.includes(p)) return;
+        const label = APPROVER_POSITIONS.includes(p) ? `${name} ${p}` : `${name} (관리자)`;
+        out.push({ name, email: em, label, _r: rank(roles[em], p) });
+    });
+    return out.sort((a, b) => (b._r - a._r) || a.name.localeCompare(b.name, 'ko')).map(({ _r, ...x }) => x);
+}
+
+// ── 첨부 ──
+const extOf = (name) => { const m = /\.([A-Za-z0-9]{1,6})$/.exec(String(name || '')); return m ? m[1].toLowerCase() : ''; };
+/** 붙일 수 있는가 — {ok, ext, contentType} | {ok:false, reason}. count = 지금 문서의 첨부 수. */
+export function checkAttach(file, count = 0) {
+    if (!file) return { ok: false, reason: '파일이 없습니다.' };
+    if (count >= ATTACH_MAX) return { ok: false, reason: `첨부는 ${ATTACH_MAX}개까지입니다.` };
+    const ext = extOf(file.name);
+    const contentType = ATTACH_TYPES[ext];
+    if (!contentType) return { ok: false, reason: '이미지·PDF·엑셀·워드·한글 파일만 붙일 수 있습니다.' };
+    if (!(file.size > 0)) return { ok: false, reason: '빈 파일입니다.' };
+    if (file.size > ATTACH_MAX_BYTES) return { ok: false, reason: '파일 하나는 10MB 까지입니다.' };
+    return { ok: true, ext, contentType };
+}
+/** 보여 줄 형식 — 저장 경로 확장자로 ATTACH_TYPES 에서(문서 메타 type 은 믿지 않는다). 표에 없으면 octet-stream(받기만). */
+export const attachTypeOf = (path) => ATTACH_TYPES[extOf(path)] || 'application/octet-stream';
+/** Storage 경로 — 파일 이름(개인정보가 들어갈 수 있음)은 경로에 넣지 않는다. 규칙과 같은 모양 approvals/{docId}/{이름} */
+// 파일 이름 모양 {13자리 시각}_{영숫자 1~8}.{확장자} — storage.rules approvals create·firestore.rules apAttOk 정규식과 같다
+export const ATTACH_NAME_RE = /^[0-9]{13}_[a-z0-9]{1,8}\.(png|jpg|jpeg|gif|webp|pdf|xls|xlsx|csv|doc|docx|hwp|hwpx)$/;
+export const attachPath = (docId, ext, now = Date.now(), rand = Math.random().toString(36).slice(2, 8) || 'x') =>
+    `approvals/${docId}/${String(now).padStart(13, '0').slice(-13)}_${rand}.${ext}`;
+/** 문서에 둘 메타 한 줄 */
+export const attachMeta = (key, file, path, contentType) => ({ key: String(key), name: String(file.name || '').slice(0, 120), size: Number(file.size) || 0, path, type: contentType });
+export const fmtBytes = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round((n || 0) / 1024)) + 'KB');

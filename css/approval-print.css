@@ -10,6 +10,24 @@
 .ap-t td.ap-title-cell { white-space: normal; min-width: 180px; overflow-wrap: anywhere; }
 .ap-self { font-size: 11.5px; margin-left: 6px; }
 
+/* 행 버튼·보기 화면 큰 버튼 줄(2026-11-05) — 안 되는 버튼은 is-off(흐림, 누르면 까닭 안내 — js/approval.js ownBtns) */
+.ap-row-btns { white-space: nowrap; text-align: right; }
+.ap-row-btns .d-btn { margin-left: 4px; }
+.d-btn.is-off, .d-btn.is-off:hover { background: var(--c-surface-2); border-color: var(--c-line); color: var(--c-text-4); cursor: help; }
+.ap-seg-n { margin-left: 4px; font-size: 11px; padding: 0 6px; }
+.ap-toolbar { padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+.ap-actions-big { display: flex; flex-wrap: wrap; gap: 10px; }
+.d-btn.ap-big { min-height: 42px; padding: 0 22px; font-size: 14.5px; font-weight: 600; }
+/* 첨부 목록 */
+.ap-att { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ap-att li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ap-att-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-file-pick { cursor: pointer; }
+.ap-file-pick.is-off { opacity: .5; cursor: not-allowed; }
+/* 대결 표시(종이) */
+.ap-proxy { display: block; font-size: 7pt; color: #C62828; font-weight: 700; margin-top: .5mm; }
+.ap-proxy-note { font-size: .85em; color: #8A2A2A; }
+
 /* 양식 고르기 */
 .ap-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .ap-pick button { text-align: left; padding: 18px 20px; border: 1px solid var(--c-line-strong); border-radius: var(--r-inner); background: var(--c-surface); color: var(--c-text); font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
@@ -89,6 +107,17 @@
 }
 @media (max-width: 768px) {
     .ap-pills { padding: 12px 14px 10px; }
+    .ap-toolbar { padding: 12px 14px; }
+    /* 목록은 좁은 화면에서 카드처럼 — 행 버튼이 가로 스크롤 밖으로 숨지 않게 */
+    .ap-t thead { display: none; }
+    .ap-t, .ap-t tbody, .ap-t tr, .ap-t td { display: block; width: auto; }
+    .ap-t tr { padding: 12px 14px; border-bottom: 1px solid var(--c-line-soft); }
+    .ap-t td, .ap-t tbody tr:last-child td { border: 0; padding: 2px 0; white-space: normal; }
+    .ap-t td[data-label]::before { content: attr(data-label) ' '; color: var(--c-text-3); font-size: 12px; margin-right: 6px; }
+    .ap-t td[data-label]:empty { display: none; }
+    .ap-row-btns { text-align: left; margin-top: 8px; }
+    .ap-row-btns .d-btn { margin: 0 6px 0 0; min-height: 34px; }
+    .ap-actions-big .d-btn.ap-big { flex: 1 1 40%; }
     .ap-sheet { padding: 8mm 6mm; font-size: 10pt; }
     .ap-sheet h2 { font-size: 17pt; letter-spacing: .3em; text-indent: .3em; }
     .ap-boxes th { width: 18mm; }
