@@ -1,11 +1,12 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202611050851';
-import { menuLabel } from './app-shell-data.js?v=202611050851';   // 보이는 이름만 바꾼 메뉴(예: 내 연차관리 → 내 연차·근태관리)
-import { renderPermissionPanel } from './admin-perm.js?v=202611050851';
-import { taskIdOf, isSystemTaskId } from './lib/task-ids.js?v=202611050851';
-import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202611050851';
+import { cleanPosition, POSITION_SUGGESTIONS } from './lib/member-title.js?v=202611050916';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202611050916';
+import { menuLabel } from './app-shell-data.js?v=202611050916';   // 보이는 이름만 바꾼 메뉴(예: 내 연차관리 → 내 연차·근태관리)
+import { renderPermissionPanel } from './admin-perm.js?v=202611050916';
+import { taskIdOf, isSystemTaskId } from './lib/task-ids.js?v=202611050916';
+import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202611050916';
 
 // 📱 순서 바꾸기 ▲▼ — HTML5 끌어 옮기기는 터치에서 안 되므로, 터치 화면(hover 없음)에서만 보인다(admin.html .move-btns).
 //    누르면 같은 종류의 앞/뒤 줄과 자리를 바꾼다(admin.js handleMoveClick). 마우스 환경은 ☰ 끌기 그대로.
@@ -58,7 +59,8 @@ export function renderAdminUI(config) {
         config.memberRoles || {},
         config.memberLeaveSettings || {},
         config.memberRanks || {},
-        config.resignedMembers || {}
+        config.resignedMembers || {},
+        config.memberPositions || {}
     );
 
     renderResignedMembers(
@@ -68,7 +70,8 @@ export function renderAdminUI(config) {
         config.memberRoles || {},
         config.memberLeaveSettings || {},
         config.memberRanks || {},
-        config.resignedMembers || {}
+        config.resignedMembers || {},
+        config.memberPositions || {}
     );
 
     renderSystemAccountsConfig(config.systemAccounts || []);
@@ -91,14 +94,25 @@ export function renderPermissionsConfig(config) {
     renderPermissionPanel(config);
 }
 
+// 직책 입력칸 추천 목록(datalist) — 한 번만 만든다
+function ensurePositionSuggest() {
+    if (typeof document === 'undefined' || document.getElementById('member-position-suggest')) return;
+    const dl = document.createElement('datalist');
+    dl.id = 'member-position-suggest';
+    dl.innerHTML = POSITION_SUGGESTIONS.map(p => `<option value="${p}"></option>`).join('');
+    document.body.appendChild(dl);
+}
+
 // 팀원 1명의 편집 카드 HTML. 활성 팀원(그룹 카드 내부)과 퇴사자 섹션에서 공용으로 사용.
 // groupName은 data-group-name으로 심어, 저장 시 퇴사자를 원래 그룹으로 되돌리는 데 사용.
 // '+ 팀원 추가'(admin.js)도 이 함수로 새 행을 만든다 — 칸 모양(기본급 월·÷209 시급)을 한 벌로 유지.
 export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
-    const { memberWages = {}, memberEmails = {}, memberRanks = {}, memberLeaveSettings = {}, resignedMembers = {} } = maps;
+    const { memberWages = {}, memberEmails = {}, memberRanks = {}, memberLeaveSettings = {}, resignedMembers = {}, memberPositions = {} } = maps;
     const isResigned = !!opts.isResignedSection;
     const memberEmail = memberEmails[member] || '';
     const currentRank = memberRanks[member] || '사원';
+    const currentPosition = cleanPosition(memberPositions[member]);
+    const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     const settings = memberLeaveSettings[member] || {};
     const joinDate = settings.joinDate || '';
     const totalLeave = settings.totalLeave !== undefined ? settings.totalLeave : 15;
@@ -136,6 +150,10 @@ export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
                 <div class="flex flex-col">
                     <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">직급</label>
                     <select class="member-rank w-20 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500">${rankOptions}</select>
+                </div>
+                <div class="flex flex-col">
+                    <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">직책</label>
+                    <input type="text" value="${escAttr(currentPosition)}" list="member-position-suggest" maxlength="20" class="member-position w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="없음" title="맡은 자리(예: 팀장). 비워 두면 직책 없음. 인사말·직원 관리 창 이름 뒤에 붙습니다.">
                 </div>
                 <div class="flex flex-col">
                     <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1">이메일</label>
@@ -183,11 +201,12 @@ export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
     `;
 }
 
-export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}, resignedMembers = {}) {
+export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}, resignedMembers = {}, memberPositions = {}) {
     const container = document.getElementById('team-groups-container');
     if (!container) return;
+    ensurePositionSuggest();
     container.innerHTML = '';
-    const maps = { memberWages, memberEmails, memberRanks, memberLeaveSettings, resignedMembers };
+    const maps = { memberWages, memberEmails, memberRanks, memberLeaveSettings, resignedMembers, memberPositions };
 
     teamGroups.forEach((group, index) => {
         const groupEl = document.createElement('div');
@@ -217,13 +236,14 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
 }
 
 // 🚪 퇴사자 별도 섹션 렌더. teamGroups 전체에서 resignedMembers에 있는 사람만 원 그룹과 함께 표시.
-export function renderResignedMembers(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}, resignedMembers = {}) {
+export function renderResignedMembers(teamGroups, memberWages, memberEmails, memberRoles, memberLeaveSettings = {}, memberRanks = {}, resignedMembers = {}, memberPositions = {}) {
     const section = document.getElementById('resigned-members-section');
     const container = document.getElementById('resigned-members-container');
     const countEl = document.getElementById('resigned-count');
     if (!container) return;
+    ensurePositionSuggest();
     container.innerHTML = '';
-    const maps = { memberWages, memberEmails, memberRanks, memberLeaveSettings, resignedMembers };
+    const maps = { memberWages, memberEmails, memberRanks, memberLeaveSettings, resignedMembers, memberPositions };
 
     const rows = [];
     (teamGroups || []).forEach(group => {

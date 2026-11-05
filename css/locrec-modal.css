@@ -83,6 +83,7 @@
 #locrec-modal .locrec-table tr.locrec-alt { background-color: var(--c-surface-2, #F7F8FA); }
 #locrec-modal .locrec-table tr.locrec-sub > td { border-top: 1px dashed var(--c-line, #E6E8EC); }
 #locrec-modal .locrec-table td.locrec-prod { min-width: 150px; }
+#locrec-modal .locrec-table td.locrec-optcell { min-width: 70px; color: var(--c-text-2, #4A5260); }
 #locrec-modal .locrec-table td.locrec-loc { width: 96px; white-space: nowrap; }
 #locrec-modal .locrec-table td.locrec-num { width: 56px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #locrec-modal .locrec-table td.locrec-rank { width: 40px; text-align: center; font-weight: 700; color: var(--c-accent-deep, #1E4699); }
@@ -118,7 +119,7 @@
         height: calc(100dvh - 16px); padding: 16px; overflow: hidden;
     }
     #locrec-modal .locrec-table-wrap { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
-    #locrec-modal .locrec-table { min-width: 760px; }
+    #locrec-modal .locrec-table { min-width: 820px; }
     #locrec-modal .locrec-table td.locrec-prod { min-width: 120px; }
     #locrec-modal .locrec-table td.locrec-loc { width: 84px; }
     #locrec-modal .locrec-table td.locrec-state { width: 104px; }

@@ -1,18 +1,19 @@
 // === js/app-sync.js ===
-import * as State from './state.js?v=202611050851';
-import { isPersistentLeaveType } from './state.js?v=202611050851';
-import * as DOM from './dom-elements.js?v=202611050851';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611050851';
+import { nameWithPosition } from './lib/member-title.js?v=202611050916';
+import * as State from './state.js?v=202611050916';
+import { isPersistentLeaveType } from './state.js?v=202611050916';
+import * as DOM from './dom-elements.js?v=202611050916';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611050916';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611050851';
-import { renderTodoList } from './inspection-logic.js?v=202611050851';
-import { renderNotificationList } from './app-notifications.js?v=202611050851';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611050851';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611050851';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611050851';
-import { desktopNotify } from './desktop-noti.js?v=202611050851';
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611050851';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611050916';
+import { renderTodoList } from './inspection-logic.js?v=202611050916';
+import { renderNotificationList } from './app-notifications.js?v=202611050916';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611050916';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611050916';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611050916';
+import { desktopNotify } from './desktop-noti.js?v=202611050916';
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611050916';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -142,6 +143,12 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
 
             renderDashboardLayout(State.appConfig);
             renderTaskSelectionModal(State.appConfig.taskGroups);
+            // 인사말의 직책도 설정 변경을 따라간다(권한 표시는 로그인 때 값 그대로)
+            const greet = document.getElementById('user-greeting');
+            const me = State.appState.currentUser;
+            if (greet && me && !greet.classList.contains('hidden')) {
+                greet.textContent = `${nameWithPosition(State.appConfig, me)}님 (${State.appState.currentUserRole}), 안녕하세요.`;
+            }
             renderCallback();
         }
     });
