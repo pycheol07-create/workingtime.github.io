@@ -79,6 +79,10 @@
 #locrec-modal .locrec-table th.locrec-sortable:hover { color: var(--c-accent-deep); }
 #locrec-modal .locrec-table th.locrec-sortable.on { color: var(--c-accent-deep); }
 #locrec-modal .locrec-qtymode { margin-left: 4px; padding: 0 6px; height: 18px; border: 1px solid var(--c-line); border-radius: 999px; background: var(--c-surface); color: var(--c-text-3); font-size: 10.5px; cursor: pointer; vertical-align: middle; }
+#locrec-modal .locrec-qtymodes { display: inline-flex; margin-left: 4px; vertical-align: middle; }
+#locrec-modal .locrec-qtymodes .locrec-qtymode { margin-left: 0; border-radius: 0; }
+#locrec-modal .locrec-qtymodes .locrec-qtymode:first-child { border-radius: 999px 0 0 999px; }
+#locrec-modal .locrec-qtymodes .locrec-qtymode:last-child { border-radius: 0 999px 999px 0; margin-left: -1px; }
 #locrec-modal .locrec-qtymode.on { border-color: var(--c-accent); color: var(--c-accent-deep); background: var(--c-accent-soft); }
 #locrec-modal .locrec-table td { white-space: nowrap; }
 #locrec-modal .locrec-table td .locrec-badges, #locrec-modal .locrec-table td .locrec-who { white-space: normal; }

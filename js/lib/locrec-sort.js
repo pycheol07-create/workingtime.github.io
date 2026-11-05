@@ -38,7 +38,7 @@ export function sortValue(x, key, { qtyWithReserve = false, lines } = {}) {
     switch (key) {
         case 'rank': return r.carried ? null : (n(r.rank) ?? (x.i0 != null ? x.i0 + 1 : null));
         case 'code': case 'name': case 'option': case 'from': case 'to': return String(first[key] ?? '').trim();
-        case 'qty': return sum(l => { const q = n(l.qty); if (q == null) return null; return qtyWithReserve ? q + (n(l.reserve) || 0) : q; });
+        case 'qty': return sum(l => (qtyWithReserve ? lineTotal(l) : n(l.qty)));
         case 'daily': return sum(l => n(l.daily));
         case 'gain': return n(r.gain);
         case 'score': return r.routeOut ? null : n(r.scoreGain);
@@ -46,6 +46,25 @@ export function sortValue(x, key, { qtyWithReserve = false, lines } = {}) {
         case 'state': { const st = x.st || {}; return String(st.other && !st.mark ? '처리함 표시' : (st.label || '')); }
         default: return null;
     }
+}
+
+/** 한 줄의 비축 포함 총 수량(이동수량 + 비축). 이동수량이 없으면 null */
+export function lineTotal(l) {
+    const q = n(l && l.qty);
+    return q == null ? null : q + (n(l && l.reserve) || 0);
+}
+
+/** 비축 포함 총 재고가 limit 개 이하인 추천인가(2026-11-05 사용자 요청 '10개 이하 제외').
+ *  한 줄짜리(단독)는 그 줄로, 두 줄(맞바꾸기·페어)은 두 줄이 모두 limit 이하일 때만 — 한쪽만 빼면 맞바꾸기가 깨진다.
+ *  수량을 모르는 줄은 판정하지 않는다(제외 안 함). */
+export function isLowStockRow(r, limit, lines) {
+    const lim = Number(limit);
+    if (!Number.isFinite(lim) || lim < 0) return false;
+    const ls = typeof lines === 'function' ? lines(r || {}) : [];
+    if (!ls.length) return false;
+    const tots = ls.map(lineTotal);
+    if (tots.some(t => t == null)) return false;
+    return tots.every(t => t <= lim);
 }
 
 /** 정렬된 새 배열(입력은 바꾸지 않음). 값이 없는 행은 방향과 상관없이 맨 뒤, 같으면 원래 순서 */

@@ -14,12 +14,12 @@
 //   같은 상품을 오늘 다른 추천으로 옮긴 줄(st.other)은 '○○(으)로 처리 · 이름 HH:MM' + 그 추천의 [되돌리기].
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202611051513';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611051513';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611051513';
-import { higherOpenThan } from './modal-above.js?v=202611051513';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611051513';
-import { SORT_COLS, sortRows, nextSort } from './lib/locrec-sort.js?v=202611051513';
+import { escapeHtml } from './utils.js?v=202611051531';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611051531';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611051531';
+import { higherOpenThan } from './modal-above.js?v=202611051531';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611051531';
+import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611051531';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -74,12 +74,44 @@ export function mountLocRecTable({ store, sizeOf }) {
     let tab = 'single', showSkipped = false, lastTabsHtml = '';
     // 머리줄 정렬(2026-11-05) — { key, dir:'asc'|'desc' } · null 이면 원래(순위) 순서. 이동수량은 비축 포함 여부를 따로 고른다
     let sort = null, qtyWithReserve = false;
+    // 비축 포함 총 재고가 적은 추천 빼기(2026-11-05) — 이 PC 에 기억(localStorage, 실패해도 기본값)
+    const LOW_KEY = 'locrecLowStock';
+    let lowOn = false, lowLimit = 10;
+    try { const v = JSON.parse(localStorage.getItem(LOW_KEY) || 'null'); if (v) { lowOn = !!v.on; if (Number.isFinite(Number(v.n))) lowLimit = Math.max(0, Math.round(Number(v.n))); } } catch (e) { /* 기본값 */ }
+    const saveLow = () => { try { localStorage.setItem(LOW_KEY, JSON.stringify({ on: lowOn, n: lowLimit })); } catch (e) { /* 무시 */ } };
+    const keepRow = (r) => !(lowOn && isLowStockRow(r, lowLimit, rowLines));
+    // 도구 줄에 체크 + 개수 칸(두 페이지 마크업이 같으므로 JS 로 붙인다)
+    let mLowCnt = null;
+    (() => {
+        const anchor = q('locrec-skip-wrap');
+        if (!anchor || q('locrec-low-wrap')) return;
+        const wrap = document.createElement('label');
+        wrap.className = 'refill-sub locrec-skipchk';
+        wrap.id = 'locrec-low-wrap';
+        wrap.title = '이동수량 + 비축 수량(총 재고)이 이 개수 이하인 추천을 표에서 뺍니다. 맞바꾸기·페어는 두 상품이 모두 이하일 때만 뺍니다. 엑셀 받기에도 같이 적용됩니다.';
+        wrap.innerHTML = `<input type="checkbox" id="locrec-low-on"> <span style="vertical-align:middle;">비축 포함 총 재고</span> `
+            + `<input type="number" id="locrec-low-n" min="0" max="999" step="1" style="width:52px; padding:1px 4px; vertical-align:middle;"> `
+            + `<span style="vertical-align:middle;">개 이하 빼기</span> <span id="locrec-low-cnt" class="locrec-opt"></span>`;
+        anchor.parentNode.insertBefore(wrap, anchor);
+        const on = q('locrec-low-on'), num = q('locrec-low-n');
+        on.checked = lowOn; num.value = String(lowLimit);
+        on.addEventListener('change', () => { lowOn = on.checked; saveLow(); render(); });
+        num.addEventListener('change', () => {
+            const v = Math.round(Number(num.value));
+            lowLimit = Number.isFinite(v) && v >= 0 ? Math.min(999, v) : 10;
+            num.value = String(lowLimit); saveLow(); render();
+        });
+        mLowCnt = q('locrec-low-cnt');
+    })();
     const thead = modal.querySelector('.locrec-table thead');
     const headHtml = () => SORT_COLS.map(c => {
         const on = sort && sort.key === c.key;
         const arrow = on ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+        // 정렬 기준은 버튼 둘 — 켜진 쪽이 지금 기준(예전 한 버튼은 '+비축'이 '누르면 더함'으로 읽혀 헷갈렸다)
         const qtyMode = c.key === 'qty'
-            ? ` <button type="button" class="locrec-qtymode${qtyWithReserve ? ' on' : ''}" data-locrec-qtymode title="이동수량 정렬 기준 — 누르면 '피킹만' ↔ '비축 포함' 바꿈">${qtyWithReserve ? '+비축' : '피킹만'}</button>` : '';
+            ? ` <span class="locrec-qtymodes" title="이동수량으로 정렬할 때 기준">`
+              + `<button type="button" class="locrec-qtymode${qtyWithReserve ? '' : ' on'}" data-locrec-qtymode="pick" aria-pressed="${!qtyWithReserve}">피킹만</button>`
+              + `<button type="button" class="locrec-qtymode${qtyWithReserve ? ' on' : ''}" data-locrec-qtymode="total" aria-pressed="${qtyWithReserve}">비축 포함 합계</button></span>` : '';
         if (!c.sortable) return `<th${c.title ? ` title="${escapeHtml(c.title)}"` : ''}>${escapeHtml(c.label)}</th>`;
         return `<th class="locrec-sortable${on ? ' on' : ''}" data-locrec-sort="${c.key}"${c.title ? ` title="${escapeHtml(c.title + ' — 누르면 정렬')}"` : ' title="누르면 정렬"'}>${escapeHtml(c.label)}${arrow}${qtyMode}</th>`;
     }).join('');
@@ -101,6 +133,7 @@ export function mountLocRecTable({ store, sizeOf }) {
         const c = qtyCellOf(l);
         return `<td class="locrec-num locrec-qty" title="${escapeHtml(c.title)}">${escapeHtml(c.text)}`
             + (c.reserve ? ` <span class="locrec-opt" style="font-weight:400;">(${escapeHtml(c.reserve)})</span>` : '')
+            + (qtyWithReserve && c.reserve && lineTotal(l) != null ? `<div class="locrec-opt" style="font-weight:600;">합계 ${lineTotal(l).toLocaleString('ko-KR')}개</div>` : '')
             + (c.hint ? `<div class="locrec-who" style="font-weight:400; white-space:normal;">${escapeHtml(c.hint)}</div>` : '') + '</td>';
     };
     // 상품명·옵션은 칸을 나눈다(2026-11-05 사용자 요청)
@@ -195,7 +228,10 @@ export function mountLocRecTable({ store, sizeOf }) {
         const all = store.visibleRows(tab);
         const hiddenN = all.filter(x => x.st.hidden).length;
         // 원래 순서 번호(순위 칸이 없는 옛 문서용)를 정렬 전에 붙인다
-        const rows = sortRows(all.filter(x => showSkipped || !x.st.hidden).map((x, i) => ({ ...x, i0: i })),
+        const shown = all.filter(x => showSkipped || !x.st.hidden);
+        const kept = shown.filter(x => keepRow(x.r));
+        if (mLowCnt) mLowCnt.textContent = lowOn && shown.length !== kept.length ? `(${shown.length - kept.length}건 뺌)` : '';
+        const rows = sortRows(kept.map((x, i) => ({ ...x, i0: shown.indexOf(x) })),
             sort, { qtyWithReserve, lines: rowLines });
         if (thead) thead.innerHTML = `<tr>${headHtml()}</tr>`;
         mSkip.checked = showSkipped;
@@ -203,7 +239,7 @@ export function mountLocRecTable({ store, sizeOf }) {
         mSkipTxt.textContent = `안 함${hiddenN ? ` ${hiddenN}건` : ''}도 보기`;
         mDl.disabled = !rows.length;
         // [전체 처리함] — 처음 보여 주는 날짜에서, 지금 탭에 아직 표시 안 한 추천이 있을 때만
-        const bulk = loaded && editable ? bulkDoneKeys(all) : [];
+        const bulk = loaded && editable ? bulkDoneKeys(all.filter(x => keepRow(x.r))) : [];   // 빼기로 숨긴 추천은 [전체 처리함]에서도 뺀다
         if (mAll) {
             mAll.hidden = !(loaded && editable);
             mAll.disabled = !bulk.length || !!S.applying || !!pd;
@@ -249,8 +285,9 @@ export function mountLocRecTable({ store, sizeOf }) {
             return;
         }
         // 머리줄 — [피킹만/+비축] 은 이동수량 정렬 기준만 바꾸고(이동수량으로 정렬 중이 아니면 이동수량 많은 순으로), 칸 이름은 정렬
-        if (ev.target.closest('[data-locrec-qtymode]')) {
-            qtyWithReserve = !qtyWithReserve;
+        const qm = ev.target.closest('[data-locrec-qtymode]');
+        if (qm) {
+            qtyWithReserve = qm.getAttribute('data-locrec-qtymode') === 'total';
             if (!sort || sort.key !== 'qty') sort = { key: 'qty', dir: 'desc' };
             render(); return;
         }
@@ -262,10 +299,10 @@ export function mountLocRecTable({ store, sizeOf }) {
         if (!b || b.disabled) return;
         const act = b.getAttribute('data-locrec-act');
         const key = b.getAttribute('data-locrec-key');
-        if (act === 'download') store.downloadTab(tab, showSkipped);
+        if (act === 'download') store.downloadTab(tab, showSkipped, keepRow);
         else if (act === 'applyNew') store.applyPending();
         else if (act === 'doneAll') {
-            const keys = bulkDoneKeys(store.visibleRows(tab));
+            const keys = bulkDoneKeys(store.visibleRows(tab).filter(x => keepRow(x.r)));
             if (keys.length && confirm(`${TAB_LABEL[tab]} 탭의 추천 ${keys.length}건을 모두 '처리함'으로 표시할까요?
 데이터 리스트도 바뀝니다 — 상품을 추천한 자리로 옮깁니다(한 건씩 차례로).
 (오늘 안에는 줄마다 [되돌리기]로 자리까지 되돌릴 수 있습니다)`)) store.markMany(keys, 'done');

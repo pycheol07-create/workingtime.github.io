@@ -20,10 +20,10 @@ import { doc, onSnapshot, setDoc, serverTimestamp, deleteField, runTransaction }
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT
-} from './lib/locrec-view.js?v=202611051513';
-import { laterMs } from './lib/rebuild-view.js?v=202611051513';
-import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText } from './lib/locrec-apply.js?v=202611051513';
-import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611051513';
+} from './lib/locrec-view.js?v=202611051531';
+import { laterMs } from './lib/rebuild-view.js?v=202611051531';
+import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText } from './lib/locrec-apply.js?v=202611051531';
+import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611051531';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -455,8 +455,10 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
         X.writeFile(wb, fileName);
     }
     /** 표 창: 지금 탭(안 함도 보기면 그것까지). 이월 행(지금 기준 추천에서 빠짐)은 넣지 않는다 */
-    function downloadTab(tab, showSkipped) {
-        const rows = visibleRows(tab).filter(x => !x.r.carried && (showSkipped || !x.st.hidden) && !x.st.other && !x.st.taken).map(x => x.r);
+    /** keep(r) — 선택: 표에서 뺀 행(예: 비축 포함 총 재고 적은 추천)은 엑셀에서도 뺀다 */
+    function downloadTab(tab, showSkipped, keep) {
+        const rows = visibleRows(tab).filter(x => !x.r.carried && (showSkipped || !x.st.hidden) && !x.st.other && !x.st.taken
+            && (typeof keep !== 'function' || keep(x.r))).map(x => x.r);
         writeXlsx(rows, SHEET_NAME[tab], fileNameOf(tab, S.key));
     }
     /** 접힌 띠·펼친 본문: 탭과 상관없이 그날 추천 전체(단독 → 맞바꾸기 → 페어, 안 함 제외) — 띠 건수와 같은 목록 */
