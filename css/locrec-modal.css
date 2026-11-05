@@ -16,7 +16,7 @@
     background: var(--c-surface, #FFFFFF); border-radius: var(--r-card, 18px); color: var(--c-text, #23272E);
     box-shadow: var(--sh-pop, 0 8px 24px rgba(30,40,60,.12)); overflow-y: auto;
 }
-#locrec-modal .refill-modal-content { width: 1000px; max-width: 96vw; max-height: 92vh; padding: 22px 20px; display: flex; flex-direction: column; box-sizing: border-box; }
+#locrec-modal .refill-modal-content { width: 1400px; max-width: 98vw; max-height: 92vh; padding: 22px 20px; display: flex; flex-direction: column; box-sizing: border-box; }
 #locrec-modal .modal-header { font-size: 18px; font-weight: 600; color: var(--c-text, #23272E); }
 #locrec-modal .modal-x {
     margin-left: auto; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-pill, 999px);
@@ -73,7 +73,15 @@
 #locrec-modal .table-box > .usage-table { border-left: none; border-right: none; border-bottom: none; }
 #locrec-modal .table-box thead { position: sticky; top: 0; z-index: 1; }
 #locrec-modal .table-box thead th { border-top: none; }
-#locrec-modal .locrec-table { width: 100%; min-width: 820px; font-size: 12.5px; }
+#locrec-modal .locrec-table { width: 100%; min-width: 1180px; font-size: 12.5px; }
+/* 2026-11-05 표 넓게 · 줄바꿈 최소 · 머리줄 정렬 */
+#locrec-modal .locrec-table th.locrec-sortable { cursor: pointer; user-select: none; }
+#locrec-modal .locrec-table th.locrec-sortable:hover { color: var(--c-accent-deep); }
+#locrec-modal .locrec-table th.locrec-sortable.on { color: var(--c-accent-deep); }
+#locrec-modal .locrec-qtymode { margin-left: 4px; padding: 0 6px; height: 18px; border: 1px solid var(--c-line); border-radius: 999px; background: var(--c-surface); color: var(--c-text-3); font-size: 10.5px; cursor: pointer; vertical-align: middle; }
+#locrec-modal .locrec-qtymode.on { border-color: var(--c-accent); color: var(--c-accent-deep); background: var(--c-accent-soft); }
+#locrec-modal .locrec-table td { white-space: nowrap; }
+#locrec-modal .locrec-table td .locrec-badges, #locrec-modal .locrec-table td .locrec-who { white-space: normal; }
 #locrec-modal .locrec-table th { white-space: nowrap; }
 #locrec-modal .locrec-table td { text-align: left; vertical-align: top; padding: 6px 8px; }
 /* 맞바꾸기·페어는 줄(A/B)마다 tr — 줄무늬는 추천 단위(.locrec-alt), 두 줄 사이는 점선 */
@@ -119,7 +127,7 @@
         height: calc(100dvh - 16px); padding: 16px; overflow: hidden;
     }
     #locrec-modal .locrec-table-wrap { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
-    #locrec-modal .locrec-table { min-width: 820px; }
+    #locrec-modal .locrec-table { min-width: 1180px; }
     #locrec-modal .locrec-table td.locrec-prod { min-width: 120px; }
     #locrec-modal .locrec-table td.locrec-loc { width: 84px; }
     #locrec-modal .locrec-table td.locrec-state { width: 104px; }

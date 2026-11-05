@@ -14,11 +14,12 @@
 //   같은 상품을 오늘 다른 추천으로 옮긴 줄(st.other)은 '○○(으)로 처리 · 이름 HH:MM' + 그 추천의 [되돌리기].
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202611051110';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611051110';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611051110';
-import { higherOpenThan } from './modal-above.js?v=202611051110';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611051110';
+import { escapeHtml } from './utils.js?v=202611051127';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611051127';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611051127';
+import { higherOpenThan } from './modal-above.js?v=202611051127';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611051127';
+import { SORT_COLS, sortRows, nextSort } from './lib/locrec-sort.js?v=202611051127';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -71,6 +72,17 @@ export function mountLocRecTable({ store, sizeOf }) {
     const mBand = q('locrec-new-band'), mBandTxt = q('locrec-new-txt'), mReqNote = q('locrec-req-note');
     const ALL_TITLE = mAll ? mAll.title : '';            // [전체 처리함] 원래 툴팁(새 판 대기 중에는 PENDING_TEXT)
     let tab = 'single', showSkipped = false, lastTabsHtml = '';
+    // 머리줄 정렬(2026-11-05) — { key, dir:'asc'|'desc' } · null 이면 원래(순위) 순서. 이동수량은 비축 포함 여부를 따로 고른다
+    let sort = null, qtyWithReserve = false;
+    const thead = modal.querySelector('.locrec-table thead');
+    const headHtml = () => SORT_COLS.map(c => {
+        const on = sort && sort.key === c.key;
+        const arrow = on ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+        const qtyMode = c.key === 'qty'
+            ? ` <button type="button" class="locrec-qtymode${qtyWithReserve ? ' on' : ''}" data-locrec-qtymode title="이동수량 정렬 기준 — 누르면 '피킹만' ↔ '비축 포함' 바꿈">${qtyWithReserve ? '+비축' : '피킹만'}</button>` : '';
+        if (!c.sortable) return `<th${c.title ? ` title="${escapeHtml(c.title)}"` : ''}>${escapeHtml(c.label)}</th>`;
+        return `<th class="locrec-sortable${on ? ' on' : ''}" data-locrec-sort="${c.key}"${c.title ? ` title="${escapeHtml(c.title + ' — 누르면 정렬')}"` : ' title="누르면 정렬"'}>${escapeHtml(c.label)}${arrow}${qtyMode}</th>`;
+    }).join('');
     const closeFns = new Set();
 
     const isOpen = () => modal.style.display === 'flex';
@@ -94,7 +106,7 @@ export function mountLocRecTable({ store, sizeOf }) {
     // 상품명·옵션은 칸을 나눈다(2026-11-05 사용자 요청)
     const nameCell = (name) => escapeHtml(name || '');
 
-    function rowHtml(S, r, st, i, editable, pending) {
+    function rowHtml(S, r, st, i, editable, pending, i0 = i) {
         const busy = S.saving.has(r.recKey) || !!S.applying || !editable;   // 지난 날짜는 볼 수만 · 전체 반영 중에는 잠금
         const busyMark = busy || pending;                                   // 새 판 대기 중 — [처리함]/[안 함]만 잠금(되돌리기는 된다)
         const k = escapeHtml(r.recKey);
@@ -145,7 +157,7 @@ export function mountLocRecTable({ store, sizeOf }) {
                 + `<td class="locrec-num locrec-daily">${l.daily == null ? '' : fmtNum(l.daily)}</td>`;
             if (j > 0) return `<tr class="${trCls} locrec-sub"${trAttr}>${cells}</tr>`;
             return `<tr class="${trCls}"${trAttr}>`
-                + `<td class="locrec-rank"${span}>${carried ? '' : (r.rank == null ? i + 1 : r.rank)}</td>`     // 이월 행은 순위 없음
+                + `<td class="locrec-rank"${span}>${carried ? '' : (r.rank == null ? i0 + 1 : r.rank)}</td>`     // 이월 행은 순위 없음 · 정렬해도 원래 순위
                 + cells
                 + `<td class="locrec-gain"${span}>${fmtNum(r.gain)}</td>`
                 + `<td class="locrec-score-gain"${span} title="${scoreTitle(r)}">${escapeHtml(r.routeOut ? ROUTE_OUT_LABEL : fmtGain(r.scoreGain))}</td>`
@@ -182,7 +194,10 @@ export function mountLocRecTable({ store, sizeOf }) {
         if (lastTabsHtml !== tabsHtml) { lastTabsHtml = tabsHtml; mTabs.innerHTML = tabsHtml; }
         const all = store.visibleRows(tab);
         const hiddenN = all.filter(x => x.st.hidden).length;
-        const rows = all.filter(x => showSkipped || !x.st.hidden);
+        // 원래 순서 번호(순위 칸이 없는 옛 문서용)를 정렬 전에 붙인다
+        const rows = sortRows(all.filter(x => showSkipped || !x.st.hidden).map((x, i) => ({ ...x, i0: i })),
+            sort, { qtyWithReserve, lines: rowLines });
+        if (thead) thead.innerHTML = `<tr>${headHtml()}</tr>`;
         mSkip.checked = showSkipped;
         mSkipWrap.hidden = !(hiddenN || showSkipped);
         mSkipTxt.textContent = `안 함${hiddenN ? ` ${hiddenN}건` : ''}도 보기`;
@@ -209,7 +224,7 @@ export function mountLocRecTable({ store, sizeOf }) {
             mTbody.innerHTML = `<tr><td colspan="12" class="refill-empty">${cnt[tab] || cry[tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[tab]} 추천이 없습니다`}</td></tr>`;
             return;
         }
-        mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable, !!pd)).join('');
+        mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable, !!pd, x.i0)).join('');
     }
 
     function open() { modal.style.display = 'flex'; render(); }
@@ -233,6 +248,14 @@ export function mountLocRecTable({ store, sizeOf }) {
             }
             return;
         }
+        // 머리줄 — [피킹만/+비축] 은 이동수량 정렬 기준만 바꾸고(이동수량으로 정렬 중이 아니면 이동수량 많은 순으로), 칸 이름은 정렬
+        if (ev.target.closest('[data-locrec-qtymode]')) {
+            qtyWithReserve = !qtyWithReserve;
+            if (!sort || sort.key !== 'qty') sort = { key: 'qty', dir: 'desc' };
+            render(); return;
+        }
+        const sh = ev.target.closest('[data-locrec-sort]');
+        if (sh) { sort = nextSort(sort, sh.getAttribute('data-locrec-sort')); render(); return; }
         const t = ev.target.closest('[data-locrec-tab]');
         if (t) { tab = TABS.includes(t.getAttribute('data-locrec-tab')) ? t.getAttribute('data-locrec-tab') : 'single'; render(); return; }
         const b = ev.target.closest('button[data-locrec-act]');

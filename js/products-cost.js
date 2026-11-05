@@ -8,14 +8,14 @@
 import {
     doc, getDoc, getDocs, collection, query, where, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=202611051110';
-import { esc, toast } from './products.js?v=202611051110';
-import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=202611051110';
-import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=202611051110';
-import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=202611051110';
-import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=202611051110';
-import { friendlyFirebaseError } from './utils.js?v=202611051110';   // 원시 오류 코드 대신 할 일 한 줄
-import { stripCheckMemo } from './lib/product-ezadmin.js?v=202611051110';
+import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=202611051127';
+import { esc, toast } from './products.js?v=202611051127';
+import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=202611051127';
+import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=202611051127';
+import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=202611051127';
+import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=202611051127';
+import { friendlyFirebaseError } from './utils.js?v=202611051127';   // 원시 오류 코드 대신 할 일 한 줄
+import { stripCheckMemo } from './lib/product-ezadmin.js?v=202611051127';
 
 export const C = { costs: null, ledger: null };
 

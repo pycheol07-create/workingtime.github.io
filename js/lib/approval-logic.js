@@ -11,7 +11,7 @@
 // 2026-11-05 추가: 결재자 지정(approverName·approverEmail — 관리자 또는 직책 파트장·부팀장·팀장, 본인 제외), 대신 결재(관리자, decision.proxy),
 //   첨부(칸 종류 'file' — Storage approvals/{문서id}/…, 문서에는 attachments 메타만: key·name·size·path·type, 문서당 5개·10MB).
 
-import { positionOf } from './member-title.js?v=202611051110';
+import { positionOf } from './member-title.js?v=202611051127';
 
 export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select', 'file'];
 export const BOX_ROLES = ['author', 'approver', 'blank'];

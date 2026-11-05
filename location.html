@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611051110"></script>
+    <script src="js/theme-boot.js?v=202611051127"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -11,10 +11,10 @@
     <meta name="apple-mobile-web-app-title" content="업무관리">
     <title>3층 로케이션 관리 시스템 (통합 DB)</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611051110">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611051110">
-    <link rel="stylesheet" href="css/page-nav.css?v=202611051110">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202611051110">
+    <link rel="stylesheet" href="css/suit.css?v=202611051127">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611051127">
+    <link rel="stylesheet" href="css/page-nav.css?v=202611051127">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202611051127">
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap" rel="stylesheet">
     <style>
         /* D안 디자인 토큰 (2026-10-13) — 색·모서리·간격은 여기 값을 쓴다 */
@@ -885,9 +885,17 @@
         .locrec-skipchk { cursor: pointer; user-select: none; }
         .locrec-skipchk input { vertical-align: middle; }
         .locrec-empty { padding: 6px 0; }
-        .locrec-modal-content { width: 1000px; }
+        .locrec-modal-content { width: 1400px; max-width: 98vw; }
         .locrec-table-wrap { flex: 1; min-height: 0; overflow: auto; }
-        .locrec-table { width: 100%; min-width: 820px; font-size: 12.5px; }
+        .locrec-table { width: 100%; min-width: 1180px; font-size: 12.5px; }
+        /* 2026-11-05 표 넓게 · 줄바꿈 최소 · 머리줄 정렬 */
+        .locrec-table th.locrec-sortable { cursor: pointer; user-select: none; }
+        .locrec-table th.locrec-sortable:hover { color: var(--c-accent-deep); }
+        .locrec-table th.locrec-sortable.on { color: var(--c-accent-deep); }
+        .locrec-qtymode { margin-left: 4px; padding: 0 6px; height: 18px; border: 1px solid var(--c-line); border-radius: 999px; background: var(--c-surface); color: var(--c-text-3); font-size: 10.5px; cursor: pointer; vertical-align: middle; }
+        .locrec-qtymode.on { border-color: var(--c-accent); color: var(--c-accent-deep); background: var(--c-accent-soft); }
+        .locrec-table td { white-space: nowrap; }
+        .locrec-table td .locrec-badges, .locrec-table td .locrec-who { white-space: normal; }
         .locrec-table th { white-space: nowrap; }
         .locrec-table td { text-align: left; vertical-align: top; padding: 6px 8px; }
         /* 맞바꾸기·페어는 줄(A/B)마다 tr — 줄무늬는 추천 단위(.locrec-alt), 두 줄 사이는 점선 */
@@ -980,7 +988,7 @@
             #locrec-modal > .refill-modal-content { height: calc(100dvh - 16px); overflow: hidden !important; }
             #locrec-modal .locrec-table-wrap { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
             body:has(#locrec-modal[style*="flex"]) { overflow: hidden; }
-            .locrec-table { min-width: 820px; }
+            .locrec-table { min-width: 1180px; }
             .locrec-table td.locrec-prod { min-width: 120px; }
             .locrec-table td.locrec-loc { width: 84px; }
             .locrec-table td.locrec-state { width: 104px; }
@@ -1795,10 +1803,10 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module" src="js/location.js?v=202611051110"></script>
+    <script type="module" src="js/location.js?v=202611051127"></script>
     <!-- 권한 개편 5단계: location.js 가 만든 window.* 위험 함수를 바깥에서 감싼다(반드시 location.js 다음) -->
-    <script type="module" src="js/location-guard.js?v=202611051110"></script>
-    <script type="module" src="js/locdash-layout.js?v=202611051110"></script>
+    <script type="module" src="js/location-guard.js?v=202611051127"></script>
+    <script type="module" src="js/locdash-layout.js?v=202611051127"></script>
     <script>
         function switchView(view) {
             // 대시보드 배치 편집 중에 다른 탭으로 가면 편집을 끝내고 저장
@@ -1876,10 +1884,10 @@
             if (typeof window.paintIncomingBasis === 'function') window.paintIncomingBasis(sidebar.classList.contains('open'));
         }
     </script>
-    <script src="js/connection-banner.js?v=202611051110"></script>
-    <script src="js/modal-esc.js?v=202611051110"></script>
-    <script type="module" src="js/modal-drag.js?v=202611051110"></script>
-    <script type="module" src="js/page-gate.js?v=202611051110" data-perm-page="location.view"></script>
-    <script type="module" src="js/app-shell.js?v=202611051110"></script>
+    <script src="js/connection-banner.js?v=202611051127"></script>
+    <script src="js/modal-esc.js?v=202611051127"></script>
+    <script type="module" src="js/modal-drag.js?v=202611051127"></script>
+    <script type="module" src="js/page-gate.js?v=202611051127" data-perm-page="location.view"></script>
+    <script type="module" src="js/app-shell.js?v=202611051127"></script>
 </body>
 </html>
