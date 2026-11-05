@@ -3,30 +3,29 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202611051150';
-import { LEAVE_TYPES } from './state.js?v=202611051150';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202611051150';
+import * as State from './state.js?v=202611051201';
+import { LEAVE_TYPES } from './state.js?v=202611051201';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202611051201';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611051150';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611051150';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611051201';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611051201';
 
 import {
     calculateReportKPIs,
     calculateReportAggregations,
     aggregateDaysToSingleData,
     calculatePeriodThroughputs,
-    calculateAdvancedProductivity,
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202611051150';
+} from './ui-history-reports-logic.js?v=202611051201';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202611051150';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611051150';
-import { D } from './d-chart.js?v=202611051150';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051150';
-import { baselineSpeeds, lastDayIdOf, OEE_LEVELS } from './lib/ops-metrics.js?v=202611051150';
-import { revenueTotalOf } from './revenue-channels.js?v=202611051150';
+import { aggregateManagementData } from './ui-history-management.js?v=202611051201';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611051201';
+import { D } from './d-chart.js?v=202611051201';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051201';
+import { baselineSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=202611051201';
+import { revenueTotalOf } from './revenue-channels.js?v=202611051201';
 
 // ============================================================
 // 모듈 상태
@@ -34,6 +33,8 @@ import { revenueTotalOf } from './revenue-channels.js?v=202611051150';
 let _productHistoryCache = null; // product_history 컬렉션 캐시 (검수이력용)
 let _currentPeriod = { granularity: 'month', year: new Date().getFullYear(), sub: new Date().getMonth() + 1 };
 let _chartInstances = [];
+let _renderOpts = { downloads: true };   // 머리 줄 [엑셀][PDF] 를 그릴지 — 다시 그릴 때(기간·정렬·필터)도 같은 값
+let _last = null;                        // 마지막으로 화면에 그린 결산 { periodLabel, data } — 따로 둔 다운로드 버튼이 쓴다
 
 function destroyCharts() {
     _chartInstances.forEach(c => { try { c.destroy(); } catch (e) { /* noop */ } });
@@ -164,19 +165,19 @@ function computeCoreMetrics(currentDays, previousDays, appConfig) {
     const curAggr = calculateReportAggregations(curAgg, appConfig, wageMap, memberToPartMap);
     const prevAggr = calculateReportAggregations(prevAgg, appConfig, wageMap, memberToPartMap);
 
-    // 효율·필요 인원의 기준은 평상시 속도(전체 이력, 오늘 제외) — 운영 지표 표준(js/lib/ops-metrics.js).
-    // 예전엔 그 기간의 속도(calculatePeriodThroughputs)를 써서 효율이 구조상 100% 근처였다.
+    // 생산성·인력 지표는 운영 지표 한 벌(js/lib/ops-metrics.js opsSummary) — 운영 리포트 화면과 같은 숫자.
+    // 효율·필요 인원의 기준은 평상시 속도(전체 이력, 오늘 제외). 예전엔 그 기간의 속도를 써서 효율이 구조상 100% 근처였다.
     const allDays = aliasHistoryView(State.allHistoryData, appConfig);   // 🆔 지금 이름으로
     // until = 기간 끝 날짜 — 옛 기간 결산에 그 뒤 시점의 속도가 섞이지 않게
     const speeds = baselineSpeeds(allDays, { skipDate: getTodayDateString(), until: lastDayIdOf(currentDays) });
-
-    const curProd = calculateAdvancedProductivity(currentDays, curAggr, speeds, appConfig, wageMap);
-    const prevProd = calculateAdvancedProductivity(previousDays, prevAggr, speeds, appConfig, wageMap);
+    const ops = opsSummary(currentDays, previousDays, allDays, appConfig, { speeds, wageMap });
+    const curProd = ops.cur;
+    const prevProd = ops.prev;
 
     const benchmarkOEE = calculateBenchmarkOEE(allDays, appConfig);
     const diagnosis = generateProductivityDiagnosis(curProd, prevProd, benchmarkOEE);
 
-    return { wageMap, memberToPartMap, curKPIs, prevKPIs, curAggr, prevAggr, curProd, prevProd, benchmarkOEE, diagnosis };
+    return { wageMap, memberToPartMap, curKPIs, prevKPIs, curAggr, prevAggr, curProd, prevProd, ops, benchmarkOEE, diagnosis };
 }
 
 // 생산성·효율성: 처리량(수량) 중심 — 시간/금액은 부가 지표로만 사용
@@ -1272,7 +1273,7 @@ function renderOverallOpinionSection(op, periodLabel, workingDaysCount) {
 //    이 화면은 표의 열 제목이 정렬 버튼 안에 들어 있고(sfHead),
 //    파고들기 숫자도 버튼 안에 있다(drillWrap). 통째로 지우면 제목과
 //    숫자가 사라진 종이가 나온다. 조작용만 지우고 나머지는 껍데기만 벗긴다.
-async function downloadSettlementPdf(periodLabel) {
+async function downloadSettlementPdf(periodLabel, btnArg = null) {
     if (typeof html2pdf === 'undefined') {
         alert('PDF 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
         return;
@@ -1280,7 +1281,7 @@ async function downloadSettlementPdf(periodLabel) {
     const panel = document.getElementById('settlement-panel');
     if (!panel) return;
 
-    const btn = document.getElementById('settle-pdf-btn');
+    const btn = btnArg || document.getElementById('settle-pdf-btn');
     const btnText = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = '만드는 중…'; }
 
@@ -1524,8 +1525,8 @@ function buildPeriodControlsHtml() {
             </div>
             <div class="flex items-center gap-2">
                 <span id="settle-generated-at" class="text-xs text-gray-400"></span>
-                <button id="settle-download-btn" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition">엑셀</button>
-                <button id="settle-pdf-btn" class="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-sm font-bold px-3 py-1.5 rounded-lg transition" title="화면 모습 그대로 저장합니다">PDF</button>
+                ${_renderOpts.downloads ? `<button id="settle-download-btn" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg transition">엑셀</button>
+                <button id="settle-pdf-btn" class="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-sm font-bold px-3 py-1.5 rounded-lg transition" title="화면 모습 그대로 저장합니다">PDF</button>` : ''}
             </div>
         </div>`;
 }
@@ -1597,8 +1598,13 @@ function bindSortFilterListeners(container, appConfig) {
     });
 }
 
-export function renderSettlementReport(container, appConfig) {
+/**
+ * 결산 보고서를 화면에 그린다(월·분기·년 선택기 포함).
+ * opts.downloads — false 면 머리 줄 [엑셀][PDF] 를 안 그린다(다운로드를 따로 둔 화면용 → downloadSettlement). 주지 않으면 앞서 준 값.
+ */
+export function renderSettlementReport(container, appConfig, opts = null) {
     if (!container) return;
+    if (opts && 'downloads' in opts) _renderOpts = { ..._renderOpts, downloads: opts.downloads !== false };
     appConfig = appConfig || State.appConfig || {};
     destroyCharts();
 
@@ -1662,19 +1668,40 @@ export function renderSettlementReport(container, appConfig) {
     const generatedAtEl = container.querySelector('#settle-generated-at');
     if (generatedAtEl) generatedAtEl.textContent = `생성: ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}`;
 
+    _last = { periodLabel, data: { core, tp, wf, wr, att, mg, insp, ms, opinion } };
+
     const downloadBtn = container.querySelector('#settle-download-btn');
-    if (downloadBtn) downloadBtn.addEventListener('click', () => downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, ms, opinion));
+    if (downloadBtn) downloadBtn.addEventListener('click', () => downloadSettlement('excel'));
 
     const pdfBtn = container.querySelector('#settle-pdf-btn');
-    if (pdfBtn) pdfBtn.addEventListener('click', () => downloadSettlementPdf(periodLabel));
+    if (pdfBtn) pdfBtn.addEventListener('click', () => downloadSettlement('pdf', pdfBtn));
 
     attachPeriodControlListeners(container, appConfig);
+}
+
+/** 마지막으로 화면에 그린 결산의 기간 이름('2026년 11월'). 그린 적 없으면 null. */
+export function settlementPeriodLabel() {
+    return _last ? _last.periodLabel : null;
+}
+
+/**
+ * 따로 둔 다운로드 버튼용 — 마지막으로 화면에 그린 결산(같은 기간·같은 숫자)을 받는다.
+ * kind 'excel' | 'pdf'. PDF 는 #settlement-panel 에 보이는 화면을 그대로 찍는다. btn 을 주면 만드는 동안 잠근다.
+ * 그린 결산이 없으면 아무것도 안 하고 false.
+ */
+export function downloadSettlement(kind, btn = null) {
+    if (!_last) return false;
+    const { periodLabel, data: d } = _last;
+    if (kind === 'excel') { downloadSettlementExcel(periodLabel, d.core, d.tp, d.wf, d.wr, d.att, d.mg, d.insp, d.ms, d.opinion); return true; }
+    if (kind === 'pdf') { downloadSettlementPdf(periodLabel, btn).catch(e => console.error('결산 PDF 실패:', e && e.message)); return true; }
+    return false;
 }
 
 // ============================================================
 // 9. 초기화 (탭 진입 시 1회 호출)
 // ============================================================
-export async function initSettlementReport() {
+/** opts.downloads — renderSettlementReport 와 같음(false 면 머리 줄 [엑셀][PDF] 없음). */
+export async function initSettlementReport(opts = null) {
     const container = document.getElementById('settlement-panel');
     if (!container) return;
 
@@ -1692,5 +1719,5 @@ export async function initSettlementReport() {
     // 마일스톤 결과 데이터(운영 마일스톤 전/후 효과)를 캐시에 로드
     await ensureMilestonesLoaded();
 
-    renderSettlementReport(container, State.appConfig);
+    renderSettlementReport(container, State.appConfig, opts);
 }

@@ -57,15 +57,15 @@
         }
 
         /* 각 탭별 패널: 숨겨지지 않았을 때만 화면 꽉 채우기 */
-        #ops-panel:not(.hidden), #ops-tasks-panel:not(.hidden), #ops-cost-panel:not(.hidden), #ops-settle-wrap:not(.hidden),
-        #dashboard-panel:not(.hidden), #productivity-panel:not(.hidden), #staffing-panel:not(.hidden), #prediction-panel:not(.hidden), #forecast-panel:not(.hidden), #rawdata-panel:not(.hidden) {
+        #ops-panel:not(.hidden), #ops-settle-wrap:not(.hidden),
+        #prediction-panel:not(.hidden), #forecast-panel:not(.hidden), #rawdata-panel:not(.hidden) {
             flex: 1 1 auto !important;
             min-height: 0 !important; height: 100% !important;
             display: flex !important; flex-direction: column !important;
         }
 
         /* 내부 스크롤 허용 */
-        #dashboard-panel, #productivity-panel, #staffing-panel, #prediction-panel, #forecast-panel, #ops-tasks-panel, #ops-cost-panel {
+        #prediction-panel, #forecast-panel, #history-modal .ops-pane {
             overflow-y: auto !important; -webkit-overflow-scrolling: touch !important;
         }
 
@@ -122,6 +122,90 @@
         display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
         padding: 8px 16px; background: var(--c-surface-2); border-bottom: 1px solid var(--c-line); font-size: 12px; color: var(--c-text-2);
     }
+    #history-modal .ops-settle-text { min-width: 0; flex: 1 1 240px; }
+    #history-modal .ops-settle-dl { margin-left: auto; white-space: nowrap; }
+    #history-modal .ops-make-btn {
+        margin-left: auto; appearance: none; border: 1px solid var(--c-accent); background: var(--c-accent-soft); color: var(--c-accent-deep);
+        min-height: 30px; padding: 0 14px; border-radius: var(--r-pill); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    #history-modal .ops-make-btn:hover { background: var(--c-accent); color: #fff; }
+    #history-modal .ops-make-btn:focus-visible, #history-modal .opv-btn:focus-visible, #history-modal .opv-fold > summary:focus-visible,
+    #history-modal .opv-row-btn:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+
+    /* 📊 운영 리포트 탭 안(js/ui-ops-view.js) — 전부 d-theme 토큰(css/history-d.css)이라 다크는 토큰이 바꾼다.
+       ⚠ .ops-pane·.opv-overlay·.opv-fold 에 display 를 넣지 않는다(.hidden·data-feature 가림을 이겨 버린다). */
+    #history-modal .ops-pane { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; background: var(--c-bg); }
+    #history-modal .ops-pane > * + * { margin-top: 16px; }
+    @media (min-width: 768px) { #history-modal .ops-pane { padding: 20px 24px; } }
+    #history-modal .opv-stack { display: grid; gap: 16px; min-width: 0; }
+    #history-modal .opv-stack:empty { display: none; }
+    #history-modal .opv-empty { padding: 48px 12px; text-align: center; font-size: 13px; color: var(--c-text-3); }
+    #history-modal .opv-card {
+        background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 14px 16px; min-width: 0;
+    }
+    #history-modal .opv-card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 10px; }
+    #history-modal .opv-h { font-size: 14px; font-weight: 700; color: var(--c-text); }
+    #history-modal .opv-note { font-size: 12px; color: var(--c-text-3); line-height: 1.5; }
+    #history-modal .opv-sub-title { font-size: 12px; font-weight: 700; color: var(--c-text-2); margin-bottom: 4px; }
+    #history-modal .opv-kpis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    #history-modal .opv-kpi { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 12px 14px; min-width: 0; }
+    #history-modal .opv-kpi-label { font-size: 12px; font-weight: 600; color: var(--c-text-2); }
+    #history-modal .opv-kpi-value { margin-top: 4px; font-size: 22px; font-weight: 800; color: var(--c-text); font-variant-numeric: tabular-nums; line-height: 1.2; }
+    #history-modal .opv-kpi-unit { margin-left: 3px; font-size: 12px; font-weight: 500; color: var(--c-text-3); }
+    #history-modal .opv-kpi-cmp { margin-top: 6px; display: grid; gap: 2px; font-size: 11px; color: var(--c-text-3); font-variant-numeric: tabular-nums; }
+    #history-modal .opv-up { color: var(--c-ok-text); font-weight: 700; }
+    #history-modal .opv-down { color: var(--c-risk-text); font-weight: 700; }
+    #history-modal .opv-flat { color: var(--c-text-2); font-weight: 600; }
+    #history-modal .opv-diag { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    #history-modal .opv-diag li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--c-text); }
+    #history-modal .opv-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--c-text-4); }
+    #history-modal .opv-dot.is-ok { background: var(--c-ok); }
+    #history-modal .opv-dot.is-warn { background: var(--c-warn); }
+    #history-modal .opv-dot.is-risk { background: var(--c-risk); }
+    #history-modal .opv-notes { background: var(--c-warn-bg); border: 1px solid var(--c-warn-line); border-radius: var(--r-sm); padding: 8px 12px; font-size: 12px; color: var(--c-warn-text); }
+    #history-modal .opv-notes ul { margin: 0; padding-left: 16px; list-style: disc; }
+    #history-modal .opv-table-wrap { overflow-x: auto; }
+    #history-modal .opv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    #history-modal .opv-table th { padding: 7px 10px; text-align: left; font-size: 11px; font-weight: 700; color: var(--c-text-2); background: var(--c-surface-2); border-bottom: 1px solid var(--c-line); white-space: nowrap; }
+    #history-modal .opv-table td { padding: 7px 10px; border-bottom: 1px solid var(--c-line-soft); color: var(--c-text); white-space: nowrap; }
+    #history-modal .opv-table .r { text-align: right; font-variant-numeric: tabular-nums; }
+    #history-modal .opv-table tbody tr:last-child td { border-bottom: 0; }
+    #history-modal .opv-table tr.is-short td { background: var(--c-risk-row); }
+    #history-modal .opv-row-btn { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: var(--c-accent); cursor: pointer; text-align: left; }
+    #history-modal .opv-row-btn:hover { text-decoration: underline; }
+    #history-modal .opv-table tr[data-task-row] { cursor: pointer; }
+    #history-modal .opv-table tr[data-task-row]:hover td { background: var(--c-accent-row); }
+    #history-modal .opv-chip { display: inline-block; padding: 1px 7px; border-radius: var(--r-pill); font-size: 11px; font-weight: 600; background: var(--c-track); color: var(--c-text-2); }
+    #history-modal .opv-chip.is-risk { background: var(--c-risk-soft); color: var(--c-risk-text); }
+    #history-modal .opv-chip.is-ok { background: var(--c-ok-soft); color: var(--c-ok-text); }
+    #history-modal .opv-chip.is-warn { background: var(--c-warn-soft); color: var(--c-warn-text); }
+    #history-modal .opv-chart { position: relative; width: 100%; height: 260px; }
+    @media (min-width: 768px) { #history-modal .opv-chart { height: 300px; } }
+    #history-modal .opv-fold { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner); min-width: 0; }
+    #history-modal .opv-fold > summary {
+        cursor: pointer; list-style: none; padding: 11px 16px; font-size: 13px; font-weight: 700; color: var(--c-text);
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; border-radius: var(--r-inner);
+    }
+    #history-modal .opv-fold > summary::-webkit-details-marker { display: none; }
+    #history-modal .opv-fold > summary::before { content: '▸'; color: var(--c-text-3); width: 10px; }
+    #history-modal .opv-fold[open] > summary::before { content: '▾'; }
+    #history-modal .opv-fold[open] > summary { border-bottom: 1px solid var(--c-line); border-radius: var(--r-inner) var(--r-inner) 0 0; }
+    #history-modal .opv-fold-hint { font-size: 11px; font-weight: 500; color: var(--c-text-3); }
+    #history-modal .opv-fold-body { padding: 14px 16px; min-width: 0; }
+    #history-modal .opv-btn {
+        appearance: none; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-text);
+        min-height: 28px; padding: 0 12px; border-radius: var(--r-sm); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    #history-modal .opv-btn:hover { border-color: var(--c-accent); color: var(--c-accent-deep); }
+    #history-modal .opv-btn[disabled] { opacity: .5; cursor: default; }
+    #history-modal .opv-overlay { position: absolute; inset: 0; z-index: 20; overflow-y: auto; background: var(--c-bg); -webkit-overflow-scrolling: touch; }
+    #history-modal .opv-overlay-head {
+        position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+        padding: 10px 16px; background: var(--c-surface); border-bottom: 1px solid var(--c-line);
+    }
+    #history-modal .opv-overlay-title { font-size: 15px; font-weight: 700; color: var(--c-text); min-width: 0; }
+    #history-modal .opv-overlay-body { padding: 16px; display: grid; gap: 16px; }
+    @media (min-width: 768px) { #history-modal .opv-overlay-body { padding: 20px 24px; } }
 </style>
 
 <div id="history-modal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center hidden z-50 p-0 md:p-4 transition-colors">
@@ -216,299 +300,118 @@
 
             <div id="history-main-content" class="flex-1 flex flex-col overflow-hidden relative">
 
-            <!-- 📊 운영 리포트 (2026-11-05 통합 2단계) — 탭: 요약·생산성·업무별·인력·비용 + 비용 탭의 [결산 만들기](팀 결산).
-                 탭 전환·권한·그리기는 js/ui-history-ops-report.js. 안의 패널·칸 id 는 예전 화면 그대로라 기존 그리기 함수가 id 로 찾아 채운다.
-                 기간은 왼쪽 날짜 트리 하나(팀 결산·업무 담당 변화 칸만 자체 기간 — 화면 문구로 알림). ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). -->
+            <!-- 📊 운영 리포트 (2026-11-05 통합 · 내용 통합) — 탭: 요약·생산성·인력·비용 + [보고서 만들기](팀 결산).
+                 탭 전환·권한은 js/ui-history-ops-report.js, 탭 안 그리기는 js/ui-ops-view.js(숫자는 js/lib/ops-view-model.js buildOpsModel 한 번).
+                 아래 *-body 칸은 JS 가 채운다. 고정 id 칸(#report-view-container·#staffing-outlook·채우기→오류 차트·#taskowner-body·#settlement-panel)은
+                 옛 그리기 함수가 id 로 찾아 채우므로 이름을 바꾸지 않는다.
+                 기간은 왼쪽 날짜 트리 하나(팀 결산·업무 담당 변화만 자체 기간 — 화면 문구로 알림). ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). -->
             <div id="ops-panel" class="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
                 <div id="ops-tabbar" class="ops-tabbar shrink-0">
                     <div class="ops-tabs" role="tablist" aria-label="운영 리포트">
                         <button type="button" class="ops-tab is-on" data-ops-tab="summary" data-feature="data.analysis" role="tab" aria-selected="true">요약</button>
                         <button type="button" class="ops-tab" data-ops-tab="productivity" data-feature="data.analysis" role="tab" aria-selected="false">생산성</button>
-                        <button type="button" class="ops-tab" data-ops-tab="tasks" data-feature="data.reports" role="tab" aria-selected="false">업무별</button>
                         <button type="button" class="ops-tab" data-ops-tab="staffing" data-feature="data.analysis" role="tab" aria-selected="false">인력</button>
                         <button type="button" class="ops-tab" data-ops-tab="cost" data-feature="data.reports" role="tab" aria-selected="false">비용</button>
                     </div>
                     <span id="ops-tab-note" class="ops-tab-note"></span>
+                    <button type="button" id="ops-settle-btn" data-feature="data.reports" class="ops-make-btn" title="월·분기·년 팀 결산 보고서를 화면에 엽니다. 왼쪽에서 월·년을 고르고 있으면 그 기간으로 엽니다">보고서 만들기</button>
                 </div>
-                <div id="ops-body" class="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div id="ops-body" class="flex-1 min-h-0 flex flex-col overflow-hidden relative">
 
-            <div id="dashboard-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6">
-                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 md:p-5 rounded-2xl">
-                    <div class="flex items-center gap-2 mb-1">
-                        <h3 class="font-bold text-gray-500 dark:text-gray-400 text-xs">AI 현황 진단</h3>
-                    </div>
-                    <div id="ai-dashboard-comment" class="text-gray-800 dark:text-gray-200 font-medium text-sm leading-relaxed">
-                        "데이터를 불러오고 분석 중입니다..."
-                    </div>
-                </div>
-
-                <!-- 📍 마일스톤별 효과 요약 위젯 (JS에서 채움) -->
-                <div id="dashboard-milestones-widget"></div>
-
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">총 업무시간</p>
-                        <p class="text-xl md:text-2xl font-black tabular-nums text-gray-800 dark:text-white mt-1" id="kpi-total-time">0<span class="text-sm font-medium text-gray-500 ml-1">h</span></p>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">평균 근무일수</p>
-                        <p class="text-xl md:text-2xl font-black tabular-nums text-gray-800 dark:text-white mt-1" id="kpi-avg-work-days">0.0<span class="text-sm font-medium text-gray-500 ml-1">일</span></p>
-                    </div>
-
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">총 처리량</p>
-                        <p class="text-xl md:text-2xl font-black tabular-nums text-gray-800 dark:text-white mt-1" id="kpi-total-qty">0<span class="text-sm font-medium text-gray-500 ml-1">건</span></p>
-                    </div>
-
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">종합 UPH</p>
-                        <p class="text-xl md:text-2xl font-black tabular-nums text-blue-600 dark:text-blue-400 mt-1" id="kpi-avg-uph">0.0<span class="text-[11px] md:text-sm font-medium text-blue-400 ml-1">개/시</span></p>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">종합 OEE</p>
-                        <p class="text-xl md:text-2xl font-black tabular-nums text-gray-900 dark:text-white mt-1" id="kpi-total-oee">0<span class="text-sm font-medium text-gray-500 ml-1">%</span></p>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">재고회전율 (추정)</p>
-                        <p class="text-xl md:text-2xl font-black tabular-nums text-gray-900 dark:text-white mt-1" id="kpi-inventory-turnover">0.0<span class="text-sm font-medium text-gray-500 ml-1">회</span></p>
-                    </div>
-                </div>
-
-                <div class="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel flex-grow min-h-[350px]">
-                    <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-4">생산성(UPH) 및 투입 인원 추이</h4>
-                    <div class="relative w-full h-[calc(100%-2rem)] min-h-[250px]">
-                        <canvas id="chart-dashboard-trend"></canvas>
-                    </div>
-                </div>
+            <div id="ops-summary-panel" class="ops-pane">
+                <div id="ops-summary-body" class="opv-stack"><div class="opv-empty">불러오는 중...</div></div>
             </div>
 
-            <div id="productivity-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6 hidden">
-                <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-2">
-                    파트별 정밀 생산성 분석
-                </h3>
-                
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 depth-panel">
-                        <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate"><span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style="background:#2F62C9"></span>종합물류</p>
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[11px] text-gray-500">분당</span>
-                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-general">0</span>
-                        </div>
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[11px] text-gray-500">시간당</span>
-                            <span class="text-lg md:text-xl font-black text-gray-900 dark:text-white" id="prod-uph-general">0</span>
-                        </div>
-                        <div class="flex justify-between items-end">
-                            <span class="text-[11px] text-gray-500">일당</span>
-                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-general">0</span>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 depth-panel">
-                        <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate"><span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style="background:#5A9E96"></span><span data-task-title="k_domestic">국내배송</span></p>
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[11px] text-gray-500">분당</span>
-                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-domestic">0</span>
-                        </div>
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[11px] text-gray-500">시간당</span>
-                            <span class="text-lg md:text-xl font-black text-gray-900 dark:text-white" id="prod-uph-domestic">0</span>
-                        </div>
-                        <div class="flex justify-between items-end">
-                            <span class="text-[11px] text-gray-500">일당</span>
-                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-domestic">0</span>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 depth-panel">
-                        <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate"><span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style="background:#D2A266"></span><span data-task-title="k_china">중국제작</span></p>
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[11px] text-gray-500">분당</span>
-                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-china">0</span>
-                        </div>
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[11px] text-gray-500">시간당</span>
-                            <span class="text-lg md:text-xl font-black text-gray-900 dark:text-white" id="prod-uph-china">0</span>
-                        </div>
-                        <div class="flex justify-between items-end">
-                            <span class="text-[11px] text-gray-500">일당</span>
-                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-china">0</span>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 depth-panel">
-                        <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate"><span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style="background:#7FA1E6"></span><span data-task-title="k_direct">직진배송</span></p>
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[11px] text-gray-500">분당</span>
-                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-direct">0</span>
-                        </div>
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[11px] text-gray-500">시간당</span>
-                            <span class="text-lg md:text-xl font-black text-gray-900 dark:text-white" id="prod-uph-direct">0</span>
-                        </div>
-                        <div class="flex justify-between items-end">
-                            <span class="text-[11px] text-gray-500">일당</span>
-                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-direct">0</span>
-                        </div>
-                    </div>
+            <div id="ops-productivity-panel" class="ops-pane hidden">
+                <div id="ops-productivity-body" class="opv-stack"></div>
 
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 depth-panel">
-                        <p class="text-[11px] md:text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 border-b pb-1 border-gray-100 dark:border-gray-700 truncate"><span class="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style="background:#C9808A"></span><span data-task-title="k_ably">에이블리배송</span></p>
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[11px] text-gray-500">분당</span>
-                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upm-ably">0</span>
-                        </div>
-                        <div class="flex justify-between items-end mb-1">
-                            <span class="text-[11px] text-gray-500">시간당</span>
-                            <span class="text-lg md:text-xl font-black text-gray-900 dark:text-white" id="prod-uph-ably">0</span>
-                        </div>
-                        <div class="flex justify-between items-end">
-                            <span class="text-[11px] text-gray-500">일당</span>
-                            <span class="text-base md:text-lg font-bold text-gray-800 dark:text-white" id="prod-upd-ably">0</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- '비효율 요인 및 손실 비용' 표는 비용 탭(#ops-cost-panel)으로 옮겼다 — 채우는 코드는 그대로(js/ui-history-productivity.js, id 로 찾음) -->
-                <div class="grid grid-cols-1 gap-4 md:gap-6 flex-grow shrink-0 min-h-[300px]">
-                    <div class="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white mb-2">리소스 투입 대비 효율</h4>
-                        <p class="text-[11px] md:text-xs text-gray-500 mb-4">X축: 투입 시간, Y축: 산출량, 원 크기: 투입 인원</p>
-                        <div class="relative w-full h-48 md:h-64">
-                            <canvas id="chart-productivity-efficiency"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                    <div class="flex items-center justify-between flex-wrap gap-2 mb-1">
-                        <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white"><span data-task-title="k_fill">채우기</span> → <span data-task-title="k_error">오류</span> 영향 분석</h4>
-                        <span id="fill-error-summary" class="text-[11px] md:text-xs text-gray-500 font-medium"></span>
-                    </div>
-                    <p class="text-[11px] md:text-xs text-gray-500 mb-4"><span data-task-title="k_fill">채우기</span>가 진행된 날을 0일차로 두고, 다음 <span data-task-title="k_fill">채우기</span> 전까지 경과일수별 <span data-task-title="k_error">오류</span>업무 투입시간·<span data-task-title="k_error">오류</span> 처리량 추이 (전체 이력 기준, 기간 선택과 무관)</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <div class="text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">평균 투입시간</div>
-                            <div class="relative w-full h-56 md:h-64">
-                                <canvas id="chart-fill-error-duration"></canvas>
-                                <div id="fill-error-empty-duration" class="hidden absolute inset-0 flex items-center justify-center text-sm text-gray-400 text-center px-4">채우기 이벤트가 2회 이상 있어야 분석할 수 있습니다.</div>
+                <details id="ops-fold-fillerror" class="opv-fold" data-fold="fillerror">
+                    <summary><span data-task-title="k_fill">채우기</span> → <span data-task-title="k_error">오류</span> 영향 <span id="fill-error-summary" class="opv-fold-hint"></span></summary>
+                    <div class="opv-fold-body">
+                        <p class="opv-note"><span data-task-title="k_fill">채우기</span>가 진행된 날을 0일차로 두고, 다음 <span data-task-title="k_fill">채우기</span> 전까지 경과일수별 <span data-task-title="k_error">오류</span>업무 투입시간·<span data-task-title="k_error">오류</span> 처리량 추이 (전체 이력 기준, 기간 선택과 무관)</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <div class="opv-sub-title">평균 투입시간</div>
+                                <div class="relative w-full h-56 md:h-64">
+                                    <canvas id="chart-fill-error-duration"></canvas>
+                                    <div id="fill-error-empty-duration" class="hidden absolute inset-0 flex items-center justify-center text-sm text-gray-400 text-center px-4">채우기 이벤트가 2회 이상 있어야 분석할 수 있습니다.</div>
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <div class="text-xs font-bold text-gray-600 dark:text-gray-300 mb-1">평균 오류 처리량</div>
-                            <div class="relative w-full h-56 md:h-64">
-                                <canvas id="chart-fill-error-quantity"></canvas>
-                                <div id="fill-error-empty-quantity" class="hidden absolute inset-0 flex items-center justify-center text-sm text-gray-400 text-center px-4">채우기 이벤트가 2회 이상 있어야 분석할 수 있습니다.</div>
+                            <div>
+                                <div class="opv-sub-title">평균 오류 처리량</div>
+                                <div class="relative w-full h-56 md:h-64">
+                                    <canvas id="chart-fill-error-quantity"></canvas>
+                                    <div id="fill-error-empty-quantity" class="hidden absolute inset-0 flex items-center justify-center text-sm text-gray-400 text-center px-4">채우기 이벤트가 2회 이상 있어야 분석할 수 있습니다.</div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </details>
+
+                <!-- 상세 표(권한 data.reports — 인건비 열) — 펼칠 때 옛 업무 리포트의 표 4개만 그린다(js/ui-history-reports-renderer.js renderGenericReport {only:'tables'}).
+                     정렬·필터·처리량 수정·다운로드는 '업무 기록 서브탭 = report' 와 #report-view-container 를 본다(js/listeners-history*.js) — id 고정. -->
+                <details id="ops-fold-tables" class="opv-fold" data-fold="tables" data-feature="data.reports">
+                    <summary>상세 표 <span class="opv-fold-hint">업무·파트·인원별 표, 인건비 포함</span></summary>
+                    <div class="opv-fold-body">
+                        <div id="report-view-container" class="space-y-4 md:space-y-6">
+                            <div id="report-daily-view"></div>
+                            <div id="report-weekly-view" class="hidden space-y-6"></div>
+                            <div id="report-monthly-view" class="hidden space-y-6"></div>
+                            <div id="report-yearly-view" class="hidden space-y-6"></div>
+                        </div>
+                    </div>
+                </details>
             </div>
 
-            <div id="staffing-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6 hidden">
-                 <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-2">
-                    인력 운영 최적화 및 예측
-                </h3>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-start">
-                    <div class="bg-white dark:bg-gray-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white mb-4">현재 투입 vs 필요 인력 (FTE)</h4>
-                        <div class="space-y-4">
-                            <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
-                                <span class="text-xs md:text-sm text-gray-500" title="출근 기록(출퇴근 체크)이 있는 인원">실제 출근 인원</span>
-                                <span class="text-lg md:text-xl font-bold" id="staff-actual">0명</span>
-                            </div>
-                            <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
-                                <span class="text-xs md:text-sm text-gray-500" title="그날 업무 기록에 이름이 올라간 인원. 출근했어도 업무 기록이 없으면 빠집니다">실 근무 인원</span>
-                                <span class="text-lg md:text-xl font-bold text-violet-600" id="staff-worked">0.0명</span>
-                            </div>
-                            <div class="flex justify-between items-end border-b border-gray-50 dark:border-gray-700 pb-2">
-                                <span class="text-xs md:text-sm text-gray-500" title="그날 업무량을 평상시 속도로 처리한다면 출근~퇴근 시간 안에 몇 명이 필요했는지. 정산 화면의 FTE는 명부·표준시간 기준이라 값이 다릅니다">표준 필요 인원</span>
-                                <span class="text-lg md:text-xl font-bold text-blue-600" id="staff-required">0.0명</span>
-                            </div>
-                            <div class="pt-2">
-                                <p class="text-[11px] md:text-xs text-center text-gray-400" id="staff-fte-comment">분석 중...</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white dark:bg-gray-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white mb-1">근태 손실 시간</h4>
-                        <p class="text-[11px] md:text-xs text-gray-400 dark:text-gray-500 mb-3">재실시간(출근~퇴근) 중 업무 기록이 없는 시간</p>
-                        <div class="flex items-center justify-center h-28 md:h-32">
-                            <canvas id="chart-staffing-loss"></canvas>
-                        </div>
-                        <p class="text-center text-[11px] md:text-xs font-bold text-red-500 mt-2">총 누수 시간: <span id="staff-total-loss">0</span>분</p>
-                    </div>
-                </div>
-
-                <!-- 📅 앞으로의 인원 수급 (JS가 채움) — 저장해 둔 예정 물량 기반 -->
+            <div id="ops-staffing-panel" class="ops-pane hidden">
+                <div id="ops-staffing-body" class="opv-stack"></div>
+                <!-- 📅 앞으로의 인원 수급 (js/ui-history-staffing.js renderStaffingOutlook 이 채움) — 저장해 둔 예정 물량 기반 -->
                 <div id="staffing-outlook"></div>
+                <div id="ops-staffing-folds" class="opv-stack"></div>
             </div>
 
-            <!-- 업무별(권한 data.reports — 리포트에 인건비가 보인다) — 업무 리포트(js/ui-history-reports.js 가 #report-*-view 에 그림) + 업무 담당 변화(최근 12개월, js/ui-history-task-owner.js) -->
-            <div id="ops-tasks-panel" class="flex-1 flex flex-col h-full min-h-0 overflow-y-auto hidden bg-white dark:bg-gray-900">
-                <div id="report-view-container" class="p-4 md:p-6 space-y-4 md:space-y-6">
-                    <div id="report-daily-view"></div>
-                    <div id="report-weekly-view" class="hidden space-y-6"></div>
-                    <div id="report-monthly-view" class="hidden space-y-6"></div>
-                    <div id="report-yearly-view" class="hidden space-y-6"></div>
-                </div>
-                <section id="ops-owner-section" class="p-4 md:p-6 space-y-4 border-t border-gray-200 dark:border-gray-800">
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100">업무 담당 변화</h3>
-                        <p class="text-xs text-gray-500 mt-1">업무마다 기간별로 누가 주로 맡았는지, 주 인원이 바뀐 뒤 속도·투입이 어떻게 달라졌는지 봅니다. 이 칸은 왼쪽에서 고른 기간과 상관없이 최근 12개월 전체를 봅니다.</p>
-                    </div>
-                    <div id="taskowner-body" class="space-y-4">
-                        <div class="text-center py-16 text-gray-400 text-sm">불러오는 중...</div>
-                    </div>
-                </section>
+            <!-- 비용 — 금액이 보이는 탭(권한 data.reports). -->
+            <div id="ops-cost-panel" class="ops-pane hidden">
+                <div id="ops-cost-body" class="opv-stack"></div>
             </div>
 
-            <!-- 비용 — 인건비가 보이는 칸을 모은 탭(권한 data.reports). 칸은 예전 요약·생산성에서 옮겨 왔고 채우는 코드는 그대로(id 로 찾음) -->
-            <div id="ops-cost-panel" class="flex-1 flex flex-col h-full min-h-0 overflow-y-auto p-4 md:p-6 space-y-6 hidden">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white">비용</h3>
-                        <p class="text-xs text-gray-500 mt-1">왼쪽에서 고른 기간의 건당 출고원가와 손실 비용입니다.</p>
-                    </div>
-                    <button type="button" id="ops-settle-btn" data-feature="data.reports" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition" title="월·분기·년 팀 결산 보고서(PDF·엑셀)를 엽니다. 왼쪽에서 월·년을 고르고 있으면 그 기간으로 엽니다">결산 만들기</button>
-                </div>
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 shrink-0 items-start">
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">출고원가 (건당)</p>
-                        <p class="text-xl md:text-2xl font-black tabular-nums text-gray-900 dark:text-white mt-1" id="kpi-unit-cost">0<span class="text-sm font-medium text-gray-500 ml-1">원</span></p>
-                    </div>
-                    <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white mb-2">비효율 요인 및 손실 비용</h4>
-                        <div class="overflow-y-auto h-48 md:h-64 mt-4">
-                            <table class="w-full text-xs md:text-sm text-left">
-                                <thead class="text-[11px] md:text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50">
-                                    <tr><th class="px-2 md:px-4 py-2">요인</th><th class="px-2 md:px-4 py-2 text-right">손실 시간</th><th class="px-2 md:px-4 py-2 text-right">추정 비용</th></tr>
-                                </thead>
-                                <tbody id="prod-coq-table-body" class="divide-y divide-gray-100 dark:divide-gray-700">
-                                    <tr><td colspan="3" class="text-center py-4 text-gray-400">데이터 준비 중...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 팀 결산 — 비용 탭의 [결산 만들기](권한 data.reports). 기간은 결산 화면의 월·분기·년 선택기(날짜 트리는 숨김).
-                 #settlement-panel 안은 js/ui-history-settlement.js 가 채우고 PDF 도 이 패널을 그대로 찍는다(id 고정). -->
+            <!-- 팀 결산 — [보고서 만들기](권한 data.reports). 화면에 보고서가 그대로 보이고, 받기는 위 줄의 [PDF 받기][엑셀 받기].
+                 기간은 결산 화면의 월·분기·년 선택기(날짜 트리는 숨김). #settlement-panel 안은 js/ui-history-settlement.js 가 채운다(id 고정). -->
             <div id="ops-settle-wrap" class="flex-1 flex flex-col h-full min-h-0 hidden">
                 <div class="ops-settle-bar shrink-0">
-                    <button type="button" id="ops-settle-back" class="ops-link">&lsaquo; 비용 탭으로</button>
-                    <span>팀 결산 — 기간은 아래에서 월·분기·년으로 고릅니다(왼쪽 날짜 목록과 따로).</span>
+                    <button type="button" id="ops-settle-back" class="ops-link">&lsaquo; 운영 리포트로</button>
+                    <span class="ops-settle-text">팀 결산 보고서 — 기간은 아래에서 월·분기·년으로 고릅니다(왼쪽 날짜 목록과 따로).</span>
+                    <span class="ops-settle-dl">
+                        <button type="button" id="ops-settle-pdf" class="opv-btn">PDF 받기</button>
+                        <button type="button" id="ops-settle-xlsx" class="opv-btn">엑셀 받기</button>
+                    </span>
                 </div>
                 <div id="settlement-panel" class="flex-1 flex flex-col h-full min-h-0 bg-white dark:bg-gray-900 overflow-y-auto p-4 md:p-6 space-y-4">
                     <div class="text-center py-16 text-gray-400 text-sm">불러오는 중...</div>
                 </div>
             </div>
+
+            <!-- 업무 상세 — 생산성 탭 업무 표의 행을 누르면 운영 리포트 위에 겹쳐 뜬다(js/ui-ops-view.js). Esc·[닫기]로 닫는다.
+                 담당 변화는 js/ui-history-task-owner.js 가 #taskowner-body 에 그린다(최근 12개월, 기간 트리와 무관).
+                 ⚠️ 모달 표식(role=dialog)을 달지 않는다(업무마감봇 선택자) — 보통 영역(section)이다. -->
+            <section id="ops-task-detail" class="opv-overlay hidden" aria-labelledby="ops-task-detail-title">
+                <div class="opv-overlay-head">
+                    <button type="button" id="ops-task-detail-close" class="ops-link">&lsaquo; 돌아가기</button>
+                    <h3 id="ops-task-detail-title" class="opv-overlay-title">업무 상세</h3>
+                </div>
+                <div class="opv-overlay-body">
+                    <div id="ops-task-detail-body" class="opv-stack"></div>
+                    <div class="opv-card">
+                        <div class="opv-card-head">
+                            <h4 class="opv-h">담당 변화</h4>
+                            <span class="opv-note">왼쪽에서 고른 기간과 상관없이 최근 12개월 전체를 봅니다.</span>
+                        </div>
+                        <div id="taskowner-body" class="space-y-4">
+                            <div class="text-center py-16 text-gray-400 text-sm">불러오는 중...</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
                 </div>
             </div>

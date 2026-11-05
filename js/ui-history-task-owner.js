@@ -4,15 +4,15 @@
 // 계산은 js/lib/task-owner.js(순수). 이 파일은 그리기만 한다.
 // 읽기만 한다 — 메모리의 최근 12개월 이력(State.allHistoryData)만 쓰고 Firestore 를 따로 읽지 않는다.
 // ⚠️ 콘솔·로그에 직원 이름을 찍지 않는다. role="dialog"·data-act 를 쓰지 않는다(업무마감봇 선택자).
-import * as State from './state.js?v=202611051150';
-import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611051150';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051150';
-import { TASK, tName } from './task-names.js?v=202611051150';
-import { D, alpha } from './d-chart.js?v=202611051150';
+import * as State from './state.js?v=202611051201';
+import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611051201';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051201';
+import { TASK, tName } from './task-names.js?v=202611051201';
+import { D, alpha } from './d-chart.js?v=202611051201';
 import {
     ownerByPeriod, detectOwnerChanges, ownerLine, compareAround, taskDays, taskListOf, pctChange,
     CAP_MINUTES, MIN_SOLO_DAYS, MIN_COMPARE_DAYS
-} from './lib/task-owner.js?v=202611051150';
+} from './lib/task-owner.js?v=202611051201';
 
 const DEFAULTS = { week: { hold: 2, n: 4 }, month: { hold: 2, n: 2 } };
 const HOLD_CHOICES = [1, 2, 3, 4];
@@ -181,11 +181,13 @@ function drawChart(rows, changes, qty) {
     });
 }
 
-/** 화면 그리기 — 레일에서 들어올 때와 조건을 바꿀 때 부른다. */
-export function renderTaskOwnerTab() {
+/** 화면 그리기 — 운영 리포트 업무 상세(js/ui-ops-view.js)를 열 때와 조건을 바꿀 때 부른다.
+ *  task 를 주면 그 업무로 연다(지금 이름 — 목록에 없으면 첫 업무). */
+export function renderTaskOwnerTab({ task: want = null } = {}) {
     const body = document.getElementById('taskowner-body');
     if (!body) return;
     bindOnce(body);
+    if (want) opts.task = want;
     const { view, tasks } = viewOf();
     if (!tasks.length) {
         if (chart) { try { chart.destroy(); } catch (e) { /* */ } chart = null; }

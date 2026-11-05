@@ -1,73 +1,65 @@
 // === js/ui-history-ops-report.js ===
-// 📊 운영 리포트(데이터 관리 '분석' 화면, 2026-11-05 운영 리포트 통합 2단계) — 탭: 요약·생산성·업무별·인력·비용 + [결산 만들기].
-//   새로 그리지 않는다. 예전 화면의 그리기 함수를 그대로 부르고, 그 함수들이 찾는 칸(id)은 components/modals-history.html 의
-//   #ops-panel 안으로 옮겨 두었다. 계산은 1단계(js/lib/ops-metrics.js)가 맡고 여기는 '어느 탭에 무엇을 그리나' 만 정한다.
-//     요약   = renderDashboardTab (#dashboard-panel)
-//     생산성 = renderProductivityTab (#productivity-panel) — OEE·인력 손실 진단은 업무 리포트 안에 있어 '업무별' 로 안내
-//     업무별 = renderReport{Daily,Weekly,Monthly,Yearly} (#report-*-view) + renderTaskOwnerTab(#taskowner-body, 자체 12개월)
-//     인력   = renderStaffingTab (#staffing-panel, 앞으로의 인원 수급 포함)
-//     비용   = 건당 출고원가(#kpi-unit-cost, 요약 그리기가 채움) + 손실 비용 표(#prod-coq-table-body, 생산성 그리기가 채움)
-//     결산   = initSettlementReport (#settlement-panel, 자체 월·분기·년 선택 — 날짜 트리 숨김)
+// 📊 운영 리포트(데이터 관리 '분석' 화면) — 탭: 요약·생산성·인력·비용 + [보고서 만들기](팀 결산).
+//   2026-11-05 통합 2단계(옛 화면 6개를 탭으로) → 같은 날 내용 통합: 탭 5 → 4, 탭 안은 새 화면(js/ui-ops-view.js)이
+//   js/lib/ops-view-model.js buildOpsModel 한 번으로 그린다. 여기는 '어느 탭을 보이나·권한·기간·상세 표 열고 닫기·결산' 만 맡는다.
+//     요약·생산성·인력·비용 = renderOpsTab (#ops-*-panel)
+//     생산성 '상세 표' 펼침 = 옛 업무 리포트 표 4개(renderReport* {only:'tables'}, #report-view-container) — 권한 data.reports
+//     업무 상세(업무 표 행) = 겹침 화면(#ops-task-detail) + 담당 변화(renderTaskOwnerTab, 최근 12개월)
+//     [보고서 만들기] = initSettlementReport (#settlement-panel, 자체 월·분기·년 선택 — 날짜 트리 숨김) + [PDF 받기][엑셀 받기]
 //   기간은 왼쪽 날짜 트리 하나. 날짜를 누르면 js/listeners-history.js → renderAnalyticsTab('ops') → renderOpsReport.
-//   탭 권한(업무별·비용·결산 = data.reports, 나머지 = data.analysis)·옛 주소 이동은 js/lib/ops-report-route.js.
-//   차트: 지금 보이는 탭만 그린다(숨은 캔버스에 그리지 않음). 같은 기간에 이미 그린 탭은 다시 열어도 다시 그리지 않는다.
-//   TODO(1단계 C5 뒤): ops-metrics.opsSummary 를 기간 열쇠(periodKey)로 메모해 탭들이 같이 쓰고, 팀 결산 PDF 도 그 값을 재사용(설계 C10).
+//   탭 권한(비용·보고서·상세 표·업무 상세의 담당 변화 = data.reports, 업무 표 = data.view, 나머지 = data.analysis)·옛 주소 이동은 js/lib/ops-report-route.js.
+//   차트: 지금 보이는 탭만 그린다. 탭을 바꾸면 차트를 정리하고, 같은 기간 모델은 다시 계산하지 않는다(ui-ops-view 캐시).
+//   옛 그리기 함수(renderDashboardTab·renderProductivityTab·renderStaffingTab)와 *Old 계산은 비교 도구(tools/ops-metrics-compare.mjs)가 써서 남겨 둔다 — 여기선 부르지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다.
 
-import * as State from './state.js?v=202611051150';
-import { renderDashboardTab } from './ui-history-dashboard.js?v=202611051150';
-import { renderProductivityTab } from './ui-history-productivity.js?v=202611051150';
-import { renderStaffingTab } from './ui-history-staffing.js?v=202611051150';
-import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611051150';
-import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611051150';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611051150';
-import { historyLoadFailed } from './history-data-manager.js?v=202611051150';
-import { saveView } from './view-state.js?v=202611051150';
-import { currentPerm, onPerm } from './feature-gate.js?v=202611051150';
-import { can } from './lib/perm.js?v=202611051150';
-import { showToast } from './utils.js?v=202611051150';
+import * as State from './state.js?v=202611051201';
+import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611051201';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611051201';
+import { saveView } from './view-state.js?v=202611051201';
+import { currentPerm, onPerm } from './feature-gate.js?v=202611051201';
+import { can } from './lib/perm.js?v=202611051201';
+import { showToast } from './utils.js?v=202611051201';
 import {
-    OPS_MAIN, allowedTabs, pickTab, canSettle, settlePresetOf
-} from './lib/ops-report-route.js?v=202611051150';
+    OPS_MAIN, allowedTabs, pickTab, tabOf, canSettle, canDetail, canOwner, canTaskTable, settlePresetOf
+} from './lib/ops-report-route.js?v=202611051201';
+import {
+    renderOpsTab, renderDetailTables, invalidateOpsModel, destroyOpsCharts, openTaskDetail, closeTaskDetail
+} from './ui-ops-view.js?v=202611051201';
 
 const TAB_PANEL = {
-    summary: 'dashboard-panel', productivity: 'productivity-panel', tasks: 'ops-tasks-panel',
-    staffing: 'staffing-panel', cost: 'ops-cost-panel'
+    summary: 'ops-summary-panel', productivity: 'ops-productivity-panel', staffing: 'ops-staffing-panel', cost: 'ops-cost-panel'
 };
-const REPORT_VIEW = { day: 'report-daily-view', week: 'report-weekly-view', month: 'report-monthly-view', year: 'report-yearly-view' };
-const REPORT_RENDER = { day: renderReportDaily, week: renderReportWeekly, month: renderReportMonthly, year: renderReportYearly };
 
 const $ = (id) => document.getElementById(id);
 const granNow = () => (State.context && State.context.globalGranularity) || 'day';
 const keyNow = () => document.querySelector('.history-date-btn.is-on')?.dataset.key || '';
 
 // 권한 — page-gate 판정(window.__perm), 없으면 app.js 가 넣은 State.appState.perm.
-// 둘 다 아직 없으면 분석 탭만 연다(데이터 관리 입장 자체가 history.html 의 관리자 문지기를 지났다). 업무별·비용·결산은 판정이 나와야 연다.
+// 둘 다 아직 없으면 분석 탭만 연다(데이터 관리 입장 자체가 history.html 의 관리자 문지기를 지났다 = data.view). 비용·보고서·상세 표는 판정이 나와야 연다.
 const permNow = () => currentPerm() || (State.appState && State.appState.perm) || null;
 const canNow = (id) => {
     const p = permNow();
     if (p) return can(p, id);
-    return id === 'data.analysis';
+    return id === 'data.analysis' || id === 'data.view';
 };
 const REPORTS = 'data.reports';
 
 let deps = { periodData: () => [], rangeData: () => State.allHistoryData || [] };
 let rendered = {};          // 탭 → 그린 기간 열쇠 (같은 기간이면 다시 안 그림)
-let prevRawSub = null;      // 업무별 탭에 들어오기 전의 업무 기록 서브탭(나갈 때 되돌림)
-let ownerScrollPending = false;
-let ownerKey = null;        // 업무 담당 변화 칸을 그린 이력·설정 — 날짜만 바뀌면 다시 계산하지 않는다
-// 권한 판정 전에 요청이 막혀(업무별·비용·결산 → 요약) 열렸으면 그 요청을 기억해 두었다가 판정이 나오면 다시 연다.
+let prevRawSub = null;      // 상세 표를 펼치기 전의 업무 기록 서브탭(닫을 때 되돌림)
+// 권한 판정 전에 요청이 막혀(비용·보고서 → 요약) 열렸으면 그 요청을 기억해 두었다가 판정이 나오면 다시 연다.
 // 그동안은 주소·기억(saveView)을 요청한 자리로 둔다 — 판정 전 새로고침이 요약으로 굳지 않게. 사용자가 탭을 고르면 지운다.
 let pendingReq = null;
 const setPending = (r) => { pendingReq = r; State.context.opsPending = r ? { sub: r.sub, settle: !!r.settle } : null; };
 const saveOps = (tab, settle) => {
-    if (pendingReq) saveView({ main: OPS_MAIN, sub: pendingReq.sub, settle: pendingReq.settle ? '1' : undefined });
-    else saveView({ main: OPS_MAIN, sub: tab, settle: settle ? '1' : undefined });
+    if (pendingReq) saveView({ main: OPS_MAIN, sub: pendingReq.sub, settle: pendingReq.settle ? '1' : undefined, detail: undefined });
+    else saveView({ main: OPS_MAIN, sub: tab, settle: settle ? '1' : undefined, detail: !settle && State.context.opsDetailOpen ? 'tables' : undefined });
 };
 
-const periodKey = () => `${granNow()}|${keyNow()}|${(State.allHistoryData || []).length}`;
+const periodKey = () => `${granNow()}|${keyNow()}|${(State.allHistoryData || []).length}|${canNow(REPORTS) ? 1 : 0}`;
+const viewCtx = () => ({ gran: granNow(), key: keyNow(), canCost: canNow(REPORTS), canTaskTable: canTaskTable(canNow), canOwner: canOwner(canNow) });
 
-// 탭 줄 — 권한 없는 탭·[결산 만들기] 숨김. 지금 탭을 못 보게 되면 볼 수 있는 탭으로.
+// 탭 줄 — 권한 없는 탭·[보고서 만들기]·상세 표 숨김. 지금 탭을 못 보게 되면 볼 수 있는 탭으로.
 function applyTabVisibility() {
     const allowed = allowedTabs(canNow);
     document.querySelectorAll('#ops-tabbar .ops-tab').forEach(btn => {
@@ -77,21 +69,48 @@ function applyTabVisibility() {
     });
     const settleBtn = $('ops-settle-btn');
     if (settleBtn) { const ok = canSettle(canNow); settleBtn.style.display = ok ? '' : 'none'; settleBtn.inert = !ok; }
+    const tables = $('ops-fold-tables');
+    if (tables) {
+        const ok = canDetail(canNow);
+        tables.style.display = ok ? '' : 'none';
+        tables.inert = !ok;
+        if (!ok && tables.open) tables.open = false;   // toggle 이 상세 표 모드를 끈다
+    }
     return allowed;
 }
 
-// 탭 줄 옆 안내. 생산성의 '업무별' 링크는 업무별 탭 권한(data.reports)이 있을 때만.
 const noteHtml = (tab) => {
-    if (tab === 'productivity') return canNow(REPORTS)
-        ? 'OEE(가동·속도·품질)와 인력 손실 진단은 <button type="button" class="ops-link" data-ops-goto="tasks">업무별</button> 탭 리포트에 있습니다.'
-        : '';
-    if (tab === 'tasks') return '아래 업무 담당 변화 칸은 최근 12개월 전체 기준입니다.';
-    if (tab === 'cost') return '인건비가 보이는 탭입니다.';
+    if (tab === 'cost') return '금액이 보이는 탭입니다.';
     return '';
 };
 
+// ── 상세 표(생산성 탭 펼침) ──────────────────────────────────────
+// 정렬·필터·삭제·처리량 수정은 '업무 기록 서브탭 = report' 를 보고 움직인다(js/listeners-history.js) — 펼친 동안만 맞춘다.
+function setDetailMode(on) {
+    const c = State.context;
+    c.opsDetailOpen = !!on;
+    if (on) {
+        if (c.activeMainHistoryTab !== 'report') prevRawSub = c.activeMainHistoryTab;
+        c.activeMainHistoryTab = 'report';
+    } else if (c.activeMainHistoryTab === 'report') {
+        c.activeMainHistoryTab = prevRawSub && prevRawSub !== 'report' ? prevRawSub : 'work';
+    }
+}
+function drawDetailTables() {
+    try { renderDetailTables({ gran: granNow(), key: keyNow(), rangeData: deps.rangeData() }); }
+    catch (err) { console.error('운영 리포트 상세 표 그리기 실패:', err && err.message); }
+}
+function closeDetailFolds() {
+    const t = $('ops-fold-tables');
+    if (t && t.open) t.open = false;      // toggle 이벤트가 상세 표 모드를 끈다
+    const f = $('ops-fold-fillerror');
+    if (f && f.open) f.open = false;
+    setDetailMode(false);
+}
+
 // 탭 하나를 보이게(그리지는 않음)
 function showTab(tab) {
+    const prevTab = State.context.activeOpsTab;
     State.context.activeOpsTab = tab;
     document.querySelectorAll('#ops-tabbar .ops-tab').forEach(btn => {
         const on = btn.dataset.opsTab === tab;
@@ -103,96 +122,40 @@ function showTab(tab) {
     $('ops-settle-wrap')?.classList.toggle('hidden', !settleOpen);
     const note = $('ops-tab-note');
     if (note) note.innerHTML = settleOpen ? '' : noteHtml(tab);
-
-    // 업무 리포트의 정렬·필터·삭제·처리량 수정은 '업무 기록 서브탭 = report' 를 보고 움직인다(js/listeners-history.js) — 업무별 탭에서만 맞춘다
-    const c = State.context;
-    if (tab === 'tasks' && !settleOpen) {
-        if (c.activeMainHistoryTab !== 'report') prevRawSub = c.activeMainHistoryTab;
-        c.activeMainHistoryTab = 'report';
-    } else if (c.activeMainHistoryTab === 'report') {
-        c.activeMainHistoryTab = prevRawSub && prevRawSub !== 'report' ? prevRawSub : 'work';
+    closeTaskDetail();
+    // 다른 탭(또는 결산)으로 — 차트를 정리하고 생산성 펼침(상세 표·채우기→오류)을 닫는다. 돌아오면 다시 그린다.
+    if (prevTab !== tab || settleOpen) {
+        destroyOpsCharts();
+        if (prevTab) delete rendered[prevTab];
+        if (tab !== 'productivity' || settleOpen) closeDetailFolds();
     }
 }
 
-/** 운영 리포트를 떠날 때(다른 레일 화면) — 업무 기록 서브탭 표시를 되돌린다. */
+/** 운영 리포트를 떠날 때(다른 레일 화면) — 업무 기록 서브탭 표시를 되돌리고 차트·겹침 화면을 정리한다. */
 export function leaveOpsReport() {
-    const c = State.context;
-    if (c && c.activeMainHistoryTab === 'report') c.activeMainHistoryTab = prevRawSub && prevRawSub !== 'report' ? prevRawSub : 'work';
+    closeTaskDetail();
+    destroyOpsCharts();
+    rendered = {};
+    if (State.context) closeDetailFolds();
 }
 
-function renderTasks() {
-    const gran = granNow();
-    for (const [g, id] of Object.entries(REPORT_VIEW)) $(id)?.classList.toggle('hidden', g !== gran);
-    const key = keyNow();
-    const view = $(REPORT_VIEW[gran]);
-    if (!key) {
-        if (view) view.innerHTML = '<div class="text-center text-gray-500 py-12">왼쪽 목록에서 기간을 고르세요.</div>';
-    } else {
-        (REPORT_RENDER[gran] || renderReportDaily)(key, deps.rangeData(), State.appConfig, State.context);
-    }
-    renderOwnerSection();
-}
-
-// 업무 담당 변화 칸 — 메모리의 최근 12개월 전체(기간 트리와 무관). 이력 조회 실패면 오류와 [다시 시도].
-function renderOwnerSection() {
-    const sec = $('ops-owner-section');
-    if (!sec) return;
-    if (historyLoadFailed()) { showPanelLoadError(sec); ownerKey = null; return; }
-    // 최근 12개월 전체를 본다 — 이력 배열·설정이 그대로면(날짜만 바뀜) 다시 계산하지 않는다
-    const all = State.allHistoryData || [];
-    const key = [all, all.length, State.appConfig];
-    const same = !!ownerKey && ownerKey.every((x, i) => x === key[i]);
-    import('./ui-history-task-owner.js?v=202611051150').then(mod => {
-        clearPanelLoadError(sec);
-        if (!same) { mod.renderTaskOwnerTab(); ownerKey = key; }
-        if (ownerScrollPending) {
-            ownerScrollPending = false;
-            sec.scrollIntoView({ block: 'start' });
-        }
-    }).catch(err => {
-        console.error('taskowner module load failed:', err);
-        showPanelLoadError(sec);
-    });
-}
-
-// 탭 하나 그리기. data 를 주면 그것(날짜 클릭이 넘긴 기간 이력), 없으면 지금 고른 기간.
-function renderTab(tab, data) {
-    const d = data || deps.periodData();
-    const cfg = State.appConfig;
+// 탭 하나 그리기. 모델은 지금 고른 기간(단위·키)으로 만든다 — data 는 쓰지 않는다(날짜 클릭이 넘긴 기간과 같은 기간).
+function renderTab(tab) {
     try {
-        if (tab === 'summary') renderDashboardTab(d, cfg);
-        else if (tab === 'productivity') renderProductivityTab(d, cfg);
-        else if (tab === 'staffing') renderStaffingTab(d, cfg);
-        else if (tab === 'tasks') renderTasks();
-        else if (tab === 'cost') {
-            // 건당 출고원가는 요약 그리기가, 손실 비용 표는 생산성 그리기가 채운다(칸만 비용 탭으로 옮김).
-            // TODO(운영 리포트 1단계 C5 뒤): ops-metrics 의 unitCost·laborCostPerItem·손실 금액으로 바꾸면 요약·생산성 차트를 숨은 채 다시 그리지 않아도 된다.
-            renderDashboardTab(d, cfg);
-            renderProductivityTab(d, cfg);
-        }
+        renderOpsTab(tab, viewCtx());
     } catch (err) {
         console.error('운영 리포트 탭 그리기 실패:', tab, err && err.message);
     }
-    if (tab === 'summary' || tab === 'productivity' || tab === 'cost') guardCostCells();
     rendered[tab] = periodKey();
-    // 비용 탭은 숨은 요약·생산성 차트도 다시 만들었다(크기 0) — 그 탭은 열 때 다시 그린다
-    if (tab === 'cost') { delete rendered.summary; delete rendered.productivity; }
-}
-
-// 비용 숫자(건당 출고원가·손실 비용 표)는 요약·생산성 그리기가 같이 채운다 — 비용 탭 권한이 없으면 비운다(숨은 칸에도 남기지 않게)
-function guardCostCells() {
-    if (canNow(REPORTS)) return;
-    const unit = $('kpi-unit-cost');
-    if (unit) unit.textContent = '—';
-    const coq = $('prod-coq-table-body');
-    if (coq) coq.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-400">권한이 없습니다.</td></tr>';
+    if (tab === 'productivity' && State.context.opsDetailOpen) drawDetailTables();
 }
 
 /** 날짜(기간)를 고르거나 이력이 새로 고쳐졌을 때 — js/listeners-history-tabs.js renderAnalyticsTab('ops'). 지금 탭만 그린다. */
-export function renderOpsReport(filteredData) {
-    if (State.context.opsSettleOpen) return;   // 팀 결산을 보는 중 — 결산은 자기 기간으로 그린다
+export function renderOpsReport() {
+    invalidateOpsModel();
     rendered = {};
-    renderTab(State.context.activeOpsTab || 'summary', filteredData);
+    if (State.context.opsSettleOpen) return;   // 팀 결산을 보는 중 — 결산은 자기 기간으로 그린다
+    renderTab(State.context.activeOpsTab || 'summary');
 }
 
 // 날짜 트리 보이기 — 처음 들어왔거나(팀 결산으로 바로 들어온 경우) 결산에서 돌아올 때. 날짜 목록을 그리면 맨 위 날짜가 눌려 지금 탭이 그려진다.
@@ -203,21 +166,31 @@ async function showTreeAndRender() {
     if (!document.querySelector('#history-date-list .history-date-btn')) {
         rendered = {};
         await renderHistoryDateListByMode(gran);
-        if (!document.querySelector('.history-date-btn.is-on')) renderOpsReport([]);
+        if (!document.querySelector('.history-date-btn.is-on')) renderOpsReport();
         return;
     }
     const tab = State.context.activeOpsTab || 'summary';
     if (rendered[tab] !== periodKey()) renderTab(tab);
 }
 
-/** 레일에서 '운영 리포트' 를 열 때(옛 주소·기억 복원 포함). sub = 열 탭, settle = 팀 결산, owner = 업무 담당 변화 칸으로. */
-export async function openOpsReport({ sub, settle = false, owner = false } = {}) {
+// 요청 뒤처리(옛 주소) — 상세 표 펼치기·업무 상세(담당 변화) 열기. 생산성 탭이 열린 뒤에.
+function applyExtras({ detail = false, owner = false } = {}) {
+    if (State.context.activeOpsTab !== 'productivity' || State.context.opsSettleOpen) return;
+    if (detail && canDetail(canNow)) {
+        const t = $('ops-fold-tables');
+        if (t && !t.open) t.open = true;          // toggle → 상세 표 그리기
+    }
+    if (owner && canOwner(canNow)) openTaskDetail(null, viewCtx());   // 담당 변화 = 리포트 권한
+}
+
+/** 레일에서 '운영 리포트' 를 열 때(옛 주소·기억 복원 포함). sub = 열 탭, settle = 보고서(팀 결산), detail = 상세 표, owner = 업무 상세(담당 변화). */
+export async function openOpsReport({ sub, settle = false, detail = false, owner = false } = {}) {
     const allowed = applyTabVisibility();
     const want = sub || State.context.activeOpsTab;
     let tab = pickTab(want, allowed);
     // 판정 전이라 막힌 요청은 기억(판정이 나오면 onPerm 이 다시 연다)
-    const blocked = (want && want !== tab) || (settle && !canSettle(canNow));
-    setPending(blocked && !permNow() ? { sub: want || 'summary', settle: !!settle, owner: !!owner } : null);
+    const blocked = (want && tab !== tabOf(want)) || (settle && !canSettle(canNow)) || (detail && !canDetail(canNow)) || (owner && !canOwner(canNow));
+    setPending(blocked && !permNow() ? { sub: want || 'summary', settle: !!settle, detail: !!detail, owner: !!owner } : null);
     if (!tab) {
         setTreeVisible(false);
         for (const id of Object.values(TAB_PANEL)) $(id)?.classList.add('hidden');
@@ -226,7 +199,6 @@ export async function openOpsReport({ sub, settle = false, owner = false } = {})
         return;
     }
     if (settle && canSettle(canNow)) tab = 'cost'; else settle = false;
-    ownerScrollPending = !!owner && tab === 'tasks';
     State.context.opsSettleOpen = settle;
     showTab(tab);
     if (settle) { await openSettlement(null); return; }
@@ -237,7 +209,8 @@ export async function openOpsReport({ sub, settle = false, owner = false } = {})
     updateGranularityButtons(gran);
     rendered = {};
     await renderHistoryDateListByMode(gran);        // 날짜 목록이 맨 위(또는 지금) 날짜를 눌러 지금 탭을 그린다
-    if (!document.querySelector('.history-date-btn.is-on')) renderOpsReport([]);   // 데이터 없을 때
+    if (!document.querySelector('.history-date-btn.is-on')) renderOpsReport();   // 데이터 없을 때
+    applyExtras({ detail, owner });
 }
 
 // 탭 버튼(사용자)
@@ -252,22 +225,25 @@ function selectTab(tab) {
     if (rendered[tab] !== periodKey()) renderTab(tab);
 }
 
-// 팀 결산 열기 — preset 이 있으면(왼쪽에서 월·년을 고른 상태) 결산 선택기를 그 기간으로 맞춰 다시 만든다.
+// ── [보고서 만들기] = 팀 결산 ─────────────────────────────────────
+let settleMod = null;
+// 결산 열기 — preset 이 있으면(왼쪽에서 월·년을 고른 상태) 결산 선택기를 그 기간으로 맞춰 다시 만든다.
 async function openSettlement(preset) {
     if (!canSettle(canNow)) return;
     setPending(null);
     State.context.opsSettleOpen = true;
-    showTab('cost');
+    showTab(State.context.activeOpsTab || 'cost');
     setTreeVisible(false);
     saveOps('cost', true);
     const panel = $('settlement-panel');
     try {
-        const mod = await import('./ui-history-settlement.js?v=202611051150');
+        settleMod = await import('./ui-history-settlement.js?v=202611051201');
         clearPanelLoadError(panel);   // 앞서 실패해 띄운 오류 상자
-        await mod.initSettlementReport();
+        // downloads:false = 결산 화면 머리 줄의 [엑셀][PDF] 를 그리지 않음(받기는 위 줄의 [PDF 받기][엑셀 받기])
+        await settleMod.initSettlementReport({ downloads: false });
         if (preset) applySettlePreset(panel, preset);
     } catch (err) {
-        console.error('settlement module load failed:', err);
+        console.error('settlement module load failed:', err && err.message);
         showPanelLoadError(panel);
     }
 }
@@ -290,7 +266,25 @@ function applySettlePreset(panel, p) {
     panel.querySelector('#settle-generate-btn')?.click();
 }
 
-/** 한 번만 — 탭 줄·[결산 만들기]·[비용 탭으로] 연결. d.periodData() = 지금 고른 기간 이력, d.rangeData() = 업무 리포트용 이력. */
+// [PDF 받기][엑셀 받기] — 화면에 보이는 결산(같은 기간·같은 숫자)을 받는다. 결산 모듈의 downloadSettlement 가 없으면(옛 모듈) 결산 화면의 버튼을 대신 누른다.
+async function downloadSettle(kind, btn) {
+    if (!canSettle(canNow)) return;
+    try {
+        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=202611051201');
+        if (typeof settleMod.downloadSettlement === 'function') {
+            const done = await settleMod.downloadSettlement(kind, btn);
+            if (done === false) showToast('먼저 보고서를 만들어 주세요.');
+            return;
+        }
+        const inner = $('settlement-panel')?.querySelector(kind === 'pdf' ? '#settle-pdf-btn' : '#settle-download-btn');
+        if (inner) inner.click(); else showToast('먼저 보고서를 만들어 주세요.');
+    } catch (err) {
+        console.error('결산 받기 실패:', kind, err && err.message);
+        showToast('받기에 실패했습니다. 잠시 뒤 다시 시도해 주세요.');
+    }
+}
+
+/** 한 번만 — 탭 줄·[보고서 만들기]·[PDF 받기][엑셀 받기]·상세 표 펼침 연결. d.periodData() = 지금 고른 기간 이력, d.rangeData() = 상세 표용 이력. */
 export function initOpsReport(d = {}) {
     deps = { ...deps, ...d };
     const panel = $('ops-panel');
@@ -303,10 +297,23 @@ export function initOpsReport(d = {}) {
         const go = e.target.closest('[data-ops-goto]');
         if (go) { selectTab(go.dataset.opsGoto); return; }
         if (e.target.closest('#ops-settle-btn')) {
-            openSettlement(settlePresetOf(granNow(), keyNow())).catch(err => console.error('팀 결산 열기 실패:', err));
+            openSettlement(settlePresetOf(granNow(), keyNow())).catch(err => console.error('보고서 열기 실패:', err && err.message));
             return;
         }
-        if (e.target.closest('#ops-settle-back')) selectTab('cost');
+        if (e.target.closest('#ops-settle-back')) { selectTab(State.context.activeOpsTab || 'summary'); return; }
+        const pdf = e.target.closest('#ops-settle-pdf');
+        if (pdf) { downloadSettle('pdf', pdf); return; }
+        const xlsx = e.target.closest('#ops-settle-xlsx');
+        if (xlsx) { downloadSettle('excel', xlsx); return; }
+    });
+
+    // 상세 표 펼침 — 열면 상세 표 모드(업무 기록 서브탭 = report)로 표를 그리고, 닫으면 되돌린다. toggle 은 버블링하지 않는다.
+    $('ops-fold-tables')?.addEventListener('toggle', (e) => {
+        const t = e.currentTarget;
+        if (t.open && !canDetail(canNow)) { t.open = false; return; }
+        setDetailMode(t.open);
+        if (t.open) drawDetailTables();
+        if (State.context.activeHistoryView === OPS_MAIN && !State.context.opsSettleOpen) saveOps(State.context.activeOpsTab || 'productivity', false);
     });
 
     // 방향키로 탭 이동(보이는 탭만)
@@ -322,22 +329,23 @@ export function initOpsReport(d = {}) {
     });
 
     // 권한 판정이 나오거나 바뀌면 탭 줄을 다시 맞춘다. 판정 전에 막혔던 요청은 이제 되면 그 탭·결산으로 다시 연다.
-    // 지금 탭을 못 보게 됐으면 요약으로. 비용 칸·안내 링크도 권한대로 다시 맞춘다.
+    // 지금 탭을 못 보게 됐으면 요약으로. 금액 칸은 모델이 권한으로 가리므로 지금 탭을 다시 그린다.
     onPerm(() => {
         const allowed = applyTabVisibility();
-        guardCostCells();
-        if (State.context.activeHistoryView !== OPS_MAIN) return;
+        invalidateOpsModel();
+        if (State.context.activeHistoryView !== OPS_MAIN) { rendered = {}; return; }
         const note = $('ops-tab-note');
         if (note && !State.context.opsSettleOpen) note.innerHTML = noteHtml(State.context.activeOpsTab || 'summary');
         if (pendingReq) {
             const r = pendingReq;
             if (r.settle && canSettle(canNow)) {
-                openSettlement(null).catch(err => console.error('팀 결산 열기 실패:', err));
+                openSettlement(null).catch(err => console.error('보고서 열기 실패:', err && err.message));
                 return;
             }
-            if (allowed.includes(r.sub)) {
-                ownerScrollPending = !!r.owner && r.sub === 'tasks';
-                selectTab(r.sub);
+            const t = pickTab(r.sub, allowed);
+            if (t && t === tabOf(r.sub)) {
+                selectTab(t);
+                applyExtras({ detail: r.detail, owner: r.owner });
                 return;
             }
             setPending(null);   // 끝내 안 됨 — 주소를 지금 화면으로
@@ -348,6 +356,8 @@ export function initOpsReport(d = {}) {
         if (!allowed.includes(cur) || settleDenied) {
             const t = pickTab('summary', allowed);
             if (t) selectTab(t);
+            return;
         }
+        if (!State.context.opsSettleOpen) { rendered = {}; renderTab(cur); }
     });
 }

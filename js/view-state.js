@@ -10,20 +10,20 @@
 // 1c(2026-10-16): 데이터 관리(history.html)는 주소 뒤 해시(js/hash-state.js)에도 적는다 — 해시가 있으면 그것이 먼저다.
 //   #tab=메인탭&sub=업무기록 서브탭&gran=일주월년&date=날짜&fview=업무 예상 화면. 옛 #forecast · #forecast-today 도 읽는다.
 //   ⚠️ 해시 없이 열면(업무예상알림 봇) 예전과 똑같이 sessionStorage 로만 복원한다.
-// 2026-11-05 운영 리포트 통합: #tab=ops&sub=탭(&settle=1 팀 결산 · &owner=1 업무 담당 변화 칸). 옛 화면 6개의 해시·기억은
+// 2026-11-05 운영 리포트 통합: #tab=ops&sub=탭(&settle=1 팀 결산 · &detail=tables 생산성 상세 표 · &owner=1 업무 상세(담당 변화)). 옛 화면 6개의 해시·기억은
 //   js/lib/ops-report-route.js redirectView 로 운영 리포트 탭으로 바꿔 연다(복원 뒤 주소도 새 형식으로 바뀐다).
 
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611051150';
-import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611051150';
-import { OPS_MAIN, redirectView, isOpsTreeless } from './lib/ops-report-route.js?v=202611051150';
-import * as State from './state.js?v=202611051150';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611051201';
+import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611051201';
+import { OPS_MAIN, redirectView, isOpsTreeless } from './lib/ops-report-route.js?v=202611051201';
+import * as State from './state.js?v=202611051201';
 
 const KEY = 'viewstate:' + (location.pathname.split('/').pop() || 'index');
 // 대시보드(index)의 모바일 데이터 관리 모달도 saveView 를 부른다 — 해시는 history.html 에서만 쓴다
 const IS_HISTORY_PAGE = (location.pathname.split('/').pop() || '') === 'history.html';
 
-const HASH_TO_VIEW = { tab: 'main', sub: 'sub', gran: 'gran', date: 'dateKey', fview: 'fview', settle: 'settle', owner: 'owner' };
-/** 해시 → 화면 상태({ main, sub, gran, dateKey, fview, settle, owner }). tab 이 없으면 null. 옛 화면은 운영 리포트로. */
+const HASH_TO_VIEW = { tab: 'main', sub: 'sub', gran: 'gran', date: 'dateKey', fview: 'fview', settle: 'settle', detail: 'detail', owner: 'owner' };
+/** 해시 → 화면 상태({ main, sub, gran, dateKey, fview, settle, detail, owner }). tab 이 없으면 null. 옛 화면은 운영 리포트로. */
 function viewFromHash(h) {
     if (!h || !h.tab) return null;
     const v = {};
@@ -75,6 +75,7 @@ function hashFromView(v) {
     if (v.main === 'rawdata' && v.sub) o.sub = v.sub;
     if (v.main === OPS_MAIN && v.sub) o.sub = v.sub;
     if (v.main === OPS_MAIN && v.settle === '1') o.settle = '1';
+    if (v.main === OPS_MAIN && v.settle !== '1' && v.detail === 'tables') o.detail = 'tables';
     if (v.main === 'forecast' && v.fview) o.fview = v.fview;
     if (!isTreeless(v)) {
         if (v.gran && v.gran !== 'day') o.gran = v.gran;
@@ -161,6 +162,7 @@ function currentView() {
         main: c.activeHistoryView || undefined,
         sub: (pend ? pend.sub : (ops ? c.activeOpsTab : c.activeMainHistoryTab)) || undefined,
         settle: (pend ? pend.settle : (ops && c.opsSettleOpen)) ? '1' : undefined,
+        detail: (ops && !pend && c.opsDetailOpen) ? 'tables' : undefined,
         gran: c.globalGranularity || undefined,
         dateKey: (db && db.dataset.key) || undefined,
         fview: (fb && fb.dataset.fview) || undefined
@@ -215,7 +217,7 @@ async function applyView(v, { resetGran = false } = {}) {
     //    #tab=rawdata 처럼 서브탭이 없으면 지금 서브탭(처음이면 업무 이력).
     //    운영 리포트는 열 탭(·팀 결산·담당 변화 칸)을 먼저 적어 두고 레일을 누른다 — showSection 이 한 번 읽고 지운다.
     if (v.main === OPS_MAIN && State.context) {
-        State.context.opsRequest = { sub: v.sub, settle: v.settle === '1', owner: v.owner === '1' };
+        State.context.opsRequest = { sub: v.sub, settle: v.settle === '1', detail: v.detail === 'tables', owner: v.owner === '1' };
     }
     const sid = sectionIdFor(v.main, v.sub, State.context && State.context.activeMainHistoryTab);
     if (sid) document.querySelector(`#history-section-nav .pn-item[data-pn-id="${esc(sid)}"]`)?.click();

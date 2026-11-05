@@ -1,7 +1,7 @@
 // === js/ui-history-reports.js ===
-import { buildMemberHourlyWageMap, getTodayDateString } from './utils.js?v=202611051150';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051150';
-import { baselineSpeeds, previousPeriodOf, periodDaysOf, lastDayIdOf } from './lib/ops-metrics.js?v=202611051150';
+import { buildMemberHourlyWageMap, getTodayDateString } from './utils.js?v=202611051201';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051201';
+import { baselineSpeeds, previousPeriodOf, periodDaysOf, lastDayIdOf } from './lib/ops-metrics.js?v=202611051201';
 
 import {
     calculateReportKPIs,
@@ -12,11 +12,11 @@ import {
     calculateAdvancedProductivity,
     calculateBenchmarkOEE,
     calculateAverageStaffing
-} from './ui-history-reports-logic.js?v=202611051150';
+} from './ui-history-reports-logic.js?v=202611051201';
 
 import {
     renderGenericReport
-} from './ui-history-reports-renderer.js?v=202611051150';
+} from './ui-history-reports-renderer.js?v=202611051201';
 
 
 const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
@@ -52,7 +52,15 @@ const _applyOpsStaff = (kpis, staffing) => {
     kpis.nonWorkMinutes = staffing.availabilityLossMinutes;
 };
 
-export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) => {
+/** 그리기 모드 — opts.only 를 주면 그걸 쓰고 State.context.reportOnly 에 기억한다(정렬·필터 때 opts 없이 다시 불러도 같은 모드).
+ *  'tables' = 상세 표만(운영 리포트 생산성 탭 '상세 표'), null = 전체 리포트. */
+const _reportOnly = (context, opts) => {
+    if (opts && Object.prototype.hasOwnProperty.call(opts, 'only')) context.reportOnly = opts.only || null;
+    return context.reportOnly || null;
+};
+
+export const renderReportDaily = (dateKey, allHistoryData, appConfig, context, opts = {}) => {
+    const only = _reportOnly(context, opts);
     allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('report-daily-view');
     if (!view) return;
@@ -93,7 +101,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
     _applyOpsStaff(todayKPIs, todayStaffing);
     _applyOpsStaff(prevKPIs, prevStaffing);
 
-    const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
+    const benchmarkOEE = only === 'tables' ? null : calculateBenchmarkOEE(allHistoryData, appConfig);   // 상세 표만이면 안 쓴다
 
     const sortState = context.reportSortState || {};
 
@@ -117,11 +125,13 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         '기록',
         0,
         benchmarkOEE,
-        speeds
+        speeds,
+        { only }
     );
 };
 
-export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) => {
+export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context, opts = {}) => {
+    const only = _reportOnly(context, opts);
     allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('report-weekly-view');
     if (!view) return;
@@ -159,7 +169,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     _applyOpsStaff(todayKPIs, todayStaffing);
     _applyOpsStaff(prevKPIs, prevStaffing);
     
-    const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
+    const benchmarkOEE = only === 'tables' ? null : calculateBenchmarkOEE(allHistoryData, appConfig);   // 상세 표만이면 안 쓴다
 
     const sortState = context.reportSortState || {};
 
@@ -183,11 +193,13 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         '주',
         0,
         benchmarkOEE,
-        speeds
+        speeds,
+        { only }
     );
 };
 
-export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context) => {
+export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context, opts = {}) => {
+    const only = _reportOnly(context, opts);
     allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('report-monthly-view');
     if (!view) return;
@@ -244,7 +256,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         prevStaffing.totalStandardMinutesNeeded
     );
     
-    const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
+    const benchmarkOEE = only === 'tables' ? null : calculateBenchmarkOEE(allHistoryData, appConfig);   // 상세 표만이면 안 쓴다
 
     const sortState = context.reportSortState || {};
 
@@ -268,11 +280,13 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         '월',
         prevRevenue,
         benchmarkOEE,
-        speeds
+        speeds,
+        { only }
     );
 };
 
-export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) => {
+export const renderReportYearly = (yearKey, allHistoryData, appConfig, context, opts = {}) => {
+    const only = _reportOnly(context, opts);
     allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
     const view = document.getElementById('report-yearly-view');
     if (!view) return;
@@ -332,6 +346,7 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         '연도',
         0,
         null,
-        speeds
+        speeds,
+        { only }
     );
 };

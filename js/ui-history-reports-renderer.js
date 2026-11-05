@@ -1,11 +1,11 @@
 // === js/ui-history-reports-renderer.js ===
 
-import { formatDuration } from './utils.js?v=202611051150';
-import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202611051150';
-import { context, LEAVE_TYPES } from './state.js?v=202611051150';
-import { TASK, tName, isT } from './task-names.js?v=202611051150';
-import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202611051150';
-import { DOMESTIC_ITEMS_PER_ORDER, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=202611051150';
+import { formatDuration } from './utils.js?v=202611051201';
+import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202611051201';
+import { context, LEAVE_TYPES } from './state.js?v=202611051201';
+import { TASK, tName, isT } from './task-names.js?v=202611051201';
+import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202611051201';
+import { DOMESTIC_ITEMS_PER_ORDER, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=202611051201';
 
 // 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -829,9 +829,27 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
     return html;
 };
 
-export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, appConfig, sortState, periodText, prevRevenue = 0, benchmarkOEE = null, standardThroughputs = {}) => {
+// opts.only === 'tables' → 상세 표만(파트·인원·업무·근태) + 작은 제목·[다운로드]. 운영 리포트 생산성 탭 '상세 표' 칸이 쓴다.
+//   정렬·필터·처리량 수정·다운로드는 표 안 버튼(data-sort-*·filter·#report-download-btn)이 #report-view-container 에서 그대로 받는다.
+export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, appConfig, sortState, periodText, prevRevenue = 0, benchmarkOEE = null, standardThroughputs = {}, opts = {}) => {
     const view = document.getElementById(targetId);
     if (!view) return;
+
+    if (opts && opts.only === 'tables') {
+        view.innerHTML = `<div class="space-y-6">
+            <div class="flex justify-between items-center">
+                <h3 class="text-base font-bold text-gray-700">${title} — 상세 표</h3>
+                <div class="flex gap-2" data-html2canvas-ignore="true">
+                    <button id="report-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-1 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        다운로드
+                    </button>
+                </div>
+            </div>
+            ${_generateTablesHTML(tMetrics.aggr, pMetrics.aggr, periodText, sortState, tData.memberToPartMap, tData.raw.onLeaveMembers, standardThroughputs)}
+        </div>`;
+        return;
+    }
 
     const currentRevenue = tData.revenue || 0;
     
