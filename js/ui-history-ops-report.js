@@ -14,21 +14,21 @@
 //   TODO(1단계 C5 뒤): ops-metrics.opsSummary 를 기간 열쇠(periodKey)로 메모해 탭들이 같이 쓰고, 팀 결산 PDF 도 그 값을 재사용(설계 C10).
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다.
 
-import * as State from './state.js?v=202611051017';
-import { renderDashboardTab } from './ui-history-dashboard.js?v=202611051017';
-import { renderProductivityTab } from './ui-history-productivity.js?v=202611051017';
-import { renderStaffingTab } from './ui-history-staffing.js?v=202611051017';
-import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611051017';
-import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611051017';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611051017';
-import { historyLoadFailed } from './history-data-manager.js?v=202611051017';
-import { saveView } from './view-state.js?v=202611051017';
-import { currentPerm, onPerm } from './feature-gate.js?v=202611051017';
-import { can } from './lib/perm.js?v=202611051017';
-import { showToast } from './utils.js?v=202611051017';
+import * as State from './state.js?v=202611051106';
+import { renderDashboardTab } from './ui-history-dashboard.js?v=202611051106';
+import { renderProductivityTab } from './ui-history-productivity.js?v=202611051106';
+import { renderStaffingTab } from './ui-history-staffing.js?v=202611051106';
+import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611051106';
+import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611051106';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611051106';
+import { historyLoadFailed } from './history-data-manager.js?v=202611051106';
+import { saveView } from './view-state.js?v=202611051106';
+import { currentPerm, onPerm } from './feature-gate.js?v=202611051106';
+import { can } from './lib/perm.js?v=202611051106';
+import { showToast } from './utils.js?v=202611051106';
 import {
     OPS_MAIN, allowedTabs, pickTab, canSettle, settlePresetOf
-} from './lib/ops-report-route.js?v=202611051017';
+} from './lib/ops-report-route.js?v=202611051106';
 
 const TAB_PANEL = {
     summary: 'dashboard-panel', productivity: 'productivity-panel', tasks: 'ops-tasks-panel',
@@ -142,7 +142,7 @@ function renderOwnerSection() {
     const all = State.allHistoryData || [];
     const key = [all, all.length, State.appConfig];
     const same = !!ownerKey && ownerKey.every((x, i) => x === key[i]);
-    import('./ui-history-task-owner.js?v=202611051017').then(mod => {
+    import('./ui-history-task-owner.js?v=202611051106').then(mod => {
         clearPanelLoadError(sec);
         if (!same) { mod.renderTaskOwnerTab(); ownerKey = key; }
         if (ownerScrollPending) {
@@ -262,7 +262,7 @@ async function openSettlement(preset) {
     saveOps('cost', true);
     const panel = $('settlement-panel');
     try {
-        const mod = await import('./ui-history-settlement.js?v=202611051017');
+        const mod = await import('./ui-history-settlement.js?v=202611051106');
         clearPanelLoadError(panel);   // 앞서 실패해 띄운 오류 상자
         await mod.initSettlementReport();
         if (preset) applySettlePreset(panel, preset);

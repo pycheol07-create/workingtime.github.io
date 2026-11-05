@@ -15,9 +15,11 @@
 .ap-row-btns .d-btn { margin-left: 4px; }
 .d-btn.is-off, .d-btn.is-off:hover { background: var(--c-surface-2); border-color: var(--c-line); color: var(--c-text-4); cursor: help; }
 .ap-seg-n { margin-left: 4px; font-size: 11px; padding: 0 6px; }
-.ap-toolbar { padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
-.ap-actions-big { display: flex; flex-wrap: wrap; gap: 10px; }
-.d-btn.ap-big { min-height: 42px; padding: 0 22px; font-size: 14.5px; font-weight: 600; }
+.ap-toolbar { padding: 12px 20px; display: flex; flex-direction: column; gap: 8px; }
+/* 보기 화면 버튼 — 상태 줄 오른쪽에 작게 모아 둔다(2026-11-05 사용자 요청) */
+.ap-toolrow { flex-wrap: wrap; row-gap: 8px; }
+.ap-actions-big { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.d-btn.ap-big { min-height: 30px; padding: 0 12px; font-size: 12.5px; font-weight: 600; }
 /* 첨부 목록 */
 .ap-att { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .ap-att li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
@@ -117,7 +119,7 @@
     .ap-t td[data-label]:empty { display: none; }
     .ap-row-btns { text-align: left; margin-top: 8px; }
     .ap-row-btns .d-btn { margin: 0 6px 0 0; min-height: 34px; }
-    .ap-actions-big .d-btn.ap-big { flex: 1 1 40%; }
+    .ap-actions-big { margin-left: 0; }
     .ap-sheet { padding: 8mm 6mm; font-size: 10pt; }
     .ap-sheet h2 { font-size: 17pt; letter-spacing: .3em; text-indent: .3em; }
     .ap-boxes th { width: 18mm; }

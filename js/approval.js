@@ -17,16 +17,16 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611051017';
+import { initializeFirebase } from './config.js?v=202611051106';
 import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611051017';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611051017';
-import { memberNameFor } from './app-shell-data.js?v=202611051017';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611051106';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611051106';
+import { memberNameFor } from './app-shell-data.js?v=202611051106';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
     tardyPrefill, printFitLevel, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
-    checkAttach, attachPath, attachMeta, fmtBytes, ATTACH_MAX, ATTACH_ACCEPT, attachTypeOf } from './lib/approval-logic.js?v=202611051017';
-import { sendApprovalNoti, MSG_TO_ADMIN, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611051017';
+    checkAttach, attachPath, attachMeta, fmtBytes, ATTACH_MAX, ATTACH_ACCEPT, attachTypeOf } from './lib/approval-logic.js?v=202611051106';
+import { sendApprovalNoti, MSG_TO_ADMIN, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611051106';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -361,13 +361,13 @@ async function renderView(main, id) {
     const atts = d.attachments || [];
     main.innerHTML = `
         <section class="pd-card ap-toolbar">
-            <div class="pd-row">${pill(d.status)}${selfDoc && (S.isAdmin || isAssigned(d)) ? '<span class="d-pill-accent">본인 기안</span>' : ''}
-                <span class="pd-note">결재자 ${esc(d.approverName || '(지정 안 함)')}</span><span class="pd-grow"></span><span class="pd-note num">${esc(stampTime(d._ms))}</span></div>
-            <div class="ap-actions ap-actions-big">
+            <div class="pd-row ap-toolrow">${pill(d.status)}${selfDoc && (S.isAdmin || isAssigned(d)) ? '<span class="d-pill-accent">본인 기안</span>' : ''}
+                <span class="pd-note">결재자 ${esc(d.approverName || '(지정 안 함)')}</span><span class="pd-note num">${esc(stampTime(d._ms))}</span><span class="pd-grow"></span>
+                <span class="ap-actions-big">
                 ${selfDoc ? ownBtns(d, true) : ''}
                 ${acts.includes('submit') ? `<button class="d-btn ap-big d-btn-primary" data-act-btn="submit">${d.status === 'rejected' || d.decision ? '재제출' : '제출'}</button>` : ''}
                 ${acts.includes('print') ? '<button class="d-btn ap-big" data-act-btn="print">인쇄 / PDF</button>' : ''}
-            </div>
+                </span></div>
             ${d.status === 'submitted' && selfDoc ? '<div class="pd-note">결재 전에는 [회수] 해서 고칠 수 있습니다.</div>' : ''}
         </section>
         <div class="ap-view">
