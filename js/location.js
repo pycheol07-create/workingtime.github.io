@@ -1,30 +1,30 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611050921';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611050928';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611050921';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611050921';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611050921';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611050921';
-import { orderKeyMap } from './lib/order-hash.js?v=202611050921';
-import { setShellContext } from './app-shell-bridge.js?v=202611050921';
-import { memberNameFor } from './app-shell-data.js?v=202611050921';
-import { menuConfigOf } from './lib/perm.js?v=202611050921';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611050921';
-import { initPageNav } from './page-nav.js?v=202611050921';
-import { initRefillCard } from './refill-card.js?v=202611050921';
-import { initLocRecCard } from './locrec-card.js?v=202611050921';
-import { initRebuildBar } from './rebuild-bar.js?v=202611050921';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611050921';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611050921';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611050921';
-import { uploadBlockText } from './lib/busy-view.js?v=202611050921';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611050921';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611050921';
-import { comboOf } from './lib/loc-cards.js?v=202611050921';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611050921';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611050928';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611050928';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611050928';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611050928';
+import { orderKeyMap } from './lib/order-hash.js?v=202611050928';
+import { setShellContext } from './app-shell-bridge.js?v=202611050928';
+import { memberNameFor } from './app-shell-data.js?v=202611050928';
+import { menuConfigOf } from './lib/perm.js?v=202611050928';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611050928';
+import { initPageNav } from './page-nav.js?v=202611050928';
+import { initRefillCard } from './refill-card.js?v=202611050928';
+import { initLocRecCard } from './locrec-card.js?v=202611050928';
+import { initRebuildBar } from './rebuild-bar.js?v=202611050928';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611050928';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611050928';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611050928';
+import { uploadBlockText } from './lib/busy-view.js?v=202611050928';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611050928';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611050928';
+import { comboOf } from './lib/loc-cards.js?v=202611050928';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611050928';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611050921';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611050921';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611050928';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611050928';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -382,6 +382,33 @@ function updateLastUpdateDisplay(ts) {
     const tone = daysAgo <= 0 ? 'ok' : (daysAgo === 1 ? 'warn' : 'risk');
     el.innerHTML = `<span class="dot" style="background:var(--c-${tone});"></span>재고<span class="lu-label"> 최신화</span> <b>${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}</b>`;
     el.title = '마지막 데이터 최신화: ' + d.toLocaleString('ko-KR');
+    updateEzStockDisplay();
+}
+
+// 🕒 재고 숫자 이지어드민 기준 시각 — 서버(로케이션추천\재고기록.py)가 이지어드민 재고를 재고 칸에 쓰면 남기는
+//   locationStock/ezStockStatus {at, writtenAt, slots, basisLastDataUpdate}. 그 뒤에 엑셀을 새로 올렸으면(기준이 다르면) 숨긴다.
+let _ezStockStatus = null;
+function updateEzStockDisplay() {
+    const el = document.getElementById('ez-stock-at');
+    if (!el) return;
+    const st = _ezStockStatus, last = Number(_lastDataUpdateTs) || 0;
+    const at = st ? Number(st.at) || 0 : 0;
+    if (!at || at < last || (last && Number(st.basisLastDataUpdate) !== last)) { el.hidden = true; return; }
+    const d = new Date(at);
+    const p = n => String(n).padStart(2, '0');
+    // 오늘이 아니면 날짜도(M/D HH:MM) — 1분마다 머리줄을 다시 칠할 때(refreshHeaderStatusTone) 자정 넘김도 반영된다
+    const today = new Date();
+    const sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+    const when = `${sameDay ? '' : `${d.getMonth() + 1}/${d.getDate()} `}${p(d.getHours())}:${p(d.getMinutes())}`;
+    el.innerHTML = `재고 숫자 이지어드민 <b>${when}</b> 기준`;
+    el.title = `재고 숫자: 이지어드민 ${d.toLocaleString('ko-KR')} 기준(자리 ${Number(st.slots) || 0}곳) — 엑셀을 새로 올리면 엑셀 기준`;
+    el.hidden = false;
+}
+function setupEzStockStatusListener() {
+    onSnapshot(doc(db, 'artifacts', 'team-work-logger-v2', 'locationStock', 'ezStockStatus'), (snap) => {
+        _ezStockStatus = snap.exists() ? snap.data() : null;
+        updateEzStockDisplay();
+    }, (error) => { console.warn('이지어드민 재고 기준 시각 읽기 실패:', error && error.code); });
 }
 
 // 헤더 상태 색(오늘/어제/2일+)은 날짜가 바뀌면 달라진다 — 데이터를 다시 읽지 않고 마지막 값으로 1분마다·탭 복귀 때 다시 칠한다
@@ -638,6 +665,7 @@ window.openZikjinDetail = function () {
 };
 
 function setupRealtimeListenerA() {
+    setupEzStockStatusListener();
     onSnapshot(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), (docSnap) => {
         clearSyncError('config');
         if(docSnap.exists()) {
@@ -703,7 +731,9 @@ function setupRealtimeListenerA() {
                     locObj.rawData = cleanRaw(locObj.rawData).out;
                     // 비축(2층 창고) 재고: 엑셀 열 이름이 '비축창고재고' 로 바뀌어 stock2f 가 비어 있는 자료 보정.
                     // 기타(비축·SAM) 칸은 같은 수량을 '정상재고' 쪽에 담으므로 건드리지 않는다(이중 계상 방지).
-                    if (!Number(locObj.stock2f || 0) && !isEtcLocation(locObj)) {
+                    // ezAt(서버 로케이션추천\재고기록.py 가 이지어드민 재고를 쓴 시각)이 있으면 비축 0 이 실제 값이라 메우지 않는다
+                    // (채우기자동화\규칙.rec_loc 과 같은 규칙, 2026-11-05).
+                    if (!Number(locObj.stock2f || 0) && locObj.ezAt == null && !isEtcLocation(locObj)) {
                         const _b = locObj.rawData['비축창고재고'] ?? locObj.rawData['2층창고재고'];
                         const _n = String(_b == null ? '' : _b).replace(/[^0-9.-]/g, '');
                         if (_n !== '' && Number(_n)) locObj.stock2f = _n;
@@ -4516,6 +4546,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     updatedAt: new Date(),
                     rawDataStr: '{}',
                     rawData: deleteField(),
+                    ezAt: deleteField(),   // 서버가 쓴 이지어드민 재고 표시 — 오늘 재고를 올리면 엑셀 값이 기준
                     preAssigned: loc.preAssigned || false,
                     preAssignedCode: loc.preAssignedCode || '',
                     preAssignedName: loc.preAssignedName || '',
@@ -4777,6 +4808,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
         //   예전엔 최신화마다 모든 자리에 updatedAt 을 새로 찍어 ZONE 문서 전체(약 8.8천)를 다시 썼고,
         //   열려 있는 로케이션 화면마다 그만큼 다시 읽었다. 비교는 스냅샷 원본(rawLocMap, 보정 전 값) 기준.
         //   빈 값('', null, undefined, false)은 같은 것으로 본다. 새 자리·옛 rawData 칸이 남은 자리는 항상 쓴다.
+        //   ezAt(서버가 쓴 이지어드민 재고 표시)은 비교에서 빼고, 지금 자리에 ezAt 이 있으면 지워야 하므로 항상 쓴다.
         const _norm = v => (v === undefined || v === null || v === false || v === '') ? ''
             : (typeof v === 'object' && typeof v.toMillis === 'function') ? String(v.toMillis())
             : (typeof v === 'object') ? JSON.stringify(v) : String(v);
@@ -4786,7 +4818,8 @@ async function updateDatabaseA(rows, mode = 'daily') {
             for (const locId of Object.keys(locs)) {
                 const upd = locs[locId], cur = rawLocMap[locId];
                 if (!cur || cur.rawData !== undefined) continue;
-                const changed = Object.keys(upd).some(k => k !== 'updatedAt' && k !== 'rawData' && _norm(upd[k]) !== _norm(cur[k]));
+                if ('ezAt' in upd && cur.ezAt != null) continue;
+                const changed = Object.keys(upd).some(k => k !== 'updatedAt' && k !== 'rawData' && k !== 'ezAt' && _norm(upd[k]) !== _norm(cur[k]));
                 if (!changed) { delete locs[locId]; skippedSameCount++; }
             }
             if (Object.keys(locs).length === 0) delete zoneUpdates[zoneId];

@@ -6,16 +6,19 @@
 //   옮기는 칸   PRODUCT_FIELDS(code·name·option·stock·stock2f·rawDataStr) — 자리 칸(dong·pos·category·angleSize·reserved*·preAssigned*·codeTag*·assignedAt)은 안 건드림
 //               옛 형식 rawData(맵)는 cleanRaw 를 거쳐 rawDataStr 로 바꾸고 양쪽 rawData 는 지운다(opts.del = deleteField()).
 //   비운 자리   EMPTY_PRODUCT — 오늘 재고 올리기(location.js updateDatabaseA daily 초기화)와 같은 값
+//   ezAt        서버(로케이션추천\재고기록.py)가 이지어드민 재고를 쓴 표시(ms) — 상품 칸과 함께 옮긴다. 출발 상품에 없으면 도착 칸에서 지우고,
+//               비운 자리에서도 지운다(있을 때만 — 없으면 칸을 안 씀). 화면·rec_loc 이 비축 0 을 rawData 옛값으로 메우지 않게 하는 표시라
+//               상품을 따라가야 한다(2026-11-05).
 //   하루 표시   자리 맵 안 locRecMove {day:'YYYYMMDD'(KST), at:ms, role:'in'|'out', code, peer:상대 자리 id, recKey}
 //               화면은 day === 오늘(KST) 일 때만 보인다(자정 DB 쓰기 없음). 맞바꾸기는 두 자리 모두 in.
 //   marks 기록  locRecWork/marks.marks[recKey].applied = {v:1, at:ms, day, moves:[{code,src,dst}], skipped:[{code,src,dst}]} — 코드·자리 id 만
 // ⚠️ 돌려주는 실패 정보·문구에는 상품코드·자리 id 만 — 상품명·rawDataStr·공급처 값을 넣지 않는다(로그·alert 로 나간다).
 // import 는 같은 lib 의 sensitive-cols.js(cleanRaw)·multi-loc.js(normLocId)·refill-view.js(dayKey·fmtHM, KST)·loc-recommend.js(isEtcLocObj·kstMidnight) 만.
 
-import { cleanRaw } from './sensitive-cols.js?v=202611050921';
-import { normLocId } from './multi-loc.js?v=202611050921';
-import { dayKey, fmtHM, tsMs } from './refill-view.js?v=202611050921';
-import { isEtcLocObj, kstMidnight } from './loc-recommend.js?v=202611050921';
+import { cleanRaw } from './sensitive-cols.js?v=202611050928';
+import { normLocId } from './multi-loc.js?v=202611050928';
+import { dayKey, fmtHM, tsMs } from './refill-view.js?v=202611050928';
+import { isEtcLocObj, kstMidnight } from './loc-recommend.js?v=202611050928';
 
 export const PRODUCT_FIELDS = ['code', 'name', 'option', 'stock', 'stock2f', 'rawDataStr'];
 export const EMPTY_PRODUCT = Object.freeze({ code: '', name: '', option: '', stock: '0', stock2f: '0', rawDataStr: '{}' });
@@ -154,14 +157,17 @@ function buildWrites(resolved, nowMs, del, markOf) {
         p.updatedAt = new Date(nowMs);
         return p;
     };
+    const hasEz = (s) => !!s && s.ezAt != null;
     resolved.forEach(x => {
         if (dstIds.has(x.src.id)) return;                                     // 맞바꾸기 — 아래에서 도착으로 채운다
         const mk = markOf(x.src.id, 'out', x.dst.id);
-        put(x.src, { ...base(x.src), ...EMPTY_PRODUCT, ...(mk === undefined ? {} : { locRecMove: mk }) });
+        put(x.src, { ...base(x.src), ...EMPTY_PRODUCT, ...(hasEz(x.src.slot) ? { ezAt: del } : {}),
+                     ...(mk === undefined ? {} : { locRecMove: mk }) });
     });
     resolved.forEach(x => {
         const mk = markOf(x.dst.id, 'in', x.src.id);
-        put(x.dst, { ...base(x.dst), ...productOf(x.src.slot), ...(mk === undefined ? {} : { locRecMove: mk }) });
+        const ez = hasEz(x.src.slot) ? { ezAt: x.src.slot.ezAt } : (hasEz(x.dst.slot) ? { ezAt: del } : {});
+        put(x.dst, { ...base(x.dst), ...productOf(x.src.slot), ...ez, ...(mk === undefined ? {} : { locRecMove: mk }) });
     });
     return writes;
 }
