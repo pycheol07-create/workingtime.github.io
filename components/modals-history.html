@@ -229,6 +229,36 @@
     #history-modal .opp-inp-text { text-align: left; }
     /* 시뮬레이터 슬라이더(확장-3) */
     #history-modal .opp-range { width: 100%; accent-color: var(--c-accent); }
+    /* 분기·연간 계획서(v2 D2) — 표지·목차·장(인쇄 때 장마다 새 쪽), 시즌 열지도, 간트, 진행 막대 */
+    .opp-print-only { display: none; }
+    #history-modal .opp-toc-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+    #history-modal .opp-toc-list a { color: var(--c-accent); text-decoration: none; }
+    #history-modal .opp-ta { width: 100%; min-height: 64px; text-align: left; padding: 6px 8px; resize: vertical; }
+    #history-modal .opp-doc-text { margin-top: 10px; padding: 8px 12px; border-left: 3px solid var(--c-accent); background: var(--c-surface-2); font-size: 13px; color: var(--c-text); line-height: 1.6; }
+    #history-modal .opp-heat { background: color-mix(in srgb, var(--c-accent) calc(var(--h, 0) * 45%), transparent); }
+    #history-modal .opp-src-g { box-shadow: inset 0 -2px 0 var(--c-warn); }
+    #history-modal .opp-src-a { color: var(--c-text-3); font-style: italic; }
+    #history-modal .opp-season th, #history-modal .opp-season td { padding: 5px 6px; }
+    #history-modal .opp-gantt td { min-width: 48px; }
+    #history-modal .opp-gantt td.opp-gantt-on { background: var(--c-accent-soft); box-shadow: inset 0 0 0 1px var(--c-accent); }
+    #history-modal .opp-bar { height: 8px; min-width: 80px; border-radius: 4px; background: var(--c-track); overflow: hidden; }
+    #history-modal .opp-bar > span { display: block; height: 100%; background: var(--c-accent); }
+    @media print {
+        html.opp-printing .opp-print .opp-print-only { display: block !important; }
+        .opp-print .opp-cover { height: 250mm; display: flex !important; flex-direction: column; justify-content: center; text-align: center; break-after: page; }
+        .opp-print .opp-cover-title { font-size: 26px; font-weight: 800; }
+        .opp-print .opp-cover-sub { margin-top: 12px; font-size: 12px; color: #555; }
+        .opp-print .opp-toc { break-after: page; }
+        .opp-print .opp-toc-list { padding-left: 18px; }
+        .opp-print .opp-toc-list a { color: #111; text-decoration: none; }
+        .opp-print .opp-chapter { break-before: page; }
+        .opp-print .opp-doc-text { margin-top: 6px; padding: 4px 8px; border-left: 2px solid #888; }
+        .opp-print .opp-heat { background: rgba(60, 90, 200, calc(var(--h, 0) * 0.35)) !important; }
+        .opp-print .opp-gantt-on { background: #cfd8f5 !important; }
+        .opp-print .opp-season th, .opp-print .opp-season td { white-space: normal; font-size: 9px; padding: 2px 3px; }
+        .opp-print .opp-bar { height: 6px; background: #eee; }
+        .opp-print .opp-bar > span { display: block; height: 100%; background: #557; }
+    }
     #history-modal .opp-gran .ops-tab[disabled] { opacity: .55; cursor: default; }
     #history-modal .opp-conf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
     #history-modal .opp-law { margin-top: 10px; }

@@ -9,11 +9,11 @@
 
 import { doc, collection, getDocs, query, where, documentId, setDoc, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as State from './state.js?v=202611051545';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051545';
-import { baselineSpeeds } from './lib/ops-metrics.js?v=202611051545';
-import { monthlySummaryOf, needRebuild, finishedMonths, monthDates, sameSummary, MONTHLY_SCHEMA } from './lib/plan-monthly.js?v=202611051545';
-import { getTodayDateString } from './utils.js?v=202611051545';
+import * as State from './state.js?v=202611051617';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051617';
+import { baselineSpeeds } from './lib/ops-metrics.js?v=202611051617';
+import { monthlySummaryOf, needRebuild, finishedMonths, monthDates, sameSummary, MONTHLY_SCHEMA } from './lib/plan-monthly.js?v=202611051617';
+import { getTodayDateString } from './utils.js?v=202611051617';
 
 export const MONTHLY_COL = 'OpsMonthly';
 const CACHE_KEY = 'opsMonthlyCache';
@@ -64,12 +64,31 @@ export async function loadMonthlies(yms, { force = false } = {}) {
     }
 }
 
-/** 한 달 요약 만들기 — days 는 지금 이름 사본. 속도는 그 달 말일까지의 이력(allView)으로. */
-function summaryFor(ym, days, allView, cfg) {
+/** 그 달 예정 물량을 넣은 날 수 — plannedData/{날짜} 중 plannedQuantities 가 비지 않은 문서.
+ *  메모리(State.plannedData — 보통 오늘 이후만 받는다)가 그 달을 덮으면 그것을 쓰고, 아니면 그 달만 읽는다(≈30문서). 실패하면 null(모름). */
+async function plannedDaysOf(ym) {
+    const dates = monthDates(ym);
+    const has = (q) => q && Object.values(q).some(v => Number(v) > 0);
+    const mem = (State.plannedData || []).filter(d => d && typeof d.id === 'string');
+    const memFrom = mem.reduce((m, d) => (!m || d.id < m ? d.id : m), null);
+    if (memFrom && memFrom <= dates[0]) return mem.filter(d => d.id.startsWith(ym + '-') && has(d.plannedQuantities)).length;
+    try {
+        const col = collection(State.db, 'artifacts', 'team-work-logger-v2', 'plannedData');
+        const snap = await getDocs(query(col, where(documentId(), '>=', dates[0]), where(documentId(), '<=', dates[dates.length - 1])));
+        if (snap.metadata && snap.metadata.fromCache) return null;
+        let n = 0;
+        snap.forEach(d => { const q = (d.data() || {}).plannedQuantities; if (q && Object.values(q).some(v => Number(v) > 0)) n++; });
+        return n;
+    } catch (e) { return null; }
+}
+// 입고(incoming): 입고일정 위젯 캐시는 최근 며칠 + 앞으로만 있어 지난달을 다 담지 못한다(과소·매일 바뀜).
+//   그 달 전체 원본(예: 입고 이력 문서)이 생기기 전까지는 null 로 고정한다(schema 4). TODO: 입고 이력 원본이 생기면 연결.
+/** 한 달 요약 만들기 — days 는 지금 이름 사본. 속도는 그 달 말일까지의 이력(allView)으로. 예정 물량 날 수는 plannedDaysOf. */
+async function summaryFor(ym, days, allView, cfg) {
     const last = monthDates(ym).slice(-1)[0];
     const speeds = baselineSpeeds(allView, { until: last });
     const scheduleLeave = (State.persistentLeaveSchedule && State.persistentLeaveSchedule.onLeaveMembers) || [];
-    return monthlySummaryOf(days, cfg, { ym, speeds, scheduleLeave });
+    return monthlySummaryOf(days, cfg, { ym, speeds, scheduleLeave, plannedDays: await plannedDaysOf(ym), incoming: null });
 }
 async function writeSummary(ym, body) {
     await setDoc(doc(State.db, MONTHLY_COL, ym), { ...body, builtAt: serverTimestamp(), builtBy: myEmail() });
@@ -96,7 +115,7 @@ export async function autoBuildMonthlies({ months = 13 } = {}) {
         const days = view.filter(d => d && typeof d.id === 'string' && d.id.startsWith(ym + '-'));
         if (!days.some(d => (d.workRecords || []).length || Object.keys(d.taskQuantities || {}).length)) { skipped.push(ym); continue; }
         try {
-            const body = summaryFor(ym, days, view, cfg);
+            const body = await summaryFor(ym, days, view, cfg);
             if (sameSummary(byYm[ym], body)) continue;   // 바뀐 값이 없으면 쓰지 않는다
             await writeSummary(ym, body);
             built.push(ym);
@@ -126,7 +145,7 @@ export async function rebuildMonth(ym) {
     const memView = aliasHistoryView(State.allHistoryData || [], cfg) || [];
     const ids = new Set(monthView.map(d => d.id));
     const allView = memView.filter(d => !ids.has(d.id)).concat(monthView);
-    const body = summaryFor(ym, monthView, allView, cfg);
+    const body = await summaryFor(ym, monthView, allView, cfg);
     await writeSummary(ym, body);
     clearMonthlyCache();
     return { ym, srcDocs: body.srcDocs, schema: MONTHLY_SCHEMA };

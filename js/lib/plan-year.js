@@ -14,10 +14,10 @@
 //   금액·직원 이름 없음.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-year.test.js
 
-import { offDayOf, addDaysStr } from './plan-week.js?v=202611051545';
-import { demandMinutes } from './ops-metrics.js?v=202611051545';
-import { dailyTaskStats } from '../task-throughput.js?v=202611051545';
-import { yearConfidence, yoyGrowth } from './plan-confidence.js?v=202611051545';
+import { offDayOf, addDaysStr } from './plan-week.js?v=202611051617';
+import { demandMinutes } from './ops-metrics.js?v=202611051617';
+import { dailyTaskStats } from '../task-throughput.js?v=202611051617';
+import { yearConfidence, yoyGrowth } from './plan-confidence.js?v=202611051617';
 
 export const YEAR_LEVELS = Object.freeze({
     minMonthDays: 15, minOpDays: 240, peak: 1.15, offpeak: 0.85, growthMin: 0.7, growthMax: 1.5,
@@ -108,11 +108,12 @@ export function workdaysOfMonth(ym, holidayNameOf) {
  * @param {number} [p.leadWeeks] 성수기 준비 기간(주) — 관리자 비용 설정(채용 + 교육), 없으면 6
  * @param {Array}  [p.monthlies]  월 요약(OpsMonthly) 목록 [{ym, qtyDays, qty}] — 메모리에 없는 달을 채운다
  * @param {number} [p.lastYearErr] 지난 연간 확정 대비 오차(%) — 신뢰도 v2
+ * @param {number} [p.year]       어림할 해(기본 내년) — 분기 계획서가 올해 분기를 볼 때
  */
 export function buildYearPlan(p = {}) {
     const L = YEAR_LEVELS;
     const today = p.today;
-    const year = Number(String(today).slice(0, 4)) + 1;
+    const year = Number(p.year) > 0 ? Number(p.year) : Number(String(today).slice(0, 4)) + 1;
     const key = String(year);
     const days = yearDays(p.allDays, today);
     const opDays = days.length;

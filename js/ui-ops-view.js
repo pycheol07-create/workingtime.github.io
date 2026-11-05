@@ -9,20 +9,23 @@
 // 담당 변화(직원 이름·사람별 UPH)는 data.reports(ctx.canOwner)일 때만 그린다 — 없으면 '권한이 없습니다', 요약은 건수만.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다. 모델에는 직원 이름이 없다.
 
-import * as State from './state.js?v=202611051545';
-import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611051545';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051545';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051545';
-import { revenueTotalOf } from './revenue-channels.js?v=202611051545';
-import { D, alpha } from './d-chart.js?v=202611051545';
-import { renderStaffingOutlook } from './ui-history-staffing.js?v=202611051545';
-import { ensureMibalHistory } from './ui-history-prediction.js?v=202611051545';
-import { fetchPlannedData } from './history-data-manager.js?v=202611051545';
-import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=202611051545';
-import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611051545';
-import { taskListOf } from './lib/task-owner.js?v=202611051545';
-import { TASK, tName } from './task-names.js?v=202611051545';
-import { higherOpenThan } from './modal-above.js?v=202611051545';
+import * as State from './state.js?v=202611051617';
+import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611051617';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051617';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051617';
+import { revenueTotalOf } from './revenue-channels.js?v=202611051617';
+import { D, alpha } from './d-chart.js?v=202611051617';
+import { renderStaffingOutlook } from './ui-history-staffing.js?v=202611051617';
+import { ensureMibalHistory } from './ui-history-prediction.js?v=202611051617';
+import { fetchPlannedData } from './history-data-manager.js?v=202611051617';
+import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=202611051617';
+import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611051617';
+import { taskListOf } from './lib/task-owner.js?v=202611051617';
+import { TASK, tName } from './task-names.js?v=202611051617';
+import { higherOpenThan } from './modal-above.js?v=202611051617';
+import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611051617';
+import { PEOPLE_NOTE } from './lib/plan-skills.js?v=202611051617';
+import { nextWeekAvailable } from './ui-ops-plan-people.js?v=202611051617';
 
 const $ = (id) => document.getElementById(id);
 
@@ -466,7 +469,7 @@ export function openTaskDetail(task, ctx = null) {
         if (sec) sec.innerHTML = empty('권한이 없습니다. 담당 변화는 리포트 권한이 있어야 보입니다.');
     } else if (task && cache && cache.ownerTasks && !cache.ownerTasks.has(task)) {
         if (sec) sec.innerHTML = empty('이 업무는 담당 변화 대상이 아닙니다(관리자 개별업무 또는 최근 13개월 기록 없음).');
-    } else import('./ui-history-task-owner.js?v=202611051545').then(mod => {
+    } else import('./ui-history-task-owner.js?v=202611051617').then(mod => {
         mod.renderTaskOwnerTab(task ? { task } : {});
     }).catch(err => {
         console.error('taskowner module load failed:', err && err.message);
@@ -474,6 +477,31 @@ export function openTaskDetail(task, ctx = null) {
     });
     box.scrollTop = 0;
     $('ops-task-detail-close')?.focus();
+}
+
+// 담당 재배치 추천(운영 계획 v2 D5) — 이력 길이·오늘이 같으면 다시 계산하지 않는다. 이름은 메모리·리포트 권한 화면에서만.
+let adviceCache = null;
+function adviceFor(task) {
+    const all = State.allHistoryData || [];
+    const today = getTodayDateString();
+    if (!adviceCache || adviceCache.all !== all || adviceCache.len !== all.length || adviceCache.today !== today) {
+        let list = [];
+        try {
+            const cfg = State.appConfig || {};
+            // 후보 = 다음 주 출근 가능한 사람(운영 계획 주간 '사람·배치' 와 같은 기준)
+            const available = nextWeekAvailable(today);
+            list = buildOwnerAdvice(aliasHistoryView(all, cfg) || [], cfg, { today, available: available.size ? available : null, excludeTasks: [tName(TASK.admin)] });
+        } catch (e) { console.warn('담당 재배치 추천 계산 실패:', e && e.message); }
+        adviceCache = { all, len: all.length, today, list };
+    }
+    return adviceCache.list.find(a => a.task === task) || null;
+}
+/** 업무 상세 한 줄 — 리포트 권한이면 이름 있는 문장, 아니면 이름 없는 문장(adviceForOutput) */
+function adviceLine(task, canOwner) {
+    const ad = task ? adviceFor(task) : null;
+    if (!ad) return '';
+    const text = canOwner ? ad.text : adviceForOutput(ad)[0].text;
+    return `<p class="opv-notes">담당 재배치 추천: ${esc(text)}${canOwner ? '' : ` — ${esc(PEOPLE_NOTE)}`}</p>`;
 }
 
 /** 업무 상세 머리(제목 + 고른 기간의 이 업무 숫자) — 담당 변화 화면에서 업무를 바꿔도 다시 부른다. */
@@ -488,6 +516,7 @@ function fillDetailHead(task) {
             ${row.isQty ? kpiCard({ label: 'UPH', value: n1(row.uph), unit: '개/시', sub: `평상시 ${n1(row.stdUph)}`, cmps: [cmpHtml('전기', row.vsPrevUph)] }) : ''}
             ${row.isQty ? kpiCard({ label: '효율', value: n1(row.efficiency), unit: '%', sub: row.lossMinutes > 0 ? `평상시보다 ${hrs(row.lossMinutes)}시간 더 걸림` : '' }) : ''}
         </div>` : `<p class="opv-note">왼쪽에서 고른 기간에는 이 업무 기록이 없습니다.</p>`;
+        if (task) body.insertAdjacentHTML('beforeend', adviceLine(task, !!(lastCtx && lastCtx.canOwner)));
     }
 }
 
@@ -530,7 +559,7 @@ function bindOnce() {
             const host = $('ops-milestones-widget');
             if (host && !host.dataset.done) {
                 host.dataset.done = '1';
-                import('./ui-history-milestones.js?v=202611051545').then(mod => mod.renderMilestonesInsightWidget(host))
+                import('./ui-history-milestones.js?v=202611051617').then(mod => mod.renderMilestonesInsightWidget(host))
                     .catch(err => { console.warn('milestones widget load failed:', err && err.message); host.innerHTML = empty('마일스톤을 불러오지 못했습니다.'); });
             }
         }

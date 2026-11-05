@@ -10,7 +10,7 @@
 // actions·risks 10 — 규칙이 항목 칸을 하나씩 보는데 20개면 규칙 계산 한도에 걸린다(firestore.rules OpsPlan, 에뮬레이터 실측). 과제·리스크는 점수 순 앞 10개.
 export const CONFIRM_LIMITS = Object.freeze({ actions: 10, risks: 10, days: 31, basis: 10, done: 40, text: 300 });
 export const DOC_KEYS = Object.freeze(['v', 'horizon', 'periodKey', 'version', 'confirmedAt', 'confirmedBy', 'basis', 'targets',
-    'days', 'fillTotals', 'actions', 'risks', 'agenda', 'done', 'doneAt', 'doneBy', 'assignCounts', 'months']);
+    'days', 'fillTotals', 'actions', 'risks', 'agenda', 'done', 'doneAt', 'doneBy', 'assignCounts', 'months', 'objectives', 'kpiWeekly', 'staffing']);
 /** 배치 초안 합계(업무별 인일·인시) 상한 — 업무 이름 키, 값은 {n, h} 만(이름 없음) */
 export const ASSIGN_LIMIT = 40;
 
@@ -24,6 +24,7 @@ export function planDocId(horizon, periodKey) {
     if (horizon === 'week' && /^\d{4}-\d{2}-\d{2}$/.test(periodKey || '')) return `week_${periodKey}`;
     if (horizon === 'month' && /^\d{4}-\d{2}$/.test(periodKey || '')) return `month_${periodKey}`;
     if (horizon === 'year' && /^\d{4}$/.test(periodKey || '')) return `year_${periodKey}`;   // 확장-3
+    if (horizon === 'quarter' && /^\d{4}-Q[1-4]$/.test(periodKey || '')) return `quarter_${periodKey}`;   // v2 D2
     return null;
 }
 
@@ -50,7 +51,8 @@ export function confirmDocOf(plan, { horizon, periodKey, targets = {}, assignCou
         targets: tg,
         days,
         fillTotals: { need: r1(numOr0(t.need)), prep: r1(numOr0(t.prep)), overtime: r1(numOr0(t.overtime)), temp: r1(numOr0(t.temp)), tempPeople: numOr0(t.tempPeople) },
-        actions: (p.actions || []).slice(0, L.actions).map(a => ({
+        // 분기(v2 D2)는 핵심 과제(initiatives)를 과제 칸으로
+        actions: (p.actions || (p.initiatives || []).map(i => ({ key: i.key, rule: i.kind, title: i.title, due: i.due, role: i.role, score: 0 }))).slice(0, L.actions).map(a => ({
             key: str(a.key, 120), id: str(a.rule, 8), text: str(a.title), due: a.due ? str(a.due, 10) : null, role: str(a.role, 20), score: r1(numOr0(a.score))
         })),
         risks: (p.risks || []).slice(0, L.risks).map(r => ({ id: str(r.key, 80), title: str(r.title, 120), score: numOr0(r.score) })),
@@ -58,6 +60,12 @@ export function confirmDocOf(plan, { horizon, periodKey, targets = {}, assignCou
         done: {},
         ...(assignCounts ? { assignCounts: cleanAssignCounts(assignCounts) } : {}),
         // 연간(확장-3) — 달 12개(수만): 지수·필요·공급·차이
+        // 분기(v2 D2) — 목표·주별 볼 숫자·월별 인력(수만)
+        ...(horizon === 'quarter' ? {
+            objectives: (p.objectives || []).slice(0, 5).map(o => ({ metric: str(o.metric, 20), target: fin(o.target), current: fin(o.current), source: str(o.source, 12) })),
+            kpiWeekly: (p.kpiWeekly || []).slice(0, 5).map(k => ({ metric: str(k.metric, 20), label: str(k.label, 40) })),
+            staffing: (p.staffing || []).slice(0, 3).map(s => ({ month: str(s.month, 7), reqFTE: fin(s.reqFTE), supplyFTE: fin(s.supplyFTE), gap: fin(s.gap), hireStartBy: s.hireStartBy ? str(s.hireStartBy, 10) : null }))
+        } : {}),
         ...(horizon === 'year' ? { months: (p.months || []).slice(0, 12).map(m => ({ month: str(m.month, 7), index: fin(m.index), reqFTE: fin(m.reqFTE), supplyFTE: fin(m.supplyFTE), gap: fin(m.gap) })) } : {})
     };
 }

@@ -3,16 +3,16 @@
 //   추세 = 물량 추세 예측(analysis-logic predictFutureTrends trend.deliveryFactor), 공급 = 업무 예상 가용 인원(수만).
 //   금액·직원 이름 없음(담당 변경 과제도 업무 이름만). ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611051545';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051545';
-import { buildOpsModel } from './lib/ops-view-model.js?v=202611051545';
-import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611051545';
-import { taskNameOf, TASK } from './lib/task-ids.js?v=202611051545';
-import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=202611051545';
-import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051545';
-import { predictFutureTrends } from './analysis-logic.js?v=202611051545';
-import { availableStaffOf } from './ui-history-prediction.js?v=202611051545';
-import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=202611051545';
+import * as State from './state.js?v=202611051617';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051617';
+import { buildOpsModel } from './lib/ops-view-model.js?v=202611051617';
+import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611051617';
+import { taskNameOf, TASK } from './lib/task-ids.js?v=202611051617';
+import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=202611051617';
+import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051617';
+import { predictFutureTrends } from './analysis-logic.js?v=202611051617';
+import { availableStaffOf } from './ui-history-prediction.js?v=202611051617';
+import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=202611051617';
 
 /** 월간 계획 입력 모으기 → buildMonthPlan. models = { recentModel, prevModel, baseModel } (주간 쪽과 같이 씀) */
 export function computeMonthPlan(today, models, cfgPlan = null) {

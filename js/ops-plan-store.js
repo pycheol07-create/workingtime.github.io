@@ -9,9 +9,9 @@
 
 import { doc, getDoc, setDoc, updateDoc, runTransaction, serverTimestamp, deleteField, FieldPath, writeBatch }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as State from './state.js?v=202611051545';
-import { targetsDocOf } from './lib/plan-targets.js?v=202611051545';
-import { cleanDone } from './lib/plan-compare.js?v=202611051545';
+import * as State from './state.js?v=202611051617';
+import { targetsDocOf } from './lib/plan-targets.js?v=202611051617';
+import { cleanDone } from './lib/plan-compare.js?v=202611051617';
 
 export const OPS_PLAN_COL = 'OpsPlan';
 const myEmail = () => String((State.auth && State.auth.currentUser && State.auth.currentUser.email) || '').toLowerCase();
@@ -82,6 +82,20 @@ export async function saveCostAndSettings(costBody, settings) {
     await b.commit();
     cache.delete('admin:' + COST_DOC);
     cache.delete('settings');
+}
+
+/** 연간 계획서 장별 문장 저장(관리자, v2 D2) — OpsPlan/yearDoc_YYYY. sections 는 plan-yeardoc cleanYearDocSections 를 통과한 것만(이름 검사 뒤). */
+export async function saveYearDoc(year, sections) {
+    const id = `yearDoc_${year}`;
+    await setDoc(ref(id), { v: 1, year: Number(year), sections, updatedAt: serverTimestamp(), updatedBy: myEmail() });
+    cache.delete(id);
+}
+
+/** 목표 연결 저장(관리자, v2 D2 — 편집 화면은 D4) — OpsPlan/goals_YYYY. body = plan-yeardoc cleanGoals 결과 */
+export async function saveGoals(body) {
+    const id = `goals_${body.year}`;
+    await setDoc(ref(id), { ...body, updatedAt: serverTimestamp(), updatedBy: myEmail() });
+    cache.delete(id);
 }
 
 /** 완료 체크 한 칸 저장(관리자) — done.<key> 만 true 로 두거나 지운다(version 그대로). key 에 ':' 등이 있어 FieldPath 로. */

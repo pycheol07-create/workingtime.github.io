@@ -63,6 +63,12 @@ export const TIME_BASED_LEAVE_TYPES = ['외출', '조퇴', '지각'];
 export const PERSISTENT_LEAVE_TYPES = [...LEAVE_TYPES, ...LEGACY_LEAVE_TYPES]
     .filter(t => !TIME_BASED_LEAVE_TYPES.includes(t));
 export const isPersistentLeaveType = (type) => PERSISTENT_LEAVE_TYPES.includes(type);
+// 기간형 중 '일하는 근태'(자리에 없어도 일한 날) — 휴무 집계(운영 계획 월 요약 leaveDays 등)에서 뺀다.
+//   2026-11-05 사용자 확인 전 기본값(재택·출장·외근·매장근무). 바꿀 때는 여기 한 곳만.
+//   ⚠️ 업무 예상의 가용 인원(ui-history-prediction.js LEAVE_OFF_TYPES)은 따로 정해져 있다 — 출장·매장근무를 '물류 현장에 없음'으로 본다.
+export const WORKING_LEAVE_TYPES = ['재택근무', '출장', '외근', '매장근무'];
+/** 휴무로 세는 근태인가 — 기간형이고 일하는 근태가 아님(연차·결근·휴직·기타 등) */
+export const isOffLeaveType = (type) => isPersistentLeaveType(type) && !WORKING_LEAVE_TYPES.includes(type);
 
 /** 화면에 표시할 근태 이름. '기타'는 직접 입력한 항목명을 괄호로 함께 보여준다. */
 export const leaveTypeLabel = (entry) => {

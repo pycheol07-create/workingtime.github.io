@@ -4,14 +4,14 @@
 //   성수기 준비 기간 = 관리자 비용 설정(채용 + 교육 주)이 있으면 그것, 없으면 6주.
 //   금액 없음(연간 인건비·매출은 js/ui-ops-plan-budget.js — 관리자만). ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611051545';
-import { getRegularMembersForCount } from './utils.js?v=202611051545';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051545';
-import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611051545';
-import { buildYearPlan } from './lib/plan-year.js?v=202611051545';
-import { addDaysStr } from './lib/plan-week.js?v=202611051545';
-import { availableStaffOf } from './ui-history-prediction.js?v=202611051545';
-import { esc, n1, card } from './ui-ops-plan-parts.js?v=202611051545';
+import * as State from './state.js?v=202611051617';
+import { getRegularMembersForCount } from './utils.js?v=202611051617';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051617';
+import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611051617';
+import { buildYearPlan } from './lib/plan-year.js?v=202611051617';
+import { addDaysStr } from './lib/plan-week.js?v=202611051617';
+import { availableStaffOf } from './ui-history-prediction.js?v=202611051617';
+import { esc, n1, card } from './ui-ops-plan-parts.js?v=202611051617';
 
 /** 월 요약 띠 — 몇 달이 있나, 관리자는 [월 요약 다시 만들기](달 고르기) */
 function monthlyBar(monthlies, months, isAdmin) {
@@ -40,12 +40,12 @@ function leaveRates(today) {
 }
 
 /** 연간 계획 입력 → buildYearPlan. leadWeeks = 관리자 비용 설정(채용 + 교육 주) 또는 null, monthlies = 월 요약(OpsMonthly) 목록 */
-export function computeYearPlan(today, cfgPlan, { leadWeeks = null, monthlies = [] } = {}) {
+export function computeYearPlan(today, cfgPlan, { leadWeeks = null, monthlies = [], year = null } = {}) {
     const cfg = cfgPlan || State.appConfig || {};
     const view = aliasHistoryView(State.allHistoryData || [], cfg) || [];
     return buildYearPlan({
         allDays: view, today, cfg, speeds: baselineSpeeds(view, { skipDate: today }), utilization: normalizedUtilization(cfg),
-        roster: getRegularMembersForCount(cfg, today).size, leaveRate: leaveRates(today), leadWeeks, monthlies
+        roster: getRegularMembersForCount(cfg, today).size, leaveRate: leaveRates(today), leadWeeks, monthlies, year
     });
 }
 

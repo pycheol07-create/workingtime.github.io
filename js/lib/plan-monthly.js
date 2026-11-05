@@ -5,16 +5,18 @@
 //   손실(분)·기록 품질은 운영 리포트와 같은 계산(ops-metrics periodMetrics·staffing, ops-view-model notes 와 같은 조건).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-monthly.test.js
 
-import { periodMetrics } from './ops-metrics.js?v=202611051545';
-import { systemIdOfName, taskIdOf } from './task-ids.js?v=202611051545';
-import { attendedMembers } from '../attendance-stats.js?v=202611051545';
-import { orderCountTotalOf } from '../revenue-channels.js?v=202611051545';
-import { offDayOf } from './plan-week.js?v=202611051545';
-import { CAP_MINUTES } from './task-owner.js?v=202611051545';
-import { isPersistentLeaveType } from '../state.js?v=202611051545';
+import { periodMetrics } from './ops-metrics.js?v=202611051617';
+import { systemIdOfName, taskIdOf } from './task-ids.js?v=202611051617';
+import { attendedMembers } from '../attendance-stats.js?v=202611051617';
+import { orderCountTotalOf } from '../revenue-channels.js?v=202611051617';
+import { offDayOf } from './plan-week.js?v=202611051617';
+import { CAP_MINUTES } from './task-owner.js?v=202611051617';
+import { isOffLeaveType } from '../state.js?v=202611051617';
 
 // schema 2(2026-11-05 리뷰): srcTo = 기록 있는 실제 마지막 날 · 휴무 = 기간형 근태 사람·일(당일형 제외, 근태 일정 펼침은 직접) · UPH 분자·분모 같은 기준 · qtyDays 추가
-export const MONTHLY_SCHEMA = 2;
+// schema 3(D2): 휴무에서 '일하는 근태'(재택·출장·외근·매장근무 — state.js WORKING_LEAVE_TYPES) 제외 · incoming·plannedDays 연결
+// schema 4(D2 리뷰): incoming 은 그 달 전체 원본이 생길 때까지 null 고정(위젯 캐시는 최근·앞으로만이라 과소 집계)
+export const MONTHLY_SCHEMA = 4;
 /** 달이 끝난 뒤 며칠 동안은 지난달 요약을 열 때마다 다시 만든다(늦게 들어온 기록 반영 — 바뀐 값이 있을 때만 쓴다) */
 export const MONTHLY_REFRESH_DAYS = 7;
 export const MONTHLY_TASK_LIMIT = 60;
@@ -55,7 +57,7 @@ export const taskKeyOf = (name, cfg) => systemIdOfName(name, cfg) || taskIdOf(na
  * @param {object} cfg   appConfig(업무 id·처리량 업무·품질 업무·시스템 계정·명부)
  * @param {object} opts  { ym, speeds(평상시 속도 — 성과 손실), holidayNameOf, plannedDays(예정 물량을 넣은 날 수 — 모르면 null), incoming({boxes,qty,days} — 모르면 null),
  *                        scheduleLeave(근태 일정 기간 기록 [{member,type,startDate,endDate}] — 읽기만, 두 경로가 같은 기준으로 펼친다) }
- *   휴무(leaveDays) = 그날 기간형 근태(state.js isPersistentLeaveType — 외출·조퇴·지각 같은 당일형 제외)인 사람 수의 합(한 사람 하루 1번).
+ *   휴무(leaveDays) = 그날 휴무 근태(state.js isOffLeaveType — 당일형·일하는 근태 제외)인 사람 수의 합(한 사람 하루 1번).
  *     하루 문서의 onLeaveMembers 중 근태 일정에서 펼친 사본(__fromSchedule)은 빼고, scheduleLeave 를 여기서 직접 펼친다
  *     — 메모리(펼친 사본이 섞임)로 만들든 원본(사본 없음)으로 만들든 같은 값이 나오게.
  */
@@ -109,11 +111,11 @@ export function monthlySummaryOf(days, cfg, { ym, speeds = null, holidayNameOf =
         if (missing) missingQty++;
     });
     // 휴무 — 사람 단위(하루 1번), 기간형 근태만. 펼친 사본은 빼고 근태 일정을 같은 기준으로 펼친다.
-    const sched = arr(scheduleLeave).filter(e => e && e.member && e.startDate && isPersistentLeaveType(e.type));
+    const sched = arr(scheduleLeave).filter(e => e && e.member && e.startDate && isOffLeaveType(e.type));
     dates.forEach(id => {
         const who = new Set();
         const d = list.find(x => x.id === id);
-        if (d) arr(d.onLeaveMembers).forEach(e => { if (e && e.member && !e.__fromSchedule && isPersistentLeaveType(e.type)) who.add(e.member); });
+        if (d) arr(d.onLeaveMembers).forEach(e => { if (e && e.member && !e.__fromSchedule && isOffLeaveType(e.type)) who.add(e.member); });
         sched.forEach(e => { if (id >= e.startDate && id <= (e.endDate || e.startDate)) who.add(e.member); });
         leaveDays += who.size;
     });
