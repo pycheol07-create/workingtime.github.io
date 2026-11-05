@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202611050940';
-import { LEAVE_TYPES } from './state.js?v=202611050940';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202611050940';
+import * as State from './state.js?v=202611051014';
+import { LEAVE_TYPES } from './state.js?v=202611051014';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202611051014';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611050940';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611050940';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611051014';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611051014';
 
 import {
     calculateReportKPIs,
@@ -19,12 +19,14 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202611050940';
+} from './ui-history-reports-logic.js?v=202611051014';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202611050940';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611050940';
-import { D } from './d-chart.js?v=202611050940';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611050940';
+import { aggregateManagementData } from './ui-history-management.js?v=202611051014';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611051014';
+import { D } from './d-chart.js?v=202611051014';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051014';
+import { baselineSpeeds, lastDayIdOf, OEE_LEVELS } from './lib/ops-metrics.js?v=202611051014';
+import { revenueTotalOf } from './revenue-channels.js?v=202611051014';
 
 // ============================================================
 // 모듈 상태
@@ -162,13 +164,16 @@ function computeCoreMetrics(currentDays, previousDays, appConfig) {
     const curAggr = calculateReportAggregations(curAgg, appConfig, wageMap, memberToPartMap);
     const prevAggr = calculateReportAggregations(prevAgg, appConfig, wageMap, memberToPartMap);
 
-    const curThroughputs = calculatePeriodThroughputs(currentDays);
-    const prevThroughputs = calculatePeriodThroughputs(previousDays);
+    // 효율·필요 인원의 기준은 평상시 속도(전체 이력, 오늘 제외) — 운영 지표 표준(js/lib/ops-metrics.js).
+    // 예전엔 그 기간의 속도(calculatePeriodThroughputs)를 써서 효율이 구조상 100% 근처였다.
+    const allDays = aliasHistoryView(State.allHistoryData, appConfig);   // 🆔 지금 이름으로
+    // until = 기간 끝 날짜 — 옛 기간 결산에 그 뒤 시점의 속도가 섞이지 않게
+    const speeds = baselineSpeeds(allDays, { skipDate: getTodayDateString(), until: lastDayIdOf(currentDays) });
 
-    const curProd = calculateAdvancedProductivity(currentDays, curAggr, curThroughputs, appConfig, wageMap);
-    const prevProd = calculateAdvancedProductivity(previousDays, prevAggr, prevThroughputs, appConfig, wageMap);
+    const curProd = calculateAdvancedProductivity(currentDays, curAggr, speeds, appConfig, wageMap);
+    const prevProd = calculateAdvancedProductivity(previousDays, prevAggr, speeds, appConfig, wageMap);
 
-    const benchmarkOEE = calculateBenchmarkOEE(aliasHistoryView(State.allHistoryData, appConfig), appConfig);   // 🆔 지금 이름으로
+    const benchmarkOEE = calculateBenchmarkOEE(allDays, appConfig);
     const diagnosis = generateProductivityDiagnosis(curProd, prevProd, benchmarkOEE);
 
     return { wageMap, memberToPartMap, curKPIs, prevKPIs, curAggr, prevAggr, curProd, prevProd, benchmarkOEE, diagnosis };
@@ -224,9 +229,8 @@ function computeThroughputSummary(currentDays, core) {
 
 function computeWorkforceSummary(currentDays, appConfig, core) {
     const workingDays = currentDays.filter(d => (d.workRecords || []).length > 0);
-    const avgActiveMembers = workingDays.length > 0
-        ? workingDays.reduce((s, d) => s + calculateReportKPIs(d, appConfig, core.wageMap).activeMembersCount, 0) / workingDays.length
-        : 0;
+    // 일평균 근무인원 = 운영일 출근 인원 평균(운영 지표 표준 — 인력 화면·리포트와 같은 값). 예전엔 명부 − 휴가였다.
+    const avgActiveMembers = core.curProd.availableFTE || 0;
 
     const partTimerNames = new Set();
     currentDays.forEach(d => (d.partTimers || []).forEach(p => { if (p && p.name) partTimerNames.add(p.name); }));
@@ -331,7 +335,7 @@ function computeWorkReportSummary(core) {
 function computeManagementSummary(currentDays, previousDays, appConfig, core) {
     const curMgmt = aggregateManagementData(currentDays);
     const prevMgmt = aggregateManagementData(previousDays);
-    const revenueDaily = buildDailySeries(currentDays, d => Number(d.management?.revenue) || 0);
+    const revenueDaily = buildDailySeries(currentDays, d => revenueTotalOf(d.management || {}));   // 채널 합계 — 위 합계(curMgmt.revenue)와 같은 정의
 
     let unitCost = null;
     if ((appConfig.costCalcTasks || []).length > 0) {
@@ -508,17 +512,18 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
     }
 
     // 2) OEE 총평
-    if (oee < 60) points.push({ tone: 'red', text: `종합 생산효율(OEE)이 <b>${oee.toFixed(0)}%</b>로 낮은 편입니다. 가용·성능·품질 손실 요인 중 가장 큰 항목부터 개선이 필요합니다.` });
-    else if (oee < 80) points.push({ tone: 'amber', text: `종합 생산효율(OEE)은 <b>${oee.toFixed(0)}%</b>로 보통 수준입니다${prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : ''}.` });
+    if (oee < OEE_LEVELS.warn) points.push({ tone: 'red', text: `종합 생산효율(OEE)이 <b>${oee.toFixed(0)}%</b>로 낮은 편입니다. 가용·성능·품질 손실 요인 중 가장 큰 항목부터 개선이 필요합니다.` });
+    else if (oee < OEE_LEVELS.good) points.push({ tone: 'amber', text: `종합 생산효율(OEE)은 <b>${oee.toFixed(0)}%</b>로 보통 수준입니다${prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : ''}.` });
     else points.push({ tone: 'emerald', text: `종합 생산효율(OEE)이 <b>${oee.toFixed(0)}%</b>로 우수합니다${prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : ''}. 현재 운영 수준을 유지하는 것이 관건입니다.` });
 
-    // 3) 인력 운영
+    // 3) 인력 운영 — 필요 인원(가동률 설정 반영)은 출근 인원과 비교한다(인력 화면과 같은 방식).
+    //    실작업 인력과 비교하면 가동률 설정만큼 늘 차이가 난다(운영 지표 표준, js/lib/ops-metrics.js).
     if (core.curProd.requiredFTE > 0) {
-        const gap = core.curProd.workedFTE - core.curProd.requiredFTE;
-        const gapPct = core.curProd.requiredFTE > 0 ? (gap / core.curProd.requiredFTE * 100) : 0;
-        if (gapPct > 15) points.push({ tone: 'amber', text: `실투입 인력(${core.curProd.workedFTE.toFixed(1)} FTE)이 표준 필요인력(${core.curProd.requiredFTE.toFixed(1)} FTE) 대비 <b>${gapPct.toFixed(0)}% 많습니다</b>. 인력 대비 산출이 낮을 수 있어 배치 효율 점검을 권장합니다.` });
-        else if (gapPct < -15) points.push({ tone: 'blue', text: `실투입 인력(${core.curProd.workedFTE.toFixed(1)} FTE)이 표준 필요인력(${core.curProd.requiredFTE.toFixed(1)} FTE)보다 적은데도 물량을 소화했습니다. 밀도 높은 운영이나 과부하 여부 확인이 필요합니다.` });
-        else points.push({ tone: 'gray', text: `실투입 인력과 표준 필요인력이 균형(${core.curProd.workedFTE.toFixed(1)} vs ${core.curProd.requiredFTE.toFixed(1)} FTE)을 이루고 있습니다.` });
+        const attFte = core.curProd.availableFTE, req = core.curProd.requiredFTE;
+        const gapPct = (attFte - req) / req * 100;
+        if (gapPct > 15) points.push({ tone: 'amber', text: `출근 인원(하루 평균 ${attFte.toFixed(1)}명)이 필요 인원(${req.toFixed(1)}명) 대비 <b>${gapPct.toFixed(0)}% 많습니다</b>. 업무량 대비 인원이 여유 있어 배치 효율 점검을 권장합니다.` });
+        else if (gapPct < -15) points.push({ tone: 'blue', text: `출근 인원(하루 평균 ${attFte.toFixed(1)}명)이 필요 인원(${req.toFixed(1)}명)보다 적은데도 물량을 소화했습니다. 밀도 높은 운영이나 과부하 여부 확인이 필요합니다.` });
+        else points.push({ tone: 'gray', text: `출근 인원과 필요 인원이 균형(${attFte.toFixed(1)} vs ${req.toFixed(1)}명)을 이루고 있습니다.` });
     }
 
     // 4) 근태
@@ -561,9 +566,9 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
     ].sort((a, b) => b.cost - a.cost);
     const topLoss = losses[0];
     let oeeTarget;
-    if (oee < 60) oeeTarget = '60% 이상';
-    else if (oee < 80) oeeTarget = `${Math.min(85, Math.ceil((oee + 5) / 5) * 5)}%`;
-    else oeeTarget = '현 수준(80%+) 유지';
+    if (oee < OEE_LEVELS.warn) oeeTarget = `${OEE_LEVELS.warn}% 이상`;
+    else if (oee < OEE_LEVELS.good) oeeTarget = `${Math.min(OEE_LEVELS.good, Math.ceil((oee + 5) / 5) * 5)}%`;
+    else oeeTarget = `현 수준(${OEE_LEVELS.good}%+) 유지`;
     let planText = `다음 기간 OEE 목표를 <b>${oeeTarget}</b>로 설정하세요.`;
     if (topLoss && topLoss.cost > 0) planText += ` 현재 손실 비중이 가장 큰 <b>${topLoss.key}(${fmt(topLoss.cost)}원)</b>부터 집중 개선합니다 — ${topLoss.tip}`;
     plans.push({ title: '생산 효율(OEE) 개선', text: planText });
@@ -572,11 +577,11 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
     if (qtyPct !== null && qtyPct <= -5) plans.push({ title: '물량 회복', text: `처리량 감소가 발주·입고 물량 자체의 감소인지, 처리 지연인지 구분해 원인을 규명하세요. 물량 요인이면 영업·발주와 협의하고, 처리 요인이면 병목 업무에 인력을 우선 배치하세요.` });
     else if (qtyPct !== null && qtyPct >= 10) plans.push({ title: '증가 물량 대응', text: `물량이 뚜렷이 늘고 있습니다. 피크일 기준으로 인력·작업 공간·검수 캐파를 사전 확보해 처리 지연과 품질 저하를 예방하세요.` });
 
-    // C) 인력 운영 방향
+    // C) 인력 운영 방향 — 출근 인원 vs 필요 인원(가동률 설정 반영)
     if (core.curProd.requiredFTE > 0) {
-        const gapPct = (core.curProd.workedFTE - core.curProd.requiredFTE) / core.curProd.requiredFTE * 100;
-        if (gapPct > 15) plans.push({ title: '인력 배치 효율화', text: `표준 대비 인력이 ${gapPct.toFixed(0)}% 초과 투입됐습니다. 저부하 시간대 인원을 축소하거나 고부하 업무로 재배치하고, 파트타이머 투입을 물량에 연동해 조정하세요.` });
-        else if (gapPct < -15) plans.push({ title: '과부하 예방', text: `표준보다 적은 인력으로 운영되고 있어 특정 인원 과부하·번아웃 위험이 있습니다. 교차 훈련으로 대체 가능 인력을 늘리고 핵심 업무의 백업 인원을 확보하세요.` });
+        const gapPct = (core.curProd.availableFTE - core.curProd.requiredFTE) / core.curProd.requiredFTE * 100;
+        if (gapPct > 15) plans.push({ title: '인력 배치 효율화', text: `필요 인원보다 출근 인원이 ${gapPct.toFixed(0)}% 많았습니다. 저부하 시간대 인원을 축소하거나 고부하 업무로 재배치하고, 파트타이머 투입을 물량에 연동해 조정하세요.` });
+        else if (gapPct < -15) plans.push({ title: '과부하 예방', text: `필요 인원보다 적은 인원으로 운영되고 있어 특정 인원 과부하·번아웃 위험이 있습니다. 교차 훈련으로 대체 가능 인력을 늘리고 핵심 업무의 백업 인원을 확보하세요.` });
     }
 
     // D) 근태 관리
@@ -596,8 +601,8 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
 
     // 최종 판정
     let verdict = { text: '양호', bg: 'bg-emerald-600' };
-    if (oee < 60 || (qtyPct !== null && qtyPct <= -10) || insp.qtyDefectRate >= 8) verdict = { text: '주의 필요', bg: 'bg-red-600' };
-    else if (oee < 80 || (qtyPct !== null && qtyPct < 0) || insp.qtyDefectRate >= 5) verdict = { text: '보통', bg: 'bg-amber-600' };
+    if (oee < OEE_LEVELS.warn || (qtyPct !== null && qtyPct <= -10) || insp.qtyDefectRate >= 8) verdict = { text: '주의 필요', bg: 'bg-red-600' };
+    else if (oee < OEE_LEVELS.good || (qtyPct !== null && qtyPct < 0) || insp.qtyDefectRate >= 5) verdict = { text: '보통', bg: 'bg-amber-600' };
 
     // 판정 요약 한 줄
     const verdictSummary = verdict.text === '주의 필요'
@@ -798,8 +803,9 @@ function renderExecutiveSummary(core, tp, wf, att, mg, insp, periodLabel, workin
 
     const d = core.diagnosis?.diagnosis;
     let verdictText = '양호', verdictBg = 'bg-emerald-600';
-    if (core.curProd.oee < 60) { verdictText = '주의 필요'; verdictBg = 'bg-red-600'; }
-    else if (core.curProd.oee < 80) { verdictText = '보통'; verdictBg = 'bg-amber-600'; }
+    // 판정 기준은 OEE_LEVELS(2026-11-05 새 기준 — 가동률·효율 100% 상한, 평상시 속도 기준)
+    if (core.curProd.oee < OEE_LEVELS.warn) { verdictText = '주의 필요'; verdictBg = 'bg-red-600'; }
+    else if (core.curProd.oee < OEE_LEVELS.good) { verdictText = '보통'; verdictBg = 'bg-amber-600'; }
 
     const qtyChangeTxt = tp.prevTotalQuantity > 0
         ? `전기간(${fmt(tp.prevTotalQuantity)}개) 대비 ${tp.totalQuantity >= tp.prevTotalQuantity ? '+' : ''}${(((tp.totalQuantity - tp.prevTotalQuantity) / tp.prevTotalQuantity) * 100).toFixed(1)}%`
@@ -825,6 +831,7 @@ function renderExecutiveSummary(core, tp, wf, att, mg, insp, periodLabel, workin
                 <div class="text-[11px] text-gray-600 mb-1">종합 생산 효율 (OEE)</div>
                 <div class="text-3xl font-extrabold">${core.curProd.oee.toFixed(0)}<span class="text-sm font-medium text-gray-600 ml-1">%</span></div>
                 <div class="text-[11px] text-gray-600 mt-1">${core.prevProd.oee > 0 ? `전기간 ${core.prevProd.oee.toFixed(0)}%` : '전기간 데이터 없음'}</div>
+                <div class="text-[10px] text-gray-500 mt-0.5" title="가동률·효율을 각각 100%까지만 반영, 효율은 평상시 속도 기준. 판정: ${OEE_LEVELS.warn}% 미만 주의 · ${OEE_LEVELS.good}% 미만 보통">2026-11-05부터 새 기준 — 옛 결산 PDF와 다를 수 있음</div>
             </div>
             <div>
                 <div class="text-[11px] text-gray-600 mb-1">일평균 근무인원</div>
@@ -906,7 +913,8 @@ function renderProductivitySection(tp, core, workingDaysCount) {
 function renderWorkforceSection(wf, core, workingDaysCount) {
     if (workingDaysCount === 0) return sectionPanel('👥', '인력 운영', '인력 배치와 가동 현황', emptyNote('해당 기간에 업무 기록이 없습니다.'), 'border-l-violet-500');
 
-    const fteMax = Math.max(core.curProd.availableFTE, core.curProd.workedFTE, core.curProd.requiredFTE, 1);
+    const reqWork = core.curProd.requiredWorkFTE ?? core.curProd.requiredFTE;
+    const fteMax = Math.max(core.curProd.availableFTE, core.curProd.workedFTE, reqWork, core.curProd.requiredFTE, 1);
 
     const body = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
@@ -930,8 +938,13 @@ function renderWorkforceSection(wf, core, workingDaysCount) {
                     <span class="w-16 text-right font-bold text-gray-700">${core.curProd.workedFTE.toFixed(1)}</span>
                 </div>
                 <div class="flex items-center gap-3 text-xs">
-                    <span class="w-24 text-gray-500">표준 필요인력</span>
-                    <div class="flex-1">${progressBar(core.curProd.requiredFTE / fteMax * 100, 'bg-violet-600')}</div>
+                    <span class="w-24 text-gray-500" title="실작업 인력 × 업무 효율성 — 실작업 인력과 비교">실작업 필요</span>
+                    <div class="flex-1">${progressBar(reqWork / fteMax * 100, 'bg-violet-600')}</div>
+                    <span class="w-16 text-right font-bold text-gray-700">${reqWork.toFixed(1)}</span>
+                </div>
+                <div class="flex items-center gap-3 text-xs">
+                    <span class="w-24 text-gray-500" title="평상시 속도로 그 물량을 처리하는 데 필요한 인원(가동률 설정 반영) — 가용(출근) 인력과 비교, 인력 화면과 같은 값">필요 인원</span>
+                    <div class="flex-1">${progressBar(core.curProd.requiredFTE / fteMax * 100, 'bg-violet-700')}</div>
                     <span class="w-16 text-right font-bold text-gray-700">${core.curProd.requiredFTE.toFixed(1)}</span>
                 </div>
             </div>

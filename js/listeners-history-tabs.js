@@ -1,28 +1,29 @@
 // === js/listeners-history-tabs.js ===
-import * as DOM from './dom-elements.js?v=202611050940';
-import * as State from './state.js?v=202611050940';
-import { getWeekOfYear } from './utils.js?v=202611050940';
+import * as DOM from './dom-elements.js?v=202611051014';
+import * as State from './state.js?v=202611051014';
+import { getWeekOfYear } from './utils.js?v=202611051014';
 
-import { renderDashboardTab } from './ui-history-dashboard.js?v=202611050940';
-import { renderProductivityTab } from './ui-history-productivity.js?v=202611050940';
-import { renderStaffingTab } from './ui-history-staffing.js?v=202611050940';
+import { renderDashboardTab } from './ui-history-dashboard.js?v=202611051014';
+import { renderProductivityTab } from './ui-history-productivity.js?v=202611051014';
+import { renderStaffingTab } from './ui-history-staffing.js?v=202611051014';
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202611050940';
-import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202611050940';
-import * as UILeave from './ui-history-leave.js?v=202611050940';
-import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611050940';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611050940';
-import { confirmDiscardManagementEdits } from './ui-history-management.js?v=202611050940';
-import { historyLoadFailed } from './history-data-manager.js?v=202611050940';
-import { SECTIONS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611050940';
-import { saveView } from './view-state.js?v=202611050940';
-import { initPageNav } from './page-nav.js?v=202611050940';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202611051014';
+import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202611051014';
+import * as UILeave from './ui-history-leave.js?v=202611051014';
+import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611051014';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611051014';
+import { confirmDiscardManagementEdits } from './ui-history-management.js?v=202611051014';
+import { historyLoadFailed } from './history-data-manager.js?v=202611051014';
+import { SECTIONS, LEGACY_SECTIONS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611051014';
+import { saveView } from './view-state.js?v=202611051014';
+import { initPageNav } from './page-nav.js?v=202611051014';
+import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=202611051014';
+import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=202611051014';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {
     work:       { day: 'daily', week: 'weekly', month: 'monthly', year: 'yearly' },
     attendance: { day: 'attendance-daily', week: 'attendance-weekly', month: 'attendance-monthly', year: 'attendance-yearly' },
-    report:     { day: 'report-daily', week: 'report-weekly', month: 'report-monthly', year: 'report-yearly' },
     personal:   { day: 'personal-daily', week: 'personal-weekly', month: 'personal-monthly', year: 'personal-yearly' },
     management: { day: 'management-daily', week: 'management-weekly', month: 'management-monthly', year: 'management-yearly' }
 };
@@ -42,9 +43,10 @@ export const getPeriodFilteredData = (granularity, key) => {
     return all.filter(d => d.id === key);
 };
 
-// 분석 탭(대시보드/생산성/인력/예측)을 선택 기간 데이터로 렌더링
+// 분석 탭(운영 리포트/예측)을 선택 기간 데이터로 렌더링 — 운영 리포트는 지금 탭만 그린다(js/ui-history-ops-report.js)
 export const renderAnalyticsTab = (mainView, filteredData) => {
-    if (mainView === 'dashboard') renderDashboardTab(filteredData, State.appConfig);
+    if (mainView === OPS_MAIN) renderOpsReport(filteredData);
+    else if (mainView === 'dashboard') renderDashboardTab(filteredData, State.appConfig);
     else if (mainView === 'productivity') renderProductivityTab(filteredData, State.appConfig);
     else if (mainView === 'staffing') renderStaffingTab(filteredData, State.appConfig);
     else if (mainView === 'prediction') renderPredictionTab(State.allHistoryData); // 예측은 전체 이력 사용
@@ -102,19 +104,22 @@ const renderActiveRawSubTab = (subTabName) => {
 };
 
 // 2. 화면 전환 — 메인탭·업무 기록 서브탭. (H1, 2026-10-16: 예전 탭 버튼 클릭 리스너 본문을 함수로 뺐다. 동작은 같다)
+// 요약·생산성·인력·팀 결산·업무 담당 변화 패널과 업무 리포트는 운영 리포트(#ops-panel) 안의 탭이 됐다(2026-11-05) — 탭 전환은 js/ui-history-ops-report.js
 const MAIN_PANELS = {
-    dashboard: 'dashboard-panel', productivity: 'productivity-panel', staffing: 'staffing-panel',
+    ops: 'ops-panel',
     prediction: 'prediction-panel', forecast: 'forecast-panel', rawdata: 'rawdata-panel',
-    milestones: 'milestones-panel', settlement: 'settlement-panel', taskowner: 'taskowner-panel'
+    milestones: 'milestones-panel'
 };
 const SUB_PANELS = {
-    work: 'work-history-panel', attendance: 'attendance-history-panel', report: 'report-panel',
+    work: 'work-history-panel', attendance: 'attendance-history-panel',
     personal: 'personal-report-panel', management: 'management-panel',
     inspection: 'inspection-history-panel', leave: 'history-leave-panel'
 };
 
 // 메인 화면을 연다. rawdata 면 sub(없으면 지금 서브탭, 처음이면 업무 이력)까지 연다.
-async function activateMainTab(tabName, sub) {
+// 운영 리포트(ops)는 ops = { sub, settle, owner } 로 열 탭을 받는다.
+async function activateMainTab(tabName, sub, ops = null) {
+    if (tabName !== OPS_MAIN) leaveOpsReport();
     State.context.activeHistoryView = tabName;
     saveView({ main: tabName });   // 새로고침해도 이 탭으로 돌아오도록
 
@@ -125,7 +130,7 @@ async function activateMainTab(tabName, sub) {
 
     // ⛔ 이력 조회 실패 — 업무 예상·물량 추세는 목록(오류 표시)을 숨기므로 패널에 직접 오류를 보인다.
     //    그대로 그리면 오늘 1행으로 계산한 값이 정상처럼 보인다. [다시 시도]가 성공하면 이 탭을 다시 연다.
-    if ((tabName === 'forecast' || tabName === 'prediction' || tabName === 'taskowner') && historyLoadFailed()) {
+    if ((tabName === 'forecast' || tabName === 'prediction') && historyLoadFailed()) {
         setTreeVisible(false);
         showPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));
         return;
@@ -153,7 +158,7 @@ async function activateMainTab(tabName, sub) {
     // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
     if (tabName === 'milestones') {
         try {
-            const mod = await import('./ui-history-milestones.js?v=202611050940');
+            const mod = await import('./ui-history-milestones.js?v=202611051014');
             mod.subscribeMilestones();
             mod.bindMilestoneListeners();
             clearPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));   // 앞서 실패해 띄운 오류 상자
@@ -167,31 +172,9 @@ async function activateMainTab(tabName, sub) {
         return; // 아래의 분석 탭 폴백 로직 스킵
     }
 
-    // 🧾 팀 결산 보고 탭: 월/분기/년 단위 종합 요약 보고서 (자체 기간 선택 UI 사용)
-    if (tabName === 'settlement') {
-        try {
-            const mod = await import('./ui-history-settlement.js?v=202611050940');
-            clearPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));   // 앞서 실패해 띄운 오류 상자
-            await mod.initSettlementReport();
-            setTreeVisible(false);
-        } catch (err) {
-            console.error('settlement module load failed:', err);
-            showPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));
-        }
-        return;
-    }
-
-    // 👥 업무 담당 변화: 업무 하나의 주 인원 변화·전후 지표 (메모리의 최근 12개월 전체 — 기간 트리 숨김, 읽기만)
-    if (tabName === 'taskowner') {
-        try {
-            setTreeVisible(false);
-            const mod = await import('./ui-history-task-owner.js?v=202611050940');
-            clearPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));   // 앞서 실패해 띄운 오류 상자
-            mod.renderTaskOwnerTab();
-        } catch (err) {
-            console.error('taskowner module load failed:', err);
-            showPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));
-        }
+    // 📊 운영 리포트: 요약·생산성·업무별·인력·비용 탭 + 팀 결산(비용 탭 [결산 만들기]) — 기간 트리·탭 권한은 그쪽이 맞춘다
+    if (tabName === OPS_MAIN) {
+        await openOpsReport(ops || {});
         return;
     }
 
@@ -230,12 +213,25 @@ function activateSubTab(subTabName) {
 
 let sectionNav = null;   // 좌측 레일(js/page-nav.js) — 켜짐 표시만 맡는다
 
-/** 데이터 관리 15개 화면 중 하나를 연다(js/history-sections.js 의 id). 첫 화면·레일·해시 복원이 모두 이것을 부른다. */
+/** 데이터 관리 10개 화면 중 하나를 연다(js/history-sections.js 의 id). 첫 화면·레일·해시 복원이 모두 이것을 부른다.
+ *  옛 화면 id(insight·productivity·staffing·report·settlement·taskowner — history.html 첫 화면 'insight' 등)는 운영 리포트의 그 탭으로.
+ *  운영 리포트로 열 탭은 State.context.opsRequest(js/view-state.js 가 해시 복원 때 적어 둠)를 한 번 읽고 지운다 — 없으면 마지막 탭. */
 export async function showSection(id) {
+    let req = null;
+    if (!SECTIONS[id] && LEGACY_SECTIONS[id]) {
+        const L = LEGACY_SECTIONS[id];
+        const t = legacyTarget(L.main, L.sub);
+        req = { sub: t.sub, settle: t.settle === '1', owner: t.owner === '1' };
+        id = 'ops';
+    }
     const s = SECTIONS[id];
     if (!s) return;
+    if (s.main === OPS_MAIN) {
+        req = req || State.context.opsRequest || null;
+        State.context.opsRequest = null;
+    }
     if (sectionNav) sectionNav.setActive(id);
-    await activateMainTab(s.main, s.sub);
+    await activateMainTab(s.main, s.sub, req);
 }
 
 // 좌측 레일 연결 — 항목을 누르면(다른 화면 코드의 [data-main-tab="…"].click() 포함) showSection.
@@ -246,12 +242,20 @@ export function setupHistoryTabsListeners() {
             // 경영지표 화면을 떠나거나 다시 열면 입력칸이 새로 그려진다 — 저장 안 한 입력이 있으면 먼저 묻고,
             // 취소하면 레일 켜짐 표시(page-nav 가 이미 바꿈)를 지금 화면으로 되돌린다.
             if (!confirmDiscardManagementEdits('저장하지 않은 경영지표 입력이 있습니다. 저장하지 않고 다른 화면으로 갈까요?')) {
+                State.context.opsRequest = null;   // 해시 복원이 적어 둔 운영 리포트 요청이 다음 레일 클릭에 섞이지 않게
                 if (sectionNav) sectionNav.setActive('management');
                 return;
             }
             showSection(id).catch(err => console.error('화면 전환 실패:', err));
         },
         storageKey: 'pageNav.history.collapsed'
+    });
+
+    // 운영 리포트 탭 줄·[결산 만들기] 연결 — 기간 이력은 이 파일의 함수로 받는다(순환 import 를 피해 넘김)
+    initOpsReport({
+        periodData: () => getPeriodFilteredData(State.context.globalGranularity || 'day',
+            document.querySelector('.history-date-btn.is-on')?.dataset.key),
+        rangeData: () => getFilteredHistoryData()
     });
 
     setupGranularityListeners();

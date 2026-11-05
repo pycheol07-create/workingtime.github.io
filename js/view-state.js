@@ -10,22 +10,25 @@
 // 1c(2026-10-16): 데이터 관리(history.html)는 주소 뒤 해시(js/hash-state.js)에도 적는다 — 해시가 있으면 그것이 먼저다.
 //   #tab=메인탭&sub=업무기록 서브탭&gran=일주월년&date=날짜&fview=업무 예상 화면. 옛 #forecast · #forecast-today 도 읽는다.
 //   ⚠️ 해시 없이 열면(업무예상알림 봇) 예전과 똑같이 sessionStorage 로만 복원한다.
+// 2026-11-05 운영 리포트 통합: #tab=ops&sub=탭(&settle=1 팀 결산 · &owner=1 업무 담당 변화 칸). 옛 화면 6개의 해시·기억은
+//   js/lib/ops-report-route.js redirectView 로 운영 리포트 탭으로 바꿔 연다(복원 뒤 주소도 새 형식으로 바뀐다).
 
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611050940';
-import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611050940';
-import * as State from './state.js?v=202611050940';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611051014';
+import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611051014';
+import { OPS_MAIN, redirectView, isOpsTreeless } from './lib/ops-report-route.js?v=202611051014';
+import * as State from './state.js?v=202611051014';
 
 const KEY = 'viewstate:' + (location.pathname.split('/').pop() || 'index');
 // 대시보드(index)의 모바일 데이터 관리 모달도 saveView 를 부른다 — 해시는 history.html 에서만 쓴다
 const IS_HISTORY_PAGE = (location.pathname.split('/').pop() || '') === 'history.html';
 
-const HASH_TO_VIEW = { tab: 'main', sub: 'sub', gran: 'gran', date: 'dateKey', fview: 'fview' };
-/** 해시 → 화면 상태({ main, sub, gran, dateKey, fview }). tab 이 없으면 null. */
+const HASH_TO_VIEW = { tab: 'main', sub: 'sub', gran: 'gran', date: 'dateKey', fview: 'fview', settle: 'settle', owner: 'owner' };
+/** 해시 → 화면 상태({ main, sub, gran, dateKey, fview, settle, owner }). tab 이 없으면 null. 옛 화면은 운영 리포트로. */
 function viewFromHash(h) {
     if (!h || !h.tab) return null;
     const v = {};
     for (const [hk, vk] of Object.entries(HASH_TO_VIEW)) if (h[hk]) v[vk] = h[hk];
-    return v;
+    return redirectView(v);
 }
 
 export function readView() {
@@ -41,7 +44,7 @@ export function readView() {
 // 그 클릭도 saveView 를 부르기 때문에 기억해 둔 값이 지워져 버린다.
 // (실제로 그래서 새로고침하면 늘 '업무기록및관리'로 돌아갔다)
 const hashView = IS_HISTORY_PAGE ? viewFromHash(readHash()) : null;
-const initialView = hashView || readView();
+const initialView = hashView || redirectView(readView());
 
 // 초기화 클릭이 기억을 덮어쓰지 못하게 하는 잠금.
 // 복원이 끝나면 풀린다.
@@ -70,6 +73,8 @@ function hashFromView(v) {
     if (!v || !v.main) return {};
     const o = { tab: v.main };
     if (v.main === 'rawdata' && v.sub) o.sub = v.sub;
+    if (v.main === OPS_MAIN && v.sub) o.sub = v.sub;
+    if (v.main === OPS_MAIN && v.settle === '1') o.settle = '1';
     if (v.main === 'forecast' && v.fview) o.fview = v.fview;
     if (!isTreeless(v)) {
         if (v.gran && v.gran !== 'day') o.gran = v.gran;
@@ -98,7 +103,7 @@ async function until(fn, timeout = 3000, step = 60) {
 const esc = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/"/g, '\\"');
 
 // 날짜 트리를 쓰지 않는 화면들 — 여기서는 날짜를 복원할 것이 없다 (목록은 js/history-sections.js — 물량 추세 예측 포함, H1)
-const isTreeless = (v) => TREELESS_MAINS.includes(v.main) || (v.main === 'rawdata' && TREELESS_SUBS.includes(v.sub));
+const isTreeless = (v) => TREELESS_MAINS.includes(v.main) || (v.main === 'rawdata' && TREELESS_SUBS.includes(v.sub)) || isOpsTreeless(v);
 
 // 날짜를 고른다.
 // 분석 탭은 열릴 때 날짜 목록을 다시 그리면서 '가장 최근 날짜'를 자동으로 눌러 버린다.
@@ -127,7 +132,7 @@ export async function restoreHistoryView() {
     // 화면이 뜨는 동안 해시가 또 바뀌었으면(사용자가 Ctrl+K 로 고름) 그것이 가장 먼저다.
     const pend = takePending();
     const v = pend || initialView;
-    // 14개 화면에 없는 탭(낡은 주소 #tab=work 등)은 복원하지 않는다 → history.html 이 '요약' 을 연다
+    // 레일 화면에 없는 탭(낡은 주소 #tab=work 등)은 복원하지 않는다 → history.html 이 '요약'(운영 리포트) 을 연다
     if (!v || !v.main || !sectionIdFor(v.main, v.sub)) {
         unlockViewSaving();
         finishRestore();
@@ -149,9 +154,13 @@ function currentView() {
     const c = State.context || {};
     const fb = [...document.querySelectorAll('.forecast-view-btn')].find(b => b.classList.contains('bg-indigo-600'));
     const db = document.querySelector('.history-date-btn.is-on');
+    const ops = c.activeHistoryView === OPS_MAIN;   // 운영 리포트는 업무 기록 서브탭이 아니라 자기 탭을 sub 로 적는다
+    // 권한 판정 전이라 요청한 탭 대신 요약이 열려 있으면(js/ui-history-ops-report.js opsPending) 요청한 자리를 적는다
+    const pend = ops ? c.opsPending : null;
     return {
         main: c.activeHistoryView || undefined,
-        sub: c.activeMainHistoryTab || undefined,
+        sub: (pend ? pend.sub : (ops ? c.activeOpsTab : c.activeMainHistoryTab)) || undefined,
+        settle: (pend ? pend.settle : (ops && c.opsSettleOpen)) ? '1' : undefined,
         gran: c.globalGranularity || undefined,
         dateKey: (db && db.dataset.key) || undefined,
         fview: (fb && fb.dataset.fview) || undefined
@@ -169,7 +178,7 @@ function syncToScreen() {
 let restoreDone = false;
 let pendingHash = null;
 // tab 이 없거나 모르는 탭인 주소(뒤로가기·낡은 주소)는 첫 화면(요약)
-const viewForNav = (h) => { const v = viewFromHash(h); return v && sectionIdFor(v.main, v.sub) ? v : { main: 'dashboard' }; };
+const viewForNav = (h) => { const v = viewFromHash(h); return v && sectionIdFor(v.main, v.sub) ? v : { main: OPS_MAIN, sub: 'summary' }; };
 function takePending() {
     const h = pendingHash; pendingHash = null;
     return h ? viewForNav(h) : null;
@@ -193,6 +202,7 @@ if (IS_HISTORY_PAGE) {
 // 화면 상태 v 로 탭·날짜를 차례로 누른다(처음 복원·해시 이동 공용).
 // resetGran: 해시 이동 — 해시에 gran 이 없으면 '일' 이다(처음 복원은 화면이 이미 '일' 로 떠 있다).
 async function applyView(v, { resetGran = false } = {}) {
+    v = redirectView(v) || {};   // 옛 화면(요약·생산성·인력·업무 리포트·팀 결산·업무 담당 변화) → 운영 리포트 탭
     // 1) 기간 단위 — 날짜 목록이 이 단위로 다시 그려진다
     const gran = v.gran || (resetGran && !isTreeless(v) ? 'day' : '');
     if (gran && (gran !== 'day' || resetGran)) {
@@ -203,6 +213,10 @@ async function applyView(v, { resetGran = false } = {}) {
     // 2·3) 화면(좌측 레일 항목) — 메인탭과 업무 기록 서브탭을 한 번에 연다(UI 2단계 H2, js/history-sections.js).
     //    날짜보다 먼저 연다. 날짜 클릭은 '지금 어느 화면인지' 를 보고 그릴 것을 정하기 때문이다.
     //    #tab=rawdata 처럼 서브탭이 없으면 지금 서브탭(처음이면 업무 이력).
+    //    운영 리포트는 열 탭(·팀 결산·담당 변화 칸)을 먼저 적어 두고 레일을 누른다 — showSection 이 한 번 읽고 지운다.
+    if (v.main === OPS_MAIN && State.context) {
+        State.context.opsRequest = { sub: v.sub, settle: v.settle === '1', owner: v.owner === '1' };
+    }
     const sid = sectionIdFor(v.main, v.sub, State.context && State.context.activeMainHistoryTab);
     if (sid) document.querySelector(`#history-section-nav .pn-item[data-pn-id="${esc(sid)}"]`)?.click();
     await wait(300);

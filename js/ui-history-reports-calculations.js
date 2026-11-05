@@ -1,7 +1,8 @@
 // === js/ui-history-reports-calculations.js ===
-import { isWeekday, getTodayDateString, getRegularMembersForCount } from './utils.js?v=202611050940';
-import { taskSpeedPerMinute } from './task-throughput.js?v=202611050940';
-import { getAsArray } from './ui-history-reports-utils.js?v=202611050940';
+import { isWeekday, getTodayDateString, getRegularMembersForCount } from './utils.js?v=202611051014';
+import { taskSpeedPerMinute } from './task-throughput.js?v=202611051014';
+import { getAsArray } from './ui-history-reports-utils.js?v=202611051014';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202611051014';
 
 export const calculateReportKPIs = (data, appConfig, wageMap) => {
     if (!data) {
@@ -156,8 +157,9 @@ export const aggregateDaysToSingleData = (daysData, id) => {
         });
 
         const m = day.management || {};
-        aggregated.management.revenue += (Number(m.revenue) || 0);
-        aggregated.management.orderCount += (Number(m.orderCount) || 0);
+        // 매출·주문은 채널 합계 기준(revenueTotalOf — 운영 지표 표준과 같은 정의)
+        aggregated.management.revenue += revenueTotalOf(m);
+        aggregated.management.orderCount += orderCountTotalOf(m);
         aggregated.management.inventoryQty += (Number(m.inventoryQty) || 0);
         aggregated.management.inventoryAmt += (Number(m.inventoryAmt) || 0);
     });

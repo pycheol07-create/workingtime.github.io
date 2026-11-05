@@ -9,10 +9,10 @@
 // 창은 얕게 유지한다. 창 안에 또 스크롤·필터를 넣으면
 // 표 상자에 잘리던 문제가 되풀이된다.
 
-import * as State from './state.js?v=202611050940';
-import { escapeHtml as esc } from './utils.js?v=202611050940';
-import { REVENUE_CHANNELS } from './revenue-channels.js?v=202611050940';
-import { aliasDayView } from './lib/task-alias-view.js?v=202611050940';
+import * as State from './state.js?v=202611051014';
+import { escapeHtml as esc } from './utils.js?v=202611051014';
+import { REVENUE_CHANNELS } from './revenue-channels.js?v=202611051014';
+import { aliasDayView } from './lib/task-alias-view.js?v=202611051014';
 
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString();
 
@@ -164,22 +164,24 @@ function channelBody(days, mode) {
 const EFFICIENCY = {
     utilizationRate: {
         title: '시간 활용률',
-        desc: '나와 있던 사람들이, 정해진 근무시간 중 실제로 업무에 쓴 비율입니다.',
+        desc: '출근해 있던 시간(출퇴근 기록, 점심 제외) 중 업무 기록이 있는 시간의 비율입니다.',
         build: (p) => ({
-            top: `실제 근무 ${minutesText(p.totalActualWorkedMinutes)}`,
-            bottom: `표준 가용 ${minutesText(p.totalStandardAvailableMinutes)}`,
+            top: `업무 기록 ${minutesText(p.totalActualWorkedMinutes)}`,
+            bottom: `가용 ${minutesText(p.totalStandardAvailableMinutes)}`,
             result: p.utilizationRate.toFixed(0) + '%',
-            note: '표준 가용 = 근무인원 × 표준 근무시간(관리자 설정: 평일/주말). 낮으면 대기·공백이 많았다는 뜻입니다.'
+            note: '가용 = 출퇴근 기록의 재실시간(점심 제외). 퇴근 기록이 없는 날은 출근 인원 × 표준 근무시간(관리자 설정: 평일/주말), '
+                + '재실시간을 모르는 사람의 기록은 그 시간만큼 가용으로 봅니다. 기록이 재실보다 많은 날은 100%로 봅니다. 낮으면 대기·미기록이 많았다는 뜻입니다.'
         })
     },
     efficiencyRatio: {
         title: '업무 효율성',
-        desc: '같은 일을 표준 속도로 했다면 걸렸을 시간과, 실제 걸린 시간의 비율입니다.',
+        desc: '같은 물량을 평상시 속도로 했다면 걸렸을 시간과, 실제 걸린 시간의 비율입니다. 평소 속도 = 100%.',
         build: (p) => ({
-            top: `표준 소요 ${minutesText(p.totalStandardMinutesNeeded)}`,
-            bottom: `실제 근무 ${minutesText(p.totalActualWorkedMinutes)}`,
+            top: `평상시 속도로 ${minutesText(p.totalStandardMinutesNeeded)}`,
+            bottom: `실제 업무 ${minutesText(p.totalActualWorkedMinutes)}`,
             result: p.efficiencyRatio.toFixed(0) + '%',
-            note: '표준 속도는 전체 이력에서 뽑은 업무별 평균 처리속도입니다. 100%보다 낮으면 표준보다 오래 걸렸다는 뜻입니다.'
+            note: '평상시 속도 = 이력 전체(이 기간 끝 날짜까지)의 업무별 평균 처리속도. 속도를 모르는 업무는 실제 시간을 그대로 씁니다. '
+                + '100%보다 낮으면 평소보다 오래 걸렸다는 뜻입니다. OEE 에는 100%까지만 반영합니다.'
         })
     },
     qualityRatio: {
@@ -223,10 +225,10 @@ function efficiencyBody(key, prod) {
             </div>` : ''}
         ${topTasks.length > 0 ? `
             <div style="margin-top:12px;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;">
-                ${key === 'efficiencyRatio' ? '표준보다 오래 걸린 업무' : '품질비용이 큰 업무'}
+                ${key === 'efficiencyRatio' ? '평상시보다 오래 걸린 업무' : '품질비용이 큰 업무'}
             </div>
             ${table(
-                key === 'efficiencyRatio' ? ['업무', '실제 속도', '표준 속도', '초과 시간'] : ['업무', '비용'],
+                key === 'efficiencyRatio' ? ['업무', '실제 속도', '평상시 속도', '초과 시간'] : ['업무', '비용'],
                 topTasks.map(t => key === 'efficiencyRatio'
                     ? [esc(t.task), t.actualSpeed + '개/분', t.stdSpeed + '개/분',
                        `<b style="color:#dc2626;">+${minutesText(t.lossMinutes)}</b>`]
@@ -235,14 +237,17 @@ function efficiencyBody(key, prod) {
 }
 
 // ── 4) FTE 세 막대 → 무슨 뜻이고 어떻게 이어지는지 ────────────────
-// FTE 는 세 값이 곱셈으로 이어진다. 그 연결을 보여주는 게 핵심이다.
-//   가용 → (시간 활용률) → 실작업 → (업무 효율성) → 표준 필요
+// FTE 는 곱셈으로 이어진다. 그 연결을 보여주는 게 핵심이다(운영 지표 표준, js/lib/ops-metrics.js).
+//   가용(출근) → (시간 활용률) → 실작업 → (업무 효율성) → 실작업 필요
+//   필요 인원(인력 화면과 같은 값)은 가동률 설정으로 나눈 값이라 실작업이 아니라 가용(출근)과 견준다.
 function fteBody(prod) {
     if (!prod) return emptyRow('계산에 쓸 값이 없습니다.');
 
     const a = prod.availableFTE || 0;
     const w = prod.workedFTE || 0;
-    const r = prod.requiredFTE || 0;
+    const r = prod.requiredWorkFTE ?? (prod.requiredFTE || 0);   // 실작업 필요(가동률 설정 반영 전)
+    const req = prod.requiredFTE || 0;                            // 필요 인원(가동률 설정 반영)
+    const u = prod.utilizationSetting;
     const n = (v) => v.toFixed(1);
 
     const step = (from, rate, to, rateLabel, meaning, gapLabel) => `
@@ -264,20 +269,21 @@ function fteBody(prod) {
         </div>
 
         ${table(['구분', '값', '뜻'], [
-            ['가용 인력', `<b>${n(a)}</b>명`, '<span style="font-size:11px;color:#64748b;">그 기간 하루 평균 나온 인원</span>'],
+            ['가용 인력', `<b>${n(a)}</b>명`, '<span style="font-size:11px;color:#64748b;">그 기간 운영일 하루 평균 출근 인원</span>'],
             ['실작업 인력', `<b>${n(w)}</b>명`, '<span style="font-size:11px;color:#64748b;">실제 업무에 쓴 시간을 사람 수로 환산</span>'],
-            ['표준 필요인력', `<b>${n(r)}</b>명`, '<span style="font-size:11px;color:#64748b;">그 일을 표준 속도로 했다면 필요했을 인원</span>']
+            ['실작업 필요', `<b>${n(r)}</b>명`, '<span style="font-size:11px;color:#64748b;">그 물량을 평상시 속도로 했다면 업무에 들었을 인원</span>'],
+            ['필요 인원', `<b>${n(req)}</b>명`, `<span style="font-size:11px;color:#64748b;">가동률 설정${u ? ` ${Math.round(u * 100)}%` : ''}을 반영한 값(대략 실작업 필요 ÷ 가동률) — 출근 인원과 견줌(인력 화면과 같음)</span>`]
         ])}
 
         <div style="margin-top:14px;font-size:11px;font-weight:700;color:#64748b;margin-bottom:2px;">어떻게 줄어드나</div>
         ${step(a, prod.utilizationRate || 0, w, '시간 활용률', '나와는 있었지만 업무에 쓰이지 않은 시간만큼 줄어듭니다. 대기·공백이 여기에 잡힙니다.', '가용 손실')}
-        ${step(w, prod.efficiencyRatio || 0, r, '업무 효율성', '표준 속도보다 오래 걸린 만큼 사람이 더 들어간 셈입니다. 이 차이가 작을수록 표준에 가깝게 일한 것입니다.', '속도 손실')}
+        ${step(w, prod.efficiencyRatio || 0, r, '업무 효율성', '평상시 속도보다 오래 걸린 만큼 사람이 더 들어간 셈입니다. 100%를 넘으면 평소보다 빨랐다는 뜻입니다.', '속도 손실')}
 
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;font-size:12px;line-height:1.7;">
             <b style="color:#0f172a;">읽는 법</b><br>
-            <b>가용</b>과 <b>표준 필요</b>의 차이 <b style="color:#6d28d9;">${n(Math.max(0, a - r))}명</b>이
-            이 기간에 여유가 있었던 인력입니다.<br>
-            <span style="color:#64748b;">다만 표준 속도 자체가 과거 실적의 평균이라, 표준 필요인력을 곧바로
+            <b>가용(출근)</b>과 <b>필요 인원</b>의 차이 <b style="color:#6d28d9;">${n(Math.abs(a - req))}명</b>이
+            이 기간에 ${a >= req ? '여유가 있었던' : '모자랐던'} 인력입니다.<br>
+            <span style="color:#64748b;">다만 평상시 속도 자체가 과거 실적의 평균이라, 필요 인원을 곧바로
             &lsquo;적정 인원&rsquo;으로 보면 안 됩니다. 추세를 보는 값으로 쓰시는 게 맞습니다.</span>
         </div>`;
 }

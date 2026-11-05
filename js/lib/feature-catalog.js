@@ -21,8 +21,8 @@
 //   grantable false = 관리자 전용(역할·예외로 줘도 무시)
 //   legacyAdminOnly  옛 ADMIN_ONLY_* 범위 — 옛 권한을 끌어올 때 일반 직원에게 주지 않는다(예전에도 화면이 막고 있었다)
 
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202611050940';
-import { TASK } from './task-ids.js?v=202611050940';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202611051014';
+import { TASK } from './task-ids.js?v=202611051014';
 
 export const FEATURE_GROUPS = [
     { id: 'dash',       label: '대시보드' },
@@ -54,14 +54,15 @@ export const FEATURES = [
 
     // 데이터 관리(history.html) — 옛 권한에서는 관리자 전용이었다(app.js 가 버튼을 숨겼다)
     F('data.view',     '데이터 관리 입장',    'data', 'page', 'history.html', { menu: '데이터 관리', legacyAdminOnly: true }),
-    F('data.analysis', '요약·생산성·인력',     'data', 'sub',  'history.html', { legacyAdminOnly: true,
-        sub: ['tab=dashboard', 'tab=productivity', 'tab=staffing'] }),
+    // 운영 리포트(2026-11-05 통합): 요약·생산성·인력 탭 = data.analysis, 업무별(인건비 표 포함)·비용·결산 = data.reports
+    F('data.analysis', '운영 리포트(요약·생산성·인력)', 'data', 'sub', 'history.html', { legacyAdminOnly: true,
+        sub: ['tab=ops', 'tab=ops&sub=summary', 'tab=ops&sub=productivity', 'tab=ops&sub=staffing'] }),
     F('data.forecast', '업무 예상·물량 추세',  'data', 'sub',  'history.html', { legacyAdminOnly: true,
         sub: ['tab=forecast', 'tab=forecast&fview=today', 'tab=forecast&fview=plan', 'tab=forecast&fview=accuracy', 'tab=prediction'] }),
     F('data.records',  '업무·근태·검수·연차 이력 보기', 'data', 'sub', 'history.html', { legacyAdminOnly: true,
         sub: ['tab=rawdata&sub=work', 'tab=rawdata&sub=attendance', 'tab=rawdata&sub=inspection', 'tab=rawdata&sub=leave'] }),
-    F('data.reports',  '리포트·경영 지표·결산·마일스톤', 'data', 'sub', 'history.html', { legacyAdminOnly: true, danger: 1,
-        sub: ['tab=rawdata&sub=report', 'tab=rawdata&sub=personal', 'tab=taskowner', 'tab=rawdata&sub=management', 'tab=settlement', 'tab=milestones'] }),
+    F('data.reports',  '업무별·비용·결산·개인 리포트·경영 지표·마일스톤', 'data', 'sub', 'history.html', { legacyAdminOnly: true, danger: 1,
+        sub: ['tab=ops&sub=tasks', 'tab=ops&sub=tasks&owner=1', 'tab=ops&sub=cost', 'tab=ops&sub=cost&settle=1', 'tab=rawdata&sub=personal', 'tab=rawdata&sub=management', 'tab=milestones'] }),
     F('data.editRecords',    '이력 기록 추가·수정·삭제', 'data', 'func', 'history.html', { legacyAdminOnly: true, danger: 2 }),
     F('data.editAttendance', '출퇴근·근태 수정',         'data', 'func', 'history.html', { legacyAdminOnly: true, danger: 2 }),
 

@@ -1,9 +1,10 @@
 // === js/ui-history-productivity.js ===
-import * as State from './state.js?v=202611050940';
-import { buildMemberHourlyWageMap } from './utils.js?v=202611050940';
-import { D } from './d-chart.js?v=202611050940';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611050940';
-import { TASK, tName, isT, tQty, isTLike } from './task-names.js?v=202611050940';
+import * as State from './state.js?v=202611051014';
+import { buildMemberHourlyWageMap } from './utils.js?v=202611051014';
+import { D } from './d-chart.js?v=202611051014';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051014';
+import { TASK, tName, isT, tQty, isTLike } from './task-names.js?v=202611051014';
+import { PARTS, partSummary as opsPartSummary, periodMetrics, DOMESTIC_ITEMS_PER_ORDER } from './lib/ops-metrics.js?v=202611051014';
 
 let productivityChartInstance = null;
 
@@ -16,9 +17,13 @@ const paintTaskTitles = () => {
     });
 };
 
-export function renderProductivityTab(filteredData, appConfig) {
-    paintTaskTitles();
-    filteredData = aliasHistoryView(filteredData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
+
+/**
+ * 옛 계산(운영 리포트 1단계 이전) — 비교 도구(tools/ops-metrics-compare.mjs) 전용. 화면은 productivityMetrics 를 쓴다.
+ * TODO(운영 리포트 2단계 끝나고 비교표 승인 뒤): 지운다.
+ * 비업무 손실 = 기록에 이름이 있는 사람 × 480분 − 기록, 금액 10,000원/h · 품질 손실 = 총시간 × 5%, 11,000원/h (상수).
+ */
+export function productivityMetricsOld(filteredData, appConfig) {
     // 🆔 파트는 업무 id 로 묶는다(이름은 그릴 때 tName). 부분일치는 isTLike — 그 업무이거나 이름에 기본 이름이 들어 있으면.
     const taskTypes = [TASK.domestic, TASK.china, TASK.direct, TASK.ably];
 
@@ -72,8 +77,55 @@ export function renderProductivityTab(filteredData, appConfig) {
         }
     });
 
-    // 국내배송은 한 주문에 평균 1.3개 상품이 포함되므로 "개" + "건(=개/1.3)" 병기
-    const DOMESTIC_ITEMS_PER_ORDER = 1.3;
+    const totalDurationGeneral = summary['종합'].duration;
+    const actualDurationGeneral = summary['종합'].members.size > 0 ? totalDurationGeneral / summary['종합'].members.size : 0;
+    return {
+        taskTypes, summary, nonWorkDurationMin, nonWorkActualMin, nonWorkCost,
+        qualityMin: totalDurationGeneral * 0.05,
+        qualityActualMin: actualDurationGeneral * 0.05,
+        qualityCost: (totalDurationGeneral * 0.05 / 60) * 11000
+    };
+}
+
+/**
+ * 생산성 화면 숫자 — 운영 지표 표준(js/lib/ops-metrics.js)으로 계산한다(운영 리포트 1단계).
+ *  · 파트는 업무 id 로만 묶는다(부분 일치 없음)
+ *  · 대기·비업무 손실 = 재실시간(퇴근 기록 없으면 출근 인원 × 표준시간) − 업무 기록 — 인력 화면의 손실과 같은 숫자
+ *  · 품질 손실 = 품질 비용 업무(설정 qualityCostTasks)에 쓴 시간 — 옛 '총시간 × 5%' 상수 없앰
+ *  · 금액은 시급표(wageMapOf)로만 — 옛 10,000원·11,000원 상수 없앰
+ * '실제 평균'은 비업무 = 날마다 손실 ÷ 출근 인원의 합, 품질 = 품질 시간 ÷ 기록에 이름이 있는 사람 수.
+ * filteredData 는 지금 이름으로 합친 사본. 모양은 productivityMetricsOld 와 같다.
+ */
+export function productivityMetrics(filteredData, appConfig) {
+    const taskTypes = [...PARTS];
+    const parts = opsPartSummary(filteredData, appConfig, taskTypes);
+    const summary = { '종합': parts.total };
+    taskTypes.forEach(t => { summary[t] = parts[t]; });
+
+    const pm = periodMetrics(filteredData, appConfig);
+    let nonWorkActualMin = 0;
+    pm.staffing.perDay.forEach(({ s }) => {
+        if (s.lossMinutes > 0 && s.attended.size > 0) nonWorkActualMin += s.lossMinutes / s.attended.size;
+    });
+    const memberCount = parts.total.members.size;
+    return {
+        taskTypes, summary,
+        nonWorkDurationMin: pm.availabilityLossMinutes,
+        nonWorkActualMin,
+        nonWorkCost: pm.availabilityLossCost,
+        qualityMin: pm.qualityLossMinutes,
+        qualityActualMin: memberCount > 0 ? pm.qualityLossMinutes / memberCount : 0,
+        qualityCost: pm.qualityLossCost
+    };
+}
+
+export function renderProductivityTab(filteredData, appConfig) {
+    paintTaskTitles();
+    filteredData = aliasHistoryView(filteredData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
+    const { taskTypes, summary, nonWorkDurationMin, nonWorkActualMin, nonWorkCost, qualityMin, qualityActualMin, qualityCost } =
+        productivityMetrics(filteredData, appConfig);
+
+    // 국내배송은 한 주문에 평균 DOMESTIC_ITEMS_PER_ORDER 개 상품이 포함되므로 "개" + "건" 병기(값은 js/lib/ops-metrics.js 한 곳)
 
     const setProductivityText = (typeId, data, showCases = false) => {
         const mins = data.duration;
@@ -161,9 +213,6 @@ export function renderProductivityTab(filteredData, appConfig) {
 
     const tbody = document.getElementById('prod-coq-table-body');
     if (tbody) {
-        const totalDurationGeneral = summary['종합'].duration;
-        const actualDurationGeneral = summary['종합'].members.size > 0 ? totalDurationGeneral / summary['종합'].members.size : 0;
-
         tbody.innerHTML = `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                 <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">대기 및 비업무 시간 누수</td>
@@ -176,10 +225,10 @@ export function renderProductivityTab(filteredData, appConfig) {
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                 <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">불량 검수 및 조정 Overhead</td>
                 <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 font-mono">
-                    <div class="font-bold text-gray-800 dark:text-gray-200">총 합산 ${Math.round(totalDurationGeneral * 0.05)} 분</div>
-                    <div class="text-xs text-blue-500 font-bold">실제 평균 ${Math.round(actualDurationGeneral * 0.05)} 분</div>
+                    <div class="font-bold text-gray-800 dark:text-gray-200">총 합산 ${Math.round(qualityMin).toLocaleString()} 분</div>
+                    <div class="text-xs text-blue-500 font-bold">실제 평균 ${Math.round(qualityActualMin).toLocaleString()} 분</div>
                 </td>
-                <td class="px-4 py-3 text-right text-red-500 font-bold font-mono">-${Math.round((totalDurationGeneral * 0.05 / 60) * 11000).toLocaleString()} 원</td>
+                <td class="px-4 py-3 text-right text-red-500 font-bold font-mono">-${Math.round(qualityCost).toLocaleString()} 원</td>
             </tr>
         `;
     }

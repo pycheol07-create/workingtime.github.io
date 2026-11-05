@@ -1,6 +1,6 @@
 // === js/app-shell-data.js ===
 // 공통 상단바(js/app-shell.js)가 쓰는 고정 데이터와 경로 계산. 순수 모듈(의존은 lib 상수 mibal2-mode.js 하나, 테스트: tests/app-shell.test.js).
-import { MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611050940';
+import { MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611051014';
 
 // 메뉴의 '보이는 이름'만 바꾼 것(2026-11-04). 저장값·권한·연결(ACTION_MENU_NAMES·memberMenuAccess·dashboardMenu)은 왼쪽 옛 이름 그대로다.
 //   사이드바(js/ui-main-dashboard.js)·공통 상단바 메뉴·검색에서 보일 때만 오른쪽 이름으로 쓴다.
@@ -151,10 +151,16 @@ export const pageFileOf = (href, base) => {
 const S = (label, hash, keywords = [], extra = {}) => ({ label, hash, keywords, ...extra });
 export const SUB_DESTINATIONS = {
     'history.html': [
-        // 분석
-        S('요약', 'tab=dashboard', ['종합 인사이트', '인사이트']),
-        S('생산성', 'tab=productivity', ['생산성 및 효율성', '효율']),
-        S('인력 적정성', 'tab=staffing', ['인력 운영', '인력']),
+        // 분석 — 운영 리포트(탭 5개 + 팀 결산·업무 담당 변화, 2026-11-05 통합) · 개인 리포트
+        S('운영 리포트', 'tab=ops', ['운영', '분석', '리포트']),
+        S('운영 리포트 · 요약', 'tab=ops&sub=summary', ['요약', '종합 인사이트', '인사이트']),
+        S('운영 리포트 · 생산성', 'tab=ops&sub=productivity', ['생산성', '생산성 및 효율성', '효율', 'OEE']),
+        S('운영 리포트 · 업무별', 'tab=ops&sub=tasks', ['업무 리포트', '리포트']),
+        S('운영 리포트 · 인력', 'tab=ops&sub=staffing', ['인력 적정성', '인력 운영', '인력']),
+        S('운영 리포트 · 비용', 'tab=ops&sub=cost', ['비용', '출고원가', '손실 비용']),
+        S('팀 결산', 'tab=ops&sub=cost&settle=1', ['팀 결산 보고', '결산']),
+        S('업무 담당 변화', 'tab=ops&sub=tasks&owner=1', ['담당', '주 인원', '담당 변화']),
+        S('개인 리포트', 'tab=rawdata&sub=personal', ['리포트']),
         // 예측·계획
         S('업무 예상', 'tab=forecast', ['예상', '예측']),
         S('업무 예상 · 오늘 현황', 'tab=forecast&fview=today', ['오늘 현황', '진행']),
@@ -167,11 +173,7 @@ export const SUB_DESTINATIONS = {
         S('검수 이력', 'tab=rawdata&sub=inspection', ['검수']),
         S('연차 관리', 'tab=rawdata&sub=leave', ['연차']),
         // 보고
-        S('업무 리포트', 'tab=rawdata&sub=report', ['리포트']),
-        S('개인 리포트', 'tab=rawdata&sub=personal', ['리포트']),
-        S('업무 담당 변화', 'tab=taskowner', ['담당', '주 인원', '담당 변화']),
         S('경영 지표', 'tab=rawdata&sub=management', ['경영']),
-        S('팀 결산', 'tab=settlement', ['팀 결산 보고', '결산']),
         S('운영 마일스톤', 'tab=milestones', ['마일스톤'])
     ],
     'admin.html': [

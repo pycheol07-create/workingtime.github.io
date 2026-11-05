@@ -1,13 +1,12 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202611050940';
-import { dailyTaskStats, taskSpeedPerMinute } from './task-throughput.js?v=202611050940';
-import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202611050940';
-import { fetchPlannedData } from './history-data-manager.js?v=202611050940';
-import { getTodayDateString } from './utils.js?v=202611050940';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from './attendance-stats.js?v=202611050940';
-import { D } from './d-chart.js?v=202611050940';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611050940';
-import { TASK, tName } from './task-names.js?v=202611050940';
+import * as State from './state.js?v=202611051014';
+import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202611051014';
+import { fetchPlannedData } from './history-data-manager.js?v=202611051014';
+import { getTodayDateString } from './utils.js?v=202611051014';
+import { staffing as opsStaffing, baselineSpeeds as opsBaselineSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=202611051014';
+import { D } from './d-chart.js?v=202611051014';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051014';
+import { TASK, tName } from './task-names.js?v=202611051014';
 
 let staffingChartInstance = null;
 
@@ -29,51 +28,19 @@ const staffingBasketOf = (appConfig) => {
     return new Set(list.map(t => String(t).trim()).filter(Boolean));
 };
 
-/** 평상시 기준 속도(개/분). 전체 이력에서 뽑으므로 선택 기간과 무관하다 — 순환을 끊는 핵심.
- *  ※ minMinutes 는 mode:'total' 에서 무시되므로(task-throughput.js) 넘기지 않는다. */
-const baselineSpeeds = () => taskSpeedPerMinute(aliasHistoryView(State.allHistoryData, State.appConfig), {   // 🆔 지금 이름으로
-    mode: 'total',
-    skipDate: getTodayDateString()   // 오늘은 물량이 덜 차 속도가 튄다
+/** 평상시 기준 속도(개/분). 이력 전체(선택 기간의 마지막 날까지)에서 뽑으므로 선택 기간 실적에 끌려가지 않는다 — 순환을 끊는 핵심.
+ *  until = 기간 끝 날짜: 옛 기간을 볼 때 그 뒤 시점의 속도가 섞이지 않게.
+ *  계산은 운영 지표 표준(js/lib/ops-metrics.js baselineSpeeds = mode 'total'). */
+const baselineSpeeds = (until) => opsBaselineSpeeds(aliasHistoryView(State.allHistoryData, State.appConfig), {   // 🆔 지금 이름으로
+    skipDate: getTodayDateString(),   // 오늘은 물량이 덜 차 속도가 튄다
+    until
 });
-
-/** 가동률 정규화. 0.8 도 80 도 받아 준다. 이상값이면 기본 0.8. */
-function normalizedUtilization(appConfig) {
-    let u = Number(appConfig && appConfig.utilizationRate);
-    if (!isFinite(u) || u <= 0) return 0.8;
-    if (u > 1) u = u / 100;                 // 80(%) 으로 저장된 경우
-    return (u > 0 && u <= 1) ? u : 0.8;
-}
-
-/** 인원으로 셀 이름인지 — 시스템계정·명부 밖 이름을 거른다(출근 인원과 같은 기준). */
-function countableMembersOf(day, appConfig) {
-    const system = systemAccountSet(appConfig);
-    const valid = validMemberNames(day, appConfig);
-    return (name) => {
-        const n = name == null ? '' : String(name).trim();
-        return n !== '' && !system.has(n) && valid.has(n);
-    };
-}
 
 /** textContent 안전 세팅 — HTML 조각 로드 실패로 요소가 없어도 뒤 코드가 죽지 않게. */
 const setText = (id, value) => {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
 };
-
-/** 그날 수요(분). 기준 속도가 있는 업무는 물량으로 환산하고, 없으면 실제 투입시간을 그대로 쓴다. */
-function demandMinutesOf(day, speeds) {
-    const stats = dailyTaskStats(day);
-    let total = 0;
-    Object.entries(stats).forEach(([task, s]) => {
-        const spd = Number(speeds[task]) || 0;
-        const qty = Number(s.qty) || 0;
-        const min = Number(s.minutes) || 0;
-        // 물량이 잡히고 기준 속도를 아는 업무 → 물량 ÷ 속도.
-        // 그 외(검수·교환반품처럼 물량 개념이 약한 업무) → 실제 쓴 시간을 수요로 인정.
-        total += (qty > 0 && spd > 0) ? (qty / spd) : min;
-    });
-    return total;
-}
 
 export function renderStaffingTab(filteredData, appConfig) {
     filteredData = aliasHistoryView(filteredData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
@@ -97,109 +64,27 @@ export function renderStaffingTab(filteredData, appConfig) {
         return;
     }
 
-    const stdHours = (appConfig && appConfig.standardDailyWorkHours) || { weekday: 8, weekend: 4 };
-    const utilization = normalizedUtilization(appConfig);
     const basket = staffingBasketOf(appConfig);
 
     // 기준 속도는 선택 기간이 아니라 '전체 이력'에서 뽑는다.
     // 예전엔 선택 기간의 실적을 기준으로 삼아 물량이 약분돼 사라졌고,
     // 그래서 필요 인원이 실제 인원과 항상 붙어 버렸다(= 과부족이 안 보였다).
-    const speeds = baselineSpeeds();
-    const hasBaseline = Object.values(speeds).some(v => Number(v) > 0);
+    const speeds = baselineSpeeds(lastDayIdOf(filteredData));
 
-    // 운영일 = 출근 기록이 있거나 업무 기록이 있는 날.
-    // 세 지표의 분모를 하나로 맞춰야 뺄셈(과부족)이 의미를 갖는다.
-    // 예전엔 주말·휴일의 빈 문서까지 분모에 들어가 평균이 깎였다.
-    const operatingDays = filteredData.filter(day =>
-        attendedMembers(day, appConfig).size > 0 || (day.workRecords || []).length > 0
-    );
+    // 계산은 운영 지표 표준(js/lib/ops-metrics.js staffing) — 요약·생산성·리포트·결산이 같은 정의를 쓴다.
+    //  · 운영일 = 출근 기록이 있거나 업무 기록이 있는 날(세 지표의 분모를 하나로)
+    //  · ① 실제 출근 인원 ② 실 근무 인원(같은 명부 기준) ③ 필요 인원 = 수요(인시) ÷ (1인 재실시간 × 가동률)
+    //  · 손실 = 재실시간 중 업무 기록이 없는 시간(분자·분모 같은 인원 집합)
+    const st = opsStaffing(filteredData, appConfig, { speeds });
+    const { operatingDays, dayCount, avgActual, avgWorked, avgRequired, avgPresenceHours,
+        totalLossMinutes, donutWorkMinutes, offRosterMinutes, estimatedDays, stdHourDays, hasBaseline } = st;
+    const utilization = st.utilizationSetting;
 
-    let sumAttended = 0;      // ① 실제 출근 인원
-    let sumWorked = 0;        // ② 실 근무 인원
-    let sumRequired = 0;      // ③ 표준 필요 인원
-    let totalLossMinutes = 0;
-    let donutWorkMinutes = 0; // 도넛의 '업무 기록 시간' — 손실과 같은 인원 집합만 센다
-    let offRosterMinutes = 0; // 명부 밖(시스템계정·제외명단) 이름으로 올라온 업무시간
-    let sumPresenceMinutes = 0, presenceDays = 0;
-    let estimatedDays = 0;    // 출근 기록이 없어 업무 기록으로 대신 센 날
-    let stdHourDays = 0;      // 재실시간을 못 구해 표준시간으로 대체한 날
-
-    operatingDays.forEach(day => {
-        const countable = countableMembersOf(day, appConfig);
-        const attended = attendedMembers(day, appConfig);
-        const records = day.workRecords || [];
-        // 이름은 항상 trim 해서 비교·집계한다. 원문 그대로 넣으면 '김철'과 ' 김철'이
-        // 다른 사람으로 세어져 '실 근무 인원'이 '실제 출근 인원'을 넘어선다.
-        const nameOf = (r) => (r && r.member != null ? String(r.member).trim() : '');
-        // ②도 ①과 같은 명부 기준으로 거른다. 안 그러면 시스템계정·명부 밖 이름 때문에
-        // '실 근무 인원'이 '실제 출근 인원'보다 커지는 일이 생긴다.
-        const workers = new Set(records.map(nameOf).filter(countable));
-        sumAttended += attended.size;
-        sumWorked += workers.size;
-        if (isAttendanceEstimated(day, appConfig)) estimatedDays++;
-
-        records.forEach(r => {
-            if (!countable(nameOf(r))) offRosterMinutes += (Number(r.duration) || 0);
-        });
-
-        // 주중/주말에 따른 1인 표준 근무시간 (재실시간을 못 구할 때의 폴백)
-        const dateObj = day.id ? new Date(day.id + 'T00:00:00') : null;
-        const dow = dateObj && !isNaN(dateObj.getTime()) ? dateObj.getDay() : 1;
-        const stdDailyHours = (dow === 0 || dow === 6) ? (Number(stdHours.weekend) || 4) : (Number(stdHours.weekday) || 8);
-
-        // 1인 평균 재실시간(출근~퇴근, 점심 제외). 없으면 표준시간으로 대체.
-        const presence = presenceStats(day, appConfig, attended);
-        let availHours;
-        if (presence.counted > 0) {
-            availHours = presence.avgMinutesPerPerson / 60;
-            sumPresenceMinutes += presence.avgMinutesPerPerson;
-            presenceDays++;
-        } else {
-            availHours = stdDailyHours;
-            stdHourDays++;
-        }
-
-        // 필요 인원 = 그날 수요(인시) ÷ (1인 가용시간 × 가동률)
-        //  · 수요는 물량 ÷ 평상시 속도 (속도를 모르는 업무는 실제 쓴 시간)
-        //  · 가동률은 재실시간 중 실제 업무로 잡히는 비율. 재실시간을 썼다고 이중 차감이 아니다
-        //    (이중 차감이 되는 건 '실제 업무기록 시간'을 분모로 쓰면서 가동률을 또 곱할 때다)
-        const demandMin = demandMinutesOf(day, speeds);
-        if (availHours > 0 && utilization > 0) {
-            sumRequired += (demandMin / 60) / (availHours * utilization);
-        }
-
-        // 근태 손실 = 재실시간 중 업무 기록이 없는 시간.
-        // 분자·분모의 인원 집합을 맞춘다 — 재실시간은 '퇴근 기록이 있는 사람'만 잡히므로,
-        // 업무시간도 그 사람들 것만 빼야 한다. 안 맞추면 퇴근 기록이 없는 사람이나
-        // 공용계정의 업무시간이 남의 재실시간에서 차감돼 손실이 0으로 지워진다.
-        let potential, workedForLoss;
-        if (presence.counted > 0) {
-            potential = presence.totalMinutes;
-            workedForLoss = records
-                .filter(r => presence.countedMembers.has(nameOf(r)))
-                .reduce((s, r) => s + (Number(r.duration) || 0), 0);
-        } else {
-            potential = attended.size * stdDailyHours * 60;
-            workedForLoss = records
-                .filter(r => countable(nameOf(r)))
-                .reduce((s, r) => s + (Number(r.duration) || 0), 0);
-        }
-        // 도넛 두 조각(업무 기록 시간 / 미기록)은 반드시 같은 집합이어야 한다.
-        // 안 그러면 '업무시간 > 재실시간'이라는 불가능한 그림이 나온다.
-        donutWorkMinutes += workedForLoss;
-        if (potential > workedForLoss) totalLossMinutes += (potential - workedForLoss);
-    });
-
-    const dayCount = operatingDays.length;
     if (dayCount === 0) {
         // filteredData 는 있는데 전부 빈 날인 경우. 위의 '데이터 없음'과 같은 표기로 통일한다.
         clearStaffingCard('선택 기간에 출근·업무 기록이 있는 날이 없습니다.');
         return;
     }
-    const avgActual = dayCount > 0 ? sumAttended / dayCount : 0;
-    const avgWorked = dayCount > 0 ? sumWorked / dayCount : 0;
-    const avgRequired = dayCount > 0 ? sumRequired / dayCount : 0;
-    const avgPresenceHours = presenceDays > 0 ? (sumPresenceMinutes / presenceDays) / 60 : 0;
 
     // UI 반영
     setText('staff-actual', `${avgActual.toFixed(1)} 명 / 일`);
@@ -230,7 +115,7 @@ export function renderStaffingTab(filteredData, appConfig) {
         }
 
         const meta = `<span class="block mt-1 text-gray-400 dark:text-gray-500">`
-            + `기준 속도: 전체 이력 평균(평상시) · 가동률 ${Math.round(utilization * 100)}% · 운영일 ${dayCount}일`
+            + `기준 속도: 기간 끝까지의 이력 평균(평상시) · 가동률 ${Math.round(utilization * 100)}% · 운영일 ${dayCount}일`
             + (notes.length > 0 ? ` · ${notes.join(' · ')}` : '')
             + `<br>출고성 업무: ${basketLabel}`
             + `</span>`;

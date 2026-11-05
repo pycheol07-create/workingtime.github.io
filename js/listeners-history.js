@@ -1,27 +1,27 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202611050940';
-import * as State from './state.js?v=202611050940';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202611050940';
+import * as DOM from './dom-elements.js?v=202611051014';
+import * as State from './state.js?v=202611051014';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202611051014';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202611050940';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202611050940';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202611050940';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202611050940';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202611051014';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202611051014';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202611051014';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202611051014';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202611050940';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202611050940';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202611050940';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202611050940';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202611051014';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202611051014';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202611051014';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202611051014';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202611050940';
-import { saveView } from './view-state.js?v=202611050940';
-import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611050940';
-import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=202611050940';
-import { isLeaveDirty } from './ui-history-leave.js?v=202611050940';
-import { isSimDirty } from './ui-history-prediction.js?v=202611050940';
-import { placeOpenDropdown } from './table-filter.js?v=202611050940';
-import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=202611050940';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202611051014';
+import { saveView } from './view-state.js?v=202611051014';
+import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611051014';
+import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=202611051014';
+import { isLeaveDirty } from './ui-history-leave.js?v=202611051014';
+import { isSimDirty } from './ui-history-prediction.js?v=202611051014';
+import { placeOpenDropdown } from './table-filter.js?v=202611051014';
+import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=202611051014';
 
 let isHistoryMaximized = false;
 
@@ -601,7 +601,7 @@ export function setupHistoryModalListeners() {
         // 날짜 목록이 이미 그려졌으면 첫 화면 단계가 진행 중이거나 끝난 것이라 누르지 않는다(복원한 자리를 덮지 않게).
         setTimeout(() => {
             if (document.querySelector('#history-date-list .history-date-btn')) return;
-            const dashTab = document.querySelector('[data-main-tab="dashboard"]');
+            const dashTab = document.querySelector('[data-main-tab="ops"]');   // 운영 리포트(요약 탭이 기본, 2026-11-05)
             if (dashTab) dashTab.click();
         }, 300);
     }

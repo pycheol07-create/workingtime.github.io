@@ -19,12 +19,12 @@
 import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writeBatch, collection, query, orderBy, limit, where, documentId, serverTimestamp, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
-    hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf } from './lib/mibal2-live.js?v=202611050940';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611050940';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611050940';
-import { inboundSig } from './lib/inbound-fix.js?v=202611050940';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611050940';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611050940';
+    hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf } from './lib/mibal2-live.js?v=202611051014';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611051014';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611051014';
+import { inboundSig } from './lib/inbound-fix.js?v=202611051014';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611051014';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611051014';
 
 const CHINA = 'ChinaStockGoods';
 const SCANDB = CHINA + '_ScanDB';

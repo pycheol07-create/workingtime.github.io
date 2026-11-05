@@ -14,14 +14,14 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611050940';
-import { emulatorEnabled } from './firebase-emulator.js?v=202611050940';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611050940';
-import { memberNameFor } from './app-shell-data.js?v=202611050940';
+import { initializeFirebase } from './config.js?v=202611051014';
+import { emulatorEnabled } from './firebase-emulator.js?v=202611051014';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611051014';
+import { memberNameFor } from './app-shell-data.js?v=202611051014';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision, adminNamesOf,
-    tardyPrefill, printFitLevel, stampTime, sortDocs, docTitle, newFormId, lower } from './lib/approval-logic.js?v=202611050940';
-import { sendApprovalNoti, MSG_TO_ADMIN, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611050940';
+    tardyPrefill, printFitLevel, stampTime, sortDocs, docTitle, newFormId, lower } from './lib/approval-logic.js?v=202611051014';
+import { sendApprovalNoti, MSG_TO_ADMIN, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611051014';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';

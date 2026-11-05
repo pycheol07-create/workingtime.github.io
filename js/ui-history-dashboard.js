@@ -1,11 +1,13 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202611050940';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202611050940';
-import { getWeekOfYear, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202611050940';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202611050940';
-import { D, alpha } from './d-chart.js?v=202611050940';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611050940';
-import { TASK, tName, isTLike } from './task-names.js?v=202611050940';
+import * as State from './state.js?v=202611051014';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202611051014';
+import { buildMemberHourlyWageMap } from './utils.js?v=202611051014';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202611051014';
+import { D, alpha } from './d-chart.js?v=202611051014';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051014';
+import { TASK, tName, isTLike } from './task-names.js?v=202611051014';
+import { attendedMembers } from './attendance-stats.js?v=202611051014';
+import { wageMapOf, partSummary as opsPartSummary, unitCost as opsUnitCost, rollingBaselineOf } from './lib/ops-metrics.js?v=202611051014';
 
 let dashboardChartInstance = null;
 
@@ -19,120 +21,15 @@ const computeAvgUphFromDays = (days) => {
     return totalDur > 0 ? (totalQty / (totalDur / 60)) : 0;
 };
 
+/** 옛 getBaselinePeriod — js/lib/ops-metrics.js rollingBaselineOf 로 옮겼다(같은 함수). */
+const getBaselinePeriod = rollingBaselineOf;
+
 /**
- * 하이브리드 기준 데이터 선정
- *  - 일:  최근 7일 평균(롤링)
- *  - 주:  최근 4주 평균(롤링)
- *  - 월:  작년 같은 달 우선 → 없으면 최근 3개월 평균(롤링) 폴백
- *  - 년:  전년도 우선 → 없으면 비교 불가
- * @returns { data, type, description, range } — data 빈 배열이면 비교 기준 없음
+ * 옛 계산(운영 리포트 1단계 이전) — 비교 도구(tools/ops-metrics-compare.mjs) 전용. 화면은 dashboardMetrics 를 쓴다.
+ * TODO(운영 리포트 2단계 끝나고 비교표 승인 뒤): 지운다.
+ * filteredData 는 지금 이름으로 합친 사본, allDays 도 마찬가지(평소 대비 기준 기간을 고른다).
  */
-const getBaselinePeriod = (granularity, selectedKey, allHistoryData) => {
-    const none = { data: [], type: 'none', description: '비교용 기준 데이터 없음', range: null };
-    if (!selectedKey || !Array.isArray(allHistoryData) || allHistoryData.length === 0) return none;
-
-    if (granularity === 'day') {
-        const target = new Date(selectedKey + 'T00:00:00');
-        if (isNaN(target.getTime())) return none;
-        const start = new Date(target); start.setDate(start.getDate() - 7);
-        const end   = new Date(target); end.setDate(end.getDate() - 1);
-        const startStr = toDateString(start);
-        const endStr   = toDateString(end);
-        const data = allHistoryData.filter(d => d.id >= startStr && d.id <= endStr);
-        if (data.some(d => (d.workRecords||[]).length > 0)) {
-            return { data, type: 'rolling', description: `최근 7일 평균 (${startStr} ~ ${endStr})`, range: `${startStr} ~ ${endStr}` };
-        }
-        return none;
-    }
-
-    if (granularity === 'week') {
-        const allWeekKeys = [...new Set(allHistoryData.map(d => {
-            try { return getWeekOfYear(new Date(d.id + 'T00:00:00')); } catch (e) { return null; }
-        }).filter(Boolean))].sort();
-        const idx = allWeekKeys.indexOf(selectedKey);
-        if (idx <= 0) return none;
-        const prevKeys = allWeekKeys.slice(Math.max(0, idx - 4), idx);
-        if (prevKeys.length === 0) return none;
-        const data = allHistoryData.filter(d => {
-            try { return prevKeys.includes(getWeekOfYear(new Date(d.id + 'T00:00:00'))); } catch (e) { return false; }
-        });
-        const desc = prevKeys.length >= 4
-            ? `최근 4주 평균 (${prevKeys[0]} ~ ${prevKeys[prevKeys.length-1]})`
-            : `최근 ${prevKeys.length}주 평균 (${prevKeys.join(', ')})`;
-        return { data, type: prevKeys.length >= 4 ? 'rolling' : 'rolling_short', description: desc, range: `${prevKeys[0]} ~ ${prevKeys[prevKeys.length-1]}` };
-    }
-
-    if (granularity === 'month') {
-        const m = selectedKey.match(/^(\d{4})-(\d{2})$/);
-        if (!m) return none;
-        const year = parseInt(m[1], 10);
-        const mm = m[2];
-        // 1순위: 작년 같은 달
-        const yoyKey = `${year - 1}-${mm}`;
-        const yoyData = allHistoryData.filter(d => typeof d.id === 'string' && d.id.substring(0,7) === yoyKey);
-        if (yoyData.some(d => (d.workRecords||[]).length > 0)) {
-            return { data: yoyData, type: 'yoy', description: `작년 같은 달 (${yoyKey})`, range: yoyKey };
-        }
-        // 폴백: 최근 3개월 롤링
-        const allMonthKeys = [...new Set(allHistoryData.map(d => typeof d.id === 'string' ? d.id.substring(0,7) : null).filter(Boolean))].sort();
-        const idx = allMonthKeys.indexOf(selectedKey);
-        if (idx <= 0) return { ...none, description: `${yoyKey} 데이터 없고 직전 월도 없어 비교 불가` };
-        const prevKeys = allMonthKeys.slice(Math.max(0, idx - 3), idx);
-        const data = allHistoryData.filter(d => prevKeys.includes(d.id.substring(0,7)));
-        const desc = (prevKeys.length >= 3 ? `최근 3개월 평균` : `최근 ${prevKeys.length}개월 평균`)
-            + ` (${prevKeys[0]} ~ ${prevKeys[prevKeys.length-1]}) — 작년 동월(${yoyKey}) 데이터 없어 폴백`;
-        return { data, type: 'rolling_fallback', description: desc, range: `${prevKeys[0]} ~ ${prevKeys[prevKeys.length-1]}` };
-    }
-
-    if (granularity === 'year') {
-        if (!/^\d{4}$/.test(selectedKey)) return none;
-        const year = parseInt(selectedKey, 10);
-        const prevYearKey = String(year - 1);
-        const prevYearData = allHistoryData.filter(d => typeof d.id === 'string' && d.id.substring(0,4) === prevYearKey);
-        if (prevYearData.some(d => (d.workRecords||[]).length > 0)) {
-            return { data: prevYearData, type: 'yoy', description: `전년도 (${prevYearKey})`, range: prevYearKey };
-        }
-        return { ...none, description: `전년도(${prevYearKey}) 데이터 없어 비교 불가` };
-    }
-
-    return none;
-};
-
-export function renderDashboardTab(filteredData, appConfig) {
-    filteredData = aliasHistoryView(filteredData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
-    // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
-    const milestoneWidget = document.getElementById('dashboard-milestones-widget');
-    if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202611050940').then(mod => {
-            mod.renderMilestonesInsightWidget(milestoneWidget);
-        }).catch(e => console.warn('milestones widget load failed:', e));
-    }
-
-    if (!filteredData || filteredData.length === 0) {
-        document.getElementById('ai-dashboard-comment').textContent = "조회된 기간에 이력 데이터가 없습니다.";
-        document.getElementById('kpi-total-time').innerHTML = `0<span class="text-sm font-medium text-gray-500 ml-1">h</span>`;
-        
-        // 새로 추가된 지표 초기화
-        const avgWorkDaysEl = document.getElementById('kpi-avg-work-days');
-        if(avgWorkDaysEl) avgWorkDaysEl.innerHTML = `0.0<span class="text-sm font-medium text-gray-500 ml-1">일</span>`;
-        const totalQtyEl = document.getElementById('kpi-total-qty');
-        if(totalQtyEl) totalQtyEl.innerHTML = `0<span class="text-sm font-medium text-gray-500 ml-1">건</span>`;
-
-        document.getElementById('kpi-avg-uph').innerHTML = `0.0<span class="text-sm font-medium text-blue-400 ml-1">개/시</span>`;
-        document.getElementById('kpi-total-oee').innerHTML = `0<span class="text-sm font-medium text-green-400 ml-1">%</span>`;
-        
-        const unitCostEl = document.getElementById('kpi-unit-cost');
-        if(unitCostEl) {
-            unitCostEl.innerHTML = `0<span class="text-sm font-medium text-purple-400 ml-1">원</span>`;
-            if(unitCostEl.previousElementSibling) unitCostEl.previousElementSibling.textContent = '총 출고원가 (건당)';
-        }
-        const turnoverEl = document.getElementById('kpi-inventory-turnover');
-        if(turnoverEl) turnoverEl.innerHTML = `0.0<span class="text-sm font-medium text-orange-400 ml-1">회</span>`;
-        
-        if (dashboardChartInstance) dashboardChartInstance.destroy();
-        return;
-    }
-
+export function dashboardMetricsOld(filteredData, appConfig, { granularity = 'day', selectedKey = null, allDays = [] } = {}) {
     let totalDurationMin = 0;
     let totalActualDurationMin = 0; 
     let totalQty = 0;
@@ -261,13 +158,163 @@ export function renderDashboardTab(filteredData, appConfig) {
     const avgWorkDays = attendedRegularMembers.size > 0 ? (totalAttendanceDays / attendedRegularMembers.size) : 0;
 
     // 하이브리드 기준치: 단위에 따라 롤링/전년 동기 선택
-    const granularity = State.context?.globalGranularity || 'day';
-    const selectedKey = document.querySelector('.history-date-btn.is-on')?.dataset.key || null;
-    const baseline = getBaselinePeriod(granularity, selectedKey, aliasHistoryView(State.allHistoryData, appConfig));
+    const baseline = getBaselinePeriod(granularity, selectedKey, allDays);
     const baselineUph = computeAvgUphFromDays(baseline.data);
     const hasBaseline = baselineUph > 0;
     // oee = 현재 UPH / 기준 UPH × 100 (100%면 평소 수준)
     const oee = hasBaseline ? Math.min(200, Math.max(0, (avgUph / baselineUph) * 100)) : 0;
+
+    let lowestPart = '';
+    let lowestUph = Infinity;
+    taskTypes.forEach(type => {
+        const pHours = partSummary[type].duration / 60;
+        const pUph = pHours > 0 ? (partSummary[type].qty / pHours) : Infinity;
+        if(pHours > 0 && pUph < lowestUph) {
+            lowestUph = pUph;
+            lowestPart = tName(type);
+        }
+    });
+
+    return {
+        totalHours, totalActualHours, totalQty, avgUph, unitCost, turnoverRate, avgWorkDays,
+        baseline, baselineUph, hasBaseline, oee, lowestPart, lowestUph,
+        trendLabels, uphTrendData, timeTrendData, actualTimeTrendData
+    };
+}
+
+/**
+ * 요약 화면 숫자 — 운영 지표 표준(js/lib/ops-metrics.js)으로 계산한다(운영 리포트 1단계).
+ *  · 파트는 업무 id 로만 묶는다(부분 일치 없음) · 인당 시간·평균 근무일수는 출근 인원(attendedMembers) 기준
+ *  · 시급표는 wageMapOf(정직원 값 우선) · 건당 출고원가는 ops unitCost · 평소 대비 기준은 rollingBaselineOf
+ * filteredData·allDays 는 지금 이름으로 합친 사본. 모양은 dashboardMetricsOld 와 같다.
+ */
+export function dashboardMetrics(filteredData, appConfig, { granularity = 'day', selectedKey = null, allDays = [] } = {}) {
+    const sortedData = [...(filteredData || [])].sort((a, b) => a.id.localeCompare(b.id));
+    const taskTypes = [TASK.domestic, TASK.china, TASK.direct];
+    const parts = opsPartSummary(sortedData, appConfig, taskTypes);
+    const wageMap = wageMapOf(appConfig, sortedData);
+
+    const trendLabels = [], uphTrendData = [], timeTrendData = [], actualTimeTrendData = [];
+    let totalDurationMin = 0, totalActualDurationMin = 0, totalQty = 0;
+    let totalOrderCount = 0, totalRevenue = 0, totalInventoryAmt = 0, daysWithInventory = 0;
+    const aggregatedWorkRecords = [];
+    const aggregatedQuantities = {};
+    // 평균 근무일수 = 출근 연인원 ÷ 기간 내 출근한 고유 인원 (출근 = attendedMembers, 그날 등록 알바는 뺀다)
+    const attendedAll = new Set();
+    let attendancePersonDays = 0;
+
+    sortedData.forEach(day => {
+        trendLabels.push(day.id.substring(5));
+        let dayDuration = 0, dayQty = 0;
+        (day.workRecords || []).forEach(r => {
+            dayDuration += (Number(r.duration) || 0);
+            aggregatedWorkRecords.push({ ...r, date: day.id });
+        });
+        Object.entries(day.taskQuantities || {}).forEach(([taskKey, qty]) => {
+            const numQty = Number(qty) || 0;
+            dayQty += numQty;
+            aggregatedQuantities[taskKey] = (aggregatedQuantities[taskKey] || 0) + numQty;
+        });
+        const attended = attendedMembers(day, appConfig);
+        const pts = new Set((day.partTimers || []).map(p => p && p.name).filter(Boolean));
+        attended.forEach(n => { if (!pts.has(n)) { attendancePersonDays++; attendedAll.add(n); } });
+
+        const mgmt = day.management || {};
+        totalOrderCount += orderCountTotalOf(mgmt);
+        totalRevenue += revenueTotalOf(mgmt);
+        if (Number(mgmt.inventoryAmt) > 0) { totalInventoryAmt += Number(mgmt.inventoryAmt); daysWithInventory++; }
+
+        // 인당 시간 = 그날 업무시간 ÷ 출근 인원 (옛: 기록에 이름이 있는 사람 수 — 시스템계정까지 셌다)
+        const dayActualDuration = attended.size > 0 ? dayDuration / attended.size : 0;
+        totalDurationMin += dayDuration;
+        totalActualDurationMin += dayActualDuration;
+        totalQty += dayQty;
+
+        const dayUph = dayDuration > 0 ? (dayQty / (dayDuration / 60)) : 0;
+        uphTrendData.push(parseFloat(dayUph.toFixed(1)));
+        timeTrendData.push(parseFloat((dayDuration / 60).toFixed(1)));
+        actualTimeTrendData.push(parseFloat((dayActualDuration / 60).toFixed(1)));
+    });
+
+    const analysis = opsUnitCost(
+        { id: 'dashboard-aggregated', workRecords: aggregatedWorkRecords, taskQuantities: aggregatedQuantities, management: { orderCount: totalOrderCount } },
+        appConfig, wageMap, totalRevenue
+    );
+
+    const totalHours = totalDurationMin / 60;
+    const totalActualHours = totalActualDurationMin / 60;
+    const avgUph = totalHours > 0 ? (totalQty / totalHours) : 0;
+    const unitCost = analysis.isValid ? analysis.costs.total : 0;
+    const avgInventoryAmt = daysWithInventory > 0 ? (totalInventoryAmt / daysWithInventory) : 0;
+    const turnoverRate = avgInventoryAmt > 0 ? (totalRevenue / avgInventoryAmt) : 0;
+    const avgWorkDays = attendedAll.size > 0 ? (attendancePersonDays / attendedAll.size) : 0;
+
+    // 평소 대비(화면 이름 '기준 대비 효율') — 단위에 따라 롤링/전년 동기. 전기 대비와는 다른 칸이다.
+    const baseline = rollingBaselineOf(granularity, selectedKey, allDays);
+    const baselineUph = computeAvgUphFromDays(baseline.data);
+    const hasBaseline = baselineUph > 0;
+    const oee = hasBaseline ? Math.min(200, Math.max(0, (avgUph / baselineUph) * 100)) : 0;
+
+    let lowestPart = '';
+    let lowestUph = Infinity;
+    taskTypes.forEach(type => {
+        const pHours = parts[type].duration / 60;
+        const pUph = pHours > 0 ? (parts[type].qty / pHours) : Infinity;
+        if (pHours > 0 && pUph < lowestUph) { lowestUph = pUph; lowestPart = tName(type); }
+    });
+
+    return {
+        totalHours, totalActualHours, totalQty, avgUph, unitCost, turnoverRate, avgWorkDays,
+        baseline, baselineUph, hasBaseline, oee, lowestPart, lowestUph,
+        trendLabels, uphTrendData, timeTrendData, actualTimeTrendData
+    };
+}
+
+export function renderDashboardTab(filteredData, appConfig) {
+    filteredData = aliasHistoryView(filteredData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
+    // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
+    const milestoneWidget = document.getElementById('dashboard-milestones-widget');
+    if (milestoneWidget) {
+        import('./ui-history-milestones.js?v=202611051014').then(mod => {
+            mod.renderMilestonesInsightWidget(milestoneWidget);
+        }).catch(e => console.warn('milestones widget load failed:', e));
+    }
+
+    if (!filteredData || filteredData.length === 0) {
+        document.getElementById('ai-dashboard-comment').textContent = "조회된 기간에 이력 데이터가 없습니다.";
+        document.getElementById('kpi-total-time').innerHTML = `0<span class="text-sm font-medium text-gray-500 ml-1">h</span>`;
+        
+        // 새로 추가된 지표 초기화
+        const avgWorkDaysEl = document.getElementById('kpi-avg-work-days');
+        if(avgWorkDaysEl) avgWorkDaysEl.innerHTML = `0.0<span class="text-sm font-medium text-gray-500 ml-1">일</span>`;
+        const totalQtyEl = document.getElementById('kpi-total-qty');
+        if(totalQtyEl) totalQtyEl.innerHTML = `0<span class="text-sm font-medium text-gray-500 ml-1">건</span>`;
+
+        document.getElementById('kpi-avg-uph').innerHTML = `0.0<span class="text-sm font-medium text-blue-400 ml-1">개/시</span>`;
+        document.getElementById('kpi-total-oee').innerHTML = `0<span class="text-sm font-medium text-green-400 ml-1">%</span>`;
+        
+        const unitCostEl = document.getElementById('kpi-unit-cost');
+        if(unitCostEl) {
+            unitCostEl.innerHTML = `0<span class="text-sm font-medium text-purple-400 ml-1">원</span>`;
+            if(unitCostEl.previousElementSibling) unitCostEl.previousElementSibling.textContent = '총 출고원가 (건당)';
+        }
+        const turnoverEl = document.getElementById('kpi-inventory-turnover');
+        if(turnoverEl) turnoverEl.innerHTML = `0.0<span class="text-sm font-medium text-orange-400 ml-1">회</span>`;
+        
+        if (dashboardChartInstance) dashboardChartInstance.destroy();
+        return;
+    }
+
+    const m = dashboardMetrics(filteredData, appConfig, {
+        granularity: State.context?.globalGranularity || 'day',
+        selectedKey: document.querySelector('.history-date-btn.is-on')?.dataset.key || null,
+        allDays: aliasHistoryView(State.allHistoryData, appConfig)
+    });
+    const {
+        totalHours, totalActualHours, totalQty, avgUph, unitCost, turnoverRate, avgWorkDays,
+        baseline, baselineUph, hasBaseline, oee, lowestPart, lowestUph,
+        trendLabels, uphTrendData, timeTrendData, actualTimeTrendData
+    } = m;
 
     // KPI 렌더링 업데이트
     document.getElementById('kpi-total-time').innerHTML = `
@@ -306,16 +353,6 @@ export function renderDashboardTab(filteredData, appConfig) {
     if(turnoverEl) turnoverEl.innerHTML = `${turnoverRate.toFixed(2)}<span class="text-sm font-medium text-orange-400 ml-1">회</span>`;
 
     const aiCommentEl = document.getElementById('ai-dashboard-comment');
-    let lowestPart = '';
-    let lowestUph = Infinity;
-    taskTypes.forEach(type => {
-        const pHours = partSummary[type].duration / 60;
-        const pUph = pHours > 0 ? (partSummary[type].qty / pHours) : Infinity;
-        if(pHours > 0 && pUph < lowestUph) {
-            lowestUph = pUph;
-            lowestPart = tName(type);
-        }
-    });
 
     // 기준 정보 메타 (마우스오버 + 화면 표기)
     const baselineMetaHtml = hasBaseline

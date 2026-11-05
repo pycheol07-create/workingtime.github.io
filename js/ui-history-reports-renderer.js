@@ -1,10 +1,11 @@
 // === js/ui-history-reports-renderer.js ===
 
-import { formatDuration } from './utils.js?v=202611050940';
-import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202611050940';
-import { context, LEAVE_TYPES } from './state.js?v=202611050940';
-import { TASK, tName, isT } from './task-names.js?v=202611050940';
-import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202611050940';
+import { formatDuration } from './utils.js?v=202611051014';
+import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202611051014';
+import { context, LEAVE_TYPES } from './state.js?v=202611051014';
+import { TASK, tName, isT } from './task-names.js?v=202611051014';
+import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202611051014';
+import { DOMESTIC_ITEMS_PER_ORDER, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=202611051014';
 
 // 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -169,10 +170,10 @@ const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
     `;
 
     tasks.forEach(task => {
-        // 국내배송은 1건당 평균 1.3개라 건/H 병기
+        // 국내배송은 1건당 평균 DOMESTIC_ITEMS_PER_ORDER 개라 건/H 병기
         const isDomestic = !!task.domestic;
         const caseSuffix = (isDomestic && task.t > 0)
-            ? `<div class="text-xs text-gray-500 mt-0.5">${(task.t / 1.3).toFixed(1)} <span class="text-[11px] text-gray-400">건/H</span></div>`
+            ? `<div class="text-xs text-gray-500 mt-0.5">${(task.t / DOMESTIC_ITEMS_PER_ORDER).toFixed(1)} <span class="text-[11px] text-gray-400">건/H</span></div>`
             : '';
         html += `
             <div class="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 shadow-sm relative group">
@@ -212,6 +213,11 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
         totalLossCost, availabilityLossCost, performanceLossCost, qualityLossCost,
         topPerformanceLossTasks, topQualityLossTasks, avgCostPerMinute
     } = tMetrics.staffing;
+    // 실작업 인력과 비교할 값은 가동률 설정으로 나누기 전의 실작업 필요 인력(운영 지표 표준, js/lib/ops-metrics.js).
+    // 필요 인원(requiredFTE)은 가동률 설정으로 나눈 값이라 출근 인원(availableFTE)과 비교한다.
+    const requiredWorkFTE = tMetrics.staffing.requiredWorkFTE ?? requiredFTE;
+    const utilSetting = tMetrics.staffing.utilizationSetting;
+    const staffGap = availableFTE - requiredFTE;
 
     const prev = pMetrics?.staffing || {};
     if (availableFTE <= 0) return '';
@@ -244,7 +250,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
                             <span class="font-semibold">${utilizationRate.toFixed(0)}% ${getDiffHtmlForMetric('utilizationRate', utilizationRate, prev.utilizationRate)}</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2.5">
-                            <div class="h-2.5 rounded-full ${utilizationRate >= 100 ? 'bg-red-400' : 'bg-blue-500'}" style="width: ${Math.min(utilizationRate, 100)}%"></div>
+                            <div class="h-2.5 rounded-full ${overloadUtilOf(tMetrics.staffing) >= OVERLOAD_UTIL ? 'bg-red-400' : 'bg-blue-500'}" style="width: ${Math.min(utilizationRate, 100)}%"></div>
                         </div>
                     </div>
 
@@ -294,15 +300,20 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
                         </div>
                         <div class="flex justify-between items-center">
                              <span class="${efficiencyRatio >= 100 ? 'text-blue-500' : 'text-red-500'} text-xs pl-6">↳ 속도 ${efficiencyRatio >= 100 ? '초과 달성' : '저하 손실'}</span>
-                             <span class="${efficiencyRatio >= 100 ? 'text-blue-500' : 'text-red-500'} text-xs">${efficiencyRatio >= 100 ? '+' : ''}${(requiredFTE - workedFTE).toFixed(1)} 명</span>
+                             <span class="${efficiencyRatio >= 100 ? 'text-blue-500' : 'text-red-500'} text-xs">${efficiencyRatio >= 100 ? '+' : ''}${(requiredWorkFTE - workedFTE).toFixed(1)} 명</span>
                         </div>
                          <div class="flex justify-between items-center">
                             <span class="text-red-500 text-xs pl-6">↳ 품질(재작업) 손실</span>
-                            <span class="text-red-500 text-xs">-${(requiredFTE - qualityFTE).toFixed(1)} 명</span>
+                            <span class="text-red-500 text-xs">-${(requiredWorkFTE - qualityFTE).toFixed(1)} 명</span>
                         </div>
                         <div class="flex justify-between items-center pt-3 border-t border-gray-200">
                             <span class="font-bold text-blue-700 flex items-center">최종 유효 인력${_renderTooltip('qualityFTE')}</span>
                             <span class="text-2xl font-extrabold text-blue-600">${qualityFTE.toFixed(1)} 명</span>
+                        </div>
+                        <div class="flex justify-between items-center pt-2 border-t border-dashed border-gray-200">
+                            <span class="text-gray-600 text-sm flex items-center">필요 인원 (출근 기준)${_renderTooltip('requiredFTE')}</span>
+                            <span class="font-semibold text-gray-700">${requiredFTE.toFixed(1)} 명
+                                <span class="text-xs ${staffGap >= 0 ? 'text-gray-500' : 'text-red-500'}">(출근 ${availableFTE.toFixed(1)}명 대비 ${staffGap >= 0 ? `${staffGap.toFixed(1)}명 여유` : `${Math.abs(staffGap).toFixed(1)}명 부족`}${utilSetting ? ` · 가동률 ${Math.round(utilSetting * 100)}% 기준` : ''})</span></span>
                         </div>
                     </div>
                 </div>
@@ -676,7 +687,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="workDays">진행 일수 ${getSortIcon(tSort.key, tSort.dir, 'workDays')}</th>
             
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgThroughput">분당 처리량 ${getSortIcon(tSort.key, tSort.dir, 'avgThroughput')}</th>
-            <th class="px-4 py-2">기간 평균 속도</th> <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgCostPerItem">개당 처리비용 ${getSortIcon(tSort.key, tSort.dir, 'avgCostPerItem')}</th>
+            <th class="px-4 py-2" title="이력 전체(기간 끝까지)의 업무별 평균 처리속도(개/분)">평상시 속도</th> <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgCostPerItem">개당 처리비용 ${getSortIcon(tSort.key, tSort.dir, 'avgCostPerItem')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgDailyStaff">평균 투입인원 ${getSortIcon(tSort.key, tSort.dir, 'avgDailyStaff')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgStaff">총 인원 ${getSortIcon(tSort.key, tSort.dir, 'avgStaff')}</th>
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="avgTime">평균 시간 ${getSortIcon(tSort.key, tSort.dir, 'avgTime')}</th>
@@ -687,11 +698,11 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
         const stdSpeed = standardThroughputs[d.taskName] || 0;
         const avgDailyStaff = d.avgDailyStaff || 0;
 
-        // 국내배송: 1건당 평균 1.3개 → 처리량/처리속도에 건수 병기
+        // 국내배송: 1건당 평균 DOMESTIC_ITEMS_PER_ORDER 개 → 처리량/처리속도에 건수 병기
         const isDomestic = isT(d.taskName, TASK.domestic);
         const caseText = (val, digits) => {
             if (!isDomestic || val <= 0) return '';
-            const cases = val / 1.3;
+            const cases = val / DOMESTIC_ITEMS_PER_ORDER;
             const text = digits === 0 ? Math.round(cases).toLocaleString() : cases.toFixed(digits);
             return ` <span class="text-[11px] text-gray-400 font-normal">(${text} 건)</span>`;
         };

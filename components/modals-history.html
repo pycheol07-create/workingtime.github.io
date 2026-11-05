@@ -57,6 +57,7 @@
         }
 
         /* 각 탭별 패널: 숨겨지지 않았을 때만 화면 꽉 채우기 */
+        #ops-panel:not(.hidden), #ops-tasks-panel:not(.hidden), #ops-cost-panel:not(.hidden), #ops-settle-wrap:not(.hidden),
         #dashboard-panel:not(.hidden), #productivity-panel:not(.hidden), #staffing-panel:not(.hidden), #prediction-panel:not(.hidden), #forecast-panel:not(.hidden), #rawdata-panel:not(.hidden) {
             flex: 1 1 auto !important;
             min-height: 0 !important; height: 100% !important;
@@ -64,7 +65,7 @@
         }
 
         /* 내부 스크롤 허용 */
-        #dashboard-panel, #productivity-panel, #staffing-panel, #prediction-panel, #forecast-panel {
+        #dashboard-panel, #productivity-panel, #staffing-panel, #prediction-panel, #forecast-panel, #ops-tasks-panel, #ops-cost-panel {
             overflow-y: auto !important; -webkit-overflow-scrolling: touch !important;
         }
 
@@ -89,6 +90,37 @@
 
         /* 내부 Absolute 패널들 높이 보호 */
         #rawdata-panel .relative { flex: 1 1 auto !important; min-height: 0 !important; }
+        #history-modal .ops-tabbar { padding: 6px 8px; gap: 6px; flex-wrap: wrap; }
+    }
+
+    /* 📊 운영 리포트 탭 줄(요약·생산성·업무별·인력·비용) — d-theme 세그먼트(.d-seg) 모양을 데이터 관리 토큰(css/history-d.css)으로.
+       ⚠ .ops-tab 에 display 를 넣지 않는다 — 권한 없는 탭(업무별·비용 = data.reports, 나머지 = data.analysis)은
+         js/ui-history-ops-report.js applyTabVisibility 가 inline display:none 으로 숨긴다. */
+    #history-modal .ops-tabbar {
+        display: flex; align-items: center; gap: 12px; min-width: 0;
+        padding: 8px 16px; background: var(--c-surface); border-bottom: 1px solid var(--c-line);
+    }
+    #history-modal .ops-tabs {
+        display: inline-flex; gap: 2px; padding: 3px; max-width: 100%; overflow-x: auto; scrollbar-width: none;
+        background: var(--c-track); border-radius: var(--r-pill);
+    }
+    #history-modal .ops-tab {
+        appearance: none; border: 0; background: transparent; min-height: 30px; padding: 0 14px; border-radius: var(--r-pill);
+        font: inherit; font-size: 13px; font-weight: 500; color: var(--c-text-2); cursor: pointer; white-space: nowrap;
+        transition: background .15s, color .15s;
+    }
+    #history-modal .ops-tab:hover { color: var(--c-text); }
+    #history-modal .ops-tab.is-on, #history-modal .ops-tab.is-on:hover {
+        background: var(--c-surface); color: var(--c-accent-deep); font-weight: 600; box-shadow: var(--sh-tab);
+    }
+    #history-modal .ops-tab:focus-visible, #history-modal .ops-link:focus-visible { outline: 2px solid var(--c-accent); outline-offset: -2px; }
+    #history-modal .ops-tab-note { min-width: 0; font-size: 12px; color: var(--c-text-3); }
+    #history-modal .ops-link {
+        appearance: none; border: 0; background: none; padding: 0; font: inherit; color: var(--c-accent); cursor: pointer; text-decoration: underline;
+    }
+    #history-modal .ops-settle-bar {
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        padding: 8px 16px; background: var(--c-surface-2); border-bottom: 1px solid var(--c-line); font-size: 12px; color: var(--c-text-2);
     }
 </style>
 
@@ -112,18 +144,18 @@
         <div class="flex-grow flex overflow-hidden bg-gray-100/80 dark:bg-gray-900 transition-colors flex-col md:flex-row">
 
             <!-- 🧭 데이터 관리 화면 이동 — 좌측 레일(데스크톱) / '현재 화면 ▾' 펼침 목록(모바일). 동작은 js/page-nav.js, 모양은 css/page-nav.css.
-                 14개 화면과 기존 메인탭·서브탭 대응은 js/history-sections.js. data-main-tab(·data-sub-tab)은 다른 화면 코드가
+                 10개 화면과 기존 메인탭·서브탭 대응은 js/history-sections.js. 요약·생산성·인력·업무 리포트·팀 결산·업무 담당 변화는
+                 '운영 리포트' 한 화면의 탭으로 합쳤다(2026-11-05, 옛 주소는 js/lib/ops-report-route.js 가 탭으로 보낸다). data-main-tab(·data-sub-tab)은 다른 화면 코드가
                  querySelector('[data-main-tab="forecast"]').click() 처럼 누르므로 남겨 둔다(UI 2단계 H2, 2026-10-16).
                  ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). -->
             <nav id="history-section-nav" class="pn" aria-label="데이터 관리 화면">
-                <button type="button" class="pn-toggle" aria-expanded="false"><span class="pn-toggle-label">현재 화면</span><span class="pn-current">요약</span></button>
+                <button type="button" class="pn-toggle" aria-expanded="false"><span class="pn-toggle-label">현재 화면</span><span class="pn-current">운영 리포트</span></button>
                 <button type="button" class="pn-collapse" aria-expanded="true" title="메뉴 접기"></button>
                 <div class="pn-list">
                     <div class="pn-group">
                         <div class="pn-group-title">분석</div>
-                        <button type="button" class="pn-item is-on" data-pn-id="insight" data-main-tab="dashboard">요약</button>
-                        <button type="button" class="pn-item" data-pn-id="productivity" data-main-tab="productivity">생산성</button>
-                        <button type="button" class="pn-item" data-pn-id="staffing" data-main-tab="staffing">인력 적정성</button>
+                        <button type="button" class="pn-item is-on" data-pn-id="ops" data-main-tab="ops">운영 리포트</button>
+                        <button type="button" class="pn-item" data-pn-id="personal" data-main-tab="rawdata" data-sub-tab="personal">개인 리포트</button>
                     </div>
                     <div class="pn-group">
                         <div class="pn-group-title">예측·계획</div>
@@ -139,11 +171,7 @@
                     </div>
                     <div class="pn-group">
                         <div class="pn-group-title">보고</div>
-                        <button type="button" class="pn-item" data-pn-id="report" data-main-tab="rawdata" data-sub-tab="report">업무 리포트</button>
-                        <button type="button" class="pn-item" data-pn-id="personal" data-main-tab="rawdata" data-sub-tab="personal">개인 리포트</button>
-                        <button type="button" class="pn-item" data-pn-id="taskowner" data-main-tab="taskowner">업무 담당 변화</button>
                         <button type="button" class="pn-item" data-pn-id="management" data-main-tab="rawdata" data-sub-tab="management">경영 지표</button>
-                        <button type="button" class="pn-item" data-pn-id="settlement" data-main-tab="settlement">팀 결산</button>
                         <button type="button" class="pn-item" data-pn-id="milestones" data-main-tab="milestones">운영 마일스톤</button>
                     </div>
                 </div>
@@ -188,6 +216,22 @@
 
             <div id="history-main-content" class="flex-1 flex flex-col overflow-hidden relative">
 
+            <!-- 📊 운영 리포트 (2026-11-05 통합 2단계) — 탭: 요약·생산성·업무별·인력·비용 + 비용 탭의 [결산 만들기](팀 결산).
+                 탭 전환·권한·그리기는 js/ui-history-ops-report.js. 안의 패널·칸 id 는 예전 화면 그대로라 기존 그리기 함수가 id 로 찾아 채운다.
+                 기간은 왼쪽 날짜 트리 하나(팀 결산·업무 담당 변화 칸만 자체 기간 — 화면 문구로 알림). ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). -->
+            <div id="ops-panel" class="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
+                <div id="ops-tabbar" class="ops-tabbar shrink-0">
+                    <div class="ops-tabs" role="tablist" aria-label="운영 리포트">
+                        <button type="button" class="ops-tab is-on" data-ops-tab="summary" data-feature="data.analysis" role="tab" aria-selected="true">요약</button>
+                        <button type="button" class="ops-tab" data-ops-tab="productivity" data-feature="data.analysis" role="tab" aria-selected="false">생산성</button>
+                        <button type="button" class="ops-tab" data-ops-tab="tasks" data-feature="data.reports" role="tab" aria-selected="false">업무별</button>
+                        <button type="button" class="ops-tab" data-ops-tab="staffing" data-feature="data.analysis" role="tab" aria-selected="false">인력</button>
+                        <button type="button" class="ops-tab" data-ops-tab="cost" data-feature="data.reports" role="tab" aria-selected="false">비용</button>
+                    </div>
+                    <span id="ops-tab-note" class="ops-tab-note"></span>
+                </div>
+                <div id="ops-body" class="flex-1 min-h-0 flex flex-col overflow-hidden">
+
             <div id="dashboard-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6">
                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 md:p-5 rounded-2xl">
                     <div class="flex items-center gap-2 mb-1">
@@ -201,7 +245,7 @@
                 <!-- 📍 마일스톤별 효과 요약 위젯 (JS에서 채움) -->
                 <div id="dashboard-milestones-widget"></div>
 
-                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <p class="text-xs font-bold text-gray-500 dark:text-gray-400">총 업무시간</p>
                         <p class="text-xl md:text-2xl font-black tabular-nums text-gray-800 dark:text-white mt-1" id="kpi-total-time">0<span class="text-sm font-medium text-gray-500 ml-1">h</span></p>
@@ -225,11 +269,6 @@
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <p class="text-xs font-bold text-gray-500 dark:text-gray-400">종합 OEE</p>
                         <p class="text-xl md:text-2xl font-black tabular-nums text-gray-900 dark:text-white mt-1" id="kpi-total-oee">0<span class="text-sm font-medium text-gray-500 ml-1">%</span></p>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">출고원가 (건당)</p>
-                        <p class="text-xl md:text-2xl font-black tabular-nums text-gray-900 dark:text-white mt-1" id="kpi-unit-cost">0<span class="text-sm font-medium text-gray-500 ml-1">원</span></p>
                     </div>
                     
                     <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
@@ -333,25 +372,13 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 flex-grow shrink-0 min-h-[300px]">
+                <!-- '비효율 요인 및 손실 비용' 표는 비용 탭(#ops-cost-panel)으로 옮겼다 — 채우는 코드는 그대로(js/ui-history-productivity.js, id 로 찾음) -->
+                <div class="grid grid-cols-1 gap-4 md:gap-6 flex-grow shrink-0 min-h-[300px]">
                     <div class="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
                         <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white mb-2">리소스 투입 대비 효율</h4>
                         <p class="text-[11px] md:text-xs text-gray-500 mb-4">X축: 투입 시간, Y축: 산출량, 원 크기: 투입 인원</p>
                         <div class="relative w-full h-48 md:h-64">
                             <canvas id="chart-productivity-efficiency"></canvas>
-                        </div>
-                    </div>
-                    <div class="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
-                        <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white mb-2">비효율 요인 및 손실 비용</h4>
-                        <div class="overflow-y-auto h-48 md:h-64 mt-4">
-                            <table class="w-full text-xs md:text-sm text-left">
-                                <thead class="text-[11px] md:text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50">
-                                    <tr><th class="px-2 md:px-4 py-2">요인</th><th class="px-2 md:px-4 py-2 text-right">손실 시간</th><th class="px-2 md:px-4 py-2 text-right">추정 비용</th></tr>
-                                </thead>
-                                <tbody id="prod-coq-table-body" class="divide-y divide-gray-100 dark:divide-gray-700">
-                                    <tr><td colspan="3" class="text-center py-4 text-gray-400">데이터 준비 중...</td></tr>
-                                </tbody>
-                            </table>
                         </div>
                     </div>
                 </div>
@@ -421,6 +448,71 @@
                 <!-- 📅 앞으로의 인원 수급 (JS가 채움) — 저장해 둔 예정 물량 기반 -->
                 <div id="staffing-outlook"></div>
             </div>
+
+            <!-- 업무별(권한 data.reports — 리포트에 인건비가 보인다) — 업무 리포트(js/ui-history-reports.js 가 #report-*-view 에 그림) + 업무 담당 변화(최근 12개월, js/ui-history-task-owner.js) -->
+            <div id="ops-tasks-panel" class="flex-1 flex flex-col h-full min-h-0 overflow-y-auto hidden bg-white dark:bg-gray-900">
+                <div id="report-view-container" class="p-4 md:p-6 space-y-4 md:space-y-6">
+                    <div id="report-daily-view"></div>
+                    <div id="report-weekly-view" class="hidden space-y-6"></div>
+                    <div id="report-monthly-view" class="hidden space-y-6"></div>
+                    <div id="report-yearly-view" class="hidden space-y-6"></div>
+                </div>
+                <section id="ops-owner-section" class="p-4 md:p-6 space-y-4 border-t border-gray-200 dark:border-gray-800">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100">업무 담당 변화</h3>
+                        <p class="text-xs text-gray-500 mt-1">업무마다 기간별로 누가 주로 맡았는지, 주 인원이 바뀐 뒤 속도·투입이 어떻게 달라졌는지 봅니다. 이 칸은 왼쪽에서 고른 기간과 상관없이 최근 12개월 전체를 봅니다.</p>
+                    </div>
+                    <div id="taskowner-body" class="space-y-4">
+                        <div class="text-center py-16 text-gray-400 text-sm">불러오는 중...</div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 비용 — 인건비가 보이는 칸을 모은 탭(권한 data.reports). 칸은 예전 요약·생산성에서 옮겨 왔고 채우는 코드는 그대로(id 로 찾음) -->
+            <div id="ops-cost-panel" class="flex-1 flex flex-col h-full min-h-0 overflow-y-auto p-4 md:p-6 space-y-6 hidden">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white">비용</h3>
+                        <p class="text-xs text-gray-500 mt-1">왼쪽에서 고른 기간의 건당 출고원가와 손실 비용입니다.</p>
+                    </div>
+                    <button type="button" id="ops-settle-btn" data-feature="data.reports" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition" title="월·분기·년 팀 결산 보고서(PDF·엑셀)를 엽니다. 왼쪽에서 월·년을 고르고 있으면 그 기간으로 엽니다">결산 만들기</button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 shrink-0 items-start">
+                    <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">출고원가 (건당)</p>
+                        <p class="text-xl md:text-2xl font-black tabular-nums text-gray-900 dark:text-white mt-1" id="kpi-unit-cost">0<span class="text-sm font-medium text-gray-500 ml-1">원</span></p>
+                    </div>
+                    <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel">
+                        <h4 class="text-md md:text-lg font-bold text-gray-800 dark:text-white mb-2">비효율 요인 및 손실 비용</h4>
+                        <div class="overflow-y-auto h-48 md:h-64 mt-4">
+                            <table class="w-full text-xs md:text-sm text-left">
+                                <thead class="text-[11px] md:text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                                    <tr><th class="px-2 md:px-4 py-2">요인</th><th class="px-2 md:px-4 py-2 text-right">손실 시간</th><th class="px-2 md:px-4 py-2 text-right">추정 비용</th></tr>
+                                </thead>
+                                <tbody id="prod-coq-table-body" class="divide-y divide-gray-100 dark:divide-gray-700">
+                                    <tr><td colspan="3" class="text-center py-4 text-gray-400">데이터 준비 중...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 팀 결산 — 비용 탭의 [결산 만들기](권한 data.reports). 기간은 결산 화면의 월·분기·년 선택기(날짜 트리는 숨김).
+                 #settlement-panel 안은 js/ui-history-settlement.js 가 채우고 PDF 도 이 패널을 그대로 찍는다(id 고정). -->
+            <div id="ops-settle-wrap" class="flex-1 flex flex-col h-full min-h-0 hidden">
+                <div class="ops-settle-bar shrink-0">
+                    <button type="button" id="ops-settle-back" class="ops-link">&lsaquo; 비용 탭으로</button>
+                    <span>팀 결산 — 기간은 아래에서 월·분기·년으로 고릅니다(왼쪽 날짜 목록과 따로).</span>
+                </div>
+                <div id="settlement-panel" class="flex-1 flex flex-col h-full min-h-0 bg-white dark:bg-gray-900 overflow-y-auto p-4 md:p-6 space-y-4">
+                    <div class="text-center py-16 text-gray-400 text-sm">불러오는 중...</div>
+                </div>
+            </div>
+
+                </div>
+            </div>
+            <!-- /운영 리포트 -->
 
             <div id="prediction-panel" class="flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-6 hidden">
                 <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-2">
@@ -772,15 +864,6 @@
                             </div>
                         </div>
 
-                        <div id="report-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
-                            <div id="report-view-container" class="p-4 md:p-6 flex-grow space-y-4 md:space-y-6">
-                                <div id="report-daily-view"></div>
-                                <div id="report-weekly-view" class="hidden space-y-6"></div>
-                                <div id="report-monthly-view" class="hidden space-y-6"></div>
-                                <div id="report-yearly-view" class="hidden space-y-6"></div>
-                            </div>
-                        </div>
-
                         <div id="personal-report-panel" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-y-auto hidden z-10">
                             <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 shrink-0 flex flex-col md:flex-row bg-white dark:bg-gray-800 gap-3">
                                 <select id="personal-report-member-select" class="p-2 border border-gray-200 rounded-lg text-sm font-bold bg-gray-50 w-full md:w-auto">
@@ -877,22 +960,6 @@
                 <div id="milestone-empty-state" class="hidden text-center py-16 text-gray-400">
                     <div class="text-sm">아직 등록된 마일스톤이 없습니다.</div>
                     <div class="text-xs mt-1">운영 변경사항이 발생하면 "+ 새 마일스톤 등록"으로 추가하세요.</div>
-                </div>
-            </div>
-
-            <!-- 🧾 팀 결산 보고 패널 (내부 콘텐츠는 js/ui-history-settlement.js가 채움) -->
-            <div id="settlement-panel" class="flex-1 flex flex-col h-full hidden bg-white dark:bg-gray-900 overflow-y-auto p-4 md:p-6 space-y-4">
-                <div class="text-center py-16 text-gray-400 text-sm">불러오는 중...</div>
-            </div>
-
-            <!-- 👥 업무 담당 변화 패널 (읽기만 — 내용은 js/ui-history-task-owner.js 가 #taskowner-body 에 채움) -->
-            <div id="taskowner-panel" class="flex-1 flex flex-col h-full hidden bg-white dark:bg-gray-900 overflow-y-auto p-4 md:p-6 space-y-4">
-                <div>
-                    <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">업무 담당 변화</h2>
-                    <p class="text-xs text-gray-500 mt-1">업무마다 기간별로 누가 주로 맡았는지, 주 인원이 바뀐 뒤 속도·투입이 어떻게 달라졌는지 봅니다(최근 12개월).</p>
-                </div>
-                <div id="taskowner-body" class="space-y-4">
-                    <div class="text-center py-16 text-gray-400 text-sm">불러오는 중...</div>
                 </div>
             </div>
 

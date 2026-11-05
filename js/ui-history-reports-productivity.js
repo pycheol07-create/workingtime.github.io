@@ -1,10 +1,19 @@
 // === js/ui-history-reports-productivity.js ===
-import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202611050940';
-import { getAsArray } from './ui-history-reports-utils.js?v=202611050940';
-import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202611050940';
-import { TASK, isT } from './task-names.js?v=202611050940';
+import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202611051014';
+import { getAsArray } from './ui-history-reports-utils.js?v=202611051014';
+import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202611051014';
+import { TASK, isT } from './task-names.js?v=202611051014';
+import { unitCost, periodMetrics, benchmarkOEE, baselineSpeeds, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=202611051014';
 
+/** 🎯 최근 운영일 30일의 하루 OEE 평균 — 운영 지표 표준(js/lib/ops-metrics.js benchmarkOEE, 평상시 속도 기준). */
 export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
+    if (!allHistoryData || allHistoryData.length === 0) return null;
+    const skipDate = getTodayDateString();
+    return benchmarkOEE(allHistoryData, appConfig, { speeds: baselineSpeeds(allHistoryData, { skipDate }), skipDate });
+};
+
+/** 옛 벤치마크(그 기간 bestDays 속도·명부 인원 기준) — 비교 도구 전용. TODO(운영 리포트 2단계·비교표 승인 뒤): 지운다. */
+export const calculateBenchmarkOEEOld = (allHistoryData, appConfig) => {
     if (!allHistoryData || allHistoryData.length === 0) return null;
     const recentData = [...allHistoryData].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 30);
     if (recentData.length === 0) return null;
@@ -17,7 +26,7 @@ export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
         const wageMap = buildMemberHourlyWageMap(appConfig.memberWages); // 월기본급 → 시급(÷209)
         getAsArray(day.partTimers).forEach(pt => { if (pt && pt.name && !wageMap[pt.name]) wageMap[pt.name] = pt.wage || 0; });
         const dayAggr = calculateReportAggregations(day, appConfig, wageMap, new Map());
-        const productivity = calculateAdvancedProductivity([day], dayAggr, standardThroughputs, appConfig, wageMap);
+        const productivity = calculateAdvancedProductivityOld([day], dayAggr, standardThroughputs, appConfig, wageMap);
         if (productivity.oee > 0) {
             totalOEE += productivity.oee;
             validDays++;
@@ -66,81 +75,20 @@ export const analyzeRevenueWorkloadTrend = (currentRevenue, prevRevenue, current
     return { revenueChangeRate, workloadChangeRate, gap, diagnosis, colorClass };
 };
 
-export const analyzeUnitCost = (data, appConfig, wageMap, totalRevenue = 0) => {
-    const costCalcTasks = new Set(appConfig.costCalcTasks || []);
-    const fixedMaterialCost = Number(appConfig.fixedMaterialCost) || 0;
-    const fixedShippingCost = Number(appConfig.fixedShippingCost) || 0;
-    const fixedDirectDeliveryCost = Number(appConfig.fixedDirectDeliveryCost) || 0;
+/** 건당 출고원가 — js/lib/ops-metrics.js unitCost 로 옮겼다(같은 함수). 옛 이름으로도 부른다. */
+export const analyzeUnitCost = unitCost;
 
-    let targetLaborCost = 0;
-    let maxTaskQuantity = 0;
-    
-    const records = getAsArray(data.workRecords);
-    const quantities = data.taskQuantities || {};
+/**
+ * 가동률·효율·품질·OEE·필요 인원·손실 — 운영 지표 표준(js/lib/ops-metrics.js periodMetrics)으로 계산한다(운영 리포트 1단계).
+ * standardThroughputs 는 **평상시 속도**(baselineSpeeds — 전체 이력, 오늘 제외)를 넘길 것.
+ *   예전엔 그 기간의 속도(calculatePeriodThroughputs)를 넘겨 효율이 구조상 100% 근처였다.
+ * currentDataAggr 는 쓰지 않는다(옛 호출 모양 그대로 두려고 받기만 한다). 반환 칸 이름은 예전과 같다.
+ */
+export const calculateAdvancedProductivity = (daysData, currentDataAggr, standardThroughputs, appConfig, wageMap) =>
+    periodMetrics(daysData, appConfig, { speeds: standardThroughputs || {}, wageMap });
 
-    records.forEach(r => {
-        if (costCalcTasks.has(r.task)) {
-            const duration = Number(r.duration) || 0;
-            const wage = wageMap[r.member] || 0;
-            targetLaborCost += (duration / 60) * wage;
-        }
-    });
-
-    costCalcTasks.forEach(task => {
-        const qty = Number(quantities[task]) || 0;
-        if (qty > maxTaskQuantity) maxTaskQuantity = qty;
-    });
-
-    const perItemLaborCost = maxTaskQuantity > 0 ? (targetLaborCost / maxTaskQuantity) : 0;
-
-    const directDeliveryRecords = records.filter(r => isT(r.task, TASK.direct));
-    const uniqueDates = new Set();
-    
-    directDeliveryRecords.forEach(r => {
-        const d = r.date || data.id;
-        if (d) uniqueDates.add(d);
-    });
-    
-    const directDeliveryCount = uniqueDates.size;
-    const totalDirectCost = directDeliveryCount * fixedDirectDeliveryCost;
-    const perItemDirectCost = maxTaskQuantity > 0 ? (totalDirectCost / maxTaskQuantity) : 0;
-
-    const totalUnitCost = perItemLaborCost + fixedMaterialCost + fixedShippingCost + perItemDirectCost;
-
-    let salesCount = Number(data.management?.orderCount) || 0;
-    if (salesCount === 0) salesCount = maxTaskQuantity;
-
-    let revenuePerItem = 0;
-    let margin = 0;
-    let marginRate = 0;
-
-    if (salesCount > 0 && totalRevenue > 0) {
-        revenuePerItem = totalRevenue / salesCount;
-        margin = revenuePerItem - totalUnitCost;
-        marginRate = (margin / revenuePerItem) * 100;
-    }
-
-    return {
-        targetTasks: Array.from(costCalcTasks),
-        baseQuantity: salesCount,
-        costs: {
-            labor: perItemLaborCost,
-            material: fixedMaterialCost,
-            shipping: fixedShippingCost,
-            directDelivery: perItemDirectCost, 
-            directDeliveryCount: directDeliveryCount, 
-            total: totalUnitCost
-        },
-        profit: {
-            revenuePerItem,
-            margin,
-            marginRate
-        },
-        isValid: costCalcTasks.size > 0 && (salesCount > 0 || maxTaskQuantity > 0)
-    };
-};
-
-export const calculateAdvancedProductivity = (daysData, currentDataAggr, standardThroughputs, appConfig, wageMap) => {
+/** 옛 계산(명부 인원 × 표준시간, 넘겨받은 속도) — 비교 도구 전용. TODO(운영 리포트 2단계·비교표 승인 뒤): 지운다. */
+export const calculateAdvancedProductivityOld = (daysData, currentDataAggr, standardThroughputs, appConfig, wageMap) => {
     let totalStandardAvailableMinutes = 0;
     let totalActualWorkedMinutes = 0;
     let totalStandardMinutesNeeded = 0;
@@ -235,11 +183,11 @@ export const calculateAdvancedProductivity = (daysData, currentDataAggr, standar
 export const PRODUCTIVITY_METRIC_DESCRIPTIONS = {
     utilizationRate: {
         title: "시간 활용률 (Availability)",
-        desc: "표준 근무 시간(평일 8H, 주말 4H) 대비 실제 업무 수행 시간의 비율입니다. 낮으면 대기 시간이 많았음을, 100% 초과는 야근/특근이 발생했음을 의미합니다."
+        desc: "출근해 있던 시간(출퇴근 기록, 점심 제외 · 퇴근 기록이 없으면 표준 근무시간) 중 업무 기록이 있는 시간의 비율입니다. 낮으면 대기·미기록 시간이 많았다는 뜻입니다."
     },
     efficiencyRatio: {
         title: "업무 효율성 (Performance)",
-        desc: "표준 속도 대비 실제 작업 속도의 비율입니다. 100%보다 높으면 표준보다 빠르게, 낮으면 느리게 작업했음을 의미합니다."
+        desc: "평상시 속도(이력 전체, 기간 끝 날짜까지의 평균)로 처리했다면 걸렸을 시간 ÷ 실제 걸린 시간입니다. 평소 속도 = 100% — 높으면 평소보다 빠르게, 낮으면 느리게 작업했음을 의미합니다(OEE 에는 100%까지만 반영)."
     },
     qualityRatio: {
         title: "품질 효율 (Quality)",
@@ -247,23 +195,23 @@ export const PRODUCTIVITY_METRIC_DESCRIPTIONS = {
     },
     oee: {
         title: "종합 생산 효율 (OEE)",
-        desc: "시간 활용률 × 업무 효율성 × 품질 효율. 팀의 전반적인 생산성 수준을 나타내는 최종 지표입니다."
+        desc: "시간 활용률 × 업무 효율성 × 품질 효율. 활용률·효율성은 각각 100%까지만 반영합니다(평소보다 빠른 몫은 OEE 를 올리지 않음). 2026-11-05부터 새 기준이라 그 전 리포트·결산 PDF 와 다를 수 있습니다."
     },
     availableFTE: {
         title: "총 투입 인력",
-        desc: "기간 내 실제로 출근하여 근무한 연인원의 평균입니다."
+        desc: "기간 내 운영일마다 실제로 출근한 인원(출근 기록, 없으면 업무 기록)의 평균입니다."
     },
     workedFTE: {
         title: "실제 작업 인력",
-        desc: "출근한 인원 중 실제로 업무를 수행하고 있던 시간만을 인원수로 환산한 값입니다."
+        desc: "출근한 인원 중 실제로 업무를 수행하고 있던 시간만을 인원수로 환산한 값입니다(총 투입 인력 × 시간 활용률)."
     },
     requiredFTE: {
         title: "표준 필요 인력",
-        desc: "실제 수행한 업무량을 우리 팀의 표준 속도로 처리했을 때 필요한 이론적인 인원수입니다."
+        desc: "실제 처리한 물량을 평상시 속도로 처리하는 데 필요한 시간 ÷ (1인 재실시간 × 가동률 설정) — 인력 화면의 필요 인원과 같은 값으로, 총 투입(출근) 인력과 비교합니다."
     },
     qualityFTE: {
         title: "최종 유효 인력",
-        desc: "재작업 등으로 낭비된 인력을 제외하고, 최종적으로 가치 있는 성과를 낸 실질 인력 규모입니다."
+        desc: "실작업 인력 × 업무 효율성(= 평상시 속도로 했을 때 필요한 실작업 인력)에서 재작업 등 품질 손실을 뺀, 최종적으로 가치 있는 성과를 낸 실질 인력 규모입니다."
     }
 };
 
@@ -272,7 +220,9 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
     const { utilizationRate, efficiencyRatio, qualityRatio, oee } = metrics;
     
     let diagnosis = { title: '최적 상태 유지', desc: '업무 시간과 속도 모두 적절한 균형을 유지하고 있습니다.', color: 'text-green-700', bg: 'bg-green-50 border-green-200' };
-    const isOverloaded = utilizationRate >= 100;
+    // 과부하 = 명부 안 사람의 가동률(손실 계산의 기록 분 ÷ 재실 분)이 OVERLOAD_UTIL(95%) 이상 — 여유 시간이 거의 없음
+    const loadUtil = overloadUtilOf(metrics);
+    const isOverloaded = loadUtil >= OVERLOAD_UTIL;
     const isUnderloaded = utilizationRate <= 80;
     const isFast = efficiencyRatio >= 110;
     const isSlow = efficiencyRatio <= 90;
@@ -282,7 +232,7 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
     } else if (isOverloaded && isSlow) {
         diagnosis = { title: '비효율적 과로', desc: '장시간 근무하고 있지만 실제 처리 속도는 느립니다. 업무 프로세스 점검이나 교육이 필요합니다.', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' };
     } else if (isOverloaded) {
-         diagnosis = { title: '시간 부족 (과부하)', desc: '표준 근무 시간을 초과하여 업무 수행. 업무량 조절 필요.', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' };
+         diagnosis = { title: '시간 부족 (과부하)', desc: '출근해 있던 시간이 거의 모두 업무로 채워져 여유 시간이 거의 없습니다. 업무량 조절 필요.', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' };
     } else if (isUnderloaded && isFast) {
         diagnosis = { title: '유휴 인력 발생 (고숙련)', desc: '업무를 빨리 끝내고 남는 시간이 많습니다. 인원 효율화 가능.', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' };
     } else if (isUnderloaded && isSlow) {
@@ -296,7 +246,7 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
     }
 
     let comments = [];
-    if (utilizationRate >= 105) comments.push(`팀원들이 표준 근무 시간보다 <strong>약 ${(utilizationRate - 100).toFixed(0)}% 더 많이</strong> 일했습니다.`);
+    if (isOverloaded) comments.push(`출근해 있던 시간의 <strong>${loadUtil.toFixed(0)}%를 업무에 썼습니다</strong> — 여유 시간이 거의 없었습니다.`);
     else if (utilizationRate <= 75) comments.push(`근무 시간 중 <strong>약 ${(100 - utilizationRate).toFixed(0)}%가 대기 시간</strong> 등으로 활용되지 못했습니다.`);
     else comments.push(`근무 시간 활용률은 <strong>${utilizationRate.toFixed(0)}%</strong>로 적정 수준입니다.`);
 
@@ -305,8 +255,8 @@ export const generateProductivityDiagnosis = (metrics, prevMetrics, benchmarkOEE
 
     if (qualityRatio < 95) comments.push(`재작업 등으로 인한 <strong>품질 손실이 약 ${(100 - qualityRatio).toFixed(1)}%</strong> 발생했습니다.`);
 
-    if (oee >= 85) comments.push(`종합적으로 <strong>매우 우수한 생산성(OEE ${oee.toFixed(0)}%)</strong>을 기록했습니다.`);
-    else if (oee <= 60) comments.push(`전반적인 생산성 지표가 낮습니다. 원인 분석이 필요합니다.`);
+    if (oee >= OEE_LEVELS.good) comments.push(`종합적으로 <strong>매우 우수한 생산성(OEE ${oee.toFixed(0)}%)</strong>을 기록했습니다.`);
+    else if (oee < OEE_LEVELS.warn) comments.push(`전반적인 생산성 지표가 낮습니다. 원인 분석이 필요합니다.`);
 
     if (benchmarkOEE !== null && benchmarkOEE > 0) {
         const diff = oee - benchmarkOEE;

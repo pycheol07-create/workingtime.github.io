@@ -7,7 +7,8 @@
 // 탭을 바꿀 때는 replaceState — 방문 기록이 쌓이지 않아 뒤로가기는 '이전 화면' 으로 간다. hashchange 도 나지 않는다.
 // ES 모듈이면서 window.HashState 로도 쓴다(계산기는 Babel 이라 import 를 못 한다 — calculator/index.html).
 
-export const HASH_KEYS = ['tab', 'sub', 'gran', 'date', 'fview'];
+// settle·owner: 데이터 관리 운영 리포트 — #tab=ops&sub=cost&settle=1(팀 결산) · #tab=ops&sub=tasks&owner=1(업무 담당 변화 칸) (2026-11-05)
+export const HASH_KEYS = ['tab', 'sub', 'gran', 'date', 'fview', 'settle', 'owner'];
 const VALUE_RE = /^[A-Za-z0-9_.-]{1,40}$/;
 
 const dec = (s) => { try { return decodeURIComponent(s); } catch (e) { return ''; } };

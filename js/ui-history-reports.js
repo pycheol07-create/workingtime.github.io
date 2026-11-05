@@ -1,22 +1,22 @@
 // === js/ui-history-reports.js ===
-import { getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202611050940';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611050940';
+import { buildMemberHourlyWageMap, getTodayDateString } from './utils.js?v=202611051014';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051014';
+import { baselineSpeeds, previousPeriodOf, periodDaysOf, lastDayIdOf } from './lib/ops-metrics.js?v=202611051014';
 
 import {
     calculateReportKPIs,
     calculateReportAggregations,
     aggregateDaysToSingleData,
-    calculatePeriodThroughputs, // 🌟 [추가] 기간별 평균 속도 계산 함수 가져오기
     analyzeRevenueBasedStaffing,
     analyzeRevenueWorkloadTrend,
     calculateAdvancedProductivity,
     calculateBenchmarkOEE,
     calculateAverageStaffing
-} from './ui-history-reports-logic.js?v=202611050940';
+} from './ui-history-reports-logic.js?v=202611051014';
 
 import {
     renderGenericReport
-} from './ui-history-reports-renderer.js?v=202611050940';
+} from './ui-history-reports-renderer.js?v=202611051014';
 
 
 const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
@@ -39,17 +39,18 @@ const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
     return { wageMap, memberToPartMap };
 };
 
-const _calculateAverageActiveMembers = (daysData, appConfig, wageMap) => {
-    if (!daysData || daysData.length === 0) return 0;
-    const workingDays = daysData.filter(d => d.workRecords && d.workRecords.length > 0);
-    if (workingDays.length === 0) return 0;
+/** 평상시 기준 속도(이력 전체, 기간 끝 날짜까지, 오늘 제외) — 효율·필요 인원·업무 표 '평상시 속도' 열의 기준
+ *  (운영 지표 표준, js/lib/ops-metrics.js). 예전엔 그 기간의 속도를 기준으로 써서 효율이 구조상 100% 근처였다.
+ *  until 을 기간 끝으로 둬 옛 기간에 그 뒤 시점의 속도가 섞이지 않게 한다. */
+const _baselineSpeeds = (allHistoryData, until) => baselineSpeeds(allHistoryData, { skipDate: getTodayDateString(), until });
 
-    const totalActive = workingDays.reduce((sum, day) => {
-        return sum + calculateReportKPIs(day, appConfig, wageMap).activeMembersCount;
-    }, 0);
-    return totalActive / workingDays.length;
+/** 인원·비업무 시간 칸을 운영 지표 표준 값으로 — 투입 인원 = 출근 인원 평균, 비업무 = 재실시간 − 업무 기록.
+ *  옛 값(명부 − 휴가, 명부 × 8시간 − 기록)은 rosterMembersCount 로 참고만 남긴다. */
+const _applyOpsStaff = (kpis, staffing) => {
+    kpis.rosterMembersCount = staffing.rosterAvg;
+    kpis.activeMembersCount = staffing.availableFTE;
+    kpis.nonWorkMinutes = staffing.availabilityLossMinutes;
 };
-
 
 export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) => {
     allHistoryData = aliasHistoryView(allHistoryData, appConfig);   // 🆔 옛 이름 기록도 지금 이름으로 합쳐 본다(읽기 전용 사본 — js/lib/task-alias-view.js)
@@ -65,10 +66,8 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         return;
     }
 
-    const currentIndex = allHistoryData.findIndex(d => d.id === dateKey);
-    const previousDayData = (currentIndex > -1 && currentIndex + 1 < allHistoryData.length)
-                                ? allHistoryData[currentIndex + 1]
-                                : null;
+    // 전기 = 직전 운영일(업무·출근 기록이 있는 날). 예전엔 목록 바로 앞 문서였다(빈 주말 문서일 수 있었다).
+    const previousDayData = previousPeriodOf('day', dateKey, allHistoryData).days[0] || null;
 
     const { wageMap, memberToPartMap } = _prepareReportData([data], [previousDayData].filter(Boolean), appConfig);
 
@@ -88,12 +87,11 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
     });
 
-    // 🌟 [수정] 해당 기간(당일)만의 평균 속도 산출
-    const todayThroughputs = calculatePeriodThroughputs([data]);
-    const prevThroughputs = calculatePeriodThroughputs([previousDayData].filter(Boolean));
-
-    const todayStaffing = calculateAdvancedProductivity([data], todayAggr, todayThroughputs, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity([previousDayData].filter(Boolean), prevAggr, prevThroughputs, appConfig, wageMap);
+    const speeds = _baselineSpeeds(allHistoryData, dateKey);
+    const todayStaffing = calculateAdvancedProductivity([data], todayAggr, speeds, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity([previousDayData].filter(Boolean), prevAggr, speeds, appConfig, wageMap);
+    _applyOpsStaff(todayKPIs, todayStaffing);
+    _applyOpsStaff(prevKPIs, prevStaffing);
 
     const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
 
@@ -105,7 +103,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         tData: { raw: data, memberToPartMap },
         tMetrics: { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
         pMetrics: { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
-        standardThroughputs: todayThroughputs // 렌더러에 넘길 속도
+        standardThroughputs: speeds // 렌더러 업무 표 '평상시 속도' 열
     };
 
     renderGenericReport(
@@ -119,7 +117,7 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context) =
         '기록',
         0,
         benchmarkOEE,
-        todayThroughputs
+        speeds
     );
 };
 
@@ -131,12 +129,9 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
 
     context.currentReportParams = { weekKey, allHistoryData, appConfig };
 
-    const currentWeekDays = allHistoryData.filter(d => getWeekOfYear(new Date(d.id + "T00:00:00")) === weekKey);
-
-    const sortedWeeks = Array.from(new Set(allHistoryData.map(d => getWeekOfYear(new Date(d.id + "T00:00:00"))))).sort((a, b) => b.localeCompare(a));
-    const currentIndex = sortedWeeks.indexOf(weekKey);
-    const prevWeekKey = (currentIndex > -1 && currentIndex + 1 < sortedWeeks.length) ? sortedWeeks[currentIndex + 1] : null;
-    const prevWeekDays = prevWeekKey ? allHistoryData.filter(d => getWeekOfYear(new Date(d.id + "T00:00:00")) === prevWeekKey) : [];
+    const currentWeekDays = periodDaysOf('week', weekKey, allHistoryData);
+    // 전기 = 직전 같은 단위 달력 기간(운영 지표 표준). 예전엔 목록에서 바로 앞 기간 키였다(빈 기간을 건너뛰었다).
+    const { key: prevWeekKey, days: prevWeekDays } = previousPeriodOf('week', weekKey, allHistoryData);
 
     const { wageMap, memberToPartMap } = _prepareReportData(currentWeekDays, prevWeekDays, appConfig);
 
@@ -148,9 +143,6 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
     const prevKPIs = calculateReportKPIs(prevData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(prevData, appConfig, wageMap, memberToPartMap);
 
-    todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentWeekDays, appConfig, wageMap);
-    prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevWeekDays, appConfig, wageMap);
-
     const todayAvgStaff = calculateAverageStaffing(currentWeekDays);
     const prevAvgStaff = calculateAverageStaffing(prevWeekDays);
 
@@ -161,12 +153,11 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
     });
 
-    // 🌟 [수정] 해당 기간(주간)만의 평균 속도 산출
-    const todayThroughputs = calculatePeriodThroughputs(currentWeekDays);
-    const prevThroughputs = calculatePeriodThroughputs(prevWeekDays);
-
-    const todayStaffing = calculateAdvancedProductivity(currentWeekDays, todayAggr, todayThroughputs, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity(prevWeekDays, prevAggr, prevThroughputs, appConfig, wageMap);
+    const speeds = _baselineSpeeds(allHistoryData, lastDayIdOf(currentWeekDays));
+    const todayStaffing = calculateAdvancedProductivity(currentWeekDays, todayAggr, speeds, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevWeekDays, prevAggr, speeds, appConfig, wageMap);
+    _applyOpsStaff(todayKPIs, todayStaffing);
+    _applyOpsStaff(prevKPIs, prevStaffing);
     
     const benchmarkOEE = calculateBenchmarkOEE(allHistoryData, appConfig);
 
@@ -178,7 +169,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         tData: { raw: todayData, memberToPartMap },
         tMetrics: { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
         pMetrics: { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
-        standardThroughputs: todayThroughputs
+        standardThroughputs: speeds
     };
 
     renderGenericReport(
@@ -192,7 +183,7 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context) 
         '주',
         0,
         benchmarkOEE,
-        todayThroughputs
+        speeds
     );
 };
 
@@ -204,12 +195,9 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
 
     context.currentReportParams = { monthKey, allHistoryData, appConfig };
 
-    const currentMonthDays = allHistoryData.filter(d => d.id.substring(0, 7) === monthKey);
-
-    const sortedMonths = Array.from(new Set(allHistoryData.map(d => d.id.substring(0, 7)))).sort((a, b) => b.localeCompare(a));
-    const currentIndex = sortedMonths.indexOf(monthKey);
-    const prevMonthKey = (currentIndex > -1 && currentIndex + 1 < sortedMonths.length) ? sortedMonths[currentIndex + 1] : null;
-    const prevMonthDays = prevMonthKey ? allHistoryData.filter(d => d.id.substring(0, 7) === prevMonthKey) : [];
+    const currentMonthDays = periodDaysOf('month', monthKey, allHistoryData);
+    // 전기 = 직전 같은 단위 달력 기간(운영 지표 표준). 예전엔 목록에서 바로 앞 기간 키였다(빈 기간을 건너뛰었다).
+    const { key: prevMonthKey, days: prevMonthDays } = previousPeriodOf('month', monthKey, allHistoryData);
 
     const { wageMap, memberToPartMap } = _prepareReportData(currentMonthDays, prevMonthDays, appConfig);
 
@@ -221,9 +209,6 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
     const prevKPIs = calculateReportKPIs(prevData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(prevData, appConfig, wageMap, memberToPartMap);
 
-    todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentMonthDays, appConfig, wageMap);
-    prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevMonthDays, appConfig, wageMap);
-
     const todayAvgStaff = calculateAverageStaffing(currentMonthDays);
     const prevAvgStaff = calculateAverageStaffing(prevMonthDays);
 
@@ -234,16 +219,15 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
     });
 
-    // 🌟 [수정] 해당 기간(월간)만의 평균 속도 산출
-    const todayThroughputs = calculatePeriodThroughputs(currentMonthDays);
-    const prevThroughputs = calculatePeriodThroughputs(prevMonthDays);
+    const speeds = _baselineSpeeds(allHistoryData, lastDayIdOf(currentMonthDays));
+    const todayStaffing = calculateAdvancedProductivity(currentMonthDays, todayAggr, speeds, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevMonthDays, prevAggr, speeds, appConfig, wageMap);
+    _applyOpsStaff(todayKPIs, todayStaffing);
+    _applyOpsStaff(prevKPIs, prevStaffing);
 
-    const todayStaffing = calculateAdvancedProductivity(currentMonthDays, todayAggr, todayThroughputs, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity(prevMonthDays, prevAggr, prevThroughputs, appConfig, wageMap);
-
-    context.monthlyRevenues = context.monthlyRevenues || {};
-    const currentRevenue = context.monthlyRevenues[monthKey] || 0;
-    const prevRevenue = prevMonthKey ? (context.monthlyRevenues[prevMonthKey] || 0) : 0;
+    // 매출 = 그 달 경영지표 채널 합계(revenueTotalOf). 예전 context.monthlyRevenues 는 어디서도 채우지 않아 늘 0 이었다.
+    const currentRevenue = todayData.management.revenue || 0;
+    const prevRevenue = prevMonthKey ? (prevData.management.revenue || 0) : 0;
 
     const revenueAnalysis = analyzeRevenueBasedStaffing(
         currentRevenue,
@@ -270,7 +254,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         tData: { raw: todayData, memberToPartMap, revenue: currentRevenue },
         tMetrics: { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing, revenueAnalysis, revenueTrend: revenueTrendAnalysis },
         pMetrics: { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
-        standardThroughputs: todayThroughputs
+        standardThroughputs: speeds
     };
 
     renderGenericReport(
@@ -284,7 +268,7 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         '월',
         prevRevenue,
         benchmarkOEE,
-        todayThroughputs
+        speeds
     );
 };
 
@@ -296,12 +280,9 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
 
     context.currentReportParams = { yearKey, allHistoryData, appConfig };
 
-    const currentYearDays = allHistoryData.filter(d => d.id.substring(0, 4) === yearKey);
-
-    const sortedYears = Array.from(new Set(allHistoryData.map(d => d.id.substring(0, 4)))).sort((a, b) => b.localeCompare(a));
-    const currentIndex = sortedYears.indexOf(yearKey);
-    const prevYearKey = (currentIndex > -1 && currentIndex + 1 < sortedYears.length) ? sortedYears[currentIndex + 1] : null;
-    const prevYearDays = prevYearKey ? allHistoryData.filter(d => d.id.substring(0, 4) === prevYearKey) : [];
+    const currentYearDays = periodDaysOf('year', yearKey, allHistoryData);
+    // 전기 = 직전 같은 단위 달력 기간(운영 지표 표준). 예전엔 목록에서 바로 앞 기간 키였다(빈 기간을 건너뛰었다).
+    const { key: prevYearKey, days: prevYearDays } = previousPeriodOf('year', yearKey, allHistoryData);
 
     const { wageMap, memberToPartMap } = _prepareReportData(currentYearDays, prevYearDays, appConfig);
 
@@ -313,9 +294,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
     const prevKPIs = calculateReportKPIs(prevData, appConfig, wageMap);
     const prevAggr = calculateReportAggregations(prevData, appConfig, wageMap, memberToPartMap);
 
-    todayKPIs.activeMembersCount = _calculateAverageActiveMembers(currentYearDays, appConfig, wageMap);
-    prevKPIs.activeMembersCount = _calculateAverageActiveMembers(prevYearDays, appConfig, wageMap);
-
     const todayAvgStaff = calculateAverageStaffing(currentYearDays);
     const prevAvgStaff = calculateAverageStaffing(prevYearDays);
 
@@ -326,12 +304,11 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
     });
 
-    // 🌟 [수정] 해당 기간(연간)만의 평균 속도 산출
-    const todayThroughputs = calculatePeriodThroughputs(currentYearDays);
-    const prevThroughputs = calculatePeriodThroughputs(prevYearDays);
-
-    const todayStaffing = calculateAdvancedProductivity(currentYearDays, todayAggr, todayThroughputs, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity(prevYearDays, prevAggr, prevThroughputs, appConfig, wageMap);
+    const speeds = _baselineSpeeds(allHistoryData, lastDayIdOf(currentYearDays));
+    const todayStaffing = calculateAdvancedProductivity(currentYearDays, todayAggr, speeds, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevYearDays, prevAggr, speeds, appConfig, wageMap);
+    _applyOpsStaff(todayKPIs, todayStaffing);
+    _applyOpsStaff(prevKPIs, prevStaffing);
 
     const sortState = context.reportSortState || {};
 
@@ -341,7 +318,7 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         tData: { raw: todayData, memberToPartMap },
         tMetrics: { kpis: todayKPIs, aggr: todayAggr, staffing: todayStaffing },
         pMetrics: { kpis: prevKPIs, aggr: prevAggr, staffing: prevStaffing },
-        standardThroughputs: todayThroughputs
+        standardThroughputs: speeds
     };
 
     renderGenericReport(
@@ -355,6 +332,6 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context) 
         '연도',
         0,
         null,
-        todayThroughputs
+        speeds
     );
 };
