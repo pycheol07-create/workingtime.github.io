@@ -1,135 +1,154 @@
 // === js/ui-ops-plan.js ===
-// 📋 운영 리포트 '운영 계획' 탭(MVP-1 주간 계획서, 2026-11-05) — 입력 모으기 + 그리기.
-//   숫자는 js/lib/plan-build.js buildWeekPlan 한 번. 수요·공급은 업무 예상 엔진(getStaffingOutlook, from·until)을 그대로 써서
-//   인력 탭 '앞으로 인원 수급' 표와 같은 필요·가용·과부족이 나온다. 지난주 실적·최근 4주 기록 누락은 운영 리포트 모델(buildOpsModel).
-//   기간은 '다음 주 월~일' 고정(날짜 트리 숨김 — js/lib/ops-report-route.js isOpsTreeless). [주간]만, 월간·연간은 준비 중.
-//   저장 없음(Firestore 쓰기 없음 — 확정은 MVP-2). 액션 완료 체크만 이 브라우저 localStorage(키 = 액션 key).
-//   [인쇄/PDF] = 지금 보이는 계획서를 body 바로 밑 사본(#ops-plan-print)으로 옮겨 브라우저 인쇄(PDF 저장은 인쇄 창에서).
-// 금액·직원 이름 없음 — 휴무는 '수'만 받는다. 콘솔에도 이름·금액을 찍지 않는다.
+// 📋 운영 리포트 '운영 계획' 탭 — 주간(MVP-1, 2026-11-05) + 목표·확정·계획 대비 실적·월간(MVP-2, 2026-11-05).
+//   주간: js/lib/plan-build.js buildWeekPlan. 수요·공급은 업무 예상 엔진(getStaffingOutlook, from·until) 그대로 →
+//     인력 탭 '앞으로 인원 수급' 표와 같은 필요·가용·과부족. 지난주 실적·최근 4주 기록 누락은 운영 리포트 모델(buildOpsModel).
+//   월간: js/ui-ops-plan-month.js(→ js/lib/plan-month.js). [주간 | 월간] 활성, 연간은 준비 중.
+//   목표: js/ui-ops-plan-targets.js(카드 + 설정 창). 기본 제안 = 최근 8주 평소(js/lib/plan-targets.js).
+//   확정: 관리자만 [계획 확정] → OpsPlan/{week|month}_{기간} (version + 1, js/ops-plan-store.js). 확정본이 있으면 과제 체크는 확정본(done)에,
+//     없으면 이 브라우저 localStorage(키 = 과제 key). 지난 기간 확정본이 있으면 맨 위 '지난 계획 대비 실적'(js/lib/plan-compare.js).
+//   기간은 다음 주 월~일 / 다음 달 고정(날짜 트리 숨김 — js/lib/ops-report-route.js isOpsTreeless).
+//   [인쇄/PDF] = 지금 보이는 계획서를 body 바로 밑 사본(#ops-plan-print)으로 옮겨 브라우저 인쇄.
+// 금액·직원 이름 없음 — 휴무는 '수'만 받는다. 콘솔에도 이름·금액·문서 본문을 찍지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자).
 
-import * as State from './state.js?v=202611051332';
-import { escapeHtml as esc, getTodayDateString, getWeekOfYear } from './utils.js?v=202611051332';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051332';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051332';
-import { taskNameOf } from './lib/task-ids.js?v=202611051332';
-import { buildWeekPlan } from './lib/plan-build.js?v=202611051332';
-import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051332';
-import { getStaffingOutlook, ensureMibalHistory, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611051332';
-import { fetchPlannedData } from './history-data-manager.js?v=202611051332';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051332';
+import * as State from './state.js?v=202611051401';
+import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611051401';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051401';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051401';
+import { taskNameOf } from './lib/task-ids.js?v=202611051401';
+import { buildWeekPlan } from './lib/plan-build.js?v=202611051401';
+import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051401';
+import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611051401';
+import { planDocId, confirmDocOf, planVsActual } from './lib/plan-compare.js?v=202611051401';
+import { getStaffingOutlook, ensureMibalHistory, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611051401';
+import { fetchPlannedData } from './history-data-manager.js?v=202611051401';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051401';
+import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611051401';
+import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611051401';
+import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611051401';
+import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611051401';
 
 const $ = (id) => document.getElementById(id);
-const ok = (v) => v != null && isFinite(v);
-const n0 = (v) => (ok(v) ? Math.round(v).toLocaleString() : '—');
-const n1 = (v) => (ok(v) ? (Math.round(v * 10) / 10).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—');
-const pct0 = (v) => (ok(v) ? `${Math.round(v * 100)}%` : '—');
-const fmtDay = (id) => {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(id || ''));
-    if (!m) return esc(id || '');
-    const w = '일월화수목금토'[new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay()];
-    return `${Number(m[2])}/${Number(m[3])}(${w})`;
-};
-const card = (title, body, hint = '') => `<div class="opv-card">
-    <div class="opv-card-head"><h4 class="opv-h">${esc(title)}</h4>${hint ? `<span class="opv-note">${hint}</span>` : ''}</div>
-    ${body}
-</div>`;
-const kpi = (label, value, unit = '', sub = '') => `<div class="opv-kpi">
-    <div class="opv-kpi-label">${esc(label)}</div>
-    <div class="opv-kpi-value">${value}${value === '—' || !unit ? '' : `<span class="opv-kpi-unit">${esc(unit)}</span>`}</div>
-    ${sub ? `<div class="opv-note">${sub}</div>` : ''}
-</div>`;
+const isAdmin = () => !!(State.appState && State.appState.currentUserRole === 'admin');
 
-// ── 캐시(기간·이력 길이·예정 물량 수·권한) ───────────────────────────
-let cache = null;          // { sig, plan }
+// ── 상태·캐시 ─────────────────────────────────────────────────────
+let horizon = 'week';      // 'week' | 'month'
+let cache = null;          // { sig, models, week, month? }
 let token = 0;             // 늦게 끝난 앞 요청이 새 화면을 덮지 않게
 let loaded = false;        // 예정 물량·미발 이력을 한 번 기다렸나
+let lastCtx = {};
+const docErr = new Map();  // 문서 id → 오류 코드(권한 없음 등)
 export function invalidateOpsPlan() { cache = null; }
 
-// 예정 물량 합 — 같은 날 수를 고쳐도(건수는 그대로) 캐시가 바뀌게
 const plannedSum = () => (State.plannedData || []).reduce((t, d) => t + Object.values((d && d.plannedQuantities) || {}).reduce((a, v) => a + (Number(v) || 0), 0), 0);
 const sigOf = (from, ctx) => `${from}|${(State.allHistoryData || []).length}|${(State.plannedData || []).length}|${plannedSum()}|${ctx && ctx.canAnalysis === false ? 0 : 1}|${loaded ? 1 : 0}`;
 
-/** 입력 모으기 → buildWeekPlan. DOM 을 읽지 않는다. */
-function computePlan(today) {
+const mondayOf = (id) => { const w = new Date(`${id}T00:00:00`).getDay(); return addDaysStr(id, -((w + 6) % 7)); };
+
+/** 운영 리포트 모델 묶음 — 최근 4주·그 앞 4주·최근 8주·지난주. 주간·월간·목표가 같이 쓴다. */
+function computeModels(today) {
+    const cfg = State.appConfig || {};
+    const view = aliasHistoryView(State.allHistoryData || [], cfg) || [];
+    const span = (from, to) => view.filter(d => d && typeof d.id === 'string' && d.id >= from && d.id < to);
+    const mk = (days) => (days.length ? buildOpsModel({ days, allDays: view, ownerDays: false, cfg, today, canCost: false }) : null);
+    const recentModel = mk(span(addDaysStr(today, -28), today));
+    const prevModel = mk(span(addDaysStr(today, -56), addDaysStr(today, -28)));
+    const baseModel = mk(span(addDaysStr(today, -56), today));
+    const lastMon = addDaysStr(mondayOf(today), -7);
+    const inp = opsModelInputs('week', getWeekOfYear(new Date(`${lastMon}T00:00:00`)), view);
+    const lastWeekModel = (inp.days || []).length ? buildOpsModel({ ...inp, allDays: view, ownerDays: false, cfg, today, canCost: false }) : null;
+    return { view, recentModel, prevModel, baseModel, lastWeekModel, lastMon };
+}
+
+/** 주간 계획 — 입력 모으기 → buildWeekPlan. DOM 을 읽지 않는다. */
+function computeWeek(today, models) {
     const cfg = State.appConfig || {};
     const range = nextWeekRange(today);
     const S = planSettingsOf(cfg);
     const prepNames = S.prepTaskIds.map(id => taskNameOf(id, cfg)).filter(Boolean);
-    // 업무 예상 엔진 — 다음 주 월~일 업무일만(휴일 행은 엔진이 버림). 업무 이름은 지금 이름으로.
     const outlookRows = (getStaffingOutlook(7, { from: range.from, until: range.to }) || []).map(r => {
         const th = {};
         Object.entries(r.taskHours || {}).forEach(([k, v]) => { const nk = aliasTaskName(k, cfg) || k; th[nk] = (th[nk] || 0) + (Number(v) || 0); });
         return { ...r, taskHours: th };
     });
-    const view = aliasHistoryView(State.allHistoryData || [], cfg) || [];
-    // 최근 4주(오늘 제외) — 기록 누락·요일별 부족
-    const from28 = addDaysStr(today, -28);
-    const recentDays = view.filter(d => d && typeof d.id === 'string' && d.id >= from28 && d.id < today);
-    const recentModel = recentDays.length
-        ? buildOpsModel({ days: recentDays, allDays: view, ownerDays: false, cfg, today, canCost: false }) : null;
-    // 지난주(이번 주 바로 앞의 끝난 주, 월~일)
-    const t = new Date(`${today}T00:00:00`);
-    t.setDate(t.getDate() - ((t.getDay() + 6) % 7) - 7);
-    const lastKey = getWeekOfYear(t);
-    const inp = opsModelInputs('week', lastKey, view);
-    const lastWeekModel = (inp.days || []).length
-        ? buildOpsModel({ ...inp, allDays: view, ownerDays: false, cfg, today, canCost: false }) : null;
     return buildWeekPlan({
         today, range, outlookRows, cfg, prepNames,
         afterHoliday: precedingHolidayNameOf,
-        recentModel, lastWeekModel, accuracyErr: getLoadedAccuracyHourErr()
+        recentModel: models.recentModel, lastWeekModel: models.lastWeekModel, accuracyErr: getLoadedAccuracyHourErr()
     });
 }
+
+/** 이번 화면의 기간 정보 — { periodKey, id(확정본), prevId(지난 기간), prevLabel, prevDays(실제 하루 문서) } */
+function periodOf(p, models) {
+    if (horizon === 'month') {
+        const lk = lastMonthKeyOf(p.meta.today);
+        return {
+            periodKey: p.meta.key, id: planDocId('month', p.meta.key), prevId: lk ? planDocId('month', lk) : null,
+            prevLabel: lk ? `지난달(${lk})` : '', prevDays: () => models.view.filter(d => d && typeof d.id === 'string' && lk && d.id.startsWith(lk + '-'))
+        };
+    }
+    const lm = models.lastMon;
+    return {
+        periodKey: p.meta.from, id: planDocId('week', p.meta.from), prevId: planDocId('week', lm),
+        prevLabel: `지난주(${fmtDay(lm)}~${fmtDay(addDaysStr(lm, 6))})`,
+        prevDays: () => models.view.filter(d => d && typeof d.id === 'string' && d.id >= lm && d.id <= addDaysStr(lm, 6))
+    };
+}
+
+// ── 원격 문서(목표·확정본) — 읽고 나면 다시 그린다 ─────────────────────
+function want(id) {
+    if (!id || peekPlanDoc(id) !== undefined || docErr.has(id)) return;
+    docErr.set(id, 'loading');
+    loadPlanDoc(id).then(() => { docErr.delete(id); repaint(); })
+        .catch(err => { docErr.set(id, (err && err.code) || 'error'); console.warn('운영 계획 문서 읽기 실패:', id, err && err.code); repaint(); });
+}
+const docOf = (id) => { const v = peekPlanDoc(id); return v === undefined ? null : v; };
+const docState = (id) => (docErr.has(id) ? docErr.get(id) : peekPlanDoc(id) === undefined ? 'loading' : 'ok');
 
 // ── 그리기 ────────────────────────────────────────────────────────
 const CONF_CHIP = { high: 'is-ok', mid: 'is-warn', low: 'is-risk' };
 
-function headHtml(p) {
+function headHtml(p, per, confirmed) {
     const c = p.meta.confidence;
+    const range = horizon === 'month' ? `다음 달 ${fmtDay(p.meta.from)} ~ ${fmtDay(p.meta.to)}` : `다음 주 ${fmtDay(p.meta.from)} ~ ${fmtDay(p.meta.to)}`;
+    const st = docState(per.id);
+    const conf = st === 'loading' ? '확정본 확인 중…'
+        : st !== 'ok' ? '확정본을 읽지 못했습니다(권한 또는 연결)'
+            : confirmed ? `확정본 v${confirmed.version}${confirmed.confirmedAt && confirmed.confirmedAt.toDate ? ` · ${fmtDay(ymd(confirmed.confirmedAt.toDate()))} 확정` : ''} — 아래는 지금 다시 계산한 값입니다`
+                : '아직 확정하지 않은 미리보기입니다';
+    const confBtn = isAdmin()
+        ? `<button type="button" id="ops-plan-confirm-btn" class="ops-make-btn opp-noprint" title="지금 계획을 확정본으로 저장합니다(다시 확정하면 버전 + 1)">${confirmed ? `다시 확정(v${(confirmed.version || 0) + 1})` : '계획 확정'}</button>` : '';
+    const confNote = c.planned != null ? `예정 물량을 넣은 업무일 ${c.planned}/${c.workdays}일(60% 이상 높음 · 30% 이상 보통)`
+        : `최근 8주 운영일 ${c.opDays}/${c.possibleDays}일 · 계절 비율 ${c.seasonUsed ? '사용' : '없음'}(업무일의 90% 이상 기록 + 계절 비율 = 보통)`;
     return `<div class="opp-head">
         <div class="ops-tabs opp-gran" aria-label="계획 기간">
-            <button type="button" class="ops-tab is-on" aria-pressed="true">주간</button>
-            <button type="button" class="ops-tab" disabled title="준비 중">월간 · 준비 중</button>
+            <button type="button" class="ops-tab${horizon === 'week' ? ' is-on' : ''}" data-plan-horizon="week" aria-pressed="${horizon === 'week'}">주간</button>
+            <button type="button" class="ops-tab${horizon === 'month' ? ' is-on' : ''}" data-plan-horizon="month" aria-pressed="${horizon === 'month'}">월간</button>
             <button type="button" class="ops-tab" disabled title="준비 중">연간 · 준비 중</button>
         </div>
-        <span class="opv-note">다음 주 ${fmtDay(p.meta.from)} ~ ${fmtDay(p.meta.to)} · 저장하지 않는 미리보기입니다</span>
-        <button type="button" id="ops-plan-print-btn" class="opv-btn opp-noprint" title="지금 보이는 계획서를 인쇄합니다(인쇄 창에서 PDF 로 저장 가능)">인쇄 / PDF</button>
+        <span class="opv-note">${range} · ${esc(conf)}</span>
+        <span class="opp-head-btns">${confBtn}<button type="button" id="ops-plan-print-btn" class="opv-btn opp-noprint" title="지금 보이는 계획서를 인쇄합니다(인쇄 창에서 PDF 로 저장 가능)">인쇄 / PDF</button></span>
     </div>
     <div class="opp-conf">
         <span class="opv-chip ${CONF_CHIP[c.level] || ''}">신뢰도 ${esc(c.label)}</span>
-        <span class="opv-note">예정 물량을 넣은 업무일 ${c.planned}/${c.workdays}일(60% 이상 높음 · 30% 이상 보통)</span>
-    </div>
-    ${card('요약', `<ul class="opv-diag">${p.summary.map(s => `<li><span class="opv-dot"></span><span>${esc(s)}</span></li>`).join('')}</ul>`)}`;
+        <span class="opv-note">${esc(confNote)}</span>
+    </div>`;
 }
-
-function fillText(f) {
-    const out = [];
-    if (f.prep > 0) out.push(`선처리 ${n1(f.prep)}h`);
-    if (f.overtime > 0) out.push(`연장 ${n1(f.overtime)}h (1인 ${n1(f.overtimePerPerson)}h)`);
-    if (f.tempPeople > 0) out.push(`알바 ${f.tempPeople}명`);
-    return out.join(' · ');
-}
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const summaryHtml = (p) => card('요약', `<ul class="opv-diag">${p.summary.map(s => `<li><span class="opv-dot"></span><span>${esc(s)}</span></li>`).join('')}</ul>`);
 
 function daysHtml(p) {
     const rows = p.days.map(d => {
-        if (!d.workday) {
-            return `<tr class="opp-off"><td>${fmtDay(d.date)}</td><td colspan="8" class="opv-note">${d.holiday ? esc(d.holidayName || '공휴일') : '주말'} — 쉬는 날</td></tr>`;
-        }
-        if (!d.hasRow || d.failed) {
-            return `<tr><td>${fmtDay(d.date)}</td><td colspan="8" class="opv-note">${d.failed ? '업무 예상 계산에 실패했습니다' : '업무 예상 범위 밖이라 숫자가 없습니다'}</td></tr>`;
-        }
+        if (!d.workday) return `<tr class="opp-off"><td>${fmtDay(d.date)}</td><td colspan="8" class="opv-note">${d.holiday ? esc(d.holidayName || '공휴일') : '주말'} — 쉬는 날</td></tr>`;
+        if (!d.hasRow || d.failed) return `<tr><td>${fmtDay(d.date)}</td><td colspan="8" class="opv-note">${d.failed ? '업무 예상 계산에 실패했습니다' : '업무 예상 범위 밖이라 숫자가 없습니다'}</td></tr>`;
         const short = d.gap < 0;
         const gapTxt = d.gap === 0 ? '적정' : d.gap > 0 ? `+${d.gap}명` : `${d.gap}명`;
         const use = d.spareFTE > 0 ? `${d.recommend}명 <span class="opv-note">(교육·정리 ${d.spareFTE}명)</span>` : `${d.recommend}명`;
         return `<tr class="${short ? 'is-short' : ''}">
-            <td>${fmtDay(d.date)}</td>
-            <td class="r">${n1(d.demandHours)}</td>
-            <td class="r">${n1(d.reqFTE)}</td>
+            <td>${fmtDay(d.date)}</td><td class="r">${n1(d.demandHours)}</td><td class="r">${n1(d.reqFTE)}</td>
             <td class="r">${d.supplyFTE}명${d.leaveCount ? ` <span class="opv-note">(휴무 ${d.leaveCount})</span>` : ''}</td>
             <td class="r"><b class="${short ? 'opv-down' : d.gap > 0 ? 'opv-up' : 'opv-flat'}">${gapTxt}</b></td>
-            <td class="r">${pct0(d.fillRate)}</td>
-            <td class="r">${use}</td>
+            <td class="r">${pct0(d.fillRate)}</td><td class="r">${use}</td>
             <td>${short ? esc(fillText(d.fill)) || '—' : '—'}</td>
             <td><span class="opv-chip ${d.hasPlanned ? 'is-warn' : ''}" title="${d.hasPlanned ? '저장해 둔 예정 물량으로 계산' : '예정 물량이 없어 실적 기반 추정'}">${d.hasPlanned ? '예정' : '추정'}</span></td>
         </tr>`;
@@ -142,8 +161,7 @@ function daysHtml(p) {
 }
 
 function fillTotalsHtml(p) {
-    const T = p.fillTotals;
-    const S = p.meta.settings;
+    const T = p.fillTotals, S = p.meta.settings;
     return card('부족 메우기 합계', `<div class="opv-kpis">
         ${kpi('부족 합계', n1(T.need), '시간')}
         ${kpi('① 전날 선처리', n1(T.prep), '시간', '준비 기간 0일')}
@@ -153,21 +171,6 @@ function fillTotalsHtml(p) {
     <p class="opv-note opp-law">${esc(OVERTIME_LAW_NOTE)}</p>
     <p class="opv-note">지금 기준: 1인 하루 연장 ${n1(S.overtimeDailyMax)}시간 · 주 ${n1(S.overtimeWeeklyMax)}시간, 알바 1인일 ${n1(S.stdHours)}시간 · 요청 후 ${n0(S.tempLeadDays)}일(설정 화면은 준비 중 — 기본값).</p>`,
     '순서: 선처리 → 연장 → 알바 · 시간·인원만');
-}
-
-const doneOf = (key) => { try { return localStorage.getItem(key) === '1'; } catch (e) { return false; } };
-
-function actionsHtml(p) {
-    if (!p.actions.length) return card('할 일', '<p class="opv-note">다음 주에 따로 준비할 일이 없습니다.</p>');
-    const items = p.actions.map(a => {
-        const done = doneOf(a.key);
-        return `<li class="opp-act${done ? ' is-done' : ''}">
-            <label class="opp-act-check"><input type="checkbox" data-plan-done="${esc(a.key)}"${done ? ' checked' : ''}> <span class="opp-act-title">${esc(a.title)}</span></label>
-            <div class="opv-note">근거: ${esc(a.basis)}</div>
-            <div class="opv-note">기대 효과: ${esc(a.effect)} · 기한 ${a.due ? fmtDay(a.due) : '—'} · 담당 ${esc(a.role)} · ${esc(a.rule)}</div>
-        </li>`;
-    }).join('');
-    return card('할 일 (우선순위)', `<ol class="opp-acts">${items}</ol>`, '점수 = 영향 시간 × 신뢰도 × 급함 · 체크는 이 브라우저에만 남습니다');
 }
 
 const notesLine = (p) => ((p.meta.notes || []).length ? `<p class="opv-note">${p.meta.notes.map(esc).join(' ')}</p>` : '');
@@ -183,7 +186,7 @@ function risksHtml(p) {
 }
 
 const ST_TXT = { off: ['', '쉼'], none: ['', '—'], short: ['is-risk', '부족'], spare: ['is-ok', '여유'], ok: ['', '적정'] };
-function meetingHtml(p) {
+function meetingHtml(p, prevCmp) {
     const M = p.meeting;
     const L = M.lastWeek;
     const last = L ? `<p class="opv-note">${fmtDay(L.from)} ~ ${fmtDay(L.to)} · 운영일 ${L.operatingDays}일</p><div class="opv-kpis">
@@ -192,6 +195,8 @@ function meetingHtml(p) {
         ${kpi('UPH', n1(L.uph), '개/시')}
         ${kpi('OEE', n1(L.oee), '%')}
     </div>` : '<p class="opv-note">지난주 기록이 없습니다.</p>';
+    const vs = prevCmp ? `<p class="opv-note opp-gap"><b>지난주 계획 대비</b> — 확정본 v${prevCmp.summary.version}: 필요 인원 오차 ${ok(prevCmp.summary.reqErrPct) ? signed1(prevCmp.summary.reqErrPct) + '%' : '—'} · 부족한 날 계획 ${prevCmp.summary.planShortDays}일 / 실제 ${prevCmp.summary.actualShortDays}일 · 지킨 과제 ${prevCmp.summary.actionsDone}/${prevCmp.summary.actionsTotal}</p>`
+        : '<p class="opv-note opp-gap">지난주 확정본이 없어 계획 대비 실적은 비웁니다.</p>';
     const week = `<div class="opp-week">${M.week.map(w => {
         const [cls, txt] = ST_TXT[w.status] || ['', ''];
         const extra = w.status === 'short' ? ` ${w.gap}명` : w.status === 'spare' ? ` +${w.spareFTE}명` : '';
@@ -202,7 +207,7 @@ function meetingHtml(p) {
     const top = M.topRisks.length ? `<ul class="opv-diag">${M.topRisks.map(r => `<li><span class="opv-dot is-warn"></span><span>${esc(r.title)} <span class="opv-note">— ${esc(r.response)} (${esc(r.owner)})</span></span></li>`).join('')}</ul>`
         : '<p class="opv-note">없음</p>';
     const sch = `<ul class="opv-diag">${M.schedule.map(s => `<li><span class="opv-dot"></span><span><b>${esc(s.when)}</b> ${esc(s.what)}</span></li>`).join('')}</ul>`;
-    return card('주간 회의 자료', `<div class="opv-sub-title">지난주 실적</div>${last}
+    return card('주간 회의 자료', `<div class="opv-sub-title">지난주 실적</div>${last}${vs}
         <div class="opv-sub-title opp-gap">다음 주 날짜별</div>${week}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 opp-gap">
             <div><div class="opv-sub-title">결정할 것</div>${dec}</div>
@@ -211,24 +216,68 @@ function meetingHtml(p) {
         </div>`);
 }
 
-function basisHtml(p) {
-    return `<p class="opv-note">${p.meta.basis.map(esc).join(' · ')}</p>`;
+const basisHtml = (p) => `<p class="opv-note">${p.meta.basis.map(esc).join(' · ')}</p>`;
+
+/** 목표 카드 입력 — 현재(최근 8주 평소, 충족률은 이 계획 예측)·목표(저장/제안)·차이 환산 맥락 */
+function targetsBlock(p, per, models) {
+    const base = baselineOf(models.baseModel);
+    const defaults = defaultTargets(base);
+    const tDoc = docOf('targets');
+    const { targets, src } = targetsFor(tDoc, horizon, per.periodKey, defaults);
+    const work = p.days.filter(d => d.workday && d.hasRow);
+    const fr = work.map(d => d.fillRate).filter(v => v != null);
+    const cur = { ...base, fillRate: fr.length ? (fr.reduce((a, b) => a + b, 0) / fr.length) * 100 : null };
+    const qty = (base.qtyPerDay || 0) * work.length;
+    const workHours = work.reduce((t, d) => t + d.supplyFTE * (d.hoursPerPerson || 8), 0);
+    const rows = gapRows(cur, targets, { qty, workHours, shortToTarget: shortToTargetHours(work, targets.fillRate) });
+    const st = docState('targets');
+    const note = st === 'loading' ? '저장된 목표를 확인하는 중…' : st !== 'ok' ? '저장된 목표를 읽지 못해 제안값으로 보입니다.' : (tDoc ? '' : '저장된 목표가 없어 제안값(최근 8주 평소 기준)으로 보입니다.');
+    return { html: targetsCardHtml(rows, src, { note, isAdmin: isAdmin() }), targets, defaults, tDoc };
 }
 
-function paint(host, p) {
+let view = null;   // 마지막으로 그린 것 { p, per, confirmed, targets, defaults, tDoc }
+
+function paint(host) {
+    const c = cache;
+    const p = horizon === 'month' ? c.month : c.week;
+    const per = periodOf(p, c.models);
+    want('targets'); want(per.id); want(per.prevId);
+    const confirmed = docOf(per.id);
+    const prev = docOf(per.prevId);
+    let prevCmp = null;
+    if (prev) {
+        const ds = per.prevDays();
+        const m = ds.length ? buildOpsModel({ days: ds, allDays: c.models.view, ownerDays: false, cfg: State.appConfig || {}, today: p.meta.today, canCost: false }) : null;
+        prevCmp = planVsActual(prev, m ? m.staffDays : []);
+    }
+    const T = targetsBlock(p, per, c.models);
+    view = { p, per, confirmed, targets: T.targets, defaults: T.defaults, tDoc: T.tDoc };
+    const mode = confirmed ? (isAdmin() ? 'doc' : 'view') : 'local';
+    const doneMap = confirmed ? (confirmed.done || {}) : null;
+    const done = (k) => (doneMap ? doneMap[k] === true : localDone(k));
+    const body = horizon === 'month'
+        ? `${monthBodyHtml(p)}${actionsHtml(p.actions, { done, mode, title: '월간 과제 (우선순위)', empty: '다음 달에 따로 준비할 일이 없습니다.' })}`
+        : `${daysHtml(p)}${fillTotalsHtml(p)}${actionsHtml(p.actions, { done, mode, empty: '다음 주에 따로 준비할 일이 없습니다.' })}${risksHtml(p)}${meetingHtml(p, prevCmp)}`;
     host.innerHTML = `<div id="ops-plan-sheet" class="opv-stack">
-        ${headHtml(p)}
-        ${daysHtml(p)}
-        ${fillTotalsHtml(p)}
-        ${actionsHtml(p)}
-        ${risksHtml(p)}
-        ${meetingHtml(p)}
+        ${headHtml(p, per, confirmed)}
+        ${prevCmp ? compareCardHtml(prevCmp, per.prevLabel) : ''}
+        ${summaryHtml(p)}
+        ${T.html}
+        ${body}
         ${basisHtml(p)}
     </div>`;
 }
 
+function repaint() {
+    const host = $('ops-plan-body');
+    if (!host || !cache || !document.getElementById('ops-plan-sheet')) return;
+    if (horizon === 'month' && !cache.month) return;
+    try { paint(host); } catch (err) { console.error('운영 계획 그리기 실패:', err && err.message); }
+}
+
 /** 운영 계획 탭 그리기 — js/ui-history-ops-report.js renderTab('plan'). ctx = { canAnalysis } */
-export function renderOpsPlan(ctx = {}) {
+export function renderOpsPlan(ctx = lastCtx) {
+    lastCtx = ctx || {};
     bindOnce();
     const host = $('ops-plan-body');
     if (!host) return;
@@ -237,16 +286,19 @@ export function renderOpsPlan(ctx = {}) {
     const my = ++token;
     const draw = () => {
         if (my !== token) return;
-        const sig = sigOf(range.from, ctx);
-        if (!cache || cache.sig !== sig) {
-            try { cache = { sig, plan: computePlan(today) }; }
-            catch (err) {
-                console.error('운영 계획 계산 실패:', err && err.message);
-                host.innerHTML = '<div class="opv-empty">운영 계획을 계산하지 못했습니다. 새로고침 후 다시 시도해 주세요.</div>';
-                return;
+        const sig = sigOf(range.from, lastCtx);
+        try {
+            if (!cache || cache.sig !== sig) {
+                const models = computeModels(today);
+                cache = { sig, models, week: computeWeek(today, models), month: null };
             }
+            if (horizon === 'month' && !cache.month) cache.month = computeMonthPlan(today, cache.models);
+        } catch (err) {
+            console.error('운영 계획 계산 실패:', err && err.message);
+            host.innerHTML = '<div class="opv-empty">운영 계획을 계산하지 못했습니다. 새로고침 후 다시 시도해 주세요.</div>';
+            return;
         }
-        paint(host, cache.plan);
+        paint(host);
     };
     if (!(State.allHistoryData || []).length) { host.innerHTML = '<div class="opv-empty">기록을 불러오는 중...</div>'; return; }
     if (loaded) { draw(); return; }
@@ -255,6 +307,65 @@ export function renderOpsPlan(ctx = {}) {
     Promise.all([fetchPlannedData(), ensureMibalHistory()])
         .catch(() => {})
         .then(() => { loaded = true; cache = null; draw(); });
+}
+
+// ── 완료 체크 ────────────────────────────────────────────────────
+const localDone = (key) => { try { return localStorage.getItem(key) === '1'; } catch (e) { return false; } };
+
+async function onDoneChange(cb) {
+    const key = cb.dataset.planDone;
+    const v = view;
+    if (v && v.confirmed) {
+        if (!isAdmin()) { cb.checked = !cb.checked; return; }
+        if (!(v.confirmed.actions || []).some(a => a.key === key)) {
+            showToast('이 과제는 확정할 때 없던 과제라 확정본에 저장되지 않습니다 — 다시 확정해 주세요.');
+            cb.checked = !cb.checked;
+            return;
+        }
+        cb.disabled = true;
+        try {
+            await saveDone(v.per.id, key, cb.checked);   // 칸 하나만 — 다른 체크를 덮지 않는다
+            await loadPlanDoc(v.per.id, { force: true });
+            repaint();
+        } catch (err) {
+            console.error('운영 계획 완료 체크 저장 실패:', err && err.code);
+            showToast('완료 체크를 저장하지 못했습니다.');
+            cb.checked = !cb.checked; cb.disabled = false;
+        }
+        return;
+    }
+    try { if (cb.checked) localStorage.setItem(key, '1'); else localStorage.removeItem(key); } catch (err) { /* 저장 못 해도 화면만 */ }
+    cb.closest('.opp-act')?.classList.toggle('is-done', cb.checked);
+}
+
+// ── 확정 ─────────────────────────────────────────────────────────
+let armTimer = null;
+async function onConfirm(btn) {
+    if (!isAdmin() || !view) return;
+    // 실수로 누르지 않게 두 번 누름(확인 창 대신 — role=dialog 를 쓰지 않는다)
+    if (!btn.dataset.armed) {
+        btn.dataset.armed = '1';
+        btn.dataset.label = btn.textContent;
+        btn.textContent = '한 번 더 누르면 확정합니다';
+        clearTimeout(armTimer);
+        armTimer = setTimeout(() => { if (btn.isConnected) { btn.textContent = btn.dataset.label; delete btn.dataset.armed; } }, 5000);
+        return;
+    }
+    clearTimeout(armTimer);
+    btn.disabled = true;
+    const { p, per, targets } = view;
+    try {
+        const body = confirmDocOf(p, { horizon, periodKey: per.periodKey, targets });
+        // 이 브라우저(localStorage)의 체크는 옮기지 않는다. 다시 확정이면 같은 과제의 확정본 체크만 이어받는다(ops-plan-store confirmPlan).
+        const ver = await confirmPlan(per.id, body);
+        await loadPlanDoc(per.id, { force: true });
+        showToast(`계획을 확정했습니다(v${ver}).`);
+        repaint();
+    } catch (err) {
+        console.error('운영 계획 확정 실패:', err && err.code);
+        showToast('계획을 확정하지 못했습니다(권한 또는 연결).');
+        btn.disabled = false;
+    }
 }
 
 // ── 인쇄 ─────────────────────────────────────────────────────────
@@ -266,8 +377,9 @@ function printPlan() {
     box = document.createElement('div');
     box.id = 'ops-plan-print';
     box.className = 'opp-print';
-    box.innerHTML = `<h1 class="opp-print-title">주간 운영 계획서</h1>${sheet.innerHTML}`;
+    box.innerHTML = `<h1 class="opp-print-title">${horizon === 'month' ? '월간' : '주간'} 운영 계획서</h1>${sheet.innerHTML}`;
     box.querySelectorAll('.opp-noprint, .opp-gran').forEach(el => el.remove());
+    box.querySelectorAll('details').forEach(el => { el.open = true; });
     box.querySelectorAll('input[type="checkbox"]').forEach(el => { el.disabled = true; });
     document.body.appendChild(box);
     document.documentElement.classList.add('opp-printing');
@@ -288,19 +400,30 @@ function bindOnce() {
     if (!panel) return;
     bound = true;
     panel.addEventListener('click', (e) => {
-        if (e.target.closest('#ops-plan-print-btn')) printPlan();
+        if (e.target.closest('#ops-plan-print-btn')) { printPlan(); return; }
+        const hb = e.target.closest('[data-plan-horizon]');
+        if (hb && !hb.disabled) {
+            const h = hb.dataset.planHorizon;
+            if (h !== horizon) { horizon = h; renderOpsPlan(); }
+            return;
+        }
+        const cbtn = e.target.closest('#ops-plan-confirm-btn');
+        if (cbtn) { onConfirm(cbtn); return; }
+        if (e.target.closest('#ops-plan-targets-open') && view) {
+            openTargetsEditor({ doc: view.tDoc, defaults: view.defaults, isAdmin: isAdmin(), onSaved: () => { loadPlanDoc('targets', { force: true }).then(repaint).catch(() => repaint()); } });
+        }
     });
     panel.addEventListener('change', (e) => {
         const cb = e.target.closest('input[data-plan-done]');
-        if (!cb) return;
-        const key = cb.dataset.planDone;
-        try { if (cb.checked) localStorage.setItem(key, '1'); else localStorage.removeItem(key); } catch (err) { /* 저장 못 해도 화면만 */ }
-        cb.closest('.opp-act')?.classList.toggle('is-done', cb.checked);
+        if (cb) onDoneChange(cb);
     });
-    // 휴무가 바뀌면 공급이 바뀐다 — 보이는 중이면 다시 그린다(읽기만)
+    // 휴무가 바뀌면 공급이 바뀐다 — 운영 계획 탭을 보는 중이면 다시 그린다(읽기만)
     onLeaveScheduleChanged('ops-plan', () => {
         cache = null;
         const c = State.context || {};
         if (c.activeHistoryView === 'ops' && c.activeOpsTab === 'plan' && !c.opsSettleOpen && !panel.classList.contains('hidden')) renderOpsPlan();
     });
 }
+
+/** 운영 계획을 떠날 때(다른 탭) — 목표 창을 닫는다 */
+export function leaveOpsPlan() { closeTargetsEditor(); }

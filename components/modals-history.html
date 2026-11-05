@@ -208,7 +208,11 @@
     @media (min-width: 768px) { #history-modal .opv-overlay-body { padding: 20px 24px; } }
     /* 📋 운영 계획 탭(js/ui-ops-plan.js) — d-theme 토큰. ⚠ .ops-pane 에 display 를 넣지 않는다. */
     #history-modal .opp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-    #history-modal .opp-head .opv-btn { margin-left: auto; }
+    #history-modal .opp-head-btns { margin-left: auto; display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    #history-modal .opp-head-btns .ops-make-btn { margin-left: 0; }
+    #history-modal .opp-inp { width: 100%; min-width: 72px; min-height: 30px; padding: 0 8px; border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); background: var(--c-surface); color: var(--c-text); font: inherit; font-size: 13px; text-align: right; }
+    #history-modal .opp-inp:disabled { opacity: .6; }
+    #history-modal .opp-inp:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; }
     #history-modal .opp-gran .ops-tab[disabled] { opacity: .55; cursor: default; }
     #history-modal .opp-conf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
     #history-modal .opp-law { margin-top: 10px; }
@@ -424,6 +428,16 @@
             <div id="ops-plan-panel" class="ops-pane hidden">
                 <div id="ops-plan-body" class="opv-stack"></div>
             </div>
+
+            <!-- 운영 계획 목표 설정(MVP-2) — 운영 계획 탭의 [목표 설정]/[목표 보기]가 겹쳐 띄운다(js/ui-ops-plan-targets.js). 저장은 관리자만.
+                 ⚠️ 모달 표식(role=dialog)을 달지 않는다(업무마감봇 선택자) — 보통 영역(section)이다. -->
+            <section id="ops-plan-targets" class="opv-overlay hidden" aria-labelledby="ops-plan-targets-title">
+                <div class="opv-overlay-head">
+                    <button type="button" id="ops-plan-targets-close" class="ops-link">&lsaquo; 돌아가기</button>
+                    <h3 id="ops-plan-targets-title" class="opv-overlay-title">운영 목표 — 주간 · 월간 · 연간</h3>
+                </div>
+                <div class="opv-overlay-body"><div id="ops-plan-targets-body" class="opv-stack"></div></div>
+            </section>
 
             <!-- 팀 결산 — [보고서 만들기](권한 data.reports). 화면에 보고서가 그대로 보이고, 받기는 위 줄의 [PDF 받기][엑셀 받기].
                  기간은 결산 화면의 월·분기·년 선택기(날짜 트리는 숨김). #settlement-panel 안은 js/ui-history-settlement.js 가 채운다(id 고정). -->
