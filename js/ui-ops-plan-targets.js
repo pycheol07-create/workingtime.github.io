@@ -4,16 +4,18 @@
 //   인건비율은 돈 단계에서 — 이 창에 칸이 없다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자) — 겹침 창은 보통 영역(section)이다.
 
-import { esc, n1, signed1, card, ok } from './ui-ops-plan-parts.js?v=202611051422';
-import { TARGET_FIELDS, HORIZONS, cleanTargetSet } from './lib/plan-targets.js?v=202611051422';
-import { saveTargets } from './ops-plan-store.js?v=202611051422';
-import { showToast } from './utils.js?v=202611051422';
-import { higherOpenThan } from './modal-above.js?v=202611051422';
+import { esc, n1, signed1, card, ok } from './ui-ops-plan-parts.js?v=202611051451';
+import { TARGET_FIELDS, ADMIN_TARGET_FIELDS, HORIZONS, cleanTargetSet } from './lib/plan-targets.js?v=202611051451';
+import { saveTargets } from './ops-plan-store.js?v=202611051451';
+import { showToast } from './utils.js?v=202611051451';
+import { higherOpenThan } from './modal-above.js?v=202611051451';
 
 const $ = (id) => document.getElementById(id);
 const SRC_TXT = { default: '제안', saved: '저장', override: '이 기간' };
 const H_LABEL = { week: '주간', month: '월간', year: '연간' };
-const F_LABEL = { qtyPerDay: '처리량(하루, 기준선)', uph: 'UPH(개/시)', oee: 'OEE(%)', fillRate: '인원 충족률(%)', effPct: '효율(%)' };
+const F_LABEL = { qtyPerDay: '처리량(하루, 기준선)', uph: 'UPH(개/시)', oee: 'OEE(%)', fillRate: '인원 충족률(%)', effPct: '효율(%)', laborRatio: '인건비율(%)' };
+// 인건비율은 관리자만 본다(확장-2)
+const fieldsFor = (isAdmin) => TARGET_FIELDS.filter(f => isAdmin || !ADMIN_TARGET_FIELDS.includes(f));
 
 /** 목표 카드 — rows = gapRows(...), src = targetsFor(...).src, note = 불러오기 상태 문구 */
 export function targetsCardHtml(rows, src, { note = '', isAdmin = false } = {}) {
@@ -35,13 +37,14 @@ let state = null;   // { doc, defaults, isAdmin, onSaved, returnFocus }
 
 function formHtml() {
     const { doc, defaults, isAdmin } = state;
-    const rows = HORIZONS.map(h => `<tr><td><b>${H_LABEL[h]}</b></td>${TARGET_FIELDS.map(f => {
+    const F = fieldsFor(isAdmin);
+    const rows = HORIZONS.map(h => `<tr><td><b>${H_LABEL[h]}</b></td>${F.map(f => {
         const saved = doc && doc[h] && ok(doc[h][f]) ? doc[h][f] : '';
         const ph = defaults && ok(defaults[f]) ? n1(defaults[f]) : '';
         return `<td><input type="number" step="0.1" min="0" class="opp-inp" data-h="${h}" data-f="${f}" value="${esc(String(saved))}" placeholder="${esc(ph)}"${isAdmin ? '' : ' disabled'} aria-label="${H_LABEL[h]} ${esc(F_LABEL[f])}"></td>`;
     }).join('')}</tr>`).join('');
     return `<p class="opv-note">빈 칸 = 제안값(흐린 숫자, 최근 8주 평소 기준 UPH +5% · OEE +3%p · 충족률 95% · 효율 유지). 처리량은 목표가 아니라 기준선입니다.</p>
-        <div class="opv-table-wrap"><table class="opv-table"><thead><tr><th>기간</th>${TARGET_FIELDS.map(f => `<th>${esc(F_LABEL[f])}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+        <div class="opv-table-wrap"><table class="opv-table"><thead><tr><th>기간</th>${F.map(f => `<th>${esc(F_LABEL[f])}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
         ${isAdmin ? '<div class="opp-head"><button type="button" id="ops-plan-targets-save" class="ops-make-btn">저장</button></div>'
             : '<p class="opv-note">목표 저장은 관리자만 할 수 있습니다 — 지금은 보기만 됩니다.</p>'}`;
 }

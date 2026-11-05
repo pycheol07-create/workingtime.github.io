@@ -3,20 +3,20 @@
 //   추세 = 물량 추세 예측(analysis-logic predictFutureTrends trend.deliveryFactor), 공급 = 업무 예상 가용 인원(수만).
 //   금액·직원 이름 없음(담당 변경 과제도 업무 이름만). ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611051422';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051422';
-import { buildOpsModel } from './lib/ops-view-model.js?v=202611051422';
-import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611051422';
-import { taskNameOf, TASK } from './lib/task-ids.js?v=202611051422';
-import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=202611051422';
-import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051422';
-import { predictFutureTrends } from './analysis-logic.js?v=202611051422';
-import { availableStaffOf } from './ui-history-prediction.js?v=202611051422';
-import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=202611051422';
+import * as State from './state.js?v=202611051451';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051451';
+import { buildOpsModel } from './lib/ops-view-model.js?v=202611051451';
+import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611051451';
+import { taskNameOf, TASK } from './lib/task-ids.js?v=202611051451';
+import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=202611051451';
+import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051451';
+import { predictFutureTrends } from './analysis-logic.js?v=202611051451';
+import { availableStaffOf } from './ui-history-prediction.js?v=202611051451';
+import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=202611051451';
 
 /** 월간 계획 입력 모으기 → buildMonthPlan. models = { recentModel, prevModel, baseModel } (주간 쪽과 같이 씀) */
-export function computeMonthPlan(today, models) {
-    const cfg = State.appConfig || {};
+export function computeMonthPlan(today, models, cfgPlan = null) {
+    const cfg = cfgPlan || State.appConfig || {};   // cfgPlan = 설정 + OpsPlan/settings(연장 한도 등)
     const view = aliasHistoryView(State.allHistoryData || [], cfg) || [];
     const S = planSettingsOf(cfg);
     let trend = 1;
@@ -75,7 +75,7 @@ export function monthBodyHtml(p) {
             ${kpi('② 연장', n1(T.overtime), '시간', `주마다 1인 ${n1(S.overtimeWeeklyMax)}시간까지`)}
             ${kpi('③ 알바', n0(T.tempPeople), '인일', `${n1(T.temp)}시간 · 요청 후 ${n0(S.tempLeadDays)}일`)}
         </div><p class="opv-note opp-law">${esc(OVERTIME_LAW_NOTE)}</p>
-        <p class="opv-note">지금 기준: 1인 하루 연장 ${n1(S.overtimeDailyMax)}시간 · 주 ${n1(S.overtimeWeeklyMax)}시간, 알바 1인일 ${n1(S.stdHours)}시간(설정 화면은 준비 중 — 기본값).</p>`,
+        <p class="opv-note">지금 기준: 1인 하루 연장 ${n1(S.overtimeDailyMax)}시간 · 주 ${n1(S.overtimeWeeklyMax)}시간, 알바 1인일 ${n1(S.stdHours)}시간(관리자 [비용·설정]에서 바꿈).</p>`,
         '주마다 선처리 → 연장 → 알바 · 시간·인원만')}`;
 }
 

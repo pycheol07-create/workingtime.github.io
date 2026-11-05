@@ -222,6 +222,11 @@
     #history-modal .opp-lv-2 { background: var(--c-accent-soft); color: var(--c-accent-deep); font-weight: 600; }
     #history-modal .opp-lv-1 { background: var(--c-track); color: var(--c-text-2); }
     #history-modal .opp-lv-0 { color: var(--c-text-4); }
+    /* 비용·설정 창(확장-2) */
+    #history-modal .opp-fields { display: grid; gap: 10px 14px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+    #history-modal .opp-field { display: grid; gap: 4px; min-width: 0; }
+    #history-modal .opp-field-wide { grid-column: 1 / -1; }
+    #history-modal .opp-inp-text { text-align: left; }
     #history-modal .opp-gran .ops-tab[disabled] { opacity: .55; cursor: default; }
     #history-modal .opp-conf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
     #history-modal .opp-law { margin-top: 10px; }
@@ -446,6 +451,16 @@
                     <h3 id="ops-plan-targets-title" class="opv-overlay-title">운영 목표 — 주간 · 월간 · 연간</h3>
                 </div>
                 <div class="opv-overlay-body"><div id="ops-plan-targets-body" class="opv-stack"></div></div>
+            </section>
+
+            <!-- 운영 계획 비용·설정(확장-2, 관리자만) — '비용·예산' 섹션의 [비용·설정]이 겹쳐 띄운다(js/ui-ops-plan-budget.js).
+                 금액은 adminPrivate/opsPlanCost, 연장·알바 기준은 OpsPlan/settings. ⚠️ role=dialog 를 달지 않는다(업무마감봇 선택자). -->
+            <section id="ops-plan-cost" class="opv-overlay hidden" aria-labelledby="ops-plan-cost-title">
+                <div class="opv-overlay-head">
+                    <button type="button" id="ops-plan-cost-close" class="ops-link">&lsaquo; 돌아가기</button>
+                    <h3 id="ops-plan-cost-title" class="opv-overlay-title">비용·설정 — 관리자</h3>
+                </div>
+                <div class="opv-overlay-body"><div id="ops-plan-cost-body" class="opv-stack"></div></div>
             </section>
 
             <!-- 팀 결산 — [보고서 만들기](권한 data.reports). 화면에 보고서가 그대로 보이고, 받기는 위 줄의 [PDF 받기][엑셀 받기].

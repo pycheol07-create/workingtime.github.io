@@ -1,15 +1,17 @@
 // === js/lib/plan-targets.js ===
 // 운영 계획 MVP-2 — 목표(OpsPlan/targets): 기본 제안값 · 저장값 고르기 · '현재 · 목표 · 차이 · 메우는 수단' 표(차이를 시간으로).
 //   칸: qtyPerDay(기준선 — 목표 아님), uph, oee(%), fillRate(인원 충족률 %), effPct(효율 %).
-//   인건비율(laborRatio)은 돈 단계에서 — 이 단계에서는 저장·표시하지 않는다.
+//   인건비율(laborRatio, %)은 확장-2(돈)에서 — 비율이라 targets 에 저장하지만 화면·차이 행은 관리자만(ctx.laborRatio 를 넘길 때만 행이 생긴다).
 //   기본 목표: 최근 8주 평소값 기준 UPH +5% · OEE +3%p · 충족률 95% · 효율 유지 · 처리량은 기준선(예측 그대로).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-month.test.js
 
-export const TARGET_FIELDS = Object.freeze(['qtyPerDay', 'uph', 'oee', 'fillRate', 'effPct']);
+export const TARGET_FIELDS = Object.freeze(['qtyPerDay', 'uph', 'oee', 'fillRate', 'effPct', 'laborRatio']);
+/** 관리자만 보는 칸 */
+export const ADMIN_TARGET_FIELDS = Object.freeze(['laborRatio']);
 export const HORIZONS = Object.freeze(['week', 'month', 'year']);
 export const TARGET_RULES = Object.freeze({ uphUp: 0.05, oeeUpPp: 3, fillRate: 95 });
 /** 저장 칸 범위(화면 입력·저장 전 검사) */
-const RANGE = { qtyPerDay: [0, 1e7], uph: [0, 1e5], oee: [0, 100], fillRate: [0, 100], effPct: [0, 300] };
+const RANGE = { qtyPerDay: [0, 1e7], uph: [0, 1e5], oee: [0, 100], fillRate: [0, 100], effPct: [0, 300], laborRatio: [0, 100] };
 
 const fin = (v) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
 const r1 = (v) => (v == null ? null : (Math.round(v * 10) / 10) || 0);   // −0 → 0
@@ -37,7 +39,8 @@ export function defaultTargets(base) {
         uph: b.uph != null ? r1(b.uph * (1 + TARGET_RULES.uphUp)) : null,
         oee: b.oee != null ? r1(Math.min(100, b.oee + TARGET_RULES.oeeUpPp)) : null,
         fillRate: TARGET_RULES.fillRate,
-        effPct: r1(fin(b.effPct))
+        effPct: r1(fin(b.effPct)),
+        laborRatio: r1(fin(b.laborRatio))          // 최근 3달 유지(관리자 화면이 넘길 때만 — 아니면 null)
     };
 }
 
@@ -122,6 +125,13 @@ export function gapRows(cur, tgt, ctx = {}) {
         hours: ce > 0 && te > 0 && work > 0 ? r1(work * (1 - ce / te)) : null,
         means: '평상시 속도로 — 느린 업무의 원인(인원 교체·물량 쏠림·기록 누락) 점검'
     });
+    if (ctx.laborRatio) {   // 관리자만 — 인건비율(%) 행. ctx.laborRatio = { current(이 계획 예측 %) }
+        const cl = fin(ctx.laborRatio.current), tl = fin(t.laborRatio);
+        rows.push({
+            key: 'laborRatio', label: '인건비율', unit: '%', current: r1(cl), target: r1(tl), diff: diff(cl, tl), hours: null, admin: true,
+            means: '부족은 비용이 낮은 수단부터(선처리 → 연장 → 알바 → 채용, 비용·예산 표), 손실 큰 업무 개선'
+        });
+    }
     return rows;
 }
 
