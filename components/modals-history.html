@@ -213,6 +213,15 @@
     #history-modal .opp-inp { width: 100%; min-width: 72px; min-height: 30px; padding: 0 8px; border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); background: var(--c-surface); color: var(--c-text); font: inherit; font-size: 13px; text-align: right; }
     #history-modal .opp-inp:disabled { opacity: .6; }
     #history-modal .opp-inp:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; }
+    /* 사람·배치(확장-1) — 숙련 단계 색(d-theme 토큰). 이름 칸(.opp-names)은 인쇄 사본에서 지워진다. */
+    #history-modal .opp-sel { width: auto; min-width: 110px; text-align: left; margin-left: 4px; }
+    #history-modal .opp-mx td, #history-modal .opp-mx th { text-align: center; padding: 5px 6px; }
+    #history-modal .opp-mx td:first-child, #history-modal .opp-mx th:first-child { text-align: left; position: sticky; left: 0; background: var(--c-surface); z-index: 1; }
+    #history-modal .opp-mx-h { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+    #history-modal .opp-lv-3 { background: var(--c-ok-soft); color: var(--c-ok-text); font-weight: 700; }
+    #history-modal .opp-lv-2 { background: var(--c-accent-soft); color: var(--c-accent-deep); font-weight: 600; }
+    #history-modal .opp-lv-1 { background: var(--c-track); color: var(--c-text-2); }
+    #history-modal .opp-lv-0 { color: var(--c-text-4); }
     #history-modal .opp-gran .ops-tab[disabled] { opacity: .55; cursor: default; }
     #history-modal .opp-conf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
     #history-modal .opp-law { margin-top: 10px; }

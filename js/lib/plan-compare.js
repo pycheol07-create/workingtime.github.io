@@ -10,7 +10,9 @@
 // actions·risks 10 — 규칙이 항목 칸을 하나씩 보는데 20개면 규칙 계산 한도에 걸린다(firestore.rules OpsPlan, 에뮬레이터 실측). 과제·리스크는 점수 순 앞 10개.
 export const CONFIRM_LIMITS = Object.freeze({ actions: 10, risks: 10, days: 31, basis: 10, done: 40, text: 300 });
 export const DOC_KEYS = Object.freeze(['v', 'horizon', 'periodKey', 'version', 'confirmedAt', 'confirmedBy', 'basis', 'targets',
-    'days', 'fillTotals', 'actions', 'risks', 'agenda', 'done', 'doneAt', 'doneBy']);
+    'days', 'fillTotals', 'actions', 'risks', 'agenda', 'done', 'doneAt', 'doneBy', 'assignCounts']);
+/** 배치 초안 합계(업무별 인일·인시) 상한 — 업무 이름 키, 값은 {n, h} 만(이름 없음) */
+export const ASSIGN_LIMIT = 40;
 
 const fin = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
 const r1 = (v) => (v == null ? null : Math.round(v * 10) / 10);
@@ -28,7 +30,7 @@ export function planDocId(horizon, periodKey) {
  * 계획(주간 buildWeekPlan / 월간 buildMonthPlan 결과) → 확정본 본문(version·confirmedAt·confirmedBy 빼고).
  * 업무일 행만 담는다(31개 이하).
  */
-export function confirmDocOf(plan, { horizon, periodKey, targets = {} } = {}) {
+export function confirmDocOf(plan, { horizon, periodKey, targets = {}, assignCounts = null } = {}) {
     const p = plan || {};
     const L = CONFIRM_LIMITS;
     const days = (p.days || []).filter(d => d && d.workday && d.hasRow).slice(0, L.days).map(d => ({
@@ -52,8 +54,18 @@ export function confirmDocOf(plan, { horizon, periodKey, targets = {} } = {}) {
         })),
         risks: (p.risks || []).slice(0, L.risks).map(r => ({ id: str(r.key, 80), title: str(r.title, 120), score: numOr0(r.score) })),
         agenda,
-        done: {}
+        done: {},
+        ...(assignCounts ? { assignCounts: cleanAssignCounts(assignCounts) } : {})
     };
+}
+
+/** 배치 합계 정리 — { 업무: {n, h} } 만, 40개까지. (plan-skills redactForOutput·plan-assign sumAssignCounts 결과를 받는다) */
+export function cleanAssignCounts(ac) {
+    const out = {};
+    Object.entries(ac || {}).slice(0, ASSIGN_LIMIT).forEach(([k, v]) => {
+        out[str(k, 60)] = { n: numOr0(v && v.n) | 0, h: r1(numOr0(v && v.h)) };
+    });
+    return out;
 }
 
 /** 완료 체크 맵 — 이 확정본 과제 key 만, true 만, 40개까지. */

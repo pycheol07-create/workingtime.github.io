@@ -10,9 +10,9 @@
 
 import {
     planSettingsOf, nextWeekRange, weekDaysOf, fillMix, shortRuns, confidenceOf, addDaysStr, dowOf
-} from './plan-week.js?v=202611051401';
-import { buildRisks, leaveCrowdDays, holidaySurgeDays, RISK_LEVELS } from './plan-risks.js?v=202611051401';
-import { buildMeeting } from './plan-rhythm.js?v=202611051401';
+} from './plan-week.js?v=202611051422';
+import { buildRisks, leaveCrowdDays, holidaySurgeDays, RISK_LEVELS } from './plan-risks.js?v=202611051422';
+import { buildMeeting } from './plan-rhythm.js?v=202611051422';
 
 export const ACTION_LIMIT = 10;
 const CONF_FACTOR = { high: 1, mid: 0.7, low: 0.4 };
@@ -64,6 +64,7 @@ export function weekdayShortCounts(recentModel, shortGap = 0.5) {
  * @param {object} [input.lastWeekModel] 지난주 운영 리포트 모델(주 단위) — 회의 자료
  * @param {number} [input.accuracyErr]   지난 업무 예상 평균 시간 오차(비율) — 모르면 null
  * @param {object} [input.range]         { from, to, dates } — 없으면 today 의 다음 주
+ * @param {Array}  [input.bus]           한 사람 의존(이름 없음 — plan-skills redactForOutput(...).bus) → 리스크 + 교육 과제 S1
  */
 export function buildWeekPlan(input = {}) {
     const today = input.today || null;
@@ -98,7 +99,14 @@ export function buildWeekPlan(input = {}) {
     const surges = holidaySurgeDays(days, input.afterHoliday);
     const recentNotes = (input.recentModel && Array.isArray(input.recentModel.notes)) ? input.recentModel.notes : [];
     const accuracyErr = input.accuracyErr != null && Number.isFinite(Number(input.accuracyErr)) ? Number(input.accuracyErr) : null;
-    const risks = buildRisks({ days, runs, confidence, recentNotes, accuracyErr, surges });
+    // 다음 주 업무별 인시(업무 예상 taskHours 합) — 한 사람 의존은 다음 주에 그 업무가 있을 때만 리스크·과제(S1)
+    const weekHours = {};
+    (input.outlookRows || []).forEach(r => {
+        if (!r || !range.dates || !range.dates.includes(r.date)) return;
+        Object.entries(r.taskHours || {}).forEach(([k, v]) => { weekHours[k] = (weekHours[k] || 0) + (Number(v) || 0); });
+    });
+    const bus = (Array.isArray(input.bus) ? input.bus : []).filter(b => b && (weekHours[b.task] || 0) > 0);
+    const risks = buildRisks({ days, runs, confidence, recentNotes, accuracyErr, surges, bus });
 
     // ── 액션 W1~W7 ──
     const cf = CONF_FACTOR[confidence.level] || 0.4;
@@ -177,6 +185,17 @@ export function buildWeekPlan(input = {}) {
             title: `매주 ${d.dow}요일 고정 알바를 검토해 보세요`,
             basis: `최근 4주 ${d.dow}요일 ${n}번 부족`,
             effect: '매주 반복되는 부족을 미리 막습니다'
+        });
+    });
+    // S1 — 한 사람 의존 업무 교육(점수 = 다음 주 그 업무 인시 × 위험(휴무 겹치면 2))
+    bus.forEach(b => {
+        const h = weekHours[b.task] || 0;
+        if (!(h > 0)) return;
+        push({
+            rule: 'S1', target: b.task, hours: h * (b.leaveDays > 0 ? 2 : 1), due: range.from, role: '팀장',
+            title: `${b.task} 업무 가능 인원 ${b.capable}명 — 1명 추가 교육을 권합니다(후보 ${b.candidateCount}명)`,
+            basis: `최근 90일 '가능' 이상 ${b.capable}명${b.leaveDays > 0 ? ` · 그 사람 다음 주 휴무 ${b.leaveDays}일` : ''} · 다음 주 ${h1(h)}`,
+            effect: '한 사람이 빠져도 업무가 멈추지 않습니다'
         });
     });
     const uniq = new Map();

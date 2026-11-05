@@ -58,9 +58,12 @@ export function holidaySurgeDays(days, afterHoliday) {
  * @param {Array}  [p.recentNotes] 최근 4주 운영 리포트 모델 notes([{code, text, n}])
  * @param {number} [p.accuracyErr] 지난 업무 예상 평균 시간 오차 절댓값(비율, 예 0.25) — 모르면 null(리스크로 세지 않는다)
  * @param {Array}  [p.surges]     holidaySurgeDays 결과
+ * @param {Array}  [p.bus]        한 사람 의존 — plan-skills redactForOutput(...).bus [{task, capable, leaveDays, candidateCount}] (이름 없음)
+ *                                부르는 쪽(plan-build)이 계획 기간에 그 업무 인시가 있는 것만 넘긴다(S1 과제와 같은 조건)
+ *                                그 사람 휴무가 계획 기간에 있으면 점수 2배(mult)
  * @returns {Array} score 높은 순
  */
-export function buildRisks({ days = [], runs = [], confidence = null, recentNotes = [], accuracyErr = null, surges = [] } = {}) {
+export function buildRisks({ days = [], runs = [], confidence = null, recentNotes = [], accuracyErr = null, surges = [], bus = [] } = {}) {
     const L = RISK_LEVELS;
     const out = [];
 
@@ -116,6 +119,14 @@ export function buildRisks({ days = [], runs = [], confidence = null, recentNote
         owner: '팀장'
     }));
 
-    out.forEach(x => { x.score = x.likelihood * x.impact; });
+    (bus || []).forEach(b => out.push({
+        key: `bus:${b.task}`, kind: 'bus', title: `${b.task} 한 사람 의존`,
+        likelihood: b.leaveDays > 0 ? 3 : 2, impact: b.capable === 0 ? 3 : 2, mult: b.leaveDays > 0 ? 2 : 1,
+        trigger: `최근 90일 '가능' 이상 ${b.capable}명${b.leaveDays > 0 ? ` · 그 사람 계획 기간 휴무 ${b.leaveDays}일` : ''}`,
+        response: `1명 추가 교육을 권합니다(후보 ${b.candidateCount}명).`,
+        owner: '팀장'
+    }));
+
+    out.forEach(x => { x.score = x.likelihood * x.impact * (x.mult || 1); });
     return out.sort((a, b) => b.score - a.score || (a.key < b.key ? -1 : 1));
 }

@@ -8,31 +8,35 @@
 //     없으면 이 브라우저 localStorage(키 = 과제 key). 지난 기간 확정본이 있으면 맨 위 '지난 계획 대비 실적'(js/lib/plan-compare.js).
 //   기간은 다음 주 월~일 / 다음 달 고정(날짜 트리 숨김 — js/lib/ops-report-route.js isOpsTreeless).
 //   [인쇄/PDF] = 지금 보이는 계획서를 body 바로 밑 사본(#ops-plan-print)으로 옮겨 브라우저 인쇄.
+//   사람·배치(확장-1, js/ui-ops-plan-people.js): 이름은 화면(data.reports)에서만 — 인쇄 사본은 그 섹션을 수만 다시 그리고, 이름이 남았으면 인쇄를 멈춘다.
 // 금액·직원 이름 없음 — 휴무는 '수'만 받는다. 콘솔에도 이름·금액·문서 본문을 찍지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자).
 
-import * as State from './state.js?v=202611051401';
-import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611051401';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051401';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051401';
-import { taskNameOf } from './lib/task-ids.js?v=202611051401';
-import { buildWeekPlan } from './lib/plan-build.js?v=202611051401';
-import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051401';
-import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611051401';
-import { planDocId, confirmDocOf, planVsActual } from './lib/plan-compare.js?v=202611051401';
-import { getStaffingOutlook, ensureMibalHistory, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611051401';
-import { fetchPlannedData } from './history-data-manager.js?v=202611051401';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051401';
-import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611051401';
-import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611051401';
-import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611051401';
-import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611051401';
+import * as State from './state.js?v=202611051422';
+import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611051422';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051422';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051422';
+import { taskNameOf } from './lib/task-ids.js?v=202611051422';
+import { buildWeekPlan } from './lib/plan-build.js?v=202611051422';
+import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051422';
+import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611051422';
+import { planDocId, confirmDocOf, planVsActual } from './lib/plan-compare.js?v=202611051422';
+import { getStaffingOutlook, ensureMibalHistory, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611051422';
+import { fetchPlannedData } from './history-data-manager.js?v=202611051422';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051422';
+import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611051422';
+import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611051422';
+import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611051422';
+import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611051422';
+import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=202611051422';
+import { namesLeak } from './lib/plan-skills.js?v=202611051422';
 
 const $ = (id) => document.getElementById(id);
 const isAdmin = () => !!(State.appState && State.appState.currentUserRole === 'admin');
 
 // ── 상태·캐시 ─────────────────────────────────────────────────────
 let horizon = 'week';      // 'week' | 'month'
+let selDate = null;        // 배치 초안 날짜
 let cache = null;          // { sig, models, week, month? }
 let token = 0;             // 늦게 끝난 앞 요청이 새 화면을 덮지 않게
 let loaded = false;        // 예정 물량·미발 이력을 한 번 기다렸나
@@ -41,7 +45,15 @@ const docErr = new Map();  // 문서 id → 오류 코드(권한 없음 등)
 export function invalidateOpsPlan() { cache = null; }
 
 const plannedSum = () => (State.plannedData || []).reduce((t, d) => t + Object.values((d && d.plannedQuantities) || {}).reduce((a, v) => a + (Number(v) || 0), 0), 0);
-const sigOf = (from, ctx) => `${from}|${(State.allHistoryData || []).length}|${(State.plannedData || []).length}|${plannedSum()}|${ctx && ctx.canAnalysis === false ? 0 : 1}|${loaded ? 1 : 0}`;
+// 퇴사·팀 구성 열쇠 — 숙련도(퇴사자 제외)·공급·교육 후보(팀 그룹)가 바뀐다. 이름은 길이·글자 합으로만 접는다(문자열로 남기지 않음)
+const peopleKey = () => {
+    const cfg = State.appConfig || {};
+    const s = JSON.stringify([cfg.resignedMembers || {}, (cfg.teamGroups || []).map(g => (g && g.members) || [])]);
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return `${s.length}:${h}`;
+};
+const sigOf = (from, ctx) => `${from}|${(State.allHistoryData || []).length}|${(State.plannedData || []).length}|${plannedSum()}|${ctx && ctx.canAnalysis === false ? 0 : 1}|${loaded ? 1 : 0}|${peopleKey()}`;
 
 const mondayOf = (id) => { const w = new Date(`${id}T00:00:00`).getDay(); return addDaysStr(id, -((w + 6) % 7)); };
 
@@ -71,11 +83,17 @@ function computeWeek(today, models) {
         Object.entries(r.taskHours || {}).forEach(([k, v]) => { const nk = aliasTaskName(k, cfg) || k; th[nk] = (th[nk] || 0) + (Number(v) || 0); });
         return { ...r, taskHours: th };
     });
-    return buildWeekPlan({
+    // 사람(숙련도·한 사람 의존·배치 초안) — 이름은 메모리에서만, 계획(과제·리스크)에는 수만 넘긴다
+    let people = null;
+    try { people = computePeople(today, range, outlookRows); }
+    catch (err) { console.warn('운영 계획 사람·배치 계산 실패:', err && err.message); }
+    const plan = buildWeekPlan({
         today, range, outlookRows, cfg, prepNames,
         afterHoliday: precedingHolidayNameOf,
-        recentModel: models.recentModel, lastWeekModel: models.lastWeekModel, accuracyErr: getLoadedAccuracyHourErr()
+        recentModel: models.recentModel, lastWeekModel: models.lastWeekModel, accuracyErr: getLoadedAccuracyHourErr(),
+        bus: busForPlan(people)
     });
+    return { plan, people };
 }
 
 /** 이번 화면의 기간 정보 — { periodKey, id(확정본), prevId(지난 기간), prevLabel, prevDays(실제 하루 문서) } */
@@ -257,7 +275,7 @@ function paint(host) {
     const done = (k) => (doneMap ? doneMap[k] === true : localDone(k));
     const body = horizon === 'month'
         ? `${monthBodyHtml(p)}${actionsHtml(p.actions, { done, mode, title: '월간 과제 (우선순위)', empty: '다음 달에 따로 준비할 일이 없습니다.' })}`
-        : `${daysHtml(p)}${fillTotalsHtml(p)}${actionsHtml(p.actions, { done, mode, empty: '다음 주에 따로 준비할 일이 없습니다.' })}${risksHtml(p)}${meetingHtml(p, prevCmp)}`;
+        : `${daysHtml(p)}${fillTotalsHtml(p)}${actionsHtml(p.actions, { done, mode, empty: '다음 주에 따로 준비할 일이 없습니다.' })}${risksHtml(p)}${peopleHtml(c.people, { canNames: !!lastCtx.canNames, selDate })}${meetingHtml(p, prevCmp)}`;
     host.innerHTML = `<div id="ops-plan-sheet" class="opv-stack">
         ${headHtml(p, per, confirmed)}
         ${prevCmp ? compareCardHtml(prevCmp, per.prevLabel) : ''}
@@ -290,7 +308,8 @@ export function renderOpsPlan(ctx = lastCtx) {
         try {
             if (!cache || cache.sig !== sig) {
                 const models = computeModels(today);
-                cache = { sig, models, week: computeWeek(today, models), month: null };
+                const w = computeWeek(today, models);
+                cache = { sig, models, week: w.plan, people: w.people, month: null };
             }
             if (horizon === 'month' && !cache.month) cache.month = computeMonthPlan(today, cache.models);
         } catch (err) {
@@ -355,7 +374,9 @@ async function onConfirm(btn) {
     btn.disabled = true;
     const { p, per, targets } = view;
     try {
-        const body = confirmDocOf(p, { horizon, periodKey: per.periodKey, targets });
+        // 배치 초안은 업무별 인원·시간 합계만(이름 없음 — redactForOutput 을 지난 값)
+        const assignCounts = horizon === 'week' && cache && cache.people ? assignCountsOf(cache.people) : null;
+        const body = confirmDocOf(p, { horizon, periodKey: per.periodKey, targets, assignCounts });
         // 이 브라우저(localStorage)의 체크는 옮기지 않는다. 다시 확정이면 같은 과제의 확정본 체크만 이어받는다(ops-plan-store confirmPlan).
         const ver = await confirmPlan(per.id, body);
         await loadPlanDoc(per.id, { force: true });
@@ -378,7 +399,22 @@ function printPlan() {
     box.id = 'ops-plan-print';
     box.className = 'opp-print';
     box.innerHTML = `<h1 class="opp-print-title">${horizon === 'month' ? '월간' : '주간'} 운영 계획서</h1>${sheet.innerHTML}`;
-    box.querySelectorAll('.opp-noprint, .opp-gran').forEach(el => el.remove());
+    // 사람·배치는 이름 없는 인쇄용으로 바꿔 넣는다(redactForOutput 을 지난 수만)
+    //   검사는 사람 섹션 인쇄본만(다른 섹션은 원래 이름이 없다), 업무명·고정 문구는 빼고 본다.
+    const ppl = box.querySelector('#ops-plan-people');
+    if (ppl) {
+        const html = peoplePrintHtml(cache && cache.people);
+        const probe = document.createElement('div');
+        probe.innerHTML = html;
+        if (namesLeak(probe.textContent, namesOf(cache && cache.people), { ignore: ignoreWordsOf(cache && cache.people) })) {
+            // 어떤 이름인지는 찍지 않는다
+            console.warn('운영 계획 인쇄 중단: 사람 섹션에 이름과 같은 글자가 있습니다.');
+            showToast('사람 이름과 같은 글자가 있어 인쇄를 멈췄습니다.');
+            return;
+        }
+        ppl.outerHTML = html;
+    }
+    box.querySelectorAll('.opp-noprint, .opp-gran, .opp-names').forEach(el => el.remove());
     box.querySelectorAll('details').forEach(el => { el.open = true; });
     box.querySelectorAll('input[type="checkbox"]').forEach(el => { el.disabled = true; });
     document.body.appendChild(box);
@@ -415,7 +451,8 @@ function bindOnce() {
     });
     panel.addEventListener('change', (e) => {
         const cb = e.target.closest('input[data-plan-done]');
-        if (cb) onDoneChange(cb);
+        if (cb) { onDoneChange(cb); return; }
+        if (e.target && e.target.id === 'ops-plan-assign-date') { selDate = e.target.value; repaint(); }
     });
     // 휴무가 바뀌면 공급이 바뀐다 — 운영 계획 탭을 보는 중이면 다시 그린다(읽기만)
     onLeaveScheduleChanged('ops-plan', () => {
