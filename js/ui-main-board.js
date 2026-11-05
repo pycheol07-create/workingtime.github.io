@@ -1,13 +1,13 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202611051127';
-import * as State from './state.js?v=202611051127';
-import { leaveTypeLabel } from './state.js?v=202611051127';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051127';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611051127';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611051127';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611051127';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611051127';
-import { TASK, tName, isT } from './task-names.js?v=202611051127';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202611051150';
+import * as State from './state.js?v=202611051150';
+import { leaveTypeLabel } from './state.js?v=202611051150';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051150';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611051150';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611051150';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611051150';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611051150';
+import { TASK, tName, isT } from './task-names.js?v=202611051150';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.

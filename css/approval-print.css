@@ -26,6 +26,20 @@
 .ap-att-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap-file-pick { cursor: pointer; }
 .ap-file-pick.is-off { opacity: .5; cursor: not-allowed; }
+/* 결재선(2026-11-05) — 작성 화면 줄 고르기 · 목록 글 · 보기 화면 진행 */
+.ap-line { display: flex; flex-direction: column; gap: 6px; }
+.ap-line-row { display: flex; align-items: center; gap: 8px; }
+.ap-line-row select.pd-in { flex: 1 1 auto; min-width: 0; }
+.ap-line-n { flex: none; width: 30px; font-size: 12.5px; font-weight: 600; color: var(--c-text-2); }
+.ap-line-who.is-now { font-weight: 700; }
+.ap-prog { list-style: none; margin: 10px 0 0; padding: 0; font-size: 13px; }
+.ap-prog li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 7px 0; border-bottom: 1px solid var(--c-line-soft); }
+.ap-prog li:last-child { border-bottom: 0; }
+.ap-prog li.is-now .ap-prog-who { font-weight: 700; }
+.ap-prog-n { flex: none; width: 30px; color: var(--c-text-3); font-weight: 600; }
+.ap-prog-who { flex: 1 1 auto; min-width: 0; }
+.ap-prog-st { flex: none; }
+.ap-prog .ap-decision { flex-basis: 100%; margin: 2px 0 0 38px; font-size: 12.5px; color: var(--c-text-2); }
 /* 대결 표시(종이) */
 .ap-proxy { display: block; font-size: 7pt; color: #C62828; font-weight: 700; margin-top: .5mm; }
 .ap-proxy-note { font-size: .85em; color: #8A2A2A; }
@@ -71,6 +85,9 @@
 .ap-boxes th, .ap-boxes td { border: 1px solid #333; text-align: center; padding: 0; }
 .ap-boxes th { font-size: 9pt; font-weight: 600; padding: 1mm 2mm; background: #F3F3F3; width: 24mm; }
 .ap-boxes td { height: 22mm; vertical-align: middle; }
+/* 결재란 4칸 이상(결재선 여러 명) — 칸을 좁혀 제목 자리를 남긴다 */
+.ap-boxes.is-many th { width: 19mm; padding: 1mm 1mm; }
+.ap-boxes.is-many .ap-stamp-ring { width: 12.5mm; height: 12.5mm; font-size: 8pt; }
 .ap-stamp { display: inline-flex; flex-direction: column; align-items: center; gap: 1mm; }
 .ap-stamp-ring { width: 14mm; height: 14mm; border: 2px solid #C62828; border-radius: 50%; color: #C62828; font-weight: 800; font-size: 9pt;
     display: flex; align-items: center; justify-content: center; line-height: 1.1; text-align: center; overflow: hidden; word-break: keep-all; padding: 1mm; box-sizing: border-box; }

@@ -7,6 +7,8 @@
 
 export const NOTI_TYPE = 'approval';
 export const MSG_TO_ADMIN = '결재할 기안서가 있습니다 — 기안서 메뉴에서 확인하세요.';
+// 결재선(2026-11-05): 제출 때 1차 결재자, 단계 승인 때 다음 결재자에게 이 문구 · 최종 승인·반려 때 작성자에게 MSG_TO_AUTHOR
+export const MSG_TO_APPROVER = MSG_TO_ADMIN;
 // 작성자에게 — 승인·반려를 나누지 않는다(알림 목록만 봐도 누구 기안이 반려됐는지 드러나지 않게)
 export const MSG_TO_AUTHOR = '기안서 메뉴에 새 소식이 있습니다 — 확인하세요.';
 
