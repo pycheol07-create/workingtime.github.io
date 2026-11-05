@@ -10,24 +10,26 @@
 //   탭 권한(비용·보고서·상세 표·업무 상세의 담당 변화 = data.reports, 업무 표 = data.view, 나머지 = data.analysis)·옛 주소 이동은 js/lib/ops-report-route.js.
 //   차트: 지금 보이는 탭만 그린다. 탭을 바꾸면 차트를 정리하고, 같은 기간 모델은 다시 계산하지 않는다(ui-ops-view 캐시).
 //   옛 그리기 함수(renderDashboardTab·renderProductivityTab·renderStaffingTab)와 *Old 계산은 비교 도구(tools/ops-metrics-compare.mjs)가 써서 남겨 둔다 — 여기선 부르지 않는다.
+//   운영 계획(plan, 2026-11-05 MVP-1) = 다음 주 주간 계획서(js/ui-ops-plan.js) — 날짜 트리를 숨긴다(자기 기간). 다른 탭으로 가면 트리를 다시 보인다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다.
 
-import * as State from './state.js?v=202611051206';
-import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611051206';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611051206';
-import { saveView } from './view-state.js?v=202611051206';
-import { currentPerm, onPerm } from './feature-gate.js?v=202611051206';
-import { can } from './lib/perm.js?v=202611051206';
-import { showToast } from './utils.js?v=202611051206';
+import * as State from './state.js?v=202611051332';
+import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611051332';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611051332';
+import { saveView } from './view-state.js?v=202611051332';
+import { currentPerm, onPerm } from './feature-gate.js?v=202611051332';
+import { can } from './lib/perm.js?v=202611051332';
+import { showToast } from './utils.js?v=202611051332';
 import {
-    OPS_MAIN, allowedTabs, pickTab, tabOf, canSettle, canDetail, canOwner, canTaskTable, settlePresetOf
-} from './lib/ops-report-route.js?v=202611051206';
+    OPS_MAIN, PLAN_TAB, allowedTabs, pickTab, tabOf, canSettle, canDetail, canOwner, canTaskTable, settlePresetOf
+} from './lib/ops-report-route.js?v=202611051332';
 import {
     renderOpsTab, renderDetailTables, invalidateOpsModel, destroyOpsCharts, openTaskDetail, closeTaskDetail
-} from './ui-ops-view.js?v=202611051206';
+} from './ui-ops-view.js?v=202611051332';
+import { renderOpsPlan, invalidateOpsPlan } from './ui-ops-plan.js?v=202611051332';
 
 const TAB_PANEL = {
-    summary: 'ops-summary-panel', productivity: 'ops-productivity-panel', staffing: 'ops-staffing-panel', cost: 'ops-cost-panel'
+    summary: 'ops-summary-panel', productivity: 'ops-productivity-panel', staffing: 'ops-staffing-panel', cost: 'ops-cost-panel', plan: 'ops-plan-panel'
 };
 
 const $ = (id) => document.getElementById(id);
@@ -81,6 +83,7 @@ function applyTabVisibility() {
 
 const noteHtml = (tab) => {
     if (tab === 'cost') return '금액이 보이는 탭입니다.';
+    if (tab === PLAN_TAB) return '다음 주 월~일 고정 — 왼쪽 날짜 목록과 상관없습니다.';
     return '';
 };
 
@@ -142,7 +145,8 @@ export function leaveOpsReport() {
 // 탭 하나 그리기. 모델은 지금 고른 기간(단위·키)으로 만든다 — data 는 쓰지 않는다(날짜 클릭이 넘긴 기간과 같은 기간).
 function renderTab(tab) {
     try {
-        renderOpsTab(tab, viewCtx());
+        if (tab === PLAN_TAB) renderOpsPlan({ canAnalysis: canNow('data.analysis') });
+        else renderOpsTab(tab, viewCtx());
     } catch (err) {
         console.error('운영 리포트 탭 그리기 실패:', tab, err && err.message);
     }
@@ -153,6 +157,7 @@ function renderTab(tab) {
 /** 날짜(기간)를 고르거나 이력이 새로 고쳐졌을 때 — js/listeners-history-tabs.js renderAnalyticsTab('ops'). 지금 탭만 그린다. */
 export function renderOpsReport() {
     invalidateOpsModel();
+    invalidateOpsPlan();
     rendered = {};
     if (State.context.opsSettleOpen) return;   // 팀 결산을 보는 중 — 결산은 자기 기간으로 그린다
     renderTab(State.context.activeOpsTab || 'summary');
@@ -160,6 +165,7 @@ export function renderOpsReport() {
 
 // 날짜 트리 보이기 — 처음 들어왔거나(팀 결산으로 바로 들어온 경우) 결산에서 돌아올 때. 날짜 목록을 그리면 맨 위 날짜가 눌려 지금 탭이 그려진다.
 async function showTreeAndRender() {
+    if (State.context.activeOpsTab === PLAN_TAB && !State.context.opsSettleOpen) { setTreeVisible(false); renderTab(PLAN_TAB); return; }
     setTreeVisible(true);
     const gran = granNow();
     updateGranularityButtons(gran);
@@ -203,6 +209,7 @@ export async function openOpsReport({ sub, settle = false, detail = false, owner
     showTab(tab);
     if (settle) { await openSettlement(null); return; }
     saveOps(tab, false);
+    if (tab === PLAN_TAB) { setTreeVisible(false); rendered = {}; renderTab(tab); return; }   // 운영 계획 — 날짜 트리 없이 다음 주
 
     setTreeVisible(true);
     const gran = granNow();
@@ -218,10 +225,12 @@ function selectTab(tab) {
     if (!applyTabVisibility().includes(tab)) return;
     setPending(null);   // 사용자가 고른 탭(또는 판정 뒤 다시 연 탭)이 먼저다
     const wasSettle = !!State.context.opsSettleOpen;
+    const wasPlan = State.context.activeOpsTab === PLAN_TAB;
     State.context.opsSettleOpen = false;
     showTab(tab);
     saveOps(tab, false);
-    if (wasSettle) { showTreeAndRender().catch(e => console.error('운영 리포트 기간 목록 실패:', e)); return; }
+    if (tab === PLAN_TAB) { setTreeVisible(false); if (rendered[tab] !== periodKey()) renderTab(tab); return; }
+    if (wasSettle || wasPlan) { showTreeAndRender().catch(e => console.error('운영 리포트 기간 목록 실패:', e)); return; }
     if (rendered[tab] !== periodKey()) renderTab(tab);
 }
 
@@ -237,7 +246,7 @@ async function openSettlement(preset) {
     saveOps('cost', true);
     const panel = $('settlement-panel');
     try {
-        settleMod = await import('./ui-history-settlement.js?v=202611051206');
+        settleMod = await import('./ui-history-settlement.js?v=202611051332');
         clearPanelLoadError(panel);   // 앞서 실패해 띄운 오류 상자
         // downloads:false = 결산 화면 머리 줄의 [엑셀][PDF] 를 그리지 않음(받기는 위 줄의 [PDF 받기][엑셀 받기])
         await settleMod.initSettlementReport({ downloads: false });
@@ -270,7 +279,7 @@ function applySettlePreset(panel, p) {
 async function downloadSettle(kind, btn) {
     if (!canSettle(canNow)) return;
     try {
-        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=202611051206');
+        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=202611051332');
         if (typeof settleMod.downloadSettlement === 'function') {
             const done = await settleMod.downloadSettlement(kind, btn);
             if (done === false) showToast('먼저 보고서를 만들어 주세요.');
@@ -333,6 +342,7 @@ export function initOpsReport(d = {}) {
     onPerm(() => {
         const allowed = applyTabVisibility();
         invalidateOpsModel();
+        invalidateOpsPlan();
         if (State.context.activeHistoryView !== OPS_MAIN) { rendered = {}; return; }
         const note = $('ops-tab-note');
         if (note && !State.context.opsSettleOpen) note.innerHTML = noteHtml(State.context.activeOpsTab || 'summary');

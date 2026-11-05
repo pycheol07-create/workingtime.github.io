@@ -9,20 +9,20 @@
 // 담당 변화(직원 이름·사람별 UPH)는 data.reports(ctx.canOwner)일 때만 그린다 — 없으면 '권한이 없습니다', 요약은 건수만.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다. 모델에는 직원 이름이 없다.
 
-import * as State from './state.js?v=202611051206';
-import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611051206';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051206';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051206';
-import { revenueTotalOf } from './revenue-channels.js?v=202611051206';
-import { D, alpha } from './d-chart.js?v=202611051206';
-import { renderStaffingOutlook } from './ui-history-staffing.js?v=202611051206';
-import { ensureMibalHistory } from './ui-history-prediction.js?v=202611051206';
-import { fetchPlannedData } from './history-data-manager.js?v=202611051206';
-import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=202611051206';
-import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611051206';
-import { taskListOf } from './lib/task-owner.js?v=202611051206';
-import { TASK, tName } from './task-names.js?v=202611051206';
-import { higherOpenThan } from './modal-above.js?v=202611051206';
+import * as State from './state.js?v=202611051332';
+import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611051332';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051332';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051332';
+import { revenueTotalOf } from './revenue-channels.js?v=202611051332';
+import { D, alpha } from './d-chart.js?v=202611051332';
+import { renderStaffingOutlook } from './ui-history-staffing.js?v=202611051332';
+import { ensureMibalHistory } from './ui-history-prediction.js?v=202611051332';
+import { fetchPlannedData } from './history-data-manager.js?v=202611051332';
+import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=202611051332';
+import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611051332';
+import { taskListOf } from './lib/task-owner.js?v=202611051332';
+import { TASK, tName } from './task-names.js?v=202611051332';
+import { higherOpenThan } from './modal-above.js?v=202611051332';
 
 const $ = (id) => document.getElementById(id);
 
@@ -434,7 +434,7 @@ export function renderDetailTables({ gran, key, rangeData }) {
 let detailReturnFocus = null;
 let detailTask = null;
 let lastCtx = {};
-const UNDER_IDS = ['ops-summary-panel', 'ops-productivity-panel', 'ops-staffing-panel', 'ops-cost-panel', 'ops-settle-wrap'];
+const UNDER_IDS = ['ops-summary-panel', 'ops-productivity-panel', 'ops-staffing-panel', 'ops-cost-panel', 'ops-plan-panel', 'ops-settle-wrap'];
 const setUnderInert = (on) => UNDER_IDS.forEach(id => { const el = $(id); if (el) el.inert = !!on; });
 function onDocKey(e) {
     if (e.key !== 'Escape' || !isTaskDetailOpen()) return;
@@ -466,7 +466,7 @@ export function openTaskDetail(task, ctx = null) {
         if (sec) sec.innerHTML = empty('권한이 없습니다. 담당 변화는 리포트 권한이 있어야 보입니다.');
     } else if (task && cache && cache.ownerTasks && !cache.ownerTasks.has(task)) {
         if (sec) sec.innerHTML = empty('이 업무는 담당 변화 대상이 아닙니다(관리자 개별업무 또는 최근 12개월 기록 없음).');
-    } else import('./ui-history-task-owner.js?v=202611051206').then(mod => {
+    } else import('./ui-history-task-owner.js?v=202611051332').then(mod => {
         mod.renderTaskOwnerTab(task ? { task } : {});
     }).catch(err => {
         console.error('taskowner module load failed:', err && err.message);
@@ -530,7 +530,7 @@ function bindOnce() {
             const host = $('ops-milestones-widget');
             if (host && !host.dataset.done) {
                 host.dataset.done = '1';
-                import('./ui-history-milestones.js?v=202611051206').then(mod => mod.renderMilestonesInsightWidget(host))
+                import('./ui-history-milestones.js?v=202611051332').then(mod => mod.renderMilestonesInsightWidget(host))
                     .catch(err => { console.warn('milestones widget load failed:', err && err.message); host.innerHTML = empty('마일스톤을 불러오지 못했습니다.'); });
             }
         }

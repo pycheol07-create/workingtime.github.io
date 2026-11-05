@@ -5,19 +5,22 @@
 //     업무 표(시간·처리 속도, 금액 없음)는 생산성 탭 안, 인건비가 보이는 상세 표는 생산성 탭의 '상세 표' 펼침(data.reports),
 //     업무 담당 변화는 업무 표 행을 누르면 뜨는 업무 상세 화면.
 //   옛 주소(#tab=dashboard, #tab=rawdata&sub=report, #tab=settlement, #tab=ops&sub=tasks …)·저장해 둔 화면 기억·Ctrl+K 옛 목적지는 여기서 바꾼다.
+//   2026-11-05 운영 계획 MVP-1: 탭 'plan'(운영 계획 — 다음 주 주간 계획서, data.analysis)을 맨 뒤에 더했다. 날짜 트리를 안 쓴다(isOpsTreeless).
 //   쓰는 곳: js/view-state.js(해시·기억 복원), js/listeners-history-tabs.js(showSection), js/ui-history-ops-report.js(탭 그리기).
 //   테스트: tests/ops-report-route.test.js
 
 export const OPS_MAIN = 'ops';
+/** 운영 계획 탭 — 날짜 트리를 숨기고 자기 기간(다음 주)으로 그린다 */
+export const PLAN_TAB = 'plan';
 
 // 탭 순서 = 화면 순서
-export const OPS_TABS = ['summary', 'productivity', 'staffing', 'cost'];
+export const OPS_TABS = ['summary', 'productivity', 'staffing', 'cost', 'plan'];
 export const OPS_TAB_LABELS = {
-    summary: '요약', productivity: '생산성', staffing: '인력', cost: '비용'
+    summary: '요약', productivity: '생산성', staffing: '인력', cost: '비용', plan: '운영 계획'
 };
-// 탭 권한(js/lib/feature-catalog.js 의 기능 id). 비용(인건비·원가·손실 금액)은 data.reports, 나머지는 data.analysis.
+// 탭 권한(js/lib/feature-catalog.js 의 기능 id). 비용(인건비·원가·손실 금액)은 data.reports, 나머지는 data.analysis(운영 계획은 시간·인원만 — 금액 없음).
 export const OPS_TAB_FEATURE = {
-    summary: 'data.analysis', productivity: 'data.analysis', staffing: 'data.analysis', cost: 'data.reports'
+    summary: 'data.analysis', productivity: 'data.analysis', staffing: 'data.analysis', cost: 'data.reports', plan: 'data.analysis'
 };
 /** [보고서 만들기](팀 결산)·생산성 탭의 '상세 표'(인건비 열) — 금액이 보이므로 data.reports */
 export const SETTLE_FEATURE = 'data.reports';
@@ -93,8 +96,8 @@ export const canOwner = (can) => typeof can === 'function' && !!can(OWNER_FEATUR
 /** 생산성 탭 업무 표(금액 없음)를 볼 수 있나. */
 export const canTaskTable = (can) => typeof can === 'function' && !!can(TASK_TABLE_FEATURE);
 
-/** 날짜 트리를 안 쓰는 상태인가 — 팀 결산(자체 월·분기·년 선택)만. 업무 상세의 담당 변화는 최근 12개월을 따로 본다(문구로 알림). */
-export const isOpsTreeless = (v) => !!(v && v.main === OPS_MAIN && String(v.settle || '') === '1');
+/** 날짜 트리를 안 쓰는 상태인가 — 팀 결산(자체 월·분기·년 선택)과 운영 계획(다음 주 고정). 업무 상세의 담당 변화는 최근 12개월을 따로 본다(문구로 알림). */
+export const isOpsTreeless = (v) => !!(v && v.main === OPS_MAIN && (String(v.settle || '') === '1' || tabOf(v.sub) === PLAN_TAB));
 
 /** 날짜 트리의 선택(단위·키) → 팀 결산 선택기에 넣을 기간. 월·년만 넘기고 일·주는 null(결산 기본 = 이번 달). */
 export function settlePresetOf(gran, key) {

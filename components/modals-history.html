@@ -206,6 +206,50 @@
     #history-modal .opv-overlay-title { font-size: 15px; font-weight: 700; color: var(--c-text); min-width: 0; }
     #history-modal .opv-overlay-body { padding: 16px; display: grid; gap: 16px; }
     @media (min-width: 768px) { #history-modal .opv-overlay-body { padding: 20px 24px; } }
+    /* 📋 운영 계획 탭(js/ui-ops-plan.js) — d-theme 토큰. ⚠ .ops-pane 에 display 를 넣지 않는다. */
+    #history-modal .opp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+    #history-modal .opp-head .opv-btn { margin-left: auto; }
+    #history-modal .opp-gran .ops-tab[disabled] { opacity: .55; cursor: default; }
+    #history-modal .opp-conf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+    #history-modal .opp-law { margin-top: 10px; }
+    #history-modal .opp-gap { margin-top: 14px; }
+    #history-modal .opp-off td { color: var(--c-text-3); background: var(--c-surface-2); }
+    #history-modal .opv-table td.opp-wrap, .opp-print .opv-table td.opp-wrap { white-space: normal; min-width: 160px; }
+    #history-modal .opp-acts { margin: 0; padding-left: 20px; display: grid; gap: 10px; }
+    #history-modal .opp-act-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; font-weight: 600; color: var(--c-text); cursor: pointer; }
+    #history-modal .opp-act-check input { margin-top: 3px; accent-color: var(--c-accent); }
+    #history-modal .opp-act.is-done .opp-act-title { text-decoration: line-through; color: var(--c-text-3); }
+    #history-modal .opp-week, .opp-print .opp-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+    @media (max-width: 640px) { #history-modal .opp-week { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    #history-modal .opp-week-day { text-align: center; }
+    /* 인쇄 — [인쇄 / PDF] 가 body 밑에 사본(#ops-plan-print)을 만들고 html.opp-printing 동안 그것만 찍는다(A4, 밝은 색 고정). */
+    #ops-plan-print { display: none; }
+    @media print {
+        @page { size: A4; margin: 12mm; }
+        html.opp-printing body > *:not(#ops-plan-print) { display: none !important; }
+        html.opp-printing, html.opp-printing body { background: #fff !important; height: auto !important; overflow: visible !important; }
+        html.opp-printing #ops-plan-print { display: block !important; color: #111; font-size: 11px; }
+        .opp-print .opp-print-title { font-size: 16px; font-weight: 800; margin: 0 0 8px; }
+        .opp-print > * + * { margin-top: 8px; }
+        .opp-print .opv-card { border: 1px solid #bbb; border-radius: 6px; padding: 8px 10px; break-inside: avoid; }
+        .opp-print .opv-card-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-bottom: 6px; }
+        .opp-print .opv-h { font-size: 12px; font-weight: 700; margin: 0; }
+        .opp-print .opv-note { color: #555; font-size: 10px; }
+        .opp-print .opv-sub-title { font-weight: 700; margin: 6px 0 3px; }
+        .opp-print .opv-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .opp-print .opv-kpi { border: 1px solid #ddd; border-radius: 4px; padding: 4px 6px; }
+        .opp-print .opv-kpi-value { font-size: 14px; font-weight: 800; }
+        .opp-print .opv-table { width: 100%; border-collapse: collapse; }
+        .opp-print .opv-table th, .opp-print .opv-table td { border: 1px solid #ccc; padding: 3px 5px; text-align: left; white-space: nowrap; }
+        .opp-print .opv-table .r { text-align: right; }
+        .opp-print .opv-table tr.is-short td { background: #fde8e8; }
+        .opp-print .opv-diag { margin: 0; padding-left: 14px; }
+        .opp-print .opv-dot { display: none; }
+        .opp-print .opv-chip { border: 1px solid #999; border-radius: 8px; padding: 0 5px; }
+        .opp-print .opp-acts { margin: 0; padding-left: 18px; }
+        .opp-print .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .opp-print tr, .opp-print li { break-inside: avoid; }
+    }
 </style>
 
 <div id="history-modal" class="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center hidden z-50 p-0 md:p-4 transition-colors">
@@ -312,6 +356,7 @@
                         <button type="button" class="ops-tab" data-ops-tab="productivity" data-feature="data.analysis" role="tab" aria-selected="false">생산성</button>
                         <button type="button" class="ops-tab" data-ops-tab="staffing" data-feature="data.analysis" role="tab" aria-selected="false">인력</button>
                         <button type="button" class="ops-tab" data-ops-tab="cost" data-feature="data.reports" role="tab" aria-selected="false">비용</button>
+                        <button type="button" class="ops-tab" data-ops-tab="plan" data-feature="data.analysis" role="tab" aria-selected="false">운영 계획</button>
                     </div>
                     <span id="ops-tab-note" class="ops-tab-note"></span>
                     <button type="button" id="ops-settle-btn" data-feature="data.reports" class="ops-make-btn" title="월·분기·년 팀 결산 보고서를 화면에 엽니다. 왼쪽에서 월·년을 고르고 있으면 그 기간으로 엽니다">보고서 만들기</button>
@@ -373,6 +418,11 @@
             <!-- 비용 — 금액이 보이는 탭(권한 data.reports). -->
             <div id="ops-cost-panel" class="ops-pane hidden">
                 <div id="ops-cost-body" class="opv-stack"></div>
+            </div>
+
+            <!-- 운영 계획(MVP-1 주간 계획서) — 다음 주 월~일 고정, 날짜 트리 숨김(js/ui-ops-plan.js 가 채움). 시간·인원만(금액 없음), 저장 없음. -->
+            <div id="ops-plan-panel" class="ops-pane hidden">
+                <div id="ops-plan-body" class="opv-stack"></div>
             </div>
 
             <!-- 팀 결산 — [보고서 만들기](권한 data.reports). 화면에 보고서가 그대로 보이고, 받기는 위 줄의 [PDF 받기][엑셀 받기].

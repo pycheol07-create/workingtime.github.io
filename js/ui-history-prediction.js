@@ -3,46 +3,46 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202611051206';
+import { predictFutureTrends } from './analysis-logic.js?v=202611051332';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611051206';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611051206';
-import { runDay } from './lib/refill-view.js?v=202611051206';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611051206';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611051206';
-import { TASK, tName, isT, tQty } from './task-names.js?v=202611051206';
-import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611051206';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611051332';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611051332';
+import { runDay } from './lib/refill-view.js?v=202611051332';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611051332';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611051332';
+import { TASK, tName, isT, tQty } from './task-names.js?v=202611051332';
+import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611051332';
 import { LEGACY_SIM_TASKS, legacySimTasksOf, namesOf, timeTaskExcludeOf, DEFAULT_SIM_ALWAYS_TASKS, DEFAULT_SIM_ZERO_TASKS,
          DEFAULT_FORECAST_EXCLUDED_TASKS, DEFAULT_LOADOUT_SOURCES, defaultAutoModeOf, defaultTimeTaskDepsOf,
-         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611051206';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611051206';
-import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611051206';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611051206';
-import * as State from './state.js?v=202611051206';
-import { saveView } from './view-state.js?v=202611051206';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611051206';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611051206';
+         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611051332';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611051332';
+import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611051332';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611051332';
+import * as State from './state.js?v=202611051332';
+import { saveView } from './view-state.js?v=202611051332';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611051332';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611051332';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611051206';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611051332';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611051206';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611051206';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611051332';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611051332';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611051206';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202611051206';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611051332';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202611051332';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611051206';
-import { taskUph, recentDays } from './task-throughput.js?v=202611051206';
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611051332';
+import { taskUph, recentDays } from './task-throughput.js?v=202611051332';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202611051206';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202611051332';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202611051206';
-import { D } from './d-chart.js?v=202611051206';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611051206';
-import { withCorrected, correctSnapRange, NOTE_CALC_FAILED } from './lib/forecast-correct-snap.js?v=202611051206';
+         excessOffDays } from './lib/backlog-carry.js?v=202611051332';
+import { D } from './d-chart.js?v=202611051332';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611051332';
+import { withCorrected, correctSnapRange, NOTE_CALC_FAILED } from './lib/forecast-correct-snap.js?v=202611051332';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -3253,7 +3253,7 @@ const computeAutoInputsForDate = (dateStr, excludeMinutes = 0, { ignoreActual = 
  *  계산은 업무 예상과 완전히 같은 경로를 쓴다 — 두 화면이 다른 답을 내지 않도록.
  *  주말·공휴일은 건너뛴다.
  */
-export const getStaffingOutlook = (workDays = 10) => {
+export const getStaffingOutlook = (workDays = 10, opts = {}) => {
     // 대시보드처럼 '업무 예상' 탭을 거치지 않고 부르면 업무 목록이 비어 있거나 옛 목록이다.
     // 여기서 맞추지 않으면 화면마다 계획 총시간이 다르게 나온다.
     try { ensureSimLists(); } catch (e) {}
@@ -3262,11 +3262,17 @@ export const getStaffingOutlook = (workDays = 10) => {
     const cfg = State.appConfig;
     const out = [];
 
-    let date = getTodayDateString();
+    // 📋 운영 계획(js/ui-ops-plan.js, 2026-11-05): opts.from = 시작일(그날이 쉬는 날이면 다음 업무일), opts.until = 이 날짜까지만.
+    //    둘 중 하나라도 주면 nextWorkingDay 14일 한계로 남은 휴일 행은 버린다(아무도 출근 안 하는 날의 숫자를 내지 않게).
+    //    인력 탭(ui-history-staffing.js)은 opts 없이 불러 예전 그대로다.
+    const ranged = !!(opts && (opts.from || opts.until));
+    let date = (opts && opts.from) || getTodayDateString();
     if (isOffDay(date)) date = nextWorkingDay(date);
 
 
     for (let i = 0; i < workDays && date; i++) {
+        if (ranged && opts.until && date > opts.until) break;
+        if (ranged && isOffDay(date)) break;
         let row;
         try {
             const inputs = computeAutoInputsForDate(date, 0);
@@ -3282,6 +3288,21 @@ export const getStaffingOutlook = (workDays = 10) => {
                 // 수기로 저장해 둔 예정 물량이 있는 날인지 — 없으면 자동 추정값이라 신뢰도가 낮다
                 hasPlanned: Object.keys(planned).length > 0
             };
+            // 📋 운영 계획용 덧칸(기존 칸은 그대로) — 이름 없이 수·시간만.
+            //    taskHours = 업무별 '사람 시간'(필요 인원 계산과 같은 단위: 물량 업무는 가동률로 나눈 값, 시간 업무는 그대로)
+            //    → 합 = rawRequiredFTE × netDailyHours.
+            const taskHours = {};
+            Object.entries(r.taskTimes || {}).forEach(([k, v]) => { const h = Number(v && v.hours) || 0; if (h > 0) taskHours[k] = (taskHours[k] || 0) + h / UTILIZATION; });
+            Object.entries(r.timeTaskTimes || {}).forEach(([k, v]) => { const h = Number(v && v.hours) || 0; if (h > 0) taskHours[k] = (taskHours[k] || 0) + h; });
+            Object.assign(row, {
+                rawRequiredFTE: r.rawRequiredFTE,
+                netDailyHours: r.netDailyHours,
+                holiday: !!r.holiday,
+                holidayName: r.holidayName || '',
+                rosterCount: (inputs.staffInfo && inputs.staffInfo.total) || 0,
+                adminWorkers: (inputs.staffInfo && inputs.staffInfo.excludedCount) || 0,
+                taskHours
+            });
         } catch (e) {
             console.warn('[staffing-outlook] 계산 실패:', date, e);
             row = { date, requiredFTE: 0, available: 0, gap: 0, totalHours: 0, onLeave: 0, hasPlanned: false, failed: true };
@@ -3290,6 +3311,26 @@ export const getStaffingOutlook = (workDays = 10) => {
         date = nextWorkingDay(date);
     }
     return out;
+};
+
+/** 📋 운영 계획 — 대상일 바로 앞 쉬는 날 묶음에 붙은 공휴일 이름(업무 예상 '연휴 뒤' 문구와 같은 규칙). 없으면 ''. */
+export const precedingHolidayNameOf = (dateStr) => precedingHolidayName(dateStr);
+
+/** 📋 운영 계획 — 정확도 화면이 이미 불러 둔 확정 계획으로 낸 평균 시간 오차 절댓값(비율, 예 0.25). 아직 안 불렀으면 null(새로 읽지 않는다). */
+export const getLoadedAccuracyHourErr = () => {
+    if (!accuracySnapshots) return null;
+    try {
+        const days = recentClosedDays(accuracyDays);
+        const excluded = forecastExcludedTasks();
+        const rows = days.map(d => {
+            if (!accuracySnapshots[d.id]) return null;
+            const { snap, day } = excludeTasksForAccuracy(aliasSnapshot(accuracySnapshots[d.id], State.appConfig), d, excluded);
+            return accuracyRowOf(day, snap);
+        }).filter(Boolean);
+        if (!rows.length) return null;
+        const v = summarizeAccuracyRows(rows).avgAbsHourErr;   // 넘침·모자람이 서로 지우지 않게 절댓값
+        return Number.isFinite(v) ? v : null;
+    } catch (e) { return null; }
 };
 
 // ───────────────────────────────────────────────────────────

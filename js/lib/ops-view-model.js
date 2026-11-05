@@ -13,10 +13,10 @@
 import {
     opsSummary, periodMetrics, partSummary, baselineSpeeds, lastDayIdOf, previousPeriodOf, rollingBaselineOf,
     periodDaysOf, PARTS, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf
-} from './ops-metrics.js?v=202611051206';
-import { taskNameOf, TASK } from './task-ids.js?v=202611051206';
-import { aliasTaskName } from './task-alias-view.js?v=202611051206';
-import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611051206';
+} from './ops-metrics.js?v=202611051332';
+import { taskNameOf, TASK } from './task-ids.js?v=202611051332';
+import { aliasTaskName } from './task-alias-view.js?v=202611051332';
+import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611051332';
 
 /** 판정 기준 — 진단 문장·부족/여유 일자가 같이 쓴다. */
 export const OPS_VIEW_LEVELS = Object.freeze({
@@ -176,7 +176,7 @@ function diagnosesOf(cur, prev, hasPrev, hasBaseline, lossTasks, shortDays, spar
     return [speed, staff, loss];
 }
 
-/** 데이터 주의 줄 — 숫자를 믿기 전에 알아야 할 것. [{code, text}] */
+/** 데이터 주의 줄 — 숫자를 믿기 전에 알아야 할 것. [{code, text, n?}] — n = 날·건 수(기록 누락 4종, 운영 계획 리스크가 씀) */
 function notesOf({ cur, hasPrev, hasBase, hasBaseline, days, today, qtySet, canCost, wages }) {
     const st = cur.staffing;
     const out = [];
@@ -184,8 +184,8 @@ function notesOf({ cur, hasPrev, hasBase, hasBaseline, days, today, qtySet, canC
     if (!hasPrev) out.push({ code: 'noPrev', text: '전기 기록이 없어 전기 대비를 비울 수밖에 없습니다.' });
     if (!hasBase) out.push({ code: 'noBase', text: '평소 비교 기준 기간에 기록이 없어 평소 대비를 비웠습니다.' });
     if (today && (days || []).some(d => d && d.id === today)) out.push({ code: 'today', text: '오늘은 진행 중이라 물량이 덜 찼을 수 있습니다.' });
-    if (st.estimatedDays > 0) out.push({ code: 'estimated', text: `출근 기록을 추정한 날 ${st.estimatedDays}일.` });
-    if (st.stdHourDays > 0) out.push({ code: 'stdHours', text: `퇴근 기록이 없어 표준 근무시간으로 센 날 ${st.stdHourDays}일.` });
+    if (st.estimatedDays > 0) out.push({ code: 'estimated', n: st.estimatedDays, text: `출근 기록을 추정한 날 ${st.estimatedDays}일.` });
+    if (st.stdHourDays > 0) out.push({ code: 'stdHours', n: st.stdHourDays, text: `퇴근 기록이 없어 표준 근무시간으로 센 날 ${st.stdHourDays}일.` });
     if (st.offRosterMinutes > 0) out.push({ code: 'offRoster', text: `명부 밖(시스템 계정 등) 업무 기록 ${r1(st.offRosterMinutes / 60)}시간 — 가동률에서 가용 = 기록으로 셉니다.` });
     let missingQtyDays = 0, capped = 0, noWageMinutes = 0;
     (days || []).forEach(d => {
@@ -204,8 +204,8 @@ function notesOf({ cur, hasPrev, hasBase, hasBaseline, days, today, qtySet, canC
         });
         if (missing.size > 0) missingQtyDays++;
     });
-    if (missingQtyDays > 0) out.push({ code: 'missingQty', text: `처리량 입력 업무에 시간만 있고 처리량이 없는 날 ${missingQtyDays}일 — 그 업무 속도가 낮게 나옵니다.` });
-    if (capped > 0) out.push({ code: 'capped', text: `12시간 넘는 업무 기록 ${capped}건('종료'를 안 누른 기록일 수 있음).` });
+    if (missingQtyDays > 0) out.push({ code: 'missingQty', n: missingQtyDays, text: `처리량 입력 업무에 시간만 있고 처리량이 없는 날 ${missingQtyDays}일 — 그 업무 속도가 낮게 나옵니다.` });
+    if (capped > 0) out.push({ code: 'capped', n: capped, text: `12시간 넘는 업무 기록 ${capped}건('종료'를 안 누른 기록일 수 있음).` });
     if (canCost && noWageMinutes > 0) out.push({ code: 'noWage', text: `시급이 없는 사람의 기록 ${r1(noWageMinutes / 60)}시간 — 인건비 0 으로 셉니다.` });
     return out;
 }
