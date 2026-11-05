@@ -1,13 +1,13 @@
 // === js/admin-logic.js ===
-import { cleanPosition } from './lib/member-title.js?v=202611050916';
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202611050916';
-import { withBuiltinMenus } from './menu-catalog.js?v=202611050916';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202611050916';
-import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202611050916';
-import { permFieldsForSave } from './lib/perm-model.js?v=202611050916';
-import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202611050916';
+import { cleanPosition } from './lib/member-title.js?v=202611050921';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202611050921';
+import { withBuiltinMenus } from './menu-catalog.js?v=202611050921';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202611050921';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202611050921';
+import { permFieldsForSave } from './lib/perm-model.js?v=202611050921';
+import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202611050921';
 import { deletedTasks, purgeDeletedTasks, followWidgetTitles, takenDeletedNames, taskIdOfWidget, migrateDashboardTaskItems,
-    withTaskWidgetCompat } from './lib/task-config-sync.js?v=202611050916';
+    withTaskWidgetCompat } from './lib/task-config-sync.js?v=202611050921';
 
 // 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
 export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',
@@ -66,7 +66,7 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
         memberRoles: {},       // 아래 '권한 칸' 에서 채운다(모델 또는 저장 전 값 사본)
         memberMenuAccess: {},  // 파생값 — 기능 권한에서 다시 만든다(옛 코드·셸 호환)
         memberRanks: {},
-        memberPositions: {},   // 직책(2026-11-05) — { 이름: '팀장' }, 빈 칸은 저장 안 함
+        memberPositions: {},   // 직책(2026-11-05) — { 이름: 사원|파트장|부팀장|팀장 }
         memberLeaveSettings: {},
         resignedMembers: {}, // 퇴사 처리(비활성): { 이름: 퇴사일 }
         resignedEmails: {}, // { 이메일(소문자): 퇴사일 } — 저장마다 resignedMembers·memberEmails 로 만들고 이전 값을 물려받는다(재직 중이 된 이메일만 뺌, 2026-10-23)
@@ -134,7 +134,7 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
             newConfig.memberWages[memberName] = memberWage;
             newConfig.memberRanks[memberName] = memberRank;
             const memberPosition = cleanPosition(memberItem.querySelector('.member-position')?.value);
-            if (memberPosition) newConfig.memberPositions[memberName] = memberPosition;
+            newConfig.memberPositions[memberName] = memberPosition;
             // 퇴사일이 입력된 팀원만 퇴사 명단에 기록(데이터는 그대로 보존, 화면에서만 비활성)
             if (resignDate) newConfig.resignedMembers[memberName] = resignDate;
 
@@ -181,7 +181,7 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
         newConfig.memberWages[memberName] = memberWage;
         newConfig.memberRanks[memberName] = memberRank;
         const memberPosition = cleanPosition(memberItem.querySelector('.member-position')?.value);
-        if (memberPosition) newConfig.memberPositions[memberName] = memberPosition;
+        newConfig.memberPositions[memberName] = memberPosition;
         newConfig.memberLeaveSettings[memberName] = { joinDate, totalLeave, leaveResetDate, expirationDate };
 
         if (memberEmail) {
