@@ -17,16 +17,16 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611051106';
+import { initializeFirebase } from './config.js?v=202611051110';
 import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611051106';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611051106';
-import { memberNameFor } from './app-shell-data.js?v=202611051106';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611051110';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611051110';
+import { memberNameFor } from './app-shell-data.js?v=202611051110';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
     tardyPrefill, printFitLevel, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
-    checkAttach, attachPath, attachMeta, fmtBytes, ATTACH_MAX, ATTACH_ACCEPT, attachTypeOf } from './lib/approval-logic.js?v=202611051106';
-import { sendApprovalNoti, MSG_TO_ADMIN, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611051106';
+    checkAttach, attachPath, attachMeta, fmtBytes, ATTACH_MAX, ATTACH_ACCEPT, attachTypeOf } from './lib/approval-logic.js?v=202611051110';
+import { sendApprovalNoti, MSG_TO_ADMIN, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611051110';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';

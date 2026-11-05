@@ -11,7 +11,7 @@
 // 2026-11-05 추가: 결재자 지정(approverName·approverEmail — 관리자 또는 직책 파트장·부팀장·팀장, 본인 제외), 대신 결재(관리자, decision.proxy),
 //   첨부(칸 종류 'file' — Storage approvals/{문서id}/…, 문서에는 attachments 메타만: key·name·size·path·type, 문서당 5개·10MB).
 
-import { positionOf } from './member-title.js?v=202611051106';
+import { positionOf } from './member-title.js?v=202611051110';
 
 export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select', 'file'];
 export const BOX_ROLES = ['author', 'approver', 'blank'];
@@ -210,15 +210,14 @@ export function validateValues(form, values, attachments) {
 }
 
 /** 이 사람이 이 기안서에 할 수 있는 일 — 'edit'·'submit'·'delete'·'withdraw'·'approve'·'reject'·'print'.
- *  전이표(규칙과 같음): 작성자 draft→수정·제출·삭제(삭제는 이력·결재 의견이 없을 때만) / rejected→수정·재제출 / submitted→회수, 관리자 submitted→승인·반려. approved 는 인쇄만. */
+ *  전이표(규칙과 같음): 작성자 draft→수정·제출·삭제(회수·반려를 거친 임시저장도 삭제 가능, 2026-11-05) / rejected→수정·재제출 / submitted→회수, 관리자 submitted→승인·반려. approved 는 인쇄만. */
 export function actionsFor(d, email, isAdmin) {
     if (!d) return [];
     const mine = !!email && lower(d.authorEmail) === lower(email);
     const assigned = !!email && !!d.approverEmail && lower(d.approverEmail) === lower(email);   // 지정 결재자
     const out = [];
-    // 삭제는 한 번도 제출 안 한 임시저장만 — 회수·반려를 거친 문서(이력·결재 의견 있음)는 기록이라 못 지운다(규칙과 같음)
-    const fresh = !(Array.isArray(d.history) && d.history.length) && !d.decision;
-    if (mine && d.status === 'draft') out.push('edit', 'submit', ...(fresh ? ['delete'] : []));
+    // 임시저장이면 회수·반려를 거쳤어도 삭제 가능(규칙과 같음, 2026-11-05 사용자 결정)
+    if (mine && d.status === 'draft') out.push('edit', 'submit', 'delete');
     if (mine && d.status === 'rejected') out.push('edit', 'submit');
     if (mine && d.status === 'submitted') out.push('withdraw');
     if ((isAdmin || assigned) && d.status === 'submitted') out.push('approve', 'reject');
@@ -236,9 +235,9 @@ export function whyNot(d, email, isAdmin, act) {
     if (act === 'edit') return st === 'submitted' ? '결재 대기 중에는 고칠 수 없습니다 — [회수] 한 뒤 고치세요.' : '승인된 기안서는 고칠 수 없습니다.';
     if (act === 'withdraw') return st === 'draft' ? '아직 제출하지 않은 기안서입니다.'
         : st === 'rejected' ? '반려된 기안서는 회수 없이 바로 [수정] 할 수 있습니다.' : '승인된 기안서는 회수할 수 없습니다.';
-    if (act === 'delete') return st === 'submitted' ? '결재 대기 중인 기안서는 지울 수 없습니다 — [회수] 할 수 있습니다.'
+    if (act === 'delete') return st === 'submitted' ? '결재 대기 중인 기안서는 지울 수 없습니다 — [회수] 하면 임시저장이 되어 지울 수 있습니다.'
         : st === 'approved' ? '승인된 기안서는 지울 수 없습니다.'
-        : '한 번이라도 제출한 기안서는 지울 수 없습니다 — 회수 후 수정하세요.';
+        : '반려된 기안서는 [수정] 해서 임시저장한 뒤 지울 수 있습니다.';
     return '';
 }
 
