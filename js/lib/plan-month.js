@@ -11,10 +11,11 @@
 //   금액·직원 이름 없음(담당 변경도 업무 이름·날짜·% 만).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-month.test.js
 
-import { addDaysStr, dowOf, offDayOf, fillMix, planSettingsOf } from './plan-week.js?v=202611051531';
-import { leaveThresholdOf } from './plan-risks.js?v=202611051531';
-import { dailyTaskStats } from '../task-throughput.js?v=202611051531';
-import { taskListOf, ownerByPeriod, detectOwnerChanges, compareAround, pctChange } from './task-owner.js?v=202611051531';
+import { addDaysStr, dowOf, offDayOf, fillMix, planSettingsOf } from './plan-week.js?v=202611051545';
+import { leaveThresholdOf } from './plan-risks.js?v=202611051545';
+import { dailyTaskStats } from '../task-throughput.js?v=202611051545';
+import { taskListOf, ownerByPeriod, detectOwnerChanges, compareAround, pctChange } from './task-owner.js?v=202611051545';
+import { monthConfidence } from './plan-confidence.js?v=202611051545';
 
 export const MONTH_LEVELS = Object.freeze({
     weeks: 8, seasonMinDays: 15, seasonMin: 0.7, seasonMax: 1.4, trendMin: 0.7, trendMax: 1.3,
@@ -145,6 +146,7 @@ function weekChunks(days) {
  * @param {object} [input.recentModel] 최근 4주 운영 리포트 모델 · [input.prevModel] 그 앞 4주
  * @param {number} [input.baseQtyPerDay] 최근 8주 하루 평균 처리량(M2 비교)
  * @param {Array}  [input.ownerDrops] ownerDropsOf 결과(M5)
+ * @param {Array}  [input.confirmedErrs] 지난 월간 확정본 대비 필요 인원 오차(절댓값 %) — 신뢰도 v2
  */
 export function buildMonthPlan(input = {}) {
     const L = MONTH_LEVELS;
@@ -233,8 +235,8 @@ export function buildMonthPlan(input = {}) {
         if (!o.weekend && !o.holiday) possible++;
     }
     const opRatio = possible > 0 ? prof.opDays / possible : 0;
-    const confidence = (opRatio >= L.confOpRatio && season.used)
-        ? { level: 'mid', label: '보통' } : { level: 'low', label: '낮음' };
+    // 신뢰도 v2(plan-confidence) — 작년 같은 달(계절 비율의 '다음 달' 운영일)·기록률·확정 대비 오차
+    const confidence = { ...monthConfidence({ priorSameMonthDays: season.nextDays || 0, recordRate: possible > 0 ? Math.min(1, opRatio) : null, confirmedErrs: input.confirmedErrs || [] }) };
     Object.assign(confidence, { opDays: prof.opDays, possibleDays: possible, opRatio: r1(opRatio * 100) / 100, seasonUsed: !!season.used });
 
     // ── 과제 M ──

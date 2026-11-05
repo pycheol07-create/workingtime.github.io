@@ -13,10 +13,10 @@
 import {
     opsSummary, periodMetrics, partSummary, baselineSpeeds, lastDayIdOf, previousPeriodOf, rollingBaselineOf,
     periodDaysOf, PARTS, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf
-} from './ops-metrics.js?v=202611051531';
-import { taskNameOf, TASK } from './task-ids.js?v=202611051531';
-import { aliasTaskName } from './task-alias-view.js?v=202611051531';
-import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611051531';
+} from './ops-metrics.js?v=202611051545';
+import { taskNameOf, TASK } from './task-ids.js?v=202611051545';
+import { aliasTaskName } from './task-alias-view.js?v=202611051545';
+import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611051545';
 
 /** 판정 기준 — 진단 문장·부족/여유 일자가 같이 쓴다. */
 export const OPS_VIEW_LEVELS = Object.freeze({
@@ -65,7 +65,7 @@ export function opsModelInputs(gran, key, allDays) {
 
 /**
  * 업무 담당 변화 요약 — 업무별 주 인원이 바뀐 지점(task-owner.js, 주 단위·2주 연속 1위). 이름은 담지 않는다.
- * ownerDays = 보통 메모리의 최근 12개월 전체. from·to 를 주면 그 기간 안의 변경을 inPeriod 로 표시.
+ * ownerDays = 보통 메모리의 최근 13개월 전체(+ 이번 달). from·to 를 주면 그 기간 안의 변경을 inPeriod 로 표시.
  * @returns {{windowLabel, gran, hold, changedTasks, inPeriodTasks, items:[{task, date, inPeriod}]}}  items 는 날짜 늦은 순
  */
 export function ownerChangeSummary(ownerDays, cfg, { today = null, from = null, to = null, gran = 'week', hold = 2 } = {}) {
@@ -85,7 +85,7 @@ export function ownerChangeSummary(ownerDays, cfg, { today = null, from = null, 
     });
     items.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.task < b.task ? -1 : 1)));
     return {
-        windowLabel: '최근 12개월', gran, hold,
+        windowLabel: '최근 13개월', gran, hold,
         changedTasks: changed.size, inPeriodTasks: inPeriod.size, items
     };
 }

@@ -4,14 +4,22 @@
 //   성수기 준비 기간 = 관리자 비용 설정(채용 + 교육 주)이 있으면 그것, 없으면 6주.
 //   금액 없음(연간 인건비·매출은 js/ui-ops-plan-budget.js — 관리자만). ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611051531';
-import { getRegularMembersForCount } from './utils.js?v=202611051531';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051531';
-import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611051531';
-import { buildYearPlan } from './lib/plan-year.js?v=202611051531';
-import { addDaysStr } from './lib/plan-week.js?v=202611051531';
-import { availableStaffOf } from './ui-history-prediction.js?v=202611051531';
-import { esc, n1, card } from './ui-ops-plan-parts.js?v=202611051531';
+import * as State from './state.js?v=202611051545';
+import { getRegularMembersForCount } from './utils.js?v=202611051545';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051545';
+import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611051545';
+import { buildYearPlan } from './lib/plan-year.js?v=202611051545';
+import { addDaysStr } from './lib/plan-week.js?v=202611051545';
+import { availableStaffOf } from './ui-history-prediction.js?v=202611051545';
+import { esc, n1, card } from './ui-ops-plan-parts.js?v=202611051545';
+
+/** 월 요약 띠 — 몇 달이 있나, 관리자는 [월 요약 다시 만들기](달 고르기) */
+function monthlyBar(monthlies, months, isAdmin) {
+    const n = monthlies == null ? null : monthlies.length;
+    const have = new Set((monthlies || []).map(m => m.ym));
+    const opts = months.slice().reverse().map(ym => `<option value="${ym}">${ym}${have.has(ym) ? '' : ' (없음)'}</option>`).join('');
+    return `<p class="opv-note">월 요약(13개월 넘는 비교용): ${n == null ? '불러오는 중…' : `${n}개월`}${isAdmin ? ` <span class="opp-noprint">· <select id="ops-plan-monthly-ym" class="opp-inp opp-sel" aria-label="다시 만들 달">${opts}</select> <button type="button" id="ops-plan-monthly-rebuild" class="opv-btn">월 요약 다시 만들기</button></span>` : ''}</p>`;
+}
 
 /** 작년(최근 12개월) 달별 하루 휴무 비율 { 1..12: 0~1 } — 수만 */
 function leaveRates(today) {
@@ -31,18 +39,19 @@ function leaveRates(today) {
     return out;
 }
 
-/** 연간 계획 입력 → buildYearPlan. leadWeeks = 관리자 비용 설정(채용 + 교육 주) 또는 null */
-export function computeYearPlan(today, cfgPlan, { leadWeeks = null } = {}) {
+/** 연간 계획 입력 → buildYearPlan. leadWeeks = 관리자 비용 설정(채용 + 교육 주) 또는 null, monthlies = 월 요약(OpsMonthly) 목록 */
+export function computeYearPlan(today, cfgPlan, { leadWeeks = null, monthlies = [] } = {}) {
     const cfg = cfgPlan || State.appConfig || {};
     const view = aliasHistoryView(State.allHistoryData || [], cfg) || [];
     return buildYearPlan({
         allDays: view, today, cfg, speeds: baselineSpeeds(view, { skipDate: today }), utilization: normalizedUtilization(cfg),
-        roster: getRegularMembersForCount(cfg, today).size, leaveRate: leaveRates(today), leadWeeks
+        roster: getRegularMembersForCount(cfg, today).size, leaveRate: leaveRates(today), leadWeeks, monthlies
     });
 }
 
-export function yearBodyHtml(p) {
-    const band = `<p class="opv-notes"><b>1년치 기록 기준·참고용</b> — 신뢰도는 항상 '낮음'입니다. 성장률·월 지수는 추정이고 퇴사 예정은 반영하지 못합니다.</p>`;
+export function yearBodyHtml(p, { isAdmin = false, monthlies = null, months = [] } = {}) {
+    const band = `<p class="opv-notes"><b>기록 ${p.meta.monthsKnown || 0}개월 기준·참고용</b> — 신뢰도 ${esc(p.meta.confidence.label)}. 성장은 ${p.meta.growthKind === 'yoy' ? '전년 같은 달 대비' : '추정(같은 달 비교 아님)'}이고 퇴사 예정은 반영하지 못합니다.</p>`
+        + monthlyBar(monthlies, months, isAdmin);
     if (p.meta.insufficient) {
         return band + card('연간 계획(내년)', `<p class="opv-note">1년치 기록 부족 — 연간은 참고용, 기록 유지. 최근 12개월 운영일 ${p.meta.opDays}일(기준 240일)이라 달별 숫자를 내지 않습니다.</p>`);
     }

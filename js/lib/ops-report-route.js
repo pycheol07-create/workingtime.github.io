@@ -96,7 +96,7 @@ export const canOwner = (can) => typeof can === 'function' && !!can(OWNER_FEATUR
 /** 생산성 탭 업무 표(금액 없음)를 볼 수 있나. */
 export const canTaskTable = (can) => typeof can === 'function' && !!can(TASK_TABLE_FEATURE);
 
-/** 날짜 트리를 안 쓰는 상태인가 — 팀 결산(자체 월·분기·년 선택)과 운영 계획(다음 주 고정). 업무 상세의 담당 변화는 최근 12개월을 따로 본다(문구로 알림). */
+/** 날짜 트리를 안 쓰는 상태인가 — 팀 결산(자체 월·분기·년 선택)과 운영 계획(다음 주 고정). 업무 상세의 담당 변화는 최근 13개월을 따로 본다(문구로 알림). */
 export const isOpsTreeless = (v) => !!(v && v.main === OPS_MAIN && (String(v.settle || '') === '1' || tabOf(v.sub) === PLAN_TAB));
 
 /** 날짜 트리의 선택(단위·키) → 팀 결산 선택기에 넣을 기간. 월·년만 넘기고 일·주는 null(결산 기본 = 이번 달). */

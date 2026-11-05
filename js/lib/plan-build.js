@@ -10,9 +10,10 @@
 
 import {
     planSettingsOf, nextWeekRange, weekDaysOf, fillMix, shortRuns, confidenceOf, addDaysStr, dowOf
-} from './plan-week.js?v=202611051531';
-import { buildRisks, leaveCrowdDays, holidaySurgeDays, RISK_LEVELS } from './plan-risks.js?v=202611051531';
-import { buildMeeting } from './plan-rhythm.js?v=202611051531';
+} from './plan-week.js?v=202611051545';
+import { buildRisks, leaveCrowdDays, holidaySurgeDays, RISK_LEVELS } from './plan-risks.js?v=202611051545';
+import { buildMeeting } from './plan-rhythm.js?v=202611051545';
+import { weekConfidence } from './plan-confidence.js?v=202611051545';
 
 export const ACTION_LIMIT = 10;
 const CONF_FACTOR = { high: 1, mid: 0.7, low: 0.4 };
@@ -64,6 +65,7 @@ export function weekdayShortCounts(recentModel, shortGap = 0.5) {
  * @param {object} [input.lastWeekModel] 지난주 운영 리포트 모델(주 단위) — 회의 자료
  * @param {number} [input.accuracyErr]   지난 업무 예상 평균 시간 오차(비율) — 모르면 null
  * @param {object} [input.range]         { from, to, dates } — 없으면 today 의 다음 주
+ * @param {number} [input.recordRate]    최근 8주 기록률(0~1, plan-confidence recordRateOf) — 신뢰도 v2
  * @param {Array}  [input.bus]           한 사람 의존(이름 없음 — plan-skills redactForOutput(...).bus) → 리스크 + 교육 과제 S1
  */
 export function buildWeekPlan(input = {}) {
@@ -99,6 +101,10 @@ export function buildWeekPlan(input = {}) {
     const surges = holidaySurgeDays(days, input.afterHoliday);
     const recentNotes = (input.recentModel && Array.isArray(input.recentModel.notes)) ? input.recentModel.notes : [];
     const accuracyErr = input.accuracyErr != null && Number.isFinite(Number(input.accuracyErr)) ? Number(input.accuracyErr) : null;
+    // 신뢰도 v2(plan-confidence) — 실측 오차·기록률·예정 입력. planned·workdays·ratio(예정 입력 통계)는 그대로 둔다
+    Object.assign(confidence, (({ level, label, reasons, nextUpgrade }) => ({ level, label, reasons, nextUpgrade }))(weekConfidence({
+        errPct: accuracyErr != null ? Math.abs(accuracyErr) * 100 : null, recordRate: input.recordRate, plannedRatio: confidence.workdays ? confidence.ratio : null
+    })));
     // 다음 주 업무별 인시(업무 예상 taskHours 합) — 한 사람 의존은 다음 주에 그 업무가 있을 때만 리스크·과제(S1)
     const weekHours = {};
     (input.outlookRows || []).forEach(r => {

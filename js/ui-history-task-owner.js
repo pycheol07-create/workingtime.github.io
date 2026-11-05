@@ -2,17 +2,17 @@
 // 데이터 관리 「업무 담당 변화」(레일 '보고' > 업무 담당 변화, #tab=taskowner, 2026-11-05).
 // 업무 하나 + [주|월] → ① 기간별 주 인원 표 ② 주 인원이 바뀐 지점과 그 전후 지표 변화 ③ 속도 선 차트(변경 시점 세로 점선).
 // 계산은 js/lib/task-owner.js(순수). 이 파일은 그리기만 한다.
-// 읽기만 한다 — 메모리의 최근 12개월 이력(State.allHistoryData)만 쓰고 Firestore 를 따로 읽지 않는다.
+// 읽기만 한다 — 메모리의 최근 13개월 이력(State.allHistoryData, + 이번 달)만 쓰고 Firestore 를 따로 읽지 않는다.
 // ⚠️ 콘솔·로그에 직원 이름을 찍지 않는다. role="dialog"·data-act 를 쓰지 않는다(업무마감봇 선택자).
-import * as State from './state.js?v=202611051531';
-import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611051531';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051531';
-import { TASK, tName } from './task-names.js?v=202611051531';
-import { D, alpha } from './d-chart.js?v=202611051531';
+import * as State from './state.js?v=202611051545';
+import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611051545';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051545';
+import { TASK, tName } from './task-names.js?v=202611051545';
+import { D, alpha } from './d-chart.js?v=202611051545';
 import {
     ownerByPeriod, detectOwnerChanges, ownerLine, compareAround, taskDays, taskListOf, pctChange,
     CAP_MINUTES, MIN_SOLO_DAYS, MIN_COMPARE_DAYS
-} from './lib/task-owner.js?v=202611051531';
+} from './lib/task-owner.js?v=202611051545';
 
 const DEFAULTS = { week: { hold: 2, n: 4 }, month: { hold: 2, n: 2 } };
 const HOLD_CHOICES = [1, 2, 3, 4];
@@ -191,7 +191,7 @@ export function renderTaskOwnerTab({ task: want = null } = {}) {
     const { view, tasks } = viewOf();
     if (!tasks.length) {
         if (chart) { try { chart.destroy(); } catch (e) { /* */ } chart = null; }
-        body.innerHTML = `<div class="text-center py-16 text-gray-400 text-sm">최근 12개월 업무 기록이 없습니다.</div>`;
+        body.innerHTML = `<div class="text-center py-16 text-gray-400 text-sm">최근 13개월 업무 기록이 없습니다.</div>`;
         return;
     }
     if (!tasks.includes(opts.task)) opts.task = tasks[0];
@@ -240,7 +240,7 @@ export function renderTaskOwnerTab({ task: want = null } = {}) {
             <li>새 사람이 ${opts.hold}${unit} 연속 1위일 때 바뀐 것으로 봅니다(진행 중인 이번 ${unit === '주' ? '주' : '달'}는 세지 않고, 전후 비교에서도 오늘은 뺍니다). 바뀐 날짜는 그 사람의 첫 ${unit === '주' ? '주' : '달'} 시작일입니다.</li>
             ${qty ? `<li>UPH·하루 처리량·개당 시간은 시간과 처리량이 둘 다 입력된 날만 봅니다. UPH 는 하루 10분 이상 한 날의 하루 UPH 가운데값입니다(3일 미만이면 합계로 계산). 주 인원 본인 UPH 는 그 사람이 그날 이 업무 시간의 80% 이상을 맡은 날(단독일)만 보고, 단독일이 ${MIN_SOLO_DAYS}일 미만이면 '–' 입니다.</li>` : ''}
             <li>'종료'를 누르지 않아 길게 잡힌 기록은 1건당 ${CAP_MINUTES}분까지만 셉니다${capped ? ` (이 업무 ${capped}건)` : ''}.</li>
-            <li>직원은 기록에 남은 이름으로 셉니다 — 이름이 바뀐 직원은 다른 사람으로 보입니다. 최근 12개월 기록만 봅니다.</li>
+            <li>직원은 기록에 남은 이름으로 셉니다 — 이름이 바뀐 직원은 다른 사람으로 보입니다. 최근 13개월 기록만 봅니다.</li>
         </ul>`;
     drawChart(rows, det.changes, qty);
 }

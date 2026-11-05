@@ -1,22 +1,22 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202611051531';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202611051531';
-import { clampOpenRecords } from './lib/record-close.js?v=202611051531';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202611051531';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202611051531';
+import * as State from './state.js?v=202611051545';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202611051545';
+import { clampOpenRecords } from './lib/record-close.js?v=202611051545';
+import { decideHistoryMerge } from './lib/history-merge.js?v=202611051545';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202611051545';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
-} from './lib/attendance-guard.js?v=202611051531';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202611051531';
-import { can } from './lib/perm.js?v=202611051531';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202611051531';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202611051531';
-import { cutoffDate, fillHistoryDays } from './lib/history-window.js?v=202611051531';
-import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202611051531';
-import { buildPlannedDoc } from './lib/planned-fields.js?v=202611051531';
-import { sameTaskKeys } from './lib/task-alias-view.js?v=202611051531';
+} from './lib/attendance-guard.js?v=202611051545';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202611051545';
+import { can } from './lib/perm.js?v=202611051545';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202611051545';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202611051545';
+import { cutoffDate, fillHistoryDays, historyRangeStart, cacheJsonOf } from './lib/history-window.js?v=202611051545';
+import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202611051545';
+import { buildPlannedDoc } from './lib/planned-fields.js?v=202611051545';
+import { sameTaskKeys } from './lib/task-alias-view.js?v=202611051545';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202611051531';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202611051545';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -54,7 +54,7 @@ export const clearLocalCache = () => {
 };
 
 // 대시보드(오늘 진행 띠)용 최근 100일 캐시 — 전체 이력 캐시(historyDataCache)와 키를 나눈다.
-//   전체 키는 업무예상알림 봇이 history.html 에서 '12개월 전체' 로 읽으므로 100일치를 절대 넣지 않는다.
+//   전체 키는 업무예상알림 봇이 history.html 에서 '전체(13개월 + 이번 달)' 로 읽으므로 100일치를 절대 넣지 않는다.
 const DASH_HISTORY_DAYS = 100;
 const DASH_CACHE_KEY = 'historyDataCacheDash';
 const DASH_CACHE_TIME_KEY = 'historyDataCacheDashTime';
@@ -1560,10 +1560,9 @@ export async function fetchAllHistoryData(forceRefresh = false) {
     historyFetchPromise = (async () => {
         const historyCollectionRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'history');
         try {
-            const d = new Date();
-            // 이력 조회 범위: 최근 12개월. (세션 캐시 5분이 있어 같은 세션 내 재호출은 추가 read 없음)
-            d.setMonth(d.getMonth() - 12);
-            const oneYearAgoStr = toDateString(d);
+            // 이력 조회 범위: 13개월 + 이번 달 1일부터(운영 계획 v2 D1 — 전년 같은 달 비교). 그 전 달은 월 요약(OpsMonthly)으로.
+            //   (세션 캐시가 있어 같은 세션 내 재호출은 추가 read 없음)
+            const oneYearAgoStr = historyRangeStart(getTodayDateString(), 13);
 
             const q = query(historyCollectionRef, where(documentId(), ">=", oneYearAgoStr));
             const querySnapshot = await getDocs(q);
@@ -1590,9 +1589,11 @@ export async function fetchAllHistoryData(forceRefresh = false) {
             
             // ✨ 성공적으로 가져왔다면 로컬 스토리지에 캐싱 (용량 초과 시 안전하게 스킵)
             try {
-                const json = JSON.stringify(State.allHistoryData);
-                if (json.length > HISTORY_CACHE_MAX_CHARS) throw new Error(`이력 캐시가 상한(${HISTORY_CACHE_MAX_CHARS}자)을 넘음: ${json.length}자`);
-                localStorage.setItem('historyDataCache', json);
+                // 상한을 넘으면 가장 오래된 달(13번째 달)을 빼고 저장해 본다 — 그 달은 월 요약으로 보충(캐시로 다시 열면 메모리에 12개월+이번 달)
+                const packed = cacheJsonOf(State.allHistoryData, getTodayDateString(), HISTORY_CACHE_MAX_CHARS, 13);
+                if (!packed) throw new Error(`이력 캐시가 상한(${HISTORY_CACHE_MAX_CHARS}자)을 넘음(13번째 달을 빼도)`);
+                if (packed.trimmedFrom) console.warn('[history cache] 상한 때문에 캐시에는', packed.trimmedFrom, '부터만 저장 — 그 전 달은 월 요약으로 봅니다');
+                localStorage.setItem('historyDataCache', packed.json);
                 localStorage.setItem('historyDataCacheTime', Date.now().toString());
             } catch (e) {
                 console.warn('[history cache] localStorage 저장 실패(용량 초과 가능) — 캐시 없이 진행:', e);
@@ -1794,9 +1795,10 @@ export async function refreshRecentHistory(days = RECENT_REFRESH_DAYS) {
                     && day.onLeaveMembers.some(e => e && e.__fromSchedule))
                     ? { ...day, onLeaveMembers: day.onLeaveMembers.filter(e => !(e && e.__fromSchedule)) }
                     : day);
-                const json = JSON.stringify(clean);
-                if (json.length > HISTORY_CACHE_MAX_CHARS) clearFullHistoryCache();   // 커졌으면 옛 전체 캐시도 남기지 않는다
-                else localStorage.setItem('historyDataCache', json);
+                // 상한을 넘으면 13번째 달을 빼고(fetchAllHistoryData 와 같은 규칙), 그래도 넘으면 옛 전체 캐시도 남기지 않는다
+                const packed = cacheJsonOf(clean, getTodayDateString(), HISTORY_CACHE_MAX_CHARS, 13);
+                if (!packed) clearFullHistoryCache();
+                else localStorage.setItem('historyDataCache', packed.json);
             } catch (_) {}
         }
     } catch (e) {

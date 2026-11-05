@@ -1,5 +1,8 @@
 // === js/lib/plan-year.js ===
-// 운영 계획 확장-3 — 연간 계획서(내년 1~12월). 1년치 기록으로 어림한 참고용 — 신뢰도는 **항상 낮음**.
+// 운영 계획 확장-3 — 연간 계획서(내년 1~12월). 1년치 기록으로 어림한 참고용.
+//   신뢰도 v2(plan-confidence yearConfidence): 기록 개월 수(월 요약 + 메모리)·작년 같은 달·지난 연간 오차 — 고정 '낮음' 없앰(v2 D1).
+//   성장: 같은 달 짝(전년 대비)이 6개 이상이면 yoyGrowth(정식), 그 전에는 growthOf('추정').
+//   p.monthlies(월 요약 OpsMonthly, 13개월 넘는 달)가 있으면 메모리에 없는 달의 운영일·처리량을 채운다.
 //   월 지수 = 그 달(최근 12개월 중 같은 달) 하루 평균 처리량 ÷ 12개월 평균. 운영일 < 15 인 달은 '빈 달'(지수 없음 → 1 로 계산, 표시는 '—').
 //   성장률 = 최근 3개월 하루 평균 ÷ 가장 오래된 3개월 하루 평균('추정' — 같은 달 비교 아님, 0.7~1.5 로 자름).
 //   처리 속도 추세 = 분기(최근 12개월을 3개월씩 4개)별 가중 UPH(처리량 ÷ 처리량 업무 시간).
@@ -11,9 +14,10 @@
 //   금액·직원 이름 없음.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-year.test.js
 
-import { offDayOf, addDaysStr } from './plan-week.js?v=202611051531';
-import { demandMinutes } from './ops-metrics.js?v=202611051531';
-import { dailyTaskStats } from '../task-throughput.js?v=202611051531';
+import { offDayOf, addDaysStr } from './plan-week.js?v=202611051545';
+import { demandMinutes } from './ops-metrics.js?v=202611051545';
+import { dailyTaskStats } from '../task-throughput.js?v=202611051545';
+import { yearConfidence, yoyGrowth } from './plan-confidence.js?v=202611051545';
 
 export const YEAR_LEVELS = Object.freeze({
     minMonthDays: 15, minOpDays: 240, peak: 1.15, offpeak: 0.85, growthMin: 0.7, growthMax: 1.5,
@@ -102,6 +106,8 @@ export function workdaysOfMonth(ym, holidayNameOf) {
  * @param {object} [p.leaveRate] { 1..12: 하루 휴무 비율(0~1) } — 작년 같은 달, 없으면 평균
  * @param {Function} [p.holidayNameOf]
  * @param {number} [p.leadWeeks] 성수기 준비 기간(주) — 관리자 비용 설정(채용 + 교육), 없으면 6
+ * @param {Array}  [p.monthlies]  월 요약(OpsMonthly) 목록 [{ym, qtyDays, qty}] — 메모리에 없는 달을 채운다
+ * @param {number} [p.lastYearErr] 지난 연간 확정 대비 오차(%) — 신뢰도 v2
  */
 export function buildYearPlan(p = {}) {
     const L = YEAR_LEVELS;
@@ -112,7 +118,21 @@ export function buildYearPlan(p = {}) {
     const opDays = days.length;
     const insufficient = opDays < L.minOpDays;
     const idx = monthIndex(days);
-    const gRaw = growthOf(days);
+    // 달별 운영일·처리량 — 메모리(최근 이력) 우선, 없는 달은 월 요약으로
+    const perMonth = {};
+    (p.allDays || []).filter(d => d && typeof d.id === 'string' && d.id < today && isOp(d) && qtyOf(d) > 0).forEach(d => {
+        const k = ymOf(d.id); const s = perMonth[k] || (perMonth[k] = { opDays: 0, qty: 0 }); s.opDays++; s.qty += qtyOf(d);
+    });
+    // 메모리는 '처리량 > 0 인 운영일'로 센다 → 요약도 같은 기준(qtyDays, 옛 schema 1 은 opDays)
+    (p.monthlies || []).forEach(m => { if (m && m.ym && !perMonth[m.ym] && m.ym < String(today).slice(0, 7)) perMonth[m.ym] = { opDays: num(m.qtyDays != null ? m.qtyDays : m.opDays), qty: num(m.qty) }; });
+    const curYm = String(today).slice(0, 7);
+    const fullMonths = Object.entries(perMonth).filter(([k, v]) => k < curYm && v.opDays >= L.minMonthDays);
+    const yoy = yoyGrowth(perMonth);
+    const gRaw = yoy ? yoy.ratio : growthOf(days);
+    const growthKind = yoy ? 'yoy' : (gRaw == null ? null : 'estimate');
+    const lastYear = String(year - 1);
+    const priorSameMonths = fullMonths.filter(([k]) => k.startsWith(lastYear + '-')).length;
+    const confidence = { ...yearConfidence({ months: fullMonths.length, priorSameMonths, lastYearErr: p.lastYearErr }), opDays, possibleDays: null };
     const growth = gRaw == null ? 1 : Math.min(L.growthMax, Math.max(L.growthMin, gRaw));
     const qUph = quarterUph(days, today);
     const util = num(p.utilization) > 0 ? num(p.utilization) : 0.8;
@@ -172,8 +192,8 @@ export function buildYearPlan(p = {}) {
         }
         if (gRaw != null && (gRaw - 1) * 100 >= L.growthAlert) push({
             rule: 'Y5', target: 'growth', hours: 10, due: `${key}-01-01`, role: '관리자',
-            title: `물량이 ${Math.round((gRaw - 1) * 100)}% 늘고 있습니다(추정) — 작업대·포장 용량을 점검해 보세요`,
-            basis: '최근 3개월 ÷ 가장 오래된 3개월 하루 평균', effect: '용량 부족으로 막히는 일을 막습니다' });
+            title: `물량이 ${Math.round((gRaw - 1) * 100)}% 늘고 있습니다${growthKind === 'yoy' ? '(전년 같은 달 대비)' : '(추정)'} — 작업대·포장 용량을 점검해 보세요`,
+            basis: growthKind === 'yoy' ? `같은 달 짝 ${yoy.pairs}개 하루 평균 비교` : '최근 3개월 ÷ 가장 오래된 3개월 하루 평균(같은 달 비교 아님)', effect: '용량 부족으로 막히는 일을 막습니다' });
     }
     const actions = acts.sort((a, b) => b.score - a.score || (a.key < b.key ? -1 : 1)).slice(0, 10);
 
@@ -182,16 +202,16 @@ export function buildYearPlan(p = {}) {
         ? [`최근 12개월 운영일 ${opDays}일 — 1년치 기록 부족(기준 ${L.minOpDays}일). 연간은 참고용입니다. 기록을 유지해 주세요.`]
         : [
             `${key}년 월별 필요 인원 ${r1(Math.min(...known.map(x => x.reqFTE)))}~${r1(Math.max(...known.map(x => x.reqFTE)))}명(어림) · 지금 명부 ${roster}명.`,
-            `성수기 ${months.filter(x => x.peak).map(x => `${x.m}월`).join('·') || '없음'} · 비수기 ${months.filter(x => x.offpeak).map(x => `${x.m}월`).join('·') || '없음'} · 성장 ${gRaw == null ? '추정 불가' : `${r1((gRaw - 1) * 100)}%(추정)`}.`,
-            '신뢰도 낮음 — 1년치 기록 기준·참고용입니다. 퇴사 예정은 반영하지 못합니다.'
+            `성수기 ${months.filter(x => x.peak).map(x => `${x.m}월`).join('·') || '없음'} · 비수기 ${months.filter(x => x.offpeak).map(x => `${x.m}월`).join('·') || '없음'} · 성장 ${gRaw == null ? '추정 불가' : `${r1((gRaw - 1) * 100)}%${growthKind === 'yoy' ? '(전년 대비)' : '(추정)'}`}.`,
+            `신뢰도 ${confidence.label} — ${confidence.reasons.join(' · ')}. 퇴사 예정은 반영하지 못합니다.`
         ];
     return {
         meta: {
             horizon: 'year', key, from: `${key}-01-01`, to: `${key}-12-31`, today, opDays, insufficient,
-            confidence: { level: 'low', label: '낮음', opDays, possibleDays: null },
-            growth: gRaw == null ? null : r2(gRaw), growthUsed: r2(growth), quarters: qUph, roster,
+            confidence, monthsKnown: fullMonths.length, priorSameMonths,
+            growth: gRaw == null ? null : r2(gRaw), growthKind, growthUsed: r2(growth), quarters: qUph, roster,
             basis: [
-                '1년치 기록 기준·참고용(신뢰도 항상 낮음)',
+                `기록 ${fullMonths.length}개월 기준(월 요약 포함)·참고용 — 신뢰도 ${confidence.label}`,
                 '필요 = 평소 하루 수요 × 월 지수 × 성장 ÷ (표준시간 × 가동률) — 월간 계획과 같은 식',
                 '공급 = 지금 재직 정규 − 작년 같은 달 휴무 비율(퇴사 예정 반영 안 됨)',
                 `월 지수: 운영일 ${L.minMonthDays}일 미만 달은 빈 달(지수 1 로 계산)`

@@ -16,31 +16,34 @@
 // 금액·직원 이름 없음 — 휴무는 '수'만 받는다. 콘솔에도 이름·금액·문서 본문을 찍지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자).
 
-import * as State from './state.js?v=202611051531';
-import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611051531';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051531';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051531';
-import { taskNameOf } from './lib/task-ids.js?v=202611051531';
-import { buildWeekPlan } from './lib/plan-build.js?v=202611051531';
-import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051531';
-import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611051531';
-import { planDocId, confirmDocOf, planVsActual } from './lib/plan-compare.js?v=202611051531';
-import { getStaffingOutlook, ensureMibalHistory, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611051531';
-import { fetchPlannedData } from './history-data-manager.js?v=202611051531';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051531';
-import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611051531';
-import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611051531';
-import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611051531';
-import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611051531';
-import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=202611051531';
-import { namesLeak } from './lib/plan-skills.js?v=202611051531';
-import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=202611051531';
-import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=202611051531';
-import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=202611051531';
-import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=202611051531';
-import { simRowsOf } from './lib/plan-sim.js?v=202611051531';
-import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=202611051531';
-import { COST_DOC } from './ops-plan-store.js?v=202611051531';
+import * as State from './state.js?v=202611051545';
+import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611051545';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051545';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051545';
+import { taskNameOf } from './lib/task-ids.js?v=202611051545';
+import { buildWeekPlan } from './lib/plan-build.js?v=202611051545';
+import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051545';
+import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611051545';
+import { planDocId, confirmDocOf, planVsActual } from './lib/plan-compare.js?v=202611051545';
+import { getStaffingOutlook, ensureMibalHistory, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611051545';
+import { fetchPlannedData } from './history-data-manager.js?v=202611051545';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051545';
+import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611051545';
+import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611051545';
+import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611051545';
+import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611051545';
+import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=202611051545';
+import { namesLeak } from './lib/plan-skills.js?v=202611051545';
+import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=202611051545';
+import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=202611051545';
+import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=202611051545';
+import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=202611051545';
+import { simRowsOf } from './lib/plan-sim.js?v=202611051545';
+import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=202611051545';
+import { COST_DOC } from './ops-plan-store.js?v=202611051545';
+import { recordRateOf } from './lib/plan-confidence.js?v=202611051545';
+import { loadMonthlies, autoBuildMonthlies, rebuildMonth } from './ops-monthly-store.js?v=202611051545';
+import { finishedMonths } from './lib/plan-monthly.js?v=202611051545';
 
 const $ = (id) => document.getElementById(id);
 const isAdmin = () => !!(State.appState && State.appState.currentUserRole === 'admin');
@@ -52,6 +55,9 @@ const SIM0 = { staffDelta: 0, qtyPct: 0, speedPct: 0 };
 let simLever = { ...SIM0 };   // 시뮬레이터 슬라이더(기간을 바꾸면 0 으로)
 let simBase = null;           // 마지막으로 그린 시뮬레이터 기본값
 let msMod = null;             // 운영 마일스톤 모듈(로드맵 '실행됨'·효과) — 처음 그릴 때 불러 구독
+// 📆 월 요약(v2 D1) — 연간 계산에 쓰는 달별 운영일·처리량(메모리 13개월 밖). 관리자는 한 번 자동으로 빠진 달을 만든다.
+let monthlies = null;         // null = 아직 안 읽음, [] = 없음
+let monthlyBusy = false, autoBuilt = false;
 let cache = null;          // { sig, models, week, month? }
 let token = 0;             // 늦게 끝난 앞 요청이 새 화면을 덮지 않게
 let loaded = false;        // 예정 물량·미발 이력을 한 번 기다렸나
@@ -117,6 +123,7 @@ function computeWeek(today, models) {
         today, range, outlookRows, cfg, prepNames,
         afterHoliday: precedingHolidayNameOf,
         recentModel: models.recentModel, lastWeekModel: models.lastWeekModel, accuracyErr: getLoadedAccuracyHourErr(),
+        recordRate: recordRateOf(models.view, today),   // 신뢰도 v2 — 최근 8주 기록률
         bus: busForPlan(people)
     });
     return { plan, people };
@@ -171,8 +178,8 @@ function headHtml(p, per, confirmed) {
                 : '아직 확정하지 않은 미리보기입니다';
     const confBtn = isAdmin()
         ? `<button type="button" id="ops-plan-confirm-btn" class="ops-make-btn opp-noprint" title="지금 계획을 확정본으로 저장합니다(다시 확정하면 버전 + 1)">${confirmed ? `다시 확정(v${(confirmed.version || 0) + 1})` : '계획 확정'}</button>` : '';
-    const confNote = horizon === 'year' ? `1년치 기록 기준·참고용 — 연간은 신뢰도 항상 낮음(최근 12개월 운영일 ${c.opDays}일)` : c.planned != null ? `예정 물량을 넣은 업무일 ${c.planned}/${c.workdays}일(60% 이상 높음 · 30% 이상 보통)`
-        : `최근 8주 운영일 ${c.opDays}/${c.possibleDays}일 · 계절 비율 ${c.seasonUsed ? '사용' : '없음'}(업무일의 90% 이상 기록 + 계절 비율 = 보통)`;
+    // 신뢰도 v2 — 근거(reasons)와 올리려면(nextUpgrade)
+    const confNote = (c.reasons || []).join(' · ') + (c.nextUpgrade ? ` · 올리려면(${c.nextUpgrade.when}): ${c.nextUpgrade.need}` : '');
     return `<div class="opp-head">
         <div class="ops-tabs opp-gran" aria-label="계획 기간">
             <button type="button" class="ops-tab${horizon === 'week' ? ' is-on' : ''}" data-plan-horizon="week" aria-pressed="${horizon === 'week'}">주간</button>
@@ -325,7 +332,7 @@ function paint(host) {
     const doneMap = confirmed ? (confirmed.done || {}) : null;
     const done = (k) => (doneMap ? doneMap[k] === true : localDone(k));
     const body = horizon === 'year'
-        ? `${yearBodyHtml(p)}${money}${actionsHtml(p.actions, { done, mode, title: '연간 과제', empty: '내년에 따로 준비할 일이 없습니다.' })}${extras}`
+        ? `${yearBodyHtml(p, { isAdmin: isAdminNow(), monthlies, months: finishedMonths(p.meta.today, 13) })}${money}${actionsHtml(p.actions, { done, mode, title: '연간 과제', empty: '내년에 따로 준비할 일이 없습니다.' })}${extras}`
         : horizon === 'month'
         ? `${monthBodyHtml(p)}${money}${actionsHtml(p.actions, { done, mode, title: '월간 과제 (우선순위)', empty: '다음 달에 따로 준비할 일이 없습니다.' })}${extras}`
         : `${daysHtml(p)}${fillTotalsHtml(p)}${money}${actionsHtml(p.actions, { done, mode, empty: '다음 주에 따로 준비할 일이 없습니다.' })}${risksHtml(p)}${peopleHtml(c.people, { canNames: !!lastCtx.canNames, selDate })}${meetingHtml(p, prevCmp)}${extras}`;
@@ -356,6 +363,7 @@ export function renderOpsPlan(ctx = lastCtx) {
     const range = nextWeekRange(today);
     const my = ++token;
     want('settings');   // 계획 기준 — 오면 다시 계산(want 안에서)
+    ensureMonthlies(today);
     const draw = () => {
         if (my !== token) return;
         const sig = sigOf(range.from, lastCtx);
@@ -369,7 +377,7 @@ export function renderOpsPlan(ctx = lastCtx) {
             if (horizon === 'year' && !cache.year) {
                 // 성수기 준비 기간 = 관리자 비용 설정(채용 + 교육 주) — 비관리자는 기본 6주(금액 아님)
                 const cs = isAdminNow() && docOf('admin:' + COST_DOC) ? costSettingsOf(docOf('admin:' + COST_DOC)) : null;
-                cache.year = computeYearPlan(today, planCfg(), { leadWeeks: cs ? cs.hireLeadWeeks + cs.trainWeeksDefault : null });
+                cache.year = computeYearPlan(today, planCfg(), { leadWeeks: cs ? cs.hireLeadWeeks + cs.trainWeeksDefault : null, monthlies: monthlies || [] });
             }
         } catch (err) {
             console.error('운영 계획 계산 실패:', err && err.message);
@@ -511,6 +519,8 @@ function bindOnce() {
             if (h !== horizon) { horizon = h; simLever = { ...SIM0 }; renderOpsPlan(); }
             return;
         }
+        const mb = e.target.closest('#ops-plan-monthly-rebuild');
+        if (mb && isAdminNow()) { onRebuildMonthly(mb); return; }
         const rb = e.target.closest('[data-plan-roadmap]');
         if (rb && isAdmin()) { runRoadmap(rb.dataset.planRoadmap); return; }
         const cbtn = e.target.closest('#ops-plan-confirm-btn');
@@ -559,7 +569,7 @@ function bindOnce() {
 function ensureMilestones() {
     if (msMod || ensureMilestones.busy) return;
     ensureMilestones.busy = true;
-    import('./ui-history-milestones.js?v=202611051531').then(mod => {
+    import('./ui-history-milestones.js?v=202611051545').then(mod => {
         msMod = mod;
         try { mod.subscribeMilestones(); mod.bindMilestoneListeners(); } catch (e) { /* 마일스톤 화면 칸이 없어도 계획은 그린다 */ }
         return mod.ensureMilestonesLoaded();
@@ -597,6 +607,38 @@ function simBaseOf(p, models, budget, costDoc) {
         };
     }
     return { rows, oee, money };
+}
+
+// ── 월 요약(v2 D1) ──────────────────────────────────────────────
+/** 월 요약을 한 번 읽는다(최근 끝난 36달, 1일 캐시). 관리자는 먼저 빠진 달(메모리 13개월 안)을 자동으로 만든다. 다 되면 연간을 다시 계산. */
+function ensureMonthlies(today) {
+    if (monthlies || monthlyBusy || !(State.allHistoryData || []).length) return;
+    monthlyBusy = true;
+    const auto = isAdminNow() && !autoBuilt
+        ? (autoBuilt = true, autoBuildMonthlies().then(r => { if (r.built.length) console.info('월 요약 만듦:', r.built.length, '달'); }).catch(() => {}))
+        : Promise.resolve();
+    auto.then(() => loadMonthlies(finishedMonths(today, 36)))
+        .then(list => { monthlies = list || []; })
+        .catch(() => { monthlies = []; })
+        .then(() => { monthlyBusy = false; if (cache) cache.year = null; if (horizon === 'year') renderOpsPlan(); });
+}
+
+/** [월 요약 다시 만들기](관리자) — 고른 달 원본만 다시 읽는다 */
+async function onRebuildMonthly(btn) {
+    const sel = $('ops-plan-monthly-ym');
+    const ym = sel && sel.value;
+    if (!ym || !isAdminNow()) return;
+    btn.disabled = true;
+    try {
+        const r = await rebuildMonth(ym);
+        showToast(`${ym} 월 요약을 다시 만들었습니다(기록 ${r.srcDocs}일).`);
+        monthlies = null; if (cache) cache.year = null;
+        ensureMonthlies(getTodayDateString());
+    } catch (err) {
+        console.error('월 요약 다시 만들기 실패:', err && (err.code || err.message));
+        showToast('월 요약을 다시 만들지 못했습니다(권한 또는 연결).');
+        btn.disabled = false;
+    }
 }
 
 /** 운영 계획을 떠날 때(다른 탭) — 목표 창을 닫는다 */
