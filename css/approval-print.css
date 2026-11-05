@@ -1,0 +1,111 @@
+/* === css/approval-print.css — 기안서(approval.html) 전용 (2026-11-05) ===
+   - 화면 부품은 products-d.css(pd-*)·d-theme.css(d-*)를 그대로 쓰고, 여기에는 기안서만의 것(ap-*)과 인쇄 규칙만 둔다.
+   - 종이(.ap-sheet)는 다크 모드에서도 흰 종이·검은 글자(인쇄와 같게 보이게).
+   - 인쇄: body.ap-print 일 때 #print-root 만 보인다(js/approval.js 가 보기 화면의 한 장을 넣는다 — [인쇄/PDF]·Ctrl+P 모두). A4 한 장, 여백 15mm.
+     글이 길면 fit-1·fit-2 로 글자를 줄인다(단계는 js/lib/approval-logic.js printFitLevel 이 정한다). */
+
+/* ── 목록 ── */
+.ap-pills { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 18px 24px 14px; }
+.ap-list-empty { padding: 40px 20px; text-align: center; color: var(--c-text-3); font-size: 14px; line-height: 1.8; }
+.ap-t td.ap-title-cell { white-space: normal; min-width: 180px; overflow-wrap: anywhere; }
+.ap-self { font-size: 11.5px; margin-left: 6px; }
+
+/* 양식 고르기 */
+.ap-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.ap-pick button { text-align: left; padding: 18px 20px; border: 1px solid var(--c-line-strong); border-radius: var(--r-inner); background: var(--c-surface); color: var(--c-text); font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
+.ap-pick button:hover { border-color: var(--c-accent-mid); background: var(--c-accent-row); }
+.ap-pick b { font-size: 15.5px; }
+.ap-pick span { font-size: 12.5px; color: var(--c-text-3); line-height: 1.5; }
+
+/* ── 작성 ── */
+.ap-form { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+.ap-form .pd-field > span b { color: var(--c-risk-text); margin-left: 3px; }
+.ap-form textarea.pd-in { height: 120px; }
+.ap-hint { font-size: 12.5px; color: var(--c-accent-deep); min-height: 0; }
+.ap-errs { margin: 0; padding-left: 18px; }
+/* 저장·제출 버튼 — 좁은 화면에서도 가려지지 않게 아래에 붙인다 */
+.ap-bar { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px 10px;
+    padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px)); margin-top: 6px; background: var(--c-surface); border-top: 1px solid var(--c-line-soft); }
+.ap-bar .pd-grow { flex: 1 1 auto; }
+
+/* ── 보기 ── */
+.ap-view { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+.ap-side { display: flex; flex-direction: column; gap: 16px; }
+.ap-side .pd-card-pad { padding: 18px 20px; }
+.ap-hist { list-style: none; margin: 10px 0 0; padding: 0; font-size: 13px; }
+.ap-hist li { padding: 6px 0; border-bottom: 1px solid var(--c-line-soft); display: flex; justify-content: space-between; gap: 8px; }
+.ap-hist li:last-child { border-bottom: 0; }
+.ap-decision { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13.5px; line-height: 1.6; margin-top: 6px; }
+.ap-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ap-actions .d-btn { flex: 1 1 auto; min-height: 38px; }
+
+/* ── 종이(A4 미리보기·인쇄 공통) ── */
+.ap-sheet-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ap-sheet { box-sizing: border-box; width: 100%; max-width: 210mm; min-height: 0; margin: 0 auto; padding: 14mm 13mm; background: #FFFFFF; color: #111111;
+    border: 1px solid var(--c-line); border-radius: 4px; font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    font-size: 11pt; line-height: 1.6; }
+.ap-sheet-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.ap-sheet h2 { margin: 6mm 0 0; font-size: 22pt; font-weight: 800; letter-spacing: .5em; text-indent: .5em; flex: 1; text-align: center; }
+.ap-sheet-status { font-size: 9pt; color: #8A5E28; margin-top: 2mm; text-align: center; letter-spacing: 0; }
+.ap-boxes { border-collapse: collapse; flex: none; }
+.ap-boxes th, .ap-boxes td { border: 1px solid #333; text-align: center; padding: 0; }
+.ap-boxes th { font-size: 9pt; font-weight: 600; padding: 1mm 2mm; background: #F3F3F3; width: 24mm; }
+.ap-boxes td { height: 22mm; vertical-align: middle; }
+.ap-stamp { display: inline-flex; flex-direction: column; align-items: center; gap: 1mm; }
+.ap-stamp-ring { width: 14mm; height: 14mm; border: 2px solid #C62828; border-radius: 50%; color: #C62828; font-weight: 800; font-size: 9pt;
+    display: flex; align-items: center; justify-content: center; line-height: 1.1; text-align: center; overflow: hidden; word-break: keep-all; padding: 1mm; box-sizing: border-box; }
+.ap-stamp-at { font-size: 6.5pt; color: #444; white-space: nowrap; }
+.ap-info, .ap-body { width: 100%; border-collapse: collapse; margin-top: 6mm; table-layout: fixed; }
+.ap-info th, .ap-info td, .ap-body th, .ap-body td { border: 1px solid #333; padding: 2mm 3mm; text-align: left; vertical-align: top; }
+.ap-info th, .ap-body th { width: 28mm; background: #F3F3F3; font-weight: 600; font-size: .92em; }
+.ap-body { margin-top: 3mm; }
+.ap-body td { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ap-body td.is-long { min-height: 18mm; height: 18mm; }
+.ap-intro { margin-top: 5mm; white-space: pre-wrap; }
+.ap-pledge { margin-top: 8mm; text-align: center; white-space: pre-wrap; }
+.ap-sign { margin-top: 8mm; text-align: right; line-height: 2; }
+.ap-sheet.fit-1 { font-size: 10pt; line-height: 1.5; }
+.ap-sheet.fit-1 .ap-body td.is-long { height: 14mm; min-height: 14mm; }
+.ap-sheet.fit-2 { font-size: 9pt; line-height: 1.4; }
+.ap-sheet.fit-2 h2 { font-size: 18pt; margin-top: 3mm; }
+.ap-sheet.fit-2 .ap-body td.is-long { height: 10mm; min-height: 10mm; }
+.ap-sheet.fit-2 .ap-pledge, .ap-sheet.fit-2 .ap-sign { margin-top: 5mm; }
+
+/* ── 양식 관리 ── */
+.ap-fe-row { display: grid; grid-template-columns: minmax(0, 1.4fr) 120px minmax(0, 1.6fr) auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--c-line-soft); }
+.ap-fe-row .ap-fe-key { font-size: 11.5px; color: var(--c-text-3); }
+.ap-fe-row label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--c-text-2); white-space: nowrap; }
+.ap-fe-btns { display: flex; gap: 4px; }
+.ap-fe-btns .d-btn { min-width: 32px; padding: 0 8px; }
+.ap-fe-boxes { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.ap-fe-box { display: flex; gap: 6px; align-items: center; }
+.ap-fe-box .pd-in { width: 110px; }
+.ap-fe-box select.pd-in { width: 130px; }
+
+#print-root { display: none; }
+
+@media (max-width: 1100px) {
+    .ap-view { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 768px) {
+    .ap-pills { padding: 12px 14px 10px; }
+    .ap-sheet { padding: 8mm 6mm; font-size: 10pt; }
+    .ap-sheet h2 { font-size: 17pt; letter-spacing: .3em; text-indent: .3em; }
+    .ap-boxes th { width: 18mm; }
+    .ap-boxes td { height: 18mm; }
+    .ap-stamp-ring { width: 12mm; height: 12mm; font-size: 8pt; }
+    .ap-info th, .ap-body th { width: 22mm; }
+    .ap-fe-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+/* ── 인쇄: A4 한 장 ── */
+@page { size: A4; margin: 15mm; }
+@media print {
+    /* body.ap-print = 보기 화면의 기안서 한 장을 인쇄할 때(버튼·Ctrl+P 모두 — js/approval.js fillPrintRoot). 아니면 화면 그대로 */
+    body.ap-print { background: #FFFFFF !important; }
+    body.ap-print > *:not(#print-root) { display: none !important; }
+    body.ap-print #print-root { display: block !important; }
+    #print-root .ap-sheet { max-width: none; width: 100%; padding: 0; border: 0; border-radius: 0; }
+    #print-root .ap-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    #print-root table, #print-root tr { page-break-inside: avoid; break-inside: avoid; }
+}

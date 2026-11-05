@@ -1,22 +1,22 @@
 // === js/listeners-history-tabs.js ===
-import * as DOM from './dom-elements.js?v=202611050928';
-import * as State from './state.js?v=202611050928';
-import { getWeekOfYear } from './utils.js?v=202611050928';
+import * as DOM from './dom-elements.js?v=202611050940';
+import * as State from './state.js?v=202611050940';
+import { getWeekOfYear } from './utils.js?v=202611050940';
 
-import { renderDashboardTab } from './ui-history-dashboard.js?v=202611050928';
-import { renderProductivityTab } from './ui-history-productivity.js?v=202611050928';
-import { renderStaffingTab } from './ui-history-staffing.js?v=202611050928';
+import { renderDashboardTab } from './ui-history-dashboard.js?v=202611050940';
+import { renderProductivityTab } from './ui-history-productivity.js?v=202611050940';
+import { renderStaffingTab } from './ui-history-staffing.js?v=202611050940';
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202611050928';
-import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202611050928';
-import * as UILeave from './ui-history-leave.js?v=202611050928';
-import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611050928';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611050928';
-import { confirmDiscardManagementEdits } from './ui-history-management.js?v=202611050928';
-import { historyLoadFailed } from './history-data-manager.js?v=202611050928';
-import { SECTIONS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611050928';
-import { saveView } from './view-state.js?v=202611050928';
-import { initPageNav } from './page-nav.js?v=202611050928';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202611050940';
+import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202611050940';
+import * as UILeave from './ui-history-leave.js?v=202611050940';
+import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611050940';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611050940';
+import { confirmDiscardManagementEdits } from './ui-history-management.js?v=202611050940';
+import { historyLoadFailed } from './history-data-manager.js?v=202611050940';
+import { SECTIONS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611050940';
+import { saveView } from './view-state.js?v=202611050940';
+import { initPageNav } from './page-nav.js?v=202611050940';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {
@@ -105,7 +105,7 @@ const renderActiveRawSubTab = (subTabName) => {
 const MAIN_PANELS = {
     dashboard: 'dashboard-panel', productivity: 'productivity-panel', staffing: 'staffing-panel',
     prediction: 'prediction-panel', forecast: 'forecast-panel', rawdata: 'rawdata-panel',
-    milestones: 'milestones-panel', settlement: 'settlement-panel'
+    milestones: 'milestones-panel', settlement: 'settlement-panel', taskowner: 'taskowner-panel'
 };
 const SUB_PANELS = {
     work: 'work-history-panel', attendance: 'attendance-history-panel', report: 'report-panel',
@@ -125,7 +125,7 @@ async function activateMainTab(tabName, sub) {
 
     // ⛔ 이력 조회 실패 — 업무 예상·물량 추세는 목록(오류 표시)을 숨기므로 패널에 직접 오류를 보인다.
     //    그대로 그리면 오늘 1행으로 계산한 값이 정상처럼 보인다. [다시 시도]가 성공하면 이 탭을 다시 연다.
-    if ((tabName === 'forecast' || tabName === 'prediction') && historyLoadFailed()) {
+    if ((tabName === 'forecast' || tabName === 'prediction' || tabName === 'taskowner') && historyLoadFailed()) {
         setTreeVisible(false);
         showPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));
         return;
@@ -153,7 +153,7 @@ async function activateMainTab(tabName, sub) {
     // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
     if (tabName === 'milestones') {
         try {
-            const mod = await import('./ui-history-milestones.js?v=202611050928');
+            const mod = await import('./ui-history-milestones.js?v=202611050940');
             mod.subscribeMilestones();
             mod.bindMilestoneListeners();
             clearPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));   // 앞서 실패해 띄운 오류 상자
@@ -170,12 +170,26 @@ async function activateMainTab(tabName, sub) {
     // 🧾 팀 결산 보고 탭: 월/분기/년 단위 종합 요약 보고서 (자체 기간 선택 UI 사용)
     if (tabName === 'settlement') {
         try {
-            const mod = await import('./ui-history-settlement.js?v=202611050928');
+            const mod = await import('./ui-history-settlement.js?v=202611050940');
             clearPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));   // 앞서 실패해 띄운 오류 상자
             await mod.initSettlementReport();
             setTreeVisible(false);
         } catch (err) {
             console.error('settlement module load failed:', err);
+            showPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));
+        }
+        return;
+    }
+
+    // 👥 업무 담당 변화: 업무 하나의 주 인원 변화·전후 지표 (메모리의 최근 12개월 전체 — 기간 트리 숨김, 읽기만)
+    if (tabName === 'taskowner') {
+        try {
+            setTreeVisible(false);
+            const mod = await import('./ui-history-task-owner.js?v=202611050940');
+            clearPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));   // 앞서 실패해 띄운 오류 상자
+            mod.renderTaskOwnerTab();
+        } catch (err) {
+            console.error('taskowner module load failed:', err);
             showPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));
         }
         return;
@@ -216,7 +230,7 @@ function activateSubTab(subTabName) {
 
 let sectionNav = null;   // 좌측 레일(js/page-nav.js) — 켜짐 표시만 맡는다
 
-/** 데이터 관리 14개 화면 중 하나를 연다(js/history-sections.js 의 id). 첫 화면·레일·해시 복원이 모두 이것을 부른다. */
+/** 데이터 관리 15개 화면 중 하나를 연다(js/history-sections.js 의 id). 첫 화면·레일·해시 복원이 모두 이것을 부른다. */
 export async function showSection(id) {
     const s = SECTIONS[id];
     if (!s) return;

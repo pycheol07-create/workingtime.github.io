@@ -4,6 +4,10 @@
   "title": "설정·관리 - 물류팀 시스템"
  },
  {
+  "file": "approval.html",
+  "title": "기안서"
+ },
+ {
   "file": "china-mibal2.html",
   "title": "중국제작 부족수량 관리(신규·시험)"
  },

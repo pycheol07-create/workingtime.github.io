@@ -1,6 +1,6 @@
 // === js/app-shell-data.js ===
 // 공통 상단바(js/app-shell.js)가 쓰는 고정 데이터와 경로 계산. 순수 모듈(의존은 lib 상수 mibal2-mode.js 하나, 테스트: tests/app-shell.test.js).
-import { MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611050928';
+import { MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611050940';
 
 // 메뉴의 '보이는 이름'만 바꾼 것(2026-11-04). 저장값·권한·연결(ACTION_MENU_NAMES·memberMenuAccess·dashboardMenu)은 왼쪽 옛 이름 그대로다.
 //   사이드바(js/ui-main-dashboard.js)·공통 상단바 메뉴·검색에서 보일 때만 오른쪽 이름으로 쓴다.
@@ -44,7 +44,8 @@ export const LINK_WINDOW_TARGETS = [
     { match: 'china-stock-goods.html', target: 'chinastock_window' },
     { match: 'china-mibal2.html',      target: 'chinamibal2_window' },
     { match: 'products.html',          target: 'products_window' },
-    { match: 'scan.html',              target: 'scan_window' }
+    { match: 'scan.html',              target: 'scan_window' },
+    { match: 'approval.html',          target: 'approval_window' }    // 기안서
 ];
 /** 사이드바와 같은 규칙의 창 이름(없으면 null). */
 export const windowTargetFor = (link) => {
@@ -92,7 +93,8 @@ export const PAGE_DEFAULTS = {
     'manual':            { file: 'manual.html',            title: '업무 매뉴얼' },
     'supplies':          { file: 'supplies.html',          title: '비품 관리' },
     'worktime':          { file: 'worktime.html',          title: '출퇴근 기록표' },
-    'calculator':        { file: 'calculator/index.html',  title: '통합 계산기' }
+    'calculator':        { file: 'calculator/index.html',  title: '통합 계산기' },
+    'approval':          { file: 'approval.html',          title: '기안서' }
 };
 
 export const HOME_FILE = 'index.html';
@@ -167,6 +169,7 @@ export const SUB_DESTINATIONS = {
         // 보고
         S('업무 리포트', 'tab=rawdata&sub=report', ['리포트']),
         S('개인 리포트', 'tab=rawdata&sub=personal', ['리포트']),
+        S('업무 담당 변화', 'tab=taskowner', ['담당', '주 인원', '담당 변화']),
         S('경영 지표', 'tab=rawdata&sub=management', ['경영']),
         S('팀 결산', 'tab=settlement', ['팀 결산 보고', '결산']),
         S('운영 마일스톤', 'tab=milestones', ['마일스톤'])

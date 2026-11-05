@@ -10,9 +10,9 @@
 // ※ 순수 모듈로 둘 것(의존은 js/lib 의 기능 카탈로그·권한 계산뿐). 관리자 페이지(admin-ui.js)가 대시보드 전용
 //    모듈(ui.js/state.js)을 끌어오지 않도록 하기 위함이다.
 
-import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202611050928';
-import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202611050928';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611050928';
+import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202611050940';
+import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202611050940';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611050940';
 
 // 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu 에 없으면 자동으로 끼워 넣는다.
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
@@ -28,7 +28,9 @@ export const BUILTIN_MENU_ITEMS = [
     // 상품 관리(2026-10-13) — 기본정보는 전원, 원가·공급처는 관리자만(규칙). 미발계산기 다음(비품 관리 앞)에 붙는다.
     { name: '상품 관리', link: 'products.html', category: '관리 및 조회', before: '비품 관리' },
     // 통합 계산기(통관·수입·배송비·창고비) — 2026-10-06 계산기앱에서 옮겨 붙임. 별도 탭(calculator_window)으로 열린다.
-    { name: '통합 계산기', link: 'calculator/index.html', category: '관리 및 조회' }
+    { name: '통합 계산기', link: 'calculator/index.html', category: '관리 및 조회' },
+    // 기안서(2026-11-05) — '개인관리' 그룹(이름 공백 무시)에, 없으면 '관리 및 조회', 그것도 없으면 마지막 그룹. 빈 그룹을 새로 만들지 않는다
+    { name: '기안서', link: 'approval.html', category: '개인관리', fallbackCategory: '관리 및 조회' }
 ];
 
 // 메뉴에 걸 수 있는 것 — 관리자 페이지 '메뉴 관리' 의 선택 목록.
@@ -53,7 +55,8 @@ export const MENU_TARGETS = [
     { kind: 'page', name: '통합 계산기',         link: 'calculator/index.html',  icon: '🧾' },
     { kind: 'page', name: '업무 매뉴얼',         link: 'manual.html',            icon: '📖' },
     { kind: 'page', name: '설정·관리',           link: 'admin.html',             icon: '⚙️' },
-    { kind: 'page', name: '입고 스캐너',         link: 'scan.html',              icon: '📷' }
+    { kind: 'page', name: '입고 스캐너',         link: 'scan.html',              icon: '📷' },
+    { kind: 'page', name: '기안서',             link: 'approval.html',          icon: '📝' }
 ];
 
 export const isActionMenuName = (name) =>
@@ -83,6 +86,8 @@ const renameOldItem = (i) => {
     const to = renamedMenuName(i.name, linkPath(i.link));
     return to ? { ...i, name: to } : i;
 };
+/** 그룹 이름 비교 — 공백을 빼고 본다('개인관리' = '개인 관리'). */
+export const sameCategory = (a, b) => String(a || '').replace(/\s+/g, '') === String(b || '').replace(/\s+/g, '') && String(a || '').trim() !== '';
 export const withBuiltinMenus = (dashboardMenu) => {
     const menu = (Array.isArray(dashboardMenu) ? dashboardMenu : [])
         .filter(g => g)
@@ -95,7 +100,10 @@ export const withBuiltinMenus = (dashboardMenu) => {
     BUILTIN_MENU_ITEMS.forEach(entry => {
         const exists = menu.some(g => g.items.some(i => i && i.link && i.link.includes(entry.link)));
         if (exists) return;
-        let group = menu.find(g => g.category === entry.category) || menu[menu.length - 1];
+        // 같은 그룹(공백 무시) → fallbackCategory → 마지막 그룹
+        let group = menu.find(g => sameCategory(g.category, entry.category))
+            || (entry.fallbackCategory ? menu.find(g => sameCategory(g.category, entry.fallbackCategory)) : null)
+            || menu[menu.length - 1];
         if (!group) {
             group = { category: entry.category, items: [] };
             menu.push(group);

@@ -21,8 +21,8 @@
 //   grantable false = 관리자 전용(역할·예외로 줘도 무시)
 //   legacyAdminOnly  옛 ADMIN_ONLY_* 범위 — 옛 권한을 끌어올 때 일반 직원에게 주지 않는다(예전에도 화면이 막고 있었다)
 
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202611050928';
-import { TASK } from './task-ids.js?v=202611050928';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202611050940';
+import { TASK } from './task-ids.js?v=202611050940';
 
 export const FEATURE_GROUPS = [
     { id: 'dash',       label: '대시보드' },
@@ -35,6 +35,7 @@ export const FEATURE_GROUPS = [
     { id: 'worktime',   label: '출퇴근 기록표' },
     { id: 'calculator', label: '통합 계산기' },
     { id: 'manual',     label: '업무 매뉴얼' },
+    { id: 'approval',   label: '기안서' },
     { id: 'admin',      label: '관리자' }
 ];
 
@@ -60,7 +61,7 @@ export const FEATURES = [
     F('data.records',  '업무·근태·검수·연차 이력 보기', 'data', 'sub', 'history.html', { legacyAdminOnly: true,
         sub: ['tab=rawdata&sub=work', 'tab=rawdata&sub=attendance', 'tab=rawdata&sub=inspection', 'tab=rawdata&sub=leave'] }),
     F('data.reports',  '리포트·경영 지표·결산·마일스톤', 'data', 'sub', 'history.html', { legacyAdminOnly: true, danger: 1,
-        sub: ['tab=rawdata&sub=report', 'tab=rawdata&sub=personal', 'tab=rawdata&sub=management', 'tab=settlement', 'tab=milestones'] }),
+        sub: ['tab=rawdata&sub=report', 'tab=rawdata&sub=personal', 'tab=taskowner', 'tab=rawdata&sub=management', 'tab=settlement', 'tab=milestones'] }),
     F('data.editRecords',    '이력 기록 추가·수정·삭제', 'data', 'func', 'history.html', { legacyAdminOnly: true, danger: 2 }),
     F('data.editAttendance', '출퇴근·근태 수정',         'data', 'func', 'history.html', { legacyAdminOnly: true, danger: 2 }),
 
@@ -88,6 +89,8 @@ export const FEATURES = [
     F('calculator.view', '통합 계산기',           'calculator', 'page', 'calculator/index.html',  { menu: '통합 계산기' }),
     F('manual.view',     '업무 매뉴얼',           'manual',     'page', 'manual.html',            { menu: '업무 매뉴얼',
         menuAliases: ['업무 매뉴얼 및 도구'] }),   // 화면 이름 변경 2026-10-21('도구' 기능 삭제) — 저장된 dashboardMenu·memberMenuAccess 의 옛 이름은 그대로
+    // 기안서(2026-11-05) — 근태사유서·사유서·시말서 작성·제출, 관리자 결재. 남의 기안서 읽기·결재는 규칙(ApprovalDocs)이 막는다(입장은 화면만)
+    F('approval.view',   '기안서',                'approval',   'page', 'approval.html',          { menu: '기안서', rule: 'partial' }),
 
     // 관리자 페이지 — 역할로 나눠 주지 않는다(mainConfig·adminPrivate 규칙이 isAdmin 이다)
     F('admin.view',      '설정·관리',             'admin',      'page', 'admin.html',             { menu: '설정·관리', grantable: false,

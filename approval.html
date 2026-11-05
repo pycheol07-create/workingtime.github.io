@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <script src="js/theme-boot.js?v=202611050940"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>기안서</title>
+    <!-- 기안서(2026-11-05) — 근태사유서·사유서·시말서 작성·제출, 관리자 승인·반려, A4 인쇄/PDF.
+         데이터는 최상위 ApprovalDocs·ApprovalForms(firestore.rules — 본인+관리자만 읽기). 화면 틀은 products.html 과 같다. -->
+    <link rel="stylesheet" href="css/suit.css?v=202611050940">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611050940">
+    <link rel="stylesheet" href="css/products-d.css?v=202611050940">
+    <link rel="stylesheet" href="css/approval-print.css?v=202611050940">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611050940">
+</head>
+<body data-shell="approval">
+    <div id="pd-loading" class="pd-loading">
+        <div class="pd-spinner"></div>
+        <div id="pd-loading-text">불러오는 중…</div>
+    </div>
+
+    <div id="pd-app" style="display:none;">
+        <header class="pd-head">
+            <button id="ap-back" class="d-btn pd-icon-btn" aria-label="목록으로" style="display:none;">‹</button>
+            <div class="pd-head-title">
+                <h1 id="ap-title">기안서</h1>
+                <div id="ap-head-sub" class="pd-sub pd-head-sub">근태사유서·사유서·시말서를 작성해 제출합니다. 본인과 관리자만 볼 수 있습니다.</div>
+            </div>
+            <nav id="ap-tabs" class="d-seg pd-tabs" aria-label="화면 전환">
+                <button class="d-seg-btn is-on" data-tab="list">기안 목록</button>
+                <button class="d-seg-btn pd-adm" data-tab="forms">양식 관리</button>
+            </nav>
+            <div class="pd-head-actions">
+                <button id="ap-refresh" class="d-btn">새로고침</button>
+                <button id="ap-new" class="d-btn d-btn-primary">새 기안</button>
+            </div>
+        </header>
+
+        <main id="pd-main" class="pd-main"></main>
+    </div>
+
+    <!-- 인쇄 때만 보인다(css/approval-print.css) — [인쇄/PDF] 가 미리보기 한 장을 여기에 복사한다 -->
+    <div id="print-root" aria-hidden="true"></div>
+
+    <div id="pd-toast" class="pd-toast" role="status" aria-live="polite"></div>
+
+    <script src="js/connection-banner.js?v=202611050940"></script>
+    <script type="module" src="js/approval.js?v=202611050940"></script>
+    <script type="module" src="js/page-gate.js?v=202611050940" data-perm-page="approval.view"></script>
+    <script type="module" src="js/app-shell.js?v=202611050940"></script>
+</body>
+</html>
