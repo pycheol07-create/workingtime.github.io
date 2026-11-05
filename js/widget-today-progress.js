@@ -3,11 +3,11 @@
 //   낮에는 아무도 데이터관리 창을 열지 않는다 — 계획 대비 얼마나 왔는지,
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
-import * as State from './state.js?v=202611051650';
-import { formatHM } from './utils.js?v=202611051650';
-import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory } from './ui-history-prediction.js?v=202611051650';
-import { fetchDashboardHistoryData, fetchPlannedData } from './history-data-manager.js?v=202611051650';
-import { goTo } from './app-shell-bridge.js?v=202611051650';
+import * as State from './state.js?v=202611052207';
+import { formatHM } from './utils.js?v=202611052207';
+import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611052207';
+import { fetchDashboardHistoryData, fetchPlannedData } from './history-data-manager.js?v=202611052207';
+import { goTo } from './app-shell-bridge.js?v=202611052207';
 
 const EL = 'today-progress-strip';
 let timer = null;
@@ -107,7 +107,8 @@ export const initTodayProgressStrip = async () => {
     // 저장해 둔 예정 물량까지 실어야 데이터관리의 '오늘 현황'과 같은 계획으로 계산된다
     try {
         // 미발 이력도 — 입고일 오전엔 국내배송 계획에 미발이 더해진다(업무 예상 '오늘 현황'과 같게)
-        await Promise.all([fetchDashboardHistoryData(), fetchPlannedData(), ensureMibalHistory()]);   // 이력은 최근 100일만(대시보드 전용 경로)
+        // 보정 계획(지난 스냅샷)도 — 업무 예상 '오늘 현황'과 같은 계획(못 읽으면 보정 전)
+        await Promise.all([fetchDashboardHistoryData(), fetchPlannedData(), ensureMibalHistory(), ensureCorrectCtx()]);   // 이력은 최근 100일만(대시보드 전용 경로)
     } catch (e) { console.warn('[today-progress] 자료 로드 실패:', e); }
     render();
 
@@ -118,6 +119,9 @@ export const initTodayProgressStrip = async () => {
 
     clearInterval(timer);
     timer = setInterval(render, 60000);
+
+    // 보정 계획 사본이 새로 실리면(날짜가 바뀌어 다시 읽은 경우 등 — ui-history-prediction.js redrawAfterCorrectCtx) 다시 그린다
+    window.addEventListener('forecast-correction-ready', () => { try { render(); } catch (e) {} });
 
     // 업무 시작·종료가 반영되면 바로 다시 그린다
     document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });

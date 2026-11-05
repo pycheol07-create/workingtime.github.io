@@ -1,12 +1,12 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202611051650';
-import { getStaffingOutlook, ensureMibalHistory } from './ui-history-prediction.js?v=202611051650';
-import { fetchPlannedData } from './history-data-manager.js?v=202611051650';
-import { getTodayDateString } from './utils.js?v=202611051650';
-import { staffing as opsStaffing, baselineSpeeds as opsBaselineSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=202611051650';
-import { D } from './d-chart.js?v=202611051650';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051650';
-import { TASK, tName } from './task-names.js?v=202611051650';
+import * as State from './state.js?v=202611052207';
+import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611052207';
+import { fetchPlannedData } from './history-data-manager.js?v=202611052207';
+import { getTodayDateString } from './utils.js?v=202611052207';
+import { staffing as opsStaffing, baselineSpeeds as opsBaselineSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=202611052207';
+import { D } from './d-chart.js?v=202611052207';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611052207';
+import { TASK, tName } from './task-names.js?v=202611052207';
 
 let staffingChartInstance = null;
 
@@ -48,7 +48,7 @@ export function renderStaffingTab(filteredData, appConfig) {
     renderStaffingOutlook();
     // 예정 물량이 아직 안 실렸으면 불러온 뒤 한 번 더 (대부분 캐시라 즉시)
     // 예정 물량·미발 이력(입고일 국내배송에 더해진다)이 실리면 다시 그린다
-    Promise.all([fetchPlannedData(), ensureMibalHistory()]).then(() => renderStaffingOutlook()).catch(() => {});
+    Promise.all([fetchPlannedData(), ensureMibalHistory(), ensureCorrectCtx()]).then(() => renderStaffingOutlook()).catch(() => {});
 
     // 값을 안 지우면 직전 기간 숫자·도넛이 그대로 남아 이 기간 값으로 오독된다.
     const clearStaffingCard = (message) => {
@@ -203,7 +203,8 @@ const outlookRow = (r, maxNeed, todayStr) => {
                 <div class="absolute inset-y-0 border-r-2 border-gray-700 dark:border-gray-200" style="left:${availPct}%" title="가용 ${r.available}명"></div>
             </div>
         </td>
-        <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100 whitespace-nowrap">${r.requiredFTE}명</td>
+        <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100 whitespace-nowrap"
+            ${r.correction && r.correction.applied ? `title="보정 적용 — 보정 전 ${r.correction.rawRequired}명 · ${(Number(r.correction.rawTotalHours) || 0).toFixed(1)}인시"` : ''}>${r.requiredFTE}명${r.correction && r.correction.applied ? '<span class="text-[11px] font-bold text-teal-600 dark:text-teal-300 ml-0.5">*</span>' : ''}</td>
         <td class="py-2 px-3 text-right tabular-nums text-gray-600 dark:text-gray-300 whitespace-nowrap">
             ${r.available}명${r.onLeave > 0 ? `<span class="text-[11px] text-gray-400 ml-1">(휴무 ${r.onLeave})</span>` : ''}
         </td>
@@ -235,6 +236,7 @@ export function renderStaffingOutlook() {
     const shortDays = rows.filter(r => r.gap < 0);
     const worst = shortDays.reduce((a, b) => (a && a.gap <= b.gap ? a : b), null);
     const plannedCount = rows.filter(r => r.hasPlanned).length;
+    const correctedCount = rows.filter(r => r.correction && r.correction.applied).length;
 
     const headline = shortDays.length === 0
         ? `<span class="text-emerald-600 dark:text-emerald-400 font-bold">${rows.length}근무일 모두 인원이 충분합니다.</span>`
@@ -246,7 +248,7 @@ export function renderStaffingOutlook() {
         <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white">앞으로 ${rows.length}근무일 인원 수급</h4>
             <span class="text-[11px] text-gray-400 dark:text-gray-500">
-                저장해 둔 예정 물량 ${plannedCount}일 · 나머지는 실적 기반 추정 · 업무 예상과 같은 계산
+                저장해 둔 예정 물량 ${plannedCount}일 · 나머지는 실적 기반 추정 · 업무 예상과 같은 계산${correctedCount > 0 ? ' · <span class="text-teal-600 dark:text-teal-300 font-bold" title="지난 실적으로 업무별 편향·계획 밖 반복 업무·돌발 여유를 보정했습니다. 필요 인원의 * 에 마우스를 올리면 보정 전 숫자가 보입니다.">보정 적용*</span>' : ' · 보정 전 계획'}
             </span>
         </div>
         <div class="px-5 py-3 text-xs md:text-sm border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/20">${headline}</div>

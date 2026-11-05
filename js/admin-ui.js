@@ -1,12 +1,12 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { cleanPosition, POSITIONS } from './lib/member-title.js?v=202611051650';
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202611051650';
-import { menuLabel } from './app-shell-data.js?v=202611051650';   // 보이는 이름만 바꾼 메뉴(예: 내 연차관리 → 내 연차·근태관리)
-import { renderPermissionPanel } from './admin-perm.js?v=202611051650';
-import { taskIdOf, isSystemTaskId } from './lib/task-ids.js?v=202611051650';
-import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202611051650';
+import { cleanPosition, POSITIONS } from './lib/member-title.js?v=202611052207';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202611052207';
+import { menuLabel } from './app-shell-data.js?v=202611052207';   // 보이는 이름만 바꾼 메뉴(예: 내 연차관리 → 내 연차·근태관리)
+import { renderPermissionPanel } from './admin-perm.js?v=202611052207';
+import { taskIdOf, isSystemTaskId } from './lib/task-ids.js?v=202611052207';
+import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202611052207';
 
 // 📱 순서 바꾸기 ▲▼ — HTML5 끌어 옮기기는 터치에서 안 되므로, 터치 화면(hover 없음)에서만 보인다(admin.html .move-btns).
 //    누르면 같은 종류의 앞/뒤 줄과 자리를 바꾼다(admin.js handleMoveClick). 마우스 환경은 ☰ 끌기 그대로.
@@ -51,6 +51,9 @@ export function getAllTaskNamesFromDOM() {
 export function renderAdminUI(config) {
     const wageInput = document.getElementById('default-part-timer-wage');
     if (wageInput) wageInput.value = config.defaultPartTimerWage || 10000;
+    // 업무 예상 보정 계획 — 칸이 없으면 켬
+    const corrOn = document.getElementById('forecast-correction-on');
+    if (corrOn) corrOn.checked = config.forecastCorrection?.on !== false;
 
     renderTeamGroups(
         config.teamGroups || [],

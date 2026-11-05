@@ -10,10 +10,10 @@
 
 import {
     planSettingsOf, nextWeekRange, weekDaysOf, fillMix, shortRuns, confidenceOf, addDaysStr, dowOf
-} from './plan-week.js?v=202611051650';
-import { buildRisks, leaveCrowdDays, holidaySurgeDays, RISK_LEVELS } from './plan-risks.js?v=202611051650';
-import { buildMeeting } from './plan-rhythm.js?v=202611051650';
-import { weekConfidence } from './plan-confidence.js?v=202611051650';
+} from './plan-week.js?v=202611052207';
+import { buildRisks, leaveCrowdDays, holidaySurgeDays, RISK_LEVELS } from './plan-risks.js?v=202611052207';
+import { buildMeeting } from './plan-rhythm.js?v=202611052207';
+import { weekConfidence } from './plan-confidence.js?v=202611052207';
 
 export const ACTION_LIMIT = 10;
 const CONF_FACTOR = { high: 1, mid: 0.7, low: 0.4 };
@@ -106,10 +106,11 @@ export function buildWeekPlan(input = {}) {
         errPct: accuracyErr != null ? Math.abs(accuracyErr) * 100 : null, recordRate: input.recordRate, plannedRatio: confidence.workdays ? confidence.ratio : null
     })));
     // 다음 주 업무별 인시(업무 예상 taskHours 합) — 한 사람 의존은 다음 주에 그 업무가 있을 때만 리스크·과제(S1)
+    //   보정 계획의 '계획 밖 반복 업무' 시간은 빼고 본다(riskTaskHours, 없으면 taskHours) — 확률로 붙인 시간만으로 리스크를 세우지 않게
     const weekHours = {};
     (input.outlookRows || []).forEach(r => {
         if (!r || !range.dates || !range.dates.includes(r.date)) return;
-        Object.entries(r.taskHours || {}).forEach(([k, v]) => { weekHours[k] = (weekHours[k] || 0) + (Number(v) || 0); });
+        Object.entries(r.riskTaskHours || r.taskHours || {}).forEach(([k, v]) => { weekHours[k] = (weekHours[k] || 0) + (Number(v) || 0); });
     });
     const bus = (Array.isArray(input.bus) ? input.bus : []).filter(b => b && (weekHours[b.task] || 0) > 0);
     const risks = buildRisks({ days, runs, confidence, recentNotes, accuracyErr, surges, bus });

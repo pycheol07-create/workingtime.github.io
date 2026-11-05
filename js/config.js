@@ -2,10 +2,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202611051650';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611051650';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
-import { TASK, taskNameOf } from './lib/task-ids.js?v=202611051650';   // 업무 id 2단계 — 옛 '검수' 이전에 두 업무의 지금 이름
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611051650';   // 옛 '처리량 → 위젯 연결' → 업무 수량 위젯(task-<id>), 메모리에서만
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202611052207';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611052207';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
+import { TASK, taskNameOf } from './lib/task-ids.js?v=202611052207';   // 업무 id 2단계 — 옛 '검수' 이전에 두 업무의 지금 이름
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611052207';   // 옛 '처리량 → 위젯 연결' → 업무 수량 위젯(task-<id>), 메모리에서만
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -293,6 +293,8 @@ function getDefaultConfig() {
         headcountExcludedMembers: [], // 예) ['공용계정'] — 운영 값은 mainConfig
         // 업무 예상(계획·정확도)에서 뺄 업무 — 관리자 개인 업무는 물량으로 예측할 대상이 아니다
         forecastExcludedTasks: ['관리자 개별업무'],
+        // 업무 예상 보정 계획(2026-11-05) — 화면 계획·필요 인원·운영 계획·슬랙 알림에 보정을 건다. 관리자 > 기타 기본 설정에서 끈다(칸이 없으면 켬)
+        forecastCorrection: { on: true },
         resignedMembers: {}, // { '이름': '퇴사일 YYYY-MM-DD' } — 퇴사 처리(비활성). 데이터·과거기록은 보존.
         resignedEmails: {}, // { '이메일(소문자)': '퇴사일' } — 관리자 저장 때 resignedMembers·memberEmails + 이전 값으로 만든다(규칙용)
         memberWages: {},

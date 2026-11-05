@@ -3,46 +3,48 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202611051650';
+import { predictFutureTrends } from './analysis-logic.js?v=202611052207';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611051650';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611051650';
-import { runDay } from './lib/refill-view.js?v=202611051650';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611051650';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611051650';
-import { TASK, tName, isT, tQty } from './task-names.js?v=202611051650';
-import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611051650';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611052207';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611052207';
+import { runDay } from './lib/refill-view.js?v=202611052207';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611052207';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611052207';
+import { TASK, tName, isT, tQty } from './task-names.js?v=202611052207';
+import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611052207';
 import { LEGACY_SIM_TASKS, legacySimTasksOf, namesOf, timeTaskExcludeOf, DEFAULT_SIM_ALWAYS_TASKS, DEFAULT_SIM_ZERO_TASKS,
          DEFAULT_FORECAST_EXCLUDED_TASKS, DEFAULT_LOADOUT_SOURCES, defaultAutoModeOf, defaultTimeTaskDepsOf,
-         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611051650';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611051650';
-import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611051650';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611051650';
-import * as State from './state.js?v=202611051650';
-import { saveView } from './view-state.js?v=202611051650';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611051650';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611051650';
+         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611052207';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611052207';
+import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611052207';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611052207';
+import * as State from './state.js?v=202611052207';
+import { saveView } from './view-state.js?v=202611052207';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611052207';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611052207';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611051650';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611052207';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611051650';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611051650';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611052207';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611052207';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611051650';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202611051650';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611052207';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202611052207';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611051650';
-import { taskUph, recentDays } from './task-throughput.js?v=202611051650';
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611052207';
+import { taskUph, recentDays } from './task-throughput.js?v=202611052207';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202611051650';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202611052207';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202611051650';
-import { D } from './d-chart.js?v=202611051650';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611051650';
-import { withCorrected, correctSnapRange, NOTE_CALC_FAILED } from './lib/forecast-correct-snap.js?v=202611051650';
+         excessOffDays } from './lib/backlog-carry.js?v=202611052207';
+import { D } from './d-chart.js?v=202611052207';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611052207';
+import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611052207';
+import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611052207';
+import { correctedInputs, planBaseOf, noExtraKeysOf, RESERVE_KEY } from './lib/forecast-correct-apply.js?v=202611052207';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -2829,6 +2831,19 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
         timeElapsedFloor = Math.max(timeElapsedFloor, elapsed);
     });
 
+    // ②-b 보정 계획의 추가 시간(계획 밖 반복 업무·돌발 여유, js/lib/forecast-correct-apply.js) — 담당 업무처럼 인원이 묶이는
+    //     시간으로 보고 timeHours 에만 더한다. 누가 언제 할지 모르는 시간이라 실 소요시간 하한(timeElapsedFloor)에는 넣지 않는다.
+    //     inputs.extraHours 가 없으면 아무것도 바뀌지 않는다(결과 칸도 추가하지 않는다).
+    const extraTimes = {};
+    let extraHours = 0;
+    if (inputs.extraHours) {
+        Object.entries(inputs.extraHours).forEach(([k, h]) => {
+            const v = Number(h);
+            if (Number.isFinite(v) && v > 0) { extraTimes[k] = v; extraHours += v; }
+        });
+        timeHours += extraHours;
+    }
+
     const totalHours = qtyHours + timeHours;
 
     // ③ 담당 업무에 묶이는 인력 — 그 시간 동안 이 사람들은 다른 업무를 할 수 없다.
@@ -2865,9 +2880,171 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
         taskTimes, timeTaskTimes, qtyHours, timeHours, totalHours,
         tiedFTE, qtyStaff, staffShortForQty, qtyElapsed,
         elapsedHours, elapsedCappedByTimeTask, capacityHours, slackHours,
-        rawRequiredFTE, requiredFTE, availableTotal, gap
+        rawRequiredFTE, requiredFTE, availableTotal, gap,
+        ...(inputs.extraHours ? { extraTimes, extraHours } : {})
     };
 };
+
+// ───────────────────────────────────────────────────────────
+// 📐 보정 계획 켜기(2026-11-05) — 화면 계획·필요 인원·운영 계획·슬랙 훅은 simulateDayPlan 을 쓴다.
+//    보정은 지난 실적으로 업무별 편향·계획 밖 반복 업무·돌발 여유를 더한다(js/lib/forecast-correct.js).
+//    ⚠️ 스냅샷 얼리기(buildAutoForecastSnapshot·buildForecastSnapshot)는 보정 전(simulateOneDay) 그대로 —
+//       얼린 기본 계획이 보정과 비교하는 기준이라, 여기에 보정을 섞으면 비교가 영구히 망가진다.
+//    스위치: mainConfig.forecastCorrection.on(관리자 > 기타 기본 설정). 칸이 없으면 켬. 끄면 결과가 예전과 완전히 같다
+//    (correction 칸만 붙는다).
+// ───────────────────────────────────────────────────────────
+const CORRECT_CTX_LOOKBACK_DAYS = 80;           // 오늘 − 80일 ~ 어제 — 계산 창(40근무일)·앞으로 10근무일 대상일을 덮는다
+const CORRECT_CTX_RETRY_MS = 10 * 60 * 1000;    // 못 읽었으면 10분 뒤 다시
+let liveCorrectCtx = null;          // { day, snapshots, failed, at }
+let liveCorrectCtxLoading = null;
+// 세대 번호 — 읽는 동안 스냅샷이 저장·삭제되면 올라간다. 읽기를 시작할 때와 다르면 그 결과는 버리고 다시 읽는다.
+let correctCtxGen = 0;
+const bumpCorrectGen = () => { correctCtxGen++; };
+
+export const isForecastCorrectionOn = () => State.appConfig?.forecastCorrection?.on !== false;
+
+/** 보정에 쓸 지난 스냅샷을 하루 한 번 읽어 둔다. 던지지 않는다. @returns {Promise<boolean>} 쓸 수 있으면 true */
+export async function ensureCorrectCtx() {
+    const today = getTodayDateString();
+    const fresh = () => liveCorrectCtx && liveCorrectCtx.day === today
+        && (!liveCorrectCtx.failed || Date.now() - liveCorrectCtx.at < CORRECT_CTX_RETRY_MS);
+    if (fresh()) return !liveCorrectCtx.failed;
+    if (!State.db || !State.auth?.currentUser) return false;
+    if (liveCorrectCtxLoading) return liveCorrectCtxLoading;
+    liveCorrectCtxLoading = (async () => {
+        try {
+            // 읽는 사이 세대가 바뀌면(스냅샷 저장·삭제) 그 결과는 버리고 다시 읽는다 — 최대 3번
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const gen = correctCtxGen;
+                let next;
+                try {
+                    const snapshots = await fetchForecastSnapshots(addDays(today, -CORRECT_CTX_LOOKBACK_DAYS), addDays(today, -1), { strict: true });
+                    next = { day: today, snapshots: snapshots || {}, failed: false, at: Date.now() };
+                } catch (e) {
+                    console.warn('[보정 계획] 지난 스냅샷을 못 읽어 보정 전 계획을 씁니다:', e);
+                    next = { day: today, snapshots: null, failed: true, at: Date.now() };
+                }
+                if (gen === correctCtxGen) { liveCorrectCtx = next; break; }
+                liveCorrectCtx = null;
+            }
+        } finally {
+            liveCorrectCtxLoading = null;
+        }
+        forgetTodayStatus();
+        return !!liveCorrectCtx && !liveCorrectCtx.failed;
+    })();
+    return liveCorrectCtxLoading;
+}
+
+/** 보정 사본이 새로 실린 뒤 — 오늘 현황 기억을 지우고 열려 있는 화면을 다시 그린다.
+ *  메인 띠(js/widget-today-progress.js)는 이 파일을 거꾸로 import 할 수 없어 이벤트로 알린다. */
+const redrawAfterCorrectCtx = () => {
+    forgetTodayStatus();
+    try {
+        if (document.getElementById('sim-result-container')) {
+            renderForecastSummary();
+            runSimulation({ silent: true });
+        }
+        if (forecastView === 'today' && document.getElementById('today-progress-body')) renderTodayProgress();
+    } catch (e) { /* 화면이 없으면 무시 */ }
+    try { window.dispatchEvent(new CustomEvent('forecast-correction-ready')); } catch (e) {}
+};
+/** 지난 스냅샷을 지우거나 다시 읽은 뒤 — 보정에 쓰는 사본도 다시 읽고 업무 예상 화면을 다시 그린다.
+ *  (오늘·앞날 스냅샷은 읽는 범위(어제까지) 밖이라 확정·자동 저장 뒤에는 부르지 않는다) */
+const refreshCorrectCtx = () => {
+    bumpCorrectGen();
+    liveCorrectCtx = null;
+    void reloadCorrectCtxAndRedraw();
+};
+/** 다시 읽고, 오늘 것이 실렸을 때만 다시 그린다(로그인 전·실패 때 그리기 ↔ 다시 읽기가 맴돌지 않게). 겹쳐 불러도 한 번만. */
+let correctReloadPending = null;
+const reloadCorrectCtxAndRedraw = () => {
+    if (correctReloadPending) return correctReloadPending;
+    correctReloadPending = ensureCorrectCtx()
+        .then(() => {
+            correctReloadPending = null;
+            if (liveCorrectCtx && liveCorrectCtx.day === getTodayDateString()) redrawAfterCorrectCtx();
+        })
+        .catch(() => { correctReloadPending = null; });
+    return correctReloadPending;
+};
+
+/** 사람이 정한 업무(배율 1, 추가 시간 없음) — 예정 물량·저장한 시간·오늘 실적 + 부르는 쪽이 준 칸(화면에서 고친 칸·'진행 시' 물량) */
+const manualKeysOf = (dateStr, sources, extra) => {
+    const out = new Set(extra || []);
+    Object.entries(sources || {}).forEach(([k, s]) => { if (s === 'planned' || s === 'planned-time' || s === 'actual') out.add(k); });
+    const data = 이력();
+    activeTimeTasks().forEach(t => {
+        try { if (autoTimeValueFor(dateStr, t, data)?.source === 'planned-time') out.add(t.key); } catch (e) {}
+    });
+    return out;
+};
+
+/** 보정 계획이 걸린 하루 계획. opts.manualKeys = 사람이 정한 업무(더 넣을 것). 던지지 않는다(실패면 보정 전).
+ *  돌려주는 값 = simulateOneDay 결과 + correction{applied, reason?, reserveHours, extra{업무:시간}, factors, zeroed, notes} (+ raw = 보정 전 결과) */
+const simulateDayPlan = (dateStr, inputs, taskUPH, config, opts = {}) => {
+    const r0 = simulateOneDay(dateStr, inputs, taskUPH, config);
+    const off = (reason) => ({ ...r0, correction: { applied: false, reason } });
+    if (!isForecastCorrectionOn()) return off('off');
+    const today = getTodayDateString();
+    if (liveCorrectCtx && liveCorrectCtx.day !== today) {
+        // 날짜가 바뀌었다(창을 켜 둔 채 자정을 넘김) — 다시 읽기를 걸고, 실리면 다시 그린다. 그동안은 보정 전
+        void reloadCorrectCtxAndRedraw();
+        return off('loading');
+    }
+    if (!liveCorrectCtx) return off('loading');
+    if (liveCorrectCtx.failed) return off(NOTE_SNAP_FETCH_FAILED);
+    try {
+        const sources = sourcesOf(dateStr, 이력());
+        const base = planBaseOf(inputs, taskUPH, r0, SIM_TASKS.map(t => t.key));
+        const c = correctPlan(correctInputOf(base, {
+            target: dateStr, today, history: 이력(), snapshots: liveCorrectCtx.snapshots,
+            cfg: State.appConfig, excluded: forecastExcludedTasks(), sources
+        }));
+        const noExtraKeys = noExtraKeysOf(sources, inputs.tasks);
+        const ap = correctedInputs(inputs, taskUPH, c, manualKeysOf(dateStr, sources, opts.manualKeys), { noExtraKeys });
+        const r1 = simulateOneDay(dateStr, ap.inputs, ap.taskUPH, config);
+        if (![r1.rawRequiredFTE, r1.totalHours, r1.elapsedHours].every(Number.isFinite)) return off(NOTE_CALC_FAILED);
+        return { ...r1, raw: r0, correction: { applied: true, reserveHours: ap.reserveHours, extra: ap.extra,
+                                               factors: ap.factors, extraP: ap.extraP, zeroed: ap.zeroed, notes: c.notes || [] } };
+    } catch (e) {
+        console.warn('[보정 계획] 계산 실패 — 보정 전 계획을 씁니다:', e);
+        return off(NOTE_CALC_FAILED);
+    }
+};
+
+const CORRECTION_REASON_TEXT = {
+    off: '보정 꺼짐(관리자 설정)', loading: '보정 준비 중', [NOTE_SNAP_FETCH_FAILED]: '지난 계획을 못 읽어 보정 못 함',
+    [NOTE_CALC_FAILED]: '보정 계산 실패'
+};
+/** '보정 적용' / '보정 전 계획' 배지. withRaw 면 '보정 전 n명 · x.x시간' 을 덧붙인다. */
+const correctionBadge = (r, { withRaw = true } = {}) => {
+    const c = r?.correction;
+    if (!c) return '';
+    if (!c.applied) {
+        return `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                      title="${escapeHtml(CORRECTION_REASON_TEXT[c.reason] || c.reason || '')}">보정 전 계획</span>`;
+    }
+    const raw = r.raw;
+    const tip = `지난 실적으로 업무별 편향·계획 밖 반복 업무·돌발 여유를 보정한 계획입니다.`
+        + (raw ? ` 보정 전: 필요 ${raw.requiredFTE}명 · 총 ${(raw.totalHours || 0).toFixed(1)}시간` : '');
+    return `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300"
+                  title="${escapeHtml(tip)}">보정 적용</span>`
+        + (withRaw && raw ? `<span class="text-[11px] text-gray-400 dark:text-gray-500 ml-1">보정 전 ${raw.requiredFTE}명 · ${(raw.totalHours || 0).toFixed(1)}시간</span>` : '');
+};
+/** 업무 줄 툴팁에 붙일 보정 배율 문구 — 없으면 '' */
+const factorNote = (r, key) => {
+    const f = r?.correction?.applied ? r.correction.factors?.[key] : null;
+    if (!f) return '';
+    return f.fromPlan
+        ? ` · 보정: 가끔 하는 업무(확률 ${Math.round((f.p || 0) * 100)}%) ×${f.m}`
+        : ` · 보정 ×${f.m}`;
+};
+/** 계획 밖 반복 업무 시간 합(여유 제외) */
+const extraTaskHoursOf = (r) => Object.values(r?.correction?.applied ? (r.correction.extra || {}) : {})
+    .reduce((a, h) => a + (Number(h) || 0), 0);
+/** 보정 추가 시간 합(계획 밖 반복 업무 + 돌발 여유) — timeHours 에 들어 있다 */
+const correctionExtraOf = (r) => Number(r?.extraHours) || 0;
 
 const runSimulation = ({ silent = false } = {}) => {
     const dateEl = document.getElementById('sim-target-date');
@@ -2915,9 +3092,11 @@ const runSimulation = ({ silent = false } = {}) => {
         });
     }
 
+    // 화면에서 사람이 고친 칸 — 보정이 배율·추가 시간을 걸지 않는다(js/lib/forecast-correct-apply.js manualKeys)
+    const dirtyKeys = [...simDirtyQty, ...simDirtyTime];
     const results = dates.map((d, i) => {
         if (mode === 'single' || i === 0) {
-            return simulateOneDay(d, baseInputs, taskUPH, cfg);
+            return simulateDayPlan(d, baseInputs, taskUPH, cfg, { manualKeys: dirtyKeys });
         }
         // batch 모드의 2일차 이후: 날짜별 자동값(예정 물량 우선) 사용
         const autoTasks = {};
@@ -2932,7 +3111,7 @@ const runSimulation = ({ silent = false } = {}) => {
         const dayInputs = { tasks: autoTasks, timeTasks: autoTimeTasks,
                             staffFulltime: staffInfo.available, staffPart: baseInputs.staffPart,
                             excludeMinutes: getPlannedExcludeMinutesForDate(d) ?? baseInputs.excludeMinutes };
-        return simulateOneDay(d, dayInputs, taskUPH, cfg);
+        return simulateDayPlan(d, dayInputs, taskUPH, cfg);
     });
 
     // '진행 시' 시나리오 — 애매한 업무에 하는 날 물량을 넣고 한 번 더 계산
@@ -2940,7 +3119,9 @@ const runSimulation = ({ silent = false } = {}) => {
     if (maybeTasks.length > 0) {
         const altTasks = { ...baseInputs.tasks };
         maybeTasks.forEach(m => { altTasks[m.key] = m.qty; });
-        altResult = simulateOneDay(baseDate, { ...baseInputs, tasks: altTasks }, taskUPH, cfg);
+        // '진행 시' 물량은 사람이 넣은 값으로 본다 — 보정이 확률로 또 줄이거나(가끔 하는 업무) 계획 밖 시간을 또 더하지 않게
+        altResult = simulateDayPlan(baseDate, { ...baseInputs, tasks: altTasks }, taskUPH, cfg,
+            { manualKeys: [...dirtyKeys, ...maybeTasks.map(m => m.key)] });
     }
 
     // 업무 예상 인원에서 뺀 관리자 수 — 부족할 때 '관리자 투입 검토' 안내에만 쓴다
@@ -3001,7 +3182,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                         <div class="hidden sm:block w-16 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                             <div class="h-full bg-indigo-400 dark:bg-indigo-500 rounded-full" style="width:${w}%"></div>
                         </div>
-                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100">${v.uph > 0 ? fmtH(v.hours) : '—'}</span>
+                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100"${factorNote(r, t.key) ? ` title="${escapeHtml(factorNote(r, t.key).replace(/^ · /, ''))}"` : ''}>${v.uph > 0 ? fmtH(v.hours) : '—'}${factorNote(r, t.key) ? '<span class="text-teal-600 dark:text-teal-300">*</span>' : ''}</span>
                     </div>
                 </td>
                 <td class="py-2 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300"
@@ -3024,13 +3205,39 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                         <div class="hidden sm:block w-16 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                             <div class="h-full bg-indigo-300 dark:bg-indigo-600 rounded-full" style="width:${w}%"></div>
                         </div>
-                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100">${fmtH(v.hours)}</span>
+                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100"${factorNote(r, t.key) ? ` title="${escapeHtml(factorNote(r, t.key).replace(/^ · /, ''))}"` : ''}>${fmtH(v.hours)}${factorNote(r, t.key) ? '<span class="text-teal-600 dark:text-teal-300">*</span>' : ''}</span>
                     </div>
                 </td>
                 <td class="py-2 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300"
                     title="총 ${v.minutes}분을 ${v.workers}명이 각자 ${Math.round(v.minutes / v.workers)}분씩 (인시 합계 ${fmtH(v.hours)})">${fmtHM(v.elapsed)}</td>
             </tr>`;
         }).filter(Boolean).join('');
+
+        // 📐 보정 추가 시간 — 계획 밖 반복 업무(업무별)·돌발 여유. 담당 업무처럼 인원이 묶이는 시간으로 계산했다.
+        const extraRow = (name, sub, hours, tip) => {
+            const w = r.totalHours > 0 ? Math.max(2, Math.round(hours / r.totalHours * 100)) : 0;
+            return `<tr class="border-t border-gray-100 dark:border-gray-700/60 bg-teal-50/40 dark:bg-teal-900/10" title="${escapeHtml(tip)}">
+                <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(name)}
+                    <span class="ml-1 text-[11px] font-bold text-teal-600 dark:text-teal-300">${sub}</span></td>
+                <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600" colspan="2">—</td>
+                <td class="py-2 px-3 text-right">
+                    <div class="flex items-center justify-end gap-2">
+                        <div class="hidden sm:block w-16 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                            <div class="h-full bg-teal-300 dark:bg-teal-600 rounded-full" style="width:${w}%"></div>
+                        </div>
+                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100">${fmtH(hours)}</span>
+                    </div>
+                </td>
+                <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">—</td>
+            </tr>`;
+        };
+        const extraRows = r.correction?.applied ? [
+            ...Object.entries(r.correction.extra || {}).sort((a, b) => b[1] - a[1])
+                .map(([k, h]) => extraRow(k, '계획 밖 반복 업무', h, '계획에 없지만 최근 자주 한 업무 — 하는 확률 × 하는 날 평균 시간')),
+            ...((r.correction.reserveHours || 0) > 0
+                ? [extraRow('돌발 여유', '보정', r.correction.reserveHours, '어쩌다 한 번 하는 업무의 하루 평균 시간(상한: 기본 총시간의 10%)')] : [])
+        ].join('') : '';
+        const extraH = correctionExtraOf(r);
 
         const stat = (label, value, sub, cls) => `
             <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-3">
@@ -3052,7 +3259,8 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
         const maybePanel = (maybeTasks.length > 0 && altResult) ? `
                 <div class="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/15 p-3 space-y-2">
                     <div class="text-[11px] font-extrabold text-amber-800 dark:text-amber-300">
-                        진행할지 애매한 업무 ${maybeTasks.length}건 — 위 숫자는 <b>안 할 때</b> 기준입니다
+                        진행할지 애매한 업무 ${maybeTasks.length}건 — 위 숫자는 ${maybeTasks.some(m => (r.correction?.extra || {})[m.key] > 0)
+                            ? '<b>진행 확률만큼만</b> 넣은 기준입니다(보정의 계획 밖 반복 업무)' : '<b>안 할 때</b> 기준입니다'}
                     </div>
                     <div class="flex flex-wrap gap-1.5">
                         ${maybeTasks.map(m => `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/70 dark:bg-gray-800/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800/60">
@@ -3078,7 +3286,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                 </div>` : '';
 
         container.innerHTML = `
-        ${cardOpen(`${dayLabel(r.date)}${offDayChip(r, { lead: 'ml-1' })}`,
+        ${cardOpen(`${dayLabel(r.date)}${offDayChip(r, { lead: 'ml-1' })} ${correctionBadge(r)}`,
                    `기준 UPH 최근 4주 평균 · 1일 ${r.dailyHours}h${r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)} = ${fmtHM(r.netDailyHours)}` : ''} · 가동률 ${(UTILIZATION*100)|0}%`)}
             <div class="p-4 md:p-5 space-y-4">
                 <!-- 판단에 필요한 숫자 셋만 크게. 나머지 근거는 아래 '업무별 상세'에 접어 둔다. -->
@@ -3115,7 +3323,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                     <div class="mt-3 space-y-3">
 
                 ${r.timeHours > 0 ? `<p class="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                    담당 업무 ${fmtHM(r.timeHours)}에 <b>${r.tiedFTE.toFixed(1)}명</b>이 묶여,
+                    담당 업무 ${fmtHM(r.timeHours - extraH)}${extraH > 0 ? ` + 보정 추가 ${fmtHM(extraH)}` : ''}에 <b>${r.tiedFTE.toFixed(1)}명</b>이 묶여,
                     물량 업무에는 <b>${r.qtyStaff.toFixed(1)}명</b>이 투입되는 것으로 계산했습니다
                     (물량 업무 ${r.staffShortForQty ? '계산 불가' : fmtHM(r.qtyElapsed)}).
                     ${r.elapsedCappedByTimeTask ? '실 소요시간은 <b>담당 업무 시간</b>에 걸려 있습니다 — 인원을 더 넣어도 그보다 빨리 끝나지 않습니다.' : ''}
@@ -3134,7 +3342,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                                     <th class="py-2.5 px-3 text-right font-bold" title="실제로 흘러가는 시간입니다. 물량 업무는 담당 업무에 묶인 인원을 뺀 '투입 인원' 기준, 담당 업무는 그 업무의 동시 인원 기준입니다.">실 소요시간</th>
                                 </tr>
                             </thead>
-                            <tbody>${(rows + timeRows) || '<tr><td colspan="5" class="py-6 text-center text-gray-400">입력된 작업량이 없습니다.</td></tr>'}</tbody>
+                            <tbody>${(rows + timeRows + extraRows) || '<tr><td colspan="5" class="py-6 text-center text-gray-400">입력된 작업량이 없습니다.</td></tr>'}</tbody>
                             <tfoot class="bg-gray-50 dark:bg-gray-900/40 font-extrabold text-gray-800 dark:text-gray-100">
                                 <tr class="border-t border-gray-200 dark:border-gray-700">
                                     <td class="py-2.5 px-3" colspan="3">합계</td>
@@ -3179,7 +3387,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
             </div>`;
 
         container.innerHTML = `
-        ${cardOpen('7일치 일괄 시뮬레이션', `대상일 외 6일은 자동값 사용 · 알바 ${partN}명 동일 적용${exclM > 0 ? ` · 업무 제외시간 ${fmtMin(exclM)} 반영` : ''}`)}
+        ${cardOpen(`7일치 일괄 시뮬레이션 ${correctionBadge(results[0], { withRaw: false })}`, `대상일 외 6일은 자동값 사용 · 알바 ${partN}명 동일 적용${exclM > 0 ? ` · 업무 제외시간 ${fmtMin(exclM)} 반영` : ''}`)}
             <div class="p-4 md:p-5 space-y-4">
                 <div class="grid grid-cols-[repeat(2,minmax(0,1fr))] md:grid-cols-[repeat(4,minmax(0,1fr))] gap-2.5">
                     ${mini('합계 필요', `${sumRequired}<span class="text-[11px] font-bold text-gray-400 ml-0.5">명·일</span>`)}
@@ -3276,7 +3484,7 @@ export const getStaffingOutlook = (workDays = 10, opts = {}) => {
         let row;
         try {
             const inputs = computeAutoInputsForDate(date, 0);
-            const r = simulateOneDay(date, inputs, taskUPH, cfg);
+            const r = simulateDayPlan(date, inputs, taskUPH, cfg);
             const planned = getPlannedQuantitiesForDate(date) || {};
             row = {
                 date,
@@ -3294,6 +3502,12 @@ export const getStaffingOutlook = (workDays = 10, opts = {}) => {
             const taskHours = {};
             Object.entries(r.taskTimes || {}).forEach(([k, v]) => { const h = Number(v && v.hours) || 0; if (h > 0) taskHours[k] = (taskHours[k] || 0) + h / UTILIZATION; });
             Object.entries(r.timeTaskTimes || {}).forEach(([k, v]) => { const h = Number(v && v.hours) || 0; if (h > 0) taskHours[k] = (taskHours[k] || 0) + h; });
+            // 📐 보정 계획의 계획 밖 반복 업무도 그 업무의 사람 시간으로 넣는다. 돌발 여유는 업무가 없어 reserveHours 로만 준다
+            //    (보정이 걸린 날은 taskHours 합 + reserveHours = rawRequiredFTE × netDailyHours).
+            // 한 사람 의존 리스크(js/lib/plan-build.js)는 '그 업무가 계획에 있나'를 보므로 추가 시간을 빼고 본다 — riskTaskHours
+            const riskTaskHours = { ...taskHours };
+            Object.entries(r.extraTimes || {}).forEach(([k, h]) => { if (k !== RESERVE_KEY && h > 0) taskHours[k] = (taskHours[k] || 0) + h; });
+            const cor = r.correction || { applied: false };
             Object.assign(row, {
                 rawRequiredFTE: r.rawRequiredFTE,
                 netDailyHours: r.netDailyHours,
@@ -3301,7 +3515,13 @@ export const getStaffingOutlook = (workDays = 10, opts = {}) => {
                 holidayName: r.holidayName || '',
                 rosterCount: (inputs.staffInfo && inputs.staffInfo.total) || 0,
                 adminWorkers: (inputs.staffInfo && inputs.staffInfo.excludedCount) || 0,
-                taskHours
+                taskHours,
+                riskTaskHours,
+                // 📐 보정 — applied 면 위 숫자가 보정 값이고 raw* 가 보정 전
+                correction: cor.applied
+                    ? { applied: true, reserveHours: cor.reserveHours || 0,
+                        rawRequiredFTE: r.raw.rawRequiredFTE, rawRequired: r.raw.requiredFTE, rawTotalHours: r.raw.totalHours }
+                    : { applied: false, reason: cor.reason || null }
             });
         } catch (e) {
             console.warn('[staffing-outlook] 계산 실패:', date, e);
@@ -3335,15 +3555,19 @@ export const availableStaffOf = (dateStr) => {
     } catch (e) { return null; }
 };
 
-/** 📋 운영 계획 — 정확도 화면이 이미 불러 둔 확정 계획으로 낸 평균 시간 오차 절댓값(비율, 예 0.25). 아직 안 불렀으면 null(새로 읽지 않는다). */
+/** 📋 운영 계획 — 정확도 화면이 이미 불러 둔 확정 계획으로 낸 평균 시간 오차 절댓값(비율, 예 0.25). 아직 안 불렀으면 null(새로 읽지 않는다).
+ *  📐 보정이 켜져 있으면 보정 계획(corrected)을 같이 얼린 날은 그 계획으로 잰다 — 운영 계획이 쓰는 숫자가 보정 값이므로. */
 export const getLoadedAccuracyHourErr = () => {
     if (!accuracySnapshots) return null;
     try {
         const days = recentClosedDays(accuracyDays);
         const excluded = forecastExcludedTasks();
+        const useCorrected = isForecastCorrectionOn();
         const rows = days.map(d => {
-            if (!accuracySnapshots[d.id]) return null;
-            const { snap, day } = excludeTasksForAccuracy(aliasSnapshot(accuracySnapshots[d.id], State.appConfig), d, excluded);
+            const s0 = accuracySnapshots[d.id];
+            if (!s0) return null;
+            const src = (useCorrected && s0.corrected && typeof s0.corrected === 'object') ? toAccuracySnap(s0.corrected) : s0;
+            const { snap, day } = excludeTasksForAccuracy(aliasSnapshot(src, State.appConfig), d, excluded);
             return accuracyRowOf(day, snap);
         }).filter(Boolean);
         if (!rows.length) return null;
@@ -3406,6 +3630,8 @@ window.__forecastForDate = async (dateStr) => {
         // ②-b 미발 이력 — 빼면 입고일 국내배송이 화면보다 미발만큼 적게 나간다
         let mibalLoaded = false;
         try { mibalLoaded = await ensureMibalHistory(); } catch (e) {}
+        // ②-c 보정 계획에 쓸 지난 스냅샷 — 화면과 같은 숫자를 내려면 기다린다. 못 읽으면 보정 전(correction.applied=false)
+        try { await ensureCorrectCtx(); } catch (e) {}
 
         // ③ 업무 목록 확정 — 빼면 시간형 업무가 누락돼 총시간이 화면과 달라진다
         let simListsOk = true;
@@ -3420,7 +3646,7 @@ window.__forecastForDate = async (dateStr) => {
 
         const taskUPH = computeTaskUPHs(이력());
         const inputs = computeAutoInputsForDate(date, 0);
-        const r = simulateOneDay(date, inputs, taskUPH, State.appConfig);
+        const r = simulateDayPlan(date, inputs, taskUPH, State.appConfig);
         const planned = getPlannedQuantitiesForDate(date) || {};
 
         // JS 산술은 예외를 던지지 않고 NaN/Infinity 를 낸다. 그걸 0 으로 바꿔 내보내면
@@ -3484,7 +3710,9 @@ window.__forecastForDate = async (dateStr) => {
         if (maybeTasks.length > 0) {
             const altTasks = { ...inputs.tasks };
             maybeTasks.forEach(m => { altTasks[m.key] = m.qty; });
-            const ar = simulateOneDay(date, { ...inputs, tasks: altTasks }, taskUPH, State.appConfig);
+            // 화면 '진행 시'와 같게 — 넣은 물량은 사람이 정한 값으로 본다(보정이 확률로 또 줄이지 않게)
+            const ar = simulateDayPlan(date, { ...inputs, tasks: altTasks }, taskUPH, State.appConfig,
+                { manualKeys: maybeTasks.map(m => m.key) });
             maybeAlt = { rawRequiredFTE: n(ar.rawRequiredFTE), requiredFTE: ar.requiredFTE,
                          elapsedHours: n(ar.elapsedHours, 3), slackHours: n(ar.slackHours, 3) };
         }
@@ -3509,9 +3737,27 @@ window.__forecastForDate = async (dateStr) => {
                          && !Object.prototype.hasOwnProperty.call(transmitRaw, k));
         const droppedPlannedKeys = Object.keys(plannedView).filter(k => !qtyKeys.has(k));
 
+        // 📐 hookVersion 3(2026-11-05): 위·아래 기존 칸은 보정 값(보정이 걸렸을 때). correction 에 보정 전 숫자와 추가 시간을 따로 준다.
+        //    timeHours 에는 추가 시간(extraTasks 합 + reserveHours)이 들어 있다 — 알림이 '담당 업무' 합계에서 뺀다.
+        const cor = r.correction || { applied: false, reason: 'off' };
+        const correction = cor.applied
+            ? {
+                applied: true, reason: null, notes: cor.notes || [],
+                extraTasks: Object.entries(cor.extra || {}).filter(([, h]) => h > 0).sort((a, b) => b[1] - a[1])
+                    .map(([key, h]) => {
+                        const p = (cor.extraP || {})[key];
+                        return { key, label: labelOf(key), taskId: taskIdOfKey(key), hours: n(h, 3), p: p == null ? null : n(p, 3) };
+                    }),
+                reserveHours: n(cor.reserveHours, 3),
+                raw: { requiredFTE: r.raw.requiredFTE, rawRequiredFTE: n(r.raw.rawRequiredFTE),
+                       totalHours: n(r.raw.totalHours, 3), elapsedHours: n(r.raw.elapsedHours, 3) }
+            }
+            : { applied: false, reason: cor.reason || 'off', notes: [], extraTasks: [], reserveHours: 0, raw: null };
+
         return {
             // hookVersion 2(2026-10-30): tasks·timeTasks·maybeTasks 에 taskId 추가 — 나머지 칸·모양은 1 과 같다
-            ok: true, hookVersion: 2,
+            // hookVersion 3(2026-11-05): correction 추가(위 주석)
+            ok: true, hookVersion: 3, correction,
             date, todayDate: getTodayDateString(), weekend: !!r.weekend,
             holiday: !!r.holiday, holidayName: r.holidayName || '',
             // ⚠️ factor 는 '그 날짜의 달력 계산'일 뿐이다. 예정물량을 수기로 넣어 두면
@@ -3630,6 +3876,7 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
                 <div class="flex items-center gap-1.5 flex-wrap">
                     <span class="text-base font-extrabold text-gray-900 dark:text-white">${label}</span>
                     ${offDayChip(r).trim()}
+                    ${correctionBadge(r, { withRaw: false })}
                     ${simLinked ? '<span class="text-[11px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-1.5 py-0.5 rounded" title="아래 상세 시뮬레이션에 입력한 값이 그대로 반영된 결과입니다.">시뮬레이션 반영</span>' : ''}
                 </div>
                 <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">${dayLabel(r.date)}</div>
@@ -3674,7 +3921,9 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
 
         <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
             <span>1일 ${r.dailyHours}h${r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)}` : ''} · 가동률 ${(UTILIZATION*100)|0}%</span>
-            ${r.timeHours > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="처리량이 없는 담당 업무의 예상 투입시간(실적 평균)">담당 업무 ${fmtHM(r.timeHours)}</span>` : ''}
+            ${(r.timeHours - correctionExtraOf(r)) > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="처리량이 없는 담당 업무의 예상 투입시간(실적 평균)">담당 업무 ${fmtHM(r.timeHours - correctionExtraOf(r))}</span>` : ''}
+            ${correctionExtraOf(r) > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="보정 계획이 더한 시간 — 계획 밖 반복 업무 ${fmtHM(extraTaskHoursOf(r))} · 돌발 여유 ${fmtHM(r.correction?.reserveHours || 0)}">보정 추가 ${fmtHM(correctionExtraOf(r))}</span>` : ''}
+            ${r.correction?.applied && r.raw ? `<span class="text-gray-300 dark:text-gray-600">·</span><span>보정 전 ${r.raw.requiredFTE}명 · ${(r.raw.totalHours || 0).toFixed(1)}시간</span>` : ''}
             ${china > 0 ? `<span class="w-full"></span><span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">중국제작 입고 ${china.toLocaleString()}개</span>` : ''}
         </div>
     </div>`;
@@ -3726,7 +3975,7 @@ const renderForecastSummary = () => {
     const days = [{ label: '오늘', date: today }, { label: nextLabel, date: nextDay }];
     el.innerHTML = days.map(({ label, date }) => {
         const { inputs, linked } = inputsForSummaryDate(date);
-        const r = simulateOneDay(date, inputs, taskUPH, cfg);
+        const r = simulateDayPlan(date, inputs, taskUPH, cfg, { manualKeys: linked ? [...simDirtyQty, ...simDirtyTime] : [] });
         return forecastCardHtml(label, r, inputs, linked);
     }).join('');
 
@@ -3999,7 +4248,8 @@ export const renderForecastTab = () => {
     setForecastView(pickInitialForecastView());
 
     // 예정 물량·미발 이력이 아직 안 실렸으면 로드 후 다시 채움(캐시라 대부분 즉시)
-    Promise.all([fetchPlannedData(), ensureMibalHistory()]).then(() => {
+    // 보정 계획(ensureCorrectCtx)도 — 실리기 전에는 '보정 전 계획'으로 그려 두고, 실리면 아래에서 다시 그린다
+    Promise.all([fetchPlannedData(), ensureMibalHistory(), ensureCorrectCtx()]).then(() => {
         const d = document.getElementById('sim-target-date')?.value;
         // ⚠️ 그 사이 사용자가 고친 칸은 덮지 않는다. 캐시가 만료된 상태면 이 then 이
         //    수백 ms 뒤에 도착하는데, 그때 화면을 통째로 덮으면 방금 타이핑한 값이
@@ -4123,6 +4373,7 @@ const setupSimulationListeners = () => {
             await saveForecastSnapshot(dateStr, attachCorrected(snapshot, dateStr, correctCtx, () => sourcesOf(dateStr, 이력())));
             forgetTodayStatus();
             accuracySnapshots = null;              // 다음에 정확도 화면을 열 때 다시 읽는다
+            bumpCorrectGen();                      // 보정 사본을 읽는 중이었다면 그 결과는 버린다(세대 번호)
             updateSavedInfo(dateStr);
         } finally {
             // 문구는 updateSavedInfo 가 확정 여부를 보고 정한다('📌 다시 확정').
@@ -4141,6 +4392,7 @@ const setupSimulationListeners = () => {
         await deleteForecastSnapshot(dateStr);
         forgetTodayStatus();
         accuracySnapshots = null;
+        refreshCorrectCtx();                   // 지난 스냅샷이 바뀌었을 수 있다 — 보정 계획도 다시 읽고 다시 그린다
         updateSavedInfo(dateStr);
     });
 
@@ -4153,6 +4405,7 @@ const setupSimulationListeners = () => {
     document.getElementById('forecast-accuracy-body')?.addEventListener('click', async (e) => {
         if (e.target?.closest?.('#accuracy-reload')) {
             accuracySnapshots = null;
+            refreshCorrectCtx();                   // 지난 스냅샷이 바뀌었을 수 있다 — 보정 계획도 다시 읽고 다시 그린다
             renderAccuracyView();
             return;
         }
@@ -4164,6 +4417,7 @@ const setupSimulationListeners = () => {
             if (await deleteForecastSnapshot(d)) {
                 forgetTodayStatus();
                 if (accuracySnapshots) delete accuracySnapshots[d];
+                refreshCorrectCtx();                   // 지난 스냅샷이 바뀌었을 수 있다 — 보정 계획도 다시 읽고 다시 그린다
                 renderAccuracyBody();
             }
         }
@@ -4411,7 +4665,7 @@ const buildTodayPlan = () => {
     const today = getTodayDateString();
     const { inputs, linked } = inputsForSummaryDate(today);
     const taskUPH = computeTaskUPHs(이력());
-    const r = simulateOneDay(today, inputs, taskUPH, State.appConfig);
+    const r = simulateDayPlan(today, inputs, taskUPH, State.appConfig, { manualKeys: linked ? [...simDirtyQty, ...simDirtyTime] : [] });
     return { today, inputs, linked, r, taskUPH };
 };
 
@@ -4431,6 +4685,14 @@ const planRowsOf = (r) => {
         const e = r.timeTaskTimes[t.key];
         rows.push({ key: t.key, label: t.label, planHours: e ? e.hours : 0, kind: 'time' });
     });
+    // 📐 보정 계획의 계획 밖 반복 업무 — 그 업무를 하면 '계획 외'가 아니라 계획 줄로 잡히게 시간을 그 업무에 붙인다.
+    //    돌발 여유(RESERVE_KEY)는 업무가 없어 줄로 만들지 않는다(computeTodayStatusUncached 가 계획 외 시간과 맞춘다).
+    Object.entries(r.extraTimes || {}).forEach(([k, h]) => {
+        if (k === RESERVE_KEY || !(h > 0)) return;
+        const row = rows.find(x => x.key === k);
+        if (row) row.planHours += h;
+        else rows.push({ key: k, label: k, planHours: h, kind: 'time' });
+    });
     return rows;
 };
 
@@ -4445,7 +4707,7 @@ const todayStatusKey = (today, nowStr) => [
     today, nowStr, State.allHistoryData, (State.allHistoryData || []).length,
     State.plannedData, (State.plannedData || []).length,
     !!getForecastSnapshotForDate(today), State.appState?.workRecords, State.appConfig, simOverride,
-    mibalHistory, transmitByDate, refillDays
+    mibalHistory, transmitByDate, refillDays, liveCorrectCtx
 ];
 const sameKey = (a, b) => !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
 
@@ -4485,7 +4747,12 @@ const computeTodayStatusUncached = () => {
     // 그 시간을 계획 쪽에도 더해 준다 — 분자에만 쌓이면 진행률이 100%를 훌쩍 넘고 종료 예상도 빨라진다.
     const unplannedHours = rows.reduce((a, row) =>
         a + ((row.planHours > 0) ? 0 : Math.max(0, Number(row.spentHours) || 0)), 0);
-    const planHours = r.totalHours + unplannedHours;
+    // 📐 보정의 돌발 여유는 바로 그 '계획 외' 시간을 미리 잡아 둔 몫이다 — 계획 외 시간이 여유를 먼저 쓰고, 넘친 만큼만 더한다.
+    //    보정이 없으면(여유 0) 예전과 같은 식(totalHours + unplannedHours).
+    const reserveH = Number(r.extraTimes?.[RESERVE_KEY]) || 0;
+    const planHours = reserveH > 0
+        ? (r.totalHours - reserveH) + Math.max(reserveH, unplannedHours)
+        : r.totalHours + unplannedHours;
     const spentHours = progress.totalSpentMin / 60;
     const pct = planHours > 0 ? Math.round(spentHours / planHours * 100) : 0;
     // 계산 제외 줄은 위 합계를 낸 뒤 맨 아래에 붙인다
@@ -4670,7 +4937,7 @@ const renderTodayProgress = () => {
                 <p class="text-sm font-bold text-gray-600 dark:text-gray-300">아직 시작된 업무가 없습니다</p>
                 <p class="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
                     오늘 계획은 <b class="text-gray-600 dark:text-gray-300">${fmtHM(s.planHours)}</b> ·
-                    필요 인원 <b class="text-gray-600 dark:text-gray-300">${s.r.requiredFTE}명</b> 입니다.
+                    필요 인원 <b class="text-gray-600 dark:text-gray-300">${s.r.requiredFTE}명</b> 입니다. ${correctionBadge(s.r, { withRaw: false })}
                     업무가 시작되면 여기에서 진행 상황을 볼 수 있습니다.
                 </p>
             </section>`;
@@ -4698,7 +4965,7 @@ const renderTodayProgress = () => {
                             ? `${minToHhmm(s.progress.firstStartMin)} 첫 업무 시작 · 지금 ${s.nowStr}`
                             : `지금 ${s.nowStr}`)}
                 ${bigStat('계획 대비 소진', `${s.pct}%`,
-                          `${fmtHM(s.spentHours)} / ${fmtHM(s.planHours)} 인시`)}
+                          `${fmtHM(s.spentHours)} / ${fmtHM(s.planHours)} 인시${s.r.correction?.applied ? ' · 보정 적용' : ''}`)}
                 ${bigStat('종료 예상', finishText,
                           s.fin.rate > 0
                             ? `기준 ${minToHhmm(s.fin.baseFinishMin)} · ${s.fin.usedFallback ? '가용' : '현재'} ${s.fin.rate}명 기준`
@@ -4798,8 +5065,8 @@ const 자동스냅_표시 = (d) => {
 };
 
 // 📐 보정 계획 2단계(2주 비교) — 스냅샷을 얼릴 때 보정 계획(js/lib/forecast-correct.js correctPlan)을
-//    같은 스냅샷의 corrected 칸에 같이 얼린다. **비교용으로 쌓기만 한다** — 화면 계획·필요 인원·슬랙 알림(__forecastForDate)은
-//    이 값을 읽지 않는다. 계산이 실패해도 기본 스냅샷은 그대로 얼린다(corrected = null, correctedNotes 에 이유).
+//    같은 스냅샷의 corrected 칸에 같이 얼린다. 2026-11-05 부터 화면 계획·필요 인원·슬랙 알림은 simulateDayPlan 으로
+//    같은 보정을 그 자리에서 계산해 쓰지만(얼린 corrected 를 읽지는 않는다), 스냅샷 기본 칸은 계속 보정 전이다. 계산이 실패해도 기본 스냅샷은 그대로 얼린다(corrected = null, correctedNotes 에 이유).
 //    corrected·correctedNotes 는 늘 칸으로 쓴다 — 저장이 merge 라 빼면 다시 확정해도 옛 보정값이 남는다.
 const CORRECT_SNAP_LOOKBACK_DAYS = 70;   // 지난 스냅샷을 읽는 범위(대상일 기준 며칠 전 ~ 전날) — 계산 창 40근무일(약 56일)을 덮는다
 
@@ -4823,11 +5090,14 @@ const sourcesOf = (dateStr, data) => {
     return out;
 };
 
-/** 스냅샷에 corrected·correctedNotes 를 붙인다. 무슨 일이 있어도 던지지 않는다. */
+/** 스냅샷에 corrected·correctedNotes 를 붙인다. 무슨 일이 있어도 던지지 않는다.
+ *  correctionOn(2026-11-05) = 얼릴 때 화면 계획에 보정이 켜져 있었나 — 저장이 merge 라 늘 칸으로 쓴다.
+ *  기본 칸(tasks·totalHours·requiredFTE …)은 여전히 보정 전 계획이다(buildAutoForecastSnapshot·buildForecastSnapshot). */
 const attachCorrected = (snapshot, dateStr, correctCtx, getSources) => {
     if (!snapshot) return snapshot;
+    const correctionOn = isForecastCorrectionOn();
     try {
-        return withCorrected(snapshot, {
+        return { ...withCorrected(snapshot, {
             target: dateStr,
             today: getTodayDateString(),             // 내일 이후를 확정해도 오늘의 덜 찬 실적은 안 쓴다
             history: 이력(),                         // 지금 이름(제외 업무는 lib 가 뺀다)
@@ -4837,10 +5107,10 @@ const attachCorrected = (snapshot, dateStr, correctCtx, getSources) => {
             excluded: forecastExcludedTasks(),
             getSources,
             onError: (e) => console.warn('[보정 계획] 계산 실패 — 기본 계획만 얼립니다:', e)
-        });
+        }), correctionOn };
     } catch (e) {
         console.warn('[보정 계획] 계산 실패 — 기본 계획만 얼립니다:', e);
-        return { ...snapshot, corrected: null, correctedNotes: [NOTE_CALC_FAILED] };
+        return { ...snapshot, corrected: null, correctedNotes: [NOTE_CALC_FAILED], correctionOn };
     }
 };
 
@@ -5002,6 +5272,7 @@ const ensureTodayForecastSnapshot = async () => {
         if (res?.ok || res?.reason === 'already-exists') {
             자동스냅_표시(today);
             accuracySnapshots = null;      // 정확도 화면을 열 때 다시 읽는다
+            bumpCorrectGen();                      // 보정 사본을 읽는 중이었다면 그 결과는 버린다(세대 번호)
         }
     } catch (e) {
         console.warn('ensureTodayForecastSnapshot 건너뜀:', e);

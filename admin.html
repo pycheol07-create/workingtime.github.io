@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202611051650">
-    <link rel="stylesheet" href="css/admin-d.css?v=202611051650">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611051650">
+    <link rel="stylesheet" href="css/suit.css?v=202611052207">
+    <link rel="stylesheet" href="css/admin-d.css?v=202611052207">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611052207">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -276,13 +276,23 @@
                 <div class="admin-section hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors w-full" id="section-setting">
                     <div class="p-6 border-b border-gray-100 dark:border-gray-700 w-full">
                         <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">기타 기본 설정</h2>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">알바 기본 시급</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">알바 기본 시급 · 업무 예상 보정 계획</p>
                     </div>
                     <div class="p-6 bg-gray-50/30 dark:bg-gray-900/20 rounded-b-2xl min-h-[400px] w-full">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
                             <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
                                 <label for="default-part-timer-wage" class="block text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">알바 기본 시급 (원)</label>
                                 <input type="number" id="default-part-timer-wage" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-base dark:text-white bg-gray-50 dark:bg-gray-900 outline-none focus:border-blue-500">
+                            </div>
+                            <!-- 업무 예상 보정 계획(2026-11-05) — mainConfig.forecastCorrection.on. 칸이 없으면 켬(js/ui-history-prediction.js isForecastCorrectionOn) -->
+                            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 w-full">
+                                <label class="flex items-start gap-2 cursor-pointer">
+                                    <input type="checkbox" id="forecast-correction-on" class="w-4 h-4 mt-0.5 shrink-0">
+                                    <span>
+                                        <span class="block text-sm font-bold text-gray-600 dark:text-gray-400">업무 예상 보정 계획 사용</span>
+                                        <span class="block text-xs text-gray-500 dark:text-gray-400 mt-1">지난 실적으로 업무별 편향·계획 밖 반복 업무·돌발 여유를 보정한 숫자를 업무 예상·인력·운영 계획·슬랙 알림에 씁니다. 끄면 보정 전 계획으로 돌아갑니다(얼려 두는 계획 비교는 그대로).</span>
+                                    </span>
+                                </label>
                             </div>
                         </div>
                     </div>
@@ -353,12 +363,12 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202611051650"></script>
-    <script type="module" src="js/admin-automation.js?v=202611051650"></script>
+    <script type="module" src="js/admin.js?v=202611052207"></script>
+    <script type="module" src="js/admin-automation.js?v=202611052207"></script>
 
     <script type="module">
         // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
-        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202611051650';
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202611052207';
 
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
@@ -465,9 +475,9 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202611051650"></script>
-    <script src="js/modal-esc.js?v=202611051650"></script>
-    <script type="module" src="js/modal-drag.js?v=202611051650"></script>
-    <script type="module" src="js/app-shell.js?v=202611051650"></script>
+    <script src="js/connection-banner.js?v=202611052207"></script>
+    <script src="js/modal-esc.js?v=202611052207"></script>
+    <script type="module" src="js/modal-drag.js?v=202611052207"></script>
+    <script type="module" src="js/app-shell.js?v=202611052207"></script>
 </body>
 </html>
