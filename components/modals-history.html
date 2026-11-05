@@ -269,6 +269,13 @@
     #history-modal .opp-act-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; font-weight: 600; color: var(--c-text); cursor: pointer; }
     #history-modal .opp-act-check input { margin-top: 3px; accent-color: var(--c-accent); }
     #history-modal .opp-act.is-done .opp-act-title { text-decoration: line-through; color: var(--c-text-3); }
+    /* 실행 관리(v2 D4) — 과제 목록의 진행 칸·체크 펼치기·변경 이력, 목표 실적 줄 */
+    #history-modal .opp-inp.opp-num { width: 76px; min-width: 64px; }
+    #history-modal .opp-pi-checks summary { cursor: pointer; font-size: 12px; color: var(--c-text-2); }
+    #history-modal .opp-pi-checks .opp-act-check { font-weight: 500; margin-top: 4px; }
+    #history-modal .opp-pi-log { margin: 4px 0 0; padding-left: 16px; font-size: 12px; }
+    #history-modal .opp-off td { color: var(--c-text-3); }
+    #history-modal tr.opp-actual td { border-top: 0; padding-top: 0; }
     #history-modal .opp-week, .opp-print .opp-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
     @media (max-width: 640px) { #history-modal .opp-week { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
     #history-modal .opp-week-day { text-align: center; }
@@ -493,6 +500,16 @@
                     <h3 id="ops-plan-cost-title" class="opv-overlay-title">비용·설정 — 관리자</h3>
                 </div>
                 <div class="opv-overlay-body"><div id="ops-plan-cost-body" class="opv-stack"></div></div>
+            </section>
+
+            <!-- 운영 계획 목표 연결(v2 D4, 관리자만) — 연간 계획서 4장의 [목표 연결 편집]이 겹쳐 띄운다(js/ui-ops-plan-items.js).
+                 저장은 OpsPlan/goals_YYYY(금액 없음). ⚠️ role=dialog 를 달지 않는다(업무마감봇 선택자). -->
+            <section id="ops-plan-goals" class="opv-overlay hidden" aria-labelledby="ops-plan-goals-title">
+                <div class="opv-overlay-head">
+                    <button type="button" id="ops-plan-goals-close" class="ops-link">&lsaquo; 돌아가기</button>
+                    <h3 id="ops-plan-goals-title" class="opv-overlay-title">목표 연결 — 관리자</h3>
+                </div>
+                <div class="opv-overlay-body"><div id="ops-plan-goals-body" class="opv-stack"></div></div>
             </section>
 
             <!-- 팀 결산 — [보고서 만들기](권한 data.reports). 화면에 보고서가 그대로 보이고, 받기는 위 줄의 [PDF 받기][엑셀 받기].

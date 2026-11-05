@@ -6,15 +6,15 @@
 //   이름이 든 칸은 class="opp-names" — 인쇄 사본에서는 이 섹션을 통째로 수만 다시 그린다(peoplePrintHtml).
 //   콘솔에 이름·사람 섹션 객체를 찍지 않는다. ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611051617';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051617';
-import { taskNameOf, TASK } from './lib/task-ids.js?v=202611051617';
-import { skillMatrix, levelCounts, busFactor, trainCandidates, redactForOutput, LEVEL_LABEL, LEVEL_RANK, PEOPLE_NOTE } from './lib/plan-skills.js?v=202611051617';
-import { draftAssignment, sumAssignCounts } from './lib/plan-assign.js?v=202611051617';
-import { staffNamesOf } from './ui-history-prediction.js?v=202611051617';
-import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611051617';
-import { nextWeekRange, offDayOf } from './lib/plan-week.js?v=202611051617';
-import { esc, n1, fmtDay, card } from './ui-ops-plan-parts.js?v=202611051617';
+import * as State from './state.js?v=202611051650';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611051650';
+import { taskNameOf, TASK } from './lib/task-ids.js?v=202611051650';
+import { skillMatrix, levelCounts, busFactor, trainCandidates, redactForOutput, LEVEL_LABEL, LEVEL_RANK, PEOPLE_NOTE } from './lib/plan-skills.js?v=202611051650';
+import { draftAssignment, sumAssignCounts } from './lib/plan-assign.js?v=202611051650';
+import { staffNamesOf } from './ui-history-prediction.js?v=202611051650';
+import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611051650';
+import { nextWeekRange, offDayOf } from './lib/plan-week.js?v=202611051650';
+import { esc, n1, fmtDay, card } from './ui-ops-plan-parts.js?v=202611051650';
 
 // 숙련도 매트릭스 캐시 — 이력 길이·설정·오늘이 같으면 다시 계산하지 않는다
 let mCache = null;
@@ -60,7 +60,7 @@ export function computePeople(today, range, outlookRows) {
 }
 
 /** 담당 재배치 추천 — canNames(data.reports)면 이름 있는 문장, 아니면 adviceForOutput(이름 없음) 문장만 */
-function adviceHtml(people, canNames) {
+function adviceHtml(people, canNames, makeBtn) {
     const list = people.advice || [];
     if (!list.length) return '<p class="opv-note">담당이 바뀐 뒤 처리 효율이 10% 넘게 떨어진 업무가 없습니다(표본 충분한 것만).</p>';
     const red = adviceForOutput(list, { today: people.today });
@@ -68,7 +68,8 @@ function adviceHtml(people, canNames) {
     const items = list.map((ad, i) => {
         const r = red[i];
         const text = canNames ? `<span class="opp-names">${esc(ad.text)}</span>` : esc(r.text);
-        return `<li><span class="opv-dot is-warn"></span><span>${text} <span class="opv-note">(UPH ${n1(r.uphBefore)} → ${n1(r.uphAfter)} · 신뢰도 ${conf[r.confidence] || r.confidence})</span></span></li>`;
+        return `<li><span class="opv-dot is-warn"></span><span>${text} <span class="opv-note">(UPH ${n1(r.uphBefore)} → ${n1(r.uphAfter)} · 신뢰도 ${conf[r.confidence] || r.confidence})</span>
+            ${makeBtn ? makeBtn(`advice:${r.task}:${r.itemDraft.quarter}`, r.itemDraft) : ''}</span></li>`;
     }).join('');
     return `<ul class="opv-diag">${items}</ul>`;
 }
@@ -160,7 +161,7 @@ function matrixHtml(people) {
 }
 
 /** 화면용 섹션 — canNames(data.reports) 일 때만 이름 칸·매트릭스. selDate = 배치 초안 날짜 */
-export function peopleHtml(people, { canNames = false, selDate = null } = {}) {
+export function peopleHtml(people, { canNames = false, selDate = null, makeBtn = null } = {}) {
     if (!people) return '';
     const red = redactForOutput({ levels: people.levels, bus: people.bus });
     const date = selDate && people.drafts[selDate] ? selDate : people.workdays.find(d => people.drafts[d]) || null;
@@ -173,7 +174,7 @@ export function peopleHtml(people, { canNames = false, selDate = null } = {}) {
         ${canNames ? matrixHtml(people) : '<p class="opv-note opp-gap">사람별 숙련·교육 후보·배치 이름은 리포트 권한이 있어야 보입니다.</p>'}
         <div class="opv-sub-title opp-gap">배치 초안 <label class="opv-note opp-noprint">날짜 <select id="ops-plan-assign-date" class="opp-inp opp-sel">${opts}</select></label></div>
         ${assignTable(draft, dRed, { names: canNames, admin: date ? people.admin[date] : 0 })}
-        <div class="opv-sub-title opp-gap">담당 재배치 추천 <span class="opv-note">${esc(PEOPLE_NOTE)}</span></div>${adviceHtml(people, canNames)}`, '업무 예상과 같은 시간·근태(휴무) 기준')}</div>`;
+        <div class="opv-sub-title opp-gap">담당 재배치 추천 <span class="opv-note">${esc(PEOPLE_NOTE)}</span></div>${adviceHtml(people, canNames, makeBtn)}`, '업무 예상과 같은 시간·근태(휴무) 기준')}</div>`;
 }
 
 /** 인쇄용 — redactForOutput 을 지난 수만(이름 칸 없음). 날짜별 배치는 인원 수·미충족만. */

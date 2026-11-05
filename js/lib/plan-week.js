@@ -7,8 +7,8 @@
 //     앱은 법적 판단을 하지 않는다(화면 고정 문구). 할증은 시간 계산에 넣지 않는다(금액 단계에서).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-week.test.js
 
-import { getHolidayName } from '../utils.js?v=202611051617';
-import { TASK } from './task-ids.js?v=202611051617';
+import { getHolidayName } from '../utils.js?v=202611051650';
+import { TASK } from './task-ids.js?v=202611051650';
 
 /** 기본 설정 — 설정 화면은 다음 단계(MVP-2). cfg.opsPlan 에 같은 이름 칸이 있으면 그 값(읽기만). */
 export const PLAN_DEFAULTS = Object.freeze({

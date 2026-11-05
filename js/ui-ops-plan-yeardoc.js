@@ -2,13 +2,13 @@
 // 📋 운영 계획 v2 D2 — 연간 계획서(문서형, 12장). 인쇄는 표지·목차·장마다 새 쪽(css .opp-chapter).
 //   장마다 계산된 내용 + 사람이 쓰는 문장(OpsPlan/yearDoc_YYYY — 관리자 저장, 저장 전 이름 검사 plan-yeardoc cleanYearDocSections).
 //   화면에 '거래처는 코드로만, 직원 이름은 쓰지 않기' 안내. 9장 예산은 관리자만(비관리자는 '관리자만' 한 줄).
-//   [과제로 만들기](자동화·데이터 관리)는 실행 관리(D4) 전까지 '준비 중'.
+//   [과제로 만들기](자동화·데이터 관리 — 관리자, D4)는 c.makeBtn(key, 이름 없는 초안). 4장에 목표 연결 편집(관리자)·실적 줄, 11장에 그 해 과제 목록.
 //   금액은 9장(관리자)만, 이름 없음. ⚠️ role=dialog·data-act 금지.
 
-import { esc, n0, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611051617';
-import { YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=202611051617';
-import { AUTO_STATUS_LABEL } from './lib/plan-auto-catalog.js?v=202611051617';
-import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=202611051617';
+import { esc, n0, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611051650';
+import { YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=202611051650';
+import { AUTO_STATUS_LABEL } from './lib/plan-auto-catalog.js?v=202611051650';
+import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=202611051650';
 
 const H = (min) => (ok(min) ? n1(min / 60) : '—');
 const SRC_CLS = { measured: 'opp-src-m', gip: 'opp-src-g', assumed: 'opp-src-a' };
@@ -54,17 +54,23 @@ function seasonHtml(cal, frcs, yearKey) {
         <div class="opv-table-wrap"><table class="opv-table"><thead>${head}</thead><tbody>${fr}</tbody></table></div>` : '<p class="opv-note">최근 끝난 3개월 월 요약이 있어야 업무 시간 어림을 냅니다.</p>'}`;
 }
 
-function goalsHtml(goals, targets) {
+function goalsHtml(goals, targets, actuals, isAdmin) {
     const M = [['qtyPerDay', '처리량(하루)'], ['uph', 'UPH'], ['oee', 'OEE(%)'], ['fillRate', '인원 충족률(%)'], ['effPct', '효율(%)']];
     const k = (goals && goals.kpis) || null;
     const ty = (targets && targets.year) || {};
     const cols = ['year', 'q1', 'q2', 'q3', 'q4'];
-    const rows = M.map(([m, l]) => `<tr><td>${l}</td>${cols.map(c => {
-        const v = k && k[m] ? k[m][c] : (c === 'year' ? ty[m] : null);
-        return `<td class="r">${ok(v) ? n1(v) : '—'}</td>`;
-    }).join('')}</tr>`).join('');
+    const rows = M.map(([m, l]) => {
+        const tgt = `<tr><td>${l}</td>${cols.map(c => {
+            const v = k && k[m] ? k[m][c] : (c === 'year' ? ty[m] : null);
+            return `<td class="r">${ok(v) ? n1(v) : '—'}</td>`;
+        }).join('')}</tr>`;
+        const a = actuals && actuals[m];
+        const act = a && Object.keys(a).length ? `<tr class="opp-actual"><td class="opv-note">실적(운영일 가중)</td>${cols.map(c => `<td class="r opv-note">${ok(a[c]) ? n1(a[c]) : '—'}</td>`).join('')}</tr>` : '';
+        return tgt + act;
+    }).join('');
     return `<div class="opv-table-wrap"><table class="opv-table"><thead><tr><th>지표</th><th class="r">연</th><th class="r">1분기</th><th class="r">2분기</th><th class="r">3분기</th><th class="r">4분기</th></tr></thead><tbody>${rows}</tbody></table></div>
-        <p class="opv-note">${k ? `목표 연결(${goals.mode === 'manual' ? '직접 입력' : '자동 나눔'})` : '목표 연결이 아직 없어 운영 목표(연)만 보입니다'} — 연 → 분기·월 나누기 편집은 실행 관리 단계(D4)에서.</p>`;
+        <p class="opv-note">${k ? `목표 연결(${goals.mode === 'manual' ? '직접 입력' : '자동 나눔'})` : '목표 연결이 아직 없어 운영 목표(연)만 보입니다'} — 처리량(하루)은 월 지수로 나누고, 비율 지표는 같은 값. 실적은 월 요약(운영일 가중).
+        ${isAdmin ? '<button type="button" id="ops-goals-open" class="opv-btn opp-noprint">목표 연결 편집</button>' : ''}</p>`;
 }
 
 function staffHtml(p) {
@@ -75,25 +81,25 @@ function staffHtml(p) {
         <td class="r">${m.gap > 0 ? '+' : ''}${n1(m.gap)}</td><td>${hire(m.month)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
-function autoHtml(auto) {
+function autoHtml(auto, makeBtn) {
     if (!auto || !auto.items.length) return '<p class="opv-note">자동화 후보가 없습니다.</p>';
     return `<div class="opv-table-wrap"><table class="opv-table"><thead><tr><th>분기</th><th>과제</th><th>지금</th><th class="r">월 기록(시간)</th><th class="r">절감 어림(시간/월)</th><th>먼저 할 것</th><th></th></tr></thead>
         <tbody>${auto.items.map(a => `<tr><td>${a.quarterLabel ? esc(a.quarterLabel) : '<span class="opv-note">대기</span>'}</td><td class="opp-wrap">${esc(a.title)}</td>
         <td>${esc(AUTO_STATUS_LABEL[a.status] || a.status)}${a.existing ? ` <span class="opv-note">(${esc(a.existing)})</span>` : ''}</td>
         <td class="r">${H(a.monthlyMin)}</td><td class="r">${H(a.saveMin)}</td>
         <td class="opp-wrap opv-note">${a.prereq.filter(x => !x.met).map(x => esc(x.text)).join(' · ') || '—'}</td>
-        <td><button type="button" class="opv-btn opp-noprint" disabled title="실행 관리(D4) 단계에서 열립니다">과제로 만들기 · 준비 중</button></td></tr>`).join('')}</tbody></table></div>
+        <td>${makeBtn ? makeBtn(`auto:${a.key}:${a.year || ''}`, a.itemDraft) : ''}</td></tr>`).join('')}</tbody></table></div>
         <p class="opv-note">월 기록 = 월 요약 최근 3개월 평균. 절감 = 월 기록 × 줄일 수 있는 몫 × (1 − 이미 자동화된 몫) — 어림(가정). 분기마다 2개.</p>`;
 }
 
-function gapsHtml(g) {
+function gapsHtml(g, makeBtn) {
     if (!g || (!g.items.length && !g.ok.length)) return '<p class="opv-note">월 요약이 쌓이면 기록 빈칸을 점검합니다.</p>';
     const auto = { 가능: 'is-ok', 부분: 'is-warn', 불가: 'is-risk' };
     return `${g.items.length ? `<div class="opv-table-wrap"><table class="opv-table"><thead><tr><th>할 일</th><th>담당</th><th>시작</th><th>자동화</th><th class="r">지금</th><th class="r">목표</th><th></th></tr></thead>
         <tbody>${g.items.map(d => `<tr><td class="opp-wrap">${esc(d.what)}</td><td>${esc(d.role === 'admin' ? '관리자' : d.role === 'lead' ? '팀장' : d.role)}</td>
         <td>${d.startBy ? fmtDay(d.startBy) : '—'}</td><td><span class="opv-chip ${auto[d.auto.level] || ''}" title="${esc(d.auto.how || '')}">${esc(d.auto.level)}</span></td>
         <td class="r">${d.now == null ? '모름' : n1(d.now)}</td><td class="r">${d.target == null ? '—' : n1(d.target)}</td>
-        <td><button type="button" class="opv-btn opp-noprint" disabled title="실행 관리(D4) 단계에서 열립니다">과제로 만들기 · 준비 중</button></td></tr>`).join('')}</tbody></table></div>`
+        <td>${makeBtn ? makeBtn(`data:${d.key}:${(d.itemDraft && d.itemDraft.quarter) || ''}`, d.itemDraft) : ''}</td></tr>`).join('')}</tbody></table></div>`
         : '<p class="opv-note">빈칸 과제가 없습니다.</p>'}
         ${g.ok.length ? `<p class="opv-note">점검했고 문제없음: ${g.ok.length}개</p>` : ''}`;
 }
@@ -122,14 +128,14 @@ export function yearDocHtml(c) {
         lookbackHtml(c.monthlies),
         seasonHtml(c.season, c.forecasts, p.meta.key),
         c.yearBodyHtml,
-        goalsHtml(c.goals, c.targets),
+        goalsHtml(c.goals, c.targets, c.actuals, c.isAdmin),
         staffHtml(p),
         c.roadmapHtml,
-        autoHtml(c.automation),
-        gapsHtml(c.dataGaps),
+        autoHtml(c.automation, c.makeBtn),
+        gapsHtml(c.dataGaps, c.makeBtn),
         c.isAdmin ? (c.budgetHtml || '<p class="opv-note">예산을 계산할 값이 없습니다.</p>') : '<p class="opv-note">관리자만 보이는 장입니다.</p>',
         c.actionsHtml,
-        scheduleHtml(c.scheduleItems || []),
+        scheduleHtml(c.scheduleItems || []) + (c.itemsHtml || ''),
         `<ul class="opv-diag">${RHYTHM.map(([w, t]) => `<li><span class="opv-dot"></span><span><b>${esc(w)}</b> ${esc(t)}</span></li>`).join('')}</ul>`
     ];
     const save = c.isAdmin ? `<p class="opv-note opp-noprint">장마다 문장을 덧붙일 수 있습니다(관리자). 저장 전에 직원 이름이 들어 있는지 검사합니다 — 거래처는 코드로만 적어 주세요.

@@ -16,43 +16,48 @@
 // 금액·직원 이름 없음 — 휴무는 '수'만 받는다. 콘솔에도 이름·금액·문서 본문을 찍지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자).
 
-import * as State from './state.js?v=202611051617';
-import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611051617';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051617';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051617';
-import { taskNameOf } from './lib/task-ids.js?v=202611051617';
-import { buildWeekPlan } from './lib/plan-build.js?v=202611051617';
-import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051617';
-import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611051617';
-import { planDocId, confirmDocOf, planVsActual } from './lib/plan-compare.js?v=202611051617';
-import { getStaffingOutlook, ensureMibalHistory, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611051617';
-import { fetchPlannedData } from './history-data-manager.js?v=202611051617';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051617';
-import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611051617';
-import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611051617';
-import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611051617';
-import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611051617';
-import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=202611051617';
-import { namesLeak } from './lib/plan-skills.js?v=202611051617';
-import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=202611051617';
-import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=202611051617';
-import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=202611051617';
-import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=202611051617';
-import { simRowsOf } from './lib/plan-sim.js?v=202611051617';
-import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=202611051617';
-import { COST_DOC } from './ops-plan-store.js?v=202611051617';
-import { recordRateOf } from './lib/plan-confidence.js?v=202611051617';
-import { loadMonthlies, autoBuildMonthlies, rebuildMonth } from './ops-monthly-store.js?v=202611051617';
-import { finishedMonths } from './lib/plan-monthly.js?v=202611051617';
-import { buildQuarterPlan, nextQuarterOf } from './lib/plan-quarter.js?v=202611051617';
-import { seasonCalendar, bundleForecast } from './lib/plan-season.js?v=202611051617';
-import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=202611051617';
-import { buildAutomationRoadmap } from './lib/plan-automation.js?v=202611051617';
-import { buildDataGaps } from './lib/plan-data-gaps.js?v=202611051617';
-import { cleanYearDocSections, YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=202611051617';
-import { quarterBodyHtml } from './ui-ops-plan-quarter.js?v=202611051617';
-import { yearDocHtml, readYearDocInputs } from './ui-ops-plan-yeardoc.js?v=202611051617';
-import { saveYearDoc } from './ops-plan-store.js?v=202611051617';
+import * as State from './state.js?v=202611051650';
+import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611051650';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611051650';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611051650';
+import { taskNameOf } from './lib/task-ids.js?v=202611051650';
+import { buildWeekPlan } from './lib/plan-build.js?v=202611051650';
+import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611051650';
+import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611051650';
+import { planDocId, confirmDocOf, planVsActual } from './lib/plan-compare.js?v=202611051650';
+import { getStaffingOutlook, ensureMibalHistory, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611051650';
+import { fetchPlannedData } from './history-data-manager.js?v=202611051650';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611051650';
+import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611051650';
+import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611051650';
+import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611051650';
+import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611051650';
+import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=202611051650';
+import { namesLeak } from './lib/plan-skills.js?v=202611051650';
+import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=202611051650';
+import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=202611051650';
+import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=202611051650';
+import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=202611051650';
+import { simRowsOf } from './lib/plan-sim.js?v=202611051650';
+import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=202611051650';
+import { COST_DOC } from './ops-plan-store.js?v=202611051650';
+import { recordRateOf } from './lib/plan-confidence.js?v=202611051650';
+import { loadMonthlies, autoBuildMonthlies, rebuildMonth } from './ops-monthly-store.js?v=202611051650';
+import { finishedMonths } from './lib/plan-monthly.js?v=202611051650';
+import { buildQuarterPlan, nextQuarterOf } from './lib/plan-quarter.js?v=202611051650';
+import { seasonCalendar, bundleForecast } from './lib/plan-season.js?v=202611051650';
+import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=202611051650';
+import { buildAutomationRoadmap } from './lib/plan-automation.js?v=202611051650';
+import { buildDataGaps } from './lib/plan-data-gaps.js?v=202611051650';
+import { cleanYearDocSections, YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=202611051650';
+import { quarterBodyHtml } from './ui-ops-plan-quarter.js?v=202611051650';
+import { yearDocHtml, readYearDocInputs } from './ui-ops-plan-yeardoc.js?v=202611051650';
+import { saveYearDoc } from './ops-plan-store.js?v=202611051650';
+import { listItems, createItem, updateItem, itemLog, claimOverdueNotice } from './ops-plan-items-store.js?v=202611051650';
+import { makeButton, draftOf, itemsCardHtml, logHtml, openGoalsEditor, closeGoalsEditor } from './ui-ops-plan-items.js?v=202611051650';
+import { isOverdue, pickOverdueNotices, OVERDUE_MESSAGE } from './lib/plan-items.js?v=202611051650';
+import { actualsOf } from './lib/plan-cascade.js?v=202611051650';
+import { sendNotification } from './app-notifications.js?v=202611051650';
 
 const $ = (id) => document.getElementById(id);
 const isAdmin = () => !!(State.appState && State.appState.currentUserRole === 'admin');
@@ -72,6 +77,9 @@ let token = 0;             // 늦게 끝난 앞 요청이 새 화면을 덮지 �
 let loaded = false;        // 예정 물량·미발 이력을 한 번 기다렸나
 let lastCtx = {};
 const docErr = new Map();  // 문서 id → 오류 코드(권한 없음 등)
+let items = null;          // 실행 관리 과제(OpsPlanItems, 올해·내년) — null = 아직 안 읽음
+let itemsBusy = false, itemsAgain = false;
+let itemQ = Promise.resolve();   // 과제 고치기를 한 줄로 — 동시에 두 번 쓰면 규칙(version + 1)이 뒤엣것을 거부한다
 export function invalidateOpsPlan() { cache = null; }
 
 const plannedSum = () => (State.plannedData || []).reduce((t, d) => t + Object.values((d && d.plannedQuantities) || {}).reduce((a, v) => a + (Number(v) || 0), 0), 0);
@@ -340,18 +348,19 @@ function paint(host) {
     simBase = horizon === 'quarter' ? { rows: [], oee: null, money: { canMoney: false } } : simBaseOf(p, c.models, budget, costDoc);
     view = { p, per, confirmed, targets: T.targets, defaults: T.defaults, tDoc: T.tDoc, budget, roadmap: rm };
     const money = budget && !budget.locked ? (horizon === 'year' ? yearBudgetHtml(budget) : budgetHtml(budget, { horizon })) : '';
-    const rmHtml = roadmapHtml(rm, { isAdmin: isAdmin(), loading: !msMod });
+    ensureItems();
+    const rmHtml = roadmapHtml(rm, { isAdmin: isAdmin(), loading: !msMod, makeBtn: mk });
     const extras = horizon === 'year' ? simHtml(simBase, simLever) : horizon === 'quarter' ? rmHtml : `${rmHtml}${simHtml(simBase, simLever)}`;
     const mode = confirmed ? (isAdmin() ? 'doc' : 'view') : 'local';
     const doneMap = confirmed ? (confirmed.done || {}) : null;
     const done = (k) => (doneMap ? doneMap[k] === true : localDone(k));
     const body = horizon === 'quarter'
-        ? `${quarterBodyHtml(p, { done })}${extras}`
+        ? `${quarterBodyHtml(p, { done, makeBtn: mk, itemsHtml: itemsBlock(i => i.quarter === p.meta.key, { title: `${p.meta.label} 과제 진행`, today: p.meta.today, empty: '이 분기 과제가 아직 없습니다. 핵심 과제의 [과제로 만들기]로 만듭니다.' }) })}${extras}`
         : horizon === 'year'
         ? `${yearDocOf(p, c, rm, rmHtml, money, actionsHtml(p.actions, { done, mode, title: '연간 과제', empty: '내년에 따로 준비할 일이 없습니다.' }))}${extras}`
         : horizon === 'month'
         ? `${monthBodyHtml(p)}${money}${actionsHtml(p.actions, { done, mode, title: '월간 과제 (우선순위)', empty: '다음 달에 따로 준비할 일이 없습니다.' })}${extras}`
-        : `${daysHtml(p)}${fillTotalsHtml(p)}${money}${actionsHtml(p.actions, { done, mode, empty: '다음 주에 따로 준비할 일이 없습니다.' })}${risksHtml(p)}${peopleHtml(c.people, { canNames: !!lastCtx.canNames, selDate })}${meetingHtml(p, prevCmp)}${extras}`;
+        : `${daysHtml(p)}${fillTotalsHtml(p)}${money}${actionsHtml(p.actions, { done, mode, empty: '다음 주에 따로 준비할 일이 없습니다.' })}${risksHtml(p)}${peopleHtml(c.people, { canNames: !!lastCtx.canNames, selDate, makeBtn: mk })}${meetingHtml(p, prevCmp)}${weekItemsHtml(p.meta.today)}${extras}`;
     host.innerHTML = `<div id="ops-plan-sheet" class="opv-stack">
         ${headHtml(p, per, confirmed)}
         ${prevCmp ? compareCardHtml(prevCmp, per.prevLabel) : ''}
@@ -539,6 +548,11 @@ function bindOnce() {
             if (h !== horizon) { horizon = h; simLever = { ...SIM0 }; renderOpsPlan(); }
             return;
         }
+        const pm = e.target.closest('[data-pi-make]');
+        if (pm && isAdmin()) { onMakeItem(pm); return; }
+        const pl = e.target.closest('[data-pi-log]');
+        if (pl) { onShowLog(pl); return; }
+        if (e.target.closest('#ops-goals-open') && isAdminNow()) { onOpenGoals(); return; }
         const yd = e.target.closest('#ops-yd-save');
         if (yd && isAdminNow()) { onSaveYearDoc(yd); return; }
         const mb = e.target.closest('#ops-plan-monthly-rebuild');
@@ -576,6 +590,8 @@ function bindOnce() {
     panel.addEventListener('change', (e) => {
         const cb = e.target.closest('input[data-plan-done]');
         if (cb) { onDoneChange(cb); return; }
+        const pi = e.target.closest('[data-pi-status],[data-pi-progress],[data-pi-check]');
+        if (pi) { onItemChange(pi); return; }
         if (e.target && e.target.id === 'ops-plan-assign-date') { selDate = e.target.value; repaint(); }
     });
     // 휴무가 바뀌면 공급이 바뀐다 — 운영 계획 탭을 보는 중이면 다시 그린다(읽기만)
@@ -591,7 +607,7 @@ function bindOnce() {
 function ensureMilestones() {
     if (msMod || ensureMilestones.busy) return;
     ensureMilestones.busy = true;
-    import('./ui-history-milestones.js?v=202611051617').then(mod => {
+    import('./ui-history-milestones.js?v=202611051650').then(mod => {
         msMod = mod;
         try { mod.subscribeMilestones(); mod.bindMilestoneListeners(); } catch (e) { /* 마일스톤 화면 칸이 없어도 계획은 그린다 */ }
         return mod.ensureMilestonesLoaded();
@@ -681,6 +697,8 @@ function yearDocOf(p, c, rm, rmHtml, money, yActionsHtml) {
         today: p.meta.today, yearPlan: p, monthlies: ms, season: seasonCalendar(ms), forecasts,
         goals: docOf(`goals_${key}`), targets: docOf('targets'), roadmapHtml: rmHtml, automation, dataGaps,
         budgetHtml: money, actionsHtml: yActionsHtml, yearDoc: docOf(`yearDoc_${key}`), isAdmin: isAdminNow(), scheduleItems,
+        makeBtn: mk, actuals: actualsOf(ms, Number(key)),
+        itemsHtml: itemsBlock(i => Number(i.year) === Number(key), { title: `${key}년 과제 진행`, today: p.meta.today, empty: '이 해 과제가 아직 없습니다. 자동화·데이터 관리·로드맵의 [과제로 만들기]로 만듭니다.' }),
         yearBodyHtml: yearBodyHtml(p, { isAdmin: isAdminNow(), monthlies, months: finishedMonths(p.meta.today, 13) })
     });
 }
@@ -750,5 +768,113 @@ async function onRebuildMonthly(btn) {
     }
 }
 
+// ── 실행 관리(v2 D4) ───────────────────────────────────────────────
+/** 과제 목록을 한 번 읽는다(올해·내년, 1분 캐시). 다 되면 다시 그리고, 관리자면 기한 초과 알림을 고른다. */
+function ensureItems(force = false) {
+    if (itemsBusy) { if (force) itemsAgain = true; return; }
+    if ((items && !force) || lastCtx.canAnalysis === false) return;
+    itemsBusy = true;
+    const y = Number(getTodayDateString().slice(0, 4));
+    listItems([y, y + 1], { force, openYears: [y - 1] })   // 지난해는 끝·그만 아닌 것만(주간 갱신·기한 초과 알림)
+        .then(list => { items = list || []; })
+        .catch(err => { console.warn('운영 과제 읽기 실패:', err && err.code); if (!items) items = []; })
+        .then(() => {
+            itemsBusy = false;
+            if (itemsAgain) { itemsAgain = false; ensureItems(true); return; }
+            repaint(); notifyOverdue();
+        });
+}
+/** [과제로 만들기] 버튼 — 과제 목록을 읽기 전이면 그리지 않는다(같은 과제 두 번 만들기 방지) */
+const mk = (key, draft) => (items ? makeButton(key, draft, { items, isAdmin: isAdmin() }) : '');
+function itemsBlock(pred, opts) {
+    if (lastCtx.canAnalysis === false) return '';
+    if (!items) return card(opts.title, '<p class="opv-note">과제를 불러오는 중…</p>');
+    return itemsCardHtml(items.filter(pred), { ...opts, canEdit: true });
+}
+/** 주간 회의 자료의 '과제 진행 갱신' — 끝·그만이 아닌 것 중 기한 지남·3주 안 기한·진행 중 */
+function weekItemsHtml(today) {
+    const lim = addDaysStr(today, 21);
+    return itemsBlock(i => i.status !== 'done' && i.status !== 'drop' && (isOverdue(i, today) || i.status === 'doing' || (i.due && i.due <= lim)),
+        { title: '과제 진행 갱신', hint: '주간 회의에서 상태·진행을 고칩니다', today, empty: '기한이 가깝거나 진행 중인 과제가 없습니다.' });
+}
+async function onMakeItem(btn) {
+    const draft = draftOf(btn.dataset.piMake);
+    if (!draft) return;
+    btn.disabled = true;
+    try {
+        await createItem(draft, { today: getTodayDateString() });
+        showToast('과제를 만들었습니다.');
+        items = null; ensureItems(true);   // 다시 읽을 때까지 [과제로 만들기]를 숨긴다(두 번 만들기 방지)
+    } catch (err) {
+        console.error('과제 만들기 실패:', err && err.code);
+        showToast('과제를 만들지 못했습니다(권한 또는 연결).');
+        btn.disabled = false;
+    }
+}
+async function onItemChange(el) {
+    const id = el.dataset.piStatus || el.dataset.piProgress || el.dataset.piCheck;
+    const it = (items || []).find(x => x.id === id);
+    if (!it) return;
+    let change;
+    if (el.dataset.piStatus) change = { status: el.value };
+    else if (el.dataset.piProgress) change = { progress: Number(el.value) };
+    else change = { check: { idx: Number(el.dataset.piIdx), ok: el.checked } };   // 한 칸만 — 저장소가 서버 값에 적용
+    el.disabled = true;
+    const run = async () => {
+        try {
+            const changed = await updateItem(id, change);
+            if (changed) showToast('과제를 고쳤습니다.');
+        } catch (err) {
+            console.error('과제 고치기 실패:', err && err.code);
+            showToast('과제를 고치지 못했습니다(권한 또는 연결). 다시 그립니다.');
+        }
+        ensureItems(true);
+    };
+    itemQ = itemQ.then(run, run);
+    await itemQ;
+}
+async function onShowLog(btn) {
+    const box = document.getElementById(`pi-log-${btn.dataset.piLog}`);
+    if (!box) return;
+    if (box.innerHTML) { box.innerHTML = ''; return; }
+    box.textContent = '불러오는 중…';
+    try { box.innerHTML = logHtml(await itemLog(btn.dataset.piLog)); }
+    catch (err) { box.textContent = '이력을 읽지 못했습니다.'; }
+}
+/** 목표 연결 편집(관리자) — 연간 계획서의 해. 월 지수 = 시즌 캘린더 출고 지수, 업무일 = 연간 어림의 달별 업무일 */
+function onOpenGoals() {
+    const p = view && view.p;
+    if (!p || horizon !== 'year') return;
+    const key = Number(p.meta.key);
+    const out = seasonCalendar(monthlies || []).rows.find(r => r.key === 'outbound');
+    const index = {}, workdays = {};
+    (out ? out.cells : []).forEach((c, i) => { if (c && c.index != null) index[i + 1] = c.index; });
+    (p.months || []).forEach(m => { if (m && m.workdays) workdays[m.m] = m.workdays; });
+    openGoalsEditor({ year: key, goals: docOf(`goals_${key}`), targets: docOf('targets'), index, workdays,
+        onSaved: () => { loadPlanDoc(`goals_${key}`, { force: true }).catch(() => {}).then(repaint); } });
+}
+/** 기한 초과 앱 알림(관리자 브라우저만) — 하루 1번·과제당 1번·하루 최대 5명. 문구는 고정(과제 내용·이름 없음).
+ *  중복 방지 = OpsPlan/notify(그날·보낸 과제 id)를 트랜잭션으로 먼저 쓴 관리자만 보낸다. localStorage 는 '오늘은 확인함'(다시 읽지 않기)만 */
+const NOTIFY_KEY = 'opsPlanOverdueNotified';
+async function notifyOverdue() {
+    if (!isAdminNow() || !items || notifyOverdue.busy) return;
+    const today = getTodayDateString();
+    let local = null;
+    try { local = JSON.parse(localStorage.getItem(NOTIFY_KEY) || 'null'); } catch (e) { local = null; }
+    if (local && local.day === today) return;
+    const cfg = State.appConfig || {};
+    if (!pickOverdueNotices(items, { today, cfg }).targets.length) return;   // 기한 지난 과제 없음 — 문서를 읽지 않는다
+    notifyOverdue.busy = true;
+    try {
+        const r = await claimOverdueNotice(today, (sent) => pickOverdueNotices(items, { today, cfg, sent }));
+        try { localStorage.setItem(NOTIFY_KEY, JSON.stringify({ day: today })); } catch (e) { /* 저장 못 해도 문서가 막는다 */ }
+        if (r) {
+            const res = await Promise.all(r.targets.map(t => sendNotification(t, OVERDUE_MESSAGE, 'warning')));
+            console.info('기한 지난 운영 과제 알림:', res.filter(Boolean).length, '건');
+        }
+    } catch (e) { console.warn('기한 지난 운영 과제 알림 건너뜀:', e && e.code); }   // 다른 관리자가 먼저 씀(권한 거부) 등 — 화면에 영향 없음
+    notifyOverdue.busy = false;
+}
+
 /** 운영 계획을 떠날 때(다른 탭) — 목표 창을 닫는다 */
-export function leaveOpsPlan() { closeTargetsEditor(); closeCostEditor(); }
+export function leaveOpsPlan() { closeTargetsEditor(); closeCostEditor(); closeGoalsEditor(); }

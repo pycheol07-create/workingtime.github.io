@@ -5,14 +5,21 @@
 //   시뮬레이터: 슬라이더 3개(인원·물량·속도) — 금액(인건비·인건비율)은 관리자만(money.canMoney), 아니면 칸 자체가 없다.
 // 금액·직원 이름 없음(로드맵은 업무명·원인만). ⚠️ role=dialog·data-act 금지.
 
-import { esc, n1, card, ok, signed1 } from './ui-ops-plan-parts.js?v=202611051617';
-import { CAUSE_LABEL } from './lib/plan-roadmap.js?v=202611051617';
-import { simulate, SIM_RANGE } from './lib/plan-sim.js?v=202611051617';
+import { esc, n1, card, ok, signed1 } from './ui-ops-plan-parts.js?v=202611051650';
+import { CAUSE_LABEL } from './lib/plan-roadmap.js?v=202611051650';
+import { simulate, SIM_RANGE } from './lib/plan-sim.js?v=202611051650';
 
 const won = (v) => (ok(v) ? `${Math.round(v).toLocaleString()}원` : '—');
 
+/** 로드맵 과제 → 실행 관리 초안(이름 없음) — 분기 '2027 1분기' → '2027-Q1' */
+export function roadmapDraft(it) {
+    const m = /^(\d{4}) (\d)분기$/.exec(String(it.quarter || ''));
+    return { kind: 'initiative', title: it.title, role: it.role, quarter: m ? `${m[1]}-Q${m[2]}` : null, due: it.due || null,
+        kpi: { metric: it.kpi.name, task: it.kpi.task || null, from: it.kpi.from, target: it.kpi.to }, src: { rule: 'roadmap', roadmapKey: it.key } };
+}
+
 /** 개선 로드맵 — items = attachMilestones(buildRoadmap(...).items, ...) */
-export function roadmapHtml(rm, { isAdmin = false, loading = false } = {}) {
+export function roadmapHtml(rm, { isAdmin = false, loading = false, makeBtn = null } = {}) {
     if (!rm || !rm.items.length) return card('개선 로드맵', '<p class="opv-note">최근 4주 손실(가용·성과·품질·기록 품질)에서 뽑을 과제가 없습니다.</p>');
     const st = (it) => {
         if (it.status !== 'running') return loading ? '<span class="opv-note">확인 중…</span>' : '<span class="opv-chip">계획</span>';
@@ -28,7 +35,8 @@ export function roadmapHtml(rm, { isAdmin = false, loading = false } = {}) {
         <td class="r">${n1(it.targetEffectHours)}</td>
         <td class="opp-wrap">${esc(it.kpi.name)} ${ok(it.kpi.from) ? n1(it.kpi.from) : '—'} → ${ok(it.kpi.to) ? n1(it.kpi.to) : '—'}</td>
         <td class="opp-wrap">${st(it)}</td>
-        <td>${isAdmin && it.status !== 'running' ? `<button type="button" class="opv-btn opp-noprint" data-plan-roadmap="${esc(it.key)}" title="운영 마일스톤으로 등록하고 효과를 잽니다">실행</button>` : ''}</td></tr>`).join('');
+        <td>${isAdmin && it.status !== 'running' ? `<button type="button" class="opv-btn opp-noprint" data-plan-roadmap="${esc(it.key)}" title="운영 마일스톤으로 등록하고 효과를 잽니다">실행</button>` : ''}
+            ${makeBtn ? makeBtn(`roadmap:${it.key}:${it.quarter || ''}`, roadmapDraft(it)) : ''}</td></tr>`).join('');
     return card('개선 로드맵', `<div class="opv-table-wrap"><table class="opv-table">
         <thead><tr><th>분기</th><th>과제</th><th>원인</th><th>담당</th><th class="r" title="한 달 어림 — 손실 시간 × 회복 비율">효과(인시/월)</th><th>지표 지금 → 목표</th><th>상태</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>
