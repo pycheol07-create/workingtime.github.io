@@ -9,7 +9,7 @@
 // 에뮬레이터 시험 덮어쓰기: 주소가 localhost/127.0.0.1 이고 ?emu=1&live=1 일 때만 신규 화면이 live 로 돈다(tools/mibal2-live-check.py).
 //   운영 주소(GitHub Pages)에서는 어떤 경우에도 덮어쓰지 않는다. tests/mibal2-readonly.test.js 가 본다.
 
-export const MIBAL2_LIVE = false;
+export const MIBAL2_LIVE = true;
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
