@@ -17,6 +17,15 @@ export function codeOfRowB(row) {
     return v == null ? '' : v.toString().trim();
 }
 
+/** 플랫폼 출고·주차별 저장 칸 — 직원 전원이 읽는 문서라 화면·자동화가 실제로 읽는 칸만 남긴다(허용 목록, 2026-11-09). 금액·공급처 열은 머리글이 무엇이든 저장되지 않는다.
+ *  읽는 곳: location.js(코드·이름·옵션·수량·날짜·_q)·ship-transmit·처리량자동입력(_q·_d)·로케이션추천(코드·수량·날짜·_d)·firestore_sync.py. 새로 읽는 칸이 생기면 여기에 더할 것. */
+const SAVE_KEYS_B = new Set([...CODE_KEYS, '상품명', '상품명칭', '옵션', '수량', '기간배송수량', '기간발주수량', '로케이션', 'source', '상태', '_q', '_d']);
+export function pickRowB(row) {
+    const out = {};
+    Object.entries(row || {}).forEach(([k, v]) => { if (SAVE_KEYS_B.has(k) || DATE_COL.test(k)) out[k] = v; });
+    return out;
+}
+
 /** kind 별 수량 열인가 — zikjin: 수량|기간배송수량|기간발주수량|YYYYMMDD, weekly: 기간배송수량|기간발주수량 */
 function isQtyKey(k, kind) {
     if (k === '기간배송수량' || k === '기간발주수량') return true;

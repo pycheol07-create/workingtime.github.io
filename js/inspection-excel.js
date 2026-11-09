@@ -1,9 +1,9 @@
 // === js/inspection-excel.js ===
-import * as State from './state.js?v=202611091150';
-import { updateDailyData } from './app-data.js?v=202611091150';
-import { showToast, getTodayDateString } from './utils.js?v=202611091150';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202611091150';
-import { isExcludedInspItem } from './lib/insp-packs.js?v=202611091150';
+import * as State from './state.js?v=202611091159';
+import { updateDailyData } from './app-data.js?v=202611091159';
+import { showToast, getTodayDateString } from './utils.js?v=202611091159';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202611091159';
+import { isExcludedInspItem } from './lib/insp-packs.js?v=202611091159';
 
 export const handleExcelUpload = (file) => {
     let packingDate = getTodayDateString();
@@ -76,8 +76,8 @@ export const handleExcelUpload = (file) => {
                             let color = option.replace(/\[|\]/g, '').split('-')[0].trim();
                             if (!color) color = 'N/A';
                             const keyColor = color.replace(/\s/g, '').toLowerCase();
-                            const keySupplierName = supplierName.replace(/\s/g, '').toLowerCase();
-                            const uniqueKey = `${keySupplierName}::${keyColor}`; 
+                            // 상품명::색상 1장(2026-11-09 사용자 결정 — 패킹에서 만들기 cardKey 와 같은 기준)
+                            const uniqueKey = `${name.replace(/\s/g, '').toLowerCase()}::${keyColor}`;
 
                             let sampleLocation = null;
                             const matchKey = getCleanKey(name, option);

@@ -5,7 +5,7 @@
 // ⚠️ 이름은 메모리에서만(byTask). 저장·인쇄는 counts·unmet 만 — js/lib/plan-skills.js redactForOutput 을 지난다.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-skills.test.js
 
-import { LEVEL_RANK } from './plan-skills.js?v=202611091150';
+import { LEVEL_RANK } from './plan-skills.js?v=202611091159';
 
 const r1 = (v) => Math.round(v * 10) / 10;
 

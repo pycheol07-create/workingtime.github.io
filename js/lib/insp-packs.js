@@ -6,11 +6,11 @@
 //                            badShip = 출고일 값을 읽지 못해 빠진 행 수
 //                            packsJson: '{"20261015-1":{"sd","ad","eta","part","src","it":[[code,name,option,qty,sup],…]},…}' }
 //   sup 은 공급처 '코드'(AA9999 모양 — 수집기가 거른 값을 그대로 씀)만 — 실명은 오지 않고, 만든 항목에도 supplierName 은 빈칸으로 둔다(CLAUDE.md 3절).
-// 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 공급처::색상 1장, 그 묶음의 첫 품목이 대표.
+// 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 상품명::색상 1장(2026-11-09 사용자 결정 — 공급처는 보지 않는다), 그 묶음의 첫 품목이 대표.
 // 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
 
-import { dayInspItems } from './insp-day.js?v=202611091150';
-import { reserveLocIds, normLocId } from './multi-loc.js?v=202611091150';
+import { dayInspItems } from './insp-day.js?v=202611091159';
+import { reserveLocIds, normLocId } from './multi-loc.js?v=202611091159';
 
 export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -72,12 +72,11 @@ export function colorOf(option) {
     return color.replace(/\s/g, '').toLowerCase();
 }
 
-/** 1장 묶음 키 — 공급처코드::색상. 코드가 없으면 상품명으로 묶는다('::색' 하나로 뭉치지 않게). */
+/** 1장 묶음 키 — 상품명::색상(2026-11-09). 같은 공급처라도 상품이 다르면 따로, 같은 상품은 사이즈가 달라도 색상별 1장.
+ *  상품명이 빈 행은 상품코드로 묶는다('::색' 하나로 뭉쳐 카드가 사라지지 않게). */
 export function cardKey(item) {
-    const sup = str(item && item.supCode);
-    const head = sup ? sup.replace(/\s/g, '').toLowerCase()
-                     : 'nm:' + str(item && item.name).replace(/\s/g, '').toLowerCase();
-    return head + '::' + colorOf(item && item.option);
+    const name = str(item && item.name).replace(/\s/g, '').toLowerCase();
+    return (name || ('code:' + str(item && item.code))) + '::' + colorOf(item && item.option);
 }
 
 /** 샘플위치 매칭 키. inspection-excel.js getCleanKey 와 같다. */
@@ -255,13 +254,13 @@ export function buildCards(packs, refs, today) {
     const r = refs || {};
     const out = [];
     (Array.isArray(packs) ? packs : []).forEach(pack => {
-        const seen = new Map();   // 카드 키 → 카드(같은 공급처+색상은 1장 — 출처가 다른 상품이 합쳐지면 '혼합')
+        const seen = new Map();   // 카드 키 → 카드(같은 상품+색상은 1장 — 출처가 다른 줄이 합쳐지면 '혼합')
         const packingDate = packingDateOf(pack, today);
         (pack.items || []).forEach(it => {
             const code = str(it.code), name = str(it.name), option = str(it.option);
             if (!code && !name) return;
             if (isExcludedInspItem(name)) return;
-            const key = cardKey({ supCode: it.supCode, name, option });
+            const key = cardKey({ code, name, option });
             const itSrc = str(it.src) || str(pack.src);
             if (seen.has(key)) {
                 const c = seen.get(key);
@@ -324,7 +323,7 @@ export function previewCount(packs) {
     return { total, byPack };
 }
 
-/** 업무 예상 — 도착일별 샘플검수 장수(2026-10-21). '패킹에서 만들기'와 같은 기준(공급처코드::색상 1장, 같은 날 같은 상품명+옵션은 1장).
+/** 업무 예상 — 도착일별 샘플검수 장수(2026-10-21). '패킹에서 만들기'와 같은 기준(상품명::색상 1장, 같은 날 같은 상품명+옵션은 1장).
  *  도착일 = 본사도착일(ad, 전부 도착) → arrivalOf(패킹일)(입고일정 시트) → 도착예상일(eta). 셋 다 없으면 뺀다.
  *  입고일정에 같은 패킹일이 여러 날로 나뉘어 있으면(arrivalOf 가 배열) 그 날마다 이 패킹 장수를 다 센다 —
  *  어느 품목이 어느 날 오는지 알 수 없어 많게 잡는다(예전 비율 계산이 둘째 날에 또 붙던 것보다 낫다).
