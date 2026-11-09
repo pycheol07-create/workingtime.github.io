@@ -1,6 +1,6 @@
 // === js/app-shell-data.js ===
 // 공통 상단바(js/app-shell.js)가 쓰는 고정 데이터와 경로 계산. 순수 모듈(의존은 lib 상수 mibal2-mode.js 하나, 테스트: tests/app-shell.test.js).
-import { MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611091406';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611091628';
 
 // 메뉴의 '보이는 이름'만 바꾼 것(2026-11-04). 저장값·권한·연결(ACTION_MENU_NAMES·memberMenuAccess·dashboardMenu)은 왼쪽 옛 이름 그대로다.
 //   사이드바(js/ui-main-dashboard.js)·공통 상단바 메뉴·검색에서 보일 때만 오른쪽 이름으로 쓴다.
@@ -87,7 +87,7 @@ export const PAGE_DEFAULTS = {
     'admin':             { file: 'admin.html',             title: '설정·관리' },
     'location':          { file: 'location.html',          title: '로케이션 관리' },
     'products':          { file: 'products.html',          title: '상품 관리' },
-    'china-stock-goods': { file: 'china-stock-goods.html', title: '중국제작 부족수량 관리' },
+    'china-stock-goods': { file: 'china-stock-goods.html', title: MIBAL2_OLD_MENU_NAME },
     'china-mibal2':      { file: 'china-mibal2.html',      title: MIBAL2_MENU_NAME },
     'scan':              { file: 'scan.html',              title: '입고 스캐너' },
     'manual':            { file: 'manual.html',            title: '업무 매뉴얼' },
@@ -199,7 +199,8 @@ export const SUB_DESTINATIONS = {
         S('데이터 리스트', 'tab=list', ['리스트']),
         S('도면', 'tab=map', ['지도'])
     ],
-    'china-stock-goods.html': [
+    // 단독 운영(live) — 기존 화면은 조회 전용이라 두 곳 다 신규 화면으로(js/china-mibal2.js 가 #tab=mibal|location 으로 보기를 바꾼다)
+    [MIBAL2_LIVE ? 'china-mibal2.html' : 'china-stock-goods.html']: [
         S('미발계산', 'tab=mibal', ['미발', '미발계산기', '부족수량', '부족수량 관리']),
         S('위치지정', 'tab=location', ['위치', '위치지정모드'])
     ],

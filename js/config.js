@@ -2,10 +2,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202611091406';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611091406';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
-import { TASK, taskNameOf } from './lib/task-ids.js?v=202611091406';   // 업무 id 2단계 — 옛 '검수' 이전에 두 업무의 지금 이름
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611091406';   // 옛 '처리량 → 위젯 연결' → 업무 수량 위젯(task-<id>), 메모리에서만
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202611091628';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611091628';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
+import { TASK, taskNameOf } from './lib/task-ids.js?v=202611091628';   // 업무 id 2단계 — 옛 '검수' 이전에 두 업무의 지금 이름
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611091628';   // 옛 '처리량 → 위젯 연결' → 업무 수량 위젯(task-<id>), 메모리에서만
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",
@@ -268,7 +268,8 @@ function getDefaultConfig() {
                 items: [
                     { name: '내 연차관리', link: '#' },
                     { name: '로케이션 관리', link: 'location.html' },
-                    MIBAL2_LIVE ? { name: MIBAL2_MENU_NAME, link: 'china-mibal2.html' } : { name: '중국제작 부족수량 관리', link: 'china-stock-goods.html' },
+                    ...(MIBAL2_LIVE ? [{ name: MIBAL2_MENU_NAME, link: 'china-mibal2.html' }] : []),
+                    { name: MIBAL2_OLD_MENU_NAME, link: 'china-stock-goods.html' },
                     { name: '비품 관리', link: 'supplies.html' }
                 ]
             },

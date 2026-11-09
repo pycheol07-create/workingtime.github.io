@@ -13,7 +13,7 @@
 //   문장은 '제안' 말투, 업무명·숫자만(금액·직원 이름·거래처 실명 없음).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-data-gaps.test.js
 
-import { quarterList } from './plan-automation.js?v=202611091406';
+import { quarterList } from './plan-automation.js?v=202611091628';
 
 export const GAP_LEVELS = Object.freeze({
     recent: 3, plannedPct: 90, incomingPct: 90, aliasPct: 1, confirmedMin: 1, titleMax: 80

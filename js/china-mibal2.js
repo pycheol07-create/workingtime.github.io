@@ -28,29 +28,32 @@
 //   live 일 때만 js/china-mibal2-live.js 를 동적 import 한다(스캐너에 반영·작업 마감·보관·입고오차·미발이력·위치 쓰기·관리 창).
 //   이 파일에는 그 쓰기가 없다. live 면 출고일은 기존 계산기(CONFIG.savedDatesMibal)를 보지 않고 mibal2/settings 만 쓴다.
 //   false(지금)면 아래 동작은 예전과 같다 — tests/mibal2-readonly.test.js 가 본다.
-import { initializeFirebase } from './china-stock-config.js?v=202611091406'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202611091628'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202611091406';
-import { sortMark } from './lib/china-stock-view.js?v=202611091406';
+import { explain } from './lib/mibal2-calc.js?v=202611091628';
+import { sortMark } from './lib/china-stock-view.js?v=202611091628';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202611091406';
-import { setShellContext } from './app-shell-bridge.js?v=202611091406';
-import { memberNameFor } from './app-shell-data.js?v=202611091406';
-import { mountBusyBanner } from './busy-banner.js?v=202611091406';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611091406';
-import { friendlyFirebaseError } from './utils.js?v=202611091406';
-import { diffOf } from './lib/inbound-diff.js?v=202611091406';
-import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611091406';
-import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611091406';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611091406';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611091406';
-import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611091406';
-import { setupLocMode } from './china-mibal2-loc.js?v=202611091406';
-import { isMibal2Live } from './lib/mibal2-mode.js?v=202611091406';
-import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611091406';
+} from './lib/mibal2-rows.js?v=202611091628';
+import { setShellContext } from './app-shell-bridge.js?v=202611091628';
+import { memberNameFor } from './app-shell-data.js?v=202611091628';
+import { mountBusyBanner } from './busy-banner.js?v=202611091628';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611091628';
+import { friendlyFirebaseError } from './utils.js?v=202611091628';
+import { diffOf } from './lib/inbound-diff.js?v=202611091628';
+import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611091628';
+import { scanLogHtml } from './lib/mibal2-scanlog.js?v=202611091628';
+import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611091628';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611091628';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611091628';
+import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611091628';
+import { setupLocMode } from './china-mibal2-loc.js?v=202611091628';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202611091628';
+import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611091628';
+import { stableSig } from './lib/mibal2-live.js?v=202611091628';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611091628';   // live 때만 씀(빠른 이동 #tab=mibal|location)
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -122,7 +125,7 @@ let viewMode = 'live';         // 'live'(부족수량 오늘) | 'loc'(위치지�
 let locTools = null;           // setupLocMode 반환 { enter, refresh } — 입장 판정 뒤에 만든다
 let allRows = [];
 let viewRows = [];
-let sortConfig = { key: 'diffAbs', dir: 'desc' };
+let sortConfig = LIVE ? { key: 'mibal', dir: 'desc' } : { key: 'diffAbs', dir: 'desc' };   // live 는 기존 비교 열이 없다
 let expanded = new Set();
 let pending = null;            // 지금 갱신 요청 대기 { atMs, baseRun, baseNoteAt }
 let firstServerSeen = false;   // 서버에서 온 첫 mibal2Latest 를 봤는지(자동 요청 판단용)
@@ -130,6 +133,7 @@ let started = false;
 let isAccessOk = false;        // 입장 판정(관리자 또는 china.mibal2 권한) 통과 전에는 어떤 쓰기도 하지 않는다
 // 스캐너 연동(시험 — 읽기 전용)
 let inboundMap = {};           // ChinaStockGoods_InboundHistory barcode 별 qty 합(미발 초기화 이후 전체)
+let scanLogByCode = null;      // 상품별 스캔 내역(단독 운영만, 입고이력 구독과 같은 스냅샷 — lib/mibal2-scanlog.js liveScanLogOf)
 let inboundKnown = false;      // 입고이력을 한 번이라도 받았는지
 let inboundErr = '';           // 입고이력 구독 실패 문구
 let inboundStarted = false;    // 입고이력 구독을 걸었는지(한 번만 — 부족수량 보기에 처음 들어갈 때)
@@ -282,7 +286,7 @@ function sortKeyVal(r, key) {
 }
 function applyFilters() {
     const q = ($('search-input').value || '').trim().toLowerCase();
-    const diffOnly = $('chk-diff-only').checked;
+    const diffOnly = !LIVE && $('chk-diff-only').checked;   // live 는 기존 비교값이 없어 이 거르기를 쓰지 않는다(받기 파일에서 상품이 빠지지 않게)
     const checkOnly = $('chk-check-only').checked;
     viewRows = allRows.filter(r => {
         // 차이 = 둘 다 있으면 값이 다를 때, 한쪽만 있으면(기존 값 없음·3층 모름) 그것도 차이로 본다. 기존에만 있는 상품은 행이 없다(10/28)
@@ -331,11 +335,16 @@ function oldSourceText(os) {
         : `현재 스캔 기록 ${os.atMs ? mdhm(os.atMs) : ''}`;
 }
 
+/** 행 상세의 스캔 내역 — 단독 운영(LIVE)일 때만 */
+function scanLogDetail(r) {
+    if (!LIVE || !scanLogByCode) return '';
+    return `<div style="margin-top:8px;"><b>스캔 내역</b>${scanLogHtml(scanLogByCode[r.code], esc)}</div>`;
+}
 function detailHtml(r) {
     if (r.outside) {
         return `<ul><li><b>선택 출고일 밖 입고</b>: 선택한 출고일의 도착 목록에 없는 코드인데 앱 스캔 입고가 ${num(r.conf)} 있습니다.
             다른 출고일 상품이거나 오더리스트에 없는 상품일 수 있습니다 — 신규 수집 자료에는 최근 출고 코드만 있어 구별하지 못합니다(기존 계산기 판정과 다를 수 있음).
-            계산·스캐너 미리보기에서는 뺍니다.</li></ul>`;
+            계산·스캐너 미리보기에서는 뺍니다.</li></ul>${scanLogDetail(r)}`;
     }
     const c = ctx || {};
     const range = c.range || {};
@@ -363,7 +372,7 @@ function detailHtml(r) {
             <li><b>기존 계산기 미발수량</b>: ${oldTxt}</li>
             <li><b>기존공식×신규입력</b>: ${oldNewTxt}</li>
             ${confDetailHtml(r)}
-        </ul>`;
+        </ul>${scanLogDetail(r)}`;
 }
 
 /** 계산 근거의 입고확인 줄 — 출고일별 도착(byShip)과 함께 */
@@ -586,7 +595,7 @@ async function saveConfirmedBatch() {
         setLoading(true, `입고이력·스캐너 값 확인 중... (${codes.length}건)`);
         let mod, srvBy;
         try {
-            mod = await import('./inbound-fix-write.js?v=202611091406');
+            mod = await import('./inbound-fix-write.js?v=202611091628');
             srvBy = await mod.readServerInboundMany(db, codes, 5);
         } finally { setLoading(false); }
         // 옛 수동값만 보이던 칸(시험 화면 — 입고이력에 키 없음): 같은 값이어도 기록해 입고확인을 그 값으로 고정
@@ -643,8 +652,8 @@ function inDiffCellHtml(r) {
 function ensureInbound() {
     if (inboundStarted || !isAccessOk || viewMode !== 'live') return;
     inboundStarted = true;
-    subscribeInbound(db, (m, fx, sc, pb) => {
-        inboundMap = m; fixMap = fx || {}; scanOnlyMap = sc || {}; scanProbeMap = pb || {}; inboundKnown = true; inboundErr = '';
+    subscribeInbound(db, (m, fx, sc, pb, lg) => {
+        inboundMap = m; fixMap = fx || {}; scanOnlyMap = sc || {}; scanProbeMap = pb || {}; scanLogByCode = lg || null; inboundKnown = true; inboundErr = '';
         recomputeAndRender();
     }, (err) => {
         console.error('[mibal2] 입고이력 구독 실패:', err && err.code);
@@ -653,7 +662,7 @@ function ensureInbound() {
         inboundKnown = false;
         inboundStarted = false;
         renderSourceNote();
-    });
+    }, { withLog: LIVE });
 }
 
 /** 지금 보기 기준으로 다시 계산·그리기 */
@@ -678,6 +687,7 @@ function setView(mode, save) {
     if (viewMode === 'loc' && locTools) locTools.enter();
     ensureInbound();   // 부족수량 보기면 입고이력 구독(처음 한 번)
     if (save) { try { localStorage.setItem(VIEW_KEY, viewMode); } catch (e) { /* 기억 못 해도 보기는 바뀐다 */ } }
+    if (LIVE && save) writeHash({ tab: viewMode === 'loc' ? 'location' : 'mibal' });   // 버튼으로 바꾼 뒤 새로고침해도 빠른 이동 해시로 되돌아가지 않게
 }
 
 // ── 출고일 선택 ──────────────────────────────────────────────
@@ -1173,24 +1183,53 @@ async function start(user) {
     startAfterAccess();
 }
 /**
+ * live 의 [스캐너에 반영]·[작업 마감] 시작 때 — 다른 PC 가 바꿨을 수 있는 CONFIG·EDITED_CELLS·settings(출고일·작업 표시)를 서버에서 다시 읽어 화면·계산에 쓴다.
+ * 셋 다 읽혀야 바꾼다(하나라도 실패하면 throw — 부르는 쪽이 멈춘다).
+ * 출고일 창이 열려 있으면 읽지도 쓰지도 않고 popupOpen — 다시 읽기 전에 저장하면 다른 PC 의 출고일을 덮는다. 창은 그 클릭으로 닫히며 평소처럼 저장된다.
+ * @returns {{datesChanged: boolean, popupOpen?: boolean, sig?: string}} datesChanged = 이 PC 의 출고일 선택이 서버와 달라 서버 값으로 맞췄는가 · sig = 세 문서 서명(확인창 뒤 비교용)
+ */
+async function reloadShared() {
+    if ($('date-dropdown-popup').style.display === 'block') return { datesChanged: false, popupOpen: true };
+    const [c, e, s] = await readSharedDocs();
+    config = c.exists() ? (c.data() || {}) : {};
+    graceDays = graceDaysFrom(config);
+    editedCells = e.exists() ? (e.data().cells || {}) : {};
+    settings = s.exists() ? (s.data() || {}) : null;
+    const next = liveDatesFrom(settings).dates;
+    const datesChanged = JSON.stringify([...next].sort()) !== JSON.stringify([...selectedDates].sort());
+    if (datesChanged) selectedDates = next;
+    renderDateList();
+    recomputeAndRender();
+    return { datesChanged, sig: sharedSigOf([c, e, s]) };
+}
+const readSharedDocs = () => Promise.all([
+    getDocFromServer(doc(db, CHINA_COLLECTION, 'CONFIG')),
+    getDocFromServer(doc(db, CHINA_COLLECTION, 'EDITED_CELLS')),
+    getDocFromServer(doc(db, SETTINGS_PATH))
+]);
+const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() : null)));
+/**
  * 단독 운영(live) 도구 불러오기 — LIVE 가 아니면 아무것도 하지 않는다(동적 import 도 하지 않음).
  * 못 불러오면 읽기 전용으로 남고 안내만 한다.
  */
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=202611091406');
+        const mod = await import('./china-mibal2-live.js?v=202611091628');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,
             memberName: () => myMemberName,
             getRows: () => allRows,
+            getViewRows: () => viewRows,   // 화면에 보이는 행(검색·필터·정렬 반영) — 이지어드민 업로드용 받기
             // opts.allGrace — 본사도착 유예를 보지 않고 그 출고일 도착분을 모두 넣는다(작업 마감: 유예가 지나도 작업 출고일 전부)
             rowsFor: (dates, im, opts) => withScanLink(computeRows({ ...liveBundle(), selectedDates: dates, ...(opts && opts.allGrace ? { graceDays: ALL_GRACE_DAYS } : {}) }), im || inboundMap),
             computeFor: (dates, opts) => computeRows({ ...liveBundle(), selectedDates: dates, ...(opts && opts.allGrace ? { graceDays: ALL_GRACE_DAYS } : {}) }),
             getSelectedDates: () => selectedDates.slice(),
             getShipList: () => listShipDates(ship.items, graceDays, new Date()),
             getLatest: () => latest,
+            reloadShared,
+            readSharedSig: async () => sharedSigOf(await readSharedDocs()),   // 확인창 뒤 재확인 — 화면 상태는 바꾸지 않는다
             getConfig: () => config,
             patchConfig: (patch) => { config = { ...config, ...patch }; graceDays = graceDaysFrom(config); renderDateList(); recomputeAndRender(); },
             getEdited: () => editedCells,
@@ -1222,10 +1261,11 @@ async function startAfterAccess() {
     isAccessOk = true;
     $('admin-block').style.display = 'none';
     $('app-main').style.display = 'block';
-    setLoading(true, '설정·로케이션·기존 계산기 미발수량 불러오는 중...');
+    setLoading(true, LIVE ? '설정·로케이션 불러오는 중...' : '설정·로케이션·기존 계산기 미발수량 불러오는 중...');
     try { const p = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null'); if (p && p.atMs) pending = p; } catch (e) {}
     renderRefreshUI();
-    const results = await Promise.allSettled([loadConfig(), loadEditedCells(), loadLocations(), loadOldSnapshot().then(s => { oldSnap = s; }), loadSettings()]);
+    // 단독 운영(live)에서는 기존 계산기 미발수량(비교값)을 읽지 않는다 — oldSnap 이 null 이면 '신규에만' 플래그·버전기록 경고도 나오지 않는다
+    const results = await Promise.allSettled([loadConfig(), loadEditedCells(), loadLocations(), LIVE ? null : loadOldSnapshot().then(s => { oldSnap = s; }), loadSettings()]);
     const names = ['CONFIG', 'EDITED_CELLS', 'Locations', '기존 계산기 미발수량', 'settings'];
     const fails = results.map((r, i) => r.status === 'rejected' ? `${names[i]}(${(r.reason && r.reason.code) || r.reason})` : '').filter(Boolean);
     if (fails.length) { console.error('[mibal2] 읽기 실패:', fails); showToast('⚠️ 읽기 실패: ' + fails.join(', ')); }
@@ -1284,6 +1324,11 @@ setupEvents();
 {
     let savedView = null;
     try { savedView = localStorage.getItem(VIEW_KEY); } catch (e) { /* 무시 */ }
+    if (LIVE) {   // 빠른 이동(Ctrl+K) — #tab=mibal|location 이 기억한 보기보다 먼저
+        const viewOfHash = (h) => (h.tab === 'location' ? 'loc' : h.tab === 'mibal' ? 'live' : null);
+        savedView = viewOfHash(readHash()) || savedView;
+        onHashNav((h) => { const v = viewOfHash(h); if (v && v !== viewMode) setView(v, false); });
+    }
     setView(savedView, false);
 }
 if (auth) onAuthStateChanged(auth, (user) => { if (user) start(user); });

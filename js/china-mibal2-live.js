@@ -10,21 +10,25 @@
 //   [직전으로 되돌리기] 가장 최근 'pre-apply' 버전으로(기존 rollbackScanDBVersion 과 같은 쓰기, 잠금 없음)
 //   [작업 마감]       ChinaStockGoods_Archive/{작업번호} 보관 → InboundDiff(trigger 'close') → MIBAL_HISTORY 입고미발(v2)
 //                    → InboundHistory 삭제(읽은 문서만) · FLOOR2_STOCK·FORCE_ALLOW 비움 → batch 지움. StockLog·EDITED_CELLS 는 안 지운다.
-//   [지난 작업 보기]   보관함 목록·엑셀 받기
+//   [지난 작업 보기]   보관함 목록·엑셀 받기 · [스캔 내역] 조회(마감 때 보관함과 한 batch 로 저장한 내역 — ChinaStockGoods_ScanDB_Versions/_archiveScans/jobs)
 //   [입고 오차 기록]   수동(기존 recordInboundDiffManual 과 같은 확인 흐름)
 //   [바코드 매핑 올리기] 엑셀의 상품코드·바코드 두 열 → BARCODE_MAP(통째로 바꿈, 기존 미발재고로그 업로드와 같음)
+//   [입고용 파일·미발확인 파일·비축창고 엑셀 받기] 이지어드민 업로드용 — 기존 화면과 같은 파일(내용은 lib/mibal2-live.js)
 //   화면을 열면 그날 1회 MIBAL_HISTORY(basis 'v2') — 아직 입고 안 된 패킹별 미발수량(업무예상)
 //   위치 쓰기(js/china-mibal2-live-loc.js) · 관리 창·적재량 편집(js/china-mibal2-live-admin.js)
 // 이메일은 어디에도 저장하지 않는다(기록자 = 직원 이름). 공급처 이름·원가 없음.
 import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writeBatch, collection, query, orderBy, limit, where, documentId, serverTimestamp, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
-    hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf } from './lib/mibal2-live.js?v=202611091406';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611091406';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611091406';
-import { inboundSig } from './lib/inbound-fix.js?v=202611091406';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611091406';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611091406';
+    stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
+    fileRowsOf, inboundFileHtml, mibalFileAoa, floor2FileAoa } from './lib/mibal2-live.js?v=202611091628';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611091628';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611091628';
+import { inboundSig } from './lib/inbound-fix.js?v=202611091628';
+import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611091628';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611091628';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611091628';
 
 const CHINA = 'ChinaStockGoods';
 const SCANDB = CHINA + '_ScanDB';
@@ -94,8 +98,17 @@ export function startLive(ctx) {
             };
             add('btn-live-archive', '지난 작업 보기', '작업 마감 때 저장한 보관함을 봅니다');
             add('btn-live-barcode', '바코드 매핑 올리기', '상품코드·바코드 두 열이 있는 엑셀로 스캐너 바코드 매핑을 바꿉니다');
-            add('btn-live-admin', '관리', '위치매핑 · 오류바코드 · 구역 적재량 · 본사도착 유예');
+            add('btn-live-admin', '관리', '위치매핑 · 오류바코드 · 구역 적재량 · 본사도착 유예 · 빈 칸 넘침 규칙');
+            add('btn-live-inbound-file', '입고용 파일 받기', '지금 표에 보이는 행의 상품코드·도착수량을 이지어드민 업로드용 파일(입고용파일.xls)로 받습니다');
+            add('btn-live-mibal-file', '미발확인 파일 받기', '지금 표에 보이는 행의 상품코드를 이지어드민 업로드용 파일(미발확인파일.xls)로 받습니다');
+            add('btn-live-floor2-file', '비축창고 엑셀 받기', '스캐너가 쌓은 비축창고 입고분의 상품코드·작업수량을 이지어드민 업로드용 파일(비축창고재고.xls)로 받습니다');
         }
+        const diffChk = $('chk-diff-only'); if (diffChk) { diffChk.checked = false; diffChk.closest('label').style.display = 'none'; }
+        ['sum-old', 'sum-diff'].forEach(id => { const c = $(id)?.closest('.summary-card'); if (c) c.style.display = 'none'; });
+        const viewLoc = $('btn-view-loc'); if (viewLoc) viewLoc.textContent = '위치지정';
+        const locDl = $('btn-loc-download'); if (locDl) locDl.textContent = '위치값 엑셀 받기';
+        const f2Note = $('btn-f2-download')?.parentElement?.querySelector('span.t-3');
+        if (f2Note) f2Note.textContent = '이 엑셀은 확인용입니다 — 이지어드민 업로드용은 [비축창고 엑셀 받기]';
         document.querySelectorAll('#inbound-diff-modal h3 span, #floor2-modal h3 span').forEach(sp => { sp.textContent = ''; });
         const pv = $('btn-scan-preview'); if (pv) pv.title = '스캐너에 반영하면 들어갈 값과 지금 스캐너 자료를 나란히 엑셀로 받습니다(쓰지 않음)';
         // 적재량 칸을 누르면 고친다(표의 행 펼치기와 겹치지 않게 그 칸만)
@@ -106,7 +119,9 @@ export function startLive(ctx) {
             admin.editCapacity(tr.dataset.code);
         }, true);
         const style = document.createElement('style');
-        style.textContent = '.list-table td.cap-cell { cursor: text; text-decoration: underline dotted var(--c-line-strong); }';
+        // 기존 계산기 비교 열(23·24번째 — 기존 미발수량·차이)은 live 에 값이 없어 숨긴다
+        style.textContent = '.list-table td.cap-cell { cursor: text; text-decoration: underline dotted var(--c-line-strong); }'
+            + ' .list-table tr:not(.detail-row) > :is(:nth-child(23), :nth-child(24)) { display: none; }';
         document.head.appendChild(style);
         $('btn-scan-off-sync').addEventListener('click', () => guard(applyToScanner));
         $('btn-scan-off-version').addEventListener('click', () => guard(rollbackLast));
@@ -114,6 +129,9 @@ export function startLive(ctx) {
         $('btn-scan-off-diffrec').addEventListener('click', () => guard(recordDiffManual));
         $('btn-live-archive').addEventListener('click', () => openArchive());
         $('btn-live-admin').addEventListener('click', () => admin.open());
+        $('btn-live-inbound-file').addEventListener('click', () => download(downloadInboundFile));
+        $('btn-live-mibal-file').addEventListener('click', () => download(downloadMibalFile));
+        $('btn-live-floor2-file').addEventListener('click', () => download(downloadFloor2File));
         const file = document.createElement('input');
         file.type = 'file'; file.accept = '.xls,.xlsx,.csv,.html,.htm'; file.style.display = 'none'; file.id = 'live-barcode-file';
         document.body.appendChild(file);
@@ -162,6 +180,28 @@ export function startLive(ctx) {
         el.textContent = `· 작업 중: 출고일 ${b.ships.map(fmtMD).join(', ')}${b.appliedAt ? ` · ${mdhm(b.appliedAt)} 반영` : ''}`
             + (differ ? ' — ⚠ 지금 고른 출고일과 다릅니다(반영하면 바뀜)' : '');
     }
+
+    /** 다른 PC 값을 서버에서 다시 읽는다 — 못 읽으면 옛 값으로 진행하지 않고 null */
+    async function reloadOrStop(what) {
+        setLoading(true, '설정·적재량·작업 표시 다시 읽는 중...');
+        try {
+            const r = await ctx.reloadShared();
+            if (r.popupOpen) {
+                alert(`출고일 창이 열려 있어 ${what}을(를) 멈췄습니다(아무것도 바꾸지 않음).\n창이 닫히면서 고른 출고일이 저장됩니다 — 화면을 확인한 뒤 다시 누르세요.`);
+                return null;
+            }
+            renderBatchNote();
+            return r;
+        } catch (e) {
+            console.error('[mibal2-live] 다시 읽기 실패:', e && e.code);
+            alert(`설정·적재량·작업 표시를 서버에서 읽지 못해 ${what}을(를) 멈췄습니다(아무것도 바꾸지 않음) — ${errText(e)}`);
+            return null;
+        } finally { setLoading(false); }
+    }
+    // 확인창 뒤 재확인 — 다른 PC 가 설정·적재량·작업 표시를 바꿨으면 계산이 낡았다
+    const SHARED_CHANGED = '확인하는 동안 다른 PC 에서 설정·적재량·작업 표시가 바뀌었습니다 — 아무것도 쓰지 않았습니다.\n화면을 확인한 뒤 다시 누르세요.';
+    const scanDbSig = (list) => stableSig(list.map(d => [d.id, d.data]));
+    const DATES_CHANGED = '다른 PC 에서 출고일을 바꿔 이 화면의 출고일을 맞췄습니다.\n화면을 확인한 뒤 다시 누르세요(아무것도 바꾸지 않았습니다).';
 
     // ── 스캐너 자료 읽기(그때마다 서버에서) ──
     async function readInbound() {
@@ -218,6 +258,9 @@ export function startLive(ctx) {
 
     // ── [스캐너에 반영] ──
     async function applyToScanner() {
+        const fresh = await reloadOrStop('스캐너 반영');
+        if (!fresh) return;
+        if (fresh.datesChanged) { alert(DATES_CHANGED); return; }
         const dates = ctx.getSelectedDates();
         if (!dates.length) { alert('출고일을 하나 이상 고르세요.'); return; }
         const latest = ctx.getLatest();
@@ -233,24 +276,33 @@ export function startLive(ctx) {
         const rows = ctx.rowsFor(dates, ih.map);
         const plan = scanApplyPlan(rows, ih.map, cur.map(d => d.id));
         if (!plan.totals.codes) { alert('선택한 출고일에 도착이 있는 상품이 없습니다 — 반영하지 않았습니다.'); return; }
+        const scanCodes = Object.keys(ih.map).filter(c => ih.map[c]);
         const lines = [
-            `스캐너에 반영할까요? (출고일 ${dates.map(fmtMD).join(', ')})`, '',
+            scanCodes.length ? `⚠⚠ 앱 스캔 입고 ${n(scanCodes.length)}개 상품이 남아 있습니다 — 이전 작업 스캔이 남아 있으면 취소하고 먼저 [작업 마감]을 하세요` : '',
+            scanCodes.length ? '-' : '',
+            `스캐너에 반영할까요? (출고일 ${dates.map(fmtMD).join(', ')})`, '-',
+            '이지어드민 입고 등록 전에 반영하세요. 등록한 뒤 다시 반영하면 입고분이 두 번 빠집니다.', '-',
             `· 상품 ${n(plan.totals.codes)}개 · 남은 도착 합 ${n(plan.totals.arr)} · 피킹으로 보낼 수량 합 ${n(plan.totals.mibal)}`,
             `· 앱 스캔 입고 ${n(Object.keys(ih.map).length)}개 상품 ${n(Object.values(ih.map).reduce((s, v) => s + v, 0))}장은 빼고 씁니다`,
             plan.totals.del ? `· 지금 스캐너 자료에만 있는 상품 ${n(plan.totals.del)}개는 지웁니다` : '',
             plan.unknownMibal.length ? `· ⚠ 비축재고를 몰라 피킹 배정을 계산 못 한 상품 ${n(plan.unknownMibal.length)}개 — 남은 도착 전부를 피킹으로 보냅니다` : '',
+            plan.noLocation.length ? `· ⚠ 로케이션관리에 없어 스캐너 위치가 빈칸이 되는 상품 ${n(plan.noLocation.length)}개` : '',
             b && !sameList(b.ships, dates) ? `· ⚠ 작업 중인 출고일(${b.ships.map(fmtMD).join(', ')})이 바뀝니다` : '',
-            '', '지금 스캐너 자료는 [직전으로 되돌리기]용으로 자동 백업합니다.'
-        ].filter(x => x !== '');
+            '-', '지금 스캐너 자료는 [직전으로 되돌리기]용으로 자동 백업합니다.'
+        ].filter(x => x !== '').map(x => (x === '-' ? '' : x));   // '-' = 일부러 넣는 빈 줄
+        // 이미 반영한 작업(서버에서 다시 읽은 작업 표시)을 또 누름 — 등록 뒤라면 입고분이 두 번 빠지므로 한 번 더 묻는다(막지는 않음)
+        if (b && !confirm(`⚠⚠ 이 작업은 이미 스캐너에 반영했습니다(${b.appliedAt ? mdhm(b.appliedAt) : '시각 모름'} · 출고일 ${b.ships.map(fmtMD).join(', ')}).\n\n`
+            + '이지어드민 입고 등록을 한 뒤 다시 반영하면 입고분이 두 번 빠집니다.\n등록 전이 확실할 때만 [확인]을 누르세요.')) return;
         if (!confirm(lines.join('\n'))) return;
         // 확인창이 떠 있는 동안 스캐너 입고가 들어왔으면 계산이 낡았다 — 쓰지 않고 다시 하게 한다
         setLoading(true, '입고이력 다시 확인 중...');
-        const [ih2, cur2] = await Promise.all([readInbound(), readScanDb()]);
+        const [ih2, cur2, sig2] = await Promise.all([readInbound(), readScanDb(), ctx.readSharedSig()]);
         setLoading(false);
-        if (!sameInbound(ih, ih2) || cur2.length !== cur.length) {
+        if (!sameInbound(ih, ih2) || scanDbSig(cur2) !== scanDbSig(cur)) {
             alert('확인하는 동안 스캐너 입고(또는 스캐너 자료 변경)가 있었습니다 — 반영하지 않았습니다.\n잠시 뒤 [스캐너에 반영]을 다시 누르세요(새 입고를 넣어 다시 계산합니다).');
             return;
         }
+        if (sig2 !== fresh.sig) { alert(SHARED_CHANGED); return; }
         setLoading(true, '스캐너 자료 백업 중...');
         await saveVersion(cur, 'pre-apply', '스캐너에 반영 직전 자동 백업', { batch: b || null });
         setLoading(true, `스캐너에 반영 중... (${n(plan.totals.codes)}개)`);
@@ -353,7 +405,10 @@ export function startLive(ctx) {
     // ── [작업 마감] ──
     // 계산은 본사도착 유예를 보지 않는다(작업 출고일 도착분 전부). 확인창 뒤·비축 비우기 직전에 다시 읽어 새 스캔이 있으면 멈춘다.
     async function closeWork() {
+        const fresh = await reloadOrStop('작업 마감');
+        if (!fresh) return;
         const b = batchOf();
+        if (fresh.datesChanged && !b) { alert(DATES_CHANGED); return; }   // 작업 표시가 있으면 작업 출고일로 마감하므로 선택이 달라도 된다
         const ships = b ? b.ships.map(String) : ctx.getSelectedDates();
         if (!ships.length) { alert('마감할 작업이 없습니다(출고일 없음).'); return; }
         setLoading(true, '입고이력·비축창고 읽는 중...');
@@ -382,6 +437,14 @@ export function startLive(ctx) {
         const arch = shrinkArchive(partialOf ? partialRecordOf(full, partialOf, baseF2) : full);
         if (!arch.ok) { alert('보관 자료가 너무 커서 마감하지 못했습니다. 관리자에게 알려 주세요.'); return; }
         const skipArch = !!partialOf && !arch.rec.rows.length;   // 부분 마감 뒤 추가분 없음 — 보관 안 함, 비우기만
+        // 스캔 내역 — 아래에서 지우는 것과 같은 문서(ih.docs)로 만든다. 못 만들거나 너무 크면 아무것도 하지 않고 멈춘다
+        let scanLogParts = [];
+        if (!skipArch && ih.docs.length) {
+            try { scanLogParts = buildScanLogDocs(ih.docs.map(scanLogInputOf), { id, partialOf: partialOf || undefined, closedAtMs: now.getTime(), by: ctx.memberName() }); }
+            catch (e) { console.error('[mibal2-live] 스캔 내역 만들기 실패:', e && e.message); alert('스캔 내역을 만들지 못해 마감하지 않았습니다(아무것도 바뀌지 않음). 관리자에게 알려 주세요.'); return; }
+            if (scanLogParts.length > SCANLOG_MAX_PARTS) { alert('스캔 내역이 너무 커서 마감하지 않았습니다(아무것도 바뀌지 않음). 관리자에게 알려 주세요.'); return; }
+        }
+        const scanLogN = scanLogParts.reduce((s, p) => s + p.n, 0);
         let diffRec = null, diffLine;
         try { diffRec = diffRecordFor(ships, rows, 'close'); } catch (e) { diffRec = null; }
         if (partialOf) { diffRec = null; diffLine = `입고 오차 기록: 지난번 마감(${partialOf}) 때 기록함(다시 쓰지 않음)`; }   // 줄어든 값으로 덮지 않게
@@ -392,23 +455,36 @@ export function startLive(ctx) {
         const differ = b && !sameList(b.ships, ctx.getSelectedDates());
         if (!confirm(`작업을 마감할까요? (출고일 ${ships.map(fmtMD).join(', ')}${b ? ` · 작업번호 ${id}` : ' · 반영 기록 없음 — 지금 고른 출고일로'})\n\n`
             + (skipArch ? `보관함: 지난번 마감(${partialOf}) 뒤 추가분 없음 — 새로 보관하지 않음\n${diffLine}\n\n`
-                : `보관함에 저장${partialOf ? `(지난번 마감 ${partialOf} 뒤 추가분)` : ''}: 상품 ${n(t.codes)}개 · 도착 ${n(t.arr)} · 입고 ${n(t.conf)} · 비축 ${n(t.floor2)}\n${diffLine}\n\n`)
+                : `보관함에 저장${partialOf ? `(지난번 마감 ${partialOf} 뒤 추가분)` : ''}: 상품 ${n(t.codes)}개 · 도착 ${n(t.arr)} · 입고 ${n(t.conf)} · 비축 ${n(t.floor2)} · 스캔 내역 ${n(scanLogN)}건\n${diffLine}\n\n`)
             + `비우는 것: 앱 입고이력 ${n(ih.docs.length)}건 · 비축창고 누적 ${n(Object.keys(f2).length)}개 상품 · 스캐너 강제전송 허용목록\n`
             + '유지되는 것: 스캐너 자료(다음 [스캐너에 반영] 때 바뀜) · 위치 데이터 · 적재량 개별값'
             + (differ ? '\n\n⚠ 지금 고른 출고일이 작업 출고일과 다릅니다 — 작업 출고일로 마감합니다.' : '')
             + (ctx.pendingFixCount && ctx.pendingFixCount() ? `\n\n⚠ 저장 안 한 입고확인 ${n(ctx.pendingFixCount())}건도 버립니다.` : ''))) return;
         // 확인창이 떠 있는 동안 스캔이 들어왔으면 보관할 자료가 낡았다 — 아무것도 쓰지 않고 멈춘다
         setLoading(true, '입고이력·비축창고 다시 확인 중...');
-        const [ih2, f2b] = await Promise.all([readInbound(), readF2()]);
+        const [ih2, f2b, sig2] = await Promise.all([readInbound(), readF2(), ctx.readSharedSig()]);
         setLoading(false);
         if (!sameInbound(ih, ih2) || JSON.stringify(f2) !== JSON.stringify(f2b)) {
             alert('확인하는 동안 스캐너 입고가 있었습니다 — 마감하지 않았습니다(아무것도 바뀌지 않음).\n스캐너 전송이 끝난 뒤 [작업 마감]을 다시 누르세요.');
             return;
         }
+        if (sig2 !== fresh.sig) { alert(SHARED_CHANGED); return; }
         setLoading(true, '보관함에 저장 중...');
         const notes = [];
-        if (!skipArch) await setDoc(doc(db, ARCHIVE_COLL, id), arch.rec);
-        else notes.push('추가분이 없어 새로 보관하지 않음');
+        if (!skipArch) {
+            // 보관함과 스캔 내역은 함께 저장된다 — 실패하면 어느 쪽도 남지 않고, 아래 삭제 단계로 가지 않는다(자동 재시도 없음)
+            try {
+                const wb = writeBatch(db);
+                wb.set(doc(db, ARCHIVE_COLL, id), arch.rec);
+                scanLogParts.forEach(p => wb.set(doc(db, ...SCANLOG_JOBS_COLL, docIdOf(p.id, p.part)), p));
+                await wb.commit();
+            } catch (e) {
+                console.error('[mibal2-live] 보관 저장 실패:', e && e.code);
+                setLoading(false);
+                alert(`보관함 저장 실패 — 입고이력·비축은 그대로입니다. [작업 마감]을 다시 누르세요.\n(${errText(e)})`);
+                return;
+            }
+        } else notes.push('추가분이 없어 새로 보관하지 않음');
         if (partialOf && !skipArch) notes.push(`지난번 마감(${partialOf}) 뒤 추가분 보관`);
         let diffDone = partialOf ? '지난번 마감 때 기록함' : '';
         if (diffRec) {
@@ -460,6 +536,82 @@ export function startLive(ctx) {
         showToast(`✅ 작업 마감 — 보관함 ${skipArch ? '(추가분 없음)' : id}${notes.length ? ' · ' + notes.join(' · ') : ''}${arch.shrunk ? ' · 상품명 빼고 보관(크기)' : ''}`);
     }
 
+    // ── [지난 작업 보기] > [스캔 내역] ──
+    const scanLogCache = new Map();   // 작업번호 → { expanded } (다 읽힌 것만)
+    let scanLogReq = 0, scanLogView = null;
+    function scanLogModal() {
+        let m = $('live-scanlog-modal');
+        if (m) return m;
+        m = document.createElement('div');
+        m.id = 'live-scanlog-modal'; m.className = 'modal-overlay';
+        m.innerHTML = `<div class="modal-content" style="width:860px; max-width:96vw; max-height:90vh; overflow-y:auto;">
+            <h3 style="margin-top:0;" id="live-scanlog-title">스캔 내역</h3>
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <label style="flex:1; min-width:0; display:flex; align-items:center; gap:6px;">상품코드 검색 <input type="search" id="live-scanlog-q" class="d-input" autocomplete="off" style="flex:1; min-width:0;"></label>
+                <button type="button" id="btn-live-scanlog-dl" class="d-btn d-btn-sm">엑셀 받기</button>
+            </div>
+            <div id="live-scanlog-body" class="detail-row" style="max-height:62vh; overflow:auto; font-size:12px; line-height:1.7;"></div>
+            <div style="margin-top:16px; text-align:right; border-top:1px solid var(--c-line-soft); padding-top:12px;">
+                <button type="button" id="btn-live-scanlog-close" class="d-btn">닫기</button>
+            </div></div>`;
+        document.body.appendChild(m);
+        const close = () => { m.style.display = 'none'; scanLogReq++; };
+        $('btn-live-scanlog-close').addEventListener('click', close);
+        m.addEventListener('click', (e) => { if (e.target === m) close(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && m.style.display === 'flex') close(); });
+        $('live-scanlog-q').addEventListener('input', renderScanLog);
+        $('btn-live-scanlog-dl').addEventListener('click', () => {
+            const X = window.XLSX;
+            if (!X) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
+            if (!scanLogView) return;
+            const wb = X.utils.book_new();
+            X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(scanLogExcelRows(scanLogView.expanded, scanLogView.nameOf)), '스캔내역');
+            X.writeFile(wb, `스캔내역_${scanLogView.id}.xlsx`);
+        });
+        return m;
+    }
+    function renderScanLog() {
+        if (!scanLogView) return;
+        $('live-scanlog-body').innerHTML = scanLogListHtml(scanLogView.expanded, scanLogView.nameOf, esc, { query: $('live-scanlog-q').value });
+    }
+    /** 보관된 내역 읽기 → { expanded } | { none } | { incomplete }. 일부만 읽히면 합계를 믿을 수 없어 내용을 돌려주지 않는다 */
+    async function loadScanLog(id) {
+        if (scanLogCache.has(id)) return scanLogCache.get(id);
+        const refOf = (part) => doc(db, ...SCANLOG_JOBS_COLL, docIdOf(id, part));
+        const first = await getDoc(refOf(0));
+        if (!first.exists()) return { none: true };
+        const head = first.data() || {};
+        const total = parseInt(head.parts) || 0;
+        if (total < 1 || total > SCANLOG_MAX_PARTS) return { incomplete: true };
+        const rest = await Promise.all(Array.from({ length: total - 1 }, (_, i) => getDoc(refOf(i + 1))));
+        const parts = [head, ...rest.map(s => (s.exists() ? s.data() : null))];
+        if (!checkScanLogParts(parts, id).ok) return { incomplete: true };
+        const v = { expanded: expandScanLogDocs(parts) };
+        scanLogCache.set(id, v);
+        return v;
+    }
+    async function openScanLog(r) {
+        const m = scanLogModal();
+        m.style.display = 'flex';
+        const req = ++scanLogReq, id = String(r.id);
+        scanLogView = null;
+        const body = $('live-scanlog-body'), q = $('live-scanlog-q'), dl = $('btn-live-scanlog-dl');
+        $('live-scanlog-title').textContent = `스캔 내역 — ${id}`;
+        q.value = ''; q.disabled = true; dl.disabled = true;
+        body.innerHTML = '<div class="t-3" style="padding:18px; text-align:center;">불러오는 중...</div>';
+        const fail = (cls, text) => { body.innerHTML = `<div class="${cls}" style="padding:18px; text-align:center;">${esc(text)}</div>`; };
+        let v;
+        try { v = await loadScanLog(id); }
+        catch (e) { if (req === scanLogReq) fail('t-risk', '불러오지 못했습니다 — ' + errText(e)); return; }
+        if (req !== scanLogReq) return;
+        if (v.none) { fail('t-3', '내역 저장 시작 전 마감된 작업입니다(이 작업은 스캔 내역이 없습니다).'); return; }
+        if (v.incomplete) { fail('t-risk', '스캔 내역 일부를 읽지 못해 표시하지 않습니다 — 잠시 뒤 다시 열어 보세요.'); return; }
+        const names = new Map((Array.isArray(r.rows) ? r.rows : []).map(x => [String(x.c), x.nm || '']));
+        scanLogView = { id, expanded: v.expanded, nameOf: (c) => names.get(c) || '' };
+        q.disabled = false; dl.disabled = false;
+        renderScanLog();
+    }
+
     // ── [지난 작업 보기] ──
     function archiveModal() {
         let m = $('live-archive-modal');
@@ -482,7 +634,10 @@ export function startLive(ctx) {
         const close = () => { m.style.display = 'none'; };
         $('btn-live-archive-close').addEventListener('click', close);
         m.addEventListener('click', (e) => { if (e.target === m) close(); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && m.style.display === 'flex') close(); });
+        document.addEventListener('keydown', (e) => {   // 스캔 내역 창이 위에 떠 있으면 그 창만 닫힌다
+            const top = $('live-scanlog-modal');
+            if (e.key === 'Escape' && m.style.display === 'flex' && !(top && top.style.display === 'flex')) close();
+        });
         return m;
     }
     async function openArchive() {
@@ -492,7 +647,8 @@ export function startLive(ctx) {
         tb.innerHTML = '<tr><td colspan="9" class="t-3" style="padding:22px;">불러오는 중...</td></tr>';
         let recs;
         try {
-            const snap = await getDocs(query(collection(db, ARCHIVE_COLL), orderBy(documentId(), 'desc'), limit(30)));
+            // 문서 id 내림차순은 에뮬레이터가 지원하지 않는다 — 마감 시각(보관 문서에 늘 있음)으로 최신순
+            const snap = await getDocs(query(collection(db, ARCHIVE_COLL), orderBy('closedAtMs', 'desc'), limit(30)));
             recs = snap.docs.map(d => d.data());
         } catch (e) { tb.innerHTML = `<tr><td colspan="9" class="t-risk" style="padding:22px;">불러오지 못했습니다 — ${esc(errText(e))}</td></tr>`; return; }
         if (!recs.length) { tb.innerHTML = '<tr><td colspan="9" class="t-3" style="padding:22px;">보관된 작업이 없습니다. [작업 마감]을 하면 여기에 쌓입니다.</td></tr>'; return; }
@@ -501,7 +657,8 @@ export function startLive(ctx) {
             <td style="padding:6px;">${r.closedAtMs ? esc(mdhm(r.closedAtMs)) : ''}</td><td style="padding:6px;">${n(t.codes)}</td>
             <td style="padding:6px;">${n(t.arr)}</td><td style="padding:6px;">${n(t.conf)}</td><td style="padding:6px;">${n(t.floor2)}</td>
             <td style="padding:6px;"><span class="t-risk">${n(t.short)}</span> · <span class="t-accent">${n(t.over)}</span></td>
-            <td style="padding:6px;"><button type="button" class="d-btn d-btn-sm live-arch-dl" data-i="${i}">엑셀 받기</button></td></tr>`; }).join('');
+            <td style="padding:6px;"><button type="button" class="d-btn d-btn-sm live-arch-dl" data-i="${i}">엑셀 받기</button> <button type="button" class="d-btn d-btn-sm live-arch-scan" data-i="${i}">스캔 내역</button></td></tr>`; }).join('');
+        tb.querySelectorAll('.live-arch-scan').forEach(btn => btn.addEventListener('click', () => openScanLog(recs[+btn.dataset.i])));
         tb.querySelectorAll('.live-arch-dl').forEach(btn => btn.addEventListener('click', () => {
             const r = recs[+btn.dataset.i];
             const X = window.XLSX;
@@ -531,6 +688,59 @@ export function startLive(ctx) {
         await setDoc(doc(db, CHINA, 'BARCODE_MAP'), packMap(r.map));
         setLoading(false);
         showToast(`✅ 바코드 매핑 ${n(cnt)}건 저장 — 스캐너는 다음 조회부터 씁니다`);
+    }
+
+    // ── 이지어드민 업로드용 받기 3종 — 파일은 기존 화면과 같게(저장도 기존 downloadToDesktop 과 같다: 저장 창 → 안 되면 기본 다운로드) ──
+    async function saveToDesktop(filename, blob) {
+        if (window.showSaveFilePicker) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: filename,
+                    startIn: 'desktop',
+                    types: [{ description: 'Excel', accept: { 'application/vnd.ms-excel': ['.xls'] } }]
+                });
+                const w = await handle.createWritable();
+                await w.write(blob); await w.close();
+                showToast('✅ 저장 완료');
+                return;
+            } catch (e) {
+                if (e && e.name === 'AbortError') return;   // 사용자가 취소
+                // 그 외 오류 → 기본 다운로드로
+            }
+        }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+    /** 진짜 .xls(BIFF8) 파일 — 기존 화면과 같은 쓰기(SheetJS write, type array) */
+    function biff8Blob(aoa, sheetName) {
+        const X = window.XLSX;
+        const wb = X.utils.book_new();
+        X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(aoa), sheetName);
+        return new Blob([X.write(wb, { bookType: 'biff8', type: 'array' })], { type: 'application/vnd.ms-excel' });
+    }
+    async function download(fn) {
+        if (!window.XLSX) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
+        try { await fn(); }
+        catch (e) { console.error('[mibal2-live] 받기 실패:', e && (e.code || e.message)); alert('파일을 받지 못했습니다 — ' + errText(e)); }
+    }
+    async function downloadInboundFile() {
+        const rows = fileRowsOf(ctx.getViewRows());
+        if (!rows.length) { showToast('받을 행이 없습니다'); return; }
+        await saveToDesktop('입고용파일.xls', new Blob([inboundFileHtml(rows)], { type: 'application/vnd.ms-excel' }));
+    }
+    async function downloadMibalFile() {
+        const rows = fileRowsOf(ctx.getViewRows());
+        if (!rows.length) { showToast('받을 행이 없습니다'); return; }
+        await saveToDesktop('미발확인파일.xls', biff8Blob(mibalFileAoa(rows), 'worksheet'));
+    }
+    async function downloadFloor2File() {
+        let map = {};
+        try { const s = await getDoc(doc(db, CHINA, 'FLOOR2_STOCK')); map = (s.exists() && s.data().map) ? s.data().map : {}; }
+        catch (e) { alert('비축창고 데이터 불러오기 실패: ' + errText(e)); return; }
+        const aoa = floor2FileAoa(map);
+        if (!aoa) { alert('비축창고로 입고된 데이터가 없습니다.\n(입고 스캔 시 미발수량을 넘긴 초과분이 비축창고로 잡힙니다)'); return; }
+        await saveToDesktop('비축창고재고.xls', biff8Blob(aoa, '비축창고재고'));
     }
 
     // ── 업무예상용 미발 기록(화면을 열면 그날 1회) ──

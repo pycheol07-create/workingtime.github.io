@@ -2,10 +2,10 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611091406"></script>
-    <link rel="stylesheet" href="css/suit.css?v=202611091406">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611091406">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611091406">
+    <script src="js/theme-boot.js?v=202611091628"></script>
+    <link rel="stylesheet" href="css/suit.css?v=202611091628">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611091628">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611091628">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -195,6 +195,7 @@
         <button type="button" class="m-btn mibal" id="sel-mibal" style="display:none;"></button>
         <div class="m-remain" id="sel-remain-row">미발수량: <b id="sel-remain">0</b></div>
         <div id="sel-holdnote" style="display:none; text-align:center; font-size:12px; color:var(--c-text-3);">다른 작업자 확인 못 함 — 미발 숫자가 클 수 있음</div>
+        <div id="sel-heldothers" style="display:none; background:var(--c-risk-soft); color:var(--c-risk-text); border:2px solid var(--c-risk); border-radius:var(--r-sm); padding:7px 11px; margin:8px 0 0; font-size:15px; font-weight:800; text-align:center;"></div>
         <div class="num-display" id="num-display" tabindex="-1" style="margin-top:8px;">0</div>
         <div id="qty-quick">
             <div class="qty-sel-label">십의 자리 (한 자리 수량이면 건너뛰세요)</div>
@@ -232,18 +233,19 @@
     <div id="undo-toast" role="status" aria-live="polite"><span id="undo-toast-msg"></span><button type="button" id="undo-toast-btn">되돌리기</button></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202611091406"></script>
+    <script src="js/location-map.js?v=202611091628"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202611091406'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202611091406';   // 공통 상단바(uid 만 — 메뉴는 캐시)
-        import { checkProductCode } from './js/lib/product-code.js?v=202611091406';  // 위치지정 상품코드 'S+숫자6자리' 판정
-        import { availOf, planTake, staleHoldIds, floor2Step, isSplitItem, newHoldId, pendingExpired, HOLD_PENDING_MAX_MS } from './js/lib/scan-hold.js?v=202611091406'; // [Ver 10.7] 미발 동시 스캔 방지
-        import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=202611091406'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202611091628'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202611091628';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { checkProductCode } from './js/lib/product-code.js?v=202611091628';  // 위치지정 상품코드 'S+숫자6자리' 판정
+        import { availWithMine, myHoldsOf, heldByOthers, planTake, allocOf, staleHoldIds, floor2Step, isSplitItem, newHoldId, pendingExpired, HOLD_PENDING_MAX_MS } from './js/lib/scan-hold.js?v=202611091628'; // [Ver 10.7] 미발 동시 스캔 방지
+        import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=202611091628'; // 위치지정 건별 기록(문서 모양)
+        import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=202611091628'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
 
-        const SCAN_VERSION = '10.7'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.8'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
@@ -274,6 +276,26 @@
         // 🧪 기본 서버일 때만, 첫 읽기·쓰기보다 먼저. 운영(GitHub Pages)에서는 hostname 검사에 걸려 아무 일도 하지 않는다.
         if (!serverCfg) connectEmulatorsIfEnabled(db, getAuth(app));
 
+        // 입고이력에 남길 직원 이름 — 메모리에만 둔다. 이메일은 저장하지 않는다.
+        //   이름을 몰라도 전송은 막지 않는다(칸만 생략). 모듈도 여기서만 불러 실패해도 스캔 화면에 영향이 없다.
+        let scanWorkerName = '';
+        let scanWorkerUser = null, scanWorkerLoading = false, scanWorkerRead = false;   // scanWorkerRead = 읽기에 성공함(명단에 없는 계정이면 다시 읽어도 같다)
+        async function loadScanWorkerName(user) {
+            if (scanWorkerLoading) return;
+            scanWorkerLoading = true;
+            try {
+                const { memberNameFor } = await import('./js/app-shell-data.js?v=202611091628');
+                const snap = await getDoc(doc(db, 'artifacts/team-work-logger-v2/config/mainConfig'));
+                const cu = getAuth(app).currentUser;
+                if (cu && cu.uid === user.uid) { scanWorkerName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email) || ''; scanWorkerRead = true; }
+            } catch (e) { console.warn('[scan] 작업자 이름 확인 실패 — 이름 없이 전송합니다'); }
+            finally { scanWorkerLoading = false; }
+        }
+        // 읽기에 실패했으면 온라인 복귀·전송 시작 때 한 번 더(기다리지 않는다)
+        function retryScanWorkerName() {
+            if (!scanWorkerName && !scanWorkerRead && scanWorkerUser) loadScanWorkerName(scanWorkerUser);
+        }
+
         // ── 🔒 로그인 확인 ─────────────────────────────────────────────
         // 기본 서버(메인 프로젝트)를 쓸 때만 확인한다. QR/URL로 다른 서버를 지정한 경우는
         // 그 서버의 규칙을 따르므로 여기서 막지 않는다.
@@ -289,6 +311,8 @@
             const auth = getAuth(app);
             onAuthStateChanged(auth, (user) => {
                 setShellContext(user ? { signedIn: true, uid: user.uid } : { signedIn: false });
+                scanWorkerName = ''; scanWorkerRead = false; scanWorkerUser = user || null;
+                if (user) loadScanWorkerName(user);   // 기다리지 않는다
                 if (user) { gate.remove(); resolvePendingHolds().finally(() => retryReleases()); return; } // [Ver 10.7] 로그인 뒤 미발 확인·해제 정리
                 // 업무관리에 로그인해 두었어도 세션이 공유되지 않는 경우가 있다
                 // (홈 화면 앱에서 다른 브라우저로 열리거나, 사생활 보호 모드 등).
@@ -402,6 +426,7 @@
         let fixedLocation = null;
         let directQty = localStorage.getItem('scanDirectQty') === '1';
         let scanner = null, scanning = false, processing = false, sending = false;
+        const sendingIds = new Set();   // 지금 전송 묶음에 든 입고 항목 id — 이 몫은 트랜잭션이 되살리지 않는다(batch 가 지움)
 
         const $ = (id) => document.getElementById(id);
         const saveQueues = () => { localStorage.setItem('scanInQueue', JSON.stringify(inboundQueue)); localStorage.setItem('scanLocQueue', JSON.stringify(locationQueue)); };
@@ -617,9 +642,10 @@
             // [Ver 10.7] mibalQty = 보여 줄 남은 미발(ScanDB − 다른 스캔이 잡아 둔 몫), mibalRaw = ScanDB 값(옛 비축 배분 식의 기준)
             const buildItem = (d) => {
                 const raw = Math.max(parseInt(d && d.mibalQty) || 0, 0);
-                const shown = (d && holdOk) ? availOf(d.mibalQty, holdData, Date.now()) : raw;
+                const shown = (d && holdOk) ? availWithMine(d.mibalQty, holdData, myHoldsOf(inboundQueue, key, sendingIds), Date.now()) : raw; // 내 몫은 30분이 지나도 뺀다
                 return { code: key, name: (d && d.name) || '', location: (d && d.location) || '미지정', arrivalQty: Math.max(parseInt(d && d.arrivalQty) || 0, 0),
-                    mibalQty: shown, mibalRaw: raw, holdUnknown: !!d && !holdOk && raw > 0, noScanDb: !d, aliasMemo: memoText };
+                    mibalQty: shown, mibalRaw: raw, holdUnknown: !!d && !holdOk && raw > 0, noScanDb: !d, aliasMemo: memoText,
+                    heldOthers: (d && holdOk) ? heldByOthers(holdData, [...inboundQueue.map(it => it && it.id), ...deletedEntries.keys()], Date.now()) : 0 };
             };
             const proceedWith = (d) => showSelect(buildItem(d));
             // [Ver 8.51] 강제전송 → 정상 입고 진행. (2026-10-22) 허용목록 등록은 수량을 골라 입고가 확정될 때(addInbound)만 한다 — 팝업만 열고 닫으면 등록 안 됨
@@ -654,6 +680,9 @@
             $('sel-mibal').style.display = showMibal ? 'block' : 'none';
             $('sel-remain-row').style.display = showMibal ? 'none' : 'block';
             $('sel-holdnote').style.display = item.holdUnknown ? 'block' : 'none'; // [Ver 10.7] 잡아 둔 몫을 못 읽음
+            const heldEl = $('sel-heldothers');   // 다른 작업이 잡아 둔 수량 — 안내만, 흐름은 막지 않는다
+            heldEl.textContent = item.heldOthers > 0 ? `다른 작업에서 잡아 둔 수량 ${item.heldOthers}개` : '';
+            heldEl.style.display = item.heldOthers > 0 ? 'block' : 'none';
             qtyTens = 0;
             padBuf = ''; padOver = false;
             $('num-display').textContent = '0';
@@ -744,10 +773,13 @@
                     if (!s.exists()) return { missing: true };
                     const now = Date.now();
                     const hd = h.exists() ? h.data() : null;
-                    const avail = availOf(s.data().mibalQty, hd, now);
+                    // 이 기기 목록의 내 몫은 30분이 지났어도 유효 — 재시도 때 다시 계산해 전송 중인 몫은 되살리지 않는다
+                    const mine = myHoldsOf(inboundQueue, code, sendingIds, id);
+                    const avail = availWithMine(s.data().mibalQty, hd, mine, now);
                     const plan = planTake({ shown, avail, qty });
                     const upd = {};
                     staleHoldIds(hd, now).forEach(x => { upd[x] = deleteField(); }); // 만료된 남의 몫은 같이 지운다
+                    mine.forEach(m => { upd[m.id] = { q: m.q, at: now }; });         // 내 몫은 시각을 새로 쓴다(위 지우기보다 우선)
                     if (plan.take > 0) upd[id] = { q: plan.take, at: now };
                     if (Object.keys(upd).length) tx.set(hRef, { h: upd }, { merge: true });
                     return { ...plan, avail };
@@ -801,7 +833,8 @@
         }
 
         function warnText(code, qty, r) {
-            return `다른 작업자가 방금 ${r.othersTook}개를 피킹용으로 뺐습니다 — 남은 미발 ${r.avail}개\n(${code} · 이번 ${qty}개: 피킹 ${r.take} · 비축 ${qty - r.take})`;
+            const a = allocOf(qty, r.take);   // 작은 비축은 전량 피킹 — 전송 때 floor2Step 과 같은 값
+            return `다른 작업자가 방금 ${r.othersTook}개를 피킹용으로 뺐습니다 — 남은 미발 ${r.avail}개\n(${code} · 이번 ${qty}개: 피킹 ${a.pick} · 비축 ${a.reserve})`;
         }
         function noticeText(code, qty, r) {
             return `${code}: 다른 작업자가 ${r.othersTook}개를 먼저 잡음 — 이번 ${qty}개는 모두 피킹`;
@@ -986,6 +1019,7 @@
                 renderLocBanner(); speak('위치 변경'); resumeScan(); return;
             }
             if (!fixedLocation) { speak('위치를 먼저 찍으세요'); toast('위치 바코드를 먼저 스캔하세요'); resumeScan(); return; }
+            const loc = fixedLocation;   // 찍은 순간의 자리 — 아래 조회를 기다리는 사이 전송이 끝나 자리가 지워져도 이 값으로 넣는다
             const key = resolveCode(raw); // [Ver 8.3] 바코드 → 상품코드 변환
             // 2026-10-19 사용자 결정: S+6자리 외는 오류 + 강제추가 (아래 addLoc 정의 뒤에서 검사).
             // 영문·숫자 5자 미만 같은 깨진 값은 예전처럼 강제추가 없이 막는다.
@@ -998,7 +1032,7 @@
             }
             // 당일 입고분 모드: 온라인일 때만 목록 검증(오스캔 차단), 오프라인이면 생략
             const addLoc = () => { // [Ver 8.56] 위치 큐 추가 (강제추가에서도 재사용)
-                locationQueue.unshift({ barcode: key, location: fixedLocation, name, sub: locSubMode, time: new Date().toTimeString().slice(0, 8) });
+                locationQueue.unshift({ barcode: key, location: loc, name, sub: locSubMode, at: Date.now(), time: new Date().toTimeString().slice(0, 8) });
                 saveQueues(); renderQueue(); speak('스캔'); resumeScan();
             };
             // 2026-10-19 사용자 결정: S+6자리 외는 오류 + 강제추가 (등록 상품이어도). [확인] → resumeScan
@@ -1067,6 +1101,7 @@
             if (!key) return;
             lastInputManual = true; // 오류창을 닫은 뒤 수동입력 칸으로 돌아오게
             if (!fixedLocation) { showAlert('위치를 먼저 설정하세요\n(위 칸에 위치를 입력하거나 위치 바코드를 스캔)'); return; }
+            const loc = fixedLocation;   // 찍은 순간의 자리(스캔 쪽과 같음)
             let name = '', exists = false, dbError = false;
             if (navigator.onLine) {
                 // 입력한 값 그대로 → 못 찾고 숫자만이면 'S' 붙여 한 번 더 (스캔 흐름과 동일)
@@ -1087,7 +1122,7 @@
                 showAlert('형식 오류\n상품코드를 확인해 주세요\n(예: S550076 · 546881055 · P000DCUU000B)'); return;
             }
             const addLoc = () => { // [Ver 8.56] 위치 큐 추가 (강제추가에서도 재사용)
-                locationQueue.unshift({ barcode: key, location: fixedLocation, name, sub: locSubMode, time: new Date().toTimeString().slice(0, 8) });
+                locationQueue.unshift({ barcode: key, location: loc, name, sub: locSubMode, at: Date.now(), time: new Date().toTimeString().slice(0, 8) });
                 saveQueues(); renderQueue(); el.value = ''; el.focus();
                 speak('추가'); toast('추가: ' + key);
             };
@@ -1105,6 +1140,7 @@
         async function sendInbound() {
             if (!inboundQueue.length || sending) return;
             if (!navigator.onLine) { showAlert('오프라인 상태입니다.\n인터넷 연결 후 [전송하기]를 눌러주세요.\n(스캔 내역은 저장되어 있습니다)'); return; }
+            retryScanWorkerName();
             sending = true; updateSendBtn('전송 중...'); closeUndo();
             // [Ver 10.7] 진행 중인 미발 확인(트랜잭션)을 최대 3초 기다린다. 그래도 확인 중인 건은 이번 전송에서 빼고 목록에 남긴다
             //   (몫이 서버에 늦게 써진 뒤라면 아무도 못 푸는 hold 가 남는다). 새로고침 뒤 남은 확인 중 건은 hold 문서를 읽어 맞춘다.
@@ -1127,6 +1163,7 @@
                 showAlert('비축(2층) 현황을 불러오지 못해 전송하지 않았습니다.\n네트워크 확인 후 다시 [전송하기]를 눌러 주세요.\n(스캔 내역은 그대로 있습니다)');
                 return;
             }
+            items.forEach(it => { if (it && it.id) sendingIds.add(it.id); });
             const sent = [];
             const st = {}; // code -> {received, mibal, floor2, name, writeMibal, writeName} — 이번 전송 안에서 시간순으로 이어서 계산
             let batchFail = false;
@@ -1138,10 +1175,6 @@
                     const f2 = {}; // code -> {received, floor2} 이번 묶음 증가분
                     part.forEach(it => {
                         batch.set(doc(db, 'ChinaStockGoods_ScanDB', it.barcode), { arrivalQty: increment(-it.qty), mibalQty: increment(-it.qty) }, { merge: true }); // [Ver 8.48] 미발수량도 입고분만큼 즉시 차감 (표시는 0에서 클램프) / [Ver 8.51] set-merge: 강제전송된 미등록 상품(ScanDB 문서 없음)도 생성되도록
-                        batch.set(doc(collection(db, 'ChinaStockGoods_InboundHistory')), {
-                            barcode: it.barcode, qty: it.qty, name: it.name, location: it.location,
-                            dest: it.dest, timestamp: serverTimestamp(), worker: 'Scanner_Web'
-                        });
                         // [Ver 10.7] 잡아 둔 몫은 같은 batch 에서 푼다(ScanDB 는 qty 전체를 빼므로 이중 차감 없음). 옛 형식(id 없음)은 hold 없음
                         if (it.id) batch.set(holdRef(it.barcode), { h: { [it.id]: deleteField() } }, { merge: true });
                         const c = it.barcode;
@@ -1157,6 +1190,12 @@
                         s.received = r.state.received; s.floor2 = r.state.floor2;
                         const g = f2[c] || (f2[c] = { received: 0, floor2: 0 });
                         g.received += it.qty; g.floor2 += r.floor2Add;
+                        batch.set(doc(collection(db, 'ChinaStockGoods_InboundHistory')), {
+                            barcode: it.barcode, qty: it.qty, name: it.name, location: it.location,
+                            dest: it.dest, timestamp: serverTimestamp(), worker: 'Scanner_Web',
+                            pickQty: it.qty - r.floor2Add, reserveQty: r.floor2Add, // 이번 스캔의 피킹·비축 몫(스캔 내역 표시)
+                            ...(scanWorkerName ? { workerName: scanWorkerName } : {})
+                        });
                     });
                     const map = {};
                     Object.keys(f2).forEach(c => {
@@ -1175,6 +1214,7 @@
             // 반영된 건만 목록에서 뺀다(실패한 묶음·확인 중인 건·전송 중 스캔한 건은 남김)
             const sentSet = new Set(sent);
             inboundQueue = inboundQueue.filter(it => !sentSet.has(it));
+            sendingIds.clear();
             saveQueues(); renderQueue();
             if (batchFail) {
                 showAlert(`전송 실패 — ${sent.length}건은 반영됨, 남은 ${items.length - sent.length}건만 목록에 남겼습니다.\n(권한 또는 네트워크 오류)`);
@@ -1193,11 +1233,22 @@
             (additions || []).forEach(push);
             return list.join(',');
         }
+        // 위치지정 건별 기록(js/lib/loc-scan-log.js) — 전송에 영향을 주지 않는다. 기다리지 않고 재시도도 없다. 실패하면 그 건 기록만 빠진다.
+        function recordLocScans(items) {
+            try {
+                buildLocScanDocs(items, { sentAtMs: Date.now(), by: scanWorkerName }).forEach(d => {
+                    try { setDoc(doc(db, ...LOC_SCAN_COLL, d.id), d.data).catch(e => console.warn('[scan] 위치 기록 실패', e && e.code)); }
+                    catch (e) { console.warn('[scan] 위치 기록 실패', e && e.code); }
+                });
+            } catch (e) { console.warn('[scan] 위치 기록 실패', e && e.code); }
+        }
         async function sendLocation() {
             if (!locationQueue.length || sending) return;
             if (!navigator.onLine) { showAlert('오프라인 상태입니다.\n인터넷 연결 후 [전송하기]를 눌러주세요.\n(스캔 내역은 저장되어 있습니다)'); return; }
+            retryScanWorkerName();
             sending = true; updateSendBtn('전송 중...'); closeUndo();
             const items = [...locationQueue];
+            const startLoc = fixedLocation;
             // [Ver 6.5] 상품별 최신 위치를 '누적(append)'로 기록 — 한 상품이 여러 자리를 가짐(콤마 구분)
             //   같은 상품을 여러 번 찍으면 스캔 순서대로 이어붙이고, 기존 저장값 뒤에 새 자리를 추가
             let fbOk = false;
@@ -1238,7 +1289,13 @@
             } catch (e) { console.error('위치 Firebase 기록 실패:', e); if (e && e.message === 'READ_FAILED') fbOk = 'READ_FAILED'; }
             // [Ver 8.0] Firebase 저장이 실제로 성공했을 때만 큐를 비움 (실패 시 큐 보존 → 재시도)
             if (fbOk === true) {
-                locationQueue = []; fixedLocation = null; saveQueues(); renderQueue(); renderLocBanner();
+                // 보낸 것만 뺀다 — 전송 중에 찍은 건은 남긴다(삭제·되돌리기는 전송 중 막혀 있어 항목 객체가 그대로다)
+                const sentSet = new Set(items);
+                locationQueue = locationQueue.filter(it => !sentSet.has(it));
+                // 전송 중에 찍은 건이 있거나 자리를 바꿨으면 작업 위치를 그대로 둔다
+                if (!locationQueue.length && fixedLocation === startLoc) fixedLocation = null;
+                saveQueues(); renderQueue(); renderLocBanner();
+                recordLocScans(items);
                 speak('전송 완료'); toast('위치 전송 완료');
             } else if (fbOk === 'READ_FAILED') {
                 showAlert('기존 위치를 불러오지 못해 전송을 중단했습니다.\n(그대로 저장하면 기존 자리가 지워질 수 있어 막았습니다)\n무료 사용량 한도/네트워크를 확인하고 다시 시도하세요.\n스캔 내역은 그대로 보관됩니다.');
@@ -1429,7 +1486,7 @@
         // [Ver 8.1] 오프라인 감지 표시
         function updateNet() { const b = $('offline-bar'); if (b) b.style.display = navigator.onLine ? 'none' : 'block'; }
         window.addEventListener('online', updateNet);
-        window.addEventListener('online', () => { resolvePendingHolds(); retryReleases(); }); // [Ver 10.7] 미뤄 둔 미발 확인·해제
+        window.addEventListener('online', () => { resolvePendingHolds(); retryReleases(); retryScanWorkerName(); }); // [Ver 10.7] 미뤄 둔 미발 확인·해제 + 못 읽은 작업자 이름
         window.addEventListener('offline', updateNet);
         updateNet();
         $('reader').addEventListener('click', (e) => {
@@ -1475,7 +1532,7 @@
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/page-gate.js?v=202611091406" data-perm-page="scan.view" data-perm-app="scanApp"></script>
-    <script type="module" src="js/app-shell.js?v=202611091406"></script>
+    <script type="module" src="js/page-gate.js?v=202611091628" data-perm-page="scan.view" data-perm-app="scanApp"></script>
+    <script type="module" src="js/app-shell.js?v=202611091628"></script>
 </body>
 </html>

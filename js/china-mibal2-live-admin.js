@@ -5,10 +5,11 @@
 //   ChinaStockGoods/LOCATION_MAP  {mapStr}                   ← 기존 loadLocationMapDoc·saveLocationMapDoc·handleLocationMapUpload
 //   ChinaStockGoods/BARCODE_ALIAS {mapStr} + BARCODE_MEMO     ← 기존 loadBarcodeAlias·saveBarcodeAlias·handleBarcodeAliasUpload
 //   ChinaStockGoods/CONFIG        zoneCapacity·graceDays(merge) ← 기존 saveZoneCap·openGraceSetting — 이 화면에서는 관리자만(규칙은 그대로)
+//   ChinaStockGoods/CONFIG        emptyFill {pickPct, overPct}(merge) ← 기존 saveEmptyFill — 관리자만(firestore.rules csgConfigOk 도 막음)
 //   ChinaStockGoods/EDITED_CELLS  cells.{code}.capacity        ← 기존 셀 편집(적재량) — 그 칸 하나만 merge/지움(다른 사람이 고친 칸을 덮지 않게)
 // 불러오기에 실패한 목록은 저장하지 않는다(빈 목록으로 덮어 스캐너 매핑이 지워지는 것을 막음 — 기존과 같다).
 import { doc, getDoc, setDoc, updateDoc, deleteField, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { zoneKey, capacityFor } from './lib/mibal2-calc.js?v=202611091406';
+import { zoneKey, capacityFor, emptyFillOf } from './lib/mibal2-calc.js?v=202611091628';
 
 const CHINA = 'ChinaStockGoods';
 const ADMIN_ONLY = '관리자만 바꿀 수 있습니다';
@@ -97,6 +98,14 @@ export function setupLiveAdmin(ctx) {
                     <b>본사도착 유예</b> 본사도착일 + <input type="number" id="lv-grace" min="0" style="width:64px; ${inp}"> 일까지 출고일 목록·스캐너에 남김
                     <button type="button" id="lv-grace-save" class="d-btn d-btn-sm">유예 저장</button>
                 </div>
+                <div style="margin-top:14px; font-size:12.5px; line-height:1.9;">
+                    <b>빈 칸 넘침 규칙</b> <span class="t-3">(관리자만 · 스캐너 분배에도 같이 적용)</span><br>
+                    피킹칸 재고가 적재량의 <input type="number" id="lv-ef-pick" min="0" max="100" step="1" style="width:60px; ${inp}">% 이하이고,
+                    칸을 넘는 양이 적재량의 <input type="number" id="lv-ef-over" min="0" max="100" step="1" style="width:60px; ${inp}">% 이하이면 도착 전부를 미발로 보냅니다(비축으로 안 나눔).
+                    넘침 비율을 0 으로 두면 규칙이 꺼집니다.
+                    <button type="button" id="lv-ef-save" class="d-btn d-btn-sm">비율 저장</button>
+                    <div class="t-3">기본값 10% · 50%.</div>
+                </div>
             </div>
             <div id="lv-pane-locmap" class="lv-pane" style="display:none;">
                 <div class="d-note" style="margin-bottom:8px;">스캐너가 상품코드마다 보여 줄 고정 위치(LOCATION_MAP). 바꾸면 스캐너에 바로 반영됩니다.</div>
@@ -141,6 +150,7 @@ export function setupLiveAdmin(ctx) {
         $('lv-tabs').addEventListener('click', (e) => { const b = e.target.closest('.lv-tab'); if (b) showTab(b.dataset.tab); });
         $('lv-zone-save').addEventListener('click', saveZoneCap);
         $('lv-grace-save').addEventListener('click', saveGrace);
+        $('lv-ef-save').addEventListener('click', saveEmptyFill);
         // 위치매핑
         $('lv-locmap-add').addEventListener('click', addLocMap);
         $('lv-locmap-search').addEventListener('input', renderLocMap);
@@ -206,6 +216,9 @@ export function setupLiveAdmin(ctx) {
         const admin = ctx.isAdmin();
         $('lv-cap-admin').textContent = admin ? '' : ` 🔒 ${ADMIN_ONLY}(보기만 됩니다)`;
         $('lv-zone-save').disabled = !admin; $('lv-grace-save').disabled = !admin; $('lv-grace').disabled = !admin;
+        const ef = emptyFillOf(cfg);
+        $('lv-ef-pick').value = String(ef.pickPct); $('lv-ef-over').value = String(ef.overPct);
+        $('lv-ef-pick').disabled = !admin; $('lv-ef-over').disabled = !admin; $('lv-ef-save').disabled = !admin;
         $('lv-zone-tbody').innerHTML = zones.length ? zones.map(z => `<tr>
             <td style="font-weight:700; padding:5px;">${esc(z)}</td><td class="t-3">${counts[z] || 0}</td>
             <td><input type="number" class="lv-zcap" data-z="${esc(z)}" value="${esc(capacityFor(z, cfg, null))}" ${admin ? '' : 'disabled'} style="width:74px; padding:5px; text-align:center;"></td></tr>`).join('')
@@ -236,6 +249,28 @@ export function setupLiveAdmin(ctx) {
             ctx.patchConfig({ graceDays: v });
             showToast(`✅ 본사도착 유예 ${v}일 저장됨`);
         } catch (e) { alert('본사도착 유예 일수를 저장하지 못했습니다 — ' + errText(e)); }
+    }
+    // 빈 칸 넘침 규칙 비율 — 기존 saveEmptyFill 과 같은 검증(0~100 정수, 빈 칸 안 됨, 0 은 확인)
+    async function saveEmptyFill() {
+        if (!ctx.isAdmin()) { alert(ADMIN_ONLY); return; }
+        const read = (id) => {
+            const t = String($(id).value ?? '').trim();
+            if (t === '') return null;                                   // 빈 칸은 0 으로 보지 않는다
+            const v = Number(t);
+            return Number.isInteger(v) && v >= 0 && v <= 100 ? v : null;
+        };
+        const pickPct = read('lv-ef-pick'), overPct = read('lv-ef-over');
+        if (pickPct === null || overPct === null) { alert('비율은 0~100 사이 정수로 넣어 주세요(빈 칸 안 됨).'); return; }
+        if (overPct === 0 && !confirm('넘침 비율을 0 으로 저장하면 빈 칸 넘침 규칙이 꺼집니다(모든 화면·스캐너 분배). 저장할까요?')) return;
+        const emptyFill = { pickPct, overPct };
+        try {
+            await setDoc(doc(db, CHINA, 'CONFIG'), { emptyFill, updatedAt: new Date() }, { merge: true });
+            ctx.patchConfig({ emptyFill });
+            showToast(`✅ 빈 칸 넘침 규칙 저장됨 — 빈 칸 ${pickPct}% 이하 · 넘침 ${overPct}% 이하 (다른 PC 의 화면은 새로고침하면 반영됩니다)`);
+        } catch (e) {
+            if (e && e.code === 'permission-denied') { alert(ADMIN_ONLY); return; }
+            alert('저장 실패: ' + errText(e));
+        }
     }
 
     // ── 적재량 칸 편집(직원도 — 기존 셀 편집과 같다) ──

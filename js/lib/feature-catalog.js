@@ -21,8 +21,8 @@
 //   grantable false = 관리자 전용(역할·예외로 줘도 무시)
 //   legacyAdminOnly  옛 ADMIN_ONLY_* 범위 — 옛 권한을 끌어올 때 일반 직원에게 주지 않는다(예전에도 화면이 막고 있었다)
 
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME } from './mibal2-mode.js?v=202611091406';
-import { TASK } from './task-ids.js?v=202611091406';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME, MIBAL2_LIVE_MENU_NAME, MIBAL2_OLD_MENU_NAME, MIBAL2_OLD_PLAIN_MENU_NAME, MIBAL2_OLD_RETIRED_MENU_NAME } from './mibal2-mode.js?v=202611091628';
+import { TASK } from './task-ids.js?v=202611091628';
 
 export const FEATURE_GROUPS = [
     { id: 'dash',       label: '대시보드' },
@@ -78,11 +78,12 @@ export const FEATURES = [
     F('location.preassign',  '선지정·해제(모두 해제 포함)',          'location', 'func', 'location.html', { danger: 1, rule: 'partial' }),
 
     // 그 밖의 페이지
-    F('china.mibal',     '중국제작 부족수량 관리',   'china',      'page', 'china-stock-goods.html', { menu: '중국제작 부족수량 관리', danger: 1,
-        menuAliases: ['중국제작 미발계산기'] }),   // 화면 용어 변경 2026-10-20 — 기존 계산기 페이지 안 제목은 그대로
+    // live 면 이름 뒤에 '(미사용)' — 옛 이름·뒤표기는 menuAliases 로 잇는다(되돌려도 저장된 이름이 끊기지 않게 양쪽 다)
+    F('china.mibal',     MIBAL2_OLD_MENU_NAME,   'china',      'page', 'china-stock-goods.html', { menu: MIBAL2_OLD_MENU_NAME, danger: 1,
+        menuAliases: ['중국제작 미발계산기', MIBAL2_LIVE ? MIBAL2_OLD_PLAIN_MENU_NAME : MIBAL2_OLD_RETIRED_MENU_NAME] }),   // 화면 용어 변경 2026-10-20 — 기존 계산기 페이지 안 제목은 그대로
     // 신규 단독 운영(live, js/lib/mibal2-mode.js) 때는 이름에서 '시험' 을 뺀다 — 예전 이름은 menuAliases 로 그대로 잇는다
     F('china.mibal2',    MIBAL2_MENU_NAME, 'china', 'page', 'china-mibal2.html', { menu: MIBAL2_MENU_NAME,
-        menuAliases: MIBAL2_LIVE ? ['미발계산기(신규·시험)', MIBAL2_TRIAL_MENU_NAME] : ['미발계산기(신규·시험)'] }),
+        menuAliases: MIBAL2_LIVE ? ['미발계산기(신규·시험)', MIBAL2_TRIAL_MENU_NAME] : ['미발계산기(신규·시험)', MIBAL2_LIVE_MENU_NAME] }),
     F('scan.view',       '입고 스캐너',           'scan',       'page', 'scan.html',              { menu: '입고 스캐너', danger: 1 }),
     F('products.view',   '상품 관리',             'products',   'page', 'products.html',          { menu: '상품 관리' }),
     F('supplies.view',   '비품 관리',             'supplies',   'page', 'supplies.html',          { menu: '비품 관리' }),

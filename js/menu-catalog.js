@@ -10,16 +10,16 @@
 // ※ 순수 모듈로 둘 것(의존은 js/lib 의 기능 카탈로그·권한 계산뿐). 관리자 페이지(admin-ui.js)가 대시보드 전용
 //    모듈(ui.js/state.js)을 끌어오지 않도록 하기 위함이다.
 
-import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202611091406';
-import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202611091406';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME } from './lib/mibal2-mode.js?v=202611091406';
+import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202611091628';
+import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202611091628';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611091628';
 
 // 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu 에 없으면 자동으로 끼워 넣는다.
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
 export const BUILTIN_MENU_ITEMS = [
     { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' },
-    // 로케이션 관리 바로 아래에 (비품 관리 앞) — 신규 단독 운영(live, js/lib/mibal2-mode.js) 때는 넣지 않는다(아래 RETIRED_MENU_LINKS 로 걷어냄)
-    ...(MIBAL2_LIVE ? [] : [{ name: '중국제작 부족수량 관리', link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' }]),
+    // 로케이션 관리 바로 아래에 (비품 관리 앞) — 신규 단독 운영(live, js/lib/mibal2-mode.js) 때는 이름이 '(미사용)'이고 신규와 자리를 바꾼다(아래 arrangeMibal2Menu)
+    { name: MIBAL2_OLD_MENU_NAME, link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' },
     // 신규 미발계산기(병행 비교 시험, 2026-10-07) — 위 항목 다음에 처리되므로 '중국제작 부족수량 관리' 바로 아래(비품 관리 앞)에 붙는다.
     // 관리자 외에는 memberMenuAccess 에 넣어 주지 않는 한 보이지 않는다(ui-main-dashboard.js applyDynamicSidebar). live 면 이름에서 '시험' 을 뺀다.
     { name: MIBAL2_MENU_NAME, link: 'china-mibal2.html', category: '관리 및 조회', before: '비품 관리' },
@@ -47,7 +47,7 @@ export const MENU_TARGETS = [
     { kind: 'action', name: '내 연차관리',      link: '#',            icon: '🏖️' },
     { kind: 'action', name: '업무 마감',        link: '#',            icon: '🏁' },
     { kind: 'page', name: '로케이션 관리',       link: 'location.html',          icon: '📍' },
-    { kind: 'page', name: '중국제작 부족수량 관리', link: 'china-stock-goods.html', icon: '🧮' },   // live 뒤에도 고르기 목록에는 남김(기능 카탈로그 1:1 — 메뉴에서는 RETIRED_MENU_LINKS 로 걷어냄)
+    { kind: 'page', name: MIBAL2_OLD_MENU_NAME, link: 'china-stock-goods.html', icon: '🧮' },
     { kind: 'page', name: MIBAL2_MENU_NAME, link: 'china-mibal2.html', icon: MIBAL2_LIVE ? '🧮' : '🧪' },
     { kind: 'page', name: '비품 관리',           link: 'supplies.html',          icon: '📦' },
     { kind: 'page', name: '상품 관리',           link: 'products.html',          icon: '🏷️' },
@@ -72,9 +72,25 @@ export const RETIRED_MENU_ITEMS = ['운영 시뮬레이션',
     '주말 근무 신청',                           // 2026-10-14 기능 삭제 (weekend-*.js · modals-weekend.html)
     '관리자 일정/투두'];                        // 2026-10-14 기능 삭제 (admin-todo-logic.js · modals-admin-todo*.html)
 
-// 없어진 화면(링크 기준) — 신규 부족수량관리 단독 운영(live) 때 기존 화면 메뉴를 걷어낸다(이름을 바꿔 저장한 메뉴도). 지금(시험)은 비어 있다.
-export const RETIRED_MENU_LINKS = MIBAL2_LIVE ? ['china-stock-goods.html'] : [];
-const retiredLink = (i) => !!(i && i.link) && RETIRED_MENU_LINKS.includes(linkPath(i.link));
+// 부족수량관리 단독 운영(live) 메뉴 — 신규가 기존 자리(앞)에 '…(신규)', 기존이 신규 자리(뒤)에 '…(미사용)'. 시험(live 아님)에서는 부르지 않는다.
+//   링크로 찾으므로 이름을 바꿔 저장한 메뉴·순서를 바꿔 저장한 메뉴에도 맞고, 앞말(저장된 이름)은 유지하고 뒤표기만 바꾼다.
+//   기존이 앞에 있을 때만 자리를 바꾼다 — 관리자 화면이 이 결과를 저장해도 다음에 되돌아가지 않게(몇 번 불러도 같은 결과).
+const MIBAL2_TAIL = /\s*\((?:신규·시험|신규|미사용|시험)\)\s*$/;
+const withTail = (item, tail) => ({ ...item, name: String(item.name || '').replace(MIBAL2_TAIL, '') + tail });
+export const arrangeMibal2Menu = (menu) => {
+    let oldAt = null, newAt = null;
+    menu.forEach((g, gi) => g.items.forEach((it, ii) => {
+        const page = it && it.link ? linkPath(it.link) : '';
+        if (page === 'china-stock-goods.html') { g.items[ii] = withTail(it, '(미사용)'); oldAt = oldAt || [gi, ii]; }
+        else if (page === 'china-mibal2.html') { g.items[ii] = withTail(it, '(신규)'); newAt = newAt || [gi, ii]; }
+    }));
+    if (oldAt && newAt && (oldAt[0] < newAt[0] || (oldAt[0] === newAt[0] && oldAt[1] < newAt[1]))) {
+        const oldItem = menu[oldAt[0]].items[oldAt[1]];
+        menu[oldAt[0]].items[oldAt[1]] = menu[newAt[0]].items[newAt[1]];
+        menu[newAt[0]].items[newAt[1]] = oldItem;
+    }
+    return menu;
+};
 
 /** 저장된 메뉴에 신규 메뉴를 채우고 폐기된 메뉴를 걷어낸 목록을 돌려준다.
  *  예전 기본 이름(기능 카탈로그 menuAliases)인 항목은 보이는 이름만 지금 이름으로 바꾼다 — 저장 값은 그대로(2026-10-20).
@@ -94,7 +110,7 @@ export const withBuiltinMenus = (dashboardMenu) => {
         .map(g => ({
             ...g,
             items: Array.isArray(g.items)
-                ? g.items.filter(i => !RETIRED_MENU_ITEMS.includes(i && i.name) && !retiredLink(i)).map(renameOldItem)
+                ? g.items.filter(i => !RETIRED_MENU_ITEMS.includes(i && i.name)).map(renameOldItem)
                 : []
         }));
     BUILTIN_MENU_ITEMS.forEach(entry => {
@@ -114,7 +130,7 @@ export const withBuiltinMenus = (dashboardMenu) => {
         if (at > -1) group.items.splice(at, 0, item);
         else group.items.push(item);
     });
-    return menu;
+    return MIBAL2_LIVE ? arrangeMibal2Menu(menu) : menu;
 };
 
 // ── 보이는 메뉴 — 공통 상단바(js/app-shell.js)·대시보드 사이드바(ui-main-dashboard.js)가 같이 쓴다 ──

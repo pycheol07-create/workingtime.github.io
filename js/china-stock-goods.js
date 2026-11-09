@@ -1,29 +1,65 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202611091406'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
-import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteField, collection, getDocs, writeBatch, deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeFirebase } from './china-stock-config.js?v=202611091628'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { getFirestore, doc, setDoc as _setDoc, getDoc, getDocFromServer, updateDoc as _updateDoc, deleteField, collection, getDocs, writeBatch as _writeBatch, deleteDoc as _deleteDoc, onSnapshot, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202611091406';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611091406';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611091406';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611091406'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611091406';
-import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611091406'; // 입고 오차(2026-10-27)
-import { initPageNav } from './page-nav.js?v=202611091406';
-import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611091406'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { cleanRows } from './lib/sensitive-cols.js?v=202611091628';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611091628';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611091628';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611091628'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611091628';
+import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611091628'; // 입고 오차(2026-10-27)
+import { initPageNav } from './page-nav.js?v=202611091628';
+import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611091628'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
 let emptyFill = emptyFillOf(null);   // CONFIG.emptyFill(관리자가 [미발수량 공식 설정]에서 바꿈) — 없으면 기본 10%/50%
-import { confirmedOf } from './lib/scan-link.js?v=202611091406'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
-import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611091406'; // 입고확인 수동 수정(2026-11-04)
-import { readServerInboundMany, writeInboundFix } from './inbound-fix-write.js?v=202611091406';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611091406';
-import { friendlyFirebaseError } from './utils.js?v=202611091406';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611091406';
-import { setShellContext } from './app-shell-bridge.js?v=202611091406';
-import { memberNameFor } from './app-shell-data.js?v=202611091406';
-import { createUploadStatus } from './busy-banner.js?v=202611091406';
+import { confirmedOf } from './lib/scan-link.js?v=202611091628'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611091628'; // 입고확인 수동 수정(2026-11-04)
+import { readServerInboundMany, writeInboundFix as _writeInboundFix } from './inbound-fix-write.js?v=202611091628';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202611091628';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611091628';
+import { friendlyFirebaseError } from './utils.js?v=202611091628';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611091628';
+import { setShellContext } from './app-shell-bridge.js?v=202611091628';
+import { memberNameFor } from './app-shell-data.js?v=202611091628';
+import { createUploadStatus } from './busy-banner.js?v=202611091628';
 
 const { db, auth } = initializeFirebase();
+// [2026-11-09] 신규 부족수량관리 단독 운영(live) 때 이 화면은 조회 전용 — 조회·필터·정렬·엑셀 받기만 된다(시험 때는 아무것도 바뀌지 않음).
+//   1) 버튼 끔(READ_ONLY_IDS·아래 클릭 가로채기) 2) 쓰기 함수 입구(guardRetired·guardRetiredHeavy·retiredSync 등) 3) Firestore 쓰기 함수 자체(아래 setDoc 등). 앱 쪽 차단이다 — firestore.rules 는 그대로.
+const OLD_READ_ONLY = isMibal2Live();
+const READ_ONLY_MSG = '조회 전용 — 작업은 신규 화면에서 하세요';
+const readOnlyError = () => Object.assign(new Error(READ_ONLY_MSG), { code: 'read-only' });
+const setDoc = (...a) => (OLD_READ_ONLY ? Promise.reject(readOnlyError()) : _setDoc(...a));
+const updateDoc = (...a) => (OLD_READ_ONLY ? Promise.reject(readOnlyError()) : _updateDoc(...a));
+const deleteDoc = (...a) => (OLD_READ_ONLY ? Promise.reject(readOnlyError()) : _deleteDoc(...a));
+const writeBatch = (...a) => { if (OLD_READ_ONLY) throw readOnlyError(); return _writeBatch(...a); };
+const writeInboundFix = (...a) => (OLD_READ_ONLY ? Promise.reject(readOnlyError()) : _writeInboundFix(...a));
+const READ_ONLY_IDS = ['btn-scan-lock', 'btn-scan-unlock', 'btn-mibal-send', 'btn-date-clear', 'btn-version-manual', 'btn-inbound-diff-record', 'btn-open-grace', 'btn-locmove-reset',
+    'btn-sheet-save', 'btn-save-empty-fill', 'ef-pick-pct', 'ef-over-pct', 'btn-builder-apply', 'btn-mibal-var-add', 'btn-zone-save', 'btn-column-save', 'btn-column-reset', 'btn-column-add',
+    'btn-barcode-alias-clear', 'btn-ba-add', 'btn-locmap-clear', 'btn-locmap-add', 'chk-newloc-front', 'upload-stock-log', 'upload-existing-loc', 'upload-barcode-alias', 'upload-location-map'];
+const READ_ONLY_SELECTOR = [...READ_ONLY_IDS.map(id => '#' + id), '.lm-edit', '.lm-del', '.lm-save', '.locmap-edit', '.locmap-del', '.ba-edit', '.ba-del', '.ver-rollback-btn', '.mibal-var-del'].join(',');
+function applyReadOnlyUI() {
+    if (!OLD_READ_ONLY) return;
+    READ_ONLY_IDS.forEach(id => {
+        const el = document.getElementById(id); if (!el) return;
+        el.disabled = true; el.title = '신규 화면에서 하세요';
+        if (el.type === 'file' && el.closest('label')) { const lb = el.closest('label'); lb.title = '신규 화면에서 하세요'; lb.style.opacity = '.45'; lb.style.cursor = 'not-allowed'; }
+    });
+    if (document.getElementById('read-only-banner')) return;
+    const bar = document.createElement('div');
+    bar.id = 'read-only-banner';
+    bar.textContent = '조회 전용 — 작업은 신규 화면에서';
+    bar.style.cssText = 'background:var(--c-warn-bg);color:var(--c-warn-text);border-bottom:1px solid var(--c-warn-soft);text-align:center;font-weight:600;font-size:13px;padding:6px 10px;';
+    document.body.prepend(bar);
+    const st = document.createElement('style');
+    st.textContent = `${READ_ONLY_SELECTOR} { opacity: .45; cursor: not-allowed !important; }`;
+    document.head.appendChild(st);
+    // 메뉴 항목(div)·표 안에 나중에 생기는 버튼은 disabled 로 못 막으므로 먼저 가로챈다
+    const stop = (e) => { if (e.target.closest && e.target.closest(READ_ONLY_SELECTOR)) { e.preventDefault(); e.stopImmediatePropagation(); showToast(READ_ONLY_MSG); } };
+    document.addEventListener('click', stop, true);
+    document.addEventListener('change', stop, true);
+}
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const CONFIG_DOC = 'CONFIG';
 // [Ver 8.15] 위치 데이터 자동 샤딩: 상품코드 해시로 N개 문서에 분산 (문서당 1MiB 한도 자동 회피)
@@ -61,7 +97,7 @@ let saveTimeout = null;
 //   잠금 중엔 ScanDB 동기화(삭제→재작성)를 완전 차단 → 실수로 새로고침돼도 ScanDB 보존.
 //   localStorage에 저장해 새로고침 후에도 잠금 상태 유지.
 const SCAN_LOCK_KEY = 'csg_scan_lock';
-let pageLocked = (() => { try { return localStorage.getItem(SCAN_LOCK_KEY) === '1'; } catch (e) { return false; } })();
+let pageLocked = !OLD_READ_ONLY && (() => { try { return localStorage.getItem(SCAN_LOCK_KEY) === '1'; } catch (e) { return false; } })();   // 조회 전용이면 남은 잠금 표시로 화면을 덮지 않는다
 let scanDataReady = false; // [Ver 8.93] 초기 데이터 로드 완료 여부 — 완료 전엔 잠금 불가(빈/옛 데이터로 잠기는 사고 방지)
 
 // 유틸리티
@@ -275,6 +311,7 @@ function applyAdminUI() {
     refreshClearBtnAccess();
     setAdminNote('sheet-settings-modal', 'csv-admin-note');
     setAdminNote('mibal-formula-modal', 'mibal-admin-note');
+    applyReadOnlyUI();   // 위에서 켠 칸·버튼을 조회 전용이면 다시 끈다
 }
 // 초기화 버튼(미발 초기화·위치 초기화)은 직원도 쓴다(2026-10-16 사용자 결정 — 10-14 의 관리자 전용을 되돌림).
 //   함수와 호출부는 남겨 두어 나중에 다시 막을 때 한 곳만 고치면 되게 한다.
@@ -764,6 +801,7 @@ function fillEmptyFillInputs() {
     if (b) { b.value = emptyFill.overPct; b.disabled = !isAdminUser; }
     const btn = document.getElementById('btn-save-empty-fill');
     if (btn) btn.style.display = isAdminUser ? '' : 'none';
+    applyReadOnlyUI();
 }
 async function saveEmptyFill() {
     if (await guardRetiredHeavy()) return;
@@ -2043,6 +2081,7 @@ function goNewScreen() {
 }
 /** 은퇴했으면 넘기고 true(버전 파일을 다시 읽음). 동기화(syncScanDBCore)·무거운 단발 동작이 부른다 */
 async function guardRetired() {
+    if (OLD_READ_ONLY) return true;   // 단독 운영(live) — 조회 전용(버전 파일을 기다리지 않고 막는다)
     if (_retiredGoing) return true;
     const info = await fetchVersionInfo();
     if (info && info.oldRetired === true) { goNewScreen(); return true; }
@@ -2051,6 +2090,7 @@ async function guardRetired() {
 /** 무거운 단발 동작(초기화·되돌리기·업로드·미발전송 등) 첫머리 — 확인하는 동안 '확인 중' 표시, 그사이 다시 누르면 막음 */
 let _guardBusy = false;
 async function guardRetiredHeavy() {
+    if (OLD_READ_ONLY) { showToast(READ_ONLY_MSG); return true; }
     if (_retiredGoing) return true;
     if (_guardBusy) { showToast('⏳ 처리 중입니다 — 잠시 기다려 주세요'); return true; }
     _guardBusy = true;
@@ -2064,6 +2104,7 @@ async function guardRetiredHeavy() {
  *  열 때·10분마다·창 복귀 때 checkVersion 이 은퇴를 보면 _retiredGoing 이 켜진다. 여기서도 30초에 한 번 뒤에서 확인을 건다 */
 let _bgRetiredCheckAt = 0;
 function retiredSync() {
+    if (OLD_READ_ONLY) return true;
     if (_retiredGoing) return true;
     const now = Date.now();
     if (now - _bgRetiredCheckAt > 30000) { _bgRetiredCheckAt = now; guardRetired().catch(() => {}); }
@@ -2107,6 +2148,7 @@ let scanDbSyncing = false;
 let scanDbSyncPending = false;
 
 function scheduleScanDBSync() {
+    if (OLD_READ_ONLY) return;   // 단독 운영(live) — 표를 그려도 스캐너 자료를 다시 쓰지 않는다
     if (pageLocked) return; // [Ver 8.92] 스캔 잠금 중엔 ScanDB 동기화(삭제→재작성) 금지 → 새로고침돼도 ScanDB 보호
     if (!tableData || tableData.length === 0) return;
     clearTimeout(scanDbSyncTimer);
@@ -2150,10 +2192,12 @@ function applyScanLockUI() {
     }
     window.removeEventListener('beforeunload', scanLockBeforeUnload);
     if (pageLocked) window.addEventListener('beforeunload', scanLockBeforeUnload);
+    applyReadOnlyUI();
 }
 // [Ver 8.93] 잠금 = "지금 표 데이터를 ScanDB에 최종 동기화(완료 보장) → 그 다음 잠금".
 //   초기 자동 동기화(1.5초 디바운스)가 끝나기 전에 눌러도, 여기서 직접 동기화를 완료하므로 빈/옛 ScanDB로 잠기지 않음.
 async function setScanLock(on) {
+    if (OLD_READ_ONLY) return;
     const btn = document.getElementById('btn-scan-lock');
     if (on) {
         if (pageLocked) return; // 이미 잠김
@@ -2820,7 +2864,7 @@ function renderTable() {
                     }
                     if (tips.length) extra = ` title="${escapeHtml(tips.join('\n'))}"`;
                 }
-                tds += `<td class="editable-cell" contenteditable="true" data-code="${row.code}" data-field="${def.edit}" style="${style}"${extra}>${cellVal}</td>`;
+                tds += `<td class="editable-cell" contenteditable="${OLD_READ_ONLY ? 'false' : 'true'}" data-code="${row.code}" data-field="${def.edit}" style="${style}"${extra}>${cellVal}</td>`;
             } else if (key === 'diff') {
                 const dv = diffCellView(row);
                 tds += `<td class="diff-cell ${dv.cls}" data-code="${row.code}" title="${dv.title}" style="font-weight:bold;">${dv.text}</td>`;
@@ -2960,7 +3004,7 @@ function cancelConfirmedBatch() {
     pendingFix = {};
     renderTable(); updateFixBar();
 }
-async function saveConfirmedBatch() {
+async function saveConfirmedBatch() { if (OLD_READ_ONLY) return;
     const codes = Object.keys(pendingFix);
     if (!codes.length || _fixBusy) return;
     if (await guardRetiredHeavy()) return;
@@ -3399,7 +3443,7 @@ function setupMobileGate() {
 //  - 웹: 열려있는 탭이 구버전이면 새로고침 배너 표시
 //  - 앱: 최신 앱 버전을 APP_META 문서로 게시 → 앱이 시작 시 확인해 업데이트 유도
 // ---------------------------------------------------------
-const WEB_VERSION = '10.7';
+const WEB_VERSION = '10.8';
 let lastVersionCheck = 0;
 
 async function fetchVersionInfo() {
@@ -3448,7 +3492,7 @@ async function checkVersion(publishAppMeta = false) {
     // [2026-10-28] 신규 부족수량관리 단독 운영(live) 뒤 — 열 때·10분마다·창 복귀 때 기존 화면이 은퇴했으면 신규 화면으로 넘긴다
     if (info.oldRetired === true) { goNewScreen(); return; }
     if (info.web && info.web !== WEB_VERSION) showUpdateBanner(info.web);
-    if (publishAppMeta && info.app) {
+    if (publishAppMeta && info.app && !OLD_READ_ONLY) {
         try {
             await setDoc(doc(db, CHINA_COLLECTION, 'APP_META'), {
                 latestVersion: info.app,

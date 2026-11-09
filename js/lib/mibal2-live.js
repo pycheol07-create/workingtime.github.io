@@ -9,8 +9,23 @@
 //   historyGroupsOf · historyRecordsOf   업무예상용 MIBAL_HISTORY 자동 기록(basis 'v2')
 //   locSourceOf · locFreshMsOf · locStaleReason   위치값 엑셀의 옵션추가항목1 원천(로케이션관리 Locations)
 //   barcodeMapOfAoa  [바코드 매핑 올리기] 엑셀 → BARCODE_MAP(바코드 → 상품코드)
+//   fileRowsOf · inboundFileHtml · mibalFileAoa · floor2FileAoa   이지어드민 업로드용 받기 3종의 내용(기존 화면과 같은 형식)
 // 공급처 이름·원가는 다루지 않는다. Locations rawData 는 '옵션추가항목1' 칸 하나만 꺼낸다.
-import { scanDbPreviewOf, byShipOf } from './scan-link.js?v=202611091406';
+import { scanDbPreviewOf, byShipOf } from './scan-link.js?v=202611091628';
+
+/** 값 서명 — 칸 순서와 무관하게 같은 값이면 같은 글자(시각은 ms 로). 확인창 전후에 설정·스캐너 자료가 바뀌었는지 볼 때 쓴다 */
+export function stableSig(v) {
+    const norm = (x) => {
+        if (x === null || typeof x !== 'object') return x;
+        if (typeof x.toMillis === 'function') return { $t: x.toMillis() };
+        if (x instanceof Date) return { $t: x.getTime() };
+        if (Array.isArray(x)) return x.map(norm);
+        const out = {};
+        Object.keys(x).sort().forEach(k => { out[k] = norm(x[k]); });
+        return out;
+    };
+    return JSON.stringify(norm(v));
+}
 
 export const ARCHIVE_COLL = 'ChinaStockGoods_Archive';
 export const RECENT_SCAN_MIN = 10;          // 마지막 스캔 입고가 이 안이면 [스캐너에 반영] 전에 확인창
@@ -40,6 +55,7 @@ export function scanApplyPlan(rows, inboundMap, currentCodes) {
     const preview = scanDbPreviewOf(rows, inboundMap);
     const sets = {};
     const unknownMibal = [];
+    const noLocation = [];   // Locations 에 없어 위치가 빈칸이 되는 코드(확인창에 건수)
     let arr = 0, mibal = 0;
     Object.keys(preview).sort().forEach(code => {
         const p = preview[code];
@@ -51,10 +67,11 @@ export function scanApplyPlan(rows, inboundMap, currentCodes) {
             totalStock: p.totalStock === null || p.totalStock === undefined ? 0 : int0(p.totalStock),
             location: p.location || '', capacity: p.capacity === null || p.capacity === undefined ? 0 : int0(p.capacity)
         };
+        if (!sets[code].location) noLocation.push(code);
         arr += p.arrivalQty; mibal += m;
     });
     const deletes = [...new Set(currentCodes || [])].filter(c => !(c in sets)).sort();
-    return { sets, deletes, unknownMibal, totals: { codes: Object.keys(sets).length, arr, mibal, del: deletes.length } };
+    return { sets, deletes, unknownMibal, noLocation, totals: { codes: Object.keys(sets).length, arr, mibal, del: deletes.length } };
 }
 
 /** ScanDB 문서들 [{id, data}] → { data, count, totalMibal } — 기존 화면 saveScanDBVersion 과 같은 칸 */
@@ -298,4 +315,35 @@ export function barcodeMapOfAoa(aoa) {
         if (b && b !== c) map[b] = c;
     }
     return { map, rows: n, headerRow: hi };
+}
+
+// ── 이지어드민 업로드용 받기 3종 — 기존 화면 js/china-stock-goods.js(btn-excel-download·btn-mibal-download·downloadFloor2)와 같은 내용 ──
+// 행 고르기만 다르다: 기존 '미등록' 행(오더리스트에 없는 강제입고, 도착 0)에 해당하는 '선택 출고일 밖 입고' 행은 뺀다
+//   — 신규는 다른 출고일 상품과 구별할 수 없어, 넣으면 기존 파일에 없던 코드가 섞인다([스캐너에 반영]도 같은 행을 뺀다).
+/** 화면에 보이는 행(검색·필터·정렬 반영) → 파일에 넣을 행 */
+export const fileRowsOf = (rows) => (rows || []).filter(r => r && !r.outside);
+
+/** 입고용파일.xls 내용 — HTML 표를 .xls 이름으로(BOM 포함, UTF-8). 코드 + 도착수량 */
+export function inboundFileHtml(rows) {
+    let html = '<table><tr><th>상품코드</th><th>수량</th></tr>';
+    (rows || []).forEach(r => { html += `<tr><td>${r.code}</td><td>${r.arr}</td></tr>`; });
+    html += '</table>';
+    return '﻿' + html;
+}
+
+/** 미발확인파일.xls 의 행 — 머리글 '상품코드' + 코드 1열 */
+export function mibalFileAoa(rows) {
+    return [['상품코드'], ...(rows || []).map(r => [r.code])];
+}
+
+/** 비축창고재고.xls 의 행 — FLOOR2_STOCK.map → 작업수량(floor2) > 0 인 코드만, 코드순. 없으면 null */
+export function floor2FileAoa(map) {
+    const rows = [];
+    Object.entries(map || {}).forEach(([code, v]) => {
+        const spare = parseInt(v && v.floor2) || 0;
+        if (spare > 0) rows.push([code, spare]);
+    });
+    if (!rows.length) return null;
+    rows.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    return [['상품코드', '작업수량'], ...rows];
 }
