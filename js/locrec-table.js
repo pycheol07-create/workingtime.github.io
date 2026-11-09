@@ -14,12 +14,12 @@
 //   같은 상품을 오늘 다른 추천으로 옮긴 줄(st.other)은 '○○(으)로 처리 · 이름 HH:MM' + 그 추천의 [되돌리기].
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202611091002';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611091002';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611091002';
-import { higherOpenThan } from './modal-above.js?v=202611091002';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611091002';
-import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611091002';
+import { escapeHtml } from './utils.js?v=202611091030';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611091030';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611091030';
+import { higherOpenThan } from './modal-above.js?v=202611091030';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611091030';
+import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611091030';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `

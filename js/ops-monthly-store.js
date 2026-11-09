@@ -9,11 +9,11 @@
 
 import { doc, collection, getDocs, query, where, documentId, setDoc, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as State from './state.js?v=202611091002';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611091002';
-import { baselineSpeeds } from './lib/ops-metrics.js?v=202611091002';
-import { monthlySummaryOf, needRebuild, finishedMonths, monthDates, sameSummary, MONTHLY_SCHEMA } from './lib/plan-monthly.js?v=202611091002';
-import { getTodayDateString } from './utils.js?v=202611091002';
+import * as State from './state.js?v=202611091030';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611091030';
+import { baselineSpeeds } from './lib/ops-metrics.js?v=202611091030';
+import { monthlySummaryOf, needRebuild, finishedMonths, monthDates, sameSummary, MONTHLY_SCHEMA } from './lib/plan-monthly.js?v=202611091030';
+import { getTodayDateString } from './utils.js?v=202611091030';
 
 export const MONTHLY_COL = 'OpsMonthly';
 const CACHE_KEY = 'opsMonthlyCache';

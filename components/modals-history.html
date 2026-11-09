@@ -365,6 +365,8 @@
             <!-- 기간 바 — 본문 위 [일|주|월|년] ‹ 날짜 › … [목록 접기] (UI 2단계 H3). 기간 트리를 쓰지 않는 화면에서는 트리와 함께 숨는다
                  (js/history-list-controller.js setTreeVisible). 📱 모바일은 레일 ▾ 아래 · 트리 위에 와서 펼친 날짜 목록이 바로 아래에 붙는다. -->
             <div id="history-period-bar" class="hp-bar">
+                <!-- 날짜 목록 접기 — 목록 바로 위 왼쪽 끝(« / » 표시는 css/history-d.css 가 aria-expanded 로 그린다, 글자·동작은 js/listeners-history.js) -->
+                <button type="button" id="history-tree-toggle" class="hp-tree-btn" aria-expanded="true" title="왼쪽 날짜 목록 접기">목록 접기</button>
                 <!-- [일|주|월|년] — 예전엔 트리 위에 있었다. 리스너는 id 로 붙는다(js/listeners-history-tabs.js setupGranularityListeners) -->
                 <div id="history-granularity-controls" class="flex gap-1 shrink-0">
                     <button data-granularity="day" class="history-gran-btn flex-1 py-1.5 rounded-lg text-xs md:text-sm font-bold transition border border-transparent">일</button>
@@ -379,7 +381,6 @@
                     <button type="button" id="history-period-next" class="hp-step-btn" title="다음 기간" aria-label="다음 기간" disabled>&rsaquo;</button>
                 </div>
                 <div class="hp-spacer"></div>
-                <button type="button" id="history-tree-toggle" class="hp-tree-btn" aria-expanded="true" title="왼쪽 날짜 목록 접기">목록 접기</button>
             </div>
 
 

@@ -377,7 +377,9 @@ html.dark :is(#history-modal, #modals-container-history-popups) :where(.bg-blue-
     min-width: 0; padding: 4px 8px; border-radius: var(--r-sm); font-size: 14px; font-weight: 700;
     color: var(--c-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default;
 }
-#history-modal .hp-tree-btn { flex: 0 0 auto; padding: 6px 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600; white-space: nowrap; }
+#history-modal .hp-tree-btn { flex: 0 0 auto; padding: 5px 10px; border: 1px solid var(--c-line); border-radius: var(--r-pill); font-size: 12px; font-weight: 600; white-space: nowrap; }
+#history-modal .hp-tree-btn::before { content: '\00AB'; margin-right: 4px; font-size: 14px; line-height: 1; } /* « 접기 */
+#history-modal .hp-tree-btn[aria-expanded="false"]::before { content: '\00BB'; } /* » 펼치기 */
 #history-modal .hp-step-btn:focus-visible, #history-modal .hp-tree-btn:focus-visible, #history-modal .hp-label:focus-visible {
     outline: 2px solid var(--c-accent); outline-offset: -2px;
 }
