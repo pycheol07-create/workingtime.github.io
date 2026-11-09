@@ -2,7 +2,7 @@
 // 샘플검수 창의 순수 함수 — DOM·Firestore 없음(node --test 대상).
 // 판정·저장 규칙은 js/inspection-logic.js 의 saveInspectionAndNext 를 그대로 옮겼다(동작을 바꾸지 않는 것이 원칙).
 // 화면 카드 HTML 은 모든 값을 escapeHtml 로 통과시킨다.
-import { escapeHtml } from '../utils.js?v=202611091342';
+import { escapeHtml } from '../utils.js?v=202611091406';
 
 /** 체크리스트 키 — 화면(components/modals-form-inspection.html) 순서. 두께(thickness)는 판정에서 빠진다. */
 export const CHECK_KEYS = ['fabric', 'color', 'distortion', 'unraveling', 'finishing', 'zipper', 'button', 'lining', 'pilling', 'dye'];
@@ -294,7 +294,7 @@ export function todoCardHtml(item, idx, opts = {}) {
         : '';
     return `<div class="${cls}" data-index="${escapeHtml(idx)}" data-status="${isCompleted ? 'done' : 'todo'}" role="button" tabindex="0">${opts.pickable ? '<div class="min-w-0 flex-1">' : ''}
             <div class="flex items-center gap-2">
-                <span class="font-mono font-medium text-[11px] text-gray-600 whitespace-nowrap">${escapeHtml(it.code)}</span>
+                <span class="font-mono font-semibold text-[11px] text-gray-800 whitespace-nowrap">${escapeHtml(it.code)}</span>
                 ${srcBadge}${statusBadge}
             </div>
             <div class="font-bold text-gray-900 text-sm mt-0.5 break-words">${escapeHtml(it.name)}</div>

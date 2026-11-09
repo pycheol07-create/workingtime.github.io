@@ -1,18 +1,19 @@
 // === js/listeners-history-records.js ===
 // 설명: 이력 보기의 '기록 관리'(상세 내역 수정/삭제/일괄적용) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611091342';
-import * as State from './state.js?v=202611091342';
-import { showToast, showConfirm } from './utils.js?v=202611091342';
+import * as DOM from './dom-elements.js?v=202611091406';
+import * as State from './state.js?v=202611091406';
+import { showToast, showConfirm, getTodayDateString, calcElapsedMinutes } from './utils.js?v=202611091406';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=202611091342';
-import { renderHistoryDetail } from './app-history-logic.js?v=202611091342';
-import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=202611091342';
-import { generateId } from './app-data.js?v=202611091342';
-import { checkStartAfterClockIn, clampStartToClockIn } from './lib/attendance-guard.js?v=202611091342';
+} from './history-data-manager.js?v=202611091406';
+import { renderHistoryDetail } from './app-history-logic.js?v=202611091406';
+import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=202611091406';
+import { generateId } from './app-data.js?v=202611091406';
+import { checkStartAfterClockIn, clampStartToClockIn } from './lib/attendance-guard.js?v=202611091406';
+import { setPauseMinutes } from './lib/pause-edit.js?v=202611091406';
 
 const currentRecordsDateKey = () => document.getElementById('history-records-date').textContent;
 // 기존 확인창 끝에 붙이는 문구 — 저장 안 한 수정이 없으면 빈 문자열
@@ -332,6 +333,7 @@ export function setupHistoryRecordListeners() {
             const targets = [];
             const invalid = [];
             const early = [];   // 출근시각보다 이른 시작
+            const pauseBad = [];   // 저장할 수 없는 휴게시간 — 안내 문구 목록
             rows.forEach(row => {
                 markRow(row, false);
                 if (!isRecordRowDirty(row)) return;
@@ -353,7 +355,37 @@ export function setupHistoryRecordListeners() {
                     early.push(row); markRow(row, true); return;
                 }
                 const updateData = keepOpen ? { task, startTime: start } : { task, startTime: start, endTime: end };
-                targets.push({ row, recordId, updateData, sent: { task, start, end } });
+                const origPause = row.dataset.origPause ?? '';
+                const sent = { task, start, end, pause: origPause };
+                // 휴게칸을 고친 행만 pauses 를 보낸다. 입력칸이 없는 행은 건너뛰고, 지운 칸을 0 으로 치면 휴식이 사라지므로 setPauseMinutes 가 거부하게 그대로 넘긴다.
+                const pauseEl = row.querySelector('.history-record-pause');
+                if (pauseEl && (pauseEl.value.trim() === '' || Number(pauseEl.value) !== Number(origPause))) {
+                    // 오늘 기록은 표가 휴식을 닫아 놓은 사본이므로 실시간 기록을 기준으로 쓴다
+                    const live = dateKey === getTodayDateString()
+                        ? (State.appState.workRecords || []).find(r => r.id === recordId)
+                        : null;
+                    const liveOpen = !!live && (live.status === 'ongoing' || live.status === 'paused');
+                    const result = isOpen || liveOpen
+                        ? { error: '진행 중인 기록의 휴게시간은 고칠 수 없습니다.' }
+                        : (!live && !rec)
+                            ? { error: '기록을 찾을 수 없습니다.' }
+                            : setPauseMinutes(live?.pauses ?? rec?.pauses, pauseEl.value, start, end);
+                    if (result.error) { pauseBad.push(result.error); markRow(row, true); return; }
+                    updateData.pauses = result.pauses;
+                    sent.pause = pauseEl.value;
+                }
+                // 소요시간이 0분이 되면 저장 함수가 기록을 지운다 — 시간만 줄여서 그렇게 되는 행은 막는다(되돌릴 수 없다)
+                if (!updateData.pauses && !keepOpen) {
+                    const cur = dateKey === getTodayDateString()
+                        ? (State.appState.workRecords || []).find(r => r.id === recordId)
+                        : null;
+                    if (Math.round(calcElapsedMinutes(start, end, cur?.pauses ?? rec?.pauses ?? [])) <= 0) {
+                        pauseBad.push('이 시간으로는 소요시간이 0분이 되어 기록이 지워집니다. 휴게(분)를 함께 줄여 주세요.');
+                        markRow(row, true);
+                        return;
+                    }
+                }
+                targets.push({ row, recordId, updateData, sent });
             });
 
             if (invalid.length > 0) {
@@ -362,6 +394,10 @@ export function setupHistoryRecordListeners() {
             }
             if (early.length > 0) {
                 showToast(`출근시각보다 이른 시작 ${early.length}건 — 빨간 줄을 고친 뒤 다시 저장하세요.`, true);
+                return;
+            }
+            if (pauseBad.length > 0) {
+                showToast(`휴게시간 오류 ${pauseBad.length}건: ${pauseBad[0]} 빨간 줄을 고친 뒤 다시 저장하세요.`, true);
                 return;
             }
             if (targets.length === 0) {
@@ -384,6 +420,7 @@ export function setupHistoryRecordListeners() {
                         row.dataset.origTask = sent.task;
                         row.dataset.origStart = sent.start;
                         row.dataset.origEnd = sent.end;
+                        row.dataset.origPause = sent.pause;
                     } catch (err) {
                         console.error("일괄 저장 오류:", err);
                         fail++;

@@ -1,9 +1,10 @@
 // === js/history-record-table.js ===
 // 설명: '기록 관리' 모달 내의 테이블 렌더링 및 필터링 로직을 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611091342';
-import * as State from './state.js?v=202611091342';
-import { showToast, formatDuration, calcTotalPauseMinutes, escapeHtml } from './utils.js?v=202611091342';
+import * as DOM from './dom-elements.js?v=202611091406';
+import * as State from './state.js?v=202611091406';
+import { showToast, formatDuration, calcTotalPauseMinutes, escapeHtml } from './utils.js?v=202611091406';
+import { deductedPauseMinutes } from './lib/pause-edit.js?v=202611091406';
 
 /**
  * 기록 관리 모달을 엽니다.
@@ -93,7 +94,11 @@ export const isRecordRowDirty = (row) => {
     const task = row.querySelector('.history-record-task')?.value ?? '';
     const start = row.querySelector('.history-record-start')?.value ?? '';
     const end = row.querySelector('.history-record-end')?.value ?? '';
-    return task !== (row.dataset.origTask ?? '') || start !== (row.dataset.origStart ?? '') || end !== (row.dataset.origEnd ?? '');
+    // 휴게칸은 숫자로 비교한다('060' 은 안 바뀐 것). 입력칸이 없는 행은 둘 다 '' 이고, 지운 칸은 바뀐 행으로 세어 저장 때 거부한다.
+    const pause = row.querySelector('.history-record-pause')?.value ?? '';
+    const origPause = row.dataset.origPause ?? '';
+    const pauseDirty = pause !== origPause && (pause.trim() === '' || Number(pause) !== Number(origPause));
+    return task !== (row.dataset.origTask ?? '') || start !== (row.dataset.origStart ?? '') || end !== (row.dataset.origEnd ?? '') || pauseDirty;
 };
 
 export const countDirtyRecordRows = (dateKey) => {
@@ -160,6 +165,11 @@ export const renderHistoryRecordsTable = (dateKey) => {
         // 휴식 시간 계산 및 표시
         const pauseMinutes = calcTotalPauseMinutes(r.pauses);
         const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴: ${formatDuration(pauseMinutes)})</span>` : '';
+        // 휴게시간(분) 입력칸 — 끝난 기록만. 오늘 진행 중 기록은 휴식을 닫아 놓은 사본이라 저장하면 열린 휴식이 사라진다.
+        const pauseEditable = r.status !== 'ongoing' && r.status !== 'paused' && !!r.startTime && !!r.endTime;
+        const pauseCell = pauseEditable
+            ? `<label class="flex items-center gap-1 mt-1 whitespace-nowrap text-gray-400">휴<input type="number" min="0" step="1" class="history-record-pause w-16 p-1 border border-gray-300 rounded text-xs text-right focus:ring-blue-500 focus:border-blue-500" value="${deductedPauseMinutes(r.pauses)}">분</label>`
+            : pauseText;
 
         // ✅ [수정] 개별 '저장' 버튼 제거하고 '복제' 버튼 추가
         tr.innerHTML = `
@@ -176,7 +186,7 @@ export const renderHistoryRecordsTable = (dateKey) => {
                 <input type="time" class="history-record-end w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.endTime || ''}">
             </td>
             <td class="px-6 py-4 text-gray-500 text-xs w-[15%]">
-                ${formatDuration(r.duration)}${pauseText}
+                ${formatDuration(r.duration)}${pauseCell}
             </td>
             <td class="px-6 py-4 text-right space-x-1 w-[20%]">
                 <button class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs border border-indigo-200 rounded px-2 py-1.5 hover:bg-indigo-50 transition" 
@@ -199,6 +209,7 @@ export const renderHistoryRecordsTable = (dateKey) => {
         tr.dataset.origTask = tr.querySelector('.history-record-task').value;
         tr.dataset.origStart = tr.querySelector('.history-record-start').value;
         tr.dataset.origEnd = tr.querySelector('.history-record-end').value;
+        tr.dataset.origPause = tr.querySelector('.history-record-pause')?.value ?? '';
     });
     
     if (sorted.length === 0) {
