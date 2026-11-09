@@ -3,11 +3,11 @@
 //   주간: 높음 = 실측 오차 ≤ 10% & 기록률 ≥ 90% / 보통 = 오차 ≤ 20%, 또는 (오차 없음 & 예정 물량 입력 ≥ 60%) / 낮음.
 //   월간: 높음 = 전년 같은 달(운영일 ≥ 15) + 확정 2회 이상 평균 오차 ≤ 10% / 보통 = 전년 같은 달 + 기록률 ≥ 90%, 또는 확정 2회 이상 오차 ≤ 20% / 낮음.
 //   연간: 높음 = 24개월 기록 + 지난 연간 오차 ≤ 15% / 보통 = 13개월 + 전년 같은 달 9개월 이상 / 낮음.
-//   실측 오차: 주간 = 업무 예상 확정 스냅샷의 시간 오차(정확도 화면이 불러 둔 것), 월간 = 확정본 대비 필요 인원 오차(plan-compare).
+//   실측 오차: 주간 = 업무 예상 스냅샷(자동 저장·확정)의 최근 14근무일 시간 오차, 월간 = 확정본 대비 필요 인원 오차(plan-compare).
 //   문장에 금액·이름 없음.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-monthly.test.js
 
-import { offDayOf, addDaysStr } from './plan-week.js?v=202611091030';
+import { offDayOf, addDaysStr } from './plan-week.js?v=202611091042';
 
 export const CONF_LABEL = Object.freeze({ high: '높음', mid: '보통', low: '낮음' });
 export const CONF_RULES = Object.freeze({

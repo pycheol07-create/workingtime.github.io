@@ -1,27 +1,27 @@
 // === js/listeners-history.js ===
-import * as DOM from './dom-elements.js?v=202611091030';
-import * as State from './state.js?v=202611091030';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=202611091030';
+import * as DOM from './dom-elements.js?v=202611091042';
+import * as State from './state.js?v=202611091042';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=202611091042';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202611091030';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202611091030';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202611091030';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202611091030';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=202611091042';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=202611091042';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=202611091042';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=202611091042';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202611091030';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202611091030';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202611091030';
-import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202611091030';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=202611091042';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=202611091042';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=202611091042';
+import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=202611091042';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202611091030';
-import { saveView } from './view-state.js?v=202611091030';
-import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611091030';
-import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=202611091030';
-import { isLeaveDirty } from './ui-history-leave.js?v=202611091030';
-import { isSimDirty } from './ui-history-prediction.js?v=202611091030';
-import { placeOpenDropdown } from './table-filter.js?v=202611091030';
-import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=202611091030';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=202611091042';
+import { saveView } from './view-state.js?v=202611091042';
+import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611091042';
+import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=202611091042';
+import { isLeaveDirty } from './ui-history-leave.js?v=202611091042';
+import { isSimDirty } from './ui-history-prediction.js?v=202611091042';
+import { placeOpenDropdown } from './table-filter.js?v=202611091042';
+import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=202611091042';
 
 let isHistoryMaximized = false;
 

@@ -10,10 +10,10 @@
 
 import {
     planSettingsOf, nextWeekRange, weekDaysOf, fillMix, shortRuns, confidenceOf, addDaysStr, dowOf
-} from './plan-week.js?v=202611091030';
-import { buildRisks, leaveCrowdDays, holidaySurgeDays, RISK_LEVELS } from './plan-risks.js?v=202611091030';
-import { buildMeeting } from './plan-rhythm.js?v=202611091030';
-import { weekConfidence } from './plan-confidence.js?v=202611091030';
+} from './plan-week.js?v=202611091042';
+import { buildRisks, leaveCrowdDays, holidaySurgeDays, RISK_LEVELS } from './plan-risks.js?v=202611091042';
+import { buildMeeting } from './plan-rhythm.js?v=202611091042';
+import { weekConfidence } from './plan-confidence.js?v=202611091042';
 
 export const ACTION_LIMIT = 10;
 const CONF_FACTOR = { high: 1, mid: 0.7, low: 0.4 };
@@ -237,7 +237,7 @@ export function buildWeekPlan(input = {}) {
                 overtimeDailyMax: S.overtimeDailyMax, overtimeWeeklyMax: S.overtimeWeeklyMax, overtimePremium: S.overtimePremium,
                 tempLeadDays: S.tempLeadDays, stdHours: S.stdHours
             },
-            notes: accuracyErr == null ? ['예측 정확도 미확인 — 업무 예상 › 정확도 화면을 열어 두면 지난 예상 오차도 리스크에 함께 봅니다.'] : [],
+            notes: accuracyErr == null ? ['예측 정확도 미확인 — 비교할 지난 계획 스냅샷이 없거나 읽지 못해 지난 예상 오차를 리스크에 넣지 못했습니다.'] : [],
             basis: [
                 '필요·공급·과부족 = 업무 예상과 같은 계산(인력 탭 \'앞으로 인원 수급\' 표와 같은 숫자)',
                 `예정 물량 ${confidence.planned}/${confidence.workdays}일 · 나머지는 지난 실적으로 어림`,
