@@ -7,7 +7,7 @@
 //   금액 없음.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-items.test.js
 
-import { GOAL_METRICS } from './plan-yeardoc.js?v=202611091115';
+import { GOAL_METRICS } from './plan-yeardoc.js?v=202611091131';
 
 export const VOLUME_METRICS = Object.freeze(['qtyPerDay']);
 const r2 = (v) => Math.round(v * 100) / 100;

@@ -5,13 +5,13 @@
 //   손실(분)·기록 품질은 운영 리포트와 같은 계산(ops-metrics periodMetrics·staffing, ops-view-model notes 와 같은 조건).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-monthly.test.js
 
-import { periodMetrics } from './ops-metrics.js?v=202611091115';
-import { systemIdOfName, taskIdOf } from './task-ids.js?v=202611091115';
-import { attendedMembers } from '../attendance-stats.js?v=202611091115';
-import { orderCountTotalOf } from '../revenue-channels.js?v=202611091115';
-import { offDayOf } from './plan-week.js?v=202611091115';
-import { CAP_MINUTES } from './task-owner.js?v=202611091115';
-import { isOffLeaveType } from '../state.js?v=202611091115';
+import { periodMetrics } from './ops-metrics.js?v=202611091131';
+import { systemIdOfName, taskIdOf } from './task-ids.js?v=202611091131';
+import { attendedMembers } from '../attendance-stats.js?v=202611091131';
+import { orderCountTotalOf } from '../revenue-channels.js?v=202611091131';
+import { offDayOf } from './plan-week.js?v=202611091131';
+import { CAP_MINUTES } from './task-owner.js?v=202611091131';
+import { isOffLeaveType } from '../state.js?v=202611091131';
 
 // schema 2(2026-11-05 리뷰): srcTo = 기록 있는 실제 마지막 날 · 휴무 = 기간형 근태 사람·일(당일형 제외, 근태 일정 펼침은 직접) · UPH 분자·분모 같은 기준 · qtyDays 추가
 // schema 3(D2): 휴무에서 '일하는 근태'(재택·출장·외근·매장근무 — state.js WORKING_LEAVE_TYPES) 제외 · incoming·plannedDays 연결
@@ -42,10 +42,11 @@ export function shiftYm(ym, n) {
     const d = new Date(y, m - 1 + n, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
-/** 오늘 기준 끝난 달 n 개(오래된 것부터) — 이번 달은 넣지 않는다(진행 중) */
+/** 오늘 기준 끝난 달 n 개(오래된 것부터) — 이번 달은 넣지 않는다(진행 중). 날짜 모양이 틀리면 [] */
 export function finishedMonths(today, n = 13) {
-    const cur = String(today).slice(0, 7);
-    return Array.from({ length: n }, (_, i) => shiftYm(cur, -(n - i)));
+    const m = /^(\d{4}-\d{2})/.exec(String(today || ''));
+    if (!m) return [];
+    return Array.from({ length: n }, (_, i) => shiftYm(m[1], -(n - i)));
 }
 
 /** 업무 이름(지금 이름) → 업무 id. 시스템 업무는 고정 id, 그 밖은 설정 taskIdNames. 없으면 '' */

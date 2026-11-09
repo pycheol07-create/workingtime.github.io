@@ -7,6 +7,8 @@
 //   금액·직원 이름 칸은 만들지 않는다(입력에 있어도 골라 담지 않음 — 시험이 JSON 으로 확인).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-month.test.js
 
+import { finishedMonths } from './plan-monthly.js?v=202611091131';
+
 // actions·risks 10 — 규칙이 항목 칸을 하나씩 보는데 20개면 규칙 계산 한도에 걸린다(firestore.rules OpsPlan, 에뮬레이터 실측). 과제·리스크는 점수 순 앞 10개.
 export const CONFIRM_LIMITS = Object.freeze({ actions: 10, risks: 10, days: 31, basis: 10, done: 40, text: 300 });
 export const DOC_KEYS = Object.freeze(['v', 'horizon', 'periodKey', 'version', 'confirmedAt', 'confirmedBy', 'basis', 'targets',
@@ -135,16 +137,21 @@ export function planVsActual(confirmed, staffDays) {
 
 // 월간 신뢰도에 넣을 '지난 확정본 대비 필요 인원 오차' 기준 — 최근 끝난 6개월, 기록일 max(5, 계획일 × 0.5)
 export const MONTH_ERR_RULES = Object.freeze({ months: 6, minDays: 5, minRatio: 0.5 });
+// 첫 확정 가능 달(month_2026-12) — 이전 달은 문서가 없으므로 읽지 않는다
+export const MONTH_CONFIRM_FIRST = '2026-12';
 
-/** today 가 속한 달 바로 앞 n 달(YYYY-MM, 오래된 달부터) */
-function endedMonths(today, n) {
-    const m = /^(\d{4})-(\d{2})/.exec(String(today || ''));
-    if (!m) return [];
-    const base = Number(m[1]) * 12 + Number(m[2]) - 1;
-    return Array.from({ length: n }, (_, i) => {
-        const t = base - n + i;
-        return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
-    });
+/** 읽을 지난 월간 확정본의 달(YYYY-MM, 오래된 달부터) */
+export const monthConfirmYms = (today) => finishedMonths(today, MONTH_ERR_RULES.months).filter(ym => ym >= MONTH_CONFIRM_FIRST);
+
+/**
+ * 묶음 읽기(Promise.allSettled) 결과 정리.
+ * @returns {{docs: object, failed: number, recompute: boolean}} docs = { 'YYYY-MM': 문서|null }(실패한 달은 없음), recompute = 다시 계산할 이유가 있나
+ */
+export function monthConfirmsOf(yms, results) {
+    const docs = {};
+    let failed = 0;
+    (results || []).forEach((r, i) => { if (r.status === 'fulfilled') docs[yms[i]] = r.value; else failed++; });
+    return { docs, failed, recompute: failed > 0 || Object.values(docs).some(Boolean) };
 }
 
 /**
@@ -157,7 +164,7 @@ function endedMonths(today, n) {
 export function monthErrsOf(docs, staffDaysOf, { today } = {}) {
     const R = MONTH_ERR_RULES;
     const errs = [];
-    endedMonths(today, R.months).forEach(ym => {
+    finishedMonths(today, R.months).forEach(ym => {
         const doc = docs && docs[ym];
         if (!doc || doc.horizon !== 'month' || doc.periodKey !== ym) return;
         const at = doc.confirmedAt && typeof doc.confirmedAt.toMillis === 'function' ? doc.confirmedAt.toMillis() : null;

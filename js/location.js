@@ -1,30 +1,30 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611091115';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611091131';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611091115';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611091115';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611091115';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611091115';
-import { orderKeyMap } from './lib/order-hash.js?v=202611091115';
-import { setShellContext } from './app-shell-bridge.js?v=202611091115';
-import { memberNameFor } from './app-shell-data.js?v=202611091115';
-import { menuConfigOf } from './lib/perm.js?v=202611091115';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611091115';
-import { initPageNav } from './page-nav.js?v=202611091115';
-import { initRefillCard } from './refill-card.js?v=202611091115';
-import { initLocRecCard } from './locrec-card.js?v=202611091115';
-import { initRebuildBar } from './rebuild-bar.js?v=202611091115';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611091115';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611091115';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611091115';
-import { uploadBlockText } from './lib/busy-view.js?v=202611091115';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611091115';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611091115';
-import { comboOf } from './lib/loc-cards.js?v=202611091115';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611091115';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611091131';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611091131';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611091131';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611091131';
+import { orderKeyMap } from './lib/order-hash.js?v=202611091131';
+import { setShellContext } from './app-shell-bridge.js?v=202611091131';
+import { memberNameFor } from './app-shell-data.js?v=202611091131';
+import { menuConfigOf } from './lib/perm.js?v=202611091131';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611091131';
+import { initPageNav } from './page-nav.js?v=202611091131';
+import { initRefillCard } from './refill-card.js?v=202611091131';
+import { initLocRecCard } from './locrec-card.js?v=202611091131';
+import { initRebuildBar } from './rebuild-bar.js?v=202611091131';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611091131';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611091131';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611091131';
+import { uploadBlockText } from './lib/busy-view.js?v=202611091131';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611091131';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611091131';
+import { comboOf } from './lib/loc-cards.js?v=202611091131';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611091131';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611091115';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611091115';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611091131';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611091131';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -1048,7 +1048,7 @@ function __getLastMoveDate(rd) {
 }
 
 // 상품(로케이션 묶음)의 공급처를 찾는다. '공급처코드' 열이 있으면 그 값을 먼저, 없으면 공급처 열 값
-//   (저장 때 cleanRaw 로 코드 모양 값만 남는다). 재고 엑셀 헤더명이 확실치 않아 유연 매칭.
+//   (저장 때 cleanRaw — '공급처' 열은 그대로, '공급처명'·'거래처' 등은 코드 모양 값만 남는다). 재고 엑셀 헤더명이 확실치 않아 유연 매칭.
 const SUPPLIER_KEYS = ['공급처', '공급처명', '공급사', '공급업체', '거래처', '거래처명', 'vendor', 'supplier', 'Supplier'];
 function get2FSupplier(locs) {
     for (const loc of locs) {
@@ -1085,9 +1085,9 @@ window.render2FSupplierList = function(supplierSet, excluded) {
     }
     box.innerHTML = suppliers.map(s => {
         const checked = excluded.has(s) ? ' checked' : '';
-        const safe = String(s).replace(/"/g, '&quot;');
+        const safe = escAttr(s);   // 공급처 열은 모양 검사 없이 저장하므로 화면에 넣을 때 반드시 이스케이프
         return '<label style="font-size:12px; color:var(--c-text); cursor:pointer; user-select:none; white-space:nowrap;">' +
-               '<input type="checkbox" class="f2-supplier-cb" value="' + safe + '"' + checked + ' style="vertical-align:middle;"> ' + s +
+               '<input type="checkbox" class="f2-supplier-cb" value="' + safe + '"' + checked + ' style="vertical-align:middle;"> ' + safe +
                '</label>';
     }).join('');
     const allCb = document.getElementById('2f-supplier-all');
@@ -1214,7 +1214,7 @@ window.render2FTable = function() {
                 <td style="font-weight:600; color:var(--c-accent-deep); white-space:nowrap;">${item.code}</td>
                 <td style="text-align:left; font-size:13px; white-space:nowrap;">${item.name}</td>
                 <td style="font-size:12px; white-space:nowrap;">${item.option}</td>
-                <td style="font-size:12px; color:var(--c-text-2); white-space:nowrap;">${item.supplier || '-'}</td>
+                <td style="font-size:12px; color:var(--c-text-2); white-space:nowrap;">${escAttr(item.supplier || '-')}</td>
                 <td style="font-weight:bold;">${item.totalStock}</td>
                 <td style="font-size:12px; color:${item.lastDelivery === '기록없음' ? 'var(--c-risk-text)' : 'var(--c-text-2)'};">${item.lastDelivery}</td>
                 <td style="font-size:12px;">${item.locIds}</td>
@@ -2927,8 +2927,8 @@ function setupFilterPopups() {
         let html = window.getFilterSearchHtml(`pop-${col}`) + getSortButtonsHtml(col) +
             `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">전체선택/해제</div>`;
 
-        // ★ 입고대기: 빈칸 옵션 추가
-        if (key === '입고대기') {
+        // ★ 빈칸 옵션 — 추가 항목 열 전부(2026-11-09, 예전엔 입고대기만). 걸러내기는 applyFiltersAndSort 의 'empty' 가 맡는다
+        {
             const isE = arr.includes('empty');
             html += `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">빈칸</div>`;
         }
@@ -2936,7 +2936,7 @@ function setupFilterPopups() {
         normalVals.forEach(v => {
             const escaped = jsArg(v);
             const sel = arr.includes(v);
-            html += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('${col}', '${escaped}')">${v}</div>`;
+            html += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('${col}', '${escaped}')">${escAttr(v)}</div>`;
         });
         pop.innerHTML = html;
     });
@@ -3595,7 +3595,7 @@ function renderVisibleRows() {
                     const code = (loc.code && loc.code !== loc.id) ? loc.code : '';
                     val = code && incomingTotalByCode[code] ? incomingTotalByCode[code] : '0';
                 }
-                html += `<td>${val}</td>`;
+                html += `<td>${escAttr(val)}</td>`;   // 엑셀 값 그대로 — 화면에 넣을 때 이스케이프
             }
         });
         html += `</tr>`;

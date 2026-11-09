@@ -4,13 +4,13 @@
 //   ⚠️ 이름·금액 없음 — 과제는 역할로만 보인다. 이력의 '누가'(이메일)는 그리지 않는다(언제·무엇만).
 //   ⚠️ role=dialog·data-act 금지(업무마감봇 선택자) — 겹침 창은 section, 버튼은 data-pi-* 속성.
 
-import { esc, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611091115';
-import { STATUS_LABEL, ITEM_STATUS, roleLabel, isOverdue } from './lib/plan-items.js?v=202611091115';
-import { GOAL_METRICS, GOAL_SLOTS, cleanGoals } from './lib/plan-yeardoc.js?v=202611091115';
-import { buildGoalKpis } from './lib/plan-cascade.js?v=202611091115';
-import { saveGoals } from './ops-plan-store.js?v=202611091115';
-import { showToast } from './utils.js?v=202611091115';
-import { higherOpenThan } from './modal-above.js?v=202611091115';
+import { esc, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611091131';
+import { STATUS_LABEL, ITEM_STATUS, roleLabel, isOverdue } from './lib/plan-items.js?v=202611091131';
+import { GOAL_METRICS, GOAL_SLOTS, cleanGoals } from './lib/plan-yeardoc.js?v=202611091131';
+import { buildGoalKpis } from './lib/plan-cascade.js?v=202611091131';
+import { saveGoals } from './ops-plan-store.js?v=202611091131';
+import { showToast } from './utils.js?v=202611091131';
+import { higherOpenThan } from './modal-above.js?v=202611091131';
 
 const $ = (id) => document.getElementById(id);
 const KIND = { objective: '목표', initiative: '과제', milestone: '이정표', data: '데이터', auto: '자동화' };

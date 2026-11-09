@@ -4,7 +4,7 @@
 //   금액·직원 이름 없음.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-week.test.js
 
-import { addDaysStr } from './plan-week.js?v=202611091115';
+import { addDaysStr } from './plan-week.js?v=202611091131';
 
 const fmt = (id) => {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(id || ''));
