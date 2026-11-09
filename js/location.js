@@ -1,30 +1,30 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611091131';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611091150';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611091131';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611091131';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611091131';
-import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611091131';
-import { orderKeyMap } from './lib/order-hash.js?v=202611091131';
-import { setShellContext } from './app-shell-bridge.js?v=202611091131';
-import { memberNameFor } from './app-shell-data.js?v=202611091131';
-import { menuConfigOf } from './lib/perm.js?v=202611091131';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611091131';
-import { initPageNav } from './page-nav.js?v=202611091131';
-import { initRefillCard } from './refill-card.js?v=202611091131';
-import { initLocRecCard } from './locrec-card.js?v=202611091131';
-import { initRebuildBar } from './rebuild-bar.js?v=202611091131';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611091131';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611091131';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611091131';
-import { uploadBlockText } from './lib/busy-view.js?v=202611091131';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611091131';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611091131';
-import { comboOf } from './lib/loc-cards.js?v=202611091131';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611091131';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611091150';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611091150';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611091150';
+import { codeOfRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611091150';
+import { orderKeyMap } from './lib/order-hash.js?v=202611091150';
+import { setShellContext } from './app-shell-bridge.js?v=202611091150';
+import { memberNameFor } from './app-shell-data.js?v=202611091150';
+import { menuConfigOf } from './lib/perm.js?v=202611091150';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611091150';
+import { initPageNav } from './page-nav.js?v=202611091150';
+import { initRefillCard } from './refill-card.js?v=202611091150';
+import { initLocRecCard } from './locrec-card.js?v=202611091150';
+import { initRebuildBar } from './rebuild-bar.js?v=202611091150';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611091150';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611091150';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611091150';
+import { uploadBlockText } from './lib/busy-view.js?v=202611091150';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611091150';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611091150';
+import { comboOf } from './lib/loc-cards.js?v=202611091150';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611091150';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611091131';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611091131';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611091150';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611091150';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -1048,7 +1048,7 @@ function __getLastMoveDate(rd) {
 }
 
 // 상품(로케이션 묶음)의 공급처를 찾는다. '공급처코드' 열이 있으면 그 값을 먼저, 없으면 공급처 열 값
-//   (저장 때 cleanRaw — '공급처' 열은 그대로, '공급처명'·'거래처' 등은 코드 모양 값만 남는다). 재고 엑셀 헤더명이 확실치 않아 유연 매칭.
+//   (저장 때 cleanRaw — '공급처' 열은 코드 그대로·이름은 뒤쪽 50% 를 *, '공급처명'·'거래처' 등은 코드 모양 값만 남는다). 재고 엑셀 헤더명이 확실치 않아 유연 매칭.
 const SUPPLIER_KEYS = ['공급처', '공급처명', '공급사', '공급업체', '거래처', '거래처명', 'vendor', 'supplier', 'Supplier'];
 function get2FSupplier(locs) {
     for (const loc of locs) {
@@ -4603,7 +4603,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
                     }
                 }
             });
-            // 보안(2026-10-14): 저장 전 원가 열 삭제·공급처 열은 코드 모양 값만 남김
+            // 보안(2026-10-14): 저장 전 원가 열 삭제·공급처명 등은 코드 모양 값만 남김('공급처' 열은 이름 뒤쪽 50% 를 * — 2026-11-09)
             {
                 const _c = cleanRaw(cleanRawData);
                 cleanRawData = _c.out;
@@ -4884,7 +4884,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
         
         let _secNote = '';
         if (_droppedCostHeaders.length) _secNote += `\n(보안: 원가 열(${_droppedCostHeaders.join(', ')})은 저장하지 않았습니다)`;
-        if (_supplierNamesRemoved) _secNote += `\n(보안: 공급처 이름 값 ${_supplierNamesRemoved}건을 지웠습니다 — 공급처는 코드만 저장)`;
+        if (_supplierNamesRemoved) _secNote += `\n(보안: 공급처명·거래처 열의 이름 값 ${_supplierNamesRemoved}건을 지웠습니다 — 그 열은 코드만 저장)`;
         if (mode === 'permanent') {
             showToast(`완료! ${updateCount}개 로케이션의 랙 구조(동/위치) 영구 세팅이 완료되었습니다.` + _secNote);
         } else {

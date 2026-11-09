@@ -4,7 +4,8 @@
 //   · 원가 열(원가·단가·위안·달러·환율·추가항목2 …) → 통째로 버린다.
 //   · 공급처 열(공급처명·거래처·vendor … — 정확히 '공급처'인 열은 아래 KEEP) → 값이 '코드 모양'(숫자 포함 영숫자 2~12자)이면 남기고, 아니면(이름) 키를 지운다.
 //   · '공급처상품명'·'공급처코드'·'공급처' 는 어느 쪽에도 안 걸린다. 둘 다 걸리면 원가로 본다.
-//     '공급처' 열은 전부 코드로만 쓰므로 그대로 저장한다(2026-11-09 사용자 결정 — 숫자 없는 코드 등이 빈칸이 되던 문제). '공급처명'·'거래처' 등은 그대로 코드 모양만 남긴다.
+//     '공급처' 열: 코드 모양이면 그대로, 아니면(이름) 뒤쪽 50% 를 * 로 바꿔 저장한다(2026-11-09 사용자 결정 — 빈칸 대신 알아볼 만큼만 보이게). 글자 수는 그대로라 두 번 걸어도 같다.
+//     새로 올린 값부터 가려 저장한다. 읽기 쪽 cleanRaw 는 화면·엑셀 받기만 가리므로, 그 전에 저장된 원문(2026.11.09f~g 사이 업로드)은 다시 올려야 덮인다. '공급처명'·'거래처' 등은 그대로 코드 모양만 남긴다.
 // ⚠️ 패턴은 앱\보안점검\민감열_점검.py 와 같아야 한다 — 한쪽을 바꾸면 같이 바꿀 것.
 // 순수 모듈(DOM/Firebase 의존 없음). 값은 밖으로 내지 않는다 — 버린 머리글 이름과 건수만 돌려준다.
 
@@ -37,6 +38,15 @@ export const isDroppedHeader = (h) => isCostCol(h);
 /** 값이 공급처 코드 모양인가 */
 export const isCodeLike = (v) => CODE_LIKE.test(String(v ?? '').trim());
 
+/** '공급처' 열 값 — 코드 모양이면 그대로, 이름이면 앞 절반(내림)만 남기고 나머지는 * (글자 수 유지). 빈 값은 '' */
+export function maskSupplierName(v) {
+    const s = String(v ?? '').trim();
+    if (!s || isCodeLike(s)) return s;
+    const ch = Array.from(s);
+    const keep = Math.floor(ch.length / 2);
+    return ch.slice(0, keep).join('') + '*'.repeat(ch.length - keep);
+}
+
 /**
  * 한 행(객체)을 정리한 사본을 돌려준다. 원본은 건드리지 않는다.
  * @returns {{out: object, droppedCols: string[], supplierValuesRemoved: number}}
@@ -49,6 +59,12 @@ export function cleanRaw(obj) {
     if (!obj || typeof obj !== 'object') return { out, droppedCols, supplierValuesRemoved };
     for (const [k, v] of Object.entries(obj)) {
         if (isCostCol(k)) { droppedCols.push(k); continue; }
+        if (normHeader(k) === '공급처') {
+            const s = String(v ?? '').trim();
+            const m = maskSupplierName(v);
+            out[k] = m === s ? v : m;   // 코드·빈 값은 원래 값(숫자 등) 그대로
+            continue;
+        }
         if (isSupplierCol(k) && !isCodeLike(v)) {
             if (v !== null && v !== undefined && String(v).trim() !== '') supplierValuesRemoved++;
             continue;

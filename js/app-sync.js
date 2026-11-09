@@ -1,19 +1,19 @@
 // === js/app-sync.js ===
-import { nameWithPosition } from './lib/member-title.js?v=202611091131';
-import * as State from './state.js?v=202611091131';
-import { isPersistentLeaveType } from './state.js?v=202611091131';
-import * as DOM from './dom-elements.js?v=202611091131';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611091131';
+import { nameWithPosition } from './lib/member-title.js?v=202611091150';
+import * as State from './state.js?v=202611091150';
+import { isPersistentLeaveType } from './state.js?v=202611091150';
+import * as DOM from './dom-elements.js?v=202611091150';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611091150';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611091131';
-import { renderTodoList } from './inspection-logic.js?v=202611091131';
-import { renderNotificationList } from './app-notifications.js?v=202611091131';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611091131';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611091131';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611091131';
-import { desktopNotify } from './desktop-noti.js?v=202611091131';
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611091131';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611091150';
+import { renderTodoList } from './inspection-logic.js?v=202611091150';
+import { renderNotificationList } from './app-notifications.js?v=202611091150';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611091150';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611091150';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611091150';
+import { desktopNotify } from './desktop-noti.js?v=202611091150';
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611091150';
 
 let unsubConfig = null;
 let unsubToday = null;
