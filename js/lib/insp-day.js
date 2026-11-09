@@ -45,6 +45,14 @@ export function packDatesLabel(items, max = 3) {
     return days.length > max ? `${head} 외 ${days.length - max}` : head;
 }
 
+/** 업무 예상 샘플검수 — 오늘 검수 매니저 리스트 장수(대기 + 완료). 리스트는 오늘 것만 있으므로 다른 날은 0.
+ *  live = 실시간 상태(State.appState), day = 이력의 오늘 항목, subscribed = 오늘 문서를 구독 중인가.
+ *  구독 중이면 실시간 값만 본다(리스트를 비웠는데 이력의 옛 장수가 남지 않게). 구독 전에만 이력 쪽 */
+export function inspListCountFor(dateStr, today, live, day, subscribed = false) {
+    if (!dateStr || dateStr !== today) return 0;
+    return subscribed ? dayInspItems(live).length : (dayInspItems(live).length || dayInspItems(day).length);
+}
+
 /** 하루 행(daily_data 또는 history) → 그날 검수 항목 전부(대기 + 완료 + 비운 완료).
  *  옛 탭이 리스트를 되살려 두 칸에 같은 항목이 있으면 리스트 쪽만 남긴다(일자별 보기·엑셀에 두 번 나오지 않게). */
 export function dayInspItems(day) {

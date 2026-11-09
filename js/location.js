@@ -1,30 +1,31 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611091200';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611091248';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611091200';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611091200';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611091200';
-import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611091200';
-import { orderKeyMap } from './lib/order-hash.js?v=202611091200';
-import { setShellContext } from './app-shell-bridge.js?v=202611091200';
-import { memberNameFor } from './app-shell-data.js?v=202611091200';
-import { menuConfigOf } from './lib/perm.js?v=202611091200';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611091200';
-import { initPageNav } from './page-nav.js?v=202611091200';
-import { initRefillCard } from './refill-card.js?v=202611091200';
-import { initLocRecCard } from './locrec-card.js?v=202611091200';
-import { initRebuildBar } from './rebuild-bar.js?v=202611091200';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611091200';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611091200';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611091200';
-import { uploadBlockText } from './lib/busy-view.js?v=202611091200';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611091200';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611091200';
-import { comboOf } from './lib/loc-cards.js?v=202611091200';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611091200';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611091248';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611091248';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611091248';
+import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611091248';
+import { orderKeyMap } from './lib/order-hash.js?v=202611091248';
+import { setShellContext } from './app-shell-bridge.js?v=202611091248';
+import { memberNameFor } from './app-shell-data.js?v=202611091248';
+import { menuConfigOf } from './lib/perm.js?v=202611091248';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611091248';
+import { initPageNav } from './page-nav.js?v=202611091248';
+import { initRefillCard } from './refill-card.js?v=202611091248';
+import { initLocRecCard } from './locrec-card.js?v=202611091248';
+import { initRebuildBar } from './rebuild-bar.js?v=202611091248';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611091248';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611091248';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611091248';
+import { uploadBlockText } from './lib/busy-view.js?v=202611091248';
+import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611091248';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611091248';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611091248';
+import { comboOf } from './lib/loc-cards.js?v=202611091248';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611091248';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611091200';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611091200';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611091248';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611091248';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -80,7 +81,7 @@ let sortConfig = { key: 'id', direction: 'asc' };
 // ★ v3.57: 모든 필터를 배열로 통일 (다중 선택 지원)
 // loc: 구역 prefix, code: ['empty','not-empty'] 중복 불가
 // reserved/preassigned: ['only'] 또는 [] (토글)
-let filters = { loc: [], code: [], stock: [], stock2f: [], category: [], dong: [], pos: [], reserved: [], preassigned: [] };
+let filters = { loc: [], code: [], stock: [], stock2f: [], stockSrc: [], category: [], dong: [], pos: [], reserved: [], preassigned: [] };
 // 헤더 검색창 입력으로 테이블을 부분일치 필터링 (컬럼키 → 검색어)
 let colTextSearch = {};
 // 머리줄 전체 검색(#loc-global-search) — 로케이션·코드·상품명·옵션 부분일치(소문자로 저장)
@@ -365,50 +366,45 @@ function setupRealtimeListenerB() {
     }, (error) => { console.error("입고예정데이터 오류:", error); showSyncError('incoming', '입고예정', error); });
 }
 
-// 🕒 마지막 데이터 최신화 시각 표시 (상단 헤더)
+// 🕒 재고 최신화 표시 (상단 헤더) — 파일 업로드 칸과 이지어드민 자동 칸을 따로 보여 준다(문구·색은 js/lib/ez-stock-view.js)
 let _lastDataUpdateTs = null;   // 마지막으로 받은 lastDataUpdate (자정 넘김 재칠하기용)
 let _hdrStatusReady = false;    // INFO_CONFIG 를 한 번이라도 받았는지
+const statDot = (tone) => tone === 'muted' ? '<span class="dot"></span>' : `<span class="dot" style="background:var(--c-${tone});"></span>`;
 function updateLastUpdateDisplay(ts) {
     _lastDataUpdateTs = ts;
     _hdrStatusReady = true;
+    updateEzStockDisplay();     // 파일 칸이 기록 없음이어도 자동 칸은 갱신
     const el = document.getElementById('last-data-update');
     if (!el) return;
-    if (!ts) { el.innerHTML = '<span class="dot"></span>재고<span class="lu-label"> 최신화</span> <b>기록 없음</b>'; return; }
-    const d = new Date(ts);
-    const p = n => String(n).padStart(2, '0');
-    // 점 색: 플랫폼 출고와 같은 일수 기준 — 오늘 ok / 어제 warn / 2일 이상 risk
-    const startOfDay = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
-    const daysAgo = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
-    const tone = daysAgo <= 0 ? 'ok' : (daysAgo === 1 ? 'warn' : 'risk');
-    el.innerHTML = `<span class="dot" style="background:var(--c-${tone});"></span>재고<span class="lu-label"> 최신화</span> <b>${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}</b>`;
-    el.title = '마지막 데이터 최신화: ' + d.toLocaleString('ko-KR');
-    updateEzStockDisplay();
+    const v = uploadStockView(ts);
+    el.innerHTML = `${statDot(v.tone)}파일<span class="lu-label"> 업로드</span> <b>${v.value}</b>`;
+    el.title = v.title;
 }
 
-// 🕒 재고 숫자 이지어드민 기준 시각 — 서버(로케이션추천\재고기록.py)가 이지어드민 재고를 재고 칸에 쓰면 남기는
-//   locationStock/ezStockStatus {at, writtenAt, slots, basisLastDataUpdate}. 그 뒤에 엑셀을 새로 올렸으면(기준이 다르면) 숨긴다.
-let _ezStockStatus = null;
+// 🕒 이지어드민 자동 칸 — locationStock/ezStockStatus(쓴 자리가 있을 때, 로케이션추천\재고기록.py) + ezStockRun(회차마다, 재고기록상태.py).
+//   두 문서를 다 받기 전에는 칠하지 않는다('기록 없음'이 잠깐 비치거나 못 읽었는데 없다고 보이지 않게). 자리 수는 ZONE 수신 때 화면 자료의 ezAt 을 센다.
+let _ezStockStatus = null, _ezStockRun = null, _ezAutoSlots = null;
+let _ezStatusReady = false, _ezRunReady = false;
 function updateEzStockDisplay() {
     const el = document.getElementById('ez-stock-at');
-    if (!el) return;
-    const st = _ezStockStatus, last = Number(_lastDataUpdateTs) || 0;
-    const at = st ? Number(st.at) || 0 : 0;
-    if (!at || at < last || (last && Number(st.basisLastDataUpdate) !== last)) { el.hidden = true; return; }
-    const d = new Date(at);
-    const p = n => String(n).padStart(2, '0');
-    // 오늘이 아니면 날짜도(M/D HH:MM) — 1분마다 머리줄을 다시 칠할 때(refreshHeaderStatusTone) 자정 넘김도 반영된다
-    const today = new Date();
-    const sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
-    const when = `${sameDay ? '' : `${d.getMonth() + 1}/${d.getDate()} `}${p(d.getHours())}:${p(d.getMinutes())}`;
-    el.innerHTML = `재고 숫자 이지어드민 <b>${when}</b> 기준`;
-    el.title = `재고 숫자: 이지어드민 ${d.toLocaleString('ko-KR')} 기준(자리 ${Number(st.slots) || 0}곳) — 엑셀을 새로 올리면 엑셀 기준`;
+    if (!el || !_ezStatusReady || !_ezRunReady) return;
+    const v = ezStockView({ run: _ezStockRun, status: _ezStockStatus, last: _lastDataUpdateTs, autoSlots: _ezAutoSlots });
+    el.innerHTML = `${statDot(v.tone)}<span class="lu-label">이지어드민 </span>${v.label} <b>${v.value}</b>`;
+    el.title = v.title;
     el.hidden = false;
 }
 function setupEzStockStatusListener() {
+    const failed = (error) => { console.warn('이지어드민 자동 갱신 상태 읽기 실패:', error && error.code); };   // 못 읽으면 '기록 없음'으로 거짓 표시하지 않고 칸을 안 칠한다
     onSnapshot(doc(db, 'artifacts', 'team-work-logger-v2', 'locationStock', 'ezStockStatus'), (snap) => {
         _ezStockStatus = snap.exists() ? snap.data() : null;
+        _ezStatusReady = true;
         updateEzStockDisplay();
-    }, (error) => { console.warn('이지어드민 재고 기준 시각 읽기 실패:', error && error.code); });
+    }, failed);
+    onSnapshot(doc(db, 'artifacts', 'team-work-logger-v2', 'locationStock', 'ezStockRun'), (snap) => {
+        _ezStockRun = snap.exists() ? snap.data() : null;
+        _ezRunReady = true;
+        updateEzStockDisplay();
+    }, failed);
 }
 
 // 헤더 상태 색(오늘/어제/2일+)은 날짜가 바뀌면 달라진다 — 데이터를 다시 읽지 않고 마지막 값으로 1분마다·탭 복귀 때 다시 칠한다
@@ -746,6 +742,8 @@ function setupRealtimeListenerA() {
         
         originalData = Object.values(tempLocMap);
         rawLocMap = tempRawMap;
+        _ezAutoSlots = countAuto(originalData);
+        updateEzStockDisplay();
         
         // ★ codeTag 자정 초기화 체크
         const now = new Date();
@@ -1845,6 +1843,7 @@ window.applyAllRecommendations = async function() {
                 name: item['상품명'] || '',
                 option: item['옵션'] || '',
                 stock: (item['입고대기수량'] || 0).toString(),
+                ezAt: deleteField(),   // 사람이 정한 수량 — 자동 표식이 남지 않게
                 reserved: false, reservedBy: '', reservedAt: 0,
                 codeTag: '선지정', codeTagAt: now,
                 updatedAt: new Date()
@@ -2326,6 +2325,7 @@ window.releasePreAssign = async function(locId) {
                 name: '',
                 option: '',
                 stock: '0',
+                ezAt: deleteField(),   // 사람이 정한 수량 — 서버가 쓴 이지어드민 재고 표시를 지운다
                 updatedAt: new Date()
             }
         }, { merge: true });
@@ -2379,6 +2379,7 @@ window.releaseAllCancelledPreAssigns = async function() {
                     name: '',
                     option: '',
                     stock: '0',
+                    ezAt: deleteField(),   // 사람이 정한 수량 — 서버가 쓴 이지어드민 재고 표시를 지운다
                     updatedAt: new Date()
                 }
             }, { merge: true });
@@ -2694,7 +2695,8 @@ function updateFilterButtonStates() {
                 if (active) btn.classList.add('active'); else btn.classList.remove('active');
             } else {
                 const arr = filters[type];
-                if ((!Array.isArray(arr) || arr.length === 0) && !hasText(type)) btn.classList.remove('active');
+                const srcOn = type === 'stock' && (filters.stockSrc || []).length > 0;   // 자동/파일 고르기도 정상재고 필터다
+                if ((!Array.isArray(arr) || arr.length === 0) && !srcOn && !hasText(type)) btn.classList.remove('active');
                 else btn.classList.add('active');
             }
         }
@@ -2759,8 +2761,12 @@ function setupFilterPopups() {
     });
     if(posPop) posPop.innerHTML = posHtml;
     const stocks = [...new Set(originalData.map(d => (d.stock || '0').toString()))].sort((a, b) => Number(a) - Number(b));
-    const stockAll = filters.stock.length === 0;
-    let stockHtml = window.getFilterSearchHtml('pop-stock') + getSortButtonsHtml('stock') + `<div class="filter-option ${stockAll ? 'selected' : ''}" onclick="setFilter('stock', 'all')">전체선택/해제</div>`;
+    const stockSrc = filters.stockSrc || [];
+    const stockAll = filters.stock.length === 0 && stockSrc.length === 0;
+    let stockHtml = window.getFilterSearchHtml('pop-stock') + getSortButtonsHtml('stock') + `<div class="filter-option ${stockAll ? 'selected' : ''}" onclick="setFilter('stock', 'all')">전체선택/해제</div>` +
+        `<div class="filter-option ${stockSrc.includes('auto') ? 'selected' : ''}" onclick="setStockSrcFilter('auto')">자동으로 바뀐 자리만</div>` +
+        `<div class="filter-option ${stockSrc.includes('file') ? 'selected' : ''}" onclick="setStockSrcFilter('file')">파일 값 그대로만</div>` +
+        `<div class="filter-divider"></div>`;
     stocks.forEach(s => { 
         const sel = filters.stock.includes(s);
         stockHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock', '${jsArg(s)}')">${s}</div>`; 
@@ -2958,7 +2964,11 @@ window.setFilter = (type, value) => {
     if (!Array.isArray(filters[type])) filters[type] = [];
     if (value === 'all') {
         // ★ v3.57fix: 전체선택/해제 토글
-        if (filters[type].length > 0) {
+        if (type === 'stock' && (filters.stockSrc || []).length > 0) {
+            // 자동/파일 고르기가 걸려 있으면 그것까지 전체 해제
+            filters.stockSrc = [];
+            filters.stock = [];
+        } else if (filters[type].length > 0) {
             // 선택된 게 있으면 → 전체 해제 (빈 배열 = 전체 표시)
             filters[type] = [];
         } else {
@@ -2991,6 +3001,9 @@ window.setFilter = (type, value) => {
     // ★ 다중 선택 지원을 위해 팝업 자동 닫힘 제거 (사용자가 원할 때 닫음)
     window.showFilterResetBtn();
 };
+
+// 정상재고 필터의 '자동으로 바뀐 자리만'·'파일 값 그대로만' — 이름을 따로 둔 것은 setFilter('stock','all') 이 팝업의 setFilter 호출을 값 목록으로 모으기 때문
+window.setStockSrcFilter = (value) => window.setFilter('stockSrc', value);
 
 // ★ v3.59: 날짜 계층 필터 - 펼침/접힘 토글
 window.toggleDateNode = function(toggleEl) {
@@ -3314,6 +3327,7 @@ function applyFiltersAndSort() {
         
         if (filters.stock.length > 0 && !filters.stock.includes((item.stock || '0').toString())) return false;
         if (filters.stock2f.length > 0 && !filters.stock2f.includes((item.stock2f || '0').toString())) return false;
+        if ((filters.stockSrc || []).length > 0 && !filters.stockSrc.includes(stockSrcOf(item))) return false;   // 빈 자리('')는 양쪽에서 빠진다
         if (filters.category && filters.category.length > 0 && !filters.category.includes((item.category || '피킹용').toString())) return false;
         // ★ 피킹용 전용 필터 (대시보드 '피킹용 빈 자리' 진입 시): 기타·비축·SAM 제외
         if (filters.pickingOnly) {
@@ -3422,7 +3436,7 @@ window.handleRowClick = async function(event, locId) {
                 if (confirm(`이미 '${loc.preAssignedCode}' 상품으로 선지정된 자리입니다.\n지정을 해제(취소)하시겠습니까?`)) {
                     try {
                         await setDoc(doc(db, LOC_COLLECTION, zoneDocId), {
-                            [locId]: { preAssigned: false, preAssignedCode: '', preAssignedName: '', preAssignedQty: '', preAssignedAt: 0, codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', updatedAt: new Date() }
+                            [locId]: { preAssigned: false, preAssignedCode: '', preAssignedName: '', preAssignedQty: '', preAssignedAt: 0, codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', ezAt: deleteField(), updatedAt: new Date() }
                         }, { merge: true });
                     } catch(e) {
                         console.error(e);
@@ -3446,7 +3460,7 @@ window.handleRowClick = async function(event, locId) {
                     preAssignedName: window.selectedPreAssignItem.name, preAssignedQty: window.selectedPreAssignItem.qty,
                     preAssignedAt: Date.now(),
                     code: window.selectedPreAssignItem.code, name: window.selectedPreAssignItem.name,
-                    option: window.selectedPreAssignItem.option || '', stock: window.selectedPreAssignItem.qty.toString(), 
+                    option: window.selectedPreAssignItem.option || '', stock: window.selectedPreAssignItem.qty.toString(), ezAt: deleteField(), 
                     reserved: false, reservedBy: '', reservedAt: 0,
                     codeTag: '선지정', codeTagAt: Date.now(),
                     updatedAt: new Date()
@@ -3469,7 +3483,7 @@ window.handleRowClick = async function(event, locId) {
                 await setDoc(doc(db, LOC_COLLECTION, zoneDocId), {
                     [locId]: {
                         preAssigned: false, preAssignedCode: '', preAssignedName: '', preAssignedQty: '', preAssignedAt: 0,
-                        codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', updatedAt: new Date()
+                        codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', ezAt: deleteField(), updatedAt: new Date()
                     }
                 }, { merge: true });
                 showToast("선지정이 해제되었습니다.");
@@ -3584,8 +3598,8 @@ function renderVisibleRows() {
             else if (col === 'std_code') html += `<td style="color:var(--c-accent-deep); font-weight:600;">${loc.code === loc.id ? '' : (loc.code || '')}${codeTagHtml}</td>`;
             else if (col === 'std_name') html += `<td style="text-align:left;">${loc.name || ''}</td>`;
             else if (col === 'std_option') html += `<td style="text-align:left; font-size:12px;">${loc.option || ''}</td>`;
-            else if (col === 'std_stock') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${loc.stock || '0'}</td>`;
-            else if (col === 'std_stock2f') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${loc.stock2f || '0'}</td>`;
+            else if (col === 'std_stock') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${loc.stock || '0'}${autoBadge(loc)}</td>`;
+            else if (col === 'std_stock2f') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${loc.stock2f || '0'}${autoBadge(loc)}</td>`;
             else if (col.startsWith('cus_')) {
                 const key = col.replace('cus_', '');
                 let val = (loc.rawData && loc.rawData[key]) ? loc.rawData[key] : '';

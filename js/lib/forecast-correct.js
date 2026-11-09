@@ -47,7 +47,7 @@
 //  숫자는 소수 3자리. 결과에는 업무 이름·숫자만 있다(직원 이름·기록자 없음).
 //  import 는 ../forecast-accuracy.js 하나 — DOM·State·Firebase 를 쓰지 않는다(node 테스트: tests/forecast-correct.test.js).
 
-import { planHoursByTaskOf } from '../forecast-accuracy.js?v=202611091200';
+import { planHoursByTaskOf } from '../forecast-accuracy.js?v=202611091248';
 
 export const DEFAULTS = Object.freeze({
     K: 5,                   // 편향 당김 — 표본 n 일에 '배율 1' 을 K 일치 섞는다
@@ -71,7 +71,7 @@ export const DEFAULTS = Object.freeze({
 });
 
 /** 물량을 자료(전송·채우기 지시서·예정 입력·밀림 배수)로 정한 출처 — 물량 편향은 빼고 속도만 보정한다. */
-export const FIXED_SOURCES = Object.freeze(['transmit', 'transmit-none', 'refill', 'planned', 'planned-time', 'ai-carry', 'cadence-carry']);
+export const FIXED_SOURCES = Object.freeze(['transmit', 'transmit-none', 'refill', 'insp-list', 'planned', 'planned-time', 'ai-carry', 'cadence-carry']);
 
 /** 진행 여부를 판정하는 물량 업무의 출처 — 그 밖의 출처는 기본 엔진 판정을 그대로 둔다(시간형은 출처가 없어 따로 본다). */
 export const PRESENCE_SOURCES = Object.freeze(['cadence-on', 'last7']);
