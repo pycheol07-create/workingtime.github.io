@@ -10,7 +10,7 @@
 // ⚠️ 데이터 관리 편집 화면·저장 경로에는 쓰지 않는다 — 사본을 저장하면 과거 기록 이름이 바뀐다.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/task-alias-view.test.js
 
-import { canonicalTaskName, taskNameOf } from './task-ids.js?v=202611052207';
+import { canonicalTaskName, taskNameOf } from './task-ids.js?v=202611090952';
 
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -222,15 +222,18 @@ export function aliasNameMap(obj, cfg) {
     return ctx ? mapNameKeys(obj, ctx.canon) : obj;
 }
 
-/** 계획 스냅샷(forecastSnapshot)의 업무 이름 키 칸(tasks·timeTasks·uph)을 지금 이름으로. */
+/** 계획 스냅샷(forecastSnapshot)의 업무 이름 키 칸(tasks·timeTasks·uph·sources)을 지금 이름으로. */
 export function aliasSnapshot(snap, cfg) {
     const ctx = ctxOf(cfg);
     if (!ctx || !isObj(snap)) return snap;
     const tasks = mapNameKeys(snap.tasks, ctx.canon);
     const timeTasks = mapNameKeys(snap.timeTasks, ctx.canon);
     const uph = mapNameKeys(snap.uph, ctx.canon);
-    if (tasks === snap.tasks && timeTasks === snap.timeTasks && uph === snap.uph) return snap;
-    return { ...snap, tasks, timeTasks, uph };
+    const sources = mapNameKeys(snap.sources, ctx.canon);   // 옛 스냅샷엔 칸이 없다 — 없으면 아래에서 칸을 만들지 않는다
+    if (tasks === snap.tasks && timeTasks === snap.timeTasks && uph === snap.uph && sources === snap.sources) return snap;
+    const out = { ...snap, tasks, timeTasks, uph };
+    if (sources !== snap.sources) out.sources = sources;
+    return out;
 }
 
 /** obj(이름 키 맵)에서 key 업무에 해당하는 키 — key 자신 + 지금 이름이 key 인 옛 이름 키.

@@ -1,13 +1,13 @@
 // === js/admin-logic.js ===
-import { cleanPosition } from './lib/member-title.js?v=202611052207';
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202611052207';
-import { withBuiltinMenus } from './menu-catalog.js?v=202611052207';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202611052207';
-import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202611052207';
-import { permFieldsForSave } from './lib/perm-model.js?v=202611052207';
-import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202611052207';
+import { cleanPosition } from './lib/member-title.js?v=202611090952';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202611090952';
+import { withBuiltinMenus } from './menu-catalog.js?v=202611090952';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202611090952';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202611090952';
+import { permFieldsForSave } from './lib/perm-model.js?v=202611090952';
+import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202611090952';
 import { deletedTasks, purgeDeletedTasks, followWidgetTitles, takenDeletedNames, taskIdOfWidget, migrateDashboardTaskItems,
-    withTaskWidgetCompat } from './lib/task-config-sync.js?v=202611052207';
+    withTaskWidgetCompat } from './lib/task-config-sync.js?v=202611090952';
 
 // 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
 export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',
@@ -340,6 +340,8 @@ export function collectConfigFromDOM(currentConfig, permModel = null, taskInfo =
     // 업무 예상 보정 계획(2026-11-05) — 다른 칸이 생겨도 지키게 기존 값 위에 on 만 바꾼다
     const corrOn = document.getElementById('forecast-correction-on');
     if (corrOn) newConfig.forecastCorrection = { ...((currentConfig && currentConfig.forecastCorrection) || {}), on: !!corrOn.checked };
+    const presOn = document.getElementById('forecast-presence-on');
+    if (presOn) newConfig.forecastCorrection = { ...(newConfig.forecastCorrection || (currentConfig && currentConfig.forecastCorrection) || {}), presence: !!presOn.checked };
 
     const materialCostInput = document.getElementById('fixed-material-cost');
     if (materialCostInput) newConfig.fixedMaterialCost = Number(materialCostInput.value) || 0;

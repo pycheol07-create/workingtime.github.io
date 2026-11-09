@@ -10,13 +10,14 @@
 //    · 입력은 정확도 화면과 같은 순서로 맞춘다: 스냅샷(기준 포함) = aliasSnapshot → excludeTasksForAccuracy,
 //      이력 = 지금 이름(호출하는 쪽이 이력() 을 넘김) → 제외 업무 뺌. 대상일 이전 **그리고** 오늘(ctx.today) 이전만 —
 //      내일 이후를 확정할 때 오늘의 덜 찬 실적이 들어가지 않게.
+//    · sources(2026-11-09, 업무 → 출처)도 **늘 칸으로 쓴다**(같은 이유 — 실패면 null). 다음 측정에서 출처를 근사하지 않으려고 남긴다.
 //    · correctedNotes: 'snap-fetch-failed'(지난 스냅샷을 못 읽음) · 'calc-failed'(계산 중 예외). 정상이면 [].
 //
 //  순수 모듈(DOM·State·Firebase 없음). 테스트: tests/forecast-correct-snap.test.js
 
-import { correctPlan } from './forecast-correct.js?v=202611052207';
-import { excludeTasksForAccuracy } from '../forecast-accuracy.js?v=202611052207';
-import { aliasSnapshot } from './task-alias-view.js?v=202611052207';
+import { correctPlan } from './forecast-correct.js?v=202611090952';
+import { excludeTasksForAccuracy } from '../forecast-accuracy.js?v=202611090952';
+import { aliasSnapshot } from './task-alias-view.js?v=202611090952';
 
 export const NOTE_SNAP_FETCH_FAILED = 'snap-fetch-failed';
 export const NOTE_CALC_FAILED = 'calc-failed';
@@ -32,7 +33,7 @@ export function correctSnapRange(target, lookbackDays = 70) {
 
 /** correctPlan 입력 만들기.
  *  ctx: { target, today('YYYY-MM-DD', 선택 — 이 날 이후 이력은 뺀다), history(지금 이름), snapshots{날짜:원본 스냅샷},
- *         cfg(별칭 설정), excluded(Set·배열), sources{업무:출처} } */
+ *         cfg(별칭 설정), excluded(Set·배열), sources{업무:출처}, sureKeys(진행 여부를 판정하지 않을 업무, 선택) } */
 export function correctInputOf(snapshot, ctx) {
     const c = ctx || {};
     const excluded = new Set([...(c.excluded || [])]);
@@ -48,31 +49,35 @@ export function correctInputOf(snapshot, ctx) {
         .map(d => excludeTasksForAccuracy(null, d, excluded).day);
     const b = 정리(snapshot) || {};
     const base = { tasks: b.tasks || {}, timeTasks: b.timeTasks || {}, uph: b.uph || {}, totalHours: b.totalHours };
-    return { target, history, snapshots, base, sources: c.sources || {}, excluded };
+    return { target, history, snapshots, base, sources: c.sources || {}, sureKeys: c.sureKeys || [], excluded };
 }
 
 /** Firestore 에 그대로 넣을 수 있게 — undefined 칸을 없애고 NaN·Infinity 는 null 로. */
 const 저장형 = (v) => JSON.parse(JSON.stringify(v, (k, x) => (typeof x === 'number' && !Number.isFinite(x) ? null : x)));
 
-/** 스냅샷에 corrected·correctedNotes 를 붙인 사본. snapshot 이 없으면 그대로 돌려준다.
- *  ctx: correctInputOf 의 ctx + { snapFetchFailed, getSources() } — getSources 는 이 함수의 try 안에서 부른다
- *  (출처를 구하다 예외가 나도 기본 스냅샷은 그대로 나간다). onError(e) 는 실패 때 한 번(로그용). */
+/** 스냅샷에 corrected·correctedNotes·sources 를 붙인 사본. snapshot 이 없으면 그대로 돌려준다.
+ *  ctx: correctInputOf 의 ctx + { snapFetchFailed, getSources(), getSureKeys() } — 둘 다 이 함수의 try 안에서 부른다
+ *  (구하다 예외가 나도 기본 스냅샷은 그대로 나간다). onError(e) 는 실패 때 한 번(로그용). */
 export function withCorrected(snapshot, ctx) {
     if (!snapshot || typeof snapshot !== 'object') return snapshot;
     const c = ctx || {};
     let corrected = null;
     let notes = [];
+    let sources = null;
     if (c.snapFetchFailed) {
         notes = [NOTE_SNAP_FETCH_FAILED];
     } else {
         try {
-            const sources = typeof c.getSources === 'function' ? (c.getSources() || {}) : (c.sources || {});
-            corrected = 저장형(correctPlan(correctInputOf(snapshot, { ...c, sources })));
+            const src = typeof c.getSources === 'function' ? (c.getSources() || {}) : (c.sources || {});
+            const sureKeys = typeof c.getSureKeys === 'function' ? (c.getSureKeys() || []) : (c.sureKeys || []);
+            corrected = 저장형(correctPlan(correctInputOf(snapshot, { ...c, sources: src, sureKeys })));
+            sources = 저장형(src);
         } catch (e) {
             corrected = null;
+            sources = null;
             notes = [NOTE_CALC_FAILED];
             try { if (typeof c.onError === 'function') c.onError(e); } catch (_) { /* 로그 실패는 무시 */ }
         }
     }
-    return { ...snapshot, corrected, correctedNotes: notes };
+    return { ...snapshot, corrected, correctedNotes: notes, sources };
 }

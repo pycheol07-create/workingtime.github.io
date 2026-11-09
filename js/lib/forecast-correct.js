@@ -36,10 +36,18 @@
 //    돌발 여유는 어느 업무에 붙일 수 없으므로 계획 적중에는 넣지 않고,
 //    총량 오차(그날 전체 인시)를 볼 때만 totalHours + reserveHours 로 더한다.
 //
+//    ⑤ 진행 여부 3단계(2026-11-09) — 표시와 기록만 한다. h·totalHours·reserveHours·zeroPlanKeys 는 이 단계 때문에 바뀌지 않는다.
+//       pDo = W 안에서 그 업무를 한 날(시간 > 0 또는 물량 > 0) 비율. target 과 같은 요일 표본이 dowMin 일 이상이면 전체 쪽으로 dowPull 일치 당긴다.
+//       W 가 비면 pDo = null. dayH = 하는 날 평균 시간(최근 recentHits 회). 둘 다 byTask 모든 항목에 붙는다.
+//       state = pDo < presOffP 'off'(안 할 가능성) · < presOnP 'maybe'(불확실) · 그 이상 'on'(하는 날).
+//       state 는 그날 계획에 든 업무(kind 'plan'·fromPlan)만, 출처가 cadence-on·last7 이거나 시간형일 때만 붙는다.
+//       전송·채우기·입고 등 자료로 정한 물량, 공휴일, 예정 입력, cadence-off, 엔진 확률이 확실한 업무(sureKeys)는 state 없음 — 기본 엔진 판정을 뒤집지 않는다.
+//       과거 측정에서 수량 보정은 효과가 없어 넣지 않았고, 이 판정도 숫자에는 쓰지 않는다(tools/forecast-presence-sim.mjs).
+//
 //  숫자는 소수 3자리. 결과에는 업무 이름·숫자만 있다(직원 이름·기록자 없음).
 //  import 는 ../forecast-accuracy.js 하나 — DOM·State·Firebase 를 쓰지 않는다(node 테스트: tests/forecast-correct.test.js).
 
-import { planHoursByTaskOf } from '../forecast-accuracy.js?v=202611052207';
+import { planHoursByTaskOf } from '../forecast-accuracy.js?v=202611090952';
 
 export const DEFAULTS = Object.freeze({
     K: 5,                   // 편향 당김 — 표본 n 일에 '배율 1' 을 K 일치 섞는다
@@ -57,11 +65,16 @@ export const DEFAULTS = Object.freeze({
     // 계획 업무라도 W 안에서 한 날 비율이 이보다 작으면 '확률 × 하는 날 평균'(0 = 끔).
     // 2026-11-04 과거 20근무일 시뮬레이션: 0.2·0.25 가 가장 좋고(계획 적중 19.3 → 17.8%, 총량 19.4 → 18.0%),
     // 0.3 부터 채우기·중국제작이 확률로 넘어가며 나빠졌다(0.35: 20.5% / 20.7%). 옛 스냅샷엔 출처(sources)가 없어 그 둘을 고정 출처로 못 가린 영향이 있다.
-    freqMax: 0.25
+    freqMax: 0.25,
+    presOffP: 0.3,          // 진행 확률이 이보다 작으면 '안 할 가능성'
+    presOnP: 0.6            // 이 이상이면 '하는 날', 그 사이는 '불확실'
 });
 
 /** 물량을 자료(전송·채우기 지시서·예정 입력·밀림 배수)로 정한 출처 — 물량 편향은 빼고 속도만 보정한다. */
 export const FIXED_SOURCES = Object.freeze(['transmit', 'transmit-none', 'refill', 'planned', 'planned-time', 'ai-carry', 'cadence-carry']);
+
+/** 진행 여부를 판정하는 물량 업무의 출처 — 그 밖의 출처는 기본 엔진 판정을 그대로 둔다(시간형은 출처가 없어 따로 본다). */
+export const PRESENCE_SOURCES = Object.freeze(['cadence-on', 'last7']);
 
 const 수 = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const 양수 = (v) => { const n = 수(v); return n > 0 ? n : 0; };
@@ -109,10 +122,12 @@ const 당김 = (n, raw, o) => {
  *   base      { tasks, timeTasks, uph, totalHours } — 그날 기본 계획(스냅샷 모양)
  *   sources   { 업무: 출처 } (선택) — FIXED_SOURCES 면 속도 몫만 보정
  *   excluded  Set<업무> — 결과·계산에서 뺀다(넘겨받은 자료에 남아 있어도)
+ *   sureKeys  Set·배열 (선택) — 진행 여부를 판정하지 않을 업무(엔진 확률이 확실한 업무 등). 시간 계산에는 영향이 없다
  *   opts      DEFAULTS 일부 덮어쓰기
- * @returns {{ v:2, totalHours, reserveHours, byTask:Array, zeroPlanKeys:string[], params, notes:string[] }}
+ * @returns {{ v:3, totalHours, reserveHours, byTask:Array, zeroPlanKeys:string[], params, notes:string[] }}
  *   byTask: { k, kind:'plan'|'prob', base, f, fVol, n, p, h } — plan 은 p=null, prob 은 f·fVol=null.
  *           가끔 하는 계획 업무(③-2)는 kind 'prob' + fromPlan: true, base = 기본 계획 시간.
+ *           모든 항목에 pDo·dayH, 판정 대상이면 state:'off'|'maybe'|'on' (⑤ 참고).
  */
 export function correctPlan(input) {
     const inp = input || {};
@@ -158,7 +173,34 @@ export function correctPlan(input) {
         });
     });
 
+    const sureKeys = new Set(inp.sureKeys instanceof Set || Array.isArray(inp.sureKeys) ? [...inp.sureKeys] : []);
+    const 한날 = (d, k) => 양수(시간.get(d.id)[k]) > 0 || 양수(d.taskQuantities?.[k]) > 0;
     const wd = target ? 요일(target) : null;
+    /** ⑤ 진행 확률 — 시간 또는 물량이 있는 날을 '한 날'로 본다. W 가 비면 null */
+    const 진행확률 = (k) => {
+        if (W.length === 0) return null;
+        const pAll = W.filter(d => 한날(d, k)).length / W.length;
+        const same = W.filter(d => 요일(d.id) === wd);
+        return same.length >= o.dowMin
+            ? (same.filter(d => 한날(d, k)).length + o.dowPull * pAll) / (same.length + o.dowPull)
+            : pAll;
+    };
+    /** 진행 여부를 판정할 업무인가 — 물량 업무는 출처가 PRESENCE_SOURCES, 시간형은 출처 칸이 없는 업무 */
+    const 판정대상 = (k) => {
+        if (sureKeys.has(k)) return false;
+        if (PRESENCE_SOURCES.includes(sources[k])) return true;
+        return sources[k] == null && !(양수(base.tasks?.[k]) > 0) && 양수(base.timeTasks?.[k]?.minutes) > 0;
+    };
+    /** byTask 항목에 붙일 진행 칸. 계획 밖 반복 업무(계획에 없음)는 pDo·dayH 만 — 그날 계획의 진행 여부가 아니다 */
+    const 진행칸 = (k, inPlan, dayH) => {
+        const p = 진행확률(k);
+        const out = { pDo: r3(p), dayH: r3(dayH) };
+        if (inPlan && p != null && 판정대상(k)) {
+            const q = r3(p);   // 표시하는 확률과 판정이 어긋나지 않게(나눗셈 끝자리로 경계가 흔들리지 않게) 반올림한 값으로 판정
+            out.state = q < o.presOffP ? 'off' : (q < o.presOnP ? 'maybe' : 'on');
+        }
+        return out;
+    };
     /** 하는 날 평균 시간 — 최근 recentHits 회. 한 날이 없으면 0 */
     const 하는날평균 = (k) => {
         const recent = (hitDays.get(k) || []).slice(0, o.recentHits);
@@ -182,7 +224,7 @@ export function correctPlan(input) {
                 : pAll;
             const { n, avg } = 하는날평균(k);
             byTask.push({ k, kind: 'prob', fromPlan: true, base: r3(basePlan[k]), f: null, fVol: null, n,
-                          p: r3(p), h: r3(p * avg) });
+                          p: r3(p), h: r3(p * avg), ...진행칸(k, true, avg) });
             return;
         }
         let n = 0, sumPlanH = 0, sumActH = 0, nVol = 0, sumPlanQ = 0, sumActQ = 0;
@@ -204,7 +246,7 @@ export function correctPlan(input) {
         const fVol = isQty ? 당김(nVol, sumPlanQ > 0 ? sumActQ / sumPlanQ : null, o) : null;
         const m = (fixed && fVol != null && fVol > 0) ? clamp(f / fVol, o.clampMin, o.clampMax) : f;
         byTask.push({ k, kind: 'plan', base: r3(basePlan[k]), f: r3(f), fVol: r3(fVol), n,
-                      p: null, h: r3(basePlan[k] * m), ...(fixed ? { speedOnly: true } : {}) });
+                      p: null, h: r3(basePlan[k] * m), ...(fixed ? { speedOnly: true } : {}), ...진행칸(k, true, 하는날평균(k).avg) });
     });
 
     // ② 확률 — 기본 계획에 없는(계획 시간 0) 반복 업무
@@ -232,7 +274,7 @@ export function correctPlan(input) {
             }
         }
         const { n, avg } = 하는날평균(k);
-        byTask.push({ k, kind: 'prob', base: 0, f: null, fVol: null, n, p: r3(p), h: r3(p * avg) });
+        byTask.push({ k, kind: 'prob', base: 0, f: null, fVol: null, n, p: r3(p), h: r3(p * avg), ...진행칸(k, false, avg) });
     });
     if (대체수 > 0) {
         notes.push(스냅샷부족
@@ -260,7 +302,7 @@ export function correctPlan(input) {
     const inByTask = new Set(byTask.filter(t => !t.fromPlan || 양수(t.h) > 0).map(t => t.k));
     const zeroPlanKeys = [...계획된키(base)].filter(k => !inByTask.has(k) && !excluded.has(k)).sort();
     return {
-        v: 2,
+        v: 3,
         totalHours: r3(totalHours),
         reserveHours: r3(reserveHours),
         byTask,

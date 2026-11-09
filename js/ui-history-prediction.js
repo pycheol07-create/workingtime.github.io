@@ -3,48 +3,49 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202611052207';
+import { predictFutureTrends } from './analysis-logic.js?v=202611090952';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611052207';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611052207';
-import { runDay } from './lib/refill-view.js?v=202611052207';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611052207';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611052207';
-import { TASK, tName, isT, tQty } from './task-names.js?v=202611052207';
-import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611052207';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611090952';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611090952';
+import { runDay } from './lib/refill-view.js?v=202611090952';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611090952';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611090952';
+import { TASK, tName, isT, tQty } from './task-names.js?v=202611090952';
+import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611090952';
 import { LEGACY_SIM_TASKS, legacySimTasksOf, namesOf, timeTaskExcludeOf, DEFAULT_SIM_ALWAYS_TASKS, DEFAULT_SIM_ZERO_TASKS,
          DEFAULT_FORECAST_EXCLUDED_TASKS, DEFAULT_LOADOUT_SOURCES, defaultAutoModeOf, defaultTimeTaskDepsOf,
-         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611052207';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611052207';
-import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611052207';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611052207';
-import * as State from './state.js?v=202611052207';
-import { saveView } from './view-state.js?v=202611052207';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611052207';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611052207';
+         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611090952';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611090952';
+import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611090952';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611090952';
+import * as State from './state.js?v=202611090952';
+import { saveView } from './view-state.js?v=202611090952';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611090952';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611090952';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611052207';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611090952';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611052207';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611052207';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611090952';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611090952';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611052207';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202611052207';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611090952';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202611090952';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611052207';
-import { taskUph, recentDays } from './task-throughput.js?v=202611052207';
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611090952';
+import { taskUph, recentDays } from './task-throughput.js?v=202611090952';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202611052207';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202611090952';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202611052207';
-import { D } from './d-chart.js?v=202611052207';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611052207';
-import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611052207';
-import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611052207';
-import { correctedInputs, planBaseOf, noExtraKeysOf, RESERVE_KEY } from './lib/forecast-correct-apply.js?v=202611052207';
+         excessOffDays } from './lib/backlog-carry.js?v=202611090952';
+import { D } from './d-chart.js?v=202611090952';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611090952';
+import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611090952';
+import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611090952';
+import { correctedInputs, planBaseOf, noExtraKeysOf, RESERVE_KEY, presenceSureKeys, presenceDoneKeys,
+         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611090952';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -2902,6 +2903,8 @@ let correctCtxGen = 0;
 const bumpCorrectGen = () => { correctCtxGen++; };
 
 export const isForecastCorrectionOn = () => State.appConfig?.forecastCorrection?.on !== false;
+// 진행 여부 3단계 표시(2026-11-09) — 끄면 표시와 correction.presence 만 비고 숫자는 그대로다. 얼리기는 스위치와 무관(attachCorrected). 칸이 없으면 켬
+const isForecastPresenceOn = () => State.appConfig?.forecastCorrection?.presence !== false;
 
 /** 보정에 쓸 지난 스냅샷을 하루 한 번 읽어 둔다. 던지지 않는다. @returns {Promise<boolean>} 쓸 수 있으면 true */
 export async function ensureCorrectCtx() {
@@ -2981,7 +2984,8 @@ const manualKeysOf = (dateStr, sources, extra) => {
 };
 
 /** 보정 계획이 걸린 하루 계획. opts.manualKeys = 사람이 정한 업무(더 넣을 것). 던지지 않는다(실패면 보정 전).
- *  돌려주는 값 = simulateOneDay 결과 + correction{applied, reason?, reserveHours, extra{업무:시간}, factors, zeroed, notes} (+ raw = 보정 전 결과) */
+ *  돌려주는 값 = simulateOneDay 결과 + correction{applied, reason?, reserveHours, extra{업무:시간}, factors, zeroed, notes, presence} (+ raw = 보정 전 결과)
+ *  presence{업무:{state,p,dayH,kind}} 는 표시 전용 — 숫자에 쓰지 않고, 구하다 실패해도 보정은 그대로 건다. */
 const simulateDayPlan = (dateStr, inputs, taskUPH, config, opts = {}) => {
     const r0 = simulateOneDay(dateStr, inputs, taskUPH, config);
     const off = (reason) => ({ ...r0, correction: { applied: false, reason } });
@@ -2997,16 +3001,27 @@ const simulateDayPlan = (dateStr, inputs, taskUPH, config, opts = {}) => {
     try {
         const sources = sourcesOf(dateStr, 이력());
         const base = planBaseOf(inputs, taskUPH, r0, SIM_TASKS.map(t => t.key));
+        let sureKeys = [];
+        let presenceOk = isForecastPresenceOn();
+        if (presenceOk) {
+            try {
+                sureKeys = sureKeysOf(dateStr, 이력());
+                // 오늘 이미 시작한 업무는 표시만 뺀다(숫자는 그대로) — 스냅샷은 오늘 실적을 쓰지 않는 계획이라 여기서만 뺀다
+                if (dateStr === today) sureKeys = [...sureKeys, ...presenceDoneKeys(이력().find(d => d.id === dateStr))];
+            }
+            catch (e) { presenceOk = false; console.warn('[진행 여부] 판정 제외 업무를 못 구해 표시를 뺍니다:', e); }
+        }
         const c = correctPlan(correctInputOf(base, {
             target: dateStr, today, history: 이력(), snapshots: liveCorrectCtx.snapshots,
-            cfg: State.appConfig, excluded: forecastExcludedTasks(), sources
+            cfg: State.appConfig, excluded: forecastExcludedTasks(), sources, sureKeys
         }));
         const noExtraKeys = noExtraKeysOf(sources, inputs.tasks);
-        const ap = correctedInputs(inputs, taskUPH, c, manualKeysOf(dateStr, sources, opts.manualKeys), { noExtraKeys });
+        const ap = correctedInputs(inputs, taskUPH, c, manualKeysOf(dateStr, sources, opts.manualKeys), { noExtraKeys, fullKeys: opts.fullKeys });
         const r1 = simulateOneDay(dateStr, ap.inputs, ap.taskUPH, config);
         if (![r1.rawRequiredFTE, r1.totalHours, r1.elapsedHours].every(Number.isFinite)) return off(NOTE_CALC_FAILED);
         return { ...r1, raw: r0, correction: { applied: true, reserveHours: ap.reserveHours, extra: ap.extra,
-                                               factors: ap.factors, extraP: ap.extraP, zeroed: ap.zeroed, notes: c.notes || [] } };
+                                               factors: ap.factors, extraP: ap.extraP, zeroed: ap.zeroed, notes: c.notes || [],
+                                               presence: presenceOk ? ap.presence : {} } };
     } catch (e) {
         console.warn('[보정 계획] 계산 실패 — 보정 전 계획을 씁니다:', e);
         return off(NOTE_CALC_FAILED);
@@ -3045,6 +3060,73 @@ const extraTaskHoursOf = (r) => Object.values(r?.correction?.applied ? (r.correc
     .reduce((a, h) => a + (Number(h) || 0), 0);
 /** 보정 추가 시간 합(계획 밖 반복 업무 + 돌발 여유) — timeHours 에 들어 있다 */
 const correctionExtraOf = (r) => Number(r?.extraHours) || 0;
+
+// 📐 진행 여부 3단계(2026-11-09) — 표시만 한다. 시간·인원은 이 값 때문에 바뀌지 않는다(js/lib/forecast-correct.js ⑤).
+const PRESENCE_VIEW = {
+    off: { text: '안 할 가능성', cls: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+           tip: '최근 기록으로는 안 할 가능성이 큰 날입니다.' },
+    maybe: { text: '불확실', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+             tip: '할지 말지 반반인 날입니다.' },
+    on: { text: '하는 날', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+          tip: '최근 기록으로는 하는 날입니다.' }
+};
+/** 그 업무 시간이 계획에 어떻게 들어 있는지 — kind 'plan' 은 지난 실적 배율, 그 밖(가끔 하는 업무)은 진행 확률 */
+const PRESENCE_KIND_TIP = {
+    plan: '시간은 하는 것으로 보고 지난 실적 배율을 반영한 값입니다(확률로 줄이지 않았습니다).',
+    prob: '시간은 0 으로 빼지 않고 진행 확률을 반영한 값으로 계산에 들어 있습니다.'
+};
+const presenceKindTip = (kind) => PRESENCE_KIND_TIP[kind === 'plan' ? 'plan' : 'prob'];
+const MAYBE_BASIS_TEXT = {
+    none: '위 숫자에 안 넣음(안 할 때 기준)',
+    prob: '위 숫자에 진행 확률만큼 넣음',
+    plan: '위 숫자에 이미 넣음(지난 실적 배율 반영)'
+};
+const simTaskLabelOf = (key) => {
+    const t = SIM_TASKS.find(x => x.key === key) || activeTimeTasks().find(x => x.key === key);
+    return (t && t.label) || key;
+};
+/** 업무 줄에 붙일 진행 여부 배지 — 판정 대상이 아니면 '' */
+const presenceChip = (r, key) => {
+    const v = r?.correction?.presence?.[key];
+    const view = v && PRESENCE_VIEW[v.state];
+    if (!view) return '';
+    const tip = `${view.tip} ${presenceKindTip(v.kind)} (최근 진행 확률 ${Math.round((Number(v.p) || 0) * 100)}%${Number(v.dayH) > 0 ? ` · 하는 날 평균 ${fmtH(v.dayH)}` : ''})`;
+    return `<span class="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded ${view.cls}" title="${escapeHtml(tip)}">${view.text}</span>`;
+};
+/** 오늘·내일 카드의 한 줄 — '불확실'·'안 할 가능성' 건수. 없으면 '' */
+const presenceCardLine = (r) => {
+    const list = Object.entries(r?.correction?.presence || {});
+    const names = (state) => list.filter(([, v]) => v?.state === state).map(([k]) => simTaskLabelOf(k)).sort();
+    const maybe = names('maybe'), off = names('off');
+    if (maybe.length === 0 && off.length === 0) return '';
+    const parts = [maybe.length ? `불확실 ${maybe.length}건` : '', off.length ? `안 할 가능성 ${off.length}건` : ''].filter(Boolean);
+    const tip = [maybe.length ? `불확실: ${maybe.join(', ')}` : '', off.length ? `안 할 가능성: ${off.join(', ')}` : '',
+                 '표시만 합니다 — 시간과 필요 인원은 이 표시 때문에 바뀌지 않습니다.'].filter(Boolean).join('\n');
+    return `<span class="text-gray-300 dark:text-gray-600">·</span><span class="font-bold text-amber-700 dark:text-amber-300" title="${escapeHtml(tip)}">진행 ${parts.join(' · ')}</span>`;
+};
+/** 진행 판정이 '불확실'인 업무 → '진행 시' 패널 항목. 물량 업무는 qty, 시간형은 hours(qty 없음).
+ *  시간형 hours 는 대안 계산 뒤 presenceAltHours 가 실제 대안 값으로 바꾼다. skip = 이미 패널에 있는 항목 */
+const presenceMaybeTasks = (r, skip = []) => {
+    const seen = new Set(skip.map(m => m.key));
+    return Object.entries(r?.correction?.presence || {})
+        .filter(([k, v]) => v?.state === 'maybe' && !seen.has(k))
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([key, v]) => {
+            const base = { key, label: simTaskLabelOf(key), prob: v.p, presence: true, kind: v.kind };
+            const qty = Number(r.raw?.taskTimes?.[key]?.qty) || 0;
+            return qty > 0 ? { ...base, qty: Math.round(qty) }
+                           : { ...base, hours: Number(r.raw?.timeTaskTimes?.[key]?.hours) || Number(v.dayH) || 0 };
+        })
+        .filter(m => m.qty > 0 || m.hours > 0);
+};
+/** 패널의 시간형 표시 시간을 실제 '진행 시' 계산값으로 맞춘다 */
+const presenceAltHours = (maybeTasks, alt) => {
+    maybeTasks.forEach(m => {
+        if (!m.presence || m.hours == null) return;
+        const h = Number(alt?.timeTaskTimes?.[m.key]?.hours);
+        if (h > 0) m.hours = h;
+    });
+};
 
 const runSimulation = ({ silent = false } = {}) => {
     const dateEl = document.getElementById('sim-target-date');
@@ -3114,14 +3196,18 @@ const runSimulation = ({ silent = false } = {}) => {
         return simulateDayPlan(d, dayInputs, taskUPH, cfg);
     });
 
+    // 진행 판정 '불확실'인 업무도 같은 패널에 넣는다(물량·시간은 이미 입력에 있어 값을 새로 넣지 않는다)
+    if (mode === 'single') maybeTasks.push(...presenceMaybeTasks(results[0], maybeTasks));
+
     // '진행 시' 시나리오 — 애매한 업무에 하는 날 물량을 넣고 한 번 더 계산
     let altResult = null;
     if (maybeTasks.length > 0) {
         const altTasks = { ...baseInputs.tasks };
-        maybeTasks.forEach(m => { altTasks[m.key] = m.qty; });
-        // '진행 시' 물량은 사람이 넣은 값으로 본다 — 보정이 확률로 또 줄이거나(가끔 하는 업무) 계획 밖 시간을 또 더하지 않게
-        altResult = simulateDayPlan(baseDate, { ...baseInputs, tasks: altTasks }, taskUPH, cfg,
-            { manualKeys: [...dirtyKeys, ...maybeTasks.map(m => m.key)] });
+        maybeTasks.forEach(m => { if (!m.presence) altTasks[m.key] = m.qty; });
+        // 빈도형 '진행 시' 물량은 사람이 넣은 값으로 본다 — 보정이 확률로 또 줄이거나(가끔 하는 업무) 계획 밖 시간을 또 더하지 않게.
+        // 진행 판정 항목은 배율을 유지한다(kind 'plan') / fromPlan 은 max(현재 h, 기본 시간) — 현재 예상보다 작아지지 않게
+        altResult = simulateDayPlan(baseDate, { ...baseInputs, tasks: altTasks }, taskUPH, cfg, maybeAltKeys(maybeTasks, dirtyKeys));
+        presenceAltHours(maybeTasks, altResult);
     }
 
     // 업무 예상 인원에서 뺀 관리자 수 — 부족할 때 '관리자 투입 검토' 안내에만 쓴다
@@ -3174,7 +3260,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
             // 소요시간이 긴 업무가 눈에 띄도록 막대를 함께 그린다.
             const w = r.totalHours > 0 ? Math.max(2, Math.round(v.hours / r.totalHours * 100)) : 0;
             return `<tr class="border-t border-gray-100 dark:border-gray-700/60">
-                <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}</td>
+                <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}${presenceChip(r, t.key)}</td>
                 <td class="py-2 px-3 text-right tabular-nums">${v.qty.toLocaleString()}</td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${v.uph > 0 ? v.uph.toFixed(1) : '<span class="text-gray-300 dark:text-gray-600">기준 없음</span>'}</td>
                 <td class="py-2 px-3 text-right">
@@ -3197,7 +3283,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
             const w = r.totalHours > 0 ? Math.max(2, Math.round(v.hours / r.totalHours * 100)) : 0;
             return `<tr class="border-t border-gray-100 dark:border-gray-700/60 bg-indigo-50/30 dark:bg-indigo-900/10">
                 <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}
-                    <span class="ml-1 text-[11px] font-bold text-indigo-500 dark:text-indigo-300">시간형</span></td>
+                    <span class="ml-1 text-[11px] font-bold text-indigo-500 dark:text-indigo-300">시간형</span>${presenceChip(r, t.key)}</td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">${v.minutes}분</td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">담당 ${v.workers}명</td>
                 <td class="py-2 px-3 text-right">
@@ -3256,16 +3342,25 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
         // 🔀 진행이 애매한 업무 — '안 할 때(위 숫자)'와 '할 때'를 나란히 보여준다.
         //    실측: 그날 하는지 맞히는 정확도는 2/3 정도라, 한쪽만 보여주면 어느 쪽이든 틀린 계획이 된다.
         const { maybeTasks = [], altResult = null, excludedCount = 0 } = scenario;
+        const maybeChips = (list) => `<div class="flex flex-wrap gap-1.5">
+                        ${list.map(m => `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/70 dark:bg-gray-800/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800/60">
+                            ${escapeHtml(m.label)} ${m.qty > 0 ? `${m.qty.toLocaleString()}개` : fmtH(m.hours)} · 확률 ${Math.round((m.prob || 0) * 100)}%</span>`).join('')}
+                    </div>`;
         const maybePanel = (maybeTasks.length > 0 && altResult) ? `
                 <div class="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/15 p-3 space-y-2">
+                    ${maybeTasks.some(m => m.presence) ? `
+                    <div class="text-[11px] font-extrabold text-amber-800 dark:text-amber-300">진행할지 애매한 업무 ${maybeTasks.length}건</div>
+                    ${['none', 'prob', 'plan'].map(b => {
+                        const list = maybeTasks.filter(m => maybeBasisOf(m, r.correction?.extra) === b);
+                        return list.length === 0 ? '' : `
+                    <div class="text-[11px] font-bold text-amber-700 dark:text-amber-300/90">${MAYBE_BASIS_TEXT[b]}</div>
+                    ${maybeChips(list)}`;
+                    }).join('')}` : `
                     <div class="text-[11px] font-extrabold text-amber-800 dark:text-amber-300">
                         진행할지 애매한 업무 ${maybeTasks.length}건 — 위 숫자는 ${maybeTasks.some(m => (r.correction?.extra || {})[m.key] > 0)
                             ? '<b>진행 확률만큼만</b> 넣은 기준입니다(보정의 계획 밖 반복 업무)' : '<b>안 할 때</b> 기준입니다'}
                     </div>
-                    <div class="flex flex-wrap gap-1.5">
-                        ${maybeTasks.map(m => `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/70 dark:bg-gray-800/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800/60">
-                            ${escapeHtml(m.label)} ${m.qty.toLocaleString()}개 · 확률 ${Math.round((m.prob || 0) * 100)}%</span>`).join('')}
-                    </div>
+                    ${maybeChips(maybeTasks)}`}
                     <div class="grid grid-cols-3 gap-2 text-center">
                         <div class="rounded-lg bg-white/70 dark:bg-gray-800/60 py-2">
                             <div class="text-[11px] font-bold text-gray-400">진행 시 필요 인원</div>
@@ -3281,7 +3376,9 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                         </div>
                     </div>
                     <div class="text-[11px] text-amber-700/80 dark:text-amber-300/70">
-                        진행하기로 정해졌다면 왼쪽 입력칸의 <b>[하는 날]</b> 값을 눌러 넣고 다시 실행하세요.
+                        ${maybeTasks.every(m => m.presence)
+                            ? '정해졌다면 왼쪽 입력칸의 값을 고치고 다시 실행하세요. 고친 칸은 보정 없이 그대로 계산합니다.'
+                            : '진행하기로 정해졌다면 왼쪽 입력칸의 <b>[하는 날]</b> 값을 눌러 넣고 다시 실행하세요.'}
                     </div>
                 </div>` : '';
 
@@ -3706,13 +3803,16 @@ window.__forecastForDate = async (dateStr) => {
                                   prob: n(info.prob), taskId: taskIdOfKey(t.key) });
             }
         });
+        // 진행 판정 '불확실'인 업무도 화면과 같이 넣는다 — 시간형은 qty 없이 hours(메시지.py 가 presence·kind 로 알아본다)
+        presenceMaybeTasks(r, maybeTasks).forEach(m => { maybeTasks.push({ ...m, prob: n(m.prob), taskId: taskIdOfKey(m.key) }); });
         let maybeAlt = null;
         if (maybeTasks.length > 0) {
             const altTasks = { ...inputs.tasks };
-            maybeTasks.forEach(m => { altTasks[m.key] = m.qty; });
-            // 화면 '진행 시'와 같게 — 넣은 물량은 사람이 정한 값으로 본다(보정이 확률로 또 줄이지 않게)
-            const ar = simulateDayPlan(date, { ...inputs, tasks: altTasks }, taskUPH, State.appConfig,
-                { manualKeys: maybeTasks.map(m => m.key) });
+            maybeTasks.forEach(m => { if (!m.presence) altTasks[m.key] = m.qty; });
+            // 화면 '진행 시'와 같게 — 빈도형 물량은 사람이 정한 값, 진행 판정 항목은 배율 유지(maybeAltKeys)
+            const ar = simulateDayPlan(date, { ...inputs, tasks: altTasks }, taskUPH, State.appConfig, maybeAltKeys(maybeTasks));
+            presenceAltHours(maybeTasks, ar);
+            maybeTasks.forEach(m => { if (m.hours != null) m.hours = n(m.hours); });
             maybeAlt = { rawRequiredFTE: n(ar.rawRequiredFTE), requiredFTE: ar.requiredFTE,
                          elapsedHours: n(ar.elapsedHours, 3), slackHours: n(ar.slackHours, 3) };
         }
@@ -3750,14 +3850,18 @@ window.__forecastForDate = async (dateStr) => {
                     }),
                 reserveHours: n(cor.reserveHours, 3),
                 raw: { requiredFTE: r.raw.requiredFTE, rawRequiredFTE: n(r.raw.rawRequiredFTE),
-                       totalHours: n(r.raw.totalHours, 3), elapsedHours: n(r.raw.elapsedHours, 3) }
+                       totalHours: n(r.raw.totalHours, 3), elapsedHours: n(r.raw.elapsedHours, 3) },
+                presence: Object.entries(cor.presence || {}).sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([key, v]) => ({ key, label: labelOf(key), taskId: taskIdOfKey(key), state: v.state,
+                                          p: v.p == null ? null : n(v.p, 3), dayH: n(v.dayH, 3), kind: v.kind }))
             }
-            : { applied: false, reason: cor.reason || 'off', notes: [], extraTasks: [], reserveHours: 0, raw: null };
+            : { applied: false, reason: cor.reason || 'off', notes: [], extraTasks: [], reserveHours: 0, raw: null, presence: [] };
 
         return {
             // hookVersion 2(2026-10-30): tasks·timeTasks·maybeTasks 에 taskId 추가 — 나머지 칸·모양은 1 과 같다
             // hookVersion 3(2026-11-05): correction 추가(위 주석)
-            ok: true, hookVersion: 3, correction,
+            // hookVersion 4(2026-11-09): 칸 추가만 — correction.presence, maybeTasks 항목의 presence·kind·hours(시간형은 qty 없음). 기존 칸의 값·뜻은 같다
+            ok: true, hookVersion: 4, correction,
             date, todayDate: getTodayDateString(), weekend: !!r.weekend,
             holiday: !!r.holiday, holidayName: r.holidayName || '',
             // ⚠️ factor 는 '그 날짜의 달력 계산'일 뿐이다. 예정물량을 수기로 넣어 두면
@@ -3924,6 +4028,7 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
             ${(r.timeHours - correctionExtraOf(r)) > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="처리량이 없는 담당 업무의 예상 투입시간(실적 평균)">담당 업무 ${fmtHM(r.timeHours - correctionExtraOf(r))}</span>` : ''}
             ${correctionExtraOf(r) > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="보정 계획이 더한 시간 — 계획 밖 반복 업무 ${fmtHM(extraTaskHoursOf(r))} · 돌발 여유 ${fmtHM(r.correction?.reserveHours || 0)}">보정 추가 ${fmtHM(correctionExtraOf(r))}</span>` : ''}
             ${r.correction?.applied && r.raw ? `<span class="text-gray-300 dark:text-gray-600">·</span><span>보정 전 ${r.raw.requiredFTE}명 · ${(r.raw.totalHours || 0).toFixed(1)}시간</span>` : ''}
+            ${presenceCardLine(r)}
             ${china > 0 ? `<span class="w-full"></span><span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">중국제작 입고 ${china.toLocaleString()}개</span>` : ''}
         </div>
     </div>`;
@@ -4369,8 +4474,10 @@ const setupSimulationListeners = () => {
         if (btn) { btn.disabled = true; btn.textContent = '확정 중…'; }
         try {
             const snapshot = buildForecastSnapshot(dateStr);           // 화면 값은 기다리기 전에 읽는다
+            const dirtyKeys = [...simDirtyQty, ...simDirtyTime];       // 얼리는 값과 같은 시점의 '고친 칸' — 진행 여부를 판정하지 않는다
             const correctCtx = await fetchCorrectSnapCtx(dateStr);   // 보정 계획(비교용)에 쓸 지난 스냅샷 — 못 읽어도 확정은 그대로
-            await saveForecastSnapshot(dateStr, attachCorrected(snapshot, dateStr, correctCtx, () => sourcesOf(dateStr, 이력())));
+            await saveForecastSnapshot(dateStr, attachCorrected(snapshot, dateStr, correctCtx, () => sourcesOf(dateStr, 이력()),
+                () => [...sureKeysOf(dateStr, 이력()), ...dirtyKeys]));
             forgetTodayStatus();
             accuracySnapshots = null;              // 다음에 정확도 화면을 열 때 다시 읽는다
             bumpCorrectGen();                      // 보정 사본을 읽는 중이었다면 그 결과는 버린다(세대 번호)
@@ -5090,10 +5197,22 @@ const sourcesOf = (dateStr, data) => {
     return out;
 };
 
-/** 스냅샷에 corrected·correctedNotes 를 붙인다. 무슨 일이 있어도 던지지 않는다.
+/** 진행 여부를 판정하지 않을 업무 — 규칙은 js/lib/forecast-correct-apply.js presenceSureKeys */
+const sureKeysOf = (dateStr, data) => presenceSureKeys({
+    simTasks: SIM_TASKS,
+    timeTasks: activeTimeTasks(),
+    holiday: isHolidayDate(dateStr),
+    depsOf: timeTaskDeps,
+    isLocRec: (key) => isT(key, LOCREC_TASK),
+    probOf: (key) => cadenceValueFor(data, key, dateStr)?.prob,
+    isPlannedTime: (t) => autoTimeValueFor(dateStr, t, data)?.source === 'planned-time'
+});
+
+/** 스냅샷에 corrected·correctedNotes·sources 를 붙인다. 무슨 일이 있어도 던지지 않는다.
  *  correctionOn(2026-11-05) = 얼릴 때 화면 계획에 보정이 켜져 있었나 — 저장이 merge 라 늘 칸으로 쓴다.
+ *  진행 여부(corrected.byTask 의 state)는 표시 스위치와 무관하게 얼린다.
  *  기본 칸(tasks·totalHours·requiredFTE …)은 여전히 보정 전 계획이다(buildAutoForecastSnapshot·buildForecastSnapshot). */
-const attachCorrected = (snapshot, dateStr, correctCtx, getSources) => {
+const attachCorrected = (snapshot, dateStr, correctCtx, getSources, getSureKeys) => {
     if (!snapshot) return snapshot;
     const correctionOn = isForecastCorrectionOn();
     try {
@@ -5106,11 +5225,12 @@ const attachCorrected = (snapshot, dateStr, correctCtx, getSources) => {
             cfg: State.appConfig,
             excluded: forecastExcludedTasks(),
             getSources,
+            getSureKeys,
             onError: (e) => console.warn('[보정 계획] 계산 실패 — 기본 계획만 얼립니다:', e)
         }), correctionOn };
     } catch (e) {
         console.warn('[보정 계획] 계산 실패 — 기본 계획만 얼립니다:', e);
-        return { ...snapshot, corrected: null, correctedNotes: [NOTE_CALC_FAILED], correctionOn };
+        return { ...snapshot, corrected: null, correctedNotes: [NOTE_CALC_FAILED], sources: null, correctionOn };
     }
 };
 
@@ -5264,7 +5384,8 @@ const ensureTodayForecastSnapshot = async () => {
         // 보정 계획(비교용) — 찍을 스냅샷이 있을 때만 지난 스냅샷을 읽는다. 못 읽어도 기본 스냅샷은 그대로 얼린다.
         // 출처는 계획값과 같은 자료(오늘 실적을 비운 기록)로 구한다
         const correctCtx = await fetchCorrectSnapCtx(today);
-        const snapshot = attachCorrected(base, today, correctCtx, () => 오늘실적_없이(() => sourcesOf(today, 이력())));
+        const snapshot = attachCorrected(base, today, correctCtx, () => 오늘실적_없이(() => sourcesOf(today, 이력())),
+                                         () => 오늘실적_없이(() => sureKeysOf(today, 이력())));
 
         const res = await saveForecastSnapshotIfAbsent(today, snapshot);
         forgetTodayStatus();

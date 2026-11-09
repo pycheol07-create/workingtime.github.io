@@ -16,9 +16,9 @@
             document.documentElement.classList.add('dark');
         }
     </script>
-    <link rel="stylesheet" href="css/suit.css?v=202611052207">
-    <link rel="stylesheet" href="css/admin-d.css?v=202611052207">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611052207">
+    <link rel="stylesheet" href="css/suit.css?v=202611090952">
+    <link rel="stylesheet" href="css/admin-d.css?v=202611090952">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611090952">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -293,6 +293,14 @@
                                         <span class="block text-xs text-gray-500 dark:text-gray-400 mt-1">지난 실적으로 업무별 편향·계획 밖 반복 업무·돌발 여유를 보정한 숫자를 업무 예상·인력·운영 계획·슬랙 알림에 씁니다. 끄면 보정 전 계획으로 돌아갑니다(얼려 두는 계획 비교는 그대로).</span>
                                     </span>
                                 </label>
+                                <!-- 진행 여부 3단계 표시(2026-11-09) — mainConfig.forecastCorrection.presence. 칸이 없으면 켬. 숫자에는 영향 없음 -->
+                                <label class="flex items-start gap-2 cursor-pointer mt-3">
+                                    <input type="checkbox" id="forecast-presence-on" class="w-4 h-4 mt-0.5 shrink-0">
+                                    <span>
+                                        <span class="block text-sm font-bold text-gray-600 dark:text-gray-400">업무 예상 진행 여부 표시</span>
+                                        <span class="block text-xs text-gray-500 dark:text-gray-400 mt-1">업무마다 '하는 날·불확실·안 할 가능성'을 표시합니다. 끄면 표시만 사라지고 시간·필요 인원은 그대로입니다.</span>
+                                    </span>
+                                </label>
                             </div>
                         </div>
                     </div>
@@ -363,12 +371,12 @@
         </div>
     </div>
 
-    <script type="module" src="js/admin.js?v=202611052207"></script>
-    <script type="module" src="js/admin-automation.js?v=202611052207"></script>
+    <script type="module" src="js/admin.js?v=202611090952"></script>
+    <script type="module" src="js/admin-automation.js?v=202611090952"></script>
 
     <script type="module">
         // 보던 탭을 주소 뒤 해시(#tab=team …)에 기억한다 — 새로고침·Ctrl+K 빠른 이동(UI 1단계 1c, js/hash-state.js)
-        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202611052207';
+        import { readHash, writeHash, onHashNav } from './js/hash-state.js?v=202611090952';
 
         // '당일 데이터 초기화' 버튼을 지우면서 saveDayDataToHistory import 도 뺐다.
         // 그 버튼은 admin.html 에서 State.db 가 채워지지 않아(app.js 만 setDb 를 부른다)
@@ -475,9 +483,9 @@
         });
     })();
     </script>
-    <script src="js/connection-banner.js?v=202611052207"></script>
-    <script src="js/modal-esc.js?v=202611052207"></script>
-    <script type="module" src="js/modal-drag.js?v=202611052207"></script>
-    <script type="module" src="js/app-shell.js?v=202611052207"></script>
+    <script src="js/connection-banner.js?v=202611090952"></script>
+    <script src="js/modal-esc.js?v=202611090952"></script>
+    <script type="module" src="js/modal-drag.js?v=202611090952"></script>
+    <script type="module" src="js/app-shell.js?v=202611090952"></script>
 </body>
 </html>
