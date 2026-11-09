@@ -1,13 +1,14 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202611091248';
-import * as State from './state.js?v=202611091248';
-import { leaveTypeLabel } from './state.js?v=202611091248';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611091248';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611091248';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611091248';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611091248';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611091248';
-import { TASK, tName, isT } from './task-names.js?v=202611091248';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202611091340';
+import * as State from './state.js?v=202611091340';
+import { leaveTypeLabel } from './state.js?v=202611091340';
+import { leaveNthLabel } from './ui-modals.js?v=202611091340';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611091340';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611091340';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611091340';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611091340';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611091340';
+import { TASK, tName, isT } from './task-names.js?v=202611091340';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -805,6 +806,14 @@ export const renderLeaveScheduleWidget = () => {
         return 'd-pill-mute';   // 휴직·기타
     };
 
+    // 연차는 몇 번째인지 함께 보인다(내 연차관리와 같은 계산 — leaveNthLabel)
+    const typeText = (m, g) => {
+        const label = leaveTypeLabel(m);
+        if (m.type !== '연차') return label;
+        const nth = leaveNthLabel(m.member, g.start, g.end);
+        return nth ? `${label} ${nth}번째` : label;
+    };
+
     // 같은 시작일(+기간)은 한 줄에 묶어서 표시 — 날짜를 근태마다 반복하지 않는다.
     const groups = [];
     const byKey = new Map();
@@ -827,7 +836,7 @@ export const renderLeaveScheduleWidget = () => {
         const chips = g.members.map(m => `
             <span class="flex items-center gap-1.5 w-full min-h-[18px]">
                 <span class="text-xs font-semibold t-1 truncate" title="${esc(m.member)}">${esc(m.member)}</span>
-                <span class="text-[11px] shrink-0 ml-auto ${tone(m.type)}" title="${esc(leaveTypeLabel(m))}">${esc(leaveTypeLabel(m))}</span>
+                <span class="text-[11px] shrink-0 ml-auto ${tone(m.type)}" title="${esc(typeText(m, g))}">${esc(typeText(m, g))}</span>
             </span>`).join('');
         // 날짜 그룹 사이를 가로선으로 나눈다(마지막 줄은 제외).
         const divider = (i < groups.length - 1) ? ' border-b d-line' : '';

@@ -1,19 +1,19 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611091248';
-import * as State from './state.js?v=202611091248';
-import { isPersistentLeaveType } from './state.js?v=202611091248';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611091248';
-import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202611091248';
-import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202611091248';
-import { updateLeaveSchedule } from './config.js?v=202611091248';
-import { removeWhere, removeRecord } from './lib/leave-ops.js?v=202611091248';
-import { switchHistoryView } from './app-history-logic.js?v=202611091248';
-import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202611091248';
-import { waitQuantitySave } from './listeners-form-quantity.js?v=202611091248';
-import { saveStateToFirestore } from './app-data.js?v=202611091248';
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202611091248';
+import * as DOM from './dom-elements.js?v=202611091340';
+import * as State from './state.js?v=202611091340';
+import { isPersistentLeaveType } from './state.js?v=202611091340';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611091340';
+import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202611091340';
+import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202611091340';
+import { updateLeaveSchedule } from './config.js?v=202611091340';
+import { removeWhere, removeRecord } from './lib/leave-ops.js?v=202611091340';
+import { switchHistoryView } from './app-history-logic.js?v=202611091340';
+import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202611091340';
+import { waitQuantitySave } from './listeners-form-quantity.js?v=202611091340';
+import { saveStateToFirestore } from './app-data.js?v=202611091340';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202611091340';
 
 import {
     doc, deleteDoc, writeBatch, collection, updateDoc, getDoc, getDocs, setDoc, query
@@ -355,7 +355,7 @@ export function setupConfirmationModalListeners() {
                             r.startTime < dailyEntry.startTime
                         );
                         if (stale.length > 0) {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202611091248');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202611091340');
                             const r = await forceEndMemberWork(memberName, dailyEntry.startTime);
                             if (r.ended > 0) {
                                 console.warn(`[외출 복귀 보호막] ${memberName}: 외출 전부터 진행 중이던 ${r.ended}건을 ${dailyEntry.startTime}로 정리`, r.summaries);

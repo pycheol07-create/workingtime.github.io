@@ -1,9 +1,9 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611091248';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611091340';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202611091248';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611091248';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202611091340';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611091340';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -48,7 +48,7 @@ const calculateMonthsWorked = (joinDateStr) => {
 };
 
 // 연차 사용 내역 계산 & 자동 병합 로직
-const calculateLeaveUsage = (memberName) => {
+export const calculateLeaveUsage = (memberName) => {
     const leaveSettings = (appConfig.memberLeaveSettings && appConfig.memberLeaveSettings[memberName]) || { totalLeave: 15, joinDate: '-', leaveResetDate: '', expirationDate: '' };
     let totalLeave = leaveSettings.totalLeave;
     const joinDate = leaveSettings.joinDate;
@@ -148,6 +148,16 @@ const calculateLeaveUsage = (memberName) => {
         isAutoCalculated: isAutoCalculated, 
         history: finalHistory.reverse() 
     };
+};
+
+/** 대시보드 근태 예정 — 그 연차(start~end)가 몇 번째인지 '3' 또는 '3~6'(내 연차관리의 '몇 번째'와 같은 계산). 못 찾으면 ''.
+ *  붙은 연차는 calculateLeaveUsage 가 한 묶음으로 합치므로, 묶음 안의 위치만큼 더한다. */
+export const leaveNthLabel = (memberName, start, end) => {
+    const hit = calculateLeaveUsage(memberName).history.find(h => start >= h.startDate && start <= h.endDate);
+    const days = calculateWorkingDays(start, end || start);
+    if (!hit || !days) return '';
+    const n = parseInt(hit.nth, 10) + calculateWorkingDays(hit.startDate, start) - calculateWorkingDays(start, start);
+    return days > 1 ? `${n}~${n + days - 1}` : `${n}`;
 };
 
 // doneTasks(선택): 오늘 한 업무 — 정렬에만 쓴다. 칸 순서 = 누락 → 오늘 한 업무 → 나머지(각 묶음 안은 원래 순서).
