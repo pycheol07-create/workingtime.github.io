@@ -9,7 +9,7 @@
 //     기간 총 투입 < minMinutes(60분) 또는 진행 일수 < minDays(2) → '표본 부족'(thin).
 //   · 변경 = 새 사람이 hold 기간 연속 1위(여럿·표본 부족 기간은 건너뛰고 잇는다). 시점 = 새 사람 첫 기간 시작일.
 //   · 기록 1건은 CAP_MINUTES(720분)까지만 센다 — '종료'를 안 누른 기록이 하루 끝까지 잡혀 비중·속도를 부풀린다.
-import { taskUph } from '../task-throughput.js?v=202611091159';
+import { taskUph } from '../task-throughput.js?v=202611091200';
 
 export const CAP_MINUTES = 720;
 export const SOLO_SHARE = 0.8;      // 본인 UPH: 그날 그 업무 시간의 80% 이상을 맡은 날(단독일)만
