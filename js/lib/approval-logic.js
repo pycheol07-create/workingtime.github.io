@@ -17,7 +17,7 @@
 //   옛 문서(approverName·approverEmail 한 명, approverStamp)는 approversOf·stampsOf 로 1명 결재선처럼 읽는다.
 //   옛 문서의 결재는 옛 모양(approverStamp)으로 쓰고, 작성자가 고치거나 다시 내면 새 모양(approvers…)으로 바뀐다.
 
-import { positionOf } from './member-title.js?v=202611090952';
+import { positionOf } from './member-title.js?v=202611091002';
 
 export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select', 'file'];
 export const BOX_ROLES = ['author', 'approver', 'blank'];

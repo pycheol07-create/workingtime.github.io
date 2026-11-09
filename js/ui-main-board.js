@@ -1,13 +1,13 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202611090952';
-import * as State from './state.js?v=202611090952';
-import { leaveTypeLabel } from './state.js?v=202611090952';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611090952';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611090952';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611090952';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611090952';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611090952';
-import { TASK, tName, isT } from './task-names.js?v=202611090952';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202611091002';
+import * as State from './state.js?v=202611091002';
+import { leaveTypeLabel } from './state.js?v=202611091002';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611091002';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611091002';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611091002';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611091002';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611091002';
+import { TASK, tName, isT } from './task-names.js?v=202611091002';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -832,7 +832,7 @@ export const renderLeaveScheduleWidget = () => {
         // 날짜 그룹 사이를 가로선으로 나눈다(마지막 줄은 제외).
         const divider = (i < groups.length - 1) ? ' border-b d-line' : '';
         return `<div class="flex items-start gap-2 px-2 py-2${divider} ${isToday ? 'd-row-today' : 'd-row-hover'}">
-            <span class="text-[11px] font-semibold tabular-nums whitespace-nowrap ${isToday ? 't-accent' : 't-2'} w-[66px] shrink-0 pt-1">${esc(dLabel(g.start, g.end))}</span>
+            <span class="text-[11px] font-semibold tabular-nums whitespace-nowrap ${isToday ? 't-accent' : 't-2'} w-[66px] lg:w-[84px] shrink-0 pt-1">${esc(dLabel(g.start, g.end))}</span>
             <span class="flex-1 min-w-0 flex flex-col gap-1">${chips}</span>
         </div>`;
     }).join('');

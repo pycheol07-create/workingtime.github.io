@@ -5,7 +5,7 @@
 //   금액·이름 없음.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-season.test.js
 
-import { SEASON_BUNDLES, GIP_INDEX, GIP_OBS, GIP_BAND, GIP_SOURCE, ASSUMED_INDEX, BUNDLE_SOURCE, SEASON_FRAME } from './plan-season-catalog.js?v=202611090952';
+import { SEASON_BUNDLES, GIP_INDEX, GIP_OBS, GIP_BAND, GIP_SOURCE, ASSUMED_INDEX, BUNDLE_SOURCE, SEASON_FRAME } from './plan-season-catalog.js?v=202611091002';
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const r2 = (v) => Math.round(v * 100) / 100;
