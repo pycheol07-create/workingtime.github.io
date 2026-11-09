@@ -5,10 +5,10 @@
 //   [과제로 만들기](자동화·데이터 관리 — 관리자, D4)는 c.makeBtn(key, 이름 없는 초안). 4장에 목표 연결 편집(관리자)·실적 줄, 11장에 그 해 과제 목록.
 //   금액은 9장(관리자)만, 이름 없음. ⚠️ role=dialog·data-act 금지.
 
-import { esc, n0, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611091340';
-import { YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=202611091340';
-import { AUTO_STATUS_LABEL } from './lib/plan-auto-catalog.js?v=202611091340';
-import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=202611091340';
+import { esc, n0, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611091342';
+import { YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=202611091342';
+import { AUTO_STATUS_LABEL } from './lib/plan-auto-catalog.js?v=202611091342';
+import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=202611091342';
 
 const H = (min) => (ok(min) ? n1(min / 60) : '—');
 const SRC_CLS = { measured: 'opp-src-m', gip: 'opp-src-g', assumed: 'opp-src-a' };
