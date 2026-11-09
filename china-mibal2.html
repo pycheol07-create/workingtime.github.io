@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611091042"></script>
+    <script src="js/theme-boot.js?v=202611091115"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 부족수량 관리(신규·시험)</title>
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다.
          스캐너 연동(시험)·위치지정(시험)은 읽기 전용 — 쓰기 버튼은 disabled(js/china-mibal2-scan.js, js/china-mibal2-loc.js, tests/mibal2-readonly.test.js). -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611091042">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611091042">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611091042">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202611091042">
+    <link rel="stylesheet" href="css/suit.css?v=202611091115">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611091115">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611091115">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202611091115">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -40,14 +40,14 @@
         .status-err { font-size: 11.5px; color: var(--c-risk-text); font-weight: 600; }
         .refresh-msg { color: var(--c-accent-deep); font-weight: 600; }
 
-        .date-bar { margin: 0 14px 7px 14px; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 7px 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: relative; }
+        .date-bar { margin: 0; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 3px 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: relative; }
         .date-bar-label { font-size: 13px; font-weight: 600; color: var(--c-text-2); white-space: nowrap; }
         .btn-date-dropdown { padding: 0 14px; min-height: 32px; border: 1px solid var(--c-line-strong); background: var(--c-surface); border-radius: var(--r-pill); cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 500; color: var(--c-text); min-width: 140px; }
         .btn-date-dropdown:hover { background: var(--c-surface-2); }
         .date-dropdown-popup { display: none; position: absolute; top: 100%; left: 0; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-inner); box-shadow: var(--sh-pop); z-index: 10002; margin-top: 5px; width: 340px; max-width: 92vw; max-height: 400px; overflow-y: auto; padding: 10px; }
         .date-item { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: 12px; cursor: pointer; border-radius: var(--r-cell); }
         .date-item:hover { background: var(--c-surface-2); }
-        .selected-date-tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 1; min-width: 120px; font-size: 12px; color: var(--c-text-3); }
+        .selected-date-tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-width: 0; font-size: 12px; color: var(--c-text-3); }
         .date-tag { display: inline-flex; align-items: center; gap: 5px; background: var(--c-accent-soft); color: var(--c-accent-deep); padding: 1px 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600; border: 0; }
         .date-src { font-size: 11px; color: var(--c-text-3); white-space: nowrap; }
         .date-src.t-warn { color: var(--c-warn-text); font-weight: 700; } /* 출고일이 기존 계산기와 다름 */
@@ -63,6 +63,15 @@
         .tool-bar { margin: 0 14px 7px 14px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 12.5px; color: var(--c-text-3); }
         .src-note { margin: 0 14px 7px 14px; font-size: 11.5px; color: var(--c-text-2); background: var(--c-surface-2); border: 1px solid var(--c-line); border-radius: var(--r-sm); padding: 6px 10px; line-height: 1.6; }
         .src-note b { color: var(--c-text); }
+
+        /* 스캐너 연동 펼침 메뉴 — 표 도구 줄 오른쪽 끝. 아래 작은 스크립트가 .open 을 붙인다 */
+        .pop { position: relative; margin-left: auto; }
+        .pop-panel { display: none !important; position: absolute; top: calc(100% + 5px); right: 0; z-index: 30; width: min(620px, 92vw); box-sizing: border-box; margin: 0 !important; background: var(--c-surface); box-shadow: var(--sh-pop); }
+        .pop.open .pop-panel { display: flex !important; }
+        /* 정식 운영 — [스캐너에 반영]이 켜지면 접지 않고 표 도구 아래 한 줄로 늘 보인다(매일 쓰는 버튼) */
+        .pop:has(#btn-scan-off-sync:not(:disabled)) { flex-basis: 100%; margin-left: 0; }
+        .pop:has(#btn-scan-off-sync:not(:disabled)) > .pop-toggle { display: none; }
+        .pop:has(#btn-scan-off-sync:not(:disabled)) > .pop-panel { display: flex !important; position: static; width: auto; box-shadow: none; }
 
         /* 표 — 모바일 폭에서도 가로 스크롤 */
         .list-container { overflow: auto; background: var(--c-surface); margin: 0 14px 14px 14px; border-radius: var(--r-card); border: 1px solid var(--c-line); max-height: 72vh; -webkit-overflow-scrolling: touch; }
@@ -216,6 +225,23 @@
 
     <div class="view-bar">
         <span class="view-seg"><button type="button" id="btn-view-live" class="view-btn on">부족수량(오늘)</button><button type="button" id="btn-view-loc" class="view-btn">위치지정(시험)</button></span>
+        <div class="date-bar live-only">
+            <label class="date-bar-label">출고일<span class="live-only"> 선택</span>:</label>
+            <div class="live-only" style="position: relative;">
+                <button class="btn-date-dropdown" id="btn-date-dropdown">▼ 출고일 선택</button>
+                <div class="date-dropdown-popup" id="date-dropdown-popup">
+                    <div style="display: flex; gap: 5px; padding-bottom: 8px; border-bottom: 1px solid var(--c-line-soft); margin-bottom: 8px; flex-wrap: wrap;">
+                        <button id="btn-date-all" class="d-btn d-btn-sm">전체선택</button>
+                        <button id="btn-date-none" class="d-btn d-btn-sm">전체해제</button>
+                        <button id="btn-date-legacy" title="기존 미발계산기가 지금 고른 출고일(ChinaStockGoods/CONFIG.savedDatesMibal)을 따릅니다" class="d-btn d-btn-sm">기존 계산기 선택 따르기</button>
+                    </div>
+                    <div id="date-checklist-container"></div>
+                </div>
+            </div>
+            <div class="selected-date-tags" id="date-tags-container">선택된 출고일 없음</div>
+            <span id="date-src" class="date-src"></span>
+            <button id="btn-date-legacy-out" class="d-btn d-btn-sm live-only" hidden>기존 계산기 선택 따르기</button>
+        </div>
     </div>
 
     <!-- 위치지정 (시험 — 보기·엑셀 받기만): js/china-mibal2-loc.js. 꺼진 단추 3개·체크박스는 기존 화면의 쓰기 기능 자리 — 이벤트를 걸지 않는다 -->
@@ -246,24 +272,6 @@
         </div>
     </div>
 
-    <div class="date-bar live-only">
-        <label class="date-bar-label">출고일<span class="live-only"> 선택</span>:</label>
-        <div class="live-only" style="position: relative;">
-            <button class="btn-date-dropdown" id="btn-date-dropdown">▼ 출고일 선택</button>
-            <div class="date-dropdown-popup" id="date-dropdown-popup">
-                <div style="display: flex; gap: 5px; padding-bottom: 8px; border-bottom: 1px solid var(--c-line-soft); margin-bottom: 8px; flex-wrap: wrap;">
-                    <button id="btn-date-all" class="d-btn d-btn-sm">전체선택</button>
-                    <button id="btn-date-none" class="d-btn d-btn-sm">전체해제</button>
-                    <button id="btn-date-legacy" title="기존 미발계산기가 지금 고른 출고일(ChinaStockGoods/CONFIG.savedDatesMibal)을 따릅니다" class="d-btn d-btn-sm">기존 계산기 선택 따르기</button>
-                </div>
-                <div id="date-checklist-container"></div>
-            </div>
-        </div>
-        <div class="selected-date-tags" id="date-tags-container">선택된 출고일 없음</div>
-        <span id="date-src" class="date-src"></span>
-        <button id="btn-date-legacy-out" class="d-btn d-btn-sm live-only" hidden>기존 계산기 선택 따르기</button>
-    </div>
-
     <div class="summary-bar live-only">
         <div class="summary-card highlight"><span class="label">SKU</span><span class="value" id="sum-sku">0</span></div>
         <div class="summary-card highlight"><span class="label">도착 합</span><span class="value" id="sum-arrival">0</span></div>
@@ -290,11 +298,13 @@
         <button id="btn-excel" class="d-btn d-btn-sm" title="지금 보이는 행(검색·필터·정렬 반영)을 엑셀로 받습니다">엑셀 받기</button>
         <span id="row-count" class="t-3"></span>
         <span class="t-3">· 행을 누르면 계산 근거(전체 칸)가 펼쳐집니다 · 열 제목을 누르면 정렬</span>
-    </div>
 
     <!-- 스캐너 연동 (시험 — 읽기 전용): 켜진 버튼 3개는 읽기·내 PC 엑셀만. 꺼진 버튼 5개는 기존 화면의 쓰기 기능 자리 — 이벤트를 걸지 않는다.
-         입고 오차 통계·기록은 2026-10-28 에 뺐다가 같은 날 다시 넣음(사용자 결정: 기능은 다 넣고 쓰기는 꺼 둠) -->
-    <div class="tool-bar scan-bar live-only">
+         입고 오차 통계·기록은 2026-10-28 에 뺐다가 같은 날 다시 넣음(사용자 결정: 기능은 다 넣고 쓰기는 꺼 둠)
+         정식 운영 모듈은 이 안에 버튼을 더하고, [스캐너에 반영]이 켜지면 CSS(.pop:has)가 접지 않고 펼쳐 둔다 -->
+    <div class="pop">
+    <button type="button" class="d-btn d-btn-sm pop-toggle" aria-expanded="false">스캐너 연동 ▾</button>
+    <div class="tool-bar scan-bar pop-panel live-only">
         <span class="scan-title">스캐너 연동 (시험 — 읽기 전용)</span>
         <button type="button" id="btn-scan-stats" class="d-btn d-btn-sm" title="기존 미발계산기가 남긴 입고 오차 기록(ChinaStockGoods_InboundDiff)을 읽어 통계를 봅니다">입고 오차 통계</button>
         <button type="button" id="btn-scan-floor2" class="d-btn d-btn-sm" title="스캐너가 쌓은 비축창고 입고분(FLOOR2_STOCK)과 앱 지정 위치를 봅니다">비축창고 보기</button>
@@ -306,6 +316,8 @@
         <button type="button" id="btn-scan-off-reset" class="d-btn d-btn-sm" disabled title="시험 모드 — 꺼짐(운영 스캐너 보호)">미발 초기화</button>
         <button type="button" id="btn-scan-off-diffrec" class="d-btn d-btn-sm" disabled title="시험 모드 — 꺼짐(운영 스캐너 보호)">입고 오차 기록</button>
         <span class="t-3">· 꺼진 버튼은 기존 미발계산기에서 쓰세요</span>
+    </div>
+    </div>
     </div>
 
     <div id="src-note" class="src-note live-only"></div>
@@ -412,12 +424,27 @@
     </div>
 
     <div id="toast"></div>
+    <script>
+        // 스캐너 연동 펼침 메뉴 — 바깥을 누르거나 안의 버튼을 누르면 닫힌다
+        document.addEventListener('click', (e) => {
+            const toggle = e.target.closest('.pop-toggle');
+            const target = toggle ? toggle.parentElement : null;
+            const willOpen = !!target && !target.classList.contains('open');
+            document.querySelectorAll('.pop.open').forEach((p) => {
+                if (p === target || !p.contains(e.target) || e.target.closest('.pop-panel button')) {
+                    p.classList.remove('open');
+                    p.querySelector('.pop-toggle').setAttribute('aria-expanded', 'false');
+                }
+            });
+            if (willOpen) { target.classList.add('open'); toggle.setAttribute('aria-expanded', 'true'); }
+        });
+    </script>
     <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202611091042"></script>
-    <script type="module" src="js/china-mibal2.js?v=202611091042"></script>
-    <script type="module" src="js/page-gate.js?v=202611091042" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202611091042"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202611091115"></script>
+    <script type="module" src="js/china-mibal2.js?v=202611091115"></script>
+    <script type="module" src="js/page-gate.js?v=202611091115" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202611091115"></script>
 </body>
 </html>

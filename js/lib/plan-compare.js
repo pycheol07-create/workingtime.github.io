@@ -132,3 +132,44 @@ export function planVsActual(confirmed, staffDays) {
         }
     };
 }
+
+// 월간 신뢰도에 넣을 '지난 확정본 대비 필요 인원 오차' 기준 — 최근 끝난 6개월, 기록일 max(5, 계획일 × 0.5)
+export const MONTH_ERR_RULES = Object.freeze({ months: 6, minDays: 5, minRatio: 0.5 });
+
+/** today 가 속한 달 바로 앞 n 달(YYYY-MM, 오래된 달부터) */
+function endedMonths(today, n) {
+    const m = /^(\d{4})-(\d{2})/.exec(String(today || ''));
+    if (!m) return [];
+    const base = Number(m[1]) * 12 + Number(m[2]) - 1;
+    return Array.from({ length: n }, (_, i) => {
+        const t = base - n + i;
+        return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
+    });
+}
+
+/**
+ * 지난 월간 확정본들의 필요 인원 오차(절댓값 %) — plan-confidence monthConfidence 의 confirmedErrs.
+ * 그 달이 시작하기 전에 확정한 계획만 센다(사후 확정은 오차가 작게 나오므로 제외, 확정 시각이 없어도 제외).
+ * @param {object}   docs        { 'YYYY-MM': 확정본|null }
+ * @param {Function} staffDaysOf (ym) → 그 달 staffDays. 무거운 계산이라 조건을 통과한 달만 부른다.
+ * @returns {number[]} 오래된 달부터
+ */
+export function monthErrsOf(docs, staffDaysOf, { today } = {}) {
+    const R = MONTH_ERR_RULES;
+    const errs = [];
+    endedMonths(today, R.months).forEach(ym => {
+        const doc = docs && docs[ym];
+        if (!doc || doc.horizon !== 'month' || doc.periodKey !== ym) return;
+        const at = doc.confirmedAt && typeof doc.confirmedAt.toMillis === 'function' ? doc.confirmedAt.toMillis() : null;
+        const [y, mo] = ym.split('-').map(Number);
+        if (at == null || !(at < new Date(y, mo - 1, 1).getTime())) return;
+        const planDays = Array.isArray(doc.days) ? doc.days.length : 0;
+        const need = Math.max(R.minDays, Math.ceil(planDays * R.minRatio));
+        if (planDays < need) return;   // 기록이 다 있어도 모자란다
+        const { rows, summary } = planVsActual(doc, staffDaysOf(ym));
+        if (rows.filter(r => r.recorded && r.reqErrPct != null).length < need) return;   // 계획 필요 인원 0인 날은 오차가 없어 안 센다
+        const e = fin(summary.reqAbsErrPct);
+        if (e != null) errs.push(e);
+    });
+    return errs;
+}
