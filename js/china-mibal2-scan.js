@@ -14,14 +14,15 @@
 //   · ChinaStockGoods_ScanDB 1회 읽기 — [스캐너 값 미리보기 엑셀]을 누를 때(비교용)
 //   표의 입고확인·차이 열(2026-10-27)과 입고 오차 통계(2026-10-28)는 뺐다가 2026-10-28 다시 넣었다(사용자 결정: 기능은 다 넣고 쓰기는 꺼 둠 —
 //   [입고 오차 기록]은 꺼진 단추)
-// 엑셀은 내 PC 로 내려받기만 한다(신규 화면과 같은 XLSX.writeFile .xlsx). 파일 이름은 '시험_' 으로 시작(단독 운영이면 뺌) — 이지어드민 업로드용이 아니다.
+// 엑셀은 내 PC 로 내려받기만 한다(.xls biff8 — js/lib/xls-limits.js writeXls, 2026-11-10 전에는 .xlsx). 파일 이름은 '시험_' 으로 시작(단독 운영이면 뺌) — 이지어드민 업로드용이 아니다.
 import { getDocs, onSnapshot, doc, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202611101022';
-import { inboundSplitOf } from './lib/inbound-fix.js?v=202611101022';
-import { liveScanLogOf, scanLogInputOf } from './lib/mibal2-scanlog.js?v=202611101022';
-import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202611101022';
-import { locAssignFullOf } from './lib/loc-mode.js?v=202611101022';
-import { friendlyFirebaseError } from './utils.js?v=202611101022';
+import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202611101235';
+import { inboundSplitOf } from './lib/inbound-fix.js?v=202611101235';
+import { liveScanLogOf, scanLogInputOf } from './lib/mibal2-scanlog.js?v=202611101235';
+import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202611101235';
+import { locAssignFullOf } from './lib/loc-mode.js?v=202611101235';
+import { friendlyFirebaseError } from './utils.js?v=202611101235';
+import { writeXls } from './lib/xls-limits.js?v=202611101235';
 
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const INBOUND_COLL = CHINA_COLLECTION + '_InboundHistory';
@@ -192,9 +193,8 @@ export function setupScanTools(opts) {
         const o = idfOpts();
         const aoa = statsAoa(idfTab, idfData(idfTab, idfRecs, o));
         if (aoa.length <= 1) { showToast('내려받을 데이터가 없습니다'); return; }
-        const wb = X.utils.book_new();
-        X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(aoa), 'worksheet');
-        X.writeFile(wb, `${live ? '' : '시험_'}입고오차_${(STATS_TAB_LABEL[idfTab] || idfTab).replace(/\s+/g, '')}_${o.from || '처음'}_${o.to || '끝'}.xlsx`);
+        const bad = writeXls(X, [{ name: 'worksheet', aoa }], `${live ? '' : '시험_'}입고오차_${(STATS_TAB_LABEL[idfTab] || idfTab).replace(/\s+/g, '')}_${o.from || '처음'}_${o.to || '끝'}.xls`);
+        if (bad) alert(bad);
     }
     async function openStats() {
         if (!$('idf-from').value) $('idf-from').value = shiftIso(todayISO(), -90);   // 기본 90일
@@ -244,9 +244,8 @@ export function setupScanTools(opts) {
         const rows = floor2Rows();
         if (!rows.length) { showToast('비축창고로 입고된 데이터가 없습니다'); return; }
         const aoa = [['상품코드', '상품명', '작업수량', '앱 지정 위치', '위치 구분'], ...rows.map(r => [r.code, r.name, r.qty, r.loc, r.sub])];
-        const wb = X.utils.book_new();
-        X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(aoa), '비축창고');
-        X.writeFile(wb, live ? `비축창고_${ymd()}.xlsx` : `시험_비축창고_${ymd()}.xlsx`);
+        const bad = writeXls(X, [{ name: '비축창고', aoa }], live ? `비축창고_${ymd()}.xls` : `시험_비축창고_${ymd()}.xls`);
+        if (bad) alert(bad);
     }
     function openFloor2() {
         ensureFloor2();
@@ -283,10 +282,8 @@ export function setupScanTools(opts) {
             ['대상 = 선택 출고일에 도착이 있는 코드(선택 출고일 밖 입고 행은 뺌) + 지금 ScanDB 에 있는 코드'],
             [`만든 때 ${new Date().toLocaleString()} · 코드 ${aoa.length - 1}개 · 다른 칸 있음 ${diffN}개`]
         ];
-        const wb = X.utils.book_new();
-        X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(aoa), '미리보기비교');
-        X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(note), '안내');
-        X.writeFile(wb, live ? `스캐너미리보기_${ymd()}.xlsx` : `시험_스캐너미리보기_${ymd()}.xlsx`);
+        const bad = writeXls(X, [{ name: '미리보기비교', aoa }, { name: '안내', aoa: note }], live ? `스캐너미리보기_${ymd()}.xls` : `시험_스캐너미리보기_${ymd()}.xls`);
+        if (bad) alert(bad);
     }
 
     // ── 이벤트 (켜진 버튼 3개 + 창 안 버튼만. 꺼진 버튼에는 아무것도 걸지 않는다) ──

@@ -1,12 +1,15 @@
 // === js/app-notifications.js ===
-import * as State from './state.js?v=202611101022';
-import { doc, writeBatch, deleteDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=202611101022';
-import { sortUnreadFirst, addDismissed } from './lib/noti-popup.js?v=202611101022';
+import * as State from './state.js?v=202611101235';
+import { doc, writeBatch, deleteDoc, collection, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=202611101235';
+import { sortUnreadFirst, addDismissed, notiLink } from './lib/noti-popup.js?v=202611101235';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202611101235';
+import { goTo } from './app-shell-bridge.js?v=202611101235';
 
 // 알림창에 지금 보이는 안 읽은 알림 id — 창을 닫을 때(×·배경·종·ESC) '닫은 것'으로 기억해
 // 같은 알림으로 창이 다시 저절로 열리지 않게 한다(js/app-sync.js 자동 열기 · js/lib/noti-popup.js).
 let shownUnreadIds = [];
+let notiGoing = false;   // 알림을 눌러 이동하는 중(두 번 눌러도 한 번만)
 
 export async function sendNotification(targetMember, message, type = 'info') {
     try {
@@ -38,12 +41,20 @@ export function renderNotificationList() {
     
     // 안 읽은 것은 굵은 파란 테두리 + 왼쪽 띠 + NEW 표시(다크 모드 포함)
     list.innerHTML = notis.map(n => `
-        <li class="p-3 rounded-lg ${n.isRead ? 'border bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600 text-gray-500 dark:text-gray-400 shadow-sm' : 'border-2 border-l-[6px] bg-blue-50 border-blue-500 dark:bg-blue-900/40 dark:border-blue-400 text-gray-900 dark:text-gray-100 shadow-md'} relative pr-8">
+        <li class="p-3 rounded-lg ${n.isRead ? 'border bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600 text-gray-500 dark:text-gray-400 shadow-sm' : 'border-2 border-l-[6px] bg-blue-50 border-blue-500 dark:bg-blue-900/40 dark:border-blue-400 text-gray-900 dark:text-gray-100 shadow-md'} relative pr-8${notiLink(n) ? ' cursor-pointer' : ''}"${notiLink(n) ? ` data-noti-go="${escapeHtml(n.id)}"` : ''}>
             <div class="text-[11px] font-bold mb-1 flex items-center gap-1.5">${n.isRead ? '' : '<span class="px-1.5 rounded bg-blue-600 dark:bg-blue-500 text-white text-[10px] font-extrabold tracking-wide">NEW</span>'}<span class="opacity-70">${new Date(n.createdAt).toLocaleString('ko-KR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</span></div>
-            <div class="text-sm font-medium leading-snug break-words whitespace-pre-line">${escapeHtml(n.message)}</div>
+            <div class="text-sm font-medium leading-snug break-words whitespace-pre-line">${escapeHtml(n.message)}</div>${notiLink(n) ? '<div class="text-xs font-bold text-blue-600 dark:text-blue-300 mt-1">눌러서 비품 관리로 이동 →</div>' : ''}
             <button class="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-bold text-lg delete-single-noti-btn transition" data-id="${n.id}">&times;</button>
         </li>
     `).join('');
+}
+
+// 눌러서 이동할 때 그 알림만 읽음 표시 — 오프라인이면 쓰기가 끝나지 않으므로 최대 NOTI_READ_WAIT 만 기다리고, 실패해도 이동한다.
+const NOTI_READ_WAIT = 1500;
+function markOneRead(id) {
+    const write = updateDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'notifications', id), { isRead: true, readAt: new Date().toISOString() })
+        .catch(err => console.error("알림 읽음 처리 실패:", err));
+    return Promise.race([write, new Promise(r => setTimeout(r, NOTI_READ_WAIT))]);
 }
 
 export async function markAllNotificationsAsRead() {
@@ -123,6 +134,22 @@ export function setupNotificationListeners() {
             } catch(err) {
                 console.error("개별 알림 삭제 실패:", err);
             }
+            return;
+        }
+        // 이동 링크가 있는 알림(비품 등) — 그 알림만 읽음 처리한 뒤 해당 화면으로
+        const card = e.target.closest('[data-noti-go]');
+        if (!card || notiGoing) return;
+        const n = (State.appState.notifications || []).find(x => x.id === card.dataset.notiGo);
+        const link = notiLink(n);
+        if (!link) return;
+        notiGoing = true;
+        try {
+            addDismissed([n.id]);
+            if (!n.isRead) await markOneRead(n.id);
+            const target = sidebarLinkTarget(link);
+            if (target) window.open(link, target); else await goTo(link);
+        } finally {
+            notiGoing = false;
         }
     });
 

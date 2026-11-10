@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611101022"></script>
-    <link rel="stylesheet" href="css/suit.css?v=202611101022">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611101022">
+    <script src="js/theme-boot.js?v=202611101235"></script>
+    <link rel="stylesheet" href="css/suit.css?v=202611101235">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611101235">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -14,7 +14,7 @@
     <title>비품 관리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config = { darkMode: 'class' }</script>
-    <link rel="stylesheet" href="css/tool-d.css?v=202611101022">
+    <link rel="stylesheet" href="css/tool-d.css?v=202611101235">
     <style>
         body { font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
         /* 칸마다 최소 폭(th의 min-width)을 두므로 표는 내용 폭을 따르되, 좁을 땐 영역을 꽉 채운다. */
@@ -98,6 +98,9 @@
 
         <!-- 이지어드민 자동 반영(매일 19:30 앱\비품재고연동\연동.py) 결과 한 줄 — 문서에 ezSyncedAt 이 있을 때만 js/supplies.js 가 켠다 -->
         <div id="ez-sync-note" class="hidden text-xs text-slate-600 bg-white border border-slate-200 rounded-xl px-4 py-2"></div>
+
+        <!-- 최근 알림 안내(어느 비품을 왜 봐야 하나) — 사유가 있을 때만 js/supplies.js renderAlertNotice 가 켠다. 앱 알림을 누르면 여기로 온다(#alerts) -->
+        <section id="alert-notice" class="hidden"></section>
 
         <!-- 요약 -->
         <section id="summary" class="grid grid-cols-2 md:grid-cols-5 gap-3"></section>
@@ -310,11 +313,11 @@
         </div>
     </div>
 
-    <script type="module" src="js/supplies.js?v=202611101022"></script>
-    <script type="module" src="js/page-gate.js?v=202611101022" data-perm-page="supplies.view"></script>
-    <script type="module" src="js/app-shell.js?v=202611101022"></script>
-    <script src="js/connection-banner.js?v=202611101022"></script>
-    <script src="js/modal-esc.js?v=202611101022"></script>
-    <script type="module" src="js/modal-drag.js?v=202611101022"></script>
+    <script type="module" src="js/supplies.js?v=202611101235"></script>
+    <script type="module" src="js/page-gate.js?v=202611101235" data-perm-page="supplies.view"></script>
+    <script type="module" src="js/app-shell.js?v=202611101235"></script>
+    <script src="js/connection-banner.js?v=202611101235"></script>
+    <script src="js/modal-esc.js?v=202611101235"></script>
+    <script type="module" src="js/modal-drag.js?v=202611101235"></script>
 </body>
 </html>

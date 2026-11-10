@@ -12,17 +12,17 @@
 //  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름). 권장 발주량의 최소주문·묶음은 기존 MOQ 칸 문장에서 읽는다(서버 예측규칙.MOQ해석)
 //  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
 
-import { initializeFirebase } from './config.js?v=202611101022';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202611101022';
-import { memberNameFor } from './app-shell-data.js?v=202611101022';
-import { escapeHtml as esc } from './utils.js?v=202611101022';
-import { kstDateTime } from './lib/kst-time.js?v=202611101022';
-import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202611101022';
+import { initializeFirebase } from './config.js?v=202611101235';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202611101235';
+import { memberNameFor } from './app-shell-data.js?v=202611101235';
+import { escapeHtml as esc } from './utils.js?v=202611101235';
+import { kstDateTime } from './lib/kst-time.js?v=202611101235';
+import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202611101235';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
-    leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion,
-    NOCODE_HINT, DRIVER_OPTIONS
-} from './lib/supplies-forecast-view.js?v=202611101022';
+    leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion, alertReasons, sortAlertRows,
+    alertsEmptyText, ALERT_ORDERS_UNKNOWN, NOCODE_HINT, DRIVER_OPTIONS, TONE_CLASS
+} from './lib/supplies-forecast-view.js?v=202611101235';
 import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -47,6 +47,8 @@ let stockTargetId = null;   // 상세 창 재고 패널이 보고 있는 비품(
 let forecastDoc = null;     // integrations/suppliesForecast (못 읽으면 null — 화면은 그대로)
 let ordersDoc = { orders: {} };   // persistent_data/suppliesOrders
 let ordersOk = false;       // 발주 상태를 읽었나 — 못 읽었으면 [발주함]·[입고 확인]·[발주 취소]를 막는다
+let forecastOk = false;     // 이번 불러오기에서 예측을 읽었나 — #alerts 0건 안내('최신 알림을 확인하지 못했습니다')에 쓴다
+let firstLoadDone = false;  // 로그인 뒤 첫 불러오기가 끝났나 — #alerts 를 그 전에 처리하지 않게
 let isAdmin = false;        // 기준 물량 선택 표시용(화면 수준 — 규칙으로는 막지 않는다)
 
 const $ = (id) => document.getElementById(id);
@@ -82,6 +84,8 @@ const fcOf = (it) => {
 };
 const orderOf = (it) => (ordersDoc && ordersDoc.orders ? ordersDoc.orders[it.id] : null) || null;
 const statusOf = (it) => effectiveStatus(it, fcOf(it), orderOf(it));
+const reasonsOf = (it) => alertReasons(it, fcOf(it), orderOf(it), ordersOk);
+const reasonBadge = (r, extra = '') => `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full ${TONE_CLASS[r.tone] || ''} ${extra}" title="${esc(r.text)}">${esc(r.label)}</span>`;
 function statusBadgeHtml(it) {
     const k = statusOf(it);
     const b = statusBadge(k);
@@ -101,7 +105,7 @@ const COLS = [
       cell: it => esc(it.category || '미분류') },
     { key: 'name', label: '품명', type: 'text', td: 'font-bold',
       get: it => it.name || '',
-      cell: it => `${it.isMain ? '<span class="text-amber-500 mr-1">★</span>' : ''}${esc(it.name)}<span class="sr-only"> — 상세·재고 열기</span>` },
+      cell: it => `${it.isMain ? '<span class="text-amber-500 mr-1">★</span>' : ''}${esc(it.name)}${reasonsOf(it).map(r => ` ${reasonBadge(r)}`).join('')}<span class="sr-only"> — 상세·재고 열기</span>` },
     { key: 'stock', label: '현재고', type: 'num', td: 'num font-bold',
       get: it => num(it.stock),
       cell: it => `<span class="${isLow(it) ? 'text-red-600' : ''}">${fmt(it.stock)}</span>`
@@ -209,7 +213,34 @@ onAuthStateChanged(auth, async (user) => {
     $('main').classList.remove('hidden');
     await load();
     renderAll();
+    firstLoadDone = true;
+    handleAlertsHash();
 });
+
+// 앱 알림을 누르면 supplies.html#alerts 로 온다 — 한 번만 처리하고 해시를 지운다(지워야 다음 알림으로 또 hashchange 가 난다).
+// 이미 이 화면이면 페이지가 새로 뜨지 않으므로(hashchange) 최신 예측을 다시 읽는다. 상세 창에 입력 중이면 다시 읽지 않는다.
+async function handleAlertsHash(reload = false) {
+    if (location.hash !== '#alerts' || !firstLoadDone || !auth.currentUser) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    let reloadSkipped = false;
+    if (reload) {
+        if ($('item-modal').classList.contains('hidden')) {
+            await load();
+            renderAll();
+        } else reloadSkipped = true;
+    }
+    const el = $('alert-notice');
+    // 사유가 0건이면 왜 왔는지 안내한다 — 최신을 못 읽었으면(예측 읽기 실패·상세 창이 열려 다시 읽기를 건너뜀) 그렇다고, 아니면 이미 처리됨.
+    //   발주 상태를 못 읽은 경우는 renderAlertNotice 가 경고 줄을 늘 보여 여기로 오지 않는다
+    if (el.classList.contains('hidden')) {
+        el.innerHTML = `<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 text-xs font-bold text-slate-500">${esc(alertsEmptyText({ forecastOk, reloadSkipped }))}</div>`;
+        el.classList.remove('hidden');
+    }
+    // 고정 머리줄에 가리지 않게 — 좁은 화면에서는 머리줄이 두 줄이 되기도 해 실제 높이로 잰다
+    el.style.scrollMarginTop = `${Math.ceil(document.querySelector('#tool-root > header.sticky').getBoundingClientRect().bottom) + 8}px`;
+    el.scrollIntoView({ block: 'start' });
+}
+window.addEventListener('hashchange', () => handleAlertsHash(true));
 
 // ───────── 저장소 ─────────
 // 이 문서는 이 화면만 쓰는 게 아니다 — 매일 19:30 서버 예약작업(앱\비품재고연동\연동.py)이 items[].stock 을
@@ -224,6 +255,7 @@ let ezSync = { at: null, summary: null };                    // 화면 위 '이�
 class SuppliesConflict extends Error {}
 
 async function load() {
+    forecastOk = false;   // 이번에 예측을 읽어야 true(loadForecast)
     try {
         const snap = await getDoc(DOC_REF);
         const d = snap.exists() ? snap.data() : {};
@@ -253,6 +285,7 @@ async function loadForecast() {
     const [f, o] = await Promise.allSettled([getDoc(FORECAST_REF), getDoc(ORDERS_REF)]);
     if (f.status === 'fulfilled') forecastDoc = f.value.exists() ? f.value.data() : null;
     else console.warn('[supplies] 사용량 예측 읽기 실패:', f.reason && f.reason.code);
+    forecastOk = f.status === 'fulfilled' && f.value.exists();
     if (o.status === 'fulfilled') {
         const d = o.value.exists() ? o.value.data() : {};
         ordersDoc = { ...d, orders: (d && typeof d.orders === 'object' && d.orders) || {} };
@@ -298,6 +331,7 @@ async function persist(opts = {}) {
 // ───────── 렌더 ─────────
 function renderAll() {
     renderEzSync();
+    renderAlertNotice();
     renderMainItems();
     renderSummary();
     renderCategoryFilter();
@@ -319,6 +353,29 @@ function renderEzSync() {
     el.textContent = `이지어드민 자동 반영: ${d.getMonth() + 1}/${d.getDate()} ${p2(d.getHours())}:${p2(d.getMinutes())}`
         + (parts.length ? ` (${parts.join('·')})` : '');
     el.classList.remove('hidden');
+}
+
+// 최근 알림 안내 — 어느 비품을 왜 봐야 하는지 한 줄씩. 사유는 서버 recentAlerts + 지금 발주 상태(js/lib/supplies-forecast-view.js alertReasons).
+// 줄을 누르면 주요 비품 카드처럼 상세 창이 열린다(data-open — 아래 '행·카드 열기' 이벤트).
+function renderAlertNotice() {
+    const host = $('alert-notice');
+    if (!host) return;
+    const rows = sortAlertRows(items.map(it => ({ id: it.id, name: it.name, reasons: reasonsOf(it) })).filter(r => r.reasons.length));
+    // 발주 상태를 못 읽었으면 사유 건수와 상관없이 경고 한 줄 — 발주 필요·주의·입고 지연이 빠져 있다(alertReasons ordersKnown)
+    const warn = ordersOk ? '' : `<p class="text-xs font-bold text-red-600 ${rows.length ? 'mb-2' : ''}">${esc(ALERT_ORDERS_UNKNOWN)}</p>`;
+    if (rows.length === 0 && !warn) { host.classList.add('hidden'); host.innerHTML = ''; return; }
+    host.innerHTML = `
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
+            ${rows.length ? `<h2 class="text-sm font-bold text-slate-700 mb-2">확인할 비품 ${rows.length}종</h2>` : ''}${warn}
+            <div class="space-y-1.5">${rows.map(r => `
+                <div data-open="${esc(r.id)}" role="button" tabindex="0" aria-label="${esc(r.name)} — ${esc(r.reasons.map(x => x.label).join(', '))} · 상세·재고 열기" title="눌러서 상세·재고 열기"
+                    class="sup-card cursor-pointer rounded-lg border border-slate-200 hover:border-indigo-300 px-3 py-2 transition">
+                    <div class="text-[13px] font-extrabold text-slate-800 break-words">${esc(r.name)}</div>
+                    ${r.reasons.map(x => `<div class="flex items-start gap-1.5 mt-1 text-xs text-slate-600">${reasonBadge(x, 'shrink-0')}<span class="min-w-0 flex-1 break-words">${esc(x.text)}</span></div>`).join('')}
+                </div>`).join('')}
+            </div>
+        </div>`;
+    host.classList.remove('hidden');
 }
 
 function renderMainItems() {
@@ -1290,9 +1347,9 @@ function closeModal(id) {
 }
 
 // 상세 창을 연 행·카드(data-open). 닫은 뒤 목록이 다시 그려졌을 수 있어 요소가 아니라 id 와 위치로 기억한다.
-let opener = null;   // { id, host: 'items-body' | 'main-items' }
+let opener = null;   // { id, host: 'items-body' | 'main-items' | 'alert-notice' }
 function rememberOpener(el) {
-    const host = el.closest('#items-body') ? 'items-body' : (el.closest('#main-items') ? 'main-items' : null);
+    const host = el.closest('#items-body') ? 'items-body' : (el.closest('#main-items') ? 'main-items' : (el.closest('#alert-notice') ? 'alert-notice' : null));
     opener = host ? { id: el.dataset.open, host } : null;
 }
 function restoreOpenerFocus() {

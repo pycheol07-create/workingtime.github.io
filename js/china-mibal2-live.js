@@ -17,18 +17,30 @@
 //   화면을 열면 그날 1회 MIBAL_HISTORY(basis 'v2') — 아직 입고 안 된 패킹별 미발수량(업무예상)
 //   위치 쓰기(js/china-mibal2-live-loc.js) · 관리 창·적재량 편집(js/china-mibal2-live-admin.js)
 // 이메일은 어디에도 저장하지 않는다(기록자 = 직원 이름). 공급처 이름·원가 없음.
-import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writeBatch, collection, query, orderBy, limit, where, documentId, serverTimestamp, deleteField }
+import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc as _setDoc, writeBatch as _writeBatch, collection, query, orderBy, limit, startAfter, where, documentId, serverTimestamp, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
-    fileRowsOf, inboundFileHtml, mibalFileAoa, floor2FileAoa } from './lib/mibal2-live.js?v=202611101022';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611101022';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611101022';
-import { inboundSig } from './lib/inbound-fix.js?v=202611101022';
+    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611101235';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611101235';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611101235';
+import { inboundSig } from './lib/inbound-fix.js?v=202611101235';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
-    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611101022';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611101022';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611101022';
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611101235';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611101235';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611101235';
+import { gated, gatedBatch, run as gateRun, isFrozen } from './mibal2-gate.js?v=202611101235';
+import { needReapply, staleRollback } from './lib/mibal2-fallback.js?v=202611101235';
+import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611101235';
+import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611101235';
+
+// 쓰기 덮개(비상 스위치, 2026-11-10) — 비상 전환 중(조회 전용)이면 막는다. 멈추기 전에 시작한 작업(guard 안)은 끝까지 한다(js/mibal2-gate.js)
+const setDoc = gated(_setDoc);
+const writeBatch = gatedBatch(_writeBatch);
+const FROZEN_MSG = '⛔ 비상 전환 중 — 이 화면은 조회 전용입니다(기존 화면에서 작업하세요)';
+// 비상 전환 때 끄는 버튼(쓰기). 받기·보기 버튼은 그대로
+const WRITE_BTN_IDS = ['btn-scan-off-sync', 'btn-scan-off-version', 'btn-scan-off-reset', 'btn-scan-off-diffrec', 'btn-live-barcode',
+    'btn-loc-off-upload', 'btn-loc-off-reset', 'btn-loc-off-clear', 'chk-loc-front'];
 
 const CHINA = 'ChinaStockGoods';
 const SCANDB = CHINA + '_ScanDB';
@@ -38,7 +50,8 @@ const INBOUND_DIFF = CHINA + '_InboundDiff';
 const SETTINGS_PATH = 'artifacts/team-work-logger-v2/mibal2/settings';
 const MAX_VERSIONS = 30;           // 기존 화면 MAX_SCANDB_VERSIONS 와 같다
 const OPS = 450;                   // 한 batch 쓰기 수(한도 500 안)
-const INBOUND_READ_MAX = 10000;    // 웹 SDK(Listen) 쿼리 limit 의 운영 서버 상한 — 넘으면 invalid-argument. 에뮬레이터는 검사하지 않는다
+const INBOUND_PAGE = 10000;        // 입고이력 한 쿼리 limit — 웹 SDK(Listen) 쿼리 limit 의 운영 서버 상한(넘으면 invalid-argument, 에뮬레이터는 검사하지 않는다)
+const INBOUND_TOTAL_MAX = 100000;  // 입고이력 전체 상한 — 넘으면 마감·반영·되돌리기를 멈춘다(아무것도 바꾸지 않음)
 const INBOUND_DIFF_DENIED = '입고 오차 기록 권한이 없습니다(서버 규칙 게시 전이거나 등록 직원이 아닙니다).';
 
 const $ = (id) => document.getElementById(id);
@@ -130,8 +143,9 @@ export function startLive(ctx) {
         $('btn-scan-off-diffrec').addEventListener('click', () => guard(recordDiffManual));
         $('btn-live-archive').addEventListener('click', () => openArchive());
         $('btn-live-admin').addEventListener('click', () => admin.open());
-        $('btn-live-inbound-file').addEventListener('click', () => download(downloadInboundFile));
-        $('btn-live-mibal-file').addEventListener('click', () => download(downloadMibalFile));
+        // 입고용·미발확인은 다시 읽기(설정·출고일)를 하므로 다른 작업과 겹치지 않게 guard 안에서(비축창고 받기는 출고일과 무관 — 그대로)
+        $('btn-live-inbound-file').addEventListener('click', () => guard(() => download(downloadInboundFile), false));
+        $('btn-live-mibal-file').addEventListener('click', () => guard(() => download(downloadMibalFile), false));
         $('btn-live-floor2-file').addEventListener('click', () => download(downloadFloor2File));
         const file = document.createElement('input');
         file.type = 'file'; file.accept = '.xls,.xlsx,.csv,.html,.htm'; file.style.display = 'none'; file.id = 'live-barcode-file';
@@ -141,14 +155,30 @@ export function startLive(ctx) {
         renderBatchNote();
     }
 
-    async function guard(fn) {
+    // write = 쓰는 작업(비상 전환 중이면 시작하지 않음). 시작한 작업은 gate 에 등록돼 도중에 전환돼도 끝까지 한다
+    async function guard(fn, write = true) {
         if (busy) { showToast('⏳ 다른 작업을 처리하는 중입니다'); return; }
+        if (write && isFrozen()) { showToast(FROZEN_MSG); return; }
         busy = true;
-        try { await fn(); }
+        try { await (write ? gateRun(fn) : fn()); }   // 쓰지 않는 작업(받기)은 gate 에 등록하지 않는다
         catch (e) { setLoading(false); console.error('[mibal2-live]', e); alert('처리하지 못했습니다 — ' + errText(e)); }
         finally { busy = false; setLoading(false); }
     }
 
+    /** 출고일 불일치 — 절반 넘게 다른 출고일 스캔이면 막는다(직원). 관리자는 '그래도 진행' 2차 확인. true = 계속 */
+    function mismatchPass(mm, jobShips) {
+        if (!mm.block) return true;
+        const admin = !!(ctx.isAdmin && ctx.isAdmin());
+        const text = mismatchBlockText(mm, { jobShips, admin });
+        if (!admin) { alert(text); return false; }
+        return confirm(text);
+    }
+    /** 확인창이 떠 있는 동안 비상 전환됐으면 쓰지 않고 멈춘다(true = 멈춤) */
+    function frozenNow() {
+        if (!isFrozen()) return false;
+        alert('확인하는 동안 비상 전환(기존 화면 작업)으로 바뀌었습니다 — 아무것도 쓰지 않았습니다.');
+        return true;
+    }
     function batchOf() { const s = ctx.getSettings(); return (s && s.batch && Array.isArray(s.batch.ships)) ? s.batch : null; }
     /** 이미 마감된 작업인데 작업 표시가 남은 것(마감 끝 설정 저장 실패 등)인가 — 그러면 새 작업으로 시작해야 한다 */
     async function batchAlreadyClosed(b) {
@@ -207,13 +237,16 @@ export function startLive(ctx) {
     // ── 스캐너 자료 읽기(그때마다 서버에서) ──
     async function readInbound() {
         // 서버에서 따로 읽는다 — 화면의 입고이력 구독과 같은 쿼리면 SDK 가 구독 상태를 돌려줘 방금 들어온 스캔을 놓칠 수 있어
-        //   모양이 다른 쿼리(limit)로 새로 읽는다(확인창 사이 새 스캔 확인용)
-        const snap = await getDocsFromServer(query(collection(db, INBOUND), limit(INBOUND_READ_MAX)));
-        if (snap.size >= INBOUND_READ_MAX) throw new Error('입고이력이 너무 많아 전부 읽지 못했습니다(아무것도 바꾸지 않음).');   // 잘린 채 진행하면 일부만 보관·삭제된다
+        //   모양이 다른 쿼리(문서 id 정렬 + limit)로 새로 읽는다(확인창 사이 새 스캔 확인용)
+        // 한 쿼리는 INBOUND_PAGE 건까지(운영 상한) — 넘으면 마지막 문서 다음부터 이어 읽는다. id 순이라 두 번 읽은 결과를 sameInbound 로 비교할 수 있다.
+        //   합이 INBOUND_TOTAL_MAX 를 넘으면 멈춘다 — 잘린 채 진행하면 일부만 보관·삭제된다
+        const docs = await readAllPages(async (after) => (await getDocsFromServer(query(collection(db, INBOUND), orderBy(documentId()),
+            ...(after ? [startAfter(after)] : []), limit(INBOUND_PAGE)))).docs,
+            INBOUND_PAGE, INBOUND_TOTAL_MAX, '입고이력이 너무 많아 전부 읽지 못했습니다(아무것도 바꾸지 않음).');
         let last = 0;
-        const list = snap.docs.map(d => { const x = d.data() || {}; last = Math.max(last, tsMs(x.timestamp)); return { barcode: x.barcode, qty: x.qty }; });
+        const list = docs.map(d => { const x = d.data() || {}; last = Math.max(last, tsMs(x.timestamp)); return { barcode: x.barcode, qty: x.qty }; });
         const map = inboundMapOf(list);
-        return { map, docs: snap.docs, lastMs: last, sig: inboundSig(map) };
+        return { map, docs, lastMs: last, sig: inboundSig(map) };
     }
     async function readScanDb() {
         const snap = await getDocsFromServer(collection(db, SCANDB));
@@ -276,10 +309,15 @@ export function startLive(ctx) {
         setLoading(false);
         if (!recentScanOk(ih.lastMs, '반영하는')) return;
         const rows = ctx.rowsFor(dates, ih.map);
+        // 스캔이 다른 출고일 패킹 것이면(입고이력에는 패킹 표시가 없다) — 절반 넘게 없으면 막고, 아니면 확인창 맨 위에 경고(반영하는 출고일 기준)
+        const mm = shipMismatchOf({ scanMap: ih.map, shipItems: ctx.getShipItems(), ships: dates });
+        if (!mismatchPass(mm)) return;
         const plan = scanApplyPlan(rows, ih.map, cur.map(d => d.id));
         if (!plan.totals.codes) { alert('선택한 출고일에 도착이 있는 상품이 없습니다 — 반영하지 않았습니다.'); return; }
         const scanCodes = Object.keys(ih.map).filter(c => ih.map[c]);
         const lines = [
+            mm.warn ? mismatchLine(mm.outside, mm.best, mm.bestInShips) : '',
+            mm.warn ? '-' : '',
             scanCodes.length ? `⚠⚠ 앱 스캔 입고 ${n(scanCodes.length)}개 상품이 남아 있습니다 — 이전 작업 스캔이 남아 있으면 취소하고 먼저 [작업 마감]을 하세요` : '',
             scanCodes.length ? '-' : '',
             `스캐너에 반영할까요? (출고일 ${dates.map(fmtMD).join(', ')})`, '-',
@@ -305,6 +343,7 @@ export function startLive(ctx) {
             return;
         }
         if (sig2 !== fresh.sig) { alert(SHARED_CHANGED); return; }
+        if (frozenNow()) return;
         setLoading(true, '스캐너 자료 백업 중...');
         await saveVersion(cur, 'pre-apply', '스캐너에 반영 직전 자동 백업', { batch: b || null });
         setLoading(true, `스캐너에 반영 중... (${n(plan.totals.codes)}개)`);
@@ -312,9 +351,10 @@ export function startLive(ctx) {
         const ops = Object.keys(plan.sets).map(code => (bt) => bt.set(doc(db, SCANDB, code), { ...plan.sets[code], updatedAt: now }));
         plan.deletes.forEach(code => ops.push((bt) => bt.delete(doc(db, SCANDB, code))));
         await commitOps(ops);
+        // appliedTs = 서버 시각(비상 스위치 '되돌린 뒤 반영했나' 판정은 서버 시각끼리 — js/lib/mibal2-fallback.js needReapply). appliedAt 은 표시·옛 판정용
         const batch = b ? { ...b, ships: dates, appliedAt: Date.now() } : { id: batchIdOf(now), ships: dates, startedAt: Date.now(), appliedAt: Date.now() };
         setLoading(false);
-        if (await saveBatchSetting({ batch }, '스캐너 반영')) ctx.patchSettings({ batch });
+        if (await saveBatchSetting({ batch: { ...batch, appliedTs: serverTimestamp() } }, '스캐너 반영')) ctx.patchSettings({ batch });
         renderBatchNote();
         showToast(`✅ 스캐너에 반영 — 상품 ${n(plan.totals.codes)}개${plan.totals.del ? ` · 지움 ${n(plan.totals.del)}개` : ''}`);
     }
@@ -326,10 +366,13 @@ export function startLive(ctx) {
         setLoading(false);
         const v = snap.docs.map(d => ({ id: d.id, ...d.data() })).find(x => x.trigger === 'pre-apply');
         if (!v || !v.data) { alert('되돌릴 기록이 없습니다(오늘 [스캐너에 반영] 전 백업이 없음).'); return; }
+        // 비상 기간 전 백업이면 기존 화면이 그동안 쓴 스캐너 자료를 덮는다 — 한 번 더 묻는다
+        if (staleRollback(v.atMs, ctx.getFallback && ctx.getFallback()) && !confirm(`⚠ 이 백업(${mdhm(v.atMs)})은 비상 전환(기존 화면 작업) 전 자료입니다.\n되돌리면 비상 기간 전 자료로 돌아갑니다 — 그동안 기존 화면이 반영한 값이 사라집니다.\n\n그래도 되돌릴까요?`)) return;
         const ih = await readInbound();
         if (!recentScanOk(ih.lastMs, '되돌리는')) return;
         if (!confirm(`마지막 [스캐너에 반영] 직전(${mdhm(v.atMs)})으로 스캐너 자료를 되돌릴까요?\n\n상품 ${n(v.count)}개 · 미발 합 ${n(v.totalMibal)}\n`
             + '그 뒤 스캐너 입고로 줄어든 숫자도 그때 값으로 돌아갑니다. 지금 자료는 자동 백업합니다.')) return;
+        if (frozenNow()) return;
         setLoading(true, '되돌리는 중...');
         const cur = await readScanDb();
         await saveVersion(cur, 'pre-rollback', '되돌리기 직전 자동 백업');
@@ -343,7 +386,15 @@ export function startLive(ctx) {
         // 그때의 작업 표시도 함께 되돌린다(반영으로 시작·바뀐 작업 출고일) — 'batch' 칸이 없는 옛 버전이면 그대로 둠
         if ('batch' in v) {
             const bb = v.batch && Array.isArray(v.batch.ships) ? v.batch : null;
-            if (await saveBatchSetting({ batch: bb || deleteField() }, '되돌리기')) ctx.patchSettings({ batch: bb || undefined });
+            // 마감이 출고일 선택을 풀었으면 작업과 함께 되돌린다 — 안 그러면 작업은 살아났는데 표가 비어 입고 대조를 못 한다
+            const restoreDates = bb && !ctx.getSelectedDates().length ? bb.ships.map(String) : null;
+            // merge 쓰기는 batch 안 칸도 합친다 — 복원본에 없는 칸(appliedTs 등)이 지금 값으로 남지 않게 지운다
+            const curBatch = (ctx.getSettings() || {}).batch || {};
+            const batchOut = bb ? { ...Object.fromEntries(Object.keys(curBatch).filter(k => !(k in bb)).map(k => [k, deleteField()])), ...bb } : deleteField();
+            if (await saveBatchSetting({ batch: batchOut, ...(restoreDates ? { shipDates: restoreDates } : {}) }, '되돌리기')) {
+                ctx.patchSettings({ batch: bb || undefined, ...(restoreDates ? { shipDates: restoreDates } : {}) });
+                if (restoreDates) ctx.setSelectedDates(restoreDates);
+            }
             renderBatchNote();
         }
         showToast(`✅ 되돌리기 완료 (${mdhm(v.atMs)} · 미발 ${n(v.totalMibal)})`);
@@ -393,6 +444,7 @@ export function startLive(ctx) {
             + `${n(t.n)}품목 · 도착 ${n(t.arr)} · 입고 ${n(t.conf)}\n${diffSummaryText(rec)}\n\n`
             + (rec.ships.length > 1 ? '여러 출고일을 함께 골랐으므로 묶음 1건으로 저장합니다.\n' : '')
             + '같은 출고일 기록이 있으면 덮어씁니다.')) return;
+        if (frozenNow()) return;
         setLoading(true, '입고 오차 기록 중...');
         try {
             const r = await writeInboundDiff(rec);
@@ -410,6 +462,11 @@ export function startLive(ctx) {
         const fresh = await reloadOrStop('작업 마감');
         if (!fresh) return;
         const b = batchOf();
+        // 비상 기간(기존 화면 작업) 뒤 아직 [스캐너에 반영]을 안 한 작업 — 스캐너 자료가 이 작업과 다르다
+        if (needReapply(b, ctx.getFallback && ctx.getFallback())) {
+            alert('비상 전환에서 돌아온 뒤 아직 [스캐너에 반영]을 하지 않았습니다 — 마감하지 않았습니다.\n먼저 출고일을 확인하고 [스캐너에 반영]을 누른 뒤 [작업 마감]을 하세요.');
+            return;
+        }
         if (fresh.datesChanged && !b) { alert(DATES_CHANGED); return; }   // 작업 표시가 있으면 작업 출고일로 마감하므로 선택이 달라도 된다
         const ships = b ? b.ships.map(String) : ctx.getSelectedDates();
         if (!ships.length) { alert('마감할 작업이 없습니다(출고일 없음).'); return; }
@@ -434,6 +491,9 @@ export function startLive(ctx) {
         setLoading(false);
         if (!recentScanOk(ih.lastMs, '마감하는')) return;
         const rows = ctx.rowsFor(ships, ih.map, { allGrace: true });
+        // 스캔이 작업(또는 고른) 출고일 패킹 것인가 — 절반 넘게 없으면 막는다(엉뚱한 출고일 이름으로 보관되지 않게). 보관은 지금처럼 모든 스캔
+        const mm = shipMismatchOf({ scanMap: ih.map, shipItems: ctx.getShipItems(), ships });
+        if (!mismatchPass(mm, b ? ships : null)) return;   // 작업 표시가 있으면 작업 출고일 기준 — 출고일을 바꾸고 다시 반영해야 풀린다
         const full = archiveRecordOf({ id, ships, startedAtMs: b ? b.startedAt : 0, closedAt: now, by: ctx.memberName(),
             rows, inboundMap: ih.map, floor2Map: f2 });
         const arch = shrinkArchive(partialOf ? partialRecordOf(full, partialOf, baseF2) : full);
@@ -455,7 +515,8 @@ export function startLive(ctx) {
         else diffLine = `입고 오차 기록(출고일 ${diffRec.ships.map(fmtMD).join(', ')}): ${diffSummaryText(diffRec)}`;
         const t = arch.rec.totals;
         const differ = b && !sameList(b.ships, ctx.getSelectedDates());
-        if (!confirm(`작업을 마감할까요? (출고일 ${ships.map(fmtMD).join(', ')}${b ? ` · 작업번호 ${id}` : ' · 반영 기록 없음 — 지금 고른 출고일로'})\n\n`
+        if (!confirm((mm.warn ? mismatchLine(mm.outside, mm.best, mm.bestInShips) + ' — 그 상품도 이 작업으로 보관됩니다\n\n' : '')
+            + `작업을 마감할까요? (출고일 ${ships.map(fmtMD).join(', ')}${b ? ` · 작업번호 ${id}` : ' · 반영 기록 없음 — 지금 고른 출고일로'})\n\n`
             + (skipArch ? `보관함: 지난번 마감(${partialOf}) 뒤 추가분 없음 — 새로 보관하지 않음\n${diffLine}\n\n`
                 : `보관함에 저장${partialOf ? `(지난번 마감 ${partialOf} 뒤 추가분)` : ''}: 상품 ${n(t.codes)}개 · 도착 ${n(t.arr)} · 입고 ${n(t.conf)} · 비축 ${n(t.floor2)} · 스캔 내역 ${n(scanLogN)}건\n${diffLine}\n\n`)
             + `비우는 것: 앱 입고이력 ${n(ih.docs.length)}건 · 비축창고 누적 ${n(Object.keys(f2).length)}개 상품 · 스캐너 강제전송 허용목록\n`
@@ -471,6 +532,7 @@ export function startLive(ctx) {
             return;
         }
         if (sig2 !== fresh.sig) { alert(SHARED_CHANGED); return; }
+        if (frozenNow()) return;
         setLoading(true, '보관함에 저장 중...');
         const notes = [];
         if (!skipArch) {
@@ -510,14 +572,28 @@ export function startLive(ctx) {
         await commitOps(ih.docs.map(d => (bt) => bt.delete(d.ref)));   // 읽은 문서만 지운다(그 뒤 들어온 스캔은 남음)
         if (ctx.clearPendingFix) ctx.clearPendingFix();   // 입고확인 저장 대기도 버린다(2026-11-04)
         // 비축창고·허용목록은 통째로 비우므로, 그 직전에 새 스캔이 없는지 한 번 더 본다
-        const [ih3, f2c] = await Promise.all([readInbound(), readF2()]);
+        // 다음 마감이 '같은 작업 이어 하기'인지 알 수 있게 표시해 둔다(새 스캔이 있으면 그때는 새 번호로 보관)
+        //   closePartialF2 = 지금까지 보관에 남긴 비축(이번 f2) — 다음 마감은 이것보다 늘어난 몫만 보관한다
+        const mark = { closePartial: partialOf || id, closePartialF2: JSON.stringify(f2) };
+        const saveMark = async () => { const ok = await saveBatchSetting(mark, '마감(일부)'); if (ok) ctx.patchSettings(mark); return ok; };
+        let ih3, f2c;
+        try { [ih3, f2c] = await Promise.all([readInbound(), readF2()]); }
+        catch (e) {
+            // 이미 보관·입고이력 삭제까지 했다 — 일반 오류창으로 빠지면 다시 눌렀을 때 보관이 겹치므로 '새 스캔' 멈춤과 같은 표시를 남긴다
+            console.error('[mibal2-live] 비우기 직전 다시 읽기 실패:', e && (e.code || e.message));
+            setLoading(false);
+            const marked = await saveMark();
+            alert(`비우기 직전에 입고이력·비축창고를 다시 읽지 못해 비축창고·강제전송 허용목록 비우기를 멈췄습니다 — ${errText(e)}\n`
+                + `끝난 것: 보관(${skipArch ? '추가분 없어 안 함' : id}) · 입고 오차(${diffDone}) · 이전 입고이력 ${n(ih.docs.length)}건 삭제\n`
+                + '남은 것: 비축창고·허용목록 비우기 · 작업 표시 지우기\n'
+                + (marked
+                    ? '네트워크를 확인한 뒤 [작업 마감]을 다시 누르세요 — 보관은 겹치지 않습니다(그사이 새 스캔이 없으면 추가분 없이 비우기만 합니다).'
+                    : '⚠️ 진행 표시도 저장하지 못했습니다 — [작업 마감]을 다시 누르지 말고 관리자에게 알려 주세요(다시 누르면 보관·입고 오차가 겹칠 수 있음).'));
+            return;
+        }
         if (ih3.docs.length || JSON.stringify(f2) !== JSON.stringify(f2c)) {
             setLoading(false);
-            // 다음 마감이 '같은 작업 이어 하기'인지 알 수 있게 표시해 둔다(새 스캔이 있으면 그때는 새 번호로 보관)
-            //   closePartialF2 = 지금까지 보관에 남긴 비축(이번 f2) — 다음 마감은 이것보다 늘어난 몫만 보관한다
-            const mark = { closePartial: partialOf || id, closePartialF2: JSON.stringify(f2) };
-            const marked = await saveBatchSetting(mark, '마감(일부)');
-            if (marked) ctx.patchSettings(mark);
+            const marked = await saveMark();
             alert('마감 도중 새 스캔이 들어와 비축창고·강제전송 허용목록 비우기를 멈췄습니다.\n'
                 + `끝난 것: 보관(${skipArch ? '추가분 없어 안 함' : id}) · 입고 오차(${diffDone}) · 이전 입고이력 ${n(ih.docs.length)}건 삭제\n`
                 + `남은 것: 새 스캔 ${n(ih3.docs.length)}건(그대로 있음) · 비축창고·허용목록 비우기 · 작업 표시 지우기\n`
@@ -531,11 +607,12 @@ export function startLive(ctx) {
         await setDoc(doc(db, CHINA, 'FORCE_ALLOW'), { map: {}, updatedAt: new Date() });
         setLoading(false);
         const doneId = skipArch ? partialOf : id;
-        if (await saveBatchSetting({ batch: deleteField(), lastClosedId: doneId, closePartial: deleteField(), closePartialF2: deleteField() }, '작업 마감')) {
-            ctx.patchSettings({ batch: undefined, lastClosedId: doneId, closePartial: undefined, closePartialF2: undefined });
-        }
+        // 마감이 끝나면 출고일 선택도 푼다 — 표가 비고 '작업 마감됨'이 보인다(자료는 지우지 않음, 그 출고일은 다시 고르면 보인다. 2026-11-10)
+        const cleared = await saveBatchSetting({ batch: deleteField(), lastClosedId: doneId, closePartial: deleteField(), closePartialF2: deleteField(), shipDates: [] }, '작업 마감');
+        if (cleared) ctx.patchSettings({ batch: undefined, lastClosedId: doneId, closePartial: undefined, closePartialF2: undefined, shipDates: [] });
+        if (cleared) ctx.setSelectedDates([]);
         renderBatchNote();
-        showToast(`✅ 작업 마감 — 보관함 ${skipArch ? '(추가분 없음)' : id}${notes.length ? ' · ' + notes.join(' · ') : ''}${arch.shrunk ? ' · 상품명 빼고 보관(크기)' : ''}`);
+        showToast(`✅ 작업 마감 — 보관함 ${skipArch ? '(추가분 없음)' : id}${notes.length ? ' · ' + notes.join(' · ') : ''}${arch.shrunk ? ' · 상품명 빼고 보관(크기)' : ''}${cleared ? ' · 다음 출고일을 고르세요' : ''}`);
     }
 
     // ── [지난 작업 보기] > [스캔 내역] ──
@@ -566,9 +643,8 @@ export function startLive(ctx) {
             const X = window.XLSX;
             if (!X) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
             if (!scanLogView) return;
-            const wb = X.utils.book_new();
-            X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(scanLogExcelRows(scanLogView.expanded, scanLogView.nameOf)), '스캔내역');
-            X.writeFile(wb, `스캔내역_${scanLogView.id}.xlsx`);
+            const bad = writeXls(X, [{ name: '스캔내역', aoa: scanLogExcelRows(scanLogView.expanded, scanLogView.nameOf) }], `스캔내역_${scanLogView.id}.xls`);
+            if (bad) alert(bad);
         });
         return m;
     }
@@ -665,9 +741,8 @@ export function startLive(ctx) {
             const r = recs[+btn.dataset.i];
             const X = window.XLSX;
             if (!X) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
-            const wb = X.utils.book_new();
-            X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(archiveAoa(r)), '지난작업');
-            X.writeFile(wb, `지난작업_${r.id}.xlsx`);
+            const bad = writeXls(X, [{ name: '지난작업', aoa: archiveAoa(r) }], `지난작업_${r.id}.xls`);
+            if (bad) alert(bad);
         }));
     }
 
@@ -686,6 +761,7 @@ export function startLive(ctx) {
         const cnt = Object.keys(r.map).length;
         if (!confirm(`스캐너 바코드 매핑을 이 파일로 바꿀까요?\n\n파일: 상품 ${n(r.rows)}행 · 바코드가 상품코드와 다른 것 ${n(cnt)}건\n지금 매핑: ${curCount === null ? '읽지 못함' : n(curCount) + '건'}\n\n`
             + '파일에 없는 바코드는 매핑에서 빠집니다(오류바코드 매칭은 그대로).')) return;
+        if (frozenNow()) return;
         setLoading(true, '바코드 매핑 저장 중...');
         await setDoc(doc(db, CHINA, 'BARCODE_MAP'), packMap(r.map));
         setLoading(false);
@@ -715,24 +791,33 @@ export function startLive(ctx) {
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
     /** 진짜 .xls(BIFF8) 파일 — 기존 화면과 같은 쓰기(SheetJS write, type array) */
+    //   biff8 한계(행 65,536 등 — js/lib/xls-limits.js)를 넘으면 throw → download() 가 안내
     function biff8Blob(aoa, sheetName) {
-        const X = window.XLSX;
-        const wb = X.utils.book_new();
-        X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(aoa), sheetName);
-        return new Blob([X.write(wb, { bookType: 'biff8', type: 'array' })], { type: 'application/vnd.ms-excel' });
+        const r = xlsBytes(window.XLSX, [{ name: sheetName, aoa }]);
+        if (r.problem) throw new Error(r.problem);
+        return new Blob([r.bytes], { type: 'application/vnd.ms-excel' });
     }
     async function download(fn) {
         if (!window.XLSX) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
         try { await fn(); }
         catch (e) { console.error('[mibal2-live] 받기 실패:', e && (e.code || e.message)); alert('파일을 받지 못했습니다 — ' + errText(e)); }
     }
+    // 입고용·미발확인 파일은 표(선택 출고일)의 행으로 만든다 — 다른 PC 가 출고일을 바꿨으면 옛 표로 받지 않는다(맞추고 다시 누르게)
+    async function freshFileRows(what) {
+        const fresh = await reloadOrStop(what);
+        if (!fresh) return null;
+        if (fresh.datesChanged) { alert(DATES_CHANGED); return null; }
+        return fileRowsOf(ctx.getViewRows());
+    }
     async function downloadInboundFile() {
-        const rows = fileRowsOf(ctx.getViewRows());
+        const rows = await freshFileRows('입고용 파일 받기');
+        if (!rows) return;
         if (!rows.length) { showToast('받을 행이 없습니다'); return; }
-        await saveToDesktop('입고용파일.xls', new Blob([inboundFileHtml(rows)], { type: 'application/vnd.ms-excel' }));
+        await saveToDesktop('입고용파일.xls', biff8Blob(inboundFileAoa(rows), 'worksheet'));   // 진짜 .xls(biff8, 2026-11-10 — 예전엔 HTML 표)
     }
     async function downloadMibalFile() {
-        const rows = fileRowsOf(ctx.getViewRows());
+        const rows = await freshFileRows('미발확인 파일 받기');
+        if (!rows) return;
         if (!rows.length) { showToast('받을 행이 없습니다'); return; }
         await saveToDesktop('미발확인파일.xls', biff8Blob(mibalFileAoa(rows), 'worksheet'));
     }
@@ -747,7 +832,7 @@ export function startLive(ctx) {
 
     // ── 업무예상용 미발 기록(화면을 열면 그날 1회) ──
     async function onLatest() {
-        if (historyDone) return;
+        if (historyDone || isFrozen()) return;   // 비상 전환 중(조회 전용)이면 기록하지 않는다
         const latest = ctx.getLatest();
         const okMs = latest ? tsMs(latest.lastOkAt) : 0;
         const today = isoDay();
@@ -768,10 +853,18 @@ export function startLive(ctx) {
         }
     }
 
+    /** 비상 전환(조회 전용)이면 쓰기 버튼을 끈다 — 다시 켜는 것은 새로고침 뒤(decorate 가 켬) */
+    function setFrozenUI(on) {
+        if (!on) return;
+        WRITE_BTN_IDS.forEach(id => { const b = $(id); if (b) { b.disabled = true; b.title = '비상 전환 중 — 조회 전용(기존 화면에서 작업)'; } });
+    }
+
     return {
         locOptions: loc.locOptions,
-        attachLoc: loc.attach,
+        attachLoc: (tools) => { loc.attach(tools); if (isFrozen()) setFrozenUI(true); },
         onLatest,
-        onDates: renderBatchNote
+        onDates: renderBatchNote,
+        isBusy: () => busy,
+        setFrozenUI
     };
 }

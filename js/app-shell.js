@@ -1,5 +1,5 @@
 // === js/app-shell.js ===
-// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202611101022"> 로 붙이면 스스로 돈다.
+// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202611101235"> 로 붙이면 스스로 돈다.
 //   <body data-shell="페이지ID">              → 위쪽에 바를 얹는다(css/app-shell.css 가 본문을 그만큼 내린다)
 //   <body data-shell="index" data-shell-bar="off"> → 바 없이 메뉴 캐시만 채운다(대시보드)
 // 페이지는 js/app-shell-bridge.js 의 setShellContext 로 로그인 상태를 알려 준다.
@@ -16,10 +16,10 @@
 //   메뉴 이름 + 그 화면 안 탭(app-shell-data.js SUB_DESTINATIONS) + 홈. 같은 화면 안 이동은 해시 이동(뒤로가기로 되돌림),
 //   다른 화면은 navigate(이동 전 저장 훅). 팔레트도 섀도 DOM 안, 열 때 만들고 닫을 때 없앤다.
 
-import { visibleMenuFor } from './menu-catalog.js?v=202611101022';
-import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations, menuLabel } from './app-shell-data.js?v=202611101022';
-import { rank } from './hangul-search.js?v=202611101022';
-import { isAutomation, loadDismissed, addDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611101022';
+import { visibleMenuFor } from './menu-catalog.js?v=202611101235';
+import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations, menuLabel } from './app-shell-data.js?v=202611101235';
+import { rank } from './hangul-search.js?v=202611101235';
+import { isAutomation, loadDismissed, addDismissed, pickPopup, findOpenModal, notiLink } from './lib/noti-popup.js?v=202611101235';
 
 const BASE = new URL('../', import.meta.url).href;      // 앱 폴더(js/ 의 부모)
 const MENU_CACHE_KEY = 'appShell.menu.v2';              // js/app-shell-bridge.js 와 같은 키(v2: 권한 개편)
@@ -31,6 +31,7 @@ const NOTI_OFF_PAGES = ['index', 'scan', 'calculator'];
 const NOTI_DELAY = 2500;            // 페이지가 첫 화면을 그리고 난 뒤에 구독한다
 const NOTI_LINK = 'index.html#open=noti';
 const POP_WAIT_STEP = 1000;            // 다른 창이 떠 있으면 1초마다 보고
+const POP_READ_WAIT = 1500;            // 알림을 눌러 이동할 때 읽음 표시를 기다리는 최대 시간
 const POP_WAIT_MAX = 30 * 60 * 1000;   // 30분 넘게 막히면 그만 기다린다(다음 알림 변경 때 다시 본다)
 
 const 선 = (d) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -140,7 +141,8 @@ p { margin: 0; font-weight: 500; white-space: pre-line; overflow-wrap: anywhere;
 .b.ok:hover { background: var(--as-accent-deep); border-color: var(--as-accent-deep); }
 :host([data-theme="dark"]) .b.ok { color: #10141A; }
 .b:disabled { opacity: .6; cursor: default; }
-.b:focus-visible { outline: 2px solid var(--as-accent); outline-offset: 2px; }`;
+.b:focus-visible { outline: 2px solid var(--as-accent); outline-offset: 2px; }
+.b.go { display: flex; margin-top: 8px; min-height: 38px; color: var(--as-accent-deep); }`;
 
 // Ctrl+K 빠른 이동 — 열 때 만들고 닫을 때 없앤다. role=dialog·data-act·id 를 바깥 문서에 만들지 않는다(섀도 안).
 const PALETTE_CSS = `${TOKENS}
@@ -308,7 +310,7 @@ function start() {
         noti.timer = setTimeout(async () => {
             noti.timer = null;
             try {
-                const { watchNotifications, markRead } = await import('./app-shell-noti.js?v=202611101022');
+                const { watchNotifications, markRead } = await import('./app-shell-noti.js?v=202611101235');
                 if (noti.name !== want) return;   // 그 사이 로그아웃·다른 사람
                 noti.markRead = markRead;
                 // 안 읽은 목록은 이 메모리에만 둔다(로그·저장소에 남기지 않는다). 첫 스냅샷·새 알림 모두 팝업을 다시 본다.
@@ -366,8 +368,25 @@ function start() {
         const root = popHost.shadowRoot;
         popIds = items.map(n => n.id);
         root.querySelector('h2').textContent = `새 알림 ${items.length}건`;
-        root.querySelector('ul').innerHTML = items.map(n =>
-            `<li><time>${esc(popTime(n.createdAt))}</time><p>${esc(n.message)}</p></li>`).join('');
+        root.querySelector('ul').innerHTML = items.map(n => {
+            const link = notiLink(n);
+            return `<li><time>${esc(popTime(n.createdAt))}</time><p>${esc(n.message)}</p>${link ? `<a class="b go" href="${esc(absUrl(link, BASE))}" data-noti-id="${esc(n.id)}">비품 관리로 이동</a>` : ''}</li>`;
+        }).join('');
+    }
+
+    // 알림의 [비품 관리로 이동] — 그 항목만 읽음 처리한 뒤 이동한다. 오프라인이면 읽음 쓰기가 끝나지 않으므로 오래 기다리지 않는다.
+    //   Ctrl·가운데 클릭은 브라우저가 새 탭으로 연다(interceptLink 와 같은 규칙).
+    async function popGo(e) {
+        const a = e.target.closest('a.go');
+        if (!a || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        const id = a.dataset.notiId, url = a.href;
+        addDismissed([id]);                // 읽음 반영이 늦게 와도 다시 뜨지 않게
+        if (noti.markRead) {
+            const ok = await Promise.race([noti.markRead([id]), new Promise(r => setTimeout(() => r(false), POP_READ_WAIT))]);
+            if (!ok) console.warn('[app-shell] 알림을 읽음으로 표시하지 못했습니다 — 그대로 이동합니다.');
+        }
+        navigate(url);
     }
 
     function popLater() {
@@ -422,6 +441,7 @@ function start() {
                 </div>
             </section>`;
         renderPop(items);
+        root.querySelector('ul').addEventListener('click', popGo);                                  // root 의 interceptLink 보다 먼저(기본 이동을 막으면 그쪽은 건너뛴다)
         root.querySelector('.scrim').addEventListener('click', popLater);
         root.querySelector('.later').addEventListener('click', popLater);
         root.querySelector('.ok').addEventListener('click', (e) => popConfirm(e.currentTarget));

@@ -10,7 +10,7 @@
 //   금액·직원 이름·거래처 실명 없음(업무 id·앱 이름만).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-automation.test.js
 
-import { TASK } from './task-ids.js?v=202611101022';
+import { TASK } from './task-ids.js?v=202611101235';
 
 const P = (key, text, met = false) => Object.freeze({ key, text, met });
 

@@ -9,9 +9,10 @@
 //   historyGroupsOf · historyRecordsOf   업무예상용 MIBAL_HISTORY 자동 기록(basis 'v2')
 //   locSourceOf · locFreshMsOf · locStaleReason   위치값 엑셀의 옵션추가항목1 원천(로케이션관리 Locations)
 //   barcodeMapOfAoa  [바코드 매핑 올리기] 엑셀 → BARCODE_MAP(바코드 → 상품코드)
-//   fileRowsOf · inboundFileHtml · mibalFileAoa · floor2FileAoa   이지어드민 업로드용 받기 3종의 내용(기존 화면과 같은 형식)
+//   fileRowsOf · inboundFileAoa · mibalFileAoa · floor2FileAoa   이지어드민 업로드용 받기 3종의 내용(기존 화면과 같은 열·값, 파일은 모두 .xls biff8)
+//   readAllPages     페이지로 나눠 끝까지 읽기(입고이력 — 한 쿼리 limit 상한 10000)
 // 공급처 이름·원가는 다루지 않는다. Locations rawData 는 '옵션추가항목1' 칸 하나만 꺼낸다.
-import { scanDbPreviewOf, byShipOf } from './scan-link.js?v=202611101022';
+import { scanDbPreviewOf, byShipOf } from './scan-link.js?v=202611101235';
 
 /** 값 서명 — 칸 순서와 무관하게 같은 값이면 같은 글자(시각은 ms 로). 확인창 전후에 설정·스캐너 자료가 바뀌었는지 볼 때 쓴다 */
 export function stableSig(v) {
@@ -25,6 +26,23 @@ export function stableSig(v) {
         return out;
     };
     return JSON.stringify(norm(v));
+}
+
+/**
+ * 페이지로 나눠 끝까지 읽기 — fetchPage(after) 는 문서 배열(after = 직전 페이지의 마지막 문서, 처음은 null).
+ *   한 페이지가 pageSize 보다 적으면 끝. 모은 수가 max 를 넘으면 tooMany 로 throw(잘린 채 보관·삭제하지 않게).
+ *   순서는 fetchPage 가 돌려준 순서 그대로(이어 붙임).
+ */
+export async function readAllPages(fetchPage, pageSize, max, tooMany) {
+    const all = [];
+    let after = null;
+    for (;;) {
+        const page = await fetchPage(after);
+        for (const d of page) all.push(d);
+        if (all.length > max) throw new Error(tooMany || `문서가 ${max}건을 넘습니다.`);
+        if (page.length < pageSize) return all;
+        after = page[page.length - 1];
+    }
 }
 
 export const ARCHIVE_COLL = 'ChinaStockGoods_Archive';
@@ -323,12 +341,10 @@ export function barcodeMapOfAoa(aoa) {
 /** 화면에 보이는 행(검색·필터·정렬 반영) → 파일에 넣을 행 */
 export const fileRowsOf = (rows) => (rows || []).filter(r => r && !r.outside);
 
-/** 입고용파일.xls 내용 — HTML 표를 .xls 이름으로(BOM 포함, UTF-8). 코드 + 도착수량 */
-export function inboundFileHtml(rows) {
-    let html = '<table><tr><th>상품코드</th><th>수량</th></tr>';
-    (rows || []).forEach(r => { html += `<tr><td>${r.code}</td><td>${r.arr}</td></tr>`; });
-    html += '</table>';
-    return '﻿' + html;
+/** 입고용파일.xls 의 행 — 머리글 '상품코드'·'수량' + 코드(글자 그대로 — 앞자리 0·지수 표기로 바뀌지 않게)·도착수량(숫자).
+ *  2026-11-10 부터 진짜 .xls(biff8, 시트 'worksheet' — 미발확인 파일과 같은 방식). 예전에는 HTML 표를 .xls 이름으로 받았다(열·행 순서·값은 같다) */
+export function inboundFileAoa(rows) {
+    return [['상품코드', '수량'], ...(rows || []).map(r => { const q = parseInt(r.arr, 10); return [String(r.code), Number.isFinite(q) ? q : 0]; })];
 }
 
 /** 미발확인파일.xls 의 행 — 머리글 '상품코드' + 코드 1열 */

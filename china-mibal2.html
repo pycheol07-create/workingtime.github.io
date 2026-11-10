@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611101022"></script>
+    <script src="js/theme-boot.js?v=202611101235"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 부족수량 관리(신규·시험)</title>
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다.
          스캐너 연동(시험)·위치지정(시험)은 읽기 전용 — 쓰기 버튼은 disabled(js/china-mibal2-scan.js, js/china-mibal2-loc.js, tests/mibal2-readonly.test.js). -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611101022">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611101022">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611101022">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202611101022">
+    <link rel="stylesheet" href="css/suit.css?v=202611101235">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611101235">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611101235">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202611101235">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -193,6 +193,14 @@
 <body data-shell="china-mibal2" data-cols="simple">
     <div class="trial-banner">시험 중 — 스캐너에는 반영 안 됨 (기존 미발계산기와 나란히 비교하는 용도)</div>
 
+    <!-- 모바일 접속 시 입고앱 실행 안내 — 기존 화면(china-stock-goods.html #mobile-gate)과 같은 모양·문구. 로그인·권한 판정과 상관없이 바로(js/china-mibal2.js setupMobileGate) -->
+    <div id="mobile-gate" style="display:none; position:fixed; inset:0; z-index:100000; background:var(--c-bg); color:var(--c-text); flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:24px; box-sizing:border-box;">
+        <div style="font-size:21px; font-weight:600; margin-bottom:8px;">입고앱(스캐너)을 실행하시겠습니까?</div>
+        <div class="t-2" style="font-size:14px; margin-bottom:30px; line-height:1.6;">모바일에서는 스캐너로 바로 작업할 수 있습니다.<br><span class="t-3" style="font-size:12px;">미발계산기 화면은 PC에서 보기 편합니다.</span></div>
+        <button id="mg-open-scan" class="d-btn d-btn-primary" style="width:100%; max-width:330px; min-height:52px; font-size:17px; margin-bottom:12px;">입고앱 실행</button>
+        <button id="mg-open-web" class="d-btn" style="width:100%; max-width:330px; min-height:44px; font-size:14px;">그냥 웹 페이지 보기</button>
+    </div>
+
     <div id="loading-overlay" class="loading-overlay" style="display:flex;">
         <div class="spinner"></div>
         <div id="loading-text">데이터 불러오는 중...</div>
@@ -214,6 +222,7 @@
         </div>
         <div class="header-actions">
             <span id="status-chip" class="status-chip gray">● 수집 자료 확인 중…</span>
+            <button id="btn-open-scanner" class="d-btn" title="입고 스캐너(scan.html)를 새 창으로 엽니다">스캐너 열기</button>
             <button id="btn-refresh" class="d-btn d-btn-primary live-only">지금 갱신</button>
         </div>
     </div>
@@ -442,9 +451,9 @@
     <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202611101022"></script>
-    <script type="module" src="js/china-mibal2.js?v=202611101022"></script>
-    <script type="module" src="js/page-gate.js?v=202611101022" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202611101022"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202611101235"></script>
+    <script type="module" src="js/china-mibal2.js?v=202611101235"></script>
+    <script type="module" src="js/page-gate.js?v=202611101235" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202611101235"></script>
 </body>
 </html>

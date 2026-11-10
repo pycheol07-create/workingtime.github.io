@@ -14,8 +14,8 @@
 //   · 대상 업무: 최근 8주 안에 기록이 있는 업무(관리자 개별업무 등 exclude 제외). 퇴사자(퇴사일 다음 날부터)·시스템 계정 제외, 알바는 포함(partTimer 표시).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-skills.test.js
 
-import { taskDays, taskListOf, uphOf, qtyDaysOf, SOLO_SHARE, MIN_SOLO_DAYS, addDays } from './task-owner.js?v=202611101022';
-import { isMemberActiveOn } from '../utils.js?v=202611101022';
+import { taskDays, taskListOf, uphOf, qtyDaysOf, SOLO_SHARE, MIN_SOLO_DAYS, addDays } from './task-owner.js?v=202611101235';
+import { isMemberActiveOn } from '../utils.js?v=202611101235';
 
 export const SKILL_LEVELS = Object.freeze({ ableHours: 8, ableDays: 3, skilledUphRatio: 0.9, windowDays: 90, recentWeeks: 8 });
 export const LEVEL_RANK = Object.freeze({ skilled: 3, able: 2, exp: 1, none: 0 });

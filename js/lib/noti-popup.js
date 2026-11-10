@@ -70,6 +70,15 @@ export function pickPopup(list, dismissed) {
         .sort((a, b) => timeOf(b) - timeOf(a));
 }
 
+// 알림 type → 눌렀을 때 갈 화면. 고정 표만 쓴다 — 문서에 적힌 임의 주소로 보내지 않는다.
+const NOTI_LINKS = { supplies: 'supplies.html#alerts' };
+
+/** 이 알림을 눌렀을 때 갈 주소. 표에 없는 type 이면 undefined. */
+export function notiLink(n) {
+    const t = n && n.type;
+    return typeof t === 'string' && Object.prototype.hasOwnProperty.call(NOTI_LINKS, t) ? NOTI_LINKS[t] : undefined;
+}
+
 /** 알림 목록 정렬 — 안 읽은 것 위로, 그 안에서 최신순(원본은 그대로 둔다). */
 export function sortUnreadFirst(list) {
     return (Array.isArray(list) ? list.slice() : [])

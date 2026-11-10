@@ -9,7 +9,11 @@
 //   suppliesForecast { generatedAt, today, basisDate, items: { <itemId>: { status, level, method, driver, corr,
 //                      corrBasis, perDriver, perWorkday, windowWorkdays, confidence, stock, stockAt, safety{used,
 //                      source, suggested}, leadTime{workdays, calDays, source}, depleteDate, reorderDate, workdaysLeft,
-//                      recommendQty, bundle, appOnlyOutLogs, notes[] } }, zabPacks{days, need} }
+//                      recommendQty, bundle, appOnlyOutLogs, notes[], spike{date, used, expected, window?},
+//                      recentAlerts{ <order|watch|spike|late|received>: { at, until, (spike 만) date, used, expected,
+//                      window? } } } }, zabPacks{days, need} }
+//                      recentAlerts 의 기한(until)은 서버가 지난 것을 지운다 — 화면은 지금 상태로 거르고, 서버가 멈춰 남은
+//                      지난 기한도 뺀다(alertReasons).
 //   suppliesOrders   { orders: { <itemId>: { status 'ordered'|'received'|'cancelled', orderedDate, orderedAt, qty,
 //                      expectedDate, receivedDate? } }, log: [...] }
 //
@@ -226,6 +230,79 @@ export function packsProgressText(forecastDoc) {
     const need = num(z.need) || 20;
     const days = num(z.days);
     return days < need ? `봉 건수 기록 쌓는 중 (${days}/${need}일)` : '';
+}
+
+// 최근 알림 사유 — 위험한 것부터(alertReasons 결과 순서·sortAlertRows 기준). 제목은 슬랙 일일 글(예측규칙.일일문구)과 같다.
+const ALERT_KINDS = [
+    ['order',    { label: '발주 필요', tone: 'danger' }],
+    ['late',     { label: '입고 지연', tone: 'danger' }],
+    ['spike',    { label: '사용 급증', tone: 'warn' }],
+    ['watch',    { label: '주의',      tone: 'warn' }],
+    ['received', { label: '입고 확인', tone: 'ok' }]
+];
+const ALERT_RANK = new Map(ALERT_KINDS.map(([k], i) => [k, i]));
+
+function alertText(kind, a, fc, order, u) {
+    if (kind === 'order' || kind === 'watch') {
+        const today = String(fc.today || '').slice(0, 10);
+        const r = fc.reorderDate ? String(fc.reorderDate).slice(0, 10) : '';
+        const when = !r ? '-' : (today && r <= today ? '오늘' : mdw(r));
+        return `현재고 ${fmtInt(fc.stock)}${u} · 발주 권장일 ${when} · 소진 예상 ${mdw(fc.depleteDate)}`
+            + (fc.confidence === 'low' ? ' (신뢰도 낮음)' : '')
+            + (kind === 'order' && num(fc.recommendQty) > 0 ? ` · 권장 발주 ${fmtInt(fc.recommendQty)}${u}` : '');
+    }
+    if (kind === 'spike') {
+        const w = num(a.window);
+        return w > 0
+            ? `${mdw(a.date)}까지 ${w}업무일 ${fmtInt(a.used)}${u} 사용 (평소 ${w}업무일 약 ${fmtInt(a.expected)}${u})`
+            : `${mdw(a.date)} ${fmtInt(a.used)}${u} 사용 (평소 약 ${fmtInt(a.expected)}${u})`;
+    }
+    if (kind === 'late') {
+        return `입고 예정 ${mdw(order && order.expectedDate)} 지남 (발주 ${mdw(order && order.orderedDate)} · ${fmtInt(order && order.qty)}${u})`;
+    }
+    return '입고 확인, 알림 다시 켬';
+}
+
+/** 이 비품을 왜 봐야 하나 → [{kind, label, tone, text}] 위험한 것부터. 근거는 서버의 fc.recentAlerts(옛 문서면 fc.spike).
+ *  - order·watch : 지금 상태가 그 종류일 때만  - late : 지금 발주함일 때만  - spike·received : 서버가 남겨 둔 기간 내내
+ *  - ordersKnown false(발주 상태를 못 읽음)면 order·watch·late 는 뺀다(이미 발주한 비품을 잘못 알리지 않게).
+ *  - 기한(until)이 today 보다 앞이면 뺀다 — 서버가 며칠 멈춰 지난 사유가 남아 있을 때(옛 fc.spike 는 기한이 없어 그대로). */
+export function alertReasons(item, fc, order, ordersKnown, today = kstToday()) {
+    if (!fc) return [];
+    const src = fc.recentAlerts ?? (fc.spike ? { spike: { ...fc.spike, at: fc.today } } : {});
+    if (!src || typeof src !== 'object') return [];
+    const now = effectiveStatus(item, fc, order);
+    const u = (item && item.unit) || '개';
+    const out = [];
+    for (const [kind, info] of ALERT_KINDS) {
+        const a = src[kind];
+        if (!a || typeof a !== 'object') continue;
+        if (a.until && a.until < today) continue;
+        if (!ordersKnown && (kind === 'order' || kind === 'watch' || kind === 'late')) continue;
+        if ((kind === 'order' || kind === 'watch') && now !== kind) continue;
+        // 지연은 지금 발주의 입고 예정일이 정말 지났을 때만 — 지연 알림 뒤 새로 발주한 건을 '지남'으로 표시하지 않는다
+        if (kind === 'late' && !(now === 'ordered' && order && order.expectedDate && String(order.expectedDate) < String(fc.today || ''))) continue;
+        out.push({ kind, label: info.label, tone: info.tone, text: alertText(kind, a, fc, order, u) });
+    }
+    return out;
+}
+
+/** 발주 상태를 못 읽었을 때 안내 줄에 늘 붙이는 경고(사유 건수와 상관없이) */
+export const ALERT_ORDERS_UNKNOWN = '발주 상태를 읽지 못해 발주 필요·주의·입고 지연은 빠져 있습니다';
+
+/** 앱 알림(#alerts)으로 왔는데 보일 사유가 0건일 때 안내.
+ *  forecastOk = 이번에 예측을 읽었나 · reloadSkipped = 상세 창이 열려 있어 다시 읽기를 건너뛰었나 */
+export function alertsEmptyText({ forecastOk, reloadSkipped } = {}) {
+    return (!forecastOk || reloadSkipped)
+        ? '최신 알림을 확인하지 못했습니다'
+        : '지금 표시할 확인 비품이 없습니다 — 이미 처리되었습니다';
+}
+
+/** 안내 줄 정렬 — rows [{name, reasons}] 를 가장 위험한 사유 순으로, 같으면 이름순. 원본은 그대로 둔다. */
+export function sortAlertRows(rows) {
+    const rank = (r) => ALERT_RANK.get(r && r.reasons && r.reasons[0] && r.reasons[0].kind) ?? 99;
+    return (Array.isArray(rows) ? rows.slice() : [])
+        .sort((a, b) => (rank(a) - rank(b)) || String(a && a.name || '').localeCompare(String(b && b.name || ''), 'ko'));
 }
 
 /** 안전재고 제안이 지금 값과 다르면 제안값, 아니면 null. */
