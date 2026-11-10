@@ -24,6 +24,10 @@
 .ap-att { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .ap-att li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .ap-att-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 승인 후 추가 — 이름 아래에 시각·추가한 사람 */
+.ap-att-col { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ap-att-col .ap-att-name { flex: none; }
+.ap-att-at { font-size: 11.5px; }
 .ap-file-pick { cursor: pointer; }
 .ap-file-pick.is-off { opacity: .5; cursor: not-allowed; }
 /* 결재선(2026-11-05) — 작성 화면 줄 고르기 · 목록 글 · 보기 화면 진행 */
@@ -101,6 +105,7 @@
 .ap-intro { margin-top: 5mm; white-space: pre-wrap; }
 .ap-pledge { margin-top: 8mm; text-align: center; white-space: pre-wrap; }
 .ap-sign { margin-top: 8mm; text-align: right; line-height: 2; }
+.ap-after { margin-top: 2mm; font-size: 7.5pt; line-height: 1.4; color: #555; overflow-wrap: anywhere; }
 .ap-sheet.fit-1 { font-size: 10pt; line-height: 1.5; }
 .ap-sheet.fit-1 .ap-body td.is-long { height: 14mm; min-height: 14mm; }
 .ap-sheet.fit-2 { font-size: 9pt; line-height: 1.4; }

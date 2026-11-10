@@ -16,8 +16,10 @@
 //   재제출하면 step 0·stamps 비움(이력엔 남음). 회수는 아무도 승인 안 했을 때만.
 //   옛 문서(approverName·approverEmail 한 명, approverStamp)는 approversOf·stampsOf 로 1명 결재선처럼 읽는다.
 //   옛 문서의 결재는 옛 모양(approverStamp)으로 쓰고, 작성자가 고치거나 다시 내면 새 모양(approvers…)으로 바뀐다.
+// 2026-11-09 참조자: ccs [{name, email}] 0~5명 + ccEmails(쿼리용). 후보는 재직 관리자(작성자·결재자 제외), 제출 뒤 읽기·인쇄만.
+//   임시저장·반려 재작성 때만 바꾼다. 관리자라 읽을 수 있으므로 읽기 규칙은 그대로이고, actionsFor 도 참조 여부를 보지 않는다(관리자 권한을 줄이지 않는다).
 
-import { positionOf } from './member-title.js?v=202611100920';
+import { positionOf } from './member-title.js?v=202611101022';
 
 export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select', 'file'];
 export const BOX_ROLES = ['author', 'approver', 'blank'];
@@ -36,16 +38,20 @@ export const STATUS_ORDER = ['submitted', 'draft', 'rejected', 'approved'];
 // 규칙(firestore.rules ApprovalDocs)과 같은 목록
 export const CREATE_KEYS = ['v', 'formId', 'form', 'authorEmail', 'authorName', 'status', 'values', 'createdAt', 'updatedAt',
     'submittedAt', 'authorStamp', 'decision', 'history', 'approvers', 'approverEmails', 'step', 'stamps', 'attachments'];
-export const AUTHOR_KEYS = ['values', 'status', 'updatedAt', 'submittedAt', 'authorStamp', 'history', 'approvers', 'approverEmails', 'step', 'stamps', 'attachments'];
+// 참조 칸 — 선택 칸(규칙 apCreateOk 의 hasOnly 에만 있고 hasAll 에는 없음). 참조자가 없고 문서에도 칸이 없으면 쓰지 않는다(옛 규칙에서도 저장되게)
+export const CC_KEYS = ['ccs', 'ccEmails'];
+export const AUTHOR_KEYS = ['values', 'status', 'updatedAt', 'submittedAt', 'authorStamp', 'history', 'approvers', 'approverEmails', 'step', 'stamps', 'attachments', 'ccs', 'ccEmails'];
 export const ADMIN_KEYS = ['status', 'decision', 'step', 'stamps', 'updatedAt', 'history'];   // 차례 결재자·관리자(대결) 같음
 export const ADMIN_KEYS_OLD = ['status', 'decision', 'approverStamp', 'updatedAt', 'history'];   // 옛 문서(approvers 없음) 결재
 
 // 결재자 후보 직책(js/lib/member-title.js POSITIONS 중) — 규칙 apCandOk 와 같은 목록
 export const APPROVER_POSITIONS = ['파트장', '부팀장', '팀장'];
 export const APPROVERS_MAX = 3;   // 결재선 최대 인원 — 규칙 apApproversOk 와 같다
+export const CC_MAX = 5;          // 참조자 최대 인원 — 규칙 apCcLine 과 같다
 
 // 첨부 — storage.rules approvals/ 와 같은 값. 확장자로 contentType 을 정한다(브라우저 값은 믿지 않음)
 export const ATTACH_MAX = 5;
+export const ATTACH_AFTER_TOTAL = 10;   // 승인 후 증빙까지 합친 문서 전체 첨부 수 — 규칙 apAddAfterOk 와 같은 값
 export const ATTACH_MAX_BYTES = 10 * 1024 * 1024;
 export const ATTACH_TYPES = {
     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
@@ -250,12 +256,20 @@ export function currentApprover(d) {
 export const inLine = (d, email) => !!email && approversOf(d).some(a => a.email === lower(email));
 /** 지금 이 사람 차례인가 */
 export const isTurn = (d, email) => { const c = currentApprover(d); return !!c && !!email && c.email === lower(email); };
+/** 참조자 [{name, email}] — 옛 문서(칸 없음)는 빈 목록 */
+export function ccsOf(d) {
+    if (!d || !Array.isArray(d.ccs)) return [];
+    return d.ccs.filter(a => a && a.email).map(a => ({ name: String(a.name || ''), email: lower(a.email) }));
+}
+/** 참조자에 이 사람이 있나 */
+export const inCc = (d, email) => !!email && ccsOf(d).some(a => a.email === lower(email));
 /** 아무도 승인 안 했나(회수 가능 조건) */
 export const noneApproved = (d) => stepOf(d) === 0 && stampsOf(d).length === 0;
 
 /** 이 사람이 이 기안서에 할 수 있는 일 — 'edit'·'submit'·'delete'·'withdraw'·'approve'·'reject'·'print'.
  *  전이표(규칙과 같음): 작성자 draft→수정·제출·삭제(회수·반려를 거친 임시저장도 삭제 가능, 2026-11-05) / rejected→수정·재제출 /
- *  submitted→회수(아무도 승인 안 했을 때만), 차례 결재자·관리자(대결) submitted→승인·반려. approved 는 인쇄만.
+ *  submitted→회수(아무도 승인 안 했을 때만), 차례 결재자·관리자(대결) submitted→승인·반려. approved 는 인쇄와 승인 후 증빙 추가('addAfter' — 작성자·결재선 전원·관리자)만.
+ *  관리자는 누구 문서든 모든 상태에서 삭제('delete', 2026-11-10).
  *  결재선에 있는 사람은 제출 뒤(draft 아님) 인쇄·열람. */
 export function actionsFor(d, email, isAdmin) {
     if (!d) return [];
@@ -263,11 +277,15 @@ export function actionsFor(d, email, isAdmin) {
     const assigned = inLine(d, email);
     const out = [];
     // 임시저장이면 회수·반려를 거쳤어도 삭제 가능(규칙과 같음, 2026-11-05 사용자 결정)
-    if (mine && d.status === 'draft') out.push('edit', 'submit', 'delete');
+    const ownDraft = mine && d.status === 'draft';
+    if (ownDraft) out.push('edit', 'submit', 'delete');
     if (mine && d.status === 'rejected') out.push('edit', 'submit');
     if (mine && d.status === 'submitted' && noneApproved(d)) out.push('withdraw');
     if (d.status === 'submitted' && currentApprover(d) && (isAdmin || isTurn(d, email))) out.push('approve', 'reject');
     else if (d.status === 'submitted' && !approversOf(d).length && isAdmin) out.push('approve', 'reject');   // 결재자 지정이 없던 첫 판 문서 — 관리자만
+    if (d.status === 'approved' && (mine || isAdmin || assigned)) out.push('addAfter');
+    // 관리자는 누구 문서든 상태와 상관없이 삭제(규칙과 같음, 2026-11-10 사용자 결정 — 이력·의견·첨부도 같이 사라짐)
+    if (isAdmin && !ownDraft) out.push('delete');
     if (mine || isAdmin || (assigned && d.status !== 'draft')) out.push('print');
     return out;
 }
@@ -317,20 +335,48 @@ export function checkApprovers(list, selfEmail) {
     return err;
 }
 const needApprovers = (ap, m) => { const e = checkApprovers(ap, m.email); if (e.length) throw new Error(e[0]); };
+// 참조자 정리 — 결재선과 같은 모양
+export const cleanCcs = (list) => cleanApprovers(list);
+/** 참조자 검사 — 오류 문장 목록(비어도 된다, 선택 사항). 5명까지, 본인·결재자 아님, 같은 사람 두 번 안 됨. cfg 를 주면 지금 후보(재직 관리자)인지도 본다. */
+export function checkCcs(list, selfEmail, approvers = [], cfg = null) {
+    const cc = cleanCcs(list);
+    const self = lower(selfEmail);
+    const line = new Set(cleanApprovers(approvers).map(a => a.email));
+    const err = [];
+    if (cc.length > CC_MAX) err.push(`참조자는 ${CC_MAX}명까지입니다.`);
+    if (cc.some(a => a.email === self)) err.push('본인을 참조자로 지정할 수 없습니다.');
+    if (new Set(cc.map(a => a.email)).size !== cc.length) err.push('같은 참조자를 두 번 넣을 수 없습니다.');
+    if (cc.some(a => line.has(a.email))) err.push('결재자는 참조자로 함께 지정할 수 없습니다.');
+    if (cfg) {
+        const ok = new Set(ccCandidates(cfg, '', self).map(c => c.email));
+        if (cc.some(a => a.email !== self && !ok.has(a.email))) err.push('재직 중인 관리자만 참조자로 지정할 수 있습니다.');
+    }
+    return err;
+}
+const needCcs = (cc, ap, m) => { const e = checkCcs(cc, m.email, ap); if (e.length) throw new Error(e[0]); };
+const tooManyCcs = (cc) => { if (cc.length > CC_MAX) throw new Error(`참조자는 ${CC_MAX}명까지입니다.`); };
+// 문서에 쓰는 참조 칸(규칙 apCcLine — ccEmails 는 ccs 의 email 을 같은 순서로)
+const CC_LINE = (cc) => ({ ccs: cc, ccEmails: cc.map(a => a.email) });
+// 쓸 참조 칸 — 0명이고 문서에 칸도 없으면 안 쓴다. 칸이 있던 문서가 0명이 되면 빈 배열로 지운다
+const ccPatch = (cc, d) => (cc.length || (d && d.ccs !== undefined) ? CC_LINE(cc) : {});
 // 문서에 쓰는 결재선 칸(규칙 apApproversOk — approverEmails 는 approvers 의 email 을 같은 순서로)
 const LINE = (ap) => ({ approvers: ap, approverEmails: ap.map(a => a.email), step: 0, stamps: {} });
 const stampMap = (list) => Object.fromEntries(list.map((x, i) => [String(i), x]));
 
-/** 새 문서 전체. submit=true 면 바로 제출(기안 도장·결재자 필수). ts = serverTimestamp(), at = 브라우저 시각(이력용). approvers = [{name, email}] 순서대로 */
-export function buildCreate(form, me, values, { submit = false, ts, at, approvers } = {}) {
+/** 새 문서 전체. submit=true 면 바로 제출(기안 도장·결재자 필수). ts = serverTimestamp(), at = 브라우저 시각(이력용). approvers = [{name, email}] 순서대로, ccs = 참조자(선택) */
+export function buildCreate(form, me, values, { submit = false, ts, at, approvers, ccs } = {}) {
     const m = ME(me);
     needName(m);
     const ap = cleanApprovers(approvers);
-    if (submit) needApprovers(ap, m);
-    else if (ap.length > APPROVERS_MAX) throw new Error(`결재자는 ${APPROVERS_MAX}명까지입니다.`);
+    const cc = cleanCcs(ccs);
+    if (submit) { needApprovers(ap, m); needCcs(cc, ap, m); }
+    else {
+        if (ap.length > APPROVERS_MAX) throw new Error(`결재자는 ${APPROVERS_MAX}명까지입니다.`);
+        tooManyCcs(cc);
+    }
     const f = normalizeForm(form, form && form.id);
     return {
-        ...LINE(ap), attachments: [],
+        ...LINE(ap), ...ccPatch(cc), attachments: [],
         v: 1, formId: f.id, form: f, authorEmail: m.email, authorName: m.name,
         status: submit ? 'submitted' : 'draft',
         values: cleanValues(f, values),
@@ -343,24 +389,28 @@ export function buildCreate(form, me, values, { submit = false, ts, at, approver
 }
 
 /** 임시저장(draft·rejected → draft). 반려 건을 임시저장하면 '임시저장' 으로 돌아간다(반려 의견 decision 은 남는다, 단계 도장은 비운다). 이력은 늘리지 않는다.
- *  approvers 를 안 넘기면 지금 결재선 그대로(옛 문서는 새 모양으로 옮겨 쓴다). */
-export function buildSave(d, values, { ts, approvers } = {}) {
+ *  approvers·ccs 를 안 넘기면 지금 값 그대로(옛 문서는 새 모양으로 옮겨 쓴다). */
+export function buildSave(d, values, { ts, approvers, ccs } = {}) {
     if (!d || !['draft', 'rejected'].includes(d.status)) throw new Error('지금 상태에서는 고칠 수 없습니다.');
     const ap = cleanApprovers(approvers === undefined ? approversOf(d) : approvers);
     if (ap.length > APPROVERS_MAX) throw new Error(`결재자는 ${APPROVERS_MAX}명까지입니다.`);
-    return { values: cleanValues(d.form, values), status: 'draft', updatedAt: ts, submittedAt: null, authorStamp: null, ...LINE(ap) };
+    const cc = cleanCcs(ccs === undefined ? ccsOf(d) : ccs);
+    tooManyCcs(cc);
+    return { values: cleanValues(d.form, values), status: 'draft', updatedAt: ts, submittedAt: null, authorStamp: null, ...LINE(ap), ...ccPatch(cc, d) };
 }
 
 /** 제출·재제출(draft·rejected → submitted). 예전에 결재(반려)를 받은 문서면 'resubmit'. 결재는 1차부터 다시(step 0, 도장 비움). */
-export function buildSubmit(d, me, values, { ts, at, approvers } = {}) {
+export function buildSubmit(d, me, values, { ts, at, approvers, ccs } = {}) {
     if (!d || !['draft', 'rejected'].includes(d.status)) throw new Error('지금 상태에서는 제출할 수 없습니다.');
     const m = ME(me);
     needName(m);
     const ap = cleanApprovers(approvers === undefined ? approversOf(d) : approvers);
     needApprovers(ap, m);
+    const cc = cleanCcs(ccs === undefined ? ccsOf(d) : ccs);
+    needCcs(cc, ap, m);
     const act = (d.status === 'rejected' || d.decision) ? 'resubmit' : 'submit';
     return {
-        ...LINE(ap),
+        ...LINE(ap), ...ccPatch(cc, d),
         values: cleanValues(d.form, values), status: 'submitted', updatedAt: ts, submittedAt: ts,
         authorStamp: { name: m.name, at: ts },
         history: nextHistory(d.history, { act, at, by: m.email })
@@ -449,13 +499,13 @@ export function tardyPrefill(dayDoc, memberName) {
 //   2026-11-05 크롬 PDF 로 맞춰 봄(시말서, 한 칸만 채움): fit-0 약 400자 · fit-1 약 800자 · fit-2 약 1400자까지 한 장. 넘치면 over(안내만).
 const FIT = [{ cpl: 38, lines: 26 }, { cpl: 43, lines: 32 }, { cpl: 48, lines: 42 }];
 const linesOf = (text, cpl) => String(text || '').split('\n').reduce((n, p) => n + Math.max(1, Math.ceil(p.length / cpl)), 0);
-/** { level: 0|1|2, over: 한 장을 넘을 것 같으면 true } */
-export function printFitLevel(form, values) {
+/** { level: 0|1|2, over: 한 장을 넘을 것 같으면 true }. extraLines = 양식 밖에서 더 차지하는 줄(참조 줄 등) */
+export function printFitLevel(form, values, extraLines = 0) {
     const v = values || {};
     const fields = (form && form.fields) || [];
     for (let level = 0; level < FIT.length; level++) {
         const { cpl, lines } = FIT[level];
-        let n = 0;
+        let n = extraLines;
         fields.forEach(f => { n += f.type === 'textarea' ? Math.max(2, linesOf(v[f.key], cpl)) : linesOf(v[f.key], cpl); });
         n += form && form.intro ? linesOf(form.intro, cpl + 10) : 0;
         n += form && form.pledge ? linesOf(form.pledge, cpl + 10) : 0;
@@ -530,12 +580,18 @@ export function approverCandidates(cfg, selfName, selfEmail) {
     return out.sort((a, b) => (b._r - a._r) || a.name.localeCompare(b.name, 'ko')).map(({ _r, ...x }) => x);
 }
 
+/** 참조자 후보 — 결재자 후보 중 관리자(memberRoles admin)만. 재직·본인 제외·이메일 칸 빈칸 없음 조건은 결재자 후보와 같다(규칙 apCcAt 과 같은 뜻). */
+export function ccCandidates(cfg, selfName, selfEmail) {
+    const roles = (cfg && cfg.memberRoles) || {};
+    return approverCandidates(cfg, selfName, selfEmail).filter(c => roles[c.email] === 'admin');
+}
+
 // ── 첨부 ──
 const extOf = (name) => { const m = /\.([A-Za-z0-9]{1,6})$/.exec(String(name || '')); return m ? m[1].toLowerCase() : ''; };
-/** 붙일 수 있는가 — {ok, ext, contentType} | {ok:false, reason}. count = 지금 문서의 첨부 수. */
-export function checkAttach(file, count = 0) {
+/** 붙일 수 있는가 — {ok, ext, contentType} | {ok:false, reason}. count = 지금 문서의 첨부 수, max = 상한(승인 후 증빙은 ATTACH_AFTER_TOTAL). */
+export function checkAttach(file, count = 0, max = ATTACH_MAX) {
     if (!file) return { ok: false, reason: '파일이 없습니다.' };
-    if (count >= ATTACH_MAX) return { ok: false, reason: `첨부는 ${ATTACH_MAX}개까지입니다.` };
+    if (count >= max) return { ok: false, reason: `첨부는 ${max}개까지입니다.` };
     const ext = extOf(file.name);
     const contentType = ATTACH_TYPES[ext];
     if (!contentType) return { ok: false, reason: '이미지·PDF·엑셀·워드·한글 파일만 붙일 수 있습니다.' };
@@ -552,4 +608,32 @@ export const attachPath = (docId, ext, now = Date.now(), rand = Math.random().to
     `approvals/${docId}/${String(now).padStart(13, '0').slice(-13)}_${rand}.${ext}`;
 /** 문서에 둘 메타 한 줄 */
 export const attachMeta = (key, file, path, contentType) => ({ key: String(key), name: String(file.name || '').slice(0, 120), size: Number(file.size) || 0, path, type: contentType });
+/** 승인 후 증빙 메타 — 규칙 apAfterItemOk 의 8칸. atMs = 업로드 결과 metadata.timeCreated(서버 시각, ms). PC 시계로 대신하지 않는다. */
+export function afterAttachMeta(file, path, type, email, atMs) {
+    if (!Number.isInteger(atMs) || atMs <= 0) throw new Error('올린 시각을 확인하지 못했습니다 — 다시 올려 주세요.');
+    return { ...attachMeta('after', file, path, type), addedAfter: true, addedAtMs: atMs, addedBy: lower(email) };
+}
+/** 화면용으로 나눈다 — before = 결재 때 첨부, after = 승인 후 추가. 양식 파일 칸 키가 우연히 'after' 여도 addedAfter 로만 가른다. */
+export function splitAttachments(list) {
+    const all = (Array.isArray(list) ? list : []).filter(Boolean);
+    return { before: all.filter(a => a.addedAfter !== true), after: all.filter(a => a.addedAfter === true) };
+}
+const AFTER_NAME_MAX = 30;
+const AFTER_PRINT_MAX = 200;
+/** 인쇄 한 묶음 — 'a.pdf(11.09 14:30), b.jpg(11.09 15:02)'. 이름은 파일당 30자, 전체 limit 자를 넘기는 파일부터는 '외 N건'. */
+export function afterPrintText(after, limit = AFTER_PRINT_MAX) {
+    const items = (Array.isArray(after) ? after : []).filter(Boolean).map(a => {
+        const n = String(a.name || '');
+        const name = n.length > AFTER_NAME_MAX ? n.slice(0, AFTER_NAME_MAX - 1) + '…' : n;
+        const at = stampTime(a.addedAtMs).slice(5);   // 'YYYY.MM.DD HH:mm' → 'MM.DD HH:mm'
+        return at ? `${name}(${at})` : name;
+    });
+    let text = '', i = 0;
+    for (; i < items.length; i++) {
+        const next = i ? `${text}, ${items[i]}` : items[i];
+        if (next.length > limit) break;
+        text = next;
+    }
+    return i < items.length ? `${text}${text ? ' ' : ''}외 ${items.length - i}건` : text;
+}
 export const fmtBytes = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round((n || 0) / 1024)) + 'KB');

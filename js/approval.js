@@ -19,17 +19,19 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611100920';
+import { initializeFirebase } from './config.js?v=202611101022';
 import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611100920';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611100920';
-import { memberNameFor } from './app-shell-data.js?v=202611100920';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611101022';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611101022';
+import { memberNameFor } from './app-shell-data.js?v=202611101022';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
     tardyPrefill, printFitLevel, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
     checkAttach, attachPath, attachMeta, fmtBytes, ATTACH_MAX, ATTACH_ACCEPT, attachTypeOf,
-    approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes } from './lib/approval-logic.js?v=202611100920';
-import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR } from './lib/approval-noti.js?v=202611100920';
+    ATTACH_AFTER_TOTAL, afterAttachMeta, splitAttachments, afterPrintText,
+    CC_MAX, ccsOf, inCc, checkCcs, ccCandidates,
+    approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes } from './lib/approval-logic.js?v=202611101022';
+import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC } from './lib/approval-noti.js?v=202611101022';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -153,13 +155,17 @@ async function loadDocs() {
         S.docs = sortDocs([...m.values()]);
         return;
     }
+    // 참조 문서 — 참조자는 관리자만이라 이 분기에서만 읽는다. 실패해도 다른 목록은 그대로(규칙 게시 전·색인 문제 등)
+    const ccLoad = getDocs(query(col, where('ccEmails', 'array-contains', S.email), where('status', 'in', ['submitted', 'approved', 'rejected'])))
+        .catch(e => { console.error('[approval] 참조 목록 읽기 실패:', e && e.code); return { docs: [] }; });
     // 관리자: 최근 바뀐 200건 + 결재 대기 전부(오래 묵은 결재 대기가 200건 밖으로 밀려 빠지지 않게) — id 로 합친다
     const [recent, waiting] = await Promise.all([
         getDocs(query(col, orderBy('updatedAt', 'desc'), limit(ADMIN_LIST_LIMIT))),
         getDocs(query(col, where('status', '==', 'submitted')))
     ]);
+    const ccDocs = await ccLoad;
     const byId = new Map();
-    [...recent.docs, ...waiting.docs].forEach(sn => byId.set(sn.id, toDoc(sn)));
+    [...recent.docs, ...waiting.docs, ...ccDocs.docs].forEach(sn => byId.set(sn.id, toDoc(sn)));
     S.docs = sortDocs([...byId.values()]);
 }
 async function refresh() {
@@ -231,13 +237,14 @@ const pill = (status) => {
     return `<span class="${cls}">${esc(STATUS[status] || status)}</span>`;
 };
 // 작성자 버튼 — 되면 누를 수 있고, 안 되면 흐리게(is-off) + 툴팁(까닭). disabled 를 쓰지 않는다 — 눌렀을 때 까닭을 띄우려고(터치 화면은 툴팁이 없다).
-// 다른 사람 문서에는 [보기]만.
+// 다른 사람 문서에는 [보기]만 — 관리자는 [삭제]도(모든 상태, 2026-11-10 사용자 결정).
 function ownBtns(d, big = false) {
     const cls = big ? 'd-btn ap-big' : 'd-btn d-btn-sm';
     const b = (act, label, extra = '') => {
         const why = whyNot(d, S.email, S.isAdmin, act);
         return `<button class="${cls} ${extra}${why ? ' is-off' : ''}" data-row-act="${act}" data-id="${esc(d.id)}"${why ? ` title="${esc(why)}" aria-disabled="true"` : ''}>${label}</button>`;
     };
+    if (d.authorEmail !== S.email) return actionsFor(d, S.email, S.isAdmin).includes('delete') ? b('delete', '삭제', 'd-btn-risk') : '';
     return b('edit', '수정') + b('withdraw', '회수') + b('delete', '삭제', 'd-btn-risk');
 }
 function bindRowActs(root) {
@@ -249,7 +256,7 @@ function bindRowActs(root) {
         if (act === 'view') location.hash = 'd=' + encodeURIComponent(d.id);
         else if (act === 'edit') location.hash = 'e=' + encodeURIComponent(d.id);
         else if (act === 'withdraw') { if (confirm('결재 전 기안서를 회수할까요?\n임시저장으로 돌아가 고칠 수 있습니다.')) authorWrite(d.id, 'withdraw'); }
-        else if (act === 'delete') deleteDraft(d);
+        else if (act === 'delete') deleteApproval(d);
     }));
     root.querySelectorAll('.ap-row-btns').forEach(cell => cell.addEventListener('click', (e) => e.stopPropagation()));   // 버튼 사이 빈칸을 눌러도 행 열기 안 함
 }
@@ -261,8 +268,10 @@ function renderList(main) {
     const waiting = todo.filter(d => d.status === 'submitted' && (S.isAdmin || myTurn(d))).length;
     if (S.scope == null) { S.scope = waiting ? 'todo' : 'mine'; S.filter = waiting ? 'submitted' : 'all'; }
     if (S.scope === 'all' && !S.isAdmin) S.scope = 'mine';
+    const ccList = S.docs.filter(d => d.status !== 'draft' && inCc(d, S.email));   // 참조 탭은 참조 문서가 있을 때만
+    if (S.scope === 'cc' && !ccList.length) S.scope = 'mine';
     const showTodo = S.isAdmin || todo.length > 0 || approverCandidates(S.cfg, '', '').some(c => c.email === S.email);
-    const base = S.scope === 'all' ? S.docs : S.scope === 'todo' ? todo : mine;
+    const base = S.scope === 'all' ? S.docs : S.scope === 'todo' ? todo : S.scope === 'cc' ? ccList : mine;
     const count = (st) => base.filter(d => st === 'all' || d.status === st).length;
     const rows = base.filter(d => S.filter === 'all' || d.status === S.filter);
     const chip = (st, label) => `<button class="pd-chip${S.filter === st ? ' is-on' : ''}" data-filter="${st}">${esc(label)}<span class="num">${count(st)}</span></button>`;
@@ -272,7 +281,7 @@ function renderList(main) {
     main.innerHTML = `
         <section class="pd-card">
             <div class="ap-pills">
-                <div class="d-seg" style="display:inline-flex;">${seg('mine', '내 기안')}${showTodo ? seg('todo', '결재할 문서', waiting) : ''}${S.isAdmin ? seg('all', '전체') : ''}</div><span class="pd-sep"></span>
+                <div class="d-seg" style="display:inline-flex;">${seg('mine', '내 기안')}${showTodo ? seg('todo', '결재할 문서', waiting) : ''}${ccList.length ? seg('cc', '참조') : ''}${S.isAdmin ? seg('all', '전체') : ''}</div><span class="pd-sep"></span>
                 ${chip('all', '전체')}${chip('submitted', '결재 대기')}${S.scope === 'mine' || S.scope === 'all' ? chip('draft', '임시저장') : ''}${chip('rejected', '반려')}${chip('approved', '승인')}
             </div>
             ${nameWarn}
@@ -285,7 +294,7 @@ function renderList(main) {
                     <td data-label="결재자">${lineHtml(d)}${myTurn(d) ? '<span class="d-pill-warn ap-self">내 차례</span>' : isAssigned(d) ? '<span class="d-pill-accent ap-self">나</span>' : ''}</td>
                     <td class="num" data-label="제출">${esc(dayText(tsMs(d.submittedAt)))}</td>
                     <td class="num" data-label="최근 변경">${esc(stampTime(d._ms))}</td>
-                    <td class="ap-row-btns"><button class="d-btn d-btn-sm" data-row-act="view" data-id="${esc(d.id)}">보기</button>${d.authorEmail === S.email ? ownBtns(d) : ''}${actionsFor(d, S.email, S.isAdmin).includes('approve') ? `<button class="d-btn d-btn-sm d-btn-primary" data-row-act="view" data-id="${esc(d.id)}">${myTurn(d) || !currentApprover(d) ? '결재' : '대결'}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+                    <td class="ap-row-btns"><button class="d-btn d-btn-sm" data-row-act="view" data-id="${esc(d.id)}">보기</button>${ownBtns(d)}${actionsFor(d, S.email, S.isAdmin).includes('approve') ? `<button class="d-btn d-btn-sm d-btn-primary" data-row-act="view" data-id="${esc(d.id)}">${myTurn(d) || !currentApprover(d) ? '결재' : '대결'}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
             : `<div class="ap-list-empty">${base.length ? '이 상태의 기안서가 없습니다.' : S.scope === 'todo' ? '결재할 기안서가 없습니다.' : '아직 작성한 기안서가 없습니다.<br>위의 [새 기안] 으로 시작하세요.'}</div>`}
             ${S.isAdmin && S.docs.length >= ADMIN_LIST_LIMIT ? `<div class="pd-note" style="padding:0 24px 16px;">최근 ${ADMIN_LIST_LIMIT}건과 결재 대기 전부가 보입니다.</div>` : ''}
         </section>`;
@@ -317,13 +326,15 @@ function stampHtml(st) {
 /** meta: { authorName, createdMs, submittedMs, status, authorStamp, approvers:[{name}], stamps:[{name, at, proxy}], attachments } */
 function sheetHtml(form, values, meta = {}) {
     const v = values || {};
-    const fit = printFitLevel(form, v);
+    const ccs = meta.ccs || [];
+    const fit = printFitLevel(form, v, ccs.length ? 1 : 0);   // 참조 줄이 있으면 한 줄 더
     const line = meta.approvers || [];
     const stamps = meta.stamps || [];
     const boxes = sheetBoxes(form.boxes || [], line, stamps, meta.authorStamp);   // 결재자 칸은 결재선 인원만큼
     const proxies = stamps.map((s, i) => (s && s.proxy ? `${i + 1}차 ${s.name || ''}` : '')).filter(Boolean);
     const st = meta.status && meta.status !== 'approved' ? `<div class="ap-sheet-status">(${esc(STATUS[meta.status] || '')}${meta.status === 'submitted' ? (line.length > 1 ? ` — ${(meta.step || 0) + 1}차 결재 전` : ' — 결재 전') : ''})</div>` : '';
     const dateMs = meta.submittedMs || meta.createdMs || 0;
+    const afterText = afterPrintText(splitAttachments(meta.attachments).after);
     return `<div class="ap-sheet fit-${fit.level}" data-over="${fit.over ? 1 : 0}">
         <div class="ap-sheet-top">
             <div style="flex:1;"><h2>${esc(form.title)}</h2>${st}</div>
@@ -331,19 +342,21 @@ function sheetHtml(form, values, meta = {}) {
                 <tr>${boxes.map(b => `<td>${stampHtml(b.stamp)}${b.proxy && b.stamp ? '<span class="ap-proxy">대결</span>' : ''}</td>`).join('')}</tr></table>` : ''}
         </div>
         <table class="ap-info"><tr><th>성명</th><td>${esc(meta.authorName || '')}</td><th>작성일</th><td class="num">${esc(dayText(meta.createdMs))}</td></tr>
-            <tr><th>결재자</th><td colspan="3">${esc(line.map(a => a.name).join(' → '))}${proxies.length ? ` <span class="ap-proxy-note">(대결 ${esc(proxies.join(', '))})</span>` : ''}</td></tr></table>
+            <tr><th>결재자</th><td colspan="3">${esc(line.map(a => a.name).join(' → '))}${proxies.length ? ` <span class="ap-proxy-note">(대결 ${esc(proxies.join(', '))})</span>` : ''}</td></tr>${ccs.length ? `
+            <tr><th>참조</th><td colspan="3">${esc(ccs.map(a => a.name).join(', '))}</td></tr>` : ''}</table>
         ${form.intro ? `<div class="ap-intro">${esc(form.intro)}</div>` : ''}
         <table class="ap-body">${form.fields.map(f => `<tr><th>${esc(f.label)}</th><td class="${f.type === 'textarea' ? 'is-long' : ''}">${f.type === 'file' ? esc(attachText(meta.attachments, f.key)) : esc(v[f.key] || '')}</td></tr>`).join('')}</table>
         ${form.pledge ? `<div class="ap-pledge">${esc(form.pledge)}</div>` : ''}
         <div class="ap-sign"><span class="num">${esc(dateMs ? kstDay(dateMs).replace(/^(\d+)-(\d+)-(\d+)$/, (m, y, mo, d) => `${y}년 ${Number(mo)}월 ${Number(d)}일`) : '')}</span><br>
             작성자&nbsp;&nbsp;${esc(meta.authorName || '')}</div>
+        ${afterText ? `<div class="ap-after">승인 후 추가(결재 대상 아님): ${esc(afterText)}</div>` : ''}
     </div>`;
 }
 const metaOf = (d) => ({ authorName: d.authorName, createdMs: tsMs(d.createdAt), submittedMs: tsMs(d.submittedAt), status: d.status,
-    authorStamp: d.authorStamp, approvers: approversOf(d), stamps: stampsOf(d), step: stepOf(d), attachments: d.attachments || [] });
-// 인쇄의 파일 칸 — '첨부 2개: a.pdf, b.jpg'
+    authorStamp: d.authorStamp, approvers: approversOf(d), ccs: ccsOf(d), stamps: stampsOf(d), step: stepOf(d), attachments: d.attachments || [] });
+// 인쇄의 파일 칸 — '첨부 2개: a.pdf, b.jpg'. 승인 후 추가는 서명 아래 따로(양식 칸 키가 'after' 여도 섞이지 않게)
 const attachText = (list, key) => {
-    const a = (list || []).filter(x => x && x.key === key);
+    const a = (list || []).filter(x => x && x.key === key && x.addedAfter !== true);
     return a.length ? `첨부 ${a.length}개: ${a.map(x => x.name).join(', ')}` : '';
 };
 
@@ -379,6 +392,9 @@ async function renderView(main, id) {
     const proxyNow = acts.includes('approve') && !!cur && !myTurn(d);   // 관리자가 차례 결재자 대신
     const dec = d.decision;
     const atts = d.attachments || [];
+    const { before: attBefore, after: attAfter } = splitAttachments(atts);
+    const canAddAfter = acts.includes('addAfter');
+    const afterFull = atts.length >= ATTACH_AFTER_TOTAL;
     const line = approversOf(d), stamps = stampsOf(d), step = stepOf(d);
     // 결재 진행 — 1차 ✓ 이름 일시 → 2차 대기 …
     const progHtml = line.length ? `<section class="pd-card pd-card-pad"><h3 class="pd-h3">결재선</h3><ol class="ap-prog">${line.map((a, i) => {
@@ -390,13 +406,18 @@ async function renderView(main, id) {
         const said = s && s.comment ? `<div class="ap-decision">${esc(s.comment)}</div>` : '';
         return `<li class="${d.status === 'submitted' && i === step ? 'is-now' : ''}"><span class="ap-prog-n">${i + 1}차</span><span class="ap-prog-who">${esc(a.name)}${a.email === S.email ? ' <span class="d-pill-accent ap-self">나</span>' : ''}</span><span class="ap-prog-st">${state}</span>${said}</li>`;
     }).join('')}</ol></section>` : '';
+    // 참조자 — 이메일은 보이지 않게 이름만
+    const ccs = ccsOf(d);
+    const ccHtml = ccs.length ? `<section class="pd-card pd-card-pad"><h3 class="pd-h3">참조 ${ccs.length}명</h3><ul class="ap-hist">${ccs.map(c => `<li><span>${esc(c.name)}${c.email === S.email ? ' <span class="d-pill-accent ap-self">나</span>' : ''}</span></li>`).join('')}</ul>
+        ${inCc(d, S.email) ? '<div class="pd-note" style="margin-top:8px;">참조로 지정된 기안서입니다. 결재 순서와는 별개로 내용과 첨부를 읽고 인쇄할 수 있습니다.</div>' : ''}</section>` : '';
     main.innerHTML = `
         <section class="pd-card ap-toolbar">
             <div class="pd-row ap-toolrow">${pill(d.status)}${selfDoc && (S.isAdmin || isAssigned(d)) ? '<span class="d-pill-accent">본인 기안</span>' : ''}
                 <span class="pd-note">결재자 ${line.length ? esc(line.map(a => a.name).join(' → ')) : '(지정 안 함)'}${cur && line.length > 1 ? ` · 지금 ${step + 1}차(${esc(cur.name)})` : ''}</span><span class="pd-note num">${esc(stampTime(d._ms))}</span><span class="pd-grow"></span>
                 <span class="ap-actions-big">
-                ${selfDoc ? ownBtns(d, true) : ''}
+                ${ownBtns(d, true)}
                 ${acts.includes('submit') ? `<button class="d-btn ap-big d-btn-primary" data-act-btn="submit">${d.status === 'rejected' || d.decision ? '재제출' : '제출'}</button>` : ''}
+                ${canAddAfter ? `<label id="ap-after-btn" class="d-btn ap-big ap-file-pick${afterFull ? ' is-off' : ''}"${afterFull ? ` title="첨부는 ${ATTACH_AFTER_TOTAL}개까지입니다."` : ''}>증빙 추가<input id="ap-after-pick" type="file" accept="${ATTACH_ACCEPT}" multiple ${afterFull ? 'disabled' : ''} hidden></label>` : ''}
                 ${acts.includes('print') ? '<button class="d-btn ap-big" data-act-btn="print">인쇄 / PDF</button>' : ''}
                 </span></div>
             ${d.status === 'submitted' && selfDoc ? `<div class="pd-note">${step === 0 && !stamps.length ? '아무도 결재하기 전에는 [회수] 해서 고칠 수 있습니다.' : '결재가 진행 중이라 회수할 수 없습니다 — 결재자가 반려하면 고칠 수 있습니다.'}</div>` : ''}
@@ -418,7 +439,11 @@ async function renderView(main, id) {
                 </div>
             </section>` : ''}
             ${progHtml}
-            ${atts.length ? `<section class="pd-card pd-card-pad"><h3 class="pd-h3">첨부 ${atts.length}개</h3>${attachListHtml(atts, false)}</section>` : ''}
+            ${ccHtml}
+            ${attBefore.length ? `<section class="pd-card pd-card-pad"><h3 class="pd-h3">${d.status === 'approved' ? '결재 때 첨부' : '첨부'} ${attBefore.length}개</h3>${attachListHtml(attBefore, false)}</section>` : ''}
+            ${attAfter.length || canAddAfter ? `<section class="pd-card pd-card-pad" id="ap-after-box"><h3 class="pd-h3">승인 후 추가 <small class="pd-note">(결재 대상 아님)</small></h3>
+                ${attAfter.length ? attachListHtml(attAfter, false) : '<div class="pd-note" style="margin-top:8px;">추가한 파일이 없습니다.</div>'}
+                ${canAddAfter ? `<div class="pd-note" style="margin-top:8px;">이미지·PDF·엑셀·워드·한글, 파일당 10MB, 기안서 하나에 ${ATTACH_AFTER_TOTAL}개까지 (${atts.length}/${ATTACH_AFTER_TOTAL}). 올리면 지울 수 없습니다.</div>` : ''}</section>` : ''}
             ${dec && !(d.status === 'submitted' && stamps.length) ? `<section class="pd-card pd-card-pad">
                 <h3 class="pd-h3">${d.status === 'approved' ? '승인 의견' : d.status === 'rejected' ? '반려 의견' : '최근 결재 의견'}</h3>
                 <div class="pd-note" style="margin-top:4px;">${esc(dec.byName || '')}${dec.proxy ? ' (대결)' : ''} · ${esc(stampTime(tsMs(dec.at)))}${d.status !== 'approved' && d.status !== 'rejected' ? ' (반려 뒤 다시 냄)' : ''}</div>
@@ -430,6 +455,8 @@ async function renderView(main, id) {
     const on = (act, fn) => main.querySelector(`[data-act-btn="${act}"]`)?.addEventListener('click', fn);
     bindRowActs(main);
     bindAttachOpen(main, d);
+    $('ap-after-btn')?.addEventListener('click', (e) => { if (e.currentTarget.classList.contains('is-off')) toast(e.currentTarget.title, 4500); });
+    $('ap-after-pick')?.addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; addAfterFiles(d, fs); });
     on('print', () => printSheet(S.printHtml));
     on('submit', () => {
         const ln = approversOf(d);
@@ -439,20 +466,35 @@ async function renderView(main, id) {
         const candEmails = new Set(approverCandidates(S.cfg, S.name, S.email).map(c => c.email));
         const gone = ln.filter(a => !candEmails.has(lower(a.email)));
         if (gone.length) { toast(`${gone.map(a => a.name).join('·')} 님은 지금 결재자로 지정할 수 없습니다(직책·퇴사 변경) — [수정] 에서 결재자를 다시 고르세요`, 5500); return; }
+        // 참조자도 같은 검사 — 퇴사·권한 변경, 결재자와 겹침
+        const ccNow = ccsOf(d);
+        const ccOk = new Set(ccCandidates(S.cfg, S.name, S.email).map(c => c.email));
+        const ccGone = ccNow.filter(a => !ccOk.has(a.email));
+        if (ccGone.length) { toast(`${ccGone.map(a => a.name).join('·')} 님은 지금 참조자로 지정할 수 없습니다(권한·퇴사 변경) — [수정] 에서 참조자를 다시 고르세요`, 5500); return; }
+        const ccErr = checkCcs(ccNow, S.email, ln);
+        if (ccErr.length) { toast(`${ccErr[0]} — [수정] 에서 참조자를 고쳐 주세요`, 4500); return; }
         const errs = validateValues(d.form, d.values, d.attachments);
         if (errs.length) { toast('빈 필수 칸이 있습니다 — [수정] 에서 채워 주세요', 4000); return; }
-        if (!confirm(`이 기안서를 제출할까요?\n결재 순서: ${ln.map(a => a.name).join(' → ')}\n제출하면 1차 결재자(${ln[0].name})에게 알림이 갑니다.`)) return;
+        if (!confirm(`이 기안서를 제출할까요?\n결재 순서: ${ln.map(a => a.name).join(' → ')}${ccNow.length ? `\n참조: ${ccNow.map(a => a.name).join(', ')}` : ''}\n제출하면 1차 결재자(${ln[0].name})에게 알림이 갑니다.`)) return;
         authorWrite(d.id, 'submit');   // 값은 트랜잭션 안에서 읽은 서버 값(화면의 옛 값으로 덮지 않게)
     });
     main.querySelectorAll('[data-decide]').forEach(b => b.addEventListener('click', () => decide(d.id, b.dataset.decide, $('ap-comment').value)));
 }
 
-// 임시저장 삭제 — 첨부 파일을 먼저 지운다(문서를 먼저 지우면 Storage 규칙이 문서를 못 읽어 파일을 못 지운다)
-async function deleteDraft(d) {
-    if (!confirm('이 임시저장 기안서를 지울까요? 첨부 파일도 함께 지워지고 되돌릴 수 없습니다.')) return;
+// 기안서 삭제 — 작성자의 임시저장, 또는 관리자(누구 문서든 모든 상태, 2026-11-10).
+//   첨부 파일을 먼저 지운다(문서를 먼저 지우면 Storage 규칙이 문서를 못 읽어 작성자는 파일을 못 지운다).
+//   첨부 목록은 지우기 직전 서버 값 — 목록을 연 뒤 붙은 승인 후 증빙까지 지운다.
+async function deleteApproval(d) {
+    const ownDraft = d.authorEmail === S.email && d.status === 'draft';
+    const who = d.authorEmail === S.email ? '본인' : `작성자 ${d.authorName || '직원'}`;   // 이름은 화면에 이미 있는 값만
+    const msg = ownDraft ? '이 임시저장 기안서를 지울까요? 첨부 파일도 함께 지워지고 되돌릴 수 없습니다.'
+        : `[${STATUS[d.status] || d.status}] 기안서(${who})를 지울까요?\n\n결재 이력·의견·첨부가 모두 사라지고 되돌릴 수 없습니다.`;
+    if (!confirm(msg)) return;
     setLoading(true, '지우는 중…');
     try {
-        for (const a of (d.attachments || [])) {
+        const snap = await getDocFromServer(doc(S.db, DOCS, d.id));
+        const atts = snap.exists() ? (snap.data().attachments || []) : (d.attachments || []);
+        for (const a of atts) {
             try { await deleteObject(sRef(storage(), a.path)); }
             catch (e) { if (!(e && e.code === 'storage/object-not-found')) throw e; }
         }
@@ -469,8 +511,14 @@ async function deleteDraft(d) {
 }
 
 // ── 첨부 ─────────────────────────────────────────────────
+// 추가한 사람 — 이메일은 화면에 내지 않는다(명단에서 못 찾으면 '직원')
+const addedByName = (email) => memberNameFor(S.cfg.memberEmails, email) || '직원';
 function attachListHtml(atts, editable) {
-    return `<ul class="ap-att">${atts.map(a => `<li><span class="ap-att-name" title="${esc(a.name)}">${esc(a.name)}</span><span class="pd-mute num">${esc(fmtBytes(a.size))}</span>
+    const nameHtml = (a) => {
+        const n = `<span class="ap-att-name" title="${esc(a.name)}">${esc(a.name)}</span>`;
+        return a.addedAfter === true ? `<span class="ap-att-col">${n}<span class="ap-att-at pd-mute num">${esc(stampTime(a.addedAtMs))} · ${esc(addedByName(a.addedBy))}</span></span>` : n;
+    };
+    return `<ul class="ap-att">${atts.map(a => `<li>${nameHtml(a)}<span class="pd-mute num">${esc(fmtBytes(a.size))}</span>
         <button class="d-btn d-btn-sm" data-att-open="${esc(a.path)}">열기</button><button class="d-btn d-btn-sm" data-att-save="${esc(a.path)}">받기</button>${editable ? `<button class="d-btn d-btn-sm d-btn-risk" data-att-del="${esc(a.path)}">삭제</button>` : ''}</li>`).join('')}</ul>`;
 }
 // 열기·받기 — 로그인한 요청(getBlob, 규칙 적용)으로만 받는다. 공개 토큰 주소(getDownloadURL)는 쓰지 않는다.
@@ -514,11 +562,81 @@ function bindAttachOpen(root, d) {
     }));
 }
 
+// ── 승인 후 증빙 추가(작성자·결재선·관리자) ── 문서에서 attachments·updatedAt 만 쓴다.
+//   writeAtts 를 쓰면 상태가 draft 로 돌아간다 — 전용 쓰기. 파일마다 '서버에서 확인 → 업로드 → 문서에 한 건' 순서(규칙이 한 번에 한 건만 받는다).
+const AFTER_WRITE_TRIES = 3;   // 문서 쓰기 — 첫 시도 + 같은 경로로 2번 더
+const afterStop = (msg) => Object.assign(new Error(msg), { stop: true });   // 다시 해도 소용없는 까닭(상태·권한·개수)
+const afterGuard = (data) => {
+    if (data.status !== 'approved' || !actionsFor(data, S.email, S.isAdmin).includes('addAfter')) throw afterStop('승인된 기안서에 작성자·결재자·관리자만 추가할 수 있습니다.');
+    if ((data.attachments || []).length >= ATTACH_AFTER_TOTAL) throw afterStop(`첨부는 ${ATTACH_AFTER_TOTAL}개까지입니다.`);
+};
+const appendAfter = (id, item) => runTransaction(S.db, async (tx) => {
+    const r = doc(S.db, DOCS, id);
+    const sn = await tx.get(r);
+    if (!sn.exists()) throw afterStop('기안서가 없습니다.');
+    const cur = sn.data();
+    const list = cur.attachments || [];
+    if (list.some(a => a && a.path === item.path)) return;   // 앞 시도가 실제로는 적혔다(응답만 끊김) — 두 번 넣지 않는다
+    afterGuard(cur);
+    tx.update(r, { attachments: [...list, item], updatedAt: serverTimestamp() });
+});
+// 끝내 실패해도 올린 파일은 지우지 않는다 — 승인 문서 첨부는 관리자만 지울 수 있어(2026-11-10) 여기서는 지우려 하지 않고, 남는 파일은 받아들인다
+//   (관리자 삭제와 증빙 추가가 겹치면 파일이 고아로 남을 수 있다 — 드물어 받아들임, 콘솔에서 지운다)
+async function appendAfterRetry(id, item, fileName) {
+    for (let n = 1; ; n++) {
+        try { return await appendAfter(id, item); }
+        catch (e) {
+            if (e && e.stop) throw e;
+            console.error('[approval] 증빙 문서 쓰기 실패:', e && e.code, n);
+            if (n >= AFTER_WRITE_TRIES) throw afterStop(`'${fileName}' 을(를) 기안서에 적었는지 확인하지 못했습니다 — 새로고침해 목록을 확인하고, 없을 때만 다시 올려 주세요.`);
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    }
+}
+async function addAfterFiles(d, files) {
+    if (!files.length) return;
+    const base = (d.attachments || []).length;
+    const good = [], bad = [];
+    files.forEach(f => {
+        const ck = checkAttach(f, base + good.length, ATTACH_AFTER_TOTAL);
+        if (ck.ok) good.push(f); else bad.push(`${f.name}: ${ck.reason}`);
+    });
+    if (!good.length) { toast(bad[0], 5000); return; }
+    if (!confirm(`승인된 기안서에 아래 파일을 추가할까요?\n\n${good.map(f => f.name).join('\n')}\n\n올리면 지울 수 없고 작성자·결재자·관리자에게 보입니다.${bad.length ? `\n\n올리지 않는 파일:\n${bad.join('\n')}` : ''}`)) return;
+    const ref = doc(S.db, DOCS, d.id);
+    let done = 0;
+    setLoading(true, '파일 올리는 중…');
+    try {
+        for (const f of good) {
+            const snap = await getDocFromServer(ref);
+            if (!snap.exists()) throw afterStop('기안서가 없습니다.');
+            afterGuard(snap.data());
+            const ck = checkAttach(f, (snap.data().attachments || []).length, ATTACH_AFTER_TOTAL);
+            if (!ck.ok) throw afterStop(`${f.name}: ${ck.reason}`);
+            const path = attachPath(d.id, ck.ext);
+            const up = await uploadBytes(sRef(storage(), path), f, { contentType: ck.contentType });
+            const item = afterAttachMeta(f, path, ck.contentType, S.email, Date.parse(up.metadata.timeCreated));   // 시각은 서버 값(PC 시계 아님)
+            await appendAfterRetry(d.id, item, f.name);
+            done++;
+        }
+        toast(`증빙 ${done}개를 추가했습니다`);
+    } catch (e) {
+        console.error('[approval] 증빙 추가 실패:', e && e.code);
+        const why = e && e.code === 'storage/unauthorized' ? '권한이 없습니다(규칙 게시 전이거나 상태가 바뀌었을 수 있습니다)' : errText(e);
+        // done 은 응답을 받은 건수라 실제보다 적을 수 있다(적혔는데 응답만 끊긴 경우) — 숫자로 말하지 않는다
+        toast(`${good.length > 1 ? '일부만 추가되었을 수 있습니다. 새로고침해 목록을 확인하세요. ' : ''}증빙을 추가하지 못했습니다 — ${why}`, 7000);
+    } finally {
+        await fetchDoc(d.id).catch(() => null);
+        setLoading(false);
+        route();
+    }
+}
+
 // 작성자 쓰기(제출·재제출·회수·임시저장) — 서버 문서를 다시 읽고 상태를 확인한 뒤 고친다(관리자 결재와 겹치지 않게)
-async function authorWrite(id, kind, values, approvers) {
+async function authorWrite(id, kind, values, approvers, ccs) {
     const me = { email: S.email, name: S.name };
-    const opt = { ts: serverTimestamp(), at: new Date(), approvers };   // approvers 가 undefined 면 문서의 결재선 그대로
-    let submitted = null;
+    const opt = { ts: serverTimestamp(), at: new Date(), approvers, ccs };   // approvers·ccs 가 undefined 면 문서의 값 그대로
+    let submitted = null, ccNames = [];
     setLoading(true, '저장 중…');
     try {
         await runTransaction(S.db, async (tx) => {
@@ -538,11 +656,13 @@ async function authorWrite(id, kind, values, approvers) {
             else throw new Error('알 수 없는 동작');
             tx.update(ref, patch);
             submitted = kind === 'submit' ? ((patch.approvers[0] || {}).name || null) : null;   // 1차 결재자
+            ccNames = kind === 'submit' ? (patch.ccs || []).map(c => c.name) : [];
         });
         S.dirty = false;
         await fetchDoc(id).catch(() => null);
         toast({ save: '임시저장했습니다', submit: '제출했습니다', withdraw: '회수했습니다 — 임시저장으로 돌아갔습니다' }[kind]);
         if (submitted) await notifyApprover(submitted);
+        await notifyCcs(ccNames);
         if (location.hash === '#d=' + encodeURIComponent(id)) route(); else location.hash = 'd=' + encodeURIComponent(id);
     } catch (e) {
         console.error('[approval] 저장 실패:', e && e.code);
@@ -557,6 +677,13 @@ async function notifyApprover(name) {
     if (!name || name === S.name) return;
     const r = await sendApprovalNoti(S.db, { collection, addDoc }, [name], MSG_TO_APPROVER);
     if (r.failed) toast('제출은 됐지만 결재자 알림을 못 보냈습니다', 5000);
+}
+
+// 제출 알림 — 참조자에게(앱 알림만, 문구는 내용 없는 것 그대로)
+async function notifyCcs(names) {
+    if (!names.length) return;
+    const r = await sendApprovalNoti(S.db, { collection, addDoc }, names, MSG_TO_CC);
+    if (r.failed) toast('제출은 됐지만 참조자 알림을 일부 못 보냈습니다', 5000);
 }
 
 // 결재(차례 결재자·관리자 대결) — 트랜잭션으로 '결재 대기'·차례(step)를 다시 확인
@@ -634,6 +761,11 @@ async function renderEditor(main, { id, formId }) {
     const apGone = stored.filter(a => !cands.some(c => c.email === a.email));
     let line = stored.filter(a => cands.some(c => c.email === a.email)).map(a => a.email).slice(0, APPROVERS_MAX);
     if (!line.length) line = [cands.length === 1 ? cands[0].email : ''];
+    // 참조자(선택, 재직 관리자) — 저장된 사람이 지금 후보가 아니면 빼고 안내. 결재자로 고른 사람은 drawCc 가 뺀다
+    const ccCands = ccCandidates(S.cfg, S.name, S.email);
+    const storedCc = d ? ccsOf(d) : [];
+    const ccGone = storedCc.filter(a => !ccCands.some(c => c.email === a.email));
+    let cc = storedCc.filter(a => ccCands.some(c => c.email === a.email)).map(a => a.email).slice(0, CC_MAX);
     main.innerHTML = `<section class="pd-card pd-card-pad">
         ${dec && d.status === 'rejected' ? `<div class="pd-alert risk"><b>반려 의견</b> (${esc(dec.byName || '')} · ${esc(stampTime(tsMs(dec.at)))})<div class="ap-decision">${esc(dec.comment)}</div></div>` : ''}
         ${dec && d.status === 'draft' ? `<div class="pd-alert warn"><b>지난 반려 의견</b><div class="ap-decision">${esc(dec.comment)}</div></div>` : ''}
@@ -645,6 +777,10 @@ async function renderEditor(main, { id, formId }) {
                 <div id="ap-line" class="ap-line"></div>
                 ${apGone.length ? `<span class="ap-hint pd-warn">저장된 결재자(${esc(apGone.map(a => a.name).join(', '))})는 지금 결재할 수 없는 사람이라 뺐습니다 — 다시 고르세요.</span>` : ''}
                 ${!cands.length ? '<span class="ap-hint pd-warn">고를 수 있는 결재자가 없습니다(관리자·파트장·부팀장·팀장). 관리자에게 문의하세요.</span>' : ''}</div>
+            <div class="pd-field"><span>참조자 <small>(선택, 관리자 중 ${CC_MAX}명까지 — 지정한 참조자는 제출 후 내용을 읽습니다)</small></span>
+                <div id="ap-cc" class="ap-line"></div>
+                ${ccGone.length ? `<span class="ap-hint pd-warn">저장된 참조자(${esc(ccGone.map(a => a.name).join(', '))})는 지금 지정할 수 없는 사람이라 뺐습니다.</span>` : ''}
+                <span class="ap-hint pd-warn" id="ap-cc-hint"></span></div>
             ${form.fields.map(f => `<label class="pd-field"><span>${esc(f.label)}${f.required ? '<b>*</b>' : ''}</span>${fieldInput(f, vals[f.key] || '')}
             ${f.prefill === 'day' ? '<span class="ap-hint" id="ap-prefill-hint"></span>' : ''}</label>`).join('')}</div>
         ${form.pledge ? `<div class="pd-note" style="margin-top:14px; white-space:pre-wrap;">${esc(form.pledge)}</div>` : ''}
@@ -665,6 +801,27 @@ async function renderEditor(main, { id, formId }) {
     };
     // 결재선 → [{name, email}] (빈 줄은 뺀다)
     const readApprovers = () => line.map(em => cands.find(x => x.email === em)).filter(Boolean).map(c => ({ name: c.name, email: c.email }));
+    const readCcs = () => cc.map(em => ccCands.find(x => x.email === em)).filter(Boolean).map(c => ({ name: c.name, email: c.email }));
+    // 참조자 줄 그리기 — 줄마다 고르기 + ✕, 아래 [참조자 추가]. 결재자로 고른 사람은 목록에서 빼고, 이미 참조에 있었으면 자동으로 뺀다
+    const drawCc = () => {
+        const box = $('ap-cc');
+        const taken = new Set(line.filter(Boolean));
+        const dropped = cc.filter(em => taken.has(em));
+        if (dropped.length) cc = cc.filter(em => !taken.has(em));
+        const hint = $('ap-cc-hint');
+        if (dropped.length) hint.textContent = `결재자로 고른 ${dropped.map(em => (ccCands.find(c => c.email === em) || {}).name || '직원').join(', ')} 님은 참조에서 뺐습니다.`;
+        const free = ccCands.filter(c => !taken.has(c.email));
+        box.innerHTML = cc.map((em, i) => {
+            const others = new Set(cc.filter((x, j) => j !== i && x));
+            const opts = free.filter(c => !others.has(c.email)).map(c => `<option value="${esc(c.email)}"${c.email === em ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
+            return `<div class="ap-line-row" data-cc-i="${i}"><select class="pd-in" data-cc-sel aria-label="참조자 ${i + 1}"><option value="">(참조자를 고르세요)</option>${opts}</select>
+                <span class="ap-fe-btns"><button type="button" class="d-btn d-btn-sm d-btn-risk" data-cc-del aria-label="이 참조자 빼기">✕</button></span></div>`;
+        }).join('') + `<div><button type="button" class="d-btn d-btn-sm" id="ap-cc-add" ${cc.length >= CC_MAX || cc.length >= free.length ? 'disabled' : ''}>참조자 추가</button>${free.length ? '' : ' <span class="pd-note">고를 수 있는 관리자가 없습니다.</span>'}</div>`;
+        const idx = (el) => Number(el.closest('[data-cc-i]').dataset.ccI);
+        box.querySelectorAll('[data-cc-sel]').forEach(sel => sel.addEventListener('change', () => { cc[idx(sel)] = sel.value; S.dirty = true; hint.textContent = ''; drawCc(); }));
+        box.querySelectorAll('[data-cc-del]').forEach(b => b.addEventListener('click', () => { cc.splice(idx(b), 1); S.dirty = true; hint.textContent = ''; drawCc(); }));
+        $('ap-cc-add')?.addEventListener('click', () => { if (cc.length < CC_MAX) { cc.push(''); S.dirty = true; drawCc(); } });
+    };
     // 결재선 줄 그리기 — 줄마다 고르기 + ↑↓ + ✕, 아래 [결재자 추가]. 다른 줄에서 고른 사람은 목록에서 뺀다(같은 사람 두 번 안 됨)
     const drawLine = () => {
         const box = $('ap-line');
@@ -687,6 +844,7 @@ async function renderEditor(main, { id, formId }) {
         }));
         box.querySelectorAll('[data-line-del]').forEach(b => b.addEventListener('click', () => { line.splice(idx(b), 1); S.dirty = true; drawLine(); }));
         $('ap-line-add')?.addEventListener('click', () => { if (line.length < APPROVERS_MAX) { line.push(''); S.dirty = true; drawLine(); } });
+        drawCc();   // 결재자가 바뀌면 참조 후보도 바뀐다
     };
     drawLine();
     main.querySelectorAll('[data-key]').forEach(el => el.addEventListener('input', () => { S.dirty = true; }));
@@ -724,7 +882,7 @@ async function renderEditor(main, { id, formId }) {
         setLoading(true, '파일 올리는 중…');
         try {
             if (!d) {   // 새 문서 — 지금 칸 그대로 임시저장부터(결재자 칸도)
-                const data = buildCreate(form, { email: S.email, name: S.name }, cleanValues(form, read()), { ts: serverTimestamp(), at: new Date(), approvers: readApprovers() });
+                const data = buildCreate(form, { email: S.email, name: S.name }, cleanValues(form, read()), { ts: serverTimestamp(), at: new Date(), approvers: readApprovers(), ccs: readCcs() });
                 const r = await addDoc(collection(S.db, DOCS), data);
                 d = await fetchDoc(r.id);
                 history.replaceState(null, '', '#e=' + encodeURIComponent(r.id));   // 주소만 바꾼다(다시 그리면 입력 중인 칸이 사라진다)
@@ -775,17 +933,18 @@ async function renderEditor(main, { id, formId }) {
     drawFiles();
     $('ap-preview').addEventListener('click', () => {
         const meta = d ? metaOf(d) : { authorName: S.name, createdMs: Date.now(), status: 'draft' };
-        $('ap-prev-box').innerHTML = sheetHtml(form, cleanValues(form, read()), { ...meta, authorStamp: null, stamps: [], step: 0, status: 'draft', approvers: readApprovers() });
+        $('ap-prev-box').innerHTML = sheetHtml(form, cleanValues(form, read()), { ...meta, authorStamp: null, stamps: [], step: 0, status: 'draft', approvers: readApprovers(), ccs: readCcs() });
         $('ap-prev-box').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     $('ap-cancel').addEventListener('click', () => { if (!okLeave()) return; location.hash = d ? 'd=' + encodeURIComponent(d.id) : ''; });
     const go = async (submit) => {
         const values = cleanValues(form, read());
         const approvers = readApprovers();
+        const ccs = readCcs();
         $('ap-errs').innerHTML = '';
         if (submit) {
             const errs = [...checkApprovers(approvers, S.email), ...(line.some(x => !x) && approvers.length ? ['빈 결재자 줄이 있습니다 — 고르거나 ✕ 로 빼세요.'] : []),
-                ...validateValues(form, values, d ? d.attachments : [])];
+                ...checkCcs(ccs, S.email, approvers, S.cfg), ...validateValues(form, values, d ? d.attachments : [])];
             if (errs.length) {
                 $('ap-errs').innerHTML = `<div class="pd-alert risk" style="margin-top:14px;"><ul class="ap-errs">${errs.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
                 $('ap-errs').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -793,15 +952,29 @@ async function renderEditor(main, { id, formId }) {
             }
             if (!confirm(`제출할까요?\n결재 순서: ${approvers.map(a => a.name).join(' → ')}\n1차 결재자에게 알림이 가고, 아무도 결재하기 전까지는 회수할 수 있습니다.`)) return;
         }
-        if (d) return authorWrite(d.id, submit ? 'submit' : 'save', values, approvers);
+        if (d) return authorWrite(d.id, submit ? 'submit' : 'save', values, approvers, ccs);
         setLoading(true, '저장 중…');
         try {
-            const data = buildCreate(form, { email: S.email, name: S.name }, values, { submit, ts: serverTimestamp(), at: new Date(), approvers });
+            // 참조자가 있으면 임시저장 → 제출 두 번으로 나눈다 — 만들며 바로 제출하는 규칙 경로는 식 한도(1000개)를 넘는다(firestore.rules apCcOk 주석)
+            const twoStep = submit && ccs.length > 0;
+            const data = buildCreate(form, { email: S.email, name: S.name }, values, { submit: submit && !twoStep, ts: serverTimestamp(), at: new Date(), approvers, ccs });
             const r = await addDoc(collection(S.db, DOCS), data);
             S.dirty = false;
+            if (twoStep) {
+                d = await fetchDoc(r.id).catch(() => null);   // 제출이 실패해도 다시 누르면 같은 문서로 간다(새로 만들지 않게)
+                if (!d) {   // 못 읽었으면 이 화면에 남지 않는다 — 다시 누르면 addDoc 이 또 돈다. 새로 불러와 그 문서로 제출하게
+                    toast('임시저장은 됐습니다 — 내용을 확인하고 다시 제출해 주세요', 5000);
+                    location.hash = 'e=' + encodeURIComponent(r.id);
+                    return;
+                }
+                history.replaceState(null, '', '#e=' + encodeURIComponent(r.id));
+                setHead({ title: `${form.title} 고치기`, back: true });
+                await authorWrite(r.id, 'submit', values, approvers, ccs);
+                return;
+            }
             await fetchDoc(r.id).catch(() => null);
             toast(submit ? '제출했습니다' : '임시저장했습니다');
-            if (submit) await notifyApprover(approvers[0].name);
+            if (submit) { await notifyApprover(approvers[0].name); await notifyCcs(ccs.map(c => c.name)); }
             location.hash = 'd=' + encodeURIComponent(r.id);
         } catch (e) {
             console.error('[approval] 만들기 실패:', e && e.code);

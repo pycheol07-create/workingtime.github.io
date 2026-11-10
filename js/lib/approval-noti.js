@@ -11,6 +11,8 @@ export const MSG_TO_ADMIN = '결재할 기안서가 있습니다 — 기안서 �
 export const MSG_TO_APPROVER = MSG_TO_ADMIN;
 // 작성자에게 — 승인·반려를 나누지 않는다(알림 목록만 봐도 누구 기안이 반려됐는지 드러나지 않게)
 export const MSG_TO_AUTHOR = '기안서 메뉴에 새 소식이 있습니다 — 확인하세요.';
+// 참조자에게(2026-11-09) — 제출·재제출 때. 앱 알림만(슬랙 없음)
+export const MSG_TO_CC = '참조로 지정된 기안서가 있습니다 — 기안서 메뉴에서 확인하세요.';
 
 /** 알림 문서 하나(순수). */
 export const notiDoc = (targetMember, message, now = new Date()) => ({
