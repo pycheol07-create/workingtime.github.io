@@ -1,21 +1,22 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202611100906';
-import * as State from './state.js?v=202611100906';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202611100906';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202611100906';
+import * as DOM from './dom-elements.js?v=202611100920';
+import * as State from './state.js?v=202611100920';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202611100920';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202611100920';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory, historyLoadFailed,
-         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache } from './history-data-manager.js?v=202611100906';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611100906';
-import { historyDotState } from './lib/history-dot.js?v=202611100906';
-import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=202611100906';
-import { renderQuantityModalInputs, applyPlannedPrefill } from './ui.js?v=202611100906';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611100906';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611100906';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202611100906';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202611100906';
-import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache, isDayClosedOnServer } from './history-data-manager.js?v=202611100920';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611100920';
+import { historyDotState } from './lib/history-dot.js?v=202611100920';
+import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=202611100920';
+import { renderQuantityModalInputs, applyPlannedPrefill } from './ui.js?v=202611100920';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611100920';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611100920';
+import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611100920';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202611100920';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202611100920';
+import { doc, setDoc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
 let renderListQueue = null;
@@ -54,8 +55,8 @@ export const retryHistoryLoad = async () => {
         await loadAndRenderHistoryList();
         if (historyLoadFailed()) return;   // 또 실패 — 오류 화면은 그대로
         clearPanelLoadErrors();
-        const { sectionIdFor } = await import('./history-sections.js?v=202611100906');
-        const { showSection } = await import('./listeners-history-tabs.js?v=202611100906');
+        const { sectionIdFor } = await import('./history-sections.js?v=202611100920');
+        const { showSection } = await import('./listeners-history-tabs.js?v=202611100920');
         await showSection(sectionIdFor(prevMain, prevSub) || 'insight');
     } catch (e) {
         console.error('이력 다시 시도 실패:', e);
@@ -616,29 +617,62 @@ export const switchHistoryView = async (view, preserveKey = null) => {
     if (viewToShow) viewToShow.classList.remove('hidden');
 };
 
-export const openHistoryQuantityModal = (dateKey) => {
+export const openHistoryQuantityModal = async (dateKey) => {
     const todayDateString = getTodayDateString();
+    const isToday = dateKey === todayDateString;
 
-    if (dateKey === todayDateString) {
+    // 창은 **서버 값으로** 채운다(2026-11-09). 이 창은 표시된 칸을 전부(빈칸 = 0) 이력에 쓰므로, 채운 값이 낡으면 그대로 덮인다.
+    //  · 실제 사고: 마감(17:22) 뒤 원본이 비워진 메모리로 열려 빈 칸을 저장 → 17:25 그날 처리량이 전부 0 이 됐다.
+    //  · 지난 날짜의 메모리 캐시도 탭을 켠 시점 값이라 같은 위험이 있다.
+    let serverHist = null, serverDaily = {};
+    try {
+        const [histSnap, dailySnap] = await Promise.all([
+            getDocFromServer(doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey)),
+            isToday ? getDocFromServer(doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateKey)) : null,
+        ]);
+        serverHist = histSnap.exists() ? histSnap.data() : null;
+        if (dailySnap && dailySnap.exists()) serverDaily = dailySnap.data() || {};
+    } catch (e) {
+        console.warn('[처리량 수정] 서버 값을 읽지 못했습니다.', e);
+        return showToast('서버에서 처리량을 읽지 못해 창을 열지 않았습니다. 연결을 확인한 뒤 다시 시도해 주세요.', true);
+    }
+
+    // 그릴 때의 값 — 저장은 이것과 달라진 칸만 쓴다(그 사이 자동 입력된 칸을 덮지 않게).
+    let 그릴때처리량 = {}, 그릴때0건 = [];
+    const 지금이름 = (n) => aliasTaskName(n, State.appConfig);
+    const 보이는0건 = (목록) => [...new Set(목록.map(지금이름))];   // 옛 이름 표시도 지금 이름 칸의 체크로 보인다
+
+    // 마감된 오늘, 또는 원본은 비었는데 이력에 값이 있는 오늘(마감 재시도 전)은 지난 날짜처럼 이력을 보여 준다.
+    const 원본비었음 = Object.keys(serverDaily.taskQuantities || {}).length === 0;
+    const 이력값있음 = Object.keys(serverHist?.taskQuantities || {}).length > 0;
+    if (isToday && !serverHist?.closedAt && !(원본비었음 && 이력값있음)) {
+        const todayQuantities = serverDaily.taskQuantities || {};
+        const todayZero = Array.isArray(serverDaily.confirmedZeroTasks) ? serverDaily.confirmedZeroTasks : [];
+        그릴때처리량 = todayQuantities;
+        그릴때0건 = todayZero;
         const todayData = {
             id: todayDateString,
             workRecords: State.appState.workRecords || [],
-            taskQuantities: State.appState.taskQuantities || {},
-            confirmedZeroTasks: State.appState.confirmedZeroTasks || []
+            taskQuantities: todayQuantities,
+            confirmedZeroTasks: todayZero
         };
         const missingTasksList = checkMissingQuantities(todayData);
-        renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes, missingTasksList, State.appState.confirmedZeroTasks || []);
+        renderQuantityModalInputs(todayQuantities, State.appConfig.quantityTaskTypes, missingTasksList, 보이는0건(todayZero));
         // 오늘 작업 기록이 있는데 처리량이 빈 업무는 미리 저장해 둔 오늘 예정 물량으로 채운다(2026-10-26)
         const canon = (n) => aliasTaskName(n, State.appConfig);
-        applyPlannedPrefill(plannedPrefill(State.appState.taskQuantities, aliasNameMap(getPlannedQuantitiesForDate(todayDateString), State.appConfig),
-            State.appState.confirmedZeroTasks, doneTasksOf(State.appState.workRecords, State.appConfig.quantityTaskTypes, canon), canon));
+        applyPlannedPrefill(plannedPrefill(todayQuantities, aliasNameMap(getPlannedQuantitiesForDate(todayDateString), State.appConfig),
+            todayZero, doneTasksOf(State.appState.workRecords, State.appConfig.quantityTaskTypes, canon), canon));
     } else {
-        const dayData = State.allHistoryData.find(d => d.id === dateKey);
+        // 서버에 문서가 없는 날만 메모리 행으로(오늘 일이 아닌 빈 날 줄 등)
+        const dayData = serverHist || State.allHistoryData.find(d => d.id === dateKey);
         if (!dayData) {
             return showToast('해당 날짜의 데이터를 찾을 수 없습니다.', true);
         }
         const missingTasksList = checkMissingQuantities(dayData);
-        renderQuantityModalInputs(dayData.taskQuantities || {}, State.appConfig.quantityTaskTypes, missingTasksList, dayData.confirmedZeroTasks || []);
+        // 옛 이름 칸의 값도 지금 이름 칸에 보인다(aliasDayView 규칙). 바꾸지 않으면 쓰지 않으므로 옛 이름 칸은 그대로 남는다.
+        그릴때처리량 = aliasNameMap(dayData.taskQuantities || {}, State.appConfig) || {};
+        그릴때0건 = Array.isArray(dayData.confirmedZeroTasks) ? dayData.confirmedZeroTasks : [];
+        renderQuantityModalInputs(그릴때처리량, State.appConfig.quantityTaskTypes, missingTasksList, 보이는0건(그릴때0건));
     }
 
     const title = document.getElementById('quantity-modal-title');
@@ -650,29 +684,49 @@ export const openHistoryQuantityModal = (dateKey) => {
     State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
         if (!dateKey) return;
 
-        const idx = State.allHistoryData.findIndex(d => d.id === dateKey);
-        if (idx > -1) {
-            State.allHistoryData[idx] = {
-                ...State.allHistoryData[idx],
-                taskQuantities: newQuantities,
-                confirmedZeroTasks: confirmedZeroTasks
-            };
+        // 달라진 칸만 쓴다. 칸 이름에 '.' 이 있어도 merge 의 중첩 맵은 그 칸 하나만 건드린다.
+        const 바뀐칸 = changedQuantities(그릴때처리량, newQuantities);
+        const 칸있음 = Object.keys(바뀐칸).length > 0;
+        const 새확인목록 = changedZeroList(그릴때0건, Object.keys(newQuantities), confirmedZeroTasks, 지금이름);
+        const 확인목록바뀜 = 새확인목록 !== null;
+        if (!칸있음 && !확인목록바뀜) {
+            showToast('바뀐 값이 없습니다.');
+            return;
+        }
+        const 쓸값 = { ...(칸있음 ? { taskQuantities: 바뀐칸 } : {}), ...(확인목록바뀜 ? { confirmedZeroTasks: 새확인목록 } : {}) };
+
+        // 오늘 날짜는 쓰기 전에 마감 상태를 본다. 확인이 안 되면 어디에도 쓰지 않고 창을 둔다.
+        let 오늘상태 = null;
+        if (dateKey === getTodayDateString()) {
+            오늘상태 = await isDayClosedOnServer(dateKey);
+            if (오늘상태 === 'unknown') {
+                showToast('마감 여부를 확인하지 못해 저장하지 않았습니다. 연결을 확인한 뒤 다시 저장해 주세요.', true);
+                return false;
+            }
         }
 
         const historyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dateKey);
         try {
-            await setDoc(historyDocRef, {
-                taskQuantities: newQuantities,
-                confirmedZeroTasks: confirmedZeroTasks
-            }, { merge: true });
+            await setDoc(historyDocRef, 쓸값, { merge: true });
+
+            const idx = State.allHistoryData.findIndex(d => d.id === dateKey);
+            if (idx > -1) {
+                const 행 = State.allHistoryData[idx];
+                State.allHistoryData[idx] = {
+                    ...행,
+                    ...(칸있음 ? { taskQuantities: { ...(행.taskQuantities || {}), ...바뀐칸 } } : {}),
+                    ...(확인목록바뀜 ? { confirmedZeroTasks: 새확인목록 } : {})
+                };
+            }
 
             showToast(`${dateKey}의 처리량이 수정되었습니다.`);
 
             clearLocalCache();   // 전체·대시보드(100일) 캐시 키 모두
 
-            if (dateKey === getTodayDateString()) {
+            // 마감된 날은 원본에 다시 쓰지 않는다 — 마감이 비운 daily_data 는 비어 있어야 한다.
+            if (오늘상태 === 'open') {
                  const dailyDocRef = getDailyDocRef();
-                 await setDoc(dailyDocRef, { taskQuantities: newQuantities, confirmedZeroTasks: confirmedZeroTasks }, { merge: true });
+                 await setDoc(dailyDocRef, 쓸값, { merge: true });
             }
 
             if (DOM.historyModal && !DOM.historyModal.classList.contains('hidden')) {

@@ -1,29 +1,30 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202611100906';
-import * as State from './state.js?v=202611100906';
+import * as DOM from './dom-elements.js?v=202611100920';
+import * as State from './state.js?v=202611100920';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202611100906';
-import { updateDailyData } from './app-data.js?v=202611100906';
+import { render } from './app.js?v=202611100920';
+import { updateDailyData } from './app-data.js?v=202611100920';
 
-import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202611100906';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202611100906';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202611100920';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202611100920';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     applyPlannedPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202611100906';
+} from './ui.js?v=202611100920';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202611100906';
-import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate } from './history-data-manager.js?v=202611100906';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611100906';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611100906';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611100906';
+} from './app-logic.js?v=202611100920';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611100920';
+import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611100920';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611100920';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611100920';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611100920';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
@@ -355,12 +356,23 @@ export function setupMainScreenListeners() {
 
     // --- 처리량 입력 (메뉴) 리스너 ---
     // PC 사이드바·휴대폰 메뉴·마감 확인창의 [지금 입력] 이 같은 창을 연다(예전엔 PC/휴대폰 두 벌이 복사돼 있었다).
-    const openTodayQuantityModal = () => {
+    // 마감된 날은 이 창으로 저장하지 않는다 — 원본이 비어 빈칸으로 열리고, 이력 정정은 데이터 관리 창이 맡는다. 확인이 안 되면 막는다.
+    const blockIfDayNotOpen = async () => {
+        const 상태 = await isDayClosedOnServer(getTodayDateString());
+        if (상태 === 'open') return false;
+        showToast(상태 === 'closed'
+            ? '오늘은 이미 마감되어 이 창에서는 저장할 수 없습니다. 데이터 관리의 오늘 날짜에서 처리량을 수정해 주세요.'
+            : '마감 여부를 확인하지 못해 처리량을 저장할 수 없습니다. 연결을 확인한 뒤 다시 시도해 주세요.', true);
+        return true;
+    };
+
+    const openTodayQuantityModal = async () => {
         if (!State.auth || !State.auth.currentUser) {
             showToast('로그인이 필요합니다.', true);
             if (DOM.loginModal) DOM.loginModal.classList.remove('hidden');
             return;
         }
+        if (await blockIfDayNotOpen()) return;
 
         const todayData = {
             workRecords: State.appState.workRecords || [],
@@ -371,7 +383,11 @@ export function setupMainScreenListeners() {
         // 정렬: 누락 → 오늘 한 업무(진행 중 포함) → 나머지 (ui-modals.js renderQuantityModalInputs)
         const doneTodayTasks = [...new Set((State.appState.workRecords || []).map(r => r && r.task).filter(Boolean))];
 
-        renderQuantityModalInputs(State.appState.taskQuantities || {}, State.appConfig.quantityTaskTypes || [], missingTasksList, State.appState.confirmedZeroTasks || [], doneTodayTasks);
+        // 그릴 때의 값 — 저장은 이것과 달라진 칸만 쓴다(저녁 자동 입력·빈 메모리로 그린 칸을 덮지 않게)
+        const 그릴때처리량 = { ...(State.appState.taskQuantities || {}) };
+        const 그릴때0건 = [...(State.appState.confirmedZeroTasks || [])];
+        const 지금이름 = (n) => aliasTaskName(n, State.appConfig);
+        renderQuantityModalInputs(그릴때처리량, State.appConfig.quantityTaskTypes || [], missingTasksList, [...new Set(그릴때0건.map(지금이름))], doneTodayTasks);
         // 오늘 작업 기록이 있는데 처리량이 빈 업무는 미리 저장해 둔 오늘 예정 물량으로 채운다(2026-10-26)
         const canon = (n) => aliasTaskName(n, State.appConfig);
         applyPlannedPrefill(plannedPrefill(State.appState.taskQuantities, aliasNameMap(getPlannedQuantitiesForDate(getTodayDateString()), State.appConfig),
@@ -385,14 +401,24 @@ export function setupMainScreenListeners() {
 
         // false 를 돌려주면 창을 닫지 않는다(listeners-form-quantity.js) — 저장이 안 됐는데 닫히면 입력이 사라진다.
         State.context.quantityModalContext.onConfirm = async (newQuantities, confirmedZeroTasks) => {
+            // 창을 열어 둔 사이 마감됐을 수 있다 — 저장 직전에 다시 본다(false = 창 유지)
+            if (await blockIfDayNotOpen()) return false;
+            // 달라진 칸만 쓴다. 안 바꾼 칸은 빈칸이어도 0 으로 저장하지 않는다.
+            const 바뀐칸 = changedQuantities(그릴때처리량, newQuantities);
+            const 칸있음 = Object.keys(바뀐칸).length > 0;
+            const 새확인목록 = changedZeroList(그릴때0건, Object.keys(newQuantities), confirmedZeroTasks, 지금이름);
+            if (!칸있음 && 새확인목록 === null) {
+                showToast('바뀐 값이 없습니다.');
+                return true;
+            }
             const saved = await updateDailyData({
-                taskQuantities: newQuantities,
-                confirmedZeroTasks: confirmedZeroTasks
+                ...(칸있음 ? { taskQuantities: 바뀐칸 } : {}),
+                ...(새확인목록 !== null ? { confirmedZeroTasks: 새확인목록 } : {})
             }, { requireOnline: true, timeoutMs: 10000 });
             if (!saved) return false;   // 오류 안내는 updateDailyData 가 한 번 띄웠다
 
-            State.appState.taskQuantities = newQuantities;
-            State.appState.confirmedZeroTasks = confirmedZeroTasks;
+            if (칸있음) State.appState.taskQuantities = { ...(State.appState.taskQuantities || {}), ...바뀐칸 };
+            if (새확인목록 !== null) State.appState.confirmedZeroTasks = 새확인목록;
 
             // 오늘 입력은 검증 플래그 없이 저장한다
             // (isAutoSave=true 로 주어 saveProgress 자체 토스트를 끄고, 결과만 여기서 한 번 알린다)

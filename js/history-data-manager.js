@@ -1,26 +1,26 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202611100906';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202611100906';
-import { clampOpenRecords } from './lib/record-close.js?v=202611100906';
-import { decideHistoryMerge } from './lib/history-merge.js?v=202611100906';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202611100906';
+import * as State from './state.js?v=202611100920';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202611100920';
+import { clampOpenRecords } from './lib/record-close.js?v=202611100920';
+import { decideHistoryMerge, historyHasContent } from './lib/history-merge.js?v=202611100920';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202611100920';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
-} from './lib/attendance-guard.js?v=202611100906';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202611100906';
-import { can } from './lib/perm.js?v=202611100906';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202611100906';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202611100906';
-import { cutoffDate, fillHistoryDays, historyRangeStart, cacheJsonOf } from './lib/history-window.js?v=202611100906';
-import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202611100906';
-import { buildPlannedDoc } from './lib/planned-fields.js?v=202611100906';
-import { sameTaskKeys } from './lib/task-alias-view.js?v=202611100906';
+} from './lib/attendance-guard.js?v=202611100920';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202611100920';
+import { can } from './lib/perm.js?v=202611100920';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202611100920';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202611100920';
+import { cutoffDate, fillHistoryDays, historyRangeStart, cacheJsonOf } from './lib/history-window.js?v=202611100920';
+import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202611100920';
+import { buildPlannedDoc } from './lib/planned-fields.js?v=202611100920';
+import { sameTaskKeys, aliasTaskName } from './lib/task-alias-view.js?v=202611100920';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202611100906';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202611100920';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
-    query, where, writeBatch, updateDoc, increment, documentId, runTransaction
+    query, where, writeBatch, updateDoc, increment, documentId, runTransaction, waitForPendingWrites
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isHistoryCached = false;
@@ -518,6 +518,9 @@ export async function isDayClosedOnServer(dateKey) {
     }
 }
 
+// 전송 대기 중인 쓰기를 기다리는 한계 — 연결이 살아 있으면 금방 끝난다. 넘기면 저장을 'failed' 로 끝낸다.
+const PENDING_WRITES_TIMEOUT_MS = 8000;
+
 export async function saveProgress(isAutoSave = false, isQuantityVerified = false,
         { isFinalize = false, overrideRecords = null } = {}) {
     const dateStr = getTodayDateString();
@@ -531,8 +534,7 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
 
     try {
         const dailyData = {
-            taskQuantities: State.appState.taskQuantities || {},
-            confirmedZeroTasks: State.appState.confirmedZeroTasks || [],
+            // 처리량·0건 확인은 여기 싣지 않는다 — 아래에서 서버 daily_data 로 읽는다(탭 메모리는 비었거나 낡을 수 있다).
             onLeaveMembers: State.appState.dailyOnLeaveMembers || [],
             partTimers: State.appState.partTimers || [],
             dailyAttendance: State.appState.dailyAttendance || {},
@@ -609,6 +611,25 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
         }
         const existingRecordsCount = (serverHistory.workRecords || []).length;
 
+        // 처리량·0건 확인은 탭 메모리가 아니라 **서버 daily_data** 에서 읽는다(2026-11-09).
+        // 메모리는 첫 스냅샷 전(새로고침 직후·업무마감봇)이면 비어 있고, 끊겼다 이어진 탭이면 낡아 있다 —
+        // 그걸로 저장하면 자동 입력값·0으로 고친 값이 사라지거나 되살아난다.
+        // 이 탭에서 입력했지만 아직 전송되지 않은 값은 먼저 서버로 보낸 뒤 읽는다(waitForPendingWrites).
+        // 그래서 서버 값만 쓰면 메모리의 값을 잃지 않는다. 보내지 못하면 저장하지 않는다 — 'failed' 면 마감이 원본을 지우지 않는다.
+        let serverDaily = {};
+        try {
+            await Promise.race([
+                waitForPendingWrites(State.db),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('pending-writes-timeout')), PENDING_WRITES_TIMEOUT_MS))
+            ]);
+            const dSnap = await getDocFromServer(doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', dateStr));
+            if (dSnap.exists()) serverDaily = dSnap.data() || {};
+        } catch (e) {
+            console.warn('[saveProgress] 처리량을 서버에서 확인하지 못해 저장하지 않습니다.', e);
+            if (!isAutoSave) showToast('서버에서 처리량을 확인하지 못해 저장하지 않았습니다. 연결을 확인한 뒤 다시 시도하세요.', true);
+            return 'failed';
+        }
+
         // 서버에 있는 것과 내 화면에 있는 것 중 **무엇이 이기는가** — 판단은
         // js/lib/history-merge.js 가 한다(순수 함수. tests/history-merge.test.js 가 지킨다).
         //
@@ -616,13 +637,13 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
         // 붙은 것이라 지우지 않았다. 규칙 자체를 고치려면 그 모듈과 테스트를 같이 고쳐야 한다 —
         // 여기서 조용히 한 줄 바꾸는 것으로는 못 고치게 만든 것이 이 분리의 목적이다.
         // (같은 종류의 사고가 네 번 났고, 그때마다 이 자리에 주석만 한 단락 늘었다)
-        const { patch: historyData, memRecords, notes } = decideHistoryMerge({
+        const { patch: historyData, memRecords, memQuantities, notes } = decideHistoryMerge({
             dateStr,
             liveRecords: liveWorkRecords,
             serverHistory,
             live: {
-                taskQuantities: dailyData.taskQuantities,
-                confirmedZeroTasks: dailyData.confirmedZeroTasks,
+                taskQuantities: serverDaily.taskQuantities || {},
+                confirmedZeroTasks: Array.isArray(serverDaily.confirmedZeroTasks) ? serverDaily.confirmedZeroTasks : [],
                 onLeaveMembers: dailyData.onLeaveMembers,
                 partTimers: dailyData.partTimers,
                 dailyAttendance: dailyData.dailyAttendance,
@@ -631,6 +652,7 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
                 isQuantityVerified: State.appState.isQuantityVerified
             },
             isQuantityVerifiedArg: isQuantityVerified,
+            canonName: (n) => aliasTaskName(n, State.appConfig),
             now
         });
 
@@ -729,7 +751,8 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
         //    쓰면서 방금 지킨 기록을 날린다(바로 위 주석의 사고가 그 경로다).
         // memRecords 는 historyData 와 **같은 판단에서** 나온다(history-merge.js 규칙 ⑤) —
         // 둘이 어긋나면 메모리 배열을 통째로 쓰는 다른 함수들이 서버 기록을 날린다.
-        const memPatch = { ...historyData, workRecords: memRecords };
+        // 처리량도 같다 — patch 는 일부 칸만일 수 있으니 메모리에는 서버에 남는 전체 값을 넣는다.
+        const memPatch = { ...historyData, workRecords: memRecords, taskQuantities: memQuantities };
 
         const memIdx = State.allHistoryData.findIndex(d => d.id === dateStr);
         if (memIdx > -1) State.allHistoryData[memIdx] = { ...State.allHistoryData[memIdx], ...memPatch };
@@ -1152,9 +1175,10 @@ async function saveDayDataToHistoryInner(shouldReset, endTimeOverride = null, op
         //
         // 왜 초기화 뒤인가 — 앞에서 찍으면 초기화가 실패한 날이 '마감됨' 으로 보여
         // 재시도 알림이 영영 안 온다.
-        // 저장할 것이 아무것도 없던 날('nothing')에는 표시를 남기지 않는다.
-        // 그러면 이력에 closedAt 만 있는 빈 문서가 새로 생겨 이력 목록에 유령 날짜가 낀다.
-        if (cleared && saveResult !== 'nothing') {
+        // 저장할 것이 아무것도 없던 날('nothing')이어도 **서버 이력에 내용이 있으면** 표시를 남긴다 —
+        // 앞선 마감이 이력 저장·초기화까지 끝내고 closedAt 만 못 찍은 날의 재시도가 이 경우다(안 찍으면 영영 미마감).
+        // 이력에도 아무것도 없으면 남기지 않는다(closedAt 만 있는 빈 문서가 이력 목록에 유령 날짜로 낀다).
+        if (cleared) {
             // 🔒 **한 번만 쓴다(write-once).** 이미 closedAt 이 있으면 아무것도 바꾸지 않는다.
             //
             //   함수 맨 앞의 재마감 가드만으로는 부족하다. 그건 읽기 한 번이고, 그 뒤
@@ -1169,6 +1193,7 @@ async function saveDayDataToHistoryInner(shouldReset, endTimeOverride = null, op
                 const 이미있음 = await runTransaction(State.db, async (tx) => {
                     const snap = await tx.get(histRef);
                     if (snap.exists() && snap.data()?.closedAt) return snap.data().closedAt;
+                    if (saveResult === 'nothing' && !historyHasContent(snap.exists() ? snap.data() : null)) return null;
                     tx.set(histRef, {
                         id: closeDateStr,
                         closedAt: new Date().toISOString(),

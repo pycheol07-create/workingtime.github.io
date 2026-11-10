@@ -21,14 +21,14 @@ import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writ
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
-    fileRowsOf, inboundFileHtml, mibalFileAoa, floor2FileAoa } from './lib/mibal2-live.js?v=202611100906';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611100906';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611100906';
-import { inboundSig } from './lib/inbound-fix.js?v=202611100906';
+    fileRowsOf, inboundFileHtml, mibalFileAoa, floor2FileAoa } from './lib/mibal2-live.js?v=202611100920';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611100920';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611100920';
+import { inboundSig } from './lib/inbound-fix.js?v=202611100920';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
-    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611100906';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611100906';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611100906';
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611100920';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611100920';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611100920';
 
 const CHINA = 'ChinaStockGoods';
 const SCANDB = CHINA + '_ScanDB';

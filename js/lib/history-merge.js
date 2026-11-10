@@ -23,9 +23,53 @@
 //   ⑥ `inspectionDone`(매니저에서 비운 완료 검수, 2026-10-29)은 화면 쪽이 비어 있으면 **키를 뺀다**(마감 여부와 상관없이).
 //      옛 탭·아직 못 받은 탭이 빈 배열로 덮어 일자별 검수 기록을 지우지 않게. 지금 saveProgress 는 이 칸을 넘기지 않는다 —
 //      매니저 비우기·삭제(js/inspection-logic.js)가 daily_data 와 history 에 직접 쓴다. 이 규칙은 넘기게 되더라도 지우지 않게 하는 안전망.
+//   ⑦ 처리량(2026-11-09): 마감된 날은 칸별로 본다 — 이력 값이 0이거나 없는 칸만 화면의 0보다 큰 값으로 채운다.
+//      이력의 양수는 바꾸지 않고(마감 뒤 들어온 추가 수량 포함), 0을 새 칸으로 만들지 않는다. '0건 확인'은 합집합.
+//      정정은 데이터 관리 처리량 창(이력에 직접 씀)으로만 한다.
+//      patch 에는 **이번에 채울 칸만** 넣는다. 서버 칸을 통째로 다시 보내면 읽은 뒤 들어온 값을 옛 값으로 되돌린다.
+//      채울 칸이 없으면 키를 뺀다(빈 맵을 보내면 merge 라도 그 맵이 통째로 지워진다). 메모리에 넣을 전체 값은 `memQuantities`.
+//      실제 사고: 11/09 17:22 마감 뒤(원본 처리량이 비워진 뒤) 빈 칸으로 열린 처리량 창을 17:25 에 저장 → 전 업무 0 이 이력을 덮었다.
+//      마감 전이어도 원본 처리량이 `{}` 이면 이력 처리량을 비우지 않는다 — 지우려는 입력은 전 칸 0 으로 오지 `{}` 로 오지 않는다
+//      (이력 저장·초기화까지 끝나고 closedAt 만 못 찍힌 날의 재시도는 원본이 이미 비어 있다).
 
 const 빈객체 = (v) => !v || Object.keys(v).length === 0;
 const 빈배열 = (v) => !Array.isArray(v) || v.length === 0;
+
+/** ⑦ 마감된 날 이번에 채울 칸 — 이력에 양수가 있는 업무(옛 이름 칸 포함)는 빼고, 화면의 양수만. */
+function 마감된날채울칸(서버값, 화면값, canon) {
+    const 양수업무 = new Set(Object.entries(서버값 || {}).filter(([, v]) => Number(v) > 0).map(([k]) => canon(k)));
+    const 채울칸 = {};
+    Object.entries(화면값 || {}).forEach(([k, v]) => {
+        if (Number(v) > 0 && !양수업무.has(canon(k))) 채울칸[k] = v;
+    });
+    return 채울칸;
+}
+
+/** 그 날 이력 문서에 지켜야 할 내용이 있는가 — 마감 표시(closedAt)를 빈 문서에 찍지 않기 위한 판단 */
+export const historyHasContent = (d) => !!d && (!빈배열(d.workRecords) || !빈객체(d.taskQuantities));
+
+/**
+ * 처리량 창의 '0건 확인' — 창에 표시된 업무만 비교한다(표시 안 된 업무의 표시는 지키도록).
+ * 달라졌으면 '기존 목록 − 표시된 업무 + 체크된 업무' 를, 그대로면 null(쓰지 않음)을 돌려준다.
+ * 기존 목록의 옛 이름은 canon 으로 지금 이름에 맞춰 본다.
+ */
+export function changedZeroList(그릴때목록, 표시업무, 체크목록, canon = (n) => n) {
+    const 표시 = new Set(표시업무 || []);
+    const 기존 = Array.isArray(그릴때목록) ? 그릴때목록 : [];
+    const 전 = new Set(기존.map(canon).filter(t => 표시.has(t)));
+    const 지금 = new Set((체크목록 || []).filter(t => 표시.has(t)));
+    if (전.size === 지금.size && [...지금].every(t => 전.has(t))) return null;
+    return [...new Set([...기존.filter(t => !표시.has(canon(t))), ...지금])];
+}
+
+/** 처리량 창 — 그릴 때와 **달라진 칸만**. 빈칸(없음·0)이던 칸을 0 으로 저장하면 그 사이 들어온 값을 덮는다. */
+export function changedQuantities(그릴때, 저장값) {
+    const 바뀐칸 = {};
+    Object.entries(저장값 || {}).forEach(([k, v]) => {
+        if ((Number(v) || 0) !== (Number((그릴때 || {})[k]) || 0)) 바뀐칸[k] = v;
+    });
+    return 바뀐칸;
+}
 
 /**
  * @param {object}  a
@@ -34,14 +78,17 @@ const 빈배열 = (v) => !Array.isArray(v) || v.length === 0;
  * @param {object}  a.serverHistory  서버 이력 문서 내용. 없으면 `{}`
  * @param {object}  a.live           화면의 오늘 값들
  * @param {boolean} [a.isQuantityVerifiedArg]  '물량 검증' 을 이 저장에서 찍었는가
+ * @param {function} [a.canonName]   업무 이름 → 지금 이름(옛 이름 칸도 같은 업무로 본다). 없으면 이름 그대로
  * @param {string}  a.now            저장 시각. 순수함수를 위해 **인자로 받는다**
- * @returns {{patch:object, memRecords:Array, notes:object}}
+ * @returns {{patch:object, memRecords:Array, memQuantities:object, notes:object}}
  *   patch     — 그대로 `setDoc(ref, patch, {merge:true})` 에 넣을 값
  *   memRecords— 저장 뒤 메모리 이력에 넣어야 하는 기록 배열(= 서버에 남는 배열)
+ *   memQuantities — 저장 뒤 메모리 이력에 넣어야 하는 처리량 전체(patch 는 일부 칸만이거나 키가 없을 수 있다)
  *   notes     — 호출처가 로그·분기에 쓰는 사실들
  */
 export function decideHistoryMerge({ dateStr, liveRecords, serverHistory, live,
-                                    isQuantityVerifiedArg = false, now }) {
+                                    isQuantityVerifiedArg = false,
+                                    canonName = (n) => n, now }) {
     const 기록 = Array.isArray(liveRecords) ? liveRecords : [];
     const 서버 = serverHistory || {};
     const 화면 = live || {};
@@ -81,6 +128,23 @@ export function decideHistoryMerge({ dateStr, liveRecords, serverHistory, live,
     // ② 마감된 날의 근태는 서버가 이긴다 — 마감이 확정한 퇴근시각을, 그 전 상태를 들고 있던
     //    세션이 지우거나 되살리지 못하게 한다(마감 후 재출근이 되살아난 사고와 같은 종류).
     //    키를 통째로 빼지는 않는다. 그러면 틀린 퇴근시각을 고칠 경로가 사라진다.
+    // ⑦ 처리량·0건 확인 — 규칙은 머리말 참고.
+    const 화면처리량 = 화면.taskQuantities || {};
+    let 처리량patch = 화면처리량, memQuantities = 화면처리량;
+    if (isClosedDay) {
+        const 채울칸 = 마감된날채울칸(서버.taskQuantities, 화면처리량, canonName);
+        처리량patch = 빈객체(채울칸) ? null : 채울칸;
+        memQuantities = { ...(서버.taskQuantities || {}), ...채울칸 };
+    } else if (빈객체(화면처리량) && !빈객체(서버.taskQuantities)) {
+        처리량patch = null;   // 키를 빼면 merge 라 서버 값이 그대로 남는다
+        memQuantities = 서버.taskQuantities;
+    }
+    const 화면0건 = 화면.confirmedZeroTasks || [];
+    const confirmedZeroTasks = isClosedDay
+        ? [...new Set([...(Array.isArray(서버.confirmedZeroTasks) ? 서버.confirmedZeroTasks : []), ...화면0건])]
+        : ((빈객체(화면처리량) && !빈객체(서버.taskQuantities) && 빈배열(화면0건) && !빈배열(서버.confirmedZeroTasks))
+            ? 서버.confirmedZeroTasks : 화면0건);
+
     const 화면근태 = 화면.dailyAttendance || {};
     // 마감 안 된 날도 **사본**을 만든다. 같은 참조를 넘기면 memPatch 를 거쳐
     // State.allHistoryData 의 그날 근태가 라이브 객체를 가리키고, 이후 라이브 변경이
@@ -92,8 +156,8 @@ export function decideHistoryMerge({ dateStr, liveRecords, serverHistory, live,
     const patch = {
         id: dateStr,
         ...(omitRecordsKey ? {} : { workRecords: appendOnlyRecords || 기록 }),
-        taskQuantities: 지키기(화면.taskQuantities || {}, 서버.taskQuantities, 빈객체),
-        confirmedZeroTasks: 지키기(화면.confirmedZeroTasks || [], 서버.confirmedZeroTasks, 빈배열),
+        ...(처리량patch ? { taskQuantities: 처리량patch } : {}),
+        confirmedZeroTasks,
         onLeaveMembers: 지키기(화면.onLeaveMembers || [], 서버.onLeaveMembers, 빈배열),
         partTimers: 지키기(화면.partTimers || [], 서버.partTimers, 빈배열),
         dailyAttendance,
@@ -119,7 +183,7 @@ export function decideHistoryMerge({ dateStr, liveRecords, serverHistory, live,
         && 빈배열(화면.inspectionDone);
 
     return {
-        patch, memRecords,
+        patch, memRecords, memQuantities,
         notes: { isClosedDay, keepServerRecords, omitRecordsKey, existingBefore,
                  appendedCount, skippedNoIdCount, nothingToSave,
                  closedAt: 서버.closedAt || null }

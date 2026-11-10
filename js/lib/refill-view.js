@@ -215,7 +215,7 @@ export function dayStatus({ meta, key, todayKey, nowMs, holidayName }) {
     const rd = runDay(key, meta && meta.schedule, holidayName);
     if (!rd.run) return { status: 'rest', text: `${when} 지시서 없음(휴일: ${rd.reason})` };
     if (!isToday) return { status: 'missing', text: '그날 지시서 없음' };
-    if (kstParts(nowMs).hh < REGULAR_DONE_H) return { status: 'pending', text: '08:20에 만들어집니다' };
+    if (kstParts(nowMs).hh < REGULAR_DONE_H) return { status: 'pending', text: '08:25에 만들어집니다' };
     return { status: 'missing', text: '아직 지시서가 없습니다 — 담당자 확인 중' };
 }
 
@@ -237,7 +237,7 @@ export function reqUi({ req, requestMs, nowMs, isToday, isRunDay, todayKey, boar
     const res = (enabled, note = '', tone = '', extra = {}) => ({ show: true, enabled, label, note, tone, phase: '', doneMs, ...extra });
     if (!isToday) return { show: false, enabled: false, label, note: '', tone: '', phase: '', doneMs: 0 };
     if (!isRunDay) return res(false, '쉬는 날에는 다시 만들지 않습니다');
-    if (!board) return res(false, '08:20 정기 지시서 뒤에 다시 만들 수 있습니다');
+    if (!board) return res(false, '08:25 정기 지시서 뒤에 다시 만들 수 있습니다');
     const lastMs = tsMs(r.lastReqAt);
     const intOr = (v, d) => (Number.isInteger(v) ? v : d);
     const max = intOr(r.max, DEFAULT_REQ_MAX), autoMax = intOr(r.autoMax, DEFAULT_AUTO_MAX);
@@ -343,7 +343,7 @@ export function dashProgress({ st, parsed, checkMap, err }) {
         return { text: '불러오는 중…', tone: '', open: false, note: '지시서를 불러오는 중입니다. 잠시 뒤 다시 눌러 주세요.' };
     }
     if (st.status !== 'ok') {
-        const short = { rest: '오늘 휴일', pending: '08:20 생성', missing: '지시서 없음', fail: '생성 실패' }[st.status] || '지시서 없음';
+        const short = { rest: '오늘 휴일', pending: '08:25 생성', missing: '지시서 없음', fail: '생성 실패' }[st.status] || '지시서 없음';
         const tone = st.status === 'fail' || st.status === 'missing' ? 'warn' : '';
         return { text: short, tone, open: false, note: String(st.text || short) };
     }

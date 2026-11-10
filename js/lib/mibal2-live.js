@@ -11,7 +11,7 @@
 //   barcodeMapOfAoa  [바코드 매핑 올리기] 엑셀 → BARCODE_MAP(바코드 → 상품코드)
 //   fileRowsOf · inboundFileHtml · mibalFileAoa · floor2FileAoa   이지어드민 업로드용 받기 3종의 내용(기존 화면과 같은 형식)
 // 공급처 이름·원가는 다루지 않는다. Locations rawData 는 '옵션추가항목1' 칸 하나만 꺼낸다.
-import { scanDbPreviewOf, byShipOf } from './scan-link.js?v=202611100906';
+import { scanDbPreviewOf, byShipOf } from './scan-link.js?v=202611100920';
 
 /** 값 서명 — 칸 순서와 무관하게 같은 값이면 같은 글자(시각은 ms 로). 확인창 전후에 설정·스캐너 자료가 바뀌었는지 볼 때 쓴다 */
 export function stableSig(v) {
