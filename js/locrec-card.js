@@ -12,15 +12,15 @@
 // 문서 모양·순수 함수는 js/lib/locrec-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=202611101235';
+import { escapeHtml } from './utils.js?v=202611101512';
 import {
     verdictBadge, metricItems, dataWarnings, dataLine, dayOptions, dayMessage,
     TABS, TAB_LABEL, recStrip, tabSummary, dayLabel, rebuildLine
-} from './lib/locrec-view.js?v=202611101235';
-import { initFold } from './lib/card-fold.js?v=202611101235';
-import { getLocRecStore, todayKey } from './locrec-store.js?v=202611101235';
-import { mountLocRecTable } from './locrec-table.js?v=202611101235';
-import { initRouteCard } from './locrec-route-card.js?v=202611101235';
+} from './lib/locrec-view.js?v=202611101512';
+import { initFold } from './lib/card-fold.js?v=202611101512';
+import { getLocRecStore, todayKey } from './locrec-store.js?v=202611101512';
+import { mountLocRecTable } from './locrec-table.js?v=202611101512';
+import { initRouteCard } from './locrec-route-card.js?v=202611101512';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
@@ -124,8 +124,9 @@ export function initLocRecCard({ db, auth, getMemberName, sizeOf }) {
             if (p.error) parts.push(`<div class="refill-msg refill-warn">${escapeHtml(p.error)}</div>`);
             const sm = tabSummary({ latest: S.latest, key: S.key, todayKey: today, parsed: p, marks: S.marks, nowMs: Date.now() });
             const dayText = S.key === today ? '오늘' : dayLabel(S.key);
+            // 뒤로 보내기는 0건이면 요약에서 뺀다(꺼진 서버·옛 문서도 0)
             parts.push(`<div class="refill-line">${escapeHtml(dayText)} 추천 `
-                + TABS.map(t => `${TAB_LABEL[t]} <b>${sm.counts[t]}</b>`).join(' · ')
+                + TABS.filter(t => t !== 'back' || sm.counts[t] > 0).map(t => `${TAB_LABEL[t]} <b>${sm.counts[t]}</b>`).join(' · ')
                 + (sm.newN ? `, 새로 <b>${sm.newN}</b>` : '')
                 + (sm.hiddenN ? `<span class="refill-sub"> (안 함 ${sm.hiddenN}건 숨김)</span>` : '') + '</div>');
             // 기준 줄 '10:42 다시 만듦 · 배치: 업로드 MM/DD HH:MM · 재고: 이지어드민 HH:MM' — 재고가 업로드 대체면 노랗게

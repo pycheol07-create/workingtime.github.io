@@ -10,7 +10,7 @@
 //   초차이 = t0 부터의 초(시각 없는 문서는 빈칸). 시각은 초 단위까지만 남는다(화면도 초까지). 옛 문서는 피킹·비축이 빈칸.
 //   상품명은 넣지 않는다 — 엑셀은 nameOf 로 받는다.
 
-import { isFixId } from './inbound-fix.js?v=202611101235';
+import { isFixId } from './inbound-fix.js?v=202611101512';
 
 export const SCANLOG_JOBS_COLL = ['ChinaStockGoods_ScanDB_Versions', '_archiveScans', 'jobs'];   // 마감 때 보관하는 곳(문서 id = docIdOf(id, part))
 export const SCANLOG_MAX_PARTS = 9;   // 보관함 문서와 한 batch 로 올리는 조각 수 상한(요청 하나 10MiB 한도 안쪽)

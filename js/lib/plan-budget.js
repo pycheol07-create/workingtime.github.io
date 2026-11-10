@@ -13,7 +13,7 @@
 //   채용 제안: 지난달 실제 · 이번 달(지금까지) · 다음 달 예측 모두 부족 ≥ 0.8명(3달 연속) + 월간 신뢰도 '보통' 이상. 시작 역산일 = 다음 달 첫날 − (채용 + 교육 주) × 7, 지났으면 '채용 늦음'.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-budget.test.js — 숫자는 가짜.
 
-import { fillMix } from './plan-week.js?v=202611101235';
+import { fillMix } from './plan-week.js?v=202611101512';
 
 export const COST_DEFAULTS = Object.freeze({
     tempHourly: null,          // 알바 시급 — 사람이 넣는다(없으면 알바 금액 null)

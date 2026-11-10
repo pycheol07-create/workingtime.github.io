@@ -1,25 +1,30 @@
 // === js/lib/locrec-settings.js ===
 // 로케이션관리 환경설정 '추천·채우기' 탭(js/locset-panel.js)의 순수 함수 — import 없음(node --test 대상). (2026-10-27)
 //
-// 추천 양 3칸(maxRows·weeklyMoves·minGain)은 location.settings 권한자가 Locations/INFO_CONFIG.locRecSettings 에 쓴다.
+// 추천 양 4칸(maxRows·weeklyMoves·minGain·backPerDay)은 location.settings 권한자가 Locations/INFO_CONFIG.locRecSettings 에 쓴다.
 //   서버 앱\로케이션추천\입력.py apply_app_settings 가 다음 추천(06:40 또는 [지금 재고로 다시 만들기])부터 쓴다.
 //   칸마다 앱 값(범위 안) → 서버 설정.json → loc-recommend.js SERVER_DEFAULTS 순.
 // ⚠️ LIMITS 는 서버 입력.APP_LIMITS 와 같아야 한다(서버 tests\test_입력.py 가 node 로 이 파일을 읽어 비교) — 한쪽만 바꾸지 말 것.
 // 하루 출고 기준·재고 빼기·판정 기준·점수 비율·자리 고르는 순서(orderBy, 2026-10-29~ daily)는 서버 설정.json 이 정한다 — 화면은 integrations/locRecLatest.settings 를 읽기만 한다
 //   (모양: 서버 입력.latest_settings).
 
+// backPerDay(뒤로 보내기 하루 건수, 2026-11-10) — 서버 입력.BACK_LIMITS 와 같다(시험은 APP_LIMITS ∪ BACK_LIMITS 와 비교). 0 이면 안 낸다.
+//   켜고 끄기는 서버 설정.json recommendBack.enabled 만 — 화면은 건수만 바꾼다.
 export const LIMITS = Object.freeze({
     maxRows: Object.freeze({ min: 1, max: 50, int: true }),
     weeklyMoves: Object.freeze({ min: 1, max: 100, int: true }),
-    minGain: Object.freeze({ min: 0, max: 50, int: false })
+    minGain: Object.freeze({ min: 0, max: 50, int: false }),
+    backPerDay: Object.freeze({ min: 0, max: 20, int: true })
 });
-export const KEYS = Object.freeze(['maxRows', 'weeklyMoves', 'minGain']);
+export const KEYS = Object.freeze(['maxRows', 'weeklyMoves', 'minGain', 'backPerDay']);
+const DEFAULTS = Object.freeze({ maxRows: 15, weeklyMoves: 20, minGain: 0.5, backPerDay: 5 });   // SERVER_DEFAULTS · 서버 BACK_DEFAULTS.perDay
 
 // 칸 이름·단위·한 줄 설명(화면 표시용)
 export const FIELD_TEXT = Object.freeze({
     maxRows: { label: '하루 추천 행 수', unit: '행', help: '변경 추천 표에 하루에 보여 줄 단독·맞바꾸기 행의 최대 개수입니다(페어는 따로).' },
     weeklyMoves: { label: '주간 이동 수', unit: '회', help: '월요일 주간 요약에 담는 이동 수입니다. 단독은 1회, 맞바꾸기는 2회로 셉니다.' },
-    minGain: { label: '최소 이득', unit: '', help: '옮겨서 줄어드는 걸음(하루 출고 × 앞당기는 정도)이 이보다 작으면 추천하지 않습니다.' }
+    minGain: { label: '최소 이득', unit: '', help: '옮겨서 줄어드는 걸음(하루 출고 × 앞당기는 정도)이 이보다 작으면 추천하지 않습니다.' },
+    backPerDay: { label: '뒤로 보내기 하루 건수', unit: '건', help: '앞자리의 덜 나가는 상품을 뒤쪽 빈 자리로 옮기는 추천의 하루 최대 개수입니다(위 하루 추천 행 수와 따로). 0 이면 내지 않습니다.' }
 });
 
 const 범위글 = (k) => `${LIMITS[k].min}~${LIMITS[k].max}${LIMITS[k].int ? ' 사이 정수' : ''}`;
@@ -36,12 +41,14 @@ export function valueOf(key, v) {
 
 /**
  * 추천 양 정리 → { value: {maxRows, weeklyMoves, minGain}, errors: [{key, text}], ok }
- *   raw: 입력칸 값 또는 저장된 locRecSettings. fallback: 틀린 칸에 채울 값(보통 서버가 지금 쓰는 값 → 없으면 SERVER_DEFAULTS 와 같은 15·20·0.5).
+ *   raw: 입력칸 값 또는 저장된 locRecSettings. fallback: 틀린 칸에 채울 값(보통 서버가 지금 쓰는 값 → 없으면 SERVER_DEFAULTS 와 같은 15·20·0.5 · 뒤로 보내기 5).
  *   저장 전 검사(ok 가 거짓이면 저장하지 않는다)와 저장된 값 불러오기에 같이 쓴다.
+ *   fallback.backPerDay 가 undefined·null 이면 5(서버 기록에 back 칸이 없는 옛 판). 나머지 칸은 예전과 같다.
  */
 export function normalize(raw, fallback) {
     const src = raw && typeof raw === 'object' ? raw : {};
-    const fb = { maxRows: 15, weeklyMoves: 20, minGain: 0.5, ...(fallback && typeof fallback === 'object' ? fallback : {}) };
+    const fb = { maxRows: DEFAULTS.maxRows, weeklyMoves: DEFAULTS.weeklyMoves, minGain: DEFAULTS.minGain, ...(fallback && typeof fallback === 'object' ? fallback : {}) };
+    if (fb.backPerDay == null) fb.backPerDay = DEFAULTS.backPerDay;
     const value = {}, errors = [];
     for (const k of KEYS) {
         const v = valueOf(k, src[k]);
@@ -83,6 +90,12 @@ export function serverRows(s) {
     else if (r) out.push({ label: '점수 반영 비율', value: `플랫폼 출고 ${num(r.zikjin) ?? '?'}% · 주차별 ${num(r.weekly) ?? '?'}% · 상승세 ${num(r.trend) ?? '?'}%` });
     const p = s.pair && typeof s.pair === 'object' ? s.pair : null;
     if (p) out.push({ label: '페어 기준', value: `같이 주문된 횟수 ${num(p.minCount) ?? '?'}번 이상 · 같이 나갈 가능성(lift) ${num(p.minLift) ?? '?'}배 이상` });
+    const bk = s.back && typeof s.back === 'object' ? s.back : null;
+    if (bk) {
+        out.push({ label: '뒤로 보내기', value: bk.enabled === true
+            ? `켬 — 하루 출고 ${num(bk.maxDaily) ?? '?'}개 미만이고 29~90일 전에 나간 적 있는 앞자리 상품을 하루 ${num(bk.perDay) ?? '?'}건까지 뒤쪽 빈 자리로(효과는 동선 점수가 아니라 앞자리 확보)`
+            : '꺼짐 — 결과를 비교해 본 뒤 담당자가 켭니다' });
+    }
     const v = s.verdict && typeof s.verdict === 'object' ? s.verdict : null;
     if (v) {
         // 서버 판정.verdict — 넷 중 하나라도 비어 있으면 판정은 '관찰 중'
@@ -136,6 +149,10 @@ export function guideLines(s) {
             ? '단독 이동은 카드 순서가 지금보다 앞인 자리로만 옮기고(구역이 달라도 됨), 맞바꾸기에서는 덜 나가는 상대 상품이 뒤 카드 자리로 갈 수 있습니다. 제외한 카드 자리의 상품은 옮기지 않고, 예약·당일지정·선지정 빈 자리는 추천하지 않습니다.'
             : '구역 등급이 지금보다 낮은 자리로는 옮기지 않고, 예약·당일지정·선지정 빈 자리는 추천하지 않습니다.'
     ];
+    const bk = S.back && typeof S.back === 'object' ? S.back : null;
+    locrec.push(bk && bk.enabled === true
+        ? `뒤로 보내기(켬): 앞쪽 자리에 있는데 하루 출고가 ${q(bk.maxDaily)}개 미만이고 29~90일 전에 나간 적이 있는 상품을 1동 이상 뒤쪽 빈 자리로 하루 ${q(bk.perDay)}건까지 옮기도록 권합니다. 효과는 동선 점수가 아니라 앞자리 확보입니다(동선 점수·주간 요약에는 넣지 않음).`
+        : '뒤로 보내기: 꺼져 있습니다(켜면 앞자리의 덜 나가는 상품을 뒤쪽 빈 자리로 옮기도록 권합니다 — 효과는 동선 점수가 아니라 앞자리 확보).');
     return { refill, locrec };
 }
 

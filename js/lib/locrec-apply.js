@@ -15,10 +15,10 @@
 // ⚠️ 돌려주는 실패 정보·문구에는 상품코드·자리 id 만 — 상품명·rawDataStr·공급처 값을 넣지 않는다(로그·alert 로 나간다).
 // import 는 같은 lib 의 sensitive-cols.js(cleanRaw)·multi-loc.js(normLocId)·refill-view.js(dayKey·fmtHM, KST)·loc-recommend.js(isEtcLocObj·kstMidnight) 만.
 
-import { cleanRaw } from './sensitive-cols.js?v=202611101235';
-import { normLocId } from './multi-loc.js?v=202611101235';
-import { dayKey, fmtHM, tsMs } from './refill-view.js?v=202611101235';
-import { isEtcLocObj, kstMidnight } from './loc-recommend.js?v=202611101235';
+import { cleanRaw } from './sensitive-cols.js?v=202611101512';
+import { normLocId } from './multi-loc.js?v=202611101512';
+import { dayKey, fmtHM, tsMs } from './refill-view.js?v=202611101512';
+import { isEtcLocObj, kstMidnight } from './loc-recommend.js?v=202611101512';
 
 export const PRODUCT_FIELDS = ['code', 'name', 'option', 'stock', 'stock2f', 'rawDataStr'];
 export const EMPTY_PRODUCT = Object.freeze({ code: '', name: '', option: '', stock: '0', stock2f: '0', rawDataStr: '{}' });
@@ -72,7 +72,8 @@ export function isDesignatedEmpty(slot, id, nowMs, todayKey) {
 }
 
 /** 추천 행 → 이동 목록 [{code, src, dst}] — 모양이 틀리면 null.
- *  single [{code, from→to}] · swap [{code, from→from2},{code2, from2→from}] · pair [{code, from→to},{code2, from2→to2}] */
+ *  single·back(뒤로 보내기 — 빈 자리로 옮기는 것은 단독과 같다) [{code, from→to}] · swap [{code, from→from2},{code2, from2→from}] ·
+ *  pair [{code, from→to},{code2, from2→to2}] */
 export function movesOf(row) {
     if (!row || typeof row !== 'object') return null;
     const m = (c, s, d) => ({ code: str(c).trim(), src: str(s).trim(), dst: str(d).trim() });
@@ -86,7 +87,7 @@ export function movesOf(row) {
     } else if (type === 'pair') {
         if (!row.code2) return null;
         list = [m(row.code, row.from, row.to), m(row.code2, row.from2, row.to2)];
-    } else if (type === 'single') {
+    } else if (type === 'single' || type === 'back') {
         list = [m(row.code, row.from, row.to)];
     } else return null;
     if (list.some(x => !x.code || !x.src || !x.dst || x.src === x.dst)) return null;

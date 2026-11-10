@@ -10,7 +10,8 @@
 //      화면 상태 ↔ 저장 모양·'바뀜' 서명은 js/lib/loc-card-board.js, 검사·사본·자동 정렬은 js/lib/loc-cards.js.
 //      카드 칸이 없으면(옛 방식) 지금 설정을 legacyToCards 로 보여 주고, 그대로 저장하면 카드 방식으로 바뀐다(확인창).
 //      [옛 방식으로] = window.resetLocCardOrder — cards 칸만 deleteField(location.settings 로 감쌈). 남은 zones·dongs·poses·제외로 계산.
-//    · 추천 양: Locations/INFO_CONFIG.locRecSettings { maxRows, weeklyMoves, minGain, updatedAt } — 범위는 js/lib/locrec-settings.js LIMITS.
+//    · 추천 양: Locations/INFO_CONFIG.locRecSettings { maxRows, weeklyMoves, minGain, backPerDay, updatedAt } — 범위는 js/lib/locrec-settings.js LIMITS.
+//      backPerDay = 뒤로 보내기 하루 건수(2026-11-10, 0~20) — 켜고 끄기는 서버 설정.json recommendBack.enabled 만.
 //      서버 앱\로케이션추천 이 다음 추천(06:40 또는 [지금 재고로 다시 만들기])부터 쓴다. 규칙: INFO_CONFIG 새 키는 location.settings(규칙 변경 없음).
 //      저장하는 사람 이메일은 넣지 않는다(INFO_CONFIG 는 직원 누구나 읽는다).
 //    · 서버가 정하는 값(하루 출고 기준·재고 빼기·판정 기준·점수 비율·페어 기준)은 integrations/locRecLatest.settings 를 읽기 전용으로.
@@ -25,14 +26,14 @@
 // 원문 문자열은 textContent 로만 넣는다.
 
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611101235';
-import { canFeature, currentPerm } from './feature-gate.js?v=202611101235';
-import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611101235';
-import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611101235';
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611101512';
+import { canFeature, currentPerm } from './feature-gate.js?v=202611101512';
+import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611101512';
+import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611101512';
 import {
     cardLabel, parseExcludeText, boardFrom, applyCards, whereIs, excludedCards, placeCard, cardMoves, moveCard,
     toggleExclude, addRow, deleteRow, moveRow, setExclude, setU, boardSignature, boardToSave
-} from './lib/loc-card-board.js?v=202611101235';
+} from './lib/loc-card-board.js?v=202611101512';
 
 const PANE = 'recommend';
 const INFO_PATH = ['Locations', 'INFO_CONFIG'];
@@ -420,7 +421,11 @@ function 추천양그리기(value) {
         el.step = LIMITS[k].int ? '1' : '0.1';
         const help = $(`lrs-${k}-help`);
         if (help) {
-            const 지금 = 서버값 && 서버값[k] != null ? `지금 서버 값 ${서버값[k]}${sourceText(서버값, k) ? `(${sourceText(서버값, k)})` : ''} · ` : '';
+            // 뒤로 보내기 건수는 서버 기록 settings.back {perDay, source} 에 있다(나머지 칸은 settings 바로 아래)
+            const sv = k === 'backPerDay' ? (서버값 && 서버값.back && typeof 서버값.back === 'object' ? 서버값.back : null) : 서버값;
+            const svVal = sv ? (k === 'backPerDay' ? sv.perDay : sv[k]) : null;
+            const svSrc = k === 'backPerDay' ? sourceText({ source: { backPerDay: sv && sv.source } }, k) : sourceText(서버값, k);
+            const 지금 = svVal != null ? `지금 서버 값 ${svVal}${svSrc ? `(${svSrc})` : ''} · ` : '';
             help.textContent = `${FIELD_TEXT[k].help} ${지금}${LIMITS[k].min}~${LIMITS[k].max}${LIMITS[k].int ? ' 정수' : ''}`;
         }
     }
@@ -479,8 +484,12 @@ async function 추천불러오기(n) {
         return;
     }
     const conf = info.value.exists() ? (info.value.data() || {}) : {};
-    const fb = 서버값 ? { maxRows: 서버값.maxRows, weeklyMoves: 서버값.weeklyMoves, minGain: 서버값.minGain } : undefined;
-    const saved = conf.locRecSettings && typeof conf.locRecSettings === 'object' ? conf.locRecSettings : null;
+    // 뒤로 보내기 건수는 서버 기록 settings.back.perDay(옛 판엔 칸 없음 → normalize 가 5)
+    const 서버뒤로 = 서버값 && 서버값.back && typeof 서버값.back === 'object' ? 서버값.back.perDay : undefined;
+    const fb = 서버값 ? { maxRows: 서버값.maxRows, weeklyMoves: 서버값.weeklyMoves, minGain: 서버값.minGain, backPerDay: 서버뒤로 } : undefined;
+    const saved0 = conf.locRecSettings && typeof conf.locRecSettings === 'object' ? conf.locRecSettings : null;
+    // 뒤로 보내기 칸이 생기기 전에 저장한 값(backPerDay 없음)은 그 칸만 서버 값으로 채운다 — '저장된 값이 이상함'으로 보이지 않게
+    const saved = saved0 && saved0.backPerDay == null ? { ...saved0, backPerDay: 서버뒤로 ?? 5 } : saved0;
     const { value, errors } = normalize(saved || fb || {}, fb);
     추천양그리기(value);
     우선순위그리기(conf.recommendPriorities || window.recommendPriorities);

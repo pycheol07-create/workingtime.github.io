@@ -2,7 +2,7 @@
 // 부족수량관리 비상 스위치 읽기(2026-11-10) — 신규(js/china-mibal2.js)·기존(js/china-stock-goods.js) 두 화면이 같이 쓴다. 쓰기 없음.
 // 판정 규칙은 js/lib/mibal2-fallback.js. 쓰기는 신규 화면의 js/mibal2-fallback-switch.js 한 곳.
 import { doc, getDocFromServer, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { FALLBACK_PATH, fallbackOf } from './lib/mibal2-fallback.js?v=202611101235';
+import { FALLBACK_PATH, fallbackOf } from './lib/mibal2-fallback.js?v=202611101512';
 
 const UNKNOWN = (error) => ({ known: false, on: false, atMs: 0, offAtMs: 0, atServerMs: 0, offServerMs: 0, ships: [], error });
 export const STALE_MS = 30000;   // 서버 확인 없이(캐시 스냅샷만) 이만큼 지나면 '모름'

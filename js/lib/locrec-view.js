@@ -12,7 +12,8 @@
 //                                     dataState:{daysCollected, pairDays?, lastOutDay, lastOrderDay, warnings:[], stockDataAt, locUpdatedAt}, settings }
 //                                     stockDataAt = INFO_CONFIG.lastDataUpdate(재고 엑셀 올린 시각) — '재고 자료 기준'·오래됨 판단은 이것만.
 //                                     locUpdatedAt(Locations 문서 갱신 시각)은 참고용이라 카드에서 쓰지 않는다.
-//   integrations/locRec_YYYYMMDD    { rowsJson: JSON 문자열 {schema, single:[행], swap:[행], pair:[행]}, metrics, basedOn:{stockDataAt, …}, warn }
+//   integrations/locRec_YYYYMMDD    { rowsJson: JSON 문자열 {schema, single:[행], swap:[행], pair:[행], back?:[행]}, metrics, basedOn:{stockDataAt, …}, warn }
+//                                     back = 뒤로 보내기(type 'back', recKey 'B:코드:자리', hist) — 서버가 켰을 때만(2026-11-10)
 //                                     행 = 로케이션추천\추천실행.mjs(js/lib/loc-recommend.js runRecommend) 출력 행 그대로
 //   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at, applied?}} }   ← 직원이 쓴다
 //                                     applied = {v:1, at(ms), day:'YYYYMMDD'(KST), moves:[{code, src, dst}], skipped:[{code, src, dst}]}
@@ -31,15 +32,38 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611101235';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611101235';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611101512';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611101512';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-export const TABS = ['single', 'swap', 'pair'];
-export const TAB_LABEL = { single: '단독', swap: '맞바꾸기', pair: '페어' };
-export const SHEET_NAME = { single: '단독추천', swap: '맞바꾸기', pair: '페어추천' };
+// back = 뒤로 보내기(2026-11-10) — 앞자리의 덜 나가는 상품을 뒤쪽 빈 자리로(단독 이동 1회). rowsJson.back 은 서버가 켰을 때만 온다.
+//   옛 문서·꺼진 서버는 칸이 없어 빈 목록 — 탭·요약은 shownTabs 가 숨긴다. 건수(띠·업무 예상 recCount)에는 들어간다.
+export const TABS = ['single', 'swap', 'pair', 'back'];
+export const TAB_LABEL = { single: '단독', swap: '맞바꾸기', pair: '페어', back: '뒤로 보내기' };
+export const SHEET_NAME = { single: '단독추천', swap: '맞바꾸기', pair: '페어추천', back: '뒤로보내기' };
+export const BACK_TAB_HELP = '덜 나가는 상품을 뒤쪽 빈 자리로 옮겨 앞자리를 비웁니다';
+export const BACK_GAIN_LABEL = '앞자리 확보';
+export const BACK_SCORE_HELP = '동선 점수·주간 요약에는 넣지 않음';
+
+/** 서버가 뒤로 보내기를 켰나 — locRecLatest.settings.back.enabled(서버 입력.latest_settings). 칸이 없으면 꺼짐 */
+export function backEnabled(latest) {
+    const b = latest && latest.settings && latest.settings.back;
+    return !!(b && typeof b === 'object' && b.enabled === true);
+}
+
+/** 보여 줄 탭 — 뒤로 보내기는 그날 행(이월 포함)이 있거나 서버가 켰을 때만. 나머지 탭은 늘 */
+export function shownTabs(latest, parsed) {
+    const n = parsed && Array.isArray(parsed.back) ? parsed.back.length : 0;
+    return TABS.filter(t => t !== 'back' || n > 0 || backEnabled(latest));
+}
+
+/** 뒤로 보내기 사유 배지 툴팁 — '최근 하루 0.1개 · 29~90일 전 출고 12개' */
+export function backReasonTitle(r) {
+    const d = num(r && r.daily), h = num(r && r.hist);
+    return `최근 하루 ${d == null ? '-' : fmtNum(d, 2)}개 · 29~90일 전 출고 ${h == null ? '-' : fmtNum(h)}개`;
+}
 export const DAYS_SHOWN = 14;            // 날짜 선택 칸 수(결과 문서 보관 14일)
 export const SKIP_HIDE_DAYS = 30;        // '안 함' 은 30일 숨김
 export const MARK_STALE_DAYS = 7;        // '처리함' 표시 뒤 7일 안에 서버가 위치 변화를 못 보면 '위치 미반영'
@@ -74,7 +98,8 @@ function cleanRow(r, type) {
         fromSize: str(r.fromSize).trim(), toSize: str(r.toSize).trim(),   // 자리 칸수(옛 문서는 '')
         reserve: num(r.reserve),                                          // 비축 수량(2026-10-27~, 비축 없거나 옛 문서는 null)
         carried: r.carried === true,                                      // 다시 만들 때 이월한 행(지금 기준 추천에서 빠짐)
-        addedAt: /^\d{2}:\d{2}$/.test(str(r.addedAt)) ? str(r.addedAt) : ''   // 다시 만든 판에 처음 들어온 시각(없으면 '')
+        addedAt: /^\d{2}:\d{2}$/.test(str(r.addedAt)) ? str(r.addedAt) : '',  // 다시 만든 판에 처음 들어온 시각(없으면 '')
+        hist: num(r.hist)                                                 // 뒤로 보내기 — 29~90일 전 출고 합(다른 행·옛 문서는 null)
     };
     if (r.code2 != null && str(r.code2)) {
         Object.assign(out, { code2: str(r.code2), name2: str(r.name2), option2: str(r.option2), from2: str(r.from2), to2: str(r.to2),
@@ -85,9 +110,9 @@ function cleanRow(r, type) {
     return out;
 }
 
-/** 결과 문서 → { single, swap, pair, error }. rowsJson 이 깨지면 빈 표 + error */
+/** 결과 문서 → { single, swap, pair, back, error }. rowsJson 이 깨지면 빈 표 + error. back 칸이 없는 문서는 back: [] */
 export function parseRecDay(doc) {
-    const empty = (error) => ({ single: [], swap: [], pair: [], error });
+    const empty = (error) => ({ single: [], swap: [], pair: [], back: [], error });
     if (!doc || typeof doc.rowsJson !== 'string') return empty(doc ? '표 자료가 없습니다' : '');
     let d;
     try { d = JSON.parse(doc.rowsJson); } catch (e) { return empty('표 자료가 깨졌습니다'); }

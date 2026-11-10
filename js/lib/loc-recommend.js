@@ -28,12 +28,16 @@
 //                   비용 = (줄·P + 위치순위) / rowsPerDong, 단독은 줄이 더 앞이어야, 구역 등급은 '순위 있는 글자 0 / 나머지 99' 하나로 합친다.
 //                   routeModel 'line' 은 무시(경고). cards 칸이 없으면 모든 계산·출력이 예전과 바이트 단위로 같다. 검사에 걸리면 옛 방식 + 경고 한 줄.
 //                   서버 판정(로케이션추천\판정.py Where)이 같은 비용식을 따로 갖고 있다(계약 시험 tests\test_카드.py).
+//   뒤로 보내기   — recommendBack(2026-11-10, settings.backOn === true 일 때만 — 서버 설정.json recommendBack, 꺼진 채 배포):
+//                   앞쪽 영역(지표와 같은 frontByZone)의 덜 나가는 상품(하루 < backMaxDaily · 29~90일 전 출고 input.backHist > 0)을
+//                   같은 구역 등급의 뒤쪽 빈 자리(1동 이상 뒤, 가장 뒤)로 하루 backPerDay 건까지. 출력 최상위 back 배열(켰을 때만) —
+//                   plan·weekRows·metrics·동선 점수와 무관하고 maxRows·weeklyMoves 에 안 센다. 꺼져 있으면 출력이 예전과 바이트 단위로 같다.
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202611101235';
-import { capacityFor } from './mibal2-calc.js?v=202611101235';
-import { parseCards, comboOf } from './loc-cards.js?v=202611101235';
+import { isEtcLocObj } from './mibal2-rows.js?v=202611101512';
+import { capacityFor } from './mibal2-calc.js?v=202611101512';
+import { parseCards, comboOf } from './loc-cards.js?v=202611101512';
 
 export { isEtcLocObj };
 
@@ -1158,8 +1162,10 @@ export function simulateRoute({ locs, daily, priorities, rows = [], gainRows, sk
 
 export const EXCEL_COLS = ['현재로케이션', '변경로케이션', '상품명', '옵션', '상품코드'];
 
-/** 추천 키 — 단독 S:{code}:{from}>{to} · 맞바꾸기 W:{A}@{자리}~{B}@{자리}(코드 사전순) · 페어 P:{A}:{B}(사전순) */
+/** 추천 키 — 단독 S:{code}:{from}>{to} · 맞바꾸기 W:{A}@{자리}~{B}@{자리}(코드 사전순) · 페어 P:{A}:{B}(사전순)
+ *  · 뒤로 보내기 B:{code}:{from}(보낼 자리는 날마다 바뀔 수 있어 키에 넣지 않는다 — '안 함'·만료가 그 상품·자리에 붙게) */
 export function recKeyOf(row) {
+    if (row.type === 'back') return `B:${row.code}:${row.from}`;
     if (row.type === 'swap') {
         const a = [row.code, row.from], b = [row.code2, row.from2];
         const [x, y] = byKeyAsc(a[0], b[0]) <= 0 ? [a, b] : [b, a];
@@ -1204,6 +1210,84 @@ export function excelRows(rows, opts = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 뒤로 보내기 (2026-11-10, 꺼진 채 — runRecommend 가 settings.backOn === true 일 때만 부른다)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 뒤로 보내기 — 앞쪽 자리를 차지하고 거의 안 나가는 상품을 같은 구역 등급의 뒤쪽 빈 자리로(단독 이동 1회).
+ *   대상 L: 피킹 자리 딱 1곳(여러 자리면 multiLoc) · 그 자리가 앞쪽 영역(front — 지표와 같은 frontByZone) · d < maxDaily ·
+ *           hist(29~90일 전 출고 합) > 0(없으면 newItem — 새로 들어온 상품일 수 있어 건드리지 않음) · 입고대기 없음 ·
+ *           선지정·예약·당일지정·라인 먼 자리 아님(기타·SAM·제외 카드는 rankedPickSlots 에 없어 front 밖) ·
+ *           usedCodes(오늘 단독·맞바꾸기·페어·주간 행 코드) 아님 · recKey 가 blockKeys(안 함 ∪ 만료) 아님 · moveQtyOf > 0(아니면 noStock).
+ *   순서: d 작은 순 → c(L) 작은 순(더 앞자리) → 코드 순.
+ *   도착 E: 빈 자리(예약·태그 자리는 늘 뺌) · 비용 있음(줄 99·미지정 카드 제외) · front 밖 · 먼 자리 아님 · usedSlots(오늘 행 자리)·
+ *           다른 뒤로 보내기가 쓴 자리 아님 · zoneRank 같음 · sizeFits(L, E) · c(E) − c(L) >= P(1동 이상 뒤) ·
+ *           이득 조건 d === 0 || d·(c(E) − cMin)/P < minGain (cMin = 같은 구역 등급 피킹 자리 최소 비용 — 다음 날 단독이 다시 당기는 왕복을 막는다).
+ *   고르기: 비용 가장 큰(가장 뒤) 자리, 같으면 id 순. perDay 건 채우면 멈춘다. 도착이 없으면 noSlot.
+ * @returns {{picks: Array<{code, slot, target, d, hist, c, cE, qty}>, counts: {cand, multiLoc, noStock, noSlot, newItem, picked}}}
+ */
+export function recommendBack({
+    locs, daily, priorities, incomingTotalByCode, hist, blockKeys, usedCodes, usedSlots,
+    perDay = 5, maxDaily = 0.2, minGain = 0.5, frontPct = 0.2, frontK = 100, rankers
+}) {
+    const rk = rankers || makeRankers(priorities);
+    const P = rk.P;
+    const dOf = (c) => Number((daily || {})[c]) || 0;
+    const hOf = (c) => Number((hist || {})[c]) || 0;
+    const inc = incomingTotalByCode || {};
+    const block = new Set(blockKeys || []);
+    const exC = new Set(usedCodes || []);
+    const exS = new Set(usedSlots || []);
+    const N = Math.max(0, Math.floor(Number(perDay) || 0));
+    const counts = { cand: 0, multiLoc: 0, noStock: 0, noSlot: 0, newItem: 0, picked: 0 };
+    if (!N) return { picks: [], counts };
+
+    const ranked = rankedPickSlots(locs, priorities, rk);
+    const front = frontByZone(ranked, rk, frontK, frontPct != null ? { pct: frontPct } : {});
+    const costOf = new Map(ranked.map(x => [x.slot.id, x.cost]));
+    const cMinByZone = new Map();
+    ranked.forEach(x => { const z = rk.zoneRank(x.slot.id); if (!cMinByZone.has(z)) cMinByZone.set(z, x.cost); });   // ranked 는 비용 순
+    const isFar = (s) => !!(rk.isFar && rk.isFar(s));
+    const bySlotsOf = pickSlotsByCode(locs);
+
+    const cands = [];
+    bySlotsOf.forEach((list, code) => {
+        if (!list.some(s => front.has(s.id))) return;               // 앞쪽 영역에 자리가 없는 상품은 대상이 아니다
+        const d = dOf(code);
+        if (!(d < maxDaily)) return;
+        if (!(hOf(code) > 0)) { counts.newItem++; return; }
+        if (list.length !== 1) { counts.multiLoc++; return; }
+        const s = list[0];
+        if (Number(inc[code]) > 0 || s.preAssigned || isTagged(s) || isFar(s)) return;
+        if (exC.has(code) || exS.has(s.id)) return;
+        if (block.has(recKeyOf({ type: 'back', code, from: s.id }))) return;
+        const qty = moveQtyOf(locs, code);
+        if (!(qty > 0)) { counts.noStock++; return; }
+        counts.cand++;
+        cands.push({ code, slot: s, d, hist: hOf(code), c: costOf.get(s.id), z: rk.zoneRank(s.id), qty });
+    });
+    cands.sort((a, b) => (a.d - b.d) || (a.c - b.c) || byKeyAsc(a.code, b.code));
+
+    const empties = emptySlots(locs, priorities, { excludeTagged: true, rankers: rk })
+        .filter(e => costOf.has(e.id) && !front.has(e.id) && !isFar(e) && !exS.has(e.id))
+        .map(e => ({ e, c: costOf.get(e.id), z: rk.zoneRank(e.id) }))
+        .sort((a, b) => (b.c - a.c) || byKeyAsc(a.e.id, b.e.id));     // 가장 뒤 → id 순
+    const taken = new Set();
+    const picks = [];
+    for (const L of cands) {
+        if (picks.length >= N) break;
+        const cMin = cMinByZone.get(L.z);
+        const hit = empties.find(x => !taken.has(x.e.id) && x.z === L.z && sizeFits(L.slot, x.e) && x.c - L.c >= P
+            && (L.d === 0 || L.d * (x.c - cMin) / P < minGain));
+        if (!hit) { counts.noSlot++; continue; }
+        taken.add(hit.e.id);
+        picks.push({ code: L.code, slot: L.slot, target: hit.e, d: L.d, hist: L.hist, c: L.c, cE: hit.c, qty: L.qty });
+    }
+    counts.picked = picks.length;
+    return { picks, counts };
+}
+
+// ─────────────────────────────────────────────────────────────
 // 서버 진입점 (업무자동화\앱\로케이션추천\추천실행.mjs 가 stdin JSON 으로 부른다 — moduleSha·node 버전은 러너가 붙인다)
 // ─────────────────────────────────────────────────────────────
 
@@ -1217,6 +1301,10 @@ export const SERVER_DEFAULTS = Object.freeze({
 });
 const LOW_STOCK_KEYS = ['lowStockOn', 'lowStockMax', 'lowCoverDays'];
 const LOW_STOCK_LIST_MAX = 300;
+// 뒤로 보내기(recommendBack) — SERVER_DEFAULTS 와 따로 둔다(꺼져 있으면 출력 settings 에도 안 붙인다 = 예전 모양 그대로).
+//   서버 입력.node_settings 가 켤 때만 backOn·backPerDay·backMaxDaily 를 넣고, input.backHist·backBlock 도 그때만 온다
+export const BACK_DEFAULTS = Object.freeze({ backOn: false, backPerDay: 5, backMaxDaily: 0.2 });
+const BACK_KEYS = Object.keys(BACK_DEFAULTS);
 
 const DEFAULT_PRIORITIES = {
     zones: { 0: ['★'], 1: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'], 2: ['Z'], 3: ['L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'] },
@@ -1442,8 +1530,47 @@ export function runRecommend(input) {
         }
     }
 
-    // 꺼져 있으면 출력 모양을 예전 그대로 — settings 에 lowStock 칸 없음, counts.lowStock·lowStock 목록 없음
-    const outSettings = lowOn ? { ...S } : Object.fromEntries(Object.entries(S).filter(([k]) => !LOW_STOCK_KEYS.includes(k)));
+    // 6-2) 뒤로 보내기(backOn 일 때만) — 위 계산(계획·지표·동선 점수)에는 넣지 않는다. 실패해도 추천은 그대로(빈 목록 + 경고 한 줄)
+    const backOn = S.backOn === true;
+    let outBack = null, backCounts = null;
+    if (backOn) {
+        outBack = [];
+        try {
+            const today = outSingle.concat(outSwap, outPair, plan.week.map(k => weekRowOf.get(k)).filter(Boolean));
+            const usedCodes = new Set(), usedSlots = new Set();
+            today.forEach(r => {
+                [r.code, r.code2].forEach(c => { if (c) usedCodes.add(String(c).trim()); });
+                [r.from, r.to, r.from2, r.to2].forEach(s => { if (s) usedSlots.add(String(s)); });
+            });
+            const skip = (Array.isArray(input.skipKeys) ? input.skipKeys : []).concat(Array.isArray(input.backBlock) ? input.backBlock : []);
+            const B = { ...BACK_DEFAULTS, ...S };
+            const bk = recommendBack({
+                locs, daily, priorities, rankers: rk, incomingTotalByCode: incoming, hist: input.backHist || {}, blockKeys: skip,
+                usedCodes, usedSlots, perDay: Number(B.backPerDay), maxDaily: Number(B.backMaxDaily), minGain: Number(S.minGain),
+                frontPct: usePct ? Number(S.metricFrontPct) : null, frontK: Number(S.metricFrontK) || 100
+            });
+            backCounts = bk.counts;
+            outBack = bk.picks.map((p, i) => {
+                const row = {
+                    type: 'back', rank: i + 1, code: p.code, name: nameOf(p.code), option: optionOf(locs, p.code),
+                    from: p.slot.id, to: p.target.id,
+                    fromDong: slotLabel(p.slot).dong, toDong: slotLabel(p.target).dong, toPos: slotLabel(p.target).pos,
+                    qty: p.qty, daily: round(p.d, 2), hist: round(p.hist, 2), dc: round(p.cE - p.c), gain: 0
+                };
+                row.recKey = recKeyOf(row);
+                return withSizes(withReserve(row));
+            });
+        } catch (e) {
+            outBack = [];
+            backCounts = null;
+            warn.push('뒤로 보내기 계산 실패(' + String((e && e.message) || e).slice(0, 80) + ')');
+        }
+    }
+
+    // 꺼져 있으면 출력 모양을 예전 그대로 — settings 에 lowStock·back 칸 없음, counts.lowStock·lowStock 목록·back 없음
+    const outSettings = Object.fromEntries(Object.entries(S).filter(([k]) =>
+        (lowOn || !LOW_STOCK_KEYS.includes(k)) && (backOn || !BACK_KEYS.includes(k))));
+    if (backOn) BACK_KEYS.forEach(k => { if (!(k in outSettings)) outSettings[k] = BACK_DEFAULTS[k]; });
     // 카드 칸이 있을 때만 — 어느 방식으로 계산했나(검사에 걸리면 legacy). 칸이 없으면 출력 모양 그대로
     if (priorities.cards != null) {
         outSettings.priorityMode = rk.cards ? 'cards' : 'legacy';
@@ -1476,6 +1603,10 @@ export function runRecommend(input) {
     if (low) {
         out.counts.lowStock = low.counts;     // {stock, cover, incoming}
         out.lowStock = low.list;              // [{code, reason, stock, daily, cover}] — 코드·숫자만, 300개까지
+    }
+    if (backOn) {
+        out.back = outBack;                   // [{type:'back', recKey 'B:코드:자리', rank, …, hist, dc, gain: 0}]
+        if (backCounts) out.counts.back = backCounts;   // {cand, multiLoc, noStock, noSlot, newItem, picked}
     }
     return out;
 }

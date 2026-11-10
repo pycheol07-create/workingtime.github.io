@@ -28,39 +28,39 @@
 //   live 일 때만 js/china-mibal2-live.js 를 동적 import 한다(스캐너에 반영·작업 마감·보관·입고오차·미발이력·위치 쓰기·관리 창).
 //   이 파일에는 그 쓰기가 없다. live 면 출고일은 기존 계산기(CONFIG.savedDatesMibal)를 보지 않고 mibal2/settings 만 쓴다.
 //   false(지금)면 아래 동작은 예전과 같다 — tests/mibal2-readonly.test.js 가 본다.
-import { initializeFirebase } from './china-stock-config.js?v=202611101235'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202611101512'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202611101235';
-import { sortMark } from './lib/china-stock-view.js?v=202611101235';
+import { explain } from './lib/mibal2-calc.js?v=202611101512';
+import { sortMark } from './lib/china-stock-view.js?v=202611101512';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202611101235';
-import { setShellContext } from './app-shell-bridge.js?v=202611101235';
-import { memberNameFor } from './app-shell-data.js?v=202611101235';
-import { mountBusyBanner } from './busy-banner.js?v=202611101235';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611101235';
-import { friendlyFirebaseError } from './utils.js?v=202611101235';
-import { diffOf } from './lib/inbound-diff.js?v=202611101235';
-import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611101235';
-import { scanLogHtml } from './lib/mibal2-scanlog.js?v=202611101235';
-import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611101235';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611101235';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611101235';
-import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611101235';
-import { setupLocMode } from './china-mibal2-loc.js?v=202611101235';
-import { isMibal2Live } from './lib/mibal2-mode.js?v=202611101235';
-import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611101235';
-import { stableSig } from './lib/mibal2-live.js?v=202611101235';
-import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=202611101235';   // 출고일 불일치(2026-11-10)
-import { writeXls } from './lib/xls-limits.js?v=202611101235';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611101235';   // live 때만 씀(빠른 이동 #tab=mibal|location)
+} from './lib/mibal2-rows.js?v=202611101512';
+import { setShellContext } from './app-shell-bridge.js?v=202611101512';
+import { memberNameFor } from './app-shell-data.js?v=202611101512';
+import { mountBusyBanner } from './busy-banner.js?v=202611101512';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611101512';
+import { friendlyFirebaseError } from './utils.js?v=202611101512';
+import { diffOf } from './lib/inbound-diff.js?v=202611101512';
+import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611101512';
+import { scanLogHtml } from './lib/mibal2-scanlog.js?v=202611101512';
+import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611101512';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611101512';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611101512';
+import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611101512';
+import { setupLocMode } from './china-mibal2-loc.js?v=202611101512';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202611101512';
+import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611101512';
+import { stableSig } from './lib/mibal2-live.js?v=202611101512';
+import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=202611101512';   // 출고일 불일치(2026-11-10)
+import { writeXls } from './lib/xls-limits.js?v=202611101512';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611101512';   // live 때만 씀(빠른 이동 #tab=mibal|location)
 // 비상 스위치(2026-11-10) — 평소 신규만 쓰기, 관리자가 켜면 기존 화면이 쓰고 이 화면은 조회 전용(js/lib/mibal2-fallback.js)
-import { modesOf } from './lib/mibal2-fallback.js?v=202611101235';
-import { readFallback, watchFallback, unknownWhy } from './mibal2-fallback-watch.js?v=202611101235';
-import { mountFallbackSwitch } from './mibal2-fallback-switch.js?v=202611101235';
-import { setFrozen as gateSetFrozen, isFrozen as gateFrozen, allowed as gateAllowed, enter as gateEnter, isBusy as gateBusy } from './mibal2-gate.js?v=202611101235';
+import { modesOf } from './lib/mibal2-fallback.js?v=202611101512';
+import { readFallback, watchFallback, unknownWhy } from './mibal2-fallback-watch.js?v=202611101512';
+import { mountFallbackSwitch } from './mibal2-fallback-switch.js?v=202611101512';
+import { setFrozen as gateSetFrozen, isFrozen as gateFrozen, allowed as gateAllowed, enter as gateEnter, isBusy as gateBusy } from './mibal2-gate.js?v=202611101512';
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -663,7 +663,7 @@ async function saveConfirmedBatch() {
         setLoading(true, `입고이력·스캐너 값 확인 중... (${codes.length}건)`);
         let mod, srvBy;
         try {
-            mod = await import('./inbound-fix-write.js?v=202611101235');
+            mod = await import('./inbound-fix-write.js?v=202611101512');
             srvBy = await mod.readServerInboundMany(db, codes, 5);
         } finally { setLoading(false); }
         // 옛 수동값만 보이던 칸(시험 화면 — 입고이력에 키 없음): 같은 값이어도 기록해 입고확인을 그 값으로 고정
@@ -1320,7 +1320,7 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=202611101235');
+        const mod = await import('./china-mibal2-live.js?v=202611101512');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,

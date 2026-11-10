@@ -5,7 +5,7 @@
 // 주소 뒤 해시는 예전 형식(#tab=메인탭&sub=서브탭, js/hash-state.js) 그대로 쓴다 — 옛 주소·Ctrl+K 목적지가 계속 동작한다.
 // 2026-11-05 운영 리포트 통합 2단계: 요약·생산성·인력 적정성·업무 리포트·팀 결산·업무 담당 변화 → '운영 리포트'(main ops) 한 화면의 탭.
 //   옛 화면은 레일에서 뺐고 LEGACY_SECTIONS 에 남긴다 — 옛 주소는 js/lib/ops-report-route.js 가 운영 리포트 탭으로 바꾼다.
-import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=202611101235';
+import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=202611101512';
 
 export const SECTIONS = {
     ops:          { main: OPS_MAIN,       label: '운영 리포트' },   // 탭: 요약·생산성·인력·비용 + [보고서 만들기] (js/ui-history-ops-report.js)

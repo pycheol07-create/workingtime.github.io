@@ -5,9 +5,9 @@
 //   시뮬레이터: 슬라이더 3개(인원·물량·속도) — 금액(인건비·인건비율)은 관리자만(money.canMoney), 아니면 칸 자체가 없다.
 // 금액·직원 이름 없음(로드맵은 업무명·원인만). ⚠️ role=dialog·data-act 금지.
 
-import { esc, n1, card, ok, signed1 } from './ui-ops-plan-parts.js?v=202611101235';
-import { CAUSE_LABEL } from './lib/plan-roadmap.js?v=202611101235';
-import { simulate, SIM_RANGE } from './lib/plan-sim.js?v=202611101235';
+import { esc, n1, card, ok, signed1 } from './ui-ops-plan-parts.js?v=202611101512';
+import { CAUSE_LABEL } from './lib/plan-roadmap.js?v=202611101512';
+import { simulate, SIM_RANGE } from './lib/plan-sim.js?v=202611101512';
 
 const won = (v) => (ok(v) ? `${Math.round(v).toLocaleString()}원` : '—');
 

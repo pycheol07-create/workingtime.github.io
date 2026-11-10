@@ -1,5 +1,5 @@
 // === js/locrec-table.js ===
-// 로케이션 변경 추천 표 창(#locrec-modal) — 탭[단독|맞바꾸기|페어] 표 · 행마다 [처리함]/[안 함]/되돌리기(처음 보여 주는 날짜만,
+// 로케이션 변경 추천 표 창(#locrec-modal) — 탭[단독|맞바꾸기|페어|뒤로 보내기(행이 있거나 서버가 켰을 때만)] 표 · 행마다 [처리함]/[안 함]/되돌리기(처음 보여 주는 날짜만,
 //   지난 날짜는 볼 수만) · 안 함도 보기 · 엑셀 받기(지금 탭) · ESC · 바깥 클릭 닫기.
 // 데이터는 js/locrec-store.js 가 갖고, 이 파일은 그리기와 입력만 한다(로케이션 띠 js/locrec-card.js · 대시보드 js/locrec-dash.js 가 같이 쓴다).
 // DOM: 페이지에 #locrec-modal 이 이미 있으면(location.html) 그것을 쓰고, 없으면(index.html) 같은 마크업을 JS 로 만든다.
@@ -14,12 +14,13 @@
 //   같은 상품을 오늘 다른 추천으로 옮긴 줄(st.other)은 '○○(으)로 처리 · 이름 HH:MM' + 그 추천의 [되돌리기].
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202611101235';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT } from './lib/locrec-view.js?v=202611101235';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611101235';
-import { higherOpenThan } from './modal-above.js?v=202611101235';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611101235';
-import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611101235';
+import { escapeHtml } from './utils.js?v=202611101512';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
+    shownTabs, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle } from './lib/locrec-view.js?v=202611101512';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611101512';
+import { higherOpenThan } from './modal-above.js?v=202611101512';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611101512';
+import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611101512';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -163,7 +164,9 @@ export function mountLocRecTable({ store, sizeOf }) {
             ? `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="undo" data-locrec-key="${k}"${busy ? ' disabled' : ''}>되돌리기</button>`
             : `<button type="button" class="btn btn-secondary btn-sm" data-locrec-act="done" data-locrec-key="${k}"${busyMark ? ' disabled' : ''} title="${pending ? escapeHtml(PENDING_TEXT) : '처리함으로 표시하고 데이터 리스트 자리도 추천대로 옮깁니다'}">처리함</button>`
               + `<button type="button" class="btn btn-ghost btn-sm" data-locrec-act="skip" data-locrec-key="${k}"${busyMark ? ' disabled' : ''}${pending ? ` title="${escapeHtml(PENDING_TEXT)}"` : ''}>안 함</button>`;
-        const badges = (r.capWarn ? '<span class="badge badge-warn locrec-badge" title="옮길 자리 적재량보다 수량이 많습니다">적재량 확인</span>' : '')
+        const isBack = r.type === 'back';                                     // 뒤로 보내기 — 이득·점수 대신 '앞자리 확보'
+        const badges = (isBack ? `<span class="badge badge-accent locrec-badge" title="${escapeHtml(backReasonTitle(r))}">사유: ${escapeHtml(BACK_GAIN_LABEL)}</span>` : '')
+            + (r.capWarn ? '<span class="badge badge-warn locrec-badge" title="옮길 자리 적재량보다 수량이 많습니다">적재량 확인</span>' : '')
             + (r.pairNear ? `<span class="badge badge-accent locrec-badge" title="함께 잘 팔리는 상품이 옮길 자리와 같은 동에 있습니다">페어 ${escapeHtml(r.pairNear)}</span>` : '')
             // 다시 만든 판에 처음 들어온 행 — 상태 '새로'(오늘 처음 나온 추천)와 헷갈리지 않게 '추가'
             + (r.addedAt ? `<span class="badge badge-accent locrec-badge" title="다시 만든 판(${escapeHtml(r.addedAt)})에 새로 들어온 추천">추가 ${escapeHtml(r.addedAt)}</span>` : '');
@@ -192,8 +195,11 @@ export function mountLocRecTable({ store, sizeOf }) {
             return `<tr class="${trCls}"${trAttr}>`
                 + `<td class="locrec-rank"${span}>${carried ? '' : (r.rank == null ? i0 + 1 : r.rank)}</td>`     // 이월 행은 순위 없음 · 정렬해도 원래 순위
                 + cells
-                + `<td class="locrec-gain"${span}>${fmtNum(r.gain)}</td>`
-                + `<td class="locrec-score-gain"${span} title="${scoreTitle(r)}">${escapeHtml(r.routeOut ? ROUTE_OUT_LABEL : fmtGain(r.scoreGain))}</td>`
+                + (isBack
+                    ? `<td class="locrec-gain"${span} title="${escapeHtml(backReasonTitle(r))}">${escapeHtml(BACK_GAIN_LABEL)}</td>`
+                      + `<td class="locrec-score-gain"${span} title="${escapeHtml(BACK_SCORE_HELP)}">—</td>`
+                    : `<td class="locrec-gain"${span}>${fmtNum(r.gain)}</td>`
+                      + `<td class="locrec-score-gain"${span} title="${scoreTitle(r)}">${escapeHtml(r.routeOut ? ROUTE_OUT_LABEL : fmtGain(r.scoreGain))}</td>`)
                 + `<td class="locrec-state"${span}><span class="locrec-st st-${ot && !mk ? 'ok' : st.tone}"${stTitle ? ` title="${escapeHtml(stTitle)}"` : ''}>${escapeHtml(stLabel)}</span></td>`
                 + `<td class="locrec-acts"${span}>${btns}</td></tr>`;
         }).join('');
@@ -223,7 +229,10 @@ export function mountLocRecTable({ store, sizeOf }) {
         }
         const cnt = tabCounts(loaded ? S.day.parsed : null);                 // 이월 빼고(카드·띠 건수와 같은 기준)
         const cry = tabCarried(loaded ? S.day.parsed : null);
-        const tabsHtml = TABS.map(t => `<button type="button" class="seg-tab${t === tab ? ' active' : ''}" data-locrec-tab="${t}">${TAB_LABEL[t]} ${cnt[t]}${cry[t] ? ` (+이월 ${cry[t]})` : ''}</button>`).join('');
+        // 뒤로 보내기 탭은 그날 행이 있거나 서버가 켰을 때만(옛 문서·꺼진 서버면 탭 없음) — 보던 탭이 사라지면 단독으로
+        const tabs = shownTabs(S.latest, loaded ? S.day.parsed : null);
+        if (!tabs.includes(tab)) tab = 'single';
+        const tabsHtml = tabs.map(t => `<button type="button" class="seg-tab${t === tab ? ' active' : ''}" data-locrec-tab="${t}">${TAB_LABEL[t]} ${cnt[t]}${cry[t] ? ` (+이월 ${cry[t]})` : ''}</button>`).join('');
         if (lastTabsHtml !== tabsHtml) { lastTabsHtml = tabsHtml; mTabs.innerHTML = tabsHtml; }
         const all = store.visibleRows(tab);
         const hiddenN = all.filter(x => x.st.hidden).length;
@@ -255,7 +264,7 @@ export function mountLocRecTable({ store, sizeOf }) {
             mTbody.innerHTML = `<tr><td colspan="12" class="refill-empty">${escapeHtml(t)}</td></tr>`;
             return;
         }
-        mMeta.textContent = tabMeta(tab, all) + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
+        mMeta.textContent = tabMeta(tab, all) + (tab === 'back' ? ` · ${BACK_TAB_HELP}` : '') + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
         if (!rows.length) {
             mTbody.innerHTML = `<tr><td colspan="12" class="refill-empty">${cnt[tab] || cry[tab] ? '모두 안 함으로 숨겼습니다' : `${TAB_LABEL[tab]} 추천이 없습니다`}</td></tr>`;
             return;
