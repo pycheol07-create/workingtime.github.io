@@ -44,6 +44,10 @@
   "title": "입고 스캐너"
  },
  {
+  "file": "ship.html",
+  "title": "플랫폼 출고"
+ },
+ {
   "file": "supplies.html",
   "title": "비품 관리"
  },

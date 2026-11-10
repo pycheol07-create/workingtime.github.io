@@ -21,8 +21,8 @@
 //   grantable false = 관리자 전용(역할·예외로 줘도 무시)
 //   legacyAdminOnly  옛 ADMIN_ONLY_* 범위 — 옛 권한을 끌어올 때 일반 직원에게 주지 않는다(예전에도 화면이 막고 있었다)
 
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME, MIBAL2_LIVE_MENU_NAME, MIBAL2_OLD_MENU_NAME, MIBAL2_OLD_PLAIN_MENU_NAME, MIBAL2_OLD_RETIRED_MENU_NAME } from './mibal2-mode.js?v=202611101731';
-import { TASK } from './task-ids.js?v=202611101731';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME, MIBAL2_LIVE_MENU_NAME, MIBAL2_OLD_MENU_NAME, MIBAL2_OLD_PLAIN_MENU_NAME, MIBAL2_OLD_RETIRED_MENU_NAME } from './mibal2-mode.js?v=202611102106';
+import { TASK } from './task-ids.js?v=202611102106';
 
 export const FEATURE_GROUPS = [
     { id: 'dash',       label: '대시보드' },
@@ -36,6 +36,7 @@ export const FEATURE_GROUPS = [
     { id: 'calculator', label: '통합 계산기' },
     { id: 'manual',     label: '업무 매뉴얼' },
     { id: 'approval',   label: '기안서' },
+    { id: 'ship',       label: '플랫폼 출고' },
     { id: 'admin',      label: '관리자' }
 ];
 
@@ -93,6 +94,9 @@ export const FEATURES = [
         menuAliases: ['업무 매뉴얼 및 도구'] }),   // 화면 이름 변경 2026-10-21('도구' 기능 삭제) — 저장된 dashboardMenu·memberMenuAccess 의 옛 이름은 그대로
     // 기안서(2026-11-05) — 근태사유서·사유서·시말서 작성·제출, 관리자 결재. 남의 기안서 읽기·결재는 규칙(ApprovalDocs)이 막는다(입장은 화면만)
     F('approval.view',   '기안서',                'approval',   'page', 'approval.html',          { menu: '기안서', rule: 'partial' }),
+    // 플랫폼 출고(2026-11-10 웹 이식) — 직진배송·에이블리 1·2단계 파일 만들기 + 로케이션 실적(ZikjinData)·봉 수(integrations/zabPacks) 전송.
+    //   전송·공용 설정(persistent_data/shipPlatformSettings) 쓰기는 규칙이 이 기능으로 막는다. 전송 켜기(transmit)는 관리자만(규칙). 입장은 화면만
+    F('ship.platform',   '플랫폼 출고',           'ship',       'page', 'ship.html',              { menu: '플랫폼 출고', danger: 1, rule: 'partial' }),
 
     // 관리자 페이지 — 역할로 나눠 주지 않는다(mainConfig·adminPrivate 규칙이 isAdmin 이다)
     F('admin.view',      '설정·관리',             'admin',      'page', 'admin.html',             { menu: '설정·관리', grantable: false,
@@ -140,7 +144,9 @@ export const PRESET_ROLES = {
     refill:   { name: '채우기 담당',       order: 2, features: [...BASIC, 'location.refill'] },
     location: { name: '로케이션 담당',     order: 3, features: [...BASIC, 'dash.quantity', ...LOCATION_ALL] },
     inbound:  { name: '입고·중국 담당',    order: 4, features: [...BASIC, 'scan.view', 'products.view', 'supplies.view'] },
-    bot:      { name: '자동화(시스템 계정)', order: 5, features: ['data.view', 'data.forecast'] }
+    // 2026-11-10 플랫폼 출고 웹 이식 — 기본 직원 + 플랫폼 출고. ⚠️ 역할을 이미 저장한 설정(mainConfig.permRoles)에는 저절로 생기지 않는다(관리 화면에서 추가)
+    ship:     { name: '플랫폼 출고 담당',   order: 5, features: [...BASIC, 'ship.platform'] },
+    bot:      { name: '자동화(시스템 계정)', order: 6, features: ['data.view', 'data.forecast'] }
 };
 export const DEFAULT_ROLE_ID = 'basic';
 

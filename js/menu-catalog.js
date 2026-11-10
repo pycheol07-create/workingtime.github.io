@@ -10,9 +10,9 @@
 // ※ 순수 모듈로 둘 것(의존은 js/lib 의 기능 카탈로그·권한 계산뿐). 관리자 페이지(admin-ui.js)가 대시보드 전용
 //    모듈(ui.js/state.js)을 끌어오지 않도록 하기 위함이다.
 
-import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202611101731';
-import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202611101731';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611101731';
+import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202611102106';
+import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202611102106';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611102106';
 
 // 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu 에 없으면 자동으로 끼워 넣는다.
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
@@ -27,6 +27,8 @@ export const BUILTIN_MENU_ITEMS = [
     { name: '출퇴근 기록표', link: 'worktime.html', category: '관리자 메뉴', before: '업무 마감' },
     // 상품 관리(2026-10-13) — 기본정보는 전원, 원가·공급처는 관리자만(규칙). 미발계산기 다음(비품 관리 앞)에 붙는다.
     { name: '상품 관리', link: 'products.html', category: '관리 및 조회', before: '비품 관리' },
+    // 플랫폼 출고(2026-11-10 웹 이식) — 상품 관리 다음(비품 관리 앞). ship.platform 권한자만 보인다
+    { name: '플랫폼 출고', link: 'ship.html', category: '관리 및 조회', before: '비품 관리' },
     // 통합 계산기(통관·수입·배송비·창고비) — 2026-10-06 계산기앱에서 옮겨 붙임. 별도 탭(calculator_window)으로 열린다.
     { name: '통합 계산기', link: 'calculator/index.html', category: '관리 및 조회' },
     // 기안서(2026-11-05) — '개인관리' 그룹(이름 공백 무시)에, 없으면 '관리 및 조회', 그것도 없으면 마지막 그룹. 빈 그룹을 새로 만들지 않는다
@@ -56,7 +58,8 @@ export const MENU_TARGETS = [
     { kind: 'page', name: '업무 매뉴얼',         link: 'manual.html',            icon: '📖' },
     { kind: 'page', name: '설정·관리',           link: 'admin.html',             icon: '⚙️' },
     { kind: 'page', name: '입고 스캐너',         link: 'scan.html',              icon: '📷' },
-    { kind: 'page', name: '기안서',             link: 'approval.html',          icon: '📝' }
+    { kind: 'page', name: '기안서',             link: 'approval.html',          icon: '📝' },
+    { kind: 'page', name: '플랫폼 출고',         link: 'ship.html',              icon: '🚚' }
 ];
 
 export const isActionMenuName = (name) =>

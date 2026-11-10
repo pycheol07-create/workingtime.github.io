@@ -1,6 +1,6 @@
 // === js/app-shell-data.js ===
 // 공통 상단바(js/app-shell.js)가 쓰는 고정 데이터와 경로 계산. 순수 모듈(의존은 lib 상수 mibal2-mode.js 하나, 테스트: tests/app-shell.test.js).
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611101731';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611102106';
 
 // 메뉴의 '보이는 이름'만 바꾼 것(2026-11-04). 저장값·권한·연결(ACTION_MENU_NAMES·memberMenuAccess·dashboardMenu)은 왼쪽 옛 이름 그대로다.
 //   사이드바(js/ui-main-dashboard.js)·공통 상단바 메뉴·검색에서 보일 때만 오른쪽 이름으로 쓴다.
@@ -45,7 +45,8 @@ export const LINK_WINDOW_TARGETS = [
     { match: 'china-mibal2.html',      target: 'chinamibal2_window' },
     { match: 'products.html',          target: 'products_window' },
     { match: 'scan.html',              target: 'scan_window' },
-    { match: 'approval.html',          target: 'approval_window' }    // 기안서
+    { match: 'approval.html',          target: 'approval_window' },   // 기안서
+    { match: 'ship.html',              target: 'ship_window' }        // 플랫폼 출고
 ];
 /** 사이드바와 같은 규칙의 창 이름(없으면 null). */
 export const windowTargetFor = (link) => {
@@ -94,7 +95,8 @@ export const PAGE_DEFAULTS = {
     'supplies':          { file: 'supplies.html',          title: '비품 관리' },
     'worktime':          { file: 'worktime.html',          title: '출퇴근 기록표' },
     'calculator':        { file: 'calculator/index.html',  title: '통합 계산기' },
-    'approval':          { file: 'approval.html',          title: '기안서' }
+    'approval':          { file: 'approval.html',          title: '기안서' },
+    'ship':              { file: 'ship.html',              title: '플랫폼 출고' }
 };
 
 export const HOME_FILE = 'index.html';
@@ -215,6 +217,11 @@ export const SUB_DESTINATIONS = {
         S('통관비 계산기', 'tab=customs', ['통관']),
         S('선적 계산기', 'tab=shipping', ['선적', '배송']),
         S('창고료&가산세 계산기', 'tab=warehouse', ['창고'])
+    ],
+    // 플랫폼 출고(js/ship.js — 해시 tab=zikjin|ably)
+    'ship.html': [
+        S('직진배송', 'tab=zikjin', ['직진', '지그재그', 'ZG']),
+        S('에이블리', 'tab=ably', ['에이블리', '도착보장', 'AB'])
     ]
 };
 

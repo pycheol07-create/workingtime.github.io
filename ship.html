@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <script src="js/theme-boot.js?v=202611102106"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>플랫폼 출고</title>
+    <!-- 플랫폼 출고(2026-11-10 웹 이식) — 옛 출고자동화통합.exe(직진배송·에이블리 1·2단계)를 브라우저로.
+         엑셀 파일은 이 PC 브라우저 안에서만 읽고 만든다(서버로 올리지 않음). 계산은 js/lib/ship-*.js(옛 Python 판과 같은 결과).
+         Firestore 쓰기(로케이션 실적·봉 수)는 공용 설정 '전송 켬'(관리자만)일 때만 — js/ship-store.js. 화면 틀은 products.html 과 같다. -->
+    <link rel="stylesheet" href="css/suit.css?v=202611102106">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611102106">
+    <link rel="stylesheet" href="css/products-d.css?v=202611102106">
+    <link rel="stylesheet" href="css/ship-d.css?v=202611102106">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611102106">
+</head>
+<body data-shell="ship">
+    <div id="pd-loading" class="pd-loading">
+        <div class="pd-spinner"></div>
+        <div id="pd-loading-text">불러오는 중…</div>
+    </div>
+
+    <div id="pd-app" style="display:none;">
+        <header class="pd-head">
+            <div class="pd-head-title">
+                <h1>플랫폼 출고</h1>
+                <div class="pd-sub pd-head-sub">직진배송·에이블리 출고 파일을 만듭니다. 엑셀은 이 PC 안에서만 처리되고 서버에 올라가지 않습니다.</div>
+            </div>
+            <nav id="sp-tabs" class="d-seg pd-tabs" aria-label="플랫폼">
+                <button class="d-seg-btn is-on" data-tab="zikjin">직진배송</button>
+                <button class="d-seg-btn" data-tab="ably">에이블리</button>
+            </nav>
+            <div class="pd-head-actions">
+                <button id="sp-folder" class="d-btn" title="결과 파일을 저장할 폴더">저장 폴더 고르기</button>
+                <button id="sp-settings-btn" class="d-btn">설정</button>
+            </div>
+        </header>
+
+        <main id="pd-main" class="pd-main">
+            <div id="sp-transmit" class="pd-alert info" role="status"></div>
+
+            <section class="pd-card pd-card-pad sp-card">
+                <div class="pd-row">
+                    <nav id="sp-steps" class="d-seg" aria-label="단계">
+                        <button class="d-seg-btn is-on" data-step="1">1단계 · 재고출고용</button>
+                        <button class="d-seg-btn" data-step="2" id="sp-step2-btn">2단계</button>
+                    </nav>
+                    <div class="pd-grow"></div>
+                    <span id="sp-step-note" class="pd-note"></span>
+                </div>
+                <p id="sp-step-desc" class="pd-note sp-desc"></p>
+
+                <div id="sp-drop" class="sp-drop" tabindex="-1">
+                    <div id="sp-slots" class="sp-slots"></div>
+                    <div class="sp-drop-hint">여러 파일을 한꺼번에 여기로 끌어다 놓으면 머리글을 보고 칸을 정해 줍니다.</div>
+                </div>
+
+                <div id="sp-opts" class="sp-opts"></div>
+
+                <div class="pd-actions sp-actions">
+                    <span id="sp-busy" class="sp-busy" hidden><span class="sp-spin"></span><span id="sp-busy-text">처리 중…</span></span>
+                    <button id="sp-run" class="d-btn d-btn-primary pd-btn-lg">만들기</button>
+                </div>
+            </section>
+
+            <section class="pd-card pd-card-pad sp-card">
+                <div class="pd-row">
+                    <h2 class="pd-h3">진행 기록</h2>
+                    <div class="pd-grow"></div>
+                    <button id="sp-log-clear" class="d-btn d-btn-sm">지우기</button>
+                </div>
+                <textarea id="sp-log" class="sp-log" readonly aria-label="진행 기록" placeholder="파일을 넣고 [만들기]를 누르면 여기에 진행 상황이 나옵니다."></textarea>
+                <div id="sp-results" class="sp-results"></div>
+            </section>
+
+            <details class="pd-card pd-card-pad sp-help">
+                <summary>도움말 — 순서와 자주 묻는 질문</summary>
+                <div class="sp-help-body">
+                    <h3>직진배송</h3>
+                    <ol>
+                        <li><b>1단계</b>: GPM 출고요청 엑셀을 넣고 [만들기] → <code>재고출고용_YYMMDD.xls</code>(이지어드민 업로드용). 이름에 '직진배송'이 든 시트를 모두 합치고, 같은 상품코드는 더합니다. 끝나면 출고요청 파일이 2단계 칸에 저절로 들어갑니다.</li>
+                        <li>이지어드민에 올리고 출고전표를 받습니다.</li>
+                        <li><b>2단계</b>: ① 이지어드민 출고전표 ② 직진배송출고리스트 원본(이 PC 가 기억 — 한 번 넣으면 다음부터 자동) ③ 출고요청(1단계에서 자동, 신상 코드 복구·일반/즉시출고 구분용) → <code>직진배송출고리스트_YYMMDD.xlsx</code> + <code>ZG_피킹작업지시서_YYMMDD.xlsx</code>.</li>
+                    </ol>
+                    <h3>에이블리</h3>
+                    <ol>
+                        <li><b>1단계</b>: 도착보장출고요청 엑셀 → <code>에이블리_재고출고용_YYMMDD.xls</code>. 끝나면 2단계 칸에 저절로 들어갑니다.</li>
+                        <li><b>2단계</b>: ① 이지어드민 출고전표(실제 출고 수량) ② 도착보장출고요청 ③ 대량입고 양식(앱에 들어 있음 — 넣지 않아도 됨) → <code>에이블리_대량입고_YYMMDD.xlsx</code> + <code>AB_피킹작업지시서_YYMMDD.xlsx</code>. 상품바코드번호는 전표의 '바코드' 열 값입니다.</li>
+                    </ol>
+                    <h3>알아 둘 것</h3>
+                    <ul>
+                        <li>패키지명 베이스(YYMMDD)는 오늘 날짜가 기본입니다. 봉투당 최대 수량을 넘으면 저절로 나눕니다.</li>
+                        <li>파일 이름에 '즉시출고'가 있으면 즉시출고 건으로 구분합니다(로케이션 전송에 씀).</li>
+                        <li>전표 총량과 출고요청 총량이 다르면 경고가 나옵니다 — 재고 부족이면 정상, 아니면 전표를 새로 받으세요.</li>
+                        <li>결과는 처음에 고른 폴더에 저장됩니다(다음부터 묻지 않음). 폴더를 못 쓰는 브라우저는 다운로드로 받습니다. 같은 이름 파일은 덮어씁니다.</li>
+                        <li>로케이션 관리 전송(실제 출고 수량·봉 수)은 관리자가 [설정]에서 켰을 때만 합니다. 전송이 실패해도 만든 파일은 정상입니다.</li>
+                        <li>재고출고용은 이지어드민 호환 때문에 .xls(97-2003) 입니다.</li>
+                        <li>회사 자료입니다 — 결과 파일을 카톡·개인메일·USB 로 옮기지 마세요.</li>
+                    </ul>
+                </div>
+            </details>
+        </main>
+    </div>
+
+    <!-- 설정(공용) — ESC 는 modal-esc.js 가 닫기 버튼을 누른다 -->
+    <div id="sp-modal" class="pd-modal fixed inset-0 justify-center hidden" role="dialog" aria-modal="true" aria-labelledby="sp-modal-title">
+        <div class="pd-modal-box sp-modal-box">
+            <div class="pd-modal-head">
+                <h2 id="sp-modal-title">플랫폼 출고 설정(모두 같이 씀)</h2>
+                <button id="sp-modal-close" class="d-btn pd-icon-btn" aria-label="닫기">✕</button>
+            </div>
+            <div id="sp-modal-body" class="pd-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="pd-toast" class="pd-toast" role="status" aria-live="polite"></div>
+
+    <input id="sp-file-input" type="file" accept=".xlsx,.xlsm,.xls" hidden>
+
+    <script src="js/connection-banner.js?v=202611102106"></script>
+    <script src="js/modal-esc.js?v=202611102106"></script>
+    <script type="module" src="js/ship.js?v=202611102106"></script>
+    <script type="module" src="js/page-gate.js?v=202611102106" data-perm-page="ship.platform"></script>
+    <script type="module" src="js/app-shell.js?v=202611102106"></script>
+</body>
+</html>

@@ -16,13 +16,13 @@
 //   [입고 오차 기록]은 꺼진 단추)
 // 엑셀은 내 PC 로 내려받기만 한다(.xls biff8 — js/lib/xls-limits.js writeXls, 2026-11-10 전에는 .xlsx). 파일 이름은 '시험_' 으로 시작(단독 운영이면 뺌) — 이지어드민 업로드용이 아니다.
 import { getDocs, onSnapshot, doc, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202611101731';
-import { inboundSplitOf } from './lib/inbound-fix.js?v=202611101731';
-import { liveScanLogOf, scanLogInputOf } from './lib/mibal2-scanlog.js?v=202611101731';
-import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202611101731';
-import { locAssignFullOf } from './lib/loc-mode.js?v=202611101731';
-import { friendlyFirebaseError } from './utils.js?v=202611101731';
-import { writeXls } from './lib/xls-limits.js?v=202611101731';
+import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202611102106';
+import { inboundSplitOf } from './lib/inbound-fix.js?v=202611102106';
+import { liveScanLogOf, scanLogInputOf } from './lib/mibal2-scanlog.js?v=202611102106';
+import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202611102106';
+import { locAssignFullOf } from './lib/loc-mode.js?v=202611102106';
+import { friendlyFirebaseError } from './utils.js?v=202611102106';
+import { writeXls } from './lib/xls-limits.js?v=202611102106';
 
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const INBOUND_COLL = CHINA_COLLECTION + '_InboundHistory';

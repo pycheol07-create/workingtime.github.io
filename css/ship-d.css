@@ -1,0 +1,61 @@
+/* === css/ship-d.css — 플랫폼 출고(ship.html) 전용 부품 (2026-11-10) ===
+   - 토큰·버튼·카드는 d-theme.css · products-d.css 것을 쓴다. 접두어 sp- . */
+
+.sp-card { display: flex; flex-direction: column; gap: 16px; }
+.sp-desc { margin: 0; }
+.sp-drop { border: 1px dashed transparent; border-radius: var(--r-inner); padding: 4px; transition: border-color .15s, background .15s; }
+.sp-drop.is-over { border-color: var(--c-accent); background: var(--c-accent-row); }
+.sp-drop-hint { font-size: 12px; color: var(--c-text-3); margin: 8px 4px 0; }
+.sp-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+
+.sp-slot { border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; background: var(--c-surface); min-width: 0; transition: border-color .15s, background .15s; }
+.sp-slot.is-over { border-color: var(--c-accent); background: var(--c-accent-row); }
+.sp-slot.is-filled { border-color: var(--c-accent-light); }
+.sp-slot-head { display: flex; align-items: center; gap: 8px; }
+.sp-slot-title { font-size: 13.5px; font-weight: 700; color: var(--c-text); }
+.sp-slot-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--c-track); color: var(--c-text-2); }
+.sp-slot-tag.req { background: var(--c-accent-soft); color: var(--c-accent-deep); }
+.sp-slot-file { font-size: 13px; color: var(--c-text); overflow-wrap: anywhere; min-height: 20px; }
+.sp-slot-file .sp-empty { color: var(--c-text-3); }
+.sp-slot-meta { font-size: 12px; color: var(--c-text-3); overflow-wrap: anywhere; }
+.sp-slot-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.sp-opts { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; }
+.sp-opts:empty { display: none; }
+.sp-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--c-text-2); }
+.sp-field input { width: 140px; }
+.sp-field small { font-size: 12px; color: var(--c-text-3); }
+
+.sp-actions { margin-top: 0; }
+.sp-busy { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--c-text-2); }
+.sp-busy[hidden] { display: none; }
+.sp-spin { width: 16px; height: 16px; border: 3px solid var(--c-track); border-top-color: var(--c-accent); border-radius: 50%; animation: pd-spin 1s linear infinite; }
+
+.sp-log { width: 100%; min-height: 220px; max-height: 480px; box-sizing: border-box; resize: vertical; padding: 12px 14px;
+    border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); background: var(--c-surface-2); color: var(--c-text);
+    font: 12.5px/1.6 Consolas, 'D2Coding', 'Malgun Gothic', monospace; white-space: pre; overflow: auto; }
+.sp-results { display: flex; flex-direction: column; gap: 6px; }
+.sp-results:empty { display: none; }
+.sp-result { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.sp-result b { font-weight: 600; overflow-wrap: anywhere; }
+
+.sp-help summary { cursor: pointer; font-weight: 700; font-size: 14.5px; }
+.sp-help-body { font-size: 13px; line-height: 1.7; color: var(--c-text); }
+.sp-help-body h3 { font-size: 13.5px; margin: 14px 0 4px; }
+.sp-help-body ol, .sp-help-body ul { margin: 0; padding-left: 22px; }
+.sp-help-body code { font-size: 12px; background: var(--c-track); padding: 1px 5px; border-radius: 4px; }
+
+.sp-modal-box { max-width: 640px; }
+.sp-rules { width: 100%; border-collapse: collapse; }
+.sp-rules th { text-align: left; font-size: 12.5px; color: var(--c-text-2); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--c-line); }
+.sp-rules td { padding: 6px 8px; border-bottom: 1px solid var(--c-line-soft); }
+.sp-rules input.pd-in { height: 34px; }
+.sp-rules td.n { width: 120px; }
+.sp-rules td.x { width: 48px; text-align: right; }
+.sp-check { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; }
+.sp-check input { width: 18px; height: 18px; margin-top: 2px; }
+
+@media (max-width: 768px) {
+    .sp-slots { grid-template-columns: minmax(0, 1fr); }
+    .sp-field input { width: 100%; }
+}

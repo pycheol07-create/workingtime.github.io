@@ -19,7 +19,7 @@
 // 2026-11-09 참조자: ccs [{name, email}] 0~5명 + ccEmails(쿼리용). 후보는 재직 관리자(작성자·결재자 제외), 제출 뒤 읽기·인쇄만.
 //   임시저장·반려 재작성 때만 바꾼다. 관리자라 읽을 수 있으므로 읽기 규칙은 그대로이고, actionsFor 도 참조 여부를 보지 않는다(관리자 권한을 줄이지 않는다).
 
-import { positionOf } from './member-title.js?v=202611101731';
+import { positionOf } from './member-title.js?v=202611102106';
 
 export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select', 'file'];
 export const BOX_ROLES = ['author', 'approver', 'blank'];
