@@ -21,20 +21,20 @@ import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc as _s
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
-    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611101708';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611101708';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611101708';
-import { inboundSig } from './lib/inbound-fix.js?v=202611101708';
+    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611101731';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611101731';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611101731';
+import { inboundSig } from './lib/inbound-fix.js?v=202611101731';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
-    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611101708';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611101708';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611101708';
-import { gated, gatedBatch, run as gateRun, isFrozen } from './mibal2-gate.js?v=202611101708';
-import { needReapply, staleRollback } from './lib/mibal2-fallback.js?v=202611101708';
-import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611101708';
-import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611101708';
-import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611101708';
-import { setupScanBar } from './china-mibal2-bar.js?v=202611101708';
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611101731';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611101731';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611101731';
+import { gated, gatedBatch, run as gateRun, isFrozen } from './mibal2-gate.js?v=202611101731';
+import { needReapply, staleRollback } from './lib/mibal2-fallback.js?v=202611101731';
+import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611101731';
+import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611101731';
+import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611101731';
+import { setupScanBar } from './china-mibal2-bar.js?v=202611101731';
 
 // 쓰기 덮개(비상 스위치, 2026-11-10) — 비상 전환 중(조회 전용)이면 막는다. 멈추기 전에 시작한 작업(guard 안)은 끝까지 한다(js/mibal2-gate.js)
 const setDoc = gated(_setDoc);
@@ -116,7 +116,6 @@ export function startLive(ctx) {
             add('btn-live-barcode', '바코드 매핑 올리기', '상품코드·바코드 두 열이 있는 엑셀로 스캐너 바코드 매핑을 바꿉니다');
             add('btn-live-admin', '관리', '위치매핑 · 오류바코드 · 구역 적재량 · 본사도착 유예 · 빈 칸 넘침 규칙');
             add('btn-live-inbound-file', '입고용 파일 받기', '지금 표에 보이는 행의 상품코드·도착수량을 이지어드민 업로드용 파일(입고용파일.xls)로 받습니다');
-            add('btn-live-mibal-file', '미발확인 파일 받기', '지금 표에 보이는 행의 상품코드를 이지어드민 업로드용 파일(미발확인파일.xls)로 받습니다');
             add('btn-live-floor2-file', '비축창고 엑셀 받기', '스캐너가 쌓은 비축창고 입고분의 상품코드·작업수량을 이지어드민 업로드용 파일(비축창고재고.xls)로 받습니다');
         }
         const diffChk = $('chk-diff-only'); if (diffChk) { diffChk.checked = false; diffChk.closest('label').style.display = 'none'; }
@@ -147,7 +146,6 @@ export function startLive(ctx) {
         $('btn-live-admin').addEventListener('click', () => admin.open());
         // 입고용·미발확인은 다시 읽기(설정·출고일)를 하므로 다른 작업과 겹치지 않게 guard 안에서(비축창고 받기는 출고일과 무관 — 그대로)
         $('btn-live-inbound-file').addEventListener('click', () => guard(() => download(downloadInboundFile), false));
-        $('btn-live-mibal-file').addEventListener('click', () => guard(() => download(downloadMibalFile), false));
         $('btn-live-floor2-file').addEventListener('click', () => download(downloadFloor2File));
         const file = document.createElement('input');
         file.type = 'file'; file.accept = '.xls,.xlsx,.csv,.html,.htm'; file.style.display = 'none'; file.id = 'live-barcode-file';
@@ -863,12 +861,7 @@ export function startLive(ctx) {
         if (!rows.length) { showToast('받을 행이 없습니다'); return; }
         await saveToDesktop('입고용파일.xls', biff8Blob(inboundFileAoa(rows), 'worksheet'));   // 진짜 .xls(biff8, 2026-11-10 — 예전엔 HTML 표)
     }
-    async function downloadMibalFile() {
-        const rows = await freshFileRows('미발확인 파일 받기');
-        if (!rows) return;
-        if (!rows.length) { showToast('받을 행이 없습니다'); return; }
-        await saveToDesktop('미발확인파일.xls', biff8Blob(mibalFileAoa(rows), 'worksheet'));
-    }
+    // [미발확인 파일 받기]는 2026-11-10 사용자 요청으로 없앰(내용 함수 lib/mibal2-live.js mibalFileAoa 는 시험과 함께 남김)
     async function downloadFloor2File() {
         let map = {};
         try { const s = await getDoc(doc(db, CHINA, 'FLOOR2_STOCK')); map = (s.exists() && s.data().map) ? s.data().map : {}; }
