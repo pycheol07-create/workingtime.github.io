@@ -1,8 +1,8 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611101659';
-import * as State from './state.js?v=202611101659';
-import { getWeekOfYear, escapeHtml } from './utils.js?v=202611101659';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611101659';
+import * as DOM from './dom-elements.js?v=202611101708';
+import * as State from './state.js?v=202611101708';
+import { getWeekOfYear, escapeHtml } from './utils.js?v=202611101708';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611101708';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)

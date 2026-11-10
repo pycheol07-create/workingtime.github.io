@@ -2,7 +2,7 @@
 // 📋 운영 계획 v2 D2 — 분기 계획서(다음 분기) 그리기. 숫자는 js/lib/plan-quarter.js buildQuarterPlan(연간·로드맵·자동화·데이터 관리를 모은 것).
 //   [분기 확정]은 운영 계획 머리 줄의 [계획 확정](OpsPlan/quarter_YYYY-Qn). 금액·이름 없음. ⚠️ role=dialog·data-act 금지.
 
-import { esc, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611101659';
+import { esc, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611101708';
 
 const SRC = { goals: '목표 연결(분기)', goalsYear: '목표 연결(연)', targets: '운영 목표(연)', none: '없음' };
 const KIND = { year: '연간 과제', roadmap: '개선 로드맵', auto: '자동화', data: '데이터 관리' };

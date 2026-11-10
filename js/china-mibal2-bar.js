@@ -3,7 +3,7 @@
 //   · 줄의 진짜 버튼(id 그대로, 하나뿐)은 줄에 두거나 숨긴 보관함(#scan-bar-holder, 같은 줄 안)으로 옮길 뿐 — 거는 코드·비상 스위치 끄기는 그대로 따른다
 //   · 메뉴는 진짜 버튼을 누르는 대리 버튼(id 없음, data-for) — 열 때·버튼 상태가 바뀔 때 글자·꺼짐·숨김을 진짜 버튼에서 베낀다
 //   · 줄 구성·순서는 그 PC localStorage(js/lib/mibal2-bar.js). 처음은 지금 줄 그대로
-import { BAR_KEY, rowFromStorage, serializeRow, toggleRow, moveRow, editList, menuIds } from './lib/mibal2-bar.js?v=202611101659';
+import { BAR_KEY, rowFromStorage, serializeRow, toggleRow, moveRow, editList, menuIds } from './lib/mibal2-bar.js?v=202611101708';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -95,6 +95,8 @@ export function setupScanBar(o) {
         <div id="scan-bar-edit-list" style="margin:8px 0 12px; max-height:60vh; overflow-y:auto;"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" id="btn-scan-bar-default" class="d-btn d-btn-sm">기본값으로</button>
+            <button type="button" id="btn-scan-bar-all" class="d-btn d-btn-sm">전체 체크</button>
+            <button type="button" id="btn-scan-bar-none" class="d-btn d-btn-sm" title="줄에서 모두 뺍니다(버튼은 [⚙ 설정] 메뉴에서 그대로 누를 수 있음)">전체 해제</button>
             <span style="flex:1;"></span>
             <button type="button" id="btn-scan-bar-close" class="d-btn d-btn-primary">닫기</button>
         </div></div>`;
@@ -126,6 +128,13 @@ export function setupScanBar(o) {
     const closeEdit = () => { if (modal.style.display !== 'flex') return; modal.style.display = 'none'; row = draft; save(); layout(); };
     $('btn-scan-bar-edit').addEventListener('click', () => { draft = row; drawEdit(); modal.style.display = 'flex'; });
     $('btn-scan-bar-default').addEventListener('click', () => { draft = rowFromStorage(null, available, opt); drawEdit(); });
+    // 전체 체크 = 지금 순서 뒤에 빠진 버튼을 목록 순서대로 붙임 · 전체 해제 = 줄 비움(메뉴에는 그대로). 같은 toggleRow 를 거쳐 권한 거름이 같다
+    const setAll = (on) => {
+        editList(draft, available, opt).forEach(({ id, on: cur }) => { if (cur !== on) draft = toggleRow(draft, id, on, available, opt); });
+        drawEdit();
+    };
+    $('btn-scan-bar-all').addEventListener('click', () => setAll(true));
+    $('btn-scan-bar-none').addEventListener('click', () => setAll(false));
     $('btn-scan-bar-close').addEventListener('click', closeEdit);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeEdit(); });
 
