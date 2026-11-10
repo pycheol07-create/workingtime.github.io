@@ -21,14 +21,14 @@ import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writ
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
-    fileRowsOf, inboundFileHtml, mibalFileAoa, floor2FileAoa } from './lib/mibal2-live.js?v=202611100845';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611100845';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611100845';
-import { inboundSig } from './lib/inbound-fix.js?v=202611100845';
+    fileRowsOf, inboundFileHtml, mibalFileAoa, floor2FileAoa } from './lib/mibal2-live.js?v=202611100906';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611100906';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611100906';
+import { inboundSig } from './lib/inbound-fix.js?v=202611100906';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
-    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611100845';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611100845';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611100845';
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611100906';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611100906';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611100906';
 
 const CHINA = 'ChinaStockGoods';
 const SCANDB = CHINA + '_ScanDB';
@@ -38,6 +38,7 @@ const INBOUND_DIFF = CHINA + '_InboundDiff';
 const SETTINGS_PATH = 'artifacts/team-work-logger-v2/mibal2/settings';
 const MAX_VERSIONS = 30;           // 기존 화면 MAX_SCANDB_VERSIONS 와 같다
 const OPS = 450;                   // 한 batch 쓰기 수(한도 500 안)
+const INBOUND_READ_MAX = 10000;    // 웹 SDK(Listen) 쿼리 limit 의 운영 서버 상한 — 넘으면 invalid-argument. 에뮬레이터는 검사하지 않는다
 const INBOUND_DIFF_DENIED = '입고 오차 기록 권한이 없습니다(서버 규칙 게시 전이거나 등록 직원이 아닙니다).';
 
 const $ = (id) => document.getElementById(id);
@@ -207,7 +208,8 @@ export function startLive(ctx) {
     async function readInbound() {
         // 서버에서 따로 읽는다 — 화면의 입고이력 구독과 같은 쿼리면 SDK 가 구독 상태를 돌려줘 방금 들어온 스캔을 놓칠 수 있어
         //   모양이 다른 쿼리(limit)로 새로 읽는다(확인창 사이 새 스캔 확인용)
-        const snap = await getDocsFromServer(query(collection(db, INBOUND), limit(100000)));
+        const snap = await getDocsFromServer(query(collection(db, INBOUND), limit(INBOUND_READ_MAX)));
+        if (snap.size >= INBOUND_READ_MAX) throw new Error('입고이력이 너무 많아 전부 읽지 못했습니다(아무것도 바꾸지 않음).');   // 잘린 채 진행하면 일부만 보관·삭제된다
         let last = 0;
         const list = snap.docs.map(d => { const x = d.data() || {}; last = Math.max(last, tsMs(x.timestamp)); return { barcode: x.barcode, qty: x.qty }; });
         const map = inboundMapOf(list);
