@@ -96,6 +96,22 @@ export const canOwner = (can) => typeof can === 'function' && !!can(OWNER_FEATUR
 /** 생산성 탭 업무 표(금액 없음)를 볼 수 있나. */
 export const canTaskTable = (can) => typeof can === 'function' && !!can(TASK_TABLE_FEATURE);
 
+/**
+ * 탭 [PDF 받기] 를 막을 까닭(2026-11-10) — 없으면 null. PDF 는 '화면 그대로'라, 지금 권한으로 그린 화면일 때만 받는다.
+ *   settle = 결산 보기 중(결산은 자기 버튼) · overlay = 업무 상세 등 겹침 화면이 열림 · perm = 지금 권한으로 볼 수 없는 탭/칸
+ *   (상세 표를 펼쳤는데 상세 표 권한 없음, 이름 칸이 보이는데 이름 권한 없음) · stale = 다른 권한·기간으로 그린 화면(다시 그려야 함)
+ */
+export function tabPdfBlock({ settleOpen = false, overlayOpen = false, tabAllowed = false, detailOpen = false, canDetail = false,
+    hasNames = false, canNames = false, renderedKey = null, nowKey = null } = {}) {
+    if (settleOpen) return 'settle';
+    if (overlayOpen) return 'overlay';
+    if (!tabAllowed) return 'perm';
+    if (detailOpen && !canDetail) return 'perm';
+    if (hasNames && !canNames) return 'perm';
+    if (renderedKey !== nowKey) return 'stale';
+    return null;
+}
+
 /** 날짜 트리를 안 쓰는 상태인가 — 팀 결산(자체 월·분기·년 선택)과 운영 계획(다음 주 고정). 업무 상세의 담당 변화는 최근 13개월을 따로 본다(문구로 알림). */
 export const isOpsTreeless = (v) => !!(v && v.main === OPS_MAIN && (String(v.settle || '') === '1' || tabOf(v.sub) === PLAN_TAB));
 

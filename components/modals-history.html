@@ -129,6 +129,8 @@
         min-height: 30px; padding: 0 14px; border-radius: var(--r-pill); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
     }
     #history-modal .ops-make-btn:hover { background: var(--c-accent); color: #fff; }
+    #history-modal #ops-tab-pdf { margin-left: auto; white-space: nowrap; }
+    #history-modal #ops-tab-pdf:not(.hidden) + .ops-make-btn { margin-left: 0; }
     #history-modal .ops-make-btn:focus-visible, #history-modal .opv-btn:focus-visible, #history-modal .opv-fold > summary:focus-visible,
     #history-modal .opv-row-btn:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
 
@@ -417,6 +419,8 @@
                         <button type="button" class="ops-tab" data-ops-tab="plan" data-feature="data.analysis" role="tab" aria-selected="false">운영 계획</button>
                     </div>
                     <span id="ops-tab-note" class="ops-tab-note"></span>
+                    <!-- 지금 보이는 탭을 화면 그대로 PDF 로(js/panel-pdf.js) — 탭을 볼 수 있으면 받기 가능(따로 권한 없음). 결산 보기 중엔 숨김(결산은 #ops-settle-pdf) -->
+                    <button type="button" id="ops-tab-pdf" class="opv-btn" title="지금 보이는 탭을 화면 그대로 PDF(A4 가로)로 받습니다. 펼친 상세 표도 들어갑니다">PDF 받기</button>
                     <button type="button" id="ops-settle-btn" data-feature="data.reports" class="ops-make-btn" title="월·분기·년 팀 결산 보고서를 화면에 엽니다. 왼쪽에서 월·년을 고르고 있으면 그 기간으로 엽니다">보고서 만들기</button>
                 </div>
                 <div id="ops-body" class="flex-1 min-h-0 flex flex-col overflow-hidden relative">

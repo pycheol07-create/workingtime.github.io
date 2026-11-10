@@ -11,11 +11,11 @@
 //   금액·직원 이름 없음(담당 변경도 업무 이름·날짜·% 만).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-month.test.js
 
-import { addDaysStr, dowOf, offDayOf, fillMix, planSettingsOf } from './plan-week.js?v=202611101512';
-import { leaveThresholdOf } from './plan-risks.js?v=202611101512';
-import { dailyTaskStats } from '../task-throughput.js?v=202611101512';
-import { taskListOf, ownerByPeriod, detectOwnerChanges, compareAround, pctChange } from './task-owner.js?v=202611101512';
-import { monthConfidence } from './plan-confidence.js?v=202611101512';
+import { addDaysStr, dowOf, offDayOf, fillMix, planSettingsOf } from './plan-week.js?v=202611101614';
+import { leaveThresholdOf } from './plan-risks.js?v=202611101614';
+import { dailyTaskStats } from '../task-throughput.js?v=202611101614';
+import { taskListOf, ownerByPeriod, detectOwnerChanges, compareAround, pctChange } from './task-owner.js?v=202611101614';
+import { monthConfidence } from './plan-confidence.js?v=202611101614';
 
 export const MONTH_LEVELS = Object.freeze({
     weeks: 8, seasonMinDays: 15, seasonMin: 0.7, seasonMax: 1.4, trendMin: 0.7, trendMax: 1.3,
@@ -100,20 +100,22 @@ export function dayDemandOf(slot, speeds, factor, prepSet) {
     return { minutes, qty, prepMinutes: prep };
 }
 
-/** 담당 변경 뒤 속도가 떨어진 업무 — 최근 n주 안의 변경, 변경 뒤 UPH 가 앞보다 ≤ −10%(표본 충분할 때). 이름은 담지 않는다. */
+/** 담당 변경 뒤 속도가 떨어진 업무 — 최근 n주 안의 변경, 변경 뒤 UPH 가 앞보다 ≤ −10%(표본 충분할 때). 이름은 담지 않는다.
+ *  변경 판정은 오늘까지 기록(진행 중 주 포함, liveOk)으로 — 업무 담당 변화 화면과 같은 결론. 전후 UPH 비교는 compareAround 가 오늘을 뺀다.
+ *  이번 주 기록으로 정해진 변경은 tentative(잠정). */
 export function ownerDropsOf(history, { today, weeks = MONTH_LEVELS.weeks, excludeTasks = [], dropPct = MONTH_LEVELS.ownerDrop } = {}) {
-    const days = (history || []).filter(d => d && typeof d.id === 'string' && d.id < today);
+    const days = (history || []).filter(d => d && typeof d.id === 'string' && d.id <= today);
     const since = addDaysStr(today, -7 * weeks);
     const out = [];
     taskListOf(days, { exclude: excludeTasks }).forEach(task => {
         const hasQty = days.some(d => num(d.taskQuantities && d.taskQuantities[task]) > 0);
         if (!hasQty) return;
         const rows = ownerByPeriod(days, task, { gran: 'week' });
-        const det = detectOwnerChanges(rows, { hold: 2, today });
+        const det = detectOwnerChanges(rows, { hold: 2, today, liveOk: true });   // 진행 중 주도 셈 — 표본 적으면 아래 lowSample 이 거른다
         det.changes.filter(c => c.date >= since).forEach((c, i, arr) => {
             const cmp = compareAround(days, task, c, { gran: 'week', qtyTask: true, today, nextDate: arr[i + 1] ? arr[i + 1].date : null });
             const pct = pctChange(cmp.before.uph, cmp.after.uph);
-            if (!cmp.lowSample && pct != null && pct <= dropPct) out.push({ task, date: c.date, pct: r1(pct) });
+            if (!cmp.lowSample && pct != null && pct <= dropPct) out.push({ task, date: c.date, pct: r1(pct), tentative: !!c.tentative });
         });
     });
     return out.sort((a, b) => a.pct - b.pct);
@@ -285,8 +287,8 @@ export function buildMonthPlan(input = {}) {
     }
     (input.ownerDrops || []).slice(0, 3).forEach(o => push({   // M5 — 이름 없이 업무명만
         rule: 'M5', target: o.task, hours: monthHours * 0.02, due: range.from, role: '팀장',
-        title: `${o.task} 담당이 바뀐 뒤(${fmt(o.date)} 주부터) 속도가 ${Math.abs(o.pct)}% 떨어졌습니다 — 인수인계를 점검해 보세요`,
-        basis: '담당 변경 전후 4주 UPH 비교(표본 충분)', effect: '인수인계 빈틈을 메우면 속도가 돌아옵니다'
+        title: `${o.task} 담당이 바뀐 뒤(${fmt(o.date)} 주부터${o.tentative ? ' · 잠정' : ''}) 속도가 ${Math.abs(o.pct)}% 떨어졌습니다 — 인수인계를 점검해 보세요`,
+        basis: `담당 변경 전후 4주 UPH 비교(표본 충분)${o.tentative ? ' · 잠정(이번 주 기록 기준 — 기록이 더 쌓이면 바뀔 수 있음)' : ''}`, effect: '인수인계 빈틈을 메우면 속도가 돌아옵니다'
     }));
     const u = rm && rm.productivity ? rm.productivity.utilization : null;
     if (u != null && u < L.utilLow) push({   // M6

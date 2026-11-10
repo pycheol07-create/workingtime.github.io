@@ -8,8 +8,9 @@
 //   · 주 인원 = 기간 안 그 업무 투입시간 비중 1위. 1위 < minShare(40%) 이거나 1·2위 차 ≤ tieGap(5%p) → '여럿'(mixed).
 //     기간 총 투입 < minMinutes(60분) 또는 진행 일수 < minDays(2) → '표본 부족'(thin).
 //   · 변경 = 새 사람이 hold 기간 연속 1위(여럿·표본 부족 기간은 건너뛰고 잇는다). 시점 = 새 사람 첫 기간 시작일.
+//     화면·리포트·계획은 언제나 주 단위로 판정하고(진행 중 주도 liveOk 로 셈) 월 화면은 mapOwnerChanges 로 맞춘다(2026-11-10).
 //   · 기록 1건은 CAP_MINUTES(720분)까지만 센다 — '종료'를 안 누른 기록이 하루 끝까지 잡혀 비중·속도를 부풀린다.
-import { taskUph } from '../task-throughput.js?v=202611101512';
+import { taskUph } from '../task-throughput.js?v=202611101614';
 
 export const CAP_MINUTES = 720;
 export const SOLO_SHARE = 0.8;      // 본인 UPH: 그날 그 업무 시간의 80% 이상을 맡은 날(단독일)만
@@ -165,8 +166,9 @@ export function ownerByPeriod(days, task, {
         else if (top.share < minShare || (sec && top.share - sec.share <= tieGap + 1e-9)) status = 'mixed';
         else status = 'owner';
         const { start, end } = periodRange(key, gran);
+        const firstRec = list.find(s => s.minutes > 0) || list[0];
         rows.push({
-            key, start, end, days: active, minutes, qty, records, capped,
+            key, start, end, firstDate: firstRec ? firstRec.date : start, days: active, minutes, qty, records, capped,
             headcount: people.size,
             avgMinutesPerDay: active > 0 ? minutes / active : 0,
             ranking, status,
@@ -186,15 +188,19 @@ export function ownerByPeriod(days, task, {
  * 주 인원 변경 지점. '여럿'·'표본 부족' 기간은 앞 주 인원을 잇는다(건너뜀).
  * 새 사람이 hold 기간 연속(건너뛴 기간 제외) 1위여야 변경 — A→B(1기간)→A 는 잡음, A→여럿→A 는 변경 아님.
  * today 를 주면 진행 중 기간(끝 날짜 ≥ today)도 건너뛴다 — 며칠치로 1위가 오락가락해 변경이 생겼다 사라지지 않게.
- * @returns { initial: 처음 주 인원|null, changes: [{ key, date, from, to, rowIndex }] } (date = 새 사람 첫 기간 시작일)
+ * liveOk 를 켜면 진행 중 기간도 지금까지 자료로 센다 — 단 status 'owner'(활동 2일 이상·60분 이상, 여럿 아님)일 때만
+ *   (2026-11-10 사용자 결정. 업무 담당 변화 화면·운영 리포트·월간 계획·담당 재배치 추천은 켜서 부른다. 기본은 꺼짐 = 예전과 같음).
+ *   진행 중 기간 덕분에 확정된 변경(확정한 마지막 기간이 오늘을 포함)에는 tentative: true 가 붙는다 — 이번 주 기록이 더 쌓이면
+ *   사라질 수 있다('잠정'). liveOk 가 꺼져 있으면 이 칸은 생기지 않는다(예전 모양 그대로).
+ * @returns { initial: 처음 주 인원|null, changes: [{ key, date, from, to, rowIndex, tentative? }] } (date = 새 사람 첫 기간 시작일)
  */
-export function detectOwnerChanges(rows, { hold = 2, today = null } = {}) {
+export function detectOwnerChanges(rows, { hold = 2, today = null, liveOk = false } = {}) {
     const h = Math.max(1, Math.floor(Number(hold) || 1));
     let current = null, initial = null, cand = null, count = 0, candIdx = -1;
     const changes = [];
     (rows || []).forEach((row, i) => {
-        if (!row || row.status !== 'owner') return;
-        if (today && row.end >= today) return;   // 진행 중 기간
+        if (!row || row.status !== 'owner') return;   // 여럿·표본 부족(진행 중 기간 포함)은 건너뜀
+        if (today && row.end >= today && !liveOk) return;   // 진행 중 기간
         const who = row.owner;
         if (current === null) { current = initial = who; return; }
         if (who === current) { cand = null; count = 0; return; }
@@ -202,7 +208,9 @@ export function detectOwnerChanges(rows, { hold = 2, today = null } = {}) {
         else { cand = who; count = 1; candIdx = i; }
         if (count >= h) {
             const first = rows[candIdx];
-            changes.push({ key: first.key, date: first.start, from: current, to: cand, rowIndex: candIdx });
+            const ch = { key: first.key, date: first.start, from: current, to: cand, rowIndex: candIdx };
+            if (today && row.end >= today) ch.tentative = true;   // liveOk 일 때만 여기 온다
+            changes.push(ch);
             current = cand; cand = null; count = 0;
         }
     });
@@ -217,6 +225,34 @@ export function ownerLine(rows, { initial, changes }) {
         while (ci < changes.length && changes[ci].rowIndex <= i) cur = changes[ci++].to;
         return (firstIdx >= 0 && i >= firstIdx) ? cur : null;
     });
+}
+
+/**
+ * 주 단위 판정 결과를 다른 단위(월 등) 표시 행에 맞춘다 — 바뀜 판정은 언제나 주 단위, 화면 단위는 보여 주기만(2026-11-10).
+ *   주의 위치 = 그 주의 실제 첫 기록 날짜(firstDate) — 두 달에 걸친 주(예: 9/28~10/4 에 기록이 10/1 부터)는 기록이 있는 달에 둔다.
+ *   line[i]   = 표시 행 i 의 끝 날짜까지 반영된 주 담당(첫 기록이 그 날짜까지인 마지막 주의 ownerLine 값).
+ *   changes   = 주 단위 변경을 그 주가 놓인 표시 행으로 옮긴 것 { ...변경, key: 표시 행 키, weekKey, rowIndex: 표시 행 번호 }.
+ * @param rows 표시 행(ownerByPeriod 결과, 아무 단위)  @param weekRows 주 단위 행  @param det detectOwnerChanges(weekRows) 결과
+ * @returns { initial, changes, line }
+ */
+export function mapOwnerChanges(rows, weekRows, det) {
+    const wl = ownerLine(weekRows, det);
+    const wr = weekRows || [];
+    const at = (w) => (w && w.firstDate) || (w && w.start);
+    const line = (rows || []).map(r => {
+        let v = null;
+        for (let j = 0; j < wr.length && at(wr[j]) <= r.end; j++) v = wl[j];
+        return v;
+    });
+    const changes = [];
+    (det.changes || []).forEach(c => {
+        const d = at(wr[c.rowIndex]) || c.date;
+        let idx = (rows || []).findIndex(r => r.start <= d && d <= r.end);
+        if (idx < 0) idx = (rows || []).findIndex(r => r.end >= d);   // 그 칸이 없으면 다음 칸
+        if (idx < 0) return;
+        changes.push({ ...c, weekKey: c.key, key: rows[idx].key, rowIndex: idx });
+    });
+    return { initial: det.initial, changes, line };
 }
 
 // ── 전후 비교 ────────────────────────────────────────────────────────
@@ -284,6 +320,18 @@ export function compareAround(days, task, change, {
     const before = windowMetrics(tl, task, { from: bFrom, to: bTo, qtyTask, owner: change.from, soloShare });
     const after = windowMetrics(tl, task, { from: change.date, to: aTo, qtyTask, owner: change.to, soloShare });
     return { before, after, lowSample: before.lowSample || after.lowSample };
+}
+
+/** 주 비교 칸 수 — 화면 단위가 월이면 n개월 ≈ 4n주. */
+export const compareWeeksOf = (gran, n) => Math.max(1, Math.floor(Number(n) || (gran === 'month' ? 2 : 4))) * (gran === 'month' ? 4 : 1);
+
+/**
+ * 화면용 전후 비교 — 판정이 주 단위이므로 비교도 변경 날짜(주 시작) 기준 주 단위(월 화면은 n개월 → 4n주, 2026-11-10).
+ * change 는 mapOwnerChanges 결과(weekKey 가 있으면 그 주로)도, 주 변경 그대로도 된다. 나머지 opts 는 compareAround 와 같다.
+ */
+export function compareAroundView(days, task, change, { gran = 'week', n = null, ...rest } = {}) {
+    const key = change.weekKey || periodKeyOf(change.date, 'week');
+    return compareAround(days, task, { ...change, key }, { ...rest, gran: 'week', n: compareWeeksOf(gran, n) });
 }
 
 /** 변화율(%) — 앞이 0·없음이면 null */

@@ -6,6 +6,8 @@
 //     생산성 '상세 표' 펼침 = 옛 업무 리포트 표 4개(renderReport* {only:'tables'}, #report-view-container) — 권한 data.reports
 //     업무 상세(업무 표 행) = 겹침 화면(#ops-task-detail) + 담당 변화(renderTaskOwnerTab, 최근 12개월)
 //     [보고서 만들기] = initSettlementReport (#settlement-panel, 자체 월·분기·년 선택 — 날짜 트리 숨김) + [PDF 받기][엑셀 받기]
+//     탭 줄 [PDF 받기](#ops-tab-pdf, 2026-11-10) = 지금 보이는 탭 패널을 화면 그대로(js/panel-pdf.js, 직원 이름 포함 — 지금 권한으로 그린 화면만).
+//       결산 보기 중·겹침 화면(업무 상세 등)이 열린 동안엔 숨김.
 //   기간은 왼쪽 날짜 트리 하나. 날짜를 누르면 js/listeners-history.js → renderAnalyticsTab('ops') → renderOpsReport.
 //   탭 권한(비용·보고서·상세 표·업무 상세의 담당 변화 = data.reports, 업무 표 = data.view, 나머지 = data.analysis)·옛 주소 이동은 js/lib/ops-report-route.js.
 //   차트: 지금 보이는 탭만 그린다. 탭을 바꾸면 차트를 정리하고, 같은 기간 모델은 다시 계산하지 않는다(ui-ops-view 캐시).
@@ -13,20 +15,21 @@
 //   운영 계획(plan, 2026-11-05 MVP-1) = 다음 주 주간 계획서(js/ui-ops-plan.js) — 날짜 트리를 숨긴다(자기 기간). 다른 탭으로 가면 트리를 다시 보인다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다.
 
-import * as State from './state.js?v=202611101512';
-import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611101512';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611101512';
-import { saveView } from './view-state.js?v=202611101512';
-import { currentPerm, onPerm } from './feature-gate.js?v=202611101512';
-import { can } from './lib/perm.js?v=202611101512';
-import { showToast } from './utils.js?v=202611101512';
+import * as State from './state.js?v=202611101614';
+import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611101614';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611101614';
+import { saveView } from './view-state.js?v=202611101614';
+import { currentPerm, onPerm } from './feature-gate.js?v=202611101614';
+import { can } from './lib/perm.js?v=202611101614';
+import { showToast } from './utils.js?v=202611101614';
 import {
-    OPS_MAIN, PLAN_TAB, allowedTabs, pickTab, tabOf, canSettle, canDetail, canOwner, canTaskTable, settlePresetOf
-} from './lib/ops-report-route.js?v=202611101512';
+    OPS_MAIN, PLAN_TAB, allowedTabs, pickTab, tabOf, canSettle, canDetail, canOwner, canTaskTable, settlePresetOf, tabPdfBlock
+} from './lib/ops-report-route.js?v=202611101614';
 import {
     renderOpsTab, renderDetailTables, invalidateOpsModel, destroyOpsCharts, openTaskDetail, closeTaskDetail
-} from './ui-ops-view.js?v=202611101512';
-import { renderOpsPlan, invalidateOpsPlan, leaveOpsPlan } from './ui-ops-plan.js?v=202611101512';
+} from './ui-ops-view.js?v=202611101614';
+import { renderOpsPlan, invalidateOpsPlan, leaveOpsPlan } from './ui-ops-plan.js?v=202611101614';
+import { downloadPanelPdf, pdfFileName } from './panel-pdf.js?v=202611101614';
 
 const TAB_PANEL = {
     summary: 'ops-summary-panel', productivity: 'ops-productivity-panel', staffing: 'ops-staffing-panel', cost: 'ops-cost-panel', plan: 'ops-plan-panel'
@@ -123,6 +126,8 @@ function showTab(tab) {
     const settleOpen = !!State.context.opsSettleOpen;
     for (const [t, id] of Object.entries(TAB_PANEL)) $(id)?.classList.toggle('hidden', settleOpen || t !== tab);
     $('ops-settle-wrap')?.classList.toggle('hidden', !settleOpen);
+    noTabNow = false;
+    syncTabPdfBtn();   // 결산은 자기 [PDF 받기]
     const note = $('ops-tab-note');
     if (note) note.innerHTML = settleOpen ? '' : noteHtml(tab);
     closeTaskDetail();
@@ -202,6 +207,8 @@ export async function openOpsReport({ sub, settle = false, detail = false, owner
     if (!tab) {
         setTreeVisible(false);
         for (const id of Object.values(TAB_PANEL)) $(id)?.classList.add('hidden');
+        noTabNow = true;
+        syncTabPdfBtn();
         const note = $('ops-tab-note');
         if (note) note.textContent = '볼 수 있는 탭이 없습니다(권한).';
         return;
@@ -248,7 +255,7 @@ async function openSettlement(preset) {
     saveOps('cost', true);
     const panel = $('settlement-panel');
     try {
-        settleMod = await import('./ui-history-settlement.js?v=202611101512');
+        settleMod = await import('./ui-history-settlement.js?v=202611101614');
         clearPanelLoadError(panel);   // 앞서 실패해 띄운 오류 상자
         // downloads:false = 결산 화면 머리 줄의 [엑셀][PDF] 를 그리지 않음(받기는 위 줄의 [PDF 받기][엑셀 받기])
         await settleMod.initSettlementReport({ downloads: false });
@@ -281,7 +288,7 @@ function applySettlePreset(panel, p) {
 async function downloadSettle(kind, btn) {
     if (!canSettle(canNow)) return;
     try {
-        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=202611101512');
+        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=202611101614');
         if (typeof settleMod.downloadSettlement === 'function') {
             const done = await settleMod.downloadSettlement(kind, btn);
             if (done === false) showToast('먼저 보고서를 만들어 주세요.');
@@ -293,6 +300,51 @@ async function downloadSettle(kind, btn) {
         console.error('결산 받기 실패:', kind, err && err.message);
         showToast('받기에 실패했습니다. 잠시 뒤 다시 시도해 주세요.');
     }
+}
+
+// ── 탭 [PDF 받기] — 지금 보이는 탭 패널만 화면 그대로(js/panel-pdf.js). 펼친 상세 표·채우기→오류도 열린 그대로 들어간다. ──
+// 두 쪽에 걸치지 않게 할 덩어리 — 카드·펼침·표 줄(한 쪽보다 큰 카드는 안의 줄 단위로 맞춘다)
+const PDF_SECTIONS = '.opv-stack > *, .opv-card, .opv-fold, .opv-fold-body > *, #staffing-outlook > *, #report-view-container > div > *, section, tr';
+// 기간 문구 — 화면에 보이는 그대로. 운영 계획은 날짜 목록과 상관없이 계획서 머리의 범위(예: '다음 주 …'), 나머지는 기간 바의 날짜.
+function pdfPeriodText(tab) {
+    if (tab === PLAN_TAB) {
+        const t = ($('ops-plan-body')?.querySelector('.opp-head .opv-note')?.textContent || '').split(' · ')[0].trim();
+        return t || ($('ops-plan-body')?.querySelector('.opp-gran .ops-tab.is-on')?.textContent || '').trim();
+    }
+    const t = ($('history-period-label')?.textContent || '').trim();
+    return t === '날짜 선택' ? '' : t;
+}
+// 업무 상세·목표·비용 설정 같은 겹침 화면이 열려 있나(열려 있으면 버튼을 숨긴다 — 탭 패널이 아니라 겹침을 보고 있으므로)
+const overlayOpen = () => [...document.querySelectorAll('#ops-panel .opv-overlay')].some(o => !o.classList.contains('hidden'));
+let noTabNow = false;   // 볼 수 있는 탭이 없음(권한)
+function syncTabPdfBtn() {
+    $('ops-tab-pdf')?.classList.toggle('hidden', !!State.context.opsSettleOpen || noTabNow || overlayOpen());
+}
+async function downloadTabPdf(btn) {
+    const tab = State.context.activeOpsTab || 'summary';
+    const panel = $(TAB_PANEL[tab]);
+    if (!panel || panel.classList.contains('hidden')) return;
+    // 직원 이름은 화면 그대로 들어간다(2026-11-10 사용자 결정) — 대신 지금 권한으로 그린 화면만 받는다.
+    //   이름 칸: 운영 계획 '사람·배치'(.opp-names, 이름 권한 = canOwner) · 생산성 상세 표(인원별·근태, 상세 표 권한 = canDetail)
+    const fold = $('ops-fold-tables');
+    const why = tabPdfBlock({
+        settleOpen: !!State.context.opsSettleOpen, overlayOpen: overlayOpen(),
+        tabAllowed: allowedTabs(canNow).includes(tab),
+        detailOpen: tab === 'productivity' && !!(fold && fold.open), canDetail: canDetail(canNow),
+        hasNames: !!panel.querySelector('.opp-names'), canNames: canOwner(canNow),
+        renderedKey: rendered[tab], nowKey: periodKey()
+    });
+    if (why === 'stale') { renderTab(tab); showToast('화면을 지금 권한·기간으로 다시 그렸습니다. 확인한 뒤 다시 받아 주세요.'); return; }
+    if (why === 'perm') { showToast('이 화면을 받을 권한이 없습니다.'); return; }
+    if (why) return;
+    const label = (document.querySelector(`#ops-tabbar .ops-tab[data-ops-tab="${tab}"]`)?.textContent || tab).trim();
+    await downloadPanelPdf(panel, {
+        filename: pdfFileName(['운영리포트', label, pdfPeriodText(tab)]),
+        btn,
+        removeSelector: '.opp-noprint',   // 운영 계획의 조작용(확정·인쇄·시뮬레이터·편집 칸) — 계획 인쇄와 같은 표식
+        sectionSelector: PDF_SECTIONS,
+        notify: (m) => showToast(m)
+    });
 }
 
 /** 한 번만 — 탭 줄·[보고서 만들기]·[PDF 받기][엑셀 받기]·상세 표 펼침 연결. d.periodData() = 지금 고른 기간 이력, d.rangeData() = 상세 표용 이력. */
@@ -316,7 +368,15 @@ export function initOpsReport(d = {}) {
         if (pdf) { downloadSettle('pdf', pdf); return; }
         const xlsx = e.target.closest('#ops-settle-xlsx');
         if (xlsx) { downloadSettle('excel', xlsx); return; }
+        const tabPdf = e.target.closest('#ops-tab-pdf');
+        if (tabPdf) { if (!tabPdf.disabled) downloadTabPdf(tabPdf).catch(err => console.error('탭 PDF 실패:', err && err.message)); return; }
     });
+
+    // 겹침 화면(업무 상세·목표·비용 설정·목표 연결)이 열리고 닫힐 때 탭 [PDF 받기] 를 숨기고 보인다(.hidden 이 바뀌는 것을 본다)
+    if (typeof MutationObserver === 'function') {
+        const mo = new MutationObserver(syncTabPdfBtn);
+        panel.querySelectorAll('.opv-overlay').forEach(o => mo.observe(o, { attributes: true, attributeFilter: ['class'] }));
+    }
 
     // 상세 표 펼침 — 열면 상세 표 모드(업무 기록 서브탭 = report)로 표를 그리고, 닫으면 되돌린다. toggle 은 버블링하지 않는다.
     $('ops-fold-tables')?.addEventListener('toggle', (e) => {

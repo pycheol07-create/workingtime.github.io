@@ -13,10 +13,10 @@
 import {
     opsSummary, periodMetrics, partSummary, baselineSpeeds, lastDayIdOf, previousPeriodOf, rollingBaselineOf,
     periodDaysOf, PARTS, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf
-} from './ops-metrics.js?v=202611101512';
-import { taskNameOf, TASK } from './task-ids.js?v=202611101512';
-import { aliasTaskName } from './task-alias-view.js?v=202611101512';
-import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611101512';
+} from './ops-metrics.js?v=202611101614';
+import { taskNameOf, TASK } from './task-ids.js?v=202611101614';
+import { aliasTaskName } from './task-alias-view.js?v=202611101614';
+import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611101614';
 
 /** 판정 기준 — 진단 문장·부족/여유 일자가 같이 쓴다. */
 export const OPS_VIEW_LEVELS = Object.freeze({
@@ -66,7 +66,8 @@ export function opsModelInputs(gran, key, allDays) {
 /**
  * 업무 담당 변화 요약 — 업무별 주 인원이 바뀐 지점(task-owner.js, 주 단위·2주 연속 1위). 이름은 담지 않는다.
  * ownerDays = 보통 메모리의 최근 13개월 전체(+ 이번 달). from·to 를 주면 그 기간 안의 변경을 inPeriod 로 표시.
- * @returns {{windowLabel, gran, hold, changedTasks, inPeriodTasks, items:[{task, date, inPeriod}]}}  items 는 날짜 늦은 순
+ * 진행 중 주도 센다(liveOk) — 이번 주 기록으로 정해진 변경은 tentative(잠정).
+ * @returns {{windowLabel, gran, hold, changedTasks, inPeriodTasks, items:[{task, date, inPeriod, tentative}]}}  items 는 날짜 늦은 순
  */
 export function ownerChangeSummary(ownerDays, cfg, { today = null, from = null, to = null, gran = 'week', hold = 2 } = {}) {
     const days = Array.isArray(ownerDays) ? ownerDays : [];
@@ -75,10 +76,10 @@ export function ownerChangeSummary(ownerDays, cfg, { today = null, from = null, 
     const changed = new Set(), inPeriod = new Set();
     tasks.forEach(task => {
         const rows = ownerByPeriod(days, task, { gran });
-        const det = detectOwnerChanges(rows, { hold, today });
+        const det = detectOwnerChanges(rows, { hold, today, liveOk: true });   // 진행 중 주도 셈(2026-11-10)
         det.changes.forEach(c => {
             const inP = !!(from && to && c.date >= from && c.date <= to);
-            items.push({ task, date: c.date, inPeriod: inP });
+            items.push({ task, date: c.date, inPeriod: inP, tentative: !!c.tentative });
             changed.add(task);
             if (inP) inPeriod.add(task);
         });

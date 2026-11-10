@@ -7,7 +7,7 @@
 //
 // 규칙
 //   · 대상 = 수량형 업무(물량이 있는 업무)만 — UPH 로 효율을 본다. 업무 목록·후보 숙련은 plan-skills skillMatrix(최근 90일, 오늘 제외).
-//   · 변경 = task-owner ownerByPeriod(주) → detectOwnerChanges(hold 2, 진행 중 주 제외)의 마지막 변경. maxAgeDays(84일) 보다 오래된 변경은 보지 않는다.
+//   · 변경 = task-owner ownerByPeriod(주) → detectOwnerChanges(hold 2, 진행 중 주는 활동 2일·60분 이상이면 셈 — liveOk)의 마지막 변경. maxAgeDays(84일) 보다 오래된 변경은 보지 않는다.
 //   · 저하 = compareAround 의 업무 UPH 전→후 변화율 ≤ dropPct(−10%, 경계 포함). 표본 충분할 때만:
 //     전·후 모두 시간·물량 있는 날 ≥ max(minDays, MIN_COMPARE_DAYS) 이고 compareAround.lowSample 아님.
 //   · 후보 = 재직(퇴사일 다음 날부터 제외, isMemberActiveOn)·시스템 계정 아님·available(다음 주 가용, 주면) 안·지금 담당 아님.
@@ -25,15 +25,16 @@
 
 import {
     ownerByPeriod, detectOwnerChanges, compareAround, taskDays, qtyDaysOf, periodKeyOf, pctChange, MIN_COMPARE_DAYS
-} from './task-owner.js?v=202611101512';
-import { skillMatrix, busFactor, LEVEL_RANK, PEOPLE_NOTE } from './plan-skills.js?v=202611101512';
-import { quarterList } from './plan-automation.js?v=202611101512';
-import { isMemberActiveOn } from '../utils.js?v=202611101512';
+} from './task-owner.js?v=202611101614';
+import { skillMatrix, busFactor, LEVEL_RANK, PEOPLE_NOTE } from './plan-skills.js?v=202611101614';
+import { quarterList } from './plan-automation.js?v=202611101614';
+import { isMemberActiveOn } from '../utils.js?v=202611101614';
 
 export const ADVICE_LEVELS = Object.freeze({
     dropPct: -10, hold: 2, maxAgeDays: 84, maxCandidates: 3, highDays: 15, midDays: 8, titleMax: 80
 });
 
+const TENTATIVE = '잠정 — 이번 주 기록 기준';   // 진행 중 주로 정해진 변경(task-owner detectOwnerChanges tentative)
 const r1 = (v) => Math.round(v * 10) / 10;
 const clip = (s, max) => (s.length <= max ? s : s.slice(0, max - 1) + '…');
 const toUtc = (s) => { const [y, m, d] = String(s).slice(0, 10).split('-').map(Number); return Date.UTC(y, m - 1, d); };
@@ -64,7 +65,8 @@ export function buildOwnerAdvice(allDays, cfg, opts = {}) {
     const sys = sysSet(cfg);
     const eligible = (name) => !!name && !sys.has(name) && isMemberActiveOn(name, today, cfg || {}) && (!available || available.has(name));
 
-    const days = (allDays || []).filter(d => d && typeof d.id === 'string' && d.id < today);
+    // 오늘 포함 — 변경 판정은 오늘까지 기록으로(업무 담당 변화 화면과 같은 결론). skillMatrix·compareAround 는 각자 오늘을 뺀다.
+    const days = (allDays || []).filter(d => d && typeof d.id === 'string' && d.id <= today);
     const matrix = opts.matrix || skillMatrix(days, cfg, { today, excludeTasks: opts.excludeTasks || [] });
     const bus = busFactor(matrix);
     const soloTasksOf = (name, task) => bus.filter(b => b.task !== task && b.who.includes(name)).map(b => b.task);
@@ -78,7 +80,7 @@ export function buildOwnerAdvice(allDays, cfg, opts = {}) {
         const task = t.task;
         const list = taskDays(days, task);
         const rows = ownerByPeriod(days, task, { gran: 'week', qtyTask: true });
-        const { changes } = detectOwnerChanges(rows, { hold, today });
+        const { changes } = detectOwnerChanges(rows, { hold, today, liveOk: true });   // 진행 중 주도 셈(2026-11-10)
         if (!changes.length) return;
         const ch = changes[changes.length - 1];
         if (maxAge != null && daysBetween(ch.date, today) > maxAge) return;
@@ -137,7 +139,7 @@ export function buildOwnerAdvice(allDays, cfg, opts = {}) {
         });
 
         const confidence = sample >= L.highDays ? 'high' : sample >= L.midDays ? 'mid' : 'low';
-        const change = { from: ch.from, to: ch.to, at: ch.date, uphBefore: r1(b.uph), uphAfter: r1(a.uph), pct: r1(pct), sample };
+        const change = { from: ch.from, to: ch.to, at: ch.date, uphBefore: r1(b.uph), uphAfter: r1(a.uph), pct: r1(pct), sample, tentative: !!ch.tentative };
         out.push({ task, change, options, recommend: options[0].kind, confidence, text: textOf(task, change, options[0]) });
     });
     return out.sort((x, y) => x.change.pct - y.change.pct || (x.task < y.task ? -1 : 1));
@@ -145,7 +147,7 @@ export function buildOwnerAdvice(allDays, cfg, opts = {}) {
 
 /** 화면용 문장(이름 포함 — data.reports 일 때만 보여 준다) */
 function textOf(task, c, o) {
-    const head = `${task}: ${c.at} 주 담당이 ${c.from}에서 ${c.to}(으)로 바뀐 뒤 UPH ${c.uphBefore} → ${c.uphAfter}(${c.pct}%, 표본 ${c.sample}일).`;
+    const head = `${task}: ${c.at} 주 담당이 ${c.from}에서 ${c.to}(으)로 바뀐 뒤${c.tentative ? `(${TENTATIVE})` : ''} UPH ${c.uphBefore} → ${c.uphAfter}(${c.pct}%, 표본 ${c.sample}일).`;
     let tail;
     if (o.kind === 'replace') tail = ` ${o.candidate}에게 다시 맡기는 것을 제안합니다(UPH ${o.candUph}, 주 약 ${o.gainHoursPerWeek}시간 절감 기대).`;
     else if (o.kind === 'pair') tail = ` ${o.candidate}을(를) 함께 배치하는 것을 제안합니다(UPH ${o.candUph}, 주 약 ${o.gainHoursPerWeek}시간 절감 기대).`;
@@ -170,8 +172,9 @@ export function adviceForOutput(advice, { today = null } = {}) {
         const gain = top ? r1(Number(top.gainHoursPerWeek) || 0) : 0;
         const task = String(ad.task);
         const q = quarterList(today || c.at || '2000-01-01', 1)[0];
+        const tent = c.tentative ? ` (${TENTATIVE})` : '';
         return {
-            task, at: c.at || null,
+            task, at: c.at || null, tentative: !!c.tentative,
             uphBefore: c.uphBefore != null ? r1(Number(c.uphBefore)) : null,
             uphAfter: c.uphAfter != null ? r1(Number(c.uphAfter)) : null,
             pct: c.pct != null ? r1(Number(c.pct)) : null,
@@ -179,10 +182,10 @@ export function adviceForOutput(advice, { today = null } = {}) {
             recommend: ['replace', 'pair', 'train'].includes(ad.recommend) ? ad.recommend : 'train',
             candidateCount, gainHoursPerWeek: gain,
             confidence: ['high', 'mid', 'low'].includes(ad.confidence) ? ad.confidence : 'low',
-            text: `${task} 업무 담당 재배치 검토 — 후보 ${candidateCount}명, 기대 절감 ${gain}시간/주`,
+            text: `${task} 업무 담당 재배치 검토 — 후보 ${candidateCount}명, 기대 절감 ${gain}시간/주${tent}`,
             itemDraft: {
                 kind: 'initiative',
-                title: clip(`${task} 업무 담당 재배치 검토(후보 ${candidateCount}명)`, ADVICE_LEVELS.titleMax),
+                title: clip(`${task} 업무 담당 재배치 검토(후보 ${candidateCount}명${c.tentative ? ' · 잠정' : ''})`, ADVICE_LEVELS.titleMax),
                 role: 'admin',
                 year: q.year, quarter: q.key, due: q.end,
                 kpi: { metric: 'taskUph', task, from: c.uphAfter != null ? r1(Number(c.uphAfter)) : null, target: c.uphBefore != null ? r1(Number(c.uphBefore)) : null },
