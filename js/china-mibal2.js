@@ -28,39 +28,42 @@
 //   live 일 때만 js/china-mibal2-live.js 를 동적 import 한다(스캐너에 반영·작업 마감·보관·입고오차·미발이력·위치 쓰기·관리 창).
 //   이 파일에는 그 쓰기가 없다. live 면 출고일은 기존 계산기(CONFIG.savedDatesMibal)를 보지 않고 mibal2/settings 만 쓴다.
 //   false(지금)면 아래 동작은 예전과 같다 — tests/mibal2-readonly.test.js 가 본다.
-import { initializeFirebase } from './china-stock-config.js?v=202611101614'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202611101659'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202611101614';
-import { sortMark } from './lib/china-stock-view.js?v=202611101614';
+import { explain } from './lib/mibal2-calc.js?v=202611101659';
+import { sortMark } from './lib/china-stock-view.js?v=202611101659';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202611101614';
-import { setShellContext } from './app-shell-bridge.js?v=202611101614';
-import { memberNameFor } from './app-shell-data.js?v=202611101614';
-import { mountBusyBanner } from './busy-banner.js?v=202611101614';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611101614';
-import { friendlyFirebaseError } from './utils.js?v=202611101614';
-import { diffOf } from './lib/inbound-diff.js?v=202611101614';
-import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611101614';
-import { scanLogHtml } from './lib/mibal2-scanlog.js?v=202611101614';
-import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611101614';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611101614';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611101614';
-import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611101614';
-import { setupLocMode } from './china-mibal2-loc.js?v=202611101614';
-import { isMibal2Live } from './lib/mibal2-mode.js?v=202611101614';
-import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611101614';
-import { stableSig } from './lib/mibal2-live.js?v=202611101614';
-import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=202611101614';   // 출고일 불일치(2026-11-10)
-import { writeXls } from './lib/xls-limits.js?v=202611101614';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611101614';   // live 때만 씀(빠른 이동 #tab=mibal|location)
+} from './lib/mibal2-rows.js?v=202611101659';
+import { setShellContext } from './app-shell-bridge.js?v=202611101659';
+import { memberNameFor } from './app-shell-data.js?v=202611101659';
+import { mountBusyBanner } from './busy-banner.js?v=202611101659';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611101659';
+import { friendlyFirebaseError } from './utils.js?v=202611101659';
+import { diffOf } from './lib/inbound-diff.js?v=202611101659';
+import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611101659';
+import { scanLogHtml } from './lib/mibal2-scanlog.js?v=202611101659';
+import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611101659';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611101659';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611101659';
+import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611101659';
+import { setupLocMode } from './china-mibal2-loc.js?v=202611101659';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202611101659';
+import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611101659';
+import { stableSig } from './lib/mibal2-live.js?v=202611101659';
+import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=202611101659';   // 출고일 불일치(2026-11-10)
+import { writeXls } from './lib/xls-limits.js?v=202611101659';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611101659';   // live 때만 씀(빠른 이동 #tab=mibal|location)
 // 비상 스위치(2026-11-10) — 평소 신규만 쓰기, 관리자가 켜면 기존 화면이 쓰고 이 화면은 조회 전용(js/lib/mibal2-fallback.js)
-import { modesOf } from './lib/mibal2-fallback.js?v=202611101614';
-import { readFallback, watchFallback, unknownWhy } from './mibal2-fallback-watch.js?v=202611101614';
-import { mountFallbackSwitch } from './mibal2-fallback-switch.js?v=202611101614';
-import { setFrozen as gateSetFrozen, isFrozen as gateFrozen, allowed as gateAllowed, enter as gateEnter, isBusy as gateBusy } from './mibal2-gate.js?v=202611101614';
+import { modesOf } from './lib/mibal2-fallback.js?v=202611101659';
+import { readFallback, watchFallback, unknownWhy } from './mibal2-fallback-watch.js?v=202611101659';
+import { mountFallbackSwitch } from './mibal2-fallback-switch.js?v=202611101659';
+import { refreshDoneAuto, claimOk, claimMine, autoStopText, AUTO_CLAIM_KEY, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611101659';
+import { COLS_PICK_KEY, LEGACY_COLS_KEY, DEFAULT_ON, REQUIRED, pickableCols, normalizeOn, colsFromStorage, serializeCols, toggleCol,
+    hiddenCss, colsMode, visibleCount } from './lib/mibal2-cols.js?v=202611101659';
+import { setFrozen as gateSetFrozen, isFrozen as gateFrozen, allowed as gateAllowed, enter as gateEnter, isBusy as gateBusy } from './mibal2-gate.js?v=202611101659';
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -136,6 +139,25 @@ let sortConfig = LIVE ? { key: 'mibal', dir: 'desc' } : { key: 'diffAbs', dir: '
 let expanded = new Set();
 let pending = null;            // 지금 갱신 요청 대기 { atMs, baseRun, baseNoteAt }
 let firstServerSeen = false;   // 서버에서 온 첫 mibal2Latest 를 봤는지(자동 요청 판단용)
+let autoApplyDue = false;      // 이 PC 의 수동 갱신 요청이 성공으로 끝남 — 다음 서버 스냅샷에서 자동 [스캐너에 반영](live 만)
+let autoApplyRid = '';         // 그 요청 id
+const TAB_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);   // 이 탭(메모리에만 — 탭 복제해도 새로 만든다)
+/**
+ * 자동 반영 — 같은 PC 의 여러 탭(탭 복제로 대기 요청이 같이 복사됨) 중 요청 id 를 먼저 잡은 탭만(localStorage, 짧은 만료).
+ * 동시에 잡으면 잠시 뒤 다시 읽어 마지막에 쓴 탭만 남는다. 서버 작업 표시 재확인은 live.autoApply 안에서(쓰기 직전)
+ */
+async function runAutoApply(rid) {
+    const read = () => { try { return JSON.parse(localStorage.getItem(AUTO_CLAIM_KEY) || 'null'); } catch (e) { return undefined; } };
+    const other = () => showToast('ℹ️ 갱신이 끝났습니다 — 이 PC 의 다른 탭이 스캐너에 반영합니다', AUTO_TOAST_MS);
+    const cur = read();
+    if (cur === undefined) { showToast(autoStopText('이 PC 의 다른 탭과 겹치는지 확인하지 못했습니다'), AUTO_TOAST_MS); return; }
+    if (!claimOk(cur, rid, TAB_ID)) { other(); return; }
+    try { localStorage.setItem(AUTO_CLAIM_KEY, JSON.stringify({ rid, tab: TAB_ID, at: Date.now() })); }
+    catch (e) { showToast(autoStopText('이 PC 의 다른 탭과 겹치는지 확인하지 못했습니다'), AUTO_TOAST_MS); return; }
+    await new Promise(r => setTimeout(r, 400));
+    if (!claimMine(read(), rid, TAB_ID)) { other(); return; }
+    live.autoApply();
+}
 let started = false;
 let isAccessOk = false;        // 입장 판정(관리자 또는 china.mibal2 권한) 통과 전에는 어떤 쓰기도 하지 않는다
 // 스캐너 연동(시험 — 읽기 전용)
@@ -175,10 +197,12 @@ function errText(e) {
     if (e && !e.code && e.message === '권한 확인 전') return '권한 확인 전입니다 — 잠시 뒤 다시 시도하세요';
     return friendlyFirebaseError(e);
 }
-function showToast(msg) {
+let toastTimer = 0;
+function showToast(msg, ms = 2800) {   // ms — 자동 반영 결과처럼 길게 보일 때(js/lib/mibal2-auto-apply.js AUTO_TOAST_MS)
     const t = $('toast'); if (!t) return;
     t.innerText = msg; t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2800);
+    clearTimeout(toastTimer);   // 앞 토스트의 타이머가 새 토스트를 일찍 지우지 않게
+    toastTimer = setTimeout(() => t.classList.remove('show'), ms);
 }
 function setLoading(on, text) {
     const o = $('loading-overlay'); if (!o) return;
@@ -405,9 +429,10 @@ function renderTable() {
     if (fixBar || Object.keys(pendingFix).length) updateFixBar();   // 표에 없는 대기 건수
     const tb = $('table-body');
     $('row-count').textContent = `${viewRows.length}행 / 전체 ${allRows.length}행`;
-    if (!latest) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-risk" style="padding:50px;">수집 자료가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
-    if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">${(LIVE && settings && settings.lastClosedId && !settings.batch) ? '작업 마감됨 — 다음 출고일을 고르세요.' : '출고일을 선택하세요.'}</td></tr>`; return; }
-    if (viewRows.length === 0) { tb.innerHTML = `<tr><td colspan="${colSpan()}" class="t-3" style="padding:50px;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
+    // 안내 줄은 msg-row — [칸 설정] 열 숨김이 걸리지 않는다(js/lib/mibal2-cols.js hiddenCss)
+    if (!latest) { tb.innerHTML = `<tr class="msg-row"><td colspan="${colSpan()}" class="t-risk" style="padding:50px;">수집 자료가 아직 없습니다. [지금 갱신]을 누르거나 07:30 자동 수집을 기다리세요.</td></tr>`; return; }
+    if (selectedDates.length === 0 && allRows.length === 0) { tb.innerHTML = `<tr class="msg-row"><td colspan="${colSpan()}" class="t-3" style="padding:50px;">${(LIVE && settings && settings.lastClosedId && !settings.batch) ? '작업 마감됨 — 다음 출고일을 고르세요.' : '출고일을 선택하세요.'}</td></tr>`; return; }
+    if (viewRows.length === 0) { tb.innerHTML = `<tr class="msg-row"><td colspan="${colSpan()}" class="t-3" style="padding:50px;">조건에 맞는 행이 없습니다.</td></tr>`; return; }
     let html = '';
     viewRows.forEach((r, i) => {
         const cls = ['data-row'];
@@ -663,7 +688,7 @@ async function saveConfirmedBatch() {
         setLoading(true, `입고이력·스캐너 값 확인 중... (${codes.length}건)`);
         let mod, srvBy;
         try {
-            mod = await import('./inbound-fix-write.js?v=202611101614');
+            mod = await import('./inbound-fix-write.js?v=202611101659');
             srvBy = await mod.readServerInboundMany(db, codes, 5);
         } finally { setLoading(false); }
         // 옛 수동값만 보이던 칸(시험 화면 — 입고이력에 키 없음): 같은 값이어도 기록해 입고확인을 그 값으로 고정
@@ -999,6 +1024,7 @@ async function requestRefresh(isAuto) {
     }
     const baseRun = latest ? tsMs(latest.lastRunAt) : 0;
     const baseNoteAt = latest ? tsMs(latest.noteAt) : 0;
+    const baseOk = latest ? tsMs(latest.lastOkAt) : 0;   // 자동 반영 판정 — 이 요청 뒤 성공(lastOkAt 이 이보다 새것)일 때만
     try {
         // 사용자 정보(이메일 등)는 넣지 않는다 — 요청 시각만(서버 시각).
         await setDoc(doc(db, REQUEST_PATH), { requestedAt: serverTimestamp() });
@@ -1006,7 +1032,9 @@ async function requestRefresh(isAuto) {
         showToast('⚠️ 갱신 요청 실패 — ' + errText(e));
         return;
     }
-    pending = { atMs: Date.now(), baseRun, baseNoteAt };
+    // manual = 직원이 이 PC 에서 [지금 갱신]을 누름(자동 요청은 아님) — 끝나면 자동 [스캐너에 반영](단독 운영만)
+    //   rid = 이 요청 id(탭 복제로 대기 요청이 복사돼도 한 탭만 반영 — runAutoApply)
+    pending = { atMs: Date.now(), baseRun, baseNoteAt, baseOk, manual: !isAuto, rid: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10) };
     try { sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending)); } catch (e) {}
     renderRefreshUI();
     const q = collectorQuiet(Date.now());
@@ -1023,6 +1051,7 @@ function checkPending() {
     if (!pending) return;
     const runMs = latest ? tsMs(latest.lastRunAt) : 0;
     if (runMs && runMs !== pending.baseRun) {
+        if (LIVE && refreshDoneAuto(pending, latest)) { autoApplyDue = true; autoApplyRid = pending.rid; }   // 서버 스냅샷에서 한 번 자동 반영(구독 처리부)
         clearPending(latest.ok === false ? `갱신 실패 ${hhmm(runMs)} — 아래 오류 확인` : `갱신 완료 ${hhmm(runMs)}`);
         return;
     }
@@ -1059,21 +1088,50 @@ function downloadExcel() {
     if (bad) alert(bad);
 }
 
-// ── 보기 항목: 간단히(기본) / 전체 — 열·카드 숨김은 CSS(body[data-cols]). 고른 것은 이 브라우저에만 기억 ──
-const COLS_KEY = 'mibal2.cols';
-const colSpan = () => (document.body.dataset.cols === 'simple' ? 14 : 25);   // 간단히에서 보이는 열 수
-function setCols(mode, save) {
-    const simple = mode !== 'full';
+// ── 보기 항목: [칸 설정](2026-11-10, 예전 간단히/전체 대신) — 고른 열만 보인다(js/lib/mibal2-cols.js). 이 브라우저에만 기억 ──
+// 열 숨김은 #cols-style(만든 CSS). body[data-cols] 는 예전 이름 그대로(colsMode) — 요약 카드·차이 체크·색·열 너비 기억이 예전처럼 따른다
+let colsOn = colsFromStorage(null, null).on;
+const colSpan = () => visibleCount(colsOn);   // 펼친 상세 행 칸 수
+function setCols(on, save) {
+    colsOn = normalizeOn(on);
+    let st = $('cols-style');
+    if (!st) { st = document.createElement('style'); st.id = 'cols-style'; document.head.appendChild(st); }
+    st.textContent = hiddenCss(colsOn);
+    const simple = colsMode(colsOn) === 'simple';
     document.body.dataset.cols = simple ? 'simple' : 'full';
-    $('btn-cols-simple').classList.toggle('on', simple);
-    $('btn-cols-full').classList.toggle('on', !simple);
     if (simple) {
         $('chk-diff-only').checked = false;                                   // 숨긴 거르기가 남지 않게
         if (sortConfig.key === 'diffAbs' || sortConfig.key === 'diff') sortConfig = { key: 'mibal', dir: 'desc' };   // 숨긴 '차이' 열 정렬 → 미발수량 큰 순
     }
     if (allRows.length) applyFilters();                                       // 칸 수(colspan)·정렬을 새로 반영
     applyColWidths();                                                         // 보기마다 따로 기억한 열 너비
-    if (save) { try { localStorage.setItem(COLS_KEY, simple ? 'simple' : 'full'); } catch (e) { /* 기억 못 해도 보기는 바뀐다 */ } }
+    if (save) { try { localStorage.setItem(COLS_PICK_KEY, serializeCols(colsOn)); } catch (e) { /* 기억 못 해도 보기는 바뀐다 */ } }
+}
+function loadCols() {
+    let raw = null, legacy = null;
+    try { raw = localStorage.getItem(COLS_PICK_KEY); legacy = localStorage.getItem(LEGACY_COLS_KEY); } catch (e) { /* 못 읽으면 기본값 */ }
+    const r = colsFromStorage(raw, legacy);
+    setCols(r.on, r.migrated);   // 예전 간단히/전체만 있으면 한 번 옮겨 저장
+}
+/** [칸 설정] 창 — 체크 목록(꼭 보일 열은 끌 수 없음)·[기본값으로]·[모두]. 닫으면(닫기·바깥) 바로 반영 */
+function setupColsPick() {
+    const modal = $('cols-modal'), list = $('cols-list');
+    const labels = {};
+    headCells().forEach((th, i, all) => { labels[colKey(th, i, all)] = (th.firstChild && th.firstChild.textContent ? th.firstChild.textContent : th.textContent).trim(); });
+    let draft = colsOn;
+    const draw = () => {
+        list.innerHTML = pickableCols(LIVE).map(k => {
+            const req = REQUIRED.includes(k);
+            return `<label class="${req ? 'req' : ''}" title="${req ? '꼭 보여야 하는 열이라 끌 수 없습니다' : ''}"><input type="checkbox" data-col="${esc(k)}"${draft.includes(k) ? ' checked' : ''}${req ? ' disabled' : ''}> ${esc(labels[k] || k)}${req ? ' <span class="t-3" style="font-size:11px;">(필수)</span>' : ''}</label>`;
+        }).join('');
+    };
+    const close = () => { if (modal.style.display !== 'flex') return; modal.style.display = 'none'; setCols(draft, true); };
+    $('btn-cols-set').addEventListener('click', () => { draft = colsOn; draw(); modal.style.display = 'flex'; });
+    list.addEventListener('change', (e) => { const c = e.target.closest('input[data-col]'); if (c) { draft = toggleCol(draft, c.dataset.col, c.checked); draw(); } });
+    $('btn-cols-default').addEventListener('click', () => { draft = normalizeOn(DEFAULT_ON); draw(); });
+    $('btn-cols-all').addEventListener('click', () => { draft = normalizeOn(pickableCols(LIVE)); draw(); });
+    $('btn-cols-close').addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
 }
 
 // ── 열 너비 조절 — 머리글 오른쪽 끝(.col-grip)을 끌면 그 열 너비가 바뀐다 ──
@@ -1191,11 +1249,8 @@ function setupColResize() {
 // ── 이벤트 ───────────────────────────────────────────────────
 function setupEvents() {
     setupColResize();
-    let savedCols = null;
-    try { savedCols = localStorage.getItem(COLS_KEY); } catch (e) { /* 무시 */ }
-    setCols(savedCols, false);
-    $('btn-cols-simple').addEventListener('click', () => setCols('simple', true));
-    $('btn-cols-full').addEventListener('click', () => setCols('full', true));
+    loadCols();
+    setupColsPick();
     setupDatePopup();
     $('search-input').addEventListener('input', applyFilters);
     $('chk-diff-only').addEventListener('change', applyFilters);
@@ -1320,7 +1375,7 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=202611101614');
+        const mod = await import('./china-mibal2-live.js?v=202611101659');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,
@@ -1336,6 +1391,7 @@ async function loadLiveTools() {
             setSelectedDates: (dates) => { selectedDates = dates.slice(); dateSource = 'own'; renderDateList(); recomputeAndRender(); },
             getShipList: () => listShipDates(ship.items, graceDays, new Date()),
             getLatest: () => latest,
+            getParseError: () => parseError,   // 자동 반영 — 수집 자료 해석 실패면 멈춤
             reloadShared,
             readSharedSig: async () => sharedSigOf(await readSharedDocs()),   // 확인창 뒤 재확인 — 화면 상태는 바꾸지 않는다
             getConfig: () => config,
@@ -1471,6 +1527,8 @@ async function startAfterAccess() {
         if (busyBannerStop) busyBannerStop.refresh();   // 요청 대기·'방금 갱신됨'은 latest 로 판정한다
         if (!firstServerSeen && !snap.metadata.fromCache) { firstServerSeen = true; maybeAutoRequest(); }
         if (live && !snap.metadata.fromCache) live.onLatest();   // 단독 운영 — 업무예상용 미발 기록(그날 1회)
+        // 이 PC 에서 누른 [지금 갱신]이 끝남 → 자동 [스캐너에 반영](한 번). 캐시 스냅샷이면 서버 확인 때까지 미룬다
+        if (autoApplyDue && live && live.autoApply && !snap.metadata.fromCache) { autoApplyDue = false; runAutoApply(autoApplyRid); }
     }, (err) => {
         setLoading(false);
         console.error('[mibal2] mibal2Latest 구독 실패:', err);

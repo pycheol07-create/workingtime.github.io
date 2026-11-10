@@ -6,15 +6,15 @@
 //   이름이 든 칸은 class="opp-names" — 인쇄 사본에서는 이 섹션을 통째로 수만 다시 그린다(peoplePrintHtml).
 //   콘솔에 이름·사람 섹션 객체를 찍지 않는다. ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611101614';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611101614';
-import { taskNameOf, TASK } from './lib/task-ids.js?v=202611101614';
-import { skillMatrix, levelCounts, busFactor, trainCandidates, redactForOutput, LEVEL_LABEL, LEVEL_RANK, PEOPLE_NOTE } from './lib/plan-skills.js?v=202611101614';
-import { draftAssignment, sumAssignCounts } from './lib/plan-assign.js?v=202611101614';
-import { staffNamesOf } from './ui-history-prediction.js?v=202611101614';
-import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611101614';
-import { nextWeekRange, offDayOf } from './lib/plan-week.js?v=202611101614';
-import { esc, n1, fmtDay, card } from './ui-ops-plan-parts.js?v=202611101614';
+import * as State from './state.js?v=202611101659';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611101659';
+import { taskNameOf, TASK } from './lib/task-ids.js?v=202611101659';
+import { skillMatrix, levelCounts, busFactor, trainCandidates, redactForOutput, LEVEL_LABEL, LEVEL_RANK, PEOPLE_NOTE } from './lib/plan-skills.js?v=202611101659';
+import { draftAssignment, sumAssignCounts } from './lib/plan-assign.js?v=202611101659';
+import { staffNamesOf } from './ui-history-prediction.js?v=202611101659';
+import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611101659';
+import { nextWeekRange, offDayOf } from './lib/plan-week.js?v=202611101659';
+import { esc, n1, fmtDay, card } from './ui-ops-plan-parts.js?v=202611101659';
 
 // 숙련도 매트릭스 캐시 — 이력 길이·설정·오늘이 같으면 다시 계산하지 않는다
 let mCache = null;
