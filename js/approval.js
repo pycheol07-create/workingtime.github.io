@@ -19,19 +19,19 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611111506';
+import { initializeFirebase } from './config.js?v=202611120855';
 import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611111506';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611111506';
-import { memberNameFor } from './app-shell-data.js?v=202611111506';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611120855';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611120855';
+import { memberNameFor } from './app-shell-data.js?v=202611120855';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
-    tardyPrefill, printFitLevel, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
+    tardyPrefill, printFitLevel, rangeFields, rangeTimeField, fieldText, END_SUFFIX, RANGE_KIND, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
     checkAttach, attachPath, attachMeta, fmtBytes, ATTACH_MAX, ATTACH_ACCEPT, attachTypeOf,
     ATTACH_AFTER_TOTAL, afterAttachMeta, splitAttachments, afterPrintText,
     CC_MAX, ccsOf, inCc, checkCcs, ccCandidates,
-    approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes } from './lib/approval-logic.js?v=202611111506';
-import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC } from './lib/approval-noti.js?v=202611111506';
+    approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes } from './lib/approval-logic.js?v=202611120855';
+import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC } from './lib/approval-noti.js?v=202611120855';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -353,7 +353,7 @@ function sheetHtml(form, values, meta = {}) {
             <tr><th>결재자</th><td colspan="3">${esc(line.map(a => a.name).join(' → '))}${proxies.length ? ` <span class="ap-proxy-note">(대결 ${esc(proxies.join(', '))})</span>` : ''}</td></tr>${ccs.length ? `
             <tr><th>참조</th><td colspan="3">${esc(ccs.map(a => a.name).join(', '))}</td></tr>` : ''}</table>
         ${form.intro ? `<div class="ap-intro">${esc(form.intro)}</div>` : ''}
-        <table class="ap-body">${form.fields.map(f => `<tr><th>${esc(f.label)}</th><td class="${f.type === 'textarea' ? 'is-long' : ''}">${f.type === 'file' ? esc(attachText(meta.attachments, f.key)) : esc(v[f.key] || '')}</td></tr>`).join('')}</table>
+        <table class="ap-body">${form.fields.map(f => `<tr><th>${esc(f.label)}</th><td class="${f.type === 'textarea' ? 'is-long' : ''}">${f.type === 'file' ? esc(attachText(meta.attachments, f.key)) : esc(fieldText(form, f, v))}</td></tr>`).join('')}</table>
         ${form.pledge ? `<div class="ap-pledge">${esc(form.pledge)}</div>` : ''}
         <div class="ap-sign"><span class="num">${esc(dateMs ? kstDay(dateMs).replace(/^(\d+)-(\d+)-(\d+)$/, (m, y, mo, d) => `${y}년 ${Number(mo)}월 ${Number(d)}일`) : '')}</span><br>
             작성자&nbsp;&nbsp;${esc(meta.authorName || '')}</div>
@@ -761,6 +761,7 @@ async function renderEditor(main, { id, formId }) {
         if (!form) { setHead({ title: '새 기안', back: true }); main.innerHTML = '<div class="pd-card pd-empty">양식을 찾지 못했습니다.</div>'; return; }
     }
     const vals = { ...(d ? d.values : {}) };
+    const range = rangeFields(form);   // 근태사유서: 구분이 '외출'이면 발생 시각을 시작·종료로
     setHead({ title: d ? `${form.title} 고치기` : `${form.title} 작성`, back: true });
     const dec = d && d.decision;
     const cands = approverCandidates(S.cfg, S.name, S.email);
@@ -789,7 +790,12 @@ async function renderEditor(main, { id, formId }) {
                 <div id="ap-cc" class="ap-line"></div>
                 ${ccGone.length ? `<span class="ap-hint pd-warn">저장된 참조자(${esc(ccGone.map(a => a.name).join(', '))})는 지금 지정할 수 없는 사람이라 뺐습니다.</span>` : ''}
                 <span class="ap-hint pd-warn" id="ap-cc-hint"></span></div>
-            ${form.fields.map(f => `<label class="pd-field"><span>${esc(f.label)}${f.required ? '<b>*</b>' : ''}</span>${fieldInput(f, vals[f.key] || '')}
+            ${form.fields.map(f => (range && f.key === range.time.key)
+                // 외출이면 시작·종료(둘 다 필수) — 아니면 시작 칸만 보인다(종료 칸은 숨기고 저장 때 버림)
+                ? `<div class="pd-field" role="group" aria-labelledby="ap-range-label"><span id="ap-range-label">${esc(f.label)}<b class="ap-range-req"${f.required ? '' : ' hidden'}>*</b> <small class="ap-range-note" id="ap-range-note" aria-live="polite" hidden>(${esc(RANGE_KIND)} — 시작·종료 시각 모두)</small></span>
+                    <div class="ap-range"><input id="ap-f-${esc(f.key)}" class="pd-in" data-key="${esc(f.key)}" type="time" value="${esc(vals[f.key] || '')}" aria-label="${esc(f.label)}">
+                    <span class="ap-range-end" hidden>~ <input id="ap-f-${esc(f.key)}${END_SUFFIX}" class="pd-in" data-key="${esc(f.key)}${END_SUFFIX}" type="time" value="${esc(vals[f.key + END_SUFFIX] || '')}" aria-label="${esc(f.label)} 종료" aria-describedby="ap-range-note"></span></div></div>`
+                : `<label class="pd-field"><span>${esc(f.label)}${f.required ? '<b>*</b>' : ''}</span>${fieldInput(f, vals[f.key] || '')}
             ${f.prefill === 'day' ? '<span class="ap-hint" id="ap-prefill-hint"></span>' : ''}</label>`).join('')}</div>
         ${form.pledge ? `<div class="pd-note" style="margin-top:14px; white-space:pre-wrap;">${esc(form.pledge)}</div>` : ''}
         <div id="ap-errs"></div>
@@ -857,6 +863,17 @@ async function renderEditor(main, { id, formId }) {
     drawLine();
     main.querySelectorAll('[data-key]').forEach(el => el.addEventListener('input', () => { S.dirty = true; }));
     main.querySelectorAll('[data-key]').forEach(el => el.addEventListener('change', () => { S.dirty = true; }));
+    if (range) {
+        const syncRange = () => {
+            const on = !!rangeTimeField(form, read());
+            main.querySelector('.ap-range-end').hidden = !on;
+            main.querySelector('.ap-range-note').hidden = !on;
+            main.querySelector('.ap-range-req').hidden = !(on || range.time.required);
+            $('ap-f-' + range.time.key).setAttribute('aria-label', on ? `${range.time.label} 시작` : range.time.label);
+        };
+        $('ap-f-' + range.kind.key)?.addEventListener('change', syncRange);
+        syncRange();
+    }
     // 근태사유서: 발생일 → 그날 내 지각(읽기만)을 빈 칸에
     const dayField = form.fields.find(f => f.prefill === 'day');
     if (dayField && S.name) $('ap-f-' + dayField.key)?.addEventListener('change', (e) => prefillTardy(form, e.target.value));
@@ -1010,7 +1027,7 @@ async function prefillTardy(form, day) {
         form.fields.forEach(f => {
             const el = $('ap-f-' + f.key);
             if (!el || el.value) return;
-            if (f.prefill === 'tardyKind' && (f.options || []).includes(hit.kind)) { el.value = hit.kind; filled.push(f.label); }
+            if (f.prefill === 'tardyKind' && (f.options || []).includes(hit.kind)) { el.value = hit.kind; filled.push(f.label); el.dispatchEvent(new Event('change')); }
             if (f.prefill === 'tardyTime' && hit.time) { el.value = hit.time; filled.push(f.label); }
         });
         if (hint) hint.textContent = filled.length ? `그날 지각 기록(${hit.time || '시각 없음'})으로 ${filled.join('·')} 을(를) 채웠습니다. 맞는지 확인하세요.` : `그날 지각 기록이 있습니다(${hit.time || '시각 없음'}).`;

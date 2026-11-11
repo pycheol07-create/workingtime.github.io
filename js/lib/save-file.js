@@ -73,6 +73,14 @@ export function createSaver({ win = globalThis.window, remember = null, key = 'o
         win.setTimeout(() => win.URL.revokeObjectURL(url), 60000);
     }
 
+    /** 묻지 않고 바로 저장할 수 있나(클릭 밖 — 끌어다 놓기로 저절로 시작할 때). 폴더를 아직 안 골랐거나 권한을 물어야 하면 false */
+    async function ready() {
+        await restore();
+        if (!supportsFolder() || mode === 'download') return true;
+        if (mode !== 'folder' || !dir) return false;
+        try { return (await permission(dir, false)) === 'granted'; } catch (_) { return false; }
+    }
+
     /** 저장 → { how: 'folder'|'download', folder: 폴더 이름|'' } */
     async function save(name, bytes, mime) {
         await restore();
@@ -98,7 +106,7 @@ export function createSaver({ win = globalThis.window, remember = null, key = 'o
     }
 
     return {
-        supportsFolder, restore, chooseFolder, prepare, save, forget,
+        supportsFolder, restore, chooseFolder, prepare, ready, save, forget,
         get mode() { return mode; },
         get folderName() { return mode === 'folder' && dir ? (dir.name || '') : ''; },
     };

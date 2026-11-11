@@ -13,7 +13,7 @@
 // 계산은 js/lib/inbound-fix.js(순수 함수). 기록자 = 직원 이름(이메일 아님).
 import { doc, collection, query, where, getDocsFromServer, getDocFromServer, runTransaction, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { fixIdOf, isFixId, inboundSplitOf, scanDbPairOf, nextFixDoc } from './lib/inbound-fix.js?v=202611111506';
+import { fixIdOf, isFixId, inboundSplitOf, scanDbPairOf, nextFixDoc } from './lib/inbound-fix.js?v=202611120855';
 
 const INBOUND = 'ChinaStockGoods_InboundHistory';
 const SCANDB = 'ChinaStockGoods_ScanDB';

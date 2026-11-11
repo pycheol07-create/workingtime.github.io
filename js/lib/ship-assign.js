@@ -4,10 +4,10 @@
 //   판정은 계산 코드(ship-zikjin·ship-ably)가 실제로 찾는 머리글과 같은 것을 본다 — 판정이 맞아도 계산이 따로 다시 검사한다.
 // 순수 모듈(XLSX 는 넘겨받음). 테스트: tests/ship-assign.test.js
 
-import { pyStr, pyStrip, looksLikeStockOut, STOCK_OUT_MSG } from './ship-core.js?v=202611111506';
-import { detectFormat, FORMAT, readHtmlBook, normCell } from './ship-read.js?v=202611111506';
-import { TEMPLATE_SHEETS } from './ship-zikjin.js?v=202611111506';
-import { TMPL_HEADERS, TMPL_HEADER_ROW, REQ_HEADER_ROW } from './ship-ably.js?v=202611111506';
+import { pyStr, pyStrip, looksLikeStockOut, STOCK_OUT_MSG } from './ship-core.js?v=202611120855';
+import { detectFormat, FORMAT, readHtmlBook, normCell } from './ship-read.js?v=202611120855';
+import { TEMPLATE_SHEETS } from './ship-zikjin.js?v=202611120855';
+import { TMPL_HEADERS, TMPL_HEADER_ROW, REQ_HEADER_ROW } from './ship-ably.js?v=202611120855';
 
 export const KIND = Object.freeze({
     ZIKJIN_REQUEST: 'zikjinRequest',   // 직진 출고요청(GPM)
@@ -114,6 +114,40 @@ export function classifyPeek(peek) {
     // 어드민 출고전표: 활성 시트 1행에 상품코드·수량
     if (h1.has('상품코드') && h1.has('수량')) return KIND.ADMIN;
     return KIND.UNKNOWN;
+}
+
+const TAB_NAME = { zikjin: '직진배송', ably: '에이블리' };
+
+/**
+ * 판정된 파일들 → 어느 탭·단계로 갈지(2026-11-12 — 올린 파일로 직진·에이블리를 알아보고 저절로 진행).
+ *   탭: 출고요청·양식(원본)이 어느 플랫폼 것인지로. 출고전표만 있으면(직진·에이블리 같은 모양) 1단계를 마치고
+ *       2단계를 기다리는 탭(pending) — 하나뿐이면 그 탭, 아니면 지금 탭.
+ *   단계: 출고전표가 있으면 2단계, 아니고 출고요청이 있으면 1단계, 양식(원본)만이면 2단계(칸에 넣기만).
+ *         1단계로 갈 때 같이 넣은 양식은 화면이 2단계 칸에 넣어 둔다(js/ship.js dropMany).
+ * @param {Array<{kind}>} files
+ * @param {{ tab: 'zikjin'|'ably', pending?: { zikjin?: boolean, ably?: boolean } }} now
+ * @returns {{ tab, step: 1|2|null, note: string|null, error: string|null }}  step null = 넣을 파일이 없음(칸을 안 바꿈)
+ */
+export function routeFiles(files, { tab, pending = {} } = {}) {
+    const kinds = new Set((files || []).map(f => f.kind));
+    const plats = new Set([...kinds].map(k => PLATFORM_OF[k]).filter(Boolean));
+    if (plats.size > 1) return { tab, step: null, note: null, error: '직진배송 파일과 에이블리 파일이 섞여 있습니다 — 한 플랫폼씩 넣어 주세요.' };
+    let to = plats.size ? [...plats][0] : null;
+    let note = null;
+    const hasAdmin = kinds.has(KIND.ADMIN);
+    if (!to) {
+        if (!hasAdmin) return { tab, step: null, note: null, error: null };
+        const waiting = ['zikjin', 'ably'].filter(p => pending[p]);
+        to = waiting.length === 1 ? waiting[0] : (TAB_NAME[tab] ? tab : 'zikjin');
+        if (waiting.length !== 1) note = `출고전표만으로는 직진·에이블리를 가릴 수 없어 지금 탭(${TAB_NAME[to]})에 넣었습니다 — 다르면 탭을 바꿔 다시 넣어 주세요.`;
+    }
+    const request = to === 'zikjin' ? KIND.ZIKJIN_REQUEST : KIND.ABLY_REQUEST;
+    let step;
+    if (hasAdmin) step = 2;
+    else if (kinds.has(request)) step = 1;
+    else if (kinds.has(KIND.ZIKJIN_TEMPLATE) || kinds.has(KIND.ABLY_TEMPLATE)) step = 2;
+    else step = null;
+    return { tab: to, step, note, error: null };
 }
 
 /**

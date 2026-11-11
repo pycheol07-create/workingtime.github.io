@@ -12,23 +12,23 @@
 // 권한: 입장은 js/page-gate.js(ship.platform). 설정 저장·전송은 규칙이 막는다. 전송 켜기(transmit)는 관리자만.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611111506';
-import { emulatorEnabled } from './firebase-emulator.js?v=202611111506';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611111506';
-import { memberNameFor } from './app-shell-data.js?v=202611111506';
-import { friendlyFirebaseError } from './utils.js?v=202611111506';
-import { resolve, can } from './lib/perm.js?v=202611111506';
-import { readBook } from './lib/ship-read.js?v=202611111506';
-import { zikjinStep1, zikjinStep2, TEMPLATE_SHEETS } from './lib/ship-zikjin.js?v=202611111506';
-import { ablyStep1, ablyStep2 } from './lib/ship-ably.js?v=202611111506';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes } from './lib/ship-write.js?v=202611111506';
-import { pickingBytes } from './lib/ship-picking.js?v=202611111506';
-import { kstDay, baseDateWarning, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611111506';
-import { peekBook, classifyPeek, assignFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611111506';
-import { openShipStore, fileRecord, isFileRecord, describeRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611111506';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611111506';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611111506';
-import { loadSettings, saveSettings, pushLocation, recordPacks } from './ship-store.js?v=202611111506';
+import { initializeFirebase } from './config.js?v=202611120855';
+import { emulatorEnabled } from './firebase-emulator.js?v=202611120855';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611120855';
+import { memberNameFor } from './app-shell-data.js?v=202611120855';
+import { friendlyFirebaseError } from './utils.js?v=202611120855';
+import { resolve, can } from './lib/perm.js?v=202611120855';
+import { readBook } from './lib/ship-read.js?v=202611120855';
+import { zikjinStep1, zikjinStep2, TEMPLATE_SHEETS } from './lib/ship-zikjin.js?v=202611120855';
+import { ablyStep1, ablyStep2 } from './lib/ship-ably.js?v=202611120855';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes } from './lib/ship-write.js?v=202611120855';
+import { pickingBytes } from './lib/ship-picking.js?v=202611120855';
+import { kstDay, baseDateWarning, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611120855';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611120855';
+import { openShipStore, fileRecord, isFileRecord, describeRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611120855';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611120855';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611120855';
+import { loadSettings, saveSettings, pushLocation, recordPacks } from './ship-store.js?v=202611120855';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -310,30 +310,48 @@ async function putSlot(tab, step, slot, f) {
 async function dropOnSlot(slot, fileList) {
     const tab = S.tab, step = S.step[tab];
     const file = fileList[0];
-    if (!file) return;
-    const f = await fileOf(file);
-    const want = SLOTS[tab][step][slot];
+    if (!file || S.busy) return;
+    setBusy(true, '파일 종류를 보는 중…');   // 읽는 동안 다른 놓기(저절로 시작)가 끼어들지 않게
     try {
-        const { X } = await loadLibs();
-        const kind = classifyPeek(peekBook(X, f.bytes, f.name));
-        if (kind === KIND.STOCK_OUT) {   // 1단계 결과를 출고전표 칸에 — 넣지 않는다
-            logLine(`✗ '${f.name}' — ${STOCK_OUT_MSG}`);
-            toast(STOCK_OUT_MSG, 5000);
-            return;
+        const f = await fileOf(file);
+        const want = SLOTS[tab][step][slot];
+        try {
+            const { X } = await loadLibs();
+            const kind = classifyPeek(peekBook(X, f.bytes, f.name));
+            if (kind === KIND.STOCK_OUT) {   // 1단계 결과를 출고전표 칸에 — 넣지 않는다
+                logLine(`✗ '${f.name}' — ${STOCK_OUT_MSG}`);
+                toast(STOCK_OUT_MSG, 5000);
+                return;
+            }
+            if (kind !== want) logLine(`⚠ '${f.name}' 은 ${KIND_LABEL[kind]} 처럼 보입니다(이 칸은 ${KIND_LABEL[want]}). 맞는지 확인하세요.`);
+        } catch (e) {
+            logLine(`⚠ '${f.name}' 앞부분을 읽지 못했습니다: ${errText(e)}`);
         }
-        if (kind !== want) logLine(`⚠ '${f.name}' 은 ${KIND_LABEL[kind]} 처럼 보입니다(이 칸은 ${KIND_LABEL[want]}). 맞는지 확인하세요.`);
+        await putSlot(tab, step, slot, f);
     } catch (e) {
-        logLine(`⚠ '${f.name}' 앞부분을 읽지 못했습니다: ${errText(e)}`);
+        logLine(`✗ 파일을 넣지 못했습니다: ${errText(e)}`);
+    } finally {
+        setBusy(false);
+        render();
     }
-    await putSlot(tab, step, slot, f);
-    render();
 }
 
-/** 여러 파일을 한꺼번에 — 머리글로 칸을 정한다 */
+/** 1단계를 마치고 2단계(출고전표)를 기다리는 탭 */
+const pendingTabs = () => ({
+    zikjin: !!(S.files.zikjin[2].request && S.files.zikjin[2].request.from === 'step1' && !S.files.zikjin[2].admin),
+    ably: !!(S.files.ably[2].request && S.files.ably[2].request.from === 'step1' && !S.files.ably[2].admin),
+});
+const missingOf = (tab, step) => SLOT_META[tab][step].filter(m => m.req && !S.files[tab][step][m.id]).map(m => m.title);
+
+/**
+ * 여러 파일을 한꺼번에(또는 칸 밖에 하나) — 머리글로 직진·에이블리와 단계를 알아보고(ship-assign.routeFiles)
+ * 그 탭·단계로 옮겨 칸을 채운 뒤, 필요한 파일이 다 있으면 저절로 [만들기](2026-11-12).
+ * 저장 폴더를 아직 안 골랐거나 권한을 물어야 하면(끌어다 놓기는 클릭이 아니라 브라우저가 묻지 못함) 시작하지 않고 버튼을 누르게 한다.
+ */
 async function dropMany(fileList) {
-    const tab = S.tab, step = S.step[tab];
     const files = [...fileList];
     if (!files.length) return;
+    let autoRun = false;
     setBusy(true, '파일 종류를 보는 중…');
     try {
         const { X } = await loadLibs();
@@ -344,19 +362,71 @@ async function dropMany(fileList) {
             try { kind = classifyPeek(peekBook(X, f.bytes, f.name)); } catch (_) { /* 알 수 없음 */ }
             judged.push({ ...f, kind });
         }
+        const route = routeFiles(judged, { tab: S.tab, pending: pendingTabs() });
+        if (route.error) {
+            logLine('✗ ' + route.error);
+            toast(route.error, 5000);
+            return;
+        }
+        const moved = route.step !== null && (route.tab !== S.tab || route.step !== S.step[S.tab]);
+        if (route.step !== null) {
+            S.tab = route.tab;
+            S.step[route.tab] = route.step;
+            writeHash();
+        }
+        const tab = S.tab, step = S.step[tab];
+        if (moved) logLine(`→ ${TAB_LABEL[tab]} ${step}단계로 옮겼습니다(올린 파일로 알아봄).`);
+        if (route.note) logLine('⚠ ' + route.note);
         const { assign, notes } = assignFiles(judged, tab, step);
         for (const [slot, f] of Object.entries(assign)) {
             const { kind, ...file } = f;
             await putSlot(tab, step, slot, file);
             logLine(`✓ '${file.name}' → ${SLOT_META[tab][step].find(m => m.id === slot).title}`);
         }
-        notes.forEach(n => logLine('⚠ ' + n));
-        if (notes.length) toast(notes[0], 5000);
+        // 1단계로 갈 때 같이 넣은 양식(원본)은 2단계 칸에 — '1단계에 쓰지 않습니다' 안내는 뺀다
+        let rest = notes;
+        if (step === 1) {
+            const tmplKind = SLOTS[tab][2].template;
+            const tmpl = judged.find(f => f.kind === tmplKind);
+            if (tmpl) {
+                const { kind, ...file } = tmpl;
+                await putSlot(tab, 2, 'template', file);
+                logLine(`✓ '${file.name}' → 2단계 ${SLOT_META[tab][2].find(m => m.id === 'template').title}`);
+                rest = notes.filter(n => !n.startsWith(`'${tmpl.name}'`));
+            }
+        }
+        rest.forEach(n => logLine('⚠ ' + n));
+        if (rest.length) toast(rest[0], 5000);
+        else if (route.note) toast(route.note, 5000);
+        // 저절로 시작하는 것은 '이번에 그 단계의 주 파일(1단계 출고요청 · 2단계 출고전표)을 넣었고, 판단이 확실할 때'만.
+        //   탭을 추정했거나(route.note) 안내가 있었거나(파일 둘·모르는 파일) 패키지명 날짜가 오늘이 아니면 [만들기]를 누르게 한다.
+        const trigger = SLOTS[tab][step][step === 1 ? 'request' : 'admin'];
+        const gotTrigger = route.step !== null && judged.some(f => f.kind === trigger && Object.values(assign).includes(f));
+        if (gotTrigger) {
+            const missing = missingOf(tab, step);
+            const stale = step === 2 && S.base[tab] && S.base[tab].trim() !== kstDay().yymmdd;
+            let why = '';
+            if (missing.length) logLine(`  더 넣을 파일: ${missing.join(', ')}`);
+            else if (route.note || rest.length) why = '위 안내를 확인한 뒤';
+            else if (stale) why = `패키지명 베이스(${S.base[tab].trim()})가 오늘 날짜가 아니라 확인한 뒤`;
+            else if (!(await S.saver.ready())) why = '저장 폴더 확인이 필요해';
+            else autoRun = true;
+            if (why) {
+                logLine(`  파일이 다 들어왔습니다 — ${why} [만들기]를 눌러 주세요(저절로 시작하지 않았습니다).`);
+                if (!rest.length && !route.note) toast('파일이 다 들어왔습니다 — [만들기]를 눌러 주세요', 5000);
+            }
+        }
     } catch (e) {
         logLine(`✗ 파일을 넣지 못했습니다: ${errText(e)}`);
     } finally {
         setBusy(false);
         render();
+    }
+    if (autoRun) {
+        logLine(`  필요한 파일이 다 있어 ${TAB_LABEL[S.tab]} ${S.step[S.tab]}단계를 바로 시작합니다.`);
+        await run();
+    } else if (!S.busy) {
+        $('sp-run').focus();
     }
 }
 
@@ -539,6 +609,7 @@ async function run() {
             if (x.problem) throw new Error(x.problem);
             await saveOut(r.fileName, x.bytes);
             S.files[tab][2].request = { name: f.request.name, bytes: f.request.bytes, size: f.request.size, from: 'step1' };
+            S.files[tab][2].admin = null;   // 지난 묶음 출고전표가 남아 새 출고요청과 섞이지 않게(새 출고전표를 기다림)
             logLine('  → 출고요청 파일을 2단계 칸에 넣어 두었습니다.');
         } else if (tab === 'zikjin') {
             const warn = baseDateWarning(base, now);

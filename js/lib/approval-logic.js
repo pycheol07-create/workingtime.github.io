@@ -19,7 +19,7 @@
 // 2026-11-09 참조자: ccs [{name, email}] 0~5명 + ccEmails(쿼리용). 후보는 재직 관리자(작성자·결재자 제외), 제출 뒤 읽기·인쇄만.
 //   임시저장·반려 재작성 때만 바꾼다. 관리자라 읽을 수 있으므로 읽기 규칙은 그대로이고, actionsFor 도 참조 여부를 보지 않는다(관리자 권한을 줄이지 않는다).
 
-import { positionOf } from './member-title.js?v=202611111506';
+import { positionOf } from './member-title.js?v=202611120855';
 
 export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select', 'file'];
 export const BOX_ROLES = ['author', 'approver', 'blank'];
@@ -190,7 +190,38 @@ export function mergeForms(defaults, saved) {
         .sort((a, b) => (a.order - b.order) || a.title.localeCompare(b.title, 'ko'));
 }
 
-/** 양식에 있는 칸만, 글자로, 길이 상한까지. 없는 칸은 ''. */
+// 2026-11-12 외출 시각: 구분 칸(prefill 'tardyKind')이 '외출'이면 발생 시각 칸(prefill 'tardyTime')을 시작·종료 둘 다 받는다.
+//   시작 = values[시각키], 종료 = values[시각키 + '_end']. 운영 양식은 저장본(ApprovalForms)이라 칸을 늘리지 않고 이 규칙으로 한다.
+export const RANGE_KIND = '외출';
+export const END_SUFFIX = '_end';
+/** 양식의 (구분 칸, 시각 칸) — 둘 다 있으면 { kind, time }, 아니면 null */
+export function rangeFields(form) {
+    const fields = (form && form.fields) || [];
+    const kind = fields.find(f => f.prefill === 'tardyKind' && f.type === 'select');
+    const time = fields.find(f => f.prefill === 'tardyTime' && f.type === 'time');
+    if (!(kind && time && (kind.options || []).includes(RANGE_KIND))) return null;
+    // 양식에 '시각키_end' 칸이 이미 있거나, 값 칸이 한도(규칙 values ≤ 20)에 차 있으면 이 규칙을 쓰지 않는다
+    if (fields.some(f => f.key === time.key + END_SUFFIX)) return null;
+    if (fields.filter(f => f.type !== 'file').length >= MAX_FIELDS) return null;
+    return { kind, time };
+}
+/** 지금 값으로 시작·종료를 받아야 하면 시각 칸, 아니면 null */
+export function rangeTimeField(form, values) {
+    const r = rangeFields(form);
+    const v = values && typeof values === 'object' ? values : {};
+    return r && String(v[r.kind.key] == null ? '' : v[r.kind.key]).trim() === RANGE_KIND ? r.time : null;
+}
+/** 화면·인쇄에 보일 값 — 외출이면 '시작 ~ 종료' */
+export function fieldText(form, f, values) {
+    const v = values && typeof values === 'object' ? values : {};
+    const s = v[f.key] == null ? '' : String(v[f.key]);
+    const t = rangeTimeField(form, v);
+    if (!t || t.key !== f.key) return s;
+    const e = v[f.key + END_SUFFIX] == null ? '' : String(v[f.key + END_SUFFIX]);
+    return e ? `${s} ~ ${e}` : s;   // 종료가 없으면(이번 변경 전 옛 외출 문서) 시작만
+}
+
+/** 양식에 있는 칸만, 글자로, 길이 상한까지. 없는 칸은 ''. 외출이면 종료 시각 칸(시각키_end)도. */
 export function cleanValues(form, values) {
     const v = values && typeof values === 'object' ? values : {};
     const out = {};
@@ -199,6 +230,11 @@ export function cleanValues(form, values) {
         const raw = v[f.key] == null ? '' : String(v[f.key]);
         out[f.key] = (f.type === 'textarea' ? raw.replace(/\r\n?/g, '\n').trim() : raw.replace(/\s+/g, ' ').trim()).slice(0, f.max || DEFAULT_MAX[f.type] || 200);
     });
+    const t = rangeTimeField(form, out);
+    if (t) {
+        const raw = v[t.key + END_SUFFIX] == null ? '' : String(v[t.key + END_SUFFIX]);
+        out[t.key + END_SUFFIX] = raw.replace(/\s+/g, ' ').trim().slice(0, t.max || DEFAULT_MAX.time);
+    }
     return out;
 }
 
@@ -220,6 +256,17 @@ export function validateValues(form, values, attachments) {
         if (f.type === 'time' && !/^\d{2}:\d{2}$/.test(s)) err.push(`'${f.label}' 시각 형식이 올바르지 않습니다.`);
         if (f.type === 'select' && Array.isArray(f.options) && !f.options.includes(s)) err.push(`'${f.label}' 은(는) 목록에서 고르세요.`);
     });
+    // 외출 — 시작·종료 둘 다 필수, 종료가 시작보다 늦어야(칸 자체 검사는 위에서 시작 칸만 봄)
+    const t = rangeTimeField(form, v);
+    if (t) {
+        const s = String(v[t.key] == null ? '' : v[t.key]).trim();
+        const e = String(v[t.key + END_SUFFIX] == null ? '' : v[t.key + END_SUFFIX]).trim();
+        const okT = (x) => /^\d{2}:\d{2}$/.test(x);
+        if (!s && !t.required) err.push(`외출은 '${t.label}' 시작 시각을 입력하세요.`);
+        if (!e) err.push(`외출은 '${t.label}' 종료 시각을 입력하세요.`);
+        else if (!okT(e)) err.push(`'${t.label}' 종료 시각 형식이 올바르지 않습니다.`);
+        else if (okT(s) && e <= s) err.push(`'${t.label}' 종료 시각은 시작 시각보다 늦어야 합니다.`);
+    }
     return err;
 }
 

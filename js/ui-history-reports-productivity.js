@@ -1,9 +1,9 @@
 // === js/ui-history-reports-productivity.js ===
-import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202611111506';
-import { getAsArray } from './ui-history-reports-utils.js?v=202611111506';
-import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202611111506';
-import { TASK, isT } from './task-names.js?v=202611111506';
-import { unitCost, periodMetrics, benchmarkOEE, baselineSpeeds, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=202611111506';
+import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202611120855';
+import { getAsArray } from './ui-history-reports-utils.js?v=202611120855';
+import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202611120855';
+import { TASK, isT } from './task-names.js?v=202611120855';
+import { unitCost, periodMetrics, benchmarkOEE, baselineSpeeds, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=202611120855';
 
 /** 🎯 최근 운영일 30일의 하루 OEE 평균 — 운영 지표 표준(js/lib/ops-metrics.js benchmarkOEE, 평상시 속도 기준). */
 export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {

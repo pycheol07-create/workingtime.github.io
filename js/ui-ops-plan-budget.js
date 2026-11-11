@@ -5,16 +5,16 @@
 // ⚠️ 금액·직원 이름을 콘솔에 찍지 않는다. 이름은 시급 평균·합계를 낼 때만 메모리에서 쓰고 결과에 담지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자) — 겹침 창은 section.
 
-import * as State from './state.js?v=202611111506';
-import { getRegularMembersForCount, showToast } from './utils.js?v=202611111506';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611111506';
-import { buildOpsModel } from './lib/ops-view-model.js?v=202611111506';
-import { periodDaysOf } from './lib/ops-metrics.js?v=202611111506';
-import { addDaysStr, planSettingsOf } from './lib/plan-week.js?v=202611111506';
-import { buildBudget, buildYearBudget, costSettingsOf, costBaseOf, suggestRegularBase, salaryBasisLabor, partTimerCostOf, SALARY_HOURS } from './lib/plan-budget.js?v=202611111506';
-import { saveCostAndSettings } from './ops-plan-store.js?v=202611111506';
-import { esc, n0, n1, card, kpi, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611111506';
-import { higherOpenThan } from './modal-above.js?v=202611111506';
+import * as State from './state.js?v=202611120855';
+import { getRegularMembersForCount, showToast } from './utils.js?v=202611120855';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611120855';
+import { buildOpsModel } from './lib/ops-view-model.js?v=202611120855';
+import { periodDaysOf } from './lib/ops-metrics.js?v=202611120855';
+import { addDaysStr, planSettingsOf } from './lib/plan-week.js?v=202611120855';
+import { buildBudget, buildYearBudget, costSettingsOf, costBaseOf, suggestRegularBase, salaryBasisLabor, partTimerCostOf, SALARY_HOURS } from './lib/plan-budget.js?v=202611120855';
+import { saveCostAndSettings } from './ops-plan-store.js?v=202611120855';
+import { esc, n0, n1, card, kpi, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611120855';
+import { higherOpenThan } from './modal-above.js?v=202611120855';
 
 const $ = (id) => document.getElementById(id);
 export const isAdminNow = () => !!(State.appState && State.appState.currentUserRole === 'admin');

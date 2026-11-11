@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611111506"></script>
+    <script src="js/theme-boot.js?v=202611120855"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>플랫폼 출고</title>
     <!-- 플랫폼 출고(2026-11-10 웹 이식) — 옛 출고자동화통합.exe(직진배송·에이블리 1·2단계)를 브라우저로.
          엑셀 파일은 이 PC 브라우저 안에서만 읽고 만든다(서버로 올리지 않음). 계산은 js/lib/ship-*.js(옛 Python 판과 같은 결과).
          Firestore 쓰기(로케이션 실적·봉 수)는 공용 설정 '전송 켬'(관리자만)일 때만 — js/ship-store.js. 화면 틀은 products.html 과 같다. -->
-    <link rel="stylesheet" href="css/suit.css?v=202611111506">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611111506">
-    <link rel="stylesheet" href="css/products-d.css?v=202611111506">
-    <link rel="stylesheet" href="css/ship-d.css?v=202611111506">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611111506">
+    <link rel="stylesheet" href="css/suit.css?v=202611120855">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611120855">
+    <link rel="stylesheet" href="css/products-d.css?v=202611120855">
+    <link rel="stylesheet" href="css/ship-d.css?v=202611120855">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611120855">
 </head>
 <body data-shell="ship">
     <div id="pd-loading" class="pd-loading">
@@ -52,7 +52,7 @@
 
                 <div id="sp-drop" class="sp-drop" tabindex="-1">
                     <div id="sp-slots" class="sp-slots"></div>
-                    <div class="sp-drop-hint">여러 파일을 한꺼번에 여기로 끌어다 놓으면 머리글을 보고 칸을 정해 줍니다.</div>
+                    <div class="sp-drop-hint">파일을 칸 밖(화면 아무 곳)에 끌어다 놓으면 직진배송·에이블리와 단계를 알아보고 칸을 채운 뒤, 필요한 파일이 다 있으면 바로 만듭니다.</div>
                 </div>
 
                 <div id="sp-opts" class="sp-opts"></div>
@@ -117,10 +117,10 @@
 
     <input id="sp-file-input" type="file" accept=".xlsx,.xlsm,.xls" hidden>
 
-    <script src="js/connection-banner.js?v=202611111506"></script>
-    <script src="js/modal-esc.js?v=202611111506"></script>
-    <script type="module" src="js/ship.js?v=202611111506"></script>
-    <script type="module" src="js/page-gate.js?v=202611111506" data-perm-page="ship.platform"></script>
-    <script type="module" src="js/app-shell.js?v=202611111506"></script>
+    <script src="js/connection-banner.js?v=202611120855"></script>
+    <script src="js/modal-esc.js?v=202611120855"></script>
+    <script type="module" src="js/ship.js?v=202611120855"></script>
+    <script type="module" src="js/page-gate.js?v=202611120855" data-perm-page="ship.platform"></script>
+    <script type="module" src="js/app-shell.js?v=202611120855"></script>
 </body>
 </html>

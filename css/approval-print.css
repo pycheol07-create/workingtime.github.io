@@ -33,6 +33,10 @@
 /* 결재선(2026-11-05) — 작성 화면 줄 고르기 · 목록 글 · 보기 화면 진행 */
 .ap-line { display: flex; flex-direction: column; gap: 6px; }
 .ap-line-row { display: flex; align-items: center; gap: 8px; }
+/* 외출 — 발생 시각 시작 ~ 종료(2026-11-12) */
+.ap-range { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ap-range-end { display: inline-flex; align-items: center; gap: 8px; }
+.ap-range-end[hidden], .ap-range-note[hidden], .ap-range-req[hidden] { display: none; }
 .ap-line-row select.pd-in { flex: 1 1 auto; min-width: 0; }
 .ap-line-n { flex: none; width: 30px; font-size: 12.5px; font-weight: 600; color: var(--c-text-2); }
 .ap-line-who.is-now { font-weight: 700; }
