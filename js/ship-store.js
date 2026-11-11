@@ -9,8 +9,8 @@
 //   — ship-tx 도 enabled !== true 면 멈춘다(두 겹).
 import { doc, getDoc, getDocs, collection, runTransaction, setDoc, Timestamp, FieldPath, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { pushLocationWith, recordPacksWith } from './lib/ship-tx.js?v=202611102106';
-import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611102106';
+import { pushLocationWith, recordPacksWith } from './lib/ship-tx.js?v=202611111506';
+import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611111506';
 
 const FS = { doc, getDocs, collection, runTransaction, Timestamp, FieldPath, deleteField };
 const settingsRef = (db) => doc(db, ...SETTINGS_PATH);

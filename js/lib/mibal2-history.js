@@ -13,10 +13,10 @@
 //   autoHistoryPlan  서버 한 회차 판정 → { action:'write'|'skip', reason, recs, patch, stats }
 //   reviveTs         서버가 보낸 시각 표시 {$ts: ms} → toMillis 를 가진 값(fallbackOf 가 서버 시각으로 읽게)
 // 상품명·공급처·원가는 결과(recs·stats)에 넣지 않는다 — 출고일·입고일·숫자만.
-import { computeRows, buildLocIndex, listShipDates, graceDaysFrom } from './mibal2-rows.js?v=202611102106';
-import { historyGroupsOf, historyRecordsOf, hasHistoryToday, mibalTotalsOf, isoDay } from './mibal2-live.js?v=202611102106';
-import { fallbackOf, modesOf } from './mibal2-fallback.js?v=202611102106';
-import { MIBAL2_LIVE } from './mibal2-mode.js?v=202611102106';
+import { computeRows, buildLocIndex, listShipDates, graceDaysFrom } from './mibal2-rows.js?v=202611111506';
+import { historyGroupsOf, historyRecordsOf, hasHistoryToday, mibalTotalsOf, isoDay } from './mibal2-live.js?v=202611111506';
+import { fallbackOf, modesOf } from './mibal2-fallback.js?v=202611111506';
+import { MIBAL2_LIVE } from './mibal2-mode.js?v=202611111506';
 
 /** Firestore Timestamp / Date / 숫자(ms) / 날짜 글자 → ms (없으면 0) — 화면 tsMs 와 같다 */
 export function tsMs(v) {

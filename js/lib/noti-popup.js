@@ -5,7 +5,8 @@
 //     id 만 남긴다(이름·알림 내용은 남기지 않는다).
 //   - 봇(업무마감봇·업무예상알림 — Playwright)은 navigator.webdriver 가 true 다. 그때는 자동으로 띄우지 않는다
 //     (가운데 창이 버튼을 가려 봇이 멈춘다).
-// ※ 의존성 없음 — node --test 로 시험한다(tests/noti-popup.test.js).
+// ※ 의존성은 순수 파일(approval-noti.js)뿐 — node --test 로 시험한다(tests/noti-popup.test.js).
+import { NOTI_TYPE as APPROVAL_TYPE, MSG_TO_APPROVER, MSG_TO_CC, MSG_TO_AUTHOR } from './approval-noti.js?v=202611111506';
 
 export const DISMISS_KEY = 'noti.dismissed.v1';
 export const DISMISS_MAX = 100;
@@ -71,12 +72,36 @@ export function pickPopup(list, dismissed) {
 }
 
 // 알림 type → 눌렀을 때 갈 화면. 고정 표만 쓴다 — 문서에 적힌 임의 주소로 보내지 않는다.
-const NOTI_LINKS = { supplies: 'supplies.html#alerts' };
+const NOTI_LINKS = {
+    supplies: { href: 'supplies.html#alerts', label: '비품 관리로 이동' }
+};
+// 기안서(2026-11-11) — 알림 문서에 기안서 id 를 넣지 않으므로(전 직원이 읽는 컬렉션) 문구로 탭만 고른다.
+//   문구는 js/lib/approval-noti.js 와 같아야 한다(시험 tests/noti-popup.test.js). 모르는 문구는 기안서 첫 화면.
+const APPROVAL_TABS = [
+    { msg: MSG_TO_APPROVER, href: 'approval.html#todo', label: '결재할 문서로 이동' },
+    { msg: MSG_TO_CC,       href: 'approval.html#cc',   label: '참조 문서로 이동' },
+    { msg: MSG_TO_AUTHOR,   href: 'approval.html#mine', label: '내 기안으로 이동' }
+];
+
+function linkOf(n) {
+    const t = n && n.type;
+    if (t === APPROVAL_TYPE) {
+        const m = APPROVAL_TABS.find(x => x.msg === n.message);
+        return m ? { href: m.href, label: m.label } : { href: 'approval.html', label: '기안서로 이동' };
+    }
+    return typeof t === 'string' && Object.prototype.hasOwnProperty.call(NOTI_LINKS, t) ? NOTI_LINKS[t] : undefined;
+}
 
 /** 이 알림을 눌렀을 때 갈 주소. 표에 없는 type 이면 undefined. */
 export function notiLink(n) {
-    const t = n && n.type;
-    return typeof t === 'string' && Object.prototype.hasOwnProperty.call(NOTI_LINKS, t) ? NOTI_LINKS[t] : undefined;
+    const l = linkOf(n);
+    return l ? l.href : undefined;
+}
+
+/** 이동 버튼 글자(notiLink 가 있을 때만). */
+export function notiLinkLabel(n) {
+    const l = linkOf(n);
+    return l ? l.label : undefined;
 }
 
 /** 알림 목록 정렬 — 안 읽은 것 위로, 그 안에서 최신순(원본은 그대로 둔다). */
@@ -88,7 +113,7 @@ export function sortUnreadFirst(list) {
 // 다른 창이 열려 있는지 — js/modal-esc.js 의 '모달' 판정과 같은 규칙(fixed inset-0 + justify-center, .modal-overlay,
 // data-esc-modal) + 확인창(role=dialog/alertdialog, aria-modal) + 셸의 서랍·빠른 이동·알림 팝업(섀도 DOM 호스트 태그).
 const MODAL_SELECTOR = '.fixed.inset-0, .modal-overlay, [data-esc-modal], [role="dialog"], [role="alertdialog"], [aria-modal="true"], '
-    + 'app-shell-overlay, app-shell-palette, app-shell-noti-pop';
+    + 'app-shell-overlay, app-shell-palette, app-shell-noti-pop, app-shell-noti-panel';
 
 function isCandidate(el) {
     const tag = String(el.tagName || '').toLowerCase();

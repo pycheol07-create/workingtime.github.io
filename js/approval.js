@@ -19,19 +19,19 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611102106';
+import { initializeFirebase } from './config.js?v=202611111506';
 import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611102106';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611102106';
-import { memberNameFor } from './app-shell-data.js?v=202611102106';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611111506';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611111506';
+import { memberNameFor } from './app-shell-data.js?v=202611111506';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
     tardyPrefill, printFitLevel, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
     checkAttach, attachPath, attachMeta, fmtBytes, ATTACH_MAX, ATTACH_ACCEPT, attachTypeOf,
     ATTACH_AFTER_TOTAL, afterAttachMeta, splitAttachments, afterPrintText,
     CC_MAX, ccsOf, inCc, checkCcs, ccCandidates,
-    approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes } from './lib/approval-logic.js?v=202611102106';
-import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC } from './lib/approval-noti.js?v=202611102106';
+    approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes } from './lib/approval-logic.js?v=202611111506';
+import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC } from './lib/approval-noti.js?v=202611111506';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -228,6 +228,13 @@ function route() {
     if (h.startsWith('new=')) return renderEditor(main, { formId: h.slice(4) });
     if (h.startsWith('d=')) return renderView(main, h.slice(2));
     if (h.startsWith('e=')) return renderEditor(main, { id: h.slice(2) });
+    // 알림에서 바로 탭으로(2026-11-11, js/lib/noti-popup.js) — 그 탭이 없으면 renderList 가 '내 기안'으로 돌린다
+    // 한 번 쓰고 주소에서 지운다 — 남아 있으면 [새로고침]·뒤로가기 때 사용자가 고른 탭을 다시 덮는다(hashchange 는 안 일어난다)
+    if (h === 'todo' || h === 'cc' || h === 'mine') {
+        S.scope = h; S.filter = h === 'todo' ? 'submitted' : 'all';
+        history.replaceState(history.state, '', location.pathname + location.search);
+        shownHash = '';
+    }
     renderList(main);
 }
 
@@ -271,6 +278,7 @@ function renderList(main) {
     const ccList = S.docs.filter(d => d.status !== 'draft' && inCc(d, S.email));   // 참조 탭은 참조 문서가 있을 때만
     if (S.scope === 'cc' && !ccList.length) S.scope = 'mine';
     const showTodo = S.isAdmin || todo.length > 0 || approverCandidates(S.cfg, '', '').some(c => c.email === S.email);
+    if (S.scope === 'todo' && !showTodo) S.scope = 'mine';   // 알림 링크(#todo)로 왔는데 결재 권한이 없어진 경우
     const base = S.scope === 'all' ? S.docs : S.scope === 'todo' ? todo : S.scope === 'cc' ? ccList : mine;
     const count = (st) => base.filter(d => st === 'all' || d.status === st).length;
     const rows = base.filter(d => S.filter === 'all' || d.status === S.filter);
@@ -1155,6 +1163,7 @@ async function checkUser(user) {
 }
 
 let startedUid = null;
+let shownHash = '';   // 지금 그린 주소 해시(이동이 막히면 되돌릴 곳) — route() 가 알림 탭 해시를 지울 때도 맞춘다
 async function start(user) {
     startedUid = user.uid;
     S.email = lower(user.email);
@@ -1176,7 +1185,7 @@ async function start(user) {
     });
     $('ap-refresh').addEventListener('click', () => { if (okLeave()) refresh(); });
     $('ap-new').addEventListener('click', () => { if (okLeave()) location.hash = 'new'; });
-    let shownHash = location.hash;
+    shownHash = location.hash;
     window.addEventListener('hashchange', () => {
         if (!okLeave()) { history.pushState(null, '', shownHash || location.pathname + location.search); return; }
         shownHash = location.hash;
