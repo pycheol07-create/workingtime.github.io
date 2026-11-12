@@ -1,39 +1,34 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202611120950'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202611121346'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc as _setDoc, getDoc, getDocFromServer, updateDoc as _updateDoc, deleteField, collection, getDocs, writeBatch as _writeBatch, deleteDoc as _deleteDoc, onSnapshot, query, where, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202611120950';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611120950';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611120950';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611120950'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611120950';
-import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611120950'; // 입고 오차(2026-10-27)
-import { initPageNav } from './page-nav.js?v=202611120950';
-import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611120950'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { cleanRows } from './lib/sensitive-cols.js?v=202611121346';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611121346';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611121346';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611121346'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611121346';
+import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611121346'; // 입고 오차(2026-10-27)
+import { initPageNav } from './page-nav.js?v=202611121346';
+import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611121346'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
 let emptyFill = emptyFillOf(null);   // CONFIG.emptyFill(관리자가 [미발수량 공식 설정]에서 바꿈) — 없으면 기본 10%/50%
-import { confirmedOf } from './lib/scan-link.js?v=202611120950'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
-import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611120950'; // 입고확인 수동 수정(2026-11-04)
-import { readServerInboundMany, writeInboundFix as _writeInboundFix } from './inbound-fix-write.js?v=202611120950';
-import { isMibal2Live } from './lib/mibal2-mode.js?v=202611120950';
-import { stockLogFresh } from './lib/mibal2-fallback.js?v=202611120950'; // 비상 스위치(2026-11-10) — 판정 규칙
-import { readFallback, watchFallback, unknownWhy } from './mibal2-fallback-watch.js?v=202611120950'; // 비상 스위치 읽기(쓰기 없음)
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611120950';
-import { friendlyFirebaseError } from './utils.js?v=202611120950';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611120950';
-import { setShellContext } from './app-shell-bridge.js?v=202611120950';
-import { memberNameFor } from './app-shell-data.js?v=202611120950';
-import { createUploadStatus } from './busy-banner.js?v=202611120950';
+import { confirmedOf } from './lib/scan-link.js?v=202611121346'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611121346'; // 입고확인 수동 수정(2026-11-04)
+import { readServerInboundMany, writeInboundFix as _writeInboundFix } from './inbound-fix-write.js?v=202611121346';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202611121346';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611121346';
+import { friendlyFirebaseError } from './utils.js?v=202611121346';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611121346';
+import { setShellContext } from './app-shell-bridge.js?v=202611121346';
+import { memberNameFor } from './app-shell-data.js?v=202611121346';
+import { createUploadStatus } from './busy-banner.js?v=202611121346';
 
 const { db, auth } = initializeFirebase();
 // [2026-11-09] 신규 부족수량관리 단독 운영(live) 때 이 화면은 조회 전용 — 조회·필터·정렬·엑셀 받기만 된다(시험 때는 아무것도 바뀌지 않음).
 //   1) 버튼 끔(READ_ONLY_IDS·아래 클릭 가로채기) 2) 쓰기 함수 입구(guardRetired·guardRetiredHeavy·retiredSync 등) 3) Firestore 쓰기 함수 자체(아래 setDoc 등). 앱 쪽 차단이다 — firestore.rules 는 그대로.
-// [2026-11-10] 비상 스위치(사용자 결정) — 단독 운영이면 조회 전용으로 시작하고, init() 맨 앞 decideOldMode() 가 스위치를 서버에서 읽어
-//   '켜짐'(관리자가 신규 화면에서 비상 전환)일 때만 쓰기를 연다. 모르면(못 읽음·모양 틀림) 조회 전용. 규칙: js/lib/mibal2-fallback.js
-const OLD_LIVE_CONST = isMibal2Live();
-let OLD_READ_ONLY = isMibal2Live();
-let _fbDecided = !OLD_LIVE_CONST;   // 스위치 판정을 마쳤나(그 전에는 조회 전용 화면 장치를 설치하지 않는다 — 클릭 가로채기는 떼지 못함)
+// [2026-11-12] 비상 스위치(2026-11-10, mibal2/fallback)는 사용자 지시로 없앴다 — 단독 운영 동안 이 화면은 늘 조회 전용(init 맨 앞에서 applyReadOnlyUI).
+const OLD_READ_ONLY = isMibal2Live();
 const READ_ONLY_MSG = '조회 전용 — 작업은 신규 화면에서 하세요';
 const readOnlyError = () => Object.assign(new Error(READ_ONLY_MSG), { code: 'read-only' });
 const setDoc = (...a) => (OLD_READ_ONLY ? Promise.reject(readOnlyError()) : _setDoc(...a));
@@ -46,7 +41,7 @@ const READ_ONLY_IDS = ['btn-scan-lock', 'btn-scan-unlock', 'btn-mibal-send', 'bt
     'btn-barcode-alias-clear', 'btn-ba-add', 'btn-locmap-clear', 'btn-locmap-add', 'chk-newloc-front', 'upload-stock-log', 'upload-existing-loc', 'upload-barcode-alias', 'upload-location-map'];
 const READ_ONLY_SELECTOR = [...READ_ONLY_IDS.map(id => '#' + id), '.lm-edit', '.lm-del', '.lm-save', '.locmap-edit', '.locmap-del', '.ba-edit', '.ba-del', '.ver-rollback-btn', '.mibal-var-del'].join(',');
 function applyReadOnlyUI() {
-    if (!OLD_READ_ONLY || !_fbDecided) return;   // 판정 전에는 쓰기 함수 덮개만으로 막는다(아래 decideOldMode 가 판정 뒤 부름)
+    if (!OLD_READ_ONLY) return;
     READ_ONLY_IDS.forEach(id => {
         const el = document.getElementById(id); if (!el) return;
         el.disabled = true; el.title = '신규 화면에서 하세요';
@@ -65,118 +60,6 @@ function applyReadOnlyUI() {
     const stop = (e) => { if (e.target.closest && e.target.closest(READ_ONLY_SELECTOR)) { e.preventDefault(); e.stopImmediatePropagation(); showToast(READ_ONLY_MSG); } };
     document.addEventListener('click', stop, true);
     document.addEventListener('change', stop, true);
-}
-// ── 비상 스위치(2026-11-10) ── 켜짐 = 이 화면이 쓴다(신규는 조회 전용) · 꺼짐(평소)·모름 = 조회 전용
-//   켜져도 미발재고로그를 전환 시각(atMs) 뒤에 올리기 전에는 스캐너 자료(ScanDB)를 쓰지 않는다(fbHoldSync).
-//   꺼지면(또는 모르게 되면) 진행 중 작업(동기화·처리 중 표시)이 끝난 뒤 조회 전용으로 — 최대 60초 기다림.
-let _fbOn = false;          // 이 탭이 비상 전환으로 쓰기 가능(열 때 서버에서 읽은 '켜짐')
-let _fbAtMs = 0;            // 전환 시각
-let _fbShips = [];          // 신규 화면 작업 출고일
-let _fbStopping = false;    // 되돌아가 멈추는 중(진행 중 작업을 기다림)
-let _fbStockLogMs = 0;      // 미발재고로그 CHUNK updatedAt 최댓값(loadStockLogFromFirebase·업로드)
-let _fbStockLogSrvMs = 0;   // 미발재고로그 CHUNK savedAt(서버 시각) 최댓값 — 있으면 스위치 atTs(서버 시각)와 비교(PC 시계가 달라도 맞게)
-let _fbAtSrvMs = 0;         // 전환 서버 시각(스위치 atTs)
-let _fbUploaded = false;    // 이 탭에서 전환 뒤 미발재고로그를 올렸다(대기 풀림)
-const _fbMs = (v) => (!v ? 0 : typeof v.toMillis === 'function' ? v.toMillis() : v instanceof Date ? v.getTime() : (typeof v === 'number' ? v : 0));
-const _fbMD = (s) => { const p = String(s || '').split('-'); return p.length === 3 ? `${+p[1]}.${+p[2]}` : String(s || ''); };
-/** 스캐너 자료 동기화를 쉬어야 하나 — 되돌아가 멈추는 중이거나, 전환 뒤 미발재고로그를 아직 안 올림 */
-function fbHoldSync() { return _fbStopping || (_fbOn && !_fbUploaded && !stockLogFresh({ clientMs: [_fbStockLogMs], serverMs: [_fbStockLogSrvMs] }, { atMs: _fbAtMs, atServerMs: _fbAtSrvMs })); }
-function fbBanner(text, btnText) {
-    let el = document.getElementById('fallback-banner');
-    if (!el) {
-        el = document.createElement('div');
-        el.id = 'fallback-banner';
-        el.setAttribute('role', 'status');
-        el.style.cssText = 'background:var(--c-risk-bg,#fdecec);color:var(--c-risk-text,#9b1c1c);border-bottom:1px solid var(--c-line,#ddd);text-align:center;font-weight:600;font-size:13px;padding:6px 10px;';
-        document.body.prepend(el);
-    }
-    el.textContent = text + ' ';
-    if (btnText) {
-        const b = document.createElement('button');
-        b.type = 'button'; b.id = 'btn-fallback-reload'; b.className = 'd-btn d-btn-sm'; b.textContent = btnText;
-        b.addEventListener('click', () => location.reload());
-        el.appendChild(b);
-    }
-    el.hidden = false;
-}
-function fbHideBanner() { const el = document.getElementById('fallback-banner'); if (el) el.hidden = true; }
-function fbRenderBanner() {
-    if (!_fbOn || _fbStopping) return;
-    const ships = _fbShips.map(_fbMD).join(', ') || '없음';
-    const cur = (savedDatesMibal || []).map(_fbMD).join(', ') || '없음';
-    const text = fbHoldSync()
-        ? `비상 전환 중 — 이 화면에서 작업합니다 · 신규 작업 출고일 ${ships} / 지금 선택 ${cur} · 출고일을 맞춘 뒤 미발재고로그를 올리세요(올리기 전에는 스캐너에 쓰지 않습니다)`
-        : `비상 전환 중 — 이 화면에서 작업합니다 · 신규 작업 출고일 ${ships} / 지금 선택 ${cur} · 끝나면 관리자가 신규 화면에서 되돌립니다`;
-    const el = document.getElementById('fallback-banner');
-    if (!el || el.hidden || el.textContent.trim() !== text) fbBanner(text);
-}
-/** 로그인을 기다린다(최대 ms) — 못 기다리면 null */
-function fbWaitUser(ms) {
-    if (auth && auth.currentUser) return Promise.resolve(auth.currentUser);
-    if (!auth) return Promise.resolve(null);
-    return new Promise((res) => {
-        let done = false, off = () => {};
-        const t = setTimeout(() => { if (!done) { done = true; off(); res(null); } }, ms);
-        off = onAuthStateChanged(auth, (u) => { if (u && !done) { done = true; clearTimeout(t); setTimeout(() => off(), 0); res(u); } });
-    });
-}
-/** init() 맨 앞 — 스위치를 서버에서 읽어 이 탭의 쓰기 여부를 정한다(자동 동기화·버튼 설치·자료 읽기보다 먼저) */
-async function decideOldMode() {
-    if (!OLD_LIVE_CONST) return;   // 단독 운영 전(상수 꺼짐) — 스위치를 보지 않고 예전처럼 쓴다
-    const user = await fbWaitUser(15000);
-    const fb = user ? await readFallback(db, { timeoutMs: 8000 }) : { known: false, on: false, atMs: 0, ships: [] };
-    if (fb.known && fb.on) {
-        OLD_READ_ONLY = false;
-        _fbOn = true; _fbAtMs = fb.atMs; _fbAtSrvMs = fb.atServerMs || 0; _fbShips = (fb.ships || []).slice();
-        pageLocked = (() => { try { return localStorage.getItem(SCAN_LOCK_KEY) === '1'; } catch (e) { return false; } })();   // 맨 위에서는 조회 전용이라 계산하지 않았다
-    }
-    _fbDecided = true;
-    if (OLD_READ_ONLY) {
-        applyReadOnlyUI();
-        if (!fb.known) fbBanner(unknownWhy(fb) + ' 조회 전용입니다' + (fb.badShape ? ' — 관리자에게 알려 주세요' : ''), '다시 확인');
-    } else {
-        fbRenderBanner();
-        setInterval(fbRenderBanner, 3000);   // 지금 선택 출고일·업로드 대기 표시
-    }
-    if (user) watchFallback(db, fbOnChange);
-}
-function fbOnChange(f, meta) {
-    const cache = !!(meta && meta.fromCache);
-    if (_fbOn) {
-        if (_fbStopping) return;
-        if (f.known && f.on && f.atMs === _fbAtMs) { _fbShips = (f.ships || []).slice(); return; }
-        if (cache && f.known) return;   // 캐시 값으로는 판단하지 않는다(서버 확인을 기다림)
-        fbStopWriting(f);
-        return;
-    }
-    if (!OLD_READ_ONLY) return;
-    if (!f.known) fbBanner(unknownWhy(f) + ' 조회 전용입니다' + (f.badShape ? ' — 관리자에게 알려 주세요' : ''), '다시 확인');
-    else if (f.on && !cache) fbBanner('비상 전환됨 — 새로고침하면 이 화면에서 쓸 수 있습니다', '새로고침');
-    else if (!f.on) fbHideBanner();
-}
-/** 되돌아감(또는 모름·연결 끊김) — 새 작업은 바로 막고(_fbStopping — 동기화·업로드·되돌리기·입고확인 저장 입구),
- *  진행 중 작업을 끝까지 하게 기다린 뒤 조회 전용으로. 처리 중 표시는 최대 60초, 스캐너 동기화(ScanDB 지우고 다시 씀)는 끝날 때까지(끊지 않음) */
-async function fbStopWriting(f) {
-    _fbStopping = true;
-    clearTimeout(scanDbSyncTimer);
-    fbBanner('신규 화면으로 돌아갑니다 — 진행 중인 작업이 끝나면 조회 전용이 됩니다(새 작업은 하지 않습니다)');
-    const busy = () => scanDbSyncing || _guardBusy || _fixBusy || (document.getElementById('loading-overlay') || {}).style?.display === 'flex';
-    let w = 0;
-    while (busy() && w < 60000) { await sleep(300); w += 300; }
-    if (scanDbSyncing) {
-        fbBanner('신규 화면으로 돌아갑니다 — 스캐너 동기화가 아직 끝나지 않아 기다리는 중입니다(중간에 끊으면 스캐너 자료가 비므로 끊지 않습니다)');
-        while (scanDbSyncing) await sleep(500);
-    }
-    clearTimeout(scanDbSyncTimer);
-    OLD_READ_ONLY = true;
-    _fbOn = false;
-    pageLocked = false;
-    applyScanLockUI();   // 잠금 가림막·새로고침 경고를 풀고 조회 전용 장치(applyReadOnlyUI)를 설치
-    pendingFix = {};     // 저장 안 한 입고확인 대기는 버리고, 이미 그려진 입고확인 칸도 편집을 끈다(다시 그림)
-    renderTable(); updateFixBar();
-    _fbStopping = false;
-    if (!f.known) fbBanner(unknownWhy(f) + ' 조회 전용으로 바꿨습니다' + (f.badShape ? ' — 관리자에게 알려 주세요' : ' — 연결을 확인한 뒤 새로고침하세요'), '다시 확인');
-    else fbBanner(f.on ? '비상 스위치가 다시 바뀌었습니다 — 조회 전용(새로고침해서 확인하세요)' : '신규 화면으로 돌아갔습니다 — 조회 전용(작업은 신규 화면에서 하세요)', f.on ? '새로고침' : null);
 }
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const CONFIG_DOC = 'CONFIG';
@@ -1800,7 +1683,7 @@ async function saveChunkedData(rows, collectionSuffix, onProgress) {
     for (let i = 0; i < validRows.length; i += CHUNK_SIZE) {
         const chunk = validRows.slice(i, i + CHUNK_SIZE);
         const docRef = doc(db, collectionName, `CHUNK_${chunkCount}`);
-        batch.set(docRef, { dataStr: JSON.stringify(chunk), updatedAt: new Date(), savedAt: serverTimestamp() }); // savedAt = 서버 시각(비상 스위치 '전환 뒤 올렸나' 판정, 2026-11-10)
+        batch.set(docRef, { dataStr: JSON.stringify(chunk), updatedAt: new Date(), savedAt: serverTimestamp() }); // savedAt = 서버 시각(2026-11-10 — 기록용)
         chunkCount++;
         if (onProgress) onProgress(`💾 저장 중... (${Math.min(i + CHUNK_SIZE, validRows.length)}/${validRows.length})`);
     }
@@ -1878,7 +1761,6 @@ function handleStockLogUpload(e) {
             showToast(`✅ 미발재고 저장 완료 (바코드≠상품코드 ${Object.keys(bcMap).length}건 매핑)${_secNote}`);
             if (tableData.length > 0) applyDates();
             _stockLogStatus.end(true);   // 자료 저장(StockLog·바코드 매핑) 성공 기준
-            if (_fbOn) { _fbUploaded = true; fbRenderBanner(); }   // 비상 전환: 전환 뒤 올렸다 → 스캐너 동기화 대기를 푼다(아래 동기화)
             await saveScanDBVersionOnUpload(file.name); // [Ver 8.94] 업로드마다 순수 미발 버전 자동 저장
 
         } catch (err) { 
@@ -2210,7 +2092,6 @@ async function guardRetired() {
 let _guardBusy = false;
 async function guardRetiredHeavy() {
     if (OLD_READ_ONLY) { showToast(READ_ONLY_MSG); return true; }
-    if (_fbStopping) { showToast('⏳ 신규 화면으로 돌아가는 중 — 새 작업은 하지 않습니다'); return true; }   // [2026-11-10] 비상 스위치 되돌림
     if (_retiredGoing) return true;
     if (_guardBusy) { showToast('⏳ 처리 중입니다 — 잠시 기다려 주세요'); return true; }
     _guardBusy = true;
@@ -2237,7 +2118,6 @@ async function syncScanDBCore() {
         err.retired = true;
         throw err;
     }
-    if (fbHoldSync()) { const err = new Error('비상 전환 — 미발재고로그를 올린 뒤 스캐너 자료를 씁니다'); err.fbHold = true; throw err; }   // [2026-11-10] 지우기 전에 멈춤
     const existing = await getDocs(collection(db, SCAN_DB_COLL));
     if (existing.size > 0) {
         const delBatch = writeBatch(db);
@@ -2270,7 +2150,6 @@ let scanDbSyncPending = false;
 
 function scheduleScanDBSync() {
     if (OLD_READ_ONLY) return;   // 단독 운영(live) — 표를 그려도 스캐너 자료를 다시 쓰지 않는다
-    if (fbHoldSync()) return;    // [2026-11-10] 비상 전환 — 미발재고로그를 전환 뒤에 올리기 전·되돌아가 멈추는 중
     if (pageLocked) return; // [Ver 8.92] 스캔 잠금 중엔 ScanDB 동기화(삭제→재작성) 금지 → 새로고침돼도 ScanDB 보호
     if (!tableData || tableData.length === 0) return;
     clearTimeout(scanDbSyncTimer);
@@ -2279,7 +2158,7 @@ function scheduleScanDBSync() {
 
 async function runScanDBSync() {
     if (pageLocked) return; // [Ver 8.92] 잠금 중 예약분이 남아있어도 실행 차단
-    if (OLD_READ_ONLY || fbHoldSync()) return; // [2026-11-10] 예약 뒤 조회 전용·비상 대기로 바뀜
+    if (OLD_READ_ONLY) return;
     if (scanDbSyncing) { scanDbSyncPending = true; return; }
     scanDbSyncing = true;
     try {
@@ -2321,7 +2200,6 @@ function applyScanLockUI() {
 //   초기 자동 동기화(1.5초 디바운스)가 끝나기 전에 눌러도, 여기서 직접 동기화를 완료하므로 빈/옛 ScanDB로 잠기지 않음.
 async function setScanLock(on) {
     if (OLD_READ_ONLY) return;
-    if (on && fbHoldSync()) { showToast('⏳ 비상 전환 — 미발재고로그를 올린 뒤 잠글 수 있습니다'); return; }
     const btn = document.getElementById('btn-scan-lock');
     if (on) {
         if (pageLocked) return; // 이미 잠김
@@ -2496,7 +2374,6 @@ async function clearAllData() {
     if (await guardRetiredHeavy()) return;   // [2026-10-28] 은퇴한 화면은 쓰지 않음
     closeAllMenus(); // '설정 ▾' 안에서 눌렀다(UX 개선 7번) — 메뉴를 닫고 확인창만 남긴다
     if (viewMode === 'location') { await clearLocationData(); return; } // 위치 초기화는 직원도 가능
-    if (_fbOn || _fbStopping) { alert('비상 전환 중에는 미발 초기화를 하지 않습니다(입고이력·미발재고로그는 신규 화면 작업에 이어 씁니다).\n작업 마감은 신규 화면으로 돌아간 뒤 [작업 마감]으로 하세요.'); return; }   // [2026-11-10]
     // (2026-10-16) 미발 초기화도 직원 사용 — 관리자 검사 제거. 옛 주석: 보안(2026-10-14): 미발 초기화(수동편집·미발재고로그·입고이력)는 관리자만
     // 지워지는 것을 건수로 보여 준다(이 화면이 지금 들고 있는 값 기준 — 비축창고는 위치지정모드에서만 받아 오므로 못 세면 '전체').
     const n = (o) => Object.keys(o || {}).length;
@@ -3129,7 +3006,7 @@ function cancelConfirmedBatch() {
     pendingFix = {};
     renderTable(); updateFixBar();
 }
-async function saveConfirmedBatch() { if (OLD_READ_ONLY) { showToast(READ_ONLY_MSG); return; } if (_fbStopping) { showToast('⏳ 신규 화면으로 돌아가는 중 — 입고확인은 신규 화면에서 고치세요'); return; }
+async function saveConfirmedBatch() { if (OLD_READ_ONLY) { showToast(READ_ONLY_MSG); return; }
     const codes = Object.keys(pendingFix);
     if (!codes.length || _fixBusy) return;
     if (await guardRetiredHeavy()) return;
@@ -3663,7 +3540,7 @@ function saveDatesQuiet() {
 }
 async function loadEditedCells() { const snap = await getDoc(doc(db, CHINA_COLLECTION, 'EDITED_CELLS')); if (snap.exists()) editedCells = snap.data().cells || {}; }
 async function saveEditedCells() { if (retiredSync()) return; await setDoc(doc(db, CHINA_COLLECTION, 'EDITED_CELLS'), { cells: editedCells }); }
-async function loadStockLogFromFirebase() { const snap = await getDocs(collection(db, CHINA_COLLECTION + '_StockLog')); snap.forEach(d => { _fbStockLogMs = Math.max(_fbStockLogMs, _fbMs(d.data().updatedAt)); _fbStockLogSrvMs = Math.max(_fbStockLogSrvMs, _fbMs(d.data().savedAt)); if(d.data().dataStr) cleanRows(JSON.parse(d.data().dataStr)).rows.forEach(r => { const c = (r['상품코드']||'').trim(); if(c) stockLogData[c] = r; }); }); }
+async function loadStockLogFromFirebase() { const snap = await getDocs(collection(db, CHINA_COLLECTION + '_StockLog')); snap.forEach(d => { if(d.data().dataStr) cleanRows(JSON.parse(d.data().dataStr)).rows.forEach(r => { const c = (r['상품코드']||'').trim(); if(c) stockLogData[c] = r; }); }); }
 
 // ---------------------------------------------------------
 // 이벤트 바인딩 (체크리스트 기반 완전 복원)
@@ -3924,8 +3801,8 @@ function setupEventListeners() {
 }
 
 async function init() {
-    setupMobileGate(); // [Ver 8.11] 모바일이면 입고앱 실행 안내 먼저 — 쓰기 없음이라 스위치 판정(로그인 최대 15초)을 기다리지 않는다
-    await decideOldMode(); // [2026-11-10] 비상 스위치 판정 — 자동 동기화·버튼·자료 읽기보다 먼저
+    setupMobileGate(); // [Ver 8.11] 모바일이면 입고앱 실행 안내 먼저 — 쓰기 없음
+    applyReadOnlyUI(); // 단독 운영이면 조회 전용 화면 장치 — 자동 동기화·버튼·자료 읽기보다 먼저(2026-11-12 비상 스위치 없앰)
     setupEventListeners();
     setupScanLock(); // [Ver 8.92] 스캔 잠금 버튼/오버레이 + 새로고침 복원
     loadInboundHistory();

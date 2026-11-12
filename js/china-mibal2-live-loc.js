@@ -9,14 +9,12 @@
 // 위치값 엑셀의 옵션추가항목1 원천 = 로케이션관리(Locations ZONE_*)의 rawData '옵션추가항목1' 칸 하나(공급처 등 다른 칸은 꺼내지 않음,
 //   앱\채우기자동화\수집.py opt1_from_fields 와 같은 순서). 마지막 업로드(locationStock/uploadStatus 의 끝난 시각)가 LOC_STALE_DAYS 일보다
 //   오래됐거나 모르면(업로드 중·실패 포함) 받기를 막는다.
-import { doc, getDoc, getDocs, setDoc as _setDoc, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { gated, run as gateRun, isFrozen } from './mibal2-gate.js?v=202611120950';
-import { buildLocIndex } from './lib/mibal2-rows.js?v=202611120950';
-import { locSourceOf, locFreshMsOf, locStaleReason } from './lib/mibal2-live.js?v=202611120950';
-import { locPartsArr, mergeCsvLocs } from './lib/loc-mode.js?v=202611120950';
-import { readSheetRowsAOA } from './china-mibal2-live-admin.js?v=202611120950';
+import { doc, getDoc, getDocs, setDoc, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { buildLocIndex } from './lib/mibal2-rows.js?v=202611121346';
+import { locSourceOf, locFreshMsOf, locStaleReason } from './lib/mibal2-live.js?v=202611121346';
+import { locPartsArr, mergeCsvLocs } from './lib/loc-mode.js?v=202611121346';
+import { readSheetRowsAOA } from './china-mibal2-live-admin.js?v=202611121346';
 
-const setDoc = gated(_setDoc);   // 비상 전환 중(조회 전용)이면 막는다(js/mibal2-gate.js)
 const CHINA = 'ChinaStockGoods';
 const NUM_LOC_SHARDS = 8;
 const UPLOAD_STATUS_PATH = 'artifacts/team-work-logger-v2/locationStock/uploadStatus';   // 로케이션관리 업로드 상태(js/location.js)
@@ -159,12 +157,6 @@ export function setupLiveLoc(ctx) {
         if (locTools) locTools.refresh();
     }
 
-    // 위치 쓰기(여러 샤드를 차례로 씀)는 gate 에 등록 — 도중에 비상 전환돼도 끝까지 쓴다. 멈춰 있으면 시작하지 않는다
-    async function writeOp(fn) {
-        if (isFrozen()) { showToast('⛔ 비상 전환 중 — 이 화면은 조회 전용입니다(기존 화면에서 작업하세요)'); return; }
-        return gateRun(fn);
-    }
-
     function attach(tools) {
         locTools = tools;
         const note = document.querySelector('#loc-panel .d-note');
@@ -180,10 +172,10 @@ export function setupLiveLoc(ctx) {
         file.type = 'file'; file.accept = '.xls,.xlsx,.csv,.html,.htm'; file.style.display = 'none';
         document.body.appendChild(file);
         if (up) up.addEventListener('click', () => file.click());
-        file.addEventListener('change', async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) await writeOp(() => uploadExisting(f)); });
-        $('btn-loc-off-reset')?.addEventListener('click', () => writeOp(resetAll));
-        $('btn-loc-off-clear')?.addEventListener('click', () => writeOp(clearExisting));
-        chk?.addEventListener('change', (e) => writeOp(() => setFront(!!e.target.checked)));
+        file.addEventListener('change', async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) await uploadExisting(f); });
+        $('btn-loc-off-reset')?.addEventListener('click', () => resetAll());
+        $('btn-loc-off-clear')?.addEventListener('click', () => clearExisting());
+        chk?.addEventListener('change', (e) => setFront(!!e.target.checked));
     }
 
     return { locOptions: { loadSource }, attach };

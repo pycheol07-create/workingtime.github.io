@@ -56,6 +56,72 @@
 .sp-help-body ol, .sp-help-body ul { margin: 0; padding-left: 22px; }
 .sp-help-body code { font-size: 12px; background: var(--c-track); padding: 1px 5px; border-radius: 4px; }
 
+/* 2026-11-12 화면 개선 — 흐름 표시줄 · 인식/처리 단계 · 칸 접기 · 결과 카드 · 경고 · 묶음 · 비교 */
+.sp-intake-default { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.sp-intake-default[hidden], .sp-intake-status[hidden] { display: none; }
+.sp-intake-status { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.sp-recog { font-size: 18px; font-weight: 700; color: var(--c-accent-deep); }
+.sp-recog:empty { display: none; }
+.sp-phase { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; font-size: 13px; }
+.sp-phase:empty { display: none; }
+.sp-phase li { padding: 4px 12px; border-radius: 999px; background: var(--c-track); color: var(--c-text-3); }
+.sp-phase li.is-done { background: var(--c-ok-soft); color: var(--c-ok-text); }
+.sp-phase li.is-now { background: var(--c-accent-soft); color: var(--c-accent-deep); font-weight: 700; }
+.sp-phase li + li::before { content: '→ '; color: var(--c-text-3); font-weight: 400; }
+
+.sp-flow { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+.sp-flow-step { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--c-line); color: var(--c-text-3); background: var(--c-surface); }
+.sp-flow-step + .sp-flow-step::before { content: '→'; margin: 0 6px 0 -2px; color: var(--c-text-3); }
+.sp-flow-step small { font-size: 11px; color: var(--c-text-3); }
+.sp-flow-mark { font-weight: 700; }
+.sp-flow-step.is-done { color: var(--c-ok-text); background: var(--c-ok-soft); border-color: transparent; }
+.sp-flow-step.is-now { color: var(--c-accent-deep); background: var(--c-accent-soft); border-color: var(--c-accent); font-weight: 700; }
+.sp-flow-step.is-unknown { color: var(--c-text-3); border-style: dashed; }
+.sp-next { margin: 0; font-size: 16px; font-weight: 700; color: var(--c-text); line-height: 1.5; }
+.sp-next:empty { display: none; }
+
+.sp-fold { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--r-inner); background: var(--c-surface-2); font-size: 13px; color: var(--c-text-2); }
+.sp-fold[hidden], .sp-slots[hidden], .sp-drop-hint[hidden] { display: none; }
+.sp-fold-text { overflow-wrap: anywhere; }
+.sp-slot-sum { font-size: 12.5px; font-weight: 600; color: var(--c-accent-deep); }
+.sp-quick { padding: 8px 14px; border-radius: var(--r-sm); background: var(--c-warn-soft); color: var(--c-warn-text); font-size: 13px; font-weight: 700; }
+.sp-quick[hidden] { display: none; }
+.pd-alert.sp-chip { display: inline-block; width: fit-content; max-width: 100%; padding: 4px 12px; border-radius: 999px; font-size: 12px; line-height: 1.5; }
+
+.sp-adv summary { cursor: pointer; font-size: 13px; color: var(--c-text-2); }
+.sp-adv-body { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; margin-top: 10px; }
+.sp-run-why { font-size: 13px; color: var(--c-warn-text); font-weight: 600; }
+.sp-run-why:empty { display: none; }
+#sp-run.is-attention { box-shadow: 0 0 0 3px var(--c-accent-soft); animation: sp-pulse 1.2s ease-in-out 3; }
+@keyframes sp-pulse { 50% { box-shadow: 0 0 0 6px var(--c-accent-soft); } }
+@media (prefers-reduced-motion: reduce) { #sp-run.is-attention { animation: none; } }
+
+.sp-result-card[hidden] { display: none; }
+.sp-result-title { font-size: 17px; font-weight: 700; color: var(--c-text); line-height: 1.5; }
+.sp-result-title.is-ok { color: var(--c-ok-text); }
+.sp-result-title.is-fail { color: var(--c-risk-text); }
+.sp-result-title:empty { display: none; }
+.sp-warn { border-radius: var(--r-sm); padding: 10px 14px; background: var(--c-warn-soft); color: var(--c-warn-text); font-size: 13px; line-height: 1.6; }
+.sp-warn[hidden] { display: none; }
+.sp-warn ul { margin: 4px 0 0; padding-left: 20px; }
+.sp-batches { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.sp-batches[hidden] { display: none; }
+.sp-bat-t { width: 100%; border-collapse: collapse; }
+.sp-bat-t th { text-align: left; font-size: 12.5px; color: var(--c-text-2); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--c-line); }
+.sp-bat-t td { padding: 6px 8px; border-bottom: 1px solid var(--c-line-soft); }
+.sp-bat-t .n { text-align: right; font-variant-numeric: tabular-nums; }
+.sp-bat-t .x { text-align: right; width: 1%; white-space: nowrap; }
+.sp-bat-t tr.is-mine td { background: var(--c-accent-row); }
+.sp-compare summary { cursor: pointer; font-size: 13.5px; font-weight: 700; color: var(--c-text-2); }
+.sp-compare-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.sp-cmp-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.sp-cmp-col { border: 1px dashed var(--c-line-strong); border-radius: var(--r-inner); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.sp-cmp-file { display: flex; align-items: center; gap: 8px; justify-content: space-between; overflow-wrap: anywhere; }
+.sp-cmp-out { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.sp-cmp-out:empty { display: none; }
+.sp-cmp-pair ul { margin: 4px 0 0; padding-left: 20px; color: var(--c-text-2); }
+.sp-log-box summary { cursor: pointer; font-size: 13px; color: var(--c-text-2); margin-bottom: 8px; }
+
 .sp-modal-box { max-width: 640px; }
 .sp-rules { width: 100%; border-collapse: collapse; }
 .sp-rules th { text-align: left; font-size: 12.5px; color: var(--c-text-2); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--c-line); }
@@ -69,4 +135,6 @@
 @media (max-width: 768px) {
     .sp-slots { grid-template-columns: minmax(0, 1fr); }
     .sp-field input { width: 100%; }
+    .sp-result-card { order: -1; }   /* 휴대폰: 결과 카드를 맨 위로(.pd-main 은 flex 세로) */
+    .sp-next { font-size: 15px; }
 }

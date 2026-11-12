@@ -17,32 +17,29 @@
 //   화면을 열면 그날 1회 MIBAL_HISTORY(basis 'v2') — 아직 입고 안 된 패킹별 미발수량(업무예상)
 //   위치 쓰기(js/china-mibal2-live-loc.js) · 관리 창·적재량 편집(js/china-mibal2-live-admin.js)
 // 이메일은 어디에도 저장하지 않는다(기록자 = 직원 이름). 공급처 이름·원가 없음.
-import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc as _setDoc, writeBatch as _writeBatch, collection, query, orderBy, limit, startAfter, where, documentId, serverTimestamp, deleteField }
+import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writeBatch, collection, query, orderBy, limit, startAfter, where, documentId, serverTimestamp, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
-    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611120950';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611120950';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611120950';
-import { inboundSig } from './lib/inbound-fix.js?v=202611120950';
+    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611121346';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611121346';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611121346';
+import { inboundSig } from './lib/inbound-fix.js?v=202611121346';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
-    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611120950';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611120950';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611120950';
-import { gated, gatedBatch, run as gateRun, isFrozen } from './mibal2-gate.js?v=202611120950';
-import { needReapply, staleRollback } from './lib/mibal2-fallback.js?v=202611120950';
-import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611120950';
-import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611120950';
-import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611120950';
-import { setupScanBar } from './china-mibal2-bar.js?v=202611120950';
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611121346';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611121346';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611121346';
+import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611121346';
+import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611121346';
+import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611121346';
+import { setupScanBar } from './china-mibal2-bar.js?v=202611121346';
+import { mdhmPad } from './lib/mibal2-closed-view.js?v=202611121346';
 
-// 쓰기 덮개(비상 스위치, 2026-11-10) — 비상 전환 중(조회 전용)이면 막는다. 멈추기 전에 시작한 작업(guard 안)은 끝까지 한다(js/mibal2-gate.js)
-const setDoc = gated(_setDoc);
-const writeBatch = gatedBatch(_writeBatch);
-const FROZEN_MSG = '⛔ 비상 전환 중 — 이 화면은 조회 전용입니다(기존 화면에서 작업하세요)';
-// 비상 전환 때 끄는 버튼(쓰기). 받기·보기 버튼은 그대로
-const WRITE_BTN_IDS = ['btn-scan-off-sync', 'btn-scan-off-version', 'btn-scan-off-reset', 'btn-scan-off-diffrec', 'btn-live-barcode',
-    'btn-loc-off-upload', 'btn-loc-off-reset', 'btn-loc-off-clear', 'chk-loc-front'];
+// 마감된 작업(보관함)을 보는 동안 끄는 버튼 — 고른 출고일 기준으로 쓰는 것만(js/lib/mibal2-closed-view.js). 되돌리기·바코드·위치·관리는 그대로
+const CLOSED_BTN_IDS = ['btn-scan-off-sync', 'btn-scan-off-reset', 'btn-scan-off-diffrec'];
+const CLOSED_ERR_MSG = '보관함을 확인하지 못해 막았습니다(연결 확인 후 출고일을 다시 고르세요) — 아무것도 쓰지 않았습니다.';
+const CLOSED_MSG = '마감된 작업을 보는 중입니다 — 입고확인이 보관함 기록이라 반영·마감·입고 오차 기록을 하지 않습니다.\n'
+    + '진행 중인 출고일을 고르거나, 표 위 [지금 입고이력으로 보기]를 누른 뒤 하세요.';
 
 const CHINA = 'ChinaStockGoods';
 const SCANDB = CHINA + '_ScanDB';
@@ -97,7 +94,7 @@ export function startLive(ctx) {
         if (st) st.textContent = '스캐너 연동';
         const on = (id, text, title) => { const b = $(id); if (!b) return null; b.disabled = false; b.textContent = text; b.title = title; return b; };
         on('btn-scan-off-sync', '스캐너에 반영', '지금 표(선택 출고일)의 피킹 배정수량·도착을 스캐너 자료에 씁니다. 직전 값은 자동 백업됩니다')
-            ?.classList.add('d-btn-primary');
+            ?.classList.add('d-btn-primary', 'live-on');   // live-on — 꺼져도(마감된 작업 보기) 스캐너 연동 줄을 펼친 채(china-mibal2.html)
         on('btn-scan-off-version', '직전으로 되돌리기', '마지막 [스캐너에 반영] 직전의 스캐너 자료로 되돌립니다');
         on('btn-scan-off-reset', '작업 마감', '보관함에 저장하고 입고이력·비축창고를 비웁니다(다음 작업 준비)');
         on('btn-scan-off-diffrec', '입고 오차 기록', '선택한 출고일의 도착 − 입고확인을 기록합니다');
@@ -145,7 +142,7 @@ export function startLive(ctx) {
         $('btn-live-archive').addEventListener('click', () => openArchive());
         $('btn-live-admin').addEventListener('click', () => admin.open());
         // 입고용·미발확인은 다시 읽기(설정·출고일)를 하므로 다른 작업과 겹치지 않게 guard 안에서(비축창고 받기는 출고일과 무관 — 그대로)
-        $('btn-live-inbound-file').addEventListener('click', () => guard(() => download(downloadInboundFile), false));
+        $('btn-live-inbound-file').addEventListener('click', () => guard(() => download(downloadInboundFile)));
         $('btn-live-floor2-file').addEventListener('click', () => download(downloadFloor2File));
         const file = document.createElement('input');
         file.type = 'file'; file.accept = '.xls,.xlsx,.csv,.html,.htm'; file.style.display = 'none'; file.id = 'live-barcode-file';
@@ -154,16 +151,14 @@ export function startLive(ctx) {
         file.addEventListener('change', (e) => guard(() => uploadBarcodeMap(e)));
         renderBatchNote();
         // [⚙ 설정] 메뉴(모든 버튼) + [줄 편집](이 PC 에서 줄 구성·순서) — 버튼을 다 만든 뒤. 지금 줄 버튼 중 관리자 전용은 없다
-        //   ([관리] 창은 직원도 열고 안의 관리자 칸만 막는다 · 비상 스위치는 머리줄에 따로 — js/mibal2-fallback-switch.js)
+        //   ([관리] 창은 직원도 열고 안의 관리자 칸만 막는다)
         setupScanBar({ isAdmin: () => !!(ctx.isAdmin && ctx.isAdmin()), adminOnly: [], extraMenu: ['btn-open-scanner'] });
     }
 
-    // write = 쓰는 작업(비상 전환 중이면 시작하지 않음). 시작한 작업은 gate 에 등록돼 도중에 전환돼도 끝까지 한다
-    async function guard(fn, write = true) {
+    async function guard(fn) {
         if (busy) { showToast('⏳ 다른 작업을 처리하는 중입니다'); return; }
-        if (write && isFrozen()) { showToast(FROZEN_MSG); return; }
         busy = true;
-        try { await (write ? gateRun(fn) : fn()); }   // 쓰지 않는 작업(받기)은 gate 에 등록하지 않는다
+        try { await fn(); }
         catch (e) { setLoading(false); console.error('[mibal2-live]', e); alert('처리하지 못했습니다 — ' + errText(e)); }
         finally { busy = false; setLoading(false); }
     }
@@ -176,11 +171,20 @@ export function startLive(ctx) {
         if (!admin) { alert(text); return false; }
         return confirm(text);
     }
-    /** 확인창이 떠 있는 동안 비상 전환됐으면 쓰지 않고 멈춘다(true = 멈춤) */
-    function frozenNow() {
-        if (!isFrozen()) return false;
-        alert('확인하는 동안 비상 전환(기존 화면 작업)으로 바뀌었습니다 — 아무것도 쓰지 않았습니다.');
+    /** 지금 마감된 작업(보관함 값)을 보고 있나 — 그러면 고른 출고일 기준 쓰기(반영·마감·입고 오차)를 하지 않는다 */
+    const closedNow = () => !!(ctx.getClosedView && ctx.getClosedView());
+    /** 막아야 하면 알리고 true — 판정 전에 지금 설정·출고일로 다시 보고, 보관함을 읽는 중이면 기다린다(읽는 중이라 막는 일이 없게) */
+    async function closedStop() {
+        if (ctx.closedSettled) await ctx.closedSettled();
+        if (!closedNow()) return false;
+        alert(ctx.getClosedView() === 'error' ? CLOSED_ERR_MSG : CLOSED_MSG);
         return true;
+    }
+    /** [지금 입고이력으로 보기] 중(마감된 출고일을 다시 작업)이면 한 번 더 묻는다 — true = 계속 */
+    function overrideOk() {
+        const o = ctx.getClosedOverride && ctx.getClosedOverride();
+        if (!o) return true;
+        return confirm(`이 출고일은 이미 마감된 작업(번호 ${o.ids.join(', ')}, ${o.closedAtMs ? mdhmPad(o.closedAtMs) : '시각 모름'})입니다 — 새 작업으로 다시 합니까?\n\n[취소]를 누르면 아무것도 하지 않습니다.`);
     }
     function batchOf() { const s = ctx.getSettings(); return (s && s.batch && Array.isArray(s.batch.ships)) ? s.batch : null; }
     /** 이미 마감된 작업인데 작업 표시가 남은 것(마감 끝 설정 저장 실패 등)인가 — 그러면 새 작업으로 시작해야 한다 */
@@ -309,11 +313,14 @@ export function startLive(ctx) {
         const latest = ctx.getLatest();
         const okMs = latest ? tsMs(latest.lastOkAt) : 0;
         if (auto) {
-            const why = autoStopReason({ frozen: isFrozen(), pendingFix: ctx.pendingFixCount ? ctx.pendingFixCount() : 0,
+            if (ctx.closedSettled) await ctx.closedSettled();
+            const why = autoStopReason({ closed: closedNow(), pendingFix: ctx.pendingFixCount ? ctx.pendingFixCount() : 0,
                 parseError: ctx.getParseError ? ctx.getParseError() : '', datesChanged: !!fresh.datesChanged, dates, okMs, now: Date.now() });
             if (why) return stop(why);
         }
         if (fresh.datesChanged) { alert(DATES_CHANGED); return stop(''); }
+        if (!auto && await closedStop()) return stop('');
+        if (!auto && !overrideOk()) return stop('');
         if (!dates.length) { alert('출고일을 하나 이상 고르세요.'); return stop(''); }
         if (!okMs) { alert('수집 자료가 없어 반영할 수 없습니다. [지금 갱신]을 기다리세요.'); return stop(''); }
         if (isoDay(new Date(okMs)) !== isoDay() && !confirm(`⚠️ 수집 자료가 오늘 것이 아닙니다(${mdhm(okMs)}).\n재고·주문이 지금과 다를 수 있습니다. 그래도 반영할까요?`)) return stop('');
@@ -370,7 +377,6 @@ export function startLive(ctx) {
         }
         if (auto && sig2 !== fresh.sig) return stop('읽는 동안 다른 PC 에서 설정·적재량·작업 표시가 바뀌었습니다');
         if (sig2 !== fresh.sig) { alert(SHARED_CHANGED); return; }
-        if (auto ? isFrozen() : frozenNow()) return stop(autoStopReason({ frozen: true }));
         if (auto) {
             // 쓰기 직전 — 다른 탭·PC 가 막 반영해 작업을 시작했으면(탭 복제 등) 두 번 빼지 않게 멈춘다
             const sNow = await getDocFromServer(doc(db, SETTINGS_PATH));
@@ -383,7 +389,7 @@ export function startLive(ctx) {
         const ops = Object.keys(plan.sets).map(code => (bt) => bt.set(doc(db, SCANDB, code), { ...plan.sets[code], updatedAt: now }));
         plan.deletes.forEach(code => ops.push((bt) => bt.delete(doc(db, SCANDB, code))));
         await commitOps(ops);
-        // appliedTs = 서버 시각(비상 스위치 '되돌린 뒤 반영했나' 판정은 서버 시각끼리 — js/lib/mibal2-fallback.js needReapply). appliedAt 은 표시·옛 판정용
+        // appliedTs = 서버 시각(기록용) · appliedAt = PC 시각(표시·batchAlreadyClosed 판정)
         const batch = b ? { ...b, ships: dates, appliedAt: Date.now() } : { id: batchIdOf(now), ships: dates, startedAt: Date.now(), appliedAt: Date.now() };
         setLoading(false);
         if (await saveBatchSetting({ batch: { ...batch, appliedTs: serverTimestamp() } }, '스캐너 반영')) ctx.patchSettings({ batch });
@@ -397,7 +403,7 @@ export function startLive(ctx) {
     /** [지금 갱신] 완료 뒤 자동 반영(js/china-mibal2.js 가 이 PC 의 수동 요청이 성공으로 끝났을 때만 부른다) — 못 하면 이유 토스트 */
     async function autoApply() {
         const tell = (why) => showToast(autoStopText(why || '반영하지 못했습니다'), AUTO_TOAST_MS);
-        const pre = autoStopReason({ busy, frozen: isFrozen() });
+        const pre = autoStopReason({ busy, closed: closedNow() });
         if (pre) { tell(pre); return { ok: false, reason: pre }; }
         let r = null;
         await guard(async () => { r = await applyToScanner({ auto: true }); });   // 예외는 guard 가 기존 오류 안내
@@ -412,13 +418,10 @@ export function startLive(ctx) {
         setLoading(false);
         const v = snap.docs.map(d => ({ id: d.id, ...d.data() })).find(x => x.trigger === 'pre-apply');
         if (!v || !v.data) { alert('되돌릴 기록이 없습니다(오늘 [스캐너에 반영] 전 백업이 없음).'); return; }
-        // 비상 기간 전 백업이면 기존 화면이 그동안 쓴 스캐너 자료를 덮는다 — 한 번 더 묻는다
-        if (staleRollback(v.atMs, ctx.getFallback && ctx.getFallback()) && !confirm(`⚠ 이 백업(${mdhm(v.atMs)})은 비상 전환(기존 화면 작업) 전 자료입니다.\n되돌리면 비상 기간 전 자료로 돌아갑니다 — 그동안 기존 화면이 반영한 값이 사라집니다.\n\n그래도 되돌릴까요?`)) return;
         const ih = await readInbound();
         if (!recentScanOk(ih.lastMs, '되돌리는')) return;
         if (!confirm(`마지막 [스캐너에 반영] 직전(${mdhm(v.atMs)})으로 스캐너 자료를 되돌릴까요?\n\n상품 ${n(v.count)}개 · 미발 합 ${n(v.totalMibal)}\n`
             + '그 뒤 스캐너 입고로 줄어든 숫자도 그때 값으로 돌아갑니다. 지금 자료는 자동 백업합니다.')) return;
-        if (frozenNow()) return;
         setLoading(true, '되돌리는 중...');
         const cur = await readScanDb();
         await saveVersion(cur, 'pre-rollback', '되돌리기 직전 자동 백업');
@@ -467,6 +470,11 @@ export function startLive(ctx) {
 
     // ── [입고 오차 기록] (수동) ──
     async function recordDiffManual() {
+        const fresh = await reloadOrStop('입고 오차 기록');   // 반영·마감처럼 다른 PC 값(작업 표시·출고일)을 먼저 다시 읽는다
+        if (!fresh) return;
+        if (fresh.datesChanged) { alert(DATES_CHANGED); return; }
+        if (await closedStop()) return;
+        if (!overrideOk()) return;
         const dates = ctx.getSelectedDates();
         if (!dates.length) { alert('출고일을 하나 이상 선택하세요.'); return; }
         let rec;
@@ -490,7 +498,6 @@ export function startLive(ctx) {
             + `${n(t.n)}품목 · 도착 ${n(t.arr)} · 입고 ${n(t.conf)}\n${diffSummaryText(rec)}\n\n`
             + (rec.ships.length > 1 ? '여러 출고일을 함께 골랐으므로 묶음 1건으로 저장합니다.\n' : '')
             + '같은 출고일 기록이 있으면 덮어씁니다.')) return;
-        if (frozenNow()) return;
         setLoading(true, '입고 오차 기록 중...');
         try {
             const r = await writeInboundDiff(rec);
@@ -507,12 +514,9 @@ export function startLive(ctx) {
     async function closeWork() {
         const fresh = await reloadOrStop('작업 마감');
         if (!fresh) return;
+        if (await closedStop()) return;
+        if (!overrideOk()) return;
         const b = batchOf();
-        // 비상 기간(기존 화면 작업) 뒤 아직 [스캐너에 반영]을 안 한 작업 — 스캐너 자료가 이 작업과 다르다
-        if (needReapply(b, ctx.getFallback && ctx.getFallback())) {
-            alert('비상 전환에서 돌아온 뒤 아직 [스캐너에 반영]을 하지 않았습니다 — 마감하지 않았습니다.\n먼저 출고일을 확인하고 [스캐너에 반영]을 누른 뒤 [작업 마감]을 하세요.');
-            return;
-        }
         if (fresh.datesChanged && !b) { alert(DATES_CHANGED); return; }   // 작업 표시가 있으면 작업 출고일로 마감하므로 선택이 달라도 된다
         const ships = b ? b.ships.map(String) : ctx.getSelectedDates();
         if (!ships.length) { alert('마감할 작업이 없습니다(출고일 없음).'); return; }
@@ -578,7 +582,6 @@ export function startLive(ctx) {
             return;
         }
         if (sig2 !== fresh.sig) { alert(SHARED_CHANGED); return; }
-        if (frozenNow()) return;
         setLoading(true, '보관함에 저장 중...');
         const notes = [];
         if (!skipArch) {
@@ -807,7 +810,6 @@ export function startLive(ctx) {
         const cnt = Object.keys(r.map).length;
         if (!confirm(`스캐너 바코드 매핑을 이 파일로 바꿀까요?\n\n파일: 상품 ${n(r.rows)}행 · 바코드가 상품코드와 다른 것 ${n(cnt)}건\n지금 매핑: ${curCount === null ? '읽지 못함' : n(curCount) + '건'}\n\n`
             + '파일에 없는 바코드는 매핑에서 빠집니다(오류바코드 매칭은 그대로).')) return;
-        if (frozenNow()) return;
         setLoading(true, '바코드 매핑 저장 중...');
         await setDoc(doc(db, CHINA, 'BARCODE_MAP'), packMap(r.map));
         setLoading(false);
@@ -873,7 +875,7 @@ export function startLive(ctx) {
 
     // ── 업무예상용 미발 기록(화면을 열면 그날 1회) ──
     async function onLatest() {
-        if (historyDone || isFrozen()) return;   // 비상 전환 중(조회 전용)이면 기록하지 않는다
+        if (historyDone) return;
         const latest = ctx.getLatest();
         const okMs = latest ? tsMs(latest.lastOkAt) : 0;
         const today = isoDay();
@@ -894,19 +896,24 @@ export function startLive(ctx) {
         }
     }
 
-    /** 비상 전환(조회 전용)이면 쓰기 버튼을 끈다 — 다시 켜는 것은 새로고침 뒤(decorate 가 켬) */
-    function setFrozenUI(on) {
-        if (!on) return;
-        WRITE_BTN_IDS.forEach(id => { const b = $(id); if (b) { b.disabled = true; b.title = '비상 전환 중 — 조회 전용(기존 화면에서 작업)'; } });
+    /** 마감된 작업을 보는 동안 반영·마감·입고 오차 버튼을 끈다(on = false 면 되살림 — 원래 설명으로) */
+    const closedTitles = {};
+    function setClosedUI(on) {
+        CLOSED_BTN_IDS.forEach(id => {
+            const b = $(id); if (!b) return;
+            if (!(id in closedTitles)) closedTitles[id] = b.title;
+            b.disabled = !!on;
+            b.title = on ? '마감된 작업을 보는 중 — 진행 중인 출고일을 고르거나 [지금 입고이력으로 보기]를 누르세요' : closedTitles[id];
+        });
     }
 
     return {
         locOptions: loc.locOptions,
-        attachLoc: (tools) => { loc.attach(tools); if (isFrozen()) setFrozenUI(true); },
+        attachLoc: (tools) => loc.attach(tools),
         onLatest,
         onDates: renderBatchNote,
         autoApply,
         isBusy: () => busy,
-        setFrozenUI
+        setClosedUI
     };
 }

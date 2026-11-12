@@ -4,6 +4,10 @@
 // 흐름: 파일 칸에 끌어다 놓기·선택(여러 개를 한꺼번에 놓으면 js/lib/ship-assign.js 가 머리글로 칸을 정함)
 //       → [만들기] → js/lib/ship-*.js 로 계산·파일 만들기(이 브라우저 안에서만) → 결과 저장(js/lib/save-file.js — 폴더 한 번 고르기·안 되면 다운로드)
 //       → 2단계는 공용 설정 '전송 켬'일 때만 로케이션 실적·봉 수를 Firestore 에(js/ship-store.js).
+// 2026-11-12 화면 개선: 흐름 표시줄(js/lib/ship-flow.js) · 결과 카드·노란 경고(js/lib/ship-summary.js) · 칸 접기 ·
+//   같은 묶음 재실행 확인(js/lib/ship-made.js, localStorage) · exe 결과와 비교하기(js/lib/ship-compare.js) ·
+//   같은 날 여러 묶음 합산(js/lib/ship-batch.js — 전송 전 미리보기로 같은 묶음·고친 전표를 묻고, 결과 카드에서 묶음 빼기).
+//   진행 기록 문장은 그대로 두고(시험 tools/ship-check.py 가 기댄다) 새 정보는 화면 요소로 보여 준다.
 // 지킬 것
 //   · 엑셀 행 내용(상품코드·상품명·수량)은 화면 진행 기록에만 쓴다 — 콘솔·Firestore 로그에 남기지 않는다(콘솔은 오류 코드만).
 //   · 직진배송출고리스트 원본은 이 PC 의 IndexedDB 에만 기억한다(js/lib/ship-file-store.js) — 서버·Storage 금지.
@@ -12,23 +16,28 @@
 // 권한: 입장은 js/page-gate.js(ship.platform). 설정 저장·전송은 규칙이 막는다. 전송 켜기(transmit)는 관리자만.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611120950';
-import { emulatorEnabled } from './firebase-emulator.js?v=202611120950';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611120950';
-import { memberNameFor } from './app-shell-data.js?v=202611120950';
-import { friendlyFirebaseError } from './utils.js?v=202611120950';
-import { resolve, can } from './lib/perm.js?v=202611120950';
-import { readBook } from './lib/ship-read.js?v=202611120950';
-import { zikjinStep1, zikjinStep2, TEMPLATE_SHEETS } from './lib/ship-zikjin.js?v=202611120950';
-import { ablyStep1, ablyStep2 } from './lib/ship-ably.js?v=202611120950';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes } from './lib/ship-write.js?v=202611120950';
-import { pickingBytes } from './lib/ship-picking.js?v=202611120950';
-import { kstDay, baseDateWarning, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611120950';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611120950';
-import { openShipStore, fileRecord, isFileRecord, describeRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611120950';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611120950';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611120950';
-import { loadSettings, saveSettings, pushLocation, recordPacks } from './ship-store.js?v=202611120950';
+import { initializeFirebase } from './config.js?v=202611121346';
+import { emulatorEnabled } from './firebase-emulator.js?v=202611121346';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121346';
+import { memberNameFor } from './app-shell-data.js?v=202611121346';
+import { friendlyFirebaseError } from './utils.js?v=202611121346';
+import { resolve, can } from './lib/perm.js?v=202611121346';
+import { readBook } from './lib/ship-read.js?v=202611121346';
+import { zikjinStep1, zikjinStep2, TEMPLATE_SHEETS } from './lib/ship-zikjin.js?v=202611121346';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611121346';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes } from './lib/ship-write.js?v=202611121346';
+import { pickingBytes } from './lib/ship-picking.js?v=202611121346';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611121346';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611121346';
+import { openShipStore, fileRecord, isFileRecord, describeRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611121346';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611121346';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611121346';
+import { flowState, foldState, daysAgo, TEMPLATE_OLD_DAYS } from './lib/ship-flow.js?v=202611121346';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611121346';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611121346';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611121346';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611121346';
+import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch } from './ship-store.js?v=202611121346';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -40,25 +49,30 @@ const LIB = {
 };
 const ABLY_TEMPLATE_URL = 'assets/ship/엑셀_대량_입고_양식.xlsx';
 const TAB_LABEL = { zikjin: '직진배송', ably: '에이블리' };
+const SOURCE_LABEL = { ZG: '직진 일반', ZGF: '직진 즉시출고', AB: '에이블리 일반', ABF: '에이블리 즉시출고' };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const tick = () => new Promise(r => setTimeout(r, 30));
+const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+const PHASES = ['읽는 중', '계산 중', '저장 중', '전송 중'];
+const RECENT_TRANSMIT_MS = 7 * 86400000;   // 전송을 켠(설정 저장) 지 이만큼 안이면 'exe 로 또 보내지 마세요'
+const OVERLAP_ASK = 0.5;                    // 이만큼 겹치면 '고친 전표인가요?'
 
-// 칸 설명 — id 는 js/lib/ship-assign.js SLOTS 와 같다
+// 칸 설명 — id 는 js/lib/ship-assign.js SLOTS 와 같다. short = 접힌 줄(#sp-fold)에 쓰는 짧은 이름
 const SLOT_META = {
     zikjin: {
-        1: [{ id: 'request', title: 'GPM 출고요청', req: true, hint: "이름에 '직진배송'이 든 시트를 모두 읽습니다" }],
+        1: [{ id: 'request', title: 'GPM 출고요청', short: '출고요청', req: true, hint: "이름에 '직진배송'이 든 시트를 모두 읽습니다" }],
         2: [
-            { id: 'admin', title: '이지어드민 출고전표', req: true, hint: '1단계 파일을 이지어드민에 올린 뒤 받은 전표' },
-            { id: 'template', title: '직진배송출고리스트 원본', req: true, hint: '한 번 넣으면 이 PC 가 기억합니다' },
-            { id: 'request', title: '출고요청', req: false, hint: '1단계에서 자동 · 신상 코드 복구·일반/즉시출고 구분(없으면 전송·봉 수 안 함)' },
+            { id: 'admin', title: '이지어드민 출고전표', short: '출고전표', req: true, hint: '1단계 파일을 이지어드민에 올린 뒤 받은 전표' },
+            { id: 'template', title: '직진배송출고리스트 원본', short: '원본', req: true, hint: '한 번 넣으면 이 PC 가 기억합니다' },
+            { id: 'request', title: '출고요청', short: '출고요청', req: false, hint: '1단계에서 자동 · 신상 코드 복구·일반/즉시출고 구분(없으면 전송·봉 수 안 함)' },
         ],
     },
     ably: {
-        1: [{ id: 'request', title: '도착보장출고요청', req: true, hint: '2행 머리글 · 어드민상품코드 기준으로 합칩니다' }],
+        1: [{ id: 'request', title: '도착보장출고요청', short: '출고요청', req: true, hint: '2행 머리글 · 어드민상품코드 기준으로 합칩니다' }],
         2: [
-            { id: 'admin', title: '이지어드민 출고전표', req: true, hint: '실제 출고 수량' },
-            { id: 'request', title: '도착보장출고요청', req: true, hint: '1단계에서 자동 · SKU 매핑' },
-            { id: 'template', title: '대량입고 양식', req: false, hint: '앱에 들어 있음 — 다른 양식을 쓸 때만 넣으세요' },
+            { id: 'admin', title: '이지어드민 출고전표', short: '출고전표', req: true, hint: '실제 출고 수량' },
+            { id: 'request', title: '도착보장출고요청', short: '출고요청', req: true, hint: '1단계에서 자동 · SKU 매핑' },
+            { id: 'template', title: '대량입고 양식', short: '대량입고 양식', req: false, hint: '앱에 들어 있음 — 다른 양식을 쓸 때만 넣으세요' },
         ],
     },
 };
@@ -75,13 +89,21 @@ const STEP_DESC = {
 const STEP2_LABEL = { zikjin: '2단계 · 출고리스트', ably: '2단계 · 대량입고' };
 
 const emptyFiles = () => ({ 1: { request: null }, 2: { admin: null, template: null, request: null } });
+const emptySession = () => ({ step1Result: null, step1For: null, step1Req: null, step2For: null });
 const S = {
     db: null, auth: null, user: null, isAdmin: false, canShip: false,
     settings: normalizeSettings(null), settingsRead: false,
     tab: 'zikjin', step: { zikjin: 1, ably: 1 },
-    files: { zikjin: emptyFiles(), ably: emptyFiles() },   // 파일 = { name, bytes: Uint8Array, size, from: 'drop'|'step1'|'pc'|'app', savedAt? }
+    files: { zikjin: emptyFiles(), ably: emptyFiles() },   // 파일 = { name, bytes: Uint8Array, size, from: 'drop'|'step1'|'pc'|'app', savedAt?, summary?, hash? }
     base: { zikjin: '', ably: '' }, limitText: { zikjin: '', ably: '' },
     busy: false, results: [], store: null, saver: null, pickSlot: null,
+    // 2026-11-12 화면 개선
+    session: { zikjin: emptySession(), ably: emptySession() },   // 흐름 표시용 — 이번에(새로고침 전) 마친 단계
+    last: null,          // 결과 카드 { tab, step, failed, summary, warns, transmit: { source, packDay, key, today } | null }
+    recog: '', phase: '', phases: [], why: '',
+    foldOpen: false, advOpen: false,
+    runLog: null, runWarns: [],
+    cmp: { left: [], right: [], side: 'left' },
 };
 
 // ── 작은 도우미 ────────────────────────────────────────────
@@ -102,15 +124,19 @@ function logLine(s) {
     const el = $('sp-log');
     el.value += (el.value ? '\n' : '') + String(s);
     el.scrollTop = el.scrollHeight;
+    if (S.runLog) S.runLog.push(String(s));
 }
 function setBusy(on, text = '처리 중…') {
     S.busy = on;
     $('sp-busy').hidden = !on;
     $('sp-busy-text').textContent = text;
     $('sp-run').disabled = on;
-    document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder, #sp-pick-many').forEach(b => { b.disabled = on; });
+    document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder, #sp-pick-many, #sp-fold button, #sp-batches button, #sp-compare button')
+        .forEach(b => { b.disabled = on; });
+    renderWhy();
 }
 const errText = (e) => (e && e.code ? friendlyFirebaseError(e) : String((e && e.message) || e || '알 수 없는 오류'));
+const transmitOn = () => S.settingsRead && S.settings.transmit === true && S.canShip;
 
 // ── 라이브러리(CDN 지연 로드) ───────────────────────────────
 function loadScript(src, globalName) {
@@ -207,6 +233,7 @@ function renderSlots() {
                 <span class="sp-slot-tag${m.req ? ' req' : ''}">${m.req ? '필수' : '선택'}</span></div>
             <div class="sp-slot-file">${fileLine(f, m.id)}</div>
             <div class="sp-slot-meta">${esc(f ? fileMeta(f) : m.hint)}</div>
+            ${f && f.summary ? `<div class="sp-slot-sum">${esc(f.summary)}</div>` : ''}
             <div class="sp-slot-btns">
                 <button class="d-btn d-btn-sm" data-sp="pick">파일 선택</button>
                 ${f ? '<button class="d-btn d-btn-sm" data-sp="clear">빼기</button>' : ''}
@@ -217,6 +244,30 @@ function renderSlots() {
     if (S.busy) box.querySelectorAll('button').forEach(b => { b.disabled = true; });
 }
 
+/** 칸이 모두 찼거나 기본값이면 접고(#sp-fold), 원본이 오래됐으면 노란 안내 */
+function renderFold() {
+    const tab = S.tab, step = S.step[tab];
+    const slots = SLOT_META[tab][step].map(m => {
+        const f = S.files[tab][step][m.id];
+        return {
+            title: m.short, file: !!f,
+            isDefault: !f && tab === 'ably' && step === 2 && m.id === 'template',
+            ageDays: f && f.from === 'pc' && f.savedAt ? daysAgo(f.savedAt) : null,
+        };
+    });
+    const st = foldState(slots);
+    const fold = st.fold && !S.foldOpen;
+    $('sp-slots').hidden = fold;
+    $('sp-drop-hint').hidden = fold;
+    $('sp-fold').hidden = !fold;
+    $('sp-fold-text').textContent = st.text;
+    const t = tab === 'zikjin' && step === 2 ? S.files.zikjin[2].template : null;
+    const age = t && t.from === 'pc' && t.savedAt ? daysAgo(t.savedAt) : null;
+    const old = $('sp-tmpl-old');
+    old.hidden = !(age !== null && age >= TEMPLATE_OLD_DAYS);
+    old.textContent = old.hidden ? '' : `직진배송출고리스트 원본을 넣은 지 ${age}일 지났습니다 — 새 상품이 많이 들어왔으면 최신 원본을 넣어 주세요(마스터에서 못 찾은 상품은 출고리스트에서 빠집니다).`;
+}
+
 function renderOpts() {
     const tab = S.tab, step = S.step[tab];
     const box = $('sp-opts');
@@ -225,13 +276,18 @@ function renderOpts() {
     if (!S.base[tab]) S.base[tab] = kstDay().yymmdd;
     if (!S.limitText[tab]) S.limitText[tab] = String(setLimit);
     const rules = tab === 'zikjin' ? activeRuleCount(S.settings.specialRules) : 0;
-    box.innerHTML = `
+    const differs = String(S.base[tab]).trim() !== kstDay().yymmdd || String(S.limitText[tab]).trim() !== String(setLimit);
+    box.innerHTML = `<details id="sp-adv" class="sp-adv"${(S.advOpen || differs) ? ' open' : ''}>
+        <summary>고급 — 패키지명 ${esc(S.base[tab])} · 봉투당 ${esc(S.limitText[tab])}개${differs ? ' <span class="pd-pill warn">오늘·공용값과 다름</span>' : ''}</summary>
+        <div class="sp-adv-body">
         <label class="sp-field">패키지명 베이스
             <input id="sp-base" class="pd-in num" value="${esc(S.base[tab])}" maxlength="12" inputmode="numeric">
             <small>오늘 ${esc(kstDay().yymmdd)} · YYMMDD</small></label>
         <label class="sp-field">봉투당 최대 수량
             <input id="sp-limit" class="pd-in num" value="${esc(S.limitText[tab])}" maxlength="4" inputmode="numeric">
-            <small>공용 설정 ${setLimit}${tab === 'zikjin' ? ` · 지정상품 규칙 ${rules ? `${rules}개 켬` : '꺼짐'}` : ''}</small></label>`;
+            <small>공용 설정 ${setLimit}${tab === 'zikjin' ? ` · 지정상품 규칙 ${rules ? `${rules}개 켬` : '꺼짐'}` : ''}</small></label>
+        </div></details>`;
+    $('sp-adv').addEventListener('toggle', (e) => { S.advOpen = e.target.open; });
     $('sp-base').addEventListener('input', (e) => { S.base[tab] = e.target.value; });
     $('sp-limit').addEventListener('input', (e) => { S.limitText[tab] = e.target.value; });
 }
@@ -243,7 +299,7 @@ function renderTransmit() {
     else if (!S.settings.transmit) text = '병행 중 — 로케이션 실적·봉 수 기록은 지금처럼 exe 가 합니다. 이 화면은 파일만 만듭니다(전송 꺼짐).';
     else text = '전송 켬 — 2단계를 마치면 로케이션 관리에 실제 출고 수량과 봉 수를 보냅니다. 같은 건을 exe 로 또 보내지 마세요.';
     if (!S.canShip) { cls = 'warn'; text += ' · 이 계정은 「플랫폼 출고」 권한이 없어 설정 저장·전송이 막힙니다.'; }
-    el.className = `pd-alert ${cls}`;
+    el.className = `pd-alert ${cls}${transmitOn() ? ' sp-chip' : ''}`;   // 전송 켬은 작은 칩(글자 그대로)
     el.textContent = text;
 }
 
@@ -253,6 +309,52 @@ function renderFolder() {
     if (!s || !s.supportsFolder()) { b.textContent = '다운로드로 저장'; b.title = '이 브라우저는 폴더에 바로 쓸 수 없어 다운로드로 받습니다'; return; }
     b.textContent = s.folderName ? `저장 폴더: ${s.folderName}` : (s.mode === 'download' ? '저장 폴더 고르기(지금은 다운로드)' : '저장 폴더 고르기');
     b.title = '결과 파일을 저장할 폴더 — 한 번 고르면 다음부터 묻지 않습니다';
+}
+
+/** 흐름 표시줄 · 다음 할 일 */
+function renderFlow() {
+    const tab = S.tab, step = S.step[tab], ss = S.session[tab];
+    const req2 = S.files[tab][2].request;
+    const step1Result = req2 && req2.from === 'step1' && req2 === ss.step1Req ? ss.step1Result : null;
+    const f = flowState({
+        tab, step, step1Result,
+        step1Done: !!step1Result && !!S.files[tab][1].request && S.files[tab][1].request === ss.step1For,
+        step2Done: !!S.files[tab][2].admin && S.files[tab][2].admin === ss.step2For,
+        missing: missingOf(tab, step), hasAdmin: !!S.files[tab][2].admin,
+    });
+    $('sp-flow').innerHTML = f.steps.map(s => `<li class="sp-flow-step is-${s.state}" data-state="${s.state}" data-flow="${s.id}">
+        <span class="sp-flow-mark">${s.state === 'done' ? '✓' : esc(s.mark)}</span>
+        <span class="sp-flow-label">${esc(s.label)}${s.outside ? ' <small>(웹 밖)</small>' : ''}</span></li>`).join('');
+    $('sp-next').textContent = f.next;
+}
+
+/** 출고요청 이름에 '즉시출고' → 띠 */
+function renderQuick() {
+    const tab = S.tab, step = S.step[tab];
+    const f = S.files[tab][step].request;
+    const el = $('sp-quick');
+    const on = !!f && targetArea(f.name) === 'fast';
+    el.hidden = !on;
+    el.textContent = on ? `즉시출고 묶음입니다 — 출고요청 파일 이름에 '즉시출고'가 있어 로케이션·봉 수에는 즉시출고(${tab === 'zikjin' ? 'ZGF' : 'ABF'})로 들어갑니다.` : '';
+}
+
+/** 큰 상자 자리 — 인식 결과 · 처리 중 단계 */
+function renderIntake() {
+    const on = !!(S.recog || S.phase);
+    $('sp-intake-default').hidden = on;
+    $('sp-intake-status').hidden = !on;
+    $('sp-recog').textContent = S.recog;
+    const idx = S.phases.indexOf(S.phase);
+    $('sp-phase').innerHTML = S.phase ? S.phases.map((p, i) => `<li class="${i < idx ? 'is-done' : i === idx ? 'is-now' : ''}">${esc(p)}</li>`).join('') : '';
+}
+function setPhase(p) { S.phase = p; renderIntake(); }
+
+/** 저절로 시작하지 않은 이유 + [만들기] 강조 */
+function renderWhy() {
+    const el = $('sp-run-why');
+    if (!el) return;
+    el.textContent = S.why && !S.busy ? `저절로 시작하지 않았습니다 — ${S.why} [만들기]를 눌러 주세요.` : '';
+    $('sp-run').classList.toggle('is-attention', !!S.why && !S.busy);
 }
 
 function render() {
@@ -266,9 +368,15 @@ function render() {
     $('sp-run').textContent = `${TAB_LABEL[tab]} ${step}단계 만들기`;
     document.title = `플랫폼 출고 — ${TAB_LABEL[tab]}`;
     renderSlots();
+    renderFold();
     renderOpts();
     renderTransmit();
     renderFolder();
+    renderFlow();
+    renderQuick();
+    renderIntake();
+    renderWhy();
+    renderResultCard();
 }
 
 // ── 해시(#tab=zikjin|ably&step=1|2) ─────────────────────────
@@ -280,6 +388,8 @@ function readHash() {
     if (st === 1 || st === 2) S.step[tab] = st;
 }
 const writeHash = () => { history.replaceState(null, '', `#tab=${S.tab}&step=${S.step[S.tab]}`); };
+/** 탭·단계를 바꿀 때 — 접기·이유·인식 표시를 처음처럼 */
+const resetView = () => { S.foldOpen = false; S.why = ''; S.recog = ''; };
 
 // ── 파일 넣기 ──────────────────────────────────────────────
 async function fileOf(file, from = 'drop') {
@@ -302,8 +412,19 @@ async function rememberTemplate(f) {
     }
 }
 
+/** 출고요청·출고전표 칸 요약(한 번 읽기, 3MB 넘으면·원본 양식은 건너뜀) — 화면에만 */
+async function summarizeSlot(tab, slot, f) {
+    if (!f || slot === 'template' || f.size > SUMMARY_MAX_BYTES) return;
+    try {
+        const { X } = await loadLibs();
+        const s = fileSummary(readBook(X, f.bytes, f.name), { tab, slot });
+        if (s) f.summary = s.text;
+    } catch (_) { /* 요약은 없어도 된다 */ }
+}
+
 async function putSlot(tab, step, slot, f) {
     S.files[tab][step][slot] = f;
+    if (f) await summarizeSlot(tab, slot, f);
     if (tab === 'zikjin' && step === 2 && slot === 'template' && f) await rememberTemplate(f);
 }
 
@@ -312,6 +433,7 @@ async function dropOnSlot(slot, fileList) {
     const tab = S.tab, step = S.step[tab];
     const file = fileList[0];
     if (!file || S.busy) return;
+    S.why = '';
     setBusy(true, '파일 종류를 보는 중…');   // 읽는 동안 다른 놓기(저절로 시작)가 끼어들지 않게
     try {
         const f = await fileOf(file);
@@ -344,15 +466,36 @@ const pendingTabs = () => ({
 });
 const missingOf = (tab, step) => SLOT_META[tab][step].filter(m => m.req && !S.files[tab][step][m.id]).map(m => m.title);
 
+// ── 같은 묶음 재실행 확인(이 PC localStorage) ──────────────────
+function madeState() {
+    try { return loadMade(localStorage.getItem(MADE_STORE_KEY)); } catch (_) { return loadMade(null); }
+}
+async function hashOf(f) {
+    if (!f) return '';
+    if (!f.hash) f.hash = await sha256Hex(f.bytes);
+    return f.hash;
+}
+/** 이 단계·파일의 묶음 표시 키(주 파일 = 1단계 출고요청 · 2단계 출고전표) */
+async function madeKeyOf(tab, step, files) {
+    const main = step === 1 ? files.request : files.admin;
+    return madeKey(tab, step, await hashOf(main), await hashOf(files.request));
+}
+function saveMade(k, tab, step) {
+    try { localStorage.setItem(MADE_STORE_KEY, JSON.stringify(recordMade(madeState(), { k, tab, step }))); }
+    catch (_) { /* 저장공간이 막혀도 만들기는 된다 */ }
+}
+
 /**
  * 여러 파일을 한꺼번에(또는 칸 밖에 하나) — 머리글로 직진·에이블리와 단계를 알아보고(ship-assign.routeFiles)
  * 그 탭·단계로 옮겨 칸을 채운 뒤, 필요한 파일이 다 있으면 저절로 [만들기](2026-11-12).
  * 저장 폴더를 아직 안 골랐거나 권한을 물어야 하면(끌어다 놓기는 클릭이 아니라 브라우저가 묻지 못함) 시작하지 않고 버튼을 누르게 한다.
+ * 오늘 이미 만든 묶음이면(ship-made) 묻지 않고 멈춘다(이유 표시).
  */
 async function dropMany(fileList) {
     const files = [...fileList];
     if (!files.length) return;
     let autoRun = false;
+    S.why = '';
     setBusy(true, '파일 종류를 보는 중…');
     try {
         const { X } = await loadLibs();
@@ -374,7 +517,9 @@ async function dropMany(fileList) {
             S.tab = route.tab;
             S.step[route.tab] = route.step;
             writeHash();
+            S.recog = `${TAB_LABEL[route.tab]} ${route.step}단계로 인식했습니다`;
         }
+        if (moved) S.foldOpen = false;
         const tab = S.tab, step = S.step[tab];
         if (moved) logLine(`→ ${TAB_LABEL[tab]} ${step}단계로 옮겼습니다(올린 파일로 알아봄).`);
         if (route.note) logLine('⚠ ' + route.note);
@@ -407,14 +552,20 @@ async function dropMany(fileList) {
             const missing = missingOf(tab, step);
             const stale = step === 2 && S.base[tab] && S.base[tab].trim() !== kstDay().yymmdd;
             let why = '';
+            let made = null;
+            if (!missing.length && !route.note && !rest.length && !stale) {
+                try { made = findMade(madeState(), await madeKeyOf(tab, step, S.files[tab][step])); } catch (_) { made = null; }
+            }
             if (missing.length) logLine(`  더 넣을 파일: ${missing.join(', ')}`);
             else if (route.note || rest.length) why = '위 안내를 확인한 뒤';
             else if (stale) why = `패키지명 베이스(${S.base[tab].trim()})가 오늘 날짜가 아니라 확인한 뒤`;
+            else if (made) why = `${made.at} 에 이미 만든 묶음이라 확인한 뒤`;
             else if (!(await S.saver.ready())) why = '저장 폴더 확인이 필요해';
             else autoRun = true;
             if (why) {
                 logLine(`  파일이 다 들어왔습니다 — ${why} [만들기]를 눌러 주세요(저절로 시작하지 않았습니다).`);
                 if (!rest.length && !route.note) toast('파일이 다 들어왔습니다 — [만들기]를 눌러 주세요', 5000);
+                S.why = why;
             }
         }
     } catch (e) {
@@ -425,7 +576,7 @@ async function dropMany(fileList) {
     }
     if (autoRun) {
         logLine(`  필요한 파일이 다 있어 ${TAB_LABEL[S.tab]} ${S.step[S.tab]}단계를 바로 시작합니다.`);
-        await run();
+        await run({ auto: true });
     } else if (!S.busy) {
         $('sp-run').focus();
     }
@@ -433,6 +584,7 @@ async function dropMany(fileList) {
 
 function bindDrop() {
     const area = $('sp-drop');
+    const cmp = $('sp-compare');
     const isFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
     area.addEventListener('dragover', (e) => {
         if (!isFiles(e) || S.busy) return;
@@ -458,17 +610,19 @@ function bindDrop() {
         else dropMany(files);
     });
     // 칸 밖(페이지 아무 곳 — 위쪽 큰 상자 포함)에 놓으면 알아보고 진행. 브라우저가 파일을 열지 않게
+    //   단 'exe 결과와 비교하기'(#sp-compare) 안에 놓은 것은 비교 칸으로(출고 파일로 보내지 않음)
     const intake = $('sp-intake');
     window.addEventListener('dragover', (e) => {
         if (!isFiles(e)) return;
         e.preventDefault();
-        intake.classList.toggle('is-over', !S.busy && !area.contains(e.target));
+        intake.classList.toggle('is-over', !S.busy && !area.contains(e.target) && !cmp.contains(e.target));
     });
     window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) intake.classList.remove('is-over'); });
     window.addEventListener('drop', (e) => {
         intake.classList.remove('is-over');
         if (!isFiles(e) || area.contains(e.target)) return;
         e.preventDefault();               // 바쁠 때도 브라우저가 파일을 열지 않게 막기는 한다
+        if (cmp.contains(e.target)) return;   // 비교 칸이 받는다(bindCompare)
         if (S.busy) { toast('처리 중입니다 — 끝난 뒤 다시 넣어 주세요.'); return; }
         dropMany(e.dataTransfer.files);
     });
@@ -496,6 +650,7 @@ function bindDrop() {
             inp.click();
         } else if (b.dataset.sp === 'clear') {
             S.files[tab][step][slot] = null;
+            S.why = '';
             render();
         } else if (b.dataset.sp === 'forget') {
             if (!confirm('이 PC 에 기억한 직진배송출고리스트 원본을 지울까요?\n(다음 2단계에서 다시 넣어야 합니다)')) return;
@@ -509,6 +664,7 @@ function bindDrop() {
         const files = e.target.files;
         if (files && files.length && S.pickSlot) dropOnSlot(S.pickSlot, files);
     });
+    $('sp-fold-open').addEventListener('click', () => { if (S.busy) return; S.foldOpen = true; render(); });
 }
 
 // ── 결과 저장 ──────────────────────────────────────────────
@@ -522,7 +678,8 @@ async function saveOut(name, bytes) {
 function renderResults() {
     $('sp-results').innerHTML = S.results.map((r, i) => `<div class="sp-result"><span class="pd-pill ok">완료</span><b>${esc(r.name)}</b>
         <span class="pd-mute">${esc(sizeText(r.bytes.byteLength))}</span>
-        <button class="d-btn d-btn-sm" data-again="${i}">다시 받기</button></div>`).join('');
+        <button class="d-btn d-btn-sm" data-again="${i}">받기</button></div>`).join('');
+    renderResultCard();
 }
 function bindResults() {
     $('sp-results').addEventListener('click', (e) => {
@@ -538,38 +695,297 @@ function bindResults() {
     });
 }
 
+// ── 결과 카드 ──────────────────────────────────────────────
+const hhmm = (iso) => (typeof iso === 'string' && iso.length >= 16 ? iso.slice(11, 16) : '');
+const recentTransmit = () => {
+    const ms = Date.parse(S.settings.updatedAt);
+    return Number.isFinite(ms) && Date.now() - ms <= RECENT_TRANSMIT_MS;
+};
+function renderResultCard() {
+    const card = $('sp-result-card');
+    const L = S.last;
+    card.hidden = !L && !S.results.length;
+    const title = $('sp-result-title');
+    if (!L) { title.textContent = S.results.length ? '만든 파일' : ''; title.className = 'sp-result-title'; }
+    else if (L.failed) { title.textContent = `✗ ${TAB_LABEL[L.tab]} ${L.step}단계 실패 — 아래 진행 기록을 확인하세요`; title.className = 'sp-result-title is-fail'; }
+    else { title.textContent = L.summary.title; title.className = 'sp-result-title is-ok'; }
+    // exe 로 또 보내지 마세요(전송 켬 · 켠 지 7일 안)
+    const exe = $('sp-result-exe');
+    exe.hidden = !(L && !L.failed && L.step === 2 && L.transmit && L.transmit.key && transmitOn() && recentTransmit());
+    exe.textContent = exe.hidden ? '' : '전송 켬 — 이 묶음은 이 화면이 로케이션 관리·봉 수에 보냈습니다. exe 로 또 보내지 마세요(두 번 들어갑니다).';
+    // 노란 경고
+    const warns = L && !L.failed ? [...L.summary.warns, ...L.warns] : [];
+    const w = $('sp-warn');
+    w.hidden = !warns.length;
+    w.innerHTML = warns.length ? `<b>확인할 것</b><ul>${warns.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
+    renderBatches();
+    renderCompareFiles();
+}
+
+/** 오늘 보낸 묶음(전송 켬일 때만) */
+function renderBatches() {
+    const box = $('sp-batches');
+    const T = S.last && !S.last.failed && S.last.transmit;
+    if (!T || !transmitOn() || !Array.isArray(T.today)) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    const rows = T.today.map(t => {
+        const mine = t.key === T.key;
+        const who = t.key === LEGACY ? 'exe·옛 방식 몫' : (hhmm(t.at) || '시각 없음');
+        const btn = t.key === LEGACY ? '' : `<button class="d-btn d-btn-sm" data-rm="${esc(t.key)}"${S.busy ? ' disabled' : ''}>묶음 빼기</button>`;
+        return `<tr${mine ? ' class="is-mine"' : ''}><td>${esc(who)}${mine ? ' <span class="pd-pill accent">이번 묶음</span>' : ''}</td>
+            <td class="n">${t.k ? fmt(t.k) : '-'}</td><td class="n">${fmt(t.q)}</td><td class="n">${t.n === null || t.n === undefined ? '-' : fmt(t.n)}</td><td class="x">${btn}</td></tr>`;
+    }).join('');
+    box.innerHTML = `<div class="pd-row"><b>오늘 보낸 묶음 — ${esc(SOURCE_LABEL[T.source] || T.source)}</b><div class="pd-grow"></div>
+        <span class="pd-note">같은 날 여러 묶음은 더해서 로케이션 관리·봉 수에 들어갑니다.</span></div>
+        ${T.today.length ? `<table class="sp-bat-t"><thead><tr><th>보낸 시각</th><th class="n">품목</th><th class="n">수량</th><th class="n">봉</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+            : '<div class="pd-note">오늘 보낸 묶음이 없습니다.</div>'}`;
+}
+
+async function refreshBatches(T, rows, now = new Date()) {
+    try {
+        const pv = await previewBatches(S.db, { rows, source: T.source, key: T.key, packDay: T.packDay }, { enabled: true, now });
+        T.today = pv.today;
+    } catch (e) {
+        console.warn('[플랫폼 출고] 묶음 목록 읽기 실패:', (e && e.code) || (e && e.name) || 'unknown');
+        T.today = null;
+    }
+}
+
+function bindBatches() {
+    $('sp-batches').addEventListener('click', async (e) => {
+        const b = e.target.closest('button[data-rm]');
+        if (!b || S.busy || !S.last || !S.last.transmit) return;
+        const T = S.last.transmit;
+        const t = (T.today || []).find(x => x.key === b.dataset.rm);
+        if (!t || !transmitOn()) return;
+        if (T.day8 && T.day8 !== kstDay().ymd8) {   // 자정이 지났다 — 로케이션에는 오늘 행만 남아 그날 몫을 뺄 수 없다
+            toast('보낸 날이 지나 이 묶음을 뺄 수 없습니다 — 로케이션 관리에서 직접 확인하세요.', 6000);
+            logLine(`  ⚠ 묶음 빼기 안 함: 보낸 날(${T.day8})이 지났습니다 — 로케이션에는 오늘 행만 남습니다.`);
+            return;
+        }
+        const what =`${hhmm(t.at) || '오늘'} 에 보낸 묶음(품목 ${fmt(t.k)} · 수량 ${fmt(t.q)}${t.n !== null && t.n !== undefined ? ` · ${fmt(t.n)}봉` : ''})`;
+        if (!confirm(`${what}을 오늘 실적에서 뺄까요?\n로케이션 관리·봉 수에서 이 묶음 몫만 빠집니다(다른 묶음은 그대로). 만든 파일은 지우지 않습니다.`)) return;
+        setBusy(true, '묶음 빼는 중…');
+        try {
+            const r = await removeBatch(S.db, { source: T.source, key: t.key, packDay: T.packDay, day8: T.day8 || null }, { enabled: true, now: new Date() });
+            if (r.notFound) {
+                logLine(`  ⚠ 묶음 빼기 안 함: ${what} — 로케이션에서 이 묶음 몫을 찾지 못했습니다(exe 가 오늘 다시 보내 묶음 내역이 지워짐). 봉 수도 그대로 두었습니다.`);
+                toast('로케이션에서 이 묶음 몫을 찾지 못해 빼지 않았습니다 — 진행 기록을 확인하세요', 6000);
+            } else {
+                logLine(`  묶음 빼기: ${what} — 로케이션 ${fmt(r.location.removed)}개${r.packs ? ` · 봉 ${fmt(r.packs.removed)}봉` : ''} 뺌`);
+                toast('묶음을 뺐습니다');
+            }
+            await refreshBatches(T, []);
+        } catch (e2) {
+            console.warn('[플랫폼 출고] 묶음 빼기 실패:', (e2 && e2.code) || (e2 && e2.name) || 'unknown');
+            logLine(`  ⚠ 묶음 빼기 실패: ${errText(e2)}`);
+            toast('묶음을 빼지 못했습니다 — 진행 기록을 확인하세요', 5000);
+        } finally {
+            setBusy(false);
+            render();
+        }
+    });
+}
+
+// ── exe 결과와 비교하기 ─────────────────────────────────────
+function renderCompareFiles() {
+    for (const side of ['left', 'right']) {
+        $(`sp-cmp-${side}`).innerHTML = S.cmp[side].length
+            ? S.cmp[side].map((f, i) => `<div class="sp-cmp-file"><span>${esc(f.name)}</span><button class="d-btn d-btn-sm" data-cmp="del" data-side="${side}" data-i="${i}">빼기</button></div>`).join('')
+            : `<div class="pd-note">${side === 'left' ? 'exe 가 만든 파일을 놓으세요' : '이번 결과가 저절로 들어갑니다'}</div>`;
+    }
+}
+async function addCompareFiles(side, fileList) {
+    for (const file of [...fileList]) S.cmp[side].push(await fileOf(file, 'drop'));
+    $('sp-cmp-out').innerHTML = '';
+    renderCompareFiles();
+}
+async function runCompare() {
+    const out = $('sp-cmp-out');
+    if (!S.cmp.left.length || !S.cmp.right.length) { out.innerHTML = '<div class="pd-alert warn">양쪽에 파일을 넣어 주세요.</div>'; return; }
+    out.innerHTML = '<div class="pd-note">비교하는 중…</div>';
+    let res;
+    try {
+        const { X } = await loadLibs();
+        const g = (f) => ({ name: f.name, grid: gridOf(X, f.bytes) });
+        res = comparePairs(S.cmp.left.map(g), S.cmp.right.map(g));
+    } catch (e) {
+        console.warn('[플랫폼 출고] 비교 실패:', (e && e.name) || 'Error');
+        out.innerHTML = `<div class="pd-alert risk">읽지 못한 파일이 있습니다: ${esc(errText(e))}</div>`;
+        return;
+    }
+    const same = res.length > 0 && res.every(r => !r.missing && !r.bad.length);
+    const head = same
+        ? `<div class="pd-alert info"><b>차이 없음</b> — 짝 ${res.length}개 모두 칸 값이 같습니다(의도된 차이 제외).</div>`
+        : `<div class="pd-alert warn"><b>차이 있음</b> — 아래 위치를 엑셀에서 직접 열어 보세요.</div>`;
+    const body = res.map(r => {
+        let s;
+        if (r.missing) s = `짝 없음(${r.missing === 'right' ? 'exe' : '웹'} 쪽에만 있음)`;
+        else if (!r.bad.length) s = '차이 없음';
+        else s = `그 밖의 차이 ${r.bad.length}곳`;
+        const good = r.good.length ? ` · 의도된 차이 ${r.good.length}곳(정수 표기·앞자리 0 — 웹판이 고친 것)` : '';
+        return `<div class="sp-cmp-pair"><b>${esc(r.key)}</b> — ${esc(s)}${esc(good)}${r.lines.length ? `<ul>${r.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}</div>`;
+    }).join('');
+    out.innerHTML = head + body;
+}
+function bindCompare() {
+    const cmp = $('sp-compare');
+    cmp.addEventListener('click', (e) => {
+        const b = e.target.closest('button[data-cmp]');
+        if (!b || S.busy) return;
+        const act = b.dataset.cmp;
+        if (act === 'pick') {
+            S.cmp.side = b.dataset.side;
+            const inp = $('sp-cmp-input');
+            inp.value = '';
+            inp.click();
+        } else if (act === 'del') {
+            S.cmp[b.dataset.side].splice(Number(b.dataset.i), 1);
+            $('sp-cmp-out').innerHTML = '';
+            renderCompareFiles();
+        } else if (act === 'swap') {
+            [S.cmp.left, S.cmp.right] = [S.cmp.right, S.cmp.left];
+            $('sp-cmp-out').innerHTML = '';
+            renderCompareFiles();
+        } else if (act === 'run') {
+            runCompare();
+        }
+    });
+    $('sp-cmp-input').addEventListener('change', (e) => { if (e.target.files && e.target.files.length) addCompareFiles(S.cmp.side, e.target.files); });
+    const isFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+    cmp.addEventListener('dragover', (e) => { if (isFiles(e)) e.preventDefault(); });
+    cmp.addEventListener('drop', (e) => {
+        if (!isFiles(e)) return;
+        e.preventDefault();
+        const col = e.target.closest('[data-side]');
+        addCompareFiles(col ? col.dataset.side : 'left', e.dataTransfer.files);
+    });
+}
+
 // ── 전송(2단계 끝) ──────────────────────────────────────────
-async function transmit(location, packs, now) {
+/**
+ * 이번 묶음을 어떻게 보낼지 — 미리보기(읽기만)로 오늘 같은 묶음·많이 겹치는 묶음을 찾아 묻는다.
+ * @returns {Promise<{ key, mode, drop }>}
+ */
+async function planBatch(location, packs, now, madeOk) {
+    const key = await batchKeyOf(location.source, location.rows);
+    const batch = { key, mode: 'add', drop: [] };
+    let pv = null;
+    try {
+        pv = await previewBatches(S.db, { rows: location.rows, source: location.source, key, packDay: packs ? packs.day : null }, { enabled: true, now });
+    } catch (e) {
+        console.warn('[플랫폼 출고] 묶음 미리보기 실패:', (e && e.code) || (e && e.name) || 'unknown');
+        logLine('  ⚠ 오늘 보낸 묶음을 미리 읽지 못했습니다 — 새 묶음으로 더합니다(같은 묶음이 이미 있으면 막힙니다).');
+        return batch;
+    }
+    const atOf = (k) => hhmm((pv.today.find(x => x.key === k) || {}).at);
+    const MIXED_WARN = 'exe 가 오늘 기록을 덮어쓴 흔적이 있습니다(exe 와 섞임) — 같은 전표를 두 번 보내지 않았는지 로케이션 관리에서 확인하세요.';
+    if (pv.lost) {
+        // 봉 수에는 이 묶음이 있는데 로케이션 행에는 옛 몫('_')만 — exe 가 오늘 다시 보내며 묶음 내역을 지웠다.
+        //   옛 몫에서 이번 몫만 빼는 것은 '이번 묶음이 옛 몫 안에 다 들어 있고(담김) exe 가 같은 소스를 덮어쓴 흔적(mixed)이 없을 때'만.
+        //   하나라도 어긋나면 이 묶음 몫을 가릴 수 없다 — 보내지 않는다(트랜잭션 안에서도 같은 검사)
+        if (!pv.legacyHolds || pv.mixed) {
+            if (pv.mixed) S.runWarns.push(MIXED_WARN);
+            return { skip: 'exe 가 같은 소스를 덮어써 이 묶음 몫을 가릴 수 없음 — 보내지 않습니다(로케이션 관리에서 확인)' };
+        }
+        const at = atOf(key);
+        if (!confirm(`${at ? `${at} 에` : '오늘'} 보낸 묶음과 내용이 같지만, exe 기록과 섞여 로케이션에서 이 묶음 몫을 찾을 수 없습니다`
+            + `(exe 가 오늘 다시 보내 묶음 내역이 지워짐).\n\n`
+            + '확인 = 이번 묶음 몫만 옛 기록에서 빼고 다시 넣습니다(오늘 다른 묶음·exe 몫은 그대로)\n'
+            + '취소 = 보내지 않기(만든 파일은 그대로)')) return null;
+        batch.mode = 'replace';
+        batch.subtractLegacy = true;   // '_' 통째가 아니라 이번 묶음 코드별 수량만 뺀다
+        S.runWarns.push('exe 기록과 섞여 이번 묶음 몫을 옛 기록(묶음 내역 없는 몫)에서 코드별로 빼고 다시 넣었습니다 — 오늘 다른 묶음·exe 몫은 그대로입니다.');
+        return batch;
+    }
+    if (pv.sameKey) {
+        const at = atOf(key);
+        // [만들기]에서 '이미 만든 묶음 — 이 묶음 몫만 다시 바꿉니다'에 확인했으면 다시 묻지 않는다
+        const ok = madeOk || confirm(`${at ? `${at} 에` : '오늘'} 보낸 묶음과 내용이 같습니다.\n\n`
+            + '확인 = 다시 보내기(그 묶음을 이번 것으로 바꿈 — 두 번 더해지지 않음)\n'
+            + '취소 = 보내지 않기(만든 파일은 그대로)');
+        if (ok) batch.mode = 'replace';
+        else if (confirm('같은 물건을 정말 한 번 더 내보냈나요?\n\n'
+            + '확인 = 새 묶음으로 한 번 더 더하기(로케이션 수량·봉 수가 늘어남)\n'
+            + '취소 = 보내지 않기')) batch.key = freshKey(key, pv.today.map(t => t.key));
+        else return null;
+    } else {
+        const o = pv.overlaps.find(x => x.share >= OVERLAP_ASK);
+        if (o) {
+            const who = o.key === LEGACY ? '오늘 exe(또는 옛 방식)가 보낸 몫' : `${atOf(o.key) ? `${atOf(o.key)} 에` : '오늘'} 보낸 묶음`;
+            if (confirm(`${who}과 ${Math.round(o.share * 100)}% 겹칩니다 — 고친 전표인가요?\n\n`
+                + '확인 = 고친 전표(그 묶음을 빼고 이번 것으로 바꿈)\n'
+                + '취소 = 다른 묶음(따로 더함)')) batch.drop = [o.key];
+        }
+    }
+    if (pv.legacy > 0 && !batch.drop.includes(LEGACY)) {
+        // '_' 는 exe 가 보낸 몫이거나, exe 가 다시 보내며 묶음 내역이 지워진 웹 묶음이다 — 어느 쪽인지 화면이 가릴 수 없다
+        S.runWarns.push(`로케이션에 묶음 내역이 없는 몫 ${fmt(pv.legacy)}개(exe 가 보냈거나, exe 가 다시 보내며 웹 묶음 내역을 지운 것)가 있어 이번 묶음은 따로 더했습니다`
+            + ' — 이번 전표를 이미 exe 로 보냈다면 두 번 들어갔으니 로케이션 관리에서 확인하세요(이 몫은 [묶음 빼기]로 뺄 수 없음).');
+        logLine(`  ⚠ 오늘 exe 기록과 섞임(묶음 내역 없는 몫 ${fmt(pv.legacy)}개) — 이번 묶음은 따로 더합니다.`);
+    }
+    if (pv.mixed) S.runWarns.push(MIXED_WARN);   // 옛 몫 경고와 따로 — 둘 다 해당하면 둘 다
+    return batch;
+}
+
+async function transmit(location, packs, now, madeOk = false) {
     if (!S.settings.transmit) {
         logLine('ℹ 병행 중 — 로케이션 실적·봉 수 기록은 exe 가 합니다(웹판 전송 꺼짐, 쓰지 않음).');
-        return;
+        return null;
     }
     if (!S.canShip) {
         logLine('⚠ 「플랫폼 출고」 권한이 없어 로케이션 전송·봉 수 기록을 하지 않았습니다 — 만든 파일은 정상입니다.');
-        return;
+        return null;
     }
+    let T = null;
+    let batch = null;
     if (location && location.source) {
         setBusy(true, '로케이션 전송 중…');
+        setPhase('전송 중');
         logLine(`  [로케이션 전송] 소스: ${location.source} / 날짜: ${kstDay(now).ymd8}`);
         try {
-            const r = await pushLocation(S.db, location.rows, location.source, { enabled: true, now });
-            logLine(`  ✓ 로케이션 전송 완료 (오늘 합본 ${r.total}건, 이번 소스 ${r.thisSource}건, 문서 ${r.chunks}개${r.deleted ? `, 옛 문서 ${r.deleted}개 정리` : ''})`);
-        } catch (e) {
+            batch = await planBatch(location, packs, now, madeOk);
+        } catch (e) {   // 묶음 키를 못 만들면(브라우저 암호 기능 없음) 보내지 않는다 — 덮어쓰기로 돌아가지 않게
+            console.warn('[플랫폼 출고] 묶음 키 실패:', (e && e.name) || 'unknown');
+            logLine(`  ⚠ 로케이션 전송 실패 — 만든 파일은 정상입니다: ${errText(e)}`);
+            return null;
+        }
+        if (!batch || batch.skip) {   // 확인창에서 '보내지 않기' · 또는 이 묶음 몫을 가릴 수 없어 멈춤
+            const why = batch && batch.skip ? batch.skip : '확인창에서 보내지 않기';
+            logLine(`  ⚠ 로케이션 전송·봉 수 기록을 하지 않았습니다(${why}) — 만든 파일은 정상입니다.`);
+            S.runWarns.push(`이번 묶음은 로케이션 관리·봉 수에 보내지 않았습니다(${why}). 만든 파일은 정상입니다.`);
+            const T0 = { source: location.source, packDay: packs ? packs.day : null, key: null, day8: kstDay(now).ymd8, today: null };
+            await refreshBatches(T0, location.rows, now);
+            return T0;
+        }
+        T = { source: location.source, packDay: packs ? packs.day : null, key: batch.key, day8: kstDay(now).ymd8, today: null };
+        // 로케이션 먼저, 성공했을 때만 봉 수(js/lib/ship-tx.js sendBatchWith — 한쪽만 들어가지 않게)
+        const tot = codeTotals(location.rows);
+        const s = await sendBatch(S.db, { rows: location.rows, source: location.source, packs, batch,
+            q: [...tot.values()].reduce((a, b) => a + b, 0), k: tot.size }, { enabled: true, now });
+        if (s.locationError) {
+            const e = s.locationError;
             console.warn('[플랫폼 출고] 로케이션 전송 실패:', (e && e.code) || (e && e.name) || 'unknown');
             logLine(`  ⚠ 로케이션 전송 실패 — 만든 파일은 정상입니다: ${errText(e)}`);
+            if (s.packsSkipped) logLine('  ⚠ 봉 수 기록도 하지 않았습니다(로케이션과 어긋나지 않게).');
+        } else {
+            const r = s.location;
+            logLine(`  ✓ 로케이션 전송 완료 (오늘 합본 ${r.total}건, 이번 소스 ${r.thisSource}건, 문서 ${r.chunks}개${r.deleted ? `, 옛 문서 ${r.deleted}개 정리` : ''})`);
+        }
+        if (s.packs) {
+            const r = s.packs;
+            logLine(`  봉 수 기록: ${r.day} ${r.source} ${r.count}봉 (그날 ${r.channel === 'zikjin' ? '직진' : '에이블리'} 합계 ${r.total}봉)`);
+            if (r.mixed && !S.runWarns.some(w => w.includes('exe'))) S.runWarns.push('봉 수 기록에 exe 가 쓴 몫이 섞여 있습니다(exe 와 섞임) — 같은 전표를 두 번 보내지 않았는지 확인하세요.');
+        } else if (s.packsError) {
+            const e = s.packsError;
+            console.warn('[플랫폼 출고] 봉 수 기록 실패:', (e && e.code) || (e && e.name) || 'unknown');
+            logLine(`  ⚠ 봉 수 기록 실패 — 만든 파일은 정상입니다: ${errText(e)}`);
         }
     } else {
         logLine('  ⚠ 로케이션 전송 건너뜀: 출고요청 파일이 없어 일반/즉시출고를 구분할 수 없음');
     }
-    if (packs) {
-        try {
-            const r = await recordPacks(S.db, packs, { enabled: true, now });
-            logLine(`  봉 수 기록: ${r.day} ${r.source} ${r.count}봉 (그날 ${r.channel === 'zikjin' ? '직진' : '에이블리'} 합계 ${r.total}봉)`);
-        } catch (e) {
-            console.warn('[플랫폼 출고] 봉 수 기록 실패:', (e && e.code) || (e && e.name) || 'unknown');
-            logLine(`  ⚠ 봉 수 기록 실패 — 만든 파일은 정상입니다: ${errText(e)}`);
-        }
-    }
+    if (T) await refreshBatches(T, location.rows, now);
+    return T;
 }
 
 // ── 실행 ───────────────────────────────────────────────────
@@ -592,8 +1008,10 @@ async function refreshSettings() {
     }
 }
 
-async function run() {
+/** @param {{auto?: boolean}} opts  auto = 파일을 놓아 저절로 시작(같은 묶음 확인은 dropMany 가 이미 했다 — 묻지 않는다) */
+async function run(opts = {}) {
     if (S.busy) return;
+    const auto = opts.auto === true;
     const tab = S.tab, step = S.step[tab];
     const f = { ...S.files[tab][step] };   // 실행 중에 칸이 바뀌어도 이번 실행은 누른 순간의 파일로
     const missing = SLOT_META[tab][step].filter(m => m.req && !f[m.id]).map(m => m.title);
@@ -607,73 +1025,129 @@ async function run() {
     }
     setBusy(true, '저장 폴더 확인 중…');   // 두 번 눌러도 한 번만(바쁨 표시는 클릭 권한을 쓰지 않는다)
     const now = new Date();
+    S.why = '';
+    S.phases = step === 2 && transmitOn() ? PHASES : PHASES.slice(0, 3);
+    let ok = false;
+    let summaryIn = null;
+    let T = null;
+    let mk = null;
     try {
         try { await S.saver.prepare(); } catch (_) { /* 못 하면 다운로드로 받는다 */ }   // 클릭 안에서 — 폴더를 한 번 묻거나 권한을 받는다
         renderFolder();
+        // 같은 날 같은 묶음 — 폴더 권한을 받은 뒤에 묻는다(확인창이 클릭 권한을 쓰지 않게)
+        try { mk = await madeKeyOf(tab, step, f); } catch (_) { mk = null; }
+        const prev = mk ? findMade(madeState(), mk) : null;
+        let madeOk = false;
+        if (prev && !auto) {
+            if (!confirm(madeConfirmText(prev, { step, transmit: transmitOn() }))) {
+                toast('다시 만들지 않았습니다.');
+                return;
+            }
+            madeOk = step === 2;
+        }
         setBusy(true, '라이브러리 불러오는 중…');
         S.results = [];
+        S.last = null;
+        S.runLog = [];
+        S.runWarns = [];
         renderResults();
         logLine(`===== ${TAB_LABEL[tab]} ${step}단계 시작 =====`);
         const { X, JSZip, ExcelJS } = await loadLibs();
         if (step === 2) await refreshSettings();   // 전송 켬·지정상품 규칙은 실행 직전 값으로
         renderTransmit();
+        S.phases = step === 2 && transmitOn() ? PHASES : PHASES.slice(0, 3);
         setBusy(true, '파일 읽는 중…');
+        setPhase('읽는 중');
         await tick();
         if (step === 1) {
-            const r = tab === 'zikjin'
-                ? zikjinStep1({ request: readBook(X, f.request.bytes, f.request.name), now })
-                : ablyStep1({ request: readBook(X, f.request.bytes, f.request.name), now });
+            const reqBook = readBook(X, f.request.bytes, f.request.name);
+            setPhase('계산 중');
+            await tick();
+            const r = tab === 'zikjin' ? zikjinStep1({ request: reqBook, now }) : ablyStep1({ request: reqBook, now });
             r.log.forEach(logLine);
+            setPhase('저장 중');
             const x = stockXlsBytes(X, r);
             if (x.problem) throw new Error(x.problem);
             await saveOut(r.fileName, x.bytes);
-            S.files[tab][2].request = { name: f.request.name, bytes: f.request.bytes, size: f.request.size, from: 'step1' };
+            const req2 = { name: f.request.name, bytes: f.request.bytes, size: f.request.size, from: 'step1', summary: f.request.summary, hash: f.request.hash };
+            S.files[tab][2].request = req2;
             S.files[tab][2].admin = null;   // 지난 묶음 출고전표가 남아 새 출고요청과 섞이지 않게(새 출고전표를 기다림)
             logLine('  → 출고요청 파일을 2단계 칸에 넣어 두었습니다.');
+            Object.assign(S.session[tab], { step1Result: r.fileName, step1For: f.request, step1Req: req2 });
+            summaryIn = { result: r };
         } else if (tab === 'zikjin') {
             const warn = baseDateWarning(base, now);
             if (warn) logLine(warn);
+            const admin = readBook(X, f.admin.bytes, f.admin.name);
+            const template = readBook(X, f.template.bytes, f.template.name, { formulas: true, sheets: TEMPLATE_SHEETS });
+            setPhase('계산 중');
+            await tick();
             const r = zikjinStep2({
-                admin: readBook(X, f.admin.bytes, f.admin.name),
-                template: readBook(X, f.template.bytes, f.template.name, { formulas: true, sheets: TEMPLATE_SHEETS }),
+                admin, template,
                 request: f.request ? () => readBook(X, f.request.bytes, f.request.name) : null,
                 requestName: f.request ? f.request.name : null,
                 packageBase: base, packageLimit: limit, specialRules: S.settings.specialRules, now,
             });
             r.log.forEach(logLine);
             setBusy(true, '출고리스트 쓰는 중…');
+            setPhase('저장 중');
             await tick();
             const w = await zikjinListBytes(JSZip, f.template.bytes, r);
             await saveOut(r.fileName, w.bytes);
             const p = await pickingBytes(ExcelJS, r.pickItems, 'ZG');
             if (p.bytes) await saveOut(r.pickFileName, p.bytes); else logLine(p.warning);
-            await transmit(r.location, r.packs, now);
+            T = await transmit(r.location, r.packs, now, madeOk);
+            summaryIn = { result: r };
         } else {
             const warn = baseDateWarning(base, now);
             if (warn) logLine(warn);
             const tmpl = await ablyTemplateFile();
-            const r = ablyStep2({
-                admin: readBook(X, f.admin.bytes, f.admin.name),
-                request: readBook(X, f.request.bytes, f.request.name),
-                template: readBook(X, tmpl.bytes, tmpl.name),
-                requestName: f.request.name, packageBase: base, packageLimit: limit, now,
-            });
+            const admin = readBook(X, f.admin.bytes, f.admin.name);
+            const request = readBook(X, f.request.bytes, f.request.name);
+            const template = readBook(X, tmpl.bytes, tmpl.name);
+            setPhase('계산 중');
+            await tick();
+            const r = ablyStep2({ admin, request, template, requestName: f.request.name, packageBase: base, packageLimit: limit, now });
             r.log.forEach(logLine);
+            let requestTotal = null;
+            try { requestTotal = readAblyRequest(request, []).reduce((s, x) => s + x.qty, 0); } catch (_) { requestTotal = null; }
             setBusy(true, '대량입고 양식 쓰는 중…');
+            setPhase('저장 중');
             await tick();
             const w = await ablyBulkBytes(JSZip, tmpl.bytes, r);
             await saveOut(r.fileName, w.bytes);
             const p = await pickingBytes(ExcelJS, r.pickItems, 'AB');
             if (p.bytes) await saveOut(r.pickFileName, p.bytes); else logLine(p.warning);
-            await transmit(r.location, r.packs, now);
+            T = await transmit(r.location, r.packs, now, madeOk);
+            summaryIn = { result: r, requestTotal };
         }
         logLine(`===== 완료 =====`);
         toast(`${TAB_LABEL[tab]} ${step}단계 완료`);
+        ok = true;
     } catch (e) {
         console.warn('[플랫폼 출고] 실행 실패:', (e && e.code) || (e && e.name) || 'Error');
         logLine(`✗ 실패: ${errText(e)}`);
         toast('실패 — 진행 기록을 확인하세요', 5000);
+        $('sp-log-box').open = true;   // 실패하면 진행 기록을 펼친다
+        if (S.runLog) S.last = { tab, step, failed: true, summary: null, warns: [], transmit: null };
     } finally {
+        if (ok && summaryIn) {
+            let summary;
+            try {
+                summary = summarizeRun({ tab, step, result: summaryIn.result, base, limit, now, requestTotal: summaryIn.requestTotal ?? null, log: S.runLog || [] });
+            } catch (e) {   // 요약을 못 세도 만든 파일·전송은 그대로 — 제목만 간단히
+                console.warn('[플랫폼 출고] 결과 요약 실패:', (e && e.name) || 'Error');
+                summary = { title: `✅ ${TAB_LABEL[tab]} ${step}단계 완료`, warns: [] };
+            }
+            S.last = { tab, step, failed: false, transmit: T, warns: [...S.runWarns], summary };
+            if (mk) saveMade(mk, tab, step);   // 성공했을 때만 기록
+            if (step === 2) S.session[tab].step2For = f.admin;
+            S.cmp.right = S.results.map(x => ({ name: x.name, bytes: x.bytes, size: x.bytes.byteLength, from: 'web' }));
+            $('sp-cmp-out').innerHTML = '';
+        }
+        S.runLog = null;
+        S.phase = '';
+        S.recog = '';
         setBusy(false);
         render();
     }
@@ -703,7 +1177,7 @@ function openSettings() {
         </div>
         <label class="sp-check"><input type="checkbox" id="sp-s-transmit" ${st.transmit ? 'checked' : ''} ${S.isAdmin ? '' : 'disabled'}>
             <span><b>로케이션 실적·봉 수 전송 켬</b><br><span class="pd-note">2단계를 마치면 로케이션 관리(ZikjinData)에 실제 출고 수량을, 비품 예측(봉 수)에 봉 수를 씁니다.
-            병행 기간에는 끄고(exe 가 기록) exe 를 멈출 때 켭니다. ${S.isAdmin ? '' : '<b>관리자만 바꿀 수 있습니다.</b>'}</span></span></label>
+            같은 날 여러 묶음은 묶음마다 더합니다. 병행 기간에는 끄고(exe 가 기록) exe 를 멈출 때 켭니다. ${S.isAdmin ? '' : '<b>관리자만 바꿀 수 있습니다.</b>'}</span></span></label>
         <div id="sp-s-err" class="pd-alert risk" hidden></div>
         <div class="pd-actions" style="margin-top:0;">
             <span class="pd-note">${st.updatedAt ? `마지막 저장 ${esc(savedText(st.updatedAt) || st.updatedAt)}` : '아직 저장한 적 없음(기본값)'}</span>
@@ -793,14 +1267,14 @@ async function start(user) {
 
     $('sp-tabs').addEventListener('click', (e) => {
         const b = e.target.closest('.d-seg-btn'); if (!b || S.busy) return;
-        S.tab = b.dataset.tab; writeHash(); render();
+        S.tab = b.dataset.tab; resetView(); writeHash(); render();
     });
     $('sp-steps').addEventListener('click', (e) => {
         const b = e.target.closest('.d-seg-btn'); if (!b || S.busy) return;
-        S.step[S.tab] = Number(b.dataset.step); writeHash(); render();
+        S.step[S.tab] = Number(b.dataset.step); resetView(); writeHash(); render();
     });
-    window.addEventListener('hashchange', () => { if (S.busy) return; readHash(); render(); });
-    $('sp-run').addEventListener('click', run);
+    window.addEventListener('hashchange', () => { if (S.busy) return; readHash(); resetView(); render(); });
+    $('sp-run').addEventListener('click', () => run());
     $('sp-log-clear').addEventListener('click', () => { $('sp-log').value = ''; });
     $('sp-settings-btn').addEventListener('click', () => { if (!S.busy) openSettings(); });
     $('sp-modal-close').addEventListener('click', closeSettings);
@@ -813,6 +1287,8 @@ async function start(user) {
     });
     bindDrop();
     bindResults();
+    bindBatches();
+    bindCompare();
     render();
 }
 

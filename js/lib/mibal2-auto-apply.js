@@ -2,7 +2,7 @@
 // 신규 부족수량관리(live) — [지금 갱신] 끝나면 자동 [스캐너에 반영](2026-11-10 사용자 요구). 순수 함수만(시험 tests/mibal2-auto-apply.test.js).
 //   · 자동 반영은 이 PC 에서 직접 누른 [지금 갱신] 요청(pending.manual)이 성공으로 끝났을 때만 — 다른 PC 갱신·07:30 자동 수집·자동 요청은 아님
 //   · 확인창이 필요한 경우는 전부 반영하지 않고 이유만 알린다(직원이 [스캐너에 반영]을 직접 누름)
-import { RECENT_SCAN_MIN, isoDay } from './mibal2-live.js?v=202611120950';
+import { RECENT_SCAN_MIN, isoDay } from './mibal2-live.js?v=202611121346';
 
 export const AUTO_TOAST_MS = 8000;   // 자동 반영 결과 토스트(성공·중단 이유) 보이는 시간
 export const AUTO_MANUAL_TAIL = '[스캐너에 반영]을 직접 누르세요';
@@ -31,11 +31,11 @@ export function refreshDoneAuto(pending, latest, nowMs = Date.now()) {
 
 /**
  * 자동 반영을 멈출 이유(첫 번째 하나) | ''. 알려 준 칸만 본다(undefined = 아직 모름 → 보지 않음).
- * f = { frozen, busy, pendingFix, parseError, datesChanged, dates, okMs, now(ms), batch, recentScanMin, mismatch('block'|'warn'|''), scanCodes, codes,
+ * f = { closed(마감된 작업을 보는 중), busy, pendingFix, parseError, datesChanged, dates, okMs, now(ms), batch, recentScanMin, mismatch('block'|'warn'|''), scanCodes, codes,
  *       unknownMibal, noLocation }
  */
 export function autoStopReason(f) {
-    if (f.frozen) return '비상 전환 중이라 이 화면은 조회 전용입니다';
+    if (f.closed) return '마감된 작업(보관함 기록)을 보는 중입니다 — 진행 중인 출고일을 고르세요';
     if (f.busy) return '진행 중인 다른 작업이 있습니다';
     if (f.pendingFix) return `저장 안 한 입고확인 ${f.pendingFix}건이 있습니다 — 먼저 [저장]하거나 [취소]하세요`;
     if (f.parseError) return `수집 자료를 읽는 데 문제가 있습니다(${f.parseError})`;

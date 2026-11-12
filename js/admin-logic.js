@@ -1,13 +1,13 @@
 // === js/admin-logic.js ===
-import { cleanPosition } from './lib/member-title.js?v=202611120950';
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202611120950';
-import { withBuiltinMenus } from './menu-catalog.js?v=202611120950';
-import { buildResignedEmails } from './lib/resigned-emails.js?v=202611120950';
-import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202611120950';
-import { permFieldsForSave } from './lib/perm-model.js?v=202611120950';
-import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202611120950';
+import { cleanPosition } from './lib/member-title.js?v=202611121346';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=202611121346';
+import { withBuiltinMenus } from './menu-catalog.js?v=202611121346';
+import { buildResignedEmails } from './lib/resigned-emails.js?v=202611121346';
+import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=202611121346';
+import { permFieldsForSave } from './lib/perm-model.js?v=202611121346';
+import { collectTaskIds, applyTaskRenames, validateTaskNames, newTaskId } from './lib/task-ids.js?v=202611121346';
 import { deletedTasks, purgeDeletedTasks, followWidgetTitles, takenDeletedNames, taskIdOfWidget, migrateDashboardTaskItems,
-    withTaskWidgetCompat } from './lib/task-config-sync.js?v=202611120950';
+    withTaskWidgetCompat } from './lib/task-config-sync.js?v=202611121346';
 
 // 권한 칸 — DOM 을 긁지 않고 권한 화면의 메모리 모델(js/lib/perm-model.js)에서 만든다(권한 개편 R-a).
 export const PERM_SAVE_KEYS = ['memberRoles', 'memberMenuAccess', 'permRoles', 'permAssign', 'permOverrides',

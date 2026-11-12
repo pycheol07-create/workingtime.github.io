@@ -7,7 +7,9 @@
 // 데이터: Firestore ZikjinData/CHUNK_n 문서 { dataStr: JSON(행 배열), updatedAt }.
 //   행 { 상품코드, 상품명, 수량, _q: { ZG, ZGF, AB, ABF }, _d: 'YYYYMMDD' }
 //   ZG = 직진 일반 / ZGF = 직진 즉시출고 / AB = 에이블리 일반 / ABF = 에이블리 즉시출고.
-//   (출처: 앱\플랫폼출고자동화\firestore_sync.py merge_rows — 전송할 때마다 오늘(_d) 것만 남기고 덮어쓴다)
+//   (출처: 앱\플랫폼출고자동화\firestore_sync.py merge_rows — 전송할 때마다 오늘(_d) 것만 남긴다.
+//    exe 는 같은 소스를 덮어쓰고, 웹판(js/lib/ship-batch.js, 2026-11-12)은 같은 날 묶음별 합을 쓴다 — 행에 _qb(묶음 내역)가 더 붙지만
+//    _q[s] 는 늘 묶음 합이라 여기서는 _q 만 읽으면 된다)
 //   _d·_q 가 없는 행(LEGACY, 앱에서 엑셀 직접 업로드)은 쓰지 않는다.
 //   ⚠️ 컬렉션에는 마지막 전송일 하루치만 남는다 — 앱이 읽은 요약을 mergeTransmitByDate 로 쌓아 둔다(localStorage).
 //
@@ -20,7 +22,7 @@
 // 업무 id 2단계(2026-10-30): 소스 표는 업무 이름이 아니라 고정 id(TASK.direct·TASK.ably)로 찾는다 — 부르는 쪽이 taskId 를 넘긴다.
 //   taskKey(지금 이름)는 hasPrecursorOn 콜백에 그대로 넘길 뿐이다.
 
-import { TASK } from './task-ids.js?v=202611120950';
+import { TASK } from './task-ids.js?v=202611121346';
 
 /** 업무 id → 그 업무로 합칠 전송 소스 */
 export const TRANSMIT_SOURCES = {

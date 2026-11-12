@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611120950"></script>
+    <script src="js/theme-boot.js?v=202611121346"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 부족수량 관리(신규·시험)</title>
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다.
          스캐너 연동(시험)·위치지정(시험)은 읽기 전용 — 쓰기 버튼은 disabled(js/china-mibal2-scan.js, js/china-mibal2-loc.js, tests/mibal2-readonly.test.js). -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611120950">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611120950">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611120950">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202611120950">
+    <link rel="stylesheet" href="css/suit.css?v=202611121346">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611121346">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611121346">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202611121346">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -69,9 +69,10 @@
         .pop-panel { display: none !important; position: absolute; top: calc(100% + 5px); right: 0; z-index: 30; width: min(620px, 92vw); box-sizing: border-box; margin: 0 !important; background: var(--c-surface); box-shadow: var(--sh-pop); }
         .pop.open .pop-panel { display: flex !important; }
         /* 정식 운영 — [스캐너에 반영]이 켜지면 접지 않고 표 도구 아래 한 줄로 늘 보인다(매일 쓰는 버튼) */
-        .pop:has(#btn-scan-off-sync:not(:disabled)) { flex-basis: 100%; margin-left: 0; }
-        .pop:has(#btn-scan-off-sync:not(:disabled)) > .pop-toggle { display: none; }
-        .pop:has(#btn-scan-off-sync:not(:disabled)) > .pop-panel { display: flex !important; position: static; width: auto; box-shadow: none; }
+        /* live-on = 단독 운영 도구가 붙이는 표시 — 마감된 작업 보기로 반영 버튼이 꺼져도 줄은 펼친 채(2026-11-12) */
+        .pop:has(#btn-scan-off-sync:not(:disabled)), .pop:has(#btn-scan-off-sync.live-on) { flex-basis: 100%; margin-left: 0; }
+        .pop:has(#btn-scan-off-sync:not(:disabled)) > .pop-toggle, .pop:has(#btn-scan-off-sync.live-on) > .pop-toggle { display: none; }
+        .pop:has(#btn-scan-off-sync:not(:disabled)) > .pop-panel, .pop:has(#btn-scan-off-sync.live-on) > .pop-panel { display: flex !important; position: static; width: auto; box-shadow: none; }
 
         /* 표 — 모바일 폭에서도 가로 스크롤 */
         .list-container { overflow: auto; background: var(--c-surface); margin: 0 14px 14px 14px; border-radius: var(--r-card); border: 1px solid var(--c-line); max-height: 72vh; -webkit-overflow-scrolling: touch; }
@@ -145,6 +146,8 @@
         .list-table tbody tr td.conf-pending { background: var(--c-warn-bg); box-shadow: inset 0 0 0 2px var(--c-warn, #e0a800); }
         .list-table tbody tr td.conf-fixed { outline: 2px dashed var(--c-accent); outline-offset: -3px; }
         .list-table tbody tr td.in-diff-cell { font-weight: bold; }
+        /* 마감된 작업 보기(2026-11-12) — 입고확인 = 보관함 기록(회색, 고치기 없음) */
+        .list-table tbody tr td.conf-closed { background: var(--c-track); color: var(--c-text-3); font-weight: 700; }
         .scan-bar { background: var(--c-surface); border: 1px dashed var(--c-line-strong); border-radius: var(--r-card); padding: 6px 12px; }
         .scan-bar .scan-title { font-weight: 600; color: var(--c-text-2); white-space: nowrap; }
         .scan-bar .scan-sep { color: var(--c-line-strong); }
@@ -472,9 +475,9 @@
     <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202611120950"></script>
-    <script type="module" src="js/china-mibal2.js?v=202611120950"></script>
-    <script type="module" src="js/page-gate.js?v=202611120950" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202611120950"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202611121346"></script>
+    <script type="module" src="js/china-mibal2.js?v=202611121346"></script>
+    <script type="module" src="js/page-gate.js?v=202611121346" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202611121346"></script>
 </body>
 </html>

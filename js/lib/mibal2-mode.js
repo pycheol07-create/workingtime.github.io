@@ -3,8 +3,7 @@
 //
 // MIBAL2_LIVE = false 인 동안(지금)은 신규 화면이 읽기 전용(시험)이고, 기존 화면(china-stock-goods.html)이 스캐너 자료를 맡는다.
 // 시작일에 이 상수를 true 로 바꿔 배포한다. live 여도 기존 화면은 열리고 조회만 된다(js/china-stock-goods.js OLD_READ_ONLY).
-// 비상 스위치(2026-11-10): live 일 때 관리자가 신규 화면 버튼으로 mibal2/fallback 을 켜면 배포 없이 기존 화면이 쓰고 신규는 조회 전용(js/lib/mibal2-fallback.js).
-//   메뉴 이름은 이 상수만 본다(비상 중에도 기존은 '(미사용)' — 화면 띠로 안내). 상수를 false 로 재배포하면 스위치는 무시된다.
+// 비상 스위치(mibal2/fallback, 2026-11-10)는 2026-11-12 사용자 지시로 없앴다 — 기존 화면은 live 동안 늘 조회 전용, 되돌리려면 이 상수를 false 로 재배포.
 // 기존 화면을 아예 신규로 넘기는 것(china-stock-version.json oldRetired:true)은 별도 지시가 있을 때 따로 한다.
 // 메뉴(js/menu-catalog.js·js/app-shell-data.js·js/lib/feature-catalog.js·js/config.js)는 이 상수만 본다.
 //

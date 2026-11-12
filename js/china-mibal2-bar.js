@@ -1,9 +1,9 @@
 // === js/china-mibal2-bar.js ===
 // 부족수량관리(신규, live) 스캐너 연동 줄 — [⚙ 설정] 메뉴 + [줄 편집](2026-11-10 사용자 요청). js/china-mibal2-live.js decorate 끝에서 부른다.
-//   · 줄의 진짜 버튼(id 그대로, 하나뿐)은 줄에 두거나 숨긴 보관함(#scan-bar-holder, 같은 줄 안)으로 옮길 뿐 — 거는 코드·비상 스위치 끄기는 그대로 따른다
+//   · 줄의 진짜 버튼(id 그대로, 하나뿐)은 줄에 두거나 숨긴 보관함(#scan-bar-holder, 같은 줄 안)으로 옮길 뿐 — 거는 코드·버튼 끄기(마감된 작업 보기 등)는 그대로 따른다
 //   · 메뉴는 진짜 버튼을 누르는 대리 버튼(id 없음, data-for) — 열 때·버튼 상태가 바뀔 때 글자·꺼짐·숨김을 진짜 버튼에서 베낀다
 //   · 줄 구성·순서는 그 PC localStorage(js/lib/mibal2-bar.js). 처음은 지금 줄 그대로
-import { BAR_KEY, rowFromStorage, serializeRow, toggleRow, moveRow, editList, menuIds } from './lib/mibal2-bar.js?v=202611120950';
+import { BAR_KEY, rowFromStorage, serializeRow, toggleRow, moveRow, editList, menuIds } from './lib/mibal2-bar.js?v=202611121346';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -82,7 +82,7 @@ export function setupScanBar(o) {
     });
     document.addEventListener('click', (e) => { if (!panel.hidden && !menuWrap.contains(e.target)) setOpen(false); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !panel.hidden) { setOpen(false); $('btn-scan-menu').focus(); } });
-    // 진짜 버튼의 꺼짐·숨김·글자가 바뀌면(비상 전환·작업 중 등) 메뉴도 같이
+    // 진짜 버튼의 꺼짐·숨김·글자가 바뀌면(마감된 작업 보기·작업 중 등) 메뉴도 같이
     const mo = new MutationObserver(() => { if (!panel.hidden) syncMenu(); });
     menuList.forEach(id => { const b = realOf(id); if (b) mo.observe(b, { attributes: true, attributeFilter: ['disabled', 'hidden', 'style', 'title'], childList: true, characterData: true, subtree: true }); });
 

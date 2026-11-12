@@ -11,12 +11,11 @@
 //   shipListOf       출고일 목록(화면 getShipList 와 같다)
 //   historyPatchFrom 출고일 목록 + 계산 함수 → MIBAL_HISTORY map 패치
 //   autoHistoryPlan  서버 한 회차 판정 → { action:'write'|'skip', reason, recs, patch, stats }
-//   reviveTs         서버가 보낸 시각 표시 {$ts: ms} → toMillis 를 가진 값(fallbackOf 가 서버 시각으로 읽게)
+//   reviveTs         서버가 보낸 시각 표시 {$ts: ms} → toMillis 를 가진 값
 // 상품명·공급처·원가는 결과(recs·stats)에 넣지 않는다 — 출고일·입고일·숫자만.
-import { computeRows, buildLocIndex, listShipDates, graceDaysFrom } from './mibal2-rows.js?v=202611120950';
-import { historyGroupsOf, historyRecordsOf, hasHistoryToday, mibalTotalsOf, isoDay } from './mibal2-live.js?v=202611120950';
-import { fallbackOf, modesOf } from './mibal2-fallback.js?v=202611120950';
-import { MIBAL2_LIVE } from './mibal2-mode.js?v=202611120950';
+import { computeRows, buildLocIndex, listShipDates, graceDaysFrom } from './mibal2-rows.js?v=202611121346';
+import { historyGroupsOf, historyRecordsOf, hasHistoryToday, mibalTotalsOf, isoDay } from './mibal2-live.js?v=202611121346';
+import { MIBAL2_LIVE } from './mibal2-mode.js?v=202611121346';
 
 /** Firestore Timestamp / Date / 숫자(ms) / 날짜 글자 → ms (없으면 0) — 화면 tsMs 와 같다 */
 export function tsMs(v) {
@@ -79,7 +78,7 @@ const sameRec = (a, b) => !!a && !!b && REC_KEYS.every(k => String(a[k] == null 
 
 /**
  * 서버(미발기록) 한 회차 판정. 순서:
- *   ① 단독 운영 상수 꺼짐 또는 비상 전환(modesOf newWrite false — 스위치 모름 포함) → skip 'fallback'
+ *   ① 단독 운영 상수 꺼짐(시험 운영 — 기존 화면이 씀) → skip 'not-live'   (비상 전환 기능은 2026-11-12 없앰)
  *   ② 수집 성공(lastOkAt) 날짜 ≠ today → skip 'not-today'
  *   ③ 오늘 v2 기록이 이미 있음 → skip 'exists' (미리보기용으로 자료가 해석되면 계산은 해서 stats 에 같음/다름 건수)
  *   ④ 수집 자료 해석 실패 → skip 'parse-error'
@@ -88,7 +87,6 @@ const sameRec = (a, b) => !!a && !!b && REC_KEYS.every(k => String(a[k] == null 
  * @param {object} p
  * @param {object} p.historyMap   MIBAL_HISTORY.map (없으면 {})
  * @param {object|null} p.latestData  mibal2Latest {rowsJson, shipJson, lastOkAt}
- * @param {object|null} p.fallbackDoc mibal2/fallback 문서(없으면 null). 서버 시각 칸은 {$ts: ms} 또는 toMillis 를 가진 값
  * @param {object} p.config  ChinaStockGoods/CONFIG (zoneCapacity·emptyFill·graceDays)
  * @param {object} p.edited  EDITED_CELLS.cells
  * @param {Array<{id, data}>} p.zoneDocs  Locations ZONE_* (자리마다 code·category 만 있어도 된다)
@@ -97,13 +95,12 @@ const sameRec = (a, b) => !!a && !!b && REC_KEYS.every(k => String(a[k] == null 
  * @returns {{action:'write'|'skip', reason:string, recs:object, patch:object, stats:object}}
  *   recs = 쓸 것(write 일 때만 차 있음), patch = 계산한 그날 기록 전부(미리보기용)
  */
-export function autoHistoryPlan({ historyMap, latestData, fallbackDoc, config, edited, zoneDocs, today, nowMs } = {}) {
+export function autoHistoryPlan({ historyMap, latestData, config, edited, zoneDocs, today, nowMs } = {}) {
     const map = historyMap || {};
     const stats = { shipDates: 0, groups: 0, keys: 0, write: 0, sameAsExisting: 0, diff: 0, mibal: 0, short: 0, locCodes: 0, parseError: '' };
     const done = (action, reason, recs = {}, patch = {}) => ({ action, reason, recs, patch, stats });
 
-    const fb = fallbackOf(fallbackDoc === undefined ? null : reviveTs(fallbackDoc));
-    if (!modesOf({ constant: MIBAL2_LIVE, fb }).newWrite) return done('skip', 'fallback');
+    if (!MIBAL2_LIVE) return done('skip', 'not-live');
 
     const L = parseLatest(latestData);
     if (!L.okMs || isoDay(new Date(L.okMs)) !== today) return done('skip', 'not-today');

@@ -4,8 +4,10 @@
 //   ZikjinData/CHUNK_n { dataStr: JSON(행 200개), updatedAt } — 행 { 상품코드, 상품명, _q:{소스:수량}, _d:'YYYYMMDD', 수량 }
 //   artifacts/team-work-logger-v2/integrations/zabPacks  days.{YYYY-MM-DD}.{zikjin|ably} · src.{소스} · updatedAt(+09:00)
 // 숫자만 기록한다 — 고객 정보는 넣지 않는다.
+// ⚠️ mergeRows · buildPackPatch 는 'exe 호환판'이다(같은 날·같은 소스를 덮어씀 — Python 판 비교 시험이 이것을 본다).
+//   웹판 전송은 같은 날 여러 묶음을 더하는 js/lib/ship-batch.js(mergeRowsBatched · packBatchPatch)를 쓴다(2026-11-12).
 
-import { pyStr, pyStrip, pyFloat, pyTruthy, kstDay, kstIso } from './ship-core.js?v=202611120950';
+import { pyStr, pyStrip, pyFloat, pyTruthy, kstDay, kstIso } from './ship-core.js?v=202611121346';
 
 export const CHUNK_SIZE = 200;
 export const PACKS_DOC_PATH = 'artifacts/team-work-logger-v2/integrations/zabPacks';
@@ -87,12 +89,22 @@ export function pyJsonDumps(x) {
     return '{' + Object.entries(x).map(([k, v]) => JSON.stringify(k) + ': ' + pyJsonDumps(v)).join(', ') + '}';
 }
 
-/** 합본 행 → CHUNK 문서들 [{ id:'CHUNK_0', dataStr }] (빈 목록이면 []) */
-export function chunkDocs(rows) {
+// 문서 하나의 dataStr 상한 — 규칙(firestore.rules ZikjinData)이 20만 자까지 받는다. 묶음 내역(_qb)으로 행이 길어져 여유를 둔다.
+export const CHUNK_CHARS_MAX = 190000;
+
+/** 합본 행 → CHUNK 문서들 [{ id:'CHUNK_0', dataStr }] (빈 목록이면 [])
+ *  200행마다 나누고, 그 전에 dataStr 이 CHUNK_CHARS_MAX 자를 넘게 되면 다음 CHUNK 로(행이 짧으면 Python 판과 같다) */
+export function chunkDocs(rows, maxChars = CHUNK_CHARS_MAX) {
     const out = [];
-    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-        out.push({ id: `CHUNK_${i / CHUNK_SIZE}`, dataStr: pyJsonDumps(rows.slice(i, i + CHUNK_SIZE)) });
+    let cur = [], len = 2;   // '[' ']'
+    const flush = () => { out.push({ id: `CHUNK_${out.length}`, dataStr: pyJsonDumps(cur) }); cur = []; len = 2; };
+    for (const row of rows) {
+        const n = pyJsonDumps(row).length;
+        if (cur.length && (cur.length >= CHUNK_SIZE || len + 2 + n > maxChars)) flush();   // 2 = ', '
+        len += n + (cur.length ? 2 : 0);
+        cur.push(row);
     }
+    if (cur.length) flush();
     return out;
 }
 
@@ -135,7 +147,8 @@ export function parsePackDays(doc) {
     return out;
 }
 
-/** SDK 로 읽은 문서 값(data()) → { 날짜: { 소스: 봉 수 } } */
+/** SDK 로 읽은 문서 값(data()) → { 날짜: { 소스: 봉 수 } }
+ *  src 가 없고 묶음 내역(bat, js/lib/ship-batch.js)만 있는 소스는 Σ bat[s].n 으로 본다(src 가 있으면 src 가 먼저 — exe 가 쓴 값) */
 export function packDaysFromData(data) {
     const days = (data && isDict(data.days)) ? data.days : {};
     const out = {};
@@ -143,6 +156,13 @@ export function packDaysFromData(data) {
         const src = (v && isDict(v.src)) ? v.src : {};
         out[day] = {};
         for (const [k, n] of Object.entries(src)) out[day][k] = Number.isFinite(Number(n)) ? Math.trunc(Number(n)) : 0;
+        const bat = (v && isDict(v.bat)) ? v.bat : {};
+        for (const [k, b] of Object.entries(bat)) {
+            if (Object.prototype.hasOwnProperty.call(out[day], k) || !isDict(b) || !PACK_CHANNEL_BY_SOURCE[k]) continue;
+            let n = 0;
+            for (const x of Object.values(b)) if (isDict(x)) n += Number.isFinite(Number(x.n)) ? Math.trunc(Number(x.n)) : 0;
+            out[day][k] = n;
+        }
     }
     return out;
 }

@@ -9,7 +9,7 @@
 //   재고출고용 .xls(biff8)는 js/lib/xls-limits.js xlsBytes 를 쓴다.
 // JSZip·XLSX 는 넘겨받은 것으로만 쓴다(브라우저 CDN · node 공용).
 
-import { xlsBytes } from './xls-limits.js?v=202611120950';
+import { xlsBytes } from './xls-limits.js?v=202611121346';
 
 // ---------------------------------------------------------------- XML 도우미
 const escXml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

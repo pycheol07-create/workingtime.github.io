@@ -1,17 +1,17 @@
 // === js/listeners-form-attendance.js ===
 // 설명: 근태 설정(연차/외출 등) 및 수정 모달의 폼 로직을 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611120950';
-import * as State from './state.js?v=202611120950';
-import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=202611120950';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120950';
-import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=202611120950';
-import { saveStateToFirestore } from './app-data.js?v=202611120950';
-import { updateLeaveSchedule } from './config.js?v=202611120950';
-import { removeByIds, removeRecord } from './lib/leave-ops.js?v=202611120950';
-import { renderLeaveTypeModalOptions } from './ui-modals.js?v=202611120950';
-import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202611120950';
-import { normalizeClock } from './lib/clock-in-out.js?v=202611120950';
+import * as DOM from './dom-elements.js?v=202611121346';
+import * as State from './state.js?v=202611121346';
+import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=202611121346';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611121346';
+import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=202611121346';
+import { saveStateToFirestore } from './app-data.js?v=202611121346';
+import { updateLeaveSchedule } from './config.js?v=202611121346';
+import { removeByIds, removeRecord } from './lib/leave-ops.js?v=202611121346';
+import { renderLeaveTypeModalOptions } from './ui-modals.js?v=202611121346';
+import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202611121346';
+import { normalizeClock } from './lib/clock-in-out.js?v=202611121346';
 import { doc, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 당일 근태 중복 안내 — 지각·조퇴는 하루 1건, 외출은 같은 시각만 중복
@@ -341,7 +341,7 @@ ${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진�
                     // 지난 시각으로 끊을 때는 그 시각 이후에 시작한 기록을 건드리지 않는다(onlyStartedBefore).
                     if ((type === '외출' || type === '조퇴') && !isScheduled) {
                         try {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202611120950');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202611121346');
                             const r = await forceEndMemberWork(memberName, newDailyEntry.startTime, { onlyStartedBefore: true });
                             if (r.ended > 0) {
                                 console.warn(`[외출/조퇴 자동 종료] ${memberName}: ${r.ended}건`, r.summaries);
