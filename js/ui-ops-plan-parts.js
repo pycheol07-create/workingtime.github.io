@@ -2,7 +2,7 @@
 // 📋 운영 계획 탭 — 주간·월간·목표 화면이 같이 쓰는 그리기 조각(숫자 표시·카드·과제 목록·계획 대비 실적 카드).
 //   그리기만 한다(숫자는 js/lib/plan-*.js). 금액·직원 이름 없음. ⚠️ role=dialog·data-act 금지.
 
-import { escapeHtml as esc } from './utils.js?v=202611121547';
+import { escapeHtml as esc } from './utils.js?v=202611121915';
 
 export { esc };
 export const ok = (v) => v != null && isFinite(v);
@@ -44,7 +44,7 @@ export function actionsHtml(actions, { done = () => false, mode = 'local', title
         return `<li class="opp-act${d ? ' is-done' : ''}">
             <label class="opp-act-check"><input type="checkbox" data-plan-done="${esc(a.key)}"${d ? ' checked' : ''}${mode === 'view' ? ' disabled' : ''}> <span class="opp-act-title">${esc(a.title)}</span></label>
             <div class="opv-note">근거: ${esc(a.basis)}</div>
-            <div class="opv-note">기대 효과: ${esc(a.effect)} · 기한 ${a.due ? fmtDay(a.due) : '—'} · 담당 ${esc(a.role)} · ${esc(a.rule)}</div>
+            <div class="opv-note">기대 효과: ${esc(a.effect)} · 기한 ${esc(a.due ? fmtDay(a.due) : '—')} · 담당 ${esc(a.role)} · ${esc(a.rule)}</div>
         </li>`;
     }).join('');
     const hint = mode === 'local' ? '점수 = 영향 시간 × 신뢰도 × 급함 · 체크는 이 브라우저에만 남습니다(확정하면 확정본에 저장)'
@@ -58,11 +58,11 @@ export function compareCardHtml(cmp, label) {
     if (!cmp) return '';
     const S = cmp.summary;
     const rows = cmp.rows.map(r => `<tr>
-        <td>${fmtDay(r.date)}</td><td class="r">${n1(r.planReq)}</td><td class="r">${r.recorded ? n1(r.actualRequired) : '—'}</td>
-        <td class="r">${r.recorded && ok(r.reqErrPct) ? signed1(r.reqErrPct) + '%' : '—'}</td>
-        <td class="r">${n0(r.planSupply)}</td><td class="r">${r.recorded ? n0(r.actualAttended) : '—'}</td>
-        <td class="r">${r.recorded ? n0(r.qty) : '—'}</td><td class="r">${r.recorded ? n1(r.uph) : '—'}</td>
-        <td class="r">${r.recorded ? pct0(r.fillRate) : '—'}</td></tr>`).join('');
+        <td>${fmtDay(r.date)}</td><td class="r">${esc(n1(r.planReq))}</td><td class="r">${esc(r.recorded ? n1(r.actualRequired) : '—')}</td>
+        <td class="r">${esc(r.recorded && ok(r.reqErrPct) ? signed1(r.reqErrPct) + '%' : '—')}</td>
+        <td class="r">${esc(n0(r.planSupply))}</td><td class="r">${esc(r.recorded ? n0(r.actualAttended) : '—')}</td>
+        <td class="r">${esc(r.recorded ? n0(r.qty) : '—')}</td><td class="r">${esc(r.recorded ? n1(r.uph) : '—')}</td>
+        <td class="r">${esc(r.recorded ? pct0(r.fillRate) : '—')}</td></tr>`).join('');
     return card(`지난 계획 대비 실적 — ${label}`, `<div class="opv-kpis">
         ${kpi('필요 인원 오차', ok(S.reqErrPct) ? signed1(S.reqErrPct) : '—', '%', `절댓값 평균 ${ok(S.reqAbsErrPct) ? n1(S.reqAbsErrPct) + '%' : '—'}`)}
         ${kpi('출근 vs 계획 공급', ok(S.supplyErrPct) ? signed1(S.supplyErrPct) : '—', '%')}

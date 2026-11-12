@@ -4,14 +4,14 @@
 // admin-logic.collectConfigFromDOM 이 getPermModel() 로 권한 칸을 만든다(DOM 을 긁지 않는다).
 // ※ 봇이 읽는 div[role=dialog]·data-act 는 쓰지 않는다(관리자 페이지라 봇이 열지는 않지만 같은 규칙을 지킨다).
 
-import { FEATURES, FEATURE_GROUPS, FEATURE_BY_ID } from './lib/feature-catalog.js?v=202611121547';
-import { roleFeatures, visibleMenuGroups } from './lib/perm.js?v=202611121547';
+import { FEATURES, FEATURE_GROUPS, FEATURE_BY_ID } from './lib/feature-catalog.js?v=202611121915';
+import { roleFeatures, visibleMenuGroups } from './lib/perm.js?v=202611121915';
 import {
     createPermModel, autoAssignedCount, effectiveSet, resolvedOf, setAdmin, setRole, setFeature, resetToRole,
     usersOfRole, holdersOf, adminCount, addRole, renameRole, deleteRole, setRoleFeature, setDefaultRole, setEnforce
-} from './lib/perm-model.js?v=202611121547';
-import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=202611121547';
-import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=202611121547';
+} from './lib/perm-model.js?v=202611121915';
+import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=202611121915';
+import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=202611121915';
 
 let model = null;
 let config = null;
@@ -52,7 +52,7 @@ function hitsLine() {
     if (hits === null) body = '<span class="text-gray-400">읽는 중…</span>';
     else if (hits === 'error') body = '<span class="text-gray-400">읽지 못함(규칙 게시 전이면 아직 쌓이지 않습니다)</span>';
     else if (!hits.length) body = '<span class="text-gray-400">없음</span>';
-    else body = hits.map(h => `<span class="inline-block mr-2">${esc(label(h.id))} <b>${h.n}</b></span>`).join('');
+    else body = hits.map(h => `<span class="inline-block mr-2">${esc(label(h.id))} <b>${esc(h.n)}</b></span>`).join('');
     return `<div id="pm-gate-hits" class="mb-3 text-[11px] text-gray-600 dark:text-gray-300" title="권한이 없는 화면에 들어간 횟수(같은 창·같은 화면은 하루 1회). 이름·이메일은 남기지 않습니다.">
         <b>최근 7일 막힐 뻔한 입장</b> · ${body}</div>`;
 }
@@ -118,8 +118,8 @@ const GRANTABLE = FEATURES.filter(f => f.grantable);
 const roleIdsSorted = () => Object.keys(model.roles)
     .sort((a, b) => (model.roles[a].order - model.roles[b].order) || (a < b ? -1 : 1));
 
-const tabBtn = (id, label) => `<button type="button" data-pm-act="tab" data-pm-nodirty data-tab="${id}"
-    class="px-4 py-1.5 text-sm font-bold rounded-md transition ${tab === id ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}">${label}</button>`;
+const tabBtn = (id, label) => `<button type="button" data-pm-act="tab" data-pm-nodirty data-tab="${esc(id)}"
+    class="px-4 py-1.5 text-sm font-bold rounded-md transition ${tab === id ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}">${esc(label)}</button>`;
 
 function draw() {
     const container = document.getElementById('permissions-container');
@@ -138,7 +138,7 @@ function draw() {
         </div>
         ${hitsLine()}
         ${auto > 0 ? `<div id="perm-auto-band" class="mb-4 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-sm text-amber-800 dark:text-amber-200">
-            ⚠️ 옛 권한에서 자동 배정됨 <b>${auto}명</b> — 지금 쓸 수 있는 기능 그대로 역할·예외로 옮겼습니다. 확인한 뒤 <b>[전체 저장]</b>을 누르면 새 형식으로 저장됩니다.</div>` : ''}
+            ⚠️ 옛 권한에서 자동 배정됨 <b>${esc(auto)}명</b> — 지금 쓸 수 있는 기능 그대로 역할·예외로 옮겼습니다. 확인한 뒤 <b>[전체 저장]</b>을 누르면 새 형식으로 저장됩니다.</div>` : ''}
         ${model.rolesFromPreset ? `<div class="mb-4 p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 text-xs text-blue-800 dark:text-blue-200">
             역할은 아직 저장된 적이 없어 기본 프리셋으로 시작합니다(저장하면 함께 저장됩니다).</div>` : ''}`;
     const body = tab === 'roles' ? drawRoles() : (tab === 'features' ? drawFeatures() : drawPeople());
@@ -152,7 +152,7 @@ function featureGrid(isOn, decorate, act, extraAttr) {
         return `<div class="flex flex-wrap items-start gap-x-4 gap-y-1 py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
             <span class="w-24 shrink-0 text-[11px] font-bold text-gray-500 dark:text-gray-400 pt-0.5">${esc(g.label)}</span>
             <div class="flex flex-wrap gap-x-4 gap-y-1 flex-1">
-            ${feats.map(f => `<label class="inline-flex items-center gap-1.5 cursor-pointer select-none text-xs ${decorate(f).cls}" title="${esc(f.id)}">
+            ${feats.map(f => `<label class="inline-flex items-center gap-1.5 cursor-pointer select-none text-xs ${esc(decorate(f).cls)}" title="${esc(f.id)}">
                 <input type="checkbox" class="w-4 h-4" data-pm-act="${act}" data-id="${esc(f.id)}" ${extraAttr} ${isOn(f.id) ? 'checked' : ''}>
                 <span>${esc(f.label)}</span>${DANGER_BADGE[f.danger] || ''}${decorate(f).tag}${ADMIN_ONLY_TAG(f.id)}</label>`).join('')}
             </div></div>`;
@@ -289,7 +289,7 @@ function drawFeatures() {
         <td class="py-1.5 pr-3">${esc(groupLabel[f.group] || f.group)}</td>
         <td class="py-1.5 pr-3">${f.grantable ? (DANGER_BADGE[f.danger] || '-') : '-'}</td>
         <td class="py-1.5 pr-3">${f.grantable ? esc(RULE_TEXT[f.rule] || f.rule) : '관리자 전용'}</td>
-        <td class="py-1.5 pr-3 text-right">${f.grantable ? holdersOf(model, f.id) + '명' : '-'}</td></tr>`).join('');
+        <td class="py-1.5 pr-3 text-right">${esc(f.grantable ? holdersOf(model, f.id) + '명' : '-')}</td></tr>`).join('');
     return `<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">읽기 전용. '가진 사람'은 일반 계정 수입니다(관리자 ${admins}명은 전부 가짐). '규칙으로 막음'은 Firestore 규칙 게시 뒤의 목표입니다.</div>
         <div class="overflow-x-auto"><table id="pm-features" class="w-full text-sm text-gray-700 dark:text-gray-200">
         <thead><tr class="text-left text-[11px] text-gray-500 border-b border-gray-200 dark:border-gray-600">

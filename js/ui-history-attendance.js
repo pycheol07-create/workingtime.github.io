@@ -1,8 +1,8 @@
 // === js/ui-history-attendance.js ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear, escapeHtml } from './utils.js?v=202611121547';
-import { context, LEAVE_TYPES, appState, appConfig } from './state.js?v=202611121547';
-import { systemAccountSet } from './attendance-stats.js?v=202611121547';
+import { formatTimeTo24H, formatDuration, getWeekOfYear, escapeHtml } from './utils.js?v=202611121915';
+import { context, LEAVE_TYPES, appState, appConfig } from './state.js?v=202611121915';
+import { systemAccountSet } from './attendance-stats.js?v=202611121915';
 
 // 근태 요약 표의 열 순서. 기존 순서를 유지하되, LEAVE_TYPES에 있는데 여기 없는 종류는
 // 뒤에 자동으로 붙는다 → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -29,12 +29,12 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
     let inputHtml = '';
     if (options.length > 0) {
         const optionsHtml = options.map(opt => 
-            `<option value="${opt}" ${currentFilterValue === String(opt) ? 'selected' : ''}>${opt}</option>`
+            `<option value="${escapeHtml(opt)}" ${currentFilterValue === String(opt) ? 'selected' : ''}>${escapeHtml(opt)}</option>`
         ).join('');
         
         inputHtml = `
             <select class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer"
-                    data-filter-target="${mode}" data-filter-key="${key}">
+                    data-filter-target="${escapeHtml(mode)}" data-filter-key="${escapeHtml(key)}">
                 <option value="">(전체)</option>
                 ${optionsHtml}
             </select>`;
@@ -42,14 +42,14 @@ const getFilterDropdown = (mode, key, currentFilterValue, options = []) => {
         inputHtml = `
             <input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                    placeholder="검색어 입력..." 
-                   value="${currentFilterValue || ''}"
-                   data-filter-target="${mode}" data-filter-key="${key}"
+                   value="${escapeHtml(currentFilterValue || '')}"
+                   data-filter-target="${escapeHtml(mode)}" data-filter-key="${escapeHtml(key)}"
                    autocomplete="off">`;
     }
 
     return `
         <div class="relative inline-block ml-1 filter-container">
-            <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
+            <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${escapeHtml(dropdownId)}" title="필터">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                   <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
                 </svg>
@@ -152,14 +152,14 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
     let html = `
         <div class="mb-4 pb-2 border-b flex justify-between items-center">
-            <h3 class="text-xl font-bold text-gray-800">${dateKey} 근태 현황</h3>
+            <h3 class="text-xl font-bold text-gray-800">${escapeHtml(dateKey)} 근태 현황</h3>
             <div>
                 <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
-                        data-action="open-add-attendance-modal" data-date-key="${dateKey}">
+                        data-action="open-add-attendance-modal" data-date-key="${escapeHtml(dateKey)}">
                     수동 추가
                 </button>
                 <button class="bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 font-semibold py-1 px-3 rounded-md text-sm ml-4" 
-                        data-action="request-history-deletion" data-date-key="${dateKey}">
+                        data-action="request-history-deletion" data-date-key="${escapeHtml(dateKey)}">
                     삭제
                 </button>
             </div>
@@ -253,16 +253,16 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
 
                 html += `<tr class="${rowClass}">`;
                 if (isFirstRowOfGroup) {
-                    html += `<td class="px-6 py-4 font-medium text-gray-900 align-top border-r border-gray-50" rowspan="${memberEntryCount}">${member}</td>`;
+                    html += `<td class="px-6 py-4 font-medium text-gray-900 align-top border-r border-gray-50" rowspan="${escapeHtml(memberEntryCount)}">${escapeHtml(member)}</td>`;
                 }
                 html += `
                     <td class="px-6 py-4">
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">${entry.type}</span>
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">${escapeHtml(entry.type)}</span>
                     </td>
-                    <td class="px-6 py-4 text-gray-500 font-mono text-xs">${detailText}</td>
+                    <td class="px-6 py-4 text-gray-500 font-mono text-xs">${escapeHtml(detailText)}</td>
                     <td class="px-6 py-4 text-right space-x-2">
-                        <button data-action="edit-attendance" data-date-key="${dateKey}" data-index="${entry.originalIndex}" class="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">수정</button>
-                        <button data-action="delete-attendance" data-date-key="${dateKey}" data-index="${entry.originalIndex}" class="text-xs font-medium text-red-500 hover:text-red-700 hover:underline">삭제</button>
+                        <button data-action="edit-attendance" data-date-key="${escapeHtml(dateKey)}" data-index="${escapeHtml(entry.originalIndex)}" class="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">수정</button>
+                        <button data-action="delete-attendance" data-date-key="${escapeHtml(dateKey)}" data-index="${escapeHtml(entry.originalIndex)}" class="text-xs font-medium text-red-500 hover:text-red-700 hover:underline">삭제</button>
                     </td>
                 </tr>`;
             });
@@ -276,14 +276,14 @@ export const renderAttendanceDailyHistory = (dateKey, allHistoryData) => {
             
             html += `
                 <tr class="bg-white hover:bg-gray-50">
-                    <td class="px-6 py-4 font-medium text-gray-900">${entry.member}</td>
+                    <td class="px-6 py-4 font-medium text-gray-900">${escapeHtml(entry.member)}</td>
                     <td class="px-6 py-4">
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">${entry.type}</span>
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">${escapeHtml(entry.type)}</span>
                     </td>
-                    <td class="px-6 py-4 text-gray-500 font-mono text-xs">${detailText}</td>
+                    <td class="px-6 py-4 text-gray-500 font-mono text-xs">${escapeHtml(detailText)}</td>
                     <td class="px-6 py-4 text-right space-x-2">
-                        <button data-action="edit-attendance" data-date-key="${dateKey}" data-index="${originalIndex}" class="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">수정</button>
-                        <button data-action="delete-attendance" data-date-key="${dateKey}" data-index="${originalIndex}" class="text-xs font-medium text-red-500 hover:text-red-700 hover:underline">삭제</button>
+                        <button data-action="edit-attendance" data-date-key="${escapeHtml(dateKey)}" data-index="${escapeHtml(originalIndex)}" class="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">수정</button>
+                        <button data-action="delete-attendance" data-date-key="${escapeHtml(dateKey)}" data-index="${escapeHtml(originalIndex)}" class="text-xs font-medium text-red-500 hover:text-red-700 hover:underline">삭제</button>
                     </td>
                 </tr>`;
         });
@@ -315,7 +315,7 @@ const _formatDetailText = (entry) => {
 const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKey, mode) => {
     const data = aggregationMap[periodKey];
     if (!data) {
-        viewElement.innerHTML = `<div class="text-center text-gray-500">${periodKey} 기간의 근태 데이터가 없습니다.</div>`;
+        viewElement.innerHTML = `<div class="text-center text-gray-500">${escapeHtml(periodKey)} 기간의 근태 데이터가 없습니다.</div>`;
         return;
     }
 
@@ -416,9 +416,9 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
         }
 
         return `
-        <th scope="col" class="px-4 py-3 border-b cursor-pointer hover:bg-gray-200 select-none group ${width}" data-sort-target="${mode}" data-sort-key="${key}">
+        <th scope="col" class="px-4 py-3 border-b cursor-pointer hover:bg-gray-200 select-none group ${escapeHtml(width)}" data-sort-target="${escapeHtml(mode)}" data-sort-key="${escapeHtml(key)}">
             <div class="flex items-center justify-center relative">
-                <span class="flex items-center whitespace-nowrap">${label} ${getSortIcon(sortState.key, sortState.dir, key)}</span>
+                <span class="flex items-center whitespace-nowrap">${escapeHtml(label)} ${getSortIcon(sortState.key, sortState.dir, key)}</span>
                 ${getFilterDropdown(mode, key, filterState[key], filterOptions)}
             </div>
         </th>`;
@@ -428,7 +428,7 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
     const cols = attColsFor(seenAttTypes);
     let html = `
         <div class="bg-white p-4 rounded-lg shadow-sm mb-6 min-h-[400px]">
-            <h3 class="text-xl font-bold mb-4 text-gray-800">${periodKey} 근태 요약</h3>
+            <h3 class="text-xl font-bold mb-4 text-gray-800">${escapeHtml(periodKey)} 근태 요약</h3>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-600 border border-gray-200">
                     <thead class="text-xs text-gray-700 uppercase bg-gray-100">
@@ -441,22 +441,22 @@ const renderAggregatedAttendanceSummary = (viewElement, aggregationMap, periodKe
                     <tbody class="divide-y divide-gray-200">`;
 
     if (summary.length === 0) {
-         html += `<tr><td colspan="${cols.length + 4}" class="text-center py-8 text-gray-500">필터 조건에 맞는 데이터가 없습니다.</td></tr>`;
+         html += `<tr><td colspan="${escapeHtml(cols.length + 4)}" class="text-center py-8 text-gray-500">필터 조건에 맞는 데이터가 없습니다.</td></tr>`;
     } else {
         summary.forEach(item => {
-            const cell = (k, color='text-gray-400') => `<td class="px-4 py-3 text-center ${item.counts[k]>0 ? 'text-gray-800 font-medium' : color}">${item.counts[k]||0}</td>`;
+            const cell = (k, color='text-gray-400') => `<td class="px-4 py-3 text-center ${escapeHtml(item.counts[k]>0 ? 'text-gray-800 font-medium' : color)}">${escapeHtml(item.counts[k]||0)}</td>`;
             html += `
                 <tr class="bg-white hover:bg-gray-50">
-                    <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${item.member}</td>
+                    <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${escapeHtml(item.member)}</td>
                     ${cols.map(t => {
                         const v = item.counts[t] || 0;
-                        if (t === '결근') return `<td class="px-4 py-3 text-center ${v>0?'text-red-600 font-bold':'text-gray-300'}">${v}</td>`;
-                        if (t === '연차') return `<td class="px-4 py-3 text-center ${v>0?'text-blue-600 font-bold':'text-gray-300'}">${v}</td>`;
+                        if (t === '결근') return `<td class="px-4 py-3 text-center ${v>0?'text-red-600 font-bold':'text-gray-300'}">${escapeHtml(v)}</td>`;
+                        if (t === '연차') return `<td class="px-4 py-3 text-center ${v>0?'text-blue-600 font-bold':'text-gray-300'}">${escapeHtml(v)}</td>`;
                         return cell(t, 'text-gray-300');
                     }).join('')}
-                    <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${item.totalCount}</td>
-                    <td class="px-4 py-3 text-center font-bold text-red-600 bg-red-50">${item.totalAbsenceDays}</td>
-                    <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${item.totalLeaveDays}</td>
+                    <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${escapeHtml(item.totalCount)}</td>
+                    <td class="px-4 py-3 text-center font-bold text-red-600 bg-red-50">${escapeHtml(item.totalAbsenceDays)}</td>
+                    <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${escapeHtml(item.totalLeaveDays)}</td>
                 </tr>`;
         });
     }

@@ -1,12 +1,12 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202611121547';
-import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611121547';
-import { fetchPlannedData } from './history-data-manager.js?v=202611121547';
-import { getTodayDateString } from './utils.js?v=202611121547';
-import { staffing as opsStaffing, baselineSpeeds as opsBaselineSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=202611121547';
-import { D } from './d-chart.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
-import { TASK, tName } from './task-names.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611121915';
+import { fetchPlannedData } from './history-data-manager.js?v=202611121915';
+import { getTodayDateString, escapeHtml } from './utils.js?v=202611121915';
+import { staffing as opsStaffing, baselineSpeeds as opsBaselineSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=202611121915';
+import { D } from './d-chart.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
+import { TASK, tName } from './task-names.js?v=202611121915';
 
 let staffingChartInstance = null;
 
@@ -117,7 +117,7 @@ export function renderStaffingTab(filteredData, appConfig) {
         const meta = `<span class="block mt-1 text-gray-400 dark:text-gray-500">`
             + `기준 속도: 기간 끝까지의 이력 평균(평상시) · 가동률 ${Math.round(utilization * 100)}% · 운영일 ${dayCount}일`
             + (notes.length > 0 ? ` · ${notes.join(' · ')}` : '')
-            + `<br>출고성 업무: ${basketLabel}`
+            + `<br>출고성 업무: ${escapeHtml(basketLabel)}`
             + `</span>`;
 
         {
@@ -189,26 +189,26 @@ const outlookRow = (r, maxNeed, todayStr) => {
 
     return `
     <tr class="border-t border-gray-100 dark:border-gray-700/60 ${short ? 'bg-rose-50/50 dark:bg-rose-900/10' : ''}
-               hover:bg-gray-50 dark:hover:bg-gray-900/30 cursor-pointer staffing-outlook-row" data-date="${r.date}"
+               hover:bg-gray-50 dark:hover:bg-gray-900/30 cursor-pointer staffing-outlook-row" data-date="${escapeHtml(r.date)}"
         title="누르면 업무 예상에서 이 날짜를 자세히 볼 수 있습니다">
         <td class="py-2 px-3 whitespace-nowrap font-medium text-gray-700 dark:text-gray-200">
-            ${fmtDay(r.date)}${r.date === todayStr ? '<span class="ml-1 text-[11px] font-bold text-indigo-500">오늘</span>' : ''}
+            ${escapeHtml(fmtDay(r.date))}${r.date === todayStr ? '<span class="ml-1 text-[11px] font-bold text-indigo-500">오늘</span>' : ''}
         </td>
         <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400 whitespace-nowrap">
             ${r.totalHours.toFixed(1)}<span class="text-[11px] ml-0.5">인시</span>
         </td>
         <td class="py-2 px-3">
             <div class="relative h-4 rounded bg-gray-100 dark:bg-gray-700 overflow-hidden min-w-[90px]">
-                <div class="absolute inset-y-0 left-0 ${short ? 'bg-rose-400' : 'bg-indigo-400'} opacity-80" style="width:${barPct}%"></div>
-                <div class="absolute inset-y-0 border-r-2 border-gray-700 dark:border-gray-200" style="left:${availPct}%" title="가용 ${r.available}명"></div>
+                <div class="absolute inset-y-0 left-0 ${short ? 'bg-rose-400' : 'bg-indigo-400'} opacity-80" style="width:${escapeHtml(barPct)}%"></div>
+                <div class="absolute inset-y-0 border-r-2 border-gray-700 dark:border-gray-200" style="left:${escapeHtml(availPct)}%" title="가용 ${escapeHtml(r.available)}명"></div>
             </div>
         </td>
         <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100 whitespace-nowrap"
-            ${r.correction && r.correction.applied ? `title="보정 적용 — 보정 전 ${r.correction.rawRequired}명 · ${(Number(r.correction.rawTotalHours) || 0).toFixed(1)}인시"` : ''}>${r.requiredFTE}명${r.correction && r.correction.applied ? '<span class="text-[11px] font-bold text-teal-600 dark:text-teal-300 ml-0.5">*</span>' : ''}</td>
+            ${r.correction && r.correction.applied ? `title="보정 적용 — 보정 전 ${r.correction.rawRequired}명 · ${(Number(r.correction.rawTotalHours) || 0).toFixed(1)}인시"` : ''}>${escapeHtml(r.requiredFTE)}명${r.correction && r.correction.applied ? '<span class="text-[11px] font-bold text-teal-600 dark:text-teal-300 ml-0.5">*</span>' : ''}</td>
         <td class="py-2 px-3 text-right tabular-nums text-gray-600 dark:text-gray-300 whitespace-nowrap">
-            ${r.available}명${r.onLeave > 0 ? `<span class="text-[11px] text-gray-400 ml-1">(휴무 ${r.onLeave})</span>` : ''}
+            ${escapeHtml(r.available)}명${r.onLeave > 0 ? `<span class="text-[11px] text-gray-400 ml-1">(휴무 ${escapeHtml(r.onLeave)})</span>` : ''}
         </td>
-        <td class="py-2 px-3 text-right whitespace-nowrap font-bold ${tone}">${gapText}</td>
+        <td class="py-2 px-3 text-right whitespace-nowrap font-bold ${tone}">${escapeHtml(gapText)}</td>
         <td class="py-2 px-2 text-center">
             <span class="text-[11px] font-bold px-1.5 py-0.5 rounded ${r.hasPlanned
                 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
@@ -241,14 +241,14 @@ export function renderStaffingOutlook() {
     const headline = shortDays.length === 0
         ? `<span class="text-emerald-600 dark:text-emerald-400 font-bold">${rows.length}근무일 모두 인원이 충분합니다.</span>`
         : `<span class="text-rose-600 dark:text-rose-400 font-bold">${rows.length}근무일 중 ${shortDays.length}일 부족</span>`
-          + (worst ? ` <span class="text-gray-500 dark:text-gray-400">— 가장 모자란 날 ${fmtDay(worst.date)} <b>${Math.abs(worst.gap)}명</b></span>` : '');
+          + (worst ? ` <span class="text-gray-500 dark:text-gray-400">— 가장 모자란 날 ${escapeHtml(fmtDay(worst.date))} <b>${Math.abs(worst.gap)}명</b></span>` : '');
 
     host.innerHTML = `
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 depth-panel overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h4 class="text-sm md:text-md font-bold text-gray-800 dark:text-white">앞으로 ${rows.length}근무일 인원 수급</h4>
             <span class="text-[11px] text-gray-400 dark:text-gray-500">
-                저장해 둔 예정 물량 ${plannedCount}일 · 나머지는 실적 기반 추정 · 업무 예상과 같은 계산${correctedCount > 0 ? ' · <span class="text-teal-600 dark:text-teal-300 font-bold" title="지난 실적으로 업무별 편향·계획 밖 반복 업무·돌발 여유를 보정했습니다. 필요 인원의 * 에 마우스를 올리면 보정 전 숫자가 보입니다.">보정 적용*</span>' : ' · 보정 전 계획'}
+                저장해 둔 예정 물량 ${escapeHtml(plannedCount)}일 · 나머지는 실적 기반 추정 · 업무 예상과 같은 계산${correctedCount > 0 ? ' · <span class="text-teal-600 dark:text-teal-300 font-bold" title="지난 실적으로 업무별 편향·계획 밖 반복 업무·돌발 여유를 보정했습니다. 필요 인원의 * 에 마우스를 올리면 보정 전 숫자가 보입니다.">보정 적용*</span>' : ' · 보정 전 계획'}
             </span>
         </div>
         <div class="px-5 py-3 text-xs md:text-sm border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/20">${headline}</div>

@@ -1,7 +1,8 @@
 // === js/history-excel-work.js ===
-import { appConfig, allHistoryData } from './state.js?v=202611121547';
-import { formatTimeTo24H, getWeekOfYear, showToast, buildMemberHourlyWageMap } from './utils.js?v=202611121547';
-import { fitToColumn, appendTotalRow } from './history-excel-utils.js?v=202611121547';
+import { appConfig, allHistoryData } from './state.js?v=202611121915';
+import { formatTimeTo24H, getWeekOfYear, showToast, buildMemberHourlyWageMap } from './utils.js?v=202611121915';
+import { fitToColumn, appendTotalRow } from './history-excel-utils.js?v=202611121915';
+import { csvSafeBook } from './lib/csv-safe.js?v=202611121915';
 
 export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
     try {
@@ -96,6 +97,7 @@ export const downloadHistoryAsExcel = async (dateKey, format = 'xlsx') => {
             XLSX.utils.book_append_sheet(workbook, worksheet3, `파트 인건비 (${dateKey})`);
         }
 
+        csvSafeBook(workbook, format);   // csv 일 때만 — 수식 주입 막기
         XLSX.writeFile(workbook, `업무기록_${dateKey}.${format}`);
     } catch (error) {
         console.error('Export failed:', error);
@@ -128,6 +130,7 @@ export const downloadPeriodHistoryAsExcel = async (startDate, endDate, customFil
         if(sheet1Data.length) appendTotalRow(worksheet1, sheet1Data, sheet1Headers);
         fitToColumn(worksheet1);
         XLSX.utils.book_append_sheet(workbook, worksheet1, `상세 기록 (기간)`);
+        csvSafeBook(workbook, format);   // csv 일 때만 — 수식 주입 막기
         XLSX.writeFile(workbook, customFileName || `업무기록_기간_${startDate}_${endDate}.${format}`);
     } catch (error) {
         console.error('Period export failed:', error);

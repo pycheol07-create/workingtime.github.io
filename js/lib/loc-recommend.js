@@ -32,12 +32,18 @@
 //                   앞쪽 영역(지표와 같은 frontByZone)의 덜 나가는 상품(하루 < backMaxDaily · 29~90일 전 출고 input.backHist > 0)을
 //                   같은 구역 등급의 뒤쪽 빈 자리(1동 이상 뒤, 가장 뒤)로 하루 backPerDay 건까지. 출력 최상위 back 배열(켰을 때만) —
 //                   plan·weekRows·metrics·동선 점수와 무관하고 maxRows·weeklyMoves 에 안 센다. 꺼져 있으면 출력이 예전과 바이트 단위로 같다.
+//   막힌 자리     — input.blockSlots(2026-11-12, 서버 판정.block_slots — 오늘 화면 [처리함]이 '자리 막힘'으로 남긴 도착 자리)를 normalizeLocs 직후
+//                   예약(reserved)으로 본다. 칸이 없으면 출력이 예전과 바이트 단위로 같고, 있으면 counts.blockSlots 만 더 붙는다.
+//   '안 함' 붙잡기 — input.skipHold(2026-11-12, 서버 판정.hold_slots — '코드@자리'): '안 함'을 누른 상품은 그 자리에서 30일 옮기지 않는다.
+//                   단독·페어(scored 에서 뺌)·맞바꾸기 H·L·뒤로 보내기 후보에서 뺀다(skipKeys 는 지금처럼 동선 점수에서만). 칸이 없으면 출력이 예전과 같다.
+//   대신 자리     — pickAltTarget·prioritiesOf(2026-11-12, 화면 js/locrec-store.js): [처리함]이 도착 자리 문제로 막힌 단독 한 건을
+//                   지금 자리 목록으로 recommendSingle 에 다시 넣는다(서버 단독과 같은 규칙 — 계약 시험 tests/locrec-alt.test.js).
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202611121547';
-import { capacityFor } from './mibal2-calc.js?v=202611121547';
-import { parseCards, comboOf } from './loc-cards.js?v=202611121547';
+import { isEtcLocObj } from './mibal2-rows.js?v=202611121915';
+import { capacityFor } from './mibal2-calc.js?v=202611121915';
+import { parseCards, comboOf } from './loc-cards.js?v=202611121915';
 
 export { isEtcLocObj };
 
@@ -800,7 +806,7 @@ export function lowStockCodes({ locs, daily, incoming, maxStock = 5, minCoverDay
  */
 export function recommendSwaps({
     locs, scored, daily, priorities, incomingTotalByCode, excludeCodes, excludeLocIds,
-    topM = 200, frontK, ratio = 3, minDaily = 1, capacityConfig, editedCells, rankers
+    topM = 200, frontK, ratio = 3, minDaily = 1, capacityConfig, editedCells, rankers, holdKeys
 }) {
     const rk = rankers || makeRankers(priorities);
     const P = rk.P;
@@ -808,6 +814,7 @@ export function recommendSwaps({
     const inc = incomingTotalByCode || {};
     const exC = new Set(excludeCodes || []);
     const exL = new Set(excludeLocIds || []);
+    const hold = holdKeys instanceof Set ? holdKeys : new Set(holdKeys || []);   // '안 함' 붙잡기 'code@자리'(2026-11-12) — 그 자리의 그 상품은 H·L 둘 다 안 됨
     const K = frontK == null ? topM : frontK;
 
     const ranked = rankedPickSlots(locs, priorities, rk);
@@ -827,6 +834,7 @@ export function recommendSwaps({
             if (list.length > 1 && !multiSeen.has(code)) { multiSeen.add(code); counts.multiLoc++; }
             return null;
         }
+        if (hold.size && hold.has(`${code}@${list[0].id}`)) return null;
         return okSlot(list[0]) ? list[0] : null;
     };
 
@@ -1228,8 +1236,9 @@ export function excelRows(rows, opts = {}) {
  */
 export function recommendBack({
     locs, daily, priorities, incomingTotalByCode, hist, blockKeys, usedCodes, usedSlots,
-    perDay = 5, maxDaily = 0.2, minGain = 0.5, frontPct = 0.2, frontK = 100, rankers
+    perDay = 5, maxDaily = 0.2, minGain = 0.5, frontPct = 0.2, frontK = 100, rankers, holdKeys
 }) {
+    const hold = holdKeys instanceof Set ? holdKeys : new Set(holdKeys || []);   // '안 함' 붙잡기 'code@자리'(2026-11-12)
     const rk = rankers || makeRankers(priorities);
     const P = rk.P;
     const dOf = (c) => Number((daily || {})[c]) || 0;
@@ -1261,6 +1270,7 @@ export function recommendBack({
         if (Number(inc[code]) > 0 || s.preAssigned || isTagged(s) || isFar(s)) return;
         if (exC.has(code) || exS.has(s.id)) return;
         if (block.has(recKeyOf({ type: 'back', code, from: s.id }))) return;
+        if (hold.size && hold.has(`${code}@${s.id}`)) return;
         const qty = moveQtyOf(locs, code);
         if (!(qty > 0)) { counts.noStock++; return; }
         counts.cand++;
@@ -1327,7 +1337,13 @@ export function runRecommend(input) {
     const priorities = { ...DEFAULT_PRIORITIES, ...(input.priorities || {}) };
     // 라인 거리 모델(settings.routeModel 'line' · lineWeight, 2026-10-29) — 칸이 없으면 예전과 같다. 서버 입력에는 넣지 않는다(비교 도구용)
     const rk = makeRankers(priorities, { routeModel: S.routeModel, lineWeight: S.lineWeight, lineLayout: S.lineLayout });
-    const locs = normalizeLocs(input.locs, nowMs);
+    // 막힌 자리(input.blockSlots, 2026-11-12) — 오늘 직원이 [처리함]에서 '자리 막힘'으로 남긴 도착 자리. 지금 빈 자리일 때만 예약(reserved)으로 봐
+    //   빈 자리 후보(단독·페어·뒤로 보내기 도착)에서 뺀다. 상품이 든 자리는 그대로 — 그 상품은 맞바꾸기·뒤로 보내기 대상으로 남는다.
+    //   칸이 없거나 비었으면 locs 를 그대로 쓴다(출력이 예전과 바이트 단위로 같다). 서버 판정.block_slots 가 넘긴다
+    const blockSet = Array.isArray(input.blockSlots) && input.blockSlots.length ? new Set(input.blockSlots.map(s => String(s))) : null;
+    const locs0 = normalizeLocs(input.locs, nowMs);
+    const isBlockedEmpty = (d) => blockSet.has(d.id) && !hasCode(d) && !(d.name && String(d.name).trim() !== '');
+    const locs = blockSet ? locs0.map(d => (isBlockedEmpty(d) ? { ...d, reserved: true } : d)) : locs0;
     const demandIn = input.demand || {};
     const daily = {};
     Object.keys(demandIn).forEach(c => { daily[c] = Number(demandIn[c] && demandIn[c].daily) || 0; });
@@ -1400,6 +1416,16 @@ export function runRecommend(input) {
         };
     }
 
+    // 0-1) '안 함' 붙잡기(input.skipHold ['코드@자리'], 2026-11-12 — 서버 판정.hold_slots): 직원이 '안 함'을 누른 상품은 그 자리에서 30일 옮기지 않는다.
+    //      단독·페어(scored 에서 뺌)·맞바꾸기 H·L·뒤로 보내기 모두. 칸이 없거나 비면 아무것도 안 바뀐다(출력이 예전과 바이트 단위로 같다)
+    const holdSet = Array.isArray(input.skipHold) && input.skipHold.length ? new Set(input.skipHold.map(s => String(s))) : null;
+    let holdN = 0;
+    if (holdSet) {
+        const before = scored.length;
+        scored = scored.filter(it => !holdSet.has(`${it.code}@${(it.currentLocs && it.currentLocs[0]) || ''}`));
+        holdN = before - scored.length;
+    }
+
     // 1) 단독
     //    칸 일치(sizeMatch)는 설정이 아니라 늘 켠다 — 지금 자리에 칸수가 있으면 같은 칸수 자리로만(2026-10-29 사용자 요청)
     const single = recommendSingle({ locs, scored, priorities, mode: S.mode, limit: S.singleLimit, zoneGuard: S.zoneGuard, excludeTagged: S.excludeTagged, sizeMatch: true, rankers: rk });
@@ -1422,7 +1448,8 @@ export function runRecommend(input) {
         locs, scored, daily, priorities, incomingTotalByCode: incoming,
         excludeCodes: usable.map(r => r.code), excludeLocIds: usable.flatMap(r => [r.from, r.to]),
         topM: S.swapTopM, frontK: S.swapFrontK, ratio: S.swapRatio, minDaily: S.swapMinDaily,
-        capacityConfig: input.capacity || undefined, editedCells: input.editedCells || undefined, rankers: rk
+        capacityConfig: input.capacity || undefined, editedCells: input.editedCells || undefined, rankers: rk,
+        holdKeys: holdSet || undefined
     });
     const nameOf = (code) => { const b = baseLocsForCode(locs, code)[0]; return (b && b.name) || (demandIn[code] && demandIn[code].name) || ''; };
 
@@ -1547,7 +1574,7 @@ export function runRecommend(input) {
             const bk = recommendBack({
                 locs, daily, priorities, rankers: rk, incomingTotalByCode: incoming, hist: input.backHist || {}, blockKeys: skip,
                 usedCodes, usedSlots, perDay: Number(B.backPerDay), maxDaily: Number(B.backMaxDaily), minGain: Number(S.minGain),
-                frontPct: usePct ? Number(S.metricFrontPct) : null, frontK: Number(S.metricFrontK) || 100
+                frontPct: usePct ? Number(S.metricFrontPct) : null, frontK: Number(S.metricFrontK) || 100, holdKeys: holdSet || undefined
             });
             backCounts = bk.counts;
             outBack = bk.picks.map((p, i) => {
@@ -1608,5 +1635,70 @@ export function runRecommend(input) {
         out.back = outBack;                   // [{type:'back', recKey 'B:코드:자리', rank, …, hist, dc, gain: 0}]
         if (backCounts) out.counts.back = backCounts;   // {cand, multiLoc, noStock, noSlot, newItem, picked}
     }
+    if (blockSet) out.counts.blockSlots = locs0.filter(isBlockedEmpty).length;            // 막힌 자리 중 예약으로 본 빈 칸 수(칸이 있을 때만)
+    if (holdSet) out.counts.skipHold = holdN;                                            // '안 함' 붙잡기로 단독 후보에서 뺀 상품 수(칸이 있을 때만)
     return out;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 화면 [처리함] 대신 자리 (2026-11-12) — js/locrec-store.js 가 부른다. 서버 단독과 같은 규칙
+// ─────────────────────────────────────────────────────────────
+
+const PRIORITY_CARD_KEYS = ['v', 'order', 'level', 'rowsPerDong'];
+
+/**
+ * 동선 기준 정리 — 서버 로케이션추천\입력.priorities_of 와 같은 규칙(계약 시험: tests/fixtures/locrec-priorities-case.json 을 양쪽이 읽는다).
+ *   zones(배열 칸만, 키는 글자) · dongs·poses(글자, ★ 없으면 맨 앞) · excludeCombos(글자) · cards(order·level 이 배열일 때만 v·order·level·rowsPerDong).
+ *   그 밖의 칸은 버린다. 객체가 아니면 기본값. 원본은 바꾸지 않는다(화면 window.recommendPriorities 는 환경설정 창이 그대로 쓴다).
+ */
+export function prioritiesOf(p) {
+    const src = p && typeof p === 'object' && !Array.isArray(p) ? p : DEFAULT_PRIORITIES;
+    const zones = {};
+    const zin = src.zones && typeof src.zones === 'object' ? src.zones : {};
+    Object.keys(zin).forEach(k => { if (Array.isArray(zin[k])) zones[String(k)] = zin[k].slice(); });
+    const strs = (v) => (Array.isArray(v) ? v.map(x => String(x)) : []);
+    const out = { zones, dongs: strs(src.dongs), poses: strs(src.poses), excludeCombos: strs(src.excludeCombos) };
+    ['dongs', 'poses'].forEach(k => { if (!out[k].includes('★')) out[k] = ['★', ...out[k]]; });
+    const c = src.cards;
+    if (c && typeof c === 'object' && Array.isArray(c.order) && Array.isArray(c.level)) {
+        out.cards = {};
+        PRIORITY_CARD_KEYS.forEach(k => { if (k in c) out.cards[k] = Array.isArray(c[k]) ? c[k].slice() : c[k]; });
+    }
+    return out;
+}
+
+/**
+ * 대신 자리 — [처리함]이 도착 자리 문제(사용 중·오늘 다른 상품·선지정·예약·당일지정)로 막힌 단독 한 건의 새 도착 자리.
+ *   서버 runRecommend 단독과 같은 규칙: normalizeLocs → 예정 자리(plannedSlots — 오늘 판의 아직 처리 안 된 다른 추천 도착 자리)·
+ *   막힌 원래 자리(row.to)를 예약(reserved)으로 → recommendSingle(그 상품 하나, 칸 일치) → 이득(singleGain) >= minGain.
+ *   priorities 는 prioritiesOf 로 정리한 값(서버 입력.priorities_of 와 같다), settings 는 SERVER_DEFAULTS 위에 덮는다(화면은 minGain 만 안다).
+ *   지금 자리(row.from)에 그 상품이 없으면 null. 단독(type 'single')만 — 페어·맞바꾸기·뒤로 보내기는 null.
+ * @param {{row: object, locs: Array, priorities?: object, settings?: object, plannedSlots?: Iterable<string>, nowMs?: number, daily?: number}} a
+ *   daily 를 안 주면 row.daily(서버가 소수 2자리로 반올림한 값).
+ * @returns {null | {to, toDong, toPos, toSize, gain, dc}}
+ */
+export function pickAltTarget({ row, locs, priorities, settings, plannedSlots, nowMs, daily }) {
+    if (!row || typeof row !== 'object' || (row.type && row.type !== 'single')) return null;
+    const code = String(row.code == null ? '' : row.code).trim();
+    const from = String(row.from == null ? '' : row.from).trim();
+    if (!code || !from || !Array.isArray(locs)) return null;
+    const S = { ...SERVER_DEFAULTS, ...(settings || {}) };
+    const pr = { ...DEFAULT_PRIORITIES, ...(priorities || {}) };
+    const rk = makeRankers(pr, { routeModel: S.routeModel, lineWeight: S.lineWeight, lineLayout: S.lineLayout });
+    const block = new Set();
+    for (const s of (plannedSlots || [])) if (s != null && String(s).trim()) block.add(String(s).trim());
+    if (row.to != null && String(row.to).trim()) block.add(String(row.to).trim());
+    const L = normalizeLocs(locs, nowMs == null ? Date.now() : nowMs).map(d => (block.has(d.id) ? { ...d, reserved: true } : d));
+    const cur = L.find(d => d.id === from);
+    if (!cur || !hasCode(cur) || String(cur.code).trim() !== code) return null;
+    const scored = [{ code, name: row.name || '', score: Number(row.score) || 0, currentLocs: [from] }];
+    const one = recommendSingle({ locs: L, scored, priorities: pr, mode: S.mode, limit: 1, zoneGuard: S.zoneGuard,
+                                  excludeTagged: S.excludeTagged, sizeMatch: true, rankers: rk });
+    const rec = one.recs[0];
+    if (!rec) return null;
+    const dv = daily == null ? row.daily : daily;
+    const g = singleGain(rec, { [code]: Number(dv) || 0 }, rk, L);
+    if (!(g.gain >= Number(S.minGain))) return null;
+    const lab = slotLabel(rec.target);
+    return { to: rec.targetLoc, toDong: lab.dong, toPos: lab.pos, toSize: angleSizeOf(rec.target), gain: round(g.gain), dc: g.dc };
 }

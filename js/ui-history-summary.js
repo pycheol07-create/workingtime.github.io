@@ -1,8 +1,8 @@
 // === ui-history-summary.js ===
 
-import { formatDuration, getWeekOfYear, buildMemberHourlyWageMap } from './utils.js?v=202611121547';
-import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
+import { formatDuration, getWeekOfYear, buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=202611121915';
+import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
 
 const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPeriodDataset = null) => {
     const records = dataset.workRecords || [];
@@ -127,19 +127,19 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
     const throughputDiff = previousPeriodDataset ? getDiffHtmlForMetric('overallAvgThroughput', overallAvgThroughputNum, prevOverallAvgThroughput) : '';
     const costPerItemDiff = previousPeriodDataset ? getDiffHtmlForMetric('overallAvgCostPerItem', overallAvgCostPerItemNum, prevOverallAvgCostPerItem) : '';
 
-    let html = `<div id="summary-card-${periodKey}" class="bg-white p-4 rounded-lg shadow-sm mb-6 scroll-mt-4">`;
-    html += `<h3 class="text-xl font-bold mb-4">${periodKey} 요약</h3>`;
+    let html = `<div id="summary-card-${escapeHtml(periodKey)}" class="bg-white p-4 rounded-lg shadow-sm mb-6 scroll-mt-4">`;
+    html += `<h3 class="text-xl font-bold mb-4">${escapeHtml(periodKey)} 요약</h3>`;
 
     html += `<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 text-center">
         <div class="bg-gray-50 p-3 rounded">
             <div class="text-xs text-gray-500">총 시간 (실제 소요시간)</div>
-            <div class="text-lg font-bold">${formatDuration(totalDuration)}</div>
-            <div class="text-sm font-bold text-blue-600 bg-blue-50 inline-block px-1 mt-1 rounded">실제: ${formatDuration(Math.round(actualTotalDuration))}</div>
+            <div class="text-lg font-bold">${escapeHtml(formatDuration(totalDuration))}</div>
+            <div class="text-sm font-bold text-blue-600 bg-blue-50 inline-block px-1 mt-1 rounded">실제: ${escapeHtml(formatDuration(Math.round(actualTotalDuration)))}</div>
             ${durationDiff}
         </div>
         <div class="bg-gray-50 p-3 rounded">
             <div class="text-xs text-gray-500">총 처리량</div>
-            <div class="text-lg font-bold">${totalQuantity.toLocaleString()} 개</div>
+            <div class="text-lg font-bold">${escapeHtml(totalQuantity.toLocaleString())} 개</div>
             ${quantityDiff}
         </div>
         <div class="bg-gray-50 p-3 rounded">
@@ -149,19 +149,19 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
         </div>
         <div class="bg-gray-50 p-3 rounded">
             <div class="text-xs text-gray-500">평균 처리량</div>
-            <div class="text-lg font-bold">${overallAvgThroughputStr} 개/분</div>
+            <div class="text-lg font-bold">${escapeHtml(overallAvgThroughputStr)} 개/분</div>
             ${throughputDiff}
         </div>
         <div class="bg-gray-50 p-3 rounded">
             <div class="text-xs text-gray-500">평균 처리비용</div>
-            <div class="text-lg font-bold">${overallAvgCostPerItemStr} 원/개</div>
+            <div class="text-lg font-bold">${escapeHtml(overallAvgCostPerItemStr)} 원/개</div>
             ${costPerItemDiff}
         </div>
     </div>`;
 
     const prevLabel = mode === 'weekly' ? '전주' : (mode === 'yearly' ? '전년' : '전월');
     html += `<h4 class="text-lg font-semibold mb-3 text-gray-700">업무별 평균 (
-                ${previousPeriodDataset ? prevLabel + ' 대비' : '이전 데이터 없음'}
+                ${escapeHtml(previousPeriodDataset ? prevLabel + ' 대비' : '이전 데이터 없음')}
             )</h4>`;
     
     html += `<div class="overflow-x-auto max-h-[60vh]">
@@ -195,7 +195,7 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
                 const actualTaskDuration = summary.members.size > 0 ? summary.duration / summary.members.size : 0;
 
                 html += `<tr class="bg-white border-b hover:bg-gray-50">
-                           <td class="px-4 py-3 font-medium text-gray-900">${task}</td>
+                           <td class="px-4 py-3 font-medium text-gray-900">${escapeHtml(task)}</td>
                            <td class="px-4 py-3 text-right">
                                 <div>${summary.avgThroughput.toFixed(2)}</div>
                                 ${tableThroughputDiff}
@@ -205,12 +205,12 @@ const renderSummaryView = (mode, dataset, periodKey, wageMap = {}, previousPerio
                                 ${tableCostDiff}
                            </td>
                            <td class="px-4 py-3 text-right">
-                                <div>${summary.avgStaff}</div>
+                                <div>${escapeHtml(summary.avgStaff)}</div>
                                 ${tableStaffDiff}
                            </td>
                            <td class="px-4 py-3 text-right">
-                                <div class="font-bold text-gray-800">총합: ${formatDuration(summary.duration)}</div>
-                                <div class="text-xs font-bold text-blue-600 mt-0.5">실제: ${formatDuration(Math.round(actualTaskDuration))}</div>
+                                <div class="font-bold text-gray-800">총합: ${escapeHtml(formatDuration(summary.duration))}</div>
+                                <div class="text-xs font-bold text-blue-600 mt-0.5">실제: ${escapeHtml(formatDuration(Math.round(actualTaskDuration)))}</div>
                            </td>
                          </tr>`;
             }
@@ -271,7 +271,7 @@ export const renderWeeklyHistory = (selectedWeekKey, allHistoryData, appConfig) 
         
         const currentData = weeklyData[selectedWeekKey];
         if (!currentData) {
-            view.innerHTML = `<div class="text-center text-gray-500">${selectedWeekKey} 주에 해당하는 데이터가 없습니다.</div>`;
+            view.innerHTML = `<div class="text-center text-gray-500">${escapeHtml(selectedWeekKey)} 주에 해당하는 데이터가 없습니다.</div>`;
             return;
         }
         
@@ -327,7 +327,7 @@ export const renderMonthlyHistory = (selectedMonthKey, allHistoryData, appConfig
 
         const currentData = monthlyData[selectedMonthKey];
         if (!currentData) {
-            view.innerHTML = `<div class="text-center text-gray-500">${selectedMonthKey} 월에 해당하는 데이터가 없습니다.</div>`;
+            view.innerHTML = `<div class="text-center text-gray-500">${escapeHtml(selectedMonthKey)} 월에 해당하는 데이터가 없습니다.</div>`;
             return;
         }
 
@@ -383,7 +383,7 @@ export const renderYearlyHistory = (selectedYearKey, allHistoryData, appConfig) 
 
         const currentData = yearlyData[selectedYearKey];
         if (!currentData) {
-            view.innerHTML = `<div class="text-center text-gray-500">${selectedYearKey}년에 해당하는 데이터가 없습니다.</div>`;
+            view.innerHTML = `<div class="text-center text-gray-500">${escapeHtml(selectedYearKey)}년에 해당하는 데이터가 없습니다.</div>`;
             return;
         }
 

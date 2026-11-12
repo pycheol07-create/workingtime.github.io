@@ -1,10 +1,10 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611121547';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611121915';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202611121547';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611121547';
-import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611121547';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202611121915';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611121915';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611121915';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -290,7 +290,7 @@ export const renderTaskSelectionModal = (taskGroups = []) => {
 
         groupDiv.innerHTML = `
             <div class="bg-gray-50 rounded-lg border">
-                <h3 class="text-lg font-bold text-gray-800 mb-0 p-3 border-b bg-gray-100 rounded-t-lg">${groupName}</h3>
+                <h3 class="text-lg font-bold text-gray-800 mb-0 p-3 border-b bg-gray-100 rounded-t-lg">${escapeHtml(groupName)}</h3>
                 <div class="p-3 grid grid-cols-1 gap-2">${tasksHtml}</div>
             </div>
         `;
@@ -357,8 +357,8 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [],
         groupContainer.className = groupBoxClasses;
         groupContainer.innerHTML = `
             <div class="flex justify-between items-center p-2 border-b border-gray-200">
-                <h4 class="text-md font-bold text-gray-800">${group.name}</h4>
-                <button type="button" class="group-select-all-btn text-xs bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 px-2 py-1 rounded shadow-sm transition-all" data-group-name="${group.name}">전체</button>
+                <h4 class="text-md font-bold text-gray-800">${escapeHtml(group.name)}</h4>
+                <button type="button" class="group-select-all-btn text-xs bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 px-2 py-1 rounded shadow-sm transition-all" data-group-name="${escapeHtml(group.name)}">전체</button>
             </div>`;
 
         const memberList = document.createElement('div');
@@ -389,11 +389,11 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [],
             let statusLabel = '';
             if (isOngoing) { statusLabel = '<div class="text-xs text-blue-500 font-medium">업무 중</div>'; }
             else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
-            else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
+            else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${escapeHtml(leaveEntry.type)} 중</div>`; }
             else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; }
             else if (!isClockedIn) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; }
             
-            card.innerHTML = `<div class="font-bold">${member}${isSelf ? selfTag : ''}</div>${statusLabel}`;
+            card.innerHTML = `<div class="font-bold">${escapeHtml(member)}${isSelf ? selfTag : ''}</div>${statusLabel}`;
 
             memberList.appendChild(card);
             // 본인이 출근 전(근태·업무·퇴근 아님)이면 칸 아래 [출근하고 시작] — 자동 출근이 아니라 한 번 눌러야 한다
@@ -442,11 +442,11 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [],
         let statusLabel = '';
         if (isOngoing) { statusLabel = '<div class="text-xs text-blue-500 font-medium">업무 중</div>'; }
         else if (isPaused) { statusLabel = '<div class="text-xs text-yellow-600 font-medium">휴식 중</div>'; }
-        else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${leaveEntry.type} 중</div>`; }
+        else if (isOnLeave) { statusLabel = `<div class="text-xs text-gray-500 font-medium">${escapeHtml(leaveEntry.type)} 중</div>`; }
         else if (isReturned) { statusLabel = '<div class="text-xs text-gray-400 font-medium">퇴근 완료</div>'; }
         else if (!isClockedIn) { statusLabel = '<div class="text-xs text-gray-400 font-medium">출근 전</div>'; }
 
-        card.innerHTML = `<div class="font-bold">${pt.name}</div>${statusLabel}`;
+        card.innerHTML = `<div class="font-bold">${escapeHtml(pt.name)}</div>${statusLabel}`;
 
         cardWrapper.appendChild(card);
 
@@ -499,7 +499,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
 
         if (totalEl) {
             const autoCalcBadge = stats.isAutoCalculated ? '<span class="text-xs text-blue-500 block font-normal">(12개월 미만 자동 계산)</span>' : '';
-            totalEl.innerHTML = `${stats.total}일 ${autoCalcBadge}`;
+            totalEl.innerHTML = `${escapeHtml(stats.total)}일 ${autoCalcBadge}`;
         }
         if (usedEl) usedEl.textContent = `${stats.used}일`;
         
@@ -515,17 +515,17 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
                 const isExpired = stats.expirationDate && today > stats.expirationDate;
                 const expiredBadge = isExpired ? '<span class="text-red-500 font-bold ml-1">(만료됨)</span>' : '';
                 
-                periodHtml = `<div class="text-xs text-gray-500 font-normal mt-1">사용 가능 기한: ${rangeStr}${expiredBadge}</div>`;
+                periodHtml = `<div class="text-xs text-gray-500 font-normal mt-1">사용 가능 기한: ${escapeHtml(rangeStr)}${expiredBadge}</div>`;
             }
             
-            remainEl.innerHTML = `<div>${stats.remaining}일</div>${periodHtml}`;
+            remainEl.innerHTML = `<div>${escapeHtml(stats.remaining)}일</div>${periodHtml}`;
         }
         
         if (joinDateEl) {
             const tenureText = calculateTenure(stats.joinDate);
             let dateText = stats.joinDate && stats.joinDate !== '-' ? stats.joinDate : '-';
             
-            joinDateEl.innerHTML = `${dateText} <span class="text-blue-600 font-bold ml-1">(${tenureText})</span>`;
+            joinDateEl.innerHTML = `${escapeHtml(dateText)} <span class="text-blue-600 font-bold ml-1">(${escapeHtml(tenureText)})</span>`;
         }
 
         if (historyListEl) {
@@ -536,20 +536,20 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
                 stats.history.forEach(h => {
                     const idsString = h.ids.join(',');
                     const mergedBadge = h.isMerged ? '<span class="text-[11px] text-purple-600 bg-purple-50 border border-purple-200 px-1 rounded ml-1">병합됨</span>' : '';
-                    const editBtnHtml = h.isMerged ? '' : `<button type="button" class="text-xs text-gray-400 hover:text-blue-600 underline transition btn-edit-leave-history" data-id="${h.ids[0]}" data-member="${h.member}">수정</button>`;
+                    const editBtnHtml = h.isMerged ? '' : `<button type="button" class="text-xs text-gray-400 hover:text-blue-600 underline transition btn-edit-leave-history" data-id="${escapeHtml(h.ids[0])}" data-member="${escapeHtml(h.member)}">수정</button>`;
 
                     historyListEl.innerHTML += `
                         <li class="flex justify-between items-center bg-white p-2 rounded border border-gray-100 shadow-sm">
                             <div>
                                 <span class="font-semibold text-gray-700 text-xs block flex items-center">
-                                    <span class="text-blue-500 mr-1">[${h.nth}차]</span> ${h.startDate} ${h.endDate && h.endDate !== h.startDate ? '~ ' + h.endDate.slice(5) : ''}
+                                    <span class="text-blue-500 mr-1">[${escapeHtml(h.nth)}차]</span> ${escapeHtml(h.startDate)} ${escapeHtml(h.endDate && h.endDate !== h.startDate ? '~ ' + h.endDate.slice(5) : '')}
                                     ${mergedBadge}
                                 </span>
-                                <span class="text-[11px] text-gray-400">-${h.days}일 차감</span>
+                                <span class="text-[11px] text-gray-400">-${escapeHtml(h.days)}일 차감</span>
                             </div>
                             <div class="flex items-center gap-2">
                                 ${editBtnHtml}
-                                <button type="button" class="text-xs text-gray-400 hover:text-red-600 underline transition btn-delete-leave-history" data-ids="${idsString}" data-member="${h.member}">삭제</button>
+                                <button type="button" class="text-xs text-gray-400 hover:text-red-600 underline transition btn-delete-leave-history" data-ids="${escapeHtml(idsString)}" data-member="${escapeHtml(h.member)}">삭제</button>
                             </div>
                         </li>`;
                 });
@@ -601,14 +601,14 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
             upcomingListEl.innerHTML += `
                 <li class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100 gap-2">
                     <div class="flex items-center gap-2 flex-1 min-w-0">
-                        <span class="text-[11px] font-bold px-2 py-0.5 rounded border shrink-0 ${typeStyle}">${item.type}</span>
-                        <span class="text-xs font-medium text-gray-700 truncate">${rangeText}</span>
+                        <span class="text-[11px] font-bold px-2 py-0.5 rounded border shrink-0 ${typeStyle}">${escapeHtml(item.type)}</span>
+                        <span class="text-xs font-medium text-gray-700 truncate">${escapeHtml(rangeText)}</span>
                         ${progressBadge}
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
-                        <span class="text-[11px] text-gray-400 mr-0.5">${days}일</span>
-                        <button type="button" class="btn-edit-leave-history text-[11px] font-bold text-blue-600 hover:text-blue-800 px-1.5 py-0.5 rounded hover:bg-blue-50" data-id="${item.id}">수정</button>
-                        <button type="button" class="btn-delete-leave-history text-[11px] font-bold text-red-500 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50" data-ids="${item.id}">삭제</button>
+                        <span class="text-[11px] text-gray-400 mr-0.5">${escapeHtml(days)}일</span>
+                        <button type="button" class="btn-edit-leave-history text-[11px] font-bold text-blue-600 hover:text-blue-800 px-1.5 py-0.5 rounded hover:bg-blue-50" data-id="${escapeHtml(item.id)}">수정</button>
+                        <button type="button" class="btn-delete-leave-history text-[11px] font-bold text-red-500 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50" data-ids="${escapeHtml(item.id)}">삭제</button>
                     </div>
                 </li>`;
         });
@@ -676,8 +676,8 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
         const div = document.createElement('div');
         div.className = 'flex items-center p-3 border border-gray-200 rounded-xl bg-white hover:bg-blue-50 hover:border-blue-200 transition cursor-pointer shadow-sm';
         div.innerHTML = `
-            <input id="leave-type-${index}" name="leave-type" type="radio" value="${type}" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 focus:ring-2 cursor-pointer leave-type-radio">
-            <label for="leave-type-${index}" class="w-full ml-2 text-sm font-bold text-gray-700 cursor-pointer select-none">${type}</label>
+            <input id="leave-type-${index}" name="leave-type" type="radio" value="${escapeHtml(type)}" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 focus:ring-2 cursor-pointer leave-type-radio">
+            <label for="leave-type-${index}" class="w-full ml-2 text-sm font-bold text-gray-700 cursor-pointer select-none">${escapeHtml(type)}</label>
         `;
         container.appendChild(div);
     });

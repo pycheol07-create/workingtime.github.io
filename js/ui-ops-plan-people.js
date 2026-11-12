@@ -6,15 +6,15 @@
 //   이름이 든 칸은 class="opp-names" — 인쇄 사본에서는 이 섹션을 통째로 수만 다시 그린다(peoplePrintHtml).
 //   콘솔에 이름·사람 섹션 객체를 찍지 않는다. ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
-import { taskNameOf, TASK } from './lib/task-ids.js?v=202611121547';
-import { skillMatrix, levelCounts, busFactor, trainCandidates, redactForOutput, LEVEL_LABEL, LEVEL_RANK, PEOPLE_NOTE } from './lib/plan-skills.js?v=202611121547';
-import { draftAssignment, sumAssignCounts } from './lib/plan-assign.js?v=202611121547';
-import { staffNamesOf } from './ui-history-prediction.js?v=202611121547';
-import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611121547';
-import { nextWeekRange, offDayOf } from './lib/plan-week.js?v=202611121547';
-import { esc, n1, fmtDay, card } from './ui-ops-plan-parts.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
+import { taskNameOf, TASK } from './lib/task-ids.js?v=202611121915';
+import { skillMatrix, levelCounts, busFactor, trainCandidates, redactForOutput, LEVEL_LABEL, LEVEL_RANK, PEOPLE_NOTE } from './lib/plan-skills.js?v=202611121915';
+import { draftAssignment, sumAssignCounts } from './lib/plan-assign.js?v=202611121915';
+import { staffNamesOf } from './ui-history-prediction.js?v=202611121915';
+import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611121915';
+import { nextWeekRange, offDayOf } from './lib/plan-week.js?v=202611121915';
+import { esc, n1, fmtDay, card } from './ui-ops-plan-parts.js?v=202611121915';
 
 // 숙련도 매트릭스 캐시 — 이력 길이·설정·오늘이 같으면 다시 계산하지 않는다
 let mCache = null;
@@ -68,7 +68,7 @@ function adviceHtml(people, canNames, makeBtn) {
     const items = list.map((ad, i) => {
         const r = red[i];
         const text = canNames ? `<span class="opp-names">${esc(ad.text)}</span>` : esc(r.text);
-        return `<li><span class="opv-dot is-warn"></span><span>${text} <span class="opv-note">(UPH ${n1(r.uphBefore)} → ${n1(r.uphAfter)} · 신뢰도 ${conf[r.confidence] || r.confidence})</span>
+        return `<li><span class="opv-dot is-warn"></span><span>${text} <span class="opv-note">(UPH ${esc(n1(r.uphBefore))} → ${esc(n1(r.uphAfter))} · 신뢰도 ${esc(conf[r.confidence] || r.confidence)})</span>
             ${makeBtn ? makeBtn(`advice:${r.task}:${r.itemDraft.quarter}`, r.itemDraft) : ''}</span></li>`;
     }).join('');
     return `<ul class="opv-diag">${items}</ul>`;
@@ -112,8 +112,8 @@ function levelsTable(red) {
     if (!red.levels.length) return '<p class="opv-note">최근 8주 업무 기록이 없어 숙련 현황을 낼 수 없습니다.</p>';
     const rows = red.levels.map(l => {
         const b = busBy.get(l.task);
-        const warn = b ? `<span class="opv-chip is-risk">한 사람 의존 — 가능 이상 ${b.capable}명${b.leaveDays ? ` · 그 사람 휴무 ${b.leaveDays}일` : ''} · 교육 후보 ${b.candidateCount}명</span>` : '';
-        return `<tr><td>${esc(l.task)}</td><td class="r">${l.skilled}</td><td class="r">${l.able}</td><td class="r">${l.exp}</td><td>${warn}</td></tr>`;
+        const warn = b ? `<span class="opv-chip is-risk">한 사람 의존 — 가능 이상 ${esc(b.capable)}명${esc(b.leaveDays ? ` · 그 사람 휴무 ${b.leaveDays}일` : '')} · 교육 후보 ${esc(b.candidateCount)}명</span>` : '';
+        return `<tr><td>${esc(l.task)}</td><td class="r">${esc(l.skilled)}</td><td class="r">${esc(l.able)}</td><td class="r">${esc(l.exp)}</td><td>${warn}</td></tr>`;
     }).join('');
     return `<div class="opv-table-wrap"><table class="opv-table">
         <thead><tr><th>업무</th><th class="r">숙련</th><th class="r">가능</th><th class="r">경험</th><th>경고</th></tr></thead>
@@ -128,13 +128,13 @@ function assignTable(draft, red, { names = false, admin = 0 } = {}) {
     const rows = tasks.map(t => {
         const c = red.counts[t], u = red.unmet[t] || 0;
         const who = names ? `<td class="opp-names opp-wrap">${(draft.byTask[t] || []).map(esc).join(', ') || '—'}</td>` : '';
-        return `<tr class="${u > 0 ? 'is-short' : ''}"><td>${esc(t)}</td><td class="r">${n1(c.h + u)}</td><td class="r">${c.n}명</td><td class="r">${n1(c.h)}</td>
-            <td class="r">${u > 0 ? `<b class="opv-down">${n1(u)}</b>` : '—'}</td>${who}</tr>`;
+        return `<tr class="${u > 0 ? 'is-short' : ''}"><td>${esc(t)}</td><td class="r">${esc(n1(c.h + u))}</td><td class="r">${esc(c.n)}명</td><td class="r">${esc(n1(c.h))}</td>
+            <td class="r">${u > 0 ? `<b class="opv-down">${esc(n1(u))}</b>` : '—'}</td>${who}</tr>`;
     }).join('');
     return `<div class="opv-table-wrap"><table class="opv-table">
         <thead><tr><th>업무</th><th class="r">필요(인시)</th><th class="r">배치</th><th class="r">배치 시간</th><th class="r" title="경험 있는 사람이 모자라 못 채운 시간">미충족</th>${names ? '<th>배치 초안(이름)</th>' : ''}</tr></thead>
         <tbody>${rows}</tbody></table></div>
-        <p class="opv-note">남는 시간 ${n1(red.idleHours)}인시 · 순서: 필요 시간 큰 업무부터, 숙련 &gt; 가능 &gt; 경험 순으로 1인 하루 시간까지${admin ? ` · 관리자 개별업무 ${admin}명은 빼지 않았습니다(누구인지 정하지 않음)` : ''}</p>`;
+        <p class="opv-note">남는 시간 ${esc(n1(red.idleHours))}인시 · 순서: 필요 시간 큰 업무부터, 숙련 &gt; 가능 &gt; 경험 순으로 1인 하루 시간까지${esc(admin ? ` · 관리자 개별업무 ${admin}명은 빼지 않았습니다(누구인지 정하지 않음)` : '')}</p>`;
 }
 
 /** ② 사람×업무 매트릭스 + 교육 후보(이름 — data.reports 만, 인쇄 안 함) */
@@ -149,7 +149,7 @@ function matrixHtml(people) {
         const c = t.people[p.name];
         if (!c) return '<td class="opp-lv-0"></td>';
         const tip = `${c.hours}시간 · ${c.days}일${c.uph != null ? ` · 단독 UPH ${c.uph}` : ''}`;
-        return `<td class="${LV_CLS[c.level]}" title="${esc(tip)}">${LEVEL_LABEL[c.level]}</td>`;
+        return `<td class="${esc(LV_CLS[c.level])}" title="${esc(tip)}">${esc(LEVEL_LABEL[c.level])}</td>`;
     }).join('')}</tr>`).join('');
     const train = people.bus.length ? `<ul class="opv-diag">${people.bus.map(b => `<li><span class="opv-dot is-warn"></span><span><b>${esc(b.task)}</b> — 가능 이상: ${b.who.map(esc).join(', ') || '없음'} · 교육 후보: ${b.candidates.length ? b.candidates.map(c => `${esc(c.name)}${c.source === 'exp' ? ` (${n1(c.hours)}시간)` : ' (같은 팀)'}`).join(', ') : '없음'}</span></li>`).join('')}</ul>` : '<p class="opv-note">한 사람 의존 업무가 없습니다.</p>';
     return `<div class="opp-names opp-noprint">
@@ -167,7 +167,7 @@ export function peopleHtml(people, { canNames = false, selDate = null, makeBtn =
     const date = selDate && people.drafts[selDate] ? selDate : people.workdays.find(d => people.drafts[d]) || null;
     const draft = date ? people.drafts[date] : null;
     const dRed = draft ? redactForOutput({ assign: draft }).assign : null;
-    const opts = people.workdays.map(d => `<option value="${d}"${d === date ? ' selected' : ''}>${fmtDay(d)}</option>`).join('');
+    const opts = people.workdays.map(d => `<option value="${esc(d)}"${d === date ? ' selected' : ''}>${fmtDay(d)}</option>`).join('');
     return `<div id="ops-plan-people">${card('사람·배치', `
         <p class="opv-notes">${esc(PEOPLE_NOTE)} · 최근 90일 업무 기록 기준(${fmtDay(people.matrix.from)} ~ ${fmtDay(people.matrix.to)}) · 퇴사자 제외</p>
         <div class="opv-sub-title opp-gap">업무별 숙련 현황</div>${levelsTable(red)}

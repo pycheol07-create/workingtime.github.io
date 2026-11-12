@@ -1,31 +1,32 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611121547';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611121915';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611121547';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611121547';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611121547';
-import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611121547';
-import { orderKeyMap } from './lib/order-hash.js?v=202611121547';
-import { setShellContext } from './app-shell-bridge.js?v=202611121547';
-import { memberNameFor } from './app-shell-data.js?v=202611121547';
-import { menuConfigOf } from './lib/perm.js?v=202611121547';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611121547';
-import { initPageNav } from './page-nav.js?v=202611121547';
-import { initRefillCard } from './refill-card.js?v=202611121547';
-import { initLocRecCard } from './locrec-card.js?v=202611121547';
-import { initRebuildBar } from './rebuild-bar.js?v=202611121547';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611121547';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611121547';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611121547';
-import { uploadBlockText } from './lib/busy-view.js?v=202611121547';
-import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611121547';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611121547';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611121547';
-import { comboOf } from './lib/loc-cards.js?v=202611121547';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611121547';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611121915';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611121915';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611121915';
+import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611121915';
+import { orderKeyMap } from './lib/order-hash.js?v=202611121915';
+import { setShellContext } from './app-shell-bridge.js?v=202611121915';
+import { memberNameFor } from './app-shell-data.js?v=202611121915';
+import { menuConfigOf } from './lib/perm.js?v=202611121915';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611121915';
+import { initPageNav } from './page-nav.js?v=202611121915';
+import { initRefillCard } from './refill-card.js?v=202611121915';
+import { initLocRecCard } from './locrec-card.js?v=202611121915';
+import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=202611121915';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
+import { initRebuildBar } from './rebuild-bar.js?v=202611121915';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611121915';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611121915';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611121915';
+import { uploadBlockText } from './lib/busy-view.js?v=202611121915';
+import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611121915';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611121915';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611121915';
+import { comboOf } from './lib/loc-cards.js?v=202611121915';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611121915';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611121547';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611121547';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611121915';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611121915';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -34,7 +35,7 @@ import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611121547';
 const jsArg = (v) => String(v == null ? '' : v)
     .replace(/\\/g, '\\\\')     // 역슬래시
     .replace(/'/g, "\\'")        // JS 문자열 종료
-    .replace(/\r?\n/g, ' ')       // 줄바꿈은 속성 안에서 깨진다
+    .replace(/\r\n|[\r\n\u2028\u2029]/g, ' ')   // 줄바꿈(CR 단독·줄/문단 구분자 포함)은 JS 문자열을 깨뜨린다
     .replace(/&/g, '&amp;')      // 여기부터 HTML 속성 이스케이프
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
@@ -98,7 +99,22 @@ let appConfig = null;
 whenPerm('location.refill', () => initRefillCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) }));
 // 그 아래 '로케이션 변경 추천' 카드 — 같은 db·auth, 같은 이름 규칙(memberNameFor 만, 이메일 폴백 없음)
 whenPerm('location.locrec', () => initLocRecCard({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email),
-    sizeOf: (id) => locAngleSize(originalData.find(d => d.id === id)) }));   // 변경 추천 표: 칸수 칸이 없는 옛 문서 행은 읽어 둔 자리에서 보충
+    sizeOf: (id) => locAngleSize(originalData.find(d => d.id === id)),   // 변경 추천 표: 칸수 칸이 없는 옛 문서 행은 읽어 둔 자리에서 보충
+    // [처리함]이 도착 자리 문제로 막히면 지금 자리 목록·동선 기준으로 대신 자리를 찾는다(js/locrec-store.js findAlt, 2026-11-12)
+    altCtx: () => ({ locs: originalData, priorities: window.recommendPriorities }),
+    notify: (t) => showToast(t, 4000) }));
+// 변경 추천 권한이 없어도 '오늘 변경 추천 예정 자리'(아직 처리 안 한 추천이 상품을 넣기로 한 빈 자리)는 지킨다 — 입고대기 추천·빈칸 엑셀에서 빼고
+//   당일지정 때 알린다(2026-11-12). 그때는 store 를 lite 로 만들어 둔다 — 구독하지 않고, 입고대기 추천·빈칸 엑셀·당일지정·업로드 경고를 쓸 때만
+//   locRecEnsure() 가 문서 3개(색인·marks·오늘 판)를 한 번 읽어 3분 기억한다(Firestore 읽기 줄이기). 권한이 있으면 위 카드가 전체 구독으로 시작한다.
+onPerm(() => { if (!canFeature('location.locrec')) getLocRecStore({ db, auth, lite: true }); });
+/** 오늘 예정 자리 Map<자리 id, {recKey, code}> — store 가 없거나 아직 못 읽었으면 빈 Map(lite 는 locRecEnsure 를 먼저) */
+const locRecPlanned = () => {
+    try { const s = peekLocRecStore(); return s ? s.plannedSlotMap() : new Map(); } catch (e) { return new Map(); }
+};
+/** lite 면 예정 자리 자료를 새로 읽는다(3분 안이면 안 읽음) → 새로 읽었으면 true. 권한 있으면(구독 중) 늘 false */
+const locRecEnsure = () => {
+    try { const s = peekLocRecStore(); return s && s.isLite() ? s.ensureFresh() : Promise.resolve(false); } catch (e) { return Promise.resolve(false); }
+};
 // 대시보드 머리줄 [지금 재고로 다시 만들기](js/rebuild-bar.js) — 채우기·변경 추천을 한 번에. 두 권한 중 하나라도 있으면 시작(구독),
 //   요청은 가진 권한 쪽 문서 하나에. 권한 판정이 나올 때마다(로그인 바뀜 포함) 다시 알려 준다. 이름 규칙은 카드와 같다(memberNameFor 만).
 const _rebuildBar = initRebuildBar({ db, auth, getMemberName: () => memberNameFor(appConfig && appConfig.memberEmails, auth.currentUser && auth.currentUser.email) });
@@ -377,7 +393,7 @@ function updateLastUpdateDisplay(ts) {
     const el = document.getElementById('last-data-update');
     if (!el) return;
     const v = uploadStockView(ts);
-    el.innerHTML = `${statDot(v.tone)}파일<span class="lu-label"> 업로드</span> <b>${v.value}</b>`;
+    el.innerHTML = `${statDot(v.tone)}파일<span class="lu-label"> 업로드</span> <b>${escAttr(v.value)}</b>`;
     el.title = v.title;
 }
 
@@ -389,7 +405,7 @@ function updateEzStockDisplay() {
     const el = document.getElementById('ez-stock-at');
     if (!el || !_ezStatusReady || !_ezRunReady) return;
     const v = ezStockView({ run: _ezStockRun, status: _ezStockStatus, last: _lastDataUpdateTs, autoSlots: _ezAutoSlots });
-    el.innerHTML = `${statDot(v.tone)}<span class="lu-label">이지어드민 </span>${v.label} <b>${v.value}</b>`;
+    el.innerHTML = `${statDot(v.tone)}<span class="lu-label">이지어드민 </span>${escAttr(v.label)} <b>${escAttr(v.value)}</b>`;
     el.title = v.title;
     el.hidden = false;
 }
@@ -470,20 +486,20 @@ function updateZikjinInfoDisplay() {
         warn = ' <b>어제 자료</b> ·';
     } else {
         tone = 'risk';
-        warn = ` <b>${daysAgo}일 지남</b> ·`;
+        warn = ` <b>${escAttr(daysAgo)}일 지남</b> ·`;
     }
     setTone(tone);
 
     // 직진/에이블리 구분 요약 (데이터가 있을 때만)
     const st = _zikjinSourceTotals || { zikjin: 0, ably: 0 };
     const splitTxt = (st.zikjin > 0 || st.ably > 0)
-        ? ` <span style="font-weight:600; color:var(--c-accent-deep);">직진 ${st.zikjin.toLocaleString()}</span>`
+        ? ` <span style="font-weight:600; color:var(--c-accent-deep);">직진 ${escAttr(st.zikjin.toLocaleString())}</span>`
           + `<span style="color:var(--c-text-4);"> / </span>`
-          + `<span style="font-weight:600; color:var(--c-risk-text);">에이블리 ${st.ably.toLocaleString()}</span>`
+          + `<span style="font-weight:600; color:var(--c-risk-text);">에이블리 ${escAttr(st.ably.toLocaleString())}</span>`
         : '';
 
     // 좁은 폭에서는 .zk-extra(직진·에이블리 숫자·상세) → .zk-cnt(건수) 순으로 숨긴다 (location.html 헤더 CSS)
-    el.innerHTML = `${dot(tone)}<span class="zk-label">플랫폼 </span>출고${warn} <b>${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}<span class="zk-cnt"> · ${cnt}건</span></b><span class="zk-extra">${splitTxt} <span style="text-decoration:underline; color:var(--c-text-2);">상세</span></span>`;
+    el.innerHTML = `${dot(tone)}<span class="zk-label">플랫폼 </span>출고${warn} <b>${escAttr(d.getMonth() + 1)}/${escAttr(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}<span class="zk-cnt"> · ${escAttr(cnt)}건</span></b><span class="zk-extra">${splitTxt} <span style="text-decoration:underline; color:var(--c-text-2);">상세</span></span>`;
     el.title = `플랫폼 출고 전송: ${d.toLocaleString('ko-KR')} · ${zMeta.count}건`
         + ((st.zikjin > 0 || st.ably > 0)
             ? `
@@ -500,13 +516,13 @@ function updateZikjinInfoDisplay() {
 // 구분 뱃지(헤더 요약용) / 태그(표 행용)
 function _zikBadge(label, qty, count, fg, bg) {
     return `<span style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600;
-        color:${fg}; background:${bg}; border:1px solid ${bg}; border-radius:var(--r-pill); padding:3px 10px;">
-        ${label} <b style="font-weight:700;">${Number(qty || 0).toLocaleString()}</b>
+        color:${escAttr(fg)}; background:${escAttr(bg)}; border:1px solid ${escAttr(bg)}; border-radius:var(--r-pill); padding:3px 10px;">
+        ${escAttr(label)} <b style="font-weight:700;">${Number(qty || 0).toLocaleString()}</b>
         <span style="font-weight:600; opacity:.75;">(${Number(count || 0).toLocaleString()}종)</span></span>`;
 }
 function _zikTag(label, qty, fg, bg) {
-    return `<span style="display:inline-block; font-size:10.5px; font-weight:600; color:${fg}; background:${bg};
-        border-radius:var(--r-pill); padding:2px 8px;">${label} ${Number(qty || 0).toLocaleString()}</span>`;
+    return `<span style="display:inline-block; font-size:10.5px; font-weight:600; color:${escAttr(fg)}; background:${escAttr(bg)};
+        border-radius:var(--r-pill); padding:2px 8px;">${escAttr(label)} ${Number(qty || 0).toLocaleString()}</span>`;
 }
 
 // 📂 플랫폼 출고 전송 데이터 상세 모달
@@ -567,8 +583,8 @@ window.openZikjinDetail = function () {
     const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${_p(d.getMonth() + 1)}-${_p(d.getDate())}`; })();
     const isToday = (ms) => ms && fmtAt(ms).slice(0, 10) === todayKey;
     const srcLine = (label, meta) => meta && meta.at
-        ? `<span style="color:${isToday(meta.at) ? 'var(--c-ok-text)' : 'var(--c-text-3)'};">${label} ${fmtAt(meta.at)}${isToday(meta.at) ? ' <b>(오늘)</b>' : ''} · ${Number(meta.count || 0).toLocaleString()}건</span>`
-        : `<span style="color:var(--c-text-4);">${label} 없음</span>`;
+        ? `<span style="color:${isToday(meta.at) ? 'var(--c-ok-text)' : 'var(--c-text-3)'};">${escAttr(label)} ${fmtAt(meta.at)}${isToday(meta.at) ? ' <b>(오늘)</b>' : ''} · ${Number(meta.count || 0).toLocaleString()}건</span>`
+        : `<span style="color:var(--c-text-4);">${escAttr(label)} 없음</span>`;
     const diagLine = `<div style="font-size:11px; margin-top:4px; line-height:1.7;">
         ${srcLine('· 업로드 기록:', _zikjinConfigMeta)}<br>
         ${srcLine('· 데이터 반영:', _zikjinDerivedMeta)}
@@ -591,12 +607,12 @@ window.openZikjinDetail = function () {
                if (r.ably > 0) tags.push(_zikTag('에이블리', r.ably, TONE.riskText, TONE.riskSoft));
                if (tags.length === 0) tags.push(_zikTag('구분없음', r.unknown || r.qty, TONE.text2, TONE.track));
                const src = (r.zikjin > 0 && r.ably > 0) ? 'both' : (r.zikjin > 0 ? 'zikjin' : (r.ably > 0 ? 'ably' : 'unknown'));
-               return `<tr class="zik-row" data-src="${src}" style="border-bottom:1px solid var(--c-line-soft);">
+               return `<tr class="zik-row" data-src="${escAttr(src)}" style="border-bottom:1px solid var(--c-line-soft);">
                  <td style="padding:6px 8px; font-family:monospace;">${esc(r.code)}</td>
                  <td style="padding:6px 8px;">${esc(r.name)}</td>
                  <td style="padding:6px 8px; color:var(--c-text-2);">${r.option ? esc(r.option) : '<span style="color:var(--c-text-4);">-</span>'}</td>
                  <td style="padding:6px 8px; text-align:center; white-space:nowrap;">${tags.join(' ')}</td>
-                 <td style="padding:6px 8px; text-align:right; font-weight:600;">${r.qty.toLocaleString()}</td>
+                 <td style="padding:6px 8px; text-align:right; font-weight:600;">${escAttr(r.qty.toLocaleString())}</td>
                </tr>`;
              }).join('')}</tbody>
            </table>`;
@@ -607,8 +623,8 @@ window.openZikjinDetail = function () {
         <span style="font-size:11px; font-weight:700; color:var(--c-text-3); margin-right:2px;">구분 보기</span>
         ${['전체', '직진', '에이블리'].map((label, i) => {
           const key = ['all', 'zikjin', 'ably'][i];
-          return `<button type="button" data-zik-filter="${key}" onclick="window.__zikFilter && window.__zikFilter('${key}')"
-            class="zik-chip${key === 'all' ? ' on' : ''}">${label}</button>`;
+          return `<button type="button" data-zik-filter="${escAttr(key)}" onclick="window.__zikFilter && window.__zikFilter('${jsArg(key)}')"
+            class="zik-chip${key === 'all' ? ' on' : ''}">${escAttr(label)}</button>`;
         }).join('')}
         <span id="zik-filter-count" style="font-size:11px; color:var(--c-text-3); margin-left:4px;"></span>
       </div>`;
@@ -622,7 +638,7 @@ window.openZikjinDetail = function () {
         <div style="padding:14px 18px; border-bottom:1px solid var(--c-line-soft); display:flex; justify-content:space-between; align-items:center;">
           <div>
             <div style="font-size:16px; font-weight:600; color:var(--c-text);">플랫폼 출고 전송 데이터</div>
-            <div style="font-size:12px; color:var(--c-text-2); margin-top:2px;">총 ${rows.length.toLocaleString()}개 상품 · 출고량 합계 ${total.toLocaleString()}</div>
+            <div style="font-size:12px; color:var(--c-text-2); margin-top:2px;">총 ${escAttr(rows.length.toLocaleString())}개 상품 · 출고량 합계 ${escAttr(total.toLocaleString())}</div>
             <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
               ${_zikBadge('직진배송', sumZ, cntZ, TONE.accentDeep, TONE.accentSoft)}
               ${_zikBadge('에이블리', sumA, cntA, TONE.riskText, TONE.riskSoft)}
@@ -864,7 +880,7 @@ const escHtmlLite = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ 
 const locAngleSize = angleSizeOf;
 
 // ★ 메인 테이블 엑셀 다운로드 (HTML 테이블 .xls 형식)
-window.downloadMainExcel = function() {
+window.downloadMainExcel = async function() {
     // 1. 체크된 항목 확인 (가상 스크롤 전역 상태 사용)
     const checkedIds = VS.checkedIds;
     
@@ -881,7 +897,10 @@ window.downloadMainExcel = function() {
         const wantTagged = (filters.reserved || []).includes('only') || (filters.preassigned || []).includes('only');
         if (filters.code.includes('empty') && !wantTagged) {
             const nowMs = Date.now(), today = kstDayKey(nowMs);
-            targetData = targetData.filter(d => !isDesignatedEmpty(d, d.id, nowMs, today));
+            // + 오늘 변경 추천에서 아직 처리 안 한 추천이 상품을 넣기로 한 자리(예정 자리, 2026-11-12)
+            await locRecEnsure();
+            const planned = locRecPlanned();
+            targetData = targetData.filter(d => !isDesignatedEmpty(d, d.id, nowMs, today) && !planned.has(String(d.id).trim()));
         }
         fileLabel = `로케이션_필터${targetData.length}건`;
     } else {
@@ -903,7 +922,7 @@ window.downloadMainExcel = function() {
     const allHeaders = [...stdHeaders, ...cusHeaders];
     
     // HTML 테이블 생성
-    let headerRow = allHeaders.map(h => `<td class=header>${h}</td>`).join('');
+    let headerRow = allHeaders.map(h => `<td class=header>${escAttr(h)}</td>`).join('');
     
     let dataRows = '';
     targetData.forEach(loc => {
@@ -917,21 +936,21 @@ window.downloadMainExcel = function() {
         const locDisplay = code ? `${locWithAngle}/ ${code}` : locWithAngle;   // 로케이션 바로 뒤에 / (공백 없음, 사용자 요청 2026-10-14)
 
         let row = '';
-        row += `<td class='style1'>${locDisplay}</td>`;
-        row += `<td class='style1'>${loc.id}</td>`;
-        row += `<td class='style2'>${loc.dong || ''}</td>`;
-        row += `<td class='style2'>${loc.pos || ''}</td>`;
-        row += `<td class='style1'>${code}</td>`;
-        row += `<td class='style1'>${loc.name || ''}</td>`;
-        row += `<td class='style1'>${loc.option || ''}</td>`;
-        row += `<td class='style3'>${stock}</td>`;
-        row += `<td class='style3'>${stock2f}</td>`;
+        row += `<td class='style1'>${escAttr(locDisplay)}</td>`;
+        row += `<td class='style1'>${escAttr(loc.id)}</td>`;
+        row += `<td class='style2'>${escAttr(loc.dong || '')}</td>`;
+        row += `<td class='style2'>${escAttr(loc.pos || '')}</td>`;
+        row += `<td class='style1'>${escAttr(code)}</td>`;
+        row += `<td class='style1'>${escAttr(loc.name || '')}</td>`;
+        row += `<td class='style1'>${escAttr(loc.option || '')}</td>`;
+        row += `<td class='style3'>${escAttr(stock)}</td>`;
+        row += `<td class='style3'>${escAttr(stock2f)}</td>`;
         
         cusHeaders.forEach(h => {
             // 칸수는 자리에 저장된 값(angleSize)이 우선 — 업로드 원본(rawData)은 그다음
             const val = h === '칸수' ? angleSize : ((loc.rawData && loc.rawData[h]) ? loc.rawData[h] : '');
             const isNum = !isNaN(val) && val !== '';
-            row += `<td class='${isNum ? 'style3' : 'style2'}'>${val}</td>`;
+            row += `<td class='${isNum ? 'style3' : 'style2'}'>${escAttr(val)}</td>`;
         });
         
         dataRows += `<tr>${row}</tr>\n`;
@@ -1209,14 +1228,14 @@ window.render2FTable = function() {
             <tr style="background:${rowBg};">
                 <td><input type="checkbox" class="check-2f-item" data-idx="${idx}"></td>
                 <td style="font-weight:600; color:var(--c-text-2);">${idx + 1}</td>
-                <td style="font-weight:600; color:var(--c-accent-deep); white-space:nowrap;">${item.code}</td>
-                <td style="text-align:left; font-size:13px; white-space:nowrap;">${item.name}</td>
-                <td style="font-size:12px; white-space:nowrap;">${item.option}</td>
+                <td style="font-weight:600; color:var(--c-accent-deep); white-space:nowrap;">${escAttr(item.code)}</td>
+                <td style="text-align:left; font-size:13px; white-space:nowrap;">${escAttr(item.name)}</td>
+                <td style="font-size:12px; white-space:nowrap;">${escAttr(item.option)}</td>
                 <td style="font-size:12px; color:var(--c-text-2); white-space:nowrap;">${escAttr(item.supplier || '-')}</td>
-                <td style="font-weight:bold;">${item.totalStock}</td>
-                <td style="font-size:12px; color:${item.lastDelivery === '기록없음' ? 'var(--c-risk-text)' : 'var(--c-text-2)'};">${item.lastDelivery}</td>
-                <td style="font-size:12px;">${item.locIds}</td>
-                <td style="background:var(--c-accent-soft); font-weight:600; color:var(--c-accent-deep); font-size:12px;">${item.changeValue}</td>
+                <td style="font-weight:bold;">${escAttr(item.totalStock)}</td>
+                <td style="font-size:12px; color:${item.lastDelivery === '기록없음' ? 'var(--c-risk-text)' : 'var(--c-text-2)'};">${escAttr(item.lastDelivery)}</td>
+                <td style="font-size:12px;">${escAttr(item.locIds)}</td>
+                <td style="background:var(--c-accent-soft); font-weight:600; color:var(--c-accent-deep); font-size:12px;">${escAttr(item.changeValue)}</td>
             </tr>
         `;
     });
@@ -1275,7 +1294,7 @@ function renderTableHeader() {
     const popupContainer = document.getElementById('dynamic-popups');
     if (!theadTr || !popupContainer) return;
 
-    let html = `<th class="checkbox-cell" style="width: ${COL_W_CHECK}px;"><input type="checkbox" id="check-all" class="loc-check" onclick="toggleAllCheckboxes(this)"></th>`;
+    let html = `<th class="checkbox-cell" style="width: ${escAttr(COL_W_CHECK)}px;"><input type="checkbox" id="check-all" class="loc-check" onclick="toggleAllCheckboxes(this)"></th>`;
     let popupHtml = '';
     _colWidths = loadColWidths();
     document.body.classList.remove('col-resizing');   // 끄던 중 다시 그려졌을 때 커서 잠김 풀기
@@ -1298,7 +1317,7 @@ function renderTableHeader() {
                 displayLabel = `입고대기<span class="info-tip" data-tip-key="header-incoming">i<span class="info-tip-content"><b>오더리스트 + 사입리스트 합계</b><br>입고대기 사이드바에 연동된 구글시트의 <b>미입고수량</b>을 상품코드 기준으로 합산한 값입니다.<br>(같은 상품코드의 옵션별 수량이 모두 더해집니다)</span></span>`;
             }
             html += createTh(col, displayLabel, 120, true, col);
-            popupHtml += `<div id="pop-${col}" class="filter-popup"></div>`;
+            popupHtml += `<div id="pop-${escAttr(col)}" class="filter-popup"></div>`;
         }
     });
 
@@ -1320,11 +1339,11 @@ function createTh(key, label, width, hasFilter, colId) {
     const saved = colId ? Number(_colWidths[colId]) : NaN;
     const w = Number.isFinite(saved) && saved >= COL_W_MIN && saved <= COL_W_MAX ? saved : defW;
     let widthStyle = `style="width: ${w}px;" data-defw="${defW}"`;
-    let filterHtml = hasFilter ? `<span class="filter-btn" id="btn-filter-${key}" onclick="toggleFilterPopup(event, 'pop-${key}')">▼</span>` : '';
+    let filterHtml = hasFilter ? `<span class="filter-btn" id="btn-filter-${escAttr(key)}" onclick="toggleFilterPopup(event, 'pop-${jsArg(key)}')">▼</span>` : '';
     // ★ 드래그앤드롭으로 컬럼 순서 변경 가능하도록 표식 부여
     const dragAttrs = colId ? ` draggable="true" data-col="${colId}" title="드래그해서 헤더 순서를 바꿀 수 있습니다"` : '';
-    const resizeHtml = colId ? `<span class="th-resize" data-resize="${colId}" title="끌어서 폭 조절 · 더블클릭하면 기본 폭"></span>` : '';
-    return `<th ${widthStyle}${dragAttrs}><div class="th-content"><span class="title-text">${label}</span>${filterHtml}</div>${resizeHtml}</th>`;
+    const resizeHtml = colId ? `<span class="th-resize" data-resize="${escAttr(colId)}" title="끌어서 폭 조절 · 더블클릭하면 기본 폭"></span>` : '';
+    return `<th ${widthStyle}${dragAttrs}><div class="th-content"><span class="title-text">${escAttr(label)}</span>${filterHtml}</div>${resizeHtml}</th>`;
 }
 
 // ── 열 폭 (2026-10-14) ──────────────────────────────────────
@@ -1485,13 +1504,13 @@ window.openSettingsModal = (e) => {
     
     stdCols.forEach(col => {
         const isChecked = window.visibleColumns.includes(col.id) ? 'checked' : '';
-        html += `<label style="display:flex; align-items:center; gap:5px; width: 45%;"><input type="checkbox" class="chk-header" value="${col.id}" ${isChecked}> ${col.label}</label>`;
+        html += `<label style="display:flex; align-items:center; gap:5px; width: 45%;"><input type="checkbox" class="chk-header" value="${escAttr(col.id)}" ${escAttr(isChecked)}> ${escAttr(col.label)}</label>`;
     });
     
     window.excelHeaders.forEach(header => {
         const colId = 'cus_' + header;
         const isChecked = window.visibleColumns.includes(colId) ? 'checked' : '';
-        html += `<label style="display:flex; align-items:center; gap:5px; width: 45%; color:var(--c-warn-text,#e65100);"><input type="checkbox" class="chk-header" value="${colId}" ${isChecked}> ${header}</label>`;
+        html += `<label style="display:flex; align-items:center; gap:5px; width: 45%; color:var(--c-warn-text,#e65100);"><input type="checkbox" class="chk-header" value="${escAttr(colId)}" ${escAttr(isChecked)}> ${escAttr(header)}</label>`;
     });
 
     html += `</div>`;
@@ -1570,7 +1589,22 @@ window.openSheetModal = (e) => {
 // - Case B: 신뢰 페어 0개(또는 모든 partner가 시스템에 미배치) → 동선 기준(recommendPriorities) 1순위 빈칸
 // - 빈칸 없거나 입력 오류 → null
 // [5단계] 두 번째 인자 excludeLocIds (Set): 이 자리 ID들은 빈칸 후보에서 제외 (일괄적용 충돌 처리)
+// 오늘 변경 추천 예정 자리(locRecPlanned)는 먼저 빼고 고른다. 그러면 고를 자리가 없을 때만 예정 자리까지 넣어 다시 고르고,
+//   그 자리면 결과에 planned {recKey, code} 를 붙인다 — 화면은 '변경 추천 예정 자리' 경고를 같이 보인다(2026-11-12 리뷰 6).
 window.calcIncomingRecommend = function(code, excludeLocIds) {
+    const planned = locRecPlanned();
+    const r = calcIncomingRecommendWith(code, excludeLocIds, planned);
+    if (r || !planned.size) return r;
+    const r2 = calcIncomingRecommendWith(code, excludeLocIds, new Map());
+    if (r2 && r2.loc) {
+        const p = planned.get(String(r2.loc.id).trim());
+        if (p) r2.planned = p;
+    }
+    return r2;
+};
+/** '변경 추천 예정 자리' 경고 한 줄(코드만) — 입고대기 카드·일괄 적용 확인창 */
+const plannedWarnText = (p) => `변경 추천 예정 자리(오늘 ${p.code} 를 넣기로 함)`;
+function calcIncomingRecommendWith(code, excludeLocIds, planned) {
     // 입력/시스템 상태 검증
     if (!code || typeof code !== 'string') return null;
     if (!Array.isArray(originalData) || originalData.length === 0) return null;
@@ -1593,6 +1627,7 @@ window.calcIncomingRecommend = function(code, excludeLocIds) {
     // 빈칸 추출 (선지정 제외 + 같은 동 제외 + 제외 조합 제외 + 일괄적용 시 이미 사용된 자리 제외)
     const excludeCombos = priorities.excludeCombos || [];
     const hasExclude = excludeLocIds && typeof excludeLocIds.has === 'function';
+    // planned = 오늘 변경 추천 예정 자리 — 같은 자리에 두 상품을 넣지 않게 뺀다(2026-11-12). 비었으면 안 뺀다(위 calcIncomingRecommend 의 다시 고르기)
     const emptyLocs = originalData.filter(d => {
         const hasContent = (d.code && d.code !== d.id && String(d.code).trim() !== '')
                         || (d.name && String(d.name).trim() !== '');
@@ -1602,7 +1637,8 @@ window.calcIncomingRecommend = function(code, excludeLocIds) {
 
         // [5단계] 일괄적용 시 이미 다른 카드가 가져간 자리 제외
         if (hasExclude && excludeLocIds.has(d.id)) return false;
-        
+        if (planned.has(String(d.id).trim())) return false;
+
         const targetDong = (d.dong || '').toString().trim();
         if (currentDongsSet.has(targetDong)) return false;
         
@@ -1748,7 +1784,7 @@ window.calcIncomingRecommend = function(code, excludeLocIds) {
     });
     
     return { case: 'B', loc: sortedEmpty[0], score: 0, partnerCount: 0 };
-};
+}
 
 // [5단계] 입고대기 추천 자리 일괄 적용
 // - 정렬: 출고예상일 빠른 순 → 같으면 미입고수량 많은 순
@@ -1757,6 +1793,7 @@ window.calcIncomingRecommend = function(code, excludeLocIds) {
 window.applyAllRecommendations = async function() {
     try {
         await window.ensureOrderPairsCache();   // 추천 계산에 페어 캐시가 필요하다(화면을 열 때 읽지 않으므로)
+        await locRecEnsure();                   // 오늘 변경 추천 예정 자리(권한 없는 화면은 이때 읽는다)
         if (!Array.isArray(window._cachedOrderPairs)) {
             return alert("추천 자리에 쓸 주문 자료를 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.");
         }
@@ -1822,8 +1859,10 @@ window.applyAllRecommendations = async function() {
         const msg = `추천 자리 일괄 적용\n\n` +
                     `대상: ${assignments.length}개 상품\n` +
                     (skipped.length > 0 ? `추천 불가로 제외: ${skipped.length}개\n` : '') +
-                    `\n` + assignments.slice(0, 8).map(({ item, locId }) => `${item['상품코드']} → ${locId}`).join('\n') +
+                    `\n` + assignments.slice(0, 8).map(({ item, locId, rec }) => `${item['상품코드']} → ${locId}${rec && rec.planned ? ` ⚠ ${plannedWarnText(rec.planned)}` : ''}`).join('\n') +
                     (assignments.length > 8 ? `\n… 외 ${assignments.length - 8}건` : '') +
+                    (assignments.some(a => a.rec && a.rec.planned)
+                        ? `\n\n⚠ 남은 빈칸이 없어 변경 추천 예정 자리를 쓴 건이 ${assignments.filter(a => a.rec && a.rec.planned).length}개 있습니다(그 추천은 [처리함] 때 다른 자리를 찾습니다).` : '') +
                     `\n\n계속 진행하시겠습니까?`;
         if (!confirm(msg)) return;
         
@@ -2016,17 +2055,17 @@ window.paintIncomingBasis = async (open) => {
     }
     const m = incomingListMeta, now = new Date();
     const hm = (ms) => fmtHM(ms).split(' ')[1];
-    const list = m.sheetAt ? `시트 <b>${fmtHM(m.sheetAt)}</b> 자료` + (m.appliedAt ? ` (목록 반영 ${hm(m.appliedAt)})` : '')
-        : (m.appliedAt ? `목록 반영 <b>${fmtHM(m.appliedAt)}</b>` : '기록 없음');
+    const list = m.sheetAt ? `시트 <b>${escAttr(fmtHM(m.sheetAt))}</b> 자료` + (m.appliedAt ? ` (목록 반영 ${hm(m.appliedAt)})` : '')
+        : (m.appliedAt ? `목록 반영 <b>${escAttr(fmtHM(m.appliedAt))}</b>` : '기록 없음');
     let line2 = '';
     const awake = now.getDay() !== 0 && now.getHours() >= 7 && now.getHours() < 19;
     // m.sheetAt 은 2026-10-26 리뷰 전엔 저장 시각(updatedAt)이었다 — 읽기 시작보다 늦으므로 옛 기록이어도 '더 새 자료'로 잘못 뜨지 않는다
     const newer = incomingCollectorSheetReadAt && (!m.sheetAt || incomingCollectorSheetReadAt > m.sheetAt + 60 * 1000);
     if (!awake) {
-        line2 = (newer ? `<span class="ib-new">시트에 더 새 자료(${fmtHM(incomingCollectorSheetReadAt)})가 있습니다 — [시트 동기화]를 누르면 반영됩니다</span><br>` : '') +
+        line2 = (newer ? `<span class="ib-new">시트에 더 새 자료(${escAttr(fmtHM(incomingCollectorSheetReadAt))})가 있습니다 — [시트 동기화]를 누르면 반영됩니다</span><br>` : '') +
             `새로 읽기: 월~토 07~19시에만, 하루 ${SHEET_REQ_DAILY_MAX}회(매일 07:30 자동으로 새로 읽음)`;
     } else {
-        line2 = (newer ? `<span class="ib-new">시트에 더 새 자료(${fmtHM(incomingCollectorSheetReadAt)})가 있습니다</span><br>` : '') +
+        line2 = (newer ? `<span class="ib-new">시트에 더 새 자료(${escAttr(fmtHM(incomingCollectorSheetReadAt))})가 있습니다</span><br>` : '') +
             `새로 읽기: 지금 [시트 동기화]를 누르면 1~2분(월~토 07~19시, 하루 ${SHEET_REQ_DAILY_MAX}회)`;
     }
     el.innerHTML = `목록 기준: ${list}` + (line2 ? `<br>${line2}` : '');
@@ -2084,8 +2123,8 @@ function startIncomingWait(col, reqMs, baseHandledAt) {
     const render = () => {
         const s = Math.floor((Date.now() - startMs) / 1000);
         if (Date.now() - startMs > INCOMING_WAIT_MAX_MS) { session.finish('timeout', waitTimeoutText(INCOMING_WAIT_MAX_MS / 60000, Date.now())); return; }
-        setSyncStatus(`⏳ 시트를 새로 읽는 중… <b>${Math.floor(s / 60)}분 ${s % 60}초</b> 경과 (보통 1~2분) — 끝나면 자동으로 반영됩니다.<br>` +
-            `<button type="button" onclick="applyIncomingNow()" style="margin-top:4px; padding:3px 8px; font-size:11px; border:1px solid var(--c-line-strong,#bbb); border-radius:4px; background:var(--c-surface,#fff); cursor:pointer;">기다리지 않고 지금 자료(${fmtHM(incomingReadAt(col))} 기준)로 반영</button>`);
+        setSyncStatus(`⏳ 시트를 새로 읽는 중… <b>${Math.floor(s / 60)}분 ${escAttr(s % 60)}초</b> 경과 (보통 1~2분) — 끝나면 자동으로 반영됩니다.<br>` +
+            `<button type="button" onclick="applyIncomingNow()" style="margin-top:4px; padding:3px 8px; font-size:11px; border:1px solid var(--c-line-strong,#bbb); border-radius:4px; background:var(--c-surface,#fff); cursor:pointer;">기다리지 않고 지금 자료(${escAttr(fmtHM(incomingReadAt(col)))} 기준)로 반영</button>`);
     };
     try {
         incomingWait = session;
@@ -2289,13 +2328,13 @@ window.showCancelledPreAssignModal = function(items) {
         html += `
             <tr style="background:${rowBg};">
                 <td style="font-weight:600; color:var(--c-risk-text);">${idx + 1}</td>
-                <td style="font-weight:600; color:var(--c-text); font-size:14px;">${loc.id}</td>
-                <td style="font-weight:600; color:var(--c-accent-deep);">${code}</td>
-                <td style="text-align:left; font-size:13px;">${name}</td>
-                <td style="font-size:12px;">${option}</td>
-                <td style="font-size:11px; color:var(--c-text-2);">${source}</td>
+                <td style="font-weight:600; color:var(--c-text); font-size:14px;">${escAttr(loc.id)}</td>
+                <td style="font-weight:600; color:var(--c-accent-deep);">${escAttr(code)}</td>
+                <td style="text-align:left; font-size:13px;">${escAttr(name)}</td>
+                <td style="font-size:12px;">${escAttr(option)}</td>
+                <td style="font-size:11px; color:var(--c-text-2);">${escAttr(source)}</td>
                 <td style="background:var(--c-risk-row);">
-                    <button class="btn btn-risk btn-sm" onclick="window.releasePreAssign('${loc.id}')" style="height:28px; padding:0 12px; font-size:11px;">해제</button>
+                    <button class="btn btn-risk btn-sm" onclick="window.releasePreAssign('${jsArg(loc.id)}')" style="height:28px; padding:0 12px; font-size:11px;">해제</button>
                 </td>
             </tr>
         `;
@@ -2522,16 +2561,16 @@ window.calculateAndRenderUsage = function() {
             <div style="display:flex; justify-content: space-around; background: var(--c-accent-soft,#eef1ff); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--c-accent-light,#c5cae9);">
                 <div style="text-align:center;">
                     <div style="font-size:11px; color:var(--c-text-2,#555); font-weight:bold;">당일지정수량<span class="info-tip" data-tip-key="usage-today-reserved">i<span class="info-tip-content"><b>오늘 작업 중 예약된 자리</b><br>로케이션 셀을 클릭하면 현재 작업자가 예약(복사+잠금)한 상태가 됩니다.<br><br>자정에 자동으로 초기화됩니다.</span></span></div>
-                    <div style="font-size:18px; color:var(--primary); font-weight:900;">${todayReservedCount}</div>
+                    <div style="font-size:18px; color:var(--primary); font-weight:900;">${escAttr(todayReservedCount)}</div>
                 </div>
                 <div style="width:1px; background:var(--c-line-strong,#ccc);"></div>
                 <div style="text-align:center;">
                     <div style="font-size:11px; color:var(--c-text-2,#555); font-weight:bold;">선지정수량<span class="info-tip" data-tip-key="usage-pre-assigned">i<span class="info-tip-content"><b>입고 전에 미리 찜해둔 자리</b><br>입고대기 사이드바에서 상품을 클릭하고 빈 자리를 지정하면 선지정됩니다.<br><br>로케이션 변경 추천에서 보호(제외)되며, 자정에 초기화되지 않습니다.</span></span></div>
-                    <div style="font-size:18px; color:var(--c-warn-text,#e65100); font-weight:900;">${preAssignedCount}</div>
+                    <div style="font-size:18px; color:var(--c-warn-text,#e65100); font-weight:900;">${escAttr(preAssignedCount)}</div>
                 </div>
             </div>
-            <div style="font-size:16px; font-weight:bold; margin-bottom:5px; color:var(--primary); text-align:center;">3층 전체 사용률: ${usageRate}%</div>
-            <div style="font-size:12px; color:var(--c-text,#333); text-align:center;">전체 ${total}칸 중 <span style="color:var(--primary); font-weight:bold;">${used}칸 사용</span> / <span style="color:var(--c-risk-text,#ff5252); font-weight:bold;">${total - used}칸 빈칸</span></div>
+            <div style="font-size:16px; font-weight:bold; margin-bottom:5px; color:var(--primary); text-align:center;">3층 전체 사용률: ${escAttr(usageRate)}%</div>
+            <div style="font-size:12px; color:var(--c-text,#333); text-align:center;">전체 ${escAttr(total)}칸 중 <span style="color:var(--primary); font-weight:bold;">${escAttr(used)}칸 사용</span> / <span style="color:var(--c-risk-text,#ff5252); font-weight:bold;">${escAttr(total - used)}칸 빈칸</span></div>
             <div style="text-align:center; margin-top:10px;">
                 <span onclick="toggleUsageDetails()" id="usage-details-btn" style="color:var(--primary); font-size:13px; text-decoration:underline; cursor:pointer; font-weight:bold;">자세히보기 ▼</span>
             </div>
@@ -2546,7 +2585,7 @@ window.calculateAndRenderUsage = function() {
         const zones = Object.keys(zoneStats).sort((a,b) => (a==='★'?-1:(b==='★'?1:a.localeCompare(b))));
         zones.forEach(z => {
             const zTotal = zoneStats[z].total; const zUsed = zoneStats[z].used; const zEmpty = zTotal - zUsed; const zRate = ((zUsed / zTotal) * 100).toFixed(1);
-            detailHtml += `<tr><td><strong>${z}</strong> 구역</td><td>${zTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${jsArg(z)}', 'used')">${zUsed}</td><td style="color:var(--c-risk-text,#ff5252); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${jsArg(z)}', 'empty')">${zEmpty}</td><td>${zRate}%</td></tr>`;
+            detailHtml += `<tr><td><strong>${escAttr(z)}</strong> 구역</td><td>${escAttr(zTotal)}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${jsArg(z)}', 'used')">${escAttr(zUsed)}</td><td style="color:var(--c-risk-text,#ff5252); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('${jsArg(z)}', 'empty')">${escAttr(zEmpty)}</td><td>${escAttr(zRate)}%</td></tr>`;
         });
         detailHtml += `</tbody></table></div>`;
 
@@ -2556,7 +2595,7 @@ window.calculateAndRenderUsage = function() {
         const dongs = Object.keys(dongStats).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
         dongs.forEach(d => {
             const dTotal = dongStats[d].total; const dUsed = dongStats[d].used; const dEmpty = dTotal - dUsed; const dRate = ((dUsed / dTotal) * 100).toFixed(1);
-            detailHtml += `<tr><td><strong>${d}</strong> 동</td><td>${dTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'used'); filters.dong=['${d}']; setupFilterPopups(); applyFiltersAndSort();">${dUsed}</td><td style="color:var(--c-risk-text,#ff5252); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'empty'); filters.dong=['${d}']; setupFilterPopups(); applyFiltersAndSort();">${dEmpty}</td><td>${dRate}%</td></tr>`;
+            detailHtml += `<tr><td><strong>${escAttr(d)}</strong> 동</td><td>${escAttr(dTotal)}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'used'); filters.dong=['${jsArg(d)}']; setupFilterPopups(); applyFiltersAndSort();">${escAttr(dUsed)}</td><td style="color:var(--c-risk-text,#ff5252); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'empty'); filters.dong=['${jsArg(d)}']; setupFilterPopups(); applyFiltersAndSort();">${escAttr(dEmpty)}</td><td>${escAttr(dRate)}%</td></tr>`;
         });
         detailHtml += `</tbody></table></div>`;
 
@@ -2566,7 +2605,7 @@ window.calculateAndRenderUsage = function() {
         const poses = Object.keys(posStats).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
         poses.forEach(p => {
             const pTotal = posStats[p].total; const pUsed = posStats[p].used; const pEmpty = pTotal - pUsed; const pRate = ((pUsed / pTotal) * 100).toFixed(1);
-            detailHtml += `<tr><td><strong>${p}</strong> 위치</td><td>${pTotal}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'used'); filters.pos=['${p}']; setupFilterPopups(); applyFiltersAndSort();">${pUsed}</td><td style="color:var(--c-risk-text,#ff5252); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'empty'); filters.pos=['${p}']; setupFilterPopups(); applyFiltersAndSort();">${pEmpty}</td><td>${pRate}%</td></tr>`;
+            detailHtml += `<tr><td><strong>${escAttr(p)}</strong> 위치</td><td>${escAttr(pTotal)}</td><td style="color:var(--primary); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'used'); filters.pos=['${jsArg(p)}']; setupFilterPopups(); applyFiltersAndSort();">${escAttr(pUsed)}</td><td style="color:var(--c-risk-text,#ff5252); cursor:pointer; text-decoration:underline;" onclick="applyUsageFilter('all', 'empty'); filters.pos=['${jsArg(p)}']; setupFilterPopups(); applyFiltersAndSort();">${escAttr(pEmpty)}</td><td>${escAttr(pRate)}%</td></tr>`;
         });
         detailHtml += `</tbody></table></div>`;
         detailHtml += `</div>`; 
@@ -2615,9 +2654,9 @@ window.calculateAndRenderUsage = function() {
         if (sortedDates.length === 0) {
             predictionHtml = `<tr><th style="background:var(--c-track,#eceff1);">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="color:var(--c-text-3,#888); text-align:right;">입고대기 데이터 없음 (시트 동기화 필요)</td></tr>`;
         } else if (sum2F >= window.capacity2F) {
-            predictionHtml = `<tr><th style="background:var(--c-risk-soft,#ffebee);">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-risk-text,#d32f2f); text-align:right;">이미 초과 상태입니다! (${(sum2F - window.capacity2F).toLocaleString()}장 초과)</td></tr>`;
+            predictionHtml = `<tr><th style="background:var(--c-risk-soft,#ffebee);">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-risk-text,#d32f2f); text-align:right;">이미 초과 상태입니다! (${escAttr((sum2F - window.capacity2F).toLocaleString())}장 초과)</td></tr>`;
         } else if (fullDate) {
-            predictionHtml = `<tr><th style="background:var(--c-warn-soft,#fff3e0);">만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-warn-text,#e65100); text-align:right;">${fullDate}<br><span style="font-size:11px; color:var(--c-text-3,#888);">현재 ${sum2F.toLocaleString()}장 + 입고예정 누적 → ${cumTotal.toLocaleString()}장 도달</span></td></tr>`;
+            predictionHtml = `<tr><th style="background:var(--c-warn-soft,#fff3e0);">만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-warn-text,#e65100); text-align:right;">${escAttr(fullDate)}<br><span style="font-size:11px; color:var(--c-text-3,#888);">현재 ${escAttr(sum2F.toLocaleString())}장 + 입고예정 누적 → ${escAttr(cumTotal.toLocaleString())}장 도달</span></td></tr>`;
         } else {
             const afterAll = sum2F + totalIncoming;
             const remainAfter = window.capacity2F - afterAll;
@@ -2639,13 +2678,13 @@ window.calculateAndRenderUsage = function() {
             }
             
             if (estimatedDate && dailyAvg > 0) {
-                predictionHtml = `<tr><th style="background:var(--c-ok-soft,#e8f5e9);">만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-ok-text,#2e7d32); text-align:right;">${estimatedDate} (추정)<br><span style="font-size:11px; color:var(--c-text-3,#888);">일평균 입고 ${Math.round(dailyAvg).toLocaleString()}장 기준, 입고예정 후 여유 ${remainAfter.toLocaleString()}장</span></td></tr>`;
+                predictionHtml = `<tr><th style="background:var(--c-ok-soft,#e8f5e9);">만재 예측일<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-ok-text,#2e7d32); text-align:right;">${escAttr(estimatedDate)} (추정)<br><span style="font-size:11px; color:var(--c-text-3,#888);">일평균 입고 ${Math.round(dailyAvg).toLocaleString()}장 기준, 입고예정 후 여유 ${escAttr(remainAfter.toLocaleString())}장</span></td></tr>`;
             } else {
-                predictionHtml = `<tr><th style="background:var(--c-ok-soft,#e8f5e9);">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-ok-text,#2e7d32); text-align:right;">입고예정 전량 입고 후에도 여유 ${remainAfter.toLocaleString()}장<br><span style="font-size:11px; color:var(--c-text-3,#888);">예상 적재: ${afterAll.toLocaleString()} / ${window.capacity2F.toLocaleString()}장</span></td></tr>`;
+                predictionHtml = `<tr><th style="background:var(--c-ok-soft,#e8f5e9);">만재 예측<span class="info-tip" data-tip-key="usage-full-prediction">i<span class="info-tip-content"><b>만재 예측 계산 방식</b><br>현재 2층 적재수량에 입고대기 중인 수량을 <b>도착예상일 순</b>으로 누적 더해서, 총 적재가능수량에 도달하는 날짜를 계산합니다.<br><br>입고예정 전량을 더해도 여유가 있으면, 일평균 입고량을 기준으로 만재 예상일을 추정합니다.</span></span></th><td style="font-weight:bold; color:var(--c-ok-text,#2e7d32); text-align:right;">입고예정 전량 입고 후에도 여유 ${escAttr(remainAfter.toLocaleString())}장<br><span style="font-size:11px; color:var(--c-text-3,#888);">예상 적재: ${escAttr(afterAll.toLocaleString())} / ${escAttr(window.capacity2F.toLocaleString())}장</span></td></tr>`;
             }
         }
         
-        html += `<div style="font-size:15px; font-weight:bold; margin-bottom:15px; color:var(--primary); text-align:center;">2층 전체 창고 사용률: ${rate2F}%</div><table class="usage-table" style="width:100%;"><tr><th style="background:var(--c-accent-soft,#eef1ff); width: 40%;">총 적재가능수량</th><td style="text-align: right;"><input type="number" id="input-cap-2f" value="${window.capacity2F}" style="width:80px; padding:3px; text-align:right; font-size:13px; font-weight:bold;"> 장 <button onclick="saveCapacity2F()" style="padding:4px 8px; margin-left:5px; font-size:11px; background:var(--primary); color:var(--c-on-fill,white); border:none; border-radius:3px; cursor:pointer;">기준변경</button></td></tr><tr><th style="background:var(--c-accent-soft,#eef1ff);">현재 적재수량</th><td style="font-weight:bold; color:var(--primary); text-align: right;">${sum2F.toLocaleString()} 장</td></tr><tr><th style="background:var(--c-accent-soft,#eef1ff);">남은 수량</th><td style="font-weight:bold; color:var(--c-risk-text,#ff5252); text-align: right;">${remaining2F.toLocaleString()} 장</td></tr>${predictionHtml}</table>`;
+        html += `<div style="font-size:15px; font-weight:bold; margin-bottom:15px; color:var(--primary); text-align:center;">2층 전체 창고 사용률: ${escAttr(rate2F)}%</div><table class="usage-table" style="width:100%;"><tr><th style="background:var(--c-accent-soft,#eef1ff); width: 40%;">총 적재가능수량</th><td style="text-align: right;"><input type="number" id="input-cap-2f" value="${escAttr(window.capacity2F)}" style="width:80px; padding:3px; text-align:right; font-size:13px; font-weight:bold;"> 장 <button onclick="saveCapacity2F()" style="padding:4px 8px; margin-left:5px; font-size:11px; background:var(--primary); color:var(--c-on-fill,white); border:none; border-radius:3px; cursor:pointer;">기준변경</button></td></tr><tr><th style="background:var(--c-accent-soft,#eef1ff);">현재 적재수량</th><td style="font-weight:bold; color:var(--primary); text-align: right;">${escAttr(sum2F.toLocaleString())} 장</td></tr><tr><th style="background:var(--c-accent-soft,#eef1ff);">남은 수량</th><td style="font-weight:bold; color:var(--c-risk-text,#ff5252); text-align: right;">${escAttr(remaining2F.toLocaleString())} 장</td></tr>${predictionHtml}</table>`;
     }
     popup.innerHTML = html;
 };
@@ -2660,7 +2699,7 @@ window.toggleUsagePopup = function(e) {
 function getSortButtonsHtml(key) {
     const isAsc = sortConfig.key === key && sortConfig.direction === 'asc';
     const isDesc = sortConfig.key === key && sortConfig.direction === 'desc';
-    return `<div class="filter-option ${isAsc ? 'selected' : ''}" onclick="executeSort('${key}', 'asc')">오름차순 정렬</div><div class="filter-option ${isDesc ? 'selected' : ''}" onclick="executeSort('${key}', 'desc')">내림차순 정렬</div><div class="filter-divider"></div>`;
+    return `<div class="filter-option ${isAsc ? 'selected' : ''}" onclick="executeSort('${jsArg(key)}', 'asc')">오름차순 정렬</div><div class="filter-option ${isDesc ? 'selected' : ''}" onclick="executeSort('${jsArg(key)}', 'desc')">내림차순 정렬</div><div class="filter-divider"></div>`;
 }
 
 function updateLocPopupUI() {
@@ -2671,7 +2710,7 @@ function updateLocPopupUI() {
     let locHtml = window.getFilterSearchHtml('pop-id') + getSortButtonsHtml('id');
     const isAllSelected = filters.loc.length === 0;
     locHtml += `<div class="filter-option ${isAllSelected ? 'selected' : ''}" onclick="toggleLocFilter('all')">전체선택/해제</div>`;
-    prefixes.forEach(p => { const isSelected = filters.loc.includes(p); locHtml += `<div class="filter-option ${isSelected ? 'selected' : ''}" onclick="toggleLocFilter('${jsArg(p)}')">${p} 구역</div>`; });
+    prefixes.forEach(p => { const isSelected = filters.loc.includes(p); locHtml += `<div class="filter-option ${isSelected ? 'selected' : ''}" onclick="toggleLocFilter('${jsArg(p)}')">${escAttr(p)} 구역</div>`; });
     locPop.innerHTML = locHtml;
 }
 
@@ -2749,7 +2788,7 @@ function setupFilterPopups() {
     let dongHtml = window.getFilterSearchHtml('pop-dong') + getSortButtonsHtml('dong') + `<div class="filter-option ${dongAll ? 'selected' : ''}" onclick="setFilter('dong', 'all')">전체선택/해제</div>`;
     dongs.forEach(d => { 
         const sel = filters.dong.includes(d);
-        dongHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('dong', '${jsArg(d)}')">${d}</div>`; 
+        dongHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('dong', '${jsArg(d)}')">${escAttr(d)}</div>`; 
     });
     if(dongPop) dongPop.innerHTML = dongHtml;
     const poses = [...new Set(originalData.map(d => (d.pos || '').toString()))].filter(Boolean).sort();
@@ -2757,7 +2796,7 @@ function setupFilterPopups() {
     let posHtml = window.getFilterSearchHtml('pop-pos') + getSortButtonsHtml('pos') + `<div class="filter-option ${posAll ? 'selected' : ''}" onclick="setFilter('pos', 'all')">전체선택/해제</div>`;
     poses.forEach(p => { 
         const sel = filters.pos.includes(p);
-        posHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('pos', '${jsArg(p)}')">${p}</div>`; 
+        posHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('pos', '${jsArg(p)}')">${escAttr(p)}</div>`; 
     });
     if(posPop) posPop.innerHTML = posHtml;
     const stocks = [...new Set(originalData.map(d => (d.stock || '0').toString()))].sort((a, b) => Number(a) - Number(b));
@@ -2769,7 +2808,7 @@ function setupFilterPopups() {
         `<div class="filter-divider"></div>`;
     stocks.forEach(s => { 
         const sel = filters.stock.includes(s);
-        stockHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock', '${jsArg(s)}')">${s}</div>`; 
+        stockHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock', '${jsArg(s)}')">${escAttr(s)}</div>`; 
     });
     if(stockPop) stockPop.innerHTML = stockHtml;
    const stock2fPop = document.getElementById('pop-stock2f');
@@ -2778,7 +2817,7 @@ function setupFilterPopups() {
     let stock2fHtml = window.getFilterSearchHtml('pop-stock2f') + getSortButtonsHtml('stock2f') + `<div class="filter-option ${stock2fAll ? 'selected' : ''}" onclick="setFilter('stock2f', 'all')">전체선택/해제</div>`;
     stocks2f.forEach(s => { 
         const sel = filters.stock2f && filters.stock2f.includes(s);
-        stock2fHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock2f', '${jsArg(s)}')">${s}</div>`; 
+        stock2fHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('stock2f', '${jsArg(s)}')">${escAttr(s)}</div>`; 
     });
     if(stock2fPop) stock2fPop.innerHTML = stock2fHtml;
 
@@ -2788,7 +2827,7 @@ function setupFilterPopups() {
     let categoryHtml = window.getFilterSearchHtml('pop-category') + getSortButtonsHtml('category') + `<div class="filter-option ${categoryAll ? 'selected' : ''}" onclick="setFilter('category', 'all')">전체선택/해제</div>`;
     categories.forEach(c => {
         const sel = filters.category && filters.category.includes(c);
-        categoryHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('category', '${jsArg(c)}')">${c}</div>`;
+        categoryHtml += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('category', '${jsArg(c)}')">${escAttr(c)}</div>`;
     });
     if(categoryPop) categoryPop.innerHTML = categoryHtml;
 
@@ -2809,9 +2848,9 @@ function setupFilterPopups() {
             const isE = arr.includes('empty');
             const isN = arr.includes('not-empty');
             let html = getSortButtonsHtml(col) +
-                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">전체선택/해제</div>` +
-                `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">빈칸</div>` +
-                `<div class="filter-option ${isN ? 'selected' : ''}" onclick="setFilter('${col}', 'not-empty')">내용있음</div>`;
+                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${jsArg(col)}', 'all')">전체선택/해제</div>` +
+                `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${jsArg(col)}', 'empty')">빈칸</div>` +
+                `<div class="filter-option ${isN ? 'selected' : ''}" onclick="setFilter('${jsArg(col)}', 'not-empty')">내용있음</div>`;
             pop.innerHTML = html;
             return;
         }
@@ -2863,12 +2902,12 @@ function setupFilterPopups() {
             
             // 정렬 + 전체선택/해제
             let html = window.getFilterSearchHtml(`pop-${col}`) + getSortButtonsHtml(col) +
-                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">전체선택/해제</div>`;
+                `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${jsArg(col)}', 'all')">전체선택/해제</div>`;
             
             // 빈칸 옵션 (있을 경우만)
             if (hasEmpty) {
                 const isE = arr.includes('empty');
-                html += `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">빈칸</div>`;
+                html += `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${jsArg(col)}', 'empty')">빈칸</div>`;
             }
             
             // 년도 계층 구조
@@ -2879,11 +2918,11 @@ function setupFilterPopups() {
                 const yearPartialSelected = !yearAllSelected && yearDates.some(d => arr.includes(d));
                 const yearCheck = yearAllSelected ? 'is-all' : (yearPartialSelected ? 'is-part' : 'is-none');
                 
-                html += `<div class="date-node date-year" data-col="${col}" data-year="${y}">
+                html += `<div class="date-node date-year" data-col="${escAttr(col)}" data-year="${escAttr(y)}">
                     <div class="date-row date-year-row">
                         <span class="date-toggle" onclick="event.stopPropagation(); window.toggleDateNode(this);">▶</span>
-                        <span class="date-check ${yearCheck}" onclick="event.stopPropagation(); window.toggleDateGroup('${col}', 'year', '${y}');"></span>
-                        <span class="date-label">${y}</span>
+                        <span class="date-check ${escAttr(yearCheck)}" onclick="event.stopPropagation(); window.toggleDateGroup('${jsArg(col)}', 'year', '${jsArg(y)}');"></span>
+                        <span class="date-label">${escAttr(y)}</span>
                     </div>
                     <div class="date-children" style="display:none;">`;
                 
@@ -2894,11 +2933,11 @@ function setupFilterPopups() {
                     const monthPartialSelected = !monthAllSelected && monthDates.some(d => arr.includes(d));
                     const monthCheck = monthAllSelected ? 'is-all' : (monthPartialSelected ? 'is-part' : 'is-none');
                     
-                    html += `<div class="date-node date-month" data-col="${col}" data-year="${y}" data-month="${m}">
+                    html += `<div class="date-node date-month" data-col="${escAttr(col)}" data-year="${escAttr(y)}" data-month="${escAttr(m)}">
                         <div class="date-row date-month-row">
                             <span class="date-toggle" onclick="event.stopPropagation(); window.toggleDateNode(this);">▶</span>
-                            <span class="date-check ${monthCheck}" onclick="event.stopPropagation(); window.toggleDateGroup('${col}', 'month', '${y}-${m}');"></span>
-                            <span class="date-label">${m}월</span>
+                            <span class="date-check ${escAttr(monthCheck)}" onclick="event.stopPropagation(); window.toggleDateGroup('${jsArg(col)}', 'month', '${jsArg(y)}-${jsArg(m)}');"></span>
+                            <span class="date-label">${escAttr(m)}월</span>
                         </div>
                         <div class="date-children" style="display:none;">`;
                     
@@ -2906,9 +2945,9 @@ function setupFilterPopups() {
                     monthDates.forEach(d => {
                         const sel = arr.includes(d);
                         const dayCheck = sel ? 'is-all' : 'is-none';
-                        html += `<div class="date-row date-day-row ${sel ? 'selected' : ''}" onclick="event.stopPropagation(); setFilter('${col}', '${d}');">
-                            <span class="date-check ${dayCheck}"></span>
-                            <span class="date-label">${d}</span>
+                        html += `<div class="date-row date-day-row ${sel ? 'selected' : ''}" onclick="event.stopPropagation(); setFilter('${jsArg(col)}', '${jsArg(d)}');">
+                            <span class="date-check ${escAttr(dayCheck)}"></span>
+                            <span class="date-label">${escAttr(d)}</span>
                         </div>`;
                     });
                     
@@ -2931,18 +2970,18 @@ function setupFilterPopups() {
         });
 
         let html = window.getFilterSearchHtml(`pop-${col}`) + getSortButtonsHtml(col) +
-            `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${col}', 'all')">전체선택/해제</div>`;
+            `<div class="filter-option ${curAll ? 'selected' : ''}" onclick="setFilter('${jsArg(col)}', 'all')">전체선택/해제</div>`;
 
         // ★ 빈칸 옵션 — 추가 항목 열 전부(2026-11-09, 예전엔 입고대기만). 걸러내기는 applyFiltersAndSort 의 'empty' 가 맡는다
         {
             const isE = arr.includes('empty');
-            html += `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${col}', 'empty')">빈칸</div>`;
+            html += `<div class="filter-option ${isE ? 'selected' : ''}" onclick="setFilter('${jsArg(col)}', 'empty')">빈칸</div>`;
         }
 
         normalVals.forEach(v => {
             const escaped = jsArg(v);
             const sel = arr.includes(v);
-            html += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('${col}', '${escaped}')">${escAttr(v)}</div>`;
+            html += `<div class="filter-option ${sel ? 'selected' : ''}" onclick="setFilter('${jsArg(col)}', '${escaped}')">${escAttr(v)}</div>`;
         });
         pop.innerHTML = html;
     });
@@ -3155,9 +3194,9 @@ window.renderDateFilterFlat = function(popId, query) {
         matched.forEach(d => {
             const sel = arr.includes(d);
             const dayCheck = sel ? 'is-all' : 'is-none';
-            html += `<div class="date-row date-day-row ${sel ? 'selected' : ''}" style="padding-left:15px;" onclick="event.stopPropagation(); setFilter('${col}', '${d}');">
-                <span class="date-check ${dayCheck}"></span>
-                <span class="date-label">${d}</span>
+            html += `<div class="date-row date-day-row ${sel ? 'selected' : ''}" style="padding-left:15px;" onclick="event.stopPropagation(); setFilter('${jsArg(col)}', '${jsArg(d)}');">
+                <span class="date-check ${escAttr(dayCheck)}"></span>
+                <span class="date-label">${escAttr(d)}</span>
             </div>`;
         });
     }
@@ -3180,8 +3219,8 @@ window.getFilterSearchHtml = function(popId) {
     return `<div class="filter-search-wrap" onclick="event.stopPropagation();">
         <input type="text" class="filter-search-input" placeholder="검색..." value="${escAttr(curQuery)}"
                onkeydown="event.stopPropagation();"
-               oninput="event.stopPropagation(); updateFilterSearch('${popId}', this.value);">
-        ${curQuery ? `<button type="button" class="filter-search-clear" onclick="event.stopPropagation(); this.previousElementSibling.value=''; updateFilterSearch('${popId}', '');" aria-label="검색어 지우기">×</button>` : ''}
+               oninput="event.stopPropagation(); updateFilterSearch('${jsArg(popId)}', this.value);">
+        ${curQuery ? `<button type="button" class="filter-search-clear" onclick="event.stopPropagation(); this.previousElementSibling.value=''; updateFilterSearch('${jsArg(popId)}', '');" aria-label="검색어 지우기">×</button>` : ''}
     </div>`;
 };
 
@@ -3559,7 +3598,7 @@ function renderVisibleRows() {
     const bottomPad = (totalRows - endIdx) * VS.rowHeight;
     
     let html = '';
-    if (topPad > 0) html += `<tr style="height:${topPad}px;"><td colspan="20"></td></tr>`;
+    if (topPad > 0) html += `<tr style="height:${escAttr(topPad)}px;"><td colspan="20"></td></tr>`;
     const _todayKst = kstDayKey(Date.now());     // 변경 추천 하루 표시(locRecMove)는 오늘(KST)만
     
     for (let i = startIdx; i < endIdx; i++) {
@@ -3585,21 +3624,21 @@ function renderVisibleRows() {
 
         let isChecked = VS.checkedIds.has(loc.id) ? 'checked' : '';
         html += `<tr onclick="handleRowClick(event, '${jsArg(loc.id)}')" class="${rowClass}">`;
-        html += `<td class="checkbox-cell" onclick="event.stopPropagation()"><input type="checkbox" class="loc-check" value="${loc.id}" ${isChecked} onchange="window.vsCheckChanged(this)"></td>`;
+        html += `<td class="checkbox-cell" onclick="event.stopPropagation()"><input type="checkbox" class="loc-check" value="${escAttr(loc.id)}" ${escAttr(isChecked)} onchange="window.vsCheckChanged(this)"></td>`;
         window.visibleColumns.forEach(col => {
-            if (col === 'std_dong') html += `<td style="color:var(--c-text-2);">${loc.dong || ''}</td>`;
-            else if (col === 'std_pos') html += `<td style="color:var(--c-text-2);">${loc.pos || ''}</td>`;
+            if (col === 'std_dong') html += `<td style="color:var(--c-text-2);">${escAttr(loc.dong || '')}</td>`;
+            else if (col === 'std_pos') html += `<td style="color:var(--c-text-2);">${escAttr(loc.pos || '')}</td>`;
             else if (col === 'std_id') {
                 // ★ 칸수가 있으면 로케이션 끝에 (칸수) — 복사·예약은 자리 번호만
                 const _ang = locAngleSize(loc);
-                html += `<td class="loc-copy-cell" onclick="copyLocationToClipboard(event, '${jsArg(loc.id)}')" title="클릭하여 복사 및 예약">${loc.id}${_ang ? `<span class="list-sub">(${escHtmlLite(_ang)})</span>` : ''}</td>`;
+                html += `<td class="loc-copy-cell" onclick="copyLocationToClipboard(event, '${jsArg(loc.id)}')" title="클릭하여 복사 및 예약">${escAttr(loc.id)}${_ang ? `<span class="list-sub">(${escHtmlLite(_ang)})</span>` : ''}</td>`;
             }
-            else if (col === 'std_category') html += `<td style="color:${(loc.category || '피킹용') === '기타' ? 'var(--c-warn-text)' : 'var(--c-text-2)'};">${loc.category || '피킹용'}</td>`;
-            else if (col === 'std_code') html += `<td style="color:var(--c-accent-deep); font-weight:600;">${loc.code === loc.id ? '' : (loc.code || '')}${codeTagHtml}</td>`;
-            else if (col === 'std_name') html += `<td style="text-align:left;">${loc.name || ''}</td>`;
-            else if (col === 'std_option') html += `<td style="text-align:left; font-size:12px;">${loc.option || ''}</td>`;
-            else if (col === 'std_stock') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${loc.stock || '0'}${autoBadge(loc)}</td>`;
-            else if (col === 'std_stock2f') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${loc.stock2f || '0'}${autoBadge(loc)}</td>`;
+            else if (col === 'std_category') html += `<td style="color:${(loc.category || '피킹용') === '기타' ? 'var(--c-warn-text)' : 'var(--c-text-2)'};">${escAttr(loc.category || '피킹용')}</td>`;
+            else if (col === 'std_code') html += `<td style="color:var(--c-accent-deep); font-weight:600;">${escAttr(loc.code === loc.id ? '' : (loc.code || ''))}${codeTagHtml}</td>`;
+            else if (col === 'std_name') html += `<td style="text-align:left;">${escAttr(loc.name || '')}</td>`;
+            else if (col === 'std_option') html += `<td style="text-align:left; font-size:12px;">${escAttr(loc.option || '')}</td>`;
+            else if (col === 'std_stock') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${escAttr(loc.stock || '0')}${autoBadge(loc)}</td>`;
+            else if (col === 'std_stock2f') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${escAttr(loc.stock2f || '0')}${autoBadge(loc)}</td>`;
             else if (col.startsWith('cus_')) {
                 const key = col.replace('cus_', '');
                 let val = (loc.rawData && loc.rawData[key]) ? loc.rawData[key] : '';
@@ -3615,7 +3654,7 @@ function renderVisibleRows() {
         html += `</tr>`;
     }
     
-    if (bottomPad > 0) html += `<tr style="height:${bottomPad}px;"><td colspan="20"></td></tr>`;
+    if (bottomPad > 0) html += `<tr style="height:${escAttr(bottomPad)}px;"><td colspan="20"></td></tr>`;
     
     tbody.innerHTML = html;
 }
@@ -3903,8 +3942,10 @@ if (fileInputA) {
                 // 다른 사람이 오늘 재고·도면을 올리는 중이면 막는다(같은 자리를 동시에 덮어쓰면 섞인다). 상태를 못 읽으면 막지 않는다.
                 const _other = await window.__locBusy.checkOthers();
                 if (_other) { alert(uploadBlockText(_other)); return; }
-                // 오늘 변경 추천 [처리함]으로 옮긴 자리가 이 엑셀에서는 옛 자리면 먼저 알린다(계속하면 엑셀이 이긴다)
-                const _mvConf = uploadMoveConflicts(result.rows, originalData, kstDayKey(Date.now()));
+                // 오늘(+ 최근 7일, 2026-11-12) 변경 추천 [처리함]으로 옮긴 자리가 이 엑셀에서는 옛 자리면 먼저 알린다(계속하면 엑셀이 이긴다 — 막지는 않는다)
+                await locRecEnsure();
+                const _lrs = peekLocRecStore();
+                const _mvConf = uploadMoveConflicts(result.rows, originalData, kstDayKey(Date.now()), _lrs ? _lrs.recentMoves() : []);
                 if (_mvConf.length && !confirm(uploadConflictText(_mvConf))) return;
                 if (!confirm(`오늘 재고 파일 「${file.name}」 ${result.rows.length.toLocaleString()}줄로 기존 로케이션 재고를 덮어씁니다.\n(파일에 없는 자리의 재고는 비워집니다 · 선지정된 자리는 보호됩니다)\n\n계속할까요?`)) return;
                 window.showLoading('일일 재고/상품 데이터를 최신화 중입니다...');
@@ -4302,23 +4343,23 @@ window.openOrderAnalysisReport = async function() {
             <div style="display:flex; justify-content:space-around; flex-wrap:wrap; gap:15px;">
                 <div style="text-align:center;">
                     <div style="font-size:11px; color:var(--c-text-2);">최근 업로드</div>
-                    <div style="font-size:14px; color:var(--c-accent-deep); font-weight:600;">${meta.lastUploadDate || '-'}</div>
+                    <div style="font-size:14px; color:var(--c-accent-deep); font-weight:600;">${escAttr(meta.lastUploadDate || '-')}</div>
                 </div>
                 <div style="text-align:center;">
                     <div style="font-size:11px; color:var(--c-text-2);">처리한 주문 건수</div>
-                    <div style="font-size:18px; color:var(--c-accent-deep); font-weight:700;">${(meta.totalProcessedOrders || 0).toLocaleString()}</div>
+                    <div style="font-size:18px; color:var(--c-accent-deep); font-weight:700;">${escAttr((meta.totalProcessedOrders || 0).toLocaleString())}</div>
                 </div>
                 <div style="text-align:center;">
                     <div style="font-size:11px; color:var(--c-text-2);">분석된 상품 종류</div>
-                    <div style="font-size:18px; color:var(--c-accent-deep); font-weight:700;">${Object.keys(stats).length.toLocaleString()}</div>
+                    <div style="font-size:18px; color:var(--c-accent-deep); font-weight:700;">${escAttr(Object.keys(stats).length.toLocaleString())}</div>
                 </div>
                 <div style="text-align:center;">
                     <div style="font-size:11px; color:var(--c-text-2);">함께 팔린 상품 조합</div>
-                    <div style="font-size:18px; color:var(--c-accent-deep); font-weight:700;">${pairs.length.toLocaleString()}</div>
+                    <div style="font-size:18px; color:var(--c-accent-deep); font-weight:700;">${escAttr(pairs.length.toLocaleString())}</div>
                 </div>
                 <div style="text-align:center;">
                     <div style="font-size:11px; color:var(--c-text-2);">자주 함께 팔리는 조합</div>
-                    <div style="font-size:22px; color:var(--c-accent); font-weight:700;">${trustedPairs.length.toLocaleString()}</div>
+                    <div style="font-size:22px; color:var(--c-accent); font-weight:700;">${escAttr(trustedPairs.length.toLocaleString())}</div>
                 </div>
             </div>
         `;
@@ -4333,7 +4374,7 @@ window.openOrderAnalysisReport = async function() {
             const buildProductCell = (code) => {
                 const matches = originalData.filter(d => d.code === code);
                 if (matches.length === 0) {
-                    return `<div style="font-weight:600; color:var(--c-accent-deep);">${code}</div>` +
+                    return `<div style="font-weight:600; color:var(--c-accent-deep);">${escAttr(code)}</div>` +
                            `<div style="font-size:11px; color:var(--c-text-3); margin-top:2px;">로케이션 없음</div>`;
                 }
                 const loc = matches[0];
@@ -4343,10 +4384,10 @@ window.openOrderAnalysisReport = async function() {
                 const dupBadge = matches.length > 1
                     ? `<span style="display:inline-block; background:var(--c-warn-soft); color:var(--c-warn-text); padding:1px 6px; border-radius:var(--r-pill); font-size:9px; font-weight:600; margin-left:4px;" title="같은 상품코드가 ${matches.length}개 자리에 있습니다 (데이터 이상)">${matches.length}자리</span>`
                     : '';
-                const optionHtml = option ? `<span style="color:var(--c-text-2); font-weight:normal; font-size:11px; margin-left:4px;">[${option}]</span>` : '';
-                const locHtml = locId ? `<div style="font-size:11px; color:var(--c-ok-text); margin-top:2px;">${locId}${dupBadge}</div>` : `<div style="font-size:11px; color:var(--c-text-3); margin-top:2px;">자리 없음${dupBadge}</div>`;
-                const nameHtml = name ? `<div style="font-size:11px; color:var(--c-text-2); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:190px;" title="${name}">${name}</div>` : '';
-                return `<div style="font-weight:600; color:var(--c-accent-deep);">${code}${optionHtml}</div>` + locHtml + nameHtml;
+                const optionHtml = option ? `<span style="color:var(--c-text-2); font-weight:normal; font-size:11px; margin-left:4px;">[${escAttr(option)}]</span>` : '';
+                const locHtml = locId ? `<div style="font-size:11px; color:var(--c-ok-text); margin-top:2px;">${escAttr(locId)}${dupBadge}</div>` : `<div style="font-size:11px; color:var(--c-text-3); margin-top:2px;">자리 없음${dupBadge}</div>`;
+                const nameHtml = name ? `<div style="font-size:11px; color:var(--c-text-2); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:190px;" title="${escAttr(name)}">${escAttr(name)}</div>` : '';
+                return `<div style="font-weight:600; color:var(--c-accent-deep);">${escAttr(code)}${optionHtml}</div>` + locHtml + nameHtml;
             };
             
             top30.forEach((p, idx) => {
@@ -4359,9 +4400,9 @@ window.openOrderAnalysisReport = async function() {
                     <td style="font-weight:600; color:var(--c-text-2);">${idx+1}</td>
                     <td style="text-align:left; padding:8px 10px;">${buildProductCell(p.codeA)}</td>
                     <td style="text-align:left; padding:8px 10px;">${buildProductCell(p.codeB)}</td>
-                    <td style="font-weight:600; color:var(--c-accent-deep);">${p.count}회</td>
+                    <td style="font-weight:600; color:var(--c-accent-deep);">${escAttr(p.count)}회</td>
                     <td style="font-weight:600; color:var(--c-warn-text);">${p.lift.toFixed(2)}</td>
-                    <td style="font-size:11px;">${p.lastDate || '-'}</td><td>${distance}</td></tr>`;
+                    <td style="font-size:11px;">${escAttr(p.lastDate || '-')}</td><td>${distance}</td></tr>`;
             });
         }
         document.getElementById('order-analysis-tbody').innerHTML = html;
@@ -5313,6 +5354,10 @@ window.copyLocationToClipboard = async (event, locId) => {
                 return;
             }
             
+            // 오늘 변경 추천이 상품을 넣기로 한 자리면 알린다(막지는 않는다 — 사용자 결정 2026-11-12)
+            await locRecEnsure();
+            const _plan = locRecPlanned().get(String(locId).trim());
+            if (_plan && !confirm(`[${locId}]은 오늘 변경 추천에서 ${_plan.code} 를 넣기로 한 자리입니다.\n당일지정하면 그 추천은 [처리함] 때 다른 자리를 찾거나 '자리 막힘'이 됩니다.\n\n그래도 당일지정할까요?`)) return;
             await setDoc(docRef, { [locId]: { reserved: true, reservedAt: now, assignedAt: now, reservedBy: currentUserName, codeTag: '당일지정', codeTagAt: now, updatedAt: new Date() } }, { merge: true });
             navigator.clipboard.writeText(locId).then(() => { showToast(`[${locId}] 복사 및 예약 완료!`); });
         }
@@ -5511,6 +5556,11 @@ window.renderIncomingQueue = function() {
         });
         return;
     }
+    // 오늘 변경 추천 예정 자리 — 권한 없는 화면은 지금 읽고(3분 기억), 새로 읽었으면 다시 그린다
+    locRecEnsure().then(ch => {
+        const sb = document.getElementById('incoming-sidebar');
+        if (ch && sb && sb.classList.contains('open')) window.renderIncomingQueue();
+    });
     const filterSource = document.getElementById('filter-source')?.value || 'all';
     const sortType = document.getElementById('sort-incoming')?.value || 'qty-desc';
 
@@ -5559,22 +5609,24 @@ window.renderIncomingQueue = function() {
         const rec = recLocMap[code];
         if (rec && rec.loc && rec.loc.id) {
             const caseLabel = rec.case === 'A'
-                ? `<span style="font-size:10px; color:var(--c-accent-deep); font-weight:normal;">(페어 ${rec.partnerCount}개)</span>`
+                ? `<span style="font-size:10px; color:var(--c-accent-deep); font-weight:normal;">(페어 ${escAttr(rec.partnerCount)}개)</span>`
                 : `<span style="font-size:10px; color:var(--c-text-3); font-weight:normal;">(우선순위)</span>`;
-            recHtml = `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed var(--c-line); font-size:11px; color:var(--c-accent-deep);">추천: <b>${rec.loc.id}</b> ${caseLabel}</div>`;
+            const plannedWarn = rec.planned
+                ? `<div style="font-size:10px; color:var(--c-warn-text, #8A5A00); margin-top:2px;">⚠ ${escAttr(plannedWarnText(rec.planned))} — 남은 빈칸이 없음</div>` : '';
+            recHtml = `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed var(--c-line); font-size:11px; color:var(--c-accent-deep);">추천: <b>${escAttr(rec.loc.id)}</b> ${caseLabel}${plannedWarn}</div>`;
         }
         
         html += `
             <div class="incoming-item" onclick="activatePreAssignMode('${jsArg(code)}', '${jsArg(name)}', '${jsArg(qty)}', '${jsArg(option)}', '${jsArg(rec?.loc?.id || '')}')">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                    <div style="font-weight:600; color:var(--c-accent-deep); font-size:14px;">${code}</div>
-                    <span class="badge incoming-src ${src==='제작'?'badge-accent':'badge-warn'}">${src}</span>
+                    <div style="font-weight:600; color:var(--c-accent-deep); font-size:14px;">${escAttr(code)}</div>
+                    <span class="badge incoming-src ${src==='제작'?'badge-accent':'badge-warn'}">${escAttr(src)}</span>
                 </div>
-                <div style="font-size:12px; color:var(--c-text); margin-bottom:${option ? '2px' : '6px'};">${name}</div>
-                ${option ? `<div style="font-size:11px; color:var(--c-text-3); margin-bottom:6px;">${option}</div>` : ''}
+                <div style="font-size:12px; color:var(--c-text); margin-bottom:${option ? '2px' : '6px'};">${escAttr(name)}</div>
+                ${option ? `<div style="font-size:11px; color:var(--c-text-3); margin-bottom:6px;">${escAttr(option)}</div>` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px;">
-                    <span style="color:var(--c-text-2);">${src==='제작'?'출고일':'도착일'}: <b style="color:var(--c-text);">${date}</b></span>
-                    <span style="color:var(--c-warn-text); font-weight:600; font-size:12px;">대기: ${qty}개</span>
+                    <span style="color:var(--c-text-2);">${src==='제작'?'출고일':'도착일'}: <b style="color:var(--c-text);">${escAttr(date)}</b></span>
+                    <span style="color:var(--c-warn-text); font-weight:600; font-size:12px;">대기: ${escAttr(qty)}개</span>
                 </div>
                 ${recHtml}
             </div>
@@ -5729,7 +5781,7 @@ function _ttShowEditor(tip, key, target) {
     
     tabBody.innerHTML = `
         <div class="tt-editor">
-            <div class="tt-editor-label">${labelText}</div>
+            <div class="tt-editor-label">${escAttr(labelText)}</div>
             <div class="tt-toolbar">
                 <button type="button" class="tt-tb-btn" data-action="bold" title="굵게">𝐁</button>
                 <div class="tt-tb-color-wrap">
@@ -6134,8 +6186,8 @@ function renderCorridor(idx) {
         const nameFontSize = Math.max(10, Math.floor(cellSize / 5));
         const maxChars = Math.max(4, Math.floor((cellSize - 6) / (nameFontSize * 0.55)));
         const displayName = nameText.substring(0, maxChars) || '빈칸';
-        return `<div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${cellSize - 4}px;">${loc.id}</div>
-                <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize - 4}px;text-align:center;line-height:1.3;">${displayName}</div>${moveMarkHtml(loc)}`;
+        return `<div style="font-size:${escAttr(idFontSize)}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${escAttr(cellSize - 4)}px;">${escAttr(loc.id)}</div>
+                <div style="font-size:${escAttr(nameFontSize)}px;font-weight:600;color:${escAttr(nameColor)};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${escAttr(cellSize - 4)}px;text-align:center;line-height:1.3;">${escAttr(displayName)}</div>${moveMarkHtml(loc)}`;
     }
     function tooltipHtml(loc) {
         if (!loc) return '';
@@ -6146,11 +6198,11 @@ function renderCorridor(idx) {
         else if (isReserved) status = `예약중 (${loc.reservedBy || ''})`;
         else if (hasContent(loc)) status = '사용중';
         const tipId = 'tip-' + (loc.id || '').replace(/[^a-zA-Z0-9]/g, '_');
-        return `<div id="${tipId}" class="sv-tip map-tip">
-            <div class="tip-id">${loc.id}</div>
-            <div>${status}</div>
-            ${hasContent(loc) ? `<div><b>상품명</b>: ${loc.name || '-'}</div>${loc.option ? `<div><b>옵션</b>: ${loc.option}</div>` : ''}<div><b>재고</b>: ${loc.stock || '0'}개</div>` : ''}
-            ${isPreAssigned ? `<div style="color:var(--c-risk-text);"><b style="color:inherit;">선지정코드</b>: ${loc.preAssignedCode || '-'}</div>` : ''}
+        return `<div id="${escAttr(tipId)}" class="sv-tip map-tip">
+            <div class="tip-id">${escAttr(loc.id)}</div>
+            <div>${escAttr(status)}</div>
+            ${hasContent(loc) ? `<div><b>상품명</b>: ${escAttr(loc.name || '-')}</div>${loc.option ? `<div><b>옵션</b>: ${escAttr(loc.option)}</div>` : ''}<div><b>재고</b>: ${escAttr(loc.stock || '0')}개</div>` : ''}
+            ${isPreAssigned ? `<div style="color:var(--c-risk-text);"><b style="color:inherit;">선지정코드</b>: ${escAttr(loc.preAssignedCode || '-')}</div>` : ''}
             ${(() => { const mv = moveBadge(loc, _todayKst); return mv ? `<div>↻ ${escHtmlLite(mv.title)}</div>` : ''; })()}
         </div>`;
     }
@@ -6185,20 +6237,20 @@ function renderCorridor(idx) {
                 if (!hasMatch) return;
             }
             html += `<div style="display:flex;flex-direction:row;align-items:center;gap:3px;">
-                <div style="font-size:10px;font-weight:600;color:var(--c-text-3);min-width:18px;text-align:center;">${pos}</div>`;
+                <div style="font-size:10px;font-weight:600;color:var(--c-text-3);min-width:18px;text-align:center;">${escAttr(pos)}</div>`;
             posNums.forEach(num => {
                 const loc = getCell(locs, pos, num);
                 if (!loc) {
                     if (_mapLegendFilter) return; // 필터 ON → null 셀(placeholder)도 숨김 (옆이 당겨옴)
-                    html += `<div style="width:${cellSize}px;height:${cellSize + 6}px;${cellStyle(null)}border-radius:var(--r-cell);"></div>`;
+                    html += `<div style="width:${escAttr(cellSize)}px;height:${escAttr(cellSize + 6)}px;${cellStyle(null)}border-radius:var(--r-cell);"></div>`;
                     return;
                 }
                 if (!matchesLegendFilter(loc)) return; // 미매칭 셀은 출력 안 함
                 const tid = 'tip-' + (loc.id || '').replace(/[^a-zA-Z0-9]/g, '_');
                 html += `<div style="position:relative;"
-                    onmouseenter="(function(e){var t=document.getElementById('${tid}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
-                    onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
-                    <div style="width:${cellSize}px;height:${cellSize + 6}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
+                    onmouseenter="(function(e){var t=document.getElementById('${jsArg(tid)}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
+                    onmouseleave="(function(){var t=document.getElementById('${jsArg(tid)}');if(t)t.style.display='none';})()">
+                    <div style="width:${escAttr(cellSize)}px;height:${escAttr(cellSize + 6)}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                         onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
                         onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
                         ${cellInner(loc)}
@@ -6232,13 +6284,13 @@ function renderCorridor(idx) {
             const nameColor = hasContent(loc) ? 'var(--c-ok-text)' : 'var(--c-text-3)';
             const displayName = nameText.substring(0, maxChars) || '빈칸';
             h += `<div style="position:relative;"
-                onmouseenter="(function(e){var t=document.getElementById('${tid}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
-                onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
-                <div style="width:${cs}px;height:${cs+6}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
+                onmouseenter="(function(e){var t=document.getElementById('${jsArg(tid)}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
+                onmouseleave="(function(){var t=document.getElementById('${jsArg(tid)}');if(t)t.style.display='none';})()">
+                <div style="width:${escAttr(cs)}px;height:${escAttr(cs+6)}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                     onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
                     onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
-                    <div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${cs-4}px;">${loc.id}</div>
-                    <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cs-4}px;text-align:center;line-height:1.3;">${displayName}</div>${moveMarkHtml(loc)}
+                    <div style="font-size:${escAttr(idFontSize)}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${escAttr(cs-4)}px;">${escAttr(loc.id)}</div>
+                    <div style="font-size:${escAttr(nameFontSize)}px;font-weight:600;color:${escAttr(nameColor)};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${escAttr(cs-4)}px;text-align:center;line-height:1.3;">${escAttr(displayName)}</div>${moveMarkHtml(loc)}
                 </div>${tooltipHtml(loc)}</div>`;
         });
         return h;
@@ -6279,13 +6331,13 @@ function renderCorridor(idx) {
                 const nameColor = hasContent(loc) ? 'var(--c-ok-text)' : 'var(--c-text-3)';
                 const displayName = nameText.substring(0, maxChars) || '빈칸';
                 h += `<div style="position:relative;"
-                    onmouseenter="(function(e){var t=document.getElementById('${tid}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
-                    onmouseleave="(function(){var t=document.getElementById('${tid}');if(t)t.style.display='none';})()">
-                    <div style="width:${cellSize}px;height:${cellSize+6}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
+                    onmouseenter="(function(e){var t=document.getElementById('${jsArg(tid)}');if(!t)return;t.style.display='block';var r=e.currentTarget.getBoundingClientRect();var tw=t.offsetWidth||160;var th=t.offsetHeight||100;var x=r.left+r.width/2-tw/2;var y=r.top-th-8;if(y<8)y=r.bottom+8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(x<8)x=8;t.style.left=x+'px';t.style.top=y+'px';})(event)"
+                    onmouseleave="(function(){var t=document.getElementById('${jsArg(tid)}');if(t)t.style.display='none';})()">
+                    <div style="width:${escAttr(cellSize)}px;height:${escAttr(cellSize+6)}px;${cellStyle(loc)}border-radius:var(--r-cell);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:3px;transition:transform 0.1s;"
                         onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform='scale(1)'"
                         onclick="window.copyLocationToClipboard(event, '${jsArg(loc.id)}')">
-                        <div style="font-size:${idFontSize}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${cellSize-4}px;">${loc.id}</div>
-                        <div style="font-size:${nameFontSize}px;font-weight:600;color:${nameColor};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${cellSize-4}px;text-align:center;line-height:1.3;">${displayName}</div>${moveMarkHtml(loc)}
+                        <div style="font-size:${escAttr(idFontSize)}px;color:var(--c-text-3);line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:${escAttr(cellSize-4)}px;">${escAttr(loc.id)}</div>
+                        <div style="font-size:${escAttr(nameFontSize)}px;font-weight:600;color:${escAttr(nameColor)};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:${escAttr(cellSize-4)}px;text-align:center;line-height:1.3;">${escAttr(displayName)}</div>${moveMarkHtml(loc)}
                     </div>${tooltipHtml(loc)}</div>`;
             });
             h += '</div>';
@@ -6320,7 +6372,7 @@ function renderCorridor(idx) {
             if (cells) {
                 bodyHtml += `
                     <div class="map-sec">
-                        <div class="map-sec-head" style="background:${g.bg};color:${g.color};border-bottom-color:${g.border};">${g.label}</div>
+                        <div class="map-sec-head" style="background:${escAttr(g.bg)};color:${escAttr(g.color)};border-bottom-color:${escAttr(g.border)};">${escAttr(g.label)}</div>
                         <div style="padding:8px;display:flex;flex-wrap:wrap;gap:3px;">${cells}</div>
                     </div>`;
             }
@@ -6373,11 +6425,11 @@ function renderCorridor(idx) {
 
             bodyHtml += `
                 <div class="map-sec">
-                    <div class="map-sec-head">${item.zone}구역 ${dong}동</div>
+                    <div class="map-sec-head">${escAttr(item.zone)}구역 ${escAttr(dong)}동</div>
                     ${buildRackSection(leftLocs, numsByPos, posLabels, 'left', cellSize)}
                     ${_mapLegendFilter ? '' : `<div class="map-aisle">
                         <div class="aisle-arrow">← ← ←</div>
-                        <div class="aisle-label">${dong}동 통로</div>
+                        <div class="aisle-label">${escAttr(dong)}동 통로</div>
                         <div class="aisle-arrow">→ → →</div>
                     </div>`}
                     ${buildRackSection(rightLocs, numsByPos, posLabels, 'right', cellSize)}
@@ -6397,7 +6449,7 @@ function renderCorridor(idx) {
             if (cells) {
                 bodyHtml += `
                     <div class="map-sec" style="border-color:var(--c-warn);">
-                        <div class="map-sec-head" style="background:var(--c-warn-bg);color:var(--c-warn-text);border-bottom-color:var(--c-warn-soft);">${item.zone}구역 · 미배치 (동/위치 미지정)</div>
+                        <div class="map-sec-head" style="background:var(--c-warn-bg);color:var(--c-warn-text);border-bottom-color:var(--c-warn-soft);">${escAttr(item.zone)}구역 · 미배치 (동/위치 미지정)</div>
                         <div style="padding:8px;display:flex;flex-wrap:wrap;gap:3px;">${cells}</div>
                     </div>`;
             }
@@ -6649,7 +6701,7 @@ function renderCorridor(idx) {
             return `<div style="background:var(--c-surface,white); border:1px solid var(--c-line,#e0e0e0); border-radius:8px; padding:12px 16px; min-width:140px; flex:1; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
                 <div style="font-size:11px; color:var(--c-text-3,#888); font-weight:bold; margin-bottom:4px;">${icon} ${title}</div>
                 <div style="font-size:22px; font-weight:900; color:${color || 'var(--c-text,#333)'};">${value}</div>
-                ${sub ? `<div style="font-size:11px; color:var(--c-text-3,#999); margin-top:3px;">${sub}</div>` : ''}
+                ${sub ? `<div style="font-size:11px; color:var(--c-text-3,#999); margin-top:3px;">${escAttr(sub)}</div>` : ''}
             </div>`;
         };
         
@@ -6657,7 +6709,7 @@ function renderCorridor(idx) {
             if (rate === null || rate === undefined) return '-';
             const sign = rate > 0 ? '+' : '';
             const color = rate > 0 ? 'var(--c-warn-text,#e65100)' : (rate < 0 ? 'var(--c-accent-deep,#1976d2)' : 'var(--c-text-2,#666)');
-            return `<span style="color:${color};">${sign}${rate.toFixed(1)}%</span>`;
+            return `<span style="color:${color};">${escAttr(sign)}${rate.toFixed(1)}%</span>`;
         };
         
         // 첫째 줄: 지정 + SKU
@@ -6675,15 +6727,15 @@ function renderCorridor(idx) {
         let cardsRow2 = '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px;">';
         if (!turnover.sufficient) {
             cardsRow2 += `<div style="background:var(--c-warn-soft,#fff8e1); border:1px solid var(--c-warn,#ffd54f); border-radius:8px; padding:12px 16px; flex:1; font-size:12px; color:var(--c-warn-text,#a36800);">
-                ${turnover.message}<br>
+                ${escAttr(turnover.message)}<br>
                 <span style="font-size:11px; color:var(--c-text-3,#999);">일일 최신화 업로드를 2영업일 이상 반복하면 회전율이 계산됩니다</span>
             </div>`;
         } else {
             // v4.4 v2: 날짜+수량을 두 줄로 표시
-            const sub3F = `${turnover.previousDate}: ${(turnover.previousStock3F || 0).toLocaleString()}<br>${turnover.currentDate}: ${(turnover.currentStock3F || 0).toLocaleString()}`;
+            const sub3F = `${escAttr(turnover.previousDate)}: ${escAttr((turnover.previousStock3F || 0).toLocaleString())}<br>${escAttr(turnover.currentDate)}: ${escAttr((turnover.currentStock3F || 0).toLocaleString())}`;
             const prevTotal = (turnover.previousStock3F || 0) + (turnover.previousStock2F || 0);
             const currTotal = (turnover.currentStock3F || 0) + (turnover.currentStock2F || 0);
-            const subAll = `${turnover.previousDate}: ${prevTotal.toLocaleString()}<br>${turnover.currentDate}: ${currTotal.toLocaleString()}`;
+            const subAll = `${escAttr(turnover.previousDate)}: ${escAttr(prevTotal.toLocaleString())}<br>${escAttr(turnover.currentDate)}: ${escAttr(currTotal.toLocaleString())}`;
             cardsRow2 += card('', '재고회전율 (3층)', formatRate(turnover.rate3F), sub3F);
             cardsRow2 += card('', '재고회전율 (합산)', formatRate(turnover.rateAll), subAll);
         }
@@ -6695,7 +6747,7 @@ function renderCorridor(idx) {
         const usage3FHtml = window._v44_renderUsage3F();
         const usage2FHtml = window._v44_renderUsage2F();
         
-        const sectionTitle = (text) => `<div style="font-size:14px; font-weight:bold; color:var(--primary); margin:12px 0 8px 0; padding-bottom:4px; border-bottom:2px solid var(--c-line,#e0e0e0);">${text}</div>`;
+        const sectionTitle = (text) => `<div style="font-size:14px; font-weight:bold; color:var(--primary); margin:12px 0 8px 0; padding-bottom:4px; border-bottom:2px solid var(--c-line,#e0e0e0);">${escAttr(text)}</div>`;
         
         container.innerHTML = `
             <div style="padding: 8px 12px;">
@@ -7119,7 +7171,7 @@ window.renderLocationDashboard = function () {
         if (rate === null || rate === undefined) return '-';
         const sign = rate > 0 ? '+' : '';
         const color = rate > 0 ? TONE.warnText : (rate < 0 ? TONE.accentDeep : TONE.text3);
-        return `<span style="color:${color};">${sign}${rate.toFixed(1)}%</span>`;
+        return `<span style="color:${color};">${escAttr(sign)}${rate.toFixed(1)}%</span>`;
     };
 
     // ---- KPI 띠 렌더 ----
@@ -7127,7 +7179,7 @@ window.renderLocationDashboard = function () {
     const usageTone = (rate) => rate >= 90 ? 'risk' : rate >= 85 ? 'warn' : rate >= 65 ? 'accent' : 'ok';
     const usageBar = (rate) => {
         const w = Math.max(0, Math.min(100, rate || 0));
-        return `<div class="kpi-bar"><div style="width:${w.toFixed(1)}%; background:${TONE[usageTone(rate || 0)]};"></div></div>`;
+        return `<div class="kpi-bar"><div style="width:${w.toFixed(1)}%; background:${escAttr(TONE[usageTone(rate || 0)])};"></div></div>`;
     };
 
     const kpiHtml = `
@@ -7135,40 +7187,40 @@ window.renderLocationDashboard = function () {
             <div class="kpi-title">피킹용 사용률</div>
             <div class="kpi-value">${usageRate.toFixed(1)}%</div>
             ${usageBar(usageRate)}
-            <div class="kpi-sub">${used.toLocaleString()}/${total.toLocaleString()} 칸 · 빈 ${empty.toLocaleString()}</div>
+            <div class="kpi-sub">${escAttr(used.toLocaleString())}/${escAttr(total.toLocaleString())} 칸 · 빈 ${escAttr(empty.toLocaleString())}</div>
         </div>
         <div class="dash-kpi-card">
             <div class="kpi-title">기타용 사용률 <span class="kpi-note">비축+A-1-R</span></div>
             <div class="kpi-value">${stEtc.total > 0 ? stEtc.rate.toFixed(1) + '%' : '-'}</div>
             ${usageBar(stEtc.rate)}
-            <div class="kpi-sub">${stEtc.used.toLocaleString()}/${stEtc.total.toLocaleString()} 칸 · 빈 ${stEtc.empty.toLocaleString()}</div>
+            <div class="kpi-sub">${escAttr(stEtc.used.toLocaleString())}/${escAttr(stEtc.total.toLocaleString())} 칸 · 빈 ${escAttr(stEtc.empty.toLocaleString())}</div>
         </div>
         <div class="dash-kpi-card">
             <div class="kpi-title">SAM 사용률</div>
             <div class="kpi-value">${stSam.total > 0 ? stSam.rate.toFixed(1) + '%' : '-'}</div>
             ${usageBar(stSam.rate)}
-            <div class="kpi-sub">${stSam.used.toLocaleString()}/${stSam.total.toLocaleString()} 칸 · 빈 ${stSam.empty.toLocaleString()}</div>
+            <div class="kpi-sub">${escAttr(stSam.used.toLocaleString())}/${escAttr(stSam.total.toLocaleString())} 칸 · 빈 ${escAttr(stSam.empty.toLocaleString())}</div>
         </div>
         <div class="dash-kpi-card kpi-click" onclick="window.__dashGoToList('empty', true)" title="클릭: 데이터 리스트에서 피킹용 빈 자리만 보기 (기타·비축·SAM 제외)">
             <div class="kpi-title">피킹용 빈 자리</div>
-            <div class="kpi-value" style="color:${TONE.okText};">${empty.toLocaleString()}</div>
-            <div class="kpi-sub">전체 대비 ${total > 0 ? (empty / total * 100).toFixed(1) : 0}% · <span class="kpi-link" style="color:${TONE.okText};">목록 보기</span></div>
+            <div class="kpi-value" style="color:${escAttr(TONE.okText)};">${escAttr(empty.toLocaleString())}</div>
+            <div class="kpi-sub">전체 대비 ${total > 0 ? (empty / total * 100).toFixed(1) : 0}% · <span class="kpi-link" style="color:${escAttr(TONE.okText)};">목록 보기</span></div>
         </div>
         <div class="dash-kpi-card">
             <div class="kpi-title">등록 상품 (고유)</div>
-            <div class="kpi-value">${uniqueCodes.toLocaleString()}<span class="kpi-unit"> 종</span></div>
-            <div class="kpi-sub">총 재고 ${registeredStockSum.toLocaleString()}개 · 평균 ${uniqueCodes > 0 ? (used / uniqueCodes).toFixed(1) : 0} 칸/상품</div>
+            <div class="kpi-value">${escAttr(uniqueCodes.toLocaleString())}<span class="kpi-unit"> 종</span></div>
+            <div class="kpi-sub">총 재고 ${escAttr(registeredStockSum.toLocaleString())}개 · 평균 ${uniqueCodes > 0 ? (used / uniqueCodes).toFixed(1) : 0} 칸/상품</div>
         </div>
         <div class="dash-kpi-card kpi-click" onclick="window.__dashShowLocList('preassigned')" title="클릭: 선지정/당일지정 리스트 보기">
             <div class="kpi-title">선지정 / 당일지정</div>
-            <div class="kpi-value"><span style="color:${TONE.riskText};">${preAssigned}</span> <span class="kpi-unit">/</span> <span style="color:${TONE.accentDeep};">${todayReserved}</span></div>
-            <div class="kpi-sub">미입고 찜 ${preAssigned}건, 오늘 작업 ${todayReserved}건 · <span class="kpi-link" style="color:${TONE.accentDeep};">목록 보기</span></div>
+            <div class="kpi-value"><span style="color:${escAttr(TONE.riskText)};">${escAttr(preAssigned)}</span> <span class="kpi-unit">/</span> <span style="color:${escAttr(TONE.accentDeep)};">${escAttr(todayReserved)}</span></div>
+            <div class="kpi-sub">미입고 찜 ${escAttr(preAssigned)}건, 오늘 작업 ${escAttr(todayReserved)}건 · <span class="kpi-link" style="color:${escAttr(TONE.accentDeep)};">목록 보기</span></div>
         </div>
         <div class="dash-kpi-card kpi-incoming${needLocN > 0 ? ' kpi-click' : ''}"${needLocN > 0 ? ` onclick="window.__dashOpenIncoming()" title="클릭: 입고대기 패널을 열어 로케이션 지정"` : ''}>
             <div class="kpi-title">입고 대기</div>
             <div class="kpi-value">${incomingCodes.length}<span class="kpi-unit"> 종</span></div>
-            <div class="kpi-sub">총 ${incomingQtyTotal.toLocaleString()} 개 미입고</div>
-            ${needLocN > 0 ? `<div class="kpi-sub" style="margin-top:4px;"><span style="color:${TONE.warnText};font-weight:700;">로케이션 지정 필요 ${needLocN.toLocaleString()}종</span> · <span class="kpi-link" style="color:${TONE.accentDeep};">바로 지정</span></div>` : ''}
+            <div class="kpi-sub">총 ${escAttr(incomingQtyTotal.toLocaleString())} 개 미입고</div>
+            ${needLocN > 0 ? `<div class="kpi-sub" style="margin-top:4px;"><span style="color:${escAttr(TONE.warnText)};font-weight:700;">로케이션 지정 필요 ${escAttr(needLocN.toLocaleString())}종</span> · <span class="kpi-link" style="color:${escAttr(TONE.accentDeep)};">바로 지정</span></div>` : ''}
         </div>
     `;
     document.getElementById('dash-kpi-row').innerHTML = kpiHtml;
@@ -7180,12 +7232,12 @@ window.renderLocationDashboard = function () {
         const rate = s.total > 0 ? (s.used / s.total * 100) : 0;
         const tone = usageTone(rate);
         return `<div class="zone-bar-row is-${tone}">
-            <div class="zb-label">${z} 구역</div>
+            <div class="zb-label">${escAttr(z)} 구역</div>
             <div class="zb-track"><div class="zb-fill zb-${tone}" style="width:${rate.toFixed(1)}%;"></div></div>
-            <div class="zb-text">${s.used} / ${s.total} (${rate.toFixed(1)}%)</div>
+            <div class="zb-text">${escAttr(s.used)} / ${escAttr(s.total)} (${rate.toFixed(1)}%)</div>
         </div>`;
     }).join('');
-    document.getElementById('dash-zone-bars').innerHTML = zoneBars || `<div style="color:${TONE.text3}; font-size:12px;">데이터 없음</div>`;
+    document.getElementById('dash-zone-bars').innerHTML = zoneBars || `<div style="color:${escAttr(TONE.text3)}; font-size:12px;">데이터 없음</div>`;
 
     // ---- 마지막배송일 분포 ----
     // 색: 1주 ok / 1개월 accent / 3개월 accent-mid / 6개월+ warn / 1년+ risk / 기록없음 text-4
@@ -7203,13 +7255,13 @@ window.renderLocationDashboard = function () {
         const rate = totalForBuckets > 0 ? (v / totalForBuckets * 100) : 0;
         const cursor = v > 0 ? 'cursor:pointer;' : '';
         const clickAttr = v > 0 ? `onclick="window.__dashShowBucketList('${b.key}')"` : '';
-        return `<div class="zone-bar-row" style="${cursor} transition: background 0.15s;" ${clickAttr}
-                    onmouseover="if(${v})this.style.background='var(--c-accent-row)';"
+        return `<div class="zone-bar-row" style="${escAttr(cursor)} transition: background 0.15s;" ${clickAttr}
+                    onmouseover="if(${jsArg(v)})this.style.background='var(--c-accent-row)';"
                     onmouseout="this.style.background='';"
                     title="${v > 0 ? '클릭: 이 기간 상품 리스트 보기' : ''}">
-            <div class="zb-label">${b.key}</div>
+            <div class="zb-label">${escAttr(b.key)}</div>
             <div class="zb-track"><div class="zb-fill ${b.cls}" style="width:${rate.toFixed(1)}%;"></div></div>
-            <div class="zb-text">${v.toLocaleString()} 종 (${rate.toFixed(1)}%)</div>
+            <div class="zb-text">${escAttr(v.toLocaleString())} 종 (${rate.toFixed(1)}%)</div>
         </div>`;
     }).join('');
     document.getElementById('dash-delivery-bars').innerHTML = deliveryBars;
@@ -7219,40 +7271,40 @@ window.renderLocationDashboard = function () {
         <div class="insight-card">
             <h4>재고 회전</h4>
             ${__turnover.sufficient
-                ? `<div class="ins-big">${((__turnover.currentStock3F || 0) + (__turnover.currentStock2F || 0)).toLocaleString()}<span class="kpi-unit"> 개</span> <span style="font-size:15px;">${__fmtRate(__turnover.rateAll)}</span></div>
-                   <div class="ins-desc">3층 ${(__turnover.currentStock3F || 0).toLocaleString()}개 ${__fmtRate(__turnover.rate3F)} (전일 대비) · ${__turnover.previousDate} → ${__turnover.currentDate}</div>`
-                : `<div class="ins-big" style="font-size:18px; color:${TONE.warnText};">데이터 부족</div>
+                ? `<div class="ins-big">${escAttr(((__turnover.currentStock3F || 0) + (__turnover.currentStock2F || 0)).toLocaleString())}<span class="kpi-unit"> 개</span> <span style="font-size:15px;">${__fmtRate(__turnover.rateAll)}</span></div>
+                   <div class="ins-desc">3층 ${escAttr((__turnover.currentStock3F || 0).toLocaleString())}개 ${__fmtRate(__turnover.rate3F)} (전일 대비) · ${escAttr(__turnover.previousDate)} → ${escAttr(__turnover.currentDate)}</div>`
+                : `<div class="ins-big" style="font-size:18px; color:${escAttr(TONE.warnText)};">데이터 부족</div>
                    <div class="ins-desc">일일 최신화 2회 이상 누적 시 계산됩니다.</div>`}
         </div>
         <div class="insight-card">
             <h4 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">다중 위치 상품 ${multiLocReserveToggle('dash-multiloc-include-reserve')}</h4>
             <div class="ins-big" ${multiLocCodes.length > 0 ? `style="cursor:pointer; transition: color 0.15s;" onclick="window.__dashShowLocList('multiloc')" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color=''" title="전체 다중 위치 상품 리스트 보기"` : ''}>
                 ${multiLocCodes.length}<span class="kpi-unit"> 종</span>
-                ${multiLocCodes.length > 0 ? `<span style="font-size:11px; color:${TONE.text3}; font-weight:normal; margin-left:4px;">▸</span>` : ''}
+                ${multiLocCodes.length > 0 ? `<span style="font-size:11px; color:${escAttr(TONE.text3)}; font-weight:normal; margin-left:4px;">▸</span>` : ''}
             </div>
-            <div class="ins-desc">한 상품코드가 2곳 이상 분산된 상품${multiLocIncludeReserve ? '(비축 자리 포함)' : '(비축 자리 제외)'}. 통합하면 빈 슬롯이 늘어납니다. <span style="color:${TONE.text3};">(숫자 클릭: 전체 리스트)</span></div>
+            <div class="ins-desc">한 상품코드가 2곳 이상 분산된 상품${multiLocIncludeReserve ? '(비축 자리 포함)' : '(비축 자리 제외)'}. 통합하면 빈 슬롯이 늘어납니다. <span style="color:${escAttr(TONE.text3)};">(숫자 클릭: 전체 리스트)</span></div>
             <div class="ins-list">
                 ${multiLocCodes.slice(0, 5).map(g =>
-                    `<div><span class="pill">${g.count}곳</span> ${escAttr(g.code)}</div>`
-                ).join('') || `<div style="color:${TONE.text3};">없음</div>`}
+                    `<div><span class="pill">${escAttr(g.count)}곳</span> ${escAttr(g.code)}</div>`
+                ).join('') || `<div style="color:${escAttr(TONE.text3)};">없음</div>`}
             </div>
-            <div style="margin-top:10px; padding-top:10px; border-top:1px dashed ${TONE.line}; font-size:12px;">
-                <span style="color:${TONE.text}; font-weight:600;">한 자리 2+ 상품</span>
+            <div style="margin-top:10px; padding-top:10px; border-top:1px dashed ${escAttr(TONE.line)}; font-size:12px;">
+                <span style="color:${escAttr(TONE.text)}; font-weight:600;">한 자리 2+ 상품</span>
                 <span ${(window.__dupLocations || []).length > 0 ? `style="cursor:pointer; color:${TONE.riskText}; font-weight:700; margin-left:4px;" onclick="window.__dashShowLocList('duploc')" title="중복 지정된 로케이션 보기"` : `style="color:${TONE.text3}; margin-left:4px;"`}>${(window.__dupLocations || []).length}건${(window.__dupLocations || []).length > 0 ? ' ▸' : ''}</span>
-                <div style="color:${TONE.text3}; font-size:11px; margin-top:2px;">최근 데이터 최신화에서 같은 로케이션에 다른 상품이 들어온 경우</div>
+                <div style="color:${escAttr(TONE.text3)}; font-size:11px; margin-top:2px;">최근 데이터 최신화에서 같은 로케이션에 다른 상품이 들어온 경우</div>
             </div>
         </div>
         <div class="insight-card">
             <h4>데드 스톡 후보</h4>
             <div class="ins-big" ${deadStockCount > 0 ? `style="cursor:pointer; transition: color 0.15s;" onclick="window.__dashShowBucketList('dead-all')" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color=''" title="전체 데드스톡 합계 리스트 보기"` : ''}>
-                ${deadStockCount}<span class="kpi-unit"> 종</span>
-                <span class="kpi-unit"> / ${deadStockQty.toLocaleString()}개</span>
-                ${deadStockCount > 0 ? `<span style="font-size:11px; color:${TONE.text3}; font-weight:normal; margin-left:4px;">▸</span>` : ''}
+                ${escAttr(deadStockCount)}<span class="kpi-unit"> 종</span>
+                <span class="kpi-unit"> / ${escAttr(deadStockQty.toLocaleString())}개</span>
+                ${deadStockCount > 0 ? `<span style="font-size:11px; color:${escAttr(TONE.text3)}; font-weight:normal; margin-left:4px;">▸</span>` : ''}
             </div>
             <div class="ins-list" style="display:flex; flex-direction:column; align-items:flex-start; gap:6px; line-height:1.4;">
-                <span class="pill" style="cursor:pointer; background:${TONE.accentLight}; color:${TONE.accentDeep};" onclick="window.__dashShowBucketList('3개월')" title="3개월 경과 상품 보기">3개월: ${buckets['3개월']}종 / ${bucketsQty['3개월'].toLocaleString()}개</span>
-                <span class="pill" style="cursor:pointer; background:${TONE.warnSoft}; color:${TONE.warnText};" onclick="window.__dashShowBucketList('6개월+')" title="6개월~1년 경과 상품 보기">6개월+: ${buckets['6개월+']}종 / ${bucketsQty['6개월+'].toLocaleString()}개</span>
-                <span class="pill" style="cursor:pointer; background:${TONE.riskSoft}; color:${TONE.riskText};" onclick="window.__dashShowBucketList('1년+')" title="1년 이상 경과 상품 보기">1년+: ${buckets['1년+']}종 / ${bucketsQty['1년+'].toLocaleString()}개</span>
+                <span class="pill" style="cursor:pointer; background:${escAttr(TONE.accentLight)}; color:${escAttr(TONE.accentDeep)};" onclick="window.__dashShowBucketList('3개월')" title="3개월 경과 상품 보기">3개월: ${escAttr(buckets['3개월'])}종 / ${escAttr(bucketsQty['3개월'].toLocaleString())}개</span>
+                <span class="pill" style="cursor:pointer; background:${escAttr(TONE.warnSoft)}; color:${escAttr(TONE.warnText)};" onclick="window.__dashShowBucketList('6개월+')" title="6개월~1년 경과 상품 보기">6개월+: ${escAttr(buckets['6개월+'])}종 / ${escAttr(bucketsQty['6개월+'].toLocaleString())}개</span>
+                <span class="pill" style="cursor:pointer; background:${escAttr(TONE.riskSoft)}; color:${escAttr(TONE.riskText)};" onclick="window.__dashShowBucketList('1년+')" title="1년 이상 경과 상품 보기">1년+: ${escAttr(buckets['1년+'])}종 / ${escAttr(bucketsQty['1년+'].toLocaleString())}개</span>
             </div>
         </div>
         <div class="insight-card">
@@ -7261,13 +7313,13 @@ window.renderLocationDashboard = function () {
                 <div class="ins-list" style="margin-top: 4px;">
                     ${topEmptyDongs.map(d => `
                         <div style="display:flex; align-items:center; gap:8px; padding:4px 0;">
-                            <span class="pill" style="background:${TONE.okSoft}; color:${TONE.okText};">${d.dong}동</span>
-                            <span style="color:${TONE.text}; font-weight:600;">${d.empty}/${d.total}</span>
-                            <span style="color:${TONE.text3};">(${(d.rate * 100).toFixed(0)}%)</span>
+                            <span class="pill" style="background:${escAttr(TONE.okSoft)}; color:${escAttr(TONE.okText)};">${escAttr(d.dong)}동</span>
+                            <span style="color:${escAttr(TONE.text)}; font-weight:600;">${escAttr(d.empty)}/${escAttr(d.total)}</span>
+                            <span style="color:${escAttr(TONE.text3)};">(${(d.rate * 100).toFixed(0)}%)</span>
                         </div>
                     `).join('')}
                 </div>
-            ` : `<div style="color:${TONE.text3}; font-size:12px; margin-top: 8px;">동 데이터가 부족합니다.</div>`}
+            ` : `<div style="color:${escAttr(TONE.text3)}; font-size:12px; margin-top: 8px;">동 데이터가 부족합니다.</div>`}
         </div>
     `;
     document.getElementById('dash-insight-row').innerHTML = insightHtml;
@@ -7285,7 +7337,7 @@ window.renderLocationDashboard = function () {
             <span class="dash-task-ic tone-warn">${taskIcon.box}</span><span class="dash-task-label">입고대기 패널</span><span class="badge badge-warn">${incomingCodes.length}건</span>
         </button>
         <button class="dash-task" onclick="document.getElementById('modal-2f').style.display='flex'; window.calc2FList && window.calc2FList();">
-            <span class="dash-task-ic tone-ok">${taskIcon.grid}</span><span class="dash-task-label">빈칸확보</span><span class="dash-task-go" style="color:${TONE.okText};">열기</span>
+            <span class="dash-task-ic tone-ok">${taskIcon.grid}</span><span class="dash-task-label">빈칸확보</span><span class="dash-task-go" style="color:${escAttr(TONE.okText)};">열기</span>
         </button>
     `;
     document.getElementById('dash-actions').innerHTML = actionsHtml;
@@ -7297,11 +7349,11 @@ window.renderLocationDashboard = function () {
     const zikjinKeys = Object.keys(zikjinData || {}).length;
     const weeklyKeys = Object.keys(weeklyData || {}).length;
     const freshHtml = `
-        <div><b>오늘:</b> ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}</div>
-        <div><b>플랫폼 출고 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : `<button type="button" class="fresh-upload-link" style="color:${TONE.riskText};" title="눌러서 플랫폼 출고 데이터 파일 고르기" onclick="event.stopPropagation(); document.getElementById('excel-upload-zikjin')?.click();">미업로드</button>`}</div>
-        <div><b>주차별 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : `<button type="button" class="fresh-upload-link" style="color:${TONE.riskText};" title="눌러서 주차별 데이터 파일 고르기" onclick="event.stopPropagation(); document.getElementById('excel-upload-weekly')?.click();">미업로드</button>`}</div>
-        <div><b>입고대기 종 수:</b> ${incomingCodes.length.toLocaleString()}</div>
-        <div><b>등록 로케이션:</b> ${originalData.length.toLocaleString()}칸 (3F: ${total.toLocaleString()}, 그 외: ${(originalData.length - total).toLocaleString()})</div>
+        <div><b>오늘:</b> ${escAttr(new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }))}</div>
+        <div><b>플랫폼 출고 데이터:</b> ${zikjinKeys > 0 ? zikjinKeys.toLocaleString() + '건' : `<button type="button" class="fresh-upload-link" style="color:${escAttr(TONE.riskText)};" title="눌러서 플랫폼 출고 데이터 파일 고르기" onclick="event.stopPropagation(); document.getElementById('excel-upload-zikjin')?.click();">미업로드</button>`}</div>
+        <div><b>주차별 데이터:</b> ${weeklyKeys > 0 ? weeklyKeys.toLocaleString() + '건' : `<button type="button" class="fresh-upload-link" style="color:${escAttr(TONE.riskText)};" title="눌러서 주차별 데이터 파일 고르기" onclick="event.stopPropagation(); document.getElementById('excel-upload-weekly')?.click();">미업로드</button>`}</div>
+        <div><b>입고대기 종 수:</b> ${escAttr(incomingCodes.length.toLocaleString())}</div>
+        <div><b>등록 로케이션:</b> ${escAttr(originalData.length.toLocaleString())}칸 (3F: ${escAttr(total.toLocaleString())}, 그 외: ${escAttr((originalData.length - total).toLocaleString())})</div>
     `;
     document.getElementById('dash-freshness').innerHTML = freshHtml;
 };
@@ -7323,26 +7375,26 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
         const zoneSubActive = sortKey === 'zone';
         const dongSubActive = sortKey === 'dong';
         thead.innerHTML = `
-            <tr style="background:${TONE.surface2};">
-                <th style="${cellBase} ${(zoneSubActive||dongSubActive)?`background:${TONE.accentSoft};`:''}" title="구역 또는 동 기준 정렬">
+            <tr style="background:${escAttr(TONE.surface2)};">
+                <th style="${escAttr(cellBase)} ${escAttr((zoneSubActive||dongSubActive)?`background:${TONE.accentSoft};`:'')}" title="구역 또는 동 기준 정렬">
                     <div style="display:flex; gap:6px; justify-content:center; align-items:center;">
                         <span onclick="window.__dashZdSortBy('zone')" style="cursor:pointer; padding:2px 8px; border-radius:var(--r-pill); ${zoneSubActive?'background:var(--c-surface); color:var(--c-accent-deep); font-weight:700;':`color:${TONE.text};`}">
                             구역 ${A('zone')}
                         </span>
-                        <span style="color:${TONE.text4};">|</span>
+                        <span style="color:${escAttr(TONE.text4)};">|</span>
                         <span onclick="window.__dashZdSortBy('dong')" style="cursor:pointer; padding:2px 8px; border-radius:var(--r-pill); ${dongSubActive?'background:var(--c-surface); color:var(--c-accent-deep); font-weight:700;':`color:${TONE.text};`}">
                             동 ${A('dong')}
                         </span>
                     </div>
                 </th>
-                <th style="${cellBase} ${hl('used')}" onclick="window.__dashZdSortBy('used')">사용중 ${A('used')}</th>
-                <th style="${cellBase} ${hl('w1', TONE.okSoft)}" onclick="window.__dashZdSortBy('w1')">1주 ${A('w1')}</th>
-                <th style="${cellBase} ${hl('m1', TONE.accentSoft)}" onclick="window.__dashZdSortBy('m1')">1개월 ${A('m1')}</th>
-                <th style="${cellBase} ${hl('m3', TONE.accentLight)}" onclick="window.__dashZdSortBy('m3')">3개월 ${A('m3')}</th>
-                <th style="${cellBase} ${hl('m6plus', TONE.warnSoft)}" onclick="window.__dashZdSortBy('m6plus')">6개월+ ${A('m6plus')}</th>
-                <th style="${cellBase} ${hl('y1plus', TONE.riskSoft)}" onclick="window.__dashZdSortBy('y1plus')">1년+ ${A('y1plus')}</th>
-                <th style="${cellBase} ${hl('none', TONE.track)}" onclick="window.__dashZdSortBy('none')">기록없음 ${A('none')}</th>
-                <th style="${cellBase} ${hl('dead')} min-width: 180px;" onclick="window.__dashZdSortBy('dead')">데드율 (3개월+) ${A('dead')}</th>
+                <th style="${escAttr(cellBase)} ${hl('used')}" onclick="window.__dashZdSortBy('used')">사용중 ${A('used')}</th>
+                <th style="${escAttr(cellBase)} ${hl('w1', TONE.okSoft)}" onclick="window.__dashZdSortBy('w1')">1주 ${A('w1')}</th>
+                <th style="${escAttr(cellBase)} ${hl('m1', TONE.accentSoft)}" onclick="window.__dashZdSortBy('m1')">1개월 ${A('m1')}</th>
+                <th style="${escAttr(cellBase)} ${hl('m3', TONE.accentLight)}" onclick="window.__dashZdSortBy('m3')">3개월 ${A('m3')}</th>
+                <th style="${escAttr(cellBase)} ${hl('m6plus', TONE.warnSoft)}" onclick="window.__dashZdSortBy('m6plus')">6개월+ ${A('m6plus')}</th>
+                <th style="${escAttr(cellBase)} ${hl('y1plus', TONE.riskSoft)}" onclick="window.__dashZdSortBy('y1plus')">1년+ ${A('y1plus')}</th>
+                <th style="${escAttr(cellBase)} ${hl('none', TONE.track)}" onclick="window.__dashZdSortBy('none')">기록없음 ${A('none')}</th>
+                <th style="${escAttr(cellBase)} ${hl('dead')} min-width: 180px;" onclick="window.__dashZdSortBy('dead')">데드율 (3개월+) ${A('dead')}</th>
             </tr>
         `;
     }
@@ -7426,12 +7478,12 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
     __dashSortRows(rows);
 
     if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" style="padding:20px; color:${TONE.text3};">조건에 맞는 구역-동이 없습니다. (최소 사용 슬롯 ${minSlots} 기준)</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="padding:20px; color:${escAttr(TONE.text3)};">조건에 맞는 구역-동이 없습니다. (최소 사용 슬롯 ${escAttr(minSlots)} 기준)</td></tr>`;
         if (summary) summary.innerHTML = '';
         return;
     }
 
-    const cellFmt = (v) => v > 0 ? v.toLocaleString() : `<span style="color:${TONE.text4};">·</span>`;
+    const cellFmt = (v) => v > 0 ? v.toLocaleString() : `<span style="color:${escAttr(TONE.text4)};">·</span>`;
     // 데드율 내림차순 정렬일 때만 1~3위 강조 (다른 정렬에선 의미 없으므로 끔)
     const isDefaultDeadSort = __dashZdSort.key === 'dead' && __dashZdSort.dir === 'desc';
     const html = rows.map((r, idx) => {
@@ -7439,32 +7491,32 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
         const barColor = r.deadRate >= 50 ? TONE.risk : r.deadRate >= 30 ? TONE.warn : r.deadRate >= 15 ? TONE.accentMid : TONE.ok;
         const rateColor = r.deadRate >= 50 ? TONE.riskText : r.deadRate >= 30 ? TONE.warnText : r.deadRate >= 15 ? TONE.accentDeep : TONE.okText;
         const showRank = isDefaultDeadSort && idx < 3;
-        const rankBadge = showRank ? `<span style="display:inline-block; background:${idx===0?TONE.risk:TONE.warn}; color:white; font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:var(--r-pill); margin-right:6px;">${idx+1}위</span>` : '';
+        const rankBadge = showRank ? `<span style="display:inline-block; background:${escAttr(idx===0?TONE.risk:TONE.warn)}; color:white; font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:var(--r-pill); margin-right:6px;">${idx+1}위</span>` : '';
         // 클릭 셀 빌더 (값 > 0 이고 bucket 있을 때만 클릭 가능)
         const clickCell = (bucket, value, baseStyle) => {
             if (value > 0) {
-                const safeZ = String(r.zone).replace(/'/g, "\\'");
-                const safeD = String(r.dong).replace(/'/g, "\\'");
-                return `<td style="${baseStyle} cursor:pointer;" onclick="window.__dashShowBucketList('${bucket}','${safeZ}','${safeD}')" title="${r.zone}-${r.dong} ${bucket} 상품 보기" onmouseover="this.style.background='var(--c-accent-row)';" onmouseout="this.style.background='';">${cellFmt(value)}</td>`;
+                const safeZ = String(r.zone);   // 아래 onclick 에서 jsArg 로 막는다(작은따옴표만 막으면 " < 로 속성이 깨졌다)
+                const safeD = String(r.dong);
+                return `<td style="${baseStyle} cursor:pointer;" onclick="window.__dashShowBucketList('${jsArg(bucket)}','${jsArg(safeZ)}','${jsArg(safeD)}')" title="${escAttr(r.zone)}-${escAttr(r.dong)} ${escAttr(bucket)} 상품 보기" onmouseover="this.style.background='var(--c-accent-row)';" onmouseout="this.style.background='';">${cellFmt(value)}</td>`;
             }
             return `<td style="${baseStyle}">${cellFmt(value)}</td>`;
         };
         return `
-        <tr style="${showRank ? `background: ${TONE.warnBg};` : ''}">
-            <td style="padding:8px; border:1px solid ${TONE.line}; font-weight:600; text-align:left;">${rankBadge}${r.zone} 구역 - ${r.dong} 동</td>
-            <td style="padding:8px; border:1px solid ${TONE.line};">${r.usedCount.toLocaleString()}</td>
+        <tr style="${escAttr(showRank ? `background: ${TONE.warnBg};` : '')}">
+            <td style="padding:8px; border:1px solid ${escAttr(TONE.line)}; font-weight:600; text-align:left;">${rankBadge}${escAttr(r.zone)} 구역 - ${escAttr(r.dong)} 동</td>
+            <td style="padding:8px; border:1px solid ${escAttr(TONE.line)};">${escAttr(r.usedCount.toLocaleString())}</td>
             ${clickCell('1주', r.w1, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.okText};`)}
             ${clickCell('1개월', r.m1, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.accent};`)}
             ${clickCell('3개월', r.m3, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.accentDeep}; font-weight:600;`)}
             ${clickCell('6개월+', r.m6plus, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.warnText}; font-weight:600;`)}
             ${clickCell('1년+', r.y1plus, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.riskText}; font-weight:600; background:${TONE.riskRow};`)}
             ${clickCell('기록없음', r.none, `padding:8px; border:1px solid ${TONE.line}; color:${TONE.text3};`)}
-            <td style="padding:8px; border:1px solid ${TONE.line};">
+            <td style="padding:8px; border:1px solid ${escAttr(TONE.line)};">
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <div style="flex:1; background:${TONE.track}; height:8px; border-radius:4px; overflow:hidden;">
-                        <div style="height:100%; width:${r.deadRate.toFixed(1)}%; background:${barColor}; border-radius:4px; transition: width 0.4s;"></div>
+                    <div style="flex:1; background:${escAttr(TONE.track)}; height:8px; border-radius:4px; overflow:hidden;">
+                        <div style="height:100%; width:${r.deadRate.toFixed(1)}%; background:${escAttr(barColor)}; border-radius:4px; transition: width 0.4s;"></div>
                     </div>
-                    <span style="font-weight:600; color:${rateColor}; min-width: 42px; text-align:right; font-variant-numeric: tabular-nums;">${r.deadRate.toFixed(1)}%</span>
+                    <span style="font-weight:600; color:${escAttr(rateColor)}; min-width: 42px; text-align:right; font-variant-numeric: tabular-nums;">${r.deadRate.toFixed(1)}%</span>
                 </div>
             </td>
         </tr>`;
@@ -7479,10 +7531,10 @@ function renderZoneDongDeadStock(locs3F, isUsed) {
     const best = rows[rows.length - 1];
     if (summary) {
         summary.innerHTML = `
-            표시된 ${rows.length}개 구역-동의 평균 데드율: <b style="color:${TONE.text};">${avgRate.toFixed(1)}%</b>
-            &nbsp;|&nbsp; 최악: <b style="color:${TONE.riskText};">${worst.zone}-${worst.dong}동 (${worst.deadRate.toFixed(1)}%)</b>
-            &nbsp;|&nbsp; 최상: <b style="color:${TONE.okText};">${best.zone}-${best.dong}동 (${best.deadRate.toFixed(1)}%)</b>
-            ${includeNone ? ` &nbsp;<span style="color:${TONE.text3};">(기록없음 포함)</span>` : ''}
+            표시된 ${rows.length}개 구역-동의 평균 데드율: <b style="color:${escAttr(TONE.text)};">${avgRate.toFixed(1)}%</b>
+            &nbsp;|&nbsp; 최악: <b style="color:${escAttr(TONE.riskText)};">${escAttr(worst.zone)}-${escAttr(worst.dong)}동 (${worst.deadRate.toFixed(1)}%)</b>
+            &nbsp;|&nbsp; 최상: <b style="color:${escAttr(TONE.okText)};">${escAttr(best.zone)}-${escAttr(best.dong)}동 (${best.deadRate.toFixed(1)}%)</b>
+            ${includeNone ? ` &nbsp;<span style="color:${escAttr(TONE.text3)};">(기록없음 포함)</span>` : ''}
         `;
     }
 }
@@ -7616,7 +7668,7 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
 
     if (items.length === 0) {
         const colCount = isDeadAll ? 9 : 8;
-        tbody.innerHTML = `<tr><td colspan="${colCount}" style="padding:30px; text-align:center; color:var(--c-text-3);">해당 조건에 맞는 상품이 없습니다.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${escAttr(colCount)}" style="padding:30px; text-align:center; color:var(--c-text-3);">해당 조건에 맞는 상품이 없습니다.</td></tr>`;
     } else {
         const catBadge = (cat) => {
             // 출고 경과 매핑(대시보드와 같음): 3개월 accent-mid · 6개월+ warn · 1년+ risk — soft 바탕
@@ -7625,7 +7677,7 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
                 '6개월+': 'background:var(--c-warn-soft); color:var(--c-warn-text);',
                 '1년+': 'background:var(--c-risk-soft); color:var(--c-risk-text);'
             };
-            return `<span style="${colors[cat] || 'background:var(--c-track); color:var(--c-text-2);'} padding:2px 8px; border-radius:var(--r-pill); font-size:11px; font-weight:600;">${cat}</span>`;
+            return `<span style="${colors[cat] || 'background:var(--c-track); color:var(--c-text-2);'} padding:2px 8px; border-radius:var(--r-pill); font-size:11px; font-weight:600;">${escAttr(cat)}</span>`;
         };
         const etcHint = (it) => ` <span style="color:var(--c-warn-text); font-size:10px;" title="${escAttr(it.etcLocs.join(', '))}">비축랙 ${it.etcLocs.length}곳</span>`;
         tbody.innerHTML = items.map(it => `
@@ -7636,10 +7688,10 @@ window.__dashShowBucketList = function (bucket, zoneFilter, dongFilter) {
                 <td style="font-family:monospace; font-size:11px;">${escAttr(it.locsStr)
                     || '<span style="color:var(--c-text-4);">-</span>'}${
                     (!includeEtc && it.etcLocs.length) ? etcHint(it) : ''}</td>
-                <td style="font-weight:600;">${it.stockPick.toLocaleString()}</td>
-                <td style="color:var(--c-text-2);">${it.stock2f > 0 ? it.stock2f.toLocaleString() : '<span style=\"color:var(--c-text-4);\">·</span>'}</td>
+                <td style="font-weight:600;">${escAttr(it.stockPick.toLocaleString())}</td>
+                <td style="color:var(--c-text-2);">${it.stock2f > 0 ? escAttr(it.stock2f.toLocaleString()) : '<span style=\"color:var(--c-text-4);\">·</span>'}</td>
                 ${isDeadAll ? `<td>${catBadge(it.cat)}</td>` : ''}
-                <td>${it.lastDelivery || '<span style=\"color:var(--c-risk-text);\">기록없음</span>'}</td>
+                <td>${it.lastDelivery ? escAttr(it.lastDelivery) : '<span style=\"color:var(--c-risk-text);\">기록없음</span>'}</td>
                 <td>${it.hasRecentActivity ? '<span style="background:var(--c-ok-soft); color:var(--c-ok-text); padding:2px 8px; border-radius:var(--r-pill); font-size:10px; font-weight:600;">직진 활동</span>' : '<span style=\"color:var(--c-text-4);\">·</span>'}</td>
             </tr>
         `).join('');
@@ -7677,7 +7729,7 @@ window.__dashShowLocList = function (type) {
         (loc.code && String(loc.code).trim() !== '' && loc.code !== loc.id) ||
         (loc.name && String(loc.name).trim() !== '');
     const setTitle = (t) => { if (titleEl) titleEl.querySelector('span').textContent = t; };
-    const th = (cols) => `<tr>${cols.map(c => `<th style="border-top:none; font-size:12px;${c.w ? `width:${c.w};` : ''}">${c.t}</th>`).join('')}</tr>`;
+    const th = (cols) => `<tr>${cols.map(c => `<th style="border-top:none; font-size:12px;${escAttr(c.w ? `width:${c.w};` : '')}">${escAttr(c.t)}</th>`).join('')}</tr>`;
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
     if (type === 'empty') {
@@ -7686,10 +7738,10 @@ window.__dashShowLocList = function (type) {
         if (metaEl) metaEl.textContent = '현재 비어 있는 3층 로케이션 — 입고/이동 배치에 사용 가능';
         thead.innerHTML = th([{ t: '로케이션', w: '130px' }, { t: '구역', w: '80px' }, { t: '동', w: '80px' }, { t: '위치' }]);
         tbody.innerHTML = rows.length ? rows.map(l => `<tr>
-            <td style="font-family:monospace; font-weight:bold;">${l.id}</td>
-            <td>${(l.id || '').charAt(0).toUpperCase() || '-'}</td>
-            <td>${String(l.dong || '').trim() || '-'}</td>
-            <td>${String(l.pos || '').trim() || '-'}</td></tr>`).join('')
+            <td style="font-family:monospace; font-weight:bold;">${escAttr(l.id)}</td>
+            <td>${escAttr((l.id || '').charAt(0).toUpperCase() || '-')}</td>
+            <td>${escAttr(String(l.dong || '').trim() || '-')}</td>
+            <td>${escAttr(String(l.pos || '').trim() || '-')}</td></tr>`).join('')
             : `<tr><td colspan="4" style="padding:30px; text-align:center; color:var(--c-text-3);">빈 자리가 없습니다.</td></tr>`;
     } else if (type === 'preassigned') {
         const rows = locs3F.filter(l => l.codeTag === '선지정' || l.codeTag === '당일지정')
@@ -7701,11 +7753,11 @@ window.__dashShowLocList = function (type) {
             ? '<span class="badge badge-risk">선지정</span>'
             : '<span class="badge badge-accent">당일지정</span>';
         tbody.innerHTML = rows.length ? rows.map(l => `<tr>
-            <td style="font-family:monospace; font-weight:bold;">${l.id}</td>
+            <td style="font-family:monospace; font-weight:bold;">${escAttr(l.id)}</td>
             <td>${tagBadge(l.codeTag)}</td>
-            <td style="font-family:monospace; font-size:11px;">${l.preAssignedCode || l.code || '-'}</td>
-            <td style="text-align:left; padding-left:8px;">${l.name || '-'}</td>
-            <td>${String(l.dong || '').trim() || '-'}</td></tr>`).join('')
+            <td style="font-family:monospace; font-size:11px;">${escAttr(l.preAssignedCode || l.code || '-')}</td>
+            <td style="text-align:left; padding-left:8px;">${escAttr(l.name || '-')}</td>
+            <td>${escAttr(String(l.dong || '').trim() || '-')}</td></tr>`).join('')
             : `<tr><td colspan="5" style="padding:30px; text-align:center; color:var(--c-text-3);">선지정/당일지정 항목이 없습니다.</td></tr>`;
     } else if (type === 'multiloc') {
         const codeMap = new Map();
@@ -7726,9 +7778,9 @@ window.__dashShowLocList = function (type) {
         tbody.innerHTML = rows.length ? rows.map(r => `<tr>
             <td style="font-family:monospace; font-size:11px; font-weight:600; color:var(--c-accent-deep);">${esc(r.code)}</td>
             <td style="text-align:left; padding-left:8px;">${esc(r.name) || '-'}</td>
-            <td style="font-family:monospace; font-size:11px;">${esc(r.locs)}${r.reserveCount ? ` <span style="color:var(--c-warn-text); font-size:10px;">+비축 ${r.reserveCount}곳</span>` : ''}</td>
-            <td style="font-weight:bold;">${r.count}곳</td>
-            <td>${r.stock.toLocaleString()}</td></tr>`).join('')
+            <td style="font-family:monospace; font-size:11px;">${esc(r.locs)}${r.reserveCount ? ` <span style="color:var(--c-warn-text); font-size:10px;">+비축 ${escAttr(r.reserveCount)}곳</span>` : ''}</td>
+            <td style="font-weight:bold;">${escAttr(r.count)}곳</td>
+            <td>${escAttr(r.stock.toLocaleString())}</td></tr>`).join('')
             : `<tr><td colspan="5" style="padding:30px; text-align:center; color:var(--c-text-3);">다중 위치 상품이 없습니다.</td></tr>`;
     } else if (type === 'duploc') {
         const dups = window.__dupLocations || [];

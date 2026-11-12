@@ -5,16 +5,16 @@
 // ⚠️ 금액·직원 이름을 콘솔에 찍지 않는다. 이름은 시급 평균·합계를 낼 때만 메모리에서 쓰고 결과에 담지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자) — 겹침 창은 section.
 
-import * as State from './state.js?v=202611121547';
-import { getRegularMembersForCount, showToast } from './utils.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
-import { buildOpsModel } from './lib/ops-view-model.js?v=202611121547';
-import { periodDaysOf } from './lib/ops-metrics.js?v=202611121547';
-import { addDaysStr, planSettingsOf } from './lib/plan-week.js?v=202611121547';
-import { buildBudget, buildYearBudget, costSettingsOf, costBaseOf, suggestRegularBase, salaryBasisLabor, partTimerCostOf, SALARY_HOURS } from './lib/plan-budget.js?v=202611121547';
-import { saveCostAndSettings } from './ops-plan-store.js?v=202611121547';
-import { esc, n0, n1, card, kpi, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611121547';
-import { higherOpenThan } from './modal-above.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { getRegularMembersForCount, showToast } from './utils.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
+import { buildOpsModel } from './lib/ops-view-model.js?v=202611121915';
+import { periodDaysOf } from './lib/ops-metrics.js?v=202611121915';
+import { addDaysStr, planSettingsOf } from './lib/plan-week.js?v=202611121915';
+import { buildBudget, buildYearBudget, costSettingsOf, costBaseOf, suggestRegularBase, salaryBasisLabor, partTimerCostOf, SALARY_HOURS } from './lib/plan-budget.js?v=202611121915';
+import { saveCostAndSettings } from './ops-plan-store.js?v=202611121915';
+import { esc, n0, n1, card, kpi, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611121915';
+import { higherOpenThan } from './modal-above.js?v=202611121915';
 
 const $ = (id) => document.getElementById(id);
 export const isAdminNow = () => !!(State.appState && State.appState.currentUserRole === 'admin');
@@ -89,7 +89,7 @@ export function computeYearBudget(plan, { today, costDoc }) {
 export function yearBudgetHtml(b) {
     if (!b || b.locked) return '';
     const miss = b.missing.length ? `<p class="opv-notes">비어 있는 값: ${b.missing.map(esc).join(' · ')} — 시급은 [비용·설정]·관리자 설정, 매출은 경영 지표에서.</p>` : '';
-    const rows = b.months.map(m => `<tr><td>${esc(m.month)}</td><td class="r">${won(m.labor)}</td><td class="r">${won(m.revenue)}</td><td class="r">${pct1(m.ratio)}</td></tr>`).join('');
+    const rows = b.months.map(m => `<tr><td>${esc(m.month)}</td><td class="r">${esc(won(m.labor))}</td><td class="r">${esc(won(m.revenue))}</td><td class="r">${esc(pct1(m.ratio))}</td></tr>`).join('');
     const acts = b.actions.length ? `<ul class="opv-diag opp-gap">${b.actions.map(a => `<li><span class="opv-dot is-warn"></span><span>${esc(a.title)} <span class="opv-note">${esc(a.rule)}</span></span></li>`).join('')}</ul>` : '';
     return `<div id="ops-plan-budget">${card('비용·예산(연간)', `${miss}<div class="opv-kpis">
             ${kpi('인건비(연간 어림)', ok(b.labor.total) ? n0(b.labor.total) : '—', '원', `정규 ${won(b.labor.regular)} · 부족 메우기 ${won(b.labor.temp)}`)}
@@ -111,16 +111,16 @@ export function budgetHtml(b, { horizon }) {
         setMiss.length ? `비어 있는 값: ${setMiss.map(esc).join(' · ')} — [비용·설정]에서 넣으면 계산됩니다.` : '',
         b.missing.includes('정직원 시급표') ? '정직원 시급표가 없어 연장 비용을 낼 수 없습니다 — 관리자 설정의 급여를 확인하세요.' : '',
         b.missing.includes('매출(경영 지표)') ? '최근 8주 매출이 없어 인건비율을 낼 수 없습니다 — 경영 지표에 매출을 입력하면 계산됩니다.' : ''
-    ].filter(Boolean).map(t => `<p class="opv-notes">${t}</p>`).join('');
-    const means = b.means.map((m, i) => `<tr${i === 0 ? ' style="font-weight:700"' : ''}><td>${esc(m.label)}</td><td class="r">${m.perHour == null ? '—' : won(m.perHour)}</td>
-        <td class="r">${m.cost == null ? '—' : won(m.cost)}</td><td class="r">${n0(m.leadDays)}일</td><td class="opv-note opp-wrap">${esc(m.note)}</td></tr>`).join('');
+    ].filter(Boolean).map(t => `<p class="opv-notes">${esc(t)}</p>`).join('');
+    const means = b.means.map((m, i) => `<tr${i === 0 ? ' style="font-weight:700"' : ''}><td>${esc(m.label)}</td><td class="r">${esc(m.perHour == null ? '—' : won(m.perHour))}</td>
+        <td class="r">${esc(m.cost == null ? '—' : won(m.cost))}</td><td class="r">${esc(n0(m.leadDays))}일</td><td class="opv-note opp-wrap">${esc(m.note)}</td></tr>`).join('');
     const scen = b.scenarios.map(s => `<tr><td>${esc(s.label)}${s.warn ? ` <span class="opv-chip is-warn" title="${esc(s.warn)}">한도</span>` : ''}</td>
-        <td class="r">${ok(s.fillRate) ? `${Math.round(s.fillRate * 100)}%` : '—'}</td><td class="r">${n1(s.need)}</td><td class="r">${won(s.labor)}</td>
-        <td class="r">${pct1(s.ratio)}</td><td class="r">${won(s.unitCost)}</td></tr>`).join('');
+        <td class="r">${esc(ok(s.fillRate) ? `${Math.round(s.fillRate * 100)}%` : '—')}</td><td class="r">${esc(n1(s.need))}</td><td class="r">${esc(won(s.labor))}</td>
+        <td class="r">${esc(pct1(s.ratio))}</td><td class="r">${esc(won(s.unitCost))}</td></tr>`).join('');
     const H = b.hire;
     const hire = horizon !== 'month' ? '' : !H ? '' : `<div class="opv-sub-title opp-gap">채용 역산</div>
-        <p class="opv-note">부족 인원(명, 일평균) 지난달 실제 → 이번 달 지금까지 → 다음 달 예측: ${H.months.map(v => n1(v)).join(' → ')} · 기준 3달 연속 0.8명 이상 · 신뢰도 ${H.confidenceOk ? '충분' : '부족(보통 이상일 때만 제안)'}</p>
-        ${H.suggest ? `<p class="opv-diag"><span class="opv-chip ${H.late ? 'is-risk' : 'is-warn'}">정규 1명 채용 검토</span> 채용 시작 역산일 ${fmtDay(H.startBy)}(채용 + 교육 ${H.weeks}주)${H.late ? ' — <b class="opv-down">이미 지났습니다(채용 늦음)</b>' : ''}</p>` : '<p class="opv-note">지금은 채용 제안 조건이 아닙니다.</p>'}`;
+        <p class="opv-note">부족 인원(명, 일평균) 지난달 실제 → 이번 달 지금까지 → 다음 달 예측: ${esc(H.months.map(v => n1(v)).join(' → '))} · 기준 3달 연속 0.8명 이상 · 신뢰도 ${H.confidenceOk ? '충분' : '부족(보통 이상일 때만 제안)'}</p>
+        ${H.suggest ? `<p class="opv-diag"><span class="opv-chip ${H.late ? 'is-risk' : 'is-warn'}">정규 1명 채용 검토</span> 채용 시작 역산일 ${fmtDay(H.startBy)}(채용 + 교육 ${esc(H.weeks)}주)${H.late ? ' — <b class="opv-down">이미 지났습니다(채용 늦음)</b>' : ''}</p>` : '<p class="opv-note">지금은 채용 제안 조건이 아닙니다.</p>'}`;
     const acts = b.actions.length ? `<div class="opv-sub-title opp-gap">비용 과제</div><ul class="opv-diag">${b.actions.map(a => `<li><span class="opv-dot is-warn"></span><span>${esc(a.title)} <span class="opv-note">${esc(a.rule)}</span></span></li>`).join('')}</ul>` : '';
     const risks = b.risks.length ? `<ul class="opv-diag">${b.risks.map(r => `<li><span class="opv-dot is-risk"></span><span><b>${esc(r.title)}</b> — ${esc(r.text)}</span></li>`).join('')}</ul>` : '';
     return `<div id="ops-plan-budget">${card('비용·예산', `${miss}
@@ -151,7 +151,7 @@ const PLAN_F = [['overtimeDailyMax', '1인 하루 연장 상한(시간)'], ['ove
 function formHtml() {
     const c = st.cost, s = st.settings;
     const inp = (grp, k, label, val, ph = '') => `<label class="opp-field"><span class="opv-note">${esc(label)}</span>
-        <input type="number" step="any" min="0" class="opp-inp" data-grp="${grp}" data-k="${k}" value="${val == null ? '' : esc(String(val))}" placeholder="${esc(ph)}"></label>`;
+        <input type="number" step="any" min="0" class="opp-inp" data-grp="${esc(grp)}" data-k="${k}" value="${val == null ? '' : esc(String(val))}" placeholder="${esc(ph)}"></label>`;
     return `<p class="opv-note">금액 칸은 관리자 전용 문서(adminPrivate)에만 저장됩니다. 연장 기준은 운영 계획 모든 화면(주간·월간)의 메우기 계산에 쓰입니다.</p>
         <div class="opv-sub-title">비용(관리자만)</div>
         <div class="opp-fields">${MONEY_F.map(([k, l]) => inp('cost', k, l, c[k], k === 'regularMonthlyBase' && st.suggest ? `제안 ${st.suggest}` : (k === 'overtimePremium' ? '1.5' : ''))).join('')}</div>

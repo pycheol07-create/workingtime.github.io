@@ -12,17 +12,17 @@
 //  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름). 권장 발주량의 최소주문·묶음은 기존 MOQ 칸 문장에서 읽는다(서버 예측규칙.MOQ해석)
 //  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
 
-import { initializeFirebase } from './config.js?v=202611121547';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202611121547';
-import { memberNameFor } from './app-shell-data.js?v=202611121547';
-import { escapeHtml as esc } from './utils.js?v=202611121547';
-import { kstDateTime } from './lib/kst-time.js?v=202611121547';
-import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202611121547';
+import { initializeFirebase } from './config.js?v=202611121915';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=202611121915';
+import { memberNameFor } from './app-shell-data.js?v=202611121915';
+import { escapeHtml as esc } from './utils.js?v=202611121915';
+import { kstDateTime } from './lib/kst-time.js?v=202611121915';
+import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202611121915';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion, alertReasons, sortAlertRows,
     alertsEmptyText, ALERT_ORDERS_UNKNOWN, NOCODE_HINT, DRIVER_OPTIONS, TONE_CLASS
-} from './lib/supplies-forecast-view.js?v=202611121547';
+} from './lib/supplies-forecast-view.js?v=202611121915';
 import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -85,7 +85,7 @@ const fcOf = (it) => {
 const orderOf = (it) => (ordersDoc && ordersDoc.orders ? ordersDoc.orders[it.id] : null) || null;
 const statusOf = (it) => effectiveStatus(it, fcOf(it), orderOf(it));
 const reasonsOf = (it) => alertReasons(it, fcOf(it), orderOf(it), ordersOk);
-const reasonBadge = (r, extra = '') => `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full ${TONE_CLASS[r.tone] || ''} ${extra}" title="${esc(r.text)}">${esc(r.label)}</span>`;
+const reasonBadge = (r, extra = '') => `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full ${esc(TONE_CLASS[r.tone] || '')} ${esc(extra)}" title="${esc(r.text)}">${esc(r.label)}</span>`;
 function statusBadgeHtml(it) {
     const k = statusOf(it);
     const b = statusBadge(k);
@@ -108,7 +108,7 @@ const COLS = [
       cell: it => `${it.isMain ? '<span class="text-amber-500 mr-1">★</span>' : ''}${esc(it.name)}${reasonsOf(it).map(r => ` ${reasonBadge(r)}`).join('')}<span class="sr-only"> — 상세·재고 열기</span>` },
     { key: 'stock', label: '현재고', type: 'num', td: 'num font-bold',
       get: it => num(it.stock),
-      cell: it => `<span class="${isLow(it) ? 'text-red-600' : ''}">${fmt(it.stock)}</span>`
+      cell: it => `<span class="${isLow(it) ? 'text-red-600' : ''}">${esc(fmt(it.stock))}</span>`
                 + ` <span class="text-[11px] font-normal text-slate-400">${esc(it.unit || '개')}</span>` },
     // 사용량 예측(매일 08:30) — 상태·소진 예상·권장 발주량
     { key: 'fcStatus', label: '상태', type: 'text', td: 'mid',
@@ -403,14 +403,14 @@ function renderMainItems() {
             </div>
             <div class="text-[13px] font-extrabold text-slate-800 truncate" title="${esc(it.name)}">${esc(it.name)}</div>
             <div class="mt-1.5 flex items-end gap-1">
-                <span class="text-2xl font-black leading-none ${low ? 'text-red-600' : 'text-slate-800'}">${fmt(it.stock)}</span>
+                <span class="text-2xl font-black leading-none ${low ? 'text-red-600' : 'text-slate-800'}">${esc(fmt(it.stock))}</span>
                 <span class="text-[11px] font-bold text-slate-400">${esc(it.unit || '개')}</span>
             </div>
             <div class="text-[10px] text-slate-500 mt-1 leading-tight">
-                ${num(it.safetyStock) > 0 ? `안전 ${fmt(it.safetyStock)}${esc(it.unit || '개')}<br>` : ''}
-                ${num(it.unitPrice) > 0 ? `단가 ${fmt(it.unitPrice)}원` : '단가 미등록'}
+                ${num(it.safetyStock) > 0 ? `안전 ${esc(fmt(it.safetyStock))}${esc(it.unit || '개')}<br>` : ''}
+                ${esc(num(it.unitPrice) > 0 ? `단가 ${fmt(it.unitPrice)}원` : '단가 미등록')}
                 ${fc && fc.depleteDate ? `<br>소진 ${esc(mdw(fc.depleteDate).replace(/\(.\)$/, ''))}` : ''}
-                ${fc && fc.reorderDate ? `<br><span class="${(reorderDaysLeft(fc) ?? 99) <= 0 && !['ordered', 'received'].includes(statusOf(it)) ? 'text-red-600 font-bold' : ''}">발주 ${esc(mdw(fc.reorderDate).replace(/\(.\)$/, ''))}</span>` : ''}
+                ${fc && fc.reorderDate ? `<br><span class="${esc((reorderDaysLeft(fc) ?? 99) <= 0 && !['ordered', 'received'].includes(statusOf(it)) ? 'text-red-600 font-bold' : '')}">발주 ${esc(mdw(fc.reorderDate).replace(/\(.\)$/, ''))}</span>` : ''}
             </div>
         </div>`;
     }).join('');
@@ -425,7 +425,7 @@ function renderSummary() {
     const card = (label, value, tone = 'text-slate-800') => `
         <div class="bg-white rounded-xl border border-slate-200 p-3">
             <div class="text-[11px] font-bold text-slate-400">${label}</div>
-            <div class="text-lg font-black ${tone} mt-0.5">${value}</div>
+            <div class="text-lg font-black ${tone} mt-0.5">${esc(value)}</div>
         </div>`;
 
     // '재고 부족'·'발주 필요' 카드는 누르면 목록의 같은 체크박스(부족분만·발주 필요만)를 켜고 끈다.
@@ -434,7 +434,7 @@ function renderSummary() {
         <button type="button" data-sum-filter="${key}" aria-pressed="false" class="sum-btn text-left bg-white rounded-xl border border-slate-200 p-3"
             title="목록을 ${label} 비품만 보기 (다시 누르면 해제)">
             <div class="text-[11px] font-bold text-slate-400">${label}</div>
-            <div class="text-lg font-black ${tone} mt-0.5">${value}</div>
+            <div class="text-lg font-black ${tone} mt-0.5">${esc(value)}</div>
         </button>`;
 
     $('summary').innerHTML =
@@ -521,9 +521,9 @@ function renderHead() {
         const ic = on ? (sortState.dir === 'asc' ? '▲' : '▼') : '↕';
         return `<th class="${c.type === 'num' ? 'num' : ''}" style="min-width:${headMinW(c.label)}px">
             <div class="th-wrap">
-                <button type="button" class="th-sort ${on ? 'active' : ''}" data-sort="${c.key}"
-                    title="클릭해서 정렬 (오름차순 → 내림차순 → 해제)">${esc(c.label)} <span class="th-ic">${ic}</span></button>
-                <button type="button" class="th-filter ${hasColFilter(c.key) ? 'on' : ''}" data-filter="${c.key}"
+                <button type="button" class="th-sort ${on ? 'active' : ''}" data-sort="${esc(c.key)}"
+                    title="클릭해서 정렬 (오름차순 → 내림차순 → 해제)">${esc(c.label)} <span class="th-ic">${esc(ic)}</span></button>
+                <button type="button" class="th-filter ${hasColFilter(c.key) ? 'on' : ''}" data-filter="${esc(c.key)}"
                     title="${esc(c.label)} 필터" aria-label="${esc(c.label)} 필터">▼</button>
             </div>
         </th>`;
@@ -548,7 +548,7 @@ function renderTable() {
         const warn = (isLow(it) && !['ordered', 'received'].includes(statusOf(it))) || statusOf(it) === 'order';
         return `
         <tr data-open="${esc(it.id)}" tabindex="0"${warn ? ' class="row-warn"' : ''}>
-            ${COLS.map(c => `<td class="${c.td || ''}">${c.cell(it)}</td>`).join('')}
+            ${COLS.map(c => `<td class="${esc(c.td || '')}">${c.cell(it)}</td>`).join('')}
         </tr>`;
     }).join('');
     syncSummaryFilters();
@@ -618,7 +618,7 @@ function openFilterPop(key, anchor) {
                     <label class="flt-row" data-v="${esc(v)}">
                         <input type="checkbox" data-val="${esc(v)}" ${(!picked || picked.size === 0 || picked.has(v)) ? 'checked' : ''}>
                         <span title="${esc(v)}">${esc(v === '' ? '(빈 값)' : v)}</span>
-                        <span class="flt-cnt">${counts.get(v)}</span>
+                        <span class="flt-cnt">${esc(counts.get(v))}</span>
                     </label>`).join('')
             }</div>`;
     }
@@ -1038,7 +1038,7 @@ function renderStockPanel() {
             const tone = l.delta > 0 ? 'text-emerald-600' : (l.delta < 0 ? 'text-red-600' : 'text-slate-500');
             return `<div class="text-[11px] text-slate-500 flex justify-between gap-2 py-0.5 border-b border-slate-100 last:border-b-0">
                 <span class="min-w-0 break-words">${esc(kstDateTime(l.at))} ${label}${l.memo ? ` · ${esc(l.memo)}` : ''}</span>
-                <span class="${tone} font-bold shrink-0">${l.delta > 0 ? '+' : ''}${fmt(l.delta)} → ${fmt(l.after)}</span>
+                <span class="${tone} font-bold shrink-0">${l.delta > 0 ? '+' : ''}${esc(fmt(l.delta))} → ${esc(fmt(l.after))}</span>
             </div>`;
         }).join('');
 }
@@ -1134,19 +1134,19 @@ function renderForecastBox() {
     } else if (isStale(forecastDoc.generatedAt)) {
         parts.push(`<p class="text-[11px] font-bold text-amber-700">예측 오래됨 — 마지막 예측 ${esc(kstDateTime(forecastDoc.generatedAt))}</p>`);
     }
-    const row = (k, v, cls = '') => `<div class="flex justify-between gap-2"><span class="text-slate-400 shrink-0">${k}</span><span class="text-right font-bold min-w-0 ${cls}">${v}</span></div>`;
+    const row = (k, v, cls = '') => `<div class="flex justify-between gap-2"><span class="text-slate-400 shrink-0">${k}</span><span class="text-right font-bold min-w-0 ${cls}">${esc(v)}</span></div>`;
     if (fc) {
         const bt = basisText(fc, unit);
         if (bt) parts.push(`<p class="leading-snug">${esc(bt)}${fc.confidence === 'low' ? ' <span class="text-amber-700 font-bold">(신뢰도 낮음)</span>' : ''}</p>`);
         if (fc.method) {
             const lt = leadTimeText(fc);
             parts.push('<div class="space-y-0.5">'
-                + row('소진 예상', esc(depleteText(fc)))
-                + row('발주 권장일', esc(fc.reorderDate ? mdw(fc.reorderDate) : '-'))
-                + row('리드타임', esc(lt.text), lt.warn ? 'text-amber-700' : '')
-                + row('권장 발주량', esc(recommendText(fc, unit)))
-                + row('기준 재고', esc(`${fmt(fc.stock)}${unit}${fc.stockAt ? ` · ${kstDateTime(fc.stockAt).slice(5)}` : ''}`))
-                + row('예측 시각', esc(forecastDoc && forecastDoc.generatedAt ? kstDateTime(forecastDoc.generatedAt).slice(5) : '-'))
+                + row('소진 예상', depleteText(fc))
+                + row('발주 권장일', fc.reorderDate ? mdw(fc.reorderDate) : '-')
+                + row('리드타임', lt.text, lt.warn ? 'text-amber-700' : '')
+                + row('권장 발주량', recommendText(fc, unit))
+                + row('기준 재고', `${fmt(fc.stock)}${unit}${fc.stockAt ? ` · ${kstDateTime(fc.stockAt).slice(5)}` : ''}`)
+                + row('예측 시각', forecastDoc && forecastDoc.generatedAt ? kstDateTime(forecastDoc.generatedAt).slice(5) : '-')
                 + '</div>');
         }
         // 리드타임·앱 입력 경고는 위·아래에 따로 보이므로 목록에서 뺀다
@@ -1157,8 +1157,8 @@ function renderForecastBox() {
         const sug = safetySuggestion(fc, it);
         if (sug != null) {
             parts.push(`<div class="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-2 py-1.5">
-                <span class="text-[11px] leading-snug min-w-0">안전재고 제안 <b>${fmt(sug)}${esc(unit)}</b> (사용 변동·리드타임 ${num(fc.leadTime && fc.leadTime.workdays)}업무일 기준)</span>
-                <button type="button" data-fc-safety="${sug}" class="shrink-0 text-[11px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100">적용</button>
+                <span class="text-[11px] leading-snug min-w-0">안전재고 제안 <b>${esc(fmt(sug))}${esc(unit)}</b> (사용 변동·리드타임 ${esc(num(fc.leadTime && fc.leadTime.workdays))}업무일 기준)</span>
+                <button type="button" data-fc-safety="${esc(sug)}" class="shrink-0 text-[11px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100">적용</button>
             </div>`);
         }
     } else if (forecastDoc) {
@@ -1185,7 +1185,7 @@ function renderForecastBox() {
         const cur = it.forecastDriver || 'auto';
         parts.push(`<div class="flex items-center gap-1.5">
             <label for="fc-driver" class="text-[11px] text-slate-400 shrink-0">기준 물량(관리자)</label>
-            <select id="fc-driver" class="inp min-w-0" style="padding:4px 6px;font-size:12px">${DRIVER_OPTIONS.map(([v, l]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
+            <select id="fc-driver" class="inp min-w-0" style="padding:4px 6px;font-size:12px">${DRIVER_OPTIONS.map(([v, l]) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
         </div>`);
         const pk = packsProgressText(forecastDoc);
         if (pk) parts.push(`<p class="text-[11px] text-slate-400">${esc(pk)}</p>`);

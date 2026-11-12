@@ -1,28 +1,28 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202611121547'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202611121915'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc as _setDoc, getDoc, getDocFromServer, updateDoc as _updateDoc, deleteField, collection, getDocs, writeBatch as _writeBatch, deleteDoc as _deleteDoc, onSnapshot, query, where, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202611121547';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611121547';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611121547';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611121547'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611121547';
-import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611121547'; // 입고 오차(2026-10-27)
-import { initPageNav } from './page-nav.js?v=202611121547';
-import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611121547'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { cleanRows } from './lib/sensitive-cols.js?v=202611121915';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611121915';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611121915';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611121915'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611121915';
+import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611121915'; // 입고 오차(2026-10-27)
+import { initPageNav } from './page-nav.js?v=202611121915';
+import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611121915'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
 let emptyFill = emptyFillOf(null);   // CONFIG.emptyFill(관리자가 [미발수량 공식 설정]에서 바꿈) — 없으면 기본 10%/50%
-import { confirmedOf } from './lib/scan-link.js?v=202611121547'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
-import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611121547'; // 입고확인 수동 수정(2026-11-04)
-import { readServerInboundMany, writeInboundFix as _writeInboundFix } from './inbound-fix-write.js?v=202611121547';
-import { isMibal2Live } from './lib/mibal2-mode.js?v=202611121547';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611121547';
-import { friendlyFirebaseError } from './utils.js?v=202611121547';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611121547';
-import { setShellContext } from './app-shell-bridge.js?v=202611121547';
-import { memberNameFor } from './app-shell-data.js?v=202611121547';
-import { createUploadStatus } from './busy-banner.js?v=202611121547';
+import { confirmedOf } from './lib/scan-link.js?v=202611121915'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611121915'; // 입고확인 수동 수정(2026-11-04)
+import { readServerInboundMany, writeInboundFix as _writeInboundFix } from './inbound-fix-write.js?v=202611121915';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202611121915';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611121915';
+import { friendlyFirebaseError } from './utils.js?v=202611121915';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611121915';
+import { setShellContext } from './app-shell-bridge.js?v=202611121915';
+import { memberNameFor } from './app-shell-data.js?v=202611121915';
+import { createUploadStatus } from './busy-banner.js?v=202611121915';
 
 const { db, auth } = initializeFirebase();
 // [2026-11-09] 신규 부족수량관리 단독 운영(live) 때 이 화면은 조회 전용 — 조회·필터·정렬·엑셀 받기만 된다(시험 때는 아무것도 바뀌지 않음).
@@ -370,8 +370,8 @@ function renderLocList(location, base) {
     const parts = locPartsArr(location);
     if (!parts.length) return '';
     return parts.map(p => b.has(p)
-        ? `<span class="t-2">${p}</span>`
-        : `<span class="d-pill-ok" style="padding:0 6px;">${p}</span>`
+        ? `<span class="t-2">${escapeHtml(p)}</span>`
+        : `<span class="d-pill-ok" style="padding:0 6px;">${escapeHtml(p)}</span>`
     ).join(', ');
 }
 // [Ver 8.39] 다운로드 시 새 자리(base에 없던)를 맨앞/맨뒤로 재배치 (기존자리 순서는 유지)
@@ -394,7 +394,7 @@ function renderNewLocOnly(location, base) {
     const b = new Set(locPartsArr(base));
     const news = locPartsArr(location).filter(p => !b.has(p));
     if (!news.length) return '';
-    return news.map(p => `<span class="d-pill-ok" style="padding:0 6px;">${p}</span>`).join(', ');
+    return news.map(p => `<span class="d-pill-ok" style="padding:0 6px;">${escapeHtml(p)}</span>`).join(', ');
 }
 // [Ver 8.12] 기존재고 중 '스캐너로 전송된 상품'(worker=Scanner_Web)만 표시 — 새 자리 없어도 전송 확인 가능
 function lmExistingRows() {
@@ -417,13 +417,13 @@ function renderLocMoveTable() {
     tb.innerHTML = shown.map(r => {
         const noBase = !r.base; // 시드 파일에 없던 상품(기준 위치 없음)
         const badge = noBase ? '<div style="margin-top:3px;"><span title="업로드 파일에 없던 상품 — 기존 위치를 몰라 스캔한 자리만 반영됩니다. ERP 업로드 시 기존값이 덮어써질 수 있어요." class="d-pill-warn" style="padding:0 6px; font-size:10px;">파일에 없던 상품</span></div>' : '';
-        return `<tr style="border-bottom:1px solid var(--c-line-soft);${noBase ? ' background:var(--c-warn-bg);' : ''}"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${r.code}${badge}</td><td style="padding:7px 6px; text-align:left;">${renderLocList(r.location, r.base)}</td><td class="t-3" style="padding:7px 6px; white-space:nowrap;">${lmFmtAt(r.at)}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="lm-edit" data-code="${r.code}" title="수정" style="cursor:pointer; margin-right:10px; font-size:15px;">✏️</span><span class="lm-del" data-code="${r.code}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`;
+        return `<tr style="border-bottom:1px solid var(--c-line-soft);${noBase ? ' background:var(--c-warn-bg);' : ''}"><td style="padding:7px 6px; font-weight:bold; white-space:nowrap;">${escapeHtml(r.code)}${badge}</td><td style="padding:7px 6px; text-align:left;">${renderLocList(r.location, r.base)}</td><td class="t-3" style="padding:7px 6px; white-space:nowrap;">${escapeHtml(lmFmtAt(r.at))}</td><td style="padding:7px 6px; white-space:nowrap;"><span class="lm-edit" data-code="${escapeHtml(r.code)}" title="수정" style="cursor:pointer; margin-right:10px; font-size:15px;">✏️</span><span class="lm-del" data-code="${escapeHtml(r.code)}" title="삭제" style="cursor:pointer; font-size:15px;">🗑️</span></td></tr>`;
     }).join('');
     tb.querySelectorAll('.lm-edit').forEach(b => b.onclick = () => startEditLocMoveRow(b.dataset.code, b.closest('tr')));
     tb.querySelectorAll('.lm-del').forEach(b => b.onclick = () => deleteLocMoveRow(b.dataset.code));
     const flagged = rows.filter(r => !r.base).length;
     const notes = [];
-    if (flagged) notes.push(`<b class="t-warn">⚠️ 파일에 없던 상품 ${flagged}건 포함</b>`);
+    if (flagged) notes.push(`<b class="t-warn">⚠️ 파일에 없던 상품 ${escapeHtml(flagged)}건 포함</b>`);
     if (rows.length > LM_RENDER_CAP) notes.push(`상위 ${LM_RENDER_CAP}건만 표시 · 전체 ${rows.length}건 (검색으로 좁히기)`);
     if (moreEl) moreEl.innerHTML = notes.join(' · ');
 }
@@ -446,8 +446,8 @@ function startEditLocMoveRow(code, tr) {
     const tds = tr.querySelectorAll('td');
     const locTd = tds[1], actTd = tds[3];
     if (!locTd || !actTd) return;
-    const cur = (v.location || '').replace(/"/g, '&quot;');
-    locTd.innerHTML = `<input type="text" class="lm-edit-input" value="${cur}" placeholder="예: 비축-211,비축-210 (비우면 삭제)" style="width:100%; padding:5px 6px; border:1px solid var(--c-accent); border-radius:var(--r-cell); font-size:12px; box-sizing:border-box;">`;
+    const cur = v.location || '';   // 아래 value 에서 escapeHtml 로 한 번만 막는다
+    locTd.innerHTML = `<input type="text" class="lm-edit-input" value="${escapeHtml(cur)}" placeholder="예: 비축-211,비축-210 (비우면 삭제)" style="width:100%; padding:5px 6px; border:1px solid var(--c-accent); border-radius:var(--r-cell); font-size:12px; box-sizing:border-box;">`;
     actTd.innerHTML = `<span class="lm-save" title="저장" style="cursor:pointer; margin-right:10px; font-size:15px;">✅</span><span class="lm-cancel" title="취소" style="cursor:pointer; font-size:15px;">✖️</span>`;
     const input = locTd.querySelector('.lm-edit-input');
     input.focus(); input.select();
@@ -863,7 +863,7 @@ function renderMibalVars() {
     const list = document.getElementById('mibal-vars-list');
     if (list) {
         list.innerHTML = mibalVars.length
-            ? mibalVars.map(h => `<span class="d-pill-accent" style="display:inline-flex; align-items:center; gap:5px; padding:3px 9px; font-size:12px;">${h}<span class="mibal-var-del" data-h="${h}" style="cursor:pointer; font-weight:900;">✕</span></span>`).join('')
+            ? mibalVars.map(h => `<span class="d-pill-accent" style="display:inline-flex; align-items:center; gap:5px; padding:3px 9px; font-size:12px;">${escapeHtml(h)}<span class="mibal-var-del" data-h="${escapeHtml(h)}" style="cursor:pointer; font-weight:900;">✕</span></span>`).join('')
             : '<span class="t-3" style="font-size:11px;">추가된 변수 없음</span>';
         list.querySelectorAll('.mibal-var-del').forEach(x => { x.onclick = () => removeMibalVar(x.dataset.h); if (!isAdminUser) x.style.display = 'none'; });
     }
@@ -874,7 +874,7 @@ function renderMibalVars() {
         const computedAvail = MIBAL_COMPUTED_VARS.filter(f => !mibalVars.includes(f));
         const avail = [...computedAvail, ...logFieldKeys().filter(f => !exclude.includes(f) && isValidVarName(f))];
         sel.innerHTML = avail.length
-            ? '<option value="">헤더 선택…</option>' + avail.map(f => `<option value="${f}">${f}</option>`).join('')
+            ? '<option value="">헤더 선택…</option>' + avail.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('')
             : '<option value="">추가 가능한 헤더 없음 (미발재고로그 업로드 필요)</option>';
     }
 }
@@ -919,10 +919,10 @@ let exampleRows = [
 function buildExampleRows() {
     const tb = document.getElementById('ex-tbody');
     if (!tb) return;
-    const cell = (i,k,v) => `<td><input type="number" class="exi" data-i="${i}" data-k="${k}" value="${v}" style="width:46px; padding:3px;"></td>`;
+    const cell = (i,k,v) => `<td><input type="number" class="exi" data-i="${i}" data-k="${k}" value="${escapeHtml(v)}" style="width:46px; padding:3px;"></td>`;
     tb.innerHTML = exampleRows.map((r,i) => `<tr>
         ${cell(i,'s',r.s)}${cell(i,'c',r.c)}${cell(i,'sh',r.sh)}${cell(i,'d',r.d)}
-        <td><input type="number" class="exi" data-i="${i}" data-k="want" value="${r.want}" placeholder="?" style="width:56px; padding:3px; background:var(--c-accent-row); font-weight:bold;"></td>
+        <td><input type="number" class="exi" data-i="${i}" data-k="want" value="${escapeHtml(r.want)}" placeholder="?" style="width:56px; padding:3px; background:var(--c-accent-row); font-weight:bold;"></td>
         <td id="ex-cur-${i}" style="color:var(--c-text-3,#888); font-weight:bold;">-</td>
         <td><button class="exdel t-risk" data-i="${i}" aria-label="이 예시 행 삭제" title="이 예시 행 삭제" style="border:none; background:none; cursor:pointer; font-size:14px;">✕</button></td>
     </tr>`).join('');
@@ -994,7 +994,7 @@ let ruleElse = '0';
 function ruleSelect(cls, i, options, selected) {
     const opts = options.map(o => {
         const label = Array.isArray(o) ? o[0] : o, val = Array.isArray(o) ? o[1] : o;
-        return `<option value="${val}" ${val === selected ? 'selected' : ''}>${label}</option>`;
+        return `<option value="${escapeHtml(val)}" ${val === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`;
     }).join('');
     return `<select class="${cls}" data-i="${i}" style="padding:5px; border:1px solid var(--c-line-strong,#ccc); border-radius:4px; font-size:12px;">${opts}</select>`;
 }
@@ -1045,12 +1045,12 @@ function renderRulePalette() {
     const box = document.getElementById('rule-palette');
     if (!box) return;
     const chip = (tok, label, bg, fg, bd) =>
-        `<span class="rule-tok" draggable="true" data-token="${ruleEscAttr(tok)}" title="드롭존으로 끌어다 놓거나 클릭" style="cursor:grab; user-select:none; background:${bg}; color:${fg}; border:1px solid ${bd}; padding:4px 10px; border-radius:var(--r-pill); font-size:12px; font-weight:bold;">${label}</span>`;
+        `<span class="rule-tok" draggable="true" data-token="${ruleEscAttr(tok)}" title="드롭존으로 끌어다 놓거나 클릭" style="cursor:grab; user-select:none; background:${escapeHtml(bg)}; color:${escapeHtml(fg)}; border:1px solid ${escapeHtml(bd)}; padding:4px 10px; border-radius:var(--r-pill); font-size:12px; font-weight:bold;">${escapeHtml(label)}</span>`;
     const vars = [...RULE_VARS, ...mibalVars].map(v => chip(v, v, 'var(--c-accent-soft)', 'var(--c-accent-deep)', 'var(--c-accent-light)')).join('');
     // [Ver 8.24] 숫자는 0~9 키패드로 입력(여러 자리 가능)
     const numBtn = `<span id="rule-numpad-open" title="숫자 키패드 열기" style="cursor:pointer; user-select:none; background:var(--c-surface); color:var(--c-text); border:1px solid var(--c-line-strong); padding:4px 12px; border-radius:var(--r-pill); font-size:12px; font-weight:bold;">숫자 입력</span>`;
     const arith = [['+','+'],['-','−'],['*','×'],['/','÷'],['(','('],[')',')']].map(([t,l]) => chip(t, l, 'var(--c-track)', 'var(--c-text-2)', 'var(--c-line-strong)')).join('');
-    const cmp = [['===','='],['!==','≠'],['>','&gt;'],['>=','≥'],['<','&lt;'],['<=','≤']].map(([t,l]) => chip(t, l, 'var(--c-warn-soft)', 'var(--c-warn-text)', 'var(--c-warn-line)')).join('');
+    const cmp = [['===','='],['!==','≠'],['>','>'],['>=','≥'],['<','<'],['<=','≤']].map(([t,l]) => chip(t, l, 'var(--c-warn-soft)', 'var(--c-warn-text)', 'var(--c-warn-line)')).join('');
     const sep = chip('→', '→ 결과(미발수량 =)', 'var(--c-ok-soft)', 'var(--c-ok-text)', 'var(--c-ok)');
     box.innerHTML =
         `<div style="font-size:11px; color:var(--c-text-3); margin-bottom:6px;">🧩 아래를 <b>드롭존으로 끌어다 놓거나 클릭</b>하면 순서대로 식이 쌓입니다</div>
@@ -1087,9 +1087,9 @@ function renderRuleNumpad() {
     pad.innerHTML =
         `<div id="numpad-card" style="background:var(--c-surface); border-radius:var(--r-card); padding:18px; width:250px; box-shadow:var(--sh-pop);">
             <div style="font-size:12px; color:var(--c-text-2); font-weight:bold; margin-bottom:6px;">숫자 입력 후 [확인]</div>
-            <div style="border:2px solid var(--c-accent); border-radius:var(--r-sm); padding:10px 12px; font-size:28px; font-weight:900; text-align:right; min-height:32px; margin-bottom:12px;">${numpadValue || '0'}</div>
+            <div style="border:2px solid var(--c-accent); border-radius:var(--r-sm); padding:10px 12px; font-size:28px; font-weight:900; text-align:right; min-height:32px; margin-bottom:12px;">${escapeHtml(numpadValue || '0')}</div>
             <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:7px;">
-              ${keys.map(k => `<button type="button" class="np-key" data-k="${k}" style="height:50px; font-size:20px; font-weight:800; border:1px solid ${k === '확인' ? 'var(--c-accent)' : 'var(--c-line-strong)'}; border-radius:var(--r-sm); background:${k === '확인' ? 'var(--c-accent)' : (k === '⌫' ? 'var(--c-surface-2)' : 'var(--c-surface)')}; color:${k === '확인' ? 'var(--c-on-fill,#fff)' : 'var(--c-text)'}; cursor:pointer;">${k}</button>`).join('')}
+              ${keys.map(k => `<button type="button" class="np-key" data-k="${k}" style="height:50px; font-size:20px; font-weight:800; border:1px solid ${k === '확인' ? 'var(--c-accent)' : 'var(--c-line-strong)'}; border-radius:var(--r-sm); background:${escapeHtml(k === '확인' ? 'var(--c-accent)' : (k === '⌫' ? 'var(--c-surface-2)' : 'var(--c-surface)'))}; color:${k === '확인' ? 'var(--c-on-fill,#fff)' : 'var(--c-text)'}; cursor:pointer;">${k}</button>`).join('')}
             </div>
             <button type="button" id="numpad-cancel" data-esc-close style="width:100%; margin-top:9px; height:42px; border:1px solid var(--c-line-strong); border-radius:var(--r-pill); background:var(--c-surface); color:var(--c-text-2); cursor:pointer; font-weight:bold;">취소</button>
          </div>`;
@@ -1119,7 +1119,7 @@ function renderRuleDraft() {
     const condLines = ruleRows2.map((r, i) => `
       <div style="display:flex; align-items:center; gap:8px; background:var(--c-surface); border:1px solid var(--c-line); padding:9px 10px; border-radius:var(--r-sm); margin-bottom:6px; font-size:13px;">
         <span class="d-pill-accent" style="padding:2px 9px; font-size:11px; flex:none;">${i + 1}</span>
-        <span style="flex:1; line-height:1.55; text-align:left;"><b>만약</b> <span style="color:var(--c-accent-deep); font-weight:bold;">${ruleEscAttr(r.L)} ${ruleTokLabel(r.op)} ${ruleEscAttr(r.R)}</span> <b>이면 → 미발수량 =</b> <span class="t-warn" style="font-weight:bold;">${ruleEscAttr(r.result)}</span></span>
+        <span style="flex:1; line-height:1.55; text-align:left;"><b>만약</b> <span style="color:var(--c-accent-deep); font-weight:bold;">${ruleEscAttr(r.L)} ${escapeHtml(ruleTokLabel(r.op))} ${ruleEscAttr(r.R)}</span> <b>이면 → 미발수량 =</b> <span class="t-warn" style="font-weight:bold;">${ruleEscAttr(r.result)}</span></span>
         <button class="rl-del" data-i="${i}" title="이 조건 삭제" aria-label="이 조건 삭제" style="border:none; background:none; color:var(--c-risk-text); cursor:pointer; font-size:17px; flex:none;">✕</button>
       </div>`).join('');
     const emptyMsg = ruleRows2.length ? '' : '<div style="color:var(--c-text-3); font-size:12px; padding:6px 2px; text-align:left;">아직 만든 조건이 없어요. 아래에서 식을 만들어 <b>[조건 넣기]</b> 하세요.</div>';
@@ -1133,7 +1133,7 @@ function renderRuleDraft() {
     const resStr = res.map(ruleTokLabel).join(' ');
     const draftBody = ruleDraftTokens.length === 0
         ? '<span style="color:var(--c-text-3); font-weight:normal;">여기(또는 위 팔레트)에서 <b>변수·부등호·숫자</b>를 끌어다 놓거나 클릭하세요.<br>예) 총재고 <b>=</b> 0 <b>→결과</b> 적재량</span>'
-        : `<b>만약</b> <span style="color:var(--c-accent-deep);">${condStr || '…'}</span> <b>이면 → 미발수량 =</b> <span class="t-warn">${resStr || '…'}</span>`;
+        : `<b>만약</b> <span style="color:var(--c-accent-deep);">${escapeHtml(condStr || '…')}</span> <b>이면 → 미발수량 =</b> <span class="t-warn">${escapeHtml(resStr || '…')}</span>`;
     zone.innerHTML =
         `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
             <span style="font-weight:bold; font-size:12px; color:var(--c-text);">🧾 내가 만든 규칙 <span style="color:var(--c-text-3); font-weight:normal;">(위에서부터 순서대로 적용)</span></span>
@@ -1286,7 +1286,7 @@ function updateRuleCheck() {
         let out; try { out = Math.round(fn(...b, ...extras)); } catch (e) { out = NaN; }
         if (isNaN(out)) out = 0; if (out < 0) out = 0;
         const parts = [`총재고 ${b[0]}`, `적재량 ${b[1]}`, `부족수량 ${b[2]}`, `직진배송 ${b[3]}`, ...mibalVars.map((v, j) => `${v} ${extras[j]}`)];
-        return `${parts.join(' · ')} <b class="t-warn">→ 미발수량 ${out}</b>`;
+        return `${escapeHtml(parts.join(' · '))} <b class="t-warn">→ 미발수량 ${escapeHtml(out)}</b>`;
     });
     el.innerHTML = lines.join('<br>');
 }
@@ -1335,9 +1335,9 @@ function buildZoneCapRows() {
         return;
     }
     tb.innerHTML = list.map(z => `<tr>
-        <td style="font-weight:800; font-size:15px;">${z === '★' ? '★ <span style="font-size:11px; font-weight:400; color:var(--c-text-3,#888);">(별표 구역, ★·★★ 포함)</span>' : z}</td>
-        <td style="color:var(--c-text-3,#888);">${counts[z] || 0}</td>
-        <td><input type="number" class="zcap" data-z="${z}" value="${getCapacityByLocation(z)}" style="width:74px; padding:6px; text-align:center;"></td>
+        <td style="font-weight:800; font-size:15px;">${z === '★' ? '★ <span style="font-size:11px; font-weight:400; color:var(--c-text-3,#888);">(별표 구역, ★·★★ 포함)</span>' : escapeHtml(z)}</td>
+        <td style="color:var(--c-text-3,#888);">${escapeHtml(counts[z] || 0)}</td>
+        <td><input type="number" class="zcap" data-z="${escapeHtml(z)}" value="${escapeHtml(getCapacityByLocation(z))}" style="width:74px; padding:6px; text-align:center;"></td>
     </tr>`).join('');
 }
 async function saveZoneCap() {
@@ -1560,12 +1560,9 @@ async function fetchCSV(rawUrl, opts) {
     const url = toCsvUrl(rawUrl);
     const useCache = !(opts && opts.force);
     let textData = '';
-    // 1) 직접 → 2) 프록시 두 곳 순서로 시도한다(브라우저 CORS 제한 우회).
-    const tries = [
-        url,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-        `https://corsproxy.io/?${encodeURIComponent(url)}`
-    ];
+    // 직접 받기만 한다. 외부 프록시(allorigins·corsproxy) 우회는 쓰지 않는다 — 시트 주소(열쇠 포함)와 내용이 제3자 서버를 거치면 안 됨.
+    //   실패하면 아래에서 오류를 보여 준다(js/location.js 시트 직접 받기와 같은 판단).
+    const tries = [url];
     let lastErr = null, ok = false, fatal = null;
     for (const t of tries) {
         try {
@@ -1598,7 +1595,7 @@ async function fetchCSV(rawUrl, opts) {
         throw err;
     }
     if (!ok && useCache) {
-        // 네트워크가 안 되면 저장해 둔 값이라도 쓴다(오프라인·프록시 장애)
+        // 네트워크가 안 되면 저장해 둔 값이라도 쓴다(오프라인 등)
         const c = readCsvCache(url);
         if (c && c.fresh) { console.warn('[china-stock] 새로 받지 못해 저장해 둔 값을 씁니다:', url); lastCsvText[url] = c.text; return parseCsvBody(c.text); }
     }
@@ -2348,10 +2345,10 @@ async function openVersionModal() {
             const lbl = VER_TRIGGER_LABEL[r.trigger] || r.trigger || '';
             return `<div style="display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:1px solid var(--c-line,#eee);">
               <div style="flex:1; min-width:0;">
-                <div style="font-weight:bold; color:var(--c-text,#333);">${fmtVerTime(r.atMs)} <span style="font-size:11px; color:var(--c-text-3,#777); font-weight:normal;">${lbl}</span></div>
-                <div style="font-size:12px; color:var(--c-text-2,#666);">상품 ${r.count || 0}개 · 총 미발수량 <b class="t-1">${r.totalMibal || 0}</b>${r.note ? ` · <span style="color:var(--c-text-3,#999);">${escHtmlVer(r.note)}</span>` : ''}</div>
+                <div style="font-weight:bold; color:var(--c-text,#333);">${escapeHtml(fmtVerTime(r.atMs))} <span style="font-size:11px; color:var(--c-text-3,#777); font-weight:normal;">${escapeHtml(lbl)}</span></div>
+                <div style="font-size:12px; color:var(--c-text-2,#666);">상품 ${escapeHtml(r.count || 0)}개 · 총 미발수량 <b class="t-1">${escapeHtml(r.totalMibal || 0)}</b>${r.note ? ` · <span style="color:var(--c-text-3,#999);">${escHtmlVer(r.note)}</span>` : ''}</div>
               </div>
-              <button data-vid="${r.id}" class="ver-rollback-btn d-btn d-btn-risk">되돌리기</button>
+              <button data-vid="${escapeHtml(r.id)}" class="ver-rollback-btn d-btn d-btn-risk">되돌리기</button>
             </div>`;
         }).join('');
         list.querySelectorAll('.ver-rollback-btn').forEach(b => b.addEventListener('click', () => rollbackScanDBVersion(b.dataset.vid)));
@@ -2495,14 +2492,14 @@ function extractShipDates() {
                           : `'1차패킹리스트출고일' 같은 열을 찾지 못했습니다.`);
         checklistContainer.innerHTML =
             `<div style="font-size:12px; color:var(--c-warn-text,#8d6e63); line-height:1.7;">출고 데이터 없음<br>`
-          + `<span style="color:var(--c-warn-text,#a1887f);">불러온 행 ${total.toLocaleString()}개 — ${why}</span></div>`;
+          + `<span style="color:var(--c-warn-text,#a1887f);">불러온 행 ${escapeHtml(total.toLocaleString())}개 — ${escapeHtml(why)}</span></div>`;
         if (total > 0 && !hasShipCol) console.warn('[china-stock] 첫 행의 열 이름:', Object.keys(sample).join(', '));
         return;
     }
     let html = '';
     sorted.forEach(([date, info]) => {
         const isChecked = savedDates.includes(date) ? 'checked' : '';
-        html += `<label class="date-item"><input type="checkbox" class="date-check" value="${date}" ${isChecked}><span>${dateDisplayLabel(date)} (${info.skus.size}종 / ${info.qty.toLocaleString()}장)</span></label>`;
+        html += `<label class="date-item"><input type="checkbox" class="date-check" value="${escapeHtml(date)}" ${escapeHtml(isChecked)}><span>${escapeHtml(dateDisplayLabel(date))} (${escapeHtml(info.skus.size)}종 / ${escapeHtml(info.qty.toLocaleString())}장)</span></label>`;
     });
     checklistContainer.innerHTML = html;
     // [Ver 3.1] 팝업 안에서는 선택만 반영(태그 갱신), 적용은 팝업이 닫힐 때
@@ -2532,7 +2529,7 @@ function renderSelectedTags() {
     if (savedDates.length === 0) { container.innerHTML = '선택된 출고일 없음'; return; }
     let html = '';
     [...savedDates].sort((a,b)=>b.localeCompare(a)).forEach(d => {
-        html += `<div class="date-tag">${dateDisplayLabel(d)} <span class="remove-btn" data-date="${d}">✕</span></div>`;
+        html += `<div class="date-tag">${escapeHtml(dateDisplayLabel(d))} <span class="remove-btn" data-date="${escapeHtml(d)}">✕</span></div>`;
     });
     container.innerHTML = html;
     container.querySelectorAll('.remove-btn').forEach(b => b.addEventListener('click', () => {
@@ -2819,13 +2816,13 @@ function renderTableHeader(cols) {
         const def = BUILTIN_COLS[key] || {};
         const w = def.width ? `width:${def.width};` : '';
         const canFilter = key !== 'no' && key !== 'locCheck'; // [Ver 8.52] No/추가위치 제외 전부 필터 가능
-        const funnel = canFilter ? `<span class="col-filter${columnFilters[key] ? ' active' : ''}" data-key="${key}" title="필터">▾</span>` : '';
+        const funnel = canFilter ? `<span class="col-filter${columnFilters[key] ? ' active' : ''}" data-key="${escapeHtml(key)}" title="필터">▾</span>` : '';
         const sortCls = def.sort ? ' th-sortable' : '';
         const sortData = def.sort ? ` data-sort="${def.sort}"` : '';
         const sm = def.sort ? sortMark(def.sort, sortConfig) : { mark: '', aria: 'none' }; // 지금 정렬 열만 ▲/▼
         const ariaSort = sm.mark ? ` aria-sort="${sm.aria}"` : '';
-        const markHtml = sm.mark ? ` <span class="sort-mark">${sm.mark}</span>` : '';
-        return `<th class="th-cell${sortCls}"${sortData}${ariaSort} style="${w}"><span class="th-label">${colLabel(key)}${markHtml}</span>${funnel}</th>`;
+        const markHtml = sm.mark ? ` <span class="sort-mark">${escapeHtml(sm.mark)}</span>` : '';
+        return `<th class="th-cell${sortCls}"${sortData}${ariaSort} style="${escapeHtml(w)}"><span class="th-label">${escapeHtml(colLabel(key))}${markHtml}</span>${funnel}</th>`;
     }).join('');
     tr.querySelectorAll('.th-sortable').forEach(th => th.addEventListener('click', () => sortTable(th.dataset.sort)));
     tr.querySelectorAll('.col-filter').forEach(f => f.addEventListener('click', (e) => { e.stopPropagation(); openColumnFilter(f.dataset.key, f); })); // [Ver 8.52] 필터 팝업
@@ -2838,7 +2835,7 @@ function renderTable() {
     const cols = getActiveColumns();
     renderTableHeader(cols);
     const tbody = document.getElementById('table-body');
-    if (!filteredData.length) { tbody.innerHTML = `<tr><td colspan="${cols.length}" style="text-align:center; padding:50px; color:var(--c-text-3,#888);">${emptyTableText({ savedCount: savedDates.length, tableCount: tableData.length, filtersOn: !!(document.getElementById('search-input')?.value || '').trim() || Object.keys(columnFilters).length > 0, locToday: viewMode === 'location' && locSubView === 'today' })}</td></tr>`; return; }
+    if (!filteredData.length) { tbody.innerHTML = `<tr><td colspan="${cols.length}" style="text-align:center; padding:50px; color:var(--c-text-3,#888);">${escapeHtml(emptyTableText({ savedCount: savedDates.length, tableCount: tableData.length, filtersOn: !!(document.getElementById('search-input')?.value || '').trim() || Object.keys(columnFilters).length > 0, locToday: viewMode === 'location' && locSubView === 'today' }))}</td></tr>`; return; }
     let html = '';
     filteredData.forEach((row, idx) => {
         const isFromApp = inboundMap[row.code] !== undefined;
@@ -2866,14 +2863,14 @@ function renderTable() {
                     }
                     if (tips.length) extra = ` title="${escapeHtml(tips.join('\n'))}"`;
                 }
-                tds += `<td class="editable-cell" contenteditable="${OLD_READ_ONLY ? 'false' : 'true'}" data-code="${row.code}" data-field="${def.edit}" style="${style}"${extra}>${cellVal}</td>`;
+                tds += `<td class="editable-cell" contenteditable="${OLD_READ_ONLY ? 'false' : 'true'}" data-code="${escapeHtml(row.code)}" data-field="${escapeHtml(def.edit)}" style="${style}"${extra}>${escapeHtml(cellVal)}</td>`;
             } else if (key === 'diff') {
                 const dv = diffCellView(row);
-                tds += `<td class="diff-cell ${dv.cls}" data-code="${row.code}" title="${dv.title}" style="font-weight:bold;">${dv.text}</td>`;
+                tds += `<td class="diff-cell ${dv.cls}" data-code="${escapeHtml(row.code)}" title="${escapeHtml(dv.title)}" style="font-weight:bold;">${escapeHtml(dv.text)}</td>`;
             } else if (def.code) {
-                tds += `<td class="code-cell" data-code="${row.code}">${val}</td>`;
+                tds += `<td class="code-cell" data-code="${escapeHtml(row.code)}">${escapeHtml(val)}</td>`;
             } else {
-                tds += `<td>${val}</td>`;
+                tds += `<td>${key === 'locCheck' ? val : escapeHtml(val)}</td>`;   // locCheck 는 colValue 가 만든 HTML 조각(안쪽에서 escape)
             }
         });
         // [Ver 8.52] 미등록 입고분 강조 / [Ver 10.3] 당일입고지정: 비축 입고분 자리 미지정 줄은 빨강
@@ -2900,17 +2897,17 @@ function renderColumnEditor() {
     const bs = 'border:1px solid var(--c-line-strong); background:var(--c-surface); border-radius:var(--r-cell); cursor:pointer; width:26px; height:26px; font-weight:bold;';
     box.innerHTML = colEditList.map((key,i) => `
         <div style="display:flex; align-items:center; gap:6px; background:var(--c-surface-2); padding:6px 8px; border-radius:var(--r-sm); margin-bottom:5px; font-size:13px;">
-            <span style="flex:1; font-weight:bold;">${colLabel(key)}${key.startsWith('log:') ? ' <span class="t-accent" style="font-size:11px;">(로그)</span>' : ''}</span>
-            <button class="col-up" data-i="${i}" aria-label="위로" title="위로" ${i===0?'disabled':''} style="${bs}">↑</button>
-            <button class="col-down" data-i="${i}" aria-label="아래로" title="아래로" ${i===colEditList.length-1?'disabled':''} style="${bs}">↓</button>
-            <button class="col-del t-risk" data-i="${i}" aria-label="이 열 빼기" title="이 열 빼기" style="${bs}">✕</button>
+            <span style="flex:1; font-weight:bold;">${escapeHtml(colLabel(key))}${key.startsWith('log:') ? ' <span class="t-accent" style="font-size:11px;">(로그)</span>' : ''}</span>
+            <button class="col-up" data-i="${i}" aria-label="위로" title="위로" ${i===0?'disabled':''} style="${escapeHtml(bs)}">↑</button>
+            <button class="col-down" data-i="${i}" aria-label="아래로" title="아래로" ${i===colEditList.length-1?'disabled':''} style="${escapeHtml(bs)}">↓</button>
+            <button class="col-del t-risk" data-i="${i}" aria-label="이 열 빼기" title="이 열 빼기" style="${escapeHtml(bs)}">✕</button>
         </div>`).join('');
     const sel = document.getElementById('column-add-select');
     const avail = [];
     // [Ver 8.53] locCheck(추가위치)는 위치지정모드에서만 추가 가능
     Object.keys(BUILTIN_COLS).forEach(k => { if (colEditList.includes(k)) return; if (k === 'locCheck' && viewMode !== 'location') return; if (k === 'diff' && viewMode === 'location') return; avail.push([k, colLabel(k)]); });
     logFieldKeys().forEach(f => { const k = 'log:' + f; if (!colEditList.includes(k)) avail.push([k, f + ' (로그)']); });
-    sel.innerHTML = avail.length ? avail.map(([k,l]) => `<option value="${k}">${l}</option>`).join('') : '<option value="">추가할 열 없음</option>';
+    sel.innerHTML = avail.length ? avail.map(([k,l]) => `<option value="${k}">${escapeHtml(l)}</option>`).join('') : '<option value="">추가할 열 없음</option>';
     box.querySelectorAll('.col-up').forEach(b => b.onclick = () => { const i=+b.dataset.i; if(i>0){ [colEditList[i-1],colEditList[i]]=[colEditList[i],colEditList[i-1]]; renderColumnEditor(); } });
     box.querySelectorAll('.col-down').forEach(b => b.onclick = () => { const i=+b.dataset.i; if(i<colEditList.length-1){ [colEditList[i+1],colEditList[i]]=[colEditList[i],colEditList[i+1]]; renderColumnEditor(); } });
     box.querySelectorAll('.col-del').forEach(b => b.onclick = () => { colEditList.splice(+b.dataset.i,1); renderColumnEditor(); });
@@ -2940,7 +2937,7 @@ function updateSummary() {
 // [Ver 8.52] 헤더 열별 필터(엑셀식) + 검색/정렬 공용화
 // ---------------------------------------------------------
 let columnFilters = {}; // 열key -> 허용값 Set (없으면 필터 없음)
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 // [Ver 8.90] 입고확인 ≠ 도착수량 판정 (빈칸=0 포함) — 색상/필터 공용
 function confirmedMismatch(row) { return (parseInt(row.confirmed) || 0) !== (parseInt(row.arrivalQty) || 0); }
 // [2026-10-27] 입고 오차 '차이' 열 — 계산은 js/lib/inbound-diff.js diffOf. 입고확인이 앱 스캔(scan)·수동(manual)·빈칸(none=미스캔)
@@ -3135,7 +3132,7 @@ function openColumnFilter(key, anchorEl) {
     document.getElementById('cfp-list').innerHTML = values.map((v, i) => {
         const label = v === '' ? '(빈값)' : v;
         const checked = (!cur || cur.has(v)) ? 'checked' : '';
-        return `<label class="cfp-item" data-label="${escapeHtml(String(label).toLowerCase())}"><input type="checkbox" class="cfp-cb" data-i="${i}" ${checked}> ${escapeHtml(label)}</label>`;
+        return `<label class="cfp-item" data-label="${escapeHtml(String(label).toLowerCase())}"><input type="checkbox" class="cfp-cb" data-i="${i}" ${escapeHtml(checked)}> ${escapeHtml(label)}</label>`;
     }).join('') || '<div style="padding:8px;color:var(--c-text-3,#888);font-size:12px;">값 없음</div>';
     syncAll();
     document.getElementById('cfp-search').addEventListener('input', e => {
@@ -3220,20 +3217,20 @@ function closeMibalPredictModal() { document.getElementById('mibal-predict-modal
 function renderMibalPredict() {
     const { rows, useRate, avg } = buildPredictionRows();
     const sum = document.getElementById('mp-summary');
-    if (sum) sum.innerHTML = `평균상승률 <b class="t-accent">${avg ? (avg.avg >= 0 ? '+' : '') + Math.round(avg.avg * 100) + '% (' + avg.n + '건, 1~100%만)' : '– (데이터 부족, 기본 40% 적용)'}</b> · 예측 배율 <b>×${(1 + useRate).toFixed(2)}</b> · 누적 패킹 <b>${rows.length}건</b>`;
+    if (sum) sum.innerHTML = `평균상승률 <b class="t-accent">${escapeHtml(avg ? (avg.avg >= 0 ? '+' : '') + Math.round(avg.avg * 100) + '% (' + avg.n + '건, 1~100%만)' : '– (데이터 부족, 기본 40% 적용)')}</b> · 예측 배율 <b>×${(1 + useRate).toFixed(2)}</b> · 누적 패킹 <b>${rows.length}건</b>`;
     const kw = (document.getElementById('mp-search')?.value || '').trim();
     const view = kw ? rows.filter(r => (fmtMD(r.출고일).includes(kw) || fmtMD(r.입고일).includes(kw) || r.출고일.includes(kw) || (r.입고일 || '').includes(kw))) : rows;
     const tb = document.getElementById('mp-tbody'); if (!tb) return;
     const pct = v => (v === null) ? '–' : `${v >= 0 ? '+' : ''}${Math.round(v * 100)}%`;
-    const dev = v => (v === null) ? '<span class="t-3">진행중</span>' : `<span class="${v > 0 ? 't-risk' : (v < 0 ? 't-accent' : 't-1')}" style="font-weight:bold;">${v > 0 ? '+' : ''}${v}</span>`;
+    const dev = v => (v === null) ? '<span class="t-3">진행중</span>' : `<span class="${escapeHtml(v > 0 ? 't-risk' : (v < 0 ? 't-accent' : 't-1'))}" style="font-weight:bold;">${v > 0 ? '+' : ''}${escapeHtml(v)}</span>`;
     tb.innerHTML = view.length ? view.map(r => `
         <tr style="border-bottom:1px solid var(--c-line,#eee);">
-            <td style="padding:7px 6px; font-weight:bold;">${fmtMD(r.출고일)}</td>
-            <td style="padding:7px 6px;">${r.입고일 ? fmtMD(r.입고일) : '<span class="t-3">미정</span>'}</td>
-            <td style="padding:7px 6px;">${r.출고미발}</td>
-            <td style="padding:7px 6px; font-weight:bold;">${r.입고미발 === null ? '<span class="t-3">진행중</span>' : r.입고미발}</td>
+            <td style="padding:7px 6px; font-weight:bold;">${escapeHtml(fmtMD(r.출고일))}</td>
+            <td style="padding:7px 6px;">${r.입고일 ? escapeHtml(fmtMD(r.입고일)) : '<span class="t-3">미정</span>'}</td>
+            <td style="padding:7px 6px;">${escapeHtml(r.출고미발)}</td>
+            <td style="padding:7px 6px; font-weight:bold;">${r.입고미발 === null ? '<span class="t-3">진행중</span>' : escapeHtml(r.입고미발)}</td>
             <td class="t-warn" style="padding:7px 6px; font-weight:bold;">${pct(r.상승률)}</td>
-            <td class="t-accent" style="padding:7px 6px; font-weight:bold;">${r.예상미발}</td>
+            <td class="t-accent" style="padding:7px 6px; font-weight:bold;">${escapeHtml(r.예상미발)}</td>
             <td style="padding:7px 6px;">${dev(r.예측편차)}</td>
         </tr>`).join('') : '<tr><td colspan="7" style="padding:22px; color:var(--c-text-3,#999);">전송된 미발 데이터가 없습니다. 미발전송을 눌러 쌓으세요.</td></tr>';
 }
@@ -3378,10 +3375,10 @@ function renderInboundDiffStats() {
     document.querySelectorAll('#idf-tabs .idf-tab').forEach(b => b.classList.toggle('d-btn-primary', b.dataset.tab === idfTab));
     const g = overallSummary(summarizeByShip(idfRecs, o));
     const sumEl = document.getElementById('idf-summary');
-    if (sumEl) sumEl.innerHTML = `패킹 <b>${g.packs.toLocaleString()}건</b>${g.bundles ? ` (+ 묶음 줄 ${g.bundles.toLocaleString()})` : ''} · 도착 <b>${g.arr.toLocaleString()}</b> · 입고 <b>${g.conf.toLocaleString()}</b>`
-        + ` · 오차 <b>${g.errN.toLocaleString()}품목</b> (부족 <b class="t-risk">${g.short.toLocaleString()}</b> · 과입고 <b class="t-accent">${g.over.toLocaleString()}</b>)`
+    if (sumEl) sumEl.innerHTML = `패킹 <b>${escapeHtml(g.packs.toLocaleString())}건</b>${escapeHtml(g.bundles ? ` (+ 묶음 줄 ${g.bundles.toLocaleString()})` : '')} · 도착 <b>${escapeHtml(g.arr.toLocaleString())}</b> · 입고 <b>${escapeHtml(g.conf.toLocaleString())}</b>`
+        + ` · 오차 <b>${escapeHtml(g.errN.toLocaleString())}품목</b> (부족 <b class="t-risk">${escapeHtml(g.short.toLocaleString())}</b> · 과입고 <b class="t-accent">${escapeHtml(g.over.toLocaleString())}</b>)`
         + ` · 오차율 <b>${g.rate === null ? '–' : (Math.round(g.rate * 1000) / 10).toFixed(1) + '%'}</b>`
-        + ` · 미스캔 <b>${g.noScanN.toLocaleString()}품목 ${g.noScanQ.toLocaleString()}장</b>${o.includeNoScan ? ' (오차·오차율에 포함)' : ' (오차·오차율에서 뺌)'}`;
+        + ` · 미스캔 <b>${escapeHtml(g.noScanN.toLocaleString())}품목 ${escapeHtml(g.noScanQ.toLocaleString())}장</b>${o.includeNoScan ? ' (오차·오차율에 포함)' : ' (오차·오차율에서 뺌)'}`;
     const aoa = statsAoa(idfTab, idfData(idfTab, idfRecs, o));
     const head = aoa[0] || [], rows = aoa.slice(1);
     const th = document.getElementById('idf-thead');
@@ -3390,7 +3387,7 @@ function renderInboundDiffStats() {
     const cls = (h, v) => (h === '부족' && v > 0) ? ' class="t-risk"' : ((h === '과입고' && v > 0) ? ' class="t-accent"' : '');
     tb.innerHTML = rows.length ? rows.map(r => '<tr style="border-bottom:1px solid var(--c-line,#eee);">'
         + r.map((v, i) => `<td${cls(head[i], v)} style="padding:6px 6px;">${escapeHtml(v === null || v === undefined ? '' : v)}</td>`).join('') + '</tr>').join('')
-        : `<tr><td colspan="${head.length || 1}" style="padding:22px; color:var(--c-text-3,#999);">기간 안에 기록이 없습니다. 미발 초기화 때 자동으로 쌓이고, 도구 ▾ [입고 오차 기록]으로도 저장할 수 있습니다.</td></tr>`;
+        : `<tr><td colspan="${escapeHtml(head.length || 1)}" style="padding:22px; color:var(--c-text-3,#999);">기간 안에 기록이 없습니다. 미발 초기화 때 자동으로 쌓이고, 도구 ▾ [입고 오차 기록]으로도 저장할 수 있습니다.</td></tr>`;
 }
 async function downloadInboundDiffStats() {
     const o = idfOpts();
@@ -3607,7 +3604,7 @@ function setupEventListeners() {
     document.getElementById('btn-excel-download')?.addEventListener('click', async () => {
         if (!filteredData.length) return;
         let html = '<table><tr><th>상품코드</th><th>수량</th></tr>';
-        filteredData.forEach(r => html += `<tr><td>${r.code}</td><td>${r.arrivalQty}</td></tr>`);
+        filteredData.forEach(r => html += `<tr><td>${escapeHtml(r.code)}</td><td>${escapeHtml(r.arrivalQty)}</td></tr>`);
         html += '</table>';
         const blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel' });
         await downloadToDesktop('입고용파일.xls', blob);

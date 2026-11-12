@@ -1,7 +1,7 @@
 // === js/widget-incoming-schedule.js ===
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=202611121547';
-import * as State from './state.js?v=202611121547';
+import { escapeHtml } from './utils.js?v=202611121915';
+import * as State from './state.js?v=202611121915';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
 //
 // 구글 시트 「패킹.송금관리」에 붙은 Apps Script 가 **시트를 고칠 때 즉시 + 1시간마다** 4개 열
@@ -434,7 +434,7 @@ function renderItems(items) {
         return `
             <li class="inc-row px-3 py-2">
                 <div class="flex items-baseline gap-2">
-                    <span class="w-14 shrink-0 text-[12.5px] font-extrabold ${arrTone} whitespace-nowrap">${g.arrivalLabel}</span>
+                    <span class="w-14 shrink-0 text-[12.5px] font-extrabold ${arrTone} whitespace-nowrap">${escapeHtml(g.arrivalLabel)}</span>
                     ${totalText ? `<span class="text-[12.5px] font-bold min-w-0">총 ${escapeHtml(totalText)} 입고예정</span>` : ''}
                 </div>
                 <div class="mt-1 pl-16 space-y-0.5 opacity-90">${lines}</div>

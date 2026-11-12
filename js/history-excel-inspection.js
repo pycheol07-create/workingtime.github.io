@@ -1,8 +1,9 @@
 // === js/history-excel-inspection.js ===
-import { db, allHistoryData } from './state.js?v=202611121547'; 
-import { showToast, getTodayDateString } from './utils.js?v=202611121547';
-import { fitToColumn } from './history-excel-utils.js?v=202611121547';
-import { dayInspItems } from './lib/insp-day.js?v=202611121547';
+import { db, allHistoryData } from './state.js?v=202611121915'; 
+import { showToast, getTodayDateString } from './utils.js?v=202611121915';
+import { fitToColumn } from './history-excel-utils.js?v=202611121915';
+import { dayInspItems } from './lib/insp-day.js?v=202611121915';
+import { csvSafeSheet, csvSafeBook } from './lib/csv-safe.js?v=202611121915';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"; 
 
 const downloadListInspectionHistory = (format = 'xlsx') => {
@@ -25,6 +26,7 @@ const downloadListInspectionHistory = (format = 'xlsx') => {
         const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: headers });
         fitToColumn(worksheet);
         XLSX.utils.book_append_sheet(workbook, worksheet, '입고_리스트_내역');
+        csvSafeBook(workbook, format);   // csv 일 때만 — 수식 주입 막기
         XLSX.writeFile(workbook, `입고리스트_이력_${getTodayDateString()}.${format}`);
         showToast('입고 리스트 다운로드 완료');
     } catch (e) {
@@ -59,6 +61,7 @@ const downloadProductInspectionHistory = async (format = 'xlsx') => {
         XLSX.utils.book_append_sheet(workbook, worksheet1, `상품별_요약`);
 
         if (format === 'csv') {
+             csvSafeSheet(worksheet1);   // = + - @ 로 시작하는 글자 칸이 수식으로 열리지 않게
              XLSX.writeFile(workbook, `검수이력_상품별_${getTodayDateString()}.csv`); return;
         }
 
@@ -106,6 +109,7 @@ export const downloadPeriodInspectionAsExcel = (startDate, endDate, format = 'xl
     const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: headers });
     fitToColumn(worksheet);
     XLSX.utils.book_append_sheet(workbook, worksheet, '입고_리스트_내역');
+    csvSafeBook(workbook, format);   // csv 일 때만 — 수식 주입 막기
     XLSX.writeFile(workbook, `검수이력_리스트_기간_${startDate}_${endDate}.${format}`);
     showToast('기간별 검수이력 다운로드 완료');
 };

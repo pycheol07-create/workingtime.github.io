@@ -1,8 +1,8 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611121547';
-import * as State from './state.js?v=202611121547';
-import { getWeekOfYear, escapeHtml } from './utils.js?v=202611121547';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611121547';
+import * as DOM from './dom-elements.js?v=202611121915';
+import * as State from './state.js?v=202611121915';
+import { getWeekOfYear, escapeHtml } from './utils.js?v=202611121915';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611121915';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 정렬 상태 관리 (로컬)
@@ -109,7 +109,7 @@ const SRC_BADGE_CLS = { '제작': 'bg-indigo-50 text-indigo-700 border-indigo-20
 function sourceBadge(item) {
     const src = String(item.source || (item.packNo && packSrcMap && packSrcMap[item.packNo]) || '');
     if (!Object.prototype.hasOwnProperty.call(SRC_BADGE_CLS, src)) return '<span class="text-gray-300 text-xs">-</span>';
-    return `<span class="inline-flex items-center px-1.5 py-0.5 rounded-full border text-[11px] font-bold whitespace-nowrap ${SRC_BADGE_CLS[src]}">${src}</span>`;
+    return `<span class="inline-flex items-center px-1.5 py-0.5 rounded-full border text-[11px] font-bold whitespace-nowrap ${escapeHtml(SRC_BADGE_CLS[src])}">${escapeHtml(src)}</span>`;
 }
 
 // 빈 함수 내보내기 (이전 에러 해결용)
@@ -127,7 +127,7 @@ const formatDefectSummary = (defectSummary) => {
         return '<span class="text-gray-400">-</span>';
     }
     const lastDefect = defectSummary[defectSummary.length - 1];
-    return `<span class="text-red-600 font-medium text-xs truncate block max-w-[200px]" title="${lastDefect}">${lastDefect}</span>`;
+    return `<span class="text-red-600 font-medium text-xs truncate block max-w-[200px]" title="${escapeHtml(lastDefect)}">${escapeHtml(lastDefect)}</span>`;
 };
 
 export const renderInspectionLayout = (container) => {
@@ -251,10 +251,10 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
             const packs = packDatesLabel(d.data);   // 이 날 검수한 리스트가 몇일자 패킹인지
             
             dateListHtml += `
-                <button class="w-full text-left px-2.5 py-2.5 border-l-4 transition-all ${activeClass} group btn-select-insp-date" data-date="${d.date}">
+                <button class="w-full text-left px-2.5 py-2.5 border-l-4 transition-all ${activeClass} group btn-select-insp-date" data-date="${escapeHtml(d.date)}">
                     <div class="flex justify-between items-center">
-                        <span class="font-semibold text-sm">${d.date}</span>
-                        <span class="text-[11px] bg-white border border-gray-200 px-1.5 py-0.5 rounded-full text-gray-500 group-hover:border-gray-300">${d.count}건</span>
+                        <span class="font-semibold text-sm">${escapeHtml(d.date)}</span>
+                        <span class="text-[11px] bg-white border border-gray-200 px-1.5 py-0.5 rounded-full text-gray-500 group-hover:border-gray-300">${escapeHtml(d.count)}건</span>
                     </div>
                     ${packs ? `<div class="text-[11px] text-gray-500 mt-0.5">패킹 ${escapeHtml(packs)}</div>` : ''}
                 </button>
@@ -270,7 +270,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-2">
-                        <h4 class="font-bold text-gray-700 text-sm">${selectedDate} 검수 리스트 상세</h4>
+                        <h4 class="font-bold text-gray-700 text-sm">${escapeHtml(selectedDate)} 검수 리스트 상세</h4>
                         <span class="text-xs text-gray-500">0건</span>
                     </div>
                 </div>
@@ -317,8 +317,8 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
                     <td class="px-4 py-3 text-xs text-gray-600">${escapeHtml(item.option || '-')}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${escapeHtml(item.supplierCode || item.supplierName || '-')}</td>
                     <td class="px-4 py-3 text-center">
-                        <div class="text-xs font-bold text-gray-700">${inboundQty.toLocaleString()}</div>
-                        <div class="text-[11px] ${isCompleted ? 'text-blue-600' : 'text-gray-400'} font-bold">(샘플검수: ${sampleQty.toLocaleString()}개)</div>
+                        <div class="text-xs font-bold text-gray-700">${escapeHtml(inboundQty.toLocaleString())}</div>
+                        <div class="text-[11px] ${isCompleted ? 'text-blue-600' : 'text-gray-400'} font-bold">(샘플검수: ${escapeHtml(sampleQty.toLocaleString())}개)</div>
                     </td>
                     <td class="px-4 py-3 text-center">${statusBadge}</td>
                     <td class="px-3 py-3 text-center">${resultBadge(item, isCompleted, selectedDate)}</td>
@@ -330,17 +330,17 @@ export const renderInspectionListMode = async (dateList, selectedDateData) => {
             <div class="flex flex-col h-full">
                 <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-3">
-                        <h4 class="font-bold text-gray-700 text-sm">${selectedDate} 검수 리스트 상세</h4>
+                        <h4 class="font-bold text-gray-700 text-sm">${escapeHtml(selectedDate)} 검수 리스트 상세</h4>
                         ${packDatesLabel(filteredSelectedData, 6) ? `<span class="text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded">패킹 ${escapeHtml(packDatesLabel(filteredSelectedData, 6))}</span>` : ''}
                         <span class="text-[11px] font-medium bg-white border border-gray-200 shadow-sm px-2.5 py-1 rounded text-gray-600">
-                            총 입고: <strong class="text-gray-900">${totalInboundQty.toLocaleString()}</strong>개 <span class="mx-1 text-gray-300">|</span> 
-                            총 샘플검수: <strong class="text-blue-600">${totalSampleQty.toLocaleString()}</strong>개
+                            총 입고: <strong class="text-gray-900">${escapeHtml(totalInboundQty.toLocaleString())}</strong>개 <span class="mx-1 text-gray-300">|</span> 
+                            총 샘플검수: <strong class="text-blue-600">${escapeHtml(totalSampleQty.toLocaleString())}</strong>개
                         </span>
                     </div>
                     <div class="flex gap-1.5 shrink-0">
-                        ${pendingCount > 0 ? `<button class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1 px-2.5 rounded shadow-sm transition btn-resume-insp" data-date="${selectedDate}" title="이 날짜의 대기 항목을 오늘 검수 대기 리스트로 불러와 이어서 진행">▶ 이어서 검수 (대기 ${pendingCount}건)</button>` : ''}
+                        ${pendingCount > 0 ? `<button class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1 px-2.5 rounded shadow-sm transition btn-resume-insp" data-date="${escapeHtml(selectedDate)}" title="이 날짜의 대기 항목을 오늘 검수 대기 리스트로 불러와 이어서 진행">▶ 이어서 검수 (대기 ${escapeHtml(pendingCount)}건)</button>` : ''}
                         <button class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm transition btn-delete-history-list"
-                                data-date="${selectedDate}" title="이 날짜의 리스트 전체 삭제">
+                                data-date="${escapeHtml(selectedDate)}" title="이 날짜의 리스트 전체 삭제">
                             리스트 삭제
                         </button>
                     </div>
@@ -458,7 +458,7 @@ export const renderInspectionHistoryTable = (historyData) => {
 
     if (filteredData.length === 0) {
         html += `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400">
-            ${searchTerm ? `'${searchTerm}'에 대한 검색 결과가 없습니다.` : '선택한 유형에 해당하는 저장된 검수 이력이 없습니다.'}
+            ${escapeHtml(searchTerm ? `'${searchTerm}'에 대한 검색 결과가 없습니다.` : '선택한 유형에 해당하는 저장된 검수 이력이 없습니다.')}
         </td></tr>`;
     } else {
         filteredData.forEach(item => {
@@ -478,11 +478,11 @@ export const renderInspectionHistoryTable = (historyData) => {
                     </td>
                     <td class="px-6 py-4 text-center">
                         <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            ${item.totalInbound || 0}회
+                            ${escapeHtml(item.totalInbound || 0)}회
                         </span>
                     </td>
                     <td class="px-6 py-4 text-center font-mono text-xs text-gray-500">
-                        ${item.lastInspectionDate || '-'}
+                        ${escapeHtml(item.lastInspectionDate || '-')}
                     </td>
                     <td class="px-6 py-4">
                         ${formatDefectSummary(item.defectSummary)}
@@ -604,7 +604,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             rowsHtml += `
                 <tr class="bg-indigo-100/70 border-y border-indigo-200">
                     <td colspan="9" class="px-4 py-2 text-xs font-bold text-indigo-900">
-                        분류 (코드 / 옵션) : <span class="text-indigo-700">${groupKey}</span> 
+                        분류 (코드 / 옵션) : <span class="text-indigo-700">${escapeHtml(groupKey)}</span> 
                         <span class="text-gray-500 font-normal ml-2">(${group.length}건)</span>
                     </td>
                 </tr>
@@ -616,7 +616,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 const normalValues = ['정상', '양호', '동일', '없음', '해당없음'];
                 
                 if (cl.thickness) {
-                    checklistStr.push(`<span class="inline-block bg-white px-1.5 py-0.5 rounded text-[11px] text-gray-600 border border-gray-200 shadow-sm mr-1 mb-1">두께: <strong class="text-indigo-600">${cl.thickness}</strong></span>`);
+                    checklistStr.push(`<span class="inline-block bg-white px-1.5 py-0.5 rounded text-[11px] text-gray-600 border border-gray-200 shadow-sm mr-1 mb-1">두께: <strong class="text-indigo-600">${escapeHtml(cl.thickness)}</strong></span>`);
                 }
                 
                 const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
@@ -626,7 +626,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                         const cleanVal = String(val).trim();
                         const isDefect = !normalValues.includes(cleanVal);
                         const colorClass = isDefect ? 'text-red-700 bg-red-50 border-red-200 font-bold' : 'text-gray-600 bg-white border-gray-200';
-                        checklistStr.push(`<span class="inline-block ${colorClass} px-1.5 py-0.5 rounded text-[11px] border shadow-sm mb-1 mr-1">${labelMap[key]||key}: ${val}</span>`);
+                        checklistStr.push(`<span class="inline-block ${colorClass} px-1.5 py-0.5 rounded text-[11px] border shadow-sm mb-1 mr-1">${escapeHtml(labelMap[key]||key)}: ${escapeHtml(val)}</span>`);
                     }
                 });
 
@@ -639,8 +639,8 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                     ? `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">전량</span>`
                     : `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200 shadow-sm">샘플</span>`;
 
-                let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold mr-1">[${item.defects.join(', ')}]</span>` : '';
-                let noteText = item.note || '';
+                let defectText = item.defects && item.defects.length > 0 ? `<span class="text-red-600 font-bold mr-1">[${escapeHtml(item.defects.join(', '))}]</span>` : '';
+                let noteText = escapeHtml(item.note || '');
                 let fullNote = (defectText + noteText) || '<span class="text-gray-400">-</span>';
 
                 let imageHtml = '<span class="text-gray-300 text-xs">-</span>';
@@ -660,18 +660,18 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                 return `
                     <tr class="border-b border-indigo-100/50 hover:bg-white transition bg-white/40">
                         <td class="px-4 py-3 text-center">${typeBadge}</td>
-                        <td class="px-4 py-3 text-[11px] font-mono text-gray-500 whitespace-nowrap">${item.date}<br>${item.time}</td>
-                        <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${item.inboundDate || '-'}</td>
+                        <td class="px-4 py-3 text-[11px] font-mono text-gray-500 whitespace-nowrap">${escapeHtml(item.date)}<br>${escapeHtml(item.time)}</td>
+                        <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${escapeHtml(item.inboundDate || '-')}</td>
                         <td class="px-4 py-3 text-center">
-                            <div class="text-xs font-bold text-gray-700">${inboundQtyDisplay}</div>
-                            <div class="text-[11px] text-blue-600 font-bold">(샘플검수: ${sampleQtyDisplay}개)</div>
+                            <div class="text-xs font-bold text-gray-700">${escapeHtml(inboundQtyDisplay)}</div>
+                            <div class="text-[11px] text-blue-600 font-bold">(샘플검수: ${escapeHtml(sampleQtyDisplay)}개)</div>
                         </td>
                         <td class="px-4 py-3 text-center">${statusBadge}</td>
                         <td class="px-4 py-3 max-w-[300px] leading-tight">${checklistStr.join('') || '-'}</td>
                         <td class="px-4 py-3 text-xs text-gray-700 break-words max-w-[250px]">${fullNote}</td>
                         <td class="px-4 py-3 text-center">${imageHtml}</td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
-                            <button class="text-blue-600 hover:text-blue-800 text-[11px] font-bold px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-50 btn-edit-insp-log transition shadow-sm" data-index="${item.originalIndex}" data-product-name="${productName}">수정</button>
+                            <button class="text-blue-600 hover:text-blue-800 text-[11px] font-bold px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-50 btn-edit-insp-log transition shadow-sm" data-index="${escapeHtml(item.originalIndex)}" data-product-name="${escapeHtml(productName)}">수정</button>
                         </td>
                     </tr>
                 `;
@@ -684,7 +684,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
             <div class="p-4 bg-indigo-50/50 border-y border-indigo-200">
                 <div class="flex items-center justify-between mb-3">
                     <h4 class="font-bold text-indigo-900 text-sm flex items-center gap-2">
-                        ${headerTitle} <span class="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200">${productName}</span>
+                        ${escapeHtml(headerTitle)} <span class="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200">${escapeHtml(productName)}</span>
                     </h4>
                     <button class="text-xs text-gray-500 hover:text-gray-800 font-bold btn-close-expanded px-3 py-1 rounded hover:bg-gray-200 transition border border-gray-300 bg-white shadow-sm">닫기 ✖</button>
                 </div>
@@ -713,7 +713,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
         `;
     }
 
-    tr.innerHTML = `<td colspan="${colspan}" class="p-0 border-0 cursor-default">${logsHtml}</td>`;
+    tr.innerHTML = `<td colspan="${escapeHtml(colspan)}" class="p-0 border-0 cursor-default">${logsHtml}</td>`;
     targetTr.after(tr); 
 };
 
@@ -882,10 +882,10 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                     <label class="block text-xs font-bold text-gray-600 mb-1">조회 기간</label>
                     <select id="qc-period-value" class="border border-gray-300 rounded p-1.5 text-sm focus:ring-indigo-500 min-w-[120px]">
                         ${periodType === 'year'
-                            ? yearOptions.map(y => `<option value="${y}" ${selectedPeriod === y ? 'selected' : ''}>${y}년</option>`).join('')
+                            ? yearOptions.map(y => `<option value="${escapeHtml(y)}" ${selectedPeriod === y ? 'selected' : ''}>${escapeHtml(y)}년</option>`).join('')
                             : periodType === 'month' 
-                                ? monthOptions.map(m => `<option value="${m}" ${selectedPeriod === m ? 'selected' : ''}>${m}</option>`).join('')
-                                : weekOptions.map(w => `<option value="${w}" ${selectedPeriod === w ? 'selected' : ''}>${w}</option>`).join('')
+                                ? monthOptions.map(m => `<option value="${escapeHtml(m)}" ${selectedPeriod === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')
+                                : weekOptions.map(w => `<option value="${escapeHtml(w)}" ${selectedPeriod === w ? 'selected' : ''}>${escapeHtml(w)}</option>`).join('')
                         }
                     </select>
                 </div>
@@ -900,20 +900,20 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500">
                     <div class="text-xs text-gray-500 mb-1">총 검수 대상(입고) / 실제(샘플검수)</div>
                     <div class="text-xl font-bold text-gray-800">
-                        ${totalInspectedQty.toLocaleString()}<span class="text-sm font-normal text-gray-500">개</span> <span class="text-gray-300 mx-1">/</span> <span class="text-blue-600">${totalSampledQty.toLocaleString()}</span><span class="text-sm font-normal text-gray-500">개</span>
+                        ${escapeHtml(totalInspectedQty.toLocaleString())}<span class="text-sm font-normal text-gray-500">개</span> <span class="text-gray-300 mx-1">/</span> <span class="text-blue-600">${escapeHtml(totalSampledQty.toLocaleString())}</span><span class="text-sm font-normal text-gray-500">개</span>
                     </div>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
                     <div class="text-xs text-gray-500 mb-1">검수 상품 종류</div>
-                    <div class="text-2xl font-bold text-gray-800">${totalProductTypes.toLocaleString()} <span class="text-sm font-normal text-gray-500">종</span></div>
+                    <div class="text-2xl font-bold text-gray-800">${escapeHtml(totalProductTypes.toLocaleString())} <span class="text-sm font-normal text-gray-500">종</span></div>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
                     <div class="text-xs text-gray-500 mb-1">불량 발생 횟수 / 수량</div>
-                    <div class="text-xl font-bold text-red-600">${totalDefectCount.toLocaleString()}<span class="text-sm font-normal text-gray-500">회</span> <span class="text-gray-300 mx-1">/</span> ${totalDefectQty.toLocaleString()}<span class="text-sm font-normal text-gray-500">개</span></div>
+                    <div class="text-xl font-bold text-red-600">${escapeHtml(totalDefectCount.toLocaleString())}<span class="text-sm font-normal text-gray-500">회</span> <span class="text-gray-300 mx-1">/</span> ${escapeHtml(totalDefectQty.toLocaleString())}<span class="text-sm font-normal text-gray-500">개</span></div>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 ${countDefectRate > 10 ? 'border-red-500' : 'border-orange-500'}">
                     <div class="text-xs text-gray-500 mb-1">평균 불량률 (횟수 / 수량)</div>
-                    <div class="text-xl font-bold text-orange-600">${countDefectRate}<span class="text-sm font-normal text-gray-500">%</span> <span class="text-gray-300 mx-1">/</span> ${qtyDefectRate}<span class="text-sm font-normal text-gray-500">%</span></div>
+                    <div class="text-xl font-bold text-orange-600">${escapeHtml(countDefectRate)}<span class="text-sm font-normal text-gray-500">%</span> <span class="text-gray-300 mx-1">/</span> ${escapeHtml(qtyDefectRate)}<span class="text-sm font-normal text-gray-500">%</span></div>
                 </div>
             </div>
 
@@ -948,34 +948,34 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                                 <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">발견된 불량 내역이 없습니다.</td></tr>
                             ` : topDefectiveProducts.map((p, idx) => `
                                 <tr class="hover:bg-indigo-50/50 transition cursor-pointer btn-view-detail group" 
-                                    data-product-name="${p.name}" 
+                                    data-product-name="${escapeHtml(p.name)}" 
                                     data-is-qc-report="true"
-                                    data-qc-period-type="${periodType}"
-                                    data-qc-period-value="${selectedPeriod}"
+                                    data-qc-period-type="${escapeHtml(periodType)}"
+                                    data-qc-period-value="${escapeHtml(selectedPeriod)}"
                                     title="해당 기간의 불량 상세 이력 펼치기">
                                     <td class="px-4 py-3 font-medium text-gray-900 break-words max-w-[200px]">
                                         <span class="inline-block w-4 h-4 text-center rounded-full ${idx < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'} text-[11px] mr-1 leading-4">${idx + 1}</span>
-                                        <span class="group-hover:text-indigo-600 group-hover:underline transition-all">${p.name}</span>
+                                        <span class="group-hover:text-indigo-600 group-hover:underline transition-all">${escapeHtml(p.name)}</span>
                                     </td>
                                     
-                                    <td class="px-2 py-3 text-center text-gray-600 border-l bg-gray-50/30 group-hover:bg-transparent">${p.inspCount}회</td>
-                                    <td class="px-2 py-3 text-center font-bold text-red-600 bg-gray-50/30 group-hover:bg-transparent">${p.defectCount}회</td>
+                                    <td class="px-2 py-3 text-center text-gray-600 border-l bg-gray-50/30 group-hover:bg-transparent">${escapeHtml(p.inspCount)}회</td>
+                                    <td class="px-2 py-3 text-center font-bold text-red-600 bg-gray-50/30 group-hover:bg-transparent">${escapeHtml(p.defectCount)}회</td>
                                     <td class="px-2 py-3 text-center bg-gray-50/30 group-hover:bg-transparent">
                                         <span class="px-2 py-1 rounded text-[11px] font-bold ${p.countRate > 20 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
-                                            ${p.countRate}%
+                                            ${escapeHtml(p.countRate)}%
                                         </span>
                                     </td>
 
                                     <td class="px-2 py-3 text-center text-gray-500 border-l group-hover:bg-transparent">
-                                        <div class="text-xs font-bold text-gray-700">${p.totalQty.toLocaleString()}개</div>
-                                        <div class="text-[11px] text-blue-600 font-bold">(샘플: ${p.sampleQty.toLocaleString()}개)</div>
+                                        <div class="text-xs font-bold text-gray-700">${escapeHtml(p.totalQty.toLocaleString())}개</div>
+                                        <div class="text-[11px] text-blue-600 font-bold">(샘플: ${escapeHtml(p.sampleQty.toLocaleString())}개)</div>
                                     </td>
-                                    <td class="px-2 py-3 text-center text-orange-600 group-hover:bg-transparent">${p.defectQty}개</td>
+                                    <td class="px-2 py-3 text-center text-orange-600 group-hover:bg-transparent">${escapeHtml(p.defectQty)}개</td>
                                     <td class="px-2 py-3 text-center group-hover:bg-transparent">
-                                        <span class="text-[11px] text-gray-500">${p.qtyRate}%</span>
+                                        <span class="text-[11px] text-gray-500">${escapeHtml(p.qtyRate)}%</span>
                                     </td>
 
-                                    <td class="px-4 py-3 text-[11px] text-gray-500 break-words border-l max-w-[250px] group-hover:bg-transparent">${p.commonDefects}</td>
+                                    <td class="px-4 py-3 text-[11px] text-gray-500 break-words border-l max-w-[250px] group-hover:bg-transparent">${escapeHtml(p.commonDefects)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>

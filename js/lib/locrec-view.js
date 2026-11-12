@@ -15,7 +15,9 @@
 //   integrations/locRec_YYYYMMDD    { rowsJson: JSON 문자열 {schema, single:[행], swap:[행], pair:[행], back?:[행]}, metrics, basedOn:{stockDataAt, …}, warn }
 //                                     back = 뒤로 보내기(type 'back', recKey 'B:코드:자리', hist) — 서버가 켰을 때만(2026-11-10)
 //                                     행 = 로케이션추천\추천실행.mjs(js/lib/loc-recommend.js runRecommend) 출력 행 그대로
-//   locRecWork/marks                { marks:{recKey:{state: done|skip, by(직원 이름), at, applied?}} }   ← 직원이 쓴다
+//   locRecWork/marks                { marks:{recKey:{state: done|skip|blocked, by(직원 이름), at, applied?, alt?, block?}} }   ← 직원이 쓴다
+//                                     blocked = [처리함]이 도착 자리 문제로 막혀 '자리 막힘'(2026-11-12) — block {loc, reason}, 그날만 숨김(blockedToday).
+//                                     alt = 대신 자리로 처리함 {to}(applied.moves 의 도착이 그 자리)
 //                                     applied = {v:1, at(ms), day:'YYYYMMDD'(KST), moves:[{code, src, dst}], skipped:[{code, src, dst}]}
 //                                     ← [처리함]이 데이터 리스트(Locations) 상품 칸을 옮겼을 때만(2026-10-29, js/lib/locrec-apply.js · js/locrec-store.js).
 //                                       코드·자리 id 만. 없으면 '표시만'(옛 표시·반영 못 해 표시만 한 것). 서버 저장소.load_marks 는 state·at 만 읽는다.
@@ -32,8 +34,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611121547';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611121547';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611121915';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611121915';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -66,6 +68,34 @@ export function backReasonTitle(r) {
 }
 export const DAYS_SHOWN = 14;            // 날짜 선택 칸 수(결과 문서 보관 14일)
 export const SKIP_HIDE_DAYS = 30;        // '안 함' 은 30일 숨김
+/** [안 함] 뜻(2026-11-12 사용자 결정) — 서버(판정.hold_slots → node skipHold)가 그 상품을 그 자리에서 30일 후보로 안 낸다 */
+export const SKIP_HELP = '이 상품을 지금 자리에서 30일 동안 옮기라고 하지 않습니다(다른 자리 추천도 안 나옴)';
+/** '안 함' 되돌린 뒤 안내 — 서버는 다음 판부터 붙잡기를 푼다 */
+export const HOLD_UNDO_TEXT = "'안 함'을 되돌렸습니다 — 다음 다시 만들기·정기 계산부터 다시 추천됩니다.";
+export const HOLD_ROW_LABEL = '안 함(붙잡음)';
+const TYPE_OF_KEY = { S: 'single', W: 'swap', P: 'pair', B: 'back' };
+
+/**
+ * '안 함'으로 붙잡은 추천 → 표 '안 함도 보기' 줄(2026-11-12). 붙잡히면 서버 결과 행에서 빠지므로, 색인 holds(서버 판정.hold_list)로 보여 주고 [되돌리기]를 단다.
+ *   holds 칸이 없는 옛 색인은 open 의 state 'skip' 항목으로 대신한다(이미 운영에 있는 '안 함'도 같다).
+ *   지금 marks 에 그 키의 '안 함'이 있는 것만 — 표시를 지우면(되돌리기) 서버가 다음 판에 붙잡기를 풀므로 바로 줄을 뺀다. 기한(until)이 지났으면 뺀다.
+ * @returns {Array<{recKey, type, code, from, code2, from2, until}>} recKey 순
+ */
+export function holdRows({ latest, marks, todayKey }) {
+    const L = latest && typeof latest === 'object' ? latest : {};
+    const mk = marks || {};
+    const src = Array.isArray(L.holds) ? L.holds
+        : Object.entries(L.open || {}).filter(([, e]) => e && e.state === 'skip')
+            .map(([k, e]) => ({ recKey: k, type: e.type, code: e.code, from: e.from, code2: e.code2, from2: e.from2, until: e.skipUntil }));
+    const today = normDay(todayKey);
+    return src.filter(x => x && str(x.recKey) && (mk[str(x.recKey)] || {}).state === 'skip'
+                      && (!normDay(x.until) || !today || normDay(x.until) >= today))
+        .map(x => ({
+            recKey: str(x.recKey), type: TABS.includes(x.type) ? x.type : (TYPE_OF_KEY[str(x.recKey).charAt(0)] || 'single'),
+            code: str(x.code), from: str(x.from), code2: str(x.code2), from2: str(x.from2), until: normDay(x.until)
+        }))
+        .sort((a, b) => (a.recKey < b.recKey ? -1 : a.recKey > b.recKey ? 1 : 0));
+}
 export const MARK_STALE_DAYS = 7;        // '처리함' 표시 뒤 7일 안에 서버가 위치 변화를 못 보면 '위치 미반영'
 export const LOC_OLD_DAYS = 3;           // 재고 자료가 3일 넘게 오래되면 경고
 const p2 = (n) => String(n).padStart(2, '0');
@@ -432,6 +462,48 @@ export function movedToday(marks, todayKey) {
     return out;
 }
 
+/** 도착 자리가 막혀 [처리함]을 못 한 줄 — 그날만 숨긴다(다음 날·다른 도착 자리로 다시 나온 줄은 다시 보인다) */
+export const BLOCKED_LABEL = '자리 막힘';
+
+/**
+ * '자리 막힘' 표시가 이 줄에 오늘 유효한가 — state 'blocked' · 표시한 날(KST)이 오늘(시각이 아직 없으면 오늘로) ·
+ *   block.loc 이 이 줄의 도착(to·to2) 중 하나(페어 P:·뒤로 보내기 B: 키는 도착이 키에 없어 다시 만든 줄이 같은 키로 올 수 있다 —
+ *   그때 도착이 다르면 막힘이 아니다). block.loc 이 없으면 줄 전체로 본다.
+ */
+export function blockedToday(mark, row, todayKey) {
+    if (!mark || mark.state !== 'blocked') return false;
+    const at = tsMs(mark.at);
+    if (at && dayKey(at) !== todayKey) return false;
+    const loc = str(mark.block && mark.block.loc).trim();
+    if (!loc || !row) return true;
+    return [row.to, row.to2].some(t => str(t).trim() === loc);
+}
+
+/**
+ * 오늘 판의 예정 자리 — 아직 처리 안 한 단독·페어·뒤로 보내기가 상품을 넣기로 한 빈 자리 → Map<자리 id, {recKey, code}>.
+ *   입고대기 추천·빈칸 엑셀은 이 자리를 빼고, 당일지정은 확인창으로 알린다(js/location.js, 2026-11-12). 맞바꾸기는 서로의 자리라 뺀다.
+ *   '처리 안 함' = 이월 아님 · 표시 없음(처리함·안 함·막힘) · 숨김 아님 · 서버 처리됨·만료·자리 바뀜 아님 · 오늘 다른 추천으로 옮긴 상품·자리 겹침 아님.
+ *   key 가 처음 보여 주는 날짜(defaultDay — [처리함]을 누를 수 있는 날)가 아니면 빈 Map.
+ */
+export function plannedSlots({ latest, key, todayKey, parsed, marks, nowMs }) {
+    const out = new Map();
+    if (!parsed || parsed.error || !key || key !== defaultDay(latest, todayKey)) return out;
+    const open = (latest && latest.open) || {};
+    const mk = marks || {};
+    const moved = movedToday(mk, todayKey);
+    const no = new Set(['처리됨', '만료', '자리 바뀜']);
+    ['single', 'pair', 'back'].forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
+        if (!r || r.carried) return;
+        const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs, moved });
+        if (st.hidden || st.mark || st.other || st.taken || no.has(st.label)) return;
+        [[r.to, r.code], [t === 'pair' ? r.to2 : null, r.code2]].forEach(([to, code]) => {
+            const id = str(to).trim();
+            if (id && !out.has(id)) out.set(id, { recKey: r.recKey, code: str(code) });
+        });
+    }));
+    return out;
+}
+
 /**
  * 행 상태 — 서버 판정이 우선, 그다음 직원 표시.
  *   '안 함' 숨김: 서버 open[recKey] 가 state 'skip' 이고 skipUntil(YYYYMMDD) 이 오늘 이후면 숨김(서버 기준).
@@ -446,6 +518,7 @@ export function movedToday(marks, todayKey) {
 export function rowState({ row, open, mark, viewDay, todayKey, nowMs, moved }) {
     const o = open || null;
     const today = todayKey || dayKey(nowMs);
+    const blk = blockedToday(mark, row, today) ? mark : null;      // '자리 막힘'(2026-11-12) — 그날만 숨긴다
     let m = mark && (mark.state === 'done' || mark.state === 'skip') ? mark : null;
     const markDay = m && tsMs(m.at) ? dayKey(tsMs(m.at)) : '';
     if (m && o && markDay && normDay(o.firstDay) && normDay(o.firstDay) > markDay) m = null;
@@ -455,6 +528,7 @@ export function rowState({ row, open, mark, viewDay, todayKey, nowMs, moved }) {
     if (o && o.state === 'skip' && (!normDay(o.skipUntil) || normDay(o.skipUntil) >= today)) {
         return { label: '안 함', tone: 'muted', hidden: true, mark: m };
     }
+    if (blk) return { label: BLOCKED_LABEL, tone: 'muted', hidden: true, mark: blk, blocked: true };
     if (m && m.state === 'skip') {
         const live = !tsMs(m.at) || markAgeDays <= SKIP_HIDE_DAYS;
         return { label: '안 함', tone: 'muted', hidden: live, mark: m };
@@ -646,25 +720,26 @@ export function tabCarried(parsed) {
 }
 
 /**
- * 펼친 본문 요약 줄 '단독 n · 맞바꾸기 n · 페어 n, 새로 k' → { counts:{single,swap,pair}, total, newN, hiddenN }
- *   counts·total·newN 은 숨기지 않은('안 함' 아닌) 행만 — 띠 건수(stripRows)와 같은 기준. hiddenN = 숨긴 행 수(세 탭 합).
+ * 펼친 본문 요약 줄 '단독 n · 맞바꾸기 n · 페어 n, 새로 k' → { counts:{single,swap,pair}, total, newN, hiddenN, blockedN }
+ *   counts·total·newN 은 숨기지 않은('안 함' 아닌) 행만 — 띠 건수(stripRows)와 같은 기준. hiddenN = '안 함'으로 숨긴 행 수(세 탭 합),
+ *   blockedN = '자리 막힘'으로 오늘 숨긴 행 수.
  */
 export function tabSummary({ latest, key, todayKey, parsed, marks, nowMs }) {
     const counts = Object.fromEntries(TABS.map(t => [t, 0]));
-    if (!parsed) return { counts, total: 0, newN: 0, hiddenN: 0 };
+    if (!parsed) return { counts, total: 0, newN: 0, hiddenN: 0, blockedN: 0 };
     const open = (latest && latest.open) || {};
     const mk = marks || {};
     const moved = movedToday(mk, todayKey || dayKey(nowMs));
-    let newN = 0, hiddenN = 0;
+    let newN = 0, hiddenN = 0, blockedN = 0;
     TABS.forEach(t => (Array.isArray(parsed[t]) ? parsed[t] : []).forEach(r => {
         if (r.carried) return;                                     // 이월 행은 요약에서 뺀다
         const st = rowState({ row: r, open: open[r.recKey], mark: mk[r.recKey], viewDay: key, todayKey, nowMs, moved });
         if (st.other || st.taken) return;                          // 오늘 다른 추천으로 옮긴 상품·자리 겹침 — 띠 건수와 같게 뺀다
-        if (st.hidden) { hiddenN++; return; }
+        if (st.hidden) { if (st.blocked) blockedN++; else hiddenN++; return; }   // 자리 막힘은 따로 센다(2026-11-12)
         counts[t]++;
         if (st.label === '새로') newN++;
     }));
-    return { counts, total: TABS.reduce((s, t) => s + counts[t], 0), newN, hiddenN };
+    return { counts, total: TABS.reduce((s, t) => s + counts[t], 0), newN, hiddenN, blockedN };
 }
 
 /**
@@ -693,11 +768,13 @@ export function tabMeta(tab, items) {
     const cnt = (f) => list.filter(x => x && x.st && f(x.st)).length;
     const done = cnt(s => s.label === '처리됨');
     const marked = cnt(s => s.label === '처리함 표시' || s.label === '표시는 됐지만 위치 미반영' || s.label === OTHER_MOVED_LABEL);
-    const hidden = cnt(s => s.hidden);
+    const blocked = cnt(s => s.hidden && s.blocked);
+    const hidden = cnt(s => s.hidden && !s.blocked);
     const parts = [`${TAB_LABEL[tab] || TAB_LABEL.single} ${list.length}행`];
     if (done) parts.push(`처리됨 ${done}`);
     if (marked) parts.push(`처리함 표시 ${marked}`);
     if (hidden) parts.push(`안 함 ${hidden}(숨김)`);
+    if (blocked) parts.push(`${BLOCKED_LABEL} ${blocked}(오늘 숨김)`);
     return parts.join(' · ');
 }
 

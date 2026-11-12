@@ -1,6 +1,7 @@
 // === js/history-excel-reports.js ===
-import { formatDuration, formatTimeTo24H, showToast } from './utils.js?v=202611121547';
-import { fitToColumn } from './history-excel-utils.js?v=202611121547';
+import { formatDuration, formatTimeTo24H, showToast } from './utils.js?v=202611121915';
+import { fitToColumn } from './history-excel-utils.js?v=202611121915';
+import { csvSafeSheet } from './lib/csv-safe.js?v=202611121915';
 
 export const downloadReportExcel = (reportData, format = 'xlsx') => {
     if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
@@ -20,6 +21,7 @@ export const downloadReportExcel = (reportData, format = 'xlsx') => {
 
         if (format === 'csv') {
             XLSX.utils.book_append_sheet(workbook, wsTask, '업무별 상세');
+            csvSafeSheet(wsTask);   // = + - @ 로 시작하는 글자 칸이 수식으로 열리지 않게
             XLSX.writeFile(workbook, `${title.replace(/ /g, '_')}.csv`);
             return;
         }
@@ -77,6 +79,7 @@ export const downloadPersonalReportExcel = (reportData, format = 'xlsx') => {
 
         if (format === 'csv') {
             XLSX.utils.book_append_sheet(workbook, wsLog, '일자별 활동');
+            csvSafeSheet(wsLog);   // = + - @ 로 시작하는 글자 칸이 수식으로 열리지 않게
             XLSX.writeFile(workbook, `${title.replace(/ /g, '_')}.csv`);
             return;
         }

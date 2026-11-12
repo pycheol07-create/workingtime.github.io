@@ -2,10 +2,10 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611121547"></script>
-    <link rel="stylesheet" href="css/suit.css?v=202611121547">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611121547">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611121547">
+    <script src="js/theme-boot.js?v=202611121915"></script>
+    <link rel="stylesheet" href="css/suit.css?v=202611121915">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611121915">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611121915">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -232,18 +232,19 @@
     <div id="toast"></div>
     <div id="undo-toast" role="status" aria-live="polite"><span id="undo-toast-msg"></span><button type="button" id="undo-toast-btn">되돌리기</button></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="js/location-map.js?v=202611121547"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js" integrity="sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="js/location-map.js?v=202611121915"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202611121547'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202611121547';   // 공통 상단바(uid 만 — 메뉴는 캐시)
-        import { checkProductCode } from './js/lib/product-code.js?v=202611121547';  // 위치지정 상품코드 'S+숫자6자리' 판정
-        import { availWithMine, myHoldsOf, heldByOthers, planTake, allocOf, staleHoldIds, floor2Step, isSplitItem, newHoldId, pendingExpired, HOLD_PENDING_MAX_MS } from './js/lib/scan-hold.js?v=202611121547'; // [Ver 10.7] 미발 동시 스캔 방지
-        import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=202611121547'; // 위치지정 건별 기록(문서 모양)
-        import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=202611121547'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202611121915'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202611121915';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { checkProductCode } from './js/lib/product-code.js?v=202611121915';  // 위치지정 상품코드 'S+숫자6자리' 판정
+        import { availWithMine, myHoldsOf, heldByOthers, planTake, allocOf, staleHoldIds, floor2Step, isSplitItem, newHoldId, pendingExpired, HOLD_PENDING_MAX_MS } from './js/lib/scan-hold.js?v=202611121915'; // [Ver 10.7] 미발 동시 스캔 방지
+        import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=202611121915'; // 위치지정 건별 기록(문서 모양)
+        import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=202611121915'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
+        import { escapeHtml } from './js/utils.js?v=202611121915';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
 
         const SCAN_VERSION = '10.9'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -258,13 +259,20 @@
             localStorage.removeItem('scanServerCfg');
             serverCfg = null;
         }
-        if (params.get('projectId') && params.get('apiKey')) {
-            serverCfg = {
-                label: params.get('label') || params.get('projectId'),
-                projectId: params.get('projectId'), apiKey: params.get('apiKey'),
-                appId: params.get('appId') || '', messagingSenderId: params.get('messagingSenderId') || ''
-            };
-            localStorage.setItem('scanServerCfg', JSON.stringify(serverCfg));
+        // [2026-11-12 보안] 서버는 허용 목록(운영 프로젝트 하나 = js/china-stock-config.js)만. 주소·QR 로 다른 프로젝트를 넣으면
+        //   스캔 결과가 남의 서버로 가고 그 서버가 로그인 화면을 흉내 낼 수 있다. 허용 프로젝트도 넘겨받은 apiKey 등은 쓰지 않고
+        //   기본 설정 그대로 연다(= 저장할 것이 없다). 저장된 옛 값도 지운다.
+        const ALLOWED_PROJECTS = [firebaseConfig.projectId];
+        if (serverCfg) {
+            if (!ALLOWED_PROJECTS.includes(serverCfg.projectId)) console.warn('[scan] 허용되지 않은 서버 설정을 지웠습니다');
+            localStorage.removeItem('scanServerCfg');
+            serverCfg = null;
+        }
+        if (params.get('projectId') || params.get('apiKey')) {
+            if (!ALLOWED_PROJECTS.includes(params.get('projectId'))) {
+                console.warn('[scan] 허용되지 않은 서버 주소라 무시했습니다');
+                alert('허용되지 않은 서버 주소라 무시했습니다. 기본 서버로 엽니다.');
+            }
             history.replaceState(null, '', location.pathname);
         }
         const activeCfg = serverCfg
@@ -284,7 +292,7 @@
             if (scanWorkerLoading) return;
             scanWorkerLoading = true;
             try {
-                const { memberNameFor } = await import('./js/app-shell-data.js?v=202611121547');
+                const { memberNameFor } = await import('./js/app-shell-data.js?v=202611121915');
                 const snap = await getDoc(doc(db, 'artifacts/team-work-logger-v2/config/mainConfig'));
                 const cu = getAuth(app).currentUser;
                 if (cu && cu.uid === user.uid) { scanWorkerName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email) || ''; scanWorkerRead = true; }
@@ -573,10 +581,10 @@
             if (raw.startsWith('{') && raw.includes('fb-server')) {
                 try { const c = JSON.parse(raw);
                     if (c && c.type === 'fb-server') {
-                        localStorage.setItem('scanServerCfg', JSON.stringify(c));
-                        speak('서버 연결됨');
-                        alert('서버 연결: ' + (c.label || c.projectId) + '\n페이지를 다시 불러옵니다.');
-                        location.reload(); return;
+                        // 허용 목록 밖 서버는 저장하지 않는다(위 '서버 선택' 참고). 허용 서버면 이미 그 서버라 할 일이 없다.
+                        if (ALLOWED_PROJECTS.includes(c.projectId)) alert('이미 기본 서버(' + firebaseConfig.projectId + ')에 연결되어 있습니다.');
+                        else { console.warn('[scan] 허용되지 않은 서버 QR 을 무시했습니다'); alert('허용되지 않은 서버 QR 이라 무시했습니다.'); }
+                        resumeScan(); return;
                     }
                 } catch (e) {}
             }
@@ -1321,10 +1329,10 @@
                 return `
                 <div class="qitem">
                     <div class="qinfo">
-                        <div class="qcode">${it.barcode}</div>
-                        <div class="qsub">${holdTag}${mode === 'loc' && it.sub === 'existing' ? '<span class="qtag-ex">기존재고</span>' : ''}${label ? (label === '목록없음' && !it.name ? '<span style="color:var(--c-risk-text);font-weight:800">목록없음</span>' : label) + ' · ' : ''}${it.location} · ${it.time}</div>
+                        <div class="qcode">${escapeHtml(it.barcode)}</div>
+                        <div class="qsub">${holdTag}${mode === 'loc' && it.sub === 'existing' ? '<span class="qtag-ex">기존재고</span>' : ''}${label ? (label === '목록없음' && !it.name ? '<span style="color:var(--c-risk-text);font-weight:800">목록없음</span>' : escapeHtml(label)) + ' · ' : ''}${escapeHtml(it.location)} · ${escapeHtml(it.time)}</div>
                     </div>
-                    ${mode === 'in' ? `<div class="qqty">${it.qty}개</div>` : ''}
+                    ${mode === 'in' ? `<div class="qqty">${escapeHtml(it.qty)}개</div>` : ''}
                     <button class="qdel" data-i="${i}" aria-label="삭제"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block; margin:3.5px 0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
                 </div>`;
             }).join('');
@@ -1435,7 +1443,7 @@
                 if (info.web && info.web !== SCAN_VERSION) {
                     const b = $('update-banner');
                     if (b.style.display !== 'block') {
-                        b.innerHTML = `새 버전(Ver ${info.web}) 배포됨 `;
+                        b.innerHTML = `새 버전(Ver ${escapeHtml(info.web)}) 배포됨 `;
                         const btn = document.createElement('button');
                         btn.textContent = '지금 새로고침'; btn.onclick = () => location.reload();
                         b.appendChild(btn); b.style.display = 'block';
@@ -1532,7 +1540,7 @@
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/page-gate.js?v=202611121547" data-perm-page="scan.view" data-perm-app="scanApp"></script>
-    <script type="module" src="js/app-shell.js?v=202611121547"></script>
+    <script type="module" src="js/page-gate.js?v=202611121915" data-perm-page="scan.view" data-perm-app="scanApp"></script>
+    <script type="module" src="js/app-shell.js?v=202611121915"></script>
 </body>
 </html>

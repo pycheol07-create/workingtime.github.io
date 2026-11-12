@@ -2,7 +2,7 @@
 // 🔒 페이지 입장 가드 (권한 개편 5단계, 2026-10-19 — 설계 4.3)
 //
 // 쓰는 법 — 각 페이지에 한 줄, 공통 상단바(app-shell.js) 스크립트 바로 앞에:
-//   <script type="module" src="js/page-gate.js?v=202611121547" data-perm-page="location.view"></script>
+//   <script type="module" src="js/page-gate.js?v=202611121915" data-perm-page="location.view"></script>
 //   이름 붙은 Firebase 앱을 쓰는 페이지(scan.html)는 data-perm-app="scanApp" 을 더한다.
 //   ⚠️ 주소 뒤 ?f=… 로 넘기지 않는다 — 배포.py 가 내부 .js 주소의 ? 뒤를 ?v=빌드번호 로 갈아 끼워 값이 사라진다.
 //   data-perm-page 가 없으면 주소(파일 이름)로 기능을 찾는다(js/lib/perm-gate.js pageFeatureFromPath).
@@ -27,10 +27,10 @@
 import { getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { resolve, can } from './lib/perm.js?v=202611121547';
-import { featureLabel, isFeatureId } from './lib/feature-catalog.js?v=202611121547';
+import { resolve, can } from './lib/perm.js?v=202611121915';
+import { featureLabel, isFeatureId } from './lib/feature-catalog.js?v=202611121915';
 import { enforceModeOf, gateDecision, pageFeatureFromPath, hitDayKey, HIT_KEY_RE, HIT_COLLECTION,
-    isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE } from './lib/perm-gate.js?v=202611121547';
+    isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE } from './lib/perm-gate.js?v=202611121915';
 
 const APP_ID = 'team-work-logger-v2';
 const MAIN_PROJECT = 'work-tool-e2943';     // 다른 서버를 고른 스캐너(scan.html QR 설정)는 가드하지 않는다
@@ -75,7 +75,7 @@ const showOverlay = (html) => {
         el.style.cssText = BASE_STYLE;
         document.body.appendChild(el);
     }
-    el.innerHTML = `<div style="${INNER_STYLE}">${html}</div>`;
+    el.innerHTML = `<div style="${esc(INNER_STYLE)}">${html}</div>`;
     document.documentElement.classList.add('perm-gate-lock');
     document.documentElement.style.overflow = 'hidden';
     return el;
@@ -110,7 +110,7 @@ const deniedText = () => `이 화면은 「${esc(featureLabel(FEATURE))}」 권�
 const showBlocked = () => showOverlay(`
     <div style="font-size:17px; font-weight:700;">권한이 필요합니다</div>
     <div style="font-size:13px; color:var(--c-text-2,#646B75); line-height:1.7;">${deniedText()}</div>
-    <a href="${esc(HOME)}" style="${LINK_STYLE}">대시보드로 가기</a>`);
+    <a href="${esc(HOME)}" style="${esc(LINK_STYLE)}">대시보드로 가기</a>`);
 
 const showWarn = () => showBanner(`${deniedText()} <span style="font-weight:400;">(지금은 안내만 합니다)</span>`);
 
@@ -118,11 +118,11 @@ const showWarn = () => showBanner(`${deniedText()} <span style="font-weight:400;
 const showFailed = (retry) => {
     const msg = '권한을 확인하지 못했습니다.';
     const el = (readMode() === 'block')
-        ? showOverlay(`<div style="font-size:16px; font-weight:700;">${msg}</div>
+        ? showOverlay(`<div style="font-size:16px; font-weight:700;">${esc(msg)}</div>
               <div style="font-size:12.5px; color:var(--c-text-2,#646B75);">인터넷 연결을 확인한 뒤 다시 시도해 주세요.</div>
-              <button type="button" data-perm-gate-retry style="${BTN_STYLE}">다시 시도</button>
-              <a href="${esc(HOME)}" style="${LINK_STYLE}">대시보드로 가기</a>`)
-        : showBanner(`${msg} <button type="button" data-perm-gate-retry
+              <button type="button" data-perm-gate-retry style="${esc(BTN_STYLE)}">다시 시도</button>
+              <a href="${esc(HOME)}" style="${esc(LINK_STYLE)}">대시보드로 가기</a>`)
+        : showBanner(`${esc(msg)} <button type="button" data-perm-gate-retry
               style="margin-left:6px; border:1px solid currentColor; background:transparent; color:inherit; border-radius:999px;
                      padding:1px 10px; font:inherit; cursor:pointer;">다시 시도</button>`);
     el.querySelector('[data-perm-gate-retry]')?.addEventListener('click', retry);

@@ -16,48 +16,48 @@
 // 금액·직원 이름 없음 — 휴무는 '수'만 받는다. 콘솔에도 이름·금액·문서 본문을 찍지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자).
 
-import * as State from './state.js?v=202611121547';
-import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611121547';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611121547';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611121547';
-import { taskNameOf } from './lib/task-ids.js?v=202611121547';
-import { buildWeekPlan } from './lib/plan-build.js?v=202611121547';
-import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611121547';
-import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611121547';
-import { planDocId, confirmDocOf, planVsActual, monthErrsOf, monthConfirmYms, monthConfirmsOf } from './lib/plan-compare.js?v=202611121547';
-import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611121547';
-import { fetchPlannedData } from './history-data-manager.js?v=202611121547';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611121547';
-import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611121547';
-import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611121547';
-import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611121547';
-import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611121547';
-import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=202611121547';
-import { namesLeak } from './lib/plan-skills.js?v=202611121547';
-import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=202611121547';
-import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=202611121547';
-import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=202611121547';
-import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=202611121547';
-import { simRowsOf } from './lib/plan-sim.js?v=202611121547';
-import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=202611121547';
-import { COST_DOC } from './ops-plan-store.js?v=202611121547';
-import { recordRateOf } from './lib/plan-confidence.js?v=202611121547';
-import { loadMonthlies, autoBuildMonthlies, rebuildMonth } from './ops-monthly-store.js?v=202611121547';
-import { finishedMonths } from './lib/plan-monthly.js?v=202611121547';
-import { buildQuarterPlan, nextQuarterOf } from './lib/plan-quarter.js?v=202611121547';
-import { seasonCalendar, bundleForecast } from './lib/plan-season.js?v=202611121547';
-import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=202611121547';
-import { buildAutomationRoadmap } from './lib/plan-automation.js?v=202611121547';
-import { buildDataGaps } from './lib/plan-data-gaps.js?v=202611121547';
-import { cleanYearDocSections, YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=202611121547';
-import { quarterBodyHtml } from './ui-ops-plan-quarter.js?v=202611121547';
-import { yearDocHtml, readYearDocInputs } from './ui-ops-plan-yeardoc.js?v=202611121547';
-import { saveYearDoc } from './ops-plan-store.js?v=202611121547';
-import { listItems, createItem, updateItem, itemLog, claimOverdueNotice } from './ops-plan-items-store.js?v=202611121547';
-import { makeButton, draftOf, itemsCardHtml, logHtml, openGoalsEditor, closeGoalsEditor } from './ui-ops-plan-items.js?v=202611121547';
-import { isOverdue, pickOverdueNotices, OVERDUE_MESSAGE } from './lib/plan-items.js?v=202611121547';
-import { actualsOf } from './lib/plan-cascade.js?v=202611121547';
-import { sendNotification } from './app-notifications.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611121915';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611121915';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611121915';
+import { taskNameOf } from './lib/task-ids.js?v=202611121915';
+import { buildWeekPlan } from './lib/plan-build.js?v=202611121915';
+import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611121915';
+import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611121915';
+import { planDocId, confirmDocOf, planVsActual, monthErrsOf, monthConfirmYms, monthConfirmsOf } from './lib/plan-compare.js?v=202611121915';
+import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611121915';
+import { fetchPlannedData } from './history-data-manager.js?v=202611121915';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611121915';
+import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611121915';
+import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611121915';
+import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611121915';
+import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611121915';
+import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=202611121915';
+import { namesLeak } from './lib/plan-skills.js?v=202611121915';
+import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=202611121915';
+import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=202611121915';
+import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=202611121915';
+import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=202611121915';
+import { simRowsOf } from './lib/plan-sim.js?v=202611121915';
+import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=202611121915';
+import { COST_DOC } from './ops-plan-store.js?v=202611121915';
+import { recordRateOf } from './lib/plan-confidence.js?v=202611121915';
+import { loadMonthlies, autoBuildMonthlies, rebuildMonth } from './ops-monthly-store.js?v=202611121915';
+import { finishedMonths } from './lib/plan-monthly.js?v=202611121915';
+import { buildQuarterPlan, nextQuarterOf } from './lib/plan-quarter.js?v=202611121915';
+import { seasonCalendar, bundleForecast } from './lib/plan-season.js?v=202611121915';
+import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=202611121915';
+import { buildAutomationRoadmap } from './lib/plan-automation.js?v=202611121915';
+import { buildDataGaps } from './lib/plan-data-gaps.js?v=202611121915';
+import { cleanYearDocSections, YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=202611121915';
+import { quarterBodyHtml } from './ui-ops-plan-quarter.js?v=202611121915';
+import { yearDocHtml, readYearDocInputs } from './ui-ops-plan-yeardoc.js?v=202611121915';
+import { saveYearDoc } from './ops-plan-store.js?v=202611121915';
+import { listItems, createItem, updateItem, itemLog, claimOverdueNotice } from './ops-plan-items-store.js?v=202611121915';
+import { makeButton, draftOf, itemsCardHtml, logHtml, openGoalsEditor, closeGoalsEditor } from './ui-ops-plan-items.js?v=202611121915';
+import { isOverdue, pickOverdueNotices, OVERDUE_MESSAGE } from './lib/plan-items.js?v=202611121915';
+import { actualsOf } from './lib/plan-cascade.js?v=202611121915';
+import { sendNotification } from './app-notifications.js?v=202611121915';
 
 const $ = (id) => document.getElementById(id);
 const isAdmin = () => !!(State.appState && State.appState.currentUserRole === 'admin');
@@ -205,21 +205,21 @@ function headHtml(p, per, confirmed) {
             : confirmed ? `확정본 v${confirmed.version}${confirmed.confirmedAt && confirmed.confirmedAt.toDate ? ` · ${fmtDay(ymd(confirmed.confirmedAt.toDate()))} 확정` : ''} — 아래는 지금 다시 계산한 값입니다`
                 : '아직 확정하지 않은 미리보기입니다';
     const confBtn = isAdmin()
-        ? `<button type="button" id="ops-plan-confirm-btn" class="ops-make-btn opp-noprint" title="지금 계획을 확정본으로 저장합니다(다시 확정하면 버전 + 1)">${confirmed ? `다시 확정(v${(confirmed.version || 0) + 1})` : '계획 확정'}</button>` : '';
+        ? `<button type="button" id="ops-plan-confirm-btn" class="ops-make-btn opp-noprint" title="지금 계획을 확정본으로 저장합니다(다시 확정하면 버전 + 1)">${esc(confirmed ? `다시 확정(v${(confirmed.version || 0) + 1})` : '계획 확정')}</button>` : '';
     // 신뢰도 v2 — 근거(reasons)와 올리려면(nextUpgrade)
     const confNote = (horizon === 'quarter' ? '연간 어림을 따름 · ' : '') + (c.reasons || []).join(' · ') + (c.nextUpgrade ? ` · 올리려면(${c.nextUpgrade.when}): ${c.nextUpgrade.need}` : '');
     return `<div class="opp-head">
         <div class="ops-tabs opp-gran" aria-label="계획 기간">
-            <button type="button" class="ops-tab${horizon === 'week' ? ' is-on' : ''}" data-plan-horizon="week" aria-pressed="${horizon === 'week'}">주간</button>
-            <button type="button" class="ops-tab${horizon === 'month' ? ' is-on' : ''}" data-plan-horizon="month" aria-pressed="${horizon === 'month'}">월간</button>
-            <button type="button" class="ops-tab${horizon === 'quarter' ? ' is-on' : ''}" data-plan-horizon="quarter" aria-pressed="${horizon === 'quarter'}">분기</button>
-            <button type="button" class="ops-tab${horizon === 'year' ? ' is-on' : ''}" data-plan-horizon="year" aria-pressed="${horizon === 'year'}">연간 계획서</button>
+            <button type="button" class="ops-tab${horizon === 'week' ? ' is-on' : ''}" data-plan-horizon="week" aria-pressed="${esc(horizon === 'week')}">주간</button>
+            <button type="button" class="ops-tab${horizon === 'month' ? ' is-on' : ''}" data-plan-horizon="month" aria-pressed="${esc(horizon === 'month')}">월간</button>
+            <button type="button" class="ops-tab${horizon === 'quarter' ? ' is-on' : ''}" data-plan-horizon="quarter" aria-pressed="${esc(horizon === 'quarter')}">분기</button>
+            <button type="button" class="ops-tab${horizon === 'year' ? ' is-on' : ''}" data-plan-horizon="year" aria-pressed="${esc(horizon === 'year')}">연간 계획서</button>
         </div>
-        <span class="opv-note">${range} · ${esc(conf)}</span>
+        <span class="opv-note">${esc(range)} · ${esc(conf)}</span>
         <span class="opp-head-btns">${confBtn}<button type="button" id="ops-plan-print-btn" class="opv-btn opp-noprint" title="지금 보이는 계획서를 인쇄합니다(인쇄 창에서 PDF 로 저장 가능)">인쇄 / PDF</button></span>
     </div>
     <div class="opp-conf">
-        <span class="opv-chip ${CONF_CHIP[c.level] || ''}">신뢰도 ${esc(c.label)}</span>
+        <span class="opv-chip ${esc(CONF_CHIP[c.level] || '')}">신뢰도 ${esc(c.label)}</span>
         <span class="opv-note">${esc(confNote)}</span>
     </div>`;
 }
@@ -232,12 +232,12 @@ function daysHtml(p) {
         if (!d.hasRow || d.failed) return `<tr><td>${fmtDay(d.date)}</td><td colspan="8" class="opv-note">${d.failed ? '업무 예상 계산에 실패했습니다' : '업무 예상 범위 밖이라 숫자가 없습니다'}</td></tr>`;
         const short = d.gap < 0;
         const gapTxt = d.gap === 0 ? '적정' : d.gap > 0 ? `+${d.gap}명` : `${d.gap}명`;
-        const use = d.spareFTE > 0 ? `${d.recommend}명 <span class="opv-note">(교육·정리 ${d.spareFTE}명)</span>` : `${d.recommend}명`;
+        const use = d.spareFTE > 0 ? `${esc(d.recommend)}명 <span class="opv-note">(교육·정리 ${esc(d.spareFTE)}명)</span>` : `${d.recommend}명`;
         return `<tr class="${short ? 'is-short' : ''}">
-            <td>${fmtDay(d.date)}</td><td class="r">${n1(d.demandHours)}</td><td class="r">${n1(d.reqFTE)}</td>
-            <td class="r">${d.supplyFTE}명${d.leaveCount ? ` <span class="opv-note">(휴무 ${d.leaveCount})</span>` : ''}</td>
-            <td class="r"><b class="${short ? 'opv-down' : d.gap > 0 ? 'opv-up' : 'opv-flat'}">${gapTxt}</b></td>
-            <td class="r">${pct0(d.fillRate)}</td><td class="r">${use}</td>
+            <td>${fmtDay(d.date)}</td><td class="r">${esc(n1(d.demandHours))}</td><td class="r">${esc(n1(d.reqFTE))}</td>
+            <td class="r">${esc(d.supplyFTE)}명${d.leaveCount ? ` <span class="opv-note">(휴무 ${esc(d.leaveCount)})</span>` : ''}</td>
+            <td class="r"><b class="${esc(short ? 'opv-down' : d.gap > 0 ? 'opv-up' : 'opv-flat')}">${esc(gapTxt)}</b></td>
+            <td class="r">${esc(pct0(d.fillRate))}</td><td class="r">${use}</td>
             <td>${short ? esc(fillText(d.fill)) || '—' : '—'}</td>
             <td><span class="opv-chip ${d.hasPlanned ? 'is-warn' : ''}" title="${d.hasPlanned ? '저장해 둔 예정 물량으로 계산' : '예정 물량이 없어 실적 기반 추정'}">${d.hasPlanned ? '예정' : '추정'}</span></td>
         </tr>`;
@@ -258,7 +258,7 @@ function fillTotalsHtml(p) {
         ${kpi('③ 알바', n0(T.tempPeople), '명·일', `${n1(T.temp)}시간 · 요청 후 ${n0(T.leadDays.temp)}일`)}
     </div>
     <p class="opv-note opp-law">${esc(OVERTIME_LAW_NOTE)}</p>
-    <p class="opv-note">지금 기준: 1인 하루 연장 ${n1(S.overtimeDailyMax)}시간 · 주 ${n1(S.overtimeWeeklyMax)}시간, 알바 1인일 ${n1(S.stdHours)}시간 · 요청 후 ${n0(S.tempLeadDays)}일(관리자 [비용·설정]에서 바꿈).</p>`,
+    <p class="opv-note">지금 기준: 1인 하루 연장 ${esc(n1(S.overtimeDailyMax))}시간 · 주 ${esc(n1(S.overtimeWeeklyMax))}시간, 알바 1인일 ${esc(n1(S.stdHours))}시간 · 요청 후 ${esc(n0(S.tempLeadDays))}일(관리자 [비용·설정]에서 바꿈).</p>`,
     '순서: 선처리 → 연장 → 알바 · 시간·인원만');
 }
 
@@ -267,7 +267,7 @@ function risksHtml(p) {
     if (!p.risks.length) return card('리스크', `${notesLine(p)}<p class="opv-note">눈에 띄는 리스크가 없습니다.</p>`);
     const lv = (v) => ['', '낮음', '보통', '높음'][v] || '—';
     const rows = p.risks.map(r => `<tr>
-        <td>${esc(r.title)}</td><td class="r">${lv(r.likelihood)}</td><td class="r">${lv(r.impact)}</td><td class="r"><b>${r.score}</b></td>
+        <td>${esc(r.title)}</td><td class="r">${lv(r.likelihood)}</td><td class="r">${lv(r.impact)}</td><td class="r"><b>${esc(r.score)}</b></td>
         <td class="opp-wrap">${esc(r.trigger)}</td><td class="opp-wrap">${esc(r.response)}</td><td>${esc(r.owner)}</td></tr>`).join('');
     return card('리스크', `${notesLine(p)}<div class="opv-table-wrap"><table class="opv-table">
         <thead><tr><th>항목</th><th class="r">가능성</th><th class="r">영향</th><th class="r">점수</th><th>근거</th><th>대응 제안</th><th>담당</th></tr></thead>
@@ -278,18 +278,18 @@ const ST_TXT = { off: ['', '쉼'], none: ['', '—'], short: ['is-risk', '부족
 function meetingHtml(p, prevCmp) {
     const M = p.meeting;
     const L = M.lastWeek;
-    const last = L ? `<p class="opv-note">${fmtDay(L.from)} ~ ${fmtDay(L.to)} · 운영일 ${L.operatingDays}일</p><div class="opv-kpis">
+    const last = L ? `<p class="opv-note">${fmtDay(L.from)} ~ ${fmtDay(L.to)} · 운영일 ${esc(L.operatingDays)}일</p><div class="opv-kpis">
         ${kpi('처리량', n0(L.qty), '개', `하루 평균 ${n0(L.qtyPerDay)}개`)}
         ${kpi('충족률', pct0(L.fillRate), '', `출근 ${n1(L.attended)} / 필요 ${n1(L.required)}명 · 부족한 날 ${L.shortDays == null ? '—' : L.shortDays}일`)}
         ${kpi('UPH', n1(L.uph), '개/시')}
         ${kpi('OEE', n1(L.oee), '%')}
     </div>` : '<p class="opv-note">지난주 기록이 없습니다.</p>';
-    const vs = prevCmp ? `<p class="opv-note opp-gap"><b>지난주 계획 대비</b> — 확정본 v${prevCmp.summary.version}: 필요 인원 오차 ${ok(prevCmp.summary.reqErrPct) ? signed1(prevCmp.summary.reqErrPct) + '%' : '—'} · 부족한 날 계획 ${prevCmp.summary.planShortDays}일 / 실제 ${prevCmp.summary.actualShortDays}일 · 지킨 과제 ${prevCmp.summary.actionsDone}/${prevCmp.summary.actionsTotal}</p>`
+    const vs = prevCmp ? `<p class="opv-note opp-gap"><b>지난주 계획 대비</b> — 확정본 v${esc(prevCmp.summary.version)}: 필요 인원 오차 ${esc(ok(prevCmp.summary.reqErrPct) ? signed1(prevCmp.summary.reqErrPct) + '%' : '—')} · 부족한 날 계획 ${esc(prevCmp.summary.planShortDays)}일 / 실제 ${esc(prevCmp.summary.actualShortDays)}일 · 지킨 과제 ${esc(prevCmp.summary.actionsDone)}/${esc(prevCmp.summary.actionsTotal)}</p>`
         : '<p class="opv-note opp-gap">지난주 확정본이 없어 계획 대비 실적은 비웁니다.</p>';
     const week = `<div class="opp-week">${M.week.map(w => {
         const [cls, txt] = ST_TXT[w.status] || ['', ''];
         const extra = w.status === 'short' ? ` ${w.gap}명` : w.status === 'spare' ? ` +${w.spareFTE}명` : '';
-        return `<div class="opp-week-day"><div class="opv-note">${fmtDay(w.date)}</div><span class="opv-chip ${cls}">${esc(txt)}${extra}</span></div>`;
+        return `<div class="opp-week-day"><div class="opv-note">${fmtDay(w.date)}</div><span class="opv-chip ${cls}">${esc(txt)}${esc(extra)}</span></div>`;
     }).join('')}</div>`;
     const dec = M.decisions.length ? `<ul class="opv-diag">${M.decisions.map(d => `<li><span class="opv-dot ${d.late ? 'is-risk' : 'is-warn'}"></span><span>${esc(d.text)}${d.due ? ` <span class="opv-note">— ${fmtDay(d.due)}까지${d.late ? '(이미 지남 — 준비 기간이 모자랍니다)' : ''}</span>` : ''}</span></li>`).join('')}</ul>`
         : '<p class="opv-note">결정할 것이 없습니다.</p>';
@@ -527,7 +527,7 @@ function printPlan() {
     box = document.createElement('div');
     box.id = 'ops-plan-print';
     box.className = 'opp-print';
-    box.innerHTML = `${horizon === 'year' ? '' : `<h1 class="opp-print-title">${horizon === 'quarter' ? '분기' : horizon === 'month' ? '월간' : '주간'} 운영 계획서</h1>`}${sheet.innerHTML}`;   // 연간은 표지가 제목
+    box.innerHTML = `${horizon === 'year' ? '' : `<h1 class="opp-print-title">${esc(horizon === 'quarter' ? '분기' : horizon === 'month' ? '월간' : '주간')} 운영 계획서</h1>`}${sheet.innerHTML}`;   // 연간은 표지가 제목
     // 사람·배치는 이름 없는 인쇄용으로 바꿔 넣는다(redactForOutput 을 지난 수만)
     //   검사는 사람 섹션 인쇄본만(다른 섹션은 원래 이름이 없다), 업무명·고정 문구는 빼고 본다.
     const ppl = box.querySelector('#ops-plan-people');
@@ -635,7 +635,7 @@ function bindOnce() {
 function ensureMilestones() {
     if (msMod || ensureMilestones.busy) return;
     ensureMilestones.busy = true;
-    import('./ui-history-milestones.js?v=202611121547').then(mod => {
+    import('./ui-history-milestones.js?v=202611121915').then(mod => {
         msMod = mod;
         try { mod.subscribeMilestones(); mod.bindMilestoneListeners(); } catch (e) { /* 마일스톤 화면 칸이 없어도 계획은 그린다 */ }
         return mod.ensureMilestonesLoaded();

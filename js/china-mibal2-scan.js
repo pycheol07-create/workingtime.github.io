@@ -16,13 +16,13 @@
 //   [입고 오차 기록]은 꺼진 단추)
 // 엑셀은 내 PC 로 내려받기만 한다(.xls biff8 — js/lib/xls-limits.js writeXls, 2026-11-10 전에는 .xlsx). 파일 이름은 '시험_' 으로 시작(단독 운영이면 뺌) — 이지어드민 업로드용이 아니다.
 import { getDocs, onSnapshot, doc, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202611121547';
-import { inboundSplitOf } from './lib/inbound-fix.js?v=202611121547';
-import { liveScanLogOf, scanLogInputOf } from './lib/mibal2-scanlog.js?v=202611121547';
-import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202611121547';
-import { locAssignFullOf } from './lib/loc-mode.js?v=202611121547';
-import { friendlyFirebaseError } from './utils.js?v=202611121547';
-import { writeXls } from './lib/xls-limits.js?v=202611121547';
+import { inboundMapOf, floor2MapOf, locAssignOf, scanDbPreviewOf, previewCompareAoa } from './lib/scan-link.js?v=202611121915';
+import { inboundSplitOf } from './lib/inbound-fix.js?v=202611121915';
+import { liveScanLogOf, scanLogInputOf } from './lib/mibal2-scanlog.js?v=202611121915';
+import { summarizeByShip, monthlyTrend, topCodes, bySupplier, overallSummary, statsAoa, queryRange, shiftIso, STATS_TAB_LABEL } from './lib/inbound-diff.js?v=202611121915';
+import { locAssignFullOf } from './lib/loc-mode.js?v=202611121915';
+import { friendlyFirebaseError } from './utils.js?v=202611121915';
+import { writeXls } from './lib/xls-limits.js?v=202611121915';
 
 const CHINA_COLLECTION = 'ChinaStockGoods';
 const INBOUND_COLL = CHINA_COLLECTION + '_InboundHistory';
@@ -175,7 +175,7 @@ export function setupScanTools(opts) {
         document.querySelectorAll('#idf-tabs .idf-tab').forEach(b => b.classList.toggle('d-btn-primary', b.dataset.tab === idfTab));
         const g = overallSummary(summarizeByShip(idfRecs, o));
         const n = (v) => Number(v || 0).toLocaleString();
-        $('idf-summary').innerHTML = `패킹 <b>${n(g.packs)}건</b>${g.bundles ? ` (+ 묶음 줄 ${n(g.bundles)})` : ''} · 도착 <b>${n(g.arr)}</b> · 입고 <b>${n(g.conf)}</b>`
+        $('idf-summary').innerHTML = `패킹 <b>${n(g.packs)}건</b>${esc(g.bundles ? ` (+ 묶음 줄 ${n(g.bundles)})` : '')} · 도착 <b>${n(g.arr)}</b> · 입고 <b>${n(g.conf)}</b>`
             + ` · 오차 <b>${n(g.errN)}품목</b> (부족 <b class="t-risk">${n(g.short)}</b> · 과입고 <b class="t-accent">${n(g.over)}</b>)`
             + ` · 오차율 <b>${g.rate === null ? '–' : esc((Math.round(g.rate * 1000) / 10).toFixed(1)) + '%'}</b>`
             + ` · 미스캔 <b>${n(g.noScanN)}품목 ${n(g.noScanQ)}장</b>${o.includeNoScan ? ' (오차·오차율에 포함)' : ' (오차·오차율에서 뺌)'}`;
@@ -185,7 +185,7 @@ export function setupScanTools(opts) {
         const cls = (h, v) => (h === '부족' && v > 0) ? ' class="t-risk"' : ((h === '과입고' && v > 0) ? ' class="t-accent"' : '');
         $('idf-tbody').innerHTML = rows.length ? rows.map(r => '<tr style="border-bottom:1px solid var(--c-line);">'
             + r.map((v, i) => `<td${cls(head[i], v)} style="padding:6px 6px;">${esc(v === null || v === undefined ? '' : v)}</td>`).join('') + '</tr>').join('')
-            : `<tr><td colspan="${head.length || 1}" class="t-3" style="padding:22px;">${live ? '기간 안에 기록이 없습니다. [작업 마감] 때 자동으로 쌓이고, [입고 오차 기록]으로도 남길 수 있습니다.' : '기간 안에 기록이 없습니다. 기록은 기존 미발계산기에서 쌓입니다(이 화면은 읽기만 합니다).'}</td></tr>`;
+            : `<tr><td colspan="${esc(head.length || 1)}" class="t-3" style="padding:22px;">${live ? '기간 안에 기록이 없습니다. [작업 마감] 때 자동으로 쌓이고, [입고 오차 기록]으로도 남길 수 있습니다.' : '기간 안에 기록이 없습니다. 기록은 기존 미발계산기에서 쌓입니다(이 화면은 읽기만 합니다).'}</td></tr>`;
     }
     function downloadStats() {
         const X = window.XLSX;
@@ -228,8 +228,8 @@ export function setupScanTools(opts) {
         const rows = floor2Rows();
         const total = rows.reduce((s, r) => s + r.qty, 0);
         const noLoc = rows.filter(r => !r.loc).length;
-        $('f2-summary').innerHTML = `비축창고 입고분 <b>${rows.length.toLocaleString()}개 상품</b> · 작업수량 합 <b>${total.toLocaleString()}</b>`
-            + (noLoc ? ` · 앱 지정 위치 없음 <b class="t-risk">${noLoc.toLocaleString()}개</b>` : '')
+        $('f2-summary').innerHTML = `비축창고 입고분 <b>${esc(rows.length.toLocaleString())}개 상품</b> · 작업수량 합 <b>${esc(total.toLocaleString())}</b>`
+            + (noLoc ? ` · 앱 지정 위치 없음 <b class="t-risk">${esc(noLoc.toLocaleString())}개</b>` : '')
             + ' <span class="t-3">(스캐너가 미발수량을 넘긴 초과분을 쌓은 값 · 미발 초기화 때 비워짐)</span>';
         tb.innerHTML = rows.length ? rows.map((r, i) => `<tr style="border-bottom:1px solid var(--c-line);">
                 <td style="padding:5px 6px;">${i + 1}</td><td style="padding:5px 6px; font-weight:600;">${esc(r.code)}</td>

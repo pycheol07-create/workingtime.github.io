@@ -1,20 +1,20 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202611121547';
-import * as State from './state.js?v=202611121547';
-import { updateDailyData } from './app-data.js?v=202611121547';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611121547';
+import * as DOM from './dom-elements.js?v=202611121915';
+import * as State from './state.js?v=202611121915';
+import { updateDailyData } from './app-data.js?v=202611121915';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611121915';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611121547';
-import { syncInspSegments } from './inspection-segments.js?v=202611121547';
-import { moveDoneItems } from './lib/insp-day.js?v=202611121547';
-import { TASK, tName } from './task-names.js?v=202611121547';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611121915';
+import { syncInspSegments } from './inspection-segments.js?v=202611121915';
+import { moveDoneItems } from './lib/insp-day.js?v=202611121915';
+import { TASK, tName } from './task-names.js?v=202611121915';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, todoCardHtml, doneCardHtml, pickKey, isPicked, pickProgress, windowOrder, WINDOW_SORTS, windowSortOf
-} from './lib/insp-flow.js?v=202611121547';
+} from './lib/insp-flow.js?v=202611121915';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -116,7 +116,7 @@ const setSaveBtnLabel = () => {
     updateMobileSummary();   // 수정 중 배지
     if (!btn) return;
     const editing = editingLogIndex !== -1;
-    btn.innerHTML = `<span>${editing ? EDIT_LABEL : SAVE_LABEL}</span>`;
+    btn.innerHTML = `<span>${escapeHtml(editing ? EDIT_LABEL : SAVE_LABEL)}</span>`;
     btn.classList.toggle('bg-blue-600', editing);
     btn.classList.toggle('hover:bg-blue-700', editing);
     btn.classList.toggle('bg-green-600', !editing);
@@ -451,7 +451,7 @@ export const openInspectionListWindow = () => {
                 <button type="button" id="dyn-group-src" class="px-3 min-h-[40px] rounded-lg border text-sm font-bold" title="켜면 제작 → 혼합 → 사입 순으로 묶은 뒤 정렬"></button>
                 <label class="flex items-center gap-1 text-sm font-bold text-gray-600">정렬
                     <select id="dyn-sort-by" class="min-h-[40px] rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-700 px-2">
-                        ${Object.entries(WINDOW_SORTS).map(([v, [label]]) => `<option value="${v}">${label}</option>`).join('')}
+                        ${Object.entries(WINDOW_SORTS).map(([v, [label]]) => `<option value="${escapeHtml(v)}">${escapeHtml(label)}</option>`).join('')}
                     </select>
                 </label>
             </div>
@@ -564,7 +564,7 @@ function renderListWindow({ keep = false, keepScroll = false } = {}) {
             const html = todoCardHtml(r.item, r.idx, { showReserve: true, pickable: true, picked: on });
             return inTab(r.item) ? html : `<div class="opacity-40">${html}</div>`;
         }).join('')
-        : `<div class="py-10 text-center text-sm text-gray-500">${empty}</div>`;
+        : `<div class="py-10 text-center text-sm text-gray-500">${escapeHtml(empty)}</div>`;
     if (scroll) scroll.scrollTop = (keep || keepScroll) ? top : 0;
     const doneBadge = document.getElementById('dyn-done-progress');
     if (doneBadge) doneBadge.textContent = progress(list).text;
@@ -1293,6 +1293,6 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202611121547';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611121547';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611121547';
+export { handleExcelUpload } from './inspection-excel.js?v=202611121915';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611121915';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611121915';

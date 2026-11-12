@@ -6,7 +6,7 @@
 //   - 봇(업무마감봇·업무예상알림 — Playwright)은 navigator.webdriver 가 true 다. 그때는 자동으로 띄우지 않는다
 //     (가운데 창이 버튼을 가려 봇이 멈춘다).
 // ※ 의존성은 순수 파일(approval-noti.js)뿐 — node --test 로 시험한다(tests/noti-popup.test.js).
-import { NOTI_TYPE as APPROVAL_TYPE, MSG_TO_APPROVER, MSG_TO_CC, MSG_TO_AUTHOR } from './approval-noti.js?v=202611121547';
+import { NOTI_TYPE as APPROVAL_TYPE, MSG_TO_APPROVER, MSG_TO_CC, MSG_TO_AUTHOR, MSG_RESUBMITTED } from './approval-noti.js?v=202611121915';
 
 export const DISMISS_KEY = 'noti.dismissed.v1';
 export const DISMISS_MAX = 100;
@@ -79,7 +79,8 @@ const NOTI_LINKS = {
 //   문구는 js/lib/approval-noti.js 와 같아야 한다(시험 tests/noti-popup.test.js). 모르는 문구는 기안서 첫 화면.
 const APPROVAL_TABS = [
     { msg: MSG_TO_APPROVER, href: 'approval.html#todo', label: '결재할 문서로 이동' },
-    { msg: MSG_TO_CC,       href: 'approval.html#cc',   label: '참조 문서로 이동' },
+    { msg: MSG_RESUBMITTED, href: 'approval.html#todo', label: '결재할 문서로 이동' },   // 제출 후 수정(2026-11-12)
+    { msg: MSG_TO_CC,      href: 'approval.html#cc',   label: '참조 문서로 이동' },
     { msg: MSG_TO_AUTHOR,   href: 'approval.html#mine', label: '내 기안으로 이동' }
 ];
 

@@ -1,5 +1,5 @@
 // === js/ui-history-reports-utils.js ===
-import { formatDuration } from './utils.js?v=202611121547';
+import { formatDuration, escapeHtml } from './utils.js?v=202611121915';
 
 export const getAsArray = (data) => {
     if (!data) return []; 
@@ -96,7 +96,7 @@ export const createTableRow = (columns, isHeader = false, sortState = null) => {
                             ${col.diff || ''}
                         </${cellTag}>`;
             }
-            return `<${cellTag} class="px-4 py-2 ${alignClass}">${col}</${cellTag}>`;
+            return `<${cellTag} class="px-4 py-2 ${alignClass}">${escapeHtml(col)}</${cellTag}>`;   // 글자 칸(파트·이름 등) — HTML 이 필요하면 { content } 로 넘긴다
         }
 
         const alignClass = (index > 0) ? 'text-right' : 'text-left';

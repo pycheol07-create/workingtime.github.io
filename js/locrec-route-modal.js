@@ -5,10 +5,10 @@
 // 자료는 카드와 같은 store(js/locrec-store.js)의 latest 하나 — 새로 구독하지 않는다. 구역·동·숫자만 나온다(상품 정보 없음).
 // 창은 처음 열 때 body 에 만든다. 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙고,
 //   닫기 버튼 [data-esc-close] 라 Esc 는 js/modal-esc.js 가 처리한다.
-import { escapeHtml } from './utils.js?v=202611121547';
-import { routeDetailHead, routeHeatDetail, HEAT_HELP, routeCardHelp, frontHelp, frontAreaText, PREV_MODE_DIFF_HELP } from './lib/locrec-view.js?v=202611121547';
-import { trendSeries, trendPoints, trendSvg, trendRows } from './lib/locrec-trend.js?v=202611121547';
-import { todayKey } from './locrec-store.js?v=202611121547';
+import { escapeHtml } from './utils.js?v=202611121915';
+import { routeDetailHead, routeHeatDetail, HEAT_HELP, routeCardHelp, frontHelp, frontAreaText, PREV_MODE_DIFF_HELP } from './lib/locrec-view.js?v=202611121915';
+import { trendSeries, trendPoints, trendSvg, trendRows } from './lib/locrec-trend.js?v=202611121915';
+import { todayKey } from './locrec-store.js?v=202611121915';
 
 const MODAL_ID = 'locrec-route-modal';
 let store = null;
@@ -59,7 +59,7 @@ function trendHtml(latest) {
     const rows = trendRows(series);
     const body = rows.map(r => r.rest
         ? `<tr class="rd-rest"><td>${escapeHtml(r.label)}</td><td colspan="3">쉬는 날</td></tr>`
-        : `<tr><td>${escapeHtml(r.label)}${r.modeChange ? ' <span class="lrs-muted" title="동선 기준(카드 순서 / 옛 구역 순위)이 바뀐 날 — 앞 날짜와 점수를 비교하지 않습니다">기준 바뀜</span>' : ''}</td><td>${g(r.now)}</td><td>${g(r.after)}</td><td>${r.diff == null ? '-' : (r.diff > 0 ? '+' : '') + r.diff.toFixed(1)}</td></tr>`).join('');
+        : `<tr><td>${escapeHtml(r.label)}${r.modeChange ? ' <span class="lrs-muted" title="동선 기준(카드 순서 / 옛 구역 순위)이 바뀐 날 — 앞 날짜와 점수를 비교하지 않습니다">기준 바뀜</span>' : ''}</td><td>${escapeHtml(g(r.now))}</td><td>${escapeHtml(g(r.after))}</td><td>${r.diff == null ? '-' : (r.diff > 0 ? '+' : '') + r.diff.toFixed(1)}</td></tr>`).join('');
     return '<div class="rd-trend">'
         + `<div class="rd-trend-chart">${trendSvg(series, { w: 640, h: 200 })}`
         + '<div class="ins-desc locrec-trend-legend"><span class="lg-now">━ 지금</span> <span class="lg-after">┅ 추천 모두 적용 후</span> · 최근 ' + series.length + '일</div></div>'
@@ -73,7 +73,7 @@ function heatHtml(heat) {
     const pct = (p) => (p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`);
     const head = '<tr><th>구역</th>' + d.dongs.map(x => `<th>${escapeHtml(x.dong)}동</th>`).join('') + '<th>구역 합</th></tr>';
     const body = d.rows.map(r => `<tr><th>${escapeHtml(r.zone)}</th>`
-        + r.cells.map(c => `<td class="${c.level == null ? 'hx' : 'h' + c.level}" title="${escapeHtml(c.title)}">${escapeHtml(c.text)}</td>`).join('')
+        + r.cells.map(c => `<td class="${escapeHtml(c.level == null ? 'hx' : 'h' + c.level)}" title="${escapeHtml(c.title)}">${escapeHtml(c.text)}</td>`).join('')
         + `<td class="rd-sum">${escapeHtml(r.sumTxt)} <span>${pct(r.pct)}</span></td></tr>`).join('');
     const foot = '<tr><th>동 합</th>' + d.dongs.map(x => `<td class="rd-sum">${escapeHtml(x.sumTxt)} <span>${pct(x.pct)}</span></td>`).join('')
         + `<td class="rd-sum">${escapeHtml(d.totalTxt)}</td></tr>`;

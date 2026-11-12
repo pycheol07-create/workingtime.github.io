@@ -1,13 +1,13 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202611121547';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202611121547';
-import { buildMemberHourlyWageMap } from './utils.js?v=202611121547';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202611121547';
-import { D, alpha } from './d-chart.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
-import { TASK, tName, isTLike } from './task-names.js?v=202611121547';
-import { attendedMembers } from './attendance-stats.js?v=202611121547';
-import { wageMapOf, partSummary as opsPartSummary, unitCost as opsUnitCost, rollingBaselineOf } from './lib/ops-metrics.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202611121915';
+import { buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=202611121915';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202611121915';
+import { D, alpha } from './d-chart.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
+import { TASK, tName, isTLike } from './task-names.js?v=202611121915';
+import { attendedMembers } from './attendance-stats.js?v=202611121915';
+import { wageMapOf, partSummary as opsPartSummary, unitCost as opsUnitCost, rollingBaselineOf } from './lib/ops-metrics.js?v=202611121915';
 
 let dashboardChartInstance = null;
 
@@ -275,7 +275,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202611121547').then(mod => {
+        import('./ui-history-milestones.js?v=202611121915').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }
@@ -356,8 +356,8 @@ export function renderDashboardTab(filteredData, appConfig) {
 
     // 기준 정보 메타 (마우스오버 + 화면 표기)
     const baselineMetaHtml = hasBaseline
-        ? `<div class="text-[11px] text-indigo-600/80 dark:text-indigo-300/80 mt-2 pt-2 border-t border-indigo-100 dark:border-indigo-800/50" title="${baseline.description} · 기준 UPH ${baselineUph.toFixed(1)}개/시">비교 기준: <strong>${baseline.description}</strong> · 기준 UPH <strong>${baselineUph.toFixed(1)}</strong>개/시 · 현재 UPH <strong>${avgUph.toFixed(1)}</strong></div>`
-        : `<div class="text-[11px] text-gray-500 dark:text-gray-400 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700" title="${baseline.description}">비교 기준: <strong>${baseline.description}</strong></div>`;
+        ? `<div class="text-[11px] text-indigo-600/80 dark:text-indigo-300/80 mt-2 pt-2 border-t border-indigo-100 dark:border-indigo-800/50" title="${escapeHtml(baseline.description)} · 기준 UPH ${baselineUph.toFixed(1)}개/시">비교 기준: <strong>${escapeHtml(baseline.description)}</strong> · 기준 UPH <strong>${baselineUph.toFixed(1)}</strong>개/시 · 현재 UPH <strong>${avgUph.toFixed(1)}</strong></div>`
+        : `<div class="text-[11px] text-gray-500 dark:text-gray-400 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700" title="${escapeHtml(baseline.description)}">비교 기준: <strong>${escapeHtml(baseline.description)}</strong></div>`;
 
     let diagnosticHtml = '';
     if (!hasBaseline) {
@@ -366,7 +366,7 @@ export function renderDashboardTab(filteredData, appConfig) {
             <ul class="list-disc pl-5 space-y-1 text-sm">
                 <li>현재 기간 평균 UPH: <strong>${avgUph.toFixed(1)}</strong>개/시</li>
                 <li>건당 총 출고 원가: <strong>${Math.round(unitCost).toLocaleString()}원</strong></li>
-                <li><span class="font-bold text-gray-900">모니터링 대상:</span> <span class="bg-yellow-100 text-yellow-800 px-1 rounded">${lowestPart || '일부 파트'}</span> 파트의 처리량 추이를 관찰하세요.</li>
+                <li><span class="font-bold text-gray-900">모니터링 대상:</span> <span class="bg-yellow-100 text-yellow-800 px-1 rounded">${escapeHtml(lowestPart || '일부 파트')}</span> 파트의 처리량 추이를 관찰하세요.</li>
             </ul>
             ${baselineMetaHtml}
         `;
@@ -374,7 +374,7 @@ export function renderDashboardTab(filteredData, appConfig) {
         diagnosticHtml = `
             <div class="text-red-700 mb-2"><strong class="font-bold text-lg">생산 효율 경고: 기준 대비 ${Math.round(100 - oee)}% 저하</strong></div>
             <ul class="list-disc pl-5 space-y-1 text-sm">
-                <li><span class="font-bold text-gray-900">가장 취약한 파트:</span> <span class="bg-red-100 text-red-800 px-1 rounded">${lowestPart || '전반적'}</span> (현재 UPH: ${lowestUph === Infinity ? 0 : Math.round(lowestUph)})</li>
+                <li><span class="font-bold text-gray-900">가장 취약한 파트:</span> <span class="bg-red-100 text-red-800 px-1 rounded">${escapeHtml(lowestPart || '전반적')}</span> (현재 UPH: ${lowestUph === Infinity ? 0 : Math.round(lowestUph)})</li>
                 <li><span class="font-bold text-gray-900">조치 권고사항:</span>
                     해당 파트에 <span class="text-blue-600 font-bold">인력을 추가 배치(1~2명)</span>하거나,
                     작업자들의 피로도를 고려하여 <span class="text-green-600 font-bold">10분간 강제 휴식</span>을 부여하세요.
@@ -398,7 +398,7 @@ export function renderDashboardTab(filteredData, appConfig) {
             <div class="text-green-700 mb-2"><strong class="font-bold text-lg">평소 수준 (효율 ${Math.round(oee)}%)</strong></div>
             <ul class="list-disc pl-5 space-y-1 text-sm">
                 <li>현재 UPH <strong>${avgUph.toFixed(1)}</strong> / 기준 UPH <strong>${baselineUph.toFixed(1)}</strong> — 평소 수준으로 안정적으로 운영 중입니다.</li>
-                <li><span class="font-bold text-gray-900">모니터링 대상:</span> <span class="bg-yellow-100 text-yellow-800 px-1 rounded">${lowestPart || '일부 파트'}</span> 파트의 처리량이 약간 저하되고 있는지 지속 관찰하세요.</li>
+                <li><span class="font-bold text-gray-900">모니터링 대상:</span> <span class="bg-yellow-100 text-yellow-800 px-1 rounded">${escapeHtml(lowestPart || '일부 파트')}</span> 파트의 처리량이 약간 저하되고 있는지 지속 관찰하세요.</li>
             </ul>
             ${baselineMetaHtml}
         `;

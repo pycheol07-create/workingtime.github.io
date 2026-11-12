@@ -12,20 +12,22 @@
 // 문서 모양·순수 함수는 js/lib/locrec-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=202611121547';
+import { escapeHtml } from './utils.js?v=202611121915';
 import {
     verdictBadge, metricItems, dataWarnings, dataLine, dayOptions, dayMessage,
     TABS, TAB_LABEL, recStrip, tabSummary, dayLabel, rebuildLine
-} from './lib/locrec-view.js?v=202611121547';
-import { initFold } from './lib/card-fold.js?v=202611121547';
-import { getLocRecStore, todayKey } from './locrec-store.js?v=202611121547';
-import { mountLocRecTable } from './locrec-table.js?v=202611121547';
-import { initRouteCard } from './locrec-route-card.js?v=202611121547';
+} from './lib/locrec-view.js?v=202611121915';
+import { initFold } from './lib/card-fold.js?v=202611121915';
+import { getLocRecStore, todayKey } from './locrec-store.js?v=202611121915';
+import { mountLocRecTable } from './locrec-table.js?v=202611121915';
+import { initRouteCard } from './locrec-route-card.js?v=202611121915';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
 
-export function initLocRecCard({ db, auth, getMemberName, sizeOf }) {
+/** altCtx() → {locs, priorities} — [처리함]이 도착 자리 문제로 막혔을 때 대신 자리를 찾을 지금 자리 목록(location.js originalData)·동선 기준.
+ *  notify(text) — 짧은 안내(location.js showToast). 둘 다 js/locrec-store.js 로 넘긴다 */
+export function initLocRecCard({ db, auth, getMemberName, sizeOf, altCtx, notify }) {
     const card = document.getElementById('locrec-card');
     const body = document.getElementById('locrec-body');
     const sel = document.getElementById('locrec-day');
@@ -35,7 +37,7 @@ export function initLocRecCard({ db, auth, getMemberName, sizeOf }) {
     const foldBtn = document.getElementById('locrec-fold');
     const detail = document.getElementById('locrec-detail');
 
-    const store = getLocRecStore({ db, auth, getMemberName, sizeOf });
+    const store = getLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify });
     const table = mountLocRecTable({ store, sizeOf });   // sizeOf: 옛 문서 행의 칸수 보충(location.js)
     // 머리줄 [변경 추천] 빠른 버튼(location.html)이 여는 창 — 권한이 있어 이 카드가 시작될 때만 생긴다
     window.openLocRecTable = () => table.open();
@@ -128,7 +130,8 @@ export function initLocRecCard({ db, auth, getMemberName, sizeOf }) {
             parts.push(`<div class="refill-line">${escapeHtml(dayText)} 추천 `
                 + TABS.filter(t => t !== 'back' || sm.counts[t] > 0).map(t => `${TAB_LABEL[t]} <b>${sm.counts[t]}</b>`).join(' · ')
                 + (sm.newN ? `, 새로 <b>${sm.newN}</b>` : '')
-                + (sm.hiddenN ? `<span class="refill-sub"> (안 함 ${sm.hiddenN}건 숨김)</span>` : '') + '</div>');
+                + (sm.hiddenN ? `<span class="refill-sub"> (안 함 ${sm.hiddenN}건 숨김)</span>` : '')
+                + (sm.blockedN ? `<span class="refill-sub"> (자리 막힘 ${sm.blockedN}건 오늘 숨김)</span>` : '') + '</div>');
             // 기준 줄 '10:42 다시 만듦 · 배치: 업로드 MM/DD HH:MM · 재고: 이지어드민 HH:MM' — 재고가 업로드 대체면 노랗게
             const bl = rebuildLine(S.day.data);
             if (bl.text) {

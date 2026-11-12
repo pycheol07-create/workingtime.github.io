@@ -13,6 +13,8 @@ export const MSG_TO_APPROVER = MSG_TO_ADMIN;
 export const MSG_TO_AUTHOR = '기안서 메뉴에 새 소식이 있습니다 — 확인하세요.';
 // 참조자에게(2026-11-09) — 제출·재제출 때. 앱 알림만(슬랙 없음)
 export const MSG_TO_CC = '참조로 지정된 기안서가 있습니다 — 기안서 메뉴에서 확인하세요.';
+// 제출 후 수정(2026-11-12) — 작성자가 결재 대기 중인 기안서를 고쳐 다시 내면 1차 결재자에게(참조자에게는 보내지 않는다)
+export const MSG_RESUBMITTED = '결재할 기안서가 다시 올라왔습니다 — 기안서 메뉴에서 확인하세요.';
 
 /** 알림 문서 하나(순수). */
 export const notiDoc = (targetMember, message, now = new Date()) => ({

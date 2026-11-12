@@ -1,31 +1,31 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202611121547';
-import * as State from './state.js?v=202611121547';
+import * as DOM from './dom-elements.js?v=202611121915';
+import * as State from './state.js?v=202611121915';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202611121547';
-import { updateDailyData } from './app-data.js?v=202611121547';
+import { render } from './app.js?v=202611121915';
+import { updateDailyData } from './app-data.js?v=202611121915';
 
-import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202611121547';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202611121547';
-import { applyDueLeaves } from './leave-auto-apply.js?v=202611121547';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=202611121915';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202611121915';
+import { applyDueLeaves } from './leave-auto-apply.js?v=202611121915';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     applyPlannedPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202611121547';
+} from './ui.js?v=202611121915';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202611121547';
-import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611121547';
-import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611121547';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611121547';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611121547';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611121547';
+} from './app-logic.js?v=202611121915';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611121915';
+import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611121915';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611121915';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611121915';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611121915';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
@@ -194,32 +194,32 @@ export function setupMainScreenListeners() {
             return v % 60 ? `${Math.floor(v / 60)}시간 ${v % 60}분` : `${Math.floor(v / 60)}시간`;
         };
         const 줄 = [
-            `· 진행 중 기록 <b>${p.closed}건</b>이 마감됩니다 (합계 ${시간(p.closedMinutes)})`,
-            `· 퇴근 미기록 <b>${p.outTimeFixed}명</b>의 퇴근시각이 <b>${t}</b>로 확정됩니다`,
+            `· 진행 중 기록 <b>${escapeHtml(p.closed)}건</b>이 마감됩니다 (합계 ${시간(p.closedMinutes)})`,
+            `· 퇴근 미기록 <b>${escapeHtml(p.outTimeFixed)}명</b>의 퇴근시각이 <b>${escapeHtml(t)}</b>로 확정됩니다`,
         ];
         // 기본값이 17:30 이라 '늦게 눌렀을 때 부풀기' 는 막았지만, 반대로 **진짜 늦게까지
         // 일한 날** 이 조용히 깎인다. 부풀기는 27시간처럼 터무니없는 숫자로 드러나지만
         // 깎이는 쪽은 '조금 적은' 값이라 아무도 신고하지 않는다. 그래서 알려 준다.
         const 지금t = getCurrentTime();
         if (지금t > t) {
-            줄.push(`· <span class="text-amber-700">지금 ${지금t} 인데 <b>${t}</b> 기준으로 마감합니다.`
+            줄.push(`· <span class="text-amber-700">지금 ${escapeHtml(지금t)} 인데 <b>${escapeHtml(t)}</b> 기준으로 마감합니다.`
                 + ' 더 늦게까지 일한 날이면 위 시각을 고쳐 주세요.</span>');
         }
         if (p.deleted > 0) {
             const 사유 = [];
             if (p.deletedCompleted) 사유.push(`${p.deletedCompleted}건은 이미 종료된 0분 기록`);
             if (p.lateStart) 사유.push(`${p.lateStart}건은 ${t} 보다 늦게 시작`);
-            줄.push(`· <span class="text-red-600 font-bold">${p.deleted}건은 0분이 되어 삭제됩니다`
+            줄.push(`· <span class="text-red-600 font-bold">${escapeHtml(p.deleted)}건은 0분이 되어 삭제됩니다`
                 + (사유.length ? ` (그중 ${사유.join(', ')})` : '') + '</span>');
         }
         if (p.clamped > 0) 줄.push(`· ${p.clamped}건은 조퇴/퇴근 시각까지만 계산됩니다`);
         if (p.outTimeBeforeIn > 0) {
-            줄.push(`· <span class="text-red-600 font-bold">${p.outTimeBeforeIn}명은 출근시각이 ${t} 보다 늦습니다`
+            줄.push(`· <span class="text-red-600 font-bold">${escapeHtml(p.outTimeBeforeIn)}명은 출근시각이 ${escapeHtml(t)} 보다 늦습니다`
                 + ' — 이대로는 마감할 수 없습니다</span>');
         }
         if (p.invalid > 0) {
             줄.push('· <span class="text-red-600 font-bold">'
-                + `${p.invalid}건은 시작시각이 HH:MM 형식이 아닙니다 — 이대로는 마감할 수 없습니다</span>`);
+                + `${escapeHtml(p.invalid)}건은 시작시각이 HH:MM 형식이 아닙니다 — 이대로는 마감할 수 없습니다</span>`);
         }
         줄.push(`· 이미 종료된 기록 ${p.kept}건은 그대로 유지됩니다`);
         // 처리량 미입력 — 안내만 한다(마감은 막지 않는다, UX 개선 5번). 진행 중 기록은 마감되면 시간이 생기므로 '한 업무' 로 센다.

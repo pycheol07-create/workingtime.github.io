@@ -9,23 +9,23 @@
 // 담당 변화(직원 이름·사람별 UPH)는 data.reports(ctx.canOwner)일 때만 그린다 — 없으면 '권한이 없습니다', 요약은 건수만.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다. 모델에는 직원 이름이 없다.
 
-import * as State from './state.js?v=202611121547';
-import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611121547';
-import { revenueTotalOf } from './revenue-channels.js?v=202611121547';
-import { D, alpha } from './d-chart.js?v=202611121547';
-import { renderStaffingOutlook } from './ui-history-staffing.js?v=202611121547';
-import { ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611121547';
-import { fetchPlannedData } from './history-data-manager.js?v=202611121547';
-import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=202611121547';
-import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611121547';
-import { taskListOf } from './lib/task-owner.js?v=202611121547';
-import { TASK, tName } from './task-names.js?v=202611121547';
-import { higherOpenThan } from './modal-above.js?v=202611121547';
-import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611121547';
-import { PEOPLE_NOTE } from './lib/plan-skills.js?v=202611121547';
-import { nextWeekAvailable } from './ui-ops-plan-people.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611121915';
+import { revenueTotalOf } from './revenue-channels.js?v=202611121915';
+import { D, alpha } from './d-chart.js?v=202611121915';
+import { renderStaffingOutlook } from './ui-history-staffing.js?v=202611121915';
+import { ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611121915';
+import { fetchPlannedData } from './history-data-manager.js?v=202611121915';
+import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=202611121915';
+import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611121915';
+import { taskListOf } from './lib/task-owner.js?v=202611121915';
+import { TASK, tName } from './task-names.js?v=202611121915';
+import { higherOpenThan } from './modal-above.js?v=202611121915';
+import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611121915';
+import { PEOPLE_NOTE } from './lib/plan-skills.js?v=202611121915';
+import { nextWeekAvailable } from './ui-ops-plan-people.js?v=202611121915';
 
 const $ = (id) => document.getElementById(id);
 
@@ -44,7 +44,7 @@ function cmpHtml(label, vs, kind = 'pct', better = 'up') {
     const flat = Math.abs(vs) < 0.5;
     const arrow = flat ? '–' : vs > 0 ? '▲' : '▼';
     const cls = flat || !better ? 'opv-flat' : ((vs > 0) === (better === 'up') ? 'opv-up' : 'opv-down');
-    return `<span>${esc(label)} <b class="${cls}">${arrow} ${n1(Math.abs(vs))}${unit}</b></span>`;
+    return `<span>${esc(label)} <b class="${cls}">${escapeHtml(arrow)} ${escapeHtml(n1(Math.abs(vs)))}${unit}</b></span>`;
 }
 
 function kpiCard({ label, value, unit = '', sub = '', cmps = [], title = '' }) {
@@ -62,7 +62,7 @@ const card = (title, body, hint = '') => `<div class="opv-card">
 </div>`;
 
 /** 펼쳐 보기(<details>) — fold 이름은 처음 열 때 무엇을 그릴지(js 가 [data-fold] 로 찾음). */
-const fold = (name, title, body, hint = '') => `<details class="opv-fold" data-fold="${name}">
+const fold = (name, title, body, hint = '') => `<details class="opv-fold" data-fold="${escapeHtml(name)}">
     <summary>${esc(title)}${hint ? ` <span class="opv-fold-hint">${hint}</span>` : ''}</summary>
     <div class="opv-fold-body">${body}</div>
 </details>`;
@@ -120,7 +120,7 @@ function periodLine(m) {
     if (meta.empty) return '';
     const range = meta.from === meta.to ? fmtDay(meta.from) : `${fmtDay(meta.from)} ~ ${fmtDay(meta.to)}`;
     const base = meta.baselineLabel ? ` · 평소 = ${esc(meta.baselineLabel)}` : '';
-    return `<p class="opv-note">${range} · 운영일 ${meta.operatingDays}일 · 전기 = 직전 같은 단위 기간${base}</p>`;
+    return `<p class="opv-note">${escapeHtml(range)} · 운영일 ${escapeHtml(meta.operatingDays)}일 · 전기 = 직전 같은 단위 기간${base}</p>`;
 }
 
 function headlineHtml(m) {
@@ -133,9 +133,9 @@ function headlineHtml(m) {
     if (u) out.push(kpiCard({ label: u.label, value: n1(u.value), unit: u.unit, cmps: cmp(u), title: '전체 처리량 ÷ 전체 업무 기록 시간' }));
     const s = H.staff;
     if (s) {
-        const gapTxt = ok(s.gap) ? `<b class="${s.gap < -0.5 ? 'opv-down' : 'opv-flat'}">${signed1(s.gap)}명</b>` : '—';
+        const gapTxt = ok(s.gap) ? `<b class="${s.gap < -0.5 ? 'opv-down' : 'opv-flat'}">${escapeHtml(signed1(s.gap))}명</b>` : '—';
         out.push(kpiCard({
-            label: '출근 / 필요', value: `${n1(s.value)}<span class="opv-kpi-unit">/ ${n1(s.required)}명</span>`,
+            label: '출근 / 필요', value: `${escapeHtml(n1(s.value))}<span class="opv-kpi-unit">/ ${escapeHtml(n1(s.required))}명</span>`,
             sub: `과부족 ${gapTxt}`, cmps: [cmpHtml('출근 전기', s.vsPrev, 'pct', null), cmpHtml('출근 평소', s.vsBase, 'pct', null)],
             title: '일평균 출근 인원 / 평상시 속도로 그날 물량에 필요한 인원(가동률 설정 반영)'
         }));
@@ -144,7 +144,7 @@ function headlineHtml(m) {
     if (o) {
         const lv = { good: ['is-ok', '좋음'], warn: ['is-warn', '보통'], bad: ['is-risk', '낮음'] }[o.level];
         out.push(kpiCard({
-            label: o.label, value: n1(o.value), unit: o.unit, sub: lv ? `<span class="opv-chip ${lv[0]}">${lv[1]}</span>` : '',
+            label: o.label, value: n1(o.value), unit: o.unit, sub: lv ? `<span class="opv-chip ${escapeHtml(lv[0])}">${escapeHtml(lv[1])}</span>` : '',
             cmps: cmp(o), title: '가동률 × 효율 × 품질 (가동률·효율은 100% 상한)'
         }));
     }
@@ -159,7 +159,7 @@ function headlineHtml(m) {
 
 const TONE_DOT = { good: 'is-ok', warn: 'is-warn', bad: 'is-risk', info: '' };
 const diagHtml = (m) => card('진단', `<ul class="opv-diag">${m.diagnoses.map(d =>
-    `<li><span class="opv-dot ${TONE_DOT[d.tone] || ''}"></span><span>${esc(d.text)}</span></li>`).join('')}</ul>`);
+    `<li><span class="opv-dot ${escapeHtml(TONE_DOT[d.tone] || '')}"></span><span>${esc(d.text)}</span></li>`).join('')}</ul>`);
 
 const notesHtml = (m) => (m.notes && m.notes.length
     ? `<div class="opv-notes"><b>데이터 주의</b><ul>${m.notes.map(n => `<li>${esc(n.text)}</li>`).join('')}</ul></div>` : '');
@@ -169,20 +169,20 @@ function problemsHtml(m, canOwner) {
     const loss = p.lossTasks.length
         ? `<ul class="opv-diag">${p.lossTasks.map(t => `<li><span class="opv-dot is-warn"></span><span>
             <button type="button" class="opv-row-btn" data-ops-task="${esc(t.task)}">${esc(t.task)}</button>
-            — 평상시보다 ${hrs(t.lossMinutes)}시간 더 걸림 <span class="opv-note">(UPH ${n1(t.uph)} / 평상시 ${n1(t.stdUph)})</span></span></li>`).join('')}</ul>`
+            — 평상시보다 ${escapeHtml(hrs(t.lossMinutes))}시간 더 걸림 <span class="opv-note">(UPH ${escapeHtml(n1(t.uph))} / 평상시 ${escapeHtml(n1(t.stdUph))})</span></span></li>`).join('')}</ul>`
         : `<p class="opv-note">평상시보다 30분 이상 더 걸린 업무가 없습니다.</p>`;
     const short = p.shortDayCount
-        ? `<p class="opv-note">부족한 날 ${p.shortDayCount}일${p.spareDayCount ? ` · 여유 있는 날 ${p.spareDayCount}일` : ''}</p>
-           <ul class="opv-diag">${p.shortDays.map(d => `<li><span class="opv-dot is-risk"></span><span>${fmtDay(d.date)} 출근 ${n0(d.attended)}명 / 필요 ${n1(d.required)}명 (<b class="opv-down">${signed1(d.gap)}명</b>)</span></li>`).join('')}</ul>`
-        : (m.meta.hasBaseline ? `<p class="opv-note">인원이 부족한 날이 없습니다${p.spareDayCount ? ` (여유 있는 날 ${p.spareDayCount}일)` : ''}.</p>`
+        ? `<p class="opv-note">부족한 날 ${escapeHtml(p.shortDayCount)}일${escapeHtml(p.spareDayCount ? ` · 여유 있는 날 ${p.spareDayCount}일` : '')}</p>
+           <ul class="opv-diag">${p.shortDays.map(d => `<li><span class="opv-dot is-risk"></span><span>${fmtDay(d.date)} 출근 ${escapeHtml(n0(d.attended))}명 / 필요 ${escapeHtml(n1(d.required))}명 (<b class="opv-down">${escapeHtml(signed1(d.gap))}명</b>)</span></li>`).join('')}</ul>`
+        : (m.meta.hasBaseline ? `<p class="opv-note">인원이 부족한 날이 없습니다${escapeHtml(p.spareDayCount ? ` (여유 있는 날 ${p.spareDayCount}일)` : '')}.</p>`
             : `<p class="opv-note">평상시 속도가 없어 필요 인원을 계산하지 못했습니다.</p>`);
     let owner = `<p class="opv-note">담당 변화를 계산하지 않았습니다.</p>`;
     if (m.owner && !canOwner) {
-        owner = `<p class="opv-note">${esc(m.owner.windowLabel)} 담당이 바뀐 업무 ${m.owner.changedTasks}개 · 이 기간 안 ${m.owner.inPeriodTasks}개</p>
+        owner = `<p class="opv-note">${esc(m.owner.windowLabel)} 담당이 바뀐 업무 ${escapeHtml(m.owner.changedTasks)}개 · 이 기간 안 ${escapeHtml(m.owner.inPeriodTasks)}개</p>
             <p class="opv-note">업무별 내용은 리포트 권한이 있어야 보입니다.</p>`;
     } else if (m.owner) {
         const items = m.owner.items.slice().sort((a, b) => Number(b.inPeriod) - Number(a.inPeriod)).slice(0, 5);
-        owner = `<p class="opv-note">${esc(m.owner.windowLabel)} 담당이 바뀐 업무 ${m.owner.changedTasks}개 · 이 기간 안 ${m.owner.inPeriodTasks}개</p>`
+        owner = `<p class="opv-note">${esc(m.owner.windowLabel)} 담당이 바뀐 업무 ${escapeHtml(m.owner.changedTasks)}개 · 이 기간 안 ${escapeHtml(m.owner.inPeriodTasks)}개</p>`
             + (items.length ? `<ul class="opv-diag">${items.map(i => `<li><span class="opv-dot ${i.inPeriod ? 'is-warn' : ''}"></span><span>
                 <button type="button" class="opv-row-btn" data-ops-task="${esc(i.task)}">${esc(i.task)}</button>
                 <span class="opv-note">${fmtDay(i.date)} 주부터 새 담당${i.inPeriod ? ' · 이 기간' : ''}${i.tentative ? ' · 잠정(이번 주 기록 기준)' : ''}</span></span></li>`).join('')}</ul>` : '');
@@ -265,8 +265,8 @@ function renderProductivity(host, c, { canTaskTable }) {
     </div>`;
 
     const partRows = m.parts.map(p => `<tr${p.id === 'total' ? ' style="font-weight:700"' : ''}>
-        <td>${esc(p.name)}</td><td class="r">${hrs(p.minutes)}</td><td class="r">${n0(p.qty)}</td><td class="r">${n0(p.members)}</td>
-        <td class="r">${n1(p.uph)}</td><td class="r">${cmpHtml('', p.vsPrevUph)}</td><td class="r">${cmpHtml('', p.vsBaseUph)}</td></tr>`).join('');
+        <td>${esc(p.name)}</td><td class="r">${escapeHtml(hrs(p.minutes))}</td><td class="r">${escapeHtml(n0(p.qty))}</td><td class="r">${escapeHtml(n0(p.members))}</td>
+        <td class="r">${escapeHtml(n1(p.uph))}</td><td class="r">${cmpHtml('', p.vsPrevUph)}</td><td class="r">${cmpHtml('', p.vsBaseUph)}</td></tr>`).join('');
     const parts = card('파트', `<div class="opv-table-wrap"><table class="opv-table">
         <thead><tr><th>파트</th><th class="r">시간(h)</th><th class="r">처리량</th><th class="r">인원</th><th class="r">UPH</th><th class="r">전기 대비</th><th class="r">평소 대비</th></tr></thead>
         <tbody>${partRows}</tbody></table></div>`);
@@ -277,9 +277,9 @@ function renderProductivity(host, c, { canTaskTable }) {
     else {
         const rows = m.tasks.map(t => `<tr data-task-row="1" data-ops-task="${esc(t.task)}">
             <td><button type="button" class="opv-row-btn" data-ops-task="${esc(t.task)}">${esc(t.task)}</button></td>
-            <td class="r">${hrs(t.minutes)}</td><td class="r">${n1(t.share)}%</td><td class="r">${t.isQty ? n0(t.qty) : '—'}</td>
-            <td class="r">${n1(t.uph)}</td><td class="r">${n1(t.stdUph)}</td><td class="r">${ok(t.efficiency) ? n1(t.efficiency) + '%' : '—'}</td>
-            <td class="r">${t.lossMinutes > 0 ? hrs(t.lossMinutes) : '—'}</td><td class="r">${cmpHtml('', t.vsPrevMinutes, 'pct', null)}</td></tr>`).join('');
+            <td class="r">${escapeHtml(hrs(t.minutes))}</td><td class="r">${escapeHtml(n1(t.share))}%</td><td class="r">${escapeHtml(t.isQty ? n0(t.qty) : '—')}</td>
+            <td class="r">${escapeHtml(n1(t.uph))}</td><td class="r">${escapeHtml(n1(t.stdUph))}</td><td class="r">${escapeHtml(ok(t.efficiency) ? n1(t.efficiency) + '%' : '—')}</td>
+            <td class="r">${escapeHtml(t.lossMinutes > 0 ? hrs(t.lossMinutes) : '—')}</td><td class="r">${cmpHtml('', t.vsPrevMinutes, 'pct', null)}</td></tr>`).join('');
         tasks = card('업무', `<div class="opv-table-wrap"><table class="opv-table">
             <thead><tr><th>업무</th><th class="r">시간(h)</th><th class="r">시간 비중</th><th class="r">처리량</th><th class="r">UPH</th><th class="r" title="이력 전체(오늘 제외, 기간 끝까지)의 평상시 속도">평상시 UPH</th><th class="r">효율</th><th class="r" title="평상시 속도보다 더 걸린 시간">손실(h)</th><th class="r">시간 전기 대비</th></tr></thead>
             <tbody>${rows}</tbody></table></div>`, '행을 누르면 업무 상세(UPH 추세·담당 변화)');
@@ -324,25 +324,25 @@ function renderStaffing(host, foldsHost, c) {
             ${kpiCard({ label: '출근 인원', value: n1(S.attended), unit: '명', sub: '일평균, 출근 기록 기준', cmps: [cmpHtml('전기', staffH.vsPrev, 'pct', null), cmpHtml('평소', staffH.vsBase, 'pct', null)] })}
             ${kpiCard({ label: '실근무 인원', value: n1(S.workers), unit: '명', sub: '업무 기록에 이름이 있는 사람', title: '출근했어도 업무 기록이 없으면 빠집니다' })}
             ${kpiCard({ label: '필요 인원', value: n1(S.required), unit: '명', sub: `평상시 속도 · 가동률 설정 ${ok(S.utilizationSetting) ? Math.round(S.utilizationSetting * 100) + '%' : '—'}` })}
-            ${kpiCard({ label: '과부족', value: `<span class="${gapCls}">${ok(S.gap) ? signed1(S.gap) : '—'}</span>`, unit: '명', sub: '출근 − 필요' })}
+            ${kpiCard({ label: '과부족', value: `<span class="${gapCls}">${escapeHtml(ok(S.gap) ? signed1(S.gap) : '—')}</span>`, unit: '명', sub: '출근 − 필요' })}
         </div>`;
         // 처리량 입력 전인 날은 빼고(모델 집계 shortAll·spareAll 과 같게)
         const rows = m.staffDays.filter(d => ok(d.gap) && d.required > 0 && d.qty > 0 && (d.gap < -0.5 || d.gap > 1)).map(d => `<tr class="${d.gap < -0.5 ? 'is-short' : ''}">
             <td>${fmtDay(d.date)}${d.estimated ? ' <span class="opv-chip" title="출퇴근 기록이 없어 추정">추정</span>' : ''}</td>
-            <td class="r">${n0(d.attended)}</td><td class="r">${n0(d.worked)}</td><td class="r">${n1(d.required)}</td>
-            <td class="r"><b class="${d.gap < -0.5 ? 'opv-down' : 'opv-up'}">${signed1(d.gap)}</b></td></tr>`).join('');
+            <td class="r">${escapeHtml(n0(d.attended))}</td><td class="r">${escapeHtml(n0(d.worked))}</td><td class="r">${escapeHtml(n1(d.required))}</td>
+            <td class="r"><b class="${d.gap < -0.5 ? 'opv-down' : 'opv-up'}">${escapeHtml(signed1(d.gap))}</b></td></tr>`).join('');
         const days = !m.meta.hasBaseline ? '<p class="opv-note">평상시 속도가 없어 필요 인원을 계산하지 못했습니다.</p>'
             : rows ? `<div class="opv-table-wrap"><table class="opv-table">
                 <thead><tr><th>날짜</th><th class="r">출근</th><th class="r">실근무</th><th class="r">필요</th><th class="r">과부족</th></tr></thead><tbody>${rows}</tbody></table></div>`
                 : '<p class="opv-note">부족(−0.5명 미만)·여유(+1명 초과)인 날이 없습니다.</p>';
-        const step = (label, v, note) => `<tr><td>${esc(label)}</td><td class="r">${n1(v)}명</td><td class="opv-note">${esc(note)}</td></tr>`;
+        const step = (label, v, note) => `<tr><td>${esc(label)}</td><td class="r">${escapeHtml(n1(v))}명</td><td class="opv-note">${esc(note)}</td></tr>`;
         const fte = `<div class="opv-table-wrap"><table class="opv-table"><tbody>
             ${step('출근', S.attended, '출근 기록이 있는 사람(일평균)')}
             ${step('실작업', S.worked, '업무 기록 시간 ÷ 1인 재실 시간')}
             ${step('실작업 필요', S.requiredWork, '평상시 속도로 그날 물량에 필요한 실작업 인원')}
             ${step('유효 인력', S.effective, '실작업 × 효율 × 품질')}
             ${step('명부(참고)', S.rosterAvg, '명부 − 휴가')}
-        </tbody></table></div><p class="opv-note">1인 평균 재실 ${n1(S.avgPresenceHours)}시간</p>`;
+        </tbody></table></div><p class="opv-note">1인 평균 재실 ${escapeHtml(n1(S.avgPresenceHours))}시간</p>`;
         if (foldsHost) foldsHost.innerHTML = fold('days', '부족 · 여유 일자', days, `부족 ${m.problems.shortDayCount}일 · 여유 ${m.problems.spareDayCount}일`)
             + fold('fte', 'FTE 단계', fte);
     }
@@ -365,33 +365,33 @@ function renderCost(host, c) {
         ${kpiCard({ label: '개당 인건비', value: n0(C.laborPerItem), unit: '원', cmps: [cmpHtml('전기', C.vsPrevLaborPerItem, 'pct', 'down')], title: '인건비 합계 ÷ 처리량' })}
         ${kpiCard({ label: '총 손실', value: n0(L.total.cost), unit: '원', sub: `${hrs(L.total.minutes)}시간`, cmps: [cmpHtml('전기', L.vsPrevTotalCost, 'pct', 'down')] })}
     </div>`;
-    const lrow = (label, x, note) => `<tr><td>${esc(label)}<div class="opv-note">${esc(note)}</div></td><td class="r">${hrs(x.minutes)}</td><td class="r">${n0(x.cost)}</td></tr>`;
+    const lrow = (label, x, note) => `<tr><td>${esc(label)}<div class="opv-note">${esc(note)}</div></td><td class="r">${escapeHtml(hrs(x.minutes))}</td><td class="r">${escapeHtml(n0(x.cost))}</td></tr>`;
     const lossTable = card('손실', `<div class="opv-table-wrap"><table class="opv-table">
         <thead><tr><th>종류</th><th class="r">시간(h)</th><th class="r">금액(원)</th></tr></thead>
         <tbody>
             ${lrow('기록 없는 시간', L.availability, '재실(출근~퇴근) 중 업무 기록이 없는 시간')}
             ${lrow('느려서 더 걸린 시간', L.performance, '평상시 속도보다 더 걸린 시간')}
             ${lrow('품질 업무', L.quality, '검수·오류 처리 등 품질 업무 시간')}
-            <tr style="font-weight:700"><td>합계</td><td class="r">${hrs(L.total.minutes)}</td><td class="r">${n0(L.total.cost)}</td></tr>
+            <tr style="font-weight:700"><td>합계</td><td class="r">${escapeHtml(hrs(L.total.minutes))}</td><td class="r">${escapeHtml(n0(L.total.cost))}</td></tr>
         </tbody></table></div>`, '금액 = 실제 시급표');
 
     const u = C.unitCost;
     const ratio = ok(C.totalLaborCost) && C.revenue > 0 ? (C.totalLaborCost / C.revenue) * 100 : null;
     const rev = `<div class="opv-table-wrap"><table class="opv-table"><tbody>
-        <tr><td>매출 (경영 지표)</td><td class="r">${n0(C.revenue)}원</td></tr>
-        <tr><td>주문 건수</td><td class="r">${n0(C.orders)}건</td></tr>
-        <tr><td>인건비 합계</td><td class="r">${n0(C.totalLaborCost)}원</td></tr>
-        <tr><td>매출 대비 인건비</td><td class="r">${ok(ratio) ? n1(ratio) + '%' : '—'}</td></tr>
-        ${u ? `<tr><td>건당 원가 — 인건비</td><td class="r">${n0(u.labor)}원</td></tr>
-        <tr><td>건당 원가 — 자재</td><td class="r">${n0(u.material)}원</td></tr>
-        <tr><td>건당 원가 — 택배</td><td class="r">${n0(u.shipping)}원</td></tr>
-        <tr><td>건당 원가 — 직진배송${u.directDeliveryDays ? ` (${n0(u.directDeliveryDays)}일)` : ''}</td><td class="r">${n0(u.directDelivery)}원</td></tr>` : ''}
+        <tr><td>매출 (경영 지표)</td><td class="r">${escapeHtml(n0(C.revenue))}원</td></tr>
+        <tr><td>주문 건수</td><td class="r">${escapeHtml(n0(C.orders))}건</td></tr>
+        <tr><td>인건비 합계</td><td class="r">${escapeHtml(n0(C.totalLaborCost))}원</td></tr>
+        <tr><td>매출 대비 인건비</td><td class="r">${escapeHtml(ok(ratio) ? n1(ratio) + '%' : '—')}</td></tr>
+        ${u ? `<tr><td>건당 원가 — 인건비</td><td class="r">${escapeHtml(n0(u.labor))}원</td></tr>
+        <tr><td>건당 원가 — 자재</td><td class="r">${escapeHtml(n0(u.material))}원</td></tr>
+        <tr><td>건당 원가 — 택배</td><td class="r">${escapeHtml(n0(u.shipping))}원</td></tr>
+        <tr><td>건당 원가 — 직진배송${escapeHtml(u.directDeliveryDays ? ` (${n0(u.directDeliveryDays)}일)` : '')}</td><td class="r">${escapeHtml(n0(u.directDelivery))}원</td></tr>` : ''}
     </tbody></table></div><p class="opv-note">매출은 경영 지표에 입력한 채널 합계입니다(여기서 입력하지 않습니다).</p>`;
     const top = m.tasks.filter(t => t.lossMinutes > 0).slice().sort((a, b) => (b.lossCost || 0) - (a.lossCost || 0) || b.lossMinutes - a.lossMinutes).slice(0, 10);
     const topHtml = top.length ? `<div class="opv-table-wrap"><table class="opv-table">
         <thead><tr><th>업무</th><th class="r">손실(h)</th><th class="r">손실 금액(원)</th><th class="r">인건비(원)</th></tr></thead>
         <tbody>${top.map(t => `<tr><td><button type="button" class="opv-row-btn" data-ops-task="${esc(t.task)}">${esc(t.task)}</button></td>
-            <td class="r">${hrs(t.lossMinutes)}</td><td class="r">${n0(t.lossCost)}</td><td class="r">${n0(t.cost)}</td></tr>`).join('')}</tbody></table></div>`
+            <td class="r">${escapeHtml(hrs(t.lossMinutes))}</td><td class="r">${escapeHtml(n0(t.lossCost))}</td><td class="r">${escapeHtml(n0(t.cost))}</td></tr>`).join('')}</tbody></table></div>`
         : '<p class="opv-note">평상시보다 더 걸린 업무가 없습니다.</p>';
     host.innerHTML = `${periodLine(m)}${kpis}${lossTable}
         ${fold('revenue', '매출 연동', rev)}
@@ -469,7 +469,7 @@ export function openTaskDetail(task, ctx = null) {
         if (sec) sec.innerHTML = empty('권한이 없습니다. 담당 변화는 리포트 권한이 있어야 보입니다.');
     } else if (task && cache && cache.ownerTasks && !cache.ownerTasks.has(task)) {
         if (sec) sec.innerHTML = empty('이 업무는 담당 변화 대상이 아닙니다(관리자 개별업무 또는 최근 13개월 기록 없음).');
-    } else import('./ui-history-task-owner.js?v=202611121547').then(mod => {
+    } else import('./ui-history-task-owner.js?v=202611121915').then(mod => {
         mod.renderTaskOwnerTab(task ? { task } : {});
     }).catch(err => {
         console.error('taskowner module load failed:', err && err.message);
@@ -559,7 +559,7 @@ function bindOnce() {
             const host = $('ops-milestones-widget');
             if (host && !host.dataset.done) {
                 host.dataset.done = '1';
-                import('./ui-history-milestones.js?v=202611121547').then(mod => mod.renderMilestonesInsightWidget(host))
+                import('./ui-history-milestones.js?v=202611121915').then(mod => mod.renderMilestonesInsightWidget(host))
                     .catch(err => { console.warn('milestones widget load failed:', err && err.message); host.innerHTML = empty('마일스톤을 불러오지 못했습니다.'); });
             }
         }

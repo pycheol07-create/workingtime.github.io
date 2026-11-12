@@ -1,12 +1,12 @@
 // === js/ui-history-leave.js ===
-import * as State from './state.js?v=202611121547';
-import { showToast, isMemberActiveOn, friendlyFirebaseError } from './utils.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { showToast, isMemberActiveOn, friendlyFirebaseError, escapeHtml } from './utils.js?v=202611121915';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ 엑셀 변환 함수 불러오기
-import { downloadLeaveLedgerExcel } from './history-excel.js?v=202611121547';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611121547';
-import { updateLeaveSchedule } from './config.js?v=202611121547';
+import { downloadLeaveLedgerExcel } from './history-excel.js?v=202611121915';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611121915';
+import { updateLeaveSchedule } from './config.js?v=202611121915';
 
 let currentYear = new Date().getFullYear();
 let fullLeaveConfig = {}; 
@@ -233,20 +233,20 @@ export async function renderLeaveSheet() {
             else remainColor = 'text-green-600 font-bold';
 
             tr.innerHTML = `
-                <td class="px-6 py-3 font-medium text-gray-900 border-b border-gray-100">${row.member}</td>
+                <td class="px-6 py-3 font-medium text-gray-900 border-b border-gray-100">${escapeHtml(row.member)}</td>
                 <td class="px-6 py-3 text-center border-b border-gray-100">
                     <input type="number" class="w-20 text-center border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none total-leave-input font-bold text-blue-600" 
-                           data-member="${row.member}" value="${row.total}" min="0" step="0.5">
+                           data-member="${escapeHtml(row.member)}" value="${escapeHtml(row.total)}" min="0" step="0.5">
                 </td>
                 <td class="px-6 py-3 text-center border-b border-gray-100 ${row.periodClass}">
-                    ${row.periodText}
+                    ${escapeHtml(row.periodText)}
                 </td>
-                <td class="px-6 py-3 text-center font-medium border-b border-gray-100">${row.used}</td>
-                <td class="px-6 py-3 text-center ${remainColor} border-b border-gray-100">${row.remaining}</td>
+                <td class="px-6 py-3 text-center font-medium border-b border-gray-100">${escapeHtml(row.used)}</td>
+                <td class="px-6 py-3 text-center ${escapeHtml(remainColor)} border-b border-gray-100">${escapeHtml(row.remaining)}</td>
                 <td class="px-6 py-3 text-xs text-gray-500 border-b border-gray-100">
                     <div class="flex justify-between items-center w-full min-h-[2rem]">
-                        <span class="break-words max-w-[85%] leading-relaxed">${row.history}</span>
-                        <button class="px-2 py-1.5 bg-white hover:bg-gray-100 text-gray-700 text-xs font-bold rounded border border-gray-300 manage-leave-btn flex-shrink-0 shadow-sm transition-colors" data-member="${row.member}">관리</button>
+                        <span class="break-words max-w-[85%] leading-relaxed">${escapeHtml(row.history)}</span>
+                        <button class="px-2 py-1.5 bg-white hover:bg-gray-100 text-gray-700 text-xs font-bold rounded border border-gray-300 manage-leave-btn flex-shrink-0 shadow-sm transition-colors" data-member="${escapeHtml(row.member)}">관리</button>
                     </div>
                 </td>
             `;
@@ -299,10 +299,10 @@ async function openLeaveManager(member) {
     if (document.getElementById(modalId)) document.getElementById(modalId).remove();
 
     const modalHtml = `
-    <div id="${modalId}" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+    <div id="${escapeHtml(modalId)}" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
             <div class="px-5 py-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
-                <h3 class="text-lg font-bold text-gray-900">${member} 님의 연차 관리</h3>
+                <h3 class="text-lg font-bold text-gray-900">${escapeHtml(member)} 님의 연차 관리</h3>
                 <button id="lm-close-btn" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
             </div>
             
@@ -395,12 +395,12 @@ async function openLeaveManager(member) {
             div.className = "flex justify-between items-center p-3 bg-white border border-gray-200 rounded text-sm shadow-sm";
             div.innerHTML = `
                 <div class="flex items-center gap-3">
-                    <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-bold">${l.type}</span>
-                    <span class="text-gray-700 font-medium">${label}</span>
+                    <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-bold">${escapeHtml(l.type)}</span>
+                    <span class="text-gray-700 font-medium">${escapeHtml(label)}</span>
                 </div>
                 <div class="flex gap-2">
-                    <button class="text-gray-500 hover:text-blue-600 font-medium px-2 py-1 bg-gray-50 rounded border border-gray-200" data-action="edit" data-id="${l.id}">수정</button>
-                    <button class="text-red-500 hover:text-red-700 font-medium px-2 py-1 bg-red-50 rounded border border-red-100" data-action="delete" data-id="${l.id}">삭제</button>
+                    <button class="text-gray-500 hover:text-blue-600 font-medium px-2 py-1 bg-gray-50 rounded border border-gray-200" data-action="edit" data-id="${escapeHtml(l.id)}">수정</button>
+                    <button class="text-red-500 hover:text-red-700 font-medium px-2 py-1 bg-red-50 rounded border border-red-100" data-action="delete" data-id="${escapeHtml(l.id)}">삭제</button>
                 </div>
             `;
             container.appendChild(div);

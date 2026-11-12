@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202611121547';
-import { LEAVE_TYPES } from './state.js?v=202611121547';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { LEAVE_TYPES } from './state.js?v=202611121915';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml as esc } from './utils.js?v=202611121915';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611121547';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611121547';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611121915';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611121915';
 
 import {
     calculateReportKPIs,
@@ -18,14 +18,16 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202611121547';
+} from './ui-history-reports-logic.js?v=202611121915';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202611121547';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611121547';
-import { D } from './d-chart.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
-import { baselineSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=202611121547';
-import { revenueTotalOf } from './revenue-channels.js?v=202611121547';
+import { aggregateManagementData } from './ui-history-management.js?v=202611121915';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611121915';
+import { D } from './d-chart.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
+import { baselineSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=202611121915';
+import { revenueTotalOf } from './revenue-channels.js?v=202611121915';
+// 엑셀(결산 xlsx)로 옮길 때 — 화면용 HTML 글(태그·escape 된 글자)을 보통 글자로
+const htmlToText = (h) => String(h == null ? '' : h).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 
 // ============================================================
 // 모듈 상태
@@ -505,17 +507,17 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
 
     // 1) 생산성 총평
     if (qtyPct !== null) {
-        if (qtyPct >= 5) points.push({ tone: 'blue', text: `총 처리량이 전기간 대비 <b>${qtyPct.toFixed(1)}% 증가</b>했습니다(${fmt(tp.prevTotalQuantity)}→${fmt(tp.totalQuantity)}개). 생산 물량이 확대되는 흐름입니다.` });
-        else if (qtyPct <= -5) points.push({ tone: 'red', text: `총 처리량이 전기간 대비 <b>${Math.abs(qtyPct).toFixed(1)}% 감소</b>했습니다(${fmt(tp.prevTotalQuantity)}→${fmt(tp.totalQuantity)}개). 물량 감소 원인 점검이 필요합니다.` });
+        if (qtyPct >= 5) points.push({ tone: 'blue', text: `총 처리량이 전기간 대비 <b>${qtyPct.toFixed(1)}% 증가</b>했습니다(${escapeHtml(fmt(tp.prevTotalQuantity))}→${escapeHtml(fmt(tp.totalQuantity))}개). 생산 물량이 확대되는 흐름입니다.` });
+        else if (qtyPct <= -5) points.push({ tone: 'red', text: `총 처리량이 전기간 대비 <b>${Math.abs(qtyPct).toFixed(1)}% 감소</b>했습니다(${escapeHtml(fmt(tp.prevTotalQuantity))}→${escapeHtml(fmt(tp.totalQuantity))}개). 물량 감소 원인 점검이 필요합니다.` });
         else points.push({ tone: 'gray', text: `총 처리량은 전기간과 유사한 수준입니다(${fmt(tp.totalQuantity)}개, ${qtyPct >= 0 ? '+' : ''}${qtyPct.toFixed(1)}%).` });
     } else {
-        points.push({ tone: 'gray', text: `이 기간 총 처리량은 <b>${fmt(tp.totalQuantity)}개</b>이며, 비교할 전기간 데이터가 없습니다.` });
+        points.push({ tone: 'gray', text: `이 기간 총 처리량은 <b>${escapeHtml(fmt(tp.totalQuantity))}개</b>이며, 비교할 전기간 데이터가 없습니다.` });
     }
 
     // 2) OEE 총평
     if (oee < OEE_LEVELS.warn) points.push({ tone: 'red', text: `종합 생산효율(OEE)이 <b>${oee.toFixed(0)}%</b>로 낮은 편입니다. 가용·성능·품질 손실 요인 중 가장 큰 항목부터 개선이 필요합니다.` });
-    else if (oee < OEE_LEVELS.good) points.push({ tone: 'amber', text: `종합 생산효율(OEE)은 <b>${oee.toFixed(0)}%</b>로 보통 수준입니다${prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : ''}.` });
-    else points.push({ tone: 'emerald', text: `종합 생산효율(OEE)이 <b>${oee.toFixed(0)}%</b>로 우수합니다${prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : ''}. 현재 운영 수준을 유지하는 것이 관건입니다.` });
+    else if (oee < OEE_LEVELS.good) points.push({ tone: 'amber', text: `종합 생산효율(OEE)은 <b>${oee.toFixed(0)}%</b>로 보통 수준입니다${escapeHtml(prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : '')}.` });
+    else points.push({ tone: 'emerald', text: `종합 생산효율(OEE)이 <b>${oee.toFixed(0)}%</b>로 우수합니다${escapeHtml(prevOee > 0 ? ` (전기간 ${prevOee.toFixed(0)}%)` : '')}. 현재 운영 수준을 유지하는 것이 관건입니다.` });
 
     // 3) 인력 운영 — 필요 인원(가동률 설정 반영)은 출근 인원과 비교한다(인력 화면과 같은 방식).
     //    실작업 인력과 비교하면 가동률 설정만큼 늘 차이가 난다(운영 지표 표준, js/lib/ops-metrics.js).
@@ -535,21 +537,21 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
 
     // 5) 검수 품질
     if (insp.totalInspectionCount > 0) {
-        if (insp.qtyDefectRate >= 5) points.push({ tone: 'red', text: `입고 검수 불량률이 <b>${insp.qtyDefectRate.toFixed(1)}%</b>(수량 기준)로 높습니다. 상위 불량사유(${insp.topReasons.slice(0, 2).map(r => r[0]).join(', ') || '기타'}) 중심의 공급처 개선이 필요합니다.` });
+        if (insp.qtyDefectRate >= 5) points.push({ tone: 'red', text: `입고 검수 불량률이 <b>${insp.qtyDefectRate.toFixed(1)}%</b>(수량 기준)로 높습니다. 상위 불량사유(${escapeHtml(insp.topReasons.slice(0, 2).map(r => r[0]).join(', ') || '기타')}) 중심의 공급처 개선이 필요합니다.` });
         else points.push({ tone: 'emerald', text: `입고 검수 불량률은 <b>${insp.qtyDefectRate.toFixed(1)}%</b>로 양호한 수준입니다.` });
     }
 
     // 6) 매출/경영
     if (mg.curMgmt.revenue > 0) {
         const revPct = mg.prevMgmt.revenue > 0 ? ((mg.curMgmt.revenue - mg.prevMgmt.revenue) / mg.prevMgmt.revenue * 100) : null;
-        if (revPct !== null) points.push({ tone: revPct >= 0 ? 'blue' : 'red', text: `총 매출은 <b>${fmt(mg.curMgmt.revenue)}원</b>으로 전기간 대비 ${revPct >= 0 ? '+' : ''}${revPct.toFixed(1)}%입니다.` });
-        else points.push({ tone: 'gray', text: `총 매출은 <b>${fmt(mg.curMgmt.revenue)}원</b>입니다.` });
+        if (revPct !== null) points.push({ tone: revPct >= 0 ? 'blue' : 'red', text: `총 매출은 <b>${escapeHtml(fmt(mg.curMgmt.revenue))}원</b>으로 전기간 대비 ${revPct >= 0 ? '+' : ''}${revPct.toFixed(1)}%입니다.` });
+        else points.push({ tone: 'gray', text: `총 매출은 <b>${escapeHtml(fmt(mg.curMgmt.revenue))}원</b>입니다.` });
     }
 
     // 7) 마일스톤 효과
     if (ms.total > 0) {
         if (ms.measuredCount === 0) points.push({ tone: 'gray', text: `이 기간에 마일스톤 ${ms.total}건이 등록됐으나 아직 전/후 데이터가 충분치 않아 효과 판정은 보류 상태입니다.` });
-        else if (ms.positiveCount > ms.negativeCount) points.push({ tone: 'emerald', text: `운영 마일스톤 ${ms.measuredCount}건 중 <b>${ms.positiveCount}건에서 긍정적 효과</b>가 확인됐습니다. 효과가 좋은 변경은 표준화·확대 적용을 검토하세요.` });
+        else if (ms.positiveCount > ms.negativeCount) points.push({ tone: 'emerald', text: `운영 마일스톤 ${escapeHtml(ms.measuredCount)}건 중 <b>${escapeHtml(ms.positiveCount)}건에서 긍정적 효과</b>가 확인됐습니다. 효과가 좋은 변경은 표준화·확대 적용을 검토하세요.` });
         else if (ms.negativeCount > ms.positiveCount) points.push({ tone: 'amber', text: `운영 마일스톤 ${ms.measuredCount}건 중 ${ms.negativeCount}건에서 부정적 변화가 관찰됐습니다. 해당 변경의 원복 또는 보완이 필요합니다.` });
         else points.push({ tone: 'gray', text: `운영 마일스톤 ${ms.measuredCount}건의 효과는 뚜렷한 방향성 없이 혼재되어 있습니다.` });
     }
@@ -570,8 +572,8 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
     if (oee < OEE_LEVELS.warn) oeeTarget = `${OEE_LEVELS.warn}% 이상`;
     else if (oee < OEE_LEVELS.good) oeeTarget = `${Math.min(OEE_LEVELS.good, Math.ceil((oee + 5) / 5) * 5)}%`;
     else oeeTarget = `현 수준(${OEE_LEVELS.good}%+) 유지`;
-    let planText = `다음 기간 OEE 목표를 <b>${oeeTarget}</b>로 설정하세요.`;
-    if (topLoss && topLoss.cost > 0) planText += ` 현재 손실 비중이 가장 큰 <b>${topLoss.key}(${fmt(topLoss.cost)}원)</b>부터 집중 개선합니다 — ${topLoss.tip}`;
+    let planText = `다음 기간 OEE 목표를 <b>${escapeHtml(oeeTarget)}</b>로 설정하세요.`;
+    if (topLoss && topLoss.cost > 0) planText += ` 현재 손실 비중이 가장 큰 <b>${escapeHtml(topLoss.key)}(${escapeHtml(fmt(topLoss.cost))}원)</b>부터 집중 개선합니다 — ${escapeHtml(topLoss.tip)}`;
     plans.push({ title: '생산 효율(OEE) 개선', text: planText });
 
     // B) 물량 대응
@@ -589,7 +591,7 @@ function computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount
     if (absence + late >= 5) plans.push({ title: '근태 관리', text: `결근·지각이 집중된 인원을 식별해 1:1 면담과 원인 파악을 진행하고, 반복 시 근태 기준·교대 방식을 재점검하세요.` });
 
     // E) 품질/공급처
-    if (insp.totalInspectionCount > 0 && insp.qtyDefectRate >= 5) plans.push({ title: '입고 품질 개선', text: `불량률이 높습니다. 상위 불량사유(${insp.topReasons.slice(0, 2).map(r => r[0]).join(', ') || '기타'})와 불량 상위 제품을 공급처에 피드백하고, 재발 시 발주 조건·검수 강화 등 조치 기준을 마련하세요.` });
+    if (insp.totalInspectionCount > 0 && insp.qtyDefectRate >= 5) plans.push({ title: '입고 품질 개선', text: `불량률이 높습니다. 상위 불량사유(${insp.topReasons.slice(0, 2).map(r => escapeHtml(r[0])).join(', ') || '기타'})와 불량 상위 제품을 공급처에 피드백하고, 재발 시 발주 조건·검수 강화 등 조치 기준을 마련하세요.` });
 
     // F) 마일스톤 운영 방향
     if (ms.total === 0) {
@@ -625,7 +627,7 @@ const sectionPanel = (icon, title, subtitle, bodyHtml, accentClass = 'border-l-b
     <section class="bg-white border border-gray-200 rounded-xl shadow-sm p-5 md:p-6 print:break-inside-avoid">
         <div class="flex items-baseline justify-between flex-wrap gap-1 mb-4 pb-3 border-b border-gray-100">
             <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">${title}</h3>
-            <p class="text-xs text-gray-400">${subtitle}</p>
+            <p class="text-xs text-gray-400">${escapeHtml(subtitle)}</p>
         </div>
         ${bodyHtml}
     </section>`;
@@ -633,7 +635,7 @@ const sectionPanel = (icon, title, subtitle, bodyHtml, accentClass = 'border-l-b
 const heroStat = (label, value, unit, diffHtml, colorClass = 'text-gray-800') => `
     <div class="flex-1 min-w-[120px]">
         <div class="text-[11px] text-gray-500 mb-1">${label}</div>
-        <div class="text-2xl md:text-3xl font-extrabold ${colorClass}">${value}<span class="text-xs font-semibold text-gray-400 ml-0.5">${unit}</span></div>
+        <div class="text-2xl md:text-3xl font-extrabold ${colorClass}">${value}<span class="text-xs font-semibold text-gray-400 ml-0.5">${escapeHtml(unit)}</span></div>
         ${diffHtml ? `<div class="mt-1">${diffHtml}</div>` : ''}
     </div>`;
 
@@ -657,7 +659,7 @@ const changeBadge = (pct) => {
 };
 
 const tableShell = (theadHtml, tbodyHtml, maxH = 'max-h-[420px]') => `
-    <div class="overflow-x-auto overflow-y-auto ${maxH} border border-gray-100 rounded-lg">
+    <div class="overflow-x-auto overflow-y-auto ${escapeHtml(maxH)} border border-gray-100 rounded-lg">
         <table class="w-full text-sm text-left text-gray-600">
             <thead class="text-[11px] text-gray-700 uppercase bg-gray-100 sticky top-0"><tr>${theadHtml}</tr></thead>
             <tbody class="divide-y divide-gray-100">${tbodyHtml}</tbody>
@@ -706,14 +708,14 @@ const sfHead = (id, cols, allRows) => {
         const opts = c.filterable
             ? [...new Set((allRows || []).map(r => String(c.get(r) ?? '')))].sort((x, y) => x.localeCompare(y, 'ko'))
             : [];
-        return `<th class="px-3 py-2 text-${c.align || 'left'} font-bold whitespace-nowrap">
+        return `<th class="px-3 py-2 text-${escapeHtml(c.align || 'left')} font-bold whitespace-nowrap">
             <span class="inline-flex items-center gap-0.5 ${c.align === 'right' ? 'flex-row-reverse' : ''}">
-                <button type="button" data-tf-sort="${c.key}" data-tf-table="${id}"
+                <button type="button" data-tf-sort="${escapeHtml(c.key)}" data-tf-table="${id}"
                         class="inline-flex items-center gap-1 hover:text-blue-600 ${on ? 'text-blue-600' : ''}"
-                        title="클릭해서 정렬 (오름차순 → 내림차순 → 해제)">${label(c)} <span class="text-[11px] ${on ? '' : 'text-gray-300'}">${ic}</span></button>
-                ${c.filterable ? `<button type="button" data-tf-filter="${c.key}" data-tf-table="${id}"
+                        title="클릭해서 정렬 (오름차순 → 내림차순 → 해제)">${label(c)} <span class="text-[11px] ${on ? '' : 'text-gray-300'}">${escapeHtml(ic)}</span></button>
+                ${c.filterable ? `<button type="button" data-tf-filter="${escapeHtml(c.key)}" data-tf-table="${id}"
                         class="px-1 rounded text-[11px] ${active ? 'text-blue-600 bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-200'}"
-                        title="${c.label} 필터">▼${n > 0 ? `<span class="ml-0.5 font-bold">${n}</span>` : ''}</button>` : ''}
+                        title="${escapeHtml(c.label)} 필터">▼${n > 0 ? `<span class="ml-0.5 font-bold">${n}</span>` : ''}</button>` : ''}
             </span>
         </th>`;
     }).join('');
@@ -733,7 +735,7 @@ const sfTable = (id, cols, rows, maxH, emptyMsg) => {
 };
 const _sfCols = {};   // 필터 팝업이 후보값을 뽑을 때 쓴다
 const _sfRows = {};
-const td = (content, align = 'left', extra = '') => `<td class="px-3 py-2 text-${align} ${extra}">${content}</td>`;
+const td = (content, align = 'left', extra = '') => `<td class="px-3 py-2 text-${align} ${escapeHtml(extra)}">${content}</td>`;
 
 const emptyNote = (msg) => `<div class="text-xs text-gray-400 text-center py-6">${msg}</div>`;
 
@@ -745,7 +747,7 @@ const narrative = (text, tone = 'gray') => {
         red: 'bg-red-50 border-red-200 text-red-800',
         amber: 'bg-amber-50 border-amber-200 text-amber-800'
     };
-    return `<div class="rounded-lg border p-3 text-xs leading-relaxed ${toneMap[tone] || toneMap.gray}">${text}</div>`;
+    return `<div class="rounded-lg border p-3 text-xs leading-relaxed ${escapeHtml(toneMap[tone] || toneMap.gray)}">${text}</div>`;
 };
 
 // ============================================================
@@ -797,7 +799,7 @@ function renderExecutiveSummary(core, tp, wf, att, mg, insp, periodLabel, workin
     if (workingDaysCount === 0) {
         return `
         <div class="settle-exec bg-white border border-gray-200 rounded-2xl p-6 text-gray-900">
-            <h2 class="text-xl font-bold mb-1">${periodLabel} 팀 결산 보고</h2>
+            <h2 class="text-xl font-bold mb-1">${escapeHtml(periodLabel)} 팀 결산 보고</h2>
             <p class="text-sm text-gray-500">해당 기간에 업무 기록이 없어 요약할 내용이 없습니다.</p>
         </div>`;
     }
@@ -817,37 +819,37 @@ function renderExecutiveSummary(core, tp, wf, att, mg, insp, periodLabel, workin
         <div class="flex items-start justify-between flex-wrap gap-3 mb-6">
             <div>
                 <div class="text-xs text-gray-600 tracking-wide uppercase mb-1">Executive Summary</div>
-                <h2 class="text-2xl font-extrabold">${periodLabel} 팀 결산 보고</h2>
+                <h2 class="text-2xl font-extrabold">${escapeHtml(periodLabel)} 팀 결산 보고</h2>
             </div>
-            <span class="inline-flex items-center gap-1.5 ${verdictBg} text-white text-sm font-bold px-3 py-1.5 rounded-full shadow">${verdictText}</span>
+            <span class="inline-flex items-center gap-1.5 ${verdictBg} text-white text-sm font-bold px-3 py-1.5 rounded-full shadow">${escapeHtml(verdictText)}</span>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div>
                 <div class="text-[11px] text-gray-600 mb-1">총 처리량</div>
-                <div class="text-3xl font-extrabold">${fmt(tp.totalQuantity)}<span class="text-sm font-medium text-gray-600 ml-1">개</span></div>
-                <div class="text-[11px] text-gray-600 mt-1">${qtyChangeTxt}</div>
+                <div class="text-3xl font-extrabold">${escapeHtml(fmt(tp.totalQuantity))}<span class="text-sm font-medium text-gray-600 ml-1">개</span></div>
+                <div class="text-[11px] text-gray-600 mt-1">${escapeHtml(qtyChangeTxt)}</div>
             </div>
             <div>
                 <div class="text-[11px] text-gray-600 mb-1">종합 생산 효율 (OEE)</div>
                 <div class="text-3xl font-extrabold">${core.curProd.oee.toFixed(0)}<span class="text-sm font-medium text-gray-600 ml-1">%</span></div>
-                <div class="text-[11px] text-gray-600 mt-1">${core.prevProd.oee > 0 ? `전기간 ${core.prevProd.oee.toFixed(0)}%` : '전기간 데이터 없음'}</div>
-                <div class="text-[10px] text-gray-500 mt-0.5" title="가동률·효율을 각각 100%까지만 반영, 효율은 평상시 속도 기준. 판정: ${OEE_LEVELS.warn}% 미만 주의 · ${OEE_LEVELS.good}% 미만 보통">2026-11-05부터 새 기준 — 옛 결산 PDF와 다를 수 있음</div>
+                <div class="text-[11px] text-gray-600 mt-1">${escapeHtml(core.prevProd.oee > 0 ? `전기간 ${core.prevProd.oee.toFixed(0)}%` : '전기간 데이터 없음')}</div>
+                <div class="text-[10px] text-gray-500 mt-0.5" title="가동률·효율을 각각 100%까지만 반영, 효율은 평상시 속도 기준. 판정: ${escapeHtml(OEE_LEVELS.warn)}% 미만 주의 · ${OEE_LEVELS.good}% 미만 보통">2026-11-05부터 새 기준 — 옛 결산 PDF와 다를 수 있음</div>
             </div>
             <div>
                 <div class="text-[11px] text-gray-600 mb-1">일평균 근무인원</div>
                 <div class="text-3xl font-extrabold">${wf.avgActiveMembers.toFixed(1)}<span class="text-sm font-medium text-gray-600 ml-1">명</span></div>
-                <div class="text-[11px] text-gray-600 mt-1">파트타이머 ${wf.partTimerCount}명 포함</div>
+                <div class="text-[11px] text-gray-600 mt-1">파트타이머 ${escapeHtml(wf.partTimerCount)}명 포함</div>
             </div>
             <div>
                 <div class="text-[11px] text-gray-600 mb-1">${mg.curMgmt.revenue > 0 ? '총 매출' : '검수 불량률'}</div>
                 <div class="text-3xl font-extrabold">${mg.curMgmt.revenue > 0 ? fmt(mg.curMgmt.revenue) : insp.qtyDefectRate.toFixed(1)}<span class="text-sm font-medium text-gray-600 ml-1">${mg.curMgmt.revenue > 0 ? '원' : '%'}</span></div>
-                <div class="text-[11px] text-gray-600 mt-1">${mg.curMgmt.revenue > 0 ? `발주 ${fmt(mg.curMgmt.orderCount)}건` : `검수 ${fmt(insp.totalInspectionCount)}건`}</div>
+                <div class="text-[11px] text-gray-600 mt-1">${escapeHtml(mg.curMgmt.revenue > 0 ? `발주 ${fmt(mg.curMgmt.orderCount)}건` : `검수 ${fmt(insp.totalInspectionCount)}건`)}</div>
             </div>
         </div>
 
         ${d ? `<div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm leading-relaxed text-gray-800">
-            <span class="font-bold">${d.title}.</span> ${d.desc}
+            <span class="font-bold">${escapeHtml(d.title)}.</span> ${escapeHtml(d.desc)}
             ${core.diagnosis?.commentHtml ? `<div class="mt-2 text-gray-600 text-xs">${core.diagnosis.commentHtml}</div>` : ''}
         </div>` : ''}
     </div>`;
@@ -874,7 +876,7 @@ function renderProductivitySection(tp, core, workingDaysCount) {
 
         <div class="mb-5">
             <div class="text-xs font-bold text-gray-600 mb-2">일별 처리량 추이</div>
-            <div style="height:220px;"><canvas id="${chartId}"></canvas></div>
+            <div style="height:220px;"><canvas id="${escapeHtml(chartId)}"></canvas></div>
         </div>
 
         <div class="mb-5">
@@ -882,7 +884,7 @@ function renderProductivitySection(tp, core, workingDaysCount) {
             ${sfTable('tpTask', [
                 { key: 'task', label: '업무', filterable: true, get: t => t.task, cell: t => esc(t.task) },
                 { key: 'quantity', label: '처리량', align: 'right', type: 'num', get: t => t.quantity,
-                  cell: t => `<span class="font-bold text-gray-800">${fmt(t.quantity)}</span>` },
+                  cell: t => `<span class="font-bold text-gray-800">${escapeHtml(fmt(t.quantity))}</span>` },
                 { key: 'share', label: '점유율', align: 'right', type: 'num', get: t => t.share,
                   cell: t => `<div class="w-24 inline-block align-middle mr-2">${progressBar(t.share, 'bg-blue-500')}</div><span class="text-xs text-gray-500">${t.share.toFixed(1)}%</span>` },
                 { key: 'changePct', label: '전기간 대비', align: 'right', type: 'num', get: t => t.changePct ?? 0, cell: t => changeBadge(t.changePct) },
@@ -898,14 +900,14 @@ function renderProductivitySection(tp, core, workingDaysCount) {
             ${miniStat('품질 효율', drillWrap(core.curProd.qualityRatio.toFixed(0) + '%', 'qualityRatio'))}
         </div>
         <div class="grid grid-cols-3 gap-2 text-center mb-3">
-            <div class="text-[11px] text-gray-500">가용 손실 <b class="text-gray-700 block text-sm">${fmt(core.curProd.availabilityLossCost)}원</b></div>
-            <div class="text-[11px] text-gray-500">성능 손실 <b class="text-gray-700 block text-sm">${fmt(core.curProd.performanceLossCost)}원</b></div>
-            <div class="text-[11px] text-gray-500">품질 손실 <b class="text-gray-700 block text-sm">${fmt(core.curProd.qualityLossCost)}원</b></div>
+            <div class="text-[11px] text-gray-500">가용 손실 <b class="text-gray-700 block text-sm">${escapeHtml(fmt(core.curProd.availabilityLossCost))}원</b></div>
+            <div class="text-[11px] text-gray-500">성능 손실 <b class="text-gray-700 block text-sm">${escapeHtml(fmt(core.curProd.performanceLossCost))}원</b></div>
+            <div class="text-[11px] text-gray-500">품질 손실 <b class="text-gray-700 block text-sm">${escapeHtml(fmt(core.curProd.qualityLossCost))}원</b></div>
         </div>
         ${core.curProd.topPerformanceLossTasks && core.curProd.topPerformanceLossTasks.length > 0 ? `
         <div class="text-[11px] text-gray-500 mb-1">속도 손실 상위 업무</div>
         <div class="space-y-1">
-            ${core.curProd.topPerformanceLossTasks.map(t => `<div class="flex justify-between text-xs"><span>${esc(t.task)}</span><span class="text-red-500 font-bold">-${fmt(t.lossMinutes)}분</span></div>`).join('')}
+            ${core.curProd.topPerformanceLossTasks.map(t => `<div class="flex justify-between text-xs"><span>${esc(t.task)}</span><span class="text-red-500 font-bold">-${escapeHtml(fmt(t.lossMinutes))}분</span></div>`).join('')}
         </div>` : ''}
     `;
     return { html: sectionPanel('🚀', '생산성 및 효율성', '처리량 중심 분석', body, 'border-l-blue-500'), chartId, chartData: tp.daily };
@@ -984,7 +986,7 @@ function renderWorkReportSection(wr, workingDaysCount, totalDaysCount) {
             ${heroStat('활동 인원', wr.memberCount, '명', '', 'text-indigo-700')}
             ${heroStat('수행 업무 종류', wr.taskCount, '종')}
             ${heroStat('총 가동일수', workingDaysCount, '일',
-                `<span class="text-[11px] text-gray-400">기간 ${totalDays}일 중 업무 기록이 있는 날</span>`)}
+                `<span class="text-[11px] text-gray-400">기간 ${escapeHtml(totalDays)}일 중 업무 기록이 있는 날</span>`)}
         </div>
 
         <div class="mb-5">
@@ -997,8 +999,8 @@ function renderWorkReportSection(wr, workingDaysCount, totalDaysCount) {
                 { key: 'quantity', label: '생산량', align: 'right', type: 'num', get: t => t.quantity, cell: t => fmt(t.quantity) + '개' },
                 { key: 'cost', label: '인건비', align: 'right', type: 'num', get: t => t.cost, cell: t => fmt(t.cost) + '원' },
                 { key: 'workDays', label: '가동일수', align: 'right', type: 'num', get: t => t.workDays,
-                  cell: t => `<span class="font-bold text-gray-800">${t.workDays}</span>`
-                           + `<span class="text-gray-400"> / ${workingDaysCount}일</span>`
+                  cell: t => `<span class="font-bold text-gray-800">${escapeHtml(t.workDays)}</span>`
+                           + `<span class="text-gray-400"> / ${escapeHtml(workingDaysCount)}일</span>`
                            + `<div class="text-[11px] text-gray-400">${opRate(t.workDays)}%</div>` }
             ], wr.taskEntries)}
         </div>
@@ -1036,20 +1038,20 @@ function renderAttendanceSection(att) {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
             <div class="md:col-span-1">
                 <div class="text-xs font-bold text-gray-600 mb-2">근태 유형별 건수</div>
-                <div style="height:${Math.max(140, activeTypes.length * 32)}px;"><canvas id="${chartId}"></canvas></div>
+                <div style="height:${Math.max(140, activeTypes.length * 32)}px;"><canvas id="${escapeHtml(chartId)}"></canvas></div>
             </div>
             <div class="md:col-span-2">
                 <div class="text-xs font-bold text-gray-600 mb-2">결근·지각·외출·조퇴 상위 인원</div>
                 ${sfTable('attMember', [
                     { key: 'member', label: '이름', filterable: true, get: m => m.member, cell: m => esc(m.member) },
                     { key: 'absence', label: '결근', align: 'right', type: 'num', get: m => m.absence,
-                      cell: m => m.absence > 0 ? `<span class="text-red-600 font-bold">${m.absence}</span>` : '0' },
+                      cell: m => m.absence > 0 ? `<span class="text-red-600 font-bold">${escapeHtml(m.absence)}</span>` : '0' },
                     { key: 'late', label: '지각', align: 'right', type: 'num', get: m => m.late,
-                      cell: m => m.late > 0 ? `<span class="text-orange-500 font-bold">${m.late}</span>` : '0' },
+                      cell: m => m.late > 0 ? `<span class="text-orange-500 font-bold">${escapeHtml(m.late)}</span>` : '0' },
                     { key: 'outing', label: '외출', align: 'right', type: 'num', get: m => m.outing,
-                      cell: m => m.outing > 0 ? `<span class="text-amber-600 font-bold">${m.outing}</span>` : '0' },
+                      cell: m => m.outing > 0 ? `<span class="text-amber-600 font-bold">${escapeHtml(m.outing)}</span>` : '0' },
                     { key: 'earlyLeave', label: '조퇴', align: 'right', type: 'num', get: m => m.earlyLeave,
-                      cell: m => m.earlyLeave > 0 ? `<span class="text-yellow-600 font-bold">${m.earlyLeave}</span>` : '0' },
+                      cell: m => m.earlyLeave > 0 ? `<span class="text-yellow-600 font-bold">${escapeHtml(m.earlyLeave)}</span>` : '0' },
                     { key: 'total', label: '총 건수', align: 'right', type: 'num', get: m => m.total, cell: m => m.total }
                 ], att.memberRows, 'max-h-[260px]', '결근·지각·외출·조퇴 없음')}
             </div>
@@ -1075,7 +1077,7 @@ function renderManagementSection(mg) {
 
         <div class="mb-5">
             <div class="text-xs font-bold text-gray-600 mb-2">일별 매출 추이</div>
-            <div style="height:200px;"><canvas id="${chartId}"></canvas></div>
+            <div style="height:200px;"><canvas id="${escapeHtml(chartId)}"></canvas></div>
         </div>
 
         ${mg.unitCost && mg.unitCost.isValid ? `
@@ -1088,8 +1090,8 @@ function renderManagementSection(mg) {
             ${miniStat('개당 원가 합계', fmt(mg.unitCost.costs.total) + '원')}
         </div>
         <div class="grid grid-cols-3 gap-2 text-center">
-            <div class="text-[11px] text-gray-500">개당 매출 <b class="text-gray-700 block text-sm">${fmt(mg.unitCost.profit.revenuePerItem)}원</b></div>
-            <div class="text-[11px] text-gray-500">개당 마진 <b class="text-gray-700 block text-sm">${fmt(mg.unitCost.profit.margin)}원</b></div>
+            <div class="text-[11px] text-gray-500">개당 매출 <b class="text-gray-700 block text-sm">${escapeHtml(fmt(mg.unitCost.profit.revenuePerItem))}원</b></div>
+            <div class="text-[11px] text-gray-500">개당 마진 <b class="text-gray-700 block text-sm">${escapeHtml(fmt(mg.unitCost.profit.margin))}원</b></div>
             <div class="text-[11px] text-gray-500">마진율 <b class="text-gray-700 block text-sm">${mg.unitCost.profit.marginRate.toFixed(1)}%</b></div>
         </div>` : ''}
     `;
@@ -1101,7 +1103,7 @@ function renderInspectionSection(insp) {
 
     const body = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            ${heroStat('총 검수 수량', fmt(insp.productTypeCount), 'SKU', `<span class="text-[11px] text-gray-400">총 수량 ${fmt(insp.totalInspectedQty)}개</span>`, 'text-rose-700')}
+            ${heroStat('총 검수 수량', fmt(insp.productTypeCount), 'SKU', `<span class="text-[11px] text-gray-400">총 수량 ${escapeHtml(fmt(insp.totalInspectedQty))}개</span>`, 'text-rose-700')}
             ${heroStat('불량 수량', fmt(insp.totalDefectQty), '개')}
             ${heroStat('수량 기준 불량률', insp.qtyDefectRate.toFixed(1), '%', '', insp.qtyDefectRate >= 5 ? 'text-red-600' : 'text-gray-800')}
             ${heroStat('건수 기준 불량률', insp.countDefectRate.toFixed(1), '%', '', insp.countDefectRate >= 5 ? 'text-red-600' : 'text-gray-800')}
@@ -1113,7 +1115,7 @@ function renderInspectionSection(insp) {
                 ${sfTable('inspDefect', [
                     { key: 'name', label: '제품', filterable: true, get: r => r.name, cell: r => esc(r.name) },
                     { key: 'defectCount', label: '불량건수', align: 'right', type: 'num', get: r => r.defectCount,
-                      cell: r => `<span class="text-red-600 font-bold">${r.defectCount}</span>` },
+                      cell: r => `<span class="text-red-600 font-bold">${escapeHtml(r.defectCount)}</span>` },
                     { key: 'defectQty', label: '불량수량', align: 'right', type: 'num', get: r => r.defectQty, cell: r => fmt(r.defectQty) + '개' },
                     { key: 'commonReason', label: '주요 불량사유', filterable: true, get: r => r.commonReason, cell: r => esc(r.commonReason) }
                 ], insp.topDefective, 'max-h-[300px]', '불량 없음')}
@@ -1124,7 +1126,7 @@ function renderInspectionSection(insp) {
                     ${insp.topReasons.map(([reason, count]) => {
                         const max = insp.topReasons[0][1] || 1;
                         return `<div>
-                            <div class="flex justify-between text-xs mb-1"><span>${esc(reason)}</span><span class="font-bold text-gray-700">${count}건</span></div>
+                            <div class="flex justify-between text-xs mb-1"><span>${esc(reason)}</span><span class="font-bold text-gray-700">${escapeHtml(count)}건</span></div>
                             ${progressBar(count / max * 100, 'bg-rose-500')}
                         </div>`;
                     }).join('') || '<div class="text-xs text-gray-400 text-center py-6">불량 사유 없음</div>'}
@@ -1144,7 +1146,7 @@ function renderMilestoneSection(ms) {
         const good = (betterIfHigh && pct > 0) || (!betterIfHigh && pct < 0);
         const cls = flat ? 'text-gray-400' : (good ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold');
         const icon = flat ? '—' : (good ? '개선' : '악화');
-        return `<span class="${cls}">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}${suffix} ${icon}</span>`;
+        return `<span class="${cls}">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}${escapeHtml(suffix)} ${icon}</span>`;
     };
 
     const rows = ms.items.map(it => {
@@ -1165,7 +1167,7 @@ function renderMilestoneSection(ms) {
             ${td(`<span class="text-[11px] text-gray-500">${esc(affected)}</span>`)}
             ${td(`<span class="text-xs text-gray-600">${s.before.uph.toFixed(1)}→${s.after.uph.toFixed(1)}</span>`, 'right')}
             ${td(changeCell(it.uphPct, true), 'right')}
-            ${td(`<span class="text-xs text-gray-600">${fmt(s.before.avgQtyPerDay)}→${fmt(s.after.avgQtyPerDay)}</span>`, 'right')}
+            ${td(`<span class="text-xs text-gray-600">${escapeHtml(fmt(s.before.avgQtyPerDay))}→${escapeHtml(fmt(s.after.avgQtyPerDay))}</span>`, 'right')}
             ${td(changeCell(it.qtyPct, true), 'right')}
         </tr>`;
     }).join('');
@@ -1211,8 +1213,8 @@ function renderMilestoneSection(ms) {
                         <div class="text-xs font-bold text-gray-800">${esc(it.typeInfo.label)} · ${esc(it.milestone.title || '-')} <span class="text-[11px] text-gray-400 font-mono ml-1">${esc(it.milestone.date)}</span></div>
                         <div class="text-[11px]">${badge}</div>
                     </div>
-                    <div class="text-[12px] text-gray-700 leading-relaxed"><b class="text-gray-500">해석:</b> ${it.insight.interp}</div>
-                    <div class="text-[12px] text-gray-700 leading-relaxed mt-0.5"><b class="text-gray-500">운영방안:</b> ${it.insight.action}</div>
+                    <div class="text-[12px] text-gray-700 leading-relaxed"><b class="text-gray-500">해석:</b> ${escapeHtml(it.insight.interp)}</div>
+                    <div class="text-[12px] text-gray-700 leading-relaxed mt-0.5"><b class="text-gray-500">운영방안:</b> ${escapeHtml(it.insight.action)}</div>
                 </div>`;
             }).join('')}
         </div>
@@ -1231,7 +1233,7 @@ function renderOverallOpinionSection(op, periodLabel, workingDaysCount) {
     };
     const pointsHtml = op.points.map(p => `
         <li class="flex items-start gap-2.5">
-            <span class="mt-[7px] w-1.5 h-1.5 rounded-full bg-current ${toneColor[p.tone] || 'text-gray-500'} shrink-0"></span>
+            <span class="mt-[7px] w-1.5 h-1.5 rounded-full bg-current ${escapeHtml(toneColor[p.tone] || 'text-gray-500')} shrink-0"></span>
             <span class="text-sm text-gray-700 leading-relaxed">${p.text}</span>
         </li>`).join('');
 
@@ -1246,7 +1248,7 @@ function renderOverallOpinionSection(op, periodLabel, workingDaysCount) {
 
     const body = `
         <div class="flex items-center gap-3 mb-3 flex-wrap">
-            <span class="inline-flex items-center gap-1.5 ${op.verdict.bg} text-white text-sm font-bold px-3 py-1.5 rounded-full shadow">종합 판정: ${op.verdict.text}</span>
+            <span class="inline-flex items-center gap-1.5 ${escapeHtml(op.verdict.bg)} text-white text-sm font-bold px-3 py-1.5 rounded-full shadow">종합 판정: ${escapeHtml(op.verdict.text)}</span>
             <span class="text-xs text-gray-400">${esc(periodLabel)} 운영 전반에 대한 자동 진단</span>
         </div>
         ${op.verdictSummary ? narrative(`<b>총평.</b> ${esc(op.verdictSummary)}`, op.verdict.text === '주의 필요' ? 'red' : (op.verdict.text === '보통' ? 'amber' : 'emerald')) : ''}
@@ -1478,8 +1480,8 @@ function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, m
             ]),
             ...(opinion.verdict ? [['종합의견', '종합 판정', opinion.verdict.text]] : []),
             ...(opinion.verdictSummary ? [['종합의견', '총평', opinion.verdictSummary]] : []),
-            ...(opinion.points || []).map((p, i) => ['종합의견', `진단 해석 ${i + 1}`, String(p.text).replace(/<[^>]+>/g, '')]),
-            ...(opinion.plans || []).map((pl, i) => ['운영계획', `${i + 1}. ${pl.title}`, String(pl.text).replace(/<[^>]+>/g, '')])
+            ...(opinion.points || []).map((p, i) => ['종합의견', `진단 해석 ${i + 1}`, htmlToText(p.text)]),
+            ...(opinion.plans || []).map((pl, i) => ['운영계획', `${i + 1}. ${pl.title}`, htmlToText(pl.text)])
         ];
 
         const worksheet = XLSX.utils.aoa_to_sheet(rows);
@@ -1502,13 +1504,13 @@ function buildPeriodControlsHtml() {
     allYears.add(String(year));
     const yearOptions = [...allYears].sort().reverse();
 
-    const granBtn = (g, label) => `<button data-settle-gran="${g}" class="settle-gran-btn px-3 py-1.5 text-sm font-bold transition ${granularity === g ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}">${label}</button>`;
+    const granBtn = (g, label) => `<button data-settle-gran="${escapeHtml(g)}" class="settle-gran-btn px-3 py-1.5 text-sm font-bold transition ${granularity === g ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}">${label}</button>`;
 
     let subOptions = '';
     if (granularity === 'month') {
-        subOptions = Array.from({ length: 12 }, (_, i) => i + 1).map(m => `<option value="${m}" ${sub === m ? 'selected' : ''}>${m}월</option>`).join('');
+        subOptions = Array.from({ length: 12 }, (_, i) => i + 1).map(m => `<option value="${escapeHtml(m)}" ${sub === m ? 'selected' : ''}>${escapeHtml(m)}월</option>`).join('');
     } else if (granularity === 'quarter') {
-        subOptions = [1, 2, 3, 4].map(q => `<option value="${q}" ${sub === q ? 'selected' : ''}>${q}분기</option>`).join('');
+        subOptions = [1, 2, 3, 4].map(q => `<option value="${escapeHtml(q)}" ${sub === q ? 'selected' : ''}>${escapeHtml(q)}분기</option>`).join('');
     }
 
     return `
@@ -1518,7 +1520,7 @@ function buildPeriodControlsHtml() {
                     ${granBtn('month', '월')}${granBtn('quarter', '분기')}${granBtn('year', '년')}
                 </div>
                 <select id="settle-year-select" class="border border-gray-300 bg-white text-gray-800 rounded-lg px-2 py-1.5 text-sm">
-                    ${yearOptions.map(y => `<option value="${y}" ${String(year) === y ? 'selected' : ''}>${y}년</option>`).join('')}
+                    ${yearOptions.map(y => `<option value="${escapeHtml(y)}" ${String(year) === y ? 'selected' : ''}>${escapeHtml(y)}년</option>`).join('')}
                 </select>
                 ${granularity !== 'year' ? `<select id="settle-sub-select" class="border border-gray-300 bg-white text-gray-800 rounded-lg px-2 py-1.5 text-sm">${subOptions}</select>` : ''}
                 <button id="settle-generate-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-1.5 rounded-lg transition">보고서 생성</button>
@@ -1633,8 +1635,8 @@ export function renderSettlementReport(container, appConfig, opts = null) {
     container.innerHTML = `
         <div class="flex items-center justify-between flex-wrap gap-2">
             <div>
-                <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">팀 결산 보고 <span class="text-blue-600">· ${periodLabel}</span></h2>
-                <p class="text-xs text-gray-500 mt-1">근무 기록 ${currentDays.length}일 중 실근무 ${workingDaysCount}일 기준</p>
+                <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">팀 결산 보고 <span class="text-blue-600">· ${escapeHtml(periodLabel)}</span></h2>
+                <p class="text-xs text-gray-500 mt-1">근무 기록 ${currentDays.length}일 중 실근무 ${escapeHtml(workingDaysCount)}일 기준</p>
             </div>
         </div>
         ${buildPeriodControlsHtml()}

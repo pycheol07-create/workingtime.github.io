@@ -8,8 +8,8 @@
 import {
     pyStr, pyStrip, pyTruthy, strip, orEmpty, toInt, isFraction, cleanProductName, sortedBy,
     ablySource, packDay, countPacks, checkLimit, splitAndName, overBags, kstDay, fileNames, looksLikeStockOut, STOCK_OUT_MSG,
-} from './ship-core.js?v=202611121547';
-import { headerColumns } from './ship-read.js?v=202611121547';
+} from './ship-core.js?v=202611121915';
+import { headerColumns } from './ship-read.js?v=202611121915';
 
 export const REQ_HEADER_ROW = 2;
 export const REQ_DATA_ROW = 3;

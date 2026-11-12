@@ -1,12 +1,12 @@
 // === js/admin-ui.js ===
 // 설명: 관리자 페이지의 UI 렌더링을 전담하는 모듈입니다. (다크모드 지원)
 
-import { cleanPosition, POSITIONS } from './lib/member-title.js?v=202611121547';
-import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202611121547';
-import { menuLabel } from './app-shell-data.js?v=202611121547';   // 보이는 이름만 바꾼 메뉴(예: 내 연차관리 → 내 연차·근태관리)
-import { renderPermissionPanel } from './admin-perm.js?v=202611121547';
-import { taskIdOf, isSystemTaskId } from './lib/task-ids.js?v=202611121547';
-import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202611121547';
+import { cleanPosition, POSITIONS } from './lib/member-title.js?v=202611121915';
+import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=202611121915';
+import { menuLabel } from './app-shell-data.js?v=202611121915';   // 보이는 이름만 바꾼 메뉴(예: 내 연차관리 → 내 연차·근태관리)
+import { renderPermissionPanel } from './admin-perm.js?v=202611121915';
+import { taskIdOf, isSystemTaskId } from './lib/task-ids.js?v=202611121915';
+import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=202611121915';
 
 // 📱 순서 바꾸기 ▲▼ — HTML5 끌어 옮기기는 터치에서 안 되므로, 터치 화면(hover 없음)에서만 보인다(admin.html .move-btns).
 //    누르면 같은 종류의 앞/뒤 줄과 자리를 바꾼다(admin.js handleMoveClick). 마우스 환경은 ☰ 끌기 그대로.
@@ -108,7 +108,7 @@ export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
     const memberEmail = memberEmails[member] || '';
     const currentRank = memberRanks[member] || '사원';
     const currentPosition = cleanPosition(memberPositions[member]);
-    const positionOptions = POSITIONS.map(p => `<option value="${p}" ${currentPosition === p ? 'selected' : ''}>${p}</option>`).join('');
+    const positionOptions = POSITIONS.map(p => `<option value="${escAttr(p)}" ${currentPosition === p ? 'selected' : ''}>${escAttr(p)}</option>`).join('');
     const settings = memberLeaveSettings[member] || {};
     const joinDate = settings.joinDate || '';
     const totalLeave = settings.totalLeave !== undefined ? settings.totalLeave : 15;
@@ -116,7 +116,7 @@ export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
     const expirationDate = settings.expirationDate || '';
     const resignDate = resignedMembers[member] || '';
     const ranks = ['사원','주임','대리','과장','차장','부장','이사','상무','전무','사장','대표'];
-    const rankOptions = ranks.map(r => `<option value="${r}" ${currentRank === r ? 'selected' : ''}>${r}</option>`).join('');
+    const rankOptions = ranks.map(r => `<option value="${escAttr(r)}" ${currentRank === r ? 'selected' : ''}>${escAttr(r)}</option>`).join('');
 
     const cardBg = isResigned
         ? 'border-gray-400 dark:border-gray-500 bg-gray-100/70 dark:bg-gray-900/50'
@@ -130,18 +130,18 @@ export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
         : `<button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-2 rounded-md transition delete-member-btn">삭제</button>`;
 
     const groupBadge = isResigned
-        ? `<span class="text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 self-center" title="원래 소속 그룹">${groupName}</span>`
+        ? `<span class="text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 self-center" title="원래 소속 그룹">${escAttr(groupName)}</span>`
         : '';
 
     return `
-    <div class="flex flex-col gap-3 mb-4 p-4 rounded-xl border ${cardBg} member-item transition-colors" data-group-name="${groupName}">
+    <div class="flex flex-col gap-3 mb-4 p-4 rounded-xl border ${cardBg} member-item transition-colors" data-group-name="${escAttr(groupName)}">
         <div class="flex flex-wrap md:flex-nowrap justify-between items-start gap-4">
             <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
                 <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${isResigned ? '' : MOVE_BTNS}
                 ${groupBadge}
                 <div class="flex flex-col">
                     <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">이름</label>
-                    <input type="text" value="${member}" class="member-name w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="이름">
+                    <input type="text" value="${escAttr(member)}" class="member-name w-24 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="이름">
                 </div>
                 <div class="flex flex-col">
                     <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">직급</label>
@@ -153,11 +153,11 @@ export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
                 </div>
                 <div class="flex flex-col">
                     <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1">이메일</label>
-                    <input type="email" value="${memberEmail}" class="member-email w-48 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="email">
+                    <input type="email" value="${escAttr(memberEmail)}" class="member-email w-48 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="email">
                 </div>
                 <div class="flex flex-col">
                     <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1">기본급 (월)</label>
-                    <input type="number" value="${memberWages[member] || 0}" class="member-wage w-28 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="월 기본급"
+                    <input type="number" value="${escAttr(memberWages[member] || 0)}" class="member-wage w-28 p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="월 기본급"
                         oninput="const h=this.closest('.flex.flex-col').nextElementSibling && this.closest('.flex.flex-col').nextElementSibling.querySelector('.member-hourly'); if(h) h.value=Math.round((Number(this.value)||0)/209).toLocaleString();">
                 </div>
                 <div class="flex flex-col">
@@ -172,25 +172,25 @@ export function buildMemberItemHtml(member, maps, groupName, opts = {}) {
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300 w-full md:w-auto mb-2 md:mb-0">연차 설정</span>
             <div class="flex flex-col">
                 <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1">입사일자</label>
-                <input type="date" value="${joinDate}" class="member-join-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs dark:text-gray-200 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                <input type="date" value="${escAttr(joinDate)}" class="member-join-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs dark:text-gray-200 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
             <div class="flex flex-col">
                 <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1">총연차(일)</label>
-                <input type="number" value="${totalLeave}" class="member-total-leave w-16 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs text-center dark:text-gray-200 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" min="0">
+                <input type="number" value="${escAttr(totalLeave)}" class="member-total-leave w-16 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs text-center dark:text-gray-200 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" min="0">
             </div>
             <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
             <div class="flex flex-col">
                 <label class="text-[11px] text-gray-500 dark:text-gray-400 mb-1 font-bold">적용 시작일</label>
-                <input type="date" value="${leaveResetDate}" class="member-leave-reset-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-700 dark:text-gray-200 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                <input type="date" value="${escAttr(leaveResetDate)}" class="member-leave-reset-date w-32 p-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-700 dark:text-gray-200 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
             <div class="flex flex-col">
                 <label class="text-[11px] text-red-500 dark:text-red-400 mb-1 font-bold">사용 만료일</label>
-                <input type="date" value="${expirationDate}" class="member-leave-expiration-date w-32 p-1.5 border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 rounded text-xs text-red-700 dark:text-red-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                <input type="date" value="${escAttr(expirationDate)}" class="member-leave-expiration-date w-32 p-1.5 border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 rounded text-xs text-red-700 dark:text-red-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
             <div class="hidden md:block w-px h-8 bg-gray-300 dark:bg-gray-600 mx-2"></div>
             <div class="flex flex-col">
                 <label class="text-[11px] text-gray-700 dark:text-gray-300 mb-1 font-bold">퇴사일 (비활성)</label>
-                <input type="date" value="${resignDate}" class="member-resign-date w-32 p-1.5 border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-800 dark:text-gray-100 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" title="입력하면 이 날짜 다음날부터 팀 선택·명단·집계에서 제외되고, 저장 시 아래 '퇴사자' 섹션으로 이동합니다. 급여·과거기록은 그대로 보존됩니다. 비우면 재직으로 복귀합니다.">
+                <input type="date" value="${escAttr(resignDate)}" class="member-resign-date w-32 p-1.5 border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 rounded text-xs font-bold text-gray-800 dark:text-gray-100 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" title="입력하면 이 날짜 다음날부터 팀 선택·명단·집계에서 제외되고, 저장 시 아래 '퇴사자' 섹션으로 이동합니다. 급여·과거기록은 그대로 보존됩니다. 비우면 재직으로 복귀합니다.">
             </div>
         </div>
     </div>
@@ -216,7 +216,7 @@ export function renderTeamGroups(teamGroups, memberWages, memberEmails, memberRo
             <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2">
                     <span class="drag-handle mr-2 cursor-move text-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" draggable="true">☰</span>${MOVE_BTNS} 
-                    <input type="text" value="${group.name}" class="text-lg font-extrabold text-gray-800 dark:text-white team-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none">
+                    <input type="text" value="${escAttr(group.name)}" class="text-lg font-extrabold text-gray-800 dark:text-white team-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none">
                 </div>
                 <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-team-group-btn">그룹 삭제</button>
             </div>
@@ -271,11 +271,11 @@ export function renderSystemAccountsConfig(accounts) {
         item.innerHTML = `
             <div class="flex flex-col flex-1 min-w-[150px]">
                 <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">계정 이름 (별칭)</label>
-                <input type="text" value="${acc.name || ''}" class="sys-name p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="예: 외부 관리자">
+                <input type="text" value="${escAttr(acc.name || '')}" class="sys-name p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm font-bold dark:text-white outline-none focus:border-blue-500" placeholder="예: 외부 관리자">
             </div>
             <div class="flex flex-col flex-1 min-w-[200px]">
                 <label class="text-[11px] text-gray-500 dark:text-gray-400 font-bold mb-1">이메일 (로그인 ID)</label>
-                <input type="email" value="${acc.email || ''}" class="sys-email p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="admin@example.com">
+                <input type="email" value="${escAttr(acc.email || '')}" class="sys-email p-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-md text-sm dark:text-white outline-none focus:border-blue-500" placeholder="admin@example.com">
             </div>
             <button type="button" class="delete-sys-account-btn w-full md:w-auto text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-4 py-2.5 rounded-md md:h-[38px] transition-colors shadow-sm">삭제</button>
         `;
@@ -313,8 +313,8 @@ export function renderCostAnalysisConfig(config) {
                 const div = document.createElement('div');
                 div.className = 'flex items-center p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-500 transition-colors';
                 div.innerHTML = `
-                    <input type="checkbox" id="cost-task-${taskName}" value="${taskName}" data-task-id="${taskIdOf(taskName, taskIdNames)}" class="cost-calc-task-checkbox w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 bg-gray-50 dark:bg-gray-900" ${isChecked}>
-                    <label for="cost-task-${taskName}" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer select-none flex-grow">${taskName}</label>
+                    <input type="checkbox" id="cost-task-${escAttr(taskName)}" value="${escAttr(taskName)}" data-task-id="${escAttr(taskIdOf(taskName, taskIdNames))}" class="cost-calc-task-checkbox w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 bg-gray-50 dark:bg-gray-900" ${escAttr(isChecked)}>
+                    <label for="cost-task-${escAttr(taskName)}" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer select-none flex-grow">${escAttr(taskName)}</label>
                 `;
                 container.appendChild(div);
             });
@@ -351,12 +351,12 @@ export function renderDashboardItemsConfig(itemIds, fullConfig) {
 
         let itemHtml = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
-            <span class="dashboard-item-name flex-grow font-bold text-sm" data-id="${id}">
-                ${itemDef.title}
+            <span class="dashboard-item-name flex-grow font-bold text-sm" data-id="${escAttr(id)}">
+                ${escAttr(itemDef.title).replace(/&lt;br\s*\/?&gt;/gi, '<br>')}
             </span>
             ${badge}
         `;
-        itemHtml += `<button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-dashboard-item-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-id="${id}">삭제</button>`;
+        itemHtml += `<button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-dashboard-item-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-id="${escAttr(id)}">삭제</button>`;
         itemEl.innerHTML = itemHtml;
         container.appendChild(itemEl);
     });
@@ -376,7 +376,7 @@ export function renderKeyTasks(keyTasks, taskIdNames = {}) {
         taskEl.dataset.taskId = taskIdOf(task, taskIdNames);
         taskEl.innerHTML = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS} 
-            <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="key-task-name">${task}</span></span>
+            <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="key-task-name">${escAttr(task)}</span></span>
             <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-key-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-index="${index}">삭제</button>
         `;
         container.appendChild(taskEl);
@@ -392,14 +392,14 @@ export function taskItemHtml(task, taskId, tIndex = '', dup = false) {
         : '';
     const dupMark = `<span class="task-dup-badge${dup ? '' : ' hidden'} shrink-0 text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded px-1.5 py-0.5" title="같은 업무가 여러 그룹에 있습니다 — 하나만 남기세요">중복</span>`;
     return `
-            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group" data-task-id="${taskId || ''}">
+            <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 transition-colors task-item group" data-task-id="${escAttr(taskId || '')}">
                 <div class="flex items-center gap-2 flex-grow">
                     <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS}
-                    <input type="text" value="${task}" class="task-name flex-grow min-w-0 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none">
+                    <input type="text" value="${escAttr(task)}" class="task-name flex-grow min-w-0 p-1.5 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 text-sm font-semibold dark:text-white outline-none">
                     ${sysMark}${dupMark}
                     <span class="task-usage flex flex-wrap justify-end gap-0.5 shrink-0"></span>
                 </div>
-                <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-t-index="${tIndex}">삭제</button>
+                <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-t-index="${escAttr(tIndex)}">삭제</button>
             </div>
         `;
 }
@@ -422,7 +422,7 @@ export function renderTaskGroups(taskGroups, taskIdNames = {}) {
              <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2"> 
                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>${MOVE_BTNS}
-                   <input type="text" value="${group.name}" class="text-lg font-extrabold text-gray-800 dark:text-white task-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none">
+                   <input type="text" value="${escAttr(group.name)}" class="text-lg font-extrabold text-gray-800 dark:text-white task-group-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none">
                  </div>
                 <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-task-group-btn">그룹 삭제</button>
             </div>
@@ -458,7 +458,7 @@ export function markTaskUsage(cfg) {
         const id = row.dataset.taskId || '';
         const on = (f) => f === 'widget' ? (!!id && widgets.has(taskWidgetId(id))) : (!!name && sets[f].has(name));
         const html = USAGE_CHIPS.filter(([f]) => on(f)).map(([, label, title]) =>
-            `<span class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded px-1 py-0.5" title="${title}">${label}</span>`).join('');
+            `<span class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded px-1 py-0.5" title="${escAttr(title)}">${escAttr(label)}</span>`).join('');
         if (box.innerHTML !== html) box.innerHTML = html;
     });
 }
@@ -489,7 +489,7 @@ export function renderQuantityTasks(quantityTasks, taskIdNames = {}) {
         taskEl.dataset.taskId = taskIdOf(task, taskIdNames);
         taskEl.innerHTML = `
             <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move" draggable="true">☰</span>${MOVE_BTNS} 
-            <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="quantity-task-name">${task}</span></span>
+            <span class="flex-grow font-bold text-sm text-gray-700 dark:text-gray-300"><span class="quantity-task-name">${escAttr(task)}</span></span>
             <span class="quantity-widget-badge hidden shrink-0 text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded px-1.5 py-0.5" title="상단 위젯에 이 업무의 처리량이 보입니다">위젯 표시 중</span>
             <button class="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-bold px-2 py-1 rounded transition delete-quantity-task-btn opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100" data-index="${index}">삭제</button>
         `;
@@ -773,7 +773,7 @@ export function renderDashboardMenu(menuConfig) {
              <div class="flex flex-wrap justify-between items-center mb-5 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div class="flex items-center gap-2"> 
                    <span class="drag-handle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-move text-lg" draggable="true">☰</span>${MOVE_BTNS}
-                   <input type="text" value="${menuGroup.category}" class="text-lg font-extrabold text-gray-800 dark:text-white menu-category-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none" placeholder="대분류 이름">
+                   <input type="text" value="${escAttr(menuGroup.category)}" class="text-lg font-extrabold text-gray-800 dark:text-white menu-category-name w-auto bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 p-1 outline-none" placeholder="대분류 이름">
                  </div>
                 <button class="text-xs bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-bold px-3 py-1.5 rounded-md transition delete-menu-category-btn" type="button">대분류 삭제</button>
             </div>

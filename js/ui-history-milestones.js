@@ -1,11 +1,11 @@
 // === js/ui-history-milestones.js ===
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
-import * as State from './state.js?v=202611121547';
-import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError } from './utils.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
-import { TASK, tName } from './task-names.js?v=202611121547';
-import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError } from './utils.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
+import { TASK, tName } from './task-names.js?v=202611121915';
+import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=202611121915';
 import {
     doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -94,8 +94,8 @@ function renderList() {
                     <div class="flex justify-between items-start gap-3 flex-wrap">
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 flex-wrap mb-1">
-                                <span class="inline-block ${typeInfo.color} border text-xs font-bold px-2 py-0.5 rounded-full">${typeInfo.label}</span>
-                                <span class="text-xs text-gray-500 dark:text-gray-400 font-mono">${m.date || '-'}</span>
+                                <span class="inline-block ${escapeHtml(typeInfo.color)} border text-xs font-bold px-2 py-0.5 rounded-full">${escapeHtml(typeInfo.label)}</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400 font-mono">${escapeHtml(m.date || '-')}</span>
                             </div>
                             <div class="font-bold text-gray-800 dark:text-gray-100 text-base">${escapeHtml(m.title || '(제목 없음)')}</div>
                             ${descPreview ? `<div class="text-xs text-gray-600 dark:text-gray-400 mt-1">${escapeHtml(descPreview)}</div>` : ''}
@@ -103,8 +103,8 @@ function renderList() {
                             ${taskHtml ? `<div class="flex flex-wrap gap-1 mt-1"><span class="text-[11px] text-gray-500">영향:</span>${taskHtml}</div>` : ''}
                         </div>
                         <div class="flex gap-2 shrink-0">
-                            <button data-action="compare" data-id="${m.id}" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm">효과 비교</button>
-                            <button data-action="edit" data-id="${m.id}" class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold py-1.5 px-3 rounded-lg">수정</button>
+                            <button data-action="compare" data-id="${escapeHtml(m.id)}" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm">효과 비교</button>
+                            <button data-action="edit" data-id="${escapeHtml(m.id)}" class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold py-1.5 px-3 rounded-lg">수정</button>
                         </div>
                     </div>
                     ${previewBar}
@@ -121,8 +121,8 @@ function renderInlinePreview(m, windowDays) {
     if (!summary.hasEnoughData) {
         return `
             <div class="mt-3 pt-3 border-t border-dashed border-gray-300 dark:border-gray-600 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                <span>${summary.statusLabel}</span>
-                <span class="text-gray-400">(Before ${summary.before.dayCount}일 / After ${summary.after.dayCount}일 — 데이터 누적 중)</span>
+                <span>${escapeHtml(summary.statusLabel)}</span>
+                <span class="text-gray-400">(Before ${escapeHtml(summary.before.dayCount)}일 / After ${escapeHtml(summary.after.dayCount)}일 — 데이터 누적 중)</span>
             </div>
         `;
     }
@@ -132,8 +132,8 @@ function renderInlinePreview(m, windowDays) {
     return `
         <div class="mt-3 pt-3 border-t border-dashed border-gray-300 dark:border-gray-600">
             <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
-                <div class="text-[11px] font-bold text-gray-600 dark:text-gray-300">${windowDays}일 전·후 요약</div>
-                <div class="text-[11px] text-gray-500">관측 Before ${summary.before.dayCount}일 / After ${summary.after.dayCount}일</div>
+                <div class="text-[11px] font-bold text-gray-600 dark:text-gray-300">${escapeHtml(windowDays)}일 전·후 요약</div>
+                <div class="text-[11px] text-gray-500">관측 Before ${escapeHtml(summary.before.dayCount)}일 / After ${escapeHtml(summary.after.dayCount)}일</div>
             </div>
             <div class="flex flex-wrap gap-2">${uphChip}${qtyChip}${durChip}</div>
         </div>
@@ -153,9 +153,9 @@ function makeChangeChip(label, beforeVal, afterVal, digits = 1, betterIfHigh = t
     const a = digits === 0 ? Math.round(afterVal).toLocaleString() : afterVal.toFixed(digits);
     return `
         <div class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border ${cls}">
-            <span class="text-[11px] font-bold opacity-80">${label}</span>
-            <span class="text-[11px] font-mono">${b}${suffix}→${a}${suffix}</span>
-            <span class="text-[11px] font-bold">${icon} ${pctText}</span>
+            <span class="text-[11px] font-bold opacity-80">${escapeHtml(label)}</span>
+            <span class="text-[11px] font-mono">${escapeHtml(b)}${escapeHtml(suffix)}→${escapeHtml(a)}${escapeHtml(suffix)}</span>
+            <span class="text-[11px] font-bold">${icon} ${escapeHtml(pctText)}</span>
         </div>
     `;
 }
@@ -195,7 +195,7 @@ function renderTypeFilters() {
         const cls = isActive
             ? 'bg-blue-600 text-white border-blue-600'
             : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400';
-        return `<button data-filter="${t}" class="milestone-filter-btn border ${cls} px-3 py-1.5 rounded-full font-bold transition">${label}</button>`;
+        return `<button data-filter="${escapeHtml(t)}" class="milestone-filter-btn border ${cls} px-3 py-1.5 rounded-full font-bold transition">${escapeHtml(label)}</button>`;
     }).join('');
 }
 
@@ -466,8 +466,8 @@ function renderCompareResults() {
     // 시간/건수 등 그 자체로 좋고나쁨을 단정하기 어려운 지표 — 중립 색으로 표기
     const neutralStat = (label, bStr, aStr, chg) => `
         <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800">
-            <div class="text-[11px] text-gray-500 font-bold">${label}</div>
-            <div class="text-sm text-gray-700 dark:text-gray-200 font-mono">${bStr} → ${aStr}</div>
+            <div class="text-[11px] text-gray-500 font-bold">${escapeHtml(label)}</div>
+            <div class="text-sm text-gray-700 dark:text-gray-200 font-mono">${escapeHtml(bStr)} → ${escapeHtml(aStr)}</div>
             <div class="text-xs text-gray-400">${fmtPct(chg)}</div>
         </div>
     `;
@@ -511,13 +511,13 @@ function renderCompareResults() {
     el.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
-                <div class="text-xs text-gray-500 mb-1">Before (${beforeStart} ~ ${beforeEnd})</div>
-                <div class="text-2xl font-extrabold text-gray-800 dark:text-gray-100">${before.dayCount} <span class="text-xs font-medium text-gray-500">/ ${w} 일</span></div>
+                <div class="text-xs text-gray-500 mb-1">Before (${escapeHtml(beforeStart)} ~ ${escapeHtml(beforeEnd)})</div>
+                <div class="text-2xl font-extrabold text-gray-800 dark:text-gray-100">${escapeHtml(before.dayCount)} <span class="text-xs font-medium text-gray-500">/ ${escapeHtml(w)} 일</span></div>
                 <div class="text-xs text-gray-500 mt-1">관측된 데이터 일수</div>
             </div>
             <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-emerald-50 dark:bg-emerald-900/20">
-                <div class="text-xs text-gray-500 mb-1">After (${afterStart} ~ ${afterEnd})</div>
-                <div class="text-2xl font-extrabold text-gray-800 dark:text-gray-100">${after.dayCount} <span class="text-xs font-medium text-gray-500">/ ${afterFullDays} 일</span></div>
+                <div class="text-xs text-gray-500 mb-1">After (${escapeHtml(afterStart)} ~ ${escapeHtml(afterEnd)})</div>
+                <div class="text-2xl font-extrabold text-gray-800 dark:text-gray-100">${escapeHtml(after.dayCount)} <span class="text-xs font-medium text-gray-500">/ ${escapeHtml(afterFullDays)} 일</span></div>
                 <div class="text-xs text-gray-500 mt-1">관측된 데이터 일수</div>
             </div>
         </div>
@@ -583,7 +583,7 @@ function renderCompareResults() {
         ${buildMilestoneAssessment(before, after, w)}
 
         <div class="mt-4 text-[11px] text-gray-500 leading-relaxed">
-            비교 기간: 기준일 전 ${w}일 ↔ 후 ${w}일 (관측 일수가 적으면 통계적 노이즈 가능성).<br>
+            비교 기간: 기준일 전 ${escapeHtml(w)}일 ↔ 후 ${escapeHtml(w)}일 (관측 일수가 적으면 통계적 노이즈 가능성).<br>
             UPH 변화 '개선'은 시간당 처리량이 증가했음을, 작업시간 '개선'은 일평균 작업시간이 감소했음을 뜻합니다.
         </div>
     `;
@@ -660,7 +660,7 @@ function buildMilestoneAssessment(before, after, w) {
                 ${interp.map(t => `<li>${t}</li>`).join('')}
             </ul>
             <div class="text-xs font-bold opacity-80 mb-1">진행 방향 의견</div>
-            <div class="text-xs leading-relaxed">${direction}</div>
+            <div class="text-xs leading-relaxed">${escapeHtml(direction)}</div>
             <div class="text-[11px] opacity-60 mt-2">※ 자동 생성된 참고 의견입니다. 물량 특성·인력 변동 등 현장 상황을 함께 고려해 최종 판단하세요.</div>
         </div>
     `;
@@ -759,24 +759,24 @@ export async function renderMilestonesInsightWidget(containerEl) {
 
         let verdict = '';
         if (!s.hasEnoughData) {
-            verdict = `<div class="text-[11px] text-gray-500 dark:text-gray-400">${s.statusLabel}</div>`;
+            verdict = `<div class="text-[11px] text-gray-500 dark:text-gray-400">${escapeHtml(s.statusLabel)}</div>`;
         } else {
             const goodCount = (uphPct > 0.5 ? 1 : 0) + (qtyPct > 0.5 ? 1 : 0);
             const badCount = (uphPct < -0.5 ? 1 : 0) + (qtyPct < -0.5 ? 1 : 0);
             const tone = goodCount > badCount ? 'text-emerald-600 dark:text-emerald-400' : (badCount > goodCount ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400');
             const tag = goodCount > badCount ? '효과 양호' : (badCount > goodCount ? '부정적 변화' : '— 변화 미미');
-            verdict = `<div class="text-[11px] font-bold ${tone}">${tag}</div>`;
+            verdict = `<div class="text-[11px] font-bold ${tone}">${escapeHtml(tag)}</div>`;
         }
 
         const uphChip = s.hasEnoughData ? makeChangeChip('UPH', s.before.uph, s.after.uph, 1, true) : '';
         const qtyChip = s.hasEnoughData ? makeChangeChip('처리량/일', s.before.avgQtyPerDay, s.after.avgQtyPerDay, 0, true) : '';
 
         return `
-            <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 bg-gray-50 dark:bg-gray-800/60 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition" data-milestone-id="${m.id}">
+            <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 bg-gray-50 dark:bg-gray-800/60 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition" data-milestone-id="${escapeHtml(m.id)}">
                 <div class="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
                     <div class="flex items-center gap-2 min-w-0">
-                        <span class="inline-block ${typeInfo.color} border text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">${typeInfo.label}</span>
-                        <span class="text-[11px] text-gray-500 font-mono">${m.date || '-'}</span>
+                        <span class="inline-block ${escapeHtml(typeInfo.color)} border text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">${escapeHtml(typeInfo.label)}</span>
+                        <span class="text-[11px] text-gray-500 font-mono">${escapeHtml(m.date || '-')}</span>
                     </div>
                     ${verdict}
                 </div>

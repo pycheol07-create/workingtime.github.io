@@ -1,5 +1,5 @@
 // === js/history-excel-attendance.js ===
-import { allHistoryData, LEAVE_TYPES } from './state.js?v=202611121547';
+import { allHistoryData, LEAVE_TYPES } from './state.js?v=202611121915';
 
 // 엑셀 근태 요약의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 엑셀에서 누락되지 않는다.
@@ -32,8 +32,9 @@ const newAttRow = (member) => {
     row['총 횟수'] = 0; row['총 결근일수'] = 0; row['총 연차일수'] = 0;
     return row;
 };
-import { formatTimeTo24H, getWeekOfYear, showToast, getTodayDateString } from './utils.js?v=202611121547';
-import { fitToColumn } from './history-excel-utils.js?v=202611121547';
+import { formatTimeTo24H, getWeekOfYear, showToast, getTodayDateString } from './utils.js?v=202611121915';
+import { fitToColumn } from './history-excel-utils.js?v=202611121915';
+import { csvSafeBook } from './lib/csv-safe.js?v=202611121915';
 
 export const downloadPeriodAttendanceAsExcel = (startDate, endDate, format = 'xlsx') => {
     if (!startDate || !endDate) return showToast('기간을 선택해주세요.', true);
@@ -62,6 +63,7 @@ export const downloadPeriodAttendanceAsExcel = (startDate, endDate, format = 'xl
     const worksheet = XLSX.utils.json_to_sheet(sheetData);
     fitToColumn(worksheet);
     XLSX.utils.book_append_sheet(workbook, worksheet, '기간 근태 요약');
+    csvSafeBook(workbook, format);   // csv 일 때만 — 수식 주입 막기
     XLSX.writeFile(workbook, `근태기록_기간_${startDate}_${endDate}.${format}`);
     showToast('기간별 근태기록 다운로드 완료');
 };
@@ -128,6 +130,7 @@ export const downloadAttendanceExcel = (viewMode, key, format = 'xlsx') => {
         fitToColumn(worksheet);
         XLSX.utils.book_append_sheet(workbook, worksheet, '근태 요약');
     }
+    csvSafeBook(workbook, format);   // csv 일 때만 — 수식 주입 막기
     XLSX.writeFile(workbook, fileName);
 };
 

@@ -21,19 +21,19 @@ import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writ
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
-    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611121547';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611121547';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611121547';
-import { inboundSig } from './lib/inbound-fix.js?v=202611121547';
+    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611121915';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611121915';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611121915';
+import { inboundSig } from './lib/inbound-fix.js?v=202611121915';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
-    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611121547';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611121547';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611121547';
-import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611121547';
-import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611121547';
-import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611121547';
-import { setupScanBar } from './china-mibal2-bar.js?v=202611121547';
-import { mdhmPad } from './lib/mibal2-closed-view.js?v=202611121547';
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611121915';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611121915';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611121915';
+import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611121915';
+import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611121915';
+import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611121915';
+import { setupScanBar } from './china-mibal2-bar.js?v=202611121915';
+import { mdhmPad } from './lib/mibal2-closed-view.js?v=202611121915';
 
 // 마감된 작업(보관함)을 보는 동안 끄는 버튼 — 고른 출고일 기준으로 쓰는 것만(js/lib/mibal2-closed-view.js). 되돌리기·바코드·위치·관리는 그대로
 const CLOSED_BTN_IDS = ['btn-scan-off-sync', 'btn-scan-off-reset', 'btn-scan-off-diffrec'];
@@ -781,9 +781,9 @@ export function startLive(ctx) {
         if (!recs.length) { tb.innerHTML = '<tr><td colspan="9" class="t-3" style="padding:22px;">보관된 작업이 없습니다. [작업 마감]을 하면 여기에 쌓입니다.</td></tr>'; return; }
         tb.innerHTML = recs.map((r, i) => { const t = r.totals || {}; return `<tr style="border-bottom:1px solid var(--c-line);">
             <td style="padding:6px;">${esc(r.id)}${r.partialOf ? `<div class="t-3" style="font-size:11px;">${esc(r.partialOf)} 뒤 추가분</div>` : ''}</td><td style="padding:6px;">${esc((r.ships || []).map(fmtMD).join(', '))}</td>
-            <td style="padding:6px;">${r.closedAtMs ? esc(mdhm(r.closedAtMs)) : ''}</td><td style="padding:6px;">${n(t.codes)}</td>
-            <td style="padding:6px;">${n(t.arr)}</td><td style="padding:6px;">${n(t.conf)}</td><td style="padding:6px;">${n(t.floor2)}</td>
-            <td style="padding:6px;"><span class="t-risk">${n(t.short)}</span> · <span class="t-accent">${n(t.over)}</span></td>
+            <td style="padding:6px;">${r.closedAtMs ? esc(mdhm(r.closedAtMs)) : ''}</td><td style="padding:6px;">${esc(n(t.codes))}</td>
+            <td style="padding:6px;">${esc(n(t.arr))}</td><td style="padding:6px;">${esc(n(t.conf))}</td><td style="padding:6px;">${esc(n(t.floor2))}</td>
+            <td style="padding:6px;"><span class="t-risk">${esc(n(t.short))}</span> · <span class="t-accent">${esc(n(t.over))}</span></td>
             <td style="padding:6px;"><button type="button" class="d-btn d-btn-sm live-arch-dl" data-i="${i}">엑셀 받기</button> <button type="button" class="d-btn d-btn-sm live-arch-scan" data-i="${i}">스캔 내역</button></td></tr>`; }).join('');
         tb.querySelectorAll('.live-arch-scan').forEach(btn => btn.addEventListener('click', () => openScanLog(recs[+btn.dataset.i])));
         tb.querySelectorAll('.live-arch-dl').forEach(btn => btn.addEventListener('click', () => {

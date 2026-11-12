@@ -1,10 +1,10 @@
 // === js/ui-history-productivity.js ===
-import * as State from './state.js?v=202611121547';
-import { buildMemberHourlyWageMap } from './utils.js?v=202611121547';
-import { D } from './d-chart.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
-import { TASK, tName, isT, tQty, isTLike } from './task-names.js?v=202611121547';
-import { PARTS, partSummary as opsPartSummary, periodMetrics, DOMESTIC_ITEMS_PER_ORDER } from './lib/ops-metrics.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=202611121915';
+import { D } from './d-chart.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
+import { TASK, tName, isT, tQty, isTLike } from './task-names.js?v=202611121915';
+import { PARTS, partSummary as opsPartSummary, periodMetrics, DOMESTIC_ITEMS_PER_ORDER } from './lib/ops-metrics.js?v=202611121915';
 
 let productivityChartInstance = null;
 
@@ -151,7 +151,7 @@ export function renderProductivityTab(filteredData, appConfig) {
                 const caseText = digits === 0
                     ? Math.round(cases).toLocaleString()
                     : cases.toFixed(digits);
-                html += ` <span class="text-[11px] text-gray-400 font-normal">(${caseText} 건)</span>`;
+                html += ` <span class="text-[11px] text-gray-400 font-normal">(${escapeHtml(caseText)} 건)</span>`;
             }
             return html;
         };

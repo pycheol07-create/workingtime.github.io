@@ -1,9 +1,9 @@
 // === js/ui-main-analysis.js ===
-import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H } from './utils.js?v=202611121547';
-import * as State from './state.js?v=202611121547';
-import { systemIdOfName } from './lib/task-ids.js?v=202611121547';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611121547';
-import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611121547';
+import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=202611121915';
+import * as State from './state.js?v=202611121915';
+import { systemIdOfName } from './lib/task-ids.js?v=202611121915';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611121915';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611121915';
 
 export const renderTaskAnalysis = (appState, appConfig) => {
     const analysisContainer = document.getElementById('analysis-task-summary-panel'); 
@@ -84,12 +84,12 @@ export const renderTaskAnalysis = (appState, appConfig) => {
         legendHTML += `
             <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600">
                 <div class="flex items-center">
-                    <span class="w-3 h-3 rounded-full mr-2 shadow-sm" style="background-color: ${color};"></span>
-                    <span class="font-bold text-gray-700 dark:text-gray-200 text-sm">${task}</span>
+                    <span class="w-3 h-3 rounded-full mr-2 shadow-sm" style="background-color: ${escapeHtml(color)};"></span>
+                    <span class="font-bold text-gray-700 dark:text-gray-200 text-sm">${escapeHtml(task)}</span>
                 </div>
                 <div class="text-right flex flex-col justify-center">
-                    <div class="text-sm font-extrabold text-gray-800 dark:text-white">총 ${formatDuration(minutes)}</div>
-                    <div class="text-[11px] font-bold text-blue-600 dark:text-blue-400">인당 평균: ${formatDuration(Math.round(actualMinutes))}</div>
+                    <div class="text-sm font-extrabold text-gray-800 dark:text-white">총 ${escapeHtml(formatDuration(minutes))}</div>
+                    <div class="text-[11px] font-bold text-blue-600 dark:text-blue-400">인당 평균: ${escapeHtml(formatDuration(Math.round(actualMinutes)))}</div>
                     <div class="text-[11px] text-gray-500 dark:text-gray-400">${percentage.toFixed(1)}%</div>
                 </div>
             </div>`;
@@ -103,14 +103,14 @@ export const renderTaskAnalysis = (appState, appConfig) => {
 
     analysisContainer.innerHTML = `<div class="flex flex-col md:flex-row items-center gap-6 md:gap-8">
         <div class="flex-shrink-0">
-            <div class="chart shadow-sm" style="background: ${finalGradient}; width: 170px; height: 170px;">
+            <div class="chart shadow-sm" style="background: ${escapeHtml(finalGradient)}; width: 170px; height: 170px;">
                 <div class="chart-center shadow-sm dark:bg-gray-800 flex flex-col justify-center items-center">
                     <span class="text-[11px] font-bold text-gray-400 dark:text-gray-500">총 업무시간</span>
-                    <span class="text-lg font-extrabold text-blue-600 dark:text-blue-400 leading-none mb-1">${formatDuration(totalLoggedMinutes)}</span>
-                    <span class="text-[11px] font-bold text-indigo-500 dark:text-indigo-400">인당: ${formatDuration(Math.round(actualTotalMinutes))}</span>
+                    <span class="text-lg font-extrabold text-blue-600 dark:text-blue-400 leading-none mb-1">${escapeHtml(formatDuration(totalLoggedMinutes))}</span>
+                    <span class="text-[11px] font-bold text-indigo-500 dark:text-indigo-400">인당: ${escapeHtml(formatDuration(Math.round(actualTotalMinutes)))}</span>
                     <span class="text-[11px] text-gray-400 mt-1.5 text-center leading-tight">
-                        휴식 총 ${formatDuration(Math.round(totalBreakMinutes))}<br>
-                        (인당 ${formatDuration(Math.round(actualBreakMinutes))})
+                        휴식 총 ${escapeHtml(formatDuration(Math.round(totalBreakMinutes)))}<br>
+                        (인당 ${escapeHtml(formatDuration(Math.round(actualBreakMinutes)))})
                     </span>
                 </div>
             </div>
@@ -128,7 +128,7 @@ export const renderTaskAnalysis = (appState, appConfig) => {
         
         let optionsHtml = '<option value="">--- 직원/알바 선택 ---</option>';
         allMembers.forEach(member => {
-            optionsHtml += `<option value="${member}">${member}</option>`;
+            optionsHtml += `<option value="${escapeHtml(member)}">${escapeHtml(member)}</option>`;
         });
         memberSelect.innerHTML = optionsHtml;
     }
@@ -151,7 +151,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     
     let currentStatusHtml = '';
     if (ongoingRecord) {
-        currentStatusHtml = `<span class="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md">업무 중: ${ongoingRecord.task}</span>`;
+        currentStatusHtml = `<span class="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md">업무 중: ${escapeHtml(ongoingRecord.task)}</span>`;
     } else if (pausedRecord) {
         currentStatusHtml = `<span class="text-sm font-bold text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded-md">휴식 중</span>`;
     } else {
@@ -162,7 +162,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember && isLeaveActiveAt(m, getCurrentTime()));
         if (leaveInfo) {
              const label = getLeaveDisplayLabel(selectedMember, leaveInfo);
-             currentStatusHtml = `<span class="text-sm font-bold text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-md">${label} 중</span>`;
+             currentStatusHtml = `<span class="text-sm font-bold text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-md">${escapeHtml(label)} 중</span>`;
         } else {
              if (attendance && attendance.status === 'active') {
                  currentStatusHtml = `<span class="text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-md">대기 중</span>`;
@@ -177,7 +177,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     if (memberRecords.length === 0) {
          container.innerHTML = `
             <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
-                <h4 class="text-lg font-extrabold text-gray-800 dark:text-white">${selectedMember}</h4>
+                <h4 class="text-lg font-extrabold text-gray-800 dark:text-white">${escapeHtml(selectedMember)}</h4>
                 ${currentStatusHtml}
             </div>
             <p class="text-center text-gray-400 text-sm py-4">오늘 업무 기록이 없습니다.</p>`;
@@ -225,17 +225,17 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
 
     let html = `
         <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
-            <h4 class="text-lg font-extrabold text-gray-800 dark:text-white">${selectedMember}</h4>
+            <h4 class="text-lg font-extrabold text-gray-800 dark:text-white">${escapeHtml(selectedMember)}</h4>
             ${currentStatusHtml}
         </div>
         <div class="grid grid-cols-2 gap-3 mb-4 text-center">
             <div class="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-center">
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1">본인 실제 업무시간</div>
-                <div class="text-xl font-extrabold text-blue-600 dark:text-blue-400">${formatDuration(totalLiveMinutes)}</div>
+                <div class="text-xl font-extrabold text-blue-600 dark:text-blue-400">${escapeHtml(formatDuration(totalLiveMinutes))}</div>
             </div>
              <div class="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-center">
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1">비업무/휴식 추정</div>
-                <div class="text-xl font-extrabold text-gray-500 dark:text-gray-400">${formatDuration(Math.round(totalNonWorkMinutes))}</div>
+                <div class="text-xl font-extrabold text-gray-500 dark:text-gray-400">${escapeHtml(formatDuration(Math.round(totalNonWorkMinutes)))}</div>
             </div>
         </div>
         <div>
@@ -245,7 +245,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
     if (sortedTasks.length > 0) {
         sortedTasks.forEach(([task, minutes]) => {
             if (minutes > 0) {
-                html += `<li class="flex justify-between items-center p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm"><span class="font-bold text-sm text-gray-700 dark:text-gray-200">${task}</span><span class="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">${formatDuration(minutes)}</span></li>`;
+                html += `<li class="flex justify-between items-center p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm"><span class="font-bold text-sm text-gray-700 dark:text-gray-200">${escapeHtml(task)}</span><span class="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">${escapeHtml(formatDuration(minutes))}</span></li>`;
             }
         });
     } else {

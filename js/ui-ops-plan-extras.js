@@ -5,9 +5,9 @@
 //   시뮬레이터: 슬라이더 3개(인원·물량·속도) — 금액(인건비·인건비율)은 관리자만(money.canMoney), 아니면 칸 자체가 없다.
 // 금액·직원 이름 없음(로드맵은 업무명·원인만). ⚠️ role=dialog·data-act 금지.
 
-import { esc, n1, card, ok, signed1 } from './ui-ops-plan-parts.js?v=202611121547';
-import { CAUSE_LABEL } from './lib/plan-roadmap.js?v=202611121547';
-import { simulate, SIM_RANGE } from './lib/plan-sim.js?v=202611121547';
+import { esc, n1, card, ok, signed1 } from './ui-ops-plan-parts.js?v=202611121915';
+import { CAUSE_LABEL } from './lib/plan-roadmap.js?v=202611121915';
+import { simulate, SIM_RANGE } from './lib/plan-sim.js?v=202611121915';
 
 const won = (v) => (ok(v) ? `${Math.round(v).toLocaleString()}원` : '—');
 
@@ -25,15 +25,15 @@ export function roadmapHtml(rm, { isAdmin = false, loading = false, makeBtn = nu
         if (it.status !== 'running') return loading ? '<span class="opv-note">확인 중…</span>' : '<span class="opv-chip">계획</span>';
         const e = it.effect || {};
         const eff = e.status === 'ok'
-            ? `효과 <b class="${e.better === true ? 'opv-up' : e.better === false ? 'opv-down' : 'opv-flat'}">${e.pct == null ? '—' : `${e.pct > 0 ? '+' : ''}${n1(e.pct)}%`}</b> <span class="opv-note">(${n1(e.before)} → ${n1(e.after)})</span>`
+            ? `효과 <b class="${esc(e.better === true ? 'opv-up' : e.better === false ? 'opv-down' : 'opv-flat')}">${esc(e.pct == null ? '—' : `${e.pct > 0 ? '+' : ''}${n1(e.pct)}%`)}</b> <span class="opv-note">(${esc(n1(e.before))} → ${esc(n1(e.after))})</span>`
             : '<span class="opv-note">효과 판단 보류(전후 14일 표본 부족)</span>';
         return `<span class="opv-chip is-ok">실행됨 ${esc(it.startedAt)}</span> ${eff}`;
     };
     const rows = rm.items.map(it => `<tr>
         <td>${it.quarter ? esc(it.quarter) : '<span class="opv-note">대기</span>'}</td>
         <td class="opp-wrap">${esc(it.title)}</td><td>${esc(CAUSE_LABEL[it.cause] || it.cause)}</td><td>${esc(it.role)}</td>
-        <td class="r">${n1(it.targetEffectHours)}</td>
-        <td class="opp-wrap">${esc(it.kpi.name)} ${ok(it.kpi.from) ? n1(it.kpi.from) : '—'} → ${ok(it.kpi.to) ? n1(it.kpi.to) : '—'}</td>
+        <td class="r">${esc(n1(it.targetEffectHours))}</td>
+        <td class="opp-wrap">${esc(it.kpi.name)} ${esc(ok(it.kpi.from) ? n1(it.kpi.from) : '—')} → ${esc(ok(it.kpi.to) ? n1(it.kpi.to) : '—')}</td>
         <td class="opp-wrap">${st(it)}</td>
         <td>${isAdmin && it.status !== 'running' ? `<button type="button" class="opv-btn opp-noprint" data-plan-roadmap="${esc(it.key)}" title="운영 마일스톤으로 등록하고 효과를 잽니다">실행</button>` : ''}
             ${makeBtn ? makeBtn(`roadmap:${it.key}:${it.quarter || ''}`, roadmapDraft(it)) : ''}</td></tr>`).join('');
@@ -47,8 +47,8 @@ export function roadmapHtml(rm, { isAdmin = false, loading = false, makeBtn = nu
 export function simHtml(base, lever) {
     const sl = (k, label, unit, step) => {
         const [lo, hi] = SIM_RANGE[k];
-        return `<label class="opp-field"><span class="opv-note">${esc(label)} <b data-sim-val="${k}">${lever[k] > 0 ? '+' : ''}${lever[k]}${unit}</b></span>
-            <input type="range" class="opp-range" data-sim="${k}" min="${lo}" max="${hi}" step="${step}" value="${lever[k]}" aria-label="${esc(label)}"></label>`;
+        return `<label class="opp-field"><span class="opv-note">${esc(label)} <b data-sim-val="${k}">${lever[k] > 0 ? '+' : ''}${esc(lever[k])}${esc(unit)}</b></span>
+            <input type="range" class="opp-range" data-sim="${k}" min="${esc(lo)}" max="${esc(hi)}" step="${esc(step)}" value="${esc(lever[k])}" aria-label="${esc(label)}"></label>`;
     };
     return `<div id="ops-plan-sim" class="opp-noprint">${card('시뮬레이터', `<div class="opp-fields">
         ${sl('staffDelta', '인원', '명', 1)}${sl('qtyPct', '물량', '%', 5)}${sl('speedPct', '처리 속도', '%', 5)}</div>
@@ -61,14 +61,14 @@ export function simResultHtml(base, lever) {
     const r = simulate(base, lever);
     const B = r.base;
     const pct = (v) => (ok(v) ? `${Math.round(v * 100)}%` : '—');
-    const d = (a, b, f = (x) => n1(x), unit = '') => `${a == null ? '—' : f(a) + unit} <span class="opv-note">(기본 ${b == null ? '—' : f(b) + unit}${a != null && b != null ? `, ${signed1(a - b)}` : ''})</span>`;
+    const d = (a, b, f = (x) => n1(x), unit = '') => `${esc(a == null ? '—' : f(a) + unit)} <span class="opv-note">(기본 ${esc(b == null ? '—' : f(b) + unit)}${esc(a != null && b != null ? `, ${signed1(a - b)}` : '')})</span>`;
     const money = r.laborCost != null || (base.money && base.money.canMoney);
     return `<div class="opv-table-wrap"><table class="opv-table"><tbody>
         <tr><td>인원 충족률(메우기 전)</td><td class="r">${pct(r.fillRate)} <span class="opv-note">(기본 ${pct(B.fillRate)})</span></td></tr>
         <tr><td>필요 인원(평균)</td><td class="r">${d(r.reqFTE, B.reqFTE, n1, '명')}</td></tr>
         <tr><td>메울 시간</td><td class="r">${d(r.shortHours, B.shortHours, n1, 'h')}</td></tr>
         <tr><td>OEE(근사)</td><td class="r">${d(r.oee, B.oee, n1, '%')}</td></tr>
-        ${money ? `<tr><td>인건비(관리자)</td><td class="r">${won(r.laborCost)} <span class="opv-note">(기본 ${won(B.laborCost)})</span></td></tr>
-        <tr><td>인건비율(관리자)</td><td class="r">${ok(r.laborRatio) ? `${n1(r.laborRatio * 100)}%` : '—'} <span class="opv-note">(기본 ${ok(B.laborRatio) ? `${n1(B.laborRatio * 100)}%` : '—'})</span></td></tr>` : ''}
+        ${money ? `<tr><td>인건비(관리자)</td><td class="r">${esc(won(r.laborCost))} <span class="opv-note">(기본 ${esc(won(B.laborCost))})</span></td></tr>
+        <tr><td>인건비율(관리자)</td><td class="r">${esc(ok(r.laborRatio) ? `${n1(r.laborRatio * 100)}%` : '—')} <span class="opv-note">(기본 ${esc(ok(B.laborRatio) ? `${n1(B.laborRatio * 100)}%` : '—')})</span></td></tr>` : ''}
     </tbody></table></div>`;
 }

@@ -4,13 +4,13 @@
 //   ⚠️ 이름·금액 없음 — 과제는 역할로만 보인다. 이력의 '누가'(이메일)는 그리지 않는다(언제·무엇만).
 //   ⚠️ role=dialog·data-act 금지(업무마감봇 선택자) — 겹침 창은 section, 버튼은 data-pi-* 속성.
 
-import { esc, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611121547';
-import { STATUS_LABEL, ITEM_STATUS, roleLabel, isOverdue } from './lib/plan-items.js?v=202611121547';
-import { GOAL_METRICS, GOAL_SLOTS, cleanGoals } from './lib/plan-yeardoc.js?v=202611121547';
-import { buildGoalKpis } from './lib/plan-cascade.js?v=202611121547';
-import { saveGoals } from './ops-plan-store.js?v=202611121547';
-import { showToast } from './utils.js?v=202611121547';
-import { higherOpenThan } from './modal-above.js?v=202611121547';
+import { esc, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=202611121915';
+import { STATUS_LABEL, ITEM_STATUS, roleLabel, isOverdue } from './lib/plan-items.js?v=202611121915';
+import { GOAL_METRICS, GOAL_SLOTS, cleanGoals } from './lib/plan-yeardoc.js?v=202611121915';
+import { buildGoalKpis } from './lib/plan-cascade.js?v=202611121915';
+import { saveGoals } from './ops-plan-store.js?v=202611121915';
+import { showToast } from './utils.js?v=202611121915';
+import { higherOpenThan } from './modal-above.js?v=202611121915';
 
 const $ = (id) => document.getElementById(id);
 const KIND = { objective: '목표', initiative: '과제', milestone: '이정표', data: '데이터', auto: '자동화' };
@@ -34,16 +34,16 @@ export function itemsCardHtml(items, { title = '과제', hint = '', canEdit = tr
     const rows = list.map(it => {
         const over = isOverdue(it, today);
         const cl = it.checklist || [];
-        const st = canEdit ? `<select class="opp-inp opp-sel" data-pi-status="${esc(it.id)}" aria-label="상태">${ITEM_STATUS.map(s => `<option value="${s}"${s === it.status ? ' selected' : ''}>${STATUS_LABEL[s]}</option>`).join('')}</select>`
+        const st = canEdit ? `<select class="opp-inp opp-sel" data-pi-status="${esc(it.id)}" aria-label="상태">${ITEM_STATUS.map(s => `<option value="${esc(s)}"${s === it.status ? ' selected' : ''}>${esc(STATUS_LABEL[s])}</option>`).join('')}</select>`
             : esc(STATUS_LABEL[it.status] || it.status);
         const pg = canEdit ? `<input type="number" min="0" max="100" step="10" class="opp-inp opp-num" data-pi-progress="${esc(it.id)}" value="${Number(it.progress) || 0}" aria-label="진행(%)">`
             : `${Number(it.progress) || 0}%`;
         const checks = cl.length ? `<details class="opp-pi-checks"><summary>${cl.filter(c => c.ok).length}/${cl.length}</summary>${cl.map((c, i) =>
             `<label class="opp-act-check"><input type="checkbox" data-pi-check="${esc(it.id)}" data-pi-idx="${i}"${c.ok ? ' checked' : ''}${canEdit ? '' : ' disabled'}> ${esc(c.t)}</label>`).join('')}</details>` : '—';
         return `<tr class="${over ? 'is-short' : ''}${it.status === 'drop' ? ' opp-off' : ''}">
-            <td class="opp-wrap">${esc(it.title)}${it.kpi && it.kpi.metric ? `<div class="opv-note">지표 ${esc(it.kpi.metric)} ${ok(it.kpi.from) ? n1(it.kpi.from) : '—'} → ${ok(it.kpi.target) ? n1(it.kpi.target) : '—'}</div>` : ''}</td>
+            <td class="opp-wrap">${esc(it.title)}${it.kpi && it.kpi.metric ? `<div class="opv-note">지표 ${esc(it.kpi.metric)} ${esc(ok(it.kpi.from) ? n1(it.kpi.from) : '—')} → ${esc(ok(it.kpi.target) ? n1(it.kpi.target) : '—')}</div>` : ''}</td>
             <td>${esc(KIND[it.kind] || it.kind)}</td><td>${esc(roleLabel(it.role))}</td>
-            <td>${it.due ? fmtDay(it.due) : '—'}${over ? ' <span class="opv-chip is-risk">기한 지남</span>' : ''}</td>
+            <td>${esc(it.due ? fmtDay(it.due) : '—')}${over ? ' <span class="opv-chip is-risk">기한 지남</span>' : ''}</td>
             <td>${st}</td><td>${pg}</td><td>${checks}</td>
             <td><button type="button" class="opv-btn opp-noprint" data-pi-log="${esc(it.id)}">이력</button><div id="pi-log-${esc(it.id)}" class="opv-note"></div></td></tr>`;
     }).join('');
@@ -59,7 +59,7 @@ export function logHtml(log) {
         const d = l.at ? new Date(l.at) : null;
         const when = d ? `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
         const what = l.field === 'create' ? '만듦' : `${F[l.field] || l.field} ${esc(STATUS_LABEL[l.from] || l.from)} → ${esc(STATUS_LABEL[l.to] || l.to)}`;
-        return `<li>${when} ${what}${l.note ? ` — ${esc(l.note)}` : ''}</li>`;
+        return `<li>${esc(when)} ${what}${l.note ? ` — ${esc(l.note)}` : ''}</li>`;
     }).join('')}</ul>`;
 }
 
@@ -71,8 +71,8 @@ function goalsFormHtml() {
     const g = (gst.goals && gst.goals.kpis) || {};
     const ty = (gst.targets && gst.targets.year) || {};
     const mode = (gst.goals && gst.goals.mode) || 'auto';
-    const yrs = GOAL_METRICS.map(m => `<label class="opp-field"><span class="opv-note">${M_LABEL[m]} — 연 목표</span>
-        <input type="number" step="any" min="0" class="opp-inp" data-goal-year="${m}" value="${esc(String(g[m] && g[m].year != null ? g[m].year : (ty[m] != null ? ty[m] : '')))}"></label>`).join('');
+    const yrs = GOAL_METRICS.map(m => `<label class="opp-field"><span class="opv-note">${esc(M_LABEL[m])} — 연 목표</span>
+        <input type="number" step="any" min="0" class="opp-inp" data-goal-year="${esc(m)}" value="${esc(String(g[m] && g[m].year != null ? g[m].year : (ty[m] != null ? ty[m] : '')))}"></label>`).join('');
     return `<p class="opv-note">연 목표를 넣으면 분기·월로 나눕니다 — 처리량(하루)은 월 지수(시즌 캘린더의 출고 지수)로 가중, 비율 지표는 같은 값. '직접 입력'이면 아래 표에서 칸을 고칠 수 있습니다(빈 칸은 나눈 값).</p>
         <div class="opp-fields">${yrs}
         <label class="opp-field"><span class="opv-note">나누는 방법</span><select class="opp-inp opp-sel" id="ops-goals-mode"><option value="auto"${mode === 'auto' ? ' selected' : ''}>자동 나눔</option><option value="manual"${mode === 'manual' ? ' selected' : ''}>직접 입력</option></select></label></div>
@@ -100,11 +100,11 @@ function drawPreview() {
     const kpis = buildGoalKpis(readYear(), { mode, manual, index: gst.index, workdays: gst.workdays });
     const auto = buildGoalKpis(readYear(), { mode: 'auto', index: gst.index, workdays: gst.workdays });
     const slots = GOAL_SLOTS.filter(s => s !== 'year');
-    const rows = GOAL_METRICS.filter(m => kpis[m]).map(m => `<tr><td>${M_LABEL[m]}</td>${slots.map(s => {
+    const rows = GOAL_METRICS.filter(m => kpis[m]).map(m => `<tr><td>${esc(M_LABEL[m])}</td>${slots.map(s => {
         const v = kpis[m][s], a = auto[m] ? auto[m][s] : '';
-        return `<td>${mode === 'manual' ? `<input type="number" step="any" class="opp-inp opp-num" data-goal-cell="${m}:${s}" data-auto="${a}" value="${v == null ? '' : v}">` : (ok(v) ? n1(v) : '—')}</td>`;
+        return `<td>${mode === 'manual' ? `<input type="number" step="any" class="opp-inp opp-num" data-goal-cell="${esc(m)}:${esc(s)}" data-auto="${esc(a)}" value="${esc(v == null ? '' : v)}">` : (ok(v) ? n1(v) : '—')}</td>`;
     }).join('')}</tr>`).join('');
-    $('ops-goals-preview').innerHTML = rows ? `<div class="opv-table-wrap"><table class="opv-table"><thead><tr><th>지표</th>${slots.map(s => `<th class="r">${s.startsWith('q') ? s.slice(1) + '분기' : Number(s.slice(1)) + '월'}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`
+    $('ops-goals-preview').innerHTML = rows ? `<div class="opv-table-wrap"><table class="opv-table"><thead><tr><th>지표</th>${slots.map(s => `<th class="r">${esc(s.startsWith('q') ? s.slice(1) + '분기' : Number(s.slice(1)) + '월')}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`
         : '<p class="opv-note">연 목표를 넣으면 나눈 값이 보입니다.</p>';
 }
 function onGoalsKey(e) {

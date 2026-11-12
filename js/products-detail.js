@@ -6,16 +6,16 @@
 // 메모: 전원 편집. 열 때 본 at 과 지금 at 이 다르면 충돌 확인창. 직전 5개 보관(되돌리기).
 // 기본정보 편집: 관리자만(D5). 같은 트랜잭션 헬퍼(버킷 + META rev + 이력, ver 비교).
 import { doc, getDoc, getDocs, collection, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202611121547';
-import { esc, toast, setHead, isLocOld } from './products.js?v=202611121547';
-import { statusPill } from './products-list.js?v=202611121547';
-import { renderCostCard, renderCostHistory } from './products-cost.js?v=202611121547';
-import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202611121547';
-import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202611121547';
-import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202611121547';
-import { parseNum } from './lib/product-price.js?v=202611121547';
-import { friendlyFirebaseError } from './utils.js?v=202611121547';   // 원시 오류 코드 대신 할 일 한 줄
-import { sidebarLinkTarget } from './app-shell-data.js?v=202611121547';   // 열기 방식(같은 탭/이름 붙은 창)은 한 곳에서
+import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202611121915';
+import { esc, toast, setHead, isLocOld } from './products.js?v=202611121915';
+import { statusPill } from './products-list.js?v=202611121915';
+import { renderCostCard, renderCostHistory } from './products-cost.js?v=202611121915';
+import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202611121915';
+import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202611121915';
+import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202611121915';
+import { parseNum } from './lib/product-price.js?v=202611121915';
+import { friendlyFirebaseError } from './utils.js?v=202611121915';   // 원시 오류 코드 대신 할 일 한 줄
+import { sidebarLinkTarget } from './app-shell-data.js?v=202611121915';   // 열기 방식(같은 탭/이름 붙은 창)은 한 곳에서
 
 const LOCATION_URL = 'location.html';
 
@@ -61,7 +61,7 @@ export function renderDetail(main, pid) {
 }
 
 function lazyHistory(el, title, load, admin = false) {
-    el.innerHTML = `<div class="pd-row"><h2 class="pd-h2 pd-grow">${title}</h2>${admin ? '<span class="pd-lock">관리자</span>' : ''}</div>
+    el.innerHTML = `<div class="pd-row"><h2 class="pd-h2 pd-grow">${esc(title)}</h2>${admin ? '<span class="pd-lock">관리자</span>' : ''}</div>
         <button class="d-btn" style="margin-top:12px" data-act="load">이력 보기</button>`;
     el.querySelector('[data-act="load"]').addEventListener('click', () => load(el));
 }
@@ -70,12 +70,12 @@ function lazyHistory(el, title, load, admin = false) {
 function renderInfo(info, optsEl, pid, p, rerender, editing = false) {
     const loadedVer = p.ver | 0;
     const kv = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
-    const inp = (f, v, extra = '') => `<input class="pd-in" data-f="${f}" value="${esc(v ?? '')}" ${extra}>`;
+    const inp = (f, v, extra = '') => `<input class="pd-in" data-f="${esc(f)}" value="${esc(v ?? '')}" ${extra}>`;
     const src = p.src === 'ui' ? '화면 편집' : '엑셀';
     info.innerHTML = `<div class="pd-row"><h2 class="pd-h2 pd-grow">기본정보</h2>
             <span class="pd-sub">${p.at ? `${fmtDateTime(p.at)} ${src} · ${esc(p.by)}` : ''}</span>
             ${S.isAdmin && !editing ? '<button class="d-btn" data-act="edit">편집</button>' : ''}</div>
-        ${p.gone ? `<div class="pd-alert risk" style="margin-top:12px">전체 목록 업로드에서 빠진 상품입니다(${fmtDateTime(p.goneAt)}). 지우지 않고 보관합니다 — 다시 올리면 돌아옵니다.</div>` : ''}
+        ${p.gone ? `<div class="pd-alert risk" style="margin-top:12px">전체 목록 업로드에서 빠진 상품입니다(${esc(fmtDateTime(p.goneAt))}). 지우지 않고 보관합니다 — 다시 올리면 돌아옵니다.</div>` : ''}
         ${editing ? `<div class="pd-grid4">
             <label class="pd-field span2">상품명${inp('name', p.name, `maxlength="${NAME_MAX}"`)}</label>
             <label class="pd-field">자체상품코드${inp('code2', p.code2, `maxlength="${TEXT_MAX}"`)}</label>
@@ -99,11 +99,11 @@ function renderInfo(info, optsEl, pid, p, rerender, editing = false) {
             const q = L.spots.reduce((a, s) => a + (Number(s[2]) || 0), 0);
             const gone = o[4] ? ' <span class="pd-pill risk">사라짐</span>' : '';
             if (editing) return `<tr data-i="${i}"><td class="num">${esc(o[0])}${gone}</td>
-                <td><input class="pd-in" data-o="1" value="${esc(o[1])}" maxlength="${NAME_MAX}" aria-label="${esc(o[0])} 옵션명"></td>
-                <td><input class="pd-in num" data-o="2" value="${esc(o[2])}" maxlength="${TEXT_MAX}" aria-label="${esc(o[0])} 바코드"></td>
-                <td><input class="pd-in" data-o="3" value="${esc(o[3])}" maxlength="${TEXT_MAX}" aria-label="${esc(o[0])} 옵션상태" style="width:110px"></td><td></td><td></td></tr>`;
+                <td><input class="pd-in" data-o="1" value="${esc(o[1])}" maxlength="${esc(NAME_MAX)}" aria-label="${esc(o[0])} 옵션명"></td>
+                <td><input class="pd-in num" data-o="2" value="${esc(o[2])}" maxlength="${esc(TEXT_MAX)}" aria-label="${esc(o[0])} 바코드"></td>
+                <td><input class="pd-in" data-o="3" value="${esc(o[3])}" maxlength="${esc(TEXT_MAX)}" aria-label="${esc(o[0])} 옵션상태" style="width:110px"></td><td></td><td></td></tr>`;
             return `<tr class="${o[4] ? 'is-gone' : ''}"><td class="num">${esc(o[0])}${gone}</td><td>${esc(o[1])}</td><td class="num pd-inh">${esc(o[2])}</td><td>${esc(o[3])}</td>
-                <td class="num">${L.spots.map(s => esc(s[0])).join(', ') || '<span class="pd-inh">–</span>'}</td><td class="r num">${L.spots.length ? q.toLocaleString() : ''}</td></tr>`;
+                <td class="num">${L.spots.map(s => esc(s[0])).join(', ') || '<span class="pd-inh">–</span>'}</td><td class="r num">${esc(L.spots.length ? q.toLocaleString() : '')}</td></tr>`;
         }).join('') || '<tr><td colspan="6" class="pd-inh">옵션 없음</td></tr>'}</tbody></table></div>
         ${editing ? `<div class="pd-actions" data-info-editing><span class="pd-note pd-err" data-f="msg"></span>
             <button class="d-btn pd-btn-lg" data-act="cancel">취소</button><button class="d-btn d-btn-primary pd-btn-lg" data-act="save">기본정보 저장</button></div>`
@@ -164,7 +164,7 @@ function renderMemo(el, pid) {
             <label class="pd-field">검수 주의사항<textarea class="pd-in" data-f="inspect" maxlength="2000" placeholder="원가·공급처명은 적지 마세요">${esc(n.inspect)}</textarea></label>
             <label class="pd-field">포장 메모<textarea class="pd-in" data-f="pack" maxlength="2000" placeholder="원가·공급처명은 적지 마세요">${esc(n.pack)}</textarea></label></div>
         ${(n.h || []).length ? `<details style="margin-top:12px"><summary class="pd-sub" style="cursor:pointer">직전 기록 ${n.h.length}개 (실수로 지웠을 때)</summary>
-            <ol class="pd-hist">${n.h.map((x, i) => `<li><div class="top"><span class="pd-sub">${fmtDateTime(x.at)} · ${esc(x.by)}</span><button class="d-btn d-btn-sm" data-h="${i}">이 내용으로 채우기</button></div>
+            <ol class="pd-hist">${n.h.map((x, i) => `<li><div class="top"><span class="pd-sub">${esc(fmtDateTime(x.at))} · ${esc(x.by)}</span><button class="d-btn d-btn-sm" data-h="${i}">이 내용으로 채우기</button></div>
                 <div class="chg">검수: ${esc(x.inspect) || '–'}<br>포장: ${esc(x.pack) || '–'}</div></li>`).join('')}</ol></details>` : ''}
         <div class="pd-actions"><span class="pd-note" data-f="msg"></span><button class="d-btn d-btn-primary pd-btn-lg" data-act="save">메모 저장</button></div>`;
     const ta = (f) => el.querySelector(`[data-f="${f}"]`);
@@ -232,11 +232,11 @@ function renderLoc(el, p) {
         if (!L.spots.length && !L.reserve && !L.stock) continue;
         if (L.stock) anyStock = true;
         rows.push(`<li style="padding:8px 0; border-bottom:1px solid var(--c-line-soft)"><div class="num"><b style="font-weight:600">${esc(o[0])}</b> <span class="pd-sub">${esc(o[1])}</span></div>
-            ${L.spots.map(s => `<div class="num">${esc(s[0])} <span class="pd-inh">${esc(s[1] || '')}</span> · ${s[2] ?? '–'}개</div>`).join('')}
-            ${L.reserve ? `<div class="num">비축 ${L.reserve[0]}개${L.reserve[1] ? ` · ${esc(L.reserve[1])}` : ''}</div>` : ''}
-            ${L.stock ? `<div class="num pd-sub">정상 ${L.stock[0] ?? '–'} · 출고예정 ${L.stock[1] ?? '–'}</div>` : ''}</li>`);
+            ${L.spots.map(s => `<div class="num">${esc(s[0])} <span class="pd-inh">${esc(s[1] || '')}</span> · ${esc(s[2] ?? '–')}개</div>`).join('')}
+            ${L.reserve ? `<div class="num">비축 ${esc(L.reserve[0])}개${L.reserve[1] ? ` · ${esc(L.reserve[1])}` : ''}</div>` : ''}
+            ${L.stock ? `<div class="num pd-sub">정상 ${esc(L.stock[0] ?? '–')} · 출고예정 ${esc(L.stock[1] ?? '–')}</div>` : ''}</li>`);
     }
-    el.innerHTML = head + `<div class="pd-sub" style="margin-top:6px">${fmtDateTime(at)} 기준 · 로케이션 기준 수량</div>
+    el.innerHTML = head + `<div class="pd-sub" style="margin-top:6px">${esc(fmtDateTime(at))} 기준 · 로케이션 기준 수량</div>
         ${rows.length ? `<ul class="pd-locs" style="gap:0">${rows.join('')}</ul>` : '<div class="pd-note" style="margin-top:12px">로케이션에 등록된 자리가 없습니다(요약 기준).</div>'}
         <div class="pd-note" style="margin-top:10px">평일 아침 채우기 지시서를 만들 때의 요약입니다. 정상재고·출고예정은 비축재고가 있는 상품만 나옵니다${anyStock ? '' : '(이 상품은 없음)'}.</div>` + link;
 }
@@ -250,8 +250,8 @@ async function renderCatalogHistory(el, pid) {
         const items = snap.docs.map(d => {
             const x = d.data();
             const mine = (x.changes || []).filter(c => c.pid === pid);
-            const body = x.kind === 'excel-init' ? '처음 등록' : mine.slice(0, 6).map(catalogChangeText).join('<br>') + (mine.length > 6 ? `<br><span class="pd-inh">외 ${mine.length - 6}건</span>` : '');
-            return `<li><div class="top"><b style="font-weight:600">${KIND_LABEL[x.kind] || esc(x.kind)}</b><span class="pd-sub num">${fmtDateTime(tsMs(x.at))} · ${esc(x.by)}</span></div><div class="chg">${body}</div></li>`;
+            const body = x.kind === 'excel-init' ? '처음 등록' : mine.slice(0, 6).map(catalogChangeText).join('<br>') + (mine.length > 6 ? `<br><span class="pd-inh">외 ${esc(mine.length - 6)}건</span>` : '');
+            return `<li><div class="top"><b style="font-weight:600">${KIND_LABEL[x.kind] || esc(x.kind)}</b><span class="pd-sub num">${esc(fmtDateTime(tsMs(x.at)))} · ${esc(x.by)}</span></div><div class="chg">${body}</div></li>`;
         });
         el.querySelector('.pd-note').outerHTML = items.length ? `<ol class="pd-hist">${items.join('')}</ol>` : '<div class="pd-note" style="margin-top:12px">이력이 없습니다</div>';
     } catch (e) {
@@ -270,8 +270,8 @@ export async function renderCatalogLog(main) {
         const rows = snap.docs.map(d => {
             const x = d.data(); const ch = x.changes || []; const ct = x.counts || {};
             const sum = x.counts ? ['new', 'changed', 'gone', 'revived'].filter(k => ct[k]).map(k => `${{ new: '새로', changed: '변경', gone: '사라짐', revived: '다시 나타남' }[k]} ${ct[k]}`).join(' · ') : '';
-            return `<tr><td class="num">${fmtDateTime(tsMs(x.at))}</td><td>${esc(x.by)}</td><td>${KIND_LABEL[x.kind] || esc(x.kind)}</td><td class="r num">${(x.pids || []).length}</td>
-                <td class="pd-chg">${sum ? `<span class="pd-sub">업로드 전체: ${sum}</span><br>` : ''}${ch.slice(0, 3).map(c => `<a href="#p=${encodeURIComponent(c.pid)}" class="num">${esc(c.pid)}</a> ${catalogChangeText(c)}`).join('<br>')}${ch.length > 3 ? `<br><span class="pd-inh">외 ${ch.length - 3}건</span>` : ''}</td></tr>`;
+            return `<tr><td class="num">${esc(fmtDateTime(tsMs(x.at)))}</td><td>${esc(x.by)}</td><td>${KIND_LABEL[x.kind] || esc(x.kind)}</td><td class="r num">${(x.pids || []).length}</td>
+                <td class="pd-chg">${sum ? `<span class="pd-sub">업로드 전체: ${esc(sum)}</span><br>` : ''}${ch.slice(0, 3).map(c => `<a href="#p=${esc(encodeURIComponent(c.pid))}" class="num">${esc(c.pid)}</a> ${catalogChangeText(c)}`).join('<br>')}${ch.length > 3 ? `<br><span class="pd-inh">외 ${esc(ch.length - 3)}건</span>` : ''}</td></tr>`;
         });
         main.querySelector('#pd-gl').outerHTML = rows.length
             ? `<div class="pd-scroll" style="margin-top:12px"><table class="pd-t pd-t-sm" style="min-width:760px"><thead><tr><th>시각</th><th>누가</th><th>방식</th><th class="r">품목</th><th>바뀐 것</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`

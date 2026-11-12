@@ -10,23 +10,24 @@
 //   원가는 전용 열(EZ_COST_COLS)·글 단가 해석(diffEzCost). 기본정보 반영 뒤 [원가 단계로 이어서] 로 같은 내용(메모리)을 원가에 쓴다.
 //   새 공급처는 반영 직전 확인 후 대장에 이름 빈칸으로 등록(ensureSuppliers). 설계: 이지어드민상품엑셀_설계.md
 // ⚠️ 원가 값을 console 에 찍지 말 것 — 시간·행 수만.
-import { S, applyLocalProduct } from './products-store.js?v=202611121547';
-import { C, ledgerCodes, loadLedger } from './products-cost.js?v=202611121547';
-import { esc, toast, route, renderBasis } from './products.js?v=202611121547';
-import { costChangeText } from './products-cost.js?v=202611121547';
-import { catalogChangeText } from './products-detail.js?v=202611121547';
-import { writeBucket, writeCatalogSummary, ensureSuppliers } from './products-write.js?v=202611121547';
-import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202611121547';
+import { S, applyLocalProduct } from './products-store.js?v=202611121915';
+import { C, ledgerCodes, loadLedger } from './products-cost.js?v=202611121915';
+import { esc, toast, route, renderBasis } from './products.js?v=202611121915';
+import { costChangeText } from './products-cost.js?v=202611121915';
+import { catalogChangeText } from './products-detail.js?v=202611121915';
+import { writeBucket, writeCatalogSummary, ensureSuppliers } from './products-write.js?v=202611121915';
+import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202611121915';
 import {
     CATALOG_COLS, COST_COLS, readRows, groupCatalogRows, diffCatalog, diffCost, defaultChecked,
     catalogJson, costJson, bucketSizesAfter, templateAoa, costExportAoa, resultAoa, STATUS_LABEL, BUCKET_LIMIT,
     sheetToAoa, goneSelected
-} from './lib/product-excel-rows.js?v=202611121547';
-import { EZ_COST_COLS, detectEzadmin, ezCatalogGroups, diffEzCost } from './lib/product-ezadmin.js?v=202611121547';
-import { friendlyFirebaseError } from './utils.js?v=202611121547';   // 원시 오류 코드 대신 할 일 한 줄
-import { REASON_LABEL } from './lib/product-price-text.js?v=202611121547';
+} from './lib/product-excel-rows.js?v=202611121915';
+import { EZ_COST_COLS, detectEzadmin, ezCatalogGroups, diffEzCost } from './lib/product-ezadmin.js?v=202611121915';
+import { friendlyFirebaseError } from './utils.js?v=202611121915';   // 원시 오류 코드 대신 할 일 한 줄
+import { REASON_LABEL } from './lib/product-price-text.js?v=202611121915';
 
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const XLSX_SRI = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';   // 받은 파일로 계산. 버전 올리면 다시 계산
 const PAGE = 50;
 const $ = (id) => document.getElementById(id);
 
@@ -37,6 +38,9 @@ export function loadXLSX() {
     xlsxP = new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = XLSX_URL;
+        s.integrity = XLSX_SRI;
+        s.crossOrigin = 'anonymous';
+        s.referrerPolicy = 'no-referrer';
         s.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('XLSX 없음'));
         s.onerror = () => { xlsxP = null; reject(new Error('SheetJS 를 불러오지 못함')); };
         document.head.appendChild(s);
@@ -96,13 +100,13 @@ export function openUpload(kind, { aoa: givenAoa = null, fname: givenName = '' }
             </div>
             <div class="pd-note" style="margin-top:8px">${cat
                 ? `열 이름: ${CATALOG_COLS.map(c => c.name).join(' · ')}. 옵션 하나 = 한 행. 열 순서는 상관없고, 빈 칸은 그대로 두고 하이픈(-)은 지웁니다. 원가·공급처 열이 있어도 읽지 않습니다.`
-                : `열 이름: ${COST_COLS.map(c => c.name).join(' · ')}. 상품코드를 비우면 상품 기본 단가, 넣으면 그 옵션만. 공급처는 대장에 먼저 등록. <b>원가 파일은 AI·메신저에 올리지 마세요.</b>`}</div>
+                : `열 이름: ${esc(COST_COLS.map(c => c.name).join(' · '))}. 상품코드를 비우면 상품 기본 단가, 넣으면 그 옵션만. 공급처는 대장에 먼저 등록. <b>원가 파일은 AI·메신저에 올리지 마세요.</b>`}</div>
         </div>
         <div class="pd-step"><h3>2. 올리기</h3>
             <div class="pd-row">
                 ${cat ? `<label class="pd-sub"><input type="checkbox" class="pd-check" data-f="full" checked> 이 파일이 <b>전체 목록</b>이다 (빠진 상품은 '사라짐'으로 표시, 삭제하지 않음)</label>`
                     : `<label class="pd-field" style="width:150px">기본 환율(1달러당 위안)<input class="pd-in num" data-f="rate" inputmode="decimal" value="${esc(lastRate)}"></label>
-                       <label class="pd-field" style="width:170px">기준일<input class="pd-in" type="date" data-f="rateDate" value="${ymdDash()}"></label>
+                       <label class="pd-field" style="width:170px">기준일<input class="pd-in" type="date" data-f="rateDate" value="${esc(ymdDash())}"></label>
                        <span class="pd-note">환율 칸이 빈 행에 씁니다</span>`}
             </div>
             ${givenAoa
@@ -236,17 +240,17 @@ function renderPreview() {
     const goneNeed = sg.options || sg.products;                     // 확인 입력값 = 사라질 옵션 수(옵션 없으면 상품 수)
     const chText = cat ? catalogChangeText : costChangeText;
     box.innerHTML = `<div class="pd-step"><h3>3. 미리보기 · 반영</h3>
-        <div class="pd-note">찾은 열: ${found.map(esc).join(' · ')}${h.ignored.length ? ` · 모르는 열(무시): ${h.ignored.map(esc).join(', ')}` : ''}${U.skipped ? ` · 설명 행 ${U.skipped}개 건너뜀` : ''}</div>
+        <div class="pd-note">찾은 열: ${found.map(esc).join(' · ')}${h.ignored.length ? ` · 모르는 열(무시): ${h.ignored.map(esc).join(', ')}` : ''}${esc(U.skipped ? ` · 설명 행 ${U.skipped}개 건너뜀` : '')}</div>
         ${U.ez ? `<div class="pd-alert info" style="margin-top:8px">이지어드민 상품 엑셀로 인식했습니다. ${cat
             ? '이 단계는 기본정보만 읽습니다(대표상품코드가 빈 행 = 단독 상품). 반영한 뒤 <b>원가 단계로 이어서</b>를 누르세요.'
             : '추가항목2 = 위안 단가, 비축창고재고 = 달러 단가, 원가 = 원화 원가로 읽습니다. 새 품목은 기본정보를 먼저 반영해야 합니다(\'기본정보에 없음\'). 글로 적힌 단가를 확정 못 한 품목은 단가를 바꾸지 않고 원가메모에 원문을 남깁니다(\'확인 필요\').'}</div>` : ''}
         ${h.forbidden.length ? `<div class="pd-alert warn" style="margin-top:8px">원가·공급처로 보이는 열은 읽지 않았습니다: ${h.forbidden.map(esc).join(', ')}</div>` : ''}
         ${h.dupes.length ? `<div class="pd-alert warn" style="margin-top:8px">같은 뜻의 열이 또 있어 뒤의 것은 무시: ${h.dupes.map(esc).join(', ')}</div>` : ''}
-        ${cat && U.needGoneConfirm ? `<div class="pd-alert risk" style="margin-top:8px">사라짐이 상품 ${c.gone.toLocaleString()}개(기존의 ${Math.round(U.goneRatio * 100)}%) · 옵션 ${U.goneOptCount.toLocaleString()}개(기존의 ${Math.round(U.goneOptRatio * 100)}%) 입니다. 파일을 잘못 고르지 않았는지 확인하세요.
-            ${goneNeed ? `반영하려면 선택한 것 중 사라질 ${sg.options ? '옵션' : '상품'} 수 <b>${goneNeed.toLocaleString()}</b> 을 입력: <input class="pd-in num sm" data-f="goneok" inputmode="numeric" style="width:100px">` : '(지금 선택에는 사라짐이 없습니다)'}</div>` : ''}
+        ${cat && U.needGoneConfirm ? `<div class="pd-alert risk" style="margin-top:8px">사라짐이 상품 ${esc(c.gone.toLocaleString())}개(기존의 ${Math.round(U.goneRatio * 100)}%) · 옵션 ${esc(U.goneOptCount.toLocaleString())}개(기존의 ${Math.round(U.goneOptRatio * 100)}%) 입니다. 파일을 잘못 고르지 않았는지 확인하세요.
+            ${goneNeed ? `반영하려면 선택한 것 중 사라질 ${sg.options ? '옵션' : '상품'} 수 <b>${esc(goneNeed.toLocaleString())}</b> 을 입력: <input class="pd-in num sm" data-f="goneok" inputmode="numeric" style="width:100px">` : '(지금 선택에는 사라짐이 없습니다)'}</div>` : ''}
         <div class="pd-row" style="margin-top:12px">${filters.map(([k, label, fn]) => {
             const n = U.entries.filter(fn).length;
-            return `<button class="pd-chip ${U.filter === k ? 'is-on' : ''}" data-flt="${k}">${label}<span class="num">${n.toLocaleString()}</span></button>`;
+            return `<button class="pd-chip ${U.filter === k ? 'is-on' : ''}" data-flt="${k}">${label}<span class="num">${esc(n.toLocaleString())}</span></button>`;
         }).join('')}</div>
         <div class="pd-scroll" style="margin-top:12px"><table class="pd-t pd-t-sm" style="min-width:820px">
             <thead><tr><th><input type="checkbox" class="pd-check" data-act="page" aria-label="이 쪽 전부"></th><th>품목코드</th><th>상품명</th><th>판정</th><th>바뀐 것 / 오류·경고</th></tr></thead>
@@ -256,23 +260,23 @@ function renderPreview() {
                 const can = e.status !== 'error' && e.status !== 'same';
                 const res = U.results ? U.results.get(e.pid) : '';
                 const lines = e.changes.slice(0, 4).map(chText);
-                if (e.changes.length > 4) lines.push(`<span class="pd-inh">외 ${e.changes.length - 4}건</span>`);
+                if (e.changes.length > 4) lines.push(`<span class="pd-inh">외 ${esc(e.changes.length - 4)}건</span>`);
                 const checks = (e.checks || []).map(x => REASON_LABEL[x] || x);   // 사유 라벨만(단가 원문·숫자 없음)
                 const notes = [...e.errors.map(x => `<span class="pd-err">${esc(x)}</span>`),
                     ...(checks.length ? [`<span class="pd-warn"><b>확인 필요</b>: ${esc(checks.join(', '))} — 단가는 그대로, 원문은 원가메모에</span>`] : []),
                     ...e.warnings.map(x => `<span class="pd-warn">${esc(x)}</span>`), ...(e.infos || []).map(x => `<span class="pd-inh">${esc(x)}</span>`)];
-                return `<tr class="${e.status === 'error' ? 'is-risk' : (e.warnings.length || checks.length) ? 'is-warn' : ''}">
+                return `<tr class="${esc(e.status === 'error' ? 'is-risk' : (e.warnings.length || checks.length) ? 'is-warn' : '')}">
                     <td><input type="checkbox" class="pd-check" data-pid="${esc(e.pid)}" ${U.checked.has(e.pid) ? 'checked' : ''} ${can && !U.results ? '' : 'disabled'} aria-label="${esc(e.pid)} 반영"></td>
                     <td class="num">${esc(e.pid)}</td><td class="pd-name">${esc(name)}</td>
-                    <td><span class="pd-pill ${PILL[e.status]}">${STATUS_LABEL[e.status]}</span>${res ? `<br><span class="pd-sub">${esc(res)}</span>` : ''}</td>
+                    <td><span class="pd-pill ${esc(PILL[e.status])}">${esc(STATUS_LABEL[e.status])}</span>${res ? `<br><span class="pd-sub">${esc(res)}</span>` : ''}</td>
                     <td class="pd-chg">${[...lines, ...notes].join('<br>') || '<span class="pd-inh">–</span>'}</td></tr>`;
             }).join('') || '<tr><td colspan="5" class="pd-inh">없음</td></tr>'}</tbody></table></div>
-        <div class="pd-row" style="margin-top:10px"><span class="pd-sub num">${list.length.toLocaleString()}개 중 ${list.length ? from + 1 : 0}–${Math.min(from + PAGE, list.length)}</span>
-            <span class="pd-pager"><button class="d-btn d-btn-sm" data-act="prev" ${U.page <= 0 ? 'disabled' : ''}>이전</button><span class="num">${U.page + 1} / ${pages}</span><button class="d-btn d-btn-sm" data-act="next" ${U.page >= pages - 1 ? 'disabled' : ''}>다음</button></span></div>
+        <div class="pd-row" style="margin-top:10px"><span class="pd-sub num">${esc(list.length.toLocaleString())}개 중 ${esc(list.length ? from + 1 : 0)}–${Math.min(from + PAGE, list.length)}</span>
+            <span class="pd-pager"><button class="d-btn d-btn-sm" data-act="prev" ${U.page <= 0 ? 'disabled' : ''}>이전</button><span class="num">${esc(U.page + 1)} / ${esc(pages)}</span><button class="d-btn d-btn-sm" data-act="next" ${U.page >= pages - 1 ? 'disabled' : ''}>다음</button></span></div>
         <div class="pd-progress" style="margin-top:14px; display:none" data-f="prog"><i></i></div>
         <div class="pd-actions"><span class="pd-note" data-f="applymsg"></span>
             ${U.results ? `<button class="d-btn pd-btn-lg" data-act="result">결과 엑셀 받기</button>${cat && U.ez && U.aoa ? '<button class="d-btn d-btn-primary pd-btn-lg" data-act="tocost">원가 단계로 이어서</button>' : ''}<button class="d-btn ${cat && U.ez && U.aoa ? '' : 'd-btn-primary'} pd-btn-lg" data-act="done">닫기</button>`
-                : `<button class="d-btn d-btn-primary pd-btn-lg" data-act="apply" ${sel.length ? '' : 'disabled'}>선택 ${sel.length.toLocaleString()}개 반영</button>`}</div></div>`;
+                : `<button class="d-btn d-btn-primary pd-btn-lg" data-act="apply" ${sel.length ? '' : 'disabled'}>선택 ${esc(sel.length.toLocaleString())}개 반영</button>`}</div></div>`;
 
     box.querySelectorAll('[data-flt]').forEach(b => b.addEventListener('click', () => { U.filter = b.dataset.flt; U.page = 0; renderPreview(); }));
     box.querySelector('[data-act="prev"]').addEventListener('click', () => { U.page--; renderPreview(); });

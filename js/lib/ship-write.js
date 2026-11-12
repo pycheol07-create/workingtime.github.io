@@ -10,9 +10,9 @@
 //   재고출고용 .xls(biff8)는 js/lib/xls-limits.js xlsBytes 를 쓴다.
 // JSZip·XLSX 는 넘겨받은 것으로만 쓴다(브라우저 CDN · node 공용).
 
-import { xlsBytes } from './xls-limits.js?v=202611121547';
-import { readBook } from './ship-read.js?v=202611121547';
-import { checkAblyTemplate, TMPL_HEADER_ROW, TMPL_HEADERS } from './ship-ably.js?v=202611121547';
+import { xlsBytes } from './xls-limits.js?v=202611121915';
+import { readBook } from './ship-read.js?v=202611121915';
+import { checkAblyTemplate, TMPL_HEADER_ROW, TMPL_HEADERS } from './ship-ably.js?v=202611121915';
 
 // ---------------------------------------------------------------- XML 도우미
 const escXml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

@@ -4,15 +4,15 @@
 // 계산은 js/lib/task-owner.js(순수). 이 파일은 그리기만 한다.
 // 읽기만 한다 — 메모리의 최근 13개월 이력(State.allHistoryData, + 이번 달)만 쓰고 Firestore 를 따로 읽지 않는다.
 // ⚠️ 콘솔·로그에 직원 이름을 찍지 않는다. role="dialog"·data-act 를 쓰지 않는다(업무마감봇 선택자).
-import * as State from './state.js?v=202611121547';
-import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611121547';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611121547';
-import { TASK, tName } from './task-names.js?v=202611121547';
-import { D, alpha } from './d-chart.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { escapeHtml as esc, getTodayDateString } from './utils.js?v=202611121915';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611121915';
+import { TASK, tName } from './task-names.js?v=202611121915';
+import { D, alpha } from './d-chart.js?v=202611121915';
 import {
     ownerByPeriod, detectOwnerChanges, mapOwnerChanges, compareAroundView, compareWeeksOf, taskDays, taskListOf, pctChange,
     CAP_MINUTES, MIN_SOLO_DAYS, MIN_COMPARE_DAYS
-} from './lib/task-owner.js?v=202611121547';
+} from './lib/task-owner.js?v=202611121915';
 
 const DEFAULTS = { week: { hold: 2, n: 4 }, month: { hold: 2, n: 2 } };
 const HOLD_CHOICES = [1, 2, 3, 4];
@@ -60,8 +60,8 @@ function chip(label, b, a, digits, betterIfHigh, suffix = '') {
         tag = `${flat ? '—' : (good ? '개선' : '악화')} ${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
     }
     return `<div class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border ${cls}">
-        <span class="text-[11px] font-bold opacity-80">${label}</span>
-        <span class="text-[11px] font-mono">${num(b, digits)}${b == null ? '' : suffix}→${num(a, digits)}${a == null ? '' : suffix}</span>
+        <span class="text-[11px] font-bold opacity-80">${esc(label)}</span>
+        <span class="text-[11px] font-mono">${esc(num(b, digits))}${esc(b == null ? '' : suffix)}→${esc(num(a, digits))}${esc(a == null ? '' : suffix)}</span>
         ${tag ? `<span class="text-[11px] font-bold">${tag}</span>` : ''}
     </div>`;
 }
@@ -77,9 +77,9 @@ const TIME_METRICS = [
 
 // ── 그리기 ─────────────────────────────────────────────────────────
 function controlsHtml(tasks) {
-    const sel = (id, list, cur, fmt) => `<select id="${id}" class="p-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100">
+    const sel = (id, list, cur, fmt) => `<select id="${esc(id)}" class="p-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100">
         ${list.map(v => `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(fmt(v))}</option>`).join('')}</select>`;
-    const granBtn = (g, label) => `<button type="button" class="taskowner-gran-btn px-3 py-1 text-xs font-bold ${opts.gran === g ? 'bg-blue-600 text-white' : 'text-gray-700 dark:text-gray-200'}" data-gran="${g}">${label}</button>`;
+    const granBtn = (g, label) => `<button type="button" class="taskowner-gran-btn px-3 py-1 text-xs font-bold ${opts.gran === g ? 'bg-blue-600 text-white' : 'text-gray-700 dark:text-gray-200'}" data-gran="${esc(g)}">${esc(label)}</button>`;
     const unit = opts.gran === 'month' ? '개월' : '주';
     return `<div class="flex flex-wrap items-center gap-x-4 gap-y-2 bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl border border-gray-200 dark:border-gray-700 depth-panel text-sm">
         <label class="flex items-center gap-2"><span class="font-bold text-gray-600 dark:text-gray-300">업무</span>${sel('taskowner-task', tasks, opts.task, v => v)}</label>
@@ -97,8 +97,8 @@ function changesHtml(items, qty) {
     return items.slice().reverse().map(({ change, cmp }) => {
         const b = cmp.before, a = cmp.after;
         const warn = cmp.lowSample
-            ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700">표본 적음(${qty ? '처리량 입력된 날' : '진행'} ${MIN_COMPARE_DAYS}일 미만)</span>` : '';
-        const solo = qty ? `<span class="text-[11px] text-gray-400">처리량 입력된 날 ${b.qtyDays}일 → ${a.qtyDays}일 · 본인 UPH 단독일 ${b.soloDays}일 → ${a.soloDays}일</span>` : '';
+            ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700">표본 적음(${qty ? '처리량 입력된 날' : '진행'} ${esc(MIN_COMPARE_DAYS)}일 미만)</span>` : '';
+        const solo = qty ? `<span class="text-[11px] text-gray-400">처리량 입력된 날 ${esc(b.qtyDays)}일 → ${esc(a.qtyDays)}일 · 본인 UPH 단독일 ${esc(b.soloDays)}일 → ${esc(a.soloDays)}일</span>` : '';
         return `<div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 md:p-4 space-y-2 depth-panel">
             <div class="flex flex-wrap items-center gap-2">
                 <span class="font-bold text-gray-800 dark:text-gray-100">${esc(change.date)}</span>
@@ -106,7 +106,7 @@ function changesHtml(items, qty) {
                 ${change.tentative ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700" title="이번 주 기록이 더 쌓이면 바뀔 수 있습니다">잠정(이번 주 기록 기준)</span>` : ''}
                 ${warn}
             </div>
-            <div class="text-[11px] text-gray-500 dark:text-gray-400">전 ${esc(b.from)}~${esc(b.to)} (진행 ${b.days}일) · 후 ${esc(a.from)}~${esc(a.to)} (진행 ${a.days}일) ${solo}</div>
+            <div class="text-[11px] text-gray-500 dark:text-gray-400">전 ${esc(b.from)}~${esc(b.to)} (진행 ${esc(b.days)}일) · 후 ${esc(a.from)}~${esc(a.to)} (진행 ${esc(a.days)}일) ${solo}</div>
             <div class="flex flex-wrap gap-2">${metrics.map(([l, k, d, hi, u]) => chip(l, b[k], a[k], d, hi, u)).join('')}</div>
         </div>`;
     }).join('');
@@ -120,28 +120,28 @@ function tableHtml(rows, line, qty) {
         // 이어 온 주 인원(주 단위 판정 결과)이 이 칸 1위와 다르면 같이 보인다
         const owner = r.status === 'owner'
             ? `<span class="font-bold text-gray-800 dark:text-gray-100">${who(r.owner, r.ownerPartTimer)}</span>${line[i] && line[i] !== r.owner ? `<div class="text-[11px] text-gray-400">이어서 ${esc(line[i])}</div>` : ''}`
-            : `<span class="text-gray-400">${STATUS_TEXT[r.status]}</span>${line[i] ? `<div class="text-[11px] text-gray-400">이어서 ${esc(line[i])}</div>` : ''}`;
-        const share = r.top ? (r.status === 'owner' ? pctTxt(r.ownerShare) : `<span class="text-gray-400">${who(r.top.name, r.top.partTimer)} ${pctTxt(r.top.share)}</span>`) : '–';
+            : `<span class="text-gray-400">${esc(STATUS_TEXT[r.status])}</span>${line[i] ? `<div class="text-[11px] text-gray-400">이어서 ${esc(line[i])}</div>` : ''}`;
+        const share = r.top ? (r.status === 'owner' ? pctTxt(r.ownerShare) : `<span class="text-gray-400">${who(r.top.name, r.top.partTimer)} ${esc(pctTxt(r.top.share))}</span>`) : '–';
         const second = r.second ? `${who(r.second.name, r.second.partTimer)} ${pctTxt(r.second.share)}` : '–';
         const speed = qty ? num(r.uph, 1) : `${num(r.avgMinutesPerDay)}분`;
         const live = r.end >= today ? ' <span class="text-[11px] text-blue-600">오늘까지</span>' : '';
-        const cap = r.capped ? ` <span class="text-[11px] text-amber-600" title="${CAP_MINUTES}분 넘는 기록 ${r.capped}건은 ${CAP_MINUTES}분으로 셈">상한 ${r.capped}</span>` : '';
+        const cap = r.capped ? ` <span class="text-[11px] text-amber-600" title="${esc(CAP_MINUTES)}분 넘는 기록 ${esc(r.capped)}건은 ${esc(CAP_MINUTES)}분으로 셈">상한 ${esc(r.capped)}</span>` : '';
         return `<tr class="border-b border-gray-100 dark:border-gray-700">
             <td class="px-3 py-2 whitespace-nowrap">${esc(periodLabel(r, opts.gran))}${live}</td>
             <td class="px-3 py-2 whitespace-nowrap">${owner}</td>
             <td class="px-3 py-2 text-right whitespace-nowrap">${share}</td>
             <td class="px-3 py-2 whitespace-nowrap">${second}</td>
-            <td class="px-3 py-2 text-right">${r.days}</td>
-            <td class="px-3 py-2 text-right">${qty ? num(r.qty) : '–'}</td>
-            <td class="px-3 py-2 text-right whitespace-nowrap">${speed}${cap}</td>
-            <td class="px-3 py-2 text-right">${r.headcount}</td>
+            <td class="px-3 py-2 text-right">${esc(r.days)}</td>
+            <td class="px-3 py-2 text-right">${esc(qty ? num(r.qty) : '–')}</td>
+            <td class="px-3 py-2 text-right whitespace-nowrap">${esc(speed)}${cap}</td>
+            <td class="px-3 py-2 text-right">${esc(r.headcount)}</td>
         </tr>`;
     }).join('');
     return `<div class="overflow-x-auto">
         <table class="w-full text-sm text-left text-gray-600 dark:text-gray-300">
             <thead class="text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
                 <tr><th class="px-3 py-2">기간</th><th class="px-3 py-2">주 인원</th><th class="px-3 py-2 text-right">비중</th><th class="px-3 py-2">2순위</th>
-                    <th class="px-3 py-2 text-right">진행 일수</th><th class="px-3 py-2 text-right">처리량</th><th class="px-3 py-2 text-right">${speedHead}</th><th class="px-3 py-2 text-right">인원</th></tr>
+                    <th class="px-3 py-2 text-right">진행 일수</th><th class="px-3 py-2 text-right">처리량</th><th class="px-3 py-2 text-right">${esc(speedHead)}</th><th class="px-3 py-2 text-right">인원</th></tr>
             </thead>
             <tbody>${body}</tbody>
         </table>
@@ -228,10 +228,10 @@ export function renderTaskOwnerTab({ task: want = null } = {}) {
             <span>지금 주 인원 <b>${nowOwner ? esc(nowOwner) : '–'}</b></span>
             <span>처음 주 인원 <b>${det.initial ? esc(det.initial) : '–'}</b></span>
             <span>바뀐 횟수 <b>${det.changes.length}</b></span>
-            <span class="text-gray-500 dark:text-gray-400">${qty ? '처리량 입력 업무' : '시간 업무(처리량 없음)'} · ${rows.length}${unit}</span>
+            <span class="text-gray-500 dark:text-gray-400">${qty ? '처리량 입력 업무' : '시간 업무(처리량 없음)'} · ${rows.length}${esc(unit)}</span>
         </div>
         <div class="space-y-2">
-            <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100">주 인원 바뀐 지점 <span class="font-normal text-xs text-gray-500">${cmpLabel} (다음 변경 전날에서 자름)</span></h3>
+            <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100">주 인원 바뀐 지점 <span class="font-normal text-xs text-gray-500">${esc(cmpLabel)} (다음 변경 전날에서 자름)</span></h3>
             ${changesHtml(items, qty)}
         </div>
         <div class="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl border border-gray-200 dark:border-gray-700 depth-panel">
@@ -244,9 +244,9 @@ export function renderTaskOwnerTab({ task: want = null } = {}) {
         </div>
         <ul class="text-[11px] text-gray-500 dark:text-gray-400 list-disc pl-5 space-y-0.5">
             <li>주 인원 = 그 기간 이 업무 투입시간 비중 1위. 1위가 40% 미만이거나 1·2위 차가 5%p 이하면 '여럿', 총 60분 미만이거나 진행 1일이면 '표본 부족'(둘 다 앞 주 인원을 잇습니다).</li>
-            <li>바뀜은 언제나 주 단위로 봅니다 — 새 사람이 ${opts.hold}주 연속 1위일 때 바뀐 것으로 보고, 바뀐 날짜는 그 사람의 첫 주 시작일입니다${opts.gran === 'week' ? '' : '(월로 볼 때는 그 주의 첫 기록이 든 달에 표시하고, 각 달의 이어 온 주 인원은 그 달 끝까지의 주 판정입니다. 전후 비교도 주 단위 — 1개월을 4주로 봅니다)'}. 진행 중인 이번 주는 오늘까지 기록으로 세되, 이번 주에 이 업무를 2일 이상·60분 이상 했을 때만 셉니다('오늘까지' 표시). 이번 주 기록으로 정해진 변경은 '잠정'으로 표시합니다 — 이번 주 기록이 더 쌓이면 바뀔 수 있습니다. 전후 비교에서는 오늘을 뺍니다.</li>
-            ${qty ? `<li>UPH·하루 처리량·개당 시간은 시간과 처리량이 둘 다 입력된 날만 봅니다. UPH 는 하루 10분 이상 한 날의 하루 UPH 가운데값입니다(3일 미만이면 합계로 계산). 주 인원 본인 UPH 는 그 사람이 그날 이 업무 시간의 80% 이상을 맡은 날(단독일)만 보고, 단독일이 ${MIN_SOLO_DAYS}일 미만이면 '–' 입니다.</li>` : ''}
-            <li>'종료'를 누르지 않아 길게 잡힌 기록은 1건당 ${CAP_MINUTES}분까지만 셉니다${capped ? ` (이 업무 ${capped}건)` : ''}.</li>
+            <li>바뀜은 언제나 주 단위로 봅니다 — 새 사람이 ${esc(opts.hold)}주 연속 1위일 때 바뀐 것으로 보고, 바뀐 날짜는 그 사람의 첫 주 시작일입니다${opts.gran === 'week' ? '' : '(월로 볼 때는 그 주의 첫 기록이 든 달에 표시하고, 각 달의 이어 온 주 인원은 그 달 끝까지의 주 판정입니다. 전후 비교도 주 단위 — 1개월을 4주로 봅니다)'}. 진행 중인 이번 주는 오늘까지 기록으로 세되, 이번 주에 이 업무를 2일 이상·60분 이상 했을 때만 셉니다('오늘까지' 표시). 이번 주 기록으로 정해진 변경은 '잠정'으로 표시합니다 — 이번 주 기록이 더 쌓이면 바뀔 수 있습니다. 전후 비교에서는 오늘을 뺍니다.</li>
+            ${qty ? `<li>UPH·하루 처리량·개당 시간은 시간과 처리량이 둘 다 입력된 날만 봅니다. UPH 는 하루 10분 이상 한 날의 하루 UPH 가운데값입니다(3일 미만이면 합계로 계산). 주 인원 본인 UPH 는 그 사람이 그날 이 업무 시간의 80% 이상을 맡은 날(단독일)만 보고, 단독일이 ${esc(MIN_SOLO_DAYS)}일 미만이면 '–' 입니다.</li>` : ''}
+            <li>'종료'를 누르지 않아 길게 잡힌 기록은 1건당 ${esc(CAP_MINUTES)}분까지만 셉니다${esc(capped ? ` (이 업무 ${capped}건)` : '')}.</li>
             <li>직원은 기록에 남은 이름으로 셉니다 — 이름이 바뀐 직원은 다른 사람으로 보입니다. 최근 13개월 기록만 봅니다.</li>
         </ul>`;
     drawChart(rows, det.changes, qty);

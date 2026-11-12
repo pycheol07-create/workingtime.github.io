@@ -3,13 +3,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy, where, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202611121547';
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202611121547';
-import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121547';
-import { memberNameFor } from './app-shell-data.js?v=202611121547';
-import { menuConfigOf } from './lib/perm.js?v=202611121547';
-import { escapeHtml, friendlyFirebaseError } from './utils.js?v=202611121547';
-import { checkAttachment, checkInlineImage, accessFieldsFor, backfillPatchFor, canViewManual as canViewManualFor, mergeManualLists } from './lib/manual-access.js?v=202611121547';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202611121915';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202611121915';
+import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121915';
+import { memberNameFor } from './app-shell-data.js?v=202611121915';
+import { menuConfigOf } from './lib/perm.js?v=202611121915';
+import { escapeHtml, friendlyFirebaseError } from './utils.js?v=202611121915';
+import { checkAttachment, checkInlineImage, accessFieldsFor, backfillPatchFor, canViewManual as canViewManualFor, mergeManualLists } from './lib/manual-access.js?v=202611121915';
 
 let app, db, auth, storage;
 let appConfig = {};
@@ -707,7 +707,7 @@ function renderList() {
                 </div>
                 <div class="flex items-center justify-between mt-1.5 pr-2">
                     <span class="text-[10px] text-gray-500 font-medium">담당: ${item.manager ? escapeHtml(item.manager) : '<span class="text-gray-300">미지정</span>'}</span>
-                    <span class="text-[10px] text-gray-400 font-mono tracking-tighter">수정: ${dateStr}</span>
+                    <span class="text-[10px] text-gray-400 font-mono tracking-tighter">수정: ${escapeHtml(dateStr)}</span>
                 </div>
             `;
 

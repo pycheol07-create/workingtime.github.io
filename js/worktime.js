@@ -12,10 +12,10 @@
 //   persistent_data/worktime_2026-09         그 달 기록 { records: { [personId]: { "01": {...} } } }
 //   → 달마다 문서를 나눈다. 한 문서에 몇 년치를 쌓으면 화면을 열 때마다 전부 읽는다.
 
-import { initializeFirebase } from './config.js?v=202611121547';
-import { setShellContext, goHome, onBeforeLeaveSave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121547';
-import { memberNameFor } from './app-shell-data.js?v=202611121547';
-import { escapeHtml as esc } from './utils.js?v=202611121547';
+import { initializeFirebase } from './config.js?v=202611121915';
+import { setShellContext, goHome, onBeforeLeaveSave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121915';
+import { memberNameFor } from './app-shell-data.js?v=202611121915';
+import { escapeHtml as esc } from './utils.js?v=202611121915';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -285,7 +285,7 @@ function renderTabs() {
         const t = monthTotals(p.id);
         return `<button class="p-card ${p.id === currentPid ? 'on' : ''}" data-pid="${esc(p.id)}">
             <div class="nm truncate" title="${esc(p.name || '')}">${esc(p.name || '이름없음')}</div>
-            <div class="sub">${t.days}일 · ${hoursText(t.workedMin)}</div>
+            <div class="sub">${esc(t.days)}일 · ${esc(hoursText(t.workedMin))}</div>
         </button>`;
     }).join('');
 }
@@ -306,16 +306,16 @@ function renderSheet() {
         let cls = wd === 0 ? 'sun' : wd === 6 ? 'sat' : '';
         if (needsCheck(r, currentYm, d)) cls += ' todo';
         rows.push(`
-            <tr class="${cls}" data-day="${key}">
+            <tr class="${cls}" data-day="${esc(key)}">
                 <td><input type="checkbox" class="chk" ${selected.has(key) ? 'checked' : ''}></td>
-                <td><b>${d}</b> <span class="day-name">${DAY_NAME[wd]}</span></td>
+                <td><b>${esc(d)}</b> <span class="day-name">${esc(DAY_NAME[wd])}</span></td>
                 <td><input class="t-in" data-f="in"  type="time" value="${esc(r.in || '')}"></td>
                 <td><input class="t-in" data-f="out" type="time" value="${esc(r.out || '')}"></td>
                 <td><input class="t-in b-in" data-f="breakMin" inputmode="numeric"
-                           placeholder="${calc ? autoBreak(r) : ''}"
+                           placeholder="${esc(calc ? autoBreak(r) : '')}"
                            value="${r.breakMin === '' || r.breakMin == null ? '' : esc(r.breakMin)}"></td>
                 <td class="tabular-nums ${calc ? 'font-bold text-slate-800' : 'text-slate-300'}">
-                    ${calc ? hoursText(calc.worked) : '-'}</td>
+                    ${esc(calc ? hoursText(calc.worked) : '-')}</td>
                 <td>${okCellHtml(r, currentYm, d)}</td>
                 <td><input class="t-in m-in" data-f="memo"
                            maxlength="30" value="${esc(r.memo || '')}"></td>
@@ -337,7 +337,7 @@ function okCellHtml(rec, ym, day) {
         : (todo ? '아직 확인하지 않은 날입니다' : '근무 후 확인해 주세요');
     return `<label class="ok-cell" title="${esc(tip)}">
         <input type="checkbox" class="ok-box" ${done ? 'checked' : ''}>
-        <span class="ok-txt ${done ? 'ok-done' : (todo ? 'ok-todo' : 'text-slate-400')}">${done ? '확인' : (todo ? '미확인' : '')}</span>
+        <span class="ok-txt ${esc(done ? 'ok-done' : (todo ? 'ok-todo' : 'text-slate-400'))}">${esc(done ? '확인' : (todo ? '미확인' : ''))}</span>
     </label>`;
 }
 
@@ -397,7 +397,7 @@ function renderSummary() {
     const card = (label, value, sub = '', color = 'text-slate-800') => `
         <div class="bg-white rounded-xl border border-slate-200 px-3 py-2 text-center">
             <div class="text-[11px] text-slate-500 mb-0.5">${esc(label)}</div>
-            <div class="text-lg font-extrabold ${color} tabular-nums leading-tight">${value}</div>
+            <div class="text-lg font-extrabold ${esc(color)} tabular-nums leading-tight">${esc(value)}</div>
             ${sub ? `<div class="text-[10px] text-slate-400 mt-0.5 leading-tight">${esc(sub)}</div>` : ''}
         </div>`;
 
@@ -427,8 +427,8 @@ function renderSummary() {
         return;
     }
     const today = `${new Date().getFullYear()}-${pad2(new Date().getMonth() + 1)}-${pad2(new Date().getDate())}`;
-    const stale = fx.date && fx.date !== today ? ` <span class="text-amber-600">(오늘 환율이 아직 없어 ${fx.date} 값을 씁니다)</span>` : '';
-    note.innerHTML = `적용 환율 1위안 = ${fx.rate.toLocaleString()}원 · ${fx.date} 기준${stale}`;
+    const stale = fx.date && fx.date !== today ? ` <span class="text-amber-600">(오늘 환율이 아직 없어 ${esc(fx.date)} 값을 씁니다)</span>` : '';
+    note.innerHTML = `적용 환율 1위안 = ${esc(fx.rate.toLocaleString())}원 · ${esc(fx.date)} 기준${stale}`;
 }
 
 function renderAll() {
@@ -815,21 +815,22 @@ $('btn-pdf').addEventListener('click', async () => {
             const key = pad2(d), r = rec[key] || {}, c = calcDay(r);
             const wd = weekdayOf(currentYm, d);
             const bg = wd === 0 || wd === 6 ? 'background:#F1F5F9;color:#64748B;' : '';
-            body += `<tr style="${bg}">`
-                + `<td style="${td}text-align:center;">${Number(m)}/${d}</td>`
-                + `<td style="${td}text-align:center;">${DAY_NAME[wd]}</td>`
-                + `<td style="${td}text-align:center;">${esc(r.in || '')}</td>`
-                + `<td style="${td}text-align:center;">${esc(r.out || '')}</td>`
-                + `<td style="${td}text-align:right;">${c ? c.breakMin + '분' : ''}</td>`
-                + `<td style="${td}text-align:right;">${c ? esc(hoursText(c.worked)) : ''}</td>`
-                + `<td style="${td}text-align:right;">${c ? fmt(Math.floor(hoursDecimal(c.worked) * num(p.wage))) : ''}</td>`
-                + `<td style="${td}text-align:center;">${c ? (r.ok ? '확인' : '미확인') : ''}</td>`
-                + `<td style="${td}word-break:break-all;">${esc(r.memo || '')}</td></tr>`;
+            body += `<tr style="${esc(bg)}">`
+                + `<td style="${esc(td)}text-align:center;">${Number(m)}/${esc(d)}</td>`
+                + `<td style="${esc(td)}text-align:center;">${esc(DAY_NAME[wd])}</td>`
+                + `<td style="${esc(td)}text-align:center;">${esc(r.in || '')}</td>`
+                + `<td style="${esc(td)}text-align:center;">${esc(r.out || '')}</td>`
+                + `<td style="${esc(td)}text-align:right;">${esc(c ? c.breakMin + '분' : '')}</td>`
+                + `<td style="${esc(td)}text-align:right;">${c ? esc(hoursText(c.worked)) : ''}</td>`
+                + `<td style="${esc(td)}text-align:right;">${esc(c ? fmt(Math.floor(hoursDecimal(c.worked) * num(p.wage))) : '')}</td>`
+                + `<td style="${esc(td)}text-align:center;">${esc(c ? (r.ok ? '확인' : '미확인') : '')}</td>`
+                + `<td style="${esc(td)}word-break:break-all;">${esc(r.memo || '')}</td></tr>`;
         }
         const { workedMin, days } = monthTotals(p.id);
         const pay = Math.floor(hoursDecimal(workedMin) * num(p.wage));
         const th = `${td}background:#E2E8F0;font-weight:700;text-align:center;`;
-        const sumRow = (label, value) => `<tr><td style="${td}background:#F8FAFC;font-weight:700;width:40%;">${label}</td><td style="${td}text-align:right;">${value}</td></tr>`;
+        const sumRow = (label, value) =>   // 글자를 받아 여기서 한 번만 escape
+            `<tr><td style="${esc(td)}background:#F8FAFC;font-weight:700;width:40%;">${esc(label)}</td><td style="${esc(td)}text-align:right;">${esc(value)}</td></tr>`;
         const cols = [['날짜', 9], ['요일', 6], ['출근', 9], ['퇴근', 9], ['휴게', 8], ['근무시간', 10], ['금액(원)', 12], ['확인', 8], ['메모', 29]];
         wrap = document.createElement('div');
         wrap.style.cssText = 'height:0;overflow:hidden;';
@@ -838,14 +839,14 @@ $('btn-pdf').addEventListener('click', async () => {
             + 'font-family:"Pretendard","Malgun Gothic",sans-serif;font-size:11px;line-height:1.35;--pad:3px;';
         holder.innerHTML = `<div style="font-size:17px;font-weight:800;margin-bottom:2px;">출퇴근 기록표 — ${esc(p.name)}</div>`
             + `<div style="color:#475569;margin-bottom:8px;">${Number(y)}년 ${Number(m)}월 · 출력 ${esc(new Date().toLocaleDateString('ko-KR'))}</div>`
-            + `<table style="width:100%;table-layout:fixed;border-collapse:collapse;"><colgroup>${cols.map(([, w]) => `<col style="width:${w}%">`).join('')}</colgroup>`
-            + `<thead><tr>${cols.map(([h]) => `<th style="${th}">${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`
+            + `<table style="width:100%;table-layout:fixed;border-collapse:collapse;"><colgroup>${cols.map(([, w]) => `<col style="width:${esc(w)}%">`).join('')}</colgroup>`
+            + `<thead><tr>${cols.map(([h]) => `<th style="${esc(th)}">${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`
             + `<table style="width:55%;border-collapse:collapse;margin-top:10px;margin-left:auto;">`
             + sumRow('근무일', `${days}일`)
-            + sumRow('근무시간 합계', esc(hoursText(workedMin)))
+            + sumRow('근무시간 합계', hoursText(workedMin))
             + sumRow('시급', `${fmt(p.wage)}원`)
             + sumRow('금액', `${fmt(pay)}원`)
-            + (fx.rate > 0 ? sumRow(`환율(${esc(fx.date)})`, `1위안 = ${esc(fx.rate)}원`) + sumRow('금액(위안)', `${(pay / fx.rate).toFixed(2)} 위안`) : '')
+            + (fx.rate > 0 ? sumRow(`환율(${fx.date})`, `1위안 = ${fx.rate}원`) + sumRow('금액(위안)', `${(pay / fx.rate).toFixed(2)} 위안`) : '')
             + `</table><div style="color:#64748B;margin-top:6px;font-size:10px;">연장·야간·주휴수당 미포함 · 위안화는 당일 환율로 총액 환산</div>`;
         wrap.appendChild(holder);
         document.body.insertBefore(wrap, document.body.firstChild);

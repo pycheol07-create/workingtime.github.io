@@ -22,14 +22,14 @@
     <!-- (2026-10-22) 대시보드 CDN 정리: chart.js·html2pdf 는 대시보드에서 안 씀(차트·PDF 는 history.html), html5-qrcode 는
          샘플검수 스캐너를 열 때 js/inspection-media.js 가 받는다. xlsx 는 로케이션 동선관리 엑셀(js/locrec-store.js)이
          동기로 window.XLSX 를 찾으므로 지연 로드 대신 defer 만. -->
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611121547">
-    <link rel="stylesheet" href="css/style.css?v=202611121547">
-    <link rel="stylesheet" href="css/dash-d.css?v=202611121547">
-    <link rel="stylesheet" href="css/form-d.css?v=202611121547">
-    <link rel="stylesheet" href="css/refill-modal.css?v=202611121547">
-    <link rel="stylesheet" href="css/locrec-modal.css?v=202611121547">
+    <link rel="stylesheet" href="css/suit.css?v=202611121915">
+    <link rel="stylesheet" href="css/style.css?v=202611121915">
+    <link rel="stylesheet" href="css/dash-d.css?v=202611121915">
+    <link rel="stylesheet" href="css/form-d.css?v=202611121915">
+    <link rel="stylesheet" href="css/refill-modal.css?v=202611121915">
+    <link rel="stylesheet" href="css/locrec-modal.css?v=202611121915">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -543,13 +543,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202611121547');
+                await import('./js/app.js?v=202611121915');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202611121547').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202611121915').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -629,11 +629,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202611121547';
-        import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=202611121547';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202611121547';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202611121547';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202611121547';
+        import { appState } from './js/state.js?v=202611121915';
+        import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=202611121915';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202611121915';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202611121915';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202611121915';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -767,7 +767,7 @@
             });
 
             list.innerHTML = sorted.map(notice => {
-                const safeText = notice.text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
+                const safeText = noticeEsc(notice.text || '').replace(/'/g, '&#39;').replace(/\r?\n/g, '<br>');
                 
                 const mentionStyle = '<span class="inline-block bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50 rounded-md px-1.5 py-0.5 text-[11px] font-bold mx-1 align-baseline leading-tight">@$1</span>';
                 const highlightedText = safeText.replace(/@([가-힣a-zA-Z0-9]+)/g, mentionStyle);
@@ -775,17 +775,17 @@
                 return `
                 <li class="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm transition-colors">
                     <div class="flex items-start gap-3 flex-1 overflow-hidden mt-0.5">
-                        <button class="toggle-notice-btn focus:outline-none shrink-0" data-id="${notice.id}">
+                        <button class="toggle-notice-btn focus:outline-none shrink-0" data-id="${noticeEsc(notice.id)}">
                             ${notice.completed ? '<span class="inline-flex items-center justify-center w-5 h-5 rounded-md bg-blue-600 border border-blue-600 text-white"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></span>' : '<span class="inline-flex items-center justify-center w-5 h-5 rounded-md bg-white border border-gray-300"></span>'}
                         </button>
                         <span class="notice-text-span flex-1 text-sm break-words ${notice.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200 font-bold'}">
                             ${highlightedText}
-                            ${notice.scheduleAt ? `<span class="block mt-1 text-xs font-bold text-red-600 dark:text-red-400">${window.formatNoticeSchedule(notice.scheduleAt)}</span>` : ''}
+                            ${notice.scheduleAt ? `<span class="block mt-1 text-xs font-bold text-red-600 dark:text-red-400">${noticeEsc(window.formatNoticeSchedule(notice.scheduleAt))}</span>` : ''}
                         </span>
                     </div>
                     <div class="flex items-center gap-2 shrink-0 ml-3 mt-1">
-                        <button class="edit-notice-btn text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 font-bold px-3 py-1.5 rounded-md transition" data-id="${notice.id}">수정</button>
-                        <button class="delete-notice-btn text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 font-bold px-3 py-1.5 rounded-md transition" data-id="${notice.id}">삭제</button>
+                        <button class="edit-notice-btn text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 font-bold px-3 py-1.5 rounded-md transition" data-id="${noticeEsc(notice.id)}">수정</button>
+                        <button class="delete-notice-btn text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 font-bold px-3 py-1.5 rounded-md transition" data-id="${noticeEsc(notice.id)}">삭제</button>
                     </div>
                 </li>
             `}).join('');
@@ -819,11 +819,11 @@
                     const schDate = sch.slice(0, 10);
                     const schTime = sch.length > 10 ? sch.slice(11, 16) : '';
                     textSpan.outerHTML = `<div class="flex-1 w-full">
-                        <textarea class="notice-edit-textarea w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:border-blue-500 resize-none" rows="3">${currentText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+                        <textarea class="notice-edit-textarea w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:border-blue-500 resize-none" rows="3">${noticeEsc(currentText)}</textarea>
                         <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
                             <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">일정</span>
-                            <input type="date" class="notice-edit-date px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-800 dark:text-white" value="${schDate}">
-                            <input type="time" class="notice-edit-time px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-800 dark:text-white" value="${schTime}">
+                            <input type="date" class="notice-edit-date px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-800 dark:text-white" value="${noticeEsc(schDate)}">
+                            <input type="time" class="notice-edit-time px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-800 dark:text-white" value="${noticeEsc(schTime)}">
                             <button type="button" class="notice-edit-clear text-[11px] font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 px-1">지우기</button>
                         </div>
                     </div>`;
@@ -854,11 +854,11 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202611121547"></script>
-    <script src="js/modal-esc.js?v=202611121547"></script>
-    <script type="module" src="js/modal-drag.js?v=202611121547"></script>
+    <script src="js/connection-banner.js?v=202611121915"></script>
+    <script src="js/modal-esc.js?v=202611121915"></script>
+    <script type="module" src="js/modal-drag.js?v=202611121915"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202611121547"></script>
-    <script src="js/app-version.js?v=202611121547"></script>
+    <script type="module" src="js/app-shell.js?v=202611121915"></script>
+    <script src="js/app-version.js?v=202611121915"></script>
 </body>
 </html>

@@ -1,11 +1,11 @@
 // === js/ui-history-reports-renderer.js ===
 
-import { formatDuration } from './utils.js?v=202611121547';
-import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202611121547';
-import { context, LEAVE_TYPES } from './state.js?v=202611121547';
-import { TASK, tName, isT } from './task-names.js?v=202611121547';
-import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202611121547';
-import { DOMESTIC_ITEMS_PER_ORDER, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=202611121547';
+import { formatDuration, escapeHtml } from './utils.js?v=202611121915';
+import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=202611121915';
+import { context, LEAVE_TYPES } from './state.js?v=202611121915';
+import { TASK, tName, isT } from './task-names.js?v=202611121915';
+import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=202611121915';
+import { DOMESTIC_ITEMS_PER_ORDER, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=202611121915';
 
 // 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 표에서 누락되지 않는다.
@@ -35,9 +35,9 @@ const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
 
     return `
         <div class="relative inline-block ml-1 filter-container">
-            <button type="button" class="filter-icon-btn p-1 rounded transition inline-flex items-center gap-0.5 ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
+            <button type="button" class="filter-icon-btn p-1 rounded transition inline-flex items-center gap-0.5 ${iconColorClass}" data-dropdown-id="${escapeHtml(dropdownId)}" title="필터">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" /></svg>
-                ${nSel > 0 ? `<span class="text-[11px] font-bold leading-none">${nSel}</span>` : ''}
+                ${nSel > 0 ? `<span class="text-[11px] font-bold leading-none">${escapeHtml(nSel)}</span>` : ''}
             </button>
             <div class="filter-dropdown absolute top-full right-0 mt-2 w-60 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left cursor-default">
                 <div class="text-xs font-bold text-gray-500 mb-2 flex justify-between items-center">
@@ -70,7 +70,7 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div class="bg-white p-3 rounded-lg shadow-sm">
                 <div class="text-xs text-gray-500">총 업무 시간</div>
-                <div class="text-xl font-bold">${formatDuration(tKPIs.totalDuration)}</div>
+                <div class="text-xl font-bold">${escapeHtml(formatDuration(tKPIs.totalDuration))}</div>
                 ${getDiffHtmlForMetric('totalDuration', tKPIs.totalDuration, pKPIs.totalDuration)}
             </div>
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -80,7 +80,7 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
             </div>
             <div class="bg-white p-3 rounded-lg shadow-sm">
                 <div class="text-xs text-gray-500">총 처리량</div>
-                <div class="text-xl font-bold">${tKPIs.totalQuantity.toLocaleString()} 개</div>
+                <div class="text-xl font-bold">${escapeHtml(tKPIs.totalQuantity.toLocaleString())} 개</div>
                 ${getDiffHtmlForMetric('totalQuantity', tKPIs.totalQuantity, pKPIs.totalQuantity)}
             </div>
             <div class="bg-white p-3 rounded-lg shadow-sm">
@@ -100,7 +100,7 @@ const _generateKPIHTML = (tKPIs, pKPIs) => {
             </div>
             <div class="bg-white p-3 rounded-lg shadow-sm">
                 <div class="text-xs text-gray-500">비업무 시간</div>
-                <div class="text-xl font-bold">${formatDuration(tKPIs.nonWorkMinutes)}</div>
+                <div class="text-xl font-bold">${escapeHtml(formatDuration(tKPIs.nonWorkMinutes))}</div>
                 ${getDiffHtmlForMetric('nonWorkTime', tKPIs.nonWorkMinutes, pKPIs.nonWorkMinutes)}
             </div>
             <div class="bg-white p-3 rounded-lg shadow-sm border-2 border-red-200 cursor-pointer hover:bg-red-50 transition" data-action="show-coq-modal">
@@ -177,7 +177,7 @@ const _generateProductivityPerPersonHTML = (tMetrics, pMetrics) => {
             : '';
         html += `
             <div class="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 shadow-sm relative group">
-                <div class="text-sm font-bold text-gray-700 mb-1">${task.label}</div>
+                <div class="text-sm font-bold text-gray-700 mb-1">${escapeHtml(task.label)}</div>
                 <div class="text-2xl font-extrabold text-indigo-700">${task.t.toFixed(1)} <span class="text-sm font-medium text-gray-500">개/H</span></div>
                 ${caseSuffix}
                 ${getDiffHtmlForMetric('overallAvgThroughput', task.t, task.p)}
@@ -198,7 +198,7 @@ const _renderTooltip = (metricKey) => {
         </svg>
         <span class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition bg-gray-800 text-white text-xs rounded p-2 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 break-keep leading-tight text-center shadow-lg" data-html2canvas-ignore="true">
             <strong class="block mb-1 text-yellow-300">${info.title}</strong>
-            ${info.desc}
+            ${escapeHtml(info.desc)}
             <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
         </span>
     </span>`;
@@ -231,7 +231,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
         const diff = oee - benchmarkOEE;
         const sign = diff > 0 ? '+' : '';
         const color = diff > 0 ? 'text-green-600' : (diff < 0 ? 'text-red-500' : 'text-gray-500');
-        benchmarkHtml = `<div class="text-xs text-right mt-1 ${color} font-medium" title="최근 30일 평균 OEE: ${benchmarkOEE.toFixed(0)}%">(vs 30일 평균: ${sign}${diff.toFixed(0)}%p)</div>`;
+        benchmarkHtml = `<div class="text-xs text-right mt-1 ${escapeHtml(color)} font-medium" title="최근 30일 평균 OEE: ${benchmarkOEE.toFixed(0)}%">(vs 30일 평균: ${escapeHtml(sign)}${diff.toFixed(0)}%p)</div>`;
     }
 
     return `
@@ -260,7 +260,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
                             <span class="font-semibold">${efficiencyRatio.toFixed(0)}% ${getDiffHtmlForMetric('efficiencyRatio', efficiencyRatio, prev.efficiencyRatio)}</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2.5">
-                            <div class="h-2.5 rounded-full ${efficiencyRatio >= 110 ? 'bg-blue-500' : (efficiencyRatio <= 90 ? 'bg-red-400' : 'bg-green-500')}" style="width: ${Math.min(efficiencyRatio, 100)}%"></div>
+                            <div class="h-2.5 rounded-full ${escapeHtml(efficiencyRatio >= 110 ? 'bg-blue-500' : (efficiencyRatio <= 90 ? 'bg-red-400' : 'bg-green-500'))}" style="width: ${Math.min(efficiencyRatio, 100)}%"></div>
                         </div>
                     </div>
 
@@ -270,7 +270,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
                             <span class="font-semibold">${qualityRatio.toFixed(1)}% ${getDiffHtmlForMetric('qualityRatio', qualityRatio, prev.qualityRatio)}</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2.5">
-                            <div class="h-2.5 rounded-full bg-green-500" style="width: ${qualityRatio}%"></div>
+                            <div class="h-2.5 rounded-full bg-green-500" style="width: ${escapeHtml(qualityRatio)}%"></div>
                         </div>
                     </div>
 
@@ -313,7 +313,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
                         <div class="flex justify-between items-center pt-2 border-t border-dashed border-gray-200">
                             <span class="text-gray-600 text-sm flex items-center">필요 인원 (출근 기준)${_renderTooltip('requiredFTE')}</span>
                             <span class="font-semibold text-gray-700">${requiredFTE.toFixed(1)} 명
-                                <span class="text-xs ${staffGap >= 0 ? 'text-gray-500' : 'text-red-500'}">(출근 ${availableFTE.toFixed(1)}명 대비 ${staffGap >= 0 ? `${staffGap.toFixed(1)}명 여유` : `${Math.abs(staffGap).toFixed(1)}명 부족`}${utilSetting ? ` · 가동률 ${Math.round(utilSetting * 100)}% 기준` : ''})</span></span>
+                                <span class="text-xs ${staffGap >= 0 ? 'text-gray-500' : 'text-red-500'}">(출근 ${availableFTE.toFixed(1)}명 대비 ${escapeHtml(staffGap >= 0 ? `${staffGap.toFixed(1)}명 여유` : `${Math.abs(staffGap).toFixed(1)}명 부족`)}${escapeHtml(utilSetting ? ` · 가동률 ${Math.round(utilSetting * 100)}% 기준` : '')})</span></span>
                         </div>
                     </div>
                 </div>
@@ -341,7 +341,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
                                 </summary>
                                 <div class="pl-4 pt-1 text-xs text-gray-600 space-y-1 bg-gray-50 rounded p-2 mt-1">
                                     ${(topPerformanceLossTasks || []).map(t => 
-                                        `<div class="flex justify-between"><span>- ${t.task} (${Math.round(t.lossMinutes)}분 지연)</span><span class="text-red-400">약 -${Math.round(t.lossMinutes * avgCostPerMinute).toLocaleString()}원</span></div>`
+                                        `<div class="flex justify-between"><span>- ${escapeHtml(t.task)} (${Math.round(t.lossMinutes)}분 지연)</span><span class="text-red-400">약 -${Math.round(t.lossMinutes * avgCostPerMinute).toLocaleString()}원</span></div>`
                                     ).join('') || '<div class="text-gray-400">주요 지연 업무 없음</div>'}
                                 </div>
                             </details>
@@ -358,7 +358,7 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
                                 </summary>
                                 <div class="pl-4 pt-1 text-xs text-gray-600 space-y-1 bg-gray-50 rounded p-2 mt-1">
                                      ${(topQualityLossTasks || []).map(t => 
-                                        `<div class="flex justify-between"><span>- ${t.task}</span><span class="text-red-400">-${Math.round(t.cost).toLocaleString()}원</span></div>`
+                                        `<div class="flex justify-between"><span>- ${escapeHtml(t.task)}</span><span class="text-red-400">-${Math.round(t.cost).toLocaleString()}원</span></div>`
                                     ).join('') || '<div class="text-gray-400">품질 이슈 없음</div>'}
                                 </div>
                             </details>
@@ -369,12 +369,12 @@ const _generateProductivityAnalysisHTML = (tMetrics, pMetrics, periodText, bench
 
             <div class="border-t pt-6 mt-2 flex flex-col md:flex-row gap-6">
                  <div class="md:w-1/3">
-                    <div class="p-5 rounded-lg border ${diagnosis.bg} h-full flex flex-col justify-center text-center md:text-left">
-                        <div class="text-xl font-bold ${diagnosis.color} mb-2 flex items-center justify-center md:justify-start">
+                    <div class="p-5 rounded-lg border ${escapeHtml(diagnosis.bg)} h-full flex flex-col justify-center text-center md:text-left">
+                        <div class="text-xl font-bold ${escapeHtml(diagnosis.color)} mb-2 flex items-center justify-center md:justify-start">
                             ${diagnosis.title}
                         </div>
-                        <p class="text-sm ${diagnosis.color} opacity-90 leading-relaxed">
-                            ${diagnosis.desc}
+                        <p class="text-sm ${escapeHtml(diagnosis.color)} opacity-90 leading-relaxed">
+                            ${escapeHtml(diagnosis.desc)}
                         </p>
                     </div>
                 </div>
@@ -409,7 +409,7 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, trendAnal
                     <div>
                         <div class="text-xs text-gray-500">매출액 변화</div>
                         <div class="text-lg font-bold ${revenueChangeRate >= 0 ? 'text-blue-600' : 'text-red-600'}">
-                            ${revSign}${revenueChangeRate.toFixed(1)}%
+                            ${escapeHtml(revSign)}${revenueChangeRate.toFixed(1)}%
                         </div>
                         <div class="text-xs text-gray-400">${Number(prevRevenue).toLocaleString()}원 →</div>
                     </div>
@@ -417,12 +417,12 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, trendAnal
                     <div>
                         <div class="text-xs text-gray-500">업무량(공수) 변화</div>
                          <div class="text-lg font-bold ${workloadChangeRate <= revenueChangeRate ? 'text-green-600' : 'text-orange-600'}">
-                            ${workSign}${workloadChangeRate.toFixed(1)}%
+                            ${escapeHtml(workSign)}${workloadChangeRate.toFixed(1)}%
                         </div>
                     </div>
                 </div>
                 <div class="pt-3 border-t text-center font-bold ${colorClass}">
-                    ${diagnosis}
+                    ${escapeHtml(diagnosis)}
                 </div>
             </div>
         `;
@@ -439,11 +439,11 @@ const _generateRevenueAnalysisHTML = (periodText, revenueAnalysisData, trendAnal
                 </h4>
                 <p class="text-gray-700 text-sm leading-relaxed">
                     이번 달의 실제 업무 패턴을 유지한다고 가정할 때,<br>
-                    매출액이 <strong>${formattedUnit} 증가</strong>할 때마다
+                    매출액이 <strong>${escapeHtml(formattedUnit)} 증가</strong>할 때마다
                     약 <strong class="text-indigo-600 text-lg">${staffNeededPerUnitIncrease.toFixed(1)}명</strong>의 추가 인원 투입이 필요할 것으로 예상됩니다.
                 </p>
                  <p class="text-xs text-indigo-400 mt-2">
-                    * 산출 근거: 이번 달 우리 팀 실질 평균 근무시간 (약 <strong>${actualHoursPerPerson}시간</strong>/인) 기준
+                    * 산출 근거: 이번 달 우리 팀 실질 평균 근무시간 (약 <strong>${escapeHtml(actualHoursPerPerson)}시간</strong>/인) 기준
                 </p>
             </div>
         `;
@@ -509,7 +509,7 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
                 insightsA += `
                     <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <h4 class="font-semibold text-yellow-800 flex items-center">
-                            '${taskName}' - 인원 투입 대비 효율 저하
+                            '${escapeHtml(taskName)}' - 인원 투입 대비 효율 저하
                         </h4>
                         <p class="text-sm text-gray-700 mt-1 ml-4">
                             투입 인원은 증가했으나(${p.avgStaff.toFixed(1)}명 → ${d.avgStaff.toFixed(1)}명),
@@ -522,7 +522,7 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
                  insightsA += `
                     <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
                         <h4 class="font-semibold text-green-800 flex items-center">
-                            '${taskName}' - 인원 투입 시너지 발생
+                            '${escapeHtml(taskName)}' - 인원 투입 시너지 발생
                         </h4>
                         <p class="text-sm text-gray-700 mt-1 ml-4">
                             인원을 더 투입함에 따라(${p.avgStaff.toFixed(1)}명 → ${d.avgStaff.toFixed(1)}명)
@@ -549,10 +549,10 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
              insightsB = `
                 <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <div class="text-sm text-gray-800">
-                        현재 <strong>'${worst.name}'</strong> 업무가 <strong>'${best.name}'</strong>보다 약 <strong>${factor.toFixed(1)}배</strong> 더 많은 리소스(시간/인원)가 투입되고 있습니다.
+                        현재 <strong>'${escapeHtml(worst.name)}'</strong> 업무가 <strong>'${escapeHtml(best.name)}'</strong>보다 약 <strong>${factor.toFixed(1)}배</strong> 더 많은 리소스(시간/인원)가 투입되고 있습니다.
                     </div>
                     <div class="text-xs text-gray-500 mt-1">
-                        (인당 분당 처리량 기준: ${best.name} ${best.efficiency.toFixed(2)} vs ${worst.name} ${worst.efficiency.toFixed(2)})
+                        (인당 분당 처리량 기준: ${escapeHtml(best.name)} ${best.efficiency.toFixed(2)} vs ${escapeHtml(worst.name)} ${worst.efficiency.toFixed(2)})
                     </div>
                 </div>`;
         } else {
@@ -571,9 +571,9 @@ const _generateInsightsHTML = (tAggr, pAggr, appConfig, periodText) => {
 const th = (target, key, label, filterValue, options=[], width='') => {
     const sortState = context.reportSortState?.[target] || { key: '', dir: 'asc' };
     return `
-        <th class="px-4 py-3 cursor-pointer hover:bg-gray-100 select-none group ${width}" data-sort-target="${target}" data-sort-key="${key}">
+        <th class="px-4 py-3 cursor-pointer hover:bg-gray-100 select-none group ${escapeHtml(width)}" data-sort-target="${target}" data-sort-key="${key}">
             <div class="flex items-center justify-between min-w-[100px]">
-                <span class="flex items-center">${label} ${getSortIcon(sortState.key, sortState.dir, key)}</span>
+                <span class="flex items-center">${escapeHtml(label)} ${getSortIcon(sortState.key, sortState.dir, key)}</span>
                 ${getFilterDropdown(target, key, filterValue, options)}
             </div>
         </th>`;
@@ -677,7 +677,7 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
         return (vA - vB) * (tSort.dir === 'asc' ? 1 : -1);
     });
 
-    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 이전 ${periodText} 대비)</h3><div class="overflow-x-auto max-h-[70vh]"><table class="w-full text-sm text-left text-gray-600">
+    html += `<div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="text-lg font-semibold mb-3 text-gray-700">업무별 상세 (증감율은 이전 ${escapeHtml(periodText)} 대비)</h3><div class="overflow-x-auto max-h-[70vh]"><table class="w-full text-sm text-left text-gray-600">
         <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0"><tr>
             ${th('taskSummary', 'taskName', '업무', filterState.taskSummary?.taskName, allTaskNames)}
             <th class="px-4 py-2 cursor-pointer" data-sort-target="taskSummary" data-sort-key="duration">총 시간 ${getSortIcon(tSort.key, tSort.dir, 'duration')}</th>
@@ -704,13 +704,13 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
             if (!isDomestic || val <= 0) return '';
             const cases = val / DOMESTIC_ITEMS_PER_ORDER;
             const text = digits === 0 ? Math.round(cases).toLocaleString() : cases.toFixed(digits);
-            return ` <span class="text-[11px] text-gray-400 font-normal">(${text} 건)</span>`;
+            return ` <span class="text-[11px] text-gray-400 font-normal">(${escapeHtml(text)} 건)</span>`;
         };
         const qtyCell = `${d.quantity.toLocaleString()}${caseText(d.quantity, 0)}`;
         const thpCell = `${d.avgThroughput.toFixed(2)}${caseText(d.avgThroughput, 2)}`;
 
         html += createTableRow([
-            { content: d.taskName, class: "font-medium text-gray-900" },
+            { content: escapeHtml(d.taskName), class: "font-medium text-gray-900" },
             { content: formatDuration(d.duration), diff: getDiffHtmlForMetric('duration', d.duration, d.p.duration) },
             { content: `${Math.round(d.cost).toLocaleString()} 원`, diff: getDiffHtmlForMetric('totalCost', d.cost, d.p.cost) },
             { content: qtyCell, diff: getDiffHtmlForMetric('quantity', d.quantity, d.p.quantity) },
@@ -805,20 +805,20 @@ const _generateTablesHTML = (tAggr, pAggr, periodText, sortState, memberToPartMa
         `;
 
         attDataList.forEach(item => {
-            const cell = (k, color='text-gray-400') => `<td class="px-4 py-3 text-center ${item.counts[k]>0 ? 'text-gray-800 font-medium' : color}">${item.counts[k]||0}</td>`;
+            const cell = (k, color='text-gray-400') => `<td class="px-4 py-3 text-center ${escapeHtml(item.counts[k]>0 ? 'text-gray-800 font-medium' : color)}">${escapeHtml(item.counts[k]||0)}</td>`;
 
             html += `
                 <tr class="bg-white hover:bg-gray-50">
-                    <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${item.member}</td>
+                    <td class="px-4 py-3 font-medium text-gray-900 sticky left-0 bg-white shadow-sm">${escapeHtml(item.member)}</td>
                     ${attCols.map(t => {
                         const v = item.counts[t] || 0;
-                        if (t === '결근') return `<td class="px-4 py-3 text-center ${v>0?'text-red-600 font-bold':'text-gray-300'}">${v}</td>`;
-                        if (t === '연차') return `<td class="px-4 py-3 text-center ${v>0?'text-blue-600 font-bold':'text-gray-300'}">${v}</td>`;
+                        if (t === '결근') return `<td class="px-4 py-3 text-center ${v>0?'text-red-600 font-bold':'text-gray-300'}">${escapeHtml(v)}</td>`;
+                        if (t === '연차') return `<td class="px-4 py-3 text-center ${v>0?'text-blue-600 font-bold':'text-gray-300'}">${escapeHtml(v)}</td>`;
                         return cell(t, 'text-gray-300');
                     }).join('')}
-                    <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${item.totalCount}</td>
-                    <td class="px-4 py-3 text-center font-bold text-red-600 bg-red-50">${item.totalAbsenceDays}</td>
-                    <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${item.totalLeaveDays}</td>
+                    <td class="px-4 py-3 text-center font-bold text-indigo-600 bg-indigo-50">${escapeHtml(item.totalCount)}</td>
+                    <td class="px-4 py-3 text-center font-bold text-red-600 bg-red-50">${escapeHtml(item.totalAbsenceDays)}</td>
+                    <td class="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50">${escapeHtml(item.totalLeaveDays)}</td>
                 </tr>
             `;
         });
@@ -838,7 +838,7 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
     if (opts && opts.only === 'tables') {
         view.innerHTML = `<div class="space-y-6">
             <div class="flex justify-between items-center">
-                <h3 class="text-base font-bold text-gray-700">${title} — 상세 표</h3>
+                <h3 class="text-base font-bold text-gray-700">${escapeHtml(title)} — 상세 표</h3>
                 <div class="flex gap-2" data-html2canvas-ignore="true">
                     <button id="report-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-1 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
@@ -855,7 +855,7 @@ export const renderGenericReport = (targetId, title, tData, tMetrics, pMetrics, 
     
     const headerHtml = `
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold text-gray-800">${title}</h2>
+            <h2 class="text-2xl font-bold text-gray-800">${escapeHtml(title)}</h2>
             <div class="flex gap-2" data-html2canvas-ignore="true">
                 <button id="report-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-1 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>

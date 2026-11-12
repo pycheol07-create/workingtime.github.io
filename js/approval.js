@@ -4,11 +4,15 @@
 //
 // 화면(해시): #              목록 — [내 기안] [결재할 문서](지정 결재자·관리자) [전체](관리자). 행마다 [보기][수정][회수][삭제]
 //             #new           양식 고르기        #new=<formId>  새로 작성
-//             #d=<id>        보기(A4 미리보기·결재·인쇄)        #e=<id>  고치기(작성자, 임시저장·반려 건)
+//             #d=<id>        보기(A4 미리보기·결재·인쇄)        #e=<id>  고치기(작성자, 임시저장·반려·결재 대기 건)
 //             #forms         양식 관리(관리자)  #forms=<formId> 양식 편집
 // 관리자 판정 = mainConfig.memberRoles[소문자 이메일]==='admin' (규칙 isAdmin() 과 같음). 화면을 가리는 장치일 뿐, 읽기·결재는 firestore.rules 가 막는다.
 // 도장 이름 = mainConfig.memberEmails 에서 내 이메일로 찾은 이름(규칙도 같은 표로 확인). 없으면 작성·결재를 막고 안내한다.
-// 근태사유서 '발생일' → 그날 내 지각 기록을 **읽기만** 해서 빈 칸에 넣는다(daily_data/오늘 · history/지난 날). 근태 쓰기 경로 없음.
+// 근태사유서 '발생일' → 그날 내 지각 기록을 **읽기만** 해서 빈 칸에 넣는다(daily_data/오늘 · history/지난 날).
+// 2026-11-12 근태사유서 → 팀원 카드: 제출·수정하면 사유서의 지각·조퇴·외출을 daily_data/{발생일}, 날짜 근태(결근 등)를 leaveSchedule 에
+//   예약 근태 모양으로 걸어 두고(그 시각에 메인앱 js/leave-auto-apply.js 가 적용), 반려·회수·삭제 때 아직 시작 전인 것을 뺀다(syncLeave).
+//   leaveSchedule 쓰기는 config.js updateLeaveSchedule 하나로(attendance-check 1번) + notifyLeaveScheduleChanged.
+// 2026-11-12 기본 결재선(ApprovalSettings/defaults) · 제출 후 수정(결재 대기 문서를 회수 없이 고침 — #e=<id> 가 결재 대기 문서도 연다).
 // ⚠️ role="dialog"·data-act 를 쓰지 않는다(업무마감봇·업무예상알림이 그 선택자로 확인창을 찾는다). 반려 의견은 화면 안 칸에서 받는다.
 // 이름·이메일·기안 내용은 콘솔에 남기지 않는다(오류 코드만).
 // 2026-11-05 추가: 결재자 지정(관리자 또는 직책 파트장·부팀장·팀장 — 제출 때 필수, 알림은 지정 결재자에게만), 관리자 대신 결재(대결),
@@ -19,28 +23,34 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611121547';
+import { initializeFirebase, updateLeaveSchedule } from './config.js?v=202611121915';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611121915';
+import { isPersistentLeaveType, OTHER_LEAVE_TYPE } from './state.js?v=202611121915';   // state.js 는 import 가 없어 이 화면에서 써도 앱 전체를 끌어오지 않는다
+import { leaveIntentOf, dailyWant, planDailySync, planScheduleSync, planCleanup, tidyDrop, pastCutWarning, addedText, apKeyFrom } from './lib/approval-leave.js?v=202611121915';
 import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611121547';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121547';
-import { memberNameFor } from './app-shell-data.js?v=202611121547';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611121915';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121915';
+import { memberNameFor } from './app-shell-data.js?v=202611121915';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
     tardyPrefill, printFitLevel, rangeFields, rangeTimeField, fieldText, END_SUFFIX, RANGE_KIND, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
     checkAttach, attachPath, attachMeta, fmtBytes, ATTACH_MAX, ATTACH_ACCEPT, attachTypeOf,
     ATTACH_AFTER_TOTAL, afterAttachMeta, splitAttachments, afterPrintText,
     CC_MAX, ccsOf, inCc, checkCcs, ccCandidates,
-    approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes } from './lib/approval-logic.js?v=202611121547';
-import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC } from './lib/approval-noti.js?v=202611121547';
+    approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes,
+    inTodoList, waitingForMe, buildEditSubmit, stampsToClear, lastActIsEdit, decideGuard, DECIDE_GUARD_TEXT, seenAtFor,
+    autoLine, isDefaultShape, sameLine, cleanDefaultLine, DEFAULT_LINE_MAX } from './lib/approval-logic.js?v=202611121915';
+import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC, MSG_RESUBMITTED } from './lib/approval-noti.js?v=202611121915';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
-const DOCS = 'ApprovalDocs', FORMS = 'ApprovalForms';
+const DOCS = 'ApprovalDocs', FORMS = 'ApprovalForms', SETTINGS = 'ApprovalSettings';
 const ADMIN_LIST_LIMIT = 200;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const tsMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : (t instanceof Date ? t.getTime() : 0));
+// apDefaults = 기본 결재선 이름 목록(ApprovalSettings/defaults.line, 2026-11-12) — 못 읽으면 [](apDefaultsDenied)
 const S = { app: null, db: null, auth: null, storage: null, email: '', name: null, nameIssue: '', printHtml: null, isAdmin: false, cfg: {}, forms: [], docs: [],
-    filter: null, scope: null, dirty: false, formsDenied: false };
+    filter: null, scope: null, dirty: false, formsDenied: false, apDefaults: [], apDefaultsDenied: false, listOk: false, listAt: 0 };
 // Storage — 처음 쓸 때 만든다(에뮬레이터면 첫 업로드 전에 붙인다. 연결 실패면 던져서 운영으로 안 올린다)
 const storage = () => {
     if (!S.storage) { const st = getStorage(S.app); connectStorageEmulatorIfEnabled(st); S.storage = st; }
@@ -48,7 +58,7 @@ const storage = () => {
 };
 const isAssigned = (d) => inLine(d, S.email);          // 결재선에 있나
 const myTurn = (d) => isTurn(d, S.email);               // 지금 내 차례인가
-const canDecideList = (d) => d.status !== 'draft' && (S.isAdmin || isAssigned(d));
+const canDecideList = (d) => inTodoList(d, S.email, S.isAdmin);   // 관리자 본인 기안서는 결재선에 없으면 빼기
 // 결재선 글 — '팀장A → 관리자A' (차례인 사람은 굵게, 승인한 단계는 ✓). html
 const lineHtml = (d) => {
     const line = approversOf(d);
@@ -78,7 +88,175 @@ const errText = (e) => (e && e.code === 'permission-denied' ? '권한이 없습�
 
 // 한국 날짜 'YYYY-MM-DD'
 const kstDay = (ms = Date.now()) => new Date(ms + 9 * 3600000).toISOString().slice(0, 10);
+const kstClock = (ms = Date.now()) => new Date(ms + 9 * 3600000).toISOString().slice(11, 16);   // 한국 시각 'HH:MM'
 const dayText = (ms) => (ms ? kstDay(ms).replace(/-/g, '.') : '');
+
+// ── 기본 결재선(2026-11-12) ── 설정 이름 → 결재자 후보, 그날 날짜 근태(isPersistentLeaveType 전체 — 사용자 결정 D-2)가 있으면 참조로
+async function readLeaves(server) {
+    const ref = doc(S.db, APP_BASE, 'persistent_data', 'leaveSchedule');   // 읽기만(loadLeaveSchedule 은 문서가 없으면 새로 써서 쓰지 않는다)
+    const snap = await (server ? getDocFromServer(ref) : getDoc(ref));
+    const list = snap.exists() ? snap.data().onLeaveMembers : [];
+    return Array.isArray(list) ? list : [];
+}
+/** 오늘 기준 기본 결재선 판정(js/lib/approval-logic.js autoLine) | null(설정 없음·이름 없음). server = 근태 일정을 서버에서 다시 읽기 */
+async function computeAutoLine(server) {
+    if (!S.apDefaults.length || !S.name) return null;
+    let leaves = [], leaveErr = false;
+    try { leaves = await readLeaves(server); }
+    catch (e) { leaveErr = true; console.error('[approval] 근태 일정 읽기 실패:', e && e.code); }
+    const r = autoLine(S.cfg, { selfName: S.name, selfEmail: S.email, names: S.apDefaults, leaves, day: kstDay(), isAway: isPersistentLeaveType });
+    if (leaveErr) r.notes.push('근태 일정을 읽지 못해 오늘 근태는 따지지 않았습니다.');
+    return r;
+}
+/** 제출 직전 — 결재선·참조가 기본 결재선 모양 그대로(사용자가 손대지 않음)면 서버 근태로 다시 판정한다(임시저장해 두었다가 다른 날 내는 경우).
+ *  → { approvers, ccs, note } (바뀌지 않으면 받은 그대로, note '') */
+async function rejudgeLine(approvers, ccs) {
+    const keep = { approvers, ccs, note: '' };
+    if (!S.apDefaults.length) return keep;
+    const fresh = await computeAutoLine(true);
+    if (!fresh || !fresh.approvers.length || !isDefaultShape(fresh, approvers, ccs) || sameLine(fresh.approvers, fresh.ccs, approvers, ccs)) return keep;
+    if (checkApprovers(fresh.approvers, S.email).length || checkCcs(fresh.ccs, S.email, fresh.approvers, S.cfg).length) return keep;
+    return { approvers: fresh.approvers, ccs: fresh.ccs, note: `오늘 근태에 맞춰 기본 결재선을 다시 정했습니다.${fresh.notes.length ? ' ' + fresh.notes.join(' ') : ''}` };
+}
+
+// ── 근태사유서 → 팀원 카드(2026-11-12, 계산은 js/lib/approval-leave.js) ──
+//   상태를 바꾼 사람의 브라우저가 바꾼 직후에 맞춘다(제출·수정·회수 = 작성자, 반려 = 결재자, 삭제 = 작성자·관리자).
+//   daily_data 는 근태 설정 창과 같은 트랜잭션 merge, leaveSchedule 은 config.js updateLeaveSchedule 로만(+ notifyLeaveScheduleChanged).
+//   실패해도 기안서 처리는 그대로 두고 안내만 한다. 기록에는 사유·내용을 넣지 않는다(직원 전원이 읽는 문서).
+const LEAVE_OPT = { isPersistent: isPersistentLeaveType, otherType: OTHER_LEAVE_TYPE };
+const intentOfDoc = (x) => (x ? leaveIntentOf(normalizeForm(x.form, x.formId), x.values, x.authorName, LEAVE_OPT) : null);
+const wantsLeave = (x) => !!x && (x.status === 'submitted' || x.status === 'approved');
+async function apKeyOf(id) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(id)));
+    return apKeyFrom([...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join(''));
+}
+/** prev·next = 바뀌기 전·후 문서({id, form, formId, values, status, authorName}) | null(새 문서·삭제). → 안내 글('' = 할 말 없음) */
+async function syncLeave(prev, next) {
+    const pI = intentOfDoc(prev), nRaw = intentOfDoc(next);
+    if (!pI && !nRaw) return '';
+    const id = (next && next.id) || (prev && prev.id);
+    if (!id) return '';
+    const nI = wantsLeave(next) ? nRaw : null;
+    const notes = [];
+    if (nI && nI.store === null && nI.why) notes.push(nI.why);
+    const today = kstDay(), now = kstClock(), key = await apKeyOf(id), idMs = Date.now();
+    // 시각 근태(daily_data/{날짜}) — 옛 날짜(지우기)·새 날짜(넣기) 둘 다 본다
+    let dWant = null;
+    if (nI && nI.store === 'daily') { const w = dailyWant(nI, today); dWant = w.want; if (w.note) notes.push(w.note); }
+    const days = [...new Set([pI, nRaw].filter(x => x && x.store === 'daily').map(x => x.day))];
+    for (const day of days) {
+        if (day < today) continue;   // 지난 날 — 넣지 않고(D-5), 있던 기록은 이미 시작된 것이라 그대로(D-4)
+        const want = dWant && dWant.day === day ? dWant : null;
+        // 마감된 날은 쓰지 않는다(마감 뒤 daily_data 가 되살아나지 않게) — 못 읽어도 쓰지 않는다
+        let closed = 'unknown';
+        try {
+            const hs = await getDocFromServer(doc(S.db, APP_BASE, 'history', day));
+            closed = hs.exists() && hs.data().closedAt ? 'closed' : 'open';
+        } catch (e) { console.error('[approval] 마감 여부 읽기 실패:', e && e.code); }
+        if (closed !== 'open') {
+            notes.push(closed === 'closed' ? `${day} 은(는) 이미 업무 마감이 돼 근태 카드를 바꾸지 않았습니다.` : '마감 여부를 확인하지 못해 근태 카드를 바꾸지 않았습니다 — 근태 설정에서 확인해 주세요.');
+            continue;
+        }
+        const ref = doc(S.db, APP_BASE, 'daily_data', day);
+        let res = null;
+        await runTransaction(S.db, async (tx) => {
+            const sn = await tx.get(ref);
+            const list = sn.exists() && Array.isArray(sn.data().onLeaveMembers) ? sn.data().onLeaveMembers : [];
+            res = planDailySync(list, want, { apKey: key, day, today, now, idMs });
+            if (res.changed) tx.set(ref, { onLeaveMembers: res.next }, { merge: true });
+        });
+        notes.push(...res.notes);
+        const t = addedText(res, day, today, now);
+        if (t) notes.push(t); else if (res.removed) notes.push('근태 카드에서 이 기안서의 근태를 뺐습니다.');
+    }
+    // 날짜 근태(leaveSchedule)
+    if ([pI, nRaw].some(x => x && x.store === 'schedule')) {
+        const want = nI && nI.store === 'schedule' ? nI : null;
+        let res = null;
+        const r = await updateLeaveSchedule(S.db, (list) => {
+            res = planScheduleSync(list, want, { apKey: key, today, idMs, isPersistent: isPersistentLeaveType });
+            return res.changed ? res.next : false;
+        });
+        if (r.changed) notifyLeaveScheduleChanged('approval');
+        notes.push(...res.notes);
+        const t = addedText(res, want ? want.day : '', today, now);
+        if (t) notes.push(t); else if (res.removed) notes.push('근태 일정에서 이 기안서의 근태를 뺐습니다.');
+    }
+    return [...new Set(notes)].join(' ');
+}
+async function syncLeaveSafe(prev, next) {
+    try { return await syncLeave(prev, next); }
+    catch (e) {
+        console.error('[approval] 근태 반영 실패:', e && e.code);
+        return '근태 반영을 못 했습니다 — 근태 설정에서 직접 넣어 주세요.';
+    }
+}
+// 다시 맞추기(2026-11-12 리뷰) — 화면을 열 때 한 번. 걸려 있으면 안 되는 기안서(반려·임시저장 등, 이 사람이 볼 수 있는 것)의 근태를 뺀다.
+//   반려한 사람 브라우저에서 빼기가 실패했거나, 메인앱 1분 자동저장이 옛 목록으로 되살린 기록을 다음에 여는 사람이 치운다.
+//   직원은 내 기안서 목록이 빠짐없으므로(작성자 쿼리, 상한 없음) 목록에 없는 내 기안서(삭제됨)가 건 기록도 치운다 —
+//   단 목록을 읽은 뒤 다른 창에서 낸 기안서를 지우지 않게, 목록을 읽기 1분 전보다 먼저 건 기록만.
+//   읽기는 근태 일정 1건 + 필요한 날의 daily_data 만, 지울 것이 있을 때만 쓴다. 내 기안서 정리만 할 때는 하루 한 번(이 브라우저).
+let reconcileStarted = false;
+async function reconcileLeaves() {
+    if (reconcileStarted || !S.listOk) return;
+    reconcileStarted = true;
+    try {
+        const today = kstDay(), now = kstClock();
+        const withIntent = S.docs.map(d => ({ d, i: intentOfDoc(d) })).filter(x => x.i && x.i.store);
+        const stale = withIntent.filter(x => !wantsLeave(x.d));
+        const dayKey = `apLeaveTidy:${S.email}:${today}`;
+        let orphanOk = !S.isAdmin && !!S.name;
+        try { if (orphanOk && localStorage.getItem(dayKey)) orphanOk = false; } catch (e) { orphanOk = false; }
+        if (!stale.length && !orphanOk) return;
+        const visible = new Set(), staleKeys = new Set();
+        for (const d of S.docs) visible.add(await apKeyOf(d.id));
+        for (const x of stale) staleKeys.add(await apKeyOf(x.d.id));
+        const before = S.listAt - 60000;
+        // 반려·임시저장 문서의 기록도, 목록에 없는 내 문서의 기록도 목록을 읽기 1분 전보다 먼저 건 것만(그사이 재제출한 기록을 지우지 않게)
+        const drop = tidyDrop({ staleKeys, visible, orphanOk, me: S.name, before });
+        let removed = 0;
+        // 날짜 근태
+        if (orphanOk || stale.some(x => x.i.store === 'schedule')) {
+            const pre = planCleanup(await readLeaves(false), { drop });
+            if (pre.changed) {
+                let n = 0;
+                const r = await updateLeaveSchedule(S.db, (list) => { const p = planCleanup(list, { drop }); n = p.removed; return p.changed ? p.next : false; });
+                if (r.changed) { removed += n; notifyLeaveScheduleChanged('approval-tidy'); }
+            }
+        }
+        // 시각 근태 — 오늘·앞날만(지난 날은 이미 시작된 것이라 안 뺀다)
+        const days = new Set(stale.filter(x => x.i.store === 'daily' && x.i.day >= today).map(x => x.i.day));
+        if (orphanOk) days.add(today);
+        for (const day of days) {
+            const ref = doc(S.db, APP_BASE, 'daily_data', day);
+            const sn = await getDoc(ref);
+            const list = sn.exists() && Array.isArray(sn.data().onLeaveMembers) ? sn.data().onLeaveMembers : [];
+            if (!planCleanup(list, { drop, day, today, now }).changed) continue;
+            const hs = await getDocFromServer(doc(S.db, APP_BASE, 'history', day));
+            if (hs.exists() && hs.data().closedAt) continue;   // 마감된 날은 쓰지 않는다
+            let n = 0;
+            await runTransaction(S.db, async (tx) => {
+                const cur = await tx.get(ref);
+                const l2 = cur.exists() && Array.isArray(cur.data().onLeaveMembers) ? cur.data().onLeaveMembers : [];
+                const p = planCleanup(l2, { drop, day, today, now });
+                n = p.removed;
+                if (p.changed) tx.set(ref, { onLeaveMembers: p.next }, { merge: true });
+            });
+            removed += n;
+        }
+        if (orphanOk) { try { localStorage.setItem(dayKey, '1'); } catch (e) { /* 무시 */ } }
+        if (removed) console.warn(`[approval] 근태 다시 맞추기: ${removed}건 뺌`);
+    } catch (e) {
+        console.error('[approval] 근태 다시 맞추기 실패:', e && e.code);
+    }
+}
+
+/** 제출 확인창에 붙일 근태 안내(지난 시각 외출·조퇴는 바로 적용된다) */
+const leaveConfirmLine = (form, values) => {
+    const w = pastCutWarning(leaveIntentOf(form, values, S.name, LEAVE_OPT), kstDay(), kstClock());
+    return w ? `\n\n⚠️ ${w}` : '';
+};
+const withLeave = (msg, lv) => (lv ? `${msg} · ${lv}` : msg);
 
 // ── 로그인 게이트 (products.js 와 같은 틀) ───────────────────────
 const GATE_ID = 'ap-auth-gate';
@@ -92,7 +270,7 @@ function showGate(html) {
     const el = document.createElement('div');
     el.id = GATE_ID;
     el.style.cssText = GATE_STYLE;
-    el.innerHTML = `<div style="${GATE_INNER}">${html}</div>`;
+    el.innerHTML = `<div style="${esc(GATE_INNER)}">${html}</div>`;
     document.body.appendChild(el);
     document.documentElement.style.overflow = 'hidden';
     return el;
@@ -139,6 +317,19 @@ async function loadForms() {
         S.forms = mergeForms(DEFAULT_FORMS, []);
         S.formsDenied = true;
     }
+    await loadApDefaults();
+}
+// 기본 결재선 설정 — 없거나 못 읽으면(규칙 게시 전 등) 빈 목록 = 지금처럼 직접 고른다
+async function loadApDefaults() {
+    try {
+        const snap = await getDoc(doc(S.db, SETTINGS, 'defaults'));
+        S.apDefaults = snap.exists() ? cleanDefaultLine(snap.data().line) : [];
+        S.apDefaultsDenied = false;
+    } catch (e) {
+        console.error('[approval] 기본 결재선 읽기 실패:', e && e.code);
+        S.apDefaults = [];
+        S.apDefaultsDenied = true;
+    }
 }
 async function loadDocs() {
     const col = collection(S.db, DOCS);
@@ -170,15 +361,19 @@ async function loadDocs() {
 }
 async function refresh() {
     setLoading(true, '불러오는 중…');
+    const t0 = Date.now();
     try {
         await Promise.all([loadForms(), loadDocs()]);
+        S.listOk = true; S.listAt = t0;
     } catch (e) {
         console.error('[approval] 목록 읽기 실패:', e && e.code);
         toast('기안서를 읽지 못했습니다 — ' + errText(e), 6000);
+        S.listOk = false;   // 목록이 없으면 다시 맞추기를 하지 않는다(빈 목록으로 내 근태를 지우지 않게)
     } finally {
         setLoading(false);
     }
     route();
+    if (S.listOk) reconcileLeaves();   // 화면을 연 뒤 한 번(기다리지 않는다)
 }
 const findDoc = (id) => S.docs.find(d => d.id === id) || null;
 async function fetchDoc(id) {
@@ -249,7 +444,7 @@ function ownBtns(d, big = false) {
     const cls = big ? 'd-btn ap-big' : 'd-btn d-btn-sm';
     const b = (act, label, extra = '') => {
         const why = whyNot(d, S.email, S.isAdmin, act);
-        return `<button class="${cls} ${extra}${why ? ' is-off' : ''}" data-row-act="${act}" data-id="${esc(d.id)}"${why ? ` title="${esc(why)}" aria-disabled="true"` : ''}>${label}</button>`;
+        return `<button class="${cls} ${esc(extra)}${why ? ' is-off' : ''}" data-row-act="${act}" data-id="${esc(d.id)}"${why ? ` title="${esc(why)}" aria-disabled="true"` : ''}>${label}</button>`;
     };
     if (d.authorEmail !== S.email) return actionsFor(d, S.email, S.isAdmin).includes('delete') ? b('delete', '삭제', 'd-btn-risk') : '';
     return b('edit', '수정') + b('withdraw', '회수') + b('delete', '삭제', 'd-btn-risk');
@@ -272,7 +467,7 @@ function renderList(main) {
     const mine = S.docs.filter(d => d.authorEmail === S.email);
     // 결재할 문서 — 내 차례인 것 먼저(그다음 최근 바뀐 순)
     const todo = S.docs.filter(canDecideList).sort((a, b) => (myTurn(b) - myTurn(a)) || ((b._ms || 0) - (a._ms || 0)));
-    const waiting = todo.filter(d => d.status === 'submitted' && (S.isAdmin || myTurn(d))).length;
+    const waiting = todo.filter(d => waitingForMe(d, S.email, S.isAdmin)).length;   // 지금 승인할 수 있는 것만
     if (S.scope == null) { S.scope = waiting ? 'todo' : 'mine'; S.filter = waiting ? 'submitted' : 'all'; }
     if (S.scope === 'all' && !S.isAdmin) S.scope = 'mine';
     const ccList = S.docs.filter(d => d.status !== 'draft' && inCc(d, S.email));   // 참조 탭은 참조 문서가 있을 때만
@@ -283,7 +478,7 @@ function renderList(main) {
     const count = (st) => base.filter(d => st === 'all' || d.status === st).length;
     const rows = base.filter(d => S.filter === 'all' || d.status === S.filter);
     const chip = (st, label) => `<button class="pd-chip${S.filter === st ? ' is-on' : ''}" data-filter="${st}">${esc(label)}<span class="num">${count(st)}</span></button>`;
-    const seg = (sc, label, n) => `<button class="d-seg-btn${S.scope === sc ? ' is-on' : ''}" data-scope="${sc}">${label}${n ? ` <span class="d-pill-warn ap-seg-n">${n}</span>` : ''}</button>`;
+    const seg = (sc, label, n) => `<button class="d-seg-btn${S.scope === sc ? ' is-on' : ''}" data-scope="${esc(sc)}">${label}${n ? ` <span class="d-pill-warn ap-seg-n">${n}</span>` : ''}</button>`;
     const nameWarn = !S.name ? `<div class="pd-alert warn" style="margin:0 24px 14px;">${esc(nameWarnText())}</div>` : '';
     const showAuthor = S.scope !== 'mine';
     main.innerHTML = `
@@ -304,7 +499,7 @@ function renderList(main) {
                     <td class="num" data-label="최근 변경">${esc(stampTime(d._ms))}</td>
                     <td class="ap-row-btns"><button class="d-btn d-btn-sm" data-row-act="view" data-id="${esc(d.id)}">보기</button>${ownBtns(d)}${actionsFor(d, S.email, S.isAdmin).includes('approve') ? `<button class="d-btn d-btn-sm d-btn-primary" data-row-act="view" data-id="${esc(d.id)}">${myTurn(d) || !currentApprover(d) ? '결재' : '대결'}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
             : `<div class="ap-list-empty">${base.length ? '이 상태의 기안서가 없습니다.' : S.scope === 'todo' ? '결재할 기안서가 없습니다.' : '아직 작성한 기안서가 없습니다.<br>위의 [새 기안] 으로 시작하세요.'}</div>`}
-            ${S.isAdmin && S.docs.length >= ADMIN_LIST_LIMIT ? `<div class="pd-note" style="padding:0 24px 16px;">최근 ${ADMIN_LIST_LIMIT}건과 결재 대기 전부가 보입니다.</div>` : ''}
+            ${S.isAdmin && S.docs.length >= ADMIN_LIST_LIMIT ? `<div class="pd-note" style="padding:0 24px 16px;">최근 ${esc(ADMIN_LIST_LIMIT)}건과 결재 대기 전부가 보입니다.</div>` : ''}
         </section>`;
     main.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => { S.filter = b.dataset.filter; renderList(main); }));
     main.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
@@ -340,10 +535,10 @@ function sheetHtml(form, values, meta = {}) {
     const stamps = meta.stamps || [];
     const boxes = sheetBoxes(form.boxes || [], line, stamps, meta.authorStamp);   // 결재자 칸은 결재선 인원만큼
     const proxies = stamps.map((s, i) => (s && s.proxy ? `${i + 1}차 ${s.name || ''}` : '')).filter(Boolean);
-    const st = meta.status && meta.status !== 'approved' ? `<div class="ap-sheet-status">(${esc(STATUS[meta.status] || '')}${meta.status === 'submitted' ? (line.length > 1 ? ` — ${(meta.step || 0) + 1}차 결재 전` : ' — 결재 전') : ''})</div>` : '';
+    const st = meta.status && meta.status !== 'approved' ? `<div class="ap-sheet-status">(${esc(STATUS[meta.status] || '')}${esc(meta.status === 'submitted' ? (line.length > 1 ? ` — ${(meta.step || 0) + 1}차 결재 전` : ' — 결재 전') : '')})</div>` : '';
     const dateMs = meta.submittedMs || meta.createdMs || 0;
     const afterText = afterPrintText(splitAttachments(meta.attachments).after);
-    return `<div class="ap-sheet fit-${fit.level}" data-over="${fit.over ? 1 : 0}">
+    return `<div class="ap-sheet fit-${esc(fit.level)}" data-over="${fit.over ? 1 : 0}">
         <div class="ap-sheet-top">
             <div style="flex:1;"><h2>${esc(form.title)}</h2>${st}</div>
             ${boxes.length ? `<table class="ap-boxes${boxes.length > 3 ? ' is-many' : ''}"><tr>${boxes.map(b => `<th>${esc(b.label)}</th>`).join('')}</tr>
@@ -385,7 +580,7 @@ window.addEventListener('beforeprint', () => { if (!document.body.classList.cont
 window.addEventListener('afterprint', () => fillPrintRoot(''));
 
 // ── 보기 ─────────────────────────────────────────────────
-const ACT_LABEL = { submit: '제출', resubmit: '재제출', withdraw: '회수', approve: '승인', reject: '반려' };
+const ACT_LABEL = { submit: '제출', resubmit: '재제출', edit: '수정 제출', withdraw: '회수', approve: '승인', reject: '반려' };
 async function renderView(main, id) {
     let d = findDoc(id);
     if (!d) {
@@ -425,22 +620,22 @@ async function renderView(main, id) {
                 <span class="ap-actions-big">
                 ${ownBtns(d, true)}
                 ${acts.includes('submit') ? `<button class="d-btn ap-big d-btn-primary" data-act-btn="submit">${d.status === 'rejected' || d.decision ? '재제출' : '제출'}</button>` : ''}
-                ${canAddAfter ? `<label id="ap-after-btn" class="d-btn ap-big ap-file-pick${afterFull ? ' is-off' : ''}"${afterFull ? ` title="첨부는 ${ATTACH_AFTER_TOTAL}개까지입니다."` : ''}>증빙 추가<input id="ap-after-pick" type="file" accept="${ATTACH_ACCEPT}" multiple ${afterFull ? 'disabled' : ''} hidden></label>` : ''}
+                ${canAddAfter ? `<label id="ap-after-btn" class="d-btn ap-big ap-file-pick${afterFull ? ' is-off' : ''}"${afterFull ? ` title="첨부는 ${ATTACH_AFTER_TOTAL}개까지입니다."` : ''}>증빙 추가<input id="ap-after-pick" type="file" accept="${esc(ATTACH_ACCEPT)}" multiple ${afterFull ? 'disabled' : ''} hidden></label>` : ''}
                 ${acts.includes('print') ? '<button class="d-btn ap-big" data-act-btn="print">인쇄 / PDF</button>' : ''}
                 </span></div>
-            ${d.status === 'submitted' && selfDoc ? `<div class="pd-note">${step === 0 && !stamps.length ? '아무도 결재하기 전에는 [회수] 해서 고칠 수 있습니다.' : '결재가 진행 중이라 회수할 수 없습니다 — 결재자가 반려하면 고칠 수 있습니다.'}</div>` : ''}
+            ${d.status === 'submitted' && selfDoc ? `<div class="pd-note">${step === 0 && !stamps.length ? '[수정] 하면 회수하지 않고 바로 고쳐 다시 낼 수 있습니다. 아무도 결재하기 전에는 [회수] 도 됩니다.' : `[수정] 하면 승인한 ${esc(stamps.length)}명의 도장이 지워지고 1차부터 다시 결재합니다(회수는 할 수 없습니다).`}</div>` : ''}
         </section>
         <div class="ap-view">
         <section class="pd-card pd-card-pad"><div class="ap-sheet-wrap" id="ap-sheet-box">${S.printHtml}</div></section>
         <aside class="ap-side">
             ${acts.includes('approve') ? `<section class="pd-card pd-card-pad">
-                <h3 class="pd-h3">결재${line.length > 1 ? ` <small class="pd-note">(${step + 1}차 / ${line.length}차)</small>` : ''}</h3>
-                ${proxyNow ? `<div class="pd-alert warn" style="margin-top:10px;">지금 차례는 ${line.length > 1 ? `${step + 1}차 ` : ''}${esc(cur.name)} 입니다. 관리자로서 <b>대신 결재(대결)</b> 하면 인쇄에 '대결' 로 남습니다.</div>` : ''}
-                ${line.length > 1 && step + 1 < line.length ? `<div class="pd-note" style="margin-top:8px;">승인하면 다음 ${step + 2}차 결재자(${esc(line[step + 1].name)})에게 넘어갑니다.</div>` : ''}
+                <h3 class="pd-h3">결재${line.length > 1 ? ` <small class="pd-note">(${esc(step + 1)}차 / ${line.length}차)</small>` : ''}</h3>
+                ${proxyNow ? `<div class="pd-alert warn" style="margin-top:10px;">지금 차례는 ${esc(line.length > 1 ? `${step + 1}차 ` : '')}${esc(cur.name)} 입니다. 관리자로서 <b>대신 결재(대결)</b> 하면 인쇄에 '대결' 로 남습니다.</div>` : ''}
+                ${line.length > 1 && step + 1 < line.length ? `<div class="pd-note" style="margin-top:8px;">승인하면 다음 ${esc(step + 2)}차 결재자(${esc(line[step + 1].name)})에게 넘어갑니다.</div>` : ''}
                 ${selfDoc ? '<div class="pd-alert info" style="margin-top:10px;">본인이 쓴 기안서입니다. 본인 결재도 기록에 남습니다.</div>' : ''}
                 ${!S.name ? `<div class="pd-alert warn" style="margin-top:10px;">${esc(nameWarnText())}</div>` : ''}
-                <label class="pd-field" style="margin-top:12px;"><span>결재 의견 <small>(반려는 필수, ${COMMENT_MAX}자까지)</small></span>
-                    <textarea id="ap-comment" class="pd-in" maxlength="${COMMENT_MAX}"></textarea></label>
+                <label class="pd-field" style="margin-top:12px;"><span>결재 의견 <small>(반려는 필수, ${esc(COMMENT_MAX)}자까지)</small></span>
+                    <textarea id="ap-comment" class="pd-in" maxlength="${esc(COMMENT_MAX)}"></textarea></label>
                 <div class="ap-actions" style="margin-top:12px;">
                     <button class="d-btn d-btn-primary" data-decide="approve" ${S.name ? '' : 'disabled'}>${proxyNow ? '대결 승인' : '승인'}</button>
                     <button class="d-btn d-btn-risk" data-decide="reject" ${S.name ? '' : 'disabled'}>${proxyNow ? '대결 반려' : '반려'}</button>
@@ -451,10 +646,10 @@ async function renderView(main, id) {
             ${attBefore.length ? `<section class="pd-card pd-card-pad"><h3 class="pd-h3">${d.status === 'approved' ? '결재 때 첨부' : '첨부'} ${attBefore.length}개</h3>${attachListHtml(attBefore, false)}</section>` : ''}
             ${attAfter.length || canAddAfter ? `<section class="pd-card pd-card-pad" id="ap-after-box"><h3 class="pd-h3">승인 후 추가 <small class="pd-note">(결재 대상 아님)</small></h3>
                 ${attAfter.length ? attachListHtml(attAfter, false) : '<div class="pd-note" style="margin-top:8px;">추가한 파일이 없습니다.</div>'}
-                ${canAddAfter ? `<div class="pd-note" style="margin-top:8px;">이미지·PDF·엑셀·워드·한글, 파일당 10MB, 기안서 하나에 ${ATTACH_AFTER_TOTAL}개까지 (${atts.length}/${ATTACH_AFTER_TOTAL}). 올리면 지울 수 없습니다.</div>` : ''}</section>` : ''}
+                ${canAddAfter ? `<div class="pd-note" style="margin-top:8px;">이미지·PDF·엑셀·워드·한글, 파일당 10MB, 기안서 하나에 ${esc(ATTACH_AFTER_TOTAL)}개까지 (${atts.length}/${esc(ATTACH_AFTER_TOTAL)}). 올리면 지울 수 없습니다.</div>` : ''}</section>` : ''}
             ${dec && !(d.status === 'submitted' && stamps.length) ? `<section class="pd-card pd-card-pad">
-                <h3 class="pd-h3">${d.status === 'approved' ? '승인 의견' : d.status === 'rejected' ? '반려 의견' : '최근 결재 의견'}</h3>
-                <div class="pd-note" style="margin-top:4px;">${esc(dec.byName || '')}${dec.proxy ? ' (대결)' : ''} · ${esc(stampTime(tsMs(dec.at)))}${d.status !== 'approved' && d.status !== 'rejected' ? ' (반려 뒤 다시 냄)' : ''}</div>
+                <h3 class="pd-h3">${esc(d.status === 'approved' ? '승인 의견' : d.status === 'rejected' ? '반려 의견' : lastActIsEdit(d) ? '수정 전 결재 의견' : '최근 결재 의견')}</h3>
+                <div class="pd-note" style="margin-top:4px;">${esc(dec.byName || '')}${dec.proxy ? ' (대결)' : ''} · ${esc(stampTime(tsMs(dec.at)))}${d.status !== 'approved' && d.status !== 'rejected' ? (lastActIsEdit(d) ? ' (작성자가 고쳐 다시 냄)' : ' (반려 뒤 다시 냄)') : ''}</div>
                 <div class="ap-decision">${esc(dec.comment || '(의견 없음)')}</div>
             </section>` : ''}
             ${(d.history || []).length ? `<section class="pd-card pd-card-pad"><h3 class="pd-h3">처리 이력</h3>
@@ -466,8 +661,8 @@ async function renderView(main, id) {
     $('ap-after-btn')?.addEventListener('click', (e) => { if (e.currentTarget.classList.contains('is-off')) toast(e.currentTarget.title, 4500); });
     $('ap-after-pick')?.addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; addAfterFiles(d, fs); });
     on('print', () => printSheet(S.printHtml));
-    on('submit', () => {
-        const ln = approversOf(d);
+    on('submit', async () => {
+        let ln = approversOf(d);
         const apErr = checkApprovers(ln, S.email);
         if (apErr.length) { toast(`${apErr[0]} — [수정] 에서 결재자를 고른 뒤 제출하세요`, 4500); return; }
         // 반려 뒤 결재자의 직책이 바뀌었거나 퇴사했으면 규칙이 막는다 — '권한 없음' 대신 무엇을 고칠지 알려 준다
@@ -475,7 +670,7 @@ async function renderView(main, id) {
         const gone = ln.filter(a => !candEmails.has(lower(a.email)));
         if (gone.length) { toast(`${gone.map(a => a.name).join('·')} 님은 지금 결재자로 지정할 수 없습니다(직책·퇴사 변경) — [수정] 에서 결재자를 다시 고르세요`, 5500); return; }
         // 참조자도 같은 검사 — 퇴사·권한 변경, 결재자와 겹침
-        const ccNow = ccsOf(d);
+        let ccNow = ccsOf(d);
         const ccOk = new Set(ccCandidates(S.cfg, S.name, S.email).map(c => c.email));
         const ccGone = ccNow.filter(a => !ccOk.has(a.email));
         if (ccGone.length) { toast(`${ccGone.map(a => a.name).join('·')} 님은 지금 참조자로 지정할 수 없습니다(권한·퇴사 변경) — [수정] 에서 참조자를 다시 고르세요`, 5500); return; }
@@ -483,8 +678,15 @@ async function renderView(main, id) {
         if (ccErr.length) { toast(`${ccErr[0]} — [수정] 에서 참조자를 고쳐 주세요`, 4500); return; }
         const errs = validateValues(d.form, d.values, d.attachments);
         if (errs.length) { toast('빈 필수 칸이 있습니다 — [수정] 에서 채워 주세요', 4000); return; }
-        if (!confirm(`이 기안서를 제출할까요?\n결재 순서: ${ln.map(a => a.name).join(' → ')}${ccNow.length ? `\n참조: ${ccNow.map(a => a.name).join(', ')}` : ''}\n제출하면 1차 결재자(${ln[0].name})에게 알림이 갑니다.`)) return;
-        authorWrite(d.id, 'submit');   // 값은 트랜잭션 안에서 읽은 서버 값(화면의 옛 값으로 덮지 않게)
+        // 임시저장의 결재선이 기본 결재선 모양 그대로면 오늘 근태로 다시 정한다(2026-11-12)
+        let lineNote = '', newLine = false;
+        if (d.status === 'draft') {
+            const rj = await rejudgeLine(ln, ccNow);
+            if (rj.note) { ln = rj.approvers; ccNow = rj.ccs; lineNote = `\n\n${rj.note}`; newLine = true; }
+        }
+        if (!confirm(`이 기안서를 제출할까요?\n결재 순서: ${ln.map(a => a.name).join(' → ')}${ccNow.length ? `\n참조: ${ccNow.map(a => a.name).join(', ')}` : ''}\n제출하면 1차 결재자(${ln[0].name})에게 알림이 갑니다.${lineNote}${leaveConfirmLine(d.form, d.values)}`)) return;
+        // 값은 트랜잭션 안에서 읽은 서버 값(화면의 옛 값으로 덮지 않게). 결재선을 다시 정했을 때만 결재선·참조를 넘긴다
+        if (newLine) authorWrite(d.id, 'submit', undefined, ln, ccNow); else authorWrite(d.id, 'submit');
     });
     main.querySelectorAll('[data-decide]').forEach(b => b.addEventListener('click', () => decide(d.id, b.dataset.decide, $('ap-comment').value)));
 }
@@ -508,7 +710,9 @@ async function deleteApproval(d) {
         }
         await deleteDoc(doc(S.db, DOCS, d.id));
         S.docs = S.docs.filter(x => x.id !== d.id);
-        toast('지웠습니다');
+        // 근태사유서였으면 걸어 둔 근태(아직 시작 전인 것)를 뺀다
+        const lv = snap.exists() ? await syncLeaveSafe({ ...snap.data(), id: d.id }, null) : '';
+        toast(withLeave('지웠습니다', lv), lv ? 7000 : 2800);
         if (location.hash) location.hash = ''; else route();
     } catch (e) {
         console.error('[approval] 삭제 실패:', e && e.code);
@@ -640,11 +844,12 @@ async function addAfterFiles(d, files) {
     }
 }
 
-// 작성자 쓰기(제출·재제출·회수·임시저장) — 서버 문서를 다시 읽고 상태를 확인한 뒤 고친다(관리자 결재와 겹치지 않게)
+// 작성자 쓰기(제출·재제출·수정 제출·회수·임시저장) — 서버 문서를 다시 읽고 상태를 확인한 뒤 고친다(관리자 결재와 겹치지 않게)
+//   'edit' = 결재 대기 문서를 회수 없이 고쳐 다시 냄(2026-11-12) — 도장을 지우고 1차부터, 1차 결재자에게 '다시 올라옴' 알림(참조자에게는 안 보냄)
 async function authorWrite(id, kind, values, approvers, ccs) {
     const me = { email: S.email, name: S.name };
     const opt = { ts: serverTimestamp(), at: new Date(), approvers, ccs };   // approvers·ccs 가 undefined 면 문서의 값 그대로
-    let submitted = null, ccNames = [];
+    let submitted = null, ccNames = [], prevDoc = null, nextDoc = null;
     setLoading(true, '저장 중…');
     try {
         await runTransaction(S.db, async (tx) => {
@@ -654,22 +859,27 @@ async function authorWrite(id, kind, values, approvers, ccs) {
             const cur = { ...snap.data(), form: normalizeForm(snap.data().form, snap.data().formId) };
             let patch;
             if (kind === 'save') patch = buildSave(cur, values, opt);
-            else if (kind === 'submit') {
+            else if (kind === 'submit' || kind === 'edit') {
                 const v = values === undefined ? (cur.values || {}) : values;
                 const errs = validateValues(cur.form, v, cur.attachments);
                 if (errs.length) throw new Error(errs[0]);
-                patch = buildSubmit(cur, me, v, opt);
+                patch = kind === 'edit' ? buildEditSubmit(cur, me, v, opt) : buildSubmit(cur, me, v, opt);
             }
             else if (kind === 'withdraw') patch = buildWithdraw(cur, me, opt);
             else throw new Error('알 수 없는 동작');
             tx.update(ref, patch);
-            submitted = kind === 'submit' ? ((patch.approvers[0] || {}).name || null) : null;   // 1차 결재자
+            submitted = kind === 'submit' || kind === 'edit' ? ((patch.approvers[0] || {}).name || null) : null;   // 1차 결재자
             ccNames = kind === 'submit' ? (patch.ccs || []).map(c => c.name) : [];
+            prevDoc = { ...cur, id };
+            nextDoc = { ...cur, ...patch, id };
         });
         S.dirty = false;
         await fetchDoc(id).catch(() => null);
-        toast({ save: '임시저장했습니다', submit: '제출했습니다', withdraw: '회수했습니다 — 임시저장으로 돌아갔습니다' }[kind]);
-        if (submitted) await notifyApprover(submitted);
+        // 근태사유서 → 팀원 카드(제출·수정·회수 때만 — 임시저장은 결재 대기가 아니라 걸어 둔 근태가 없다)
+        const lv = kind === 'save' ? '' : await syncLeaveSafe(prevDoc, nextDoc);
+        toast(withLeave({ save: '임시저장했습니다', submit: '제출했습니다', edit: '고쳐서 다시 냈습니다 — 1차 결재자부터 다시 결재합니다',
+            withdraw: '회수했습니다 — 임시저장으로 돌아갔습니다' }[kind], lv), lv ? 7000 : 2800);
+        if (submitted) await notifyApprover(submitted, kind === 'edit' ? MSG_RESUBMITTED : MSG_TO_APPROVER);
         await notifyCcs(ccNames);
         if (location.hash === '#d=' + encodeURIComponent(id)) route(); else location.hash = 'd=' + encodeURIComponent(id);
     } catch (e) {
@@ -680,10 +890,10 @@ async function authorWrite(id, kind, values, approvers, ccs) {
     }
 }
 
-// 제출 알림 — 1차 결재자 한 사람에게만(문구는 내용 없는 것 그대로)
-async function notifyApprover(name) {
+// 제출 알림 — 1차 결재자 한 사람에게만(문구는 내용 없는 것 그대로). 수정 제출이면 '다시 올라옴' 문구
+async function notifyApprover(name, msg = MSG_TO_APPROVER) {
     if (!name || name === S.name) return;
-    const r = await sendApprovalNoti(S.db, { collection, addDoc }, [name], MSG_TO_APPROVER);
+    const r = await sendApprovalNoti(S.db, { collection, addDoc }, [name], msg);
     if (r.failed) toast('제출은 됐지만 결재자 알림을 못 보냈습니다', 5000);
 }
 
@@ -715,12 +925,18 @@ async function decide(id, act, comment) {
             const snap = await tx.get(ref);
             if (!snap.exists()) throw new Error('기안서가 없습니다.');
             const cur = snap.data();
-            if (cur.status !== 'submitted' || stepOf(cur) !== seenStep) throw new Error('그사이 상태가 바뀌었습니다(회수·다른 결재). 새로고침해 보세요.');
-            res = buildDecisionStep(cur, me, act, comment, { ts: serverTimestamp(), at: new Date() });
+            // 회수·다른 결재(단계 바뀜) → 새로고침, 작성자가 그사이 고쳐 다시 냄(단계는 0 그대로일 수 있다) → '작성자가 고쳤습니다'.
+            //   updatedAt 이 없는 옛 문서는 버전을 비교하지 않는다(js/lib/approval-logic.js decideGuard — 규칙 apDecisionOk 와 같은 조건)
+            const why = decideGuard(cd || { step: seenStep }, cur, tsMs);
+            if (why) throw Object.assign(new Error(DECIDE_GUARD_TEXT[why]), { guard: true });
+            // seenAt = 내가 본 문서의 updatedAt — 규칙이 지금 문서의 updatedAt 과 같은지 본다(옛 내용 승인 막기, 2026-11-12 리뷰)
+            res = buildDecisionStep(cur, me, act, comment, { ts: serverTimestamp(), at: new Date(), seenAt: seenAtFor(cd, cur) });
             tx.update(ref, res.patch);
-            doneDoc = cur;
+            doneDoc = { ...cur, id };
         });
-        toast(act === 'approve' ? (res.final ? '승인했습니다 — 결재가 끝났습니다' : '승인했습니다 — 다음 결재자에게 넘어갑니다') : '반려했습니다');
+        // 반려면 근태사유서로 걸어 둔 근태(아직 시작 전인 것)를 뺀다 — 결재자 브라우저가 맞춘다
+        const lv = act === 'reject' ? await syncLeaveSafe(doneDoc, { ...doneDoc, status: 'rejected' }) : '';
+        toast(withLeave(act === 'approve' ? (res.final ? '승인했습니다 — 결재가 끝났습니다' : '승인했습니다 — 다음 결재자에게 넘어갑니다') : '반려했습니다', lv), lv ? 7000 : 2800);
         const nt = decisionNoti(doneDoc, res, S.email);   // 단계 승인 → 다음 결재자, 최종 승인·반려 → 작성자
         if (nt) {
             const r = await sendApprovalNoti(S.db, { collection, addDoc }, [nt.to], nt.kind === 'approver' ? MSG_TO_APPROVER : MSG_TO_AUTHOR);
@@ -730,7 +946,8 @@ async function decide(id, act, comment) {
         route();
     } catch (e) {
         console.error('[approval] 결재 실패:', e && e.code);
-        toast('결재하지 못했습니다 — ' + errText(e), 6000);
+        // 규칙 거부는 대개 다른 결재·수정과 겹친 것(본 버전이 지금 문서와 다름) — 새로고침 안내로
+        toast('결재하지 못했습니다 — ' + (e && e.code === 'permission-denied' ? `${DECIDE_GUARD_TEXT.refresh} (계속 막히면 관리자에게 문의)` : errText(e)), 6000);
     } finally {
         setLoading(false);
     }
@@ -741,7 +958,7 @@ function fieldInput(f, val) {
     const id = 'ap-f-' + f.key;
     if (f.type === 'file') return `<div class="ap-file" data-file-key="${esc(f.key)}"></div>`;
     const common = `id="${id}" class="pd-in" data-key="${esc(f.key)}"`;
-    if (f.type === 'textarea') return `<textarea ${common} maxlength="${f.max}">${esc(val)}</textarea>`;
+    if (f.type === 'textarea') return `<textarea ${common} maxlength="${esc(f.max)}">${esc(val)}</textarea>`;
     if (f.type === 'select') return `<select ${common}><option value="">(고르세요)</option>${(f.options || []).map(o => `<option${o === val ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
     const type = f.type === 'date' ? 'date' : f.type === 'time' ? 'time' : 'text';
     return `<input ${common} type="${type}" value="${esc(val)}"${type === 'text' ? ` maxlength="${f.max}"` : ''}>`;
@@ -752,7 +969,7 @@ async function renderEditor(main, { id, formId }) {
         d = findDoc(id) || await fetchDoc(id).catch(() => null);
         if (!d || !actionsFor(d, S.email, false).includes('edit')) {
             setHead({ title: '기안서', back: true });
-            main.innerHTML = '<div class="pd-card pd-empty">이 기안서는 지금 고칠 수 없습니다(제출·승인됐거나 본인 기안이 아닙니다).</div>';
+            main.innerHTML = '<div class="pd-card pd-empty">이 기안서는 지금 고칠 수 없습니다(승인됐거나 본인 기안이 아닙니다).</div>';
             return;
         }
         form = d.form;
@@ -760,6 +977,9 @@ async function renderEditor(main, { id, formId }) {
         form = S.forms.find(f => f.id === formId && f.active);
         if (!form) { setHead({ title: '새 기안', back: true }); main.innerHTML = '<div class="pd-card pd-empty">양식을 찾지 못했습니다.</div>'; return; }
     }
+    // 결재 대기 문서 고치기(2026-11-12 제출 후 수정) — 임시저장 없이 [수정 제출]만, 첨부는 못 바꾼다(Storage 규칙이 결재 대기 문서 업로드를 막는다)
+    const editing = !!d && d.status === 'submitted';
+    const clearN = editing ? stampsToClear(d) : 0;
     const vals = { ...(d ? d.values : {}) };
     const range = rangeFields(form);   // 근태사유서: 구분이 '외출'이면 발생 시각을 시작·종료로
     setHead({ title: d ? `${form.title} 고치기` : `${form.title} 작성`, back: true });
@@ -769,24 +989,37 @@ async function renderEditor(main, { id, formId }) {
     const stored = d ? approversOf(d) : [];
     const apGone = stored.filter(a => !cands.some(c => c.email === a.email));
     let line = stored.filter(a => cands.some(c => c.email === a.email)).map(a => a.email).slice(0, APPROVERS_MAX);
-    if (!line.length) line = [cands.length === 1 ? cands[0].email : ''];
     // 참조자(선택, 재직 관리자) — 저장된 사람이 지금 후보가 아니면 빼고 안내. 결재자로 고른 사람은 drawCc 가 뺀다
     const ccCands = ccCandidates(S.cfg, S.name, S.email);
     const storedCc = d ? ccsOf(d) : [];
     const ccGone = storedCc.filter(a => !ccCands.some(c => c.email === a.email));
     let cc = storedCc.filter(a => ccCands.some(c => c.email === a.email)).map(a => a.email).slice(0, CC_MAX);
+    // 새 기안 — 기본 결재선(관리자가 양식 관리에서 정함)을 넣고, 오늘 날짜 근태가 있는 결재자는 참조로(2026-11-12)
+    let autoNotes = [];
+    if (!d) {
+        const auto = await computeAutoLine(false);
+        if (auto && auto.approvers.length) {
+            line = auto.approvers.map(a => a.email).filter(em => cands.some(c => c.email === em)).slice(0, APPROVERS_MAX);
+            cc = auto.ccs.map(a => a.email).filter(em => ccCands.some(c => c.email === em)).slice(0, CC_MAX);
+        }
+        if (auto) autoNotes = auto.approvers.length ? ['기본 결재선을 넣었습니다(바꿔도 됩니다).', ...auto.notes] : auto.notes;
+    }
+    if (!line.length) line = [cands.length === 1 ? cands[0].email : ''];
     main.innerHTML = `<section class="pd-card pd-card-pad">
+        ${editing ? `<div class="pd-alert info"><b>결재 대기 중인 기안서를 고칩니다.</b> [수정 제출] 하면 이미 받은 도장은 모두 지워지고 1차 결재자부터 다시 결재합니다.
+            첨부는 여기서 바꿀 수 없습니다 — 첨부를 바꾸려면 ${clearN ? '결재자에게 반려를 요청하세요' : '[회수] 한 뒤 고치세요'}.</div>` : ''}
         ${dec && d.status === 'rejected' ? `<div class="pd-alert risk"><b>반려 의견</b> (${esc(dec.byName || '')} · ${esc(stampTime(tsMs(dec.at)))})<div class="ap-decision">${esc(dec.comment)}</div></div>` : ''}
         ${dec && d.status === 'draft' ? `<div class="pd-alert warn"><b>지난 반려 의견</b><div class="ap-decision">${esc(dec.comment)}</div></div>` : ''}
         ${!S.name ? `<div class="pd-alert warn" style="margin-top:10px;">${esc(nameWarnText())}</div>` : ''}
         <div class="pd-row" style="margin-top:12px;"><h2 class="pd-h2">${esc(form.title)}</h2><span class="pd-grow"></span><span class="pd-note">성명 ${esc(S.name || '-')}</span></div>
         ${form.intro ? `<div class="pd-note" style="margin-top:6px; white-space:pre-wrap;">${esc(form.intro)}</div>` : ''}
         <div class="ap-form">
-            <div class="pd-field"><span>결재자<b>*</b> <small>(1~${APPROVERS_MAX}명, 위에서부터 순서대로 결재 — 관리자 또는 파트장·부팀장·팀장. 제출하면 1차 결재자에게 알림이 갑니다)</small></span>
+            <div class="pd-field"><span>결재자<b>*</b> <small>(1~${esc(APPROVERS_MAX)}명, 위에서부터 순서대로 결재 — 관리자 또는 파트장·부팀장·팀장. 제출하면 1차 결재자에게 알림이 갑니다)</small></span>
                 <div id="ap-line" class="ap-line"></div>
+                ${autoNotes.length ? `<span class="ap-hint" id="ap-auto-hint">${esc(autoNotes.join(' '))}</span>` : ''}
                 ${apGone.length ? `<span class="ap-hint pd-warn">저장된 결재자(${esc(apGone.map(a => a.name).join(', '))})는 지금 결재할 수 없는 사람이라 뺐습니다 — 다시 고르세요.</span>` : ''}
                 ${!cands.length ? '<span class="ap-hint pd-warn">고를 수 있는 결재자가 없습니다(관리자·파트장·부팀장·팀장). 관리자에게 문의하세요.</span>' : ''}</div>
-            <div class="pd-field"><span>참조자 <small>(선택, 관리자 중 ${CC_MAX}명까지 — 지정한 참조자는 제출 후 내용을 읽습니다)</small></span>
+            <div class="pd-field"><span>참조자 <small>(선택, 관리자 중 ${esc(CC_MAX)}명까지 — 지정한 참조자는 제출 후 내용을 읽습니다)</small></span>
                 <div id="ap-cc" class="ap-line"></div>
                 ${ccGone.length ? `<span class="ap-hint pd-warn">저장된 참조자(${esc(ccGone.map(a => a.name).join(', '))})는 지금 지정할 수 없는 사람이라 뺐습니다.</span>` : ''}
                 <span class="ap-hint pd-warn" id="ap-cc-hint"></span></div>
@@ -794,7 +1027,7 @@ async function renderEditor(main, { id, formId }) {
                 // 외출이면 시작·종료(둘 다 필수) — 아니면 시작 칸만 보인다(종료 칸은 숨기고 저장 때 버림)
                 ? `<div class="pd-field" role="group" aria-labelledby="ap-range-label"><span id="ap-range-label">${esc(f.label)}<b class="ap-range-req"${f.required ? '' : ' hidden'}>*</b> <small class="ap-range-note" id="ap-range-note" aria-live="polite" hidden>(${esc(RANGE_KIND)} — 시작·종료 시각 모두)</small></span>
                     <div class="ap-range"><input id="ap-f-${esc(f.key)}" class="pd-in" data-key="${esc(f.key)}" type="time" value="${esc(vals[f.key] || '')}" aria-label="${esc(f.label)}">
-                    <span class="ap-range-end" hidden>~ <input id="ap-f-${esc(f.key)}${END_SUFFIX}" class="pd-in" data-key="${esc(f.key)}${END_SUFFIX}" type="time" value="${esc(vals[f.key + END_SUFFIX] || '')}" aria-label="${esc(f.label)} 종료" aria-describedby="ap-range-note"></span></div></div>`
+                    <span class="ap-range-end" hidden>~ <input id="ap-f-${esc(f.key)}${esc(END_SUFFIX)}" class="pd-in" data-key="${esc(f.key)}${esc(END_SUFFIX)}" type="time" value="${esc(vals[f.key + END_SUFFIX] || '')}" aria-label="${esc(f.label)} 종료" aria-describedby="ap-range-note"></span></div></div>`
                 : `<label class="pd-field"><span>${esc(f.label)}${f.required ? '<b>*</b>' : ''}</span>${fieldInput(f, vals[f.key] || '')}
             ${f.prefill === 'day' ? '<span class="ap-hint" id="ap-prefill-hint"></span>' : ''}</label>`).join('')}</div>
         ${form.pledge ? `<div class="pd-note" style="margin-top:14px; white-space:pre-wrap;">${esc(form.pledge)}</div>` : ''}
@@ -803,8 +1036,8 @@ async function renderEditor(main, { id, formId }) {
             <button class="d-btn" id="ap-preview">미리보기</button>
             <span class="pd-grow"></span>
             <button class="d-btn" id="ap-cancel">취소</button>
-            <button class="d-btn" id="ap-save" ${S.name ? '' : 'disabled'}>임시저장</button>
-            <button class="d-btn d-btn-primary" id="ap-submit" ${S.name ? '' : 'disabled'}>${d && (d.status === 'rejected' || d.decision) ? '재제출' : '제출'}</button>
+            ${editing ? '' : `<button class="d-btn" id="ap-save" ${S.name ? '' : 'disabled'}>임시저장</button>`}
+            <button class="d-btn d-btn-primary" id="ap-submit" ${S.name ? '' : 'disabled'}>${editing ? '수정 제출' : d && (d.status === 'rejected' || d.decision) ? '재제출' : '제출'}</button>
         </div>
         <div id="ap-prev-box" class="ap-sheet-wrap" style="margin-top:16px;"></div>
     </section>`;
@@ -847,7 +1080,7 @@ async function renderEditor(main, { id, formId }) {
                 <select class="pd-in" data-line-sel aria-label="${i + 1}차 결재자"><option value="">(결재자를 고르세요)</option>${opts}</select>
                 <span class="ap-fe-btns"><button type="button" class="d-btn d-btn-sm" data-line-mv="-1" aria-label="앞 순서로" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" class="d-btn d-btn-sm" data-line-mv="1" aria-label="뒤 순서로" ${i === line.length - 1 ? 'disabled' : ''}>↓</button><button type="button" class="d-btn d-btn-sm d-btn-risk" data-line-del aria-label="이 결재자 빼기" ${line.length <= 1 ? 'disabled' : ''}>✕</button></span></div>`;
         }).join('') + `<div><button type="button" class="d-btn d-btn-sm" id="ap-line-add" ${line.length >= APPROVERS_MAX || line.length >= cands.length ? 'disabled' : ''}>결재자 추가</button>
-            <span class="pd-note">${line.length > 1 ? '1차가 승인하면 2차에게 넘어갑니다. 누구든 반려하면 작성자에게 돌아옵니다.' : `여러 명이 차례로 결재해야 하면 [결재자 추가] (최대 ${APPROVERS_MAX}명)`}</span></div>`;
+            <span class="pd-note">${esc(line.length > 1 ? '1차가 승인하면 2차에게 넘어갑니다. 누구든 반려하면 작성자에게 돌아옵니다.' : `여러 명이 차례로 결재해야 하면 [결재자 추가] (최대 ${APPROVERS_MAX}명)`)}</span></div>`;
         const idx = (el) => Number(el.closest('[data-line-i]').dataset.lineI);
         box.querySelectorAll('[data-line-sel]').forEach(sel => sel.addEventListener('change', () => { line[idx(sel)] = sel.value; S.dirty = true; drawLine(); }));
         box.querySelectorAll('[data-line-mv]').forEach(b => b.addEventListener('click', () => {
@@ -882,10 +1115,16 @@ async function renderEditor(main, { id, formId }) {
         const key = box.dataset.fileKey;
         const all = (d && d.attachments) || [];
         const mineHere = all.filter(a => a.key === key);
+        if (editing) {   // 결재 대기 문서 — 열기·받기만(바꾸려면 회수·반려)
+            box.innerHTML = `${mineHere.length ? attachListHtml(mineHere, false) : '<div class="pd-note">붙인 파일이 없습니다.</div>'}
+                <div class="pd-note" style="margin-top:6px;">결재 대기 중에는 첨부를 바꿀 수 없습니다.</div>`;
+            bindAttachOpen(box, d);
+            return;
+        }
         box.innerHTML = `${mineHere.length ? attachListHtml(mineHere, true) : '<div class="pd-note">붙인 파일이 없습니다.</div>'}
             <div class="pd-row" style="margin-top:6px;"><label class="d-btn d-btn-sm ap-file-pick${all.length >= ATTACH_MAX || !S.name ? ' is-off' : ''}">파일 붙이기
-                <input type="file" accept="${ATTACH_ACCEPT}" multiple ${all.length >= ATTACH_MAX || !S.name ? 'disabled' : ''} hidden></label>
-                <span class="pd-note">이미지·PDF·엑셀·워드·한글, 파일당 10MB, 기안서 하나에 ${ATTACH_MAX}개까지 (${all.length}/${ATTACH_MAX})${d ? '' : ' — 고르면 먼저 임시저장됩니다'}</span></div>`;
+                <input type="file" accept="${esc(ATTACH_ACCEPT)}" multiple ${all.length >= ATTACH_MAX || !S.name ? 'disabled' : ''} hidden></label>
+                <span class="pd-note">이미지·PDF·엑셀·워드·한글, 파일당 10MB, 기안서 하나에 ${esc(ATTACH_MAX)}개까지 (${all.length}/${esc(ATTACH_MAX)})${d ? '' : ' — 고르면 먼저 임시저장됩니다'}</span></div>`;
         box.querySelector('input[type=file]').addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; addFiles(key, fs); });
         box.querySelectorAll('[data-att-del]').forEach(b => b.addEventListener('click', (e) => { e.preventDefault(); removeFile(b.dataset.attDel); }));
         if (d) bindAttachOpen(box, d);
@@ -964,10 +1203,20 @@ async function renderEditor(main, { id, formId }) {
     $('ap-cancel').addEventListener('click', () => { if (!okLeave()) return; location.hash = d ? 'd=' + encodeURIComponent(d.id) : ''; });
     const go = async (submit) => {
         const values = cleanValues(form, read());
-        const approvers = readApprovers();
-        const ccs = readCcs();
+        let approvers = readApprovers();
+        let ccs = readCcs();
         $('ap-errs').innerHTML = '';
         if (submit) {
+            // 새 기안·임시저장 — 결재선이 기본 결재선 모양 그대로면 서버의 오늘 근태로 다시 정한다(2026-11-12)
+            let lineNote = '';
+            if (!d || d.status === 'draft') {
+                const rj = await rejudgeLine(approvers, ccs);
+                if (rj.note) {
+                    approvers = rj.approvers; ccs = rj.ccs; lineNote = `\n\n${rj.note}`;
+                    line = approvers.map(a => a.email); cc = ccs.map(a => a.email);
+                    drawLine();
+                }
+            }
             const errs = [...checkApprovers(approvers, S.email), ...(line.some(x => !x) && approvers.length ? ['빈 결재자 줄이 있습니다 — 고르거나 ✕ 로 빼세요.'] : []),
                 ...checkCcs(ccs, S.email, approvers, S.cfg), ...validateValues(form, values, d ? d.attachments : [])];
             if (errs.length) {
@@ -975,9 +1224,22 @@ async function renderEditor(main, { id, formId }) {
                 $('ap-errs').scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
             }
-            if (!confirm(`제출할까요?\n결재 순서: ${approvers.map(a => a.name).join(' → ')}\n1차 결재자에게 알림이 가고, 아무도 결재하기 전까지는 회수할 수 있습니다.`)) return;
+            const lineText = `결재 순서: ${approvers.map(a => a.name).join(' → ')}${ccs.length ? `\n참조: ${ccs.map(a => a.name).join(', ')}` : ''}`;
+            // 지워질 도장 수는 제출 직전 서버 문서로 다시 센다(화면을 연 뒤 결재가 더 됐을 수 있다). 못 읽으면 '모두 지워진다'로
+            let clearText = clearN ? '이미 받은 도장은 모두 지워지고 ' : '';
+            if (editing) {
+                try {
+                    const sn = await getDocFromServer(doc(S.db, DOCS, d.id));
+                    const n = sn.exists() ? stampsToClear(sn.data()) : 0;
+                    clearText = n ? `승인한 ${n}명의 도장이 지워지고 ` : '';
+                } catch (e) { clearText = '이미 받은 도장이 있으면 모두 지워지고 '; }
+            }
+            const ask = editing
+                ? `고친 내용으로 다시 낼까요?\n${lineText}\n${clearText}1차 결재자부터 다시 결재합니다. 1차 결재자에게 '다시 올라옴' 알림이 갑니다.`
+                : `제출할까요?\n${lineText}\n1차 결재자에게 알림이 가고, 아무도 결재하기 전까지는 회수할 수 있습니다.`;
+            if (!confirm(ask + lineNote + leaveConfirmLine(form, values))) return;
         }
-        if (d) return authorWrite(d.id, submit ? 'submit' : 'save', values, approvers, ccs);
+        if (d) return authorWrite(d.id, editing ? 'edit' : submit ? 'submit' : 'save', values, approvers, ccs);
         setLoading(true, '저장 중…');
         try {
             // 참조자가 있으면 임시저장 → 제출 두 번으로 나눈다 — 만들며 바로 제출하는 규칙 경로는 식 한도(1000개)를 넘는다(firestore.rules apCcOk 주석)
@@ -998,7 +1260,8 @@ async function renderEditor(main, { id, formId }) {
                 return;
             }
             await fetchDoc(r.id).catch(() => null);
-            toast(submit ? '제출했습니다' : '임시저장했습니다');
+            const lv = submit ? await syncLeaveSafe(null, { ...data, id: r.id }) : '';   // 근태사유서 → 팀원 카드
+            toast(withLeave(submit ? '제출했습니다' : '임시저장했습니다', lv), lv ? 7000 : 2800);
             if (submit) { await notifyApprover(approvers[0].name); await notifyCcs(ccs.map(c => c.name)); }
             location.hash = 'd=' + encodeURIComponent(r.id);
         } catch (e) {
@@ -1008,7 +1271,7 @@ async function renderEditor(main, { id, formId }) {
             setLoading(false);
         }
     };
-    $('ap-save').addEventListener('click', () => go(false));
+    $('ap-save')?.addEventListener('click', () => go(false));   // 수정 제출 화면에는 없다
     $('ap-submit').addEventListener('click', () => go(true));
 }
 
@@ -1039,7 +1302,8 @@ async function prefillTardy(form, day) {
 // ── 양식 관리(관리자) ─────────────────────────────────────
 function renderFormsList(main) {
     setHead({ title: '기안서', tab: 'forms' });
-    main.innerHTML = `<section class="pd-card">
+    main.innerHTML = `<section class="pd-card pd-card-pad" id="ap-defline" style="margin-bottom:16px;"></section>
+        <section class="pd-card">
         <div class="pd-row" style="padding:18px 24px 6px;"><h2 class="pd-h2">양식 관리</h2><span class="pd-grow"></span>
             <span class="pd-note">양식은 지우지 않고 '사용 안 함' 으로 끕니다. 이미 낸 기안서는 낼 때의 양식 그대로 남습니다.</span></div>
         ${S.formsDenied ? '<div class="pd-alert warn" style="margin:8px 24px;">저장된 양식을 읽지 못했습니다(규칙 게시 전일 수 있음). 기본 양식만 보입니다.</div>' : ''}
@@ -1055,6 +1319,62 @@ function renderFormsList(main) {
         copyDraft = { ...JSON.parse(JSON.stringify(src)), id, title: (src.title + ' (복사)').slice(0, 40), order: Math.max(0, ...S.forms.map(f => f.order)) + 1 };
         location.hash = 'forms=' + id;
     }));
+    renderDefaultLineCard($('ap-defline'));
+}
+
+// 기본 결재선(2026-11-12, 관리자) — 새 기안을 열면 이 순서로 결재자가 들어간다. ApprovalSettings/defaults.line 에 명단 이름만 저장
+function renderDefaultLineCard(box) {
+    if (!box) return;
+    const cands = approverCandidates(S.cfg, '', '');   // 본인 제외 없이 전체 후보(작성자가 그중 한 명이면 기안 때 자동으로 빠진다)
+    let names = S.apDefaults.slice(0, DEFAULT_LINE_MAX);
+    let dirty = false;
+    const draw = () => {
+        const gone = names.filter(n => n && !cands.some(c => c.name === n));
+        box.innerHTML = `<div class="pd-row"><h2 class="pd-h2">기본 결재선</h2><span class="pd-grow"></span></div>
+            <div class="pd-note" style="margin-top:6px;">새 기안을 열면 이 순서로 결재자가 들어갑니다(작성자가 바꿀 수 있음). 기안하는 날 날짜 근태(연차·출장·재택 등)가 있는 사람은 참조로 옮기고 나머지만 결재합니다 — 참조는 관리자만 될 수 있습니다. 모두 근태면 그대로 두고 안내만 합니다. 비워 두면 지금처럼 직접 고릅니다.</div>
+            ${S.apDefaultsDenied ? '<div class="pd-alert warn" style="margin-top:10px;">저장된 기본 결재선을 읽지 못했습니다(규칙 게시 전일 수 있음).</div>' : ''}
+            <div class="ap-line" style="margin-top:12px;">${names.map((n, i) => {
+                const taken = new Set(names.filter((x, j) => j !== i && x));
+                const opts = cands.filter(c => !taken.has(c.name)).map(c => `<option value="${esc(c.name)}"${c.name === n ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
+                const lost = n && !cands.some(c => c.name === n) ? `<option value="${esc(n)}" selected>${esc(n)} (지금 결재자 후보 아님)</option>` : '';
+                return `<div class="ap-line-row" data-dl-i="${i}"><span class="ap-line-n">${i + 1}차</span>
+                    <select class="pd-in" data-dl-sel aria-label="기본 ${i + 1}차 결재자"><option value="">(고르세요)</option>${lost}${opts}</select>
+                    <span class="ap-fe-btns"><button type="button" class="d-btn d-btn-sm" data-dl-mv="-1" aria-label="앞 순서로" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" class="d-btn d-btn-sm" data-dl-mv="1" aria-label="뒤 순서로" ${i === names.length - 1 ? 'disabled' : ''}>↓</button><button type="button" class="d-btn d-btn-sm d-btn-risk" data-dl-del aria-label="빼기">✕</button></span></div>`;
+            }).join('')}
+                <div><button type="button" class="d-btn d-btn-sm" id="ap-dl-add" ${names.length >= DEFAULT_LINE_MAX ? 'disabled' : ''}>결재자 추가</button>
+                ${names.length ? '' : '<span class="pd-note">지정 안 함 — 새 기안에서 직접 고릅니다.</span>'}</div></div>
+            ${gone.length ? `<span class="ap-hint pd-warn">${esc(gone.join(', '))} 님은 지금 결재자 후보가 아니라 새 기안에 들어가지 않습니다.</span>` : ''}
+            <div class="ap-bar"><span class="pd-grow"></span><button class="d-btn d-btn-primary" id="ap-dl-save" ${dirty ? '' : 'disabled'}>기본 결재선 저장</button></div>`;
+        const idx = (el) => Number(el.closest('[data-dl-i]').dataset.dlI);
+        box.querySelectorAll('[data-dl-sel]').forEach(sel => sel.addEventListener('change', () => { names[idx(sel)] = sel.value; dirty = true; draw(); }));
+        box.querySelectorAll('[data-dl-mv]').forEach(b => b.addEventListener('click', () => {
+            const i = idx(b), j = i + Number(b.dataset.dlMv);
+            if (j < 0 || j >= names.length) return;
+            [names[i], names[j]] = [names[j], names[i]];
+            dirty = true; draw();
+        }));
+        box.querySelectorAll('[data-dl-del]').forEach(b => b.addEventListener('click', () => { names.splice(idx(b), 1); dirty = true; draw(); }));
+        $('ap-dl-add')?.addEventListener('click', () => { if (names.length < DEFAULT_LINE_MAX) { names.push(''); dirty = true; draw(); } });
+        $('ap-dl-save')?.addEventListener('click', save);
+    };
+    const save = async () => {
+        const line = cleanDefaultLine(names);
+        setLoading(true, '저장 중…');
+        try {
+            await setDoc(doc(S.db, SETTINGS, 'defaults'), { line, updatedAt: serverTimestamp(), updatedBy: S.email });
+            await loadApDefaults();
+            names = S.apDefaults.slice(0, DEFAULT_LINE_MAX);
+            dirty = false;
+            toast(line.length ? '기본 결재선을 저장했습니다' : '기본 결재선을 비웠습니다 — 새 기안에서 직접 고릅니다');
+        } catch (e) {
+            console.error('[approval] 기본 결재선 저장 실패:', e && e.code);
+            toast('저장하지 못했습니다 — ' + errText(e), 6000);
+        } finally {
+            setLoading(false);
+            draw();
+        }
+    };
+    draw();
 }
 
 let copyDraft = null;   // [복사해서 새 양식] — 저장 전까지 메모리에만
@@ -1079,18 +1399,18 @@ function renderFormEditor(main, formId) {
                 <label class="pd-field"><span>사용</span><span><input type="checkbox" id="fe-active" class="pd-check" ${f.active ? 'checked' : ''}> 새 기안에서 고를 수 있음</span></label>
                 <div class="pd-field"><span>양식 id</span><span class="num">${esc(f.id)}</span></div>
             </div>
-            <h3 class="pd-h3" style="margin-top:22px;">입력칸 <small class="pd-note">(${f.fields.length}/${MAX_FIELDS})</small></h3>
+            <h3 class="pd-h3" style="margin-top:22px;">입력칸 <small class="pd-note">(${f.fields.length}/${esc(MAX_FIELDS)})</small></h3>
             <div>${f.fields.map((x, i) => `<div class="ap-fe-row" data-i="${i}">
                 <div><input class="pd-in" data-k="label" maxlength="40" value="${esc(x.label)}" placeholder="칸 이름"><div class="ap-fe-key">키 ${esc(x.key)}${x.prefill ? ' · 근태 자동 채움' : ''}</div></div>
-                <select class="pd-in" data-k="type">${FIELD_TYPES.map(t => `<option value="${t}"${t === x.type ? ' selected' : ''}>${TYPE_LABEL[t]}</option>`).join('')}</select>
+                <select class="pd-in" data-k="type">${FIELD_TYPES.map(t => `<option value="${esc(t)}"${t === x.type ? ' selected' : ''}>${esc(TYPE_LABEL[t])}</option>`).join('')}</select>
                 <div>${x.type === 'select' ? `<input class="pd-in" data-k="optText" value="${esc(x.optText || '')}" placeholder="선택지(쉼표로 나눔)">` : ''}</div>
                 <label><input type="checkbox" data-k="required" ${x.required ? 'checked' : ''}> 필수</label>
                 <div class="ap-fe-btns"><button class="d-btn d-btn-sm" data-mv="-1" aria-label="위로">↑</button><button class="d-btn d-btn-sm" data-mv="1" aria-label="아래로">↓</button><button class="d-btn d-btn-sm d-btn-risk" data-del aria-label="칸 삭제">✕</button></div>
             </div>`).join('')}</div>
             <button class="d-btn" id="fe-add" style="margin-top:10px;" ${f.fields.length >= MAX_FIELDS ? 'disabled' : ''}>칸 추가</button>
-            <h3 class="pd-h3" style="margin-top:22px;">결재란 <small class="pd-note">(1~${MAX_BOXES}칸)</small></h3>
+            <h3 class="pd-h3" style="margin-top:22px;">결재란 <small class="pd-note">(1~${esc(MAX_BOXES)}칸)</small></h3>
             <div class="ap-fe-boxes">${f.boxes.map((b, i) => `<div class="ap-fe-box" data-b="${i}"><input class="pd-in" data-bk="label" maxlength="10" value="${esc(b.label)}">
-                <select class="pd-in" data-bk="role">${BOX_ROLES.map(r => `<option value="${r}"${r === b.role ? ' selected' : ''}>${ROLE_LABEL[r]}</option>`).join('')}</select>
+                <select class="pd-in" data-bk="role">${BOX_ROLES.map(r => `<option value="${esc(r)}"${r === b.role ? ' selected' : ''}>${esc(ROLE_LABEL[r])}</option>`).join('')}</select>
                 <button class="d-btn d-btn-sm d-btn-risk" data-bdel aria-label="결재란 삭제" ${f.boxes.length <= 1 ? 'disabled' : ''}>✕</button></div>`).join('')}
                 <button class="d-btn d-btn-sm" id="fe-badd" ${f.boxes.length >= MAX_BOXES ? 'disabled' : ''}>결재란 추가</button></div>
             <div id="fe-errs"></div>

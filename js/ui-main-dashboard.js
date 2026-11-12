@@ -1,17 +1,17 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202611121547';
-import * as State from './state.js?v=202611121547';
-import { getRegularMembersForCount, formatHM, escapeHtml, showToast, getCurrentTime } from './utils.js?v=202611121547';
-import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611121547';
-import { visibleMenuFor } from './menu-catalog.js?v=202611121547';
-import { sidebarLinkTarget, menuLabel, menuNameOfLabel } from './app-shell-data.js?v=202611121547';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202611121547';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202611121547';
-import { canonicalTaskName } from './lib/task-ids.js?v=202611121547';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611121547';
-import { minToHhmm } from './forecast-progress.js?v=202611121547';
-import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202611121547';
-import { subscribeShipAuto, morningAutoToday } from './ship-auto-sync.js?v=202611121547';
+import { getAllDashboardDefinitions } from './ui.js?v=202611121915';
+import * as State from './state.js?v=202611121915';
+import { getRegularMembersForCount, formatHM, escapeHtml, showToast, getCurrentTime } from './utils.js?v=202611121915';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611121915';
+import { visibleMenuFor } from './menu-catalog.js?v=202611121915';
+import { sidebarLinkTarget, menuLabel, menuNameOfLabel } from './app-shell-data.js?v=202611121915';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202611121915';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202611121915';
+import { canonicalTaskName } from './lib/task-ids.js?v=202611121915';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611121915';
+import { minToHhmm } from './forecast-progress.js?v=202611121915';
+import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202611121915';
+import { subscribeShipAuto, morningAutoToday } from './ship-auto-sync.js?v=202611121915';
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -86,13 +86,13 @@ export const renderNoticeWidget = (appState) => {
             : sched.tone === 't-risk' ? 'var(--c-risk)'
             : sched.tone === 't-3' ? 'var(--c-line-strong)'
             : sched.tone === 't-1' ? 'var(--c-accent)' : 'var(--c-accent-mid)';
-        const schedHtml = sched ? `<span class="text-[11px] font-semibold ${done ? 't-3' : sched.tone}">📅 ${sched.text}</span>` : '';
-        const created = noticeMd(notice.createdAt) ? `<span class="text-[11px] t-3">등록 ${noticeMd(notice.createdAt)}</span>` : '';
+        const schedHtml = sched ? `<span class="text-[11px] font-semibold ${done ? 't-3' : sched.tone}">📅 ${escapeHtml(sched.text)}</span>` : '';
+        const created = noticeMd(notice.createdAt) ? `<span class="text-[11px] t-3">등록 ${escapeHtml(noticeMd(notice.createdAt))}</span>` : '';
         const meta = (schedHtml || created || done)
             ? `<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">${schedHtml}${done ? '<span class="text-[11px] t-3">완료</span>' : ''}${created}</div>` : '';
 
         html += `<li class="list-none px-3 py-2.5 ${done ? 'opacity-60' : ''}">
-            <div class="pl-2.5 border-l-[3px] rounded-sm" style="border-color:${bar}">
+            <div class="pl-2.5 border-l-[3px] rounded-sm" style="border-color:${escapeHtml(bar)}">
                 <div class="text-[13px] leading-snug break-words ${done ? 'line-through t-3' : 't-1 font-semibold'}">${title}</div>
                 ${body ? `<div class="mt-0.5 text-xs leading-relaxed break-words ${done ? 't-3' : 't-2'}">${body}</div>` : ''}
                 ${meta}
@@ -208,16 +208,16 @@ export const renderDashboardLayout = (appConfig) => {
     let personnelHtml = `
         <div class="d-hero">
             ${HERO_ITEMS.map(h => `
-            <div class="personnel-row d-hero-item ${h.tone}" data-detail-key="${h.key}">
-                <div class="d-hero-label">${h.label}</div>
-                <div id="${h.valueId}" class="d-hero-num">0</div>
+            <div class="personnel-row d-hero-item ${h.tone}" data-detail-key="${escapeHtml(h.key)}">
+                <div class="d-hero-label">${escapeHtml(h.label)}</div>
+                <div id="${escapeHtml(h.valueId)}" class="d-hero-num">0</div>
             </div>`).join('')}
         </div>
-        ${HERO_ITEMS.map(h => `<div class="personnel-detail hidden" data-detail-content="${h.key}"></div>`).join('')}
+        ${HERO_ITEMS.map(h => `<div class="personnel-detail hidden" data-detail-content="${escapeHtml(h.key)}"></div>`).join('')}
     `;
     // 맨 위 '처리량 미입력 N개' — 0개면 숨긴다(paintWorkloadPace 가 채운다). 지난 그림을 그대로 넣어 깜빡이지 않게 한다.
     let workloadHtml = `
-        <button type="button" id="wl-missing" class="wl-missing${paceMissingLast ? '' : ' hidden'}"${paceMissingLast?.disabled ? ' disabled' : ''}
+        <button type="button" id="wl-missing" class="wl-missing${paceMissingLast ? '' : ' hidden'}"${escapeHtml(paceMissingLast?.disabled ? ' disabled' : '')}
                 title="${paceMissingLast ? escapeHtml(paceMissingLast.title) : ''}">${paceMissingLast ? paceMissingLast.html : ''}</button>
     `;
 
@@ -228,7 +228,7 @@ export const renderDashboardLayout = (appConfig) => {
         const isQuantity = def.isQuantity === true;
         if (!isQuantity && HERO_KEYS.has(id)) return;   // 위 큰 숫자로 이미 보인다
         // 라벨-값 한 줄 목록이라 제목 안의 줄바꿈(<br>)은 띄어쓰기로 편다
-        const safeTitle = def.title.replace(/<br\s*\/?>/gi, ' ').replace(/ /g, '&nbsp;');
+        const safeTitle = escapeHtml(String(def.title || '').replace(/<br\s*\/?>/gi, ' ')).replace(/ /g, '&nbsp;');
 
         if (isQuantity) {
             // 한 줄: [업무명] [막대 · 실적/계획 · %](wl-pace-*) — 진행 재료가 없으면 지금처럼 숫자(valueId)만.
@@ -236,30 +236,30 @@ export const renderDashboardLayout = (appConfig) => {
             // 둘째 줄(wl-sub-*)은 경고가 있거나 펼쳤을 때만. 안쪽은 paintWorkloadPace 가 갈아끼운다.
             const last = paceHtmlLast[id];
             workloadHtml += `
-                <div id="wl-row-${id}" class="${wlRowClass(last)}" data-wl-row="${id}" title="${last ? escapeHtml(last.title) : ''}">
+                <div id="wl-row-${escapeHtml(id)}" class="${escapeHtml(wlRowClass(last))}" data-wl-row="${escapeHtml(id)}" title="${last ? escapeHtml(last.title) : ''}">
                     <div class="wl-line">
                         <span class="wl-label">${safeTitle}</span>
-                        <span id="wl-pace-${id}" class="wl-pace">${last ? last.line : ''}</span>
-                        <span id="${def.valueId}" class="wl-val">0</span>
+                        <span id="wl-pace-${escapeHtml(id)}" class="wl-pace">${last ? last.line : ''}</span>
+                        <span id="${escapeHtml(def.valueId)}" class="wl-val">0</span>
                     </div>
-                    <div id="wl-sub-${id}" class="wl-sub">${last ? last.sub : ''}</div>
+                    <div id="wl-sub-${escapeHtml(id)}" class="wl-sub">${last ? last.sub : ''}</div>
                 </div>
             `;
         } else if (EXPANDABLE_ITEMS.has(id)) {
             personnelHtml += `
-                <div class="personnel-row d-kv is-x select-none" data-detail-key="${id}">
+                <div class="personnel-row d-kv is-x select-none" data-detail-key="${escapeHtml(id)}">
                     <div class="d-kv-line">
                         <span class="d-kv-label whitespace-nowrap shrink-0 break-keep">${safeTitle}</span>
-                        <span id="${def.valueId}" class="d-kv-val shrink-0">0</span>
+                        <span id="${escapeHtml(def.valueId)}" class="d-kv-val shrink-0">0</span>
                     </div>
-                    <div class="personnel-detail hidden" data-detail-content="${id}"></div>
+                    <div class="personnel-detail hidden" data-detail-content="${escapeHtml(id)}"></div>
                 </div>
             `;
         } else {
             personnelHtml += `
                 <div class="d-kv overflow-hidden">
                     <span class="d-kv-label whitespace-nowrap shrink-0 break-keep">${safeTitle}</span>
-                    <span id="${def.valueId}" class="d-kv-val shrink-0">0</span>
+                    <span id="${escapeHtml(def.valueId)}" class="d-kv-val shrink-0">0</span>
                 </div>
             `;
         }
@@ -267,7 +267,7 @@ export const renderDashboardLayout = (appConfig) => {
 
     // 계획 0 · 활동 없는 칸을 접어 둔 줄 — 개수는 paintWorkloadPace 가 채운다
     workloadHtml += `
-        <button type="button" id="wl-more" class="wl-more hidden">${paceMoreCount ? (wlOpen.more ? `그 외 ${paceMoreCount}개 접기` : `그 외 ${paceMoreCount}개 (계획·활동 없음)`) : ''}</button>
+        <button type="button" id="wl-more" class="wl-more hidden">${escapeHtml(paceMoreCount ? (wlOpen.more ? `그 외 ${paceMoreCount}개 접기` : `그 외 ${paceMoreCount}개 (계획·활동 없음)`) : '')}</button>
     `;
 
     // 첫 그림은 빈 칸으로 두고, 아래 updateEzadminDisplay() 가 실제 값을 채운다.
@@ -427,7 +427,7 @@ const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-
  *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
 const openQuantityFromCard = async () => {
     try {
-        const { whenTodayLoaded } = await import('./app-sync.js?v=202611121547');
+        const { whenTodayLoaded } = await import('./app-sync.js?v=202611121915');
         const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
         if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
     } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
@@ -529,7 +529,7 @@ const paceRowView = (row, inp, expected, qtyByTask, open) => {
     // 계획 0 · 오늘 활동 없음 → 숨김 대상('그 외 N개')
     const idle = paces.every(x => !(x.planQty > 0) && !x.started && !(x.doneQty > 0));
     const srcText = inp.planSrc === 'snap' ? '확정 계획 기준' : '자동 계획 기준(얼려 둔 계획 없음)';
-    const srcDot = `<span class="wl-src${inp.planSrc === 'snap' ? ' is-snap' : ''}" title="${srcText}"></span>`;
+    const srcDot = `<span class="wl-src${inp.planSrc === 'snap' ? ' is-snap' : ''}" title="${escapeHtml(srcText)}"></span>`;
 
     let p, details, warn;
     if (row.kind === 'single') {
@@ -548,9 +548,9 @@ const paceRowView = (row, inp, expected, qtyByTask, open) => {
     const tone = p.tone === 'risk' ? ' is-risk' : p.tone === 'warn' ? ' is-warn' : '';
     const pctTone = p.tone === 'risk' ? 't-risk' : p.tone === 'warn' ? 't-warn' : 't-2';
     const plan = p.planQty > 0 ? p.planQty.toLocaleString() : '–';
-    const line = `<span class="tp-track wl-track"><span class="tp-bar wl-bar${tone}${p.estimated ? ' is-est' : ''}" style="width:${p.barPct}%"></span></span>`
-        + `<span class="wl-qty">${p.shownQty.toLocaleString()}${p.estimated ? '<span class="wl-est">~</span>' : ''}<span class="wl-plan">/${plan}</span></span>`
-        + `<span class="wl-pct ${pctTone}">${p.pct == null ? '–' : p.pct + '%'}</span>${srcDot}`;
+    const line = `<span class="tp-track wl-track"><span class="tp-bar wl-bar${tone}${p.estimated ? ' is-est' : ''}" style="width:${escapeHtml(p.barPct)}%"></span></span>`
+        + `<span class="wl-qty">${escapeHtml(p.shownQty.toLocaleString())}${p.estimated ? '<span class="wl-est">~</span>' : ''}<span class="wl-plan">/${escapeHtml(plan)}</span></span>`
+        + `<span class="wl-pct ${pctTone}">${escapeHtml(p.pct == null ? '–' : p.pct + '%')}</span>${srcDot}`;
 
     let sub = '';
     if (open) {
@@ -613,7 +613,7 @@ const paintWorkloadPaceNow = () => {
     if (!paceMod) {
         if (!paceModLoading) {
             paceModLoading = true;
-            import('./ui-history-prediction.js?v=202611121547')
+            import('./ui-history-prediction.js?v=202611121915')
                 .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
                 .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
                 .finally(() => { paceModLoading = false; });
@@ -768,28 +768,28 @@ const renderDetailListHtml = (key, items) => {
     if (key === 'leave-staff') {
         return '<div class="flex flex-wrap gap-1 py-1">' + items.map(it =>
             `<span class="inline-flex items-center gap-1 d-chip text-[11px] px-1.5 py-0.5">
-                <strong class="font-semibold">${it.member}</strong><span class="text-[11px] t-2">${it.type}</span>
+                <strong class="font-semibold">${escapeHtml(it.member)}</strong><span class="text-[11px] t-2">${escapeHtml(it.type)}</span>
              </span>`
         ).join('') + '</div>';
     }
     if (key === 'idle-staff') {
         return '<div class="flex flex-wrap gap-1 py-1">' + items.map(name =>
-            `<span class="inline-flex d-chip text-[11px] px-1.5 py-0.5">${name}</span>`
+            `<span class="inline-flex d-chip text-[11px] px-1.5 py-0.5">${escapeHtml(name)}</span>`
         ).join('') + '</div>';
     }
     if (key === 'working-staff' || key === 'paused-staff') {
         return '<div class="space-y-0.5 py-1">' + items.map(it =>
             `<div class="flex items-center justify-between text-[11px] gap-2 ${it.paused ? 't-warn' : 't-1'}">
-                <span class="font-medium shrink-0">${it.member}</span>
-                <span class="text-[11px] t-2 truncate">${it.task}${it.paused ? ' (휴식)' : ''}</span>
+                <span class="font-medium shrink-0">${escapeHtml(it.member)}</span>
+                <span class="text-[11px] t-2 truncate">${escapeHtml(it.task)}${it.paused ? ' (휴식)' : ''}</span>
              </div>`
         ).join('') + '</div>';
     }
     if (key === 'ongoing-tasks') {
         return '<div class="space-y-0.5 py-1">' + items.map(it =>
             `<div class="flex items-center justify-between text-[11px] gap-2 t-1">
-                <span class="font-medium truncate">${it.task}</span>
-                <span class="text-[11px] t-2 shrink-0">${it.count}명${it.paused > 0 ? ` <span class="t-warn">(${it.paused}명 휴식)</span>` : ''}</span>
+                <span class="font-medium truncate">${escapeHtml(it.task)}</span>
+                <span class="text-[11px] t-2 shrink-0">${escapeHtml(it.count)}명${it.paused > 0 ? ` <span class="t-warn">(${escapeHtml(it.paused)}명 휴식)</span>` : ''}</span>
              </div>`
         ).join('') + '</div>';
     }
@@ -814,13 +814,13 @@ const buildTooltipHtml = (key) => {
     }
     let body = '';
     if (key === 'leave-staff') {
-        body = items.map(it => `<div>${it.member} <span class="text-gray-400">(${it.type})</span></div>`).join('');
+        body = items.map(it => `<div>${escapeHtml(it.member)} <span class="text-gray-400">(${escapeHtml(it.type)})</span></div>`).join('');
     } else if (key === 'idle-staff') {
         body = items.map(n => `<div>${n}</div>`).join('');
     } else if (key === 'working-staff' || key === 'paused-staff') {
-        body = items.map(it => `<div>${it.member} <span class="text-gray-400">— ${it.task}${it.paused ? ' (휴식)' : ''}</span></div>`).join('');
+        body = items.map(it => `<div>${escapeHtml(it.member)} <span class="text-gray-400">— ${escapeHtml(it.task)}${it.paused ? ' (휴식)' : ''}</span></div>`).join('');
     } else if (key === 'ongoing-tasks') {
-        body = items.map(it => `<div>${it.task} <span class="text-gray-400">— ${it.count}명${it.paused > 0 ? ` (${it.paused}명 휴식)` : ''}</span></div>`).join('');
+        body = items.map(it => `<div>${escapeHtml(it.task)} <span class="text-gray-400">— ${escapeHtml(it.count)}명${escapeHtml(it.paused > 0 ? ` (${it.paused}명 휴식)` : '')}</span></div>`).join('');
     }
     return header + body + footer;
 };
@@ -1019,7 +1019,7 @@ export const applyDynamicSidebar = (appConfig) => {
                     newPc.href = item.link || '#';
                     if (meta) newPc.target = meta.target; // 별도 창 / 새 탭
                     newPc.className = "d-nav-item w-full flex items-center gap-3";
-                    newPc.innerHTML = `<span class="d-ico">${meta ? meta.icon : ICON_LINK}</span> ${menuLabel(item.name)}`;
+                    newPc.innerHTML = `<span class="d-ico">${meta ? meta.icon : ICON_LINK}</span> ${escapeHtml(menuLabel(item.name))}`;
                     pcNav.appendChild(newPc);
                 }
             }
@@ -1039,7 +1039,7 @@ export const applyDynamicSidebar = (appConfig) => {
                     newMob.href = item.link || '#';
                     if (meta) newMob.target = meta.target; // 별도 창 / 새 탭
                     newMob.className = "d-nav-item flex items-center gap-2";
-                    newMob.innerHTML = `<span class="d-ico">${meta ? meta.icon : ICON_LINK}</span> ${menuLabel(item.name)}`;
+                    newMob.innerHTML = `<span class="d-ico">${meta ? meta.icon : ICON_LINK}</span> ${escapeHtml(menuLabel(item.name))}`;
                     if (logoutBtn) mobileNav.insertBefore(newMob, logoutBtn);
                     else mobileNav.appendChild(newMob);
                 }

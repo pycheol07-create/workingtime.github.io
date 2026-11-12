@@ -3,12 +3,12 @@
 //
 // 3,768행을 한 번에 그리지 않는다(50행씩). 추가 읽기 없음 — 전부 products-store.js 가 받아 둔 메모리에서.
 // 관리자 열(공급처·기본 단가)은 관리자일 때만 **만든다**(숨김 아님). 원가 값은 products-cost.js 메모리에만 있다.
-import { S, locSummary } from './products-store.js?v=202611121547';
-import { C, costOf } from './products-cost.js?v=202611121547';
-import { esc, toast } from './products.js?v=202611121547';
-import { loadXLSX } from './products-excel.js?v=202611121547';
-import { catalogExportAoa } from './lib/product-excel-rows.js?v=202611121547';
-import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202611121547';
+import { S, locSummary } from './products-store.js?v=202611121915';
+import { C, costOf } from './products-cost.js?v=202611121915';
+import { esc, toast } from './products.js?v=202611121915';
+import { loadXLSX } from './products-excel.js?v=202611121915';
+import { catalogExportAoa } from './lib/product-excel-rows.js?v=202611121915';
+import { fmt2, hasOptionPrices } from './lib/product-price.js?v=202611121915';
 
 // 한 쪽에 보이는 상품 수 — 사용자가 고른다(이 브라우저에 기억). 'all' = 전체
 const PAGE_SIZES = [20, 50, 100, 200, 500, 'all'];
@@ -146,8 +146,8 @@ function theadHtml() {
         const s = F.sort && F.sort.key === c.key ? (F.sort.dir > 0 ? ' ▲' : ' ▼') : '';
         const on = F.cf[c.key] ? ' is-on' : '';
         return `<th class="${c.r ? 'r' : ''}"${c.title ? ` title="${esc(c.title)}"` : ''}><span class="pd-th">`
-            + `<button type="button" class="pd-th-sort${s ? ' is-sorted' : ''}" data-sort="${c.key}" title="눌러서 정렬(오름 → 내림 → 해제)">${esc(c.label)}${s}</button>`
-            + `<button type="button" class="pd-th-f${on}" data-filt="${c.key}" aria-label="${esc(c.label)} 필터" title="${esc(c.label)} 필터">▾</button>`
+            + `<button type="button" class="pd-th-sort${s ? ' is-sorted' : ''}" data-sort="${esc(c.key)}" title="눌러서 정렬(오름 → 내림 → 해제)">${esc(c.label)}${esc(s)}</button>`
+            + `<button type="button" class="pd-th-f${esc(on)}" data-filt="${esc(c.key)}" aria-label="${esc(c.label)} 필터" title="${esc(c.label)} 필터">▾</button>`
             + `${c.adm ? '<span class="pd-adm-tag">관리자</span>' : ''}</span></th>`;
     }).join('') + '</tr>';
 }
@@ -170,8 +170,8 @@ function openColPop(th, col, onApply) {
     if (col.type === 'text') {
         body = `<input class="pd-in" data-k="q" placeholder="포함할 글자" value="${esc(f ? f.q : '')}">`;
     } else if (col.type === 'num') {
-        body = `<div class="pd-colpop-row"><input class="pd-in num" data-k="min" inputmode="decimal" placeholder="최소" value="${f && f.min != null ? f.min : ''}">
-            <span>~</span><input class="pd-in num" data-k="max" inputmode="decimal" placeholder="최대" value="${f && f.max != null ? f.max : ''}"></div>
+        body = `<div class="pd-colpop-row"><input class="pd-in num" data-k="min" inputmode="decimal" placeholder="최소" value="${esc(f && f.min != null ? f.min : '')}">
+            <span>~</span><input class="pd-in num" data-k="max" inputmode="decimal" placeholder="최대" value="${esc(f && f.max != null ? f.max : '')}"></div>
             <label class="pd-sub"><input type="checkbox" data-k="empty" ${f && f.empty ? 'checked' : ''}> 빈 값만</label>`;
     } else {
         // 값 목록 — 지금 켜진 '단종·사라짐 보기' 기준, 많은 순
@@ -186,8 +186,8 @@ function openColPop(th, col, onApply) {
         body = `<input class="pd-in" data-k="find" placeholder="목록에서 찾기">
             <div class="pd-colpop-row"><button type="button" class="d-btn d-btn-sm" data-a="all">모두 선택</button><button type="button" class="d-btn d-btn-sm" data-a="none">모두 해제</button></div>
             <div class="pd-colpop-list">${vals.slice(0, LIMIT).map(([v, n]) =>
-                `<label data-v="${esc(v.toLowerCase())}"><input type="checkbox" value="${esc(v)}" ${!f || !f.excl.has(v) ? 'checked' : ''}> <span>${esc(v)}</span><span class="num pd-inh">${n.toLocaleString()}</span></label>`).join('')}</div>
-            ${vals.length > LIMIT ? `<div class="pd-note">값이 ${vals.length.toLocaleString()}개라 많은 순 ${LIMIT}개만 보입니다 — 찾기로 좁혀 주세요</div>` : ''}`;
+                `<label data-v="${esc(v.toLowerCase())}"><input type="checkbox" value="${esc(v)}" ${!f || !f.excl.has(v) ? 'checked' : ''}> <span>${esc(v)}</span><span class="num pd-inh">${esc(n.toLocaleString())}</span></label>`).join('')}</div>
+            ${vals.length > LIMIT ? `<div class="pd-note">값이 ${esc(vals.length.toLocaleString())}개라 많은 순 ${esc(LIMIT)}개만 보입니다 — 찾기로 좁혀 주세요</div>` : ''}`;
     }
     pop.innerHTML = `<div class="pd-colpop-title">${esc(col.label)}</div>${body}
         <div class="pd-colpop-row pd-colpop-foot"><button type="button" class="d-btn d-btn-sm" data-a="clear">지우기</button><button type="button" class="d-btn d-btn-sm d-btn-primary" data-a="apply">적용</button></div>`;
@@ -255,20 +255,20 @@ function summaryHtml() {
         }
     }
     const first = `<div class="pd-sum"><div class="pd-sum-label">전체 상품</div>
-        <div class="pd-sum-val">${total.toLocaleString()}<small>옵션 ${opts.toLocaleString()}</small></div>
-        ${gone ? `<button class="pd-link" data-act="gone">사라진 상품 ${gone.toLocaleString()}개 보기</button>` : ''}</div>`;
+        <div class="pd-sum-val">${esc(total.toLocaleString())}<small>옵션 ${esc(opts.toLocaleString())}</small></div>
+        ${gone ? `<button class="pd-link" data-act="gone">사라진 상품 ${esc(gone.toLocaleString())}개 보기</button>` : ''}</div>`;
     if (!S.isAdmin) {
         return first + `<div class="pd-sum" style="grid-column: span 3"><div class="pd-sum-label">오늘 새로 들어온 상품</div>
-            <div class="pd-sum-val">${today.toLocaleString()}</div></div>`;
+            <div class="pd-sum-val">${esc(today.toLocaleString())}</div></div>`;
     }
     const pct = total ? Math.round(priced / total * 100) : 0;
     const costNote = C.costs ? '' : '<div class="pd-note pd-err">원가를 읽지 못함</div>';
     return first + `
-        <div class="pd-sum"><div class="pd-sum-label">단가 입력됨</div><div class="pd-sum-val">${pct}%</div>
-            <div class="pd-bar"><i style="width:${pct}%"></i></div>${costNote}</div>
-        <div class="pd-sum"><div class="pd-sum-label">단가 미입력</div><div class="pd-sum-val pd-warn">${noPrice.toLocaleString()}</div>
+        <div class="pd-sum"><div class="pd-sum-label">단가 입력됨</div><div class="pd-sum-val">${esc(pct)}%</div>
+            <div class="pd-bar"><i style="width:${esc(pct)}%"></i></div>${costNote}</div>
+        <div class="pd-sum"><div class="pd-sum-label">단가 미입력</div><div class="pd-sum-val pd-warn">${esc(noPrice.toLocaleString())}</div>
             <button class="pd-link pd-warn" data-act="noPrice">목록 보기</button></div>
-        <div class="pd-sum"><div class="pd-sum-label">공급처 미지정</div><div class="pd-sum-val pd-err">${noSup.toLocaleString()}</div>
+        <div class="pd-sum"><div class="pd-sum-label">공급처 미지정</div><div class="pd-sum-val pd-err">${esc(noSup.toLocaleString())}</div>
             <button class="pd-link pd-err" data-act="noSup">목록 보기</button></div>`;
 }
 
@@ -282,7 +282,7 @@ function chipsHtml() {
     const top = [...cats].sort((a, b) => b[1] - a[1]).slice(0, 8);
     if (F.cat && !top.some(([c]) => c === F.cat)) top.push([F.cat, cats.get(F.cat) || 0]);
     let h = `<button class="pd-chip ${F.cat ? '' : 'is-on'}" data-cat="">전체</button>`;
-    for (const [c, n] of top) h += `<button class="pd-chip ${F.cat === c ? 'is-on' : ''}" data-cat="${esc(c)}">${esc(c)}<span class="num">${n.toLocaleString()}</span></button>`;
+    for (const [c, n] of top) h += `<button class="pd-chip ${F.cat === c ? 'is-on' : ''}" data-cat="${esc(c)}">${esc(c)}<span class="num">${esc(n.toLocaleString())}</span></button>`;
     if (cats.size > top.length) {
         h += `<select class="pd-select" data-sel="cat" aria-label="카테고리 더 보기"><option value="">카테고리 더…</option>${[...cats.keys()].sort().map(c => `<option ${F.cat === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>`;
     }
@@ -298,12 +298,12 @@ function chipsHtml() {
     }
     // 카드 보기에는 머리글이 없으니 정렬을 고르는 칸(카드 보기에서만 보임). 원가 열은 넣지 않는다
     const sortVal = F.sort ? `${F.sort.key}:${F.sort.dir}` : '';
-    const sortOpts = CARD_SORTS.map(([v, t]) => `<option value="${v}" ${v === sortVal ? 'selected' : ''}>${t}</option>`).join('');
+    const sortOpts = CARD_SORTS.map(([v, t]) => `<option value="${esc(v)}" ${v === sortVal ? 'selected' : ''}>${esc(t)}</option>`).join('');
     const keepOpt = sortVal && !CARD_SORTS.some(([v]) => v === sortVal) ? `<option value="${esc(sortVal)}" selected>표 머리글 정렬</option>` : '';
     h += `<select class="pd-select pd-card-only" data-cardsort="1" aria-label="정렬">${sortOpts}${keepOpt}</select>`;
     const ncf = Object.keys(F.cf).length;
     const clr = isCardView() ? '정렬·필터 해제' : '머리글 정렬·필터 해제';   // 카드 보기엔 머리글이 없다
-    if (ncf || F.sort) h += `<button class="pd-chip is-on" data-act="clearcf" title="${clr}를 모두 해제">${clr}${ncf ? `<span class="num">${ncf}</span>` : ''}</button>`;
+    if (ncf || F.sort) h += `<button class="pd-chip is-on" data-act="clearcf" title="${esc(clr)}를 모두 해제">${esc(clr)}${ncf ? `<span class="num">${esc(ncf)}</span>` : ''}</button>`;
     return h;
 }
 
@@ -327,11 +327,11 @@ function rowHtml(pid, p) {
         if (hasOptionPrices(c)) pills += '<span class="pd-pill accent">옵션별 단가</span>';
         if (!p.gone && !(c && c.sup)) pills += '<span class="pd-pill risk">공급처 미지정</span>';
     }
-    const loc = ls.first ? `${esc(ls.first)}${ls.spots > 1 ? `<span class="pd-inh" style="font-size:12px">(${ls.spots})</span>` : ''}` : `<span class="pd-inh">${S.loc ? '없음' : '–'}</span>`;
+    const loc = ls.first ? `${esc(ls.first)}${ls.spots > 1 ? `<span class="pd-inh" style="font-size:12px">(${esc(ls.spots)})</span>` : ''}` : `<span class="pd-inh">${S.loc ? '없음' : '–'}</span>`;
     return `<tr class="pd-click ${cls}" data-pid="${esc(pid)}" tabindex="0">
         <td>${code}</td><td class="pd-name" title="${esc(p.name)}">${esc(p.name)}</td><td>${esc(p.cat)}</td>
-        <td class="r num">${nOpt}</td>${adm}
-        <td class="num">${loc}</td><td class="r num">${ls.spots ? ls.qty.toLocaleString() : ''}</td><td>${pills}</td></tr>`;
+        <td class="r num">${esc(nOpt)}</td>${adm}
+        <td class="num">${loc}</td><td class="r num">${esc(ls.spots ? ls.qty.toLocaleString() : '')}</td><td>${pills}</td></tr>`;
 }
 
 // 카드 보기 정렬 — 값은 'colDefs key:방향'(F.sort 그대로)
@@ -344,7 +344,7 @@ function cardHtml(pid, p) {
     let pills = statusPill(p);
     if ((p.add || 0) >= todayStart() && !p.gone) pills += '<span class="pd-pill warn">새 상품</span>';
     const loc = ls.first
-        ? `${esc(ls.first)}${ls.spots > 1 ? `<span class="pd-inh pd-pcard-more">외 ${ls.spots - 1}곳</span>` : ''}`
+        ? `${esc(ls.first)}${ls.spots > 1 ? `<span class="pd-inh pd-pcard-more">외 ${esc(ls.spots - 1)}곳</span>` : ''}`
         : `<span class="pd-inh">${S.loc ? '없음' : '–'}</span>`;
     return `<button type="button" class="pd-pcard${p.gone ? ' is-gone' : ''}" data-pid="${esc(pid)}">
         <span class="pd-pcard-top"><span class="pd-pcard-code num">${esc(p.code2 || pid)}</span>${p.code2 ? `<span class="pd-pcard-sub num">${esc(pid)}</span>` : ''}<span class="pd-pcard-pills">${pills}</span></span>
@@ -373,7 +373,7 @@ export function renderList(main) {
                 <thead id="pd-thead">${theadHtml()}</thead>
                 <tbody id="pd-tbody"></tbody></table><div id="pd-cards" class="pd-cards"></div></div>
             <div class="pd-foot"><span>상품을 누르면 상세가 열립니다. 위치·수량은 로케이션관리 기준(평일 아침 요약)입니다.</span>
-                <span class="pd-pager"><label class="pd-pagesize">보기 <select class="pd-select" id="pd-size" aria-label="한 쪽에 보일 상품 수">${PAGE_SIZES.map(v => `<option value="${v}" ${String(F.size) === String(v) ? 'selected' : ''}>${v === 'all' ? '전체' : v + '개씩'}</option>`).join('')}</select></label><button class="d-btn d-btn-sm" id="pd-prev">이전</button><span id="pd-pageno" class="num"></span><button class="d-btn d-btn-sm" id="pd-next">다음</button></span></div>
+                <span class="pd-pager"><label class="pd-pagesize">보기 <select class="pd-select" id="pd-size" aria-label="한 쪽에 보일 상품 수">${PAGE_SIZES.map(v => `<option value="${esc(v)}" ${String(F.size) === String(v) ? 'selected' : ''}>${esc(v === 'all' ? '전체' : v + '개씩')}</option>`).join('')}</select></label><button class="d-btn d-btn-sm" id="pd-prev">이전</button><span id="pd-pageno" class="num"></span><button class="d-btn d-btn-sm" id="pd-next">다음</button></span></div>
         </section>`;
     let rows = filtered();
     // 스크롤 대상 — 카드 보기는 상자 높이 제한을 풀고(css) 페이지 하나로 스크롤한다

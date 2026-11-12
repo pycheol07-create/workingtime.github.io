@@ -2,7 +2,7 @@
 // 샘플검수 창의 순수 함수 — DOM·Firestore 없음(node --test 대상).
 // 판정·저장 규칙은 js/inspection-logic.js 의 saveInspectionAndNext 를 그대로 옮겼다(동작을 바꾸지 않는 것이 원칙).
 // 화면 카드 HTML 은 모든 값을 escapeHtml 로 통과시킨다.
-import { escapeHtml } from '../utils.js?v=202611121547';
+import { escapeHtml } from '../utils.js?v=202611121915';
 
 /** 체크리스트 키 — 화면(components/modals-form-inspection.html) 순서. 두께(thickness)는 판정에서 빠진다. */
 export const CHECK_KEYS = ['fabric', 'color', 'distortion', 'unraveling', 'finishing', 'zipper', 'button', 'lining', 'pilling', 'dye'];
@@ -278,7 +278,7 @@ export function todoCardHtml(item, idx, opts = {}) {
     // 제작/사입 구분(패킹 목록 src). 모르면(엑셀 업로드 등) 표시 안 함
     const SRC_CLS = { '제작': 'text-indigo-700 bg-indigo-50', '사입': 'text-amber-800 bg-amber-50', '혼합': 'text-gray-700 bg-gray-100' };
     const srcBadge = Object.prototype.hasOwnProperty.call(SRC_CLS, str(it.source))
-        ? `<span class="text-[11px] font-bold ${SRC_CLS[str(it.source)]} px-1.5 py-0.5 rounded-full whitespace-nowrap">${escapeHtml(it.source)}</span>`
+        ? `<span class="text-[11px] font-bold ${escapeHtml(SRC_CLS[str(it.source)])} px-1.5 py-0.5 rounded-full whitespace-nowrap">${escapeHtml(it.source)}</span>`
         : '';
     const locationInfo = it.location ? `<span class="text-indigo-700 font-bold bg-indigo-50 px-1 rounded">위치 ${escapeHtml(it.location)}</span>` : '';
     const reserveInfo = opts.showReserve && it.reserveLocation ? `<span class="text-amber-800 font-bold bg-amber-50 px-1 rounded">비축 ${escapeHtml(it.reserveLocation)}</span>` : '';

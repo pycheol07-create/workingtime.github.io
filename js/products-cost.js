@@ -8,14 +8,14 @@
 import {
     doc, getDoc, getDocs, collection, query, where, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=202611121547';
-import { esc, toast } from './products.js?v=202611121547';
-import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=202611121547';
-import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=202611121547';
-import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=202611121547';
-import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=202611121547';
-import { friendlyFirebaseError } from './utils.js?v=202611121547';   // 원시 오류 코드 대신 할 일 한 줄
-import { stripCheckMemo } from './lib/product-ezadmin.js?v=202611121547';
+import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=202611121915';
+import { esc, toast } from './products.js?v=202611121915';
+import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=202611121915';
+import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=202611121915';
+import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=202611121915';
+import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=202611121915';
+import { friendlyFirebaseError } from './utils.js?v=202611121915';   // 원시 오류 코드 대신 할 일 한 줄
+import { stripCheckMemo } from './lib/product-ezadmin.js?v=202611121915';
 
 export const C = { costs: null, ledger: null };
 
@@ -77,15 +77,15 @@ export function renderCostCard(container, pid, p, onSaved) {
             <label class="pd-field">공급처
                 <select class="pd-in" data-f="sup"><option value="">(미지정)</option>${sups.map(([k, v]) => `<option value="${esc(k)}" ${k === c.sup ? 'selected' : ''}>${esc(k)}${v.active === false ? ' (중지)' : ''}${v.auto && !v.name ? ' (자동 등록)' : ''}</option>`).join('')}</select>
                 <small>이름·연락처는 공급처 대장에</small></label>
-            <label class="pd-field">기본 단가 (위안)<input class="pd-in num" data-f="cny" inputmode="decimal" value="${base ? fmt2(base.cny) : ''}"></label>
-            <label class="pd-field">기본 단가 (달러)<input class="pd-in num" data-f="usd" inputmode="decimal" value="${base ? fmt2(base.usd) : ''}">
-                <small data-f="srcnote">${base ? (base.src === 'usd' ? '달러로 입력' : base.src === 'both' ? '둘 다 입력' : '위안으로 입력') : ''}</small></label>
-            <label class="pd-field">기본 원가 (원)<input class="pd-in num" data-f="krw" inputmode="numeric" value="${c.krw ?? ''}"></label>
-            <label class="pd-field">환율 (1달러당 위안)<input class="pd-in num" data-f="rate" inputmode="decimal" value="${lastRate}"></label>
+            <label class="pd-field">기본 단가 (위안)<input class="pd-in num" data-f="cny" inputmode="decimal" value="${esc(base ? fmt2(base.cny) : '')}"></label>
+            <label class="pd-field">기본 단가 (달러)<input class="pd-in num" data-f="usd" inputmode="decimal" value="${esc(base ? fmt2(base.usd) : '')}">
+                <small data-f="srcnote">${esc(base ? (base.src === 'usd' ? '달러로 입력' : base.src === 'both' ? '둘 다 입력' : '위안으로 입력') : '')}</small></label>
+            <label class="pd-field">기본 원가 (원)<input class="pd-in num" data-f="krw" inputmode="numeric" value="${esc(c.krw ?? '')}"></label>
+            <label class="pd-field">환율 (1달러당 위안)<input class="pd-in num" data-f="rate" inputmode="decimal" value="${esc(lastRate)}"></label>
             <label class="pd-field">기준일<input class="pd-in" data-f="rateDate" type="date" value="${base && base.rateDate ? esc(base.rateDate) : ymd}"></label>
-            <label class="pd-field">최소 주문(MOQ)<input class="pd-in num" data-f="moq" inputmode="numeric" value="${c.moq ?? ''}"></label>
-            <label class="pd-field">제작 기간(일)<input class="pd-in num" data-f="leadDays" inputmode="numeric" value="${c.leadDays ?? ''}"></label>
-            <label class="pd-field">원가 메모<input class="pd-in" data-f="memo" maxlength="${MEMO_MAX}" value="${esc(c.memo || '')}"></label>
+            <label class="pd-field">최소 주문(MOQ)<input class="pd-in num" data-f="moq" inputmode="numeric" value="${esc(c.moq ?? '')}"></label>
+            <label class="pd-field">제작 기간(일)<input class="pd-in num" data-f="leadDays" inputmode="numeric" value="${esc(c.leadDays ?? '')}"></label>
+            <label class="pd-field">원가 메모<input class="pd-in" data-f="memo" maxlength="${esc(MEMO_MAX)}" value="${esc(c.memo || '')}"></label>
         </div>
         <div class="pd-row" style="margin-top:26px"><h3 class="pd-h3 pd-grow">옵션별 단가</h3><span class="pd-note">비우면 기본 단가를 따릅니다(회색)</span></div>
         <div class="pd-table-box pd-scroll"><table class="pd-t pd-t-sm" style="min-width:660px">
@@ -94,10 +94,10 @@ export function renderCostCard(container, pid, p, onSaved) {
                 const own = c.o && c.o[o[0]];
                 const ownK = c.ok ? c.ok[o[0]] : undefined;
                 return `<tr data-s="${esc(o[0])}"><td class="num">${esc(o[0])}</td><td>${esc(o[1])}</td>
-                    <td class="r"><input class="pd-in num sm ${own ? 'is-own' : ''}" data-o="cny" inputmode="decimal" value="${own ? fmt2(own.cny) : ''}" placeholder="${base ? fmt2(base.cny) : ''}" aria-label="${esc(o[0])} 위안"></td>
-                    <td class="r"><input class="pd-in num sm ${own ? 'is-own' : ''}" data-o="usd" inputmode="decimal" value="${own ? fmt2(own.usd) : ''}" placeholder="${base ? fmt2(base.usd) : ''}" aria-label="${esc(o[0])} 달러"></td>
+                    <td class="r"><input class="pd-in num sm ${own ? 'is-own' : ''}" data-o="cny" inputmode="decimal" value="${esc(own ? fmt2(own.cny) : '')}" placeholder="${esc(base ? fmt2(base.cny) : '')}" aria-label="${esc(o[0])} 위안"></td>
+                    <td class="r"><input class="pd-in num sm ${own ? 'is-own' : ''}" data-o="usd" inputmode="decimal" value="${esc(own ? fmt2(own.usd) : '')}" placeholder="${esc(base ? fmt2(base.usd) : '')}" aria-label="${esc(o[0])} 달러"></td>
                     <td class="${own ? '' : 'pd-inh'}">${own ? esc((own.rateDate || '').slice(5)) : '기본값'}</td>
-                    <td class="r"><input class="pd-in num sm ${ownK !== undefined && ownK !== null ? 'is-own' : ''}" data-o="krw" inputmode="numeric" value="${ownK ?? ''}" placeholder="${c.krw ?? ''}" aria-label="${esc(o[0])} 원화"></td></tr>`;
+                    <td class="r"><input class="pd-in num sm ${ownK !== undefined && ownK !== null ? 'is-own' : ''}" data-o="krw" inputmode="numeric" value="${esc(ownK ?? '')}" placeholder="${esc(c.krw ?? '')}" aria-label="${esc(o[0])} 원화"></td></tr>`;
             }).join('') || '<tr><td colspan="6" class="pd-inh">옵션 없음</td></tr>'}</tbody></table></div>
         <div class="pd-actions"><span class="pd-note" data-f="msg"></span>
             <span class="pd-note">${cur ? `마지막 수정 ${fmtDateTime(cur.at)} · ${esc(cur.by)}` : '아직 입력 없음'}</span>
@@ -200,8 +200,8 @@ export async function renderCostHistory(container, pid) {
             const x = d.data();
             const mine = (x.changes || []).filter(c => c.pid === pid);
             if (!mine.length) continue;
-            items.push(`<li><div class="top num"><b style="font-weight:600">${x.kind === 'ui' ? '화면' : '엑셀'}</b><span class="pd-sub">${fmtDateTime(tsMs(x.at))} · ${esc(x.by)}</span></div>
-                <div class="chg num">${mine.slice(0, 6).map(costChangeText).join('<br>')}${mine.length > 6 ? `<br><span class="pd-inh">외 ${mine.length - 6}건</span>` : ''}</div></li>`);
+            items.push(`<li><div class="top num"><b style="font-weight:600">${x.kind === 'ui' ? '화면' : '엑셀'}</b><span class="pd-sub">${esc(fmtDateTime(tsMs(x.at)))} · ${esc(x.by)}</span></div>
+                <div class="chg num">${mine.slice(0, 6).map(costChangeText).join('<br>')}${mine.length > 6 ? `<br><span class="pd-inh">외 ${esc(mine.length - 6)}건</span>` : ''}</div></li>`);
         }
         container.querySelector('.pd-note').outerHTML = items.length ? `<ol class="pd-hist">${items.join('')}</ol>` : '<div class="pd-note" style="margin-top:12px">이력이 없습니다</div>';
     } catch (e) {
@@ -219,9 +219,9 @@ export async function renderCostLog(main) {
         countRead('단가 이력', Math.max(1, snap.size));
         const rows = snap.docs.map(d => {
             const x = d.data(); const ch = x.changes || [];
-            return `<tr><td class="num">${fmtDateTime(tsMs(x.at))}</td><td>${esc(x.by)}</td><td>${x.kind === 'ui' ? '화면' : '엑셀'}</td>
+            return `<tr><td class="num">${esc(fmtDateTime(tsMs(x.at)))}</td><td>${esc(x.by)}</td><td>${x.kind === 'ui' ? '화면' : '엑셀'}</td>
                 <td class="r num">${(x.pids || []).length}</td>
-                <td class="pd-chg">${ch.slice(0, 3).map(c => `<a href="#p=${encodeURIComponent(c.pid)}" class="num">${esc(c.pid)}</a> ${costChangeText(c)}`).join('<br>')}${ch.length > 3 ? `<br><span class="pd-inh">외 ${ch.length - 3}건</span>` : ''}</td></tr>`;
+                <td class="pd-chg">${ch.slice(0, 3).map(c => `<a href="#p=${esc(encodeURIComponent(c.pid))}" class="num">${esc(c.pid)}</a> ${costChangeText(c)}`).join('<br>')}${ch.length > 3 ? `<br><span class="pd-inh">외 ${esc(ch.length - 3)}건</span>` : ''}</td></tr>`;
         });
         main.querySelector('#pd-cl').outerHTML = rows.length
             ? `<div class="pd-scroll" style="margin-top:12px"><table class="pd-t pd-t-sm" style="min-width:760px"><thead><tr><th>시각</th><th>누가</th><th>방식</th><th class="r">품목</th><th>바뀐 것</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`
@@ -237,7 +237,7 @@ export function renderSuppliers(main) {
     const entries = Object.entries(L.s || {}).sort();
     const used = new Map();
     if (C.costs) for (const c of C.costs.values()) if (c.sup) used.set(c.sup, (used.get(c.sup) || 0) + 1);
-    const inp = (f, v = '', ph = '') => `<input class="pd-in" data-f="${f}" value="${esc(v)}" placeholder="${ph}" maxlength="${f === 'memo' ? 300 : 100}">`;
+    const inp = (f, v = '', ph = '') => `<input class="pd-in" data-f="${esc(f)}" value="${esc(v)}" placeholder="${esc(ph)}" maxlength="${f === 'memo' ? 300 : 100}">`;
     main.innerHTML = `<section class="pd-card pd-card-pad">
         <div class="pd-row"><h2 class="pd-h2 pd-grow">공급처 대장</h2><span class="pd-lock">관리자만 보임</span></div>
         <div class="pd-note" style="margin-top:6px">공급처 실명·연락처는 여기 한 곳에만 둡니다. 원가에는 코드만 들어갑니다(직접 추가 = SUP-001 형식, 이지어드민 원가 업로드 = 그 파일의 공급처 값을 코드로 '자동 등록'). 지우지 않고 '중지'로 바꿉니다.</div>
@@ -245,7 +245,7 @@ export function renderSuppliers(main) {
             <thead><tr><th>코드</th><th>이름</th><th>담당자</th><th>연락처</th><th>메모</th><th class="r">상품</th><th>상태</th><th></th></tr></thead>
             <tbody>${entries.map(([k, v]) => `<tr data-code="${esc(k)}"><td class="num"><b>${esc(k)}</b>${v.auto ? ' <span class="pd-pill warn">자동 등록</span>' : ''}</td>
                 <td>${inp('name', v.name)}</td><td>${inp('contact', v.contact)}</td><td>${inp('phone', v.phone)}</td><td>${inp('memo', v.memo)}</td>
-                <td class="r num">${used.get(k) || 0}</td>
+                <td class="r num">${esc(used.get(k) || 0)}</td>
                 <td><select class="pd-in" data-f="active" style="width:90px"><option value="1" ${v.active !== false ? 'selected' : ''}>사용</option><option value="0" ${v.active === false ? 'selected' : ''}>중지</option></select></td>
                 <td><button class="d-btn d-btn-sm" data-act="save">저장</button></td></tr>`).join('')
                 || '<tr><td colspan="8" class="pd-inh">등록된 공급처가 없습니다</td></tr>'}

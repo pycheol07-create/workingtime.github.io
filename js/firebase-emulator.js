@@ -52,8 +52,10 @@ export const connectEmulatorsIfEnabled = (db, auth) => {
         showBanner();
         return true;
     } catch (e) {
-        console.error('[emulator] 연결 실패 — 운영 데이터로 붙습니다. 즉시 창을 닫으세요:', e);
-        return false;
+        // 실패한 채로 진행하면 ?emu=1 로 연 시험 탭이 운영 데이터에 붙는다 — 여기서 멈춘다(china-stock-config.js 와 같은 방식).
+        //   부르는 쪽(config.js·manual.js·scan.html)의 초기화가 실패로 끝나 화면이 더 진행하지 않는다.
+        console.error('[emulator] 연결 실패 — 운영으로 붙지 않게 멈춥니다:', e);
+        throw e;
     }
 };
 

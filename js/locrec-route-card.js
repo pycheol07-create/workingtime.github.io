@@ -8,11 +8,11 @@
 // 그리는 때가 둘이다: ① store 가 바뀔 때(이 파일) ② location.js 가 인사이트 줄을 innerHTML 로 다시 그린 뒤(mountRouteSlot()).
 //   인사이트 줄이 다시 그려지면 이 카드 칸도 사라지므로 location.js 가 그때마다 mountRouteSlot() 을 부른다.
 // 모양은 인사이트 카드와 같은 클래스(insight-card · ins-big · ins-desc) — 색은 CSS 변수라 라이트·다크를 같이 따라간다.
-import { escapeHtml } from './utils.js?v=202611121547';
-import { routeCardInfo, routeHeatView, HEAT_HELP } from './lib/locrec-view.js?v=202611121547';
-import { openRouteDetail } from './locrec-route-modal.js?v=202611121547';
-import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202611121547';
-import { todayKey } from './locrec-store.js?v=202611121547';
+import { escapeHtml } from './utils.js?v=202611121915';
+import { routeCardInfo, routeHeatView, HEAT_HELP } from './lib/locrec-view.js?v=202611121915';
+import { openRouteDetail } from './locrec-route-modal.js?v=202611121915';
+import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202611121915';
+import { todayKey } from './locrec-store.js?v=202611121915';
 
 const SLOT_ID = 'dash-route-card';
 const ROW_ID = 'dash-insight-row';
@@ -55,9 +55,9 @@ function heatHtml(heat) {
     if (!v.has) return '';
     const cols = v.rows[0].cells.length;
     const body = v.rows.map(r => `<b title="${escapeHtml(`구역 ${r.zone} · 하루 ${Math.round(r.sum).toLocaleString('ko-KR')}개`)}">${escapeHtml(r.zone)}</b>`
-        + r.cells.map(c => `<i class="${c.level == null ? 'hn' : 'h' + c.level}" title="${escapeHtml(c.title)}"></i>`).join('')).join('');
+        + r.cells.map(c => `<i class="${escapeHtml(c.level == null ? 'hn' : 'h' + c.level)}" title="${escapeHtml(c.title)}"></i>`).join('')).join('');
     const note = `왼쪽 = 앞쪽(좋은) 동 · 진할수록 출고 많음${v.more ? ` · 외 ${v.more}구역` : ''}`;   // 한 줄 — 좁으면 말줄임이라 전문을 title 에도
-    return `<div class="route-heat" title="${escapeHtml(HEAT_HELP)}"><div class="rh-grid" style="--rh-cols:${cols};">${body}</div>`
+    return `<div class="route-heat" title="${escapeHtml(HEAT_HELP)}"><div class="rh-grid" style="--rh-cols:${escapeHtml(cols)};">${body}</div>`
         + `<div class="ins-desc rh-note" title="${escapeHtml(note + '\n' + HEAT_HELP)}">${escapeHtml(note)}</div></div>`;
 }
 

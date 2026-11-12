@@ -29,39 +29,39 @@
 //   live 일 때만 js/china-mibal2-live.js 를 동적 import 한다(스캐너에 반영·작업 마감·보관·입고오차·미발이력·위치 쓰기·관리 창).
 //   이 파일에는 그 쓰기가 없다. live 면 출고일은 기존 계산기(CONFIG.savedDatesMibal)를 보지 않고 mibal2/settings 만 쓴다.
 //   false(지금)면 아래 동작은 예전과 같다 — tests/mibal2-readonly.test.js 가 본다.
-import { initializeFirebase } from './china-stock-config.js?v=202611121547'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202611121915'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, getDocsFromServer, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202611121547';
-import { sortMark } from './lib/china-stock-view.js?v=202611121547';
+import { explain } from './lib/mibal2-calc.js?v=202611121915';
+import { sortMark } from './lib/china-stock-view.js?v=202611121915';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202611121547';
-import { setShellContext } from './app-shell-bridge.js?v=202611121547';
-import { memberNameFor } from './app-shell-data.js?v=202611121547';
-import { mountBusyBanner } from './busy-banner.js?v=202611121547';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611121547';
-import { friendlyFirebaseError } from './utils.js?v=202611121547';
-import { diffOf } from './lib/inbound-diff.js?v=202611121547';
-import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611121547';
-import { scanLogHtml } from './lib/mibal2-scanlog.js?v=202611121547';
-import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611121547';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611121547';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611121547';
-import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611121547';
-import { setupLocMode } from './china-mibal2-loc.js?v=202611121547';
-import { isMibal2Live } from './lib/mibal2-mode.js?v=202611121547';
-import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611121547';
-import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=202611121547';
-import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=202611121547';   // 출고일 불일치(2026-11-10)
-import { writeXls } from './lib/xls-limits.js?v=202611121547';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611121547';   // live 때만 씀(빠른 이동 #tab=mibal|location)
-import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUTO_CLAIM_KEY, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611121547';
+} from './lib/mibal2-rows.js?v=202611121915';
+import { setShellContext } from './app-shell-bridge.js?v=202611121915';
+import { memberNameFor } from './app-shell-data.js?v=202611121915';
+import { mountBusyBanner } from './busy-banner.js?v=202611121915';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611121915';
+import { friendlyFirebaseError } from './utils.js?v=202611121915';
+import { diffOf } from './lib/inbound-diff.js?v=202611121915';
+import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611121915';
+import { scanLogHtml } from './lib/mibal2-scanlog.js?v=202611121915';
+import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611121915';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611121915';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611121915';
+import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611121915';
+import { setupLocMode } from './china-mibal2-loc.js?v=202611121915';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202611121915';
+import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611121915';
+import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=202611121915';
+import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=202611121915';   // 출고일 불일치(2026-11-10)
+import { writeXls } from './lib/xls-limits.js?v=202611121915';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611121915';   // live 때만 씀(빠른 이동 #tab=mibal|location)
+import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUTO_CLAIM_KEY, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611121915';
 // 마감된 작업 보기(2026-11-12) — 마감한 출고일을 다시 고르면 입고확인 = 보관함 기록
-import { closedQueryDates, closedCacheKey, closedViewOf, closedNoteLines } from './lib/mibal2-closed-view.js?v=202611121547';
+import { closedQueryDates, closedCacheKey, closedViewOf, closedNoteLines } from './lib/mibal2-closed-view.js?v=202611121915';
 import { COLS_PICK_KEY, LEGACY_COLS_KEY, DEFAULT_ON, REQUIRED, pickableCols, normalizeOn, colsFromStorage, serializeCols, toggleCol,
-    hiddenCss, colsMode, visibleCount } from './lib/mibal2-cols.js?v=202611121547';
+    hiddenCss, colsMode, visibleCount } from './lib/mibal2-cols.js?v=202611121915';
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -366,7 +366,7 @@ function applyFilters() {
 }
 
 function flagsHtml(r) {
-    return r.flags.map(f => { const [t, c] = FLAG_INFO[f] || [f, '']; return `<span class="flag ${c}">${esc(t)}</span>`; }).join('');
+    return r.flags.map(f => { const [t, c] = FLAG_INFO[f] || [f, '']; return `<span class="flag ${esc(c)}">${esc(t)}</span>`; }).join('');
 }
 function oldSourceText(os) {
     if (!os) return '기존 계산기 미발수량 자료 없음';
@@ -382,7 +382,7 @@ function scanLogDetail(r) {
 }
 function detailHtml(r) {
     if (r.outside) {
-        return `<ul><li><b>선택 출고일 밖 입고</b>: 선택한 출고일의 도착 목록에 없는 코드인데 앱 스캔 입고가 ${num(r.conf)} 있습니다.
+        return `<ul><li><b>선택 출고일 밖 입고</b>: 선택한 출고일의 도착 목록에 없는 코드인데 앱 스캔 입고가 ${esc(num(r.conf))} 있습니다.
             다른 출고일 상품이거나 오더리스트에 없는 상품일 수 있습니다 — 신규 수집 자료에는 최근 출고 코드만 있어 구별하지 못합니다(기존 계산기 판정과 다를 수 있음).
             계산·스캐너 미리보기에서는 뺍니다.</li></ul>${scanLogDetail(r)}`;
     }
@@ -404,13 +404,13 @@ function detailHtml(r) {
         <ul>
             <li><b>총재고·비축</b>: 총재고에 비축 포함 · 피킹재고 = 총재고 − 비축
                 — 총재고 ${numOr(r.stock)} · 비축 ${numOr(r.bstock)}${r.bstock === null || r.bstock === undefined ? ' (모름 — 이 날 수집에 비축재고가 없거나 이 코드 응답 없음)' : ''} · 피킹재고 ${numOr(r.pstock)}</li>
-            <li><b>접수·송장</b>: 이지어드민 → Apps Script 수집 (${c.okMs ? mdhm(c.okMs) : '시각 모름'} 성공분 · 접수 ${esc(range['접수From'] || '?')}~ · 송장 ${esc(range['송장From'] || '?')}~)
+            <li><b>접수·송장</b>: 이지어드민 → Apps Script 수집 (${esc(c.okMs ? mdhm(c.okMs) : '시각 모름')} 성공분 · 접수 ${esc(range['접수From'] || '?')}~ · 송장 ${esc(range['송장From'] || '?')}~)
                 — 접수 ${numOr(r.recv)} · 송장 ${numOr(r.inv)}</li>
-            <li><b>도착 ${num(r.arr)}</b>: 오더/사입리스트 출고 기록(shipJson ${esc(c.asOf || '?')}) 중 선택 출고일 · 본사도착 유예 ${num(c.graceDays)}일<br>${used}${skipped}</li>
+            <li><b>도착 ${esc(num(r.arr))}</b>: 오더/사입리스트 출고 기록(shipJson ${esc(c.asOf || '?')}) 중 선택 출고일 · 본사도착 유예 ${esc(num(c.graceDays))}일<br>${used}${skipped}</li>
             <li><b>로케이션</b>: ${loc} (로케이션관리 Locations)</li>
-            <li><b>적재량 ${num(r.cap)}</b>: ${esc(r.capSrc)}</li>
+            <li><b>적재량 ${esc(num(r.cap))}</b>: ${esc(r.capSrc)}</li>
             <li><b>기존 계산기 미발수량</b>: ${oldTxt}</li>
-            <li><b>기존공식×신규입력</b>: ${oldNewTxt}</li>
+            <li><b>기존공식×신규입력</b>: ${esc(oldNewTxt)}</li>
             ${confDetailHtml(r)}
         </ul>${scanLogDetail(r)}`;
 }
@@ -424,7 +424,7 @@ function confDetailHtml(r) {
     const bs = Object.entries(byShipOf(r.arrUsed)).sort((a, b) => a[0].localeCompare(b[0])).map(([d, q]) => `${esc(d)} ${num(q)}`).join(' · ');
     const dTxt = r.inDiff === null || r.inDiff === undefined ? '–' : r.noScan && r.inDiff > 0 ? `${num(r.inDiff)} (스캔 없음 — 전부 부족입고)` : (r.inDiff > 0 ? `${num(r.inDiff)} (부족입고)` : r.inDiff < 0 ? `${num(r.inDiff)} (과입고)` : '0');
     const cv = String(r.conf == null ? '' : r.conf);
-    return `<li><b>입고확인</b>: ${cv.trim() === '' ? '<span class="muted">빈칸</span>' : esc(cv)} — ${srcTxt} · 차이(도착−입고확인) ${dTxt}${bs ? ` · 출고일별 도착 ${bs}` : ''}</li>`;
+    return `<li><b>입고확인</b>: ${cv.trim() === '' ? '<span class="muted">빈칸</span>' : esc(cv)} — ${esc(srcTxt)} · 차이(도착−입고확인) ${esc(dTxt)}${bs ? ` · 출고일별 도착 ${bs}` : ''}</li>`;
 }
 
 function renderTable() {
@@ -445,19 +445,19 @@ function renderTable() {
         else if (r.diff !== null && r.diff !== 0) cls.push('diff-some');
         if (r.check) cls.push('need-check');
         const diffTxt = r.diff === null ? numOr(null) : (r.diff > 0 ? '+' + num(r.diff) : num(r.diff));
-        const warnNum = (v) => (v > 0 ? `<b class="t-warn">${num(v)}</b>` : numOr(v));
-        html += `<tr class="${cls.join(' ')}" data-code="${esc(r.code)}">
+        const warnNum = (v) => (v > 0 ? `<b class="t-warn">${esc(num(v))}</b>` : numOr(v));
+        html += `<tr class="${esc(cls.join(' '))}" data-code="${esc(r.code)}">
             <td>${i + 1}</td>
             <td class="code-cell">${esc(r.code)}</td>
             <td class="name-cell" title="${esc(r.name + (r.option ? ' / ' + r.option : ''))}">${esc(r.name)}${r.option ? ` <span class="t-3">/ ${esc(r.option)}</span>` : ''}</td>
             <td>${r.locInfo ? esc(r.loc) : '<span class="t-risk">미지정</span>'}</td>
-            ${r.cap === null ? `<td>${numOr(null)}</td>` : `<td class="cap-cell" title="${esc(r.capSrc)}">${num(r.cap)}<span class="cap-kind">${esc(r.capKind)}</span></td>`}
-            <td><b>${num(r.arr)}</b></td>
+            ${r.cap === null ? `<td>${numOr(null)}</td>` : `<td class="cap-cell" title="${esc(r.capSrc)}">${esc(num(r.cap))}<span class="cap-kind">${esc(r.capKind)}</span></td>`}
+            <td><b>${esc(num(r.arr))}</b></td>
             ${confCellHtml(r)}
             ${inDiffCellHtml(r)}
             <td>${numOr(r.stock)}</td>
             <td>${numOr(r.bstock)}</td>
-            <td>${r.pstock < 0 ? `<b class="t-risk">${num(r.pstock)}</b>` : numOr(r.pstock)}</td>
+            <td>${r.pstock < 0 ? `<b class="t-risk">${esc(num(r.pstock))}</b>` : numOr(r.pstock)}</td>
             <td>${numOr(r.recv)}</td>
             <td>${numOr(r.inv)}</td>
             <td>${numOr(r.out)}</td>
@@ -500,15 +500,15 @@ function renderSourceNote() {
     const box = $('src-note');
     const c = ctx || {};
     const parts = [];
-    parts.push(`<b>정상·접수·송장</b> ${c.okMs ? mdhm(c.okMs) + ' 수집' : '수집 없음'}`);
-    parts.push(`<b>도착</b> 시트 기준일 ${esc(c.asOf || '?')} · 유예 ${num(c.graceDays)}일`);
-    parts.push(`<b>적재량</b> 구역 설정 + 개별값 ${num(c.editedCount)}개`);
-    parts.push(`<b>로케이션</b> 로케이션관리 ${num(c.locCount)}개 코드`);
-    if (closedView && closedView.view) parts.push(`<b>입고확인</b> 보관함 마감 기록 ${num(closedView.view.codes)}개 코드 · ${num(closedView.view.total)}장(작업 ${esc(closedView.view.ids.join(', '))})`);
+    parts.push(`<b>정상·접수·송장</b> ${esc(c.okMs ? mdhm(c.okMs) + ' 수집' : '수집 없음')}`);
+    parts.push(`<b>도착</b> 시트 기준일 ${esc(c.asOf || '?')} · 유예 ${esc(num(c.graceDays))}일`);
+    parts.push(`<b>적재량</b> 구역 설정 + 개별값 ${esc(num(c.editedCount))}개`);
+    parts.push(`<b>로케이션</b> 로케이션관리 ${esc(num(c.locCount))}개 코드`);
+    if (closedView && closedView.view) parts.push(`<b>입고확인</b> 보관함 마감 기록 ${esc(num(closedView.view.codes))}개 코드 · ${esc(num(closedView.view.total))}장(작업 ${esc(closedView.view.ids.join(', '))})`);
     else {
         const codes = Object.keys(inboundMap).filter(k => inboundMap[k]);
         const total = codes.reduce((x, k) => x + (inboundMap[k] || 0), 0);
-        parts.push(`<b>입고확인</b> ${inboundErr ? '읽기 실패' : inboundKnown ? `앱 스캔 ${num(codes.length)}개 코드 · ${num(total)}장(미발 초기화 이후 전체)` : '불러오는 중'} + 기존 계산기 수동값`);
+        parts.push(`<b>입고확인</b> ${esc(inboundErr ? '읽기 실패' : inboundKnown ? `앱 스캔 ${num(codes.length)}개 코드 · ${num(total)}장(미발 초기화 이후 전체)` : '불러오는 중')} + 기존 계산기 수동값`);
     }
     if (c.oldSource) parts.push(`<b>기존 계산기 미발수량</b> ${oldSourceText(c.oldSource)}${c.oldSource.kind === 'live' ? ' — ⚠ 스캐너 입고분이 이미 빠져 있을 수 있음' : ''}`);
     const warns = [];
@@ -700,7 +700,7 @@ async function saveConfirmedBatch() {
         setLoading(true, `입고이력·스캐너 값 확인 중... (${codes.length}건)`);
         let mod, srvBy;
         try {
-            mod = await import('./inbound-fix-write.js?v=202611121547');
+            mod = await import('./inbound-fix-write.js?v=202611121915');
             srvBy = await mod.readServerInboundMany(db, codes, 5);
         } finally { setLoading(false); }
         // 옛 수동값만 보이던 칸(시험 화면 — 입고이력에 키 없음): 같은 값이어도 기록해 입고확인을 그 값으로 고정
@@ -748,9 +748,9 @@ function inDiffCellHtml(r) {
     if (r.confSrc === undefined) return `<td>${numOr(null)}</td>`;
     const v = r.inDiff;
     if (v === null || v === undefined) return `<td class="in-diff-cell t-3" title="도착·입고확인을 모름">–</td>`;
-    if (r.noScan && v > 0) return `<td class="in-diff-cell t-risk" title="입고확인 없음(스캔 0건) — 도착 ${num(v)} 전부 부족입고">${num(v)}</td>`;
-    if (v > 0) return `<td class="in-diff-cell t-risk" title="부족입고 ${num(v)}">${num(v)}</td>`;
-    if (v < 0) return `<td class="in-diff-cell t-accent" title="과입고 ${num(-v)}">${num(v)}</td>`;
+    if (r.noScan && v > 0) return `<td class="in-diff-cell t-risk" title="입고확인 없음(스캔 0건) — 도착 ${esc(num(v))} 전부 부족입고">${esc(num(v))}</td>`;
+    if (v > 0) return `<td class="in-diff-cell t-risk" title="부족입고 ${esc(num(v))}">${esc(num(v))}</td>`;
+    if (v < 0) return `<td class="in-diff-cell t-accent" title="과입고 ${esc(num(-v))}">${esc(num(v))}</td>`;
     return `<td class="in-diff-cell" title="도착 = 입고확인">0</td>`;
 }
 /** 입고이력 구독 — 부족수량 보기에 처음 들어갈 때 한 번만(위치지정 보기만 여는 사람은 읽지 않는다). 입장 판정 뒤에만 */
@@ -814,7 +814,7 @@ function renderDateList() {
     else {
         c.innerHTML = list.map(x => {
             const arr = x.arrivals.length ? ' → ' + x.arrivals.map(fmtMD).join(',') + ' 입고' : '';
-            return `<label class="date-item"><input type="checkbox" class="date-check" value="${esc(x.date)}" ${selectedDates.includes(x.date) ? 'checked' : ''}><span>${fmtMD(x.date)} 출고${arr} (${num(x.skus)}종 / ${esc(x.qty.toLocaleString())}장)</span></label>`;
+            return `<label class="date-item"><input type="checkbox" class="date-check" value="${esc(x.date)}" ${selectedDates.includes(x.date) ? 'checked' : ''}><span>${fmtMD(x.date)} 출고${arr} (${esc(num(x.skus))}종 / ${esc(x.qty.toLocaleString())}장)</span></label>`;
         }).join('');
         c.querySelectorAll('.date-check').forEach(ck => ck.addEventListener('change', () => {
             selectedDates = [...c.querySelectorAll('.date-check:checked')].map(x => x.value);
@@ -1389,7 +1389,7 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=202611121547');
+        const mod = await import('./china-mibal2-live.js?v=202611121915');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,

@@ -1,14 +1,14 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202611121547';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202611121547';
-import { appConfig, context } from './state.js?v=202611121547';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=202611121915';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202611121915';
+import { appConfig, context } from './state.js?v=202611121915';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,
     revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
-} from './revenue-channels.js?v=202611121547';
-import { D } from './d-chart.js?v=202611121547';
+} from './revenue-channels.js?v=202611121915';
+import { D } from './d-chart.js?v=202611121915';
 // predictFutureTrends import 제거됨
 
 // 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장 / 기타)
@@ -24,7 +24,7 @@ const recalcTotalJs = (metricKey, fieldOf) => `(function(){` +
 
 const legacyNoteHtml = (isLegacy, total, unit) => isLegacy
     ? `<p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded p-2 leading-relaxed">
-         이 날짜는 채널 구분 이전에 입력된 데이터입니다. 총계 <b>${formatCurrency(total)}${unit}</b>만 남아 있어
+         이 날짜는 채널 구분 이전에 입력된 데이터입니다. 총계 <b>${escapeHtml(formatCurrency(total))}${escapeHtml(unit)}</b>만 남아 있어
          채널별 값이 비어 있습니다. 채널별로 나눠 입력한 뒤 저장하면 합계가 새로 계산됩니다.
        </p>`
     : '';
@@ -38,19 +38,19 @@ const channelGridHtml = (mgmt, prevMgmt, formatVal, onInputHandler) => {
     const header = `
         <div class="grid grid-cols-[5.5rem_1fr_1fr] gap-2 items-end px-0.5">
             <span></span>
-            ${CHANNEL_METRICS.map(m => `<span class="text-[11px] font-bold text-gray-500 text-right pr-1">${m.label} (${m.unit})</span>`).join('')}
+            ${CHANNEL_METRICS.map(m => `<span class="text-[11px] font-bold text-gray-500 text-right pr-1">${escapeHtml(m.label)} (${escapeHtml(m.unit)})</span>`).join('')}
         </div>`;
 
     const rows = REVENUE_CHANNELS.map(c => `
         <div class="grid grid-cols-[5.5rem_1fr_1fr] gap-2 items-center">
             <span class="flex items-center gap-1.5 text-[13px] text-gray-600 min-w-0">
-                <span class="inline-block w-2 h-2 rounded-full shrink-0" style="background:${c.color}"></span>
-                <span class="truncate" title="${c.label}">${c.shortLabel}</span>
+                <span class="inline-block w-2 h-2 rounded-full shrink-0" style="background:${escapeHtml(c.color)}"></span>
+                <span class="truncate" title="${escapeHtml(c.label)}">${escapeHtml(c.shortLabel)}</span>
             </span>
             ${CHANNEL_METRICS.map(m => {
                 const field = m.fieldOf(c);
                 return `<div>
-                    <input type="text" id="mgmt-input-${field}" data-channel="${c.id}" data-metric="${m.key}"
+                    <input type="text" id="mgmt-input-${escapeHtml(field)}" data-channel="${escapeHtml(c.id)}" data-metric="${escapeHtml(m.key)}"
                         class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-right font-bold text-gray-800"
                         placeholder="0" value="${formatVal(mgmt[field])}" inputmode="numeric"
                         oninput="${onInputHandler} ${recalcTotalJs(m.key, m.fieldOf)}">
@@ -66,7 +66,7 @@ const channelGridHtml = (mgmt, prevMgmt, formatVal, onInputHandler) => {
             <span class="text-sm font-bold text-blue-800">합계</span>
             ${CHANNEL_METRICS.map(m => `
                 <div class="text-right pr-1">
-                    <span id="mgmt-${m.key}-total" class="text-base font-black text-blue-800">${formatCurrency(totalOf(m, mgmt))}</span>
+                    <span id="mgmt-${escapeHtml(m.key)}-total" class="text-base font-black text-blue-800">${escapeHtml(formatCurrency(totalOf(m, mgmt)))}</span>
                     <div class="text-[11px] font-medium mt-0.5">
                         ${getDiffHtmlForMetric(diffKindOf(m), totalOf(m, mgmt), totalOf(m, prevMgmt))}
                     </div>
@@ -116,9 +116,9 @@ const channelBreakdownHtml = (stats, metricKey) => {
     const row = (label, value, color, muted = false) => `
         <div class="flex items-center justify-between gap-2">
             <span class="flex items-center gap-1.5 ${muted ? 'text-gray-400' : 'text-gray-600'}">
-                <span class="inline-block w-2 h-2 rounded-full" style="background:${color}"></span>${label}
+                <span class="inline-block w-2 h-2 rounded-full" style="background:${escapeHtml(color)}"></span>${escapeHtml(label)}
             </span>
-            <span class="font-bold ${muted ? 'text-gray-500' : 'text-gray-700'}">${formatCurrency(value)}<span class="text-gray-400 font-normal ml-1">(${pct(value)}%)</span></span>
+            <span class="font-bold ${muted ? 'text-gray-500' : 'text-gray-700'}">${escapeHtml(formatCurrency(value))}<span class="text-gray-400 font-normal ml-1">(${pct(value)}%)</span></span>
         </div>`;
 
     const rows = REVENUE_CHANNELS.map(c => row(c.label, Number(byChannel?.[c.id]) || 0, c.color)).join('');
@@ -215,7 +215,7 @@ const generateCostAnalysisHTML = (analysis) => {
                 </div>
                 <div class="flex justify-between items-center text-sm border-t border-green-200 pt-2 mt-1">
                     <span class="text-gray-800 font-bold">공헌이익 (마진)</span>
-                    <span class="text-xl font-extrabold ${marginColor}">${Math.round(profit.margin).toLocaleString()}원 <span class="text-xs font-normal">(${profit.marginRate.toFixed(1)}%)</span></span>
+                    <span class="text-xl font-extrabold ${escapeHtml(marginColor)}">${Math.round(profit.margin).toLocaleString()}원 <span class="text-xs font-normal">(${profit.marginRate.toFixed(1)}%)</span></span>
                 </div>
             </div>
         `;
@@ -242,15 +242,15 @@ const generateCostAnalysisHTML = (analysis) => {
                         </div>
                         <div class="flex justify-between items-center text-sm">
                             <span class="text-gray-600">고정 부자재비</span>
-                            <span class="font-semibold">${costs.material.toLocaleString()}원</span>
+                            <span class="font-semibold">${escapeHtml(costs.material.toLocaleString())}원</span>
                         </div>
                         <div class="flex justify-between items-center text-sm">
                             <span class="text-gray-600">고정 택배비</span>
-                            <span class="font-semibold">${costs.shipping.toLocaleString()}원</span>
+                            <span class="font-semibold">${escapeHtml(costs.shipping.toLocaleString())}원</span>
                         </div>
                         
                         <div class="flex justify-between items-center text-purple-700">
-                            <span>플랫폼 배송 화물비 <span class="text-xs">(${costs.directDeliveryCount}회)</span></span>
+                            <span>플랫폼 배송 화물비 <span class="text-xs">(${escapeHtml(costs.directDeliveryCount)}회)</span></span>
                             <span class="font-semibold">+ ${Math.round(costs.directDelivery).toLocaleString()}원</span>
                         </div>
 
@@ -263,8 +263,8 @@ const generateCostAnalysisHTML = (analysis) => {
                 ${profitHtml}
             </div>
             <p class="text-xs text-gray-500 mt-2 text-right">
-                * 인건비 계산 포함 업무: ${targetTasks.join(', ')}<br>
-                * 기준 수량: ${analysis.baseQuantity.toLocaleString()}개 (기간 내 총 주문건수 또는 총 작업량)
+                * 인건비 계산 포함 업무: ${escapeHtml(targetTasks.join(', '))}<br>
+                * 기준 수량: ${escapeHtml(analysis.baseQuantity.toLocaleString())}개 (기간 내 총 주문건수 또는 총 작업량)
             </p>
         </div>
     `;
@@ -358,14 +358,14 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
         <div class="max-w-4xl mx-auto">
             <div class="mb-6 flex items-center justify-between">
                 <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    ${dateKey} 경영 지표 입력
+                    ${escapeHtml(dateKey)} 경영 지표 입력
                 </h3>
                 <div class="flex items-center gap-2">
                     <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mr-2">
                         * 숫자를 입력하면 전일 대비 증감이 자동 계산됩니다.
                     </span>
                     <button class="bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 font-semibold py-1 px-3 rounded-md text-sm ml-4"
-                            data-action="request-history-deletion" data-date-key="${dateKey}">
+                            data-action="request-history-deletion" data-date-key="${escapeHtml(dateKey)}">
                         삭제
                     </button>
                 </div>
@@ -386,15 +386,15 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                                     const ord = Number(mgmt[c.orderField]) || 0;
                                     return `<div class="flex justify-between">
                                         <span class="flex items-center gap-1.5 text-gray-600 text-[13px]">
-                                            <span class="inline-block w-2 h-2 rounded-full" style="background:${c.color}"></span>${c.label}
+                                            <span class="inline-block w-2 h-2 rounded-full" style="background:${escapeHtml(c.color)}"></span>${escapeHtml(c.label)}
                                         </span>
-                                        <span class="font-bold text-gray-700">${ord > 0 ? formatCurrency(Math.round(rev / ord)) : '0'} 원</span>
+                                        <span class="font-bold text-gray-700">${escapeHtml(ord > 0 ? formatCurrency(Math.round(rev / ord)) : '0')} 원</span>
                                     </div>`;
                                 }).join('')}
                                 <div class="flex justify-between pt-1.5 border-t border-gray-100">
                                     <span class="text-gray-800 font-bold">전체</span>
                                     <span class="font-bold text-gray-800">
-                                        ${orderCountTotalOf(mgmt) > 0 ? formatCurrency(Math.round(revenueTotalOf(mgmt) / orderCountTotalOf(mgmt))) : '0'} 원
+                                        ${escapeHtml(orderCountTotalOf(mgmt) > 0 ? formatCurrency(Math.round(revenueTotalOf(mgmt) / orderCountTotalOf(mgmt))) : '0')} 원
                                     </span>
                                 </div>
                             </div>
@@ -441,7 +441,7 @@ export const renderManagementDaily = (dateKey, allHistoryData) => {
                 <div class="mt-6 bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
                     <h4 class="font-bold text-emerald-800 mb-4 flex items-center justify-between">
                         <span>환율 (원)</span>
-                        <span class="text-[11px] font-medium text-gray-400">${mgmt.fxAt ? '자동입력 ' + new Date(mgmt.fxAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '매일 오전 9시 자동입력'}</span>
+                        <span class="text-[11px] font-medium text-gray-400">${escapeHtml(mgmt.fxAt ? '자동입력 ' + new Date(mgmt.fxAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '매일 오전 9시 자동입력')}</span>
                     </h4>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -486,7 +486,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     filteredData.sort((a, b) => a.id.localeCompare(b.id));
 
     if (filteredData.length === 0) {
-        container.innerHTML = `<div class="text-center text-gray-500 py-10">해당 기간(${key})에 입력된 경영 지표 데이터가 없습니다.</div>`;
+        container.innerHTML = `<div class="text-center text-gray-500 py-10">해당 기간(${escapeHtml(key)})에 입력된 경영 지표 데이터가 없습니다.</div>`;
         return;
     }
 
@@ -543,15 +543,15 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
 
             return `
                 <tr class="hover:bg-gray-50 transition">
-                    <td class="px-4 py-3 ${dateColor}">${day.id} <span class="text-xs text-gray-400 ml-1">(${getDayOfWeek(day.id)})</span></td>
-                    <td class="px-4 py-3 text-right font-bold text-blue-600">${rev > 0 ? formatCurrency(rev) : '-'}</td>
-                    <td class="px-4 py-3 text-right">${orders > 0 ? formatCurrency(orders) : '-'}</td>
-                    <td class="px-4 py-3 text-right text-gray-600">${avgOrderPrice > 0 ? formatCurrency(Math.round(avgOrderPrice)) : '-'}</td>
-                    <td class="px-4 py-3 text-right">${invAmt > 0 ? formatCurrency(invAmt) : '-'}</td>
-                    <td class="px-4 py-3 text-right">${invQty > 0 ? formatCurrency(invQty) : '-'}</td>
+                    <td class="px-4 py-3 ${escapeHtml(dateColor)}">${escapeHtml(day.id)} <span class="text-xs text-gray-400 ml-1">(${escapeHtml(getDayOfWeek(day.id))})</span></td>
+                    <td class="px-4 py-3 text-right font-bold text-blue-600">${escapeHtml(rev > 0 ? formatCurrency(rev) : '-')}</td>
+                    <td class="px-4 py-3 text-right">${escapeHtml(orders > 0 ? formatCurrency(orders) : '-')}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">${escapeHtml(avgOrderPrice > 0 ? formatCurrency(Math.round(avgOrderPrice)) : '-')}</td>
+                    <td class="px-4 py-3 text-right">${escapeHtml(invAmt > 0 ? formatCurrency(invAmt) : '-')}</td>
+                    <td class="px-4 py-3 text-right">${escapeHtml(invQty > 0 ? formatCurrency(invQty) : '-')}</td>
                     <td class="px-4 py-3 text-right font-mono text-purple-600">${dailyTurnover > 0 ? dailyTurnover.toFixed(1) + '%' : '-'}</td>
-                    <td class="px-4 py-3 text-right text-emerald-700">${(Number(m.usdRate) || 0) > 0 ? formatCurrency(Number(m.usdRate)) : '-'}</td>
-                    <td class="px-4 py-3 text-right text-emerald-700">${(Number(m.cnyRate) || 0) > 0 ? formatCurrency(Number(m.cnyRate)) : '-'}</td>
+                    <td class="px-4 py-3 text-right text-emerald-700">${escapeHtml((Number(m.usdRate) || 0) > 0 ? formatCurrency(Number(m.usdRate)) : '-')}</td>
+                    <td class="px-4 py-3 text-right text-emerald-700">${escapeHtml((Number(m.cnyRate) || 0) > 0 ? formatCurrency(Number(m.cnyRate)) : '-')}</td>
                 </tr>
             `;
         }).join('');
@@ -588,14 +588,14 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                         <tfoot class="bg-gray-50 font-bold text-gray-700">
                             <tr>
                                 <td class="px-4 py-3">합계 / 평균</td>
-                                <td class="px-4 py-3 text-right text-blue-700">${formatCurrency(currentStats.revenue)}</td>
-                                <td class="px-4 py-3 text-right">${formatCurrency(currentStats.orderCount)}</td>
+                                <td class="px-4 py-3 text-right text-blue-700">${escapeHtml(formatCurrency(currentStats.revenue))}</td>
+                                <td class="px-4 py-3 text-right">${escapeHtml(formatCurrency(currentStats.orderCount))}</td>
                                 <td class="px-4 py-3 text-right">-</td>
-                                <td class="px-4 py-3 text-right">${formatCurrency(Math.round(currentStats.avgInventoryAmt))} (평균)</td>
-                                <td class="px-4 py-3 text-right">${formatCurrency(Math.round(currentStats.avgInventoryQty))} (평균)</td>
+                                <td class="px-4 py-3 text-right">${escapeHtml(formatCurrency(Math.round(currentStats.avgInventoryAmt)))} (평균)</td>
+                                <td class="px-4 py-3 text-right">${escapeHtml(formatCurrency(Math.round(currentStats.avgInventoryQty)))} (평균)</td>
                                 <td class="px-4 py-3 text-right">-</td>
-                                <td class="px-4 py-3 text-right text-emerald-700">${currentStats.avgUsdRate > 0 ? formatCurrency(Math.round(currentStats.avgUsdRate)) + ' (평균)' : '-'}</td>
-                                <td class="px-4 py-3 text-right text-emerald-700">${currentStats.avgCnyRate > 0 ? formatCurrency(Math.round(currentStats.avgCnyRate)) + ' (평균)' : '-'}</td>
+                                <td class="px-4 py-3 text-right text-emerald-700">${escapeHtml(currentStats.avgUsdRate > 0 ? formatCurrency(Math.round(currentStats.avgUsdRate)) + ' (평균)' : '-')}</td>
+                                <td class="px-4 py-3 text-right text-emerald-700">${escapeHtml(currentStats.avgCnyRate > 0 ? formatCurrency(Math.round(currentStats.avgCnyRate)) + ' (평균)' : '-')}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -650,7 +650,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
     container.innerHTML = `
         <div class="max-w-6xl mx-auto pb-10">
             <h3 class="text-xl font-bold text-gray-800 mb-6 text-center">
-                ${key} 경영 성과 요약 <span class="text-sm font-normal text-gray-500 ml-2">${comparisonTitle}</span>
+                ${escapeHtml(key)} 경영 성과 요약 <span class="text-sm font-normal text-gray-500 ml-2">${escapeHtml(comparisonTitle)}</span>
             </h3>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -660,7 +660,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                     </div>
                     <h4 class="text-sm font-semibold text-gray-500 mb-1">총 매출액</h4>
                     <div class="text-2xl font-extrabold text-gray-800 mb-2">
-                        ${formatCurrency(currentStats.revenue)} <span class="text-sm font-medium text-gray-600">원</span>
+                        ${escapeHtml(formatCurrency(currentStats.revenue))} <span class="text-sm font-medium text-gray-600">원</span>
                     </div>
                     <div class="text-sm">
                         ${getDiffHtmlForMetric('totalCost', currentStats.revenue, prevStats?.revenue)}
@@ -674,7 +674,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
                     </div>
                     <h4 class="text-sm font-semibold text-gray-500 mb-1">총 주문 건수</h4>
                     <div class="text-2xl font-extrabold text-gray-800 mb-2">
-                        ${formatCurrency(currentStats.orderCount)} <span class="text-sm font-medium text-gray-600">건</span>
+                        ${escapeHtml(formatCurrency(currentStats.orderCount))} <span class="text-sm font-medium text-gray-600">건</span>
                     </div>
                     <div class="text-sm">
                         ${getDiffHtmlForMetric('quantity', currentStats.orderCount, prevStats?.orderCount)}
@@ -700,7 +700,7 @@ export const renderManagementSummary = (viewMode, key, allHistoryData) => {
             <div class="bg-white rounded-xl border border-emerald-100 shadow-sm mb-8 overflow-hidden">
                 <div class="px-6 py-4 border-b border-emerald-50 bg-emerald-50/50 flex justify-between items-center">
                     <h4 class="font-bold text-emerald-800 flex items-center gap-2">환율 (기간 평균)</h4>
-                    <span class="text-xs text-gray-500">${currentStats.daysWithFx}일 기록${fxCompareLabel ? ' · ' + fxCompareLabel : ''}</span>
+                    <span class="text-xs text-gray-500">${escapeHtml(currentStats.daysWithFx)}일 기록${escapeHtml(fxCompareLabel ? ' · ' + fxCompareLabel : '')}</span>
                 </div>
                 <div class="grid grid-cols-2 divide-x divide-gray-100">
                     <div class="p-5 text-center">

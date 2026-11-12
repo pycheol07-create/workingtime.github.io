@@ -8,11 +8,11 @@
 // 문서·순수 함수는 js/lib/refill-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=202611121547';
-import { lastDays, dayLabel, fmtHM, progress, dayStatus, refillStrip, fmtCount } from './lib/refill-view.js?v=202611121547';
-import { initFold } from './lib/card-fold.js?v=202611121547';
-import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=202611121547';
-import { mountRefillTable } from './refill-table.js?v=202611121547';
+import { escapeHtml } from './utils.js?v=202611121915';
+import { lastDays, dayLabel, fmtHM, progress, dayStatus, refillStrip, fmtCount } from './lib/refill-view.js?v=202611121915';
+import { initFold } from './lib/card-fold.js?v=202611121915';
+import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=202611121915';
+import { mountRefillTable } from './refill-table.js?v=202611121915';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
@@ -62,7 +62,7 @@ export function initRefillCard({ db, auth, getMemberName }) {
         const day = isToday ? '' : `<span>${escapeHtml(dayLabel(key))}</span>`;
         if (sp.msg) { setStrip(day + `<span class="${sp.tone === 'warn' ? 'refill-warn' : ''}">${escapeHtml(sp.msg)}</span>` + busyBadge(ru) + warnBadge(sp.warns), ''); return; }
         const sum = day + sp.items.map(it => `<span>${escapeHtml(it.label)} <b>${escapeHtml(it.value)}</b></span>`).join('')
-            + (sp.prog ? `<span>완료 <b>${sp.prog.done}/${sp.prog.total}</b></span>` : '') + busyBadge(ru) + warnBadge(sp.warns);
+            + (sp.prog ? `<span>완료 <b>${escapeHtml(sp.prog.done)}/${escapeHtml(sp.prog.total)}</b></span>` : '') + busyBadge(ru) + warnBadge(sp.warns);
         const omitted = d && d.data.fileOmitted;
         // 접힌 띠에서도 [표 보기]·[엑셀 받기] (펼치지 않아도 바로)
         const tableBtn = `<button type="button" class="btn btn-secondary btn-sm" data-refill="table"${d ? '' : ' disabled'}>표 보기</button>`;
@@ -98,18 +98,18 @@ export function initRefillCard({ db, auth, getMemberName }) {
             const pr = progress(rows, S.work.checks), pc = progress(checks, S.work.checks);
             // 다시 만든 판: 오늘 완료라 고정한 줄 · 이번 판에 새로 들어온 줄(값 있을 때만 — 서버 채우기자동화\고정.py)
             const fx = [[e.fixed, '고정'], [e.added, '새로']].filter(([v]) => Number.isFinite(+v) && +v > 0)
-                .map(([v, label]) => ` · ${label} <b>${num(v)}</b>`).join('');
-            parts.push(`<div class="refill-line">기준 <b>${escapeHtml(fmtHM(e.basedAt) || '-')}</b> · 채울 칸 <b>${num(e.rows)}</b> · 채울 수량 <b>${num(e.fillQty)}</b> · 확인필요 <b>${num(e.checks)}</b>${fx}</div>`);
+                .map(([v, label]) => ` · ${escapeHtml(label)} <b>${escapeHtml(num(v))}</b>`).join('');
+            parts.push(`<div class="refill-line">기준 <b>${escapeHtml(fmtHM(e.basedAt) || '-')}</b> · 채울 칸 <b>${escapeHtml(num(e.rows))}</b> · 채울 수량 <b>${escapeHtml(num(e.fillQty))}</b> · 확인필요 <b>${escapeHtml(num(e.checks))}</b>${fx}</div>`);
             if (e.source === 'request' || e.source === 'auto') {
                 const sl = d && d.data.slack;
                 const slackTxt = sl && sl.at ? `슬랙에는 ${escapeHtml(fmtHM(sl.at))} 판` : '슬랙에는 보내지 않음';
                 const how = e.source === 'auto' ? '재고 업로드로 자동으로 다시 만듦' : '앱에서 다시 만듦';
-                parts.push(`<div class="refill-sub">${how} ${escapeHtml(fmtHM(e.basedAt))} · ${slackTxt}</div>`);
+                parts.push(`<div class="refill-sub">${escapeHtml(how)} ${escapeHtml(fmtHM(e.basedAt))} · ${slackTxt}</div>`);
             }
             if (d) {
-                parts.push(`<div class="refill-prog"><span>완료 <b>${pr.done}/${pr.total}</b> (${pr.pct}%)</span>`
-                    + `<div class="kpi-bar refill-bar"><div style="width:${pr.pct}%; background:var(--c-ok);"></div></div>`
-                    + (pc.total ? `<span class="refill-sub">확인필요 ${pc.done}/${pc.total}</span>` : '') + '</div>');
+                parts.push(`<div class="refill-prog"><span>완료 <b>${escapeHtml(pr.done)}/${escapeHtml(pr.total)}</b> (${escapeHtml(pr.pct)}%)</span>`
+                    + `<div class="kpi-bar refill-bar"><div style="width:${escapeHtml(pr.pct)}%; background:var(--c-ok);"></div></div>`
+                    + (pc.total ? `<span class="refill-sub">확인필요 ${escapeHtml(pc.done)}/${escapeHtml(pc.total)}</span>` : '') + '</div>');
                 if (d.parsed.error) parts.push(`<div class="refill-msg refill-warn">${escapeHtml(d.parsed.error)}</div>`);
             } else if (S.dayErr) {
                 parts.push(`<div class="refill-msg refill-warn">${escapeHtml(S.dayErr)}</div>`);

@@ -3,51 +3,51 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202611121547';
+import { predictFutureTrends } from './analysis-logic.js?v=202611121915';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611121547';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611121547';
-import { inspListCountFor } from './lib/insp-day.js?v=202611121547';
-import { getSubscribedDate } from './app-sync.js?v=202611121547';
-import { runDay } from './lib/refill-view.js?v=202611121547';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611121547';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611121547';
-import { TASK, tName, isT, tQty } from './task-names.js?v=202611121547';
-import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611121547';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611121915';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611121915';
+import { inspListCountFor } from './lib/insp-day.js?v=202611121915';
+import { getSubscribedDate } from './app-sync.js?v=202611121915';
+import { runDay } from './lib/refill-view.js?v=202611121915';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611121915';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611121915';
+import { TASK, tName, isT, tQty } from './task-names.js?v=202611121915';
+import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611121915';
 import { LEGACY_SIM_TASKS, legacySimTasksOf, namesOf, timeTaskExcludeOf, DEFAULT_SIM_ALWAYS_TASKS, DEFAULT_SIM_ZERO_TASKS,
          DEFAULT_FORECAST_EXCLUDED_TASKS, DEFAULT_LOADOUT_SOURCES, defaultAutoModeOf, defaultTimeTaskDepsOf,
-         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611121547';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611121547';
-import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611121547';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611121547';
-import * as State from './state.js?v=202611121547';
-import { saveView } from './view-state.js?v=202611121547';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611121547';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611121547';
+         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611121915';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611121915';
+import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611121915';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611121915';
+import * as State from './state.js?v=202611121915';
+import { saveView } from './view-state.js?v=202611121915';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611121915';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611121915';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611121547';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611121915';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611121547';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611121547';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611121915';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611121915';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611121547';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202611121547';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611121915';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202611121915';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611121547';
-import { taskUph, recentDays } from './task-throughput.js?v=202611121547';
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611121915';
+import { taskUph, recentDays } from './task-throughput.js?v=202611121915';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202611121547';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202611121915';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202611121547';
-import { D } from './d-chart.js?v=202611121547';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611121547';
-import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611121547';
-import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611121547';
+         excessOffDays } from './lib/backlog-carry.js?v=202611121915';
+import { D } from './d-chart.js?v=202611121915';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611121915';
+import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611121915';
+import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611121915';
 import { correctedInputs, planBaseOf, noExtraKeysOf, RESERVE_KEY, presenceSureKeys, presenceDoneKeys,
-         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611121547';
+         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611121915';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -2320,26 +2320,26 @@ const renderSimTaskInputs = () => {
 
     // 업무명은 관리자 설정에서 오는 임의 문자열이다 — 따옴표 하나에 줄 전체가 깨진다
     const row = (t) => `
-        <div id="sim-row-${t.id}" data-row-id="${t.id}" class="pred-sim-row ${ROW}">
+        <div id="sim-row-${escapeHtml(t.id)}" data-row-id="${escapeHtml(t.id)}" class="pred-sim-row ${escapeHtml(ROW)}">
             <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)}">${escapeHtml(t.label)}</span>
-            <input id="sim-qty-${t.id}" type="number" min="0" placeholder="0" inputmode="numeric" class="${NUM}">
+            <input id="sim-qty-${escapeHtml(t.id)}" type="number" min="0" placeholder="0" inputmode="numeric" class="${escapeHtml(NUM)}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">개</span>
-            <span id="sim-src-${t.id}" class="w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
-            <button type="button" id="sim-day-${t.id}" data-task-id="${t.id}" tabindex="-1"
+            <span id="sim-src-${escapeHtml(t.id)}" class="w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
+            <button type="button" id="sim-day-${escapeHtml(t.id)}" data-task-id="${escapeHtml(t.id)}" tabindex="-1"
                     class="pred-day-apply shrink-0 text-center text-[11px] leading-tight tabular-nums hidden"></button>
         </div>`;
 
     const timeRow = (t) => `
-        <div id="sim-row-t-${t.id}" data-row-id="t-${t.id}" class="pred-sim-row ${ROW}">
+        <div id="sim-row-t-${escapeHtml(t.id)}" data-row-id="t-${escapeHtml(t.id)}" class="pred-sim-row ${escapeHtml(ROW)}">
             <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)} — 인원이 늘면 그만큼 시간이 더해집니다">${escapeHtml(t.label)}</span>
             <label class="shrink-0 text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
                    title="이 업무를 하는 인원. 인원을 올리면 1인 시간만큼 총 시간이 자동으로 더해집니다(1명 340분 → 2명 680분). 0명으로 두면 그날은 하지 않는 업무로 보고 시간도 0이 됩니다.">동시
-                <input id="sim-workers-${t.id}" type="number" min="0" step="1" value="1"
+                <input id="sim-workers-${escapeHtml(t.id)}" type="number" min="0" step="1" value="1"
                        class="w-8 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
                               text-[12px] font-bold text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-0">명</label>
-            <input id="sim-time-${t.id}" type="number" min="0" step="10" placeholder="0" inputmode="numeric" class="${NUM}">
+            <input id="sim-time-${escapeHtml(t.id)}" type="number" min="0" step="10" placeholder="0" inputmode="numeric" class="${escapeHtml(NUM)}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">분</span>
-            <span id="sim-src-t-${t.id}" class="w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 4주 평균</span>
+            <span id="sim-src-t-${escapeHtml(t.id)}" class="w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 4주 평균</span>
         </div>`;
 
     const block = (title, sub, rowsHtml, tone = '') => `
@@ -2353,7 +2353,7 @@ const renderSimTaskInputs = () => {
 
     const qtyBlocks = SIM_GROUPS.map(g => {
         const rows = g.ids.map(id => SIM_TASKS.find(t => t.id === id)).filter(Boolean);
-        return rows.length > 0 ? block(g.label, '', rows.map(row).join('')) : '';
+        return rows.length > 0 ? block(escapeHtml(g.label), '', rows.map(row).join('')) : '';
     }).join('');
 
     // 자주 하는 업무와 가끔 하는 업무를 나눈다 — 목록이 길어져도 위쪽은 평소 모습 그대로 남는다
@@ -2383,7 +2383,7 @@ const renderSimTaskInputs = () => {
     const adminInput = `
             <label class="shrink-0 text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap"
                    title="관리자 개별업무를 하는 인원 — 이 인원만큼 정직원 가용에서 뺍니다. 관리자 인원을 바꾸면 정직원 가용 칸이 다시 계산됩니다">관리자
-                <input id="sim-admin-workers" type="number" min="0" max="20" step="1" value="${DEFAULT_ADMIN_WORKERS}" inputmode="numeric"
+                <input id="sim-admin-workers" type="number" min="0" max="20" step="1" value="${escapeHtml(DEFAULT_ADMIN_WORKERS)}" inputmode="numeric"
                        class="w-8 bg-transparent border-0 border-b border-gray-200 dark:border-gray-600 p-0 text-center tabular-nums
                               text-[12px] font-bold text-gray-600 dark:text-gray-200 focus:outline-none focus:ring-0">명</label>`;
     const refRow = (key) => `
@@ -2593,7 +2593,7 @@ const applyEmptyRowFolding = () => {
                 class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg
                        text-gray-500 dark:text-gray-400 bg-gray-100/70 dark:bg-gray-700/50
                        hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-            ${showEmptySimRows ? '▴ 자동값 그대로인 업무 접기' : `▾ 자동값 그대로 ${hidden}개 보기`}
+            ${escapeHtml(showEmptySimRows ? '▴ 자동값 그대로인 업무 접기' : `▾ 자동값 그대로 ${hidden}개 보기`)}
         </button>`;
 };
 
@@ -2708,8 +2708,8 @@ const renderLeaveInfo = (staffInfo) => {
     if (!el) return;
     // 업무 예상 인원에서 뺀 관리자 인원(관리자 개별업무 줄의 인원 칸) — 실제로 뺀 수만 보인다
     const excl = staffInfo.excludedCount > 0
-        ? ` <span class="text-gray-400 dark:text-gray-500">· 관리자 ${staffInfo.excludedCount}명 제외</span>` : '';
-    const tail = `<span class="whitespace-nowrap">총 ${staffInfo.total}명 중 <strong class="text-gray-700 dark:text-gray-200">${staffInfo.available}명 가용</strong>${excl}</span>`;
+        ? ` <span class="text-gray-400 dark:text-gray-500">· 관리자 ${escapeHtml(staffInfo.excludedCount)}명 제외</span>` : '';
+    const tail = `<span class="whitespace-nowrap">총 ${escapeHtml(staffInfo.total)}명 중 <strong class="text-gray-700 dark:text-gray-200">${escapeHtml(staffInfo.available)}명 가용</strong>${excl}</span>`;
 
     if (!staffInfo.onLeaveList || staffInfo.onLeaveList.length === 0) {
         el.innerHTML = `<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -3067,7 +3067,7 @@ const correctionBadge = (r, { withRaw = true } = {}) => {
         + (raw ? ` 보정 전: 필요 ${raw.requiredFTE}명 · 총 ${(raw.totalHours || 0).toFixed(1)}시간` : '');
     return `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300"
                   title="${escapeHtml(tip)}">보정 적용</span>`
-        + (withRaw && raw ? `<span class="text-[11px] text-gray-400 dark:text-gray-500 ml-1">보정 전 ${raw.requiredFTE}명 · ${(raw.totalHours || 0).toFixed(1)}시간</span>` : '');
+        + (withRaw && raw ? `<span class="text-[11px] text-gray-400 dark:text-gray-500 ml-1">보정 전 ${escapeHtml(raw.requiredFTE)}명 · ${(raw.totalHours || 0).toFixed(1)}시간</span>` : '');
 };
 /** 업무 줄 툴팁에 붙일 보정 배율 문구 — 없으면 '' */
 const factorNote = (r, key) => {
@@ -3113,7 +3113,7 @@ const presenceChip = (r, key) => {
     const view = v && PRESENCE_VIEW[v.state];
     if (!view) return '';
     const tip = `${view.tip} ${presenceKindTip(v.kind)} (최근 진행 확률 ${Math.round((Number(v.p) || 0) * 100)}%${Number(v.dayH) > 0 ? ` · 하는 날 평균 ${fmtH(v.dayH)}` : ''})`;
-    return `<span class="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded ${view.cls}" title="${escapeHtml(tip)}">${view.text}</span>`;
+    return `<span class="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded ${view.cls}" title="${escapeHtml(tip)}">${escapeHtml(view.text)}</span>`;
 };
 /** 오늘·내일 카드의 한 줄 — '불확실'·'안 할 가능성' 건수. 없으면 '' */
 const presenceCardLine = (r) => {
@@ -3124,7 +3124,7 @@ const presenceCardLine = (r) => {
     const parts = [maybe.length ? `불확실 ${maybe.length}건` : '', off.length ? `안 할 가능성 ${off.length}건` : ''].filter(Boolean);
     const tip = [maybe.length ? `불확실: ${maybe.join(', ')}` : '', off.length ? `안 할 가능성: ${off.join(', ')}` : '',
                  '표시만 합니다 — 시간과 필요 인원은 이 표시 때문에 바뀌지 않습니다.'].filter(Boolean).join('\n');
-    return `<span class="text-gray-300 dark:text-gray-600">·</span><span class="font-bold text-amber-700 dark:text-amber-300" title="${escapeHtml(tip)}">진행 ${parts.join(' · ')}</span>`;
+    return `<span class="text-gray-300 dark:text-gray-600">·</span><span class="font-bold text-amber-700 dark:text-amber-300" title="${escapeHtml(tip)}">진행 ${escapeHtml(parts.join(' · '))}</span>`;
 };
 /** 진행 판정이 '불확실'인 업무 → '진행 시' 패널 항목. 물량 업무는 qty, 시간형은 hours(qty 없음).
  *  시간형 hours 는 대안 계산 뒤 presenceAltHours 가 실제 대안 값으로 바꾼다. skip = 이미 패널에 있는 항목 */
@@ -3283,18 +3283,18 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
             const w = r.totalHours > 0 ? Math.max(2, Math.round(v.hours / r.totalHours * 100)) : 0;
             return `<tr class="border-t border-gray-100 dark:border-gray-700/60">
                 <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}${presenceChip(r, t.key)}</td>
-                <td class="py-2 px-3 text-right tabular-nums">${v.qty.toLocaleString()}</td>
+                <td class="py-2 px-3 text-right tabular-nums">${escapeHtml(v.qty.toLocaleString())}</td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${v.uph > 0 ? v.uph.toFixed(1) : '<span class="text-gray-300 dark:text-gray-600">기준 없음</span>'}</td>
                 <td class="py-2 px-3 text-right">
                     <div class="flex items-center justify-end gap-2">
                         <div class="hidden sm:block w-16 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                            <div class="h-full bg-indigo-400 dark:bg-indigo-500 rounded-full" style="width:${w}%"></div>
+                            <div class="h-full bg-indigo-400 dark:bg-indigo-500 rounded-full" style="width:${escapeHtml(w)}%"></div>
                         </div>
-                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100"${factorNote(r, t.key) ? ` title="${escapeHtml(factorNote(r, t.key).replace(/^ · /, ''))}"` : ''}>${v.uph > 0 ? fmtH(v.hours) : '—'}${factorNote(r, t.key) ? '<span class="text-teal-600 dark:text-teal-300">*</span>' : ''}</span>
+                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100"${factorNote(r, t.key) ? ` title="${escapeHtml(factorNote(r, t.key).replace(/^ · /, ''))}"` : ''}>${escapeHtml(v.uph > 0 ? fmtH(v.hours) : '—')}${factorNote(r, t.key) ? '<span class="text-teal-600 dark:text-teal-300">*</span>' : ''}</span>
                     </div>
                 </td>
                 <td class="py-2 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300"
-                    title="물량 업무에 투입되는 ${r.qtyStaff.toFixed(1)}명이 이 업무에만 붙었을 때 걸리는 시간${r.timeHours > 0 ? ` (가용 ${r.availableTotal}명 − 담당 업무에 묶인 ${r.tiedFTE.toFixed(1)}명)` : ''}">${(v.uph > 0 && r.qtyStaff > 0) ? fmtHM(v.elapsed) : '—'}</td>
+                    title="물량 업무에 투입되는 ${r.qtyStaff.toFixed(1)}명이 이 업무에만 붙었을 때 걸리는 시간${escapeHtml(r.timeHours > 0 ? ` (가용 ${r.availableTotal}명 − 담당 업무에 묶인 ${r.tiedFTE.toFixed(1)}명)` : '')}">${escapeHtml((v.uph > 0 && r.qtyStaff > 0) ? fmtHM(v.elapsed) : '—')}</td>
             </tr>`;
         }).filter(Boolean).join('');
 
@@ -3306,18 +3306,18 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
             return `<tr class="border-t border-gray-100 dark:border-gray-700/60 bg-indigo-50/30 dark:bg-indigo-900/10">
                 <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}
                     <span class="ml-1 text-[11px] font-bold text-indigo-500 dark:text-indigo-300">시간형</span>${presenceChip(r, t.key)}</td>
-                <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">${v.minutes}분</td>
-                <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">담당 ${v.workers}명</td>
+                <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">${escapeHtml(v.minutes)}분</td>
+                <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">담당 ${escapeHtml(v.workers)}명</td>
                 <td class="py-2 px-3 text-right">
                     <div class="flex items-center justify-end gap-2">
                         <div class="hidden sm:block w-16 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                            <div class="h-full bg-indigo-300 dark:bg-indigo-600 rounded-full" style="width:${w}%"></div>
+                            <div class="h-full bg-indigo-300 dark:bg-indigo-600 rounded-full" style="width:${escapeHtml(w)}%"></div>
                         </div>
-                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100"${factorNote(r, t.key) ? ` title="${escapeHtml(factorNote(r, t.key).replace(/^ · /, ''))}"` : ''}>${fmtH(v.hours)}${factorNote(r, t.key) ? '<span class="text-teal-600 dark:text-teal-300">*</span>' : ''}</span>
+                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100"${factorNote(r, t.key) ? ` title="${escapeHtml(factorNote(r, t.key).replace(/^ · /, ''))}"` : ''}>${escapeHtml(fmtH(v.hours))}${factorNote(r, t.key) ? '<span class="text-teal-600 dark:text-teal-300">*</span>' : ''}</span>
                     </div>
                 </td>
                 <td class="py-2 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300"
-                    title="총 ${v.minutes}분을 ${v.workers}명이 각자 ${Math.round(v.minutes / v.workers)}분씩 (인시 합계 ${fmtH(v.hours)})">${fmtHM(v.elapsed)}</td>
+                    title="총 ${escapeHtml(v.minutes)}분을 ${escapeHtml(v.workers)}명이 각자 ${Math.round(v.minutes / v.workers)}분씩 (인시 합계 ${escapeHtml(fmtH(v.hours))})">${escapeHtml(fmtHM(v.elapsed))}</td>
             </tr>`;
         }).filter(Boolean).join('');
 
@@ -3326,14 +3326,14 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
             const w = r.totalHours > 0 ? Math.max(2, Math.round(hours / r.totalHours * 100)) : 0;
             return `<tr class="border-t border-gray-100 dark:border-gray-700/60 bg-teal-50/40 dark:bg-teal-900/10" title="${escapeHtml(tip)}">
                 <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(name)}
-                    <span class="ml-1 text-[11px] font-bold text-teal-600 dark:text-teal-300">${sub}</span></td>
+                    <span class="ml-1 text-[11px] font-bold text-teal-600 dark:text-teal-300">${escapeHtml(sub)}</span></td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600" colspan="2">—</td>
                 <td class="py-2 px-3 text-right">
                     <div class="flex items-center justify-end gap-2">
                         <div class="hidden sm:block w-16 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                            <div class="h-full bg-teal-300 dark:bg-teal-600 rounded-full" style="width:${w}%"></div>
+                            <div class="h-full bg-teal-300 dark:bg-teal-600 rounded-full" style="width:${escapeHtml(w)}%"></div>
                         </div>
-                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100">${fmtH(hours)}</span>
+                        <span class="font-bold tabular-nums text-gray-800 dark:text-gray-100">${escapeHtml(fmtH(hours))}</span>
                     </div>
                 </td>
                 <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-600">—</td>
@@ -3366,7 +3366,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
         const { maybeTasks = [], altResult = null, excludedCount = 0 } = scenario;
         const maybeChips = (list) => `<div class="flex flex-wrap gap-1.5">
                         ${list.map(m => `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/70 dark:bg-gray-800/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800/60">
-                            ${escapeHtml(m.label)} ${m.qty > 0 ? `${m.qty.toLocaleString()}개` : fmtH(m.hours)} · 확률 ${Math.round((m.prob || 0) * 100)}%</span>`).join('')}
+                            ${escapeHtml(m.label)} ${escapeHtml(m.qty > 0 ? `${m.qty.toLocaleString()}개` : fmtH(m.hours))} · 확률 ${Math.round((m.prob || 0) * 100)}%</span>`).join('')}
                     </div>`;
         const maybePanel = (maybeTasks.length > 0 && altResult) ? `
                 <div class="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/15 p-3 space-y-2">
@@ -3375,7 +3375,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                     ${['none', 'prob', 'plan'].map(b => {
                         const list = maybeTasks.filter(m => maybeBasisOf(m, r.correction?.extra) === b);
                         return list.length === 0 ? '' : `
-                    <div class="text-[11px] font-bold text-amber-700 dark:text-amber-300/90">${MAYBE_BASIS_TEXT[b]}</div>
+                    <div class="text-[11px] font-bold text-amber-700 dark:text-amber-300/90">${escapeHtml(MAYBE_BASIS_TEXT[b])}</div>
                     ${maybeChips(list)}`;
                     }).join('')}` : `
                     <div class="text-[11px] font-extrabold text-amber-800 dark:text-amber-300">
@@ -3386,15 +3386,15 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                     <div class="grid grid-cols-3 gap-2 text-center">
                         <div class="rounded-lg bg-white/70 dark:bg-gray-800/60 py-2">
                             <div class="text-[11px] font-bold text-gray-400">진행 시 필요 인원</div>
-                            <div class="text-lg font-black text-amber-700 dark:text-amber-300">${altResult.requiredFTE}명</div>
+                            <div class="text-lg font-black text-amber-700 dark:text-amber-300">${escapeHtml(altResult.requiredFTE)}명</div>
                         </div>
                         <div class="rounded-lg bg-white/70 dark:bg-gray-800/60 py-2">
                             <div class="text-[11px] font-bold text-gray-400">진행 시 실 소요시간</div>
-                            <div class="text-lg font-black text-amber-700 dark:text-amber-300">${altResult.availableTotal > 0 ? fmtHM(altResult.elapsedHours) : '—'}</div>
+                            <div class="text-lg font-black text-amber-700 dark:text-amber-300">${escapeHtml(altResult.availableTotal > 0 ? fmtHM(altResult.elapsedHours) : '—')}</div>
                         </div>
                         <div class="rounded-lg bg-white/70 dark:bg-gray-800/60 py-2">
                             <div class="text-[11px] font-bold text-gray-400">진행 시 과부족</div>
-                            <div class="text-lg font-black text-amber-700 dark:text-amber-300">${gapText(altResult.gap)}</div>
+                            <div class="text-lg font-black text-amber-700 dark:text-amber-300">${escapeHtml(gapText(altResult.gap))}</div>
                         </div>
                     </div>
                     <div class="text-[11px] text-amber-700/80 dark:text-amber-300/70">
@@ -3410,7 +3410,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
             <div class="p-4 md:p-5 space-y-4">
                 <!-- 판단에 필요한 숫자 셋만 크게. 나머지 근거는 아래 '업무별 상세'에 접어 둔다. -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    ${stat('필요 인원', `${r.requiredFTE}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span>`,
+                    ${stat('필요 인원', `${escapeHtml(r.requiredFTE)}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span>`,
                            `가용 ${r.availableTotal}명`)}
                     ${stat('실 소요시간', r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—',
                            r.availableTotal <= 0 ? '가용 인원을 입력하세요'
@@ -3426,10 +3426,10 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                 ${maybePanel}
 
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <span class="text-sm font-extrabold px-3 py-1 rounded-full ${tone.chip}">${gapText(r.gap)}</span>
+                    <span class="text-sm font-extrabold px-3 py-1 rounded-full ${escapeHtml(tone.chip)}">${escapeHtml(gapText(r.gap))}</span>
                     <span class="text-[11px] text-gray-400 dark:text-gray-500">
-                        총 소요시간 <b class="text-gray-600 dark:text-gray-300">${fmtHM(r.totalHours)}</b> (인시 합계)
-                        ${r.excludeMinutes > 0 ? ` · 제외 ${fmtMin(r.excludeMinutes)} 반영` : ''}
+                        총 소요시간 <b class="text-gray-600 dark:text-gray-300">${escapeHtml(fmtHM(r.totalHours))}</b> (인시 합계)
+                        ${escapeHtml(r.excludeMinutes > 0 ? ` · 제외 ${fmtMin(r.excludeMinutes)} 반영` : '')}
                     </span>
                 </div>
                 ${(r.gap < -1 && excludedCount > 0) ? `<p class="-mt-2 text-[11px] font-bold text-rose-600 dark:text-rose-400">부족분은 관리자 투입 검토</p>` : ''}
@@ -3442,9 +3442,9 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                     <div class="mt-3 space-y-3">
 
                 ${r.timeHours > 0 ? `<p class="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                    담당 업무 ${fmtHM(r.timeHours - extraH)}${extraH > 0 ? ` + 보정 추가 ${fmtHM(extraH)}` : ''}에 <b>${r.tiedFTE.toFixed(1)}명</b>이 묶여,
+                    담당 업무 ${escapeHtml(fmtHM(r.timeHours - extraH))}${escapeHtml(extraH > 0 ? ` + 보정 추가 ${fmtHM(extraH)}` : '')}에 <b>${r.tiedFTE.toFixed(1)}명</b>이 묶여,
                     물량 업무에는 <b>${r.qtyStaff.toFixed(1)}명</b>이 투입되는 것으로 계산했습니다
-                    (물량 업무 ${r.staffShortForQty ? '계산 불가' : fmtHM(r.qtyElapsed)}).
+                    (물량 업무 ${escapeHtml(r.staffShortForQty ? '계산 불가' : fmtHM(r.qtyElapsed))}).
                     ${r.elapsedCappedByTimeTask ? '실 소요시간은 <b>담당 업무 시간</b>에 걸려 있습니다 — 인원을 더 넣어도 그보다 빨리 끝나지 않습니다.' : ''}
                     ${r.staffShortForQty ? '<span class="text-rose-600 dark:text-rose-400 font-bold">담당 업무가 가용 인원을 모두 차지해 물량 업무를 할 사람이 없습니다.</span>' : ''}
                 </p>` : ''}
@@ -3465,8 +3465,8 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
                             <tfoot class="bg-gray-50 dark:bg-gray-900/40 font-extrabold text-gray-800 dark:text-gray-100">
                                 <tr class="border-t border-gray-200 dark:border-gray-700">
                                     <td class="py-2.5 px-3" colspan="3">합계</td>
-                                    <td class="py-2.5 px-3 text-right tabular-nums">${fmtH(r.totalHours)}</td>
-                                    <td class="py-2.5 px-3 text-right tabular-nums text-indigo-600 dark:text-indigo-300">${r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—'}</td>
+                                    <td class="py-2.5 px-3 text-right tabular-nums">${escapeHtml(fmtH(r.totalHours))}</td>
+                                    <td class="py-2.5 px-3 text-right tabular-nums text-indigo-600 dark:text-indigo-300">${escapeHtml(r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—')}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -3482,13 +3482,13 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
             const tone = GAP_TONE(r.gap);
             return `
             <tr class="border-t border-gray-100 dark:border-gray-700/60 ${r.holiday ? 'bg-rose-50/40 dark:bg-rose-900/10' : (r.weekend ? 'bg-amber-50/40 dark:bg-amber-900/10' : '')}">
-                <td class="py-2.5 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${dayLabel(r.date)}${offDayChip(r, { pad: 'px-1' })}</td>
-                <td class="py-2.5 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${fmtH(r.totalHours)}</td>
-                <td class="py-2.5 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300">${r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—'}</td>
-                <td class="py-2.5 px-3 text-right tabular-nums font-bold ${r.availableTotal <= 0 ? 'text-gray-400' : (r.slackHours >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}">${r.availableTotal > 0 ? (r.slackHours >= 0 ? `+${fmtHM(r.slackHours)}` : `-${fmtHM(Math.abs(r.slackHours))}`) : '—'}</td>
-                <td class="py-2.5 px-3 text-right tabular-nums font-bold">${r.requiredFTE}</td>
-                <td class="py-2.5 px-3 text-right tabular-nums font-bold">${r.availableTotal}</td>
-                <td class="py-2.5 px-3 text-right"><span class="text-[11px] font-extrabold px-2 py-1 rounded-full ${tone.chip}">${gapText(r.gap)}</span></td>
+                <td class="py-2.5 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${escapeHtml(dayLabel(r.date))}${offDayChip(r, { pad: 'px-1' })}</td>
+                <td class="py-2.5 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${escapeHtml(fmtH(r.totalHours))}</td>
+                <td class="py-2.5 px-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300">${escapeHtml(r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—')}</td>
+                <td class="py-2.5 px-3 text-right tabular-nums font-bold ${r.availableTotal <= 0 ? 'text-gray-400' : (r.slackHours >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}">${escapeHtml(r.availableTotal > 0 ? (r.slackHours >= 0 ? `+${fmtHM(r.slackHours)}` : `-${fmtHM(Math.abs(r.slackHours))}`) : '—')}</td>
+                <td class="py-2.5 px-3 text-right tabular-nums font-bold">${escapeHtml(r.requiredFTE)}</td>
+                <td class="py-2.5 px-3 text-right tabular-nums font-bold">${escapeHtml(r.availableTotal)}</td>
+                <td class="py-2.5 px-3 text-right"><span class="text-[11px] font-extrabold px-2 py-1 rounded-full ${escapeHtml(tone.chip)}">${escapeHtml(gapText(r.gap))}</span></td>
             </tr>`;
         }).join('');
         const sumRequired = results.reduce((s, r) => s + r.requiredFTE, 0);
@@ -3509,10 +3509,10 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
         ${cardOpen(`7일치 일괄 시뮬레이션 ${correctionBadge(results[0], { withRaw: false })}`, `대상일 외 6일은 자동값 사용 · 알바 ${partN}명 동일 적용${exclM > 0 ? ` · 업무 제외시간 ${fmtMin(exclM)} 반영` : ''}`)}
             <div class="p-4 md:p-5 space-y-4">
                 <div class="grid grid-cols-[repeat(2,minmax(0,1fr))] md:grid-cols-[repeat(4,minmax(0,1fr))] gap-2.5">
-                    ${mini('합계 필요', `${sumRequired}<span class="text-[11px] font-bold text-gray-400 ml-0.5">명·일</span>`)}
-                    ${mini('합계 가용', `${sumAvail}<span class="text-[11px] font-bold text-gray-400 ml-0.5">명·일</span>`)}
-                    ${mini('부족 일수', `${shortageDays}<span class="text-[11px] font-bold text-gray-400 ml-0.5">일</span>`, 'text-rose-600 dark:text-rose-400')}
-                    ${mini('여유 일수', `${surplusDays}<span class="text-[11px] font-bold text-gray-400 ml-0.5">일</span>`, 'text-emerald-600 dark:text-emerald-400')}
+                    ${mini('합계 필요', `${escapeHtml(sumRequired)}<span class="text-[11px] font-bold text-gray-400 ml-0.5">명·일</span>`)}
+                    ${mini('합계 가용', `${escapeHtml(sumAvail)}<span class="text-[11px] font-bold text-gray-400 ml-0.5">명·일</span>`)}
+                    ${mini('부족 일수', `${escapeHtml(shortageDays)}<span class="text-[11px] font-bold text-gray-400 ml-0.5">일</span>`, 'text-rose-600 dark:text-rose-400')}
+                    ${mini('여유 일수', `${escapeHtml(surplusDays)}<span class="text-[11px] font-bold text-gray-400 ml-0.5">일</span>`, 'text-emerald-600 dark:text-emerald-400')}
                     ${mini('합계 총 소요시간', fmtHM(sumHours))}
                     ${mini('초과 예상 일수', `${results.filter(r => r.availableTotal > 0 && r.slackHours < 0).length}<span class="text-[11px] font-bold text-gray-400 ml-0.5">일</span>`, 'text-rose-600 dark:text-rose-400')}
                 </div>
@@ -4006,14 +4006,14 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
         <div class="flex items-start justify-between gap-2 mb-4">
             <div class="min-w-0">
                 <div class="flex items-center gap-1.5 flex-wrap">
-                    <span class="text-base font-extrabold text-gray-900 dark:text-white">${label}</span>
+                    <span class="text-base font-extrabold text-gray-900 dark:text-white">${escapeHtml(label)}</span>
                     ${offDayChip(r).trim()}
                     ${correctionBadge(r, { withRaw: false })}
                     ${simLinked ? '<span class="text-[11px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-1.5 py-0.5 rounded" title="아래 상세 시뮬레이션에 입력한 값이 그대로 반영된 결과입니다.">시뮬레이션 반영</span>' : ''}
                 </div>
-                <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">${dayLabel(r.date)}</div>
+                <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">${escapeHtml(dayLabel(r.date))}</div>
             </div>
-            <span class="text-[11px] font-extrabold px-2.5 py-1 rounded-full shrink-0 ${tone.chip}">${gapText(gap)}</span>
+            <span class="text-[11px] font-extrabold px-2.5 py-1 rounded-full shrink-0 ${escapeHtml(tone.chip)}">${escapeHtml(gapText(gap))}</span>
         </div>
         ${(gap < -1 && (inputs.staffInfo?.excludedCount || 0) > 0)
             ? `<p class="-mt-3 mb-3 text-right text-[11px] font-bold text-rose-600 dark:text-rose-400">부족분은 관리자 투입 검토</p>` : ''}
@@ -4021,43 +4021,43 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
         <div class="flex items-end gap-4 mb-3">
             <div>
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">필요</div>
-                <div class="text-3xl font-black leading-none text-gray-900 dark:text-white mt-1">${r.requiredFTE}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
+                <div class="text-3xl font-black leading-none text-gray-900 dark:text-white mt-1">${escapeHtml(r.requiredFTE)}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
             </div>
             <div class="text-gray-200 dark:text-gray-700 text-2xl font-light leading-none pb-1">/</div>
             <div>
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wide">가용</div>
-                <div class="text-3xl font-black leading-none text-gray-900 dark:text-white mt-1">${staffN}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
+                <div class="text-3xl font-black leading-none text-gray-900 dark:text-white mt-1">${escapeHtml(staffN)}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
             </div>
         </div>
 
         <div class="h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden mb-3">
-            <div class="h-full ${tone.bar} rounded-full transition-all" style="width:${pct}%"></div>
+            <div class="h-full ${escapeHtml(tone.bar)} rounded-full transition-all" style="width:${escapeHtml(pct)}%"></div>
         </div>
 
         <div class="grid grid-cols-3 gap-2 mb-3">
             <div class="rounded-lg bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 px-2 py-1.5">
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500">총 소요시간</div>
-                <div class="text-[14px] font-extrabold text-gray-800 dark:text-gray-100 mt-0.5 tabular-nums">${fmtHM(r.totalHours)}</div>
+                <div class="text-[14px] font-extrabold text-gray-800 dark:text-gray-100 mt-0.5 tabular-nums">${escapeHtml(fmtHM(r.totalHours))}</div>
             </div>
             <div class="rounded-lg bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 px-2 py-1.5"
                  title="실제로 흘러가는 시간 — 물량 업무는 담당 업무에 묶인 인원(${r.tiedFTE.toFixed(1)}명)을 뺀 ${r.qtyStaff.toFixed(1)}명 기준이고, 담당 업무가 더 오래 걸리면 그 시간을 씁니다">
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500">실 소요시간</div>
-                <div class="text-[14px] font-extrabold text-indigo-600 dark:text-indigo-300 mt-0.5 tabular-nums">${r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—'}</div>
+                <div class="text-[14px] font-extrabold text-indigo-600 dark:text-indigo-300 mt-0.5 tabular-nums">${escapeHtml(r.availableTotal > 0 ? fmtHM(r.elapsedHours) : '—')}</div>
             </div>
             <div class="rounded-lg bg-gray-50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-700 px-2 py-1.5"
-                 title="업무시간 ${fmtHM(r.netDailyHours)} 안에서 다 끝내고 남는 시간(초과면 −)">
+                 title="업무시간 ${escapeHtml(fmtHM(r.netDailyHours))} 안에서 다 끝내고 남는 시간(초과면 −)">
                 <div class="text-[11px] font-bold text-gray-400 dark:text-gray-500">${r.slackHours >= 0 ? '남는 시간' : '초과 시간'}</div>
-                <div class="text-[14px] font-extrabold mt-0.5 tabular-nums ${r.availableTotal <= 0 ? 'text-gray-400' : (r.slackHours >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}">${r.availableTotal > 0 ? fmtHM(Math.abs(r.slackHours)) : '—'}</div>
+                <div class="text-[14px] font-extrabold mt-0.5 tabular-nums ${r.availableTotal <= 0 ? 'text-gray-400' : (r.slackHours >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}">${escapeHtml(r.availableTotal > 0 ? fmtHM(Math.abs(r.slackHours)) : '—')}</div>
             </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
-            <span>1일 ${r.dailyHours}h${r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)}` : ''} · 가동률 ${(UTILIZATION*100)|0}%</span>
-            ${(r.timeHours - correctionExtraOf(r)) > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="처리량이 없는 담당 업무의 예상 투입시간(실적 평균)">담당 업무 ${fmtHM(r.timeHours - correctionExtraOf(r))}</span>` : ''}
-            ${correctionExtraOf(r) > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="보정 계획이 더한 시간 — 계획 밖 반복 업무 ${fmtHM(extraTaskHoursOf(r))} · 돌발 여유 ${fmtHM(r.correction?.reserveHours || 0)}">보정 추가 ${fmtHM(correctionExtraOf(r))}</span>` : ''}
-            ${r.correction?.applied && r.raw ? `<span class="text-gray-300 dark:text-gray-600">·</span><span>보정 전 ${r.raw.requiredFTE}명 · ${(r.raw.totalHours || 0).toFixed(1)}시간</span>` : ''}
+            <span>1일 ${escapeHtml(r.dailyHours)}h${escapeHtml(r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)}` : '')} · 가동률 ${escapeHtml((UTILIZATION*100)|0)}%</span>
+            ${(r.timeHours - correctionExtraOf(r)) > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="처리량이 없는 담당 업무의 예상 투입시간(실적 평균)">담당 업무 ${escapeHtml(fmtHM(r.timeHours - correctionExtraOf(r)))}</span>` : ''}
+            ${correctionExtraOf(r) > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="보정 계획이 더한 시간 — 계획 밖 반복 업무 ${escapeHtml(fmtHM(extraTaskHoursOf(r)))} · 돌발 여유 ${escapeHtml(fmtHM(r.correction?.reserveHours || 0))}">보정 추가 ${escapeHtml(fmtHM(correctionExtraOf(r)))}</span>` : ''}
+            ${r.correction?.applied && r.raw ? `<span class="text-gray-300 dark:text-gray-600">·</span><span>보정 전 ${escapeHtml(r.raw.requiredFTE)}명 · ${(r.raw.totalHours || 0).toFixed(1)}시간</span>` : ''}
             ${presenceCardLine(r)}
-            ${china > 0 ? `<span class="w-full"></span><span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">중국제작 입고 ${china.toLocaleString()}개</span>` : ''}
+            ${china > 0 ? `<span class="w-full"></span><span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">중국제작 입고 ${escapeHtml(china.toLocaleString())}개</span>` : ''}
         </div>
     </div>`;
 };
@@ -4163,7 +4163,7 @@ const updateSavedInfo = (dateStr) => {
     // 자동으로 얼린 것과 사람이 맞춰 확정한 것을 구분해 보여준다 —
     // 자동값이 마음에 안 들면 값을 고치고 '다시 확정'을 누르면 된다는 신호가 된다.
     const snapMark = snap
-        ? `<span class="${snap.auto ? 'text-gray-500 dark:text-gray-400' : 'text-indigo-600 dark:text-indigo-300'} font-bold" title="${(snap.at || '').slice(0, 16).replace('T', ' ')} ${snap.auto ? '자동 저장' : '확정'} · 마감 후 정확도 화면에서 비교됩니다">${snap.auto ? `자동 계획 저장됨${snap.autoAt ? ` (${snap.autoAt})` : ''}` : '계획 확정됨'}</span>
+        ? `<span class="${snap.auto ? 'text-gray-500 dark:text-gray-400' : 'text-indigo-600 dark:text-indigo-300'} font-bold" title="${escapeHtml((snap.at || '').slice(0, 16).replace('T', ' '))} ${snap.auto ? '자동 저장' : '확정'} · 마감 후 정확도 화면에서 비교됩니다">${escapeHtml(snap.auto ? `자동 계획 저장됨${snap.autoAt ? ` (${snap.autoAt})` : ''}` : '계획 확정됨')}</span>
            <button type="button" id="sim-snapshot-cancel"
                    class="text-[11px] font-bold text-gray-400 dark:text-gray-500 underline underline-offset-2 hover:text-rose-500 transition"
                    title="이 날짜의 얼려 둔 계획을 지웁니다. 작업량 저장값과 계산에는 영향이 없고, 정확도 비교에서만 빠집니다.">${snap.auto ? '지우기' : '확정 취소'}</button>
@@ -5035,15 +5035,15 @@ const progressRowHtml = (row) => {
     const memberTip = row.members.length ? `\n지금: ${row.members.join(', ')}` : '';
     return `
         <div class="flex items-center gap-2 md:gap-3 px-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0${row.excluded ? ' opacity-60' : ''}"
-             title="${row.excluded ? '업무 예상 계산 제외 — 진행률·계획 합계에 넣지 않습니다 · ' : ''}계획 ${planText} · 소진 ${fmtHM(row.spentHours)}${escapeHtml(memberTip)}">
+             title="${row.excluded ? '업무 예상 계산 제외 — 진행률·계획 합계에 넣지 않습니다 · ' : ''}계획 ${escapeHtml(planText)} · 소진 ${escapeHtml(fmtHM(row.spentHours))}${escapeHtml(memberTip)}">
             <span class="w-20 md:w-32 shrink-0 truncate text-sm font-bold text-gray-700 dark:text-gray-200">${escapeHtml(row.label)}</span>
             <div class="flex-1 min-w-0 h-2.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                <div class="h-full rounded-full ${barColor} transition-all" style="width:${pct}%"></div>
+                <div class="h-full rounded-full ${escapeHtml(barColor)} transition-all" style="width:${escapeHtml(pct)}%"></div>
             </div>
             <span class="w-[96px] md:w-[112px] shrink-0 text-right text-[12px] font-bold tabular-nums ${over ? 'text-rose-600 dark:text-rose-400' : 'text-gray-600 dark:text-gray-300'}">
-                ${fmtHM(row.spentHours)} <span class="font-medium text-gray-400 dark:text-gray-500">/ ${planText}</span>
+                ${escapeHtml(fmtHM(row.spentHours))} <span class="font-medium text-gray-400 dark:text-gray-500">/ ${escapeHtml(planText)}</span>
             </span>
-            <span class="w-[72px] md:w-[92px] shrink-0 text-center text-[11px] font-bold rounded-md py-0.5 ${row.excluded ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' : row.extra ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : chip.cls}">${statusLabel(row)}</span>
+            <span class="w-[72px] md:w-[92px] shrink-0 text-center text-[11px] font-bold rounded-md py-0.5 ${row.excluded ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' : row.extra ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : chip.cls}">${escapeHtml(statusLabel(row))}</span>
         </div>`;
 };
 
@@ -5071,8 +5071,8 @@ const renderTodayProgress = () => {
             <section class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white/60 dark:bg-gray-800/30 p-10 text-center">
                 <p class="text-sm font-bold text-gray-600 dark:text-gray-300">아직 시작된 업무가 없습니다</p>
                 <p class="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
-                    오늘 계획은 <b class="text-gray-600 dark:text-gray-300">${fmtHM(s.planHours)}</b> ·
-                    필요 인원 <b class="text-gray-600 dark:text-gray-300">${s.r.requiredFTE}명</b> 입니다. ${correctionBadge(s.r, { withRaw: false })}
+                    오늘 계획은 <b class="text-gray-600 dark:text-gray-300">${escapeHtml(fmtHM(s.planHours))}</b> ·
+                    필요 인원 <b class="text-gray-600 dark:text-gray-300">${escapeHtml(s.r.requiredFTE)}명</b> 입니다. ${correctionBadge(s.r, { withRaw: false })}
                     업무가 시작되면 여기에서 진행 상황을 볼 수 있습니다.
                 </p>
             </section>`;
@@ -5108,20 +5108,20 @@ const renderTodayProgress = () => {
                           tone.text)}
                 <div class="flex-1 min-w-[150px] px-4 py-3">
                     <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400">지금 투입</div>
-                    <div class="mt-0.5 text-[26px] leading-tight font-extrabold tabular-nums text-gray-900 dark:text-white">${s.progress.activeWorkers}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
-                    <div class="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">남은 계획 ${fmtHM(s.fin.remainHours)}</div>
+                    <div class="mt-0.5 text-[26px] leading-tight font-extrabold tabular-nums text-gray-900 dark:text-white">${escapeHtml(s.progress.activeWorkers)}<span class="text-sm font-bold text-gray-400 ml-0.5">명</span></div>
+                    <div class="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">남은 계획 ${escapeHtml(fmtHM(s.fin.remainHours))}</div>
                 </div>
             </div>
             <div class="px-4 pb-3">
                 <div class="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                    <div class="h-full rounded-full ${tone.bar} transition-all" style="width:${barPct}%"></div>
+                    <div class="h-full rounded-full ${escapeHtml(tone.bar)} transition-all" style="width:${escapeHtml(barPct)}%"></div>
                 </div>
                 <div class="mt-1.5 flex items-center justify-between text-[11px]">
                     <span class="text-gray-400 dark:text-gray-500">
                         ${s.linked ? '계획 화면에 넣은 값 기준' : '자동값 기준'} ·
                         시간(인시)만 비교합니다 — 물량은 마감 후 <b class="font-bold">정확도</b>에서
                     </span>
-                    <span class="font-extrabold ${tone.text}">${diffText}</span>
+                    <span class="font-extrabold ${escapeHtml(tone.text)}">${escapeHtml(diffText)}</span>
                 </div>
             </div>
         </section>
@@ -5140,7 +5140,7 @@ const renderTodayProgress = () => {
         <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed px-1">
             · <b>소진 시간</b>은 업무 기록의 실제 투입 시간입니다(쉰 시간 제외, 진행 중인 업무는 지금까지).<br>
             · <b>종료 예상</b>은 남은 계획 시간을 지금 붙어 있는 인원으로 나눈 값입니다.
-              기준 시각은 첫 업무 시작 + ${s.r.dailyHours}시간${s.r.excludeMinutes > 0 ? ` + 제외 ${fmtMin(s.r.excludeMinutes)}` : ''}${s.fin.baseLunchMin > 0 ? ` + 점심 ${fmtMin(s.fin.baseLunchMin)}(${s.fin.baseLunchText})` : ''} 입니다.${s.fin.baseLunchMin > 0 ? '' : (s.r.weekend ? ' 주말은 점심 자동정지가 없어 점심을 더하지 않습니다.' : (s.fin.skipLunch ? '' : ' 오늘은 점심 자동정지 기록이 없어 점심을 더하지 않았습니다.'))}<br>
+              기준 시각은 첫 업무 시작 + ${escapeHtml(s.r.dailyHours)}시간${escapeHtml(s.r.excludeMinutes > 0 ? ` + 제외 ${fmtMin(s.r.excludeMinutes)}` : '')}${escapeHtml(s.fin.baseLunchMin > 0 ? ` + 점심 ${fmtMin(s.fin.baseLunchMin)}(${s.fin.baseLunchText})` : '')} 입니다.${escapeHtml(s.fin.baseLunchMin > 0 ? '' : (s.r.weekend ? ' 주말은 점심 자동정지가 없어 점심을 더하지 않습니다.' : (s.fin.skipLunch ? '' : ' 오늘은 점심 자동정지 기록이 없어 점심을 더하지 않았습니다.')))}<br>
             · <b class="text-violet-500">계획 외</b>는 계획에 없었는데 실제로 진행한 업무입니다.<br>
             · <b>기준 없음</b>은 물량은 잡혔지만 처리 속도 기준이 아직 없어 계획 시간을 못 낸 업무입니다(진행률 계산에서 빠집니다).
         </p>
@@ -5601,7 +5601,7 @@ const renderAccuracyBody = () => {
     const head = (note) => `
         <div class="flex flex-wrap items-center gap-2 mb-3">
             <h4 class="text-sm font-extrabold text-gray-800 dark:text-gray-100">정확도</h4>
-            <span class="text-[11px] text-gray-400 dark:text-gray-500">${note}</span>
+            <span class="text-[11px] text-gray-400 dark:text-gray-500">${escapeHtml(note)}</span>
             <div class="ml-auto flex items-center gap-1.5">
                 <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400">기간</label>
                 <select id="accuracy-days" class="text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white font-medium">
@@ -5707,7 +5707,7 @@ const renderAccuracyBody = () => {
             ${stat('계획 외 유입', sum.avgUnplannedShare == null ? '—' : `${Math.round(sum.avgUnplannedShare * 100)}%`,
                    '실제 시간 중 계획에 없던 업무', sum.avgUnplannedShare == null ? '' : errTone(sum.avgUnplannedShare))}
             ${stat('미착수', sum.missedTaskTotal === 0 ? '없음'
-                     : `${sum.missedTaskTotal}<span class="text-sm font-bold text-gray-400 ml-0.5">건</span>`,
+                     : `${escapeHtml(sum.missedTaskTotal)}<span class="text-sm font-bold text-gray-400 ml-0.5">건</span>`,
                    (sum.missedTaskTotal === 0 ? '계획한 업무를 모두 진행'
                      : `${sum.missedDays}일에 걸쳐 · 계획 ${fmtHM(sum.missedHoursTotal)} 분량`)
                      + (sum.noBaselineDays > 0 ? ` · 판정 불가 ${sum.noBaselineDays}일` : ''),
@@ -5716,7 +5716,7 @@ const renderAccuracyBody = () => {
                      : 'text-rose-600 dark:text-rose-400')}
         </div>
         ${worst ? `<p class="text-[11px] text-gray-400 dark:text-gray-500 px-1 -mt-1.5">
-            · 물량이 가장 어긋난 업무: <b class="${errTone(worst.err)}">${escapeHtml(worst.label)} ${pctText(worst.err)}</b>
+            · 물량이 가장 어긋난 업무: <b class="${escapeHtml(errTone(worst.err))}">${escapeHtml(worst.label)} ${escapeHtml(pctText(worst.err))}</b>
         </p>` : ''}
 
         <!-- 업무별 누적 -->
@@ -5749,12 +5749,12 @@ const renderAccuracyBody = () => {
                             <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200">${escapeHtml(t.label)}${t.unplanned
                                 ? ' <span class="text-[11px] font-bold text-violet-500 dark:text-violet-300" title="계획에 없었는데 실제로 진행한 업무입니다">계획 외</span>'
                                 : (t.isTime ? ' <span class="text-[11px] font-bold text-indigo-400 dark:text-indigo-300" title="처리량이 없어 투입시간으로 재는 업무입니다">시간</span>' : '')}</td>
-                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${(t.isTime || t.unplanned) ? '—' : t.plan.toLocaleString()}${별표(t)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100">${t.isTime ? '—' : t.showQty.toLocaleString()}${별표(t)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums font-bold ${t.isTime ? 'text-gray-300 dark:text-gray-600' : errTone(t.err)}">${(t.isTime || t.unplanned) ? '—' : pctText(t.err)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${t.planHours > 0 ? fmtHM(t.planHours) : '—'}${별표(t)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100">${t.showHours > 0 ? fmtHM(t.showHours) : '—'}${별표(t)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums font-bold ${errTone(t.hourErr)}">${pctText(t.hourErr)}${별표(t)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${escapeHtml((t.isTime || t.unplanned) ? '—' : t.plan.toLocaleString())}${별표(t)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100">${escapeHtml(t.isTime ? '—' : t.showQty.toLocaleString())}${별표(t)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold ${t.isTime ? 'text-gray-300 dark:text-gray-600' : errTone(t.err)}">${escapeHtml((t.isTime || t.unplanned) ? '—' : pctText(t.err))}</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${escapeHtml(t.planHours > 0 ? fmtHM(t.planHours) : '—')}${별표(t)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100">${escapeHtml(t.showHours > 0 ? fmtHM(t.showHours) : '—')}${별표(t)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold ${escapeHtml(errTone(t.hourErr))}">${escapeHtml(pctText(t.hourErr))}${별표(t)}</td>
                             <td class="py-2 px-3 text-right tabular-nums ${t.uphErr != null && Math.abs(t.uphErr) > 0.15 ? 'font-bold ' + errTone(t.uphErr) : 'text-gray-600 dark:text-gray-300'}">${t.realUPH != null ? t.realUPH.toFixed(1) : '—'}</td>
                             <td class="py-2 px-3 text-right tabular-nums text-gray-400 dark:text-gray-500"${t.nowUPH > 0 ? ` title="지금 기준 UPH ${t.nowUPH.toFixed(1)}"` : ''}>${t.planUPH > 0 ? t.planUPH.toFixed(1) : '—'}</td>
                         </tr>`).join('')}
@@ -5766,7 +5766,7 @@ const renderAccuracyBody = () => {
                             <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
                             <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
                             <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
-                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-500 dark:text-gray-400" title="${e.days}일 합계">${fmtHM(e.hours)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-500 dark:text-gray-400" title="${escapeHtml(e.days)}일 합계">${escapeHtml(fmtHM(e.hours))}</td>
                             <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
                             <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
                             <td class="py-2 px-3 text-right text-gray-300 dark:text-gray-600">—</td>
@@ -5805,22 +5805,22 @@ const renderAccuracyBody = () => {
                     <tbody>
                         ${rows.slice().reverse().map(r => `
                         <tr class="border-t border-gray-100 dark:border-gray-700/60">
-                            <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${dayLabel(r.date)}${r.auto
-                                ? ` <span class="text-[11px] text-gray-400 dark:text-gray-500" title="아침에 자동으로 얼린 계획${r.snapAutoAt ? ` (${r.snapAutoAt})` : ''}">자동</span>` : ''}</td>
-                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${fmtHM(r.planPlannedHours)}</td>
+                            <td class="py-2 px-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">${escapeHtml(dayLabel(r.date))}${r.auto
+                                ? ` <span class="text-[11px] text-gray-400 dark:text-gray-500" title="아침에 자동으로 얼린 계획${escapeHtml(r.snapAutoAt ? ` (${r.snapAutoAt})` : '')}">자동</span>` : ''}</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${escapeHtml(fmtHM(r.planPlannedHours))}</td>
                             <td class="py-2 px-3 text-right tabular-nums font-bold text-gray-800 dark:text-gray-100"
-                                title="전체 ${fmtHM(r.actualHours)} = 계획한 업무 ${fmtHM(r.actualPlannedHours)} + 계획 외 ${fmtHM(r.unplannedHours)}${r.untaggedHours > 0 ? ` + 업무명 없는 기록 ${fmtHM(r.untaggedHours)}` : ''}">${fmtHM(r.actualHours)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums font-bold ${errTone(r.planHitErr)}"
-                                title="계획 ${fmtHM(r.planPlannedHours)} 대비 계획한 업무에 쓴 ${fmtHM(r.actualPlannedHours)}">${pctText(r.planHitErr)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums ${(r.unplannedShare || 0) > 0.3 ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'}">${r.unplannedShare == null ? '—' : `${Math.round(r.unplannedShare * 100)}%`}</td>
-                            <td class="py-2 px-3 text-right tabular-nums ${r.missed.count > 0 ? 'font-bold text-rose-600 dark:text-rose-400' : 'text-gray-300 dark:text-gray-600'}"${r.missed.count > 0 ? ` title="${escapeHtml(r.missed.keys.join(' · '))}"` : ''}>${r.missed.count > 0 ? `${r.missed.count}건` : '—'}</td>
-                            <td class="py-2 px-3 text-right tabular-nums ${errTone(r.hourErr)} opacity-60"
-                                title="분모 = 계획 ${fmtHM(r.planPlannedHours)} + 계획 외 ${fmtHM(r.unplannedHours)} = ${fmtHM(r.planHours)}">${pctText(r.hourErr)}</td>
-                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${r.planFTE}명</td>
-                            <td class="py-2 px-3 text-right tabular-nums text-gray-600 dark:text-gray-300">${r.actualMembers}명</td>
+                                title="전체 ${escapeHtml(fmtHM(r.actualHours))} = 계획한 업무 ${escapeHtml(fmtHM(r.actualPlannedHours))} + 계획 외 ${escapeHtml(fmtHM(r.unplannedHours))}${escapeHtml(r.untaggedHours > 0 ? ` + 업무명 없는 기록 ${fmtHM(r.untaggedHours)}` : '')}">${escapeHtml(fmtHM(r.actualHours))}</td>
+                            <td class="py-2 px-3 text-right tabular-nums font-bold ${escapeHtml(errTone(r.planHitErr))}"
+                                title="계획 ${escapeHtml(fmtHM(r.planPlannedHours))} 대비 계획한 업무에 쓴 ${escapeHtml(fmtHM(r.actualPlannedHours))}">${escapeHtml(pctText(r.planHitErr))}</td>
+                            <td class="py-2 px-3 text-right tabular-nums ${(r.unplannedShare || 0) > 0.3 ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'}">${escapeHtml(r.unplannedShare == null ? '—' : `${Math.round(r.unplannedShare * 100)}%`)}</td>
+                            <td class="py-2 px-3 text-right tabular-nums ${r.missed.count > 0 ? 'font-bold text-rose-600 dark:text-rose-400' : 'text-gray-300 dark:text-gray-600'}"${r.missed.count > 0 ? ` title="${escapeHtml(r.missed.keys.join(' · '))}"` : ''}>${escapeHtml(r.missed.count > 0 ? `${r.missed.count}건` : '—')}</td>
+                            <td class="py-2 px-3 text-right tabular-nums ${escapeHtml(errTone(r.hourErr))} opacity-60"
+                                title="분모 = 계획 ${escapeHtml(fmtHM(r.planPlannedHours))} + 계획 외 ${escapeHtml(fmtHM(r.unplannedHours))} = ${escapeHtml(fmtHM(r.planHours))}">${escapeHtml(pctText(r.hourErr))}</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-500 dark:text-gray-400">${escapeHtml(r.planFTE)}명</td>
+                            <td class="py-2 px-3 text-right tabular-nums text-gray-600 dark:text-gray-300">${escapeHtml(r.actualMembers)}명</td>
                             <td class="py-2 px-2 text-center">
                                 <button type="button" class="accuracy-drop text-gray-300 dark:text-gray-600 hover:text-rose-500 transition text-[13px] leading-none"
-                                        data-date="${r.date}" title="이 날의 확정 계획을 지웁니다 (정확도 비교에서 제외 · 업무 기록은 그대로)">✕</button>
+                                        data-date="${escapeHtml(r.date)}" title="이 날의 확정 계획을 지웁니다 (정확도 비교에서 제외 · 업무 기록은 그대로)">✕</button>
                             </td>
                         </tr>`).join('')}
                     </tbody>
@@ -5892,10 +5892,10 @@ const renderChannelTabs = (historyData) => {
     const opts = [{ id: 'all', label: '전체' }, ...DELIVERY_CHANNELS.map(c => ({ id: c.id, label: c.label }))];
     host.innerHTML = opts.map(o => {
         const on = o.id === predChannelId;
-        return `<button type="button" data-pred-channel="${o.id}"
+        return `<button type="button" data-pred-channel="${escapeHtml(o.id)}"
             class="px-3 py-1.5 border-r border-gray-200 dark:border-gray-600 last:border-r-0 ${on
                 ? 'bg-indigo-600 text-white'
-                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}">${o.label}</button>`;
+                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'}">${escapeHtml(o.label)}</button>`;
     }).join('');
 
     const sc = predScope();
@@ -5984,7 +5984,7 @@ export const renderPredictionTab = (historyData, daysToPredict = 14) => {
         const isFulfillment = scope.fulfillment === true && predChannelId !== 'all';
         noteEl.classList.toggle('hidden', !isFulfillment);
         if (isFulfillment) {
-            noteEl.innerHTML = `<b>${scope.label}</b>은 풀필먼트(채널 창고로 선입고 후 판매) 방식입니다. `
+            noteEl.innerHTML = `<b>${escapeHtml(scope.label)}</b>은 풀필먼트(채널 창고로 선입고 후 판매) 방식입니다. `
                 + `배송량(장)은 <b>우리가 그날 보낸 수량</b>, 매출·주문건수는 <b>그날 채널에서 수집된 판매 실적</b>이라 `
                 + `서로 다른 시점의 값입니다. 두 값을 곱하거나 나눠 비교하지 말고 <b>각각 따로</b> 보세요.`;
         }
@@ -6100,7 +6100,7 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
             const revColor = revFactorPct >= 0 ? 'text-red-500' : 'text-blue-500';
             const delColor = delFactorPct >= 0 ? 'text-red-500' : 'text-blue-500';
             
-            elErrorText.innerHTML = `최근 14일 오차율을 분석하여 예측치에 <br/>매출 <strong class="${revColor}">${revFactorPct > 0 ? '+'+revFactorPct : revFactorPct}%</strong>, 배송 <strong class="${delColor}">${delFactorPct > 0 ? '+'+delFactorPct : delFactorPct}%</strong> 자동 보정 반영됨.`;
+            elErrorText.innerHTML = `최근 14일 오차율을 분석하여 예측치에 <br/>매출 <strong class="${escapeHtml(revColor)}">${escapeHtml(revFactorPct > 0 ? '+'+revFactorPct : revFactorPct)}%</strong>, 배송 <strong class="${escapeHtml(delColor)}">${escapeHtml(delFactorPct > 0 ? '+'+delFactorPct : delFactorPct)}%</strong> 자동 보정 반영됨.`;
         }
     }
 
@@ -6114,7 +6114,7 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
         if (tomorrow.revenue > 0) {
             const minRev = prediction.rangeRevenue[0].min;
             const maxRev = prediction.rangeRevenue[0].max;
-            elTomRev.innerHTML = `${tomorrow.revenue.toLocaleString()} <span class="text-[11px] text-gray-500 font-normal ml-1">(최소 ${minRev.toLocaleString()} ~ 최대 ${maxRev.toLocaleString()})</span>`;
+            elTomRev.innerHTML = `${escapeHtml(tomorrow.revenue.toLocaleString())} <span class="text-[11px] text-gray-500 font-normal ml-1">(최소 ${escapeHtml(minRev.toLocaleString())} ~ 최대 ${escapeHtml(maxRev.toLocaleString())})</span>`;
         } else {
             elTomRev.textContent = '휴무(0)';
         }
@@ -6127,7 +6127,7 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
             const rangeTxt = showDeliveryCases
                 ? `(최소 ${toCases(minDel).toLocaleString()}건 ~ 최대 ${toCases(maxDel).toLocaleString()}건)`
                 : `(최소 ${minDel.toLocaleString()}장 ~ 최대 ${maxDel.toLocaleString()}장)`;
-            elTomDel.innerHTML = `${formatDelivery(tomorrow.delivery)} <span class="text-[11px] text-gray-500 font-normal ml-1 mt-1 block md:inline">${rangeTxt}</span>`;
+            elTomDel.innerHTML = `${escapeHtml(formatDelivery(tomorrow.delivery))} <span class="text-[11px] text-gray-500 font-normal ml-1 mt-1 block md:inline">${escapeHtml(rangeTxt)}</span>`;
         } else {
             elTomDel.textContent = '휴무(0)';
         }
@@ -6136,7 +6136,7 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
     if (elTomOrd) {
         if (tomorrow.orderCount > 0) {
             const r = (prediction.rangeOrderCount && prediction.rangeOrderCount[0]) || { min: 0, max: 0 };
-            elTomOrd.innerHTML = `${tomorrow.orderCount.toLocaleString()}건 <span class="text-[11px] text-gray-500 font-normal ml-1">(최소 ${r.min.toLocaleString()} ~ 최대 ${r.max.toLocaleString()})</span>`;
+            elTomOrd.innerHTML = `${escapeHtml(tomorrow.orderCount.toLocaleString())}건 <span class="text-[11px] text-gray-500 font-normal ml-1">(최소 ${escapeHtml(r.min.toLocaleString())} ~ 최대 ${escapeHtml(r.max.toLocaleString())})</span>`;
         } else {
             elTomOrd.textContent = '휴무(0)';
         }
@@ -6153,7 +6153,7 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
         let trendText = '보합세 유지 중', color = 'text-blue-500';
         if (factor > 1.05) { trendText = `최근 매출 꾸준한 상승세`; color = 'text-red-500'; }
         else if (factor < 0.95) { trendText = `최근 매출 하락세 주의`; color = 'text-blue-500'; }
-        elRevTrend.innerHTML = `<span class="${color} font-bold">${trendText}</span>`;
+        elRevTrend.innerHTML = `<span class="${escapeHtml(color)} font-bold">${escapeHtml(trendText)}</span>`;
     }
 
     if (elOrdTrend && trend) {
@@ -6161,7 +6161,7 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
         let trendText = '보합세 유지 중', color = 'text-blue-500';
         if (factor > 1.05) { trendText = `최근 주문건수 증가 추세`; color = 'text-red-500'; }
         else if (factor < 0.95) { trendText = `최근 주문건수 감소 추세`; color = 'text-blue-500'; }
-        elOrdTrend.innerHTML = `<span class="${color} font-bold">${trendText}</span>`;
+        elOrdTrend.innerHTML = `<span class="${escapeHtml(color)} font-bold">${escapeHtml(trendText)}</span>`;
     }
 
     if (elDelTrend && trend) {
@@ -6169,7 +6169,7 @@ const updateKPICards = (prediction, trend, daysToPredict) => {
         let trendText = '보합세 유지 중', color = 'text-blue-500';
         if (factor > 1.05) { trendText = `최근 배송량 증가 추세`; color = 'text-red-500'; }
         else if (factor < 0.95) { trendText = `최근 배송량 감소 추세`; color = 'text-blue-500'; }
-        elDelTrend.innerHTML = `<span class="${color} font-bold">${trendText}</span>`;
+        elDelTrend.innerHTML = `<span class="${escapeHtml(color)} font-bold">${escapeHtml(trendText)}</span>`;
     }
 };
 

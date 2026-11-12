@@ -9,10 +9,10 @@
 // 창은 얕게 유지한다. 창 안에 또 스크롤·필터를 넣으면
 // 표 상자에 잘리던 문제가 되풀이된다.
 
-import * as State from './state.js?v=202611121547';
-import { escapeHtml as esc } from './utils.js?v=202611121547';
-import { REVENUE_CHANNELS } from './revenue-channels.js?v=202611121547';
-import { aliasDayView } from './lib/task-alias-view.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { escapeHtml as esc } from './utils.js?v=202611121915';
+import { REVENUE_CHANNELS } from './revenue-channels.js?v=202611121915';
+import { aliasDayView } from './lib/task-alias-view.js?v=202611121915';
 
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString();
 
@@ -117,16 +117,16 @@ function dayDetailBody(dateId) {
         <div style="display:flex;gap:10px;margin-bottom:12px;">
             <div style="flex:1;background:#eff6ff;border-radius:10px;padding:10px;text-align:center;">
                 <div style="font-size:11px;color:#64748b;">총 처리량</div>
-                <div style="font-size:18px;font-weight:800;color:#1d4ed8;">${fmt(totalQty)}<span style="font-size:11px;color:#94a3b8;"> 개</span></div>
+                <div style="font-size:18px;font-weight:800;color:#1d4ed8;">${esc(fmt(totalQty))}<span style="font-size:11px;color:#94a3b8;"> 개</span></div>
             </div>
             <div style="flex:1;background:#f5f3ff;border-radius:10px;padding:10px;text-align:center;">
                 <div style="font-size:11px;color:#64748b;">근무 인원</div>
-                <div style="font-size:18px;font-weight:800;color:#6d28d9;">${allMembers.size}<span style="font-size:11px;color:#94a3b8;"> 명</span></div>
+                <div style="font-size:18px;font-weight:800;color:#6d28d9;">${esc(allMembers.size)}<span style="font-size:11px;color:#94a3b8;"> 명</span></div>
             </div>
         </div>
         ${table(['업무', '처리량', '투입인원', '소요시간'], rows.map(r => [
             esc(r.task),
-            r.qty > 0 ? `<b>${fmt(r.qty)}</b>` : '<span style="color:#cbd5e1;">-</span>',
+            r.qty > 0 ? `<b>${esc(fmt(r.qty))}</b>` : '<span style="color:#cbd5e1;">-</span>',
             r.members.size > 0 ? r.members.size + '명' : '<span style="color:#cbd5e1;">-</span>',
             r.minutes > 0 ? minutesText(r.minutes) : '<span style="color:#cbd5e1;">-</span>'
         ]))}`;
@@ -146,15 +146,15 @@ function channelBody(days, mode) {
     const unit = isRevenue ? '원' : '건';
     return `
         <div style="margin-bottom:10px;font-size:12px;color:#64748b;">
-            합계 <b style="color:#0f172a;font-size:14px;">${fmt(total)}</b> ${unit}
+            합계 <b style="color:#0f172a;font-size:14px;">${esc(fmt(total))}</b> ${esc(unit)}
         </div>
         ${table(['채널', isRevenue ? '매출' : '건수', '비중'], rows.map(r => {
             const pct = total > 0 ? (r.sum / total * 100) : 0;
             return [
-                `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${r.color};margin-right:6px;"></span>${esc(r.label)}`,
-                `<b>${fmt(r.sum)}</b> <span style="color:#94a3b8;font-size:11px;">${unit}</span>`,
+                `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${esc(r.color)};margin-right:6px;"></span>${esc(r.label)}`,
+                `<b>${esc(fmt(r.sum))}</b> <span style="color:#94a3b8;font-size:11px;">${esc(unit)}</span>`,
                 `<span style="display:inline-block;width:70px;height:6px;background:#f1f5f9;border-radius:3px;vertical-align:middle;margin-right:6px;">
-                    <span style="display:block;height:6px;border-radius:3px;background:${r.color};width:${pct.toFixed(0)}%;"></span>
+                    <span style="display:block;height:6px;border-radius:3px;background:${esc(r.color)};width:${pct.toFixed(0)}%;"></span>
                  </span><span style="font-size:11px;color:#64748b;">${pct.toFixed(1)}%</span>`
             ];
         }))}`;
@@ -221,7 +221,7 @@ function efficiencyBody(key, prod) {
             <div style="margin-top:12px;padding:10px;background:#fef2f2;border-radius:10px;
                  display:flex;justify-content:space-between;align-items:center;">
                 <span style="font-size:12px;color:#991b1b;font-weight:700;">${esc(loss.label)}</span>
-                <span style="font-size:15px;font-weight:800;color:#dc2626;">${fmt(loss.cost)}원</span>
+                <span style="font-size:15px;font-weight:800;color:#dc2626;">${esc(fmt(loss.cost))}원</span>
             </div>` : ''}
         ${topTasks.length > 0 ? `
             <div style="margin-top:12px;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;">
@@ -231,8 +231,8 @@ function efficiencyBody(key, prod) {
                 key === 'efficiencyRatio' ? ['업무', '실제 속도', '평상시 속도', '초과 시간'] : ['업무', '비용'],
                 topTasks.map(t => key === 'efficiencyRatio'
                     ? [esc(t.task), t.actualSpeed + '개/분', t.stdSpeed + '개/분',
-                       `<b style="color:#dc2626;">+${minutesText(t.lossMinutes)}</b>`]
-                    : [esc(t.task), `<b style="color:#dc2626;">${fmt(t.cost)}원</b>`])
+                       `<b style="color:#dc2626;">+${esc(minutesText(t.lossMinutes))}</b>`]
+                    : [esc(t.task), `<b style="color:#dc2626;">${esc(fmt(t.cost))}원</b>`])
             )}` : ''}`;
 }
 
@@ -272,7 +272,7 @@ function fteBody(prod) {
             ['가용 인력', `<b>${n(a)}</b>명`, '<span style="font-size:11px;color:#64748b;">그 기간 운영일 하루 평균 출근 인원</span>'],
             ['실작업 인력', `<b>${n(w)}</b>명`, '<span style="font-size:11px;color:#64748b;">실제 업무에 쓴 시간을 사람 수로 환산</span>'],
             ['실작업 필요', `<b>${n(r)}</b>명`, '<span style="font-size:11px;color:#64748b;">그 물량을 평상시 속도로 했다면 업무에 들었을 인원</span>'],
-            ['필요 인원', `<b>${n(req)}</b>명`, `<span style="font-size:11px;color:#64748b;">가동률 설정${u ? ` ${Math.round(u * 100)}%` : ''}을 반영한 값(대략 실작업 필요 ÷ 가동률) — 출근 인원과 견줌(인력 화면과 같음)</span>`]
+            ['필요 인원', `<b>${n(req)}</b>명`, `<span style="font-size:11px;color:#64748b;">가동률 설정${esc(u ? ` ${Math.round(u * 100)}%` : '')}을 반영한 값(대략 실작업 필요 ÷ 가동률) — 출근 인원과 견줌(인력 화면과 같음)</span>`]
         ])}
 
         <div style="margin-top:14px;font-size:11px;font-weight:700;color:#64748b;margin-bottom:2px;">어떻게 줄어드나</div>

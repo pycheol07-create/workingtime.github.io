@@ -1,10 +1,10 @@
 // === js/history-record-table.js ===
 // 설명: '기록 관리' 모달 내의 테이블 렌더링 및 필터링 로직을 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611121547';
-import * as State from './state.js?v=202611121547';
-import { showToast, formatDuration, calcTotalPauseMinutes, escapeHtml } from './utils.js?v=202611121547';
-import { deductedPauseMinutes } from './lib/pause-edit.js?v=202611121547';
+import * as DOM from './dom-elements.js?v=202611121915';
+import * as State from './state.js?v=202611121915';
+import { showToast, formatDuration, calcTotalPauseMinutes, escapeHtml } from './utils.js?v=202611121915';
+import { deductedPauseMinutes } from './lib/pause-edit.js?v=202611121915';
 
 /**
  * 기록 관리 모달을 엽니다.
@@ -29,7 +29,7 @@ export const openHistoryRecordManager = (dateKey) => {
     if (memberSelect) {
         memberSelect.innerHTML = '<option value="">전체</option>';
         [...members].sort().forEach(m => {
-            memberSelect.innerHTML += `<option value="${m}">${m}</option>`;
+            memberSelect.innerHTML += `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`;
         });
         memberSelect.value = ''; // Reset
         memberSelect.dataset.prev = '';
@@ -37,7 +37,7 @@ export const openHistoryRecordManager = (dateKey) => {
     if (taskSelect) {
         taskSelect.innerHTML = '<option value="">전체</option>';
         [...tasks].sort().forEach(t => {
-            taskSelect.innerHTML += `<option value="${t}">${t}</option>`;
+            taskSelect.innerHTML += `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`;
         });
         taskSelect.value = ''; // Reset
         taskSelect.dataset.prev = '';
@@ -159,47 +159,47 @@ export const renderHistoryRecordsTable = (dateKey) => {
         let taskOptions = r.task ? '' : '<option value="" selected></option>';
         const uniqueTasks = new Set(r.task ? [...allTasks, r.task] : allTasks);
         Array.from(uniqueTasks).sort().forEach(t => {
-            taskOptions += `<option value="${escapeHtml(t)}" ${t === r.task ? 'selected' : ''}>${t}</option>`;
+            taskOptions += `<option value="${escapeHtml(t)}" ${t === r.task ? 'selected' : ''}>${escapeHtml(t)}</option>`;
         });
 
         // 휴식 시간 계산 및 표시
         const pauseMinutes = calcTotalPauseMinutes(r.pauses);
-        const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴: ${formatDuration(pauseMinutes)})</span>` : '';
+        const pauseText = pauseMinutes > 0 ? ` <span class="text-xs text-gray-400 block">(휴: ${escapeHtml(formatDuration(pauseMinutes))})</span>` : '';
         // 휴게시간(분) 입력칸 — 끝난 기록만. 오늘 진행 중 기록은 휴식을 닫아 놓은 사본이라 저장하면 열린 휴식이 사라진다.
         const pauseEditable = r.status !== 'ongoing' && r.status !== 'paused' && !!r.startTime && !!r.endTime;
         const pauseCell = pauseEditable
-            ? `<label class="flex items-center gap-1 mt-1 whitespace-nowrap text-gray-400">휴<input type="number" min="0" step="1" class="history-record-pause w-16 p-1 border border-gray-300 rounded text-xs text-right focus:ring-blue-500 focus:border-blue-500" value="${deductedPauseMinutes(r.pauses)}">분</label>`
+            ? `<label class="flex items-center gap-1 mt-1 whitespace-nowrap text-gray-400">휴<input type="number" min="0" step="1" class="history-record-pause w-16 p-1 border border-gray-300 rounded text-xs text-right focus:ring-blue-500 focus:border-blue-500" value="${escapeHtml(deductedPauseMinutes(r.pauses))}">분</label>`
             : pauseText;
 
         // ✅ [수정] 개별 '저장' 버튼 제거하고 '복제' 버튼 추가
         tr.innerHTML = `
-            <td class="px-6 py-4 font-medium text-gray-900 w-[15%]">${r.member}</td>
+            <td class="px-6 py-4 font-medium text-gray-900 w-[15%]">${escapeHtml(r.member)}</td>
             <td class="px-6 py-4 w-[20%]">
                 <select class="history-record-task w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500">
                     ${taskOptions}
                 </select>
             </td>
             <td class="px-6 py-4 w-[15%]">
-                <input type="time" class="history-record-start w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.startTime || ''}">
+                <input type="time" class="history-record-start w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${escapeHtml(r.startTime || '')}">
             </td>
             <td class="px-6 py-4 w-[15%]">
-                <input type="time" class="history-record-end w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${r.endTime || ''}">
+                <input type="time" class="history-record-end w-full p-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500" value="${escapeHtml(r.endTime || '')}">
             </td>
             <td class="px-6 py-4 text-gray-500 text-xs w-[15%]">
-                ${formatDuration(r.duration)}${pauseCell}
+                ${escapeHtml(formatDuration(r.duration))}${pauseCell}
             </td>
             <td class="px-6 py-4 text-right space-x-1 w-[20%]">
                 <button class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs border border-indigo-200 rounded px-2 py-1.5 hover:bg-indigo-50 transition" 
                     data-action="duplicate-history-record" 
-                    data-date-key="${dateKey}" 
-                    data-record-id="${r.id}"
+                    data-date-key="${escapeHtml(dateKey)}" 
+                    data-record-id="${escapeHtml(r.id)}"
                     title="이 기록 복제하여 추가">
                     복제
                 </button>
                 <button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-2 py-1.5 hover:bg-red-50 transition" 
                     data-action="delete-history-record" 
-                    data-date-key="${dateKey}" 
-                    data-record-id="${r.id}">
+                    data-date-key="${escapeHtml(dateKey)}" 
+                    data-record-id="${escapeHtml(r.id)}">
                     삭제
                 </button>
             </td>

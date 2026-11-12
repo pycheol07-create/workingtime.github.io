@@ -3,7 +3,7 @@
 //   · 줄의 진짜 버튼(id 그대로, 하나뿐)은 줄에 두거나 숨긴 보관함(#scan-bar-holder, 같은 줄 안)으로 옮길 뿐 — 거는 코드·버튼 끄기(마감된 작업 보기 등)는 그대로 따른다
 //   · 메뉴는 진짜 버튼을 누르는 대리 버튼(id 없음, data-for) — 열 때·버튼 상태가 바뀔 때 글자·꺼짐·숨김을 진짜 버튼에서 베낀다
 //   · 줄 구성·순서는 그 PC localStorage(js/lib/mibal2-bar.js). 처음은 지금 줄 그대로
-import { BAR_KEY, rowFromStorage, serializeRow, toggleRow, moveRow, editList, menuIds } from './lib/mibal2-bar.js?v=202611121547';
+import { BAR_KEY, rowFromStorage, serializeRow, toggleRow, moveRow, editList, menuIds } from './lib/mibal2-bar.js?v=202611121915';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

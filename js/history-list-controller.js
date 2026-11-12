@@ -1,21 +1,21 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202611121547';
-import * as State from './state.js?v=202611121547';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys } from './utils.js?v=202611121547';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202611121547';
+import * as DOM from './dom-elements.js?v=202611121915';
+import * as State from './state.js?v=202611121915';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys, escapeHtml } from './utils.js?v=202611121915';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202611121915';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory, historyLoadFailed,
-         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache, isDayClosedOnServer } from './history-data-manager.js?v=202611121547';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611121547';
-import { historyDotState } from './lib/history-dot.js?v=202611121547';
-import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=202611121547';
-import { renderQuantityModalInputs, applyPlannedPrefill } from './ui.js?v=202611121547';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611121547';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611121547';
-import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611121547';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202611121547';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202611121547';
+         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache, isDayClosedOnServer } from './history-data-manager.js?v=202611121915';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611121915';
+import { historyDotState } from './lib/history-dot.js?v=202611121915';
+import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=202611121915';
+import { renderQuantityModalInputs, applyPlannedPrefill } from './ui.js?v=202611121915';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611121915';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611121915';
+import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611121915';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202611121915';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202611121915';
 import { doc, setDoc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -55,8 +55,8 @@ export const retryHistoryLoad = async () => {
         await loadAndRenderHistoryList();
         if (historyLoadFailed()) return;   // 또 실패 — 오류 화면은 그대로
         clearPanelLoadErrors();
-        const { sectionIdFor } = await import('./history-sections.js?v=202611121547');
-        const { showSection } = await import('./listeners-history-tabs.js?v=202611121547');
+        const { sectionIdFor } = await import('./history-sections.js?v=202611121915');
+        const { showSection } = await import('./listeners-history-tabs.js?v=202611121915');
         await showSection(sectionIdFor(prevMain, prevSub) || 'insight');
     } catch (e) {
         console.error('이력 다시 시도 실패:', e);
@@ -189,15 +189,15 @@ const buildPlannedGroupHtml = () => {
         const d = new Date(dateStr + 'T00:00:00');
         const wd = isNaN(d.getDay()) ? '' : ` (${days[d.getDay()]})`;
         const rightLabel = hasData
-            ? `<span class="ml-auto text-[11px] text-indigo-500 shrink-0">${count > 0 ? `${count}개 입력` : '0으로 지정'}</span>`
+            ? `<span class="ml-auto text-[11px] text-indigo-500 shrink-0">${escapeHtml(count > 0 ? `${count}개 입력` : '0으로 지정')}</span>`
             : (chinaIncoming > 0
-                ? `<span class="ml-auto text-[11px] text-blue-500 shrink-0">입고 ${chinaIncoming.toLocaleString()}</span>`
+                ? `<span class="ml-auto text-[11px] text-blue-500 shrink-0">입고 ${escapeHtml(chinaIncoming.toLocaleString())}</span>`
                 : `<span class="ml-auto text-[11px] text-gray-400 shrink-0">미입력</span>`);
         return `
             <li>
-                <button data-key="${dateStr}" class="planned-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 flex items-center gap-2 shrink-0 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
+                <button data-key="${escapeHtml(dateStr)}" class="planned-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 flex items-center gap-2 shrink-0 text-gray-600 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
                     <span class="inline-block w-1.5 h-1.5 rounded-full ${hasData ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'} shrink-0"></span>
-                    <span class="whitespace-nowrap tracking-tight shrink-0">${dateStr}${wd}</span>
+                    <span class="whitespace-nowrap tracking-tight shrink-0">${escapeHtml(dateStr)}${escapeHtml(wd)}</span>
                     ${rightLabel}
                 </button>
             </li>`;
@@ -452,7 +452,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                 <li class="mb-2">
                     <button class="accordion-toggle w-full flex justify-between items-center py-2.5 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 shrink-0">
                         <div class="flex items-center gap-2 shrink-0">
-                            <span class="font-bold text-[14px] text-gray-700 dark:text-gray-200 whitespace-nowrap tracking-tight shrink-0">${groupName}</span>
+                            <span class="font-bold text-[14px] text-gray-700 dark:text-gray-200 whitespace-nowrap tracking-tight shrink-0">${escapeHtml(groupName)}</span>
                         </div>
                         <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
@@ -501,7 +501,7 @@ export const renderHistoryDateListByMode = async (mode = 'day', selectedKey = nu
                         <li>
                             <button data-key="${key}" class="history-date-btn w-full text-left py-2 px-2.5 text-[13px] rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 flex items-center gap-2 shrink-0 ${baseClass} ${hasWarning ? 'warning-no-quantity' : ''}"${titleAttr}${isSelected ? ' aria-current="date"' : ''}>
                                 <span class="inline-block w-1.5 h-1.5 rounded-full ${hasWarning ? 'bg-red-500' : (hasQty ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600')} shrink-0"></span>
-                                <span class="whitespace-nowrap tracking-tight shrink-0">${displayKey}</span>${hasWarning ? `
+                                <span class="whitespace-nowrap tracking-tight shrink-0">${escapeHtml(displayKey)}</span>${hasWarning ? `
                                 <span class="text-[10px] font-bold text-red-600 shrink-0">누락</span>` : ''}
                             </button>
                         </li>`;

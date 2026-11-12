@@ -8,18 +8,18 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202611121547';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202611121547';
-import { showToast, getTodayDateString, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611121547';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611121547';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611121547';
-import { updateLeaveSchedule } from './config.js?v=202611121547';
-import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202611121915';
+import { showToast, getTodayDateString, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611121915';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611121915';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611121915';
+import { updateLeaveSchedule } from './config.js?v=202611121915';
+import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611121915';
 import {
     REL_OPTIONS, MAX_REMINDERS, relOption, computeAt, buildReminders, buildRemindTo, eventOverAt,
     reminderSummary, shortAt, nowKst, newId
-} from './lib/cal-reminder.js?v=202611121547';
-import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611121547';
+} from './lib/cal-reminder.js?v=202611121915';
+import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611121915';
 import {
     collection, doc, setDoc, deleteDoc, getDocs,
     query, where, documentId
@@ -331,13 +331,13 @@ function barHtml(seg) {
     const radius = `${seg.cutLeft ? '0' : '5px'} ${seg.cutRight ? '0' : '5px'} ${seg.cutRight ? '0' : '5px'} ${seg.cutLeft ? '0' : '5px'}`;
 
     return `<div class="cal-bar ${r.editable ? '' : 'cal-bar-ro'}"
-        data-cal-item-kind="${r.kind}" data-cal-item-id="${esc(r.id)}" data-cal-item-start="${r.start}"
-        style="grid-column: ${seg.c1 + 1} / span ${seg.c2 - seg.c1 + 1}; grid-row: ${seg.lane + 1};
-               --bg:${t.bg}; --fg:${t.fg}; --bar:${t.bar}; --dbg:${t.darkBg}; --dfg:${t.darkFg};
-               border-radius:${radius};
+        data-cal-item-kind="${esc(r.kind)}" data-cal-item-id="${esc(r.id)}" data-cal-item-start="${esc(r.start)}"
+        style="grid-column: ${esc(seg.c1 + 1)} / span ${esc(seg.c2 - seg.c1 + 1)}; grid-row: ${esc(seg.lane + 1)};
+               --bg:${esc(t.bg)}; --fg:${esc(t.fg)}; --bar:${esc(t.bar)}; --dbg:${t.darkBg}; --dfg:${esc(t.darkFg)};
+               border-radius:${esc(radius)};
                ${seg.cutLeft ? 'border-left:0;' : ''}"
-        title="${esc(r.label)}${rangeTxt} — ${esc(r.sub)}">
-        <span class="cal-bar-text">${seg.cutLeft ? '↪ ' : ''}${esc(r.label)}${rangeTxt}</span>
+        title="${esc(r.label)}${esc(rangeTxt)} — ${esc(r.sub)}">
+        <span class="cal-bar-text">${seg.cutLeft ? '↪ ' : ''}${esc(r.label)}${esc(rangeTxt)}</span>
     </div>`;
 }
 
@@ -379,24 +379,24 @@ function renderMonthView(root, today) {
 
             cells.push(`
                 <div class="cal-daycell ${inMonth ? '' : 'cal-daycell-out'} ${isToday ? 'cal-daycell-today' : ''}"
-                     data-cal-date="${key}" role="button" tabindex="0"
-                     title="${key} — 클릭하면 일정을 등록·수정·삭제할 수 있습니다">
-                    <span class="cal-daynum ${tone} ${isToday ? 'cal-today' : ''}">${d.getDate()}</span>
-                    <span class="cal-add" data-cal-add="${key}" title="이 날짜에 일정 추가">＋</span>
+                     data-cal-date="${esc(key)}" role="button" tabindex="0"
+                     title="${esc(key)} — 클릭하면 일정을 등록·수정·삭제할 수 있습니다">
+                    <span class="cal-daynum ${tone} ${isToday ? 'cal-today' : ''}">${esc(d.getDate())}</span>
+                    <span class="cal-add" data-cal-add="${esc(key)}" title="이 날짜에 일정 추가">＋</span>
                 </div>`);
         }
 
         weeks.push(`
-            <div class="cal-week" style="height:${height}px">
+            <div class="cal-week" style="height:${esc(height)}px">
                 <div class="cal-week-days">${cells.join('')}</div>
-                <div class="cal-bars" style="grid-auto-rows:${BAR_H}px; row-gap:${BAR_GAP}px; padding-top:${HEAD_H}px">
+                <div class="cal-bars" style="grid-auto-rows:${esc(BAR_H)}px; row-gap:${esc(BAR_GAP)}px; padding-top:${esc(HEAD_H)}px">
                     ${segs.map(barHtml).join('')}
                 </div>
             </div>`);
     }
 
     root.innerHTML = `
-        <div class="cal-dowrow">${DOW.map((w, i) => `<div class="${i === 0 ? 't-risk' : (i === 6 ? 't-accent' : 't-3')}">${w}</div>`).join('')}</div>
+        <div class="cal-dowrow">${DOW.map((w, i) => `<div class="${esc(i === 0 ? 't-risk' : (i === 6 ? 't-accent' : 't-3'))}">${esc(w)}</div>`).join('')}</div>
         <div class="cal-monthgrid">${weeks.join('')}</div>`;
 }
 
@@ -436,16 +436,16 @@ function renderListView(root, today) {
             const t = toneOf(r);
             const multi = r.start !== r.end;
             const rangeTxt = multi ? ` (${mdLabel(r.start)}~${mdLabel(r.end)})` : '';
-            return `<span class="cal-listchip" data-cal-item-kind="${r.kind}" data-cal-item-id="${esc(r.id)}"
-                style="--bg:${t.bg}; --fg:${t.fg}; --bar:${t.bar}; --dbg:${t.darkBg}; --dfg:${t.darkFg}"${r.bell ? ` title="${esc(r.bell)}"` : ''}>
-                ${r.bell ? '🔔 ' : ''}${esc(r.label)}${rangeTxt}
+            return `<span class="cal-listchip" data-cal-item-kind="${esc(r.kind)}" data-cal-item-id="${esc(r.id)}"
+                style="--bg:${esc(t.bg)}; --fg:${esc(t.fg)}; --bar:${esc(t.bar)}; --dbg:${t.darkBg}; --dfg:${esc(t.darkFg)}"${r.bell ? ` title="${esc(r.bell)}"` : ''}>
+                ${r.bell ? '🔔 ' : ''}${esc(r.label)}${esc(rangeTxt)}
             </span>`;
         }).join('');
 
-        return `<div class="cal-listrow ${isToday ? 'cal-listrow-today' : ''}" data-cal-date="${key}" role="button" tabindex="0">
+        return `<div class="cal-listrow ${isToday ? 'cal-listrow-today' : ''}" data-cal-date="${esc(key)}" role="button" tabindex="0">
             <div class="cal-listdate">
-                <span class="cal-listdd ${isToday ? 'cal-today' : ''}">${d.getDate()}</span>
-                <span class="cal-listdow">${DOW[d.getDay()]}</span>
+                <span class="cal-listdd ${isToday ? 'cal-today' : ''}">${esc(d.getDate())}</span>
+                <span class="cal-listdow">${esc(DOW[d.getDay()])}</span>
             </div>
             <div class="cal-listitems">${items}</div>
         </div>`;
@@ -456,7 +456,7 @@ function renderListView(root, today) {
 
 const listAddBarHtml = (today) => `
     <div class="pt-3 mt-2 border-t d-line flex gap-2">
-        <button type="button" data-cal-add="${today}"
+        <button type="button" data-cal-add="${esc(today)}"
             class="flex-1 d-btn d-btn-accent">＋ 오늘 일정 추가</button>
         <button type="button" id="cal-list-pick"
             class="flex-1 d-btn">날짜 선택</button>
@@ -568,15 +568,15 @@ function renderDayModalList(dateStr) {
     host.innerHTML = `<ul class="space-y-1">${items.map(it => {
         const btns = it.editable
             ? `<div class="flex gap-1 shrink-0">
-                   <button type="button" data-day-edit-kind="${it.kind}" data-day-edit-id="${esc(it.id)}"
+                   <button type="button" data-day-edit-kind="${esc(it.kind)}" data-day-edit-id="${esc(it.id)}"
                        class="text-[11px] px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200">수정</button>
-                   <button type="button" data-day-del-kind="${it.kind}" data-day-del-id="${esc(it.id)}"
+                   <button type="button" data-day-del-kind="${esc(it.kind)}" data-day-del-id="${esc(it.id)}"
                        class="text-[11px] px-2 py-1 rounded bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100">삭제</button>
                </div>`
             : `<span class="text-[11px] text-gray-400 shrink-0">읽기전용</span>`;
         return `
         <li class="flex items-start gap-2 py-2 border-b border-gray-100 dark:border-gray-700/50 last:border-0">
-            <span class="mt-1.5 w-2 h-2 rounded-full shrink-0" style="background:${it.color}"></span>
+            <span class="mt-1.5 w-2 h-2 rounded-full shrink-0" style="background:${esc(it.color)}"></span>
             <div class="min-w-0 flex-1">
                 <div class="text-[13px] font-bold text-gray-800 dark:text-gray-100 break-words">${esc(it.label)}</div>
                 ${it.bell ? `<div class="text-[11px] text-blue-600 dark:text-blue-400 break-words">🔔 ${esc(it.bell)}</div>` : ''}
@@ -699,7 +699,7 @@ function ensureModal() {
                         <div>
                             <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">분류</label>
                             <select id="cal-f-type" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
-                                ${EVENT_TYPES.map(t => `<option value="${t.id}">${t.label}</option>`).join('')}
+                                ${EVENT_TYPES.map(t => `<option value="${esc(t.id)}">${esc(t.label)}</option>`).join('')}
                             </select>
                         </div>
                         <div>
@@ -747,7 +747,7 @@ function ensureModal() {
                         <div>
                             <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">근태 유형</label>
                             <select id="cal-f-leavetype" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
-                                ${CAL_LEAVE_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
+                                ${CAL_LEAVE_TYPES.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('')}
                             </select>
                         </div>
                     </div>
@@ -827,7 +827,7 @@ let remPrevTo = null;      // 열 때 저장돼 있던 remindTo
 
 // ── 미리 알림 줄 ──
 function remRowHtml(row) {
-    const opts = REL_OPTIONS.map(o => `<option value="${o.rel}">${o.label}</option>`).join('');
+    const opts = REL_OPTIONS.map(o => `<option value="${esc(o.rel)}">${esc(o.label)}</option>`).join('');
     return `<div class="cal-rem-row flex flex-wrap items-center gap-1.5" data-rid="${esc(row.rid || '')}">
         <select class="cal-rem-rel flex-1 min-w-[8rem] p-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white">${opts}</select>
         <input type="datetime-local" class="cal-rem-abs hidden p-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white">

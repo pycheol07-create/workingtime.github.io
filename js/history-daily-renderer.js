@@ -2,11 +2,12 @@
 // 설명: 이력 보기의 '일별 상세' 탭 화면을 렌더링하는 모듈입니다.
 // (수정됨: 현황판과 동일한 기준으로 유효 멤버 필터링 강화, 시스템 계정 제외 및 타입 에러 방어 적용)
 
-import * as State from './state.js?v=202611121547';
+import { escapeHtml } from './utils.js?v=202611121915';
+import * as State from './state.js?v=202611121915';
 import {
     formatDuration, isWeekday, calcTotalPauseMinutes, formatTimeTo24H, getTodayDateString, buildMemberHourlyWageMap
-} from './utils.js?v=202611121547';
-import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202611121547';
+} from './utils.js?v=202611121915';
+import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202611121915';
 
 /**
  * 일별 상세 화면 렌더링 (KPI 카드 및 업무별 진행바 등)
@@ -194,14 +195,14 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
         const subText = isWeekday(dateKey) ? `(추정치, ${percentage}%)` : `(주말 ${standardHours}H 기준, ${percentage}%)`;
 
         nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]">
-                        <h4 class="text-sm font-semibold text-gray-500">${titleText}</h4>
-                        <p class="text-xl font-bold text-gray-700">${formatDuration(nonWorkMinutes)}</p>
-                        <p class="text-xs text-gray-500 mt-1">${subText}</p>
+                        <h4 class="text-sm font-semibold text-gray-500">${escapeHtml(titleText)}</h4>
+                        <p class="text-xl font-bold text-gray-700">${escapeHtml(formatDuration(nonWorkMinutes))}</p>
+                        <p class="text-xs text-gray-500 mt-1">${escapeHtml(subText)}</p>
                        </div>`;
     } else {
          const titleText = isWeekday(dateKey) ? '총 비업무시간' : '총 비업무시간 (주말)';
          nonWorkHtml = `<div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px] flex flex-col justify-center items-center">
-                         <h4 class="text-sm font-semibold text-gray-500">${titleText}</h4>
+                         <h4 class="text-sm font-semibold text-gray-500">${escapeHtml(titleText)}</h4>
                          <p class="text-lg font-bold text-gray-400">${isWeekday(dateKey) ? '데이터 없음' : '주말 근무 없음'}</p>
                         </div>`;
     }
@@ -209,23 +210,23 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
     // 7. HTML 조립
     let html = `
     <div class="mb-6 pb-4 border-b flex justify-between items-center">
-      <h3 class="text-2xl font-bold text-gray-800">${dateKey}</h3>
+      <h3 class="text-2xl font-bold text-gray-800">${escapeHtml(dateKey)}</h3>
       <div>
         <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
-                data-action="open-history-quantity-modal" data-date-key="${dateKey}">처리량 수정</button>
+                data-action="open-history-quantity-modal" data-date-key="${escapeHtml(dateKey)}">처리량 수정</button>
         <button class="bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 font-semibold py-1 px-3 rounded-md text-sm ml-4"
-                data-action="request-history-deletion" data-date-key="${dateKey}">삭제</button>
+                data-action="request-history-deletion" data-date-key="${escapeHtml(dateKey)}">삭제</button>
       </div>
     </div>
     <div class="flex flex-wrap gap-4 mb-6">
       <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]">
         <h4 class="text-sm font-semibold text-gray-500">근무 인원 (출근 기준)</h4> 
-        <p class="text-2xl font-bold text-gray-800">${activeMembersCount} 명</p>
+        <p class="text-2xl font-bold text-gray-800">${escapeHtml(activeMembersCount)} 명</p>
       </div>
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${formatDuration(totalSumDuration)}</p></div>
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[120px]"><h4 class="text-sm font-semibold text-gray-500">총합 시간</h4><p class="text-2xl font-bold text-gray-800">${escapeHtml(formatDuration(totalSumDuration))}</p></div>
       ${nonWorkHtml}
       <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">총 처리량</h4><p class="text-2xl font-bold text-gray-800">${Number(totalQuantity).toLocaleString()} 개</p></div>
-      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${avgThroughput} 개/분</p></div>
+      <div class="bg-white p-4 rounded-lg shadow-sm text-center flex-1 min-w-[150px]"><h4 class="text-sm font-semibold text-gray-500">분당 평균 처리량</h4><p class="text-2xl font-bold text-gray-800">${escapeHtml(avgThroughput)} 개/분</p></div>
     </div>
   `;
 
@@ -241,11 +242,11 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
             hasQuantities = true;
             const prevMetric = prevTaskMetrics[task] || null;
             const diffHtml = getDiffHtmlForMetric('quantity', metrics.quantity, prevMetric?.quantity);
-            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
+            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${escapeHtml(prevMetric.date)}</span>` : '';
 
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
-                 <span class="font-semibold text-gray-600">${task}</span>
-                 <span>${metrics.quantity} 개 ${diffHtml} ${dateSpan}</span>
+                 <span class="font-semibold text-gray-600">${escapeHtml(task)}</span>
+                 <span>${escapeHtml(metrics.quantity)} 개 ${diffHtml} ${dateSpan}</span>
                </div>`;
         });
     if (!hasQuantities) html += `<p class="text-gray-500 text-sm">입력된 처리량이 없습니다.</p>`;
@@ -261,10 +262,10 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
             hasThroughput = true;
             const prevMetric = prevTaskMetrics[task] || null;
             const diffHtml = getDiffHtmlForMetric('avgThroughput', metrics.avgThroughput, prevMetric?.avgThroughput);
-            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
+            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${escapeHtml(prevMetric.date)}</span>` : '';
             
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
-                 <span class="font-semibold text-gray-600">${task}</span>
+                 <span class="font-semibold text-gray-600">${escapeHtml(task)}</span>
                  <span>${metrics.avgThroughput.toFixed(2)} 개/분 ${diffHtml} ${dateSpan}</span>
                </div>`;
         });
@@ -281,10 +282,10 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
             hasCostPerItem = true;
             const prevMetric = prevTaskMetrics[task] || null;
             const diffHtml = getDiffHtmlForMetric('avgCostPerItem', metrics.avgCostPerItem, prevMetric?.avgCostPerItem);
-            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
+            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${escapeHtml(prevMetric.date)}</span>` : '';
 
             html += `<div class="flex justify-between items-center text-sm border-b pb-1">
-                 <span class="font-semibold text-gray-600">${task}</span>
+                 <span class="font-semibold text-gray-600">${escapeHtml(task)}</span>
                  <span>${metrics.avgCostPerItem.toFixed(0)} 원/개 ${diffHtml} ${dateSpan}</span>
                </div>`;
         });
@@ -297,7 +298,7 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
                 <div class="flex justify-between items-center mb-3">
                     <h4 class="text-lg font-bold text-gray-700">업무별 시간 비중</h4>
                     <button class="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-semibold py-1 px-2 rounded transition"
-                            data-action="open-record-manager" data-date-key="${dateKey}">
+                            data-action="open-record-manager" data-date-key="${escapeHtml(dateKey)}">
                         기록 관리
                     </button>
                 </div>
@@ -312,19 +313,19 @@ export const renderHistoryDetail = (dateKey, previousDayData = null) => {
             const percentage = totalSumDuration > 0 ? (metrics.duration / totalSumDuration * 100).toFixed(1) : 0;
             const prevMetric = prevTaskMetrics[task] || null;
             const diffHtml = getDiffHtmlForMetric('duration', metrics.duration, prevMetric?.duration);
-            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${prevMetric.date}</span>` : '';
-            const pauseText = metrics.pauseDuration > 0 ? ` <span class="text-xs text-gray-400 ml-2">(휴: ${formatDuration(metrics.pauseDuration)})</span>` : '';
+            const dateSpan = prevMetric ? `<span class="text-xs text-gray-400 ml-1" title="비교 대상">${escapeHtml(prevMetric.date)}</span>` : '';
+            const pauseText = metrics.pauseDuration > 0 ? ` <span class="text-xs text-gray-400 ml-2">(휴: ${escapeHtml(formatDuration(metrics.pauseDuration))})</span>` : '';
 
             html += `
             <div>
               <div class="flex justify-between items-center mb-1 text-sm">
-                <span class="font-semibold text-gray-600">${task}</span>
+                <span class="font-semibold text-gray-600">${escapeHtml(task)}</span>
                 <div>
-                    <span>${formatDuration(metrics.duration)} (${percentage}%) ${diffHtml} ${dateSpan}</span>
+                    <span>${escapeHtml(formatDuration(metrics.duration))} (${escapeHtml(percentage)}%) ${diffHtml} ${dateSpan}</span>
                     ${pauseText}
                 </div>
               </div>
-              <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${percentage}%"></div></div>
+              <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${escapeHtml(percentage)}%"></div></div>
             </div>`;
         });
     } else {

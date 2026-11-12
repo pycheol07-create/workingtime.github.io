@@ -31,12 +31,13 @@
 // 비밀번호 재설정은 두지 않는다(관리자에게 문의).
 // ⚠️ 화면 가림만 한다. 데이터는 firestore.rules 가 지킨다. 이름·이메일은 화면·로그에 남기지 않는다.
 // ⚠️ role="dialog"·data-act 를 쓰지 않는다(page-gate.js 와 같은 이유 — 봇이 그 선택자로 확인창을 찾는다).
-import { db, auth } from './firebase-init.js?v=202611121547';
+import { db, auth } from './firebase-init.js?v=202611121915';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut,
     GoogleAuthProvider, signInWithPopup, getRedirectResult } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { calcAccess, calcPermDecision } from '../js/lib/calc-member.js?v=202611121547';
-import { clearShellMenuCache } from '../js/app-shell-bridge.js?v=202611121547';
+import { doc, getDoc, terminate, clearIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { calcAccess, calcPermDecision } from '../js/lib/calc-member.js?v=202611121915';
+import { clearLocalCaches, FIRESTORE_CLEAR_FAILED_MSG } from '../js/lib/local-caches.js?v=202611121915';
+import { clearShellMenuCache } from '../js/app-shell-bridge.js?v=202611121915';
 
 const CONFIG_PATH = 'artifacts/team-work-logger-v2/config/mainConfig';
 const PUBLIC_PATH = 'artifacts/team-work-logger-v2/calcPublic/settings';   // 공개 사본 — 명단 밖이면 이걸로 '퇴사자 아님' 을 확인
@@ -86,7 +87,12 @@ const showChecking = () => showGate(`<div style="font-size:16px; font-weight:600
 const doSignOut = async () => {
     clearShellMenuCache();                 // 다음 사람에게 앞 사람 메뉴가 남지 않게(대시보드 로그아웃과 같게)
     try { if (auth) await signOut(auth); }
-    catch (e) { console.warn('[계산기] 로그아웃 실패:', (e && e.code) || 'unknown'); }
+    catch (e) { console.warn('[계산기] 로그아웃 실패:', (e && e.code) || 'unknown'); return; }
+    // 업무 자료 사본(이력 캐시·Firestore 오프라인 사본 등)을 지운다 — 입력 기억값은 지우지 않는다(js/lib/local-caches.js).
+    // Firestore 를 닫으므로 페이지를 새로 연다(대시보드 로그아웃과 같게).
+    const res = await clearLocalCaches({ db, firestore: { terminate, clearIndexedDbPersistence } });
+    if (res && res.firestore === 'failed') alert(FIRESTORE_CLEAR_FAILED_MSG);   // 다른 탭이 사본을 쥐고 있어 못 지움
+    location.reload();
 };
 window.__calcSignOut = doSignOut;
 

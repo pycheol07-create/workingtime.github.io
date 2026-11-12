@@ -26,28 +26,28 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getBlob, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { initializeFirebase } from './config.js?v=202611121547';
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611121547';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121547';
-import { memberNameFor } from './app-shell-data.js?v=202611121547';
-import { friendlyFirebaseError } from './utils.js?v=202611121547';
-import { resolve, can } from './lib/perm.js?v=202611121547';
-import { readBook } from './lib/ship-read.js?v=202611121547';
-import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611121547';
-import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611121547';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611121547';
-import { pickingBytes } from './lib/ship-picking.js?v=202611121547';
-import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611121547';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611121547';
-import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611121547';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611121547';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611121547';
-import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611121547';
-import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611121547';
-import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611121547';
-import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611121547';
-import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611121547';
-import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch } from './ship-store.js?v=202611121547';
+import { initializeFirebase } from './config.js?v=202611121915';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611121915';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121915';
+import { memberNameFor } from './app-shell-data.js?v=202611121915';
+import { friendlyFirebaseError } from './utils.js?v=202611121915';
+import { resolve, can } from './lib/perm.js?v=202611121915';
+import { readBook } from './lib/ship-read.js?v=202611121915';
+import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611121915';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611121915';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611121915';
+import { pickingBytes } from './lib/ship-picking.js?v=202611121915';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611121915';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611121915';
+import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611121915';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611121915';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611121915';
+import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611121915';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611121915';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611121915';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611121915';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611121915';
+import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch } from './ship-store.js?v=202611121915';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -66,7 +66,7 @@ const ABLY_TEMPLATE_URL = 'assets/ship/엑셀_대량_입고_양식.xlsx';   // �
 // 기본 양식(빈 서식) — 관리자가 [설정] › 기본 양식에서 올린다(storage.rules ship/templates). 5MB = 규칙 한도와 같게
 // ★ 관리자 [양식 올리기] 스위치(직진·에이블리 같이) — 저장소 규칙(storage.rules ship/templates, 관리자만 올리기)을 게시한 뒤 true 로 바꾼다.
 //   false 면 버튼을 막고 '저녁 규칙 게시 뒤 사용' 안내만(규칙 게시 전에는 운영 규칙이 이 경로를 관리자만으로 막지 못할 수 있다).
-const ZG_TEMPLATE_UPLOAD_ON = false;
+const ZG_TEMPLATE_UPLOAD_ON = true; 
 const ZG_UPLOAD_OFF_TEXT = '양식 올리기는 저장소 규칙을 게시한 뒤(오늘 저녁)부터 씁니다.';
 const ZG_TEMPLATE_PATH = 'ship/templates/zikjin.xlsx';
 const AB_TEMPLATE_PATH = 'ship/templates/ably.xlsx';

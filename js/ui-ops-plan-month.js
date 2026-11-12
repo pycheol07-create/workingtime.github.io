@@ -3,16 +3,16 @@
 //   추세 = 물량 추세 예측(analysis-logic predictFutureTrends trend.deliveryFactor), 공급 = 업무 예상 가용 인원(수만).
 //   금액·직원 이름 없음(담당 변경 과제도 업무 이름만). ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
-import { buildOpsModel } from './lib/ops-view-model.js?v=202611121547';
-import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611121547';
-import { taskNameOf, TASK } from './lib/task-ids.js?v=202611121547';
-import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=202611121547';
-import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611121547';
-import { predictFutureTrends } from './analysis-logic.js?v=202611121547';
-import { availableStaffOf } from './ui-history-prediction.js?v=202611121547';
-import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=202611121547';
+import * as State from './state.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
+import { buildOpsModel } from './lib/ops-view-model.js?v=202611121915';
+import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611121915';
+import { taskNameOf, TASK } from './lib/task-ids.js?v=202611121915';
+import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=202611121915';
+import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611121915';
+import { predictFutureTrends } from './analysis-logic.js?v=202611121915';
+import { availableStaffOf } from './ui-history-prediction.js?v=202611121915';
+import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=202611121915';
 
 /** 월간 계획 입력 모으기 → buildMonthPlan. models = { recentModel, prevModel, baseModel } (주간 쪽과 같이 씀), confirmedErrs = 지난 확정본 대비 오차(plan-compare monthErrsOf) */
 export function computeMonthPlan(today, models, cfgPlan = null, confirmedErrs = []) {
@@ -49,18 +49,18 @@ export function lastMonthKeyOf(today) {
 export function monthBodyHtml(p) {
     const T = p.fillTotals, S = p.meta.settings;
     const weeks = p.weeks.map(w => `<tr class="${w.shortDays ? 'is-short' : ''}">
-        <td>${fmtDay(w.from)} ~ ${fmtDay(w.to)}</td><td class="r">${w.workdays}</td><td class="r">${n1(w.reqAvg)}</td><td class="r">${n1(w.supplyAvg)}</td>
-        <td class="r">${w.shortDays ? `<b class="opv-down">${w.shortDays}일</b>` : '0'}</td><td class="r">${n1(w.need)}</td>
-        <td>${[w.fill.prep > 0 ? `선처리 ${n1(w.fill.prep)}h` : '', w.fill.overtime > 0 ? `연장 ${n1(w.fill.overtime)}h` : '', w.fill.tempPeople > 0 ? `알바 ${w.fill.tempPeople}인일` : ''].filter(Boolean).join(' · ') || '—'}</td>
+        <td>${fmtDay(w.from)} ~ ${fmtDay(w.to)}</td><td class="r">${esc(w.workdays)}</td><td class="r">${esc(n1(w.reqAvg))}</td><td class="r">${esc(n1(w.supplyAvg))}</td>
+        <td class="r">${w.shortDays ? `<b class="opv-down">${esc(w.shortDays)}일</b>` : '0'}</td><td class="r">${esc(n1(w.need))}</td>
+        <td>${esc([w.fill.prep > 0 ? `선처리 ${n1(w.fill.prep)}h` : '', w.fill.overtime > 0 ? `연장 ${n1(w.fill.overtime)}h` : '', w.fill.tempPeople > 0 ? `알바 ${w.fill.tempPeople}인일` : ''].filter(Boolean).join(' · ') || '—')}</td>
         <td>${w.leaveCrowd.length ? `<span class="opv-chip is-warn">휴가 몰림 ${w.leaveCrowd.length}일</span>` : ''}</td></tr>`).join('');
     const dayRows = p.days.map(d => {
         if (!d.workday) return `<tr class="opp-off"><td>${fmtDay(d.date)}</td><td colspan="6" class="opv-note">${d.holiday ? esc(d.holidayName || '공휴일') : '주말'}</td></tr>`;
         if (!d.hasRow) return `<tr><td>${fmtDay(d.date)}</td><td colspan="6" class="opv-note">기록이 모자라 숫자가 없습니다</td></tr>`;
         const gapTxt = d.gap === 0 ? '적정' : d.gap > 0 ? `+${d.gap}명` : `${d.gap}명`;
-        return `<tr class="${d.gap < 0 ? 'is-short' : ''}"><td>${fmtDay(d.date)}</td><td class="r">${n0(d.qty)}</td><td class="r">${n1(d.reqFTE)}</td>
-            <td class="r">${d.supplyFTE}명${d.leaveCount ? ` <span class="opv-note">(휴무 ${d.leaveCount})</span>` : ''}</td>
-            <td class="r"><b class="${d.gap < 0 ? 'opv-down' : d.gap > 0 ? 'opv-up' : 'opv-flat'}">${gapTxt}</b></td><td class="r">${pct0(d.fillRate)}</td>
-            <td class="r">${d.recommend}명${d.spareFTE > 0 ? ` <span class="opv-note">(교육·정리 ${d.spareFTE})</span>` : ''}</td></tr>`;
+        return `<tr class="${d.gap < 0 ? 'is-short' : ''}"><td>${fmtDay(d.date)}</td><td class="r">${esc(n0(d.qty))}</td><td class="r">${esc(n1(d.reqFTE))}</td>
+            <td class="r">${esc(d.supplyFTE)}명${d.leaveCount ? ` <span class="opv-note">(휴무 ${esc(d.leaveCount)})</span>` : ''}</td>
+            <td class="r"><b class="${esc(d.gap < 0 ? 'opv-down' : d.gap > 0 ? 'opv-up' : 'opv-flat')}">${esc(gapTxt)}</b></td><td class="r">${esc(pct0(d.fillRate))}</td>
+            <td class="r">${esc(d.recommend)}명${d.spareFTE > 0 ? ` <span class="opv-note">(교육·정리 ${esc(d.spareFTE)})</span>` : ''}</td></tr>`;
     }).join('');
     return `
         ${card('주차별 계획', `<div class="opv-table-wrap"><table class="opv-table">
@@ -75,7 +75,7 @@ export function monthBodyHtml(p) {
             ${kpi('② 연장', n1(T.overtime), '시간', `주마다 1인 ${n1(S.overtimeWeeklyMax)}시간까지`)}
             ${kpi('③ 알바', n0(T.tempPeople), '인일', `${n1(T.temp)}시간 · 요청 후 ${n0(S.tempLeadDays)}일`)}
         </div><p class="opv-note opp-law">${esc(OVERTIME_LAW_NOTE)}</p>
-        <p class="opv-note">지금 기준: 1인 하루 연장 ${n1(S.overtimeDailyMax)}시간 · 주 ${n1(S.overtimeWeeklyMax)}시간, 알바 1인일 ${n1(S.stdHours)}시간(관리자 [비용·설정]에서 바꿈).</p>`,
+        <p class="opv-note">지금 기준: 1인 하루 연장 ${esc(n1(S.overtimeDailyMax))}시간 · 주 ${esc(n1(S.overtimeWeeklyMax))}시간, 알바 1인일 ${esc(n1(S.stdHours))}시간(관리자 [비용·설정]에서 바꿈).</p>`,
         '주마다 선처리 → 연장 → 알바 · 시간·인원만')}`;
 }
 

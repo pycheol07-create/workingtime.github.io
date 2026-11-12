@@ -18,8 +18,13 @@
 //   옛 문서의 결재는 옛 모양(approverStamp)으로 쓰고, 작성자가 고치거나 다시 내면 새 모양(approvers…)으로 바뀐다.
 // 2026-11-09 참조자: ccs [{name, email}] 0~5명 + ccEmails(쿼리용). 후보는 재직 관리자(작성자·결재자 제외), 제출 뒤 읽기·인쇄만.
 //   임시저장·반려 재작성 때만 바꾼다. 관리자라 읽을 수 있으므로 읽기 규칙은 그대로이고, actionsFor 도 참조 여부를 보지 않는다(관리자 권한을 줄이지 않는다).
+// 2026-11-12 제출 후 수정: 결재 대기(submitted) 문서를 작성자가 회수 없이 고친다(buildEditSubmit — 이력 act 'edit').
+//   승인한 사람이 있어도 되고, 그때는 도장을 지우고 1차부터 다시(step 0·stamps 비움, 기안 도장·submittedAt 새로). 첨부는 못 바꾼다(규칙·Storage).
+//   결재 의견(decision)은 기록이라 남긴다. 회수는 지금처럼 아무도 승인 안 했을 때만.
+// 2026-11-12 기본 결재선: ApprovalSettings/defaults.line(명단 이름 1~3명, 관리자가 양식 관리에서 정함) → autoLine 이
+//   결재자 후보로 바꾸고, 기안하는 날 날짜 근태가 있는 사람은 참조로 옮긴다(참조 후보 = 관리자만). 결재선이 비게 되면 옮기지 않고 안내만.
 
-import { positionOf } from './member-title.js?v=202611121547';
+import { positionOf } from './member-title.js?v=202611121915';
 
 export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select', 'file'];
 export const BOX_ROLES = ['author', 'approver', 'blank'];
@@ -315,7 +320,7 @@ export const noneApproved = (d) => stepOf(d) === 0 && stampsOf(d).length === 0;
 
 /** 이 사람이 이 기안서에 할 수 있는 일 — 'edit'·'submit'·'delete'·'withdraw'·'approve'·'reject'·'print'.
  *  전이표(규칙과 같음): 작성자 draft→수정·제출·삭제(회수·반려를 거친 임시저장도 삭제 가능, 2026-11-05) / rejected→수정·재제출 /
- *  submitted→회수(아무도 승인 안 했을 때만), 차례 결재자·관리자(대결) submitted→승인·반려. approved 는 인쇄와 승인 후 증빙 추가('addAfter' — 작성자·결재선 전원·관리자)만.
+ *  submitted→수정(회수 없이, 승인한 사람이 있으면 1차부터 다시 — 2026-11-12)·회수(아무도 승인 안 했을 때만), 차례 결재자·관리자(대결) submitted→승인·반려. approved 는 인쇄와 승인 후 증빙 추가('addAfter' — 작성자·결재선 전원·관리자)만.
  *  관리자는 누구 문서든 모든 상태에서 삭제('delete', 2026-11-10).
  *  결재선에 있는 사람은 제출 뒤(draft 아님) 인쇄·열람. */
 export function actionsFor(d, email, isAdmin) {
@@ -327,14 +332,29 @@ export function actionsFor(d, email, isAdmin) {
     const ownDraft = mine && d.status === 'draft';
     if (ownDraft) out.push('edit', 'submit', 'delete');
     if (mine && d.status === 'rejected') out.push('edit', 'submit');
+    if (mine && d.status === 'submitted') out.push('edit');   // 제출 후 수정(2026-11-12, 규칙 apAuthorUpdateOk 'edit' 분기)
     if (mine && d.status === 'submitted' && noneApproved(d)) out.push('withdraw');
-    if (d.status === 'submitted' && currentApprover(d) && (isAdmin || isTurn(d, email))) out.push('approve', 'reject');
-    else if (d.status === 'submitted' && !approversOf(d).length && isAdmin) out.push('approve', 'reject');   // 결재자 지정이 없던 첫 판 문서 — 관리자만
+    // 관리자 대결은 남의 기안서만(2026-11-12 보안 점검 — 자기 기안서를 스스로 승인하지 못하게, 규칙 apDecideStepOk·apDecideOldOk 와 같음)
+    if (d.status === 'submitted' && currentApprover(d) && ((isAdmin && !mine) || isTurn(d, email))) out.push('approve', 'reject');
+    else if (d.status === 'submitted' && !approversOf(d).length && isAdmin && !mine) out.push('approve', 'reject');   // 결재자 지정이 없던 첫 판 문서 — 관리자만
     if (d.status === 'approved' && (mine || isAdmin || assigned)) out.push('addAfter');
     // 관리자는 누구 문서든 상태와 상관없이 삭제(규칙과 같음, 2026-11-10 사용자 결정 — 이력·의견·첨부도 같이 사라짐)
     if (isAdmin && !ownDraft) out.push('delete');
     if (mine || isAdmin || (assigned && d.status !== 'draft')) out.push('print');
     return out;
+}
+
+/** '결재할 문서' 탭에 넣을 문서 — 결재선에 있거나, 관리자면 남의 문서(임시저장 빼고).
+ *  관리자 본인 기안서는 결재선에 없으면 넣지 않는다(스스로 승인할 수 없다 — actionsFor 와 같은 판단, 2026-11-12) */
+export function inTodoList(d, email, isAdmin) {
+    if (!d || d.status === 'draft') return false;
+    const mine = !!email && lower(d.authorEmail) === lower(email);
+    return inLine(d, email) || (!!isAdmin && !mine);
+}
+
+/** 결재 대기 건수에 셀 문서 — 지금 내가 승인할 수 있는 것만(actionsFor 의 approve) */
+export function waitingForMe(d, email, isAdmin) {
+    return !!d && d.status === 'submitted' && actionsFor(d, email, isAdmin).includes('approve');
 }
 
 /** 작성자 버튼(edit·withdraw·delete)이 안 되는 까닭 — 툴팁용 문장. 되면 ''. */
@@ -344,11 +364,10 @@ export function whyNot(d, email, isAdmin, act) {
     const mine = !!email && lower(d.authorEmail) === lower(email);
     if (!mine) return '본인이 쓴 기안서만 고치거나 지울 수 있습니다.';
     const st = d.status;
-    if (act === 'edit' && st === 'submitted' && !noneApproved(d)) return '결재가 진행 중이라 고칠 수 없습니다 — 결재자가 반려하면 고칠 수 있습니다.';
-    if (act === 'edit') return st === 'submitted' ? '결재 대기 중에는 고칠 수 없습니다 — [회수] 한 뒤 고치세요.' : '승인된 기안서는 고칠 수 없습니다.';
+    if (act === 'edit') return '승인된 기안서는 고칠 수 없습니다.';
     if (act === 'withdraw') return st === 'draft' ? '아직 제출하지 않은 기안서입니다.'
         : st === 'rejected' ? '반려된 기안서는 회수 없이 바로 [수정] 할 수 있습니다.'
-        : st === 'submitted' ? '이미 승인한 결재자가 있어 회수할 수 없습니다 — 결재자가 반려하면 고칠 수 있습니다.' : '승인된 기안서는 회수할 수 없습니다.';
+        : st === 'submitted' ? '이미 승인한 결재자가 있어 회수할 수 없습니다 — [수정] 하면 도장이 지워지고 1차부터 다시 결재합니다.' : '승인된 기안서는 회수할 수 없습니다.';
     if (act === 'delete' && st === 'submitted' && !noneApproved(d)) return '결재가 진행 중인 기안서는 지울 수 없습니다.';
     if (act === 'delete') return st === 'submitted' ? '결재 대기 중인 기안서는 지울 수 없습니다 — [회수] 하면 임시저장이 되어 지울 수 있습니다.'
         : st === 'approved' ? '승인된 기안서는 지울 수 없습니다.'
@@ -464,6 +483,30 @@ export function buildSubmit(d, me, values, { ts, at, approvers, ccs } = {}) {
     };
 }
 
+/** 제출 후 수정(submitted → submitted, 2026-11-12). 회수 없이 내용·결재선·참조를 고쳐 다시 낸다.
+ *  승인한 사람이 있어도 되고 도장은 지운다(1차부터 다시 — 승인하지 않은 내용에 도장이 남지 않게). 첨부·결재 의견(decision)은 그대로.
+ *  규칙 apAuthorUpdateOk 의 'edit' 분기와 같은 칸. */
+export function buildEditSubmit(d, me, values, { ts, at, approvers, ccs } = {}) {
+    if (!d || d.status !== 'submitted') throw new Error('결재 대기 중인 기안서만 이렇게 고칠 수 있습니다.');
+    const m = ME(me);
+    needName(m);
+    if (lower(d.authorEmail) !== m.email) throw new Error('본인이 쓴 기안서만 고칠 수 있습니다.');
+    const ap = cleanApprovers(approvers === undefined ? approversOf(d) : approvers);
+    needApprovers(ap, m);
+    const cc = cleanCcs(ccs === undefined ? ccsOf(d) : ccs);
+    needCcs(cc, ap, m);
+    return {
+        ...LINE(ap), ...ccPatch(cc, d),
+        values: cleanValues(d.form, values), status: 'submitted', updatedAt: ts, submittedAt: ts,
+        authorStamp: { name: m.name, at: ts },
+        history: nextHistory(d.history, { act: 'edit', at, by: m.email })
+    };
+}
+/** 수정 제출하면 지워지는 도장 수(확인창 문구용) */
+export const stampsToClear = (d) => (d && d.status === 'submitted' ? stampsOf(d).length : 0);
+/** 마지막 처리가 '수정 제출'인가(보기 화면의 '수정 전 결재 의견' 제목) */
+export const lastActIsEdit = (d) => !!d && Array.isArray(d.history) && d.history.length > 0 && (d.history[d.history.length - 1] || {}).act === 'edit';
+
 /** 회수(submitted → draft). 아무도 승인 안 했을 때만. 내용·결재선은 그대로, 기안 도장은 지운다. */
 export function buildWithdraw(d, me, { ts, at } = {}) {
     if (!d || d.status !== 'submitted') throw new Error('결재 대기 중인 문서만 회수할 수 있습니다.');
@@ -477,7 +520,7 @@ export function buildWithdraw(d, me, { ts, at } = {}) {
  *    proxy = 지금 차례 결재자가 아닌 사람(관리자)이 결재 — 인쇄에 '대결'. 도장은 실제 결재한 사람 이름.
  *  옛 문서(approvers 칸 없음): 예전 모양(approverStamp, 지정 결재자가 있는데 내가 아니면 proxy). → { patch, final, next }
  *    final = 결재가 끝남(approved·rejected), next = 다음 차례 결재자 {name, email} | null */
-export function buildDecisionStep(d, me, act, comment, { ts, at } = {}) {
+export function buildDecisionStep(d, me, act, comment, { ts, at, seenAt } = {}) {
     if (!d || d.status !== 'submitted') throw new Error('결재 대기 중인 문서가 아닙니다.');
     if (act !== 'approve' && act !== 'reject') throw new Error('알 수 없는 결재 동작');
     const m = ME(me);
@@ -486,10 +529,12 @@ export function buildDecisionStep(d, me, act, comment, { ts, at } = {}) {
     if (act === 'reject' && !c) throw new Error('반려 의견을 입력하세요.');
     if (c.length > COMMENT_MAX) throw new Error(`의견은 ${COMMENT_MAX}자까지입니다.`);
     const history = nextHistory(d.history, { act, at, by: m.email });
+    // seenAt = 결재자가 본 문서의 updatedAt(2026-11-12) — 규칙 apDecisionOk 가 지금 문서 updatedAt 과 같은지 본다. 안 넘기면 칸을 두지 않는다(그러면 규칙이 막는다)
+    const seen = seenAt === undefined ? {} : { seenAt };
     if (!Array.isArray(d.approvers)) {   // 옛 문서
         return { final: true, next: null, patch: {
             status: act === 'approve' ? 'approved' : 'rejected',
-            decision: { by: m.email, byName: m.name, at: ts, comment: c, proxy: !!d.approverEmail && lower(d.approverEmail) !== m.email },
+            decision: { by: m.email, byName: m.name, at: ts, comment: c, proxy: !!d.approverEmail && lower(d.approverEmail) !== m.email, ...seen },
             approverStamp: act === 'approve' ? { name: m.name, at: ts } : null,
             updatedAt: ts, history
         } };
@@ -500,7 +545,7 @@ export function buildDecisionStep(d, me, act, comment, { ts, at } = {}) {
     if (!cur) throw new Error('결재선이 비었거나 이미 끝났습니다.');
     if (stampsOf(d).length !== step) throw new Error('결재 기록이 맞지 않습니다. 새로고침해 보세요.');
     const proxy = cur.email !== m.email;
-    const decision = { by: m.email, byName: m.name, at: ts, comment: c, proxy };
+    const decision = { by: m.email, byName: m.name, at: ts, comment: c, proxy, ...seen };
     if (act === 'reject') return { final: true, next: null, patch: { status: 'rejected', decision, updatedAt: ts, history } };
     const last = step + 1 >= line.length;
     return { final: last, next: last ? null : line[step + 1], patch: {
@@ -510,7 +555,24 @@ export function buildDecisionStep(d, me, act, comment, { ts, at } = {}) {
         decision, updatedAt: ts, history
     } };
 }
-/** 결재 뒤 알림 — 단계 승인이면 다음 결재자, 최종 승인·반려면 작성자. 본인에게는 안 보낸다. → { to: 이름, kind: 'approver'|'author' } | null */
+/** 결재 직전 확인(2026-11-12 리뷰) — seen = 결재자가 본 문서, cur = 트랜잭션에서 다시 읽은 서버 문서, msOf = 서버 시각 → ms.
+ *  → '' (결재해도 됨) | 'edited'(작성자가 그사이 고쳐 다시 냄) | 'refresh'(회수·다른 결재 등 — 새로고침).
+ *  updatedAt 이 없는 옛 문서(서버 값 기준)는 버전을 비교하지 않는다(규칙 apDecisionOk 도 같은 조건). */
+export function decideGuard(seen, cur, msOf) {
+    if (!seen || !cur || cur.status !== 'submitted' || stepOf(cur) !== stepOf(seen)) return 'refresh';
+    if (cur.updatedAt == null) return '';
+    const s = seen.updatedAt == null ? 0 : msOf(seen.updatedAt);
+    if (!s || s !== msOf(cur.updatedAt)) return lastActIsEdit(cur) ? 'edited' : 'refresh';
+    return '';
+}
+export const DECIDE_GUARD_TEXT = {
+    edited: '그사이 작성자가 내용을 고쳤습니다. 새로고침해 바뀐 내용을 확인한 뒤 결재하세요.',
+    refresh: '그사이 기안서가 바뀌었습니다(회수·다른 결재 등). 새로고침해 주세요.'
+};
+/** 결재 칸에 넣을 본 버전 — 서버 문서에 updatedAt 이 있을 때만(옛 문서는 칸 없음) */
+export const seenAtFor = (seen, cur) => (cur && cur.updatedAt != null ? seen.updatedAt : undefined);
+
+/** 결재 뒤 알림 —단계 승인이면 다음 결재자, 최종 승인·반려면 작성자. 본인에게는 안 보낸다. → { to: 이름, kind: 'approver'|'author' } | null */
 export function decisionNoti(d, res, myEmail) {
     if (!d || !res) return null;
     const me = lower(myEmail);
@@ -632,6 +694,76 @@ export function ccCandidates(cfg, selfName, selfEmail) {
     const roles = (cfg && cfg.memberRoles) || {};
     return approverCandidates(cfg, selfName, selfEmail).filter(c => roles[c.email] === 'admin');
 }
+
+// ── 기본 결재선(2026-11-12) ──
+//   설정 ApprovalSettings/defaults = { line: [명단 이름, …](1~3명), updatedAt, updatedBy } — 관리자만 쓴다(firestore.rules).
+//   이름은 이미 전원이 읽는 mainConfig.memberEmails 의 키. 이메일은 쓸 때마다 결재자 후보(approverCandidates)에서 찾는다.
+export const DEFAULT_LINE_MAX = APPROVERS_MAX;
+/** 설정의 이름 목록 정리 — 글자만, 40자, 빈 칸·중복 버림, 3명까지 */
+export function cleanDefaultLine(raw) {
+    const seen = new Set();
+    return (Array.isArray(raw) ? raw : []).map(n => (typeof n === 'string' ? n.trim().slice(0, 40) : ''))
+        .filter(n => n && !seen.has(n) && seen.add(n)).slice(0, DEFAULT_LINE_MAX);
+}
+/** 그날(day 'YYYY-MM-DD') 이 사람에게 날짜 근태가 있나. leaves = leaveSchedule.onLeaveMembers, isAway(type) = 부재로 볼 종류(화면이 state.js 에서 넘김) */
+export function awayToday(leaves, name, day, isAway) {
+    if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(String(day || '')) || typeof isAway !== 'function') return false;
+    return (Array.isArray(leaves) ? leaves : []).some(l => l && l.member === name && isAway(l.type)
+        && typeof l.startDate === 'string' && l.startDate <= day && day <= (l.endDate || l.startDate));
+}
+/** 기본 결재선 판정 — names(설정 이름) → { approvers, ccs, notes, away, gone, base, ccAble }.
+ *  1) 이름을 결재자 후보로 바꾼다(후보 아님 → gone, 작성자 본인 → 조용히 뺀다).
+ *  2) 그날 날짜 근태가 있는 사람은 결재선에서 빼 참조로(참조 후보 = 관리자). 관리자가 아니면 결재선에서만 뺀다.
+ *  3) 결재선이 비게 되면(둘 다 근태 등) 옮기지 않고 원래 결재선 그대로 + 안내만(2026-11-12 사용자 결정 D-3).
+ *  안내 문구에 근태 종류는 쓰지 않는다. base = 1)의 결과(순서대로), ccAble = 참조로 옮길 수 있는 이메일. */
+export function autoLine(cfg, { selfName, selfEmail, names, leaves, day, isAway } = {}) {
+    const cands = approverCandidates(cfg, selfName, selfEmail);
+    const ccAble = ccCandidates(cfg, selfName, selfEmail).map(c => c.email);
+    const me = lower(selfEmail);
+    const base = [], gone = [];
+    cleanDefaultLine(names).forEach(n => {
+        if (n === selfName) return;
+        const c = cands.find(x => x.name === n);
+        if (!c) { gone.push(n); return; }
+        if (c.email === me || base.some(a => a.email === c.email)) return;
+        base.push({ name: c.name, email: c.email });
+    });
+    const notes = [];
+    if (gone.length) notes.push(`기본 결재선의 ${gone.join('·')} 님은 지금 결재자로 지정할 수 없어 뺐습니다.`);
+    const awayList = base.filter(a => awayToday(leaves, a.name, day, isAway));
+    const present = base.filter(a => !awayList.includes(a));
+    const out = { approvers: base.slice(), ccs: [], notes, away: awayList.map(a => a.name), gone, base, ccAble };
+    if (!awayList.length) return out;
+    if (!present.length) {
+        notes.push(`${awayList.map(a => a.name).join('·')} 님은 오늘 근태가 있는 결재자입니다 — 결재가 늦어질 수 있습니다.`);
+        return out;
+    }
+    const moved = awayList.filter(a => ccAble.includes(a.email));
+    const dropped = awayList.filter(a => !ccAble.includes(a.email));
+    if (moved.length) notes.push(`${moved.map(a => a.name).join('·')} 님은 오늘 근태가 있어 참조로 옮겼습니다.`);
+    if (dropped.length) notes.push(`${dropped.map(a => a.name).join('·')} 님은 오늘 근태가 있어 결재선에서 뺐습니다(관리자가 아니라 참조로 넣을 수 없습니다).`);
+    out.approvers = present;
+    out.ccs = moved.slice(0, CC_MAX);
+    return out;
+}
+/** 지금 결재선·참조가 기본 결재선으로 정해진 모양 그대로인가(사용자가 손대지 않음) — 그러면 제출 때 그날 근태로 다시 판정한다.
+ *  결재선 = base 순서를 지킨 부분, 참조 = base 안의 사람만, 둘을 합치면 base 전원(참조로 못 가는 사람만 빠질 수 있음). */
+export function isDefaultShape(auto, approvers, ccs) {
+    const b = ((auto && auto.base) || []).map(a => a.email);
+    const able = new Set((auto && auto.ccAble) || []);
+    const ap = cleanApprovers(approvers).map(a => a.email);
+    const cc = cleanCcs(ccs).map(a => a.email);
+    if (!b.length || !ap.length) return false;
+    if (cc.some(e => !b.includes(e))) return false;
+    if (new Set([...ap, ...cc]).size !== ap.length + cc.length) return false;
+    let i = 0;
+    for (const e of ap) { const j = b.indexOf(e, i); if (j < 0) return false; i = j + 1; }
+    const used = new Set([...ap, ...cc]);
+    return b.every(e => used.has(e) || !able.has(e));
+}
+/** 결재선·참조 이메일이 같은가(순서 포함) */
+export const sameLine = (a1, c1, a2, c2) => JSON.stringify([cleanApprovers(a1).map(a => a.email), cleanCcs(c1).map(a => a.email)])
+    === JSON.stringify([cleanApprovers(a2).map(a => a.email), cleanCcs(c2).map(a => a.email)]);
 
 // ── 첨부 ──
 const extOf = (name) => { const m = /\.([A-Za-z0-9]{1,6})$/.exec(String(name || '')); return m ? m[1].toLowerCase() : ''; };

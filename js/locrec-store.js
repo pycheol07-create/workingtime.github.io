@@ -16,14 +16,26 @@
 //   [되돌리기] = 반영한 그날 + 그 사이 안 바뀌었으면 자리까지 원복. 계획(판정)은 js/lib/locrec-apply.js, 여기는 읽기·쓰기·확인창만.
 //   ZONE 문서는 트랜잭션 안에서 직접 읽는다(대시보드는 Locations 를 구독하지 않는다). 업로드 중(locationStock/uploadStatus)이면 막는다.
 //   ⚠️ 로그·alert 에는 상품코드·자리 id·e.code 만 — 상품명·rawDataStr 를 넣지 않는다.
-import { doc, onSnapshot, setDoc, serverTimestamp, deleteField, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// 도착 자리 막힘(2026-11-12): [처리함]이 도착 자리 문제(사용 중·오늘 다른 상품·선지정·예약·당일지정)로 실패하면
+//   단독은 지금 자리 목록(altCtx — location.js originalData·동선 기준)으로 대신 자리(loc-recommend.js pickAltTarget)를 묻고, 예면 그 자리로 같은 트랜잭션을
+//   다시 돈다(marks alt:{to}). 없거나 거절하면 '자리 막힘'(marks state blocked, block:{loc, reason}) — 그날 숨김 · 서버가 그 자리를 그날 판에서 뺀다.
+//   [전체 처리함]은 끝에서 대신 자리를 하나씩 차례로 잡아(앞에서 잡은 자리는 다음 계산에서 뺌) 한 번에 묻는다. 막힘은 다시 만들기 요청을 보내지 않는다.
+// 예정 자리(2026-11-12): plannedSlotMap() = 오늘 판에서 아직 처리 안 한 단독·페어·뒤로 보내기 도착 자리 — location.js 입고대기 추천·빈칸 엑셀·당일지정이 쓴다.
+//   예정 자리는 표에서 고른 날짜와 상관없이 기본(오늘 — defaultDay) 판으로 센다: 지난 날짜를 보는 동안은 기본 판 문서를 따로 구독한다(planDay).
+//   변경 추천 권한이 없는 로케이션관리(lite)는 구독하지 않는다 — 입고대기 추천·빈칸 엑셀·당일지정·업로드 경고를 쓸 때만 ensureFresh() 가
+//   색인·marks·기본 판 날짜 문서를 getDoc 으로 한 번 읽고 LITE_TTL_MS(3분) 기억한다. 권한 있는 카드가 나중에 getLocRecStore 를 부르면 전체 구독으로 바꾼다.
+// '안 함' 붙잡기(2026-11-12): 서버 색인 holds(판정.hold_list) — 붙잡혀 결과 행에서 빠진 추천도 표 '안 함도 보기'에서 [되돌리기](unhold = marks 의 skip 지우기).
+import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, deleteField, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
-    stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT
-} from './lib/locrec-view.js?v=202611121547';
-import { laterMs } from './lib/rebuild-view.js?v=202611121547';
-import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText } from './lib/locrec-apply.js?v=202611121547';
-import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611121547';
+    stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT, plannedSlots, HOLD_UNDO_TEXT
+} from './lib/locrec-view.js?v=202611121915';
+import { laterMs } from './lib/rebuild-view.js?v=202611121915';
+import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText,
+         dstBlocked, altOk, altRow, blockOf, altConfirmText, blockConfirmText, bulkAltText, bulkBlockText, EZ_REMIND_TEXT, BLOCKED_STATE,
+         recentAppliedMoves } from './lib/locrec-apply.js?v=202611121915';
+import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611121915';
+import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611121915';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -35,18 +47,26 @@ const INFO_PATH = 'Locations/INFO_CONFIG';               // lastDataUpdate = 오
 const LOC_COLLECTION = 'Locations';
 const UPLOAD_STATUS_PATH = `${APP}/locationStock/uploadStatus`;   // 오늘 재고·도면 업로드 상태(js/busy-banner.js 계약 B)
 export const NO_NAME = '이름 없음';
+export const LITE_TTL_MS = 3 * 60 * 1000;     // lite(권한 없는 화면) 예정 자리 자료를 기억하는 시간
 
 export const todayKey = () => dayKey(Date.now());
 
 let single = null;
 
-/** 한 탭에 하나. 처음 부른 쪽의 db·auth·getMemberName 을 쓴다 */
+/** 한 탭에 하나. 처음 부른 쪽의 db·auth·getMemberName 을 쓴다.
+ *  opts.lite(로케이션관리에서 변경 추천 권한이 없을 때) — 구독 없이 ensureFresh() 로 필요할 때만 읽는다. lite 로 만든 뒤 lite 없이 부르면 전체로 바꾼다 */
 export function getLocRecStore(opts) {
-    if (!single) single = createLocRecStore(opts || {});
+    const o = opts || {};
+    if (!single) single = createLocRecStore(o);
+    else if (!o.lite && single.isLite()) single.upgrade(o);
     return single;
 }
+/** 만들지 않고 지금 store(없으면 null) — location.js 예정 자리·엑셀 경고용 */
+export const peekLocRecStore = () => single;
 
-function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
+function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, lite }) {
+    let liteMode = !!lite;
+    let memberFn = getMemberName, sizeOfFn = sizeOf, altCtxFn = altCtx, notifyFn = notify;
     const S = {
         authKnown: false, signedIn: false, latest: null, latestErr: '',
         key: '', userPicked: false,
@@ -54,15 +74,18 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
         marks: {}, marksErr: '', saving: new Set(),
         applying: null,                                 // [전체 처리함] 진행 { i, n } — 표 창 버튼 '반영 중 i/n'
         request: null, refillRequest: null, lastDataMs: 0,   // 다시 만들기 요청 문서 2곳 · INFO_CONFIG.lastDataUpdate
-        pendingDay: null                                // 표 창이 열려 있을 때 도착한 새 판 { key, data, parsed }
+        pendingDay: null,                               // 표 창이 열려 있을 때 도착한 새 판 { key, data, parsed }
+        planDay: null                                   // 지난 날짜를 보는 동안의 기본(오늘) 판 { key, data, parsed } — 예정 자리용
     };
     let unsubs = [], unsubDay = null, dayKeyWatching = '', unsubAuth = null, timer = null, reqTimer = null, started = false;
+    let unsubPlan = null, planWatching = '';
+    let liteAt = 0, liteP = null;                       // lite 읽은 시각 · 읽는 중 Promise
     let hold = () => false;                             // 표 창이 열려 있는가(locrec-table.js 가 setHold 로 준다)
     const listeners = new Set();
 
     const emit = () => listeners.forEach(fn => { try { fn(S); } catch (e) { console.warn('[locrec]', e); } });
     const nameOf = () => {
-        try { const n = getMemberName && getMemberName(); return (typeof n === 'string' && n.trim()) ? n.trim().slice(0, 20) : NO_NAME; }
+        try { const n = memberFn && memberFn(); return (typeof n === 'string' && n.trim()) ? n.trim().slice(0, 20) : NO_NAME; }
         catch (e) { return NO_NAME; }
     };
     const entryOf = (key) => (S.latest && S.latest.days && S.latest.days[key]) || null;
@@ -75,10 +98,30 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
         dayKeyWatching = '';
         S.pendingDay = null;
     }
+    function stopPlan() {
+        if (unsubPlan) { try { unsubPlan(); } catch (e) { /* 무시 */ } unsubPlan = null; }
+        planWatching = '';
+        S.planDay = null;
+    }
     function stopSnaps() {
         unsubs.forEach(u => { try { u(); } catch (e) { /* 무시 */ } });
         unsubs = [];
         stopDay();
+        stopPlan();
+    }
+    /** 고른 날짜가 기본(오늘) 판이 아니면 기본 판 문서도 따로 구독한다 — 예정 자리는 늘 기본 판으로(리뷰 2) */
+    function syncPlanDay() {
+        const dk = defaultDay(S.latest, todayKey());
+        const e = entryOf(dk);
+        if (dk === S.key || !e || e.status !== 'ok') { stopPlan(); return; }
+        if (planWatching === dk) return;
+        stopPlan();
+        planWatching = dk;
+        unsubPlan = onSnapshot(doc(db, DAY_PATH(dk)), snap => {
+            if (planWatching !== dk) return;
+            const data = snap.exists() ? snap.data() : null;
+            S.planDay = data ? { key: dk, data, parsed: parseRecDay(data) } : null;
+        }, () => { if (planWatching === dk) S.planDay = null; });
     }
     function startSnaps() {
         stopSnaps();
@@ -112,6 +155,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
         const today = todayKey();
         const opts = dayOptions(S.latest, today).map(o => o.key);
         if (!S.userPicked || !opts.includes(S.key)) S.key = defaultDay(S.latest, today);
+        syncPlanDay();
         const e = entryOf(S.key);
         if (!e || e.status !== 'ok') { stopDay(); S.day = null; S.dayErr = ''; S.dayLoading = false; return; }
         if (dayKeyWatching === S.key) return;
@@ -141,9 +185,9 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
         });
     }
 
-    /** 구독 시작(여러 번 불러도 한 번). 로그인 상태를 따라 켜고 끈다 */
+    /** 구독 시작(여러 번 불러도 한 번). 로그인 상태를 따라 켜고 끈다. lite 는 구독하지 않는다(ensureFresh) */
     function start() {
-        if (started || !db || !auth) return;
+        if (started || !db || !auth || liteMode) return;
         started = true;
         unsubAuth = auth.onAuthStateChanged(user => {
             S.authKnown = true;
@@ -177,6 +221,63 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
         S.request = null; S.refillRequest = null; S.lastDataMs = 0; S.pendingDay = null;
         emit();
     }
+
+    /** lite → 전체 구독(권한 있는 카드가 시작될 때). 함수 칸은 새 opts 것으로 */
+    function upgrade(o) {
+        if (o.getMemberName) memberFn = o.getMemberName;
+        if (o.sizeOf) sizeOfFn = o.sizeOf;
+        if (o.altCtx) altCtxFn = o.altCtx;
+        if (o.notify) notifyFn = o.notify;
+        if (!liteMode) return;
+        liteMode = false;
+        liteAt = 0;
+        if (started && S.signedIn) startSnaps();
+    }
+
+    /** lite: 색인·marks·기본 판 날짜 문서를 getDoc 으로 읽어 LITE_TTL_MS 기억(실패해도 그 시간은 다시 안 읽는다).
+     *  → 새로 읽었으면 true. 전체 구독 중이면(권한 있음) 늘 false(구독이 이미 최신) */
+    function ensureFresh() {
+        if (!liteMode || !db || !auth || !auth.currentUser) return Promise.resolve(false);
+        if (liteP) return liteP;
+        if (liteAt && Date.now() - liteAt < LITE_TTL_MS) return Promise.resolve(false);
+        liteP = (async () => {
+            try {
+                const [l, m] = await Promise.all([getDoc(doc(db, LATEST_PATH)), getDoc(doc(db, MARKS_PATH))]);
+                const latest = l.exists() ? (l.data() || {}) : {};
+                const md = m.exists() ? (m.data({ serverTimestamps: 'estimate' }) || {}) : {};
+                const key = defaultDay(latest, todayKey());
+                const e = latest.days && latest.days[key];
+                let day = null;
+                if (e && e.status === 'ok') {
+                    const d = await getDoc(doc(db, DAY_PATH(key)));
+                    day = d.exists() ? { key, data: d.data(), parsed: parseRecDay(d.data()) } : null;
+                }
+                if (!liteMode) return false;            // 그사이 전체 구독으로 바뀜 — 구독 값을 덮지 않는다
+                Object.assign(S, { signedIn: true, latest, marks: (md.marks && typeof md.marks === 'object') ? md.marks : {}, key, day });
+                return true;
+            } catch (e) {
+                console.warn('[locrec] 예정 자리 자료를 읽지 못했습니다', (e && e.code) || '');
+                return false;
+            } finally {
+                liteAt = Date.now();
+                liteP = null;
+            }
+        })();
+        return liteP;
+    }
+
+    /** 오늘 판 예정 자리(locrec-view.js plannedSlots) — Map<자리 id, {recKey, code}>. 표에서 고른 날짜와 상관없이 기본(오늘) 판으로.
+     *  못 읽었으면 빈 Map(lite 는 ensureFresh 를 먼저 기다릴 것) */
+    function plannedSlotMap() {
+        if (!S.signedIn || !S.latest) return new Map();
+        const today = todayKey();
+        const dk = defaultDay(S.latest, today);
+        const src = S.day && S.day.key === dk ? S.day : (S.planDay && S.planDay.key === dk ? S.planDay : null);
+        if (!src) return new Map();
+        return plannedSlots({ latest: S.latest, key: dk, todayKey: today, parsed: src.parsed, marks: S.marks, nowMs: Date.now() });
+    }
+    /** 최근 7일 [처리함] 반영 이동(엑셀 경고용 — locrec-apply.js recentAppliedMoves) */
+    const recentMoves = () => recentAppliedMoves(S.marks, todayKey());
 
     /** 표 창이 열려 있는지 알려 줄 함수(열려 있으면 새 판을 pendingDay 에 둔다) */
     function setHold(fn) { hold = typeof fn === 'function' ? fn : () => false; }
@@ -244,7 +345,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
         try {
             const by = nameOf();
             const marks = {};
-            list.forEach(k => { marks[k] = state ? { state, by, at: serverTimestamp(), applied: deleteField() } : deleteField(); });
+            list.forEach(k => { marks[k] = state ? { state, by, at: serverTimestamp(), applied: deleteField(), alt: deleteField(), block: deleteField() } : deleteField(); });
             await setDoc(doc(db, MARKS_PATH), { marks }, { merge: true });
             return true;
         } catch (e) {
@@ -273,8 +374,9 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
 
     /** 한 추천을 데이터 리스트에 반영 + 처리함 표시(한 트랜잭션).
      *  ver = 화면이 보던 판(dayVer) — 날짜 문서를 다시 읽어 판이 바뀌었으면(없어졌으면) 쓰지 않고 'stale'.
+     *  alt = 대신 자리({to}) — row 는 이미 altRow 로 to 를 바꾼 행. marks 에 alt:{to} 를 남긴다(없으면 지운다).
      *  → {status:'applied'|'already'|'marked'|'fail'|'blocked'|'stale', fail?, text?}. 권한·네트워크 오류는 throw(아무것도 안 쓰임) */
-    function txApply(row, by, ver) {
+    function txApply(row, by, ver, alt) {
         const ids = docIdsForRow(row);
         const key = row.recKey;
         const dayPath = DAY_PATH(S.key);
@@ -292,30 +394,121 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
             const plan = planApply(row, docs, Date.now(), { del });
             if (!plan.ok) return { status: 'fail', fail: { ...plan, code: plan.code || row.code } };
             Object.entries(plan.writes).forEach(([docId, locs]) => tx.set(doc(db, LOC_COLLECTION, docId), locs, { merge: true }));
-            tx.set(doc(db, MARKS_PATH), { marks: { [key]: { state: 'done', by, at: serverTimestamp(), applied: plan.applied || del } } }, { merge: true });
+            tx.set(doc(db, MARKS_PATH), { marks: { [key]: { state: 'done', by, at: serverTimestamp(), applied: plan.applied || del,
+                alt: alt && alt.to ? { to: String(alt.to) } : del, block: del } } }, { merge: true });
             return { status: plan.allSkipped ? 'already' : 'applied' };
         });
     }
 
-    /** [처리함] 한 줄 — 반영 못 하면 '표시만 할까요?' */
-    async function applyMark(key, row) {
+    /** txApply 를 저장 중 표시와 함께. 권한·네트워크 오류면 alert 후 null */
+    async function runApply(key, row, alt) {
         S.saving.add(key);
         emit();
-        let r = null;
         try {
-            r = await txApply(row, nameOf(), dayVer(S.day && S.day.data));
+            return await txApply(row, nameOf(), dayVer(S.day && S.day.data), alt);
         } catch (e) {
             alert(`데이터 리스트에 반영하지 못했습니다(${errCode(e)}). 아무것도 바뀌지 않았습니다 — 다시 눌러 주세요.`);
-            return;
+            return null;
         } finally {
             S.saving.delete(key);
             emit();
         }
+    }
+
+    /** [처리함] 성공 뒤 한 줄 — 이지어드민 로케이션도 바꾸라고(location.js 는 토스트, 없으면 alert) */
+    function remind() {
+        try { (typeof notifyFn === 'function' ? notifyFn : (t) => alert(t))(EZ_REMIND_TEXT); } catch (e) { /* 무시 */ }
+    }
+
+    /** 짧은 안내 — location.js 는 토스트, 없으면(대시보드) alert */
+    function say(t) {
+        try { (typeof notifyFn === 'function' ? notifyFn : (x) => alert(x))(t); } catch (e) { /* 무시 */ }
+    }
+
+    /** 대신 자리 → {alt, why}. why: 'ok'(alt 있음) | 'none'(계산했지만 없음) | 'noCtx'(자리 목록이 없어 계산 못 함 — 대시보드) | 'notSingle'.
+     *  예정 자리(plannedSlotMap) + taken(전체 처리함에서 앞서 잡은 대신 자리)을 예약으로 본다. minGain 은 색인 settings(서버 유효값), 없으면 기본 */
+    function findAlt(row, taken) {
+        const r = findAltRaw(row, taken);
+        return r === NO_CTX ? { alt: null, why: 'noCtx' } : { alt: r, why: r ? 'ok' : 'none' };
+    }
+    const NO_CTX = Symbol('noCtx');
+    function findAltRaw(row, taken) {
+        if (typeof altCtxFn !== 'function' || !row) return NO_CTX;
+        let ctx = null;
+        try { ctx = altCtxFn(); } catch (e) { return NO_CTX; }
+        if (!ctx || !Array.isArray(ctx.locs) || !ctx.locs.length) return NO_CTX;
+        const planned = [...plannedSlotMap().keys()].concat(taken ? [...taken] : []);
+        const ls = (S.latest && S.latest.settings) || {};
+        const mg = ls.minGain == null || ls.minGain === '' ? NaN : Number(ls.minGain);
+        try {
+            return pickAltTarget({ row, locs: ctx.locs, priorities: prioritiesOf(ctx.priorities), settings: Number.isFinite(mg) ? { minGain: mg } : {},
+                                   plannedSlots: planned, nowMs: Date.now() });
+        } catch (e) {
+            console.warn('[locrec] 대신 자리 계산 실패', (e && e.message) || e);
+            return null;
+        }
+    }
+
+    /** '자리 막힘' 표시 — items [{key, block:{loc, reason}}]. 트랜잭션: 그사이 남이 '처리함'으로 반영했으면 그 키는 건드리지 않는다.
+     *  다시 만들기 요청은 보내지 않는다(사용자 결정). → 쓴 건수(실패하면 alert 후 0) */
+    async function writeBlocked(items) {
+        const list = (items || []).filter(x => x && x.key && !S.saving.has(x.key));
+        if (!list.length) return 0;
+        if (pendingNow()) { alert(PENDING_TEXT); return 0; }
+        list.forEach(x => S.saving.add(x.key));
+        emit();
+        try {
+            const by = nameOf();
+            return await runTransaction(db, async (tx) => {
+                const mk = await tx.get(doc(db, MARKS_PATH));
+                const cur = mk.exists() ? (((mk.data() || {}).marks) || {}) : {};
+                const del = deleteField();
+                const marks = {};
+                list.forEach(x => {
+                    if (cur[x.key] && cur[x.key].state === 'done') return;
+                    marks[x.key] = { state: BLOCKED_STATE, by, at: serverTimestamp(), block: { loc: String(x.block.loc || ''), reason: String(x.block.reason || '') },
+                                     applied: del, alt: del };
+                });
+                const n = Object.keys(marks).length;
+                if (n) tx.set(doc(db, MARKS_PATH), { marks }, { merge: true });
+                return n;
+            });
+        } catch (e) {
+            alert(`'자리 막힘'을 저장하지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`);
+            return 0;
+        } finally {
+            list.forEach(x => S.saving.delete(x.key));
+            emit();
+        }
+    }
+
+    /** [처리함] 한 줄 — 도착 자리 문제면 대신 자리 → 막힘 → (손으로 옮겼으면) 표시만, 그 밖의 실패는 표시만 */
+    async function applyMark(key, row) {
+        const r = await runApply(key, row, null);
+        if (!r) return;
         if (r.status === 'blocked') { alert(r.text); return; }
         if (r.status === 'stale') { alert(PENDING_TEXT); return; }
+        if (r.status === 'applied') { remind(); return; }
         if (r.status !== 'fail') return;
-        if (!markOnlyOk(r.fail)) { alert(`데이터 리스트에 반영하지 못했습니다(${reasonText(r.fail)}).`); return; }
-        if (confirm(applyFailText(r.fail))) await writeMarks([key], 'done');
+        const f = r.fail;
+        if (dstBlocked(f)) {
+            const fa = altOk(f, row) ? findAlt(row) : { alt: null, why: 'notSingle' };
+            const alt = fa.alt;
+            let altState = fa.why;                      // blockConfirmText 문구: declined | none | noCtx | notSingle
+            if (alt) altState = 'declined';
+            if (alt && confirm(altConfirmText(f, row, alt))) {
+                const r2 = await runApply(key, altRow(row, alt), alt);
+                if (!r2) return;
+                if (r2.status === 'applied') { remind(); return; }
+                if (r2.status === 'blocked') { alert(r2.text); return; }
+                if (r2.status === 'stale') { alert(PENDING_TEXT); return; }
+                if (r2.status !== 'fail') return;
+                alert(`대신 자리 ${alt.to} 에도 반영하지 못했습니다(${reasonText(r2.fail)}).`);
+            }
+            if (confirm(blockConfirmText(f, altState))) { await writeBlocked([{ key, block: blockOf(f, row) }]); return; }
+        }
+        if (!markOnlyOk(f)) { if (!dstBlocked(f)) alert(`데이터 리스트에 반영하지 못했습니다(${reasonText(f)}).`); return; }
+        if (confirm(applyFailText(f))) await writeMarks([key], 'done');
     }
 
     /** [되돌리기] — 반영 기록이 있으면 자리까지 원복(한 트랜잭션). 못 하면 '표시만 지울까요?'(clearMark).
@@ -393,12 +586,23 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
             if (row) return applyMark(key, row);
         } else if (!state && S.marks[key] && S.marks[key].applied) {
             return undoMark(key);
+        } else if (!state && S.marks[key] && S.marks[key].state === 'skip') {
+            return unhold(key);
         }
         await writeMarks([key], state || null);
     }
 
+    /** '안 함' 되돌리기 — marks 의 skip 을 지운다(그 사람이 누른 것이 아니어도). 날짜와 상관없이 된다.
+     *  서버는 다음 판(다시 만들기·정기 계산)부터 붙잡기를 풀고 다시 추천한다(판정.apply_marks 0단계). 결과 행에서 빠져
+     *  색인 holds 에만 남은 추천도 이것으로 푼다(표 '안 함도 보기') */
+    async function unhold(key) {
+        if (!key || S.saving.has(key) || S.applying) return;
+        if (await writeMarks([key], null)) say(HOLD_UNDO_TEXT);
+    }
+
     /** 여러 추천에 같은 표시 — 표 창 [전체 처리함]. 저장 중인 키는 뺀다.
-     *  'done' 은 추천마다 트랜잭션 1개씩 차례로(S.applying 진행), 끝에 못 한 건을 모아 '표시만 할까요?' 한 번.
+     *  'done' 은 추천마다 트랜잭션 1개씩 차례로(S.applying 진행). 끝에 도착 자리 문제로 못 한 단독은 대신 자리를 하나씩 차례로 잡아
+     *  (앞에서 잡은 자리는 다음 계산에서 뺌) 한 번에 묻고, 남은 도착 자리 문제는 '자리 막힘'을 한 번에 묻고, 그 밖은 '표시만 할까요?' 한 번.
      *  권한·네트워크 오류·업로드 중이면 거기서 멈춘다(이미 반영한 건은 그대로). 그 밖의 상태는 표시만 1회 쓰기 */
     async function markMany(keys, state) {
         const list = (Array.isArray(keys) ? keys : []).filter(k => k && !S.saving.has(k));
@@ -407,39 +611,80 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
         if (state !== 'done') { await writeMarks(list, state || null); return; }
         const by = nameOf();
         const ver = dayVer(S.day && S.day.data);      // 시작 때 보던 판 — 도중에 새 판이 오면 거기서 멈춘다
-        const fails = [];
+        let fails = [];
         let ok = 0, done = 0, stopText = '';      // ok = 실제로 자리를 옮긴 건, done = 이미 처리됨(남이 표시·이미 그 자리)
-        list.forEach(k => S.saving.add(k));
-        S.applying = { i: 0, n: list.length };
-        emit();
-        try {
-            for (let i = 0; i < list.length; i++) {
-                const key = list[i];
-                S.applying = { i: i + 1, n: list.length };
-                emit();
-                const row = rowOf(key);
-                if (!row) { fails.push({ key, reason: 'badRow', code: '' }); continue; }
-                let r;
-                try { r = await txApply(row, by, ver); }
-                catch (e) { stopText = `${ok}건 반영한 뒤 멈췄습니다(${errCode(e)}). 남은 추천은 다시 눌러 주세요.`; break; }
-                if (r.status === 'blocked') { stopText = `${ok}건 반영한 뒤 멈췄습니다.\n${r.text}`; break; }
-                if (r.status === 'stale') { stopText = `${ok}건 반영한 뒤 멈췄습니다.\n${PENDING_TEXT}`; break; }
-                if (r.status === 'fail') fails.push({ key, ...r.fail });
-                else if (r.status === 'applied') ok++;
-                else done++;
-            }
-        } finally {
-            list.forEach(k => S.saving.delete(k));
-            S.applying = null;
+        // items 를 차례로 run(x) → x.result. 오류·업로드 중·새 판이면 거기서 멈추고 stopText
+        const step = async (items, run) => {
+            items.forEach(x => S.saving.add(x.key));
+            S.applying = { i: 0, n: items.length };
             emit();
+            try {
+                for (let i = 0; i < items.length; i++) {
+                    S.applying = { i: i + 1, n: items.length };
+                    emit();
+                    let r;
+                    try { r = await run(items[i]); }
+                    catch (e) { stopText = `${ok}건 반영한 뒤 멈췄습니다(${errCode(e)}). 남은 추천은 다시 눌러 주세요.`; break; }
+                    if (r.status === 'blocked') { stopText = `${ok}건 반영한 뒤 멈췄습니다.\n${r.text}`; break; }
+                    if (r.status === 'stale') { stopText = `${ok}건 반영한 뒤 멈췄습니다.\n${PENDING_TEXT}`; break; }
+                    items[i].result = r;
+                    if (r.status === 'applied') ok++;
+                }
+            } finally {
+                items.forEach(x => S.saving.delete(x.key));
+                S.applying = null;
+                emit();
+            }
+        };
+        const items = list.map(key => ({ key, row: rowOf(key) }));
+        await step(items, async (x) => (x.row ? txApply(x.row, by, ver) : { status: 'fail', fail: { reason: 'badRow', code: '' } }));
+        items.forEach(x => {
+            const r = x.result;
+            if (!r) return;
+            if (r.status === 'fail') fails.push({ key: x.key, row: x.row, ...r.fail });
+            else if (r.status !== 'applied') done++;
+        });
+        let blockedN = 0;
+        // 새 판이 와서 멈췄거나 오류로 멈췄으면 대신 자리·막힘을 묻지 않는다(묻고 나서 쓰기가 막혀 말과 결과가 어긋난다)
+        if (!stopText && !pendingNow()) {
+            // 1) 대신 자리 — 도착 자리 문제로 못 한 단독, 하나씩 차례로(앞에서 잡은 자리는 다음 계산에서 뺀다)
+            const taken = new Set();
+            const alts = [];
+            let noCtx = false;                                      // 대시보드 — 자리 목록이 없어 대신 자리를 계산 못 함
+            fails.filter(f => altOk(f, f.row)).forEach(f => {
+                const fa = findAlt(f.row, taken);
+                if (fa.why === 'noCtx') noCtx = true;
+                if (!fa.alt) return;
+                taken.add(fa.alt.to);
+                alts.push({ key: f.key, alt: fa.alt, row: altRow(f.row, fa.alt) });
+            });
+            if (alts.length && confirm(bulkAltText(alts.map(x => ({ code: x.row.code, from: x.row.from, to: x.alt.to }))))) {
+                await step(alts, (x) => txApply(x.row, by, ver, x.alt));
+                const fixed = new Set();
+                alts.forEach(x => {
+                    const r = x.result;
+                    if (!r || r.status === 'fail') return;
+                    if (r.status !== 'applied') done++;
+                    fixed.add(x.key);
+                });
+                fails = fails.filter(f => !fixed.has(f.key));
+            }
+            // 2) 자리 막힘 — 남은 도착 자리 문제(대신 자리가 없거나 거절·실패)
+            const dst = fails.filter(f => dstBlocked(f));
+            if (!stopText && !pendingNow() && dst.length && confirm(bulkBlockText(dst, undefined, noCtx ? 'noCtx' : ''))) {
+                blockedN = await writeBlocked(dst.map(f => ({ key: f.key, block: blockOf(f, f.row) })));
+                if (blockedN) { const bk = new Set(dst.map(f => f.key)); fails = fails.filter(f => !bk.has(f.key)); }
+            }
         }
+        if (ok) remind();
         if (stopText) alert(stopText);
-        if (!fails.length) return;
-        // 새 판이 와서 멈췄으면 '표시만 할까요?' 를 묻지 않는다(묻고 나서 writeMarks 가 막혀 말과 결과가 어긋난다)
-        if (pendingNow()) { alert(bulkSummaryText(ok, fails, undefined, done, 0)); return; }
+        const clean = fails.map(({ row, ...f }) => f);           // 문구에는 코드·자리·이유만
+        const head = blockedN ? `자리 막힘 ${blockedN}건은 오늘 숨겼습니다.\n` : '';
+        if (!clean.length) { if (head) alert(head.trim()); return; }
+        if (stopText || pendingNow()) { alert(head + bulkSummaryText(ok, clean, undefined, done, 0)); return; }
         // 표시만 할 수 있는 건(markOnlyOk)만 묻는다 — 오늘 다른 상품을 넣은 자리(dstMovedToday)는 요약에만
-        const markable = fails.filter(markOnlyOk);
-        const text = bulkSummaryText(ok, fails, undefined, done, markable.length);
+        const markable = clean.filter(markOnlyOk);
+        const text = head + bulkSummaryText(ok, clean, undefined, done, markable.length);
         if (!markable.length) { alert(text); return; }
         if (confirm(text)) await writeMarks(markable.map(f => f.key), 'done');
     }
@@ -448,7 +693,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
         const X = window.XLSX;
         if (!X || !X.utils) { alert('엑셀 도구를 불러오지 못했습니다. 새로고침 후 다시 해 주세요.'); return; }
         if (!rows.length) return;
-        const ws = X.utils.json_to_sheet(excelRows(rows, { sizeOf }), { header: EXCEL_COLS });   // 로케이션(칸수) — sizeOf 는 옛 문서 행 보충(location.js)
+        const ws = X.utils.json_to_sheet(excelRows(rows, { sizeOf: sizeOfFn }), { header: EXCEL_COLS });   // 로케이션(칸수) — sizeOf 는 옛 문서 행 보충(location.js)
         ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 25 }, { wch: 15 }];   // 기존 [변경 추천] 엑셀과 같은 폭
         const wb = X.utils.book_new();
         X.utils.book_append_sheet(wb, ws, sheetName);
@@ -477,6 +722,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf }) {
     return {
         get: () => S, on, start, stop, setDay, entryOf, loaded, visibleRows,
         mark, markMany, downloadTab, downloadAll, isStarted: () => started,
-        reqState, setHold, applyPending
+        reqState, setHold, applyPending,
+        isLite: () => liteMode, upgrade, plannedSlotMap, recentMoves, ensureFresh, unhold
     };
 }

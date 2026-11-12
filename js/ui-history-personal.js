@@ -1,10 +1,10 @@
 // === js/ui-history-personal.js ===
 // 설명: '개인 리포트' 탭의 데이터 집계 및 렌더링 로직을 담당합니다.
 
-import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString } from './utils.js?v=202611121547';
-import { appConfig, context, LEAVE_TYPES, leaveTypeLabel } from './state.js?v=202611121547';
-import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202611121547';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121547';
+import { formatDuration, getWeekOfYear, formatTimeTo24H, isWeekday, toDateString, escapeHtml } from './utils.js?v=202611121915';
+import { appConfig, context, LEAVE_TYPES, leaveTypeLabel } from './state.js?v=202611121915';
+import { computeMonthlySalary, outingDeductibleMinutes, earlyLeaveDeductibleMinutes } from './lib/calc.js?v=202611121915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
 
 // 급여 차감 기준 근무시간 (가정값 — 회사 규정에 맞게 조정 가능)
 const WORK_END_MIN = 18 * 60;                                   // 종업 18:00
@@ -30,16 +30,16 @@ const getFilterDropdown = (target, key, currentFilterValue, options = []) => {
     let inputHtml = '';
     if (options && options.length > 0) {
         const optionsHtml = options.map(opt => 
-            `<option value="${opt}" ${currentFilterValue === opt ? 'selected' : ''}>${opt}</option>`
+            `<option value="${escapeHtml(opt)}" ${currentFilterValue === opt ? 'selected' : ''}>${escapeHtml(opt)}</option>`
         ).join('');
-        inputHtml = `<select class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer" data-filter-target="${target}" data-filter-key="${key}"><option value="">(전체)</option>${optionsHtml}</select>`;
+        inputHtml = `<select class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer" data-filter-target="${escapeHtml(target)}" data-filter-key="${escapeHtml(key)}"><option value="">(전체)</option>${optionsHtml}</select>`;
     } else {
-        inputHtml = `<input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="검색..." value="${currentFilterValue || ''}" data-filter-target="${target}" data-filter-key="${key}" autocomplete="off">`;
+        inputHtml = `<input type="text" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="검색..." value="${escapeHtml(currentFilterValue || '')}" data-filter-target="${escapeHtml(target)}" data-filter-key="${escapeHtml(key)}" autocomplete="off">`;
     }
 
     return `
         <div class="relative inline-block ml-1 filter-container">
-            <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${dropdownId}" title="필터">
+            <button type="button" class="filter-icon-btn p-1 rounded transition ${iconColorClass}" data-dropdown-id="${escapeHtml(dropdownId)}" title="필터">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" /></svg>
             </button>
             <div class="filter-dropdown absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl z-[60] p-3 ${isActive ? 'block' : 'hidden'} text-left cursor-default">
@@ -250,7 +250,7 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
     const { stats, filteredDays, wage } = aggregatePersonalData(allHistoryData, viewMode, dateKey, memberName);
 
     if (filteredDays.length === 0) {
-        container.innerHTML = `<div class="text-center text-gray-500 py-10"><p class="font-bold text-gray-700 mb-1">${memberName}님</p><p>해당 기간에 기록이 없습니다.</p></div>`;
+        container.innerHTML = `<div class="text-center text-gray-500 py-10"><p class="font-bold text-gray-700 mb-1">${escapeHtml(memberName)}님</p><p>해당 기간에 기록이 없습니다.</p></div>`;
         return;
     }
 
@@ -332,7 +332,7 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
     html += `
         <div class="flex flex-col md:flex-row justify-between items-center mb-2">
             <div class="flex items-center gap-4">
-                <h3 class="text-xl font-bold text-gray-800"><span class="text-blue-600">${memberName}</span>님의 ${dateKey} 리포트</h3>
+                <h3 class="text-xl font-bold text-gray-800"><span class="text-blue-600">${escapeHtml(memberName)}</span>님의 ${escapeHtml(dateKey)} 리포트</h3>
                 <div class="flex gap-2">
                     <button id="personal-download-btn" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-1 px-3 rounded-md text-sm flex items-center gap-1 transition shadow-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
@@ -341,24 +341,24 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                 </div>
             </div>
             <span class="relative inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded mt-2 md:mt-0 cursor-pointer select-none transition" onclick="const m=this.querySelector('.pay-mask'), r=this.querySelector('.pay-real'), ic=this.querySelector('.pay-eye'); m.classList.toggle('hidden'); r.classList.toggle('hidden'); ic.textContent = m.classList.contains('hidden') ? '가리기' : '표시';" title="클릭하여 표시/가리기">
-                <span class="pay-mask tracking-wider">${stats.salary && stats.salary.isMonthlySalaried ? `기본급 ●●●,●●●원 · 시급 ●●,●●●원` : `적용 시급: ●●,●●●원`}</span>
-                <span class="pay-real hidden">${stats.salary && stats.salary.isMonthlySalaried ? `기본급 ${Math.round(stats.salary.monthlyBase).toLocaleString()}원 · 시급 ${Math.round(stats.salary.hourly).toLocaleString()}원` : `적용 시급: ${Math.round(wage).toLocaleString()}원`}</span>
+                <span class="pay-mask tracking-wider">${escapeHtml(stats.salary && stats.salary.isMonthlySalaried ? `기본급 ●●●,●●●원 · 시급 ●●,●●●원` : `적용 시급: ●●,●●●원`)}</span>
+                <span class="pay-real hidden">${escapeHtml(stats.salary && stats.salary.isMonthlySalaried ? `기본급 ${Math.round(stats.salary.monthlyBase).toLocaleString()}원 · 시급 ${Math.round(stats.salary.hourly).toLocaleString()}원` : `적용 시급: ${Math.round(wage).toLocaleString()}원`)}</span>
                 <span class="pay-eye text-[11px]">표시</span>
             </span>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
-                <div class="text-xs text-gray-500 mb-1">총 근무일</div><div class="text-2xl font-extrabold text-gray-800">${stats.workDaysCount}일</div>
+                <div class="text-xs text-gray-500 mb-1">총 근무일</div><div class="text-2xl font-extrabold text-gray-800">${escapeHtml(stats.workDaysCount)}일</div>
             </div>
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
-                <div class="text-xs text-gray-500 mb-1">총 업무 시간</div><div class="text-2xl font-extrabold text-blue-600">${formatDuration(stats.totalWorkMinutes)}</div>
+                <div class="text-xs text-gray-500 mb-1">총 업무 시간</div><div class="text-2xl font-extrabold text-blue-600">${escapeHtml(formatDuration(stats.totalWorkMinutes))}</div>
             </div>
             <div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm text-center">
                 <div class="text-xs text-gray-500 mb-1">예상 급여 (세전)</div>
                 <div class="cursor-pointer select-none group" onclick="const m=this.querySelector('.pay-mask'), r=this.querySelector('.pay-real'), ic=this.querySelector('.pay-eye'); m.classList.toggle('hidden'); r.classList.toggle('hidden'); ic.textContent = m.classList.contains('hidden') ? '클릭하여 가리기' : '클릭하여 표시';" title="클릭하여 표시/가리기">
                     <div class="pay-mask text-2xl font-extrabold text-gray-300 tracking-widest">●,●●●,●●●원</div>
                     <div class="pay-real hidden">
-                        <div class="text-2xl font-extrabold text-gray-800">${Math.round((stats.salary && stats.salary.estimated != null) ? stats.salary.estimated : stats.totalWageCost).toLocaleString()}원</div>
+                        <div class="text-2xl font-extrabold text-gray-800">${escapeHtml(Math.round((stats.salary && stats.salary.estimated != null) ? stats.salary.estimated : stats.totalWageCost).toLocaleString())}원</div>
                         ${stats.salary && stats.salary.isMonthlySalaried && stats.salary.totalDeduction > 0 ? `<div class="text-[11px] text-red-500 mt-1">근태 차감 −${Math.round(stats.salary.totalDeduction).toLocaleString()}원</div>` : ''}
                     </div>
                     <div class="pay-eye text-[11px] text-gray-400 mt-1 group-hover:text-blue-500 transition">클릭하여 표시</div>
@@ -366,13 +366,13 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
             </div>
             <div class="bg-white p-4 rounded-xl border border-red-100 shadow-sm text-center">
                 <div class="text-xs text-gray-500 mb-1">특이 근태</div>
-                <div class="text-sm font-semibold text-gray-700 truncate">${Object.entries(stats.attendanceCounts).filter(([,c])=>c>0).map(([t,c])=>`${t} ${c}`).join(', ')||'-'}</div>
+                <div class="text-sm font-semibold text-gray-700 truncate">${escapeHtml(Object.entries(stats.attendanceCounts).filter(([,c])=>c>0).map(([t,c])=>`${t} ${c}`).join(', ')||'-')}</div>
             </div>
         </div>
     `;
 
     // 2. 업무별 상세 통계 (필터/정렬 적용)
-    const th_task = (key, label, w='') => `<th class="px-4 py-3 cursor-pointer hover:bg-gray-100 select-none group ${w}" data-sort-target="taskStats" data-sort-key="${key}"><div class="flex items-center justify-end ${w?'justify-start':''}"><span>${label} ${getSortIcon(tsSort.key, tsSort.dir, key)}</span></div></th>`;
+    const th_task = (key, label, w='') => `<th class="px-4 py-3 cursor-pointer hover:bg-gray-100 select-none group ${escapeHtml(w)}" data-sort-target="taskStats" data-sort-key="${escapeHtml(key)}"><div class="flex items-center justify-end ${w?'justify-start':''}"><span>${escapeHtml(label)} ${getSortIcon(tsSort.key, tsSort.dir, key)}</span></div></th>`;
 
     html += `
         <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
@@ -394,16 +394,16 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                         ${taskStatsArray.length === 0 ? '<tr><td colspan="5" class="px-4 py-4 text-center text-gray-400">데이터 없음</td></tr>' : ''}
                         ${taskStatsArray.map(data => `
                             <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-3 font-medium text-gray-900">${data.task}</td>
-                                <td class="px-4 py-3 text-right">${data.count}회</td>
-                                <td class="px-4 py-3 text-right font-bold text-blue-600">${formatDuration(data.duration)}</td>
+                                <td class="px-4 py-3 font-medium text-gray-900">${escapeHtml(data.task)}</td>
+                                <td class="px-4 py-3 text-right">${escapeHtml(data.count)}회</td>
+                                <td class="px-4 py-3 text-right font-bold text-blue-600">${escapeHtml(formatDuration(data.duration))}</td>
                                 <td class="px-4 py-3 text-right">
                                     <div class="flex items-center justify-end gap-2">
                                         <span class="text-xs text-gray-500">${data.percent.toFixed(1)}%</span>
-                                        <div class="w-16 bg-gray-200 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: ${data.percent}%"></div></div>
+                                        <div class="w-16 bg-gray-200 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: ${escapeHtml(data.percent)}%"></div></div>
                                     </div>
                                 </td>
-                                <td class="px-4 py-3 text-right text-gray-500">${formatDuration(data.avgTime)}</td>
+                                <td class="px-4 py-3 text-right text-gray-500">${escapeHtml(formatDuration(data.avgTime))}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -417,15 +417,15 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
         const summaryHtml = LEAVE_TYPES.map(type => {
             const count = stats.attendanceCounts[type] || 0;
             if (count === 0) return '';
-            let text = `${type}: <strong>${count}회</strong>`;
+            let text = `${escapeHtml(type)}: <strong>${escapeHtml(count)}회</strong>`;
             // 기간형 근태는 일수도 함께 표기 (집계된 값이 있으면 종류 제한 없이)
             if (stats.attendanceDays[type] > 0) {
-                text += ` <span class="text-xs text-gray-500">(${stats.attendanceDays[type]}일)</span>`;
+                text += ` <span class="text-xs text-gray-500">(${escapeHtml(stats.attendanceDays[type])}일)</span>`;
             }
             return `<div class="bg-gray-50 rounded px-3 py-2 text-sm text-gray-700 border border-gray-200 shadow-sm">${text}</div>`;
         }).join('');
 
-        const th_att = (key, label) => `<th class="px-4 py-2 cursor-pointer hover:bg-gray-100 select-none group" data-sort-target="attendanceLogs" data-sort-key="${key}"><div class="flex items-center"><span>${label} ${getSortIcon(alSort.key, alSort.dir, key)}</span></div></th>`;
+        const th_att = (key, label) => `<th class="px-4 py-2 cursor-pointer hover:bg-gray-100 select-none group" data-sort-target="attendanceLogs" data-sort-key="${escapeHtml(key)}"><div class="flex items-center"><span>${escapeHtml(label)} ${getSortIcon(alSort.key, alSort.dir, key)}</span></div></th>`;
 
         html += `
             <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
@@ -453,9 +453,9 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                              ${attLogs.length === 0 ? '<tr><td colspan="3" class="px-4 py-4 text-center text-gray-400">조건에 맞는 기록 없음</td></tr>' : ''}
                              ${attLogs.map(log => `
                                 <tr class="hover:bg-red-50">
-                                    <td class="px-4 py-2 font-medium">${log.date}</td>
-                                    <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-xs font-bold ${log.type==='지각'||log.type==='결근'?'bg-red-100 text-red-700':'bg-gray-100 text-gray-700'}">${log.label || log.type}</span></td>
-                                    <td class="px-4 py-2 text-gray-500">${log.detail}</td>
+                                    <td class="px-4 py-2 font-medium">${escapeHtml(log.date)}</td>
+                                    <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-xs font-bold ${log.type==='지각'||log.type==='결근'?'bg-red-100 text-red-700':'bg-gray-100 text-gray-700'}">${escapeHtml(log.label || log.type)}</span></td>
+                                    <td class="px-4 py-2 text-gray-500">${escapeHtml(log.detail)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -467,7 +467,7 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
 
     // 4. 일자별 로그 (일별 뷰가 아닐 때만)
     if (viewMode !== 'personal-daily') {
-        const th_daily = (key, label) => `<th class="px-4 py-3 cursor-pointer hover:bg-gray-100 select-none group" data-sort-target="dailyLogs" data-sort-key="${key}"><div class="flex items-center"><span>${label} ${getSortIcon(dlSort.key, dlSort.dir, key)}</span></div></th>`;
+        const th_daily = (key, label) => `<th class="px-4 py-3 cursor-pointer hover:bg-gray-100 select-none group" data-sort-target="dailyLogs" data-sort-key="${escapeHtml(key)}"><div class="flex items-center"><span>${escapeHtml(label)} ${getSortIcon(dlSort.key, dlSort.dir, key)}</span></div></th>`;
         
         html += `
             <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
@@ -491,10 +491,10 @@ export const renderPersonalReport = (targetId, viewMode, dateKey, memberName, al
                              ${dailyLogs.length === 0 ? '<tr><td colspan="6" class="px-4 py-4 text-center text-gray-400">조건에 맞는 기록 없음</td></tr>' : ''}
                              ${dailyLogs.map(log => `
                                 <tr class="hover:bg-gray-50">
-                                    <td class="px-4 py-3 font-medium text-gray-900">${log.date} (${getDayOfWeek(log.date)})</td>
-                                    <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs ${log.attendance==='정상근무'?'bg-green-100 text-green-700':'bg-yellow-100 text-yellow-800'}">${log.attendance}</span></td>
-                                    <td class="px-4 py-3 text-gray-600 font-mono text-xs">${log.inTime ? formatTimeTo24H(log.inTime) : '-'}</td> <td class="px-4 py-3 text-gray-600 font-mono text-xs">${log.outTime ? formatTimeTo24H(log.outTime) : '-'}</td> <td class="px-4 py-3 text-gray-600">${log.mainTask}</td>
-                                    <td class="px-4 py-3 text-right font-bold text-blue-600">${formatDuration(log.workTime)}</td>
+                                    <td class="px-4 py-3 font-medium text-gray-900">${escapeHtml(log.date)} (${escapeHtml(getDayOfWeek(log.date))})</td>
+                                    <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs ${log.attendance==='정상근무'?'bg-green-100 text-green-700':'bg-yellow-100 text-yellow-800'}">${escapeHtml(log.attendance)}</span></td>
+                                    <td class="px-4 py-3 text-gray-600 font-mono text-xs">${escapeHtml(log.inTime ? formatTimeTo24H(log.inTime) : '-')}</td> <td class="px-4 py-3 text-gray-600 font-mono text-xs">${escapeHtml(log.outTime ? formatTimeTo24H(log.outTime) : '-')}</td> <td class="px-4 py-3 text-gray-600">${escapeHtml(log.mainTask)}</td>
+                                    <td class="px-4 py-3 text-right font-bold text-blue-600">${escapeHtml(formatDuration(log.workTime))}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
