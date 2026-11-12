@@ -10,7 +10,9 @@
 //   재고출고용 .xls(biff8)는 js/lib/xls-limits.js xlsBytes 를 쓴다.
 // JSZip·XLSX 는 넘겨받은 것으로만 쓴다(브라우저 CDN · node 공용).
 
-import { xlsBytes } from './xls-limits.js?v=202611121504';
+import { xlsBytes } from './xls-limits.js?v=202611121542';
+import { readBook } from './ship-read.js?v=202611121542';
+import { checkAblyTemplate, TMPL_HEADER_ROW, TMPL_HEADERS } from './ship-ably.js?v=202611121542';
 
 // ---------------------------------------------------------------- XML 도우미
 const escXml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -412,25 +414,48 @@ const RISKY_SHEET = [
     [/<headerFooter\b[^>]*>[\s\S]*?<(oddHeader|oddFooter|evenHeader|evenFooter|firstHeader|firstFooter)>\s*[^<\s][\s\S]*?<\/headerFooter>/, '머리글/바닥글 글'],
 ];
 
-/**
- * 양식으로 쓰면 안 되는 이유(없으면 null) — 올릴 때(cleanZikjinTemplate)와 앱 양식을 받아 쓸 때(js/ship.js) 같은 검사.
- *   자료가 숨을 수 있는데 안전하게 지우기 어려운 부품(RISKY_PARTS) · 시트 안 하이퍼링크·머리글/바닥글 글(RISKY_SHEET) · 시트 3개.
- */
-export async function zikjinTemplateProblem(JSZip, bytes) {
+/** xlsx 열기 — 못 열거나 엑셀이 아니면 null */
+async function openTemplateZip(JSZip, bytes) {
     let zip;
     try { zip = await JSZip.loadAsync(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)); } catch (_) { zip = null; }
-    if (!zip || !zip.file('xl/workbook.xml')) return '엑셀(.xlsx) 파일이 아닙니다 — 직진배송출고리스트 원본(.xlsx)을 올려 주세요.';
+    if (!zip || !zip.file('xl/workbook.xml')) return null;
+    return { zip, info: await workbookParts(zip) };
+}
+
+/** 자료가 숨을 수 있는데 안전하게 지우기 어려운 부품·시트 안 글이 있으면 그 안내(없으면 null) — 직진·에이블리 양식 공통 */
+async function riskyProblem(zip, info) {
     const parts = Object.keys(zip.files).filter(p => !zip.files[p].dir);
     const risky = new Set(RISKY_PARTS.filter(([re]) => parts.some(p => re.test(p))).map(([, label]) => label));
-    const info = await workbookParts(zip);
     for (const s of info.sheets) {
         if (s.kind !== 'work') continue;
         const x = (await readStr(zip, s.part)) || '';
         for (const [re, label] of RISKY_SHEET) if (re.test(x)) risky.add(label);
     }
-    if (risky.size) {
-        return `이 파일에는 ${[...risky].join('·')}이(가) 들어 있어 양식으로 쓰지 않습니다(자료가 남을 수 있음) — 엑셀에서 지우고 다른 이름으로 저장한 뒤 다시 올려 주세요.`;
+    if (!risky.size) return null;
+    return `이 파일에는 ${[...risky].join('·')}이(가) 들어 있어 양식으로 쓰지 않습니다(자료가 남을 수 있음) — 엑셀에서 지우고 다른 이름으로 저장한 뒤 다시 올려 주세요.`;
+}
+
+/** 남길 시트 정리(올리기 전) — 문서 속성의 사람 이름·사용자 지정 속성, _xlnm.* 밖 이름 정의, 자동 필터 조건을 지운다(직진·에이블리 공통) */
+async function scrubBefore(z, inf, ct) {
+    await scrubDocProps(z, ct);
+    inf.wbXml = keepXlnmNames(inf.wbXml);   // rewriteXlsx 가 inf.wbXml 로 workbook.xml 을 쓴다
+    for (const s of inf.sheets) {
+        if (s.kind !== 'work') continue;
+        const x = await readStr(z, s.part);
+        if (x !== null) put(z, s.part, dropFilterColumns(x));
     }
+}
+
+/**
+ * 양식으로 쓰면 안 되는 이유(없으면 null) — 올릴 때(cleanZikjinTemplate)와 앱 양식을 받아 쓸 때(js/ship.js) 같은 검사.
+ *   자료가 숨을 수 있는데 안전하게 지우기 어려운 부품(RISKY_PARTS) · 시트 안 하이퍼링크·머리글/바닥글 글(RISKY_SHEET) · 시트 3개.
+ */
+export async function zikjinTemplateProblem(JSZip, bytes) {
+    const z = await openTemplateZip(JSZip, bytes);
+    if (!z) return '엑셀(.xlsx) 파일이 아닙니다 — 직진배송출고리스트 원본(.xlsx)을 올려 주세요.';
+    const { info } = z;
+    const risky = await riskyProblem(z.zip, info);
+    if (risky) return risky;
     const names = info.sheets.map(s => s.name);
     const missing = ZIKJIN_TEMPLATE_SHEETS.filter(n => !names.includes(n));
     if (missing.length) return `직진배송출고리스트 양식이 아닙니다 — '${missing.join("', '")}' 시트가 없습니다.`;
@@ -494,18 +519,56 @@ export async function cleanZikjinTemplate(JSZip, bytes) {
         dropped[s.name] = dataRowCount(await readStr(zip, s.part), keep);
         edits.push({ sheet: s.name, keepUpTo: keep, rows: [], dropOld: s.name === '지그재그양식서' });
     }
-    const res = await rewriteXlsx(JSZip, u8, edits, {
-        before: async (z, inf, ct) => {
-            await scrubDocProps(z, ct);
-            inf.wbXml = keepXlnmNames(inf.wbXml);   // rewriteXlsx 가 inf.wbXml 로 workbook.xml 을 쓴다
-            for (const s of inf.sheets) {
-                if (s.kind !== 'work') continue;
-                const x = await readStr(z, s.part);
-                if (x !== null) put(z, s.part, dropFilterColumns(x));
-            }
-        },
-    });
+    const res = await rewriteXlsx(JSZip, u8, edits, { before: scrubBefore });
     return { bytes: res.bytes, dropped, cleared, calcChainRemoved: res.calcChainRemoved, sstRemoved: res.sstRemoved };
+}
+
+// ---------------------------------------------------------------- 에이블리 대량입고 양식(앱 Storage ship/templates/ably.xlsx) — 2026-11-12
+// 관리자가 [설정] › 기본 양식에서 새 에이블리 양식을 올리면, 직진과 같은 방식으로 이 브라우저에서 정리한 뒤 저장한다.
+//   활성 시트(대량입고를 쓰는 시트 — ablyBulkBytes 와 같음)는 1~5행(안내·머리글)만 남기고 6행부터 값을 지운다(칸 서식은 남김).
+//   그 밖의 시트는 값을 모두 비운다. 머리글 검사는 2단계가 쓰는 ship-ably.checkAblyTemplate 그대로(5행 7칸 + 8번째 빈칸).
+//   앱 양식이 없거나 못 읽거나 검사에 걸리면 화면은 앱에 들어 있는 assets/ship/엑셀_대량_입고_양식.xlsx 를 쓴다(js/ship.js).
+export const ABLY_KEEP_ROWS = TMPL_HEADER_ROW;
+
+/** 에이블리 대량입고 양식으로 쓰면 안 되는 이유(없으면 null) — 올릴 때·받아 쓸 때 같은 검사. X = SheetJS(머리글 읽기) */
+export async function ablyTemplateProblem(JSZip, X, bytes) {
+    const z = await openTemplateZip(JSZip, bytes);
+    if (!z) return '엑셀(.xlsx) 파일이 아닙니다 — 에이블리 대량입고 양식(.xlsx)을 올려 주세요.';
+    const risky = await riskyProblem(z.zip, z.info);
+    if (risky) return risky;
+    const act = z.info.sheets[z.info.activeTab];
+    if (!act || act.kind !== 'work') return '에이블리 대량입고 양식이 아닙니다 — 처음 열리는 시트가 일반 시트가 아닙니다.';
+    try {
+        checkAblyTemplate(readBook(X, bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), 'ably.xlsx'));
+    } catch (e) {
+        return `${String((e && e.message) || e).split('\n')[0]} — ${TMPL_HEADER_ROW}행 머리글이 ${TMPL_HEADERS.join(' · ')} 이어야 합니다(8번째 칸은 빈칸).`;
+    }
+    return null;
+}
+
+/**
+ * 에이블리 대량입고 양식(새로 받은 것) → 앱에 저장할 빈 양식.
+ * @returns {Promise<{ bytes: Uint8Array, dropped: {[sheet]: number}, cleared: string[], sheet: string }>}
+ *   dropped = 시트별로 지운 자료 행 수, cleared = 값을 통째로 비운 (활성 시트 밖) 시트, sheet = 대량입고 시트 이름
+ */
+export async function cleanAblyTemplate(JSZip, X, bytes) {
+    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const problem = await ablyTemplateProblem(JSZip, X, u8);
+    if (problem) throw new Error(problem);
+    const zip = await JSZip.loadAsync(u8);
+    const info = await workbookParts(zip);
+    const dropped = {}, cleared = [], edits = [];
+    info.sheets.forEach((s, i) => {
+        if (s.kind !== 'work') return;
+        const keep = i === info.activeTab ? ABLY_KEEP_ROWS : 0;
+        if (keep === 0) cleared.push(s.name);
+        edits.push({ sheetIndex: i, keepUpTo: keep, rows: [], name: s.name });
+    });
+    for (const e of edits) dropped[e.name] = dataRowCount(await readStr(zip, info.sheets[e.sheetIndex].part), e.keepUpTo);
+    const res = await rewriteXlsx(JSZip, u8, edits.map(({ name, ...e }) => e), { before: scrubBefore });
+    const after = await ablyTemplateProblem(JSZip, X, res.bytes);   // 정리본도 2단계 검사를 통과해야 올린다
+    if (after) throw new Error(`정리한 양식이 검사를 통과하지 못했습니다 — ${after}`);
+    return { bytes: res.bytes, dropped, cleared, sheet: info.sheets[info.activeTab].name };
 }
 
 /** 직진배송출고리스트 — ship-zikjin.zikjinStep2 결과로(양식 = cleanZikjinTemplate 로 비운 앱 양식) */

@@ -4,10 +4,10 @@
 //   판정은 계산 코드(ship-zikjin·ship-ably)가 실제로 찾는 머리글과 같은 것을 본다 — 판정이 맞아도 계산이 따로 다시 검사한다.
 // 순수 모듈(XLSX 는 넘겨받음). 테스트: tests/ship-assign.test.js
 
-import { pyStr, pyStrip, looksLikeStockOut, STOCK_OUT_MSG } from './ship-core.js?v=202611121504';
-import { detectFormat, FORMAT, readHtmlBook, normCell } from './ship-read.js?v=202611121504';
-import { TEMPLATE_SHEETS } from './ship-zikjin.js?v=202611121504';
-import { TMPL_HEADERS, TMPL_HEADER_ROW, REQ_HEADER_ROW } from './ship-ably.js?v=202611121504';
+import { pyStr, pyStrip, looksLikeStockOut, STOCK_OUT_MSG } from './ship-core.js?v=202611121542';
+import { detectFormat, FORMAT, readHtmlBook, normCell } from './ship-read.js?v=202611121542';
+import { TEMPLATE_SHEETS } from './ship-zikjin.js?v=202611121542';
+import { TMPL_HEADERS, TMPL_HEADER_ROW, REQ_HEADER_ROW } from './ship-ably.js?v=202611121542';
 
 export const KIND = Object.freeze({
     ZIKJIN_REQUEST: 'zikjinRequest',   // 직진 출고요청(GPM)
@@ -26,7 +26,7 @@ export const KIND_LABEL = Object.freeze({
 
 // 화면 칸: 플랫폼 → 단계 → { 칸 id: 종류 }
 //   직진 2단계에 원본 칸이 없다(2026-11-12) — 양식은 앱에 저장(관리자가 올림), SKU·상품명·옵션은 출고요청에서.
-export const ZIKJIN_TEMPLATE_NOTE = '직진배송출고리스트 원본은 이제 넣지 않습니다(양식은 앱에 저장되어 있음) — 양식이 바뀌었으면 관리자가 [양식 다시 올리기]로 올립니다.';
+export const ZIKJIN_TEMPLATE_NOTE = '직진배송출고리스트 원본은 이제 넣지 않습니다(양식은 앱에 저장되어 있음) — 양식이 바뀌었으면 관리자가 [설정] › 기본 양식에서 다시 올립니다.';
 export const SLOTS = Object.freeze({
     zikjin: { 1: { request: KIND.ZIKJIN_REQUEST }, 2: { admin: KIND.ADMIN, request: KIND.ZIKJIN_REQUEST } },
     ably:   { 1: { request: KIND.ABLY_REQUEST },   2: { admin: KIND.ADMIN, request: KIND.ABLY_REQUEST, template: KIND.ABLY_TEMPLATE } },
@@ -179,8 +179,8 @@ export function assignFiles(files, platform, step, opts = {}) {
         if (other && other !== platform) {
             const nm = other === 'ably' ? '에이블리' : '직진배송';
             notes.push(opts.screen
-                ? `'${f.name}' — 이 파일은 ${nm} 파일 같습니다(${KIND_LABEL[f.kind]}). 이 화면(${TAB_NAME[platform] || platform})에는 넣지 않았습니다 — 위쪽 [${nm}]로 바꿔서 넣어 주세요.`
-                : `'${f.name}' — ${KIND_LABEL[f.kind]} 입니다. [${nm}] 탭에 넣어 주세요.`);
+                ? `'${f.name}' — 이 파일은 ${nm} 파일 같습니다(${KIND_LABEL[f.kind]}). 이 화면(${TAB_NAME[platform] || platform})에는 넣지 않았습니다 — 위쪽 [통합으로 돌아가기]를 누르거나 [개별 선택] › ${nm} 화면에서 넣어 주세요.`
+                : `'${f.name}' — ${KIND_LABEL[f.kind]} 입니다. 이번에 넣은 ${TAB_NAME[platform] || platform} 쪽에는 넣지 않았습니다 — 이 파일만 따로 놓아 주세요.`);
         } else {
             notes.push(`'${f.name}' — ${KIND_LABEL[f.kind]} 는 ${step}단계에 쓰지 않습니다.`);
         }

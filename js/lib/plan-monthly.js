@@ -5,13 +5,13 @@
 //   손실(분)·기록 품질은 운영 리포트와 같은 계산(ops-metrics periodMetrics·staffing, ops-view-model notes 와 같은 조건).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-monthly.test.js
 
-import { periodMetrics } from './ops-metrics.js?v=202611121504';
-import { systemIdOfName, taskIdOf } from './task-ids.js?v=202611121504';
-import { attendedMembers } from '../attendance-stats.js?v=202611121504';
-import { orderCountTotalOf } from '../revenue-channels.js?v=202611121504';
-import { offDayOf } from './plan-week.js?v=202611121504';
-import { CAP_MINUTES } from './task-owner.js?v=202611121504';
-import { isOffLeaveType } from '../state.js?v=202611121504';
+import { periodMetrics } from './ops-metrics.js?v=202611121542';
+import { systemIdOfName, taskIdOf } from './task-ids.js?v=202611121542';
+import { attendedMembers } from '../attendance-stats.js?v=202611121542';
+import { orderCountTotalOf } from '../revenue-channels.js?v=202611121542';
+import { offDayOf } from './plan-week.js?v=202611121542';
+import { CAP_MINUTES } from './task-owner.js?v=202611121542';
+import { isOffLeaveType } from '../state.js?v=202611121542';
 
 // schema 2(2026-11-05 리뷰): srcTo = 기록 있는 실제 마지막 날 · 휴무 = 기간형 근태 사람·일(당일형 제외, 근태 일정 펼침은 직접) · UPH 분자·분모 같은 기준 · qtyDays 추가
 // schema 3(D2): 휴무에서 '일하는 근태'(재택·출장·외근·매장근무 — state.js WORKING_LEAVE_TYPES) 제외 · incoming·plannedDays 연결

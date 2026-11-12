@@ -23,56 +23,81 @@ const OUT = { zikjin: '출고리스트·피킹지시서', ably: '대량입고·�
  * @param {boolean} p.step1Done  지금 1단계 칸 그대로 1단계를 마쳤나(1단계 화면에 머물러 있을 때)
  * @param {string[]} p.missing   지금 단계에 아직 없는 필수 파일 제목
  * @param {boolean} p.hasAdmin   2단계 출고전표 칸이 찼나
+ * @param {boolean} [p.auto]     통합 화면(2026-11-12) — 다음 할 일을 '위 상자에 놓기' 말투로(칸 이름·탭 이름 대신). 기존 방식(개별 선택)은 false
+ * @param {boolean} [p.needTemp] 직진 출고리스트 양식 준비 중이라 2단계에 원본(임시)이 필요하고 아직 안 넣었나(통합 안내용)
  * @returns {{ steps: Array<{id, label, mark, state, outside?}>, next: string }}
  */
-export function flowState({ tab, step, step1Result = null, step2Done = false, step1Done = false, missing = [], hasAdmin = false } = {}) {
-    const nm = NAME[tab] || '';
-    let st, next;
-    if (step === 2 && step2Done) {
-        st = [step1Result ? 'done' : 'unknown', step1Result ? 'done' : 'unknown', 'done', 'done'];
-        next = `끝났습니다 — 아래 결과 카드에서 파일을 확인하세요. 다음 묶음은 새 ${nm} 출고요청을 놓으면 됩니다.`;
-    } else if (step === 1) {
-        if (step1Done && step1Result) {
-            st = ['done', 'now', 'todo', 'todo'];
-            next = uploadText(step1Result);
-        } else {
-            st = ['now', 'todo', 'todo', 'todo'];
-            next = missing.length
-                ? `${nm} 출고요청 파일을 놓으세요 — 1단계(이지어드민 업로드용 재고출고용)를 바로 만듭니다.`
-                : '[만들기]를 누르면 1단계 재고출고용 파일을 만듭니다.';
-        }
-    } else if (step1Result && !hasAdmin) {
-        st = ['done', 'now', 'todo', 'todo'];
-        next = uploadText(step1Result);
-    } else {
-        const s12 = step1Result ? 'done' : 'unknown';
-        st = [s12, s12, 'now', 'todo'];
-        if (!hasAdmin) next = `이지어드민에서 받은 ${nm} 출고전표를 놓으세요.`;
-        else if (missing.length) next = `더 넣을 파일: ${missing.join(', ')}`;
-        else next = `[만들기]를 누르면 2단계(${OUT[tab] || ''})를 만듭니다.`;
-    }
+export function flowState({ tab, step, step1Result = null, step2Done = false, step1Done = false, missing = [], hasAdmin = false, auto = false, needTemp = false } = {}) {
+    const st = flowStates({ tab, step, step1Result, step2Done, step1Done, hasAdmin });
+    const next = auto ? autoNext({ tab, step, step1Result, step2Done, step1Done, missing, hasAdmin, needTemp })
+        : legacyNext({ tab, step, step1Result, step2Done, step1Done, missing, hasAdmin });
     return {
         steps: FLOW_STEPS.map((s, i) => ({ ...s, mark: FLOW_MARK[i], state: st[i] })),
         next,
     };
 }
 
+function flowStates({ step, step1Result, step2Done, step1Done, hasAdmin }) {
+    if (step === 2 && step2Done) return [step1Result ? 'done' : 'unknown', step1Result ? 'done' : 'unknown', 'done', 'done'];
+    if (step === 1) return step1Done && step1Result ? ['done', 'now', 'todo', 'todo'] : ['now', 'todo', 'todo', 'todo'];
+    if (step1Result && !hasAdmin) return ['done', 'now', 'todo', 'todo'];
+    const s12 = step1Result ? 'done' : 'unknown';
+    return [s12, s12, 'now', 'todo'];
+}
+
+/** 통합 화면 다음 할 일 — 파일은 늘 위 상자에 놓는다(칸·탭은 숨김). 출고요청을 기다리는 처음 화면은 큰 상자가 말하므로 빈 글 */
+export const AUTO_TEMP_ASK = '직진배송 출고리스트 양식 준비 중 — 직진배송출고리스트 원본 파일도 같이 놓아 주세요(이 PC 안에서만 쓰고 저장하지 않음).';
+const TEMP_ASK = AUTO_TEMP_ASK;
+function autoNext({ tab, step, step1Result, step2Done, step1Done, missing, hasAdmin, needTemp }) {
+    if (step === 2 && step2Done) return '끝났습니다 — 아래 결과 카드에서 파일을 확인하세요. 다음 묶음은 새 출고요청을 위 상자에 놓으면 됩니다.';
+    if (step === 1) {
+        if (step1Done && step1Result) return `1단계 결과 파일 '${step1Result}'을 이지어드민에 올린 뒤, 받은 출고전표를 위 상자에 놓으세요.${needTemp ? ` ${TEMP_ASK}` : ''}`;
+        return missing.length ? '' : '[만들기]를 누르면 1단계 재고출고용 파일을 만듭니다.';
+    }
+    if (step1Result && !hasAdmin) return `1단계 결과 파일 '${step1Result}'을 이지어드민에 올린 뒤, 받은 출고전표를 위 상자에 놓으세요.${needTemp ? ` ${TEMP_ASK}` : ''}`;
+    if (!hasAdmin) return `이지어드민에서 받은 출고전표를 위 상자에 놓으세요.${needTemp ? ` ${TEMP_ASK}` : ''}`;
+    if (needTemp) return TEMP_ASK;
+    if (missing.length) return `더 넣을 파일: ${missing.join(', ')} — 위 상자에 같이 놓아 주세요.`;
+    return `[만들기]를 누르면 2단계(${OUT[tab] || ''})를 만듭니다.`;
+}
+
+/** 기존 방식(개별 선택) 다음 할 일 — 고른 쪽 칸에 넣는 말투(2026-11-12 까지와 같음) */
+function legacyNext({ tab, step, step1Result, step2Done, step1Done, missing, hasAdmin }) {
+    const nm = NAME[tab] || '';
+    let next;
+    if (step === 2 && step2Done) {
+        next = `끝났습니다 — 아래 결과 카드에서 파일을 확인하세요. 다음 묶음은 새 ${nm} 출고요청을 놓으면 됩니다.`;
+    } else if (step === 1) {
+        if (step1Done && step1Result) next = uploadText(step1Result);
+        else {
+            next = missing.length
+                ? `${nm} 출고요청 파일을 놓으세요 — 1단계(이지어드민 업로드용 재고출고용)를 바로 만듭니다.`
+                : '[만들기]를 누르면 1단계 재고출고용 파일을 만듭니다.';
+        }
+    } else if (step1Result && !hasAdmin) {
+        next = uploadText(step1Result);
+    } else if (!hasAdmin) next = `이지어드민에서 받은 ${nm} 출고전표를 놓으세요.`;
+    else if (missing.length) next = `더 넣을 파일: ${missing.join(', ')}`;
+    else next = `[만들기]를 누르면 2단계(${OUT[tab] || ''})를 만듭니다.`;
+    return next;
+}
+
 function uploadText(name) {
     return `1단계 결과 파일 '${name}'을 이지어드민에 올린 뒤, 받은 출고전표를 여기에 놓으세요.`;
 }
 
-// ── 화면 방식(#sp-mode) — 2026-11-12 사용자 요청 ────────────────────
-//   auto   = 통합(자동 인식): 파일을 놓으면 직진·에이블리와 단계를 알아보고(ship-assign.routeFiles) 탭·단계를 옮기고 저절로 [만들기]
-//   zikjin = 기존 방식 직진배송 · ably = 기존 방식 에이블리 (2026.11.12c 합치기 전 c018fd1 과 같은 동작):
+// ── 화면 방식 — 2026-11-12 사용자 요청 ────────────────────
+//   auto   = 통합(자동 인식, 늘 이것으로 연다): 파일을 놓으면 직진·에이블리와 단계를 알아보고(ship-assign.routeFiles) 탭·단계를 옮기고 저절로 [만들기]
+//   zikjin = 개별 선택 직진배송 · ably = 개별 선택 에이블리 (머리줄 [개별 선택]으로 고를 때만 — 2026.11.12c 합치기 전 c018fd1 과 같은 동작):
 //            고른 쪽의 1·2단계 칸만 보이고, 파일을 놓으면 지금 단계 칸에만 넣는다(탭·단계를 안 옮기고 저절로 시작 안 함).
 //            다른 쪽 파일은 경고만(ship-assign.assignFiles 의 screen 안내).
 //   만들기·저장·전송·봉 수·오늘 묶음 합산·[묶음 빼기]는 두 방식이 같은 코드(js/ship.js run·transmit)를 쓴다 — 방식은 화면만 바꾼다.
-//   마지막 방식은 이 PC 가 기억(localStorage MODE_STORE_KEY). 처음 여는 PC·못 읽으면 통합.
+//   방식은 기억하지 않는다(2026-11-12 사용자 요청 '기본 통합창만'). 예전에 기억해 둔 값(localStorage MODE_STORE_KEY)은 화면을 열 때 지운다.
 export const SHIP_MODES = Object.freeze(['auto', 'zikjin', 'ably']);
 export const MODE_LABEL = Object.freeze({ auto: '통합', zikjin: '직진배송', ably: '에이블리' });
-export const MODE_STORE_KEY = 'ggsShipMode';
+export const MODE_STORE_KEY = 'ggsShipMode';   // 옛 기억 자리 — 읽지 않고 지우기만
 
-/** 기억한 값 → 방식(모르는 값·없음 → 'auto') */
+/** 값 → 방식(모르는 값·없음 → 'auto') */
 export const loadMode = (raw) => (SHIP_MODES.includes(raw) ? raw : 'auto');
 
 /**

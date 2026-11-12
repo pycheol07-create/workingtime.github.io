@@ -17,12 +17,37 @@
 .sp-now-name { font-size: 15px; font-weight: 700; color: var(--c-accent-deep); }
 .sp-manual summary { cursor: pointer; font-size: 12.5px; color: var(--c-text-2); width: fit-content; }
 .sp-manual-body { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
-/* 2026-11-12 화면 방식 — 통합 · 기존 방식(직진·에이블리 따로). 기존 방식은 큰 상자·플랫폼 탭을 숨기고 단계 고르기를 펼쳐 둔다 */
-.sp-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+/* 2026-11-12 화면 방식 — 늘 통합으로 열고, 머리줄 [개별 선택]으로 직진·에이블리를 따로(기존 방식). 기존 방식은 큰 상자·플랫폼 탭을 숨기고 단계 고르기를 펼쳐 둔다 */
+.sp-pick-wrap { position: relative; display: inline-flex; }
+#sp-pick-mode.is-on { border-color: var(--c-accent); color: var(--c-accent-deep); }
+.sp-mode-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; min-width: 240px; display: flex; flex-direction: column; gap: 2px; padding: 6px;
+    border: 1px solid var(--c-line-strong); border-radius: var(--r-inner); background: var(--c-surface); box-shadow: 0 8px 24px rgba(0, 0, 0, .14); }
+.sp-mode-menu[hidden], .sp-mode-item[hidden] { display: none; }
+.sp-mode-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 0; border-radius: var(--r-sm); background: transparent;
+    color: var(--c-text); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.sp-mode-item small { font-size: 12px; color: var(--c-text-3); }
+.sp-mode-item:hover, .sp-mode-item:focus-visible { background: var(--c-accent-row); outline: none; }
+.sp-mode-item.is-on { background: var(--c-accent-soft); }
+.sp-mode-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 14px; border-radius: var(--r-sm);
+    border: 1px solid var(--c-accent); background: var(--c-accent-soft); color: var(--c-accent-deep); font-size: 13.5px; }
+.sp-mode-bar[hidden] { display: none; }
+.sp-intake-note { font-size: 13px; font-weight: 600; color: var(--c-warn-text); background: var(--c-warn-soft); border-radius: var(--r-sm); padding: 6px 12px; max-width: 640px; line-height: 1.5; }
+.sp-intake-note[hidden] { display: none; }
+.sp-main-card:not(.is-auto-idle) .sp-intake-note { display: none; }   /* 파일을 넣은 뒤엔 다음 할 일(#sp-next)이 같은 안내를 한다 */
 .sp-intake[hidden] { display: none; }
 .sp-main-card.is-legacy .sp-manual > summary { display: none; }
 .sp-main-card.is-legacy .sp-manual-body { margin-top: 0; }
 .sp-main-card.is-legacy #sp-tabs { display: none; }
+/* 통합: 단계 고르기·칸 안내는 기존 방식 것이라 숨김. 파일을 넣기 전에는 큰 상자만 */
+.sp-main-card.is-auto .sp-now { display: none; }
+.sp-main-card.is-auto-idle #sp-flow,
+.sp-main-card.is-auto-idle #sp-next,
+.sp-main-card.is-auto-idle #sp-drop,
+.sp-main-card.is-auto-idle #sp-zg-tmpl,
+.sp-main-card.is-auto-idle #sp-opts,
+.sp-main-card.is-auto-idle .sp-actions { display: none; }
+/* 통합: 방금 마친 단계면 [만들기]도 숨김(다시 만들려면 파일을 다시 놓거나 [칸 보기]) */
+.sp-main-card.is-auto-done .sp-actions { display: none; }
 .sp-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
 
 .sp-slot { border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; background: var(--c-surface); min-width: 0; transition: border-color .15s, background .15s; }
@@ -135,6 +160,13 @@
 .sp-rules input.pd-in { height: 34px; }
 .sp-rules td.n { width: 120px; }
 .sp-rules td.x { width: 48px; text-align: right; }
+/* 설정 › 기본 양식(2026-11-12) — 직진·에이블리 빈 양식 상태 · 관리자만 올리기 */
+.sp-tmpl-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.sp-tmpl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 12px; border: 1px solid var(--c-line); border-radius: var(--r-inner); font-size: 13px; }
+.sp-tmpl-row b { min-width: 130px; }
+.sp-tmpl-state { flex: 1 1 220px; color: var(--c-text-2); overflow-wrap: anywhere; }
+.sp-tmpl-state.is-warn { color: var(--c-warn-text); }
+.sp-tmpl-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .sp-check { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; }
 .sp-check input { width: 18px; height: 18px; margin-top: 2px; }
 

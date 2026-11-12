@@ -8,9 +8,12 @@
 //   같은 묶음 재실행 확인(js/lib/ship-made.js, localStorage) · exe 결과와 비교하기(js/lib/ship-compare.js) ·
 //   같은 날 여러 묶음 합산(js/lib/ship-batch.js — 전송 전 미리보기로 같은 묶음·고친 전표를 묻고, 결과 카드에서 묶음 빼기).
 //   진행 기록 문장은 그대로 두고(시험 tools/ship-check.py 가 기댄다) 새 정보는 화면 요소로 보여 준다.
-// 2026-11-12 화면 방식(맨 위 #sp-mode): 통합(기본 — 위 자동 인식·저절로 시작) · 기존 방식 [직진배송]·[에이블리]
-//   (고른 쪽 1·2단계 칸만, 놓으면 지금 단계 칸에만 넣고 저절로 시작 안 함 — dropLegacy). 방식은 화면만 바꾼다:
-//   만들기·저장·전송·봉 수·묶음 합산·[묶음 빼기]는 같은 run()·transmit(). 마지막 방식은 localStorage(js/lib/ship-flow.js MODE_STORE_KEY).
+// 2026-11-12 화면 방식: 늘 통합으로 연다(위 자동 인식·저절로 시작 — 지금 단계·칸 안내는 숨기고 넣은 파일은 한 줄 요약).
+//   머리줄 [개별 선택] › 직진배송·에이블리 = 기존 방식(고른 쪽 1·2단계 칸만, 놓으면 지금 단계 칸에만 넣고 저절로 시작 안 함 — dropLegacy),
+//   그 위에 '개별 선택: … · [통합으로 돌아가기]' 띠. 방식은 화면만 바꾼다: 만들기·저장·전송·봉 수·묶음 합산·[묶음 빼기]는 같은 run()·transmit().
+//   방식은 기억하지 않는다 — 예전 기억(localStorage js/lib/ship-flow.js MODE_STORE_KEY)은 열 때 지운다.
+// 2026-11-12 기본 양식(직진 출고리스트·에이블리 대량입고)은 [설정] › 기본 양식에서 관리자가 올린다(Storage ship/templates/zikjin.xlsx·ably.xlsx).
+//   에이블리는 앱 양식이 없거나 못 읽으면 assets 의 기본 양식을 쓴다(ABLY_TEMPLATE_URL).
 // 지킬 것
 //   · 엑셀 행 내용(상품코드·상품명·수량)은 화면 진행 기록에만 쓴다 — 콘솔·Firestore 로그에 남기지 않는다(콘솔은 오류 코드만).
 //   · 직진배송출고리스트 원본(마스터)은 2026-11-12 에 없앴다 — 2단계는 출고요청(SKU·상품명·옵션)+전표(바코드·수량)로 만들고,
@@ -23,28 +26,28 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getBlob, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { initializeFirebase } from './config.js?v=202611121504';
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611121504';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121504';
-import { memberNameFor } from './app-shell-data.js?v=202611121504';
-import { friendlyFirebaseError } from './utils.js?v=202611121504';
-import { resolve, can } from './lib/perm.js?v=202611121504';
-import { readBook } from './lib/ship-read.js?v=202611121504';
-import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611121504';
-import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611121504';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem } from './lib/ship-write.js?v=202611121504';
-import { pickingBytes } from './lib/ship-picking.js?v=202611121504';
-import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611121504';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611121504';
-import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611121504';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611121504';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611121504';
-import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611121504';
-import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611121504';
-import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611121504';
-import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611121504';
-import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611121504';
-import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch } from './ship-store.js?v=202611121504';
+import { initializeFirebase } from './config.js?v=202611121542';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611121542';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121542';
+import { memberNameFor } from './app-shell-data.js?v=202611121542';
+import { friendlyFirebaseError } from './utils.js?v=202611121542';
+import { resolve, can } from './lib/perm.js?v=202611121542';
+import { readBook } from './lib/ship-read.js?v=202611121542';
+import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611121542';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611121542';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611121542';
+import { pickingBytes } from './lib/ship-picking.js?v=202611121542';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611121542';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611121542';
+import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611121542';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611121542';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611121542';
+import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611121542';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611121542';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611121542';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611121542';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611121542';
+import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch } from './ship-store.js?v=202611121542';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -59,14 +62,17 @@ const LIB_SRI = {
     [LIB.jszip]: 'sha384-DdGlNq+wVXAn83gXqwyeFHB7iyXy6L0rLrNzgDmhKWPjiJLg9vj6qosYmZmkMfQ+',
     [LIB.exceljs]: 'sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz',
 };
-const ABLY_TEMPLATE_URL = 'assets/ship/엑셀_대량_입고_양식.xlsx';
-// 직진 출고리스트 양식(빈 서식) — 관리자가 화면에서 올린다(storage.rules ship/templates). 5MB = 규칙 한도와 같게
-// ★ 관리자 [양식 올리기] 스위치 — 저장소 규칙(storage.rules ship/templates, 관리자만 올리기)을 게시한 뒤 true 로 바꾼다.
+const ABLY_TEMPLATE_URL = 'assets/ship/엑셀_대량_입고_양식.xlsx';   // 에이블리 앱 양식(ship/templates/ably.xlsx)이 없거나 못 읽을 때 쓰는 기본 양식
+// 기본 양식(빈 서식) — 관리자가 [설정] › 기본 양식에서 올린다(storage.rules ship/templates). 5MB = 규칙 한도와 같게
+// ★ 관리자 [양식 올리기] 스위치(직진·에이블리 같이) — 저장소 규칙(storage.rules ship/templates, 관리자만 올리기)을 게시한 뒤 true 로 바꾼다.
 //   false 면 버튼을 막고 '저녁 규칙 게시 뒤 사용' 안내만(규칙 게시 전에는 운영 규칙이 이 경로를 관리자만으로 막지 못할 수 있다).
 const ZG_TEMPLATE_UPLOAD_ON = false;
 const ZG_UPLOAD_OFF_TEXT = '양식 올리기는 저장소 규칙을 게시한 뒤(오늘 저녁)부터 씁니다.';
 const ZG_TEMPLATE_PATH = 'ship/templates/zikjin.xlsx';
+const AB_TEMPLATE_PATH = 'ship/templates/ably.xlsx';
 const ZG_TEMPLATE_MAX = 5 * 1024 * 1024;
+const TMPL_PATH = { zikjin: ZG_TEMPLATE_PATH, ably: AB_TEMPLATE_PATH };
+const TMPL_NAME = { zikjin: '직진배송 출고리스트 양식', ably: '에이블리 대량입고 양식' };
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const ZG_TEMPLATE_MISSING = '출고리스트 양식(관리자 등록)';
 const TAB_LABEL = { zikjin: '직진배송', ably: '에이블리' };
@@ -101,7 +107,6 @@ const SLOT_META = {
 //   (SKU·상품명·옵션 = 출고요청). 이 PC 에 새로 기억하지 않는다(예전에 기억한 원본이 있으면 그것을 칸에 넣어 준다).
 const ZG_TEMP_SLOT = { id: 'template', title: '직진배송출고리스트 원본(임시)', short: '원본(임시)', req: true,
     hint: '양식 준비 중 — 원본을 넣으면 그 파일의 서식에 씁니다(이 PC 안에서만, 저장·기억 안 함)' };
-const TEMP_NOTE = "그동안은 2단계의 '원본(임시)' 칸에 직진배송출고리스트 원본을 넣으면 예전처럼 만들 수 있습니다(이 PC 안에서만 쓰고 저장하지 않음).";
 const zgFallback = () => S.zgTmpl.state === 'none' || S.zgTmpl.state === 'error';
 /** 지금 화면의 칸 — 직진 2단계는 앱 양식을 못 쓸 때만 원본(임시) 칸이 붙는다 */
 const slotsOf = (tab, step) => (tab === 'zikjin' && step === 2 && zgFallback() ? [...SLOT_META.zikjin[2], ZG_TEMP_SLOT] : SLOT_META[tab][step]);
@@ -123,6 +128,9 @@ const S = {
     app: null, db: null, auth: null, storage: null, user: null, isAdmin: false, canShip: false,
     // 직진 출고리스트 양식(앱 Storage) — state: 'loading' | 'ok' | 'none'(아직 안 올림) | 'error'(못 읽음)
     zgTmpl: { state: 'loading', updated: '', size: 0, gen: '', bytes: null, bytesGen: '', err: '' },
+    // 에이블리 대량입고 양식(앱 Storage, 2026-11-12) — 같은 state. 'ok' 가 아니면 assets 기본 양식을 쓴다
+    abTmpl: { state: 'loading', updated: '', size: 0, gen: '', bytes: null, bytesGen: '', err: '' },
+    tmplPick: null,   // [설정] › 기본 양식에서 고른 쪽('zikjin'|'ably') — 파일 고르기 창이 돌아올 때
     settings: normalizeSettings(null), settingsRead: false,
     // 화면 방식(2026-11-12) — 'auto' 통합(기본) · 'zikjin'·'ably' 기존 방식. 화면만 바꾸고 만들기·전송은 같은 코드(js/lib/ship-flow.js modeView)
     mode: 'auto',
@@ -164,8 +172,10 @@ function setBusy(on, text = '처리 중…') {
     $('sp-busy').hidden = !on;
     $('sp-busy-text').textContent = text;
     $('sp-run').disabled = on;
-    document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder, #sp-pick-many, #sp-fold button, #sp-batches button, #sp-compare button, #sp-zg-tmpl button, #sp-mode button')
+    document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder, #sp-pick-many, #sp-fold button, #sp-batches button, #sp-compare button, #sp-pick-mode, #sp-mode-menu button, #sp-mode-back, #sp-s-tmpl button')
         .forEach(b => { b.disabled = on; });
+    if (on) closeModeMenu();
+    if (!on) renderTemplateRows();   // 설정 창 양식 칸 — 잠금(올리기 꺼짐)·관리자 여부는 다시 그려서 맞춘다
     renderWhy();
 }
 const errText = (e) => (e && e.code ? friendlyFirebaseError(e) : String((e && e.message) || e || '알 수 없는 오류'));
@@ -241,7 +251,11 @@ function showLogin(auth) {
 // ── 화면 그리기 ────────────────────────────────────────────
 function fileLine(f, slotId) {
     if (!f) {
-        if (S.tab === 'ably' && S.step.ably === 2 && slotId === 'template') return '<span class="sp-empty">기본 양식(앱에 들어 있음)을 씁니다</span>';
+        if (S.tab === 'ably' && S.step.ably === 2 && slotId === 'template') {
+            return S.abTmpl.state === 'ok'
+                ? '<span class="sp-empty">앱에 올린 양식(관리자 등록)을 씁니다</span>'
+                : '<span class="sp-empty">기본 양식(앱에 들어 있음)을 씁니다</span>';
+        }
         return '<span class="sp-empty">여기에 끌어다 놓거나 [파일 선택]</span>';
     }
     return `<b>${esc(f.name)}</b>`;
@@ -285,43 +299,80 @@ function renderFold() {
         };
     });
     const st = foldState(slots);
-    const fold = st.fold && !S.foldOpen;
+    const auto = modeView(S.mode).auto;
+    // 통합은 칸을 늘 한 줄 요약으로 접는다(직접 보려면 [칸 보기]) — 칸·안내는 기존 방식 화면의 것
+    const fold = (st.fold || auto) && !S.foldOpen;
     $('sp-slots').hidden = fold;
-    $('sp-drop-hint').hidden = fold;
+    $('sp-drop-hint').hidden = fold || auto;
+    $('sp-fold-open').textContent = auto ? '칸 보기' : '펼치기';
     $('sp-fold').hidden = !fold;
     $('sp-fold-text').textContent = st.text;
 }
 
-/** 직진 출고리스트 양식(앱 Storage) 상태 줄(#sp-zg-tmpl) — 직진 탭에서만. 없으면 관리자에게 [양식 올리기], 직원에게 요청 안내 */
+/**
+ * 직진 2단계 출고리스트 양식(앱 Storage) 상태 한 줄(#sp-zg-tmpl) — 직진 2단계에서만. 올리기·다시 확인은 [설정] › 기본 양식(2026-11-12).
+ *   준비 중이면 원본(임시)이 필요하다 — 통합은 '같이 놓아 주세요', 개별 선택은 '원본(임시) 칸에'
+ */
 function renderZgTemplate() {
     const el = $('sp-zg-tmpl');
     const T = S.zgTmpl;
-    const show = S.tab === 'zikjin' && (S.step.zikjin === 2 || T.state !== 'ok');
+    const show = S.tab === 'zikjin' && S.step.zikjin === 2;
     el.hidden = !show;
-    if (!show) { el.innerHTML = ''; return; }
-    const btn = (label) => {
-        if (!S.isAdmin) return '';
-        if (!ZG_TEMPLATE_UPLOAD_ON) return ` <button class="d-btn d-btn-sm" data-zgt="upload" disabled title="${esc(ZG_UPLOAD_OFF_TEXT)}">${esc(label)}</button> <span class="pd-note">${esc(ZG_UPLOAD_OFF_TEXT)}</span>`;
-        return ` <button class="d-btn d-btn-sm" data-zgt="upload"${S.busy ? ' disabled' : ''}>${esc(label)}</button>`;
-    };
-    let cls = 'info', html;
-    if (T.state === 'loading') html = '출고리스트 양식을 확인하는 중…';
-    else if (T.state === 'ok') {
-        html = `출고리스트 양식: 앱에 저장됨${T.updated ? ` (${esc(savedText(T.updated))} 올림)` : ''} · ${esc(sizeText(T.size))} — 양식이 바뀔 때만 관리자가 다시 올립니다.${btn('양식 다시 올리기')}`;
-    } else if (T.state === 'none') {
+    if (!show) { el.textContent = ''; return; }
+    const auto = modeView(S.mode).auto;
+    let cls = 'info', text;
+    if (T.state === 'loading') text = '출고리스트 양식: 확인하는 중…';
+    else if (T.state === 'ok') text = `출고리스트 양식: 앱에 저장됨${T.updated ? `(${savedText(T.updated)} 올림)` : ''}`;
+    else {
         cls = 'warn';
-        html = S.isAdmin
-            ? `직진배송 출고리스트 양식이 아직 앱에 없습니다 — 직진배송출고리스트 원본(또는 빈 양식)을 올려 주세요. 머리글만 남기고 상품 자료 행은 이 PC 에서 지운 뒤 저장합니다.${btn('양식 올리기')}<br>${esc(TEMP_NOTE)}`
-            : `출고리스트 양식 준비 중 — 관리자에게 양식 등록을 요청해 주세요. ${esc(TEMP_NOTE)}`;
-    } else {
-        cls = 'warn';
-        html = T.code === 'storage/unauthorized'
-            ? `출고리스트 양식 준비 중(앱 저장소 설정 전). ${esc(TEMP_NOTE)}`
-            : `출고리스트 양식을 읽지 못했습니다: ${esc(T.err)}. ${esc(TEMP_NOTE)}`;
-        html += ` <button class="d-btn d-btn-sm" data-zgt="reload"${S.busy ? ' disabled' : ''}>다시 확인</button>${btn('양식 올리기')}`;
+        const why = T.state === 'none' ? '아직 앱에 없음' : (T.code === 'storage/unauthorized' ? '앱 저장소 설정 전' : '읽지 못함');
+        // 통합은 위 다음 할 일(#sp-next)이 '원본도 같이 놓아 주세요'를 말한다 — 여기는 상태만
+        text = auto ? `출고리스트 양식 준비 중(${why}) — 원본(임시)이 필요합니다.`
+            : `출고리스트 양식 준비 중(${why}) — '원본(임시)' 칸에 직진배송출고리스트 원본을 넣어 주세요(이 PC 안에서만 쓰고 저장하지 않음).`;
     }
     el.className = `pd-alert ${cls} sp-zg-tmpl`;
-    el.innerHTML = html;
+    el.textContent = text;
+}
+
+/** 통합 큰 상자 아래 안내 — 직진 양식 준비 중이면 2단계 때 원본을 같이 놓아야 한다 */
+function renderIntakeNote() {
+    const el = $('sp-intake-note');
+    const on = modeView(S.mode).auto && zgFallback();
+    el.hidden = !on;
+    el.textContent = on ? '직진배송 출고리스트 양식 준비 중 — 직진 2단계(출고전표를 놓을 때) 직진배송출고리스트 원본 파일도 같이 놓아 주세요(이 PC 안에서만 쓰고 저장하지 않음).' : '';
+}
+
+/** 설정 창 › 기본 양식 칸(#sp-s-tmpl, 창이 열려 있을 때만) — 관리자만 올리기, 직원은 상태만 */
+function templateStateText(kind) {
+    const T = kind === 'ably' ? S.abTmpl : S.zgTmpl;
+    if (T.state === 'loading') return { warn: false, text: '확인하는 중…' };
+    if (T.state === 'ok') return { warn: false, text: `앱에 저장됨${T.updated ? `(${savedText(T.updated)} 올림)` : ''} · ${sizeText(T.size)}` };
+    const unauth = T.code === 'storage/unauthorized';
+    if (kind === 'ably') {
+        const why = T.state === 'none' ? '올린 양식 없음' : (unauth ? '앱 저장소 설정 전' : `읽지 못함: ${T.err}`);
+        return { warn: T.state === 'error' && !unauth, text: `앱에 들어 있는 기본 양식을 씁니다(${why}).` };
+    }
+    const why = T.state === 'none' ? '아직 앱에 없음' : (unauth ? '앱 저장소 설정 전' : `읽지 못함: ${T.err}`);
+    return { warn: true, text: `양식 준비 중(${why}) — 그동안은 2단계 때 직진배송출고리스트 원본을 같이 넣어야 합니다.` };
+}
+function renderTemplateRows() {
+    const box = $('sp-s-tmpl');
+    if (!box) return;
+    box.innerHTML = ['zikjin', 'ably'].map(kind => {
+        const T = kind === 'ably' ? S.abTmpl : S.zgTmpl;
+        const st = templateStateText(kind);
+        let btns = `<button class="d-btn d-btn-sm" data-tmpl="reload" data-kind="${kind}"${S.busy ? ' disabled' : ''}>다시 확인</button>`;
+        if (S.isAdmin) {
+            const label = T.state === 'ok' ? '다시 올리기' : '양식 올리기';
+            btns += ZG_TEMPLATE_UPLOAD_ON
+                ? ` <button class="d-btn d-btn-sm" data-tmpl="upload" data-kind="${kind}"${S.busy ? ' disabled' : ''}>${esc(label)}</button>`
+                : ` <button class="d-btn d-btn-sm" data-tmpl="upload" data-kind="${kind}" disabled title="${esc(ZG_UPLOAD_OFF_TEXT)}">${esc(label)}</button>`;
+        }
+        return `<div class="sp-tmpl-row" data-kind="${kind}"><b>${esc(TMPL_NAME[kind])}</b>
+            <span class="sp-tmpl-state${st.warn ? ' is-warn' : ''}">${esc(st.text)}</span>
+            <span class="sp-tmpl-btns">${btns}</span></div>`;
+    }).join('') + (S.isAdmin && !ZG_TEMPLATE_UPLOAD_ON ? `<div class="pd-note">${esc(ZG_UPLOAD_OFF_TEXT)}</div>` : '')
+        + (S.isAdmin ? '' : '<div class="pd-note">양식은 관리자만 올립니다 — 양식이 바뀌었으면 관리자에게 알려 주세요.</div>');
 }
 
 function renderOpts() {
@@ -377,6 +428,8 @@ function renderFlow() {
         step1Done: !!step1Result && !!S.files[tab][1].request && S.files[tab][1].request === ss.step1For,
         step2Done: !!S.files[tab][2].admin && S.files[tab][2].admin === ss.step2For,
         missing: missingOf(tab, step), hasAdmin: !!S.files[tab][2].admin,
+        // 통합은 '위 상자에 놓기' 말투(칸·탭 이름 없이). 직진 양식 준비 중이면 원본을 같이 놓으라고
+        auto: modeView(S.mode).auto, needTemp: tab === 'zikjin' && zgFallback() && !S.files.zikjin[2].template,
     });
     $('sp-flow').innerHTML = f.steps.map(s => `<li class="sp-flow-step is-${s.state}" data-state="${s.state}" data-flow="${s.id}">
         <span class="sp-flow-mark">${s.state === 'done' ? '✓' : esc(s.mark)}</span>
@@ -402,6 +455,29 @@ function renderIntake() {
     $('sp-recog').textContent = S.recog;
     const idx = S.phases.indexOf(S.phase);
     $('sp-phase').innerHTML = S.phase ? S.phases.map((p, i) => `<li class="${i < idx ? 'is-done' : i === idx ? 'is-now' : ''}">${esc(p)}</li>`).join('') : '';
+    renderAutoIdle();
+}
+
+/** 통합에서 아직 아무 파일도 안 넣었으면 큰 상자만 보인다(흐름·칸·[만들기] 숨김) */
+function autoHasWork() {
+    const tab = S.tab, step = S.step[tab];
+    const put = Object.values(S.files[tab][step] || {}).some(f => f && f.from !== 'app' && f.from !== 'pc');
+    return put || !!(S.recog || S.phase || S.why || S.busy);
+}
+/** 지금 칸 그대로 이 단계를 이번에 마쳤나(통합은 그때 [만들기]를 숨긴다 — 다시 만들려면 파일을 다시 놓거나 [칸 보기]) */
+function stepDoneNow() {
+    const tab = S.tab, step = S.step[tab], ss = S.session[tab];
+    const main = step === 1 ? S.files[tab][1].request : S.files[tab][2].admin;
+    return !!main && main === (step === 1 ? ss.step1For : ss.step2For);
+}
+function renderAutoIdle() {
+    const card = document.querySelector('.sp-main-card');
+    if (!card) return;
+    const auto = modeView(S.mode).auto;
+    card.classList.toggle('is-auto', auto);
+    card.classList.toggle('is-auto-idle', auto && !autoHasWork());
+    // 통합: [만들기]는 저절로 시작하지 않았을 때만(이유 있음·파일 모자람·아직 안 만듦). 방금 마친 단계면 숨김
+    card.classList.toggle('is-auto-done', auto && !S.busy && !S.why && stepDoneNow() && !S.foldOpen);
 }
 function setPhase(p) { S.phase = p; renderIntake(); }
 
@@ -413,20 +489,58 @@ function renderWhy() {
     $('sp-run').classList.toggle('is-attention', !!S.why && !S.busy);
 }
 
-/** 화면 방식 — 통합이면 큰 상자·플랫폼 탭, 기존 방식이면 고른 쪽 단계 고르기만(펼쳐 둠) */
+/** 화면 방식 — 통합이면 큰 상자(지금 단계·칸 안내는 CSS is-auto 로 숨김), 개별 선택이면 띠 + 고른 쪽 단계 고르기만(펼쳐 둠) */
 function renderMode() {
     const v = modeView(S.mode);
-    document.querySelectorAll('#sp-mode .d-seg-btn').forEach(b => b.classList.toggle('is-on', b.dataset.mode === v.mode));
     document.querySelector('.sp-main-card').classList.toggle('is-legacy', !v.auto);
     $('sp-intake').hidden = !v.showIntake;
     const manual = document.querySelector('details.sp-manual');
     if (!v.auto) manual.open = true;
-    $('sp-mode-note').textContent = v.auto
-        ? '파일을 놓으면 직진·에이블리와 단계를 알아서 고르고 바로 만듭니다. 기존 방식은 [직진배송]·[에이블리].'
-        : `기존 방식(${MODE_LABEL[v.mode]}) — 단계를 직접 고르고 [만들기]를 누릅니다. 파일은 지금 단계 칸에만 들어갑니다.`;
-    $('sp-drop-hint').textContent = v.auto
-        ? '칸 하나에 직접 놓거나 [파일 선택]으로 넣으면 그 칸에만 들어가고, [만들기]를 눌러 시작합니다.'
-        : '여기(또는 칸)에 파일을 놓으면 지금 단계 칸에 넣기만 합니다(저절로 시작하지 않음). 다 넣고 [만들기]를 누르세요.';
+    $('sp-mode-bar').hidden = v.auto;
+    $('sp-mode-name').textContent = v.auto ? '' : MODE_LABEL[v.mode];
+    const pick = $('sp-pick-mode');
+    pick.classList.toggle('is-on', !v.auto);
+    pick.textContent = v.auto ? '개별 선택' : `개별 선택: ${MODE_LABEL[v.mode]}`;
+    document.querySelectorAll('#sp-mode-menu .sp-mode-item').forEach(b => {
+        b.classList.toggle('is-on', b.dataset.mode === v.mode);
+        if (b.dataset.mode === 'auto') b.hidden = v.auto;   // 통합으로 돌아가기는 개별 선택 중일 때만
+    });
+    $('sp-drop-hint').textContent = '여기(또는 칸)에 파일을 놓으면 지금 단계 칸에 넣기만 합니다(저절로 시작하지 않음). 다 넣고 [만들기]를 누르세요.';
+}
+
+/** [개별 선택] 작은 메뉴 */
+function openModeMenu() {
+    if (S.busy) return;
+    $('sp-mode-menu').hidden = false;
+    $('sp-pick-mode').setAttribute('aria-expanded', 'true');
+    const first = document.querySelector('#sp-mode-menu .sp-mode-item:not([hidden])');
+    if (first) first.focus();
+}
+function closeModeMenu() {
+    const m = $('sp-mode-menu');
+    if (!m || m.hidden) return;
+    m.hidden = true;
+    $('sp-pick-mode').setAttribute('aria-expanded', 'false');
+}
+function bindModeMenu() {
+    $('sp-pick-mode').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if ($('sp-mode-menu').hidden) openModeMenu(); else closeModeMenu();
+    });
+    $('sp-mode-menu').addEventListener('click', (e) => {
+        const b = e.target.closest('.sp-mode-item[data-mode]');
+        if (!b || S.busy) return;
+        closeModeMenu();
+        setMode(b.dataset.mode);
+        $('sp-pick-mode').focus();
+    });
+    $('sp-mode-back').addEventListener('click', () => setMode('auto'));
+    document.addEventListener('click', (e) => { if (!e.target.closest('.sp-pick-wrap')) closeModeMenu(); });
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || $('sp-mode-menu').hidden) return;
+        closeModeMenu();
+        $('sp-pick-mode').focus();
+    });
 }
 
 function render() {
@@ -449,8 +563,10 @@ function render() {
     renderFlow();
     renderQuick();
     renderIntake();
+    renderIntakeNote();
     renderWhy();
     renderResultCard();
+    renderTemplateRows();
 }
 
 // ── 해시(#tab=zikjin|ably&step=1|2) ─────────────────────────
@@ -697,11 +813,10 @@ async function dropLegacy(fileList) {
     if (!S.busy) $('sp-run').focus();
 }
 
-/** 화면 방식 바꾸기(맨 위 [통합]·[직진배송]·[에이블리]) — 이 PC 가 기억한다(못 쓰면 이번만) */
+/** 화면 방식 바꾸기([개별 선택] › 직진배송·에이블리 · [통합으로 돌아가기]) — 기억하지 않는다(다시 열면 통합) */
 function setMode(mode) {
     if (S.busy) return;
     S.mode = loadMode(mode);
-    try { localStorage.setItem(MODE_STORE_KEY, S.mode); } catch (_) { /* 저장공간이 막혀도 이번에는 바꾼다 */ }
     S.tab = tabForMode(S.mode, S.tab);
     resetView();
     writeHash();
@@ -780,20 +895,30 @@ function bindDrop() {
             render();
         }
     });
-    // 직진 출고리스트 양식 — [양식 올리기](관리자) · [다시 확인]
-    $('sp-zg-tmpl').addEventListener('click', async (e) => {
-        const b = e.target.closest('button[data-zgt]');
+    // 기본 양식 — [설정] › 기본 양식의 [양식 올리기](관리자) · [다시 확인] (설정 창 본문은 열 때마다 새로 그려서 위임으로 받는다)
+    $('sp-modal-body').addEventListener('click', async (e) => {
+        const b = e.target.closest('button[data-tmpl]');
         if (!b || S.busy) return;
-        if (b.dataset.zgt === 'reload') { await refreshZgTemplate(); render(); return; }
+        const kind = b.dataset.kind === 'ably' ? 'ably' : 'zikjin';
+        if (b.dataset.tmpl === 'reload') {
+            b.disabled = true;
+            await refreshTemplate(kind);
+            render();
+            return;
+        }
         if (!S.isAdmin) return;
         if (!ZG_TEMPLATE_UPLOAD_ON) { toast(ZG_UPLOAD_OFF_TEXT, 5000); return; }
+        S.tmplPick = kind;
         const inp = $('sp-tmpl-input');
         inp.value = '';
         inp.click();
     });
     $('sp-tmpl-input').addEventListener('change', (e) => {
         const file = e.target.files && e.target.files[0];
-        if (file && !S.busy) uploadZgTemplate(file);
+        if (!file || S.busy) return;
+        if (S.tmplPick === 'ably') uploadAbTemplate(file);
+        else if (S.tmplPick === 'zikjin') uploadZgTemplate(file);
+        S.tmplPick = null;
     });
     $('sp-file-input').addEventListener('change', (e) => {
         const files = e.target.files;
@@ -1124,9 +1249,12 @@ async function transmit(location, packs, now, madeOk = false) {
 }
 
 // ── 실행 ───────────────────────────────────────────────────
+/** 에이블리 2단계 양식 — 칸에 넣은 것 → 앱에 올린 양식(ship/templates/ably.xlsx) → 앱에 들어 있는 기본 양식(assets) 순 */
 async function ablyTemplateFile() {
     const f = S.files.ably[2].template;
     if (f) return f;
+    const app = await ablyAppTemplate();
+    if (app) return app;
     const res = await fetch(ABLY_TEMPLATE_URL, { cache: 'no-cache' });
     if (!res.ok) throw new Error(`앱 기본 대량입고 양식을 받지 못했습니다(${res.status}).`);
     const bytes = new Uint8Array(await res.arrayBuffer());
@@ -1136,7 +1264,11 @@ async function ablyTemplateFile() {
 // ── 직진 출고리스트 양식(앱 Storage ship/templates/zikjin.xlsx) ─────────────
 // Storage — 처음 쓸 때 만든다(에뮬레이터면 먼저 붙인다. 연결 실패면 던져서 운영으로 안 간다 — approval.js 와 같음)
 const storage = () => {
-    if (!S.storage) { const st = getStorage(S.app); connectStorageEmulatorIfEnabled(st); S.storage = st; }
+    if (!S.storage) {
+        const st = getStorage(S.app); connectStorageEmulatorIfEnabled(st);
+        st.maxOperationRetryTime = 8000;   // 양식 읽기가 사내망에서 막혀도 2분씩 기다리지 않게(기본값 2분) — 넘으면 임시 길·기본 양식으로
+        S.storage = st;
+    }
     return S.storage;
 };
 const storageErrText = (e) => {
@@ -1146,11 +1278,12 @@ const storageErrText = (e) => {
     return c || String((e && e.message) || e || '알 수 없는 오류');
 };
 
-/** 양식 정보만 다시 읽기(내용은 실행할 때 받는다) */
-async function refreshZgTemplate() {
-    const T = S.zgTmpl;
+/** 양식 정보만 다시 읽기(내용은 실행할 때 받는다) — kind 'zikjin' | 'ably' */
+const refreshZgTemplate = () => refreshTemplate('zikjin');
+async function refreshTemplate(kind) {
+    const T = kind === 'ably' ? S.abTmpl : S.zgTmpl;
     try {
-        const m = await getMetadata(sRef(storage(), ZG_TEMPLATE_PATH));
+        const m = await getMetadata(sRef(storage(), TMPL_PATH[kind]));
         const gen = String(m.generation || m.updated || '');
         if (T.badGen && T.badGen === gen) return;   // 받아 보니 검사에 걸린 그 양식 — 새로 올리기 전까지 '준비 중'(state error) 그대로
         Object.assign(T, { state: 'ok', updated: m.updated || '', size: Number(m.size) || 0, gen, err: '', code: '' });
@@ -1226,6 +1359,80 @@ async function uploadZgTemplate(file) {
     }
 }
 
+// ── 에이블리 대량입고 양식(앱 Storage ship/templates/ably.xlsx, 2026-11-12) ─────────────
+/**
+ * 실행할 때 — 앱에 올린 양식(바뀌었으면 새로 받음, 받을 때도 올릴 때와 같은 검사). 못 쓰면 null(→ assets 기본 양식).
+ *   저장소 규칙 게시 전(권한 없음)·아직 안 올림은 조용히 기본 양식으로, 그 밖의 실패·검사 걸림은 진행 기록에 한 줄.
+ */
+async function ablyAppTemplate() {
+    // 저장소 규칙 게시 전에는 앱 양식을 쓰지 않는다(그 전 규칙은 로그인만 하면 누구나 올릴 수 있음) — 늘 앱 기본(assets) 양식
+    if (!ZG_TEMPLATE_UPLOAD_ON) return null;
+    await refreshTemplate('ably');
+    const T = S.abTmpl;
+    if (T.state !== 'ok') {
+        if (T.state === 'error' && T.code !== 'storage/unauthorized') logLine(`  ⚠ 앱에 올린 대량입고 양식을 쓰지 못해 앱 기본 양식을 씁니다: ${T.err}`);
+        return null;
+    }
+    if (!(T.bytes && T.bytesGen === T.gen)) {
+        let blob;
+        try { blob = await getBlob(sRef(storage(), AB_TEMPLATE_PATH)); }
+        catch (e) {
+            console.warn('[플랫폼 출고] 에이블리 양식 받기 실패:', (e && e.code) || (e && e.name) || 'unknown');
+            logLine(`  ⚠ 앱에 올린 대량입고 양식을 받지 못해 앱 기본 양식을 씁니다: ${storageErrText(e)}`);
+            return null;
+        }
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const { X, JSZip } = await loadLibs();
+        const problem = await ablyTemplateProblem(JSZip, X, bytes);
+        if (problem) {
+            console.warn('[플랫폼 출고] 에이블리 앱 양식 검사 걸림');
+            Object.assign(T, { state: 'error', err: `앱 양식에 문제가 있어 쓰지 않습니다(${problem})`, code: 'bad-template', bytes: null, bytesGen: '', badGen: T.gen });
+            logLine(`  ⚠ 앱에 올린 대량입고 양식에 문제가 있어 앱 기본 양식을 씁니다 — ${problem}`);
+            return null;
+        }
+        T.bytes = bytes;
+        T.bytesGen = T.gen;
+    }
+    logLine('  대량입고 양식: 앱에 올린 양식(관리자 등록)');
+    return { name: 'ably.xlsx', bytes: T.bytes, size: T.bytes.byteLength, from: 'app' };
+}
+
+/** 관리자 — 새 에이블리 대량입고 양식을 머리글만 남겨 앱에 올리기. 지운 행 수를 보여 주고 확인받는다 */
+async function uploadAbTemplate(file) {
+    if (!S.isAdmin) return;
+    if (!ZG_TEMPLATE_UPLOAD_ON) { toast(ZG_UPLOAD_OFF_TEXT, 5000); return; }
+    setBusy(true, '양식 정리 중…');
+    try {
+        const { X, JSZip } = await loadLibs();
+        const src = new Uint8Array(await file.arrayBuffer());
+        const c = await cleanAblyTemplate(JSZip, X, src);
+        if (c.bytes.byteLength > ZG_TEMPLATE_MAX) throw new Error(`정리한 양식이 ${sizeText(c.bytes.byteLength)} 로 너무 큽니다(최대 ${sizeText(ZG_TEMPLATE_MAX)}).`);
+        const gone = Object.entries(c.dropped).filter(([, n]) => n > 0).map(([s, n]) => `${s} ${fmt(n)}행`);
+        const msg = `'${file.name}' 을 에이블리 대량입고 양식으로 앱에 올립니다.\n\n`
+            + `머리글(대량입고 시트 '${c.sheet}' 1~5행)만 남기고 자료를 지웠습니다: ${gone.length ? gone.join(' · ') : '지운 행 없음'}\n`
+            + (c.cleared.length ? `값을 모두 비운 다른 시트: ${c.cleared.join(', ')}\n` : '')
+            + `정리한 양식 ${sizeText(c.bytes.byteLength)} — 원래 파일은 올리지 않습니다.\n\n`
+            + (S.abTmpl.state === 'ok' ? '지금 양식을 이것으로 바꿉니다. ' : '')
+            + '모든 직원이 이 양식으로 대량입고 파일을 만듭니다. 올릴까요?';
+        if (!confirm(msg)) { toast('양식을 올리지 않았습니다.'); return; }
+        setBusy(true, '양식 올리는 중…');
+        await uploadBytes(sRef(storage(), AB_TEMPLATE_PATH), c.bytes, { contentType: XLSX_TYPE });
+        S.abTmpl.badGen = '';
+        await refreshTemplate('ably');
+        if (S.abTmpl.state === 'ok') { S.abTmpl.bytes = c.bytes; S.abTmpl.bytesGen = S.abTmpl.gen; }
+        logLine(`✓ 에이블리 대량입고 양식을 앱에 올렸습니다(${sizeText(c.bytes.byteLength)}, 자료 행 지움: ${gone.length ? gone.join(' · ') : '없음'}).`);
+        toast('양식을 올렸습니다(모든 직원에게 적용)');
+    } catch (e) {
+        console.warn('[플랫폼 출고] 에이블리 양식 올리기 실패:', (e && e.code) || (e && e.name) || 'Error');
+        const t = e && e.code ? storageErrText(e) : errText(e);
+        logLine(`✗ 양식을 올리지 못했습니다: ${t}`);
+        toast(`양식을 올리지 못했습니다 — ${t}`, 6000);
+    } finally {
+        setBusy(false);
+        render();
+    }
+}
+
 async function refreshSettings() {
     try {
         S.settings = await loadSettings(S.db);
@@ -1245,7 +1452,7 @@ async function run(opts = {}) {
     const missing = missingOf(tab, step);
     if (missing.length) {
         toast(missing.includes(ZG_TEMPLATE_MISSING) && missing.length === 1
-            ? (S.isAdmin ? '출고리스트 양식이 앱에 없습니다 — [양식 올리기]로 먼저 올려 주세요.' : '출고리스트 양식이 앱에 없습니다 — 관리자에게 양식 등록을 요청해 주세요.')
+            ? '출고리스트 양식을 아직 확인하는 중입니다 — 잠시 뒤 다시 눌러 주세요.'
             : `넣어야 할 파일: ${missing.join(', ')}`, 5000);
         return;
     }
@@ -1418,6 +1625,12 @@ function openSettings() {
                 <tbody id="sp-s-rules">${rules.map(ruleRow).join('')}</tbody></table>
             <button id="sp-s-add" class="d-btn d-btn-sm" style="margin-top:8px;">줄 추가</button>
         </div>
+        <div>
+            <h3 class="pd-h3">기본 양식</h3>
+            <p class="pd-note">모든 직원이 같이 쓰는 빈 양식입니다. 카카오스타일·에이블리 양식이 바뀌었을 때만 관리자가 새로 올립니다.
+                올리기 전에 이 PC 에서 머리글만 남기고 자료 행을 지우며, 원래 파일은 올리지 않습니다. 양식은 올리는 즉시 적용됩니다(아래 [저장]과 따로).</p>
+            <div id="sp-s-tmpl" class="sp-tmpl-list"></div>
+        </div>
         <label class="sp-check"><input type="checkbox" id="sp-s-transmit" ${st.transmit ? 'checked' : ''} ${S.isAdmin ? '' : 'disabled'}>
             <span><b>로케이션 실적·봉 수 전송 켬</b><br><span class="pd-note">2단계를 마치면 로케이션 관리(ZikjinData)에 실제 출고 수량을, 비품 예측(봉 수)에 봉 수를 씁니다.
             같은 날 여러 묶음은 묶음마다 더합니다. 병행 기간에는 끄고(exe 가 기록) exe 를 멈출 때 켭니다. ${S.isAdmin ? '' : '<b>관리자만 바꿀 수 있습니다.</b>'}</span></span></label>
@@ -1461,7 +1674,10 @@ function openSettings() {
             btn.disabled = false; btn.textContent = '저장(모두에게 적용)';
         }
     });
+    renderTemplateRows();
     $('sp-modal').classList.remove('hidden');
+    // 양식 상태는 열 때 한 번 다시 확인(정보만 — 내용은 받지 않음)
+    Promise.all([refreshTemplate('zikjin'), refreshTemplate('ably')]).then(() => { if (!S.busy) render(); });
 }
 function closeSettings() { $('sp-modal').classList.add('hidden'); }
 
@@ -1506,17 +1722,17 @@ async function start(user) {
     try { Object.assign(S, await checkPerm(user)); }
     catch (e) { console.warn('[플랫폼 출고] 권한 확인 실패:', (e && e.code) || 'unknown'); S.isAdmin = false; S.canShip = false; }
     await refreshSettings();
-    await refreshZgTemplate();   // 먼저 — restoreFromPc 가 옛 원본 기억을 지울지(앱 양식 있음) 임시 칸에 넣을지 정한다
+    // 직진 양식 먼저 — restoreFromPc 가 옛 원본 기억을 지울지(앱 양식 있음) 임시 칸에 넣을지 정한다. 에이블리 양식은 정보만(빈 칸 안내·설정 창)
+    await Promise.all([refreshZgTemplate(), refreshTemplate('ably')]);
     await restoreFromPc();
-    try { S.mode = loadMode(localStorage.getItem(MODE_STORE_KEY)); } catch (_) { S.mode = 'auto'; }   // 처음 여는 PC = 통합
+    // 늘 통합으로 연다(2026-11-12 사용자 요청) — 예전에 이 PC 가 기억해 둔 방식은 지운다
+    S.mode = 'auto';
+    try { localStorage.removeItem(MODE_STORE_KEY); } catch (_) { /* 저장공간이 막혀도 통합으로 연다 */ }
     readHash();
     $('pd-app').style.display = 'block';
     setLoading(false);
 
-    $('sp-mode').addEventListener('click', (e) => {
-        const b = e.target.closest('.d-seg-btn[data-mode]'); if (!b || S.busy) return;
-        setMode(b.dataset.mode);
-    });
+    bindModeMenu();
     $('sp-tabs').addEventListener('click', (e) => {
         const b = e.target.closest('.d-seg-btn'); if (!b || S.busy) return;
         if (!modeView(S.mode).showTabs) return;   // 기존 방식은 탭 고정(숨김)
