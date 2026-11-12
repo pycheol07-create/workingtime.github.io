@@ -10,7 +10,7 @@
 //                      corrBasis, perDriver, perWorkday, windowWorkdays, confidence, stock, stockAt, safety{used,
 //                      source, suggested}, leadTime{workdays, calDays, source}, depleteDate, reorderDate, workdaysLeft,
 //                      recommendQty, bundle, appOnlyOutLogs, notes[], spike{date, used, expected, window?},
-//                      recentAlerts{ <order|watch|spike|late|received>: { at, until, (spike 만) date, used, expected,
+//                      recentAlerts{ <order|watch|spike|late|due|received>: { at, until, (spike 만) date, used, expected,
 //                      window? } } } }, zabPacks{days, need} }
 //                      recentAlerts 의 기한(until)은 서버가 지난 것을 지운다 — 화면은 지금 상태로 거르고, 서버가 멈춰 남은
 //                      지난 기한도 뺀다(alertReasons).
@@ -236,6 +236,7 @@ export function packsProgressText(forecastDoc) {
 const ALERT_KINDS = [
     ['order',    { label: '발주 필요', tone: 'danger' }],
     ['late',     { label: '입고 지연', tone: 'danger' }],
+    ['due',      { label: '입고 예정일', tone: 'warn' }],   // 2026-11-12 예정일이 됐는데 입고 기록 없음 — 들어왔는지 확인
     ['spike',    { label: '사용 급증', tone: 'warn' }],
     ['watch',    { label: '주의',      tone: 'warn' }],
     ['received', { label: '입고 확인', tone: 'ok' }]
@@ -260,11 +261,15 @@ function alertText(kind, a, fc, order, u) {
     if (kind === 'late') {
         return `입고 예정 ${mdw(order && order.expectedDate)} 지남 (발주 ${mdw(order && order.orderedDate)} · ${fmtInt(order && order.qty)}${u})`;
     }
+    if (kind === 'due') {
+        return `입고 예정 ${mdw(order && order.expectedDate)} (발주 ${mdw(order && order.orderedDate)} · ${fmtInt(order && order.qty)}${u}) — 들어왔으면 [입고 확인]`;
+    }
     return '입고 확인, 알림 다시 켬';
 }
 
 /** 이 비품을 왜 봐야 하나 → [{kind, label, tone, text}] 위험한 것부터. 근거는 서버의 fc.recentAlerts(옛 문서면 fc.spike).
  *  - order·watch : 지금 상태가 그 종류일 때만  - late : 지금 발주함일 때만  - spike·received : 서버가 남겨 둔 기간 내내
+ *  - due(입고 예정일) : 지금 발주함이고 예정일이 됐을 때만, late 가 같이 있으면 late 만
  *  - ordersKnown false(발주 상태를 못 읽음)면 order·watch·late 는 뺀다(이미 발주한 비품을 잘못 알리지 않게).
  *  - 기한(until)이 today 보다 앞이면 뺀다 — 서버가 며칠 멈춰 지난 사유가 남아 있을 때(옛 fc.spike 는 기한이 없어 그대로). */
 export function alertReasons(item, fc, order, ordersKnown, today = kstToday()) {
@@ -278,17 +283,20 @@ export function alertReasons(item, fc, order, ordersKnown, today = kstToday()) {
         const a = src[kind];
         if (!a || typeof a !== 'object') continue;
         if (a.until && a.until < today) continue;
-        if (!ordersKnown && (kind === 'order' || kind === 'watch' || kind === 'late')) continue;
+        if (!ordersKnown && (kind === 'order' || kind === 'watch' || kind === 'late' || kind === 'due')) continue;
         if ((kind === 'order' || kind === 'watch') && now !== kind) continue;
         // 지연은 지금 발주의 입고 예정일이 정말 지났을 때만 — 지연 알림 뒤 새로 발주한 건을 '지남'으로 표시하지 않는다
         if (kind === 'late' && !(now === 'ordered' && order && order.expectedDate && String(order.expectedDate) < String(fc.today || ''))) continue;
+        // 입고 예정일 확인은 지금 발주함이고 예정일이 됐을 때만, 지연이 같이 있으면 지연만
+        if (kind === 'due' && (!(now === 'ordered' && order && order.expectedDate && String(order.expectedDate) <= String(fc.today || ''))
+            || out.some(x => x.kind === 'late'))) continue;
         out.push({ kind, label: info.label, tone: info.tone, text: alertText(kind, a, fc, order, u) });
     }
     return out;
 }
 
 /** 발주 상태를 못 읽었을 때 안내 줄에 늘 붙이는 경고(사유 건수와 상관없이) */
-export const ALERT_ORDERS_UNKNOWN = '발주 상태를 읽지 못해 발주 필요·주의·입고 지연은 빠져 있습니다';
+export const ALERT_ORDERS_UNKNOWN = '발주 상태를 읽지 못해 발주 필요·주의·입고 지연·입고 예정일은 빠져 있습니다';
 
 /** 앱 알림(#alerts)으로 왔는데 보일 사유가 0건일 때 안내.
  *  forecastOk = 이번에 예측을 읽었나 · reloadSkipped = 상세 창이 열려 있어 다시 읽기를 건너뛰었나 */

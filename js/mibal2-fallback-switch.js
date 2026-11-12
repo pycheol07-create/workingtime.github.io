@@ -4,8 +4,8 @@
 // 누르기 전에 서버 값을 다시 읽고, 그 값의 반대 방향으로만 쓴다(두 관리자가 동시에 눌러도 같은 방향을 두 번 쓰지 않게).
 // 관리자 제한은 화면 판정이다 — 규칙은 mibal2/{docId}(hasFeature('china.mibal2')) 그대로.
 import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { FALLBACK_PATH } from './lib/mibal2-fallback.js?v=202611120855';
-import { readFallback } from './mibal2-fallback-watch.js?v=202611120855';
+import { FALLBACK_PATH } from './lib/mibal2-fallback.js?v=202611120908';
+import { readFallback } from './mibal2-fallback-watch.js?v=202611120908';
 
 const fmtMD = (s) => { const p = String(s || '').split('-'); return p.length === 3 ? `${+p[1]}.${+p[2]}` : String(s || ''); };
 
