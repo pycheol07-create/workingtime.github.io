@@ -1,13 +1,14 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611120908';
-import * as State from './state.js?v=202611120908';
-import { render } from './app.js?v=202611120908';
-import { showToast, formatTimeTo24H, showConfirm } from './utils.js?v=202611120908';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202611120908';
-import { nameWithRankPosition } from './lib/member-title.js?v=202611120908';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202611120908';
+import * as DOM from './dom-elements.js?v=202611120950';
+import * as State from './state.js?v=202611120950';
+import { render } from './app.js?v=202611120950';
+import { showToast, formatTimeTo24H, showConfirm, getCurrentTime } from './utils.js?v=202611120950';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611120950';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202611120950';
+import { nameWithRankPosition } from './lib/member-title.js?v=202611120950';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202611120950';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -15,13 +16,13 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202611120908';
+} from './app-logic.js?v=202611120950';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611120908';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202611120908';
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611120908';
-import { openLocRecFromDash } from './locrec-dash.js?v=202611120908';
-import { TASK, isT } from './task-names.js?v=202611120908';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611120950';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202611120950';
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611120950';
+import { openLocRecFromDash } from './locrec-dash.js?v=202611120950';
+import { TASK, isT } from './task-names.js?v=202611120950';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -48,7 +49,7 @@ const openMemberActionModal = (memberName) => {
     // 근태 상태 확인 (일일 근태 + 기간 근태 병합 확인)
     const combinedOnLeaveMembers = [...(State.appState.dailyOnLeaveMembers || []), ...(State.appState.dateBasedOnLeaveMembers || [])];
     // 외출 중이더라도 종료(복귀) 시간이 있으면 근태 중이 아님
-    const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime) && m.type !== '지각');
+    const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && isLeaveActiveAt(m, getCurrentTime()));
 
     // 상태 배지 & 시간 정보 업데이트
     if (DOM.actionMemberStatusBadge && DOM.actionMemberTimeInfo) {
@@ -296,7 +297,8 @@ export function setupMainBoardListeners() {
                 showToast('본인의 근태 기록만 수정할 수 있습니다.', true); return;
             }
 
-            if (currentType === '외출') {
+            // 예약(아직 시각이 안 된) 외출은 복귀가 아니라 수정 창으로 — 시각을 고치거나 지울 수 있게
+            if (currentType === '외출' && editLeaveCard.dataset.leavePending !== '1') {
                 State.context.memberToCancelLeave = memberName;
                 if (DOM.cancelLeaveConfirmMessage) DOM.cancelLeaveConfirmMessage.textContent = `${memberName}님을 '${currentType}' 상태에서 복귀(취소) 처리하시겠습니까?`;
                 if (DOM.cancelLeaveConfirmModal) DOM.cancelLeaveConfirmModal.classList.remove('hidden');
@@ -333,6 +335,13 @@ export function setupMainBoardListeners() {
             dateFields.classList.toggle('hidden', isTimeBased);
             if (isTimeBased) { startTimeInput.value = currentStartTime || ''; endTimeInput.value = currentEndTime || ''; }
             else { startDateInput.value = currentStartDate || ''; endDateInput.value = currentEndDate || ''; }
+            const endTimeWrapper = document.getElementById('edit-leave-end-time-wrapper');
+            if (endTimeWrapper) endTimeWrapper.classList.toggle('hidden', currentType !== '외출');
+            // 예약(아직 시작 전) 외출은 종료 시각을 넣지 못하게 — 자동 복귀는 하지 않는다(사용자 결정 ①). 저장 때도 한 번 더 막는다.
+            const isPendingLeave = editLeaveCard.dataset.leavePending === '1';
+            endTimeInput.disabled = isPendingLeave;
+            endTimeInput.title = isPendingLeave ? '시작 전 외출은 종료 시각을 넣지 않습니다 — 복귀할 때 [복귀]로 채워집니다.' : '';
+            if (isPendingLeave) endTimeInput.value = '';
             originalNameInput.value = memberName;
             originalStartInput.value = isTimeBased ? currentStartTime : currentStartDate;
             originalTypeInput.value = isTimeBased ? 'daily' : 'persistent';
@@ -496,7 +505,7 @@ export function setupMainBoardListeners() {
                 State.context.memberToCancelLeave = memberName;
                 
                 const combinedOnLeaveMembers = [...(State.appState.dailyOnLeaveMembers || []), ...(State.appState.dateBasedOnLeaveMembers || [])];
-                const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && !(m.type === '외출' && m.endTime) && m.type !== '지각');
+                const leaveInfo = combinedOnLeaveMembers.find(m => m.member === memberName && isLeaveActiveAt(m, getCurrentTime()));
                 const leaveType = leaveInfo ? leaveInfo.type : '근태';
                 const actionText = (leaveType === '외출' || leaveType === '조퇴') ? '복귀' : '취소';
 

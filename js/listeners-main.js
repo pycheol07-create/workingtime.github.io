@@ -1,30 +1,31 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202611120908';
-import * as State from './state.js?v=202611120908';
+import * as DOM from './dom-elements.js?v=202611120950';
+import * as State from './state.js?v=202611120950';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202611120908';
-import { updateDailyData } from './app-data.js?v=202611120908';
+import { render } from './app.js?v=202611120950';
+import { updateDailyData } from './app-data.js?v=202611120950';
 
-import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202611120908';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202611120908';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H } from './utils.js?v=202611120950';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202611120950';
+import { applyDueLeaves } from './leave-auto-apply.js?v=202611120950';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     applyPlannedPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202611120908';
+} from './ui.js?v=202611120950';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202611120908';
-import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611120908';
-import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611120908';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611120908';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611120908';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611120908';
+} from './app-logic.js?v=202611120950';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611120950';
+import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611120950';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611120950';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611120950';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611120950';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
@@ -244,7 +245,9 @@ export function setupMainScreenListeners() {
         });
     }
 
-    const openEndShiftModal = () => {
+    const openEndShiftModal = async () => {
+        // ⏰ 시각이 된 예약 외출·조퇴를 먼저 적용한다 — 미리보기·마감이 그 사람의 업무를 마감 시각까지 세지 않게
+        try { await applyDueLeaves(); } catch (e) { console.warn('[예약 근태] 마감 전 적용 실패:', e); }
         const ongoingRecords = (State.appState.workRecords || []).filter(r => r.status === 'ongoing' || r.status === 'paused');
 
         if (ongoingRecords.length > 0) {

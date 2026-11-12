@@ -12,23 +12,23 @@
 // 권한: 입장은 js/page-gate.js(ship.platform). 설정 저장·전송은 규칙이 막는다. 전송 켜기(transmit)는 관리자만.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611120908';
-import { emulatorEnabled } from './firebase-emulator.js?v=202611120908';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611120908';
-import { memberNameFor } from './app-shell-data.js?v=202611120908';
-import { friendlyFirebaseError } from './utils.js?v=202611120908';
-import { resolve, can } from './lib/perm.js?v=202611120908';
-import { readBook } from './lib/ship-read.js?v=202611120908';
-import { zikjinStep1, zikjinStep2, TEMPLATE_SHEETS } from './lib/ship-zikjin.js?v=202611120908';
-import { ablyStep1, ablyStep2 } from './lib/ship-ably.js?v=202611120908';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes } from './lib/ship-write.js?v=202611120908';
-import { pickingBytes } from './lib/ship-picking.js?v=202611120908';
-import { kstDay, baseDateWarning, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611120908';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611120908';
-import { openShipStore, fileRecord, isFileRecord, describeRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611120908';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611120908';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611120908';
-import { loadSettings, saveSettings, pushLocation, recordPacks } from './ship-store.js?v=202611120908';
+import { initializeFirebase } from './config.js?v=202611120950';
+import { emulatorEnabled } from './firebase-emulator.js?v=202611120950';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611120950';
+import { memberNameFor } from './app-shell-data.js?v=202611120950';
+import { friendlyFirebaseError } from './utils.js?v=202611120950';
+import { resolve, can } from './lib/perm.js?v=202611120950';
+import { readBook } from './lib/ship-read.js?v=202611120950';
+import { zikjinStep1, zikjinStep2, TEMPLATE_SHEETS } from './lib/ship-zikjin.js?v=202611120950';
+import { ablyStep1, ablyStep2 } from './lib/ship-ably.js?v=202611120950';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes } from './lib/ship-write.js?v=202611120950';
+import { pickingBytes } from './lib/ship-picking.js?v=202611120950';
+import { kstDay, baseDateWarning, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611120950';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611120950';
+import { openShipStore, fileRecord, isFileRecord, describeRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611120950';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611120950';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611120950';
+import { loadSettings, saveSettings, pushLocation, recordPacks } from './ship-store.js?v=202611120950';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -108,7 +108,7 @@ function setBusy(on, text = '처리 중…') {
     $('sp-busy').hidden = !on;
     $('sp-busy-text').textContent = text;
     $('sp-run').disabled = on;
-    document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder').forEach(b => { b.disabled = on; });
+    document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder, #sp-pick-many').forEach(b => { b.disabled = on; });
 }
 const errText = (e) => (e && e.code ? friendlyFirebaseError(e) : String((e && e.message) || e || '알 수 없는 오류'));
 
@@ -260,6 +260,7 @@ function render() {
     document.querySelectorAll('#sp-tabs .d-seg-btn').forEach(b => b.classList.toggle('is-on', b.dataset.tab === tab));
     document.querySelectorAll('#sp-steps .d-seg-btn').forEach(b => b.classList.toggle('is-on', Number(b.dataset.step) === step));
     $('sp-step2-btn').textContent = STEP2_LABEL[tab];
+    $('sp-now').textContent = `${TAB_LABEL[tab]} · ${step === 1 ? '1단계 · 재고출고용' : STEP2_LABEL[tab]}`;
     $('sp-step-desc').textContent = STEP_DESC[tab][step];
     $('sp-step-note').textContent = '';
     $('sp-run').textContent = `${TAB_LABEL[tab]} ${step}단계 만들기`;
@@ -456,13 +457,31 @@ function bindDrop() {
         if (slot && files.length === 1) dropOnSlot(slot.dataset.slot, files);
         else dropMany(files);
     });
-    // 칸 밖(페이지 아무 곳)에 놓아도 브라우저가 파일을 열지 않게
-    window.addEventListener('dragover', (e) => { if (isFiles(e)) e.preventDefault(); });
+    // 칸 밖(페이지 아무 곳 — 위쪽 큰 상자 포함)에 놓으면 알아보고 진행. 브라우저가 파일을 열지 않게
+    const intake = $('sp-intake');
+    window.addEventListener('dragover', (e) => {
+        if (!isFiles(e)) return;
+        e.preventDefault();
+        intake.classList.toggle('is-over', !S.busy && !area.contains(e.target));
+    });
+    window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) intake.classList.remove('is-over'); });
     window.addEventListener('drop', (e) => {
+        intake.classList.remove('is-over');
         if (!isFiles(e) || area.contains(e.target)) return;
         e.preventDefault();               // 바쁠 때도 브라우저가 파일을 열지 않게 막기는 한다
         if (S.busy) { toast('처리 중입니다 — 끝난 뒤 다시 넣어 주세요.'); return; }
         dropMany(e.dataTransfer.files);
+    });
+    // [파일 고르기](여러 개) — 놓기와 같이 알아보고 진행
+    $('sp-pick-many').addEventListener('click', () => {
+        if (S.busy) return;
+        const inp = $('sp-files-input');
+        inp.value = '';
+        inp.click();
+    });
+    $('sp-files-input').addEventListener('change', (e) => {
+        const files = e.target.files;
+        if (files && files.length && !S.busy) dropMany(files);
     });
 
     $('sp-slots').addEventListener('click', async (e) => {

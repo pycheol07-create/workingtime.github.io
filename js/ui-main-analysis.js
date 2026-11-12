@@ -1,8 +1,9 @@
 // === js/ui-main-analysis.js ===
-import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H } from './utils.js?v=202611120908';
-import * as State from './state.js?v=202611120908';
-import { systemIdOfName } from './lib/task-ids.js?v=202611120908';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611120908';
+import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H } from './utils.js?v=202611120950';
+import * as State from './state.js?v=202611120950';
+import { systemIdOfName } from './lib/task-ids.js?v=202611120950';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611120950';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611120950';
 
 export const renderTaskAnalysis = (appState, appConfig) => {
     const analysisContainer = document.getElementById('analysis-task-summary-panel'); 
@@ -158,7 +159,7 @@ export const renderPersonalAnalysis = (selectedMember, appState) => {
         const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
         const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
 
-        const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember && !(m.type === '외출' && m.endTime) && m.type !== '지각');
+        const leaveInfo = combinedOnLeaveMembers.find(m => m.member === selectedMember && isLeaveActiveAt(m, getCurrentTime()));
         if (leaveInfo) {
              const label = getLeaveDisplayLabel(selectedMember, leaveInfo);
              currentStatusHtml = `<span class="text-sm font-bold text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-md">${label} 중</span>`;

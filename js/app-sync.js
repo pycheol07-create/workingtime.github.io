@@ -1,19 +1,20 @@
 // === js/app-sync.js ===
-import { nameWithPosition } from './lib/member-title.js?v=202611120908';
-import * as State from './state.js?v=202611120908';
-import { isPersistentLeaveType } from './state.js?v=202611120908';
-import * as DOM from './dom-elements.js?v=202611120908';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611120908';
+import { nameWithPosition } from './lib/member-title.js?v=202611120950';
+import * as State from './state.js?v=202611120950';
+import { isPersistentLeaveType } from './state.js?v=202611120950';
+import * as DOM from './dom-elements.js?v=202611120950';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611120950';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611120908';
-import { renderTodoList } from './inspection-logic.js?v=202611120908';
-import { renderNotificationList } from './app-notifications.js?v=202611120908';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120908';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611120908';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611120908';
-import { desktopNotify } from './desktop-noti.js?v=202611120908';
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611120908';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611120950';
+import { renderTodoList } from './inspection-logic.js?v=202611120950';
+import { renderNotificationList } from './app-notifications.js?v=202611120950';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120950';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611120950';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611120950';
+import { desktopNotify } from './desktop-noti.js?v=202611120950';
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611120950';
+import { planForceEnd } from './lib/leave-timing.js?v=202611120950';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -605,60 +606,52 @@ export async function writeRecordsReleasingLocks(ops, { dateKey } = {}) {
 
 // 🛡️ 멤버의 ongoing/paused workRecord를 지정 시각(또는 현재 시각)으로 강제 종료.
 // 외출/조퇴 등록 시점에 호출되어 비정상 진행 중 record가 외출 시간까지 끌고 가는 것을 방지.
-export async function forceEndMemberWork(memberName, endHHMM) {
+// opt.onlyStartedBefore — 시작이 끊는 시각 이상인 기록은 건너뛴다(삭제하지 않는다). 지난 시각으로 끊을 때
+//   그 뒤에 새로 시작한 정상 기록이 0분으로 지워지지 않게(근태 등록·복귀·예약 근태 자동 적용이 켠다).
+//   계획은 js/lib/leave-timing.js planForceEnd(tests/leave-timing.test.js).
+export async function forceEndMemberWork(memberName, endHHMM, { onlyStartedBefore = false } = {}) {
     if (!memberName) return { ended: 0 };
     const now = getCurrentTime();
     const cutTime = endHHMM || now;
 
-    const colRefWR = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'workRecords');
-    const lockColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'activeLocks');
+    const base = ['artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString()];
 
     const targets = (State.appState.workRecords || []).filter(r =>
         r.member === memberName && (r.status === 'ongoing' || r.status === 'paused')
     );
     if (targets.length === 0) return { ended: 0 };
 
-    const batch = writeBatch(State.db);
-    const summaries = [];
-    targets.forEach(rec => {
-        // 시작 시각이 cutTime 이후이면 0분 → 아예 삭제
-        const startMins = hhmmToMin(rec.startTime);
-        const endMins = hhmmToMin(cutTime);
-        const finalEnd = endMins < startMins ? rec.startTime : cutTime;
-
-        const pauses = Array.isArray(rec.pauses) ? rec.pauses.map(p => ({ ...p })) : [];
-        // 위와 같은 이유로 `!p.end`. end < start 가 되지 않게 최소 방어도 함께.
-        pauses.forEach(p => { if (p && !p.end) p.end = (finalEnd > p.start) ? finalEnd : p.start; });
-        const duration = calcDurationMinutes(rec.startTime, finalEnd, pauses);
-
-        const recRef = doc(colRefWR, rec.id);
-        if (duration <= 0) {
-            batch.delete(recRef);
-            summaries.push(`${rec.task}@${rec.startTime} (0분 → 삭제)`);
-        } else {
-            batch.update(recRef, {
-                status: 'completed',
-                endTime: finalEnd,
-                duration,
-                pauses,
-                autoClosedReason: 'leave_register'
-            });
-            summaries.push(`${rec.task}@${rec.startTime}~${finalEnd} (${duration}분)`);
-        }
-        // lock 해제
-        batch.delete(doc(lockColRef, memberName));
+    // 트랜잭션 — 화면 메모리 값으로 덮어쓰지 않는다(writeRecordsReleasingLocks 와 같은 방식).
+    //   서버에서 각 기록이 아직 진행 중·일시정지이고 시작 시각이 같은지 다시 읽고 그 값(휴식 포함)으로 계획한다.
+    //   여러 PC 가 같은 분에 돌거나 오프라인 대기열이 늦게 올라가 이미 끝난 기록을 다시 쓰는 일을 막는다.
+    //   잠금(activeLocks)은 그 잠금의 recordId 가 이번에 끝낸 기록일 때만 지운다. 오프라인이면 트랜잭션이 실패한다(throw).
+    let plan = null;
+    await runTransaction(State.db, async (tx) => {
+        const recRefs = targets.map(r => doc(State.db, ...base, 'workRecords', String(r.id)));
+        const lockRef = doc(State.db, ...base, 'activeLocks', String(memberName));
+        const snaps = await Promise.all(recRefs.map(ref => tx.get(ref)));   // 읽기는 쓰기보다 먼저
+        const lockSnap = await tx.get(lockRef);
+        const fresh = [];
+        snaps.forEach((s, i) => {
+            if (!s.exists()) return;
+            const d = s.data() || {};
+            if (d.member !== memberName) return;
+            if (d.status !== 'ongoing' && d.status !== 'paused') return;
+            if ((d.startTime || '') !== (targets[i].startTime || '')) return;
+            fresh.push({ ...d, id: String(targets[i].id), _ref: recRefs[i] });
+        });
+        plan = planForceEnd(fresh, cutTime, calcDurationMinutes, { onlyStartedBefore });
+        plan.deletes.forEach(rec => tx.delete(rec._ref));
+        plan.updates.forEach(({ rec, data }) => tx.update(rec._ref, { ...data, autoClosedReason: 'leave_register' }));
+        const endedIds = new Set([...plan.deletes, ...plan.updates.map(u => u.rec)].map(r => r.id));
+        if (lockSnap.exists() && endedIds.has(String((lockSnap.data() || {}).recordId))) tx.delete(lockRef);
     });
 
-    await batch.commit();
-    console.warn(`[forceEndMemberWork] ${memberName}: ${targets.length}건 종료 — ${summaries.join(', ')}`);
+    const ended = plan.updates.length + plan.deletes.length;
+    if (ended === 0) return { ended: 0, skipped: plan.skipped.length, summaries: plan.summaries };
+    console.warn(`[forceEndMemberWork] ${memberName}: ${ended}건 종료 — ${plan.summaries.join(', ')}`);
     markLocalWorkEnded();
-    return { ended: targets.length, summaries };
-}
-
-function hhmmToMin(hhmm) {
-    if (!hhmm || typeof hhmm !== 'string') return 0;
-    const [h, m] = hhmm.split(':').map(Number);
-    return (h || 0) * 60 + (m || 0);
+    return { ended, skipped: plan.skipped.length, summaries: plan.summaries };
 }
 
 // 콘솔에서 즉시 강제 정리하고 싶을 때

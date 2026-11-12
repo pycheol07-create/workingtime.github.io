@@ -1,12 +1,17 @@
 // === js/app-lifecycle.js ===
-import * as State from './state.js?v=202611120908';
-import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202611120908';
-import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=202611120908';
-import { saveStateToFirestore } from './app-data.js?v=202611120908';
+import * as State from './state.js?v=202611120950';
+import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202611120950';
+import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=202611120950';
+import { saveStateToFirestore } from './app-data.js?v=202611120950';
 import { collection, doc, writeBatch, getDoc, setDoc, waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getSubscribedDate } from './app-sync.js?v=202611120908';
-import { findOpenModal } from './lib/noti-popup.js?v=202611120908';
-import { emulatorEnabled } from './firebase-emulator.js?v=202611120908';
+import { getSubscribedDate } from './app-sync.js?v=202611120950';
+import { findOpenModal } from './lib/noti-popup.js?v=202611120950';
+import { emulatorEnabled } from './firebase-emulator.js?v=202611120950';
+import { applyDueLeaves, activeLeaveSignature } from './leave-auto-apply.js?v=202611120950';
+
+// ⏰ 예약 근태 — 마지막으로 본 분(HH:MM)과 그때 근태 중이던 사람 집합
+let lastLeaveMinute = null;
+let lastLeaveSig = null;
 
 // 📅 자정을 넘긴 탭(2026-10-22): 구독은 어제 문서(daily_data/{어제})에 붙어 있는데 저장·정리는 '오늘' 경로로 가서
 //    어제 화면의 값이 오늘 문서로 새거나 오늘 잠금을 지우는 일이 생긴다. 날짜가 바뀐 것을 보면
@@ -217,7 +222,7 @@ let eodFlushCooldownUntil = 0;   // 종료시각 이후 이력 확정 저장 재
 
 // 업무일 종료시각. 이력의 열린 기록 상한도 같은 값을 써야 하므로 단일 출처에서 가져온다
 // (예전엔 두 파일에 따로 박혀 있어, 한쪽만 고치면 조용히 갈라졌다).
-import { AUTO_END_TIME } from './lib/record-close.js?v=202611120908';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202611120950';
 
 // 진행/일시정지 기록을 지정 시각으로 마감(Firestore 배치 + 로컬 미러 갱신)
 async function closeRecordsAt(records, endTime, dayKey) {
@@ -391,6 +396,19 @@ export const updateElapsedTimes = async () => {
                 } catch (e) { console.error("Error during auto-resume: ", e); }
             }
         }
+    }
+
+    // ⏰ 예약 근태(외출·조퇴, 2026-11-12): 분이 바뀔 때마다(첫 틱 포함) 시각이 된 근태를 적용하고,
+    //    근태 중인 사람이 바뀌었으면('예정' → '근태 중', 외출 복귀 시각 지남) 화면을 다시 그린다.
+    //    점심 자동 일시정지처럼 열려 있는 아무 브라우저나 돈다(js/leave-auto-apply.js).
+    if (lastLeaveMinute !== now) {
+        lastLeaveMinute = now;
+        applyDueLeaves(now).catch(e => console.warn('[예약 근태] 적용 실패:', e));
+        const sig = activeLeaveSignature(now);
+        if (lastLeaveSig !== null && sig !== lastLeaveSig) {
+            import('./app.js?v=202611120950').then(m => m.render()).catch(e => console.warn('[예약 근태] 다시 그리기 실패:', e));
+        }
+        lastLeaveSig = sig;
     }
 
     // ✨ 핵심 방어막 3: 17:30 퇴근 시간 감지 및 야근 확인 팝업 (관리자 전용)

@@ -1,19 +1,20 @@
 // === js/listeners-modals-confirm.js ===
 // 설명: '예/아니오' 형태의 모든 확인(Confirm) 모달 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611120908';
-import * as State from './state.js?v=202611120908';
-import { isPersistentLeaveType } from './state.js?v=202611120908';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120908';
-import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202611120908';
-import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202611120908';
-import { updateLeaveSchedule } from './config.js?v=202611120908';
-import { removeWhere, removeRecord } from './lib/leave-ops.js?v=202611120908';
-import { switchHistoryView } from './app-history-logic.js?v=202611120908';
-import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202611120908';
-import { waitQuantitySave } from './listeners-form-quantity.js?v=202611120908';
-import { saveStateToFirestore } from './app-data.js?v=202611120908';
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202611120908';
+import * as DOM from './dom-elements.js?v=202611120950';
+import * as State from './state.js?v=202611120950';
+import { isPersistentLeaveType } from './state.js?v=202611120950';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120950';
+import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=202611120950';
+import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=202611120950';
+import { updateLeaveSchedule } from './config.js?v=202611120950';
+import { removeWhere, removeRecord } from './lib/leave-ops.js?v=202611120950';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611120950';
+import { switchHistoryView } from './app-history-logic.js?v=202611120950';
+import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=202611120950';
+import { waitQuantitySave } from './listeners-form-quantity.js?v=202611120950';
+import { saveStateToFirestore } from './app-data.js?v=202611120950';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202611120950';
 
 import {
     doc, deleteDoc, writeBatch, collection, updateDoc, getDoc, getDocs, setDoc, query
@@ -332,10 +333,14 @@ export function setupConfirmationModalListeners() {
             let actionMessage = '취소';
             let isTodayLeaveOfMember = null;
 
+            // 외출·조퇴는 '지금 근태 중' 인 것만 — 아직 시각이 안 된 예약 근태에 복귀가 걸리지 않게(2026-11-12).
+            // 지각은 지금 그대로(끝 시각 없는 것).
+            const 지금 = getCurrentTime();
             const dailyEntry = State.appState.dailyOnLeaveMembers.find(entry => 
-                entry.member === memberName && 
-                (entry.type === '외출' || entry.type === '조퇴' || entry.type === '지각') && 
-                !entry.endTime
+                entry.member === memberName && (
+                    (entry.type === '지각' && !entry.endTime) ||
+                    ((entry.type === '외출' || entry.type === '조퇴') && !entry.endTime && isLeaveActiveAt(entry, 지금))
+                )
             );
 
             if (dailyEntry) {
@@ -355,8 +360,8 @@ export function setupConfirmationModalListeners() {
                             r.startTime < dailyEntry.startTime
                         );
                         if (stale.length > 0) {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202611120908');
-                            const r = await forceEndMemberWork(memberName, dailyEntry.startTime);
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202611120950');
+                            const r = await forceEndMemberWork(memberName, dailyEntry.startTime, { onlyStartedBefore: true });
                             if (r.ended > 0) {
                                 console.warn(`[외출 복귀 보호막] ${memberName}: 외출 전부터 진행 중이던 ${r.ended}건을 ${dailyEntry.startTime}로 정리`, r.summaries);
                                 showToast(`외출 전부터 진행 중이던 업무 ${r.ended}건이 ${dailyEntry.startTime}로 자동 종료됨`);

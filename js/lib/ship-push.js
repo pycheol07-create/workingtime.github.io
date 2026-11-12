@@ -5,8 +5,8 @@
 // Python 판(firestore_sync.py)과 같은 값이 나온다 — 다른 점: 트랜잭션이라 두 PC 가 동시에 보내도 한쪽이 지워지지 않는다.
 // 순수 모듈. 테스트: tests/ship-push.test.js
 
-import { mergeRows, chunkDocs, rowsFromChunks, buildPackPatch, packPatchForSdk, packDaysFromData, PACK_CHANNEL_BY_SOURCE } from './ship-merge.js?v=202611120908';
-import { kstDay } from './ship-core.js?v=202611120908';
+import { mergeRows, chunkDocs, rowsFromChunks, buildPackPatch, packPatchForSdk, packDaysFromData, PACK_CHANNEL_BY_SOURCE } from './ship-merge.js?v=202611120950';
+import { kstDay } from './ship-core.js?v=202611120950';
 
 export const CHUNK_RE = /^CHUNK_(\d{1,4})$/;
 export const TX_WRITE_MAX = 500;   // Firestore 트랜잭션 한 번의 쓰기 한도

@@ -7,11 +7,16 @@
 // 화면·Firestore 에 손대지 않는다 — 입력은 appState 조각과 이력 배열뿐이다(tests/my-work.test.js).
 // 근태 판정 규칙은 ui-main-board.js 의 팀원 카드와 같다:
 //   외출은 endTime 이 있으면 이미 복귀, 지각은 이벤트성 기록이라 '근태 중' 이 아니다.
+//   시각 판정은 ./leave-timing.js isLeaveActiveAt 한 곳(예약 외출·조퇴, 2026-11-12).
 
-/** 지금 근태 중인 기록(외출 복귀·지각 제외). 없으면 null. */
-export const currentLeaveOf = (member, dailyLeaves = [], dateLeaves = []) => {
+import { isLeaveActiveAt } from './leave-timing.js?v=202611120950';
+
+/** 지금 근태 중인 기록(외출 복귀·지각 제외). 없으면 null.
+ *  now('HH:MM')를 주면 아직 시각이 안 된 예약 외출·조퇴와 복귀 시각이 지난 외출도 뺀다(js/lib/leave-timing.js).
+ *  안 주면 옛 동작 — 외출은 endTime 이 있으면 복귀로 본다. */
+export const currentLeaveOf = (member, dailyLeaves = [], dateLeaves = [], now = null) => {
     const all = [...(Array.isArray(dailyLeaves) ? dailyLeaves : []), ...(Array.isArray(dateLeaves) ? dateLeaves : [])];
-    return all.find(l => l && l.member === member && !(l.type === '외출' && l.endTime) && l.type !== '지각') || null;
+    return all.find(l => l && l.member === member && isLeaveActiveAt(l, now)) || null;
 };
 
 /**
@@ -26,13 +31,14 @@ export const currentLeaveOf = (member, dailyLeaves = [], dateLeaves = []) => {
  *   returned — 퇴근 완료
  *   leave    — 근태(연차·외출 등) 중
  * 진행 기록이 근태보다 앞선다(팀원 현황판은 근태를 먼저 보지만, 여기서는 [휴식][종료] 를 보여 줘야 한다).
+ * now('HH:MM')는 currentLeaveOf 로 넘긴다(예약 근태 판정, 없으면 옛 동작).
  */
-export const myWorkState = (member, appState = {}) => {
+export const myWorkState = (member, appState = {}, now = null) => {
     if (!member) return { state: 'none', record: null, leave: null };
     const recs = Array.isArray(appState.workRecords) ? appState.workRecords : [];
     const ongoing = recs.find(r => r && r.member === member && r.status === 'ongoing');
     const paused = recs.find(r => r && r.member === member && r.status === 'paused');
-    const leave = currentLeaveOf(member, appState.dailyOnLeaveMembers, appState.dateBasedOnLeaveMembers);
+    const leave = currentLeaveOf(member, appState.dailyOnLeaveMembers, appState.dateBasedOnLeaveMembers, now);
     if (ongoing) return { state: 'working', record: ongoing, leave };
     if (paused) return { state: 'paused', record: paused, leave };
     if (leave) return { state: 'leave', record: null, leave };

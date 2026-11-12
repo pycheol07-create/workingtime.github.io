@@ -1,16 +1,17 @@
 // === js/listeners-form-attendance.js ===
 // 설명: 근태 설정(연차/외출 등) 및 수정 모달의 폼 로직을 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611120908';
-import * as State from './state.js?v=202611120908';
-import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=202611120908';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120908';
-import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=202611120908';
-import { saveStateToFirestore } from './app-data.js?v=202611120908';
-import { updateLeaveSchedule } from './config.js?v=202611120908';
-import { removeByIds, removeRecord } from './lib/leave-ops.js?v=202611120908';
-import { renderLeaveTypeModalOptions } from './ui-modals.js?v=202611120908';
-import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202611120908';
+import * as DOM from './dom-elements.js?v=202611120950';
+import * as State from './state.js?v=202611120950';
+import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=202611120950';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120950';
+import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=202611120950';
+import { saveStateToFirestore } from './app-data.js?v=202611120950';
+import { updateLeaveSchedule } from './config.js?v=202611120950';
+import { removeByIds, removeRecord } from './lib/leave-ops.js?v=202611120950';
+import { renderLeaveTypeModalOptions } from './ui-modals.js?v=202611120950';
+import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202611120950';
+import { normalizeClock } from './lib/clock-in-out.js?v=202611120950';
 import { doc, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 당일 근태 중복 안내 — 지각·조퇴는 하루 1건, 외출은 같은 시각만 중복
@@ -48,7 +49,22 @@ const updateLocalHistoryForLeave = (leaveEntry, action = 'add') => {
     }
 };
 
+// 근태 설정 창 '시작 시간' — 이만큼(분) 넘게 지난 시각을 손으로 넣으면 저장 전에 확인한다
+const PAST_CONFIRM_MIN = 10;
+const minutesBefore = (hhmm, nowHHMM) => {
+    const m = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+    return m(nowHHMM) - m(hhmm);
+};
+
 export function setupFormAttendanceListeners() {
+
+    // 시작 시간 칸을 사람이 고치면 '미리 채운 값' 표시를 지운다(ui-modals.js 가 채울 때 붙인다)
+    const leaveStartTimeInput = document.getElementById('leave-start-time-input');
+    if (leaveStartTimeInput) {
+        const touched = () => { delete leaveStartTimeInput.dataset.prefilled; };
+        leaveStartTimeInput.addEventListener('input', touched);
+        leaveStartTimeInput.addEventListener('change', touched);
+    }
 
     if (DOM.leaveTypeModal) {
         DOM.leaveTypeModal.addEventListener('click', async (e) => {
@@ -254,12 +270,42 @@ export function setupFormAttendanceListeners() {
                 try {
                     const todayDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
 
+                    // ⏰ 외출·조퇴는 '시작 시간' 칸의 값을 쓴다(비면 지금) — 지금보다 늦으면 예약 근태로,
+                    //    그 시각에 js/leave-auto-apply.js 가 적용한다(2026-11-12). 외출 종료 시각은 [복귀] 때만 채운다.
+                    //    지각은 지금처럼 누른 시각.
+                    //    칸을 손대지 않았으면(창을 열 때 미리 채운 값 그대로) 저장 순간의 시각을 쓴다.
+                    //    손대서 지금보다 10분 넘게 이르면 지난 일 기록이 맞는지 한 번 묻는다.
+                    const 지금 = getCurrentTime();
+                    let startTime = null;
+                    if (type === '외출' || type === '조퇴') {
+                        const stInput = document.getElementById('leave-start-time-input');
+                        const raw = (stInput?.value || '').trim();
+                        const prefilled = !!stInput && stInput.dataset.prefilled === '1';
+                        startTime = (raw && !prefilled) ? normalizeClock(raw) : 지금;
+                        if (!startTime) {
+                            showToast('시작 시간을 17:30 형식으로 입력해 주세요.', true);
+                            DOM.confirmLeaveBtn.disabled = false;
+                            DOM.confirmLeaveBtn.textContent = originalBtnText;
+                            return;
+                        }
+                        if (minutesBefore(startTime, 지금) > PAST_CONFIRM_MIN
+                            && !confirm(`${type} 시작을 ${startTime} 로 기록합니다(지금 ${지금}).
+${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진행 중인 업무는 ${startTime} 로 끝납니다. 계속할까요?`)) {
+                            DOM.confirmLeaveBtn.disabled = false;
+                            DOM.confirmLeaveBtn.textContent = originalBtnText;
+                            return;
+                        }
+                    } else if (type === '지각') {
+                        startTime = 지금;
+                    }
+                    const isScheduled = !!startTime && (type === '외출' || type === '조퇴') && startTime > 지금;
+
                     // id·시각은 트랜잭션 밖에서 정한다 — 충돌로 다시 돌아도 같은 기록이다
                     const newDailyEntry = {
                         id: `daily-${Date.now()}`,
                         member: memberName,
                         type: type,
-                        startTime: (type === '외출' || type === '조퇴' || type === '지각') ? getCurrentTime() : null,
+                        startTime,
                         endTime: null
                     };
 
@@ -291,10 +337,12 @@ export function setupFormAttendanceListeners() {
 
                     // 🛡️ 외출/조퇴 등록 시점에 진행 중 workRecord가 있으면 외출 시작 시각으로 강제 종료.
                     // 종료 누락된 record가 외출 시간까지 끌고 가는 사고 방지.
-                    if (type === '외출' || type === '조퇴') {
+                    // 예약(시작이 지금보다 늦음)이면 지금은 끊지 않는다 — 그 시각에 자동 적용된다.
+                    // 지난 시각으로 끊을 때는 그 시각 이후에 시작한 기록을 건드리지 않는다(onlyStartedBefore).
+                    if ((type === '외출' || type === '조퇴') && !isScheduled) {
                         try {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202611120908');
-                            const r = await forceEndMemberWork(memberName, newDailyEntry.startTime);
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202611120950');
+                            const r = await forceEndMemberWork(memberName, newDailyEntry.startTime, { onlyStartedBefore: true });
                             if (r.ended > 0) {
                                 console.warn(`[외출/조퇴 자동 종료] ${memberName}: ${r.ended}건`, r.summaries);
                                 showToast(`진행 중이던 업무 ${r.ended}건이 ${newDailyEntry.startTime}로 자동 종료되었습니다.`);
@@ -311,7 +359,8 @@ export function setupFormAttendanceListeners() {
                         dayData.onLeaveMembers.push(newDailyEntry);
                     }
 
-                    showToast(`${memberName}님 ${type} 처리 완료.`);
+                    if (isScheduled) showToast(`${memberName}님 ${type} 예약 — ${startTime} 에 자동 적용됩니다.`);
+                    else showToast(`${memberName}님 ${type} 처리 완료.`);
                     if (DOM.leaveTypeModal) DOM.leaveTypeModal.classList.add('hidden');
                 } catch(err) {
                     console.error("일일 근태 설정 저장 실패:", err);
@@ -412,12 +461,22 @@ export function setupFormAttendanceListeners() {
                         showToast('시간 기반 근태는 시작 시간이 필수입니다.', true);
                         return;
                     }
+                    // 외출·조퇴 시작을 지난 시각으로 바꾸면 자동 적용이 그 시각으로 업무를 끊는다 — 10분 넘게 이르면 등록 때처럼 한 번 묻는다(재리뷰)
+                    const 지금 = getCurrentTime();
+                    if ((newType === '외출' || newType === '조퇴')
+                        && !(originalType === 'daily' && newStartTime === originalStart)
+                        && minutesBefore(newStartTime, 지금) > PAST_CONFIRM_MIN
+                        && !confirm(`${newType} 시작을 ${newStartTime} 로 바꿉니다(지금 ${지금}).\n그 시각 전부터 하던 업무가 ${newStartTime} 로 끝납니다. 맞습니까?`)) {
+                        return;
+                    }
+                    // 시작 전(예약) 외출에는 종료 시각을 넣지 않는다 — 자동 복귀는 하지 않는다(2026-11-12 사용자 결정 ①)
+                    const isFutureStart = newStartTime > 지금;
                     const editedEntry = {
                         id: `daily-${Date.now()}`,
                         member: memberName,
                         type: newType,
                         startTime: newStartTime,
-                        endTime: (newType === '외출') ? newEndTime : null 
+                        endTime: (newType === '외출' && !isFutureStart) ? newEndTime : null 
                     };
                     // 원본을 뺀 목록에 같은 날 지각·조퇴(같은 시각 외출)가 이미 있으면 막는다
                     if (findDailyLeaveDup(currentDailyLeaves, editedEntry)) {

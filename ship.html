@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611120908"></script>
+    <script src="js/theme-boot.js?v=202611120950"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>플랫폼 출고</title>
     <!-- 플랫폼 출고(2026-11-10 웹 이식) — 옛 출고자동화통합.exe(직진배송·에이블리 1·2단계)를 브라우저로.
          엑셀 파일은 이 PC 브라우저 안에서만 읽고 만든다(서버로 올리지 않음). 계산은 js/lib/ship-*.js(옛 Python 판과 같은 결과).
          Firestore 쓰기(로케이션 실적·봉 수)는 공용 설정 '전송 켬'(관리자만)일 때만 — js/ship-store.js. 화면 틀은 products.html 과 같다. -->
-    <link rel="stylesheet" href="css/suit.css?v=202611120908">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611120908">
-    <link rel="stylesheet" href="css/products-d.css?v=202611120908">
-    <link rel="stylesheet" href="css/ship-d.css?v=202611120908">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611120908">
+    <link rel="stylesheet" href="css/suit.css?v=202611120950">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611120950">
+    <link rel="stylesheet" href="css/products-d.css?v=202611120950">
+    <link rel="stylesheet" href="css/ship-d.css?v=202611120950">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611120950">
 </head>
 <body data-shell="ship">
     <div id="pd-loading" class="pd-loading">
@@ -26,10 +26,6 @@
                 <h1>플랫폼 출고</h1>
                 <div class="pd-sub pd-head-sub">직진배송·에이블리 출고 파일을 만듭니다. 엑셀은 이 PC 안에서만 처리되고 서버에 올라가지 않습니다.</div>
             </div>
-            <nav id="sp-tabs" class="d-seg pd-tabs" aria-label="플랫폼">
-                <button class="d-seg-btn is-on" data-tab="zikjin">직진배송</button>
-                <button class="d-seg-btn" data-tab="ably">에이블리</button>
-            </nav>
             <div class="pd-head-actions">
                 <button id="sp-folder" class="d-btn" title="결과 파일을 저장할 폴더">저장 폴더 고르기</button>
                 <button id="sp-settings-btn" class="d-btn">설정</button>
@@ -40,19 +36,39 @@
             <div id="sp-transmit" class="pd-alert info" role="status"></div>
 
             <section class="pd-card pd-card-pad sp-card">
-                <div class="pd-row">
-                    <nav id="sp-steps" class="d-seg" aria-label="단계">
-                        <button class="d-seg-btn is-on" data-step="1">1단계 · 재고출고용</button>
-                        <button class="d-seg-btn" data-step="2" id="sp-step2-btn">2단계</button>
-                    </nav>
-                    <div class="pd-grow"></div>
-                    <span id="sp-step-note" class="pd-note"></span>
+                <!-- 2026-11-12 화면 하나로: 파일을 놓으면 직진배송·에이블리와 단계를 알아보고(js/lib/ship-assign.js routeFiles) 칸을 채운 뒤 바로 만든다 -->
+                <div id="sp-intake" class="sp-intake">
+                    <div class="sp-intake-title">출고 파일을 여기에 끌어다 놓으세요</div>
+                    <div class="sp-intake-sub">출고요청 · 이지어드민 출고전표 · 원본 양식 — 직진배송인지 에이블리인지, 몇 단계인지 알아서 고르고, 필요한 파일이 다 있으면 바로 만듭니다. 여러 개를 한꺼번에 놓아도 됩니다.</div>
+                    <button id="sp-pick-many" class="d-btn">파일 고르기</button>
                 </div>
-                <p id="sp-step-desc" class="pd-note sp-desc"></p>
+
+                <div class="sp-now">
+                    <div class="pd-row">
+                        <span class="sp-now-label">지금 단계</span>
+                        <b id="sp-now" class="sp-now-name"></b>
+                        <div class="pd-grow"></div>
+                        <span id="sp-step-note" class="pd-note"></span>
+                    </div>
+                    <p id="sp-step-desc" class="pd-note sp-desc"></p>
+                    <details class="sp-manual">
+                        <summary>직접 고르기</summary>
+                        <div class="sp-manual-body">
+                            <nav id="sp-tabs" class="d-seg" aria-label="플랫폼">
+                                <button class="d-seg-btn is-on" data-tab="zikjin">직진배송</button>
+                                <button class="d-seg-btn" data-tab="ably">에이블리</button>
+                            </nav>
+                            <nav id="sp-steps" class="d-seg" aria-label="단계">
+                                <button class="d-seg-btn is-on" data-step="1">1단계 · 재고출고용</button>
+                                <button class="d-seg-btn" data-step="2" id="sp-step2-btn">2단계</button>
+                            </nav>
+                        </div>
+                    </details>
+                </div>
 
                 <div id="sp-drop" class="sp-drop" tabindex="-1">
                     <div id="sp-slots" class="sp-slots"></div>
-                    <div class="sp-drop-hint">파일을 칸 밖(화면 아무 곳)에 끌어다 놓으면 직진배송·에이블리와 단계를 알아보고 칸을 채운 뒤, 필요한 파일이 다 있으면 바로 만듭니다.</div>
+                    <div class="sp-drop-hint">칸 하나에 직접 놓거나 [파일 선택]으로 넣으면 그 칸에만 들어가고, [만들기]를 눌러 시작합니다.</div>
                 </div>
 
                 <div id="sp-opts" class="sp-opts"></div>
@@ -76,6 +92,7 @@
             <details class="pd-card pd-card-pad sp-help">
                 <summary>도움말 — 순서와 자주 묻는 질문</summary>
                 <div class="sp-help-body">
+                    <p>보통은 위쪽 상자에 파일을 놓기만 하면 됩니다. 출고요청을 놓으면 1단계가, 이지어드민 출고전표를 놓으면 방금 1단계를 한 쪽의 2단계가 바로 만들어집니다. 어느 쪽인지 애매하거나(출고전표만 놓았는데 1단계를 한 쪽이 없음) 패키지명 날짜가 오늘이 아니면 칸만 채우고 [만들기]를 기다립니다. 다른 탭·단계로 가려면 '직접 고르기'를 펼치세요.</p>
                     <h3>직진배송</h3>
                     <ol>
                         <li><b>1단계</b>: GPM 출고요청 엑셀을 넣고 [만들기] → <code>재고출고용_YYMMDD.xls</code>(이지어드민 업로드용). 이름에 '직진배송'이 든 시트를 모두 합치고, 같은 상품코드는 더합니다. 끝나면 출고요청 파일이 2단계 칸에 저절로 들어갑니다.</li>
@@ -116,11 +133,12 @@
     <div id="pd-toast" class="pd-toast" role="status" aria-live="polite"></div>
 
     <input id="sp-file-input" type="file" accept=".xlsx,.xlsm,.xls" hidden>
+    <input id="sp-files-input" type="file" accept=".xlsx,.xlsm,.xls" multiple hidden>
 
-    <script src="js/connection-banner.js?v=202611120908"></script>
-    <script src="js/modal-esc.js?v=202611120908"></script>
-    <script type="module" src="js/ship.js?v=202611120908"></script>
-    <script type="module" src="js/page-gate.js?v=202611120908" data-perm-page="ship.platform"></script>
-    <script type="module" src="js/app-shell.js?v=202611120908"></script>
+    <script src="js/connection-banner.js?v=202611120950"></script>
+    <script src="js/modal-esc.js?v=202611120950"></script>
+    <script type="module" src="js/ship.js?v=202611120950"></script>
+    <script type="module" src="js/page-gate.js?v=202611120950" data-perm-page="ship.platform"></script>
+    <script type="module" src="js/app-shell.js?v=202611120950"></script>
 </body>
 </html>

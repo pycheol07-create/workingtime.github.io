@@ -4,11 +4,11 @@
 //   인건비율은 돈 단계에서 — 이 창에 칸이 없다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자) — 겹침 창은 보통 영역(section)이다.
 
-import { esc, n1, signed1, card, ok } from './ui-ops-plan-parts.js?v=202611120908';
-import { TARGET_FIELDS, ADMIN_TARGET_FIELDS, HORIZONS, cleanTargetSet } from './lib/plan-targets.js?v=202611120908';
-import { saveTargets } from './ops-plan-store.js?v=202611120908';
-import { showToast } from './utils.js?v=202611120908';
-import { higherOpenThan } from './modal-above.js?v=202611120908';
+import { esc, n1, signed1, card, ok } from './ui-ops-plan-parts.js?v=202611120950';
+import { TARGET_FIELDS, ADMIN_TARGET_FIELDS, HORIZONS, cleanTargetSet } from './lib/plan-targets.js?v=202611120950';
+import { saveTargets } from './ops-plan-store.js?v=202611120950';
+import { showToast } from './utils.js?v=202611120950';
+import { higherOpenThan } from './modal-above.js?v=202611120950';
 
 const $ = (id) => document.getElementById(id);
 const SRC_TXT = { default: '제안', saved: '저장', override: '이 기간' };

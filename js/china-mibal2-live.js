@@ -21,20 +21,20 @@ import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc as _s
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
-    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611120908';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611120908';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611120908';
-import { inboundSig } from './lib/inbound-fix.js?v=202611120908';
+    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611120950';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611120950';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611120950';
+import { inboundSig } from './lib/inbound-fix.js?v=202611120950';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
-    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611120908';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611120908';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611120908';
-import { gated, gatedBatch, run as gateRun, isFrozen } from './mibal2-gate.js?v=202611120908';
-import { needReapply, staleRollback } from './lib/mibal2-fallback.js?v=202611120908';
-import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611120908';
-import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611120908';
-import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611120908';
-import { setupScanBar } from './china-mibal2-bar.js?v=202611120908';
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611120950';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611120950';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611120950';
+import { gated, gatedBatch, run as gateRun, isFrozen } from './mibal2-gate.js?v=202611120950';
+import { needReapply, staleRollback } from './lib/mibal2-fallback.js?v=202611120950';
+import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611120950';
+import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611120950';
+import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611120950';
+import { setupScanBar } from './china-mibal2-bar.js?v=202611120950';
 
 // 쓰기 덮개(비상 스위치, 2026-11-10) — 비상 전환 중(조회 전용)이면 막는다. 멈추기 전에 시작한 작업(guard 안)은 끝까지 한다(js/mibal2-gate.js)
 const setDoc = gated(_setDoc);

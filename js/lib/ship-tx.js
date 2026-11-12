@@ -5,8 +5,8 @@
 // 전송이 꺼져 있으면(enabled !== true) 아무것도 읽거나 쓰지 않고 멈춘다(부르는 쪽 js/ship.js 도 안 부른다 — 두 겹).
 // 행 내용은 로그에 남기지 않는다 — 건수만 돌려준다.
 
-import { chunkIdsToRead, planChunkWrite, planPackWrite } from './ship-push.js?v=202611120908';
-import { PACKS_DOC_PATH } from './ship-merge.js?v=202611120908';
+import { chunkIdsToRead, planChunkWrite, planPackWrite } from './ship-push.js?v=202611120950';
+import { PACKS_DOC_PATH } from './ship-merge.js?v=202611120950';
 
 export const COLLECTION = 'ZikjinData';
 const mustEnable = (enabled) => { if (enabled !== true) throw new Error('전송이 꺼져 있습니다.'); };

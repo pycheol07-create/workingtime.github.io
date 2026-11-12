@@ -5,7 +5,7 @@
 //   artifacts/team-work-logger-v2/integrations/zabPacks  days.{YYYY-MM-DD}.{zikjin|ably} · src.{소스} · updatedAt(+09:00)
 // 숫자만 기록한다 — 고객 정보는 넣지 않는다.
 
-import { pyStr, pyStrip, pyFloat, pyTruthy, kstDay, kstIso } from './ship-core.js?v=202611120908';
+import { pyStr, pyStrip, pyFloat, pyTruthy, kstDay, kstIso } from './ship-core.js?v=202611120950';
 
 export const CHUNK_SIZE = 200;
 export const PACKS_DOC_PATH = 'artifacts/team-work-logger-v2/integrations/zabPacks';

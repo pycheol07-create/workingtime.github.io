@@ -1,14 +1,15 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn } from './utils.js?v=202611120908';
-import * as State from './state.js?v=202611120908';
-import { leaveTypeLabel } from './state.js?v=202611120908';
-import { leaveNthLabel } from './ui-modals.js?v=202611120908';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120908';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611120908';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611120908';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611120908';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611120908';
-import { TASK, tName, isT } from './task-names.js?v=202611120908';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=202611120950';
+import * as State from './state.js?v=202611120950';
+import { leaveTypeLabel } from './state.js?v=202611120950';
+import { leaveNthLabel } from './ui-modals.js?v=202611120950';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120950';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611120950';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611120950';
+import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=202611120950';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611120950';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611120950';
+import { TASK, tName, isT } from './task-names.js?v=202611120950';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -182,7 +183,7 @@ export const renderMyWorkBar = (appState) => {
     const bar = document.getElementById('my-work-bar');
     if (!bar) return;
     const me = appState.currentUser || null;
-    const { state, record, leave } = myWorkState(me, appState);
+    const { state, record, leave } = myWorkState(me, appState, getCurrentTime());
     if (state === 'none') { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
 
     const PILL = {
@@ -263,13 +264,30 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
     const dailyLeaves = Array.isArray(appState.dailyOnLeaveMembers) ? appState.dailyOnLeaveMembers : (appState.dailyOnLeaveMembers ? Object.values(appState.dailyOnLeaveMembers) : []);
     const dateLeaves = Array.isArray(appState.dateBasedOnLeaveMembers) ? appState.dateBasedOnLeaveMembers : [];
     const combinedOnLeaveMembers = [...dailyLeaves, ...dateLeaves];
+    const nowHHMM = getCurrentTime();
     
     const onLeaveStatusMap = new Map(
         combinedOnLeaveMembers
-            .filter(item => !(item.type === '외출' && item.endTime) && item.type !== '지각')
+            .filter(item => isLeaveActiveAt(item, nowHHMM))
             .map(item => [item.member, item])
     );
     const onLeaveMemberNames = new Set(onLeaveStatusMap.keys());
+
+    // ⏰ 예약 근태(아직 시각이 안 된 외출·조퇴) — 카드에 'HH:MM 조퇴 예정' 을 작게 붙이고, 누르면 근태 수정 창
+    //    (한 사람에 여러 건이면 가장 이른 것)
+    const pendingLeaveMap = new Map();
+    dailyLeaves.filter(item => isLeavePendingAt(item, nowHHMM)).forEach(item => {
+        const prev = pendingLeaveMap.get(item.member);
+        if (!prev || String(item.startTime) < String(prev.startTime)) pendingLeaveMap.set(item.member, item);
+    });
+    const pendingLeaveHtml = (name) => {
+        const p = pendingLeaveMap.get(name);
+        if (!p) return '';
+        const t = formatTimeTo24H(p.startTime);
+        return `<span role="button" data-action="edit-leave-record" data-leave-pending="1" data-member-name="${escapeHtml(name)}"`
+            + ` data-leave-type="${escapeHtml(p.type)}" data-start-time="${escapeHtml(p.startTime || '')}" data-end-time="" data-start-date="" data-end-date=""`
+            + ` class="ms-sub2 text-[10px] mt-0.5 underline cursor-pointer" title="눌러서 근태 수정">${escapeHtml(t)} ${escapeHtml(p.type)} 예정</span>`;
+    };
 
     const baseTasks = keyTasks.length > 0 ? keyTasks : [tName(TASK.domestic), tName(TASK.china), tName(TASK.direct), tName(TASK.fill), '개인담당업무'];
 
@@ -674,6 +692,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                  }
                 card.innerHTML = `<div class="ms-name text-sm mb-1">${member}</div><div class="ms-sub text-[11px]">출근 전</div>`;
             }
+            if (!isOnLeave) card.insertAdjacentHTML('beforeend', pendingLeaveHtml(member));
             groupGrid.appendChild(card);
         });
         groupContainer.appendChild(groupGrid);
@@ -750,6 +769,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                  }
                  card.innerHTML = `<div class="ms-name text-sm mb-1">${pt.name}</div><div class="ms-sub text-[11px]">출근 전</div>`;
             }
+             if (!isAlbaOnLeave) card.insertAdjacentHTML('beforeend', pendingLeaveHtml(pt.name));
              albaGrid.appendChild(card);
         });
         albaContainer.appendChild(albaGrid); allMembersContainer.appendChild(albaContainer);

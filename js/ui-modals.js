@@ -1,9 +1,10 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611120908';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611120950';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202611120908';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120908';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202611120950';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611120950';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611120950';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -327,7 +328,7 @@ export const renderTeamSelectionModalContent = (task, appState, teamGroups = [],
     // 외출도 endTime이 있으면 이미 복귀한 것.
     const onLeaveMemberMap = new Map(
         combinedOnLeaveMembers
-            .filter(item => !(item.type === '외출' && item.endTime) && item.type !== '지각')
+            .filter(item => isLeaveActiveAt(item, getCurrentTime()))
             .map(item => [item.member, item])
     );
 
@@ -650,7 +651,9 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
 
                 if(sInput) sInput.value = getTodayDateString(); // 기본값: 오늘 날짜
                 if(eInput) eInput.value = '';
-                if(stInput) stInput.value = getCurrentTime(); // 기본값: 현재 시간
+                // 기본값: 현재 시간. 미리 채운 값이라는 표시(prefilled) — 손대지 않고 저장하면 저장 순간의 시각을 쓴다
+                // (listeners-form-attendance.js — 창을 열어 두었다 늦게 저장해도 연 시각으로 기록되지 않게)
+                if(stInput) { stInput.value = getCurrentTime(); stInput.dataset.prefilled = '1'; }
                 if(etInput) etInput.value = '';
 
                 document.querySelectorAll('input[name="leave-type"]').forEach((r,i) => r.checked = i===0);
@@ -709,7 +712,7 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
                 if(timeInputsDiv) timeInputsDiv.classList.remove('hidden');
                 
                 const stInput = document.getElementById('leave-start-time-input');
-                if(stInput && !stInput.value) stInput.value = getCurrentTime();
+                if(stInput && !stInput.value) { stInput.value = getCurrentTime(); stInput.dataset.prefilled = '1'; }
                 
             } else {
                 if(dateInputsDiv) dateInputsDiv.classList.add('hidden');
